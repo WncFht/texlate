@@ -312,8 +312,72 @@ SEQ_MARK_RX = re.compile(
 #: 编译错。包围 cs-brace 栈命中即免注（16KB 内有限回溯，深嵌套残余登记）。
 _MARK_SOUL_CS = frozenset(
     {
-        "ul", "hl", "sout", "xout", "dashuline", "dotuline", "uline", "uwave",
-        "st", "caps", "so", "letterspace", "markoverwith",
+        "ul",
+        "hl",
+        "sout",
+        "xout",
+        "dashuline",
+        "dotuline",
+        "uline",
+        "uwave",
+        "st",
+        "caps",
+        "so",
+        "letterspace",
+        "markoverwith",
+    }
+)
+
+#: 结构参族——token 落在其 ``{...}`` 参内时 whatsit 腐蚀参语义（cite key/
+#: ref 标签/url/文件名/长度）。``_open_cs`` 栈命中即免注；混合参宏
+#: (``\href`` arg2 是正文) 不入表——开栈判不出参位，靠 ``_pending_arg``
+#: 尾端判据管 ``}{`` 间界。
+_MARK_NONTEXT_CS = frozenset(
+    {
+        "cite",
+        "citep",
+        "citet",
+        "citealp",
+        "citealt",
+        "citeauthor",
+        "citeyear",
+        "citeyearpar",
+        "parencite",
+        "textcite",
+        "autocite",
+        "footcite",
+        "smartcite",
+        "nocite",
+        "ref",
+        "eqref",
+        "pageref",
+        "autoref",
+        "nameref",
+        "cref",
+        "vref",
+        "label",
+        "url",
+        "nolinkurl",
+        "path",
+        "email",
+        "doi",
+        "index",
+        "glossary",
+        "bibliography",
+        "bibliographystyle",
+        "input",
+        "include",
+        "includeonly",
+        "usepackage",
+        "requirepackage",
+        "documentclass",
+        "includegraphics",
+        "includepdf",
+        "bibitem",
+        "hspace",
+        "vspace",
+        "addvspace",
+        "hyphenation",
     }
 )
 
@@ -321,11 +385,31 @@ _MARK_SOUL_CS = frozenset(
 #: 注：whatsit 落单元格 hmode 内合法——闸只拦序言区与行规/omit 前瞻位。
 _MARK_ALIGN_ENVS = frozenset(
     {
-        "tabular", "tabularx", "tabulary", "tabu", "longtabu", "tblr",
-        "longtblr", "talltblr", "longtable", "deluxetable", "planotable",
-        "tabbing", "supertabular", "xtabular", "ltablex", "nicetabular",
-        "nicearray", "array", "matrix", "pmatrix", "bmatrix", "vmatrix",
-        "smallmatrix", "cases", "blockarray",
+        "tabular",
+        "tabularx",
+        "tabulary",
+        "tabu",
+        "longtabu",
+        "tblr",
+        "longtblr",
+        "talltblr",
+        "longtable",
+        "deluxetable",
+        "planotable",
+        "tabbing",
+        "supertabular",
+        "xtabular",
+        "ltablex",
+        "nicetabular",
+        "nicearray",
+        "array",
+        "matrix",
+        "pmatrix",
+        "bmatrix",
+        "vmatrix",
+        "smallmatrix",
+        "cases",
+        "blockarray",
     }
 )
 
@@ -334,9 +418,20 @@ _MARK_ALIGN_ENVS = frozenset(
 #: hyperref ``\pdfstringdef`` 剥 special 仅告警。``mark_moving=True`` 放行。
 _MARK_MOVING_CTX = frozenset(
     {
-        "section", "subsection", "subsubsection", "paragraph", "subparagraph",
-        "chapter", "part", "sect", "subsect", "caption", "subcaption",
-        "captionof", "tablecaption", "addcontentsline",
+        "section",
+        "subsection",
+        "subsubsection",
+        "paragraph",
+        "subparagraph",
+        "chapter",
+        "part",
+        "sect",
+        "subsect",
+        "caption",
+        "subcaption",
+        "captionof",
+        "tablecaption",
+        "addcontentsline",
     }
 )
 
@@ -415,8 +510,212 @@ def _split_arg_head(body: str) -> tuple[str, str]:
     return body[:end], body[end:]
 
 
+#: 宏参型签表——``\\cs`` 尾端参未填齐时下一个 token 会被当参吞走:
+#: whatsit 落 ``\href{u}|{t}`` 间界 = \href 吞 ``\special`` 作 arg2,
+#: ``{pdf:code ...}`` 成孤儿组 → ``Missing { inserted`` 级联
+#: (t_e547 bibitem 劈点实证, fixloop_exhausted 硬毙)。
+#: 值 = 参序列型签: ``opt`` = ``[..]`` 可选参(未现即跳), ``text`` = 可容
+#: whatsit 的正文参(BDC 可挪进其 ``{`` 内保锚), ``nontext`` = 结构参
+#: (key/url/长度/颜色名——whatsit 进参即破), ``math`` = 数学参(whatsit
+#: 节点虽合法但不取此险)。表外 cs 按 0 参 → 非参区(未知用户宏残余登记)。
+_MARK_ARG_CS: dict[str, tuple[str, ...]] = {
+    "begin": ("nontext",),
+    "end": ("nontext",),
+    "href": ("nontext", "text"),
+    "hyperref": ("nontext", "text"),
+    "textcolor": ("opt", "nontext", "text"),
+    "colorbox": ("nontext", "text"),
+    "fcolorbox": ("nontext", "nontext", "text"),
+    "footnote": ("opt", "text"),
+    "thanks": ("text",),
+    "title": ("text",),
+    "author": ("text",),
+    "emph": ("text",),
+    "textbf": ("text",),
+    "textit": ("text",),
+    "textsc": ("text",),
+    "textsl": ("text",),
+    "texttt": ("text",),
+    "textrm": ("text",),
+    "textsf": ("text",),
+    "textmd": ("text",),
+    "textup": ("text",),
+    "underline": ("text",),
+    "mbox": ("text",),
+    "fbox": ("text",),
+    "makebox": ("opt", "opt", "text"),
+    "framebox": ("opt", "opt", "text"),
+    "parbox": ("opt", "opt", "opt", "nontext", "text"),
+    "raisebox": ("nontext", "opt", "opt", "text"),
+    "multicolumn": ("nontext", "nontext", "text"),
+    "multirow": ("nontext", "nontext", "text"),
+    "sqrt": ("opt", "math"),
+    "frac": ("math", "math"),
+    "dfrac": ("math", "math"),
+    "tfrac": ("math", "math"),
+    "binom": ("math", "math"),
+    "dbinom": ("math", "math"),
+    "tbinom": ("math", "math"),
+    "overset": ("math", "math"),
+    "underset": ("math", "math"),
+    "stackrel": ("math", "math"),
+    "substack": ("math",),
+    "mathbf": ("math",),
+    "mathit": ("math",),
+    "mathrm": ("math",),
+    "mathsf": ("math",),
+    "mathtt": ("math",),
+    "mathcal": ("math",),
+    "mathbb": ("math",),
+    "mathfrak": ("math",),
+    "bm": ("math",),
+    "section": ("opt", "text"),
+    "subsection": ("opt", "text"),
+    "subsubsection": ("opt", "text"),
+    "paragraph": ("opt", "text"),
+    "subparagraph": ("opt", "text"),
+    "chapter": ("opt", "text"),
+    "part": ("opt", "text"),
+    "caption": ("opt", "text"),
+    "cite": ("opt", "opt", "nontext"),
+    "citep": ("opt", "opt", "nontext"),
+    "citet": ("opt", "opt", "nontext"),
+    "citealp": ("opt", "opt", "nontext"),
+    "citealt": ("opt", "opt", "nontext"),
+    "citeauthor": ("opt", "opt", "nontext"),
+    "citeyear": ("opt", "opt", "nontext"),
+    "citeyearpar": ("opt", "opt", "nontext"),
+    "parencite": ("opt", "opt", "nontext"),
+    "textcite": ("opt", "opt", "nontext"),
+    "autocite": ("opt", "opt", "nontext"),
+    "footcite": ("opt", "opt", "nontext"),
+    "smartcite": ("opt", "opt", "nontext"),
+    "nocite": ("nontext",),
+    "url": ("nontext",),
+    "nolinkurl": ("nontext",),
+    "path": ("nontext",),
+    "email": ("nontext",),
+    "doi": ("nontext",),
+    "includegraphics": ("opt", "nontext"),
+    "includepdf": ("opt", "nontext"),
+    "label": ("nontext",),
+    "ref": ("nontext",),
+    "eqref": ("nontext",),
+    "pageref": ("nontext",),
+    "autoref": ("nontext",),
+    "nameref": ("nontext",),
+    "cref": ("nontext",),
+    "vref": ("nontext",),
+    "index": ("nontext",),
+    "glossary": ("nontext",),
+    "input": ("nontext",),
+    "include": ("opt", "nontext"),
+    "includeonly": ("nontext",),
+    "usepackage": ("opt", "nontext"),
+    "requirepackage": ("opt", "nontext"),
+    "documentclass": ("opt", "nontext"),
+    "bibitem": ("opt", "nontext"),
+    "bibliography": ("nontext",),
+    "bibliographystyle": ("nontext",),
+    "hyphenation": ("nontext",),
+    "hspace": ("nontext",),
+    "vspace": ("nontext",),
+    "addvspace": ("nontext",),
+    "addcontentsline": ("nontext", "nontext", "text"),
+    "addtocontents": ("nontext", "text"),
+    "'": ("nontext",),
+    "`": ("nontext",),
+    "^": ("nontext",),
+    "~": ("nontext",),
+    '"': ("nontext",),
+    "=": ("nontext",),
+    ".": ("nontext",),
+    "c": ("nontext",),
+    "v": ("nontext",),
+    "h": ("nontext",),
+    "t": ("nontext",),
+    "u": ("nontext",),
+    "b": ("nontext",),
+    "d": ("nontext",),
+    "r": ("nontext",),
+}
+
+#: 参区尾端 cs 扫描——控制字 (``\\[a-zA-Z@]+``) 与单符控制符
+#: (``\\'``/``\\~`` 变音族) 同收; ``\\\\`` 行间符走行尾闸不在此判。
+_MARK_CS_TAIL_RX = re.compile(r"\\(?:[a-zA-Z@]+\*?|[^\s])")
+
+#: 参区尾端已发锚的 whatsit 剥除——``segs`` 侧前块刚落的 EMC/BDC 不挡
+#: 其前悬宏检出 (``\href{u}\special{EMC}`` 尾 = 参区内)。
+_MARK_SPECIAL_TAIL_RX = re.compile(r"(?:\\special\{pdf:code[^{}]*\}|\s)*$")
+
+_ARG_TOK_RX = re.compile(r"\[[^\]]*\]|\{[^{}]*\}|\*")
+
+
+def _pending_arg(text: str) -> tuple[str, int] | None:
+    r"""尾端宏参扫描区判定 → ``(待填参型, 宏起点)`` 或 ``None``。
+
+    末位控制序列后仅 ``[opt]``/``{arg}``/``*``/空白 = 参未填齐仍在扫描
+    区: 下一个 token (含 whatsit) 会被宏当参吞走。按 ``_MARK_ARG_CS``
+    型签逐参消费已见组, 首个未填参的型签返回; 参已填齐/表外宏/后随
+    正文 → ``None``。已注锚尾 whatsit 先剥再判 (``segs`` 侧复用)。
+    """
+    win = text[-4096:]
+    seg = _MARK_SPECIAL_TAIL_RX.sub("", win)
+    base = len(text) - len(win)
+    for m in reversed(list(_MARK_CS_TAIL_RX.finditer(seg))):
+        run = seg[m.end() :]
+        if _MARK_ENV_ARG_RX.fullmatch(run) is None:
+            break  # 末 cs 后见非参字符 → 位在参区外或其参括号内
+        spec = _MARK_ARG_CS.get(m.group(0)[1:].rstrip("*").lower())
+        if spec is None:
+            return None
+        toks = [t for t in _ARG_TOK_RX.findall(run) if t != "*"]
+        i = 0
+        for kind in spec:
+            tok = toks[i] if i < len(toks) else None
+            if kind == "opt":
+                if tok is not None and tok.startswith("["):
+                    i += 1
+                continue
+            if tok is not None and tok.startswith("{"):
+                i += 1
+                continue
+            return kind, base + m.start()
+        return None
+    return None
+
+
 _PH_EDGE_HEAD_RX = re.compile(r"^\s*(\[\[[A-Z]+_\d+\]\])")
 _PH_EDGE_TAIL_RX = re.compile(r"(\[\[[A-Z]+_\d+\]\])\s*$")
+
+
+def _wrap_seq_mark(exp: str, seq: int, prev_out: str, *, arg_zone: bool) -> str:
+    r"""``BDC…exp…EMC`` 包裹——宏参扫描区双臂处置 (t_e547 ``\href{u}|{t}`` 劈点硬毙实证)。
+
+    - EMC 臂: 展开体尾悬宏 → EMC 截到悬宏前 (锚缩域不丢, 待填参由 head
+      侧字面续供);
+    - BDC 臂: 前缘尾悬宏 (``prev_out`` = 已发出字面尾) → 待填参是
+      ``text`` 且展开体以 ``{`` 起时 BDC 挪进其参内 (whatsit 居正文参
+      合法), 否则裸发不注;
+    - ``arg_zone`` 仍走 env 参串后挪锚; 三臂之外常规全包。
+    """
+    pend_prev = _pending_arg(prev_out)
+    pend_exp = _pending_arg(exp)
+    emc_at = len(exp) if pend_exp is None else pend_exp[1]
+    core, tail_seg = exp[:emc_at], exp[emc_at:]
+    if pend_prev is not None:
+        lead = re.match(r"\s*\{", core)
+        if pend_prev[0] == "text" and lead is not None:
+            i = lead.end()
+            return core[:i] + _mark_open(seq) + core[i:] + _MARK_CLOSE + tail_seg
+        return exp  # nontext/数学参或无 ``{`` 参头 → 裸发不注
+    if arg_zone:
+        a_head, a_rest = _split_arg_head(core)
+        if a_rest.strip():
+            return a_head + _mark_open(seq) + a_rest + _MARK_CLOSE + tail_seg
+        return exp  # 展开体纯 env 参串——锚无体可罩，裸发不注
+    return _mark_open(seq) + core + _MARK_CLOSE + tail_seg
+
 
 _BRACE_TOK_RX = re.compile(r"\\([a-zA-Z@]+\*?)[ \t]*\{|[{}]")
 
@@ -445,18 +744,19 @@ def _open_cs(text: str) -> frozenset[str]:
             stack.append(name)
         elif stack:
             stack.pop()
-    return frozenset(
-        n.rstrip("*").lower() for n in stack if n is not None
-    )
+    return frozenset(n.rstrip("*").lower() for n in stack if n is not None)
 
 
 def _piece_site_map(res: ScanResult) -> dict[int, frozenset[str]]:
     r"""``piece.span.start`` → 该点包围 ``\\cs{`` 名集（mask_tex 单遍+边界快照）。
 
-    verbatim/comment 体等长遮盖——其内 ``{}``/``\\cs`` 不可见；piece 起点
-    恰在 ``{`` 位时该括号未入栈（piece 内字面侧由 ``_open_cs`` 前缀补）。
+    坐标系 = ``vtex``（span 所依）——**非** ``protected_tex``：后者是
+    piece.text 拼接的 token 面，位序与 span 不同系，混用产生幻影栈
+    （t_e547 chunk9 ``site_cs={'section'}`` 误丢锚实证）。verbatim/comment
+    体等长遮盖——其内 ``{}``/``\\cs`` 不可见；piece 起点恰在 ``{`` 位时
+    该括号未入栈（piece 内字面侧由 ``_open_cs`` 前缀补）。
     """
-    masked = mask_tex(res.protected_tex)
+    masked = mask_tex(res.vtex)
     out: dict[int, frozenset[str]] = {}
     stack: list[str | None] = []
     starts = iter(sorted(p.span.start for p in res.pieces))
@@ -587,9 +887,7 @@ class _Expander:
         self.active.discard(token)
         return expanded
 
-    def set_site(
-        self, cs: frozenset[str], prev: str, nxt: str
-    ) -> None:
+    def set_site(self, cs: frozenset[str], prev: str, nxt: str) -> None:
         """Piece 级 site 上下文写入——``reconstruct`` 逐顶层 piece 调用。"""
         self._site_cs = cs
         self._site_prev = prev
@@ -627,6 +925,8 @@ class _Expander:
             return None
         if site_cs & _MARK_SOUL_CS:
             return None
+        if site_cs & _MARK_NONTEXT_CS:
+            return None  # 结构参括号内——whatsit 腐蚀 key/url/文件名言义
         if not self.mark_moving and (
             ctx in _MARK_MOVING_CTX or site_cs & _MARK_MOVING_CTX
         ):
@@ -664,11 +964,7 @@ class _Expander:
         ``[[CMD_n]]`` 边下的 ``\\multicolumn``/``\\\\`` 对齐缘判定须看字面。
         """
         for _ in range(2):
-            m = (
-                _PH_EDGE_HEAD_RX.match(body)
-                if head
-                else _PH_EDGE_TAIL_RX.search(body)
-            )
+            m = _PH_EDGE_HEAD_RX.match(body) if head else _PH_EDGE_TAIL_RX.search(body)
             if not m:
                 break
             sub = self.res.ph_map.get(m.group(1))
@@ -728,13 +1024,11 @@ class _Expander:
             mark_hit = self._mark_seq(tok, site_cs, tail, head)
             if mark_hit is not None and exp != tok:
                 seq, arg_zone = mark_hit
-                if arg_zone:
-                    a_head, a_rest = _split_arg_head(exp)
-                    if a_rest.strip():
-                        exp = a_head + _mark_open(seq) + a_rest + _MARK_CLOSE
-                    # else: 展开体纯 env 参串——锚无体可罩，裸发不注
-                else:
-                    exp = _mark_open(seq) + exp + _MARK_CLOSE
+                # 前缘判据取已发出字面尾——倒扫 segs 首个非空段 (相邻 token
+                # 间空字面段/纯空白会占末位); 空缘回落 piece site 源文近似。
+                # ``pre`` 是源侧 ph-token 注释体不可用。
+                prev_out = next((s for s in reversed(segs) if s.strip()), tail)
+                exp = _wrap_seq_mark(exp, seq, prev_out, arg_zone=arg_zone)
             segs.append(exp)
             prev_ph = True
 

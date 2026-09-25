@@ -268,6 +268,86 @@ def test_soul_nested_stack_skips() -> None:
     assert _mark_open(0) in out
 
 
+# ---------------------------------------------------------------- 宏参扫描区
+
+
+def test_pending_bdc_relocates_inside_text_arg() -> None:
+    r"""``\href{u}|{t}`` 劈点 (t_e547 实证): BDC 挪进 text 参 ``{`` 内保锚。
+
+    挪前 ``\href{u}\special{BDC}{t}`` → \href 吞 ``\special`` 作 arg2 →
+    ``{pdf:code ...}`` 孤儿组 → ``Missing { inserted`` 级联硬毙。
+    """
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "{arXiv:2011.00110 [gr-qc]} 后续译文"})
+    out = ex.expand_body(r"\href{https://arxiv.org/abs/2011.00110}[[CHUNK_0]]")
+    assert (
+        r"\href{https://arxiv.org/abs/2011.00110}{"
+        + _mark_open(0)
+        + "arXiv:2011.00110 [gr-qc]} 后续译文"
+        + _MARK_CLOSE
+    ) == out
+    assert seq_mark_issues(out) == []
+
+
+def test_pending_bdc_nontext_arg_skips() -> None:
+    r"""``\cite|{key}`` 劈点: 待填参是结构参 → BDC 无处挪 → 裸发不注。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "{key1,key2}"})
+    out = ex.expand_body(r"\cite[[CHUNK_0]]")
+    assert "TLXC" not in out
+    assert r"\cite{key1,key2}" in out
+
+
+def test_pending_bdc_no_brace_head_skips() -> None:
+    r"""``\href`` 后译文不以 ``{`` 起 → 参扫描直接吞 whatsit → 裸发不注。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "裸文本译文"})
+    out = ex.expand_body(r"\href{u}[[CHUNK_0]]")
+    assert "TLXC" not in out
+    assert "裸文本译文" in out
+
+
+def test_pending_emc_trims_before_macro() -> None:
+    r"""展开体尾悬宏 → EMC 截到宏前（锚缩域）, head 参由宏自填。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: r"条目正文 \href{https://doi.org/x}"})
+    out = ex.expand_body("[[CHUNK_0]] {arXiv:1234 [cs]}")
+    assert (
+        _mark_open(0) + "条目正文 " + _MARK_CLOSE + r"\href{https://doi.org/x}"
+    ) in out
+    assert r"\href{https://doi.org/x} {arXiv:1234 [cs]}" in out
+
+
+def test_pending_emc_after_emitted_mark_seen() -> None:
+    r"""前块 EMC 不挡悬宏检出：``\href{u}\special{EMC}`` 尾仍判参区。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: r"前块 \href{u}", 1: "{t} 后块"})
+    out = ex.expand_body("[[CHUNK_0]][[CHUNK_1]]")
+    # 块0 EMC 截 \href 前; 块1 BDC 挪 {t} 内——两臂合成全链合法
+    assert _MARK_CLOSE + r"\href{u}{" + _mark_open(1) in out
+    assert seq_mark_issues(out) == []
+
+
+def test_open_nontext_brace_skips() -> None:
+    r"""``\cite{key|key}`` 参内引用点 → 免注（key 域 whatsit 腐蚀）。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "key2"})
+    out = ex.expand_body(r"\cite{key1,[[CHUNK_0]]}")
+    assert "TLXC" not in out
+    out = ex.expand_body(r"\url{[[CHUNK_0]]}")
+    assert "TLXC" not in out
+    out = ex.expand_body(r"\label{[[CHUNK_0]]}")
+    assert "TLXC" not in out
+
+
+def test_pending_begin_skips() -> None:
+    r"""``\begin|{env}`` 劈点：env 名参 nontext → 裸发不注。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "{tabular}"})
+    out = ex.expand_body(r"\begin[[CHUNK_0]]{cc}x\end{tabular}")
+    assert "TLXC" not in out
+
+
 @pytest.mark.parametrize(
     "body",
     [
