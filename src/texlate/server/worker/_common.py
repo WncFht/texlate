@@ -156,6 +156,27 @@ _FETCH_NO_RETRY = frozenset(
 #: 任务树内哨兵文件（断点恢复用，不进 zh-src.zip / fixloop 回灌）
 _SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done", ".compile-done"})
 
+#: ``.compile-done`` 载荷合法值——judge 终态三词；旧版空件/脏值读出 None
+_COMPILE_VERDICTS = frozenset({"clean", "partial", "fail"})
+
+
+def _write_compile_done(zh_dir: Path, status: str) -> None:
+    """``.compile-done`` 哨兵带 verdict 载荷落盘。
+
+    resume 重放终态判定不靠 ``has_pdf`` 猜（c32920 实证：verdict=fail 的
+    死层 pdf 曾被哨兵 resume 直接计 ok→done 交付）。
+    """
+    (zh_dir / ".compile-done").write_text(status, encoding="utf-8")
+
+
+def _compile_done_verdict(zh_dir: Path) -> str | None:
+    """哨兵载荷 → verdict；空件（旧版）/脏值/不可读 → None 走复测臂。"""
+    try:
+        s = (zh_dir / ".compile-done").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return s if s in _COMPILE_VERDICTS else None
+
 #: splice 失效即作废的派生产物 kind——zh/ 及其下游（译文快照/编译物/
 #: 降级包/已发布 share.zip 镜像）全随译文变更过期；en_pdf（base/ 编译）
 #: 与 src_tar 不依赖 chunks，保留

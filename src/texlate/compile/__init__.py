@@ -50,7 +50,9 @@ from .judge import (
     Verdict,
     count_missing_chars,
     judge,
+    log_died_mid_doc,
     pdf_cjk_chars,
+    pdf_text_stats,
 )
 from .mask import (
     TEX_SOURCE_SUFFIXES,
@@ -114,10 +116,12 @@ __all__ = [
     "inject_table_fitting",
     "install_tectonic",
     "judge",
+    "log_died_mid_doc",
     "normalize_engine",
     "normalize_project",
     "parse_log",
     "pdf_cjk_chars",
+    "pdf_text_stats",
     "prepare_chinese",
     "resolve_tool",
     "route_project",

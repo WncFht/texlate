@@ -553,6 +553,7 @@ def tail_dict(res: CompRes, v: Verdict) -> dict:
             "error_cats": v.error_cats,
             "error_pay": v.error_pay,
             "cjk_chars": v.cjk_chars,
+            "dead_chars": v.dead_chars,
             "missing_chars": v.missing_chars,
             "warnings_hit": v.warnings_hit,
         },

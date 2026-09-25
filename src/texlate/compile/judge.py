@@ -78,15 +78,22 @@ class Verdict:
     #: cat → 首见 payload（``error_cats`` 同键子集，仅非空 payload 收录）。
     error_pay: dict[str, str] = field(default_factory=dict)
     cjk_chars: int = -1  # -1 = 未测
+    dead_chars: int = -1  # 抽取层 U+FFFD 计数（死字形面），-1 = 未测
     missing_chars: int = 0
     warnings_hit: list[str] = field(default_factory=list)
 
 
-def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
-    """用 pdftotext 抽全文计 CJK 字符数；pdftotext 缺席/失败返回 -1。"""
+def pdf_text_stats(pdf: Path, *, timeout: float = 60) -> tuple[int, int] | None:
+    """``pdftotext`` 抽全文一趟出 ``(CJK 字符数, U+FFFD 死字形数)``；缺席/失败 → None。
+
+    死文本层信号（c32920 实证：fontspec 套件内核 skew → CJK 字体永不配 →
+    抽取层 12741 个 U+FFFD / 0 个真 CJK）：pdftotext 把 notdef/无
+    ToUnicode 字形归一成 U+FFFD——``Missing character`` 告警计数够不到
+    的「字形在但映射死」形态（Identity-H 断 CMap）也由这一面曝。
+    """
     tool = find_tool("pdftotext")
     if tool is None or not pdf.is_file():
-        return -1
+        return None
     rc, out, _, to = run_process(
         [tool, "-enc", "UTF-8", str(pdf), "-"],
         cwd=pdf.parent,
@@ -94,8 +101,14 @@ def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
         timeout=timeout,
     )
     if to or rc != 0:
-        return -1
-    return len(_CJK_RE.findall(out))
+        return None
+    return len(_CJK_RE.findall(out)), out.count("")
+
+
+def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
+    """用 pdftotext 抽全文计 CJK 字符数；pdftotext 缺席/失败返回 -1。"""
+    st = pdf_text_stats(pdf, timeout=timeout)
+    return -1 if st is None else st[0]
 
 
 #: 门控缺字形计数：排除 `in font nullfont`——试排/测量盒吞字是良性
@@ -223,6 +236,37 @@ def _thm_restate_probe(v: Verdict, full_log: str) -> None:
         v.notes.append(_THM_RESTATE[0])
 
 
+#: 引擎 ``\end`` 前致命中止签名（10-taxonomy ``emergency`` 同词素）——
+#: 截断残件 pdf 照样印 ``Output written``（lane-deadgate 截断 repro 实
+#: 测：``\input`` 缺件 → Emergency stop → ``Output written (1 page)``），
+#: 「出完/出半截」唯一可靠分界是这个签名本体。
+_DIED_MID_DOC_RX = re.compile(
+    r"Emergency stop|cannot \\read|Fatal error|job aborted"
+)
+
+
+def log_died_mid_doc(full_log: str) -> str | None:
+    """Log 全文查致命中止签名 → 命中词素/None。
+
+    judge 探针与 worker en 臂收编闸的单源（en 臂不走 judge，直查本函数）。
+    """
+    m = _DIED_MID_DOC_RX.search(full_log)
+    return m.group(0) if m else None
+
+
+def _died_probe(v: Verdict, res: CompRes, full_log: str) -> None:
+    """引擎死在中途 → 出半截 pdf 判红理由。
+
+    ``has_pdf`` 臂才调——无 pdf 时早退路径已按 no_pdf/timeout 归 fail，
+    签名是冗余证据。
+    """
+    if not res.has_pdf:
+        return
+    if hit := log_died_mid_doc(full_log):
+        v.reasons.append("died_mid_doc")
+        v.notes.append(f"died:{hit}")
+
+
 def _iter_slot_groups(
     src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
 ) -> Iterator[tuple[str, re.Match[str], int]]:
@@ -313,10 +357,11 @@ def _full_log_text(res: CompRes, log_text: str) -> str:
 
 
 def _log_probes(v: Verdict, res: CompRes, full_log: str, *, expect_cjk: bool) -> None:
-    """log/源面观察探针束：缺字形门控 + thm-restate 包在场 note + 机位审计。"""
+    """log/源面观察探针束：缺字形门控 + thm-restate 包在场 note + 机位审计 + 截断闸。"""
     _missing_char_check(v, full_log, expect_cjk=expect_cjk)
     _thm_restate_probe(v, full_log)
     _machine_slot_probe(v, res)
+    _died_probe(v, res, full_log)
 
 
 def _signal_attribution(res: CompRes) -> int | None:
@@ -332,10 +377,22 @@ def _signal_attribution(res: CompRes) -> int | None:
     return None
 
 
+#: 抽取层 U+FFFD 死字形判红下限——合法译文几乎不产 FFFD（作者手输
+#: 入稿是孤例），死层实证动辄万级；20 留足噪声带宽不误报。
+DEAD_GLYPH_MIN = 20
+
+
 def _cjk_render_check(v: Verdict, res: CompRes) -> None:
-    """中文渲染检查（expect_cjk 时）：pdftotext 优先，缺席降级 log 判据。"""
-    cjk = pdf_cjk_chars(res.pdf) if res.pdf else -1
+    """中文渲染检查（expect_cjk 时）：pdftotext 一趟出 CJK+死字形，缺席降级 log 判据。"""
+    st = pdf_text_stats(res.pdf) if res.pdf else None
+    cjk = -1 if st is None else st[0]
     v.cjk_chars = cjk
+    if st is not None:
+        v.dead_chars = st[1]
+        # 部分死层（Identity-H 断 CMap/字体子集缺 glyph 抽取成 FFFD）：
+        # 视觉在但复制/搜索/对位锚全死——cjk>0 逃过 tofu 否决，此门补判。
+        if st[1] >= DEAD_GLYPH_MIN:
+            v.reasons.append(f"dead_glyphs:ufffd×{st[1]}")
     if cjk == 0:
         # hep-th 教训：8 页 PDF、0 中文字节——全线最坏静默失败。
         v.reasons.append("cjk_chars=0")

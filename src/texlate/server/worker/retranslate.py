@@ -31,6 +31,7 @@ from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
 from ._common import (
     TaskCtx,
     _translator_clients,
+    _write_compile_done,
 )
 
 if TYPE_CHECKING:
@@ -232,7 +233,9 @@ class _Retranslate:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf", force=True)
-            (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
+            # 哨兵载荷带 verdict——主链 resume 重放判定时不会把死层/截断
+            # 残件 pdf 计 ok（_compile_zh 哨兵臂消费）
+            _write_compile_done(ctx.zh_dir, v.status)
             ok = True
         self._judge_log(ctx, res, v, force=True)
         self._log(

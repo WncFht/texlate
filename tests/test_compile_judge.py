@@ -12,7 +12,7 @@ import pytest
 from test_compile_engine_judge import _res
 
 from texlate.compile.engine import CompRes
-from texlate.compile.judge import count_missing_chars, judge
+from texlate.compile.judge import count_missing_chars, judge, log_died_mid_doc
 
 
 # ---------------------------------------------------------------- judge
@@ -124,7 +124,7 @@ def _judge_mod() -> ModuleType:
 
 def test_judge_cjk_zero_dirty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """hep-th 教训：有 pdf 但 0 中文字节 → tofu 否决 fail（非 partial 交付）。"""
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: 0)
+    monkeypatch.setattr(_judge_mod(), "pdf_text_stats", lambda _p: (0, 0))
     v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
     assert v.status == "fail"
     assert "cjk_chars=0" in v.reasons
@@ -134,7 +134,7 @@ def test_judge_cjk_zero_dirty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 def test_judge_cjk_rendered_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: 5000)
+    monkeypatch.setattr(_judge_mod(), "pdf_text_stats", lambda _p: (5000, 0))
     v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
     assert v.status == "clean"
 
@@ -143,7 +143,7 @@ def test_judge_cjk_unverified_not_dirty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """pdftotext 缺席且无负信号 → 不判 dirty，只记 note。"""
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: -1)
+    monkeypatch.setattr(_judge_mod(), "pdf_text_stats", lambda _p: None)
     v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
     assert v.status == "clean"
     assert any("cjk_unverified" in n for n in v.notes)
@@ -152,6 +152,68 @@ def test_judge_cjk_unverified_not_dirty(
 def test_count_missing_chars() -> None:
     log = "Missing character: There is no a in font\nMissing character: x\n"
     assert count_missing_chars(log) == 2  # noqa: PLR2004 - 两行 Missing character
+
+
+# ---------------------------------------------------------------- 截断/死字形
+def test_judge_died_mid_doc_reason(tmp_path: Path) -> None:
+    """e116 实证：xelatex ``Emergency stop`` 中段死亡仍印 ``Output written``。
+
+    log 终止符不是截断信号——致命中止词素才是唯一可靠分界；出半截 pdf
+    判 partial（可交付残件），不进 clean。
+    """
+    log = (
+        "! Undefined control sequence.\nl.35 \\badcs\n"
+        "! Emergency stop.\nOutput written on main.pdf (35 pages).\n"
+    )
+    v = judge(_res(tmp_path, pdf=True, log_text=log), log_text=log)
+    assert v.status == "partial"
+    assert "died_mid_doc" in v.reasons
+    assert "died:Emergency stop" in v.notes
+
+
+def test_judge_died_mid_doc_no_pdf_silent(tmp_path: Path) -> None:
+    """无 pdf 早退臂不挂 ``died_mid_doc``——``no_pdf`` 已归 fail，签名冗余。"""
+    v = judge(_res(tmp_path, pdf=False, log_text="! Emergency stop.\n"))
+    assert v.status == "fail"
+    assert "died_mid_doc" not in v.reasons
+
+
+def test_judge_dead_glyphs_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """c32920 实证：部分死层 cjk>0 逃过 tofu 否决——U+FFFD 抽取面补判 partial。
+
+    ``Missing character`` 告警计数够不到「字形在但 ToUnicode 死」形态
+    （Identity-H 断 CMap）；复制/搜索/对位锚全死的 pdf 不配 clean。
+    """
+    monkeypatch.setattr(_judge_mod(), "pdf_text_stats", lambda _p: (3000, 12741))
+    v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
+    assert v.status == "partial"
+    assert "dead_glyphs:ufffd×12741" in v.reasons
+    assert v.dead_chars == 12741  # noqa: PLR2004 - c32920 死层实测面值
+
+
+def test_judge_dead_glyphs_below_min(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FFFD 低位噪声（作者稿手输孤例）不判红——计数照记、阈值不误报。"""
+    monkeypatch.setattr(_judge_mod(), "pdf_text_stats", lambda _p: (3000, 5))
+    v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
+    assert v.status == "clean"
+    assert v.dead_chars == 5  # noqa: PLR2004 - 低位噪声阈值内
+    assert not any(r.startswith("dead_glyphs") for r in v.reasons)
+
+
+def test_log_died_mid_doc_lexemes() -> None:
+    """taxonomy ``emergency`` 词族逐词命中 + 干净 log（含 ``Output written``）不回。"""
+    assert log_died_mid_doc("x\n! Emergency stop.\n") == "Emergency stop"
+    assert (
+        log_died_mid_doc("!  Fatal error occurred, no output PDF produced!\n")
+        == "Fatal error"
+    )
+    assert log_died_mid_doc("!  cannot \\read from x\n") == "cannot \\read"
+    assert log_died_mid_doc("job aborted, file error\n") == "job aborted"
+    assert log_died_mid_doc("all good\nOutput written on main.pdf (1 page).\n") is None
 
 
 # ---------------------------------------------------------------- 机位审计

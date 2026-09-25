@@ -531,7 +531,7 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
     for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
         monkeypatch.delenv(key, raising=False)
     # 包级 re-export 的 judge 函数遮蔽了同名子模块属性路径——按模块对象打
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 500)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (500, 0))
     return engines
 
 

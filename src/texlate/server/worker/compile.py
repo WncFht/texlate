@@ -14,7 +14,11 @@ from texlate.compile.inject import (
     InjectRejectError,
     prepare_chinese,
 )
-from texlate.compile.judge import paired_slot_diff
+from texlate.compile.judge import (
+    log_died_mid_doc,
+    paired_slot_diff,
+    pdf_cjk_chars,
+)
 from texlate.compile.probe import (
     dep_seen,
     deps_diff,
@@ -83,11 +87,13 @@ from ._common import (
     PROGRESS,
     SegmentCache,
     TaskCtx,
+    _compile_done_verdict,
     _new_usage_meter,
     _scrub_deep,
     _Sink,
     _tgt_lang,
     _translator_clients,
+    _write_compile_done,
     chunk_db_id,
     zh_slot,
 )
@@ -253,7 +259,7 @@ class _Compile:
         self._progress(ctx, PROGRESS["compiling"][0] + 4)
         await self._to_thread(ctx, self._compile_en)
         ctx.expect_cjk = self._expect_cjk(ctx)
-        ok = await self._compile_zh_or_salvage(ctx)
+        verdict_zh = await self._compile_zh_or_salvage(ctx)
         self._check_cancelled(ctx)
         self._progress(ctx, PROGRESS["compiling"][1])
         # pypdf 页树走查 + named-dest 对齐是 CPU 重活——出 loop 线程，
@@ -279,9 +285,11 @@ class _Compile:
             await self._maybe_share_pack(ctx)
             return
         failed = self.store.chunk_counts(ctx.task_id)["failed"]
-        if ok and failed == 0:
+        # done 只配 clean 判据——verdict=fail（死层/截断残件/引擎被杀）即便
+        # 出了 pdf 也是 partial（c32920 死层曾被 has_pdf 臂洗成 done）。
+        if verdict_zh == "clean" and failed == 0:
             status, err = "done", None
-        elif ok or self._has_pdf(ctx, "zh_pdf"):
+        elif verdict_zh != "fail" or self._has_pdf(ctx, "zh_pdf"):
             status = "partial"
             err = {
                 "code": "compile",
@@ -296,12 +304,13 @@ class _Compile:
         self._finish_terminal(ctx, status, err=err)
         await self._maybe_share_pack(ctx)
 
-    async def _compile_zh_or_salvage(self, ctx: TaskCtx) -> bool:
+    async def _compile_zh_or_salvage(self, ctx: TaskCtx) -> str:
         """``_compile_zh`` + 异常降级臂：编译段崩也把在库译文包出来。
 
         dual/md_zip 只吃 chunks 表不依赖编译成败——尽力补出再走 fault。
         cancel 在飞不救（旗标已置即用户要它死，不再花秒级补产物）；
         CancelledError 是 BaseException 不经 ``except Exception`` 臂。
+        返回 zh 编译 verdict 三态（``_stage_compile`` 终态阶梯消费）。
         """
         try:
             return await self._to_thread(ctx, self._compile_zh)
@@ -541,36 +550,7 @@ class _Compile:
         if work.exists():
             shutil.rmtree(work)
         shutil.copytree(ctx.base_dir, work)
-        # en.pdf 注锚：identity reconstruct（translations=None → 原文逐字节）
-        # 只叠 /TLXC marked-content——seq 口径与 _build_zh 同序累计，双侧
-        # seq 对位一致。谓词拒绝/失衡文件剥锚留原文，注锚异常不挡编译。
-        marks_on = _opt_switch(
-            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
-        )
-        if marks_on and ctx.scans:
-            seq0 = 0
-            n_marked = 0
-            for rel, res in ctx.scans.items():
-                cur0 = seq0
-                seq0 += len(res.chunks)  # 无条件累计——与 zh 侧同序保 seq 对位
-                if not res.chunks:
-                    continue
-                try:
-                    out = reconstruct(
-                        res, None, mark_seq0=cur0, mark_moving=True
-                    )
-                except Exception as e:  # noqa: BLE001 -- 注锚失败=原样编译
-                    self._log(ctx, f"seqmarks-en {rel} 注锚异常({e})——原样编译")
-                    continue
-                if issues := seq_mark_issues(out):
-                    self._log(
-                        ctx,
-                        f"seqmarks-en {rel} 失衡({'; '.join(issues)})——剥锚降级",
-                    )
-                    out = strip_seq_marks(out)
-                (work / rel).write_text(out, encoding="utf-8")
-                n_marked += 1
-            self._log(ctx, f"seqmarks-en: {n_marked} files marked")
+        self._en_mark_inject(ctx, work)
         rep = self._probe_target(ctx, work)
         eng = self._engine(ctx)
         res = eng.compile(
@@ -588,7 +568,7 @@ class _Compile:
         # （fixloop_en 前置取——救回前全量；救回修复的源生错 zh 侧同样
         # 修得动，留在基线里不会误豁免译文伤）
         ctx.en_err_sigs = err_signatures(res)
-        if not res.has_pdf and self._fixloop_enabled(ctx):
+        if (not res.has_pdf or self._en_died(res)) and self._fixloop_enabled(ctx):
             res = self._fixloop_en(
                 ctx,
                 work,
@@ -599,12 +579,63 @@ class _Compile:
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "en.pdf")
             self._register(ctx, "en_pdf", "en.pdf")
+            if self._en_died(res):
+                self._warning(
+                    ctx,
+                    "en_compile",
+                    "原文编译中途死亡，en.pdf 为截断残件（fixloop 未救回）",
+                )
         else:
             self._warning(
                 ctx,
                 "en_compile",
                 f"原文编译未出 pdf（{res.log.first_error or res.stdout_tail[:120]}）",
             )
+
+    def _en_mark_inject(self, ctx: TaskCtx, work: Path) -> None:
+        """en.pdf 注锚：identity reconstruct。
+
+        translations=None → 原文逐字节，只叠 /TLXC marked-content——seq
+        口径与 _build_zh 同序累计，双侧 seq 对位一致。谓词拒绝/失衡文件
+        剥锚留原文，注锚异常不挡编译。
+        """
+        marks_on = _opt_switch(
+            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+        )
+        if not marks_on or not ctx.scans:
+            return
+        seq0 = 0
+        n_marked = 0
+        for rel, res in ctx.scans.items():
+            cur0 = seq0
+            seq0 += len(res.chunks)  # 无条件累计——与 zh 侧同序保 seq 对位
+            if not res.chunks:
+                continue
+            try:
+                out = reconstruct(res, None, mark_seq0=cur0, mark_moving=True)
+            except Exception as e:  # noqa: BLE001 -- 注锚失败=原样编译
+                self._log(ctx, f"seqmarks-en {rel} 注锚异常({e})——原样编译")
+                continue
+            if issues := seq_mark_issues(out):
+                self._log(
+                    ctx,
+                    f"seqmarks-en {rel} 失衡({'; '.join(issues)})——剥锚降级",
+                )
+                out = strip_seq_marks(out)
+            (work / rel).write_text(out, encoding="utf-8")
+            n_marked += 1
+        self._log(ctx, f"seqmarks-en: {n_marked} files marked")
+
+    def _en_died(self, res: CompRes) -> bool:
+        """en.pdf 截断收编闸判定。
+
+        e116 实证：en 编译 35 页死亡、残件 pdf 因 ``has_pdf`` 非空被无条件
+        登记。``Output written`` 截断照印不可信，唯一信号是
+        ``Emergency stop``/``Fatal error`` 致命中止签名
+        （``judge.log_died_mid_doc`` 单源）。出 pdf 但死了 → 照样进
+        fixloop 救；救不回登记时记 warning。
+        """
+        return bool(res.has_pdf) and bool(log_died_mid_doc(self._log_text_of(res)))
 
     def _log_text_of(self, res: CompRes) -> str:
         """``repair.log_text_of`` 单源委托（.log 非空优先、stdout_tail 兜底）。"""
@@ -1219,7 +1250,7 @@ class _Compile:
                 self._log(ctx, f"l2 {key}: {rep[key]}")
         return res2, (v2 if v2 is not None else v)
 
-    def _compile_zh(self, ctx: TaskCtx) -> bool:
+    def _compile_zh(self, ctx: TaskCtx) -> str:
         """zh.pdf：zh/ 拷贝编译 +（非 clean 时）precheck → L2 回灌 → fixloop + judge(expect_cjk)。
 
         修复链顺序对齐 e2e ``_repair_chain``：precheck 预检（装缺件，
@@ -1229,11 +1260,22 @@ class _Compile:
         fixloop 复现 + 跨引擎消费。
         ``.compile-done`` 哨兵落 ``zh/`` 内：main 变更的 retry 会 rmtree
         ``zh/``，哨兵与 zh_pdf 记录同生共死；resume 见哨兵+pdf 即跳过重编。
-        返回「终态不 fault」——有 pdf 即 partial 起步。
+        哨兵载荷=终态 verdict——旧版空件只能回退 cjk 抽测复判（死层是
+        唯一可仅靠 pdf 复测的否决判据）。
+        返回 judge 三态 verdict：``_stage_compile`` 的 done 只配 clean。
         """
         self._abort_if_cancelled(ctx)
         if (ctx.zh_dir / ".compile-done").is_file() and self._has_pdf(ctx, "zh_pdf"):
-            return True
+            v0 = _compile_done_verdict(ctx.zh_dir)
+            if v0 is None:
+                # 旧版空哨兵——死层可复测，其余判据无法从成品 pdf 重建
+                v0 = (
+                    "fail"
+                    if ctx.expect_cjk
+                    and pdf_cjk_chars(ctx.root / "zh.pdf") == 0
+                    else "clean"
+                )
+            return v0
         work = ctx.root / "build-zh"
         if work.exists():
             shutil.rmtree(work)
@@ -1271,10 +1313,10 @@ class _Compile:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
-            (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
+            _write_compile_done(ctx.zh_dir, v.status)
         self._judge_log(ctx, res, v)
         self._log(ctx, f"verdict: {v.status} cat={v.category} errs={v.n_errors}")
-        return v.status in ("clean", "partial") or res.has_pdf
+        return v.status
 
     def _embed_tounicode(self, ctx: TaskCtx, pdf: Path) -> None:
         """``repair.embed_tounicode_quiet`` 委托——失败经 ``on_error`` 落任务日志。"""

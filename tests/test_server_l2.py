@@ -35,6 +35,10 @@ from texlate.compile.engine import CompRes, parse_log
 from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
 from texlate.server.worker import PipelineWorker, Secrets, TaskCtx, TaskRunner
+from texlate.server.worker._common import (
+    _compile_done_verdict,
+    _write_compile_done,
+)
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
@@ -415,7 +419,8 @@ class TestCompileHoles:
             n_calls = len(eng.calls)
             assert n_calls >= 1
             zh = tmp_path / "data" / "tasks" / tid / "zh"
-            assert (zh / ".compile-done").is_file()
+            # 哨兵载荷=终态 verdict——FakeEngine 净 log 即 clean
+            assert (zh / ".compile-done").read_text(encoding="utf-8") == "clean"
 
             # 模拟崩溃恢复留下的 interrupted（recover_startup 形态）
             def _flip(store: Store) -> None:
@@ -431,6 +436,52 @@ class TestCompileHoles:
             assert snap["status"] == "done"
             # en/zh 两侧都没重编（en 走 _has_pdf，zh 走 .compile-done）
             assert len(eng.calls) == n_calls
+
+    def test_compile_done_sentinel_fail_resume(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """c32920 实证：verdict=fail 的死层 pdf 曾被空哨兵 resume 计 ok→done。
+
+        哨兵载荷=终态 verdict——fail 件 resume 落 partial（残件照交付但
+        不洗绿），且哨兵臂短路不触发重编。
+        """
+        eng = FakeEngine()
+        with TestClient(_live_app(tmp_path, engine=eng)) as c:
+            tid = upload_tex(c)["task_id"]
+            snap = wait_terminal(c, tid)
+            assert snap["status"] == "done"
+            n_calls = len(eng.calls)
+            sentinel = tmp_path / "data" / "tasks" / tid / "zh" / ".compile-done"
+            sentinel.write_text("fail", encoding="utf-8")
+
+            def _flip(store: Store) -> None:
+                store.conn.execute(
+                    "UPDATE tasks SET status='interrupted' WHERE id=?", (tid,)
+                )
+                store.conn.commit()
+
+            store_call(c, _flip, c.app.state.store)
+            r = c.post(f"/api/task/{tid}/retry", json={})
+            assert r.status_code == HTTPStatus.ACCEPTED, r.text
+            snap = wait_terminal(c, tid)
+            assert snap["status"] == "partial"
+            assert len(eng.calls) == n_calls
+
+    def test_compile_done_verdict_roundtrip(self, tmp_path: Path) -> None:
+        """哨兵载荷口径：verdict 三词回读；缺席/旧版空件/脏值 → None 走复测臂。"""
+        zh = tmp_path / "zh"
+        zh.mkdir()
+        assert _compile_done_verdict(zh) is None
+        _write_compile_done(zh, "partial")
+        assert _compile_done_verdict(zh) == "partial"
+        _write_compile_done(zh, "clean")
+        assert _compile_done_verdict(zh) == "clean"
+        (zh / ".compile-done").write_text("", encoding="utf-8")
+        assert _compile_done_verdict(zh) is None
+        (zh / ".compile-done").write_text("bogus", encoding="utf-8")
+        assert _compile_done_verdict(zh) is None
 
     def test_splice_done_written_after_zip(
         self,

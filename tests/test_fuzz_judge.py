@@ -349,7 +349,9 @@ class TestJudge:
             log_arg = _gen_log_soup(rng) if rng.random() < 0.5 else ""  # noqa: PLR2004
             expect_cjk = rng.random() < 0.5  # noqa: PLR2004
             cjk = rng.choice([-1, 0, 5, 19, 20, 500])
-            monkeypatch.setattr(jm, "pdf_cjk_chars", lambda _p, _v=cjk: _v)
+            monkeypatch.setattr(
+                jm, "pdf_text_stats", lambda _p, _v=cjk: None if _v < 0 else (_v, 0)
+            )
 
             before = copy.deepcopy(res)
             v = judge(res, expect_cjk=expect_cjk, log_text=log_arg)
@@ -464,10 +466,10 @@ class TestJudge:
         p.write_bytes(b"%PDF")
         res.pdf, res.pdf_bytes = p, 4
         jm = judge_mod()
-        monkeypatch.setattr(jm, "pdf_cjk_chars", lambda _p: 19)
+        monkeypatch.setattr(jm, "pdf_text_stats", lambda _p: (19, 0))
         v = judge(res, expect_cjk=True)
         assert v.reasons == [f"cjk_chars<{CJK_MIN_CHARS} (19)"]
-        monkeypatch.setattr(jm, "pdf_cjk_chars", lambda _p: -1)
+        monkeypatch.setattr(jm, "pdf_text_stats", lambda _p: None)
         v = judge(
             res,
             expect_cjk=True,

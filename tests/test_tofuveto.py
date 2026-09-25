@@ -27,7 +27,7 @@ def test_tofu_veto_partial_to_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """出 pdf + cjk_chars=0 → fail：豆腐 pdf 不许计 partial 交付。"""
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 0)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (0, 0))
     v = judge(make_comp_res(tmp_path), expect_cjk=True)
     assert v.status == "fail"
     assert "cjk_chars=0" in v.reasons
@@ -38,7 +38,7 @@ def test_tofu_veto_missing_chars_shape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """soak 两格账面形态：missing_character reason 保留，status 翻 fail。"""
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 0)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (0, 0))
     log = "Missing character: There is no 中 (U+4E2D) in font cmr10\n"
     v = judge(make_comp_res(tmp_path, log_text=log), expect_cjk=True, log_text=log)
     assert v.status == "fail"
@@ -50,7 +50,7 @@ def test_tofu_veto_no_expect_cjk_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """expect_cjk=False：0-chunk 编排壳 cjk=0 是正确终态——不否决。"""
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 0)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (0, 0))
     v = judge(make_comp_res(tmp_path), expect_cjk=False)
     assert v.status == "clean"
     assert v.cjk_chars == -1  # 未测
@@ -61,7 +61,7 @@ def test_tofu_veto_cjk_unverified_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """pdftotext 缺席（cjk=-1）不可测不否决——工具缺席非文档问题。"""
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: -1)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: None)
     v = judge(make_comp_res(tmp_path), expect_cjk=True)
     assert v.status == "clean"
     assert "tofu_veto" not in v.notes
@@ -71,7 +71,7 @@ def test_tofu_veto_cjk_positive_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """CJK 真的渲染了 → clean，否决不触。"""
-    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 500)
+    monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (500, 0))
     v = judge(make_comp_res(tmp_path), expect_cjk=True)
     assert v.status == "clean"
     assert "tofu_veto" not in v.notes
