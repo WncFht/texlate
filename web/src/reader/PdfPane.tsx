@@ -105,6 +105,12 @@ export interface PaneHandle extends PaneLike {
         无已渲染锚（懒渲染页/en.pdf 无标）→ pos 在场落回 flashAtPos。
         返回实际着闪元素集（anim 面） */
     flashSeq?(seq: number, pos: Pos | null): HTMLElement[];
+    /** seq → markedContent 字形叶集（flashSeq 同源 leafEls 下钻）——
+        sent-align 句级落点/闪示的原料面；未渲染页缺席 */
+    seqLeaves?(seq: number): HTMLElement[];
+    /** 任意字形叶集打闪（sent-align 句级叶集闪面——flashAtPos/flashSeq
+        之外的第三闪；saFlash 单轨同口径） */
+    flashEls?(els: HTMLElement[]): void;
     /** seq 悬停伴显（sent-align hover 臂）：cls=sa-hot|sa-peer 单轨染色
         ——锚叶集命中染锚；锚缺席（懒渲染页/无标文档）且 pos 在场落回
         行带；seq null 清轨。与 sa-flash 分轨互不清 */
@@ -916,6 +922,13 @@ export default function PdfPane(props: Props) {
             }
             if (pos) return this.flashAtPos?.(pos) ?? [];
             return [];
+        },
+        seqLeaves(seq) {
+            const els = this.seqEls?.(seq) ?? [];
+            return els.flatMap(leafEls);
+        },
+        flashEls(els) {
+            if (els.length) saFlash(els);
         },
         flashAtPos: (pos) => {
             const els = bandElsAt(pos);

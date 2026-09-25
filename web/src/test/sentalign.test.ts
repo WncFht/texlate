@@ -14,6 +14,7 @@ import {
     splitEn,
     splitZh,
     stripSentSpans,
+    type SaSide,
     type SentSpan,
 } from "../reader/sentalign";
 import type { Pos } from "../reader/alignment";
@@ -611,6 +612,266 @@ describe("SentAlignSession", () => {
             "recordJump:zh:1->6",
             "pdfFlashSeq:zh:42:6",
         ]);
+        s.destroy();
+    });
+
+    // ---- 句级落点臂（pdfSentAt + pdfFlashEls）----
+    const rectOf = (top: number, left = 0, width = 100, height = 12) =>
+        ({
+            top,
+            left,
+            width,
+            height,
+            right: left + width,
+            bottom: top + height,
+            x: left,
+            y: top,
+            toJSON: () => ({}),
+        }) as DOMRect;
+    /** 假 zh marked 叶组：page div + markedContent + 三句各 4 字 */
+    const fakeZhLeaves = (mcid = 50042, page = 3) => {
+        const pg = document.createElement("div");
+        pg.setAttribute("data-page-number", String(page));
+        pg.innerHTML =
+            `<span class="markedContent" id="_mc${mcid}">` +
+            `<span>甲句一。</span><span>乙句二。</span><span>丙句三。</span>` +
+            `</span>`;
+        document.body.appendChild(pg);
+        pg.getBoundingClientRect = () => rectOf(0, 0, 400, 800);
+        const leaves = [
+            ...pg.querySelector<HTMLElement>(".markedContent")!.children,
+        ] as HTMLElement[];
+        leaves[0]!.getBoundingClientRect = () => rectOf(100, 10, 200);
+        leaves[1]!.getBoundingClientRect = () => rectOf(112, 10, 200);
+        leaves[2]!.getBoundingClientRect = () => rectOf(300, 10, 200);
+        return leaves;
+    };
+    const LANDS = (side: SaSide) =>
+        side === "en"
+            ? [
+                  {
+                      seq: 42,
+                      pos: { page: 2, fraction: 0.1, x: 0, x1: 0.4 },
+                  },
+                  {
+                      seq: 43,
+                      pos: { page: 2, fraction: 0.9, x: 0, x1: 0.4 },
+                  },
+              ]
+            : [
+                  {
+                      seq: 42,
+                      pos: { page: 3, fraction: 0.1, x: 0, x1: 0.4 },
+                  },
+                  {
+                      seq: 43,
+                      pos: { page: 3, fraction: 0.9, x: 0, x1: 0.4 },
+                  },
+              ];
+
+    it("PDF→PDF 句级落点：u 在场+dst 叶在场 → 句首叶 Pos + pdfFlashEls 句域闪（不碰整段闪）", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><span>line.</span></div>`,
+        );
+        const leaves = fakeZhLeaves();
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            navBegin: () => calls.push("navBegin"),
+            seqPos: () => ({ page: 3, fraction: 0.1 }),
+            seqLands: LANDS,
+            pdfSeqLeaves: () => leaves,
+            pdfFlashEls: (_d, els) =>
+                calls.push(`pdfFlashEls:${els.length}`),
+            pdfDest: (_d, pos) => {
+                calls.push(
+                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
+                );
+                return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
+            },
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.375 },
+                }),
+            recordJump: (d) => calls.push(`recordJump:${d}`),
+            pdfFlashSeq: () => {
+                calls.push("pdfFlashSeq");
+                return undefined;
+            },
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => ({ page: 2, fraction: 0.66, x: 0.1 }),
+            () => 42,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", {
+                bubbles: true,
+                clientX: 5,
+                clientY: 5,
+            }),
+        );
+        await tick();
+        // u=(2.33-2.05)/0.4=0.7 → target 8.4 → 第三句 [8,12)
+        // → 句首叶 fraction=300/800=0.375
+        expect(calls).toContain("pdfDest:3@0.38");
+        expect(calls).toContain("pdfFlashEls:1");
+        expect(calls).not.toContain("pdfFlashSeq");
+        s.destroy();
+    });
+
+    it("句级臂叶缺席 → 锚区间插值落点 + pdfFlash 行带→整段殿后", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><span>line.</span></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => ({ page: 3, fraction: 0.1 }),
+            seqLands: LANDS,
+            pdfSeqLeaves: () => [],
+            pdfFlashEls: () => calls.push("pdfFlashEls"),
+            pdfDest: (_d, pos) => {
+                calls.push(
+                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
+                );
+                return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
+            },
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.66 },
+                }),
+            recordJump: () => {},
+            pdfFlash: (_d, pos) => {
+                calls.push(`pdfFlash:${pos.page}`);
+                return [];
+            },
+            pdfFlashSeq: (_d, seq) => {
+                calls.push(`pdfFlashSeq:${seq}`);
+                return undefined;
+            },
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => ({ page: 2, fraction: 0.66, x: 0.1 }),
+            () => 42,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 1, clientY: 1 }),
+        );
+        await tick();
+        // 叶缺席 → interpDst：zh 区间 3.05→3.45，u=0.7 → y=3.33
+        // → {page:3, fraction:0.66}
+        expect(calls).toContain("pdfDest:3@0.66");
+        expect(calls).toContain("pdfFlash:3");
+        expect(calls).toContain("pdfFlashSeq:42");
+        expect(calls).not.toContain("pdfFlashEls");
+        s.destroy();
+    });
+
+    it("marked 双出现（TOC 重放+真标）→ 按锚页择真标组", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><span>line.</span></div>`,
+        );
+        // 同 seq 两枚 marked：p1 TOC 残件 + p3 正文真标
+        const tocPg = document.createElement("div");
+        tocPg.setAttribute("data-page-number", "1");
+        tocPg.innerHTML =
+            `<span class="markedContent" id="_mc50042">` +
+            `<span>目录残。</span></span>`;
+        document.body.appendChild(tocPg);
+        tocPg.getBoundingClientRect = () => rectOf(0, 0, 400, 800);
+        const tocLeaf = tocPg.querySelector<HTMLElement>(
+            ".markedContent span",
+        )!;
+        tocLeaf.getBoundingClientRect = () => rectOf(50, 10, 200);
+        const leaves = fakeZhLeaves();
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => ({ page: 3, fraction: 0.1 }), // 锚在 p3
+            seqLands: LANDS,
+            pdfSeqLeaves: () => [tocLeaf, ...leaves],
+            pdfFlashEls: (_d, els) =>
+                calls.push(
+                    `pdfFlashEls:${els
+                        .map((e) => e.textContent)
+                        .join(",")}`,
+                ),
+            pdfDest: (_d, pos) => {
+                calls.push(
+                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
+                );
+                return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
+            },
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.375 },
+                }),
+            recordJump: () => {},
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => ({ page: 2, fraction: 0.66, x: 0.1 }),
+            () => 42,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 1, clientY: 1 }),
+        );
+        await tick();
+        // 真标组被选中 → 落点在 p3 句首叶而非 TOC 残件
+        expect(calls).toContain("pdfDest:3@0.38");
+        expect(calls).toContain("pdfFlashEls:丙句三。");
+        s.destroy();
+    });
+
+    it("DOM→PDF 句级落点：sid 点击 → pdfSentAt 句首 Pos + 句域闪", async () => {
+        const en = paneBody(
+            `<div data-chunk="c0"><p>First half. Second half.</p></div>`,
+        );
+        const leaves = fakeZhLeaves();
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqOfChunk: (k) => (k === "c0" ? 42 : null),
+            seqPos: () => ({ page: 3, fraction: 0.1 }),
+            seqLands: LANDS,
+            pdfSeqLeaves: () => leaves,
+            pdfFlashEls: (_d, els) =>
+                calls.push(`pdfFlashEls:${els.length}`),
+            pdfDest: (_d, pos) => {
+                calls.push(
+                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
+                );
+                return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
+            },
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.14 },
+                }),
+            recordJump: () => {},
+            pdfFlashSeq: () => {
+                calls.push("pdfFlashSeq");
+                return undefined;
+            },
+        });
+        await s.mountSide("en", en);
+        s.mountPdfSide("zh");
+        en.querySelector('[data-sid="c0.1"]')!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 1, clientY: 1 }),
+        );
+        await tick();
+        // u=Second半句起点/24≈0.5 → target 6 → 第二句 [4,8) → 叶1
+        // fraction=112/800=0.14
+        expect(calls).toContain("pdfDest:3@0.14");
+        expect(calls).toContain("pdfFlashEls:1");
+        expect(calls).not.toContain("pdfFlashSeq");
         s.destroy();
     });
 

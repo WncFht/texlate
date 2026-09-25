@@ -199,3 +199,12 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 - reduced-motion 全域降级；全部 fixed+transform/opacity 零重排。
 
 验证：review 确认 20 条 findings——本批修 17、2 条 by-design 跳过（land ≤1.1s 冻结窗滚动取消会连杀着陆连线；PdfPane 组件测试基建缺位）、修复期间另自查捕获 2 条（peerGen 重备、land 截没在飞涟漪）；anim+sentalign 62/62 vitest、全套 931/931（69 文件）、tsc/eslint/vite build 绿、`scripts/sentalign_anim_verify.mjs` playwright 浏览器验收 10/10。
+
+## v1.7 PDF 侧句级落地（2026-09-26）
+
+v1.5 引入的 u 分位块内插值其实早已把落点推进段内（探针实测 u_src=0.66→u_meas=0.49），但 `pdfFlashSeq` 整段 190 叶全闪使观感仍是「段落级」。本版不改后端、不依赖 `tl.*` 句锚即拿到 PDF 侧真句级：dst marked 字形叶文本经 `splitZh`/`splitEn` 重切句 → `u·concatLen` 选句（与 DOM 臂 `sents.find` 同语义）→ 句首叶 `{page,fraction,x}` 作落点 Pos、`pdfFlashEls` 句域叶集闪示（实测 deep click 闪 18 叶/51px≈一句 vs 旧 190 叶/整段）。
+
+- 改动面：`PdfPane` 新增 `seqLeaves`（seqEls→leafEls 下钻）与 `flashEls`（任意叶集闪）两 handle；`sentalign` 新增 `pdfSentAt` 私方法与 `pdfSeqLeaves`/`pdfFlashEls` 两 dep，`pdfJumpFlash` 增 `sent` 参贯穿句级闪选链（预选叶集→跳后重选→行带→整段殿后）；`jumpSeq`/`jumpSidToPdf` 两臂同接——PDF↔PDF 与 DOM→PDF 两路都吃。
+- 落点语义：`sent?.pos ?? interpDst ?? seqPos` 三阶梯——dst 页已渲染即句级直锚（无需 est_dst 钳制，文本成比例映射天然收敛于块内）；懒渲页先走旧插值落地、闪选链 160/550ms 双拍重试，命中即封代际（`flashGen` 每次起跳递增，挡窗内连点陈旧闪示）。
+- marked 多出现（TOC 重放+正文真标同 seq 共存）按 `seqPos` 锚页择组、无锚取裹字最多组；跨页续段、数学长段（一句裹百叶）按选句自然兜底。
+- 验证：vitest 54/54（新增 4 例——句级落点、叶缺席殿后、TOC 择组、DOM→PDF 句级）、tsc/eslint/build 绿、`scripts/sentalign_depth_probe.mjs` playwright 深度探针双向实证（en→zh 句闪 31% 覆盖、zh→en 数学长段一句全裹属正确）。

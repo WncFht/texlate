@@ -19,6 +19,10 @@
 //                    MutationObserver 增量重注（repaint/paint 自动覆盖）+
 //                    bodyEl 委托 pointerover/out/click（align-hover-perf
 //                    结论：委托 ~0ms 重绑 vs 逐 span 8–40ms）。
+//                    PDF dst 句级落地（v1.7）：marked 叶文本重切句 →
+//                    u·concatLen 选句 → 句首叶 {page,fraction} 作落点 +
+//                    pdfFlashEls 句域闪（替代整段锚闪）；叶缺席退
+//                    interpDst/seqPos+行带，懒渲页 160/550ms 双拍重选。
 //
 // sid 协议："{data-chunk}.{k}"（k=块内非空句序位，0 起）。
 // bead 协议：data-bead="{chunk}.{b}"（b=块内 bead 序位）——交互单位是 bead
@@ -26,6 +30,7 @@
 // 契约：sid/bead → 元素集合——任何消费方一律 querySelectorAll，禁单元素假设。
 
 import type { Pos } from "./alignment";
+import { MARKED_SEL } from "./pdfmarks";
 import { ROW_DOWN, ROW_EPSX, ROW_UP } from "./pdfseqpos";
 import { forEachSliced } from "./sync";
 
@@ -532,6 +537,12 @@ export interface SentAlignDeps {
     /** seq 锚闪示（PdfPane.flashSeq 桥——markedContent 整组闪；
         缺省调用方落回 pdfFlash 行带）。返实际打闪元素集（anim.land 用） */
     pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): Element[] | undefined;
+    /** dst pdf 侧 seq 的 marked 字形叶（PdfPane.seqLeaves 桥）——句级
+        落点/闪示的原料；已渲染页才查得到，缺席退插值/直锚+整段闪 */
+    pdfSeqLeaves?(dst: SaSide, seq: number): HTMLElement[] | undefined;
+    /** 句级叶集打闪（PdfPane.flashEls 桥——pdfSentAt 句域叶集闪面；
+        缺省或选句落空退 pdfFlash 行带/pdfFlashSeq 整段） */
+    pdfFlashEls?(dst: SaSide, els: HTMLElement[]): void;
     /** pdf 侧悬停对位桥（PdfPane.hoverSeq 桥）：seq=null 清色；pos 供
         无锚 seq 的行带兜底；cls='sa-hot'(源侧)/'sa-peer'(对侧)。
         每 pdf 窗格单轨——新 cls 覆盖旧色。 */
@@ -577,6 +588,9 @@ export class SentAlignSession {
     private lastKey = "";
     private flashEls: Element[] = [];
     private flashTimer = 0;
+    /** 句级闪示延迟重试的代际闸——pdfJumpFlash 每次进 sent 臂递增；
+        180ms 窗内新跳作废旧重试（防陈旧句集闪到最新落点上） */
+    private flashGen = 0;
 
     constructor(private deps: SentAlignDeps = {}) {}
 
@@ -806,6 +820,7 @@ export class SentAlignSession {
         for (const s of ["en", "zh"] as const) this.unmountSide(s);
         window.clearTimeout(this.flashTimer);
         this.clearFlash();
+        this.flashGen++; // 作废在途句级延迟重试
     }
 
     // ---------------------------------------------------------- 注入/对位
@@ -1135,29 +1150,152 @@ export class SentAlignSession {
     /** pdfDest→pdfJump→recordJump→闪示公共尾（四调用点同构）：
         seq 在场且 pdfFlashSeq 可用 → 锚闪，否则 pdfFlash 行带兜底；
         dest/jump 任一环落空静默收（deps 闸在调用方）。
+        sent 在场（u 有值）→ 句级闪示优先：预选叶集 → 跳后重选
+        （跳前页未渲缺席）→ 行带 → 整段逐级退。
         from 在同步点击路上取定后随闭包走——异步落地各持各源点。 */
     private pdfJumpFlash(
         dst: SaSide,
         pos: Pos,
         seq?: number | null,
         from?: { x: number; y: number } | null,
+        sent?: { seq: number; u: number; els?: HTMLElement[] },
     ): void {
+        // 每次起跳作废旧延迟重试（不止 sent 臂——行带跳也该压掉
+        // 前一次跳留下的在途句级重选）
+        const gen = ++this.flashGen;
         void Promise.resolve(this.deps.pdfDest!(dst, pos))
             .then((dest) => {
                 if (!dest) return;
                 return this.deps.pdfJump!(dst, dest).then((r) => {
                     if (!r) return;
                     this.deps.recordJump?.(dst, r.pre, r.post);
-                    const els =
-                        this.deps.pdfFlashSeq && seq != null
-                            ? this.deps.pdfFlashSeq(dst, seq, r.post)
-                            : this.deps.pdfFlash?.(dst, r.post);
+                    let els: Element[] | undefined;
+                    if (sent) {
+                        const trySent = (): Element[] | undefined => {
+                            const hits = sent.els?.length
+                                ? sent.els
+                                : this.pdfSentAt(dst, sent.seq, sent.u)?.els;
+                            if (hits?.length && this.deps.pdfFlashEls) {
+                                this.deps.pdfFlashEls(dst, hits);
+                                return hits;
+                            }
+                            return undefined;
+                        };
+                        els = trySent();
+                        if (!els?.length) {
+                            els = this.deps.pdfFlash?.(dst, r.post);
+                            if (!els?.length && seq != null)
+                                els = this.deps.pdfFlashSeq?.(
+                                    dst,
+                                    seq,
+                                    r.post,
+                                );
+                            // 落点页懒渲（resolve 在 scroll 写位后、
+                            // textLayer 未起，冷页实测 ~500ms）——
+                            // 双拍重试；命中即封代际灭在途同伴；
+                            // gen 闸挡窗内连点的陈旧闪示
+                            if (!els?.length)
+                                for (const ms of [160, 550])
+                                    window.setTimeout(() => {
+                                        if (gen !== this.flashGen) return;
+                                        const late = trySent();
+                                        if (late?.length) {
+                                            this.flashGen++;
+                                            this.animLand(
+                                                from ?? null,
+                                                late,
+                                            );
+                                        }
+                                    }, ms);
+                        }
+                    } else {
+                        els =
+                            this.deps.pdfFlashSeq && seq != null
+                                ? this.deps.pdfFlashSeq(dst, seq, r.post)
+                                : this.deps.pdfFlash?.(dst, r.post);
+                    }
                     // 滚动落定帧已过（pdfJump resolve 在 scroll 写位后）——
                     // els 行矩形此刻取连线终点才准
                     this.animLand(from ?? null, els ?? undefined);
                 });
             })
             .catch(() => {}); // deps 拒收同落空口径——静默收
+    }
+
+    /** dst pdf 侧句级落点+闪示集：seq 的 marked 叶文本重切句 →
+        u·concatLen 所在句 → 句首叶 {page,fraction,x} 作落点 Pos、
+        句域叶集作闪示面（与 DOM 臂 sents.find 同语义）。
+        marked 多出现（TOC 重放+正文真标）按 dst 锚页择组，无锚页取
+        裹字最多组。叶缺席/切空 → null（调用方退插值/直锚旧路）。 */
+    private pdfSentAt(
+        dst: SaSide,
+        seq: number,
+        u: number,
+    ): { pos: Pos; els: HTMLElement[] } | null {
+        const all = this.deps.pdfSeqLeaves?.(dst, seq);
+        if (!all?.length) return null;
+        const anchorPage = this.deps.seqPos?.(seq, dst)?.page ?? null;
+        const groups = new Map<Element, HTMLElement[]>();
+        for (const el of all) {
+            const host = el.closest(MARKED_SEL) ?? el;
+            const g = groups.get(host);
+            if (g) g.push(el);
+            else groups.set(host, [el]);
+        }
+        let leaves: HTMLElement[] | null = null;
+        let bestLen = -1;
+        for (const g of groups.values()) {
+            const page = Number(
+                g[0]!
+                    .closest("[data-page-number]")
+                    ?.getAttribute("data-page-number"),
+            );
+            if (anchorPage != null && page === anchorPage) {
+                leaves = g;
+                break;
+            }
+            const len = g.reduce(
+                (a, el) => a + (el.textContent ?? "").length,
+                0,
+            );
+            if (len > bestLen) {
+                bestLen = len;
+                leaves = g;
+            }
+        }
+        if (!leaves?.length) return null;
+        const offs: number[] = [];
+        let concat = "";
+        for (const el of leaves) {
+            offs.push(concat.length);
+            concat += el.textContent ?? "";
+        }
+        if (!concat.length) return null;
+        const sents = (dst === "zh" ? splitZh : splitEn)(concat);
+        if (!sents.length) return null;
+        const target = clamp(u, 0, 1) * concat.length;
+        const [s0, s1] =
+            sents.find(([, e]) => e > target) ?? sents[sents.length - 1]!;
+        const els = leaves.filter(
+            (el, i) =>
+                offs[i]! < s1 &&
+                s0 < offs[i]! + (el.textContent ?? "").length,
+        );
+        if (!els.length) return null;
+        // 句首叶 → 落点 Pos（posAtPoint 同口径：页号+页内 top-down
+        // 分位+x 页宽分位）
+        const pg = els[0]!.closest("[data-page-number]");
+        const page = Number(pg?.getAttribute("data-page-number"));
+        const pr = pg?.getBoundingClientRect();
+        if (!pg || !Number.isFinite(page) || !pr?.height) return null;
+        const r = els[0]!.getBoundingClientRect();
+        const pos: Pos = {
+            page,
+            fraction: clamp((r.top - pr.top) / pr.height, 0, 1),
+        };
+        if (pr.width > 0)
+            pos.x = clamp((r.left - pr.left) / pr.width, 0, 1);
+        return { pos, els };
     }
 
     /** 点击 → 对侧 bead 首元素跳转（DOM 侧）：scroller 滚位 + flash +
@@ -1250,13 +1388,23 @@ export class SentAlignSession {
                 return true;
             }
         }
+        // dst 已渲染时优先句级落点——u·dst 文本长定句、句首叶定 Pos
+        // （叶缺席退锚区间插值/直锚，行为同旧版）
+        const sent = u != null ? this.pdfSentAt(dst, seq, u) : null;
         const pos =
+            sent?.pos ??
             this.interpDst(dst, seq, u, fb?.span ?? null) ??
             this.deps.seqPos?.(seq, dst) ??
             null;
         if (!pos || !this.deps.pdfDest || !this.deps.pdfJump) return false;
         this.deps.navBegin?.();
-        this.pdfJumpFlash(dst, pos, seq, from);
+        this.pdfJumpFlash(
+            dst,
+            pos,
+            seq,
+            from,
+            u != null ? { seq, u, els: sent?.els } : undefined,
+        );
         return true;
     }
 
@@ -1372,16 +1520,29 @@ export class SentAlignSession {
         const seq =
             key != null ? (this.deps.seqOfChunk?.(key) ?? null) : null;
         // 句内分位充块内插值的 u——seq 锚是块首，u 把落点推进块内
-        // （seqLands dep 缺席时 interpDst 直接 null，等价旧版直锚）
+        // （seqLands dep 缺席时 interpDst 直接 null，等价旧版直锚）；
+        // dst 叶在场时 pdfSentAt 直接给句级 Pos+闪集
         const sidP = this.sidPos(src, sp);
+        const u = sidP?.fraction ?? null;
+        const sent =
+            seq != null && u != null ? this.pdfSentAt(dst, seq, u) : null;
         const sPos =
             seq != null
-                ? (this.interpDst(dst, seq, sidP?.fraction ?? null) ??
+                ? (sent?.pos ??
+                  this.interpDst(dst, seq, u) ??
                   this.deps.seqPos?.(seq, dst) ??
                   null)
                 : null;
         if (sPos && this.deps.pdfDest && this.deps.pdfJump) {
-            this.pdfJumpFlash(dst, sPos, seq, from);
+            this.pdfJumpFlash(
+                dst,
+                sPos,
+                seq,
+                from,
+                seq != null && u != null
+                    ? { seq, u, els: sent?.els }
+                    : undefined,
+            );
             return;
         }
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)

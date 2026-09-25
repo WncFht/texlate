@@ -373,6 +373,19 @@ export default function ReaderView(props: Props) {
                     return h.flashAtPos?.(pos);
                 return undefined;
             },
+            // 句级落点原料：marked 字形叶（PdfPane.seqLeaves 桥）
+            pdfSeqLeaves: (dst, seq) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                return h && "seqLeaves" in h
+                    ? h.seqLeaves?.(seq)
+                    : undefined;
+            },
+            pdfFlashEls: (dst, els) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                if (h && "flashEls" in h) h.flashEls?.(els);
+            },
             // 悬停伴显桥：pdf 侧经 hoverSeq 锚/带染色（dom 侧无此面，
             // sentalign 内 DOM 对侧自己染 [data-sid] span）
             pdfHover: (dst, seq, pos, cls) => {
