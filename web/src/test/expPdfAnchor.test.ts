@@ -153,4 +153,4 @@ it("pdf textLayer 抽取 × pdfSeqsForText 命中率", async () => {
     emit("\n--- 匹配失败样例(至多15) ---"); agg.missed.slice(0, 15).forEach((s) => emit(s));
     emit("\n--- 命中但过宽样例(至多10) ---"); agg.loose.slice(0, 10).forEach((s) => emit(s));
     writeFileSync("/home/fanghaotian/src/texlate/tmp/pdf-anchoring-20260923/exp/expC-report.txt", out.join("\n"));
-}, 300_000);
+}, 1_800_000);
