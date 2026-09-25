@@ -82,6 +82,10 @@ def _mirror_source_dirs(cwd: Path, out: Path) -> None:
     # 物化无穷生成器（normalize.py ``_iter_files`` 同款教训）；walk 的
     # dirnames 原地剪枝同步实现 dot 目录不镜像 + ``out`` 子树不递归，
     # 软链目录只镜像自身（真目录落位供 aux 写入）不下钻。
+    # cwd 统一 resolve——``_prepare_main`` 的 ``out`` 恒绝对而 ``cwd``
+    # 随 ``wdir`` 可相对, rel-vs-abs 的 ``is_relative_to`` 恒 False →
+    # ``out`` 子树剪枝失效, 镜像自我喂养递归爆径长 (c32920 replay 实证)。
+    cwd = cwd.resolve()
     for dirpath, dirnames, _files in os.walk(cwd, followlinks=False):
         base = Path(dirpath)
         dirnames[:] = [
