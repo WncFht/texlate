@@ -497,7 +497,10 @@ describe("SentAlignSession", () => {
             },
             recordJump: (d, pre, post) =>
                 calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
-            pdfFlash: (d, pos) => calls.push(`pdfFlash:${d}:${pos.page}`),
+            pdfFlash: (d, pos) => {
+                calls.push(`pdfFlash:${d}:${pos.page}`);
+                return undefined;
+            },
         });
         s.mountPdfSide("zh");
         s.mountPdfClickSource("en", pdf, (x, y) => {
@@ -562,9 +565,14 @@ describe("SentAlignSession", () => {
             },
             recordJump: (d, pre, post) =>
                 calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
-            pdfFlash: (d, pos) => calls.push(`pdfFlash:${d}:${pos.page}`),
-            pdfFlashSeq: (d, seq, pos) =>
-                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`),
+            pdfFlash: (d, pos) => {
+                calls.push(`pdfFlash:${d}:${pos.page}`);
+                return undefined;
+            },
+            pdfFlashSeq: (d, seq, pos) => {
+                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`);
+                return undefined;
+            },
             mapPos: () => {
                 calls.push("mapPos");
                 return { page: 0, fraction: 0 };
@@ -609,6 +617,7 @@ describe("SentAlignSession", () => {
     it("seq 快路不可落地（seqPos null）→ 落回 posAtPoint 兜底臂", async () => {
         const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
         const calls: string[] = [];
+        const press = vi.fn();
         const s = new SentAlignSession({
             seqPos: () => null,
             mapPos: () => ({ page: 3, fraction: 0.5 }),
@@ -619,6 +628,7 @@ describe("SentAlignSession", () => {
                     post: { page: 3, fraction: 0.5 },
                 }),
             recordJump: (d) => calls.push(`recordJump:${d}`),
+            anim: { press },
         });
         s.mountPdfSide("zh");
         s.mountPdfClickSource(
@@ -639,6 +649,8 @@ describe("SentAlignSession", () => {
         await tick();
         // seqAtPoint 给了 seq 但 seqPos 查不到 → jumpSeq false → 兜底
         expect(calls).toEqual(["seqAtPoint", "posAtPoint", "recordJump:zh"]);
+        // seq 臂涟漪与兜底臂共一次点击——press 恰一次不双击
+        expect(press).toHaveBeenCalledTimes(1);
         s.destroy();
     });
 
@@ -702,8 +714,10 @@ describe("SentAlignSession", () => {
             },
             recordJump: (d, pre, post) =>
                 calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
-            pdfFlashSeq: (d, seq, pos) =>
-                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`),
+            pdfFlashSeq: (d, seq, pos) => {
+                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`);
+                return undefined;
+            },
             mapPos: () => {
                 calls.push("mapPos");
                 return { page: 0, fraction: 0 };
@@ -721,6 +735,430 @@ describe("SentAlignSession", () => {
             "recordJump:zh:1->8",
             "pdfFlashSeq:zh:11:8",
         ]);
+        s.destroy();
+    });
+});
+
+// ================================================================= 动效臂
+
+describe("句对位动效（press/land/pdfHover 接线）", () => {
+    const EN =
+        `<div data-chunk="c0"><p>Alpha one. Beta two gamma.</p></div>` +
+        `<div data-chunk="c1"><p>Gamma tail.</p></div>`;
+    const ZH =
+        `<div data-chunk="c0"><p>甲一。乙二丙。</p></div>` +
+        `<div data-chunk="c1"><p>丙尾。</p></div>`;
+
+    it("DOM 点击 → anim.press(点击点) + jump 落定后 anim.land(源点, bead els)", async () => {
+        const en = paneBody(
+            `<div data-chunk="c0"><p>Alpha one. Beta two.</p></div>`,
+        );
+        const zh = paneBody(`<div data-chunk="c0"><p>甲一。乙二。</p></div>`);
+        const pos: Pos = { page: 1, fraction: 0 };
+        const press = vi.fn();
+        const land = vi.fn();
+        const s = new SentAlignSession({ anim: { press, land } });
+        await s.mountSide("en", en);
+        await s.mountSide("zh", zh, { capture: () => pos });
+        en.querySelector('[data-sid="c0.0"]')!.dispatchEvent(
+            new MouseEvent("click", {
+                bubbles: true,
+                clientX: 33,
+                clientY: 44,
+            }),
+        );
+        await tick();
+        expect(press).toHaveBeenCalledWith(33, 44);
+        expect(land).toHaveBeenCalledTimes(1);
+        const [from, els] = land.mock.calls[0]! as [
+            { x: number; y: number },
+            Element[],
+        ];
+        expect(from).toMatchObject({ x: 33, y: 44 });
+        expect(els.length).toBeGreaterThan(0);
+        for (const el of els)
+            expect(el.getAttribute("data-bead")).toBe("c0.0");
+        s.destroy();
+    });
+
+    it("PDF 点击 → press + pdfFlashSeq 元素集喂给 land", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const flashEl = document.createElement("span");
+        const press = vi.fn();
+        const land = vi.fn();
+        const s = new SentAlignSession({
+            anim: { press, land },
+            seqPos: () => ({ page: 6, fraction: 0.3 }),
+            pdfDest: (_d, pos) => [
+                pos.page - 1,
+                { name: "XYZ" },
+                0,
+                100,
+                null,
+            ],
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 6, fraction: 0.3 },
+                }),
+            pdfFlashSeq: () => [flashEl],
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => ({ page: 2, fraction: 0.5 }),
+            () => 42,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", {
+                bubbles: true,
+                clientX: 9,
+                clientY: 8,
+            }),
+        );
+        await tick();
+        expect(press).toHaveBeenCalledWith(9, 8);
+        expect(land).toHaveBeenCalledTimes(1);
+        expect(land.mock.calls[0]![1]).toEqual([flashEl]);
+        s.destroy();
+    });
+
+    it("mountPdfHoverSource：move → 本侧 sa-hot + 对侧 sa-peer；同 seq 不重算对侧；leave/链接 清轨", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><a href="#">l</a><span>x.</span></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => ({ page: 7, fraction: 0.5 }),
+            pdfHover: (side, seq, pos, cls) =>
+                calls.push(
+                    `h:${side}:${seq}:${cls}${pos ? ":" + pos.page : ""}`,
+                ),
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfHoverSource(
+            "en",
+            pdf,
+            () => 5,
+            () => ({ page: 1, fraction: 0.2 }),
+        );
+        const sp = pdf.querySelector("span")!;
+        // 拖选守卫——buttons!=0 不跟手
+        sp.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true, buttons: 1 }),
+        );
+        expect(calls).toEqual([]);
+        // 正常跟手——本侧 hot（pos 随行）+ 对侧 peer（seqPos 落点）
+        sp.dispatchEvent(
+            new MouseEvent("pointermove", {
+                bubbles: true,
+                clientX: 1,
+                clientY: 1,
+            }),
+        );
+        expect(calls).toEqual(["h:en:5:sa-hot:1", "h:zh:5:sa-peer:7"]);
+        // 同 seq 再动（过节流）——hot 重算、peer 不重算
+        calls.length = 0;
+        await tick(70);
+        sp.dispatchEvent(
+            new MouseEvent("pointermove", {
+                bubbles: true,
+                clientX: 2,
+                clientY: 2,
+            }),
+        );
+        expect(calls).toEqual(["h:en:5:sa-hot:1"]);
+        // 移上链接 → 双轨清（cur=5→null 非同 seq，对侧也摘）
+        calls.length = 0;
+        await tick(70);
+        pdf.querySelector("a")!.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true }),
+        );
+        expect(calls).toEqual(["h:en:null:sa-hot", "h:zh:null:sa-peer"]);
+        // leave → cur 已 null，只发本侧清
+        calls.length = 0;
+        pdf.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
+        expect(calls).toEqual(["h:en:null:sa-hot"]);
+        s.destroy();
+    });
+
+    it("DOM→PDF 悬停：sid pointerover → pdfHover(对侧,seq,seqPos,sa-peer)；离开清 pdf 轨", async () => {
+        const en = paneBody(
+            `<div data-chunk="c0"><p>Alpha one. Beta two.</p></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqOfChunk: (k) => (k === "c0" ? 23 : null),
+            seqPos: () => ({ page: 7, fraction: 0.6 }),
+            pdfHover: (side, seq, pos, cls) =>
+                calls.push(
+                    `h:${side}:${seq}:${cls}${pos ? ":" + pos.page : ""}`,
+                ),
+        });
+        await s.mountSide("en", en);
+        s.mountPdfSide("zh");
+        const sp = en.querySelector('[data-sid="c0.0"]')!;
+        sp.dispatchEvent(
+            new MouseEvent("pointerover", { bubbles: true }),
+        );
+        // bead 是 DOM↔DOM 概念——pdf 对侧无 bead 也有 seq 对位；
+        // 先两发 clearHot 剥轨再上新 peer
+        expect(calls).toEqual([
+            "h:en:null:sa-peer",
+            "h:zh:null:sa-peer",
+            "h:zh:23:sa-peer:7",
+        ]);
+        expect(en.querySelectorAll(".sa-hot")).toHaveLength(1);
+        calls.length = 0;
+        sp.dispatchEvent(new MouseEvent("pointerout", { bubbles: true }));
+        // clearHot 两侧 pdf 轨一并剥
+        expect(calls).toEqual(["h:en:null:sa-peer", "h:zh:null:sa-peer"]);
+        s.destroy();
+    });
+
+    it("pdf hover + DOM 对侧：seq↔chunk 1:1 peer 走会话 peerEls——leave/clearHot 同源扫", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const zh = paneBody(`<div data-chunk="c9"><p>甲一。乙二。</p></div>`);
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqOfChunk: (k) => (k === "c9" ? 31 : null),
+            pdfHover: (side, seq, _pos, cls) =>
+                calls.push(`${side}:${seq}:${cls}`),
+        });
+        await s.mountSide("zh", zh);
+        s.mountPdfHoverSource(
+            "en",
+            pdf,
+            () => 31,
+            () => ({ page: 1, fraction: 0.5 }),
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true }),
+        );
+        // 本侧 sa-hot 走桥；DOM 对侧不涉 pdfHover——块内 sid 全挂 peer
+        expect(calls).toEqual(["en:31:sa-hot"]);
+        expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        await tick(70);
+        // pdf 悬停仍在场时 DOM 侧 pointerover——clearHot 须把 pdf 臂
+        // 养在 peerEls 里的 sa-peer 一并扫走再武装新 DOM 悬停
+        const zhSp = zh.querySelector('[data-sid="c9.0"]')!;
+        zhSp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+        expect(zh.querySelectorAll(".sa-peer")).toHaveLength(0);
+        expect(zh.querySelectorAll(".sa-hot").length).toBeGreaterThan(0);
+        zhSp.dispatchEvent(new MouseEvent("pointerout", { bubbles: true }));
+        // 重新 pdf 悬停后再走 leave——peer 清零
+        calls.length = 0;
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true }),
+        );
+        expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        pdf.dispatchEvent(
+            new MouseEvent("pointerleave", { bubbles: true }),
+        );
+        expect(zh.querySelectorAll(".sa-peer")).toHaveLength(0);
+        s.destroy();
+    });
+
+    it("跨侧 1:1 同 sid 直移不撞 dedup key——en→zh 悬停正常换轨", async () => {
+        const en = paneBody(EN);
+        const zh = paneBody(ZH);
+        const s = new SentAlignSession();
+        await s.mountSide("en", en);
+        await s.mountSide("zh", zh);
+        const enSp = en.querySelector('[data-sid="c0.0"]')!;
+        const zhSp = zh.querySelector('[data-sid="c0.0"]')!;
+        // 双侧 c0.0 同字——dedup 键不带侧名时 out/over 双双被吞
+        enSp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+        expect(en.querySelectorAll(".sa-hot")).toHaveLength(1);
+        // 直移到 zh 同字 span：out(relatedTarget=zhSp)+over
+        enSp.dispatchEvent(
+            new MouseEvent("pointerout", {
+                bubbles: true,
+                relatedTarget: zhSp,
+            }),
+        );
+        zhSp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+        expect(en.querySelectorAll(".sa-hot")).toHaveLength(0);
+        expect(zh.querySelectorAll(".sa-hot")).toHaveLength(1);
+        // zh 悬停 en 侧 bead 伴显照常
+        expect(en.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        s.destroy();
+    });
+
+    it("重注保命：悬停块被 injectChunk 重切后按原 sid 补臂", async () => {
+        const en = paneBody(EN);
+        const zh = paneBody(ZH);
+        const s = new SentAlignSession();
+        await s.mountSide("en", en);
+        await s.mountSide("zh", zh);
+        const sp = en.querySelector('[data-sid="c0.0"]')!;
+        sp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
+        expect(en.querySelectorAll(".sa-hot")).toHaveLength(1);
+        expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        // 模拟 MO 重注（repaint 路径）——悬停中的 chunk 被剥重包
+        s.injectChunk("en", en.querySelector('[data-chunk="c0"]')!);
+        const nsp = en.querySelector('[data-sid="c0.0"]')!;
+        expect(nsp).not.toBe(sp); // span 确已换新
+        expect(nsp.classList.contains("sa-hot")).toBe(true);
+        expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        s.destroy();
+    });
+
+    it("重注保命：pdf 悬停臂的 DOM peer 块被重切后按存活 seq 补染", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const zh = paneBody(ZH);
+        const s = new SentAlignSession({
+            seqOfChunk: (k) => (k === "c0" ? 31 : null),
+        });
+        await s.mountSide("zh", zh);
+        s.mountPdfHoverSource(
+            "en",
+            pdf,
+            () => 31,
+            () => ({ page: 1, fraction: 0.5 }),
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true }),
+        );
+        expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
+        const old = zh.querySelector(".sa-peer")!;
+        s.injectChunk("zh", zh.querySelector('[data-chunk="c0"]')!);
+        const peers = zh.querySelectorAll(".sa-peer");
+        expect(peers.length).toBeGreaterThan(0);
+        expect(peers[0]).not.toBe(old); // 新 span 新染——不是亡件残留
+        s.destroy();
+    });
+
+    it("悬停节流带尾沿——窗内末笔移动补评不丢 seq", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => ({ page: 7, fraction: 0.5 }),
+            pdfHover: (side, seq, _pos, cls) =>
+                calls.push(`${side}:${seq}:${cls}`),
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfHoverSource(
+            "en",
+            pdf,
+            (x) => (x >= 2 ? 6 : 5),
+            () => ({ page: 1, fraction: 0.2 }),
+        );
+        const sp = pdf.querySelector("span")!;
+        sp.dispatchEvent(
+            new MouseEvent("pointermove", {
+                bubbles: true,
+                clientX: 1,
+                clientY: 1,
+            }),
+        );
+        // 窗内第二笔（x=2→seq6）被节流压住，但尾沿须补评——
+        // 指针停句上后悬停不许留在 seq5
+        sp.dispatchEvent(
+            new MouseEvent("pointermove", {
+                bubbles: true,
+                clientX: 2,
+                clientY: 2,
+            }),
+        );
+        expect(calls).toEqual(["en:5:sa-hot", "zh:5:sa-peer"]);
+        calls.length = 0;
+        await tick(80);
+        expect(calls).toEqual(["en:6:sa-hot", "zh:6:sa-peer"]);
+        s.destroy();
+    });
+
+    it("窗格滚动扫悬停——pdf 臂 scroll 即清轨（scroll 不冒泡走 capture）", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => ({ page: 7, fraction: 0.5 }),
+            pdfHover: (side, seq, _pos, cls) =>
+                calls.push(`${side}:${seq}:${cls}`),
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfHoverSource(
+            "en",
+            pdf,
+            () => 5,
+            () => ({ page: 1, fraction: 0.2 }),
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("pointermove", { bubbles: true }),
+        );
+        expect(calls).toEqual(["en:5:sa-hot", "zh:5:sa-peer"]);
+        calls.length = 0;
+        pdf.dispatchEvent(new Event("scroll"));
+        expect(calls).toEqual(["en:null:sa-hot", "zh:null:sa-peer"]);
+        s.destroy();
+    });
+
+    it("DOM 侧滚动扫悬停——scroller scroll → clearHot", async () => {
+        const en = paneBody(EN);
+        const zh = paneBody(ZH);
+        const s = new SentAlignSession();
+        await s.mountSide("en", en);
+        await s.mountSide("zh", zh);
+        en.querySelector('[data-sid="c0.0"]')!.dispatchEvent(
+            new MouseEvent("pointerover", { bubbles: true }),
+        );
+        expect(en.querySelectorAll(".sa-hot")).toHaveLength(1);
+        en.dispatchEvent(new Event("scroll")); // scroller 缺省=body
+        expect(document.querySelectorAll(".sa-hot,.sa-peer")).toHaveLength(0);
+        s.destroy();
+    });
+
+    it("pdfFlash 行带兜底臂的元素集也喂 land（无 pdfFlashSeq 时）", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const bandEl = document.createElement("span");
+        const land = vi.fn();
+        const s = new SentAlignSession({
+            anim: { land },
+            mapPos: () => ({ page: 3, fraction: 0.5 }),
+            pdfDest: (_d, pos) => [pos.page - 1, { name: "XYZ" }, 0, 0, null],
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.5 },
+                }),
+            pdfFlash: () => [bandEl],
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => ({ page: 2, fraction: 0.4 }),
+            () => null,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 4, clientY: 4 }),
+        );
+        await tick();
+        expect(land).toHaveBeenCalledTimes(1);
+        expect(land.mock.calls[0]![0]).toMatchObject({ x: 4, y: 4 });
+        expect(land.mock.calls[0]![1]).toEqual([bandEl]);
+        s.destroy();
+    });
+
+    it("gotoPeer 非点击跳——land from=null 只擦入不连线", async () => {
+        const en = paneBody(EN);
+        const zh = paneBody(ZH);
+        const land = vi.fn();
+        const s = new SentAlignSession({ anim: { land } });
+        await s.mountSide("en", en);
+        // 先一次落空点击（zh 未挂、无 pdf deps——旧单槽制会滞留源点）
+        en.querySelector('[data-sid="c0.0"]')!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true }),
+        );
+        await s.mountSide("zh", zh);
+        // 参数透传制下残点无从泄漏——命令跳 land 只收 null
+        s.jumpToPeer("c0.1", "en");
+        expect(land).toHaveBeenCalledTimes(1);
+        expect(land.mock.calls[0]![0]).toBeNull();
+        expect(
+            (land.mock.calls[0]![1] as Element[]).length,
+        ).toBeGreaterThan(0);
         s.destroy();
     });
 });

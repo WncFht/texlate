@@ -513,8 +513,9 @@ export interface SentAlignDeps {
         dst: SaSide,
         dest: unknown[],
     ): Promise<{ pre: Pos; post: Pos } | null>;
-    /** PDF→PDF 落点闪示（PdfPane.flashAtPos 桥——r.post 分位行带） */
-    pdfFlash?(dst: SaSide, pos: Pos): void;
+    /** PDF→PDF 落点闪示（PdfPane.flashAtPos 桥——r.post 分位行带）。
+        返实际打闪的元素集（供动效层取行矩形——连线终点/擦入幅面） */
+    pdfFlash?(dst: SaSide, pos: Pos): Element[] | undefined;
     /** seq+侧 → Pos（服务端 seqpos——seq 精度直锚，seq 臂优先于
         mapPos 分位插值）；不可查返回 null */
     seqPos?(seq: number, side: SaSide): Pos | null;
@@ -529,8 +530,25 @@ export interface SentAlignDeps {
         u·Δdst 会把落点甩进图区/下页）；缺省不夹（行为同旧版） */
     chunkLen?(seq: number, side: SaSide): number;
     /** seq 锚闪示（PdfPane.flashSeq 桥——markedContent 整组闪；
-        缺省调用方落回 pdfFlash 行带） */
-    pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): void;
+        缺省调用方落回 pdfFlash 行带）。返实际打闪元素集（anim.land 用） */
+    pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): Element[] | undefined;
+    /** pdf 侧悬停对位桥（PdfPane.hoverSeq 桥）：seq=null 清色；pos 供
+        无锚 seq 的行带兜底；cls='sa-hot'(源侧)/'sa-peer'(对侧)。
+        每 pdf 窗格单轨——新 cls 覆盖旧色。 */
+    pdfHover?(
+        side: SaSide,
+        seq: number | null,
+        pos: Pos | null,
+        cls: string,
+    ): void;
+    /** 动效层（anim.ts）：press=源侧点击涟漪；land=连线+行擦入，
+        els=落句渲染元素集（pdf marked 叶/dom sid span——land 内取
+        行矩形，调用方保证已过滚动落定帧）。from=null=非点击跳
+        （右键 gotoPeer 等）——只擦入不连线 */
+    anim?: {
+        press?(x: number, y: number): void;
+        land?(from: { x: number; y: number } | null, els: Element[]): void;
+    };
     /** 增量重注防抖（ms，缺省 60——LivePane rAF 分片一拍内合批） */
     debounceMs?: number;
     /** flash 时长（ms，缺省 1400——cite-flash 同款） */
@@ -545,6 +563,15 @@ export class SentAlignSession {
     private sides = new Map<SaSide, SideState>();
     private pdfTargets = new Set<SaSide>();
     private pdfClickDetach = new Map<SaSide, () => void>();
+    private pdfHoverDetach = new Map<SaSide, () => void>();
+    /** pdf 悬停臂存活的 seq（侧 → seq|null）——DOM 对侧 peer 遭重注
+        后按此补臂（指针静止不重发 pointermove，不补则 sa-peer 永失） */
+    private pdfHoverCur = new Map<SaSide, number | null>();
+    /** peer 轨代次——clearHot 递增；pdf 悬停臂 sameSeq 早退还要比对
+        代次，否则外部扫轨（DOM 悬停切换/DOM 侧滚动）后同 seq 不补臂 */
+    private peerGen = 0;
+    /** 侧 → 本侧 pdf 臂最近补 peer 时的代次（armPdfPeer 内记） */
+    private pdfPeerGenArmed = new Map<SaSide, number>();
     private hotEls: Element[] = [];
     private peerEls: Element[] = [];
     private lastKey = "";
@@ -622,10 +649,15 @@ export class SentAlignSession {
             const seq = seqAtPoint?.(e.clientX, e.clientY) ?? null;
             // posAt 惰性化——seq 快路落地时不许碰 posAtPoint（调用序契约）
             const posAt = () => posAtPoint(e.clientX, e.clientY);
-            if (seq != null && this.jumpSeq(side, seq, posAt)) return;
+            let from: { x: number; y: number } | null = null;
+            if (seq != null) {
+                from = this.animPress(e.clientX, e.clientY);
+                if (this.jumpSeq(side, seq, posAt, from)) return;
+            }
             const pos = posAt();
             if (!pos) return;
-            this.jumpPosToPdf(side, pos);
+            if (from == null) from = this.animPress(e.clientX, e.clientY);
+            this.jumpPosToPdf(side, pos, from);
         };
         el.addEventListener("click", onClick);
         this.pdfClickDetach.set(side, () =>
@@ -633,9 +665,124 @@ export class SentAlignSession {
         );
     }
 
+    /** pdf 源侧悬停对位（动效臂 C）：pointermove ~60ms 节流（带尾沿
+        补评——静止位不吃陈旧 seq）→ seqAtPoint → 本侧 sa-hot（锚 run
+        着色/行带兜底）+ 对侧 sa-peer（pdf 锚组经 pdfHover 桥；DOM
+        对侧走 seq↔data-chunk 1:1 查句 span）。同 seq 时本侧随 pos
+        行带跟手、对侧不重算；离开/滚动/无 seq 清零。
+        守卫与点击同口径（拖选/链接/卡片不跟手）。幂等重挂。 */
+    mountPdfHoverSource(
+        side: SaSide,
+        el: HTMLElement,
+        seqAtPoint: (x: number, y: number) => number | null,
+        posAtPoint: (x: number, y: number) => Pos | null,
+    ): void {
+        this.pdfHoverDetach.get(side)?.();
+        let cur: number | null = null;
+        let last = 0;
+        let pend: { x: number; y: number; t: Element | null } | null = null;
+        let pendT = 0;
+        const setSeq = (seq: number | null, pos: Pos | null) => {
+            // 同 seq 且本代未遭外部扫轨才算 peer 依旧——clearHot 递增
+            // peerGen，扫过一次后同 seq 也得重补 peer
+            const fresh =
+                seq === cur &&
+                this.pdfPeerGenArmed.get(side) === this.peerGen;
+            cur = seq;
+            this.pdfHoverCur.set(side, seq);
+            this.deps.pdfHover?.(side, seq, pos, "sa-hot");
+            if (fresh) return; // 对侧 peer 与 pos 无关——同 seq 免重算
+            this.armPdfPeer(side, seq);
+        };
+        const resolve = (x: number, y: number, t: Element | null) => {
+            last = Date.now();
+            if (t?.closest?.("a, button, .cite-card, .usage-card")) {
+                setSeq(null, null);
+                return;
+            }
+            const seq = seqAtPoint(x, y);
+            setSeq(seq, seq != null ? posAtPoint(x, y) : null);
+        };
+        const onMove = (e: PointerEvent) => {
+            if (e.buttons !== 0) return; // 拖选中不跟手
+            const wait = 60 - (Date.now() - last);
+            if (wait <= 0) {
+                pend = null;
+                resolve(e.clientX, e.clientY, e.target as Element | null);
+                return;
+            }
+            // 尾沿：节流窗内的移动存末笔，窗满补评——指针停在句上时
+            // 悬停色不许留在旧 seq 上
+            pend = { x: e.clientX, y: e.clientY, t: e.target as Element | null };
+            if (!pendT)
+                pendT = window.setTimeout(() => {
+                    pendT = 0;
+                    const p = pend;
+                    pend = null;
+                    if (p) resolve(p.x, p.y, p.t);
+                }, wait);
+        };
+        const onLeave = () => {
+            pend = null;
+            window.clearTimeout(pendT);
+            pendT = 0;
+            setSeq(null, null);
+        };
+        el.addEventListener("pointermove", onMove);
+        el.addEventListener("pointerleave", onLeave);
+        // 静止指针下窗格滚动——句料位移悬停即失效（scroll 不冒泡，
+        // capture 抓内层 pdfSlickContainer）
+        el.addEventListener("scroll", onLeave, { capture: true, passive: true });
+        this.pdfHoverDetach.set(side, () => {
+            el.removeEventListener("pointermove", onMove);
+            el.removeEventListener("pointerleave", onLeave);
+            el.removeEventListener("scroll", onLeave, { capture: true });
+            window.clearTimeout(pendT);
+            setSeq(null, null);
+        });
+    }
+
+    /** pdf 悬停臂的对侧 peer 对位：pdf 对侧 → pdfHover 桥；DOM 对侧 →
+        seq↔data-chunk 1:1 全句 span sa-peer（会话级 peerEls 承载——
+        clearHot/重注补臂同源扫）。 */
+    private armPdfPeer(side: SaSide, seq: number | null): void {
+        this.pdfPeerGenArmed.set(side, this.peerGen);
+        for (const e of this.peerEls) e.classList.remove("sa-peer");
+        this.peerEls = [];
+        const dst = other(side);
+        if (seq == null) {
+            this.deps.pdfHover?.(dst, null, null, "sa-peer");
+            return;
+        }
+        if (this.pdfTargets.has(dst)) {
+            this.deps.pdfHover?.(
+                dst,
+                seq,
+                this.deps.seqPos?.(seq, dst) ?? null,
+                "sa-peer",
+            );
+            return;
+        }
+        const st = this.sides.get(dst);
+        if (!st?.body || !this.deps.seqOfChunk) return;
+        const chunks = [...st.body.querySelectorAll("[data-chunk]")].filter(
+            (e) =>
+                this.deps.seqOfChunk!(e.getAttribute("data-chunk") ?? "") ===
+                seq,
+        );
+        this.peerEls = chunks.flatMap((e) => [
+            ...e.querySelectorAll("[data-sid]"),
+        ]);
+        for (const e of this.peerEls) e.classList.add("sa-peer");
+    }
+
     unmountSide(side: SaSide): void {
         this.pdfClickDetach.get(side)?.();
         this.pdfClickDetach.delete(side);
+        this.pdfHoverDetach.get(side)?.();
+        this.pdfHoverDetach.delete(side);
+        this.pdfHoverCur.delete(side);
+        this.pdfPeerGenArmed.delete(side);
         const st = this.sides.get(side);
         if (!st) {
             this.pdfTargets.delete(side);
@@ -664,12 +811,25 @@ export class SentAlignSession {
     // ---------------------------------------------------------- 注入/对位
 
     /** 单块重注入（repaint/paint/新增路径）：剥旧 span→重切→重对位。
-        幂等——含 data-sid 子树的块 strip 后重来，双跑不双包。 */
+        幂等——含 data-sid 子树的块 strip 后重来，双跑不双包。
+        悬停轨与将亡块相交时先记悬点再清场、注完按原 sid/seq 补臂——
+        静止指针不重发 pointerover，不补则悬停色永久丢失。 */
     injectChunk(side: SaSide, el: Element): void {
         const st = this.sides.get(side);
         if (!st || !st.body.contains(el)) return;
         const key = el.getAttribute("data-chunk");
         if (key == null) return;
+        const hotSp = this.hotEls[0] ?? null;
+        const hotSid = hotSp?.getAttribute("data-sid") ?? null;
+        const hotSide = hotSp
+            ? st.body.contains(hotSp)
+              ? side
+              : other(side)
+            : null;
+        const hoverHit =
+            (hotSp != null && el.contains(hotSp)) ||
+            this.peerEls.some((e) => el.contains(e));
+        if (hoverHit) this.clearHot();
         stripSentSpans(el);
         const { sents, concatLen } = injectSentSpans(el, side);
         st.chunks.set(key, { el, sents, concatLen, beadList: null });
@@ -680,6 +840,23 @@ export class SentAlignSession {
             st.dirty.delete(inner);
             this.injectChunk(side, inner);
         }
+        if (!hoverHit) return;
+        if (hotSp != null && hotSid != null && hotSide != null) {
+            // DOM 悬停：热 span 活着沿用（对侧 peer 块被注的情形），
+            // 亡了按同 sid 找新 span（本块重切后同 sid 仍指同句）
+            const hst = this.sides.get(hotSide);
+            const nsp =
+                hst && hst.body.contains(hotSp)
+                    ? hotSp
+                    : (hst?.body.querySelector(attrSel("data-sid", hotSid)) ??
+                      null);
+            if (hst && nsp) this.armHover(hotSide, hst, nsp);
+            return;
+        }
+        // pdf 悬停臂的 DOM peer 被注——按存活 seq 补 peer（pdfHoverCur
+        // 记着源侧 cur，sameSeq 早退不会自己来补）
+        for (const [s, q] of this.pdfHoverCur)
+            if (q != null && other(s) === side) this.armPdfPeer(s, q);
     }
 
     /** MO 批处理：脏块重注 + 摘走的块从映射清除 */
@@ -796,40 +973,68 @@ export class SentAlignSession {
 
     // ---------------------------------------------------------- 悬停/点击
 
+    /** DOM 悬停武装：同 sid 全集 sa-hot + 对侧 bead 全集 sa-peer +
+        pdf 对侧 seq 桥 sa-peer。lastKey 由本函数记——dedup 键带侧名
+        （en/zh 同 sid 配对撞 key 会互相吞悬停，见 attachBody）。 */
+    private armHover(side: SaSide, st: SideState, sp: Element): void {
+        const sid = sp.getAttribute("data-sid")!;
+        const bead = sp.getAttribute("data-bead");
+        this.lastKey = `${side}|${sid}|${bead ?? ""}`;
+        const block = sp.closest("[data-chunk]") ?? st.body;
+        this.hotEls = [
+            ...block.querySelectorAll(attrSel("data-sid", sid)),
+        ];
+        for (const el of this.hotEls) el.classList.add("sa-hot");
+        if (bead) {
+            const os = this.sides.get(other(side));
+            if (os) {
+                this.peerEls = [
+                    ...os.body.querySelectorAll(attrSel("data-bead", bead)),
+                ];
+                for (const el of this.peerEls)
+                    el.classList.add("sa-peer");
+            }
+        }
+        if (
+            this.pdfTargets.has(other(side)) &&
+            this.deps.seqOfChunk &&
+            this.deps.pdfHover
+        ) {
+            // DOM→PDF 悬停对位：seq↔chunk 1:1——对侧 pdf 注册即对位存在
+            // （bead 是 DOM↔DOM 概念，pdf 对侧无 bead 也有 seq 对位）；
+            // 块 key → seq → pdf 对侧 sa-peer（无 seq 传 null 清轨）
+            const ck = block.getAttribute("data-chunk");
+            const seq = ck ? this.deps.seqOfChunk(ck) : null;
+            const dst = other(side);
+            this.deps.pdfHover(
+                dst,
+                seq,
+                seq != null ? (this.deps.seqPos?.(seq, dst) ?? null) : null,
+                "sa-peer",
+            );
+        }
+    }
+
     private attachBody(side: SaSide, st: SideState): void {
         const onOver = (e: Event) => {
             const t = e.target as Element | null;
             const sp = t?.closest?.("[data-sid]") ?? null;
             const key = sp
-                ? `${sp.getAttribute("data-sid")}|${sp.getAttribute("data-bead") ?? ""}`
+                ? `${side}|${sp.getAttribute("data-sid")}|${sp.getAttribute("data-bead") ?? ""}`
                 : "";
             if (key === this.lastKey) return;
             this.clearHot();
-            this.lastKey = key;
             if (!sp) return;
-            const sid = sp.getAttribute("data-sid")!;
-            const bead = sp.getAttribute("data-bead");
-            const block = sp.closest("[data-chunk]") ?? st.body;
-            this.hotEls = [
-                ...block.querySelectorAll(attrSel("data-sid", sid)),
-            ];
-            for (const el of this.hotEls) el.classList.add("sa-hot");
-            if (bead) {
-                const os = this.sides.get(other(side));
-                if (os) {
-                    this.peerEls = [
-                        ...os.body.querySelectorAll(attrSel("data-bead", bead)),
-                    ];
-                    for (const el of this.peerEls)
-                        el.classList.add("sa-peer");
-                }
-            }
+            this.armHover(side, st, sp);
         };
         const onOut = (e: Event) => {
             const rel = (e as PointerEvent).relatedTarget as Element | null;
             const to = rel?.closest?.("[data-sid]") ?? null;
+            // dedup 键带目标侧名——1:1 配对双侧 sid/bead 同字（实测 87.6%），
+            // en→zh 直移若只比 sid|bead 会撞 key：out 被早退（en sa-hot 残留）、
+            // over 被 dedup 吞（zh 永不染色）
             const key = to
-                ? `${to.getAttribute("data-sid")}|${to.getAttribute("data-bead") ?? ""}`
+                ? `${st.body.contains(to) ? side : other(side)}|${to.getAttribute("data-sid")}|${to.getAttribute("data-bead") ?? ""}`
                 : "";
             if (key === this.lastKey) return; // 同句内片段间移动——不清
             this.clearHot();
@@ -843,25 +1048,38 @@ export class SentAlignSession {
             if (sel && !sel.isCollapsed) return;
             const sp = t?.closest?.("[data-sid]") ?? null;
             if (!sp) return;
+            const from = this.animPress(
+                (e as PointerEvent).clientX,
+                (e as PointerEvent).clientY,
+            );
             const dst = other(side);
             this.deps.navBegin?.();
             if (this.sides.get(dst)?.body) {
                 // DOM→DOM：bead 粒度跳（无 bead = 对侧无对位，不跳）
                 const bead = sp.getAttribute("data-bead");
-                if (bead) this.jumpToBead(dst, bead, side);
+                if (bead) this.jumpToBead(dst, bead, side, from);
                 return;
             }
             // DOM→PDF（v1.5）：对侧无 DOM 无从对位——句内分位直跳，
             // 不依赖 bead（分位精度反而更高：m:n bead 内取本句起点）
-            this.jumpSidToPdf(side, sp);
+            this.jumpSidToPdf(side, sp, from);
         };
+        // 静止指针下滚动容器位移——悬停句挪走色相即失效（同 pdf 臂口径）
+        const onScroll = () => this.clearHot();
         st.body.addEventListener("pointerover", onOver);
         st.body.addEventListener("pointerout", onOut);
         st.body.addEventListener("click", onClick);
+        st.scroller.addEventListener("scroll", onScroll, {
+            capture: true,
+            passive: true,
+        });
         st.detach.push(() => {
             st.body.removeEventListener("pointerover", onOver);
             st.body.removeEventListener("pointerout", onOut);
             st.body.removeEventListener("click", onClick);
+            st.scroller.removeEventListener("scroll", onScroll, {
+                capture: true,
+            });
         });
     }
 
@@ -871,11 +1089,34 @@ export class SentAlignSession {
         this.hotEls = [];
         this.peerEls = [];
         this.lastKey = "";
+        this.peerGen++; // pdf 悬停臂代次失效——同 seq 也要重补 peer
+        // DOM→PDF 悬停对位臂的清场——两侧 pdf peer 一并剥（未挂 pdf
+        // hover 时 pdfHover 缺省空调，代价=一次空调用；pdf 侧 saTint
+        // 按类名认账，活着的 sa-hot 轨不被此清踩掉）
+        this.deps.pdfHover?.("en", null, null, "sa-peer");
+        this.deps.pdfHover?.("zh", null, null, "sa-peer");
     }
 
     private clearFlash(): void {
         for (const el of this.flashEls) el.classList.remove("sa-flash");
         this.flashEls = [];
+    }
+
+    /** 点击 ack——涟漪 + 返回连线源点（调用方沿跳路透传给 animLand；
+        不落字段——半途 bail 的点不会被迟来的非点击跳误当起点，
+        异步 pdfJump 各持各的源点不互踩）。 */
+    private animPress(x: number, y: number): { x: number; y: number } {
+        this.deps.anim?.press?.(x, y);
+        return { x, y };
+    }
+
+    /** 落句动效——from=press 源点才有连线语义（null=非点击跳只擦入）；
+        els 空/reduced-motion 由 anim 内拒。 */
+    private animLand(
+        from: { x: number; y: number } | null,
+        els: Element[] | undefined,
+    ): void {
+        if (els?.length) this.deps.anim?.land?.(from, els);
     }
 
     private flash(els: Element[]): void {
@@ -893,25 +1134,41 @@ export class SentAlignSession {
 
     /** pdfDest→pdfJump→recordJump→闪示公共尾（四调用点同构）：
         seq 在场且 pdfFlashSeq 可用 → 锚闪，否则 pdfFlash 行带兜底；
-        dest/jump 任一环落空静默收（deps 闸在调用方）。 */
-    private pdfJumpFlash(dst: SaSide, pos: Pos, seq?: number | null): void {
+        dest/jump 任一环落空静默收（deps 闸在调用方）。
+        from 在同步点击路上取定后随闭包走——异步落地各持各源点。 */
+    private pdfJumpFlash(
+        dst: SaSide,
+        pos: Pos,
+        seq?: number | null,
+        from?: { x: number; y: number } | null,
+    ): void {
         void Promise.resolve(this.deps.pdfDest!(dst, pos))
             .then((dest) => {
                 if (!dest) return;
                 return this.deps.pdfJump!(dst, dest).then((r) => {
                     if (!r) return;
                     this.deps.recordJump?.(dst, r.pre, r.post);
-                    if (this.deps.pdfFlashSeq && seq != null)
-                        this.deps.pdfFlashSeq(dst, seq, r.post);
-                    else this.deps.pdfFlash?.(dst, r.post);
+                    const els =
+                        this.deps.pdfFlashSeq && seq != null
+                            ? this.deps.pdfFlashSeq(dst, seq, r.post)
+                            : this.deps.pdfFlash?.(dst, r.post);
+                    // 滚动落定帧已过（pdfJump resolve 在 scroll 写位后）——
+                    // els 行矩形此刻取连线终点才准
+                    this.animLand(from ?? null, els ?? undefined);
                 });
             })
             .catch(() => {}); // deps 拒收同落空口径——静默收
     }
 
     /** 点击 → 对侧 bead 首元素跳转（DOM 侧）：scroller 滚位 + flash +
-        recordJump（pre/post 由宿主 capture 供——无 capture 只跳不记）。 */
-    private jumpToBead(dst: SaSide, bead: string, _src: SaSide): void {
+        recordJump（pre/post 由宿主 capture 供——无 capture 只跳不记）。
+        from 缺省（gotoPeer 命令跳）→ 落句只擦入不连线。 */
+    private jumpToBead(
+        dst: SaSide,
+        bead: string,
+        _src: SaSide,
+        from?: { x: number; y: number } | null,
+    ): void {
         const st = this.sides.get(dst);
         if (!st?.body) return;
         const els = [
@@ -924,6 +1181,7 @@ export class SentAlignSession {
         st.scroller.scrollTop +=
             first.getBoundingClientRect().top - sr.top - 12;
         this.flash(els);
+        this.animLand(from ?? null, els);
         const post = st.capture?.() ?? null;
         this.deps.recordJump?.(dst, pre, post);
     }
@@ -939,6 +1197,7 @@ export class SentAlignSession {
         src: SaSide,
         seq: number,
         srcPosAt?: () => Pos | null,
+        from?: { x: number; y: number } | null,
     ): boolean {
         const dst = other(src);
         const fb = this.fracInBlock(src, seq, srcPosAt);
@@ -985,6 +1244,7 @@ export class SentAlignSession {
                 st.scroller.scrollTop +=
                     first.getBoundingClientRect().top - sr.top - 12;
                 this.flash(flashSet);
+                this.animLand(from ?? null, flashSet);
                 const post = st.capture?.() ?? null;
                 this.deps.recordJump?.(dst, pre, post);
                 return true;
@@ -996,7 +1256,7 @@ export class SentAlignSession {
             null;
         if (!pos || !this.deps.pdfDest || !this.deps.pdfJump) return false;
         this.deps.navBegin?.();
-        this.pdfJumpFlash(dst, pos, seq);
+        this.pdfJumpFlash(dst, pos, seq, from);
         return true;
     }
 
@@ -1099,7 +1359,11 @@ export class SentAlignSession {
         锚闪）；seqpos 缺席落回 sid 分位→mapPos→pdfDest 旧臂
         （sidPos 以块序充 page——对齐 kind:"pages" 才成立，pdf 视图
         下是粗近似兜底）。 */
-    private jumpSidToPdf(src: SaSide, sp: Element): void {
+    private jumpSidToPdf(
+        src: SaSide,
+        sp: Element,
+        from?: { x: number; y: number } | null,
+    ): void {
         const dst = other(src);
         if (!this.pdfTargets.has(dst) && !this.deps.pdfJump) return;
         const key = sp
@@ -1117,25 +1381,29 @@ export class SentAlignSession {
                   null)
                 : null;
         if (sPos && this.deps.pdfDest && this.deps.pdfJump) {
-            this.pdfJumpFlash(dst, sPos, seq);
+            this.pdfJumpFlash(dst, sPos, seq, from);
             return;
         }
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
         if (!sidP) return;
-        this.pdfJumpFlash(dst, this.deps.mapPos(sidP, src));
+        this.pdfJumpFlash(dst, this.deps.mapPos(sidP, src), null, from);
     }
 
     /** PDF→PDF：源侧点击位 Pos → mapPos → pdfDest → pdfJump →
         recordJump + pdfFlash（jumpSidToPdf 同构，免 sidPos 句定位）。
         chunk/行带级精度上限——真句级 quad 高亮属 v2（需后端句锚）。 */
-    private jumpPosToPdf(src: SaSide, pos: Pos): void {
+    private jumpPosToPdf(
+        src: SaSide,
+        pos: Pos,
+        from?: { x: number; y: number } | null,
+    ): void {
         const dst = other(src);
         if (!this.pdfTargets.has(dst) && !this.deps.pdfJump) return;
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
         this.deps.navBegin?.();
-        this.pdfJumpFlash(dst, this.deps.mapPos(pos, src));
+        this.pdfJumpFlash(dst, this.deps.mapPos(pos, src), null, from);
     }
 
     /** 命令面入口：从 src 侧 bead 跳到对侧（sent.gotoPeer 同款路径）。 */

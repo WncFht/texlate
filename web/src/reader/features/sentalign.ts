@@ -81,6 +81,9 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
     const enabled = opts.enabled ?? (() => true);
     /** 侧 → 当前挂的 bodyEl——只在换了宿主元素时才重挂 */
     const mounted = new Map<SaSide, HTMLElement>();
+    /** 侧 → 已挂源的 pdf clickEl——同体免重挂（重挂 detach 会先剥
+        hover 轨：静止指针不重发 pointermove，悬停色即被扫掉） */
+    const mountedPdf = new Map<SaSide, HTMLElement>();
 
     const syncPanes = (): void => {
         const panes = opts.panes();
@@ -93,9 +96,11 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
                 // 关总开关或侧消失——卸（pdf 目标登记也一并清）
                 session.unmountSide(side);
                 mounted.delete(side);
+                mountedPdf.delete(side);
                 continue;
             }
             if (body) {
+                mountedPdf.delete(side);
                 if (mounted.get(side) === body) continue; // 同体免重挂
                 mounted.set(side, body);
                 void session.mountSide(side, body, {
@@ -108,15 +113,30 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
                 // clickEl+posAtPoint 在场同侧挂 PDF 点击源（seqAtPoint
                 // 可选项——给了点击先走 seq 快路，缺席纯 Pos 臂）
                 mounted.delete(side);
+                // 同体免重挂——clickEl 缺位时不可放行（mountPdfSide 还得登）
+                if (p.clickEl != null && mountedPdf.get(side) === p.clickEl)
+                    continue;
+                mountedPdf.delete(side);
                 session.unmountSide(side);
                 session.mountPdfSide(side);
-                if (p.clickEl && p.posAtPoint)
+                if (p.clickEl && p.posAtPoint) {
                     session.mountPdfClickSource(
                         side,
                         p.clickEl,
                         p.posAtPoint,
                         p.seqAtPoint,
                     );
+                    // 动效臂 C：seq 源在场才挂悬停对位（无锚 pane 挂也无
+                    // seq 可跟——纯行带 hover 噪音大于价值）
+                    if (p.seqAtPoint)
+                        session.mountPdfHoverSource(
+                            side,
+                            p.clickEl,
+                            p.seqAtPoint,
+                            p.posAtPoint,
+                        );
+                    mountedPdf.set(side, p.clickEl);
+                }
             }
         }
     };
@@ -127,6 +147,7 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
         dispose() {
             session.destroy();
             mounted.clear();
+            mountedPdf.clear();
         },
     };
 }

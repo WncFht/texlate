@@ -99,11 +99,16 @@ export interface PaneHandle extends PaneLike {
         TLXC 锚文档精确序；无锚命中/未渲染页 null，调用方按兜底语义走） */
     seqAtPoint?(x: number, y: number): number | null;
     /** Pos 落点闪示（sent-align PDF→PDF 臂）：命中页 textLayer 分位行带
-        加 .sa-flash——单轨，新闪清旧闪 */
-    flashAtPos?(pos: Pos): void;
+        加 .sa-flash——单轨，新闪清旧闪。返回实际着闪元素集（anim 面） */
+    flashAtPos?(pos: Pos): HTMLElement[];
     /** seq 锚闪示（sent-align seq 精度臂）：seqEls 命中则整组闪；
-        无已渲染锚（懒渲染页/en.pdf 无标）→ pos 在场落回 flashAtPos */
-    flashSeq?(seq: number, pos: Pos | null): void;
+        无已渲染锚（懒渲染页/en.pdf 无标）→ pos 在场落回 flashAtPos。
+        返回实际着闪元素集（anim 面） */
+    flashSeq?(seq: number, pos: Pos | null): HTMLElement[];
+    /** seq 悬停伴显（sent-align hover 臂）：cls=sa-hot|sa-peer 单轨染色
+        ——锚叶集命中染锚；锚缺席（懒渲染页/无标文档）且 pos 在场落回
+        行带；seq null 清轨。与 sa-flash 分轨互不清 */
+    hoverSeq?(seq: number | null, pos: Pos | null, cls: string): void;
     /** 图/表/式/定理等本体坐标 → 落点 dest 名（destPos 反查——右键
         本体反查 usages 的命台面）；无候选/未扫完/other 类 null */
     destAtPoint?(x: number, y: number): string | null;
@@ -232,6 +237,66 @@ export default function PdfPane(props: Props) {
             for (const el of els) el.classList.remove("sa-flash");
             saFlashEls = [];
         }, 1400);
+    };
+    // sent-align 悬停伴显轨（sa-hot/sa-peer 单轨——同窗格二态互斥，换轨
+    // 先摘旧类；与 sa-flash 分轨互不清，闪动画跑着悬停照样染）
+    let saTintEls: HTMLElement[] = [];
+    let saTintCls = "";
+    // 在场悬停请求——textLayer 懒渲染/重渲后按此补染（渲染把锚 span
+    // 整棵换掉，不染则 peer 页现形后悬停色依旧缺席）
+    let saTintReq: { seq: number; pos: Pos | null; cls: string } | null =
+        null;
+    const saTint = (els: HTMLElement[], cls: string) => {
+        const old = saTintCls;
+        for (const el of saTintEls) {
+            if (old) el.classList.remove(old);
+        }
+        saTintEls = els;
+        saTintCls = els.length ? cls : "";
+        for (const el of els) el.classList.add(cls);
+    };
+    const reTint = (req: { seq: number; pos: Pos | null; cls: string }) => {
+        const c = viewer()?.container;
+        const els = c
+            ? [...c.querySelectorAll<HTMLElement>(MARKED_SEL)].filter(
+                  (el) => seqOfMarkedSpan(el) === req.seq,
+              )
+            : [];
+        const leaves = els.flatMap(leafEls);
+        if (leaves.length) saTint(leaves, req.cls);
+        else if (req.pos) saTint(bandElsAt(req.pos), req.cls);
+        else saTint([], req.cls);
+    };
+    // Pos → 分位行带元素集（flashAtPos/hoverSeq 共用取带面）：命中页
+    // textLayer 按 offsetTop 分位取行；pos.x 在场收窄到同栏半区（右栏
+    // 落点不染同 y 左栏行），收窄空集（缝带点击）落回整带兜底
+    const bandElsAt = (pos: Pos): HTMLElement[] => {
+        const views = (
+            viewer() as unknown as { _pages?: PdfPageViewLike[] }
+        )?._pages;
+        const div = views?.[pos.page - 1]?.div;
+        if (!div) return [];
+        const y = pos.fraction * div.offsetHeight;
+        const band = [
+            ...div.querySelectorAll<HTMLElement>(".textLayer span"),
+        ].filter(
+            (sp) =>
+                sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
+        );
+        const wantCol = (pos.x ?? 0) >= 0.45;
+        const els =
+            pos.x == null
+                ? band
+                : band.filter(
+                      (sp) =>
+                          ((sp.offsetLeft + sp.offsetWidth / 2) /
+                              div.offsetWidth) >=
+                              0.45 ===
+                          wantCol,
+                  );
+        if (els.length) return els;
+        if (pos.x != null && band.length) return band;
+        return [];
     };
     let openTimer = 0;
     let closeTimer = 0;
@@ -847,38 +912,33 @@ export default function PdfPane(props: Props) {
             const leaves = els.flatMap(leafEls);
             if (leaves.length) {
                 saFlash(leaves);
-                return;
+                return leaves;
             }
-            if (pos) this.flashAtPos?.(pos);
+            if (pos) return this.flashAtPos?.(pos) ?? [];
+            return [];
         },
         flashAtPos: (pos) => {
-            const views = (
-                viewer() as unknown as { _pages?: PdfPageViewLike[] }
-            )?._pages;
-            const div = views?.[pos.page - 1]?.div;
-            if (!div) return;
-            const y = pos.fraction * div.offsetHeight;
-            const band = [
-                ...div.querySelectorAll<HTMLElement>(".textLayer span"),
-            ].filter(
-                (sp) =>
-                    sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
-            );
-            // pos 带 x 时收窄到同栏半区——右栏落点不闪同 y 左栏行；
-            // 收窄后空集（缝带点击）落回整行带兜底
-            const wantCol = (pos.x ?? 0) >= 0.45;
-            const els =
-                pos.x == null
-                    ? band
-                    : band.filter(
-                          (sp) =>
-                              ((sp.offsetLeft + sp.offsetWidth / 2) /
-                                  div.offsetWidth) >=
-                                  0.45 ===
-                              wantCol,
-                      );
+            const els = bandElsAt(pos);
             if (els.length) saFlash(els);
-            else if (pos.x != null && band.length) saFlash(band);
+            return els;
+        },
+        hoverSeq(seq, pos, cls) {
+            if (seq == null) {
+                // 清轨按类名认账——对侧 clearHot 广播式双发 null，sa-peer
+                // 清不踩本轨活着的 sa-hot（自身的 pointerleave 才发得动）
+                if (saTintCls === "" || saTintCls === cls) {
+                    saTintReq = null;
+                    saTint([], cls);
+                }
+                return;
+            }
+            saTintReq = { seq, pos, cls };
+            const els = this.seqEls?.(seq) ?? [];
+            // 同 flashSeq：display:contents 容器染色看不见，染到字形叶
+            const leaves = els.flatMap(leafEls);
+            if (leaves.length) saTint(leaves, cls);
+            else if (pos) saTint(bandElsAt(pos), cls);
+            else saTint([], cls);
         },
         openUsagesFor,
         destAtPoint,
@@ -1009,6 +1069,11 @@ export default function PdfPane(props: Props) {
     onCleanup(() => cancelAnimationFrame(rafId));
     onCleanup(() => window.clearTimeout(saFlashTimer));
     onCleanup(() => {
+        for (const el of saTintEls)
+            if (saTintCls) el.classList.remove(saTintCls);
+        saTintEls = [];
+    });
+    onCleanup(() => {
         destScanAbort = true;
     });
     onCleanup(() => props.onDispose?.(handle));
@@ -1054,6 +1119,12 @@ export default function PdfPane(props: Props) {
             edSelected = !!(d.details?.hasSelectedEditor ?? d.hasSelectedEditor);
         };
         bus.on("editingstateschanged", onEdState);
+        // textLayer 懒渲/重渲把锚 span 整棵换掉——存活悬停按 saTintReq
+        // 补染（懒渲页现形后 peer 色不该缺席；saTint 内已滤零尺寸壳）
+        const reapplyTint = () => {
+            if (saTintReq) reTint(saTintReq);
+        };
+        bus.on("textlayerrendered", reapplyTint);
         const ro =
             typeof ResizeObserver === "function"
                 ? new ResizeObserver(invalidateGeom)
@@ -1069,6 +1140,7 @@ export default function PdfPane(props: Props) {
                 bus.off(ev, invalidateGeom);
             }
             bus.off("editingstateschanged", onEdState);
+            bus.off("textlayerrendered", reapplyTint);
             ro?.disconnect();
         });
     });

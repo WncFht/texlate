@@ -99,6 +99,11 @@ import {
 } from "./features/sentalign";
 import RefsPanel from "./RefsPanel";
 import { fromParamOf } from "./tasknav";
+import {
+    press as saPress,
+    land as saLand,
+    cancelLand as saCancelLand,
+} from "./anim";
 
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
@@ -350,7 +355,9 @@ export default function ReaderView(props: Props) {
             pdfFlash: (dst, pos) => {
                 const h =
                     handles()[dst === "zh" ? "translated" : "original"];
-                if (h && "flashAtPos" in h) h.flashAtPos?.(pos);
+                return h && "flashAtPos" in h
+                    ? h.flashAtPos?.(pos)
+                    : undefined;
             },
             // seq 臂：seqpos 直锚（Option B 服务端注入的消费口）
             seqPos: (seq, side) => seqPos(seqposMap(), seq, side),
@@ -361,9 +368,23 @@ export default function ReaderView(props: Props) {
             pdfFlashSeq: (dst, seq, pos) => {
                 const h =
                     handles()[dst === "zh" ? "translated" : "original"];
-                if (h && "flashSeq" in h) h.flashSeq?.(seq, pos);
-                else if (h && "flashAtPos" in h && pos)
-                    h.flashAtPos?.(pos);
+                if (h && "flashSeq" in h) return h.flashSeq?.(seq, pos);
+                if (h && "flashAtPos" in h && pos)
+                    return h.flashAtPos?.(pos);
+                return undefined;
+            },
+            // 悬停伴显桥：pdf 侧经 hoverSeq 锚/带染色（dom 侧无此面，
+            // sentalign 内 DOM 对侧自己染 [data-sid] span）
+            pdfHover: (dst, seq, pos, cls) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                if (h && "hoverSeq" in h) h.hoverSeq?.(seq, pos, cls);
+            },
+            // 动效三件套：点击涟漪/落句连线+行擦入（anim.ts 全 fixed
+            // 零重排面；reduced-motion 自带降级）
+            anim: {
+                press: (x, y) => saPress(x, y),
+                land: (from, els) => saLand(from, els),
             },
         },
     });
@@ -1106,6 +1127,7 @@ export default function ReaderView(props: Props) {
         sa.dispose();
         saReg.dispose();
         ctf.dispose();
+        saCancelLand(); // 在飞连线/擦入盖层随视图一起摘
         // 卸载冲刷：防抖窗口内离开（重试回进度视图/返回列表/切任务）不丢最后一段阅读位置
         if (saveTimer) {
             window.clearTimeout(saveTimer);
