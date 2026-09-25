@@ -479,6 +479,115 @@ class TestEndToEnd:
         assert sp["0"]["t"]["page"] == 2  # noqa: PLR2004
         assert abs(sp["0"]["t"]["x"] - 72 / 612) < 0.001  # noqa: PLR2004
 
+    def test_snap_tail_hit_keeps_mark_pos(self, tmp_path: Path) -> None:
+        """snap 命中只裹针腹不裹针头 → 拒换锚，实标兜底留原位。
+
+        a7c5 zh seq1 实证：异文窗 SM 凑分命中（标顶已是真位），命中位
+        针头缺席——拖位方向比留标更坏。p2 只放针腹（针头 'found'
+        缺席 → 命中实块 b=5 > SKIP），投影起点落在臆造空间。
+        """
+        en = _mk_pdf(tmp_path / "en.pdf", [[(72, 700, "Alpha intro text")]])
+        zh = _write_pdf(
+            tmp_path / "zh.pdf",
+            [
+                [
+                    # p1 标裹异文（24 字形 ≥8 + fr<0.92 → 兜底留位）
+                    (
+                        "BT /F1 10 Tf 1 0 0 1 72 700 Tm "
+                        "/TLXC << /MCID 50000 >> BDC "
+                        "(A wrapped fragment of twenty) Tj 0 -20 Td EMC ET"
+                    ),
+                ],
+                [
+                    # p2 针腹残段：cov 0.89 过阈命中，但针头缺席
+                    (
+                        "BT /F1 10 Tf 1 0 0 1 72 700 Tm "
+                        "(Cleaned open cluster tables via anonymous ftp site) Tj ET"
+                    ),
+                ],
+            ],
+        )
+        chunks = [
+            {
+                "seq": 0,
+                "en": "Alpha intro text",
+                "zh": "Found cleaned open cluster tables via anonymous ftp site",
+            }
+        ]
+        sp = M.compute_seqpos(en, zh, chunks)
+        # snap 尾锚被拒 → 实标兜底回 p1 原位
+        assert sp["0"]["t"]["page"] == 1
+        assert abs(sp["0"]["t"]["fraction"] - (1 - 708 / 792)) < 0.001  # noqa: PLR2004
+
+    def test_dup_occ_embedded_needle_dropped(self, tmp_path: Path) -> None:
+        """同 MCID 双 occurrence：引文汤裹标题针的深嵌 occurrence 剔出
+        可信集——bbb seq0 实证（标题 verbatim 进引文行，末个优先曾选
+        错到引文行）。针起点投影 >LEAD → 只留针起自标的纯 occurrence。"""
+        en = _mk_pdf(tmp_path / "en.pdf", [[(72, 700, "Alpha intro text")]])
+        zh = _write_pdf(
+            tmp_path / "zh.pdf",
+            [
+                [
+                    # y=700 纯 occurrence：标内文本即针
+                    (
+                        "BT /F1 10 Tf 1 0 0 1 72 700 Tm "
+                        "/TLXC << /MCID 50000 >> BDC (The Real Title) Tj "
+                        "0 -20 Td EMC ET"
+                    ),
+                    # y=500 深嵌 occurrence：针 verbatim 嵌在引文行里
+                    (
+                        "BT /F1 10 Tf 1 0 0 1 72 500 Tm "
+                        "/TLXC << /MCID 50000 >> BDC "
+                        "(Cited in Doe twenty twenty four The Real Title end) Tj "
+                        "0 -20 Td EMC ET"
+                    ),
+                ],
+            ],
+        )
+        chunks = [{"seq": 0, "en": "Alpha intro text", "zh": "The Real Title"}]
+        sp = M.compute_seqpos(en, zh, chunks)
+        # 旧末个优先选 y=500 引文行；纯化后只剩 y=700 标题 occurrence
+        assert abs(sp["0"]["t"]["fraction"] - (1 - 708 / 792)) < 0.001  # noqa: PLR2004
+
+    def test_running_head_replay_dropped(self, tmp_path: Path) -> None:
+        """同 fraction 跨 ≥3 页的 occurrence = 页眉 replay 全剔——
+        a7c5 seq0 实证（``\\title`` 宏标被运行头逐页回放，末个优先
+        曾把 seq0 锚到末页页眉）。剔光后 seq 落 needle 路找回真位。"""
+        en = _mk_pdf(
+            tmp_path / "en.pdf",
+            [[(72, 700, "Alpha intro text")]],
+        )
+        zh = _write_pdf(
+            tmp_path / "zh.pdf",
+            [
+                # p1 真标：标题行（fr 0.106）
+                [
+                    (
+                        "BT /F1 10 Tf 1 0 0 1 72 700 Tm "
+                        "/TLXC << /MCID 50000 >> BDC (The census title here) Tj "
+                        "0 -20 Td EMC ET"
+                    ),
+                ],
+                # p2/p3/p4 页眉 replay：'authors + title' 逐页同 y 重打
+                *[
+                    [
+                        (
+                            "BT /F1 10 Tf 1 0 0 1 72 750 Tm "
+                            "/TLXC << /MCID 50000 >> BDC "
+                            "(Doe twenty four The census title here) Tj "
+                            "0 -20 Td EMC ET"
+                        ),
+                    ]
+                    for _p in range(3)
+                ],
+            ],
+        )
+        chunks = [{"seq": 0, "en": "Alpha intro text", "zh": "The census title here"}]
+        sp = M.compute_seqpos(en, zh, chunks)
+        # 旧末个→p4 页眉 fr0.045；剔出后剩 p1 真标 fr0.106
+        assert sp["0"]["t"]["page"] == 1
+        assert abs(sp["0"]["t"]["fraction"] - (1 - 708 / 792)) < 0.001  # noqa: PLR2004
+
     def test_single_side_emit(self, tmp_path: Path) -> None:
         """o/t 任一命中即入库——缺侧键缺席而非整条丢（无标记任务实证）。"""
         en = _mk_pdf(

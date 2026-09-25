@@ -95,6 +95,23 @@ _MARK_FB_COV = 0.10
 #: 残件实证）；folio 区小碎片多为页码残件（t_5248 seq87 "19" 实证）不兜。
 _MARK_FB_CHARS_LO = 8
 _MARK_FB_MAXFRAC = 0.92
+#: 针头验收：位置证据（标 occurrence / snap 命中位）必须裹针头——
+#: 针深嵌标腹（引文汤裹标题、粗标跨块裹全段）或 snap 尾锚投影起点时，
+#: 报位=标顶/臆造起点而非针位（bbb seq0 引文行裹标题、a7c5 zh seq1
+#: snap 异文窗、a7c5 en seq76 针嵌 1525 字标深 900 实证）。LEAD=针头
+#: 距证据起点容差（章/图表标签前缀 ~11 字）,N=校验针长,BLK=实块下限,
+#: SKIP=头块针内偏移容差（头几字渲染变体）,COV=窗内针头覆盖阈。
+_MARK_HEAD_LEAD = 12
+_MARK_HEAD_N = 16
+_MARK_HEAD_BLK = 6
+_MARK_HEAD_SKIP = 4
+_MARK_HEAD_COV = 0.6
+#: 页眉页脚 replay 剔出：同 fraction 跨 ≥3 页的 occurrence = 模板运行头
+#: 逐页同位重打（``\title`` 宏注锚被页眉引用每页回放——a7c5 seq0 实证
+#: en/zh 各 ~10 个 fr0.040 occurrence 淹没真标；en 前缀 'emilylhun
+#: tandsabinereffert' 26 字被 LEAD 拦、zh 'reffert' 7 字漏网——周期
+#: 性与前缀长无关，是 replay 族的本质判据）。正文锚永不周期同位。
+_MARK_REPLAY_PAGES = 3
 #: 引文数字缝桥接的流侧缝宽上限（'[12,46,101,423]' 类连引实测 ~12 位）
 _CITE_GAP = 20
 #: 桥接缝里 ≥3 字母连跑 = 真词插入——渲染件残件（数字/bib 标签/符号）不桥
@@ -819,7 +836,29 @@ def _text_cov(marked: str, needle: str) -> float:
     return _sm_cov(m, 0, len(m), needle)[0]
 
 
-def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一段语义阶梯
+def _head_ok(text: str, needle: str) -> bool:
+    """针头验收：``text``（已归一、始于声位）头窗内须裹针头。
+
+    位置证据（标内文本 / snap 命中报位下游流）只在针头在场时才认作
+    针起点——深嵌命中裹针腹而针头缺席时，声位只是投影臆造。双闸：
+    ≥BLK 实块的首个须压在针头上段（b≤SKIP——尾锚命中的实块都从针
+    腹起，1~2 字散块占位只算噪声），全窗针头覆盖再过阈。
+    """
+    head = needle[:_MARK_HEAD_N]
+    if not head:
+        return False
+    win = text[: _MARK_HEAD_LEAD + len(head) + _CITE_GAP]
+    if not win:
+        return False
+    sm = SequenceMatcher(None, win, head, autojunk=False)
+    bl = [b for b in sm.get_matching_blocks() if b.size]
+    real = [b for b in bl if b.size >= min(_MARK_HEAD_BLK, len(head))]
+    if not real or real[0].b > _MARK_HEAD_SKIP:
+        return False
+    return sum(b.size for b in bl) / len(head) >= _MARK_HEAD_COV
+
+
+def _match_bounded(  # noqa: C901, PLR0912, PLR0915 -- gram 锚定+兜底+打分是同一段语义阶梯
     needle: str,
     stream: str,
     gidx: dict[str, list[int]],
@@ -861,6 +900,17 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
     mcov = _min_cov(ln)
     # 候选超帽时按离窗心距离取——最小 offset 截断会把窗内真位挤出去
     mid = (lo + hi) / 2
+    # 界内 verbatim 恒满分必先评：超帽截断会把窗沿 verbatim 逐出
+    # 候选集（bbb seq5 实证：138 候选中 p1 verbatim 距窗心 12536 排
+    # 百位外被截，fuzzy cov0.946 错锚顶位）
+    verb: list[int] = []
+    j = stream.find(needle, max(0, lo), hi) if ln else -1
+    while j >= 0 and len(verb) < _CAND_CAP:
+        verb.append(j)
+        j = stream.find(needle, j + 1, hi)
+    if verb:
+        s0 = min(verb, key=lambda s: abs(s - mid))
+        return s0, 1.0, s0 + ln
     for s0 in sorted(cand, key=lambda s: abs(s - mid))[:_CAND_CAP]:
         # cov 满分后无人能翻（strict >）——直接断，省尾部 SM 评估
         if best[1] >= 1.0:
@@ -902,7 +952,7 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
     return best
 
 
-def _match_all(  # noqa: C901 -- gram 锚定+find 兜底+SM 打分为同一阶梯，拆散反失上下文
+def _match_all(  # noqa: C901, PLR0912 -- gram 锚定+find 兜底+SM 打分为同一阶梯，拆散反失上下文
     needle: str, stream: str, gidx: dict[str, list[int]]
 ) -> list[tuple[int, float, int]]:
     """全流扫描返回所有 (pos,cov,end) 达阈候选——pass-C 消歧用。"""
@@ -941,6 +991,15 @@ def _match_all(  # noqa: C901 -- gram 锚定+find 兜底+SM 打分为同一阶�
         cov, p, e, blk = _sm_cov(stream, lo2, hi2, needle)
         if blk >= need_blk and cov >= mcov:
             out.append((p, cov, e))
+    # _CAND_CAP 升位截断会把高 offset verbatim 整类逐出（同
+    # _match_bounded 窗沿 verbatim 被截实证）——全收并去重补回
+    have = {p for p, _c, _e in out}
+    j = stream.find(needle, 0, len(stream)) if ln else -1
+    while j >= 0:
+        if j not in have:
+            out.append((j, 1.0, j + ln))
+            have.add(j)
+        j = stream.find(needle, j + 1, len(stream))
     return out
 
 
@@ -1345,7 +1404,7 @@ def _interp_t(
     return t_pos
 
 
-def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输入全集
+def _mark_trusted(  # noqa: C901, PLR0912, PLR0913 -- 双侧共用校验件，参面=校验输入全集
     marks: dict[int, list[dict[str, Any]]],
     nd_map: dict[int, str],
     stream: str,
@@ -1356,26 +1415,43 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
 ) -> tuple[dict[int, dict[str, Any]], dict[str, list[int]] | None]:
     """Validate marked seqs → trusted anchor occurrences（双侧同件：zh/en 共用校验+snap 链）。
 
-    mark 校验：occurrence 标内文本对 needle SM 覆盖——同 MCID 重放
-    （hyperref/TOC）首 occurrence 常落目录页；可信集（cov≥阈）取末个
-    （TOC 在前真标在后）；全低分/无锚 → 不可信，留待 snap/needle 路。
+    mark 校验：occurrence 先过周期性 replay 剔出——同 fraction 跨
+    ≥``_MARK_REPLAY_PAGES`` 页的是页眉页脚模板重打（正文锚不周期）；
+    再对 needle SM 覆盖 + 针头验收——cov≥阈 之外还要求针起点投影贴
+    标头（``start ≤ _MARK_HEAD_LEAD``）且头窗实裹针头：深嵌标腹的
+    occurrence（引文汤裹标题 verbatim、粗标跨块裹整段）标顶≠针位，
+    剔出可信集落 snap 路寻真起点。同 MCID 重放（hyperref/TOC）首
+    occurrence 常落目录页；可信集取末个（TOC 在前真标在后）；
+    全低分/无锚 → 不可信，留待 snap/needle 路。
 
     孤儿 snap：标记不可信/裹字形过少（页断沉底 + fr≤0.85 中页错锚）
-    → 语义匹配在标称页 ±5 页双向寻真位，命中行界为新锚；救不回的
+    → 语义匹配在标称页 ±5 页双向寻真位；命中同样过针头验收——尾锚
+    投影起点的异文命中不换真位（a7c5 zh seq1 实证），救不回的
     留 needle 路。返回 ``(trusted, gidx)``——gidx 供调用方复用于
     ``_match_side``（未命中 needle 补缺同索引），无需时为 None。
     """
     trusted: dict[int, dict[str, Any]] = {}
+    pools: dict[int, list[dict[str, Any]]] = {}
     for seq, occs in marks.items():
         anchored = [o for o in occs if o["fraction"] is not None]
         if not anchored:
             continue
+        per: dict[float, set[int]] = {}
+        for o in anchored:
+            per.setdefault(round(o["fraction"], 2), set()).add(o["page"])
+        replay = {f for f, pgs in per.items() if len(pgs) >= _MARK_REPLAY_PAGES}
+        pool = [o for o in anchored if round(o["fraction"], 2) not in replay]
+        pools[seq] = pool
         nd = nd_map.get(seq) or ""
-        good = (
-            [o for o in anchored if _text_cov(o["text"], nd) >= _MARK_COV]
-            if nd and not dead
-            else anchored
-        )
+        if nd and not dead:
+            good = []
+            for o in pool:
+                m = _norm_chars(o["text"])
+                cov, start, _e, _b = _sm_cov(m, 0, len(m), nd)
+                if cov >= _MARK_COV and start <= _MARK_HEAD_LEAD and _head_ok(m, nd):
+                    good.append(o)
+        else:
+            good = pool
         if good:
             trusted[seq] = good[-1]
 
@@ -1393,7 +1469,7 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
         for seq in suspects:
             nd = nd_map.get(seq) or ""
             if len(nd) >= _ORPHAN_MIN_ND:
-                occ = trusted.get(seq) or marks[seq][-1]
+                occ = trusted.get(seq) or (pools.get(seq) or marks[seq])[-1]
                 lo = next(
                     (b[0] for b in bounds if b[1] >= occ["page"] - _ORPHAN_PAGES),
                     0,
@@ -1403,7 +1479,10 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
                     len(stream),
                 )
                 p, _cov, _e = _match_bounded(nd, stream, gidx, lo, hi)
-                if p >= 0:
+                if p >= 0 and _head_ok(
+                    stream[p : p + _MARK_HEAD_LEAD + _MARK_HEAD_N + _CITE_GAP],
+                    nd,
+                ):
                     pos = _pos_at(bounds, p)
                     if pos is not None:
                         trusted[seq] = {
@@ -1419,8 +1498,9 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
             # BDC/EMC 落点随字形走，cov 低是针被稀释而非位置错。TOC/LOF
             # 重放落文档前序故取末锚定即正文；裹字过少的小碎片（页断沉
             # 底 2 字符类）无位置证据不兜，针微命地板防裹进全无关段。
+            # 兜底池同 replay 剔出——页眉 occurrence 无内容位证据不兜。
             if seq not in trusted:
-                anch = [o for o in marks[seq] if o["fraction"] is not None]
+                anch = pools.get(seq, [])
                 if anch:
                     last = anch[-1]
                     n_ch = last.get("chars") or 0
@@ -1428,8 +1508,7 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
                         n_ch >= _MARK_FALLBACK_CHARS
                         and (
                             not nd
-                            or _text_cov(last.get("text") or "", nd)
-                            >= _MARK_FB_COV
+                            or _text_cov(last.get("text") or "", nd) >= _MARK_FB_COV
                         )
                     ) or (
                         n_ch >= _MARK_FB_CHARS_LO
@@ -1465,14 +1544,10 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     # 标内零字形）——无位置证据，剥出标记层防孤儿 snap 拿针撞上近
     # 重复孪生段（t_f748 seq161：\icra{} 空壳 snap 到 \arxiv 段实证）。
     en_marks = {
-        s: occs
-        for s, occs in en_marks.items()
-        if any(o.get("chars") for o in occs)
+        s: occs for s, occs in en_marks.items() if any(o.get("chars") for o in occs)
     }
     zh_marks = {
-        s: occs
-        for s, occs in zh_marks.items()
-        if any(o.get("chars") for o in occs)
+        s: occs for s, occs in zh_marks.items() if any(o.get("chars") for o in occs)
     }
 
     order = _doc_order(task_dir, chunks) if task_dir is not None else {}
@@ -1523,9 +1598,7 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     # seq1 署名单实证）保留。整文档无标（遗产任务）不启用。
     if en_marks or zh_marks:
         dead_seqs = {
-            s
-            for s, _nd in en_needles
-            if s not in en_marks and s not in zh_marks
+            s for s, _nd in en_needles if s not in en_marks and s not in zh_marks
         }
     else:
         dead_seqs = set()
@@ -1613,9 +1686,7 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     # en_trusted 必须进并集——en-only seq（zh='' 未译 caption/abstract
     # 等：无 zh mark、无 zh needle、不在 en_unmarked）仅靠 en 标定位，
     # 漏集则整条 seq 从 seqpos 蒸发（t_f748 seq0/1 实证）
-    for seq in sorted(
-        set(en_off) | set(en_trusted) | set(trusted) | set(zh_off)
-    ):
+    for seq in sorted(set(en_off) | set(en_trusted) | set(trusted) | set(zh_off)):
         c = chunks_by_seq.get(seq) or {}
         if not c.get("en") and not c.get("zh"):
             continue
