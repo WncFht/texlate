@@ -70,6 +70,10 @@ _RUNAWAY_VBOX_MIN = 30
 #: ``[N]`` shipout 页标候选——输出例程页产率签名（str 形供事后判据；
 #: 活哨侧 bytes 编译形 ``compile.proc._PAGE_MARK_RX`` 同词素两介质）。
 #: 匹配只找候选；是否计为 shipout 由消费侧的单调包络判定（见下）。
+#: **数据源依赖**：tectonic V2 静默模 stdout 不回显页标（chatter 只进
+#: ``--keep-logs`` 的 .log 且进程末才落盘）——活哨页标分母全靠
+#: ``-X compile --print`` 把引擎原话引回 stdout，该旗标不可撤
+#: （t_95c4a6c06aa00b2d 误杀实证：分母恒 0 → 30 条慢性 vbox 告警即触闸）。
 _RUNAWAY_PAGE_RX = re.compile(r"\[\d+\]")
 #: 页产率硬顶——健康论文页数百级以下，病态输出例程 ~400 页/秒
 #: （gr-qc/0104075 ~97K 页/240s 实证）。计数走**单调包络**：真 shipout

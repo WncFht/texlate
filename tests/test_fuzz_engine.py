@@ -1269,6 +1269,9 @@ def test_tectonic_compile_end_to_end(
     cmd = calls[-1]["cmd"]
     assert isinstance(cmd, list)
     assert "--untrusted" in cmd and "--makefile-rules" in cmd  # noqa: PT018
+    # --print 是活哨页标分母的唯一来源——撤了 tectonic 静默模 stdout 零 [N]，
+    # vbox 密度门退化为计数门误杀慢性告警文档（t_95c4 实证）
+    assert "--print" in cmd
     assert res.sandbox_mode == "off"
 
 
