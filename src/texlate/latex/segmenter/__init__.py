@@ -97,6 +97,7 @@ def scan_v2(
         warnings=[*state.warnings, *g.warnings],
         vtex=seg.vt.text(),
         ph_reserved=state.ph_reserved,
+        input_dyn=state.input_dyn,
     )
 
 

@@ -44,7 +44,19 @@ _DOCSTYLE = (
 
 def test_translate_tree_two_files(tmp_path: Path) -> None:
     """两文件树：per-file chunk_id 前缀隔离、译文写回、占位符零残留。"""
-    make_project(tmp_path)
+    make_project(
+        tmp_path,
+        main=(
+            "\\documentclass{article}\n"
+            "\\begin{document}\n"
+            "\\section{Intro}\n"
+            "This is a longer paragraph of English text that should definitely be\n"
+            "segmented into at least one chunk for translation purposes.\n"
+            "\\input{sub}\n"
+            "\\end{document}\n"
+        ),
+    )
+    # ``sub.tex`` 须可达（闭包裁剪：未被 \\input 的散文件剔入 support 不译）
     (tmp_path / "sub.tex").write_text(
         "A third paragraph in a second file that should also be translated here.\n",
         encoding="utf-8",

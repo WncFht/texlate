@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import errno
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -85,11 +85,14 @@ class TexTreeScan:
     support: list[str] = field(default_factory=list)
     #: 解析崩记名 ``(rel, exc)``——该文件按原文保留；异常随行供记 log。
     fault: list[tuple[str, Exception]] = field(default_factory=list)
+    #: ``main`` 闭包外剔出的 parsed 候选（⊆ support，单列供审计记 log）。
+    unreachable: list[str] = field(default_factory=list)
 
 
 def scan_tex_tree(
     root: Path,
     *,
+    main: Path | None = None,
     on_file: Callable[[Path], None] | None = None,
     front_matter: frozenset[str] = frozenset(),
 ) -> TexTreeScan:
@@ -102,6 +105,7 @@ def scan_tex_tree(
     无散文记 support → 余者入 ``parsed``。
     ``on_file`` 逐文件回调——worker 取消轮询挂点，CLI/bench 臂缺省。
     ``front_matter`` = preamble 前置发射白名单（透传 ``parse_file``）。
+    ``main`` 非空时按 ``\\input`` 闭包裁剪 ``parsed``（``_drop_unreachable``）。
     """
     out = TexTreeScan()
     for f in sorted(
@@ -134,4 +138,76 @@ def scan_tex_tree(
             out.support.append(rel)
             continue
         out.parsed.append((f, rel, res))
+    if main is not None:
+        _drop_unreachable(out, root, main)
     return out
+
+
+def _drop_unreachable(  # noqa: C901, PLR0912 -- fail-open 闸序平铺即安全语义本体
+    scan: TexTreeScan, root: Path, main: Path
+) -> None:
+    r"""以 ``main`` 的 ``\input`` 闭包裁剪 ``parsed``——闭包外件剔入 support。
+
+    t_6648 教训：e-print tarball 嵌整份复件论文（``A Baseline…/main.tex``），
+    主文件链永不引用——其 chunk 全为幽灵：译文照翻（token 双倍烧）、DOM 双份
+    渲染、zh 注锚永不落 PDF（seqpos 缺 ``t`` 侧全来自幽灵区）。
+
+    闭包 = ``parse_file(main, flatten=True, top_dir=root)`` 的 ``res.inputs``
+    绝对路径集——gullet 展平内联即引擎真相：``\input``/``\include``/
+    ``\subfile``/``\import`` 双参/in-arg 全覆盖且含传递（MAX_INPUTS=8 深度
+    拒绝项落 ``missing_input`` warning，经漏网名面保命）。
+
+    fail-open 四闸——闭包不可证即保留（误剔方向 = 真内容不译，绝对禁）：
+    ① flatten 解析崩 ② 动态文件名（``res.input_dyn>0``：``\input{\cs}``/
+    计算式名，gullet ArgMismatch 静默区）③ 漏网字面名与候选件
+    basename+.tex 配对成功（深度拒/seen 断环/真缺失不可分——过保方向）
+    ④ main 自身不可相对定位。
+    """
+    try:
+        res = parse_file(main, flatten=True, top_dir=root)
+    except Exception:  # noqa: BLE001 -- 闭包不可证 → 全量保留
+        return
+    if res.input_dyn:
+        return  # 动态文件名输入在——闭包不完备，fail-open
+    try:
+        root_r = root.resolve()
+        keep = {main.resolve().relative_to(root_r).as_posix()}
+    except (OSError, RuntimeError, ValueError):
+        return
+    raw: list[str] = []
+    for _pos, name in res.inputs:
+        if Path(name).is_absolute():
+            try:
+                keep.add(Path(name).resolve().relative_to(root_r).as_posix())
+            except (OSError, RuntimeError, ValueError):
+                continue  # 越界输入（texmf/绝对路径外件）与树内分流无关
+        else:
+            raw.append(name)
+    for w in res.warnings:
+        if w.kind != "missing_input":
+            continue
+        # detail 形：``cmd:fname``/``f{n} cmd:fname``/``depth>N:fname``/
+        # ``tag:t@fname``——末段 ``:``/``@`` 分界取文件名（含 ``:`` 的病理
+        # 名不撑，e-print 无此物）
+        fname = w.detail.split("@")[-1].split(":")[-1].strip()
+        if fname:
+            raw.append(fname)
+    cand: set[str] = set()
+    for n in raw:
+        base = PurePosixPath(n.replace("\\", "/")).name
+        if not base:
+            continue
+        suf = Path(base).suffix
+        if suf and suf.lower() != ".tex":
+            continue  # ``\input{foo.sty}`` 族目标非 .tex——与扫描集无关
+        cand.add(base)
+        if not suf:
+            cand.add(base + ".tex")
+    parsed: list[tuple[Path, str, ScanResult]] = []
+    for f, rel, res_f in scan.parsed:
+        if rel in keep or PurePosixPath(rel).name in cand:
+            parsed.append((f, rel, res_f))
+            continue
+        scan.unreachable.append(rel)
+        scan.support.append(rel)  # 原文保留——zh 树镜像不丢件
+    scan.parsed = parsed

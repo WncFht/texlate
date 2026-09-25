@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.engine import engine_for
+from texlate.compile.inject import find_main_tex
 from texlate.compile.judge import Verdict, judge, paired_slot_diff
 from texlate.compile.probe import target_probe
 from texlate.latex.api import scan_tex_tree
@@ -241,7 +242,10 @@ def ran_front_matter(options: Mapping[str, Any]) -> frozenset[str]:
 
 
 def scan_tree(
-    root: Path, *, front_matter: frozenset[str] = frozenset()
+    root: Path,
+    *,
+    front_matter: frozenset[str] = frozenset(),
+    main: Path | None = None,
 ) -> tuple[list[tuple[Path, ScanResult]], list[ChunkIn], list[str], list[str]]:
     """枚举树内 ``.tex`` → 四级分流 → 解析 + chunk 收集。
 
@@ -254,8 +258,12 @@ def scan_tree(
     按原文保留；与 fault 分流：有意跳过而非失败）。本壳只把 ``parsed``
     桶折成 ``(scans, chunks)``——chunk_id ``{idx}:{c.id}`` 方案归本臂。
     ``front_matter`` = preamble 前置发射白名单（透传 ``scan_tex_tree``）。
+    ``main`` 缺省 → ``find_main_tex(root)`` 自检出——闭包裁剪与 worker
+    ``_parse_all`` 同闸（检出失败/无命中即不裁，fail-open 同侧）。
     """
-    tree = scan_tex_tree(root, front_matter=front_matter)
+    if main is None:
+        main = find_main_tex(root)
+    tree = scan_tex_tree(root, main=main, front_matter=front_matter)
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
     for f, _rel, res in tree.parsed:

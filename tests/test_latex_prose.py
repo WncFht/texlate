@@ -141,6 +141,12 @@ def test_translate_tree_support_file_dropped(tmp_path: Path) -> None:
 def test_translate_tree_real_content_still_translated(tmp_path: Path) -> None:
     """内容文件照常翻译——散文门不误伤正文文件。"""
     _project(tmp_path)
+    # ``body.tex`` 须可达——闭包裁剪后未被 ``\input`` 的散文件剔
+    # unreachable→support 不译（本用例语义 = 可达正文件过散文门送译）。
+    (tmp_path / "main.tex").write_text(
+        _MAIN.replace("\\end{document}", "\\input{body}\n\\end{document}"),
+        encoding="utf-8",
+    )
     (tmp_path / "body.tex").write_text(
         "The results of this paper show that the proposed method is "
         "effective and that the theory holds.\n",

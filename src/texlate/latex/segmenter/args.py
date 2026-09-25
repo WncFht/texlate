@@ -768,6 +768,23 @@ class _Args:
                 _, end = self._eat_fname_toks(src, x)
                 self._cover_ph(fid, end, PhType.CMD, gap=t)
                 return
+            if x is not None and x.kind == "lbrace":
+                # ``\input{...}`` in_arg：组内含 cs → 动态文件名信号
+                # （input_dyn 供 main 闭包判 fail-open）；组消费后回放，
+                # 保护仍交 ``_protect_cs`` 逐参。
+                hit = self._collect_group(src, x, brace=True)
+                if hit is not None:
+                    inner, closer = hit
+                    if any(tk.kind == "cs" for tk in inner):
+                        self.state.input_dyn += 1
+                    self._unread_pulled(src, pulled, x, *inner, closer)
+                else:
+                    self._unread_pulled(src, pulled, x)
+                self._protect_cs(t, src, PhType.CMD)
+                return
+            if x is not None and x.kind == "cs":
+                # ``\input \cs`` 动态文件名——非字面路径，input_dyn 信号
+                self.state.input_dyn += 1
             self._unread_pulled(src, pulled, x)
             self._protect_cs(t, src, PhType.CMD)
             return
@@ -781,6 +798,10 @@ class _Args:
                 _inner, closer = hit
                 end = closer.pos[2]
                 if name in _IMPORT2:
+                    # dir 参含 cs → 动态目录前缀——file 参纵为字面闭包
+                    # 亦不可证，记 input_dyn 作 fail-open 信号
+                    if "\\" in self.file_texts[fid][x.pos[2] : closer.pos[1]]:
+                        self.state.input_dyn += 1
                     # v1 此处 ws_skip（全空白）非 ws_skip_arg——跨 \n\n
                     p2: list[Tok] = []
                     y = self._read_skipws(src, p2)
@@ -817,16 +838,21 @@ class _Args:
         elif x is not None and x.kind == "cs":
             # ``\input \cs`` 动态文件名：cs 吞进 literal 随命令走——否则
             # ``\myfile`` 被主流当未知命令展开/逐字，体文本漏进 chunk
-            # （R4）。``fname`` 留空——动态名非字面路径，不记 inputs[]。
+            # （R4）。``fname`` 留空——动态名非字面路径，不记 inputs[]；
+            # input_dyn 记 main 闭包 fail-open 信号。
+            self.state.input_dyn += 1
             end = x.pos[2]
         else:
             self._unread_pulled(src, pulled, x)
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
-        if fname and "\\" not in fname:
+        if fname and "\\" in fname:
             # 含 cs 的动态文件名（\@journal\substyle@ext）非字面路径，
-            # 非输入尝试——不记 inputs[]（gullet 侧同款过滤）；
+            # 非输入尝试——不记 inputs[]（gullet 侧同款过滤），记
+            # input_dyn 作 main 闭包 fail-open 信号
+            self.state.input_dyn += 1
+        elif fname:
             # 引号壳统一剥除——``"a b.tex"`` 与 ``a b.tex`` 同档记
             self.state.inputs.append((vspan.start, strip_fname_quotes(fname)))
 

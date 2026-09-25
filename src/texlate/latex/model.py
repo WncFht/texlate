@@ -178,6 +178,10 @@ class ScanResult:
     # 进 protected_tex——validate_result 据此豁免 dangling_ph/chunk_ref
     # 误报（S2：只活在 ScanState 时消费方区分不了保留字面与真悬空）。
     ph_reserved: set[str] = field(default_factory=set)
+    #: 动态文件名 ``\\input`` 族命中数（``\\input{\\cs}``/``\\input \\cs``/
+    #: 组内含 cs 的计算式名）——非字面路径不记 ``inputs[]``，但
+    #: ``scan_tex_tree`` 的 main 闭包裁剪据 ``input_dyn>0`` 判 fail-open。
+    input_dyn: int = 0
 
 
 @dataclass(slots=True)
@@ -204,6 +208,9 @@ class ScanState:
     #: ``\begin{document}`` 前命中的项照常 emit chunk，未登记项维持
     #: preamble 整段盖过（缺省空集 = 历史行为）。
     front_matter: frozenset[str] = frozenset()
+    #: 动态文件名 ``\\input`` 族命中计数——``ScanResult.input_dyn`` 的写侧
+    #: （``args._handle_input_cs``/``grpscan`` 漏网臂累加）。
+    input_dyn: int = 0
 
 
 # ---------------------------------------------------------------- 扫描层共享常量

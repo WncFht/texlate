@@ -143,10 +143,13 @@ class _Parse:
         )
         tree = scan_tex_tree(
             ctx.base_dir,
+            main=(ctx.base_dir / ctx.main_rel) if ctx.main_rel else None,
             on_file=lambda _p: self._abort_if_cancelled(ctx),
             front_matter=fm,
         )
         ctx.support_files = list(tree.support)
+        for rel in tree.unreachable:
+            self._log(ctx, f"parse skip {rel}: unreachable from main")
         ctx.fault_files = []
         for rel, exc in tree.fault:
             ctx.fault_files.append(rel)

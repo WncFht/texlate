@@ -500,10 +500,14 @@ class _GrpScan:
                         j += 1
                 elif k < n and toks[k].kind == "cs":
                     # ``\input \cs`` 动态文件名——cs 随命令进 [[CMD]]
-                    # （主流 else 臂同规，R4）
+                    # （主流 else 臂同规，R4）；input_dyn 记闭包 fail-open 信号
+                    self.state.input_dyn += 1
                     j = k + 1
                 else:
                     j = self._grp_call_end(toks, i, 2 if name in _IMPORT2 else 1)
+                    if any(tk.kind == "cs" for tk in toks[k:j]):
+                        # ``\input{\cs}``/``\import{\csdir}{f}`` 组内动态名
+                        self.state.input_dyn += 1
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
                 )
