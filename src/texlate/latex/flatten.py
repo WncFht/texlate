@@ -116,8 +116,13 @@ def resolve_input(
 
     # 阶段序：各根 × 候选名（含 .tex 补全）→ 各根 × basename 补 .tex。
     # 历史第三段「各根 × 裸名」恒被首段候选覆盖，不再单开。
+    # 「有无扩展名」只看 tex 格式尾——``Path.suffix`` 把词干点号误当
+    # 扩展名（arXiv ``N.N_name`` 命名族 ``2.1.10_CC`` → ``.10_CC``），
+    # 漏补 .tex 即漏解（e116 实证 67/74 件 missing_input）。
     names = (
-        [fname] if Path(fname).suffix else [fname + ".tex", fname + ".TEX", fname]
+        [fname]
+        if fname.lower().endswith(".tex")
+        else [fname + ".tex", fname + ".TEX", fname]
     )
     stem = Path(fname).name
     paths = [r / n for r in roots for n in names]

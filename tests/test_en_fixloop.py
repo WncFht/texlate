@@ -202,3 +202,83 @@ class TestEnFixloop:
         worker._compile_en(ctx)  # noqa: SLF001
         assert calls == []
         assert (ctx.root / "en.pdf").is_file()
+
+    def test_died_errorcap_pdf_fixloop_then_warn(
+        self,
+        tmp_path: Path,
+        request: pytest.FixtureRequest,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """has_pdf 但 log 带 ``makes 100 errors`` 硬顶签名 → fixloop 救援臂
+        真触发；救不回照登残件 + ``截断`` warning（e116 实证旧判据漏检直登）。
+        """
+        eng = RecordingEngine("tectonic")
+        ctx, worker, store = _mk(tmp_path, request, engine=eng)
+        real_compile = eng.compile
+
+        def _compile_died(*a: object, **kw: object) -> object:
+            res = real_compile(*a, **kw)
+            assert res.log_path is not None
+            res.log_path.write_text(
+                res.log_path.read_text(encoding="utf-8")
+                + "\n(That makes 100 errors; please try again.)\n",
+                encoding="utf-8",
+            )
+            return res
+
+        monkeypatch.setattr(eng, "compile", _compile_died)
+        conds: list[object] = []
+
+        def _stub(_w: object, _p: object, **kw: object) -> dict[str, object]:
+            conds.append(kw.get("cond"))
+            return {"verdict": "fail", "rounds": [], "actions": []}
+
+        monkeypatch.setattr("texlate.repair.fixloop", _stub)
+        worker._compile_en(ctx)  # noqa: SLF001
+        assert conds == ["en"]
+        assert (ctx.root / "en.pdf").is_file()  # 救不回——残件照登
+        assert any(
+            e["type"] == "warning"
+            and e["data"]["code"] == "en_compile"
+            and "截断" in e["data"]["message"]
+            for e in store.events_since(ctx.task_id, 0)
+        )
+
+    def test_died_signal_and_timeout_pdfs_fixloop(
+        self,
+        tmp_path: Path,
+        request: pytest.FixtureRequest,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """无签名残件臂：``killed_signal``/``timed_out`` 各算 died——
+        截杀/超时 pdf 不登健康（纯净 log 也无 ``Emergency`` 词素的情形）。"""
+        conds: list[object] = []
+
+        def _stub(_w: object, _p: object, **kw: object) -> dict[str, object]:
+            conds.append(kw.get("cond"))
+            return {"verdict": "fail", "rounds": [], "actions": []}
+
+        monkeypatch.setattr("texlate.repair.fixloop", _stub)
+        for mode in ("signal", "timeout"):
+            eng = RecordingEngine("tectonic")
+            ctx, worker, _store = _mk(tmp_path / mode, request, engine=eng)
+            real_compile = eng.compile
+
+            def _compile_flagged(
+                *a: object,
+                _m: str = mode,
+                _rc: Callable[..., object] = real_compile,
+                **kw: object,
+            ) -> object:
+                res = _rc(*a, **kw)
+                if _m == "signal":
+                    res.killed_signal = 9
+                else:
+                    res.timed_out = True
+                return res
+
+            monkeypatch.setattr(eng, "compile", _compile_flagged)
+            worker._compile_en(ctx)  # noqa: SLF001
+        assert conds == ["en", "en"]

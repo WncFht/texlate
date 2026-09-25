@@ -213,6 +213,11 @@ def test_log_died_mid_doc_lexemes() -> None:
     )
     assert log_died_mid_doc("!  cannot \\read from x\n") == "cannot \\read"
     assert log_died_mid_doc("job aborted, file error\n") == "job aborted"
+    # errorlimit 硬顶中止（e116：100 错强停 35 页残件、无 Emergency 词素）
+    assert (
+        log_died_mid_doc("(That makes 100 errors; please try again.)\n")
+        == "makes 100 errors"
+    )
     assert log_died_mid_doc("all good\nOutput written on main.pdf (1 page).\n") is None
 
 

@@ -197,11 +197,11 @@ def _drop_unreachable(  # noqa: C901, PLR0912 -- fail-open 闸序平铺即安全
         base = PurePosixPath(n.replace("\\", "/")).name
         if not base:
             continue
-        suf = Path(base).suffix
-        if suf and suf.lower() != ".tex":
-            continue  # ``\input{foo.sty}`` 族目标非 .tex——与扫描集无关
+        # 无后缀门——``Path.suffix`` 把词干点号误当扩展名（``2.1_x`` →
+        # ``.1_x``）会漏掉 arXiv ``N.N_name`` 全族；候选本就是过保方向
+        # （parsed 只有 .tex 件，``foo.sty`` 类候选永不误配）。
         cand.add(base)
-        if not suf:
+        if not base.lower().endswith(".tex"):
             cand.add(base + ".tex")
     parsed: list[tuple[Path, str, ScanResult]] = []
     for f, rel, res_f in scan.parsed:

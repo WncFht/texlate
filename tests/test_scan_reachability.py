@@ -74,6 +74,17 @@ def test_unresolved_name_keeps_basename(tmp_path: Path) -> None:
     assert tree.unreachable == ["dup/main.tex"]
 
 
+def test_dotted_stem_resolves_and_keeps(tmp_path: Path) -> None:
+    r"""arXiv ``N.N_name`` 族：``\input{chap/2.1_x}`` 词干点号不是扩展名——
+    e116 实证 ``Path.suffix`` 误咽 ``.1_x`` 致 67/74 件 missing_input
+    连坐误剔；补 ``.tex`` 后闭包解析直达，basename 兜底同侧。"""
+    _mk_tree(tmp_path, cmd="\\input{chap/one}\n\\input{chap/2.1_x}")
+    (tmp_path / "chap" / "2.1_x.tex").write_text(_ONE, encoding="utf-8")
+    tree = scan_tex_tree(tmp_path, main=tmp_path / "main.tex")
+    assert "chap/2.1_x.tex" in _rels(tree)
+    assert tree.unreachable == ["dup/main.tex"]
+
+
 def test_subfile_docclass_kept(tmp_path: Path) -> None:
     """subfiles 包形态：子文件自带 ``\\documentclass`` 但经 ``\\subfile`` 可达——
     docclass 不是剔出证据，闭包成员资格才是（gullet 真解析臂）。"""

@@ -239,9 +239,11 @@ def _thm_restate_probe(v: Verdict, full_log: str) -> None:
 #: 引擎 ``\end`` 前致命中止签名（10-taxonomy ``emergency`` 同词素）——
 #: 截断残件 pdf 照样印 ``Output written``（lane-deadgate 截断 repro 实
 #: 测：``\input`` 缺件 → Emergency stop → ``Output written (1 page)``），
-#: 「出完/出半截」唯一可靠分界是这个签名本体。
+#: 「出完/出半截」唯一可靠分界是这个签名本体。``makes \d+ errors`` =
+#: errorlimit 硬顶中止（web2c 缺省 100 错强停，e116 实证：error 级联
+#: 顶满即停、无 Emergency stop 词素、pdf 截在死点）。
 _DIED_MID_DOC_RX = re.compile(
-    r"Emergency stop|cannot \\read|Fatal error|job aborted"
+    r"Emergency stop|cannot \\read|Fatal error|job aborted|makes \d+ errors"
 )
 
 

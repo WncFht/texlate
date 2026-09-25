@@ -630,12 +630,16 @@ class _Compile:
         """en.pdf 截断收编闸判定。
 
         e116 实证：en 编译 35 页死亡、残件 pdf 因 ``has_pdf`` 非空被无条件
-        登记。``Output written`` 截断照印不可信，唯一信号是
-        ``Emergency stop``/``Fatal error`` 致命中止签名
-        （``judge.log_died_mid_doc`` 单源）。出 pdf 但死了 → 照样进
-        fixloop 救；救不回登记时记 warning。
+        登记。``Output written`` 截断照印不可信，可信信号 = 致命中止签名
+        （``judge.log_died_mid_doc`` 单源，含 ``makes 100 errors`` 硬顶）
+        ∪ 外部截杀/超时（``killed_signal``/``timed_out`` 无签名残件）。
+        出 pdf 但死了 → 照样进 fixloop 救；救不回登记时记 warning。
         """
-        return bool(res.has_pdf) and bool(log_died_mid_doc(self._log_text_of(res)))
+        return bool(res.has_pdf) and (
+            bool(log_died_mid_doc(self._log_text_of(res)))
+            or res.killed_signal is not None
+            or bool(res.timed_out)
+        )
 
     def _log_text_of(self, res: CompRes) -> str:
         """``repair.log_text_of`` 单源委托（.log 非空优先、stdout_tail 兜底）。"""

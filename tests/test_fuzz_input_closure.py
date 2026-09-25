@@ -100,6 +100,8 @@ _FSYS_ENTRIES = [
     "we-ird_.tex",
     ".hidden.tex",
     "up/UP.tex",
+    "2.1_stem.tex",
+    "sub/1.1_deep.tex",
 ]
 
 #: ``\input`` 目标名汤——命中形/缺件/根内 ``..`` 穿越/出界 ``..``/怪名。
@@ -121,6 +123,8 @@ _FNAME_SOUP = [
     "we-ird_",
     ".hidden",
     "up/UP",
+    "2.1_stem",
+    "sub/1.1_deep",
     "missing",
     "nope.tex",
     "sub/missing",
@@ -187,11 +191,16 @@ def _oracle_resolve(
 ) -> str | None:
     """``_resolve_input`` 规格直译 oracle——阶段序与命中闸逐条对契约。
 
-    候选序：各根 × 名组（无扩展名补 ``.tex``/``.TEX``/裸名；有扩展名原样）
+    候选序：各根 × 名组（无 ``.tex`` 尾补 ``.tex``/``.TEX``/裸名；
+    有 ``.tex`` 尾原样——词干点号不算扩展名，``2.1_x`` 族照补）
     → 各根 × basename+``.tex``/``.TEX``；首个 real path 存在且落根集内者胜。
     """
     roots = _live_roots(file_dir, root_dir, top_dir)
-    names = [fname] if Path(fname).suffix else [fname + ".tex", fname + ".TEX", fname]
+    names = (
+        [fname]
+        if fname.lower().endswith(".tex")
+        else [fname + ".tex", fname + ".TEX", fname]
+    )
     stem = Path(fname).name
     paths = [r / n for r in roots for n in names]
     paths += [r / (stem + ext) for r in roots for ext in (".tex", ".TEX")]
