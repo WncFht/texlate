@@ -97,6 +97,10 @@ import {
     registerSentAlign,
     type SentAlignPane,
 } from "./features/sentalign";
+import {
+    attachInspect,
+    type InspectHandle,
+} from "./features/inspect";
 import RefsPanel from "./RefsPanel";
 import { fromParamOf } from "./tasknav";
 import {
@@ -964,6 +968,22 @@ export default function ReaderView(props: Props) {
             pdfjs: pdfjsAgg,
         });
         onCleanup(() => keys.dispose());
+
+        // ⌘-Inspect 修饰键检视层：accel 按住→.insp-armed 揭示，⌘+click→
+        // 原地 peek 卡，⌘+Alt+click→mirrorTo 对侧镜像跳。单 document
+        // capture 闸吞/放——pane 级 inspectAt/inspectDestAt 缺槽的手势
+        // 静默放过（live-pane 等非检视面不被误吞）
+        const insp = attachInspect({
+            rootEl: () => panesEl,
+            handleOf: (side) => handles()[side] as InspectHandle | undefined,
+            pdfjsArmed: (side) =>
+                ((handles()[side] as PaneHandle | undefined)?.pdfjsState?.()
+                    .armed ?? false),
+            anyPdfjsArmed: () => pdfjsAgg().armed,
+            hasLiveSelection: () => hasLiveSelection(document),
+            mirror: (dst, dest) => mirrorTo(dst, dest, 2, ++navPairSeq),
+        });
+        onCleanup(() => insp.dispose());
     });
 
     // ---------- 句游标（v 进入；dom/html 双侧各一，pdf 侧不建） ----------
@@ -1744,6 +1764,7 @@ export default function ReaderView(props: Props) {
         ["Ctrl+F", t.reader.helpFind],
         ["Backspace", t.reader.helpNavBack],
         ["Alt+←/→", t.reader.helpNavHist],
+        ["⌘+Click / Ctrl+Click", t.reader.helpInspect],
         ["V", t.reader.helpCursor],
         ["?", t.reader.helpHelp],
     ];

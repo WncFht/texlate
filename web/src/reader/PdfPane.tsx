@@ -42,6 +42,7 @@ import UsagesCard from "./UsagesCard";
 import { MARKED_SEL, seqOfMarkedSpan, seqOfTextItem } from "./pdfmarks";
 import { pdfCiteDests, type UsageEntry } from "./usages";
 import { classifyDestName } from "./cmd/hitctx";
+import { INSPECT_TOL } from "./features/inspect";
 import type { KeptRef, TaskSnapshot } from "../api/client";
 import { ensurePdfjsWorker } from "../pdfjs";
 import {
@@ -116,8 +117,9 @@ export interface PaneHandle extends PaneLike {
         行带；seq null 清轨。与 sa-flash 分轨互不清 */
     hoverSeq?(seq: number | null, pos: Pos | null, cls: string): void;
     /** 图/表/式/定理等本体坐标 → 落点 dest 名（destPos 反查——右键
-        本体反查 usages 的命台面）；无候选/未扫完/other 类 null */
-    destAtPoint?(x: number, y: number): string | null;
+        本体反查 usages 的命台面）；无候选/未扫完/other 类 null；
+        tol=垂直分位容差（默认 0.4 右击档，⌘-Inspect 臂走紧档） */
+    destAtPoint?(x: number, y: number, tol?: number): string | null;
     /** find-usages pdf 臂：cite.<key> dest 反查 link annot 站集开卡；
         at=显式卡锚矩形（右键本体路——锚元素缺席时卡落点击点） */
     openUsagesFor?(
@@ -125,6 +127,11 @@ export interface PaneHandle extends PaneLike {
         anchor: Element | null,
         at?: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
     ): boolean;
+    /** ⌘-Inspect：坐标点 → 原地开检视卡（锚→目标卡/页内→UsagesCard）；
+        handled=false 由闸按兜底语义走 */
+    inspectAt?(x: number, y: number): boolean;
+    /** ⌘-Inspect：坐标点 → 镜像载荷 {dest}；无可镜像物 null */
+    inspectDestAt?(x: number, y: number): { dest: unknown } | null;
 }
 
 interface LinkServiceLike {
@@ -769,7 +776,7 @@ export default function PdfPane(props: Props) {
         双栏并列消歧），同页 destPos 候选过「other 类拒收 + |Δfy|≤0.4 闸 +
         Δfy+0.25Δfx 最近邻」；有引用站（destSites 非空）的候选优先——同距
         时「真被引过」的才是用户要答的。 */
-    const destAtPoint = (x: number, y: number): string | null => {
+    const destAtPoint = (x: number, y: number, tol = 0.4): string | null => {
         const c = viewer()?.container;
         if (!c) return null;
         const pg = c.ownerDocument
@@ -787,7 +794,7 @@ export default function PdfPane(props: Props) {
         for (const d of destPos.get(page) ?? []) {
             if (classifyDestName(d.name) === "other") continue;
             const dy = Math.abs(d.frac - fy);
-            if (dy > 0.4) continue;
+            if (dy > tol) continue;
             const score =
                 dy +
                 (d.fx != null ? Math.min(Math.abs(d.fx - fx), 1) * 0.25 : 0);
@@ -955,6 +962,47 @@ export default function PdfPane(props: Props) {
         },
         openUsagesFor,
         destAtPoint,
+        // ⌘-Inspect：锚→bib 开 CiteCard/他开 UsagesCard；页内非锚命中
+        // （destAtPoint 紧容差）→卡落点击矩形；other 类 dest 不出卡
+        inspectAt(x, y) {
+            const c = viewer()?.container;
+            if (!c) return false;
+            const t = c.ownerDocument.elementFromPoint(x, y);
+            const a = citeAnchorOf(t);
+            if (a) {
+                const dest = destOf(a);
+                if (!dest) return false;
+                if (classifyDestName(dest) === "other") return false;
+                if (dest.startsWith("cite.")) {
+                    openCard(a);
+                    return true;
+                }
+                return openUsagesFor(dest, a);
+            }
+            const dest = destAtPoint(x, y, INSPECT_TOL);
+            if (!dest) return false;
+            const span = (t as Element | null)?.closest?.(".textLayer span") ?? null;
+            return openUsagesFor(dest, span, {
+                left: x - 1,
+                right: x + 1,
+                top: y - 1,
+                bottom: y + 1,
+            });
+        },
+        inspectDestAt(x, y) {
+            const c = viewer()?.container;
+            if (!c) return null;
+            const t = c.ownerDocument.elementFromPoint(x, y);
+            const a = citeAnchorOf(t);
+            if (a) {
+                const dest = destOf(a);
+                return dest && classifyDestName(dest) !== "other"
+                    ? { dest }
+                    : null;
+            }
+            const dest = destAtPoint(x, y, INSPECT_TOL);
+            return dest ? { dest } : null;
+        },
         async mirrorDest(dest) {
             const s = pdfSlick();
             const orig = origGoTo;

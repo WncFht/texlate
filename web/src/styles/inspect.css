@@ -1,0 +1,58 @@
+/* inspect.css —— ⌘-Inspect 修饰键检视层的揭示态样式。
+   挂载：.insp-armed 加在 .panes 根（features/inspect.ts 闸控）。
+   设计口径：全 CSS、零过渡零动画——修饰键揭示要「瞬时感」，
+   任何缓动都会让它读起来像「页面在渐变」而非「能力被照亮」。 */
+
+/* ── 锚揭示：dom/html 的内链锚——下划线偏移 2px，不抢 hover 样式 ── */
+.panes.insp-armed a[href^="#"] {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, var(--cinnabar) 55%, transparent);
+}
+
+/* html 臂 cite 替身本无 href——同族提亮（它们是检视一等公民） */
+.panes.insp-armed .cite-ref {
+    color: var(--cinnabar-deep);
+}
+
+/* ── pdf 锚揭示：注释覆盖层无文字——inset 底线 + 浅底纹 ── */
+.panes.insp-armed section.linkAnnotation > a {
+    box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--cinnabar) 55%, transparent);
+    background: color-mix(in srgb, var(--cinnabar) 10%, transparent);
+}
+
+/* ── 本体宿主揭示：find-usages armTargets 预标的 .insp-t ── */
+.panes.insp-armed .insp-t {
+    outline: 1px solid color-mix(in srgb, var(--cinnabar) 20%, transparent);
+    outline-offset: 1px;
+    border-radius: 3px;
+}
+
+/* ── hover 强化：armed 期指针落点单轨提亮 ── */
+.panes.insp-armed .insp-hot {
+    outline: 1.5px solid color-mix(in srgb, var(--cinnabar) 34%, transparent);
+    outline-offset: 1px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.panes.insp-armed a.insp-hot {
+    text-decoration-color: color-mix(in srgb, var(--cinnabar) 85%, transparent);
+}
+.panes.insp-armed section.linkAnnotation > a.insp-hot {
+    box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--cinnabar) 85%, transparent);
+    background: color-mix(in srgb, var(--cinnabar) 18%, transparent);
+}
+
+/* ── 深色面：揭示强度整体上调一档 ── */
+[data-theme="dark"] .panes.insp-armed a[href^="#"] {
+    text-decoration-color: color-mix(in srgb, var(--cinnabar) 65%, transparent);
+}
+[data-theme="dark"] .panes.insp-armed .insp-t {
+    outline-color: color-mix(in srgb, var(--cinnabar) 26%, transparent);
+}
+[data-theme="dark"] .panes.insp-armed .insp-hot {
+    outline-color: color-mix(in srgb, var(--cinnabar) 42%, transparent);
+}
+[data-theme="dark"] .panes.insp-armed section.linkAnnotation > a {
+    background: color-mix(in srgb, var(--cinnabar) 14%, transparent);
+}

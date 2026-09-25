@@ -117,6 +117,16 @@ const HOVERABLE = new Set<UsageEntry["target"]["kind"]>([
     "bib",
 ]);
 
+/** 触屏 tap 放宽集——指针设备 tap 无 ⌘-Inspect 等价物，eq/thm 的 tap
+    归 usages 开卡（section 仍拒：全节容器祖先爬升误吸太宽） */
+const TAPABLE = new Set<UsageEntry["target"]["kind"]>([
+    "figure",
+    "table",
+    "bib",
+    "equation",
+    "theorem",
+]);
+
 export function attachUsages(
     pane: UsagesPaneLike,
     deps: UsagesDeps,
@@ -127,6 +137,9 @@ export function attachUsages(
     let curTrigger: HTMLElement | null = null;
     let cardOpen = false;
     let scrollGraceUntil = 0;
+    // 最近一手是触屏点按——click 的 TAPABLE 放宽判据（pointerdown capture
+    // 快照；键盘 focus/程序派发 click 不吃放宽）
+    let lastTouch = false;
     // Esc 还焦点抑制旗：浏览器把「键盘输入后的程序 focus()」也判
     // :focus-visible（Chromium/Firefox 双引擎实测）——不抑制则 Esc 关卡后
     // focusin 立刻复开。一次性：下一个 focusin（无论目标）消费掉。
@@ -179,6 +192,12 @@ export function attachUsages(
         via: UsagesOpen["via"],
     ) => {
         deps.onWillOpen?.();
+        // 滞留的 armClose 必须在显式开前清算——否则序列为「焦点迁出旧
+        // 触发元(armClose 排程)→mousedown 新目标→click 开卡」时，旧定时
+        // 器到点把刚开的卡杀掉（⌘-Inspect 实测：Esc 还焦的 cite 触发元
+        // focusout→armClose，350ms 后吞掉 inspect 开的 usages 卡）
+        window.clearTimeout(closeTimer);
+        closeTimer = 0;
         curHost = entry.target.el ?? null;
         curTrigger = trigger;
         scrollGraceUntil = performance.now() + SCROLL_GRACE;
@@ -252,7 +271,11 @@ export function attachUsages(
         }
         const entry = entryOf(e.target);
         const host = entry?.target.el ?? null;
-        if (!entry || !host || !HOVERABLE.has(entry.target.kind)) {
+        const kindOk =
+            entry != null &&
+            (HOVERABLE.has(entry.target.kind) ||
+                (lastTouch && TAPABLE.has(entry.target.kind)));
+        if (!entry || !host || !kindOk) {
             if (cardOpen) doClose(); // 点正文空白即收卡
             return;
         }
@@ -308,6 +331,10 @@ export function attachUsages(
     };
 
     const bodyEl = pane.bodyEl();
+    const onPointerDown = (e: Event) => {
+        lastTouch = (e as PointerEvent).pointerType === "touch";
+    };
+    bodyEl.addEventListener("pointerdown", onPointerDown, true);
     bodyEl.addEventListener("pointerover", onOver);
     bodyEl.addEventListener("pointerout", onOut);
     bodyEl.addEventListener("click", onClick);
@@ -367,9 +394,17 @@ export function attachUsages(
                 "figure, .ltx_bibitem",
             ))
                 if (el.tabIndex < 0) el.tabIndex = 0;
+            // ⌘-Inspect 揭示预标：可索引目标宿主全量 .insp-t——armed 期纯
+            // CSS 出描边（eq/sec/thm 的「可检视」提示无他途）
+            const src = deps.source() as { entries?: UsageEntry[] } | undefined;
+            for (const e of src?.entries ?? []) {
+                const el = e.target.el;
+                if (el && root.contains(el)) el.classList.add("insp-t");
+            }
         },
         dispose() {
             clearCardTimers();
+            bodyEl.removeEventListener("pointerdown", onPointerDown, true);
             bodyEl.removeEventListener("pointerover", onOver);
             bodyEl.removeEventListener("pointerout", onOut);
             bodyEl.removeEventListener("click", onClick);

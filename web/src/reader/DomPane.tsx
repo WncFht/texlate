@@ -68,6 +68,10 @@ export interface DomPaneHandle extends ChunkPaneHandle {
     mirrorDest?(dest: unknown): { pre: Pos; post: Pos } | null;
     /** 本侧 usage 索引（测试/调试面） */
     usageIndex?(): UsageIndex | undefined;
+    /** ⌘-Inspect：坐标点 → 原地开检视卡；handled=false 由闸按兜底语义走 */
+    inspectAt?(x: number, y: number): boolean;
+    /** ⌘-Inspect：坐标点 → 镜像载荷 {dest}=目标元素 id；null=无可镜像物 */
+    inspectDestAt?(x: number, y: number): { dest: unknown } | null;
 }
 
 interface Props {
@@ -325,6 +329,50 @@ export default function DomPane(props: Props) {
             }
         }
         return null;
+    };
+
+    // ⌘-Inspect 挂点：锚→bib 开克隆卡/他开 usages；本体宿主→usages 卡。
+    // section 宿主是全节容器——forEl 祖先爬升会把节内任意段落解析成节
+    // 卡，只有真击中节标题才算 handled（段落内 ⌘+click 走闸的吞语义）
+    const sectionTitleHit = (host: Element, el: Element) => {
+        const t = el.closest(".ltx_title, h1, h2, h3, h4, h5, h6");
+        return t != null && host.contains(t);
+    };
+    handle.inspectAt = (x, y) => {
+        const el = bodyEl.ownerDocument.elementFromPoint(x, y);
+        if (!el || !bodyEl.contains(el)) return false;
+        const a = anchorOf(el);
+        if (a) {
+            const hit = anchorTarget(a);
+            if (!hit) return false;
+            const bib = bibOf(hit.el);
+            if (bib) {
+                openDomCard(a, hit.id, bib);
+                return true;
+            }
+            return usagesCtl?.openFor(hit.el, a) ?? false;
+        }
+        const entry = usageIndex?.forEl(el);
+        const host = entry?.target.el ?? null;
+        if (!entry || !host) return false;
+        if (entry.target.kind === "section" && !sectionTitleHit(host, el))
+            return false;
+        return usagesCtl?.openFor(el, el) ?? false;
+    };
+    handle.inspectDestAt = (x, y) => {
+        const el = bodyEl.ownerDocument.elementFromPoint(x, y);
+        if (!el || !bodyEl.contains(el)) return null;
+        const a = anchorOf(el);
+        if (a) {
+            const hit = anchorTarget(a);
+            return hit ? { dest: hit.id } : null;
+        }
+        const entry = usageIndex?.forEl(el);
+        const host = entry?.target.el ?? null;
+        if (!entry || !host) return null;
+        if (entry.target.kind === "section" && !sectionTitleHit(host, el))
+            return null;
+        return { dest: entry.target.id };
     };
 
     /** usages 句项 → 跳回引用锚：scrollTop 写位+闪记+压栈回传；

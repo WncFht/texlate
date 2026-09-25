@@ -76,6 +76,10 @@ export interface HtmlPaneHandle extends ChunkPaneHandle {
     mirrorDest?(dest: unknown): { pre: Pos; post: Pos } | null;
     escOpen?(layer: string): boolean;
     escClose?(layer: string): void;
+    /** ⌘-Inspect：坐标点 → 原地开检视卡；handled=false 由闸按兜底语义走 */
+    inspectAt?(x: number, y: number): boolean;
+    /** ⌘-Inspect：坐标点 → 镜像载荷 {u:1,id}=bibkey；null=无可镜像物 */
+    inspectDestAt?(x: number, y: number): { dest: unknown } | null;
 }
 
 interface Props {
@@ -287,12 +291,48 @@ export default function HtmlPane(props: Props) {
         return null;
     };
 
+    // ⌘-Inspect 挂点：a.cite-ref[data-key] 与 [data-bib-key] 双轨——
+    // cite 替身无 href（闸的外链放行不替它判），多键逗号串取首键开
+    // usages 卡（html 臂无 cite 单卡形——卡面与 hover 卡同一份）
+    handle.inspectAt = (x, y) => {
+        const el = bodyEl.ownerDocument.elementFromPoint(x, y);
+        if (!el || !bodyEl.contains(el)) return false;
+        const cr = el.closest<HTMLElement>(".cite-ref");
+        if (cr) {
+            const key = (cr.getAttribute("data-key") ?? "")
+                .split(",")[0]
+                ?.trim();
+            return key ? (usagesCtl?.openFor(key, cr) ?? false) : false;
+        }
+        if (el.closest("[data-bib-key]"))
+            return usagesCtl?.openFor(el, el) ?? false;
+        return false;
+    };
+    handle.inspectDestAt = (x, y) => {
+        const el = bodyEl.ownerDocument.elementFromPoint(x, y);
+        if (!el || !bodyEl.contains(el)) return null;
+        const cr = el.closest<HTMLElement>(".cite-ref, [data-bib-key]");
+        if (!cr) return null;
+        const key = (
+            cr.getAttribute("data-key") ??
+            cr.getAttribute("data-bib-key") ??
+            ""
+        )
+            .split(",")[0]
+            ?.trim();
+        // {u:1,id}=bibkey 复合载荷：pdf 收端 pdfCiteDests 解 cite.<key>，
+        // dom 收端 forId 落空诚实 null
+        return key ? { dest: { u: 1, id: key } } : null;
+    };
+
     /** 卡/触发面 arming：usagesCtl 的 figure/table/bibitem tabindex 补 +
-        html 臂自产 .bib-anchor 同待遇（focus 触发要它可聚焦） */
+        html 臂自产 .bib-anchor 同待遇（focus 触发要它可聚焦 + insp-t 预标） */
     const armUsageTargets = (root: HTMLElement) => {
         usagesCtl?.armTargets(root);
-        for (const el of root.querySelectorAll<HTMLElement>(".bib-anchor"))
+        for (const el of root.querySelectorAll<HTMLElement>(".bib-anchor")) {
             if (el.tabIndex < 0) el.tabIndex = 0;
+            el.classList.add("insp-t");
+        }
     };
 
     const toast = (msg: string) => {

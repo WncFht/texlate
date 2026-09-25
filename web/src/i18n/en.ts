@@ -229,6 +229,7 @@ export const t = {
         helpFind: "Find in document",
         helpNavBack: "Jump back to before the citation jump",
         helpNavHist: "Citation-jump history back / forward",
+        helpInspect: "Inspect citation target / element usages (hold modifier to reveal)",
         helpHelp: "Open / close this help",
         retrying: "Retrying…",
         tryHtml: "Retry via the arXiv HTML channel",

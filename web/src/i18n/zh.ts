@@ -223,6 +223,7 @@ export const t = {
         helpFind: "文档内查找",
         helpNavBack: "返回引用跳转前的位置",
         helpNavHist: "引用跳转历史 后退 / 前进",
+        helpInspect: "检视引用目标 / 元素被引处（按住修饰键揭示）",
         helpHelp: "打开 / 关闭本帮助",
         retrying: "重试中…",
         tryHtml: "改用 arXiv HTML 通道重试",

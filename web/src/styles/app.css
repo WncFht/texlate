@@ -30,4 +30,5 @@
 @import "./copylatex.css"; /* copy-latex：公式源卡 + approx 徽标 */
 @import "./sentalign.css"; /* sent-align：句级双语对位高亮（.ens/.zhs） */
 @import "./usages.css"; /* find-usages 悬浮卡 / cite-ref 标记 / bib 锚 */
+@import "./inspect.css"; /* ⌘-Inspect：修饰键揭示态 + hover 强化 */
 @import "./toast.css"; /* app 级 toast 栈（ToastHost + toastStore） */
