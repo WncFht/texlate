@@ -50,6 +50,10 @@ bench 面大清点（Wave-F）：旧 `bench/py/` 驱动脚本全数退役改写�
 
 P3 磁盘保留策略全量落地（`702e1554`）：splice 叶 slim 即焚回填释放 2.28G、≥256KiB 叶文件 CAS 硬链去重（1,363 文件/2,303 MiB）、prune 遇 blocked cell 改收壳（6.3G→392M）、corpus TARS 即焚。dedup 预言机修掉 meta 腿不分辨 kind 的致命误判（`e9c18aa6`）——{state}-only harvest 曾给 xlat 铸 VERIFIED 致 35 篇永久死锁，retry39 复跑实证全灭后修复，待下批以 ABSENT→重跑兑现。探针批收官：260 帧 layoutqc 评估通过 111（42.7%），账本累计花费 $48.20。阅读器侧续落 sent-align seq 精度链（`33cb792b`）、PDF 内链 UsagesCard（`6944c513`）、nearestSeq 距离闸（`8b0e3604`）。`tests/kernel/` 616 例、全仓 10,164 例。收官报告：[2026-09-24-磁盘策略落地与探针批指标.md](2026-09-24-磁盘策略落地与探针批指标.md)。全量 bench 重建按指令仍待放行。
 
+## 2026-09-25/26 · bench 全量重建起跑与 dedup 遗毒解掩日
+
+trizone-ledger v2 全量重建放行：W1 soak 500 格首批起跑（n=500 seed=42）、W2 n=1000 seed=43 在飞——manifest 14,290 篇目标，swe-2-medium promo 2026-10-16 死线。W1 qc_replay 校准实录：`geo_text_overlap` 检测器误报两类根因修复（splice 整页源文 Form XObject clip 幻影层按 bbox 收词、图内 en×en 标签互撞非管线产物），`_layoutqc.py` 换 pymupdf clip-aware + CJK 参与闸，findings 188→35/格 93→25（-81%）且真阳保留；tiers clean 241→280。主战役是 **no_pdf 根因翻案**：46 格追查证明规则库本就齐全，真凶=恢复期硬链物化把 compile-fail 陈 splice 封进 vault——`fixloop mutates=[splice]` 与 compile 同 kind 键域 → `need⊆alive` 永判 VERIFIED → fixloop 每波 dedup 永不登场（producer-blind 字节证据面天花板，同 2609.20519 锁死案族）。处置=103 格 `vault tombstone kind=splice` 解掩 + regen 波：soak-7 终态 **98/103 救活**（fixloop partial×97+ok×1，零 LLM 重花），逐格核到 pdf 落盘。新发现第二毒源：fail 终态也 harvest 复封 splice——regen 重试协议收敛为「每次重试前先复葬」。配套规则蒸馏波（未提交）：EuroPhys.cls/memo-l.cls/crckapbk.cls/EuroMacr.tex 四缺类补 shim_map、journal_cs_polyfill 收 `\ptlandscape`、cs_table 落 **38 键 usepackage:aaspp4** 桥 vendor/stubs/aaspp4.sty 救 2.09 `documentstyle[aj_pt4]` 选项蒸发族；cond-mat/0103528、astro-ph/0003115 逐格实证。台账明细分记 `docs/dev/bench-massrun-plan.md` §5。
+
 ## 本层档案索引
 
 | 路径                                                                               | 内容                                                                                                                               |

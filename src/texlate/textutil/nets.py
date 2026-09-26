@@ -319,13 +319,20 @@ _RESID_EN_LINKERS: Final = frozenset(
 #: 撇号省略形人名颗粒（``d'Ormesson``/``l'Oréal``）——WORD_RX 把
 #: ``d'Ormesson`` 收成一词后首字母小写不沾大写豁免，单列一类。
 _RESID_EN_ELISION_RX: Final = re.compile(r"[a-z]+'[A-Z]")
-#: 「技术负载 token」签名——token 内含 数字/=<>_{}\/. 或以 ``-`` 起首
-#: （命令行 flag）。命令行调用、XML/标记块、代码片段 verbatim 照抄是
+#: 「技术负载 token」签名——token 内含 数字/=<>_{}\/.()[]:*+ 或以 ``-`` 起首
+#: （命令行 flag）。命令行调用、XML/标记块、代码/查询片段 verbatim 照抄是
 #: 正确态而非漏翻：英文散句的 tech 份额实测 ≤0.25，payload ≥0.5
 #: （e2e_real 探针批：texttt{foldseek easy-search …}/ccs2012 块/
-#: {rotate QRcode} 链全被 Tier-A 误杀）。
-_RESID_EN_TECH_RX: Final = re.compile(r"[\d=<>_{}\\/.]")
+#: {rotate QRcode} 链/Cypher 查询/Python def 全被 Tier-A 误杀）。
+#: 刻意不收 ``'``（撇号人名走 ``_RESID_EN_ELISION_RX`` 豁免）与 ``,``
+#: （英文句 however, 类词会被打成 tech——清单签名归 ``_ident_list_run``）。
+_RESID_EN_TECH_RX: Final = re.compile(r"[\d=<>_{}\\/.()\[\]:*+]")
 _RESID_EN_TECH_SHARE: Final = 0.5
+#: 括号枚举 marker 形（``(i)``/``(iv)``/``[2]``/``a)``）——散文枚举
+#: 编号不是技术负载：扩表后 ``()``/``[]`` 若照单全收，``(i) gather
+#: (ii) normalize`` 类枚举残英会凑满 tech 份额误放（verify 实证
+#: 回归）。须带收尾括号——``(j:Ticket``/``exp(0.2`` 半开形仍是 tech。
+_RESID_EN_ENUM_RX: Final = re.compile(r"[(\[]?[a-z0-9]{1,4}[)\]]")
 
 #: run 边缘非标点剥离——CJK 切出的 run 会带 ``。，`` 等界标点，
 #: verbatim 回显的 src 子串判定须先剥边缘才不被界标点卡掉短回显。
@@ -354,17 +361,54 @@ def _keep_verbatim_run(run: str) -> bool:
 
 
 def _tech_run(core: str) -> bool:
-    """Run 是否技术负载（命令行/XML/代码 payload）而非英文散句。
+    """Run 是否技术负载（命令行/XML/代码/查询 payload）而非英文散句。
 
-    逐 token 判定：含数字/结构符/点号（``scipy.a.b(c)`` 调用形）或以
-    ``-`` 起首（``-s``/``-{}-alignment-type`` flag 形）计一票，份额
+    逐 token 判定：含数字/结构符/括号/冒号/点号（``scipy.a.b(c)`` 调用
+    形、``MATCH (n:Label)`` 查询形）或以 ``-`` 起首（``-s``/
+    ``-{}-alignment-type`` flag 形）计一票——``(i)``/``[2]`` 类枚举
+    marker 除外（``_RESID_EN_ENUM_RX``，散文编号非负载）。份额
     ≥0.5 豁免——两 token 的短 run 必是纯 payload 才够 est 门槛。
     """
     toks = core.split()
     if not toks:
         return False
-    tech = sum(1 for t in toks if _RESID_EN_TECH_RX.search(t) or t.startswith("-"))
+    tech = sum(
+        1
+        for t in toks
+        if (_RESID_EN_TECH_RX.search(t) or t.startswith("-"))
+        and _RESID_EN_ENUM_RX.fullmatch(t) is None
+    )
     return tech / len(toks) >= _RESID_EN_TECH_SHARE
+
+
+#: 逗号分隔小写标识符清单的 token 形（``atexit,``/``enum``）——模块名/
+#: 关键字 CSV 表 verbatim 照抄豁免用；逗号进不了 tech 表（英文句
+#: however, 类词会被打成 tech），清单签名单列。
+_RESID_EN_IDENT_RX: Final = re.compile(r"[a-z_][a-z0-9_]*,?")
+_RESID_EN_IDENT_MIN_TOKENS: Final = 6
+_RESID_EN_IDENT_SHARE: Final = 0.6
+#: 逗号收尾 token 占比下限——真 CSV 清单 ~0.83；散文 ``However, the
+#: method, when applied, …`` 逗号率 ~0.3、散文夹名表句 ~0.4，绝对
+#: 枚数闸（≥2）挡不住它们过闸误放（verify 实证），须按密度判。
+_RESID_EN_IDENT_COMMA_SHARE: Final = 0.5
+
+
+def _ident_list_run(core: str) -> bool:
+    """Run 是否逗号分隔全小写标识符清单（``atexit, builtins, …`` 名表）。
+
+    ≥6 token、≥60% 形如 ``ident``/``ident,``、逗号收尾占比 ≥50%
+    三闸并举——只在 verbatim 路径生效（``core in ss`` 前置），非
+    照抄的英文清单仍归 Tier-B 判定不误放。
+    """
+    toks = core.split()
+    if len(toks) < _RESID_EN_IDENT_MIN_TOKENS:
+        return False
+    ident = sum(1 for t in toks if _RESID_EN_IDENT_RX.fullmatch(t))
+    comma = sum(1 for t in toks if t.endswith(","))
+    return (
+        ident / len(toks) >= _RESID_EN_IDENT_SHARE
+        and comma / len(toks) >= _RESID_EN_IDENT_COMMA_SHARE
+    )
 
 
 def residual_en_net(src: str, zh: str) -> list[str]:
@@ -382,9 +426,10 @@ def residual_en_net(src: str, zh: str) -> list[str]:
       子串——行级 ``src_l`` 回退/整句照抄的确切签名；
     - **Tier-B 混血**：run 不在 src 且 alpha 词 ≥8 且拉丁字母 ≥40——
       非照抄的整句英文（改写/漏翻长句）；
-    - **技术负载豁免**：run 半数以上 token 含数字/结构符/点号或以
-      ``-`` 起首（``_tech_run``）——命令行/XML/代码 payload 照抄是
-      正确态；
+    - **技术负载豁免**：run 半数以上 token 含数字/结构符/括号或以
+      ``-`` 起首（``_tech_run``）、或 verbatim run 整体是逗号分隔
+      小写标识符清单（``_ident_list_run``，模块/关键字名表照抄）——
+      命令行/XML/代码 payload 与名表照抄是正确态；
     - **人名/地址豁免**：run 为近全大写人名/专名列（de/y/von 类
       连接词计入覆盖）、或词几乎全落在邮箱/URL span 内
       （``_keep_verbatim_run``）不判。
@@ -409,6 +454,8 @@ def residual_en_net(src: str, zh: str) -> list[str]:
             continue
         words = _RESID_EN_WORD_RX.findall(run)
         if _tech_run(core) or _keep_verbatim_run(run):
+            continue
+        if core in ss and _ident_list_run(core):
             continue
         if est_tokens(core) >= _RESID_EN_MIN_EST and core in ss:
             hits.append(run)

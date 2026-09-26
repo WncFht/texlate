@@ -19,6 +19,7 @@ from texlate.compile.fixloop._builtins_common import (
     _fixloop_log,
     _fp_diff,
     _in_wdir,
+    _inject_before_begindoc,
     _live_matches,
     _map_tex_files,
     _splice,
@@ -1276,11 +1277,7 @@ def _conv_sibling(ctx: LoopCtx, base: Path, stem: PurePosixPath) -> Path | None:
         if safe_is_file(cand):
             return cand
     low = name.lower()
-    hits = [
-        p
-        for p, _parts in _wdir_project_files(ctx)
-        if p.name.lower() == low
-    ]
+    hits = [p for p, _parts in _wdir_project_files(ctx) if p.name.lower() == low]
     if not hits:
         return None
     return min(hits, key=lambda p: (len(p.parts), p.as_posix()))
@@ -1743,3 +1740,42 @@ def float_opt_cs_expand(
     if not changed:
         return False, "no cs-valued float option sites resolved"
     return True, f"expanded cs float opts in {changed} file(s)"
+
+
+#: ``para_loosen`` 注入块——TeX 三遍排版真修复面: ``\tolerance`` 抬第
+#: 二遍坏度阈、``\emergencystretch>0`` 开第三遍以额外 stretch 重排
+#: 断不开的段落。不设 ``\hfuzz``——放宽 overfull 报告阈值是把
+#: qc 证据面吃掉而非修复 (埋/放行边界: 只动排版参数, 不动警告面)。
+_LOOSEN_SNIPPET = (
+    "% texlate-fixloop: overfull-hbox mitigation\n"
+    "\\emergencystretch=1.5em\\relax\n"
+    "\\tolerance=2000\\relax"
+)
+
+
+def para_loosen(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""warn_overfull 修复: preamble 尾注 ``\emergencystretch``+``\tolerance``。
+
+    Overfull ``\\hbox`` 多出自不可断内联物 (长行内数学/URL/CJK-拉丁
+    混排段) 把词间 glue 拉竭——emergencystretch 给第三遍额外可伸
+    缩量是真排版修复, 不改文本不遮警告。注点在 ``\begin{document}``
+    前 (晚于 cls/包的字距初值, 早于 ``\AtBeginDocument`` 钩); 无锚
+    退文件头 (仍先于一切 cls 执行体)。snippet 内含标记行, 重复命中
+    幂等——已注入报 applied 让修复环收敛, 不叠注。
+
+    ``params.snippet`` 可换注入体 (测试/族系特调面); 默认
+    ``_LOOSEN_SNIPPET``。
+    """
+    del eng, payload
+    snippet = str(params.get("snippet") or _LOOSEN_SNIPPET)
+    main = ctx.main_path()
+    if main is None:
+        return False, "no main file"
+    t = ctx.read(main)
+    if t is not None and snippet in t:
+        return True, "loosen block already present"
+    if not _inject_before_begindoc(ctx, snippet, fallback="head"):
+        return False, "no injectable site"
+    return True, "injected \\emergencystretch+\\tolerance at preamble end"

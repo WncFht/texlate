@@ -40,6 +40,8 @@ _RULES_EMIT = [
     "missing_char",
     "missing_graphic",
     "tectonic_degrade",
+    "overfull_hbox",
+    "float_too_large",
 ]
 #: l2 ``_WARNING_RULES`` 全类序（含非红线观察类——序变即归类优先级变）。
 _L2_ALL_CLASSES = [

@@ -97,6 +97,53 @@ rules:
           citeyearpar: { usepackage: natbib }
           citetext: { usepackage: natbib }
           citenum: { usepackage: natbib }
+          # ── 2026-09-26 aaspp4/aj_pt4 AAS v4 面 (astro-ph/0003115) ──
+          # 2.09 稿 \documentstyle[aj_pt4] 升 2e 成 \documentclass[aj_pt4]
+          # {article} —— 选项不炸静默蒸发, AAS v4 宏面全缺成逐宏救火场。
+          # usepackage:aaspp4 桥 vendor/stubs/aaspp4.sty (deluxetable env+
+          # 声明族+frontmatter 全表): install_file 落空→下轮 missing_file→
+          # vendored_fetch 落件 (ptlandscape 另有 journal_cs_polyfill noop
+          # 在前置 160 先中, 本表不列免双写)。
+          tablewidth: { usepackage: aaspp4 }
+          tablecolumns: { usepackage: aaspp4 }
+          tablenum: { usepackage: aaspp4 }
+          tablecaption: { usepackage: aaspp4 }
+          tablehead: { usepackage: aaspp4 }
+          tabletail: { usepackage: aaspp4 }
+          tableheadfrac: { usepackage: aaspp4 }
+          colhead: { usepackage: aaspp4 }
+          startdata: { usepackage: aaspp4 }
+          enddata: { usepackage: aaspp4 }
+          nextline: { usepackage: aaspp4 }
+          tableline: { usepackage: aaspp4 }
+          tablevspace: { usepackage: aaspp4 }
+          tablebreak: { usepackage: aaspp4 }
+          cutinhead: { usepackage: aaspp4 }
+          sidehead: { usepackage: aaspp4 }
+          nodata: { usepackage: aaspp4 }
+          tablerefs: { usepackage: aaspp4 }
+          tablecomments: { usepackage: aaspp4 }
+          tablenotetext: { usepackage: aaspp4 }
+          tablenotemark: { usepackage: aaspp4 }
+          figurenum: { usepackage: aaspp4 }
+          planotable: { usepackage: aaspp4 }
+          placetable: { usepackage: aaspp4 }
+          placefigure: { usepackage: aaspp4 }
+          placeplate: { usepackage: aaspp4 }
+          phs: { usepackage: aaspp4 }
+          phn: { usepackage: aaspp4 }
+          phd: { usepackage: aaspp4 }
+          nl: { usepackage: aaspp4 }
+          tightenlines: { usepackage: aaspp4 }
+          journalid: { usepackage: aaspp4 }
+          articleid: { usepackage: aaspp4 }
+          notetoeditor: { usepackage: aaspp4 }
+          subjectheadings: { usepackage: aaspp4 }
+          slugcomment: { usepackage: aaspp4 }
+          authoremail: { usepackage: aaspp4 }
+          authoraddr: { usepackage: aaspp4 }
+          altaffilmark: { usepackage: aaspp4 }
+          altaffiltext: { usepackage: aaspp4 }
           # natbib thebibliography 侧对偶 (failmine2 ~13 cells: 1109.6007/
           # 1306.0551/astro-ph/0501240): natbib.sty:1070 重定义 env 内
           # \renewcommand\newblock 要宿主先定义, 老类/shim 缺位面炸内核签

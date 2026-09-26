@@ -393,6 +393,10 @@ rules:
           # aa.cls 系裸 \acknowledgements 章头 —— 0806.3705/astro-ph/0408064/
           # astro-ph/0501615; env 形 \begin{acknowledgements} 别签名不进此表
           acknowledgements: '\section*{Acknowledgements}'
+          # aj_pt4/aaspp4 横排表页声明宏 —— deluxetable 前哨标记, 无独立
+          # 输出, 版面旋转由 deluxetable 侧自理; astro-ph/0003115
+          # (documentstyle[aj_pt4], 编译走到 l.356 仅炸本宏) 实证
+          ptlandscape: ''
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

@@ -144,6 +144,38 @@ def test_vendored_fetch_foreign_still_declines(tmp_path: Path) -> None:
     assert (ctx.wdir / "x.sty").read_text() == "% author shipped\n"
 
 
+def test_vendored_fetch_casefold_source(tmp_path: Path) -> None:
+    """大小写回退: vendor 仓 ``IEEEconf.cls`` 供 ``ieeeconf.cls`` payload。
+
+    2310.16788 实证: CTAN 原名件带大写骆驼名, 稿面 ``\\documentclass``
+    小写请求精确查件 miss; casefold 补扫命中, 落盘仍写 payload 原名
+    (kpathsea 按请求名找件, 源名只作字节出处)。
+    """
+    root = mk_vendor(tmp_path)
+    (root / "files" / "IEEEconf.cls").write_text("% ieeeconf real\n", encoding="utf-8")
+    ctx = mk_ctx(tmp_path / "w")
+    ctx.wdir.mkdir()
+    ok, note = vendored_fetch(ctx, "ieeeconf.cls", root)
+    assert ok, note
+    dst = ctx.wdir / "ieeeconf.cls"
+    assert dst.is_file()
+    body = dst.read_text()
+    assert body.startswith("% texlate-fixloop-injected:")
+    assert "% ieeeconf real" in body
+
+
+def test_vendored_fetch_exact_beats_casefold(tmp_path: Path) -> None:
+    """精确命中优先于 casefold——同名异写两存时取字面匹配源。"""
+    root = mk_vendor(tmp_path)
+    (root / "files" / "x.sty").write_text("% exact\n", encoding="utf-8")
+    (root / "files" / "X.sty").write_text("% cased\n", encoding="utf-8")
+    ctx = mk_ctx(tmp_path / "w")
+    ctx.wdir.mkdir()
+    ok, _ = vendored_fetch(ctx, "x.sty", root)
+    assert ok
+    assert (ctx.wdir / "x.sty").read_text().endswith("% exact\n")
+
+
 # ------------------------------------------------------- vendored_fetch_multi
 
 

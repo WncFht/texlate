@@ -109,6 +109,91 @@ class TestNet:
         )
         assert residual_en_net(_SRC, zh) == []
 
+    def test_tech_payload_cypher_no_hit(self) -> None:
+        # Cypher 查询 verbatim —— ()[]: 扩表后括号/冒号 token 计 tech
+        q = "{MATCH (j:Ticket ticket ID: 'ENT-22970') -[:HAS_D]->(d)}"
+        src = f"The query {q} returns the ticket node."
+        zh = f"查询 {q} 返回票据节点。"
+        assert residual_en_net(src, zh) == []
+
+    def test_tech_payload_python_def_no_hit(self) -> None:
+        # Python 片段 verbatim —— ()[]:= 密集 token 占多数
+        code = "def main(): x = float('nan') return int([x]==[x])"
+        src = f"Consider the snippet {code} as an example."
+        zh = f"以代码片段 {code} 为例。"
+        assert residual_en_net(src, zh) == []
+
+    def test_tech_payload_r_pseudo_no_hit(self) -> None:
+        # R 伪码更新式 verbatim —— _/<()*/ 符号密集
+        expr = "W_i <- (1 - 0.05) * W_i * exp(0.2 * G_i) / Z"
+        src = f"The update rule {expr} is applied each step."
+        zh = f"每步应用更新式 {expr}。"
+        assert residual_en_net(src, zh) == []
+
+    def test_tech_payload_action_vocab_no_hit(self) -> None:
+        # {verb obj} 动作词表块 verbatim —— 花括号 token 密集豁免
+        vocab = (
+            "{grasp single bottle}, {pick up cup}, {place bottle table}, "
+            "{push door open}, {move red block}"
+        )
+        src = f"Available actions: {vocab}."
+        zh = f"可用动作：{vocab}。"
+        assert residual_en_net(src, zh) == []
+
+    def test_ident_list_verbatim_no_hit(self) -> None:
+        # 模块名 CSV 清单照抄是正确态 —— 逗号小写标识符三闸豁免
+        mods = "atexit, builtins, concurrent, ctypes, dataclasses, enum"
+        src = f"The modules {mods} are used here."
+        zh = f"此处使用模块 {mods}。"
+        assert residual_en_net(src, zh) == []
+
+    def test_parens_sentence_still_hit(self) -> None:
+        # 括号夹带的普通英文句 tech 份额 <0.5 不放 —— 扩表只吃真 payload
+        zh = (
+            "结果表明 the model (which we trained earlier) achieves strong "
+            "results on benchmarks 成立。"
+        )
+        assert len(residual_en_net(_SRC, zh)) == 1
+
+    def test_ident_list_non_verbatim_hit(self) -> None:
+        # 非 src 照抄的小写清单不在豁免面 —— ident_list 只吃 verbatim 路径
+        zh = "参数有 alpha, beta, gamma, delta, epsilon, zeta, eta, theta, kappa 等。"
+        assert len(residual_en_net(_SRC, zh)) == 1
+
+    def test_comma_prose_verbatim_hit(self) -> None:
+        # 逗号散文 verbatim 仍判 —— 逗号密度 ~0.3 过不了密度闸
+        # （verify 回归实证：绝对枚数闸会被 however, 类词骗开）
+        sent = "However, the method, when applied, often fails on sparse inputs"
+        src = f"Introduction text. {sent}. More content follows here."
+        zh = f"介绍文。{sent}。后续内容。"
+        assert len(residual_en_net(src, zh)) == 1
+
+    def test_embedded_list_sentence_verbatim_hit(self) -> None:
+        # 散文夹名表 verbatim 仍判 —— 整 run 逗号密度 5/13<0.5，
+        # 豁免只吃纯清单不吃「清单嵌在句子里」
+        sent = (
+            "Please use modules atexit, builtins, concurrent, ctypes, "
+            "dataclasses, enum for this task"
+        )
+        src = f"Usage note. {sent}."
+        zh = f"用法说明。{sent}。"
+        assert len(residual_en_net(src, zh)) == 1
+
+    def test_enum_markers_verbatim_hit(self) -> None:
+        # 括号枚举 verbatim 仍判 —— (i)/(ii) 是散文编号不算 tech 票
+        enum = "(i) gather (ii) normalize (iii) preprocess (iv) evaluate (v) report"
+        src = f"The pipeline steps are {enum} in order."
+        zh = f"流水线步骤为 {enum} 依次。"
+        assert len(residual_en_net(src, zh)) == 1
+
+    def test_enum_markers_tier_b_hit(self) -> None:
+        # 非 verbatim 括号枚举同样不放 —— enum marker 不计 tech 后
+        # 份额归零走 Tier-B 词数/字符双闸
+        zh = (
+            "结果如 (i) computing (ii) comparing (iii) reporting (iv) concluding 所示。"
+        )
+        assert len(residual_en_net(_SRC, zh)) == 1
+
     def test_linker_name_run_no_hit(self) -> None:
         # de/e/y 连接词计入豁免覆盖 —— 机构名 Tier-B 误杀实证
         zh = "致谢 Ministerio de Ciencia e Innovación y Universidade 资助。"

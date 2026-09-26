@@ -25,3 +25,8 @@ warnings:
       pattern: "File `[^']+\\.(eps|png|jpg|pdf)' not found|cannot (find|open) image",
     }
   - { id: tectonic_degrade, pattern: "^!+ .*not found" } # tectonic File..not found 降级行
+  # 版面缺陷的 log 面签名 (qc layout:* 同源) —— rules-only 红线条目
+  # (redlines.py overfull_hbox/float_too_large 行注): 无 '!' 错时升
+  # warn_overfull/warn_float_big 伪类别驱修复轮, 不进 engine 判红面。
+  - { id: overfull_hbox, pattern: "Overfull \\\\hbox" } # qc layout:overfull 探针
+  - { id: float_too_large, pattern: "Float too large for page" } # qc layout:float_lost/float_fit 探针

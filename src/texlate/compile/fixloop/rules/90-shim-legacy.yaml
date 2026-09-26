@@ -1143,6 +1143,56 @@ rules:
               \def\epl@and{\unskip\ and\ }
               \let\And\and
               \endinput
+          # EuroPhys.cls: epl2 前代 EPL 类 (EDP ~1999-2006 发行面, TL 无;
+          # cond-mat/0103528 实证面) —— \rec{收}{修} 双参 noop、\pacs 单
+          # 子串内嵌 \Pacs{号}{码}{文} 三元组、\institute 存值 \maketitle 吐。
+          EuroPhys.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{EuroPhys}[2026/09/26 fixloop legacy shim -> article + EuroPhys polyfills]
+              \LoadClassWithOptions{article}
+              \let\eplx@inst\@empty
+              \let\eplx@pacs\@empty
+              \providecommand{\institute}[1]{\gdef\eplx@inst{#1}}
+              \providecommand{\rec}[2]{}
+              \providecommand{\pacs}[1]{\gdef\eplx@pacs{#1}}
+              \providecommand{\Pacs}[3]{\par\noindent\textbf{PACS:} #1.#2\quad #3\par}
+              \providecommand{\shorttitle}[1]{}
+              \providecommand{\shortauthor}[1]{}
+              \providecommand{\email}[1]{\texttt{#1}}
+              \let\eplx@mk\maketitle
+              \renewcommand{\maketitle}{\eplx@mk
+                \ifx\eplx@inst\@empty\else\par\noindent{\small\eplx@inst}\par\fi
+                \ifx\eplx@pacs\@empty\else{\small\eplx@pacs}\fi}
+              \endinput
+          # EuroMacr.tex: EDP EuroMacr 宏件 (EuroPhys 类伴生宏包, TL 无;
+          # cond-mat/0103528 ``\input EuroMacr`` 裸装载实证, 裸 payload 归
+          # 一到本键同 psfig.tex 先例) —— EPL bbl 结构宏族同 epl2.cls 抄值。
+          EuroMacr.tex:
+            body: |
+              %% fixloop legacy stub: EuroMacr.tex (EDP EPL macro set, not in TL)
+              \makeatletter
+              \newif\ifeplm@book\eplm@bookfalse
+              \newif\ifeplm@gotand\eplm@gotandfalse
+              \@ifundefined{bibitem}{}{%
+                \let\eplm@org@bibitem\bibitem
+                \def\bibitem{\eplm@bookfalse\eplm@org@bibitem}}
+              \providecommand{\Name}[1]{{\let\and\eplm@and\scshape #1},}
+              \providecommand{\Review}[1]{\eplm@bookfalse{\itshape #1},}
+              \providecommand{\REVIEW}[4]{\Review{#1} \Vol{#2} \Year{#3} \Page{#4}}
+              \providecommand{\Book}[1]{\eplm@booktrue{\itshape #1}}
+              \providecommand{\Vol}[1]{\ifeplm@book\else{\bfseries #1}\fi}
+              \providecommand{\Year}[1]{\ifeplm@book\else(#1)\fi}
+              \providecommand{\Page}[1]{\ifeplm@book\else p.~#1\fi}
+              \providecommand{\Pages}[1]{\ifeplm@book\else pp.~#1\fi}
+              \providecommand{\Publ}[1]{\ifeplm@book\unskip\ \fi{\normalfont(#1)}}
+              \providecommand{\Editor}[1]{\eplm@gotandfalse{\let\and\eplm@and\normalfont #1}, ed.}
+              \providecommand{\Section}[1]{#1}
+              \providecommand{\SAME}[3]{}
+              \def\eplm@and{\unskip\ and\ }
+              \let\And\and
+              \makeatother
+              \endinput
           # (imsart.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored
           #  先中, 死配置; frontmatter 收集制/aug/keyword env 面见 vendor
           #  stub, 旧体见 git 考古)
@@ -1246,6 +1296,29 @@ rules:
               \providecommand{\mainmatter}{}
               \providecommand{\backmatter}{}
               \providecommand{\cleardoublepage}{\clearpage}
+              \endinput
+          # memo-l.cls: memoir+amsaddr 混合书稿类 (IMS 讲义系, TL 无;
+          # 1003.0348 实证面: \frontmatter、\address/\email/\thanks 前置
+          # 收集、\subjclass[2000]{...}、\keywords{...}、\onehalfspacing)
+          # —— memoir 底 (TL 在库) + ams frontmatter polyfill。
+          memo-l.cls:
+            needs: ["memoir.cls", "setspace.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{memo-l}[2026/09/26 fixloop legacy shim -> memoir + ams-addr polyfills]
+              \LoadClassWithOptions{memoir}
+              \RequirePackage{setspace}
+              \let\memol@subj\@empty
+              \let\memol@keys\@empty
+              \providecommand{\address}[1]{\g@addto@macro\@author{\\ {\normalsize\itshape\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}}
+              \providecommand{\email}[1]{\g@addto@macro\@author{\\ {\footnotesize\texttt{#1}}}}
+              \providecommand{\subjclass}[2][2000]{\gdef\memol@subj{\par\noindent{\footnotesize #1 \textit{Mathematics Subject Classification.} #2}\par}}
+              \providecommand{\keywords}[1]{\gdef\memol@keys{\par\noindent{\footnotesize\textbf{Keywords:} #1}\par}}
+              \renewcommand{\thanks}[1]{\g@addto@macro\@author{\\ {\footnotesize #1}}}
+              \let\memol@mk\maketitle
+              \renewcommand{\maketitle}{\memol@mk
+                \ifx\memol@subj\@empty\else\memol@subj\fi
+                \ifx\memol@keys\@empty\else\memol@keys\fi}
               \endinput
           # cimento.cls (Nuovo Cimento, TL 无): article + 实证 frontmatter
           # 面 (0905.4620 随稿签名)——\from{key} \inst{key} \instlist{...}
@@ -1888,6 +1961,20 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{crckapb}[2026/09/17 fixloop legacy shim -> article]
+              \LoadClassWithOptions{article}
+              \newenvironment{opening}{}{}
+              \def\institute#1{\g@addto@macro\@author{\\ {\normalsize\itshape\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}}
+              \def\runningtitle#1{}
+              \def\runningauthor#1{}
+              \AtBeginDocument{\maketitle}
+              \endinput
+          # crckapbk.cls: crckap 书章类名变体 (editedvolume/namedreferences
+          # 选项面, astro-ph/9412069 实证) —— 与 crckapb 同 opening env +
+          # \institute 并入 author 面; 选项落 article 全局未用警告消化。
+          crckapbk.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{crckapbk}[2026/09/26 fixloop legacy shim -> article]
               \LoadClassWithOptions{article}
               \newenvironment{opening}{}{}
               \def\institute#1{\g@addto@macro\@author{\\ {\normalsize\itshape\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}}

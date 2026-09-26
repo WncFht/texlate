@@ -1,0 +1,70 @@
+# rules/97-layout.yaml — fixloop 规则库分片：版面缺陷 —— overfull/浮体超版面
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+#
+# 本片区别的入口面：qc_wanted 补票格 (e2e_real _QC_WANTED_MIN——编译
+# clean/ok 但版面重缺陷) 进 fixloop 后无 '!' 错可分类，靠 warnings 段
+# 伪类别 (warn_overfull/warn_float_big) 驱动本族规则。geo_text_overlap
+# 与 geo_margin_breach 的非 overfull 同源子集在 log 面无签名——本族
+# 覆盖不了属构造上限 (known_gap 逐条记)。
+version: 1
+
+rules:
+  # 2026-09-24 qc-wanted lane: 260 篇探针批 layoutqc 普查实证 overfull
+  # 43 findings/23 篇 compile clean 无修复出口 (qc_wanted 开闸后
+  # warn_overfull 类别才有驱动面)。Overfull \hbox 多出自不可断内联物
+  # (长行内数学/URL/CJK-拉丁混排) 拉竭词间 glue——TeX 三遍排版兜底:
+  # \tolerance 抬第二遍坏度阈, \emergencystretch>0 开第三遍追加
+  # stretch 重排, 是真排版修复不设 \hfuzz 阈值遮掩 (qc 证据面保留)。
+  - id: para_loosen_overfull
+    description: "warn_overfull (Overfull \\hbox 残留) → preamble 尾注 \\emergencystretch+\\tolerance"
+    phase: loop
+    order: 210
+    when: { category: warn_overfull }
+    action:
+      kind: builtin_transform
+      function: para_loosen
+    risk: low # 只抬排版参数不改文本; 宽松排版视觉代价 << 出血/margin_breach
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "e2e_real 260-cell 探针批 (qc_replay 2026-09-24)",
+          error: "layout:overfull 43 findings/23 papers — compile clean 但版面出血, qc_wanted 补票格原无规则可驱",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/py/specs/e2e_real.py _QC_WANTED_MIN; tmp/qc_replay/summary.json"
+    known_gap: "盒级 overfull (超宽 \\includegraphics/tabular 整盒) 非词间 glue 病因, 松化无解——几何面缺陷仍落 qc 账; Overfull \\vbox 走 warn_float_big 面"
+
+  # 同 lane: Float too large for page 的 [H] 钉死臂——float_h_demote
+  # builtin 复用 (runaway_output 臂原规, 同机理不同驱动面): [H] 把
+  # 超高内容钉成非浮体不可断盒 → 页缘截杀内容丢失 (qc float_lost
+  # 同根)。降级翻回真浮体即落 float page 出盒。非 [H] 超高浮体
+  # LaTeX 本就走 float page (overfull 但不丢)——builtin 无 [H] 站即
+  # decline, 天然分流。
+  - id: float_big_h_demote
+    description: "warn_float_big (Float too large for page) + [H] 站 → 降级 !+placement"
+    phase: loop
+    order: 211
+    when: { category: warn_float_big }
+    condition:
+      source_contains: "\\\\begin\\{(figure|table|algorithm|listing)\\*?\\}\\s*\\[[^\\]\\n]*H"
+    action:
+      kind: builtin_transform
+      function: float_h_demote
+    risk: low # 同 float_h_demote(199.8)——placement 表白名单外不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "e2e_real 260-cell 探针批 (qc_replay 2026-09-24)",
+          error: "layout:float_lost 7 findings + float_fit 21 — [H] 超高盒页缘截杀属同根 lane",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "rules/95-targeted.yaml float_h_demote 原规; tmp/qc_replay/summary.json"
+    known_gap: "非 [H] 形 float_lost (env 丢名/multicols 内浮体等) 无 [H] 站可降级, builtin decline 让位; 真超高浮体降级后仍 overfull vbox 但内容可见——float_lost→float_fit 降级即修复语义"

@@ -480,7 +480,13 @@ def _vendor_root(params: dict[str, Any]) -> Path:
 
 
 def _vendored_source(root: Path, fname: str) -> Path | None:
-    """Basename 查件: files/ → stubs/ → shims/ 序; 命中返回源路径否则 None。"""
+    r"""Basename 查件: files/ → stubs/ → shims/ 序; 命中返回源路径否则 None。
+
+    精确大小写 miss 后按 casefold 补扫一次——vendor 仓收 CTAN 原名件
+    (``IEEEconf.cls`` 大写骆驼), payload 却是稿面小写请求
+    (``\\documentclass{ieeeconf}``); 落盘仍写 payload 原名, 源件只供
+    字节出处 (2310.16788 实证)。
+    """
     base = PurePosixPath(fname).name
     if not base:
         return None
@@ -488,6 +494,15 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
         cand = root / sub / base
         if safe_is_file(cand):
             return cand
+    fold = base.casefold()
+    for sub in _VENDOR_SUBDIRS:
+        d = root / sub
+        try:
+            for cand in d.iterdir():
+                if cand.name.casefold() == fold and safe_is_file(cand):
+                    return cand
+        except OSError:
+            continue
     return None
 
 
@@ -519,7 +534,10 @@ def _vendored_drop(
     if dst is None:
         return None, "escapes wdir"
     if dst.exists():
-        return None, "present"  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
+        return (
+            None,
+            "present",
+        )  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
         # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
         # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
     try:

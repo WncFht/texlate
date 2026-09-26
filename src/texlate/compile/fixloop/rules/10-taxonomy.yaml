@@ -974,4 +974,8 @@ taxonomy:
   # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
   - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/spec/compile.md non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
+  # 版面缺陷入口 (qc 补票格的 log 驱动面; 序位在缺字族后——缺字语义
+  # 损伤更重, 同命中时先分诊)
+  - { id: warn_overfull, scope: warnings, warn_id: overfull_hbox } # qc layout:overfull/geo_margin_breach 同根
+  - { id: warn_float_big, scope: warnings, warn_id: float_too_large } # qc layout:float_lost/float_fit 同根
   # 都不中: err 为空 → clean; err 非空 → other
