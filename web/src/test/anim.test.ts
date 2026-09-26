@@ -172,4 +172,40 @@ describe("anim 句对位动效层", () => {
             document.querySelectorAll(".sa-ripple,.sa-wipe,.sa-arc-svg"),
         ).toHaveLength(0);
     });
+
+    it("saAnimProbe——state 报在飞件、hold/release 不炸、__saAnim 已挂窗", () => {
+        const probe = (
+            window as unknown as {
+                __saAnim: {
+                    hold(t: number): number;
+                    release(): void;
+                    state(): {
+                        ripple: boolean;
+                        arc: boolean;
+                        wipes: number;
+                    };
+                };
+            }
+        ).__saAnim;
+        expect(probe).toBeTruthy();
+        expect(probe.state()).toEqual({
+            ripple: false,
+            arc: false,
+            wipes: 0,
+        });
+        land({ x: 1, y: 1 }, [elWithRects([rect(100), rect(120)])]);
+        const st = probe.state();
+        expect(st.arc).toBe(true);
+        expect(st.wipes).toBe(2);
+        // jsdom 不跑 WAAPI——hold 钉 0 条但不许炸；真冻结断言在
+        // scripts/floor_verify.mjs --reader 的 anim 腿
+        expect(probe.hold(300)).toBe(0);
+        probe.release();
+        cancelLand();
+        expect(probe.state()).toEqual({
+            ripple: false,
+            arc: false,
+            wipes: 0,
+        });
+    });
 });

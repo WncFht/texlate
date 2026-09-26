@@ -5,7 +5,8 @@
     "description": "playwright-core e2e smoke for texlate web reader (mock backend)",
     "type": "module",
     "scripts": {
-        "smoke": "node smoke.mjs"
+        "smoke": "node smoke.mjs",
+        "floor": "node floor_verify.mjs"
     },
     "dependencies": {
         "playwright-core": "^1.63.0"

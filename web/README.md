@@ -10,6 +10,7 @@ SolidJS + Vite 阅读器前端（双语对照 PDF + chunk 列表 + 滚动锚点�
 - `npm run build` —— 产物 `dist/`（含 `dist/pdfjs/` 静态资源与 `THIRD_PARTY_LICENSES.txt`）。
 - `npm test` / `npm run typecheck` / `npm run lint` —— vitest + tsc + eslint。
 - `node scripts/smoke.mjs` —— playwright-core e2e 冒烟（21 断言，打 mock dev server）：先 `npm ci --prefix scripts` 装 playwright-core，`npm run dev` 跑着再跑；`WEB_BASE` 覆盖端口、`PW_EXE` 覆盖 chromium 路径，产物 `scripts/shots/*.png`，失败 exit 1。
+- `node scripts/floor_verify.mjs` —— 验收地板（errors/overflow/tokens/ground/landmark/live 六腿 × 4 路由，PASS/WARN/FAIL 分立不求总分）：同 smoke 前置条件；`--reader [taskId]` 追加 reader 腿（默认 mock 种子 `t_0000000000000a01`），含 `__saAnim` 探针面与 sent-align 动效中间帧断言（硬切冒充动效会 FAIL）。
 
 ## 构建交付
 

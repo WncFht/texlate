@@ -142,3 +142,64 @@ export function land(
     }
     landTimer = window.setTimeout(clearLandFx, ARC_TOTAL_MS);
 }
+
+/** 本模块产出的在飞 CSS 动画（sa-wipe / sa-arc-svg / sa-ripple 子树）。 */
+const saAnimations = (): Animation[] => {
+    if (typeof document.getAnimations !== "function") return [];
+    return document.getAnimations().filter((a) => {
+        const el = (a.effect as KeyframeEffect | null)?.target;
+        return (
+            el instanceof Element &&
+            !!el.closest(".sa-wipe,.sa-arc-svg,.sa-ripple")
+        );
+    });
+};
+
+/** 无头探针面 __saAnim——终态断言会给硬切打满分，判「真动效」必须在
+    中间帧取样：
+      hold(t)   把在飞 CSS 动效钉在各自时间轴 t ms 处并暂停（三件套
+                都由 land/press 同步 spawn 共用 startTime，t 即「动效
+                开始后 t ms」）；返回钉住的动画数。
+      release() 续播（landTimer 自清计时不受影响）。
+      state()   在飞件清单——arc/wipes/ripple 存在性断言用。
+      demo(x,y) 走真 land() 路径打一发合成落点——e2e 没有可点
+                marked span 时证明动效是真过渡而非硬切（jsdom 无布局，
+                零尺寸 rect 下 land 早退，demo 自然空转）。 */
+export const saAnimProbe = {
+    hold(tMs: number): number {
+        let n = 0;
+        for (const a of saAnimations()) {
+            a.currentTime = tMs;
+            a.pause();
+            n++;
+        }
+        return n;
+    },
+    release(): void {
+        for (const a of saAnimations()) a.play();
+    },
+    state(): { ripple: boolean; arc: boolean; wipes: number } {
+        return {
+            ripple: !!rippleEl?.isConnected,
+            arc: !!arcSvg?.isConnected,
+            wipes: wipeEls.filter((e) => e.isConnected).length,
+        };
+    },
+    demo(x: number, y: number): void {
+        const el = document.createElement("div");
+        el.style.cssText =
+            "position:fixed;left:8px;top:40%;width:160px;height:18px;" +
+            "opacity:0;pointer-events:none";
+        document.body.append(el);
+        land({ x, y }, [el]);
+        el.remove();
+    },
+};
+
+declare global {
+    interface Window {
+        __saAnim?: typeof saAnimProbe;
+    }
+}
+
+if (typeof window !== "undefined") window.__saAnim = saAnimProbe;
