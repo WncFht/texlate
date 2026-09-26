@@ -1,7 +1,7 @@
 # arXiv 层规模化路线（2026-09-19）：广泛 paper 测试的获取面设计
 
 > **结论**：逐篇获取层与抽样框已是业界水准（钉版缓存/降级链/3.16M 行 frame/8 层语料治理），真正的硬缺口只有一条：**「2501+ 近期 + 无损含图 + 规模」三角无免费解**——IA 冻 2020-10、TIGER 止 2412、scholarweave 有损（73% 文件缺失+无二进制）、e-print 直采 ~85 篇/日。推荐 era 三分物化 + 增量枚举通道 + pdf_only 测试层 + oracle 校准；S3 付费（近三年 ~$80 / 十年窗 ~$150）是 2501+ 段唯一解、留作决策点。
-> **状态**：规划文档（时点证据 2026-09-19 口径）。**缺口 2「无增量通道」已由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 落地**（RSS 枚举+OAI 对账+定时调度在跑）；pdf_only 物化层、版本漂移对账、S3 决策仍开放。
+> **状态**：规划文档（时点证据 2026-09-19 口径）。**缺口 2「无增量通道」曾由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 落地、该链 2026-09-21 退役**（RSS 枚举+OAI 对账通道设计仍可复用）；pdf_only 物化层、版本漂移对账、S3 决策仍开放。
 > **日期**：2026-09-19 定稿，2026-09-20 重订入库
 
 触发：为「在非常广泛的 paper 上测试和修复 pipeline」评估 arXiv 获取层现状与缺口。三路调研：自家审计 + 外部渠道普查 + 工具链/文献调研。前置文档：[bulk-channels.md](bulk-channels.md)、[oai-pmh.md](oai-pmh.md)、[layer.md](layer.md)。
@@ -17,7 +17,7 @@
 ## 2. 缺口清单（按重要性）
 
 1. **2501+ 无损批量断档（唯一硬约束）**：「近期 + 保真含图 + 规模」三角只能选二。TIGER 止 2412、IA 冻 2020-10、scholarweave 有损、e-print 日 ~85 篇——近期评测语料无规模化免费无损路径。
-2. **~~无增量通道~~（已由 daily-soak 落地）**：frame 是时点快照；OAI-PMH ListIdentifiers/RSS/listing 日更枚举当时全未接线（OAI 实测单日 2715 headers/4s，全量回填 ~2000 页 ≈ 2h，deletedRecord=persistent 可感知撤稿）——后由 RSS 枚举 + OAI 对账补齐，见姊妹篇。
+2. **~~无增量通道~~（曾由 daily-soak 落地、2026-09-21 退役）**：frame 是时点快照；OAI-PMH ListIdentifiers/RSS/listing 日更枚举当时全未接线（OAI 实测单日 2715 headers/4s，全量回填 ~2000 页 ≈ 2h，deletedRecord=persistent 可感知撤稿）——后由 RSS 枚举 + OAI 对账补齐，见姊妹篇；该链退役后增量通道回到开放态。
 3. **pdf_only 层未建**：~9-13% 宇宙的 L3 降级路径（html→pdf sidecar）零物化语料——目前只记 `*_fail.jsonl`。
 4. **版本漂移/撤稿无对账**：sha256 钉版只在重取时暴露漂移；OAI `status="deleted"` 墓碑与 `<version>` 史未消费。
 5. **存储/带宽策略**：10 万篇 ≈ 350GB（raw+extracted）；IA ~11MB/s 理论 ~1TB/日，可行但需「raw 保留 / extracted 按需重建」分层留存。
@@ -47,7 +47,7 @@ frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 s
 ### C. 测试面补齐
 
 - **pdf_only 层**：把 `*_fail.jsonl` 名单物化成层（raw.pdf 留存），专测 L3 降级链；按 ~9-13% 占比镜像真实负载。
-- **滚动增量层**：OAI-PMH/RSS 日增量 → e-print → 「近期真实负载」滚动语料——**已落地为 corpus_daily**，见 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)。
+- **滚动增量层**：OAI-PMH/RSS 日增量 → e-print → 「近期真实负载」滚动语料——**曾落地为 corpus_daily、2026-09-21 退役**，通道设计见 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)。
 - **withdrawn/版本对账**：OAI deletedRecord + 钉版 sha256 定期抽查重验证。
 - **oracle 校准**：ar5iv 三档严重度 + X-raying 分布定判分基线——LaTeXML 无错 75% 是参考线，parsebench 目标应锚定高于它。
 

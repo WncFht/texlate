@@ -1,5 +1,5 @@
 // copylatex —— 「复制 LaTeX 源」纯逻辑层（copy-latex lane，可 vitest）。
-// 规格锚点 = docs/dev/ux-impl-2026-09-22/copy-latex 实现文档：
+// 规格锚点 = docs/dev/projects/ux-impl-2026-09-22/copy-latex 实现文档：
 //   mathTexFrom(el)   三级提取：math[alttext]（dom 链，与 annotation 逐字节
 //                     相同 8907/8907）→ .katex annotation[x-tex]（html/live，
 //                     phText 剥界符形）→ 皆无懒载 mathml-to-latex（外源

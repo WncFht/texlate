@@ -151,4 +151,4 @@ manifest.json schema:
 
 ### 参考文献
 
-[^hjfy]: 幻觉翻译 hjfy.top 线上侦察（本库 `research/product/hjfy-site.md`）。产物三件套 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`、已译论文匿名可看、新建 100 篇/天配额、[hjfy.top](https://hjfy.top)。2026-09.
+[^hjfy]: 幻觉翻译 hjfy.top 线上侦察（本库 `research/product/2026-09-14-hjfy-site.md`）。产物三件套 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`、已译论文匿名可看、新建 100 篇/天配额、[hjfy.top](https://hjfy.top)。2026-09.

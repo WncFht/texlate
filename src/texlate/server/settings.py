@@ -1,4 +1,4 @@
-"""BYOK 与本地设置层（web-layer.md §4）。
+"""BYOK 与本地设置层（2026-09-15-web-layer.md §4）。
 
 ``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``
 （0600）> 环境变量；``base_url``/``model``/``dialect`` 走 header > env >
@@ -161,7 +161,7 @@ def share_dir(root: Path | None = None) -> Path:
     """共享包发布目录：``TEXLATE_SHARE_DIR`` > ``<root>/share``（root 缺省 ``data_dir()``）。
 
     worker share 完成钩把 ``{share_key}.share.zip`` + 旁挂 ``index.jsonl``
-    落此——指向静态托管/对象存储挂载点即完成发布（shared-cache.md §7
+    落此——指向静态托管/对象存储挂载点即完成发布（2026-09-16-shared-cache.md §7
     文件级服务端形态）。惰性建目录（pack/index_append 各自 mkdir parents）。
     """
     raw = env_raw(ENV_SHARE_DIR)

@@ -21,7 +21,7 @@ hjfy 的「已译论文匿名随便看」是平台付费 token 换来的中心�
 
 - 「只信翻译内容，不信任何下游产物」：dual.json 恰是 xlat 阶段输出物形态，消费端从 splice 起重跑——编译不撒谎，防伪靠重跑而非签名（hjfy `{id}_zh_CN.tgz` 公开下载同构信任）。
 - zh.pdf 可选放行的理由：fixloop_exhausted 型任务的 L2 修复译文经包传播有实证价值，贡献者编不过只是少证据件。
-- 证据：调研档案 `research/product/shared-cache.md`；主仓 `docs/05` E15（缓存键设计）。
+- 证据：调研档案 `research/product/2026-09-16-shared-cache.md`；主仓 `docs/05` E15（缓存键设计）。
 
 ## 演变
 
@@ -31,4 +31,4 @@ hjfy 的「已译论文匿名随便看」是平台付费 token 换来的中心�
 
 ## 现状
 
-实现落在 `share.py`（share_key/pack_share/unpack_share/index_append/index_lookup，包校验全链：manifest ≤1MB、产物名扁平白名单、逐成员 sha256 对账、临时目录原子 rename）+ `server/routers/share.py`（`/api/share/import`、`/api/task/{id}/share/pack`）+ `server/worker/share.py`（`_maybe_share_pack` 完成钩、`_share_lookup`/`_share_apply`/`_share_unmark`）+ `server/worker/core.py::_run_tex|_run_share`。research/product/shared-cache.md §8「隐式命中未接线」注记已过时（代码已接）。
+实现落在 `share.py`（share_key/pack_share/unpack_share/index_append/index_lookup，包校验全链：manifest ≤1MB、产物名扁平白名单、逐成员 sha256 对账、临时目录原子 rename）+ `server/routers/share.py`（`/api/share/import`、`/api/task/{id}/share/pack`）+ `server/worker/share.py`（`_maybe_share_pack` 完成钩、`_share_lookup`/`_share_apply`/`_share_unmark`）+ `server/worker/core.py::_run_tex|_run_share`。research/product/2026-09-16-shared-cache.md §8「隐式命中未接线」注记已过时（代码已接）。

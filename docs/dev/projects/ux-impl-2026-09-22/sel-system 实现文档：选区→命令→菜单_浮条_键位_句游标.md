@@ -17,7 +17,7 @@
 
 ### 选区语义（三 pane 统一）
 
-- **DOM 双栏（DomPane=ar5iv HTML，HtmlPane=chunk 流）与 PdfPane（pdf.js textLayer）全部走原生 Selection**——结构面零障碍：全仓 0 个 shadow DOM、0 个 iframe（ss-shadow 静态+运行时普查），`.textLayer` 链上 user-select 全为 auto/text，app 23 个 CSS 无一命中 textLayer 选择属性；PDF 侧**零改动**即可拖选/双击选词/Ctrl+A/copy 事件（ss-pdf-sel 真机 harness 全绿）。
+- **DOM 双栏（DomPane=ar5iv HTML，HtmlPane=chunk 流）与 PdfPane（pdf.js textLayer）全部走原生 Selection**——结构面零障碍：全仓 0 个 shadow DOM、0 个 iframe（ss-shadow 静态 + 运行时普查），`.textLayer` 链上 user-select 全为 auto/text，app 23 个 CSS 无一命中 textLayer 选择属性；PDF 侧**零改动**即可拖选/双击选词/Ctrl+A/copy 事件（ss-pdf-sel 真机 harness 全绿）。
 - 选区→chunk 解析用 **coveredChunks**（`exp/ss-dom-sel/coveredChunks.mjs` 移植）：`sel.getRangeAt(0)` 规范化后按锚点区间切片 `[data-chunk]`，O(命中锚数) 而非全扫——163 锚文档 Chrome 2.2µs / Firefox 6µs / jsdom 25µs（全扫对拍 550+800+1000 组 fuzz 零失配）。返回 `data-chunk` 键数组（文档序）。
 - **边界规则**：选区终点恰在下一锚首 offset0 时该锚算相交（复制文案用 `trim().length>0` 滤白字）；端点落在无锚区（license 行/页眉残渣，实测 322 字符）向文档序收拢到最近锚；跨 pane 选区对两侧 bodyEl 各跑一遍（单 document，`commonAncestor` 可能是 body）；反向拖拽用 `compareDocumentPosition` 判 anchorAfterFocus（双引擎一致，`sel.direction` 字符串也可用）。
 - **键到 seq 的映射**：DomPane 的 `data-chunk` = emit 块 key（`S1.p4`/`b5`/`footnote1` 字符串），HtmlPane 的 `data-chunk` = 整数 seq（HtmlPane.tsx:118 `data-chunk="${seq}"`）。约 31% 的 DOM 锚（bibitem/figure/authors，实测 50/163）没有 chunks 行 → `intSeq` 为 null，重译类命令隐藏、复制类照常。
@@ -72,7 +72,7 @@
 7. Alt+←→ → navBack/navFwd（pdf.js 不绑 alt 变体）；
 8. 其余修饰键全放（不 preventDefault 浏览器键）；
 9. `e.repeat` 只放行 `[` `]`（翻页连发），动作键去重；
-10. pdf.js 编辑器选中态占有 Backspace/Delete——让位给 window 监听删高亮（修 nav:back+删高亮双发）；
+10. pdf.js 编辑器选中态占有 Backspace/Delete——让位给 window 监听删高亮（修 nav:back+ 删高亮双发）；
 11. 键表：`t`=译选段 `l`=查选段 `c`=复制选区|cite 开卡（谓词链）`s`=同步 `1-4`=模式 `[`/`]`=翻页 `Backspace`=跳回 `?`=help。
 
 实测：66/66 cells + 12/12 层栈剧本全过、单键分发 p95=0.1ms；对照 legacy 抓出 8+3 个现网缺陷（全部变成回归测试），57 行冲突表落盘 `exp/ss-hotkeys/conflict-table.json`。新键位 v/j/k/Enter/t/c 与 21 个焦点上下文零冲突。

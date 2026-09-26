@@ -57,7 +57,7 @@ chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定�
 
 | 条件                                                                                                                                                                                  | 判定                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| site 花括号栈含 soul 族 cs（`ul                                                                                                                                                       | hl                                                | sout | uline | uwave | st  | caps`） | SKIP——soul 逐 token 重扫遇 whatsit = 编译错 |
+| site 花括号栈含 soul 族 cs（`ul\|hl\|sout\|uline\|uwave\|st\|caps`）                                                                                                                  | SKIP——soul 逐 token 重扫遇 whatsit = 编译错       |
 | `chunk.env` ∈ ALIGN_ENVS（tabular/longtable/Nice*/tabbing/deluxetable/tblr/supertabular/xtabular/ltablex/array/matrix 族）                                                            | SKIP——行间 whatsit → Misplaced \noalign           |
 | 后继非空 token 以 `\\`/`\hline`/`\noalign`/`\midrule`/`\cline` 起头                                                                                                                   | SKIP（行间冗余闸；piece 尾尽时回看下一 piece 头） |
 | site 栈含 moving-arg cs 或 `chunk.context` ∈ MOVING（section/subsection/subsubsection/paragraph/subparagraph/chapter/part/caption/captionof/subcaption/tablecaption/addcontentsline） | `mark_moving` False → SKIP；True → INLINE         |

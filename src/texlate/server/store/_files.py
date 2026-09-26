@@ -1,4 +1,4 @@
-"""files 聚合 repo：产物登记 + 租户配额用量（web-layer.md §3.2 files 表）。
+"""files 聚合 repo：产物登记 + 租户配额用量（2026-09-15-web-layer.md §3.2 files 表）。
 
 ``tenant_usage`` 跨表 JOIN tasks 读（files.bytes 按租户聚合）——只读
 查询，归本 repo 一并持有。

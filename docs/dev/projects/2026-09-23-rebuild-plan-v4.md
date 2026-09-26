@@ -64,7 +64,7 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 **P3 = 13k 的准入政策**：raw 常驻（5MB，档案资产）、extracted 用完即 evict（lake `evict()` 原生支持，`raw_only` 档设计如此）、zh cell 图档走 CAS 硬链（~省 4.5MB/篇）、splice 只留 final.pdf+metrics（~省 8MB/篇）。
 
-**P3+（状态条件版，依赖 layoutqc 落地）**：clean∧layout-clean 篇 → 上表 ~8MB；layout fail 篇留 splice 全档（~17MB）作复现料；compile fail 篇留 extracted+workdir 诊断面。详见 docs/dev/layoutqc-plan.md §5——磁盘政策与质量体系同一张表。
+**P3+（状态条件版，依赖 layoutqc 落地）**：clean∧layout-clean 篇 → 上表 ~8MB；layout fail 篇留 splice 全档（~17MB）作复现料；compile fail 篇留 extracted+workdir 诊断面。详见 docs/dev/layoutqc.md §5——磁盘政策与质量体系同一张表。
 
 ### 2.4 运行期峰值
 

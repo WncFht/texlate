@@ -1,4 +1,4 @@
-"""日志脱敏簇 —— server 侧装配点（web-layer.md §4.2）。
+"""日志脱敏簇 —— server 侧装配点（2026-09-15-web-layer.md §4.2）。
 
 四层不落日志防线的两道：异常边界 ``scrub()`` 先过（已知 secret 形态 +
 显式 key 值），logger/handler 挂 :class:`RedactFilter` 同款正则

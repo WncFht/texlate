@@ -36,3 +36,7 @@
 
 - `research/methods/parse-metrics-literature.md` — 解析/转换质量指标的学理口径（severity 分级、漏斗+归因、三档匹配、Wilson CI 惯例），被本域 parsebench-v1、v3-plan §7 引用。
 - `research/methods/bench-construction-methods.md` — benchmark 语料构建方法学（20 个先例的抽样/规模论证/发布形态 + 统计方法菜单），被 v3-plan §2/§4 引用。
+
+## 迁出件
+
+- `2026-09-23-rebuild-plan-v4.md` → `dev/projects/2026-09-23-rebuild-plan-v4.md`（2026-09-26 迁居）：corpus 重建执行工单是在执行活工单，不属证据层；归 `dev/projects/` 工作包区。

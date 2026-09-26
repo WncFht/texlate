@@ -265,7 +265,7 @@ class _Core:
     async def _run_share(self, ctx: TaskCtx) -> None:
         """kind=share：fetch → parse → 包内 dual.json 对账回灌 → compile。
 
-        ``shared-cache.md §5`` 消费侧——与 ``_run_tex`` 唯一差异是
+        ``2026-09-16-shared-cache.md §5`` 消费侧——与 ``_run_tex`` 唯一差异是
         translating 段换成 ``_stage_share_apply``：译文来自共享包而非
         LLM，但 fetch/parse/splice/inject/compile/judge/dual 全链本地
         重跑。包内 ``zh-src.zip``/``zh.pdf`` 是贡献者侧证据，不解、不进

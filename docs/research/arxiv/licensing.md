@@ -73,7 +73,7 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | **Kaggle/HF 快照** | 有 `license` 字段（URI 或 null）                                                                                                       | §2                                                                                                  |
 | e-print 源码包/PDF | 无结构化 license；CC 论文 PDF 内文可能有作者自注（不可靠），勿依赖                                                                     | —                                                                                                   |
 
-工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 现走此道），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
+工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 曾走此道、2026-09-21 退役），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
 
 ## 4. 法律分析
 
@@ -94,7 +94,7 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 
 法律地位：第三方**连逐字镜像原文 PDF 都无授权**。唯一成文依据是 API ToU 的「personal use / research purposes 可 retrieve/store/use」[^arxiv-tou]——**到「自己机器上自己看」为止**；ToU 同页禁止在无授权时 "store and serve arXiv e-prints from your servers"。生态现实：大量第三方镜像/工具灰色共存靠的是无人逐案追究 + takedown 后删除，不是权利基础；出版商侧有成规模维权先例（Elsevier v. Sci-Hub/LibGen、对 ResearchGate 施压）。管辖提示：境内主体适用中国著作权法，「个人学习/研究」合理使用同样止于「再公开传播」。
 
-### 4.3 hjfy.top 实际做法定性（对照侦察档案 [../product/hjfy-site.md](../product/hjfy-site.md)）
+### 4.3 hjfy.top 实际做法定性（对照侦察档案 [../product/2026-09-14-hjfy-site.md](../product/2026-09-14-hjfy-site.md)）
 
 hjfy 产物三件套 `{id}.pdf`（**原文**）/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`，签名 URL 匿名即可访问、无 license 过滤、UI 无许可展示。定性：对约一半 non-exclusive 论文是**无授权逐字再分发 + 无授权衍生分发**，对 ND 论文另加 ND 违约——属「全量敞口」姿势，以社区容忍为事实基础、可运转但结构上不可辩护。**复刻时应把它当反例而非规格。**
 

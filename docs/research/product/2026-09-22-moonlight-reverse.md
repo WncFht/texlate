@@ -34,7 +34,7 @@
 | 层        | 事实                                                                                                                                                                                                            |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 认证      | cookie `connect.sid` + `/api/auth/jwt` 跨域换票；Google OAuth/One Tap + email；Apple 登录只存在于 App（web 没有）                                                                                               |
-| 流式      | **零 SSE/WS**：全部 fetch `getReader()`+`TextDecoder`，300ms 节流重渲 markdown；流内两类帧：`<                                                                                                                  | N   | >`句级锚点 +`<<<type | json>>>` 工具/meta 帧 |
+| 流式      | **零 SSE/WS**：全部 fetch `getReader()`+`TextDecoder`，300ms 节流重渲 markdown；流内两类帧：`<\|N\|>`句级锚点 +`<<<type\|json>>>` 工具/meta 帧                                                                  |
 | 扩展      | MV3 v3.3.0，31.2MiB，id `lhipdkibljepmfojllcfflfflhflcbgi`；viewer bundle 与 web `/extension/dist/web/pdf.html` **同一份代码**，postMessage 契约驱动；`externally_connectable` 让站点直读写 chrome.storage.sync |
 | 实验/归因 | 自研 `/experiments/{evaluate,exposure}`；`channel_ai_search='ChatGPT / Perplexity search'` 获客归因字段                                                                                                         |
 | 防护      | Vercel WAF（/api/* 对裸 curl 429+challenge）；`detected-country` 走 geoip，CN 用户配额规则更狠（见 §6）                                                                                                         |
@@ -50,7 +50,7 @@
 | `GET /scholar/search-with-ref?query=<title>`                 | **无鉴权** | 一次调用拿回论文+references+citing 的整个 ego 网络                                                            |
 | `GET /api/etc/geoip`                                         | 无鉴权     | MaxMind 式地区判定，驱动分区配额                                                                              |
 | `/ai/anonymous/*`                                            | 无鉴权     | **每个 AI 功能都有匿名镜像端点**（infographic 除外），服务端计量                                              |
-| `/ai/translate-page-with-source-v2`                          | cookie     | `{texts[],target}` → 流式译文内嵌 `<                                                                          | N   | >` 源句索引 |
+| `/ai/translate-page-with-source-v2`                          | cookie     | `{texts[],target}` → 流式译文内嵌 `<\|N\|>` 源句索引                                                          |
 | `/pdf-translation/{capability,jobs}`                         | Premium    | 整篇重排版译文 PDF 的任务队列，2s→10s 轮询退避，≤20min，默认 maxPages=30                                      |
 | `/ai/explain-infographic`                                    | 登录       | 选段→1024×1024 JPG，**唯一有独立周额度的功能**（Pro 5/Premium 30）                                            |
 | `/ai/latex`                                                  | cookie     | 公式 DOM 文本+元素 PNG → LaTeX                                                                                |
@@ -186,19 +186,19 @@
 
 ### 8.1 ADOPT —— 直接抄，成本低收益明确
 
-| 项                                      | 理由                                                                                        |
-| --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **`<                                    | N                                                                                           | >`锚点协议 +`<<<type | json>>>` 流内帧** | 零 SSE/WS：fetch+TextDecoder+300ms 节流重渲；`< | N   | >` 让流式译文段回指源句索引，`<<<tool | json>>>` 让模型中途调工具——我们 chat/summary 流式照这个做 |
-| **Cmd/Ctrl+drag 框选解释**              | 零依赖交互；我们有 LaTeX 源知道 figure 位置，做得比它准                                     |
-| **匿名镜像端点 + postMessage 延迟注册** | `/anonymous/*` 镜像+用完再要账号，纯路由层工作；它实测是转化主力                            |
-| **per-paper 周槽位配额**                | 比 token 计量好懂一百倍：「每周免费 N 篇」一句话说清；占槽后该篇无限用也是好的体感          |
-| **双向 hover 高亮**                     | 我们 splice 双语段天然有对照；它做 DOM Range+bbox overlay 那么痛苦是因为只有 PDF 坐标       |
-| **Keep It→批量导出 .bib/.csv**          | ADR-0021 引用卡加收藏+导出即齐                                                              |
-| **"Worth reading?" 四档判决**           | Full Read/Skim/Abstract only/Pass，按用户库亲疏条件化——挂在引用卡上是高体感低成本的 AI 增强 |
-| **pdf-lib 客户端合成导出**              | 标注/译文烘进 PDF 在浏览器里完成（quadPoints+annotationStorage），省服务端合成管线          |
-| **dedupe-by-URL**                       | POST 撞 409→GET 取已有；我们 corpus 同 URL 判重可直接抄语义                                 |
-| **每功能自定义 prompt**                 | BYOK 下顺手，设置页几个 textarea                                                            |
-| **`X-Show-Paywall` 响应头协议**         | 任何响应都可触发付费墙的统一信号，比逐个端点特判干净                                        |
+| 项                                               | 理由                                                                                                                                                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`<\|N\|>`锚点协议 +`<<<type\|json>>>` 流内帧** | 零 SSE/WS：fetch+TextDecoder+300ms 节流重渲；`<\|N\|>` 让流式译文段回指源句索引，`<<<tool\|json>>>` 让模型中途调工具——我们 chat/summary 流式照这个做 |
+| **Cmd/Ctrl+drag 框选解释**                       | 零依赖交互；我们有 LaTeX 源知道 figure 位置，做得比它准                                                                                              |
+| **匿名镜像端点 + postMessage 延迟注册**          | `/anonymous/*` 镜像+用完再要账号，纯路由层工作；它实测是转化主力                                                                                     |
+| **per-paper 周槽位配额**                         | 比 token 计量好懂一百倍：「每周免费 N 篇」一句话说清；占槽后该篇无限用也是好的体感                                                                   |
+| **双向 hover 高亮**                              | 我们 splice 双语段天然有对照；它做 DOM Range+bbox overlay 那么痛苦是因为只有 PDF 坐标                                                                |
+| **Keep It→批量导出 .bib/.csv**                   | ADR-0021 引用卡加收藏+导出即齐                                                                                                                       |
+| **"Worth reading?" 四档判决**                    | Full Read/Skim/Abstract only/Pass，按用户库亲疏条件化——挂在引用卡上是高体感低成本的 AI 增强                                                          |
+| **pdf-lib 客户端合成导出**                       | 标注/译文烘进 PDF 在浏览器里完成（quadPoints+annotationStorage），省服务端合成管线                                                                   |
+| **dedupe-by-URL**                                | POST 撞 409→GET 取已有；我们 corpus 同 URL 判重可直接抄语义                                                                                          |
+| **每功能自定义 prompt**                          | BYOK 下顺手，设置页几个 textarea                                                                                                                     |
+| **`X-Show-Paywall` 响应头协议**                  | 任何响应都可触发付费墙的统一信号，比逐个端点特判干净                                                                                                 |
 
 ### 8.2 ADAPT —— 改造后抄
 
@@ -207,7 +207,7 @@
 | **扩展劫持**                   | 它劫持后做 overlay 阅读器；我们扩展劫持 arXiv PDF 应直接走 LaTeX 源管线产双语编译 PDF——**学它的分发，不学它的产物形态**。注意它没有 arXiv abs 页挂件，纯 PDF 劫持一条路径                                      |
 | **SEO 语料页**                 | 它的评审页是薄 AI 摘要钓搜索；我们已翻论文可产 `/{slug}` 句级双语对照页——**同样打法我们的内容质量严格更高**。LLM-seeding 隐藏文本可学（文案别照抄「最准确」那种夸大），robots 封 AI 爬虫但放 Google 的策略照抄 |
 | **每日批量入库管线**           | 它发布→入库 ~4 天→评审 66s；我们 daily arXiv 抓取通道知识在 git 历史里，重启时对照它的节奏（注意 daily-soak 已退役勿原样重建，指的是 SEO 页生成管线）                                                          |
-| **Layout Translate 双 viewer** | 它的 re-typeset 是 PDF 重排；我们做「原 PDF                                                                                                                                                                    | 双语编译 PDF」双 pane 同步滚动是同一 UX 形态，但产物是源级编译的 |
+| **Layout Translate 双 viewer** | 它的 re-typeset 是 PDF 重排；我们做「原 PDF \| 双语编译 PDF」双 pane 同步滚动是同一 UX 形态，但产物是源级编译的                                                                                                |
 | **wasmtex**                    | MIT 直接拿：web 端 WASM 即时预览小文档，重型编译仍走服务端 xelatex                                                                                                                                             |
 | **句子仓库+`<ref>` 证据 chip** | 它有 `/paper/{id}/sentences` 服务端句库支撑证据跳转；我们 LaTeX 源侧的句定位更准——做 chat 时证据 chip+「跳到原文」全套可抄，地基我们更好                                                                       |
 | **library 作为排序信号**       | 库内容喂检索/引用卡配色/个性化；我们语料库同思路可复用                                                                                                                                                         |

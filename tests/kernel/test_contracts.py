@@ -1,5 +1,5 @@
 """Red-team contract tests — executable versions of the design's attack
-scenarios (docs/dev/bench-redesign-v2-trizone.md risk table R1-R28 + §3.x).
+scenarios (docs/spec/bench-trizone.md risk table R1-R28 + §3.x).
 
 Every test cites the risk row or section it exercises. Where the design
 contract cannot currently be expressed against the landed API the test

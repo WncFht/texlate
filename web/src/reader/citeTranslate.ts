@@ -1,5 +1,5 @@
 // citeTranslate —— 引用文献翻译编排层（纯逻辑，无 JSX）。
-// 规格：docs/dev/ux-impl-2026-09-22/cite-translate 实现文档。
+// 规格：docs/dev/projects/ux-impl-2026-09-22/cite-translate 实现文档。
 //
 // 三件面：
 //   ① 状态机——createRefStatus（SSE 帧参考归约器，cardbutton.py 移植）+

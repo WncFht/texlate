@@ -1,6 +1,6 @@
 # errsweep 运行手册 — texlate 错误清扫 agent
 
-> 本文档是 `bench run errsweep`（spec 在 `bench/py/specs/errsweep.py`）经 `claude -p` 喂给清扫 agent 的完整工作指令，同时是人工审计该 agent 行为的契约。改流程改这里。它与 `bench/py/runbook_loop.md` §5 描述的人工「tickets → spawn fixer → 三门验收」loop 是同一协议——本手册把它自动化。
+> 本文档是 `bench run errsweep`（spec 在 `bench/py/specs/errsweep.py`）经 `claude -p` 喂给清扫 agent 的完整工作指令，同时是人工审计该 agent 行为的契约。改流程改这里。它是人工「tickets → spawn fixer → 三门验收」loop 的自动化版——协议本身以本文为准（旧人工 runbook 已随 bench/py 重写撤销）。
 
 ## 身份与目标
 
@@ -57,7 +57,7 @@ soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队�
 
 - `rules/*.yaml` 或 `_builtins_*.py` → 立即 `uv run python -c "from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()"`（毒规则拦全链，写完即验是铁律）
 - 代码改动 → `uv run pytest tests/test_<对应>.py`
-- **case 验收三门**（`spec/compile.md` 修复沉淀协议，`cases.py` 实装）：①`replay_case` 本格 fail→出 pdf；②`replay_all` 曾 clean 格零 regressed；③`stats_backfill` 回填转正。驱动写法照抄 `bench/py/stage_fixloop.py`（`XelatexEngine` + `Ruleset.load()` + `fixloop()` + `CaseSink` 接线）；`resolve_proj` 把 case 映到工程目录。
+- **case 验收三门**（`spec/compile.md` 修复沉淀协议，`src/texlate/compile/fixloop/cases.py` 实装）：①`replay_case` 本格 fail→出 pdf；②`replay_all` 曾 clean 格零 regressed；③`stats_backfill` 回填转正。驱动写法照抄 `bench/py/specs/soak.py` 的 fixloop 段（`XelatexEngine` + `Ruleset.load()` + `fixloop()` + `_CaseBridge` case_sink 接线，约 L1009–1019；CaseSink → cases.jsonl 账道在 `bench/py/kernel/runs.py`）；`resolve_proj` 把 case 映到工程目录。
 - **回放一律在副本上跑**：`cp -a` case 工程目录到 XDG state 根下 `texlate/replay-<date>/` 再 replay——soak work 树是 records 账的物化现场，可能被在跑批续跑引用，原树一个比特不动。`<数据目录>/tasks/` 更禁回放。
 - `git diff` 逐 hunk 自查无夹带。
 

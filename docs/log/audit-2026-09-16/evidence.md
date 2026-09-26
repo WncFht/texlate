@@ -3,7 +3,7 @@
 > **结论**：交接数字全账复核：HANDOFF 声明值与 bench/results 实物逐项对上，仅 3 处口径注记。
 > **状态**：时点证据（2026-09-16 口径）
 > **日期**：2026-09-16（2026-09-20 迁入重编）
-
+>
 > 方法：直接开 `bench/results/` 下 json/jsonl 重算，不抄 summary 文本。
 > verdict = MATCH / MATCH*（口径注记）/ MISMATCH / NOT_FOUND。
 

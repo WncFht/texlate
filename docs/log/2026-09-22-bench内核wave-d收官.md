@@ -1,4 +1,6 @@
-> **结论**：trizone-ledger v2 bench 内核按 `docs/dev/bench-redesign-v2-trizone.md` 四波构建完毕（25 模块 / 约 15.1k 行），Wave-D 对抗验证两轮收口——首轮三车道裁决落 3 个修复提交，第二轮六车道复审 94 条发现全数裁决落 4 个修复提交；`tests/kernel/` 546 例通过 / 2 例按设计跳过。内核件面已齐，全量 bench 重建未启动、待放行。
+# bench 内核 Wave-D 收官（trizone-ledger v2）
+
+> **结论**：trizone-ledger v2 bench 内核按 `docs/spec/bench-trizone.md` 四波构建完毕（25 模块 / 约 15.1k 行），Wave-D 对抗验证两轮收口——首轮三车道裁决落 3 个修复提交，第二轮六车道复审 94 条发现全数裁决落 4 个修复提交；`tests/kernel/` 546 例通过 / 2 例按设计跳过。内核件面已齐，全量 bench 重建未启动、待放行。
 > **状态**：已完成（构建 + 对抗验证收口；重建为后续阶段）
 > **日期**：2026-09-22
 

@@ -21,7 +21,7 @@
 
 实测毒化面（`exp/ms-keyless/improvements.json` K1–K9 + 160 行中毒缓存实证）：
 
-- mock 译文写入 `translation_cache`（实测 160 行「这是译文」入库），fresh+真 key 重交同论文仍 156/157 命中 mock、零 LLM 调用；
+- mock 译文写入 `translation_cache`（实测 160 行「这是译文」入库），fresh+ 真 key 重交同论文仍 156/157 命中 mock、零 LLM 调用；
 - `find_reusable` 命中 mock done 行 → 带 key 用户 200 reused 拿到垃圾任务；
 - done 任务 warnings 永不渲染（`ResultBody` 只在非 done 终态面板挂 warn-list）；
 - 小文档坏 key 不触发 `auth_fail_threshold=3` 熔断 → 落 `partial` 且 error.code 被 `compile` 顶替（应 `provider_auth`）；
@@ -49,7 +49,7 @@
 
 ### M4 .bib 导出（P1，引用面收口）
 
-宇宙 494 key（bibitem ∪ cited ∪ cite-dest）：Lane A verbatim（src.tar `.bib` 原文）覆盖 337/494=68.2%（9 任务 5 带 .bib；2 key 因 hyperref 把 `cite.*` dest 小写化需大小写折叠兜底；33 条 entry 依赖 `@STRING` 宏——导出必须携带 defs 闭包否则 .bib 断裂）；Lane B 只有排版文本 157/494=31.8%，其中 80 条能抽 id（78 arXiv+2 DOI）走远端出版级 bibtex，77 条无 id 落 `@misc{note={text}}`。远端实测：DataCite `doi.org/10.48550/arXiv.<id>` Accept x-bibtex 7/8（重试→8/8，SSL 抖动要重试）；crosscite 真 DOI 2/3（bbl 里 DOI 百分号编码须 unquote，修复→3/3）；Crossref bibliographic 12 探 10 回包但 title-overlap≥0.5 门控只剩 5/12——**错配率高，不门控即毒导出**；S2 全程 429，导出链不得依赖 S2。远端延迟 p50 2177ms / max 20271ms——必须并发闸+总 deadline+降级兜底。
+宇宙 494 key（bibitem ∪ cited ∪ cite-dest）：Lane A verbatim（src.tar `.bib` 原文）覆盖 337/494=68.2%（9 任务 5 带 .bib；2 key 因 hyperref 把 `cite.*` dest 小写化需大小写折叠兜底；33 条 entry 依赖 `@STRING` 宏——导出必须携带 defs 闭包否则 .bib 断裂）；Lane B 只有排版文本 157/494=31.8%，其中 80 条能抽 id（78 arXiv+2 DOI）走远端出版级 bibtex，77 条无 id 落 `@misc{note={text}}`。远端实测：DataCite `doi.org/10.48550/arXiv.<id>` Accept x-bibtex 7/8（重试→8/8，SSL 抖动要重试）；crosscite 真 DOI 2/3（bbl 里 DOI 百分号编码须 unquote，修复→3/3）；Crossref bibliographic 12 探 10 回包但 title-overlap≥0.5 门控只剩 5/12——**错配率高，不门控即毒导出**；S2 全程 429，导出链不得依赖 S2。远端延迟 p50 2177ms / max 20271ms——必须并发闸 + 总 deadline+ 降级兜底。
 
 目标：`GET /api/task/{id}/refs.bib?keys=` 端点（Lane A verbatim + Lane B id→远端 + Lane C meta 合成三臂），Toolbar 下载清单出 `refs.bib` 项；Phase B 叠加 kept_refs 收藏（SQLite 表 + CiteCard ☆ 钮）让 keys 子集可挑。
 
@@ -113,7 +113,7 @@
 
 ### M4
 
-- `web/src/stores/keptRefs.ts`（新，~80 行）：`kept=Signal<Record<key,payload>>`、`load(taskId)`、`toggle(key,payload)` 乐观写+回滚；随 ReaderView 实例局部 signal。
+- `web/src/stores/keptRefs.ts`（新，~80 行）：`kept=Signal<Record<key,payload>>`、`load(taskId)`、`toggle(key,payload)` 乐观写 + 回滚；随 ReaderView 实例局部 signal。
 - `web/src/pages/Reader.tsx`：mount effect 并列 `citeIndex` effect（~L346）调 `keptRefs.load`；downloads memo 追加 refs.bib 条件项。
 - `web/src/reader/CiteCard.tsx`：`CiteCardBody` props 加 `kept?: boolean`、`onToggleKeep?()`，foot 加 ☆/★ 钮。
 - `web/src/reader/PdfPane.tsx`：开卡时组 payload（entry + `citeMeta(key)` 快照）回传 toggle。

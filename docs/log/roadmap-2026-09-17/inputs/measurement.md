@@ -3,7 +3,7 @@
 > **结论**：测量侦察：verdict 五面字段语义盘清；taxonomy 物化零消费、scorecard union 名实不符、csb 校验挡不住同态陈旧。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
-
+>
 > 只读侦察，2026-09-17。范围：verdict 体系五面字段语义与消费方、组成感知 sig 后残存判分盲区、scorecard 口径（union pdf 端态 vs pipe-xel 记录态）、跨波 drift 检测、records schema 缺口。断言带 `file:line`；行号为当日工作区快照。
 
 ## 1. verdict 体系盘点：records 五面字段语义与消费方

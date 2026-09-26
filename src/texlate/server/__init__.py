@@ -1,4 +1,4 @@
-"""Web 服务层：FastAPI + SSE + SQLite 任务队列（M3，web-layer.md §2-§4）。
+"""Web 服务层：FastAPI + SSE + SQLite 任务队列（M3，2026-09-15-web-layer.md §2-§4）。
 
 ``import texlate.server`` 必须可在无 server extra（fastapi/uvicorn/
 sse-starlette）的环境下工作——``create_app``/``main`` 走 PEP 562

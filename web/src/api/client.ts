@@ -1,4 +1,4 @@
-// API client —— 对齐 docs/research/product/web-layer.md §2。
+// API client —— 对齐 docs/research/product/2026-09-15-web-layer.md §2。
 // Base /api；错误一律 {detail, code?}；SSE 走原生 EventSource
 // （浏览器自动带 Last-Event-ID 重放，§2.2 的重连语义天然满足）。
 //

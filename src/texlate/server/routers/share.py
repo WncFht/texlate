@@ -149,7 +149,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         端点只做机械校验（``unpack_share``：format/share_key 自洽/逐产物
         sha256 对账）+ key_parts 白名单（arxiv_id 形态、target_lang ∈
         TARGET_LANGS、model 合法性、version 钉版形 ``vN``）；译文可信度
-        由 worker ``_run_share`` 全链重跑承担（shared-cache.md §5）。
+        由 worker ``_run_share`` 全链重跑承担（2026-09-16-shared-cache.md §5）。
         model/lang/arxiv_id/version 一律取 manifest key_parts（内容生产
         者口径）——与上传者自身 model 设置不同**不拒**：包自描述，任务行
         记 manifest 真值，上传者配置不进寻址。``cache_key`` 按钉版形态
@@ -252,7 +252,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
 
     @app.post("/api/task/{task_id}/share/pack")
     async def share_pack(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0911 -- 守卫阶梯平铺
-        """终态任务事后打 ``.share.zip``（shared-cache.md §6「完成后提示分享」服务端面）。
+        """终态任务事后打 ``.share.zip``（2026-09-16-shared-cache.md §6「完成后提示分享」服务端面）。
 
         与 worker ``_maybe_share_pack`` 完成钩同口径：key_parts 由
         ``worker.share_pack_manifest`` 从任务行现值派生，产物取

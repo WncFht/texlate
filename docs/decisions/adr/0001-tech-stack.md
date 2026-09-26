@@ -23,7 +23,7 @@
 - **社区匹配**：pdf2zh/MinerU/BabelDOC/bbm/LaTeXTrans/texglot/ieeA 全部 Python，贡献者池 59–129 人级。
 - **TeX 分发已解**：tectonic 单二进制 + 自动拉宏包实测可用（0.17.0 编译中文 PDF 成功），「装 TeXLive」不再是分发前置。
 - **落选方案**：全 TS（解析器跑浏览器的优势不成立——阅读器渲染的是 PDF 不是 LaTeX，且放弃全部 Python 生态）；全 Python 含前端（前端躲不开 JS，统一语言红利本就不存在）；Go/Rust（LaTeX/文档生态为零，唯一优势单二进制已被 tectonic sidecar 解决）。完整被否清单见 ADR-0019。
-- 证据：主仓 `docs/05` 证据矩阵 E1（8 库横评）、E9（引擎矩阵）、E12（texglot 拆解）；调研档案 `research/product/competitors.md`、`research/latex/texglot-patterns.md`。
+- 证据：主仓 `docs/05` 证据矩阵 E1（8 库横评）、E9（引擎矩阵）、E12（texglot 拆解）；调研档案 `research/product/2026-09-14-competitors.md`、`research/latex/texglot-patterns.md`。
 
 ## 演变
 

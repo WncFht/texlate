@@ -20,7 +20,7 @@ hjfy 的阅读体验（已译随便看 + 流式进度 + 双语对照）需要一
 
 - E15：SQLite WAL 单写者 + asyncio 编排对单机并发（个位数任务）足够——多写者与外部队列解决的是不存在的问题；轮询兼容面（compat 路由）证明 SSE 不是唯一消费形态。
 - key 内存态 + 指纹租户是 BYOK 的底线隐私承诺——持久化 key 等于把用户账单风险收进我们库里。
-- 证据：主仓 `docs/05` E15、web 层规格；调研档案 `research/product/web-layer.md`、`research/product/e2e-mock-pipeline.md`。
+- 证据：主仓 `docs/05` E15、web 层规格；调研档案 `research/product/2026-09-15-web-layer.md`、`research/product/2026-09-14-e2e-mock-pipeline.md`。
 
 ## 演变
 

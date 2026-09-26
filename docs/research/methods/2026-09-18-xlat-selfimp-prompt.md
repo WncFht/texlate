@@ -1,7 +1,7 @@
 # selfimp-qual 自改进环协议 —— dense-feedback 四层反馈与波次车道
 
 > **结论**：把「评估→改进」做成全自动闭环的关键设计 = dense feedback 三原则（反馈局部可归因、廉价及时、可客观验证）+ 四层反馈塔（L0 确定性 → L1 单发 judge 探针 → L2 批层基线 → L3 人锚）+ 波次车道（W0 协议落地 → W1 基线 → W2 假设实装）+ 假设池状态机（open → adopted/rejected 留档防重派）。每个实验只回答一个具体问题，动手前先写「出现什么结果说明想错了」。
-> **状态**：时点证据（2026-09-18 协议口径）。协议形态与 qualbench ESA 改造均已落地（`bench/py/qualbench.py` protocol_v=esa2、`bench/py/report/qual*.py` 五件套）；假设池收割结果见同域 `selfimp-skeleton.md`。硬边界中的具体模型名/网关细节为当时运营约束，方法论通用。
+> **状态**：时点证据（2026-09-18 协议口径）。协议形态与 qualbench ESA 改造均已落地（`bench/py/qualbench.py` protocol_v=esa2、`bench/py/report/qual*.py` 五件套）；假设池收割结果见同域 `2026-09-19-selfimp-skeleton.md`。硬边界中的具体模型名/网关细节为当时运营约束，方法论通用。
 > **日期**：2026-09-18（2026-09-20 迁入重编）
 
 目标：先落地 qualbench 的 ESA 协议改造，再跑出可信基线，然后持续从假设池取假设做「探针→实装→回归」波次。方法论锚定 dense feedback 三原则：反馈必须局部可归因（绑定到具体 chunk/类目/机制，不是一句「质量下降了」）、廉价及时（便宜层能答的绝不上升一层）、可客观验证（用测试、确定性信号、可比较指标判定，不靠观感）。

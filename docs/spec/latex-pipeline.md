@@ -154,7 +154,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 | 7     | chunk-arg        | `CHUNK_ARG_NAMES`（`\section`/`\caption`/`\footnote` 等）→ 头参保护 + 可译位独立 chunk（§5.5）                           |
 | 8     | protect-block    | `PROTECT_BLOCK_NAMES`（`\author`/`\date` 等）整块 → `[[AUTHOR]]`；散文白名单名先走 `_mine_prose_block`                   |
 | 9     | transparent-head | `TRANSPARENT_HEAD_SPEC`（`\textcolor{red}{text}` 族）：头参 → `[[CMD]]`，文本参留主流                                    |
-| 10    | box-tail         | `BOX_TAIL_NAMES`（`\hbox to\hsize{..}`）：`to                                                                            | spread`+dimen 规格随 cs 进 `[[CMD]]`，`{body}` 照主流 |
+| 10    | box-tail         | `BOX_TAIL_NAMES`（`\hbox to\hsize{..}`）：`to\|spread`+dimen 规格随 cs 进 `[[CMD]]`，`{body}` 照主流                     |
 | 11    | transparent      | `TRANSPARENT_NAMES` → 名逐字进 run                                                                                       |
 | 12    | boundary         | `BOUNDARY_NAMES` → flush + LITERAL；`BOUNDARY_TAIL`/`DIMEN_TAIL_KIND` 尾参并入盖面；`\item` 置 `force_chunk`             |
 | 13    | endinput         | 漏网档：flush + 本文件余下逐字 + `_stop`                                                                                 |

@@ -1,4 +1,4 @@
-"""chunks 聚合 repo：解析产物块行（web-layer.md §3.4.1 断点恢复物证）。
+"""chunks 聚合 repo：解析产物块行（2026-09-15-web-layer.md §3.4.1 断点恢复物证）。
 
 ``flush_chunk_batch`` 是跨聚合事务（chunks + translation_cache + tasks
 计数器），留在 ``__init__`` 门面编排；这里只出块级件。

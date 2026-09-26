@@ -3,8 +3,8 @@
 > **结论**：前端侦察：26 源文件 5.6k 行边界清晰；SSE 每任务一 EventSource 无界是真规模缝；Reader.tsx 1005 行三合一是最大工程债。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
-
-> 侦察日期 2026-09-17，只读。范围：`web/`（SolidJS+Vite+pdfslick 阅读器）与其对 `src/texlate/server/` 的 API/SSE 消费。规格基准：`docs/research/product/web-layer.md`（下称 §x.y 指其节号）、`docs/research/product/hjfy-site.md`（hjfy 对照）、`docs/02-architecture.md` §5、`docs/03-roadmap.md` M3 行。
+>
+> 侦察日期 2026-09-17，只读。范围：`web/`（SolidJS+Vite+pdfslick 阅读器）与其对 `src/texlate/server/` 的 API/SSE 消费。规格基准：`docs/research/product/2026-09-15-web-layer.md`（下称 §x.y 指其节号）、`docs/research/product/2026-09-14-hjfy-site.md`（hjfy 对照）、`docs/02-architecture.md` §5、`docs/03-roadmap.md` M3 行。
 
 ## 1. 目录结构与模块边界
 
@@ -22,17 +22,17 @@
 
 ## 2. 规格对照：承诺 vs 实装
 
-§5.2 骨架清单（`web-layer.md:440-457`）逐条在：api/client、stores、三 pages、PdfPane/HtmlPane/sync/alignment、四个 components 全部对应落位；§5.3 同步伪码逐行落地为 `sync.ts`（20% 焦点线 `sync.ts:23`、ignoreTop `sync.ts:103`、epoch `sync.ts:107`）；§5.4 `view:"html"` 降级 + `dual.json` chunks + KaTeX 容错在 `HtmlPane.tsx:84-97`、`view.ts:14`；§5.5 vite 侧 pdfjs 资产拷贝 + 许可证聚合在 `vite.config.ts:17-54`；§2 端点面全部有调用点；§2.2 SSE 七事件全消费（`client.ts:620-632`），`ping` 走 sse-starlette 注释行无需客户端处理（`app.py:911`）；模式切换保位置（`Reader.tsx:212-233`）、位置防抖 1s 落盘（`Reader.tsx:289-292`）、`document_version` 409 语义（`Reader.tsx:283`）、`needs_auth` 内联 key 重试（`Reader.tsx:660-669`）、share pack 三挂载点（`Reader.tsx:929/681/986`）、上传进度 XHR（`client.ts:336-380`）均实装。
+§5.2 骨架清单（`2026-09-15-web-layer.md:440-457`）逐条在：api/client、stores、三 pages、PdfPane/HtmlPane/sync/alignment、四个 components 全部对应落位；§5.3 同步伪码逐行落地为 `sync.ts`（20% 焦点线 `sync.ts:23`、ignoreTop `sync.ts:103`、epoch `sync.ts:107`）；§5.4 `view:"html"` 降级 + `dual.json` chunks + KaTeX 容错在 `HtmlPane.tsx:84-97`、`view.ts:14`；§5.5 vite 侧 pdfjs 资产拷贝 + 许可证聚合在 `vite.config.ts:17-54`；§2 端点面全部有调用点；§2.2 SSE 七事件全消费（`client.ts:620-632`），`ping` 走 sse-starlette 注释行无需客户端处理（`app.py:911`）；模式切换保位置（`Reader.tsx:212-233`）、位置防抖 1s 落盘（`Reader.tsx:289-292`）、`document_version` 409 语义（`Reader.tsx:283`）、`needs_auth` 内联 key 重试（`Reader.tsx:660-669`）、share pack 三挂载点（`Reader.tsx:929/681/986`）、上传进度 XHR（`client.ts:336-380`）均实装。
 
 规格/对标承诺但**前端未实装**的点：
 
-- **任务列表无「继续」入口**：§3.4.4（`web-layer.md:380`）明确「前端列表面向用户"继续"按钮」——`TaskList.tsx` 行内只有删除钮（`TaskList.tsx:151-160`），interrupted/needs_auth/fault 任务须点进 Reader 结果面板才有重试（`Reader.tsx:670-677`）。
+- **任务列表无「继续」入口**：§3.4.4（`2026-09-15-web-layer.md:380`）明确「前端列表面向用户"继续"按钮」——`TaskList.tsx` 行内只有删除钮（`TaskList.tsx:151-160`），interrupted/needs_auth/fault 任务须点进 Reader 结果面板才有重试（`Reader.tsx:670-677`）。
 - **`?status=` 过滤面有 API 无 UI**：`api.tasks(status?)`（`client.ts:461`）与服务端 `?status=`（`app.py:1304-1307`）都通，Home 无过滤控件（`Home.tsx:404-423`）。
-- **左右互换不持久**：`swapped` 是 Reader 本地 signal（`Reader.tsx:47`），`putPosition` 只保 positions/active/mode/zoom/sync 五键（`app.py:1518-1522`）；hjfy 用 `localStorage.translatePosition` 持久（`hjfy-site.md:66`）。
-- **document.title 不随任务变**：只在 `main.tsx:7` 静态设置一次；hjfy 翻译中改标题（`hjfy-site.md:30`）。
-- **默认视图不随视口**：`mode` 恒 `"split"` 起（`Reader.tsx:43`）；hjfy 按 `innerWidth>1080` 选 split/translated（`hjfy-site.md:63`）。
-- **无拖拽上传、无示例论文链、无版本回退提示**：上传只有点选 file input（`Home.tsx:222-232`）；hjfy 有拖拽区 + 三篇示例 + `v\d+` 失败剥版本重试链（`hjfy-site.md:19,22,34`）。
-- **工具条薄于 hjfy**：无旋转/全屏/打印/首末页/暗色主题；批注只有单色高亮 + 带批注副本下载（`PaneSidebar.tsx:104-110,139-150`），hjfy 有多色高亮 + freetext（`hjfy-site.md:70`）。规格 §5.2 本未承诺这些，属对标差距而非违约。
+- **左右互换不持久**：`swapped` 是 Reader 本地 signal（`Reader.tsx:47`），`putPosition` 只保 positions/active/mode/zoom/sync 五键（`app.py:1518-1522`）；hjfy 用 `localStorage.translatePosition` 持久（`2026-09-14-hjfy-site.md:66`）。
+- **document.title 不随任务变**：只在 `main.tsx:7` 静态设置一次；hjfy 翻译中改标题（`2026-09-14-hjfy-site.md:30`）。
+- **默认视图不随视口**：`mode` 恒 `"split"` 起（`Reader.tsx:43`）；hjfy 按 `innerWidth>1080` 选 split/translated（`2026-09-14-hjfy-site.md:63`）。
+- **无拖拽上传、无示例论文链、无版本回退提示**：上传只有点选 file input（`Home.tsx:222-232`）；hjfy 有拖拽区 + 三篇示例 + `v\d+` 失败剥版本重试链（`2026-09-14-hjfy-site.md:19,22,34`）。
+- **工具条薄于 hjfy**：无旋转/全屏/打印/首末页/暗色主题；批注只有单色高亮 + 带批注副本下载（`PaneSidebar.tsx:104-110,139-150`），hjfy 有多色高亮 + freetext（`2026-09-14-hjfy-site.md:70`）。规格 §5.2 本未承诺这些，属对标差距而非违约。
 - **i18n 单语中文**：`i18n/zh.ts:1` 自述 M3 先中文单语，`import { t }` 直接钉死 zh——属有意取舍，不是债。
 
 实装了但**规格没写**的点（多为 hjfy parity 或加固，非镀金）：完整 pdf.js 侧栏三 tab + FindBar 全协议 + DocInfo（hjfy 对等件）、高亮批注与 `saveDocument` 下载、`Idempotency-Key` 意图级生命周期（规格只写了「可选头」，`client.ts:391-456` 做了未决复用/结案语义）、`>500px` 漂移跳回（`Reader.tsx:32,294-320`，hjfy §2 行为）、transport 徽标（`Reader.tsx:776-780`）、doc 类任务 files 面板（`view.ts:12` 五态视图机）、mock dev server 与 playwright 冒烟基建。
@@ -55,7 +55,7 @@ vitest 23 文件 154 `it()`：纯函数层覆盖最厚（alignment 5、sync 8、
 
 ## 5. 与后端的契约缝
 
-**对得齐的部分**（抽验过）：全部调用点命中 `app.py` 路由表（translate `app.py:837`、task GET/SSE `886`、files `915/930`、upload `1024`、share/import `1082`、share/pack `1177`、health `1286`、tasks `1304`、cancel `1341`、retry `1368`、DELETE `1435`、reader `1462`、position `1507`、settings `1530/1539/1561`、providers `1591`）；`X-Texlate-*`/`Idempotency-Key` 头名双侧一致（`app.py:645-647,753`）；409 `duplicate_active` 体带 `task_id` 前端 `ApiError.taskId` 正确提取（`app.py:770`→`client.ts:320`）；upload 的 `options.glossary` 服务端按 `options.get("glossary")` 收（`app.py:782-784`）与前端把 glossary 塞进 options（`Home.tsx:149`）咬合；`done{status:"deleted"}` 收尾帧两侧语义一致（`tasks.ts:125-137`）；reader 404 双条件与 `view` 字段按 `web-layer.md §2.5` 勘误口径消费；`Last-Event-ID` 走 EventSource 原生 + 服务端 int64 夹取（`app.py:897-903`）。
+**对得齐的部分**（抽验过）：全部调用点命中 `app.py` 路由表（translate `app.py:837`、task GET/SSE `886`、files `915/930`、upload `1024`、share/import `1082`、share/pack `1177`、health `1286`、tasks `1304`、cancel `1341`、retry `1368`、DELETE `1435`、reader `1462`、position `1507`、settings `1530/1539/1561`、providers `1591`）；`X-Texlate-*`/`Idempotency-Key` 头名双侧一致（`app.py:645-647,753`）；409 `duplicate_active` 体带 `task_id` 前端 `ApiError.taskId` 正确提取（`app.py:770`→`client.ts:320`）；upload 的 `options.glossary` 服务端按 `options.get("glossary")` 收（`app.py:782-784`）与前端把 glossary 塞进 options（`Home.tsx:149`）咬合；`done{status:"deleted"}` 收尾帧两侧语义一致（`tasks.ts:125-137`）；reader 404 双条件与 `view` 字段按 `2026-09-15-web-layer.md §2.5` 勘误口径消费；`Last-Event-ID` 走 EventSource 原生 + 服务端 int64 夹取（`app.py:897-903`）。
 
 **缝/隐患**：
 
@@ -64,7 +64,7 @@ vitest 23 文件 154 `it()`：纯函数层覆盖最厚（alignment 5、sync 8、
 - `landingHash` 对 `reader_url` 做正则提取、失败回退 task_id（`client.ts:598-601`）——URL 形状变化不会白屏，设计健康。
 - `putPosition` 的 `document_version` 409 被静默吞（`Reader.tsx:286`）——服务端拒写旧版位置是正确行为，但前端不可见，用户只表现为「偶尔位置没存上」。
 - `GET /api/tasks` 返回 `{tasks:[...]}`、providers 返回 `{providers:[...]}`，客户端做了「数组或包装对象」双兼容（`tasks.ts:83`、`settings.ts:22`）——服务端实际恒为包装形，双兼容是无害冗余。
-- 前端 `main` 字段只在 upload 路传（`Home.tsx:163-171`），`translate` 路 body 无 `main`——arxiv 任务换主文件无入口（后端 retry body 收 `main`，`web-layer.md:255` 勘误），UI 未暴露。
+- 前端 `main` 字段只在 upload 路传（`Home.tsx:163-171`），`translate` 路 body 无 `main`——arxiv 任务换主文件无入口（后端 retry body 收 `main`，`2026-09-15-web-layer.md:255` 勘误），UI 未暴露。
 
 ## 6. 三个最值得做的改进（按用户感知价值排序）
 

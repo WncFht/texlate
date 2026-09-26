@@ -16,8 +16,8 @@ arXiv 侧的取证与设计档案：端点行为、限流纪律、e-print 形态
 | [pdf-fidelity.md](pdf-fidelity.md)                         | 官方 PDF vs 自编译保真度对拍：15 篇锚/页漂移表，跨引擎锚不可借用（1/15 对齐）——**时点证据**（结论否决了借锚路线，落地走自编译 en.pdf）                                       |
 | [arxiv-to-prompt.md](arxiv-to-prompt.md)                   | arxiv-to-prompt 0.14.1 解剖：抓取/定位/展平/裁剪四块对照 + 实测翻车记录 + 可借鉴清单——**现行**（缓存原子发布已借入 cache.py）                                                |
 | [paper-search-assets.md](paper-search-assets.md)           | 六源检索 CLI 解剖：OpenAlex 引用校准模式（enrich_citations）、各源认证门槛、可搬零件层——**时点证据 2026-09-14**（校准链路未落地）                                            |
-| [2026-09-19-scale-roadmap.md](2026-09-19-scale-roadmap.md) | 规模化路线：缺口清单（2501+ 无损断档为唯一硬约束）、era 三分物化、S3 决策点——**规划**（缺口 2 增量通道已由 daily-soak 落地）                                                 |
-| [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)       | 日更全量 soak：RSS 枚举实测（cs+math 1192 new+cross/日）、公告历、fetch→stagerun 重喂架构——**已落地并运行**（定时器每日 02:30 UTC）                                          |
+| [2026-09-19-scale-roadmap.md](2026-09-19-scale-roadmap.md) | 规模化路线：缺口清单（2501+ 无损断档为唯一硬约束）、era 三分物化、S3 决策点——**规划**（缺口 2 增量通道曾由 daily-soak 落地，该链 2026-09-21 退役）                           |
+| [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)       | 日更全量 soak：RSS 枚举实测（cs+math 1192 new+cross/日）、公告历、fetch→stagerun 重喂架构——**已退役（2026-09-21）**，枚举层取证仍有效                                        |
 
 ## 迁移映射（自 texlate/docs/research/arxiv/）
 

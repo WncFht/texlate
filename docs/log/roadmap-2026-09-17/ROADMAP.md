@@ -3,7 +3,7 @@
 > **结论**：现状报告与排期：管线实质可用（scorecard pdf 97.89%/clean 84.99%，real 臂 98.5% 与 mock 打平）；promo 死线、共享缓存分发层、测量失真是三大杠杆。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
-
+>
 > 2026-09-17 汇总文档。素材来源：`inputs/` 八轴只读侦察（frontend / architecture / docs-health / measurement / perf / defect-ledger / bench-expansion / product-gaps）+ `docs/research/overseer-2026-09-16.md` 车队台账 + 当日各波次实测。所有数字以 records/scorecard 实测为准；标记「在飞」的项以落笔时点状态计。
 
 ## 0. 一页结论

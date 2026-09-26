@@ -2,7 +2,7 @@
 
 Runs the SHIPPED specs (bench/py/specs/smoke.py, paid_stub.py) through the
 kernel plus the ``bench`` CLI subprocess surface. Assertions encode the
-design contract (docs/dev/bench-redesign-v2-trizone.md §3.x), not observed
+design contract (docs/spec/bench-trizone.md §3.x), not observed
 behavior — blocks tagged CONTRACT-VIOLATION pin defects the current kernel
 gets wrong and are expected to fail until the kernel is fixed.
 

@@ -3,7 +3,7 @@
 > **结论**：性能侦察：网关翻译约占单篇墙钟 96.8%（server 并发 3→10 是约 3 倍旋钮）；xlat dur_s 99.6% 是排队伪影（当日已修）。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
-
+>
 > 只读侦察，2026-09-17。数据源：`bench/results/stagerun-loop1-2026-09-16/records/*.jsonl`（63,316 行、~5043 ids、corpus_v3 全层、mock n≈11.6k + real n=48 双 xlat 臂）+ `bench/results/realn200-2026-09-17/records.jsonl`（200 ids e2e 实网关）。`dur_s` 为行级 `time.monotonic()` 墙钟；行内 `metrics.*.seconds` 分引擎/管线内耗时与 harness 外耗。
 
 ## 1. 头条口径修正：xlat `dur_s` 是排队等待不是功

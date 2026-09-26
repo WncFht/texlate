@@ -1,6 +1,6 @@
 # seqpos 解码层契约（`src/texlate/server/seqpos.py`）
 
-> **定位**：`pdf-seq-anchors-impl-2026-09-23.md` 记的是生产侧（编译期 BDC/EMC 注锚）；
+> **定位**：`dev/projects/pdf-seq-anchors-impl-2026-09-23.md` 记的是生产侧（编译期 BDC/EMC 注锚）；
 > 本文记消费侧——把 marked PDF + dual.json 解码成「seq ↔ 双侧 PDF 位置」映射的
 > 整条算法链。reader 点击定位/滚动同步/copy-latex pdf 臂全部吃这份产出。
 
@@ -106,13 +106,13 @@ occurrence 级校验 → seq 级兜底，三级阶梯：
 
 ## 8. 度量链（tools/seqpos_*）
 
-| 工具 | 面 |
-|---|---|
-| `seqpos_warm.py` | 全任务 seqpos.json 预热（幂等） |
-| `seqpos_audit.py` | 精度 oracle：`search_for` 字面真值，按侧×臂报 cov/wrong_page/p50/p90 |
-| `seqpos_clicksim.py` | 点击→seq 仿真：nearest/floor_y/floor_c 三 picker 对照 |
-| `seqpos_verify_mask.py` | occurrence 遮蔽：ambig 命中是否把错 occurrence 洗成 0 误差 |
-| `seqpos_e2e_sim.py` | **端对端**：每裹字形标位造点击，报 pick/pg/e2e@.10/e2e@.25/null/nodst/wrong_rows/inv |
+| 工具                    | 面                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `seqpos_warm.py`        | 全任务 seqpos.json 预热（幂等）                                                      |
+| `seqpos_audit.py`       | 精度 oracle：`search_for` 字面真值，按侧×臂报 cov/wrong_page/p50/p90                 |
+| `seqpos_clicksim.py`    | 点击→seq 仿真：nearest/floor_y/floor_c 三 picker 对照                                |
+| `seqpos_verify_mask.py` | occurrence 遮蔽：ambig 命中是否把错 occurrence 洗成 0 误差                           |
+| `seqpos_e2e_sim.py`     | **端对端**：每裹字形标位造点击，报 pick/pg/e2e@.10/e2e@.25/null/nodst/wrong_rows/inv |
 
 e2e 指标口径：pick=点击选中率、pg=页正确率、e2e@ε=选中段 frac 误差 ≤ε、null=点击落无锚段、wrong_rows=选错段数、nearest=最近标=选中标比率（软密度指标非缺陷闸）、inv=阅读序逆序（浮动体重排属正常，inv_big>阈才算）、tnd=dst 无真值探针（测量盲区，不入 e2e 分母）。
 **正当缺席**不算缺陷：死区段、未译段（zh=''）、folio 区页码残件、图/公式
@@ -120,13 +120,13 @@ e2e 指标口径：pick=点击选中率、pg=页正确率、e2e@ε=选中段 fra
 
 ## 9. 修复沿革与基线
 
-| _VERSION | 轮 | 内容 |
-|---|---|---|
-| ≤17 | v9/v10 | 栏感知锚（行顶 frac+x+中缝+块阈 64）落地（fd789c23+d5ed5b15） |
-| 20 | 死区抑制 | 0 字形空壳剥标记层、dead_seqs 碰撞滤、gutter 半步外扩（545e55af） |
-| 23 | 数学汤三件套 | 实标兜底车道×2、缝桥接放宽（数字→非词）、短针纯插入（4462fda0） |
-| 24 | 栏错配 | `_row_extent` frac 先筛 x 后定栏（63474133） |
-| 25 | 锚验收三闸+针首 x | 周期 replay 剔页眉模板标（同 frac 跨 ≥3 页判运行头重打）、针起点投影纯化 occurrence、verbatim 先评免 `_CAND_CAP` 截断；`_pos_at` 行内字位 x 内插（dedcfea9+a86b4df9） |
+| _VERSION | 轮                | 内容                                                                                                                                                                  |
+| -------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ≤17      | v9/v10            | 栏感知锚（行顶 frac+x+中缝+块阈 64）落地（fd789c23+d5ed5b15）                                                                                                         |
+| 20       | 死区抑制          | 0 字形空壳剥标记层、dead_seqs 碰撞滤、gutter 半步外扩（545e55af）                                                                                                     |
+| 23       | 数学汤三件套      | 实标兜底车道×2、缝桥接放宽（数字→非词）、短针纯插入（4462fda0）                                                                                                       |
+| 24       | 栏错配            | `_row_extent` frac 先筛 x 后定栏（63474133）                                                                                                                          |
+| 25       | 锚验收三闸+针首 x | 周期 replay 剔页眉模板标（同 frac 跨 ≥3 页判运行头重打）、针起点投影纯化 occurrence、verbatim 先评免 `_CAND_CAP` 截断；`_pos_at` 行内字位 x 内插（dedcfea9+a86b4df9） |
 
 基线：v24（19 任务）双侧 pick/pg/e2e@.10/e2e@.25 = 100%、wrong_rows=0、唯一 null=t_f748 死区两段（正确抑制）。v25 三任务复测（bbb/a7c5/bedd，真值探针扩面后的真实口径）：pick 双 100%、e2e@.25 o 91.4% / t 97.3%；tnd（dst 无真值探针的测量盲区，不入 e2e 分母）o ~1%、t 0%——bedd t 侧 45% 为源文真缺字盲区非错锚。修复实证：a7c5 seq0 双侧 p21→p1（页眉宏标不再淹没真标）、bbb seq0 引文行→p1 标题位、a7c5 zh seq1 snap 错锚→真位。
 

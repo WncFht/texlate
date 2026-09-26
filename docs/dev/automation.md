@@ -1,31 +1,12 @@
 # 自动化系统
 
-> **2026-09-21 变更**：daily-soak 链路整体退役——`texlate-daily-soak.timer` 已 disable+unit 拆除、`scripts/daily-soak.sh` 与 `bench/py/corpus/daily_arxiv.py` 已删、`corpus_daily` 语料区废弃。§1 保留作历史参考。errsweep（§2）仍在役，但其上游错误来源（soak 产出的每日新错误账）已断供。
+> **2026-09-21 变更**：daily-soak 链路整体退役——`texlate-daily-soak.timer` 已 disable+unit 拆除、`scripts/daily-soak.sh` 与 `bench/py/corpus/daily_arxiv.py` 已删、`corpus_daily` 语料区废弃。errsweep（§2）仍在役，但其上游错误来源（soak 产出的每日新错误账）已断供。
 
 本仓原有两套每日定时运行的自动化系统构成闭环：arXiv 日更 soak 负责**生产**，errsweep 负责**消费**。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer 触发。soak 退役后只剩 errsweep 在跑。
 
-## 1. arXiv 日更 soak（已退役 2026-09-21，以下为历史记录）
+## 1. arXiv 日更 soak（已退役 2026-09-21）
 
-### 1.1 管线
-
-```
-RSS 枚举 ──> corpus_daily/manifest_{公告日}.jsonl
-取源     ──> acquire_source 钉版 ──> corpus_daily/{id}/{meta.json,raw.*,extracted/}
-批跑     ──> stagerun 五 stage（ingest→parse→xlat→compile→fixloop）──> 日报
-```
-
-- **枚举**：拉 arXiv cs 与 math 两频道 RSS，按 base id 并集去重（primary 在别库、cross 进 cs/math 的也计入「相关」语义），写当日公告批 manifest。批次身份 = feed 的 pubDate 公告日而非本机日期——周末无公告 feed 冻结，重跑命中已有批次即秒退，天然幂等。实测量级约 1200 篇/公告日，周一公告覆盖三天投稿约 2–3 倍。
-- **取源**：对 `announce_type ∈ {new, cross}` 的条目走产品 `acquire_source` 路径（RSS guid 自带版本号，钉版 HEAD+GET+ 解包 + 定位），单连接串行限速（≥3s 间隔）——日需约数千请求，隔夜窗口足够，不引入并发以保通道生存。pdf_only/withdrawn/error 记状态不物化；replace 系默认不抓。
-- **批跑**：`TEXLATE_CORPUS` 指向 `bench/corpus_daily/`，stagerun 五 stage、records 账、resume、判分全原样复用——日更语料与钉版语料物理隔离，`--layers {公告日}` 即逐日单元，多日并集逗号并列。mock 翻译臂全量零成本跑通管线形态，real 臂只对小子集走真网关。
-- **编排**：`daily-soak.sh` 幂等编排全流程 + flock 单实例（上一批没跑完不叠跑，records 账续跑即可）+ 网络出口健康前置检查（探测失败即中止报警，不空跑烧配额）。
-
-### 1.2 缺口与回填
-
-RSS 频道无历史日期参数——漏跑即丢当日枚举，所以「每日必达」是硬要求，漏跑靠两条回填通道补：≤1 周走 `/list/{cs,math}/pastweek?skip=N` 分页（`backfill` 子命令已实现，但当前仅枚举计数、不回写 manifest，需手工补录），>1 周走 OAI-PMH `ListIdentifiers` 集合日窗（含 deletedRecord 撤稿感知，可做周度对账）——该通道 v2 待接、目前未实现。enum 的「上次成功批次 → 今日」缺口告警亦未接线（v2 待接）。
-
-### 1.3 产物面
-
-`bench/corpus_daily/` 是滚动窗口语料（独立生命周期，不并入钉版 corpus）；批跑结果落 `bench/results/soak-<date>/`——records（每行 `{id,stage,arm,upstream,code,status,dur_s,metrics,errors,sig}`，签名预算好聚类零加工；`upstream` 是 `(id,arm,upstream)` resume 键第三元）、cases（fixloop CaseSink 沉淀）、work 现场树。这套产物就是 errsweep 的主矿。
+退役记录：RSS 枚举（cs+math 公告日批，~1200 篇/日）→ `acquire_source` 串行限速取源 → stagerun 五 stage 批跑 → `corpus_daily/` 滚动语料 + `bench/results/soak-<date>/` 产物（errsweep 主矿）。退役原因：语料/bench 扩展方向转向钉版重建（见 `projects/2026-09-23-rebuild-plan-v4.md`），日更滚动面不再维护。管线细节与回填通道（pastweek 分页 / OAI-PMH 日窗）设计存 git 历史（删前 HEAD `git show` 可检），arXiv 端点行为结论保留在 `../research/arxiv/` 各件。
 
 ## 2. errsweep 错误清扫（`scripts/errsweep.sh`）
 

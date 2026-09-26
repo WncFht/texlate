@@ -44,6 +44,6 @@ hjfy.top 是吴多益（amis 前端框架作者）2025 年上线的 arXiv 论文
 
 ### 参考文献
 
-[^hjfy-site]: 幻觉翻译 hjfy.top 线上侦察（主仓 `docs/research/product/hjfy-site.md`）。API 面、5 态机、产物三件套、限额与登录形态。2026-09.
+[^hjfy-site]: 幻觉翻译 hjfy.top 线上侦察（主仓 `docs/research/product/2026-09-14-hjfy-site.md`）。API 面、5 态机、产物三件套、限额与登录形态。2026-09.
 
 [^wuduo]: 吴多益. 幻觉翻译实现自述（四种方案取舍、半解析动机、幻觉检查、编译失败率攻关、引用数选篇）. 知乎专栏 2025. [zhuanlan.zhihu.com](https://zhuanlan.zhihu.com/p/1905569596599169419)

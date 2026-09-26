@@ -20,7 +20,7 @@
 
 - E13：prompt 成稿与 C1–C10 条款经占位符契约实测（12/12 全绿）；LaTeXTrans 的 `add_placeholder()` 恒等注入技巧直接可抄。
 - E20 成本模型：批阈值放宽使请求数 17268→685、p50 总 token 9.1 万→5.4 万——同量级追平 hjfy 经济性的关键路径。
-- 证据：主仓 `docs/05` E13/E16/E20；调研档案 `research/latex/prompt-glossary-spec.md`、`research/methods/xlat-quality-eval-2026-09-18.md`。
+- 证据：主仓 `docs/05` E13/E16/E20；调研档案 `research/latex/prompt-glossary-spec.md`、`research/methods/2026-09-18-xlat-quality-eval.md`。
 
 ## 演变
 

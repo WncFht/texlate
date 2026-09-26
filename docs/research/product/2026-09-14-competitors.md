@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-14 口径）
 > **日期**：2026-09-14
 
-方法：各站实测 + GitHub 源码逆向（hjfy 生态）。hjfy 本体详规见 `hjfy-site.md`，本文聚焦竞品与 ar5iv 降级源结论。图例：✅=有 / ⚠️=有但弱或需登录付费 / ❌=无。
+方法：各站实测 + GitHub 源码逆向（hjfy 生态）。hjfy 本体详规见 `2026-09-14-hjfy-site.md`，本文聚焦竞品与 ar5iv 降级源结论。图例：✅=有 / ⚠️=有但弱或需登录付费 / ❌=无。
 
 ## 1. 竞品矩阵
 
@@ -27,9 +27,11 @@
 
 ## 2. alphaXiv 详查（直接竞品候选）
 
+> 本节为 2026-09-14 注册墙外侦察口径；alphaXiv 现状的唯一事实源是 [2026-09-19-alphaxiv-reverse.md](2026-09-19-alphaxiv-reverse.md)（免鉴权 REST 面 + SDK 端点枚举的完整逆向），本节内容被其全面取代。
+
 - **注册墙外可见**：Explore feed、搜索（含中文查询）、`/abs/{id}` 页 = AI Overview（博客式导读，嵌图/公式）、Audio、Discussion 评论楼、Similar papers、Cite、作者/机构页、GitHub 链接。`/zh/abs/{id}` 路由存在：标题 + 摘要+Overview 中译，**正文不译**（仅 "View Paper" 跳原 PDF）。
 - **功能**：AI Overview、Assistant（grounded Q&A，"Smart" 档）、行内评论/讨论、AI detection（Pangram）、MCP server（`/docs/mcp`）、Autoresearch（openresearch.sh）、Chrome 扩展（"understand-research"）[^alphaxiv]。
-- **模型线索**：第三方实测称默认 **Gemini Flash** 系（中英问答皆可，2026-09-14 口径）；官方未公开。已被本仓更新逆向取代：`2026-09-19-alphaxiv-reverse.md` 的「内容管线」节（Assistant 实为 Fast/Smart/Pro 三档 13 模型菜单，无单一默认；podcast=Claude 4.1 Opus、retrieval=Qwen3-8B 微调）与「看不到的部分与补全手段」节（翻译延迟指向 flash/mini 档）。
+- **模型线索**：第三方实测称默认 **Gemini Flash** 系（中英问答皆可，2026-09-14 口径）；官方未公开。已被本仓更新逆向取代：[2026-09-19-alphaxiv-reverse.md](2026-09-19-alphaxiv-reverse.md) 的「内容管线」节（Assistant 实为 Fast/Smart/Pro 三档 13 模型菜单，无单一默认；podcast=Claude 4.1 Opus、retrieval=Qwen3-8B 微调）与「看不到的部分与补全手段」节（翻译延迟指向 flash/mini 档）。
 - **定价**：无公开 pricing 页；Assistant 分层 + 登录留存（"Sign in to save"）。
 - **形态差异**：alphaXiv = HTML 理解层（导读 + 问答 + 社区），hjfy = 产物层（可下载的 zh 重编译 PDF + LaTeX 源码）。两者可共存：典型中文用户流是 alphaXiv 发现 → ar5iv+ 沉浸式翻译 细读（知乎实测贴证实）。
 
@@ -60,7 +62,7 @@ GitHub 实存消费端（`gh search` 实测）：
 | `guantongpeng/arxiv-hjfy-extension`              | 5     | 扩展跳转                                                                                                  |
 | greasyfork `463525`（arXiv 论文一键翻译，xx025） | —     | 不消费 hjfy；把 `ar5iv.labs.arxiv.org/html/{id}` 喂给有道——**ar5iv→翻译站工作流实证**                     |
 
-**hjfy API 形态（第三方客户端逆向，与 `hjfy-site.md` 互证）**：
+**hjfy API 形态（第三方客户端逆向，与 `2026-09-14-hjfy-site.md` 互证）**：
 
 - `GET /arxiv/{id}` — 阅读器页；**访问即创建/prime 任务**（未登录 → `/login` 重定向）。任务无独立 POST 端点。
 - `GET /api/arxivStatus/{id}` — `{status, info}`；状态机 `start / finished / failed / error / fault`（客户端把 start/finished 都当中间态；finished 且无 zhCN 文件时会再 prime 一次——疑似「取源完成→翻译需二次触发」）。

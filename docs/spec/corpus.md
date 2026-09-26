@@ -1,7 +1,7 @@
 # 语料规范 —— arXiv LaTeX 源码评测底材
 
 > spec/ 层唯一事实源：与 `bench/` 磁盘现状对齐。评测器侧（用这些底材怎么测）见 `spec/benchmark.md`；取源渠道裁决与单次调研证据以 `research/` 档案为准，本文不复述实测细节。
-> **trizone 口径（2026-09-23 起）**：清单/数据分离——`bench/corpus/` 只存 tracked manifest 与台账（数据树 gitignored），物化载荷统一在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（可重建湖，设计 `dev/bench-redesign-v2-trizone.md`）；付费产物归 vault（§8）。旧 `corpus_v2/corpus_m1k/corpus_daily/zh-store` 分库根已随 Wave-F 清点退役，manifest 全折进 `bench/corpus/` 单根。
+> **trizone 口径（2026-09-23 起）**：清单/数据分离——`bench/corpus/` 只存 tracked manifest 与台账（数据树 gitignored），物化载荷统一在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（可重建湖，设计 `spec/bench-trizone.md`）；付费产物归 vault（§8）。旧 `corpus_v2/corpus_m1k/corpus_daily/zh-store` 分库根已随 Wave-F 清点退役，manifest 全折进 `bench/corpus/` 单根。
 
 ## 1. 定位与设计原则
 
@@ -167,7 +167,7 @@ vault/quar/{kind}/…                        # 隔离区（验坏/判毒叶）
 
 [^sw]: 仓内证据件 [bulk-channels](../research/arxiv/bulk-channels.md)（scholarweave 通道裁决）与 `bench/py/specs/corpus_sw.py` docstring。
 
-[^zhstore]: vault 布局/操作契约 `bench/py/kernel/vault.py` 模块 docstring 与 [bench-redesign-v2-trizone](../dev/bench-redesign-v2-trizone.md) §3.10；旧 `bench/zh-store/README.md` 仅存 git 历史。
+[^zhstore]: vault 布局/操作契约 `bench/py/kernel/vault.py` 模块 docstring 与 [bench-redesign-v2-trizone](../spec/bench-trizone.md) §3.10；旧 `bench/zh-store/README.md` 仅存 git 历史。
 
 [^mixed]: 仓内证据件 `bench/py/kernel/idnorm.py::canon_id` docstring（loop1 双拼写并存事故归因）。
 

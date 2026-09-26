@@ -1,7 +1,7 @@
 # oaipmh.arxiv.org 探针实录：四格式字段矩阵 / license 独占 / resumptionToken 翻页 / 独立限流桶
 
 > **结论**：`oaipmh.arxiv.org/oai` 是 OAI-PMH 2.0 全功能端点、独立于 export 的第三限流桶（13 发全 200 零限流迹象）；`arXivRaw` 格式独占**版本史**（`<version>` date+size+source_type）与 `<license>`（Atom 无此字段，OAI 是唯一机读源）；`ListIdentifiers` 单页可吐 2000+ 条做轻量日窗扫描，`ListRecords` 翻页是体积驱动（~1300 条/页），全库 ~3.16M 篇 ≈ 2430 页 ≈ 8.5GB / ~2–3h 可完成全量元数据回填。
-> **状态**：时点证据（2026-09-14 口径）。`GetRecord&metadataPrefix=arXivRaw` 兜底链已实装进 `meta.py`（license + 版本史消费）；批量收割/ListIdentifiers 增量对账属批量层设计，由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 的枚举层部分承接。
+> **状态**：时点证据（2026-09-14 口径）。`GetRecord&metadataPrefix=arXivRaw` 兜底链已实装进 `meta.py`（license + 版本史消费）；批量收割/ListIdentifiers 增量对账属批量层设计，曾由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 的枚举层承接（该链 2026-09-21 退役）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
 ## 1. 端点能力（Identify 实锤）

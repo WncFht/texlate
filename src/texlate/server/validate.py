@@ -1,4 +1,4 @@
-"""请求边界校验件 —— ``base_url``/``model`` 入参闸（web-layer.md §4.2）。
+"""请求边界校验件 —— ``base_url``/``model`` 入参闸（2026-09-15-web-layer.md §4.2）。
 
 settings 写径（``_FIELD_SPECS`` 校验列）与 auth 决议径（header/env 覆盖值）
 共用的纯校验函数——独立成叶为解开 settings↔auth 双向依赖：两侧都只

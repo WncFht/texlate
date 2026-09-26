@@ -1,4 +1,4 @@
-"""hjfy 轮询协议兼容面：``/api/arxivStatus`` + ``/api/arxivFiles``（competitors.md §4）。
+"""hjfy 轮询协议兼容面：``/api/arxivStatus`` + ``/api/arxivFiles``（2026-09-14-competitors.md §4）。
 
 状态词汇按 hjfy 插件轮询协议映射（``_HJFY_STATUS``）；查源是 tenant 内
 arxiv_id 最新任务行（``store.find_latest_by_arxiv``）。
@@ -65,7 +65,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
 
     @app.get("/api/arxivStatus/{arxiv_id:path}")
     async def arxiv_status(request: Request, arxiv_id: str) -> Response:
-        """``hjfy`` 轮询面（competitors.md §4）：``{status, info}`` + 扩展键。
+        """``hjfy`` 轮询面（2026-09-14-competitors.md §4）：``{status, info}`` + 扩展键。
 
         状态词汇按 hjfy 插件轮询协议映射（``_HJFY_STATUS``）；
         ``progress``/``task_id`` 是附加信息——只读 status/info 的客户端

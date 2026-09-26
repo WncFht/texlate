@@ -249,7 +249,7 @@ class _Share:
         )
 
     def _share_lookup(self, ctx: TaskCtx) -> bool:  # noqa: C901, PLR0911, PLR0912 -- 守卫/回退阶梯平铺即 spec 的跳过面
-        """隐式 share 命中查询（shared-cache.md §8）：``_run_tex`` 在 parse 后调。
+        """隐式 share 命中查询（2026-09-16-shared-cache.md §8）：``_run_tex`` 在 parse 后调。
 
         触发点选型：share_key 七组分此刻才全齐且与翻译时同口径——
         ``arxiv_id`` 钉版在 fetch 落库，``glossary_hash`` 的 local 层
@@ -448,7 +448,7 @@ class _Share:
         }
 
     async def _maybe_share_pack(self, ctx: TaskCtx) -> None:
-        """opt-in 共享包完成钩（shared-cache.md §7/§8）：``_stage_compile`` 各终态分支末尾调用。
+        """opt-in 共享包完成钩（2026-09-16-shared-cache.md §7/§8）：``_stage_compile`` 各终态分支末尾调用。
 
         产物面满足 ``REQUIRED_ARTIFACTS``（zh-src.zip+dual.json）即打包——
         zh.pdf 缺席落 partial 包（§9 已放行：fixloop_exhausted 型任务的

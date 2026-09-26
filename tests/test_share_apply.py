@@ -1,4 +1,4 @@
-"""POST /api/share/import + worker share 重验链（shared-cache.md §5 消费侧）。
+"""POST /api/share/import + worker share 重验链（2026-09-16-shared-cache.md §5 消费侧）。
 
 包由真管线产出（FakeFetcher 供源 + MockTranslator 译 + FakeEngine 编 →
 ``pack_share`` 打包）；生产/导入双 app 实例模拟跨实例共享。断言面：

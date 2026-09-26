@@ -3,7 +3,7 @@
 > **结论**：单遍字节扫描架构（pieces 平铺 + `[[TYPE_n]]` 占位符 + splice 重建）经 259/259 语料与 32/32 陷阱夹具证明可扶正；重写 = 结构化 + 修 4 类残留泄漏机制，非换架构。
 > **状态**：已改判（→ `spec/latex-pipeline.md` + `segmenter-integration.md`）
 > **日期**：2026-09-15
-
+>
 > **⚠️ SUPERSEDED 2026-09-20**：本文设计的字节扫描器（v1）曾按此规格落地为 `latex/scanner.py`，随后被 v2 记号流管线（`latex/mouth.py` + `latex/gullet/` + `latex/segmenter/`）整体取代，`scanner.py` 已从产品代码移除。pieces 平铺不变式、`[[TYPE_n]]`/`[[CHUNK_n]]` 占位符双命名空间、`Piece`/`Chunk`/`PhType` 数据模型与 splice 重建语义均被 v2 继承，仍属现行契约。现状唯一事实源 = `spec/latex-pipeline.md`；本文仅留设计动机、泄漏机制归因与验收口径作历史参考。
 
 ## 1. 问题与目标

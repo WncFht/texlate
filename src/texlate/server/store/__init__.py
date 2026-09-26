@@ -1,4 +1,4 @@
-"""SQLite 任务库（web-layer.md §3.2 DDL + §3.3 状态机 + §3.4 断点恢复）。
+"""SQLite 任务库（2026-09-15-web-layer.md §3.2 DDL + §3.3 状态机 + §3.4 断点恢复）。
 
 单写者连接：所有写走创建线程（uvicorn loop 线程），
 ``PRAGMA journal_mode=WAL; busy_timeout=5000; synchronous=NORMAL``。

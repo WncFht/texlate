@@ -82,7 +82,7 @@
 2. **`enSentenceSpans(text)`**——`Intl.Segmenter("en",{granularity:"sentence"})`，输入必须是扁平化文本（**禁对含 `\n` 原文直切**：RAW 变体多切 13.5%，nl-break-after 假阳性）。
 3. **`injectSentSpans(blockEl, lang)`**——TreeWalker(SHOW_TEXT) 逐 `[data-chunk]` 块：acceptNode 拒 `SKIP_TAGS`（math/svg/script/style/noscript/template/annotation/pre/code/textarea/select）、`SKIP_CLASS_PREFIX`（ltx_tag/ltx_pagination/ltx_role_newpage/ltx_note_mark/ltx_TOC/ltx_tocentry/ltx_toclist/ltx_verbatim）、**`closest('[data-chunk]') !== block` 的嵌套节点**（footnote-in-para 幽灵 '。' sid 回归闸）；`RESTRICTED_SPAN_PARENTS`（table/tbody/thead/tfoot/tr/colgroup/ul/ol/dl/select/optgroup/datalist/map/frameset/picture）内文本留裸片不包 span。串接受文本→切句→**倒序** `splitText` 逐片包同 sid span。实测 1.13ms/chunk、textContent 字节恒等、幂等。
 4. **`alignBeads(enLens, zhLens)`**——贪心单调对位器移植（`exp/align-monotonic/align.py`）：`rho=zh_len/en_len` per-chunk，两侧谁严格缩小 `|log(zl/(el·rho))|` 就扩谁，MAXG=4/侧，残差并入末 bead。返回 bead 列 `{en:[i..j), zh:[p..q)}`。
-5. **`SentAlignSession`**——持两侧 pane `el`；`mount()` 用 `forEachSliced`（`sync.ts:37`，SLICE_MS=40 同口径防大文档卡顿）跑 inject+对位并建 `bead → {side → Element[]}` 索引；`attach(bodyEl)` 挂委托 pointerover/pointerout/click；`destroy()` 摘监听清索引。~120 行。
+5. **`SentAlignSession`**——持两侧 pane `el`；`mount()` 用 `forEachSliced`（`sync.ts:37`，SLICE_MS=40 同口径防大文档卡顿）跑 inject+ 对位并建 `bead → {side → Element[]}` 索引；`attach(bodyEl)` 挂委托 pointerover/pointerout/click；`destroy()` 摘监听清索引。~120 行。
 
 ### `web/src/reader/DomPane.tsx`
 
@@ -98,7 +98,7 @@
 ### `web/src/reader/PdfPane.tsx`（v1.5 + v2）
 
 - v1.5：无改动——`goToDestination(dest)`/`mirrorDest`（`:66,:70`）已接受合成 XYZ dest 数组。
-- v2：文本层（textLayer div）上跑句锚 quad 派生——相邻 `tl.*` 锚间文本发射切片按基线行切 quad（两相法则：最近基线+同行 x-span，60/60 双栏+CJK 段中 dy=0 实证）；quad 叠层 div 加 `.sa-hot`/`.sa-peer`。zh 文本抽取需 `cMapUrl`+`standardFontDataUrl`。页尾 folio 吞锚用 leading-gap 闸（>2× median leading）。委托监听挂 `viewer.container`（cite-card 委托同址）。
+- v2：文本层（textLayer div）上跑句锚 quad 派生——相邻 `tl.*` 锚间文本发射切片按基线行切 quad（两相法则：最近基线 + 同行 x-span，60/60 双栏+CJK 段中 dy=0 实证）；quad 叠层 div 加 `.sa-hot`/`.sa-peer`。zh 文本抽取需 `cMapUrl`+`standardFontDataUrl`。页尾 folio 吞锚用 leading-gap 闸（>2× median leading）。委托监听挂 `viewer.container`（cite-card 委托同址）。
 
 ### `web/src/reader/ReaderView.tsx`
 
@@ -153,12 +153,12 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 
 | 期   | 内容                                              | 改动面                                                                                                                    | 估时              |
 | ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| v1   | DOM↔DOM 句级悬停高亮+点击跳+开关                  | `sentalign.ts` 新增 ~300 LOC；DomPane/HtmlPane/LivePane/markdown 各 1–3 行钩；ReaderView ~50 行；settings/i18n/CSS ~80 行 | 2–3 天含测试      |
-| v1.5 | DOM→PDF 点击跳（PosMap 分位插值+合成 XYZ dest）   | sentalign +~60 行，PdfPane 零改                                                                                           | 0.5–1 天          |
-| v2   | PDF 句锚+文本层 quad+PDF→DOM 双向                 | 后端 ~80 行（compile.py+placeholders.py）；前端 sentalignPdf ~150 行；存量任务重跑 splice 才生效                          | 3–4 天            |
+| v1   | DOM↔DOM 句级悬停高亮 + 点击跳 + 开关              | `sentalign.ts` 新增 ~300 LOC；DomPane/HtmlPane/LivePane/markdown 各 1–3 行钩；ReaderView ~50 行；settings/i18n/CSS ~80 行 | 2–3 天含测试      |
+| v1.5 | DOM→PDF 点击跳（PosMap 分位插值 + 合成 XYZ dest） | sentalign +~60 行，PdfPane 零改                                                                                           | 0.5–1 天          |
+| v2   | PDF 句锚 + 文本层 quad+PDF→DOM 双向               | 后端 ~80 行（compile.py+placeholders.py）；前端 sentalignPdf ~150 行；存量任务重跑 splice 才生效                          | 3–4 天            |
 | v3   | 译文携带句标（⟪S⟫ 槽位推广）+`sent_marks` sidecar | retry/batch/emit/types ~150 行 + prompt/协议改动；打破 ~93.4% 序位天花板                                                  | 2–3 天 + 重译成本 |
 
-依赖：v1 无前置；v1.5 依赖 v1 的 bead 索引；v2 依赖 v1.5 跳转通道；v3 独立可插队（收益是替掉前端重切+提准）。
+依赖：v1 无前置；v1.5 依赖 v1 的 bead 索引；v2 依赖 v1.5 跳转通道；v3 独立可插队（收益是替掉前端重切 + 提准）。
 
 ## 风险
 
@@ -174,8 +174,8 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 10. **zh PDF 文本抽取**：缺 cMapUrl/standardFontDataUrl 则 quad 派生失败——PdfPane 加载参数检查列验收。
 11. **folio 吞锚**：末锚被页码行吃掉 → leading-gap 闸（>2× median）+ 双页 quad 用例（实测 7/499 跨页对）。
 12. **大文档 mount 抖动**：jsdom 下 188KB 文档注入 ~104–131ms——必须走 `forEachSliced` 分片，别一把梭。
-13. **fixture 真空**：repo 无真实 dual.json——测试基建第一步是快照合法化（体积+隐私：选小任务、脱 task id 亦可）。
-14. **sanitize 回归面**：运行时注入不过 DOMPurify，但 v3 emit 直出时被剥光即静默失效——ADD_ATTR 声明+测试先行。
+13. **fixture 真空**：repo 无真实 dual.json——测试基建第一步是快照合法化（体积 + 隐私：选小任务、脱 task id 亦可）。
+14. **sanitize 回归面**：运行时注入不过 DOMPurify，但 v3 emit 直出时被剥光即静默失效——ADD_ATTR 声明 + 测试先行。
 15. **zh 侧勿用裸 Intl**：Intl 与 zhseg 虽 97.7% 节点一致，但序位对位的 93.4% 天花板依赖与 `sentence_ends` 同款的 `{}` 深度/abbrev 不对称修正；混用会把 chunk-exact 打回 ~84%。
 
 ## v1.6 动效臂落地实录（2026-09-26，`f8a848bb`）
@@ -183,7 +183,7 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 动效三件套已上线（方案 D 平滑滚动经评估否决——与 SyncEngine/navstack 抢滚动主权，负收益）：
 
 - **A press 涟漪**：`anim.press(x,y)` 源点 fixed 扩散环 ~420ms 自清。
-- **B land 连线+行擦入**：源点→首个视口内行左缘中的三次贝塞尔（pathLength=1 dash 描入渐隐 1.1s）+ 逐行 `.sa-wipe` scaleX 擦入（40ms stagger、≤8 行）；`from=null`（gotoPeer 等非点击跳）只擦不连。
+- **B land 连线 + 行擦入**：源点→首个视口内行左缘中的三次贝塞尔（pathLength=1 dash 描入渐隐 1.1s）+ 逐行 `.sa-wipe` scaleX 擦入（40ms stagger、≤8 行）；`from=null`（gotoPeer 等非点击跳）只擦不连。
 - **C PDF 悬停对位**：pdf 窗格 pointermove → `seqAtPoint` → 对侧经 `pdfHover` 桥锚/带染色。
 
 机制要点（32-agent review `wf_8fc4404c-65f` 加固后形态）：
@@ -206,14 +206,14 @@ v1.5 引入的 u 分位块内插值其实早已把落点推进段内（探针实
 
 - 改动面：`PdfPane` 新增 `seqLeaves`（seqEls→leafEls 下钻）与 `flashEls`（任意叶集闪）两 handle；`sentalign` 新增 `pdfSentAt` 私方法与 `pdfSeqLeaves`/`pdfFlashEls` 两 dep，`pdfJumpFlash` 增 `sent` 参贯穿句级闪选链（预选叶集→跳后重选→行带→整段殿后）；`jumpSeq`/`jumpSidToPdf` 两臂同接——PDF↔PDF 与 DOM→PDF 两路都吃。
 - 落点语义：`sent?.pos ?? interpDst ?? seqPos` 三阶梯——dst 页已渲染即句级直锚（无需 est_dst 钳制，文本成比例映射天然收敛于块内）；懒渲页先走旧插值落地、闪选链 160/550ms 双拍重试，命中即封代际（`flashGen` 每次起跳递增，挡窗内连点陈旧闪示）。
-- marked 多出现（TOC 重放+正文真标同 seq 共存）按 `seqPos` 锚页择组、无锚取裹字最多组；跨页续段、数学长段（一句裹百叶）按选句自然兜底。
+- marked 多出现（TOC 重放 + 正文真标同 seq 共存）按 `seqPos` 锚页择组、无锚取裹字最多组；跨页续段、数学长段（一句裹百叶）按选句自然兜底。
 - 验证：vitest 54/54（新增 4 例——句级落点、叶缺席殿后、TOC 择组、DOM→PDF 句级）、tsc/eslint/build 绿、`scripts/sentalign_depth_probe.mjs` playwright 深度探针双向实证（en→zh 句闪 31% 覆盖、zh→en 数学长段一句全裹属正确）。
 
 ## v1.8 悬停/落定全面升句级 + 落定闪共轨（2026-09-26，`272bc14b`）
 
 v1.7 只把「点击跳」的 dst 闪示升到句叶级——两条悬停轨（源侧 `sa-hot`、对侧 `sa-peer`）与 usages/镜像跳的落定闪仍是整锚染，观感回到段级。本版把三者全部收句：
 
-- **源侧句级 hot**：新增 `pdfSentUnder(side,seq,t)`——指针下叶经 `seqLeafGroup`（v1.7 `pdfSentAt` 的 marked 多现择组逻辑抽出共用，`seqPos` 锚页组优先、无锚取裹字最多组）重切句，命中叶所在句的句域叶集返；`SentAlignDeps.pdfTintEls` 桥到 `PdfPane.tintEls→saTint` 逐叶 `sa-hot`。非叶上/切空/dep 缺席退整锚 `pdfHover` 旧路。`sameEls`（同长+同首末+首元素仍带 cls）dedup 兜 60ms 节流重算同句——先清再加是两帧闪帧。
+- **源侧句级 hot**：新增 `pdfSentUnder(side,seq,t)`——指针下叶经 `seqLeafGroup`（v1.7 `pdfSentAt` 的 marked 多现择组逻辑抽出共用，`seqPos` 锚页组优先、无锚取裹字最多组）重切句，命中叶所在句的句域叶集返；`SentAlignDeps.pdfTintEls` 桥到 `PdfPane.tintEls→saTint` 逐叶 `sa-hot`。非叶上/切空/dep 缺席退整锚 `pdfHover` 旧路。`sameEls`（同长 + 同首末 + 首元素仍带 cls）dedup 兜 60ms 节流重算同句——先清再加是两帧闪帧。
 - **对侧句级 peer 随手**：`armPdfPeer(side,seq,pos)` 按 pos→`fracInBlock` u 跟手——pdf dst 走 `pdfSentAt` 句叶 `sa-peer`（`pdfPeerSentEls` dedup）、DOM dst 按 `u·concatLen` 取句 `data-sid` 子集（无句料保全块）。**同 seq 每次 move 重算**——原 fresh 早退把 peer 冻在首算句；DOM 写由 dedup 兜住不重标。`pdfHoverPos` 记存位——DOM 对侧重注（injectChunk）后无新 pointermove 也按存位重补同句。
 - **落定闪共轨修复**：`mirrorDest` 直调 `origGoTo` 不走 `goToDestination` 包装——`ReaderView.mirrorTo` 成功支补 `dh.flashDest(dest)`；包装支（cite 锚/usages 站跳）同接 `flashDest`。`landingFlash`：落点 Pos→`seqAtPoint` 多 x 采样（dest 常在块间白/栏缝/图区，单点易落空）→ seq 锚叶闪；无 seq 退 `bandElsAt` 行带；懒渲页两路皆空 200ms 步最多重试两拍。
 - **`saFlashAt` 新度闸**：`saFlash` 记最近打闪时刻；`landingFlash` 见 400ms 内已有新闪整场免打 + `flashDest` 首拍延 180ms——修「usages/镜像跳的迟到整锚闪把 sentalign 句闪踩回段闪」实机回归（复现测得 54 叶/284px 全 seq 闪）。

@@ -1,7 +1,8 @@
 # PDF 暗色渲染方案调研与实测：CSS filter / pdf.js pageColors / Zotero Blender
 
-> 日期：2026-09-21
-> 结论先行：选 **Zotero Blender 同款图元级改色**（`web/src/reader/blender.ts` 独立实现），免 fork 接入走 `document.getPage` 实例补丁（`web/src/reader/pdfTheme.ts`）。CSS-filter 与 pdf.js pageColors 两条备选已实验否决；否决理由见 §4 效果矩阵与 ADR-0020。
+> **结论**：选 **Zotero Blender 同款图元级改色**（`web/src/reader/blender.ts` 独立实现），免 fork 接入走 `document.getPage` 实例补丁（`web/src/reader/pdfTheme.ts`）。CSS-filter 与 pdf.js pageColors 两条备选已实验否决；否决理由见 §4 效果矩阵与 ADR-0020。
+> **状态**：**已落地**（Blender 图元改色 + getPage 实例补丁当日实装，ADR-0020； MutationObserver 驱动全页原位重渲）
+> **日期**：2026-09-21
 
 ## 1. 问题与候选
 

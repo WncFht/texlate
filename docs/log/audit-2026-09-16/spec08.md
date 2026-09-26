@@ -3,7 +3,7 @@
 > **结论**：spec08 逐节审计：xlat/validate/compile/fixloop 库层 covered；编排面 fixloop、L2 回灌、target_probe 三处 missing 是最大缺口。
 > **状态**：时点证据（2026-09-16 口径）
 > **日期**：2026-09-16（2026-09-20 迁入重编）
-
+>
 > **⚠️ SUPERSEDED 2026-09-21**：头条 verdict「编排面 fixloop、L2 回灌、target_probe 三处 missing 是最大缺口」已被后续实装反转——**fixloop 已接编排**（`pipecore.fixloop_job`，`e2e.py` `pipe_condition` 调用；worker 链 `server/worker/compile.py` `_run_fixloop`/`fixloop_round`，`run_fixloop` seam 声明于 `server/worker/core.py`）、**target_probe 已实装**（`compile/probe.py`，经 `pipecore.probe_report` 供 e2e/worker 两侧调用）、**L2 回灌已落地**（`repair_l2.py` + `pipecore.l2_repair_job`，e2e 与 worker 均已接线）、**LLM 修复器已实装**（`compile/fixloop/llm_hook.py` `LlmFixer`/`make_llm_hook`，worker 侧已接线）。测量类/覆盖面 verdict 仍为时点事实、未宣称反转。现状唯一事实源 = `docs/spec/`（尤其 `architecture.md` §2.6）；本文仅留逐节取证过程作历史参考，勿再据此派工。
 
 - 审计对象：`src/texlate/xlat/`（client/pipeline/batch/retry/state/glossary/prompts/placeholders）、`src/texlate/validate/`（l0/l1/l2/report）、`src/texlate/compile/`（engine/inject/mask/normalize/judge/sandbox + fixloop/ 全部）、`src/texlate/e2e.py`、`cli.py`、`server/worker.py` 编排面；HEAD f461683（v2 切换后）。

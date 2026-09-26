@@ -17,7 +17,7 @@ texlate 走 BYOK——用户自带任意 OpenAI 兼容端点；但开发期/benc
 
 ## 理由
 
-- E21 网关实测：三协议可用（chat/completions + responses + messages）、占位符契约 12/12 全绿（含 BIBITEM 前缀/`\href`/`\ ` 压力样例）。
+- E21 网关实测：三协议可用（chat/completions + responses + messages）、占位符契约 12/12 全绿（含 BIBITEM 前缀/`\href`/`\␣` 压力样例）。
 - E22 大样本横评（338 调用）：硬契约率 swe-2-medium 100% > swe-2-high 99% > swe-1-7 系 96% > swe-2-max 93% > glm-5-2 91%；失败现场含 glm-5-2 连吞 9 个 MATH、swe-2-max `\`+中文熔合。
 - 证据：调研档案 `research/model-selection.md`（横评方法论与排序管线）；主仓 `docs/05` E20/E21/E22。
 

@@ -1,7 +1,7 @@
 # arXiv CS+math 日更全量抓取 + 15 天 soak 设计（2026-09-19）
 
 > **结论**：以 `rss.arxiv.org/rss/{archive}` 公告日全量枚举为主通道（一次拉取即得 id+版本+类目+announce_type+license 全部字段），cs+math 并集去重后 **new+cross = 1192 篇/日**、replace 系 592 篇/日（默认不抓）；公告即抓零时滞。枚举→钉版 fetch→stagerun 五 stage 的重喂架构已跑通，绕路成本 ≈ 一行 env 重定向。
-> **状态**：已落地并运行中（`bench/py/corpus/daily_arxiv.py` 的 enum/fetch、`scripts/daily-soak.sh` 幂等编排、systemd 定时器每日 02:30 UTC 起跑、`bench/corpus_daily/` 滚动语料、`TEXLATE_CORPUS` env 重定向均已实测生效）。本文为设计定稿 + 取证记录；RSS 条数等为 2026-09-18 公告日口径时点数据。
+> **状态**：**已退役（2026-09-21）**——`daily-soak.timer`、`scripts/daily-soak.sh`、`bench/py/corpus/daily_arxiv.py` 全删、`corpus_daily` 语料区废弃（见 `../../dev/automation.md` §1）；语料扩展转向钉版重建。本文留作 RSS 枚举通道的实测取证：枚举层结论（公告日批、字段完备、公告历行为）仍有效，RSS 条数等为 2026-09-18 公告日口径时点数据。
 > **日期**：2026-09-19 设计定稿，2026-09-20 重订入库
 
 前置文档：[2026-09-19-scale-roadmap.md](2026-09-19-scale-roadmap.md)（缺口 2「无增量通道」即本文所解）、[oai-pmh.md](oai-pmh.md)、[layer.md](layer.md)。

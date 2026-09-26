@@ -88,12 +88,12 @@ web/          SolidJS+Vite+pdfslick 阅读器前端（独立 toolchain）
 
 ## 4. 部署形态
 
-| 形态         | 入口                                                          | 管线承载                                                                                   | 状态/产物                         |
-| ------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------- |
-| CLI          | `texlate run                                                  | fetch                                                                                      | parse                             | export | share | tools | doctor`（`cli/`） | `e2e.py` 本地链（mock 或真翻译[^e2e-mock]） | 工作目录内 report/产物 |
-| CLI 瘦客户端 | `texlate run --server URL`（`cli/thin.py`）                   | 提交到 server，2s 快照轮询                                                                 | 产物下载 + sha256 校验            |
-| Server       | `texlate web` / `python -m texlate.server`（`server/app.py`） | `PipelineWorker` mixin 组合（fetch/parse/translate/compile/share/pdf/html/retranslate 段） | SQLite Store + SSE + 任务目录产物 |
-| SPA          | `server/staticfiles.py` 挂载 `web/` 构建物                    | 经 REST/SSE 消费 server                                                                    | 双语阅读器                        |
+| 形态         | 入口                                                                | 管线承载                                                                                   | 状态/产物                         |
+| ------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------- |
+| CLI          | `texlate run\|fetch\|parse\|export\|share\|tools\|doctor`（`cli/`） | `e2e.py` 本地链（mock 或真翻译[^e2e-mock]）                                                | 工作目录内 report/产物            |
+| CLI 瘦客户端 | `texlate run --server URL`（`cli/thin.py`）                         | 提交到 server，2s 快照轮询                                                                 | 产物下载 + sha256 校验            |
+| Server       | `texlate web` / `python -m texlate.server`（`server/app.py`）       | `PipelineWorker` mixin 组合（fetch/parse/translate/compile/share/pdf/html/retranslate 段） | SQLite Store + SSE + 任务目录产物 |
+| SPA          | `server/staticfiles.py` 挂载 `web/` 构建物                          | 经 REST/SSE 消费 server                                                                    | 双语阅读器                        |
 
 server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks/chunks/files/translation_cache/task_events/task_usage）；任务 11 态机 = active `{queued,fetching,parsing,translating,compiling}` + terminal `{done,partial,fault,cancelled,interrupted,needs_auth}`，retry 只允许自 `{fault,partial,cancelled,interrupted,needs_auth}`；`TaskRunner`（`worker/runner.py`）`asyncio.Queue` 串行执行 + 心跳 + 取消 + retranslate 工作项；`EventBus`（`events.py`）SSE，`task_events` 滚动上限 2000 供断线 replay；启动恢复扫中断任务与孤儿任务目录（`app.py` lifespan）。BYOK：`X-Texlate-*` 请求头携带的 key/base_url/dialect 只进内存 `Secrets`，永不落盘；`request_gate_mw` 收敛 loopback + Host + Origin/Sec-Fetch-Site，server 模式另要 401 鉴权（`auth.py`/`settings.py`）。
 
@@ -126,9 +126,9 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 
 ### 参考文献
 
-[^web-layer]: TeXlate 调研档案 `research/product/web-layer.md`：server API/SSE/SQLite/BYOK/前端形态规格。
+[^web-layer]: TeXlate 调研档案 `research/product/2026-09-15-web-layer.md`：server API/SSE/SQLite/BYOK/前端形态规格。
 
-[^e2e-mock]: TeXlate 调研档案 `research/product/e2e-mock-pipeline.md`：mock 管线全链验证记录。
+[^e2e-mock]: TeXlate 调研档案 `research/product/2026-09-14-e2e-mock-pipeline.md`：mock 管线全链验证记录。
 
 [^seg-integration]: TeXlate 调研档案 `research/latex/segmenter-integration.md`：v2 Gullet+Segmenter 唯一解析路径的切换过程。
 
@@ -136,7 +136,7 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 
 [^fixloop-rules]: TeXlate 调研档案 `research/latex/fixloop-rules.md`：fixloop 规则引擎设计。
 
-[^shared-cache]: TeXlate 调研档案 `research/product/shared-cache.md`：段缓存分桶与跨租户取舍。
+[^shared-cache]: TeXlate 调研档案 `research/product/2026-09-16-shared-cache.md`：段缓存分桶与跨租户取舍。
 
 [^pdf-path]: TeXlate 调研档案 `research/latex/pdf-path.md`：babeldoc sidecar 规格与 AGPL 边界。
 

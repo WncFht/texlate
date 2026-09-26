@@ -119,7 +119,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 ### 3.6 trizone-ledger 内核（`kernel/`）
 
-`kernel/` 是 bench 内核（设计 `dev/bench-redesign-v2-trizone.md`——绿地口径不设历史兼容面，架构图 `dev/assets/trizone-arch.svg`），单一 CLI 入口 `uv run python bench/py/bench <verb>`（等价 `PYTHONPATH=bench/py python -m kernel`），操作 `$TEXLATE_BENCH_ROOT` 下四区。子命令族：`init / run / plan / status / derive / sweep / prune / backup / doctor / fsck / spec`，`vault {verify,restore,adopt,tombstone,seed}`，`ledger {import,ingest,rebuild-index,tail-ingest}`，`lake {status,evict,register,absorb,pin,unpin}`，`cache {status,evict,rebuild}`，外加 §3.2 分析动词（verbs/ 惰性加载）。契约：写命令先跑轻档 sweep；`run`/`plan` 在 `$ROOT/PAUSE` 存在时拒跑；`--detach` 经 `locks.detach_with_lock` 重 exec、付费 spec 强制 `--max-cost`。
+`kernel/` 是 bench 内核（设计 `spec/bench-trizone.md`——绿地口径不设历史兼容面，架构图 `spec/assets/trizone-arch.svg`），单一 CLI 入口 `uv run python bench/py/bench <verb>`（等价 `PYTHONPATH=bench/py python -m kernel`），操作 `$TEXLATE_BENCH_ROOT` 下四区。子命令族：`init / run / plan / status / derive / sweep / prune / backup / doctor / fsck / spec`，`vault {verify,restore,adopt,tombstone,seed}`，`ledger {import,ingest,rebuild-index,tail-ingest}`，`lake {status,evict,register,absorb,pin,unpin}`，`cache {status,evict,rebuild}`，外加 §3.2 分析动词（verbs/ 惰性加载）。契约：写命令先跑轻档 sweep；`run`/`plan` 在 `$ROOT/PAUSE` 存在时拒跑；`--detach` 经 `locks.detach_with_lock` 重 exec、付费 spec 强制 `--max-cost`。
 
 ## 4. `bench/ts/` — JS 侧解析库横评
 

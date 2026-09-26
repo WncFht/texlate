@@ -1,4 +1,4 @@
-// 双栏滚动同步引擎 —— docs/research/product/web-layer.md §5.3 伪码落地。
+// 双栏滚动同步引擎 —— docs/research/product/2026-09-15-web-layer.md §5.3 伪码落地。
 // 核心纯 TS、框架无关：PdfPane / HtmlPane 都实现 PaneLike 即可接入
 // （onPaneScroll 例外——内部挂 SolidJS onCleanup，须在 owner 作用域调）。
 // 要点（texglot 先例）：20% 焦点线、viewport 字段保持锚点屏幕高度、

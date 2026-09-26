@@ -58,7 +58,7 @@
 
 - 数字源 = `taskStore.state.tasks.filter(!isTerminal)` ——与 App.tsx:83-87 `activeCount` 同口径（active=queued/fetching/parsing/translating/compiling 5 态；interrupted 属 UI 终态不计）。派生成本实测 n=100k 仅 3.6ms，细粒度订阅只跟 status 叶（progress 帧不重算）。
 - **落点 B（推荐）**：独立 chip「任务 N」点击→`#/tasks`（hash 写 ≡ nav()）。桌面常显（不能挂 `.tb-opt`——≤640px 会随控件一起 display:none）；窄屏在 ⋯ 菜单放 `role="menuitem"` 副本（menuNav.ts:9 roving 只认该 role）。
-- 备选排除：A 返回钮角标语义错配（onBack→#/` 非 #/tasks`）；C 仅 ⋯ 菜单桌面不可见。
+- 备选排除：A 返回钮角标语义错配（onBack→`#/` 非 `#/tasks`）；C 仅 ⋯ 菜单桌面不可见。
 - 新鲜度：reader 内已知任务 ≤3s（SSE 槽内即时 / 槽外共享轮询）；**已知缺口**——reader 停留期间外部新任务不可见（pollListWanted 只 merge wanted ids）。零成本升级：pollListWanted 响应本含全表，顺带 merge 未登记行即对外来任务也精确（建议顺手做）。
 
 ### D. 完成通知（toast + 系统通知）

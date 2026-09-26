@@ -1,4 +1,4 @@
-// pdfmarks —— zh.pdf seq 锚消费面（docs/dev/pdf-seq-anchors-impl-2026-09-23.md §3）。
+// pdfmarks —— zh.pdf seq 锚消费面（docs/dev/projects/pdf-seq-anchors-impl-2026-09-23.md §3）。
 // 后端 reconstruct 在 [[CHUNK_n]] 引用点注 \special{pdf:code /TLXC
 // <</MCID 50000+seq>> BDC}…EMC；pdf.js includeMarkedContent 透出
 // beginMarkedContentProps{tag:"TLXC<n>", id:"p<obj>_mc<50000+seq>"}——

@@ -18,7 +18,7 @@
 
 - E18 锚点实测：named-dest 覆盖 + 单调链配对把可同步段落锚点保留率推到 ~100%（对齐探针口径）；纯页码按比例映射的精度在图表密集论文上不可接受。
 - 前端壳薄原则：所有「聪明」都在 align.py 与产物 JSON 里，前端只做映射消费——框架替换成本被刻意压到最低。
-- 证据：主仓 `docs/05` E18；调研档案 `research/latex/alignment-probe.md`、`research/product/web-layer.md`。
+- 证据：主仓 `docs/05` E18；调研档案 `research/latex/alignment-probe.md`、`research/product/2026-09-15-web-layer.md`。
 
 ## 演变
 

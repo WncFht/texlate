@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 share_app = typer.Typer(
-    help="社区共享译文缓存包（设计 docs/research/product/shared-cache.md）。",
+    help="社区共享译文缓存包（设计 docs/research/product/2026-09-16-shared-cache.md）。",
     no_args_is_help=True,
 )
 app.add_typer(share_app, name="share")
@@ -390,7 +390,7 @@ def share_unpack(
     """``.share.zip`` → 校验解包 + 打印 manifest 摘要。
 
     只机械校验格式/share_key 自洽/逐产物 sha256 对账——译文可信度由
-    消费端重跑 splice/validate/compile 保证（shared-cache.md §5 信任
+    消费端重跑 splice/validate/compile 保证（2026-09-16-shared-cache.md §5 信任
     模型），本命令不解语义无信任。
     """
     stem = bundle.name.removesuffix(".share.zip")

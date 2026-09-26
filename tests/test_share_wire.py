@@ -1,4 +1,4 @@
-"""隐式 share 命中（shared-cache.md §8）：translate 任务 parse 后自动查共享
+"""隐式 share 命中（2026-09-16-shared-cache.md §8）：translate 任务 parse 后自动查共享
 index——命中走 ``_stage_share_apply`` 对账通道（零 token），miss/包坏/包缺
 回退正常管线，``prefer=fresh`` 不查。
 

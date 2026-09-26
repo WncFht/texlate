@@ -1,7 +1,7 @@
 # 评测套件规范 —— 评测器矩阵与分层契约
 
 > spec/ 层唯一事实源：与 `bench/`、`tests/` 代码现状对齐。语料底材（各层口径/构建管线/治理）见 `spec/corpus.md`；单点调研证据以 `research/` 档案为准，本文不复述实测数字。
-> **Wave-F 口径（2026-09-23 起）**：旧 `bench/py/*.py` 驱动脚本全数退役，评测器一律改写为 kernel spec（`bench/py/specs/<名>.py`），统一入口 `uv run python bench/py/bench run <spec> [k=v …]`；产出契约由 `bench/results/` 目录改为 trizone 四区（§7）。逐件映射见 `dev/benches.md` Wave-F 注记与 `dev/tools-runbook.md` §3.5。
+> **Wave-F 口径（2026-09-23 起）**：旧 `bench/py/*.py` 驱动脚本全数退役，评测器一律改写为 kernel spec（`bench/py/specs/<名>.py`），统一入口 `uv run python bench/py/bench run <spec> [k=v …]`；产出契约由 `bench/results/` 目录改为 trizone 四区（§7）。逐件映射见 `dev/archive/benches-2026-09-20.md` Wave-F 注记与 `dev/tools-runbook.md` §3.5。
 
 ## 1. 总览：B1–B7 评测器
 
@@ -107,7 +107,7 @@
 
 ## 5. 内核与批驱动（trizone-ledger v2）
 
-`bench/py/kernel/` 是唯一批驱动（设计 `dev/bench-redesign-v2-trizone.md`，架构图 `dev/assets/trizone-arch.svg`；旧 stagerun 五阶段驱动已随 Wave-F 删除）。模型：spec 声明 stage 链 + items 帧 + `needs` 依赖 + `mutates` 产物 kinds；kernel 逐格走 dedup（非付费段看上格终态）/ 付费预言机（`dedup.check` 五态：UNSEALED/CLAIMED/VERIFIED/MISSING/ABSENT，付费段须显式 `dedup_key`）→ needs 闸 → executor 执行 → records/metrics 落 ledger，产物 harvest 进 vault[^trizone]。
+`bench/py/kernel/` 是唯一批驱动（设计 `spec/bench-trizone.md`，架构图 `spec/assets/trizone-arch.svg`；旧 stagerun 五阶段驱动已随 Wave-F 删除）。模型：spec 声明 stage 链 + items 帧 + `needs` 依赖 + `mutates` 产物 kinds；kernel 逐格走 dedup（非付费段看上格终态）/ 付费预言机（`dedup.check` 五态：UNSEALED/CLAIMED/VERIFIED/MISSING/ABSENT，付费段须显式 `dedup_key`）→ needs 闸 → executor 执行 → records/metrics 落 ledger，产物 harvest 进 vault[^trizone]。
 
 配套面：`bench plan <spec>` 格数/估时预报 + dedup 覆盖报价；`bench doctor` 环境/工具链/网关批前闸（旧 preflight_batch 职责）；`bench status` 账本直读面板；分析动词族 `bench triage`/`rundiff`/`gate`/`dossier`/`xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select`（`bench/py/verbs/`，逐件职责见 `dev/tools-runbook.md` §3.2）[^trizone]。
 
@@ -168,7 +168,7 @@
 
 [^qualbench]: 仓内证据件 `bench/py/specs/qualbench.py` docstring（ESA esa2 协议 + 六类 flag 口径）。
 
-[^e2emock]: 仓内证据件 `bench/py/specs/e2e_mock.py` docstring（四臂条件 + 破坏语义）与 [e2e-mock-pipeline](../research/product/e2e-mock-pipeline.md)。
+[^e2emock]: 仓内证据件 `bench/py/specs/e2e_mock.py` docstring（四臂条件 + 破坏语义）与 [e2e-mock-pipeline](../research/product/2026-09-14-e2e-mock-pipeline.md)。
 
 [^e2ereal]: 仓内证据件 `bench/py/specs/e2e_real.py` docstring 与 [hardening-notes](../research/product/2026-09-16-hardening-notes.md)（§2 pipe-fix `onfail` 语义）。
 
@@ -176,7 +176,7 @@
 
 [^alignbench]: 仓内证据件 `bench/py/specs/alignbench.py` docstring 与 [alignment-probe](../research/latex/alignment-probe.md)。
 
-[^trizone]: 仓内证据件 [bench-redesign-v2-trizone](../dev/bench-redesign-v2-trizone.md)（四区/事件/预言机/付费门设计）与 `bench/py/kernel/` 模块 docstrings。
+[^trizone]: 仓内证据件 [bench-redesign-v2-trizone](../spec/bench-trizone.md)（四区/事件/预言机/付费门设计）与 `bench/py/kernel/` 模块 docstrings。
 
 [^translators]: 仓内证据件 `bench/py/translators_bench.py` docstring（臂工厂与台账 schema）。
 

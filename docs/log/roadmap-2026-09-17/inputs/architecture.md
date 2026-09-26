@@ -3,7 +3,7 @@
 > **结论**：架构侦察：残余巨件三块与 compile↔fixloop 模块级 2-环为结构脆弱点；rules.yaml 4797 行增速第一；R1–R3 演进建议。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
-
+>
 > 只读侦察，2026-09-17。基线：`docs/research/refactor-audit-2026-09-17/report.md`（Top6 已落地：repair.py 单源化、redlines registry、stagerun 拆包、segmenter 拆包、worker.py→server/worker/ 包、benchlib 读层）。本文只答五问：模块图现状、残余结构债、增长热点、一致性机制健康度、演进建议。所有断言带 file:line。
 
 ## 1. 重构后模块图现状

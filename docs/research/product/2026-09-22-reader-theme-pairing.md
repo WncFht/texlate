@@ -1,8 +1,9 @@
 # 阅读主题配对调研：chrome 主题 × 纸面配色 业界做法
 
-> 日期：2026-09-22
-> 触发：亮奶油顶栏 + 纯黑纸面脱配截图（用户实证）；顶栏 ◐+纸面 select 双控件并存。
-> 方法：4 路并行调研（电子书阅读器 / PDF 阅读器 / 网页阅读模式 / 设计规范），全部 web 源。
+> **触发**：亮奶油顶栏 + 纯黑纸面脱配截图（用户实证）；顶栏 ◐+纸面 select 双控件并存。
+> **方法**：4 路并行调研（电子书阅读器 / PDF 阅读器 / 网页阅读模式 / 设计规范），全部 web 源。
+> **状态**：**已落地**——单控件驱动整面裁决已实装：chrome 主题 light/dark/onedark + 纸面 paper/dark/onedark 配对（`stores/settings.ts` paperTheme），旧 `texlate-theme=light` 迁移为 `paper`；PDF 侧经 Blender 图元级改色跟随（`reader/pdfTheme.ts`）
+> **日期**：2026-09-22
 
 ## 一句话结论
 
