@@ -55,7 +55,7 @@ sys.path.insert(
     ),
 )
 
-from kernel import events, idnorm, lake, paths, vault
+from kernel import events, fsutil, idnorm, lake, paths, vault
 from kernel import paid as paidmod
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
 
@@ -92,12 +92,18 @@ from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,
     PipelineConfig,
+    RetryPolicy,
 )
 from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.prompts import PROMPT_VERSION
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
+
+#: 键域纪元——与 e2e_real 同一 "v1"，让 rekey 进 v1 的 139 格老 zh
+#: 与本 spec 产物共享 (idc,arm,variant) dedup/vault 键域；不加则 soak
+#: 落 "-" 域，与质检/保险库口径分裂。
+EPOCH = "v1"
 
 #: lake catalog 中「自带或可免费自愈字节」的态——hydrated/pinned 直读，
 #: raw_only 经 hydrate() 本地重解包零网络回 hydrated。
@@ -139,7 +145,7 @@ def _rebuild(zh: Path, splice: Path) -> None:
     """zh.- → splice.- 原样重建（stagerun_lib.rebuild_splice 同式）。"""
     if splice.exists():
         shutil.rmtree(splice)
-    shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
+    fsutil.copy_mutating(zh, splice)
 
 
 def _ensure_kind(ctx, kind: str) -> Path | None:
@@ -165,6 +171,31 @@ def _xlat_marker(zh: Path) -> dict | None:
     except (json.JSONDecodeError, OSError):
         return None
     return doc if isinstance(doc, dict) else None
+
+
+def _ensure_translated(ctx) -> tuple[Path | None, dict | None]:
+    """(zh dir, marker_doc) — marker 选树：同 run 上游优先，无 marker
+    回退 vault 已封副本。
+
+    parse/xlat 共 zh 键域：上游 parse 实跑产的 zh.- 树无
+    .xlat-arm.json，同 run xlat dedup 不再产物，下游 compile/fixloop
+    拿到的是遮蔽 marker 载荷的 parse 树（regen-888 27 格
+    not_translated 实证）。xlat 自己吃未标 parse 树走 _ensure_kind，
+    不走这里。
+    """
+    zh = _ensure_kind(ctx, "zh")
+    marker = _xlat_marker(zh) if zh is not None else None
+    if marker is not None:
+        return zh, marker
+    with contextlib.suppress(OSError):
+        if zh is not None:
+            shutil.rmtree(zh)
+    with contextlib.suppress(vault.VaultError):
+        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(),
+                      mode="copy")
+    zh = ctx.upstream_asset_dir("zh")
+    marker = _xlat_marker(zh) if zh is not None else None
+    return zh, marker
 
 
 _DONE_STS = tuple(sorted(events.STATUS_DONE))
@@ -278,6 +309,7 @@ def _corpus_rows() -> list[dict]:
             rows.append(
                 {
                     "id": str(pid),
+                    "variant": EPOCH,
                     "layer": row.get("layer"),
                     "cat_group": row.get("cat_group"),
                     "format": row.get("format"),
@@ -337,8 +369,20 @@ def _sampleable(item: dict) -> bool:
     return lake.is_complete(res.idc)
 
 
+_SAMPLE_MEMO: dict = {}
+
+
 def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
-    """分层不区分地 seeded 抽 n 个 canon id（benchlib.pick_sample 的湖版）。"""
+    """分层不区分地 seeded 抽 n 个 canon id（benchlib.pick_sample 的湖版）。
+
+    select 钩子按 item 逐格调本函数——抽样结果按 (layers,needle,n,seed)
+    记忆化，否则 plan 是 O(items²) 且每趟重建都重新付 catalog 装载
+    （hydrate 在飞写 catalog 时每次 _sampleable 都可能触发重载）。
+    """
+    key = (frozenset(layers), needle, n, seed)
+    hit = _SAMPLE_MEMO.get(key)
+    if hit is not None:
+        return hit
     pool = []
     for it in _items():
         if layers and str(it.get("layer") or "") not in layers:
@@ -353,7 +397,9 @@ def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
             pool.append(res.idc)
     pool = sorted(set(pool))
     rng = random.Random(seed)
-    return set(rng.sample(pool, min(n, len(pool))))
+    out = set(rng.sample(pool, min(n, len(pool))))
+    _SAMPLE_MEMO[key] = out
+    return out
 
 
 def _select(item: dict, rp: dict) -> bool:
@@ -499,7 +545,7 @@ def _parse(ctx) -> dict:
 
     if stage.exists():
         shutil.rmtree(stage)
-    shutil.copytree(src, stage, ignore=benchlib.copytree_ignore())
+    fsutil.copy_mutating(src, stage)
 
     main = find_main_tex(stage)
     if main is None:
@@ -610,7 +656,11 @@ def _xlat(ctx) -> dict:
 
     client = SessionClient(session)
     translator = TimedTranslator(
-        GatewayTranslator(client, str(ctx.params["model"]))
+        GatewayTranslator(
+            client,
+            str(ctx.params["model"]),
+            policy=RetryPolicy(max_tries=int(ctx.params["max_tries"])),
+        )
     )
     cfg = PipelineConfig(concurrency=int(ctx.params["concurrency"]))
     seg = ctx.seg_cache(
@@ -642,7 +692,7 @@ def _xlat(ctx) -> dict:
     staging = ctx.paper_dir() / ".zh-xlat"
     if staging.exists():
         shutil.rmtree(staging)
-    shutil.copytree(zh, staging, ignore=benchlib.copytree_ignore())
+    fsutil.copy_mutating(zh, staging)
 
     try:
         stats, results = asyncio.run(
@@ -800,7 +850,7 @@ def _compile(ctx) -> dict:
             bdir = ctx.paper_dir() / "build-base"
             if bdir.exists():
                 shutil.rmtree(bdir)
-            shutil.copytree(src, bdir, ignore=benchlib.copytree_ignore())
+            fsutil.copy_mutating(src, bdir)
             b_eng = _engine(ctx, src)
             b_tail = _compile_judge(
                 bdir, b_rel, b_eng, timeout, expect_cjk=False
@@ -812,8 +862,7 @@ def _compile(ctx) -> dict:
             }
 
     # ---- zh 臂 ------------------------------------------------------------
-    zh = _ensure_kind(ctx, "zh")
-    marker_doc = _xlat_marker(zh) if zh is not None else None
+    zh, marker_doc = _ensure_translated(ctx)
     if marker_doc is None:
         return _gate("skip", "not_translated", "upstream",
                      "zh.- missing or no .xlat-arm.json", metrics)
@@ -914,8 +963,7 @@ def _fixloop(ctx) -> dict:
             },
         }
 
-    zh = _ensure_kind(ctx, "zh")
-    marker_doc = _xlat_marker(zh) if zh is not None else None
+    zh, marker_doc = _ensure_translated(ctx)
     if marker_doc is None:
         return _gate("skip", "not_translated", "upstream",
                      "zh.- missing or no .xlat-arm.json")
@@ -1060,6 +1108,7 @@ spec = Spec(
             choices=["auto", "xelatex", "tectonic"], fp=True,
         ),
         "concurrency": Param(int, default=10, fp=True),
+        "max_tries": Param(int, default=5, fp=True),
         "timeout": Param(float, default=240.0, fp=True),
         "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS,
                               fp=True),
@@ -1086,7 +1135,7 @@ spec = Spec(
     lake_source="arxiv",
     same_id_serial=True,
     dedup_key=("idc", "arm", "variant"),
-    gateway_factory=devin_factory(),
+    gateway_factory=devin_factory(nslots=32),
     stages=[
         Stage(
             "ingest",

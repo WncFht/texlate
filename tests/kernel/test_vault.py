@@ -410,3 +410,73 @@ def test_concurrent_harvests_serialize(broot, tmp_path):
     assert len([r for r in rows if r.get("op") == "harvest"]) == 6
     for i in range(6):
         assert vault.bytes_ok(f"2101.000{i:02d}", "r", "-")
+
+
+# --- rekey (variant adopt) ------------------------------------------------------
+
+
+def test_rekey_moves_paid_kinds_into_dst_variant(broot, tmp_path):
+    """完好 '-' 副本 → v1 键域: 同字节新凭证, 源副本不动。"""
+    zh = _tree(tmp_path / "w/zh.real", {"main.md": b"# zh", "f/p.pdf": b"%PDF"})
+    st = _tree(tmp_path / "w/state.real", {"ledger.json": b"{}"})
+    vault.harvest(IDC, "real", "-", {"zh": zh, "state": st},
+                  source_run="r-old", verdict="verified", zone="primary")
+    rows = vault.rekey("-", "v1")
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["idc"] == IDC and r["arm"] == "real"
+    assert r["kinds"] == ["state", "zh"]
+    # dst 键域可 restore, src 仍在押
+    assert vault.bytes_ok(IDC, "real", "v1")
+    assert vault.bytes_ok(IDC, "real", "-")
+    out = tmp_path / "out"
+    n = vault.restore(IDC, "real", "v1", out)
+    assert n == 3
+    assert (out / "zh.real@v1" / "main.md").read_bytes() == b"# zh"
+    # manifest 记 op=rekey, 出处带源 run
+    row = _manifest_rows()[-1]
+    assert row["op"] == "rekey" and row["variant"] == "v1"
+    assert "r-old" in row["source_run"]
+
+
+def test_rekey_skips_free_kinds_and_existing_dst(broot, tmp_path):
+    """默认只搬 zh/state: splice/layoutqc 免费再生品不随 rekey 进新纪元;
+    dst 已在押的 kind 不重盖。"""
+    zh = _tree(tmp_path / "w/zh.real", {"m.md": b"zh"})
+    sp = _tree(tmp_path / "w/splice.real", {"s.tex": b"tex"})
+    vault.harvest(IDC, "real", "-", {"zh": zh, "splice": sp},
+                  source_run="r-old", verdict="verified", zone="primary")
+    rows = vault.rekey("-", "v1")
+    assert rows[0]["kinds"] == ["zh"]          # splice 不搬
+    meta_v1 = json.loads(
+        vault.meta_path(IDC, "real", "v1").read_text(encoding="utf-8"))
+    assert set(meta_v1["files"]) == {"zh"}
+    # 二轮: dst zh 已押 → 整格跳过
+    assert vault.rekey("-", "v1") == []
+    # kinds 白名单可显式放宽 (仍跳过 dst 已有)
+    rows = vault.rekey("-", "v1", kinds=["splice"])
+    assert rows[0]["kinds"] == ["splice"]
+
+
+def test_rekey_skips_quar_and_broken_sources(broot, tmp_path):
+    """quar 嫌疑件与不完整副本不进门。"""
+    zh = _tree(tmp_path / "w/zh.real", {"m.md": b"zh"})
+    vault.harvest(IDC, "real", "-", {"zh": zh},
+                  verdict="quar")               # zone 自动 quar
+    vault.harvest(IDC2, "real", "-", {"zh": zh},
+                  verdict="verified", zone="primary")
+    # 砸掉 idc2 的字节 → meta 在而文件缺 → 非完好不搬
+    victim = paths.vault_dir() / "zh" / SID2 / "real" / "m.md"
+    os.chmod(victim, 0o600)
+    victim.write_bytes(b"corrupted-longer")
+    assert vault.rekey("-", "v1") == []
+
+
+def test_rekey_dry_run_writes_nothing(broot, tmp_path):
+    zh = _tree(tmp_path / "w/zh.real", {"m.md": b"zh"})
+    vault.harvest(IDC, "real", "-", {"zh": zh},
+                  verdict="verified", zone="primary")
+    rows = vault.rekey("-", "v1", dry=True)
+    assert len(rows) == 1 and rows[0]["dry"] is True
+    assert not vault.bytes_ok(IDC, "real", "v1")
+    assert not vault.meta_path(IDC, "real", "v1").exists()

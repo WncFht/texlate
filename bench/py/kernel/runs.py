@@ -1,6 +1,6 @@
 """Runs zone — materialization of the (kind, date, slug) identity triple.
 
-Layout per design §1 (docs/dev/bench-redesign-v2-trizone.md):
+Layout per design §1 (docs/spec/bench-trizone.md):
 
     runs/{kind}/{date}/{slug}/
         spec.json         frozen bench definition (verbatim dict)

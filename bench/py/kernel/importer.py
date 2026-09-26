@@ -1,6 +1,6 @@
 """Phase 1 import pipeline — legacy data plane -> trizone ledger.
 
-Implements the import scope of docs/dev/bench-redesign-v2-trizone.md §6
+Implements the import scope of docs/spec/bench-trizone.md §6
 Phase 1 with the §3.3 ordering contract and the §3.10.7 canon gate:
 
 - Sources: bench.db (records/eval_records/cases/cells tables), worktree

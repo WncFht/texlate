@@ -1,7 +1,7 @@
 r"""qualbench spec — LLM-judge 翻译质量评测（原 ``bench/py/qualbench.py`` spec 化）。
 
 测量面逐行移植：ESA esa2 协议（judge 先标错误 span 再赋 0-100 分；
-规格见 docs/research/methods/xlat-quality-eval-2026-09-18.md §7）、
+规格见 docs/research/methods/2026-09-18-xlat-quality-eval.md §7）、
 九类目 MQM 化表 + 六 flag 派生 + stated100/derived100 双分 +
 contested 触发二裁。格模型重做——一 frame 行（paper, chunk_id, judge）
 一格：idc=paper、arm=被评翻译模型、variant=``esa2@{EPOCH}|{judge}|

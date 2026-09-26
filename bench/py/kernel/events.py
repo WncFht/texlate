@@ -119,7 +119,8 @@ CATS = frozenset({
 })
 
 CLAIM_OPS = frozenset({"acquire", "release", "reap"})
-ASSET_KINDS = frozenset({"zh", "splice", "state", "pdf", "report"})
+ASSET_KINDS = frozenset(
+    {"zh", "splice", "state", "layoutqc", "pdf", "report"})
 ASSET_STATES = frozenset({"pending", "verified", "tombstone", "adopted", "staged"})
 LAKE_STATES = frozenset({
     "skeleton", "hydrating", "hydrated", "pinned", "raw_only", "failed",

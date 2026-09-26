@@ -54,6 +54,7 @@ regen (§3.6): tombstoned ids ship as a decision list, never a run set.
 --regen needs ALL of --sel hit + --max-cost set + --yes + --allow-regen;
 --rerun/--recode have NO power over paid cells.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -112,7 +113,7 @@ MISSING_CATS = frozenset({"regen_gate", "upstream-lost"})
 # manifest/meta zone spellings that assert byte loss.
 LOSS_ZONES = frozenset({"tombstone", "lost", "missing"})
 
-_MANIFEST_TAIL_ROWS = 5000        # §3.10.6 ②: ~5k tail rows, hashed at run start
+_MANIFEST_TAIL_ROWS = 5000  # §3.10.6 ②: ~5k tail rows, hashed at run start
 _MANIFEST_WINDOW = 4 * 1024 * 1024  # byte window covering ~5k manifest rows
 
 
@@ -249,8 +250,7 @@ def _manifest_fold(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> dict:
         if val is None:
             continue
         pos += 1
-        entry = evidence.setdefault(
-            key, {"alt": {}, "kind": {}, "wild": {}})
+        entry = evidence.setdefault(key, {"alt": {}, "kind": {}, "wild": {}})
         kinds = _row_kind_statements(row, val)
         altseq = row.get("altseq")
         if not kinds:
@@ -277,10 +277,7 @@ def _resolve_kinds(entry: dict) -> tuple[set, set]:
         per_alt = entry["kind"].get(kind, {})
         w = entry["wild"].get(kind)
         if per_alt:
-            vals = [
-                v if (w is None or p > w[0]) else w[1]
-                for p, v in per_alt.values()
-            ]
+            vals = [v if (w is None or p > w[0]) else w[1] for p, v in per_alt.values()]
         else:
             vals = [w[1]] if w else []
         (alive if any(vals) else dead).add(kind)
@@ -299,9 +296,12 @@ def manifest_kind_evidence(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> di
     for key, entry in _manifest_fold(path, max_rows).items():
         alive, dead = _resolve_kinds(entry)
         ag_seen = bool(entry["alt"])
-        out[key] = {"alive": alive, "dead": dead,
-                    "ag": any(entry["alt"].values()),
-                    "ag_dead": ag_seen and not any(entry["alt"].values())}
+        out[key] = {
+            "alive": alive,
+            "dead": dead,
+            "ag": any(entry["alt"].values()),
+            "ag_dead": ag_seen and not any(entry["alt"].values()),
+        }
     return out
 
 
@@ -340,6 +340,7 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
     commit-marker evidence — missing-side (spend-refusing), not absent.
     """
     from kernel import vault  # lazy: heavy module; keeps import graph one-way
+
     try:
         rows = vault.query(idc, _norm(arm), _norm(variant))
     except ValueError:
@@ -406,8 +407,7 @@ def attempted_unpaid(index, idc, arm, variant) -> bool:
     if any(r["status"] in ("ok", "partial") for r in rows):
         return False
     return any(
-        r["status"] in ATTEMPTED_UNPAID and r["cat"] != "regen_gate"
-        for r in rows
+        r["status"] in ATTEMPTED_UNPAID and r["cat"] != "regen_gate" for r in rows
     )
 
 
@@ -504,7 +504,8 @@ class DedupOracle:
         return cls(
             index,
             manifest_tail={
-                k for k, ev in kinds.items()
+                k
+                for k, ev in kinds.items()
                 if (ev["ag"] or ev["alive"]) and not ev["dead"]
             },
             paid_pool_snap=index.paid_pool(stages=paid_stages),
@@ -527,14 +528,12 @@ class DedupOracle:
         """
         if self.index.dirty():
             return False
-        if self.index.check_sealed(
-                self.sealed_gen, self.min_offset, self.min_tag):
+        if self.index.check_sealed(self.sealed_gen, self.min_offset, self.min_tag):
             return True
         # ingest is best-effort — an unreadable tail still fails closed below
         with contextlib.suppress(Exception):
             self.index.tail_ingest()
-        return self.index.check_sealed(
-            self.sealed_gen, self.min_offset, self.min_tag)
+        return self.index.check_sealed(self.sealed_gen, self.min_offset, self.min_tag)
 
     def sealed(self) -> bool:
         """Seal predicate as check() evaluates it right now."""
@@ -542,22 +541,39 @@ class DedupOracle:
 
     # -- per-cell verdict ------------------------------------------------------------
 
-    def check(self, idc, arm: str = "-", variant: str = "-",
-              stage_paid: bool = True, need_kinds=None) -> str:
+    def check(
+        self,
+        idc,
+        arm: str = "-",
+        variant: str = "-",
+        stage_paid: bool = True,
+        need_kinds=None,
+        stage_name: str | None = None,
+    ) -> str:
         """Five-state paid-gate verdict — ORDER IS THE CONTRACT.
 
-        stage_paid marks whether the caller's stage is paid; the oracle's
-        evidence is paidness-agnostic (claims and bytes mean the same
-        thing either way) — the flag is carried for quote()'s attempted
-        bucketing and the caller's §3.8 interpretation.
+         stage_paid marks whether the caller's stage is paid; the oracle's
+         evidence is paidness-agnostic (claims and bytes mean the same
+         thing either way) — the flag is carried for quote()'s attempted
+         bucketing and the caller's §3.8 interpretation.
 
-        need_kinds = the calling stage's declared mutates — the paid
-        product kinds. When given, 'verified' requires the manifest's
-        per-kind evidence to cover every needed kind (a {state}-only
-        harvest must not dedup a cell whose zh is tombstoned or was
-        never sealed), and a manifest-dead needed kind vetoes the
-        paid_pool/meta legs too. Kind-agnostic rows vouch no named kind
-        — ambiguous evidence resolves toward spend, never toward skip.
+         need_kinds = the calling stage's declared mutates — the paid
+         product kinds. When given, 'verified' requires the manifest's
+         per-kind evidence to cover every needed kind (a {state}-only
+         harvest must not dedup a cell whose zh is tombstoned or was
+         never sealed), and a manifest-dead needed kind vetoes the
+         paid_pool/meta legs too. Kind-agnostic rows vouch no named kind
+         — ambiguous evidence resolves toward spend, never toward skip.
+
+         stage_name = the calling stage. With need_kinds it arms the
+         stage-DONE leg: bytes alone can no longer vouch — the stage must
+         also own a real terminal (ok/clean/partial) in records. Harvest
+         fires on ANY terminal incl. fail/dedup, so a never-finished
+         stage's sealed bytes are poison, not product (fixloop splice
+        复封死锁实证); stages sharing one kind keyspace (compile+fixloop
+         on splice) get per-stage adjudication, not producer-blind bytes.
+         None keeps the legacy byte-only adjudication for callers with
+         no stage context.
         """
         idc, arm, variant = str(idc), _norm(arm), _norm(variant)
         key = (idc, arm, variant)
@@ -581,10 +597,11 @@ class DedupOracle:
         #    vault meta on disk, the frozen paid_pool snapshot. The live
         #    index is advisory, never a verified leg.
         meta_ok, meta_missing, meta_io_error, meta_kinds = _scan_vault_meta(
-            idc, arm, variant)
+            idc, arm, variant
+        )
         if meta_io_error:
             return UNSEALED
-        if self._verified(key, meta_ok, meta_kinds, need_kinds):
+        if self._verified(key, meta_ok, meta_kinds, need_kinds, stage_name):
             return VERIFIED
 
         # 4. missing — tombstone/quar evidence with no verified leg.
@@ -595,8 +612,12 @@ class DedupOracle:
         #     fate='verified' is durable class evidence the paid commit ran
         #     to terminal and its harvest fired. It sits AFTER missing so
         #     tombstones keep winning for identity keys, BEFORE absent so
-        #     a spent cell never re-burns on a byte-evidence gap.
-        if self._release_verified(idc, arm, variant):
+        #     a spent cell never re-burns on a byte-evidence gap. GATED to
+        #     kind-agnostic callers: the claims keyspace is stage-blind —
+        #     xlat's release-verified lands on the same (idc,arm,variant)
+        #     fixloop checks, so under a named-mutates check the row would
+        #     vouch a stage that never ran (live W3 fixloop-masking 实证).
+        if not need_kinds and self._release_verified(idc, arm, variant):
             return VERIFIED
 
         # 5. absent — reachable only because the index is sealed.
@@ -617,11 +638,11 @@ class DedupOracle:
             " ORDER BY rowid DESC LIMIT 1",
             (idc, arm, variant),
         ).fetchone()
-        return bool(
-            row and row["op"] == "release" and row["fate"] == "verified"
-        )
+        return bool(row and row["op"] == "release" and row["fate"] == "verified")
 
-    def _verified(self, key, meta_ok: bool, meta_kinds, need_kinds) -> bool:
+    def _verified(
+        self, key, meta_ok: bool, meta_kinds, need_kinds, stage_name=None
+    ) -> bool:
         """The verified legs under kind-aware adjudication.
 
         need_kinds given: manifest must prove every needed kind alive;
@@ -633,6 +654,13 @@ class DedupOracle:
         declared-dead product). need_kinds None: the flat manifest_tail
         set (surviving evidence with no dead kind) plus pool/meta vetoed
         by ANY dead kind — fail-closed partial loss.
+
+        stage_name given: EVERY leg additionally requires the stage's own
+        DONE terminal in records — ok/clean/partial only. fail/dedup
+        terminals harvest-seal bytes too, so byte evidence alone would
+        let a never-completed stage dedup forever off its own garbage
+        splice; cross-stage pool rows (xlat ok vouching fixloop splice)
+        close the same way.
         """
         ev = self.kind_evidence.get(key)
         alive = ev["alive"] if ev else set()
@@ -640,14 +668,35 @@ class DedupOracle:
         ag_dead = bool(ev and ev["ag_dead"])
         need = {str(k) for k in need_kinds} if need_kinds else None
         if need:
-            if need <= alive:
+            done = self._stage_done(key, stage_name)
+            if need <= alive and done:
                 return True
-            pool_meta = (key in self.paid_pool_snap
-                         or (meta_ok and need <= meta_kinds))
-            return pool_meta and not (need & dead) and not ag_dead
+            pool_meta = key in self.paid_pool_snap or (meta_ok and need <= meta_kinds)
+            return pool_meta and done and not (need & dead) and not ag_dead
         if key in self.manifest_tail:
             return True
         return (key in self.paid_pool_snap or meta_ok) and not dead
+
+    # statuses that prove a stage actually produced its mutates — fail /
+    # dedup / skip terminals all harvest-seal the same bytes and must not
+    _VOUCH_STATUSES = frozenset({"ok", "clean", "partial"})
+
+    def _stage_done(self, key, stage_name) -> bool:
+        """Calling stage owns a real terminal row in records.
+
+        records = T_CELL terminal history, seal-frozen like the other
+        durable legs. stage_name None (kind-agnostic / legacy callers)
+        vacates the leg — byte evidence adjudicates alone.
+        """
+        if not stage_name:
+            return True
+        idc, arm, variant = key
+        row = self.index.conn.execute(
+            "SELECT 1 FROM records WHERE idc=? AND arm=? AND variant=?"
+            " AND stage=? AND status IN ('ok','clean','partial') LIMIT 1",
+            (idc, arm, variant, str(stage_name)),
+        ).fetchone()
+        return row is not None
 
     def _missing_evidence(self, idc, arm, variant) -> bool:
         """Index-side tombstone/quar/lost evidence (seal already passed)."""
@@ -662,8 +711,7 @@ class DedupOracle:
         if row is not None:
             return True
         for r in self.index.conn.execute(
-            "SELECT status, cat FROM records"
-            " WHERE idc=? AND arm=? AND variant=?",
+            "SELECT status, cat FROM records WHERE idc=? AND arm=? AND variant=?",
             (idc, arm, variant),
         ):
             # records = T_CELL-only terminal history — never masked by a
@@ -689,13 +737,15 @@ class DedupOracle:
         index it is always empty, so the spec'd five partition the input.
         """
         buckets: dict[str, list] = {
-            k: [] for k in ("new", "reuse", "missing", "claimed", "attempted", "unsealed")
+            k: []
+            for k in ("new", "reuse", "missing", "claimed", "attempted", "unsealed")
         }
         for c in cells:
-            idc, arm, variant, paid, need = _cell_spec(c)
+            idc, arm, variant, paid, need, stg = _cell_spec(c)
             key = (idc, arm, variant)
-            res = self.check(idc, arm, variant, stage_paid=paid,
-                             need_kinds=need)
+            res = self.check(
+                idc, arm, variant, stage_paid=paid, need_kinds=need, stage_name=stg
+            )
             if res == VERIFIED:
                 buckets["reuse"].append(key)
             elif res == CLAIMED:
@@ -711,9 +761,12 @@ class DedupOracle:
         counts = {k: len(v) for k, v in buckets.items()}
         return {
             **counts,
-            "total": len(buckets["new"]) + len(buckets["reuse"])
-            + len(buckets["missing"]) + len(buckets["claimed"])
-            + len(buckets["attempted"]) + len(buckets["unsealed"]),
+            "total": len(buckets["new"])
+            + len(buckets["reuse"])
+            + len(buckets["missing"])
+            + len(buckets["claimed"])
+            + len(buckets["attempted"])
+            + len(buckets["unsealed"]),
             "buckets": buckets,
             "regen_decisions": sorted(buckets["missing"]),
             "sealed": self.sealed(),
@@ -721,26 +774,22 @@ class DedupOracle:
 
     # -- regen gate ---------------------------------------------------------------------
 
-    def regen_allowed(self, idc, arm, variant, allow_regen: bool,
-                      sel_hit: bool, max_cost, yes: bool) -> bool:
+    def regen_allowed(
+        self, idc, arm, variant, allow_regen: bool, sel_hit: bool, max_cost, yes: bool
+    ) -> bool:
         """--regen needs ALL FOUR: allow_regen flag + --sel hit on this cell
         + --max-cost set + --yes. --rerun/--recode have NO power over paid
         cells — this is the only door (§3.6). The cell identity pins which
         regen_decisions entry is being authorized; intersecting with the
         missing list is the caller's job."""
-        return bool(
-            allow_regen
-            and sel_hit
-            and max_cost is not None
-            and yes
-        )
+        return bool(allow_regen and sel_hit and max_cost is not None and yes)
 
 
-def _cell_spec(cell) -> tuple[str, str, str, bool, object]:
+def _cell_spec(cell) -> tuple:
     """Normalize a plan-cell spec -> (idc, arm, variant, stage_paid,
-    need_kinds).
+    need_kinds, stage_name).
 
-    dict:   {idc|id, arm?, variant?, stage_paid?|paid?, need_kinds?}
+    dict:   {idc|id, arm?, variant?, stage_paid?|paid?, need_kinds?, stage?}
     tuple:  (idc,arm) | (idc,arm,variant) | (idc,arm,up,variant,stage,...)
     """
     if isinstance(cell, dict):
@@ -748,13 +797,18 @@ def _cell_spec(cell) -> tuple[str, str, str, bool, object]:
         if not isinstance(idc, str) or not idc:
             idc = _canon(cell.get("id")) or cell.get("id")
         paid = cell.get("stage_paid", cell.get("paid", True))
-        return (str(idc), _norm(cell.get("arm")),
-                _norm(cell.get("variant")), bool(paid),
-                cell.get("need_kinds"))
+        return (
+            str(idc),
+            _norm(cell.get("arm")),
+            _norm(cell.get("variant")),
+            bool(paid),
+            cell.get("need_kinds"),
+            cell.get("stage"),
+        )
     seq = list(cell)
     idc = str(seq[0])
     arm = _norm(seq[1] if len(seq) > 1 else "-")
     # full cell key: (idc,arm,up,variant,stage,...); short form: (idc,arm,variant)
-    variant = _norm(seq[3]) if len(seq) >= 4 else _norm(
-        seq[2] if len(seq) > 2 else "-")
-    return idc, arm, variant, True, None
+    variant = _norm(seq[3]) if len(seq) >= 4 else _norm(seq[2] if len(seq) > 2 else "-")
+    stage = str(seq[4]) if len(seq) >= 5 and seq[4] else None
+    return idc, arm, variant, True, None, stage

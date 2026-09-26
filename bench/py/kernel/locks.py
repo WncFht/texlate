@@ -1,6 +1,6 @@
 """flock locks, heartbeats, sentinels and the paid-slot gate.
 
-Design: docs/dev/bench-redesign-v2-trizone.md — §3.3 (write contract, lock
+Design: docs/spec/bench-trizone.md — §3.3 (write contract, lock
 ordering), §3.10.6 (claim lease = flock files, paid slots, AUTH_DEAD),
 risk rows R21 (lock-inode footgun) and R22 (detach losing the lock).
 

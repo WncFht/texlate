@@ -1,7 +1,7 @@
 """Sole write path for ledger/events.jsonl + seal machinery.
 
 Implements the §3.3 write contract and §3.10.5 scale bounds of
-docs/dev/bench-redesign-v2-trizone.md — every line maps to an attack:
+docs/spec/bench-trizone.md — every line maps to an attack:
 
 - flock(ledger/.lock, LOCK_EX) for the whole critical section; the lock file
   is created once and NEVER unlinked (flock pins the inode).

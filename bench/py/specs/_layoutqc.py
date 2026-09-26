@@ -1,12 +1,13 @@
 r"""T0 版面质检电池（layoutqc stage 的检测本体）。
 
 输入全是现成产物：splice 树的 ``<stem>.pdf/.log/.txlm``、build-base 树
-的同三件套、src 源树（env_inventory 期望面）。零 LLM、零重编——poppler
-子进程（pdftotext/-bbox、pdfimages -list）+ 日志正则 + marks 查表。
+的同三件套、src 源树（env_inventory 期望面）。零 LLM、零重编——词面
+pymupdf 优先（clip-aware，缺席退 pdftotext -bbox）+ poppler 子进程
+（pdfimages -list）+ 日志正则 + marks 查表。
 
 每个 check 返 findings（``{sig, …}`` 逐条）+ metrics 计数；汇总成
 ``{findings, metrics}`` 由 stage 挂 verdict/sig/errors。设计口径见
-docs/dev/layoutqc-plan.md §4 T0 表。
+docs/dev/layoutqc.md §4 T0 表。
 
 阈值集中本文件顶部——校准集（§7.4）出来前全是先验值，sig 即分桶键，
 阈值漂移只改一处。
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import statistics
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -47,8 +49,12 @@ TABLE_RULE_LOST: Final = 0.6
 #: 逐页墨量回归阈——zh 页墨量 < base ±2 页窗峰值 ×0.35 → 局部
 #: 掉图洞。译文偏短系统偏轻取 0.35 余量；±2 页窗吃 reflow 错位。
 INK_DROP_RATIO: Final = 0.35
+#: zh 内部离群闸——掉图页墨量还须 < 全 zh 页中位数 ×此值（自身
+#: 文档内也是离群低点才算掉内容；重排错位的「比 base 稀但非离群」
+#: 页不报）。
+INK_SELF_OUTLIER: Final = 0.25
 
-#: 门三档（docs/dev/layoutqc-plan.md §11.1）——HARD 挡 done 留全档、
+#: 门三档（docs/dev/layoutqc.md §11.1）——HARD 挡 done 留全档、
 #: WARN 进 QC score 不挡、INFO 纯记账。未分类新 sig 默认按 WARN
 #: 计（新探测器默认不挡门，硬档须显式进 _HARD_SIGS）。
 _HARD_SIGS: Final = frozenset(
@@ -78,6 +84,7 @@ _HARD_SIGS: Final = frozenset(
 _WARN_SIGS: Final = frozenset(
     {
         "xlat_residual_en",
+        "xlat_residual_en_heavy",
         "xlat_broken_refs",
         "geo_margin_breach",
         "geo_text_overlap",
@@ -97,6 +104,8 @@ PAGE_RATIO_HI: Final = 1.6
 RESIDUAL_EN_MIN_LINES: Final = 25  # 残留英文行数阈（AND frac）
 RESIDUAL_EN_MIN_FRAC: Final = 0.02  # 且占全部文本行比
 RESIDUAL_EN_MASS_LINES: Final = 60  # 绝对质量逃逸臂（长文低占比也报）
+RESIDUAL_EN_FURNITURE: Final = 4  # 归一后正文域复现 ≥N 次的行=页眉家具剔除
+RESIDUAL_EN_HEAVY_FRAC: Final = 0.15  # frac ≥ 此 → xlat_residual_en_heavy
 DEGEN_NGRAM: Final = 5  # 重复 n-gram 长度
 DEGEN_NGRAM_MAX: Final = 20  # 同 n-gram 出现上限
 DEGEN_PERIODIC_MIN_LINES: Final = 3  # 行内周期占位行数阈（修辞性
@@ -185,6 +194,9 @@ _WORD_CHAR_RX: Final = re.compile(r"[A-Za-z一-鿿]")
 #: n-gram 对它失明——2609.19244 实证 top_rep=46 < 195 页放阈
 #: 但满页皆是占位符）。「…………」类无词字符单元不算。
 _PERIODIC_RX: Final = re.compile(r"(\S{2,12}?)\1{3,}")
+#: CJK 词判定——geo_text_overlap 的参与闸（splice 只产 zh 墨，
+#: en×en 碰撞非本管线产物）。CJK 统一表意 + 日文假名 + 谚文音节。
+_CJK_RX: Final = re.compile(r"[一-鿿぀-ヿ가-힯]")
 #: 断链引用位点——``?{2,}`` 每 run 计一位（``????`` 多键 cite 仍算
 #: 一位）；括/方号内单 ``?`` 亦计（natbib 断链渲成 ``(?)``/``[?]``，
 #: 2602.09703 满页实证）；零散修辞双问号由 ≥8 位点阈豁免。
@@ -251,6 +263,10 @@ def _marks_scan(
 ) -> tuple[list[dict], dict]:
     """marks 查表层：跨臂对照 + 单侧 offpage + 双层覆盖记账。
 
+    - ``marks_absent``：zh 侧 txlm 缺席/零 mark → 注入层真洞；base 侧
+      ``base_txlm=None`` 的「未建对照臂」只是参数事实（base=onfail
+      时 clean 不编 base 臂），metrics 记账不出 finding——但臂已建
+      （base_dir 传入）而 txlm 缺席/零 mark 仍是注入链断，照报。
     - ``marks_coverage``：splice 树（实际编译面）有受钩 env 但零 MARK →
       注入/钩子层洞（demote 改名已在此面消化，不误报）。
     - ``dropped_env``：src 树有、splice 树无的 env —— splice/fixloop
@@ -269,13 +285,18 @@ def _marks_scan(
         )
         return findings, metrics
     base = None
-    if base_txlm is not None and base_txlm.exists():
-        base = parse_txlm(base_txlm)
-        metrics["base_marks"] = len(base["marks"])
-        if not base["marks"]:
-            base = None
-    if base is None:
-        findings.append({"sig": "layout:marks_absent", "side": "base"})
+    if base_txlm is not None:
+        if base_txlm.exists():
+            base = parse_txlm(base_txlm)
+            metrics["base_marks"] = len(base["marks"])
+            if not base["marks"]:
+                base = None
+        if base is None:
+            # 臂已建（base_dir 传入）却 txlm 缺席/零 mark = 注入/仪表
+            # 链断；区别于 base_txlm=None 的「未建对照臂」参数事实
+            findings.append({"sig": "layout:marks_absent", "side": "base"})
+    # base 臂未建只记 metrics——对照臂编不编是参数选择非缺陷
+    metrics.setdefault("base_marks", 0)
     # 声明序主键：zh 侧读 splice 树（编译面），base 侧读 src 树
     # （en 原面——build-base 同构）→ demote 改名/缺 b-mark 皆免疫
     zh_decl = (
@@ -336,9 +357,37 @@ def _marks_scan(
     return findings, metrics
 
 
+def _bbox_pages_mupdf(pdf: Path) -> list[dict] | None:
+    """pymupdf 词面（可选件缺席/坏档 → None 回落 poppler）——clip-aware：
+    splice 常把整页源内容封成 Form XObject 裁框当矢量图用，被裁掉部分的
+    en 词 poppler 仍全数报出（幻影层），mupdf 与渲染器同口径不收录
+    （2609.05962 p11 实证 pdftotext 460 词 vs mupdf 82 词，幻影 en 行
+    压在 zh 行上成 96 对假重叠）。"""
+    try:
+        import pymupdf  # noqa: PLC0415 -- AGPL 可选件
+    except ImportError:
+        return None
+    try:
+        with pymupdf.open(str(pdf)) as doc:
+            return [
+                {
+                    "w": pg.rect.width,
+                    "h": pg.rect.height,
+                    "words": [tuple(w[:5]) for w in pg.get_text("words")],
+                }
+                for pg in doc
+            ]
+    except Exception:  # noqa: BLE001 -- 坏档回落 poppler
+        return None
+
+
 def _bbox_pages(pdf: Path) -> list[dict]:
-    """``pdftotext -bbox`` → [{w,h,words:[(x0,y0,x1,y1,text)]}]（pt 轴、
-    原点左上）。"""
+    """[{w,h,words:[(x0,y0,x1,y1,text)]}]（pt 轴、原点左上）——词源
+    pymupdf 优先（clip-aware），缺席退 ``pdftotext -bbox``（clip-blind，
+    幻影源文面会虚报 overlap/margin）。"""
+    mp = _bbox_pages_mupdf(pdf)
+    if mp is not None:
+        return mp
     xml = _run(["pdftotext", "-bbox", pdf.name, "-"], cwd=pdf.parent)
     if not xml:
         return []
@@ -388,12 +437,25 @@ def _textblock(geom: dict, page_w: float, page_h: float) -> tuple:
     return page_w * m, page_h * m, page_w * (1 - m), page_h * (1 - m)
 
 
+def _sym_tok(t: str) -> bool:
+    """数学符号 token——≤2 字符且全为非字母数字（√ ∼ ± → ∫ ∑ 等
+    bbox 瘦高符号；\\stackrel{iid}{\\sim} 堆叠的 iid×∼ 假重叠对
+    即此类）。CJK 在 Python 里算 alnum，不受影响。"""
+    return len(t) <= 2 and not any(c.isalnum() for c in t)
+
+
 def _word_overlap_pairs(words: list[tuple]) -> int:
     """跨行词重叠对数——同行相邻词天然贴近不算，只数「y 中心差 > 半词高
-    且 bbox IoU > 阈」对（#615 重叠对法）。扫线法 O(n log n + k)。"""
+    且 bbox IoU > 阈」对（#615 重叠对法）。扫线法 O(n log n + k)。
+    数学符号 token 不参与——瘦高 bbox 天然与邻行堆叠。
+    CJK 参与闸：splice 只产 zh 墨——en×en 对非本管线产物（图内源侧
+    碰撞：matplotlib tick×轴题挤压是主流，W1 普查 75% 对/85% findings
+    属此类）；残留 en 行互撞归 xlat_residual_en 管。"""
     ws = sorted(words, key=lambda w: (w[1] + w[3]) / 2)
     n = 0
     for i, a in enumerate(ws):
+        if _sym_tok(a[4]):
+            continue
         acy = (a[1] + a[3]) / 2
         ah = max(a[3] - a[1], 1e-6)
         for b in ws[i + 1 :]:
@@ -402,6 +464,10 @@ def _word_overlap_pairs(words: list[tuple]) -> int:
                 break  # y 序扫出窗
             if abs(bcy - acy) < ah * 0.5:
                 continue  # 同行
+            if _sym_tok(b[4]):
+                continue  # 符号 token
+            if not (_CJK_RX.search(a[4]) or _CJK_RX.search(b[4])):
+                continue  # en×en——非 splice 产物（图内源侧/残留 en 面）
             ix = min(a[2], b[2]) - max(a[0], b[0])
             iy = min(a[3], b[3]) - max(a[1], b[1])
             if ix <= 0 or iy <= 0:
@@ -418,21 +484,76 @@ def _word_overlap_pairs(words: list[tuple]) -> int:
 #: 全挂在 ，。：（ 尾上）。真溢出按真实 box 计不受影响。
 _CJK_PUNCT_R: Final = "，。、；：？！）】」』》〉”’…—·"
 _CJK_PUNCT_L: Final = "（【「『《〈“‘"
+#: verbatim 英文段豁免口径——越界词落在「x 序连续 ASCII 词跑」内且
+#: 跑长 ≥此值即免数（附录/prompt 列表整段溢出是 en 原文同形）；句内
+#: 夹的单枚英文术语（跑长不足）仍计。CJK 词天然断跑——双栏页英列
+#: 不被邻栏 zh 词并带豁免，也不拖回计数面。
+_ASCII_RUN_MIN: Final = 4
+_ASCII_RUN_GAP: Final = 24.0  # pt——连跑内相邻 ASCII 词 x0−prev_x1 阈
+# （列表对齐空隙仍归一跑；栏间分隔由 CJK 断跑承担）
 
 
-def _page_word_stats(pg: dict, geom: dict) -> tuple[int, int]:
+def _page_word_stats(
+    pg: dict, geom: dict, ascii_run_exempt: bool = True
+) -> tuple[int, int]:
     """单页 (越界词数, 跨行重叠对数)——跨臂按页对拍的最小单位。
-    越界只数正文带内词：running head / 页码等页眉页脚家具本就骑在
-    textblock 之外（2608.25736 p7 实证——页眉行触发全页 breach），
-    cy < t 或 cy > b+20 的词不算。"""
+    越界只数正文带内的词：running head / 页码等页眉页脚家具本就
+    骑在 textblock 之外（2608.25736 p7 实证——页眉行触发全页
+    breach），cy < t 或 cy > b+20 的词不算。``ascii_run_exempt``
+    开（zh 侧）：越界词在 ≥_ASCII_RUN_MIN 词 ASCII 连跑内即免——
+    verbatim 附录行溢出归 en 原文同形。base 侧（纯 en 文档）传
+    False 全量计——跨臂抑制要的是 en 原件的固有溢出量，豁免会
+    把 base 侧压成 0 使抑制退化。"""
     left, t, r, b = _textblock(geom, pg["w"], pg["h"])
     tol = MARGIN_BREACH_PT
     words = pg["words"]
+    run_len: dict[int, int] = {}
+    if ascii_run_exempt:
+        # cy 序贪心聚行成横带（cy 差 < 行高×0.5 归一带），带内 x 序
+        # 切 ASCII 连跑：相邻 ASCII 词间距 ≤_ASCII_RUN_GAP 续跑，
+        # CJK/符号词或大空隙断跑
+        wline = [-1] * len(words)
+        nlines = 0
+        cur_cy = cur_h = 0.0
+        for i in sorted(
+            range(len(words)), key=lambda j: (words[j][1] + words[j][3]) / 2
+        ):
+            cy = (words[i][1] + words[i][3]) / 2
+            h = max(words[i][3] - words[i][1], 1e-6)
+            if nlines == 0 or cy - cur_cy >= max(cur_h, h) * 0.5:
+                nlines += 1
+                cur_cy, cur_h = cy, h
+            wline[i] = nlines - 1
+        for ln in range(nlines):
+            cur: list[int] = []
+            prev_x1 = -1e18
+            for i in sorted(
+                (j for j in range(len(words)) if wline[j] == ln),
+                key=lambda j: words[j][0],
+            ):
+                x0, x1, wtext = words[i][0], words[i][2], words[i][4]
+                if wtext.isascii():
+                    if cur and x0 - prev_x1 > _ASCII_RUN_GAP:
+                        for j in cur:
+                            run_len[j] = len(cur)
+                        cur = []
+                    cur.append(i)
+                elif not _sym_tok(wtext):
+                    # CJK 等实质非 ASCII 词断跑；数学符号 token 透明
+                    # 穿透——``x ≥ t → a`` 伪码行不被劈成短跑误计
+                    for j in cur:
+                        run_len[j] = len(cur)
+                    cur = []
+                prev_x1 = x1
+            for j in cur:
+                run_len[j] = len(cur)
     nb = 0
-    for x0, y0, x1, y1, wtext in words:
+    for i, (x0, y0, x1, y1, wtext) in enumerate(words):
         cy = (y0 + y1) / 2
         if not (t - 2 <= cy <= b + 20.0):
             continue
+        if _sym_tok(wtext) or run_len.get(i, 0) >= _ASCII_RUN_MIN:
+            continue  # 数学符号 token / verbatim 英文段越界豁免
         h = max(y1 - y0, 1e-6)
         bx0 = x0 + (h * 0.6 if wtext[:1] in _CJK_PUNCT_L else 0.0)
         bx1 = x1 - (h * 0.6 if wtext[-1:] in _CJK_PUNCT_R else 0.0)
@@ -503,7 +624,8 @@ def _bbox_scan(
 
 
 def _plain_scan(text: str) -> tuple[list[dict], dict]:
-    """pdftotext 纯文本层：退化兜底（olmOCR 系）+ 残留英文。"""
+    """pdftotext 纯文本层：退化兜底（olmOCR 系）+ 残留英文两级档
+    （furniture 剔除后 frac≥RESIDUAL_EN_HEAVY_FRAC 升 heavy 档）。"""
     findings: list[dict] = []
     pages = text.split("\f")
     if pages and not pages[-1].strip():
@@ -517,12 +639,19 @@ def _plain_scan(text: str) -> tuple[list[dict], dict]:
     )
     cut = min(head_cut, _refs_cut(lines))
     body = lines[:cut]
+    body_norm = [" ".join(ln.split()) for ln in body]
+    # 页眉页脚 furniture——正文域内复现 ≥4 次的行（running head 每页
+    # 复现属合法面）不计残英；频数只数 body——把 refs 尾算进来会把
+    # 「正文残英 + refs 复现」的真残英行也冲进家具（verify 实证）。
+    freq = Counter(body_norm)
     en_lines = [
-        ln.strip()
-        for ln in body
-        if _ASCII_LINE_RX.match(ln.strip()) and len(ln.strip().split()) >= 4
+        ln
+        for ln in body_norm
+        if _ASCII_LINE_RX.match(ln)
+        and len(ln.split()) >= 4
+        and freq[ln] < RESIDUAL_EN_FURNITURE
     ]
-    text_lines = [ln for ln in body if ln.strip()]
+    text_lines = [ln for ln in body_norm if ln]
     metrics["en_tail_cut"] = cut if cut < len(lines) else None
     metrics["residual_en_lines"] = len(en_lines)
     frac = len(en_lines) / max(len(text_lines), 1)
@@ -530,7 +659,15 @@ def _plain_scan(text: str) -> tuple[list[dict], dict]:
         len(en_lines) >= RESIDUAL_EN_MIN_LINES and frac >= RESIDUAL_EN_MIN_FRAC
     ):
         findings.append(
-            {"sig": "xlat_residual_en", "lines": len(en_lines), "frac": round(frac, 3)}
+            {
+                "sig": (
+                    "xlat_residual_en_heavy"
+                    if frac >= RESIDUAL_EN_HEAVY_FRAC
+                    else "xlat_residual_en"
+                ),
+                "lines": len(en_lines),
+                "frac": round(frac, 3),
+            }
         )
     # 退化：FFFD / 重复 n-gram / 空页
     fffd = text.count("\ufffd")
@@ -749,17 +886,28 @@ def _raster_scan(
         )
         metrics["ink_ratio"] = round(ink_ratio, 3)
         # 逐页墨量回归：矢量图（tikz/pgfplots）掉图不进 pdfimages
-        # 计数——image 对拍盲区的补位面。zh 页墨量崩到 base 邻窗
-        # 峰值 35% 以下且 base 邻窗确有内容（>8%）即报。末页豁免
-        # （收尾留白合法），blank 检出页已由 vis_blank_page 认领。
+        # 计数——image 对拍盲区的补位面。zh 页墨量崩到 base 邻窗峰值
+        # 35% 以下、base 邻窗确有内容（>8%）、且该页在自身文档内也是
+        # 离群低点（< 全 zh 页中位数×INK_SELF_OUTLIER——重排错位的
+        # 「比 base 稀但非离群」页不报）才报。末页豁免（收尾留白
+        # 合法），blank 检出页已由 vis_blank_page 认领。
         ink_drops = []
+        # 中位数只过非空页——空页已由 vis_blank_page 认领，计入会把
+        # 中位数压到 ~0 使离群闸在「半空白文档」里永不触发；全空文档
+        # zh_med=0 天然不报警（空页签名已逐页认领）。
+        nz = [p["ink"] for p in zh_pages if p["ink"] >= BLANK_INK_MAX]
+        zh_med = statistics.median(nz) if nz else 0.0
         for i, pg in enumerate(zh_pages[:-1]):
             if pg["ink"] < BLANK_INK_MAX:
                 continue
             lo = max(0, i - 2)
             hi = min(len(base_pages), i + 3)
             bw = max((base_pages[j]["ink"] for j in range(lo, hi)), default=0)
-            if bw > 0.08 and pg["ink"] < bw * INK_DROP_RATIO:
+            if (
+                bw > 0.08
+                and pg["ink"] < bw * INK_DROP_RATIO
+                and pg["ink"] < zh_med * INK_SELF_OUTLIER
+            ):
                 ink_drops.append(i + 1)
         if ink_drops:
             findings.append({"sig": "regress_ink_profile", "pages": ink_drops})
@@ -898,7 +1046,10 @@ def qc_paper(
             base_geom = (
                 parse_txlm(btx)["geom"] if btx is not None and btx.exists() else {}
             )
-            base_stats = [_page_word_stats(pg, base_geom) for pg in base_bbox]
+            base_stats = [
+                _page_word_stats(pg, base_geom, ascii_run_exempt=False)
+                for pg in base_bbox
+            ]
             kept: list[dict] = []
             suppressed = 0
             for f_ in findings:

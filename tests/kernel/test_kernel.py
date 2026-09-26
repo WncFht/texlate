@@ -138,7 +138,7 @@ def _collector_spec(fn, items):
     return Spec(stages=[st], items=items, kind="tbench", eval=True)
 
 
-def _seed_verdict(idc, status, seq, sig=None):
+def _seed_verdict(idc, status, seq, sig=None, stage="coll"):
     """Stamp a historical cross-run cell row straight into the index."""
     idx = indexmod.Index()
     ev = events.make_event(
@@ -151,7 +151,7 @@ def _seed_verdict(idc, status, seq, sig=None):
         arm="-",
         up="-",
         variant="-",
-        stage="coll",
+        stage=stage,
         status=status,
         dur_s=0.1,
     )
@@ -218,6 +218,71 @@ def test_dedup_pile_over_verdict_still_dedups(broot: Path):
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert _cell_rows(rd)[0]["status"] == "dedup"
     assert calls == []
+
+
+def test_last_mutating_dedup_harvests_upstream_products(broot: Path):
+    """last_mutating 撞 dedup 终态也收字节 —— 2609.20519 实证缺口:
+
+    上游格本 run 真跑产出的 mutates 树, 在末段 dedup 行下以前直接随
+    remove_cell_tree 清零, verdict 留账而字节永远不入 vault。末段自身
+    kind 在押时 dedup 合法——此时要收的恰是上游新产出的 zh。"""
+    # 末段自身 kind 已押 → coll dedup 合法成立 (字节闸放行 dedup)
+    lqc_src = broot / "lqc-src"
+    lqc_src.mkdir()
+    (lqc_src / "qc.json").write_text("{}")
+    vault.harvest("2401.00001", "-", "-", {"layoutqc": lqc_src},
+                  source_run="seed", verdict="verified", zone="primary")
+
+    def produce(ctx):
+        d = ctx.asset_dir("zh")
+        (d / "payload.txt").write_text("fresh bytes")
+        return "ok"
+
+    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"},
+                      [{"id": "2401.00001"}])
+    spec.stages[0].mutates = ["zh"]
+    spec.stages[1].mutates = ["layoutqc"]
+    _seed_verdict("2401.00001", "ok", 1, stage="coll")
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    rows = {e["stage"]: e["status"] for e in _cell_rows(rd)}
+    assert rows["a"] == "ok"
+    assert rows["coll"] == "dedup"
+    # dedup 终态仍触发 harvest —— zh 字节入 vault 而非随 workdir 清零
+    assert vault.bytes_ok("2401.00001", "-", "-")
+
+
+def test_mutates_dedup_requires_intact_bytes(broot: Path):
+    """免费 mutates 格 dedup 要字节在押: verdict-done + vault 缺席 →
+    放行重跑 (免费 regen); 字节补齐后回到 dedup。"""
+    calls = []
+
+    def produce(ctx):
+        calls.append("a")
+        d = ctx.asset_dir("zh")
+        (d / "payload.txt").write_text("fresh bytes")
+        return "ok"
+
+    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"},
+                      [{"id": "2401.00001"}])
+    spec.stages[0].mutates = ["zh"]
+    spec.stages[1].mutates = ["layoutqc"]
+    # a 有历史 ok verdict 但 vault 无字节 → 必须真跑不能 dedup
+    _seed_verdict("2401.00001", "ok", 1, stage="a")
+    _seed_verdict("2401.00001", "ok", 2, stage="coll")
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    rows = {e["stage"]: e["status"] for e in _cell_rows(rd)}
+    assert calls == ["a"]                        # 字节缺席 → 重跑
+    assert rows["a"] == "ok"
+    assert vault.bytes_ok("2401.00001", "-", "-")
+
+    calls.clear()
+    res2 = kernel.run(spec, **_quiet())
+    rd2 = runs.load_run(spec.kind, res2["date"], res2["slug"])
+    rows2 = {e["stage"]: e["status"] for e in _cell_rows(rd2)}
+    assert calls == []                           # 字节在押 → dedup
+    assert rows2["a"] == "dedup"
 
 
 def test_fp_changes_do_not_affect_done_set(broot: Path):

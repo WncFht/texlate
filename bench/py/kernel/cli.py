@@ -714,6 +714,41 @@ def _cmd_vault_cas_link(args) -> int:
     return EXIT_OK
 
 
+def _cmd_vault_rekey(args) -> int:
+    """Variant adopt: intact src-variant paid kinds -> dst keyspace."""
+    _pre_write()
+    kinds = (
+        [k.strip() for k in args.kinds.split(",") if k.strip()]
+        if args.kinds
+        else None
+    )
+    try:
+        rows = vault.rekey(
+            args.src,
+            args.dst,
+            arm=args.arm,
+            idc=args.idc,
+            kinds=kinds,
+            dry=args.dry,
+        )
+    except Exception as exc:
+        _err(f"vault rekey failed: {exc}")
+        return EXIT_FAIL
+    n_err = sum(1 for r in rows if "error" in r)
+    verb = "would rekey" if args.dry else "rekeyed"
+    for r in rows:
+        print(
+            f"  {verb} ({r['idc']},{r['arm']})"
+            f" {'+'.join(r['kinds'])}"
+            f" {r['src_variant']}->{r['dst_variant']}"
+            + (f"  skipped={'+'.join(r['skipped_kinds'])}"
+               if r["skipped_kinds"] else "")
+            + (f"  ERROR {r['error']}" if "error" in r else "")
+        )
+    print(f"vault rekey: {len(rows)} cell(s) {verb}, errors={n_err}")
+    return EXIT_FAIL if n_err else EXIT_OK
+
+
 # --- ledger -------------------------------------------------------------------------
 
 
@@ -884,6 +919,127 @@ def _cmd_lake_evict(args) -> int:
     for p in removed:
         print(f"  {p}")
     return EXIT_OK
+
+
+_PIPELINE_STAGES = (
+    "route",
+    "ingest",
+    "parse",
+    "xlat",
+    "splice",
+    "compile",
+    "fixloop",
+    "layoutqc",
+)
+
+
+def _evict_done_targets(idx) -> list[str]:
+    """idcs whose paid product no longer needs the lake cell, two eras:
+
+    - e2e_real 期：the LAST ``records`` row at stage='layoutqc' is 'ok'
+      (rowid order = ledger order, the _last_done convention) AND an
+      arm='real' vault meta vouches intact zh bytes.
+    - soak 期（无 layoutqc 段、封 '-' arm）：末条非 dedup 管线账
+      ∈ {ok,clean}（rowid 序）AND arm='-' meta zh 完好。
+
+    filename key is the credential; _kind_intact stat-verifies every
+    declared file. Both legs fail-closed: a torn meta or a missing file
+    drops the idc off the list.
+
+    KERNEL 状态（dedup/claimed/lost/unpaid_gate）非格态裁决——dedup 是
+    借用前判、lost 是 run 级僵尸回收标记（回收时机晚于格在后续 run
+    完成时会逆序遮蔽真实终态）——两脈都只取最后一条真裁决账。"""
+    rows = idx.conn.execute(
+        "SELECT idc, status FROM records WHERE stage='layoutqc'"
+        " AND status NOT IN ('dedup','claimed','lost','unpaid_gate')"
+        " ORDER BY rowid"
+    ).fetchall()
+    last: dict[str, str] = {}
+    for r in rows:
+        last[r["idc"]] = r["status"]
+    qc_ok = {i for i, s in last.items() if s == "ok"}
+
+    ph = ",".join("?" * len(_PIPELINE_STAGES))
+    rows2 = idx.conn.execute(
+        "SELECT idc, status FROM records"
+        " WHERE status NOT IN ('dedup','claimed','lost','unpaid_gate')"
+        f" AND stage IN ({ph}) ORDER BY rowid",
+        _PIPELINE_STAGES,
+    ).fetchall()
+    last2: dict[str, str] = {}
+    for r in rows2:
+        last2[r["idc"]] = r["status"]
+    term_ok = {i for i, s in last2.items() if s in ("ok", "clean")}
+
+    vaulted_real: set[str] = set()
+    vaulted_dash: set[str] = set()
+    for _mp, key, meta in vault._iter_metas():
+        if key is None or meta is None:
+            continue
+        if key[1] == "real":
+            if key[0] in qc_ok and vault._kind_intact(meta, "zh"):
+                vaulted_real.add(key[0])
+        elif key[1] == "-":
+            if key[0] in term_ok and vault._kind_intact(meta, "zh"):
+                vaulted_dash.add(key[0])
+    return sorted((qc_ok & vaulted_real) | (term_ok & vaulted_dash))
+
+
+def _cmd_lake_evict_done(args) -> int:
+    """Evict lake cells whose zh is already vaulted (done-with pipeline)."""
+    _pre_write()
+    idx = _open_index()
+    try:
+        targets = _evict_done_targets(idx)
+    finally:
+        idx.close()
+    if not targets:
+        print(
+            "lake evict-done: no eligible cells (need last layoutqc ok "
+            "+ intact real-arm zh, or soak-era last pipeline record "
+            "ok/clean + intact '-' arm zh in vault)"
+        )
+        return EXIT_OK
+    tally: dict[str, int] = {}
+    freed = 0
+    n_err = 0
+    cat = lake.LakeCatalog.load()
+    for idc in targets:
+        if args.dry:
+            row = cat.rows().get(idc, {})
+            d = lake.cell_dir(idc, row.get("source") or "arxiv")
+            size = fsutil.dir_size(d) if d.is_dir() else 0
+            pin_note = "  (pinned — would skip)" if lake._pinned(row) else ""
+            print(
+                f"  would evict {idc}  state={row.get('state', 'absent')}"
+                f" cell_bytes={size}{pin_note}"
+            )
+            continue
+        try:
+            res = lake.evict_cell(idc, keep_raw=args.keep_raw)
+        except Exception as exc:
+            n_err += 1
+            _err(f"  evict-done {idc}: {exc}")
+            continue
+        result = res["result"]
+        tally[result] = tally.get(result, 0) + 1
+        freed += res["freed"]
+        detail = (
+            f" ({res['reason']})" if result == "skipped" else f" freed={res['freed']}"
+        )
+        print(f"  {result:<8} {idc}{detail}")
+    verb = "would evict" if args.dry else "done"
+    print(
+        f"lake evict-done: {len(targets)} eligible, {verb}"
+        + (
+            ""
+            if args.dry
+            else f" — {' '.join(f'{k}={v}' for k, v in sorted(tally.items()))}"
+            f" freed={freed} bytes ({freed / 2**20:.1f} MiB)"
+            f" errors={n_err}"
+        )
+    )
+    return EXIT_FAIL if n_err else EXIT_OK
 
 
 def _cmd_lake_register(args) -> int:
@@ -1546,6 +1702,19 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="limit to one asset kind")
     sp.add_argument("--idc", default=None, help="limit to one id")
     sp.add_argument("--dry", action="store_true")
+    sp = vsub.add_parser(
+        "rekey", help="intact src-variant paid kinds -> dst-variant "
+                      "keyspace (default zh,state; free-regen kinds "
+                      "excluded on purpose)")
+    sp.add_argument("--from", dest="src", required=True,
+                    help="source variant (e.g. '-' legacy namespace)")
+    sp.add_argument("--to", dest="dst", required=True,
+                    help="destination variant (e.g. 'v1')")
+    sp.add_argument("--arm", default=None, help="limit to one arm")
+    sp.add_argument("--idc", default=None, help="limit to one id")
+    sp.add_argument("--kinds", default=None,
+                    help="comma list, default zh,state")
+    sp.add_argument("--dry", action="store_true")
 
     lp = sub.add_parser("ledger", help="event ledger verbs")
     lsub = lp.add_subparsers(dest="lsub", required=True)
@@ -1572,6 +1741,14 @@ def _build_parser() -> argparse.ArgumentParser:
     sp = ksub.add_parser("evict", help="LRU evict toward freed bytes")
     sp.add_argument("--to-free", required=True,
                     help="bytes to free (K/M/G/T suffix ok)")
+    sp = ksub.add_parser(
+        "evict-done",
+        help="evict cells whose paid zh is vaulted "
+        "(layoutqc-ok+real-arm zh, or soak-era terminal ok/clean + '-' arm zh)",
+    )
+    sp.add_argument("--keep-raw", action="store_true",
+                    help="keep the raw/ canonical layer (state raw_only)")
+    sp.add_argument("--dry", action="store_true")
     sp = ksub.add_parser("register", help="manifest cells (skeleton rows)")
     sp.add_argument("ids", nargs="*")
     sp.add_argument("--manifests", nargs="+", default=None,
@@ -1692,6 +1869,7 @@ def main(argv=None) -> int:
             "seed": _cmd_vault_seed,
             "slim": _cmd_vault_slim,
             "cas-link": _cmd_vault_cas_link,
+            "rekey": _cmd_vault_rekey,
         }[args.vsub](args)
     if cmd == "ledger":
         return {
@@ -1704,6 +1882,7 @@ def main(argv=None) -> int:
         return {
             "status": _cmd_lake_status,
             "evict": _cmd_lake_evict,
+            "evict-done": _cmd_lake_evict_done,
             "register": _cmd_lake_register,
             "absorb": _cmd_lake_absorb,
             "pin": _cmd_lake_pin,

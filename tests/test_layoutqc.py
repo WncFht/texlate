@@ -1,4 +1,4 @@
-"""layoutqc 电池 + marks 真值层单测（docs/dev/layoutqc-plan.md §4）。
+"""layoutqc 电池 + marks 真值层单测（docs/dev/layoutqc.md §4）。
 
 纯函数面：parse_txlm/env_inventory/compare_marks/_logscan/_plain_scan/
 _textblock/_word_overlap_pairs/_lcs/_marks_scan。集成面（xelatex 实编 +
@@ -315,10 +315,13 @@ def test_logscan_quiet() -> None:
 
 
 def test_plain_residual_en_and_degenerate() -> None:
-    en_line = "This is a fully english sentence left untranslated here."
-    text = ("中文内容正常翻译。\n" + en_line + "\n") * 30
-    f, m = _plain_scan(text)
-    assert m["residual_en_lines"] >= 30  # noqa: PLR2004 -- 30 次循环注入的下界
+    # en 行须互异——同行复现 ≥4 次会被 furniture 剔除；低 frac 轻档
+    en = "\n".join(
+        f"This is english sentence {i} left untranslated here." for i in range(30)
+    )
+    zh = "".join(f"第{i}段中文正常翻译内容充实。\n" for i in range(240))
+    f, m = _plain_scan(zh + en + "\n")
+    assert m["residual_en_lines"] == 30  # noqa: PLR2004 -- 注入行数即规格
     assert any(x["sig"] == "xlat_residual_en" for x in f)
 
 
@@ -326,11 +329,39 @@ def test_plain_residual_en_noise_floor() -> None:
     """少量合法英文行（作者块/术语/语料例句）不触发——2512.01407 实证
     13 行标题页英文全是 frontmatter+algorithm+表头，阈值提到
     ≥25行且≥2%（或绝对质量 ≥60 行）后不再报警。"""
-    en_line = "Alexandre Sac-Morane, Katerina Ioannidou, Duke University"
-    text = ("中文内容正常翻译，这段文字很长很长很长。\n" * 40 + en_line + "\n") * 13
+    # en 行互异——同一行复现 ≥4 次会被 furniture 剔除计不到 13
+    en_block = "\n".join(
+        f"Author {i} Sac-Morane, Katerina Ioannidou, Some University" for i in range(13)
+    )
+    text = "中文内容正常翻译，这段文字很长很长很长。\n" * 520 + en_block + "\n"
     f, m = _plain_scan(text)
     assert m["residual_en_lines"] == 13  # noqa: PLR2004 -- 2512.01407 实证行数
     assert not any(x["sig"] == "xlat_residual_en" for x in f)
+
+
+def test_plain_residual_en_furniture_and_heavy() -> None:
+    """归一后全文复现 ≥4 次的行 = 页眉页脚 furniture 剔除（running
+    head 每页复现是合法面）；frac≥0.15 升 xlat_residual_en_heavy
+    （半译出货档），低 frac 维持轻档。"""
+    head = "Journal of Testing Volume 12 Issue 3"
+    zh_block = "".join(f"第{i}段中文译文内容各不相同。\n" for i in range(20))
+    # running head 每页复现 → furniture 剔除后残英清零
+    f, m = _plain_scan((head + "\n" + zh_block) * 6)
+    assert m["residual_en_lines"] == 0
+    assert not any(x["sig"].startswith("xlat_residual_en") for x in f)
+    # 非 furniture 英文行（各只现 1 次）仍计；frac≥0.15 → heavy 档
+    en_block = "\n".join(
+        f"English leftover sentence number {i} remains here." for i in range(30)
+    )
+    f2, m2 = _plain_scan(zh_block + en_block + "\n" + zh_block)
+    assert m2["residual_en_lines"] == 30  # noqa: PLR2004 -- 注入行数即规格
+    heavy = next(x for x in f2 if x["sig"] == "xlat_residual_en_heavy")
+    assert heavy["frac"] >= 0.15  # noqa: PLR2004 -- heavy 阈即规格
+    # 低 frac（≥0.02 且 ≥25 行）维持轻档
+    f3, m3 = _plain_scan(zh_block * 9 + en_block + "\n")
+    assert m3["residual_en_lines"] == 30  # noqa: PLR2004
+    lite = next(x for x in f3 if x["sig"] == "xlat_residual_en")
+    assert lite["frac"] < 0.15  # noqa: PLR2004
 
 
 def test_plain_degenerate_ngram() -> None:
@@ -425,6 +456,33 @@ def test_bbox_paper_mismatch_units() -> None:
     assert any(f["sig"] == "layout:paper_mismatch" for f in bad)
 
 
+def test_margin_breach_ascii_run_exempt() -> None:
+    """≥4 词 x 序连续 ASCII 段的越界豁免（verbatim 附录/列表行溢出
+    归 en 原文同形）；双栏邻栏 CJK 不拖回（CJK 词天然断跑）、
+    不足 4 词的短英文段仍计。"""
+    # geom={} → fallback 92% 框：r≈587.5，x1>591.5 的词越右界
+    ascii_run = [(595.0 + i * 20, 400, 610.0 + i * 20, 412, f"w{i}") for i in range(4)]
+    f, _m = _bbox_scan([{"w": 612.0, "h": 792.0, "words": ascii_run}], {}, {})
+    assert not any(x["sig"] == "geo_margin_breach" for x in f)
+    # 同横带另有 CJK 词（双栏左栏 zh/右栏 en 列表形）不拖回——
+    # ASCII 跑自成一段仍豁免
+    mixed = [(50, 400, 80, 412, "中文"), *ascii_run]
+    f2, _m2 = _bbox_scan([{"w": 612.0, "h": 792.0, "words": mixed}], {}, {})
+    assert not any(x["sig"] == "geo_margin_breach" for x in f2)
+    # 3 词短跑不足阈 → 全计
+    f3, _m3 = _bbox_scan([{"w": 612.0, "h": 792.0, "words": ascii_run[:3]}], {}, {})
+    breach = [x for x in f3 if x["sig"] == "geo_margin_breach"]
+    assert len(breach) == 1
+    assert breach[0]["words"] == 3  # noqa: PLR2004
+    # CJK 词嵌跑内断跑——4 越界英文词劈成两条 2 词短跑全计（夹缝
+    # 的 CJK 词自身越界也照计）
+    broken = [*ascii_run[:2], (632, 400, 640, 412, "中"), *ascii_run[2:]]
+    f4, _m4 = _bbox_scan([{"w": 612.0, "h": 792.0, "words": broken}], {}, {})
+    breach4 = [x for x in f4 if x["sig"] == "geo_margin_breach"]
+    assert len(breach4) == 1
+    assert breach4[0]["words"] == 5  # noqa: PLR2004
+
+
 def test_plain_residual_en_refs_tail_cut() -> None:
     en_ref = "Smith J and Doe K. Some english reference entry here."
     text = "正常中文正文。\n" * 8 + "References\n" + (en_ref + "\n") * 30
@@ -445,6 +503,21 @@ def test_word_overlap_pairs() -> None:
     # 同行相邻词不重叠
     same_line = [(100, 100, 160, 112, "a"), (162, 100, 220, 112, "b")]
     assert _word_overlap_pairs(same_line) == 0
+
+
+def test_word_overlap_math_symbols_skipped() -> None:
+    """数学符号 token（≤2 字符纯符号）不参与重叠对——堆叠公式
+    \\stackrel{iid}{\\sim} 的 iid×∼ 对就是这么炸出来的；CJK 是
+    alnum 不受影响，真重叠仍计。"""
+    words = [
+        (100, 100, 160, 112, "iid"),
+        (100, 107, 160, 119, "∼"),  # 与 iid 跨行重叠但符号 → 剔
+        (100, 107, 160, 119, "±"),
+        (100, 107, 160, 119, "→"),
+    ]
+    assert _word_overlap_pairs(words) == 0
+    cjk = [(100, 100, 160, 112, "中"), (100, 107, 160, 119, "文")]
+    assert _word_overlap_pairs(cjk) == 1
 
 
 def test_lcs_and_skeleton() -> None:
@@ -512,6 +585,33 @@ def test_marks_scan_dropped_env(tmp_path: Path) -> None:
 def test_marks_absent(tmp_path: Path) -> None:
     f, _m = _marks_scan(tmp_path / "none.txlm", None, None, None)
     assert f == [{"sig": "layout:marks_absent", "side": "zh"}]
+
+
+def test_marks_absent_base_silent(tmp_path: Path) -> None:
+    """base_txlm=None（未建对照臂）不出 finding——臂编不编是参数
+    选择（base=onfail 时 clean 不建臂）只记 metrics；但臂已建而
+    txlm 缺席/零 mark 仍是注入链断，照报；zh 缺席仍是真洞。"""
+    d = tmp_path / "d"
+    d.mkdir()
+    tx = _txlm(
+        d,
+        [
+            "GEOM pw=600pt ph=800pt",
+            "MARK figure-1-b x=1 y=1 p=1",
+            "MARK figure-1-e x=1 y=1 p=1",
+        ],
+    )
+    f, m = _marks_scan(tx, None, None, None)
+    assert not any(x["sig"] == "layout:marks_absent" for x in f)
+    assert m["base_marks"] == 0
+    # 臂建而零 mark → 注入链断报警
+    btx = _txlm(tmp_path, ["GEOM pw=600pt ph=800pt"])
+    f2, m2 = _marks_scan(tx, btx, None, None)
+    assert any(x["sig"] == "layout:marks_absent" and x["side"] == "base" for x in f2)
+    assert m2["base_marks"] == 0
+    # 臂建而 txlm 缺席 → 同口径报警
+    f3, _m3 = _marks_scan(tx, tmp_path / "absent.txlm", None, None)
+    assert any(x["sig"] == "layout:marks_absent" and x["side"] == "base" for x in f3)
 
 
 # ---------------------------------------------------------------- tier 门档
@@ -590,6 +690,22 @@ def test_raster_ink_drop_profile() -> None:
     base3 = [_pg(ink=0.05), _pg(ink=0.04)]
     f3, _m3 = _raster_scan(zh3, base3)
     assert not any(x["sig"] == "regress_ink_profile" for x in f3)
+
+
+def test_raster_ink_drop_self_outlier_gate() -> None:
+    """zh 内部离群闸：比 base 邻窗稀、但在自身文档内非离群（≥ 全 zh
+    页中位数×0.25）的重排错位页不再报；真离群低点仍报。"""
+    base = [_pg(ink=0.3), _pg(ink=0.3), _pg(ink=0.3)]
+    # 整体轻墨稿：中位 0.04，p2=0.02 < 0.3×0.35 但 ≥ 0.04×0.25 → 非离群
+    zh = [_pg(ink=0.04), _pg(ink=0.02), _pg(ink=0.04)]
+    f, _m = _raster_scan(zh, base)
+    assert not any(x["sig"] == "regress_ink_profile" for x in f)
+    # 中位 0.3 稿中 p2=0.02 < 0.075 → 自身离群 + 比 base 稀 → 报
+    zh2 = [_pg(ink=0.3), _pg(ink=0.02), _pg(ink=0.3)]
+    f2, _m2 = _raster_scan(zh2, base)
+    drop = [x for x in f2 if x["sig"] == "regress_ink_profile"]
+    assert len(drop) == 1
+    assert drop[0]["pages"] == [2]
 
 
 def test_raster_ink_blob_suppressed_on_image_pages() -> None:

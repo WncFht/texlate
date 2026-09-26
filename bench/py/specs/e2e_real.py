@@ -113,6 +113,7 @@ from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,
     PipelineConfig,
+    RetryPolicy,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -161,13 +162,29 @@ _LAST_ANY_SQL = (
     "ORDER BY rowid DESC LIMIT 1"
 )
 
+_LAST_STS_SQL = (
+    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
+    "fp,dur_s,metrics,errors,ts FROM records "
+    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+    "AND status=? ORDER BY rowid DESC LIMIT 1"
+)
 
-def _last_row(ctx, stage: str, *, done_only: bool = False) -> dict | None:
-    """末条账（任意 status；done_only=True 时同 _last_done 旧口径）。"""
+
+def _last_row(
+    ctx, stage: str, *, done_only: bool = False, status: str | None = None
+) -> dict | None:
+    """末条账（任意 status；done_only=True 时同 _last_done 旧口径；
+    ``status`` 等值过滤——declined 闸行也占 DONE 位会遮蔽早先真账，
+    质检补票须钉到 ok）。"""
     idx = ctx.index
     if idx is None:
         return None
-    if done_only:
+    if status is not None:
+        row = idx.conn.execute(
+            _LAST_STS_SQL,
+            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, status),
+        ).fetchone()
+    elif done_only:
         row = idx.conn.execute(
             _LAST_DONE_SQL,
             (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, *_DONE_STS),
@@ -401,7 +418,13 @@ def _xlat(ctx) -> dict:
     if not ctx.params.get("no_probe"):
         session.probe_model()  # GatewayChat 无 probe_model → 门检后即 True
     client = SessionClient(session)
-    translator = TimedTranslator(GatewayTranslator(client, str(ctx.params["model"])))
+    translator = TimedTranslator(
+        GatewayTranslator(
+            client,
+            str(ctx.params["model"]),
+            policy=RetryPolicy(max_tries=int(ctx.params["max_tries"])),
+        )
+    )
     cfg = PipelineConfig(concurrency=int(ctx.params["concurrency"]))
     try:
         stats, results = asyncio.run(
@@ -617,7 +640,8 @@ def _want_fix(mode: str, compile_status, verdict: dict, reject_at) -> bool:
 
     旧读 ``rec['pipe-xel'].verdict.status``；v2 读 compile 账 metrics
     （verdict+reject_at 同位——inject 拒绝走 reject_at='inject' 不救，
-    无 ctex 的 CJK 注定 fail）。
+    无 ctex 的 CJK 注定 fail）。版面重缺陷的质检补票不在本谓词——
+    归 ``_fixloop`` 调用点的 ``_qc_wanted``（onfail 限定）。
     """
     v = compile_status
     if v is None or v == "reject" or reject_at or mode == "never":
@@ -629,10 +653,47 @@ def _want_fix(mode: str, compile_status, verdict: dict, reject_at) -> bool:
     )
 
 
+#: wanted 闸的质检补票阈值（sig→触发下限）：编译 clean 但版面有重缺陷
+#: 的格子由此进修复环——260 篇探针批实证 23 篇 overfull 无人接。
+_QC_WANTED_MIN = {
+    "layout:overfull": 1,
+    "layout:float_lost": 1,
+    "geo_margin_breach": 3,
+    "geo_text_overlap": 3,
+}
+
+
+def _qc_wanted(ctx) -> dict:
+    """跨 run layoutqc 账的重缺陷命中集 ``{sig: count}``（无命中→{}）。
+
+    topo 上 layoutqc 在 fixloop 之后跑——本 run 内质检账尚未立，本闸
+    吃的是上一轮 run 留下的 ``metrics.sig_counts``：本轮质检喂下一轮
+    修复，设计内口径。钉 ``status='ok'`` 而非末条 DONE——declined:
+    qc_no_input 闸行无 sig_counts，会遮蔽早先真命中（verify 实证）。
+    """
+    qc = _last_row(ctx, "layoutqc", status="ok") or {}
+    counts = (qc.get("metrics") or {}).get("sig_counts")
+    if not isinstance(counts, dict):
+        return {}
+    out = {}
+    for sig, lo in _QC_WANTED_MIN.items():
+        n = counts.get(sig)
+        if isinstance(n, (int, float)) and not isinstance(n, bool) and n >= lo:
+            out[sig] = n
+    return out
+
+
 def _fixloop(ctx) -> dict:
     """needs-free 收割汇：fn 内三段闸（route_dead / no_compile / flux）
     后再 _want_fix 谓词——decline 一律 reject+gate 分桶（DONE 触发
     §3.5 harvest，上游付费字节封 vault 不滞留 work/）。
+
+    _want_fix 不买时（mode=onfail ∧ compile∈{clean,ok} ∧ 无 reject_at
+    限定）补查跨 run layoutqc 末条 ok 账的 ``sig_counts``——命中
+    ``_QC_WANTED_MIN`` 重缺陷即视为 wanted 续走（metrics 记
+    qc_wanted）；inject 拒绝与 compile reject 不吃补票。layoutqc
+    topo 在本格之后，本 run 质检账未立是常态：闸吃上一轮 run 立的
+    账，本轮质检喂下一轮修复。
 
     旧 ``pipe_fix_condition``：copy splice → 冷 usertree fixloop
     （halt_on_error=True + tlpdb 影子 + _NoSandbox + TUNA runner）→
@@ -677,13 +738,24 @@ def _fixloop(ctx) -> dict:
         )
     cm = comp_rec.get("metrics") or {}
     cst = comp_rec.get("status")
+    qc_hit: dict = {}
     if not _want_fix(mode, cst, cm.get("verdict") or {}, cm.get("reject_at")):
-        return _decline("not_wanted", {"compile_status_before": cst})
+        # compile 账不买但版面有重缺陷 → 跨 run 质检账补票；只在「编译
+        # 本身干净」（clean/ok 且无 reject_at）时救——inject 拒绝与
+        # compile reject 不吃补票（前者 _want_fix 口径本就是「不救」，
+        # 后者上游链已死修 splice 无意义）。always 本就 wanted 不进
+        # 此支，never 仍拒。
+        if mode == "onfail" and cst in {"clean", "ok"} and not cm.get("reject_at"):
+            qc_hit = _qc_wanted(ctx)
+        if not qc_hit:
+            return _decline("not_wanted", {"compile_status_before": cst})
 
     splice_src = _ensure_kind(ctx, "splice")
     if splice_src is None:
         return _gate("skip", "no_splice", "upstream", "splice.- missing post-compile")
     metrics: dict = {"mode": mode, "fixloop_ran": True, "compile_status_before": cst}
+    if qc_hit:
+        metrics["qc_wanted"] = qc_hit
     work = ctx.paper_dir() / ".pipe-fix"
     if work.exists():
         shutil.rmtree(work)
@@ -990,6 +1062,7 @@ spec = Spec(
         "only": Param(str, default="", fp=False),
         "model": Param(str, default=DEFAULT_MODEL, fp=True),
         "concurrency": Param(int, default=10, fp=True),
+        "max_tries": Param(int, default=5, fp=True),
         "timeout": Param(float, default=240.0, fp=True),
         "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS, fp=True),
         "base": Param(

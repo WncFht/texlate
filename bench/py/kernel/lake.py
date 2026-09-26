@@ -60,11 +60,13 @@ if TYPE_CHECKING:
 
 __all__ = [
     "PIN_MARKER",
+    "DiskPressureError",
     "LakeCatalog",
     "admit",
     "cell_dir",
     "cell_pinned",
     "evict",
+    "evict_cell",
     "hydrate",
     "is_complete",
     "lake_lock",
@@ -89,6 +91,7 @@ _BOOKKEEP = {"meta.json", "mtree.txt", "files.txt", PIN_MARKER}
 
 _ENV_LAKE_CAP_GB = "TEXLATE_LAKE_CAP_GB"
 _ENV_LAKE_FLOOR_GB = "TEXLATE_LAKE_FLOOR_GB"
+_ENV_MIN_FREE_GB = "TEXLATE_BENCH_MIN_FREE_GB"
 _GIB = 1024 ** 3
 
 # Files kept by shrink_shell on a terminal cell (§3.10.1 shell set).
@@ -541,7 +544,9 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
        ``{stage}/extracted/`` (payload) and may populate ``{stage}/raw/``
        and return a dict of extra meta fields — else, when the existing
        cell still holds ``raw/``, re-extract locally at zero network cost
-       (the raw_only tier's way back to hydrated).
+       (the raw_only tier's way back to hydrated). A new fetch first
+       passes the DiskPressureError free-space gate; the local re-extract
+       is exempt.
     4. meta.json via atomic_write, then whole-dir rename into place.
     5. Catalog row + lake_cell event 'hydrated'.
     """
@@ -595,6 +600,7 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
         if fetch_fn is None:
             return None  # lazy-unfetchable: nothing local, no fetcher
 
+        _check_fetch_headroom()
         cat.set(idc, "hydrating", source=source)
         stage = (paths.lake_tmp_dir() / "rebuild" / str(run_seq)
                  / f"{sid}.stage")
@@ -658,6 +664,46 @@ def admit(n_bytes: int, cap_gb: float | None = None,
         lake.mkdir(parents=True, exist_ok=True)
         free = shutil.disk_usage(lake).free
     return free - n_bytes >= floor_gb * _GIB
+
+
+class DiskPressureError(Exception):
+    """Retriable free-space gate: raised by ``hydrate`` before starting a
+    NEW network fetch when the lake filesystem has less than
+    ``TEXLATE_BENCH_MIN_FREE_GB`` GiB free (default 60). A plain
+    exception surfaces through stage.fn as cell status ``error`` —
+    STATUS_RETRIABLE, never ``fault`` — so the run retries once headroom
+    returns, and the lookahead prefetcher logs it as a warn note.
+
+    Two deliberate exemptions:
+
+    - the local raw_only→hydrated re-extract is never gated: no fetch_fn,
+      no network, and its bytes are mostly hardlink-shared with the raw
+      layer it re-projects;
+    - a filesystem whose TOTAL capacity is below the floor can never
+      satisfy the watermark — the gate would be a permanent deadlock,
+      not backpressure — so scratch roots (tmpfs test dirs, small CI
+      volumes) skip it by construction. Per-write absolute protection on
+      those stays with ``admit``'s fs-floor leg."""
+
+
+def _check_fetch_headroom() -> None:
+    """The DiskPressureError gate — see the class docstring."""
+    lake = paths.lake_dir()
+    try:
+        usage = shutil.disk_usage(lake)
+    except OSError:
+        lake.mkdir(parents=True, exist_ok=True)
+        usage = shutil.disk_usage(lake)
+    floor = float(os.environ.get(_ENV_MIN_FREE_GB, "60")) * _GIB
+    if usage.total < floor:
+        return
+    if usage.free < floor:
+        msg = (
+            f"lake disk pressure: {usage.free / _GIB:.1f} GiB free < "
+            f"{floor / _GIB:.1f} GiB floor ({_ENV_MIN_FREE_GB}) — "
+            "refusing new fetch"
+        )
+        raise DiskPressureError(msg)
 
 
 # --- eviction ----------------------------------------------------------------------------------
@@ -794,6 +840,87 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
             cat.set(r["idc"], state, source=r.get("source", "arxiv"))
 
     return removed
+
+
+def evict_cell(
+    idc: str, *, keep_raw: bool = False, source: str = "arxiv", sink=None, run_dir=None
+) -> dict:
+    """Per-cell eviction — the ``bench lake evict-done`` primitive.
+
+    Deletes the cell's re-derivable surfaces: the ``extracted/``
+    projection (plus a leftover ``extracted.stage`` from a torn in-place
+    rebuild), and ``raw/`` unless ``keep_raw``. The catalog drops to
+    ``raw_only`` (canonical bytes kept — local re-extract is free) or
+    ``evicted``. ``meta.json`` and the bookkeeping/pin files always stay:
+    an evicted cell remains a shell recording what was once there.
+    Surfaces not on the known-rebuildable list are never touched — an
+    unexpected file survives rather than betting it regenerates.
+
+    The state flip goes through ``LakeCatalog.set`` — ledger event first,
+    catalog row second — so a crash mid-evict replays to the same
+    conclusion. All deletion runs under the cell's lake_lock (a racing
+    hydrate can never publish into a half-deleted tree). Idempotent: a
+    cell with nothing left to delete whose state already matches the
+    outcome — or an absent cell with no dir — returns
+    ``{"result": "skipped"}`` without writing a row; a pinned cell is
+    likewise skipped (the PINNED marker is the truth, consulted via
+    ``_pinned``'s three legs).
+
+    Returns ``{idc, result, removed, freed}`` — ``result`` is
+    ``"evicted"``/``"raw_only"``/``"skipped"`` (skipped carries a
+    ``reason``).
+    """
+    cat = LakeCatalog.load()
+    sid = safe_id(idc)
+    with lake_lock(sid):
+        latest = _latest_row(idc)
+        state = latest.get("state", "absent")
+        source = str(latest.get("source") or source)
+        d = cell_dir(idc, source)
+        # _pinned's marker leg needs a row idc — an orphan dir (no row)
+        # carrying a PINNED file is covered by the direct cell check
+        if _pinned(latest) or cell_pinned(d):
+            return {
+                "idc": idc,
+                "result": "skipped",
+                "reason": "pinned",
+                "removed": [],
+                "freed": 0,
+            }
+        targets = [d / "extracted", d / "extracted.stage"]
+        if not keep_raw:
+            targets.append(d / "raw")
+        present = [t for t in targets if t.is_symlink() or t.exists()]
+        new_state = "raw_only" if keep_raw and (d / "raw").exists() else "evicted"
+        if not present and (
+            state == new_state or (state == "absent" and not d.exists())
+        ):
+            return {
+                "idc": idc,
+                "result": "skipped",
+                "reason": state,
+                "removed": [],
+                "freed": 0,
+            }
+        freed = 0
+        removed: list[Path] = []
+        for t in present:
+            freed += _freeable_size(t)
+            if t.is_symlink() or t.is_file():
+                t.unlink()
+            else:
+                shutil.rmtree(t)
+            removed.append(t)
+        cat.set(
+            idc,
+            new_state,
+            source=source,
+            n_files=_payload_count(d),
+            bytes=fsutil.dir_size(d),
+            sink=sink,
+            run_dir=run_dir,
+        )
+        return {"idc": idc, "result": new_state, "removed": removed, "freed": freed}
 
 
 # --- terminal-cell shell ----------------------------------------------------------------------
