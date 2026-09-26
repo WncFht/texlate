@@ -128,3 +128,13 @@
 8. **性能**：索引冷建 ~86ms/170-chunk 可同步建，更大文档走 `forEachSliced`；Map 查找 0.4µs vs `querySelector` 5.5ms——禁每 hover 重扫 DOM；PDF 逐页扫最坏 1478ms 须 idle 分片+缓存，pdf.js `getDestinations()` 批量口不可用（返 {}），逐 annot 解。
 9. **stub/退化文档**：3/25 arxiv 抓取是转换失败 stub（仅 8 id）、4/286 编译件 InvalidPDF、无 ph 旧档——索引对它们返空是正确行为，空态覆盖；`data-chunk` 合成键 `b{n}` 与真 id 共存，跳转按 data-chunk 序而非 id。
 10. **en.html 上游可得性**：arxiv html 406 率（3/13 采样失败）决定 dom 视图可见面——与 usages 无关但影响曝光口径，dom 链本就有降级路径。
+
+## 落地增录：pdf 臂 v2 实态（2026-09-26，`3b60a33d`+`272bc14b`）
+
+§3.4 计划落地后经 ⌘-Inspect 入口接入与卡信息修复两轮加固，实态与计划文的差异记此：
+
+- **唤起面**：⌘-Inspect 成主入口（⌘+click 锚/图式表本体）——详见 `⌘-inspect 修饰键检视层 实现文档.md`；右键「查找引用」与 CiteCard「N 处引用→」旧路并存。
+- **dest 数据面**：`destSites` 由 `{page,y}` 扩为 `{page,y,frac,fx}`——annot rect 经 `page.view[]` 反算页内分位，站行语境抽取的原料；新增 `destPoint` 反查（dest 名→`{page,frac,fx}`，`destPos` 的点名寻址面）供落定闪/行带揭示/行文本抽取。
+- **扫描模型**：`scanDests` 页序改**视口中心螺旋外扫**（annot/seqmap 可用性跟着视线走）；`resolveDestPoints` 与页扫**并行**起跑——原串行时非首页读者的本体反查/Inspect 命中面要干等全文档扫完（死窗≈整个页扫时长）。
+- **卡标签**：`anchorTextOf`（锚印刷文本）→ 碎片判据（空/<2 字符/无 `\p{L}\p{N}`）落 `destRowLabel` 落点行派生——equation 抓 `(N)`、浮动体抓 `Fig|Tab|Sec|Eq|Theorem|Lemma|Proposition|Corollary|Algorithm|Appendix|图|表|式|节|章|定理|引理|命题|推论|算法|附录` 词族、兜底行首 4 词。根因实证：eq 号 span 按字切块、锚矩形只罩开括号 → 卡标题曾显示 `"("`。
+- **站行语境**：`p.N` → `p.N · 引用行文本(≤60)`——`destLineText` 按站 `frac/fx` 取行；`bandElsNear` `[0,±0.008,±0.016]` 页分位五档微探（锚分位取自批注矩形顶缘、常悬行带上沿白缝，直取常空）。

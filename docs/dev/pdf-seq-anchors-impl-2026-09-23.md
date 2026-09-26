@@ -205,6 +205,8 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 ——行首 `\special{BDC}` 前缀把 chunk span 起点推出行首偏移 `off`，
 `L2Attr.attribute` 的 `s<=off<e` 含行判失败 → forward-fallback 把行错贴给
 **前一块**（实证 hits '0:1' 而非 '0:2'，重译误入长块触发 L0 长度比 revert）。
+
+**消费粒度后续**（2026-09-26）：§3 交付的 seq 锚消费面已由「整 seq 锚染/闪」升级为**句叶级**——悬停 hot/peer、点击跳与镜像/usages 落定闪均按 marked 叶文本重切句、取句域叶集（源侧 `pdfSentUnder` 指叶定句、对侧 u 分位 `pdfSentAt` 选句）；⌘-Inspect 检视层复用同一份 marked 面做分面命中与落点行带揭示。机制明细见 `ux-impl-2026-09-22/` 下 sent-align 档 v1.7/v1.8 节与 `⌘-inspect 修饰键检视层 实现文档.md`。
 修复 = `attribute` 增「行首到 span 起点仅 seq 锚/空白即视同含行首」判据
 （repair_l2.py:413）；回归钉 `test_attribute_through_bdc_line_head`（49/49）。
 教训：锚是**行内字节**——凡按行首偏移做含行判的消费面都要过这一闸。

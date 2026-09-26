@@ -208,3 +208,13 @@ v1.5 引入的 u 分位块内插值其实早已把落点推进段内（探针实
 - 落点语义：`sent?.pos ?? interpDst ?? seqPos` 三阶梯——dst 页已渲染即句级直锚（无需 est_dst 钳制，文本成比例映射天然收敛于块内）；懒渲页先走旧插值落地、闪选链 160/550ms 双拍重试，命中即封代际（`flashGen` 每次起跳递增，挡窗内连点陈旧闪示）。
 - marked 多出现（TOC 重放+正文真标同 seq 共存）按 `seqPos` 锚页择组、无锚取裹字最多组；跨页续段、数学长段（一句裹百叶）按选句自然兜底。
 - 验证：vitest 54/54（新增 4 例——句级落点、叶缺席殿后、TOC 择组、DOM→PDF 句级）、tsc/eslint/build 绿、`scripts/sentalign_depth_probe.mjs` playwright 深度探针双向实证（en→zh 句闪 31% 覆盖、zh→en 数学长段一句全裹属正确）。
+
+## v1.8 悬停/落定全面升句级 + 落定闪共轨（2026-09-26，`272bc14b`）
+
+v1.7 只把「点击跳」的 dst 闪示升到句叶级——两条悬停轨（源侧 `sa-hot`、对侧 `sa-peer`）与 usages/镜像跳的落定闪仍是整锚染，观感回到段级。本版把三者全部收句：
+
+- **源侧句级 hot**：新增 `pdfSentUnder(side,seq,t)`——指针下叶经 `seqLeafGroup`（v1.7 `pdfSentAt` 的 marked 多现择组逻辑抽出共用，`seqPos` 锚页组优先、无锚取裹字最多组）重切句，命中叶所在句的句域叶集返；`SentAlignDeps.pdfTintEls` 桥到 `PdfPane.tintEls→saTint` 逐叶 `sa-hot`。非叶上/切空/dep 缺席退整锚 `pdfHover` 旧路。`sameEls`（同长+同首末+首元素仍带 cls）dedup 兜 60ms 节流重算同句——先清再加是两帧闪帧。
+- **对侧句级 peer 随手**：`armPdfPeer(side,seq,pos)` 按 pos→`fracInBlock` u 跟手——pdf dst 走 `pdfSentAt` 句叶 `sa-peer`（`pdfPeerSentEls` dedup）、DOM dst 按 `u·concatLen` 取句 `data-sid` 子集（无句料保全块）。**同 seq 每次 move 重算**——原 fresh 早退把 peer 冻在首算句；DOM 写由 dedup 兜住不重标。`pdfHoverPos` 记存位——DOM 对侧重注（injectChunk）后无新 pointermove 也按存位重补同句。
+- **落定闪共轨修复**：`mirrorDest` 直调 `origGoTo` 不走 `goToDestination` 包装——`ReaderView.mirrorTo` 成功支补 `dh.flashDest(dest)`；包装支（cite 锚/usages 站跳）同接 `flashDest`。`landingFlash`：落点 Pos→`seqAtPoint` 多 x 采样（dest 常在块间白/栏缝/图区，单点易落空）→ seq 锚叶闪；无 seq 退 `bandElsAt` 行带；懒渲页两路皆空 200ms 步最多重试两拍。
+- **`saFlashAt` 新度闸**：`saFlash` 记最近打闪时刻；`landingFlash` 见 400ms 内已有新闪整场免打 + `flashDest` 首拍延 180ms——修「usages/镜像跳的迟到整锚闪把 sentalign 句闪踩回段闪」实机回归（复现测得 54 叶/284px 全 seq 闪）。
+- 验证：vitest sentalign 套更新 peer 随 pos 重算语义（dedup 在写层）、全量 961/961；playwright `tmp/inspect-verify/pw_seq_repro.mjs` **14/14**——悬停 hot=18/215 叶 + peer=21 叶、点击跳落定闪 21 叶/15.7px（对照 seq 块 358px）。
