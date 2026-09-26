@@ -342,6 +342,39 @@ def test_same_source_cjk_identity_exempt() -> None:
     assert not _issues(rep, "same_source"), str(rep)
 
 
+def test_same_source_bare_url_exempt() -> None:
+    """裸 URL 段恒等=正确译文（est 越线但零自然语言——t_887e62c5f741ccbe 实证）。"""
+    src = "https://huggingface.co/datasets/math-ai/aime24"
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_wrapped_url_exempt() -> None:
+    src = r"\url{https://github.com/verl-project/verl}"
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_doi_exempt() -> None:
+    src = "doi:10.48550/arXiv.2603.19470"
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_email_with_prose_still_fires() -> None:
+    """邮箱 token 剥净后仍残散文（"Correspondence:"）→ 豁免不过放，照常追责。"""
+    src = "Correspondence: firstname.lastname@some-university.edu"
+    rep = validate_pair(src, src)
+    assert _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_url_with_prose_still_fires() -> None:
+    """URL+散文混排恒等仍是回显——豁免只吃「整段纯非语言」。"""
+    src = "See https://huggingface.co/datasets/math-ai/aime24 for the full dataset."
+    rep = validate_pair(src, src)
+    assert _issues(rep, "same_source"), str(rep)
+
+
 def test_same_source_near_echo_not_flagged() -> None:
     """近似回显不归本门——邮箱块改一词即出等值判（CJK 占比 warn 兜底）。"""
     src = "{ E-mail: D.Bukhvalov@science.ru.nl, M. Katsnelson@science.ru.nl}"

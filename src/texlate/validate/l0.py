@@ -218,6 +218,17 @@ CJK_SHARE_MIN: Final = 0.30
 _MIN_LATIN_FOR_CJK_CHECK: Final = 8
 _LEV_CAP: Final = 2
 _ENV_CHECK_TAIL_LIMIT: Final = 50  # end 名偏多 warn 的报告条数上限
+#: 非语言成分 span（same_source 恒等豁免用）：已包裹 ``\url/\href/\doi/\path``、
+#: 裸 URL、裸 DOI（``doi:`` 前缀与 ``10.NNNN/`` 两形）、邮箱。整段剥净这些后
+#: 无拉丁字母残量 → 输出=输入是正确态而非回显——est 阈值挡不住裸链的 token
+#: 计数（t_887e62c5f741ccbe 实证：裸 huggingface 链 est=12 越线被死锁）。
+_NONLING_RX: Final = re.compile(
+    r"\\(?:url|href|doi|path)\{[^{}]*\}(?:\{[^{}]*\})?"
+    r"|[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
+    r"|(?:https?://|www\.)[^\s{}\[\]()<>'\"]+"
+    r"|\bdoi:\s*\S+"
+    r"|\b10\.\d{4,9}/[^\s{}\[\]()<>'\"]+"
+)
 
 
 class Severity(StrEnum):
@@ -716,9 +727,7 @@ def _check_brace(ctx: _Ctx) -> None:
 
 def _env_tokens(snc: str) -> list[tuple[str, str, int]]:
     """``(begin|end, 环境名, pos)`` 事件流——入参须为 ``mask_comments`` 遮盖视图。"""
-    return [
-        (m.group(1), m.group(2).strip(), m.start()) for m in ENV_RX.finditer(snc)
-    ]
+    return [(m.group(1), m.group(2).strip(), m.start()) for m in ENV_RX.finditer(snc)]
 
 
 def _env_signature_masked(
@@ -904,13 +913,14 @@ def _cjk_latin_counts(s: str) -> tuple[int, int]:
 
 
 def _check_same_source(ctx: _Ctx) -> None:
-    """整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
+    r"""整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
 
     豁免：``[[BIB_`` bib 直通块（留英合法）、剥后 src <10 est_token
     （纯占位符/短残段——输出=输入是正确态，babeldoc ``input_token_count>10``
-    同口径）。仅规范化等值比较不取近似度——qualbase 实测 >0.85 相似档
-    唯一命中是合法邮箱块；拉丁主导门槛豁免 ``zh==en`` 含 CJK 的合法
-    恒等译文（share.py 收录口径同款情形）。
+    同口径）、整段纯非语言成分（URL/DOI/邮箱/``\url`` 包裹类——恒等即
+    正确译文，裸链 est 可越 10 线）。仅规范化等值比较不取近似度——
+    qualbase 实测 >0.85 相似档唯一命中是合法邮箱块；拉丁主导门槛豁免
+    ``zh==en`` 含 CJK 的合法恒等译文（share.py 收录口径同款情形）。
     """
     if "[[BIB_" in ctx.src:
         return
@@ -918,6 +928,8 @@ def _check_same_source(ctx: _Ctx) -> None:
     # est 与 ``ss`` 上重算同值（length 臂消费同一 ``ctx.est_src``）。
     ss, sz = ctx.prose_src.lower(), ctx.prose_zh.lower()
     if ctx.est_src < _MIN_PROSE_TOKENS or ss != sz:
+        return
+    if not re.search(r"[a-z]", _NONLING_RX.sub("", ss)):
         return
     cjk, lat = _cjk_latin_counts(ss)
     if lat >= _MIN_LATIN_FOR_CJK_CHECK and cjk / (cjk + lat) < CJK_SHARE_MIN:
@@ -1210,9 +1222,7 @@ def _check_bare_cs(ctx: _Ctx) -> None:
         )
 
 
-def _tail_unterminated_comment(
-    toks: list[tuple[str, str, int]], sm: str
-) -> str | None:
+def _tail_unterminated_comment(toks: list[tuple[str, str, int]], sm: str) -> str | None:
     r"""文本尾段未终结注释的签名（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
 
     ``%`` 展开吞到 EOL——尾段注释未终结时，splice 后随字面首行被接进注释行。
@@ -1246,7 +1256,10 @@ def _check_comment_eof(ctx: _Ctx) -> None:
     ``\n`` 终结符起头，zh 同形即忠实复现。
     """
     tok = _tail_unterminated_comment(ctx.lex_zh, ctx.masked_zh)
-    if tok is None or _tail_unterminated_comment(ctx.lex_src, ctx.masked_src) is not None:
+    if (
+        tok is None
+        or _tail_unterminated_comment(ctx.lex_src, ctx.masked_src) is not None
+    ):
         return
     ctx.issues.append(
         Issue(
