@@ -397,6 +397,12 @@ export default function ReaderView(props: Props) {
                     handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "hoverSeq" in h) h.hoverSeq?.(seq, pos, cls);
             },
+            // 句级悬停色桥：pdf 侧逐叶 saTint（sentalign 句级揭示面）
+            pdfTintEls: (dst, els, cls) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                if (h && "tintEls" in h) h.tintEls?.(els, cls);
+            },
             // 动效三件套：点击涟漪/落句连线+行擦入（anim.ts 全 fixed
             // 零重排面；reduced-motion 自带降级）
             anim: {
@@ -1339,6 +1345,9 @@ export default function ReaderView(props: Props) {
                 pendingMirror.delete(dstSide);
                 if (!samePos(r.pre, r.post))
                     navStacks[dstSide].recordJump(r.pre, r.post, pair);
+                // 镜像落定闪——dst 侧刚跳到的 seq 锚/行带出闪（裸 mirrorDest
+                // 不经 goToDestination 包装，落定闪要在这里补）
+                if ("flashDest" in dh) dh.flashDest?.(dest);
                 // 镜像落定后的余波回声（图像/字体晚载的二次滚）再补一拍
                 navMuteUntil.at = performance.now() + 250;
                 return;

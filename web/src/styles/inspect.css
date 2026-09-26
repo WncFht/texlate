@@ -43,6 +43,18 @@
     background: color-mix(in srgb, var(--cinnabar) 18%, transparent);
 }
 
+/* pdf 落点行带揭示：dest 命中的 textLayer 行——逐 span 出 outline 会
+   碎成一列方盒，统一改底色带（读作「这一行/这一式可检视」） */
+.panes.insp-armed .textLayer span.insp-hot {
+    outline: none;
+    background: color-mix(in srgb, var(--cinnabar) 14%, transparent);
+    border-radius: 2px;
+    cursor: pointer;
+}
+[data-theme="dark"] .panes.insp-armed .textLayer span.insp-hot {
+    background: color-mix(in srgb, var(--cinnabar) 20%, transparent);
+}
+
 /* ── 深色面：揭示强度整体上调一档 ── */
 [data-theme="dark"] .panes.insp-armed a[href^="#"] {
     text-decoration-color: color-mix(in srgb, var(--cinnabar) 65%, transparent);

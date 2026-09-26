@@ -42,7 +42,6 @@ import UsagesCard from "./UsagesCard";
 import { MARKED_SEL, seqOfMarkedSpan, seqOfTextItem } from "./pdfmarks";
 import { pdfCiteDests, type UsageEntry } from "./usages";
 import { classifyDestName } from "./cmd/hitctx";
-import { INSPECT_TOL } from "./features/inspect";
 import type { KeptRef, TaskSnapshot } from "../api/client";
 import { ensurePdfjsWorker } from "../pdfjs";
 import {
@@ -116,6 +115,17 @@ export interface PaneHandle extends PaneLike {
         ——锚叶集命中染锚；锚缺席（懒渲染页/无标文档）且 pos 在场落回
         行带；seq null 清轨。与 sa-flash 分轨互不清 */
     hoverSeq?(seq: number | null, pos: Pos | null, cls: string): void;
+    /** 任意字形叶集染色（sent-align 句级悬停面——hoverSeq 的 els 版） */
+    tintEls?(els: HTMLElement[], cls: string): void;
+    /** dest（named/显式数组）→ 落点着陆闪：seq 命中闪锚叶，落回行带；
+        goToDestination 落定/镜像落定/菜单跳的揭示共用面 */
+    flashDest?(dest: unknown): void;
+    /** ⌘-Inspect armed hover：非锚命中 → dest + 落点行带元素集（揭示
+        染色原料）；锚命中走锚自身 .insp-hot 不入此路 */
+    destHotAt?(
+        x: number,
+        y: number,
+    ): { dest: string; els: HTMLElement[] } | null;
     /** 图/表/式/定理等本体坐标 → 落点 dest 名（destPos 反查——右键
         本体反查 usages 的命台面）；无候选/未扫完/other 类 null；
         tol=垂直分位容差（默认 0.4 右击档，⌘-Inspect 臂走紧档） */
@@ -231,6 +241,9 @@ export default function PdfPane(props: Props) {
     // sent-align 落点闪（单轨——连点两落点旧带当场清算，cite-flash 同款）
     let saFlashEls: HTMLElement[] = [];
     let saFlashTimer = 0;
+    /** 最近打闪时刻——landingFlash 的新度闸：sentalign 句级闪与
+        goToDestination 包装落定闪同轨，新闪在场时迟到的落定闪不补 */
+    let saFlashAt = 0;
     // 容器 → 有形叶子：display:contents 元素自身无盒不可染，递归取
     // 无元素子级的后代；裸文本容器（无子级）按叶子计——染了看不见但
     // 不挡同组其余叶子
@@ -245,6 +258,7 @@ export default function PdfPane(props: Props) {
         for (const el of saFlashEls) el.classList.remove("sa-flash");
         window.clearTimeout(saFlashTimer);
         saFlashEls = els;
+        if (els.length) saFlashAt = performance.now();
         for (const el of els) el.classList.add("sa-flash");
         saFlashTimer = window.setTimeout(() => {
             for (const el of els) el.classList.remove("sa-flash");
@@ -464,10 +478,55 @@ export default function PdfPane(props: Props) {
             })
             .catch(() => bumpCard(seq, { loading: false, notFound: true }));
     };
+    /** 落点行带微探：锚分位取自批注矩形顶缘，常悬在行带上沿白缝——
+        ±8/16px 步移取首个非空行带（destHotAt 揭示面/destLineText 共用） */
+    const bandElsNear = (
+        page: number,
+        frac: number,
+        fx?: number,
+    ): HTMLElement[] => {
+        for (const d of [0, 0.008, -0.008, 0.016, -0.016]) {
+            const els = bandElsAt({
+                page,
+                fraction: Math.min(Math.max(frac + d, 0), 1),
+                x: fx,
+            });
+            if (els.length) return els;
+        }
+        return [];
+    };
+    /** dest 落点行文本——卡标题/站语境的原料（bandElsNear 同栏收窄同法） */
+    const destLineText = (page: number, frac: number, fx?: number) =>
+        bandElsNear(page, frac, fx)
+            .map((e) => e.textContent ?? "")
+            .join("")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    /** 卡标题派生：锚印刷文本拿不出像样的词（锚面只罩 "(“等碎片）时，
+        用 dest 落点行印刷文本兜底——eq 抓 "(N)"，浮动体抓「图 N/表 N/
+        Figure N」类标签词，兜底行首 4 词 */
+    const destRowLabel = (dest: string, kind: string): string => {
+        const pt = destPoint.get(dest);
+        if (!pt) return "";
+        const line = destLineText(pt.page, pt.frac, pt.fx ?? undefined);
+        if (!line) return "";
+        if (kind === "equation") {
+            const m = /\(\s*\d{1,3}[a-zA-Z]?\s*\)/.exec(line);
+            if (m) return m[0].replace(/\s+/g, "");
+        }
+        const m =
+            /(Fig(?:ure)?s?\.?|Tab(?:le)?s?\.?|Sec(?:tion)?s?\.?|Eq(?:uation)?s?\.?|Theorem|Lemma|Proposition|Corollary|Algorithm|Appendix|图|表|式|节|章|定理|引理|命题|推论|算法|附录)\s*[\w.:-]{0,10}/.exec(
+                line,
+            );
+        if (m) return m[0].trim();
+        return line.split(/\s+/).slice(0, 4).join(" ");
+    };
+
     /** find-usages pdf 臂：任意 named dest 反查全页 link annot 站集 →
         UsagesCard。target=hit.cite.targetId（"cite.key"/"figure.caption.3"
-        皆收）或元素；站点 text 用页码占位（pdf 侧无句级语境——句层靠
-        seq 锚/C 路另补）。非 cite 族 kind/label 按 dest 分类+锚印刷文本 */
+        皆收）或元素；站点 text=页码+引用行语境（懒渲页无行回退 p.N）。
+        非 cite 族 kind/label 按 dest 分类+锚/落点行印刷文本 */
     const openUsagesFor = (
         target: Element | string | null,
         anchor: Element | null,
@@ -491,9 +550,15 @@ export default function PdfPane(props: Props) {
         usageJumps = sites;
         // 图/表/式锚的 dest 尾号≠印刷编号（figure.caption.11 可能是「图 1」）
         // ——label 取锚矩形下 textLayer 的印刷文本（"Fig. 3"/"表 1"/"(4)"；
-        // 批注层 <a> 是无文本空元素）；bib 照旧 bibkey
+        // 批注层 <a> 是无文本空元素）；锚面只有标点碎片时落点行兜底
+        // （"(" 实证：eq 号 span 按字切块，锚面只罩住开括号）；bib 照旧 key
         const kind = classifyDestName(destName);
-        const anchorText = anchorTextOf(anchor);
+        let label = kind === "bib" ? key : anchorTextOf(anchor);
+        if (
+            kind !== "bib" &&
+            (!label || label.length < 2 || !/[\p{L}\p{N}]/u.test(label))
+        )
+            label = destRowLabel(destName, kind) || label || key;
         const entry: UsageEntry = {
             target: {
                 kind,
@@ -501,10 +566,13 @@ export default function PdfPane(props: Props) {
                 // id=解析后 dest 名（onJumpTarget 直用作 goToDestination
                 // 参数）
                 id: destName,
-                label: kind === "bib" ? key : anchorText || key,
+                label,
             },
             sites: sites.map((s, i) => ({
-                text: `p.${s.page}`,
+                text:
+                    s.frac != null
+                        ? `p.${s.page} · ${destLineText(s.page, s.frac, s.fx).slice(0, 60) || "…"}`
+                        : `p.${s.page}`,
                 zhText: null,
                 anchors: [
                     {
@@ -558,14 +626,23 @@ export default function PdfPane(props: Props) {
     // 子集；卸载置 abort 旗即止（迟到回包 add 进闭包集合无害，组件随
     // 闭包 GC）。
     const destNames = new Set<string>();
-    /** dest 名 → 指向它的 link annot 站（usages pdf 臂数据源） */
-    const destSites = new Map<string, { page: number; y: number }[]>();
+    /** dest 名 → 指向它的 link annot 站（usages pdf 臂数据源）；
+        frac/fx=锚位页内分位（卡站行语境抽取用） */
+    const destSites = new Map<
+        string,
+        { page: number; y: number; frac?: number; fx?: number }[]
+    >();
     /** 页 → dest 落点表（{name, 页内 top-down 分位, x 分位}）——图/式
         本体右键反查 usages 的命台面；getDestinations 词表驱动、idle
         渐进充填 */
     const destPos = new Map<
         number,
         { name: string; frac: number; fx: number | null }[]
+    >();
+    /** dest 名 → 落点（destPos 的反查面——落定闪/行带揭示的点名寻址） */
+    const destPoint = new Map<
+        string,
+        { page: number; frac: number; fx: number | null }
     >();
     /** seq → {page, 内容流 item 区间}（item 层 id 尾解码——DOM id
         撞名风险旁路主径；begin/end 供 seq→页内分位跳转） */
@@ -578,10 +655,21 @@ export default function PdfPane(props: Props) {
         const idle =
             window.requestIdleCallback ??
             ((f: () => void) => window.setTimeout(f, 20));
-        let page = 0;
+        // 视口页为中心螺旋外扫——annotations/seqmap 的可用性跟着用户
+        // 视线走（原序扫时非首页读者的本体反查/句跳要干等全文档扫完）
+        const cur = Math.min(
+            Math.max(viewer()?.currentPageNumber ?? 1, 1),
+            Math.max(numPages, 1),
+        );
+        const order: number[] = [];
+        for (let d = 0; d < numPages; d++) {
+            if (cur + d <= numPages) order.push(cur + d);
+            if (d > 0 && cur - d >= 1) order.push(cur - d);
+        }
+        let oi = 0;
         const step = async () => {
-            if (destScanAbort || page >= numPages) return;
-            page += 1;
+            if (destScanAbort || oi >= order.length) return;
+            const page = order[oi++]!;
             try {
                 const pg = await doc.getPage(page);
                 const annots = await (
@@ -591,6 +679,11 @@ export default function PdfPane(props: Props) {
                         >;
                     }
                 ).getAnnotations?.({ intent: "display" });
+                const pview = (pg as unknown as { view?: number[] }).view;
+                const vw =
+                    pview && pview.length >= 4 ? pview[2]! - pview[0]! : 0;
+                const vh =
+                    pview && pview.length >= 4 ? pview[3]! - pview[1]! : 0;
                 // 只收字符串 named-dest（数组形 explicit dest 无键可查）
                 for (const a of annots ?? [])
                     if (typeof a?.dest === "string") {
@@ -602,6 +695,28 @@ export default function PdfPane(props: Props) {
                         arr.push({
                             page,
                             y: Array.isArray(a.rect) ? (a.rect[3] ?? 0) : 0,
+                            frac:
+                                vh > 0 && Array.isArray(a.rect)
+                                    ? Math.min(
+                                          Math.max(
+                                              1 -
+                                                  (a.rect[3]! - pview![1]!) /
+                                                      vh,
+                                              0,
+                                          ),
+                                          1,
+                                      )
+                                    : undefined,
+                            fx:
+                                vw > 0 && Array.isArray(a.rect)
+                                    ? Math.min(
+                                          Math.max(
+                                              (a.rect[0]! - pview![0]!) / vw,
+                                              0,
+                                          ),
+                                          1,
+                                      )
+                                    : undefined,
                         });
                     }
                 const tc = await (
@@ -634,10 +749,13 @@ export default function PdfPane(props: Props) {
             } catch {
                 /* 单页注记/文本拉取失败不挡后续页 */
             }
-            if (!destScanAbort && page < numPages) idle(() => void step());
-            else void resolveDestPoints();
+            if (!destScanAbort && oi < order.length)
+                idle(() => void step());
         };
         void step();
+        // dest 落点解析与页扫并行——二者独立面，串行时 destAtPoint 要等
+        // 全页扫完才活（本体反查/Inspect 命台面死窗 = 整个页扫时长）
+        void resolveDestPoints();
     };
 
     /** 第二程：dest 词表 → 落点页内分位（本体反查命台面）。
@@ -713,6 +831,7 @@ export default function PdfPane(props: Props) {
                         destPos.get(pnum) ??
                         destPos.set(pnum, []).get(pnum)!;
                     arr.push({ name, frac, fx });
+                    destPoint.set(name, { page: pnum, frac, fx });
                 } catch {
                     /* 单 dest 解页失败不挡后续名 */
                 }
@@ -773,10 +892,16 @@ export default function PdfPane(props: Props) {
     let edSelected = false;
 
     /** 本体坐标 → 落点 dest 名：posAtPoint 同法解页+分位（多取 x 分位做
-        双栏并列消歧），同页 destPos 候选过「other 类拒收 + |Δfy|≤0.4 闸 +
+        双栏并列消歧），同页 destPos 候选过「other 类拒收 + |Δfy|≤tol 闸 +
         Δfy+0.25Δfx 最近邻」；有引用站（destSites 非空）的候选优先——同距
-        时「真被引过」的才是用户要答的。 */
-    const destAtPoint = (x: number, y: number, tol = 0.4): string | null => {
+        时「真被引过」的才是用户要答的。opts.kinds 收窄类型白名单、
+        opts.maxDx 栏距闸（超距拒收——跨栏同高误吸用） */
+    const destAtPoint = (
+        x: number,
+        y: number,
+        tol = 0.4,
+        opts?: { kinds?: ReadonlySet<string>; maxDx?: number },
+    ): string | null => {
         const c = viewer()?.container;
         if (!c) return null;
         const pg = c.ownerDocument
@@ -792,9 +917,17 @@ export default function PdfPane(props: Props) {
         let bestAny: { score: number; name: string } | null = null;
         let bestHit: { score: number; name: string } | null = null;
         for (const d of destPos.get(page) ?? []) {
-            if (classifyDestName(d.name) === "other") continue;
+            const kind = classifyDestName(d.name);
+            if (kind === "other") continue;
+            if (opts?.kinds && !opts.kinds.has(kind)) continue;
             const dy = Math.abs(d.frac - fy);
             if (dy > tol) continue;
+            if (
+                opts?.maxDx != null &&
+                d.fx != null &&
+                Math.abs(d.fx - fx) > opts.maxDx
+            )
+                continue;
             const score =
                 dy +
                 (d.fx != null ? Math.min(Math.abs(d.fx - fx), 1) * 0.25 : 0);
@@ -805,6 +938,147 @@ export default function PdfPane(props: Props) {
                     bestHit = { score, name: d.name };
         }
         return (bestHit ?? bestAny)?.name ?? null;
+    };
+
+    // ⌘-Inspect 命中分面容差：落在 textLayer 字形上=行级紧收（±~2%页≈一行
+    // 高，原 0.1 页分位会把上下五六行正文全吸进最近 dest）；紧窗落空且
+    // 目标是浮动体（式号右置锚在左/多行式跨数行）→ 半窗补一刀不挂栏
+    // 闸。空白/图形区=浮动体中窗（±9%页）+栏距闸 0.45——图面本体无字
+    // 可点，适度窗是「点在图上」语义；0.45≈一栏宽，异栏同高不收而单栏
+    // 锚在左、点在图心不冤
+    const INSPECT_TEXT_TOL = 0.02;
+    const INSPECT_TEXT_FLOAT_TOL = 0.045;
+    const INSPECT_FLOAT_TOL = 0.09;
+    const INSPECT_FLOAT_KINDS = new Set(["figure", "table", "equation"]);
+    const inspectDestName = (
+        x: number,
+        y: number,
+        t: Element | null,
+    ): string | null => {
+        const onText = t?.closest?.(".textLayer span") != null;
+        if (onText)
+            return (
+                destAtPoint(x, y, INSPECT_TEXT_TOL) ??
+                destAtPoint(x, y, INSPECT_TEXT_FLOAT_TOL, {
+                    kinds: INSPECT_FLOAT_KINDS,
+                })
+            );
+        return destAtPoint(x, y, INSPECT_FLOAT_TOL, {
+            kinds: INSPECT_FLOAT_KINDS,
+            maxDx: 0.45,
+        });
+    };
+
+    /** 落点 Pos → 着陆闪：pos→client 点 seqAtPoint 多 x 采样（dest 落点
+        常在块间白/栏缝/图区，单点易落空），有 seq 闪锚叶（句粒度跟着
+        marked 叶走）；无 seq 落回行带。懒渲页 textLayer 未起时两路皆
+        空——200ms 步最多重试两拍。
+        新闪闸：mirrorDest 也过 goToDestination 包装——sentalign 句级闪
+        与落定闪同轨互踩，400ms 内已有新闪则整场免打（迟到的整锚闪会
+        把句闪回退成段闪） */
+    const landingFlash = (pos: Pos | null, attempt = 0): void => {
+        if (!pos) return;
+        if (performance.now() - saFlashAt < 400) return;
+        const views = (
+            viewer() as unknown as { _pages?: PdfPageViewLike[] }
+        )?._pages;
+        const div = views?.[pos.page - 1]?.div;
+        if (!div) return;
+        const r = div.getBoundingClientRect();
+        if (r.height <= 0 || r.width <= 0) return;
+        const c = viewer()?.container;
+        const cy = r.top + r.height * pos.fraction + 4;
+        let seq: number | null = null;
+        if (c)
+            for (const xf of [
+                pos.x ?? 0.3,
+                pos.x ?? 0.7,
+                0.3,
+                0.7,
+                0.5,
+            ]) {
+                const sp = c.ownerDocument
+                    .elementFromPoint(r.left + r.width * xf, cy)
+                    ?.closest<HTMLElement>(MARKED_SEL);
+                if (sp && c.contains(sp)) {
+                    seq = seqOfMarkedSpan(sp);
+                    if (seq != null) break;
+                }
+            }
+        let els: HTMLElement[] = [];
+        if (seq != null)
+            els = (handle.seqEls?.(seq) ?? []).flatMap(leafEls);
+        if (!els.length) els = bandElsAt(pos);
+        if (els.length) {
+            saFlash(els);
+            return;
+        }
+        if (attempt < 2)
+            window.setTimeout(() => landingFlash(pos, attempt + 1), 200);
+    };
+
+    /** named/显式 dest → 落点 Pos → landingFlash（cite 锚/usages 站跳/
+        镜像跳的落定揭示共用面）；词表缺席/解页失败静默无闪 */
+    const flashDest = async (dest: unknown): Promise<void> => {
+        let pos: Pos | null = null;
+        if (typeof dest === "string") {
+            const pt = destPoint.get(dest);
+            if (pt)
+                pos = {
+                    page: pt.page,
+                    fraction: pt.frac,
+                    x: pt.fx ?? undefined,
+                };
+        } else if (Array.isArray(dest)) {
+            const pt = destPointOf(dest);
+            const d = pdfDoc();
+            if (pt && d)
+                try {
+                    const pnum = (await d.getPageIndex(pt.ref)) + 1;
+                    const pg = await d.getPage(pnum);
+                    const view = (pg as unknown as { view?: number[] }).view;
+                    const h =
+                        view && view.length >= 4
+                            ? view[3]! - view[1]!
+                            : pg.getViewport({ scale: 1 }).height;
+                    const w =
+                        view && view.length >= 4
+                            ? view[2]! - view[0]!
+                            : pg.getViewport({ scale: 1 }).width;
+                    if (h > 0)
+                        pos = {
+                            page: pnum,
+                            fraction:
+                                pt.y == null
+                                    ? 0.5
+                                    : Math.min(
+                                          Math.max(
+                                              1 -
+                                                  (pt.y - (view?.[1] ?? 0)) /
+                                                      h,
+                                              0,
+                                          ),
+                                          1,
+                                      ),
+                            x:
+                                pt.x == null || !(w > 0)
+                                    ? undefined
+                                    : Math.min(
+                                          Math.max(
+                                              (pt.x - (view?.[0] ?? 0)) / w,
+                                              0,
+                                          ),
+                                          1,
+                                      ),
+                        };
+                } catch {
+                    /* 解页失败无闪 */
+                }
+        }
+        // 首拍延 180ms——同轨上 sentalign 句级闪多在此窗内落定，届时
+        // 新闪闸自然让行，纯 nav 跳的闪在滚动落定后才出反而更贴
+        if (pos)
+            window.setTimeout(() => landingFlash(pos), 180);
     };
 
     const handle: PaneHandle = {
@@ -963,7 +1237,8 @@ export default function PdfPane(props: Props) {
         openUsagesFor,
         destAtPoint,
         // ⌘-Inspect：锚→bib 开 CiteCard/他开 UsagesCard；页内非锚命中
-        // （destAtPoint 紧容差）→卡落点击矩形；other 类 dest 不出卡
+        // （分面容差 inspectDestName——文字行级紧收/空白浮动体中窗）→
+        // 卡落点击矩形；other 类 dest 不出卡
         inspectAt(x, y) {
             const c = viewer()?.container;
             if (!c) return false;
@@ -979,7 +1254,7 @@ export default function PdfPane(props: Props) {
                 }
                 return openUsagesFor(dest, a);
             }
-            const dest = destAtPoint(x, y, INSPECT_TOL);
+            const dest = inspectDestName(x, y, t);
             if (!dest) return false;
             const span = (t as Element | null)?.closest?.(".textLayer span") ?? null;
             return openUsagesFor(dest, span, {
@@ -1000,9 +1275,27 @@ export default function PdfPane(props: Props) {
                     ? { dest }
                     : null;
             }
-            const dest = destAtPoint(x, y, INSPECT_TOL);
+            const dest = inspectDestName(x, y, t);
             return dest ? { dest } : null;
         },
+        // ⌘-Inspect armed hover 强化：非锚命中 → dest + 落点行带元素
+        // （揭示染色面）；锚命中无需此路——锚自身 .insp-hot 已标
+        destHotAt(x, y) {
+            const c = viewer()?.container;
+            if (!c) return null;
+            const t = c.ownerDocument.elementFromPoint(x, y);
+            const dest = inspectDestName(x, y, t);
+            if (!dest) return null;
+            const pt = destPoint.get(dest);
+            const els = pt
+                ? bandElsNear(pt.page, pt.frac, pt.fx ?? undefined)
+                : [];
+            return { dest, els };
+        },
+        tintEls(els, cls) {
+            saTint(els, cls);
+        },
+        flashDest: (dest: unknown) => void flashDest(dest),
         async mirrorDest(dest) {
             const s = pdfSlick();
             const orig = origGoTo;
@@ -1295,6 +1588,9 @@ export default function PdfPane(props: Props) {
                     return;
                 }
                 props.onDestJump?.(dest, pre, capturePos(handle));
+                // 落定揭示：dest→落点 seq/行带闪（cite 锚/usages 站跳
+                // 共用；sentalign 跳走 mirrorDest 原路不入此漏斗）
+                void flashDest(dest);
             });
         };
     });

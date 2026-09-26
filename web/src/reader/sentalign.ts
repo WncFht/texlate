@@ -482,6 +482,21 @@ export function injectSentSpans(
 const attrSel = (name: string, value: string): string =>
     `[${name}="${value.replace(/(["\\])/g, "\\$1")}"]`;
 
+/** 悬停轨 dedup：同元素集（首末同+同长）且首元素仍带 cls → 免重标。
+    60ms 节流下清再加=两帧态闪；cls 校验挡外部扫轨后的陈旧判同 */
+const sameEls = (
+    a: readonly Element[] | null,
+    b: readonly Element[] | null,
+    cls?: string,
+): boolean =>
+    a != null &&
+    b != null &&
+    a.length > 0 &&
+    a.length === b.length &&
+    a[0] === b[0] &&
+    a[a.length - 1] === b[b.length - 1] &&
+    (cls == null || a[0]!.classList.contains(cls));
+
 interface ChunkState {
     el: Element;
     sents: SentInfo[];
@@ -552,6 +567,10 @@ export interface SentAlignDeps {
         pos: Pos | null,
         cls: string,
     ): void;
+    /** pdf 侧逐元素悬停色（PdfPane.tintEls 桥——句级揭示面：源侧句叶
+        sa-hot / 对侧对位句叶 sa-peer）；空数组=清本 cls 轨。与 pdfHover
+        共 saTint 单轨——清色任一入口皆生效。 */
+    pdfTintEls?(dst: SaSide, els: HTMLElement[], cls: string): void;
     /** 动效层（anim.ts）：press=源侧点击涟漪；land=连线+行擦入，
         els=落句渲染元素集（pdf marked 叶/dom sid span——land 内取
         行矩形，调用方保证已过滚动落定帧）。from=null=非点击跳
@@ -583,6 +602,11 @@ export class SentAlignSession {
     private peerGen = 0;
     /** 侧 → 本侧 pdf 臂最近补 peer 时的代次（armPdfPeer 内记） */
     private pdfPeerGenArmed = new Map<SaSide, number>();
+    /** pdf 对侧句级 peer 已打色的叶集（dedup——60ms 移动重算同句免重标） */
+    private pdfPeerSentEls: HTMLElement[] | null = null;
+    /** 侧 → 本侧 pdf 悬停最近 pos（句级 peer 的 u 原料——DOM 对侧重注
+        后补臂无新 pointermove，按存位重算同句） */
+    private pdfHoverPos = new Map<SaSide, Pos | null>();
     private hotEls: Element[] = [];
     private peerEls: Element[] = [];
     private lastKey = "";
@@ -692,30 +716,49 @@ export class SentAlignSession {
         posAtPoint: (x: number, y: number) => Pos | null,
     ): void {
         this.pdfHoverDetach.get(side)?.();
-        let cur: number | null = null;
         let last = 0;
         let pend: { x: number; y: number; t: Element | null } | null = null;
         let pendT = 0;
-        const setSeq = (seq: number | null, pos: Pos | null) => {
-            // 同 seq 且本代未遭外部扫轨才算 peer 依旧——clearHot 递增
-            // peerGen，扫过一次后同 seq 也得重补 peer
-            const fresh =
-                seq === cur &&
-                this.pdfPeerGenArmed.get(side) === this.peerGen;
-            cur = seq;
+        let lastHotEls: HTMLElement[] | null = null;
+        const setSeq = (
+            seq: number | null,
+            pos: Pos | null,
+            t: Element | null,
+        ) => {
             this.pdfHoverCur.set(side, seq);
-            this.deps.pdfHover?.(side, seq, pos, "sa-hot");
-            if (fresh) return; // 对侧 peer 与 pos 无关——同 seq 免重算
-            this.armPdfPeer(side, seq);
+            this.pdfHoverPos.set(side, pos);
+            if (seq == null) {
+                lastHotEls = null;
+                this.deps.pdfHover?.(side, null, null, "sa-hot");
+                this.armPdfPeer(side, null, null);
+                return;
+            }
+            // 句级 hot：指针下叶所在句叶集（pdfSentUnder）→ 逐叶 sa-hot；
+            // 缺料（非叶上/切空/dep 缺）退整锚/行带旧路。dedup 防 60ms
+            // 节流重标同句闪帧
+            const sentEls =
+                t != null ? this.pdfSentUnder(side, seq, t) : null;
+            if (sentEls?.length && this.deps.pdfTintEls) {
+                if (!sameEls(sentEls, lastHotEls, "sa-hot")) {
+                    this.deps.pdfTintEls(side, sentEls, "sa-hot");
+                    lastHotEls = sentEls;
+                }
+            } else {
+                lastHotEls = null;
+                this.deps.pdfHover?.(side, seq, pos, "sa-hot");
+            }
+            // 句级 peer 随 pos 跟手（u→对侧同句）——同 seq 也重算，
+            // DOM 写由 armPdfPeer 内 dedup 兜住
+            this.armPdfPeer(side, seq, pos);
         };
         const resolve = (x: number, y: number, t: Element | null) => {
             last = Date.now();
             if (t?.closest?.("a, button, .cite-card, .usage-card")) {
-                setSeq(null, null);
+                setSeq(null, null, null);
                 return;
             }
             const seq = seqAtPoint(x, y);
-            setSeq(seq, seq != null ? posAtPoint(x, y) : null);
+            setSeq(seq, seq != null ? posAtPoint(x, y) : null, t);
         };
         const onMove = (e: PointerEvent) => {
             if (e.buttons !== 0) return; // 拖选中不跟手
@@ -740,7 +783,7 @@ export class SentAlignSession {
             pend = null;
             window.clearTimeout(pendT);
             pendT = 0;
-            setSeq(null, null);
+            setSeq(null, null, null);
         };
         el.addEventListener("pointermove", onMove);
         el.addEventListener("pointerleave", onLeave);
@@ -752,29 +795,51 @@ export class SentAlignSession {
             el.removeEventListener("pointerleave", onLeave);
             el.removeEventListener("scroll", onLeave, { capture: true });
             window.clearTimeout(pendT);
-            setSeq(null, null);
+            setSeq(null, null, null);
         });
     }
 
-    /** pdf 悬停臂的对侧 peer 对位：pdf 对侧 → pdfHover 桥；DOM 对侧 →
-        seq↔data-chunk 1:1 全句 span sa-peer（会话级 peerEls 承载——
-        clearHot/重注补臂同源扫）。 */
-    private armPdfPeer(side: SaSide, seq: number | null): void {
+    /** pdf 悬停臂的对侧 peer 对位（句级）：源侧 pos → 块内分位 u →
+        dst 同 seq 句。pdf 对侧 → pdfSentAt 句叶 pdfTintEls；DOM 对侧
+        → u·concatLen 所在句 sid span 子集（peerEls 承载）。缺料
+        （u 不可求/切空/dep 缺）退整锚/整段旧路；dedup 兜 60ms 重算 */
+    private armPdfPeer(
+        side: SaSide,
+        seq: number | null,
+        pos: Pos | null,
+    ): void {
         this.pdfPeerGenArmed.set(side, this.peerGen);
-        for (const e of this.peerEls) e.classList.remove("sa-peer");
-        this.peerEls = [];
         const dst = other(side);
         if (seq == null) {
+            for (const e of this.peerEls) e.classList.remove("sa-peer");
+            this.peerEls = [];
+            this.pdfPeerSentEls = null;
             this.deps.pdfHover?.(dst, null, null, "sa-peer");
             return;
         }
+        const u =
+            this.fracInBlock(side, seq, pos ? () => pos : undefined)?.u ??
+            null;
         if (this.pdfTargets.has(dst)) {
-            this.deps.pdfHover?.(
-                dst,
-                seq,
-                this.deps.seqPos?.(seq, dst) ?? null,
-                "sa-peer",
-            );
+            const sent = u != null ? this.pdfSentAt(dst, seq, u) : null;
+            if (sent?.els.length && this.deps.pdfTintEls) {
+                if (!sameEls(sent.els, this.pdfPeerSentEls, "sa-peer")) {
+                    this.deps.pdfTintEls(dst, sent.els, "sa-peer");
+                    this.pdfPeerSentEls = sent.els;
+                }
+            } else {
+                this.pdfPeerSentEls = null;
+                this.deps.pdfHover?.(
+                    dst,
+                    seq,
+                    this.deps.seqPos?.(seq, dst) ?? null,
+                    "sa-peer",
+                );
+            }
+            if (this.peerEls.length) {
+                for (const e of this.peerEls) e.classList.remove("sa-peer");
+                this.peerEls = [];
+            }
             return;
         }
         const st = this.sides.get(dst);
@@ -784,9 +849,29 @@ export class SentAlignSession {
                 this.deps.seqOfChunk!(e.getAttribute("data-chunk") ?? "") ===
                 seq,
         );
-        this.peerEls = chunks.flatMap((e) => [
+        let peerEls: Element[] = chunks.flatMap((e) => [
             ...e.querySelectorAll("[data-sid]"),
         ]);
+        // 句级收束：u·concatLen 所在句的 sid span 子集；句料缺席保全块
+        if (u != null && chunks.length) {
+            const cs = st.chunks.get(
+                chunks[0]!.getAttribute("data-chunk") ?? "",
+            );
+            const sent = cs?.sents.length
+                ? (cs.sents.find((s) => s.end > u * cs.concatLen) ??
+                    cs.sents[cs.sents.length - 1])
+                : null;
+            if (sent) {
+                const spans = chunks.flatMap((e) => [
+                    ...e.querySelectorAll(attrSel("data-sid", sent.sid)),
+                ]);
+                if (spans.length) peerEls = spans;
+            }
+        }
+        this.pdfPeerSentEls = null;
+        if (sameEls(peerEls, this.peerEls, "sa-peer")) return;
+        for (const e of this.peerEls) e.classList.remove("sa-peer");
+        this.peerEls = peerEls;
         for (const e of this.peerEls) e.classList.add("sa-peer");
     }
 
@@ -796,6 +881,7 @@ export class SentAlignSession {
         this.pdfHoverDetach.get(side)?.();
         this.pdfHoverDetach.delete(side);
         this.pdfHoverCur.delete(side);
+        this.pdfHoverPos.delete(side);
         this.pdfPeerGenArmed.delete(side);
         const st = this.sides.get(side);
         if (!st) {
@@ -871,7 +957,8 @@ export class SentAlignSession {
         // pdf 悬停臂的 DOM peer 被注——按存活 seq 补 peer（pdfHoverCur
         // 记着源侧 cur，sameSeq 早退不会自己来补）
         for (const [s, q] of this.pdfHoverCur)
-            if (q != null && other(s) === side) this.armPdfPeer(s, q);
+            if (q != null && other(s) === side)
+                this.armPdfPeer(s, q, this.pdfHoverPos.get(s) ?? null);
     }
 
     /** MO 批处理：脏块重注 + 摘走的块从映射清除 */
@@ -1103,6 +1190,7 @@ export class SentAlignSession {
         for (const el of this.peerEls) el.classList.remove("sa-peer");
         this.hotEls = [];
         this.peerEls = [];
+        this.pdfPeerSentEls = null;
         this.lastKey = "";
         this.peerGen++; // pdf 悬停臂代次失效——同 seq 也要重补 peer
         // DOM→PDF 悬停对位臂的清场——两侧 pdf peer 一并剥（未挂 pdf
@@ -1222,19 +1310,12 @@ export class SentAlignSession {
             .catch(() => {}); // deps 拒收同落空口径——静默收
     }
 
-    /** dst pdf 侧句级落点+闪示集：seq 的 marked 叶文本重切句 →
-        u·concatLen 所在句 → 句首叶 {page,fraction,x} 作落点 Pos、
-        句域叶集作闪示面（与 DOM 臂 sents.find 同语义）。
-        marked 多出现（TOC 重放+正文真标）按 dst 锚页择组，无锚页取
-        裹字最多组。叶缺席/切空 → null（调用方退插值/直锚旧路）。 */
-    private pdfSentAt(
-        dst: SaSide,
-        seq: number,
-        u: number,
-    ): { pos: Pos; els: HTMLElement[] } | null {
-        const all = this.deps.pdfSeqLeaves?.(dst, seq);
+    /** seq 锚页组叶集：marked 多现（TOC 重放+正文真标）按 seqPos 锚页
+        择组，无锚页取裹字最多组；叶缺席/全空 → null */
+    private seqLeafGroup(side: SaSide, seq: number): HTMLElement[] | null {
+        const all = this.deps.pdfSeqLeaves?.(side, seq);
         if (!all?.length) return null;
-        const anchorPage = this.deps.seqPos?.(seq, dst)?.page ?? null;
+        const anchorPage = this.deps.seqPos?.(seq, side)?.page ?? null;
         const groups = new Map<Element, HTMLElement[]>();
         for (const el of all) {
             const host = el.closest(MARKED_SEL) ?? el;
@@ -1263,6 +1344,19 @@ export class SentAlignSession {
                 leaves = g;
             }
         }
+        return leaves;
+    }
+
+    /** dst pdf 侧句级落点+闪示集：seq 的 marked 叶文本重切句 →
+        u·concatLen 所在句 → 句首叶 {page,fraction,x} 作落点 Pos、
+        句域叶集作闪示面（与 DOM 臂 sents.find 同语义）。
+        叶缺席/切空 → null（调用方退插值/直锚旧路）。 */
+    private pdfSentAt(
+        dst: SaSide,
+        seq: number,
+        u: number,
+    ): { pos: Pos; els: HTMLElement[] } | null {
+        const leaves = this.seqLeafGroup(dst, seq);
         if (!leaves?.length) return null;
         const offs: number[] = [];
         let concat = "";
@@ -1296,6 +1390,40 @@ export class SentAlignSession {
         if (pr.width > 0)
             pos.x = clamp((r.left - pr.left) / pr.width, 0, 1);
         return { pos, els };
+    }
+
+    /** 指针元素所在句叶集（悬停句级揭示面）：seq 锚叶重切句 → 含 t 的
+        叶定句，句域叶集返；t 非叶子孙/切空 → null（调用方退整锚/行带） */
+    private pdfSentUnder(
+        side: SaSide,
+        seq: number,
+        t: Element,
+    ): HTMLElement[] | null {
+        const leaves = this.seqLeafGroup(side, seq);
+        if (!leaves?.length) return null;
+        const hitIdx = leaves.findIndex((l) => l === t || l.contains(t));
+        if (hitIdx < 0) return null;
+        const offs: number[] = [];
+        let concat = "";
+        for (const el of leaves) {
+            offs.push(concat.length);
+            concat += el.textContent ?? "";
+        }
+        if (!concat.length) return null;
+        const sents = (side === "zh" ? splitZh : splitEn)(concat);
+        if (!sents.length) return null;
+        const lo = offs[hitIdx]!;
+        const hi = lo + (leaves[hitIdx]!.textContent ?? "").length;
+        const sent =
+            sents.find(([s0, s1]) => s0 <= lo && hi <= s1) ??
+            sents.find(([s0, s1]) => lo < s1 && s0 < hi);
+        if (!sent) return null;
+        const els = leaves.filter(
+            (el, i) =>
+                offs[i]! < sent[1] &&
+                sent[0] < offs[i]! + (el.textContent ?? "").length,
+        );
+        return els.length ? els : null;
     }
 
     /** 点击 → 对侧 bead 首元素跳转（DOM 侧）：scroller 滚位 + flash +

@@ -34,6 +34,12 @@ export interface InspectHandle {
     } | undefined;
     /** pdf 臂 dest 命中探测（armed hover 强化用）——tol 走 inspect 紧容差 */
     destAtPoint?(x: number, y: number, tol?: number): string | null;
+    /** pdf 臂非锚命中 → dest + 落点行带元素（armed hover 揭示染色面；
+        分面容差在 pane 内消化——文字行级紧收/空白浮动体中窗+栏距闸） */
+    destHotAt?(
+        x: number,
+        y: number,
+    ): { dest: string; els: HTMLElement[] } | null;
     /** ⌘+click：坐标点 → 原地开检视卡；handled=false 由调用方按兜底语义走 */
     inspectAt?(x: number, y: number): boolean;
     /** ⌘+Alt+click：坐标点 → 对侧镜像载荷；null=该点无可镜像物 */
@@ -70,7 +76,9 @@ const normSide = (v: string | null | undefined): DocId | null =>
     v === "original" || v === "translated" ? v : null;
 
 /** inspect 目的的命中容差——右击语境 0.4 是为「故意找锚」设计的，
-    悬停/左击揭示用它会凭空生出假 affordance，收到 0.1 */
+    悬停/左击揭示用它会凭空生出假 affordance，收到 0.1。
+    ⚠ 现仅作 dom/html 臂参考常量——pdf 臂命中已走 pane 内分面容差
+    （PdfPane.inspectDestName：文字行级紧收/空白浮动体中窗+栏距闸） */
 export const INSPECT_TOL = 0.1;
 
 // 可检视锚的统一样式族：dom ltx 锚 / html cite 替身 / bib 条目键面 /
@@ -94,14 +102,14 @@ export function attachInspect(deps: InspectDeps): { dispose(): void } {
     let armed = false;
     let lastX = 0;
     let lastY = 0;
-    let hotEl: Element | null = null;
+    let hotEls: Element[] = [];
     let curEl: HTMLElement | null = null;
     let moveTimer = 0;
     let pend: { x: number; y: number } | null = null;
 
     const clearFx = () => {
-        hotEl?.classList.remove("insp-hot");
-        hotEl = null;
+        for (const e of hotEls) e.classList.remove("insp-hot");
+        hotEls = [];
         if (curEl) {
             curEl.style.cursor = "";
             curEl = null;
@@ -109,9 +117,9 @@ export function attachInspect(deps: InspectDeps): { dispose(): void } {
     };
 
     /** armed 期 hover 强化：锚→锚标热；本体→宿主标热（section 限标题）；
-        pdf 页内 dest 命中→容器 cursor:pointer */
+        pdf 页内 dest 命中→落点行带标热 + 容器 cursor:pointer */
     const hoverEval = (x: number, y: number) => {
-        let hot: Element | null = null;
+        let hots: Element[] = [];
         let cur: HTMLElement | null = null;
         const el = doc.elementFromPoint?.(x, y) ?? null;
         const side = normSide(el?.closest?.(".pane")?.getAttribute("data-side"));
@@ -122,7 +130,7 @@ export function attachInspect(deps: InspectDeps): { dispose(): void } {
                 if (el && body.contains(el)) {
                     const a = el.closest(ANCHOR_SEL);
                     if (a && body.contains(a)) {
-                        hot = a;
+                        hots = [a];
                     } else {
                         const entry = h.usageIndex?.()?.forEl(el);
                         const host = entry?.target.el;
@@ -132,23 +140,27 @@ export function attachInspect(deps: InspectDeps): { dispose(): void } {
                             (entry.target.kind !== "section" ||
                                 isTitleHit(host, el))
                         ) {
-                            hot = host;
+                            hots = [host];
                         }
                     }
                 }
             } else {
                 const a = el?.closest?.("section.linkAnnotation a");
                 if (a) {
-                    hot = a;
+                    hots = [a];
                 } else if (el?.closest?.("[data-page-number]")) {
-                    if (h.destAtPoint?.(x, y, INSPECT_TOL)) cur = h.el;
+                    const hit = h.destHotAt?.(x, y);
+                    if (hit) {
+                        cur = h.el;
+                        hots = hit.els;
+                    }
                 }
             }
         }
-        if (hot !== hotEl) {
-            hotEl?.classList.remove("insp-hot");
-            hot?.classList.add("insp-hot");
-            hotEl = hot;
+        if (hots.length !== hotEls.length || hots[0] !== hotEls[0]) {
+            for (const e of hotEls) e.classList.remove("insp-hot");
+            for (const e of hots) e.classList.add("insp-hot");
+            hotEls = hots;
         }
         if (cur !== curEl) {
             if (curEl) curEl.style.cursor = "";

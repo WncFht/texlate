@@ -359,10 +359,10 @@ describe("armed 揭示", () => {
 
     it("armed hover：pdf 臂 dest 命中 → 容器 cursor:pointer", () => {
         const s = setup();
-        // pdf 臂形态：无 bodyEl，有 destAtPoint
+        // pdf 臂形态：无 bodyEl，有 destHotAt（分面容差在 pane 内消化）
         const hP = {
             el: s.orig.p,
-            destAtPoint: vi.fn(() => "cite.k1"),
+            destHotAt: vi.fn(() => ({ dest: "cite.k1", els: [] })),
             inspectAt: vi.fn(() => false),
             inspectDestAt: vi.fn(() => null),
         } as unknown as InspectHandle;

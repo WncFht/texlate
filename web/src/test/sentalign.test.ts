@@ -1085,7 +1085,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
         s.destroy();
     });
 
-    it("mountPdfHoverSource：move → 本侧 sa-hot + 对侧 sa-peer；同 seq 不重算对侧；leave/链接 清轨", async () => {
+    it("mountPdfHoverSource：move → 本侧 sa-hot + 对侧 sa-peer；同 seq 随 pos 重补（dedup 在写层）；leave/链接 清轨", async () => {
         const pdf = paneBody(
             `<div class="textLayer"><a href="#">l</a><span>x.</span></div>`,
         );
@@ -1119,7 +1119,8 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
             }),
         );
         expect(calls).toEqual(["h:en:5:sa-hot:1", "h:zh:5:sa-peer:7"]);
-        // 同 seq 再动（过节流）——hot 重算、peer 不重算
+        // 同 seq 再动（过节流）——hot/peer 都随 pos 重算（句级跟手；
+        // 无 seqLands 句料 u=null → 对侧退整锚重发，dedup 在元素写层）
         calls.length = 0;
         await tick(70);
         sp.dispatchEvent(
@@ -1129,18 +1130,18 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
                 clientY: 2,
             }),
         );
-        expect(calls).toEqual(["h:en:5:sa-hot:1"]);
-        // 移上链接 → 双轨清（cur=5→null 非同 seq，对侧也摘）
+        expect(calls).toEqual(["h:en:5:sa-hot:1", "h:zh:5:sa-peer:7"]);
+        // 移上链接 → 双轨清
         calls.length = 0;
         await tick(70);
         pdf.querySelector("a")!.dispatchEvent(
             new MouseEvent("pointermove", { bubbles: true }),
         );
         expect(calls).toEqual(["h:en:null:sa-hot", "h:zh:null:sa-peer"]);
-        // leave → cur 已 null，只发本侧清
+        // leave → 再清一轮双轨（armPdfPeer(null) 对侧也剥）
         calls.length = 0;
         pdf.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
-        expect(calls).toEqual(["h:en:null:sa-hot"]);
+        expect(calls).toEqual(["h:en:null:sa-hot", "h:zh:null:sa-peer"]);
         s.destroy();
     });
 
