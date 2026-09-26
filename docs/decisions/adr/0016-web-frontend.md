@@ -11,7 +11,7 @@
 
 - **栈**：SolidJS + Vite + `@pdfslick/solid`（pdfjs 的 Solid 薄封装）——选 Solid 不选 React：细粒度响应式契合「滚动位置高频更新」负载，包更小，且框架是可逆决策（壳薄，换掉不碰管线）。
 - **锚点同步**：`align.py` 离线算 named-dest 锚点映射（`\label`/hyperref 目标在 zh/en 两树的页内位置）→ 加权单调链配对 → 消费侧折算 `{page, fraction, viewport}` 三要素定位；滚动侧 ignoreTop 哨兵 + rAF 节流 + epoch 戳防过期事件回写。
-- **降级面**：主路径双 PDF 对照；`HtmlPane`/`DomPane` 承接非 PDF 产物形态（arXiv HTML 任务的 DOM 块级对照）——产物形态决定 pane，不是一pane通吃。
+- **降级面**：主路径双 PDF 对照；`HtmlPane`/`DomPane` 承接非 PDF 产物形态（arXiv HTML 任务的 DOM 块级对照）——产物形态决定 pane，不是一 pane 通吃。
 - **版本语义**：`key={doc.version}` 重挂载——版本变即全新文档，锚点表/页表随组件销毁重建，杜绝旧锚点污染新版本。
 
 ## 理由

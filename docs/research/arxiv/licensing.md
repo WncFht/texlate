@@ -60,7 +60,7 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | CC0             |  13,315 |      1.2% |
 | null + 旧版 URI |   2,236 |      0.2% |
 
-残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
+残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+ 非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
 
 ## 3. 机器可读入口
 
@@ -82,7 +82,7 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | 许可                                 | 制作译文（衍生）  | 公开托管译文 PDF | 公开托管 zh.tgz | 条件                                              |
 | ------------------------------------ | ----------------- | ---------------- | --------------- | ------------------------------------------------- |
 | CC0 / PD                             | ✅                | ✅               | ✅              | 无义务                                            |
-| CC BY 4.0/3.0                        | ✅                | ✅               | ✅              | 署名：作者+标题+原许可 URI+改动说明               |
+| CC BY 4.0/3.0                        | ✅                | ✅               | ✅              | 署名：作者 + 标题 + 原许可 URI+ 改动说明          |
 | CC BY-SA 4.0                         | ✅                | ✅（须标 SA）    | ✅（须标 SA）   | BY 义务 + 译作同许可                              |
 | CC BY-NC-SA 4.0                      | ✅                | ✅ 仅限非商业    | ✅ 仅限非商业   | BY+SA 义务 + 不得商用                             |
 | **CC BY-NC-ND 4.0**                  | ⚠️ 私用可、分享禁 | ❌ **直接违约**  | ❌ **直接违约** | ND：只许逐字、非商业分发；翻译属 Adapted Material |
@@ -100,7 +100,7 @@ hjfy 产物三件套 `{id}.pdf`（**原文**）/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz
 
 ### 4.4 自动化访问条款
 
-`help/robots`：_"Indiscriminate automated downloads from this site are not permitted."_ 机器人走 OAI-PMH/API/RSS/bulk(S3)；监控限流，403 后继续猛打视为攻击[^arxiv-robots]。API ToU：≤1 req/3s、单连接、跨机器合计；允许 "retrieve, store, transform, and share descriptive metadata"（CC0）与 "retrieve, store, and use content for personal use or research purposes"[^arxiv-tou]。**结论：下载+翻译+自用全程合规；再托管越线（除非该篇许可允许）；镜像/聚合形态与 ToU 明确冲突。**
+`help/robots`：_"Indiscriminate automated downloads from this site are not permitted."_ 机器人走 OAI-PMH/API/RSS/bulk(S3)；监控限流，403 后继续猛打视为攻击[^arxiv-robots]。API ToU：≤1 req/3s、单连接、跨机器合计；允许 "retrieve, store, transform, and share descriptive metadata"（CC0）与 "retrieve, store, and use content for personal use or research purposes"[^arxiv-tou]。**结论：下载 + 翻译 + 自用全程合规；再托管越线（除非该篇许可允许）；镜像/聚合形态与 ToU 明确冲突。**
 
 ## 5. 产品建议
 
@@ -130,12 +130,12 @@ e-print 下载 + 私人翻译 = ToU 明示的 personal/research use，衍生译�
 
 [^arxiv-license]: arXiv. License 选项说明（六选项、逐版本不可撤销、元数据 CC0）. info.arxiv.org. [help/license](https://info.arxiv.org/help/license/index.html)
 
-[^arxiv-reuse]: arXiv. Reuse FAQ——non-exclusive 不授予 further reuse、redistribution 需版权人许可、search API 无 license 字段. info.arxiv.org. [help/license/reuse](https://info.arxiv.org/help/license/reuse.html)
+[^arxiv-reuse]: arXiv. Reuse FAQ——non-exclusive 不授予 further reuse、redistribution 需版权人许可、search API 无 license 字段。info.arxiv.org. [help/license/reuse](https://info.arxiv.org/help/license/reuse.html)
 
-[^arxiv-tou]: arXiv. API Terms of Use——personal/research use、禁 store-and-serve、3s/单连接限速. info.arxiv.org. [help/api/tou](https://info.arxiv.org/help/api/tou.html)
+[^arxiv-tou]: arXiv. API Terms of Use——personal/research use、禁 store-and-serve、3s/单连接限速。info.arxiv.org. [help/api/tou](https://info.arxiv.org/help/api/tou.html)
 
-[^arxiv-robots]: arXiv. Robots 政策——禁无差别自动下载、403 后继续打视为攻击. info.arxiv.org. [help/robots](https://info.arxiv.org/help/robots.html)
+[^arxiv-robots]: arXiv. Robots 政策——禁无差别自动下载、403 后继续打视为攻击。info.arxiv.org. [help/robots](https://info.arxiv.org/help/robots.html)
 
-[^arxiv-blog-nd]: arXiv blog. 2020-11-09 CC BY-NC-ND 上线公告与选项排序. [blog.arxiv.org](https://blog.arxiv.org/2020/11/09/new-license-option-cc-by-nc-nd-4-0/)
+[^arxiv-blog-nd]: arXiv blog. 2020-11-09 CC BY-NC-ND 上线公告与选项排序。[blog.arxiv.org](https://blog.arxiv.org/2020/11/09/new-license-option-cc-by-nc-nd-4-0/)
 
 [^hf-meta]: librarian-bots. arxiv-metadata-snapshot（arXiv 元数据镜像，CC0 日更，含 license 字段）. HuggingFace. [datasets/librarian-bots/arxiv-metadata-snapshot](https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot)

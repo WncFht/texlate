@@ -118,14 +118,14 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 
 - `makeChunkResolver` 泛化锚集：`{selector, keyOf}` 参数化——`.textLayer`
   body 用 `span.markedContent[id]` + `keyOf = seqOfMarkedSpan→String`；
-  其余 body 维持 `[data-chunk]`。hitctx 按 body 类名二选resolver。
+  其余 body 维持 `[data-chunk]`。hitctx 按 body 类名二选 resolver。
 - `hit.sel.chunks` 自此在 pdf 侧带数值 seq 串 → copylatex feature pdf 臂
   （features/copylatex.ts:273）：`hit.sel.chunks` 解析出 int 集非空 → **精确
   seqs 直接用**；空 → `pdfSeqsForText` 模糊兜底。
 - `endpointInChunk` 补 `.markedContent` closest 判据（`inChunk` 谓词 pdf 侧
   随锚自然成立——`sel.chunks` 非空且端点在锚内）。
 
-### 3.3 seq→rect/page（PdfPane handle）
+### 3.3 seq→rect/page (PdfPane handle)
 
 - 懒建 seqmap：idle 逐页 `getTextContent({includeMarkedContent:true})`
   （`scanDests` 同款切片）→ `seq → {page, itemBegin, itemEnd}`。
@@ -198,7 +198,7 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 
 外科注锚实证路径（活服旧码不重启的验证法）记 `tmp/zzmark_real_task.py`
 ——task zh/ 拷贝→`\n\n` 段块 CJK≥20 前 8 枚包 BDC/EMC→xelatex→pypdf
-自检→unlink+换 zh.pdf（硬链接件不可原地写）。
+自检→unlink+ 换 zh.pdf（硬链接件不可原地写）。
 
 **提交后回归修复**（同日复盘）：823107dc 落地后 e2e 两例红
 （`test_l2_retranslate_then_recompile`/`test_l2_fallback_verified_fixloop_off`）

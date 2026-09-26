@@ -28,7 +28,7 @@
 ## 演变
 
 - 2026-09-14：初裁「xelatex/TeXLive 主 + tectonic 便携降级」。
-- 2026-09-15：05 裁决 6 改判为「分发默认 tectonic 优先 + xelatex 兜底 + 静态预检路由；开发默认 xelatex」——引擎语义归 ADR-0006，本篇只管语言/边界/许可证层。
+- 2026-09-15:05 裁决 6 改判为「分发默认 tectonic 优先 + xelatex 兜底 + 静态预检路由；开发默认 xelatex」——引擎语义归 ADR-0006，本篇只管语言/边界/许可证层。
 - 任务队列候选 huey 不实现：M0 定案自写 asyncio.Queue + SQLite（ADR-0015）。
 
 ## 现状

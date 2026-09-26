@@ -53,19 +53,19 @@ lake/corpus/{source}/{sid}/
 
 ### 3.1 主库层（bench/corpus/）
 
-| 层           | manifest                      | 篇数               | 抽样框与渠道                                                                                                  | 用途/治理                                   |
-| ------------ | ----------------------------- | -----------------: | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| core         | `manifest.jsonl`              | 1,000              | 30 月簇（a–d 带 IA 月块 / e 带 TIGER），year_band 5 带 ×200 等分，簇内 cat_group 软配额、cell 内随机抽        | **池化估计唯一来源**；无偏成功率口径        |
-| booster      | `manifest_booster.jsonl`      | 200                | 机制台账驱动 agent 策展（§5.1），B01–B07 地板配额                                                             | 机制覆盖层，不进池化                        |
-| hot          | `manifest_hot.jsonl`          | 166                | OpenAlex 高引近期（hot-cite 124 按 cited_by_count 降序 / hot-recent 42 随机），`arxiv_eprint` 渠道            | 需求轴+时近轴补样，不进池化（frame 非均匀） |
-| expand       | `manifest_expand.jsonl`       | 3,866              | cell 配额 = core 配比 × n100 失败率加权，bulk 扫描扩池 + eprint 定点补强                                      | 体量扩样层，不进池化                        |
-| holdout      | `manifest_holdout.jsonl`      | 3,020              | bulk 2,699（38 cell flat×2.7，`exclude_cluster_months` 剔除核心 30 簇月）+ eprint recent 321                  | **EVAL_ONLY**（§6），评测/开发月间零泄漏    |
-| dev_vol      | `manifest_dev_vol.jsonl`      | 2,000              | fbias 配额（flat × cell 历史失败率偏置 λ=1.0），不排除核心簇月                                                | 修复训练体量层                              |
-| dev_failmine | `manifest_dev_failmine.jsonl` | 1,500              | flags 配额：FLAG_RX 机制旗标定向挖旧时代（deadpkg/docstyle209/epsfig/pdftex_prim/pstricks/babel + fill 兜底） | 机制挖掘训练层                              |
-| dev_recent   | `manifest_dev_recent.jsonl`   | 1,514              | 2501+ 盲区双通道：scholarweave 脱水 1,065（`figures_stripped` 记账）+ eprint 449                              | 近期 dev 层                                 |
-| v1           | `manifest_v1.jsonl`           | 39                 | 手挑陷阱库（裸布局历史形态）                                                                                  | 并入层，对拍基线                            |
-| v2           | `manifest_v2.jsonl`           | 217 行（139 在场） | 分层随机钉版本 e-print；manifest 是 fetch-log 含失败项                                                        | 渠道敏感性对拍                              |
-| iclr         | `manifest_iclr.jsonl`         | 25                 | ICLR section-study 源语料（扫盘生成）                                                                         | 专题研究底材                                |
+| 层           | manifest                      |               篇数 | 抽样框与渠道                                                                                                  | 用途/治理                                     |
+| ------------ | ----------------------------- | -----------------: | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| core         | `manifest.jsonl`              |              1,000 | 30 月簇（a–d 带 IA 月块 / e 带 TIGER），year_band 5 带 ×200 等分，簇内 cat_group 软配额、cell 内随机抽        | **池化估计唯一来源**；无偏成功率口径          |
+| booster      | `manifest_booster.jsonl`      |                200 | 机制台账驱动 agent 策展（§5.1），B01–B07 地板配额                                                             | 机制覆盖层，不进池化                          |
+| hot          | `manifest_hot.jsonl`          |                166 | OpenAlex 高引近期（hot-cite 124 按 cited_by_count 降序 / hot-recent 42 随机），`arxiv_eprint` 渠道            | 需求轴 + 时近轴补样，不进池化（frame 非均匀） |
+| expand       | `manifest_expand.jsonl`       |              3,866 | cell 配额 = core 配比 × n100 失败率加权，bulk 扫描扩池 + eprint 定点补强                                      | 体量扩样层，不进池化                          |
+| holdout      | `manifest_holdout.jsonl`      |              3,020 | bulk 2,699（38 cell flat×2.7，`exclude_cluster_months` 剔除核心 30 簇月）+ eprint recent 321                  | **EVAL_ONLY**（§6），评测/开发月间零泄漏      |
+| dev_vol      | `manifest_dev_vol.jsonl`      |              2,000 | fbias 配额（flat × cell 历史失败率偏置 λ=1.0），不排除核心簇月                                                | 修复训练体量层                                |
+| dev_failmine | `manifest_dev_failmine.jsonl` |              1,500 | flags 配额：FLAG_RX 机制旗标定向挖旧时代（deadpkg/docstyle209/epsfig/pdftex_prim/pstricks/babel + fill 兜底） | 机制挖掘训练层                                |
+| dev_recent   | `manifest_dev_recent.jsonl`   |              1,514 | 2501+ 盲区双通道：scholarweave 脱水 1,065（`figures_stripped` 记账）+ eprint 449                              | 近期 dev 层                                   |
+| v1           | `manifest_v1.jsonl`           |                 39 | 手挑陷阱库（裸布局历史形态）                                                                                  | 并入层，对拍基线                              |
+| v2           | `manifest_v2.jsonl`           | 217 行（139 在场） | 分层随机钉版本 e-print；manifest 是 fetch-log 含失败项                                                        | 渠道敏感性对拍                                |
+| iclr         | `manifest_iclr.jsonl`         |                 25 | ICLR section-study 源语料（扫盘生成）                                                                         | 专题研究底材                                  |
 
 八层（core/booster/hot/expand/holdout/dev_vol/dev_failmine/dev_recent）时点合计 **13,266 篇**；并入 v1/v2/iclr 树后湖内实有 15,126 个物化 cell（`lake/corpus/` 目录计数，含 m1k 各层物化，按 id 去重后的并集口径）。`cluster_id` 前缀区分来源：核心 `Cnn`（30 簇）、`HO*` holdout、`DV*` dev_vol、`DF*` dev_failmine、`HOT` hot 层[^unified]。
 
@@ -73,12 +73,12 @@ lake/corpus/{source}/{sid}/
 
 m1k 全流程最严测试集折为四个 `manifest_m1k-*.jsonl` 层（实到 997，3 篇 axhot 候选 pdf_only 缺口）[^m1k]：
 
-| 层         | n    | 来源                                                                                            |
-| ---------- | ---: | ----------------------------------------------------------------------------------------------- |
-| m1k-recent | 300  | `corpus_daily` 2026-09-18 公告日 `announce_type∈{new,cross}` 已物化池（daily 链已退役，层冻结） |
-| m1k-axhot  | 247  | alphaXiv feed 四榜（Hot 30d/90d + Views/Likes All）最佳榜位排序                                 |
-| m1k-iclr   | 200  | `iclr_map` 已映射 arXiv id，年份加权抽样（2024:80/2023:50/2022:35/2021:20/≤2020:15）            |
-| m1k-v3     | 250  | v3 主库 dev 层抽样子集（**排除 holdout**——评测贞操层不烧 QA 跑）                                |
+| 层         |   n | 来源                                                                                            |
+| ---------- | --: | ----------------------------------------------------------------------------------------------- |
+| m1k-recent | 300 | `corpus_daily` 2026-09-18 公告日 `announce_type∈{new,cross}` 已物化池（daily 链已退役，层冻结） |
+| m1k-axhot  | 247 | alphaXiv feed 四榜（Hot 30d/90d + Views/Likes All）最佳榜位排序                                 |
+| m1k-iclr   | 200 | `iclr_map` 已映射 arXiv id，年份加权抽样（2024:80/2023:50/2022:35/2021:20/≤2020:15）            |
+| m1k-v3     | 250 | v3 主库 dev 层抽样子集（**排除 holdout**——评测贞操层不烧 QA 跑）                                |
 
 ### 3.3 corpus_v2 口径
 

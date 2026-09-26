@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-16 口径）
 > **日期**：2026-09-16（2026-09-20 迁入重编）
 >
-> 触发：leader派 9 只读 scout 全仓复扫，配合「优化改进重构整理」目标。
+> 触发：leader 派 9 只读 scout 全仓复扫，配合「优化改进重构整理」目标。
 > 本台账记每条发现的处置：**fixed**=已落 commit、**fixer**=修复 agent 在飞、
 > **routed**=按文件归属转 peer、**deferred**=收敛决策项、**wontfix**=判定不动。
 > 归属约定：latex/e2e/fixloop/bench/tests/横切=1d；compile/engine.py、

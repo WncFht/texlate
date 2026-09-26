@@ -79,9 +79,9 @@ GitHub 实存消费端（`gh search` 实测）：
 
 ### 参考文献
 
-[^alphaxiv]: alphaXiv. 产品文档与 MCP server 说明. 2026. [alphaxiv.org](https://www.alphaxiv.org)
+[^alphaxiv]: alphaXiv. 产品文档与 MCP server 说明。2026. [alphaxiv.org](https://www.alphaxiv.org)
 
-[^latexml]: Ginev 等. LaTeXML — LaTeX 到 XML/MathML/HTML5 转换器（ar5iv 与 arxiv.org/html 共用引擎）. [latexml / ar5iv](https://ar5iv.labs.arxiv.org)
+[^latexml]: Ginev 等。LaTeXML — LaTeX 到 XML/MathML/HTML5 转换器（ar5iv 与 arxiv.org/html 共用引擎）. [latexml / ar5iv](https://ar5iv.labs.arxiv.org)
 
 [^zotero-hjfy]: ANGJustinl. zotero-plugin-hjfy. GitHub 2026. [github.com/ANGJustinl/zotero-plugin-hjfy](https://github.com/ANGJustinl/zotero-plugin-hjfy)
 

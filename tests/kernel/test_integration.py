@@ -9,6 +9,7 @@ gets wrong and are expected to fail until the kernel is fixed.
 Layout order puts the fully-green scenarios first so ``pytest -x`` covers
 maximum contract surface before the first defect demonstration.
 """
+
 from __future__ import annotations
 
 import json
@@ -59,9 +60,7 @@ def _quiet(**kw):
 
 def _shard(rd) -> list[dict]:
     return [
-        e
-        for _ln, e, _raw in events.iter_jsonl(rd.events_path())
-        if isinstance(e, dict)
+        e for _ln, e, _raw in events.iter_jsonl(rd.events_path()) if isinstance(e, dict)
     ]
 
 
@@ -71,9 +70,7 @@ def _typed(rd, etype: str) -> list[dict]:
 
 def _cells(rd, stage: str | None = None) -> list[dict]:
     return [
-        e
-        for e in _typed(rd, events.T_CELL)
-        if stage is None or e.get("stage") == stage
+        e for e in _typed(rd, events.T_CELL) if stage is None or e.get("stage") == stage
     ]
 
 
@@ -183,9 +180,7 @@ def test_s02_resume_done_set(broot):
     n_queued = len(_typed(rd, events.T_CELL_QUEUED))
     n_terminal = len(_cells(rd))
 
-    r2 = kernel.run(
-        str(SMOKE_SPEC), resume=True, date=DATE, slug="rs", **_quiet()
-    )
+    r2 = kernel.run(str(SMOKE_SPEC), resume=True, date=DATE, slug="rs", **_quiet())
     assert r2["ok"] is True
     # zero new ledger rows for cells — the shard is unchanged
     assert len(_typed(rd, events.T_CELL_QUEUED)) == n_queued
@@ -224,8 +219,7 @@ def test_s07_concurrent_double_run_single_payer(broot):
             errors.append((slug, exc))
 
     threads = [
-        threading.Thread(target=worker, args=(s,), daemon=True)
-        for s in ("ccA", "ccB")
+        threading.Thread(target=worker, args=(s,), daemon=True) for s in ("ccA", "ccB")
     ]
     for t in threads:
         t.start()
@@ -241,10 +235,8 @@ def test_s07_concurrent_double_run_single_payer(broot):
     claims = _typed(rd_a, events.T_CLAIM) + _typed(rd_b, events.T_CLAIM)
     # lifecycle stream only — slot-carrying events are the paid_slots
     # mirror (one take/drop pair per request), not claim ownership
-    acquires = [e for e in claims
-                if e.get("op") == "acquire" and e.get("slot") is None]
-    releases = [e for e in claims
-                if e.get("op") == "release" and e.get("slot") is None]
+    acquires = [e for e in claims if e.get("op") == "acquire" and e.get("slot") is None]
+    releases = [e for e in claims if e.get("op") == "release" and e.get("slot") is None]
     # at most one acquire-winning sequence per (idc,arm,variant)
     acq_keys = sorted((e["idc"], e["arm"], e["variant"]) for e in acquires)
     assert acq_keys == PAID_KEYS
@@ -256,14 +248,9 @@ def test_s07_concurrent_double_run_single_payer(broot):
     for e in xlat:
         assert e["status"] in ("ok", "claimed", "dedup"), e
     for idc in PAID_IDS:
-        assert (
-            sum(
-                1
-                for e in xlat
-                if e["idc"] == idc and e["status"] == "ok"
-            )
-            == 1
-        ), f"{idc}: not exactly one paying run"
+        assert sum(1 for e in xlat if e["idc"] == idc and e["status"] == "ok") == 1, (
+            f"{idc}: not exactly one paying run"
+        )
 
 
 # --- scenario 8: accounting equation violation is named --------------------------
@@ -332,9 +319,9 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
         "TEXLATE_LAKE_ROOT",
     ):
         env.pop(k, None)
-    env["PYTHONPATH"] = (
-        str(BENCH_PY) + os.pathsep + env.get("PYTHONPATH", "")
-    ).rstrip(os.pathsep)
+    env["PYTHONPATH"] = (str(BENCH_PY) + os.pathsep + env.get("PYTHONPATH", "")).rstrip(
+        os.pathsep
+    )
 
     def cli(*args):
         return subprocess.run(
@@ -454,8 +441,7 @@ def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
     assert abs(factory.meter.spent() - 0.0004) < 1e-9
     claims = _typed(rd1, events.T_CLAIM)
     for idc in PAID_IDS:
-        ops = [e["op"] for e in claims
-               if e["idc"] == idc and e.get("slot") is None]
+        ops = [e["op"] for e in claims if e["idc"] == idc and e.get("slot") is None]
         assert ops == ["acquire", "release"], (idc, ops)
     assert all(
         e.get("fate") == "verified"
@@ -714,8 +700,7 @@ def test_s06_index_unsealed_no_spend(broot):
     rd1 = runs.load_run("paid_stub", DATE, "iu1")
     assert _cells(rd1) == []  # refused before any cell ran
     assert _typed(rd1, events.T_CELL_QUEUED) == []  # or even queued
-    cov = json.loads(
-        (rd1.derived() / "coverage.json").read_text(encoding="utf-8"))
+    cov = json.loads((rd1.derived() / "coverage.json").read_text(encoding="utf-8"))
     assert cov["sealed"] is False
     assert client.calls == 0  # fail-closed: zero spend while unsealed
 
@@ -763,8 +748,7 @@ def test_s06b_first_fire_gate_stamp(broot):
             **_quiet(),
         )
     rd = runs.load_run("paid_stub", DATE, "ff1")
-    cov = json.loads(
-        (rd.derived() / "coverage.json").read_text(encoding="utf-8"))
+    cov = json.loads((rd.derived() / "coverage.json").read_text(encoding="utf-8"))
     assert cov["verify_fresh"] is False and cov["sealed"] is True
     assert _cells(rd) == [] and client.calls == 0
 

@@ -64,7 +64,7 @@
 | `tricky-mask.tex`   | `@Mnn` | MASK 族 11 条（W07/W11/W84/W92 机制钉——docclass/usepackage 跨行夹注释等）                              |
 | `xlat-traps.tex`    | `@Xn`  | 翻译硬契约压力形 @X1–X4（遮蔽输出与 xlatbench S1–S4 逐字一致）                                         |
 
-断言矩阵与 pytest 单源共享 `specs/_fixture_matrix`——spec 在 load 时（主线程）完成全部 fixture 的 parse+双重建（SIGALRM 护栏只在主线程合法），stage fn 只做断言核对 + 计时落盘[^fixtureassert]。**生长机制**：parsebench 归因与台账 `found-in-wild` 条目达 `covered` 后 → 最小复现提取 + `@Xnn` 登记为永久断言，只增不减[^protocol][^suite]。
+断言矩阵与 pytest 单源共享 `specs/_fixture_matrix`——spec 在 load 时（主线程）完成全部 fixture 的 parse+ 双重建（SIGALRM 护栏只在主线程合法），stage fn 只做断言核对 + 计时落盘[^fixtureassert]。**生长机制**：parsebench 归因与台账 `found-in-wild` 条目达 `covered` 后 → 最小复现提取 + `@Xnn` 登记为永久断言，只增不减[^protocol][^suite]。
 
 ### 4.3 B3 · compilebench —— 编译段 + fixloop 基准
 
@@ -91,7 +91,7 @@
 - `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→L2→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `translators_bench.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
 - `specs/e2e_real.py`：Mode D 真实臂——route → xlat(paid) → compile → fixloop → base → layoutqc 六段链，翻译走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env）全产品链；run 参数 `ids/only/model/concurrency/timeout/oversize_cap/no_probe`；`fixloop` 臂位 = fail + misschar/error 级 partial（inject reject 不救），`base` 臂为归因对拍，`layoutqc` 为最后变异段（产物进 vault 触发 harvest）[^e2ereal]。
 
-产出**漏斗看板**：route/xlat/compile/fixloop/layoutqc 逐段终态分布 + reject_at 归因。门槛：mock A 全绿（PDF+identity+零残留占位+中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点[^suite]。
+产出**漏斗看板**：route/xlat/compile/fixloop/layoutqc 逐段终态分布 + reject_at 归因。门槛：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点[^suite]。
 
 ### 4.6 B6 · validbench —— 校验段基准
 
@@ -101,7 +101,7 @@
 
 ### 4.7 B7 · alignbench —— 锚点保留基准
 
-测 zh 重编译后 named-destination 锚点保留率（对照阅读器滚动同步质量上限）：pypdf 提双侧 named destinations → 同名配对 → 保留率 + 最大权值单调链（section 12/图表 10/equation 4/cite 2，`page.*` 权 0）；无 hyperref 工程走退化路径断言。格模型 = 一 (论文, rel pdf) 对子一格（id 免 canon，eval_records 车道），对子来源 `TEXLATE_ALIGN_PAIRS` env → pairs.jsonl；同 paper 格 same_id_serial 共享 `paper_dir/_texmf` 冷 usertree + `workspace()/en` 编译备忘[^alignbench]。
+测 zh 重编译后 named-destination 锚点保留率（对照阅读器滚动同步质量上限）：pypdf 提双侧 named destinations → 同名配对 → 保留率 + 最大权值单调链（section 12/图表 10/equation 4/cite 2，`page.*` 权 0）；无 hyperref 工程走退化路径断言。格模型 = 一 (论文，rel pdf) 对子一格（id 免 canon，eval_records 车道），对子来源 `TEXLATE_ALIGN_PAIRS` env → pairs.jsonl；同 paper 格 same_id_serial 共享 `paper_dir/_texmf` 冷 usertree + `workspace()/en` 编译备忘[^alignbench]。
 
 门槛：有 hyperref 对保留率 ≥95%；**保留率 <95% 本身可当 zh 编译完整性探针**；分段器联动案例（`\input/\include/\label/\bibitem` 进 chunk 连锅端型）沉淀回 B2 fixtures[^suite]。
 
@@ -122,13 +122,13 @@
 ## 7. 产出契约与留痕纪律（trizone 四区）
 
 1. **四区布局**（`$TEXLATE_BENCH_ROOT`，缺省取 XDG data 目录下 `texlate-bench/`；各区可经 `TEXLATE_{LEDGER,RUNS,VAULT,LAKE}_ROOT` 独立换挂载）[^trizone]：
-   - `ledger/` —— append-only `events.jsonl` + `index.sqlite` 物化索引 + `sealed/` 封存段；records/metrics/eval_records/cases 全部落账。
-   - `runs/` —— `runs/<spec>/<date>/<slug>/work/{idc}/` 逐格工作树 + run_meta；格间中间产物经 workdir 传递。
-   - `vault/` —— 不可再生产物保险库：`vault/{kind}/{sid}/{arm,variant,altseq}/` 物理叶（kind ∈ zh/splice/state/layoutqc）+ `meta/` 描述文件 + `manifest.jsonl` + `quar/` 隔离区；付费译文与成品树的唯一归并处（继任旧 `bench/zh-store/`）。
-   - `lake/` —— 可重建语料湖：`corpus/{source}/{sid}/` cell（extracted/raw/meta）+ `objects/` CAS 存储 + `catalog.jsonl` 状态机 + `durable/` 构建中间件。
+    - `ledger/` —— append-only `events.jsonl` + `index.sqlite` 物化索引 + `sealed/` 封存段；records/metrics/eval_records/cases 全部落账。
+    - `runs/` —— `runs/<spec>/<date>/<slug>/work/{idc}/` 逐格工作树 + run_meta；格间中间产物经 workdir 传递。
+    - `vault/` —— 不可再生产物保险库：`vault/{kind}/{sid}/{arm,variant,altseq}/` 物理叶（kind ∈ zh/splice/state/layoutqc）+ `meta/` 描述文件 + `manifest.jsonl` + `quar/` 隔离区；付费译文与成品树的唯一归并处（继任旧 `bench/zh-store/`）。
+    - `lake/` —— 可重建语料湖：`corpus/{source}/{sid}/` cell（extracted/raw/meta）+ `objects/` CAS 存储 + `catalog.jsonl` 状态机 + `durable/` 构建中间件。
 2. **保留策略**（P3，`kernel/vault.py`/`cli.py`/`lake.py`）：splice 叶 slim 即焚（留主干同名 pdf+arm+log）；≥`CAS_LINK_FLOOR`(256KiB) 叶文件 CAS 硬链去重；prune 遇含付费资产的 blocked cell 按 `_SHELL_KEEP_GLOB` 收壳而非整格保留；corpus TARS 下载件即焚。动词：`bench vault slim|cas-link|verify|restore|adopt|tombstone|seed`、`bench prune`、`bench lake {status,evict,…}`[^retention]。
 3. `runs/`、`vault/`、`lake/`、`ledger/` 全量在 format/lint 链外；fresh clone 不存在属预期——规范只引用其"结论已摘要进正文"的口径，不作依赖链接。
-4. 留痕/保留谓词：付费产物（vault zh/splice/state 叶）不可再生不删；lake cell 可经 CAS + catalog 重建，evict 分tier（orphan → extracted 投影 → raw）；账本 `sealed/` 段封存后不再重写。
+4. 留痕/保留谓词：付费产物（vault zh/splice/state 叶）不可再生不删；lake cell 可经 CAS + catalog 重建，evict 分 tier（orphan → extracted 投影 → raw）；账本 `sealed/` 段封存后不再重写。
 5. 统计报告：核心层加权池化 + 宏平均双口径并列；CI = Wilson + 月簇稳健 bootstrap（簇重抽样敏感性）[^v3plan]。
 
 ## 8. 门槛汇总

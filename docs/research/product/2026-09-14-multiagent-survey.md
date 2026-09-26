@@ -318,7 +318,7 @@ return results.filter(Boolean);
 
 [^cc-action]: anthropics. claude-code-action — 官方 GitHub Action. GitHub 2026. [github.com/anthropics/claude-code-action](https://github.com/anthropics/claude-code-action)
 
-[^plugins]: anthropics. claude-plugins-official 官方插件市场. GitHub 2026. [github.com/anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official)
+[^plugins]: anthropics. claude-plugins-official 官方插件市场。GitHub 2026. [github.com/anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official)
 
 [^a2a]: Linux Foundation Agentic AI Foundation. A2A Protocol v1.0（agent↔agent 互操作）. 2026. [a2a-protocol.org](https://a2a-protocol.org)
 

@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径；findings 已当日实施，附实施记录）
 > **日期**：2026-09-19 审计 + 实施
 
-三个并行只读审计面（reader 窗格层 / stores+传输层 / 页面+包形），针对「前端很卡」的用户体感。总体判断：响应式管线本身纪律良好（rAF 滚动合批、几何缓存、chunkPoll 共享、ProgressGrid 单元 memo、md 库懒加载、Reader 路由级分包+空闲预取），**慢感集中在三处——翻译中轮询流量、窗格挂载期的单帧巨渲染、译文区缺 content-visibility**。入口 chunk 94.8KB（34KB gzip）已无可拆之物。
+三个并行只读审计面（reader 窗格层 / stores+ 传输层 / 页面 + 包形），针对「前端很卡」的用户体感。总体判断：响应式管线本身纪律良好（rAF 滚动合批、几何缓存、chunkPoll 共享、ProgressGrid 单元 memo、md 库懒加载、Reader 路由级分包 + 空闲预取），**慢感集中在三处——翻译中轮询流量、窗格挂载期的单帧巨渲染、译文区缺 content-visibility**。入口 chunk 94.8KB（34KB gzip）已无可拆之物。
 
 ## P0 — 体感主因
 
@@ -21,7 +21,7 @@
 8. **log 帧每条全数组拷贝 + 唤醒** — `stores/tasks.ts:170-171`：`[...ls.slice(-499), e]` 每事件分配 ~500 元素新数组；编译日志爆发期每秒数十次全表重渲。修：环形缓冲或非响应式数组 + version 计数信号，或 microtask/rAF 合批追加。
 9. **chunk 帧逐格写 store** — `stores/tasks.ts:157-168`：乱序/重放帧 seq 跳跃时 `for s in len..it.seq` 每洞一次 setState——跳到 seq=500 即 ~500 次独立写入各唤醒 ProgressGrid 单元订阅。修：用现成但未接线的 `liveFrames.ts:69 mergeChunkItems` 一次 fold 一次写。
 10. **FindBar 每击键全文档搜索** — `reader/FindBar.tsx:103-106`：onInput→emit()→PDFFindController 每字符重搜整个 PDF，300 页文档打字卡顿。修：emit 防抖 ~250ms。
-11. **SyncEngine 随 handles/mapper/syncing 任意变化拆建** — `reader/ReaderView.tsx:227-238`：paneReady 的 `setHandles({...prev})` 新引用即 dispose+重挂双侧滚动监听；`syncing` 在 effect 内被读故拨开关也重建。修：拆两个 effect——引擎生命周期只吃 `(mode, handles.original, handles.translated)`，`e.syncing = syncing()` 单独写。
+11. **SyncEngine 随 handles/mapper/syncing 任意变化拆建** — `reader/ReaderView.tsx:227-238`：paneReady 的 `setHandles({...prev})` 新引用即 dispose+ 重挂双侧滚动监听；`syncing` 在 effect 内被读故拨开关也重建。修：拆两个 effect——引擎生命周期只吃 `(mode, handles.original, handles.translated)`，`e.syncing = syncing()` 单独写。
 12. **单块重译触发 O(N) 几何重绑** — `sync.ts:98-108`（`HtmlPane.tsx:151` 调 `repaint()`）：`geom.rebind()` 重查 `[data-chunk]` 并重 observe ~500 元素；`replaceWith` 还触发 childList MO → 双重 rebind。修：原地重绘走轻量 `invalidate()`，rebind 只留结构变更。
 
 ## P2 — 小项（顺手可修）
@@ -31,7 +31,7 @@
 15. **Home 每次返回重发 3 请求** — `pages/Home.tsx:243-248`：onMount 无条件 refresh+checkHealth+loadFeed（含外部 alphaxiv）。修：TTL 闸（<30–60s 跳过），settingsStore.loaded() 同款模式。
 16. **TaskList 每个 store tick 全表重排** — `components/TaskList.tsx:217-237`：visible() memo 在 props.tasks 引用变化时 filter+sort O(n log n)；500 任务才显形。修：排序键字段与进度字段分 memo。
 17. **retryWraps/retryBtns Map 不释放行 DOM** — `TaskList.tsx:198-199,458-467`：ref .set 后不 .delete，被过滤/删除的行泄漏。修：行回调里 `onCleanup(() => map.delete(id))`。
-18. **ProgressGrid O(total) 节点+监听** — `components/ProgressGrid.tsx:52-96`：每块 1 memo+1 `<i>`+1 click/keydown；3–5k 块长篇 ≈ 万级响应式节点。修：(a) 事件委托到容器走 data-seq；(b) total>~1500 改单 canvas 绘制。
+18. **ProgressGrid O(total) 节点 + 监听** — `components/ProgressGrid.tsx:52-96`：每块 1 memo+1 `<i>`+1 click/keydown；3–5k 块长篇 ≈ 万级响应式节点。修：(a) 事件委托到容器走 data-seq；(b) total>~1500 改单 canvas 绘制。
 19. **stage/done 帧多笔 setState** — `tasks.ts:143-151,189-196`：每事件 4 次独立通知；`batch()` 或单笔 merge 收口，免费修。
 20. **Toolbar 全生命周期挂 document pointerdown+keydown** — `components/Toolbar.tsx:94-99` 顶层 bindMenuDismiss；应照 RetryMenu 只在菜单 open 时挂。
 

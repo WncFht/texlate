@@ -40,7 +40,7 @@ census2 全仓重构清扫当日收尾：src/web/bench/tests/agents 各面分批
 
 ## 2026-09-22 · bench 内核验收日
 
-Wave C 运行径落地（spec/ctx/paid/kernel、sweep/doctor、cli/specs，`205606d7`；另有 dedup 预修 `45123054`、`f431c4fd`），`bench/py/kernel/` 25 模块约 15.1k 行全部就位。Wave-D 对抗验证两轮收口：首轮三车道裁决落 `76dc3341`/`bb78edff`/`147e6766`；第二轮六车道复审产出 94 条发现（13 fatal/43 major，汇总件 `tmp/jr_wf_7b0ace3b-589.txt`）全数裁决，落 `b7a7dd07`/`c203c1e6`/`56a13b12`/`5254b776` 四批——含 export 路径逃逸、redact 漏面、registry 污染、封存段不可见与封存机制悬空等 fatal 级修复。`tests/kernel/` 546 例通过 / 2 例按设计跳过。收官报告：[2026-09-22-bench内核wave-d收官.md](2026-09-22-bench内核wave-d收官.md)。全量 bench 重建为下一阶段，未启动。
+Wave C 运行径落地（spec/ctx/paid/kernel、sweep/doctor、cli/specs，`205606d7`；另有 dedup 预修 `45123054`、`f431c4fd`），`bench/py/kernel/` 25 模块约 15.1k 行全部就位。Wave-D 对抗验证两轮收口：首轮三车道裁决落 `76dc3341`/`bb78edff`/`147e6766`；第二轮六车道复审产出 94 条发现（13 fatal/43 major，汇总件 `tmp/jr_wf_7b0ace3b-589.txt`）全数裁决，落 `b7a7dd07`/`c203c1e6`/`56a13b12`/`5254b776` 四批——含 export 路径逃逸、redact 漏面、registry 污染、封存段不可见与封存机制悬空等 fatal 级修复。`tests/kernel/` 546 例通过 / 2 例按设计跳过。收官报告：[2026-09-22-bench 内核 wave-d 收官.md](2026-09-22-bench内核wave-d收官.md)。全量 bench 重建为下一阶段，未启动。
 
 ## 2026-09-23 · Wave-F 清点与阅读器 UX 落地日
 
@@ -56,7 +56,7 @@ P3 磁盘保留策略全量落地（`702e1554`）：splice 叶 slim 即焚回填
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | [audit-2026-09-16/](audit-2026-09-16/README.md)                                    | 2026-09-16 十三维度全仓只读审计，15 件（其 README 为逐维索引与收口建议）                                                           |
 | [roadmap-2026-09-17/](roadmap-2026-09-17/ROADMAP.md)                               | 2026-09-17 现状报告与排期 ROADMAP + inputs/ 八路侦察底档（架构/bench 扩展/缺陷台账/文档健康/前端/测量/性能/产品缺口），9 件        |
-| [2026-09-22-bench内核wave-d收官.md](2026-09-22-bench内核wave-d收官.md)             | trizone-ledger v2 bench 内核四波构建 + Wave-D 两轮对抗验证收口报告（94 条 round-2 发现全裁决、7 个修复提交、546 例测试绿）         |
+| [2026-09-22-bench 内核 wave-d 收官.md](2026-09-22-bench内核wave-d收官.md)          | trizone-ledger v2 bench 内核四波构建 + Wave-D 两轮对抗验证收口报告（94 条 round-2 发现全裁决、7 个修复提交、546 例测试绿）         |
 | [2026-09-22-trizone-phase0-2-进场实录.md](2026-09-22-trizone-phase0-2-进场实录.md) | trizone-ledger Phase 0–2 存量普查进场实录：真账册勘定、四源 44.4 万行进 ledger、zh-store 294 id 字节对账播种（自 spec 文件头迁出） |
 | [2026-09-24-磁盘策略落地与探针批指标.md](2026-09-24-磁盘策略落地与探针批指标.md)   | P3 磁盘保留策略落地实测 + dedup meta-kind 修复 + e2e_real 260 帧探针批/retry39 指标 + 四区磁盘与账本基线                           |
 

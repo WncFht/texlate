@@ -4,7 +4,7 @@
 >
 > **实现状态（2026-09-22）**：内核件面已按本设计四波落地——`bench/py/kernel/` 25 模块约 15.1k 行，`tests/kernel/` 546 例通过 / 2 例按设计跳过；Wave-D 两轮对抗验证收口（round-2 六车道 94 条发现全数裁决）。收官报告见 `../log/2026-09-22-bench内核wave-d收官.md`。
 >
-> **Phase 0–2 已收口（2026-09-22）**：存量普查进场完毕——真账册勘定（真身 `tmp/benchxp-sqlite/bench.db` 457MB/160 run）、四源 443,612 行进 ledger（逐源平账+幂等重跑零增长）、zh-store 294 在盘 id 字节三态对账播种 vault（3.31GB 硬链、full verify 全绿、294 格 seeded-exempt）。逐波执行实录原文存 `../log/2026-09-22-trizone-phase0-2-进场实录.md`。
+> **Phase 0–2 已收口（2026-09-22）**：存量普查进场完毕——真账册勘定（真身 `tmp/benchxp-sqlite/bench.db` 457MB/160 run）、四源 443,612 行进 ledger（逐源平账 + 幂等重跑零增长）、zh-store 294 在盘 id 字节三态对账播种 vault（3.31GB 硬链、full verify 全绿、294 格 seeded-exempt）。逐波执行实录原文存 `../log/2026-09-22-trizone-phase0-2-进场实录.md`。
 
 ---
 

@@ -74,11 +74,11 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 ### 2.5 磁盘配方结论
 
-| 规模 | corpus raw | eval extracted | zh(链CAS) | splice(final only) | 稳态合计  | 判定                        |
-| ---- | ---------- | -------------- | --------- | ------------------ | --------- | --------------------------- |
-| 10k  | 50G        | 工作集 ~13G    | ~8G       | ~15G               | **~86G**  | 宽限 ✓                      |
-| 13k  | 65G        | ~13G           | ~10G      | ~19G               | **~107G** | 贴顶 ✓（需回收 quarantine） |
-| 20k  | 100G       | —              | —         | —                  | >150G     | ✗ 需迁盘/压缩 zh            |
+| 规模 | corpus raw | eval extracted | zh(链 CAS) | splice(final only) | 稳态合计  | 判定                        |
+| ---- | ---------- | -------------- | ---------- | ------------------ | --------- | --------------------------- |
+| 10k  | 50G        | 工作集 ~13G    | ~8G        | ~15G               | **~86G**  | 宽限 ✓                      |
+| 13k  | 65G        | ~13G           | ~10G       | ~19G               | **~107G** | 贴顶 ✓（需回收 quarantine） |
+| 20k  | 100G       | —              | —          | —                  | >150G     | ✗ 需迁盘/压缩 zh            |
 
 zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9.8d、13k ≈ 12.8d，promo 23d 内都够。**瓶颈从始至终是磁盘，不是 API、不是天数。**
 
@@ -88,34 +88,34 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 **zstd 实测（12 样本/类，-3/-19 两档，比值=压缩后/原）**：
 
-| 类型                                              | zst-3 | zst-19 | 判定                     |
-| ------------------------------------------------- | ----- | ------ | ------------------------ |
-| .map                                              | 0.08  | 0.06   | 压缩 12×，但可再生→删    |
-| .log/.aux/.cls                                    | ~0.22 | ~0.20  | 好                       |
-| .tex/.bib/.sty/.bbl/.json                         | ~0.33 | ~0.29  | 好                       |
-| .eps                                              | 0.41  | 0.38   | 一般                     |
-| **.jpg/.pdf/.png（占 work 83%、splice ~80%）**    | ~0.91 | ~0.89  | **无效**                 |
+| 类型                                           | zst-3 | zst-19 | 判定                  |
+| ---------------------------------------------- | ----- | ------ | --------------------- |
+| .map                                           | 0.08  | 0.06   | 压缩 12×，但可再生→删 |
+| .log/.aux/.cls                                 | ~0.22 | ~0.20  | 好                    |
+| .tex/.bib/.sty/.bbl/.json                      | ~0.33 | ~0.29  | 好                    |
+| .eps                                           | 0.41  | 0.38   | 一般                  |
+| **.jpg/.pdf/.png（占 work 83%、splice ~80%）** | ~0.91 | ~0.89  | **无效**              |
 
 **裁决：全树压缩否决**。主字节（pdf/png/jpg）压不动且杀掉随机读；可压件（.map/.log/.aux）的正确处理是**删**（可再生/诊断完即弃）不是压。压缩路线只在「20k 梦」里对 zh 文本档有意义，且先被 CAS 硬链覆盖。
 
 **删除面实测**：
 
-| 对象 | 实测 | 策略后 | 机制 |
-| ---- | ---- | ------ | ---- |
-| runs work/ | **23MB/篇**（e2e_real-2: 902MB/39） | ~0 | 终态后 `shrink_shell`→sweep→`bench prune`（remove_cell_tree 带 vault_check 拒删未 harvest 付费字节） |
-| vault splice | mean 9.4MB（pdf 67%） | **~1.4MB**（40 胞实测） | P3 slim：final.pdf+arm.json+log——**slim verb 不存在，属 Step1 新码** |
-| lake cell | hydrated 7.2MB（raw 2.9+ext 4.3，n=50） | 2.9MB | `lake evict` 原生 tier：extracted 先 evict→raw_only |
-| backup tar | 1.1G/日 ×∞ | 保 3 日+周 1 | bench-backup.sh **无轮转**，须加 keep-last-N |
+| 对象         | 实测                                    | 策略后                  | 机制                                                                                                 |
+| ------------ | --------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| runs work/   | **23MB/篇**（e2e_real-2: 902MB/39）     | ~0                      | 终态后 `shrink_shell`→sweep→`bench prune`（remove_cell_tree 带 vault_check 拒删未 harvest 付费字节） |
+| vault splice | mean 9.4MB（pdf 67%）                   | **~1.4MB**（40 胞实测） | P3 slim：final.pdf+arm.json+log——**slim verb 不存在，属 Step1 新码**                                 |
+| lake cell    | hydrated 7.2MB（raw 2.9+ext 4.3，n=50） | 2.9MB                   | `lake evict` 原生 tier：extracted 先 evict→raw_only                                                  |
+| backup tar   | 1.1G/日 ×∞                              | 保 3 日 + 周 1          | bench-backup.sh **无轮转**，须加 keep-last-N                                                         |
 
 **每篇稳态（激进删除版）**：raw 2.9 + zh 4.7（CAS 后 ~0.4）+ splice-slim 1.4 + state/qc 0.8 ≈ **9.8MB（CAS 前）/ ~5.5MB（CAS 后）**；对照现状政策 ~44MB → 4.5×。
 
 **规模重算**：usable ~150G（187G − tmp/杂项余量）。
 
-| 规模 | zh 篇 | 稳态估算 | 判定 |
-| ---- | ----- | -------- | ---- |
-| 13k（v4 表） | 9.8k | 9.8k×9.8 + 3k×3.7 ≈ **107G** | ✓ 余量 ~43G，scale 保 3k |
-| 13k+CAS | 9.8k | ~65G | ✓ 宽限 |
-| 20k | 17k | ~94G（须 CAS+extracted 全 evict） | 可达，硬条件=zh 图档 CAS 落地 |
+| 规模         | zh 篇 | 稳态估算                          | 判定                          |
+| ------------ | ----- | --------------------------------- | ----------------------------- |
+| 13k（v4 表） | 9.8k  | 9.8k×9.8 + 3k×3.7 ≈ **107G**      | ✓ 余量 ~43G，scale 保 3k      |
+| 13k+CAS      | 9.8k  | ~65G                              | ✓ 宽限                        |
+| 20k          | 17k   | ~94G（须 CAS+extracted 全 evict） | 可达，硬条件=zh 图档 CAS 落地 |
 
 ## 3. 管线现状与缺口
 
@@ -144,18 +144,18 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 **之前做过吗：没有。** git log 显示 corpus_v3.py/_corpus_common.py 只有三次提交——Wave-E 逐字迁移（81210a49, 4c1f2fb3）与 Wave-F repoint（cf054070）；无独立审计；且 `~/.local/state/texlate/corpus-build/v3/` 不存在——**迁移后从未端到端跑过**（v3-smoke* 三个 run 全部 dedup-skip 空跑）。代码完备，实战未证。
 
-**裁决：参数化+扩展，不重写。** 全部 `_corpus_common`、lake.hydrate、fetch/zipsum/frame_lookup/sample/extract 阶段、qc 断言可复用。必须修的：
+**裁决：参数化 + 扩展，不重写。** 全部 `_corpus_common`、lake.hydrate、fetch/zipsum/frame_lookup/sample/extract 阶段、qc 断言可复用。必须修的：
 
-| 项                                             | 严重度          | 位置                                                                     | 修法                                                              |
-| ---------------------------------------------- | --------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| TARS 永不清理                                  | **launch 阻断** | corpus_v3.py:92 TARS=WORK/"tars" 无 prune                                | 新增 post-extract prune 阶段（extract 后即可删对应 item 的 .tar） |
-| quota 无法表达格级 floor                       | 高              | _sample :1337-1367 shares 制 + deficit backfill :1397 静默违反 cell 下限 | 换读 allocation-core-v4.csv（cluster×cat×target）                 |
-| pick_chunk_ids 写死 2 chunks/月                | 高              | :188-195                                                                 | 按 quota 扩（池须 ≥5× cell 需求）                                 |
-| _scan 串行 ~30-60s/chunk                       | 中              | :1132-1159                                                               | chunk 独立，并行化 → 4-7h 压到 ~1h                                |
-| _extract_members 串行+每 member 全 header 重扫 | 中              | :1704-1789, getmembers :1662                                             | 按 tag 并行；offset 索引复用                                      |
-| manifest 每次 run 全量重建                     | 低              | _rebuild_manifest :1790+                                                 | legacy 冻结用显式快照拷贝                                         |
-| zh/splice vault 不挂 CAS                       | 中（磁盘）      | vault 写入处                                                             | 未变 binary 文件硬链 objects/ → zh 省 4.5MB/篇、splice 省 ~5MB/篇 |
-| qc 文案写死 "目标 1000"                        | 低              | :2067                                                                    | 参数化                                                            |
+| 项                                               | 严重度          | 位置                                                                     | 修法                                                              |
+| ------------------------------------------------ | --------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| TARS 永不清理                                    | **launch 阻断** | corpus_v3.py:92 TARS=WORK/"tars" 无 prune                                | 新增 post-extract prune 阶段（extract 后即可删对应 item 的 .tar） |
+| quota 无法表达格级 floor                         | 高              | _sample :1337-1367 shares 制 + deficit backfill :1397 静默违反 cell 下限 | 换读 allocation-core-v4.csv（cluster×cat×target）                 |
+| pick_chunk_ids 写死 2 chunks/月                  | 高              | :188-195                                                                 | 按 quota 扩（池须 ≥5× cell 需求）                                 |
+| _scan 串行 ~30-60s/chunk                         | 中              | :1132-1159                                                               | chunk 独立，并行化 → 4-7h 压到 ~1h                                |
+| _extract_members 串行 + 每 member 全 header 重扫 | 中              | :1704-1789, getmembers :1662                                             | 按 tag 并行；offset 索引复用                                      |
+| manifest 每次 run 全量重建                       | 低              | _rebuild_manifest :1790+                                                 | legacy 冻结用显式快照拷贝                                         |
+| zh/splice vault 不挂 CAS                         | 中（磁盘）      | vault 写入处                                                             | 未变 binary 文件硬链 objects/ → zh 省 4.5MB/篇、splice 省 ~5MB/篇 |
+| qc 文案写死 "目标 1000"                          | 低              | :2067                                                                    | 参数化                                                            |
 
 密度分发 verdict：core 层 dense（wanted≥12/item）整 tar 正确；稀疏层靠 `fetch_blob` 成员级 Range-GET 已存在，仅 id-keyed 补足时需要开关——**不是重建前置项**。
 

@@ -1,6 +1,6 @@
 # arXiv 层规模化路线（2026-09-19）：广泛 paper 测试的获取面设计
 
-> **结论**：逐篇获取层与抽样框已是业界水准（钉版缓存/降级链/3.16M 行 frame/8 层语料治理），真正的硬缺口只有一条：**「2501+ 近期 + 无损含图 + 规模」三角无免费解**——IA 冻 2020-10、TIGER 止 2412、scholarweave 有损（73% 文件缺失+无二进制）、e-print 直采 ~85 篇/日。推荐 era 三分物化 + 增量枚举通道 + pdf_only 测试层 + oracle 校准；S3 付费（近三年 ~$80 / 十年窗 ~$150）是 2501+ 段唯一解、留作决策点。
+> **结论**：逐篇获取层与抽样框已是业界水准（钉版缓存/降级链/3.16M 行 frame/8 层语料治理），真正的硬缺口只有一条：**「2501+ 近期 + 无损含图 + 规模」三角无免费解**——IA 冻 2020-10、TIGER 止 2412、scholarweave 有损（73% 文件缺失 + 无二进制）、e-print 直采 ~85 篇/日。推荐 era 三分物化 + 增量枚举通道 + pdf_only 测试层 + oracle 校准；S3 付费（近三年 ~$80 / 十年窗 ~$150）是 2501+ 段唯一解、留作决策点。
 > **状态**：规划文档（时点证据 2026-09-19 口径）。**缺口 2「无增量通道」曾由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 落地、该链 2026-09-21 退役**（RSS 枚举+OAI 对账通道设计仍可复用）；pdf_only 物化层、版本漂移对账、S3 决策仍开放。
 > **日期**：2026-09-19 定稿，2026-09-20 重订入库
 
@@ -8,7 +8,7 @@
 
 ## 1. 现状盘点（已强，不推翻）
 
-- **逐篇层业界水准**：`arxiv/` = fetch（HEAD+etag+退避+export 转移+WAF 免疫）/ meta（Atom+OAI-PMH GetRecord）/ locate（主 tex 裁决 + 8 形态 \input 拓扑——严格超集 latexpand 与 unarXive flatten）/ unpack+sniff / ratelimit（per-host 桶+path-class 断路器 + 日预算 ~180 发）/ cache（钉版）。降级链 e-print→HTML→PDF sidecar 已接线。
+- **逐篇层业界水准**：`arxiv/` = fetch（HEAD+etag+ 退避+export 转移+WAF 免疫）/ meta（Atom+OAI-PMH GetRecord）/ locate（主 tex 裁决 + 8 形态 \input 拓扑——严格超集 latexpand 与 unarXive flatten）/ unpack+sniff / ratelimit（per-host 桶+path-class 断路器 + 日预算 ~180 发）/ cache（钉版）。降级链 e-print→HTML→PDF sidecar 已接线。
 - **枚举已解**：`bench/frame/frame.parquet` = 3,164,528 行全量抽样框（metadata snapshot + 渠道索引），新式 id 完备率 99.9994%——「从全库分层选样」能力已在手。
 - **语料治理完备**：13,266 篇 8 层（core/booster/expand/hot/dev_vol/dev_failmine/dev_recent/holdout），`(channel,item,member,sha256)` 钉版 + EVAL_ONLY 闸 + QC 台账（语料侧档案见 [../corpus/](../corpus/)）。
 - **覆盖率基线已实测**：~87% 有 TeX 源、~9-13% pdf-only（年代敏感）、HTML↔源码集合等价、~50% 论文自带 .bbl。
@@ -28,7 +28,7 @@
 - **S3 实测价**（官方 bulk-data 文档口径[^arxiv-bulk]）：近 3 年月 chunk ≈ **$80**；2015–2025 十年窗 1.6TB ≈ **$150**；全量 src ~2.9TB ≈ $260-400。**us-east-1 内 EC2 拉取免 egress**——开源 Rust ETL `arxivETL_sync`（scholarweave 同款上游）即此模式：区内免费消化 S3 再落自家盘[^arxiv-etl]。
 - **X-raying the arXiv**（60 万篇实测研究[^xray]）：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / **1.6% 主文件难定位**——是我们 L2/L3 降级链与 locate() 的负载基线；其 BaRDE 裁决器 = locate() 简化版（99.9%），可对表漏判率。另：~27% e-print 字节是冗余文件（图为主）。
 - **ar5iv 分层数据集**（2.17M 篇，2024-04[^ar5iv]）：no_problem 366k / warning 1.3M / error 500k——官方 LaTeXML **无错转换只有 ~75%**，是我们管线成功率的校准 oracle；WithdrarXiv 是撤稿专集。
-- **Kaggle/HF 元数据**：Kaggle 周更 JSONL（license/versions 全字段[^kaggle]）、librarian-bots 日更 parquet（CC0[^hf-meta]）、OAI 是 license+版本史唯一权威源——枚举底表三源交叉校验即可。
+- **Kaggle/HF 元数据**：Kaggle 周更 JSONL（license/versions 全字段[^kaggle]）、librarian-bots 日更 parquet（CC0[^hf-meta]）、OAI 是 license+ 版本史唯一权威源——枚举底表三源交叉校验即可。
 - latexpand 只处理 `\input/\include` 且有 verbatim 误展开 bug；arxiv_latex_cleaner 的注释剥离语义边界（`\iffalse\fi`/verbatim/comment 特例）值得对照我们的 strip_comments。
 
 ## 4. 建议路线
@@ -61,9 +61,9 @@ frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 s
 
 ### 参考文献
 
-[^arxiv-robots]: arXiv. Robots 政策——/src/ 程序化抓取限制与批量正道指引. [arxiv.org/robots.txt](https://arxiv.org/robots.txt) / info.arxiv.org [help/robots](https://info.arxiv.org/help/robots.html)
+[^arxiv-robots]: arXiv. Robots 政策——/src/ 程序化抓取限制与批量正道指引。[arxiv.org/robots.txt](https://arxiv.org/robots.txt) / info.arxiv.org [help/robots](https://info.arxiv.org/help/robots.html)
 
-[^arxiv-bulk]: arXiv. Bulk Data Access via S3——requester-pays 定价口径与 manifest 布局. info.arxiv.org. [help/bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
+[^arxiv-bulk]: arXiv. Bulk Data Access via S3——requester-pays 定价口径与 manifest 布局。info.arxiv.org. [help/bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
 
 [^arxiv-etl]: arthiondaena. arxivETL_sync——us-east-1 区内免费消化 S3 桶的开源 Rust ETL（scholarweave 同款上游）. GitHub. [arthiondaena/arxivETL_sync](https://github.com/arthiondaena/arxivETL_sync)
 

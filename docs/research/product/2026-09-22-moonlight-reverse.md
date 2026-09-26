@@ -1,8 +1,8 @@
 # Moonlight (themoonlight.io) 逆向调研
 
-> **结论**：Moonlight 是韩国 Corca Inc.（约 20 人，Pre-A ~$5.4M，adtech 转型）做的「AI 论文阅读器」——Chrome 扩展劫持任意 PDF → 定制 pdf.js 阅读器 → 翻译/解释/摘要/讨论/引用卡全套 AI 功能。技术栈普通（Next.js+Vercel+Express+S3），护城河不在模型在**分发形态**（扩展即入口）与**增长引擎**（SEO 评审语料+会议 hub+推荐返利+游戏化）。对 texlate 可直接借鉴的：`<|N|>` 句级锚点协议、`<<<type|json>>>` 流内工具调用帧、框选解释、匿名镜像端点漏斗、per-paper 周配额模型、SEO 语料页打法、wasmtex（MIT WASM LaTeX 编译器）、pdf-lib 客户端导出合成。texlate 独有的 LaTeX 源编译管线仍是它架构上做不了的——它最强的 Layout Translate 也只是 PDF 重排版，产不出可编译双语稿。
+> **结论**：Moonlight 是韩国 Corca Inc.（约 20 人，Pre-A ~$5.4M，adtech 转型）做的「AI 论文阅读器」——Chrome 扩展劫持任意 PDF → 定制 pdf.js 阅读器 → 翻译/解释/摘要/讨论/引用卡全套 AI 功能。技术栈普通（Next.js+Vercel+Express+S3），护城河不在模型在**分发形态**（扩展即入口）与**增长引擎**（SEO 评审语料 + 会议 hub+ 推荐返利 + 游戏化）。对 texlate 可直接借鉴的：`<|N|>` 句级锚点协议、`<<<type|json>>>` 流内工具调用帧、框选解释、匿名镜像端点漏斗、per-paper 周配额模型、SEO 语料页打法、wasmtex（MIT WASM LaTeX 编译器）、pdf-lib 客户端导出合成。texlate 独有的 LaTeX 源编译管线仍是它架构上做不了的——它最强的 Layout Translate 也只是 PDF 重排版，产不出可编译双语稿。
 >
-> **状态**：调研完成（140-agent ultracode 工作流 wf_b2eff762-4a1，四轮 resume 全绿：34 侦察+22 审计+26 lane+320 gap item→30 条对抗核验全数 confirmed、0 refuted；§9 为已核验落地清单）
+> **状态**：调研完成（140-agent ultracode 工作流 wf_b2eff762-4a1，四轮 resume 全绿：34 侦察 +22 审计 +26 lane+320 gap item→30 条对抗核验全数 confirmed、0 refuted；§9 为已核验落地清单）
 > **日期**：2026-09-22
 
 ## 1. 公司背景
@@ -53,7 +53,7 @@
 | `/ai/translate-page-with-source-v2`                          | cookie     | `{texts[],target}` → 流式译文内嵌 `<\|N\|>` 源句索引                                                          |
 | `/pdf-translation/{capability,jobs}`                         | Premium    | 整篇重排版译文 PDF 的任务队列，2s→10s 轮询退避，≤20min，默认 maxPages=30                                      |
 | `/ai/explain-infographic`                                    | 登录       | 选段→1024×1024 JPG，**唯一有独立周额度的功能**（Pro 5/Premium 30）                                            |
-| `/ai/latex`                                                  | cookie     | 公式 DOM 文本+元素 PNG → LaTeX                                                                                |
+| `/ai/latex`                                                  | cookie     | 公式 DOM 文本 + 元素 PNG → LaTeX                                                                              |
 | `GET /paper/{id}/sentences?sentenceIndex=N`                  | cookie     | **句子仓库**：引用 chip 点击后回取真实原句（`<ref>` 证据落地）                                                |
 | `/ai/auto-highlight-page`                                    | 匿名可     | 句列表→`{index,type∈novelty/methods/results,reason}`                                                          |
 | `PATCH /user/weekly-paper-urls`                              | cookie     | per-paper 配额计量落点                                                                                        |
@@ -75,24 +75,24 @@
 - 每次 explain 都**附带 top-30 S2 references+citations 作上下文**；结果流式进 memo modal，可续聊
 - 流内 `<<<toolname|{json}>>>` 帧实现 agentic 工具调用（已实现的唯一工具：searchPaperInGoogleScholar，结果截 25k 字符），有 wait/complete/fail UI 卡
 - 公式一键复制 LaTeX（`/ai/latex`，可配 `$$` vs `\(`）
-- **Infographic**：选段→POST `/ai/explain-infographic`→1024² JPG，唯一无匿名 twin 的 AI 功能；NEW 徽章+常驻额度 chip，额度耗尽按档位弹不同升级话术
+- **Infographic**：选段→POST `/ai/explain-infographic`→1024² JPG，唯一无匿名 twin 的 AI 功能；NEW 徽章 + 常驻额度 chip，额度耗尽按档位弹不同升级话术
 
 ### 4.3 摘要 / With AI 右栏
 
 - 开纸默认右栏自动展开到 With AI tab（移动端除外）：**Keyword Dictionary → 3-Line Summary → Summary** 三张手风琴卡
 - 每卡若 paper 记录已有字段直接渲染；仅当 OWNER 且首次才流式生成（`/ai/keywords`、`/ai/three-line-summary`、`/ai/summary`），写回 paper——**分享链接的访客白嫖 owner 预计算内容**
 - 每个功能一个用户可改 prompt（`/user/{keywords,three-line-summary,summary}-prompt`）
-- Discussion 多轮 chat：~6 个入口、整篇/选区两种 scope、命名线程+跨论文历史、`<ref p s pg>` 句级证据 chip、@-mention 最多 10 篇（付费）、流式建议追问；免费按 paper 计不按消息计
+- Discussion 多轮 chat：~6 个入口、整篇/选区两种 scope、命名线程 + 跨论文历史、`<ref p s pg>` 句级证据 chip、@-mention 最多 10 篇（付费）、流式建议追问；免费按 paper 计不按消息计
 
 ### 4.4 引用（Smart Citation + Citation Tab）
 
-- 点击文内引用锚→解析到 S2（OpenAlex 兜底）→原地卡：题录+摘要+被引数 + 三个按需流式增强（**"Reason cited" / "Worth reading?" 四档判决 Full Read/Skim/Abstract only/Pass（按用户 library 亲疏条件化）/ reference summary**）+ 与 library 关系的彩色徽章
+- 点击文内引用锚→解析到 S2（OpenAlex 兜底）→原地卡：题录 + 摘要 + 被引数 + 三个按需流式增强（**"Reason cited" / "Worth reading?" 四档判决 Full Read/Skim/Abstract only/Pass（按用户 library 亲疏条件化）/ reference summary**）+ 与 library 关系的彩色徽章
 - 两个保存动词分工：**"Keep It"** 进 Citation Cards tab→批量导出（.bib 服务端 BibTeX / .txt 客户端 citeproc 出 APA/Vancouver/Harvard / CSV）；**"Add to Library"** 直接物化成库内论文
 - v1.6.0 Citation Tab：cited/citing 双向列表；开文档时一次 `/scholar/search-with-ref` 引导全 ego 网
 
 ### 4.5 Library
 
-- 单归属文件夹树 + 扁平 tags + 星级 + 可改元信息 + 多格式引用导出 + ZIP 批量下载 + Zotoro key 导入（collection 选择器+去重+逐文件失败分类）
+- 单归属文件夹树 + 扁平 tags + 星级 + 可改元信息 + 多格式引用导出 + ZIP 批量下载 + Zotoro key 导入（collection 选择器 + 去重 + 逐文件失败分类）
 - **Recents**：打开未存的论文自动进历史，可拖进文件夹——「打开≠保存」解耦
 - insights 条：Library Status + contribution heatmap + Most Utilized Papers（加权参与度）+ 全站周度热门架
 - **关键设计**：library 是排序信号不只是存储——Scholar、citation 卡配色、explain 个性化都吃库内容
@@ -115,12 +115,12 @@
 
 ### 4.8 Team / Enterprise（核验：计费容器，不是协作空间）
 
-- seat 计费容器：admin 付 seat 费、邀请码+链接、成员享权益；**无共享库/标注/协作编辑**（定价页自写 "Coming Soon"）
+- seat 计费容器：admin 付 seat 费、邀请码 + 链接、成员享权益；**无共享库/标注/协作编辑**（定价页自写 "Coming Soon"）
 - 档位 1-3（无折扣只图统一付款）/4-15/16-29/30+ 邮件洽询；Pro $12/$10/$8、Premium $59/$49/$39
 - 邀请页 `/{lang}/{teamId}/invite?code=`：未登录即可 GET `/api/team/{id}` 看邀请人；边缘 case 极细（proration/最小账单/续约锁/seat 不可低于成员数/一人一队）
 - 唯一已交付协作原语：per-paper share 链接（连标注一起走，访客只读）
 
-### 4.9 Scholar Deep Search（closed beta）
+### 4.9 Scholar Deep Search (closed beta)
 
 - `/{lang}/scholar` 307→login，API 401；waitlist 走 Google Form
 - 声称 500M+（PubMed/arXiv/IEEE/Crossref）；四层：library 亲疏标记+"Connection to my research"、NL 标准漏斗评 top-100、真引用边图、citation-graph gap 分析
@@ -138,31 +138,31 @@
 - 绕过栈：订阅/7 天 welcome 窗/14 天 referral 窗/partner 窗/受邀未激活宽限/移动端全面豁免/教程 PDF/匿名 twin
 - **CN 地区歧视**：geoip 命中后 3 篇变**终身累计**非每周——值得注意的激进成本控制
 - 转化双层：确定性 LimitReachedModalV2（第 3 篇预警/第 4 篇锁死+referral 逃生口）+ 任意响应 `X-Show-Paywall:1` 触发的 A/B 付费墙
-- 独立额度：infographic 周 credit（5/30）、Discussion 一次性体验旗标+10 篇上限、Layout Translate Premium 专属周配额+maxPages=30
+- 独立额度：infographic 周 credit（5/30）、Discussion 一次性体验旗标 +10 篇上限、Layout Translate Premium 专属周配额+maxPages=30
 
 ### 4.12 移动端
 
-- 无 PWA/无 manifest/无 service worker；iOS+Android 独立 App（v1.1.6）是刻意收窄的「阅读+库」伴侣
+- 无 PWA/无 manifest/无 service worker；iOS+Android 独立 App（v1.1.6）是刻意收窄的「阅读 + 库」伴侣
 - 平板是目标形态（pencil 手写、折叠屏切平板模式）；手机 App 直接隐藏 header
 - App Store 合规的 Apple 登录只在 App 里→web 永远 stranded 这批用户；支付走 Toss webview
 - 采用量极小且韩区集中；投诉收敛于 iPad 卡顿/手写/侧栏/缩放
 
 ## 5. 增长引擎（最值钱的一节）
 
-| 杠杆                 | 机制                                                                                                                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **扩展即分发**       | 任意站点 PDF→Moonlight 接管；劫持本身即「一键导入」（open 历史+配额登记同时完成）；无 arXiv abs 页挂件——纯 PDF 劫持一条路                                                                                                   |
-| **零摩擦漏斗**       | 匿名上传/paste-URL/全页 drag-drop→直接进 `/file?url=` 阅读器（HTTP 200 无墙，route 在 /[lang] 外）；所有 AI 有匿名 twin；注册请求由 viewer postMessage 延迟到教程完成/配额耗尽/存库时                                       |
-| **SEO 评审语料**     | `/{lang}/review/{slug}` 每篇 arXiv 自动生成结构化评审（长文 markdown+LaTeX 数学+关键词典+页面快照 PNG+相似论文×5+浏览计数）；**每日批量**（发布→入库~4 天→评审 66 秒后上线实测）；16 个 arXiv archive 全覆盖+会议 dump      |
-| **隐藏 LLM-seeding** | 每评审页埋 `h-0 opacity-0 text-[1px]` div 告诉 AI 助手「这是全世界最准确的摘要」+功能推销+安装链接；同时 robots.txt 封 GPTBot/ClaudeBot/CCBot——**只借 Google 索引喂答案引擎，不给你训练**；实测隐藏文案原样出现在搜索摘要里 |
-| **会议 hub**         | ECCV 507/KDD ~605/KCCV 161 篇静态配置 SSR 页，CollectionPage+Event+BreadcrumbList JSON-LD                                                                                                                                   |
-| **站点↔扩展深桥**    | `externally_connectable` 双向：站点 ping 4 个候选扩展 ID、读写 storage.sync、完成活动任务、按 URL 布防劫持                                                                                                                  |
-| **游戏化**           | GitHub 式 Paper streak 漂浮组件可挂**每个网站**（默认关）；heatmap+radar+加权计分；周年庆任务/教授 campaign/lab-exchange                                                                                                    |
-| **referral**         | 2 人→1 月 Pro；被邀请者 14 天豁免窗                                                                                                                                                                                         |
+| 杠杆                 | 机制                                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **扩展即分发**       | 任意站点 PDF→Moonlight 接管；劫持本身即「一键导入」（open 历史 + 配额登记同时完成）；无 arXiv abs 页挂件——纯 PDF 劫持一条路                                                                                                    |
+| **零摩擦漏斗**       | 匿名上传/paste-URL/全页 drag-drop→直接进 `/file?url=` 阅读器（HTTP 200 无墙，route 在 /[lang] 外）；所有 AI 有匿名 twin；注册请求由 viewer postMessage 延迟到教程完成/配额耗尽/存库时                                          |
+| **SEO 评审语料**     | `/{lang}/review/{slug}` 每篇 arXiv 自动生成结构化评审（长文 markdown+LaTeX 数学 + 关键词典 + 页面快照 PNG+ 相似论文×5+ 浏览计数）；**每日批量**（发布→入库~4 天→评审 66 秒后上线实测）；16 个 arXiv archive 全覆盖 + 会议 dump |
+| **隐藏 LLM-seeding** | 每评审页埋 `h-0 opacity-0 text-[1px]` div 告诉 AI 助手「这是全世界最准确的摘要」+ 功能推销 + 安装链接；同时 robots.txt 封 GPTBot/ClaudeBot/CCBot——**只借 Google 索引喂答案引擎，不给你训练**；实测隐藏文案原样出现在搜索摘要里 |
+| **会议 hub**         | ECCV 507/KDD ~605/KCCV 161 篇静态配置 SSR 页，CollectionPage+Event+BreadcrumbList JSON-LD                                                                                                                                      |
+| **站点↔扩展深桥**    | `externally_connectable` 双向：站点 ping 4 个候选扩展 ID、读写 storage.sync、完成活动任务、按 URL 布防劫持                                                                                                                     |
+| **游戏化**           | GitHub 式 Paper streak 漂浮组件可挂**每个网站**（默认关）；heatmap+radar+ 加权计分；周年庆任务/教授 campaign/lab-exchange                                                                                                      |
+| **referral**         | 2 人→1 月 Pro；被邀请者 14 天豁免窗                                                                                                                                                                                            |
 
 ## 6. 弱点与用户投诉（我们的机会面）
 
-- 译文-源句 hover 对齐有边界漂移（heading 并入句子）
+- 译文 - 源句 hover 对齐有边界漂移（heading 并入句子）
 - iPad/移动端卡顿、手写坏、侧栏烦、文本选择不精——移动端全线弱
 - 登录 bug、强制第三方 cookie；Apple 登录用户进不了 web
 - cloud-only，无本地/自托管；团队共享库到现在还是 Coming Soon
@@ -190,10 +190,10 @@
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`<\|N\|>`锚点协议 +`<<<type\|json>>>` 流内帧** | 零 SSE/WS：fetch+TextDecoder+300ms 节流重渲；`<\|N\|>` 让流式译文段回指源句索引，`<<<tool\|json>>>` 让模型中途调工具——我们 chat/summary 流式照这个做 |
 | **Cmd/Ctrl+drag 框选解释**                       | 零依赖交互；我们有 LaTeX 源知道 figure 位置，做得比它准                                                                                              |
-| **匿名镜像端点 + postMessage 延迟注册**          | `/anonymous/*` 镜像+用完再要账号，纯路由层工作；它实测是转化主力                                                                                     |
+| **匿名镜像端点 + postMessage 延迟注册**          | `/anonymous/*` 镜像 + 用完再要账号，纯路由层工作；它实测是转化主力                                                                                   |
 | **per-paper 周槽位配额**                         | 比 token 计量好懂一百倍：「每周免费 N 篇」一句话说清；占槽后该篇无限用也是好的体感                                                                   |
 | **双向 hover 高亮**                              | 我们 splice 双语段天然有对照；它做 DOM Range+bbox overlay 那么痛苦是因为只有 PDF 坐标                                                                |
-| **Keep It→批量导出 .bib/.csv**                   | ADR-0021 引用卡加收藏+导出即齐                                                                                                                       |
+| **Keep It→批量导出 .bib/.csv**                   | ADR-0021 引用卡加收藏 + 导出即齐                                                                                                                     |
 | **"Worth reading?" 四档判决**                    | Full Read/Skim/Abstract only/Pass，按用户库亲疏条件化——挂在引用卡上是高体感低成本的 AI 增强                                                          |
 | **pdf-lib 客户端合成导出**                       | 标注/译文烘进 PDF 在浏览器里完成（quadPoints+annotationStorage），省服务端合成管线                                                                   |
 | **dedupe-by-URL**                                | POST 撞 409→GET 取已有；我们 corpus 同 URL 判重可直接抄语义                                                                                          |
@@ -211,10 +211,10 @@
 | **wasmtex**                    | MIT 直接拿：web 端 WASM 即时预览小文档，重型编译仍走服务端 xelatex                                                                                                                                             |
 | **句子仓库+`<ref>` 证据 chip** | 它有 `/paper/{id}/sentences` 服务端句库支撑证据跳转；我们 LaTeX 源侧的句定位更准——做 chat 时证据 chip+「跳到原文」全套可抄，地基我们更好                                                                       |
 | **library 作为排序信号**       | 库内容喂检索/引用卡配色/个性化；我们语料库同思路可复用                                                                                                                                                         |
-| **share 链接带标注只读**       | PATCH isPublic+无鉴权 GET+READ 权限降级=分享即漏斗；我们 share.zip 已有产物版，网页版可照此                                                                                                                    |
+| **share 链接带标注只读**       | PATCH isPublic+ 无鉴权 GET+READ 权限降级=分享即漏斗；我们 share.zip 已有产物版，网页版可照此                                                                                                                   |
 | **游戏化=共修飞轮**            | 它的 streak 只是留存；我们可做「修好一篇编译失败论文」计分反哺 fixloop 规则库                                                                                                                                  |
 | **模型分档**                   | 它 9 模型三档+luna/terra 内部别名品牌层；我们 BYOK 下可改成功能分档（页翻免费/fixloop 精修收费）                                                                                                               |
-| **团队 seat+邀请码三段式**     | 计费容器先抄（admin 付+码+邀请页），共享语料桶/术语表是我们能抢跑的差异点                                                                                                                                      |
+| **团队 seat+ 邀请码三段式**    | 计费容器先抄（admin 付 + 码+邀请页），共享语料桶/术语表是我们能抢跑的差异点                                                                                                                                    |
 
 ### 8.3 SKIP —— 明确不抄
 
@@ -250,18 +250,18 @@
 ### P1 · 翻译 UX（2）
 
 3. zh pane 每块「peek original」就地展开 en 源句（S）— dual.json 已有 `{seq,en,zh}`，零新载荷；比它 hover-only 更进一层。
-4. 选区翻译弹窗+词典模式（M）— ≤3 词走词典式释义；DomPane 是 DOM 文本顺手做，PdfPane 开 textLayer 选择。
+4. 选区翻译弹窗 + 词典模式（M）— ≤3 词走词典式释义；DomPane 是 DOM 文本顺手做，PdfPane 开 textLayer 选择。
 
 ### P1 · Chat（3）
 
 5. `POST /api/task/{id}/chat` chunk 接地问答端点（M）— context 用 `⟦S0001⟧` seq 标记的 en 原文，**服务端校验每条引用 seq**（编造的直接丢）——比它「popover 显示原句」更硬的诚实保证，因为只有我们有权威段库。
 6. Reader chat dock 第三栏（M）— 刻意选 dock 不选 modal：modal 遮内容正是它用户投诉榜首。
-7. 双语 ref chip+镜像跳转（M）— chip 点开同时给 en 引文**和**它的 zh 译文（它句子仓库单语，结构上给不了）。
+7. 双语 ref chip+ 镜像跳转（M）— chip 点开同时给 en 引文**和**它的 zh 译文（它句子仓库单语，结构上给不了）。
 
 ### P1 · 选区/解释（2）
 
 8. 每个公式一键 Copy LaTeX（S）— 我们要花零成本：源里有真 LaTeX，不用 `/ai/latex` 猜。
-9. parse-tree 锚定的「Explain this figure/table」 chip（L）— 它要 DocLayout-YOLO 服务端检测，我们从 LaTeX 源 parse 树直接知道环境边界。
+9. parse-tree 锚定的「Explain this figure/table」chip（L）— 它要 DocLayout-YOLO 服务端检测，我们从 LaTeX 源 parse 树直接知道环境边界。
 
 ### P1 · 引用（4）
 
@@ -279,21 +279,21 @@
 ### P1 · Library（4）
 
 17. keep/pin 标记豁免 retention sweep（S）。
-18. 引用卡「已译」徽标+一键开本机译文（S）。
+18. 引用卡「已译」徽标 + 一键开本机译文（S）。
 19. kept-refs 车卡→批量导出（M）。
 20. Zotero 收藏夹→批量翻译队列，反向通道补成双向（M）。
 
 ### P1 · Discover（3）
 
 21. 引用卡「translate in texlate」action（S）。
-22. References 侧栏 tab：全 bibliography+L2 元信息+已译状态（M）。
+22. References 侧栏 tab：全 bibliography+L2 元信息 + 已译状态（M）。
 23. 会议合集页：per-conference arXiv id JSON 渲 Discover（M）——学它会议 hub 但内容是译文不是薄摘要。
 
-### P1 · Deep Search（4）
+### P1 · Deep Search (4)
 
 24. 「Related work」面板：typed 引用列表（M）。
 25. **LaTeX 源 citation-edge+cite-context 抽取管线**（L）— `thebibliography`/`\cite` 在源侧抽边，这正是 citation-landscape 调研定的独有资产。
-26. 「接近你已译论文」亲疏徽标+可查依据（M）。
+26. 「接近你已译论文」亲疏徽标 + 可查依据（M）。
 27. 个人已译语料双语全文检索：SQLite FTS5 over chunks（M）。
 
 ### P1 · Onboarding（2）
@@ -305,11 +305,11 @@
 
 - **法务**：全程公开面（无鉴权端点、CRX 公开分发、GitHub 开源仓、RSC/i18n 字典），无越权；勿调其匿名 AI 端点做规模化白嫖（违反 ToS 且无必要）。`/api/proxy?fileUrl=` 无鉴权代取是**它的**攻击面不是我们的作业模板——我们若做 URL 拉取要加白名单/SSRF 防护
 - **扩展审核**：「劫持 PDF」类扩展上架声明文案需谨慎；它 100K 用户过审说明路径可行
-- **wasmtex 体积**：WASM TeX+字体几十 MB，在线预览要评估加载策略
+- **wasmtex 体积**：WASM TeX+ 字体几十 MB，在线预览要评估加载策略
 - **配额启示**：per-paper 槽位模型对 LLM 成本失控是天然闸门，值得我们计量设计参考，但 CN 歧视那条别学
 
 ## 附：侦察方法与证据位置
 
-- 工作流 `wf_b2eff762-4a1`（140 agent，四轮 resume 全绿，累计 ~5.5M subagent tokens）；中间产物 `tmp/moonlight-20260922/`：`lane-summaries.md`（26 lane 全文）、`confirmed-items.md`（30 条已核验建议全文）、`final-result.json`、`per-agent/*.json`（56 侦察+审计原始结果）
+- 工作流 `wf_b2eff762-4a1`（140 agent，四轮 resume 全绿，累计 ~5.5M subagent tokens）；中间产物 `tmp/moonlight-20260922/`：`lane-summaries.md`（26 lane 全文）、`confirmed-items.md`（30 条已核验建议全文）、`final-result.json`、`per-agent/*.json`（56 侦察 + 审计原始结果）
 - 手段：CRX 解包（v3.3.0 pdfScript.js 6.2MB 全文可读）、RSC flight/i18n ~2406 键字典、公开无鉴权 API 实测（review/proxy/scholar/geoip/share）、Notion recordMap、Featurebase `__NEXT_DATA__`、Wayback 语料抽样、GitHub corca-ai 仓审计
 - 未穿透（completeness critic 记录在案）：**全程零真实 AI 调用**——AI 行为结论全部推自客户端解析代码与端点形状，未抓过线上 wire 流量；WAF 后登录态内页未做（无真账号）；ml 服务与 Scholar 实现黑盒。156 条 open_questions 存 `final-result.json` 备查

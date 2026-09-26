@@ -36,7 +36,7 @@ hjfy.top 是吴多益（amis 前端框架作者）2025 年上线的 arXiv 论文
 
 动工前做了约 20 项子调研/实验（`docs/05` 证据矩阵 E1–E22——`docs/0x` 旧文档已移除，此类引用均为 git 历史指针，检索见下节）：8 个 LaTeX 解析库与自研 spike 的大横评、宏展开语料统计、引擎矩阵双引擎实测、16 篇 mock 端到端管线、fixloop 修复 spike、hjfy 站点侦察、texglot 参考实现精读、成本模型、网关模型横评。每项 pending 决策都带实证结论后，方案于 2026-09-15 冻结为 22 条裁决（`docs/05` §3，同上）。
 
-里程碑按 M0 骨架基线 → M1 展开+翻译 → M2 编译攻坚 → M3 产品化 → M4 远期推进。截至 2026-09-20：M0 已验收、M1 实质达成、M2/M3 推进中——解析侧 identity 100%、leak 0.040%（约 3900 文件口径）；编译侧 scorecard 5124 格 union pdf 97.89%、clean 84.99%；real 臂 n200 与 mock 臂打平（union pdf 同 98.5%）。里程碑判定与演进细节见 `log/` 与各 ADR「演变/现状」节。
+里程碑按 M0 骨架基线 → M1 展开 + 翻译 → M2 编译攻坚 → M3 产品化 → M4 远期推进。截至 2026-09-20：M0 已验收、M1 实质达成、M2/M3 推进中——解析侧 identity 100%、leak 0.040%（约 3900 文件口径）；编译侧 scorecard 5124 格 union pdf 97.89%、clean 84.99%；real 臂 n200 与 mock 臂打平（union pdf 同 98.5%）。里程碑判定与演进细节见 `log/` 与各 ADR「演变/现状」节。
 
 ## 决策记录的组织方式
 
@@ -46,4 +46,4 @@ hjfy.top 是吴多益（amis 前端框架作者）2025 年上线的 arXiv 论文
 
 [^hjfy-site]: 幻觉翻译 hjfy.top 线上侦察（主仓 `docs/research/product/2026-09-14-hjfy-site.md`）。API 面、5 态机、产物三件套、限额与登录形态。2026-09.
 
-[^wuduo]: 吴多益. 幻觉翻译实现自述（四种方案取舍、半解析动机、幻觉检查、编译失败率攻关、引用数选篇）. 知乎专栏 2025. [zhuanlan.zhihu.com](https://zhuanlan.zhihu.com/p/1905569596599169419)
+[^wuduo]: 吴多益。幻觉翻译实现自述（四种方案取舍、半解析动机、幻觉检查、编译失败率攻关、引用数选篇）. 知乎专栏 2025. [zhuanlan.zhihu.com](https://zhuanlan.zhihu.com/p/1905569596599169419)

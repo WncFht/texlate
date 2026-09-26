@@ -1,6 +1,6 @@
 # arXiv 获取层调研主报告：端点 / 限流 / 线缆格式 / 解包 / 定位 / 元数据 / 降级 / 批量 / 引用排序
 
-> **结论**：arXiv 获取面可拆为三个独立限流桶（arxiv.org 内容端点、export.arxiv.org 全站镜像+Atom API、oaipmh.arxiv.org 元数据收割）；HEAD `/src/{id}` 一次即得版本号+格式+etag；线缆格式四态（tar.gz / 单文件 .gz / PDF 直投 / includepdf 包装壳）靠魔数+content-disposition 后缀判别；降级链 e-print → HTML → PDF sidecar 三层叠加覆盖 ≈100%。
+> **结论**：arXiv 获取面可拆为三个独立限流桶（arxiv.org 内容端点、export.arxiv.org 全站镜像+Atom API、oaipmh.arxiv.org 元数据收割）；HEAD `/src/{id}` 一次即得版本号 + 格式+etag；线缆格式四态（tar.gz / 单文件 .gz / PDF 直投 / includepdf 包装壳）靠魔数+content-disposition 后缀判别；降级链 e-print → HTML → PDF sidecar 三层叠加覆盖 ≈100%。
 > **状态**：现行——主体结论已实装为 `src/texlate/arxiv/`（fetch/ratelimit/meta/locate/sniff/unpack/cache/html）；规范面唯一事实源 = `spec/`，本文是调研证据与设计动机记录。§9 引用排序与 §8 批量层成本模型为**未落地设计**（截至 2026-09-20）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
@@ -162,6 +162,6 @@ IA `arxiv-bulk` = S3 桶免费镜像但**冻结 2020-10**；HF `scholarweave/arx
 
 [^arxiv-bulk]: arXiv. Bulk Data Access via S3. info.arxiv.org / github.com/arxiv/arxiv-docs. [bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
 
-[^sanity-issue80]: karpathy/arxiv-sanity. "Blocked by arxiv (403)" — 同 IP ~1200 篇后全站 403、约 20min 自解的社区实证. GitHub issue #80. [arxiv-sanity#80](https://github.com/karpathy/arxiv-sanity/issues/80)
+[^sanity-issue80]: karpathy/arxiv-sanity. "Blocked by arxiv (403)" — 同 IP ~1200 篇后全站 403、约 20min 自解的社区实证。GitHub issue #80. [arxiv-sanity#80](https://github.com/karpathy/arxiv-sanity/issues/80)
 
-[^xray]: X-raying the arXiv. arXiv:2601.11385. 60 万篇实测：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / 1.6% 主文件难定位.
+[^xray]: X-raying the arXiv. arXiv:2601.11385. 60 万篇实测：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / 1.6% 主文件难定位。

@@ -1,7 +1,7 @@
 # PDF 暗色渲染方案调研与实测：CSS filter / pdf.js pageColors / Zotero Blender
 
 > **结论**：选 **Zotero Blender 同款图元级改色**（`web/src/reader/blender.ts` 独立实现），免 fork 接入走 `document.getPage` 实例补丁（`web/src/reader/pdfTheme.ts`）。CSS-filter 与 pdf.js pageColors 两条备选已实验否决；否决理由见 §4 效果矩阵与 ADR-0020。
-> **状态**：**已落地**（Blender 图元改色 + getPage 实例补丁当日实装，ADR-0020； MutationObserver 驱动全页原位重渲）
+> **状态**：**已落地**（Blender 图元改色 + getPage 实例补丁当日实装，ADR-0020；MutationObserver 驱动全页原位重渲）
 > **日期**：2026-09-21
 
 ## 1. 问题与候选
@@ -21,7 +21,7 @@ Zotero 的 pdf.js fork 在每个页面 ctx 实例上 `defineProperty` 拦 `fillS
 
 - **中性色**（chroma ≤ 10）：按亮度映射到 `background.range(foreground)`——Lab 空间 bg→fg 渐变函数，白→纸色、黑→墨色、灰线性插值。
 - **彩色**（chroma > 10）：Lab 空间保 hue 角，chroma×1.2，亮度重定到 50–75 可读带（暗主题下）；亮主题原样透传。
-- **文字局部感知**：`hasBackgrounds` 时 `fillText` 先 `getImageData` 读文字中心处画布实际像素；局部底色与全局 bg 偏差 ΔE>2.3 且对比不足时，从 {原色, bg, fg} 挑亮度差最大者——彩色高亮框上的字不糊。
+- **文字局部感知**：`hasBackgrounds` 时 `fillText` 先 `getImageData` 读文字中心处画布实际像素；局部底色与全局 bg 偏差 ΔE>2.3 且对比不足时，从 {原色，bg, fg} 挑亮度差最大者——彩色高亮框上的字不糊。
 - **drawImage 四路分类**（逐张判定）：
     - ≥75% 页面积 + 亮色图 + 暗主题 → invert 反色并 latch（扫描件整页反）；
     - 亮主题 + ≥90% 中性像素 → gradient 纸色化（白纸黑字扫描图直接融入纸色）；
@@ -50,7 +50,7 @@ Zotero 的 pdf.js fork 在每个页面 ctx 实例上 `defineProperty` 拦 `fillS
 | hcmcss  | pageColors + 外圈 CSS filter 补                                        | +0ms 增量（复用 hcm pass）                                            | 同上，仍双色调                                                                                    |
 | blender | 图元拦截 + Lab 改色 + 图像分类                                         | **10–63ms**/页（图片页 getImageData 回读尖峰：实测 21 次回读 = 39ms） | 中性色精确落板；彩色 Lab 保 hue；图像按类分治（照片保色/扫描件反色/公式图替换）；文字局部底色感知 |
 
-主题切换耗时四管线同量级（~26ms ≈ 2 rAF）——切换成本在 reset+重渲调度，不在改色算法本身。
+主题切换耗时四管线同量级（~26ms ≈ 2 rAF）——切换成本在 reset+ 重渲调度，不在改色算法本身。
 
 **效果排序**：blender > css ≈ hcmcss > hcm。blender 是唯一「彩色不丢、图片不毁、扫描件可纸化」的路线；代价是每页一次 ~10ms 级的 CPU 改色（图片密集页到 60ms 尖峰，一次性成本，缩放/滚动重渲摊销）。
 

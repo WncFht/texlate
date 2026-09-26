@@ -1,6 +1,6 @@
 # 引用跳转/跳回与文献悬浮卡片生态调研
 
-> **状态**：**已落地 v1 + review 加固（2026-09-21）**——同锚双语义+跳回栈+三路兜底+S2 代理全实现，裁决见 ADR-0021；56-agent 对抗 review 确认项已全修（navChain 串行/死链预检/samePos 幻影栈/FitH 型 dest/焦点三段路/pendingMirror 重试等，明细在 ADR 现状节）；验证 `web/scripts/cite_verify.mjs` 16/16 PASS。M3 refs.json 产物未做（懒 dest 抽取同覆盖）。
+> **状态**：**已落地 v1 + review 加固（2026-09-21）**——同锚双语义 + 跳回栈 + 三路兜底+S2 代理全实现，裁决见 ADR-0021；56-agent 对抗 review 确认项已全修（navChain 串行/死链预检/samePos 幻影栈/FitH 型 dest/焦点三段路/pendingMirror 重试等，明细在 ADR 现状节）；验证 `web/scripts/cite_verify.mjs` 16/16 PASS。M3 refs.json 产物未做（懒 dest 抽取同覆盖）。
 > **方法**：126 subagent workflow（52 产品侦察 + 40 机制深挖 + 30 实现车道 + 4 综合），原始结构化产出存 `citation-ux-2026-09-21/raw.json`（1.2MB，survey/deep/mech 三分桶全量）。
 > **日期**：2026-09-21
 

@@ -13,16 +13,16 @@
 
 ### Web 层设计与实装取证
 
-| 文件                                                                       | 内容                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [2026-09-15-web-layer.md](2026-09-15-web-layer.md)                         | **SUPERSEDED**：实施前 API/状态机/DDL 设计规格兼取证记录，规范事实源已移交 `spec/architecture.md` §4–§5 与 `server/`、`web/` 代码；texglot 先例拆解仍具参考价值                                                                                                             |
-| [2026-09-16-shared-cache.md](2026-09-16-shared-cache.md)                   | 社区共享译文缓存设计：share key 七组分寻址、`.share.zip` 包格式、「下载不直接渲染、本地全链重跑」信任模型——已实装                                                                                                                                                           |
-| [2026-09-19-select-popup-方案调研.md](2026-09-19-select-popup-方案调研.md) | select 弹层两段式决策：≤4 项枚举改 Segmented 恒可见、长列表 `appearance: base-select` 渐进增强——已落地 `web/src/styles/select.css`                                                                                                                                          |
-| [2026-09-19-review3-web-perf.md](2026-09-19-review3-web-perf.md)           | Web 前端性能专项审计：慢感三主因（chunkPoll 全量轮询、挂载单帧巨渲染、缺 content-visibility）+ 20 项 findings 当日实施记录                                                                                                                                                  |
-| [2026-09-21-pdf-dark-rendering.md](2026-09-21-pdf-dark-rendering.md)       | PDF 暗色渲染四路线实测：CSS filter / pdf.js pageColors / Zotero Blender 效果×性能矩阵，Blender 胜出（ADR-0020）；Zotero 算法拆解、pdfslick 丢参 bug、免 fork 三接入坑全记录                                                                                                 |
-| [2026-09-21-citation-ux.md](2026-09-21-citation-ux.md)                     | 引用跳转/跳回+悬浮卡 126-agent 生态调研：同锚双语义（hover=卡 click=跳）+自研跳回栈裁决；PDFHistory 进 SPA 毒药、本地 bib 串三路兜底、S2/OpenAlex 429 铁律；**已落地 v1（ADR-0021，cite_verify.mjs 16/16）**；原始数据在 [citation-ux-2026-09-21/](citation-ux-2026-09-21/) |
-| [2026-09-22-reader-theme-pairing.md](2026-09-22-reader-theme-pairing.md)   | 阅读主题配对调研：chrome 主题 × 纸面配色业界做法——沉浸式阅读器单控件驱动整面裁决；**已落地**（chrome light/dark/onedark + 纸面 paper/dark/onedark 配对）                                                                                                                    |
-| [2026-09-23-pdf-anchoring.md](2026-09-23-pdf-anchoring.md)                 | PDF 窗格功能锚定可行性 13-agent 调研：「PDF 位置→chunk seq」是唯一真缺口；C 模糊锚已在产线、A SyncTeX ~1 周、B marked-content 注锚 3-5 天已双引擎实证；ActualText/tagpdf/覆盖式改形均否决                                                                                   |
+| 文件                                                                       | 内容                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [2026-09-15-web-layer.md](2026-09-15-web-layer.md)                         | **SUPERSEDED**：实施前 API/状态机/DDL 设计规格兼取证记录，规范事实源已移交 `spec/architecture.md` §4–§5 与 `server/`、`web/` 代码；texglot 先例拆解仍具参考价值                                                                                                                |
+| [2026-09-16-shared-cache.md](2026-09-16-shared-cache.md)                   | 社区共享译文缓存设计：share key 七组分寻址、`.share.zip` 包格式、「下载不直接渲染、本地全链重跑」信任模型——已实装                                                                                                                                                              |
+| [2026-09-19-select-popup-方案调研.md](2026-09-19-select-popup-方案调研.md) | select 弹层两段式决策：≤4 项枚举改 Segmented 恒可见、长列表 `appearance: base-select` 渐进增强——已落地 `web/src/styles/select.css`                                                                                                                                             |
+| [2026-09-19-review3-web-perf.md](2026-09-19-review3-web-perf.md)           | Web 前端性能专项审计：慢感三主因（chunkPoll 全量轮询、挂载单帧巨渲染、缺 content-visibility）+ 20 项 findings 当日实施记录                                                                                                                                                     |
+| [2026-09-21-pdf-dark-rendering.md](2026-09-21-pdf-dark-rendering.md)       | PDF 暗色渲染四路线实测：CSS filter / pdf.js pageColors / Zotero Blender 效果×性能矩阵，Blender 胜出（ADR-0020）；Zotero 算法拆解、pdfslick 丢参 bug、免 fork 三接入坑全记录                                                                                                    |
+| [2026-09-21-citation-ux.md](2026-09-21-citation-ux.md)                     | 引用跳转/跳回 + 悬浮卡 126-agent 生态调研：同锚双语义（hover=卡 click=跳）+ 自研跳回栈裁决；PDFHistory 进 SPA 毒药、本地 bib 串三路兜底、S2/OpenAlex 429 铁律；**已落地 v1（ADR-0021，cite_verify.mjs 16/16）**；原始数据在 [citation-ux-2026-09-21/](citation-ux-2026-09-21/) |
+| [2026-09-22-reader-theme-pairing.md](2026-09-22-reader-theme-pairing.md)   | 阅读主题配对调研：chrome 主题 × 纸面配色业界做法——沉浸式阅读器单控件驱动整面裁决；**已落地**（chrome light/dark/onedark + 纸面 paper/dark/onedark 配对）                                                                                                                       |
+| [2026-09-23-pdf-anchoring.md](2026-09-23-pdf-anchoring.md)                 | PDF 窗格功能锚定可行性 13-agent 调研：「PDF 位置→chunk seq」是唯一真缺口；C 模糊锚已在产线、A SyncTeX ~1 周、B marked-content 注锚 3-5 天已双引擎实证；ActualText/tagpdf/覆盖式改形均否决                                                                                      |
 
 ### 端到端验证与强化记录
 
@@ -37,7 +37,7 @@
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | [2026-09-14-multiagent-survey.md](2026-09-14-multiagent-survey.md) | 多 agent 生态调研：Claude Code 2026 原生多 agent 原语盘点、社区 superpowers 一家独大；结论「先用内置的」 |
 | [2026-09-14-pi-parity.md](2026-09-14-pi-parity.md)                 | Pi agent 多 agent 能力对照：5 项功能可配 4 项，跨会话信箱/共享任务表配不出                               |
-| [2026-09-19-流程图skill调研.md](2026-09-19-流程图skill调研.md)     | 流程图 skill 选型：官方无此 skill；d2 主渲染 + graphviz 兜底 + GitHub 场景直产 mermaid 源码块            |
+| [2026-09-19-流程图 skill 调研.md](2026-09-19-流程图skill调研.md)   | 流程图 skill 选型：官方无此 skill；d2 主渲染 + graphviz 兜底 + GitHub 场景直产 mermaid 源码块            |
 
 ### 外部产品逆向
 

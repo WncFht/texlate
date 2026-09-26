@@ -1,6 +1,6 @@
 # arXiv CS+math 日更全量抓取 + 15 天 soak 设计（2026-09-19）
 
-> **结论**：以 `rss.arxiv.org/rss/{archive}` 公告日全量枚举为主通道（一次拉取即得 id+版本+类目+announce_type+license 全部字段），cs+math 并集去重后 **new+cross = 1192 篇/日**、replace 系 592 篇/日（默认不抓）；公告即抓零时滞。枚举→钉版 fetch→stagerun 五 stage 的重喂架构已跑通，绕路成本 ≈ 一行 env 重定向。
+> **结论**：以 `rss.arxiv.org/rss/{archive}` 公告日全量枚举为主通道（一次拉取即得 id+ 版本 + 类目+announce_type+license 全部字段），cs+math 并集去重后 **new+cross = 1192 篇/日**、replace 系 592 篇/日（默认不抓）；公告即抓零时滞。枚举→钉版 fetch→stagerun 五 stage 的重喂架构已跑通，绕路成本 ≈ 一行 env 重定向。
 > **状态**：**已退役（2026-09-21）**——`daily-soak.timer`、`scripts/daily-soak.sh`、`bench/py/corpus/daily_arxiv.py` 全删、`corpus_daily` 语料区废弃（见 `../../dev/automation.md` §1）；语料扩展转向钉版重建。本文留作 RSS 枚举通道的实测取证：枚举层结论（公告日批、字段完备、公告历行为）仍有效，RSS 条数等为 2026-09-18 公告日口径时点数据。
 > **日期**：2026-09-19 设计定稿，2026-09-20 重订入库
 
@@ -15,7 +15,7 @@
 | /rss/cs   | 1205   | 748 | 78    | 333     | 46            |
 | /rss/math | 723    | 396 | 57    | 231     | 39            |
 
-- **item 字段全齐**：`guid = oai:arXiv.org:{id}v{N}`（带版本）、`<category>` 列出全部类目（主+副）、`announce_type` 四值、`dc:rights` 许可、`dc:creator` 作者、标题+摘要。v1 ⇔ new/cross，v2+ ⇔ replace/replace-cross（实测 825v1 = 826 new+cross，误差 1 为计数粒度）。
+- **item 字段全齐**：`guid = oai:arXiv.org:{id}v{N}`（带版本）、`<category>` 列出全部类目（主 + 副）、`announce_type` 四值、`dc:rights` 许可、`dc:creator` 作者、标题 + 摘要。v1 ⇔ new/cross，v2+ ⇔ replace/replace-cross（实测 825v1 = 826 new+cross，误差 1 为计数粒度）。
 - **cs+math 并集去重后：new+cross = 1192 篇/日**，replace 系 592 篇/日（版本更新，默认不抓，可开关）。并集横跨 116 个类目——primary 在别库、cross 进 cs/math 的论文也计入（正是「相关」语义）。
 - **公告节奏**：feed 的 `pubDate` 是公告日（美东）；周六日无公告，feed 冻结在周五批次——**批次身份用 pubDate 而非本机日期**，重跑幂等。周一公告覆盖五六日三日投稿 → ~3 倍量（估 ~3500）。
 - **对照面**：`/list/cs/new` 显示 new 748 / cross 73 / replace 379（replace-cross 并入）——与 RSS 差 5 篇，因 listing 是**实时页**（版主事后改类会漂移）而 RSS 是公告时刻冻结快照；`/list/cs/pastweek?skip=N` 按公告日分页（实测 Friday 826 = RSS new+cross 口径），覆盖最近 ~5 个公告日，是 ≤1 周漏跑的**回填通道**。
@@ -67,6 +67,6 @@ TEXLATE_CORPUS=bench/corpus_daily stagerun ingest --layers {date}
 
 ### 参考文献
 
-[^arxiv-bulk]: arXiv. Bulk Data Access——export.arxiv.org 为指定抓取站、"play catch-up between bucket updates" 明示许可. info.arxiv.org. [help/bulk_data](https://info.arxiv.org/help/bulk_data.html)
+[^arxiv-bulk]: arXiv. Bulk Data Access——export.arxiv.org 为指定抓取站、"play catch-up between bucket updates" 明示许可。info.arxiv.org. [help/bulk_data](https://info.arxiv.org/help/bulk_data.html)
 
-[^sanity-issue80]: arxiv-sanity 运维报告——~1200 篇连续抓取后全站 403 denied.html，~20min 自动解封. GitHub. [karpathy/arxiv-sanity-preserver#80](https://github.com/karpathy/arxiv-sanity-preserver/issues/80)
+[^sanity-issue80]: arxiv-sanity 运维报告——~1200 篇连续抓取后全站 403 denied.html，~20min 自动解封。GitHub. [karpathy/arxiv-sanity-preserver#80](https://github.com/karpathy/arxiv-sanity-preserver/issues/80)

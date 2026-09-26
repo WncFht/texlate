@@ -197,13 +197,13 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 ### 10.1 单位与坐标陷阱
 
 - **TeX pt ≠ PDF bp**：GEOM 行按 TeX pt（1/72.27in），poppler 按 bp（1/72in）。letter=614.295pt=612bp。`PT2BP=72/72.27`——geom↔页面框比较前必乘；否则 `paper_mismatch` 全量误报（31/31 实证）。
-- **savepos 报变换前坐标**：tikz 旋转节点 / rotatebox / sidewaystable 内的内层 env（tabular/minipage/textblock）mark 坐标在布局系而非渲染系，天然出页框 → `layout:offpage` **只吃浮体+展示数学**，内层出框由 poppler 词级 breach 兜（渲染后真值）。2402.07927 p10 实证 13 个旋转 tikz 树内嵌 tabular 全为误报。
+- **savepos 报变换前坐标**：tikz 旋转节点 / rotatebox / sidewaystable 内的内层 env（tabular/minipage/textblock）mark 坐标在布局系而非渲染系，天然出页框 → `layout:offpage` **只吃浮体 + 展示数学**，内层出框由 poppler 词级 breach 兜（渲染后真值）。2402.07927 p10 实证 13 个旋转 tikz 树内嵌 tabular 全为误报。
 
 ### 10.2 逐信号落地语义（与 §4 计划有差异者加粗）
 
 | sig                                            | 落地语义                                                                                                                                                                                                                                 | 标定依据                                                                                                                                               |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `layout:overfull`                              | log 扫 Overfull \hbox/\vbox，计数+最大 pt                                                                                                                                                                                                | 3 findings/3 papers——真实溢出，保留                                                                                                                    |
+| `layout:overfull`                              | log 扫 Overfull \hbox/\vbox，计数 + 最大 pt                                                                                                                                                                                              | 3 findings/3 papers——真实溢出，保留                                                                                                                    |
 | `layout:float_fit`                             | `TeXlate-Float-Fit` typeout 回读                                                                                                                                                                                                         | 信息信号（自家手术记账）                                                                                                                               |
 | `layout:float_lost`                            | `Float too large` 等 warning                                                                                                                                                                                                             | 2408.03794 n=12——截断编译实证                                                                                                                          |
 | `geo_margin_breach`                            | 词心限正文带（`t-2≤cy≤b+20`，页眉页脚豁免）+ CJK 全角标点 bbox 边缘每侧扣 0.6h + **≥4 词 x 序连续 ASCII 段越界豁免**（verbatim 附录/列表溢出=en 原文同形；CJK 词断跑故双栏免疫）+ 数学符号 token 不计；base 侧不豁免（全量计供跨臂抑制） | 2608.25736 8 findings 全 furniture/标点误报→修后 13 findings/9 papers 为真（超宽表出栏）；e2e_real-3 178 findings 多 verbatim 附录→ASCII 跑豁免        |
@@ -266,12 +266,12 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - `marks_absent` 282（预期：存量无注入）、`no_pdf` 1、`no_main` 2；
 - `overfull` 58、`float_lost` 22、`float_fit` 26——真实版面债底数；
 - `margin_breach` 221 findings/26 篇、`text_overlap` 493/136（单臂裸口径，含图内，双臂抑制需 base）；
-- `residual_en` 93 篇（新阈值从 176 压到 93，仍为最大单sig——存量翻译残留率 ~33%）；
+- `residual_en` 93 篇（新阈值从 176 压到 93，仍为最大单 sig——存量翻译残留率 ~33%）；
 - `vis_degenerate` 22→**11 真**（后验清 10 符号/数字伪影）——其中 **2609.19965/2609.20732 抓出"这是译文这是译文…"占位符退化输出数百连**——存量语料里真混着 mock/占位译文，此前验证全放行了。这是本电池最硬的一次实证。
 
 **roundtrip 门**：31/31 PASS（gate3 在 reqc4 后自动跑，CROSS_ARM 跨臂信号自比全零）。
 
-**rescan6（284 vault 胞单臂重扫，tier 门+新探测器+标记页收割，2026-09-23 晚）**：
+**rescan6（284 vault 胞单臂重扫，tier 门 + 新探测器 + 标记页收割，2026-09-23 晚）**：
 
 - **tier 分布**（282 scored + 2 no_main）：clean 34 / warn 89 / **hard 159**——hard 占比 56% 主因是周期性占位检测把 2609.* mock 译文集群整批翻出。
 - **sig 总计**：`geo_text_overlap` 493（单臂裸口径含图内伪影）、`marks_absent` 282（存量预期）、`geo_margin_breach` 222/26 篇、`vis_degenerate` **143**、`xlat_residual_en` 93 篇、`overfull` 59、`float_fit` 26、`vis_void` 22、`float_lost` 21、`vis_blank_page` 9、`pdf_corrupt` 1、`no_pdf` 1。
@@ -347,7 +347,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 | 丢图/丢浮体      | marks `lost_element` + `float_seq_mismatch` + `align_figure_lost` + `float_lost`(log)                        | 四层冗余                    |
 | 浮体漂移/乱序    | `float_drift`(Theil-Sen) + `order_inversion`(跨页) + `offpage`                                               | 声明序主键免疫 demote       |
 | 溢出/越界        | `overfull`(log) + `margin_breach`(词级) + `offpage`(元素级)                                                  | 三视角                      |
-| 文本重叠         | `text_overlap`(IoU 词对+跨臂抑制)                                                                            | figure 内残余 FP 已知       |
+| 文本重叠         | `text_overlap`(IoU 词对 + 跨臂抑制)                                                                          | figure 内残余 FP 已知       |
 | 版面几何         | `paper_mismatch` + `column_collapse` + `header_lost` + `vis_void` + `text_as_curves`                         |                             |
 | 页数/序完整性    | `page_count` + `order_break` + `math_drift`                                                                  |                             |
 | 内容退化         | `vis_degenerate`(fffd/ngram/空页) + `residual_en`                                                            |                             |

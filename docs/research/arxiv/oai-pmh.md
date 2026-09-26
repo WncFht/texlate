@@ -35,7 +35,7 @@ license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</
 
 ## 3. ListRecords / resumptionToken 翻页语义
 
-- 查询 `ListRecords&metadataPrefix=arXivRaw&from=2026-09-10&until=2026-09-11&set=cs`（周四+周五）：页 1 = 1300 条 / 3.51MB / 4.8s——**分页体积驱动**（arXivRaw 每条 ~1.7KB），页界可落在日中间。
+- 查询 `ListRecords&metadataPrefix=arXivRaw&from=2026-09-10&until=2026-09-11&set=cs`（周四 + 周五）：页 1 = 1300 条 / 3.51MB / 4.8s——**分页体积驱动**（arXivRaw 每条 ~1.7KB），页界可落在日中间。
 - token 结构 = **URL 编码的改写后查询串**（收窄 from 到当前日 + 日内 `skip` 偏移），带 `expirationDate`（当夜 UTC 0 点过期，~10h TTL）；**无 completeListSize/cursor**，无法预知总条数。结尾空 `<resumptionToken/>` = 终止。
 - 对照：**ListIdentifiers 同窗同 set 单页返回全部 2074 条**（462KB / 4.2s，headers-only 无分页）——轻量同步扫描用 ListIdentifiers，要全字段才上 ListRecords。
 - 正确性：token 的「from 收窄 + 日内 skip」对**已闭合日**安全；当日窗口内新增会让 skip 漂移——增量收割建议 `until=昨天` 或先 ListIdentifiers diff。
