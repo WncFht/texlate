@@ -102,7 +102,7 @@ def pdf_text_stats(pdf: Path, *, timeout: float = 60) -> tuple[int, int] | None:
     )
     if to or rc != 0:
         return None
-    return len(_CJK_RE.findall(out)), out.count("")
+    return len(_CJK_RE.findall(out)), out.count("\ufffd")
 
 
 def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
