@@ -490,19 +490,25 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
     base = PurePosixPath(fname).name
     if not base:
         return None
-    for sub in _VENDOR_SUBDIRS:
-        cand = root / sub / base
-        if safe_is_file(cand):
-            return cand
-    fold = base.casefold()
-    for sub in _VENDOR_SUBDIRS:
-        d = root / sub
-        try:
-            for cand in d.iterdir():
-                if cand.name.casefold() == fold and safe_is_file(cand):
-                    return cand
-        except OSError:
-            continue
+    # 裸名 payload (``\input tcilatex`` 原语式报告不带扩展) 补 .tex 候选——
+    # TeX 解析侧同名自动补后缀, vendor 查件须同口径否则 stubs/tcilatex.tex
+    # 在仓而报 not vendored。
+    names = (base,) if PurePosixPath(base).suffix else (base, base + ".tex")
+    for name in names:
+        for sub in _VENDOR_SUBDIRS:
+            cand = root / sub / name
+            if safe_is_file(cand):
+                return cand
+    folds = (n.casefold() for n in names)
+    for fold in folds:
+        for sub in _VENDOR_SUBDIRS:
+            d = root / sub
+            try:
+                for cand in d.iterdir():
+                    if cand.name.casefold() == fold and safe_is_file(cand):
+                        return cand
+            except OSError:
+                continue
     return None
 
 
