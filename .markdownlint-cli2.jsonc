@@ -7,7 +7,8 @@
     // ignores 与 .gitignore 对齐：本地 lint 视图 = CI 干净检出视图
     "ignores": [
         "**/node_modules/**",
-        "tmp/**",
+        "**/tmp/**",
+        "paper-search-*/**",
         "dist/**",
         ".claude/**",
         ".crossnote/**",
