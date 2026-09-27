@@ -1135,7 +1135,7 @@ spec = Spec(
     lake_source="arxiv",
     same_id_serial=True,
     dedup_key=("idc", "arm", "variant"),
-    gateway_factory=devin_factory(nslots=32),
+    gateway_factory=devin_factory(nslots=64),
     stages=[
         Stage(
             "ingest",
