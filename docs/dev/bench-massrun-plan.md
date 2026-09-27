@@ -17,7 +17,7 @@
 | 范围     | `bench/corpus/manifest*.jsonl` 去重 id 全量；holdout 层留最后一波跑（保评估意义）         |
 | 管线     | soak spec 六段（route→xlat→compile→fixloop→base→layoutqc），variant 沿用 `v1`、arm=`real` |
 | 付费面   | xlat/fixloop 两段走 devin-2api + swe-2-medium（bg token，无限用，**禁设 max-cost**）      |
-| 并发     | `--jobs`（格级 executor）× spec `concurrency`（篇内 chunk）；网关真瓶颈 ~550 out_tok/s    |
+| 并发     | 三层：`--jobs`=论文级线程池（**默认 4，必须显式给 32~40**）× `concurrency`=篇内段并发 × `nslots`=付费请求全局槽；上游真瓶颈 ~550 out_tok/s |
 | 重试     | 429/5xx/timeout 睡到通为止（`max_tries` 拉高，退避指数自然封顶）；禁因 429 挂格           |
 | 变体键域 | `v1`——rekey 已把 139 格老 zh 搬入，白捡 dedup；`-` 域 verdict 无字节者字节闸自动重跑      |
 | 检验通道 | `tools/qc_replay.py` 全量回放（免费），pass→evict 候选、hard→regen 名单；**先判后删**     |
@@ -65,7 +65,7 @@
 | W3  | ~2,000   | 水合放量                                | 中规模稳定性                                      |
 | W4+ | 滚动 ~2k | 收尾；holdout 层留最后一波              | 全量收官                                          |
 
-每波跑法：`bench run soak --jobs 8~16 --detach`（>30min 一律脱管 + run.log 直写 + 文件面监控）。regen 格走 `--allow-regen --sel <名单> --yes`。
+每波跑法：`bench run soak --jobs 32~40 --detach`（>30min 一律脱管 + run.log 直写 + 文件面监控）。regen 格走 `--allow-regen --sel <名单> --yes`。**断线续跑禁 `--resume`**（lost 墓碑被当终态 → accounting BROKEN 实证）；一律开新 run，dedup 逐格验字节自动认回旧工量。
 
 **每波前置清单**：① `env $(cat ~/.config/texlate/bench.env)` 入环境；② `~/.local/share/texlate-bench/vault/.verify-stamp.json` ts <24h（否则 `bench vault verify --level stat` 刷新）；③ `locks/AUTH_DEAD` 不存在；④ detach.lock 空闲；⑤ df >80G。
 
@@ -96,7 +96,7 @@
 ### 3.6 网关与重试口径
 
 - 网关：devin-2api（archbox:3033 直连；本机 shim :3003 同实例）+ swe-2-medium，bg token。
-- 实测模型：单请求 2.9s 固定 + 13.3ms/out_tok；全局 ~550 out_tok/s 上限。`--jobs 8~16` 即吃满，再加只是排队。
+- 实测模型：单请求 2.9s 固定 + 13.3ms/out_tok；上游全局 ~550 out_tok/s 上限（随窗口浮动，09-27 实测 400~480）。~~`--jobs 8~16` 即吃满~~——**已证伪**：09-27 勘出 `--jobs` 默认 4 才是隐性天花板（4 管线只占 ~5 付费槽，~40 tok/s）；`--jobs 32`→~50 槽、40→64/64 槽满，吞吐 ~100 篇/h 触上游壁。判活三件套=心跳+events 新增+xlat 出活；网关查量用 devin-2api.db `logs` 表（**time 列是毫秒 epoch**，秒级过滤会静默返回全量）。
 - 429：retryable + Retry-After（body `error.retry_after`→header→`3^attempt`≥5s）；缺口=max_tries=5 封顶 → 开工清单 #1 补 param 拉到几十。
 
 ## 4. 开工清单
@@ -303,13 +303,59 @@
 - **巡检 02:3x — repair-w1 起转健康**：df 80G / lake 64.4G / vault 7.5G / runs 48.9G；波 pid 1981925 存活 6min@73%CPU，ledger 30min 内格流实证：ingest ok25+dedup22、parse ok15+reject20、xlat ok4+partial1、compile clean3+fail2、fixloop ok3+clean2、claimed 8+8 满载——skip 面（xlat28/compile38/fixloop30）与 parse reject 偏高系修复池本身偏坏格分布，预期内。网关 401 活。
 - **巡检 03:0x — repair-w1 加速兑现**：df 79G / lake 64.5G / vault 7.6G / runs 49.4G；心跳鲜（run 落 soak/2026-09-26/soak-8，UTC 日期续 slug）。ledger 30min：ingest ok48、xlat ok21+partial5、compile clean14+partial5+fail6、**fixloop ok19+clean4（救回>编译失败 3:1——vendor/harness 修复链在兑现）**、claimed 8+8 满载；parse reject 22 偏高属池偏坏、零 error/lost 尖峰。网关 401 活。
 - **审计落账 01:4x — 八道硬尾审计全回，修复盘定性完毕**：普查+裁决整合至 `../log/2026-09-27-修复普查与硬尾审计.md`。结论坐实「**重跑题非规则题**」——missing_file 650 格 17 包全接线、harness:RulesetError 187 格 builtin 已注册（213 规装载干净）、xlat oversize 23 格纯参数闸、declined 88 格系 `_want_fix` 政策性跳过应从 needfix 滤除（repair_census.py 已打 `policy_skip` 补丁，needfix_raw/needfix 双口径）；真规则缺口仅 约15-20 尾量 + tcilatex 裸 payload 一处接线洞（已补：`_vendored_source` 无后缀补 `.tex` 候选，additive 安全向）。**w2-w5 起飞必须带 `oversize_cap=1500000`**（w1 内 约5 格 oversize 会扫描段快速拒、第二轮补收）；波后落规队列（input_stack 可路由化/polyfill 扩容/Amiri shim/qc→warn_* 桥/amstex 拆 subcode/lake file-magic 哨兵/fetch autoignore 回退）与永久拒稿账（plain_tex34+garbage死5+真死7+私有sty约10=约56 格=0.4%）见审计文。当前 w1 台账：compile clean27/partial7/fail9、**fixloop ok34/clean7 vs fail2（救援 约17:1）**、claimed 8 满载、心跳鲜。
+- **巡检 01:5x — 全项绿灯 + 两例澄清**：df 79G / lake 64.5G / vault 7.6G / runs 49.7G 三量稳；w1 pid 1981925 活 48min@18%CPU、心跳 7s 鲜、事件流 289/30min。**①soak-9 尸检**：01:05-06 无心跳无进程——launch 重试序列的死亡重复 run 目（103 条记录含 claimed 僵尸，租约到期 w1 自动回收，无冲突无害）。**②missing_file 六连失败判例平反**：astro-ph/0003208(aastex.cls)·astro-ph/0103346(psfig.sty)·cond-mat/0003221(psfig.sty)·astro-ph/0003280(l-aa.cls)·cond-mat/0103574(BoxedEPS)·gr-qc/0003060(ioplppt.cls) compile fail 后**fixloop 全部救回**（4 clean + 2 partial/best_effort_pdf）——三级补件链实战兑现，compile 段 missing_file fail 记录是 fixloop 前态非终态。余 4 例 tail 类（emergency/unfixable:syntax/runaway vbox_flood/dirty_pdf）预期内。网关 41 socket 活。
+- **巡检 02:1x — w1 稳态放量**：df 78G / lake 64.6G / vault 7.7G / runs 49.8G；心跳 10s 鲜、pid 68min 活。累计 **183/984 格触达、delivered 89**（fixloop ok73+clean16 vs fail2 ≈ 44:1）；xlat ok85+partial8 真翻在供；30min fail 11 例全 tail 类零异常尖峰。速率 ~2.7 格/min → 单波 ETA ~6h。lost 收割机制根因已查明落档（sweep.py:160 zombie reap=run 死后补终态簿记，09-26 三连死=W3 主动止损重启链）。
+- **干预 02:2x — w1 并发扩容 8→32 + oversize_cap 补带重启（用户令）**：用户裁「429 无所谓、重点不浪费」——付费槽闸本就 32 宽（soak.py:1138 `devin_factory(nslots=32)`），唯一绑定旋钮是 `concurrency`（格级 executor）。SIGTERM 旧 pid 1981925（代价≈0：89 交付格终态已簿记、在飞 8 格 seg-cache 保住已翻 chunk）；**重启为 soak-10**（pid 2053416，同 984 ids、`concurrency=32 max_tries=50 oversize_cap=1500000 --max-cost 700`——顺手把 w2-w5 要带的 oversize 闸提前在 w1 补上）。起飞 3min 实证：1,945 cell_queued、349 started、soak-8/9 尸体 claims 被 sweep 正常 reap、dedup/skip 烧穿中。机器负载仅 0.82/12 核——32 路格级并发下 xelatex 段偶有排队但 API 等待面吃满率↑。
+- **诊断+再干预 02:4x — soak-10 $0 秒完真相 + 两道隐藏闸**：soak-10 约35min 收官 cost $0，普查两层皮：**①holdout 污染**——w1 984 中 595 是 holdout 层（`_corpus_rows` EVAL_LAYERS 剔除，soak 结构吃不到；五波合计 **2,985/4,920 holdout、真池仅 1,935**——holdout 修复归 eval spec 道另议）；**②regen_gate**——389 合格格中 285 的 xlat 付费字节是 lost/tombstone 残迹（09-26 三连杀+evict 所致），缺 `--allow-regen --sel` 授权一律 reject 白过（dedup.py §3.6：paid MISSING 永不再排）。soak-10 真实绩=白嫖面全收：compile clean70/dedup1、fixloop dedup102、xlat dedup104、delivered∧w1=102。**w1 重启为 soak-11**（pid 2082863，`--allow-regen --sel '*' --max-cost 700 --yes` 四要件齐——sel='*' 因 ids= 已界域 389 格、逗号 id 列表在 _sel_hit 是 AND 语义故不可枚举），起飞实证 regen authorized 122+ 连发、零 regen_gate reject、xlat 真付已开（ok3 早鸟）；预计付费面约285 格 ≈$170 账内。w2-w5 起飞参数定型：`concurrency=32 max_tries=50 oversize_cap=1500000 --allow-regen --sel '*' --max-cost 700 --yes`。
+- **巡检 02:5x — soak-11 regen 波健康起转**：df 72G / lake 64.8G / vault 8.0G / runs 51.1G 三量稳；心跳秒鲜、pid 2082863 活 10min@65%CPU。台账：ingest dedup45、parse dedup29+reject13、**xlat ok5+dedup20（真付开始兑现）**、compile clean4+dedup16+partial1+fail4、fixloop ok5+dedup20、claimed 满载；30min 窗 errish 24 fail 全 tail 类、regen_gate 残响 4 条系 soak-10 尾迹非本 run。网关 401 活。
+- **巡检 03:0x — dedup 烧穿过半、真付爬坡**：df 73G / lake 64.8G / vault 8.0G / runs 51.5G；心跳秒鲜、pid 26min@41%CPU。台账：ingest dedup148、parse dedup126+reject19、**xlat ok18+partial3+dedup101（真付 21 格 ≈48/h 起速——dedup 烧穿期占位，预期继续爬）**、compile clean16+dedup81+fail22+partial3、fixloop ok19+clean2+dedup99（救回兑现中）；零 error/lost 尖峰，compile fail22 全 tail 类。网关 401 活。单篇实测中位 2.5-4.5min（soak-6 同口径 269s），ETA 口径不变约3-5h/波。
+- **巡检 03:3x — 稳态 ~46/h**：df 72G / lake 64.8G / vault 8.0G / runs 51.6G；心跳秒鲜、pid 50min@27%CPU。台账：xlat ok29+partial8（真付 37 格，30min 净增 23 ≈46/h——提速不及预期，网关 550tok/s 全局闸是壁，并发 32 只买排队位）、dedup104、compile clean29+fail23、fixloop ok34+clean3+fail2；30min 零 errish、零 429 尖峰、零 lost。detach.log「枚举降级候选」陈迹系 22:07 旧文件非本 run。按 46/h 外推 w1 付费段约5-6h。**网关活**。
+- **巡检 03:5x — df 破 60G 闸（外因）+ 提速 84/h**：df **57G**（20min 掉 15G）——真凶 `~/.cache/mopd-swapfile` 16G（系统内存压挂的 swapfile，swapon 在用 441M，非 bench 产物；bench 三量纹丝不动）；按合同 <60G 停水合向——本波 ingest 已全 dedup/skip 无水合量，无需动作，盯 40G 线。台账：xlat ok52+partial13（真付 65 格，30min 净增 28 ≈**84/h** 提速兑现——dedup 烧穿腾槽）、dedup104、compile clean55+fail24、fixloop ok61+clean4+fail2；零 errish/429/lost。按此速 w1 付费段余量约3h。网关 401 活。
+- **清理 04:0x — 用户准第一梯队**：`uv cache clean` 释 **99.7G**（663,850 文件）+ go-build 9.4G + pip 3.9G + pnpm 0.9G + pre-commit env 7 件 217M（**patch* 2,381 件取证备份全留**）。df 57G→**91G** 水位回安全区。待清菜单留档：runs/soak 已收官 work/ 约50G、HF hub 42G、modelscope 18G、.cache/texlate/src 23.6G——第二三梯队未动。
+- **干预 04:1x — MD-OPD 抢内存处置 + 波健康 86/h**：df **98G**（清理后水位厚）；内存面复盘——03:28 earlyoom 杀 ray worker（可用 1.2G/7%）、03:50 账号 sudo 建 `~/.cache/mopd-swapfile` 16G 兜底（现用 ~765M）。肇事者=fht-mba 上交互式 claude 会话 **e4e9ec50**（pid 41049，ssh→fish→bash 链路实证，transcript 正干 MOPD 活）——跨机 SendMessage 够不着，已请用户去该终端贴暂停令；**04:0x 训练自爆（fish 退带崩进程组）后它即重拉新一轮**，ray worker 22s 胀 3.8G——按用户「不要放着」令本机 SIGTERM 全组（verl/ray 清尽、RAM 25→9.8G 回落）；会话极可能再拉起，盯住 mopd_m1 指纹复现。波面：xlat ok73+partial14（真付 87 格，30min 净增 43 ≈**86/h**）、compile clean69+fail26、fixloop ok81+clean6、零 errish；网关单次 curl 4s 超时系内存挤兑抖动、三重复试全 401 <8ms 活证。
+- **干预 04:2x — 双闸翻倍 32→64（用户令「网关没打满」）**：确认双闸结构——`concurrency`=executor 格槽 vs `nslots`=locks/slots/slot{N} 文件信号量（paid.py:400/462 逐 paid attempt 持锁）；网关观测未饱和故升。SIGTERM soak-11（心跳冻 04:19:56、进程清零）→ 空窗内改 `devin_factory(nslots=64)`（soak.py:1138，spec 冻结件对运行中 run 无回溯、只对重启生效）→ **重启为 soak-12**（pid 2415006，`concurrency=64` 其余参数同前）。起飞即流：run.log 复活吐格、131%CPU。观察点：xelatex 段 12 核争用 + 每槽 ~300-500MB 内存余量（64×峰 ~20G，当前 10G 基线可扛、earlyoom avoid 名单护 devin-2api）。
+- **巡检 04:3x — 64 并发首窗**：df 97G / lake 64.9G / vault 8.2G / runs 52.4G；心跳秒鲜、pid 10min@103%CPU、load 2.84 宽松。**dedup 再扫穿**（389 格重确认）：xlat dedup210+ok12+partial1、compile clean11+dedup183+fail21、fixloop ok12+dedup208+fail2；真付续跑中（旧格 seg-cache 续传不重复计）。零 errish。MD-OPD 无复活（verl 零进程），RAM 23G 系正常进程散布非挤压。网关 401 活。
+- **巡检 04:5x — 64 并发实证：吞吐不涨（闸不在槽在管）**：df 96G / runs 53.0G；心跳鲜、load 0.84 闲。30min 净增：xlat ok41 ≈**82/h**——与 32 并发时 86/h **持平**~~，钉死壁=网关 550tok/s 全局上限~~（**12:4x 证伪：真壁是 --jobs=4，见下条**；本条「网关打满」推断作废）。内存回落 10G（MD-OPD 无复生）、磁盘松。零 errish、网关 401 活。w1 付费余量约156 格 ≈ 2h。
+- **巡检 05:0x — 稳态减速至 60/h（预期内）**：df 95G / lake 65.1G / vault 8.3G / runs 53.0G；心跳秒鲜、pid 47min@40%CPU、load ~1 闲。台账：xlat ok54+partial2（本 run 真付 56 格，30min 净增 30 ≈60/h——dedup 尽后只剩真工+长文占比上行，减速合理；波累计真付 ~143/285）、compile clean47+fail23、fixloop ok53+clean2+fail3；30min 零 errish/429/lost。MD-OPD 无复生、内存 10G 常态。ETA 不变约2h 收尾。
+- **巡检 05:3x — w1 排干近尾，真付面小于预估**：df 95G、存储零增长（lake 65.1G/vault 8.3G/runs 53.1G）；心跳鲜、pid 70min、load 0.6。终态盘点（plan 1945 格=389 id×5 stage）：xlat **dedup210+ok64+partial3+skip111**——skip 全系上游拒稿级联，真付仅 ~67 格（原估 285 缺字节格的大头在 dedup 验证时被确认已有字节直接复用，regen 真打 ≈70）。新增硬拒：**ingest catalog_failed ×20**（hep-lat/99*、nucl-th/00* 等上古 id 源字节失 catalog，soak 道不可救，归重抓道补遗）+ parse reject ~27（同为老 id 非 LaTeX 源）。非终态格 103 在飞、64 槽吃满；fixloop 产物面连续实证救回（pdftex_prim polyfill 链、glyphtounicode shadow、apjfonts vendored）。零 429/故障、网关 401 活、verl 零进程。w1 预估 <1h 收尾。
+- **波际 05:5x — w1 收官账 + w2 放行**：soak-12 正常终账（accounting ok，1945/1945 终态，cost $591.68）：ok265+clean57+dedup1052 / skip485+reject47+fail26+partial13。**w1 救回率：delivered 273/389（70.2%）**——其中 dedup 验证复用占大头、本 run 新救 65 篇、付费 xlat 完成 68 格；未交付 116 = 47 硬拒（ingest catalog_failed 死源 ~20 + parse 非 LaTeX ~27）+ compile fail 13 + partial 13 + 残余 skip 级联。死源清单归重抓道补遗。**w2 已放**：真实 pid 2484628（setsid 壳 pid 2484626 已退）、984 ids（canon 形 `cat--id`，事件面吐 raw 形 `cat/id`，双形匹配须双侧归一——w1 复盘时曾误判 91 格「不在名单」实为此坑）、参数同 w1（concurrency=64/max_tries=50/oversize_cap=1500000/--allow-regen --sel '*' --max-cost 700 --yes）→ `tmp/repair-w2/run.log`。
+- **巡检 06:0x — soak-13(w2) 起飞正常**：df 95G / lake 65.1G / vault 8.4G / runs 53.3G（+0.2G work 增量）；心跳秒鲜、pid 15min@28%CPU、load 1.37。plan 1945 格、事件已流 2163 条：ingest ok17、parse ok13、xlat ok9、fixloop ok3+clean3、compile clean2；小尾拒稿已现（ingest reject1+parse reject4，同 w1 死源/老源型）、compile fail6。**零 429/errish/lost**、网关 401 <1ms、verl 零进程、内存 10G。真付节奏待首 30min 窗定基线。
+- **巡检 06:3x — w2 画像与 w1 异：dedup 薄、真付厚**：df 95G / lake 65.2G(+47M) / vault 8.4G / runs 53.5G(+0.4G work)；pid 39min@17%CPU、load 0.58。30min 窗：xlat ok32 ≈**64/h**（同壁下标准节奏）、compile clean23、fixloop ok26。累计画像差异显著——ingest dedup 仅 2（w1 同期 ~210）：w2 队列基本是**真格待干**非字节复用型，xlat ok37/partial1、fixloop ok28+clean5 全为实修实译；skip47 系上游 ~8 拒稿级联（parse 非 LaTeX 老源为主）。零 429/errish、网关 401 <1ms、verl 零。预估 w2 真付 ~150-200 格（按 ingest-ok 推进率外推），节奏同壁 ~2.5h。
+- **巡检 06:5x — w2 提速至 78/h、健康**：df 94G / lake 65.2G / vault 8.5G / runs 53.9G（work 增量随 evict 周期波动）；心跳秒鲜、pid 59min@14%CPU、load 0.1 闲。30min 窗：xlat ok39 ≈**78/h**、compile clean29、fixloop ok32+clean5；累计 xlat ok65+partial1（真付 66/276 待触）、fixloop ok32+。拒稿 9 件全结构性（stub_format1/no_main_tex7/inject_reject1）。run.log 尾静止系 stdout 缓冲非卡死（events.jsonl 06:50:27 秒鲜、15min 89 格事件）——**巡盘口径：events.jsonl 为准、run.log 仅终账**。零 429/errish、网关 401 <1ms、verl 零、mem 9G。
+- **巡检 07:0x — w2 稳态 62/h**：df 94G / lake 65.3G / vault 8.5G / runs 53.9G；心跳鲜、pid 76min@12%CPU、load 0.59。30min 窗：xlat ok31 ≈62/h、compile clean22、fixloop ok25+clean7；累计真付 **xlat ok84+partial4=88**、fixloop ok66+clean13、compile clean58（fail22/partial7 尾）。拒稿稳 11 件全结构性。零 429/errish、网关 <1ms、verl 零、mem 9G。w2 已完成约半程，ETA ~1.5h。
+- **巡检 07:3x — w2 提速 84/h、过半**：df 94G / lake 65.3G / vault 8.5G / runs 54.1G；心跳鲜、pid 99min@12%CPU、load 0.74。30min 窗：xlat ok42 ≈**84/h**、fixloop ok40、compile clean35；累计真付 **xlat ok116+partial7=123**、fixloop ok96+clean19、compile clean84；skip53 拒稿15 全结构性（no_main_tex13 为主）。零 429/errish、网关 <1ms、verl 零、mem 9G。xlat 已触 176/389 格，ETA ~1h。
+- **巡检 07:5x — w2 后段 94/h、奔尾**：df 94G / lake 65.3G / vault 8.6G / runs 54.2G；心跳鲜、pid 119min@12%CPU、load 0.41。30min 窗：xlat ok47 ≈**94/h**（本轮峰值，网关壁下摸上沿）、fixloop ok45、compile clean43；累计真付 **xlat ok147+partial9=156**、fixloop ok125+clean23、compile clean112（fail31/partial12 尾）、skip53 拒稿15 不变。零 429/errish、网关 <1ms、verl 零、mem 9G。xlat 触 ~209/389，余量 ~1h 内排干。
+- **巡检 08:0x — w2 稳 90/h**：df 93G / lake 65.4G / vault 8.6G / runs 54.4G；心跳鲜、pid 136min@12%CPU、load 0.55。30min 窗：xlat ok45 ≈90/h、fixloop ok43、compile clean41；累计真付 **xlat ok172+partial10=182**、fixloop ok149+clean25=174、compile clean135（fail33/partial13）；skip53/拒稿15 不动。零 429/errish、网关 <1ms、verl 零、mem 9G。xlat 触 235/389，ETA ~50min。
+- **巡检 08:3x — w2 续冲 106/h、尾部迫近**：df 93G / lake 65.4G / vault 8.7G / runs 54.7G；心跳鲜、pid 159min@12%CPU、load 0.62。30min 窗：xlat ok53 ≈**106/h 新峰值**、fixloop ok54、compile clean50；累计真付 **xlat ok215+partial11=226**、fixloop ok192+clean25=217、compile clean175；skip71 拒稿16（no_main_tex14 为主）全结构性。零 429/errish、网关 <1ms、verl 零、mem 9G。xlat 触 297/389，ETA ~45min。
+- **巡检 08:5x — w2 114/h 再破峰、末段**：df 92G / lake 65.5G / vault 8.8G / runs 55.3G；心跳鲜、pid 179min@12%CPU、load 1.68（xelatex 并发峰）。30min 窗：xlat ok57 ≈**114/h**、fixloop ok55、compile clean52；累计真付 **xlat ok247+partial12=259**、fixloop ok222+clean27=249、compile clean202；skip76/拒稿16 收稳。零 429/errish、网关 <1ms、verl 零、mem 10G。xlat 触 335/389，ETA ~25min 收官，随后按同参数放 w3。
+- **波际 09:0x — w2 收官账 + w3 放行（虚惊一场）**：soak-13 正常终账（accounting ok，cost **$265.46** 比 w1 $591 省半——dedup 薄但格均开销低）：ok1094+clean251+dedup6 / skip471+reject42+fail40+partial41。**w2 救回率：delivered 245/389（63.0%）全新修**（dedup 仅 6）；付费 xlat 完成 282 格；未交付 144=42 拒（parse no_main_tex23+ingest catalog_failed17+stub_format/inject_reject 各1）+ compile fail37+fixloop 残余。**w3 已放**：pid 2585071，984 ids 同参数；**踩坑复核**：launch 后 ~40s 找不到进程+目录系双乌龙——(a) setsid 壳 pid 早退、真 worker 是 fork 出的子 pid（w2 同款）；(b) UTC 跨日 run 目录落 `runs/soak/2026-09-27/soak/`（新日期 slug 重置无 -N 后缀）。实态：plan/locks/events 全就位、心跳秒鲜、xlat 已在出 ok。
+- **巡检 09:3x — w3 起飞正常、拒稿稍厚**：df 91G / lake 65.6G / vault 8.9G / runs 55.8G；心跳秒鲜、pid 23min@26%CPU、load 0.36。起步画像近 w2 同构（dedup 仅 3）：ingest ok42、xlat ok29、fixloop ok24、compile clean16；skip52 已级联；拒稿 19 件（no_main_tex12+inject_reject4+stub_format3——inject_reject 占比上抬入观察列）。零 429/errish/lost、网关 <1ms、verl 零、mem 9G。
+- **巡检 09:5x — w3 稳 82/h、拒稿零新增**：df 91G / lake 65.7G / vault 8.9G / runs 56.5G(+0.7G work)；心跳鲜、pid 43min@18%CPU、load 0.74。30min 窗：xlat ok41 ≈**82/h**、fixloop ok37、compile clean30；累计真付 xlat ok55、fixloop ok49+clean3、compile clean36（fail8/partial9）。**拒稿稳 19 件零新增**（前批 inject_reject4 未扩散、观察解除）。零 429/errish、网关 <1ms、verl 零、mem 9G。
+- **干预 12:1x — 整机误重启，w3 断线 ~2h12m**：机器 10:05 宕至 12:14（uptime 3min 实证）；w3 心跳冻 10:05:35、进程清零。死时进度 xlat ok78+ingest ok95+fixloop ok64+compile clean51（~1h 工量）。重启后其余面：gw-3033 401 活、3003 shim 关（本就不走）、df 91G、mem 6G、verl 自然清零。
+- **事故 12:2x — --resume 路线证伪 + 改新 run 续跑**：首轮 `--date … --slug soak --resume` 附上后把宕机扫成的 **~1350 格 lost 墓碑误判 done-set 终态**（resume 的 done-set 含 lost），仅新跑 ~45 格即「0 queued / 1900 already-terminal」收工、**accounting=BROKEN**（dup_terminal 45 id×多段）——用户盯网关零请求抓到实锤。**正路=弃 resume 开新 run**（dedup 逐格验字节：有则复用、缺则 allow-regen 重翻，即 w1/w2 同款路径）：`soak/2026-09-27/soak-2`（pid 19988）、plan 1900 格、dedup 复扫正常滚动（ingest dedup102/xlat81/fixloop78…旧工量被验字节复用）、**xlat ok4 已落、388 格在飞**——真付流量实证恢复。**教训钉死：①resume 不接 lost 格，断线续跑一律新 run+dedup；②判活三件套=心跳+events 新增+xlat 出活，心跳复鲜单独不足为证。**
+- **干预 13:4x — 并发三层拆分勘正：真壁=--jobs=4**：三层语义钉清——`--jobs`=论文级线程池（ThreadPoolExecutor max_workers，**默认 4**）、`concurrency`=单篇内分段并发（PipelineConfig→translate_tree_async）、`nslots`=全局付费请求信号量（paid_slot 每请求一槽）。实测槽位仅 4-5 占用——4 条管线喂不饱网关，**「网关 550tok/s 是壁」结论作废**（两次都是 jobs=4 卡住，内层 32↔64 无从分辨）。处置：SIGTERM soak-2 → 同参数+`--jobs 32` 重开为 **soak-3**（pid 181843），起飞后槽位占用实测 **37→48→51**——网关终于被推到近满。dedup 复扫认回三轮累计工量（xlat dedup169/fixloop165）。内存 8G、load 2.2 宽松。观察点：吞吐应倍数跳升直至网关真壁现形；w4/w5 沿用 --jobs 32。
+- **巡检 14:3x — 网关实锤近满：477/550 tok/s（86%）**：soak-3 +50min——心跳 9s 鲜、pid 181843 @161%CPU、槽位 45-52 占用、df 86G / mem 9G 宽松。网关近 10min 实测（devin-2api.db logs，**time 列是毫秒 epoch**——早前秒级过滤静默失效、返回全量统计是假象根因）：509 请求 / 481×200 + **34×429** + 1×401、avg 58.4s/req、**出 token 477/s**。按 key 拆：本 bench key（sha256 前 16 位 `1edae45` 实证）436 req/**398 tok/s**，另有一把 key `268cd34` 同吃 **79 tok/s**。判读：上游 ~550 tok/s 全局壁**这次是真顶到了**（86% 占用 + 429 回压 6.7%）——98-114/h 即本网关天花板邻域，「没打满」的谜底分层：jobs=4 时只占 ~5 槽（已修），jobs=32 后 ~50 槽已贴近上游供给极限。残余挤压面=槽位未满 64 + 别家 79 tok/s；w4/w5 试 `--jobs 40`（≈62 槽）可再榨 +10-15%，本波不重启（churn>收益）。进度：xlat 触 255/389（ok84+partial2+dedup169）、compile 255、fixloop 254，skip ~107/段级联、拒稿 ingest13+parse27——**ETA ~16:00-16:15 收官**。
+- **波际 14:5x — w3 提前收官 + w4 放行（--jobs 40）**：soak-3 于 ~14:39 finished，比 ETA 快 ~1.5h（尾段 dedup/skip 级联 + 网关满速）。终账 **accounting=ok**、plan/queued/terminal=1900 全对齐、cost **$95.55**（dedup831 把前两轮死run工量全认回，真付极薄）：ok411+clean93+dedup831 / skip466+reject44+fail39+partial15+fault1。**w3 交付 272/380（71.6%）**——三波最优（w1 70.2%、w2 63.0%），其中 xlat 新译 ok+partial=104 格、余 ~168 由 dedup 字节验真认回。**w4 已放 14:53**：`soak/2026-09-27/soak-4`、pid 208044、984 ids 同参数 **`--jobs 40`**（本段决策：槽位 45-52/64 未满 + 网关 ~13% 余量可榨；RAM ~+4G 仍在界内）。心跳秒鲜、plan 已物化。观察点：429 占比若随槽位 ~62 显著上抬则下波退回 32。
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## 6. 监控清单
 
 | 面     | 指标                                | 闸/动作                                |
 | ------ | ----------------------------------- | -------------------------------------- |
 | 磁盘   | `df` 可用 G、lake/vault/runs du     | <60G 停水合（水位闸自动）；<40G 停全部 |
-| 网关   | 429 占比、out_tok/s、chat_s         | 429 持续风暴 → 降 --jobs               |
+| 网关   | 429 占比、out_tok/s、chat_s、slot 占用 | 429 持续风暴 → 降 --jobs；`logs.time` 是毫秒 epoch |
 | ledger | events.jsonl 行数、records 状态分布 | dedup 率异常低 → 查字节闸              |
 | 质检   | 每波 qc_replay sig census top-N     | 新签名 → fixloop 规则蒸馏              |
 | sweep  | full sweep 每日一次                 | orphan/tombstone 异常 → 查 harvest     |
@@ -326,6 +372,7 @@
 | 水合带宽不及             | 水合速率 <500/天  | 波次按已水合池滚动；eprint 尾道排队不堵主路                                      |
 | 三洞修复未兑现           | W0 再丢字节       | 回炉内核，暂停扩波                                                               |
 | zhstore verdict 污染裁决 | dedup 误 VERIFIED | 字节闸兜底；残留走 `--allow-regen` 明示                                          |
+| run 中道崩/整机重启      | 心跳冻、进程清零  | **禁 `--resume`**（lost 墓碑入 done-set 判终态 → accounting BROKEN）；开新 run + dedup 认回字节 |
 
 ### 参考文献
 
