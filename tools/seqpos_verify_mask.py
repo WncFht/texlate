@@ -5,7 +5,7 @@ monotonic doc-order skeleton of UNAMBIGUOUS (nhits==1) seqs whose computed
 agrees with the unique hit. If audit's picked hit (nearest to computed) is
 outside the window while another hit is inside -> masked error candidate.
 
-用法: .venv/bin/python tools/seqpos_verify_mask.py <task_id> ...
+用法：.venv/bin/python tools/seqpos_verify_mask.py <task_id> ...
 """
 
 import bisect as bs

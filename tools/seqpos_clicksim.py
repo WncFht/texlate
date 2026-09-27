@@ -1,7 +1,7 @@
 """点击→seq 解析仿真——三种 picker 语义对照，逐块均匀取点击点。
 
 picker:
-  nearest = 生产现状 |Δfraction| 最近锚（同页）/ dpage+页沿距（跨页）
+  nearest = 生产现状 |Δfraction| 最近锚（同页）/ dpage+ 页沿距（跨页）
   floor_y = (page,frac) 纯 y floor——含点块语义，栏盲
   floor_c = (page,col,frac) 栏感知 floor——col=x>=0.45，x 缺则全 0
 真值定义：点击点落在 seq_i 的 [pos_i, pos_{i+1}) 域内 → 正确 seq=i
@@ -9,7 +9,7 @@ picker:
 误差——假定后端锚正确；后端 miss/缺席另由 seqpos_audit 报。
 zh 侧只测 unmarked seq（marked 点击精确命中 span 不走 picker）。
 
-用法: .venv/bin/python tools/seqpos_clicksim.py
+用法：.venv/bin/python tools/seqpos_clicksim.py
 """
 
 import json

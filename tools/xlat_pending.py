@@ -33,9 +33,7 @@ TASKS = ROOT / "tasks"
 
 
 async def translate_pending(db: sqlite3.Connection, tid: str) -> str:
-    row = db.execute(
-        "select config_json from tasks where id=?", (tid,)
-    ).fetchone()
+    row = db.execute("select config_json from tasks where id=?", (tid,)).fetchone()
     if not row:
         return "skip: 无任务行"
     cfg = json.loads(row[0] or "{}")
@@ -151,8 +149,7 @@ def _sync_task_and_dual(
     zmap = {
         r[0]: (r[1], r[2], r[3])
         for r in db.execute(
-            "select seq, status, translation, chunk_id from chunks"
-            " where task_id=?",
+            "select seq, status, translation, chunk_id from chunks where task_id=?",
             (tid,),
         )
     }

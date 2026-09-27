@@ -6,7 +6,7 @@
 注意：marks_with_tm 复刻的是「旧口径」BDC-tm 锚法，用来量化 stale-tm 偏置；
 seqpos v6+ 改锚到标内首字形后，本工具对比的是新旧口径差异。
 
-用法: .venv/bin/python tools/mark_bias.py
+用法：.venv/bin/python tools/mark_bias.py
 """
 
 import json
@@ -70,7 +70,7 @@ def marks_with_tm(path: Path):
 
 
 def page_charpos(doc: pymupdf.Document):
-    """每页 (归一字符流, [frac]) —— 逐字 bbox 顶向下。"""
+    """每页 (归一字符流，[frac]) —— 逐字 bbox 顶向下。"""
     out = []
     for pno in range(doc.page_count):
         page = doc[pno]
@@ -171,9 +171,9 @@ def main():
         )
         print(f"min={ds[0]} max={ds[-1]}")
         big = [d for d in ds if d < -0.03]
-        print(f"Δ<-0.03 (mark偏上>0.03): {len(big)}")
+        print(f"Δ<-0.03 (mark 偏上>0.03): {len(big)}")
         big2 = [d for d in ds if d > 0.03]
-        print(f"Δ>+0.03 (mark偏下>0.03): {len(big2)}")
+        print(f"Δ>+0.03 (mark 偏下>0.03): {len(big2)}")
 
 
 main()

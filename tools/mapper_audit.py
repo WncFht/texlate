@@ -3,7 +3,7 @@
 and measure: (a) ys adjacent inversions, (b) scroll-sync sawtooth amplitude,
 (c) leave-one-out click-fallback error.
 
-用法: .venv/bin/python tools/mapper_audit.py
+用法：.venv/bin/python tools/mapper_audit.py
 """
 
 import json, sys, glob, os

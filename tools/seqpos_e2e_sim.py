@@ -3,7 +3,7 @@
 完整复刻生产 PDF→PDF 链路（ReaderView/sentalign.ts/pdfseqpos.ts）：
 
   点击 pos(page,frac,x) → seqAtPoint（zh marked 走 TLXC 直命；否则
-  containingSeq 全键 floor+栏降级+距离闸）→ jumpSeq：u=fracInBlock
+  containingSeq 全键 floor+ 栏降级 + 距离闸）→ jumpSeq：u=fracInBlock
   （点击在 src 区间 [S,S') 的分位）→ interpDst（dst 同 seq 区间
   [S_dst,S'_dst) 线性插回 Pos）→ 兜底 seqPos 直锚 → 再兜底 mapPos
   比例映射。落点 vs 该 seq 对侧真值矩形（lit_probe+search_for）。
@@ -12,8 +12,8 @@
 量「点击→落地」全链路。另出：栏型普查、x 覆盖率、marked 覆盖、
 en↔zh 锚序倒置率、栏边界应力（右栏顶/左栏底点击的栏序正确性）。
 
-用法: .venv/bin/python tools/seqpos_e2e_sim.py [task_id ...]
-输出: tmp/seqpos-e2e.json
+用法：.venv/bin/python tools/seqpos_e2e_sim.py [task_id ...]
+输出：tmp/seqpos-e2e.json
 """
 
 import json
@@ -194,7 +194,7 @@ def containing(lands: list[tuple[int, dict]], pos: dict) -> int | None:
 
 
 def nearest(lands: list[tuple[int, dict]], pos: dict, max_score: float = 1.0):
-    """旧 picker 基线：|Δfraction| 最近（同页）/ dpage+页沿距（跨页）。"""
+    """旧 picker 基线：|Δfraction| 最近（同页）/ dpage+ 页沿距（跨页）。"""
     best, bs = None, 1e18
     for k, p in lands:
         dp = abs(p["page"] - pos["page"])

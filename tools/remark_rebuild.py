@@ -1,4 +1,4 @@
-"""存量任务离线重注锚+重编译：base/ 重扫 → 双侧 marked splice → 重编译 → pdf/DB/dual 更新。
+"""存量任务离线重注锚 + 重编译：base/ 重扫 → 双侧 marked splice → 重编译 → pdf/DB/dual 更新。
 
 - en 侧：``reconstruct(res, None, mark_seq0=seq0)`` identity 注锚（原文逐字节 + TLXC 纯锚）。
 - zh 侧：chunks 表 delivered 译文重 splice（marks_on 口径 = ``mark_moving=True``）。
@@ -96,7 +96,7 @@ def _splice_marked(
 ) -> tuple[int, int]:
     """逐文件 marked splice 写回 work——``trans_by_rel=None`` 即 en identity 臂。
 
-    返回 (写文件数, 注锚 chunk 数)。zh 臂无译文文件保持 base 原样
+    返回 (写文件数，注锚 chunk 数)。zh 臂无译文文件保持 base 原样
     （与 worker ``_build_zh`` 同规）；en 臂全量注。
     """
     seq0 = 0
@@ -113,10 +113,10 @@ def _splice_marked(
         try:
             out = reconstruct(res, by_int, mark_seq0=cur0, mark_moving=True)
         except Exception as e:  # noqa: BLE001 -- 注锚失败=原样编译
-            print(f"    remark {rel} 注锚异常({type(e).__name__}: {e})——原样")
+            print(f"    remark {rel} 注锚异常 ({type(e).__name__}: {e})——原样")
             continue
         if issues := seq_mark_issues(out):
-            print(f"    remark {rel} 失衡({'; '.join(issues)})——剥锚降级")
+            print(f"    remark {rel} 失衡 ({'; '.join(issues)})——剥锚降级")
             out = strip_seq_marks(out)
         tgt = work / rel
         tgt.parent.mkdir(parents=True, exist_ok=True)
@@ -126,7 +126,9 @@ def _splice_marked(
     return n_files, n_marks
 
 
-def _zh_trans(db: sqlite3.Connection, tid: str, scans: dict) -> dict[str, dict[int, str]]:
+def _zh_trans(
+    db: sqlite3.Connection, tid: str, scans: dict
+) -> dict[str, dict[int, str]]:
     """chunks 表 delivered 译文 → ``{rel: {c.id: 译文}}``（worker _build_zh 同口径）。"""
     rows = db.execute(
         "select chunk_id, status, translation from chunks where task_id=?", (tid,)
@@ -161,8 +163,7 @@ def _compile(eng, work: Path, main_rel: str, log_tag: str, eng_name: str):
         flags=rep.flags if rep else None,
     )
     print(
-        f"    {log_tag} compile: has_pdf={res.has_pdf} "
-        f"err={res.log.first_error or '-'}"
+        f"    {log_tag} compile: has_pdf={res.has_pdf} err={res.log.first_error or '-'}"
     )
     if not res.has_pdf:
         try:
@@ -369,11 +370,7 @@ def main() -> None:
     for i, a in enumerate(args):
         if a == "--zh-min-rate" and i + 1 < len(args):
             zh_min_rate = float(args[i + 1])
-    tids = [
-        a
-        for a in args
-        if not a.startswith("--") and a != str(zh_min_rate)
-    ]
+    tids = [a for a in args if not a.startswith("--") and a != str(zh_min_rate)]
     if not tids:
         tids = [
             d.name
@@ -384,7 +381,9 @@ def main() -> None:
     for tid in tids:
         t0 = time.time()
         try:
-            r = rebuild_task(db, tid, en=en, zh=zh, zh_min_rate=zh_min_rate, force=force)
+            r = rebuild_task(
+                db, tid, en=en, zh=zh, zh_min_rate=zh_min_rate, force=force
+            )
         except Exception as e:  # noqa: BLE001
             r = f"CRASH {type(e).__name__}: {e}"
         print(f"{tid}: {r} [{time.time() - t0:.0f}s]", flush=True)

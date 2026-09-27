@@ -49,8 +49,7 @@ def remap_task(db: sqlite3.Connection, tid: str) -> str:
     if not bp.is_file():
         return "skip: 无 rekey 备份"
     old_by_cid = {
-        r["chunk_id"]: r
-        for r in json.loads(bp.read_text(encoding="utf-8"))["chunks"]
+        r["chunk_id"]: r for r in json.loads(bp.read_text(encoding="utf-8"))["chunks"]
     }
     cur = [
         dict(zip(cols, r, strict=True))
@@ -94,16 +93,10 @@ def remap_task(db: sqlite3.Connection, tid: str) -> str:
                     st, tr_ = hit
                     c["status"] = str(st)
                     c["zh"] = (
-                        tr_
-                        if isinstance(tr_, str) and delivered_db(st, tr_)
-                        else ""
+                        tr_ if isinstance(tr_, str) and delivered_db(st, tr_) else ""
                     )
-            dual_p.write_text(
-                json.dumps(dual, ensure_ascii=False), encoding="utf-8"
-            )
-        db.execute(
-            "update tasks set updated_at=? where id=?", (time.time(), tid)
-        )
+            dual_p.write_text(json.dumps(dual, ensure_ascii=False), encoding="utf-8")
+        db.execute("update tasks set updated_at=? where id=?", (time.time(), tid))
     return f"remapped {n_fix} chunks (skip {n_skip} 无旧行)"
 
 

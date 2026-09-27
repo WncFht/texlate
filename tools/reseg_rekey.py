@@ -10,7 +10,7 @@ chunks 表/dual.json 重键到当前 rescan 流，使 remark 放行。
 重算。dual.json chunks 行按 _dual_chunk_row 同构重写（en=content、
 zh=delivered 口径、kind/status/chunk_id 全键）。
 
-安全：单事务；旧行+旧 dual 先备份 tmp/rekey-<tid>.json。
+安全：单事务；旧行 + 旧 dual 先备份 tmp/rekey-<tid>.json。
 用法：.venv/bin/python tools/reseg_rekey.py [task_id...]（缺省=parity 失配全量）
 """
 
@@ -83,7 +83,9 @@ def rekey_task(db: sqlite3.Connection, tid: str) -> str:
     flat = _rescan(tdir, meta)
     dual_p = tdir / "dual.json"
     dual = json.loads(dual_p.read_text(encoding="utf-8")) if dual_p.is_file() else {}
-    old_dual_chunks = [c for c in dual.get("chunks") or [] if isinstance(c.get("seq"), int)]
+    old_dual_chunks = [
+        c for c in dual.get("chunks") or [] if isinstance(c.get("seq"), int)
+    ]
     if len(flat) == len(old_dual_chunks):
         return f"skip: chunk 数已齐（{len(flat)}）——直接走 remark_rebuild"
 
@@ -96,9 +98,20 @@ def rekey_task(db: sqlite3.Connection, tid: str) -> str:
             (tid,),
         )
         for cols in [
-            ("seq", "chunk_id", "src_file", "byte_start", "byte_end", "kind",
-             "src_text", "status", "translation", "error_code", "attempts",
-             "warnings")
+            (
+                "seq",
+                "chunk_id",
+                "src_file",
+                "byte_start",
+                "byte_end",
+                "kind",
+                "src_text",
+                "status",
+                "translation",
+                "error_code",
+                "attempts",
+                "warnings",
+            )
         ]
     ]
 
@@ -116,9 +129,7 @@ def rekey_task(db: sqlite3.Connection, tid: str) -> str:
             used.add(id(hit))
             continue
         cands = [
-            r
-            for r in by_text.get((rel, _norm(c.content)), [])
-            if id(r) not in used
+            r for r in by_text.get((rel, _norm(c.content)), []) if id(r) not in used
         ]
         if len(cands) == 1:
             carry.append(cands[0])
@@ -204,9 +215,7 @@ def rekey_task(db: sqlite3.Connection, tid: str) -> str:
                 for r in rows
             ],
         )
-        n_done = sum(
-            1 for r in rows if r["status"] not in ("pending", "translating")
-        )
+        n_done = sum(1 for r in rows if r["status"] not in ("pending", "translating"))
         n_fail = sum(1 for r in rows if r["status"] == "failed")
         db.execute(
             "update tasks set total_chunks=?, done_chunks=?, failed_chunks=?,"
