@@ -268,9 +268,7 @@ def filtered_env(
     ``validate.l1`` 三份同构白名单透传的单源骨架（``_ENV_PASS_*`` 表仍归
     各消费方自持，本件只承载过滤+覆盖机制）。
     """
-    env = {
-        k: v for k, v in os.environ.items() if k in exact or k.startswith(prefixes)
-    }
+    env = {k: v for k, v in os.environ.items() if k in exact or k.startswith(prefixes)}
     if forced:
         env.update(forced)
     return env

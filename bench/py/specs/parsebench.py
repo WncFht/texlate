@@ -80,9 +80,7 @@ from pathlib import Path
 # 两径都要（specs/_sabotage.py 同款；TEXLATE_SRC 冻结快照语义一致）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
@@ -434,8 +432,9 @@ def file_metrics(
 # ---------------------------------------------------------------- worker（per-paper subprocess）
 
 
-def _topology(src: Path, tex_files: list[Path], paper_id: str,
-              timeout_s: int) -> tuple[dict, dict, dict, set]:
+def _topology(
+    src: Path, tex_files: list[Path], paper_id: str, timeout_s: int
+) -> tuple[dict, dict, dict, set]:
     """analyze_paper v2：roots + reach(res.inputs 口径) + roles + 路由标签。
 
     返回 (paper_dict, parsed_cache, roles, non_utf8_realpaths)。
@@ -516,9 +515,7 @@ def _topology(src: Path, tex_files: list[Path], paper_id: str,
         "docclass": roots[0]["class"] if roots else None,
         "docclass_options": roots[0]["options"] if roots else None,
         "non_utf8_files": [
-            p.relative_to(src).as_posix()
-            for p in tex_files
-            if rpaths[p] in non_utf8_rp
+            p.relative_to(src).as_posix() for p in tex_files if rpaths[p] in non_utf8_rp
         ],
         "tags": paper_tags(roots, stripped_blob, sorted(non_utf8_rp)),
         "orphan_tex": [
@@ -537,9 +534,7 @@ def _worker_run(src: Path, wd: Path, paper_id: str, timeout_s: int) -> int:
     """子进程测量体：paper.json 先行（拓扑件在 kill 下幸存），files.jsonl
     逐行 flush（被杀后残留行仍是真账——cell 内复刻旧「行在=测成」语义）。"""
     tex_files = sorted(rglob_tex(src))
-    paper, parsed, roles, non_utf8_rp = _topology(
-        src, tex_files, paper_id, timeout_s
-    )
+    paper, parsed, roles, non_utf8_rp = _topology(src, tex_files, paper_id, timeout_s)
     (wd / "paper.json").write_text(
         json.dumps(paper, ensure_ascii=False), encoding="utf-8"
     )
@@ -565,8 +560,7 @@ def _worker_cli() -> int:
     """``--worker <srcdir> <workdir> <paper_id> <timeout_s>`` 入口。"""
     if len(sys.argv) != 6 or sys.argv[1] != "--worker":
         print(
-            "usage: parsebench.py --worker <srcdir> <workdir> "
-            "<paper_id> <timeout_s>",
+            "usage: parsebench.py --worker <srcdir> <workdir> <paper_id> <timeout_s>",
             file=sys.stderr,
         )
         return 2
@@ -605,9 +599,7 @@ def _corpus_rows() -> list[dict]:
                 continue  # holdout 层只进 eval spec（spec.eval 门）
             seen.add(pid)
             sha = "|".join(
-                x
-                for x in (row.get("blob_sha256"), row.get("main_tex_sha256"))
-                if x
+                x for x in (row.get("blob_sha256"), row.get("main_tex_sha256")) if x
             )
             rows.append(
                 {
@@ -618,9 +610,18 @@ def _corpus_rows() -> list[dict]:
                     "params": {
                         k: row.get(k)
                         for k in (
-                            "stratum_cell", "cluster_id", "yymm", "era",
-                            "archive", "cat_group", "layer", "channel",
-                            "n_tex", "n_files", "bytes", "mech_tags",
+                            "stratum_cell",
+                            "cluster_id",
+                            "yymm",
+                            "era",
+                            "archive",
+                            "cat_group",
+                            "layer",
+                            "channel",
+                            "n_tex",
+                            "n_files",
+                            "bytes",
+                            "mech_tags",
                         )
                     },
                 }
@@ -671,8 +672,7 @@ def _sampleable(item: dict) -> bool:
     st = _catalog().state(res.idc)
     if st in ("hydrated", "pinned"):
         return True
-    if st in ("failed", "empty", "raw_only", "skeleton", "hydrating",
-              "evicted"):
+    if st in ("failed", "empty", "raw_only", "skeleton", "hydrating", "evicted"):
         return False
     return lake.is_complete(res.idc)
 
@@ -736,8 +736,9 @@ def _select(item: dict, rp: dict) -> bool:
 # ---------------------------------------------------------------- stage fns
 
 
-def _gate(status: str, code: str, cat: str, payload,
-          metrics: dict | None = None) -> dict:
+def _gate(
+    status: str, code: str, cat: str, payload, metrics: dict | None = None
+) -> dict:
     """status + 单条 errors + 可选 metrics——sig 由内核 errors[0]
     cat:pay 自动合成（errors[].cat 是自由归因标签非事件 cat，非白名单
     词安全；终态 cat 只来自内核异常映射，这里恒为 None）。"""
@@ -778,12 +779,14 @@ def _probe(ctx) -> dict:
         return _gate("partial", "raw_only", "probe", "raw tier only", metrics)
     if st == "empty":
         # catalog 已登记零载荷答案——durable 终态不反复试。
-        return _gate("partial", "empty_payload", "probe",
-                     "recorded zero-payload", metrics)
+        return _gate(
+            "partial", "empty_payload", "probe", "recorded zero-payload", metrics
+        )
     if not lake.is_complete(ctx.idc):
         # 载荷在场但 torn（meta 缺/数不符/failed 残格）——可水化修。
-        return _gate("error", "torn", "probe",
-                     f"incomplete cell (catalog={st})", metrics)
+        return _gate(
+            "error", "torn", "probe", f"incomplete cell (catalog={st})", metrics
+        )
 
     ext = cell / "extracted"
     if not ext.is_dir():
@@ -794,8 +797,7 @@ def _probe(ctx) -> dict:
         roots = find_roots(tex_files)
         non_utf8 = [p for p in tex_files if is_non_utf8(p)]
         stripped = "\n".join(
-            benchlib.strip_comments(decode_tex(p.read_bytes()))
-            for p in tex_files
+            benchlib.strip_comments(decode_tex(p.read_bytes())) for p in tex_files
         )
         metrics.update(
             {
@@ -806,8 +808,7 @@ def _probe(ctx) -> dict:
             }
         )
     except (OSError, UnicodeError) as e:
-        return _gate("error", "read_fail", "probe",
-                     f"{type(e).__name__}: {e}", metrics)
+        return _gate("error", "read_fail", "probe", f"{type(e).__name__}: {e}", metrics)
     metrics.update(
         {
             "roots": [
@@ -823,9 +824,7 @@ def _probe(ctx) -> dict:
             "rootless": not roots,
             "docclass": roots[0]["class"] if roots else None,
             "docclass_options": roots[0]["options"] if roots else None,
-            "non_utf8_files": [
-                str(p.relative_to(ext)) for p in sorted(non_utf8)
-            ],
+            "non_utf8_files": [str(p.relative_to(ext)) for p in sorted(non_utf8)],
             "tags": paper_tags(roots, stripped, non_utf8),
         }
     )
@@ -916,19 +915,22 @@ def _eval(ctx) -> dict:
     """
     metrics: dict = {}
     if not lake.is_complete(ctx.idc):
-        return _gate("skip", "lake_incomplete", "upstream",
-                     "cell incomplete between probe and eval", metrics)
+        return _gate(
+            "skip",
+            "lake_incomplete",
+            "upstream",
+            "cell incomplete between probe and eval",
+            metrics,
+        )
     src = ctx.src_path()
     if src is None:
-        return _gate("skip", "no_src", "upstream",
-                     "src projection failed", metrics)
+        return _gate("skip", "no_src", "upstream", "src projection failed", metrics)
     try:
         # 盘上实数是 outer timeout 与 rows 比对的权威——upstream_rec 的
         # metrics 在跨 run blob 下只回 marker，靠它会缩死外层闸。
         n_tex_disk = len(rglob_tex(src))
     except OSError as e:
-        return _gate("error", "enum_fail", "eval",
-                     f"{type(e).__name__}: {e}", metrics)
+        return _gate("error", "enum_fail", "eval", f"{type(e).__name__}: {e}", metrics)
     wd = ctx.paper_dir() / "pb_eval"
     if wd.exists():
         shutil.rmtree(wd)
@@ -949,9 +951,7 @@ def _eval(ctx) -> dict:
     rc: int | None = None
     err_tail = ""
     try:
-        cp = subprocess.run(
-            argv, capture_output=True, text=True, timeout=outer
-        )
+        cp = subprocess.run(argv, capture_output=True, text=True, timeout=outer)
         rc = cp.returncode
         err_tail = (cp.stderr or "")[-600:]
     except subprocess.TimeoutExpired as e:
@@ -979,9 +979,19 @@ def _eval(ctx) -> dict:
     )
     if paper is not None:
         for k in (
-            "roots", "multi_doc", "rootless", "primary_root", "docclass",
-            "docclass_options", "non_utf8_files", "tags", "orphan_tex",
-            "roles", "covered_n", "reach_source", "tex_bytes",
+            "roots",
+            "multi_doc",
+            "rootless",
+            "primary_root",
+            "docclass",
+            "docclass_options",
+            "non_utf8_files",
+            "tags",
+            "orphan_tex",
+            "roles",
+            "covered_n",
+            "reach_source",
+            "tex_bytes",
             "total_bytes",
         ):
             metrics[k] = paper.get(k)
@@ -991,8 +1001,12 @@ def _eval(ctx) -> dict:
         # C 级悬挂兜底杀——有残留行即批中断 partial，零行即 error。
         status = "partial" if rows else "error"
         out = _gate(
-            status, "worker_timeout", "timeout",
-            f"killed at outer {outer}s (n_tex={n_tex})", metrics)
+            status,
+            "worker_timeout",
+            "timeout",
+            f"killed at outer {outer}s (n_tex={n_tex})",
+            metrics,
+        )
     elif rc != 0 or paper is None:
         # worker 崩/输出不可读——残留行兜 partial；拓扑已产但零行兜
         # fail（「有 tex 零测量行」终态）；连拓扑都没有 = error。
@@ -1003,19 +1017,21 @@ def _eval(ctx) -> dict:
         else:
             status = "error"
         out = _gate(
-            status, "worker_crash", "worker_crash",
-            f"rc={rc} {err_tail}".strip()[:400], metrics)
+            status,
+            "worker_crash",
+            "worker_crash",
+            f"rc={rc} {err_tail}".strip()[:400],
+            metrics,
+        )
     elif n_tex == 0:
         status = "clean"  # paper 零 .tex——census no_mtree→clean 同式
         out = {"status": status, "metrics": metrics}
     elif not rows:
         status = "fail"  # 有 tex 但零测量行产出
-        out = _gate(status, "no_rows", "eval",
-                    f"n_tex={n_tex} but zero rows", metrics)
+        out = _gate(status, "no_rows", "eval", f"n_tex={n_tex} but zero rows", metrics)
     elif len(rows) < n_tex:
         status = "partial"  # 批中断（worker 正常退但行数亏——截尾/写损）
-        out = _gate(status, "rows_short", "eval",
-                    f"{len(rows)}/{n_tex} rows", metrics)
+        out = _gate(status, "rows_short", "eval", f"{len(rows)}/{n_tex} rows", metrics)
     else:
         status = "ok"
         out = {"status": status, "metrics": metrics}

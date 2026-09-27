@@ -119,8 +119,7 @@ def _open_index() -> index_mod.Index:
     try:
         idx.tail_ingest()
     except Exception as exc:
-        print(f"note: tail_ingest failed ({exc}) — index may be stale",
-              file=sys.stderr)
+        print(f"note: tail_ingest failed ({exc}) — index may be stale", file=sys.stderr)
     return idx
 
 
@@ -138,7 +137,8 @@ def _stem_of(run: str) -> str:
 
 def _all_runs(idx) -> list[dict]:
     rows = idx.conn.execute(
-        "SELECT run, run_seq, kind, date, slug FROM runs").fetchall()
+        "SELECT run, run_seq, kind, date, slug FROM runs"
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -269,8 +269,7 @@ def scan_rows(
         errs = r.get("errors")
         if not isinstance(errs, list):
             errs = []
-        if any(isinstance(e, dict) and e.get("code") == "arm_mismatch"
-               for e in errs):
+        if any(isinstance(e, dict) and e.get("code") == "arm_mismatch" for e in errs):
             stats["arm_mismatch"] += 1
             continue
         rid = r.get("idc") or r.get("id")
@@ -347,9 +346,7 @@ def pick_final(
 # ---------------------------------------------------------------- 波次窗
 
 
-def window_suspects(
-    comp: dict[str, dict], fix: dict[str, dict]
-) -> set[str]:
+def window_suspects(comp: dict[str, dict], fix: dict[str, dict]) -> set[str]:
     """compile 末行 ts 晚于 fixloop 末行 ts 的 id 集 → csb 存疑。
 
     旧版靠 run_meta invocation argv 估计覆盖波（records 无行级时戳的
@@ -363,11 +360,7 @@ def window_suspects(
         if f is None:
             continue
         ct, ft = c.get("ts"), f.get("ts")
-        if (
-            isinstance(ct, (int, float))
-            and isinstance(ft, (int, float))
-            and ct > ft
-        ):
+        if isinstance(ct, (int, float)) and isinstance(ft, (int, float)) and ct > ft:
             out.add(pid)
     return out
 
@@ -449,8 +442,7 @@ def check_freeze(
         if age is not None and age < write_window:
             reasons.append(f"recent_write:{name}")
         fsum[name] = {
-            k: fi.get(k)
-            for k in ("exists", "age_s", "tail_truncated", "torn")
+            k: fi.get(k) for k in ("exists", "age_s", "tail_truncated", "torn")
         }
     return {
         "runs": run_names,
@@ -755,12 +747,11 @@ def add_args(sp) -> None:
         "--run",
         default=None,
         help="目标 run：精确名 / 唯一前缀 / stem（import 旧账的"
-             " *_records_<stage> 兄弟组自动并组）；缺省取含 compile 账的"
-             "最新 run_seq run",
+        " *_records_<stage> 兄弟组自动并组）；缺省取含 compile 账的"
+        "最新 run_seq run",
     )
     sp.add_argument("--kind", default=None, help="run 解析时的 kind 过滤")
-    sp.add_argument("--json", action="store_true", dest="as_json",
-                    help="机读输出")
+    sp.add_argument("--json", action="store_true", dest="as_json", help="机读输出")
     sp.add_argument(
         "--require-frozen",
         action="store_true",
@@ -776,7 +767,7 @@ def add_args(sp) -> None:
         "--arm",
         default=None,
         help="compile 记录臂过滤（缺省自适应：有 zh 臂滤 zh——M2 旧口径；"
-             "无 zh 臂全臂——soak 单臂管线 arm='-'）",
+        "无 zh 臂全臂——soak 单臂管线 arm='-'）",
     )
     sp.add_argument(
         "--up",
@@ -809,16 +800,11 @@ def main(args) -> int:
     if arm is None:
         arm = (
             ARM
-            if any(
-                r.get("stage") == "compile" and r.get("arm") == ARM
-                for r in rows
-            )
+            if any(r.get("stage") == "compile" and r.get("arm") == ARM for r in rows)
             else None
         )
-    comp, comp_st, comp_si = scan_rows(
-        rows, "compile", arm=arm, upstream=args.up)
-    fix, fix_st, fix_si = scan_rows(
-        rows, "fixloop", arm=None, upstream=args.up)
+    comp, comp_st, comp_si = scan_rows(rows, "compile", arm=arm, upstream=args.up)
+    fix, fix_st, fix_si = scan_rows(rows, "fixloop", arm=None, upstream=args.up)
 
     post_sig = {n: _stat_sig(p) for n, p in shard_paths.items()}
     file_info = {}
@@ -829,9 +815,7 @@ def main(args) -> int:
             "torn": pre_sig[n] != post,
             "tail_truncated": _tail_truncated(p) if post else False,
             "age_s": (
-                None
-                if post is None
-                else round(now.timestamp() - post[1] / 1e9, 1)
+                None if post is None else round(now.timestamp() - post[1] / 1e9, 1)
             ),
             "size": None if post is None else post[0],
         }

@@ -516,8 +516,7 @@ class XlatPipeline:
     def _seg_key(self, c: ChunkIn) -> str:
         """段级缓存键：source + role + masked 快照（占位符布局变则 key 变）。"""
         ph_types = [
-            placeholders.ph_type(p)
-            for p in placeholders.ANY_PH_RX.findall(c.content)
+            placeholders.ph_type(p) for p in placeholders.ANY_PH_RX.findall(c.content)
         ]
         return segment_key(c.content, c.kind, masked_snapshot=repr(ph_types))
 
@@ -757,7 +756,7 @@ class XlatPipeline:
         system = self._system_prompt(members[0].kind, batch=True)
         # 各成员 ph_fragments 合并成批级 value-context 随 user 尾挂；成员编码
         # 只跑一次——``enc_members[k]`` 直作下方 ``bare_token_audit`` 基线
-        #（与线发字节结构性同源，免逐成员二次 ``encode_newlines`` 重推导）
+        # （与线发字节结构性同源，免逐成员二次 ``encode_newlines`` 重推导）
         payload, enc_members = encode_batch_members([c.content for c in members])
         user = payload + (prompts.render_value_context(_merged_value_frags(members)))
 

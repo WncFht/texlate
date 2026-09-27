@@ -4,6 +4,7 @@ Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
 Specs are built in-memory (eval=True skips the corpus registry — ids stay
 verbatim canon spellings like '2401.00001').
 """
+
 from __future__ import annotations
 
 import json
@@ -14,9 +15,7 @@ from pathlib import Path
 import pytest
 from kernel import (
     claims,
-    dedup,
     events,
-    index as indexmod,
     kernel,
     lake,
     ledger,
@@ -24,13 +23,23 @@ from kernel import (
     paid,
     paths,
     runs,
-    spec as specmod,
     vault,
+)
+from kernel import (
+    index as indexmod,
+)
+from kernel import (
+    spec as specmod,
 )
 from kernel.spec import Param, Spec, Stage
 
-SC = {"ok": "terminal", "error": "retriable", "skip": "retriable",
-      "fail": "terminal", "fault": "terminal"}
+SC = {
+    "ok": "terminal",
+    "error": "retriable",
+    "skip": "retriable",
+    "fail": "terminal",
+    "fault": "terminal",
+}
 
 
 def _stage(name, fn, **kw):
@@ -46,7 +55,7 @@ def _free_spec(fns, items, **kw):
         needs = [(names[i - 1], {"ok"})] if i else []
         stages.append(_stage(n, fns[n], needs=needs))
     kw.setdefault("kind", "tbench")
-    kw.setdefault("eval", True)          # verbatim ids, no registry scan
+    kw.setdefault("eval", True)  # verbatim ids, no registry scan
     return Spec(stages=stages, items=items, **kw)
 
 
@@ -58,13 +67,17 @@ def _paid_spec(fn, items, **kw):
 
 
 def _shard(rd: runs.RunDir) -> list[dict]:
-    return [e for _ln, e, _raw in events.iter_jsonl(rd.events_path())
-            if isinstance(e, dict)]
+    return [
+        e for _ln, e, _raw in events.iter_jsonl(rd.events_path()) if isinstance(e, dict)
+    ]
 
 
 def _cell_rows(rd, status=None):
-    return [e for e in _shard(rd)
-            if e["type"] == "cell" and (status is None or e["status"] == status)]
+    return [
+        e
+        for e in _shard(rd)
+        if e["type"] == "cell" and (status is None or e["status"] == status)
+    ]
 
 
 def _quiet(**kw):
@@ -78,10 +91,15 @@ def _quiet(**kw):
 def test_two_stage_free_spec_end_to_end(broot: Path):
     calls = []
     spec = _free_spec(
-        {"ingest": lambda ctx: calls.append(("ingest", ctx.idc)) or "ok",
-         "xlat": lambda ctx: calls.append(("xlat", ctx.idc)) or
-             {"status": "ok", "metrics": {"segs": 7}}},
-        [{"id": "2401.00001"}])
+        {
+            "ingest": lambda ctx: calls.append(("ingest", ctx.idc)) or "ok",
+            "xlat": lambda ctx: (
+                calls.append(("xlat", ctx.idc))
+                or {"status": "ok", "metrics": {"segs": 7}}
+            ),
+        },
+        [{"id": "2401.00001"}],
+    )
     res = kernel.run(spec, **_quiet())
     assert res["ok"] is True
     assert res["counts"].get("ok") == 2
@@ -98,10 +116,9 @@ def test_two_stage_free_spec_end_to_end(broot: Path):
     plan = json.loads(rd.plan_path().read_text())
     assert [c["stage"] for c in plan["cells"]] == ["ingest", "xlat"]
     # xlat's ok row carries the merged metrics
-    xrow = [e for e in shard if e["type"] == "cell"
-            and e["stage"] == "xlat"][0]
+    xrow = [e for e in shard if e["type"] == "cell" and e["stage"] == "xlat"][0]
     assert xrow["metrics"] == {"segs": 7}
-    assert xrow["fp"]                                # fp stamped
+    assert xrow["fp"]  # fp stamped
     # accounting equation balanced
     acct = runs.accounting_check(rd)
     assert acct["ok"] is True and acct["terminal"] == 2
@@ -116,9 +133,12 @@ def test_empty_plan_warns_not_crashes(broot: Path):
 def test_dedup_skip_on_second_run(broot: Path):
     calls = []
     spec = _free_spec(
-        {"ingest": lambda ctx: calls.append("ingest") or "ok",
-         "xlat": lambda ctx: calls.append("xlat") or "ok"},
-        [{"id": "2401.00001"}])
+        {
+            "ingest": lambda ctx: calls.append("ingest") or "ok",
+            "xlat": lambda ctx: calls.append("xlat") or "ok",
+        },
+        [{"id": "2401.00001"}],
+    )
     r1 = kernel.run(spec, **_quiet())
     assert r1["counts"]["ok"] == 2 and len(calls) == 2
 
@@ -127,7 +147,7 @@ def test_dedup_skip_on_second_run(broot: Path):
     rd2 = runs.load_run(spec.kind, r2["date"], r2["slug"])
     rows = _cell_rows(rd2)
     assert [e["status"] for e in rows] == ["dedup", "dedup"]
-    assert calls == []                                # nothing re-executed
+    assert calls == []  # nothing re-executed
     assert r2["ok"] is True
 
 
@@ -209,8 +229,9 @@ def test_dedup_pile_over_verdict_still_dedups(broot: Path):
     """Guard against over-masking: dedup rows on a real verdict keep
     deduping — the mask only removes pointer rows, not work evidence."""
     calls = []
-    spec = _collector_spec(lambda ctx: calls.append("c") or "ok",
-                           [{"id": "2401.00001"}])
+    spec = _collector_spec(
+        lambda ctx: calls.append("c") or "ok", [{"id": "2401.00001"}]
+    )
     _seed_verdict("2401.00001", "ok", 1)
     _seed_verdict("2401.00001", "dedup", 2)
     _seed_verdict("2401.00001", "dedup", 3)
@@ -230,16 +251,22 @@ def test_last_mutating_dedup_harvests_upstream_products(broot: Path):
     lqc_src = broot / "lqc-src"
     lqc_src.mkdir()
     (lqc_src / "qc.json").write_text("{}")
-    vault.harvest("2401.00001", "-", "-", {"layoutqc": lqc_src},
-                  source_run="seed", verdict="verified", zone="primary")
+    vault.harvest(
+        "2401.00001",
+        "-",
+        "-",
+        {"layoutqc": lqc_src},
+        source_run="seed",
+        verdict="verified",
+        zone="primary",
+    )
 
     def produce(ctx):
         d = ctx.asset_dir("zh")
         (d / "payload.txt").write_text("fresh bytes")
         return "ok"
 
-    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"},
-                      [{"id": "2401.00001"}])
+    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"}, [{"id": "2401.00001"}])
     spec.stages[0].mutates = ["zh"]
     spec.stages[1].mutates = ["layoutqc"]
     _seed_verdict("2401.00001", "ok", 1, stage="coll")
@@ -263,8 +290,7 @@ def test_mutates_dedup_requires_intact_bytes(broot: Path):
         (d / "payload.txt").write_text("fresh bytes")
         return "ok"
 
-    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"},
-                      [{"id": "2401.00001"}])
+    spec = _free_spec({"a": produce, "coll": lambda ctx: "ok"}, [{"id": "2401.00001"}])
     spec.stages[0].mutates = ["zh"]
     spec.stages[1].mutates = ["layoutqc"]
     # a 有历史 ok verdict 但 vault 无字节 → 必须真跑不能 dedup
@@ -273,7 +299,7 @@ def test_mutates_dedup_requires_intact_bytes(broot: Path):
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     rows = {e["stage"]: e["status"] for e in _cell_rows(rd)}
-    assert calls == ["a"]                        # 字节缺席 → 重跑
+    assert calls == ["a"]  # 字节缺席 → 重跑
     assert rows["a"] == "ok"
     assert vault.bytes_ok("2401.00001", "-", "-")
 
@@ -281,22 +307,35 @@ def test_mutates_dedup_requires_intact_bytes(broot: Path):
     res2 = kernel.run(spec, **_quiet())
     rd2 = runs.load_run(spec.kind, res2["date"], res2["slug"])
     rows2 = {e["stage"]: e["status"] for e in _cell_rows(rd2)}
-    assert calls == []                           # 字节在押 → dedup
+    assert calls == []  # 字节在押 → dedup
     assert rows2["a"] == "dedup"
 
 
 def test_fp_changes_do_not_affect_done_set(broot: Path):
-    spec = _free_spec({"a": lambda ctx: "ok"}, [{"id": "2401.00001"}],
-                      params={"temp": Param(float, default=0.1)})
+    spec = _free_spec(
+        {"a": lambda ctx: "ok"},
+        [{"id": "2401.00001"}],
+        params={"temp": Param(float, default=0.1)},
+    )
     r1 = kernel.run(spec, {"temp": 0.1}, **_quiet())
     rd1 = runs.load_run(spec.kind, r1["date"], r1["slug"])
     fp1 = _cell_rows(rd1)[0]["fp"]
 
     # a different fp-effective param would mint a different fp…
-    fp2 = specmod.cell_fp(spec, {
-        "id": "2401.00001", "idc": "2401.00001", "arm": "-", "up": "-",
-        "variant": "-", "stage": "a", "fp_input": None,
-        "run_params": {"temp": 0.9}, "params": {}})
+    fp2 = specmod.cell_fp(
+        spec,
+        {
+            "id": "2401.00001",
+            "idc": "2401.00001",
+            "arm": "-",
+            "up": "-",
+            "variant": "-",
+            "stage": "a",
+            "fp_input": None,
+            "run_params": {"temp": 0.9},
+            "params": {},
+        },
+    )
     assert fp1 != fp2
     # …but the done-set is fp-blind: run 2 still dedups (§3.4)
     r2 = kernel.run(spec, {"temp": 0.9}, **_quiet())
@@ -307,7 +346,8 @@ def test_fp_changes_do_not_affect_done_set(broot: Path):
 def test_needs_missing_skips(broot: Path):
     spec = _free_spec(
         {"ingest": lambda ctx: "ok", "xlat": lambda ctx: "ok"},
-        [{"id": "2401.00001", "stage": "xlat"}])      # upstream never runs
+        [{"id": "2401.00001", "stage": "xlat"}],
+    )  # upstream never runs
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     rows = _cell_rows(rd)
@@ -317,11 +357,11 @@ def test_needs_missing_skips(broot: Path):
 
 def test_upstream_lost_is_hard_fault(broot: Path):
     def ingest(ctx):
-        return "ok"          # declares mutates zh but produces no bytes
+        return "ok"  # declares mutates zh but produces no bytes
 
     spec = _free_spec(
-        {"ingest": ingest, "xlat": lambda ctx: "ok"},
-        [{"id": "2401.00001"}])
+        {"ingest": ingest, "xlat": lambda ctx: "ok"}, [{"id": "2401.00001"}]
+    )
     spec.stages[0].mutates = ["zh"]
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
@@ -363,15 +403,13 @@ def test_pause_holds_paid_cells_without_calling_fn(broot: Path):
     at the per-cell gate lands error/pause without ever calling its fn;
     free cells proceed under the fence (covered by cli/integration)."""
     calls = []
-    spec = _paid_spec(lambda ctx: calls.append(1) or "ok",
-                      [{"id": "x"}])
+    spec = _paid_spec(lambda ctx: calls.append(1) or "ok", [{"id": "x"}])
     paths.pause_path().touch()
-    res = kernel.run(spec, max_cost=5.0,
-                     gateway_factory=_factory(object()), **_quiet())
+    res = kernel.run(spec, max_cost=5.0, gateway_factory=_factory(object()), **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "error" and row["cat"] == "pause"
-    assert calls == []                                # fn never ran
+    assert calls == []  # fn never ran
 
 
 def test_emit_batch_integrity(broot: Path, monkeypatch):
@@ -398,8 +436,7 @@ def test_emit_batch_integrity(broot: Path, monkeypatch):
     assert ["cell", "note"] in batches
     row = _cell_rows(rd)[0]
     assert row["metrics"] == {"n": 3}
-    note = [e for e in _shard(rd) if e["type"] == "note"
-            and e["text"] == "hello"][0]
+    note = [e for e in _shard(rd) if e["type"] == "note" and e["text"] == "hello"][0]
     assert note["level"] == "warn"
 
 
@@ -414,8 +451,7 @@ def test_resume_reruns_retriable_cells(broot: Path):
     spec = _free_spec({"a": fn}, [{"id": "x"}])
     r1 = kernel.run(spec, date="2026-09-21", slug="r1", **_quiet())
     assert r1["ok"] is True  # error cell emitted its terminal — balanced
-    r2 = kernel.run(spec, resume=True, date="2026-09-21", slug="r1",
-                    **_quiet())
+    r2 = kernel.run(spec, resume=True, date="2026-09-21", slug="r1", **_quiet())
     rd = runs.load_run(spec.kind, "2026-09-21", "r1")
     rows = _cell_rows(rd)
     assert [r["status"] for r in rows] == ["error", "ok"]
@@ -439,18 +475,16 @@ def test_run_lock_failfast(broot: Path):
     spec = _free_spec({"a": lambda c: "ok"}, [{"id": "x"}])
     r1 = kernel.run(spec, date="2026-09-21", slug="lk", **_quiet())
     rd = runs.load_run(spec.kind, "2026-09-21", "lk")
-    with rd.lock():
-        with pytest.raises(kernel.RunError):
-            kernel.run(spec, resume=True, date="2026-09-21", slug="lk",
-                       **_quiet())
+    with rd.lock(), pytest.raises(kernel.RunError):
+        kernel.run(spec, resume=True, date="2026-09-21", slug="lk", **_quiet())
 
 
 def test_paid_spec_refuses_without_max_cost_and_factory(broot: Path):
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
     with pytest.raises(kernel.RunError):
-        kernel.run(spec, **_quiet())                        # no max_cost
+        kernel.run(spec, **_quiet())  # no max_cost
     with pytest.raises(kernel.RunError):
-        kernel.run(spec, max_cost=1.0, **_quiet())          # no factory
+        kernel.run(spec, max_cost=1.0, **_quiet())  # no factory
 
 
 def test_same_id_serial_groups(broot: Path):
@@ -463,15 +497,17 @@ def test_same_id_serial_groups(broot: Path):
         with guard:
             active[ctx.idc] = active.get(ctx.idc, 0) + 1
             if active[ctx.idc] > 1:
-                overlap.append(ctx.idc)          # same-idc overlap = violation
+                overlap.append(ctx.idc)  # same-idc overlap = violation
         time.sleep(0.03)
         with guard:
             active[ctx.idc] -= 1
         return "ok"
 
-    items = [{"id": "2401.00001", "arm": "a"},
-             {"id": "2401.00001", "arm": "b"},
-             {"id": "2401.00002", "arm": "a"}]
+    items = [
+        {"id": "2401.00001", "arm": "a"},
+        {"id": "2401.00001", "arm": "b"},
+        {"id": "2401.00002", "arm": "a"},
+    ]
     spec = _free_spec({"a": fn}, items)
     kernel.run(spec, jobs=2, **_quiet())
     assert overlap == []
@@ -532,8 +568,9 @@ def test_paid_full_path_claim_slot_meter(broot: Path, monkeypatch):
     assert slot_entries and slot_entries[0]["nslots"] == 4
     # claim audit: acquire + release fate=verified (lifecycle stream —
     # slot-carrying events are the per-request paid_slots mirror)
-    claims_ev = [e for e in _shard(rd)
-                 if e["type"] == "claim" and e.get("slot") is None]
+    claims_ev = [
+        e for e in _shard(rd) if e["type"] == "claim" and e.get("slot") is None
+    ]
     assert [e["op"] for e in claims_ev] == ["acquire", "release"]
     assert claims_ev[1]["fate"] == "verified"
     # claim file was really held then released
@@ -546,8 +583,9 @@ def test_claimed_skip_via_held_lease(broot: Path):
     assert lease.acquire()
     try:
         spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
-        res = kernel.run(spec, max_cost=1.0,
-                         gateway_factory=_factory(object()), **_quiet())
+        res = kernel.run(
+            spec, max_cost=1.0, gateway_factory=_factory(object()), **_quiet()
+        )
         rd = runs.load_run(spec.kind, res["date"], res["slug"])
         row = _cell_rows(rd)[0]
         assert row["status"] == "claimed" and row["cat"] == "claimed"
@@ -559,23 +597,27 @@ def test_unsealed_index_first_fire_refusal(broot: Path):
     """A poisoned seal refuses the paid RUN at the first-fire gate
     (§6 Phase-3): RunError + coverage.json evidence; the per-cell
     index_unsealed path remains for seal loss mid-run."""
-    paths.index_dirty_path().touch()                 # poison the seal
+    paths.index_dirty_path().touch()  # poison the seal
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
     with pytest.raises(kernel.RunError):
-        kernel.run(spec, max_cost=1.0, date="2026-09-22", slug="uu",
-                   gateway_factory=_factory(object()), **_quiet())
+        kernel.run(
+            spec,
+            max_cost=1.0,
+            date="2026-09-22",
+            slug="uu",
+            gateway_factory=_factory(object()),
+            **_quiet(),
+        )
     rd = runs.load_run(spec.kind, "2026-09-22", "uu")
     assert _cell_rows(rd) == []
-    cov = json.loads(
-        (rd.derived() / "coverage.json").read_text(encoding="utf-8"))
+    cov = json.loads((rd.derived() / "coverage.json").read_text(encoding="utf-8"))
     assert cov["sealed"] is False
 
 
 def test_regen_gate_rejects_tombstoned_cell(broot: Path):
     vault.tombstone("2401.00001", "-", "-", "zh", "test-lost")
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
-    res = kernel.run(spec, max_cost=1.0,
-                     gateway_factory=_factory(object()), **_quiet())
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=_factory(object()), **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "reject" and row["cat"] == "regen_gate"
@@ -586,11 +628,9 @@ def test_verified_vault_copy_dedups_paid_cell(broot: Path, tmp_path):
     src = tmp_path / "zhsrc"
     (src / "zh").mkdir(parents=True)
     (src / "zh" / "out.pdf").write_bytes(b"paid bytes")
-    vault.harvest("2401.00001", "-", "-", {"zh": src / "zh"},
-                  source_run="adhoc")
+    vault.harvest("2401.00001", "-", "-", {"zh": src / "zh"}, source_run="adhoc")
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
-    res = kernel.run(spec, max_cost=1.0,
-                     gateway_factory=_factory(object()), **_quiet())
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=_factory(object()), **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert _cell_rows(rd)[0]["status"] == "dedup"
 
@@ -609,14 +649,13 @@ def test_cost_fuse_rejects_at_max_cost(broot: Path):
         return "ok"
 
     spec = _paid_spec(fn, [{"id": "2401.00001"}, {"id": "2401.00002"}])
-    res = kernel.run(spec, max_cost=0.0001, gateway_factory=factory,
-                     jobs=1, **_quiet())
+    res = kernel.run(spec, max_cost=0.0001, gateway_factory=factory, jobs=1, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     rows = sorted(_cell_rows(rd), key=lambda e: e["idc"])
     # cell 1 spends 0.0002 > fuse armed for cell 2 (spent+est > max)
     assert rows[0]["status"] == "ok"
     assert rows[1]["status"] == "reject" and rows[1]["cat"] == "budget"
-    assert calls == ["2401.00001"]                   # second cell never ran
+    assert calls == ["2401.00001"]  # second cell never ran
 
 
 def test_auth_breaker_three_401s_abort_cell(broot: Path):
@@ -635,21 +674,22 @@ def test_auth_breaker_three_401s_abort_cell(broot: Path):
                 s.request("chat")
             except Exception:
                 pass
-        s.request("chat")                            # third 401 -> abort
+        s.request("chat")  # third 401 -> abort
         return "ok"
 
     spec = _paid_spec(fn, [{"id": "2401.00001"}])
-    res = kernel.run(spec, max_cost=1.0, gateway_factory=factory,
-                     jobs=1, **_quiet())
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=factory, jobs=1, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "fail" and row["cat"] == "auth_dead"
     assert row["auth_tripped"] is True
     assert factory.shared["paper_auth"]["2401.00001"] == 3
     assert factory.shared["all_failed"] == 1
-    release = [e for e in _shard(rd)
-               if e["type"] == "claim" and e["op"] == "release"
-               and e.get("slot") is None][0]
+    release = [
+        e
+        for e in _shard(rd)
+        if e["type"] == "claim" and e["op"] == "release" and e.get("slot") is None
+    ][0]
     assert release["fate"] == "auth_trip"
 
 
@@ -673,9 +713,8 @@ def test_auth_breaker_two_papers_trips_auth_dead(broot: Path):
         return "ok"
 
     spec = _paid_spec(fn, [{"id": "2401.00001"}, {"id": "2401.00002"}])
-    res = kernel.run(spec, max_cost=1.0, gateway_factory=factory,
-                     jobs=1, **_quiet())
-    assert paths.auth_dead_path().exists()           # sentinel tripped
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=factory, jobs=1, **_quiet())
+    assert paths.auth_dead_path().exists()  # sentinel tripped
     assert factory.shared["all_failed"] == 2
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     cats = sorted(e["cat"] for e in _cell_rows(rd))
@@ -686,8 +725,7 @@ def test_auth_breaker_two_papers_trips_auth_dead(broot: Path):
 def test_auth_dead_sentinel_refuses_paid_cell(broot: Path):
     locks.trip_auth_dead("test")
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
-    res = kernel.run(spec, max_cost=1.0,
-                     gateway_factory=_factory(object()), **_quiet())
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=_factory(object()), **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "error" and row["cat"] == "auth_dead"
@@ -703,7 +741,8 @@ def test_select_filters_plan_by_params(broot: Path):
         {"a": lambda c: "ok"},
         [{"id": "x"}, {"id": "y"}, {"id": "z"}],
         params={"keep": Param(str, default="x")},
-        select=lambda it, p: it["id"] == p["keep"])
+        select=lambda it, p: it["id"] == p["keep"],
+    )
     res = kernel.run(spec, {"keep": "y"}, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert [r["idc"] for r in _cell_rows(rd)] == ["y"]
@@ -724,9 +763,9 @@ def test_extra_item_fields_reach_cell(broot: Path):
     kernel.run(spec, **_quiet())
     assert seen == [("mA", 2)]
     # and the frozen plan carries the extras (resume fidelity)
-    res = kernel.run(_free_spec({"a": fn},
-                                [{"id": "x", "model": "mA", "rep": 2}]),
-                     **_quiet())
+    res = kernel.run(
+        _free_spec({"a": fn}, [{"id": "x", "model": "mA", "rep": 2}]), **_quiet()
+    )
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     plan_cell = json.loads(rd.plan_path().read_text())["cells"][0]
     assert plan_cell["model"] == "mA" and plan_cell["rep"] == 2
@@ -736,9 +775,10 @@ def test_sig_synthesized_from_first_error(broot: Path):
     """G12: errors[0] -> 'cat:pay' when the fn doesn't return a sig."""
 
     def fn(ctx):
-        return {"status": "fail",
-                "errors": [{"cat": "compile", "code": "runaway",
-                            "payload": "tcb"}]}
+        return {
+            "status": "fail",
+            "errors": [{"cat": "compile", "code": "runaway", "payload": "tcb"}],
+        }
 
     spec = _free_spec({"a": fn}, [{"id": "x"}])
     res = kernel.run(spec, **_quiet())
@@ -748,9 +788,15 @@ def test_sig_synthesized_from_first_error(broot: Path):
 
 def test_sig_explicit_wins_over_synthesis(broot: Path):
     spec = _free_spec(
-        {"a": lambda ctx: {"status": "fail", "sig": "custom:sig",
-                           "errors": [{"cat": "x"}]}},
-        [{"id": "x"}])
+        {
+            "a": lambda ctx: {
+                "status": "fail",
+                "sig": "custom:sig",
+                "errors": [{"cat": "x"}],
+            }
+        },
+        [{"id": "x"}],
+    )
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert _cell_rows(rd)[0]["sig"] == "custom:sig"
@@ -792,11 +838,11 @@ def test_emit_case_lands_ledger_file_and_index(broot: Path):
     try:
         idx.tail_ingest()
         got = idx.conn.execute(
-            "SELECT stage, payload FROM cases WHERE idc='x'").fetchall()
+            "SELECT stage, payload FROM cases WHERE idc='x'"
+        ).fetchall()
     finally:
         idx.close()
-    author_rows = [r for r in got
-                   if "chunk" in json.loads(r["payload"])]
+    author_rows = [r for r in got if "chunk" in json.loads(r["payload"])]
     assert len(author_rows) == 2
     assert all(r["stage"] == "a" for r in author_rows)
 
@@ -804,6 +850,7 @@ def test_emit_case_lands_ledger_file_and_index(broot: Path):
 def test_emit_case_dies_with_failed_cell(broot: Path):
     """A crashed cell emits no case rows — the buffer only flushes inside
     the terminal batch."""
+
     def fn(ctx):
         ctx.emit_case({"chunk": 0})
         raise RuntimeError("boom")
@@ -824,27 +871,32 @@ def test_eval_paid_remapped_dedup_key_runs_and_dedups(broot: Path):
     uniqueness still rides arm/variant — the remap moves the CLAIM space."""
     calls = []
     spec = Spec(
-        kind="tevpaid", eval=True,
-        dedup_key=lambda c: (c["idc"], c.get("model", "-"),
-                             str(c.get("rep", "-"))),
-        items=[{"id": "s1", "variant": "v0", "model": "mA", "rep": 0},
-               {"id": "s1", "variant": "v1", "model": "mA", "rep": 1}],
-        stages=[_stage("judge",
-                       lambda ctx: calls.append(ctx.cell["rep"]) or "ok",
-                       paid=True)])
+        kind="tevpaid",
+        eval=True,
+        dedup_key=lambda c: (c["idc"], c.get("model", "-"), str(c.get("rep", "-"))),
+        items=[
+            {"id": "s1", "variant": "v0", "model": "mA", "rep": 0},
+            {"id": "s1", "variant": "v1", "model": "mA", "rep": 1},
+        ],
+        stages=[
+            _stage(
+                "judge", lambda ctx: calls.append(ctx.cell["rep"]) or "ok", paid=True
+            )
+        ],
+    )
     assert specmod.compile_checks(spec) == []
     factory = _factory(object())
     res = kernel.run(spec, max_cost=1.0, gateway_factory=factory, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert [r["status"] for r in _cell_rows(rd)] == ["ok", "ok"]
     assert calls == [0, 1]
-    claim_evs = [e for e in _shard(rd)
-                 if e["type"] == "claim" and e.get("op") == "acquire"]
+    claim_evs = [
+        e for e in _shard(rd) if e["type"] == "claim" and e.get("op") == "acquire"
+    ]
     keys = {(e["idc"], e["arm"], e["variant"]) for e in claim_evs}
     assert keys == {("s1", "mA", "0"), ("s1", "mA", "1")}
     calls.clear()
-    res2 = kernel.run(spec, max_cost=1.0, gateway_factory=factory,
-                      **_quiet())
+    res2 = kernel.run(spec, max_cost=1.0, gateway_factory=factory, **_quiet())
     rd2 = runs.load_run(spec.kind, res2["date"], res2["slug"])
     assert [r["status"] for r in _cell_rows(rd2)] == ["dedup", "dedup"]
     assert calls == []
@@ -853,8 +905,7 @@ def test_eval_paid_remapped_dedup_key_runs_and_dedups(broot: Path):
 def test_process_executor_refused_loudly(broot: Path):
     """G8 deferred: executor='process' fails fast at run entry, not on a
     pickle error deep in the executor pass."""
-    spec = _free_spec({"a": lambda c: "ok"}, [{"id": "x"}],
-                      executor="process")
+    spec = _free_spec({"a": lambda c: "ok"}, [{"id": "x"}], executor="process")
     with pytest.raises(kernel.RunError, match="process"):
         kernel.run(spec, **_quiet())
     # stage-level override refuses identically
@@ -869,6 +920,7 @@ def test_process_executor_refused_loudly(broot: Path):
 
 def _lake_fetch(calls, files=None):
     """A spec.fetch_fn: populate {stage}/extracted/, record the idc."""
+
     def fetch(idc, stage):
         calls.append(idc)
         ex = Path(stage) / "extracted"
@@ -877,6 +929,7 @@ def _lake_fetch(calls, files=None):
             p = ex / name
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(body, encoding="utf-8")
+
     return fetch
 
 
@@ -889,18 +942,19 @@ def test_lake_ensure_fetches_via_spec_fetch_fn(broot: Path, monkeypatch):
 
     def fn(ctx):
         d = ctx.lake_ensure()
-        return "ok" if d is not None and (d / "extracted" / "a.tex") \
-            .is_file() else "error"
+        return (
+            "ok" if d is not None and (d / "extracted" / "a.tex").is_file() else "error"
+        )
 
-    spec = _free_spec({"a": fn}, [{"id": "9901.00010"}],
-                      lake=True, fetch_fn=_lake_fetch(calls))
+    spec = _free_spec(
+        {"a": fn}, [{"id": "9901.00010"}], lake=True, fetch_fn=_lake_fetch(calls)
+    )
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
-    assert calls == ["9901.00010"]           # exactly one fetch (lock-dedup)
+    assert calls == ["9901.00010"]  # exactly one fetch (lock-dedup)
     assert lake.is_complete("9901.00010")
-    meta = json.loads(
-        (lake.cell_dir("9901.00010") / "meta.json").read_text())
+    meta = json.loads((lake.cell_dir("9901.00010") / "meta.json").read_text())
     assert meta["run_seq"] == rd.run_seq
 
 
@@ -916,8 +970,9 @@ def test_src_path_projects_hydrated_tree(broot: Path, monkeypatch):
             return "error"
         return "ok" if (src / "a.tex").read_text() == "tex" else "error"
 
-    spec = _free_spec({"a": fn}, [{"id": "9901.00011"}],
-                      lake=True, fetch_fn=_lake_fetch(calls))
+    spec = _free_spec(
+        {"a": fn}, [{"id": "9901.00011"}], lake=True, fetch_fn=_lake_fetch(calls)
+    )
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
@@ -928,9 +983,13 @@ def test_prefetch_disabled_leaves_lake_lazy(broot: Path):
     """prefetch=False: no lookahead thread, and a stage fn that never
     asks leaves the cell unfetched."""
     calls = []
-    spec = _free_spec({"a": lambda ctx: "ok"}, [{"id": "9901.00012"}],
-                      lake=True, prefetch=False,
-                      fetch_fn=_lake_fetch(calls))
+    spec = _free_spec(
+        {"a": lambda ctx: "ok"},
+        [{"id": "9901.00012"}],
+        lake=True,
+        prefetch=False,
+        fetch_fn=_lake_fetch(calls),
+    )
     res = kernel.run(spec, **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
@@ -945,15 +1004,20 @@ def test_lookahead_burst_hydrates_all(broot: Path, monkeypatch):
     consumed-set instead of leaking a window slot."""
     monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
     from types import SimpleNamespace
+
     calls = []
-    spec = Spec(kind="tlake", stages=[], items=[], lake=True,
-                fetch_fn=_lake_fetch(calls))
-    env = {"abort": threading.Event(),
-           "rd": SimpleNamespace(run_seq=1, run="tlake/2026-01-01/x")}
+    spec = Spec(
+        kind="tlake", stages=[], items=[], lake=True, fetch_fn=_lake_fetch(calls)
+    )
+    env = {
+        "abort": threading.Event(),
+        "rd": SimpleNamespace(run_seq=1, run="tlake/2026-01-01/x"),
+    }
     la = kernel._Lookahead(env, spec)
-    cells = [{"id": i, "idc": i, "arm": "-", "up": "-", "variant": "-",
-              "stage": "a"}
-             for i in (f"9901.0002{i}" for i in range(4))]
+    cells = [
+        {"id": i, "idc": i, "arm": "-", "up": "-", "variant": "-", "stage": "a"}
+        for i in (f"9901.0002{i}" for i in range(4))
+    ]
     # the last cell is already terminal this run — filtered out
     terminal = {("9901.00023", "-", "-", "-", "a")}
     la.start(cells, terminal)
@@ -975,7 +1039,7 @@ def test_lookahead_window_bounded(broot: Path, monkeypatch):
     more than 2 hydrations ahead of the execution frontier."""
     monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
     monkeypatch.setattr(kernel, "LOOKAHEAD_CELLS", 2)
-    monkeypatch.setattr(kernel, "LOOKAHEAD_BYTES", 10 ** 12)
+    monkeypatch.setattr(kernel, "LOOKAHEAD_BYTES", 10**12)
     state = {"fetched": 0, "started": 0, "viol": 0}
     lock = threading.Lock()
 
@@ -991,12 +1055,14 @@ def test_lookahead_window_bounded(broot: Path, monkeypatch):
     def fn(ctx):
         with lock:
             state["started"] += 1
-        time.sleep(0.01)                   # let the prefetcher run ahead
+        time.sleep(0.01)  # let the prefetcher run ahead
         return "ok"
 
     spec = _free_spec(
         {"a": fn},
         [{"id": f"9901.0004{i}"} for i in range(6)],
-        lake=True, fetch_fn=fetch)
+        lake=True,
+        fetch_fn=fetch,
+    )
     kernel.run(spec, **_quiet())
     assert state["viol"] == 0

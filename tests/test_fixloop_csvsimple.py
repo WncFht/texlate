@@ -19,10 +19,7 @@ from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 
 _VENDOR_STY = (
-    Path(actions.__file__).resolve().parent
-    / "vendor"
-    / "files"
-    / "csvsimple-l3.sty"
+    Path(actions.__file__).resolve().parent / "vendor" / "files" / "csvsimple-l3.sty"
 )
 _RULE_ID = "csvsimple_l3_kernel_retire"
 
@@ -90,9 +87,7 @@ def test_rule_order_before_legacy_shim() -> None:
 # ---------------------------------------------------------------- condition 闸
 def test_cond_skip_when_file_absent(tmp_path: Path) -> None:
     """wdir 无 csvsimple-l3.sty → cache_dir_glob 闸拒 (不动别的语法错)。"""
-    ctx = mk_ctx(
-        tmp_path, main_rel=None, err_head=_ERR_LINE + "\n" + _ERR_CTX
-    )
+    ctx = mk_ctx(tmp_path, main_rel=None, err_head=_ERR_LINE + "\n" + _ERR_CTX)
     ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
         rule(_RULE_ID).condition, rule(_RULE_ID), ctx, None, None
     )

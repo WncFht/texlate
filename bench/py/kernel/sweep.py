@@ -47,6 +47,7 @@ Thresholds are module constants so callers/tests can tune them:
                             in-flight commit — report only
     FAIL_TOMBSTONE_AGE_S    permanently-failed cells past this age
 """
+
 from __future__ import annotations
 
 import time
@@ -79,11 +80,11 @@ __all__ = [
     "sweep",
 ]
 
-ZOMBIE_AGE_S = 600.0                 # §3.10.1: heartbeat stops >10min
-PENDING_META_AGE_S = 15 * 60.0       # older than the zombie window
-ORPHAN_AGE_S = 3600.0                # meta-less dir commit grace
-FAIL_TOMBSTONE_AGE_S = 7 * 86400.0   # permafail → tombstone age
-CAS_GC_GRACE_S = 86400.0             # §3.10.2: 24h store→link grace
+ZOMBIE_AGE_S = 600.0  # §3.10.1: heartbeat stops >10min
+PENDING_META_AGE_S = 15 * 60.0  # older than the zombie window
+ORPHAN_AGE_S = 3600.0  # meta-less dir commit grace
+FAIL_TOMBSTONE_AGE_S = 7 * 86400.0  # permafail → tombstone age
+CAS_GC_GRACE_S = 86400.0  # §3.10.2: 24h store→link grace
 
 _CLEAN_STATUSES = frozenset({"ok", "partial", "clean"})
 _FAIL_STATUSES = frozenset({"fail", "fault", "dirty_pdf", "reject"})
@@ -99,7 +100,11 @@ def _note(text: str, level: str = "info") -> None:
     an index-assigned negative seq). Run-scoped notes go through
     runs._emit_note so they dual-write into the run's shard."""
     ev = events.make_event(
-        events.T_NOTE, run="sweep", seq=None, text=text, level=level,
+        events.T_NOTE,
+        run="sweep",
+        seq=None,
+        text=text,
+        level=level,
     )
     ledger.emit(ev)
 
@@ -117,6 +122,7 @@ def _open_index() -> index.Index | None:
 
 
 # --- duty 1: zombies ---------------------------------------------------------------
+
 
 def _shard_state(rdir: Path) -> dict:
     """One tolerant pass over a run's events.jsonl shard.
@@ -150,8 +156,10 @@ def _shard_state(rdir: Path) -> dict:
             elif t == events.T_FINISHED:
                 finished = True
     return {
-        "queued": queued, "started": started,
-        "terminal": terminal, "claims": claim_ops,
+        "queued": queued,
+        "started": started,
+        "terminal": terminal,
+        "claims": claim_ops,
         "finished": finished,
     }
 
@@ -159,24 +167,40 @@ def _shard_state(rdir: Path) -> dict:
 def _emit_lost(rd: runs.RunDir, ev0: dict) -> None:
     """Emit the kernel 'lost' terminal for one unfinished cell (§3.10.1)."""
     ev = events.make_event(
-        events.T_CELL, run=rd.run, seq=runs._kernel_seq(rd),
-        id=ev0.get("id") or ev0.get("idc"), idc=ev0.get("idc") or ev0.get("id"),
-        arm=ev0.get("arm"), up=ev0.get("up"), variant=ev0.get("variant"),
-        stage=ev0.get("stage"), status="lost",
-        errors=[{"cat": "zombie",
-                 "msg": "run heartbeat stale + run.lock free; cell lock NB-free"}],
+        events.T_CELL,
+        run=rd.run,
+        seq=runs._kernel_seq(rd),
+        id=ev0.get("id") or ev0.get("idc"),
+        idc=ev0.get("idc") or ev0.get("id"),
+        arm=ev0.get("arm"),
+        up=ev0.get("up"),
+        variant=ev0.get("variant"),
+        stage=ev0.get("stage"),
+        status="lost",
+        errors=[
+            {
+                "cat": "zombie",
+                "msg": "run heartbeat stale + run.lock free; cell lock NB-free",
+            }
+        ],
     )
     ledger.emit(ev, run_dir=rd.path)
 
 
-def _emit_claim_reap(rd: runs.RunDir | None, run: str, idc: str,
-                     arm: str, variant: str, ev_id=None) -> None:
+def _emit_claim_reap(
+    rd: runs.RunDir | None, run: str, idc: str, arm: str, variant: str, ev_id=None
+) -> None:
     """Emit the op='reap' claim audit row; the projection clears every
     paid_slots mirror row for the (idc,arm,variant) key."""
     seq = runs._kernel_seq(rd) if rd is not None else None
     ev = events.make_event(
-        events.T_CLAIM, run=run, seq=seq,
-        id=ev_id or idc, idc=idc, arm=arm, variant=variant,
+        events.T_CLAIM,
+        run=run,
+        seq=seq,
+        id=ev_id or idc,
+        idc=idc,
+        arm=arm,
+        variant=variant,
         op="reap",
     )
     ledger.emit(ev, run_dir=rd.path if rd is not None else None)
@@ -190,7 +214,8 @@ def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
         # terminal per queued cell at finish; nothing reapable remains.
         return
     unfinished = {
-        k: ev for k, ev in {**st["queued"], **st["started"]}.items()
+        k: ev
+        for k, ev in {**st["queued"], **st["started"]}.items()
         if k not in st["terminal"]
     }
     reaped, alive = [], []
@@ -207,18 +232,23 @@ def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
         reaped.append(key)
     claims_reaped = []
     for (idc, arm, variant), cev in sorted(
-            st["claims"].items(), key=lambda kv: repr(kv[0])):
+        st["claims"].items(), key=lambda kv: repr(kv[0])
+    ):
         if cev.get("op") != "acquire":
             continue
         if not locks.lock_free(claims.claim_lock_path(idc, arm, variant)):
             continue  # live claimant — never reap
-        _emit_claim_reap(
-            rd, rd.run, idc, arm, variant, ev_id=cev.get("id"))
+        _emit_claim_reap(rd, rd.run, idc, arm, variant, ev_id=cev.get("id"))
         claims_reaped.append((idc, arm, variant))
         report["reaped_claims"].append(
-            {"idc": idc, "arm": arm, "variant": variant, "run": rd.run})
-    entry = {"run": rd.run, "lost_cells": len(reaped),
-             "live_cells": len(alive), "claims_reaped": len(claims_reaped)}
+            {"idc": idc, "arm": arm, "variant": variant, "run": rd.run}
+        )
+    entry = {
+        "run": rd.run,
+        "lost_cells": len(reaped),
+        "live_cells": len(alive),
+        "claims_reaped": len(claims_reaped),
+    }
     if not (reaped or alive or claims_reaped):
         # Quiescent dead run — a reap that touches nothing is not worth a
         # warn line on every sweep for the rest of the ledger's life.
@@ -229,7 +259,8 @@ def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
         f"zombie run {rd.run}: {len(reaped)} cells lost, "
         f"{len(alive)} live-locked cells skipped, "
         f"{len(claims_reaped)} claims reaped",
-        level="warn")
+        level="warn",
+    )
 
 
 def _sweep_zombies(report: dict) -> None:
@@ -259,8 +290,9 @@ def _sweep_zombies(report: dict) -> None:
         if rd.run_seq == 0:
             # Half-created dir (crash between mkdir and mint): no
             # registration, no shard — note it, nothing to reap.
-            _note(f"unregistered run dir {rdir} (no run_registered event)",
-                  level="warn")
+            _note(
+                f"unregistered run dir {rdir} (no run_registered event)", level="warn"
+            )
             report["errors"].append(f"unregistered run dir: {rdir}")
             continue
         _reap_zombie(rd, report)
@@ -301,15 +333,18 @@ def _sweep_stale_claims(idx: index.Index | None, report: dict) -> None:
         try:
             _emit_claim_reap(rd, run, idc, arm, variant)
             report["reaped_claims"].append(
-                {"idc": idc, "arm": arm, "variant": variant, "run": run})
+                {"idc": idc, "arm": arm, "variant": variant, "run": run}
+            )
         except events.EventError as e:
             report["errors"].append(f"claim reap {idc}/{arm}/{variant}: {e}")
 
 
 # --- duty 2: pending metas ------------------------------------------------------------
 
-def _verdict_for(idx: index.Index | None, idc: str, arm: str,
-                 variant: str) -> tuple[str, str]:
+
+def _verdict_for(
+    idx: index.Index | None, idc: str, arm: str, variant: str
+) -> tuple[str, str]:
     """(zone, verdict) for a pending meta from index cell evidence (§3.5
     cross-run pick_final, last-clean-wins):
     any clean-ish terminal → primary; failure-only → quar; no evidence →
@@ -328,8 +363,9 @@ def _verdict_for(idx: index.Index | None, idc: str, arm: str,
     return "primary", "alt"
 
 
-def _sweep_pending_metas(idx: index.Index | None, active: set[str],
-                         report: dict, now: float) -> None:
+def _sweep_pending_metas(
+    idx: index.Index | None, active: set[str], report: dict, now: float
+) -> None:
     for meta in vault.pending_metas():
         ts = meta.get("ts")
         age = now - ts if isinstance(ts, (int, float)) else float("inf")
@@ -346,28 +382,40 @@ def _sweep_pending_metas(idx: index.Index | None, active: set[str],
                 # intact → the copy is lost, tombstone it (§3.1 first-class).
                 for k in meta.get("kinds") or ["zh"]:
                     vault.tombstone(
-                        idc, arm, variant, k, reason="pending_abort",
-                        lost_run=src_run)
-                report["tombstoned"].append({
-                    "idc": idc, "arm": arm, "variant": variant,
-                    "reason": "pending_abort"})
+                        idc, arm, variant, k, reason="pending_abort", lost_run=src_run
+                    )
+                report["tombstoned"].append(
+                    {
+                        "idc": idc,
+                        "arm": arm,
+                        "variant": variant,
+                        "reason": "pending_abort",
+                    }
+                )
                 _note(
                     f"pending meta {idc}.{arm}@{variant}.{altseq} bytes "
                     f"incomplete — tombstoned (abort evidence)",
-                    level="warn")
+                    level="warn",
+                )
                 continue
             zone, verdict = _verdict_for(idx, idc, arm, variant)
-            vault.promote(idc, arm, variant, altseq, zone, verdict,
-                          source_run="sweep")
-            report["promoted"].append({
-                "idc": idc, "arm": arm, "variant": variant,
-                "altseq": altseq, "verdict": verdict, "zone": zone})
+            vault.promote(idc, arm, variant, altseq, zone, verdict, source_run="sweep")
+            report["promoted"].append(
+                {
+                    "idc": idc,
+                    "arm": arm,
+                    "variant": variant,
+                    "altseq": altseq,
+                    "verdict": verdict,
+                    "zone": zone,
+                }
+            )
         except (vault.VaultError, ValueError, OSError) as e:
-            report["errors"].append(
-                f"pending meta {idc}.{arm}@{variant}.{altseq}: {e}")
+            report["errors"].append(f"pending meta {idc}.{arm}@{variant}.{altseq}: {e}")
 
 
 # --- duty 3: orphan bytes ---------------------------------------------------------------
+
 
 def _manifest_mentions(sid_key: str, rows: list[dict]) -> bool:
     """True when some manifest row references the leaf path ``sid/key``."""
@@ -398,12 +446,17 @@ def _sweep_vault_orphans(report: dict, now: float) -> None:
                 kind, sid, key = parts[0], parts[1], parts[2]
             arm, variant, altseq = vault.parse_dir_key(key)
         except (IndexError, ValueError):
-            report["meta_less"].append(
-                {"path": str(leaf), "reason": "unparseable"})
+            report["meta_less"].append({"path": str(leaf), "reason": "unparseable"})
             continue
         idc = idc_from_safe(sid)
-        entry = {"path": str(leaf), "idc": idc, "arm": arm,
-                 "variant": variant, "altseq": altseq, "kind": kind}
+        entry = {
+            "path": str(leaf),
+            "idc": idc,
+            "arm": arm,
+            "variant": variant,
+            "altseq": altseq,
+            "kind": kind,
+        }
         # Hardened predicate (§3.10.4): meta-less ≠ orphan.
         try:
             siblings = vault.query(idc, arm, variant)
@@ -430,8 +483,9 @@ def _sweep_vault_orphans(report: dict, now: float) -> None:
             report["meta_less"].append(entry)
             continue
         try:
-            dst = vault.adopt(leaf, idc, arm, variant,
-                              reason="meta_less_orphan", kind=kind)
+            dst = vault.adopt(
+                leaf, idc, arm, variant, reason="meta_less_orphan", kind=kind
+            )
             entry["adopted_to"] = str(dst)
             report["adopted"].append(entry)
         except (vault.VaultError, ValueError, OSError) as e:
@@ -466,19 +520,21 @@ def _sweep_lake_orphans(report: dict) -> None:
             # A PINNED marker on the orphan dir survives the adoption:
             # the catalog is rebuilt (the cell was invisible to it), so the
             # file-side truth must be re-projected into the new row.
-            kw = {"source": source_dir.name,
-                  "manifested": False, "orphan": True}
+            kw = {"source": source_dir.name, "manifested": False, "orphan": True}
             if lake.cell_pinned(cell):
                 kw["pinned"] = True
             cat.set(idc, "skeleton", **kw)
-            report["lake_orphans"].append(
-                {"path": str(cell), "idc": idc})
+            report["lake_orphans"].append({"path": str(cell), "idc": idc})
     if report["lake_orphans"]:
-        _note(f"{len(report['lake_orphans'])} lake orphan cell dirs "
-              "adopted into catalog (manifested:false)", level="warn")
+        _note(
+            f"{len(report['lake_orphans'])} lake orphan cell dirs "
+            "adopted into catalog (manifested:false)",
+            level="warn",
+        )
 
 
 # --- duty 4: harvest-pending ---------------------------------------------------------
+
 
 def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
     """DONE cells with vault intent but no intact bytes → alarm queue."""
@@ -486,22 +542,25 @@ def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
         return
     intent: set[tuple] = set()
     for r in idx.conn.execute(
-            "SELECT DISTINCT idc, arm, variant FROM claims"
-            " WHERE op='acquire' AND slot IS NULL"):
+        "SELECT DISTINCT idc, arm, variant FROM claims"
+        " WHERE op='acquire' AND slot IS NULL"
+    ):
         intent.add((r["idc"], r["arm"], r["variant"]))
     marks = ",".join("?" for _ in _VAULT_KINDS)
     for r in idx.conn.execute(
-            f"SELECT DISTINCT idc, arm, variant FROM assets"  # noqa: S608 -- marks 是 "?"*n 占位符
-            f" WHERE kind IN ({marks})", tuple(sorted(_VAULT_KINDS))):
+        f"SELECT DISTINCT idc, arm, variant FROM assets"  # noqa: S608 -- marks 是 "?"*n 占位符
+        f" WHERE kind IN ({marks})",
+        tuple(sorted(_VAULT_KINDS)),
+    ):
         intent.add((r["idc"], r["arm"], r["variant"]))
     if not intent:
         return
     done_keys: dict[tuple, list] = {}
     for r in idx.conn.execute(
-            "SELECT idc, arm, variant, stage, status FROM cells"
-            " WHERE status IN ('ok','partial','clean')"):
-        done_keys.setdefault((r["idc"], r["arm"], r["variant"]),
-                             []).append(r["stage"])
+        "SELECT idc, arm, variant, stage, status FROM cells"
+        " WHERE status IN ('ok','partial','clean')"
+    ):
+        done_keys.setdefault((r["idc"], r["arm"], r["variant"]), []).append(r["stage"])
     tail = dedup.manifest_tail()
     for key in sorted(intent):
         if key not in done_keys:
@@ -517,18 +576,25 @@ def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
         if dedup.tombstoned(idx, idc, arm, variant):
             continue  # loss is already registered
         report["harvest_pending"].append(
-            {"idc": idc, "arm": arm, "variant": variant,
-             "stages": sorted(done_keys[key])})
+            {
+                "idc": idc,
+                "arm": arm,
+                "variant": variant,
+                "stages": sorted(done_keys[key]),
+            }
+        )
     if report["harvest_pending"]:
-        _note(f"harvest-pending: {len(report['harvest_pending'])} DONE "
-              "cells have no intact vault bytes (done but bytes gone)",
-              level="warn")
+        _note(
+            f"harvest-pending: {len(report['harvest_pending'])} DONE "
+            "cells have no intact vault bytes (done but bytes gone)",
+            level="warn",
+        )
 
 
 # --- duty 5: permafail tombstones -----------------------------------------------------
 
-def _sweep_permafail(idx: index.Index | None, report: dict,
-                     now: float) -> None:
+
+def _sweep_permafail(idx: index.Index | None, report: dict, now: float) -> None:
     if idx is None:
         return
     rows = idx.conn.execute(
@@ -542,7 +608,8 @@ def _sweep_permafail(idx: index.Index | None, report: dict,
         if key in pool:
             continue  # a later success already redeemed the cell
         failing = [
-            r for r in rs
+            r
+            for r in rs
             if r["status"] in dedup.ATTEMPTED_UNPAID
             and r["cat"] != "regen_gate"  # gate artifact, not an attempt
         ]
@@ -560,17 +627,28 @@ def _sweep_permafail(idx: index.Index | None, report: dict,
         status = sorted({r["status"] for r in failing})
         lost_run = failing[-1]["last_run"] or ""
         try:
-            vault.tombstone(idc, arm, variant, "cell",
-                            reason=f"permafail:{','.join(status)}",
-                            lost_run=lost_run)
-            report["tombstoned"].append({
-                "idc": idc, "arm": arm, "variant": variant,
-                "reason": f"permafail:{','.join(status)}"})
+            vault.tombstone(
+                idc,
+                arm,
+                variant,
+                "cell",
+                reason=f"permafail:{','.join(status)}",
+                lost_run=lost_run,
+            )
+            report["tombstoned"].append(
+                {
+                    "idc": idc,
+                    "arm": arm,
+                    "variant": variant,
+                    "reason": f"permafail:{','.join(status)}",
+                }
+            )
         except (vault.VaultError, ValueError) as e:
             report["errors"].append(f"permafail tombstone {key}: {e}")
 
 
 # --- entry point ----------------------------------------------------------------------
+
 
 def _sweep_seal(idx: index.Index | None, report: dict) -> None:
     """§3.10.5 ledger seal — the periodic driver for the size/age
@@ -611,14 +689,24 @@ def sweep(light: bool = False) -> dict:
     """
     report: dict = {
         "light": bool(light),
-        "zombies": [], "reaped_claims": [], "promoted": [],
-        "adopted": [], "harvest_pending": [], "tombstoned": [],
-        "meta_less": [], "lake_orphans": [], "errors": [],
-        "sealed": [], "seal_gc": [], "cas_swept": [],
+        "zombies": [],
+        "reaped_claims": [],
+        "promoted": [],
+        "adopted": [],
+        "harvest_pending": [],
+        "tombstoned": [],
+        "meta_less": [],
+        "lake_orphans": [],
+        "errors": [],
+        "sealed": [],
+        "seal_gc": [],
+        "cas_swept": [],
     }
     try:
-        with locks.flock(_sweep_lock_path(), exclusive=True, blocking=False), \
-                locks.kernel_active_hold():
+        with (
+            locks.flock(_sweep_lock_path(), exclusive=True, blocking=False),
+            locks.kernel_active_hold(),
+        ):
             now = time.time()
             idx = _open_index()
             try:
@@ -626,9 +714,7 @@ def sweep(light: bool = False) -> dict:
                 _sweep_stale_claims(idx, report)
                 if light:
                     return report
-                active = {
-                    a["run"] for a in runs.active_runs()
-                }
+                active = {a["run"] for a in runs.active_runs()}
                 _sweep_pending_metas(idx, active, report, now)
                 _sweep_vault_orphans(report, now)
                 _sweep_lake_orphans(report)

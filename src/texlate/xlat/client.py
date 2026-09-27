@@ -408,9 +408,7 @@ class ChatClient:
         """``usage`` 子帧 → ``Usage``——实现体出叶 ``_dialects._anthropic_usage``。"""
         return _anthropic_usage(u, field)
 
-    def _parse_anthropic(
-        self, payload: dict[str, Any], latency: float
-    ) -> ChatResult:
+    def _parse_anthropic(self, payload: dict[str, Any], latency: float) -> ChatResult:
         """Anthropic 200 体 → ``ChatResult``——实现体出叶 ``_dialects._parse_anthropic``。"""
         return _parse_anthropic(payload, latency, self.api_key)
 
@@ -465,13 +463,9 @@ class ChatClient:
         refusals: list[str],
     ) -> None:
         """``status``/refusal 终态闸——实现体出叶 ``_dialects._responses_status_gate``。"""
-        _responses_status_gate(
-            payload, status, content, refusals, self.api_key
-        )
+        _responses_status_gate(payload, status, content, refusals, self.api_key)
 
-    def _parse_responses(
-        self, payload: dict[str, Any], latency: float
-    ) -> ChatResult:
+    def _parse_responses(self, payload: dict[str, Any], latency: float) -> ChatResult:
         """Responses 200 体 → ``ChatResult``——实现体出叶 ``_dialects._parse_responses``。"""
         return _parse_responses(payload, latency, self.api_key)
 
@@ -786,9 +780,7 @@ class ChatClient:
         self, *, probe: bool = True, max_probe: int = 12
     ) -> list[FreeModel]:
         """免费集动态发现——实现体出叶 ``_discovery.discover_free_models``。"""
-        return await discover_free_models(
-            self, probe=probe, max_probe=max_probe
-        )
+        return await discover_free_models(self, probe=probe, max_probe=max_probe)
 
     async def fallback_candidates(self) -> list[str]:
         """免费集降级候选 uid 表——实现体出叶 ``_discovery.fallback_candidates``。"""

@@ -71,6 +71,7 @@ DELIBERATE DELTAS（对旧驱动的刻意迁移，均已核对语义）：
   与终态批量原子落）；key={model}|{paper}|{chunk}|{judge}|{proto} 的
   五元组由 (idc,arm,variant) 三键承载（proto/epoch 在 variant 前段）。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -494,9 +495,7 @@ def shape_judged(parsed: dict, pair: Pair, sig: dict) -> dict:
         "score_delta": parsed["score_delta"],
         "errors": parsed["errors"],
         "n_errors": len(parsed["errors"]),
-        "n_span_unverified": sum(
-            1 for e in parsed["errors"] if not e["span_verified"]
-        ),
+        "n_span_unverified": sum(1 for e in parsed["errors"] if not e["span_verified"]),
         "sev_counts": {
             s: sum(1 for e in parsed["errors"] if e["severity"] == s)
             for s in SEV_WEIGHT
@@ -539,9 +538,7 @@ def _judge_call(
             "chat",
             model,
             messages,
-            options=ChatOptions(
-                temperature=temperature, max_tokens=max_tokens
-            ),
+            options=ChatOptions(temperature=temperature, max_tokens=max_tokens),
         )
     except ChatError as e:
         # 梯队已尽（retryable 内部翻身用过）→ judge_error 交格级重跑；
@@ -549,8 +546,7 @@ def _judge_call(
         return {"error": f"{type(e).__name__}: {e}"[:300]}
     dt = round(time.monotonic() - t0, 2)
     if not isinstance(res, dict):
-        return {"error": f"bad_session_result:{type(res).__name__}",
-                "seconds": dt}
+        return {"error": f"bad_session_result:{type(res).__name__}", "seconds": dt}
     actual = str(res.get("model") or "")
     if actual and actual != model:
         return {
@@ -655,9 +651,7 @@ FRAMES = (
 
 
 def _iter_frame(path: Path):
-    for ln, raw_ln in enumerate(
-        path.read_text(encoding="utf-8").splitlines(), 1
-    ):
+    for ln, raw_ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw_ln.strip()
         if line:
             yield ln, json.loads(line)
@@ -684,8 +678,7 @@ def _items() -> list[dict]:
                     "arm": row["model"],
                     "up": row["up"],
                     "variant": (
-                        f"{PROTOCOL_V}@{EPOCH}|{row['judge']}|"
-                        f"{row['chunk_id']}"
+                        f"{PROTOCOL_V}@{EPOCH}|{row['judge']}|{row['chunk_id']}"
                     ),
                     "lane": stem,
                     "fp_input": str(row.get("sha") or ""),
@@ -736,9 +729,10 @@ class _Select:
         judges_p = str(rp.get("judges") or "").strip()
         if judges_p:
             want_j = {s.strip() for s in judges_p.split(",") if s.strip()}
-            if want_j and str(
-                (item.get("params") or {}).get("judge") or ""
-            ) not in want_j:
+            if (
+                want_j
+                and str((item.get("params") or {}).get("judge") or "") not in want_j
+            ):
                 return False
         n = int(rp.get("n") or 0)
         if n > 0 and self.seen >= n:
@@ -796,8 +790,7 @@ def _judge(ctx):
         ctx.emit_case(case)
         return {
             "status": "reject",
-            "errors": [{"cat": "empty_pair",
-                        "msg": "blank src/zh — nothing to judge"}],
+            "errors": [{"cat": "empty_pair", "msg": "blank src/zh — nothing to judge"}],
             "metrics": {"verdict": "empty_pair", **lead},
         }
     if str(p.get("judge") or "") == "mock-judge":
@@ -828,10 +821,12 @@ def _judge(ctx):
         ctx.emit_case(case)
         return {
             "status": "error",
-            "errors": [{
-                "cat": "judge_error",
-                "msg": str(jerr or out.get("error") or "call_failed")[:300],
-            }],
+            "errors": [
+                {
+                    "cat": "judge_error",
+                    "msg": str(jerr or out.get("error") or "call_failed")[:300],
+                }
+            ],
             "metrics": {
                 "verdict": "judge_error",
                 "judge_model_used": out.get("judge_model_used"),
@@ -870,9 +865,7 @@ def _factory():
             timeout=JUDGE_TIMEOUT,
         )
 
-    return paidmod.GatewayFactory(
-        build, prices=dict(DEFAULT_PRICES), nslots=2
-    )
+    return paidmod.GatewayFactory(build, prices=dict(DEFAULT_PRICES), nslots=2)
 
 
 spec = Spec(

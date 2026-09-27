@@ -742,6 +742,7 @@ def _fb_font_body(fam: str, ch: str) -> str:
     """
     return rf"\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi"
 
+
 #: 无参字母/符号 cs —— 文本域字形产出者, 在数学域无重音义 (\' \^ \~ 等
 #: 有数学义 = \acute \hat \tilde, 刻意不收)。cs 名 → 产出字符码位
 #: (scout-misschar math_font_chars 桶: ``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。

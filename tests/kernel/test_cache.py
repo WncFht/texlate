@@ -2,6 +2,7 @@
 accounting, flush-on-ok discipline, writable bypass, eviction, and the
 vault->cache rebuild verb.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,6 +12,8 @@ from pathlib import Path
 import pytest
 from kernel import (
     cache as cachemod,
+)
+from kernel import (
     events,
     kernel,
     paths,
@@ -18,8 +21,13 @@ from kernel import (
 )
 from kernel.spec import Spec, Stage
 
-SC = {"ok": "terminal", "error": "retriable", "skip": "retriable",
-      "fail": "terminal", "fault": "terminal"}
+SC = {
+    "ok": "terminal",
+    "error": "retriable",
+    "skip": "retriable",
+    "fail": "terminal",
+    "fault": "terminal",
+}
 
 
 def _stage(name, fn, **kw):
@@ -30,18 +38,21 @@ def _stage(name, fn, **kw):
 def _free_spec(fns, items, **kw):
     kw.setdefault("kind", "tbench")
     kw.setdefault("eval", True)
-    return Spec(stages=[_stage(n, fns[n]) for n in fns],
-                items=items, **kw)
+    return Spec(stages=[_stage(n, fns[n]) for n in fns], items=items, **kw)
 
 
 def _shard(rd) -> list[dict]:
-    return [e for _ln, e, _raw in events.iter_jsonl(rd.events_path())
-            if isinstance(e, dict)]
+    return [
+        e for _ln, e, _raw in events.iter_jsonl(rd.events_path()) if isinstance(e, dict)
+    ]
 
 
 def _cell_rows(rd, status=None):
-    return [e for e in _shard(rd)
-            if e["type"] == "cell" and (status is None or e["status"] == status)]
+    return [
+        e
+        for e in _shard(rd)
+        if e["type"] == "cell" and (status is None or e["status"] == status)
+    ]
 
 
 def _quiet(**kw):
@@ -49,8 +60,12 @@ def _quiet(**kw):
     return kw
 
 
-DIMS = {"prompt_version": "pv-test", "base_url": "http://gw.test",
-        "model": "m-test", "lang": "zh"}
+DIMS = {
+    "prompt_version": "pv-test",
+    "base_url": "http://gw.test",
+    "model": "m-test",
+    "lang": "zh",
+}
 
 
 def _key(**over):
@@ -69,7 +84,7 @@ def test_seg_cache_probe_counters(broot: Path):
     assert sc.get("k1") == "v1"
     assert sc.get("k3") is None
     with pytest.raises(KeyError):
-        sc["k3"]                      # absent getitem counts a miss too
+        sc["k3"]  # absent getitem counts a miss too
     assert sc.hits == 2 and sc.misses == 3
     sc["k4"] = "v4"
     del sc["k1"]
@@ -78,13 +93,13 @@ def test_seg_cache_probe_counters(broot: Path):
 
 def test_seg_cache_readonly_bypass(broot: Path):
     sc = cachemod.SegCache(_key(), {"k1": "v1"}, writable=False)
-    assert sc["k1"] == "v1"           # reads still work (uncounted getitem)
-    sc["k2"] = "v2"                   # store drops on the floor
+    assert sc["k1"] == "v1"  # reads still work (uncounted getitem)
+    sc["k2"] = "v2"  # store drops on the floor
     sc.setdefault("k3", "v3")
     sc.pop("k1")
     assert sc.bypassed == 3 and not sc.dirty
     assert "k1" in sc and "k2" not in sc and "k3" not in sc
-    assert sc.flush() == 0            # nothing to write
+    assert sc.flush() == 0  # nothing to write
 
 
 def test_bucket_roundtrip_and_shard_layout(broot: Path):
@@ -148,8 +163,8 @@ def test_cache_metrics_ride_terminal_row(broot: Path):
     def fn(ctx):
         sc = ctx.seg_cache(**DIMS)
         sc["seg-a"] = "甲"
-        _ = "seg-a" in sc              # hit (already stored locally)
-        _ = "seg-zzz" in sc            # miss
+        _ = "seg-a" in sc  # hit (already stored locally)
+        _ = "seg-zzz" in sc  # miss
         return "ok"
 
     spec = _free_spec({"a": fn}, [{"id": "x"}])
@@ -190,7 +205,7 @@ def test_status_and_evict(broot: Path):
         bp.parent.mkdir(parents=True, exist_ok=True)
         bp.write_text(json.dumps(payload))
     older = cachemod.bucket_path(fk1)
-    os.utime(older, (0, 0))            # force oldest mtime
+    os.utime(older, (0, 0))  # force oldest mtime
     st = cachemod.status()
     assert st["buckets"] == 2 and st["malformed"] == 0
     removed = cachemod.evict(50)
@@ -223,26 +238,41 @@ def test_rebuild_from_vault(broot: Path):
     src = "The [[MATH_3]] result holds."  # placeholder-bearing source
     zh = "[[MATH_3]] 结果成立。"
     results = [
-        {"chunk_id": "c0", "source": src, "translation": zh,
-         "status": "ok", "kind": "para"},
-        {"chunk_id": "c1", "source": "bad", "translation": "坏",
-         "status": "fault", "kind": "para"},     # non-ok never enters
+        {
+            "chunk_id": "c0",
+            "source": src,
+            "translation": zh,
+            "status": "ok",
+            "kind": "para",
+        },
+        {
+            "chunk_id": "c1",
+            "source": "bad",
+            "translation": "坏",
+            "status": "fault",
+            "kind": "para",
+        },  # non-ok never enters
     ]
     _write_state_cell("2401.00001", "swe.0", results)
     res = cachemod.rebuild_from_vault(
-        prompt_version=DIMS["prompt_version"], base_url=DIMS["base_url"],
-        model=DIMS["model"], lang="zh")
+        prompt_version=DIMS["prompt_version"],
+        base_url=DIMS["base_url"],
+        model=DIMS["model"],
+        lang="zh",
+    )
     assert res["cells"] == 1 and res["chunks"] == 1 and res["skipped"] == 1
     bp = cachemod.bucket_path(res["file_key"])
     disk = json.loads(bp.read_text())
-    ph_types = [placeholders.ph_type(p)
-                for p in placeholders.ANY_PH_RX.findall(src)]
+    ph_types = [placeholders.ph_type(p) for p in placeholders.ANY_PH_RX.findall(src)]
     want_key = segment_key(src, "para", masked_snapshot=repr(ph_types))
     assert disk == {want_key: zh}
 
     # dry mode reports but writes nothing new
     res2 = cachemod.rebuild_from_vault(
-        prompt_version="pv-other", base_url=DIMS["base_url"],
-        model=DIMS["model"], dry=True)
+        prompt_version="pv-other",
+        base_url=DIMS["base_url"],
+        model=DIMS["model"],
+        dry=True,
+    )
     assert res2["chunks"] == 1
     assert not cachemod.bucket_path(res2["file_key"]).exists()

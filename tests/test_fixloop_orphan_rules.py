@@ -241,9 +241,7 @@ def test_docstrip_unsafe_payload(tmp_path: Path) -> None:
 
 # ------------------------------------------- docstrip 兄弟产出缓存失效 (logcache 病族)
 def _docstrip(ctx: LoopCtx, payload: str) -> tuple[bool, str]:
-    return TRANSFORM_FNS["docstrip_generate"](
-        ctx, None, payload, {"drivers": ["sh"]}
-    )
+    return TRANSFORM_FNS["docstrip_generate"](ctx, None, payload, {"drivers": ["sh"]})
 
 
 def test_docstrip_sibling_outputs_invalidated(tmp_path: Path) -> None:
@@ -458,9 +456,7 @@ def test_svg_prepare_flag_dropped_falls_to_convert(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """flag 上轮被引擎 seam 拒放 (flags_dropped) → 自适应落转换臂。"""
-    monkeypatch.setattr(
-        shutil, "which", which_only("inkscape", "rsvg-convert")
-    )
+    monkeypatch.setattr(shutil, "which", which_only("inkscape", "rsvg-convert"))
     (tmp_path / "a.svg").write_bytes(b"<svg/>")
     (tmp_path / "main.tex").write_text(SVG_MAIN.replace("figs/a.svg", "a.svg"))
     ctx = mk_ctx(tmp_path, runner=_svg_conv_ok)
@@ -599,7 +595,9 @@ def test_case_link_extends_to_includepdf(tmp_path: Path) -> None:
         "\\includepdf{supp.pdf}\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, _note = TRANSFORM_FNS["graphic_case_link"](mk_ctx(tmp_path), None, "supp.pdf", {})
+    ok, _note = TRANSFORM_FNS["graphic_case_link"](
+        mk_ctx(tmp_path), None, "supp.pdf", {}
+    )
     assert ok
     assert "\\includepdf{SUPP.pdf}" in (tmp_path / "main.tex").read_text()
 

@@ -50,7 +50,11 @@ def _mk(cid: str, source: str, trans: str, status: str, **kw: object) -> ChunkRe
 
 
 def _scan_seg(
-    fmt: str, pred: Callable[[str], object], *, tries: int = 3000, label: str = "planned"
+    fmt: str,
+    pred: Callable[[str], object],
+    *,
+    tries: int = 3000,
+    label: str = "planned",
 ) -> str:
     """确定性计划扫描：``fmt`` 内 ``{i}`` 逐枚探测段，``pred`` 命中即返。"""
     for i in range(tries):

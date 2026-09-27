@@ -114,9 +114,7 @@ class AppDeps:
         try:
             model = validate_model(model_raw or auth.model)
         except ValueError as e:
-            raise _ApiError(
-                400, {"detail": str(e), "code": "invalid_request"}
-            ) from e
+            raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
         target_lang = lang_raw or str(auth.settings["target_lang"])
         if target_lang not in TARGET_LANGS:
             raise _ApiError(
@@ -245,8 +243,7 @@ class AppDeps:
         # 毒化段缓存/reuse 链是实测事故面（misc-pack §M1）。
         mock_env = env_str(ENV_TRANSLATOR) == "mock"
         explicit_mock = (
-            mock_env
-            or self.worker._translator_factory is not None  # noqa: SLF001 -- 装配注入面只读探测（同 _llm_hook_pack 判据）
+            mock_env or self.worker._translator_factory is not None  # noqa: SLF001 -- 装配注入面只读探测（同 _llm_hook_pack 判据）
         )
         idem = request.headers.get("idempotency-key") or options.get("idempotency_key")
         if idem:

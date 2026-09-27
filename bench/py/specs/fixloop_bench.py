@@ -58,6 +58,7 @@ run dedup 按 (idc,arm,up,variant,stage) 永久记忆，测量世代递进靠 bu
     bench run  fixloop_bench engines=tectonic n=4
     bench run  fixloop_bench ids=1404.7186   # 单篇双臂
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -88,8 +89,7 @@ EPOCH = "v1"
 #: corpusv2 40 篇分层样本的基线来源：import 道复原的 compilebench cells
 #: （每篇一条 records，metrics.engines{eng} 双引擎 verdict 全字段）。
 BASELINE_RUN = (
-    "import-archive-2026-09-20_results_"
-    "compilebench-corpusv2-2026-09-15_cells-recovered"
+    "import-archive-2026-09-20_results_compilebench-corpusv2-2026-09-15_cells-recovered"
 )
 
 ENGINES = ("xelatex", "tectonic")
@@ -141,8 +141,8 @@ def _baseline_rows() -> dict[str, dict]:
         return {}
     try:
         for idc, mjson in con.execute(
-                "SELECT idc, metrics FROM records WHERE run=?",
-                (BASELINE_RUN,)):
+            "SELECT idc, metrics FROM records WHERE run=?", (BASELINE_RUN,)
+        ):
             try:
                 out[str(idc)] = json.loads(mjson or "{}")
             except ValueError:
@@ -167,8 +167,11 @@ def _manifest_sha() -> dict[str, str]:
         for row in benchlib.iter_jsonl(mp):
             if not isinstance(row, dict) or not row.get("id"):
                 continue
-            sha = (row.get("blob_sha256") or row.get("main_tex_sha256")
-                   or row.get("raw_sha256"))
+            sha = (
+                row.get("blob_sha256")
+                or row.get("main_tex_sha256")
+                or row.get("raw_sha256")
+            )
             if not sha:
                 continue
             res = _canon(row["id"])
@@ -194,22 +197,24 @@ def _items() -> list[dict]:
         cid = res.idc if res.ok and res.idc else idc
         for eng in ENGINES:
             be = engines_m.get(eng) or {}
-            items.append({
-                "id": idc,
-                "arm": COND,
-                "variant": f"{eng}@{EPOCH}",
-                "fp_input": sha.get(cid) or sha.get(idc),
-                "params": {
-                    "engine": eng,
-                    "base_verdict": be.get("verdict"),
-                    "base_category": be.get("category"),
-                    "base_pdf": bool(be.get("pdf")),
-                    "band": m.get("band"),
-                    "tags": m.get("tags") or [],
-                    "yymm": m.get("yymm"),
-                    "src_run": BASELINE_RUN,
-                },
-            })
+            items.append(
+                {
+                    "id": idc,
+                    "arm": COND,
+                    "variant": f"{eng}@{EPOCH}",
+                    "fp_input": sha.get(cid) or sha.get(idc),
+                    "params": {
+                        "engine": eng,
+                        "base_verdict": be.get("verdict"),
+                        "base_category": be.get("category"),
+                        "base_pdf": bool(be.get("pdf")),
+                        "band": m.get("band"),
+                        "tags": m.get("tags") or [],
+                        "yymm": m.get("yymm"),
+                        "src_run": BASELINE_RUN,
+                    },
+                }
+            )
     return items
 
 
@@ -285,16 +290,20 @@ class _CaseBridge(CaseSink):
         self._ctx = ctx
 
     def record(self, cell, *, corpus_id=None, cond=None, engine=None):
-        rec = super().record(
-            cell, corpus_id=corpus_id, cond=cond, engine=engine)
+        rec = super().record(cell, corpus_id=corpus_id, cond=cond, engine=engine)
         self._ctx.emit_case(rec)
         return rec
 
 
 def _route_of(wdir: Path) -> dict:
     """route_project(prefer='xelatex') 记录面（旧 report() 同口径）。"""
-    out = {"engines": [], "reject": None, "reasons": [],
-           "non_utf8": False, "latex209_suspect": False}
+    out = {
+        "engines": [],
+        "reject": None,
+        "reasons": [],
+        "non_utf8": False,
+        "latex209_suspect": False,
+    }
     with contextlib.suppress(Exception):
         r = route_project(wdir, prefer="xelatex")
         out = {
@@ -330,10 +339,18 @@ def _fl_b3(ctx) -> dict:
     if src is None:
         # 湖格无载荷（skeleton/未水化）——旧 no_source 桩行的诚实替代：
         # retriable skip，湖补水后 resume 自然开跑。
-        ctx.emit({"metrics": {
-            "engine": eng_name, "cond": COND, "verdict": "no_source",
-            "tier": _tier_of("no_source"), **base, **meta,
-        }})
+        ctx.emit(
+            {
+                "metrics": {
+                    "engine": eng_name,
+                    "cond": COND,
+                    "verdict": "no_source",
+                    "tier": _tier_of("no_source"),
+                    **base,
+                    **meta,
+                }
+            }
+        )
         return "skip"
 
     ws = ctx.workspace()
@@ -343,9 +360,12 @@ def _fl_b3(ctx) -> dict:
     try:
         n_copied = fsutil.copy_mutating(src, wdir)
     except (OSError, ValueError) as e:
-        ctx.emit({"errors": [{"cat": "project_io",
-                              "msg": f"copy_mutating: {e}"}],
-                  "metrics": {"engine": eng_name, **base, **meta}})
+        ctx.emit(
+            {
+                "errors": [{"cat": "project_io", "msg": f"copy_mutating: {e}"}],
+                "metrics": {"engine": eng_name, **base, **meta},
+            }
+        )
         return "error"
 
     texmf = ctx.paper_dir() / "_texmf"
@@ -366,23 +386,32 @@ def _fl_b3(ctx) -> dict:
             case_sink=_CaseBridge(ctx),
             compile_timeout=(
                 float(ctx.params["timeout"]) or None
-                if float(ctx.params.get("timeout") or 0) > 0 else None),
+                if float(ctx.params.get("timeout") or 0) > 0
+                else None
+            ),
         )
     except Exception as e:
         # fault(terminal)：旧世 fut.result() 崩丢格的缺陷修正——分母保格。
         return {
             "status": "fault",
-            "errors": [{"cat": "harness_crash",
-                        "payload": type(e).__name__,
-                        "msg": str(e)[:400]}],
+            "errors": [
+                {
+                    "cat": "harness_crash",
+                    "payload": type(e).__name__,
+                    "msg": str(e)[:400],
+                }
+            ],
             "metrics": {
-                "engine": eng_name, "cond": COND,
+                "engine": eng_name,
+                "cond": COND,
                 "verdict": f"harness_crash:{type(e).__name__}",
-                "tier": "fail", "final_pdf": False,
+                "tier": "fail",
+                "final_pdf": False,
                 "wall_s": round(time.time() - t0, 1),
                 "n_copied": n_copied,
                 "route": _route_of(wdir),
-                **base, **meta,
+                **base,
+                **meta,
             },
         }
 
@@ -390,15 +419,21 @@ def _fl_b3(ctx) -> dict:
     tier = _tier_of(verdict)
     bv = base["base_verdict"]
     rounds = [
-        {"round": r.get("round"), "cat": r.get("category"),
-         "pdf": r.get("pdf"), "n_errors": r.get("n_errors")}
+        {
+            "round": r.get("round"),
+            "cat": r.get("category"),
+            "pdf": r.get("pdf"),
+            "n_errors": r.get("n_errors"),
+        }
         for r in cell.get("rounds") or []
     ]
     return {
         "status": "ok",
         "metrics": {
-            "engine": eng_name, "cond": COND,
-            "verdict": verdict, "tier": tier,
+            "engine": eng_name,
+            "cond": COND,
+            "verdict": verdict,
+            "tier": tier,
             "final_cat": cell.get("final_cat"),
             "main": cell.get("main"),
             "final_pdf": bool(cell.get("final_pdf")),
@@ -413,9 +448,9 @@ def _fl_b3(ctx) -> dict:
             # 救回率逐格布尔（聚合动词直接 sum）：
             "rescued_pdf": bv == "FAIL" and verdict in PDFY,
             "rescued_good": bv == "FAIL" and verdict in GOOD,
-            "regression": verdict not in PDFY
-            and bv in ("clean", "pdf~"),
-            **base, **meta,
+            "regression": verdict not in PDFY and bv in ("clean", "pdf~"),
+            **base,
+            **meta,
         },
     }
 

@@ -5,16 +5,15 @@ semantics, (run_seq,seq) replay vs conflict-quarantine, sealed oracle
 fail-closed behavior, paid_pool / vault_bytes_ok / active_claims
 projections, and rebuild refusal while the kernel is active.
 """
+
 from __future__ import annotations
 
 import fcntl
 import json
 import os
 import sqlite3
-from pathlib import Path
 
 import pytest
-
 from kernel import events, paths
 from kernel.index import Index, ingest_runless, rebuild_index
 
@@ -39,37 +38,77 @@ def _append(evs) -> int:
 
 def _run(run="r1", run_seq=1, **kw):
     return events.make_event(
-        events.T_RUN_REGISTERED, run=run, run_seq=run_seq, kind="xlat",
-        date="2026-09-21", slug=run, spec_hash="abc", ts_start=1.0, **kw)
+        events.T_RUN_REGISTERED,
+        run=run,
+        run_seq=run_seq,
+        kind="xlat",
+        date="2026-09-21",
+        slug=run,
+        spec_hash="abc",
+        ts_start=1.0,
+        **kw,
+    )
 
 
 def _queued(seq, run="r1", idc=IDC, stage="xlat", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_CELL_QUEUED, run=run, seq=seq, idc=idc, arm="zh", up="-",
-        variant="-", stage=stage, needs=[], fp_input="fp0", **kw)
+        events.T_CELL_QUEUED,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage=stage,
+        needs=[],
+        fp_input="fp0",
+        **kw,
+    )
 
 
 def _started(seq, run="r1", idc=IDC, stage="xlat", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_CELL_STARTED, run=run, seq=seq, idc=idc, arm="zh", up="-",
-        variant="-", stage=stage, claim_id="c1", attempt=1, **kw)
+        events.T_CELL_STARTED,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage=stage,
+        claim_id="c1",
+        attempt=1,
+        **kw,
+    )
 
 
 def _cell(seq, run="r1", idc=IDC, status="ok", stage="xlat", arm="zh", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_CELL, run=run, seq=seq, idc=idc, arm=arm, up="-",
-        variant="-", stage=stage, status=status, dur_s=1.5, sig="cat:pay",
-        code="deadbeef", fp="fp1", **kw)
+        events.T_CELL,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm=arm,
+        up="-",
+        variant="-",
+        stage=stage,
+        status=status,
+        dur_s=1.5,
+        sig="cat:pay",
+        code="deadbeef",
+        fp="fp1",
+        **kw,
+    )
 
 
 def _claim(seq, op, run="r1", idc=IDC, slot=None, **kw):
     kw.setdefault("id", idc)
     ev = events.make_event(
-        events.T_CLAIM, run=run, seq=seq, idc=idc, arm="zh", variant="-",
-        op=op, **kw)
+        events.T_CLAIM, run=run, seq=seq, idc=idc, arm="zh", variant="-", op=op, **kw
+    )
     if slot is not None:
         ev["slot"] = slot
     return ev
@@ -78,16 +117,33 @@ def _claim(seq, op, run="r1", idc=IDC, slot=None, **kw):
 def _asset(seq, idc=IDC, kind="zh", state="verified", run="r1", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_ASSET, run=run, seq=seq, idc=idc, arm="zh", variant="-",
-        kind=kind, path=f"vault/{kind}/{idc}", sha="sha1", bytes=123,
-        state=state, **kw)
+        events.T_ASSET,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm="zh",
+        variant="-",
+        kind=kind,
+        path=f"vault/{kind}/{idc}",
+        sha="sha1",
+        bytes=123,
+        state=state,
+        **kw,
+    )
 
 
 def _tombstone(idc=IDC, kind="zh", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_TOMBSTONE, idc=idc, arm="zh", variant="-", kind=kind,
-        reason="lost bytes", lost_run="r0", **kw)
+        events.T_TOMBSTONE,
+        idc=idc,
+        arm="zh",
+        variant="-",
+        kind=kind,
+        reason="lost bytes",
+        lost_run="r0",
+        **kw,
+    )
 
 
 def _count(idx, table):
@@ -100,17 +156,24 @@ def _count(idx, table):
 def test_rebuild_equivalence_all_types(broot):
     evs = [
         _run(),
-        _queued(1), _started(2), _cell(3, status="ok"),
-        _claim(4, "acquire", slot="s0"), _claim(5, "release", slot="s0"),
+        _queued(1),
+        _started(2),
+        _cell(3, status="ok"),
+        _claim(4, "acquire", slot="s0"),
+        _claim(5, "release", slot="s0"),
         _claim(6, "acquire", idc=IDC2),
         _asset(7, state="verified"),
         _tombstone(idc=IDC2),
-        events.make_event(events.T_NOTE, run="r1", seq=8, text="hi",
-                          level="info"),
-        events.make_event(events.T_FINISHED, run="r1", seq=9, wall_s=2.0,
-                          counts={"ok": 1}, cost_usd=0.01),
-        events.make_event(events.T_LAKE_CELL, id=IDC, idc=IDC,
-                          state="hydrated"),
+        events.make_event(events.T_NOTE, run="r1", seq=8, text="hi", level="info"),
+        events.make_event(
+            events.T_FINISHED,
+            run="r1",
+            seq=9,
+            wall_s=2.0,
+            counts={"ok": 1},
+            cost_usd=0.01,
+        ),
+        events.make_event(events.T_LAKE_CELL, id=IDC, idc=IDC, state="hydrated"),
     ]
     size = _append(evs)
     idx = Index()
@@ -178,7 +241,8 @@ def test_rebuild_refused_when_kernel_active(broot):
     hold_fd = None
     ctx = None
     try:
-        from kernel import locks  # noqa: F401
+        from kernel import locks
+
         hold = getattr(locks, "kernel_active_hold", None)
     except ImportError:
         hold = None
@@ -188,8 +252,7 @@ def test_rebuild_refused_when_kernel_active(broot):
     else:
         # Fallback: the authoritative liveness proof is an flock on the
         # .kernel-active sentinel — hold it like the kernel would.
-        hold_fd = os.open(paths.kernel_active_path(),
-                          os.O_CREAT | os.O_RDWR)
+        hold_fd = os.open(paths.kernel_active_path(), os.O_CREAT | os.O_RDWR)
         fcntl.flock(hold_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
         with pytest.raises(RuntimeError):
@@ -312,8 +375,8 @@ def test_runless_events_dedup_by_payload(broot):
     assert ingest_runless(tomb, idx) == "applied"
     assert ingest_runless(tomb, idx) == "replay"
     row = idx.conn.execute(
-        "SELECT run_seq FROM events WHERE payload_sha=?",
-        (events.content_hash(tomb),)).fetchone()
+        "SELECT run_seq FROM events WHERE payload_sha=?", (events.content_hash(tomb),)
+    ).fetchone()
     assert row["run_seq"] == -1
     assert _count(idx, "events") == 1
     idx.close()
@@ -326,8 +389,7 @@ def test_run_seq_resolved_via_runs_table(broot):
     ev = _cell(3, run="r7")
     ev.pop("run_seq", None)
     assert idx.apply_event(ev) == "applied"
-    row = idx.conn.execute(
-        "SELECT run_seq FROM events WHERE seq=3").fetchone()
+    row = idx.conn.execute("SELECT run_seq FROM events WHERE seq=3").fetchone()
     assert row["run_seq"] == 7
     idx.close()
 
@@ -341,17 +403,17 @@ def test_check_sealed_fail_closed(broot):
     idx.rebuild()
     gen, wm = idx.sealed_state()
     assert idx.check_sealed(gen, wm)
-    assert not idx.check_sealed(gen, wm + 1)      # stale watermark → refuse
-    assert not idx.check_sealed(gen + 1, 0)       # wrong gen → refuse
+    assert not idx.check_sealed(gen, wm + 1)  # stale watermark → refuse
+    assert not idx.check_sealed(gen + 1, 0)  # wrong gen → refuse
     assert not idx.check_sealed(gen - 1, 0)
     idx.note_dirty("test")
     assert idx.dirty()
-    assert not idx.check_sealed(gen, wm)          # dirty flag → refuse
+    assert not idx.check_sealed(gen, wm)  # dirty flag → refuse
     idx.rebuild()
-    assert not idx.dirty()                        # rebuild clears flag
+    assert not idx.dirty()  # rebuild clears flag
     gen2, _ = idx.sealed_state()
     assert gen2 == gen + 1
-    assert not idx.check_sealed(gen, wm)          # old snapshot gen refused
+    assert not idx.check_sealed(gen, wm)  # old snapshot gen refused
     assert idx.check_sealed(gen2, wm)
     idx.close()
 
@@ -364,7 +426,7 @@ def test_check_sealed_needs_ingest_first(broot):
     idx.rebuild()
     gen, wm = idx.sealed_state()
     n = _append([_cell(2, idc=IDC2)])
-    assert not idx.check_sealed(gen, wm + n)      # not yet ingested
+    assert not idx.check_sealed(gen, wm + n)  # not yet ingested
     idx.tail_ingest()
     assert idx.check_sealed(gen, wm + n)
     idx.close()
@@ -374,17 +436,19 @@ def test_check_sealed_needs_ingest_first(broot):
 
 
 def test_paid_pool_only_ok_partial(broot):
-    _append([
-        _cell(1, idc="a/1", status="ok"),
-        _cell(2, idc="a/2", status="partial"),
-        _cell(3, idc="a/3", status="fail"),
-        _cell(4, idc="a/4", status="reject"),
-        _cell(5, idc="a/5", status="error"),   # retriable — not terminal
-    ])
+    _append(
+        [
+            _cell(1, idc="a/1", status="ok"),
+            _cell(2, idc="a/2", status="partial"),
+            _cell(3, idc="a/3", status="fail"),
+            _cell(4, idc="a/4", status="reject"),
+            _cell(5, idc="a/5", status="error"),  # retriable — not terminal
+        ]
+    )
     idx = Index()
     idx.rebuild()
     assert idx.paid_pool() == {("a/1", "zh", "-"), ("a/2", "zh", "-")}
-    assert idx.done("a/3", "zh", "-", "-", "xlat")      # fail is terminal
+    assert idx.done("a/3", "zh", "-", "-", "xlat")  # fail is terminal
     assert not idx.done("a/5", "zh", "-", "-", "xlat")  # error is retriable
     idx.close()
 
@@ -416,13 +480,15 @@ def test_kernel_statuses_are_terminal(broot):
 
 
 def test_active_claims_last_op_wins(broot):
-    _append([
-        _claim(1, "acquire", idc="a/1"),
-        _claim(2, "acquire", idc="a/2"),
-        _claim(3, "release", idc="a/1"),
-        _claim(4, "acquire", idc="a/3"),
-        _claim(5, "reap", idc="a/3"),
-    ])
+    _append(
+        [
+            _claim(1, "acquire", idc="a/1"),
+            _claim(2, "acquire", idc="a/2"),
+            _claim(3, "release", idc="a/1"),
+            _claim(4, "acquire", idc="a/3"),
+            _claim(5, "reap", idc="a/3"),
+        ]
+    )
     idx = Index()
     idx.rebuild()
     assert idx.active_claims() == {("a/2", "zh", "-")}
@@ -430,11 +496,13 @@ def test_active_claims_last_op_wins(broot):
 
 
 def test_paid_slots_follow_slot_ops(broot):
-    _append([
-        _claim(1, "acquire", idc="a/1", slot="s0"),
-        _claim(2, "acquire", idc="a/2", slot="s1"),
-        _claim(3, "release", idc="a/1", slot="s0"),
-    ])
+    _append(
+        [
+            _claim(1, "acquire", idc="a/1", slot="s0"),
+            _claim(2, "acquire", idc="a/2", slot="s1"),
+            _claim(3, "release", idc="a/1", slot="s0"),
+        ]
+    )
     idx = Index()
     idx.rebuild()
     rows = idx.conn.execute("SELECT slot, idc FROM paid_slots").fetchall()
@@ -443,18 +511,20 @@ def test_paid_slots_follow_slot_ops(broot):
 
 
 def test_vault_bytes_ok_lifecycle(broot):
-    _append([
-        _asset(1, idc="a/1", state="verified"),
-        _asset(2, idc="a/2", state="pending"),
-        _asset(3, idc="a/3", state="staged"),
-        _tombstone(idc="a/1"),   # verified → lost: must leave the ok set
-    ])
+    _append(
+        [
+            _asset(1, idc="a/1", state="verified"),
+            _asset(2, idc="a/2", state="pending"),
+            _asset(3, idc="a/3", state="staged"),
+            _tombstone(idc="a/1"),  # verified → lost: must leave the ok set
+        ]
+    )
     idx = Index()
     idx.rebuild()
     ok = idx.vault_bytes_ok()
-    assert ("a/1", "zh", "-") not in ok      # tombstoned
-    assert ("a/2", "zh", "-") not in ok      # pending = treated as no-bytes
-    assert ("a/3", "zh", "-") not in ok      # staged pending likewise
+    assert ("a/1", "zh", "-") not in ok  # tombstoned
+    assert ("a/2", "zh", "-") not in ok  # pending = treated as no-bytes
+    assert ("a/3", "zh", "-") not in ok  # staged pending likewise
     # an explicit primary verdict lands bytes-ok
     idx.apply_event(_asset(4, idc="a/4", state="verified", verdict="primary"))
     assert ("a/4", "zh", "-") in idx.vault_bytes_ok()
@@ -470,9 +540,9 @@ def test_eval_records_routing(broot):
     idx.apply_event(tagged)
     assert _count(idx, "records") == 3
     rows = idx.conn.execute(
-        "SELECT stage, idc FROM eval_records ORDER BY seq").fetchall()
-    assert [(r["stage"], r["idc"]) for r in rows] == [
-        ("score", IDC2), ("other", "a/9")]
+        "SELECT stage, idc FROM eval_records ORDER BY seq"
+    ).fetchall()
+    assert [(r["stage"], r["idc"]) for r in rows] == [("score", IDC2), ("other", "a/9")]
     idx.close()
 
 
@@ -492,7 +562,7 @@ def test_bad_line_counted_not_fatal(broot):
     with open(p, "a", encoding="utf-8") as f:
         f.write(events.dumps(_cell(1)) + "\n")
         f.write("{this is not json\n")
-        f.write("42\n")      # valid JSON, wrong shape — also a bad line
+        f.write("42\n")  # valid JSON, wrong shape — also a bad line
         f.write("null\n")
         f.write(events.dumps(_cell(2, idc=IDC2)) + "\n")
     idx = Index()
@@ -526,14 +596,13 @@ def test_ingest_runless_default_index(broot):
     assert ingest_runless(tomb) == "applied"
     idx = Index()
     row = idx.conn.execute(
-        "SELECT run_seq FROM events WHERE payload_sha=?",
-        (events.content_hash(tomb),)).fetchone()
+        "SELECT run_seq FROM events WHERE payload_sha=?", (events.content_hash(tomb),)
+    ).fetchone()
     assert row["run_seq"] == -1
     # and the same tombstone replayed via the ledger dedups on rebuild
     _append([tomb])
     idx.rebuild()
     # tombstone projected into vault_meta on both paths
-    vm = idx.conn.execute(
-        "SELECT verdict FROM vault_meta WHERE idc='a/7'").fetchone()
+    vm = idx.conn.execute("SELECT verdict FROM vault_meta WHERE idc='a/7'").fetchone()
     assert vm["verdict"] == "tombstone"
     idx.close()

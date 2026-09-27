@@ -85,14 +85,17 @@ def _cc_scan(img) -> tuple[float, int]:
                 bx0, by0 = min(bx0, x), min(by0, y)
                 bx1, by1 = max(bx1, x), max(by1, y)
                 for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-                    if 0 <= nx < w and 0 <= ny < h and dark[ny][nx] \
-                            and not seen[ny][nx]:
+                    if (
+                        0 <= nx < w
+                        and 0 <= ny < h
+                        and dark[ny][nx]
+                        and not seen[ny][nx]
+                    ):
                         seen[ny][nx] = True
                         q.append((nx, ny))
             best = max(best, n)
             bw, bh = bx1 - bx0 + 1, by1 - by0 + 1
-            if not (4 <= bw <= 40 and 4 <= bh <= 40
-                    and 0.4 <= bw / bh <= 2.5):
+            if not (4 <= bw <= 40 and 4 <= bh <= 40 and 0.4 <= bw / bh <= 2.5):
                 continue
             cellset = set(cells)
             top = sum(1 for x in range(bx0, bx1 + 1) if (x, by0) in cellset)
@@ -105,9 +108,14 @@ def _cc_scan(img) -> tuple[float, int]:
                     inner += 1
                     if (x, y) in cellset:
                         inner_ink += 1
-            if top >= bw * 0.7 and bot >= bw * 0.7 \
-                    and lft >= bh * 0.7 and rgt >= bh * 0.7 \
-                    and inner and inner_ink / inner <= 0.15:
+            if (
+                top >= bw * 0.7
+                and bot >= bw * 0.7
+                and lft >= bh * 0.7
+                and rgt >= bh * 0.7
+                and inner
+                and inner_ink / inner <= 0.15
+            ):
                 tofu += 1
     return best / max(w * h, 1), tofu
 
@@ -197,10 +205,13 @@ def _void_frac(img) -> tuple[float, float]:
                 n += 1
                 if x == 0 or y == 0 or x == nc - 1 or y == nr - 1:
                     touches = True
-                for nx, ny in ((x + 1, y), (x - 1, y),
-                               (x, y + 1), (x, y - 1)):
-                    if 0 <= nx < nc and 0 <= ny < nr \
-                            and white[ny][nx] and not seen[ny][nx]:
+                for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if (
+                        0 <= nx < nc
+                        and 0 <= ny < nr
+                        and white[ny][nx]
+                        and not seen[ny][nx]
+                    ):
                         seen[ny][nx] = True
                         q.append((nx, ny))
             if not touches:
@@ -234,8 +245,7 @@ def _columns(img) -> int:
         ink_thr = peak * 0.08
         inked = [x for x in range(x0, x1) if proj[x] >= ink_thr]
         ink_px = sum(proj)
-        if len(inked) < w * 0.05 \
-                or ink_px < (x1 - x0) * (by1 - by0) * 0.005:
+        if len(inked) < w * 0.05 or ink_px < (x1 - x0) * (by1 - by0) * 0.005:
             continue  # 稀疏带——词间空隙会伪充栏沟
         lo, hi = inked[0], inked[-1]
         valleys = 0
@@ -285,10 +295,22 @@ def main() -> int:
                 prefix = str(Path(td) / "pg")
                 try:
                     r = subprocess.run(
-                        [_PDFTOPPM, "-gray", "-r", dpi, "-png",
-                         "-f", str(lo), "-l", str(hi),
-                         pdf.name, prefix],
-                        cwd=pdf.parent, capture_output=True, timeout=180,
+                        [
+                            _PDFTOPPM,
+                            "-gray",
+                            "-r",
+                            dpi,
+                            "-png",
+                            "-f",
+                            str(lo),
+                            "-l",
+                            str(hi),
+                            pdf.name,
+                            prefix,
+                        ],
+                        cwd=pdf.parent,
+                        capture_output=True,
+                        timeout=180,
                     )
                 except (OSError, subprocess.TimeoutExpired):
                     continue
@@ -314,9 +336,10 @@ def main() -> int:
         prefix = str(Path(td) / "pg")
         try:
             r = subprocess.run(
-                [_PDFTOPPM, "-gray", "-r", dpi, "-png",
-                 pdf.name, prefix],
-                cwd=pdf.parent, capture_output=True, timeout=180,
+                [_PDFTOPPM, "-gray", "-r", dpi, "-png", pdf.name, prefix],
+                cwd=pdf.parent,
+                capture_output=True,
+                timeout=180,
             )
         except (OSError, subprocess.TimeoutExpired) as e:
             print(json.dumps({"error": f"pdftoppm:{e}"}))
@@ -332,16 +355,19 @@ def main() -> int:
             w, h = img.size
             vf, vi = _void_frac(img)
             dark, tofu = _cc_scan(img)
-            out["pages"].append({
-                "w": w, "h": h,
-                "ink": round(_ink_frac(img), 4),
-                "dark_cc": round(dark, 4),
-                "tofu": tofu,
-                "rules": _rules(img),
-                "void_frac": round(vf, 4),
-                "void_int": round(vi, 4),
-                "cols": _columns(img),
-            })
+            out["pages"].append(
+                {
+                    "w": w,
+                    "h": h,
+                    "ink": round(_ink_frac(img), 4),
+                    "dark_cc": round(dark, 4),
+                    "tofu": tofu,
+                    "rules": _rules(img),
+                    "void_frac": round(vf, 4),
+                    "void_int": round(vi, 4),
+                    "cols": _columns(img),
+                }
+            )
     print(json.dumps(out))
     return 0
 

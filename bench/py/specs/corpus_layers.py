@@ -38,6 +38,7 @@ plan→scan→extract→qc，recent 正交臂（needs=[]，ids_file 闸）声明
   ``{"status":"error","errors":[{cat:"budget"}]}`` retriable 续跑（corpus_hot
   同口径——DONE 态跨 run dedup 会把截尾误记完成，error 是唯一可续跑词）。
 """
+
 from __future__ import annotations
 
 import csv
@@ -57,9 +58,7 @@ from pathlib import Path
 # corpus_expand/_corpus_common 同款自举；TEXLATE_SRC 冻结快照语义一致。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import index as indexmod
@@ -280,9 +279,7 @@ def _candidate_items(d: dict, profile: dict) -> dict[str, list[dict]]:
     """{band: [item…]} 未扫候选；holdout 剖面额外剔除 core 簇月。"""
     done = _scanned_items(d)
     excl = (
-        set(cc.yymm2cluster(d["frame"]))
-        if profile["exclude_cluster_months"]
-        else set()
+        set(cc.yymm2cluster(d["frame"])) if profile["exclude_cluster_months"] else set()
     )
     out: dict[str, list[dict]] = defaultdict(list)
     with (d["frame"] / "item-index.csv").open(newline="") as fh:
@@ -414,18 +411,14 @@ def _plan(ctx):
             weights[cell] = n * (1 + bias * (rel - 1))
         quotas = cc.largest_remainder(weights, target)
     else:  # flat——core cell 配比直扩
-        quotas = cc.largest_remainder(
-            {c: float(n) for c, n in cell_n.items()}, target
-        )
+        quotas = cc.largest_remainder({c: float(n) for c, n in cell_n.items()}, target)
     cands = _candidate_items(d, profile)
     picked: list[dict] = []
     if profile["quota"] == "flags":
         # 矿层 item 量按旗标密度估算：deadpkg/2.09 在旧档占比高，按总目标放大
         n_items = max(4, math.ceil(target * POOL_MARGIN / YIELD_PER_CHUNK))
         for band in sorted(cands):
-            per_band = math.ceil(
-                n_items * _FLAG_BAND_FRAC.get(band[0], 0.0)
-            )
+            per_band = math.ceil(n_items * _FLAG_BAND_FRAC.get(band[0], 0.0))
             picked.extend(_order_items(cands[band], set())[:per_band])
     else:
         band_q = Counter()
@@ -494,9 +487,7 @@ def _scan(ctx):
     limit = int(ctx.params.get("limit") or 0)
     if limit:
         items = items[:limit]
-    errs = cc.scan_batch(
-        items, d["dirs"], int(ctx.params["jobs"]), tag=f"[{layer}]"
-    )
+    errs = cc.scan_batch(items, d["dirs"], int(ctx.params["jobs"]), tag=f"[{layer}]")
     ctx.emit(
         {
             "metric": "layers_scan",
@@ -518,9 +509,7 @@ def _load_pool(ctx, d: dict, profile: dict) -> dict[str, dict]:
     """本层 features → {canon_id: rec}（eligible + 月份闸 + 全库去重）。"""
     excl = cc.existing_ids(d["corpus"])
     excl_months = (
-        set(cc.yymm2cluster(d["frame"]))
-        if profile["exclude_cluster_months"]
-        else set()
+        set(cc.yymm2cluster(d["frame"])) if profile["exclude_cluster_months"] else set()
     )
     cand: dict[str, dict] = {}
     for fp in sorted(d["dirs"].features.glob("*.jsonl")):
@@ -609,9 +598,7 @@ def _select_flags(ctx, d: dict, profile: dict) -> tuple[list[dict], dict] | None
     stats = {}
     for flag, q in FLAG_QUOTAS:
         pool = [
-            f
-            for pid, f in cand.items()
-            if pid not in picked and _flag_hit(f, flag)
+            f for pid, f in cand.items() if pid not in picked and _flag_hit(f, flag)
         ]
         rng.shuffle(pool)
         take = pool[:q]
@@ -629,8 +616,7 @@ def _select_flags(ctx, d: dict, profile: dict) -> tuple[list[dict], dict] | None
         old_pool = [
             f
             for pid, f in cand.items()
-            if pid not in picked
-            and (f.get("band") or "z") <= _FAILMINE_FILL_CAP
+            if pid not in picked and (f.get("band") or "z") <= _FAILMINE_FILL_CAP
         ]
         rng.shuffle(old_pool)
         for f in old_pool[:shortfall]:
@@ -647,6 +633,7 @@ def _select_flags(ctx, d: dict, profile: dict) -> tuple[list[dict], dict] | None
 
 def _member_fetch_fn(rec: dict, old_tars: dict, offs: dict, layer: str, prefix: str):
     """lake.hydrate fetch_fn：blob 回取 → sha 复核 → stage 物化 + meta。"""
+
     def fn(idc, stage):
         blob = cc.fetch_blob(rec, old_tars, offs)
         sha = hashlib.sha256(blob).hexdigest()
@@ -697,18 +684,10 @@ def _extract(ctx):
     d["lwd"].mkdir(parents=True, exist_ok=True)
     cc.atomic_write_text(d["select_stats"], json.dumps(stats, indent=1))
     manifest = d["manifest"]
-    done = {
-        cc.canon_id(str(r["id"]))
-        for r in cc.read_jsonl(manifest)
-        if r.get("id")
-    }
+    done = {cc.canon_id(str(r["id"])) for r in cc.read_jsonl(manifest) if r.get("id")}
     if ctx.params.get("topup"):
-        have = Counter(
-            r.get("stratum_cell") for r in cc.read_jsonl(manifest)
-        )
-        need = {
-            c: s.get("quota", 0) - have.get(c, 0) for c, s in stats.items()
-        }
+        have = Counter(r.get("stratum_cell") for r in cc.read_jsonl(manifest))
+        need = {c: s.get("quota", 0) - have.get(c, 0) for c, s in stats.items()}
         keep: list[dict] = []
         for rec in sel:
             if cc.canon_id(str(rec["id"])) in done:
@@ -739,9 +718,7 @@ def _extract(ctx):
     todo = [r for r in sel if cc.canon_id(str(r["id"])) not in done]
     chunks = cc.load_chunks(d["v3"])
     old_items = {c["item"] for c in chunks}
-    tag_of_item = {
-        c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks
-    }
+    tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
     need_items = {r["item"] for r in todo}
     old_tars = {
         it: d["v3"] / "tars" / f"{it}.tar"
@@ -749,9 +726,7 @@ def _extract(ctx):
         if (d["v3"] / "tars" / f"{it}.tar").exists()
     }
     offs = {
-        it: cc.offsets_for(
-            it, d["dirs"].members, tag_of_item, d["v3"] / "members"
-        )
+        it: cc.offsets_for(it, d["dirs"].members, tag_of_item, d["v3"] / "members")
         for it in need_items
     }
     n0 = len(todo)
@@ -762,9 +737,10 @@ def _extract(ctx):
     n_ok = n_err = 0
     prefix = profile["cluster_prefix"]
     jobs = max(1, int(ctx.params["jobs"]))
-    with manifest.open("a", encoding="utf-8") as mfh, ThreadPoolExecutor(
-        max_workers=jobs
-    ) as ex:
+    with (
+        manifest.open("a", encoding="utf-8") as mfh,
+        ThreadPoolExecutor(max_workers=jobs) as ex,
+    ):
         futs = {
             ex.submit(
                 lake.hydrate,
@@ -781,9 +757,7 @@ def _extract(ctx):
             try:
                 cell = fut.result()
                 if lake.is_complete(pid, source=rec["channel"]):
-                    row = cc.manifest_row_from_meta(
-                        None, cell, default_layer=layer
-                    )
+                    row = cc.manifest_row_from_meta(None, cell, default_layer=layer)
                     if row is not None:
                         mfh.write(json.dumps(row, ensure_ascii=False) + "\n")
                         mfh.flush()
@@ -947,11 +921,7 @@ def _recent(ctx):
     day_budget = int(ctx.params["day_budget"])
     man = d["manifest"]
     done_ids = (
-        {
-            cc.canon_id(str(r["id"]))
-            for r in cc.iter_jsonl(man)
-            if r.get("id")
-        }
+        {cc.canon_id(str(r["id"])) for r in cc.iter_jsonl(man) if r.get("id")}
         if man.exists()
         else set()
     )
@@ -965,9 +935,7 @@ def _recent(ctx):
     run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
     n_new = n_ok = n_skip = n_err = 0
     truncated: dict | None = None
-    with Fetcher(limiter=limiter) as fetcher, man.open(
-        "a", encoding="utf-8"
-    ) as mf:
+    with Fetcher(limiter=limiter) as fetcher, man.open("a", encoding="utf-8") as mf:
         cache = SourceCache(Path.home() / ".cache" / "texlate" / "src")
         for cand in cands:
             pid = str(cand["id"])
@@ -987,9 +955,7 @@ def _recent(ctx):
                 if meta.get("layer") == layer and lake.is_complete(
                     pid, source="arxiv_eprint"
                 ):
-                    row = cc.manifest_row_from_meta(
-                        None, cell, default_layer=layer
-                    )
+                    row = cc.manifest_row_from_meta(None, cell, default_layer=layer)
                     if row is not None:
                         mf.write(json.dumps(row, ensure_ascii=False) + "\n")
                         mf.flush()
@@ -1007,16 +973,12 @@ def _recent(ctx):
             try:
                 lake.hydrate(
                     pid,
-                    _eprint_fetch_fn(
-                        pid, cand, prefix, layer, fetcher, cache, holder
-                    ),
+                    _eprint_fetch_fn(pid, cand, prefix, layer, fetcher, cache, holder),
                     "arxiv_eprint",
                     run_seq,
                 )
             except _HaltFetch as hb:
-                cc.append_jsonl(
-                    d["recent_fail"], {"id": pid, "status": str(hb)}
-                )
+                cc.append_jsonl(d["recent_fail"], {"id": pid, "status": str(hb)})
                 if holder.get("fetched"):
                     n_new += 1
                 truncated = {
@@ -1026,9 +988,7 @@ def _recent(ctx):
                 n_err += 1
                 break
             except _TransientMiss as tm:
-                cc.append_jsonl(
-                    d["recent_fail"], {"id": pid, "status": str(tm)}
-                )
+                cc.append_jsonl(d["recent_fail"], {"id": pid, "status": str(tm)})
                 if holder.get("fetched"):
                     n_new += 1
                 n_skip += 1
@@ -1042,17 +1002,14 @@ def _recent(ctx):
                 )
                 truncated = {
                     "cat": "exception",
-                    "msg": f"{pid} acquire raised "
-                    f"{type(e).__name__}: {e} — 停批续跑",
+                    "msg": f"{pid} acquire raised {type(e).__name__}: {e} — 停批续跑",
                 }
                 n_err += 1
                 break
             if holder.get("fetched"):
                 n_new += 1
             if lake.is_complete(pid, source="arxiv_eprint"):
-                row = cc.manifest_row_from_meta(
-                    None, cell, default_layer=layer
-                )
+                row = cc.manifest_row_from_meta(None, cell, default_layer=layer)
                 if row is not None:
                     mf.write(json.dumps(row, ensure_ascii=False) + "\n")
                     mf.flush()
@@ -1065,17 +1022,13 @@ def _recent(ctx):
                     d["recent_fail"],
                     {
                         "id": pid,
-                        "status": (
-                            res.status.value if res is not None else "empty"
-                        ),
+                        "status": (res.status.value if res is not None else "empty"),
                         "detail": getattr(res, "detail", "") if res else "",
                         "permanent": holder.get("permanent"),
                     },
                 )
                 n_skip += 1
-    remaining = sum(
-        1 for c in cands if cc.canon_id(str(c["id"])) not in done_ids
-    )
+    remaining = sum(1 for c in cands if cc.canon_id(str(c["id"])) not in done_ids)
     ctx.emit(
         {
             "metric": "layers_recent",
@@ -1123,16 +1076,12 @@ def _qc(ctx):
     # 跨层撞 id：本层在册 id 出现在他层 manifest（分母污染）
     overlap = sorted(own & (cc.existing_ids(d["corpus"]) - own))
     stats = (
-        json.loads(d["select_stats"].read_text())
-        if d["select_stats"].exists()
-        else {}
+        json.loads(d["select_stats"].read_text()) if d["select_stats"].exists() else {}
     )
     quotas = (plan or {}).get("quotas") or {}
     # 分母：select_stats 两段式账目（flag:X+failmine_fill 也在内）优先，
     # 未跑 extract 时退回 plan 配额
-    denom = (
-        {c: s.get("quota", 0) for c, s in stats.items()} if stats else quotas
-    )
+    denom = {c: s.get("quota", 0) for c, s in stats.items()} if stats else quotas
     lines = [
         f"# {layer} 层自检",
         "",
@@ -1178,11 +1127,7 @@ def _qc(ctx):
 
 def _select(item: dict, rp: dict) -> bool:
     """``layers`` run 参数（逗号分隔层名）——缺省全层。"""
-    wanted = {
-        s.strip()
-        for s in str(rp.get("layers") or "").split(",")
-        if s.strip()
-    }
+    wanted = {s.strip() for s in str(rp.get("layers") or "").split(",") if s.strip()}
     return not wanted or str(item.get("id")) in wanted
 
 
@@ -1190,18 +1135,12 @@ spec = Spec(
     kind="corpus_layers",
     items=[{"id": n, "params": {"layer": n}} for n in LAYER_NAMES],
     params={
-        "workdir": Param(
-            type=str, default=str(cc.BUILD_ROOT / "layers"), fp=False
-        ),
+        "workdir": Param(type=str, default=str(cc.BUILD_ROOT / "layers"), fp=False),
         "build_root": Param(type=str, default=str(cc.BUILD_ROOT), fp=False),
         "corpus_dir": Param(type=str, default=str(cc.CORPUS), fp=False),
         "frame_dir": Param(type=str, default=str(cc.FRAME), fp=False),
-        "v3_workdir": Param(
-            type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False
-        ),
-        "layers": Param(
-            type=str, default=",".join(LAYER_NAMES), fp=False
-        ),
+        "v3_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False),
+        "layers": Param(type=str, default=",".join(LAYER_NAMES), fp=False),
         "layer": Param(type=str, default="", fp=False),
         "rates_source": Param(type=str, default="", fp=False),
         "bias": Param(type=float, default=1.0),

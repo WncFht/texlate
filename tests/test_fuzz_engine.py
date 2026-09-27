@@ -162,7 +162,9 @@ def _record_call(
 
 
 def _fake_sig(
-    fn: Callable[[list[str], Path, dict[str, str], float], tuple[int | None, str, float, bool]],
+    fn: Callable[
+        [list[str], Path, dict[str, str], float], tuple[int | None, str, float, bool]
+    ],
 ) -> Callable[..., tuple[int | None, str, float, bool]]:
     """run_process 假件签名适配——impl 实参面 ``out_cap``/``should_cancel`` 在此吞掉。
 

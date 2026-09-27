@@ -22,6 +22,7 @@ Auth breaker (§3.10.6):
 PAUSE is checked before every request too — a paused run holds cells, it
 never half-burns a request.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -92,16 +93,26 @@ def _usage_of(res):
     """
     u = None
     if isinstance(res, dict):
-        u = res.get("usage") or (res if any(
-            k in res for k in (
-                "in_tok", "out_tok", "input_tokens", "output_tokens",
-                "prompt_tokens", "completion_tokens")) else None)
+        u = res.get("usage") or (
+            res
+            if any(
+                k in res
+                for k in (
+                    "in_tok",
+                    "out_tok",
+                    "input_tokens",
+                    "output_tokens",
+                    "prompt_tokens",
+                    "completion_tokens",
+                )
+            )
+            else None
+        )
     if u is None:
         u = getattr(res, "usage", None)
     if u is None:
         return None
-    get = (u.get if isinstance(u, dict)
-           else lambda k, d=None: getattr(u, k, d))
+    get = u.get if isinstance(u, dict) else lambda k, d=None: getattr(u, k, d)
 
     def pick(*names):
         for n in names:
@@ -114,10 +125,10 @@ def _usage_of(res):
         return 0
 
     return {
-        "in_tok": pick("in_tok", "input_tokens", "prompt_tokens",
-                       "promptTokens"),
-        "out_tok": pick("out_tok", "output_tokens", "completion_tokens",
-                        "completionTokens"),
+        "in_tok": pick("in_tok", "input_tokens", "prompt_tokens", "promptTokens"),
+        "out_tok": pick(
+            "out_tok", "output_tokens", "completion_tokens", "completionTokens"
+        ),
         "total": pick("total_tokens", "total", "totalTokens"),
         "model": get("model"),
     }
@@ -158,10 +169,11 @@ class CostMeter:
         in_tok = int(usage.get("in_tok") or 0)
         out_tok = int(usage.get("out_tok") or 0)
         if "in_per_mtok" in row or "out_per_mtok" in row:
-            return (in_tok * float(row.get("in_per_mtok", 0.0))
-                    + out_tok * float(row.get("out_per_mtok", 0.0))) / 1e6
-        return (in_tok * float(row.get("in", 0.0))
-                + out_tok * float(row.get("out", 0.0)))
+            return (
+                in_tok * float(row.get("in_per_mtok", 0.0))
+                + out_tok * float(row.get("out_per_mtok", 0.0))
+            ) / 1e6
+        return in_tok * float(row.get("in", 0.0)) + out_tok * float(row.get("out", 0.0))
 
     def record(self, usage=None, usd=None, model=None) -> float:
         """Register one request's spend; returns the usd charged."""
@@ -197,8 +209,7 @@ class CostMeter:
             mu = sum(self._samples) / len(self._samples)
             if len(self._samples) < 2:
                 return mu * 2  # cold-start: pessimistic double
-            var = sum((s - mu) ** 2 for s in self._samples) / (
-                len(self._samples) - 1)
+            var = sum((s - mu) ** 2 for s in self._samples) / (len(self._samples) - 1)
             return mu + 2.0 * math.sqrt(var)
 
     def check(self, max_cost):
@@ -206,10 +217,7 @@ class CostMeter:
         if max_cost is None:
             return
         if self.spent() >= float(max_cost):
-            msg = (
-                f"cost fuse: spent {self.spent():.4f} >= max_cost "
-                f"{max_cost}"
-            )
+            msg = f"cost fuse: spent {self.spent():.4f} >= max_cost {max_cost}"
             raise BudgetExceeded(msg)
         if self.spent() + self.estimate_next() > float(max_cost):
             msg = (
@@ -233,8 +241,16 @@ class GatewayFactory:
     this factory sees the same per-paper 401 counts.
     """
 
-    def __init__(self, factory_fn, ctx=None, *, prices=None, meter=None,
-                 nslots: int = 4, max_cost=None):
+    def __init__(
+        self,
+        factory_fn,
+        ctx=None,
+        *,
+        prices=None,
+        meter=None,
+        nslots: int = 4,
+        max_cost=None,
+    ):
         if not callable(factory_fn):
             msg = "GatewayFactory needs a callable factory_fn"
             raise TypeError(msg)
@@ -258,19 +274,28 @@ class GatewayFactory:
         with self._client_lock:
             if self._client_obj is None:
                 self._client_obj = (
-                    self.factory_fn(self.ctx) if self._wants_ctx()
-                    else self.factory_fn())
+                    self.factory_fn(self.ctx)
+                    if self._wants_ctx()
+                    else self.factory_fn()
+                )
         return self._client_obj
 
     def _wants_ctx(self) -> bool:
         try:
             import inspect
+
             sig = inspect.signature(self.factory_fn)
-            return len([
-                p for p in sig.parameters.values()
-                if p.default is p.empty
-                and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
-            ]) >= 1
+            return (
+                len(
+                    [
+                        p
+                        for p in sig.parameters.values()
+                        if p.default is p.empty
+                        and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                    ]
+                )
+                >= 1
+            )
         except (TypeError, ValueError):
             return False
 
@@ -324,9 +349,11 @@ class PaidSession:
 
     # -- internals --------------------------------------------------------------------
     def _key(self) -> tuple:
-        return (str(getattr(self.ctx, "idc", "-")),
-                str(getattr(self.ctx, "arm", "-")),
-                str(getattr(self.ctx, "variant", "-")))
+        return (
+            str(getattr(self.ctx, "idc", "-")),
+            str(getattr(self.ctx, "arm", "-")),
+            str(getattr(self.ctx, "variant", "-")),
+        )
 
     def claim(self):
         """Acquire (idempotently) the claim mutex for this cell key.
@@ -424,18 +451,23 @@ class PaidSession:
                 seq = None
                 if rd is not None:
                     from kernel import runs as _runs
+
                     seq = _runs._kernel_seq(rd)
             idc, arm, variant = self._key()
             ev = events.make_event(
                 events.T_CLAIM,
                 run=getattr(ctx, "run", None),
-                seq=seq, id=getattr(ctx, "id", None),
-                idc=idc, arm=arm, variant=variant, op=op, slot=slot)
+                seq=seq,
+                id=getattr(ctx, "id", None),
+                idc=idc,
+                arm=arm,
+                variant=variant,
+                op=op,
+                slot=slot,
+            )
             rd = getattr(ctx, "rundir", None)
             sink = getattr(getattr(ctx, "index", None), "apply_event", None)
-            ledger.emit(ev,
-                        run_dir=rd.path if rd is not None else None,
-                        sink=sink)
+            ledger.emit(ev, run_dir=rd.path if rd is not None else None, sink=sink)
         except Exception:  # noqa: S110 -- docstring 声明观测镜像失败全吞咽
             pass
 
@@ -491,8 +523,8 @@ class PaidSession:
                     self._trip_claim()
                     if all_failed >= self.RUN_ALL_FAILED_LIMIT:
                         locks.trip_auth_dead(
-                            f"{all_failed} papers all_failed on 401 "
-                            f"(last: {idc})")
+                            f"{all_failed} papers all_failed on 401 (last: {idc})"
+                        )
                         self.factory.abort()
                         msg = (
                             f"auth breaker: {all_failed} papers all_failed; "
@@ -504,16 +536,12 @@ class PaidSession:
                         "claim released auth_trip"
                     )
                     raise PaidAbortCell(msg) from exc
-                msg = (
-                    f"401 from gateway (paper {idc}, {n}/"
-                    f"{self.PAPER_401_LIMIT})"
-                )
+                msg = f"401 from gateway (paper {idc}, {n}/{self.PAPER_401_LIMIT})"
                 raise AuthError(msg, status=401) from exc
             raise
         # usage accounting — post-request, inside the claim
         usage = _usage_of(res)
-        usd = self.factory.meter.record(
-            usage, usd=self._cost_hook(usage, res))
+        usd = self.factory.meter.record(usage, usd=self._cost_hook(usage, res))
         try:
             self.ctx.last_cost_usd = usd
             self.ctx.last_usage = usage
@@ -529,8 +557,7 @@ class PaidSession:
         return fn(*a, **kw)
 
     def _cost_hook(self, usage, res):
-        hook = getattr(getattr(self.ctx, "stage_obj", None),
-                       "cost_hook", None)
+        hook = getattr(getattr(self.ctx, "stage_obj", None), "cost_hook", None)
         if not callable(hook):
             return None
         try:

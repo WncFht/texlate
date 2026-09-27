@@ -75,18 +75,14 @@ def test_author_prose_group_not_swallowed() -> None:
 
 def test_author_keyval_after_blank_line_not_swallowed() -> None:
     r"""``\author{N}`` 后空行再 ``{key=val}``：段界分隔即非参数——不收。"""
-    res = scan_art(
-        "\\author{Some One}\n\n{flag,address={TU}}Body text for chunk yes."
-    )
+    res = scan_art("\\author{Some One}\n\n{flag,address={TU}}Body text for chunk yes.")
     assert _phs(res, "[[AUTHOR") == ["\\author{Some One}"]
     assert "address" in chunk_text(res)
 
 
 def test_author_flag_prefixed_keyval_protected() -> None:
     r"""``{flag,address={..}}`` 裸键位前缀的 keyval 组同样收。"""
-    res = scan_art(
-        "\\author{Some One}{flag,address={TU}}Body text for chunk yes."
-    )
+    res = scan_art("\\author{Some One}{flag,address={TU}}Body text for chunk yes.")
     assert _phs(res, "[[AUTHOR") == ["\\author{Some One}{flag,address={TU}}"]
     assert "address" not in chunk_text(res)
 

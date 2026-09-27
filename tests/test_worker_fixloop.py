@@ -30,7 +30,9 @@ if TYPE_CHECKING:
     from texlate.server.worker import PipelineWorker, TaskCtx
 
 
-def _prime_terminal_compile(ctx: TaskCtx, store: Store, cell: dict[str, object]) -> None:
+def _prime_terminal_compile(
+    ctx: TaskCtx, store: Store, cell: dict[str, object]
+) -> None:
     """终态分派哨兵旁路：splice/compile 产物预置 + 登记，直抵 ``stage_compile`` 终判。"""
     ctx.main_rel = "main.tex"
     ctx.engine_name = "tectonic"

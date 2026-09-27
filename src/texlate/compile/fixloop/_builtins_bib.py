@@ -97,9 +97,7 @@ def bbl_stub_rewrite(
         if nt != t:
             ctx.write(f, nt)
             changed += 1
-    return (
-        changed > 0
-    ), f"\\bibliography -> \\input{{{target}}} in {changed} files"
+    return (changed > 0), f"\\bibliography -> \\input{{{target}}} in {changed} files"
 
 
 #: ``.bbl`` 头标 ``bbl format version X.Y`` (biber 产物首行) —— 版本元组提取。
@@ -320,7 +318,7 @@ _BIB_CANT_OPEN_RE = re.compile(r"can't open path [`']([^`']+\.bib)")
 def tectonic_bib_stall_route(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    """tectonic bib 管线死面 → ``REJECT: route=<route>`` 路由令牌 (不改源)。
+    """Tectonic bib 管线死面 → ``REJECT: route=<route>`` 路由令牌 (不改源)。
 
     两臂复核 (``err_head`` 快径 → ``_fixloop_log`` 全文兜底, 同
     ``biber_biblatex_skew_route`` 两级序):
@@ -340,7 +338,10 @@ def tectonic_bib_stall_route(
     log = _fixloop_log(ctx)
     tail = log[-4096:]
     if _BIBTEX_STALL_TAIL_RE.search(tail) or _BIBTEX_STALL_TAIL_RE.search(head):
-        return True, f"REJECT: route={route} tectonic bibtex stall (killed inside bibtex)"
+        return (
+            True,
+            f"REJECT: route={route} tectonic bibtex stall (killed inside bibtex)",
+        )
     m = _BIB_CANT_OPEN_RE.search(head) or _BIB_CANT_OPEN_RE.search(log)
     if m is not None and any(ctx.wdir.rglob("*.bbl")):
         return True, (

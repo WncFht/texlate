@@ -335,8 +335,9 @@ def xlat_metrics(
             if term_dict is not None:
                 td = {str(k): str(v) for k, v in dict(term_dict).items()}
             elif allow_rebuild:
-                td = rebuild_term_dict(cat_group, [s for _c, s, _t in delivered],
-                                       local_glossary)
+                td = rebuild_term_dict(
+                    cat_group, [s for _c, s, _t in delivered], local_glossary
+                )
             else:
                 td = None
             if td is None:

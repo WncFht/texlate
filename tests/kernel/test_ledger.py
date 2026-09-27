@@ -3,6 +3,7 @@
 Every test runs against an isolated $TEXLATE_BENCH_ROOT via the `broot`
 fixture (see conftest.py). Files stay KB-scale — /tmp is quota-sensitive.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -19,16 +20,21 @@ DATE = "2026-09-21"
 
 
 def _note(seq: int, text: str = "n", run: str = "r1") -> dict:
-    return events.make_event(
-        events.T_NOTE, run=run, seq=seq, text=text, level="info"
-    )
+    return events.make_event(events.T_NOTE, run=run, seq=seq, text=text, level="info")
 
 
 def _cell(seq: int, run: str = "r1") -> dict:
     return events.make_event(
         events.T_CELL,
-        run=run, seq=seq, id="2401.00001", idc="2401.00001",
-        arm="zh", up="-", variant="-", stage="xlat", status="ok",
+        run=run,
+        seq=seq,
+        id="2401.00001",
+        idc="2401.00001",
+        arm="zh",
+        up="-",
+        variant="-",
+        stage="xlat",
+        status="ok",
     )
 
 
@@ -390,7 +396,11 @@ def test_iter_all_events_yields_none_on_bad_lines(broot: Path) -> None:
 
 def test_seal_age_trigger(broot: Path) -> None:
     old = events.make_event(
-        events.T_NOTE, run="r", seq=1, text="old", level="info",
+        events.T_NOTE,
+        run="r",
+        seq=1,
+        text="old",
+        level="info",
         ts=time.time() - 40 * 86400,
     )
     ledger.emit(old)
@@ -428,8 +438,7 @@ def test_recover_interrupted_seal(broot: Path) -> None:
     assert paths.events_path().exists()
     # and iter_all reads the recovered segment (raw preferred while it
     # survives alongside the .zst)
-    assert any(s in (zst.name, orphan.name)
-               for s, _o, _e in ledger.iter_all_events())
+    assert any(s in (zst.name, orphan.name) for s, _o, _e in ledger.iter_all_events())
 
 
 def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
@@ -446,8 +455,9 @@ def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
     # the recompressed zst faithfully encodes the raw segment
     assert rows[0]["zst_sha"] == hashlib.sha256(zst.read_bytes()).hexdigest()
     assert rows[0]["raw_sha"] == hashlib.sha256(orphan.read_bytes()).hexdigest()
-    seg_evs = [e for s, _o, e in ledger.iter_all_events()
-               if s in (zst.name, orphan.name)]
+    seg_evs = [
+        e for s, _o, e in ledger.iter_all_events() if s in (zst.name, orphan.name)
+    ]
     assert len([e for e in seg_evs if e]) == 2
 
 

@@ -1,4 +1,5 @@
 """Tests for kernel.fsutil — durability, projection protocols, mtree."""
+
 from __future__ import annotations
 
 import errno
@@ -8,7 +9,6 @@ import stat
 from pathlib import Path
 
 import pytest
-
 from kernel import fsutil
 
 
@@ -139,7 +139,7 @@ def test_hardlink_farm_relinks_replaced_source(tmp_path):
     src = _tree(tmp_path / "src", {"a": b"1"})
     dst = tmp_path / "dst"
     fsutil.hardlink_farm(src, dst)
-    (src / "a").unlink()                      # new inode, not an in-place write
+    (src / "a").unlink()  # new inode, not an in-place write
     (src / "a").write_bytes(b"longer-content")
     assert fsutil.hardlink_farm(src, dst) == 1
     assert (dst / "a").read_bytes() == b"longer-content"
@@ -158,16 +158,17 @@ def test_hardlink_farm_exdev_fallback(tmp_path, monkeypatch):
     for rel in ("a", "d/b"):
         s, d = src / rel, dst / rel
         assert d.read_bytes() == s.read_bytes()
-        assert os.stat(s).st_ino != os.stat(d).st_ino       # real copy
+        assert os.stat(s).st_ino != os.stat(d).st_ino  # real copy
         assert stat.S_IMODE(d.stat().st_mode) & 0o222 == 0  # still read-only
-        assert d.stat().st_mtime == s.stat().st_mtime       # mtime preserved
+        assert d.stat().st_mtime == s.stat().st_mtime  # mtime preserved
 
 
 def test_hardlink_farm_exdev_copy_skipped_on_refarm(tmp_path, monkeypatch):
     src = _tree(tmp_path / "src", {"a": b"data"})
     dst = tmp_path / "dst"
-    monkeypatch.setattr(os, "link",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError(errno.EXDEV, "x")))
+    monkeypatch.setattr(
+        os, "link", lambda *a, **k: (_ for _ in ()).throw(OSError(errno.EXDEV, "x"))
+    )
     fsutil.hardlink_farm(src, dst)
     monkeypatch.undo()  # real os.link again; (size,mtime) match must skip
     assert fsutil.hardlink_farm(src, dst) == 0
@@ -223,8 +224,8 @@ def test_copy_mutating_delivers_writable_from_0444(tmp_path):
         s, d = src / rel, dst / rel
         assert d.read_bytes() == s.read_bytes()
         assert stat.S_IMODE(d.stat().st_mode) & stat.S_IWUSR  # owner-writable
-        assert os.stat(d).st_ino != os.stat(s).st_ino       # copy, not link
-        d.write_bytes(b"mutated")                           # provably writable
+        assert os.stat(d).st_ino != os.stat(s).st_ino  # copy, not link
+        d.write_bytes(b"mutated")  # provably writable
 
 
 def test_copy_mutating_overwrites_stale_dst(tmp_path):
@@ -281,8 +282,8 @@ def test_write_mtree_roundtrip_and_self_exclusion(tmp_path):
     m = fsutil.write_mtree(t, with_sha=True)
     assert (t / "mtree.txt").exists()
     assert "mtree.txt" not in m  # manifest must not describe itself
-    assert fsutil.verify_mtree(t, m) == []                  # dict form
-    assert fsutil.verify_mtree(t, t / "mtree.txt") == []    # file form — the
+    assert fsutil.verify_mtree(t, m) == []  # dict form
+    assert fsutil.verify_mtree(t, t / "mtree.txt") == []  # file form — the
     # self-manifest file in the tree is metadata, not unmanifested payload
 
 
@@ -290,8 +291,8 @@ def test_verify_mtree_detects_all_drift_kinds(tmp_path):
     t = _tree(tmp_path / "t", {"a": b"1", "b": b"2"})
     m = fsutil.build_mtree(t)
     (t / "a").write_bytes(b"much longer")  # size drift
-    (t / "b").unlink()                     # missing
-    (t / "extra").write_bytes(b"x")        # unmanifested payload
+    (t / "b").unlink()  # missing
+    (t / "extra").write_bytes(b"x")  # unmanifested payload
     assert fsutil.verify_mtree(t, m) == ["a", "b", "extra"]
 
 
@@ -301,7 +302,7 @@ def test_verify_mtree_resha_catches_same_size_same_mtime_swap(tmp_path):
     st = (t / "a").stat()
     (t / "a").write_bytes(b"BBBB")
     os.utime(t / "a", ns=(st.st_atime_ns, st.st_mtime_ns))  # forged stat identity
-    assert fsutil.verify_mtree(t, m) == []                    # stat-level passes
+    assert fsutil.verify_mtree(t, m) == []  # stat-level passes
     assert fsutil.verify_mtree(t, m, resha_sample=1.0) == ["a"]  # sha catches it
 
 
@@ -316,6 +317,6 @@ def test_verify_mtree_flags_special_file(tmp_path):
     t = _tree(tmp_path / "t", {"a": b"1", "b": b"2"})
     m = fsutil.build_mtree(t)
     (t / "a").unlink()
-    os.mkfifo(t / "a")          # manifest entry became a special file
-    os.mkfifo(t / "sneaky")     # unmanifested special file
+    os.mkfifo(t / "a")  # manifest entry became a special file
+    os.mkfifo(t / "sneaky")  # unmanifested special file
     assert fsutil.verify_mtree(t, m) == ["a", "sneaky"]

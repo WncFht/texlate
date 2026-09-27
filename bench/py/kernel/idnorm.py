@@ -72,28 +72,121 @@ _NEW_CANON = {new.lower(): new for new in _NEW_TO_OLD}
 # spelling arXiv minted. Lowercase archives need no entry. Without this a
 # lowercase fold mints 'math.gt'/'stat.ml' — spellings arXiv never wrote —
 # and splits one paper across 'math.GT/…' and 'math.gt/…' canon ids.
-_MIXED_ARCHIVES: dict[str, str] = {a.lower(): a for a in (
-    "math.AC", "math.AG", "math.AP", "math.AT", "math.CA", "math.CO",
-    "math.CT", "math.CV", "math.DG", "math.DS", "math.FA", "math.GM",
-    "math.GN", "math.GR", "math.GT", "math.HO", "math.IT", "math.KT",
-    "math.LO", "math.MG", "math.MP", "math.NA", "math.NT", "math.OA",
-    "math.OC", "math.PR", "math.PT", "math.QA", "math.RA", "math.RT",
-    "math.SG", "math.SP", "math.ST",
-    "nlin.AO", "nlin.CD", "nlin.CG", "nlin.PS", "nlin.SI",
-    "cs.AI", "cs.AR", "cs.CC", "cs.CE", "cs.CG", "cs.CL", "cs.CR",
-    "cs.CV", "cs.CY", "cs.DB", "cs.DC", "cs.DL", "cs.DM", "cs.DS",
-    "cs.ET", "cs.FL", "cs.GL", "cs.GR", "cs.GT", "cs.HC", "cs.IR",
-    "cs.IT", "cs.LG", "cs.LO", "cs.MA", "cs.MM", "cs.MS", "cs.NA",
-    "cs.NE", "cs.NI", "cs.OH", "cs.OS", "cs.PF", "cs.PL", "cs.RO",
-    "cs.SC", "cs.SD", "cs.SE", "cs.SI", "cs.SY",
-    "q-bio.BM", "q-bio.CB", "q-bio.GN", "q-bio.MN", "q-bio.NC",
-    "q-bio.OT", "q-bio.PE", "q-bio.QM", "q-bio.SC", "q-bio.TO",
-    "q-fin.CP", "q-fin.EC", "q-fin.GN", "q-fin.MF", "q-fin.PM",
-    "q-fin.PR", "q-fin.RM", "q-fin.ST", "q-fin.TR",
-    "stat.AP", "stat.CO", "stat.ME", "stat.ML", "stat.OT", "stat.TH",
-    "eess.AS", "eess.IV", "eess.SP", "eess.SY",
-    "econ.EM", "econ.GN", "econ.TH",
-)}
+_MIXED_ARCHIVES: dict[str, str] = {
+    a.lower(): a
+    for a in (
+        "math.AC",
+        "math.AG",
+        "math.AP",
+        "math.AT",
+        "math.CA",
+        "math.CO",
+        "math.CT",
+        "math.CV",
+        "math.DG",
+        "math.DS",
+        "math.FA",
+        "math.GM",
+        "math.GN",
+        "math.GR",
+        "math.GT",
+        "math.HO",
+        "math.IT",
+        "math.KT",
+        "math.LO",
+        "math.MG",
+        "math.MP",
+        "math.NA",
+        "math.NT",
+        "math.OA",
+        "math.OC",
+        "math.PR",
+        "math.PT",
+        "math.QA",
+        "math.RA",
+        "math.RT",
+        "math.SG",
+        "math.SP",
+        "math.ST",
+        "nlin.AO",
+        "nlin.CD",
+        "nlin.CG",
+        "nlin.PS",
+        "nlin.SI",
+        "cs.AI",
+        "cs.AR",
+        "cs.CC",
+        "cs.CE",
+        "cs.CG",
+        "cs.CL",
+        "cs.CR",
+        "cs.CV",
+        "cs.CY",
+        "cs.DB",
+        "cs.DC",
+        "cs.DL",
+        "cs.DM",
+        "cs.DS",
+        "cs.ET",
+        "cs.FL",
+        "cs.GL",
+        "cs.GR",
+        "cs.GT",
+        "cs.HC",
+        "cs.IR",
+        "cs.IT",
+        "cs.LG",
+        "cs.LO",
+        "cs.MA",
+        "cs.MM",
+        "cs.MS",
+        "cs.NA",
+        "cs.NE",
+        "cs.NI",
+        "cs.OH",
+        "cs.OS",
+        "cs.PF",
+        "cs.PL",
+        "cs.RO",
+        "cs.SC",
+        "cs.SD",
+        "cs.SE",
+        "cs.SI",
+        "cs.SY",
+        "q-bio.BM",
+        "q-bio.CB",
+        "q-bio.GN",
+        "q-bio.MN",
+        "q-bio.NC",
+        "q-bio.OT",
+        "q-bio.PE",
+        "q-bio.QM",
+        "q-bio.SC",
+        "q-bio.TO",
+        "q-fin.CP",
+        "q-fin.EC",
+        "q-fin.GN",
+        "q-fin.MF",
+        "q-fin.PM",
+        "q-fin.PR",
+        "q-fin.RM",
+        "q-fin.ST",
+        "q-fin.TR",
+        "stat.AP",
+        "stat.CO",
+        "stat.ME",
+        "stat.ML",
+        "stat.OT",
+        "stat.TH",
+        "eess.AS",
+        "eess.IV",
+        "eess.SP",
+        "eess.SY",
+        "econ.EM",
+        "econ.GN",
+        "econ.TH",
+    )
+}
 
 # Shape validators. [0-9] not \d — unicode digits must not leak into canon.
 _CAT_RE = re.compile(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*")
@@ -136,10 +229,19 @@ TRACKED_SRC = frozenset({"manifest", "idresolve", "override"})
 
 # Row statuses that mark an UNRESOLVED adjudication — fed rows carrying one
 # of these are dropped wholesale (no known/tails/resolutions contribution).
-_ROW_STATUS_DENY = frozenset({
-    "pending", "ambig", "ambiguous", "invalid", "failed", "error",
-    "rejected", "denied", "unresolved",
-})
+_ROW_STATUS_DENY = frozenset(
+    {
+        "pending",
+        "ambig",
+        "ambiguous",
+        "invalid",
+        "failed",
+        "error",
+        "rejected",
+        "denied",
+        "unresolved",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -190,15 +292,23 @@ def escape_component(s: str) -> str:
     '%' -> %25 first, then '.' -> %2E, '@' -> %40, '/' -> %2F. '/' MUST be
     escaped — an unescaped slash turns one filename component into nested
     dirs (claim locks, vault dir keys)."""
-    return (s.replace("%", "%25").replace(".", "%2E")
-             .replace("@", "%40").replace("/", "%2F"))
+    return (
+        s.replace("%", "%25")
+        .replace(".", "%2E")
+        .replace("@", "%40")
+        .replace("/", "%2F")
+    )
 
 
 def unescape_component(s: str) -> str:
     """Inverse of escape_component. %2E/%40/%2F must decode BEFORE %25 so a
     literal '%40' in the source (stored as %2540) cannot double-decode."""
-    return (s.replace("%2E", ".").replace("%40", "@")
-             .replace("%2F", "/").replace("%25", "%"))
+    return (
+        s.replace("%2E", ".")
+        .replace("%40", "@")
+        .replace("%2F", "/")
+        .replace("%25", "%")
+    )
 
 
 def _mm_ok(yymm: str) -> bool:
@@ -282,7 +392,7 @@ def parse_ia_member(name: str) -> tuple[str, str | None, str | None] | None:
         return None
     base = name.rsplit("/", 1)[-1].strip()
     if base.lower().startswith("arxiv-"):
-        base = base[len("arxiv-"):]
+        base = base[len("arxiv-") :]
     m = _IA_NEW.match(base)
     if m:
         yymm_nn, ver, ext = m.groups()
@@ -295,8 +405,7 @@ def parse_ia_member(name: str) -> tuple[str, str | None, str | None] | None:
         if _form_of(f"{cat}/{num}") is None:
             return None
         # minted spelling — 'arXiv-math.QA9703043.gz' is q-alg/9703043
-        return (f"{_minted_cat(cat)}/{num}",
-                (f"v{ver}" if ver else None), ext)
+        return (f"{_minted_cat(cat)}/{num}", (f"v{ver}" if ver else None), ext)
     return None
 
 

@@ -24,6 +24,7 @@ answers "how many bytes would this tree occupy materialized alone", which is
 what capacity accounting wants. ``st_blocks``-based dedup-aware sizing is a
 deliberate non-goal here.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -72,8 +73,9 @@ def atomic_write(path, data: bytes, mode: int | None = None) -> None:
     Parent dir must already exist.
     """
     path = Path(path)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.",
-                               suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
     try:
         if mode is not None:
             os.fchmod(fd, mode)
@@ -205,8 +207,9 @@ def write_mtree(tree, with_sha: bool = False) -> dict:
     tree = Path(tree)
     mtree = build_mtree(tree, with_sha=with_sha)
     mtree.pop(MTREE_NAME, None)  # never let the manifest describe itself
-    payload = json.dumps(mtree, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":")).encode("utf-8")
+    payload = json.dumps(
+        mtree, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     atomic_write(tree / MTREE_NAME, payload)
     return mtree
 
@@ -259,8 +262,12 @@ def verify_mtree(tree, mtree, resha_sample: float = 0.0) -> list[str]:
         if st.st_size != ent["size"] or st.st_mtime != ent["mtime"]:
             drifted.add(rel)
             continue
-        if (resha_sample > 0.0 and rng() < resha_sample and "sha256" in ent
-                and _sha256_file(p) != ent["sha256"]):
+        if (
+            resha_sample > 0.0
+            and rng() < resha_sample
+            and "sha256" in ent
+            and _sha256_file(p) != ent["sha256"]
+        ):
             drifted.add(rel)
 
     for rel in actual:  # unmanifested payload

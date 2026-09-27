@@ -52,6 +52,7 @@ def _gs_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
 
 def _spy(calls: list[list[str]]) -> RunFn:
     """argv 记录间谍 runner —— 断言本轮 gs/convert 未被调用。"""
+
     def _run(argv: list[str], _t: int, _w: Path) -> tuple:
         calls.append(argv)
         return 0, "", 0.1, False
@@ -209,9 +210,7 @@ def test_repair_marker_skips_redistill(
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-redistilled")
     (tmp_path / "figDY.pdf.fixloop-rd").write_bytes(b"%PDF-orig")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
-    ok, note = graphic_repair(
-        _ctx(tmp_path, runner=_spy(calls)), None, "figDY.pdf", {}
-    )
+    ok, note = graphic_repair(_ctx(tmp_path, runner=_spy(calls)), None, "figDY.pdf", {})
     assert ok
     assert "stub" in note
     assert "already redistilled" in note

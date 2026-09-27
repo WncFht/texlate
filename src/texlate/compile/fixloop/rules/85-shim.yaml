@@ -396,7 +396,7 @@ rules:
           # aj_pt4/aaspp4 横排表页声明宏 —— deluxetable 前哨标记, 无独立
           # 输出, 版面旋转由 deluxetable 侧自理; astro-ph/0003115
           # (documentstyle[aj_pt4], 编译走到 l.356 仅炸本宏) 实证
-          ptlandscape: ''
+          ptlandscape: ""
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

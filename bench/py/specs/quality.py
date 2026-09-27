@@ -36,6 +36,7 @@ term_applicable/n_expected）由同一字节输入恒等；metrics 子树名
 ``translate.*``/``landmark.*`` 与键集逐字保留（缺键=null 语义差异
 会静默改聚合分母）。
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -52,9 +53,7 @@ import pypdf  # 版本敏感（dossier：跨机 landmark 口径）→ 版本记 
 # soak.py:49-56 同款自举。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import events, idnorm, paths, vault
@@ -98,8 +97,14 @@ def _src_items() -> list[dict]:
     latest: dict[tuple, dict] = {}
     for run, idc, arm, up, variant, stage, status, fp in rows:
         latest[(idc, arm, up, variant, stage)] = {
-            "run": run, "idc": idc, "arm": arm, "up": up,
-            "variant": variant, "stage": stage, "status": status, "fp": fp,
+            "run": run,
+            "idc": idc,
+            "arm": arm,
+            "up": up,
+            "variant": variant,
+            "stage": stage,
+            "status": status,
+            "fp": fp,
         }
     items = []
     for rec in latest.values():
@@ -113,9 +118,10 @@ def _src_items() -> list[dict]:
         else:
             continue
         src_variant = rec["variant"] or "-"
-        ident = "|".join(
-            str(rec[k]) for k in ("run", "idc", "arm", "up", "stage")
-        ) + f"|{src_variant}|{status}|{rec['fp']}"
+        ident = (
+            "|".join(str(rec[k]) for k in ("run", "idc", "arm", "up", "stage"))
+            + f"|{src_variant}|{status}|{rec['fp']}"
+        )
         items.append(
             {
                 "id": rec["idc"],
@@ -210,15 +216,21 @@ def _qxlat(ctx):
     rec = _last_done(ctx, _XLAT_STAGE, src_variant)
     if rec is None or rec["status"] not in _XLAT_ELIGIBLE:
         return _gate(
-            "skip", "src_ineligible", "upstream",
+            "skip",
+            "src_ineligible",
+            "upstream",
             f"xlat last-done {None if rec is None else rec['status']}",
         )
     dest = ctx.paper_dir()
     try:
         vault.restore(ctx.idc, ctx.arm, src_variant, dest, mode="link")
     except vault.VaultError:
-        return _gate("skip", "state_missing", "asset",
-                     f"no intact copy ({ctx.idc},{ctx.arm},{src_variant})")
+        return _gate(
+            "skip",
+            "state_missing",
+            "asset",
+            f"no intact copy ({ctx.idc},{ctx.arm},{src_variant})",
+        )
     sdir = dest / vault._work_dirname("state", ctx.arm, src_variant)
     # 持久化 term_dict（真实注入表）优先于重建假设表
     term_dict = None
@@ -250,10 +262,12 @@ def _qxlat(ctx):
         {
             "metrics": {
                 **patch,
-                "src": {"run": ctx.params.get("src_run"),
-                        "status": ctx.params.get("src_status"),
-                        "arm": ctx.arm,
-                        "variant": src_variant},
+                "src": {
+                    "run": ctx.params.get("src_run"),
+                    "status": ctx.params.get("src_status"),
+                    "arm": ctx.arm,
+                    "variant": src_variant,
+                },
             }
         }
     )
@@ -299,7 +313,7 @@ def _splice_cred(ctx, src_variant: str) -> tuple[str, str] | None:
 def _main_rel(ctx, rec: dict, dest: Path, cred: tuple[str, str]) -> str | None:
     """main_rel 三段式：compile 账 metrics → 恢复树 zh 层 parse.json →
     build_dir find_main_tex。"""
-    m = ((rec.get("metrics") or {}).get("main_rel"))
+    m = (rec.get("metrics") or {}).get("main_rel")
     if isinstance(m, str) and m:
         return m
     zh = dest / vault._work_dirname("zh", cred[0], cred[1])
@@ -321,23 +335,31 @@ def _qcompile(ctx):
     rec = _last_done(ctx, src_stage, src_variant)
     if rec is None or rec["status"] not in _COMPILE_ELIGIBLE:
         return _gate(
-            "skip", "src_ineligible", "upstream",
+            "skip",
+            "src_ineligible",
+            "upstream",
             f"{src_stage} last-done {None if rec is None else rec['status']}",
         )
     cred = _splice_cred(ctx, src_variant)
     if cred is None:
-        return _gate("skip", "splice_missing", "asset",
-                     f"no intact splice credential for {ctx.idc}")
+        return _gate(
+            "skip",
+            "splice_missing",
+            "asset",
+            f"no intact splice credential for {ctx.idc}",
+        )
     dest = ctx.paper_dir()
     try:
         vault.restore(ctx.idc, cred[0], cred[1], dest, mode="link")
     except vault.VaultError:
-        return _gate("skip", "splice_missing", "asset",
-                     f"restore ({ctx.idc},{cred[0]},{cred[1]}) failed")
+        return _gate(
+            "skip",
+            "splice_missing",
+            "asset",
+            f"restore ({ctx.idc},{cred[0]},{cred[1]}) failed",
+        )
     build_dir = dest / vault._work_dirname("splice", cred[0], cred[1])
-    patch, miss = qm.compile_metrics(
-        build_dir, _main_rel(ctx, rec, dest, cred)
-    )
+    patch, miss = qm.compile_metrics(build_dir, _main_rel(ctx, rec, dest, cred))
     if patch is None:
         status = "error" if str(miss).startswith("landmark_bad") else "skip"
         return _gate(status, str(miss), "asset", f"{build_dir}")
@@ -346,9 +368,11 @@ def _qcompile(ctx):
             "metrics": {
                 **patch,
                 "asset": {"arm": cred[0], "variant": cred[1]},
-                "src": {"run": ctx.params.get("src_run"),
-                        "stage": src_stage,
-                        "status": ctx.params.get("src_status")},
+                "src": {
+                    "run": ctx.params.get("src_run"),
+                    "stage": src_stage,
+                    "status": ctx.params.get("src_status"),
+                },
                 "pypdf": getattr(pypdf, "__version__", None),
             }
         }

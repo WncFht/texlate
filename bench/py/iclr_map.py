@@ -112,8 +112,11 @@ def oa_search(client: httpx.Client, title: str, key_box: list) -> dict | None:
         if best_fuzzy is None and difflib.SequenceMatcher(None, nt, wt).ratio() > 0.87:
             best_fuzzy = (aid, w.get("title") or "")
     if best_fuzzy:
-        return {"arxiv_id": best_fuzzy[0], "match": "oa_fuzzy",
-                "oa_title": best_fuzzy[1]}
+        return {
+            "arxiv_id": best_fuzzy[0],
+            "match": "oa_fuzzy",
+            "oa_title": best_fuzzy[1],
+        }
     return None
 
 
@@ -174,8 +177,11 @@ def main() -> None:
             if rec["orid"] in done:
                 continue
             if rec.get("arxiv_id"):
-                row = {"orid": rec["orid"], "arxiv_id": rec["arxiv_id"],
-                       "match": "cache"}
+                row = {
+                    "orid": rec["orid"],
+                    "arxiv_id": rec["arxiv_id"],
+                    "match": "cache",
+                }
                 f.write(json.dumps(row) + "\n")
                 done[rec["orid"]] = row
                 n_new += 1
@@ -184,7 +190,8 @@ def main() -> None:
         log(f"cache 直录 +{n_new}")
 
     todo = [
-        r for r in accepted
+        r
+        for r in accepted
         if not (
             (d := done.get(r["orid"]))
             and (d.get("arxiv_id") or d.get("match") in TERMINAL)
@@ -207,7 +214,10 @@ def main() -> None:
                 return rec, oa_search(client, rec["title"], key_box)
 
             n_ok = n_miss = n_err = 0
-            with MAP_OUT.open("a") as f, ThreadPoolExecutor(max_workers=a.workers) as ex:
+            with (
+                MAP_OUT.open("a") as f,
+                ThreadPoolExecutor(max_workers=a.workers) as ex,
+            ):
                 futs = {ex.submit(work, r): r for r in todo}
                 for i, fut in enumerate(as_completed(futs), 1):
                     rec, res = fut.result()
@@ -226,7 +236,9 @@ def main() -> None:
                     done[rec["orid"]] = row
                     if i % 200 == 0:
                         f.flush()
-                        log(f"  oa [{i}/{len(todo)}] hit={n_ok} miss={n_miss} err={n_err}")
+                        log(
+                            f"  oa [{i}/{len(todo)}] hit={n_ok} miss={n_miss} err={n_err}"
+                        )
             log(f"oa done: hit={n_ok} miss={n_miss} err={n_err}")
 
     # ---- phase S2: 仲裁（单流 ~1rps）----
@@ -234,7 +246,8 @@ def main() -> None:
     # OA 全挂时可 --phase s2 直接全量仲裁。
     if a.phase in ("s2", "all"):
         pending = [
-            rec for rec in accepted
+            rec
+            for rec in accepted
             if not ((row := done.get(rec["orid"])) and row.get("arxiv_id"))
             and (row is None or row.get("match") not in ("no_arxiv", "s2_nomatch"))
         ]
@@ -243,8 +256,11 @@ def main() -> None:
         with httpx.Client(timeout=30, headers=UA) as client, MAP_OUT.open("a") as f:
             for i, rec in enumerate(pending, 1):
                 res = s2_match(client, rec["title"])
-                row = {"orid": rec["orid"], "arxiv_id": res.get("arxiv_id"),
-                       **{k: v for k, v in res.items() if k != "arxiv_id"}}
+                row = {
+                    "orid": rec["orid"],
+                    "arxiv_id": res.get("arxiv_id"),
+                    **{k: v for k, v in res.items() if k != "arxiv_id"},
+                }
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
                 done[rec["orid"]] = row
                 if res.get("arxiv_id"):
@@ -255,7 +271,9 @@ def main() -> None:
                     n_other += 1
                 if i % 100 == 0:
                     f.flush()
-                    log(f"  s2 [{i}/{len(pending)}] arxiv={n_arxiv} no_arxiv={n_noarxiv} other={n_other}")
+                    log(
+                        f"  s2 [{i}/{len(pending)}] arxiv={n_arxiv} no_arxiv={n_noarxiv} other={n_other}"
+                    )
                 time.sleep(1.05)
         log(f"s2 done: arxiv={n_arxiv} no_arxiv={n_noarxiv} other={n_other}")
 

@@ -136,9 +136,7 @@ class _Pdf:
             ctx,
             status,
             err=err,
-            stats_extra={
-                "babeldoc": _scrub_deep(run.stats, ctx.secrets.api_key)
-            },
+            stats_extra={"babeldoc": _scrub_deep(run.stats, ctx.secrets.api_key)},
         )
 
     def _harvest_pdf_outputs(self, ctx: TaskCtx, run: BabeldocRun) -> None:

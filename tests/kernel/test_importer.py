@@ -10,6 +10,7 @@ orphan census), and import_all aggregation.
 
 All fixtures are synthetic — the real 457MB bench.db is never touched.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,6 @@ from pathlib import Path
 
 from kernel import events, paths
 from kernel.idnorm import PapersRegistry
-from kernel.index import Index
 from kernel.importer import (
     import_all,
     import_benchdb,
@@ -27,7 +27,7 @@ from kernel.importer import (
     redact,
     seed_vault_zhstore,
 )
-
+from kernel.index import Index
 
 # -- fixture helpers ---------------------------------------------------------
 
@@ -65,13 +65,16 @@ def _mk_benchdb(path: Path) -> Path:
     # beta sorts BEFORE alpha by created_at despite the larger run_id.
     db.execute(
         "INSERT INTO runs VALUES (1,'alpha-late','live','stagerun',"
-        "'/nonexistent/alpha','2026-09-19T01:00:00+00:00',NULL)")
+        "'/nonexistent/alpha','2026-09-19T01:00:00+00:00',NULL)"
+    )
     db.execute(
         "INSERT INTO runs VALUES (2,'beta-early','live','stagerun',"
-        "'/nonexistent/beta','2026-09-18T01:00:00+00:00',NULL)")
+        "'/nonexistent/beta','2026-09-18T01:00:00+00:00',NULL)"
+    )
     db.execute(
         "INSERT INTO runs VALUES (3,'gamma-nodate','live','stagerun',"
-        "'/nonexistent/gamma',NULL,NULL)")
+        "'/nonexistent/gamma',NULL,NULL)"
+    )
 
     rec = (
         "INSERT INTO records"
@@ -81,47 +84,187 @@ def _mk_benchdb(path: Path) -> Path:
     )
     rows = [
         # run 1 — plain row, then an exact duplicate (pre-dedupe)
-        (1, "compile", "2112.00059", "2112.00059", "zh", "mock", "c1",
-         "ok", 1.0, None, None, 1,
-         '{"xlat_ts":"2026-09-19T01:00:01+00:00"}', None),
-        (1, "compile", "2112.00059", "2112.00059", "zh", "mock", "c1",
-         "ok", 1.0, None, None, 1,
-         '{"xlat_ts":"2026-09-19T01:00:01+00:00"}', None),
+        (
+            1,
+            "compile",
+            "2112.00059",
+            "2112.00059",
+            "zh",
+            "mock",
+            "c1",
+            "ok",
+            1.0,
+            None,
+            None,
+            1,
+            '{"xlat_ts":"2026-09-19T01:00:01+00:00"}',
+            None,
+        ),
+        (
+            1,
+            "compile",
+            "2112.00059",
+            "2112.00059",
+            "zh",
+            "mock",
+            "c1",
+            "ok",
+            1.0,
+            None,
+            None,
+            1,
+            '{"xlat_ts":"2026-09-19T01:00:01+00:00"}',
+            None,
+        ),
         # run 1 — paid arm, order-sensitive: ok then error -> ok must win
-        (1, "xlat", "cond-mat/9601002", "cond-mat/9601002", "real", "mock",
-         "c1", "ok", 5.0, None, None, 2, "{}", "[]"),
-        (1, "xlat", "cond-mat/9601002", "cond-mat/9601002", "real", "mock",
-         "c1", "error", 0.5, None, None, 3, "{}", "[]"),
+        (
+            1,
+            "xlat",
+            "cond-mat/9601002",
+            "cond-mat/9601002",
+            "real",
+            "mock",
+            "c1",
+            "ok",
+            5.0,
+            None,
+            None,
+            2,
+            "{}",
+            "[]",
+        ),
+        (
+            1,
+            "xlat",
+            "cond-mat/9601002",
+            "cond-mat/9601002",
+            "real",
+            "mock",
+            "c1",
+            "error",
+            0.5,
+            None,
+            None,
+            3,
+            "{}",
+            "[]",
+        ),
         # run 1 — free arm, order-sensitive: clean then skip -> skip wins
-        (1, "compile", "0707.0006", "0707.0006", "zh", "mock", "c",
-         "clean", 1.0, None, None, 6, "{}", "[]"),
-        (1, "compile", "0707.0006", "0707.0006", "zh", "mock", "c",
-         "skip", 0.1, None, None, 7, "{}", "[]"),
+        (
+            1,
+            "compile",
+            "0707.0006",
+            "0707.0006",
+            "zh",
+            "mock",
+            "c",
+            "clean",
+            1.0,
+            None,
+            None,
+            6,
+            "{}",
+            "[]",
+        ),
+        (
+            1,
+            "compile",
+            "0707.0006",
+            "0707.0006",
+            "zh",
+            "mock",
+            "c",
+            "skip",
+            0.1,
+            None,
+            None,
+            7,
+            "{}",
+            "[]",
+        ),
         # run 1 — secret-bearing metrics (key substring + tailscale IP +
         # auth-ish field)
-        (1, "xlat", "2101.12345", "2101.12345", "real", "mock", "c1",
-         "ok", 9.9, None, None, 4,
-         '{"api_key":"8675309-supersecret","pdf_bytes":86753093,'
-         '"jump":"100.64.1.5","seconds":100.6}', "[]"),
+        (
+            1,
+            "xlat",
+            "2101.12345",
+            "2101.12345",
+            "real",
+            "mock",
+            "c1",
+            "ok",
+            9.9,
+            None,
+            None,
+            4,
+            '{"api_key":"8675309-supersecret","pdf_bytes":86753093,'
+            '"jump":"100.64.1.5","seconds":100.6}',
+            "[]",
+        ),
         # run 1 — ambiguous bare tail (registry holds two cats)
-        (1, "xlat", "9601002", "9601002", "real", "mock", "c1", "ok",
-         1.0, None, None, 5, "{}", "[]"),
+        (
+            1,
+            "xlat",
+            "9601002",
+            "9601002",
+            "real",
+            "mock",
+            "c1",
+            "ok",
+            1.0,
+            None,
+            None,
+            5,
+            "{}",
+            "[]",
+        ),
         # run 2
-        (2, "parse", "0906.1291", "0906.1291", "-", "-", "c", "clean",
-         0.2, None, None, 1, "{}", "[]"),
+        (
+            2,
+            "parse",
+            "0906.1291",
+            "0906.1291",
+            "-",
+            "-",
+            "c",
+            "clean",
+            0.2,
+            None,
+            None,
+            1,
+            "{}",
+            "[]",
+        ),
         # run 3
-        (3, "compile", "0707.0005", "0707.0005", "zh", "mock", "c",
-         "fail", 1.0, None, None, 1, "{}", "[]"),
+        (
+            3,
+            "compile",
+            "0707.0005",
+            "0707.0005",
+            "zh",
+            "mock",
+            "c",
+            "fail",
+            1.0,
+            None,
+            None,
+            1,
+            "{}",
+            "[]",
+        ),
     ]
     db.executemany(rec, rows)
     db.execute(
         "INSERT INTO eval_records VALUES (1,2,1,'2112.00060','ok',"
-        "NULL,1.5,'{\"id\":\"2112.00060\",\"status\":\"ok\",\"seconds\":1.5}')")
+        'NULL,1.5,\'{"id":"2112.00060","status":"ok","seconds":1.5}\')'
+    )
     db.execute(
         "INSERT INTO cases VALUES (1,2,1,'2112.00061','fixloop','xelatex',"
-        "'clean',1,0,'{\"corpus\":\"2112.00061\",\"verdict\":\"clean\"}')")
+        '\'clean\',1,0,\'{"corpus":"2112.00061","verdict":"clean"}\')'
+    )
     db.execute(
-        "INSERT INTO cells VALUES (1,3,1,'2112.00062','{\"id\":\"2112.00062\"}')")
+        "INSERT INTO cells VALUES (1,3,1,'2112.00062','{\"id\":\"2112.00062\"}')"
+    )
     db.commit()
     db.close()
     return path
@@ -150,7 +293,8 @@ def _cell_payloads(index: Index) -> list[dict]:
     return [
         json.loads(r["payload"])
         for r in index.conn.execute(
-            "SELECT payload FROM events WHERE type='cell' ORDER BY line_no")
+            "SELECT payload FROM events WHERE type='cell' ORDER BY line_no"
+        )
     ]
 
 
@@ -164,10 +308,10 @@ def test_redact_surface(monkeypatch):
         "Authorization": "Bearer whatever",
         "nested": {"token": "tok", "safe": "x"},
         "jump_host": "ssh 100.64.1.5 and 100.200.1.1",
-        "pdf_bytes": 86753093,     # contains '8675309' substring -> redacted
-        "seconds": 100.6,          # float, NOT a tailscale IP -> kept
-        "tokens": 12345,           # 'tokens' is not an auth key -> kept
-        "file_cache_key": "abc",   # not auth-ish -> kept
+        "pdf_bytes": 86753093,  # contains '8675309' substring -> redacted
+        "seconds": 100.6,  # float, NOT a tailscale IP -> kept
+        "tokens": 12345,  # 'tokens' is not an auth key -> kept
+        "file_cache_key": "abc",  # not auth-ish -> kept
         "ok": True,
     }
     out, n = redact(obj)
@@ -184,8 +328,11 @@ def test_redact_surface(monkeypatch):
     assert out["ok"] is True
     # sha256 of the original string is preserved for verification
     import hashlib
-    assert out["jump_host"]["$redact"] == hashlib.sha256(
-        b"ssh 100.64.1.5 and 100.200.1.1").hexdigest()
+
+    assert (
+        out["jump_host"]["$redact"]
+        == hashlib.sha256(b"ssh 100.64.1.5 and 100.200.1.1").hexdigest()
+    )
     # original is untouched (copy semantics)
     assert obj["api_key"] == "8675309-deadbeef"
 
@@ -209,12 +356,12 @@ def test_import_benchdb(broot, tmp_path, monkeypatch):
     stats = import_benchdb(db_path, index, registry=_registry())
 
     assert stats["rows"] == 13
-    assert stats["quarantined"] == 1          # the bare '9601002' row
-    assert stats["dup_skipped"] == 1          # the exact duplicate row
-    assert stats["order_sensitive"] == 2      # paid + free conflict keys
-    assert stats["redacted"] == 3             # api_key, pdf_bytes, jump
+    assert stats["quarantined"] == 1  # the bare '9601002' row
+    assert stats["dup_skipped"] == 1  # the exact duplicate row
+    assert stats["order_sensitive"] == 2  # paid + free conflict keys
+    assert stats["redacted"] == 3  # api_key, pdf_bytes, jump
     assert stats["emitted"] == stats["applied"] > 0
-    assert stats["runs"] == 6                 # 3 rec + eval + cases + cells
+    assert stats["runs"] == 6  # 3 rec + eval + cases + cells
     assert stats["runs_minted"] == 6
 
     # ledger got the events; run_registered minted per import run
@@ -225,42 +372,41 @@ def test_import_benchdb(broot, tmp_path, monkeypatch):
 
     # cells projection: conservative resolution
     paid = index.last_cell("cond-mat/9601002", "real", "mock", "-", "xlat")
-    assert paid["status"] == "ok"             # paid -> done-ish wins
+    assert paid["status"] == "ok"  # paid -> done-ish wins
     free = index.last_cell("0707.0006", "zh", "mock", "-", "compile")
-    assert free["status"] == "skip"           # free -> retriable wins
-    assert index.last_cell("2112.00059", "zh", "mock", "-",
-                           "compile")["status"] == "ok"
-    assert index.last_cell("0906.1291", "-", "-", "-",
-                           "parse")["status"] == "clean"
+    assert free["status"] == "skip"  # free -> retriable wins
+    assert index.last_cell("2112.00059", "zh", "mock", "-", "compile")["status"] == "ok"
+    assert index.last_cell("0906.1291", "-", "-", "-", "parse")["status"] == "clean"
     # raw-table rows land under their table-name stage
-    assert index.last_cell("2112.00060", "-", "-", "-",
-                           "eval_records")["status"] == "ok"
-    assert index.last_cell("2112.00061", "-", "-", "-",
-                           "cases")["status"] == "ok"
-    assert index.last_cell("2112.00062", "-", "-", "-",
-                           "cells")["status"] == "ok"
+    assert (
+        index.last_cell("2112.00060", "-", "-", "-", "eval_records")["status"] == "ok"
+    )
+    assert index.last_cell("2112.00061", "-", "-", "-", "cases")["status"] == "ok"
+    assert index.last_cell("2112.00062", "-", "-", "-", "cells")["status"] == "ok"
 
     # ordering: beta (09-18) minted before alpha (09-19)
     seqs = {
         r["run"]: r["run_seq"]
         for r in index.conn.execute("SELECT run,run_seq FROM runs")
     }
-    assert seqs["import-eval_records-r2-beta-early"] < \
-        seqs["import-records-r1-alpha-late"]
-    assert seqs["import-records-r2-beta-early"] < \
-        seqs["import-records-r1-alpha-late"]
+    assert (
+        seqs["import-eval_records-r2-beta-early"] < seqs["import-records-r1-alpha-late"]
+    )
+    assert seqs["import-records-r2-beta-early"] < seqs["import-records-r1-alpha-late"]
 
     # quarantine: the Ambig id row + two order-sensitive reports
     qrows = [
-        json.loads(l) for l in
-        paths.quarantine_path().read_text(encoding="utf-8").splitlines()
+        json.loads(l)
+        for l in paths.quarantine_path().read_text(encoding="utf-8").splitlines()
         if l
     ]
-    assert any(r.get("type") == "import_quarantine" and
-               r.get("id") == "9601002" and
-               r.get("canon_state") == "ambig" for r in qrows)
-    assert sum(r.get("type") == "import_order_sensitive"
-               for r in qrows) == 2
+    assert any(
+        r.get("type") == "import_quarantine"
+        and r.get("id") == "9601002"
+        and r.get("canon_state") == "ambig"
+        for r in qrows
+    )
+    assert sum(r.get("type") == "import_order_sensitive" for r in qrows) == 2
 
     # redacted metrics inside the applied cell event
     payloads = _cell_payloads(index)
@@ -302,30 +448,41 @@ def test_import_benchdb_idempotent_and_dry(broot, tmp_path, monkeypatch):
 def test_import_jsonl_file(broot, tmp_path):
     wdir = tmp_path / "wtrun-2026-09-17"
     wdir.mkdir()
-    (wdir / "run_meta.json").write_text(json.dumps(
-        {"started_at": "2026-09-17T00:00:00+00:00"}))
+    (wdir / "run_meta.json").write_text(
+        json.dumps({"started_at": "2026-09-17T00:00:00+00:00"})
+    )
     lines = [
-        {"id": "2101.00001", "stage": "xlat", "arm": "real",
-         "upstream": "-", "status": "ok", "dur_s": 2.0, "metrics": {}},
-        {"id": "2101.00001", "stage": "xlat", "arm": "real",
-         "upstream": "-", "status": "ok", "dur_s": 2.0, "metrics": {}},
+        {
+            "id": "2101.00001",
+            "stage": "xlat",
+            "arm": "real",
+            "upstream": "-",
+            "status": "ok",
+            "dur_s": 2.0,
+            "metrics": {},
+        },
+        {
+            "id": "2101.00001",
+            "stage": "xlat",
+            "arm": "real",
+            "upstream": "-",
+            "status": "ok",
+            "dur_s": 2.0,
+            "metrics": {},
+        },
         {"id": "garbage id", "stage": "xlat", "status": "ok"},
         {"corpus": "2101.00002", "cond": "fixloop", "verdict": "clean"},
     ]
     f = wdir / "records.jsonl"
-    f.write_text(
-        "\n".join(json.dumps(l) for l in lines) + "\nnot json\n")
+    f.write_text("\n".join(json.dumps(l) for l in lines) + "\nnot json\n")
     index = Index()
-    stats = import_jsonl_file(f, run="import-wtrun", index=index,
-                              registry=_registry())
-    assert stats["rows"] == 5                  # 4 json + 1 bad line
+    stats = import_jsonl_file(f, run="import-wtrun", index=index, registry=_registry())
+    assert stats["rows"] == 5  # 4 json + 1 bad line
     assert stats["bad_lines"] == 1
-    assert stats["dup_skipped"] == 1           # exact dup line
-    assert stats["quarantined"] == 2           # bad id + bad line
-    assert index.last_cell("2101.00001", "real", "-", "-",
-                           "xlat")["status"] == "ok"
-    assert index.last_cell("2101.00002", "-", "-", "-",
-                           "cases")["status"] == "ok"
+    assert stats["dup_skipped"] == 1  # exact dup line
+    assert stats["quarantined"] == 2  # bad id + bad line
+    assert index.last_cell("2101.00001", "real", "-", "-", "xlat")["status"] == "ok"
+    assert index.last_cell("2101.00002", "-", "-", "-", "cases")["status"] == "ok"
 
 
 # -- import_zhstore ------------------------------------------------------------
@@ -342,24 +499,49 @@ def test_import_zhstore(broot, tmp_path):
     # B: declared zh, no bytes -> tombstone
     # C: _quarantine zone, splice bytes under _quarantine/ -> verified
     (zh / "_quarantine" / "0712.0033" / "splice").mkdir(parents=True)
-    (zh / "_quarantine" / "0712.0033" / "splice" / "s.pdf").write_bytes(
-        b"%PDF-3")
+    (zh / "_quarantine" / "0712.0033" / "splice" / "s.pdf").write_bytes(b"%PDF-3")
     # orphan dir with no manifest row
     (zh / "0909.9999").mkdir()
     (zh / "0909.9999" / "x.pdf").write_bytes(b"%PDF-4")
 
     rows = [
-        {"id": "0712.0031", "arm": "real", "model": "m1",
-         "source_run": "run-a", "has_zh": True, "has_splice": True,
-         "zone": "primary", "moved_at": "2026-09-20T10:00:00+00:00"},
-        {"id": "0712.0032", "arm": "real", "model": "",
-         "source_run": "run-b", "has_zh": True, "has_splice": False,
-         "zone": "primary", "moved_at": "2026-09-20T10:01:00+00:00"},
-        {"id": "0712.0033", "arm": "real", "model": "",
-         "source_run": "run-c", "has_zh": False, "has_splice": True,
-         "zone": "_quarantine", "moved_at": "2026-09-20T10:02:00+00:00"},
-        {"id": "bad id", "arm": "real", "has_zh": True,
-         "has_splice": False, "zone": "primary"},
+        {
+            "id": "0712.0031",
+            "arm": "real",
+            "model": "m1",
+            "source_run": "run-a",
+            "has_zh": True,
+            "has_splice": True,
+            "zone": "primary",
+            "moved_at": "2026-09-20T10:00:00+00:00",
+        },
+        {
+            "id": "0712.0032",
+            "arm": "real",
+            "model": "",
+            "source_run": "run-b",
+            "has_zh": True,
+            "has_splice": False,
+            "zone": "primary",
+            "moved_at": "2026-09-20T10:01:00+00:00",
+        },
+        {
+            "id": "0712.0033",
+            "arm": "real",
+            "model": "",
+            "source_run": "run-c",
+            "has_zh": False,
+            "has_splice": True,
+            "zone": "_quarantine",
+            "moved_at": "2026-09-20T10:02:00+00:00",
+        },
+        {
+            "id": "bad id",
+            "arm": "real",
+            "has_zh": True,
+            "has_splice": False,
+            "zone": "primary",
+        },
     ]
     manifest = zh / "manifest.jsonl"
     manifest.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
@@ -367,7 +549,7 @@ def test_import_zhstore(broot, tmp_path):
     index = Index()
     stats = import_zhstore(manifest, zh, index, registry=_registry())
     assert stats["rows"] == 4
-    assert stats["quarantined"] == 1            # 'bad id'
+    assert stats["quarantined"] == 1  # 'bad id'
     assert stats["orphans"] == 1
     assert stats["orphan_dirs"] == ["0909.9999"]
     assert stats["emitted"] == stats["applied"] == 5  # 3 assets+1 tomb+1 note
@@ -377,10 +559,12 @@ def test_import_zhstore(broot, tmp_path):
     assert ("0712.0032", "real", "-") not in index.vault_bytes_ok()
     # tombstone verdict projected into vault_meta
     vm = index.conn.execute(
-        "SELECT verdict FROM vault_meta WHERE idc='0712.0032'").fetchone()
+        "SELECT verdict FROM vault_meta WHERE idc='0712.0032'"
+    ).fetchone()
     assert vm["verdict"] == "tombstone"
     quar_vm = index.conn.execute(
-        "SELECT verdict FROM vault_meta WHERE idc='0712.0033'").fetchone()
+        "SELECT verdict FROM vault_meta WHERE idc='0712.0033'"
+    ).fetchone()
     assert quar_vm["verdict"] == "quarantine"
 
     # re-import is a no-op
@@ -408,9 +592,11 @@ def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
 
     put("0712.0031/zh/main.pdf", b"%PDF-zh")
     put("0712.0031/splice/m.pdf", b"%PDF-sp")
-    (zh / "0712.0031" / "provenance.json").write_text(json.dumps(
-        {"arm": "real", "source_run": "run-a",
-         "api_key": "sk-8675309-secret"}))
+    (zh / "0712.0031" / "provenance.json").write_text(
+        json.dumps(
+            {"arm": "real", "source_run": "run-a", "api_key": "sk-8675309-secret"}
+        )
+    )
     put("_quarantine/0712.0033/splice/s.pdf", b"%PDF-q")
     put("_quarantine/0712.0034/zh/m.pdf", b"%PDF-pq")
     put("bad id/zh/m.pdf", b"%PDF-bad")
@@ -418,20 +604,50 @@ def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
     put("0712.0099.bak-mock/zh/m.pdf", b"%PDF-mock")
 
     rows = [
-        {"id": "0712.0031", "arm": "real", "model": "m1",
-         "source_run": "run-a", "has_zh": True, "has_splice": True,
-         "zone": "primary", "moved_at": "2026-09-20T10:00:00+00:00"},
-        {"id": "0712.0032", "arm": "real", "model": "",
-         "source_run": "run-b", "has_zh": True, "has_splice": False,
-         "zone": "primary"},
-        {"id": "0712.0033", "arm": "real", "model": "",
-         "source_run": "run-c", "has_zh": False, "has_splice": True,
-         "zone": "_quarantine"},
-        {"id": "0712.0034", "arm": "real", "model": "",
-         "source_run": "run-d", "has_zh": True, "has_splice": False,
-         "zone": "primary"},
-        {"id": "bad id", "arm": "real", "has_zh": True,
-         "has_splice": False, "zone": "primary"},
+        {
+            "id": "0712.0031",
+            "arm": "real",
+            "model": "m1",
+            "source_run": "run-a",
+            "has_zh": True,
+            "has_splice": True,
+            "zone": "primary",
+            "moved_at": "2026-09-20T10:00:00+00:00",
+        },
+        {
+            "id": "0712.0032",
+            "arm": "real",
+            "model": "",
+            "source_run": "run-b",
+            "has_zh": True,
+            "has_splice": False,
+            "zone": "primary",
+        },
+        {
+            "id": "0712.0033",
+            "arm": "real",
+            "model": "",
+            "source_run": "run-c",
+            "has_zh": False,
+            "has_splice": True,
+            "zone": "_quarantine",
+        },
+        {
+            "id": "0712.0034",
+            "arm": "real",
+            "model": "",
+            "source_run": "run-d",
+            "has_zh": True,
+            "has_splice": False,
+            "zone": "primary",
+        },
+        {
+            "id": "bad id",
+            "arm": "real",
+            "has_zh": True,
+            "has_splice": False,
+            "zone": "primary",
+        },
     ]
     manifest = zh / "manifest.jsonl"
     manifest.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
@@ -451,11 +667,11 @@ def test_seed_vault_zhstore(broot, tmp_path, monkeypatch):
     # quar-by-location, orphan 0909.9999 -> 4 copies / 5 kinds
     assert stats["harvested"] == 4
     assert stats["kinds_harvested"] == 5
-    assert stats["still_missing"] == 1            # 0712.0032
-    assert sorted(stats["orphan_dirs"]) == [
-        "0712.0099.bak-mock", "0909.9999"]
-    assert stats["noncanon_dirs"] == ["0712.0099.bak-mock", "bad id"] or \
-        sorted(stats["noncanon_dirs"]) == ["0712.0099.bak-mock", "bad id"]
+    assert stats["still_missing"] == 1  # 0712.0032
+    assert sorted(stats["orphan_dirs"]) == ["0712.0099.bak-mock", "0909.9999"]
+    assert stats["noncanon_dirs"] == ["0712.0099.bak-mock", "bad id"] or sorted(
+        stats["noncanon_dirs"]
+    ) == ["0712.0099.bak-mock", "bad id"]
     assert stats["bytes"] > 0
     assert not stats["conflicts"]
 
@@ -485,13 +701,16 @@ def test_seed_vault_zhstore(broot, tmp_path, monkeypatch):
 
     # noncanon bytes stayed out of the vault entirely (the query layer
     # itself canon-gates, so absence is proven via the index projection)
-    assert index.conn.execute(
-        "SELECT COUNT(*) c FROM vault_meta WHERE idc LIKE '%bak-mock%' "
-        "OR idc LIKE '%bad%'").fetchone()["c"] == 0
+    assert (
+        index.conn.execute(
+            "SELECT COUNT(*) c FROM vault_meta WHERE idc LIKE '%bak-mock%' "
+            "OR idc LIKE '%bad%'"
+        ).fetchone()["c"]
+        == 0
+    )
 
     # physical payload is in the vault tree, fused read-only
-    leaf = (paths.vault_dir() / "zh" / "0712.0031" / "real"
-            / "main.pdf")
+    leaf = paths.vault_dir() / "zh" / "0712.0031" / "real" / "main.pdf"
     assert leaf.is_file() and leaf.read_bytes() == b"%PDF-zh"
     assert not (leaf.stat().st_mode & 0o222)
 
@@ -516,8 +735,7 @@ def test_seed_vault_zhstore(broot, tmp_path, monkeypatch):
 def test_seed_vault_zhstore_dry(broot, tmp_path):
     zh, manifest = _mk_zhstore(tmp_path)
     index = Index()
-    stats = seed_vault_zhstore(
-        manifest, zh, index, registry=_registry(), dry=True)
+    stats = seed_vault_zhstore(manifest, zh, index, registry=_registry(), dry=True)
     assert stats["harvested"] == 4
     for kind in ("zh", "splice", "state", "quar"):
         d = paths.vault_dir() / kind
@@ -535,48 +753,71 @@ def test_import_all(broot, tmp_path, monkeypatch):
     (zh / "0712.0031" / "zh").mkdir(parents=True)
     (zh / "0712.0031" / "zh" / "m.pdf").write_bytes(b"%PDF")
     manifest = zh / "manifest.jsonl"
-    manifest.write_text(json.dumps(
-        {"id": "0712.0031", "arm": "real", "has_zh": True,
-         "has_splice": False, "zone": "primary",
-         "moved_at": "2026-09-20T10:00:00+00:00"}) + "\n")
+    manifest.write_text(
+        json.dumps(
+            {
+                "id": "0712.0031",
+                "arm": "real",
+                "has_zh": True,
+                "has_splice": False,
+                "zone": "primary",
+                "moved_at": "2026-09-20T10:00:00+00:00",
+            }
+        )
+        + "\n"
+    )
 
     scan = tmp_path / "work"
     (scan / "runx").mkdir(parents=True)
-    (scan / "runx" / "records.xlat.jsonl").write_text(json.dumps(
-        {"id": "2101.00003", "stage": "xlat", "arm": "real",
-         "status": "ok"}) + "\n")
+    (scan / "runx" / "records.xlat.jsonl").write_text(
+        json.dumps({"id": "2101.00003", "stage": "xlat", "arm": "real", "status": "ok"})
+        + "\n"
+    )
     # stagerun stage ledgers: records/{stage}.jsonl — stage comes from
     # the file stem when the row itself doesn't carry one.
     (scan / "runx" / "records").mkdir()
-    (scan / "runx" / "records" / "compile.jsonl").write_text(json.dumps(
-        {"id": "2101.00006", "arm": "mock", "status": "ok"}) + "\n")
+    (scan / "runx" / "records" / "compile.jsonl").write_text(
+        json.dumps({"id": "2101.00006", "arm": "mock", "status": "ok"}) + "\n"
+    )
     # recovered eval/cells ledgers: stage by file family, default ok.
     (scan / "runx" / "eval-records-recovered.jsonl").write_text(
-        json.dumps({"id": "2101.00007", "route": {"engines": ["xelatex"]},
-                    "status": "ok"}) + "\n")
+        json.dumps(
+            {"id": "2101.00007", "route": {"engines": ["xelatex"]}, "status": "ok"}
+        )
+        + "\n"
+    )
     (scan / "runx" / "cells-recovered.jsonl").write_text(
-        json.dumps({"id": "2101.00008", "band": "b",
-                    "route": {"engines": ["xelatex"]},
-                    "status": "ok"}) + "\n")
+        json.dumps(
+            {
+                "id": "2101.00008",
+                "band": "b",
+                "route": {"engines": ["xelatex"]},
+                "status": "ok",
+            }
+        )
+        + "\n"
+    )
 
     index = Index()
     total = import_all(
-        {"benchdb": db_path,
-         "scan_root": scan,
-         "zhstore": {"manifest": manifest, "bytes_root": zh}},
-        index, registry=_registry())
+        {
+            "benchdb": db_path,
+            "scan_root": scan,
+            "zhstore": {"manifest": manifest, "bytes_root": zh},
+        },
+        index,
+        registry=_registry(),
+    )
     assert "benchdb" in total["per_source"]
     assert "zhstore" in total["per_source"]
     assert "jsonl" in total["per_source"]
-    assert total["rows"] == 18               # db 13 + zh 1 + scan 4
-    assert index.last_cell("2101.00003", "real", "-", "-",
-                           "xlat")["status"] == "ok"
-    assert index.last_cell("2101.00006", "mock", "-", "-",
-                           "compile")["status"] == "ok"
-    assert index.last_cell("2101.00007", "-", "-", "-",
-                           "eval_records")["status"] == "ok"
-    assert index.last_cell("2101.00008", "-", "-", "-",
-                           "cells")["status"] == "ok"
+    assert total["rows"] == 18  # db 13 + zh 1 + scan 4
+    assert index.last_cell("2101.00003", "real", "-", "-", "xlat")["status"] == "ok"
+    assert index.last_cell("2101.00006", "mock", "-", "-", "compile")["status"] == "ok"
+    assert (
+        index.last_cell("2101.00007", "-", "-", "-", "eval_records")["status"] == "ok"
+    )
+    assert index.last_cell("2101.00008", "-", "-", "-", "cells")["status"] == "ok"
     assert ("0712.0031", "real", "-") in index.vault_bytes_ok()
 
 
@@ -586,9 +827,18 @@ def test_import_all(broot, tmp_path, monkeypatch):
 def test_blob_offload(broot, tmp_path):
     big = "x" * 6000
     f = tmp_path / "records.jsonl"
-    f.write_text(json.dumps(
-        {"id": "2101.00009", "stage": "xlat", "arm": "real",
-         "status": "ok", "metrics": {"blob": big}}) + "\n")
+    f.write_text(
+        json.dumps(
+            {
+                "id": "2101.00009",
+                "stage": "xlat",
+                "arm": "real",
+                "status": "ok",
+                "metrics": {"blob": big},
+            }
+        )
+        + "\n"
+    )
     index = Index()
     stats = import_jsonl_file(f, run="import-blob", index=index)
     assert stats["emitted"] == 1
@@ -617,23 +867,64 @@ def _mk_manifests(tmp_path: Path) -> Path:
     union across files, canon-fail quarantine."""
     d = tmp_path / "manifests"
     d.mkdir()
-    (d / "manifest_a.jsonl").write_text("\n".join(json.dumps(r) for r in [
-        {"id": "0707.0978", "layer": "v1", "channel": "ia",
-         "format": "tar", "n_files": 11},
-        {"id": "astro-ph/0605048", "layer": "booster", "channel": "ia",
-         "format": "stub", "status": None},
-        {"id": "0806.1413", "layer": "v1", "channel": "ia",
-         "format": "gz", "status": "fetch_error:406"},
-        {"id": "1003.1513", "layer": "v1", "channel": "ia",
-         "format": "tar", "status": "fetch_error:406"},
-        {"id": "bad id", "layer": "v1"},
-    ]) + "\n")
-    (d / "manifest_b.jsonl").write_text("\n".join(json.dumps(r) for r in [
-        {"id": "0707.0978", "layer": "hot", "channel": "arxiv_eprint",
-         "format": "tar"},
-        {"id": "1003.1513", "layer": "v2", "channel": "ia",
-         "format": "tar", "status": "ok"},
-    ]) + "\n")
+    (d / "manifest_a.jsonl").write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in [
+                {
+                    "id": "0707.0978",
+                    "layer": "v1",
+                    "channel": "ia",
+                    "format": "tar",
+                    "n_files": 11,
+                },
+                {
+                    "id": "astro-ph/0605048",
+                    "layer": "booster",
+                    "channel": "ia",
+                    "format": "stub",
+                    "status": None,
+                },
+                {
+                    "id": "0806.1413",
+                    "layer": "v1",
+                    "channel": "ia",
+                    "format": "gz",
+                    "status": "fetch_error:406",
+                },
+                {
+                    "id": "1003.1513",
+                    "layer": "v1",
+                    "channel": "ia",
+                    "format": "tar",
+                    "status": "fetch_error:406",
+                },
+                {"id": "bad id", "layer": "v1"},
+            ]
+        )
+        + "\n"
+    )
+    (d / "manifest_b.jsonl").write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in [
+                {
+                    "id": "0707.0978",
+                    "layer": "hot",
+                    "channel": "arxiv_eprint",
+                    "format": "tar",
+                },
+                {
+                    "id": "1003.1513",
+                    "layer": "v2",
+                    "channel": "ia",
+                    "format": "tar",
+                    "status": "ok",
+                },
+            ]
+        )
+        + "\n"
+    )
     return d
 
 
@@ -646,15 +937,15 @@ def test_register_lake_manifests(broot, tmp_path):
     stats = register_lake_manifests([mdir], index, registry=_registry())
 
     assert stats["rows"] == 7
-    assert stats["quarantined"] == 1                    # 'bad id'
-    assert stats["seeded_skeleton"] == 2                # 0707.0978, 1003.1513
-    assert stats["seeded_failed"] == 2                  # astro-ph stub, 0806 406
+    assert stats["quarantined"] == 1  # 'bad id'
+    assert stats["seeded_skeleton"] == 2  # 0707.0978, 1003.1513
+    assert stats["seeded_failed"] == 2  # astro-ph stub, 0806 406
 
     cat = lake.LakeCatalog.load()
     assert cat.state("0707.0978") == "skeleton"
     row = cat.rows()["0707.0978"]
     assert row["manifested"] is True
-    assert sorted(row["layers"]) == ["hot", "v1"]       # union across files
+    assert sorted(row["layers"]) == ["hot", "v1"]  # union across files
     assert sorted(row["channels"]) == ["arxiv_eprint", "ia"]
     assert cat.state("astro-ph/0605048") == "failed"
     assert cat.rows()["astro-ph/0605048"]["regen_cost"] == "network"
@@ -692,8 +983,14 @@ def test_register_lake_manifests_never_downgrades(broot, tmp_path):
     assert stats["meta_merged"] == 1
 
 
-def _mk_legacy_cell(root: Path, name: str, *, raw: bool = True,
-                    extracted: int = 2, meta: dict | None = None) -> Path:
+def _mk_legacy_cell(
+    root: Path,
+    name: str,
+    *,
+    raw: bool = True,
+    extracted: int = 2,
+    meta: dict | None = None,
+) -> Path:
     d = root / name
     (d / "extracted" / "sub").mkdir(parents=True)
     if raw:
@@ -701,9 +998,17 @@ def _mk_legacy_cell(root: Path, name: str, *, raw: bool = True,
     for i in range(extracted):
         (d / "extracted" / f"f{i}.tex").write_bytes(b"tex-%d" % i)
     (d / "extracted" / "sub" / "s.sty").write_bytes(b"sty")
-    (d / "meta.json").write_text(json.dumps(meta or {
-        "arxiv_id": name, "format": "tar", "n_files": extracted + 1,
-        "raw_file": "raw.tar.gz"}))
+    (d / "meta.json").write_text(
+        json.dumps(
+            meta
+            or {
+                "arxiv_id": name,
+                "format": "tar",
+                "n_files": extracted + 1,
+                "raw_file": "raw.tar.gz",
+            }
+        )
+    )
     (d / "files.txt").write_text("f0.tex\n")
     return d
 
@@ -714,19 +1019,18 @@ def test_absorb_corpus(broot, tmp_path):
 
     corpus = tmp_path / "corpus"
     corpus.mkdir()
-    _mk_legacy_cell(corpus, "0707.0978")               # new-style spelling
-    _mk_legacy_cell(corpus, "astro-ph--0605048")       # safe-form spelling
+    _mk_legacy_cell(corpus, "0707.0978")  # new-style spelling
+    _mk_legacy_cell(corpus, "astro-ph--0605048")  # safe-form spelling
     rawonly = corpus / "1003.1513"
     rawonly.mkdir()
     (rawonly / "raw.gz").write_bytes(b"%RAWGZ")
     (rawonly / "meta.json").write_text("{}")
-    (corpus / "nominations").mkdir()                   # noncanon junk dir
-    (corpus / "empty-cell").mkdir()                    # canon? no payload
+    (corpus / "nominations").mkdir()  # noncanon junk dir
+    (corpus / "empty-cell").mkdir()  # canon? no payload
     mdir = _mk_manifests(tmp_path)
 
     index = Index()
-    stats = absorb_corpus(corpus, index, registry=_registry(),
-                          manifests=[mdir])
+    stats = absorb_corpus(corpus, index, registry=_registry(), manifests=[mdir])
     assert stats["absorbed"] == 3
     assert stats["raw_only"] == 1
     assert "nominations" in stats["noncanon_dirs"]
@@ -740,10 +1044,10 @@ def test_absorb_corpus(broot, tmp_path):
     dest = lake.cell_dir("0707.0978")
     meta = json.loads((dest / "meta.json").read_text())
     assert meta["absorb"] is True and meta["idc"] == "0707.0978"
-    assert meta["n_files"] == 3                         # 2 tex + 1 sty
+    assert meta["n_files"] == 3  # 2 tex + 1 sty
     leaf = dest / "extracted" / "f0.tex"
     assert leaf.read_bytes() == b"tex-0"
-    assert leaf.stat().st_mode & 0o222 == 0             # 0444 projection
+    assert leaf.stat().st_mode & 0o222 == 0  # 0444 projection
     raw_leaf = dest / "raw" / "raw.tar.gz"
     assert raw_leaf.read_bytes() == b"%RAW-0707.0978"
     # CAS holds the bytes; the projection hardlinks the same inode
@@ -760,25 +1064,22 @@ def test_absorb_corpus(broot, tmp_path):
     assert cat.rows()["1003.1513"]["manifested"] is True
     # source tree untouched + still writable
     assert (corpus / "0707.0978" / "raw.tar.gz").exists()
-    assert (corpus / "0707.0978" / "extracted" / "f0.tex").stat().st_mode \
-        & 0o222
+    assert (corpus / "0707.0978" / "extracted" / "f0.tex").stat().st_mode & 0o222
 
     # idempotent re-run: zero absorbs, zero new catalog rows
     n_cat = len(paths.lake_catalog_path().read_text().splitlines())
-    again = absorb_corpus(corpus, index, registry=_registry(),
-                          manifests=[mdir])
+    again = absorb_corpus(corpus, index, registry=_registry(), manifests=[mdir])
     assert again["absorbed"] == 0
     assert again["already"] == 3
     assert len(paths.lake_catalog_path().read_text().splitlines()) == n_cat
 
     # crash-heal: wipe the catalog row, re-run re-seeds without re-absorb
-    rows = [json.loads(l) for l in
-            paths.lake_catalog_path().read_text().splitlines() if l]
+    rows = [
+        json.loads(l) for l in paths.lake_catalog_path().read_text().splitlines() if l
+    ]
     rows = [r for r in rows if r.get("idc") != "0707.0978"]
-    paths.lake_catalog_path().write_text(
-        "".join(json.dumps(r) + "\n" for r in rows))
-    heal = absorb_corpus(corpus, index, registry=_registry(),
-                         manifests=[mdir])
+    paths.lake_catalog_path().write_text("".join(json.dumps(r) + "\n" for r in rows))
+    heal = absorb_corpus(corpus, index, registry=_registry(), manifests=[mdir])
     assert heal["absorbed"] == 0
     assert lake.LakeCatalog.load().state("0707.0978") == "hydrated"
 

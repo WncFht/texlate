@@ -47,6 +47,7 @@ frame file (bump the tag), never rewrite a frozen one.
         --papers 3 --per-paper 8 --judge swe-2-max \
         --out bench/nominations/qualframe-live-v1.jsonl
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,14 +62,29 @@ REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "bench" / "py"))
 
 
-def _row(paper: str, chunk_id: str, kind: str, model: str, src: str,
-         zh: str, src_status: str, up: str, judge: str) -> dict:
+def _row(
+    paper: str,
+    chunk_id: str,
+    kind: str,
+    model: str,
+    src: str,
+    zh: str,
+    src_status: str,
+    up: str,
+    judge: str,
+) -> dict:
     """Canonical frame row — the schema the spec's row->item transform
     consumes. ``sha`` is the row fingerprint input (fp_input)."""
     r = {
-        "paper": str(paper), "chunk_id": str(chunk_id), "kind": str(kind),
-        "model": str(model), "src": src, "zh": zh,
-        "src_status": str(src_status), "up": str(up), "judge": str(judge),
+        "paper": str(paper),
+        "chunk_id": str(chunk_id),
+        "kind": str(kind),
+        "model": str(model),
+        "src": src,
+        "zh": zh,
+        "src_status": str(src_status),
+        "up": str(up),
+        "judge": str(judge),
     }
     r["sha"] = hashlib.sha256(
         json.dumps(r, ensure_ascii=False, sort_keys=True).encode()
@@ -95,15 +111,16 @@ def _mock_translate(text: str) -> str:
     out: list[str] = []
     pos = 0
     for m in _MOCK_TOKEN_RX.finditer(text):
-        out.append(_PROSE_RUN_RX.sub(_MOCK_ZH, text[pos:m.start()]))
+        out.append(_PROSE_RUN_RX.sub(_MOCK_ZH, text[pos : m.start()]))
         out.append(m.group(0))
         pos = m.end()
     out.append(_PROSE_RUN_RX.sub(_MOCK_ZH, text[pos:]))
     return "".join(out)
 
 
-def _chunk_blocks(tex_root: Path, *, min_chars: int, max_chars: int,
-                  rng: random.Random) -> list[tuple[str, str]]:
+def _chunk_blocks(
+    tex_root: Path, *, min_chars: int, max_chars: int, rng: random.Random
+) -> list[tuple[str, str]]:
     """extracted/*.tex → [(fi:bi, block)] — verbatim old-driver rules:
     blank-line split, strip, chars window, ≥3 ASCII words, no preamble/
     bibliography/verbatim blocks."""
@@ -126,17 +143,23 @@ def _chunk_blocks(tex_root: Path, *, min_chars: int, max_chars: int,
     return blocks
 
 
-def bake_mock(*, papers: int, per_paper: int, seed: int, judge: str,
-              min_chars: int, max_chars: int,
-              lake_source: str = "arxiv") -> tuple[list[dict], dict]:
+def bake_mock(
+    *,
+    papers: int,
+    per_paper: int,
+    seed: int,
+    judge: str,
+    min_chars: int,
+    max_chars: int,
+    lake_source: str = "arxiv",
+) -> tuple[list[dict], dict]:
     """Lake corpus cells → mock-translated pair rows."""
     from kernel import lake
 
     rng = random.Random(seed)
     cat = lake.LakeCatalog.load()
     cands = sorted(
-        idc for idc in cat.rows()
-        if lake.is_complete(idc, source=lake_source)
+        idc for idc in cat.rows() if lake.is_complete(idc, source=lake_source)
     )
     rng.shuffle(cands)
     picked = cands[:papers] if papers else cands
@@ -147,21 +170,31 @@ def bake_mock(*, papers: int, per_paper: int, seed: int, judge: str,
     for idc in picked:
         cell = lake.cell_dir(idc, source=lake_source)
         blocks = _chunk_blocks(
-            cell / "extracted", min_chars=min_chars, max_chars=max_chars,
-            rng=rng)
+            cell / "extracted", min_chars=min_chars, max_chars=max_chars, rng=rng
+        )
         take = blocks[:per_paper] if per_paper else blocks
         for cid, src in take:
-            rows.append(_row(
-                idc, cid, "para", "mock-translator", src,
-                _mock_translate(src), "ok", "mock-corpus", judge))
-        meta_papers.append(
-            {"id": idc, "n_pairs": len(take), "n_blocks": len(blocks)})
+            rows.append(
+                _row(
+                    idc,
+                    cid,
+                    "para",
+                    "mock-translator",
+                    src,
+                    _mock_translate(src),
+                    "ok",
+                    "mock-corpus",
+                    judge,
+                )
+            )
+        meta_papers.append({"id": idc, "n_pairs": len(take), "n_blocks": len(blocks)})
     return rows, {"papers": meta_papers, "pool": len(cands)}
 
 
 # ---------------------------------------------------------------- manifest
-def bake_manifest(*, manifest: Path, judge: str,
-                  up: str | None = None) -> tuple[list[dict], dict]:
+def bake_manifest(
+    *, manifest: Path, judge: str, up: str | None = None
+) -> tuple[list[dict], dict]:
     """Frozen sample jsonl → frame rows (qualsample field aliases)."""
     rows: list[dict] = []
     tag = up or manifest.stem
@@ -171,12 +204,19 @@ def bake_manifest(*, manifest: Path, judge: str,
         if not line:
             continue
         r = json.loads(line)
-        rows.append(_row(
-            r["paper"], r["chunk_id"], r.get("kind") or "para",
-            r.get("model") or "?",
-            r.get("src") or r.get("source") or "",
-            r.get("zh") or r.get("translation") or "",
-            r.get("status") or "ok", tag, judge))
+        rows.append(
+            _row(
+                r["paper"],
+                r["chunk_id"],
+                r.get("kind") or "para",
+                r.get("model") or "?",
+                r.get("src") or r.get("source") or "",
+                r.get("zh") or r.get("translation") or "",
+                r.get("status") or "ok",
+                tag,
+                judge,
+            )
+        )
         n += 1
     return rows, {"manifest": str(manifest), "n_rows": n}
 
@@ -208,18 +248,28 @@ def _state_files(roots: list[Path]) -> list[tuple[Path, str, str]]:
                 paper = parts[i - 1] if i else p.parent.parent.name
                 arm = parts[i + 1] if i + 1 < len(parts) - 1 else ""
             else:
-                paper = p.parent.parent.name \
-                    if p.parent.name == "state" else p.parent.name
+                paper = (
+                    p.parent.parent.name if p.parent.name == "state" else p.parent.name
+                )
             res = idnorm.canon_id(paper)
             paper = res.idc if res.ok and res.idc else paper
             out.append((p, paper, arm))
     return out
 
 
-def bake_state(*, roots: list[Path], papers: int, per_paper: int,
-               seed: int, judge: str, min_chars: int, max_chars: int,
-               kinds: set[str] | None = None, arms: set[str] | None = None,
-               up: str = "state-pool") -> tuple[list[dict], dict]:
+def bake_state(
+    *,
+    roots: list[Path],
+    papers: int,
+    per_paper: int,
+    seed: int,
+    judge: str,
+    min_chars: int,
+    max_chars: int,
+    kinds: set[str] | None = None,
+    arms: set[str] | None = None,
+    up: str = "state-pool",
+) -> tuple[list[dict], dict]:
     """state.json trees → pair rows; judge routed per pair at bake time
     (route_judge semantics — the preferred judge may yield to the pool
     when banned by the pair's own model).
@@ -269,7 +319,8 @@ def bake_state(*, roots: list[Path], papers: int, per_paper: int,
         for b in buckets:
             rng.shuffle(b)
         while sum(len(b) for b in buckets) and (
-                not per_paper or len(picked) < per_paper):
+            not per_paper or len(picked) < per_paper
+        ):
             progressed = False
             for b in buckets:
                 if b and (not per_paper or len(picked) < per_paper):
@@ -281,19 +332,35 @@ def bake_state(*, roots: list[Path], papers: int, per_paper: int,
             src = str(r.get("source") or "")
             zh = str(r.get("translation") or "")
             jm = route_judge(
-                Pair(paper=paper, chunk_id="", kind="", model=model,
-                     src="", zh=""), judge)
+                Pair(paper=paper, chunk_id="", kind="", model=model, src="", zh=""),
+                judge,
+            )
             if jm is None:
                 n_no_judge += 1
                 continue
-            rows.append(_row(
-                paper, str(r.get("chunk_id")),
-                str(r.get("kind") or "para"), model, src, zh,
-                str(r.get("status") or "ok"), up, jm))
-        meta_papers.append({
-            "id": paper, "model": model, "arm": arm,
-            "n_pairs": len(picked), "n_unjudged": n_dead,
-            "state": str(path)})
+            rows.append(
+                _row(
+                    paper,
+                    str(r.get("chunk_id")),
+                    str(r.get("kind") or "para"),
+                    model,
+                    src,
+                    zh,
+                    str(r.get("status") or "ok"),
+                    up,
+                    jm,
+                )
+            )
+        meta_papers.append(
+            {
+                "id": paper,
+                "model": model,
+                "arm": arm,
+                "n_pairs": len(picked),
+                "n_unjudged": n_dead,
+                "state": str(path),
+            }
+        )
     meta = {"papers": meta_papers}
     if n_no_judge:
         meta["n_no_eligible_judge"] = n_no_judge
@@ -308,8 +375,8 @@ def _write(rows: list[dict], meta: dict, out: Path) -> None:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     side = out.with_suffix(".meta.json")
     side.write_text(
-        json.dumps(meta, ensure_ascii=False, indent=1) + "\n",
-        encoding="utf-8")
+        json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     print(f"wrote {len(rows)} rows -> {out} (meta -> {side})")
 
 
@@ -340,30 +407,50 @@ def main(argv: list[str] | None = None) -> int:
     _common(p_st, "swe-2-max")
     p_st.add_argument("--state-root", action="append", required=True)
     p_st.add_argument("--kinds", default=None)
-    p_st.add_argument("--arms", default=None,
-                      help="csv arm filter (e.g. real) — before --papers cap")
+    p_st.add_argument(
+        "--arms", default=None, help="csv arm filter (e.g. real) — before --papers cap"
+    )
     p_st.add_argument("--up", default="state-pool")
 
     args = ap.parse_args(argv)
     out = Path(args.out)
     if args.cmd == "mock":
         rows, meta = bake_mock(
-            papers=args.papers, per_paper=args.per_paper, seed=args.seed,
-            judge=args.judge, min_chars=args.min_chars,
-            max_chars=args.max_chars, lake_source=args.lake_source)
+            papers=args.papers,
+            per_paper=args.per_paper,
+            seed=args.seed,
+            judge=args.judge,
+            min_chars=args.min_chars,
+            max_chars=args.max_chars,
+            lake_source=args.lake_source,
+        )
     elif args.cmd == "manifest":
         rows, meta = bake_manifest(
-            manifest=Path(args.manifest), judge=args.judge, up=args.up)
+            manifest=Path(args.manifest), judge=args.judge, up=args.up
+        )
     else:
-        kinds = ({k.strip() for k in args.kinds.split(",") if k.strip()}
-                 if args.kinds else None)
-        arms = ({a.strip() for a in args.arms.split(",") if a.strip()}
-                if args.arms else None)
+        kinds = (
+            {k.strip() for k in args.kinds.split(",") if k.strip()}
+            if args.kinds
+            else None
+        )
+        arms = (
+            {a.strip() for a in args.arms.split(",") if a.strip()}
+            if args.arms
+            else None
+        )
         rows, meta = bake_state(
-            roots=[Path(r) for r in args.state_root], papers=args.papers,
-            per_paper=args.per_paper, seed=args.seed, judge=args.judge,
-            min_chars=args.min_chars, max_chars=args.max_chars,
-            kinds=kinds, arms=arms, up=args.up)
+            roots=[Path(r) for r in args.state_root],
+            papers=args.papers,
+            per_paper=args.per_paper,
+            seed=args.seed,
+            judge=args.judge,
+            min_chars=args.min_chars,
+            max_chars=args.max_chars,
+            kinds=kinds,
+            arms=arms,
+            up=args.up,
+        )
     meta["cmd"] = args.cmd
     meta["judge"] = args.judge
     meta["seed"] = getattr(args, "seed", None)

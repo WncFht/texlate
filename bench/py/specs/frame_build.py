@@ -24,6 +24,7 @@ duckdb 不在项目 venv：重活全走 ``env -i PATH HOME TMPDIR`` 子进程
 实测坑，env 干净是硬要求；IA 同走净环境无害）。worker 自带 schema 与
 license 词表校验：漂移 → fail（terminal），网络/IO → error（retriable）。
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -531,14 +532,12 @@ def _state(ctx, stage: str, result: dict) -> None:
     except (OSError, ValueError):
         state = {}
     state[stage] = result
-    fsutil.atomic_write(sp, json.dumps(state, indent=1,
-                                       sort_keys=True).encode())
+    fsutil.atomic_write(sp, json.dumps(state, indent=1, sort_keys=True).encode())
 
 
 def _load_state(ctx) -> dict:
     try:
-        return json.loads(
-            (ctx.rundir.derived() / "build_state.json").read_text())
+        return json.loads((ctx.rundir.derived() / "build_state.json").read_text())
     except (OSError, ValueError):
         return {}
 
@@ -546,20 +545,37 @@ def _load_state(ctx) -> dict:
 def _run_worker(ctx, sub: str, *extra: str) -> dict:
     uv = shutil.which("uv")
     if uv is None:
-        return {"status": "fail", "cat": "no_uv",
-                "err": "uv not on PATH — duckdb worker cannot run"}
+        return {
+            "status": "fail",
+            "cat": "no_uv",
+            "err": "uv not on PATH — duckdb worker cannot run",
+        }
     w = _worker_path(ctx)
     tmp = ctx.rundir.derived() / "tmp"
     tmp.mkdir(parents=True, exist_ok=True)
-    env = {"PATH": os.environ.get("PATH", ""),
-           "HOME": os.environ.get("HOME", ""),
-           "TMPDIR": str(tmp)}
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": os.environ.get("HOME", ""),
+        "TMPDIR": str(tmp),
+    }
     timeout = int(ctx.params.get("timeout_s") or 3600)
-    cmd = [uv, "run", "--no-project", "--with", "duckdb",
-           "python", str(w), sub, str(_out_dir(ctx)), str(tmp), *extra]
+    cmd = [
+        uv,
+        "run",
+        "--no-project",
+        "--with",
+        "duckdb",
+        "python",
+        str(w),
+        sub,
+        str(_out_dir(ctx)),
+        str(tmp),
+        *extra,
+    ]
     try:
-        r = subprocess.run(cmd, env=env, capture_output=True, text=True,
-                           timeout=timeout, cwd=REPO)
+        r = subprocess.run(
+            cmd, env=env, capture_output=True, text=True, timeout=timeout, cwd=REPO
+        )
     except subprocess.TimeoutExpired:
         return {"status": "error", "cat": "timeout", "timeout_s": timeout}
     result = None
@@ -568,8 +584,12 @@ def _run_worker(ctx, sub: str, *extra: str) -> dict:
             with contextlib.suppress(ValueError):
                 result = json.loads(line[7:])
     if result is None:
-        return {"status": "error", "cat": "worker_crash", "rc": r.returncode,
-                "stderr": (r.stderr or "")[-500:]}
+        return {
+            "status": "error",
+            "cat": "worker_crash",
+            "rc": r.returncode,
+            "stderr": (r.stderr or "")[-500:],
+        }
     result.setdefault("worker_rc", r.returncode)
     return result
 
@@ -633,37 +653,48 @@ def _stamp(ctx):
             r"tar_yymm=\d{4}（当月部分量 ~[\d.k]+ 行）",
             f"上游 lastModified **{lastmod}**，拉取 ~{today}，覆盖至 "
             f"tar_yymm={max_yymm}（当月部分量 ~{part_n / 1000:.1f}k 行）"
-            if max_yymm and part_n is not None else
-            f"上游 lastModified **{lastmod}**，拉取 ~{today}",
-            txt)
+            if max_yymm and part_n is not None
+            else f"上游 lastModified **{lastmod}**，拉取 ~{today}",
+            txt,
+        )
         edits += n
     if rows:
-        txt, n = re.subn(r"主资产：[\d,]+ 行 × 14 列",
-                         f"主资产：{int(rows):,} 行 × 14 列", txt)
+        txt, n = re.subn(
+            r"主资产：[\d,]+ 行 × 14 列", f"主资产：{int(rows):,} 行 × 14 列", txt
+        )
         edits += n
     if cov:
-        txt, n = re.subn(r"新式 id 覆盖 [\d.]+%",
-                         f"新式 id 覆盖 {float(cov) * 100:.4f}%", txt)
+        txt, n = re.subn(
+            r"新式 id 覆盖 [\d.]+%", f"新式 id 覆盖 {float(cov) * 100:.4f}%", txt
+        )
         edits += n
-    txt, n = re.subn(r"item 索引（[\d-]+ 重建）",
-                     f"item 索引（{mmdd} 重建）", txt)
+    txt, n = re.subn(r"item 索引（[\d-]+ 重建）", f"item 索引（{mmdd} 重建）", txt)
     edits += n
     if edits:
         fsutil.atomic_write(mf, txt.encode())
-    ctx.emit({"stage": "stamp", "metric": "frame_build_stamp",
-              "edits": edits, "manifest": str(mf),
-              "last_modified": lastmod, "rows": rows,
-              "max_yymm": max_yymm, "newstyle_coverage": cov})
+    ctx.emit(
+        {
+            "stage": "stamp",
+            "metric": "frame_build_stamp",
+            "edits": edits,
+            "manifest": str(mf),
+            "last_modified": lastmod,
+            "rows": rows,
+            "max_yymm": max_yymm,
+            "newstyle_coverage": cov,
+        }
+    )
     if not lastmod or edits < 2:
         ctx.emit_note(
             f"stamp 只改到 {edits} 处/lastModified={lastmod!r} —— "
-            "MANIFEST 行格式可能已漂变", level="warn")
+            "MANIFEST 行格式可能已漂变",
+            level="warn",
+        )
         return "fail"
     return "ok"
 
 
-_SC = {"ok": "terminal", "fail": "terminal", "error": "retriable",
-       "skip": "retriable"}
+_SC = {"ok": "terminal", "fail": "terminal", "error": "retriable", "skip": "retriable"}
 
 
 def _upstream_sha() -> str | None:
@@ -673,7 +704,8 @@ def _upstream_sha() -> str | None:
         op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         req = urllib.request.Request(
             f"https://huggingface.co/api/datasets/{_HF_REPO}",
-            headers={"User-Agent": "texlate-frame-build/1.0"})
+            headers={"User-Agent": "texlate-frame-build/1.0"},
+        )
         return json.loads(op.open(req, timeout=60).read()).get("sha")
     except Exception:
         return None
@@ -704,14 +736,16 @@ spec = Spec(
     },
     stages=[
         Stage("snapshot", _snapshot, status_class=dict(_SC)),
-        Stage("derive", _derive, needs=[("snapshot", {"ok"})],
-              status_class=dict(_SC)),
-        Stage("indexes", _indexes, needs=[("snapshot", {"ok"})],
-              status_class=dict(_SC)),
-        Stage("allocate", _allocate,
-              needs=[("derive", {"ok"}), ("indexes", {"ok"})],
-              status_class=dict(_SC)),
-        Stage("stamp", _stamp, needs=[("allocate", {"ok"})],
-              status_class=dict(_SC)),
+        Stage("derive", _derive, needs=[("snapshot", {"ok"})], status_class=dict(_SC)),
+        Stage(
+            "indexes", _indexes, needs=[("snapshot", {"ok"})], status_class=dict(_SC)
+        ),
+        Stage(
+            "allocate",
+            _allocate,
+            needs=[("derive", {"ok"}), ("indexes", {"ok"})],
+            status_class=dict(_SC),
+        ),
+        Stage("stamp", _stamp, needs=[("allocate", {"ok"})], status_class=dict(_SC)),
     ],
 )

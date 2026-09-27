@@ -50,6 +50,7 @@ Checks:
 lake catalog-vs-dirs reconciliation, claims-vs-locks, and dangling
 from_run edges in plan.json needs (skipped with defer_edges).
 """
+
 from __future__ import annotations
 
 import json
@@ -67,26 +68,52 @@ __all__ = [
     "fsck",
 ]
 
-LEDGER_HOT_TAIL_MAX = 512 * 1024 * 1024   # §3.10.1 hot-tail hard gate
-_FS_FLOOR_GB = 27.0                        # §3.10.1 fs_avail reserve
-_LANE_FRESH_S = 600.0                      # lane/errsweep liveness window
+LEDGER_HOT_TAIL_MAX = 512 * 1024 * 1024  # §3.10.1 hot-tail hard gate
+_FS_FLOOR_GB = 27.0  # §3.10.1 fs_avail reserve
+_LANE_FRESH_S = 600.0  # lane/errsweep liveness window
 
 _PAID_OK = frozenset({"ok", "partial"})
 
 # bench/ entries that are runtime data dirs — they must never live inside
 # the checkout (§1 "仓库内只留" list).
 _STRAY_PREFIXES = ("results", "work_", "zh-store", "archive-", "daily")
-_STRAY_NAMES = frozenset({
-    "runs", "vault", "lake", "ledger", "locks", "objects", "tmp",
-    ".staging", "state", "cache", "records", "corpus_daily", "out",
-    "build", "quar", "meta",
-})
+_STRAY_NAMES = frozenset(
+    {
+        "runs",
+        "vault",
+        "lake",
+        "ledger",
+        "locks",
+        "objects",
+        "tmp",
+        ".staging",
+        "state",
+        "cache",
+        "records",
+        "corpus_daily",
+        "out",
+        "build",
+        "quar",
+        "meta",
+    }
+)
 # Tracked, known-good bench/ dirs — anything else directory-shaped is
 # listed as 'review' in the detail without failing the check.
-_BENCH_ALLOW = frozenset({
-    "py", "corpus", "fixtures", "nominations", "specs", "frame", "ts",
-    "docs", "data", "report", "__pycache__",
-})
+_BENCH_ALLOW = frozenset(
+    {
+        "py",
+        "corpus",
+        "fixtures",
+        "nominations",
+        "specs",
+        "frame",
+        "ts",
+        "docs",
+        "data",
+        "report",
+        "__pycache__",
+    }
+)
 
 
 def _repo_root() -> Path:
@@ -118,6 +145,7 @@ def _open_index() -> index.Index | None:
 
 # --- individual checks ---------------------------------------------------------------
 
+
 def _check_layout(checks: list) -> None:
     problems = []
     r = paths.root()
@@ -126,18 +154,30 @@ def _check_layout(checks: list) -> None:
         return
     problems.extend(
         f"missing zone dir {d}"
-        for d in (paths.ledger_dir(), paths.runs_dir(), paths.vault_dir(),
-                  paths.lake_dir(), paths.locks_dir())
-        if not d.is_dir())
+        for d in (
+            paths.ledger_dir(),
+            paths.runs_dir(),
+            paths.vault_dir(),
+            paths.lake_dir(),
+            paths.locks_dir(),
+        )
+        if not d.is_dir()
+    )
     problems.extend(
         f"missing sentinel {s}"
         for s in (paths.ledger_sentinel_path(), paths.vault_sentinel_path())
-        if not s.exists())
+        if not s.exists()
+    )
     problems.extend(
         f"missing {f}"
-        for f in (paths.ledger_lock_path(), paths.vault_lock_path(),
-                  paths.events_path(), paths.runs_jsonl_path())
-        if not f.exists())
+        for f in (
+            paths.ledger_lock_path(),
+            paths.vault_lock_path(),
+            paths.events_path(),
+            paths.runs_jsonl_path(),
+        )
+        if not f.exists()
+    )
     try:
         int(paths.seqfile_path().read_text().strip() or "0")
     except (OSError, ValueError) as e:
@@ -146,8 +186,12 @@ def _check_layout(checks: list) -> None:
         paths.assert_vault_same_volume()
     except (RuntimeError, OSError) as e:
         problems.append(str(e))
-    _check(checks, "layout", not problems,
-           "; ".join(problems) if problems else "zones + sentinels + same-volume ok")
+    _check(
+        checks,
+        "layout",
+        not problems,
+        "; ".join(problems) if problems else "zones + sentinels + same-volume ok",
+    )
 
 
 def _check_root_location(checks: list) -> None:
@@ -159,27 +203,33 @@ def _check_root_location(checks: list) -> None:
         if (p / ".git").exists():
             hit = p
             break
-    _check(checks, "root_location", True,
-           "ok" if hit is None else
-           f"warn: root {r} is inside git checkout {hit} — "
-           "§1 requires the data plane outside any checkout")
+    _check(
+        checks,
+        "root_location",
+        True,
+        "ok"
+        if hit is None
+        else f"warn: root {r} is inside git checkout {hit} — "
+        "§1 requires the data plane outside any checkout",
+    )
 
 
 def _check_stray_dirs(checks: list) -> None:
     bench = _repo_bench_dir()
     if not bench.is_dir():
-        _check(checks, "stray_dirs", True,
-               f"repo bench dir absent ({bench}) — nothing to scan")
+        _check(
+            checks,
+            "stray_dirs",
+            True,
+            f"repo bench dir absent ({bench}) — nothing to scan",
+        )
         return
     stray, review = [], []
     for entry in sorted(bench.iterdir()):
         if not entry.is_dir() or entry.name.startswith("__"):
             continue
         name = entry.name
-        hit = (
-            name in _STRAY_NAMES
-            or any(name.startswith(p) for p in _STRAY_PREFIXES)
-        )
+        hit = name in _STRAY_NAMES or any(name.startswith(p) for p in _STRAY_PREFIXES)
         if hit:
             stray.append(name)
         elif name not in _BENCH_ALLOW:
@@ -187,7 +237,8 @@ def _check_stray_dirs(checks: list) -> None:
     detail = (
         f"stray runtime dirs in {bench}: {stray} — report+adopt via "
         f"'bench vault adopt', NEVER delete (§3.10.9)"
-        if stray else "no stray dirs"
+        if stray
+        else "no stray dirs"
     )
     if review:
         detail += f"; unrecognized dirs to review: {review}"
@@ -211,19 +262,27 @@ def _check_lock_invariants(checks: list, idx: index.Index | None) -> list:
     problems.extend(
         f"immortal lock file missing: {f}"
         for f in (paths.ledger_lock_path(), paths.vault_lock_path())
-        if not f.exists())
+        if not f.exists()
+    )
     base = paths.runs_dir()
     if base.is_dir():
         problems.extend(
             f"run .lock unlinked: {rdir}"
             for rdir in sorted(base.glob("*/*/*"))
-            if rdir.is_dir() and not (rdir / ".lock").exists())
+            if rdir.is_dir() and not (rdir / ".lock").exists()
+        )
     stale = _stale_claims(idx)
     if stale:
-        problems.append(f"{len(stale)} claim leases held-by-dead: "
-                        f"{[f'{i}.{a}@{v}' for i, a, v in stale][:5]}")
-    _check(checks, "lock_invariants", not problems,
-           "; ".join(problems) if problems else "locks immortal + no stale claims")
+        problems.append(
+            f"{len(stale)} claim leases held-by-dead: "
+            f"{[f'{i}.{a}@{v}' for i, a, v in stale][:5]}"
+        )
+    _check(
+        checks,
+        "lock_invariants",
+        not problems,
+        "; ".join(problems) if problems else "locks immortal + no stale claims",
+    )
     return stale
 
 
@@ -276,19 +335,20 @@ def _check_ledger(checks: list, idx: index.Index | None) -> None:
             if ev is None:
                 bad += 1
     if bad:
-        problems.append(f"{bad} unparseable lines in events.jsonl "
-                        "(quarantine material)")
+        problems.append(
+            f"{bad} unparseable lines in events.jsonl (quarantine material)"
+        )
     dirty_shards = _shard_dirty_runs()
     if dirty_shards:
         problems.append(
             f"{len(dirty_shards)} run dir(s) flagged .shard-dirty — "
             f"shard mirror incomplete (rebuild the run): "
-            f"{dirty_shards[:5]}")
+            f"{dirty_shards[:5]}"
+        )
     try:
         seq_val = int(paths.seqfile_path().read_text().strip() or "0")
     except (OSError, ValueError) as e:
-        _check(checks, "ledger", False,
-               f"seqfile corrupt: {e}; {bad} bad lines")
+        _check(checks, "ledger", False, f"seqfile corrupt: {e}; {bad} bad lines")
         return
     ev_max = _max_run_seq_events()
     rj_max, rj_bad = _max_run_seq_runs_jsonl()
@@ -300,7 +360,8 @@ def _check_ledger(checks: list, idx: index.Index | None) -> None:
     if not (seq_val == ev_max == rj_max):
         problems.append(
             f"run_seq divergence: seqfile={seq_val} events.max={ev_max} "
-            f"runs.jsonl.max={rj_max} (§3.10.5 mint invariant)")
+            f"runs.jsonl.max={rj_max} (§3.10.5 mint invariant)"
+        )
     idx_max = None
     if idx is not None:
         idx_max = idx.conn.execute(
@@ -309,9 +370,13 @@ def _check_ledger(checks: list, idx: index.Index | None) -> None:
         if idx_max > ev_max:
             problems.append(
                 f"index runs.max={idx_max} AHEAD of ledger {ev_max} — "
-                "projection corruption")
-    detail = "; ".join(problems) if problems else (
-        f"events parses clean; seqfile=events=runs.jsonl at {seq_val}")
+                "projection corruption"
+            )
+    detail = (
+        "; ".join(problems)
+        if problems
+        else (f"events parses clean; seqfile=events=runs.jsonl at {seq_val}")
+    )
     if idx_max is not None:
         detail += f"; index runs.max={idx_max}"
     _check(checks, "ledger", not problems, detail)
@@ -328,7 +393,8 @@ def _check_index(checks: list, idx: index.Index | None) -> None:
     if wm < ledger_wm:
         warnings.append(
             f"index watermark {wm} behind ledger tail {ledger_wm} "
-            f"({ledger_wm - wm}B uningested — run tail_ingest)")
+            f"({ledger_wm - wm}B uningested — run tail_ingest)"
+        )
     try:
         age = time.time() - paths.index_path().stat().st_mtime
         if age > 86400:
@@ -337,11 +403,13 @@ def _check_index(checks: list, idx: index.Index | None) -> None:
         pass
     skips = idx.dedup_skip_count()
     if skips:
-        warnings.append(
-            f"dedup_skip={skips} non-zero outside replay window (§3.10.5)")
+        warnings.append(f"dedup_skip={skips} non-zero outside replay window (§3.10.5)")
     ok = not dirty
-    detail = "fail: .index-dirty present (§3.10.6 ③)" if dirty else \
-        f"sealed_gen={gen} watermark={wm}"
+    detail = (
+        "fail: .index-dirty present (§3.10.6 ③)"
+        if dirty
+        else f"sealed_gen={gen} watermark={wm}"
+    )
     if warnings:
         detail += "; warn: " + "; ".join(warnings)
     _check(checks, "index", ok, detail)
@@ -361,11 +429,21 @@ def _scan_paid_evidence() -> tuple[set, set]:
             continue
         t = ev.get("type")
         if t == events.T_CLAIM and ev.get("op") == "acquire":
-            claimed.add((str(ev.get("idc") or ev.get("id")),
-                         str(ev.get("arm")), str(ev.get("variant"))))
+            claimed.add(
+                (
+                    str(ev.get("idc") or ev.get("id")),
+                    str(ev.get("arm")),
+                    str(ev.get("variant")),
+                )
+            )
         elif events.is_terminal_cell(ev) and ev.get("status") in _PAID_OK:
-            paid_ok.add((str(ev.get("idc") or ev.get("id")),
-                         str(ev.get("arm")), str(ev.get("variant"))))
+            paid_ok.add(
+                (
+                    str(ev.get("idc") or ev.get("id")),
+                    str(ev.get("arm")),
+                    str(ev.get("variant")),
+                )
+            )
     return claimed, paid_ok
 
 
@@ -374,8 +452,9 @@ def _manifest_paid_keys() -> set:
     adopted orphans are bytes nobody paid for, so they are not pool
     members (the §3.10.6 reconciliation is about the PAID pool only)."""
     out = set()
-    for raw in dedup._read_tail_lines(paths.vault_manifest_path(),
-                                      dedup._MANIFEST_TAIL_ROWS):
+    for raw in dedup._read_tail_lines(
+        paths.vault_manifest_path(), dedup._MANIFEST_TAIL_ROWS
+    ):
         try:
             row = json.loads(raw)
         except (ValueError, UnicodeDecodeError):
@@ -394,23 +473,27 @@ def _manifest_paid_keys() -> set:
 
 def _check_paid(checks: list, idx: index.Index | None) -> None:
     claimed, paid_ok = _scan_paid_evidence()
-    pool = paid_ok & claimed          # paid cells that ended ok|partial
+    pool = paid_ok & claimed  # paid cells that ended ok|partial
     manifest_keys = _manifest_paid_keys()
-    detail_parts = [
-        f"paid-ok cells={len(pool)} manifest-bytes={len(manifest_keys)}"
-    ]
+    detail_parts = [f"paid-ok cells={len(pool)} manifest-bytes={len(manifest_keys)}"]
     if idx is not None:
         idx_claimed = {
-            (r["idc"], r["arm"], r["variant"]) for r in idx.conn.execute(
+            (r["idc"], r["arm"], r["variant"])
+            for r in idx.conn.execute(
                 "SELECT DISTINCT idc,arm,variant FROM claims"
-                " WHERE op='acquire' AND slot IS NULL")
+                " WHERE op='acquire' AND slot IS NULL"
+            )
         }
         idx_pool = idx.paid_pool() & idx_claimed
         detail_parts.append(f"index paid-pool={len(idx_pool)}")
         if idx.dirty():
-            _check(checks, "paid", False,
-                   "fail: cannot reconcile on .index-dirty index; "
-                   + "; ".join(detail_parts))
+            _check(
+                checks,
+                "paid",
+                False,
+                "fail: cannot reconcile on .index-dirty index; "
+                + "; ".join(detail_parts),
+            )
             return
     missing_bytes = sorted(pool - manifest_keys, key=repr)
     unpaid = manifest_keys - pool
@@ -431,15 +514,22 @@ def _check_paid(checks: list, idx: index.Index | None) -> None:
         problems.append(
             f"{len(missing_bytes)} paid-ok cells without manifest bytes "
             f"(harvest never landed / bytes lost): "
-            f"{[f'{i}.{a}@{v}' for i, a, v in missing_bytes][:5]}")
+            f"{[f'{i}.{a}@{v}' for i, a, v in missing_bytes][:5]}"
+        )
     if unpaid_bytes:
         problems.append(
             f"{len(unpaid_bytes)} manifest byte keys with no paid-ok cell "
             f"(bypass alarm — bytes nobody paid for): "
-            f"{[f'{i}.{a}@{v}' for i, a, v in unpaid_bytes][:5]}")
-    _check(checks, "paid", not problems,
-           "; ".join(problems + detail_parts) if problems
-           else "; ".join(detail_parts) + " — reconciled")
+            f"{[f'{i}.{a}@{v}' for i, a, v in unpaid_bytes][:5]}"
+        )
+    _check(
+        checks,
+        "paid",
+        not problems,
+        "; ".join(problems + detail_parts)
+        if problems
+        else "; ".join(detail_parts) + " — reconciled",
+    )
 
 
 def _check_capacity(checks: list) -> None:
@@ -451,27 +541,33 @@ def _check_capacity(checks: list) -> None:
     if hot >= LEDGER_HOT_TAIL_MAX:
         problems.append(
             f"ledger hot tail {hot}B >= {LEDGER_HOT_TAIL_MAX}B hard gate "
-            "(§3.10.1 — emit-side rotate should have fired)")
+            "(§3.10.1 — emit-side rotate should have fired)"
+        )
     lake_root = paths.lake_dir()
     used = 0
     if lake_root.is_dir():
         from kernel import fsutil
+
         used = fsutil.dir_size(lake_root)
     cap_gb = float(os.environ.get("TEXLATE_LAKE_CAP_GB", "100"))
-    if used > cap_gb * 1024 ** 3:
-        warnings.append(f"lake {used / 1024 ** 3:.1f}GiB over "
-                        f"{cap_gb}GiB watermark — evict")
+    if used > cap_gb * 1024**3:
+        warnings.append(
+            f"lake {used / 1024**3:.1f}GiB over {cap_gb}GiB watermark — evict"
+        )
     try:
-        free = shutil.disk_usage(lake_root if lake_root.is_dir()
-                                 else paths.root()).free
-        if free < _FS_FLOOR_GB * 1024 ** 3:
-            warnings.append(f"fs free {free / 1024 ** 3:.1f}GiB under "
-                            f"{_FS_FLOOR_GB}GiB floor")
+        free = shutil.disk_usage(lake_root if lake_root.is_dir() else paths.root()).free
+        if free < _FS_FLOOR_GB * 1024**3:
+            warnings.append(
+                f"fs free {free / 1024**3:.1f}GiB under {_FS_FLOOR_GB}GiB floor"
+            )
     except OSError:
         warnings.append("fs free space unstat-able")
     ok = not problems
-    detail = "; ".join(problems + warnings) if (problems or warnings) else \
-        f"hot tail {hot}B <512MB; lake/cap + fs floor ok"
+    detail = (
+        "; ".join(problems + warnings)
+        if (problems or warnings)
+        else f"hot tail {hot}B <512MB; lake/cap + fs floor ok"
+    )
     _check(checks, "capacity", ok, detail)
 
 
@@ -494,24 +590,30 @@ def _check_cache(checks: list) -> None:
     cap watermark. Report-only — eviction belongs to `bench cache evict`."""
     try:
         from kernel import cache as cachemod
+
         st = cachemod.status()
     except Exception as exc:
         _check(checks, "cache", False, f"cache status failed: {exc}")
         return
     problems = []
     if st["malformed"]:
-        problems.append(f"{st['malformed']} non-bucket file(s) under "
-                        "lake/cache")
+        problems.append(f"{st['malformed']} non-bucket file(s) under lake/cache")
     if st["over_cap"]:
-        problems.append(f"{st['bytes'] / 1024 ** 3:.1f}GiB over "
-                        f"{st['cap_gb']}GiB cap — `bench cache evict`")
-    detail = ("; ".join(problems) if problems else
-              f"{st['buckets']} buckets {st['bytes'] / 1024 ** 2:.1f}MiB "
-              f"under {st['cap_gb']}GiB cap")
+        problems.append(
+            f"{st['bytes'] / 1024**3:.1f}GiB over "
+            f"{st['cap_gb']}GiB cap — `bench cache evict`"
+        )
+    detail = (
+        "; ".join(problems)
+        if problems
+        else f"{st['buckets']} buckets {st['bytes'] / 1024**2:.1f}MiB "
+        f"under {st['cap_gb']}GiB cap"
+    )
     _check(checks, "cache", not problems, detail)
 
 
 # --- switch-ok (§3.10.9 drain gate) ----------------------------------------------------
+
 
 def _live_lane_writers(now: float) -> list[str]:
     """lane-* dirs under the scratch zones with a LIVE writer: a held
@@ -549,10 +651,7 @@ def _live_errsweep_worktrees(now: float) -> list[str]:
         if not d.is_dir():
             continue
         try:
-            newest = max(
-                [d.stat().st_mtime]
-                + [p.stat().st_mtime for p in d.iterdir()]
-            )
+            newest = max([d.stat().st_mtime] + [p.stat().st_mtime for p in d.iterdir()])
         except OSError:
             continue
         if now - newest < _LANE_FRESH_S:
@@ -566,8 +665,7 @@ def _check_switch_ok(checks: list) -> None:
         blocked.append("kernel-active held (a runner is alive)")
     active = runs.active_runs()
     if active:
-        blocked.append(f"{len(active)} active runs: "
-                       f"{[a['run'] for a in active][:5]}")
+        blocked.append(f"{len(active)} active runs: {[a['run'] for a in active][:5]}")
     if locks.pause_engaged():
         blocked.append("PAUSE engaged")
     now = time.time()
@@ -577,11 +675,16 @@ def _check_switch_ok(checks: list) -> None:
     err = _live_errsweep_worktrees(now)
     if err:
         blocked.append(f"live errsweep worktrees: {err[:5]}")
-    _check(checks, "switch_ok", not blocked,
-           "SWITCH-OK" if not blocked else "blocked: " + "; ".join(blocked))
+    _check(
+        checks,
+        "switch_ok",
+        not blocked,
+        "SWITCH-OK" if not blocked else "blocked: " + "; ".join(blocked),
+    )
 
 
 # --- entry points ---------------------------------------------------------------------
+
 
 def doctor(fix: bool = False, switch_ok: bool = False) -> dict:
     """Run all health checks; return {checks: [{name,ok,detail}], ok}.
@@ -610,10 +713,11 @@ def doctor(fix: bool = False, switch_ok: bool = False) -> dict:
         if fix:
             if stale:
                 from kernel import sweep as _sweep
+
                 rep = _sweep.sweep(light=True)
                 fixed.append(
-                    f"reaped {len(rep['reaped_claims'])} stale claims "
-                    "via light sweep")
+                    f"reaped {len(rep['reaped_claims'])} stale claims via light sweep"
+                )
             if idx is not None:
                 gen_wm = idx.sealed_state()[1]
                 if gen_wm < ledger.watermark_offset():
@@ -647,30 +751,37 @@ def fsck(defer_edges: bool = False) -> dict:
     problems = []
     warnings = []
     if rep["bad"]:
-        problems.append(f"{len(rep['bad'])} bad files "
-                        f"(size/sha/missing): "
-                        f"{[b.get('reason') for b in rep['bad']][:5]}")
+        problems.append(
+            f"{len(rep['bad'])} bad files "
+            f"(size/sha/missing): "
+            f"{[b.get('reason') for b in rep['bad']][:5]}"
+        )
     if rep["meta_bad"]:
-        problems.append(f"{len(rep['meta_bad'])} unparseable/"
-                        f"credential-mismatched metas")
+        problems.append(
+            f"{len(rep['meta_bad'])} unparseable/credential-mismatched metas"
+        )
     if rep["meta_missing"]:
-        warnings.append(f"{len(rep['meta_missing'])} meta-less dirs "
-                        "(report-level per §3.10.4)")
+        warnings.append(
+            f"{len(rep['meta_missing'])} meta-less dirs (report-level per §3.10.4)"
+        )
     if rep["extra"]:
-        warnings.append(f"{len(rep['extra'])} undeclared files inside "
-                        "covered leaves")
-    _check(checks, "vault_stat", not problems,
-           "; ".join(problems + warnings) if (problems or warnings)
-           else f"{rep['metas']} metas, {rep['checked']} files, "
-                f"{rep['inodes']} inodes — clean")
+        warnings.append(f"{len(rep['extra'])} undeclared files inside covered leaves")
+    _check(
+        checks,
+        "vault_stat",
+        not problems,
+        "; ".join(problems + warnings)
+        if (problems or warnings)
+        else f"{rep['metas']} metas, {rep['checked']} files, "
+        f"{rep['inodes']} inodes — clean",
+    )
 
     # -- lake catalog vs dirs ------------------------------------------------------
     cat = lake.LakeCatalog.load()
     rows = cat.rows()
     dirless = []
     for idc, row in sorted(rows.items()):
-        if row.get("state") in ("hydrated", "pinned", "raw_only",
-                                "skeleton"):
+        if row.get("state") in ("hydrated", "pinned", "raw_only", "skeleton"):
             d = lake.cell_dir(idc, row.get("source", "arxiv"))
             if not d.is_dir():
                 dirless.append(idc)
@@ -681,29 +792,41 @@ def fsck(defer_edges: bool = False) -> dict:
             if not source_dir.is_dir() or source_dir.name.startswith("."):
                 continue
             uncataloged.extend(
-                str(cell) for cell in sorted(source_dir.iterdir())
-                if cell.is_dir() and not cell.name.startswith(".")
-                and idc_from_safe(cell.name) not in rows)
+                str(cell)
+                for cell in sorted(source_dir.iterdir())
+                if cell.is_dir()
+                and not cell.name.startswith(".")
+                and idc_from_safe(cell.name) not in rows
+            )
     problems = []
     warnings = []
     if dirless:
-        pinned_dirless = [i for i in dirless
-                          if lake._pinned(rows[i])]
-        problems.append(f"{len(dirless)} catalog rows state hydrated/"
-                        f"skeleton with no cell dir: {dirless[:5]}")
+        pinned_dirless = [i for i in dirless if lake._pinned(rows[i])]
+        problems.append(
+            f"{len(dirless)} catalog rows state hydrated/"
+            f"skeleton with no cell dir: {dirless[:5]}"
+        )
         if pinned_dirless:
             # a pinned row's missing dir also lost the PINNED marker —
             # strictly worse than a plain dirless row, so it gets its own
             # surfaced sub-case rather than drowning in the count.
-            problems.append(f"{len(pinned_dirless)} of them are PINNED "
-                            f"cells (pin marker lost with the dir): "
-                            f"{pinned_dirless[:5]}")
+            problems.append(
+                f"{len(pinned_dirless)} of them are PINNED "
+                f"cells (pin marker lost with the dir): "
+                f"{pinned_dirless[:5]}"
+            )
     if uncataloged:
-        warnings.append(f"{len(uncataloged)} lake dirs with no catalog "
-                        f"row (orphans — sweep adopts)")
-    _check(checks, "lake_catalog", not problems,
-           "; ".join(problems + warnings) if (problems or warnings)
-           else f"{len(rows)} catalog rows vs dirs — consistent")
+        warnings.append(
+            f"{len(uncataloged)} lake dirs with no catalog row (orphans — sweep adopts)"
+        )
+    _check(
+        checks,
+        "lake_catalog",
+        not problems,
+        "; ".join(problems + warnings)
+        if (problems or warnings)
+        else f"{len(rows)} catalog rows vs dirs — consistent",
+    )
 
     # -- claims vs locks ------------------------------------------------------------
     idx = _open_index()
@@ -712,11 +835,16 @@ def fsck(defer_edges: bool = False) -> dict:
     finally:
         if idx is not None:
             idx.close()
-    _check(checks, "claims_locks", not stale,
-           f"{len(stale)} acquire-open claims with free flocks: "
-           f"{stale[:5]}" if stale else
-           ("no index — skipped" if idx is None else
-            "every open claim has a live flock"))
+    _check(
+        checks,
+        "claims_locks",
+        not stale,
+        f"{len(stale)} acquire-open claims with free flocks: {stale[:5]}"
+        if stale
+        else (
+            "no index — skipped" if idx is None else "every open claim has a live flock"
+        ),
+    )
 
     # -- from_run edges ---------------------------------------------------------------
     if not defer_edges:
@@ -734,8 +862,9 @@ def fsck(defer_edges: bool = False) -> dict:
                 if not plan.exists():
                     continue
                 try:
-                    cells = json.loads(
-                        plan.read_text(encoding="utf-8")).get("cells", [])
+                    cells = json.loads(plan.read_text(encoding="utf-8")).get(
+                        "cells", []
+                    )
                 except (OSError, ValueError):
                     problems.append(f"unparseable plan: {plan}")
                     continue
@@ -753,24 +882,34 @@ def fsck(defer_edges: bool = False) -> dict:
                         if ref not in known_runs:
                             problems.append(
                                 f"{run_id}: need references missing run "
-                                f"{ref!r} (dangling from_run edge)")
+                                f"{ref!r} (dangling from_run edge)"
+                            )
                         elif idx2 is not None and isinstance(need, dict):
                             ok_done = idx2.done(
                                 need.get("idc") or need.get("id"),
-                                need.get("arm", "-"), need.get("up", "-"),
+                                need.get("arm", "-"),
+                                need.get("up", "-"),
                                 need.get("variant", "-"),
-                                need.get("stage", "-"), runs=[ref])
+                                need.get("stage", "-"),
+                                runs=[ref],
+                            )
                             if not ok_done:
                                 warnings.append(
                                     f"{run_id}: need {need.get('idc')}."
-                                    f"{need.get('stage','-')} not done "
-                                    f"in {ref}")
+                                    f"{need.get('stage', '-')} not done "
+                                    f"in {ref}"
+                                )
         finally:
             if idx2 is not None:
                 idx2.close()
-        _check(checks, "from_run_edges", not problems,
-               "; ".join(problems + warnings) if (problems or warnings)
-               else "no dangling from_run edges")
+        _check(
+            checks,
+            "from_run_edges",
+            not problems,
+            "; ".join(problems + warnings)
+            if (problems or warnings)
+            else "no dangling from_run edges",
+        )
 
     ok = all(c["ok"] for c in checks)
     return {"checks": checks, "ok": ok}

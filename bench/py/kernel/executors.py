@@ -27,6 +27,7 @@ Contract:
   submission propagate into the cell (the instrument owns its own event
   loop inside the cell fn — the kernel never touches asyncio itself).
 """
+
 from __future__ import annotations
 
 import contextvars
@@ -84,8 +85,14 @@ def _run_group_ctx(cells: list, run_cell_fn) -> list:
     return out
 
 
-def execute_cells(cells, run_cell_fn, executor: str = "thread", jobs: int = 4,
-                  same_id_serial: bool = True, registry=None) -> list:
+def execute_cells(
+    cells,
+    run_cell_fn,
+    executor: str = "thread",
+    jobs: int = 4,
+    same_id_serial: bool = True,
+    registry=None,
+) -> list:
     """Run ``run_cell_fn`` over ``cells``.
 
     Returns [(cell, result)] in the ORIGINAL input order; a cell that
@@ -115,8 +122,7 @@ def execute_cells(cells, run_cell_fn, executor: str = "thread", jobs: int = 4,
                 results.extend(group_res)
     else:
         with ThreadPoolExecutor(max_workers=jobs) as pool:
-            futs = [(g, pool.submit(runner, g, run_cell_fn))
-                    for g in groups]
+            futs = [(g, pool.submit(runner, g, run_cell_fn)) for g in groups]
             for g, f in futs:
                 try:
                     results.extend(f.result())

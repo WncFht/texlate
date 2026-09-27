@@ -77,9 +77,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # seq 级对位——懒算缓存 seqpos.json，注入顶层字段而非 alignment
         # （前端 dual()?.alignment 优先级高于本响应的 alignment，注进
         # 里面会被盖掉；seqpos 独立键前端自行消费）。失败/缺席降级 {}。
-        seqpos = await asyncio.to_thread(
-            seqpos_for_task, deps.task_dir(task_id), dual
-        )
+        seqpos = await asyncio.to_thread(seqpos_for_task, deps.task_dir(task_id), dual)
         return JSONResponse(
             {
                 "documents": docs,

@@ -380,9 +380,7 @@ def c09_drop_key(zh: str, rng: random.Random) -> str | None:
         zh,
         l0.KEY_CMD_RX,
         rng,
-        keep=lambda m: any(
-            k.strip() for g in m.groups() if g for k in g.split(",")
-        ),
+        keep=lambda m: any(k.strip() for g in m.groups() if g for k in g.split(",")),
     )
     if m is None:
         return None
@@ -563,7 +561,9 @@ def _parse_subprocess(root: Path, timeout: int) -> tuple[list, dict]:
     try:
         res = subprocess.run(
             [sys.executable, "-c", _CHILD_SRC, str(root)],
-            capture_output=True, timeout=timeout, check=False,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
         )
     except subprocess.TimeoutExpired as e:
         msg = f"Timeout(>{timeout}s)"
@@ -577,8 +577,7 @@ def _parse_subprocess(root: Path, timeout: int) -> tuple[list, dict]:
     except ValueError as e:
         msg = f"bad child stdout: {e}"
         raise _ParseFail(msg) from e
-    chunks = [SimpleNamespace(id=c["id"], content=c["content"])
-              for c in d["chunks"]]
+    chunks = [SimpleNamespace(id=c["id"], content=c["content"]) for c in d["chunks"]]
     return chunks, d["ph_map"]
 
 
@@ -843,9 +842,7 @@ def _select(item: dict, rp: dict) -> bool:
         want = {t.strip() for t in ids_p.split(",") if t.strip()}
         if pid not in want:
             return False
-    layers = {
-        s.strip() for s in str(rp.get("layers") or "").split(",") if s.strip()
-    }
+    layers = {s.strip() for s in str(rp.get("layers") or "").split(",") if s.strip()}
     if layers:
         il = item.get("layers") or [item.get("layer")]
         if not set(il) & layers:
@@ -956,9 +953,7 @@ def _vb_run(ctx) -> dict | str:
 
     if full_path is not None:
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        fsutil.atomic_write(
-            full_path, ("\n".join(full_rows) + "\n").encode()
-        )
+        fsutil.atomic_write(full_path, ("\n".join(full_rows) + "\n").encode())
 
     metrics = {
         **stats,
@@ -985,9 +980,7 @@ def _vb_run(ctx) -> dict | str:
         }
     errors = []
     if missed:
-        errors.append(
-            {"cat": "validator_miss", "msg": ";".join(missed[:8])}
-        )
+        errors.append({"cat": "validator_miss", "msg": ";".join(missed[:8])})
     if clean_fp:
         errors.append({"cat": "clean_fp", "msg": ";".join(fp_ids[:8])})
     status = "fail" if errors else "ok"
@@ -1017,8 +1010,7 @@ def _vb_probes(ctx) -> dict:
         "pass": n_pass,
         "fail_ids": [r["id"] for r in fails],
         "detail": [
-            {"id": r["id"], "pass": r["pass"], "fails": r["fails"]}
-            for r in rows
+            {"id": r["id"], "pass": r["pass"], "fails": r["fails"]} for r in rows
         ],
     }
     errors = [

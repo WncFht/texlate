@@ -3,6 +3,7 @@ pending-meta reconcile, orphan adoption, harvest-pending, tombstones).
 
 Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,36 +12,68 @@ import shutil
 import time
 from pathlib import Path
 
-from kernel import claims, events, index, lake, ledger, locks, paths
-from kernel import runs, sweep, vault
+from kernel import claims, events, index, lake, ledger, locks, paths, runs, sweep, vault
 from kernel.idnorm import safe_id
 
 
-def _make_zombie_run(kind: str = "soak", slug: str = "z1",
-                     cells=("2401.00001",)) -> runs.RunDir:
+def _make_zombie_run(
+    kind: str = "soak", slug: str = "z1", cells=("2401.00001",)
+) -> runs.RunDir:
     """A registered run with queued+started cells, a stale heartbeat and a
     free run.lock — the §3.10.1 zombie signature."""
     rd = runs.create_run(kind, slug=slug, date="2026-09-21")
-    runs.freeze_plan(rd, [
-        {"id": c, "idc": c, "arm": "zh", "up": "-", "variant": "-",
-         "stage": "xlat", "needs": [], "fp_input": None}
-        for c in cells
-    ])
+    runs.freeze_plan(
+        rd,
+        [
+            {
+                "id": c,
+                "idc": c,
+                "arm": "zh",
+                "up": "-",
+                "variant": "-",
+                "stage": "xlat",
+                "needs": [],
+                "fp_input": None,
+            }
+            for c in cells
+        ],
+    )
     for i, c in enumerate(cells):
-        ledger.emit(events.make_event(
-            events.T_CELL_QUEUED, run=rd.run, seq=10 + i, id=c, idc=c,
-            arm="zh", up="-", variant="-", stage="xlat"), run_dir=rd.path)
-        ledger.emit(events.make_event(
-            events.T_CELL_STARTED, run=rd.run, seq=20 + i, id=c, idc=c,
-            arm="zh", up="-", variant="-", stage="xlat"), run_dir=rd.path)
+        ledger.emit(
+            events.make_event(
+                events.T_CELL_QUEUED,
+                run=rd.run,
+                seq=10 + i,
+                id=c,
+                idc=c,
+                arm="zh",
+                up="-",
+                variant="-",
+                stage="xlat",
+            ),
+            run_dir=rd.path,
+        )
+        ledger.emit(
+            events.make_event(
+                events.T_CELL_STARTED,
+                run=rd.run,
+                seq=20 + i,
+                id=c,
+                idc=c,
+                arm="zh",
+                up="-",
+                variant="-",
+                stage="xlat",
+            ),
+            run_dir=rd.path,
+        )
     old = time.time() - 3600
     os.utime(rd.heartbeat_path(), (old, old))
     return rd
 
 
 def _shard(rd: runs.RunDir) -> list[dict]:
-    return [e for _ln, e, _raw in events.iter_jsonl(rd.events_path())
-            if e is not None]
+    return [e for _ln, e, _raw in events.iter_jsonl(rd.events_path()) if e is not None]
 
 
 def _ledger_events(etype: str | None = None) -> list[dict]:
@@ -62,18 +95,35 @@ def _vault_src(tmp_path: Path, name: str = "zh.mock") -> Path:
 
 def _cell_event(run: str, seq: int, idc: str, status: str) -> dict:
     return events.make_event(
-        events.T_CELL, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        up="-", variant="-", stage="xlat", status=status)
+        events.T_CELL,
+        run=run,
+        seq=seq,
+        id=idc,
+        idc=idc,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage="xlat",
+        status=status,
+    )
 
 
 def _claim_acquire(run: str, seq: int, idc: str) -> dict:
     # lifecycle claims carry no slot — slot is the paid_slots mirror stream
     return events.make_event(
-        events.T_CLAIM, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        variant="-", op="acquire")
+        events.T_CLAIM,
+        run=run,
+        seq=seq,
+        id=idc,
+        idc=idc,
+        arm="zh",
+        variant="-",
+        op="acquire",
+    )
 
 
 # --- zombies ----------------------------------------------------------------
+
 
 def test_sweep_reaps_zombie_run(broot: Path) -> None:
     rd = _make_zombie_run()
@@ -84,14 +134,16 @@ def test_sweep_reaps_zombie_run(broot: Path) -> None:
     assert [z["run"] for z in rep["zombies"]] == [rd.run]
     assert rep["zombies"][0]["lost_cells"] == 1
     # 'lost' terminal landed in both ledger and the run shard
-    lost = [e for e in _shard(rd)
-            if e.get("type") == "cell" and e.get("status") == "lost"]
+    lost = [
+        e for e in _shard(rd) if e.get("type") == "cell" and e.get("status") == "lost"
+    ]
     assert len(lost) == 1 and lost[0]["idc"] == "2401.00001"
-    assert lost[0]["seq"] < 0            # kernel negative seq
+    assert lost[0]["seq"] < 0  # kernel negative seq
     # claim reaped (audit event) — the projection also clears the key's
     # paid_slots mirror rows
-    reaps = [e for e in _shard(rd)
-             if e.get("type") == "claim" and e.get("op") == "reap"]
+    reaps = [
+        e for e in _shard(rd) if e.get("type") == "claim" and e.get("op") == "reap"
+    ]
     assert len(reaps) == 1 and reaps[0]["idc"] == "2401.00001"
     assert rep["reaped_claims"][0]["idc"] == "2401.00001"
     # zombie note present
@@ -107,14 +159,15 @@ def test_sweep_locked_cell_survives(broot: Path) -> None:
         rep = sweep.sweep()
     assert rep["zombies"][0]["lost_cells"] == 0
     assert rep["zombies"][0]["live_cells"] == 1
-    lost = [e for e in _shard(rd)
-            if e.get("type") == "cell" and e.get("status") == "lost"]
+    lost = [
+        e for e in _shard(rd) if e.get("type") == "cell" and e.get("status") == "lost"
+    ]
     assert lost == []
 
 
 def test_sweep_fresh_run_is_not_a_zombie(broot: Path) -> None:
     rd = _make_zombie_run()
-    rd.heartbeat_touch()                      # fresh heartbeat
+    rd.heartbeat_touch()  # fresh heartbeat
     rep = sweep.sweep()
     assert rep["zombies"] == []
 
@@ -158,17 +211,20 @@ def test_sweep_live_claim_lock_vetoes_reap(broot: Path) -> None:
 
 # --- pending metas ------------------------------------------------------------
 
+
 def test_sweep_pending_meta_promotes_with_index(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     src = _vault_src(tmp_path)
-    mpath = vault.harvest("2401.00001", "zh", "-", {"zh": src},
-                          source_run="adhoc/2026-09-20/x")
+    mpath = vault.harvest(
+        "2401.00001", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x"
+    )
     assert mpath.exists()
     # index says the cell ended clean → verdict primary
     idx = index.Index()
     idx.apply_event(_cell_event("adhoc/2026-09-20/x", 1, "2401.00001", "ok"))
     idx.close()
-    rep = sweep.sweep()                       # fresh meta: not yet due
+    rep = sweep.sweep()  # fresh meta: not yet due
     assert rep["promoted"] == []
     monkeypatch.setattr(sweep, "PENDING_META_AGE_S", 0)
     rep = sweep.sweep()
@@ -178,10 +234,10 @@ def test_sweep_pending_meta_promotes_with_index(
 
 
 def test_sweep_pending_meta_alt_without_evidence(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     src = _vault_src(tmp_path)
-    vault.harvest("2401.00002", "zh", "-", {"zh": src},
-                  source_run="adhoc/2026-09-20/x")
+    vault.harvest("2401.00002", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
     monkeypatch.setattr(sweep, "PENDING_META_AGE_S", 0)
     rep = sweep.sweep()
     assert [p["verdict"] for p in rep["promoted"]] == ["alt"]
@@ -190,13 +246,12 @@ def test_sweep_pending_meta_alt_without_evidence(
 
 
 def test_sweep_pending_meta_failure_evidence_goes_quar(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     src = _vault_src(tmp_path)
-    vault.harvest("2401.00013", "zh", "-", {"zh": src},
-                  source_run="adhoc/2026-09-20/x")
+    vault.harvest("2401.00013", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
     idx = index.Index()
-    idx.apply_event(
-        _cell_event("adhoc/2026-09-20/x", 1, "2401.00013", "fail"))
+    idx.apply_event(_cell_event("adhoc/2026-09-20/x", 1, "2401.00013", "fail"))
     idx.close()
     monkeypatch.setattr(sweep, "PENDING_META_AGE_S", 0)
     rep = sweep.sweep()
@@ -206,13 +261,14 @@ def test_sweep_pending_meta_failure_evidence_goes_quar(
 
 
 def test_sweep_pending_meta_tombstones_incomplete(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     src = _vault_src(tmp_path)
-    mpath = vault.harvest("2401.00003", "zh", "-", {"zh": src},
-                          source_run="adhoc/2026-09-20/x")
+    mpath = vault.harvest(
+        "2401.00003", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x"
+    )
     meta = json.loads(mpath.read_text())
-    leaf = vault.leaf_dir("pending", "zh", "2401.00003", "zh", "-",
-                          meta["altseq"])
+    leaf = vault.leaf_dir("pending", "zh", "2401.00003", "zh", "-", meta["altseq"])
     # destroy the committed bytes — the abort evidence the tombstone owns
     for p in sorted(leaf.rglob("*"), reverse=True):
         p.chmod(0o644)
@@ -228,13 +284,14 @@ def test_sweep_pending_meta_tombstones_incomplete(
 
 
 def test_sweep_pending_meta_owned_by_active_run_untouched(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     rd = runs.create_run("soak", slug="live", date="2026-09-21")
     rd.heartbeat_touch()
     src = _vault_src(tmp_path)
     vault.harvest("2401.00014", "zh", "-", {"zh": src}, source_run=rd.run)
     monkeypatch.setattr(sweep, "PENDING_META_AGE_S", 0)
-    with rd.lock():                            # fresh + locked = active
+    with rd.lock():  # fresh + locked = active
         rep = sweep.sweep()
     assert rep["promoted"] == []
     rows = vault.query("2401.00014", "zh", "-")
@@ -242,6 +299,7 @@ def test_sweep_pending_meta_owned_by_active_run_untouched(
 
 
 # --- orphans ------------------------------------------------------------------
+
 
 def test_sweep_meta_less_dir_adopted_then_report_only(broot: Path) -> None:
     sid = safe_id("2401.00004")
@@ -253,12 +311,12 @@ def test_sweep_meta_less_dir_adopted_then_report_only(broot: Path) -> None:
 
     rep = sweep.sweep()
     assert [a["idc"] for a in rep["adopted"]] == ["2401.00004"]
-    assert leaf.exists()                      # adopt never deletes
+    assert leaf.exists()  # adopt never deletes
     rows = vault.query("2401.00004", "zh", "-")
     assert rows and all(r["verdict"] == "quar" for r in rows)
 
     rep2 = sweep.sweep()
-    assert rep2["adopted"] == []              # sibling meta now blocks
+    assert rep2["adopted"] == []  # sibling meta now blocks
     assert rep2["meta_less"][0]["reason"] == "sibling_meta"
 
 
@@ -294,24 +352,24 @@ def test_sweep_lake_cataloged_dir_not_orphan(broot: Path) -> None:
 
 # --- harvest-pending ------------------------------------------------------------
 
+
 def test_sweep_harvest_pending_flags_done_without_bytes(broot: Path) -> None:
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/x", 1, "2401.00007"))
     idx.apply_event(_cell_event("r/2026-09-20/x", 2, "2401.00007", "ok"))
     idx.close()
     rep = sweep.sweep()
-    keys = [(h["idc"], h["arm"], h["variant"])
-            for h in rep["harvest_pending"]]
+    keys = [(h["idc"], h["arm"], h["variant"]) for h in rep["harvest_pending"]]
     assert keys == [("2401.00007", "zh", "-")]
     notes = _ledger_events("note")
     assert any("harvest-pending" in n["text"] for n in notes)
 
 
 def test_sweep_harvest_pending_silent_when_bytes_ok(
-        broot: Path, tmp_path: Path) -> None:
+    broot: Path, tmp_path: Path
+) -> None:
     src = _vault_src(tmp_path)
-    vault.harvest("2401.00008", "zh", "-", {"zh": src},
-                  source_run="adhoc/2026-09-20/x")
+    vault.harvest("2401.00008", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/x", 1, "2401.00008"))
     idx.apply_event(_cell_event("r/2026-09-20/x", 2, "2401.00008", "ok"))
@@ -335,28 +393,23 @@ def test_sweep_harvest_pending_silent_when_tombstoned(broot: Path) -> None:
 
 # --- permafail tombstones -------------------------------------------------------
 
-def test_sweep_permafail_tombstones_old_failures(
-        broot: Path, monkeypatch) -> None:
+
+def test_sweep_permafail_tombstones_old_failures(broot: Path, monkeypatch) -> None:
     idx = index.Index()
-    idx.apply_event(
-        _cell_event("r/2026-09-20/x", 1, "2401.00009", "fail"))
+    idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00009", "fail"))
     idx.close()
     monkeypatch.setattr(sweep, "FAIL_TOMBSTONE_AGE_S", 0)
     rep = sweep.sweep()
     assert rep["tombstoned"][0]["idc"] == "2401.00009"
     assert rep["tombstoned"][0]["reason"].startswith("permafail:")
     tombs = _ledger_events("tombstone")
-    assert any(t["idc"] == "2401.00009" and t["kind"] == "cell"
-               for t in tombs)
+    assert any(t["idc"] == "2401.00009" and t["kind"] == "cell" for t in tombs)
 
 
-def test_sweep_permafail_skips_redeemed_cells(
-        broot: Path, monkeypatch) -> None:
+def test_sweep_permafail_skips_redeemed_cells(broot: Path, monkeypatch) -> None:
     idx = index.Index()
-    idx.apply_event(
-        _cell_event("r/2026-09-20/x", 1, "2401.00010", "fail"))
-    idx.apply_event(
-        _cell_event("r/2026-09-20/y", 2, "2401.00010", "ok"))
+    idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00010", "fail"))
+    idx.apply_event(_cell_event("r/2026-09-20/y", 2, "2401.00010", "ok"))
     idx.close()
     monkeypatch.setattr(sweep, "FAIL_TOMBSTONE_AGE_S", 0)
     rep = sweep.sweep()
@@ -365,20 +418,29 @@ def test_sweep_permafail_skips_redeemed_cells(
 
 def test_sweep_permafail_skips_young_failures(broot: Path) -> None:
     idx = index.Index()
-    idx.apply_event(
-        _cell_event("r/2026-09-20/x", 1, "2401.00017", "fail"))
+    idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00017", "fail"))
     idx.close()
-    rep = sweep.sweep()                        # default 7d age gate
+    rep = sweep.sweep()  # default 7d age gate
     assert rep["tombstoned"] == []
 
 
-def test_sweep_permafail_regen_gate_not_an_attempt(
-        broot: Path, monkeypatch) -> None:
+def test_sweep_permafail_regen_gate_not_an_attempt(broot: Path, monkeypatch) -> None:
     idx = index.Index()
-    idx.apply_event(events.make_event(
-        events.T_CELL, run="r/2026-09-20/x", seq=1, id="2401.00018",
-        idc="2401.00018", arm="zh", up="-", variant="-", stage="xlat",
-        status="dedup", cat="regen_gate"))
+    idx.apply_event(
+        events.make_event(
+            events.T_CELL,
+            run="r/2026-09-20/x",
+            seq=1,
+            id="2401.00018",
+            idc="2401.00018",
+            arm="zh",
+            up="-",
+            variant="-",
+            stage="xlat",
+            status="dedup",
+            cat="regen_gate",
+        )
+    )
     idx.close()
     monkeypatch.setattr(sweep, "FAIL_TOMBSTONE_AGE_S", 0)
     rep = sweep.sweep()
@@ -392,12 +454,17 @@ def test_sweep_full_pass_seals_aged_tail(broot: Path) -> None:
     """The full pass is the §3.10.5 driver — an over-age tail rotates into
     sealed/ and the hot tail is recreated empty."""
     old = events.make_event(
-        events.T_NOTE, run="r", seq=1, text="old", level="info",
-        ts=time.time() - 40 * 86400)
+        events.T_NOTE,
+        run="r",
+        seq=1,
+        text="old",
+        level="info",
+        ts=time.time() - 40 * 86400,
+    )
     ledger.emit(old)
 
     rep = sweep.sweep(light=True)
-    assert rep["sealed"] == []          # light pass never seals
+    assert rep["sealed"] == []  # light pass never seals
     assert paths.events_path().stat().st_size > 0
 
     rep = sweep.sweep()
@@ -415,9 +482,16 @@ def test_sweep_seal_gc_requires_index_replay(broot: Path) -> None:
     """seal_gc's watermark leg is Index.sealed_done(): a verified, aged raw
     segment is deleted only once the index reports it replayed — and with
     no index open at all nothing is deletable."""
-    ledger.emit(events.make_event(
-        events.T_NOTE, run="r", seq=1, text="old", level="info",
-        ts=time.time() - 40 * 86400))
+    ledger.emit(
+        events.make_event(
+            events.T_NOTE,
+            run="r",
+            seq=1,
+            text="old",
+            level="info",
+            ts=time.time() - 40 * 86400,
+        )
+    )
     # pre-age the seals row so age + zst-verification both pass and only
     # the watermark leg decides
     aged = time.time() - 8 * 86400
@@ -441,4 +515,4 @@ def test_sweep_seal_gc_requires_index_replay(broot: Path) -> None:
     rep = sweep.sweep()
     assert rep["seal_gc"] == [raw.name]
     assert not raw.exists()
-    assert zst.exists()                # the compressed anchor survives gc
+    assert zst.exists()  # the compressed anchor survives gc

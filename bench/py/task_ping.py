@@ -25,13 +25,14 @@ from pathlib import Path
 
 try:
     from kernel import paths as _kpaths
+
     TASKS_DIR = _kpaths.status_panel_dir() / "tasks.d"
 except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
     TASKS_DIR = (
         Path(
             os.environ.get(
-                "TEXLATE_BENCH_ROOT",
-                Path.home() / ".local" / "share" / "texlate-bench")
+                "TEXLATE_BENCH_ROOT", Path.home() / ".local" / "share" / "texlate-bench"
+            )
         ).expanduser()
         / "state"
         / "status-panel"

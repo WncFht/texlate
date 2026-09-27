@@ -89,7 +89,8 @@ def test_kernel_wrap_injected(tmp_path: Path) -> None:
         "\\begin{document}\n\\section{t}\nx\n\\end{document}\n",
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:4: Paragraph ended before \\NR@gettitle was complete."
+        tmp_path,
+        err_head="main.tex:4: Paragraph ended before \\NR@gettitle was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
@@ -114,7 +115,8 @@ def test_caption_prepareanchor_wrap(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:4: Paragraph ended before \\caption@prepareanchor was complete."
+        tmp_path,
+        err_head="main.tex:4: Paragraph ended before \\caption@prepareanchor was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
@@ -158,7 +160,8 @@ def test_deny_scratch_cascade(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:3: Paragraph ended before \\bbl@tempe was complete."
+        tmp_path,
+        err_head="main.tex:3: Paragraph ended before \\bbl@tempe was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert not ok
@@ -174,7 +177,8 @@ def test_unknown_macro_declines(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:3: Paragraph ended before \\weirdmacro was complete."
+        tmp_path,
+        err_head="main.tex:3: Paragraph ended before \\weirdmacro was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert not ok
@@ -424,7 +428,8 @@ def test_xelatex_wrap_e2e(tmp_path: Path) -> None:
         errors="replace"
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:3: Paragraph ended before \\setlength was complete."
+        tmp_path,
+        err_head="main.tex:3: Paragraph ended before \\setlength was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
@@ -453,7 +458,8 @@ def test_xelatex_undelimited_cont_e2e(tmp_path: Path) -> None:
     log = (tmp_path / "main.log").read_text(errors="replace")
     assert "Paragraph ended before \\NAT@@citetp" in log
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:7: Paragraph ended before \\NAT@@citetp was complete."
+        tmp_path,
+        err_head="main.tex:7: Paragraph ended before \\NAT@@citetp was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note

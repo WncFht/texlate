@@ -259,10 +259,7 @@ class TestResumeAndCache:
 
     def test_worker_survives_emit_failure(self) -> None:
         """on_result/state 落盘抛错不能杀 worker——一死 queue.join() 就死等。"""
-        chunks = [
-            big_para(f"c{i}", tail=f" [[MATH_{i}]]")
-            for i in range(1, 5)
-        ]
+        chunks = [big_para(f"c{i}", tail=f" [[MATH_{i}]]") for i in range(1, 5)]
 
         def bad_callback(_r: pl.ChunkResult) -> None:
             msg = "emit exploded"
@@ -302,9 +299,7 @@ class TestResumeAndCache:
         assert t2.calls == []
         assert r2[0].translation == r1[0].translation
 
-    def test_pipeline_writes_state_completed_results_meta(
-        self, tmp_path: Path
-    ) -> None:
+    def test_pipeline_writes_state_completed_results_meta(self, tmp_path: Path) -> None:
         outdir = tmp_path / "out"
         chunks = [big_para("c1")]
         run_pipeline(chunks, translator=pl.MockTranslator(), state=StateStore(outdir))
@@ -502,9 +497,7 @@ class TestCachePoisonGuard:
 
         cache: dict[str, str] = {}
         c = big_para("c1", tail=" [[MATH_1]]")
-        r1 = run_pipeline(
-            [c], translator=Fuser(), cache=cache, validator=pass_validate
-        )
+        r1 = run_pipeline([c], translator=Fuser(), cache=cache, validator=pass_validate)
         assert r1[0].status == "fault"
         assert cache == {}  # ph_in_cs 毒译未落缓存
 

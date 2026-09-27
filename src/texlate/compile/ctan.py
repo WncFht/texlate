@@ -174,9 +174,7 @@ def _http_get(url: str, *, cap: int = DEFAULT_DOWNLOAD_CAP) -> bytes:
         return _read_capped(
             resp,
             cap,
-            on_over=lambda cap: CtanFetchError(
-                f"download exceeds {cap} bytes: {url}"
-            ),
+            on_over=lambda cap: CtanFetchError(f"download exceeds {cap} bytes: {url}"),
         )
 
 

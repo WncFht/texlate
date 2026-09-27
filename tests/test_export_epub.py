@@ -521,9 +521,7 @@ def test_percent_encoded_href_resolves(tmp_path: Path) -> None:
             {
                 "META-INF/container.xml": CONTAINER_XML,
                 "OEBPS/content.opf": _opf_href("ch%201.xhtml"),
-                "OEBPS/ch 1.xhtml": XHTML_TMPL.format(
-                    body="<p>Spaced name doc.</p>"
-                ),
+                "OEBPS/ch 1.xhtml": XHTML_TMPL.format(body="<p>Spaced name doc.</p>"),
             }
         ),
     )

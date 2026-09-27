@@ -38,6 +38,7 @@ status 轴只做终态/可重试分类：
 旧码同 run 全量重测无 dedup——新码同 epoch 二次 run 全 dedup 为设计
 行为，区分口径看 records.status 而非 verdict。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -278,8 +279,10 @@ def _items() -> list[dict]:
                 "fp_input": fp,
                 # 期望随 (fixture,arm) 逐格定：orig 臂吃 _SYNTH 期望，
                 # demoted 臂恒期望 clean（降级手术的本职断言）。
-                "params": {"fixture": name,
-                           "expect": "clean" if arm == "demoted" else expect},
+                "params": {
+                    "fixture": name,
+                    "expect": "clean" if arm == "demoted" else expect,
+                },
             }
             for arm in ("orig", "demoted")
         )
@@ -381,9 +384,13 @@ def _wf_case(ctx) -> dict:
         metrics["demote_n"] = n
         if n is None:
             metrics["verdict"] = "skip"
-            return {"status": "skip", "metrics": metrics,
-                    "errors": [{"cat": "demote_absent",
-                                "msg": "demote_wrapfloats not available"}]}
+            return {
+                "status": "skip",
+                "metrics": metrics,
+                "errors": [
+                    {"cat": "demote_absent", "msg": "demote_wrapfloats not available"}
+                ],
+            }
         metrics["still_wrapfig"] = bool(
             WRAP_RX.search((case_dir / "main.tex").read_bytes())
         )
@@ -408,8 +415,10 @@ def _wf_case(ctx) -> dict:
     metrics["verdict"] = (
         "collision" if (det["overlaps"] or not det["caption_present"]) else "clean"
     )
-    return {"status": "ok" if metrics["verdict"] == expect else "fail",
-            "metrics": metrics}
+    return {
+        "status": "ok" if metrics["verdict"] == expect else "fail",
+        "metrics": metrics,
+    }
 
 
 # ------------------------------------------------------------ stage: wf_pair
@@ -421,8 +430,7 @@ def _wf_pair(ctx) -> dict:
     if src is None:
         return {
             "status": "skip",
-            "errors": [{"cat": "cell_absent",
-                        "msg": "lake cannot provide cell bytes"}],
+            "errors": [{"cat": "cell_absent", "msg": "lake cannot provide cell bytes"}],
             "metrics": {"verdict": "skip", "reason": "cell_absent"},
         }
     ws = ctx.workspace()
@@ -437,17 +445,23 @@ def _wf_pair(ctx) -> dict:
             return {
                 "status": "error",
                 "metrics": metrics,
-                "errors": [{"cat": "infra",
-                            "msg": f"copy_mutating {arm}: {exc}"}],
+                "errors": [{"cat": "infra", "msg": f"copy_mutating {arm}: {exc}"}],
             }
         if arm == "demoted":
             n = _demote(dest)
             metrics["demote_n"] = n
             if n is None:
                 metrics["verdict"] = "skip"
-                return {"status": "skip", "metrics": metrics,
-                        "errors": [{"cat": "demote_absent",
-                                    "msg": "demote_wrapfloats not available"}]}
+                return {
+                    "status": "skip",
+                    "metrics": metrics,
+                    "errors": [
+                        {
+                            "cat": "demote_absent",
+                            "msg": "demote_wrapfloats not available",
+                        }
+                    ],
+                }
         main_rel = _find_main(dest)
         eng = _engine()
         try:
@@ -456,11 +470,12 @@ def _wf_pair(ctx) -> dict:
             return {
                 "status": "error",
                 "metrics": metrics,
-                "errors": [{"cat": "infra",
-                            "msg": f"compile {arm} raised {exc!r}"}],
+                "errors": [{"cat": "infra", "msg": f"compile {arm} raised {exc!r}"}],
             }
-        metrics[arm] = {"ok": bool(res.ok and res.pdf),
-                        "demote_n": metrics.get("demote_n", 0)}
+        metrics[arm] = {
+            "ok": bool(res.ok and res.pdf),
+            "demote_n": metrics.get("demote_n", 0),
+        }
     if not metrics["orig"]["ok"]:
         metrics["verdict"] = "en-broken"
         status = "partial"

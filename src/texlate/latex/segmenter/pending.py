@@ -784,4 +784,3 @@ class _Pending(_GrpScan):
                 self._open_vspan = Span(self._open_vspan.start, vext.end)
             self._open_origin = (o[0], o[1], end_pos)
         return True
-

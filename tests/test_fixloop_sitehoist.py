@@ -88,13 +88,13 @@ def test_resolve_site_nested_lands_main_dir(tmp_path: Path) -> None:
 
 def test_resolve_site_unknown_main_falls_back_wdir(tmp_path: Path) -> None:
     """main_rel 未定 → wdir 根 (flat-main DECLINE 兜底语义)。"""
-    ctx = mk_ctx(tmp_path,None)
+    ctx = mk_ctx(tmp_path, None)
     assert _resolve_site(ctx, PurePosixPath("x.sty")) == tmp_path / "x.sty"
 
 
 def test_resolve_site_escape_declines(tmp_path: Path) -> None:
     """main_rel 怪径逃出 wdir → None (不落件不炸)。"""
-    ctx = mk_ctx(tmp_path,"../outside/main.tex")
+    ctx = mk_ctx(tmp_path, "../outside/main.tex")
     assert _resolve_site(ctx, PurePosixPath("x.sty")) is None
 
 
@@ -125,7 +125,7 @@ def test_scan_vendored_nested_drops_main_dir(tmp_path: Path) -> None:
     (main_dir / "main.tex").write_text("\\usepackage{eqsecnum}\n", encoding="utf-8")
     root = mk_vendor(tmp_path)
     (root / "stubs" / "eqsecnum.sty").write_text("\\ProvidesPackage{eqsecnum}\n")
-    ctx, eng = mk_ctx(tmp_path,"templates/arxiv/main.tex"), _EngNoInstall()
+    ctx, eng = mk_ctx(tmp_path, "templates/arxiv/main.tex"), _EngNoInstall()
     ok, note = _apply_scan_install(ctx, eng, _scan_params(root))
     assert ok, note
     assert (main_dir / "eqsecnum.sty").is_file()
@@ -253,7 +253,7 @@ def test_generated_stub_nested_lands_main_dir(tmp_path: Path) -> None:
 
 def test_generated_stub_escapes_wdir_declines(tmp_path: Path) -> None:
     """main_rel 怪径逃出 wdir → DECLINE (不落件不炸, 交后续规则)。"""
-    ctx = mk_ctx(tmp_path,"../outside/main.tex")
+    ctx = mk_ctx(tmp_path, "../outside/main.tex")
     ok, note = TRANSFORM_FNS["generated_stub"](ctx, None, "fig.pstex_t", {})
     assert not ok
     assert "escapes wdir" in note
@@ -270,8 +270,8 @@ def test_substitute_main_dir_nested(tmp_path: Path) -> None:
 def test_substitute_main_dir_fallbacks(tmp_path: Path) -> None:
     """平铺/main 未知/怪径逃出/无 ctx → ``.`` (wdir 根兜底, DECLINE 口径)。"""
     assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path)) == "."  # noqa: SLF001
-    assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path,None)) == "."  # noqa: SLF001
-    assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path,"../x.tex")) == "."  # noqa: SLF001
+    assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path, None)) == "."  # noqa: SLF001
+    assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path, "../x.tex")) == "."  # noqa: SLF001
     assert actions._substitute("{main_dir}", None, None) == "."  # noqa: SLF001
 
 

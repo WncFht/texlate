@@ -37,7 +37,6 @@ r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——spike `
 from __future__ import annotations
 
 import pytest
-
 from specs._fixture_matrix import (
     _PARSED,
     ALL_FIXTURE_NAMES,
@@ -62,6 +61,7 @@ from specs._fixture_matrix import (
     classify_recon,
     scan_chunks,
 )
+
 from texlate.latex import validate_result
 
 # ---------------------------------------------------------------- 逐 fixture 结构断言

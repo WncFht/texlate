@@ -41,6 +41,7 @@ E22 硬契约判定，逐格落 metrics。旧驱动的 report/rejudge/samples �
   旧口径测量行（截断译文照样判）。例外路径首请求用量不进 meter（内核设计：
   异常不载 usage）——unmetered=True 标记。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -89,13 +90,13 @@ MANIFESTS = [
     REPO / "bench" / "corpus" / "manifest_m1k-iclr.jsonl",
     REPO / "bench" / "corpus" / "manifest_m1k-recent.jsonl",
 ]
-WHERE: dict = {}               # 行级等值过滤（旧 --where k=v；{}=union 全量）
-DOCS = 24                      # cluster 轮转取篇上限（旧 --docs；0=过滤后全部）
-PER_KIND = 8                   # 每 context-kind 等距抽样上限（旧 --per-kind）
-SEED = 0                       # 簇内选篇种子（旧 --seed）
-SAMPLES_LIMIT = 0              # 总样例上限（旧 --samples；0=不限，只砍 real）
-MODELS = ["swe-2-medium"]      # 旧 --models；加臂=spec 编辑=新版本
-REPS = 2                       # 旧 --runs
+WHERE: dict = {}  # 行级等值过滤（旧 --where k=v；{}=union 全量）
+DOCS = 24  # cluster 轮转取篇上限（旧 --docs；0=过滤后全部）
+PER_KIND = 8  # 每 context-kind 等距抽样上限（旧 --per-kind）
+SEED = 0  # 簇内选篇种子（旧 --seed）
+SAMPLES_LIMIT = 0  # 总样例上限（旧 --samples；0=不限，只砍 real）
+MODELS = ["swe-2-medium"]  # 旧 --models；加臂=spec 编辑=新版本
+REPS = 2  # 旧 --runs
 
 GAP_S = 1.0
 TIMEOUT_S = 240
@@ -254,8 +255,8 @@ def _main_tex(ext: Path, arxiv_id: str) -> Path | None:
 def _samples() -> list[dict]:
     """切片 union → eligible 过滤 → 跨簇选篇 → 湖格水化 → 分桶等距 + 合成。"""
     docs = _pick_docs(
-        [d for d in _load_manifests(MANIFESTS, WHERE) if _eligible(d)],
-        DOCS, SEED)
+        [d for d in _load_manifests(MANIFESTS, WHERE) if _eligible(d)], DOCS, SEED
+    )
     by_kind: dict[str, list[dict]] = {}
     for d in docs:
         raw = str(d.get("id") or "")
@@ -352,8 +353,7 @@ def _judge(src: str, zh: str) -> dict:
     # 判定与 validator 同源——逐 token 丢失是 L0 error (message 带 cs_dropped
     # 标记)；上面总量计数只是近似旁证，不与 validator_issues 相矛盾。
     cs_dropped = any(
-        i.severity == Severity.ERROR and "cs_dropped" in i.message
-        for i in rep.issues
+        i.severity == Severity.ERROR and "cs_dropped" in i.message for i in rep.issues
     )
     validator_ok = rep.ok
     hard_ok = validator_ok and not ph_missing and not ph_invented and not cs_dropped
@@ -362,9 +362,7 @@ def _judge(src: str, zh: str) -> dict:
     return {
         "hard_ok": hard_ok,
         "validator_ok": validator_ok,
-        "validator_issues": [
-            f"{i.severity}:{i.rule}:{i.message}" for i in rep.issues
-        ],
+        "validator_issues": [f"{i.severity}:{i.rule}:{i.message}" for i in rep.issues],
         "ph_missing": ph_missing,
         "ph_invented": ph_invented,
         "ph_order_ok": ph_order,
@@ -396,11 +394,7 @@ def _wire_call(cli, model, messages, *, options=None, timeout_s=None):
     ``_chat_via_stream`` 原地补一发——换协议路径不换模型。
     ``session.request`` 的 callable-method 通道把 cli 注入首参。
     """
-    timeout = (
-        httpx.Timeout(float(timeout_s), connect=10.0)
-        if timeout_s
-        else None
-    )
+    timeout = httpx.Timeout(float(timeout_s), connect=10.0) if timeout_s else None
 
     async def go():
         c = cli._cli()
@@ -546,9 +540,7 @@ def _xlat(ctx):
                 {
                     "code": "chat_error",
                     "payload": (
-                        f"http={status} {str(err)[:200]}"
-                        if err
-                        else "empty content"
+                        f"http={status} {str(err)[:200]}" if err else "empty content"
                     ),
                 }
             ],

@@ -77,7 +77,8 @@ const measure = () =>
                 viewer &&
                 (getComputedStyle(viewer)
                     .getPropertyValue("--page-bg-color")
-                    .trim() || "(unset)"),
+                    .trim() ||
+                    "(unset)"),
         };
     });
 

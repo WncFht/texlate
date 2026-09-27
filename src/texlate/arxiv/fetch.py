@@ -176,9 +176,7 @@ _MIRROR_PREFIX_RE: Final = re.compile(
     r"^https?://(?:[\w.-]+\.)?(?:ar5iv|alphaxiv)\.org/(?:abs|pdf|html)/+",
     re.IGNORECASE,
 )
-_EXT_RE: Final = re.compile(
-    r"\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$", re.IGNORECASE
-)
+_EXT_RE: Final = re.compile(r"\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$", re.IGNORECASE)
 _TAILNOTE_RE: Final = re.compile(r"\s*\[[^\]]{1,20}\]\s*$", re.ASCII)
 
 

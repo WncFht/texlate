@@ -7,6 +7,7 @@ placement) so the parsebench spec and quality_proxies share the exact
 口径 — copy drift between them would silently fork the corpus 0.040%
 baseline.
 """
+
 from __future__ import annotations
 
 import re

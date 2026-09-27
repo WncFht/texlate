@@ -163,9 +163,9 @@ const measureZh = (seq) => `(() => {
 })()`;
 
 const run = async () => {
-    const readerInfo = await fetch(
-        `${BASE}/api/task/${TASK}/reader`,
-    ).then((r) => r.json());
+    const readerInfo = await fetch(`${BASE}/api/task/${TASK}/reader`).then(
+        (r) => r.json(),
+    );
     const seqpos = readerInfo.seqpos ?? {};
     info(`task=${TASK} seqpos=${Object.keys(seqpos).length}`);
 
@@ -181,10 +181,9 @@ const run = async () => {
         await page.goto(`${BASE}/#/reader/${TASK}`, {
             waitUntil: "domcontentloaded",
         });
-        await page.waitForSelector(
-            '.pane[data-side="translated"] .textLayer',
-            { timeout: 30000 },
-        );
+        await page.waitForSelector('.pane[data-side="translated"] .textLayer', {
+            timeout: 30000,
+        });
         await page.waitForTimeout(2000);
         await page.evaluate(() => {
             for (const b of document.querySelectorAll(

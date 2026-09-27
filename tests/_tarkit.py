@@ -18,9 +18,7 @@ import io
 import tarfile
 
 
-def _tar_blob(
-    *members: tuple[str, bytes], fmt: int = tarfile.USTAR_FORMAT
-) -> bytes:
+def _tar_blob(*members: tuple[str, bytes], fmt: int = tarfile.USTAR_FORMAT) -> bytes:
     """tar blob——成员文本默认含 ``\\begin{document}``（``has_document`` 命中形态）。
 
     ``*members``/``fmt`` 签名即 tar-gate 簇四文件同形助手的收敛形。

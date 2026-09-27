@@ -21,6 +21,7 @@ Hard guarantees:
 - ``upstream_rec`` only ever returns DONE-status records rows in the needs
   domain — kernel masks (dedup/claimed/…) never leak to instruments.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -79,13 +80,25 @@ class Ctx:
     (text, level) -> None, defaults to buffering note dicts in outbox).
     """
 
-    def __init__(self, run, cell: dict, index, spec, *, rundir=None,
-                 factory=None, outbox=None, emit_note_fn=None, alloc=None):
+    def __init__(
+        self,
+        run,
+        cell: dict,
+        index,
+        spec,
+        *,
+        rundir=None,
+        factory=None,
+        outbox=None,
+        emit_note_fn=None,
+        alloc=None,
+    ):
         self.spec = spec
         self.cell = cell
         self.index = index
-        self.rundir = rundir if rundir is not None else (
-            run if hasattr(run, "work") else None)
+        self.rundir = (
+            rundir if rundir is not None else (run if hasattr(run, "work") else None)
+        )
         self.run = getattr(run, "run", run)
         self.factory = factory
         self._outbox = outbox if outbox is not None else []
@@ -130,9 +143,11 @@ class Ctx:
             statuses = tuple(sorted(events.STATUS_DONE))
         elif isinstance(statuses, str):
             statuses = (statuses,)
-        sql = ("SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,"
-               "code,fp,dur_s,metrics,errors,ts FROM records "
-               "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=?")
+        sql = (
+            "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,"
+            "code,fp,dur_s,metrics,errors,ts FROM records "
+            "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=?"
+        )
         args: list = [self.idc, self.arm, self.up, self.variant, stage]
         sql += f" AND run IN ({','.join('?' * len(domain))})"
         args += sorted(domain)
@@ -149,6 +164,7 @@ class Ctx:
             if isinstance(v, str):
                 try:
                     import json
+
                     d[col] = json.loads(v)
                 except ValueError:
                     pass
@@ -162,13 +178,13 @@ class Ctx:
         if not (isinstance(val, dict) and isinstance(val.get("$blob"), str)):
             return val
         import re as _re
-        if self.rundir is None or not _re.fullmatch(r"[0-9a-f]{64}",
-                                                   val["$blob"]):
+
+        if self.rundir is None or not _re.fullmatch(r"[0-9a-f]{64}", val["$blob"]):
             return val
-        p = Path(self.rundir.path) / "derived" / "blobs" / \
-            f"{val['$blob']}.json"
+        p = Path(self.rundir.path) / "derived" / "blobs" / f"{val['$blob']}.json"
         try:
             import json
+
             return json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return val
@@ -230,6 +246,7 @@ class Ctx:
         an upstream stage's (possibly fused) product, use
         upstream_asset_dir."""
         from kernel import vault
+
         d = self.paper_dir() / vault._work_dirname(kind, self.arm, self.variant)
         d.mkdir(parents=True, exist_ok=True)
         self._assert_writable(d)
@@ -240,6 +257,7 @@ class Ctx:
         mutates-kind dir — the post-harvest inter-stage handoff. No write
         probe: reading 0444 bytes is legal. None when absent."""
         from kernel import vault
+
         d = self.paper_dir() / vault._work_dirname(kind, self.arm, self.variant)
         return d if d.is_dir() else None
 
@@ -252,13 +270,15 @@ class Ctx:
         base = self.paper_dir()
         for k in kinds or []:
             from kernel import vault
+
             d = base / vault._work_dirname(k, self.arm, self.variant)
             if d.is_dir() and any(p.is_file() for p in d.rglob("*")):
                 out[k] = d
         return out
 
-    def lake_ensure(self, idc: str | None = None,
-                    source: str | None = None) -> Path | None:
+    def lake_ensure(
+        self, idc: str | None = None, source: str | None = None
+    ) -> Path | None:
         """Ensure the lake cell for ``idc`` (default: this cell's) is
         materialized; return its cell dir. Routes through the spec's
         declared ``fetch_fn`` when the cell isn't locally rebuildable —
@@ -267,14 +287,15 @@ class Ctx:
         ``source`` defaults to the spec's ``lake_source``. None when
         unfetchable (no fetch_fn and no local raw layer)."""
         idc = idc or self.idc
-        fetch = getattr(self.spec, "fetch_fn", None) \
-            if self.spec is not None else None
+        fetch = getattr(self.spec, "fetch_fn", None) if self.spec is not None else None
         if source is None:
-            source = getattr(self.spec, "lake_source", "arxiv") \
-                if self.spec is not None else "arxiv"
+            source = (
+                getattr(self.spec, "lake_source", "arxiv")
+                if self.spec is not None
+                else "arxiv"
+            )
         run_seq = getattr(self.rundir, "run_seq", 0) or 0
-        return lake.hydrate(idc, fetch_fn=fetch, source=source,
-                            run_seq=run_seq)
+        return lake.hydrate(idc, fetch_fn=fetch, source=source, run_seq=run_seq)
 
     def src_path(self) -> Path | None:
         """Read-only projection of the lake cell's extracted tree into
@@ -345,6 +366,7 @@ class Ctx:
         the shared namespace) or a distinct ``context`` dim.
         """
         from kernel import cache as cachemod
+
         sc = cachemod.open_bucket(writable=writable, **key_dims)
         self._caches.append(sc)
         return sc
@@ -360,8 +382,9 @@ class Ctx:
         land whole. A dict carrying 'type' is validated + buffered as a
         verbatim event instead."""
         if isinstance(row, dict) and "type" in row:
-            ev = events.make_event(row["type"], **{k: v for k, v in row.items()
-                                                  if k != "type"})
+            ev = events.make_event(
+                row["type"], **{k: v for k, v in row.items() if k != "type"}
+            )
             events.validate(ev)
             self._outbox.append(ev)
             return ev
@@ -378,9 +401,17 @@ class Ctx:
         leaves no orphan cases, and an index rebuild replays them.
         """
         ev = events.make_event(
-            events.T_CASE, run=self.run, seq=None, id=self.id, idc=self.idc,
-            arm=self.arm, up=self.up, variant=self.variant,
-            stage=self.stage, payload=dict(row or {}))
+            events.T_CASE,
+            run=self.run,
+            seq=None,
+            id=self.id,
+            idc=self.idc,
+            arm=self.arm,
+            up=self.up,
+            variant=self.variant,
+            stage=self.stage,
+            payload=dict(row or {}),
+        )
         self._outbox.append(ev)
         return ev
 
@@ -392,8 +423,9 @@ class Ctx:
             raise ValueError(msg)
         if self._emit_note_fn is not None:
             return self._emit_note_fn(text, level)
-        ev = events.make_event(events.T_NOTE, run=self.run, seq=None,
-                               text=str(text), level=level)
+        ev = events.make_event(
+            events.T_NOTE, run=self.run, seq=None, text=str(text), level=level
+        )
         self._outbox.append(ev)
         return ev
 
@@ -410,5 +442,7 @@ class Ctx:
             raise PermissionError(msg)
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return (f"Ctx(run={self.run!r}, cell={self.idc}/{self.arm}/"
-                f"{self.up}/{self.variant}/{self.stage})")
+        return (
+            f"Ctx(run={self.run!r}, cell={self.idc}/{self.arm}/"
+            f"{self.up}/{self.variant}/{self.stage})"
+        )

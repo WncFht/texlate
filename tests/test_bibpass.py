@@ -270,9 +270,7 @@ def test_bibtex_rc_fail_complete_bbl_adopted(
     assert (tmp_path / "main.bbl").read_text(encoding="utf-8") == _BBL_OK
 
 
-def test_outdir_bib_pass_fires(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_outdir_bib_pass_fires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """outdir 落点：aux 扫描与 bbl 采纳走 ``out`` 面——bibtex 照常触发。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     outdir = tmp_path / "build"

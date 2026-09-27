@@ -38,13 +38,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 try:
     from kernel import paths as _kpaths
+
     BENCH_ROOT = _kpaths.root()
     RUNS_DIR = _kpaths.runs_dir()
 except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
     BENCH_ROOT = Path(
         os.environ.get(
-            "TEXLATE_BENCH_ROOT",
-            Path.home() / ".local" / "share" / "texlate-bench")
+            "TEXLATE_BENCH_ROOT", Path.home() / ".local" / "share" / "texlate-bench"
+        )
     ).expanduser()
     RUNS_DIR = BENCH_ROOT / "runs"
 PANEL_DIR = BENCH_ROOT / "state" / "status-panel"
@@ -228,8 +229,8 @@ def scorecard_raw() -> str:
         # gate 动词（bench/py/kernel/cli.py REGISTRY）= gate_scorecard.py
         # 新世界等价物；未落地时 stderr 进面板、scorecard_data {} 兜底。
         return run_cmd(
-            [str(VENV_PY), str(REPO / "bench" / "py" / "bench"),
-             "gate", "--json"], 180)
+            [str(VENV_PY), str(REPO / "bench" / "py" / "bench"), "gate", "--json"], 180
+        )
 
     return cached("scorecard", 60, collect)
 
@@ -424,16 +425,10 @@ def n200_stats() -> dict:
                 plan = json.loads(plan_p.read_text())
                 cells = plan.get("cells") or []
                 sample_ids = sorted(
-                    {
-                        str(c.get("idc") or c.get("id") or "")
-                        for c in cells
-                    }
-                    - {""}
+                    {str(c.get("idc") or c.get("id") or "") for c in cells} - {""}
                 )
                 if cells:
-                    meta["run_params"] = dict(
-                        cells[0].get("run_params") or {}
-                    )
+                    meta["run_params"] = dict(cells[0].get("run_params") or {})
             except (ValueError, OSError):
                 pass
         total = len(sample_ids)
@@ -441,14 +436,10 @@ def n200_stats() -> dict:
             "SELECT ts_start FROM runs WHERE run=?", (run_name,)
         ).fetchone()
         started = (
-            dt.datetime.fromtimestamp(rrow[0], dt.UTC)
-            if rrow and rrow[0]
-            else None
+            dt.datetime.fromtimestamp(rrow[0], dt.UTC) if rrow and rrow[0] else None
         )
         elapsed = (
-            (dt.datetime.now(dt.UTC) - started).total_seconds()
-            if started
-            else 0.0
+            (dt.datetime.now(dt.UTC) - started).total_seconds() if started else 0.0
         )
         blob_dir = nd / "derived" / "blobs"
         if not blob_dir.is_dir():
@@ -456,8 +447,7 @@ def n200_stats() -> dict:
         per: dict[str, dict[str, dict]] = {}
         mtime = 0.0
         for row in conn.execute(
-            "SELECT idc,stage,status,metrics,ts FROM records "
-            "WHERE run=? ORDER BY seq",
+            "SELECT idc,stage,status,metrics,ts FROM records WHERE run=? ORDER BY seq",
             (run_name,),
         ):
             idc, stage, status, mraw, ts = row
@@ -486,42 +476,30 @@ def n200_stats() -> dict:
             pst = _paper_status(sm)
             top[pst] += 1
             strip.append((idc, pst))
-            t = ((sm.get("xlat") or {}).get("metrics") or {}).get(
-                "translate"
-            ) or {}
+            t = ((sm.get("xlat") or {}).get("metrics") or {}).get("translate") or {}
             xlat_secs += t.get("seconds", 0) or 0
             if t.get("chunks"):
                 xlat_exec += 1
-            for k in ("ok", "partial", "fault", "skipped", "chunks",
-                      "leftover_ph"):
+            for k in ("ok", "partial", "fault", "skipped", "chunks", "leftover_ph"):
                 chunks[k] += t.get(k, 0) or 0
             pipe_pdf = (sm.get("compile") or {}).get("status") in _PDF_STATUS
             fix_pdf = (sm.get("fixloop") or {}).get("status") in _PDF_STATUS
             pdf_pipe += pipe_pdf
             pdf_union += pipe_pdf or fix_pdf
-            v = ((sm.get("compile") or {}).get("metrics") or {}).get(
-                "verdict"
-            ) or {}
+            v = ((sm.get("compile") or {}).get("metrics") or {}).get("verdict") or {}
             for rs in v.get("reasons", []):
                 reasons[re.sub(r"\s*\(\d+\)\s*$", "", rs)] += 1
             if "fixloop" in sm:
                 fix_stat[sm["fixloop"]["status"] or "?"] += 1
             if "base" in sm:
                 base_stat[sm["base"]["status"] or "?"] += 1
-        done_ids = {
-            i for i, sm in per.items()
-            if all(s in sm for s in _N200_STAGES)
-        }
-        in_flight = sorted(
-            i for i, sm in per.items() if i not in done_ids
-        )
+        done_ids = {i for i, sm in per.items() if all(s in sm for s in _N200_STAGES)}
+        in_flight = sorted(i for i, sm in per.items() if i not in done_ids)
         queued = [i for i in sample_ids if i not in per]
         meta["sample_ids"] = sample_ids
         # devin-2api 钉死面（specs/_shared.DEFAULT_BASE_URL）——gw 探活源
         meta.setdefault("base_url", "http://127.0.0.1:3033")
-        meta["concurrency"] = (meta.get("run_params") or {}).get(
-            "concurrency"
-        )
+        meta["concurrency"] = (meta.get("run_params") or {}).get("concurrency")
         rate_ps, rate_span = _rate_sample(len(done_ids))
         return {
             "done": len(done_ids),
@@ -752,10 +730,7 @@ def sec_n200() -> str:
     st = n200_stats()
     done, total = st["done"], st["total"]
     if not total:
-        return (
-            "<div class='prow'>runs 表无 e2e_real/realn200 run——"
-            "批尚未启动。</div>"
-        )
+        return "<div class='prow'>runs 表无 e2e_real/realn200 run——批尚未启动。</div>"
     if st["rate_ps"] is not None:
         rate = st["rate_ps"] * 3600
         basis = f"近{fmt_dur(st['rate_span'])}均速"
@@ -922,10 +897,7 @@ def sec_kernel() -> str:
     if conn is None:
         return "".join(parts) + "<div class='prow'>index.sqlite 尚未建立</div>"
     try:
-        meta = {
-            r[0]: r[1]
-            for r in conn.execute("SELECT key, value FROM meta")
-        }
+        meta = {r[0]: r[1] for r in conn.execute("SELECT key, value FROM meta")}
         dirty = (BENCH_ROOT / "ledger" / ".index-dirty").exists()
         parts.append(
             f"<div class='prow'>index sealed_gen "
@@ -936,8 +908,7 @@ def sec_kernel() -> str:
         )
         # 最近 run + heartbeat 活性（heartbeat 文件 15s 一拍）
         rows = conn.execute(
-            "SELECT run, kind, ts_start FROM runs "
-            "ORDER BY ts_start DESC LIMIT 8"
+            "SELECT run, kind, ts_start FROM runs ORDER BY ts_start DESC LIMIT 8"
         ).fetchall()
         if rows:
             trs = []
@@ -953,9 +924,7 @@ def sec_kernel() -> str:
                         esc(hb_age),
                     ]
                 )
-            parts.append(
-                table(["run", "kind", "起跑", "心跳"], trs)
-            )
+            parts.append(table(["run", "kind", "起跑", "心跳"], trs))
         mix = conn.execute(
             "SELECT status, COUNT(*) FROM cells GROUP BY status"
         ).fetchall()
@@ -974,9 +943,7 @@ def sec_kernel() -> str:
             "c2.idc=c1.idc AND c2.arm=c1.arm AND c2.variant=c1.variant)"
         ).fetchone()[0]
         if held:
-            parts.append(
-                f"<div class='prow'>claims 持有 <b>{held}</b></div>"
-            )
+            parts.append(f"<div class='prow'>claims 持有 <b>{held}</b></div>")
     finally:
         conn.close()
     # lake catalog — last-wins state counts
@@ -998,8 +965,10 @@ def sec_kernel() -> str:
             parts.append(
                 "<div class='cap'>lake catalog</div>"
                 + stacked(
-                    [(s, n, C_INFO if s == "hydrated" else C_SKIP)
-                     for s, n in counts.most_common()],
+                    [
+                        (s, n, C_INFO if s == "hydrated" else C_SKIP)
+                        for s, n in counts.most_common()
+                    ],
                     sum(counts.values()),
                 )
             )
@@ -1080,9 +1049,7 @@ def sec_sessions() -> str:
 def sec_reports() -> str:
     """runs/ 三层 walk（kind/date/slug）→ 最近 12 个 run + 摘要行。"""
     dirs = (
-        [d for d in RUNS_DIR.glob("*/*/*") if d.is_dir()]
-        if RUNS_DIR.is_dir()
-        else []
+        [d for d in RUNS_DIR.glob("*/*/*") if d.is_dir()] if RUNS_DIR.is_dir() else []
     )
     dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
     rows = []

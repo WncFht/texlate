@@ -56,7 +56,6 @@ from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _s
     inject_float_sizing,
     inject_table_fitting,
 )
-from .marks import inject_layout_marks  # noqa: F401 — 同 C4 转引面
 from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
     _MAIN_TEX_SUFFIXES,
     _resolve_input,
@@ -64,6 +63,7 @@ from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_
     classify_no_main,
     find_main_tex,
 )
+from .marks import inject_layout_marks
 from .mask import visible_tex
 from .transcode import _iter_files
 

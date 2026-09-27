@@ -41,9 +41,7 @@ _res = make_comp_res
 
 
 def _run_stub(
-    handler: Callable[
-        [list[str], float], tuple[int | None, str, float, bool | str]
-    ],
+    handler: Callable[[list[str], float], tuple[int | None, str, float, bool | str]],
 ) -> Callable[..., tuple[int | None, str, float, bool | str]]:
     """``run_process`` canonical 形参的 fake_run 工厂——body 只收 ``(cmd, timeout)``。
 

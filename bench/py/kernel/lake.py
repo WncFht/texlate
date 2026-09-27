@@ -39,6 +39,7 @@ Concurrency: hydrate takes ``.locks/{safe_id}.lock`` LOCK_EX (blocking) and
 re-checks completeness inside the lock — two concurrent hydrations of the
 same cell degrade to one-fetch-one-wait ("同格两 run 同拉退化为一拉一等").
 """
+
 from __future__ import annotations
 
 import gzip
@@ -92,7 +93,7 @@ _BOOKKEEP = {"meta.json", "mtree.txt", "files.txt", PIN_MARKER}
 _ENV_LAKE_CAP_GB = "TEXLATE_LAKE_CAP_GB"
 _ENV_LAKE_FLOOR_GB = "TEXLATE_LAKE_FLOOR_GB"
 _ENV_MIN_FREE_GB = "TEXLATE_BENCH_MIN_FREE_GB"
-_GIB = 1024 ** 3
+_GIB = 1024**3
 
 # Files kept by shrink_shell on a terminal cell (§3.10.1 shell set).
 # ``xlat-state.*``/``state.*`` directories are additionally preserved — the
@@ -102,17 +103,26 @@ _GIB = 1024 ** 3
 # both spellings ride the glob. PIN_MARKER rides the keep set so a shrink
 # can never eat the pin marker (measured gap), though a pinned cell
 # short-circuits shrink_shell before the keep-list is even consulted.
-_SHELL_KEEP_EXACT = frozenset({
-    "receipt.json", "parse.json", ".xlat-arm.json", ".lock", PIN_MARKER,
-})
+_SHELL_KEEP_EXACT = frozenset(
+    {
+        "receipt.json",
+        "parse.json",
+        ".xlat-arm.json",
+        ".lock",
+        PIN_MARKER,
+    }
+)
 _SHELL_KEEP_GLOB = (
     "xlat-*.jsonl",
-    "xlat-state", "xlat-state.*",
-    "state", "state.*",
+    "xlat-state",
+    "xlat-state.*",
+    "state",
+    "state.*",
 )
 
 
 # --- small append helper ---------------------------------------------------------
+
 
 def _append_line(path: Path, payload: bytes) -> None:
     """Heal torn tail, append payload in ONE os.write, fsync — same contract
@@ -154,13 +164,17 @@ def _append_line(path: Path, payload: bytes) -> None:
 
 
 def _append_row(path: Path, row: dict) -> None:
-    line = json.dumps(
-        row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8") + b"\n"
+    line = (
+        json.dumps(
+            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        + b"\n"
+    )
     _append_line(path, line)
 
 
 # --- paths / cell introspection -----------------------------------------------------
+
 
 def cell_dir(idc: str, source: str = "arxiv") -> Path:
     """``lake/corpus/{source}/{safe_id}`` — pure path math."""
@@ -273,8 +287,7 @@ class LakeCatalog:
         """Current state string; ``'absent'`` for unknown cells."""
         return self._rows.get(idc, {}).get("state", "absent")
 
-    def set(self, idc: str, state: str, sink=None, run_dir=None,
-            **kw) -> dict:
+    def set(self, idc: str, state: str, sink=None, run_dir=None, **kw) -> dict:
         """Transition ``idc`` to ``state``: emit the ledger lake_cell event
         FIRST, then append the merged row to catalog.jsonl — the catalog is
         declared a projection of the event stream, so a crash between the
@@ -283,8 +296,13 @@ class LakeCatalog:
         instance loaded once goes stale the moment another writer appends,
         and merging onto stale state silently clobbers the interleaved
         row's fields. Returns the stored row."""
-        row = {**_latest_row(idc), "idc": idc, "state": state,
-               "ts": round(time.time(), 3), **kw}
+        row = {
+            **_latest_row(idc),
+            "idc": idc,
+            "state": state,
+            "ts": round(time.time(), 3),
+            **kw,
+        }
         ledger.emit(_lake_event(row), run_dir=run_dir, sink=sink)
         _append_row(paths.lake_catalog_path(), row)
         self._rows[idc] = row
@@ -313,16 +331,15 @@ class LakeCatalog:
         now = round(time.time(), 3)
         rows = []
         for idc, state, kw in updates:
-            row = {**latest.get(idc, {}), "idc": idc, "state": state,
-                   "ts": now, **kw}
+            row = {**latest.get(idc, {}), "idc": idc, "state": state, "ts": now, **kw}
             rows.append(row)
             latest[idc] = row
-        ledger.emit_batch(
-            [_lake_event(r) for r in rows], run_dir=run_dir, sink=sink
-        )
+        ledger.emit_batch([_lake_event(r) for r in rows], run_dir=run_dir, sink=sink)
         payload = b"".join(
-            json.dumps(r, ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":")).encode("utf-8") + b"\n"
+            json.dumps(
+                r, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+            + b"\n"
             for r in rows
         )
         _append_line(p, payload)
@@ -333,14 +350,12 @@ class LakeCatalog:
     def mark_used(self, idc: str) -> dict:
         """Cheap last_used_at touch (LRU feed, §3.10.3): append-only row,
         no ledger event — usage churn is bookkeeping, not history."""
-        row = {**_latest_row(idc), "idc": idc,
-               "last_used_at": round(time.time(), 3)}
+        row = {**_latest_row(idc), "idc": idc, "last_used_at": round(time.time(), 3)}
         _append_row(paths.lake_catalog_path(), row)
         self._rows[idc] = row
         return row
 
-    def pin(self, idc: str, source: str = "arxiv", sink=None,
-            run_dir=None) -> dict:
+    def pin(self, idc: str, source: str = "arxiv", sink=None, run_dir=None) -> dict:
         """Pin a cell against eviction: marker file first (the truth), then
         a catalog row with ``pinned=True`` — state left as-is (pin is a
         field, never a state; ``state=='pinned'`` un-pins on the next set).
@@ -366,13 +381,22 @@ class LakeCatalog:
         if not marker.exists():
             fsutil.atomic_write(marker, b"pinned\n")
         if state == "absent":
-            return self.set(idc, "skeleton", source=source, pinned=True,
-                            manifested=False, sink=sink, run_dir=run_dir)
-        return self.set(idc, state, source=source, pinned=True,
-                        sink=sink, run_dir=run_dir)
+            return self.set(
+                idc,
+                "skeleton",
+                source=source,
+                pinned=True,
+                manifested=False,
+                sink=sink,
+                run_dir=run_dir,
+            )
+        return self.set(
+            idc, state, source=source, pinned=True, sink=sink, run_dir=run_dir
+        )
 
-    def unpin(self, idc: str, source: str = "arxiv", sink=None,
-              run_dir=None) -> dict | None:
+    def unpin(
+        self, idc: str, source: str = "arxiv", sink=None, run_dir=None
+    ) -> dict | None:
         """Lift the pin: remove the marker first, then project
         ``pinned=False`` — a crash between the two leaves the row pinned
         (fail-safe: still protected until the next set reconciles).
@@ -385,8 +409,9 @@ class LakeCatalog:
             (d / PIN_MARKER).unlink()
         if state == "absent":
             return None
-        return self.set(idc, state, source=source, pinned=False,
-                        sink=sink, run_dir=run_dir)
+        return self.set(
+            idc, state, source=source, pinned=False, sink=sink, run_dir=run_dir
+        )
 
 
 # --- skeleton ---------------------------------------------------------------------------
@@ -401,13 +426,11 @@ def _lake_event(row: dict) -> dict:
     keys stay absent rather than being defaulted into the event).
     """
     ev_kw = {"source": row.get("source", "arxiv")}
-    for k in ("bytes", "pinned", "manifested", "orphan", "regen_cost",
-              "last_used_at"):
+    for k in ("bytes", "pinned", "manifested", "orphan", "regen_cost", "last_used_at"):
         if row.get(k) is not None:
             ev_kw[k] = row[k]
     return make_event(
-        events.T_LAKE_CELL, id=row["idc"], idc=row["idc"],
-        state=row["state"], **ev_kw
+        events.T_LAKE_CELL, id=row["idc"], idc=row["idc"], state=row["state"], **ev_kw
     )
 
 
@@ -425,8 +448,9 @@ def _latest_row(idc: str) -> dict:
     return latest
 
 
-def register_skeleton(idc: str, source: str = "arxiv",
-                      meta: dict | None = None) -> Path:
+def register_skeleton(
+    idc: str, source: str = "arxiv", meta: dict | None = None
+) -> Path:
     """Register a manifested cell with no bytes: create the (empty) cell dir
     and a 'skeleton' catalog row. ``meta`` merges extra catalog fields —
     it is NOT written as meta.json, so the skeleton can never satisfy the
@@ -443,15 +467,12 @@ def register_skeleton(idc: str, source: str = "arxiv",
 
 def pin(idc: str, source: str = "arxiv", sink=None, run_dir=None) -> dict:
     """Module-level ``LakeCatalog().pin`` — see the method for semantics."""
-    return LakeCatalog.load().pin(idc, source=source, sink=sink,
-                                  run_dir=run_dir)
+    return LakeCatalog.load().pin(idc, source=source, sink=sink, run_dir=run_dir)
 
 
-def unpin(idc: str, source: str = "arxiv", sink=None,
-          run_dir=None) -> dict | None:
+def unpin(idc: str, source: str = "arxiv", sink=None, run_dir=None) -> dict | None:
     """Module-level ``LakeCatalog().unpin`` — see the method for semantics."""
-    return LakeCatalog.load().unpin(idc, source=source, sink=sink,
-                                    run_dir=run_dir)
+    return LakeCatalog.load().unpin(idc, source=source, sink=sink, run_dir=run_dir)
 
 
 # --- hydration ----------------------------------------------------------------------------
@@ -527,8 +548,9 @@ def _publish_stage(stage: Path, dest: Path) -> bool:
     return True
 
 
-def hydrate(idc: str, fetch_fn: Callable | None = None,
-            source: str = "arxiv", run_seq: int = 0) -> Path | None:
+def hydrate(
+    idc: str, fetch_fn: Callable | None = None, source: str = "arxiv", run_seq: int = 0
+) -> Path | None:
     """Materialize one cell; returns the cell dir, or None when the cell is
     lazy-unfetchable (no fetch_fn and no local raw to re-extract).
 
@@ -584,17 +606,30 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
                 shutil.rmtree(ex)  # torn half-tree — replaced atomically
             os.rename(stage_e, ex)
             n = _payload_count(d)
-            meta = {**old_meta, "idc": idc, "source": source,
-                    "n_files": n, "hydrated_at": round(time.time(), 3),
-                    "run_seq": run_seq, "rebuilt_from": "raw"}
+            meta = {
+                **old_meta,
+                "idc": idc,
+                "source": source,
+                "n_files": n,
+                "hydrated_at": round(time.time(), 3),
+                "run_seq": run_seq,
+                "rebuilt_from": "raw",
+            }
             fsutil.atomic_write(
                 d / "meta.json",
-                json.dumps(meta, ensure_ascii=False, sort_keys=True,
-                           indent=2).encode("utf-8"),
+                json.dumps(meta, ensure_ascii=False, sort_keys=True, indent=2).encode(
+                    "utf-8"
+                ),
             )
-            cat.set(idc, "empty" if n == 0 else "hydrated", source=source,
-                    n_files=n, bytes=fsutil.dir_size(d), manifested=True,
-                    last_used_at=round(time.time(), 3))
+            cat.set(
+                idc,
+                "empty" if n == 0 else "hydrated",
+                source=source,
+                n_files=n,
+                bytes=fsutil.dir_size(d),
+                manifested=True,
+                last_used_at=round(time.time(), 3),
+            )
             return d
 
         if fetch_fn is None:
@@ -602,8 +637,7 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
 
         _check_fetch_headroom()
         cat.set(idc, "hydrating", source=source)
-        stage = (paths.lake_tmp_dir() / "rebuild" / str(run_seq)
-                 / f"{sid}.stage")
+        stage = paths.lake_tmp_dir() / "rebuild" / str(run_seq) / f"{sid}.stage"
         if stage.exists():
             shutil.rmtree(stage)
         stage.mkdir(parents=True)
@@ -614,13 +648,20 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
             if ex_dir.is_dir():
                 vault.cas_link_tree(ex_dir)
             n = _payload_count(stage)
-            meta = {**old_meta, "idc": idc, "source": source,
-                    "n_files": n, "hydrated_at": round(time.time(), 3),
-                    "run_seq": run_seq, **meta_extra}
+            meta = {
+                **old_meta,
+                "idc": idc,
+                "source": source,
+                "n_files": n,
+                "hydrated_at": round(time.time(), 3),
+                "run_seq": run_seq,
+                **meta_extra,
+            }
             fsutil.atomic_write(
                 stage / "meta.json",
-                json.dumps(meta, ensure_ascii=False, sort_keys=True,
-                           indent=2).encode("utf-8"),
+                json.dumps(meta, ensure_ascii=False, sort_keys=True, indent=2).encode(
+                    "utf-8"
+                ),
             )
             if not _publish_stage(stage, d):
                 shutil.rmtree(stage, ignore_errors=True)
@@ -628,17 +669,24 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
         except BaseException:
             shutil.rmtree(stage, ignore_errors=True)
             raise
-        cat.set(idc, "empty" if n == 0 else "hydrated", source=source,
-                n_files=n, bytes=fsutil.dir_size(d), manifested=True,
-                last_used_at=round(time.time(), 3))
+        cat.set(
+            idc,
+            "empty" if n == 0 else "hydrated",
+            source=source,
+            n_files=n,
+            bytes=fsutil.dir_size(d),
+            manifested=True,
+            last_used_at=round(time.time(), 3),
+        )
         return d
 
 
 # --- capacity gate ---------------------------------------------------------------------------
 
 
-def admit(n_bytes: int, cap_gb: float | None = None,
-          floor_gb: float | None = None) -> bool:
+def admit(
+    n_bytes: int, cap_gb: float | None = None, floor_gb: float | None = None
+) -> bool:
     """Admission control for lake writes (§3.10.1, R9).
 
     Two gates, both must pass:
@@ -803,8 +851,8 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
 
     # Tier 1 — extracted projection (LRU), cells drop to raw_only.
     tier1 = sorted(
-        (r for r in rows.values()
-         if r.get("manifested", True) and not _pinned(r)), key=lru,
+        (r for r in rows.values() if r.get("manifested", True) and not _pinned(r)),
+        key=lru,
     )
     for r in tier1:
         if done():
@@ -821,9 +869,14 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
 
     # Tier 2 — raw payload (LRU); regen_cost=network rows keep their raw.
     tier2 = sorted(
-        (r for r in rows.values()
-         if r.get("manifested", True) and not _pinned(r)
-         and r.get("regen_cost") != "network"), key=lru,
+        (
+            r
+            for r in rows.values()
+            if r.get("manifested", True)
+            and not _pinned(r)
+            and r.get("regen_cost") != "network"
+        ),
+        key=lru,
     )
     for r in tier2:
         if done():
@@ -835,8 +888,7 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
             freed += _freeable_size(raw)
             shutil.rmtree(raw)
             removed.append(raw)
-            state = ("hydrated" if (cdir_of(r) / "extracted").is_dir()
-                     else "evicted")
+            state = "hydrated" if (cdir_of(r) / "extracted").is_dir() else "evicted"
             cat.set(r["idc"], state, source=r.get("source", "arxiv"))
 
     return removed

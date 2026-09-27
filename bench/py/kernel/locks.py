@@ -22,6 +22,7 @@ Invariants:
       an authoritative life proof (§3.10.6).
     - Linux-only: fcntl.flock semantics.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -144,6 +145,7 @@ def heartbeat_age(path) -> float | None:
 
 # --- kernel-wide sentinels ----------------------------------------------------
 
+
 @contextmanager
 def kernel_active_hold():
     """Hold LOCK_SH on the .kernel-active file for the run's lifetime.
@@ -189,9 +191,14 @@ def clear_auth_dead() -> None:
 
 # --- paid slots ---------------------------------------------------------------
 
+
 @contextmanager
-def paid_slot(nslots: int = 4, blocking: bool = True,
-              poll_s: float = 0.05, timeout: float | None = None):
+def paid_slot(
+    nslots: int = 4,
+    blocking: bool = True,
+    poll_s: float = 0.05,
+    timeout: float | None = None,
+):
     """Hold one of nslots global paid-slot lock files; yields the slot index.
 
     NB-scans locks/slots/slot{0..nslots-1}.lock and holds the first free one.
@@ -228,8 +235,7 @@ def paid_slot(nslots: int = 4, blocking: bool = True,
             raise WouldBlock(msg)
         if deadline is not None and time.monotonic() >= deadline:
             msg = f"paid_slot: no slot freed within {timeout}s"
-            raise TimeoutError(
-                msg)
+            raise TimeoutError(msg)
         time.sleep(poll_s)
 
 
@@ -274,13 +280,14 @@ def _read_ack(rfd: int, timeout: float | None) -> bytes:
                 raise TimeoutError(msg)
         chunk = os.read(rfd, 2 - len(buf))
         if not chunk:
-            break                       # EOF: stub died before ack
+            break  # EOF: stub died before ack
         buf += chunk
     return buf
 
 
-def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
-                     **popen_kw) -> subprocess.Popen:
+def detach_with_lock(
+    argv, lock_path, *, ack_timeout: float | None = None, **popen_kw
+) -> subprocess.Popen:
     """Spawn a child that holds `lock_path` (LOCK_EX) while running `argv`.
 
     Protocol (R22): child opens the lock file, flocks it BLOCKING, marks the
@@ -319,7 +326,7 @@ def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
     rfd, wfd = os.pipe()
     try:
         kw = dict(popen_kw)
-        kw["close_fds"] = True          # R22: never inherit parent lock fds
+        kw["close_fds"] = True  # R22: never inherit parent lock fds
         kw["pass_fds"] = (*kw.get("pass_fds", ()), wfd)
         kw.setdefault("stdin", subprocess.DEVNULL)
         cmd = [sys.executable, "-c", _DETACH_STUB, lock_path, str(wfd), *argv]
@@ -329,7 +336,7 @@ def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
         os.close(wfd)
         raise
 
-    os.close(wfd)                       # child owns its copy; EOF works now
+    os.close(wfd)  # child owns its copy; EOF works now
     try:
         ack = _read_ack(rfd, ack_timeout)
     except BaseException:

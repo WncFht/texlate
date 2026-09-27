@@ -15,6 +15,7 @@ async-owned cells (which should call ``session.request`` via
 ``asyncio.to_thread`` so the paid-slot blocking never freezes their
 loop).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,9 +25,17 @@ from types import SimpleNamespace
 
 from kernel import paid as paidmod
 
-__all__ = ["DEFAULT_BASE_URL", "DEFAULT_MODEL", "DEFAULT_PRICES",
-           "GatewayChat", "PaidEscape", "SessionClient",
-           "SessionTranslator", "TimedTranslator", "devin_factory"]
+__all__ = [
+    "DEFAULT_BASE_URL",
+    "DEFAULT_MODEL",
+    "DEFAULT_PRICES",
+    "GatewayChat",
+    "PaidEscape",
+    "SessionClient",
+    "SessionTranslator",
+    "TimedTranslator",
+    "devin_factory",
+]
 
 # The one and only paid endpoint — texlate is hard-pinned to the local
 # devin-2api gateway + swe-2-medium (see project memory: all shims fold
@@ -56,7 +65,8 @@ class _Pump:
     def __init__(self) -> None:
         self._loop = asyncio.new_event_loop()
         self._t = threading.Thread(
-            target=self._loop.run_forever, name="gw-pump", daemon=True)
+            target=self._loop.run_forever, name="gw-pump", daemon=True
+        )
         self._t.start()
 
     def run(self, coro):
@@ -76,9 +86,15 @@ class GatewayChat:
     usage dict feeds ``paid._usage_of`` straight into the meter.
     """
 
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, api_key: str = "",
-                 model: str = DEFAULT_MODEL, *, stream_fallback=None,
-                 timeout=None) -> None:
+    def __init__(
+        self,
+        base_url: str = DEFAULT_BASE_URL,
+        api_key: str = "",
+        model: str = DEFAULT_MODEL,
+        *,
+        stream_fallback=None,
+        timeout=None,
+    ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
@@ -89,12 +105,17 @@ class GatewayChat:
 
     def _cli(self):
         if self._client is None:
+
             async def _make():
                 from texlate.xlat.client import ChatClient
+
                 return ChatClient(
-                    self.base_url, self.api_key,
+                    self.base_url,
+                    self.api_key,
                     timeout=self._timeout,
-                    stream_fallback=self._stream_fallback)
+                    stream_fallback=self._stream_fallback,
+                )
+
             self._client = self._pump.run(_make())
         return self._client
 
@@ -105,11 +126,11 @@ class GatewayChat:
         cli = self._cli()
         if options is None and kw:
             from texlate.xlat._dialects import ChatOptions
+
             options = ChatOptions(**kw)
 
         async def _go():
-            return await cli.chat(model or self.model, messages or [],
-                                  options=options)
+            return await cli.chat(model or self.model, messages or [], options=options)
 
         res = self._pump.run(_go())
         return {
@@ -125,9 +146,14 @@ class GatewayChat:
         }
 
 
-def devin_factory(*, base_url: str | None = None, api_key: str | None = None,
-                  model: str | None = None, prices=None,
-                  nslots: int = 4) -> paidmod.GatewayFactory:
+def devin_factory(
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    prices=None,
+    nslots: int = 4,
+) -> paidmod.GatewayFactory:
     """The standard bench paid factory: devin-2api + swe-2-medium.
 
     ``api_key``/``base_url`` default to the env credentials chain
@@ -144,7 +170,8 @@ def devin_factory(*, base_url: str | None = None, api_key: str | None = None,
         return GatewayChat(url, key, mdl)
 
     return paidmod.GatewayFactory(
-        build, prices=dict(prices or DEFAULT_PRICES), nslots=nslots)
+        build, prices=dict(prices or DEFAULT_PRICES), nslots=nslots
+    )
 
 
 # ---------------------------------------------------------------- paid bridge
@@ -200,8 +227,8 @@ def _respot_paid(exc: BaseException, *, feed_gate: bool) -> BaseException:
     """
     if feed_gate and isinstance(exc, paidmod.AuthError):
         from texlate.xlat._errors import AuthError as XlatAuth
-        return XlatAuth(
-            str(exc), status=int(getattr(exc, "status", 0) or 401))
+
+        return XlatAuth(str(exc), status=int(getattr(exc, "status", 0) or 401))
     if isinstance(exc, (*_PAID_ESCAPE, paidmod.AuthError)):
         return PaidEscape(exc)
     return exc
@@ -225,7 +252,8 @@ class SessionClient:
         t0 = time.monotonic()
         try:
             res = await asyncio.to_thread(
-                self._s.request, "chat", model, messages, options=options)
+                self._s.request, "chat", model, messages, options=options
+            )
         except Exception as e:
             respotted = _respot_paid(e, feed_gate=True)
             if respotted is e:

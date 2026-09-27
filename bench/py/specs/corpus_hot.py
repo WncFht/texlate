@@ -40,6 +40,7 @@ Port of ``bench/py/corpus/build_hot_layer.py``（verbatim 语义，kernel
 - candidates 一跑 ok 即跨 run dedup——候选池冻结在首跑（有界收割语义，
   与原「candidates 手动重跑才更新」等价）。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,9 +59,7 @@ from pathlib import Path
 # 一律 fn 内 lazy import，模块面零产品依赖）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import events, idnorm, lake, paths
@@ -77,9 +76,7 @@ OPENALEX = "https://api.openalex.org/works"
 ARXIV_SRC = "S4306400194"  # OpenAlex source id: arXiv (Cornell)
 
 _NEW_ID_RX = re.compile(r"^(\d{4})\.\d{4,5}$")
-_ABS_RX = re.compile(
-    r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5})", re.IGNORECASE
-)
+_ABS_RX = re.compile(r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5})", re.IGNORECASE)
 
 
 class _HaltBatch(Exception):
@@ -176,9 +173,7 @@ def _candidates(ctx):
 
     # -- hot-cite：近窗活跃 + cited_by_count 降序 --
     cursor = "*"
-    while (
-        sum(1 for c in out if c["stratum"] == "hot-cite") < n_cite and cursor
-    ):
+    while sum(1 for c in out if c["stratum"] == "hot-cite") < n_cite and cursor:
         d = _oa_get(
             {
                 "filter": f"locations.source.id:{ARXIV_SRC},from_publication_date:2024-01-01",
@@ -194,9 +189,7 @@ def _candidates(ctx):
                 continue
             seen.add(aid)
             out.append(_mk(aid, "hot-cite", w))
-            if (
-                sum(1 for c in out if c["stratum"] == "hot-cite") >= n_cite
-            ):
+            if sum(1 for c in out if c["stratum"] == "hot-cite") >= n_cite:
                 break
         cursor = (d.get("meta") or {}).get("next_cursor")
         _flush()
@@ -248,9 +241,7 @@ def _candidates(ctx):
 
 def _cell_meta(entry_dir: Path, cand: dict, stage: Path) -> dict:
     """产品 meta.json + 语料层字段 → cell meta_extra（原 _merge_meta）。"""
-    meta = json.loads(
-        (entry_dir / "meta.json").read_text(encoding="utf-8")
-    )
+    meta = json.loads((entry_dir / "meta.json").read_text(encoding="utf-8"))
     # 产品 meta 的 n_files 是 unpack 计数，而 hydrate 自写权威 payload
     # 计数（meta_extra 后展开会盖掉它）——弹出，cell meta 的 n_files 必须
     # 是湖口径，否则 is_complete 假阴性 → 重抓风暴。
@@ -305,9 +296,7 @@ def _manifest_row(cand: dict, meta: dict, cell: Path) -> dict:
     raw_bytes = 0
     raw_dir = cell / "raw"
     if raw_dir.is_dir():
-        raw_bytes = sum(
-            p.stat().st_size for p in raw_dir.rglob("*") if p.is_file()
-        )
+        raw_bytes = sum(p.stat().st_size for p in raw_dir.rglob("*") if p.is_file())
     return {
         "id": cand["id"],
         "era": "new",
@@ -384,11 +373,11 @@ def _fetch(ctx):
 
     candidates_path = _durable() / "candidates.jsonl"
     if not candidates_path.exists():
-        ctx.emit_note("candidates.jsonl missing — candidates stage torn",
-                      level="warn")
+        ctx.emit_note("candidates.jsonl missing — candidates stage torn", level="warn")
         return "error"
     cands = [
-        c for _ln, c, _raw in events.iter_jsonl(candidates_path)
+        c
+        for _ln, c, _raw in events.iter_jsonl(candidates_path)
         if isinstance(c, dict) and c.get("id")
     ]
     done_ids = set()
@@ -462,9 +451,7 @@ def _fetch(ctx):
                     _ff(pid, str(hb), slot.get("detail"))
                     n_fail += 1
                     truncated = {
-                        "cat": "budget"
-                        if str(hb) == "budget_exhausted"
-                        else "parked",
+                        "cat": "budget" if str(hb) == "budget_exhausted" else "parked",
                         "msg": f"{hb} — 限流到顶，停批续跑",
                     }
                     break
@@ -555,11 +542,15 @@ def _fetch(ctx):
 def _report(ctx):
     from collections import Counter
 
-    rows = [
-        r
-        for _ln, r, _raw in events.iter_jsonl(MANIFEST_HOT)
-        if isinstance(r, dict) and r.get("id")
-    ] if MANIFEST_HOT.exists() else []
+    rows = (
+        [
+            r
+            for _ln, r, _raw in events.iter_jsonl(MANIFEST_HOT)
+            if isinstance(r, dict) and r.get("id")
+        ]
+        if MANIFEST_HOT.exists()
+        else []
+    )
     strata = Counter(str(r.get("pick_reason")) for r in rows)
     fields = Counter(str(r.get("cat_group")) for r in rows)
     yrs = Counter(str(r.get("yymm"))[:2] for r in rows)

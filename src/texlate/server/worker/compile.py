@@ -159,9 +159,7 @@ def _seq_mark_scrub(rel: str, suffix: str, src: bytes) -> bytes:
     issues = seq_mark_issues(src.decode("utf-8", errors="replace"))
     if not issues:
         return src
-    log.warning(
-        "seq marks imbalanced in %s (%s); stripped", rel, "; ".join(issues)
-    )
+    log.warning("seq marks imbalanced in %s (%s); stripped", rel, "; ".join(issues))
     return strip_seq_marks(src.decode("utf-8", errors="replace")).encode("utf-8")
 
 
@@ -180,7 +178,9 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
         if not f.is_file():
             continue
         rel = f.relative_to(work)
-        if (len(rel.parts) > 1 and rel.parts[0].startswith("_")) or f.name in _SENTINELS:
+        if (
+            len(rel.parts) > 1 and rel.parts[0].startswith("_")
+        ) or f.name in _SENTINELS:
             continue
         if f.suffix.lower() not in _FIXLOOP_SRC_EXTS:
             continue
@@ -198,7 +198,9 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
         # 排除口径 = ``_`` 前缀目录——copy 侧同口径故 keep 永不覆盖该类
         # 子树，删侧同排除防 zh/ 自带的产物目录（_tect_out 等）被当多余
         # 源清掉；顶层 ``_*`` 文件与常规模源件同走 keep 比对
-        if (len(rel.parts) > 1 and rel.parts[0].startswith("_")) or f.name in _SENTINELS:
+        if (
+            len(rel.parts) > 1 and rel.parts[0].startswith("_")
+        ) or f.name in _SENTINELS:
             continue
         if f.suffix.lower() in _FIXLOOP_SRC_EXTS and rel.as_posix() not in keep:
             f.unlink()
@@ -835,9 +837,7 @@ class _Compile:
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
             # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
             # tmp/b8-e2e/halt-on-error-ruling.md）
-            make_engine=lambda: self._new_engine(
-                ctx, "xelatex", halt_on_error=False
-            ),
+            make_engine=lambda: self._new_engine(ctx, "xelatex", halt_on_error=False),
             should_cancel=ctx.cancel_flag.is_set,
         )
         adopted_cross = False
@@ -1275,8 +1275,7 @@ class _Compile:
                 # 旧版空哨兵——死层可复测，其余判据无法从成品 pdf 重建
                 v0 = (
                     "fail"
-                    if ctx.expect_cjk
-                    and pdf_cjk_chars(ctx.root / "zh.pdf") == 0
+                    if ctx.expect_cjk and pdf_cjk_chars(ctx.root / "zh.pdf") == 0
                     else "clean"
                 )
             return v0

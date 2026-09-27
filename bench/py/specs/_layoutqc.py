@@ -364,7 +364,7 @@ def _bbox_pages_mupdf(pdf: Path) -> list[dict] | None:
     （2609.05962 p11 实证 pdftotext 460 词 vs mupdf 82 词，幻影 en 行
     压在 zh 行上成 96 对假重叠）。"""
     try:
-        import pymupdf  # noqa: PLC0415 -- AGPL 可选件
+        import pymupdf
     except ImportError:
         return None
     try:
@@ -377,7 +377,7 @@ def _bbox_pages_mupdf(pdf: Path) -> list[dict] | None:
                 }
                 for pg in doc
             ]
-    except Exception:  # noqa: BLE001 -- 坏档回落 poppler
+    except Exception:
         return None
 
 

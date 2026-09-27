@@ -404,7 +404,9 @@ class _Group:
             elif kind == "test":  # ``t`` 测试字符（``no_cs`` 承字母表原判差）
                 if x.text == el.test_c and not (el.no_cs and x.kind == "cs"):
                     end = k + 1
-            elif kind == "dpair":  # ``d``/``D``/``r``/``R`` 定界对（``no_cs`` 承字母表原判差——开/闭符 cs 不配）
+            elif (
+                kind == "dpair"
+            ):  # ``d``/``D``/``r``/``R`` 定界对（``no_cs`` 承字母表原判差——开/闭符 cs 不配）
                 if x.text != el.open_c or (el.no_cs and x.kind == "cs"):
                     if el.req:
                         break

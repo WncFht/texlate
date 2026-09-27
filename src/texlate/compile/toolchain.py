@@ -134,9 +134,7 @@ def _fetch(url: str, client: httpx.Client) -> bytes:
         return _read_capped(
             resp,
             _DOWNLOAD_CAP,
-            on_over=lambda cap: RuntimeError(
-                f"tectonic 归档超限（>{cap}B），拒绝安装"
-            ),
+            on_over=lambda cap: RuntimeError(f"tectonic 归档超限（>{cap}B），拒绝安装"),
         )
 
 

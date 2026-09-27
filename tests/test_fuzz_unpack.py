@@ -414,9 +414,7 @@ _DUP_OUTCOMES: dict[tuple[str, str], tuple[str, set[str]]] = {
 
 @pytest.mark.parametrize("first", list(_TYPE_MAKERS))
 @pytest.mark.parametrize("second", list(_TYPE_MAKERS))
-def test_dup_member_cross_type_matrix(
-    tmp_path: Path, first: str, second: str
-) -> None:
+def test_dup_member_cross_type_matrix(tmp_path: Path, first: str, second: str) -> None:
     """同路径异类型重复成员全矩阵：赢家 kind + 决策告警逐格钉死
     （``_DUP_OUTCOMES`` 口径表），mtree 与盘上一致。"""
     tgt = tar_reg("tgt.tex", 5)
@@ -426,9 +424,7 @@ def test_dup_member_cross_type_matrix(
     want_kind, want_warns = _DUP_OUTCOMES[(first, second)]
     xs = [m for m in res.members if m.path == "x"]
     assert [m.kind for m in xs] == [want_kind]  # 恰好一条赢家，不留幽灵
-    decision = {
-        w for w in res.warnings if w.split(":", 1)[0] in _DECISION_WARNS
-    }
+    decision = {w for w in res.warnings if w.split(":", 1)[0] in _DECISION_WARNS}
     assert decision == want_warns
 
 

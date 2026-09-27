@@ -1323,11 +1323,7 @@ def _pos_at(
             # 最右者会吸错邻（bedd seq76/79 同 TOC 行同幅面锚实证）。
             # 栏身份钉死行左缘：col0 行内插越中缝会把通栏行针记成 col1。
             xi = x + (off - b[0]) / ln * (b[4] - b[3])
-            x = (
-                min(xi, _COL_SPLIT_X - 0.001)
-                if b[3] < _COL_SPLIT_X
-                else xi
-            )
+            x = min(xi, _COL_SPLIT_X - 0.001) if b[3] < _COL_SPLIT_X else xi
     return {"page": b[1], "fraction": b[2], "x": x, "x1": b[4]}
 
 

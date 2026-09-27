@@ -165,9 +165,7 @@ def _atom_entry(entry: ElementTree.Element) -> PaperMeta | None:
         elif link.get("title"):
             links.setdefault(link.get("title", ""), href)
     cats = tuple(
-        t
-        for c in entry.findall(f"{{{_ATOM_NS}}}category")
-        if (t := c.get("term", ""))
+        t for c in entry.findall(f"{{{_ATOM_NS}}}category") if (t := c.get("term", ""))
     )
     pri = entry.find(f"{{{_ARXIV_NS}}}primary_category")
     return PaperMeta(
@@ -349,8 +347,7 @@ def fetch_metadata_batch(
     for w in wire:
         trial = [*batch, w]
         if batch and (
-            len(trial) > ATOM_BATCH_MAX
-            or len(_atom_id_list_url(trial)) > ATOM_URL_MAX
+            len(trial) > ATOM_BATCH_MAX or len(_atom_id_list_url(trial)) > ATOM_URL_MAX
         ):
             batches.append(batch)
             batch = [w]

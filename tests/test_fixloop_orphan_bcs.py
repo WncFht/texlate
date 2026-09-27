@@ -511,7 +511,9 @@ def test_undefine_allocated_name_guard(tmp_path: Path) -> None:
     (tmp_path / "main.log").write_text(
         "main.tex:1: LaTeX Error: Command \\splitbox already defined.\n"
     )
-    ok, note = TRANSFORM_FNS["undefine_for_redef"](mk_ctx(tmp_path), None, "splitbox", {})
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        mk_ctx(tmp_path), None, "splitbox", {}
+    )
     assert not ok
     assert "allocated" in note  # 与 bblwall 钉同一 abstain 注记面
 
@@ -597,7 +599,9 @@ def test_undefine_endstar_provide_site_rc_bypass(tmp_path: Path) -> None:
     (tmp_path / "main.log").write_text(
         "main.tex:1: LaTeX Error: Command \\endproof already defined.\n"
     )
-    ok, note = TRANSFORM_FNS["undefine_for_redef"](mk_ctx(tmp_path), None, "endproof", {})
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        mk_ctx(tmp_path), None, "endproof", {}
+    )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
@@ -648,9 +652,7 @@ def test_undefine_endstar_min_batch_collapses(tmp_path: Path) -> None:
         mk_ctx(tmp_path), None, "endnote", {"min_batch": 2}
     )
     assert ok, note
-    assert "\\csname @rc@ifdefinable\\endcsname" in (
-        tmp_path / "main.tex"
-    ).read_text()
+    assert "\\csname @rc@ifdefinable\\endcsname" in (tmp_path / "main.tex").read_text()
 
 
 def test_undefine_endstar_ltcmd_site_keeps_let(tmp_path: Path) -> None:
@@ -667,7 +669,9 @@ def test_undefine_endstar_ltcmd_site_keeps_let(tmp_path: Path) -> None:
         "main.tex:1: LaTeX cmd Error: Command '\\endnote' already defined.\n"
         "main.tex:2: LaTeX Error: Command \\aj already defined.\n"
     )
-    ok, note = TRANSFORM_FNS["undefine_for_redef"](mk_ctx(tmp_path), None, "endnote", {})
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        mk_ctx(tmp_path), None, "endnote", {}
+    )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (

@@ -138,9 +138,7 @@ def minimal_epub(
     """
     members: dict[str, bytes | str] = {
         "META-INF/container.xml": CONTAINER_XML,
-        "OEBPS/content.opf": opf(
-            list(chapters), fixed=fixed, ncx=ncx, version=version
-        ),
+        "OEBPS/content.opf": opf(list(chapters), fixed=fixed, ncx=ncx, version=version),
     }
     for name, body in chapters.items():
         members[f"OEBPS/{name}"] = XHTML_TMPL.format(body=body)

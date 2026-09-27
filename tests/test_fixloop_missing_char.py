@@ -454,7 +454,9 @@ def test_builtin_macro_glyph_tildelow(tmp_path: Path) -> None:
     )
     ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
     assert ok is True
-    assert "macro glyph sites rewritten: 1" in note  # 钉单站点改写 ("in 1 file(s)" 不算数)
+    assert (
+        "macro glyph sites rewritten: 1" in note
+    )  # 钉单站点改写 ("in 1 file(s)" 不算数)
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\raisebox{0.5ex}{\\ensuremath{\\sim}}80\\%" in t
     assert "\\texttildelow" not in t
@@ -1003,4 +1005,3 @@ def test_loop_misschars4_char_table(tmp_path: Path) -> None:
         "\\ensuremath{\\cup}" in t
     )
     assert "\\ensuremath{\\langle}φ\\ensuremath{\\rangle}" in t
-

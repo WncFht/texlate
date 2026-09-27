@@ -16,6 +16,7 @@ Everything written here is a rebuildable derived artifact: output lands in
 the run's derived/ tree by default and never touches authored keep-tier
 files (report.md at run root is agent/spec prose — R27).
 """
+
 from __future__ import annotations
 
 import json
@@ -121,8 +122,7 @@ def _last_typed(index, info: dict, etype: str) -> dict | None:
 
 def _run_row(index, run: str) -> dict | None:
     r = index.conn.execute(
-        "SELECT run,run_seq,kind,date,slug,spec_hash,ts_start"
-        " FROM runs WHERE run=?",
+        "SELECT run,run_seq,kind,date,slug,spec_hash,ts_start FROM runs WHERE run=?",
         (run,),
     ).fetchone()
     return dict(r) if r else None
@@ -157,8 +157,12 @@ def _resolve(index, rundir_or_name) -> dict:
             rundir = paths.run_dir(kind, date, slug)
             name = row["run"] if row else f"{kind}-{date}-{slug}"
             return {
-                "run": name, "kind": kind, "date": date, "slug": slug,
-                "rundir": rundir if rundir.is_dir() else p, "row": row,
+                "run": name,
+                "kind": kind,
+                "date": date,
+                "slug": slug,
+                "rundir": rundir if rundir.is_dir() else p,
+                "row": row,
             }
         name = p.name
         row = _run_row(index, name)
@@ -167,19 +171,29 @@ def _resolve(index, rundir_or_name) -> dict:
             "kind": row["kind"] if row else None,
             "date": row["date"] if row else None,
             "slug": row["slug"] if row else None,
-            "rundir": p, "row": row,
+            "rundir": p,
+            "row": row,
         }
     name = str(rundir_or_name)
     row = _run_row(index, name)
     if row is not None:
         rd = paths.run_dir(row["kind"], row["date"], row["slug"])
         return {
-            "run": row["run"], "kind": row["kind"], "date": row["date"],
+            "run": row["run"],
+            "kind": row["kind"],
+            "date": row["date"],
             "slug": row["slug"],
-            "rundir": rd if rd.is_dir() else None, "row": row,
+            "rundir": rd if rd.is_dir() else None,
+            "row": row,
         }
-    return {"run": name, "kind": None, "date": None, "slug": None,
-            "rundir": None, "row": None}
+    return {
+        "run": name,
+        "kind": None,
+        "date": None,
+        "slug": None,
+        "rundir": None,
+        "row": None,
+    }
 
 
 # --- file writers -----------------------------------------------------------------
@@ -192,9 +206,9 @@ def _write_bytes(path: Path, data: bytes, files: list) -> None:
 
 
 def _write_jsonl(path: Path, rows: list, files: list) -> None:
-    data = "".join(
-        json.dumps(r, ensure_ascii=False) + "\n" for r in rows
-    ).encode("utf-8")
+    data = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows).encode(
+        "utf-8"
+    )
     _write_bytes(path, data, files)
 
 
@@ -235,8 +249,9 @@ def _tally_lines(rows: list[dict]) -> list[str]:
     return lines
 
 
-def _report_md(info: dict, rows: list[dict], fin: dict | None,
-               accounting: dict | None) -> str:
+def _report_md(
+    info: dict, rows: list[dict], fin: dict | None, accounting: dict | None
+) -> str:
     row = info["row"] or {}
     lines = [
         f"# {info['run']} — derived report",
@@ -256,8 +271,7 @@ def _report_md(info: dict, rows: list[dict], fin: dict | None,
         if fin.get("counts") is not None:
             lines.append(
                 "- counts: "
-                + json.dumps(fin["counts"], ensure_ascii=False,
-                             sort_keys=True)
+                + json.dumps(fin["counts"], ensure_ascii=False, sort_keys=True)
             )
     if accounting is not None:
         lines.append(
@@ -279,8 +293,9 @@ def _report_md(info: dict, rows: list[dict], fin: dict | None,
     return "\n".join(lines) + "\n"
 
 
-def build_run_report(index, rundir_or_name, out_dir, *,
-                     accounting: dict | None = None) -> dict:
+def build_run_report(
+    index, rundir_or_name, out_dir, *, accounting: dict | None = None
+) -> dict:
     """Regenerate one run's report artifacts into out_dir.
 
     rundir_or_name: a run dir path (any dir inside runs/{kind}/{date}/{slug})
@@ -310,8 +325,7 @@ def build_run_report(index, rundir_or_name, out_dir, *,
     _write_jsonl(out / "cells.jsonl", rows, files)
     _write_cases(index, info, out, files)
     fin = _last_typed(index, info, events.T_FINISHED)
-    _write_text(out / "report.md", _report_md(info, rows, fin, accounting),
-                files)
+    _write_text(out / "report.md", _report_md(info, rows, fin, accounting), files)
     return {
         "files": [str(f) for f in files],
         "rows": len(rows),

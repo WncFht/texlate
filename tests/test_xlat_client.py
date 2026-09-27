@@ -425,9 +425,7 @@ class TestContentFilter:
     def test_finish_content_filter_empty_not_empty_error(self) -> None:
         """过滤空响应须归 ``ContentFilterError``——``EmptyContentError`` 同模
         重试必同死，还吃掉 finish 语义。"""
-        c = _mock(
-            lambda _r: json_resp(chat_payload("", finish="content_filter"))
-        )
+        c = _mock(lambda _r: json_resp(chat_payload("", finish="content_filter")))
         with pytest.raises(cl.ContentFilterError):
             asyncio.run(c.chat("m1", _MSGS))
 

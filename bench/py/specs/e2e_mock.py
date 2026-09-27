@@ -39,6 +39,7 @@ Mode B/C 注入件唯一事实源 = ``specs/_sabotage.py``（translators_bench �
 PAUSE 只挡付费格，本 spec 无 paid stage 照跑（tectonic bundle 拉取与
 precheck scan_install 的网络/系统副作用在付费闸定义外——登记非阻塞）。
 """
+
 from __future__ import annotations
 
 import functools
@@ -54,9 +55,7 @@ from typing import TYPE_CHECKING
 # TEXLATE_SRC 冻结快照语义一致（须在 texlate.* import 之前）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import events, fsutil, idnorm, lake
@@ -187,8 +186,9 @@ def _canon(raw: str):
     return idnorm.canon_id(str(raw))
 
 
-def _sample_idcs(pool: dict, layers: set[str], needle: str,
-                 n: int, seed: int) -> set[str]:
+def _sample_idcs(
+    pool: dict, layers: set[str], needle: str, n: int, seed: int
+) -> set[str]:
     """--n 湖内 seeded 抽 n 个 canon idc（池已过湖谓词，无需再滤）。"""
     cands = sorted(
         {
@@ -228,9 +228,7 @@ def _select(item: dict, rp: dict) -> bool:
                 want.add(r.idc)
         return raw in want or idc in want
     layers = {
-        s.strip()
-        for s in str(rp.get("layers") or "core").split(",")
-        if s.strip()
+        s.strip() for s in str(rp.get("layers") or "core").split(",") if s.strip()
     }
     if layers and str(item.get("layer") or "") not in layers:
         return False
@@ -252,9 +250,7 @@ def _select(item: dict, rp: dict) -> bool:
 # （e2e_mock_bench.pipe_mode_condition 逐字移植；注入件在 _sabotage 单源）
 
 
-def _translate_tree(
-    root: Path, translator: MockTranslator, *, env_judge: bool = False
-):
+def _translate_tree(root: Path, translator: MockTranslator, *, env_judge: bool = False):
     """``pipecore.translate_tree_run`` 薄壳 + 带出逐块 results（归因账本用）。
 
     scan_fn 透传 ``pipecore.scan_tree``（文件名四门单源）；validator 同产品
@@ -346,8 +342,7 @@ def _pipe_mode(
                 ledger["armed_ids"].append(r.chunk_id)
                 ledger["armed_zh"] += bool(ambig)
                 ledger["armed_detail"].append(
-                    {"chunk": r.chunk_id, "src_legit": src_legit,
-                     "ambig": ambig}
+                    {"chunk": r.chunk_id, "src_legit": src_legit, "ambig": ambig}
                 )
             if hits:
                 ledger["dirty"] += 1
@@ -364,8 +359,7 @@ def _pipe_mode(
             kinds = "+".join(sorted({e.get("kind", "?") for e in evs}))
             bk = ledger["by_kind"].setdefault(
                 kinds,
-                {"caught": 0, "recovered": 0, "escaped": 0,
-                 "dirty": 0, "armed": 0},
+                {"caught": 0, "recovered": 0, "escaped": 0, "dirty": 0, "armed": 0},
             )
             if is_delivered and src_legit:
                 bk["armed"] += 1
@@ -482,16 +476,26 @@ def _run(ctx):
         if found and st in _TERMINAL:
             if st in ("clean", "ok"):
                 ctx.emit(
-                    {"metrics": {"cond": cond, "epoch": EPOCH,
-                                 "suppressed_by": "pipe-tec",
-                                 "sibling_status": st}}
+                    {
+                        "metrics": {
+                            "cond": cond,
+                            "epoch": EPOCH,
+                            "suppressed_by": "pipe-tec",
+                            "sibling_status": st,
+                        }
+                    }
                 )
                 return "skip"
         elif found:
             ctx.emit(
-                {"metrics": {"cond": cond, "epoch": EPOCH,
-                             "deferred_on": "pipe-tec",
-                             "sibling_status": st}}
+                {
+                    "metrics": {
+                        "cond": cond,
+                        "epoch": EPOCH,
+                        "deferred_on": "pipe-tec",
+                        "sibling_status": st,
+                    }
+                }
             )
             return "error"
 
@@ -499,8 +503,7 @@ def _run(ctx):
     if src is None:
         # 湖格取不出（池谓词后≈零触发）——湖缺口非稿件缺陷，skip
         # retriable 等 hydrate/restore 补齐（compilebench 同款 delta）。
-        ctx.emit_note(f"{ctx.idc}: lake cell unavailable -> skip",
-                      level="warn")
+        ctx.emit_note(f"{ctx.idc}: lake cell unavailable -> skip", level="warn")
         return "skip"
 
     route = route_project(src)
@@ -526,10 +529,14 @@ def _run(ctx):
         sub = classify_no_main(src) or ""
         ctx.emit(
             {
-                "metrics": {**base_metrics, "verdict": "no_main_tex",
-                            "verdict_sub": sub},
-                "errors": [{"code": "no_main_tex", "cat": "no_main_tex",
-                            "payload": sub}],
+                "metrics": {
+                    **base_metrics,
+                    "verdict": "no_main_tex",
+                    "verdict_sub": sub,
+                },
+                "errors": [
+                    {"code": "no_main_tex", "cat": "no_main_tex", "payload": sub}
+                ],
             }
         )
         return "reject"
@@ -548,8 +555,7 @@ def _run(ctx):
         "env_judge": p.get("env_judge"),
         "l2_on": p.get("l2_on"),
         "fixloop_on": p.get("fixloop_on"),
-        "l2_max_chunks": int(p.get("l2_max_chunks")
-                             or repair_mod.L2_MAX_CHUNKS),
+        "l2_max_chunks": int(p.get("l2_max_chunks") or repair_mod.L2_MAX_CHUNKS),
         "route_engines": _route_engines(p),
     }
     if cond.startswith("pipeB-"):
@@ -563,14 +569,12 @@ def _run(ctx):
 
     # rec 全量进 metrics（route/main/layer 工程级键合流；>4KB 由 events
     # $blob 自动卸载到 derived/blobs）。
-    status = rec.get("status") or (
-        (rec.get("verdict") or {}).get("status")) or "error"
+    status = rec.get("status") or ((rec.get("verdict") or {}).get("status")) or "error"
     out = {"metrics": {**base_metrics, **rec}}
     if status in ("fail", "reject", "partial"):
         reasons = (rec.get("verdict") or {}).get("reasons") or []
         payload = str(reasons[0] if reasons else "")[:400]
-        cat = ("inject" if rec.get("reject_at") == "inject"
-               else "verdict")
+        cat = "inject" if rec.get("reject_at") == "inject" else "verdict"
         out["errors"] = [{"code": status, "cat": cat, "payload": payload}]
     ctx.emit(out)
     return status
@@ -586,8 +590,7 @@ spec = Spec(
         "env_judge": Param(bool, default=None, fp=True),
         "l2_on": Param(bool, default=None, fp=True),
         "fixloop_on": Param(bool, default=None, fp=True),
-        "l2_max_chunks": Param(int, default=repair_mod.L2_MAX_CHUNKS,
-                               fp=True),
+        "l2_max_chunks": Param(int, default=repair_mod.L2_MAX_CHUNKS, fp=True),
         "route_engines": Param(str, default="", fp=True),
         "conditions": Param(str, default=DEFAULT_CONDITIONS, fp=False),
         "layers": Param(str, default="core", fp=False),

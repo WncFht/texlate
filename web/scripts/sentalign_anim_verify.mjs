@@ -56,8 +56,7 @@ const nearestSeq = (map, side, pos) => {
         const score =
             dpage === 0
                 ? Math.abs(p.fraction - pos.fraction)
-                : dpage +
-                  (p.page < pos.page ? 1 - p.fraction : p.fraction);
+                : dpage + (p.page < pos.page ? 1 - p.fraction : p.fraction);
         if (score < bestScore) {
             bestScore = score;
             best = Number(key);
@@ -102,9 +101,9 @@ const pickMarked = (side, seqposJson) => `(() => {
 })()`;
 
 const run = async () => {
-    const readerInfo = await fetch(
-        `${BASE}/api/task/${TASK}/reader`,
-    ).then((r) => r.json());
+    const readerInfo = await fetch(`${BASE}/api/task/${TASK}/reader`).then(
+        (r) => r.json(),
+    );
     const seqpos = readerInfo.seqpos ?? {};
     if (readerInfo.view && readerInfo.view !== "pdf")
         console.log(`WARN  view=${readerInfo.view}`);
@@ -122,10 +121,9 @@ const run = async () => {
         await page.goto(`${BASE}/#/reader/${TASK}`, {
             waitUntil: "domcontentloaded",
         });
-        await page.waitForSelector(
-            '.pane[data-side="translated"] .textLayer',
-            { timeout: 30000 },
-        );
+        await page.waitForSelector('.pane[data-side="translated"] .textLayer', {
+            timeout: 30000,
+        });
         await page.waitForTimeout(2000);
         // 关滚动同步——单侧位移断言不被同步拖走
         await page.evaluate(() => {
@@ -153,7 +151,9 @@ const run = async () => {
         if (!pick1) {
             check("C1 zh悬停: marked span 可悬", false, "no candidates");
         } else {
-            info(`C1 pick seq=${pick1.seq} t.p${pick1.tPage}→o.p${pick1.oPage}`);
+            info(
+                `C1 pick seq=${pick1.seq} t.p${pick1.tPage}→o.p${pick1.oPage}`,
+            );
             await page.mouse.move(pick1.x, pick1.y);
             await page.waitForTimeout(400);
             const hov1 = await page.evaluate(() => ({
@@ -199,9 +199,7 @@ const run = async () => {
         // en 页首文本区找一枚 span → node 侧 nearestSeq 算期望 seq
         const enPick = await page.evaluate(() => {
             const vr = document
-                .querySelector(
-                    '.pane[data-side="original"] .pdfSlickContainer',
-                )
+                .querySelector('.pane[data-side="original"] .pdfSlickContainer')
                 ?.getBoundingClientRect();
             if (!vr) return null;
             for (const pg of document.querySelectorAll(
@@ -216,8 +214,13 @@ const run = async () => {
                     if (r.width < 8 || r.height < 4) continue;
                     const cx = r.left + Math.min(r.width / 2, 60);
                     const cy = r.top + r.height / 2;
-                    if (cy < vr.top + 2 || cy > vr.bottom - 2 ||
-                        cx < vr.left + 2 || cx > vr.right - 2) continue;
+                    if (
+                        cy < vr.top + 2 ||
+                        cy > vr.bottom - 2 ||
+                        cx < vr.left + 2 ||
+                        cx > vr.right - 2
+                    )
+                        continue;
                     const at = document.elementFromPoint(cx, cy);
                     if (!at || !sp.contains(at)) continue;
                     return {
@@ -237,8 +240,11 @@ const run = async () => {
               })
             : null;
         if (!enPick || seq2 == null || !seqpos[String(seq2)]?.t) {
-            check("C2 en悬停: textLayer 悬停位可选", false,
-                `enPick=${!!enPick} seq=${seq2}`);
+            check(
+                "C2 en悬停: textLayer 悬停位可选",
+                false,
+                `enPick=${!!enPick} seq=${seq2}`,
+            );
         } else {
             info(
                 `C2 pick seq=${seq2} o.p${enPick.page}f${enPick.frac.toFixed(2)}→t.p${seqpos[String(seq2)].t.page}`,
@@ -283,8 +289,11 @@ const run = async () => {
             const ripple = await page.evaluate(
                 () => document.querySelectorAll(".sa-ripple").length,
             );
-            check("AB 点击: .sa-ripple 源点扩散", ripple > 0,
-                `ripples=${ripple}`);
+            check(
+                "AB 点击: .sa-ripple 源点扩散",
+                ripple > 0,
+                `ripples=${ripple}`,
+            );
             // 连线+擦入在 pdfJump resolve 后落——轮询等
             let arc = null;
             try {
@@ -307,8 +316,11 @@ const run = async () => {
                         '.pane[data-side="original"] .sa-flash',
                     ).length,
             );
-            check("AB 点击: en 落点 sa-flash（回归）", flash > 0,
-                `flash els=${flash}`);
+            check(
+                "AB 点击: en 落点 sa-flash（回归）",
+                flash > 0,
+                `flash els=${flash}`,
+            );
             await page.screenshot({
                 path: join(SHOTS, "anim-3-click-arc.png"),
             });
@@ -316,9 +328,8 @@ const run = async () => {
             await page.waitForTimeout(1400);
             const gone = await page.evaluate(
                 () =>
-                    document.querySelectorAll(
-                        ".sa-ripple,.sa-wipe,.sa-arc-svg",
-                    ).length,
+                    document.querySelectorAll(".sa-ripple,.sa-wipe,.sa-arc-svg")
+                        .length,
             );
             check("AB 自清: 动效盖层全摘", gone === 0, `left=${gone}`);
         }

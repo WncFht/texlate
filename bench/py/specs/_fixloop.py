@@ -25,6 +25,7 @@ RS 与 tlpdb 索引皆首访才建（PEP 562 __getattr__ + 锁串行）。
   mirror   : 所有 tlnet 访问钉 tuna (本机直连实测通; mirror.ctan.org 不通)。
              xelatex usertree `option repository` 逐篇钉; CtanFetcher mirror=TUNA
 """
+
 from __future__ import annotations
 
 import os

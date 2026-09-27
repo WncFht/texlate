@@ -17,7 +17,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, refused_base_url, upload, upload_tex
+from conftest import MINI_TEX, make_app, refused_base_url, upload
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore, resolve_auth, validate_model
@@ -81,9 +81,7 @@ def _bundle(
 def _flood_arts() -> dict[str, bytes]:
     """``_ARTIFACT_MAX``+1 条的洪泛产物集——两枚合法名 + junk 填满到超 cap 一条。"""
     arts = {"zh-src.zip": b"x", "dual.json": b"{}"}
-    arts.update(
-        {f"junk-{i}.bin": b"z" for i in range(_ARTIFACT_MAX + 1 - len(arts))}
-    )
+    arts.update({f"junk-{i}.bin": b"z" for i in range(_ARTIFACT_MAX + 1 - len(arts))})
     return arts
 
 

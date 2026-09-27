@@ -10,6 +10,7 @@ Hard constraints (doctor-enforced):
     - vault/ and vault/.staging must share st_dev (same-volume rename)
     - lock files are created once and NEVER unlinked (flock pins the inode)
 """
+
 from __future__ import annotations
 
 import os
@@ -36,6 +37,7 @@ def _zone(env: str, name: str) -> Path:
 
 
 # --- ledger zone ------------------------------------------------------------
+
 
 def ledger_dir() -> Path:
     return _zone(ENV_LEDGER, "ledger")
@@ -91,6 +93,7 @@ def adjudication_path() -> Path:
 
 # --- runs zone --------------------------------------------------------------
 
+
 def runs_dir() -> Path:
     return _zone(ENV_RUNS, "runs")
 
@@ -100,6 +103,7 @@ def run_dir(kind: str, date: str, slug: str) -> Path:
 
 
 # --- vault zone -------------------------------------------------------------
+
 
 def vault_dir() -> Path:
     return _zone(ENV_VAULT, "vault")
@@ -144,6 +148,7 @@ def vault_kind_dir(kind: str) -> Path:
 
 # --- lake zone --------------------------------------------------------------
 
+
 def lake_dir() -> Path:
     return _zone(ENV_LAKE, "lake")
 
@@ -185,6 +190,7 @@ def lake_items_dir() -> Path:
 
 
 # --- global locks / sentinels ------------------------------------------------
+
 
 def locks_dir() -> Path:
     return root() / "locks"
@@ -230,7 +236,9 @@ def status_panel_dir() -> Path:
 
 # --- layout bootstrap ---------------------------------------------------------
 
-_SENTINEL_TEXT = "texlate-bench zone sentinel — if this file is missing the mount is wrong\n"
+_SENTINEL_TEXT = (
+    "texlate-bench zone sentinel — if this file is missing the mount is wrong\n"
+)
 
 
 def ensure_layout() -> Path:
@@ -242,15 +250,30 @@ def ensure_layout() -> Path:
     r = root()
     for d in (
         r,
-        ledger_dir(), sealed_dir(), vault_meta_dir(), vault_staging_dir(),
+        ledger_dir(),
+        sealed_dir(),
+        vault_meta_dir(),
+        vault_staging_dir(),
         runs_dir(),
-        vault_dir(), vault_kind_dir("zh"), vault_kind_dir("splice"),
-        vault_kind_dir("state"), vault_kind_dir("quar"),
-        lake_corpus_dir(), lake_objects_dir(), lake_durable_dir(),
-        lake_cache_dir(), lake_tmp_dir(), lake_daily_dir(),
-        lake_locks_dir(), lake_items_dir(),
-        locks_dir(), claims_locks_dir(), slots_dir(),
-        import_src_dir(), backup_dir(), status_panel_dir(),
+        vault_dir(),
+        vault_kind_dir("zh"),
+        vault_kind_dir("splice"),
+        vault_kind_dir("state"),
+        vault_kind_dir("quar"),
+        lake_corpus_dir(),
+        lake_objects_dir(),
+        lake_durable_dir(),
+        lake_cache_dir(),
+        lake_tmp_dir(),
+        lake_daily_dir(),
+        lake_locks_dir(),
+        lake_items_dir(),
+        locks_dir(),
+        claims_locks_dir(),
+        slots_dir(),
+        import_src_dir(),
+        backup_dir(),
+        status_panel_dir(),
     ):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -266,8 +289,13 @@ def ensure_layout() -> Path:
     if not seq.exists():
         seq.write_text("0\n")
 
-    for f in (events_path(), runs_jsonl_path(), vault_manifest_path(),
-              seals_path(), global_metrics_path()):
+    for f in (
+        events_path(),
+        runs_jsonl_path(),
+        vault_manifest_path(),
+        seals_path(),
+        global_metrics_path(),
+    ):
         if not f.exists():
             f.touch()
 
@@ -281,7 +309,6 @@ def assert_vault_same_volume() -> None:
     if v != s:
         msg = (
             f"vault {vault_dir()} and staging {vault_staging_dir()} on different devices "
-                        f"({v} vs {s}) — cross-device rename would lose atomicity"
+            f"({v} vs {s}) — cross-device rename would lose atomicity"
         )
-        raise RuntimeError(
-            msg       )
+        raise RuntimeError(msg)

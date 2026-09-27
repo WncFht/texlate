@@ -42,9 +42,7 @@ class _CallsRecorder:
         **kw: object,
     ) -> MockRes:
         self.calls.append({"passes": passes, "best_effort": best_effort})
-        return super().compile(
-            wdir, main, passes=passes, best_effort=best_effort, **kw
-        )
+        return super().compile(wdir, main, passes=passes, best_effort=best_effort, **kw)
 
 
 class PassRecordingEngine(_CallsRecorder, MockEngine):

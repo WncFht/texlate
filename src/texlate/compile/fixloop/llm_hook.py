@@ -96,8 +96,7 @@ _BANNED_NEW: list[tuple[re.Pattern[str], str]] = [
 #: 掉, 否则流号 cs 的 ``\`` 落进路径判定 —— 旧拼 ``[/\\]`` 尾哨兵把
 #: ``\openout\w=x`` 误当绝对路径拒。``arg2`` 收 ``\import{dir}{file}`` 双参形。
 _PATH_ARG_RX = re.compile(
-    _PATH_MACRO
-    + r"(?:[^\S\n]*\\[a-zA-Z@*]+[^\S\n]*"
+    _PATH_MACRO + r"(?:[^\S\n]*\\[a-zA-Z@*]+[^\S\n]*"
     r"(?:=|to[^\S\n]*\\[a-zA-Z@*]+))?"
     r"[^\S\n]*(?:\[[^\]\n]*\][^\S\n]*)?[\{=]?[^\S\n]*[\"']?"
     r"(?P<arg>\{[^{}\n]*\}|[^\s{}\"'=\\]+)"
@@ -121,6 +120,7 @@ def _path_arg_escape(arg: str) -> bool:
         return True
     parts = s.split("/")
     return "." in parts or ".." in parts
+
 
 _SYSTEM = """\
 You are a LaTeX compile-error repair engine inside an automated fix loop. \
@@ -387,7 +387,9 @@ class LlmFixer:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
         self.translator = translator
         self.base_url = base_url or env_raw(ENV_BASE_URL) or DEFAULT_BASE_URL
-        self.api_key = api_key if api_key is not None else env_key_for_url(self.base_url)
+        self.api_key = (
+            api_key if api_key is not None else env_key_for_url(self.base_url)
+        )
         self.model = model or env_raw(ENV_MODEL) or DEFAULT_MODEL
         self.dialect = dialect or env_raw(ENV_DIALECT) or "auto"
         self.timeout_s = timeout_s

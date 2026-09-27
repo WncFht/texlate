@@ -28,9 +28,7 @@ _ERR_HEAD = _PIPE_ERR + "\n" + _XBB_ERR
 _RID = "xbb_pregen"
 
 
-def _ctx(
-    tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None
-) -> LoopCtx:
+def _ctx(tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None) -> LoopCtx:
     """``mk_ctx`` + runner 构造后注入 (kit 工厂无 runner kwarg)。"""
     ctx = mk_ctx(tmp_path, err_head=err_head)
     ctx.deps.runner = runner

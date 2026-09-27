@@ -359,9 +359,7 @@ def _safe_rel(name: str) -> PurePosixPath | None:
     return safe_rel(name)
 
 
-def _install_needs(
-    ctx: LoopCtx, eng: Engine, needs: Iterable[str] | None
-) -> list[str]:
+def _install_needs(ctx: LoopCtx, eng: Engine, needs: Iterable[str] | None) -> list[str]:
     """stub/shadow 的 ``needs`` 依赖逐件补装 → 仍缺名表。
 
     解析位已有件 / ``probe_file`` 可探 / ``install_file`` 可装三者任一即不缺;
@@ -1633,8 +1631,7 @@ _REVTEX209_POLYFILL = (
     # ``\twocolumn``/``\@makecol``/``\pacs`` 三行共享负载核单源在
     # latex209.REVTEX209_CORE (``_REVTEX209_SHIM`` 同引) —— 行内
     # ``\long\def``/单 ``#1`` 契约注记见彼侧。
-    + REVTEX209_CORE
-    + _AT_LETTER_POST
+     + REVTEX209_CORE + _AT_LETTER_POST
 )
 
 

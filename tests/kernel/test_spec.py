@@ -1,6 +1,7 @@
 """Tests for kernel/spec.py — the Spec v2 authoring surface, compile-time
 checks, hashing, and load_spec.
 """
+
 from __future__ import annotations
 
 import textwrap
@@ -23,8 +24,13 @@ from kernel.spec import (
 
 
 def _ok_class(extra=None):
-    sc = {"ok": "terminal", "error": "retriable", "skip": "retriable",
-          "fault": "terminal", "fail": "terminal"}
+    sc = {
+        "ok": "terminal",
+        "error": "retriable",
+        "skip": "retriable",
+        "fault": "terminal",
+        "fail": "terminal",
+    }
     sc.update(extra or {})
     return sc
 
@@ -62,7 +68,7 @@ def test_param_defaults_and_coerce():
 
 def test_param_fp_selector_auto():
     assert Param().fp_effective("temp") is True
-    assert Param().fp_effective("n") is False       # selector knob
+    assert Param().fp_effective("n") is False  # selector knob
     assert Param().fp_effective("seed") is False
     assert Param(fp=True).fp_effective("n") is True  # pinned — flagged by checks
     assert Param(fp=False).fp_effective("temp") is False
@@ -72,27 +78,31 @@ def test_param_fp_selector_auto():
 
 
 def test_stage_needs_normalization():
-    st = Stage("s", fn=lambda c: "ok",
-               needs=["up1", ("up2", {"ok", "partial"}),
-                      ("up3", {"accept": {"clean"}}),
-                      {"stage": "up4", "accept": {"ok"}}])
+    st = Stage(
+        "s",
+        fn=lambda c: "ok",
+        needs=[
+            "up1",
+            ("up2", {"ok", "partial"}),
+            ("up3", {"accept": {"clean"}}),
+            {"stage": "up4", "accept": {"ok"}},
+        ],
+    )
     assert st.needs == [
         ("up1", frozenset({"ok"})),
         ("up2", frozenset({"ok", "partial"})),
         ("up3", frozenset({"clean"})),
         ("up4", frozenset({"ok"})),
     ]
-    st2 = Stage("s2", fn=lambda c: "ok",
-                needs=[("up", {"ok"})], on={"up": {"fail"}})
-    assert st2.accept_for("up") == {"ok", "fail"}    # on widens accept
+    st2 = Stage("s2", fn=lambda c: "ok", needs=[("up", {"ok"})], on={"up": {"fail"}})
+    assert st2.accept_for("up") == {"ok", "fail"}  # on widens accept
 
 
 # --- compile_checks ----------------------------------------------------------------------
 
 
 def test_compile_clean_spec_passes():
-    spec = _spec(stages=[_stage("ingest"), _stage("xlat",
-                                                 needs=[("ingest", {"ok"})])])
+    spec = _spec(stages=[_stage("ingest"), _stage("xlat", needs=[("ingest", {"ok"})])])
     assert compile_checks(spec) == []
 
 
@@ -102,37 +112,49 @@ def test_compile_duplicate_stage_names():
 
 
 def test_compile_needs_unknown_and_self():
-    spec = _spec(stages=[_stage("a", needs=[("ghost", {"ok"})]),
-                         _stage("b", needs=[("b", {"ok"})])])
+    spec = _spec(
+        stages=[
+            _stage("a", needs=[("ghost", {"ok"})]),
+            _stage("b", needs=[("b", {"ok"})]),
+        ]
+    )
     probs = compile_checks(spec)
     assert any("unknown stage 'ghost'" in p for p in probs)
     assert any("needs itself" in p for p in probs)
 
 
 def test_compile_cycle_detected():
-    spec = _spec(stages=[_stage("a", needs=[("b", {"ok"})]),
-                         _stage("b", needs=[("a", {"ok"})])])
+    spec = _spec(
+        stages=[_stage("a", needs=[("b", {"ok"})]), _stage("b", needs=[("a", {"ok"})])]
+    )
     assert topo_stages(spec) is None
     assert any("cycle" in p for p in compile_checks(spec))
 
 
 def test_compile_status_class_defaults_to_canonical():
-    st = Stage("a", fn=lambda c: "ok")          # no status_class declared
+    st = Stage("a", fn=lambda c: "ok")  # no status_class declared
     spec = _spec(stages=[st])
-    assert compile_checks(spec) == []           # omission is not an error
+    assert compile_checks(spec) == []  # omission is not an error
     # the canonical table: DONE -> terminal, RETRIABLE -> retriable
     assert st.status_class == {
-        "ok": "terminal", "partial": "terminal", "clean": "terminal",
-        "fail": "terminal", "reject": "terminal", "fault": "terminal",
-        "dirty_pdf": "terminal", "skip": "retriable", "error": "retriable",
+        "ok": "terminal",
+        "partial": "terminal",
+        "clean": "terminal",
+        "fail": "terminal",
+        "reject": "terminal",
+        "fault": "terminal",
+        "dirty_pdf": "terminal",
+        "skip": "retriable",
+        "error": "retriable",
     }
 
 
 def test_compile_status_class_bad_keys_and_values():
-    st = _stage("a", status_class={"ok": "terminal", "dedup": "terminal",
-                                   "weird": "upstream"})
+    st = _stage(
+        "a", status_class={"ok": "terminal", "dedup": "terminal", "weird": "upstream"}
+    )
     probs = compile_checks(_spec(stages=[st]))
-    assert any("not instrument statuses" in p for p in probs)   # dedup banned
+    assert any("not instrument statuses" in p for p in probs)  # dedup banned
 
 
 def test_compile_done_status_mapped_retriable_banned():
@@ -144,11 +166,15 @@ def test_compile_done_status_mapped_retriable_banned():
 def test_compile_status_class_must_cover_ok_and_downstream_accept():
     # downstream stage accepts 'partial' from 'a', but a never classifies it
     a = _stage("a", status_class={"ok": "terminal"})
-    b = _stage("b", needs=[("a", {"partial"})],
-               status_class={"ok": "terminal", "error": "retriable"})
+    b = _stage(
+        "b",
+        needs=[("a", {"partial"})],
+        status_class={"ok": "terminal", "error": "retriable"},
+    )
     probs = compile_checks(_spec(stages=[a, b]))
-    assert any("does not classify" in p and "'ok'" in p or "partial" in p
-               for p in probs)
+    assert any(
+        ("does not classify" in p and "'ok'" in p) or "partial" in p for p in probs
+    )
 
 
 def test_compile_paid_stage_needs_dedup_key():
@@ -163,39 +189,33 @@ def test_compile_paid_stage_needs_dedup_key():
 def test_compile_paid_dedup_remap_banned_for_non_eval():
     """§4 eval keyspace: a remapped dedup_key on an ASSET-paid stage reads
     'absent' forever (evidence legs are cell-keyed) — compile error."""
-    st = _stage("x", paid=True,
-                dedup_key=lambda c: (c["idc"], "mA", "0"))
+    st = _stage("x", paid=True, dedup_key=lambda c: (c["idc"], "mA", "0"))
     spec = _spec(stages=[st])
-    assert any("remap" in p and "re-burns" in p
-               for p in compile_checks(spec))
+    assert any("remap" in p and "re-burns" in p for p in compile_checks(spec))
     # a non-default TUPLE remap is equally banned
     st2 = _stage("x", paid=True, dedup_key=("idc", "arm"))
-    assert any("remap" in p
-               for p in compile_checks(_spec(stages=[st2])))
+    assert any("remap" in p for p in compile_checks(_spec(stages=[st2])))
     # eval lifts the ban (records lane carries the evidence)
-    st3 = _stage("x", paid=True,
-                 dedup_key=lambda c: (c["idc"], "mA", "0"))
-    assert not any("remap" in p
-                   for p in compile_checks(_spec(stages=[st3], eval=True)))
+    st3 = _stage("x", paid=True, dedup_key=lambda c: (c["idc"], "mA", "0"))
+    assert not any("remap" in p for p in compile_checks(_spec(stages=[st3], eval=True)))
 
 
 def test_compile_paid_dedup_remap_mutates_banned():
     """Remap + mutates splits evidence: vault bytes land on the cell key
     while claims ride the remap — banned even on eval specs."""
-    st = _stage("x", paid=True, mutates=["zh"],
-                dedup_key=lambda c: (c["idc"], "mA", "0"))
+    st = _stage(
+        "x", paid=True, mutates=["zh"], dedup_key=lambda c: (c["idc"], "mA", "0")
+    )
     spec = _spec(stages=[st], eval=True)
-    assert any("remap" in p and "splits evidence" in p
-               for p in compile_checks(spec))
+    assert any("remap" in p and "splits evidence" in p for p in compile_checks(spec))
 
 
 def test_compile_select_must_be_callable():
     spec = _spec(select="id == 'x'")
-    assert any("select" in p and "not callable" in p
-               for p in compile_checks(spec))
-    assert not any("select" in p
-                   for p in compile_checks(
-                       _spec(select=lambda it, p: True)))
+    assert any("select" in p and "not callable" in p for p in compile_checks(spec))
+    assert not any(
+        "select" in p for p in compile_checks(_spec(select=lambda it, p: True))
+    )
 
 
 def test_compile_duplicate_item_cells():
@@ -204,12 +224,14 @@ def test_compile_duplicate_item_cells():
 
 
 def test_compile_param_violations():
-    spec = _spec(params={
-        "bad_type": Param(list),
-        "req_default": Param(str, default="x", required=True),
-        "bad_default": Param(int, default="s"),
-        "n": Param(int, fp=True),               # selector knob fp=True
-    })
+    spec = _spec(
+        params={
+            "bad_type": Param(list),
+            "req_default": Param(str, default="x", required=True),
+            "bad_default": Param(int, default="s"),
+            "n": Param(int, fp=True),  # selector knob fp=True
+        }
+    )
     probs = compile_checks(spec)
     assert any("not in" in p and "bad_type" in p for p in probs)
     assert any("required=True but default" in p for p in probs)
@@ -218,14 +240,13 @@ def test_compile_param_violations():
 
 
 def test_compile_layer_and_eval_gates():
-    spec = _spec(items=[{"id": "a", "layer": "mars"}],
-                 allowed_layers=["bench"])
+    spec = _spec(items=[{"id": "a", "layer": "mars"}], allowed_layers=["bench"])
     assert any("not in allowed_layers" in p for p in compile_checks(spec))
-    spec2 = _spec(items=[{"id": "a", "layer": "holdout"}],
-                  allowed_layers=["holdout"])
+    spec2 = _spec(items=[{"id": "a", "layer": "holdout"}], allowed_layers=["holdout"])
     assert any("requires spec.eval" in p for p in compile_checks(spec2))
-    spec3 = _spec(items=[{"id": "a", "layer": "holdout"}],
-                  allowed_layers=["holdout"], eval=True)
+    spec3 = _spec(
+        items=[{"id": "a", "layer": "holdout"}], allowed_layers=["holdout"], eval=True
+    )
     assert not any("requires spec.eval" in p for p in compile_checks(spec3))
 
 
@@ -255,21 +276,25 @@ def test_items_materialize_one_shot():
     spec = _spec(items=gen)
     items = spec.iter_items()
     assert [i["id"] for i in items] == ["a", "b"]
-    assert spec.iter_items() == items            # same contents
-    assert spec.items is not gen                 # materialized into a list
-    assert len(calls) == 1                       # generator ran exactly once
+    assert spec.iter_items() == items  # same contents
+    assert spec.items is not gen  # materialized into a list
+    assert len(calls) == 1  # generator ran exactly once
 
 
 def test_item_tuple_and_bare_forms():
-    spec = _spec(items=["2401.00001",
-                        ("2401.00002", "zh"),
-                        ("2401.00003", "zh", "u", "v", "a")])
+    spec = _spec(
+        items=["2401.00001", ("2401.00002", "zh"), ("2401.00003", "zh", "u", "v", "a")]
+    )
     items = spec.iter_items()
-    assert items[0] == {"id": "2401.00001", "arm": "-", "up": "-",
-                        "variant": "-"}
+    assert items[0] == {"id": "2401.00001", "arm": "-", "up": "-", "variant": "-"}
     assert items[1]["arm"] == "zh"
-    assert items[2] == {"id": "2401.00003", "arm": "zh", "up": "u",
-                        "variant": "v", "stage": "a"}
+    assert items[2] == {
+        "id": "2401.00003",
+        "arm": "zh",
+        "up": "u",
+        "variant": "v",
+        "stage": "a",
+    }
 
 
 # --- hashing ----------------------------------------------------------------------------
@@ -285,11 +310,18 @@ def test_spec_hash_deterministic_and_sensitive():
 
 
 def test_cell_fp_excludes_selector_params():
-    spec = _spec(params={"temp": Param(float, default=0.1),
-                         "n": Param(int, default=1)})
-    base = {"id": "x", "idc": "x", "arm": "-", "up": "-", "variant": "-",
-            "stage": "a", "fp_input": None,
-            "run_params": {"temp": 0.1, "n": 1}, "params": {}}
+    spec = _spec(params={"temp": Param(float, default=0.1), "n": Param(int, default=1)})
+    base = {
+        "id": "x",
+        "idc": "x",
+        "arm": "-",
+        "up": "-",
+        "variant": "-",
+        "stage": "a",
+        "fp_input": None,
+        "run_params": {"temp": 0.1, "n": 1},
+        "params": {},
+    }
     f1 = cell_fp(spec, base)
     # selector knob change -> fp UNCHANGED (§3.4)
     f2 = cell_fp(spec, dict(base, run_params={"temp": 0.1, "n": 99}))
@@ -300,7 +332,7 @@ def test_cell_fp_excludes_selector_params():
     # input change -> fp changes
     f4 = cell_fp(spec, dict(base, fp_input="sha:abc"))
     assert f1 != f4
-    assert f1 == cell_fp(spec, base)              # deterministic
+    assert f1 == cell_fp(spec, base)  # deterministic
 
 
 # --- load_spec ----------------------------------------------------------------------------
@@ -308,7 +340,8 @@ def test_cell_fp_excludes_selector_params():
 
 def test_load_spec_roundtrip(tmp_path: Path):
     src = tmp_path / "mybench.py"
-    src.write_text(textwrap.dedent("""\
+    src.write_text(
+        textwrap.dedent("""\
         from kernel.spec import Param, Spec, Stage
 
         def go(ctx):
@@ -321,7 +354,8 @@ def test_load_spec_roundtrip(tmp_path: Path):
                           status_class={"ok": "terminal"})],
             items=[{"id": "2401.00001"}],
         )
-        """))
+        """)
+    )
     spec = load_spec(src)
     assert spec.kind == "filebench"
     assert spec._path == str(src)
@@ -331,12 +365,14 @@ def test_load_spec_roundtrip(tmp_path: Path):
 
 def test_load_spec_compile_failure_raises(tmp_path: Path):
     src = tmp_path / "bad.py"
-    src.write_text(textwrap.dedent("""\
+    src.write_text(
+        textwrap.dedent("""\
         from kernel.spec import Spec, Stage
         spec = Spec(kind="bad", stages=[
             Stage("a", fn=None, status_class={"ok": "terminal"}),
         ], items=[])
-        """))
+        """)
+    )
     with pytest.raises(SpecError) as exc:
         load_spec(src)
     assert any("fn is not callable" in p for p in exc.value.problems)
@@ -358,8 +394,7 @@ def test_shipped_specs_compile(broot):
     """Every spec shipped under bench/py/specs must compile clean — a
     broken spec would otherwise only surface at `bench run` time.
     Underscore-prefixed files are shared helper modules, not specs."""
-    names = sorted(p.stem for p in SPECS_DIR.glob("*.py")
-                   if not p.stem.startswith("_"))
+    names = sorted(p.stem for p in SPECS_DIR.glob("*.py") if not p.stem.startswith("_"))
     assert names, "SPECS_DIR drifted"
     for name in names:
         spec = load_spec(SPECS_DIR / f"{name}.py")
@@ -375,10 +410,13 @@ def test_errsweep_prep_runbook_drift_fails_closed(broot, monkeypatch):
     from specs import errsweep as es
 
     monkeypatch.setattr(es, "RUNBOOK_SHA256", "0" * 64)
-    ctx = Ctx("errsweep/2026-09-22/t",
-              {"id": "sweep", "idc": "sweep", "stage": "prep"},
-              None, es.spec,
-              rundir=types.SimpleNamespace(date="2026-09-22"))
+    ctx = Ctx(
+        "errsweep/2026-09-22/t",
+        {"id": "sweep", "idc": "sweep", "stage": "prep"},
+        None,
+        es.spec,
+        rundir=types.SimpleNamespace(date="2026-09-22"),
+    )
     assert es._prep(ctx) == "fail"
     notes = [e for e in ctx._outbox if e.get("type") == events.T_NOTE]
     assert any("sha drifted" in e.get("text", "") for e in notes)

@@ -266,14 +266,18 @@ def test_enc_use_in_comment_not_use(tmp_path: Path) -> None:
     """注释内 ``\\fontencoding`` 遮盖面不计使用 —— 仍摘除。"""
     src = "% {\\fontencoding{T2A}\\selectfont x}\n\\usepackage[T2A]{fontenc}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = fontenc_enc_relax(mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params())
+    ok, _ = fontenc_enc_relax(
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+    )
     assert ok
     assert "\\usepackage{fontenc}" in (tmp_path / "main.tex").read_text()
 
 
 def test_enc_non_encdef_payload_declines(tmp_path: Path) -> None:
     """非 ``<enc>enc.def`` payload (foo.sty) → decline。"""
-    ok, note = fontenc_enc_relax(mk_ctx(tmp_path), _FontEng(set()), "foo.sty", _params())
+    ok, note = fontenc_enc_relax(
+        mk_ctx(tmp_path), _FontEng(set()), "foo.sty", _params()
+    )
     assert not ok
     assert "not an <enc>enc.def" in note
 
@@ -304,8 +308,7 @@ def test_clone_sub_rule_registered() -> None:
     # 注明「同表」) —— ``params.get(...) or _CLONE_TABLE`` 让 yaml 整表顶替
     # builtin, 全表等值钉防两份拷贝静默漂移。
     assert {
-        _font_stem(str(k)): str(v)
-        for k, v in r.action["params"]["clone_table"].items()
+        _font_stem(str(k)): str(v) for k, v in r.action["params"]["clone_table"].items()
     } == _CLONE_TABLE
 
 

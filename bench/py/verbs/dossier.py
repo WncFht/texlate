@@ -94,7 +94,8 @@ def _maybe_reexec_venv() -> None:
     shim = BENCH / "py" / "bench"
     env = dict(os.environ, TEXLATE_BENCH_REEXEC="1")
     os.execve(  # noqa: S606 — 解释器重入非 shell 起进程
-        str(venv_py), [str(venv_py), str(shim), *sys.argv[1:]], env)
+        str(venv_py), [str(venv_py), str(shim), *sys.argv[1:]], env
+    )
 
 
 def _open_index() -> index_mod.Index:
@@ -102,8 +103,7 @@ def _open_index() -> index_mod.Index:
     try:
         idx.tail_ingest()
     except Exception as exc:
-        print(f"note: tail_ingest failed ({exc}) — index may be stale",
-              file=sys.stderr)
+        print(f"note: tail_ingest failed ({exc}) — index may be stale", file=sys.stderr)
     return idx
 
 
@@ -130,8 +130,12 @@ def _resolve_run_group(idx, run_arg: str):
 
     精确 → 前缀唯一 → stem 并组；跨 stem 即歧义 (None, err)。
     """
-    rows = [dict(r) for r in idx.conn.execute(
-        "SELECT run, run_seq, kind, date, slug FROM runs").fetchall()]
+    rows = [
+        dict(r)
+        for r in idx.conn.execute(
+            "SELECT run, run_seq, kind, date, slug FROM runs"
+        ).fetchall()
+    ]
     seeds = [r for r in rows if r.get("run") == run_arg]
     if not seeds:
         seeds = [r for r in rows if str(r.get("run")).startswith(run_arg)]
@@ -170,7 +174,8 @@ def _unblob(val, blob_dir: Path | None):
         return val
     try:
         return json.loads(
-            (blob_dir / f"{val['$blob']}.json").read_text(encoding="utf-8"))
+            (blob_dir / f"{val['$blob']}.json").read_text(encoding="utf-8")
+        )
     except (OSError, ValueError):
         return val
 
@@ -235,9 +240,7 @@ def _fetch_cases(idx, cands: list[str], runs: list[str] | None = None):
             p = json.loads(row["payload"]) if row["payload"] else None
         except ValueError:
             continue
-        if isinstance(p, dict) and (
-            "corpus" in p or "cond" in p or "verdict" in p
-        ):
+        if isinstance(p, dict) and ("corpus" in p or "cond" in p or "verdict" in p):
             out.append(p)
     # 旧 load_cases 语义：(corpus,cond) 键末条胜
     latest = {}
@@ -291,9 +294,7 @@ def load_tickets(pid_cands: set[str], rundirs: list[Path]) -> list[str]:
 
 def _iter_jsonl(path: Path):
     try:
-        for raw in path.read_text(
-            encoding="utf-8", errors="replace"
-        ).splitlines():
+        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
             line = raw.strip()
             if not line:
                 continue
@@ -308,10 +309,7 @@ def _iter_jsonl(path: Path):
 def _invocations(rundir: Path | None) -> list[dict]:
     if rundir is None:
         return []
-    return [
-        r for r in _iter_jsonl(rundir / "invocations.jsonl")
-        if isinstance(r, dict)
-    ]
+    return [r for r in _iter_jsonl(rundir / "invocations.jsonl") if isinstance(r, dict)]
 
 
 # ---------------------------------------------------------------- work 树侧
@@ -539,9 +537,7 @@ def _fix_class_hint(sig: str, rec: dict) -> str | None:
     return f"{cls}: {note}"
 
 
-def _evidence(
-    recs: dict[str, list[dict]], cases: list[dict], inv: dict
-) -> dict:
+def _evidence(recs: dict[str, list[dict]], cases: list[dict], inv: dict) -> dict:
     comp = _primary_compile(recs) or {}
     cm = comp.get("metrics") or {}
     first_err = (cm.get("compile") or {}).get("first_error")
@@ -686,8 +682,9 @@ def _gap_flags(recs: dict[str, list[dict]], inv: dict) -> dict:
     }
 
 
-def _cross_run(rows: list[dict], group_rundirs: dict[str, Path | None],
-               safe: str) -> list[dict]:
+def _cross_run(
+    rows: list[dict], group_rundirs: dict[str, Path | None], safe: str
+) -> list[dict]:
     by_run: dict[str, dict[str, dict]] = {}
     for r in rows:
         by_run.setdefault(str(r.get("run")), {})[_rec_key(r)] = r
@@ -696,9 +693,7 @@ def _cross_run(rows: list[dict], group_rundirs: dict[str, Path | None],
         stages: dict[str, list[str]] = {}
         for r in keyed.values():
             st = str(r.get("stage"))
-            stages.setdefault(st, []).append(
-                f"{r.get('status')}/{r.get('arm', '-')}"
-            )
+            stages.setdefault(st, []).append(f"{r.get('status')}/{r.get('arm', '-')}")
         rd = group_rundirs.get(run) or _rundir_for_name(run)
         out.append(
             {
@@ -834,9 +829,7 @@ def _attribution(recs: dict[str, list[dict]], inv: dict) -> list[str]:
 # ---------------------------------------------------------------- diff
 
 
-def _end_state(
-    recs: dict[str, list[dict]], wdir: Path | None
-) -> dict:
+def _end_state(recs: dict[str, list[dict]], wdir: Path | None) -> dict:
     """单账组的格终态面：{stage/arm: status} + verdict/fixloop 词 + pdf 在否。"""
     latest = _latest(recs)
     st: dict[str, str] = {}
@@ -1124,59 +1117,130 @@ def selftest() -> int:
 
     recs = {
         "ingest": [
-            {"id": "9999.0001", "idc": "9999.0001", "stage": "ingest",
-             "arm": "-", "upstream": "-", "status": "ok", "dur_s": 0.1,
-             "metrics": {}, "errors": [], "sig": "", "run": "t/run"}
+            {
+                "id": "9999.0001",
+                "idc": "9999.0001",
+                "stage": "ingest",
+                "arm": "-",
+                "upstream": "-",
+                "status": "ok",
+                "dur_s": 0.1,
+                "metrics": {},
+                "errors": [],
+                "sig": "",
+                "run": "t/run",
+            }
         ],
         "parse": [
-            {"id": "9999.0001", "idc": "9999.0001", "stage": "parse",
-             "arm": "-", "upstream": "-", "status": "ok", "dur_s": 0.2,
-             "metrics": {"main_rel": "m.tex", "engine_resolved": "xelatex",
-                         "route": {}, "totals": {"chunks": 3}},
-             "errors": [], "sig": "", "run": "t/run"}
+            {
+                "id": "9999.0001",
+                "idc": "9999.0001",
+                "stage": "parse",
+                "arm": "-",
+                "upstream": "-",
+                "status": "ok",
+                "dur_s": 0.2,
+                "metrics": {
+                    "main_rel": "m.tex",
+                    "engine_resolved": "xelatex",
+                    "route": {},
+                    "totals": {"chunks": 3},
+                },
+                "errors": [],
+                "sig": "",
+                "run": "t/run",
+            }
         ],
         "xlat": [
-            {"id": "9999.0001", "idc": "9999.0001", "stage": "xlat",
-             "arm": "mock", "upstream": "-", "status": "ok", "dur_s": 1.0,
-             "metrics": {"translate": {"chunks": 2, "ok": 1, "fault": 1}},
-             "errors": [], "sig": "", "run": "t/run"}
+            {
+                "id": "9999.0001",
+                "idc": "9999.0001",
+                "stage": "xlat",
+                "arm": "mock",
+                "upstream": "-",
+                "status": "ok",
+                "dur_s": 1.0,
+                "metrics": {"translate": {"chunks": 2, "ok": 1, "fault": 1}},
+                "errors": [],
+                "sig": "",
+                "run": "t/run",
+            }
         ],
         "compile": [
-            {"id": "9999.0001", "idc": "9999.0001", "stage": "compile",
-             "arm": "zh", "upstream": "mock", "status": "fail", "dur_s": 1.0,
-             "metrics": {
-                 "engine": "xelatex",
-                 "verdict": {"status": "fail", "category": "missing_file",
-                             "payload": "foo.sty", "cjk_chars": -1},
-                 "compile": {"pdf_bytes": 0,
-                             "first_error": "! LaTeX Error: File `foo.sty' not found."},
-                 "inject": {"status": "injected", "mode": "ctex"}},
-             "errors": [{"code": "missing_file", "cat": "missing_file",
-                         "payload": "foo.sty"}],
-             "sig": "missing_file:foo.sty", "run": "t/run"}
+            {
+                "id": "9999.0001",
+                "idc": "9999.0001",
+                "stage": "compile",
+                "arm": "zh",
+                "upstream": "mock",
+                "status": "fail",
+                "dur_s": 1.0,
+                "metrics": {
+                    "engine": "xelatex",
+                    "verdict": {
+                        "status": "fail",
+                        "category": "missing_file",
+                        "payload": "foo.sty",
+                        "cjk_chars": -1,
+                    },
+                    "compile": {
+                        "pdf_bytes": 0,
+                        "first_error": "! LaTeX Error: File `foo.sty' not found.",
+                    },
+                    "inject": {"status": "injected", "mode": "ctex"},
+                },
+                "errors": [
+                    {
+                        "code": "missing_file",
+                        "cat": "missing_file",
+                        "payload": "foo.sty",
+                    }
+                ],
+                "sig": "missing_file:foo.sty",
+                "run": "t/run",
+            }
         ],
         "fixloop": [
-            {"id": "9999.0001", "idc": "9999.0001", "stage": "fixloop",
-             "arm": "fix", "upstream": "mock", "status": "clean", "dur_s": 2.0,
-             "metrics": {"compile_status_before": "fail",
-                         "fixloop_verdict": "clean", "rounds": 1},
-             "errors": [], "sig": "clean", "run": "t/run"}
+            {
+                "id": "9999.0001",
+                "idc": "9999.0001",
+                "stage": "fixloop",
+                "arm": "fix",
+                "upstream": "mock",
+                "status": "clean",
+                "dur_s": 2.0,
+                "metrics": {
+                    "compile_status_before": "fail",
+                    "fixloop_verdict": "clean",
+                    "rounds": 1,
+                },
+                "errors": [],
+                "sig": "clean",
+                "run": "t/run",
+            }
         ],
     }
     with tempfile.TemporaryDirectory() as td:
         wdir = Path(td) / "9999.0001"
         (wdir / "zh").mkdir(parents=True)
         (wdir / "splice").mkdir(parents=True)
-        (wdir / "zh" / ".xlat-arm.json").write_text(
-            '{"arm":"mock"}', encoding="utf-8")
+        (wdir / "zh" / ".xlat-arm.json").write_text('{"arm":"mock"}', encoding="utf-8")
         (wdir / "parse.json").write_text(
-            json.dumps({"id": "9999.0001", "status": "ok", "main_rel": "m.tex",
-                        "engine_resolved": "xelatex", "route": {},
-                        "totals": {"chunks": 3}}),
+            json.dumps(
+                {
+                    "id": "9999.0001",
+                    "status": "ok",
+                    "main_rel": "m.tex",
+                    "engine_resolved": "xelatex",
+                    "route": {},
+                    "totals": {"chunks": 3},
+                }
+            ),
             encoding="utf-8",
         )
         (wdir / "splice" / "m.log").write_text(
-            "x\n! LaTeX Error: File `foo.sty' not found.\ny\n", encoding="utf-8")
+            "x\n! LaTeX Error: File `foo.sty' not found.\ny\n", encoding="utf-8"
+        )
         (wdir / "xlat-mock.jsonl").write_text(
             '{"chunk_id":"0:0","status":"ok"}\n'
             '{"chunk_id":"0:1","status":"fault","error_kind":"timeout"}\n',
@@ -1184,8 +1248,14 @@ def selftest() -> int:
         )
         inv = work_inventory(wdir)
         d = build_dossier(
-            "9999.0001", {"9999.0001"}, recs, [], wdir, inv,
-            run_label="t/run", prior_waves=["t/run"],
+            "9999.0001",
+            {"9999.0001"},
+            recs,
+            [],
+            wdir,
+            inv,
+            run_label="t/run",
+            prior_waves=["t/run"],
         )
         md = render_md(d)
         for needle in (
@@ -1207,21 +1277,31 @@ def selftest() -> int:
 
 
 def add_args(sp) -> None:
-    sp.add_argument("id", nargs="?",
-                    help="arxiv id（cat/YYMMNNN、YYMM.NNNNN 或 safe 形）")
-    sp.add_argument("--run", default=None,
-                    help="钉 run（精确名/唯一前缀/stem——import 兄弟组自动并组；"
-                         "缺省选含此 id 的最新 run_seq 账组）")
-    sp.add_argument("--diff", default=None, metavar="RUN",
-                    help="与另一 run 做 end-state 对账（波前后迁移）")
-    sp.add_argument("--all-runs", action="store_true",
-                    help="附跨 run 出现史")
-    sp.add_argument("--json", action="store_true", dest="as_json",
-                    help="机读 dossier dict 输出")
-    sp.add_argument("-o", "--out", type=Path, default=None,
-                    help="写文件（缺省 stdout）")
-    sp.add_argument("--selftest", action="store_true",
-                    help="合成内存账自检（不碰真 index）")
+    sp.add_argument(
+        "id", nargs="?", help="arxiv id（cat/YYMMNNN、YYMM.NNNNN 或 safe 形）"
+    )
+    sp.add_argument(
+        "--run",
+        default=None,
+        help="钉 run（精确名/唯一前缀/stem——import 兄弟组自动并组；"
+        "缺省选含此 id 的最新 run_seq 账组）",
+    )
+    sp.add_argument(
+        "--diff",
+        default=None,
+        metavar="RUN",
+        help="与另一 run 做 end-state 对账（波前后迁移）",
+    )
+    sp.add_argument("--all-runs", action="store_true", help="附跨 run 出现史")
+    sp.add_argument(
+        "--json", action="store_true", dest="as_json", help="机读 dossier dict 输出"
+    )
+    sp.add_argument(
+        "-o", "--out", type=Path, default=None, help="写文件（缺省 stdout）"
+    )
+    sp.add_argument(
+        "--selftest", action="store_true", help="合成内存账自检（不碰真 index）"
+    )
 
 
 def main(args) -> int:
@@ -1235,8 +1315,9 @@ def main(args) -> int:
     res = idnorm.canon_id(args.id, registry=_load_registry())
     if not res.ok:
         cands = f" candidates={res.candidates}" if res.candidates else ""
-        print(f"dossier: canon 不可解 {args.id!r}: {res.reason}{cands}",
-              file=sys.stderr)
+        print(
+            f"dossier: canon 不可解 {args.id!r}: {res.reason}{cands}", file=sys.stderr
+        )
         return 2
     idc = res.idc
     safe = idnorm.safe_id(idc)
@@ -1262,9 +1343,13 @@ def main(args) -> int:
             cases_probe = _fetch_cases(idx, cands)
             if not cases_probe:
                 # workdir 兜底：run_seq 倒序找 work/{safe}
-                run_rows = [dict(r) for r in idx.conn.execute(
-                    "SELECT run, run_seq, kind, date, slug FROM runs"
-                    " ORDER BY run_seq DESC").fetchall()]
+                run_rows = [
+                    dict(r)
+                    for r in idx.conn.execute(
+                        "SELECT run, run_seq, kind, date, slug FROM runs"
+                        " ORDER BY run_seq DESC"
+                    ).fetchall()
+                ]
                 hit = None
                 for rr in run_rows:
                     rd = _rundir(rr)
@@ -1272,22 +1357,26 @@ def main(args) -> int:
                         hit = rr
                         break
                 if hit is None:
-                    print(f"dossier: {idc} 查无此人（records/cases/work 三路全空）",
-                          file=sys.stderr)
+                    print(
+                        f"dossier: {idc} 查无此人（records/cases/work 三路全空）",
+                        file=sys.stderr,
+                    )
                     return 2
                 group = [hit]
                 run_names = [str(hit["run"])]
             else:
                 seen = {}
                 for rr in idx.conn.execute(
-                        "SELECT run, run_seq, kind, date, slug FROM runs"):
+                    "SELECT run, run_seq, kind, date, slug FROM runs"
+                ):
                     seen[rr["run"]] = dict(rr)
                 # cases 的 run 归属取最新出现者
                 ph = ",".join("?" for _ in cands)
                 crows = idx.conn.execute(
                     "SELECT DISTINCT run FROM cases"  # noqa: S608 — 值全走占位符参数化
                     f" WHERE idc IN ({ph}) OR id IN ({ph})",
-                    list(cands) + list(cands)).fetchall()
+                    list(cands) + list(cands),
+                ).fetchall()
                 best = max(
                     (seen.get(cr["run"]) for cr in crows),
                     key=lambda r: (r or {}).get("run_seq") or -1,
@@ -1296,9 +1385,9 @@ def main(args) -> int:
                 group = [best] if best else []
                 run_names = [str(best["run"])] if best else []
         else:
-            latest_run = max(
-                (r for r in rows), key=lambda r: r.get("run_seq") or -1
-            )["run"]
+            latest_run = max((r for r in rows), key=lambda r: r.get("run_seq") or -1)[
+                "run"
+            ]
             group, _ = _resolve_run_group(idx, latest_run)
             run_names = [str(r["run"]) for r in (group or [])]
             if group and len(group) > 1:
@@ -1332,9 +1421,7 @@ def main(args) -> int:
 
     # tickets：本组 rundirs + 全 rundir 面（prior 票史）
     group_rds = [rd for rd in (_rundir(r) for r in (group or [])) if rd]
-    all_rds = [
-        p for p in sorted(paths.runs_dir().glob("*/*/*")) if p.is_dir()
-    ]
+    all_rds = [p for p in sorted(paths.runs_dir().glob("*/*/*")) if p.is_dir()]
     prior_tickets = load_tickets(cand_set, all_rds or group_rds)
 
     prior_waves = sorted({str(r.get("run")) for r in rows})
@@ -1344,9 +1431,7 @@ def main(args) -> int:
 
     all_runs = None
     if args.all_runs:
-        group_rundirs = {
-            str(r["run"]): _rundir(r) for r in (group or [])
-        }
+        group_rundirs = {str(r["run"]): _rundir(r) for r in (group or [])}
         all_runs = _cross_run(rows, group_rundirs, safe)
 
     diff = None
@@ -1371,10 +1456,20 @@ def main(args) -> int:
         }
 
     d = build_dossier(
-        args.id, cand_set, recs, cases, wdir, inv,
-        run_label=run_label, run_info=run_info, invocations=invocs,
-        vault_copies=vault_copies, prior_waves=prior_waves,
-        prior_tickets=prior_tickets, all_runs=all_runs, diff=diff,
+        args.id,
+        cand_set,
+        recs,
+        cases,
+        wdir,
+        inv,
+        run_label=run_label,
+        run_info=run_info,
+        invocations=invocs,
+        vault_copies=vault_copies,
+        prior_waves=prior_waves,
+        prior_tickets=prior_tickets,
+        all_runs=all_runs,
+        diff=diff,
     )
     text = (
         json.dumps(d, ensure_ascii=False, indent=1, default=str)

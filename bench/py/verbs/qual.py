@@ -108,8 +108,7 @@ def _case_map(idx, run_name: str) -> dict[tuple, dict]:
     ESA errors 标注走 emit_case 通道——metrics 只有计数面。"""
     out: dict[tuple, dict] = {}
     for r in idx.conn.execute(
-        "SELECT idc,seq,payload FROM cases WHERE run=? AND stage='judge' "
-        "ORDER BY seq",
+        "SELECT idc,seq,payload FROM cases WHERE run=? AND stage='judge' ORDER BY seq",
         (run_name,),
     ):
         try:
@@ -135,8 +134,10 @@ def _rec_of(row: dict, rundir: Path | None, cases: dict) -> dict:
     chunk = m.get("chunk_id") or _vseg(variant, 2) or ""
     case = cases.get((row.get("idc"), str(chunk), str(row.get("arm")))) or {}
     j2 = None
-    if any(k in m for k in ("judge2_stated100", "judge2_error",
-                            "judge2_model", "judge2_n_errors")):
+    if any(
+        k in m
+        for k in ("judge2_stated100", "judge2_error", "judge2_model", "judge2_n_errors")
+    ):
         j2 = {
             "stated100": m.get("judge2_stated100"),
             "judge2_error": m.get("judge2_error"),
@@ -194,8 +195,7 @@ def aggregate(recs: list[dict]) -> dict:
         by_kind.setdefault(str(r.get("kind") or "?"), []).append(r)
         for e in r.get("errors") or []:
             row = cat_sev.setdefault(
-                e.get("category") or "?", {"minor": 0, "major": 0,
-                                          "critical": 0}
+                e.get("category") or "?", {"minor": 0, "major": 0, "critical": 0}
             )
             row[e.get("severity") or "minor"] = (
                 row.get(e.get("severity") or "minor", 0) + 1
@@ -227,8 +227,7 @@ def _flag_tally(recs: list[dict]) -> dict[str, int]:
 
 def _score_row(recs: list[dict]) -> str:
     scores = [int(r["score"]) for r in recs]
-    deltas = [int(r["score_delta"]) for r in recs
-              if r.get("score_delta") is not None]
+    deltas = [int(r["score_delta"]) for r in recs if r.get("score_delta") is not None]
     return (
         f"{len(recs)} | {statistics.mean(scores):.1f} | "
         f"{statistics.median(scores):.0f} | {_dist(scores)}"
@@ -252,8 +251,7 @@ def write_report(recs: list[dict], meta: dict, out_path: Path) -> None:
         f"papers={len(meta.get('papers') or [])} · judged={agg['n_judged']} chunks"
         + (f" · judge_error={agg['n_error']}" if agg["n_error"] else "")
         + (
-            f" · contested={n_contested} "
-            f"({n_contested / agg['n_judged'] * 100:.1f}%)"
+            f" · contested={n_contested} ({n_contested / agg['n_judged'] * 100:.1f}%)"
             if agg["n_judged"]
             else ""
         ),
@@ -310,8 +308,7 @@ def write_report(recs: list[dict], meta: dict, out_path: Path) -> None:
             f"{statistics.median(scores):.0f} | {_dist(scores)} | "
             + (
                 ", ".join(
-                    f"{f}×{c}" for f, c in sorted(ft.items(),
-                                                 key=lambda kv: -kv[1])
+                    f"{f}×{c}" for f, c in sorted(ft.items(), key=lambda kv: -kv[1])
                 )
                 or "—"
             )
@@ -334,8 +331,7 @@ def write_report(recs: list[dict], meta: dict, out_path: Path) -> None:
             f"{statistics.mean(scores):.1f} | {_dist(scores)} | "
             + (
                 ", ".join(
-                    f"{f}×{c}" for f, c in sorted(ft.items(),
-                                                 key=lambda kv: -kv[1])
+                    f"{f}×{c}" for f, c in sorted(ft.items(), key=lambda kv: -kv[1])
                 )
                 or "—"
             )
@@ -385,27 +381,21 @@ def write_report(recs: list[dict], meta: dict, out_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- meta
-def _meta_of(idx, run_name: str, rdir: Path | None,
-             recs: list[dict]) -> dict:
+def _meta_of(idx, run_name: str, rdir: Path | None, recs: list[dict]) -> dict:
     """report 头 meta：spec/plan/frame 三源互证，缺字段 '?' 不编。"""
     rp: dict = {}
     lanes: set[str] = set()
     if rdir is not None and (rdir / "plan.json").is_file():
         try:
-            plan = json.loads((rdir / "plan.json").read_text(
-                encoding="utf-8"))
+            plan = json.loads((rdir / "plan.json").read_text(encoding="utf-8"))
             cells = plan.get("cells") or []
             if cells:
                 rp = dict(cells[0].get("run_params") or {})
             lanes = {str(c.get("lane")) for c in cells if c.get("lane")}
         except (ValueError, OSError):
             pass
-    protos = sorted(
-        {_vseg(r["_variant"], 0) for r in recs if _vseg(r["_variant"], 0)}
-    )
-    judges = sorted(
-        {_vseg(r["_variant"], 1) for r in recs if _vseg(r["_variant"], 1)}
-    )
+    protos = sorted({_vseg(r["_variant"], 0) for r in recs if _vseg(r["_variant"], 0)})
+    judges = sorted({_vseg(r["_variant"], 1) for r in recs if _vseg(r["_variant"], 1)})
     seeds: set[str] = set()
     sources: set[str] = set()
     repo = Path(__file__).resolve().parents[3]
@@ -429,9 +419,9 @@ def _meta_of(idx, run_name: str, rdir: Path | None,
     if r and r["ts_start"]:
         import datetime as _dt
 
-        started = _dt.datetime.fromtimestamp(
-            r["ts_start"], _dt.UTC
-        ).isoformat(timespec="seconds")
+        started = _dt.datetime.fromtimestamp(r["ts_start"], _dt.UTC).isoformat(
+            timespec="seconds"
+        )
     return {
         "protocol_v": "+".join(protos) or "?",
         "judge_model": rp.get("judge") or "+".join(judges) or "?",
@@ -453,23 +443,18 @@ def _cmd_report(args) -> int:
         name, rdir = _run_ref(ref)
         if name is None:
             return 2
-        r = idx.conn.execute(
-            "SELECT kind FROM runs WHERE run=?", (name,)
-        ).fetchone()
+        r = idx.conn.execute("SELECT kind FROM runs WHERE run=?", (name,)).fetchone()
         kind = r["kind"] if r else None
         if kind != "qualbench":
-            _err(f"{name}: kind={kind!r} skipped (qual-report reads "
-                 "qualbench runs)")
+            _err(f"{name}: kind={kind!r} skipped (qual-report reads qualbench runs)")
             continue
         names.append(name)
         if first_name is None:
             first_name, first_rundir = name, rdir
         cases = _case_map(idx, name)
-        recs.extend(_rec_of(row, rdir, cases)
-                    for row in _eval_rows(idx, name))
+        recs.extend(_rec_of(row, rdir, cases) for row in _eval_rows(idx, name))
     if not recs:
-        print("qual-report: no eval_records rows (run empty or kind "
-              "filtered)")
+        print("qual-report: no eval_records rows (run empty or kind filtered)")
         return 0
     meta = _meta_of(idx, first_name, first_rundir, recs)
     if args.out:
@@ -490,9 +475,7 @@ def _cmd_report(args) -> int:
         "groups": {
             name: {
                 "n": len(rs),
-                "mean": round(
-                    statistics.mean([int(r["score"]) for r in rs]), 1
-                ),
+                "mean": round(statistics.mean([int(r["score"]) for r in rs]), 1),
             }
             for name, rs in sorted(agg["groups"].items())
         },
@@ -504,8 +487,7 @@ def _cmd_report(args) -> int:
             f"judged={summary['n_judged']} error={summary['n_error']} "
             f"contested={summary['n_contested']} · groups: "
             + ", ".join(
-                f"{k}={v['mean']}({v['n']})"
-                for k, v in summary["groups"].items()
+                f"{k}={v['mean']}({v['n']})" for k, v in summary["groups"].items()
             )
         )
     return 0
@@ -513,17 +495,13 @@ def _cmd_report(args) -> int:
 
 # ---------------------------------------------------------------- glue
 def add_args(sp) -> None:
-    sp.add_argument(
-        "runs", nargs="+", help="run 名 kind/date/slug 或 runs/ 下目录"
-    )
+    sp.add_argument("runs", nargs="+", help="run 名 kind/date/slug 或 runs/ 下目录")
     sp.add_argument(
         "--out",
         default=None,
         help="report.md 落盘路径（默认首 run derived/report.md）",
     )
-    sp.add_argument(
-        "--json", action="store_true", help="stdout 摘要改 JSON"
-    )
+    sp.add_argument("--json", action="store_true", help="stdout 摘要改 JSON")
 
 
 def main(args) -> int:

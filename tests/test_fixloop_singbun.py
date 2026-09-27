@@ -226,7 +226,9 @@ def test_citex_clash_classifies_syntax() -> None:
 def test_cite_clash_dispatch_apply(tmp_path: Path) -> None:
     """\\ifx 死支内活装载行注释中和; natbib 行不动。"""
     _write(tmp_path, _CITE_DOC)
-    assert when_cond_ok("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
+    assert when_cond_ok(
+        "cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path
+    )
     ok, note = _apply("cite_natbib_clash_retire", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -248,7 +250,9 @@ def test_cite_clash_masked_no_double_comment(tmp_path: Path) -> None:
         "\\usepackage{natbib}\n%\\usepackage{cite}\n\\begin{document}x\\end{document}\n"
     )
     _write(tmp_path, src)
-    assert when_cond_ok("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
+    assert when_cond_ok(
+        "cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path
+    )
     ok, _ = _apply("cite_natbib_clash_retire", tmp_path)
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
@@ -275,7 +279,9 @@ def test_noalign_dispatch_apply(tmp_path: Path) -> None:
         "\\input{ebaslist.tex}\n\\hline\n\\end{tabular}\n",
     )
     (tmp_path / "ebaslist.tex").write_text("b \\\\\n", encoding="utf-8")
-    assert when_cond_ok("input_noalign_primitive", "syntax", None, _NOALIGN_HEAD, tmp_path)
+    assert when_cond_ok(
+        "input_noalign_primitive", "syntax", None, _NOALIGN_HEAD, tmp_path
+    )
     ok, note = _apply("input_noalign_primitive", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -329,7 +335,9 @@ def test_fullwidth_delim_dispatch_apply(tmp_path: Path) -> None:
         tmp_path,
         "\\begin{document}\n$\\big（x+y\\big）$ and $\\left（z\\right）$\n\\end{document}\n",
     )
-    assert when_cond_ok("big_fullwidth_delim_fix", "syntax", None, _DELIM_HEAD, tmp_path)
+    assert when_cond_ok(
+        "big_fullwidth_delim_fix", "syntax", None, _DELIM_HEAD, tmp_path
+    )
     ok, note = _apply("big_fullwidth_delim_fix", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()

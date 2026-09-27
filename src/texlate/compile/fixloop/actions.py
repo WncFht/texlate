@@ -267,7 +267,10 @@ def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
     pool = {str(e).lower() for e in exts}
     for p in _cond_files(ctx):
         parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts) or parts[0] in _PDF_SANITIZE_SKIP_DIRS:
+        if (
+            any(part.startswith(".") for part in parts)
+            or parts[0] in _PDF_SANITIZE_SKIP_DIRS
+        ):
             continue
         s = p.stem.lower().removesuffix("-eps-converted-to")
         if s == stem and p.suffix.lower() in pool:
@@ -575,7 +578,10 @@ def _vendored_drop(
     if dst is None:
         return None, "escapes wdir"
     if dst.exists():
-        return None, "present"  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
+        return (
+            None,
+            "present",
+        )  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
         # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
         # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
     try:

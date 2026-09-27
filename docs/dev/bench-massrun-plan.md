@@ -12,15 +12,15 @@
 
 ## 1. 目标与口径
 
-| 项       | 口径                                                                                      |
-| -------- | ----------------------------------------------------------------------------------------- |
-| 范围     | `bench/corpus/manifest*.jsonl` 去重 id 全量；holdout 层留最后一波跑（保评估意义）         |
-| 管线     | soak spec 六段（route→xlat→compile→fixloop→base→layoutqc），variant 沿用 `v1`、arm=`real` |
-| 付费面   | xlat/fixloop 两段走 devin-2api + swe-2-medium（bg token，无限用，**禁设 max-cost**）      |
+| 项       | 口径                                                                                                                                       |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 范围     | `bench/corpus/manifest*.jsonl` 去重 id 全量；holdout 层留最后一波跑（保评估意义）                                                          |
+| 管线     | soak spec 六段（route→xlat→compile→fixloop→base→layoutqc），variant 沿用 `v1`、arm=`real`                                                  |
+| 付费面   | xlat/fixloop 两段走 devin-2api + swe-2-medium（bg token，无限用，**禁设 max-cost**）                                                       |
 | 并发     | 三层：`--jobs`=论文级线程池（**默认 4，必须显式给 32~40**）× `concurrency`=篇内段并发 × `nslots`=付费请求全局槽；上游真瓶颈 ~550 out_tok/s |
-| 重试     | 429/5xx/timeout 睡到通为止（`max_tries` 拉高，退避指数自然封顶）；禁因 429 挂格           |
-| 变体键域 | `v1`——rekey 已把 139 格老 zh 搬入，白捡 dedup；`-` 域 verdict 无字节者字节闸自动重跑      |
-| 检验通道 | `tools/qc_replay.py` 全量回放（免费），pass→evict 候选、hard→regen 名单；**先判后删**     |
+| 重试     | 429/5xx/timeout 睡到通为止（`max_tries` 拉高，退避指数自然封顶）；禁因 429 挂格                                                            |
+| 变体键域 | `v1`——rekey 已把 139 格老 zh 搬入，白捡 dedup；`-` 域 verdict 无字节者字节闸自动重跑                                                       |
+| 检验通道 | `tools/qc_replay.py` 全量回放（免费），pass→evict 候选、hard→regen 名单；**先判后删**                                                      |
 
 ## 2. 现状盘点（2026-09-25 普查）
 
@@ -96,20 +96,20 @@
 ### 3.6 网关与重试口径
 
 - 网关：devin-2api（archbox:3033 直连；本机 shim :3003 同实例）+ swe-2-medium，bg token。
-- 实测模型：单请求 2.9s 固定 + 13.3ms/out_tok；上游全局 ~550 out_tok/s 上限（随窗口浮动，09-27 实测 400~480）。~~`--jobs 8~16` 即吃满~~——**已证伪**：09-27 勘出 `--jobs` 默认 4 才是隐性天花板（4 管线只占 ~5 付费槽，~40 tok/s）；`--jobs 32`→~50 槽、40→64/64 槽满，吞吐 ~100 篇/h 触上游壁。判活三件套=心跳+events 新增+xlat 出活；网关查量用 devin-2api.db `logs` 表（**time 列是毫秒 epoch**，秒级过滤会静默返回全量）。
+- 实测模型：单请求 2.9s 固定 + 13.3ms/out_tok；上游全局约 550 out_tok/s 上限（随窗口浮动，09-27 实测 400~480）。「`--jobs` 8~16 即吃满」**已证伪**：09-27 勘出 `--jobs` 默认 4 才是隐性天花板（4 管线只占约 5 付费槽 ≈40 tok/s）；`--jobs 32`→约 50 槽、40→64/64 槽满，吞吐约 100 篇/h 触上游壁。判活三件套=心跳+events 新增+xlat 出活；网关查量用 devin-2api.db `logs` 表（**time 列是毫秒 epoch**，秒级过滤会静默返回全量）。
 - 429：retryable + Retry-After（body `error.retry_after`→header→`3^attempt`≥5s）；缺口=max_tries=5 封顶 → 开工清单 #1 补 param 拉到几十。
 
 ## 4. 开工清单
 
-| #   | 事项                                                              | 状态   |
-| --- | ----------------------------------------------------------------- | ------ |
-| 1   | soak+e2e_real spec `max_tries` param → RetryPolicy（429 免疫）    | 落地   |
-| 2   | `bench lake evict-done` + `TEXLATE_BENCH_MIN_FREE_GB` 水位闸      | 落地   |
-| 3   | `corpus_hydrate` 批量水合 spec（密度分发驱动）                    | 落地   |
-| 4   | qc_replay 变体泛化（`-` 域老胞可判）+ 全量回放 → evict/regen 名单 | 落地   |
-| 5   | 磁盘/健康监控 cron（本台账 §6）                                   | 在飞   |
-| 6   | W0 起跑（47 zh-less regen，tombstone+`--allow-regen --sel '*'`）  | 在飞   |
-| 7   | vault.query 前缀 glob（plan 超时根因修复，见 §5）                 | 落地   |
+| #   | 事项                                                              | 状态 |
+| --- | ----------------------------------------------------------------- | ---- |
+| 1   | soak+e2e_real spec `max_tries` param → RetryPolicy（429 免疫）    | 落地 |
+| 2   | `bench lake evict-done` + `TEXLATE_BENCH_MIN_FREE_GB` 水位闸      | 落地 |
+| 3   | `corpus_hydrate` 批量水合 spec（密度分发驱动）                    | 落地 |
+| 4   | qc_replay 变体泛化（`-` 域老胞可判）+ 全量回放 → evict/regen 名单 | 落地 |
+| 5   | 磁盘/健康监控 cron（本台账 §6）                                   | 在飞 |
+| 6   | W0 起跑（47 zh-less regen，tombstone+`--allow-regen --sel '*'`）  | 在飞 |
+| 7   | vault.query 前缀 glob（plan 超时根因修复，见 §5）                 | 落地 |
 
 ## 5. 运行记录（append-only）
 
@@ -125,7 +125,7 @@
 
 - **plan 超时根因**：`bench plan corpus_hydrate`（12,427 格）>600s。定位到 `dedup.check()` 每格走 `_scan_vault_meta`→`vault.query`→`_iter_metas` 全目录扫描——832 个 meta 全量 glob+JSON 解析 ×12.4k 格 ≈ 千万次文件读。修复：`vault.py` 新增 `_iter_metas_for(idc)`，`esc(safe_id(idc))` 是 meta 文件名首段点分组件，`{esc}.*.json` 前缀 glob 精确预筛（`glob.escape` 防元字符），query 语义零变化（530 idc 全量比对 0 mismatch）。效果：plan 12,427 格 25.5s；单格 absent 查询 0.49ms。顺带提速所有 check() 调用面（plan/fire-gate/跑中付费门）。
 - **zh-less 裁决普查**（260-frame × (real,v1) × need={zh}）：47 zh-less = **30 verified + 17 absent**。30 verified 是 paid_pool/release-verified 腿背书「付费终态 ok 但 zh 字节从未入库」（meta 只声明 splice/layoutqc）——设计内行为，需 tombstone 宣示损失才能进 regen。已对 30 格执行 `bench vault tombstone <idc> --arm real --variant v1 --kind zh --reason hole3_zh_never_committed`，复核：213 verified / 30 missing / 17 absent。
-- **W0 首跑失败（e2e_real-4）**：`--detach` 未带 env → `env_key_for_url` 取不到 `TEXLATE_API_KEY` → 全 401 → ≥2 篇 all_failed 触发 `locks/AUTH_DEAD` → 851 error/40s 全灭（$0 损失）。教训：**bench 付费面必须 `env $(cat ~/.config/texlate/bench.env)` 起**；sentinel 手动 `rm locks/AUTH_DEAD` 复位。探针行 `model swe-2-medium 失败（finish_reason=length）→ 免费集 404 → 降级臂停用` 是 devin-2api 不支持降级发现的正常噪音。
+- **W0 首跑失败（e2e_real-4）**：`--detach` 未带 env → `env_key_for_url` 取不到 `TEXLATE_API_KEY` → 全 401 → ≥2 篇 all_failed 触发 `locks/AUTH_DEAD` → 851 error/40s 全灭（$0 损失）。教训：**bench 付费面必须 `env $(cat ~/.config/texlate/bench.env)`起**；sentinel 手动`rm locks/AUTH_DEAD`复位。探针行`model swe-2-medium 失败（finish_reason=length）→ 免费集 404 → 降级臂停用` 是 devin-2api 不支持降级发现的正常噪音。
 - **W0 在飞（e2e_real-5，pid 3992867）**：`.venv/bin/python bench/py/bench run e2e_real --param max_tries=50 --jobs 12 --max-cost 100000 --allow-regen --sel '*' --yes --detach`。regen authorized 逐格落地；--sel '*' 授权全 missing 格（本帧即 zh-less 集）；--max-cost 100000 是闸口形式件非封顶。
 - **detach.lock 单例**：一个 detach 坑只能跑一条；并发靠 claims。A 轨水合走 **setsid nohup 非 detach** + run.log 直写（tmp/hydrate/full.log），与付费 detach 互不抢锁。
 - **A 轨全量水合在飞（pid 4002039）**：smoke n=8 先验证 9/9 ok（astro-ph 老骨格提取成功），随后全量 12,427 格 setsid 起。chunk 道预计 ~53GiB，60G 水位闸兜底。
@@ -225,7 +225,7 @@
 - **巡检 01:08（soak-5 +95min）**：df 131G / lake 59.9G / vault 2.4G / runs 14.1G。**474/500 格落定（95%，+28/17min）**、183 格入 ckpt 磨 25691/25927——在飞残量仅 236 chunk，ckpt 秒级实写；连接 44 条。RPM 41–46、429 散点 4——稳态收尾节奏。无异常，**~15–20min 波尽、波后序列（qc_replay→sig census→evict-done→W2）即将触发**。
 - **波结 01:19 + 干预 01:36（W1 落定收官 + qc_replay 波后重放启动）**：soak-5 收官——500 格/2500 段格全终态，counts {dedup:1526, ok:703, partial:206, skip:42, fail:16, reject:7}、cost_usd 134.33、accounting_ok。质量面：xlat ok 185/partial 28（~81% 通过）、compile clean 163/fail 31（fail 29/31=missing_file 期刊老类族，sig census 素材）、fixloop 救回 11/19。重放工具连补三洞才吃上本波（已改未提交）：①`_splice_copy_index` 臂位写死 'real' 而 soak 全封 '-' arm（命中面 20→493/500）——加 `--arm`；②`_cell_list` 由 layoutqc 账驱动枚举、soak 波无该段账（五段=ingest/parse/xlat/compile/fixloop）致 500 格仅命中 12——`--id` 改 ids 临时表直驱、lq 降 LEFT JOIN；③批量写账 ts 同值使 rn=1 随机选中 mr=NULL 记录——lc/lr 加 main_rel 非空过滤再补 parse 段兜底（覆盖 366→495/500）；④soak 不产 txlm、`marks_era=True` 使 marks_absent 恒发升 WARN 成纯噪音——加 `--no-marks-era` 且非 marks-era 时该 sig 整组剔除。冒烟两格净。重放 `tmp/qc_replay/w1`（jobs=8、pid 938753、run.log 直写）脱管在飞，ETA ~25min；完后续 sig census → evict-done → W2 起跑。soak.py nslots=32 亦未提交。
 - **波后序列 01:50–02:0x（replay 收官 + sig census + evict-done 修好开跑）**：qc_replay W1 全量落定——ok=492/err=8（7 no_splice+1 no_main_rel，均为真未成品格）、tier 分布 **clean 241 / warn 168 / hard 83**。sig census top：`geo_text_overlap` 188 发/93 格、`geo_margin_breach` 145/18、`layout:overfull` 68/68、`xlat_residual_en` 62/62、`layout:no_pdf` 46/46、`layout:float_fit` 25、`layout:float_lost` 24、`vis_degenerate` 11、`xlat_broken_refs` 6。hard 构成：no_pdf 46（missing_file 期刊老类=fixloop 可蒸馏面）+ float_lost 24 + geo 系 26+14。**发现 evict-done 双腿皆不适配 soak 期**（gate=末条 layoutqc ok+real-arm zh；soak 无该段、封 '-' arm）已修：soak 腿=末条非内核态管线账∈{ok,clean}+'-' arm zh 完好；**顺手挖到真 bug——'lost' 回收标记逆序遮蔽**：本次核查触发 sweep 批量收割 soak-2/3/4 僵尸 run 补发 3,277 条 lost（run 级 in-flight 标记，rowid 晚于 soak-5 真终态），把已完成格的末态盖成 lost；两脈过滤全部内核态（dedup/claimed/lost/unpaid_gate）后资格面 491→827（波内 353+历史 474，含老 e2e 格回收）。hard∩evict 27 格已 `lake pin` 护住等 regen。真 evict-done 后台在飞（pid 947373）。cli.py 补丁与 qc_replay 补丁均待提交。
-- **W2 就绪面**：sampleable 池 6,304（layers=9 全非 core 层）全 hydrated、净新增 ~6,093；evict 自净抽样池（evicted 格自动出池）。待 evict 完成后按 §3.3 前置清单起跑（df/锁/stamp 已验过线）。规模裁量：plan 表 W2~1000，cron 指令写的 500 偏旧——取 n=1000 seed=43（预期 ~118 格 W1 重叠走 dedup 快进 + ~880 新格，~10h ETA）。W1 hard 83 格 regen 不并进本波——fixloop 规则蒸馏未做，同管线 regen 只会复刻同缺陷；pin 保留源文件待规则落地后的 regen 波。
+- **W2 就绪面**：sampleable 池 6,304（layers=9 全非 core 层）全 hydrated、净新增 ~~6,093；evict 自净抽样池（evicted 格自动出池）。待 evict 完成后按 §3.3 前置清单起跑（df/锁/stamp 已验过线）。规模裁量：plan 表 W2~~1000，cron 指令写的 500 偏旧——取 n=1000 seed=43（预期 ~118 格 W1 重叠走 dedup 快进 + ~880 新格，~10h ETA）。W1 hard 83 格 regen 不并进本波——fixloop 规则蒸馏未做，同管线 regen 只会复刻同缺陷；pin 保留源文件待规则落地后的 regen 波。
 - **巡检 02:15（W2 plan 期）**：df 130G / lake 59.4G / vault 2.4G / runs 14.8G。W2 pid 951450 plan 阶段在飞（+10min、RSS 395M——n=1000×5 段=5000 格 plan 比 W1 重一倍属预期）。近 1h 账面 lost×874=僵尸回收逆序标记（已确诊非事故）、真裁决 ok107/partial30/fail2。网关尾窗 200×2843 / 429×10 散点——健康。无异常。
 - **修复 02:40–03:1x（geo_text_overlap 检测器校准补丁 + w1-v2 重放净噪 -81%）**：W1 sig census 头号噪音 geo_text_overlap(188发/93格) 归因二类全修——①splice 矢量保真复用嵌整页源文作 fullpage Form XObject 按图 bbox clip，pdftotext -bbox 无视 clip 报幻影 en 词撞可见 zh 行（2609.05962 p11：460 vs 82 词，render 实证只有 zh 墨）；②嵌入图内 en×en 标签互撞（matplotlib tick×轴题）属源侧几何非管线产物。补丁（`_layoutqc.py`，未提交）：`_bbox_pages` 换 pymupdf clip-aware 优先（AGPL 可选，缺席退 pdftotext）+ `_word_overlap_pairs` CJK 参与闸（splice 只产 zh 墨，致撞必含 CJK；残留 en 归 xlat_residual_en）。词对口径 1413→749→133、findings 188→35/格 93→25；渲页抽核 cond-mat/9901106 p3 zh 题字压图轴刻度=真阳（18对）、1404.0417 zh×en 引文=真阳、2202.13013 行内 math 微撞=边界真信号。w1-v2 全量重放 tiers clean 241→280/warn 168→129/hard 83 稳；geo_margin_breach 145→137（幻影词顺带降噪）。§10.6 留档两条。
 - **诊断+干预 03:0x–03:3x（no_pdf 根因改写=dedup 掩没非规则缺；103 格 splice tombstone 解掩 + regen 波起跑）**：no_pdf 46 格追查翻案——规则与 vendor 库本就齐全（0707.0255 手动重放 vendored aastex→clean pdf），真凶是**物化遗毒**：恢复期硬链物化把 compile-fail 陈 splice 树封进 vault，`fixloop mutates=[splice]` 与 compile 同 kind 键域→`need⊆alive` 永判 VERIFIED→每波 fixloop dedup 永不登场（与 2609.20519 slim-splice 锁死案同族——字节在押≠该 stage 跑过，producer-blind 字节证据面天花板，kernel 层面根治另议）。普查终集 **103 格**（v1 键域 splice alive ∧ compile 末判 fail/reject ∧ fixloop 无真终态；70 已显形 dedup 行 + dedup 底账透视补 33），zh/state 全活=零 LLM 重花。处置：①shim_map 补 3 缺口 EuroPhys.cls(epl2 前代，\rec/\Pacs 三元组面)/memo-l.cls(memoir+amsaddr 前置收集)/crckapbk.cls(crckapb 名变体)，Ruleset.load 213 条过；②103 格逐一 `vault tombstone kind=splice`（ledger-native 解掩，下 run 快照即 MISSING→regen 闸；zh/state 不动）；③regen 波 `soak --param ids=<103> --sel '*' --allow-regen --max-cost 100000 --yes --jobs 8` setsid 起跑（tmp/soak-regen-103/run.log）——compile 免费自愈重跑（free-stage MISSING 放行）+ fixloop 付费闸 regen 授权真跑。毒格构面：92 格 missing_file（vendored 覆 ~75，新补 3 件余 ~14 件走既有 install/iterate 链）+11 格非 missing_file 判词（undefined_cs×3/timeout×2/runaway/killed_by_signal/emergency/syntax/invalid_char/inject-reject 各 1）一并发配真 fixloop 裁决。
@@ -271,7 +271,7 @@
 - **巡检 15:3x — 第二轮限流窗在飞**：df 91G / /tmp 15G / lake 63.7G / vault 6.3G / runs 41.2G；网关 401 活。**15:08 起 medium 再遭限流**：tallies 冻结 28min（xlat ok73/compile 225/fixloop 167 全平），cell 事件 27.9min 零新增——但非死 latch：medium 200 以 ~3/min 渗流（15:30:23/15:31:18/15:31:26），12 个 executor 槽全押在 429 重试循环里挤每个微开窗口。心跳鲜（15:30:40）零 error/nt。**风险窗**：本轮 429 始 15:08，若续到 ~15:55 首批 chunk 重试 50 次耗尽 → xlat error 死格（下波 ABSENT 兜底，无损）。雷声牧群模式——并发同 cadence 挤窗加剧互踩，暂无可做本地缓解，盯窗看是否复开。
 - **巡检 15:5x**：df 91G / /tmp 15G / lake 63.7G / vault 6.3G / runs 41.3G；网关 401 活。**限流窗半开未合**：cell 活动恢复爬行（last cell_started 4.2min 前、各 stage +1 格），但 medium 上游仍在挤窗（429 续发 + 新签名 `response has no choices`×2——上游空 completion 返包，重试面同效吸收）；xlat error 仍 0、首批 chunk 暂未见死。风暴累计 ~48min/两窗，态势=上游共享池持续抢不过，只能熬或等外压退潮。
 - **巡检 16:0x**：df 90G / /tmp 15G / lake 63.8G / vault 6.4G / runs 41.6G；网关 401 活。**限流窗已开**：15:52 后无新 429，cell 活动恢复满速（last event 0.8min 前）——soak-6 325 格进站，xlat ok90+partial9（+16/17min≈56/h 回至健康位）、compile partial248+fail41、fixloop ok186+partial25+fail2。两窗累计 ~70min 零死格、零 error——RetryPolicy 全额扛住上游抽风。
-- **巡检 16:3x — 第三限流窗**：df 90G / /tmp 15G / lake 63.8G / vault 6.4G / runs 41.7G；网关 401 活。16:13 起窗再合：cell 事件 15.5min 零新增，近 15min medium lane 200:429=42:434（渗流率 ~9%）。三窗模式成形（14:03~14:48 全堵 / 15:08~15:52 半堵 / 16:13~ 在堵），推断为上游免费共享池外压持续，开窗时 ~60/hr、关窗近零——**若此占空比成常态，余量 4.4k 格 ETA 从 ~38h 拖到 ~6 天级别**（仍远过 promo 死线，但 wall-time 目标需重估）。零格死亡零 error，重试面持续吸收；本地无杠杆，继续盯。
+- **巡检 16:3x — 第三限流窗**：df 90G / /tmp 15G / lake 63.8G / vault 6.4G / runs 41.7G；网关 401 活。16:13 起窗再合：cell 事件 15.5min 零新增，近 15min medium lane 200:429=42:434（渗流率 ~~9%）。三窗模式成形（14:03~~14:48 全堵 / 15:08~~15:52 半堵 / 16:13~~ 在堵），推断为上游免费共享池外压持续，开窗时 ~60/hr、关窗近零——**若此占空比成常态，余量 4.4k 格 ETA 从 ~38h 拖到 ~6 天级别**（仍远过 promo 死线，但 wall-time 目标需重估）。零格死亡零 error，重试面持续吸收；本地无杠杆，继续盯。
 - **巡检 17:0x — /tmp EDQUOT 击晕 Bash ~40min 自愈**：df 90G / **/tmp 曾飙满 16G（16:2x~16:5x 全部 Bash exit1 零输出、连 echo 都死），17:00 已自回 43%（6.6G）**——大户全是外户（dotnet 574M/subs-check-src 525M/cargo 384M/dptestdata 267M），与本批无关、未动 / lake 63.8G / vault 6.4G / runs 41.7G；网关 401 活。**soak-6 全程无恙**（pid 1516805，心跳文件 mtime 17:00 鲜——heartbeat 是 touch 式空文件，此前误读"空内容=死"）：325 格进站，xlat ok95+partial9+dedup204、compile partial254+fail41、fixloop ok191+partial25+fail2+dedup90、**零 error/nt**。第三窗 16:13 起 ~50min 未合：cell 终态/日志 ~40min 无新增，但 ledger events 续流（attempt 重试+claims acquire/release 在挤窗，近 2000 events 中 429 类 188 条）——executor 槽全押重试循环属预期，max_tries=50 预算未耗。占空比恶化延续，长端 ETA 口径同 16:3x。
 - **巡检 17:0x(b) — 第三窗开缝**：df 90G / /tmp 43% 平 / lake 63.8G / vault 6.4G / runs 41.8G；网关 401 活、心跳 1s 鲜。**窗三 ~55min 后渗流转正**：格 325→338（+13/7min），xlat ok95→105、compile partial254→266、fixloop ok191→202；近 30min events 226 条仅 16 条 errish（vs 关窗期 ~9% 渗流）。零 error/nt/死格。run.log 仍 778 行系终态稀缺非停写。占空比 14:03 起三窗累计 ~2.5h 低效，全波 ETA 边际后移。
 - **巡检 17:3x — 半开窗爬行**：df 90G / /tmp 43% 平 / lake 63.8G / vault 6.4G / runs 41.9G；网关 401 活、心跳鲜。soak-6 续进：格 338→356（~47/h 仍低于健康 ~65/h），xlat ok115+partial14、compile partial276+fail48（fail 率仍 ~15% 难尾）、fixloop ok212+partial29+fail2；run.log 778→1036 行恢复流动。**429 散发未绝**（17:12/17:24 各一记、全程累计 21 条）——窗未合死呈半开，近 30min errish 48/491 条。零 error/nt/死格，重试面全额吸收。
@@ -311,7 +311,7 @@
 - **巡检 03:0x — dedup 烧穿过半、真付爬坡**：df 73G / lake 64.8G / vault 8.0G / runs 51.5G；心跳秒鲜、pid 26min@41%CPU。台账：ingest dedup148、parse dedup126+reject19、**xlat ok18+partial3+dedup101（真付 21 格 ≈48/h 起速——dedup 烧穿期占位，预期继续爬）**、compile clean16+dedup81+fail22+partial3、fixloop ok19+clean2+dedup99（救回兑现中）；零 error/lost 尖峰，compile fail22 全 tail 类。网关 401 活。单篇实测中位 2.5-4.5min（soak-6 同口径 269s），ETA 口径不变约3-5h/波。
 - **巡检 03:3x — 稳态 ~46/h**：df 72G / lake 64.8G / vault 8.0G / runs 51.6G；心跳秒鲜、pid 50min@27%CPU。台账：xlat ok29+partial8（真付 37 格，30min 净增 23 ≈46/h——提速不及预期，网关 550tok/s 全局闸是壁，并发 32 只买排队位）、dedup104、compile clean29+fail23、fixloop ok34+clean3+fail2；30min 零 errish、零 429 尖峰、零 lost。detach.log「枚举降级候选」陈迹系 22:07 旧文件非本 run。按 46/h 外推 w1 付费段约5-6h。**网关活**。
 - **巡检 03:5x — df 破 60G 闸（外因）+ 提速 84/h**：df **57G**（20min 掉 15G）——真凶 `~/.cache/mopd-swapfile` 16G（系统内存压挂的 swapfile，swapon 在用 441M，非 bench 产物；bench 三量纹丝不动）；按合同 <60G 停水合向——本波 ingest 已全 dedup/skip 无水合量，无需动作，盯 40G 线。台账：xlat ok52+partial13（真付 65 格，30min 净增 28 ≈**84/h** 提速兑现——dedup 烧穿腾槽）、dedup104、compile clean55+fail24、fixloop ok61+clean4+fail2；零 errish/429/lost。按此速 w1 付费段余量约3h。网关 401 活。
-- **清理 04:0x — 用户准第一梯队**：`uv cache clean` 释 **99.7G**（663,850 文件）+ go-build 9.4G + pip 3.9G + pnpm 0.9G + pre-commit env 7 件 217M（**patch* 2,381 件取证备份全留**）。df 57G→**91G** 水位回安全区。待清菜单留档：runs/soak 已收官 work/ 约50G、HF hub 42G、modelscope 18G、.cache/texlate/src 23.6G——第二三梯队未动。
+- **清理 04:0x — 用户准第一梯队**：`uv cache clean` 释 **99.7G**（663,850 文件）+ go-build 9.4G + pip 3.9G + pnpm 0.9G + pre-commit env 7 件 217M（_*patch* 2,381 件取证备份全留_*）。df 57G→**91G** 水位回安全区。待清菜单留档：runs/soak 已收官 work/ 约50G、HF hub 42G、modelscope 18G、.cache/texlate/src 23.6G——第二三梯队未动。
 - **干预 04:1x — MD-OPD 抢内存处置 + 波健康 86/h**：df **98G**（清理后水位厚）；内存面复盘——03:28 earlyoom 杀 ray worker（可用 1.2G/7%）、03:50 账号 sudo 建 `~/.cache/mopd-swapfile` 16G 兜底（现用 ~765M）。肇事者=fht-mba 上交互式 claude 会话 **e4e9ec50**（pid 41049，ssh→fish→bash 链路实证，transcript 正干 MOPD 活）——跨机 SendMessage 够不着，已请用户去该终端贴暂停令；**04:0x 训练自爆（fish 退带崩进程组）后它即重拉新一轮**，ray worker 22s 胀 3.8G——按用户「不要放着」令本机 SIGTERM 全组（verl/ray 清尽、RAM 25→9.8G 回落）；会话极可能再拉起，盯住 mopd_m1 指纹复现。波面：xlat ok73+partial14（真付 87 格，30min 净增 43 ≈**86/h**）、compile clean69+fail26、fixloop ok81+clean6、零 errish；网关单次 curl 4s 超时系内存挤兑抖动、三重复试全 401 <8ms 活证。
 - **干预 04:2x — 双闸翻倍 32→64（用户令「网关没打满」）**：确认双闸结构——`concurrency`=executor 格槽 vs `nslots`=locks/slots/slot{N} 文件信号量（paid.py:400/462 逐 paid attempt 持锁）；网关观测未饱和故升。SIGTERM soak-11（心跳冻 04:19:56、进程清零）→ 空窗内改 `devin_factory(nslots=64)`（soak.py:1138，spec 冻结件对运行中 run 无回溯、只对重启生效）→ **重启为 soak-12**（pid 2415006，`concurrency=64` 其余参数同前）。起飞即流：run.log 复活吐格、131%CPU。观察点：xelatex 段 12 核争用 + 每槽 ~300-500MB 内存余量（64×峰 ~20G，当前 10G 基线可扛、earlyoom avoid 名单护 devin-2api）。
 - **巡检 04:3x — 64 并发首窗**：df 97G / lake 64.9G / vault 8.2G / runs 52.4G；心跳秒鲜、pid 10min@103%CPU、load 2.84 宽松。**dedup 再扫穿**（389 格重确认）：xlat dedup210+ok12+partial1、compile clean11+dedup183+fail21、fixloop ok12+dedup208+fail2；真付续跑中（旧格 seg-cache 续传不重复计）。零 errish。MD-OPD 无复活（verl 零进程），RAM 23G 系正常进程散布非挤压。网关 401 活。
@@ -337,41 +337,28 @@
 - **巡检 14:3x — 网关实锤近满：477/550 tok/s（86%）**：soak-3 +50min——心跳 9s 鲜、pid 181843 @161%CPU、槽位 45-52 占用、df 86G / mem 9G 宽松。网关近 10min 实测（devin-2api.db logs，**time 列是毫秒 epoch**——早前秒级过滤静默失效、返回全量统计是假象根因）：509 请求 / 481×200 + **34×429** + 1×401、avg 58.4s/req、**出 token 477/s**。按 key 拆：本 bench key（sha256 前 16 位 `1edae45` 实证）436 req/**398 tok/s**，另有一把 key `268cd34` 同吃 **79 tok/s**。判读：上游 ~550 tok/s 全局壁**这次是真顶到了**（86% 占用 + 429 回压 6.7%）——98-114/h 即本网关天花板邻域，「没打满」的谜底分层：jobs=4 时只占 ~5 槽（已修），jobs=32 后 ~50 槽已贴近上游供给极限。残余挤压面=槽位未满 64 + 别家 79 tok/s；w4/w5 试 `--jobs 40`（≈62 槽）可再榨 +10-15%，本波不重启（churn>收益）。进度：xlat 触 255/389（ok84+partial2+dedup169）、compile 255、fixloop 254，skip ~107/段级联、拒稿 ingest13+parse27——**ETA ~16:00-16:15 收官**。
 - **波际 14:5x — w3 提前收官 + w4 放行（--jobs 40）**：soak-3 于 ~14:39 finished，比 ETA 快 ~1.5h（尾段 dedup/skip 级联 + 网关满速）。终账 **accounting=ok**、plan/queued/terminal=1900 全对齐、cost **$95.55**（dedup831 把前两轮死run工量全认回，真付极薄）：ok411+clean93+dedup831 / skip466+reject44+fail39+partial15+fault1。**w3 交付 272/380（71.6%）**——三波最优（w1 70.2%、w2 63.0%），其中 xlat 新译 ok+partial=104 格、余 ~168 由 dedup 字节验真认回。**w4 已放 14:53**：`soak/2026-09-27/soak-4`、pid 208044、984 ids 同参数 **`--jobs 40`**（本段决策：槽位 45-52/64 未满 + 网关 ~13% 余量可榨；RAM ~+4G 仍在界内）。心跳秒鲜、plan 已物化。观察点：429 占比若随槽位 ~62 显著上抬则下波退回 32。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## 6. 监控清单
 
-| 面     | 指标                                | 闸/动作                                |
-| ------ | ----------------------------------- | -------------------------------------- |
-| 磁盘   | `df` 可用 G、lake/vault/runs du     | <60G 停水合（水位闸自动）；<40G 停全部 |
+| 面     | 指标                                   | 闸/动作                                            |
+| ------ | -------------------------------------- | -------------------------------------------------- |
+| 磁盘   | `df` 可用 G、lake/vault/runs du        | <60G 停水合（水位闸自动）；<40G 停全部             |
 | 网关   | 429 占比、out_tok/s、chat_s、slot 占用 | 429 持续风暴 → 降 --jobs；`logs.time` 是毫秒 epoch |
-| ledger | events.jsonl 行数、records 状态分布 | dedup 率异常低 → 查字节闸              |
-| 质检   | 每波 qc_replay sig census top-N     | 新签名 → fixloop 规则蒸馏              |
-| sweep  | full sweep 每日一次                 | orphan/tombstone 异常 → 查 harvest     |
-| 任务   | detach run.log 尾部、heartbeat      | 卡死 >30min → 查 executor/网关         |
+| ledger | events.jsonl 行数、records 状态分布    | dedup 率异常低 → 查字节闸                          |
+| 质检   | 每波 qc_replay sig census top-N        | 新签名 → fixloop 规则蒸馏                          |
+| sweep  | full sweep 每日一次                    | orphan/tombstone 异常 → 查 harvest                 |
+| 任务   | detach run.log 尾部、heartbeat         | 卡死 >30min → 查 executor/网关                     |
 
 ## 7. 风险与回退
 
-| 风险                     | 触发信号          | 处置                                                                             |
-| ------------------------ | ----------------- | -------------------------------------------------------------------------------- |
-| llm fixloop 无重试面     | `--param llm=1`   | 暂不启用；启用前先给 SessionTranslator 套 RetryPolicy（_shared.py:269 单发路径） |
-| promo 到期跑不完         | 10-10 前 <8k 完成 | 砍到 core+dev_*+expand ≈8.3k                                                     |
-| 429 风暴打穿             | cell error 率突增 | max_tries 已拉高；仍挂降 --jobs                                                  |
-| 磁盘爆                   | df <40G           | 全停；evict 提前量执行                                                           |
-| 水合带宽不及             | 水合速率 <500/天  | 波次按已水合池滚动；eprint 尾道排队不堵主路                                      |
-| 三洞修复未兑现           | W0 再丢字节       | 回炉内核，暂停扩波                                                               |
-| zhstore verdict 污染裁决 | dedup 误 VERIFIED | 字节闸兜底；残留走 `--allow-regen` 明示                                          |
+| 风险                     | 触发信号          | 处置                                                                                            |
+| ------------------------ | ----------------- | ----------------------------------------------------------------------------------------------- |
+| llm fixloop 无重试面     | `--param llm=1`   | 暂不启用；启用前先给 SessionTranslator 套 RetryPolicy（_shared.py:269 单发路径）                |
+| promo 到期跑不完         | 10-10 前 <8k 完成 | 砍到 core+dev_*+expand ≈8.3k                                                                    |
+| 429 风暴打穿             | cell error 率突增 | max_tries 已拉高；仍挂降 --jobs                                                                 |
+| 磁盘爆                   | df <40G           | 全停；evict 提前量执行                                                                          |
+| 水合带宽不及             | 水合速率 <500/天  | 波次按已水合池滚动；eprint 尾道排队不堵主路                                                     |
+| 三洞修复未兑现           | W0 再丢字节       | 回炉内核，暂停扩波                                                                              |
+| zhstore verdict 污染裁决 | dedup 误 VERIFIED | 字节闸兜底；残留走 `--allow-regen` 明示                                                         |
 | run 中道崩/整机重启      | 心跳冻、进程清零  | **禁 `--resume`**（lost 墓碑入 done-set 判终态 → accounting BROKEN）；开新 run + dedup 认回字节 |
 
 ### 参考文献

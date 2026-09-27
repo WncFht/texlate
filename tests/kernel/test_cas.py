@@ -1,4 +1,5 @@
 """Tests for kernel.cas — object store layout, link_out, refcount GC."""
+
 from __future__ import annotations
 
 import errno
@@ -9,7 +10,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from kernel import cas, fsutil, paths
 
 
@@ -25,10 +25,11 @@ def _age(path: Path, seconds: float) -> None:
 
 def test_object_path_fanout(broot):
     sha = "ab" + "cd" + "e" * 60
-    assert cas.object_path(sha) == \
-        paths.lake_objects_dir() / "blob" / "ab" / "cd" / sha
-    assert cas.object_path(sha, kind="file") == \
-        paths.lake_objects_dir() / "file" / "ab" / "cd" / sha
+    assert cas.object_path(sha) == paths.lake_objects_dir() / "blob" / "ab" / "cd" / sha
+    assert (
+        cas.object_path(sha, kind="file")
+        == paths.lake_objects_dir() / "file" / "ab" / "cd" / sha
+    )
 
 
 def test_object_path_rejects_traversal_and_bad_sha(broot):
@@ -48,7 +49,7 @@ def test_store_bytes_roundtrip_and_mode(broot):
     obj = cas.object_path(sha)
     assert obj.read_bytes() == b"payload"
     assert stat.S_IMODE(obj.stat().st_mode) == 0o444  # born 0444
-    assert obj.parent.name == sha[2:4]                 # two-level fanout
+    assert obj.parent.name == sha[2:4]  # two-level fanout
     assert obj.parent.parent.name == sha[:2]
 
 
@@ -60,8 +61,8 @@ def test_store_bytes_idempotent(broot):
 def test_store_dedup_hit_refreshes_liveness(broot):
     sha = cas.store_bytes(b"aged")
     obj = cas.object_path(sha)
-    _age(obj, 2 * 86400)                     # unlinked and past grace
-    cas.store_bytes(b"aged")                 # dedup hit — bytes are live again
+    _age(obj, 2 * 86400)  # unlinked and past grace
+    cas.store_bytes(b"aged")  # dedup hit — bytes are live again
     assert obj.stat().st_mtime > time.time() - 60
     assert cas.gc_sweep(grace_s=86400) == []  # fresh grace window
     assert cas.has(sha)
@@ -112,7 +113,7 @@ def test_link_out_shares_object_inode(broot, tmp_path):
     obj = cas.object_path(sha)
     assert os.stat(dst).st_ino == os.stat(obj).st_ino
     assert stat.S_IMODE(dst.stat().st_mode) == 0o444  # fuse carried by the inode
-    assert fsutil.nlink(obj) == 2                      # refcount grew
+    assert fsutil.nlink(obj) == 2  # refcount grew
 
 
 def test_link_out_idempotent(broot, tmp_path):
@@ -126,14 +127,15 @@ def test_link_out_idempotent(broot, tmp_path):
 def test_link_out_exdev_fallback(broot, tmp_path, monkeypatch):
     sha = cas.store_bytes(b"crossdev")
     dst = tmp_path / "x"
-    monkeypatch.setattr(os, "link",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError(errno.EXDEV, "x")))
+    monkeypatch.setattr(
+        os, "link", lambda *a, **k: (_ for _ in ()).throw(OSError(errno.EXDEV, "x"))
+    )
     cas.link_out(sha, dst)
     obj = cas.object_path(sha)
     assert dst.read_bytes() == b"crossdev"
-    assert os.stat(dst).st_ino != os.stat(obj).st_ino      # own copy
-    assert stat.S_IMODE(dst.stat().st_mode) & 0o222 == 0   # still read-only
-    assert dst.stat().st_mtime == obj.stat().st_mtime      # stat identity kept
+    assert os.stat(dst).st_ino != os.stat(obj).st_ino  # own copy
+    assert stat.S_IMODE(dst.stat().st_mode) & 0o222 == 0  # still read-only
+    assert dst.stat().st_mtime == obj.stat().st_mtime  # stat identity kept
 
 
 def test_link_out_replaces_stale_without_touching_fuse(broot, tmp_path):
@@ -197,7 +199,7 @@ def test_gc_prunes_emptied_fanout_dirs(broot):
 def test_gc_isolates_kinds(broot, tmp_path):
     f = tmp_path / "f"
     f.write_bytes(b"kind-bytes")
-    sha_file = cas.store_file(f)                     # kind="file"
+    sha_file = cas.store_file(f)  # kind="file"
     _age(cas.object_path(sha_file, kind="file"), 10)
     sha_blob = cas.store_bytes(b"keep")
     removed = cas.gc_sweep(grace_s=1)
@@ -210,10 +212,10 @@ def test_gc_isolates_kinds(broot, tmp_path):
 
 def test_stat_counts_objects_and_bytes(broot, tmp_path):
     assert cas.stat() == {}
-    cas.store_bytes(b"12345678")                     # 8 B blob
+    cas.store_bytes(b"12345678")  # 8 B blob
     f = tmp_path / "f"
     f.write_bytes(b"12")
-    cas.store_file(f)                                # 2 B file
+    cas.store_file(f)  # 2 B file
     assert cas.stat() == {
         "blob": {"n": 1, "bytes": 8},
         "file": {"n": 1, "bytes": 2},

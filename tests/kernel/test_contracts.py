@@ -20,12 +20,10 @@ from pathlib import Path
 
 import pytest
 from kernel import (
-    claims,
     events,
     fsutil,
     idnorm,
     importer,
-    index as indexmod,
     kernel,
     ledger,
     locks,
@@ -35,6 +33,9 @@ from kernel import (
     runs,
     sweep,
     vault,
+)
+from kernel import (
+    index as indexmod,
 )
 from kernel.ctx import Ctx
 from kernel.spec import Spec, Stage
@@ -196,6 +197,7 @@ def test_r21_prune_must_serialize_on_run_lock(broot):
     shard/plan/derived out from under it. (Cell-level probe only covers
     work/; the run archive has no protection.)"""
     import types
+
     from kernel import cli
 
     rd = runs.create_run("tpr", slug="s")

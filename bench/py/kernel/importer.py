@@ -39,6 +39,7 @@ Known simplifications (flagged, not hidden):
 - records rows with NULL status map to 'fault' (conservative terminal);
   case-type rows default to 'ok' (the row's existence IS the record).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -67,12 +68,17 @@ PAID_ARMS = frozenset({"real"})
 # scan_root sweep patterns: flat ledgers + case files + recovered
 # eval/cells ledgers; stagerun stage files (records/{stage}.jsonl)
 # are picked up via records/ dir contents in import_all.
-_SCAN_PATTERNS = ("records*.jsonl", "cases.jsonl",
-                  "eval-records*.jsonl", "cells*.jsonl")
+_SCAN_PATTERNS = (
+    "records*.jsonl",
+    "cases.jsonl",
+    "eval-records*.jsonl",
+    "cells*.jsonl",
+)
 
 # Conservative-resolution preference sets (§3.3).
 _DONE_ISH = frozenset({"ok", "partial", "clean"})
 _NEG_TERM = frozenset({"fail", "fault", "reject", "dirty_pdf"})
+
 
 # --- secret patterns --------------------------------------------------------
 # Key material resolves from the live env at call time — no key literal
@@ -90,6 +96,8 @@ def _secret_substrings() -> tuple:
         if len(t) >= 4 and t not in subs:
             subs.append(t)
     return tuple(subs)
+
+
 # tailscale 100.64.0.0/10 — needs all four octets so plain floats like
 # "seconds": 100.6 never match. No leading \b: an IP embedded in a token
 # ('node100.64.1.5') is still the IP.
@@ -100,14 +108,37 @@ _TAILSCALE_RE = re.compile(
 # Auth-ish JSON field names — normalized (separators stripped, lowered) so
 # "api-key"/"api_key"/"apikey" all hit. Deliberately exact-match: 'tokens',
 # 'prompt_tokens', 'file_cache_key', 'dedup_key' are legit metric fields.
-_AUTH_KEYS_RAW = frozenset({
-    "authorization", "api_key", "apikey", "x-api-key", "token",
-    "access_token", "refresh_token", "id_token", "passwd", "password",
-    "secret", "client_secret", "auth", "bearer", "cookie", "set-cookie",
-    "private_key", "credentials", "session_key", "gateway_key",
-    "auth_token", "api_secret", "secret_key", "session_token",
-    "bearer_token", "app_key", "private_token",
-})
+_AUTH_KEYS_RAW = frozenset(
+    {
+        "authorization",
+        "api_key",
+        "apikey",
+        "x-api-key",
+        "token",
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "passwd",
+        "password",
+        "secret",
+        "client_secret",
+        "auth",
+        "bearer",
+        "cookie",
+        "set-cookie",
+        "private_key",
+        "credentials",
+        "session_key",
+        "gateway_key",
+        "auth_token",
+        "api_secret",
+        "secret_key",
+        "session_token",
+        "bearer_token",
+        "app_key",
+        "private_token",
+    }
+)
 _SEP_RE = re.compile(r"[-_.\s]+")
 _AUTH_KEYS = frozenset(_SEP_RE.sub("", k) for k in _AUTH_KEYS_RAW)
 
@@ -128,6 +159,7 @@ _DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})")
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
+
 
 def _sha(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()
@@ -167,13 +199,15 @@ def _json_or_raw(text):
 
 
 def _jcanon(obj) -> str:
-    return json.dumps(obj, ensure_ascii=False, sort_keys=True,
-                      separators=(",", ":"), default=str)
+    return json.dumps(
+        obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+    )
 
 
 # ---------------------------------------------------------------------------
 # Redaction (R1 — secrets never reach the ledger)
 # ---------------------------------------------------------------------------
+
 
 def _authish(key) -> bool:
     return isinstance(key, str) and _SEP_RE.sub("", key).lower() in _AUTH_KEYS
@@ -181,7 +215,8 @@ def _authish(key) -> bool:
 
 def _scalar_secret(s: str) -> bool:
     return any(sub in s for sub in _secret_substrings()) or bool(
-        _TAILSCALE_RE.search(s))
+        _TAILSCALE_RE.search(s)
+    )
 
 
 def _redact_str(s: str) -> str:
@@ -223,8 +258,7 @@ def redact(obj) -> tuple:
                     # the key ITSELF is the secret (a dict keyed by a token
                     # or a tailscale host) — rename, drop the value
                     n += 1
-                    out[f"$redact:{_sha(kk)[:16]}"] = {
-                        "$redact": _sha(_jcanon(v))}
+                    out[f"$redact:{_sha(kk)[:16]}"] = {"$redact": _sha(_jcanon(v))}
                 else:
                     out[kk] = walk(v)
             return out
@@ -245,15 +279,17 @@ def redact(obj) -> tuple:
             return o
         if isinstance(o, (bytes, bytearray)):
             n += 1
-            return {"$nonjson": "bytes", "len": len(o),
-                    "sha256": hashlib.sha256(bytes(o)).hexdigest()}
+            return {
+                "$nonjson": "bytes",
+                "len": len(o),
+                "sha256": hashlib.sha256(bytes(o)).hexdigest(),
+            }
         if o is None:
             return o
         # sets, datetimes, other non-JSON scalars — never ship content,
         # keep a verifiable fingerprint
         n += 1
-        return {"$nonjson": type(o).__name__,
-                "sha256": _sha(repr(o)[:8192])}
+        return {"$nonjson": type(o).__name__, "sha256": _sha(repr(o)[:8192])}
 
     return walk(obj), n
 
@@ -261,6 +297,7 @@ def redact(obj) -> tuple:
 # ---------------------------------------------------------------------------
 # Quarantine (ledger/quarantine.jsonl — forensic, append-only, deduped by sha)
 # ---------------------------------------------------------------------------
+
 
 def _load_quar_shas() -> set[str]:
     seen = set()
@@ -300,6 +337,7 @@ def _append_quar(row: dict, seen: set[str], dry: bool) -> bool:
 # Status + canon gates
 # ---------------------------------------------------------------------------
 
+
 def _status_of(raw_status, *, default: str) -> tuple[str, str | None]:
     """Map a source status to the kernel vocab.
 
@@ -333,6 +371,7 @@ def _canon_gate(id_raw, registry) -> idnorm.CanonResult:
 # Run registration
 # ---------------------------------------------------------------------------
 
+
 def _first_shard_event(rdir: Path):
     """First parseable event of a run-dir events.jsonl shard — the
     run_registered line mint_run_seq wrote. None when absent/empty."""
@@ -348,8 +387,9 @@ def _first_shard_event(rdir: Path):
     return None
 
 
-def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
-                       spec_hash: str, dry: bool):
+def _ensure_import_run(
+    index, run_name: str, *, date: str, slug: str, spec_hash: str, dry: bool
+):
     """Resolve the run's run_seq, minting once.
 
     -> (run_seq, run_dir, minted_now, rr_event | None)
@@ -406,6 +446,7 @@ def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
 #   {id, arm, up, variant, stage, status, dur_s, metrics, errors, sig,
 #    code, queue_wait_s, ts, default_status, dedup_sig}
 # ---------------------------------------------------------------------------
+
 
 def _norm_db_record(row: dict, run_ts: float) -> dict:
     metrics = _json_or_raw(row.get("metrics"))
@@ -469,13 +510,14 @@ def _norm_db_raw(table: str, row: dict, run_ts: float) -> dict:
         # a raw payload but differing in status/seconds must both land, else
         # the later status update is silently dropped.
         "dedup_sig": _jcanon(
-            {k: v for k, v in row.items()
-             if k not in ("rec_id", "run_id")}),
+            {k: v for k, v in row.items() if k not in ("rec_id", "run_id")}
+        ),
     }
 
 
-def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
-                    stage_map: dict | None) -> dict:
+def _norm_jsonl_row(
+    row: dict, *, fname: str, file_ts: float, stage_map: dict | None
+) -> dict:
     """A worktree records*/cases line -> normalized rec.
 
     Case-shaped lines (no 'id', has 'corpus') keep their payload in
@@ -539,8 +581,17 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
 # rec -> event, order resolution, commit
 # ---------------------------------------------------------------------------
 
-def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
-                  registry, src: str, stats: dict, quar: list):
+
+def _rec_to_event(
+    rec: dict,
+    *,
+    run_name: str,
+    run_seq: int,
+    registry,
+    src: str,
+    stats: dict,
+    quar: list,
+):
     """Normalized rec -> cell event (seq=0 placeholder), or None when the
     row routes to quarantine (appended to `quar`)."""
     id_raw = rec.get("id")
@@ -550,19 +601,21 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
     if not res.ok:
         payload, n_red = redact(rec)
         stats["redacted"] += n_red
-        quar_row, n_red2 = redact({
-            "type": "import_quarantine",
-            "src": src,
-            "run": run_name,
-            "reason": "canon",
-            "canon_state": res.state,
-            "canon_reason": res.reason,
-            "candidates": res.candidates,
-            "id": id_raw,
-            "dedup_sha": _sha(rec["dedup_sig"]),
-            "payload": payload,
-            "ts": rec["ts"],
-        })
+        quar_row, n_red2 = redact(
+            {
+                "type": "import_quarantine",
+                "src": src,
+                "run": run_name,
+                "reason": "canon",
+                "canon_state": res.state,
+                "canon_reason": res.reason,
+                "candidates": res.candidates,
+                "id": id_raw,
+                "dedup_sha": _sha(rec["dedup_sig"]),
+                "payload": payload,
+                "ts": rec["ts"],
+            }
+        )
         stats["redacted"] += n_red2
         quar.append(quar_row)
         stats["quarantined"] += 1
@@ -592,8 +645,7 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
             v = _redact_str(v)
         vocab[k] = v
 
-    status, orig = _status_of(rec.get("status"),
-                              default=rec["default_status"])
+    status, orig = _status_of(rec.get("status"), default=rec["default_status"])
     if orig is not None:
         if isinstance(metrics, dict):
             metrics = dict(metrics)
@@ -659,18 +711,19 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
     try:
         events.validate(ev)
     except events.EventError as exc:
-        quar_row, n_red = redact({
-            "type": "import_quarantine",
-            "src": src,
-            "run": run_name,
-            "reason": f"schema:{exc}",
-            "canon_state": res.state,
-            "id": id_raw,
-            "dedup_sha": _sha(rec["dedup_sig"]),
-            "payload": {"id": id_raw, "stage": rec["stage"],
-                        "status": status},
-            "ts": rec["ts"],
-        })
+        quar_row, n_red = redact(
+            {
+                "type": "import_quarantine",
+                "src": src,
+                "run": run_name,
+                "reason": f"schema:{exc}",
+                "canon_state": res.state,
+                "id": id_raw,
+                "dedup_sha": _sha(rec["dedup_sig"]),
+                "payload": {"id": id_raw, "stage": rec["stage"], "status": status},
+                "ts": rec["ts"],
+            }
+        )
         stats["redacted"] += n_red
         quar.append(quar_row)
         stats["quarantined"] += 1
@@ -704,8 +757,9 @@ def _preferred_last(group: list, paid: bool):
     return group[-1]
 
 
-def _resolve_order(evs: list, *, run_name: str, src: str, stats: dict,
-                   quar: list) -> list:
+def _resolve_order(
+    evs: list, *, run_name: str, src: str, stats: dict, quar: list
+) -> list:
     """Group by cell key; for keys with multiple distinct statuses move
     the conservative pick to the end and report the key to quarantine."""
     groups: dict = {}
@@ -724,17 +778,22 @@ def _resolve_order(evs: list, *, run_name: str, src: str, stats: dict,
             paid = k[1] in PAID_ARMS
             pref = _preferred_last(g, paid)
             g = [e for e in g if e is not pref] + [pref]
-            quar_row, n_red = redact({
-                "type": "import_order_sensitive",
-                "src": src,
-                "run": run_name,
-                "idc": k[0], "arm": k[1], "up": k[2],
-                "variant": k[3], "stage": k[4],
-                "n": len(g),
-                "statuses": sorted(set(statuses), key=repr),
-                "chosen": pref.get("status"),
-                "paid": paid,
-            })
+            quar_row, n_red = redact(
+                {
+                    "type": "import_order_sensitive",
+                    "src": src,
+                    "run": run_name,
+                    "idc": k[0],
+                    "arm": k[1],
+                    "up": k[2],
+                    "variant": k[3],
+                    "stage": k[4],
+                    "n": len(g),
+                    "statuses": sorted(set(statuses), key=repr),
+                    "chosen": pref.get("status"),
+                    "paid": paid,
+                }
+            )
             stats["redacted"] += n_red
             quar.append(quar_row)
             stats["order_sensitive"] += 1
@@ -750,7 +809,7 @@ def _known_shas(index, evs: list) -> set:
     shas = [events.content_hash(e) for e in evs]
     known = set()
     for i in range(0, len(shas), 900):
-        part = shas[i:i + 900]
+        part = shas[i : i + 900]
         marks = ",".join("?" * len(part))
         for row in index.conn.execute(
             f"SELECT payload_sha FROM dedupe WHERE payload_sha IN ({marks})",  # noqa: S608 -- marks 是 "?"*n 占位符，本模块内构造
@@ -760,8 +819,7 @@ def _known_shas(index, evs: list) -> set:
     return known
 
 
-def _commit(evs: list, *, rdir: Path | None, index, stats: dict,
-            dry: bool) -> None:
+def _commit(evs: list, *, rdir: Path | None, index, stats: dict, dry: bool) -> None:
     """emit_batch + apply_events in chunks of EMIT_CHUNK.
 
     Events whose payload_sha the index already knows are skipped on BOTH
@@ -778,8 +836,7 @@ def _commit(evs: list, *, rdir: Path | None, index, stats: dict,
         return
     if dry:
         known = _known_shas(index, evs)
-        stats["dup_skipped"] += sum(
-            1 for e in evs if events.content_hash(e) in known)
+        stats["dup_skipped"] += sum(1 for e in evs if events.content_hash(e) in known)
         return
     blob_dir = Path(rdir) / "derived" / "blobs" if rdir is not None else None
     evs = [events.maybe_offload(e, blob_dir) for e in evs]
@@ -796,7 +853,7 @@ def _commit(evs: list, *, rdir: Path | None, index, stats: dict,
         new.append(e)
     stats["dup_skipped"] += len(evs) - len(new)
     for i in range(0, len(new), EMIT_CHUNK):
-        chunk = new[i:i + EMIT_CHUNK]
+        chunk = new[i : i + EMIT_CHUNK]
         ledger.emit_batch(chunk, run_dir=rdir)
         stats["emitted"] += len(chunk)
         if index is not None:
@@ -813,16 +870,26 @@ def _flush_quar(quar: list, seen: set, stats: dict, dry: bool) -> None:
 
 def _stats() -> dict:
     return {
-        "rows": 0, "events": 0, "emitted": 0, "applied": 0,
-        "dup_skipped": 0, "quarantined": 0, "quar_written": 0,
-        "redacted": 0, "order_sensitive": 0, "runs": 0, "runs_minted": 0,
-        "bad_lines": 0, "index_rejected": 0,
+        "rows": 0,
+        "events": 0,
+        "emitted": 0,
+        "applied": 0,
+        "dup_skipped": 0,
+        "quarantined": 0,
+        "quar_written": 0,
+        "redacted": 0,
+        "order_sensitive": 0,
+        "runs": 0,
+        "runs_minted": 0,
+        "bad_lines": 0,
+        "index_rejected": 0,
     }
 
 
 # ---------------------------------------------------------------------------
 # bench.db
 # ---------------------------------------------------------------------------
+
 
 def _run_sort_key(run: dict):
     """(started_at -> dir mtime -> run name) per §3.3. Timestamps sort
@@ -852,16 +919,23 @@ def _run_date(run: dict) -> str:
     if p:
         try:
             mt = Path(p).stat().st_mtime
-            return datetime.fromtimestamp(mt, tz=UTC).strftime(
-                "%Y-%m-%d")
+            return datetime.fromtimestamp(mt, tz=UTC).strftime("%Y-%m-%d")
         except OSError:
             pass
     return "undated"
 
 
-def _prepare_run(rows, *, run_name: str, run_seq: int,
-                 registry, src: str, stats: dict,
-                 quar: list, norm_fn) -> list:
+def _prepare_run(
+    rows,
+    *,
+    run_name: str,
+    run_seq: int,
+    registry,
+    src: str,
+    stats: dict,
+    quar: list,
+    norm_fn,
+) -> list:
     """rows -> resolved cell events with seq assigned."""
     prepared = []
     seen_sig = set()
@@ -872,13 +946,18 @@ def _prepare_run(rows, *, run_name: str, run_seq: int,
             stats["dup_skipped"] += 1
             continue
         seen_sig.add(sig)
-        ev = _rec_to_event(rec, run_name=run_name, run_seq=run_seq,
-                           registry=registry, src=src, stats=stats,
-                           quar=quar)
+        ev = _rec_to_event(
+            rec,
+            run_name=run_name,
+            run_seq=run_seq,
+            registry=registry,
+            src=src,
+            stats=stats,
+            quar=quar,
+        )
         if ev is not None:
             prepared.append(ev)
-    evs = _resolve_order(prepared, run_name=run_name, src=src,
-                         stats=stats, quar=quar)
+    evs = _resolve_order(prepared, run_name=run_name, src=src, stats=stats, quar=quar)
     for i, ev in enumerate(evs, 1):
         ev["seq"] = i
     stats["events"] += len(evs)
@@ -903,26 +982,30 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
     db.row_factory = sqlite3.Row
     try:
         existing = {
-            r[0] for r in db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'")
+            r[0]
+            for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         runs = {}
         if "runs" in existing:
             runs = {
                 r["run_id"]: dict(r)
                 for r in db.execute(
-                    "SELECT run_id,name,source,kind,path,created_at"
-                    " FROM runs")
+                    "SELECT run_id,name,source,kind,path,created_at FROM runs"
+                )
             }
         groups = []
         for table in _DB_TABLES:
             if table not in existing:
                 continue
-            for (rid,) in db.execute(
-                    f"SELECT DISTINCT run_id FROM {table}"):  # noqa: S608 -- table 来自 _DB_TABLES 白名单迭代
+            for (rid,) in db.execute(f"SELECT DISTINCT run_id FROM {table}"):  # noqa: S608 -- table 来自 _DB_TABLES 白名单迭代
                 run = runs.get(rid) or {
-                    "run_id": rid, "name": f"run-{rid}", "created_at": None,
-                    "path": None, "kind": "?", "source": "?"}
+                    "run_id": rid,
+                    "name": f"run-{rid}",
+                    "created_at": None,
+                    "path": None,
+                    "kind": "?",
+                    "source": "?",
+                }
                 groups.append((_run_sort_key(run), table, rid))
         groups.sort(key=lambda g: (g[0], g[1], g[2]))
 
@@ -935,8 +1018,13 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
             slug = _slugify(f"{table}-r{rid}-{base}")
             run_ts = _parse_ts(run.get("created_at")) or 0.0
             run_seq, rdir, minted, rr = _ensure_import_run(
-                index, run_name, date=date, slug=slug,
-                spec_hash=f"benchdb:{table}:{rid}", dry=dry)
+                index,
+                run_name,
+                date=date,
+                slug=slug,
+                spec_hash=f"benchdb:{table}:{rid}",
+                dry=dry,
+            )
             stats["runs"] += 1
             stats["runs_minted"] += int(minted)
             quar: list = []
@@ -947,19 +1035,28 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
                 norm_fn = lambda row, _ts=run_ts: _norm_db_record(row, _ts)  # noqa: E731
             else:
                 norm_fn = lambda row, _t=table, _ts=run_ts: _norm_db_raw(  # noqa: E731
-                    _t, row, _ts)
+                    _t, row, _ts
+                )
 
             def rows(_table=table, _rid=rid):
                 for r in db.execute(
-                        f"SELECT * FROM {_table} WHERE run_id=?"  # noqa: S608 -- _table 来自 _DB_TABLES 白名单
-                        " ORDER BY rec_id", (_rid,)):
+                    f"SELECT * FROM {_table} WHERE run_id=?"  # noqa: S608 -- _table 来自 _DB_TABLES 白名单
+                    " ORDER BY rec_id",
+                    (_rid,),
+                ):
                     stats["rows"] += 1
                     yield dict(r)
 
-            evs = _prepare_run(rows(), run_name=run_name,
-                               run_seq=run_seq,
-                               registry=registry, src="benchdb",
-                               stats=stats, quar=quar, norm_fn=norm_fn)
+            evs = _prepare_run(
+                rows(),
+                run_name=run_name,
+                run_seq=run_seq,
+                registry=registry,
+                src="benchdb",
+                stats=stats,
+                quar=quar,
+                norm_fn=norm_fn,
+            )
             _commit(evs, rdir=rdir, index=index, stats=stats, dry=dry)
             _flush_quar(quar, quar_seen, stats, dry)
     finally:
@@ -970,6 +1067,7 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 # worktree jsonl files
 # ---------------------------------------------------------------------------
+
 
 def _run_meta_ts(rdir: Path) -> float | None:
     """started_at analog from a worktree run_meta.json (best effort)."""
@@ -986,8 +1084,9 @@ def _run_meta_ts(rdir: Path) -> float | None:
     return None
 
 
-def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
-                      dry: bool = False) -> dict:
+def import_jsonl_file(
+    path, run, stage_map=None, index=None, registry=None, dry: bool = False
+) -> dict:
     """Import one worktree records*.jsonl / cases.jsonl file.
 
     `run` is the ledger run name (str) or a Path to the source run dir
@@ -1002,17 +1101,17 @@ def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
     else:
         src_dir = path.parent
         run_name = (
-            str(run) if run
+            str(run)
+            if run
             else f"import-{_slugify(path.parent.name)}-{_slugify(path.stem)}"
         )
     file_ts = path.stat().st_mtime
     ts_start = _run_meta_ts(src_dir) or file_ts
-    date = datetime.fromtimestamp(ts_start, tz=UTC).strftime(
-        "%Y-%m-%d")
+    date = datetime.fromtimestamp(ts_start, tz=UTC).strftime("%Y-%m-%d")
     slug = _slugify(run_name.removeprefix("import-"))
     run_seq, rdir, minted, rr = _ensure_import_run(
-        index, run_name, date=date, slug=slug,
-        spec_hash=f"jsonl:{path.name}", dry=dry)
+        index, run_name, date=date, slug=slug, spec_hash=f"jsonl:{path.name}", dry=dry
+    )
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)
 
@@ -1022,8 +1121,9 @@ def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
         index.apply_events([rr])
 
     def norm_fn(row):
-        return _norm_jsonl_row(row, fname=path.name, file_ts=file_ts,
-                               stage_map=stage_map)
+        return _norm_jsonl_row(
+            row, fname=path.name, file_ts=file_ts, stage_map=stage_map
+        )
 
     def rows():
         for _ln, ev, raw in iter_jsonl(path):
@@ -1032,20 +1132,32 @@ def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
                 reason = "bad_line" if ev is None else "non_object"
                 payload, n_red = redact(raw if ev is None else ev)
                 stats["redacted"] += n_red
-                quar.append({
-                    "type": "import_quarantine", "src": "jsonl",
-                    "run": run_name, "reason": reason,
-                    "payload": payload,
-                    "dedup_sha": _sha(raw), "ts": file_ts,
-                })
+                quar.append(
+                    {
+                        "type": "import_quarantine",
+                        "src": "jsonl",
+                        "run": run_name,
+                        "reason": reason,
+                        "payload": payload,
+                        "dedup_sha": _sha(raw),
+                        "ts": file_ts,
+                    }
+                )
                 stats["quarantined"] += 1
                 stats["bad_lines"] += 1
                 continue
             yield ev
 
-    evs = _prepare_run(rows(), run_name=run_name, run_seq=run_seq,
-                       registry=registry, src="jsonl",
-                       stats=stats, quar=quar, norm_fn=norm_fn)
+    evs = _prepare_run(
+        rows(),
+        run_name=run_name,
+        run_seq=run_seq,
+        registry=registry,
+        src="jsonl",
+        stats=stats,
+        quar=quar,
+        norm_fn=norm_fn,
+    )
     _commit(evs, rdir=rdir, index=index, stats=stats, dry=dry)
     _flush_quar(quar, quar_seen, stats, dry)
     return stats
@@ -1086,12 +1198,16 @@ def _zh_dir_candidates(bytes_root: Path, row: dict, idc: str) -> list:
         cands.extend(
             bytes_root / cont / n
             for cont in _QUAR_CONTAINERS
-            for n in dict.fromkeys((raw, sid)) if n)
+            for n in dict.fromkeys((raw, sid))
+            if n
+        )
     cands.extend(bytes_root / n for n in dict.fromkeys((raw, sid)) if n)
     cands.extend(
         bytes_root / cont / n
         for cont in _QUAR_CONTAINERS
-        for n in dict.fromkeys((raw, sid)) if n)
+        for n in dict.fromkeys((raw, sid))
+        if n
+    )
     seen = set()
     out = []
     for c in cands:
@@ -1101,8 +1217,9 @@ def _zh_dir_candidates(bytes_root: Path, row: dict, idc: str) -> list:
     return out
 
 
-def import_zhstore(manifest_path, bytes_root, index, registry=None,
-                   dry: bool = False) -> dict:
+def import_zhstore(
+    manifest_path, bytes_root, index, registry=None, dry: bool = False
+) -> dict:
     """Manifest rows -> asset events (verified when declared bytes exist,
     tombstone when missing); census dirs without rows -> orphan report.
 
@@ -1116,11 +1233,15 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
     bytes_root = Path(bytes_root)
     run_name = "import-zhstore"
     file_ts = manifest_path.stat().st_mtime
-    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime(
-        "%Y-%m-%d")
+    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime("%Y-%m-%d")
     run_seq, rdir, minted, rr = _ensure_import_run(
-        index, run_name, date=date, slug="zhstore",
-        spec_hash="zhstore-manifest", dry=dry)
+        index,
+        run_name,
+        date=date,
+        slug="zhstore",
+        spec_hash="zhstore-manifest",
+        dry=dry,
+    )
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)
 
@@ -1142,24 +1263,34 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
         if row is None:
             payload, n_red = redact(raw)
             stats["redacted"] += n_red
-            quar.append({
-                "type": "import_quarantine", "src": "zhstore",
-                "run": run_name, "reason": "bad_line",
-                "payload": payload,
-                "dedup_sha": _sha(raw), "ts": file_ts,
-            })
+            quar.append(
+                {
+                    "type": "import_quarantine",
+                    "src": "zhstore",
+                    "run": run_name,
+                    "reason": "bad_line",
+                    "payload": payload,
+                    "dedup_sha": _sha(raw),
+                    "ts": file_ts,
+                }
+            )
             stats["quarantined"] += 1
             stats["bad_lines"] += 1
             continue
         if not isinstance(row, dict):
             payload, n_red = redact(row)
             stats["redacted"] += n_red
-            quar.append({
-                "type": "import_quarantine", "src": "zhstore",
-                "run": run_name, "reason": "non_object",
-                "payload": payload,
-                "dedup_sha": _sha(raw), "ts": file_ts,
-            })
+            quar.append(
+                {
+                    "type": "import_quarantine",
+                    "src": "zhstore",
+                    "run": run_name,
+                    "reason": "non_object",
+                    "payload": payload,
+                    "dedup_sha": _sha(raw),
+                    "ts": file_ts,
+                }
+            )
             stats["quarantined"] += 1
             stats["bad_lines"] += 1
             continue
@@ -1167,19 +1298,25 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
         if id_raw is not None:
             referenced.add(str(id_raw))
         res = _canon_gate(id_raw, registry)
-        ts = _parse_ts(row.get("moved_at")) or _parse_ts(
-            row.get("xlat_ts")) or file_ts
+        ts = _parse_ts(row.get("moved_at")) or _parse_ts(row.get("xlat_ts")) or file_ts
         if not res.ok:
             payload, n_red = redact(row)
             stats["redacted"] += n_red
-            quar_row, n_red2 = redact({
-                "type": "import_quarantine", "src": "zhstore",
-                "run": run_name, "reason": "canon",
-                "canon_state": res.state, "canon_reason": res.reason,
-                "candidates": res.candidates, "id": id_raw,
-                "payload": payload,
-                "dedup_sha": _sha(raw), "ts": ts,
-            })
+            quar_row, n_red2 = redact(
+                {
+                    "type": "import_quarantine",
+                    "src": "zhstore",
+                    "run": run_name,
+                    "reason": "canon",
+                    "canon_state": res.state,
+                    "canon_reason": res.reason,
+                    "candidates": res.candidates,
+                    "id": id_raw,
+                    "payload": payload,
+                    "dedup_sha": _sha(raw),
+                    "ts": ts,
+                }
+            )
             stats["redacted"] += n_red2
             quar.append(quar_row)
             stats["quarantined"] += 1
@@ -1191,16 +1328,23 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
         if zone is None:
             # unknown zone is fail-closed: an uninterpretable zone must
             # never promote bytes into the dedup-hit set.
-            quar_row, n_red = redact({
-                "type": "import_quarantine", "src": "zhstore",
-                "run": run_name, "reason": "zone_unknown",
-                "id": id_raw, "payload": {"zone": row.get("zone")},
-                "dedup_sha": _sha(raw), "ts": ts,
-            })
+            quar_row, n_red = redact(
+                {
+                    "type": "import_quarantine",
+                    "src": "zhstore",
+                    "run": run_name,
+                    "reason": "zone_unknown",
+                    "id": id_raw,
+                    "payload": {"zone": row.get("zone")},
+                    "dedup_sha": _sha(raw),
+                    "ts": ts,
+                }
+            )
             stats["redacted"] += n_red
             quar.append(quar_row)
             stats["quarantined"] += 1
             continue
+
         def _clean(v, default: str) -> str:
             """Manifest string fields are data-controlled — a secret in
             arm/model/source_run must not reach the ledger verbatim."""
@@ -1223,9 +1367,7 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
         for kind in ("zh", "splice"):
             declared = bool(row.get(f"has_{kind}"))
             kdir = base / kind if base is not None else None
-            has_bytes = (
-                kdir is not None and kdir.is_dir() and _tree_has_file(kdir)
-            )
+            has_bytes = kdir is not None and kdir.is_dir() and _tree_has_file(kdir)
             if not declared:
                 if has_bytes:
                     undeclared.append(f"{id_raw}/{kind}")
@@ -1235,51 +1377,54 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
                     rel = kdir.relative_to(bytes_root).as_posix()
                 except ValueError:
                     rel = str(kdir)
-                evs.append({
-                    "type": events.T_ASSET,
-                    "v": events.SCHEMA_V,
-                    "ts": ts,
-                    "run": run_name,
-                    "run_seq": run_seq,
-                    "seq": next_seq(),
-                    "id": id_clean,
-                    "idc": idc,
-                    "arm": arm,
-                    "variant": "-",
-                    "kind": kind,
-                    "path": rel,
-                    "sha": None,
-                    "bytes": dir_size(kdir),
-                    "state": "verified",
-                    "zone": zone,
-                    "verdict": zone,
-                    "altseq": altseq,
-                    "model": model,
-                    "source_run": source_run,
-                    "import_src": "zhstore",
-                })
+                evs.append(
+                    {
+                        "type": events.T_ASSET,
+                        "v": events.SCHEMA_V,
+                        "ts": ts,
+                        "run": run_name,
+                        "run_seq": run_seq,
+                        "seq": next_seq(),
+                        "id": id_clean,
+                        "idc": idc,
+                        "arm": arm,
+                        "variant": "-",
+                        "kind": kind,
+                        "path": rel,
+                        "sha": None,
+                        "bytes": dir_size(kdir),
+                        "state": "verified",
+                        "zone": zone,
+                        "verdict": zone,
+                        "altseq": altseq,
+                        "model": model,
+                        "source_run": source_run,
+                        "import_src": "zhstore",
+                    }
+                )
             else:
-                evs.append({
-                    "type": events.T_TOMBSTONE,
-                    "v": events.SCHEMA_V,
-                    "ts": ts,
-                    "id": id_clean,
-                    "idc": idc,
-                    "arm": arm,
-                    "variant": "-",
-                    "kind": kind,
-                    "reason": "zhstore_declared_missing",
-                    "lost_run": source_run or "zhstore",
-                    "zone": zone,
-                    "import_src": "zhstore",
-                })
+                evs.append(
+                    {
+                        "type": events.T_TOMBSTONE,
+                        "v": events.SCHEMA_V,
+                        "ts": ts,
+                        "id": id_clean,
+                        "idc": idc,
+                        "arm": arm,
+                        "variant": "-",
+                        "kind": kind,
+                        "reason": "zhstore_declared_missing",
+                        "lost_run": source_run or "zhstore",
+                        "zone": zone,
+                        "import_src": "zhstore",
+                    }
+                )
             stats["events"] += 1
 
     # Byte census: payload dirs present without a manifest row. Report
     # only — Phase 2's adopt owns them (design: report+收编, never delete).
     census = []
-    for container in [bytes_root] + [bytes_root / c
-                                     for c in _QUAR_CONTAINERS]:
+    for container in [bytes_root] + [bytes_root / c for c in _QUAR_CONTAINERS]:
         if not container.is_dir():
             continue
         for child in sorted(container.iterdir()):
@@ -1291,37 +1436,40 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
     for container, name in census:
         if name not in referenced:
             try:
-                orphans.append(
-                    str((container / name).relative_to(bytes_root)))
+                orphans.append(str((container / name).relative_to(bytes_root)))
             except ValueError:
                 orphans.append(name)
     if orphans:
-        evs.append({
-            "type": events.T_NOTE,
-            "v": events.SCHEMA_V,
-            "ts": file_ts,
-            "run": run_name,
-            "run_seq": run_seq,
-            "seq": next_seq(),
-            "text": f"zhstore census: {len(orphans)} orphan byte dirs "
-                    "without manifest rows (adopt deferred to Phase 2)",
-            "level": "warn",
-            "import_src": "zhstore",
-        })
+        evs.append(
+            {
+                "type": events.T_NOTE,
+                "v": events.SCHEMA_V,
+                "ts": file_ts,
+                "run": run_name,
+                "run_seq": run_seq,
+                "seq": next_seq(),
+                "text": f"zhstore census: {len(orphans)} orphan byte dirs "
+                "without manifest rows (adopt deferred to Phase 2)",
+                "level": "warn",
+                "import_src": "zhstore",
+            }
+        )
         stats["events"] += 1
     if undeclared:
-        evs.append({
-            "type": events.T_NOTE,
-            "v": events.SCHEMA_V,
-            "ts": file_ts,
-            "run": run_name,
-            "run_seq": run_seq,
-            "seq": next_seq(),
-            "text": f"zhstore census: {len(undeclared)} dirs hold bytes "
-                    "for kinds the manifest does not declare",
-            "level": "warn",
-            "import_src": "zhstore",
-        })
+        evs.append(
+            {
+                "type": events.T_NOTE,
+                "v": events.SCHEMA_V,
+                "ts": file_ts,
+                "run": run_name,
+                "run_seq": run_seq,
+                "seq": next_seq(),
+                "text": f"zhstore census: {len(undeclared)} dirs hold bytes "
+                "for kinds the manifest does not declare",
+                "level": "warn",
+                "import_src": "zhstore",
+            }
+        )
         stats["events"] += 1
 
     if rr is not None and index is not None and not dry:
@@ -1358,8 +1506,9 @@ def _provenance(base: Path, stats: dict) -> dict | None:
     return out if isinstance(out, dict) else {"_raw": out}
 
 
-def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
-                       dry: bool = False) -> dict:
+def seed_vault_zhstore(
+    manifest_path, bytes_root, index, registry=None, dry: bool = False
+) -> dict:
     """Phase-2 live-byte census: physically seed zh-store bytes into vault.
 
     This is a byte census, not a manifest replay (§3.10.9): the disk is
@@ -1392,18 +1541,32 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
     from kernel import vault  # local: keeps the ledger-only import cheap
 
     stats = _stats()
-    stats.update({"harvested": 0, "kinds_harvested": 0, "bytes": 0,
-                  "already": 0, "still_missing": 0, "partial": 0,
-                  "orphan_dirs": [], "noncanon_dirs": [], "conflicts": []})
+    stats.update(
+        {
+            "harvested": 0,
+            "kinds_harvested": 0,
+            "bytes": 0,
+            "already": 0,
+            "still_missing": 0,
+            "partial": 0,
+            "orphan_dirs": [],
+            "noncanon_dirs": [],
+            "conflicts": [],
+        }
+    )
     manifest_path = Path(manifest_path)
     bytes_root = Path(bytes_root)
     file_ts = manifest_path.stat().st_mtime
-    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime(
-        "%Y-%m-%d")
+    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime("%Y-%m-%d")
     run_name = "import-zhstore-vault-seed"
     run_seq, rdir, minted, rr = _ensure_import_run(
-        index, run_name, date=date, slug="vault-seed",
-        spec_hash="zhstore-vault-seed", dry=dry)
+        index,
+        run_name,
+        date=date,
+        slug="vault-seed",
+        spec_hash="zhstore-vault-seed",
+        dry=dry,
+    )
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)
     if rr is not None and index is not None and not dry:
@@ -1427,8 +1590,9 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
                 return True
         return False
 
-    def _patch_meta(mpath: Path, base: Path, adopted: bool,
-                    row: dict | None = None) -> None:
+    def _patch_meta(
+        mpath: Path, base: Path, adopted: bool, row: dict | None = None
+    ) -> None:
         meta = vault._read_meta(mpath) or {}
         prov = _provenance(base, stats)
         if prov:
@@ -1463,7 +1627,8 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
             cands = _zh_dir_candidates(bytes_root, row, res.idc)
         else:
             cands = [bytes_root / raw_id] + [
-                bytes_root / cont / raw_id for cont in _QUAR_CONTAINERS]
+                bytes_root / cont / raw_id for cont in _QUAR_CONTAINERS
+            ]
         base = next((c for c in cands if c.is_dir()), None)
         if base is None:
             # byte-less row — tombstone already on the ledger
@@ -1471,12 +1636,14 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
                 stats["still_missing"] += 1
             continue
         claimed_dirs.add(base)
-        assets = {k: base / k for k in _VAULT_SCAN_KINDS
-                  if (base / k).is_dir() and _tree_has_file(base / k)}
+        assets = {
+            k: base / k
+            for k in _VAULT_SCAN_KINDS
+            if (base / k).is_dir() and _tree_has_file(base / k)
+        }
         if not res.ok:
             if assets:
-                stats["noncanon_dirs"].append(
-                    str(base.relative_to(bytes_root)))
+                stats["noncanon_dirs"].append(str(base.relative_to(bytes_root)))
             continue
         if not assets:
             stats["still_missing"] += 1
@@ -1519,22 +1686,27 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
         if _in_quar(base):
             zone = verdict = "quar"
         else:
-            zone = _ZONE_VERDICT.get(str(row.get("zone") or "primary"),
-                                     "quar")
-            verdict = {"primary": "verified", "alt": "alt",
-                       "quarantine": "quar"}[zone]
+            zone = _ZONE_VERDICT.get(str(row.get("zone") or "primary"), "quar")
+            verdict = {"primary": "verified", "alt": "alt", "quarantine": "quar"}[zone]
         if dry:
             stats["harvested"] += 1
             stats["kinds_harvested"] += len(assets)
             continue
         try:
             mpath = vault.harvest(
-                idc, arm, "-", assets,
+                idc,
+                arm,
+                "-",
+                assets,
                 source_run=str(row.get("source_run") or "zhstore"),
-                zone=zone, verdict=verdict,
+                zone=zone,
+                verdict=verdict,
                 model=str(row.get("model") or "") or None,
                 id=str(row.get("id") or idc),
-                seq=next_seq, run_dir=rdir, sink=sink)
+                seq=next_seq,
+                run_dir=rdir,
+                sink=sink,
+            )
         except vault.DestOccupied as exc:
             stats["conflicts"].append(f"{idc}: {exc}")
             stats["errors"] += 1
@@ -1548,8 +1720,7 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
             stats["applied"] += len(assets)
 
     # -- pass 2: byte dirs with no canon-resolvable row -> quar --
-    containers = [("", bytes_root)] + [
-        (c, bytes_root / c) for c in _QUAR_CONTAINERS]
+    containers = [("", bytes_root)] + [(c, bytes_root / c) for c in _QUAR_CONTAINERS]
     for cont, cdir in containers:
         if not cdir.is_dir():
             continue
@@ -1560,16 +1731,17 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
                 continue
             if child in claimed_dirs:
                 continue
-            assets = {k: child / k for k in _VAULT_SCAN_KINDS
-                      if (child / k).is_dir() and _tree_has_file(child / k)}
+            assets = {
+                k: child / k
+                for k in _VAULT_SCAN_KINDS
+                if (child / k).is_dir() and _tree_has_file(child / k)
+            }
             if not assets:
                 continue
-            stats["orphan_dirs"].append(
-                str(child.relative_to(bytes_root)))
+            stats["orphan_dirs"].append(str(child.relative_to(bytes_root)))
             res = _canon_gate(idnorm.idc_from_safe(child.name), registry)
             if not res.ok:
-                stats["noncanon_dirs"].append(
-                    str(child.relative_to(bytes_root)))
+                stats["noncanon_dirs"].append(str(child.relative_to(bytes_root)))
                 continue
             # the dir carries no arm identity of its own — an intact copy
             # covering its kinds under ANY arm already vouches for it
@@ -1586,11 +1758,19 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
             prov = _provenance(child, stats) or {}
             try:
                 mpath = vault.harvest(
-                    res.idc, str(prov.get("arm") or "-"), "-", assets,
+                    res.idc,
+                    str(prov.get("arm") or "-"),
+                    "-",
+                    assets,
                     source_run=str(prov.get("source_run") or "orphan"),
-                    zone="quar", verdict="quar",
+                    zone="quar",
+                    verdict="quar",
                     model=str(prov.get("model") or "") or None,
-                    id=child.name, seq=next_seq, run_dir=rdir, sink=sink)
+                    id=child.name,
+                    seq=next_seq,
+                    run_dir=rdir,
+                    sink=sink,
+                )
             except vault.DestOccupied as exc:
                 stats["conflicts"].append(f"{child.name}: {exc}")
                 stats["errors"] += 1
@@ -1608,13 +1788,19 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
     # disk by design) must not append an identical note every census.
     if not dry and stats["harvested"]:
         ev = events.make_event(
-            events.T_NOTE, run=run_name,
-            run_seq=run_seq, seq=next_seq(), level="info",
-            text=(f"vault seed census: {stats['harvested']} copies "
-                  f"harvested, {stats['already']} already present, "
-                  f"{stats['still_missing']} still missing, "
-                  f"{len(stats['orphan_dirs'])} orphan dirs, "
-                  f"{len(stats['noncanon_dirs'])} noncanon byte dirs"))
+            events.T_NOTE,
+            run=run_name,
+            run_seq=run_seq,
+            seq=next_seq(),
+            level="info",
+            text=(
+                f"vault seed census: {stats['harvested']} copies "
+                f"harvested, {stats['already']} already present, "
+                f"{stats['still_missing']} still missing, "
+                f"{len(stats['orphan_dirs'])} orphan dirs, "
+                f"{len(stats['noncanon_dirs'])} noncanon byte dirs"
+            ),
+        )
         ledger.emit(ev, run_dir=rdir, sink=sink)
         stats["events"] += 1
     return stats
@@ -1623,6 +1809,7 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
 # ---------------------------------------------------------------------------
 # Lake zone — manifest seeding + on-disk corpus absorb (Phase 3, §3.10)
 # ---------------------------------------------------------------------------
+
 
 class _BatchSink:
     """Sink adapter for bulk emits: ledger.emit/_batch apply the sink
@@ -1677,8 +1864,9 @@ def _manifest_files(manifest_paths) -> list[Path]:
     return out
 
 
-def register_lake_manifests(manifest_paths, index, registry=None,
-                            dry: bool = False) -> dict:
+def register_lake_manifests(
+    manifest_paths, index, registry=None, dry: bool = False
+) -> dict:
     """Seed the lake catalog from corpus manifests (Phase 3).
 
     Every row canon-gates to an idc; per idc the seed is:
@@ -1700,9 +1888,16 @@ def register_lake_manifests(manifest_paths, index, registry=None,
     from kernel import lake  # local: keeps the ledger-only import cheap
 
     stats = _stats()
-    stats.update({"manifests": 0, "seeded_skeleton": 0, "seeded_failed": 0,
-                  "skipped_present": 0, "meta_merged": 0,
-                  "noncanon_ids": []})
+    stats.update(
+        {
+            "manifests": 0,
+            "seeded_skeleton": 0,
+            "seeded_failed": 0,
+            "skipped_present": 0,
+            "meta_merged": 0,
+            "noncanon_ids": [],
+        }
+    )
     files = _manifest_files(manifest_paths)
     stats["manifests"] = len(files)
     if not files:
@@ -1713,8 +1908,13 @@ def register_lake_manifests(manifest_paths, index, registry=None,
     ).strftime("%Y-%m-%d")
     run_name = "import-lake-register"
     run_seq, rdir, minted, rr = _ensure_import_run(
-        index, run_name, date=date, slug="lake-register",
-        spec_hash="lake-register", dry=dry)
+        index,
+        run_name,
+        date=date,
+        slug="lake-register",
+        spec_hash="lake-register",
+        dry=dry,
+    )
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)
     if rr is not None and index is not None and not dry:
@@ -1737,13 +1937,21 @@ def register_lake_manifests(manifest_paths, index, registry=None,
                 stats["quarantined"] += 1
                 if len(stats["noncanon_ids"]) < 100:
                     stats["noncanon_ids"].append(str(row["id"]))
-                _append_quar({
-                    "src": "lake-register", "file": f.name,
-                    "reason": res.reason, "row": row}, quar_seen, dry)
+                _append_quar(
+                    {
+                        "src": "lake-register",
+                        "file": f.name,
+                        "reason": res.reason,
+                        "row": row,
+                    },
+                    quar_seen,
+                    dry,
+                )
                 continue
             acc = merged.setdefault(
-                res.idc, {"layers": set(), "channels": set(),
-                          "any_ok": False, "any_bad": False})
+                res.idc,
+                {"layers": set(), "channels": set(), "any_ok": False, "any_bad": False},
+            )
             if row.get("layer"):
                 acc["layers"].add(str(row["layer"]))
             if row.get("channel"):
@@ -1762,8 +1970,12 @@ def register_lake_manifests(manifest_paths, index, registry=None,
         cur = cat.state(idc)
         if cur == "absent":
             failed = acc["any_bad"] and not acc["any_ok"]
-            kw = {"source": "arxiv", "manifested": True,
-                  "layers": layers, "channels": channels}
+            kw = {
+                "source": "arxiv",
+                "manifested": True,
+                "layers": layers,
+                "channels": channels,
+            }
             if failed:
                 kw["regen_cost"] = "network"
                 stats["seeded_failed"] += 1
@@ -1773,17 +1985,15 @@ def register_lake_manifests(manifest_paths, index, registry=None,
             if not dry and not failed:
                 # skeletons anchor an (empty) cell dir; failed seeds are
                 # catalog-only — nothing on disk to anchor.
-                lake.cell_dir(idc, "arxiv").mkdir(parents=True,
-                                                  exist_ok=True)
+                lake.cell_dir(idc, "arxiv").mkdir(parents=True, exist_ok=True)
             continue
         base = cat_rows.get(idc) or {}
         new_layers = sorted(set(base.get("layers") or []) | acc["layers"])
-        new_channels = sorted(
-            set(base.get("channels") or []) | acc["channels"])
-        if (new_layers != (base.get("layers") or [])
-                or new_channels != (base.get("channels") or [])):
-            updates.append((idc, cur,
-                            {"layers": new_layers, "channels": new_channels}))
+        new_channels = sorted(set(base.get("channels") or []) | acc["channels"])
+        if new_layers != (base.get("layers") or []) or new_channels != (
+            base.get("channels") or []
+        ):
+            updates.append((idc, cur, {"layers": new_layers, "channels": new_channels}))
             stats["meta_merged"] += 1
         else:
             stats["skipped_present"] += 1
@@ -1793,13 +2003,19 @@ def register_lake_manifests(manifest_paths, index, registry=None,
         stats["emitted"] = stats["events"] = len(updates)
         if updates:
             ev = events.make_event(
-                events.T_NOTE, run=run_name, run_seq=run_seq, seq=1,
+                events.T_NOTE,
+                run=run_name,
+                run_seq=run_seq,
+                seq=1,
                 level="info",
-                text=(f"lake register: {stats['seeded_skeleton']} skeletons, "
-                      f"{stats['seeded_failed']} failed seeds, "
-                      f"{stats['meta_merged']} membership merges, "
-                      f"{stats['skipped_present']} already present, "
-                      f"{stats['quarantined']} quarantined"))
+                text=(
+                    f"lake register: {stats['seeded_skeleton']} skeletons, "
+                    f"{stats['seeded_failed']} failed seeds, "
+                    f"{stats['meta_merged']} membership merges, "
+                    f"{stats['skipped_present']} already present, "
+                    f"{stats['quarantined']} quarantined"
+                ),
+            )
             ledger.emit(ev, run_dir=rdir, sink=sink)
             stats["events"] += 1
         if sink is not None:
@@ -1818,8 +2034,7 @@ def _legacy_raw_files(cell: Path, meta: dict) -> list[Path]:
         p = cell / rf
         if p.is_file():
             return [p]
-    for name in ("raw.tar.gz", "raw.tgz", "raw.gz", "raw.pdf", "raw.tex",
-                 "raw"):
+    for name in ("raw.tar.gz", "raw.tgz", "raw.gz", "raw.pdf", "raw.tex", "raw"):
         p = cell / name
         if p.is_file():
             return [p]
@@ -1829,8 +2044,14 @@ def _legacy_raw_files(cell: Path, meta: dict) -> list[Path]:
     return []
 
 
-def absorb_corpus(bytes_root, index, registry=None, manifests=None,
-                  dry: bool = False, source: str = "arxiv") -> dict:
+def absorb_corpus(
+    bytes_root,
+    index,
+    registry=None,
+    manifests=None,
+    dry: bool = False,
+    source: str = "arxiv",
+) -> dict:
     """CAS-ify a legacy corpus tree into ``lake/corpus/{source}/`` (Phase 3).
 
     Per cell dir (both '0707.0978' and 'astro-ph--0605048' spellings pass
@@ -1861,9 +2082,17 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
     from kernel import cas, lake
 
     stats = _stats()
-    stats.update({"absorbed": 0, "already": 0, "raw_only": 0,
-                  "no_payload": [], "noncanon_dirs": [],
-                  "objs_stored": 0, "bytes_in": 0})
+    stats.update(
+        {
+            "absorbed": 0,
+            "already": 0,
+            "raw_only": 0,
+            "no_payload": [],
+            "noncanon_dirs": [],
+            "objs_stored": 0,
+            "bytes_in": 0,
+        }
+    )
     bytes_root = Path(bytes_root)
     manifested = None
     if manifests:
@@ -1875,9 +2104,13 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
                     if res.ok:
                         manifested.add(res.idc)
     run_seq, rdir, minted, rr = _ensure_import_run(
-        index, "import-lake-absorb", date=datetime.now(
-            tz=UTC).strftime("%Y-%m-%d"),
-        slug="corpus-absorb", spec_hash="corpus-absorb", dry=dry)
+        index,
+        "import-lake-absorb",
+        date=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+        slug="corpus-absorb",
+        spec_hash="corpus-absorb",
+        dry=dry,
+    )
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)
     if rr is not None and index is not None and not dry:
@@ -1889,8 +2122,12 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
     stage_root = paths.lake_tmp_dir() / "rebuild" / f"absorb-{run_seq}"
 
     def catalog_kw(idc, n_files, nbytes, state):
-        kw = {"source": source, "n_files": n_files, "bytes": nbytes,
-              "absorbed_from": str(bytes_root)}
+        kw = {
+            "source": source,
+            "n_files": n_files,
+            "bytes": nbytes,
+            "absorbed_from": str(bytes_root),
+        }
         if manifested is not None:
             kw["manifested"] = idc in manifested
         return kw
@@ -1907,22 +2144,24 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
         dest = lake.cell_dir(idc, source)
         cur = cat.state(idc)
         if lake.is_complete(idc, source) or (
-                cur == "raw_only" and (dest / "raw").exists()):
+            cur == "raw_only" and (dest / "raw").exists()
+        ):
             stats["already"] += 1
             if cur == "absent":
                 # published but never catalogued (crashed absorb) — heal
                 meta = lake._read_meta(dest)
                 n = meta.get("n_files") or 0
-                pending.append((idc, "hydrated",
-                                catalog_kw(idc, n, dir_size(dest), cur)))
+                pending.append(
+                    (idc, "hydrated", catalog_kw(idc, n, dir_size(dest), cur))
+                )
             continue
 
         meta = lake._read_meta(child)
         raws = _legacy_raw_files(child, meta)
         exdir = child / "extracted"
-        extracted = sorted(
-            p for p in exdir.rglob("*") if p.is_file()
-        ) if exdir.is_dir() else []
+        extracted = (
+            sorted(p for p in exdir.rglob("*") if p.is_file()) if exdir.is_dir() else []
+        )
         if not raws and not extracted:
             stats["no_payload"].append(child.name)
             continue
@@ -1954,15 +2193,21 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
                 cas.link_out(sha, stage / keep, kind="file")
         n = lake._payload_count(stage)
         new_meta = {
-            **meta, "idc": idc, "source": source, "n_files": n,
+            **meta,
+            "idc": idc,
+            "source": source,
+            "n_files": n,
             "raw_sha256": raw_shas[0] if len(raw_shas) == 1 else raw_shas,
-            "absorbed_from": str(child), "absorb": True,
-            "hydrated_at": round(time.time(), 3), "run_seq": run_seq,
+            "absorbed_from": str(child),
+            "absorb": True,
+            "hydrated_at": round(time.time(), 3),
+            "run_seq": run_seq,
         }
         fsutil.atomic_write(
             stage / "meta.json",
-            json.dumps(new_meta, ensure_ascii=False, sort_keys=True,
-                       indent=2).encode("utf-8"),
+            json.dumps(new_meta, ensure_ascii=False, sort_keys=True, indent=2).encode(
+                "utf-8"
+            ),
         )
         with lake.lake_lock(sid):
             if lake.is_complete(idc, source):
@@ -1977,19 +2222,24 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
         state = "hydrated" if extracted else "raw_only"
         stats["absorbed"] += 1
         stats["raw_only"] += int(not extracted)
-        pending.append(
-            (idc, state, catalog_kw(idc, n, dir_size(dest), state)))
+        pending.append((idc, state, catalog_kw(idc, n, dir_size(dest), state)))
 
     if not dry and pending:
         cat.set_bulk(pending, sink=sink, run_dir=rdir)
         stats["emitted"] = stats["events"] = len(pending)
         ev = events.make_event(
-            events.T_NOTE, run="import-lake-absorb", run_seq=run_seq, seq=1,
+            events.T_NOTE,
+            run="import-lake-absorb",
+            run_seq=run_seq,
+            seq=1,
             level="info",
-            text=(f"corpus absorb: {stats['absorbed']} cells "
-                  f"({stats['raw_only']} raw_only), {stats['already']} "
-                  f"already present, {len(stats['noncanon_dirs'])} "
-                  f"noncanon dirs, {stats['objs_stored']} objects"))
+            text=(
+                f"corpus absorb: {stats['absorbed']} cells "
+                f"({stats['raw_only']} raw_only), {stats['already']} "
+                f"already present, {len(stats['noncanon_dirs'])} "
+                f"noncanon dirs, {stats['objs_stored']} objects"
+            ),
+        )
         ledger.emit(ev, run_dir=rdir, sink=sink)
         stats["events"] += 1
         if sink is not None:
@@ -2002,6 +2252,7 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
 # ---------------------------------------------------------------------------
 # Umbrella
 # ---------------------------------------------------------------------------
+
 
 def import_all(sources: dict, index, registry=None, dry: bool = False) -> dict:
     """Drive every configured source and merge counters.
@@ -2024,8 +2275,10 @@ def import_all(sources: dict, index, registry=None, dry: bool = False) -> dict:
                 total[k] += v
 
     if sources.get("benchdb"):
-        merge("benchdb", import_benchdb(sources["benchdb"], index,
-                                        registry=registry, dry=dry))
+        merge(
+            "benchdb",
+            import_benchdb(sources["benchdb"], index, registry=registry, dry=dry),
+        )
 
     # jsonl files: one ledger run per FILE — per-file seqs can never
     # collide on (run_seq, seq). Explicit files get a name-derived run;
@@ -2056,12 +2309,15 @@ def import_all(sources: dict, index, registry=None, dry: bool = False) -> dict:
                     _add(f)
     acc = _stats()
     for f, run_name in files:
-        stage_map = (
-            {f.name: f.stem} if f.parent.name == "records" else None
+        stage_map = {f.name: f.stem} if f.parent.name == "records" else None
+        r = import_jsonl_file(
+            f,
+            run=run_name,
+            index=index,
+            stage_map=stage_map,
+            registry=registry,
+            dry=dry,
         )
-        r = import_jsonl_file(f, run=run_name, index=index,
-                              stage_map=stage_map,
-                              registry=registry, dry=dry)
         for k, v in r.items():
             if isinstance(v, int) and k in acc:
                 acc[k] += v
@@ -2074,8 +2330,9 @@ def import_all(sources: dict, index, registry=None, dry: bool = False) -> dict:
             mpath, broot_ = zs["manifest"], zs["bytes_root"]
         else:
             mpath, broot_ = zs
-        merge("zhstore", import_zhstore(mpath, broot_, index,
-                                        registry=registry, dry=dry))
+        merge(
+            "zhstore", import_zhstore(mpath, broot_, index, registry=registry, dry=dry)
+        )
     return total
 
 

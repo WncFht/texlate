@@ -43,9 +43,7 @@ def _is_xml_name(s: str) -> bool:
 def _is_xml_ncname(s: str) -> bool:
     """NCName 判定：合法 Name 且无 ``:``（QName 两段/xmlns local 的合法形）。"""
     return (
-        bool(s)
-        and s[0] in _XML_NAME_START
-        and all(c in _XML_NCNAME_CHARS for c in s)
+        bool(s) and s[0] in _XML_NAME_START and all(c in _XML_NCNAME_CHARS for c in s)
     )
 
 
@@ -73,8 +71,7 @@ def _prefix_bound(tag: Tag, prefix: str, declared: set[str]) -> bool:
     if prefix == "xml" or prefix in declared:
         return True
     return any(
-        isinstance(anc, Tag) and f"xmlns:{prefix}" in anc.attrs
-        for anc in tag.parents
+        isinstance(anc, Tag) and f"xmlns:{prefix}" in anc.attrs for anc in tag.parents
     )
 
 

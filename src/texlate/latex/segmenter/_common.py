@@ -712,6 +712,8 @@ def _call_slots(tail: list[str]) -> list[str]:
     ``_grp_call_end`` 同形（``_PEND_CALL*``/``_pend_call_slots`` 同族）。
     """
     return ["s", "o", "o", "o", *tail]
+
+
 # 字符串宏体尾 cs 提取（``_keyarg_tail`` 的 str-body 臂）
 _KEYARG_TAIL_RX = re.compile(r"\\([a-zA-Z@]+)\s*$")
 _KEYARG_TAIL_DEPTH = 4  # ``\a``→``\b``→``\ref`` 别名链递归上限（防环）

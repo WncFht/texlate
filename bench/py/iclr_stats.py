@@ -36,10 +36,23 @@ REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_iclr"
 
 BUCKETS = [
-    "abstract", "introduction", "related_work", "background", "method",
-    "theory", "experiments", "results", "ablation", "analysis",
-    "limitations", "conclusion", "acknowledgments", "reproducibility",
-    "references", "appendix", "other",
+    "abstract",
+    "introduction",
+    "related_work",
+    "background",
+    "method",
+    "theory",
+    "experiments",
+    "results",
+    "ablation",
+    "analysis",
+    "limitations",
+    "conclusion",
+    "acknowledgments",
+    "reproducibility",
+    "references",
+    "appendix",
+    "other",
 ]
 
 
@@ -57,9 +70,13 @@ def quantiles(xs: list[float]) -> dict:
         return s[f] + (s[min(f + 1, n - 1)] - s[f]) * (k - f)
 
     return {
-        "n": n, "median": round(q(0.5), 1), "p25": round(q(0.25), 1),
-        "p75": round(q(0.75), 1), "p10": round(q(0.10), 1),
-        "p90": round(q(0.90), 1), "mean": round(sum(s) / n, 1),
+        "n": n,
+        "median": round(q(0.5), 1),
+        "p25": round(q(0.25), 1),
+        "p75": round(q(0.75), 1),
+        "p10": round(q(0.10), 1),
+        "p90": round(q(0.90), 1),
+        "mean": round(sum(s) / n, 1),
     }
 
 
@@ -111,10 +128,16 @@ def main() -> None:
         if orid is None or orid not in accepted:
             unmatched["latex_no_orid"] += 1
             continue
-        rows.append({"arm": "latex", "orid": orid, "aid": aid,
-                     "year": accepted[orid]["year"],
-                     "track": accepted[orid].get("track", "unknown"),
-                     **paper_level_stats(r)})
+        rows.append(
+            {
+                "arm": "latex",
+                "orid": orid,
+                "aid": aid,
+                "year": accepted[orid]["year"],
+                "track": accepted[orid].get("track", "unknown"),
+                **paper_level_stats(r),
+            }
+        )
     for r in benchlib.read_jsonl(WORK / "sections_pdf.jsonl"):
         if r.get("status") != "ok":
             continue
@@ -122,11 +145,16 @@ def main() -> None:
         if orid not in accepted:
             unmatched["pdf_no_accepted"] += 1
             continue
-        rows.append({"arm": "pdf", "orid": orid,
-                     "aid": orid2arxiv.get(orid),
-                     "year": accepted[orid]["year"],
-                     "track": accepted[orid].get("track", "unknown"),
-                     **paper_level_stats(r)})
+        rows.append(
+            {
+                "arm": "pdf",
+                "orid": orid,
+                "aid": orid2arxiv.get(orid),
+                "year": accepted[orid]["year"],
+                "track": accepted[orid].get("track", "unknown"),
+                **paper_level_stats(r),
+            }
+        )
 
     # ---- 每篇选臂: LaTeX 优先（词数更准），无则 PDF 臂 ----
     best: dict[str, dict] = {}
@@ -171,9 +199,9 @@ def main() -> None:
                 "coverage": round(len(have) / max(len(src), 1), 3),
                 "words": quantiles([r["bucket_words"][b] for r in have]),
                 "frac_body_median": round(
-                    sorted(
-                        r["bucket_words"][b] / max(r["body"], 1) for r in have
-                    )[len(have) // 2],
+                    sorted(r["bucket_words"][b] / max(r["body"], 1) for r in have)[
+                        len(have) // 2
+                    ],
                     3,
                 ),
             }
@@ -182,9 +210,7 @@ def main() -> None:
     track_year: dict[str, dict] = defaultdict(dict)
     for y in years:
         for t in ("oral", "spotlight", "poster", "unknown"):
-            sel = [
-                r for r in papers if r["year"] == y and r["track"] == t
-            ]
+            sel = [r for r in papers if r["year"] == y and r["track"] == t]
             if len(sel) < 5:
                 continue
             track_year[y][t] = {
@@ -212,12 +238,18 @@ def main() -> None:
     calib["n_overlap"] = len(overlap)
 
     stats = {
-        "n_rows": len(rows), "unmatched": unmatched,
-        "per_year": per_year, "bucket_year": dict(bucket_year),
-        "track_year": dict(track_year), "calibration": calib,
+        "n_rows": len(rows),
+        "unmatched": unmatched,
+        "per_year": per_year,
+        "bucket_year": dict(bucket_year),
+        "track_year": dict(track_year),
+        "calibration": calib,
     }
     (WORK / "stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=1))
-    print(f"rows={len(rows)} overlap={len(overlap)} unmatched={unmatched}", file=sys.stderr)
+    print(
+        f"rows={len(rows)} overlap={len(overlap)} unmatched={unmatched}",
+        file=sys.stderr,
+    )
 
     if a.md:
         lines = ["# ICLR 章节长度统计（自动产出）\n"]

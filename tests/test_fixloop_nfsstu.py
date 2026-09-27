@@ -39,7 +39,10 @@ _DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 def test_cmd_polyfill_textprime_tu(tmp_path: Path) -> None:
     """0712.1142 形: PU-declared ``\\textprime`` TU 下补 ``\\ensuremath{'}`` 体。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
-    ctx = mk_ctx(tmp_path, err_head="LaTeX Error: Command \\textprime unavailable in encoding TU.")
+    ctx = mk_ctx(
+        tmp_path,
+        err_head="LaTeX Error: Command \\textprime unavailable in encoding TU.",
+    )
     ok, note = nfss_cmd_enc_polyfill(ctx, EngStub(), "textprime", _params())
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -51,7 +54,10 @@ def test_cmd_polyfill_textprime_tu(tmp_path: Path) -> None:
 def test_cmd_polyfill_enc_from_err_head(tmp_path: Path) -> None:
     """实报 enc 从 err_head 提取 —— 非 TU 名按实报声明。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
-    ctx = mk_ctx(tmp_path, err_head="LaTeX Error: Command \\textdprime unavailable in encoding PD1.")
+    ctx = mk_ctx(
+        tmp_path,
+        err_head="LaTeX Error: Command \\textdprime unavailable in encoding PD1.",
+    )
     ok, note = nfss_cmd_enc_polyfill(ctx, EngStub(), "textdprime", _params())
     assert ok, note
     assert "{PD1}" in (tmp_path / "main.tex").read_text()
@@ -135,7 +141,9 @@ def test_scheme_relax_unknown_enc_rewrites_sites(tmp_path: Path) -> None:
 
 def test_scheme_relax_bad_payload_declines(tmp_path: Path) -> None:
     """非 enc 名 payload → decline。"""
-    ok, note = nfss_enc_scheme_relax(mk_ctx(tmp_path), EngStub(), "t2aenc.def", _params())
+    ok, note = nfss_enc_scheme_relax(
+        mk_ctx(tmp_path), EngStub(), "t2aenc.def", _params()
+    )
     assert not ok
     assert "not an encoding name" in note
 

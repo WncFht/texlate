@@ -87,7 +87,8 @@ def test_abrace_next_denied(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     ctx = mk_ctx(
-        tmp_path, err_head="main.tex:3: Paragraph ended before \\abrace@next was complete."
+        tmp_path,
+        err_head="main.tex:3: Paragraph ended before \\abrace@next was complete.",
     )
     ok, note = para_longize(ctx, EngStub(), None, {})
     assert not ok

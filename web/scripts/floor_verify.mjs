@@ -30,9 +30,7 @@ import { chromium } from "playwright-core";
 const BASE = process.env.WEB_BASE ?? "http://localhost:5199";
 const ridx = process.argv.indexOf("--reader");
 const READER =
-    ridx < 0
-        ? null
-        : (process.argv[ridx + 1] ?? "t_0000000000000a01");
+    ridx < 0 ? null : (process.argv[ridx + 1] ?? "t_0000000000000a01");
 
 const findChromium = () => {
     const root = join(homedir(), ".cache/ms-playwright");
@@ -101,16 +99,12 @@ const browser = await chromium.launch({
 const watchErrors = (page, errs) => {
     page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
     page.on("console", (m) => {
-        if (
-            m.type() === "error" &&
-            !/Failed to load resource/.test(m.text())
-        )
+        if (m.type() === "error" && !/Failed to load resource/.test(m.text()))
             errs.push(m.text());
     });
     page.on("response", (r) => {
         const s = r.status();
-        if (s >= 400 && !exempt(r.url(), s))
-            errs.push(`${s} ${r.url()}`);
+        if (s >= 400 && !exempt(r.url(), s)) errs.push(`${s} ${r.url()}`);
     });
 };
 
@@ -168,18 +162,14 @@ async function floorLegs(route, hash) {
     const tk = await page.evaluate((vendorRe) => {
         const vend = new RegExp(vendorRe);
         const origin = (s) =>
-            s.ownerNode?.dataset?.viteDevId ??
-            s.href ??
-            "(inline)";
+            s.ownerNode?.dataset?.viteDevId ?? s.href ?? "(inline)";
         const usedBy = new Map(); // var → Set<origin>
         const defined = new Set();
         const walk = (rs, org) => {
             for (const r of rs) {
                 if (r.cssRules?.length) walk(r.cssRules, org);
                 const css = r.cssText ?? "";
-                for (const m of css.matchAll(
-                    /var\(\s*(--[\w-]+)\s*(\)|,)/g,
-                )) {
+                for (const m of css.matchAll(/var\(\s*(--[\w-]+)\s*(\)|,)/g)) {
                     if (m[2] === ")") {
                         if (!usedBy.has(m[1])) usedBy.set(m[1], new Set());
                         usedBy.get(m[1]).add(org);
@@ -202,8 +192,7 @@ async function floorLegs(route, hash) {
         const vendored = [];
         for (const [v, orgs] of usedBy) {
             if (defined.has(v)) continue;
-            ([...orgs].every((o) => vend.test(o)) ? vendored : missing)
-                .push(v);
+            ([...orgs].every((o) => vend.test(o)) ? vendored : missing).push(v);
         }
         return {
             missing,
@@ -226,22 +215,18 @@ async function floorLegs(route, hash) {
 
     const g = await page.evaluate(() => {
         const bg = (el) => getComputedStyle(el).backgroundColor;
-        const t = (c) =>
-            c === "transparent" || c === "rgba(0, 0, 0, 0)";
+        const t = (c) => c === "transparent" || c === "rgba(0, 0, 0, 0)";
         return {
             html: bg(document.documentElement),
             body: bg(document.body),
-            clear: t(bg(document.documentElement)) &&
-                t(bg(document.body)),
+            clear: t(bg(document.documentElement)) && t(bg(document.body)),
         };
     });
     leg(
         route,
         "ground",
         g.clear ? "WARN" : "PASS",
-        g.clear
-            ? "html/body 全透明——底色得有人画"
-            : `body ${g.body}`,
+        g.clear ? "html/body 全透明——底色得有人画" : `body ${g.body}`,
     );
 
     const lm = await page.evaluate(() => ({
@@ -325,14 +310,13 @@ async function floorLegs(route, hash) {
         const snapOf = (h) =>
             h.evaluate((el) => {
                 const cs = getComputedStyle(el);
-                return `${cs.cursor}|${cs.color}|${cs.backgroundColor}|` +
-                    `${cs.textDecorationLine}|${cs.outlineStyle}`;
+                return (
+                    `${cs.cursor}|${cs.color}|${cs.backgroundColor}|` +
+                    `${cs.textDecorationLine}|${cs.outlineStyle}`
+                );
             });
         const s1 = await snapOf(hovEl);
-        await page.mouse.move(
-            box.x + box.width / 2,
-            box.y + box.height / 2,
-        );
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.waitForTimeout(250);
         const s2 = await snapOf(hovEl);
         const cursor = await page.evaluate(
@@ -435,11 +419,8 @@ if (READER) {
             const shotA = await shotAt(120);
             const dLate = parseFloat(await dashAt(500));
             const shotB = await shotAt(500);
-            const st2 = await page.evaluate(() =>
-                window.__saAnim.state(),
-            );
-            const dashMoved = dEarly > 0.05 && dLate < 0.02 &&
-                dEarly > dLate;
+            const st2 = await page.evaluate(() => window.__saAnim.state());
+            const dashMoved = dEarly > 0.05 && dLate < 0.02 && dEarly > dLate;
             const pixMoved = !shotA.equals(shotB);
             leg(
                 route,
@@ -450,15 +431,11 @@ if (READER) {
             );
             await page.evaluate(() => window.__saAnim.release());
             await page.waitForTimeout(1300);
-            const st3 = await page.evaluate(() =>
-                window.__saAnim.state(),
-            );
+            const st3 = await page.evaluate(() => window.__saAnim.state());
             leg(
                 route,
                 "cleanup",
-                !st3.arc && !st3.wipes && !st3.ripple
-                    ? "PASS"
-                    : "FAIL",
+                !st3.arc && !st3.wipes && !st3.ripple ? "PASS" : "FAIL",
                 JSON.stringify(st3),
             );
         }

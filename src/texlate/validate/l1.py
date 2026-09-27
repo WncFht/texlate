@@ -209,7 +209,9 @@ class TsResult:
         if not isinstance(ok_raw, bool):
             # ``ok`` 是唯一宽容字段——``bool()`` 收编契约被 fuzz oracle 钉死，
             # 非 bool 不判违例但打 warning，让 worker 协议漂移可观测。
-            log.warning("L1 worker 响应 ok 非 bool，按 %s 收编: %r", bool(ok_raw), ok_raw)
+            log.warning(
+                "L1 worker 响应 ok 非 bool，按 %s 收编: %r", bool(ok_raw), ok_raw
+            )
         return res
 
     def to_dict(self) -> dict[str, Any]:
@@ -518,8 +520,7 @@ class TsValidator:
             if line is None:
                 self.close()
                 msg = (
-                    "L1 常驻 worker EOF（进程已退出，响应通道关闭）"
-                    f"{self._deps_hint()}"
+                    f"L1 常驻 worker EOF（进程已退出，响应通道关闭）{self._deps_hint()}"
                 )
                 raise L1Error(msg)
             try:

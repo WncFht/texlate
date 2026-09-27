@@ -39,9 +39,7 @@ def _warn_kinds(warnings: list[str]) -> set[str]:
 def _fix_ustar_checksum(raw: bytearray, off: int) -> None:
     """重算 ``off`` 处 ustar 头 checksum（直改 raw 头字段后封头必备）。"""
     chksum = (
-        sum(raw[off : off + 148])
-        + sum(b"        ")
-        + sum(raw[off + 156 : off + 512])
+        sum(raw[off : off + 148]) + sum(b"        ") + sum(raw[off + 156 : off + 512])
     )
     raw[off + 148 : off + 156] = f"{chksum:06o}\x00 ".encode()
 

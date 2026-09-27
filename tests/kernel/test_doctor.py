@@ -5,14 +5,12 @@ Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
 TEXLATE_REPO_BENCH redirects the stray-dir scan at a fake repo bench dir so
 the real checkout's contents can never flake a test.
 """
+
 from __future__ import annotations
 
-import os
-import time
 from pathlib import Path
 
-from kernel import doctor, events, index, lake, ledger, locks, paths, runs
-from kernel import vault
+from kernel import doctor, events, index, lake, ledger, locks, paths, runs, vault
 
 
 def _check(rep: dict, name: str) -> dict:
@@ -33,28 +31,53 @@ def _fake_bench(tmp_path: Path, entries=()) -> Path:
 
 def _cell_event(run: str, seq: int, idc: str, status: str) -> dict:
     return events.make_event(
-        events.T_CELL, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        up="-", variant="-", stage="xlat", status=status)
+        events.T_CELL,
+        run=run,
+        seq=seq,
+        id=idc,
+        idc=idc,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage="xlat",
+        status=status,
+    )
 
 
 def _claim_acquire(run: str, seq: int, idc: str) -> dict:
     # lifecycle claims carry no slot — slot is the paid_slots mirror stream
     return events.make_event(
-        events.T_CLAIM, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        variant="-", op="acquire")
+        events.T_CLAIM,
+        run=run,
+        seq=seq,
+        id=idc,
+        idc=idc,
+        arm="zh",
+        variant="-",
+        op="acquire",
+    )
 
 
 # --- green path -------------------------------------------------------------------
 
-def test_doctor_clean_root_all_green(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TEXLATE_REPO_BENCH",
-                       str(_fake_bench(tmp_path, ("py", "corpus"))))
+
+def test_doctor_clean_root_all_green(broot: Path, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path, ("py", "corpus")))
+    )
     rep = doctor.doctor()
     assert rep["ok"] is True, rep["checks"]
     assert _names(rep) == {
-        "layout", "root_location", "stray_dirs", "lock_invariants",
-        "ledger", "index", "paid", "capacity", "cache", "queues",
+        "layout",
+        "root_location",
+        "stray_dirs",
+        "lock_invariants",
+        "ledger",
+        "index",
+        "paid",
+        "capacity",
+        "cache",
+        "queues",
     }
     # root_location is warn-only — it can never gate (test roots live
     # inside the checkout by design)
@@ -64,8 +87,10 @@ def test_doctor_clean_root_all_green(
 
 # --- individual failure detectors ------------------------------------------------
 
+
 def test_doctor_missing_sentinel_fails_layout(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     paths.vault_sentinel_path().unlink()
     rep = doctor.doctor()
@@ -75,9 +100,10 @@ def test_doctor_missing_sentinel_fails_layout(
 
 
 def test_doctor_seqfile_divergence_fails(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
-    runs.create_run("soak", slug="s1", date="2026-09-21")   # seqfile -> 1
+    runs.create_run("soak", slug="s1", date="2026-09-21")  # seqfile -> 1
     paths.seqfile_path().write_text("99\n")
     rep = doctor.doctor()
     c = _check(rep, "ledger")
@@ -85,7 +111,8 @@ def test_doctor_seqfile_divergence_fails(
 
 
 def test_doctor_unparseable_ledger_line_fails(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     with open(paths.events_path(), "a", encoding="utf-8") as f:
         f.write("{not json}\n")
@@ -95,7 +122,8 @@ def test_doctor_unparseable_ledger_line_fails(
 
 
 def test_doctor_dirty_index_fails_index_and_paid(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     idx = index.Index()
     idx.note_dirty("test trip")
@@ -108,11 +136,13 @@ def test_doctor_dirty_index_fails_index_and_paid(
 
 
 def test_doctor_index_lag_warns_but_passes(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
-    ledger.emit(events.make_event(
-        events.T_NOTE, run="x", seq=None, text="hi", level="info"))
-    idx = index.Index()                       # fresh: watermark 0, ledger >0
+    ledger.emit(
+        events.make_event(events.T_NOTE, run="x", seq=None, text="hi", level="info")
+    )
+    idx = index.Index()  # fresh: watermark 0, ledger >0
     idx.close()
     rep = doctor.doctor()
     c = _check(rep, "index")
@@ -120,17 +150,19 @@ def test_doctor_index_lag_warns_but_passes(
 
 
 def test_doctor_run_lock_unlinked_fails(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     rd = runs.create_run("soak", slug="s1", date="2026-09-21")
-    (rd.path / ".lock").unlink()               # immortal lock violated
+    (rd.path / ".lock").unlink()  # immortal lock violated
     rep = doctor.doctor()
     c = _check(rep, "lock_invariants")
     assert c["ok"] is False and ".lock" in c["detail"]
 
 
 def test_doctor_stale_claim_flagged_then_fix_reaps(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/gone", 1, "2401.00020"))
@@ -142,27 +174,30 @@ def test_doctor_stale_claim_flagged_then_fix_reaps(
     rep2 = doctor.doctor(fix=True)
     assert any("reaped 1" in f for f in rep2["fixed"])
     reaps = [
-        e for _ln, e, _raw in events.iter_jsonl(paths.events_path())
-        if isinstance(e, dict) and e.get("type") == "claim"
-        and e.get("op") == "reap"
+        e
+        for _ln, e, _raw in events.iter_jsonl(paths.events_path())
+        if isinstance(e, dict) and e.get("type") == "claim" and e.get("op") == "reap"
     ]
     assert len(reaps) == 1 and reaps[0]["idc"] == "2401.00020"
 
 
 # --- stray dirs (report, never delete) ----------------------------------------------
 
+
 def test_doctor_stray_dir_detected_never_deleted(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     rb = _fake_bench(tmp_path, ("results", "py"))
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(rb))
     rep = doctor.doctor()
     c = _check(rep, "stray_dirs")
     assert c["ok"] is False and "results" in c["detail"]
-    assert (rb / "results").is_dir()           # reported, not deleted
+    assert (rb / "results").is_dir()  # reported, not deleted
 
 
 def test_doctor_stray_unknown_dir_reviewed_not_failed(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     rb = _fake_bench(tmp_path, ("mystery",))
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(rb))
     rep = doctor.doctor()
@@ -172,8 +207,10 @@ def test_doctor_stray_unknown_dir_reviewed_not_failed(
 
 # --- paid reconciliation (§3.10.6 ⑤) ----------------------------------------------
 
+
 def test_doctor_paid_ok_cell_without_bytes_fails(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     ledger.emit(_claim_acquire("r/2026-09-20/x", 1, "2401.00021"))
     ledger.emit(_cell_event("r/2026-09-20/x", 2, "2401.00021", "ok"))
@@ -183,7 +220,8 @@ def test_doctor_paid_ok_cell_without_bytes_fails(
 
 
 def test_doctor_paid_reconciles_after_harvest(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     ledger.emit(_claim_acquire("r/2026-09-20/x", 1, "2401.00022"))
     ledger.emit(_cell_event("r/2026-09-20/x", 2, "2401.00022", "ok"))
@@ -191,14 +229,14 @@ def test_doctor_paid_reconciles_after_harvest(
     src = tmp_path / "src" / "zh.mock"
     src.mkdir(parents=True)
     (src / "o.txt").write_text("bytes")
-    vault.harvest("2401.00022", "zh", "-", {"zh": src},
-                  source_run="r/2026-09-20/x")
+    vault.harvest("2401.00022", "zh", "-", {"zh": src}, source_run="r/2026-09-20/x")
     rep = doctor.doctor()
     assert _check(rep, "paid")["ok"] is True
 
 
 def test_doctor_paid_unpaid_bytes_is_bypass_alarm(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     """Manifest bytes with no claim-gated paid-ok cell → the alarm leg."""
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     src = tmp_path / "src" / "zh.mock"
@@ -212,8 +250,10 @@ def test_doctor_paid_unpaid_bytes_is_bypass_alarm(
 
 # --- switch-ok (§3.10.9 drain gate) ----------------------------------------------
 
+
 def test_doctor_switch_ok_blocked_while_kernel_held(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     monkeypatch.setattr(doctor, "_repo_root", lambda: tmp_path)
     with locks.kernel_active_hold():
@@ -224,7 +264,8 @@ def test_doctor_switch_ok_blocked_while_kernel_held(
 
 
 def test_doctor_switch_ok_clear_when_idle(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     monkeypatch.setattr(doctor, "_repo_root", lambda: tmp_path)
     rep = doctor.doctor(switch_ok=True)
@@ -234,31 +275,34 @@ def test_doctor_switch_ok_clear_when_idle(
 
 
 def test_doctor_switch_ok_blocked_by_active_run(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     monkeypatch.setattr(doctor, "_repo_root", lambda: tmp_path)
     rd = runs.create_run("soak", slug="live", date="2026-09-21")
     rd.heartbeat_touch()
-    with rd.lock():                            # fresh + locked = active
+    with rd.lock():  # fresh + locked = active
         rep = doctor.doctor(switch_ok=True)
     c = _check(rep, "switch_ok")
     assert c["ok"] is False and "active runs" in c["detail"]
 
 
 def test_doctor_switch_ok_blocked_by_live_lane(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     monkeypatch.setattr(doctor, "_repo_root", lambda: tmp_path)
     lane = tmp_path / "tmp" / "lane-soaktest"
     lane.mkdir(parents=True)
-    (lane / "heartbeat").touch()               # fresh heartbeat = live writer
+    (lane / "heartbeat").touch()  # fresh heartbeat = live writer
     rep = doctor.doctor(switch_ok=True)
     c = _check(rep, "switch_ok")
     assert c["ok"] is False and "lane" in c["detail"]
 
 
 def test_doctor_switch_ok_blocked_by_pause(
-        broot: Path, tmp_path: Path, monkeypatch) -> None:
+    broot: Path, tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REPO_BENCH", str(_fake_bench(tmp_path)))
     monkeypatch.setattr(doctor, "_repo_root", lambda: tmp_path)
     paths.pause_path().touch()
@@ -268,6 +312,7 @@ def test_doctor_switch_ok_blocked_by_pause(
 
 
 # --- fsck ----------------------------------------------------------------------------
+
 
 def test_fsck_clean_root(broot: Path) -> None:
     rep = doctor.fsck()
@@ -296,13 +341,23 @@ def test_fsck_dirless_catalog_row_fails(broot: Path) -> None:
 
 def test_fsck_dangling_from_run_edge_fails(broot: Path) -> None:
     rd = runs.create_run("soak", slug="edge", date="2026-09-21")
-    runs.freeze_plan(rd, [{
-        "id": "2401.00026", "idc": "2401.00026", "arm": "zh", "up": "-",
-        "variant": "-", "stage": "xlat",
-        "needs": [{"run": "ghost/2026-01-01/x", "idc": "2401.00027",
-                   "stage": "xlat"}],
-        "fp_input": None,
-    }])
+    runs.freeze_plan(
+        rd,
+        [
+            {
+                "id": "2401.00026",
+                "idc": "2401.00026",
+                "arm": "zh",
+                "up": "-",
+                "variant": "-",
+                "stage": "xlat",
+                "needs": [
+                    {"run": "ghost/2026-01-01/x", "idc": "2401.00027", "stage": "xlat"}
+                ],
+                "fp_input": None,
+            }
+        ],
+    )
     rep = doctor.fsck()
     c = _check(rep, "from_run_edges")
     assert c["ok"] is False and "ghost/2026-01-01/x" in c["detail"]

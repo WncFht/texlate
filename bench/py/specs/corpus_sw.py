@@ -45,6 +45,7 @@ manifest_dev_recent ids ∪ 其他 manifest ids ∪ 已 complete 湖格，逐 rg
 - footers.json 始终是「已缓存分片的最大编目」；--shards 收窄只作用于
   抓取与 pool/rehydrate 行组过滤，不把编目写窄。
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -67,9 +68,7 @@ from pathlib import Path
 # （parsebench 同款先例）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
@@ -111,8 +110,22 @@ DOCCLASS_RX = re.compile(
     re.DOTALL,
 )
 TEXT_EXT = {
-    ".tex", ".sty", ".cls", ".bbl", ".bib", ".txt", ".def", ".clo",
-    ".cfg", ".ltx", ".dtx", ".ins", ".fd", ".bst", ".mf", ".mac",
+    ".tex",
+    ".sty",
+    ".cls",
+    ".bbl",
+    ".bib",
+    ".txt",
+    ".def",
+    ".clo",
+    ".cfg",
+    ".ltx",
+    ".dtx",
+    ".ins",
+    ".fd",
+    ".bst",
+    ".mf",
+    ".mac",
 }
 
 # ---------------------------------------------------------------- 小工具
@@ -204,8 +217,7 @@ def split_files(latex: str) -> dict[str, str]:
         end = marks[idx + 1].start() if idx + 1 < len(marks) else len(latex)
         body = latex[m.end() : end]
         # 路径消毒：禁绝对路径/../；重名追加序号
-        parts = [p for p in name.replace("\\", "/").split("/")
-                 if p not in ("", ".")]
+        parts = [p for p in name.replace("\\", "/").split("/") if p not in ("", ".")]
         if not parts or any(p == ".." for p in parts):
             name = f"file_{idx}"
         else:
@@ -226,13 +238,11 @@ def _reduced_features(files: dict[str, str]) -> dict:
     \\documentclass/\\documentstyle 的 .tex relpath）——main_tex_sha256
     的唯一消费点。input_depth/flags*/signatures 未移植（见模块 doc）。
     """
-    tex_texts = {p: t for p, t in files.items()
-                 if Path(p).suffix.lower() == ".tex"}
+    tex_texts = {p: t for p, t in files.items() if Path(p).suffix.lower() == ".tex"}
     blob_txt = strip_comments("\n".join(tex_texts.values()))
     dcls_ms = list(DOCCLASS_RX.finditer(blob_txt))
     roots = sorted(
-        p for p, t in tex_texts.items()
-        if DOCCLASS_RX.search(strip_comments(t))
+        p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))
     )
     return {
         "docclasses": sorted({m.group(3).strip() for m in dcls_ms}),
@@ -273,11 +283,16 @@ def _hf_env() -> dict:
 
 def _hf_argv(*wargs) -> list[str]:
     return [
-        "uv", "run",
-        "--with", "pyarrow",
-        "--with", "fsspec[http]",
-        "python", str(Path(__file__).resolve()),
-        "--worker", *[str(w) for w in wargs],
+        "uv",
+        "run",
+        "--with",
+        "pyarrow",
+        "--with",
+        "fsspec[http]",
+        "python",
+        str(Path(__file__).resolve()),
+        "--worker",
+        *[str(w) for w in wargs],
     ]
 
 
@@ -285,8 +300,12 @@ def _hf_run(wargs, timeout_s: int):
     """一次 worker 调用 → (rc, stderr_tail)。TimeoutExpired → rc=124。"""
     try:
         cp = subprocess.run(
-            _hf_argv(*wargs), env=_hf_env(), capture_output=True,
-            text=True, timeout=timeout_s)
+            _hf_argv(*wargs),
+            env=_hf_env(),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
         return cp.returncode, (cp.stderr or "")[-600:]
     except subprocess.TimeoutExpired:
         return 124, "timeout"
@@ -306,19 +325,22 @@ def _w_footer(shard: int, out: Path) -> int:
     with fsspec.open(SHARD_URL.format(shard), "rb") as f:
         md = pq.ParquetFile(f).metadata
     cidx = next(
-        i for i in range(md.num_columns)
-        if md.schema.column(i).name == "yymm_id"
+        i for i in range(md.num_columns) if md.schema.column(i).name == "yymm_id"
     )
     rgs = []
     for i in range(md.num_row_groups):
         rg = md.row_group(i)
         try:
             st = rg.column(cidx).statistics
-            rgs.append({
-                "i": i, "rows": rg.num_rows,
-                "ymin": st.min, "ymax": st.max,
-                "mb": round(rg.total_byte_size / 1e6, 1),
-            })
+            rgs.append(
+                {
+                    "i": i,
+                    "rows": rg.num_rows,
+                    "ymin": st.min,
+                    "ymax": st.max,
+                    "mb": round(rg.total_byte_size / 1e6, 1),
+                }
+            )
         except Exception:
             rgs.append({"i": i, "rows": rg.num_rows, "ymin": "", "ymax": ""})
     _atomic_text(out, json.dumps({"rows": md.num_rows, "rgs": rgs}))
@@ -335,9 +357,12 @@ def _w_pool(shard: int, rg: int, min_yymm: str, out: Path) -> int:
         t = pq.ParquetFile(f).read_row_group(rg, columns=cols)
     rows = [
         {
-            "id": r["id"], "yymm_id": r["yymm_id"],
-            "cats": r["categories"], "lic": r["license"],
-            "shard": shard, "rg": rg,
+            "id": r["id"],
+            "yymm_id": r["yymm_id"],
+            "cats": r["categories"],
+            "lic": r["license"],
+            "shard": shard,
+            "rg": rg,
         }
         for r in t.to_pylist()
         if yymm_recent(r["yymm_id"], min_yymm)
@@ -351,11 +376,20 @@ def _w_rgrows(shard: int, rg: int, want_file: Path, out: Path) -> int:
     import fsspec
     import pyarrow.parquet as pq
 
-    want = {x.strip() for x in
-            want_file.read_text(encoding="utf-8").splitlines() if x.strip()}
+    want = {
+        x.strip()
+        for x in want_file.read_text(encoding="utf-8").splitlines()
+        if x.strip()
+    }
     cols = [
-        "id", "yymm_id", "categories", "license",
-        "version", "created", "update_date", "latex",
+        "id",
+        "yymm_id",
+        "categories",
+        "license",
+        "version",
+        "created",
+        "update_date",
+        "latex",
     ]
     with fsspec.open(SHARD_URL.format(shard), "rb") as f:
         t = pq.ParquetFile(f).read_row_group(rg, columns=cols)
@@ -375,18 +409,17 @@ def _worker_cli(argv: list) -> int:
         sys.stderr.write(
             "usage: corpus_sw.py --worker footer <shard> <out> | "
             "pool <shard> <rg> <min_yymm> <out> | "
-            "rgrows <shard> <rg> <want_file> <out>\n")
+            "rgrows <shard> <rg> <want_file> <out>\n"
+        )
         return 2
     op = argv[2]
     try:
         if op == "footer" and len(argv) == 5:
             return _w_footer(int(argv[3]), Path(argv[4]))
         if op == "pool" and len(argv) == 7:
-            return _w_pool(int(argv[3]), int(argv[4]), argv[5],
-                           Path(argv[6]))
+            return _w_pool(int(argv[3]), int(argv[4]), argv[5], Path(argv[6]))
         if op == "rgrows" and len(argv) == 7:
-            return _w_rgrows(int(argv[3]), int(argv[4]),
-                             Path(argv[5]), Path(argv[6]))
+            return _w_rgrows(int(argv[3]), int(argv[4]), Path(argv[5]), Path(argv[6]))
     except ImportError as e:
         sys.stderr.write(f"import gate: {e}\n")
         return 3
@@ -422,8 +455,7 @@ def _manifest_row(meta: dict, pid: str, ext: Path | None) -> dict:
     roots = (meta.get("features") or {}).get("tex_roots") or []
     main_sha = None
     if ext is not None and len(roots) == 1 and (ext / roots[0]).exists():
-        main_sha = hashlib.sha256(
-            (ext / roots[0]).read_bytes()).hexdigest()
+        main_sha = hashlib.sha256((ext / roots[0]).read_bytes()).hexdigest()
     return {
         "id": pid,
         "era": meta.get("era"),
@@ -470,8 +502,7 @@ def _footers(ctx):
     重写——shards 收窄只少抓，不写窄编目。
     """
     if shutil.which("uv") is None:
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
+        return {"status": "error", "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
     sw = _sw()
     fdir = sw / "footers"
     fdir.mkdir(parents=True, exist_ok=True)
@@ -486,16 +517,24 @@ def _footers(ctx):
             continue
         rc, tail = _hf_run(("footer", n, out), timeout_s=300)
         if rc != 0 or not out.exists():
-            ctx.emit({"stage": "footers", "metric": "sw_footer",
-                      "shard": n, "rc": rc, "err": tail})
-            return {"status": "error",
-                    "errors": [{"cat": "upstream",
-                                "msg": f"footer {n:04d} rc={rc}: {tail}"}],
-                    "metrics": {"shard": n, "fetched": fetched,
-                                "cached": cached}}
+            ctx.emit(
+                {
+                    "stage": "footers",
+                    "metric": "sw_footer",
+                    "shard": n,
+                    "rc": rc,
+                    "err": tail,
+                }
+            )
+            return {
+                "status": "error",
+                "errors": [
+                    {"cat": "upstream", "msg": f"footer {n:04d} rc={rc}: {tail}"}
+                ],
+                "metrics": {"shard": n, "fetched": fetched, "cached": cached},
+            }
         fetched += 1
-        ctx.emit({"stage": "footers", "metric": "sw_footer",
-                  "shard": n, "rc": 0})
+        ctx.emit({"stage": "footers", "metric": "sw_footer", "shard": n, "rc": 0})
     cat = {}
     for fp in sorted(fdir.glob("*.json")):
         try:
@@ -505,17 +544,24 @@ def _footers(ctx):
     _atomic_text(sw / "footers.json", json.dumps(cat, indent=1) + "\n")
     min_yymm = str(ctx.params.get("min_yymm") or "2501")
     recent = sum(
-        1 for s in cat.values() for r in s["rgs"]
+        1
+        for s in cat.values()
+        for r in s["rgs"]
         if yymm_recent(r.get("ymax"), min_yymm)
     )
-    return {"status": "ok",
-            "metrics": {"shards": len(cat), "fetched": fetched,
-                        "cached": cached, "recent_rgs": recent,
-                        "footers": str(sw / "footers.json")}}
+    return {
+        "status": "ok",
+        "metrics": {
+            "shards": len(cat),
+            "fetched": fetched,
+            "cached": cached,
+            "recent_rgs": recent,
+            "footers": str(sw / "footers.json"),
+        },
+    }
 
 
-def _recent_rgs(cat: dict, min_yymm: str,
-                shard_set: set[int] | None) -> list[dict]:
+def _recent_rgs(cat: dict, min_yymm: str, shard_set: set[int] | None) -> list[dict]:
     out = [
         {"shard": int(sn), **r}
         for sn, s in cat.items()
@@ -531,11 +577,9 @@ def _pool(ctx):
     sw = _sw()
     fp = sw / "footers.json"
     if not fp.exists():
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": f"missing {fp}"}]}
+        return {"status": "error", "errors": [{"cat": "env", "msg": f"missing {fp}"}]}
     if shutil.which("uv") is None:
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
+        return {"status": "error", "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
     cat = json.loads(fp.read_text())
     min_yymm = str(ctx.params.get("min_yymm") or "2501")
     rgs = _recent_rgs(cat, min_yymm, _shard_set(ctx))
@@ -550,30 +594,51 @@ def _pool(ctx):
         sn, i = ent["shard"], ent["i"]
         cache = pdir / f"{sn:04d}_{i:03d}.jsonl"
         if not cache.exists():
-            rc, tail = _hf_run(("pool", sn, i, min_yymm, cache),
-                               timeout_s=600)
+            rc, tail = _hf_run(("pool", sn, i, min_yymm, cache), timeout_s=600)
             if rc != 0 or not cache.exists():
-                ctx.emit({"stage": "pool", "metric": "sw_pool_rg",
-                          "shard": sn, "rg": i, "rc": rc, "err": tail})
-                return {"status": "error",
-                        "errors": [{"cat": "upstream",
-                                    "msg": f"pool {sn:04d}/{i} rc={rc}: "
-                                           f"{tail}"}],
-                        "metrics": {"n_rows": n_rows, "fetched": fetched,
-                                    "cached": cached}}
+                ctx.emit(
+                    {
+                        "stage": "pool",
+                        "metric": "sw_pool_rg",
+                        "shard": sn,
+                        "rg": i,
+                        "rc": rc,
+                        "err": tail,
+                    }
+                )
+                return {
+                    "status": "error",
+                    "errors": [
+                        {"cat": "upstream", "msg": f"pool {sn:04d}/{i} rc={rc}: {tail}"}
+                    ],
+                    "metrics": {"n_rows": n_rows, "fetched": fetched, "cached": cached},
+                }
             fetched += 1
         else:
             cached += 1
         part = [ln for ln in cache.read_text().splitlines() if ln.strip()]
         lines.extend(part)
         n_rows += len(part)
-        ctx.emit({"stage": "pool", "metric": "sw_pool_rg",
-                  "shard": sn, "rg": i, "rows": len(part)})
+        ctx.emit(
+            {
+                "stage": "pool",
+                "metric": "sw_pool_rg",
+                "shard": sn,
+                "rg": i,
+                "rows": len(part),
+            }
+        )
     _atomic_text(sw / "pool.jsonl", "\n".join(lines) + ("\n" if lines else ""))
-    return {"status": "ok",
-            "metrics": {"n_rows": n_rows, "rgs": len(rgs),
-                        "fetched": fetched, "cached": cached,
-                        "pool": str(sw / "pool.jsonl")}}
+    return {
+        "status": "ok",
+        "metrics": {
+            "n_rows": n_rows,
+            "rgs": len(rgs),
+            "fetched": fetched,
+            "cached": cached,
+            "pool": str(sw / "pool.jsonl"),
+        },
+    }
 
 
 def _assign(ctx):
@@ -581,8 +646,10 @@ def _assign(ctx):
     sw = _sw()
     pool_path = sw / "pool.jsonl"
     if not pool_path.exists():
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": f"missing {pool_path}"}]}
+        return {
+            "status": "error",
+            "errors": [{"cat": "env", "msg": f"missing {pool_path}"}],
+        }
     rng = random.Random(int(ctx.params.get("seed") or 42))
     n_sw = int(ctx.params.get("n_sw") or 1200)
     n_ho = int(ctx.params.get("n_ep_holdout") or 300)
@@ -595,9 +662,11 @@ def _assign(ctx):
         by_month[r["yymm_id"][:4]].append(r)
     months = sorted(by_month)
     if not months:
-        return {"status": "error",
-                "errors": [{"cat": "empty", "msg": "pool has no months"}],
-                "metrics": {"pool": len(pool)}}
+        return {
+            "status": "error",
+            "errors": [{"cat": "empty", "msg": "pool has no months"}],
+            "metrics": {"pool": len(pool)},
+        }
 
     # 脱水臂：每月 1 个行组（rg 是该月内连续 id 段），组内均匀采样
     sw_picks: list[dict] = []
@@ -611,11 +680,15 @@ def _assign(ctx):
         rng.shuffle(cand)
         for r in cand[:per_month]:
             used_ids.add(r["id"])
-            sw_picks.append({
-                "id": r["id"], "yymm": m,
-                "cat_group": cat_group_of(r["cats"]),
-                "shard": r["shard"], "rg": r["rg"],
-            })
+            sw_picks.append(
+                {
+                    "id": r["id"],
+                    "yymm": m,
+                    "cat_group": cat_group_of(r["cats"]),
+                    "shard": r["shard"],
+                    "rg": r["rg"],
+                }
+            )
 
     # eprint 臂：剩余全池按月分层均匀切 holdout/dev_recent 两段
     ep_pool = [r for r in pool if r["id"] not in used_ids]
@@ -630,12 +703,14 @@ def _assign(ctx):
     dr: list[dict] = []
     for m in months:
         cand = ep_by_month.get(m, [])
-        ho.extend({"id": r["id"], "yymm": m,
-                   "cat_group": cat_group_of(r["cats"])}
-                  for r in cand[:per_m_ho])
-        dr.extend({"id": r["id"], "yymm": m,
-                   "cat_group": cat_group_of(r["cats"])}
-                  for r in cand[per_m_ho: per_m_ho + per_m_dr])
+        ho.extend(
+            {"id": r["id"], "yymm": m, "cat_group": cat_group_of(r["cats"])}
+            for r in cand[:per_m_ho]
+        )
+        dr.extend(
+            {"id": r["id"], "yymm": m, "cat_group": cat_group_of(r["cats"])}
+            for r in cand[per_m_ho : per_m_ho + per_m_dr]
+        )
     rng.shuffle(ho)
     rng.shuffle(dr)
     ho, dr = ho[:n_ho], dr[:n_dr]
@@ -643,23 +718,31 @@ def _assign(ctx):
     out_sw = sw / "assign_sw.jsonl"
     out_ho = sw / "assign_holdout.jsonl"
     out_dr = sw / "assign_dev_recent.jsonl"
-    _atomic_text(out_sw, "".join(
-        json.dumps(x, ensure_ascii=False) + "\n" for x in sw_picks))
-    _atomic_text(out_ho, "".join(
-        json.dumps(x, ensure_ascii=False) + "\n" for x in ho))
-    _atomic_text(out_dr, "".join(
-        json.dumps(x, ensure_ascii=False) + "\n" for x in dr))
-    return {"status": "ok",
-            "metrics": {"pool": len(pool), "months": len(months),
-                        "month_first": months[0], "month_last": months[-1],
-                        "n_sw": len(sw_picks), "n_ep_holdout": len(ho),
-                        "n_ep_devrecent": len(dr),
-                        "assign_sw": str(out_sw), "assign_holdout": str(out_ho),
-                        "assign_dev_recent": str(out_dr)}}
+    _atomic_text(
+        out_sw, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in sw_picks)
+    )
+    _atomic_text(out_ho, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in ho))
+    _atomic_text(out_dr, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in dr))
+    return {
+        "status": "ok",
+        "metrics": {
+            "pool": len(pool),
+            "months": len(months),
+            "month_first": months[0],
+            "month_last": months[-1],
+            "n_sw": len(sw_picks),
+            "n_ep_holdout": len(ho),
+            "n_ep_devrecent": len(dr),
+            "assign_sw": str(out_sw),
+            "assign_holdout": str(out_ho),
+            "assign_dev_recent": str(out_dr),
+        },
+    }
 
 
-def _meta_extra(r: dict, files: dict[str, str], sha: str, blob_n: int,
-                tex_n: int) -> dict:
+def _meta_extra(
+    r: dict, files: dict[str, str], sha: str, blob_n: int, tex_n: int
+) -> dict:
     """湖格 meta.json 的 fetch_fn 贡献——hydrate 自管 idc/source/n_files/
     hydrated_at/run_seq，这里给其余全字段（含 figures_stripped 契约）。"""
     pid = r["id"]
@@ -703,6 +786,7 @@ def _meta_extra(r: dict, files: dict[str, str], sha: str, blob_n: int,
 
 def _fetch_for(r: dict, files: dict[str, str]):
     """行 + 拆包结果 → lake.hydrate 的 fetch_fn（extracted/ + raw/ 双写）。"""
+
     def fetch(_idc: str, stage: Path) -> dict:
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
@@ -724,6 +808,7 @@ def _fetch_for(r: dict, files: dict[str, str]):
             fp.write_text(text, encoding="utf-8", errors="replace")
         tex_n = sum(1 for p in files if p.lower().endswith(".tex"))
         return _meta_extra(r, files, sha, len(blob), tex_n)
+
     return fetch
 
 
@@ -737,11 +822,12 @@ def _rehydrate(ctx):
     sw = _sw()
     apath = sw / "assign_sw.jsonl"
     if not apath.exists():
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": f"missing {apath}"}]}
+        return {
+            "status": "error",
+            "errors": [{"cat": "env", "msg": f"missing {apath}"}],
+        }
     if shutil.which("uv") is None:
-        return {"status": "error",
-                "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
+        return {"status": "error", "errors": [{"cat": "env", "msg": "uv not on PATH"}]}
     picks = [p for p in _iter_jsonl(apath) if p.get("id")]
     done = _manifest_ids(MANIFEST_OUT) if MANIFEST_OUT.exists() else set()
     taken = _all_manifest_ids()  # 含 done——manifest 过的 id 一律不碰
@@ -776,10 +862,11 @@ def _rehydrate(ctx):
                     meta = {}
                     with contextlib.suppress(OSError, ValueError):
                         meta = json.loads(
-                            (lake.cell_dir(idc) / "meta.json")
-                            .read_text(encoding="utf-8"))
-                    row = _manifest_row(meta, p["id"],
-                                        lake.cell_dir(idc) / "extracted")
+                            (lake.cell_dir(idc) / "meta.json").read_text(
+                                encoding="utf-8"
+                            )
+                        )
+                    row = _manifest_row(meta, p["id"], lake.cell_dir(idc) / "extracted")
                     mf.write(json.dumps(row, ensure_ascii=False) + "\n")
                     mf.flush()
                     n_heal += 1
@@ -788,32 +875,43 @@ def _rehydrate(ctx):
             if pending:
                 want_f = ws / f"want_{sn:04d}_{rgi:03d}.txt"
                 want_f.write_text(
-                    "".join(p["id"] + "\n" for p in pending),
-                    encoding="utf-8")
+                    "".join(p["id"] + "\n" for p in pending), encoding="utf-8"
+                )
                 rows_f = ws / f"rg_{sn:04d}_{rgi:03d}.jsonl"
                 ok_rg = False
                 for attempt in range(RG_ATTEMPTS):
                     rc, tail = _hf_run(
-                        ("rgrows", sn, rgi, want_f, rows_f),
-                        timeout_s=1800)
+                        ("rgrows", sn, rgi, want_f, rows_f), timeout_s=1800
+                    )
                     if rc == 0 and rows_f.exists():
                         ok_rg = True
                         break
-                    ctx.emit({"stage": "rehydrate",
-                              "metric": "sw_rg_retry",
-                              "shard": sn, "rg": rgi,
-                              "attempt": attempt + 1, "rc": rc,
-                              "err": tail})
+                    ctx.emit(
+                        {
+                            "stage": "rehydrate",
+                            "metric": "sw_rg_retry",
+                            "shard": sn,
+                            "rg": rgi,
+                            "attempt": attempt + 1,
+                            "rc": rc,
+                            "err": tail,
+                        }
+                    )
                     if attempt + 1 < RG_ATTEMPTS:
                         time.sleep(15 * (attempt + 1))
                 if not ok_rg:
                     n_err += len(pending)
-                    ctx.emit({"stage": "rehydrate",
-                              "metric": "sw_rg_fail",
-                              "shard": sn, "rg": rgi, "lost": len(pending)})
+                    ctx.emit(
+                        {
+                            "stage": "rehydrate",
+                            "metric": "sw_rg_fail",
+                            "shard": sn,
+                            "rg": rgi,
+                            "lost": len(pending),
+                        }
+                    )
                     continue
-                rows = {r["id"]: r for r in _iter_jsonl(rows_f)
-                        if r.get("id")}
+                rows = {r["id"]: r for r in _iter_jsonl(rows_f) if r.get("id")}
                 for p in pending:
                     r = rows.get(p["id"])
                     if r is None:
@@ -828,13 +926,20 @@ def _rehydrate(ctx):
                     idc = _canon(p["id"])
                     try:
                         d = lake.hydrate(
-                            idc, fetch_fn=_fetch_for(r, files),
-                            source="arxiv", run_seq=run_seq)
+                            idc,
+                            fetch_fn=_fetch_for(r, files),
+                            source="arxiv",
+                            run_seq=run_seq,
+                        )
                     except Exception as e:
-                        ctx.emit({"stage": "rehydrate",
-                                  "metric": "sw_cell_err",
-                                  "id": p["id"],
-                                  "err": f"{type(e).__name__}: {e}"})
+                        ctx.emit(
+                            {
+                                "stage": "rehydrate",
+                                "metric": "sw_cell_err",
+                                "id": p["id"],
+                                "err": f"{type(e).__name__}: {e}",
+                            }
+                        )
                         n_err += 1
                         continue
                     if d is None or not lake.is_complete(idc):
@@ -843,36 +948,56 @@ def _rehydrate(ctx):
                     # raw 是重打包文本树（非网络可再生的零成本件）——
                     # catalog 标 regen_cost=network，驱逐永不先逐 raw。
                     base = cat.rows().get(idc) or {}
-                    layers = sorted(
-                        set(base.get("layers") or []) | {LAYER})
-                    channels = sorted(
-                        set(base.get("channels") or []) | {CHANNEL})
+                    layers = sorted(set(base.get("layers") or []) | {LAYER})
+                    channels = sorted(set(base.get("channels") or []) | {CHANNEL})
                     # 写死 "hydrated"——本 cat 实例在段头 load，hydrate 内部
                     # 是自己的实例；拿陈旧 state() 会把刚落的行打回 absent。
-                    cat.set(idc, "hydrated", source="arxiv",
-                            regen_cost="network", layers=layers,
-                            channels=channels)
+                    cat.set(
+                        idc,
+                        "hydrated",
+                        source="arxiv",
+                        regen_cost="network",
+                        layers=layers,
+                        channels=channels,
+                    )
                     meta = {}
                     with contextlib.suppress(OSError, ValueError):
-                        meta = json.loads(
-                            (d / "meta.json").read_text(encoding="utf-8"))
+                        meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
                     row = _manifest_row(meta, p["id"], d / "extracted")
                     mf.write(json.dumps(row, ensure_ascii=False) + "\n")
                     mf.flush()
                     n_ok += 1
-            ctx.emit({"stage": "rehydrate", "metric": "sw_rg",
-                      "shard": sn, "rg": rgi, "ok": n_ok,
-                      "skip": n_skip, "err": n_err, "heal": n_heal})
+            ctx.emit(
+                {
+                    "stage": "rehydrate",
+                    "metric": "sw_rg",
+                    "shard": sn,
+                    "rg": rgi,
+                    "ok": n_ok,
+                    "skip": n_skip,
+                    "err": n_err,
+                    "heal": n_heal,
+                }
+            )
             if limit and n_ok >= limit:
                 stop = True
                 break
     status = "error" if n_err else "ok"
-    return {"status": status,
-            "metrics": {"picks": len(picks), "n_ok": n_ok, "n_skip": n_skip,
-                        "n_err": n_err, "n_heal": n_heal,
-                        "n_done": n_done, "n_taken": n_taken,
-                        "rgs": len(by_rg), "limit_hit": int(stop),
-                        "manifest": str(MANIFEST_OUT)}}
+    return {
+        "status": status,
+        "metrics": {
+            "picks": len(picks),
+            "n_ok": n_ok,
+            "n_skip": n_skip,
+            "n_err": n_err,
+            "n_heal": n_heal,
+            "n_done": n_done,
+            "n_taken": n_taken,
+            "rgs": len(by_rg),
+            "limit_hit": int(stop),
+            "manifest": str(MANIFEST_OUT),
+        },
+    }
 
 
 def _report(ctx):
@@ -880,19 +1005,26 @@ def _report(ctx):
     rows = list(_iter_jsonl(MANIFEST_OUT)) if MANIFEST_OUT.exists() else []
     months = Counter(r.get("yymm") for r in rows)
     cats = Counter(r.get("cat_group") for r in rows)
-    ctx.emit({"stage": "report", "metric": "sw_report",
-              "n": len(rows),
-              "months": dict(sorted(months.items())),
-              "cats": dict(cats.most_common())})
-    return {"status": "ok",
-            "metrics": {"n_rows": len(rows),
-                        "months": dict(sorted(months.items())),
-                        "cat_groups": dict(cats.most_common()),
-                        "sum_mb": round(
-                            sum(r.get("bytes") or 0 for r in rows)
-                            / 1e6, 1),
-                        "sum_tex": sum(r.get("n_tex") or 0 for r in rows),
-                        "manifest": str(MANIFEST_OUT)}}
+    ctx.emit(
+        {
+            "stage": "report",
+            "metric": "sw_report",
+            "n": len(rows),
+            "months": dict(sorted(months.items())),
+            "cats": dict(cats.most_common()),
+        }
+    )
+    return {
+        "status": "ok",
+        "metrics": {
+            "n_rows": len(rows),
+            "months": dict(sorted(months.items())),
+            "cat_groups": dict(cats.most_common()),
+            "sum_mb": round(sum(r.get("bytes") or 0 for r in rows) / 1e6, 1),
+            "sum_tex": sum(r.get("n_tex") or 0 for r in rows),
+            "manifest": str(MANIFEST_OUT),
+        },
+    }
 
 
 spec = Spec(
@@ -913,21 +1045,37 @@ spec = Spec(
         "rg_limit": Param(type=int, default=0, fp=False),
     },
     stages=[
-        Stage("footers", _footers, status_class={
-            "ok": "terminal", "error": "retriable"}),
-        Stage("pool", _pool, needs=[("footers", {"ok"})], status_class={
-            "ok": "terminal", "error": "retriable"}),
-        Stage("assign", _assign, needs=[("pool", {"ok"})], status_class={
-            "ok": "terminal", "error": "retriable"}),
-        Stage("rehydrate", _rehydrate, needs=[("assign", {"ok"})],
-              status_class={
-                  "ok": "terminal", "error": "retriable"}),
+        Stage(
+            "footers", _footers, status_class={"ok": "terminal", "error": "retriable"}
+        ),
+        Stage(
+            "pool",
+            _pool,
+            needs=[("footers", {"ok"})],
+            status_class={"ok": "terminal", "error": "retriable"},
+        ),
+        Stage(
+            "assign",
+            _assign,
+            needs=[("pool", {"ok"})],
+            status_class={"ok": "terminal", "error": "retriable"},
+        ),
+        Stage(
+            "rehydrate",
+            _rehydrate,
+            needs=[("assign", {"ok"})],
+            status_class={"ok": "terminal", "error": "retriable"},
+        ),
         # needs 闸只认 DONE 行（_needs_eval statuses=STATUS_DONE）——
         # retriable error 永远喂不饱 accept，故 report 只接 ok；部分失败的
         # 面由 rehydrate 自己的 error+metrics 背，下轮 run 续跑收敛后
         # report 自然放行。
-        Stage("report", _report, needs=[("rehydrate", {"ok"})],
-              status_class={"ok": "terminal", "error": "retriable"}),
+        Stage(
+            "report",
+            _report,
+            needs=[("rehydrate", {"ok"})],
+            status_class={"ok": "terminal", "error": "retriable"},
+        ),
     ],
     lake=True,
     prefetch=False,  # builder 段内自管 hydrate——预取器对本 spec 无的放矢

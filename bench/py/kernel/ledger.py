@@ -26,6 +26,7 @@ and the grace age passes — the "index watermark passed" leg is NOT
 implementable yet (no index module exists); callers must gate on it
 externally until then.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -246,9 +247,12 @@ def append_run_row(row: dict) -> int:
     runs.jsonl is a report-only projection — it is NEVER a minting input.
     Returns the byte offset of the written line.
     """
-    line = json.dumps(
-        row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8") + b"\n"
+    line = (
+        json.dumps(
+            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        + b"\n"
+    )
     with _ledger_lock():
         return _append_payload_locked(paths.runs_jsonl_path(), line)
 
@@ -373,26 +377,31 @@ def mint_run_seq(run: str, kind: str, date: str, slug: str, spec_hash: str) -> i
                 if isinstance(prev, dict) and prev.get("type") == T_RUN_REGISTERED:
                     msg = (
                         f"{rdir} shard already bound to run "
-                                                f"{prev.get('run')!r} (run_seq="
-                                                f"{prev.get('run_seq')!r}) — refusing to share a "
-                                                "shard across runs"
+                        f"{prev.get('run')!r} (run_seq="
+                        f"{prev.get('run_seq')!r}) — refusing to share a "
+                        "shard across runs"
                     )
-                    raise EventError(
-                        msg
-                    )
+                    raise EventError(msg)
         _emit_lines_locked([dumps(ev).encode("utf-8") + b"\n"], rdir)
         # runs.jsonl is report-only but the §3.10.5 doctor invariant expects
         # mint parity — every mint (real-run AND import-run path) appends
         # its row in the same lock window.
         row = {
-            "run": run, "run_seq": n, "kind": kind, "date": date,
-            "slug": slug, "spec_hash": spec_hash,
+            "run": run,
+            "run_seq": n,
+            "kind": kind,
+            "date": date,
+            "slug": slug,
+            "spec_hash": spec_hash,
             "ts_start": ev["ts_start"],
         }
         _append_payload_locked(
             paths.runs_jsonl_path(),
-            json.dumps(row, ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":")).encode("utf-8") + b"\n")
+            json.dumps(
+                row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+            + b"\n",
+        )
         _fsync_dir(rdir)  # dirent durability for the freshly created run dir
         return n
 
@@ -704,9 +713,12 @@ def _last_seal_zst_sha() -> str:
 
 
 def _append_jsonl_row(path: Path, row: dict) -> int:
-    line = json.dumps(
-        row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8") + b"\n"
+    line = (
+        json.dumps(
+            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        + b"\n"
+    )
     return _append_payload_locked(path, line)
 
 
@@ -795,9 +807,7 @@ def seal_if_needed(
         os.rename(hot, raw_dst)
         try:
             zst = _zstd_compress(raw_dst)
-            _append_jsonl_row(
-                paths.seals_path(), _seals_row_for(zst, stats, now)
-            )
+            _append_jsonl_row(paths.seals_path(), _seals_row_for(zst, stats, now))
         finally:
             _recreate_hot_tail(hot)  # emitters must never see a missing tail
         _fsync_dir(paths.ledger_dir())
@@ -805,8 +815,12 @@ def seal_if_needed(
         return zst
 
 
-def seal_gc(now_ts: float | None = None, min_age_s: float = SEAL_GC_MIN_AGE_S,
-            *, ingested: set | None = None) -> list[Path]:
+def seal_gc(
+    now_ts: float | None = None,
+    min_age_s: float = SEAL_GC_MIN_AGE_S,
+    *,
+    ingested: set | None = None,
+) -> list[Path]:
     """Delete raw sealed .jsonl segments whose .zst is verified and aged out.
 
     Per §3.10.5 a raw segment is deletable when its .zst is verified, the

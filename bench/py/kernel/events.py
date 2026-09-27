@@ -27,6 +27,7 @@ Rules baked here:
     - metrics/errors payloads >4KB are offloaded to run derived/blobs/<sha>.json
       and replaced with {"$blob": sha, "$bytes": n}.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -52,18 +53,39 @@ T_FINISHED = "finished"
 T_LAKE_CELL = "lake_cell"
 T_CASE = "case"
 
-EVENT_TYPES = frozenset({
-    T_RUN_REGISTERED, T_CELL_QUEUED, T_CELL_STARTED, T_CELL, T_CLAIM,
-    T_ASSET, T_TOMBSTONE, T_NOTE, T_FINISHED, T_LAKE_CELL, T_CASE,
-})
+EVENT_TYPES = frozenset(
+    {
+        T_RUN_REGISTERED,
+        T_CELL_QUEUED,
+        T_CELL_STARTED,
+        T_CELL,
+        T_CLAIM,
+        T_ASSET,
+        T_TOMBSTONE,
+        T_NOTE,
+        T_FINISHED,
+        T_LAKE_CELL,
+        T_CASE,
+    }
+)
 
 REQUIRED: dict[str, frozenset[str]] = {
-    T_RUN_REGISTERED: frozenset({"run", "run_seq", "kind", "date", "slug", "spec_hash", "ts_start"}),
-    T_CELL_QUEUED: frozenset({"run", "seq", "id", "idc", "arm", "up", "variant", "stage"}),
-    T_CELL_STARTED: frozenset({"run", "seq", "id", "idc", "arm", "up", "variant", "stage"}),
-    T_CELL: frozenset({"run", "seq", "id", "idc", "arm", "up", "variant", "stage", "status"}),
+    T_RUN_REGISTERED: frozenset(
+        {"run", "run_seq", "kind", "date", "slug", "spec_hash", "ts_start"}
+    ),
+    T_CELL_QUEUED: frozenset(
+        {"run", "seq", "id", "idc", "arm", "up", "variant", "stage"}
+    ),
+    T_CELL_STARTED: frozenset(
+        {"run", "seq", "id", "idc", "arm", "up", "variant", "stage"}
+    ),
+    T_CELL: frozenset(
+        {"run", "seq", "id", "idc", "arm", "up", "variant", "stage", "status"}
+    ),
     T_CLAIM: frozenset({"run", "seq", "id", "idc", "arm", "variant", "op"}),
-    T_ASSET: frozenset({"run", "seq", "id", "idc", "arm", "variant", "kind", "path", "state"}),
+    T_ASSET: frozenset(
+        {"run", "seq", "id", "idc", "arm", "variant", "kind", "path", "state"}
+    ),
     T_TOMBSTONE: frozenset({"id", "idc", "arm", "variant", "kind", "reason"}),
     T_NOTE: frozenset({"run", "seq", "text", "level"}),
     T_FINISHED: frozenset({"run", "seq", "wall_s", "counts"}),
@@ -85,27 +107,62 @@ OPTIONAL_KEYS: dict[str, frozenset[str]] = {
     T_RUN_REGISTERED: frozenset(),
     T_CELL_QUEUED: frozenset({"needs", "fp_input"}),
     T_CELL_STARTED: frozenset({"claim_id"}),
-    T_CELL: frozenset({
-        "dur_s", "metrics", "errors", "sig", "code", "fp", "cat", "eval",
-    }),
+    T_CELL: frozenset(
+        {
+            "dur_s",
+            "metrics",
+            "errors",
+            "sig",
+            "code",
+            "fp",
+            "cat",
+            "eval",
+        }
+    ),
     T_CLAIM: frozenset({"slot", "fate"}),
-    T_ASSET: frozenset({
-        "sha", "bytes", "zone", "verdict", "altseq", "model", "source_run",
-    }),
+    T_ASSET: frozenset(
+        {
+            "sha",
+            "bytes",
+            "zone",
+            "verdict",
+            "altseq",
+            "model",
+            "source_run",
+        }
+    ),
     T_TOMBSTONE: frozenset({"lost_run", "zone", "source_run"}),
-    T_NOTE: frozenset({
-        "id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id",
-    }),
+    T_NOTE: frozenset(
+        {
+            "id",
+            "idc",
+            "arm",
+            "up",
+            "variant",
+            "stage",
+            "kind",
+            "safe_id",
+        }
+    ),
     T_FINISHED: frozenset({"cost_usd", "accounting_ok"}),
-    T_LAKE_CELL: frozenset({
-        "source", "bytes", "pinned", "manifested", "orphan",
-        "regen_cost", "last_used_at",
-    }),
+    T_LAKE_CELL: frozenset(
+        {
+            "source",
+            "bytes",
+            "pinned",
+            "manifested",
+            "orphan",
+            "regen_cost",
+            "last_used_at",
+        }
+    ),
     T_CASE: frozenset({"arm", "up", "variant", "stage"}),
 }
 
 # Status vocabulary (§3.1). DONE = terminal; RETRIABLE = may retry as a new attempt.
-STATUS_DONE = frozenset({"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"})
+STATUS_DONE = frozenset(
+    {"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"}
+)
 STATUS_RETRIABLE = frozenset({"skip", "error"})
 # Kernel-internal terminal statuses that never came from the instrument.
 STATUS_KERNEL = frozenset({"dedup", "claimed", "lost", "unpaid_gate"})
@@ -113,19 +170,37 @@ ALL_STATUSES = STATUS_DONE | STATUS_RETRIABLE | STATUS_KERNEL
 
 # Sub-classification carried in `cat` (errors[0].cat keeps its own semantics —
 # 'upstream' there is the triage-exempt / fixloop-filter / retriable triple-use flag).
-CATS = frozenset({
-    "claimed", "regen_gate", "upstream-lost", "index_unsealed", "canon_drift",
-    "orphan_adopt", "pause", "auth_dead", "budget", "paid_pool", "no_bulk_route",
-})
+CATS = frozenset(
+    {
+        "claimed",
+        "regen_gate",
+        "upstream-lost",
+        "index_unsealed",
+        "canon_drift",
+        "orphan_adopt",
+        "pause",
+        "auth_dead",
+        "budget",
+        "paid_pool",
+        "no_bulk_route",
+    }
+)
 
 CLAIM_OPS = frozenset({"acquire", "release", "reap"})
-ASSET_KINDS = frozenset(
-    {"zh", "splice", "state", "layoutqc", "pdf", "report"})
+ASSET_KINDS = frozenset({"zh", "splice", "state", "layoutqc", "pdf", "report"})
 ASSET_STATES = frozenset({"pending", "verified", "tombstone", "adopted", "staged"})
-LAKE_STATES = frozenset({
-    "skeleton", "hydrating", "hydrated", "pinned", "raw_only", "failed",
-    "evicted", "empty",
-})
+LAKE_STATES = frozenset(
+    {
+        "skeleton",
+        "hydrating",
+        "hydrated",
+        "pinned",
+        "raw_only",
+        "failed",
+        "evicted",
+        "empty",
+    }
+)
 NOTE_LEVELS = frozenset({"info", "warn", "error"})
 
 BLOB_OFFLOAD_THRESHOLD = 4 * 1024
@@ -198,12 +273,16 @@ def validate(ev: dict) -> None:
     if missing:
         msg = f"{etype} missing keys {sorted(missing)}: {ev!r}"
         raise EventError(msg)
-    extra = (set(ev) - REQUIRED[etype] - OPTIONAL_WHITELIST - COMMON_KEYS
-             - OPTIONAL_KEYS[etype])
+    extra = (
+        set(ev)
+        - REQUIRED[etype]
+        - OPTIONAL_WHITELIST
+        - COMMON_KEYS
+        - OPTIONAL_KEYS[etype]
+    )
     if extra:
         msg = f"{etype} event has non-whitelisted keys {sorted(extra)}"
-        raise EventError(
-            msg)
+        raise EventError(msg)
     if ev.get("v") != SCHEMA_V:
         msg = f"bad schema v {ev.get('v')!r}"
         raise EventError(msg)
@@ -244,8 +323,9 @@ def validate(ev: dict) -> None:
         msg = "cell_queued needs must be list|None"
         raise EventError(msg)
     if etype == T_FINISHED:
-        if not isinstance(ev.get("wall_s"), (int, float)) \
-                or isinstance(ev.get("wall_s"), bool):
+        if not isinstance(ev.get("wall_s"), (int, float)) or isinstance(
+            ev.get("wall_s"), bool
+        ):
             msg = "finished wall_s must be number"
             raise EventError(msg)
         if not isinstance(ev.get("counts"), dict):
@@ -338,14 +418,14 @@ def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
     if blob_dir is None:
         return ev
     from kernel import fsutil
+
     ev = dict(ev)
     for field in ("metrics", "errors"):
         val = ev.get(field)
         if val is None or is_blob_marker(val):
             continue
         try:
-            raw = json.dumps(
-                val, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            raw = json.dumps(val, ensure_ascii=False, sort_keys=True).encode("utf-8")
         except (TypeError, ValueError):
             continue  # unserializable payload stays inline; dumps() in the
             # emit path surfaces the failure at write time, as before

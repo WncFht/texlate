@@ -177,6 +177,7 @@ def _compile_done_verdict(zh_dir: Path) -> str | None:
         return None
     return s if s in _COMPILE_VERDICTS else None
 
+
 #: splice 失效即作废的派生产物 kind——zh/ 及其下游（译文快照/编译物/
 #: 降级包/已发布 share.zip 镜像）全随译文变更过期；en_pdf（base/ 编译）
 #: 与 src_tar 不依赖 chunks，保留
@@ -198,9 +199,9 @@ def _row_status_snap(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[str, str
     ``str(... or "")`` coerce。
     """
     return {
-        r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-        for r in rows
+        r["chunk_id"]: (str(r["status"]), str(r["translation"] or "")) for r in rows
     }
+
 
 #: probe diff 聚合行的列表截断上限（一条行不刷屏，超出记 +N）
 _PROBE_LIST_CAP = 8
@@ -609,9 +610,7 @@ class SegmentCache:
         return out
 
 
-def _repend_puts(
-    cache: SegmentCache, puts: list[tuple[str, str, str, str]]
-) -> None:
+def _repend_puts(cache: SegmentCache, puts: list[tuple[str, str, str, str]]) -> None:
     """``drain()`` 已取走但落盘失败 → 回挂 pending 等下轮 flush 重投。
 
     drain 元组是全键（``{prefix}:{seg_key}``）——剥前缀还原 seg_key 走

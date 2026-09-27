@@ -1526,9 +1526,7 @@ class TestTasksSlim:
         (tdir / "orphan.bin").write_bytes(b"x" * 10)
         return tdir
 
-    def test_done_task_keeps_artifacts_and_live_trees(
-        self, client: TestClient
-    ) -> None:
+    def test_done_task_keeps_artifacts_and_live_trees(self, client: TestClient) -> None:
         tid = _mk_kind_task(client, "arxiv")
         force_status(client, tid, "done")
         reg_artifact(client, tid, "zh_pdf", "zh.pdf")
@@ -1548,9 +1546,7 @@ class TestTasksSlim:
         r2 = client.post("/api/tasks/slim")
         assert r2.json() == {"slimmed": 0, "freed_bytes": 0}
 
-    def test_non_done_terminal_drops_live_trees(
-        self, client: TestClient
-    ) -> None:
+    def test_non_done_terminal_drops_live_trees(self, client: TestClient) -> None:
         """fault 终态不可重译——zh/base 同中间件一并清，只留登记件。"""
         tid = _mk_kind_task(client, "arxiv")
         force_status(client, tid, "fault")
@@ -1571,9 +1567,7 @@ class TestTasksSlim:
         assert r.json() == {"slimmed": 0, "freed_bytes": 0}
         assert (tdir / "orphan.bin").is_file()
 
-    def test_dry_run_reports_without_deleting(
-        self, client: TestClient
-    ) -> None:
+    def test_dry_run_reports_without_deleting(self, client: TestClient) -> None:
         """``?dry=1``：同口径只算不删——UI 清理菜单的「约可释放 X」预估。"""
         tid = _mk_kind_task(client, "arxiv")
         force_status(client, tid, "done")

@@ -88,9 +88,7 @@ def test_aa_shim_stub_writes(tmp_path: Path) -> None:
     )
     ctx = _ctx(tmp_path / "w")
     ctx.wdir.mkdir()
-    ok, note = TRANSFORM_FNS["vendored_fetch"](
-        ctx, None, "aa.cls", {"dir": str(root)}
-    )
+    ok, note = TRANSFORM_FNS["vendored_fetch"](ctx, None, "aa.cls", {"dir": str(root)})
     assert ok, note
     stub = (ctx.wdir / "aa.cls").read_text()
     assert "\\aa@absorb" in stub

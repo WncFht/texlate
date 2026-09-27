@@ -41,6 +41,7 @@ Lock order honored: run.lock -> cell.lock -> claim.lock -> leaf {slot,
 ledger, index, vault}. Everything under cell.lock that isn't a leaf is
 NB-only.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -124,8 +125,9 @@ def _coerce_params(spec: Spec, params) -> dict:
     params = dict(params or {})
     unknown = sorted(set(params) - set(spec.params))
     if unknown:
-        raise SpecError([(f"unknown run params {unknown} — spec declares "
-                          f"{sorted(spec.params)}")])
+        raise SpecError(
+            [(f"unknown run params {unknown} — spec declares {sorted(spec.params)}")]
+        )
     out = {}
     for name, p in spec.params.items():
         raw = params.get(name, p.default)
@@ -199,22 +201,30 @@ def _first_fire_gate(spec: Spec, oracle, cells: list, rd) -> dict:
     quote = oracle.quote(sorted(paid_keys))
     stamp = None
     with contextlib.suppress(OSError, ValueError):
-        stamp = json.loads(
-            paths.vault_verify_stamp_path().read_text(encoding="utf-8"))
-    verify_age = (time.time() - stamp["ts"]
-                  if isinstance(stamp, dict)
-                  and isinstance(stamp.get("ts"), (int, float))
-                  else None)
+        stamp = json.loads(paths.vault_verify_stamp_path().read_text(encoding="utf-8"))
+    verify_age = (
+        time.time() - stamp["ts"]
+        if isinstance(stamp, dict) and isinstance(stamp.get("ts"), (int, float))
+        else None
+    )
     verify_fresh = verify_age is not None and verify_age < _VERIFY_FRESH_S
     coverage = {
         "ts": round(time.time(), 3),
         "paid_keys": len(paid_keys),
-        "quote": {k: quote[k] for k in
-                  ("new", "reuse", "missing", "claimed", "attempted",
-                   "unsealed", "total")},
+        "quote": {
+            k: quote[k]
+            for k in (
+                "new",
+                "reuse",
+                "missing",
+                "claimed",
+                "attempted",
+                "unsealed",
+                "total",
+            )
+        },
         "sealed": bool(quote["sealed"]),
-        "verify_age_s": (round(verify_age, 1)
-                         if verify_age is not None else None),
+        "verify_age_s": (round(verify_age, 1) if verify_age is not None else None),
         "verify_fresh": verify_fresh,
     }
     try:
@@ -222,24 +232,31 @@ def _first_fire_gate(spec: Spec, oracle, cells: list, rd) -> dict:
         d.mkdir(parents=True, exist_ok=True)
         fsutil.atomic_write(
             d / "coverage.json",
-            (json.dumps(coverage, ensure_ascii=False, sort_keys=True,
-                        indent=2) + "\n").encode("utf-8"))
+            (
+                json.dumps(coverage, ensure_ascii=False, sort_keys=True, indent=2)
+                + "\n"
+            ).encode("utf-8"),
+        )
     except OSError:
         pass  # evidence write is best-effort; the gate still binds
     fails = []
     if not coverage["sealed"] or coverage["quote"]["unsealed"]:
         fails.append(
             f"index unsealed (sealed={coverage['sealed']} "
-            f"unsealed={coverage['quote']['unsealed']})")
+            f"unsealed={coverage['quote']['unsealed']})"
+        )
     if not verify_fresh:
         fails.append(
             "vault verify stale/missing "
             f"(age_s={coverage['verify_age_s']}, need <{_VERIFY_FRESH_S}s — "
-            "run `bench vault verify`)")
+            "run `bench vault verify`)"
+        )
     if fails:
         raise RunError(
-            "first-fire gate refused paid run: " + "; ".join(fails)
-            + f" (coverage: {coverage['quote']})")
+            "first-fire gate refused paid run: "
+            + "; ".join(fails)
+            + f" (coverage: {coverage['quote']})"
+        )
     return coverage
 
 
@@ -279,8 +296,7 @@ def _enumerate_cells(spec: Spec, registry, resolved: dict):
         else:
             res = idnorm.canon_id(str(raw), registry)
             if not res.ok or not res.idc:
-                problems.append(
-                    f"item {raw!r}: canon {res.state} ({res.reason})")
+                problems.append(f"item {raw!r}: canon {res.state} ({res.reason})")
                 continue
             idc = res.idc
         wanted = item.get("stage")
@@ -288,13 +304,13 @@ def _enumerate_cells(spec: Spec, registry, resolved: dict):
             if wanted and st.name != wanted:
                 continue
             cell = {
-                "id": str(raw), "idc": idc,
+                "id": str(raw),
+                "idc": idc,
                 "arm": str(item.get("arm", "-")),
                 "up": str(item.get("up", "-")),
                 "variant": str(item.get("variant", "-")),
                 "stage": st.name,
-                "needs": [{"stage": s, "accept": sorted(a)}
-                          for s, a in st.needs],
+                "needs": [{"stage": s, "accept": sorted(a)} for s, a in st.needs],
                 "fp_input": item.get("fp_input"),
                 "params": dict(item.get("params") or {}),
                 "run_params": dict(resolved),
@@ -344,16 +360,20 @@ def _last_outcome(idx, idc, arm, up, variant, stage) -> dict | None:
         "AND NOT (status = 'reject' AND COALESCE(sig, '') "
         "         LIKE 'declined:%') "
         "ORDER BY rowid DESC LIMIT 1",
-        (idc, arm, up, variant, stage)).fetchone()
+        (idc, arm, up, variant, stage),
+    ).fetchone()
     return dict(row) if row is not None else None
 
 
-def _last_rec(idx, idc, arm, up, variant, stage, domain=None,
-              statuses=None) -> dict | None:
+def _last_rec(
+    idx, idc, arm, up, variant, stage, domain=None, statuses=None
+) -> dict | None:
     """Last records row for the key — newest ledger row wins (rowid)."""
-    sql = ("SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
-           "fp,dur_s,metrics,errors,ts FROM records "
-           "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=?")
+    sql = (
+        "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
+        "fp,dur_s,metrics,errors,ts FROM records "
+        "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=?"
+    )
     args: list = [idc, arm, up, variant, stage]
     if domain is not None:
         dom = sorted(domain)
@@ -375,9 +395,17 @@ def _dir_has_files(d: Path) -> bool:
         return False
 
 
-def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
-                up_spec, rec: dict, idc: str, arm: str, variant: str,
-                safe: str) -> bool:
+def _product_ok(
+    rd: runs.RunDir,
+    cell: dict,
+    up_stage: str,
+    up_spec,
+    rec: dict,
+    idc: str,
+    arm: str,
+    variant: str,
+    safe: str,
+) -> bool:
     """'产物可解析' for a mutating upstream — PER-KIND, never cell-level.
 
     A kind counts through evidence the stage fn can actually REACH: an
@@ -409,9 +437,9 @@ def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
     for k in up_spec.mutates:
         work = _dir_has_files(base / vault._work_dirname(k, arm, variant))
         intact = any(
-            isinstance(r.get("files"), dict) and k in r["files"]
-            and r.get("bytes_ok")
-            for r in vrows)
+            isinstance(r.get("files"), dict) and k in r["files"] and r.get("bytes_ok")
+            for r in vrows
+        )
         if k in dead and not work:
             lost = True
         elif intact or work:
@@ -419,8 +447,7 @@ def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
     return present and not lost
 
 
-def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
-                safe: str):
+def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict, safe: str):
     """Evaluate the cell's needs edges (§3.6 needs domain).
 
     Returns ("proceed", primary_upstream_rec|None)
@@ -439,28 +466,64 @@ def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
     domain = {rd.run} | set(spec.foreign_runs or [])
     primary = None
     for up_stage, _accept in stage.needs:
-        latest = _last_rec(idx, cell["idc"], cell["arm"], cell["up"],
-                           cell["variant"], up_stage, domain=domain)
+        latest = _last_rec(
+            idx,
+            cell["idc"],
+            cell["arm"],
+            cell["up"],
+            cell["variant"],
+            up_stage,
+            domain=domain,
+        )
         if latest is None:
             return ("skip", f"needs {up_stage}: no record in domain")
         if latest["status"] == "dedup":
-            rec = _last_rec(idx, cell["idc"], cell["arm"], cell["up"],
-                            cell["variant"], up_stage,
-                            statuses=events.STATUS_DONE)
+            rec = _last_rec(
+                idx,
+                cell["idc"],
+                cell["arm"],
+                cell["up"],
+                cell["variant"],
+                up_stage,
+                statuses=events.STATUS_DONE,
+            )
         else:
-            rec = _last_rec(idx, cell["idc"], cell["arm"], cell["up"],
-                            cell["variant"], up_stage, domain=domain,
-                            statuses=events.STATUS_DONE)
+            rec = _last_rec(
+                idx,
+                cell["idc"],
+                cell["arm"],
+                cell["up"],
+                cell["variant"],
+                up_stage,
+                domain=domain,
+                statuses=events.STATUS_DONE,
+            )
         if rec is None:
-            return ("skip", (f"needs {up_stage}: no done row "
-                             f"(latest domain: {latest['status']})"))
+            return (
+                "skip",
+                (f"needs {up_stage}: no done row (latest domain: {latest['status']})"),
+            )
         accept = stage.accept_for(up_stage)
         if rec["status"] not in accept:
-            return ("skip", (f"needs {up_stage}: status {rec['status']!r} "
-                             f"not in accept {sorted(accept)}"))
+            return (
+                "skip",
+                (
+                    f"needs {up_stage}: status {rec['status']!r} "
+                    f"not in accept {sorted(accept)}"
+                ),
+            )
         up_spec = spec.stage(up_stage)
-        if not _product_ok(rd, cell, up_stage, up_spec, rec,
-                           cell["idc"], cell["arm"], cell["variant"], safe):
+        if not _product_ok(
+            rd,
+            cell,
+            up_stage,
+            up_spec,
+            rec,
+            cell["idc"],
+            cell["arm"],
+            cell["variant"],
+            safe,
+        ):
             return ("fault", "upstream-lost")
         if primary is None:
             primary = rec
@@ -473,8 +536,20 @@ def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
 _CELL_MERGE_KEYS = {"metrics", "errors", "sig", "code", "dur_s"}
 # Framework-owned cell fields — emit() can never rewrite identity/status
 # (status comes from the fn return alone; fp is kernel-stamped).
-_CELL_RESERVED = {"id", "idc", "arm", "up", "variant", "stage", "run",
-                  "seq", "ts", "type", "status", "fp"}
+_CELL_RESERVED = {
+    "id",
+    "idc",
+    "arm",
+    "up",
+    "variant",
+    "stage",
+    "run",
+    "seq",
+    "ts",
+    "type",
+    "status",
+    "fp",
+}
 
 
 def _merge_outbox(terminal_ev: dict, outbox: list) -> list:
@@ -535,17 +610,38 @@ def _synth_sig(errors) -> str | None:
     return f"{cat}:{pay}".rstrip(":")
 
 
-def _terminal_ev(env, cell, status: str, *, seq: int, cat=None, dur_s=None,
-                 fp=None, metrics=None, errors=None, sig=None, code=None,
-                 extra=None) -> dict:
+def _terminal_ev(
+    env,
+    cell,
+    status: str,
+    *,
+    seq: int,
+    cat=None,
+    dur_s=None,
+    fp=None,
+    metrics=None,
+    errors=None,
+    sig=None,
+    code=None,
+    extra=None,
+) -> dict:
     ev = events.make_event(
-        events.T_CELL, run=env["rd"].run, seq=seq, id=cell["id"],
-        idc=cell["idc"], arm=cell["arm"], up=cell["up"],
-        variant=cell["variant"], stage=cell["stage"], status=status)
+        events.T_CELL,
+        run=env["rd"].run,
+        seq=seq,
+        id=cell["id"],
+        idc=cell["idc"],
+        arm=cell["arm"],
+        up=cell["up"],
+        variant=cell["variant"],
+        stage=cell["stage"],
+        status=status,
+    )
     spec = env.get("spec")
     stage_obj = spec.stage(cell["stage"]) if spec is not None else None
     if (spec is not None and spec.eval) or (
-            stage_obj is not None and getattr(stage_obj, "eval", False)):
+        stage_obj is not None and getattr(stage_obj, "eval", False)
+    ):
         ev["eval"] = True
     if cat is not None:
         ev["cat"] = cat
@@ -581,7 +677,7 @@ def _note(env, text: str, level: str = "info"):
 # Window bounds: at most this many hydrated-but-unconsumed cells — or this
 # many bytes of them — may sit ahead of the execution frontier.
 LOOKAHEAD_CELLS = 32
-LOOKAHEAD_BYTES = 512 * 1024 ** 2
+LOOKAHEAD_BYTES = 512 * 1024**2
 
 
 class _Lookahead:
@@ -604,13 +700,15 @@ class _Lookahead:
         self._spec = spec
         self._stop = threading.Event()
         self._cond = threading.Condition()
-        self._pending: dict[str, int] = {}   # idc -> hydrated bytes
-        self._consumed: set[str] = set()     # started before prefetch landed
+        self._pending: dict[str, int] = {}  # idc -> hydrated bytes
+        self._consumed: set[str] = set()  # started before prefetch landed
         self._thread: threading.Thread | None = None
 
     def _window_open(self) -> bool:
-        return (len(self._pending) < LOOKAHEAD_CELLS
-                and sum(self._pending.values()) < LOOKAHEAD_BYTES)
+        return (
+            len(self._pending) < LOOKAHEAD_CELLS
+            and sum(self._pending.values()) < LOOKAHEAD_BYTES
+        )
 
     def cell_started(self, idc: str) -> None:
         """Frontier bump — a started cell claims its prefetched bytes."""
@@ -630,25 +728,33 @@ class _Lookahead:
             if self._stop.is_set() or env["abort"].is_set():
                 return
             with self._cond:
-                while not (self._stop.is_set() or env["abort"].is_set()
-                           or self._window_open()):
+                while not (
+                    self._stop.is_set() or env["abort"].is_set() or self._window_open()
+                ):
                     self._cond.wait(timeout=2.0)
                 if self._stop.is_set() or env["abort"].is_set():
                     return
             if not lake.admit(0):
-                _note(env, "lake lookahead paused: zone over capacity cap "
-                           "or fs floor — consumers still self-hydrate",
-                      level="warn")
+                _note(
+                    env,
+                    "lake lookahead paused: zone over capacity cap "
+                    "or fs floor — consumers still self-hydrate",
+                    level="warn",
+                )
                 return
             try:
-                d = lake.hydrate(idc, fetch_fn=spec.fetch_fn,
-                                 source=source, run_seq=run_seq)
+                d = lake.hydrate(
+                    idc, fetch_fn=spec.fetch_fn, source=source, run_seq=run_seq
+                )
             except Exception as exc:
-                _note(env, f"lake prefetch {idc} failed: "
-                           f"{type(exc).__name__}: {exc}", level="warn")
+                _note(
+                    env,
+                    f"lake prefetch {idc} failed: {type(exc).__name__}: {exc}",
+                    level="warn",
+                )
                 continue
             if d is None:
-                continue                  # lazy-unfetchable — no slot used
+                continue  # lazy-unfetchable — no slot used
             try:
                 size = fsutil.dir_size(d)
             except OSError:
@@ -663,8 +769,13 @@ class _Lookahead:
         warm bytes — and never claim a window slot)."""
         idcs, seen = [], set()
         for c in cells:
-            k = (str(c["idc"]), str(c.get("arm", "-")), str(c.get("up", "-")),
-                 str(c.get("variant", "-")), str(c["stage"]))
+            k = (
+                str(c["idc"]),
+                str(c.get("arm", "-")),
+                str(c.get("up", "-")),
+                str(c.get("variant", "-")),
+                str(c["stage"]),
+            )
             if k in terminal_keys:
                 continue
             idc = str(c["idc"])
@@ -674,8 +785,8 @@ class _Lookahead:
         if not idcs:
             return
         self._thread = threading.Thread(
-            target=self._loop, args=(idcs,), daemon=True,
-            name="lake-lookahead")
+            target=self._loop, args=(idcs,), daemon=True, name="lake-lookahead"
+        )
         self._thread.start()
 
     def stop(self) -> None:
@@ -695,8 +806,9 @@ def _thread_index(env):
     idx = getattr(tl, "index", None)
     if idx is None:
         spec = env.get("spec")
-        eval_stages = {s.name for s in getattr(spec, "stages", ())
-                       if getattr(s, "eval", False)} or None
+        eval_stages = {
+            s.name for s in getattr(spec, "stages", ()) if getattr(s, "eval", False)
+        } or None
         idx = indexmod.Index(eval_stages=eval_stages)
         tl.index = idx
         tl.oracle = dedupmod.DedupOracle(
@@ -715,8 +827,7 @@ def _emit(env, idx, ev):
 
 
 def _emit_batch(env, idx, evs):
-    return ledger.emit_batch(evs, run_dir=env["rd"].path,
-                             sink=idx.apply_event)
+    return ledger.emit_batch(evs, run_dir=env["rd"].path, sink=idx.apply_event)
 
 
 def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
@@ -733,8 +844,9 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
     xlat/compile 真跑产出 zh/splice, layoutqc 撞上陈旧 declined-verdict
     dedup, 字节随 remove_cell_tree 清零, v1 键域自此永久饥饿)."""
     spec = env["spec"]
-    if (stage_name != spec.last_mutating_stage()
-            or status not in events.STATUS_DONE | {"dedup"}):
+    if stage_name != spec.last_mutating_stage() or status not in events.STATUS_DONE | {
+        "dedup"
+    }:
         return
     rd = env["rd"]
     ctx = Ctx(rd, cell, idx, spec)
@@ -746,12 +858,22 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
     variant = str(cell.get("variant", "-"))
     try:
         vault.harvest(
-            idc, arm, variant, assets, source_run=rd.run,
-            id=cell["id"], seq=alloc, sink=idx.apply_event,
-            run_dir=rd.path)
+            idc,
+            arm,
+            variant,
+            assets,
+            source_run=rd.run,
+            id=cell["id"],
+            seq=alloc,
+            sink=idx.apply_event,
+            run_dir=rd.path,
+        )
     except Exception as exc:
-        _note(env, f"harvest failed for {idc}/{arm}/{variant}: "
-                   f"{type(exc).__name__}: {exc}", level="warn")
+        _note(
+            env,
+            f"harvest failed for {idc}/{arm}/{variant}: {type(exc).__name__}: {exc}",
+            level="warn",
+        )
 
 
 def _run_cell(env, cell: dict) -> dict:
@@ -773,8 +895,9 @@ def _run_cell(env, cell: dict) -> dict:
     def quick(status, cat=None, errors=None, extra=None):
         """Terminal-ish one-shot row (gates that fire before fn runs)."""
         _harvest_last_mutating(env, idx, cell, stage_name, status, alloc)
-        ev = _terminal_ev(env, cell, status, seq=alloc(), cat=cat,
-                          errors=errors, extra=extra)
+        ev = _terminal_ev(
+            env, cell, status, seq=alloc(), cat=cat, errors=errors, extra=extra
+        )
         _emit(env, idx, ev)
         return {"cell": key, "status": status, "cat": cat}
 
@@ -812,10 +935,15 @@ def _run_cell(env, cell: dict) -> dict:
         last = _last_outcome(idx, idc, arm, up, variant, stage_name)
         stage_paid = stage is not None and stage.paid
         eval_paid_nobytes = bool(
-            stage_paid and not stage.mutates
-            and (spec.eval or getattr(stage, "eval", False)))
-        if (last is not None and (not stage_paid or eval_paid_nobytes)
-                and last["status"] in events.STATUS_DONE | {"dedup"}):
+            stage_paid
+            and not stage.mutates
+            and (spec.eval or getattr(stage, "eval", False))
+        )
+        if (
+            last is not None
+            and (not stage_paid or eval_paid_nobytes)
+            and last["status"] in events.STATUS_DONE | {"dedup"}
+        ):
             # mutates 格的 verdict-dedup 还须字节在押: DONE 行只证跑过,
             # 不证产物入 vault —— dedup 终态历史上不收 harvest, 字节
             # 也可能被 sweep/清理核销。oracle 证 ABSENT/MISSING(无在押
@@ -825,8 +953,13 @@ def _run_cell(env, cell: dict) -> dict:
             mut = frozenset(stage.mutates) if stage is not None else ()
             if mut and oracle is not None:
                 verdict = oracle.check(
-                    idc, arm, variant, stage_paid=False, need_kinds=mut,
-                    stage_name=stage_name)
+                    idc,
+                    arm,
+                    variant,
+                    stage_paid=False,
+                    need_kinds=mut,
+                    stage_name=stage_name,
+                )
                 if verdict in (dedupmod.ABSENT, dedupmod.MISSING):
                     pass
                 else:
@@ -838,9 +971,13 @@ def _run_cell(env, cell: dict) -> dict:
         if stage is not None and stage.paid:
             k_idc, k_arm, k_var = spec.dedup_key_of(stage, cell)
             verdict = oracle.check(
-                k_idc, k_arm, k_var, stage_paid=True,
+                k_idc,
+                k_arm,
+                k_var,
+                stage_paid=True,
                 need_kinds=frozenset(stage.mutates or ()),
-                stage_name=stage_name)
+                stage_name=stage_name,
+            )
             if verdict == dedupmod.UNSEALED:
                 return quick("error", cat="index_unsealed")
             if verdict == dedupmod.CLAIMED:
@@ -850,23 +987,33 @@ def _run_cell(env, cell: dict) -> dict:
             if verdict == dedupmod.MISSING:
                 sel_hit = _sel_hit(env["sel"], cell)
                 if not oracle.regen_allowed(
-                        k_idc, k_arm, k_var, env["allow_regen"], sel_hit,
-                        env["max_cost"], env["yes"]):
+                    k_idc,
+                    k_arm,
+                    k_var,
+                    env["allow_regen"],
+                    sel_hit,
+                    env["max_cost"],
+                    env["yes"],
+                ):
                     return quick("reject", cat="regen_gate")
-                _note(env, f"regen authorized for {idc}/{arm}/{variant} "
-                           f"(tombstoned bytes, sel hit)", level="warn")
+                _note(
+                    env,
+                    f"regen authorized for {idc}/{arm}/{variant} "
+                    f"(tombstoned bytes, sel hit)",
+                    level="warn",
+                )
             # absent (or regen-authorized missing): budget fuse
             try:
                 env["factory"].meter.check(env["max_cost"])
             except paidmod.BudgetExceeded as exc:
-                return quick("reject", cat="budget",
-                             errors=[{"cat": "budget", "msg": str(exc)}])
+                return quick(
+                    "reject", cat="budget", errors=[{"cat": "budget", "msg": str(exc)}]
+                )
 
         # 4. needs evaluation — domain = this run ∪ spec.foreign_runs
         verdict, payload = _needs_eval(rd, spec, idx, cell, safe)
         if verdict == "skip":
-            return quick("skip",
-                         errors=[{"cat": "needs", "msg": payload}])
+            return quick("skip", errors=[{"cat": "needs", "msg": payload}])
         if verdict == "fault":
             return quick("fault", cat="upstream-lost")
         upstream_rec = payload
@@ -894,8 +1041,8 @@ def _run_cell(env, cell: dict) -> dict:
         if upstream_rec is not None and not cell.get("fp_input"):
             cell = dict(cell)
             cell["fp_input"] = upstream_rec.get("fp") or (
-                f"{cell['stage']}@{upstream_rec['run']}#"
-                f"{upstream_rec['seq']}")
+                f"{cell['stage']}@{upstream_rec['run']}#{upstream_rec['seq']}"
+            )
         try:
             fp = cell_fp(spec, cell)
         except Exception:
@@ -903,21 +1050,47 @@ def _run_cell(env, cell: dict) -> dict:
         n_prior = idx.conn.execute(
             "SELECT COUNT(*) c FROM records WHERE idc=? AND arm=? AND up=?"
             " AND variant=? AND stage=?",
-            (idc, arm, up, variant, stage_name)).fetchone()["c"]
+            (idc, arm, up, variant, stage_name),
+        ).fetchone()["c"]
         pre = []
         if claim_acquired:
-            pre.append(events.make_event(
-                events.T_CLAIM, run=rd.run, seq=alloc(), id=cell["id"],
-                idc=k_idc, arm=k_arm, variant=k_var, op="acquire"))
-        pre.append(events.make_event(
-            events.T_CELL_STARTED, run=rd.run, seq=alloc(), id=cell["id"],
-            idc=idc, arm=arm, up=up, variant=variant, stage=stage_name,
-            attempt=n_prior + 1))
+            pre.append(
+                events.make_event(
+                    events.T_CLAIM,
+                    run=rd.run,
+                    seq=alloc(),
+                    id=cell["id"],
+                    idc=k_idc,
+                    arm=k_arm,
+                    variant=k_var,
+                    op="acquire",
+                )
+            )
+        pre.append(
+            events.make_event(
+                events.T_CELL_STARTED,
+                run=rd.run,
+                seq=alloc(),
+                id=cell["id"],
+                idc=idc,
+                arm=arm,
+                up=up,
+                variant=variant,
+                stage=stage_name,
+                attempt=n_prior + 1,
+            )
+        )
         _emit_batch(env, idx, pre)
 
         # 8. the stage fn — outbox rows fold into the terminal batch
-        ctx = Ctx(rd, cell, idx, spec, alloc=alloc, factory=(
-            env["factory"] if stage is not None and stage.paid else None))
+        ctx = Ctx(
+            rd,
+            cell,
+            idx,
+            spec,
+            alloc=alloc,
+            factory=(env["factory"] if stage is not None and stage.paid else None),
+        )
         if lease is not None:
             ctx.claim_lease = lease
         t0 = time.monotonic()
@@ -949,8 +1122,7 @@ def _run_cell(env, cell: dict) -> dict:
             exc_errors = [{"cat": "auth_dead", "msg": str(exc)}]
         except Exception as exc:
             status = "error"
-            exc_errors = [{"cat": "exception",
-                           "msg": f"{type(exc).__name__}: {exc}"}]
+            exc_errors = [{"cat": "exception", "msg": f"{type(exc).__name__}: {exc}"}]
         dur_s = round(time.monotonic() - t0, 4)
 
         # status_class classification (§3.1 mandatory) — unclassified
@@ -961,15 +1133,17 @@ def _run_cell(env, cell: dict) -> dict:
         sc = (stage.status_class or {}) if stage is not None else {}
         cls = sc.get(status)
         if cls is None:
-            errors = (errors or []) + [{
-                "cat": "unclassified",
-                "msg": f"status {status!r} not in status_class"}]
-            _note(env, f"{idc}/{stage_name}: unclassified status "
-                       f"{status!r} -> fault", level="warn")
+            errors = (errors or []) + [
+                {"cat": "unclassified", "msg": f"status {status!r} not in status_class"}
+            ]
+            _note(
+                env,
+                f"{idc}/{stage_name}: unclassified status {status!r} -> fault",
+                level="warn",
+            )
             status = "fault"
         elif cls == "upstream":
-            errors = (errors or []) + [{"cat": "upstream",
-                                        "msg": f"status {status!r}"}]
+            errors = (errors or []) + [{"cat": "upstream", "msg": f"status {status!r}"}]
         for e in exc_errors:
             if e.get("cat") in events.CATS:
                 cat = e["cat"]
@@ -986,11 +1160,20 @@ def _run_cell(env, cell: dict) -> dict:
         extra = {}
         if auth_tripped:
             extra["auth_tripped"] = True
-        ev = _terminal_ev(env, cell, status, seq=alloc(), cat=cat,
-                          dur_s=dur_s, fp=fp, errors=errors or None,
-                          metrics=result.get("metrics"),
-                          sig=result.get("sig"), code=result.get("code"),
-                          extra=extra)
+        ev = _terminal_ev(
+            env,
+            cell,
+            status,
+            seq=alloc(),
+            cat=cat,
+            dur_s=dur_s,
+            fp=fp,
+            errors=errors or None,
+            metrics=result.get("metrics"),
+            sig=result.get("sig"),
+            code=result.get("code"),
+            extra=extra,
+        )
         batch = [ev]
         # the fn's own return dict is the FIRST outbox row — its errors /
         # sig / extra keys fold through the same merge path as emit() rows
@@ -1000,8 +1183,7 @@ def _run_cell(env, cell: dict) -> dict:
         merge_rows = [result, *ctx._outbox]
         if ctx._caches:
             # §3.9 metrics lane — probe/store counters ride the terminal
-            merge_rows.append(
-                {"metrics": {"cache": cachemod.metrics_of(ctx._caches)}})
+            merge_rows.append({"metrics": {"cache": cachemod.metrics_of(ctx._caches)}})
         for ob in _merge_outbox(ev, merge_rows):
             if "seq" not in ob or ob.get("seq") is None:
                 ob["seq"] = alloc()
@@ -1013,13 +1195,25 @@ def _run_cell(env, cell: dict) -> dict:
             ev["sig"] = _synth_sig(ev["errors"])
         if claim_acquired:
             fate = ctx.claim_fate or (
-                "verified" if status in ("ok", "partial", "clean")
-                else "failed" if status in events.STATUS_DONE
-                else "suspended")
-            batch.append(events.make_event(
-                events.T_CLAIM, run=rd.run, seq=alloc(), id=cell["id"],
-                idc=k_idc, arm=k_arm, variant=k_var, op="release",
-                fate=fate))
+                "verified"
+                if status in ("ok", "partial", "clean")
+                else "failed"
+                if status in events.STATUS_DONE
+                else "suspended"
+            )
+            batch.append(
+                events.make_event(
+                    events.T_CLAIM,
+                    run=rd.run,
+                    seq=alloc(),
+                    id=cell["id"],
+                    idc=k_idc,
+                    arm=k_arm,
+                    variant=k_var,
+                    op="release",
+                    fate=fate,
+                )
+            )
         _emit_batch(env, idx, batch)
         # CaseSink file lane: the batch's case events mirror into
         # cases.jsonl AFTER the ledger commit (ledger is truth; the file
@@ -1029,8 +1223,11 @@ def _run_cell(env, cell: dict) -> dict:
                 try:
                     runs.add_case(rd, bev)
                 except OSError as exc:
-                    _note(env, f"cases.jsonl append failed for "
-                               f"{idc}/{stage_name}: {exc}", level="warn")
+                    _note(
+                        env,
+                        f"cases.jsonl append failed for {idc}/{stage_name}: {exc}",
+                        level="warn",
+                    )
         # Segment-cache flush (§3.9): buffered stores land ONLY on a
         # flush-worthy terminal — failed/crashed cells' segments never
         # reach the shared buckets. Ledger-first ordering: the verdict
@@ -1042,8 +1239,11 @@ def _run_cell(env, cell: dict) -> dict:
                 else:
                     _sc.discard()
             except OSError as exc:
-                _note(env, f"seg-cache flush failed for "
-                           f"{idc}/{stage_name}: {exc}", level="warn")
+                _note(
+                    env,
+                    f"seg-cache flush failed for {idc}/{stage_name}: {exc}",
+                    level="warn",
+                )
         if lease is not None:
             lease.release()
         if ctx.claim_lease is not None:
@@ -1088,8 +1288,7 @@ def _wrap_factory(gateway_factory, max_cost):
             gateway_factory.max_cost = max_cost
         return gateway_factory
     if callable(gateway_factory):
-        return paidmod.GatewayFactory(gateway_factory, None,
-                                      max_cost=max_cost)
+        return paidmod.GatewayFactory(gateway_factory, None, max_cost=max_cost)
     msg = (
         f"gateway_factory must be a GatewayFactory or callable, got "
         f"{type(gateway_factory).__name__}"
@@ -1097,9 +1296,23 @@ def _wrap_factory(gateway_factory, max_cost):
     raise TypeError(msg)
 
 
-def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
-        replan=False, max_cost=None, regen=False, sel=None, yes=False,
-        allow_regen=False, gateway_factory=None, jobs=4, emit=print) -> dict:
+def run(
+    spec_or_path,
+    params=None,
+    *,
+    date=None,
+    slug=None,
+    resume=False,
+    replan=False,
+    max_cost=None,
+    regen=False,
+    sel=None,
+    yes=False,
+    allow_regen=False,
+    gateway_factory=None,
+    jobs=4,
+    emit=print,
+) -> dict:
     """The run pipeline (§2.1). Returns a report dict."""
     paths.ensure_layout()
     t_start = time.time()
@@ -1127,9 +1340,12 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             )
             raise RunError(msg)
     factory = _wrap_factory(gateway_factory, max_cost)
-    if spec.has_paid() and factory is not None and not factory.meter.prices \
-            and not any(getattr(s, "cost_hook", None)
-                        for s in spec.stages if s.paid):
+    if (
+        spec.has_paid()
+        and factory is not None
+        and not factory.meter.prices
+        and not any(getattr(s, "cost_hook", None) for s in spec.stages if s.paid)
+    ):
         msg = (
             "paid spec has no pricing surface: meter.prices is empty and "
             "no paid stage declares cost_hook — every request would "
@@ -1173,15 +1389,26 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             raise RunError(msg)
         rd = runs.load_run(spec.kind, date, slug)
     else:
-        rd = runs.create_run(spec.kind, slug=slug, date=date,
-                             spec_dict=spec_dict, spec_hash=shash,
-                             spec_env=_spec_env(spec))
+        rd = runs.create_run(
+            spec.kind,
+            slug=slug,
+            date=date,
+            spec_dict=spec_dict,
+            spec_hash=shash,
+            spec_env=_spec_env(spec),
+        )
 
     # 4-8 under kernel-active + run.lock
     env = {
-        "rd": rd, "spec": spec, "factory": factory, "max_cost": max_cost,
-        "sel": sel, "allow_regen": allow_regen or regen, "yes": yes,
-        "abort": threading.Event(), "emit": emit,
+        "rd": rd,
+        "spec": spec,
+        "factory": factory,
+        "max_cost": max_cost,
+        "sel": sel,
+        "allow_regen": allow_regen or regen,
+        "yes": yes,
+        "abort": threading.Event(),
+        "emit": emit,
         "thread_local": threading.local(),
     }
     stop_hb = threading.Event()
@@ -1190,17 +1417,27 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
     try:
         with locks.kernel_active_hold(), rd.lock(blocking=False):
             hb = threading.Thread(
-                target=runs.heartbeat_loop,
-                args=(rd, 15.0, stop_hb), daemon=True)
+                target=runs.heartbeat_loop, args=(rd, 15.0, stop_hb), daemon=True
+            )
             hb.start()
 
             # invocation rows record runs that ACTUALLY executed — the
             # lock-loser of a concurrent same-slug resume must leave no row
             runs.add_invocation(
-                rd, {"resume": resume, "replan": replan,
-                     "max_cost": max_cost, "regen": regen, "sel": sel,
-                     "yes": yes, "allow_regen": allow_regen, "jobs": jobs},
-                spec_hash=shash, code_stamp=specmod.code_sha(spec))
+                rd,
+                {
+                    "resume": resume,
+                    "replan": replan,
+                    "max_cost": max_cost,
+                    "regen": regen,
+                    "sel": sel,
+                    "yes": yes,
+                    "allow_regen": allow_regen,
+                    "jobs": jobs,
+                },
+                spec_hash=shash,
+                code_stamp=specmod.code_sha(spec),
+            )
 
             # 5. seq mint + index + oracle snapshot
             alloc = _SeqAlloc(_max_shard_seq(rd) + 1)
@@ -1208,8 +1445,8 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             main_idx = indexmod.Index()
             main_idx.tail_ingest()
             oracle = dedupmod.DedupOracle.snapshot(
-                main_idx,
-                paid_stages={s.name for s in spec.stages if s.paid})
+                main_idx, paid_stages={s.name for s in spec.stages if s.paid}
+            )
             env["oracle"] = oracle
             env["terminal_keys"] = _shard_terminal_keys(rd)
 
@@ -1232,20 +1469,35 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             # 6. queue — one batch for cells lacking this-run terminals
             queued = []
             for c in cells:
-                k = (str(c["idc"]), str(c.get("arm", "-")),
-                     str(c.get("up", "-")), str(c.get("variant", "-")),
-                     str(c["stage"]))
+                k = (
+                    str(c["idc"]),
+                    str(c.get("arm", "-")),
+                    str(c.get("up", "-")),
+                    str(c.get("variant", "-")),
+                    str(c["stage"]),
+                )
                 if k in env["terminal_keys"]:
                     continue
-                queued.append(events.make_event(
-                    events.T_CELL_QUEUED, run=rd.run, seq=alloc(),
-                    id=c["id"], idc=c["idc"], arm=c.get("arm", "-"),
-                    up=c.get("up", "-"), variant=c.get("variant", "-"),
-                    stage=c["stage"], needs=c.get("needs", []),
-                    fp_input=c.get("fp_input")))
+                queued.append(
+                    events.make_event(
+                        events.T_CELL_QUEUED,
+                        run=rd.run,
+                        seq=alloc(),
+                        id=c["id"],
+                        idc=c["idc"],
+                        arm=c.get("arm", "-"),
+                        up=c.get("up", "-"),
+                        variant=c.get("variant", "-"),
+                        stage=c["stage"],
+                        needs=c.get("needs", []),
+                        fp_input=c.get("fp_input"),
+                    )
+                )
             _emit_batch(env, main_idx, queued)
-            emit(f"run {rd.run}: {len(queued)} cells queued "
-                 f"({len(cells) - len(queued)} already terminal)")
+            emit(
+                f"run {rd.run}: {len(queued)} cells queued "
+                f"({len(cells) - len(queued)} already terminal)"
+            )
 
             # 6.5 lake lookahead prefetcher (§3.10.3): plan-order walk,
             #     bounded window ahead of the execution frontier; the
@@ -1260,21 +1512,25 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             by_exec: dict[str, list] = {}
             for c in cells:
                 st = spec.stage(c["stage"])
-                ex = (st.executor if st and st.executor else spec.executor)
+                ex = st.executor if st and st.executor else spec.executor
                 by_exec.setdefault(ex, []).append(c)
             results = []
             try:
                 for ex, group in by_exec.items():
                     if env["abort"].is_set():
                         results.extend(
-                            (c, {"cell": None, "status": "aborted"})
-                            for c in group)
+                            (c, {"cell": None, "status": "aborted"}) for c in group
+                        )
                         continue
-                    results.extend(executors.execute_cells(
-                        group,
-                        lambda c: _run_cell(env, c),
-                        executor=ex, jobs=jobs,
-                        same_id_serial=spec.same_id_serial))
+                    results.extend(
+                        executors.execute_cells(
+                            group,
+                            lambda c: _run_cell(env, c),
+                            executor=ex,
+                            jobs=jobs,
+                            same_id_serial=spec.same_id_serial,
+                        )
+                    )
             finally:
                 if lookahead is not None:
                     lookahead.stop()
@@ -1287,17 +1543,23 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             if env["abort"].is_set():
                 done_keys = set()
                 for _c, r in results:
-                    if isinstance(r, dict) and isinstance(
-                            r.get("cell"), tuple):
+                    if isinstance(r, dict) and isinstance(r.get("cell"), tuple):
                         done_keys.add(r["cell"])
                 for c in cells:
-                    k = (str(c["idc"]), str(c.get("arm", "-")),
-                         str(c.get("up", "-")), str(c.get("variant", "-")),
-                         str(c["stage"]))
+                    k = (
+                        str(c["idc"]),
+                        str(c.get("arm", "-")),
+                        str(c.get("up", "-")),
+                        str(c.get("variant", "-")),
+                        str(c["stage"]),
+                    )
                     if k in done_keys or k in env["terminal_keys"]:
                         continue
-                    _emit(env, main_idx, _terminal_ev(
-                        env, c, "error", seq=alloc(), cat="auth_dead"))
+                    _emit(
+                        env,
+                        main_idx,
+                        _terminal_ev(env, c, "error", seq=alloc(), cat="auth_dead"),
+                    )
 
             # 8. reconcile — this run's pending vault metas -> verdicts
             _reconcile_pending(env, main_idx)
@@ -1305,34 +1567,46 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             acct = runs.accounting_check(rd)
             counts = _tally(env)
             finished = events.make_event(
-                events.T_FINISHED, run=rd.run, seq=alloc(),
-                wall_s=round(time.time() - t_start, 3), counts=counts,
+                events.T_FINISHED,
+                run=rd.run,
+                seq=alloc(),
+                wall_s=round(time.time() - t_start, 3),
+                counts=counts,
                 cost_usd=round(factory.meter.spent(), 6)
-                if factory is not None else 0.0,
-                accounting_ok=acct["ok"])
+                if factory is not None
+                else 0.0,
+                accounting_ok=acct["ok"],
+            )
             _emit(env, main_idx, finished)
             if not acct["ok"]:
-                _note(env, f"accounting equation failed: "
-                           f"missing={len(acct['missing_terminal'])} "
-                           f"extra_queued={len(acct['extra_queued'])} "
-                           f"dup={len(acct['dup_terminal'])} "
-                           f"extra_term={len(acct['extra_terminal'])}",
-                      level="warn")
-            emit(f"run {rd.run} finished: {counts} "
-                 f"accounting={'ok' if acct['ok'] else 'BROKEN'}")
+                _note(
+                    env,
+                    f"accounting equation failed: "
+                    f"missing={len(acct['missing_terminal'])} "
+                    f"extra_queued={len(acct['extra_queued'])} "
+                    f"dup={len(acct['dup_terminal'])} "
+                    f"extra_term={len(acct['extra_terminal'])}",
+                    level="warn",
+                )
+            emit(
+                f"run {rd.run} finished: {counts} "
+                f"accounting={'ok' if acct['ok'] else 'BROKEN'}"
+            )
             return {
                 "ok": bool(acct["ok"]) and not env["abort"].is_set(),
-                "run": rd.run, "run_seq": rd.run_seq, "kind": spec.kind,
-                "date": rd.date, "slug": rd.slug, "spec_hash": shash,
-                "counts": counts, "accounting": acct,
+                "run": rd.run,
+                "run_seq": rd.run_seq,
+                "kind": spec.kind,
+                "date": rd.date,
+                "slug": rd.slug,
+                "spec_hash": shash,
+                "counts": counts,
+                "accounting": acct,
                 "cost_usd": factory.meter.spent() if factory else 0.0,
                 "cells": len(cells),
             }
     except locks.WouldBlock as exc:
-        msg = (
-            f"run dir {rd.path} is locked by another runner "
-            f"({exc})"
-        )
+        msg = f"run dir {rd.path} is locked by another runner ({exc})"
         raise RunError(msg) from exc
     finally:
         stop_hb.set()
@@ -1371,17 +1645,35 @@ def _reconcile_pending(env, idx):
             zone, verdict = _verdict_for(idx, spec, idc, arm, variant)
             if verdict == "pending_abort":
                 for k in spec.mutating_kinds() or ("zh",):
-                    vault.tombstone(idc, arm, variant, k,
-                                    "pending_abort", lost_run=rd.run,
-                                    sink=idx.apply_event, run_dir=rd.path)
+                    vault.tombstone(
+                        idc,
+                        arm,
+                        variant,
+                        k,
+                        "pending_abort",
+                        lost_run=rd.run,
+                        sink=idx.apply_event,
+                        run_dir=rd.path,
+                    )
             else:
-                vault.promote(idc, arm, variant, altseq, zone, verdict,
-                              source_run=rd.run, sink=idx.apply_event,
-                              run_dir=rd.path)
+                vault.promote(
+                    idc,
+                    arm,
+                    variant,
+                    altseq,
+                    zone,
+                    verdict,
+                    source_run=rd.run,
+                    sink=idx.apply_event,
+                    run_dir=rd.path,
+                )
         except Exception as exc:
-            _note(env, f"reconcile failed for {idc}/{arm}/{variant}@"
-                       f"{altseq}: {type(exc).__name__}: {exc}",
-                  level="warn")
+            _note(
+                env,
+                f"reconcile failed for {idc}/{arm}/{variant}@"
+                f"{altseq}: {type(exc).__name__}: {exc}",
+                level="warn",
+            )
 
 
 def _verdict_for(idx, spec, idc, arm, variant):
@@ -1390,8 +1682,9 @@ def _verdict_for(idx, spec, idc, arm, variant):
     nothing parseable -> pending_abort; else (primary, alt)."""
     statuses = set()
     for r in idx.conn.execute(
-            "SELECT status FROM cells WHERE idc=? AND arm=? AND variant=?",
-            (idc, arm, variant)):
+        "SELECT status FROM cells WHERE idc=? AND arm=? AND variant=?",
+        (idc, arm, variant),
+    ):
         statuses.add(r["status"])
     if statuses & {"ok", "partial", "clean"}:
         return ("primary", "primary")
@@ -1405,9 +1698,21 @@ def _verdict_for(idx, spec, idc, arm, variant):
 # --- plan (dry run) -----------------------------------------------------------------------
 
 
-def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
-         max_cost=None, regen=False, sel=None, yes=False, allow_regen=False,
-         emit=print, **kw) -> dict:
+def plan(
+    spec_or_path,
+    params=None,
+    *,
+    date=None,
+    slug=None,
+    replan=False,
+    max_cost=None,
+    regen=False,
+    sel=None,
+    yes=False,
+    allow_regen=False,
+    emit=print,
+    **kw,
+) -> dict:
     """Dry run — pipeline steps 1-4 minus the run dir: spec checks, param
     coercion, item enumeration + canon, then the five-bucket paid quote.
 
@@ -1424,13 +1729,15 @@ def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
     try:
         idx.tail_ingest()
         oracle = dedupmod.DedupOracle.snapshot(
-            idx, paid_stages={s.name for s in spec.stages if s.paid})
+            idx, paid_stages={s.name for s in spec.stages if s.paid}
+        )
         # quote over unique paid-cell keys — the oracle's unit of account
         # is (idc,arm,variant), not the full cell tuple. need_kinds is the
         # spec-level union of paid mutates: the key IS the paid domain, so
         # every key carries the full paid-product requirement.
         paid_kinds = frozenset(
-            k for s in spec.stages if s.paid for k in (s.mutates or ()))
+            k for s in spec.stages if s.paid for k in (s.mutates or ())
+        )
         seen = set()
         qcells = []
         for c in cells:
@@ -1438,31 +1745,47 @@ def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
             # The oracle's unit of account is the cell's CLAIM key —
             # dedup_key_of, not the raw cell triple (eval specs claim on
             # a remapped keyspace; quoting cell keys would misquote them).
-            k = (spec.dedup_key_of(st, c) if st is not None
-                 else (c["idc"], c.get("arm", "-"), c.get("variant", "-")))
+            k = (
+                spec.dedup_key_of(st, c)
+                if st is not None
+                else (c["idc"], c.get("arm", "-"), c.get("variant", "-"))
+            )
             if k in seen:
                 continue
             seen.add(k)
-            qcells.append({"idc": k[0], "arm": k[1], "variant": k[2],
-                           "stage_paid": bool(st and st.paid),
-                           "need_kinds": paid_kinds})
+            qcells.append(
+                {
+                    "idc": k[0],
+                    "arm": k[1],
+                    "variant": k[2],
+                    "stage_paid": bool(st and st.paid),
+                    "need_kinds": paid_kinds,
+                }
+            )
         quote = oracle.quote(qcells)
     finally:
         idx.close()
 
     would_run = quote["new"]
-    regen_hits = [k for k in quote["regen_decisions"]
-                  if _sel_hit(sel, {"idc": k[0], "arm": k[1],
-                                    "variant": k[2]})]
-    emit(f"plan {spec.kind}: {len(cells)} cells "
-         f"new={quote['new']} reuse={quote['reuse']} "
-         f"missing={quote['missing']} claimed={quote['claimed']} "
-         f"attempted={quote['attempted']} unsealed={quote['unsealed']}")
+    regen_hits = [
+        k
+        for k in quote["regen_decisions"]
+        if _sel_hit(sel, {"idc": k[0], "arm": k[1], "variant": k[2]})
+    ]
+    emit(
+        f"plan {spec.kind}: {len(cells)} cells "
+        f"new={quote['new']} reuse={quote['reuse']} "
+        f"missing={quote['missing']} claimed={quote['claimed']} "
+        f"attempted={quote['attempted']} unsealed={quote['unsealed']}"
+    )
     return {
         "ok": True,
-        "kind": spec.kind, "spec_hash": specmod.spec_hash(spec),
-        "cells": cells, "would_run": would_run,
-        "quote": quote, "sealed": quote["sealed"],
+        "kind": spec.kind,
+        "spec_hash": specmod.spec_hash(spec),
+        "cells": cells,
+        "would_run": would_run,
+        "quote": quote,
+        "sealed": quote["sealed"],
         "regen_decisions": quote["regen_decisions"],
         "regen_sel_hits": regen_hits,
         "canon_dropped": problems,

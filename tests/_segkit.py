@@ -65,7 +65,9 @@ def cmd_bodies(res: ScanResult) -> list[str]:
     return ph_bodies(res, "CMD")
 
 
-def nested_probe_call(depth: int = 40, *, cs: str = "\\f", inner: str | None = None) -> str:
+def nested_probe_call(
+    depth: int = 40, *, cs: str = "\\f", inner: str | None = None
+) -> str:
     """gen 回压嵌套链：``\\f{Outer prose words wrap around … tail.}`` ×depth。"""
     body = f"{cs}{{{inner if inner is not None else PROSE + ' deep.'}}}"
     for _ in range(depth):

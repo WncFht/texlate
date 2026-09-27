@@ -62,8 +62,7 @@ def main() -> int:
     a = ap.parse_args()
 
     year_of = {
-        r["orid"]: r.get("year", 0)
-        for r in (json.loads(l) for l in ACCEPTED.open())
+        r["orid"]: r.get("year", 0) for r in (json.loads(l) for l in ACCEPTED.open())
     }
     todo: dict[str, str] = {}  # orid -> match（map.jsonl 是 append 账：末行胜）
     for l in MAP.open():
@@ -130,7 +129,9 @@ def main() -> int:
                             break
                         if r.status_code == 404:
                             continue  # 跨代际兜底
-                        st = "empty" if r.status_code == 200 else f"http_{r.status_code}"
+                        st = (
+                            "empty" if r.status_code == 200 else f"http_{r.status_code}"
+                        )
                         break
                     except Exception as e:
                         st = f"err:{type(e).__name__}"
@@ -138,11 +139,17 @@ def main() -> int:
                 if st is None:
                     st = "http_404"  # 两代际都 404
                 counts[st] = counts.get(st, 0) + 1
-                out.write(json.dumps({
-                    "orid": orid, "status": st,
-                    "secs": round(time.monotonic() - t0, 1),
-                    "ts": datetime.now(UTC).strftime("%m-%dT%H:%M:%S"),
-                }) + "\n")
+                out.write(
+                    json.dumps(
+                        {
+                            "orid": orid,
+                            "status": st,
+                            "secs": round(time.monotonic() - t0, 1),
+                            "ts": datetime.now(UTC).strftime("%m-%dT%H:%M:%S"),
+                        }
+                    )
+                    + "\n"
+                )
                 out.flush()
                 if i % 50 == 0 or i == len(pending):
                     log(f"  [{i}/{len(pending)}] {counts}")

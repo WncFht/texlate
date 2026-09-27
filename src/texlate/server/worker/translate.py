@@ -87,14 +87,11 @@ def _row_status_snap(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[str, str
     ``_SPLICE_STALE_KINDS`` 旁）；BLOB/None 格统一 ``str(... or "")`` coerce。
     """
     return {
-        r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-        for r in rows
+        r["chunk_id"]: (str(r["status"]), str(r["translation"] or "")) for r in rows
     }
 
 
-def _repend_puts(
-    cache: SegmentCache, puts: list[tuple[str, str, str, str]]
-) -> None:
+def _repend_puts(cache: SegmentCache, puts: list[tuple[str, str, str, str]]) -> None:
     """``drain()`` 已取走但落盘失败 → 回挂 pending 等下轮 flush 重投。
 
     drain 元组是全键（``{prefix}:{seg_key}``）——剥前缀还原 seg_key 走
@@ -598,6 +595,7 @@ class _Translate:
         会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；关完
         清空清单让外层 ``_teardown_bypass`` 不对已关 client 二次 aclose。
         """
+
         async def _arm() -> _T:
             try:
                 return await coro_fn()
@@ -681,9 +679,7 @@ class _Translate:
                     options_json=options_json,
                 )
         elif ctx.options().get("mock_run"):
-            options_json = ctx.update_options(
-                lambda opts: opts.pop("mock_run", None)
-            )
+            options_json = ctx.update_options(lambda opts: opts.pop("mock_run", None))
             self._on_loop(
                 self.store.update_fields,
                 ctx.task_id,
@@ -898,10 +894,7 @@ class _Translate:
         """
         # ``auto_glossary`` 与 ``_make_cache`` 的 ag 指纹成分同读法——
         # opt_bool 口径（"0"/"false" 字符串系判假），两站须同改
-        if (
-            not opt_bool(ctx.options(), "auto_glossary", lambda: False)
-            or not clients
-        ):
+        if not opt_bool(ctx.options(), "auto_glossary", lambda: False) or not clients:
             return None
         client = clients[0]
         model = str(ctx.secrets.model or DEFAULT_MODEL)
@@ -976,9 +969,7 @@ class _Translate:
         # 翻译函数变，须分桶防关态译文污染开态桶（术语内容本身非确定，
         # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。读法与
         # ``_auto_glossary_fn`` 同走 opt_bool——指纹须与实际行为同源
-        ag = (
-            "1" if opt_bool(ctx.options(), "auto_glossary", lambda: False) else "0"
-        )
+        ag = "1" if opt_bool(ctx.options(), "auto_glossary", lambda: False) else "0"
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
             f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}".encode()

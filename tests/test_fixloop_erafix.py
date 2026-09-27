@@ -21,9 +21,9 @@ _CS_PARAMS = next(r for r in _RS.rules if r.id == "cs_targeted_fix").action["par
 _CSTABLE = _CS_PARAMS["cs_table"]
 _HANI = next(r for r in _RS.rules if r.id == "hani_font_fallback")
 _HANI_PARAMS = _HANI.action["params"]
-_CHAR_TABLE = next(r for r in _RS.rules if r.id == "missing_char_fix").action[
-    "params"
-]["char_table"]
+_CHAR_TABLE = next(r for r in _RS.rules if r.id == "missing_char_fix").action["params"][
+    "char_table"
+]
 _CHAR_IDS = {e["id"] for e in _CHAR_TABLE}
 
 
@@ -88,9 +88,7 @@ def test_cs_table_erafam_at_and_guard_keys() -> None:
     assert _CSTABLE["@captype"]["guard"] == {"args": "", "body": "figure"}
     assert _CSTABLE["KV@undefined"]["guard"] == "[2]"
     assert _CSTABLE["@verridelabel"]["guard"] == "[1]"
-    assert "\\let\\csname collaboration@sw" in _CSTABLE["collaboration@sw"][
-        "polyfill"
-    ]
+    assert "\\let\\csname collaboration@sw" in _CSTABLE["collaboration@sw"]["polyfill"]
 
 
 def test_cs_table_erafam_usepackage_keys() -> None:

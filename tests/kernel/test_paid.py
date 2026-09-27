@@ -4,10 +4,9 @@ PaidSession gate ordering, and the 401 auth breaker.
 `broot` gives each test an isolated $TEXLATE_BENCH_ROOT so the PAUSE /
 AUTH_DEAD sentinels and claim/slot lock files live in tmp space.
 """
+
 from __future__ import annotations
 
-import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -24,8 +23,9 @@ class _Ctx:
 
 
 def _session(client=None, ctx=None, **fkw):
-    f = paid.GatewayFactory(lambda _c=None: client if client is not None
-                            else object(), **fkw)
+    f = paid.GatewayFactory(
+        lambda _c=None: client if client is not None else object(), **fkw
+    )
     return f, f.session(ctx or _Ctx())
 
 
@@ -37,12 +37,16 @@ def test_meter_price_table_flat_and_per_mtok():
     assert abs(m.usd_for({"in_tok": 100, "out_tok": 50}) - 0.0002) < 1e-12
     m2 = paid.CostMeter({"in_per_mtok": 1.0, "out_per_mtok": 2.0})
     assert abs(m2.usd_for({"in_tok": 1e6, "out_tok": 1e6}) - 3.0) < 1e-9
-    m3 = paid.CostMeter({"model-a": {"in": 1e-6, "out": 0.0},
-                         "*": {"in": 0.0, "out": 1e-6}})
-    assert abs(m3.usd_for({"in_tok": 10, "out_tok": 10,
-                           "model": "model-a"}) - 10e-6) < 1e-12
-    assert abs(m3.usd_for({"in_tok": 10, "out_tok": 10,
-                           "model": "other"}) - 10e-6) < 1e-12
+    m3 = paid.CostMeter(
+        {"model-a": {"in": 1e-6, "out": 0.0}, "*": {"in": 0.0, "out": 1e-6}}
+    )
+    assert (
+        abs(m3.usd_for({"in_tok": 10, "out_tok": 10, "model": "model-a"}) - 10e-6)
+        < 1e-12
+    )
+    assert (
+        abs(m3.usd_for({"in_tok": 10, "out_tok": 10, "model": "other"}) - 10e-6) < 1e-12
+    )
     assert m.usd_for(None) == 0.0
 
 
@@ -61,12 +65,12 @@ def test_meter_record_spent_estimate_next():
 
 def test_meter_check_fuses_before_crossing(broot: Path):
     m = paid.CostMeter()
-    m.check(1.0)                                   # cold: no spend yet
+    m.check(1.0)  # cold: no spend yet
     m.record(usd=0.9)
     # 0.9 + estimate(1.8) > 1.0 -> refused
     with pytest.raises(paid.BudgetExceeded):
         m.check(1.0)
-    m.check(3.0)                                   # still affordable
+    m.check(3.0)  # still affordable
 
 
 # --- is_auth_error ----------------------------------------------------------------------
@@ -94,7 +98,11 @@ def test_is_auth_error_shapes():
 
 def test_usage_of_shapes():
     assert paid._usage_of({"usage": {"in_tok": 1, "out_tok": 2}}) == {
-        "in_tok": 1, "out_tok": 2, "total": 0, "model": None}
+        "in_tok": 1,
+        "out_tok": 2,
+        "total": 0,
+        "model": None,
+    }
     u = paid._usage_of({"prompt_tokens": 5, "completion_tokens": 7})
     assert u["in_tok"] == 5 and u["out_tok"] == 7
 
@@ -116,10 +124,10 @@ def test_factory_lazy_client_and_meter(broot: Path):
         return object()
 
     f = paid.GatewayFactory(mk)
-    assert built == []                               # lazy: nothing yet
+    assert built == []  # lazy: nothing yet
     f._client()
     f._client()
-    assert built == [1]                              # built exactly once
+    assert built == [1]  # built exactly once
 
 
 def test_session_request_full_gate_path(broot: Path):
@@ -153,7 +161,7 @@ def test_session_reuses_ctx_lease_no_deadlock(broot: Path):
             return {"usage": {}}
 
     f, s = _session(Client(), ctx=ctx)
-    res = s.request("chat")                          # would deadlock on a 2nd flock
+    res = s.request("chat")  # would deadlock on a 2nd flock
     assert res == {"usage": {}}
     assert s._lease is held
     held.release()
@@ -185,8 +193,7 @@ def test_probe_model_checks_auth_dead_first(broot: Path):
 
 def test_session_budget_fuse_before_request(broot: Path):
     calls = []
-    f, s = _session(type("C", (), {"chat": lambda self: calls.append(1)}),
-                    max_cost=0.0)
+    f, s = _session(type("C", (), {"chat": lambda self: calls.append(1)}), max_cost=0.0)
     f.meter.record(usd=1.0)
     with pytest.raises(paid.BudgetExceeded):
         s.request("chat")
@@ -253,7 +260,8 @@ def test_session_claim_actually_held_during_request(broot: Path):
     class Client:
         def chat(self):
             seen["held"] = not locks.lock_free(
-                claims.claim_lock_path("2401.00001", "-", "-"))
+                claims.claim_lock_path("2401.00001", "-", "-")
+            )
             return {"usage": {}}
 
     f, s = _session(Client())

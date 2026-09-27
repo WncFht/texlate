@@ -96,7 +96,9 @@ _WRAPPER_NEG = (
 )
 
 
-@pytest.mark.skipif(not _WRAPPER_NEG.is_file(), reason="corpus 成员不在场（gitignored）")
+@pytest.mark.skipif(
+    not _WRAPPER_NEG.is_file(), reason="corpus 成员不在场（gitignored）"
+)
 def test_pdf_wrapper_negative() -> None:
     src = _WRAPPER_NEG.read_bytes().decode("utf-8", "replace")
     v = check_pdf_wrapper(src)

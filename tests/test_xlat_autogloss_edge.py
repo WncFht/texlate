@@ -57,9 +57,7 @@ class TestPickCorpusEdge:
         """e2e：全篇唯一候选超 cap 时仍发出一次抽取调用，不再静默 ``{}``。"""
         client, reqs = _mock([_ok(json.dumps([{"src": "x", "tgt": "译"}]))])
         got = asyncio.run(
-            ag.extract_terms(
-                ["a" * 5000], client, batch_chars=2400, max_batches=1
-            )
+            ag.extract_terms(["a" * 5000], client, batch_chars=2400, max_batches=1)
         )
         assert len(reqs) >= 1
         assert got == {"x": "译"}

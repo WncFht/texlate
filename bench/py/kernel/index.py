@@ -40,6 +40,7 @@ Statuses: done() treats DONE ∪ KERNEL as terminal — a cell marked
 dedup/claimed/lost/unpaid_gate must never re-enter a run set (fail-closed
 direction for paid cells).
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -79,14 +80,28 @@ _VAULT_KINDS = frozenset({"zh", "splice", "state"})
 
 # meta keys reset to "0" on rebuild (schema_v is preserved).
 _META_COUNTERS = (
-    "sealed_gen", "watermark", "dedup_skip", "quarantine",
-    "runless_seq", "bad_lines",
+    "sealed_gen",
+    "watermark",
+    "dedup_skip",
+    "quarantine",
+    "runless_seq",
+    "bad_lines",
 )
 
 # Every projection table wiped by rebuild (meta is handled separately).
 _PROJECTION_TABLES = (
-    "events", "dedupe", "cells", "records", "eval_records", "cases",
-    "assets", "claims", "paid_slots", "vault_meta", "papers", "runs",
+    "events",
+    "dedupe",
+    "cells",
+    "records",
+    "eval_records",
+    "cases",
+    "assets",
+    "claims",
+    "paid_slots",
+    "vault_meta",
+    "papers",
+    "runs",
 )
 
 _SCHEMA = """
@@ -301,27 +316,16 @@ class Index:
         try:
             if self._meta_get("schema_v") != str(INDEX_SCHEMA_V):
                 return False
-            keys = {
-                r["key"] for r in self.conn.execute("SELECT key FROM meta")
-            }
+            keys = {r["key"] for r in self.conn.execute("SELECT key FROM meta")}
             if any(k not in keys for k in _META_COUNTERS):
                 return False
-            cols = {
-                r["name"]
-                for r in self.conn.execute("PRAGMA table_info(claims)")
-            }
+            cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(claims)")}
             if "fate" not in cols:
                 return False
-            ccols = {
-                r["name"]
-                for r in self.conn.execute("PRAGMA table_info(cases)")
-            }
+            ccols = {r["name"] for r in self.conn.execute("PRAGMA table_info(cases)")}
             if "stage" not in ccols:
                 return False
-            idxs = {
-                r["name"]
-                for r in self.conn.execute("PRAGMA index_list(events)")
-            }
+            idxs = {r["name"] for r in self.conn.execute("PRAGMA index_list(events)")}
         except sqlite3.OperationalError:
             return False
         else:
@@ -338,11 +342,9 @@ class Index:
             if not force:
                 msg = (
                     f"index schema_v {v} != {INDEX_SCHEMA_V} — "
-                                        "run rebuild_index() to recreate"
+                    "run rebuild_index() to recreate"
                 )
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             self._drop_all()
             self.conn.executescript(_SCHEMA)
         for k in _META_COUNTERS:
@@ -350,30 +352,22 @@ class Index:
         self._meta_set_default("schema_v", str(INDEX_SCHEMA_V))
         # Additive post-v1 columns — guarded ALTER, no schema bump (the
         # column is nullable; replay and old rows are unaffected).
-        cols = {
-            r["name"] for r in self.conn.execute("PRAGMA table_info(claims)")
-        }
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(claims)")}
         if "fate" not in cols:
             self.conn.execute("ALTER TABLE claims ADD COLUMN fate TEXT")
         # cases.stage — additive, no schema bump (nullable; a rebuild
         # backfills it for every row since both sources carry stage).
-        ccols = {
-            r["name"] for r in self.conn.execute("PRAGMA table_info(cases)")
-        }
+        ccols = {r["name"] for r in self.conn.execute("PRAGMA table_info(cases)")}
         if "stage" not in ccols:
             self.conn.execute("ALTER TABLE cases ADD COLUMN stage TEXT")
         # idx_events_line_no — additive, no schema bump. Without it every
         # _txn's MAX(line_no) full-scans the events mirror (observed: a
         # per-event sink ground at ~2.5GB/s of page reads on a 500k-row
         # table); indexed, the probe is O(log n).
-        idxs = {
-            r["name"]
-            for r in self.conn.execute("PRAGMA index_list(events)")
-        }
+        idxs = {r["name"] for r in self.conn.execute("PRAGMA index_list(events)")}
         if "idx_events_line_no" not in idxs:
             self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_events_line_no"
-                " ON events(line_no)"
+                "CREATE INDEX IF NOT EXISTS idx_events_line_no ON events(line_no)"
             )
 
     def _drop_all(self) -> None:
@@ -384,9 +378,7 @@ class Index:
     # -- meta ------------------------------------------------------------------
 
     def _meta_get(self, key: str, default=None):
-        row = self.conn.execute(
-            "SELECT value FROM meta WHERE key=?", (key,)
-        ).fetchone()
+        row = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
         return row["value"] if row else default
 
     def _meta_set(self, key: str, value) -> None:
@@ -490,8 +482,13 @@ class Index:
             "(line_no,run_seq,seq,payload_sha,payload,ts,type)"
             " VALUES (?,?,?,?,?,?,?)",
             (
-                self._next_line_no(), run_seq, seq, sha,
-                events.dumps(ev), ev.get("ts"), ev.get("type"),
+                self._next_line_no(),
+                run_seq,
+                seq,
+                sha,
+                events.dumps(ev),
+                ev.get("ts"),
+                ev.get("type"),
             ),
         )
         if res.rowcount == 0:
@@ -506,17 +503,13 @@ class Index:
                     "INSERT OR IGNORE INTO dedupe(payload_sha) VALUES (?)", (sha,)
                 )
                 return "replay"
-            self._quarantine(
-                ev, sha, run_seq, seq, row["payload_sha"] if row else None
-            )
+            self._quarantine(ev, sha, run_seq, seq, row["payload_sha"] if row else None)
             # Mark the rejected payload too: replays of it must not re-quarantine.
             self.conn.execute(
                 "INSERT OR IGNORE INTO dedupe(payload_sha) VALUES (?)", (sha,)
             )
             return "quarantined"
-        self.conn.execute(
-            "INSERT INTO dedupe(payload_sha) VALUES (?)", (sha,)
-        )
+        self.conn.execute("INSERT INTO dedupe(payload_sha) VALUES (?)", (sha,))
         self._project(ev, run_seq, seq)
         return "applied"
 
@@ -566,16 +559,24 @@ class Index:
             cur.execute(
                 "INSERT INTO cases(run,seq,id,idc,stage,payload,ts)"
                 " VALUES (?,?,?,?,?,?,?)",
-                (ev.get("run"), ev.get("seq"), ev.get("id"), ev.get("idc"),
-                 ev.get("stage"), _j(ev.get("payload")), ev.get("ts")),
+                (
+                    ev.get("run"),
+                    ev.get("seq"),
+                    ev.get("id"),
+                    ev.get("idc"),
+                    ev.get("stage"),
+                    _j(ev.get("payload")),
+                    ev.get("ts"),
+                ),
             )
         elif t == events.T_CLAIM:
             self._proj_claim(cur, ev)
         elif t == events.T_ASSET:
             self._proj_asset(cur, ev)
         elif t == events.T_TOMBSTONE:
-            self._upsert_vault_meta(cur, ev, verdict="tombstone",
-                                    zone=ev.get("zone", "quar"))
+            self._upsert_vault_meta(
+                cur, ev, verdict="tombstone", zone=ev.get("zone", "quar")
+            )
         elif t == events.T_RUN_REGISTERED:
             cur.execute(
                 "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
@@ -585,8 +586,12 @@ class Index:
                 "  date=excluded.date, slug=excluded.slug,"
                 "  spec_hash=excluded.spec_hash, ts_start=excluded.ts_start",
                 (
-                    ev.get("run"), ev.get("run_seq"), ev.get("kind"),
-                    ev.get("date"), ev.get("slug"), ev.get("spec_hash"),
+                    ev.get("run"),
+                    ev.get("run_seq"),
+                    ev.get("kind"),
+                    ev.get("date"),
+                    ev.get("slug"),
+                    ev.get("spec_hash"),
                     ev.get("ts_start", ev.get("ts")),
                 ),
             )
@@ -614,31 +619,59 @@ class Index:
             "  status=excluded.status, cat=excluded.cat,"
             "  fp=excluded.fp, ts=excluded.ts",
             (
-                ev.get("idc"), ev.get("arm"), ev.get("up"), ev.get("variant"),
-                ev.get("stage"), ev.get("run"), ev.get("seq"), status,
-                ev.get("cat"), ev.get("fp"), ev.get("ts"),
+                ev.get("idc"),
+                ev.get("arm"),
+                ev.get("up"),
+                ev.get("variant"),
+                ev.get("stage"),
+                ev.get("run"),
+                ev.get("seq"),
+                status,
+                ev.get("cat"),
+                ev.get("fp"),
+                ev.get("ts"),
             ),
         )
         if t == events.T_CELL_QUEUED:
             cur.execute(
                 "INSERT INTO cases(run,seq,id,idc,stage,payload,ts)"
                 " VALUES (?,?,?,?,?,?,?)",
-                (ev.get("run"), ev.get("seq"), ev.get("id"), ev.get("idc"),
-                 ev.get("stage"), events.dumps(ev), ev.get("ts")),
+                (
+                    ev.get("run"),
+                    ev.get("seq"),
+                    ev.get("id"),
+                    ev.get("idc"),
+                    ev.get("stage"),
+                    events.dumps(ev),
+                    ev.get("ts"),
+                ),
             )
         elif t == events.T_CELL:
             row = (
-                ev.get("run"), ev.get("seq"), ev.get("id"), ev.get("idc"),
-                ev.get("arm"), ev.get("up"), ev.get("variant"), ev.get("stage"),
-                ev.get("status"), ev.get("cat"), ev.get("sig"), ev.get("code"),
-                ev.get("fp"), ev.get("dur_s"), _j(ev.get("metrics")),
-                _j(ev.get("errors")), ev.get("ts"),
+                ev.get("run"),
+                ev.get("seq"),
+                ev.get("id"),
+                ev.get("idc"),
+                ev.get("arm"),
+                ev.get("up"),
+                ev.get("variant"),
+                ev.get("stage"),
+                ev.get("status"),
+                ev.get("cat"),
+                ev.get("sig"),
+                ev.get("code"),
+                ev.get("fp"),
+                ev.get("dur_s"),
+                _j(ev.get("metrics")),
+                _j(ev.get("errors")),
+                ev.get("ts"),
             )
             cur.execute(
                 "INSERT INTO records"
                 "(run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
                 " fp,dur_s,metrics,errors,ts)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", row,
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                row,
             )
             # eval lane: stage declared eval by the caller, or a row the
             # caller tagged eval=1 (import paths bypass the cell whitelist).
@@ -647,23 +680,31 @@ class Index:
                     "INSERT INTO eval_records"
                     "(run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
                     " fp,dur_s,metrics,errors,ts)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", row,
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    row,
                 )
 
     def _proj_claim(self, cur, ev: dict) -> None:
         cur.execute(
             "INSERT INTO claims(idc,arm,variant,run,seq,op,slot,fate,ts)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
-            (ev.get("idc"), ev.get("arm"), ev.get("variant"), ev.get("run"),
-             ev.get("seq"), ev.get("op"), ev.get("slot"), ev.get("fate"),
-             ev.get("ts")),
+            (
+                ev.get("idc"),
+                ev.get("arm"),
+                ev.get("variant"),
+                ev.get("run"),
+                ev.get("seq"),
+                ev.get("op"),
+                ev.get("slot"),
+                ev.get("fate"),
+                ev.get("ts"),
+            ),
         )
         if ev.get("op") == "reap":
             # a reap clears every paid_slots mirror row the reaped key
             # left behind, whichever slot it sat in
             cur.execute(
-                "DELETE FROM paid_slots"
-                " WHERE idc=? AND arm=? AND variant=?",
+                "DELETE FROM paid_slots WHERE idc=? AND arm=? AND variant=?",
                 (ev.get("idc"), ev.get("arm"), ev.get("variant")),
             )
             return
@@ -677,8 +718,14 @@ class Index:
                 " ON CONFLICT(slot) DO UPDATE SET"
                 "  idc=excluded.idc, arm=excluded.arm,"
                 "  variant=excluded.variant, run=excluded.run, ts=excluded.ts",
-                (slot, ev.get("idc"), ev.get("arm"), ev.get("variant"),
-                 ev.get("run"), ev.get("ts")),
+                (
+                    slot,
+                    ev.get("idc"),
+                    ev.get("arm"),
+                    ev.get("variant"),
+                    ev.get("run"),
+                    ev.get("ts"),
+                ),
             )
         elif ev.get("op") == "release":
             cur.execute("DELETE FROM paid_slots WHERE slot=?", (slot,))
@@ -688,15 +735,26 @@ class Index:
             "INSERT INTO assets"
             "(idc,arm,variant,kind,path,sha,bytes,state,run,seq,ts)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (ev.get("idc"), ev.get("arm"), ev.get("variant"), ev.get("kind"),
-             ev.get("path"), ev.get("sha"), ev.get("bytes"), ev.get("state"),
-             ev.get("run"), ev.get("seq"), ev.get("ts")),
+            (
+                ev.get("idc"),
+                ev.get("arm"),
+                ev.get("variant"),
+                ev.get("kind"),
+                ev.get("path"),
+                ev.get("sha"),
+                ev.get("bytes"),
+                ev.get("state"),
+                ev.get("run"),
+                ev.get("seq"),
+                ev.get("ts"),
+            ),
         )
         # Vault-managed byte kinds also feed the vault_meta credential view;
         # verdict is explicit when carried, else mapped from asset state.
         if ev.get("kind") in _VAULT_KINDS:
             self._upsert_vault_meta(
-                cur, ev,
+                cur,
+                ev,
                 verdict=ev.get("verdict") or ev.get("state"),
                 zone=ev.get("zone"),
             )
@@ -709,9 +767,17 @@ class Index:
             " ON CONFLICT(idc,arm,variant,altseq) DO UPDATE SET"
             "  zone=excluded.zone, verdict=excluded.verdict,"
             "  path=excluded.path, sha=excluded.sha, ts=excluded.ts",
-            (ev.get("idc"), ev.get("arm"), ev.get("variant"),
-             str(ev.get("altseq", "0")), zone, verdict,
-             ev.get("path"), ev.get("sha"), ev.get("ts")),
+            (
+                ev.get("idc"),
+                ev.get("arm"),
+                ev.get("variant"),
+                str(ev.get("altseq", "0")),
+                zone,
+                verdict,
+                ev.get("path"),
+                ev.get("sha"),
+                ev.get("ts"),
+            ),
         )
 
     # -- ingest --------------------------------------------------------------------
@@ -766,11 +832,7 @@ class Index:
                         bad += 1
                     else:
                         evs.append(ev)
-            elif (
-                zst.exists()
-                and _ledger is not None
-                and _ledger.zst_verified(zst)
-            ):
+            elif zst.exists() and _ledger is not None and _ledger.zst_verified(zst):
                 for _n, _off, ev in _ledger._iter_zst(zst):
                     if ev is None:
                         bad += 1
@@ -926,8 +988,9 @@ class Index:
             int(self._meta_get("watermark", "0") or 0),
         )
 
-    def check_sealed(self, gen: int, min_offset: int = 0,
-                     min_tag: str | None = None) -> bool:
+    def check_sealed(
+        self, gen: int, min_offset: int = 0, min_tag: str | None = None
+    ) -> bool:
         """Fail-closed oracle input (§3.10.6): generation must match AND no
         .index-dirty flag AND no uningested sealed segment AND the index
         must have swallowed the bytes the caller observed.
@@ -945,10 +1008,7 @@ class Index:
         if gen_now != int(gen):
             return False
         if min_tag and _file_tag(paths.events_path()) != min_tag:
-            return (
-                bool(_sealed_segment_names())
-                and self._sealed_covered()
-            )
+            return bool(_sealed_segment_names()) and self._sealed_covered()
         return self._sealed_covered() and watermark >= int(min_offset)
 
     def done(self, idc, arm, up, variant, stage, runs=None) -> bool:
@@ -990,15 +1050,16 @@ class Index:
         evidence; without the filter it leaks into the pool and dedups the
         paid cell forever (§3.10.6 verified leg is stage-scoped).
         None = all stages (reconciliation callers only)."""
-        sql = ("SELECT DISTINCT idc,arm,variant FROM cells"
-               " WHERE status IN ('ok','partial')")
+        sql = (
+            "SELECT DISTINCT idc,arm,variant FROM cells"
+            " WHERE status IN ('ok','partial')"
+        )
         args: list = []
         if stages is not None:
             sql += f" AND stage IN ({','.join('?' * len(stages))})"
             args += sorted(stages)
         return {
-            (r["idc"], r["arm"], r["variant"])
-            for r in self.conn.execute(sql, args)
+            (r["idc"], r["arm"], r["variant"]) for r in self.conn.execute(sql, args)
         }
 
     def vault_bytes_ok(self) -> set[tuple]:
@@ -1045,9 +1106,7 @@ class Index:
         write failed after the ledger line landed (§3.10.6 ③)."""
         p = paths.index_dirty_path()
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            f"{round(time.time(), 3)} {reason}\n", encoding="utf-8"
-        )
+        p.write_text(f"{round(time.time(), 3)} {reason}\n", encoding="utf-8")
 
     def dirty(self) -> bool:
         return paths.index_dirty_path().exists()

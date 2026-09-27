@@ -317,7 +317,9 @@ def abbrev_cut(text: str, i: int) -> bool:
     （``Fig``/``Sec``/``Eq``/``Dr``）→ 缩写位。保守向偏欠切——``is.``/``wow!``
     这类真句尾小词也被放过，欠切只让块偏大，过切才毁句。
     """
-    m = _ABBREV_TAIL_RX.search(text, 0, i)  # endpos 截窗——$ 语义同 text[:i]，免 O(i) 拷贝
+    m = _ABBREV_TAIL_RX.search(
+        text, 0, i
+    )  # endpos 截窗——$ 语义同 text[:i]，免 O(i) 拷贝
     if m is None:
         return False
     w = m.group(1)

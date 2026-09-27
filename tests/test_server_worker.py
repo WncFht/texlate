@@ -282,9 +282,7 @@ class TestFaultPaths:
 
         http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         chat_client = ChatClient("http://127.0.0.1:3003", "k", http=http)
-        app = live_app(
-            tmp_path, lambda _ctx: GatewayTranslator(chat_client, "m1")
-        )
+        app = live_app(tmp_path, lambda _ctx: GatewayTranslator(chat_client, "m1"))
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)

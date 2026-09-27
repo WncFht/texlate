@@ -21,6 +21,7 @@ Stages per cell:
   file rows rehashed against extracted/ bytes (``sample`` param, default
   4). Missing mtree -> clean; any mismatch/missing member -> fail.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -36,10 +37,7 @@ def _items():
     load (compile_checks materializes it) — `bench run`/`bench plan`
     always see the catalog as of invocation."""
     cat = lake.LakeCatalog.load()
-    return [
-        {"id": idc}
-        for idc, _row in sorted(cat.rows().items())
-    ]
+    return [{"id": idc} for idc, _row in sorted(cat.rows().items())]
 
 
 def _claim_probe(ctx):
@@ -57,8 +55,7 @@ def _claim_probe(ctx):
 def _probe(ctx):
     cell = lake.cell_dir(ctx.idc)
     if not cell.is_dir():
-        ctx.emit({"stage": "probe", "metric": "lake_cell",
-                  "present": 0, "complete": 0})
+        ctx.emit({"stage": "probe", "metric": "lake_cell", "present": 0, "complete": 0})
         return "skip"
     meta_path = cell / "meta.json"
     has_raw = (cell / "raw").exists()
@@ -66,29 +63,48 @@ def _probe(ctx):
     if not meta_path.exists() and not has_raw and not has_ext:
         # Empty anchor dir — register seeds one per skeleton. A seed is
         # not a torn cell: nothing to verify, nothing broken.
-        ctx.emit({"stage": "probe", "metric": "lake_cell",
-                  "present": 1, "complete": 0, "reason": "skeleton",
-                  "claim": _claim_probe(ctx)})
+        ctx.emit(
+            {
+                "stage": "probe",
+                "metric": "lake_cell",
+                "present": 1,
+                "complete": 0,
+                "reason": "skeleton",
+                "claim": _claim_probe(ctx),
+            }
+        )
         return "skip"
     if has_raw and not has_ext:
         # raw tier only — real payload, nothing at the extracted layer.
         # A legitimate partial tier (catalog: raw_only), not damage;
         # terminal so resumes don't churn it.
-        ctx.emit({"stage": "probe", "metric": "lake_cell",
-                  "present": 1, "complete": 0, "reason": "raw_only",
-                  "has_raw": 1, "claim": _claim_probe(ctx)})
+        ctx.emit(
+            {
+                "stage": "probe",
+                "metric": "lake_cell",
+                "present": 1,
+                "complete": 0,
+                "reason": "raw_only",
+                "has_raw": 1,
+                "claim": _claim_probe(ctx),
+            }
+        )
         return "partial"
     complete = lake.is_complete(ctx.idc)
     meta = {}
     with contextlib.suppress(OSError, ValueError):
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    ctx.emit({
-        "stage": "probe", "metric": "lake_cell",
-        "present": 1, "complete": int(complete),
-        "n_files": meta.get("n_files"),
-        "has_raw": int(has_raw),
-        "claim": _claim_probe(ctx),
-    })
+    ctx.emit(
+        {
+            "stage": "probe",
+            "metric": "lake_cell",
+            "present": 1,
+            "complete": int(complete),
+            "n_files": meta.get("n_files"),
+            "has_raw": int(has_raw),
+            "claim": _claim_probe(ctx),
+        }
+    )
     return "ok" if complete else "error"
 
 
@@ -104,8 +120,14 @@ def _verify(ctx):
     cell = lake.cell_dir(ctx.idc)
     mtree = cell / "mtree.txt"
     if not mtree.is_file():
-        ctx.emit({"stage": "verify", "metric": "lake_verify",
-                  "checked": 0, "reason": "no_mtree"})
+        ctx.emit(
+            {
+                "stage": "verify",
+                "metric": "lake_verify",
+                "checked": 0,
+                "reason": "no_mtree",
+            }
+        )
         return "clean"
     files = []
     try:
@@ -116,8 +138,14 @@ def _verify(ctx):
     except OSError:
         return "error"
     if not files:
-        ctx.emit({"stage": "verify", "metric": "lake_verify",
-                  "checked": 0, "reason": "empty_mtree"})
+        ctx.emit(
+            {
+                "stage": "verify",
+                "metric": "lake_verify",
+                "checked": 0,
+                "reason": "empty_mtree",
+            }
+        )
         return "clean"
     n = max(1, int(ctx.params.get("sample", 4)))
     step = max(1, len(files) // n)
@@ -134,12 +162,16 @@ def _verify(ctx):
                 bad.append({"rel": rel, "why": "sha256"})
         except (OSError, ValueError) as exc:
             bad.append({"rel": rel, "why": f"{type(exc).__name__}"})
-    ctx.emit({
-        "stage": "verify", "metric": "lake_verify",
-        "checked": len(pick), "files": len(files),
-        "mismatch": len(bad),
-        **({"bad": bad[:8]} if bad else {}),
-    })
+    ctx.emit(
+        {
+            "stage": "verify",
+            "metric": "lake_verify",
+            "checked": len(pick),
+            "files": len(files),
+            "mismatch": len(bad),
+            **({"bad": bad[:8]} if bad else {}),
+        }
+    )
     return "fail" if bad else "ok"
 
 
@@ -151,13 +183,27 @@ spec = Spec(
     },
     items=_items,
     stages=[
-        Stage("probe", _probe, status_class={
-            "ok": "terminal", "partial": "terminal", "skip": "retriable",
-            "error": "retriable"}),
-        Stage("verify", _verify, needs=[("probe", {"ok"})],
-              status_class={
-                  "ok": "terminal", "fail": "terminal",
-                  "clean": "terminal", "error": "retriable"}),
+        Stage(
+            "probe",
+            _probe,
+            status_class={
+                "ok": "terminal",
+                "partial": "terminal",
+                "skip": "retriable",
+                "error": "retriable",
+            },
+        ),
+        Stage(
+            "verify",
+            _verify,
+            needs=[("probe", {"ok"})],
+            status_class={
+                "ok": "terminal",
+                "fail": "terminal",
+                "clean": "terminal",
+                "error": "retriable",
+            },
+        ),
     ],
     lake=True,
 )

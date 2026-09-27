@@ -21,6 +21,7 @@ factory itself is injected by the caller:
 spec without a budget fuse (§3.6), and ``--detach`` forces it at the CLI
 preflight.
 """
+
 from kernel.spec import Param, Spec, Stage
 
 _ITEMS = (
@@ -62,6 +63,7 @@ def _xlat(ctx):
     harvest secures the paid bytes into the vault (§3.5: paid output
     that never reaches the vault is unrecoverable spend)."""
     from kernel import vault
+
     state = ctx.upstream_asset_dir("state")
     if state is None:
         vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir())
@@ -97,8 +99,7 @@ def _report(ctx):
     if zh is None:
         return {"status": "error", "errors": [{"code": "no_zh_asset"}]}
     text = (zh / "out.txt").read_text(encoding="utf-8")
-    ctx.emit({"stage": "report", "metric": "paid_stub_chars",
-              "chars": len(text)})
+    ctx.emit({"stage": "report", "metric": "paid_stub_chars", "chars": len(text)})
     return "ok"
 
 

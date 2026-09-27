@@ -23,6 +23,7 @@ Layout (single item, serial chain):
   ``Ruleset.load()`` inside the worktree + report copy present at
   ``~/.local/state/texlate/errsweep-<date>-report.md``.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -37,9 +38,7 @@ from kernel.spec import Param, Spec, Stage
 
 REPO = Path(__file__).resolve().parents[3]
 RUNBOOK = REPO / "docs" / "dev" / "errsweep-runbook.md"
-RUNBOOK_SHA256 = (
-    "75d893116c44fd492ab4500e327a2f50b53e17c49d8902cb4f06089eb119df62"
-)
+RUNBOOK_SHA256 = "75d893116c44fd492ab4500e327a2f50b53e17c49d8902cb4f06089eb119df62"
 
 PROMPT = (
     "你是 texlate errsweep agent，今天是 {date}，工作目录是分支 "
@@ -101,38 +100,55 @@ def _prep(ctx):
             f"runbook sha drifted ({sha[:12]}… != pinned "
             f"{RUNBOOK_SHA256[:12]}…) — re-validate the spec against the "
             "new runbook, then bump RUNBOOK_SHA256",
-            level="warn")
+            level="warn",
+        )
         return "fail"
-    missing = [b for b in ("claude", "git", "uv")
-               if shutil.which(b) is None]
+    missing = [b for b in ("claude", "git", "uv") if shutil.which(b) is None]
     if missing:
-        ctx.emit_note(f"missing binaries: {', '.join(missing)}",
-                      level="warn")
+        ctx.emit_note(f"missing binaries: {', '.join(missing)}", level="warn")
         return "fail"
     if not _ENV_FILE.is_file():
-        ctx.emit_note(f"agent creds env absent: {_ENV_FILE}",
-                      level="warn")
+        ctx.emit_note(f"agent creds env absent: {_ENV_FILE}", level="warn")
         return "fail"
 
     p["replay"].mkdir(parents=True, exist_ok=True)
     wt, br = p["worktree"], p["branch"]
     reused = wt.is_dir()
     if not reused:
-        has_branch = subprocess.run(
-            ["git", "-C", str(REPO), "show-ref", "--verify", "--quiet",  # noqa: S607 — PATH 解析系统 git 是刻意
-             f"refs/heads/{br}"]).returncode == 0
-        cmd = (["git", "-C", str(REPO), "worktree", "add", str(wt), br]
-               if has_branch else
-               ["git", "-C", str(REPO), "worktree", "add", str(wt),
-                "-b", br, "HEAD"])
+        has_branch = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(REPO),
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    f"refs/heads/{br}",
+                ]
+            ).returncode
+            == 0
+        )
+        cmd = (
+            ["git", "-C", str(REPO), "worktree", "add", str(wt), br]
+            if has_branch
+            else ["git", "-C", str(REPO), "worktree", "add", str(wt), "-b", br, "HEAD"]
+        )
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
-            ctx.emit_note(f"git worktree add failed: {r.stderr.strip()}",
-                          level="warn")
+            ctx.emit_note(f"git worktree add failed: {r.stderr.strip()}", level="warn")
             return "error"
-    ctx.emit({"stage": "prep", "metric": "sweep_prep",
-              "worktree": str(wt), "branch": br, "reused": int(reused),
-              "replay": str(p["replay"]), "runbook_sha": sha[:16]})
+    ctx.emit(
+        {
+            "stage": "prep",
+            "metric": "sweep_prep",
+            "worktree": str(wt),
+            "branch": br,
+            "reused": int(reused),
+            "replay": str(p["replay"]),
+            "runbook_sha": sha[:16],
+        }
+    )
     return "ok"
 
 
@@ -143,27 +159,51 @@ def _sweep(ctx):
         return "error"
     log = ctx.rundir.derived() / "sweep.log"
     log.parent.mkdir(parents=True, exist_ok=True)
-    prompt = PROMPT.format(date=p["date"], root=REPO,
-                           bench_root=paths.root(),
-                           replay=p["replay"], state=p["state"])
+    prompt = PROMPT.format(
+        date=p["date"],
+        root=REPO,
+        bench_root=paths.root(),
+        replay=p["replay"],
+        state=p["state"],
+    )
     timeout_s = int(ctx.params.get("timeout_s", 6 * 3600))
     t0 = time.time()
     with open(log, "w", encoding="utf-8") as lf:
         try:
             r = subprocess.run(
-                ["timeout", f"{timeout_s}s", "claude", "-p", prompt,  # noqa: S607 — timeout+claude 走 PATH 是刻意
-                 "--dangerously-skip-permissions",
-                 "--add-dir", str(Path.home() / ".texlate"),
-                 "--add-dir", str(REPO),
-                 "--add-dir", str(paths.root())],
-                cwd=wt, env=_run_env(), stdout=lf,
-                stderr=subprocess.STDOUT, timeout=timeout_s + 120)
+                [
+                    "timeout",
+                    f"{timeout_s}s",
+                    "claude",
+                    "-p",
+                    prompt,
+                    "--dangerously-skip-permissions",
+                    "--add-dir",
+                    str(Path.home() / ".texlate"),
+                    "--add-dir",
+                    str(REPO),
+                    "--add-dir",
+                    str(paths.root()),
+                ],
+                cwd=wt,
+                env=_run_env(),
+                stdout=lf,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_s + 120,
+            )
             rc = r.returncode
         except subprocess.TimeoutExpired:
             rc = 124
     dur = round(time.time() - t0, 1)
-    ctx.emit({"stage": "sweep", "metric": "sweep_agent",
-              "rc": rc, "dur_s": dur, "log": str(log)})
+    ctx.emit(
+        {
+            "stage": "sweep",
+            "metric": "sweep_agent",
+            "rc": rc,
+            "dur_s": dur,
+            "log": str(log),
+        }
+    )
     if rc == 0:
         return "ok"
     if rc == 124:
@@ -175,21 +215,34 @@ def _post(ctx):
     p = _paths(ctx)
     wt = p["worktree"]
     r = subprocess.run(
-        ["uv", "run", "python", "-c",  # noqa: S607 — uv 走 PATH 是刻意
-         ("from texlate.compile.fixloop.ruleset import Ruleset; "
-          "Ruleset.load()")],
+        [
+            "uv",
+            "run",
+            "python",
+            "-c",
+            ("from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()"),
+        ],
         cwd=wt if wt.is_dir() else REPO,
-        capture_output=True, text=True, timeout=300)
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
     ruleset_ok = r.returncode == 0
     report = p["state"] / f"errsweep-{p['date']}-report.md"
-    ctx.emit({"stage": "post", "metric": "sweep_post",
-              "ruleset_ok": int(ruleset_ok),
-              "report_copy": int(report.is_file()),
-              "ruleset_err": (r.stderr or "")[-400:] if not ruleset_ok
-                             else None})
+    ctx.emit(
+        {
+            "stage": "post",
+            "metric": "sweep_post",
+            "ruleset_ok": int(ruleset_ok),
+            "report_copy": int(report.is_file()),
+            "ruleset_err": (r.stderr or "")[-400:] if not ruleset_ok else None,
+        }
+    )
     if not ruleset_ok:
-        ctx.emit_note("post-check: Ruleset.load FAIL — sweep may have "
-                      "poisoned the ruleset", level="warn")
+        ctx.emit_note(
+            "post-check: Ruleset.load FAIL — sweep may have poisoned the ruleset",
+            level="warn",
+        )
     return "ok" if ruleset_ok else "fail"
 
 
@@ -199,15 +252,22 @@ spec = Spec(
     items=[{"id": "sweep"}],
     params={"timeout_s": Param(type=int, default=6 * 3600)},
     stages=[
-        Stage("prep", _prep, status_class={
-            "ok": "terminal", "fail": "terminal", "error": "retriable"}),
-        Stage("sweep", _sweep, needs=[("prep", {"ok"})], status_class={
-            "ok": "terminal", "fail": "terminal",
-            "error": "retriable"}),
-        Stage("post", _post,
-              needs=[("sweep", {"ok", "fail"})],
-              status_class={
-                  "ok": "terminal", "fail": "terminal",
-                  "error": "retriable"}),
+        Stage(
+            "prep",
+            _prep,
+            status_class={"ok": "terminal", "fail": "terminal", "error": "retriable"},
+        ),
+        Stage(
+            "sweep",
+            _sweep,
+            needs=[("prep", {"ok"})],
+            status_class={"ok": "terminal", "fail": "terminal", "error": "retriable"},
+        ),
+        Stage(
+            "post",
+            _post,
+            needs=[("sweep", {"ok", "fail"})],
+            status_class={"ok": "terminal", "fail": "terminal", "error": "retriable"},
+        ),
     ],
 )

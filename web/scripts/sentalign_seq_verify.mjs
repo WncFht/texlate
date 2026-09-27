@@ -55,8 +55,7 @@ const nearestSeq = (map, side, pos) => {
         const score =
             dpage === 0
                 ? Math.abs(p.fraction - pos.fraction)
-                : dpage +
-                  (p.page < pos.page ? 1 - p.fraction : p.fraction);
+                : dpage + (p.page < pos.page ? 1 - p.fraction : p.fraction);
         if (score < bestScore) {
             bestScore = score;
             best = Number(key);
@@ -96,9 +95,9 @@ const topPageIn = (side) =>
 
 const run = async () => {
     // seqpos 由服务端懒算——node 侧直取同一响应做期望值推算
-    const readerInfo = await fetch(
-        `${BASE}/api/task/${TASK}/reader`,
-    ).then((r) => r.json());
+    const readerInfo = await fetch(`${BASE}/api/task/${TASK}/reader`).then(
+        (r) => r.json(),
+    );
     const seqpos = readerInfo.seqpos ?? {};
     const nSeq = Object.keys(seqpos).length;
     if (readerInfo.view && readerInfo.view !== "pdf")
@@ -110,15 +109,16 @@ const run = async () => {
         args: ["--disable-dev-shm-usage", "--no-sandbox"],
         env: { ...process.env, TMPDIR: PW_TMP },
     });
-    const page = await browser.newPage({ viewport: { width: 1680, height: 1000 } });
+    const page = await browser.newPage({
+        viewport: { width: 1680, height: 1000 },
+    });
     try {
         await page.goto(`${BASE}/#/reader/${TASK}`, {
             waitUntil: "domcontentloaded",
         });
-        await page.waitForSelector(
-            '.pane[data-side="translated"] .textLayer',
-            { timeout: 30000 },
-        );
+        await page.waitForSelector('.pane[data-side="translated"] .textLayer', {
+            timeout: 30000,
+        });
         await page.waitForTimeout(2000); // 两侧首屏渲染落定
 
         // 关滚动同步——本测试断言单侧位移，同步开着手动滚动会拖走对侧、
@@ -196,8 +196,7 @@ const run = async () => {
             return out;
         }, JSON.stringify(seqpos));
         // 偏好的目标：en 落页 ≠ zh 源页（跳转可观察）
-        const pick1 =
-            zhPick.filter((p) => p.oPage !== p.tPage)[0] ?? zhPick[0];
+        const pick1 = zhPick.filter((p) => p.oPage !== p.tPage)[0] ?? zhPick[0];
         if (!pick1) {
             check("zh→en: marked span 可点", false, "no candidates");
         } else {
@@ -261,9 +260,7 @@ const run = async () => {
         const { enPick } = await page.evaluate(() => {
             const out = [];
             const vr = document
-                .querySelector(
-                    '.pane[data-side="original"] .pdfSlickContainer',
-                )
+                .querySelector('.pane[data-side="original"] .pdfSlickContainer')
                 ?.getBoundingClientRect();
             if (!vr) return { enPick: out };
             for (const pg of document.querySelectorAll(
@@ -301,7 +298,10 @@ const run = async () => {
         const ranked = enPick
             .map((p) => ({
                 ...p,
-                seq: nearestSeq(seqpos, "en", { page: p.page, fraction: p.frac }),
+                seq: nearestSeq(seqpos, "en", {
+                    page: p.page,
+                    fraction: p.frac,
+                }),
             }))
             .filter((p) => p.seq != null && seqpos[String(p.seq)]?.t)
             .filter((p) => seqpos[String(p.seq)].t.page !== zhBefore)

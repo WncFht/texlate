@@ -55,9 +55,7 @@ class Segmenter(_Core, _Group, _Pending, _MainLoop, _Env, _Args):
     r"""token 流 → pieces/chunks。单遍正向、绝不抛异常（铁律 1）。"""
 
 
-def scan_v2(
-    g: Gullet, *, front_matter: frozenset[str] = frozenset()
-) -> ScanResult:
+def scan_v2(g: Gullet, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
     r"""v2 产品核：消费 ``g`` 的展开流 → ``ScanResult``。
 
     ``res.macros`` = gullet scope 链（平表 MacroTable 退役）；
@@ -101,9 +99,7 @@ def scan_v2(
     )
 
 
-def parse_tex_v2(
-    tex: str, *, front_matter: frozenset[str] = frozenset()
-) -> ScanResult:
+def parse_tex_v2(tex: str, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
     r"""``parse_tex`` 的 token 流版：内存源 Gullet。
 
     无路径无 root——``\\input`` 恒不解析。产品文件入口是

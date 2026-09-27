@@ -279,9 +279,7 @@ def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议�
         except ValueError:
             # 畸形 TEXLATE_BASE_URL 只意味 env 槽不匹配——不升格为请求级 400
             env_norm = ""
-        env_ok = not header_in["base_url"] or (
-            bool(env_norm) and base_url == env_norm
-        )
+        env_ok = not header_in["base_url"] or (bool(env_norm) and base_url == env_norm)
         api_key, source = "", "none"
         if settings_ok and settings.get(key_spec.settings_key):
             api_key, source = str(settings[key_spec.settings_key]), "settings"

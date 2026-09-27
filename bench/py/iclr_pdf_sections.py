@@ -38,7 +38,7 @@ PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 OUT = REPO / "bench" / "work_iclr" / "sections_pdf.jsonl"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from iclr_sections import canon_section, count_words  # noqa: E402
+from iclr_sections import canon_section, count_words
 from specs import _benchlite as benchlib
 
 #: stderr 时间戳日志——benchlib 单源（iclr_* 系同源件）。
@@ -51,7 +51,7 @@ RUNNING_HEAD_RX = re.compile(
     r".*(iclr|international conference on learning representations)"
     r"|^(iclr|international conference on learning representations)\b.*\d{4}"
     r"|openreview\.net",
-    re.I,
+    re.IGNORECASE,
 )
 PAGE_NUM_RX = re.compile(r"^\s*\d{1,4}\s*$")
 DEHYPHEN_RX = re.compile(r"([A-Za-z])-\n([a-z])")
@@ -66,17 +66,27 @@ UNNUMBERED_HEADS = re.compile(
     r"acknowledg\w*|acknowledgement\w*|reproducibility statement|"
     r"ethics statement|broader impact( statement)?|"
     r"societal impact|author contributions?|checklist)\s*$",
-    re.I,
+    re.IGNORECASE,
 )
 BAD_TAIL_RX = re.compile(r"[.,;:]$")
 TOC_RX = re.compile(r"\.{3,}|\s\d{1,3}$")  # 目录点线/尾随页码
 LETTER_SPACE_RX = re.compile(r"\b([A-Z]) (?=[A-Z]{2,})")  # 字距大写: I NTRODUCTION
 # 拼回判别集: tag 单字母 + 字距标题 = 完整白名单词（A+BSTRACT→ABSTRACT）
 JOINED_UNNUMBERED = {
-    "ABSTRACT", "REFERENCES", "BIBLIOGRAPHY", "APPENDIX", "APPENDICES",
-    "ACKNOWLEDGMENTS", "ACKNOWLEDGEMENTS", "REPRODUCIBILITYSTATEMENT",
-    "ETHICSSTATEMENT", "BROADERIMPACT", "BROADERIMPACTSTATEMENT",
-    "SOCIETALIMPACT", "AUTHORCONTRIBUTION", "AUTHORCONTRIBUTIONS",
+    "ABSTRACT",
+    "REFERENCES",
+    "BIBLIOGRAPHY",
+    "APPENDIX",
+    "APPENDICES",
+    "ACKNOWLEDGMENTS",
+    "ACKNOWLEDGEMENTS",
+    "REPRODUCIBILITYSTATEMENT",
+    "ETHICSSTATEMENT",
+    "BROADERIMPACT",
+    "BROADERIMPACTSTATEMENT",
+    "SOCIETALIMPACT",
+    "AUTHORCONTRIBUTION",
+    "AUTHORCONTRIBUTIONS",
     "CHECKLIST",
 }
 
@@ -151,11 +161,13 @@ def detect_headings(lines: list[str]) -> list[tuple[int, int, str, str]]:
 
 # ---------------- 单篇分析 ----------------
 
+
 def pdftotext(pdf: Path) -> str | None:
     try:
         r = subprocess.run(
             ["pdftotext", "-layout", "-enc", "UTF-8", str(pdf), "-"],
-            capture_output=True, timeout=60,
+            capture_output=True,
+            timeout=60,
         )
     except (subprocess.TimeoutExpired, OSError):
         return None
@@ -174,13 +186,19 @@ def analyze_pdf(pdf: Path) -> dict:
     n_pages = raw.count("\f") or 1
     text = unicodedata.normalize("NFKC", raw).replace("\f", "\n")
     lines = [
-        ln for ln in text.split("\n")
+        ln
+        for ln in text.split("\n")
         if not RUNNING_HEAD_RX.search(ln) and not PAGE_NUM_RX.match(ln)
     ]
     heads = detect_headings(lines)
     if len(heads) < 2:
-        return {"orid": orid, "arm": "pdf", "status": "few_headings",
-                "n_pages": n_pages, "n_headings": len(heads)}
+        return {
+            "orid": orid,
+            "arm": "pdf",
+            "status": "few_headings",
+            "n_pages": n_pages,
+            "n_headings": len(heads),
+        }
 
     def span_words(a: int, b: int) -> int:
         chunk = DEHYPHEN_RX.sub(r"\1\2", "\n".join(lines[a:b]))
@@ -195,17 +213,26 @@ def analyze_pdf(pdf: Path) -> dict:
         if (
             bucket == "appendix"
             or (tag and tag[0].isalpha())
-            or re.match(r"appendix\b", title, re.I)  # 数字编号的 "8 APPENDIX A:"
+            or re.match(
+                r"appendix\b", title, re.IGNORECASE
+            )  # 数字编号的 "8 APPENDIX A:"
         ):
             cur_appendix = True
         if cur_appendix and bucket == "other":
             bucket = "appendix"
-        sections.append({
-            "raw": title[:120], "bucket": bucket, "level": level,
-            "order": idx + 1, "words": w, "chars": 0, "caption_words": 0,
-            "appendix": cur_appendix and bucket != "references",
-            "unnumbered": not tag,
-        })
+        sections.append(
+            {
+                "raw": title[:120],
+                "bucket": bucket,
+                "level": level,
+                "order": idx + 1,
+                "words": w,
+                "chars": 0,
+                "caption_words": 0,
+                "appendix": cur_appendix and bucket != "references",
+                "unnumbered": not tag,
+            }
+        )
 
     preface_words = span_words(0, heads[0][0])
     abstract_words = next(
@@ -213,7 +240,8 @@ def analyze_pdf(pdf: Path) -> dict:
     )
     n_top = sum(1 for s in sections if s["level"] == 1)
     body_words = sum(
-        s["words"] for s in sections
+        s["words"]
+        for s in sections
         if not s["appendix"] and s["bucket"] != "references"
     )
     appendix_words = sum(
@@ -221,11 +249,18 @@ def analyze_pdf(pdf: Path) -> dict:
     )
     refs_words = sum(s["words"] for s in sections if s["bucket"] == "references")
     return {
-        "orid": orid, "arm": "pdf", "status": "ok", "n_pages": n_pages,
-        "n_headings": len(heads), "preface_words": preface_words,
-        "abstract_words": abstract_words, "n_top_sections": n_top,
-        "body_words": body_words, "appendix_words": appendix_words,
-        "refs_words": refs_words, "sections": sections,
+        "orid": orid,
+        "arm": "pdf",
+        "status": "ok",
+        "n_pages": n_pages,
+        "n_headings": len(heads),
+        "preface_words": preface_words,
+        "abstract_words": abstract_words,
+        "n_top_sections": n_top,
+        "body_words": body_words,
+        "appendix_words": appendix_words,
+        "refs_words": refs_words,
+        "sections": sections,
     }
 
 
@@ -256,9 +291,13 @@ def main() -> None:
         for i, p in enumerate(todo, 1):
             try:
                 rec = analyze_pdf(p)
-            except Exception as e:  # noqa: BLE001
-                rec = {"orid": p.stem, "arm": "pdf", "status": "crash",
-                       "error": f"{type(e).__name__}: {e}"}
+            except Exception as e:
+                rec = {
+                    "orid": p.stem,
+                    "arm": "pdf",
+                    "status": "crash",
+                    "error": f"{type(e).__name__}: {e}",
+                }
             stat[rec["status"]] += 1
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             if i % 200 == 0:

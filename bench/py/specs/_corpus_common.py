@@ -28,6 +28,7 @@ import 期纯 stdlib——``texlate.arxiv``/``pyarrow`` 一律惰性 import 在�
     materialize_into_stage materialize_entry_into_stage manifest_row_from_meta
     RAW_NAME IA_DL IA_META TIGER_DL
 """
+
 from __future__ import annotations
 
 import csv
@@ -453,8 +454,7 @@ def frame_lookup_path(build_root: Path = BUILD_ROOT) -> Path:
     return Path(build_root) / "frame_lookup.tsv.gz"
 
 
-def ensure_frame_lookup(frame_dir: Path = FRAME,
-                        build_root: Path = BUILD_ROOT) -> Path:
+def ensure_frame_lookup(frame_dir: Path = FRAME, build_root: Path = BUILD_ROOT) -> Path:
     """frame.parquet → frame_lookup.tsv.gz（缺时现算；pyarrow 惰性）。
 
     v3/expand/layers 谁先到谁建——原子写幂等。缺 frame.parquet → OSError
@@ -468,8 +468,12 @@ def ensure_frame_lookup(frame_dir: Path = FRAME,
     t = pq.read_table(
         src,
         columns=[
-            "id", "tar_yymm", "year_band",
-            "cat_group", "primary_cat", "license_class",
+            "id",
+            "tar_yymm",
+            "year_band",
+            "cat_group",
+            "primary_cat",
+            "license_class",
         ],
     )
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -588,8 +592,22 @@ def load_chunks(v3_workdir: Path) -> list[dict]:
 # ---------------------------------------------------------------- blob 特征机器
 # （build_corpus_v3 verbatim：特征口径单源——scan_tar 与 extracted 树共用。）
 TEXT_EXT = {
-    ".tex", ".sty", ".cls", ".bbl", ".bib", ".txt", ".def", ".clo",
-    ".cfg", ".ltx", ".dtx", ".ins", ".fd", ".bst", ".mf", ".mac",
+    ".tex",
+    ".sty",
+    ".cls",
+    ".bbl",
+    ".bib",
+    ".txt",
+    ".def",
+    ".clo",
+    ".cfg",
+    ".ltx",
+    ".dtx",
+    ".ins",
+    ".fd",
+    ".bst",
+    ".mf",
+    ".mac",
 }
 DOCCLASS_RX = re.compile(
     r"\\(documentclass|documentstyle)\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}",
@@ -602,12 +620,43 @@ INPUT_RX = re.compile(
 # （pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
 # revtex 只钉裸名——revtex4/revtex4-2 是 CTAN 现役，\b 边界天然排除。
 DEAD_PKGS = {
-    "aa", "aasms4", "aaspp4", "aastex", "aipproc", "aipmod", "apjfonts",
-    "axodraw", "boxedeps", "citesort", "complexity", "diagrams", "elsart",
-    "emulateapj", "epsf", "epsfx", "eqsecnum", "espcrc1", "espcrc2",
-    "iopart", "imsart", "jhep3", "jheppub", "jinstpub", "mn2e", "moriond",
-    "psfig", "pst-node", "revtex", "slashbox", "sprocl", "svglov3",
-    "svjour", "svjour3", "sw20lart", "tcilatex", "texsort",
+    "aa",
+    "aasms4",
+    "aaspp4",
+    "aastex",
+    "aipproc",
+    "aipmod",
+    "apjfonts",
+    "axodraw",
+    "boxedeps",
+    "citesort",
+    "complexity",
+    "diagrams",
+    "elsart",
+    "emulateapj",
+    "epsf",
+    "epsfx",
+    "eqsecnum",
+    "espcrc1",
+    "espcrc2",
+    "iopart",
+    "imsart",
+    "jhep3",
+    "jheppub",
+    "jinstpub",
+    "mn2e",
+    "moriond",
+    "psfig",
+    "pst-node",
+    "revtex",
+    "slashbox",
+    "sprocl",
+    "svglov3",
+    "svjour",
+    "svjour3",
+    "sw20lart",
+    "tcilatex",
+    "texsort",
 }
 DEADPKG_ALT = "|".join(sorted(DEAD_PKGS, key=len, reverse=True)).replace("-", "[-]")
 DEADPKG_RX = re.compile(
@@ -683,36 +732,119 @@ AUTOIGNORE = b"%auto-ignore"
 USEP_RX = re.compile(r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{([^}]*)\}")
 # W35 期刊样式以 \usepackage 加载的已知样式包
 JOURNAL_STY_PKGS = {
-    "jheppub", "jinstpub", "aasms4", "aaspp4", "sprocl",
-    "espcrc2", "moriond", "aipmod", "eqsecnum", "emulateapj",
+    "jheppub",
+    "jinstpub",
+    "aasms4",
+    "aaspp4",
+    "sprocl",
+    "espcrc2",
+    "moriond",
+    "aipmod",
+    "eqsecnum",
+    "emulateapj",
 }
 # W62 kitchen-sink 异质 DSL 包
 DSL_PKGS = {
-    "skak", "xypic", "tikz-cd", "commath", "faktor", "nccmath",
-    "chess", "amscd", "pb-diagram", "forest", "qtree", "xy",
+    "skak",
+    "xypic",
+    "tikz-cd",
+    "commath",
+    "faktor",
+    "nccmath",
+    "chess",
+    "amscd",
+    "pb-diagram",
+    "forest",
+    "qtree",
+    "xy",
 }
 # W64 \documentclass 非常规 option 位期刊样式
 JOURNAL_OPTS = {
-    "ecta", "jhep", "jcap", "mnras", "aastex", "aps", "aip",
-    "pra", "prb", "prc", "prd", "pre", "prl", "prx", "rmp",
+    "ecta",
+    "jhep",
+    "jcap",
+    "mnras",
+    "aastex",
+    "aps",
+    "aip",
+    "pra",
+    "prb",
+    "prc",
+    "prd",
+    "pre",
+    "prl",
+    "prx",
+    "rmp",
 }
 # W70 选项错拼判定基线：LaTeX 内核 + 主流类选项白名单（编辑距 ≤1 即疑 typo）
 KERNEL_OPTS = {
-    "8pt", "9pt", "10pt", "11pt", "12pt", "14pt", "17pt", "20pt",
-    "a4paper", "a5paper", "b5paper", "letterpaper", "legalpaper",
-    "executivepaper", "landscape", "twocolumn", "onecolumn",
-    "twoside", "oneside", "draft", "final", "fleqn", "leqno",
-    "titlepage", "notitlepage", "openright", "openany", "openbib",
-    "preprint", "preprintnumbers", "superscriptaddress",
-    "amsmath", "amssymb", "amsfonts", "floatfix", "nofootinbib",
-    "showkeys", "showpacs", "longbibliography", "reprint",
-    "conference", "journal", "technote", "compsoc", "peerreview",
-    "review", "manuscript", "screen", "referee", "english", "proc",
-    "overfull", "numbered", "authoryear",
+    "8pt",
+    "9pt",
+    "10pt",
+    "11pt",
+    "12pt",
+    "14pt",
+    "17pt",
+    "20pt",
+    "a4paper",
+    "a5paper",
+    "b5paper",
+    "letterpaper",
+    "legalpaper",
+    "executivepaper",
+    "landscape",
+    "twocolumn",
+    "onecolumn",
+    "twoside",
+    "oneside",
+    "draft",
+    "final",
+    "fleqn",
+    "leqno",
+    "titlepage",
+    "notitlepage",
+    "openright",
+    "openany",
+    "openbib",
+    "preprint",
+    "preprintnumbers",
+    "superscriptaddress",
+    "amsmath",
+    "amssymb",
+    "amsfonts",
+    "floatfix",
+    "nofootinbib",
+    "showkeys",
+    "showpacs",
+    "longbibliography",
+    "reprint",
+    "conference",
+    "journal",
+    "technote",
+    "compsoc",
+    "peerreview",
+    "review",
+    "manuscript",
+    "screen",
+    "referee",
+    "english",
+    "proc",
+    "overfull",
+    "numbered",
+    "authoryear",
     # 实测语料补录（避免标准类选项误作 typo 候选）:
-    "reqno", "tbtags", "centertags", "intlimits", "nointlimits",
-    "sumlimits", "nosumlimits", "namelimits", "nonamelimits",
-    "comsoc", "transmag", "author-year",
+    "reqno",
+    "tbtags",
+    "centertags",
+    "intlimits",
+    "nointlimits",
+    "sumlimits",
+    "nosumlimits",
+    "namelimits",
+    "nonamelimits",
+    "comsoc",
+    "transmag",
+    "author-year",
 }
 ORG_LABEL_RX = re.compile(r"\\label\{sec:org[0-9a-f]{5,9}\}")
 EDITOR_LEFT_RX = re.compile(r"\\label\{[a-z]+:enter-label\}|\\textbf\{\}")
@@ -968,11 +1100,7 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
             if o.strip()
         }
     )
-    roots = [
-        p
-        for p, t in tex_texts.items()
-        if DOCCLASS_RX.search(strip_comments(t))
-    ]
+    roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
     rec["tex_roots"] = sorted(roots)
     rec["input_depth"] = input_depth(tex_texts, roots)
     # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把
@@ -1160,8 +1288,9 @@ def materialize_into_stage(
     return meta
 
 
-def manifest_row_from_meta(meta: dict, cell_dir: Path | None = None,
-                         default_layer: str = "expand") -> dict | None:
+def manifest_row_from_meta(
+    meta: dict, cell_dir: Path | None = None, default_layer: str = "expand"
+) -> dict | None:
     """meta dict（或 cell_dir/meta.json）→ manifest 行（幂等回补同口径）。
 
     lake 版差异：main_tex_sha256 由物化时直写 meta（旧版回补时重算——

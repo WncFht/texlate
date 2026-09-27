@@ -256,9 +256,7 @@ _TAB_MAIN = (
     "\\centering\n"
     "\\caption{Caption text for the table.}\n"
     "\\label{tab:big}\n"
-    "\\begin{tabular}{ll}\n"
-    + _TAB_ROWS
-    + "\\end{tabular}\n"
+    "\\begin{tabular}{ll}\n" + _TAB_ROWS + "\\end{tabular}\n"
     "\\end{table}\n"
     "\n"
     "After paragraph text past the float.\n"

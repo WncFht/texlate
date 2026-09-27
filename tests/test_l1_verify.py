@@ -144,7 +144,9 @@ def test_w58_arara_shell_on(tmp_path: Path) -> None:
 
 def test_w58_tex_program_advisory(tmp_path: Path) -> None:
     """``% !TEX program = xelatex`` → advisory 账本（不改源不请 flag）。"""
-    ctx = mk_ctx_files(tmp_path, {"m.tex": "% !TEX program = xelatex\n\\documentclass{a}\n"})
+    ctx = mk_ctx_files(
+        tmp_path, {"m.tex": "% !TEX program = xelatex\n\\documentclass{a}\n"}
+    )
     applied, _ = harvest_build_directives(ctx, _Eng(), None, {})
     assert applied
     assert any("xelatex" in a for a in ctx.advisories)

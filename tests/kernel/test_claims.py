@@ -4,6 +4,7 @@ ClaimLease objects each own a distinct fd, so in-process double-claim tests
 exercise real flock exclusion; detach_with_lock supplies a true
 cross-process claimant.
 """
+
 from __future__ import annotations
 
 import threading
@@ -12,6 +13,7 @@ import time
 from kernel import claims, locks, paths
 
 # --- encoding / path shape ------------------------------------------------------
+
 
 def test_escape_roundtrip():
     for s in ("zh", "real", "v1", "a.b@c%d-e", "-", "x y", "%"):
@@ -51,8 +53,7 @@ def test_claim_lock_name_roundtrip(broot):
     for idc, arm, variant in cases:
         p = claims.claim_lock_path(idc, arm, variant)
         got_idc, got_arm, got_variant = claims.parse_claim_lock_name(p)
-        assert (got_idc, got_arm, got_variant) == (
-            idc, arm or "-", variant or "-")
+        assert (got_idc, got_arm, got_variant) == (idc, arm or "-", variant or "-")
 
 
 def test_claim_path_injectivity(broot):
@@ -62,8 +63,14 @@ def test_claim_path_injectivity(broot):
     §3.10.7), which is what makes safe_id injective.
     """
     seen = {}
-    idcs = ["a/b", "a.b", "math.QA/1", "hep-th/9601001",
-            "2301.12345", "cond-mat/9601001"]
+    idcs = [
+        "a/b",
+        "a.b",
+        "math.QA/1",
+        "hep-th/9601001",
+        "2301.12345",
+        "cond-mat/9601001",
+    ]
     arms = ["zh", "a.b", "-"]
     variants = ["-", "v1", "a.b"]
     for idc in idcs:
@@ -76,6 +83,7 @@ def test_claim_path_injectivity(broot):
 
 # --- ClaimLease basics ------------------------------------------------------------
 
+
 def test_lease_acquire_release(broot):
     lease = claims.ClaimLease("cond-mat/9601001", "zh")
     assert lease.acquire()
@@ -84,13 +92,13 @@ def test_lease_acquire_release(broot):
     lease.release()
     assert not lease.held
     assert locks.lock_free(lease.path)
-    lease.release()                              # idempotent
+    lease.release()  # idempotent
 
 
 def test_lease_acquire_idempotent(broot):
     lease = claims.ClaimLease("cond-mat/9601001")
     assert lease.acquire()
-    assert lease.acquire()                       # already ours
+    assert lease.acquire()  # already ours
     lease.release()
 
 
@@ -118,10 +126,10 @@ def test_different_cells_do_not_contend(broot):
 def test_held_by_other(broot):
     l1 = claims.ClaimLease("cond-mat/9601001", "zh")
     l2 = claims.ClaimLease("cond-mat/9601001", "zh")
-    assert not l1.held_by_other()                # free -> no other holder
+    assert not l1.held_by_other()  # free -> no other holder
     assert l1.acquire()
-    assert not l1.held_by_other()                # held by us -> False
-    assert l2.held_by_other()                    # other fd sees the hold
+    assert not l1.held_by_other()  # held by us -> False
+    assert l2.held_by_other()  # other fd sees the hold
     l1.release()
     assert not l2.held_by_other()
 
@@ -154,11 +162,11 @@ def test_concurrent_double_claim_never_two(broot):
     def race():
         lease = claims.ClaimLease("cond-mat/9601001", "zh")
         barrier.wait(timeout=10)
-        if lease.acquire():                      # one-shot NB attempt
+        if lease.acquire():  # one-shot NB attempt
             with guard:
                 state["holding"] += 1
                 state["max_held"] = max(state["max_held"], state["holding"])
-            time.sleep(0.05)                     # overlap window if buggy
+            time.sleep(0.05)  # overlap window if buggy
             with guard:
                 state["holding"] -= 1
             lease.release()
@@ -169,7 +177,7 @@ def test_concurrent_double_claim_never_two(broot):
     for t in threads:
         t.join(15)
         assert not t.is_alive()
-    assert state["max_held"] == 1                # exactly one NB winner
+    assert state["max_held"] == 1  # exactly one NB winner
 
 
 def test_lease_context_manager(broot):
@@ -182,23 +190,25 @@ def test_lease_context_manager(broot):
 
 # --- cross-process exclusion --------------------------------------------------------
 
+
 def test_foreign_process_holder_blocks_claim(broot):
     lp = claims.claim_lock_path("cond-mat/9601001", "zh")
-    proc = locks.detach_with_lock([], lp)        # child holds the claim lock
+    proc = locks.detach_with_lock([], lp)  # child holds the claim lock
     try:
         lease = claims.ClaimLease("cond-mat/9601001", "zh")
-        assert not lease.acquire()               # cross-process exclusion
+        assert not lease.acquire()  # cross-process exclusion
         assert lease.held_by_other()
         assert not locks.lock_free(lp)
     finally:
         proc.kill()
         proc.wait()
     lease = claims.ClaimLease("cond-mat/9601001", "zh")
-    assert lease.acquire()                       # death released it
+    assert lease.acquire()  # death released it
     lease.release()
 
 
 # --- reaper ---------------------------------------------------------------------
+
 
 def test_reaper_collect_free_claims(broot):
     held = claims.ClaimLease("cond-mat/9601001", "zh")
@@ -218,7 +228,7 @@ def test_reaper_collect_free_claims(broot):
 def test_reaper_collect_foreign_death(broot):
     lp = claims.claim_lock_path("cond-mat/9601001", "zh")
     proc = locks.detach_with_lock([], lp)
-    assert lp not in claims.reaper_collect()     # live holder
+    assert lp not in claims.reaper_collect()  # live holder
     proc.kill()
     proc.wait()
-    assert lp in claims.reaper_collect()         # dead holder -> reap candidate
+    assert lp in claims.reaper_collect()  # dead holder -> reap candidate

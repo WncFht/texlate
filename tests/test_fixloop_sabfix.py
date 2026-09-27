@@ -139,9 +139,7 @@ def _plant_mn2e(wdir: Path, body: str = _MN2E_BUGGY) -> Path:
     return f
 
 
-def _ctx(
-    tmp_path: Path, err_head: str = "", main_rel: str | None = None
-) -> LoopCtx:
+def _ctx(tmp_path: Path, err_head: str = "", main_rel: str | None = None) -> LoopCtx:
     """xelatex LoopCtx 工厂——``err_head`` 直注构造器 (不再后置赋值)。"""
     return LoopCtx(
         wdir=tmp_path, engine_name="xelatex", main_rel=main_rel, err_head=err_head
@@ -273,7 +271,9 @@ def test_cond_pass_mn2e_attr_form(tmp_path: Path) -> None:
 def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
     """错误不点名 mn2e.cls/Options Section (别包错) → ctx_suggests 闸拒。"""
     _plant_mn2e(tmp_path)
-    ctx = _ctx(tmp_path, err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n")
+    ctx = _ctx(
+        tmp_path, err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
+    )
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 

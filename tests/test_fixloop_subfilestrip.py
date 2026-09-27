@@ -22,9 +22,7 @@ from texlate.compile.fixloop.ruleset import load_ruleset
 if TYPE_CHECKING:
     from pathlib import Path
 
-_MAIN = (
-    "\\documentclass{article}\n\\begin{document}\n\\input{sub}\n\\end{document}\n"
-)
+_MAIN = "\\documentclass{article}\n\\begin{document}\n\\input{sub}\n\\end{document}\n"
 _SUB = (
     "\\documentclass{article}\n\\usepackage{amsmath}\n"
     "\\newcommand{\\x}{1}\n\\begin{document}\nSub body $a+b$.\n"
@@ -161,9 +159,7 @@ def test_only_unreferenced_returns_false(tmp_path: Path) -> None:
     ok, note = subfile_docclass_strip(ctx, None, None, {"exts": [".tex"]})
     assert not ok
     assert "input-referenced" in note
-    assert "documentclass" in (tmp_path / "Biography.tex").read_text(
-        encoding="utf-8"
-    )
+    assert "documentclass" in (tmp_path / "Biography.tex").read_text(encoding="utf-8")
 
 
 def test_rule_sits_between_tar_extract_and_precheck() -> None:

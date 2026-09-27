@@ -178,9 +178,7 @@ def _ph_roundtrip(
     ok = re.search(rx, chunks) and needle in recon
     return {
         "status": "pass" if ok else "fail",
-        "detail": note
-        if ok
-        else f"rx={rx!r} in chunks / {needle!r} in recon: false",
+        "detail": note if ok else f"rx={rx!r} in chunks / {needle!r} in recon: false",
     }
 
 
@@ -192,7 +190,9 @@ class FixtureScan:
     ok: bool
     wall_ms: float
     res: ScanResult | None = None
-    recon: str = ""  # identity 重建（对比基准是 res.vtex——见 test_identity_reconstruct）
+    recon: str = (
+        ""  # identity 重建（对比基准是 res.vtex——见 test_identity_reconstruct）
+    )
     recon_fake: str = ""  # 假译文重建
     error: str = ""
     residue_chunk_ph: int = -1

@@ -32,6 +32,7 @@ w / w73 / wenc / dollar / mask）。
     bench run fixture_assert fixture=tricky-w   # 子串子集
     bench run fixture_assert ids=tricky.tex,xlat-traps.tex
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -131,10 +132,17 @@ def _fx_assert(ctx) -> dict:
 
     fn = _ASSERTS.get(name)
     if fn is None:
-        ctx.emit_note(f"{name}: no assertion mapping — zero-assert cell",
-                      level="warn")
-        ctx.emit({"metrics": {"parse_ok": p.ok, "wall_ms": p.wall_ms,
-                              "error": p.error or None, "n_assert": 0}})
+        ctx.emit_note(f"{name}: no assertion mapping — zero-assert cell", level="warn")
+        ctx.emit(
+            {
+                "metrics": {
+                    "parse_ok": p.ok,
+                    "wall_ms": p.wall_ms,
+                    "error": p.error or None,
+                    "n_assert": 0,
+                }
+            }
+        )
         return "clean"
 
     asserts = fn(p)
@@ -170,15 +178,17 @@ def _fx_assert(ctx) -> dict:
             st, detail = v.get("status", "?"), str(v.get("detail", ""))
         else:  # assert_209 的 parse_ok 是 bool——折算 pass/fail 且计入 n_assert
             st, detail = ("pass" if v else "fail"), str(v)
-        ctx.emit_case({
-            "case": f"{name}::{aid}",
-            "fixture": name,
-            "id": aid,
-            "status": st,
-            "detail": detail,
-            "parse_ok": p.ok,
-            "wall_ms": p.wall_ms,
-        })
+        ctx.emit_case(
+            {
+                "case": f"{name}::{aid}",
+                "fixture": name,
+                "id": aid,
+                "status": st,
+                "detail": detail,
+                "parse_ok": p.ok,
+                "wall_ms": p.wall_ms,
+            }
+        )
         metrics["asserts"][aid] = {"status": st, "detail": detail}
         if st in ("pass", "partial", "fail"):
             metrics[st] += 1
@@ -186,11 +196,13 @@ def _fx_assert(ctx) -> dict:
         else:  # info 级（tricky/w/dollar/mask 的 _meta 行）不进分母
             metrics["info"] += 1
         if st in ("fail", "partial"):
-            errors.append({
-                "cat": f"assert_{st}",
-                "code": aid,
-                "msg": f"{name}::{aid} {detail[:200]}",
-            })
+            errors.append(
+                {
+                    "cat": f"assert_{st}",
+                    "code": aid,
+                    "msg": f"{name}::{aid} {detail[:200]}",
+                }
+            )
 
     if metrics["fail"] > 0:
         status = "fail"
@@ -212,14 +224,18 @@ spec = Spec(
         "only": Param(type=str, default="", fp=False),
     },
     stages=[
-        Stage("fx_assert", _fx_assert, eval=True,
-              status_class={
-                  "ok": "terminal",
-                  "partial": "terminal",
-                  "fail": "terminal",
-                  "clean": "terminal",
-                  "error": "retriable",
-              }),
+        Stage(
+            "fx_assert",
+            _fx_assert,
+            eval=True,
+            status_class={
+                "ok": "terminal",
+                "partial": "terminal",
+                "fail": "terminal",
+                "clean": "terminal",
+                "error": "retriable",
+            },
+        ),
     ],
     freeze_plan=True,
     executor="thread",

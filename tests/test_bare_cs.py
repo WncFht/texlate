@@ -182,6 +182,7 @@ class TestNoFalsePositive:
 
     def test_lowercase_extension_real_cs_ok(self) -> None:
         """``\\cite``→``\\citep`` 全小写延申是真 cs 面——粘合判定要求大写后缀, 不拦。"""
+
         class Citep(pl.MockTranslator):
             async def translate(self, *, user: str, **kw: object) -> str:
                 raw = await super().translate(user=user, **kw)
@@ -288,9 +289,7 @@ class TestDownstreamContract:
         pipe = pl.XlatPipeline(
             translator=_Injector("\\alpha 发射体"), validator=pass_validate
         )
-        out = asyncio.run(
-            pipe.run([mk_chunk(_LONG_SRC, "c1")])
-        )
+        out = asyncio.run(pipe.run([mk_chunk(_LONG_SRC, "c1")]))
         assert out[0].error_kind == "validate"
         assert pipe.auth_gate.non_auth == 1
         assert not pipe.auth_gate.tripped

@@ -375,9 +375,7 @@ class TestDocPipeline:
             assert snap["status"] == "fault"
             assert snap["error"]["code"] == "provider_auth"
             warns = [
-                e["data"]["code"]
-                for e in task_events(c, tid)
-                if e["type"] == "warning"
+                e["data"]["code"] for e in task_events(c, tid) if e["type"] == "warning"
             ]
             assert warns == ["mock_translator"]
 

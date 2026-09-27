@@ -72,9 +72,7 @@ def test_cref_section_splitter_patch(tmp_path: Path) -> None:
 
 def test_cref_payload_backslash_form(tmp_path: Path) -> None:
     """log payload 带反斜杠 (``\\cref@section``) → lstrip 归一同键命中。"""
-    check_backslash_payload(
-        tmp_path, "\\cref@section", "\\crt@cref@splitter@counter"
-    )
+    check_backslash_payload(tmp_path, "\\cref@section", "\\crt@cref@splitter@counter")
 
 
 def test_bar_deferred_provide(tmp_path: Path) -> None:
@@ -93,9 +91,7 @@ def test_inputencoding_gobble(tmp_path: Path) -> None:
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\providecommand\\inputencoding[1]{}" in text
-    assert text.index("\\providecommand\\inputencoding") > text.index(
-        "\\documentclass"
-    )
+    assert text.index("\\providecommand\\inputencoding") > text.index("\\documentclass")
 
 
 def test_red_xcolor_and_polyfill(tmp_path: Path) -> None:

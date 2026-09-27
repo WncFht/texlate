@@ -53,9 +53,7 @@ def test_decmathsym_ifnfsstwo_arm_cluster(tmp_path: Path) -> None:
         ) in t, cs
     # 前置落在臂内 (\ifnfsstwo 与 \else 之间), 不泄出死臂语义
     assert (
-        t.index("\\ifnfsstwo")
-        < t.index("\\csname upi\\endcsname")
-        < t.index("\\else")
+        t.index("\\ifnfsstwo") < t.index("\\csname upi\\endcsname") < t.index("\\else")
     )
 
 

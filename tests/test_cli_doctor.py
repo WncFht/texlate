@@ -107,9 +107,7 @@ def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPa
         "run",
         _fake_run(
             {
-                "kpsewhich": lambda argv: _cp(
-                    stdout=f"/texmf/{argv[1]}\n".encode()
-                ),
+                "kpsewhich": lambda argv: _cp(stdout=f"/texmf/{argv[1]}\n".encode()),
                 "fc-list": b"Noto Sans CJK SC\n",
                 # poppler -v 版本走 stderr
                 "pdftotext": _cp(stderr=b"pdftotext version 24.01\n"),

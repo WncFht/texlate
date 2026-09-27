@@ -428,9 +428,7 @@ def _gen_doc(rng: random.Random, base: int) -> list[ChunkIn]:
                 for _ in range(rng.randint(1, 3))
             )
         elif r < _P_PURE + _P_BIB:
-            content = f"[[BIB_{rng.randint(1, 9)}]] " + soup_join(
-                rng, _TEXT_SOUP, 2, 8
-            )
+            content = f"[[BIB_{rng.randint(1, 9)}]] " + soup_join(rng, _TEXT_SOUP, 2, 8)
         elif r < _P_PURE + _P_BIB + _P_LONG:
             body = soup_join(rng, _TEXT_SOUP, 20, 60) + " tail."
             content = body * (600 // max(1, len(body)) + 1)

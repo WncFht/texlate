@@ -1002,7 +1002,8 @@ class _Args:
     @staticmethod
     def _arg_body_shaped(a: _ArgTok) -> bool:
         r"""参 token 流是否块级排版体（而非参数槽）：``eol_par`` 空行（TeX
-        ``\long`` 语义多段参）或 ``\begin``/``\end``/``\item``/节题 cs 任一即体。"""
+        ``\long`` 语义多段参）或 ``\begin``/``\end``/``\item``/节题 cs 任一即体。
+        """
         for x in a.all_toks:
             if x.kind == "eol_par":
                 return True
@@ -1439,9 +1440,7 @@ class _Args:
         end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入 [[MACRO]] 覆盖
         self._cover_ph(fid, end, PhType.MACRO)
 
-    def _opaque_arg_prose(
-        self, fid: int, a: _ArgTok
-    ) -> bool:
+    def _opaque_arg_prose(self, fid: int, a: _ArgTok) -> bool:
         r"""Opaque 宏 ``{..}``/``[..]`` 组参的调用点散文门（gullet-at scout 口径）。
 
         只认本 fid 实消费的 ``{``/``[``-open 组参：跨 fid 组字节切片判不了形

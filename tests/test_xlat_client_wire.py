@@ -698,7 +698,9 @@ class TestDiscoverFreeModels:
 
 class TestOwnership:
     def test_external_http_not_closed(self) -> None:
-        http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: json_resp({})))
+        http = httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _r: json_resp({}))
+        )
         c = cl.ChatClient(BASE, KEY, http=http)
         asyncio.run(c.aclose())
         assert not http.is_closed  # 外部 client 不自持
@@ -747,7 +749,9 @@ class TestTransportAndContract:
 
     def test_invalid_url_non_retryable(self) -> None:
         """坏 base_url 的 ``InvalidURL`` 是 plain Exception——曾逃逸成 crash 类。"""
-        c = _client(lambda _r: json_resp(chat_payload()), base_url="http://host:badport")
+        c = _client(
+            lambda _r: json_resp(chat_payload()), base_url="http://host:badport"
+        )
         with pytest.raises(cl.ChatError) as ei:
             asyncio.run(c.chat("m1", _MSGS))
         assert not ei.value.retryable
@@ -806,7 +810,9 @@ class TestTransportAndContract:
 
     def test_list_models_filters_malformed_members(self) -> None:
         """data 成员按 dict+id 过滤——裸字符串成员不再有 "id" in m 子串误判。"""
-        c = _client(lambda _r: json_resp({"data": [{"id": "ok"}, "junk", 5, {"noid": 1}]}))
+        c = _client(
+            lambda _r: json_resp({"data": [{"id": "ok"}, "junk", 5, {"noid": 1}]})
+        )
         assert asyncio.run(c.list_models()) == ["ok"]
 
     def test_anthropic_error_payload_redacted(self) -> None:
@@ -831,7 +837,9 @@ class TestTransportAndContract:
         bad = "http://[bad::url"
         assert cl.provider_for_url(bad) == "custom"
         assert not cl.is_free_gateway_url(bad)
-        http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: json_resp({})))
+        http = httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _r: json_resp({}))
+        )
         c = cl.ChatClient(bad, KEY, http=http)
         with pytest.raises(cl.ChatError) as ei:
             asyncio.run(c.chat("m1", _MSGS))

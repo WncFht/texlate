@@ -733,9 +733,7 @@ def _enum_missing_graphics(
             roots = [f.parent, base, ctx.wdir]
             roots += [r / g for g in gspath for r in (f.parent, base, ctx.wdir)]
             if any(
-                _disk_hit(ctx, root / f"{a}{e}", disk)
-                for root in roots
-                for e in exts
+                _disk_hit(ctx, root / f"{a}{e}", disk) for root in roots for e in exts
             ):
                 continue
             if pp.suffix and eng is not None and eng.probe_file(a, cwd=base):

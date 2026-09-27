@@ -73,9 +73,7 @@ from pathlib import Path
 # texlate.arxiv（compilebench/soak 同款自举）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import fsutil, idnorm, lake, paths
@@ -507,8 +505,7 @@ def _zipsum(ctx):
     save_chunks(chunks)
     return {
         "status": "ok",
-        "metrics": {"zipsum_present": n_hit, "zipsum_404": n_404,
-                    "zipsum_err": n_err},
+        "metrics": {"zipsum_present": n_hit, "zipsum_404": n_404, "zipsum_err": n_err},
     }
 
 
@@ -1034,11 +1031,7 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
             if o.strip()
         }
     )
-    roots = [
-        p
-        for p, t in tex_texts.items()
-        if DOCCLASS_RX.search(strip_comments(t))
-    ]
+    roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
     rec["tex_roots"] = sorted(roots)
     rec["input_depth"] = input_depth(tex_texts, roots)
     # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把
@@ -1423,9 +1416,7 @@ def _sample(ctx):
     _atomic_write_text(
         WORK / "booster_pool.json", json.dumps(booster_pool, indent=1) + "\n"
     )
-    _atomic_write_text(
-        WORK / "sample_report.json", json.dumps(report, indent=1) + "\n"
-    )
+    _atomic_write_text(WORK / "sample_report.json", json.dumps(report, indent=1) + "\n")
     for r in report:
         att = ", ".join(f"{g}:{a['got']}/{a['target']}" for g, a in r["attain"].items())
         print(
@@ -1544,9 +1535,7 @@ def _cell_state(idc: str, layer: str) -> str:
     if not meta:
         return "build"
     if meta.get("layer") == layer and meta.get("member"):
-        if (meta.get("n_files") or 0) == 0 or lake.is_complete(
-            idc, source=LAKE_SOURCE
-        ):
+        if (meta.get("n_files") or 0) == 0 or lake.is_complete(idc, source=LAKE_SOURCE):
             return "ours"
         return "build"
     if meta.get("layer"):
@@ -1575,26 +1564,31 @@ def _adopt_cell(idc: str, extra: dict) -> None:
         )
 
 
-def _member_meta(rec: dict, c: dict | None, feat: dict, layer: str,
-                 stratum: str, sel: dict | None = None, *,
-                 sha=None, nbytes=None, warns=None, main_sha=None,
-                 fetched_at=None) -> dict:
+def _member_meta(
+    rec: dict,
+    c: dict | None,
+    feat: dict,
+    layer: str,
+    stratum: str,
+    sel: dict | None = None,
+    *,
+    sha=None,
+    nbytes=None,
+    warns=None,
+    main_sha=None,
+    fetched_at=None,
+) -> dict:
     """cell meta 字段集（旧 meta.json 全字段口径）——fetch_fn 与 adopt
     合并共用。n_files/source 由 hydrate/lake 簿记不入此集。"""
     pid = rec["id"]
     member = rec["member"]
     item = c["item"] if c else feat.get("item")
     # booster 臂旧口径：yymm 恒取成员目录头（core 取 chunk yymm）
-    yymm = (
-        member.split("/")[0]
-        if layer == "booster" or c is None
-        else c["yymm"]
-    )
+    yymm = member.split("/")[0] if layer == "booster" or c is None else c["yymm"]
     meta = {
         "arxiv_id": pid,
         "resolved_version": None,
-        "fetched_at": fetched_at
-        or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "fetched_at": fetched_at or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "era": "old" if "/" in pid else "new",
         "archive": pid.split("/")[0] if "/" in pid else None,
         "yymm": yymm,
@@ -1641,8 +1635,14 @@ def _member_meta(rec: dict, c: dict | None, feat: dict, layer: str,
     return meta
 
 
-def _make_fetch(rec: dict, c: dict | None, feat: dict, layer: str,
-                stratum: str, sel: dict | None = None):
+def _make_fetch(
+    rec: dict,
+    c: dict | None,
+    feat: dict,
+    layer: str,
+    stratum: str,
+    sel: dict | None = None,
+):
     """成员级 fetch_fn 工厂——lake.hydrate(idc, fetch_fn) 的 fetch_fn。
 
     blob 解析序：staging tar 成员（首选，sha256 复验 scan 记录）→ 幸存 cell
@@ -1694,16 +1694,30 @@ def _make_fetch(rec: dict, c: dict | None, feat: dict, layer: str,
             if mp.exists():
                 main_sha = hashlib.sha256(mp.read_bytes()).hexdigest()
         return _member_meta(
-            rec, c, feat, layer, stratum, sel,
-            sha=sha, nbytes=len(blob), warns=warns, main_sha=main_sha,
+            rec,
+            c,
+            feat,
+            layer,
+            stratum,
+            sel,
+            sha=sha,
+            nbytes=len(blob),
+            warns=warns,
+            main_sha=main_sha,
         )
 
     return fetch
 
 
-def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
-                     stratum_fn, sel_of=None, feat_lut=None,
-                     prune_tars: set[str] | None = None) -> dict:
+def _extract_members(
+    ctx,
+    wanted: dict[str, dict[str, dict]],
+    layer: str,
+    stratum_fn,
+    sel_of=None,
+    feat_lut=None,
+    prune_tars: set[str] | None = None,
+) -> dict:
     """成员物化主循环——extract 与 extract_booster 共用。
 
     wanted: {tag: {member: rec}}（rec 带 id/cluster_id/cat_group/...）。
@@ -1726,8 +1740,7 @@ def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
 
     run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
     limit = ctx.params.get("limit")
-    stats = {"hydrated": 0, "reused": 0, "adopted": 0, "empty": 0,
-             "tar_freed_bytes": 0}
+    stats = {"hydrated": 0, "reused": 0, "adopted": 0, "empty": 0, "tar_freed_bytes": 0}
     faults: list[tuple[str, str]] = []
     n_done = 0
     for tag, members in sorted(wanted.items()):
@@ -1757,7 +1770,11 @@ def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
                 d = lake.hydrate(
                     idc,
                     fetch_fn=_make_fetch(
-                        rec, c, feat, layer, stratum_fn(rec, feat),
+                        rec,
+                        c,
+                        feat,
+                        layer,
+                        stratum_fn(rec, feat),
                         sel=sel_of(rec) if sel_of else None,
                     ),
                     source=LAKE_SOURCE,
@@ -1774,26 +1791,28 @@ def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
                 stats["empty" if not meta.get("n_files") else "hydrated"] += 1
             elif meta.get("layer"):
                 # 锁内双检挡不住的并发先者胜（异国 complete 落点）
-                faults.append(
-                    ("orphan_adopt", f"{idc} hydrate 后仍异国 layer")
-                )
+                faults.append(("orphan_adopt", f"{idc} hydrate 后仍异国 layer"))
             else:
                 # 异国 complete/catalog-empty 短路——原地并入 v3 meta；
                 # None 键滤掉不覆写既有值（fetched_at 等保原件）
                 extra = _member_meta(
-                    rec, c, feat, layer, stratum_fn(rec, feat),
+                    rec,
+                    c,
+                    feat,
+                    layer,
+                    stratum_fn(rec, feat),
                     sel_of(rec) if sel_of else None,
                     sha=rec.get("blob_sha256") or feat.get("blob_sha256"),
                     nbytes=feat.get("member_bytes"),
                     fetched_at=None,
                 )
-                _adopt_cell(
-                    idc, {k: v for k, v in extra.items() if v is not None}
-                )
+                _adopt_cell(idc, {k: v for k, v in extra.items() if v is not None})
                 stats["adopted"] += 1
         if (
-            c is not None and not truncated
-            and prune_tars is not None and tag in prune_tars
+            c is not None
+            and not truncated
+            and prune_tars is not None
+            and tag in prune_tars
         ):
             # TARS 用后即焚（§2.4 运行期峰值）：本 chunk 全部中选成员已落
             # lake cell，.tar/.part 即死存——重跑由 fetch 阶段 .part 续传
@@ -1887,8 +1906,7 @@ def _stage_extract(ctx):
     if sel_path.is_file():
         bsel = {s["id"] for s in _read_jsonl(sel_path) if s.get("id")}
         tag_of_item = {
-            c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}"
-            for c in load_chunks()
+            c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in load_chunks()
         }
         btags: set[str] = set()
         fdir = WORK / "features"
@@ -1899,9 +1917,12 @@ def _stage_extract(ctx):
                         btags.add(tag_of_item.get(f["item"], "unknown"))
         prune_tars = set(wanted) - btags
     stats = _extract_members(
-        ctx, wanted, "core",
-        lambda rec, _feat: f"{BAND_OF_CLUSTER.get(rec['cluster_id'], '')}"
-        f"|{rec.get('cat_group')}",
+        ctx,
+        wanted,
+        "core",
+        lambda rec, _feat: (
+            f"{BAND_OF_CLUSTER.get(rec['cluster_id'], '')}|{rec.get('cat_group')}"
+        ),
         prune_tars=prune_tars,
     )
     manifest = _rebuild_manifest("core", "manifest.jsonl")
@@ -1936,10 +1957,7 @@ def _write_manifest_md(manifest: list[dict]) -> None:
             "`mechanisms.jsonl`/`booster_selection.jsonl`；管线 spec 在 "
             "`bench/py/specs/`。"
         ),
-        (
-            "抽样管线见 `docs/spec/corpus.md` S0–S5；旧式 ID 按 "
-            "`archive/name` 嵌套。"
-        ),
+        ("抽样管线见 `docs/spec/corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。"),
         "",
         (
             f"- 入库 **{n}** 篇（核心层）· {sum(r['n_tex'] or 0 for r in manifest)} "
@@ -2005,9 +2023,7 @@ def _stage_extract_booster(ctx):
     # frame join 补 cat_group/license_class（旧 extract_booster 同款 lut 回查）
     lut = load_frame_lookup() if (WORK / "frame_lookup.tsv.gz").exists() else {}
     chunks = load_chunks()
-    tag_of_item = {
-        c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks
-    }
+    tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
     wanted: dict[str, dict[str, dict]] = {}
     feat_lut: dict[str, dict] = {}
     for f in feat_by_id.values():
@@ -2026,9 +2042,13 @@ def _stage_extract_booster(ctx):
         feat_lut[f["member"]] = f
 
     stats = _extract_members(
-        ctx, wanted, "booster",
-        lambda rec, feat: f"booster|"
-        f"{BAND_OF_CLUSTER.get(rec.get('cluster_id') or feat.get('cluster_id'), '')}",
+        ctx,
+        wanted,
+        "booster",
+        lambda rec, feat: (
+            f"booster|"
+            f"{BAND_OF_CLUSTER.get(rec.get('cluster_id') or feat.get('cluster_id'), '')}"
+        ),
         sel_of=lambda rec: want.get(rec["id"]),
         feat_lut=feat_lut,
         prune_tars=set(wanted),  # booster 是 TARS 末段消费者，用完即删
@@ -2100,11 +2120,18 @@ def _qc(ctx):
     tracked = 0
     try:
         r = subprocess.run(
-            ["git", "ls-files", "--error-unmatch",  # noqa: S607
-             "bench/corpus/manifest.jsonl",
-             "bench/corpus/manifest_booster.jsonl",
-             "bench/corpus/MANIFEST.md"],
-            cwd=REPO, capture_output=True, text=True, timeout=30,
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                "bench/corpus/manifest.jsonl",
+                "bench/corpus/manifest_booster.jsonl",
+                "bench/corpus/MANIFEST.md",
+            ],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         tracked = int(r.returncode == 0)
     except (OSError, subprocess.TimeoutExpired):
@@ -2115,8 +2142,7 @@ def _qc(ctx):
         f"- 核心层入库: **{len(manifest)}** / 目标 1000",
         f"- id 重复: {dup or '无'}",
         f"- 与 corpus_v2 重叠: {overlap or '无'}",
-        (f"- manifest 行无 lake cell: {missing[:8] or '无'} "
-         f"(n={len(missing)})"),
+        (f"- manifest 行无 lake cell: {missing[:8] or '无'} (n={len(missing)})"),
         (
             f"- 扫描成员总数: {total}（pdf_only {n_pdf} · stub {n_stub} "
             f"· error {n_err}）"
@@ -2173,21 +2199,33 @@ spec = Spec(
     },
     stages=[
         Stage("plan", _plan, status_class=dict(_STATUS)),
-        Stage("fetch", _fetch, needs=[("plan", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("zipsum", _zipsum, needs=[("fetch", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("scan", _scan, needs=[("fetch", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("frame_lookup", _frame_lookup, needs=[("scan", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("sample", _sample, needs=[("frame_lookup", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("extract", _stage_extract, needs=[("sample", {"ok"})],
-              status_class=dict(_STATUS)),
-        Stage("extract_booster", _stage_extract_booster,
-              needs=[("sample", {"ok"})], status_class=dict(_STATUS)),
-        Stage("qc", _qc, needs=[("extract", {"ok"})],
-              status_class=dict(_STATUS)),
+        Stage("fetch", _fetch, needs=[("plan", {"ok"})], status_class=dict(_STATUS)),
+        Stage("zipsum", _zipsum, needs=[("fetch", {"ok"})], status_class=dict(_STATUS)),
+        Stage("scan", _scan, needs=[("fetch", {"ok"})], status_class=dict(_STATUS)),
+        Stage(
+            "frame_lookup",
+            _frame_lookup,
+            needs=[("scan", {"ok"})],
+            status_class=dict(_STATUS),
+        ),
+        Stage(
+            "sample",
+            _sample,
+            needs=[("frame_lookup", {"ok"})],
+            status_class=dict(_STATUS),
+        ),
+        Stage(
+            "extract",
+            _stage_extract,
+            needs=[("sample", {"ok"})],
+            status_class=dict(_STATUS),
+        ),
+        Stage(
+            "extract_booster",
+            _stage_extract_booster,
+            needs=[("sample", {"ok"})],
+            status_class=dict(_STATUS),
+        ),
+        Stage("qc", _qc, needs=[("extract", {"ok"})], status_class=dict(_STATUS)),
     ],
 )

@@ -641,9 +641,7 @@ class EchoTranslator:
     async def translate(self, **_kw: object) -> str:
         """``user`` 逐行剥 ``[n]`` 批前缀回显。"""
         user = str(_kw["user"])
-        return "\n".join(
-            re.sub(r"^\[\d+\]\s?", "", ln) for ln in user.split("\n")
-        )
+        return "\n".join(re.sub(r"^\[\d+\]\s?", "", ln) for ln in user.split("\n"))
 
 
 class CtrlTranslator:

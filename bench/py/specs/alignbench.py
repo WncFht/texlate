@@ -47,6 +47,7 @@ zh/en_compile_verdict、src_run、rel）随车进 metrics——low-retention 归
 参数面：``ids``/``only``/``lane``/``n``/``seed`` 为 select 闸（fp=False）；
 ``min_retention``/``timeout``/``en_compile`` 进 fp（测量语义旋钮）。
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -277,9 +278,7 @@ def analyze_pair(a: Path, b: Path, min_retention: float) -> dict:
             "p75": pct(75),
             "p90": pct(90),
             "max": pd_sorted[-1] if pd_sorted else None,
-            "mean": round(sum(page_diffs) / len(page_diffs), 2)
-            if page_diffs
-            else None,
+            "mean": round(sum(page_diffs) / len(page_diffs), 2) if page_diffs else None,
             "dist": hist(page_diffs),
         },
         "y_diff_samepage": {
@@ -294,12 +293,8 @@ def analyze_pair(a: Path, b: Path, min_retention: float) -> dict:
             "chain_n": chain["chain_n"],
             "w_total": chain["w"],
             "w_chain": chain["chain_w"],
-            "n_ratio": round(chain["chain_n"] / chain["n"], 4)
-            if chain["n"]
-            else None,
-            "w_ratio": round(chain["chain_w"] / chain["w"], 4)
-            if chain["w"]
-            else None,
+            "n_ratio": round(chain["chain_n"] / chain["n"], 4) if chain["n"] else None,
+            "w_ratio": round(chain["chain_w"] / chain["w"], 4) if chain["w"] else None,
         },
         # 丢锚点全量名单 —— §B7-4 连锅端案例归因入口; 确认机制后应沉淀
         # bench/fixtures B2 断言（fixture_assert spec 的入库口）
@@ -375,9 +370,7 @@ def _vault_items() -> list[dict]:
             "SELECT idc,sha FROM vault_meta WHERE arm='real' AND variant='-' "
             "AND zone='primary' AND verdict='verified'"
         ).fetchall()
-        meta_map = _verdict_meta(
-            idx, [str(r[0]) for r in rows]
-        )
+        meta_map = _verdict_meta(idx, [str(r[0]) for r in rows])
     except Exception:
         return []
     items: list[dict] = []
@@ -394,23 +387,28 @@ def _vault_items() -> list[dict]:
                 if not p.name.startswith(".")
             )
         if not pdfs:
-            items.append({
+            items.append(
+                {
+                    "id": idc,
+                    "up": up,
+                    "variant": f"nocov@{EPOCH}",
+                    "lane": "vault",
+                    "fp_input": str(sha or ""),
+                    "params": {"unpaired_reason": "no_zh_pdf", **meta},
+                }
+            )
+            continue
+        items.extend(
+            {
                 "id": idc,
                 "up": up,
-                "variant": f"nocov@{EPOCH}",
+                "variant": f"{rel[:-4]}@{EPOCH}",
                 "lane": "vault",
                 "fp_input": str(sha or ""),
-                "params": {"unpaired_reason": "no_zh_pdf", **meta},
-            })
-            continue
-        items.extend({
-            "id": idc,
-            "up": up,
-            "variant": f"{rel[:-4]}@{EPOCH}",
-            "lane": "vault",
-            "fp_input": str(sha or ""),
-            "params": {"rel": rel, **meta},
-        } for rel in pdfs)
+                "params": {"rel": rel, **meta},
+            }
+            for rel in pdfs
+        )
     return items
 
 
@@ -435,23 +433,25 @@ def _manifest_items() -> list[dict]:
             fp_in = f"{sa.st_size}:{sa.st_mtime_ns}|{sb.st_size}:{sb.st_mtime_ns}"
         except OSError:
             print(f"  warn {path.name}:{ln} {pid}: a/b 不存在", file=sys.stderr)
-        items.append({
-            "id": pid,
-            "up": "-",
-            "variant": f"{Path(row['a']).stem}@{EPOCH}",
-            "lane": "manifest",
-            "fp_input": fp_in,
-            "params": {
-                "a": str(row["a"]),
-                "b": str(row["b"]),
-                "kind": row.get("kind", "manifest"),
-                "meta": {
-                    k: v
-                    for k, v in row.items()
-                    if k not in {"id", "a", "b", "kind"}
+        items.append(
+            {
+                "id": pid,
+                "up": "-",
+                "variant": f"{Path(row['a']).stem}@{EPOCH}",
+                "lane": "manifest",
+                "fp_input": fp_in,
+                "params": {
+                    "a": str(row["a"]),
+                    "b": str(row["b"]),
+                    "kind": row.get("kind", "manifest"),
+                    "meta": {
+                        k: v
+                        for k, v in row.items()
+                        if k not in {"id", "a", "b", "kind"}
+                    },
                 },
-            },
-        })
+            }
+        )
     return items
 
 
@@ -532,8 +532,7 @@ def _ensure_en(ctx) -> tuple[Path | None, dict]:
     if marker.is_file():
         try:
             info = json.loads(marker.read_text(encoding="utf-8"))
-            return en_root, {"en_compile_verdict": info.get("verdict"),
-                             "en_rescued": 0}
+            return en_root, {"en_compile_verdict": info.get("verdict"), "en_rescued": 0}
         except (OSError, ValueError):
             pass  # marker 腐 → 重编
     if not ctx.params.get("en_compile", True):
@@ -556,8 +555,8 @@ def _ensure_en(ctx) -> tuple[Path | None, dict]:
 
     texmf = _texmf(ctx.paper_dir())
     eng = XelatexEngine(
-        halt_on_error=False, texmfhome=texmf,
-        repository=benchlib.TUNA_TLNET)
+        halt_on_error=False, texmfhome=texmf, repository=benchlib.TUNA_TLNET
+    )
     timeout = float(ctx.params.get("timeout") or 240.0)
     env_extra = {
         "TEXMFHOME": str(texmf / "home"),
@@ -565,8 +564,8 @@ def _ensure_en(ctx) -> tuple[Path | None, dict]:
         "TEXMFCONFIG": str(texmf / "config"),
     }
     res = eng.compile(
-        en_root, main_rel, passes=2, timeout=timeout,
-        sandbox=False, env_extra=env_extra)
+        en_root, main_rel, passes=2, timeout=timeout, sandbox=False, env_extra=env_extra
+    )
     v = judge(res, expect_cjk=False)
     info = {
         "verdict": v.status,
@@ -579,9 +578,12 @@ def _ensure_en(ctx) -> tuple[Path | None, dict]:
     with contextlib.suppress(OSError):
         # marker 落不下只损同 run 备忘，不损测量
         marker.write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
-    return en_root, {"en_compile_verdict": v.status, "en_rescued": 1,
-                     "en_main_rel": main_rel,
-                     "en_compile_s": info["seconds"]}
+    return en_root, {
+        "en_compile_verdict": v.status,
+        "en_rescued": 1,
+        "en_main_rel": main_rel,
+        "en_compile_s": info["seconds"],
+    }
 
 
 # ---------------------------------------------------------------- 格函数
@@ -607,33 +609,43 @@ def _al_pair(ctx):
         }
         rel = str(p.get("rel") or "")
         if not rel:
-            return {"status": "clean",
-                    "metrics": {"unpaired_reason": p.get("unpaired_reason")
-                                or "no_zh_pdf", **meta}}
+            return {
+                "status": "clean",
+                "metrics": {
+                    "unpaired_reason": p.get("unpaired_reason") or "no_zh_pdf",
+                    **meta,
+                },
+            }
         meta["rel"] = rel
         leaf = vault.leaf_dir("primary", "splice", ctx.idc, "real")
         b = leaf / rel
         if not b.is_file():
             # 叶被 evict / rel 消失 → retriable（restore 可回）
-            return {"status": "skip",
-                    "metrics": {"unpaired_reason": "zh_leaf_lost", **meta}}
+            return {
+                "status": "skip",
+                "metrics": {"unpaired_reason": "zh_leaf_lost", **meta},
+            }
         en_root, info = _ensure_en(ctx)
         meta.update({k: v for k, v in info.items() if v is not None})
         if en_root is None:
-            return {"status": "skip" if info.get("unpaired_reason") == "no_src"
-                    else "clean",
-                    "metrics": {**meta}}
+            return {
+                "status": "skip"
+                if info.get("unpaired_reason") == "no_src"
+                else "clean",
+                "metrics": {**meta},
+            }
         a = en_root / rel
         if not a.is_file():
-            return {"status": "clean",
-                    "metrics": {"unpaired_reason": "no_en_pdf", **meta}}
+            return {
+                "status": "clean",
+                "metrics": {"unpaired_reason": "no_en_pdf", **meta},
+            }
     try:
         row = analyze_pair(a, b, min_ret)
     except Exception as e:
         return {
             "status": "error",
-            "errors": [{"cat": "exception",
-                        "msg": f"{type(e).__name__}: {e}"[:300]}],
+            "errors": [{"cat": "exception", "msg": f"{type(e).__name__}: {e}"[:300]}],
             "metrics": meta,
         }
     row.update(meta)
@@ -644,9 +656,14 @@ def _al_pair(ctx):
         row["blame"] = "invalid_pdf"
         return {
             "status": "reject",
-            "errors": [{"cat": "upstream-lost",
-                        "msg": f"invalid_pdf side={row['invalid_side']}: "
-                               f"{row['detail']}"[:300]}],
+            "errors": [
+                {
+                    "cat": "upstream-lost",
+                    "msg": f"invalid_pdf side={row['invalid_side']}: {row['detail']}"[
+                        :300
+                    ],
+                }
+            ],
             "metrics": row,
         }
     if verdict == "low":

@@ -178,9 +178,7 @@ def sse_frames(
     headers = {"Accept": "text/event-stream"}
     if last_event_id is not None:
         headers["Last-Event-ID"] = last_event_id
-    with client.stream(
-        "GET", f"/api/task/{tid}", headers=headers
-    ) as r:
+    with client.stream("GET", f"/api/task/{tid}", headers=headers) as r:
         lines = [ln for ln in r.iter_lines() if ln]
     out: list[tuple[str, str, dict]] = []
     fid = ""

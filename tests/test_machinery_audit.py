@@ -33,6 +33,7 @@ def _art_scan(pre: str, body: str) -> ScanResult:
     ``_segkit.scan_art``（``(body, defs)`` 序）按本文件模板槽序的适配。"""
     return scan_art(body, defs=pre)
 
+
 # ------------------------------------------------------------- M1 in_arg lit 段
 
 

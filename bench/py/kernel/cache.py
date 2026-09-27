@@ -27,6 +27,7 @@ lookup points the pipeline actually makes: ``key in cache`` and
 ``cache.get(key)`` score hit/miss on outcome; ``cache[key]`` scores a
 miss only on a KeyError (a hit-read after ``in`` is not double-counted).
 """
+
 from __future__ import annotations
 
 import json
@@ -61,13 +62,26 @@ _BUCKET_NAME = re.compile(r"^[0-9a-f]{16}\.json$")
 _DEFAULT_CAP_GB = 8.0
 
 
-def file_key_of(*, prompt_version: str, base_url: str, model: str,
-                lang: str, glossary=None, context: str = "") -> str:
+def file_key_of(
+    *,
+    prompt_version: str,
+    base_url: str,
+    model: str,
+    lang: str,
+    glossary=None,
+    context: str = "",
+) -> str:
     """The 16-hex bucket key — texlate.xlat.state.file_cache_key verbatim."""
     from texlate.xlat.state import file_cache_key
-    return file_cache_key(prompt_version=prompt_version, base_url=base_url,
-                          model=model, lang=lang, glossary=glossary,
-                          context=context)
+
+    return file_cache_key(
+        prompt_version=prompt_version,
+        base_url=base_url,
+        model=model,
+        lang=lang,
+        glossary=glossary,
+        context=context,
+    )
 
 
 def bucket_path(file_key: str) -> Path:
@@ -89,6 +103,7 @@ def _bucket_lock(file_key: str):
 def _load_bucket(path: Path) -> dict:
     """load_cache semantics: str→str dict, corrupt -> quarantined."""
     from texlate.xlat.state import load_cache
+
     return load_cache(path)
 
 
@@ -103,8 +118,9 @@ class SegCache(dict):
     enter the shared namespace.
     """
 
-    def __init__(self, file_key: str, base: dict | None = None, *,
-                 writable: bool = True) -> None:
+    def __init__(
+        self, file_key: str, base: dict | None = None, *, writable: bool = True
+    ) -> None:
         super().__init__(base or {})
         self.file_key = file_key
         self.writable = bool(writable)
@@ -191,8 +207,8 @@ class SegCache(dict):
             disk.update(dict(self))
             bp.parent.mkdir(parents=True, exist_ok=True)
             fsutil.atomic_write(
-                bp, json.dumps(disk, ensure_ascii=False,
-                               sort_keys=True).encode("utf-8"))
+                bp, json.dumps(disk, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            )
         self.dirty = False
         self._flushed = True
         return self.stores
@@ -203,16 +219,27 @@ class SegCache(dict):
         self._flushed = True
 
     def metrics(self) -> dict:
-        return {"bucket": self.file_key, "hits": self.hits,
-                "misses": self.misses, "stores": self.stores,
-                "evictions": self.evictions, "bypassed": self.bypassed,
-                "writable": self.writable}
+        return {
+            "bucket": self.file_key,
+            "hits": self.hits,
+            "misses": self.misses,
+            "stores": self.stores,
+            "evictions": self.evictions,
+            "bypassed": self.bypassed,
+            "writable": self.writable,
+        }
 
 
 def metrics_of(caches) -> dict:
     """Aggregate per-cell cache metrics for the terminal row."""
-    agg = {"buckets": 0, "hits": 0, "misses": 0, "stores": 0,
-           "evictions": 0, "bypassed": 0}
+    agg = {
+        "buckets": 0,
+        "hits": 0,
+        "misses": 0,
+        "stores": 0,
+        "evictions": 0,
+        "bypassed": 0,
+    }
     for sc in caches or ():
         agg["buckets"] += 1
         for k in ("hits", "misses", "stores", "evictions", "bypassed"):
@@ -220,13 +247,25 @@ def metrics_of(caches) -> dict:
     return agg
 
 
-def open_bucket(*, prompt_version: str, base_url: str, model: str,
-                lang: str, glossary=None, context: str = "",
-                writable: bool = True) -> SegCache:
+def open_bucket(
+    *,
+    prompt_version: str,
+    base_url: str,
+    model: str,
+    lang: str,
+    glossary=None,
+    context: str = "",
+    writable: bool = True,
+) -> SegCache:
     """Load (or mint) the bucket for these key dims."""
-    fk = file_key_of(prompt_version=prompt_version, base_url=base_url,
-                     model=model, lang=lang, glossary=glossary,
-                     context=context)
+    fk = file_key_of(
+        prompt_version=prompt_version,
+        base_url=base_url,
+        model=model,
+        lang=lang,
+        glossary=glossary,
+        context=context,
+    )
     bp = bucket_path(fk)
     base = _load_bucket(bp) if bp.exists() else {}
     return SegCache(fk, base, writable=writable)
@@ -260,15 +299,20 @@ def status() -> dict:
     malformed = 0
     if root.is_dir():
         for p in root.glob("*/*.json"):
-            if not (_BUCKET_NAME.match(p.name)
-                    and p.parent.name == p.name[:2]):
+            if not (_BUCKET_NAME.match(p.name) and p.parent.name == p.name[:2]):
                 malformed += 1
-        malformed += sum(1 for p in root.iterdir()
-                         if p.is_file() and p.suffix == ".json")
+        malformed += sum(
+            1 for p in root.iterdir() if p.is_file() and p.suffix == ".json"
+        )
     cap_gb = float(os.environ.get("TEXLATE_CACHE_CAP_GB", _DEFAULT_CAP_GB))
-    return {"root": str(root), "buckets": n, "bytes": nbytes,
-            "malformed": malformed, "cap_gb": cap_gb,
-            "over_cap": nbytes > cap_gb * (1 << 30)}
+    return {
+        "root": str(root),
+        "buckets": n,
+        "bytes": nbytes,
+        "malformed": malformed,
+        "cap_gb": cap_gb,
+        "over_cap": nbytes > cap_gb * (1 << 30),
+    }
 
 
 def evict(to_free: int) -> list[Path]:
@@ -300,9 +344,17 @@ def cap_evict() -> list[Path]:
     return evict(over)
 
 
-def rebuild_from_vault(*, prompt_version: str, base_url: str, model: str,
-                       lang: str = "zh", glossary=None, context: str = "",
-                       dry: bool = False, progress=None) -> dict:
+def rebuild_from_vault(
+    *,
+    prompt_version: str,
+    base_url: str,
+    model: str,
+    lang: str = "zh",
+    glossary=None,
+    context: str = "",
+    dry: bool = False,
+    progress=None,
+) -> dict:
     """vault/state -> buckets: replay every stored xlat-state cell's
     ``results[]`` through the segment_key formula and merge the ok rows
     into the bucket for the given key dims.
@@ -316,15 +368,22 @@ def rebuild_from_vault(*, prompt_version: str, base_url: str, model: str,
     from texlate.xlat import placeholders
     from texlate.xlat.state import ChunkRecord, segment_key
 
-    fk = file_key_of(prompt_version=prompt_version, base_url=base_url,
-                     model=model, lang=lang, glossary=glossary,
-                     context=context)
+    fk = file_key_of(
+        prompt_version=prompt_version,
+        base_url=base_url,
+        model=model,
+        lang=lang,
+        glossary=glossary,
+        context=context,
+    )
     merged: dict[str, str] = {}
     cells = 0
     chunks = 0
     skipped = 0
-    for kind_root in (paths.vault_kind_dir("state"),
-                      paths.vault_dir() / "quar" / "state"):
+    for kind_root in (
+        paths.vault_kind_dir("state"),
+        paths.vault_dir() / "quar" / "state",
+    ):
         if not kind_root.is_dir():
             continue
         for state_file in sorted(kind_root.glob("*/*/state.json")):
@@ -343,12 +402,13 @@ def rebuild_from_vault(*, prompt_version: str, base_url: str, model: str,
                 if rec.status != "ok" or not rec.source or not rec.translation:
                     skipped += 1
                     continue
-                ph_types = [placeholders.ph_type(p)
-                            for p in placeholders.ANY_PH_RX.findall(
-                                rec.source)]
-                merged[segment_key(rec.source, rec.kind,
-                                   masked_snapshot=repr(ph_types))] = \
-                    rec.translation
+                ph_types = [
+                    placeholders.ph_type(p)
+                    for p in placeholders.ANY_PH_RX.findall(rec.source)
+                ]
+                merged[
+                    segment_key(rec.source, rec.kind, masked_snapshot=repr(ph_types))
+                ] = rec.translation
                 chunks += 1
             if progress and cells % 50 == 0:
                 progress(f"scanned {cells} state cells, {chunks} chunks")
@@ -359,8 +419,13 @@ def rebuild_from_vault(*, prompt_version: str, base_url: str, model: str,
             disk.update(merged)
             bp.parent.mkdir(parents=True, exist_ok=True)
             fsutil.atomic_write(
-                bp, json.dumps(disk, ensure_ascii=False,
-                               sort_keys=True).encode("utf-8"))
-    return {"file_key": fk, "cells": cells, "chunks": chunks,
-            "skipped": skipped, "bucket_entries": len(merged),
-            "dry": dry}
+                bp, json.dumps(disk, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            )
+    return {
+        "file_key": fk,
+        "cells": cells,
+        "chunks": chunks,
+        "skipped": skipped,
+        "bucket_entries": len(merged),
+        "dry": dry,
+    }

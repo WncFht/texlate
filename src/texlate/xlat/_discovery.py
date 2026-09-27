@@ -129,7 +129,8 @@ async def _get_json(client: ChatClient, path: str) -> tuple[Any, str]:
     """
     try:
         resp = await client._http.get(  # noqa: SLF001 -- 出叶委托面（同模块实现组）
-            f"{client.base_url}{path}", headers=client._openai_headers()  # noqa: SLF001 -- 同上
+            f"{client.base_url}{path}",
+            headers=client._openai_headers(),  # noqa: SLF001 -- 同上
         )
     except _TRANSPORT_ERRORS as e:
         raise _transport_error(e) from e
@@ -215,9 +216,7 @@ async def probe_model(client: ChatClient, uid: str) -> FreeModel:
     return FreeModel(
         uid=uid,
         probe_ok=ok,
-        probe_error=""
-        if ok
-        else f"empty content or bad finish ({r.finish_reason})",
+        probe_error="" if ok else f"empty content or bad finish ({r.finish_reason})",
         probe_latency_s=round(r.latency_s, 2),
     )
 
@@ -270,9 +269,7 @@ async def discover_free_models(
             fm.probe_error = probed.probe_error
             return fm
 
-    return list(
-        await asyncio.gather(*(_probe(fm) for fm in candidates[:max_probe]))
-    )
+    return list(await asyncio.gather(*(_probe(fm) for fm in candidates[:max_probe])))
 
 
 async def fallback_candidates(client: ChatClient) -> list[str]:

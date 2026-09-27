@@ -78,9 +78,7 @@ _CODEPAGE_RX: Final = re.compile(r"CodePage:\s*(\d{3,5})")
 #: 命中不会新增，latin-1 视图与 blob 的 ASCII 区间一一对应。``inputenc``
 #: 前缀同盖 ``\inputencoding``；IGNORECASE 对 ``CodePage`` 属过度近似
 #: （真正则大小写敏感），假阳只多跑一趟真判定，不错判。
-_DECL_PRESCAN_RX: Final = re.compile(
-    rb"inputenc|!tex|coding|codepage", re.IGNORECASE
-)
+_DECL_PRESCAN_RX: Final = re.compile(rb"inputenc|!tex|coding|codepage", re.IGNORECASE)
 #: ``utf8`` 混入 usepackage 选项串的正则子项。
 _DECL_OPTION_RX: Final = re.compile(r"[a-zA-Z0-9_-]+")
 

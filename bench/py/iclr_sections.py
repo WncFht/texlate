@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from specs import _benchlite as benchlib
 
-from texlate.compile.inject import find_main_tex  # noqa: E402
+from texlate.compile.inject import find_main_tex
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -42,13 +42,11 @@ END_DOC = re.compile(r"\\end\s*\{document\}")
 SEC_RX = re.compile(
     r"\\(section|subsection|subsubsection)\s*(\*)?\s*(?:\[([^\]]*)\])?\s*\{"
 )
-APPENDIX_CMD_RX = re.compile(
-    r"\\appendix\b|\\begin\s*\{(?:appendices|appendix)\}"
-)
+APPENDIX_CMD_RX = re.compile(r"\\appendix\b|\\begin\s*\{(?:appendices|appendix)\}")
 REFS_RX = re.compile(
     r"\\bibliography\s*\{|\\printbibliography|\\begin\s*\{thebibliography\}"
 )
-ABSTRACT_RX = re.compile(r"\\begin\s*\{abstract\}(.*?)\\end\s*\{abstract\}", re.S)
+ABSTRACT_RX = re.compile(r"\\begin\s*\{abstract\}(.*?)\\end\s*\{abstract\}", re.DOTALL)
 
 MATH_ENVS = (
     "equation|equation*|eqnarray|eqnarray*|align|align*|alignat|alignat*|"
@@ -64,10 +62,10 @@ KILL_ENVS = (
     "minipage|parbox|subfigure|subtable|floatrow|ffigbox|talltblr|tblr"
 )
 KILL_ENV_RX = re.compile(
-    r"\\begin\s*\{(" + KILL_ENVS + r")\}(.*?)\\end\s*\{\1\}", re.S
+    r"\\begin\s*\{(" + KILL_ENVS + r")\}(.*?)\\end\s*\{\1\}", re.DOTALL
 )
 MATH_ENV_RX = re.compile(
-    r"\\begin\s*\{(" + MATH_ENVS + r")\}.*?\\end\s*\{\1\}", re.S
+    r"\\begin\s*\{(" + MATH_ENVS + r")\}.*?\\end\s*\{\1\}", re.DOTALL
 )
 CAPTION_RX = re.compile(r"\\(?:caption|subcaption)\s*(?:\[[^\]]*\])?\s*{")
 
@@ -85,9 +83,7 @@ DROP_ARG_CMDS = (
 DROP_ARG_RX = re.compile(
     r"\\(?:" + DROP_ARG_CMDS + r")\s*(?:\[[^\]]*\])?\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
 )
-HREF_RX = re.compile(
-    r"\\href\s*\{[^{}]*\}\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}"
-)
+HREF_RX = re.compile(r"\\href\s*\{[^{}]*\}\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}")
 TEXTCMD_RX = re.compile(
     r"\\(?:emph|textbf|textit|textsc|textsl|textsf|textrm|text|mathrm|mathbf|"
     r"mathit|mathcal|mathsf|mathtt|underline|uppercase|lowercase|noindent|"
@@ -96,9 +92,9 @@ TEXTCMD_RX = re.compile(
     r"\s*(?:\[[^\]]*\])?\s*"
 )
 MATH_RXES = [
-    re.compile(r"\$\$.*?\$\$", re.S),
-    re.compile(r"\\\[.*?\\\]", re.S),
-    re.compile(r"\\\(.*?\\\)", re.S),
+    re.compile(r"\$\$.*?\$\$", re.DOTALL),
+    re.compile(r"\\\[.*?\\\]", re.DOTALL),
+    re.compile(r"\\\(.*?\\\)", re.DOTALL),
     re.compile(r"\$(?:[^$\\]|\\.)*\$"),
 ]
 BRACE_CMD_RX = re.compile(r"\\[a-zA-Z]+\s*(\*)?\s*")
@@ -156,9 +152,14 @@ def expand_inputs(root: Path, main: Path, cap: int = 4 << 20) -> tuple[str, int]
             if m.group(0).startswith(("\\import", "\\subimport")):
                 continue  # import 系换目录语义，先不展开（少见）
             tgt = norm_input_target(raw)
-            cands = [base / tgt, base / (tgt + ".tex"), root / tgt,
-                     root / (tgt + ".tex"), base / Path(tgt).name,
-                     base / (Path(tgt).name + ".tex")]
+            cands = [
+                base / tgt,
+                base / (tgt + ".tex"),
+                root / tgt,
+                root / (tgt + ".tex"),
+                base / Path(tgt).name,
+                base / (Path(tgt).name + ".tex"),
+            ]
             hit = next((c for c in cands if c.exists() and c.is_file()), None)
             if hit is None or hit in seen:
                 if hit is None and tgt and not tgt.startswith("%"):
@@ -175,9 +176,16 @@ def expand_inputs(root: Path, main: Path, cap: int = 4 << 20) -> tuple[str, int]
                 parts = [m.group(0)]
                 for nm in names:
                     hit = next(
-                        (c for c in (base / (nm + ".bbl"), root / (nm + ".bbl"),
-                                     base / nm, root / nm)
-                         if c.exists() and c.is_file()),
+                        (
+                            c
+                            for c in (
+                                base / (nm + ".bbl"),
+                                root / (nm + ".bbl"),
+                                base / nm,
+                                root / nm,
+                            )
+                            if c.exists() and c.is_file()
+                        ),
                         None,
                     )
                     if hit is not None:
@@ -259,48 +267,122 @@ def detex_count(text: str) -> tuple[int, int, int]:
 # ---------------- section 名归一 ----------------
 
 BUCKET_RULES: list[tuple[str, re.Pattern]] = [
-    ("abstract", re.compile(r"abstract|summary$", re.I)),
-    ("introduction", re.compile(r"^introduction|^intro\b|contribution|overview$|"
-                              r"^paper organization|^outline", re.I)),
-    ("related_work", re.compile(
-        r"related work|prior work|previous work|related literature|"
-        r"literature review|background and related", re.I)),
-    ("background", re.compile(
-        r"^background|^preliminar|^prerequisite|^notation|^setup and notation|"
-        r"^problem (setup|setting|statement|formulation)|^definitions|^setting\b", re.I)),
-    ("results", re.compile(
-        r"^result|^main result|^finding|^performance|^comparison|^main experiment|^quantitative|"
-        r"^qualitative", re.I)),
-    ("method", re.compile(
-        r"method|approach|model|framework|technique|algorithm|architecture|"
-        r"formulation|our |proposed|design|^theory\b|mechanism|solution|"
-        r"^derivation|^the proposed", re.I)),
-    ("theory", re.compile(
-        r"theoretical|theor(y|em|etic)|proof|analysis of|convergence|"
-        r"generalization|bound|guarantee", re.I)),
-    ("experiments", re.compile(
-        r"experiment|empirical|evaluation|implementation|setup|simulation|"
-        r"benchmark|protocol|dataset|baseline|hyperparameter|numerical", re.I)),
-    ("ablation", re.compile(r"ablation|sensitivity|robustness|variance|analysis$", re.I)),
-    ("analysis", re.compile(r"^analysis|^discussion|interpretation|insight|"
-                            r"case stud|error analysis|visualization|understanding", re.I)),
-    ("limitations", re.compile(
-        r"limitation|negative result|failure|future work|outlook|open problem|"
-        r"societal impact|broader impact|ethic|safety|risk|bias|impact statement", re.I)),
-    ("conclusion", re.compile(r"conclusion|concluding|summary|takeaway|wrap.up|"
-                              r"final remark", re.I)),
-    ("acknowledgments", re.compile(r"acknowledg|funding|author contribution|"
-                                   r"competing interest|declaration", re.I)),
-    ("reproducibility", re.compile(r"reproducib|code release|data availab|"
-                                   r"ethics statement|checklist", re.I)),
-    ("references", re.compile(r"reference|bibliograph|works cited", re.I)),
-    ("appendix", re.compile(r"appendix|supplement|appendices|extended|"
-                            r"additional|proof of|extra|supporting", re.I)),
+    ("abstract", re.compile(r"abstract|summary$", re.IGNORECASE)),
+    (
+        "introduction",
+        re.compile(
+            r"^introduction|^intro\b|contribution|overview$|"
+            r"^paper organization|^outline",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "related_work",
+        re.compile(
+            r"related work|prior work|previous work|related literature|"
+            r"literature review|background and related",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "background",
+        re.compile(
+            r"^background|^preliminar|^prerequisite|^notation|^setup and notation|"
+            r"^problem (setup|setting|statement|formulation)|^definitions|^setting\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "results",
+        re.compile(
+            r"^result|^main result|^finding|^performance|^comparison|^main experiment|^quantitative|"
+            r"^qualitative",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "method",
+        re.compile(
+            r"method|approach|model|framework|technique|algorithm|architecture|"
+            r"formulation|our |proposed|design|^theory\b|mechanism|solution|"
+            r"^derivation|^the proposed",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "theory",
+        re.compile(
+            r"theoretical|theor(y|em|etic)|proof|analysis of|convergence|"
+            r"generalization|bound|guarantee",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "experiments",
+        re.compile(
+            r"experiment|empirical|evaluation|implementation|setup|simulation|"
+            r"benchmark|protocol|dataset|baseline|hyperparameter|numerical",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "ablation",
+        re.compile(
+            r"ablation|sensitivity|robustness|variance|analysis$", re.IGNORECASE
+        ),
+    ),
+    (
+        "analysis",
+        re.compile(
+            r"^analysis|^discussion|interpretation|insight|"
+            r"case stud|error analysis|visualization|understanding",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "limitations",
+        re.compile(
+            r"limitation|negative result|failure|future work|outlook|open problem|"
+            r"societal impact|broader impact|ethic|safety|risk|bias|impact statement",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "conclusion",
+        re.compile(
+            r"conclusion|concluding|summary|takeaway|wrap.up|"
+            r"final remark",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "acknowledgments",
+        re.compile(
+            r"acknowledg|funding|author contribution|"
+            r"competing interest|declaration",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "reproducibility",
+        re.compile(
+            r"reproducib|code release|data availab|"
+            r"ethics statement|checklist",
+            re.IGNORECASE,
+        ),
+    ),
+    ("references", re.compile(r"reference|bibliograph|works cited", re.IGNORECASE)),
+    (
+        "appendix",
+        re.compile(
+            r"appendix|supplement|appendices|extended|"
+            r"additional|proof of|extra|supporting",
+            re.IGNORECASE,
+        ),
+    ),
 ]
 
-NUM_PREFIX_RX = re.compile(
-    r"^(?:[ivxlc]+\.?|\d+\.?|[a-z]\.?|\d+\.\d+(?:\.\d+)*\.?)\s+"
-)
+NUM_PREFIX_RX = re.compile(r"^(?:[ivxlc]+\.?|\d+\.?|[a-z]\.?|\d+\.\d+(?:\.\d+)*\.?)\s+")
 
 
 def canon_section(raw: str) -> str:
@@ -314,6 +396,7 @@ def canon_section(raw: str) -> str:
 
 
 # ---------------- 单篇分析 ----------------
+
 
 def analyze_paper(pdir: Path) -> dict:
     pid = pdir.name
@@ -346,9 +429,20 @@ def analyze_paper(pdir: Path) -> dict:
     marks: list[tuple[int, str, dict]] = []
     for m in SEC_RX.finditer(body):
         title, _end = _grab_brace(body, m.end() - 1)
-        marks.append((m.start(), "section", {
-            "level": {"section": 1, "subsection": 2, "subsubsection": 3}[m.group(1)],
-            "title": title, "star": bool(m.group(2)), "end": _end}))
+        marks.append(
+            (
+                m.start(),
+                "section",
+                {
+                    "level": {"section": 1, "subsection": 2, "subsubsection": 3}[
+                        m.group(1)
+                    ],
+                    "title": title,
+                    "star": bool(m.group(2)),
+                    "end": _end,
+                },
+            )
+        )
     for m in APPENDIX_CMD_RX.finditer(body):
         marks.append((m.start(), "appendix", {}))
     for m in REFS_RX.finditer(body):
@@ -368,14 +462,20 @@ def analyze_paper(pdir: Path) -> dict:
         bucket = meta.get("force_bucket") or canon_section(title)
         if meta.get("in_appendix") and bucket == "other":
             bucket = "appendix"
-        sections.append({
-            "raw": meta.get("raw") or detex(title)[0].strip()[:120] or "(untitled)",
-            "bucket": bucket, "level": meta["level"], "order": len(sections) + 1,
-            "words": w, "chars": ch, "caption_words": capw,
-            # 与 PDF 臂同口径：appendix 段后的 refs 只计 refs_words 不再双计 appendix
-            "appendix": meta["in_appendix"] and bucket != "references",
-            "unnumbered": meta["star"],
-        })
+        sections.append(
+            {
+                "raw": meta.get("raw") or detex(title)[0].strip()[:120] or "(untitled)",
+                "bucket": bucket,
+                "level": meta["level"],
+                "order": len(sections) + 1,
+                "words": w,
+                "chars": ch,
+                "caption_words": capw,
+                # 与 PDF 臂同口径：appendix 段后的 refs 只计 refs_words 不再双计 appendix
+                "appendix": meta["in_appendix"] and bucket != "references",
+                "unnumbered": meta["star"],
+            }
+        )
 
     for pos, kind, meta in marks:
         if pending is not None:
@@ -385,9 +485,15 @@ def analyze_paper(pdir: Path) -> dict:
             cur_appendix = True
             continue
         if kind == "refs":
-            pending = {"level": 0, "star": True, "title": "",
-                       "raw": "(bibliography)", "force_bucket": "references",
-                       "in_appendix": cur_appendix, "content_start": pos}
+            pending = {
+                "level": 0,
+                "star": True,
+                "title": "",
+                "raw": "(bibliography)",
+                "force_bucket": "references",
+                "in_appendix": cur_appendix,
+                "content_start": pos,
+            }
             continue
         meta["in_appendix"] = cur_appendix
         meta["content_start"] = meta.pop("end")
@@ -396,8 +502,14 @@ def analyze_paper(pdir: Path) -> dict:
         _close_section(len(body), pending["content_start"], pending)
 
     n_sec = sum(1 for s in sections if s["level"] == 1)
-    body_words = sum(s["words"] for s in sections if not s["appendix"] and s["bucket"] != "references")
-    appendix_words = sum(s["words"] for s in sections if s["appendix"] or s["bucket"] == "appendix")
+    body_words = sum(
+        s["words"]
+        for s in sections
+        if not s["appendix"] and s["bucket"] != "references"
+    )
+    appendix_words = sum(
+        s["words"] for s in sections if s["appendix"] or s["bucket"] == "appendix"
+    )
     refs_words = sum(s["words"] for s in sections if s["bucket"] == "references")
     # 参考文献条数: bbl \bibitem 优先, 退 .bib @entry
     n_bib = len(re.findall(r"\\bibitem", body))
@@ -409,15 +521,23 @@ def analyze_paper(pdir: Path) -> dict:
                 pass
     status = "ok" if n_sec >= 1 else "no_sections"
     return {
-        "arxiv_id": pid, "status": status, "main_tex": str(main.relative_to(ext)),
-        "unresolved_inputs": unresolved, "preface_words": preface_words,
-        "abstract_words": abstract_words, "n_top_sections": n_sec,
-        "body_words": body_words, "appendix_words": appendix_words,
-        "refs_words": refs_words, "n_bib_items": n_bib, "sections": sections,
+        "arxiv_id": pid,
+        "status": status,
+        "main_tex": str(main.relative_to(ext)),
+        "unresolved_inputs": unresolved,
+        "preface_words": preface_words,
+        "abstract_words": abstract_words,
+        "n_top_sections": n_sec,
+        "body_words": body_words,
+        "appendix_words": appendix_words,
+        "refs_words": refs_words,
+        "n_bib_items": n_bib,
+        "sections": sections,
     }
 
 
 # ---------------- 主流程 ----------------
+
 
 def paper_dirs(corpus: Path, ids: set[str] | None) -> list[Path]:
     out = []
@@ -455,6 +575,7 @@ def main() -> None:
     outp.parent.mkdir(parents=True, exist_ok=True)
 
     from collections import Counter
+
     stat = Counter()
     n_done = 0
     done_ids = set()
@@ -468,7 +589,11 @@ def main() -> None:
             try:
                 rec = analyze_paper(d)
             except Exception as e:
-                rec = {"arxiv_id": rid, "status": "crash", "error": f"{type(e).__name__}: {e}"}
+                rec = {
+                    "arxiv_id": rid,
+                    "status": "crash",
+                    "error": f"{type(e).__name__}: {e}",
+                }
             rec["arxiv_id"] = rid
             stat[rec["status"]] += 1
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")

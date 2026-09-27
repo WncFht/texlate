@@ -1042,14 +1042,17 @@ def cas_link_leaves(kind=None, idc=None, dry: bool = False) -> list[dict]:
         if sid and s != sid:
             continue
         if dry:
-            cand = [
-                p.stat().st_size for p, _rel in _iter_files(leaf)
-            ]
+            cand = [p.stat().st_size for p, _rel in _iter_files(leaf)]
             cand = [n for n in cand if n >= CAS_LINK_FLOOR]
             out.append(
                 {
-                    "zone": zone, "kind": k, "sid": s, "key": key,
-                    "candidates": len(cand), "bytes": sum(cand), "linked": 0,
+                    "zone": zone,
+                    "kind": k,
+                    "sid": s,
+                    "key": key,
+                    "candidates": len(cand),
+                    "bytes": sum(cand),
+                    "linked": 0,
                 }
             )
             continue
@@ -1095,11 +1098,7 @@ def slim_splice(idc=None, dry: bool = False) -> list[dict]:
         if sid and s != sid:
             continue
         keep = _splice_keep(leaf)
-        doomed = [
-            p
-            for p in leaf.iterdir()
-            if p not in keep
-        ]
+        doomed = [p for p in leaf.iterdir() if p not in keep]
         if not doomed:
             continue
         dropped_bytes = 0
@@ -1113,14 +1112,15 @@ def slim_splice(idc=None, dry: bool = False) -> list[dict]:
         idc_ = idnorm.idc_from_safe(s)
         mp = meta_path(idc_, arm_, variant_, altseq_)
         meta = _read_meta(mp)
-        kept_rel = sorted(
-            p.relative_to(leaf).as_posix() for p in keep
-        )
+        kept_rel = sorted(p.relative_to(leaf).as_posix() for p in keep)
         if dry:
             out.append(
                 {
-                    "zone": zone, "sid": s, "key": key,
-                    "kept": kept_rel, "dropped": len(doomed),
+                    "zone": zone,
+                    "sid": s,
+                    "key": key,
+                    "kept": kept_rel,
+                    "dropped": len(doomed),
                     "dropped_bytes": dropped_bytes,
                     "meta": mp.exists(),
                 }
@@ -1139,9 +1139,7 @@ def slim_splice(idc=None, dry: bool = False) -> list[dict]:
             flist = meta.get("files")
             if isinstance(flist, dict) and isinstance(flist.get("splice"), list):
                 flist["splice"] = [
-                    r
-                    for r in flist["splice"]
-                    if r.get("path") in kept_rel
+                    r for r in flist["splice"] if r.get("path") in kept_rel
                 ]
             if isinstance(flist, dict):
                 meta["bytes"] = sum(
@@ -1175,9 +1173,13 @@ def slim_splice(idc=None, dry: bool = False) -> list[dict]:
         )
         out.append(
             {
-                "zone": row_zone, "sid": s, "key": key,
-                "kept": kept_rel, "dropped": len(doomed),
-                "dropped_bytes": dropped_bytes, "meta": meta is not None,
+                "zone": row_zone,
+                "sid": s,
+                "key": key,
+                "kept": kept_rel,
+                "dropped": len(doomed),
+                "dropped_bytes": dropped_bytes,
+                "meta": meta is not None,
             }
         )
     return out
@@ -1700,11 +1702,7 @@ def _kind_intact(meta: dict, kind: str) -> bool:
         return False
     if not isinstance(flist, list) or not flist:
         return False
-    leaf = (
-        _kind_root(zone, kind)
-        / idnorm.safe_id(idc)
-        / dir_key(arm, variant, altseq)
-    )
+    leaf = _kind_root(zone, kind) / idnorm.safe_id(idc) / dir_key(arm, variant, altseq)
     if not leaf.is_dir():
         return False
     has_bytes = False
@@ -1813,8 +1811,12 @@ def rekey(
             continue
         assets = {
             k: leaf_dir(
-                _norm_zone(m.get("zone", "pending")), k, c_idc, c_arm,
-                src_variant, str(m.get("altseq", "0")),
+                _norm_zone(m.get("zone", "pending")),
+                k,
+                c_idc,
+                c_arm,
+                src_variant,
+                str(m.get("altseq", "0")),
             )
             for k, (_r, _a, m) in todo.items()
         }

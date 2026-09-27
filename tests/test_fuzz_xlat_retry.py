@@ -161,9 +161,7 @@ class TestBackoffEdges:
             )
         assert calls == 2  # noqa: PLR2004 -- policy 封顶
 
-    def test_retry_after_honored_on_non_429(
-        self, recorded_sleeps: list[float]
-    ) -> None:
+    def test_retry_after_honored_on_non_429(self, recorded_sleeps: list[float]) -> None:
         """observed: ``retry_after`` 优先于一切分类分支——500 携带也从其值。"""
 
         async def five_hundred() -> str:

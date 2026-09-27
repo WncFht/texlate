@@ -5,6 +5,7 @@ kernel.doctor) are faked through sys.modules for dispatch tests; tests
 that need the real implementation are guarded by find_spec and activate
 automatically once those modules land.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -44,21 +45,42 @@ def _fake(name: str, **attrs: object) -> types.ModuleType:
 
 def _cell(idc: str, stage: str = "xlat") -> dict:
     return {
-        "id": idc, "idc": idc, "arm": "a", "up": "-", "variant": "-",
-        "stage": stage, "needs": [], "fp_input": None,
+        "id": idc,
+        "idc": idc,
+        "arm": "a",
+        "up": "-",
+        "variant": "-",
+        "stage": stage,
+        "needs": [],
+        "fp_input": None,
     }
 
 
 def _emit(rd: runs.RunDir, seq: int, idc: str, status: str | None = None) -> dict:
     if status is None:
         ev = events.make_event(
-            events.T_CELL_QUEUED, run=rd.run, seq=seq, id=idc, idc=idc,
-            arm="a", up="-", variant="-", stage="xlat",
+            events.T_CELL_QUEUED,
+            run=rd.run,
+            seq=seq,
+            id=idc,
+            idc=idc,
+            arm="a",
+            up="-",
+            variant="-",
+            stage="xlat",
         )
     else:
         ev = events.make_event(
-            events.T_CELL, run=rd.run, seq=seq, id=idc, idc=idc,
-            arm="a", up="-", variant="-", stage="xlat", status=status,
+            events.T_CELL,
+            run=rd.run,
+            seq=seq,
+            id=idc,
+            idc=idc,
+            arm="a",
+            up="-",
+            variant="-",
+            stage="xlat",
+            status=status,
         )
     ledger.emit(ev, run_dir=rd.path)
     return ev
@@ -72,8 +94,12 @@ def test_init_creates_layout(broot: Path, capsys: pytest.CaptureFixture) -> None
     out = capsys.readouterr().out
     assert "bench root" in out
     for p in (
-        paths.ledger_dir(), paths.runs_dir(), paths.vault_dir(),
-        paths.lake_dir(), paths.locks_dir(), paths.backup_dir(),
+        paths.ledger_dir(),
+        paths.runs_dir(),
+        paths.vault_dir(),
+        paths.lake_dir(),
+        paths.locks_dir(),
+        paths.backup_dir(),
     ):
         assert p.is_dir()
     assert paths.events_path().exists()
@@ -90,7 +116,9 @@ def test_spec_list_finds_specs(broot: Path, capsys: pytest.CaptureFixture) -> No
 
 
 @pytest.mark.parametrize("name", ["triage", "gate", "dossier"])
-def test_verbs_bare_invocation_exit_2(broot: Path, capsys: pytest.CaptureFixture, name: str) -> None:
+def test_verbs_bare_invocation_exit_2(
+    broot: Path, capsys: pytest.CaptureFixture, name: str
+) -> None:
     """verbs landed under bench/py/verbs/ — bare invocation is a usage refusal.
 
     triage's required ``run`` positional exits via argparse ``SystemExit(2)``;
@@ -115,8 +143,7 @@ def test_status_empty_root(broot: Path, capsys: pytest.CaptureFixture) -> None:
 
 
 def test_status_tail_and_run_and_id(broot: Path, capsys: pytest.CaptureFixture) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
     _emit(rd, 2, "9901.00001", status="ok")
 
@@ -137,7 +164,9 @@ def test_status_tail_and_run_and_id(broot: Path, capsys: pytest.CaptureFixture) 
     assert "xlat" in out
 
 
-def test_status_id_canon_invalid_still_ok(broot: Path, capsys: pytest.CaptureFixture) -> None:
+def test_status_id_canon_invalid_still_ok(
+    broot: Path, capsys: pytest.CaptureFixture
+) -> None:
     assert cli.main(["status", "--id", "smoke/0001"]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "canon" in out  # non-ok canon verdict surfaced, not hidden
@@ -155,32 +184,61 @@ def test_vault_adopt_and_tombstone(broot: Path, tmp_path: Path) -> None:
     donor = tmp_path / "orphan-bytes"
     donor.mkdir()
     (donor / "out.pdf").write_bytes(b"orphan pdf")
-    assert cli.main([
-        "vault", "adopt", str(donor), "--idc", "9901.00001",
-    ]) == cli.EXIT_OK
+    assert (
+        cli.main(
+            [
+                "vault",
+                "adopt",
+                str(donor),
+                "--idc",
+                "9901.00001",
+            ]
+        )
+        == cli.EXIT_OK
+    )
     # the orphan bytes became a declared quar-zone copy inside the vault
     assert any(paths.vault_dir().rglob("out.pdf"))
 
-    assert cli.main([
-        "vault", "tombstone", "9901.00002", "--arm", "a",
-        "--kind", "zh", "--reason", "lost in test",
-    ]) == cli.EXIT_OK
+    assert (
+        cli.main(
+            [
+                "vault",
+                "tombstone",
+                "9901.00002",
+                "--arm",
+                "a",
+                "--kind",
+                "zh",
+                "--reason",
+                "lost in test",
+            ]
+        )
+        == cli.EXIT_OK
+    )
 
 
 def test_vault_restore_empty_fails(broot: Path, tmp_path: Path) -> None:
-    rc = cli.main([
-        "vault", "restore", "9901.00001", "--arm", "a",
-        "--dest", str(tmp_path / "restored"),
-    ])
+    rc = cli.main(
+        [
+            "vault",
+            "restore",
+            "9901.00001",
+            "--arm",
+            "a",
+            "--dest",
+            str(tmp_path / "restored"),
+        ]
+    )
     assert rc == cli.EXIT_FAIL
 
 
 # --- ledger -------------------------------------------------------------------------
 
 
-def test_ledger_tail_ingest_and_rebuild(broot: Path, capsys: pytest.CaptureFixture) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+def test_ledger_tail_ingest_and_rebuild(
+    broot: Path, capsys: pytest.CaptureFixture
+) -> None:
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
     _emit(rd, 2, "9901.00001", status="ok")
 
@@ -191,17 +249,26 @@ def test_ledger_tail_ingest_and_rebuild(broot: Path, capsys: pytest.CaptureFixtu
     assert "rebuild-index" in capsys.readouterr().out
 
 
-def test_ledger_ingest_external_dry(broot: Path, tmp_path: Path,
-                                  capsys: pytest.CaptureFixture) -> None:
+def test_ledger_ingest_external_dry(
+    broot: Path, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     src = tmp_path / "ext.jsonl"
     src.write_text(
-        json.dumps({"id": "9901.00001", "stage": "xlat",
-                    "status": "ok"}) + "\n",
+        json.dumps({"id": "9901.00001", "stage": "xlat", "status": "ok"}) + "\n",
         encoding="utf-8",
     )
-    assert cli.main([
-        "ledger", "ingest", "--external", str(src), "--dry",
-    ]) == cli.EXIT_OK
+    assert (
+        cli.main(
+            [
+                "ledger",
+                "ingest",
+                "--external",
+                str(src),
+                "--dry",
+            ]
+        )
+        == cli.EXIT_OK
+    )
     assert capsys.readouterr().out.strip()  # stats json printed
 
 
@@ -228,9 +295,10 @@ def test_lake_status_register_evict(broot: Path, capsys: pytest.CaptureFixture) 
 # --- backup / prune -------------------------------------------------------------------
 
 
-def test_backup_writes_tar_without_index(broot: Path, capsys: pytest.CaptureFixture) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+def test_backup_writes_tar_without_index(
+    broot: Path, capsys: pytest.CaptureFixture
+) -> None:
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
 
     assert cli.main(["backup"]) == cli.EXIT_OK
@@ -246,20 +314,28 @@ def test_backup_writes_tar_without_index(broot: Path, capsys: pytest.CaptureFixt
 
 
 def test_prune_keeps_list_and_cell_trees(broot: Path) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     (rd.path / "report.md").write_text("# report\n")
     (rd.path / "junk.tmp").write_text("junk")
     cell = rd.work("9901.00001")
     (cell / "src").mkdir(parents=True)
     (cell / "src" / "main.tex").write_text("\\hi")
 
-    assert cli.main([
-        "prune", "--run", rd.run, "--keep", "report,events",
-    ]) == cli.EXIT_OK
+    assert (
+        cli.main(
+            [
+                "prune",
+                "--run",
+                rd.run,
+                "--keep",
+                "report,events",
+            ]
+        )
+        == cli.EXIT_OK
+    )
     assert (rd.path / "report.md").exists()
     assert (rd.path / "events.jsonl").exists()
-    assert (rd.path / ".lock").exists()       # immortal lock file
+    assert (rd.path / ".lock").exists()  # immortal lock file
     assert (rd.path / "heartbeat").exists()
     assert not (rd.path / "junk.tmp").exists()
     assert not cell.exists()
@@ -268,8 +344,7 @@ def test_prune_keeps_list_and_cell_trees(broot: Path) -> None:
 
 
 def test_prune_blocks_paid_shaped_cell(broot: Path) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     cell = rd.work("9901.00002")
     (cell / "zh.mock").mkdir(parents=True)
     (cell / "zh.mock" / "out.pdf").write_bytes(b"paid bytes")
@@ -280,18 +355,30 @@ def test_prune_blocks_paid_shaped_cell(broot: Path) -> None:
 
 
 def test_prune_unknown_keep_token(broot: Path) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
-    assert cli.main([
-        "prune", "--run", rd.run, "--keep", "nonsense",
-    ]) == cli.EXIT_REFUSED
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
+    assert (
+        cli.main(
+            [
+                "prune",
+                "--run",
+                rd.run,
+                "--keep",
+                "nonsense",
+            ]
+        )
+        == cli.EXIT_REFUSED
+    )
 
 
 # --- doctor / fsck / sweep --------------------------------------------------------------
 
 
-def test_doctor_clean_root(broot: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-                           capsys: pytest.CaptureFixture) -> None:
+def test_doctor_clean_root(
+    broot: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
     # the real doctor's stray scan targets the repo checkout — point it at
     # an empty stand-in so the verdict reflects the clean tmp root only
     empty_bench = tmp_path / "repo-bench"
@@ -303,8 +390,12 @@ def test_doctor_clean_root(broot: Path, tmp_path: Path, monkeypatch: pytest.Monk
     assert "[FAIL]" not in out
 
 
-def test_doctor_switch_ok_reports_verdict(broot: Path, tmp_path: Path,
-                                          monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_doctor_switch_ok_reports_verdict(
+    broot: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
     # drain verdict depends on live repo state (lane writers, errsweep
     # worktrees, kernel-active) — the CLI must faithfully report whichever
     # verdict the gate returns; both spellings are correct plumbing
@@ -321,11 +412,13 @@ def test_fsck_clean_root(broot: Path, capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["fsck"]) == cli.EXIT_OK
 
 
-def test_sweep_fake_module(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_sweep_fake_module(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     monkeypatch.setitem(
-        sys.modules, "kernel.sweep",
-        _fake("kernel.sweep",
-              sweep=lambda light=False: {"light": light, "zombies": 0}),
+        sys.modules,
+        "kernel.sweep",
+        _fake("kernel.sweep", sweep=lambda light=False: {"light": light, "zombies": 0}),
     )
     assert cli.main(["sweep", "--light"]) == cli.EXIT_OK
     assert '"zombies": 0' in capsys.readouterr().out
@@ -340,7 +433,9 @@ def test_sweep_unavailable_exit_2(broot: Path, capsys: pytest.CaptureFixture) ->
 # --- run / plan dispatch ---------------------------------------------------------------
 
 
-def test_run_dispatches_kernel_run(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_run_dispatches_kernel_run(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     order: list[str] = []
     seen: dict = {}
 
@@ -349,25 +444,43 @@ def test_run_dispatches_kernel_run(broot: Path, monkeypatch: pytest.MonkeyPatch,
         seen["spec"] = spec_or_path
         seen["params"] = params
         seen["kw"] = kw
-        return {"run": "smoke/2026-09-21/smoke", "run_seq": 1,
-                "counts": {"ok": 9}, "cost_usd": 0.0, "ok": True}
+        return {
+            "run": "smoke/2026-09-21/smoke",
+            "run_seq": 1,
+            "counts": {"ok": 9},
+            "cost_usd": 0.0,
+            "ok": True,
+        }
 
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
+        sys.modules,
+        "kernel.kernel",
         _fake("kernel.kernel", run=fake_run, plan=lambda *_a, **_k: {}),
     )
     monkeypatch.setitem(
-        sys.modules, "kernel.sweep",
-        _fake("kernel.sweep",
-              sweep=lambda light=False: order.append("sweep")
-              or {"light": light}),
+        sys.modules,
+        "kernel.sweep",
+        _fake(
+            "kernel.sweep",
+            sweep=lambda light=False: order.append("sweep") or {"light": light},
+        ),
     )
-    rc = cli.main([
-        "run", "smoke", "--param", "note=hi", "x=1",
-        "--max-cost", "1.5", "--jobs", "2", "--resume",
-    ])
+    rc = cli.main(
+        [
+            "run",
+            "smoke",
+            "--param",
+            "note=hi",
+            "x=1",
+            "--max-cost",
+            "1.5",
+            "--jobs",
+            "2",
+            "--resume",
+        ]
+    )
     assert rc == 0
-    assert order == ["sweep", "run"]          # §2.4: sweep before the write
+    assert order == ["sweep", "run"]  # §2.4: sweep before the write
     assert seen["params"] == {"note": "hi", "x": "1"}
     assert seen["spec"].endswith("specs/smoke.py")
     kw = seen["kw"]
@@ -380,16 +493,17 @@ def test_run_dispatches_kernel_run(broot: Path, monkeypatch: pytest.MonkeyPatch,
 
 def test_run_not_ok_exit_1(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
-        _fake("kernel.kernel",
-              run=lambda *_a, **_k: {"ok": False, "counts": {}}),
+        sys.modules,
+        "kernel.kernel",
+        _fake("kernel.kernel", run=lambda *_a, **_k: {"ok": False, "counts": {}}),
     )
     assert cli.main(["run", "smoke"]) == cli.EXIT_FAIL
 
 
 def test_run_bad_param_refused(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
+        sys.modules,
+        "kernel.kernel",
         _fake("kernel.kernel", run=lambda *_a, **_k: {"ok": True}),
     )
     assert cli.main(["run", "smoke", "notkv"]) == cli.EXIT_REFUSED
@@ -397,7 +511,8 @@ def test_run_bad_param_refused(broot: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_run_unknown_spec(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
+        sys.modules,
+        "kernel.kernel",
         _fake("kernel.kernel", run=lambda *_a, **_k: {"ok": True}),
     )
     assert cli.main(["run", "no-such-spec-xyz"]) == cli.EXIT_REFUSED
@@ -409,19 +524,27 @@ def test_run_unavailable_exit_2(broot: Path, capsys: pytest.CaptureFixture) -> N
     assert "unavailable" in capsys.readouterr().err
 
 
-def test_plan_prints_buckets(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_plan_prints_buckets(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     def fake_plan(spec_or_path: str, params: dict | None = None, **kw: object) -> dict:
         return {
             "quote": {
-                "new": 3, "reuse": 1, "missing": 1, "claimed": 0,
-                "attempted": 0, "unsealed": 0, "total": 5,
+                "new": 3,
+                "reuse": 1,
+                "missing": 1,
+                "claimed": 0,
+                "attempted": 0,
+                "unsealed": 0,
+                "total": 5,
                 "regen_decisions": ["9901.00002: missing bytes"],
             },
             "cells": [{"id": "9901.00001"}, {"id": "9901.00002"}],
         }
 
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
+        sys.modules,
+        "kernel.kernel",
         _fake("kernel.kernel", plan=fake_plan),
     )
     assert cli.main(["plan", "smoke"]) == cli.EXIT_OK
@@ -432,15 +555,20 @@ def test_plan_prints_buckets(broot: Path, monkeypatch: pytest.MonkeyPatch, capsy
     assert "would run: 2" in out
 
 
-def test_pause_refuses_paid_run_only(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_pause_refuses_paid_run_only(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     """PAUSE is a paid-spend fence (§6 Phase-3 rescope): paid specs refuse,
     free specs and plan run straight through."""
     called = []
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
-        _fake("kernel.kernel",
-              run=lambda *_a, **_k: called.append("run") or {"ok": True},
-              plan=lambda *_a, **_k: called.append("plan") or {}),
+        sys.modules,
+        "kernel.kernel",
+        _fake(
+            "kernel.kernel",
+            run=lambda *_a, **_k: called.append("run") or {"ok": True},
+            plan=lambda *_a, **_k: called.append("plan") or {},
+        ),
     )
     paths.pause_path().write_text("stop the world\n")
     assert locks.pause_engaged()
@@ -455,13 +583,17 @@ def test_pause_refuses_paid_run_only(broot: Path, monkeypatch: pytest.MonkeyPatc
     assert "PAUSE" in capsys.readouterr().err
 
 
-def test_pause_fails_closed_on_unprovable_spec(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_pause_fails_closed_on_unprovable_spec(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     """paidness=None (spec won't even load) is refused under PAUSE."""
     called = []
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
-        _fake("kernel.kernel",
-              run=lambda *_a, **_k: called.append("run") or {"ok": True}),
+        sys.modules,
+        "kernel.kernel",
+        _fake(
+            "kernel.kernel", run=lambda *_a, **_k: called.append("run") or {"ok": True}
+        ),
     )
     broken = broot / "broken_spec.py"
     broken.write_text("raise RuntimeError('import-time boom')\n")
@@ -474,23 +606,25 @@ def test_pause_fails_closed_on_unprovable_spec(broot: Path, monkeypatch: pytest.
 # --- detach -----------------------------------------------------------------------------
 
 
-def test_detach_paid_spec_requires_max_cost(broot: Path, monkeypatch: pytest.MonkeyPatch,
-                                            capsys: pytest.CaptureFixture) -> None:
+def test_detach_paid_spec_requires_max_cost(
+    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
     monkeypatch.setitem(
-        sys.modules, "kernel.kernel",
+        sys.modules,
+        "kernel.kernel",
         _fake("kernel.kernel", run=lambda *_a, **_k: {"ok": True}),
     )
-    paid_spec = types.SimpleNamespace(
-        stages=[types.SimpleNamespace(paid=True)])
+    paid_spec = types.SimpleNamespace(stages=[types.SimpleNamespace(paid=True)])
     monkeypatch.setitem(
-        sys.modules, "kernel.spec",
+        sys.modules,
+        "kernel.spec",
         _fake("kernel.spec", load_spec=lambda _p: paid_spec),
     )
     spawned = []
     monkeypatch.setattr(
-        locks, "detach_with_lock",
-        lambda *_a, **_k: spawned.append((_a, _k)) or types.SimpleNamespace(
-            pid=4242),
+        locks,
+        "detach_with_lock",
+        lambda *_a, **_k: spawned.append((_a, _k)) or types.SimpleNamespace(pid=4242),
     )
     # §3.6: detach on a paid spec without --max-cost is refused pre-spawn
     assert cli.main(["run", "smoke", "--detach"]) == cli.EXIT_REFUSED
@@ -500,7 +634,7 @@ def test_detach_paid_spec_requires_max_cost(broot: Path, monkeypatch: pytest.Mon
     assert cli.main(["run", "smoke", "--detach", "--max-cost", "5"]) == cli.EXIT_OK
     assert len(spawned) == 1
     argv = spawned[0][0][0]
-    assert "--detach" not in argv           # child re-execs without the flag
+    assert "--detach" not in argv  # child re-execs without the flag
     assert "--max-cost" in argv
     assert "detached: pid=4242" in capsys.readouterr().out
 
@@ -509,8 +643,7 @@ def test_detach_paid_spec_requires_max_cost(broot: Path, monkeypatch: pytest.Mon
 
 
 def test_derive_balanced_run(broot: Path, capsys: pytest.CaptureFixture) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     runs.freeze_plan(rd, [_cell("9901.00001")])
     _emit(rd, 1, "9901.00001")
     _emit(rd, 2, "9901.00001", status="ok")
@@ -543,7 +676,11 @@ def test_python_dash_m_kernel(broot: Path, tmp_path: Path) -> None:
     other = tmp_path / "subroot"
     res = subprocess.run(
         [sys.executable, "-m", "kernel", "init"],
-        env=_sub_env(other), capture_output=True, text=True, timeout=60, check=False,
+        env=_sub_env(other),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert res.returncode == cli.EXIT_OK, res.stderr
     assert (other / "ledger").is_dir()
@@ -556,8 +693,12 @@ def test_bench_shim_executable(broot: Path, tmp_path: Path) -> None:
     assert shim.read_bytes().startswith(b"#!/usr/bin/env python3")
     other = tmp_path / "shimroot"
     res = subprocess.run(  # noqa: S603 — argv is a constructed list, no shell
-        [str(shim), "init"], env=_sub_env(other),
-        capture_output=True, text=True, timeout=60, check=False,
+        [str(shim), "init"],
+        env=_sub_env(other),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert res.returncode == cli.EXIT_OK, res.stderr
     assert (other / "ledger").is_dir()
@@ -566,16 +707,18 @@ def test_bench_shim_executable(broot: Path, tmp_path: Path) -> None:
 # --- conditional end-to-end (activates when wave-C siblings land) --------------------------
 
 
-@pytest.mark.skipif(not (HAS_KERNEL and HAS_SPEC),
-                    reason="kernel.kernel/kernel.spec not yet landed")
+@pytest.mark.skipif(
+    not (HAS_KERNEL and HAS_SPEC), reason="kernel.kernel/kernel.spec not yet landed"
+)
 def test_smoke_spec_end_to_end(broot: Path, capsys: pytest.CaptureFixture) -> None:
     spec_path = BENCH_PY / "specs" / "smoke.py"
     rc = cli.main(["run", str(spec_path)])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK, out
     # the full event trail exists in the ledger
-    evs = [e for _ln, e, _raw in events.iter_jsonl(paths.events_path())
-           if e is not None]
+    evs = [
+        e for _ln, e, _raw in events.iter_jsonl(paths.events_path()) if e is not None
+    ]
     types_seen = {e["type"] for e in evs}
     assert "run_registered" in types_seen
     assert "cell_queued" in types_seen

@@ -65,8 +65,7 @@ def _chat_models(*, include_probes: bool = True) -> list[str]:
     return [
         _posted_model(r)
         for r in _REQS
-        if r.url.path == "/v1/chat/completions"
-        and (include_probes or not _is_probe(r))
+        if r.url.path == "/v1/chat/completions" and (include_probes or not _is_probe(r))
     ]
 
 

@@ -138,9 +138,7 @@ class _Parse:
             "front_matter",
             {k: k in fm for k in ("abstract", "title", "author")},
         )
-        self._on_loop(
-            self.store.update_fields, ctx.task_id, options_json=options_json
-        )
+        self._on_loop(self.store.update_fields, ctx.task_id, options_json=options_json)
         tree = scan_tex_tree(
             ctx.base_dir,
             main=(ctx.base_dir / ctx.main_rel) if ctx.main_rel else None,

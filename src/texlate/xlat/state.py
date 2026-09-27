@@ -254,9 +254,7 @@ class StateStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError, OSError, RecursionError) as e:
             # 与 load_cache 同口径：隔离留诊断现场，不覆盖不删除
-            _quarantine(
-                path, "state %s corrupted (%s) → quarantined as %s", path, e
-            )
+            _quarantine(path, "state %s corrupted (%s) → quarantined as %s", path, e)
             return set(), {}
         if not isinstance(data, dict):
             _quarantine(

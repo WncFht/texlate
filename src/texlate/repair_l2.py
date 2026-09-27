@@ -617,7 +617,9 @@ def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚�
             mark_moving=marks_on,
         )
         if marks_on and (issues := seq_mark_issues(zh)):
-            log.warning("seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues))
+            log.warning(
+                "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
+            )
             zh = strip_seq_marks(zh)
         f.write_text(zh, encoding="utf-8")
         rel = f.relative_to(work).as_posix()

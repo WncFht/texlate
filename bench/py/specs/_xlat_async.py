@@ -6,6 +6,7 @@ stagerun ``xlat``（``stage_xlat._translate_tree`` 壳）与
 ``from specs._xlat_async import translate_tree_async`` 取同一实现，
 不各抄一份。
 """
+
 from __future__ import annotations
 
 import time

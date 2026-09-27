@@ -27,7 +27,9 @@ from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
 # ---------------------------------------------------------------- 阈值
 
 CHUNK_MIN = 20  # flush_run 可译性阈值（去命令/非字母后字符数）
-CHUNK_MAX = 4000  # 原子 chunk 上限（超阈值二次切分，docs/spec/latex-pipeline.md 硬要求）
+CHUNK_MAX = (
+    4000  # 原子 chunk 上限（超阈值二次切分，docs/spec/latex-pipeline.md 硬要求）
+)
 BUDGET = 100_000  # 每文档展开步数上限（docs/spec/latex-pipeline.md）
 MAX_GEN = 32  # 子扫描/展开代数上限（正常宏嵌套 ≤4 代，8 倍余量）
 MAX_INPUTS = 8  # \\input 展平深度上限

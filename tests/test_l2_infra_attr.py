@@ -286,9 +286,7 @@ def test_undef_cs_translation_introduced_attributed(tmp_path: Path) -> None:
 def test_err_signature_keys_undef_cs_on_culprit() -> None:
     r"""undefined_cs 签名键 = ``head|cs``——同 head 异 cs 不互豁免（否则
     en 任一 undefined_cs 会误放 zh 全部译文幻觉 cs）；其余类 culprit 位留空。"""
-    e1 = LogError(
-        line_no=1, head="! Undefined control sequence.", ctx=("l.4 \\badcs",)
-    )
+    e1 = LogError(line_no=1, head="! Undefined control sequence.", ctx=("l.4 \\badcs",))
     e2 = LogError(
         line_no=2, head="! Undefined control sequence.", ctx=("l.4 \\othercs",)
     )

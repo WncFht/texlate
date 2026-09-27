@@ -586,8 +586,7 @@ def prev_line(index, info, table="both"):
     if not kind or seq is None:
         return None
     row = index.conn.execute(
-        "SELECT run FROM runs WHERE kind=? AND run_seq<?"
-        " ORDER BY run_seq DESC LIMIT 1",
+        "SELECT run FROM runs WHERE kind=? AND run_seq<? ORDER BY run_seq DESC LIMIT 1",
         (kind, seq),
     ).fetchone()
     if row is None:
@@ -773,9 +772,7 @@ def main(args):
                 print(render_trend(info["kind"], lines), end="")
             return 0
 
-        recs = load_records(
-            index, info["run"], _blob_dir(info["rundir"]), args.table
-        )
+        recs = load_records(index, info["run"], _blob_dir(info["rundir"]), args.table)
         if not recs:
             print(
                 f"triage: {info['run']!r} 无 {args.table} 行",

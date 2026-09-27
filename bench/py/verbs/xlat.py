@@ -82,9 +82,7 @@ def _run_ref(ref: str):
 
 
 def _run_kind(idx, run_name: str) -> str | None:
-    r = idx.conn.execute(
-        "SELECT kind FROM runs WHERE run=?", (run_name,)
-    ).fetchone()
+    r = idx.conn.execute("SELECT kind FROM runs WHERE run=?", (run_name,)).fetchone()
     return r["kind"] if r else None
 
 
@@ -236,18 +234,14 @@ def aggregate(recs: list[dict]) -> tuple[dict[str, dict], list[dict]]:
                 st["cs_drop"] += 1
                 why.append(f"cs {j.get('fragile_src')}→{j.get('fragile_zh')}")
             errs = [
-                i
-                for i in (j.get("validator_issues") or [])
-                if i.startswith("error:")
+                i for i in (j.get("validator_issues") or []) if i.startswith("error:")
             ]
             for e in errs:
                 # issue 形 "error:rule:message"——message 自身可含 ':',
                 # 旧 split(':',2)[-1] 会丢 message 首段; 取 rule + 完整前缀。
                 parts = e.split(":", 2)
                 why.append(
-                    parts[1] + ":" + parts[2][:60]
-                    if len(parts) == 3
-                    else e[:80]
+                    parts[1] + ":" + parts[2][:60] if len(parts) == 3 else e[:80]
                 )
             fails.append(
                 {
@@ -275,14 +269,12 @@ def _cmd_report(args) -> int:
             return 2
         kind = _run_kind(idx, name)
         if kind != "xlatbench":
-            _err(f"{name}: kind={kind!r} skipped (xlat-report reads "
-                 "xlatbench runs)")
+            _err(f"{name}: kind={kind!r} skipped (xlat-report reads xlatbench runs)")
             continue
         names.append(name)
         if first_rundir is None:
             first_rundir = rdir
-        recs.extend(_rec_of(row, rdir)
-                    for row in _eval_rows(idx, name))
+        recs.extend(_rec_of(row, rdir) for row in _eval_rows(idx, name))
     rows, fails = aggregate(recs)
     lines = [
         (
@@ -372,8 +364,7 @@ def _cmd_rejudge(args) -> int:
             continue
         kind = _run_kind(idx, name)
         if kind != "xlatbench":
-            _err(f"{name}: kind={kind!r} skipped (xlat-rejudge reads "
-                 "xlatbench runs)")
+            _err(f"{name}: kind={kind!r} skipped (xlat-rejudge reads xlatbench runs)")
             continue
         per_model: dict[str, list[int]] = {}
         flips: list[str] = []
@@ -381,9 +372,7 @@ def _cmd_rejudge(args) -> int:
         n_skip = 0
         for row in _eval_rows(idx, name):
             rec = _rec_of(row, rdir)
-            if not (
-                rec["http"] == 200 and rec["content"] and rec["src"]
-            ):
+            if not (rec["http"] == 200 and rec["content"] and rec["src"]):
                 n_skip += 1
                 continue
             j_old = rec["judge"] or {}
@@ -423,8 +412,7 @@ def _cmd_rejudge(args) -> int:
         print(f"== {name}")
         for m, (n, old_ok, new_ok) in sorted(per_model.items()):
             print(
-                f"  {m:22} hard_ok {old_ok}/{n} -> {new_ok}/{n} "
-                f"({new_ok - old_ok:+d})"
+                f"  {m:22} hard_ok {old_ok}/{n} -> {new_ok}/{n} ({new_ok - old_ok:+d})"
             )
         for f_ in flips[:20]:
             print(f"  flip {f_}")
@@ -442,9 +430,7 @@ def _cmd_rejudge(args) -> int:
 # ---------------------------------------------------------------- glue
 def add_args(sp) -> None:
     verb = sp.prog.rsplit(" ", 1)[-1]
-    sp.add_argument(
-        "runs", nargs="+", help="run 名 kind/date/slug 或 runs/ 下目录"
-    )
+    sp.add_argument("runs", nargs="+", help="run 名 kind/date/slug 或 runs/ 下目录")
     if verb == "xlat-report":
         sp.add_argument("--md", default=None, help="聚合表落盘路径")
         sp.add_argument(

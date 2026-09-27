@@ -62,9 +62,7 @@ from pathlib import Path
 # exec 时 bench/py 已在 sys.path，src/ 永远不在）。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
@@ -174,11 +172,7 @@ def _build() -> tuple[list[dict], dict[str, dict], dict[str, dict], int]:
     unmapped: skeleton 但 manifest 无行的计数（口径违约，只报不进 items）。
     """
     cat = lake.LakeCatalog.load()
-    skel = {
-        idc
-        for idc, row in cat.rows().items()
-        if row.get("state") == "skeleton"
-    }
+    skel = {idc for idc, row in cat.rows().items() if row.get("state") == "skeleton"}
     rows_by_idc: dict[str, dict] = {}
     rmap = _rowmap(CORPUS)
     unmapped = 0
@@ -191,9 +185,14 @@ def _build() -> tuple[list[dict], dict[str, dict], dict[str, dict], int]:
     # 同 item 待水合成员计数（阈值分母 = 本次仍 pending 的成员数）
     pend: dict[str, int] = {}
     for r in rows_by_idc.values():
-        if r.get("item") and r.get("member") and r.get("channel") in (
-            "ia",
-            "tiger",
+        if (
+            r.get("item")
+            and r.get("member")
+            and r.get("channel")
+            in (
+                "ia",
+                "tiger",
+            )
         ):
             pend[r["item"]] = pend.get(r["item"], 0) + 1
     meta = _item_meta()
@@ -216,8 +215,7 @@ def _build() -> tuple[list[dict], dict[str, dict], dict[str, dict], int]:
                 {
                     "item": r["item"],
                     "channel": ch,
-                    "size": (meta.get(f"{ch}:{r['item']}") or {}).get("size")
-                    or 0,
+                    "size": (meta.get(f"{ch}:{r['item']}") or {}).get("size") or 0,
                     "url": (meta.get(f"{ch}:{r['item']}") or {}).get("url")
                     or cc.item_url(ch, r["item"]),
                     "oid16": (meta.get(f"{ch}:{r['item']}") or {}).get("oid16"),
@@ -465,8 +463,7 @@ def _mk_rec(cell: dict) -> dict:
     }
 
 
-def _post_ok(idc: str, outcome: str, channel: str,
-             extra: dict | None = None) -> dict:
+def _post_ok(idc: str, outcome: str, channel: str, extra: dict | None = None) -> dict:
     """hydrate 后统一落账：complete→ok；catalog 'empty'=耐久负答→ok；
     其余→error（retriable）。complete 时补 catalog channels/regen_cost
     （corpus_sw 同款——tar 一 prune，字节再生就只剩网络一路）；pinned
@@ -504,9 +501,7 @@ def _hydrate_chunk(ctx, work: Path) -> dict:
     if ch is None or not cell.get("member") or not cell.get("format"):
         return {
             "status": "fail",
-            "errors": [
-                {"cat": "plan", "msg": "chunk lane 缺 item/member/format"}
-            ],
+            "errors": [{"cat": "plan", "msg": "chunk lane 缺 item/member/format"}],
         }
     run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
     with locks.flock(work / "locks" / f"{ch['item']}.lock"):
@@ -537,11 +532,7 @@ def _hydrate_chunk(ctx, work: Path) -> dict:
     freed = 0
     if not ctx.params.get("keep_tars"):
         freed = _maybe_prune(ch, work)
-    extra = (
-        {"item": ch["item"], "tar_freed": freed}
-        if freed
-        else {"item": ch["item"]}
-    )
+    extra = {"item": ch["item"], "tar_freed": freed} if freed else {"item": ch["item"]}
     return _post_ok(idc, "chunk", str(ch["channel"]), extra)
 
 
@@ -579,11 +570,7 @@ def _eprint_env(ctx):
     cache = SourceCache(cache_root() / "src")
     try:
         lut = cc.ensure_frame_lookup(Path(key[1]), Path(key[2]))
-        ids = [
-            str(it["id"])
-            for it in _items()
-            if it.get("lane") in ("eprint", "sw")
-        ]
+        ids = [str(it["id"]) for it in _items() if it.get("lane") in ("eprint", "sw")]
         fmeta = cc.frame_meta_for(ids, lut)
     except Exception:  # frame 缺席 → fm={} 退化（cat_group 'unknown'）
         fmeta = {}
@@ -634,9 +621,7 @@ def _hydrate_eprint(ctx) -> dict:
         want_sha = row.get("raw_sha256")
 
         def fetch(_idc: str, stage: Path) -> dict:
-            res = acquire_source(
-                pid, fetcher=fetcher, cache=cache, version=ver
-            )
+            res = acquire_source(pid, fetcher=fetcher, cache=cache, version=ver)
             holder["res"] = res
             if res.status in (AcquireStatus.OK, AcquireStatus.HIT) and res.entry:
                 meta = cc.materialize_entry_into_stage(
@@ -658,9 +643,7 @@ def _hydrate_eprint(ctx) -> dict:
                 ):
                     if row.get(k) is not None:
                         meta[k] = row[k]
-                meta["pick_reason"] = (
-                    f"hydrate_eprint:{row.get('layer') or 'unlisted'}"
-                )
+                meta["pick_reason"] = f"hydrate_eprint:{row.get('layer') or 'unlisted'}"
                 if want_sha:
                     got = next(
                         (r for r in (stage / "raw").glob("raw.*")),
@@ -668,8 +651,7 @@ def _hydrate_eprint(ctx) -> dict:
                     )
                     if (
                         got is not None
-                        and hashlib.sha256(got.read_bytes()).hexdigest()
-                        != want_sha
+                        and hashlib.sha256(got.read_bytes()).hexdigest() != want_sha
                     ):
                         meta.setdefault("warnings", []).append(
                             f"raw_sha256 mismatch vs manifest {str(want_sha)[:12]}"
@@ -710,19 +692,13 @@ def _plan(ctx) -> dict:
     for it in _items():
         if it.get("stage") == "hydrate":
             lane_n[it["lane"]] = lane_n.get(it["lane"], 0) + 1
-    tar_gb = round(
-        sum(c["size"] for c in _CHUNKS.values()) / 2**30, 1
-    )
+    tar_gb = round(sum(c["size"] for c in _CHUNKS.values()) / 2**30, 1)
     missing = [
-        f
-        for f in ("item-index.csv", "tiger-files.csv")
-        if not (FRAME / f).exists()
+        f for f in ("item-index.csv", "tiger-files.csv") if not (FRAME / f).exists()
     ]
     lake_free = None
     with contextlib.suppress(OSError):
-        lake_free = round(
-            shutil.disk_usage(paths.lake_dir()).free / 2**30, 1
-        )
+        lake_free = round(shutil.disk_usage(paths.lake_dir()).free / 2**30, 1)
     plan = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "skeleton": sum(lane_n.values()),
@@ -769,8 +745,7 @@ def _plan(ctx) -> dict:
             level="warn",
         )
     if missing:
-        ctx.emit_note(f"frame 资产缺: {missing} — chunk 道无尺寸/校验源",
-                      level="warn")
+        ctx.emit_note(f"frame 资产缺: {missing} — chunk 道无尺寸/校验源", level="warn")
         return "fail"
     return "ok"
 
@@ -836,11 +811,14 @@ spec = Spec(
         "corpus_dir": Param(type=str, default=str(cc.CORPUS), fp=False),
         "frame_dir": Param(type=str, default=str(cc.FRAME), fp=False),
         "lane": Param(
-            type=str, default="all",
+            type=str,
+            default="all",
             choices=["all", "chunk", "eprint", "sw"],
         ),
         "sw_mode": Param(
-            type=str, default="skip", choices=["skip", "eprint"],
+            type=str,
+            default="skip",
+            choices=["skip", "eprint"],
         ),
         "dry": Param(type=bool, default=False, fp=False),
         "n": Param(type=int, default=0),

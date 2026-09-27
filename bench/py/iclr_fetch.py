@@ -44,7 +44,9 @@ MAP = WORK / "map.jsonl"
 STATUS = WORK / "fetch.jsonl"
 CACHE = Path.home() / ".cache" / "texlate" / "src"
 RATE_STATE = WORK / "ratelimit.json"
-UA = {"User-Agent": "texlate-iclr-corpus/1.0 (research benchmark; mailto:bench@localhost)"}
+UA = {
+    "User-Agent": "texlate-iclr-corpus/1.0 (research benchmark; mailto:bench@localhost)"
+}
 DAILY_BUDGET = 20000  # 独立预算账——与 daily soak 的 ratelimit.json 不共享
 
 #: stderr 时间戳日志 / RSS 探针 / 终态账 / os.link 物化——benchlib 单源
@@ -89,7 +91,7 @@ def main() -> int:
                     res.detail,
                     res.entry,
                 )
-            except Exception as e:  # noqa: BLE001 逐篇记状态不炸批
+            except Exception as e:
                 res_status, detail, entry = "error", f"raise:{e}", None
             rec = {
                 "arxiv_id": pid,

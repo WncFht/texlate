@@ -199,9 +199,10 @@ def test_lead_junk_stripped_at_anchor() -> None:
 
 def test_lead_junk_stripped_at_fmt_anchor() -> None:
     """``%&`` fmt 锚点臂: 含 NUL 垃圾前缀剥至 ``%&`` 行。"""
-    assert _strip_lead_junk(
-        b"\x00junk\x00\n%&latex\n\\documentclass{article}\n"
-    ) == b"%&latex\n\\documentclass{article}\n"
+    assert (
+        _strip_lead_junk(b"\x00junk\x00\n%&latex\n\\documentclass{article}\n")
+        == b"%&latex\n\\documentclass{article}\n"
+    )
 
 
 def test_lead_junk_text_prefix_kept() -> None:

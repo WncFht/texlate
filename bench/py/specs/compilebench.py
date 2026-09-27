@@ -37,6 +37,7 @@ status 映射：judge clean/partial/fail/reject → 同名 kernel 终态；
 子类别（no_main_tex/inject_reject/harness_crash/missing_pfb…）走
 errors[].cat + sig 合成道（kernel cat 白名单外词不落 cat 列）。
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -54,9 +55,7 @@ from pathlib import Path
 # specs/soak.py 同款自举。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import fsutil, idnorm, lake
@@ -207,9 +206,7 @@ def _sample(pool: dict) -> list[dict]:
 
     picked = []
     for cell, q in sorted(quota.items()):
-        picked.extend(
-            {**p, "pick_reason": f"cell:{cell}"} for p in by_cell[cell][:q]
-        )
+        picked.extend({**p, "pick_reason": f"cell:{cell}"} for p in by_cell[cell][:q])
     picked.sort(key=lambda p: (p["band"], p["stratum_cell"], p["id"]))
     return picked
 
@@ -290,11 +287,7 @@ def _select(item: dict, rp: dict) -> bool:
     }
     if "all" not in conds and str(item.get("arm")) not in conds:
         return False
-    engs = {
-        s.strip()
-        for s in str(rp.get("engines") or "").split(",")
-        if s.strip()
-    }
+    engs = {s.strip() for s in str(rp.get("engines") or "").split(",") if s.strip()}
     if engs and str(item.get("variant", "")).split("@", 1)[0] not in engs:
         return False
     only = str(rp.get("only") or "").strip()
@@ -329,8 +322,7 @@ def _run_engine(eng_name: str, wdir: Path, main_rel: str, texmf: Path):
 
     kw: dict = {}
     if eng_name == "xelatex":
-        kw = {"halt_on_error": False, "texmfhome": texmf,
-              "repository": TUNA_TLNET}
+        kw = {"halt_on_error": False, "texmfhome": texmf, "repository": TUNA_TLNET}
     eng = engine_for(eng_name, **kw)
     timeout = XELATEX_TIMEOUT if eng_name == "xelatex" else TECTONIC_TIMEOUT
     env_extra = {
@@ -385,7 +377,10 @@ def _engine_version(eng: str) -> str | None:
     版本，引擎升级不改 fp；版本实录是口径漂移的观测面）。"""
     with contextlib.suppress(Exception):
         out = subprocess.run(
-            [eng, "--version"], capture_output=True, text=True, timeout=15,
+            [eng, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         lines = (out.stdout or out.stderr).strip().splitlines()
         if lines:
@@ -432,8 +427,7 @@ def _cb_compile(ctx) -> dict:
     if src is None:
         # 湖格中途被逐——旧口径这是 no_source 计分桩行；新口径湖取交
         # 预过滤后≈零触发，skip retriable（刻意 delta，见 docstring）。
-        ctx.emit_note(f"{ctx.idc}: lake cell unavailable -> skip",
-                      level="warn")
+        ctx.emit_note(f"{ctx.idc}: lake cell unavailable -> skip", level="warn")
         return "skip"
 
     route = route_project(src)  # prefer 默认 tectonic（旧同）
@@ -461,10 +455,8 @@ def _cb_compile(ctx) -> dict:
         ctx.emit_case(case)
         return {
             "status": "reject",
-            "metrics": {**base_metrics, "verdict": "no_main_tex",
-                        "verdict_sub": sub},
-            "errors": [{"cat": "no_main_tex",
-                        "msg": sub or "no main tex found"}],
+            "metrics": {**base_metrics, "verdict": "no_main_tex", "verdict_sub": sub},
+            "errors": [{"cat": "no_main_tex", "msg": sub or "no main tex found"}],
         }
     main_rel = main.relative_to(src).as_posix()
 
@@ -489,11 +481,14 @@ def _cb_compile(ctx) -> dict:
             ctx.emit_case(case)
             return {
                 "status": "reject",
-                "metrics": {**base_metrics, "verdict": "reject",
-                            "category": "inject_reject",
-                            "payload": e.reason, **prep},
-                "errors": [{"cat": "inject_reject",
-                            "payload": e.reason}],
+                "metrics": {
+                    **base_metrics,
+                    "verdict": "reject",
+                    "category": "inject_reject",
+                    "payload": e.reason,
+                    **prep,
+                },
+                "errors": [{"cat": "inject_reject", "payload": e.reason}],
             }
 
     try:
@@ -510,10 +505,13 @@ def _cb_compile(ctx) -> dict:
         ctx.emit_case(case)
         return {
             "status": "fault",
-            "metrics": {**base_metrics, "verdict": "FAIL",
-                        "category": "harness_crash", **prep},
-            "errors": [{"cat": "harness_crash",
-                        "msg": f"{type(e).__name__}: {e}"}],
+            "metrics": {
+                **base_metrics,
+                "verdict": "FAIL",
+                "category": "harness_crash",
+                **prep,
+            },
+            "errors": [{"cat": "harness_crash", "msg": f"{type(e).__name__}: {e}"}],
         }
 
     cat, pay, refined = _refine_category(v.category, v.payload, res)
@@ -551,8 +549,9 @@ def _cb_compile(ctx) -> dict:
     }
     if kstatus in ("fail", "reject", "fault"):
         # 失败类终态给 errors[] 一行——sig 合成 cat:pay 供 triage。
-        out["errors"] = [{"cat": str(cat or v.status or "fail"),
-                          "payload": str(pay or "")[:200]}]
+        out["errors"] = [
+            {"cat": str(cat or v.status or "fail"), "payload": str(pay or "")[:200]}
+        ]
     return out
 
 

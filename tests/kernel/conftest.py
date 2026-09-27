@@ -4,6 +4,7 @@ Every test gets an isolated $TEXLATE_BENCH_ROOT under pytest's tmp_path via
 the `broot` fixture — env override + paths.ensure_layout(). Kernel modules
 resolve paths lazily from env, so monkeypatching works without any caching.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench" / "py"))
 
-from kernel import paths  # noqa: E402
+from kernel import paths
 
 
 def write_verify_stamp() -> None:
@@ -25,13 +26,20 @@ def write_verify_stamp() -> None:
     real (coverage + seal still evaluated live); a test that wants the
     gate's refusal deletes the file first.
     """
-    paths.vault_verify_stamp_path().write_text(json.dumps({
-        "ts": time.time(), "level": "fixture",
-        "metas": 0, "checked": 0, "meta_missing": 0,
-    }))
+    paths.vault_verify_stamp_path().write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "level": "fixture",
+                "metas": 0,
+                "checked": 0,
+                "meta_missing": 0,
+            }
+        )
+    )
 
 
-@pytest.fixture()
+@pytest.fixture
 def broot(tmp_path, monkeypatch):
     root = tmp_path / "broot"
     monkeypatch.setenv(paths.ENV_ROOT, str(root))

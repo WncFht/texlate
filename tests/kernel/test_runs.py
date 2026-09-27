@@ -3,6 +3,7 @@ frozen plans, heartbeats, the accounting equation, the single delete verb).
 
 Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,25 +18,47 @@ from kernel import events, ledger, locks, paths, runs
 
 def _cell(id_: str, arm: str = "zh", stage: str = "xlat") -> dict:
     return {
-        "id": id_, "idc": id_, "arm": arm, "up": "-", "variant": "-",
-        "stage": stage, "needs": [], "fp_input": None,
+        "id": id_,
+        "idc": id_,
+        "arm": arm,
+        "up": "-",
+        "variant": "-",
+        "stage": stage,
+        "needs": [],
+        "fp_input": None,
     }
 
 
 def _queued(rd: runs.RunDir, seq: int, id_: str, stage: str = "xlat") -> dict:
     ev = events.make_event(
-        events.T_CELL_QUEUED, run=rd.run, seq=seq, id=id_, idc=id_,
-        arm="zh", up="-", variant="-", stage=stage,
+        events.T_CELL_QUEUED,
+        run=rd.run,
+        seq=seq,
+        id=id_,
+        idc=id_,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage=stage,
     )
     ledger.emit(ev, run_dir=rd.path)
     return ev
 
 
-def _terminal(rd: runs.RunDir, seq: int, id_: str, status: str = "ok",
-              stage: str = "xlat") -> dict:
+def _terminal(
+    rd: runs.RunDir, seq: int, id_: str, status: str = "ok", stage: str = "xlat"
+) -> dict:
     ev = events.make_event(
-        events.T_CELL, run=rd.run, seq=seq, id=id_, idc=id_,
-        arm="zh", up="-", variant="-", stage=stage, status=status,
+        events.T_CELL,
+        run=rd.run,
+        seq=seq,
+        id=id_,
+        idc=id_,
+        arm="zh",
+        up="-",
+        variant="-",
+        stage=stage,
+        status=status,
     )
     ledger.emit(ev, run_dir=rd.path)
     return ev
@@ -43,8 +66,7 @@ def _terminal(rd: runs.RunDir, seq: int, id_: str, status: str = "ok",
 
 def _shard(rd: runs.RunDir) -> list[dict]:
     return [
-        ev for _ln, ev, _raw in events.iter_jsonl(rd.events_path())
-        if ev is not None
+        ev for _ln, ev, _raw in events.iter_jsonl(rd.events_path()) if ev is not None
     ]
 
 
@@ -53,21 +75,29 @@ def _shard(rd: runs.RunDir) -> list[dict]:
 
 def test_create_run_layout_matches_spec_tree(broot: Path) -> None:
     rd = runs.create_run(
-        "soak", spec_dict={"kind": "soak", "params": {"n": 3}},
+        "soak",
+        spec_dict={"kind": "soak", "params": {"n": 3}},
         spec_env={"python": "3.14"},
     )
     rdir = rd.path
     assert rdir == paths.run_dir("soak", rd.date, "soak")
     # the §1 run-dir tree
-    for rel in ("spec.json", "spec_env.json", "invocations.jsonl",
-                "events.jsonl", ".lock", "heartbeat"):
+    for rel in (
+        "spec.json",
+        "spec_env.json",
+        "invocations.jsonl",
+        "events.jsonl",
+        ".lock",
+        "heartbeat",
+    ):
         assert (rdir / rel).exists(), rel
     assert (rdir / "work" / "_texmf").is_dir()
     assert (rdir / "derived").is_dir()
     assert json.loads((rdir / "spec.json").read_text()) == {
-        "kind": "soak", "params": {"n": 3}}
-    assert json.loads((rdir / "spec_env.json").read_text()) == {
-        "python": "3.14"}
+        "kind": "soak",
+        "params": {"n": 3},
+    }
+    assert json.loads((rdir / "spec_env.json").read_text()) == {"python": "3.14"}
     assert (rdir / "invocations.jsonl").read_bytes() == b""
     # run_registered dual-written into the shard by mint
     shard = _shard(rd)
@@ -75,13 +105,22 @@ def test_create_run_layout_matches_spec_tree(broot: Path) -> None:
     assert len(regs) == 1 and regs[0]["run_seq"] == rd.run_seq == 1
     assert regs[0]["run"] == f"soak/{rd.date}/soak"
     # runs.jsonl report row
-    rows = [r for _ln, r, _raw in events.iter_jsonl(paths.runs_jsonl_path())
-            if r is not None]
-    assert rows == [{
-        "run": f"soak/{rd.date}/soak", "run_seq": 1, "kind": "soak",
-        "date": rd.date, "slug": "soak",
-        "spec_hash": regs[0]["spec_hash"], "ts_start": rows[0]["ts_start"],
-    }]
+    rows = [
+        r
+        for _ln, r, _raw in events.iter_jsonl(paths.runs_jsonl_path())
+        if r is not None
+    ]
+    assert rows == [
+        {
+            "run": f"soak/{rd.date}/soak",
+            "run_seq": 1,
+            "kind": "soak",
+            "date": rd.date,
+            "slug": "soak",
+            "spec_hash": regs[0]["spec_hash"],
+            "ts_start": rows[0]["ts_start"],
+        }
+    ]
 
 
 def test_create_run_default_date_is_utc(broot: Path) -> None:
@@ -149,18 +188,21 @@ def test_freeze_plan_writes_then_reuses_verbatim(broot: Path) -> None:
 
 def test_add_invocation_and_case(broot: Path) -> None:
     rd = runs.create_run("xlat", date="2026-09-21")
-    runs.add_invocation(rd, {"resume": True, "max_cost": 5},
-                        spec_hash="abc", code_stamp="def")
+    runs.add_invocation(
+        rd, {"resume": True, "max_cost": 5}, spec_hash="abc", code_stamp="def"
+    )
     runs.add_invocation(rd, {"resume": True}, spec_hash="abc")
-    rows = [r for _ln, r, _raw in events.iter_jsonl(rd.invocations_path())
-            if r is not None]
+    rows = [
+        r for _ln, r, _raw in events.iter_jsonl(rd.invocations_path()) if r is not None
+    ]
     assert [r["flags"] for r in rows] == [
-        {"resume": True, "max_cost": 5}, {"resume": True}]
+        {"resume": True, "max_cost": 5},
+        {"resume": True},
+    ]
     assert rows[0]["spec_hash"] == "abc" and rows[0]["code_stamp"] == "def"
 
     runs.add_case(rd, {"id": "2401.00001", "verdict": "primary"})
-    cases = [r for _ln, r, _raw in events.iter_jsonl(rd.cases_path())
-             if r is not None]
+    cases = [r for _ln, r, _raw in events.iter_jsonl(rd.cases_path()) if r is not None]
     assert cases == [{"id": "2401.00001", "verdict": "primary"}]
 
 
@@ -185,8 +227,7 @@ def test_cell_lock_serializes_same_id(broot: Path) -> None:
         order.append(("exit", "A"))
     t.join(timeout=5)
     # serialized: A fully exits before B enters
-    assert order == [("enter", "A"), ("exit", "A"),
-                     ("enter", "B"), ("exit", "B")]
+    assert order == [("enter", "A"), ("exit", "A"), ("enter", "B"), ("exit", "B")]
 
 
 def test_cell_lock_nb_raises_while_held(broot: Path) -> None:
@@ -215,8 +256,9 @@ def test_heartbeat_loop_touches_until_stopped(broot: Path) -> None:
     os.utime(hb, (old, old))
     stop = threading.Event()
     t = threading.Thread(
-        target=runs.heartbeat_loop, args=(rd,), kwargs={
-            "interval_s": 0.02, "stop_event": stop},
+        target=runs.heartbeat_loop,
+        args=(rd,),
+        kwargs={"interval_s": 0.02, "stop_event": stop},
         daemon=True,
     )
     t.start()
@@ -271,8 +313,8 @@ def test_accounting_check_missing_terminal_and_extra_queued(broot: Path) -> None
     runs.freeze_plan(rd, [_cell("2401.00001"), _cell("2401.00002")])
     _queued(rd, 1, "2401.00001")
     _queued(rd, 2, "2401.00002")
-    _queued(rd, 3, "2401.00003")               # queued but NOT in plan
-    _terminal(rd, 4, "2401.00001")             # 2401.00002, 2401.00003 hang
+    _queued(rd, 3, "2401.00003")  # queued but NOT in plan
+    _terminal(rd, 4, "2401.00001")  # 2401.00002, 2401.00003 hang
     res = runs.accounting_check(rd)
     assert res["ok"] is False
     missing = [k[0] for k in res["missing_terminal"]]
@@ -315,7 +357,8 @@ def test_remove_cell_tree_deletes_and_notes(broot: Path) -> None:
     notes = [e for e in _shard(rd) if e["type"] == "note"]
     assert len(notes) == 1 and "2401--00001" in notes[0]["text"]
     ledger_notes = [
-        e for _ln, e, _raw in events.iter_jsonl(paths.events_path())
+        e
+        for _ln, e, _raw in events.iter_jsonl(paths.events_path())
         if e is not None and e["type"] == "note"
     ]
     assert len(ledger_notes) == 1

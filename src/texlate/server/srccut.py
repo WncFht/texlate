@@ -590,9 +590,7 @@ def _open_envs(text: str, lo: int, hi: int) -> list[str]:
     return stack
 
 
-def _run_hi(
-    cutter: _Cutter, text: str, src_file: str, lo: int, piece: _Piece
-) -> int:
+def _run_hi(cutter: _Cutter, text: str, src_file: str, lo: int, piece: _Piece) -> int:
     r"""Run 尾界：sent 实裁侧取 span；否则空白行界 + env 配平。
 
     ``document`` 帧 env 不追 ``\end``——壳头偶带 ``\begin{document}``

@@ -294,13 +294,19 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     计 —— 两模分歧位。
     """
     vis = mask_tex(text)
-    nl_offs = [i for i, ch in enumerate(vis) if ch == "\n"]  # 换行偏移表 —— 行号 bisect 查
+    nl_offs = [
+        i for i, ch in enumerate(vis) if ch == "\n"
+    ]  # 换行偏移表 —— 行号 bisect 查
     opens: list[tuple[str, int, int]] = []  # (name, line, region) region=0 live
     groups: list[str] = []  # per-{ kind: "grp"|"def"|"skip"
-    def_idx: list[int] = []  # groups 内 "def" 组的 1-based 位次栈 —— def_depth O(1) 口径
+    def_idx: list[
+        int
+    ] = []  # groups 内 "def" 组的 1-based 位次栈 —— def_depth O(1) 口径
     skip_n = 0  # groups 内 "skip" 组现数 —— 逐 token 线性扫组的 O(1) 替代
     live_open_now = 0  # opens 内 r==0 现数 —— live_cond O(1) 口径
-    let_brace_name = False  # \let{ 名位形: 紧邻下枚 ``{`` 是名 —— 仍开组不占 operand 预算
+    let_brace_name = (
+        False  # \let{ 名位形: 紧邻下枚 ``{`` 是名 —— 仍开组不占 operand 预算
+    )
     live_opens = live_closes = def_unclosed = 0
     consume = 0
     cond_ops = 0  # COND_OPS operand 预算 —— 下 N 个 token 是 operand 位

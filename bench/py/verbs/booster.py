@@ -118,8 +118,7 @@ def derive(mech_path: Path, noms: dict[str, dict]) -> dict[str, set[str]]:
     return out
 
 
-def run_select(corpus: Path, cap: int, nom_dir: Path, out: Path,
-               report: Path) -> dict:
+def run_select(corpus: Path, cap: int, nom_dir: Path, out: Path, report: Path) -> dict:
     """The selection itself, verbatim. Returns the summary dict."""
     noms = load(nom_dir)
     # 两层必须不相交：核心层已中选的论文不入补强池（重叠会让 meta.layer 二义）
@@ -232,25 +231,34 @@ def run_select(corpus: Path, cap: int, nom_dir: Path, out: Path,
 
 
 def add_args(sp) -> None:
-    sp.add_argument("--corpus-dir", default=str(DEFAULT_CORPUS),
-                    help="corpus root holding manifest.jsonl + mechanisms.jsonl")
-    sp.add_argument("--cap", type=int, default=CAP,
-                    help="total selection cap (default 200)")
-    sp.add_argument("--nom-dir", default=None,
-                    help="nominations dir (default <corpus>/nominations)")
-    sp.add_argument("--out", default=None,
-                    help="output jsonl (default <corpus>/booster_selection.jsonl)")
-    sp.add_argument("--report", default=None,
-                    help="output report (default <corpus>/selection_report.md)")
+    sp.add_argument(
+        "--corpus-dir",
+        default=str(DEFAULT_CORPUS),
+        help="corpus root holding manifest.jsonl + mechanisms.jsonl",
+    )
+    sp.add_argument(
+        "--cap", type=int, default=CAP, help="total selection cap (default 200)"
+    )
+    sp.add_argument(
+        "--nom-dir", default=None, help="nominations dir (default <corpus>/nominations)"
+    )
+    sp.add_argument(
+        "--out",
+        default=None,
+        help="output jsonl (default <corpus>/booster_selection.jsonl)",
+    )
+    sp.add_argument(
+        "--report",
+        default=None,
+        help="output report (default <corpus>/selection_report.md)",
+    )
 
 
 def main(args) -> int:
     corpus = Path(args.corpus_dir).expanduser().resolve()
     nom_dir = Path(args.nom_dir) if args.nom_dir else corpus / "nominations"
     out = Path(args.out) if args.out else corpus / "booster_selection.jsonl"
-    report = (
-        Path(args.report) if args.report else corpus / "selection_report.md"
-    )
+    report = Path(args.report) if args.report else corpus / "selection_report.md"
     if not nom_dir.is_dir():
         print(f"booster-select: nominations dir absent: {nom_dir}")
         return 1

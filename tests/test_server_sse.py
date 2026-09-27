@@ -209,7 +209,9 @@ class TestHttpSse:
 
     def test_live_publish_then_done(self, client: TestClient) -> None:
         """订阅建立后的 publish 走实时队列扇出。"""
-        tid = mk_api_task(client, ARXIV, headers=KEY)  # M1：keyless→needs_auth 即终，流不复开
+        tid = mk_api_task(
+            client, ARXIV, headers=KEY
+        )  # M1：keyless→needs_auth 即终，流不复开
         bus = client.app.state.bus
 
         def feed() -> None:

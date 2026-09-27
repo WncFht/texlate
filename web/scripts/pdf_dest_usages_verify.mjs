@@ -110,9 +110,7 @@ const run = async () => {
                 const c = document.querySelector(
                     `.pane[data-side="${side}"] .pdfSlickContainer`,
                 );
-                return c
-                    ? { h: c.clientHeight, total: c.scrollHeight }
-                    : null;
+                return c ? { h: c.clientHeight, total: c.scrollHeight } : null;
             }, SIDE);
             if (!dims) return null;
             for (let y = 0; y <= dims.total; y += Math.floor(dims.h * 0.9)) {
@@ -165,9 +163,9 @@ const run = async () => {
             );
             const pageDiv = el?.closest?.("[data-page-number]") ?? null;
             if (!pageDiv) return null;
-            const spans = [
-                ...pageDiv.querySelectorAll(".textLayer span"),
-            ].map((s) => ({ s, sr: s.getBoundingClientRect() }));
+            const spans = [...pageDiv.querySelectorAll(".textLayer span")].map(
+                (s) => ({ s, sr: s.getBoundingClientRect() }),
+            );
             const near = spans
                 .filter(
                     ({ s, sr }) =>
@@ -179,9 +177,7 @@ const run = async () => {
                 .sort((a, b) => a.sr.top - b.sr.top)[0];
             if (near) {
                 return {
-                    page: Number(
-                        pageDiv.getAttribute("data-page-number"),
-                    ),
+                    page: Number(pageDiv.getAttribute("data-page-number")),
                     x: near.sr.left + Math.min(near.sr.width / 2, 60),
                     y: near.sr.top + near.sr.height / 2,
                     text: (near.s.textContent ?? "").slice(0, 40),
@@ -228,11 +224,9 @@ const run = async () => {
                 if (!c) return null;
                 return {
                     label:
-                        c.querySelector(".usage-card-label")
-                            ?.textContent ?? "",
+                        c.querySelector(".usage-card-label")?.textContent ?? "",
                     count:
-                        c.querySelector(".usage-card-count")
-                            ?.textContent ?? "",
+                        c.querySelector(".usage-card-count")?.textContent ?? "",
                     items: c.querySelectorAll(".usage-card-item").length,
                     empty: !!c.querySelector(".usage-card-empty"),
                     text: c.textContent.slice(0, 160),

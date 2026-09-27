@@ -152,12 +152,8 @@ class TestFeed:
     def test_page_clamp_and_cache(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        calls = _stub_ax(
-            monkeypatch, {"/papers/v3/feed": _Resp(200, {"items": []})}
-        )
-        r = client.get(
-            "/api/discover/feed", params={"page": 0, "page_size": 999}
-        )
+        calls = _stub_ax(monkeypatch, {"/papers/v3/feed": _Resp(200, {"items": []})})
+        r = client.get("/api/discover/feed", params={"page": 0, "page_size": 999})
         assert r.status_code == HTTPStatus.OK
         assert r.json() == {"items": []}
         assert calls[0][1] == {
@@ -167,18 +163,14 @@ class TestFeed:
             "pageSize": "30",
         }
         # 同键二次命中缓存——不再打上游
-        r2 = client.get(
-            "/api/discover/feed", params={"page": 0, "page_size": 999}
-        )
+        r2 = client.get("/api/discover/feed", params={"page": 0, "page_size": 999})
         assert r2.status_code == HTTPStatus.OK
         assert len(calls) == 1
 
     def test_page_clamp_high(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        calls = _stub_ax(
-            monkeypatch, {"/papers/v3/feed": _Resp(200, {"items": []})}
-        )
+        calls = _stub_ax(monkeypatch, {"/papers/v3/feed": _Resp(200, {"items": []})})
         client.get("/api/discover/feed", params={"page": 500})
         assert calls[0][1]["pageNum"] == "100"
 
@@ -219,9 +211,7 @@ class TestFeed:
     def test_wrong_shape(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _stub_ax(
-            monkeypatch, {"/papers/v3/feed": _Resp(200, json_data=[1, 2])}
-        )
+        _stub_ax(monkeypatch, {"/papers/v3/feed": _Resp(200, json_data=[1, 2])})
         r = client.get("/api/discover/feed")
         assert r.status_code == HTTPStatus.BAD_GATEWAY
         assert r.json()["code"] == "discover_upstream"
@@ -347,9 +337,7 @@ class TestOverview:
                 f"/papers/v3/legacy/{self._AID}": _Resp(
                     200, {"paper": {"paper_version": {"id": "pv3"}}}
                 ),
-                "/papers/v3/pv3/overview/status": _Resp(
-                    200, {"translations": {}}
-                ),
+                "/papers/v3/pv3/overview/status": _Resp(200, {"translations": {}}),
             },
         )
         assert client.get(self._URL).json() == {"available": False}
@@ -357,9 +345,7 @@ class TestOverview:
     def test_upstream_5xx(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _stub_ax(
-            monkeypatch, {f"/papers/v3/legacy/{self._AID}": _Resp(500)}
-        )
+        _stub_ax(monkeypatch, {f"/papers/v3/legacy/{self._AID}": _Resp(500)})
         r = client.get(self._URL)
         assert r.status_code == HTTPStatus.BAD_GATEWAY
         assert r.json()["code"] == "discover_upstream"
@@ -392,9 +378,7 @@ class TestOg:
         client.get("/api/discover/og/2401.00001")
         assert len(calls) == 1
 
-    def test_404(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_404(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         _stub_ax(monkeypatch, {})
         r = client.get("/api/discover/og/2401.00002")
         assert r.status_code == HTTPStatus.NOT_FOUND

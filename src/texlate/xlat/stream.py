@@ -169,7 +169,9 @@ def _sse_anthropic_data(
     if t == "error":
         err = chunk.get("error") or {}
         # ``message`` 缺/空时回退整帧 repr——不得渲染成 "None"
-        detail = (err.get("message") or str(chunk)) if isinstance(err, dict) else str(chunk)
+        detail = (
+            (err.get("message") or str(chunk)) if isinstance(err, dict) else str(chunk)
+        )
         msg = f"anthropic stream error: {redact(str(detail), api_key)}"
         raise ChatError(msg)
     return [], False
@@ -270,7 +272,9 @@ def _sse_responses_data(
         resp = chunk.get("response") or chunk
         err = resp.get("error") or {} if isinstance(resp, dict) else {}
         # ``message`` 缺/空时回退整帧 repr——不得渲染成 "None"
-        detail = (err.get("message") or str(chunk)) if isinstance(err, dict) else str(chunk)
+        detail = (
+            (err.get("message") or str(chunk)) if isinstance(err, dict) else str(chunk)
+        )
         msg = f"responses stream error: {redact(str(detail), api_key)}"
         raise ChatError(msg)
     return events, done

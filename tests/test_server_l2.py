@@ -512,9 +512,7 @@ class TestCompileHoles:
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
             assert (zh / ".splice-done").exists()
-            rec = store_call(
-                c, c.app.state.store.file_record, tid, "zh_src_zip"
-            )
+            rec = store_call(c, c.app.state.store.file_record, tid, "zh_src_zip")
             assert rec is not None
             assert rec["bytes"]
 

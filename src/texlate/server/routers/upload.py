@@ -95,9 +95,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:
             filename = file.filename or "upload.bin"
             # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+读盘
             # 秒级，卸出事件循环；临时 bytes 不出本函数域
-            route = await asyncio.to_thread(
-                _sniff_upload_path, file.path, filename
-            )
+            route = await asyncio.to_thread(_sniff_upload_path, file.path, filename)
             _check_upload_route(route, deps.babeldoc or find_tool("babeldoc"), filename)
             model, target_lang, options = _upload_fields(request, form, deps)
             # re.sub 白名单放行 ``.``——``..`` 原样幸存会打成目录写（500+

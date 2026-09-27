@@ -168,9 +168,7 @@ def test_microtype_expansion_multiline_flip(tmp_path: Path) -> None:
         "]{microtype}\n",
         encoding="utf-8",
     )
-    ok, note = apply(
-        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
-    )
+    ok, note = apply("microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), "")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "expansion=false," in t
@@ -188,9 +186,7 @@ def test_microtype_expansion_passoptions(tmp_path: Path) -> None:
         "\\usepackage{microtype}\n",
         encoding="utf-8",
     )
-    ok, _ = apply(
-        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
-    )
+    ok, _ = apply("microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), "")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\PassOptionsToPackage{protrusion,expansion=false}{microtype}" in t
@@ -202,9 +198,7 @@ def test_microtype_activate_fallback(tmp_path: Path) -> None:
         "\\usepackage[activate={true,nocompatibility},final]{microtype}\n",
         encoding="utf-8",
     )
-    ok, _ = apply(
-        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
-    )
+    ok, _ = apply("microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), "")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "activate={true,nocompatibility},final,expansion=false]" in t
@@ -214,9 +208,7 @@ def test_microtype_expansion_false_noop(tmp_path: Path) -> None:
     """expansion=false 已备 → applied=False 不重复点火。"""
     src = "\\usepackage[expansion=false]{microtype}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = apply(
-        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
-    )
+    ok, _ = apply("microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), "")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -225,9 +217,7 @@ def test_microtype_other_pkg_bracket_untouched(tmp_path: Path) -> None:
     """expansion 键在他包括号不动 —— `]{microtype}` 后缀绑定。"""
     src = "\\usepackage[expansion=true]{otherpkg}\n\\usepackage{microtype}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = apply(
-        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
-    )
+    ok, _ = apply("microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), "")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -295,9 +285,7 @@ def test_xy_feature_phrasings(tmp_path: Path) -> None:
         d = tmp_path / ext
         d.mkdir()
         (d / "main.tex").write_text("\\usepackage{xypic}\n", encoding="utf-8")
-        ok, note = apply(
-            "xy_option_load", mk_ctx(d, err_head=head + "\n"), ""
-        )
+        ok, note = apply("xy_option_load", mk_ctx(d, err_head=head + "\n"), "")
         assert ok, (head, note)
         assert f"\\xyoption{{{ext}}}" in (d / "main.tex").read_text()
 
@@ -333,9 +321,7 @@ def test_xy_no_load_site_noop(tmp_path: Path) -> None:
 def test_xy_no_error_noop(tmp_path: Path) -> None:
     """err_head/log 无扩展缺失句式 → applied=False。"""
     (tmp_path / "main.tex").write_text("\\usepackage{xypic}\n", encoding="utf-8")
-    ok, _ = apply(
-        "xy_option_load", mk_ctx(tmp_path, err_head="! unrelated"), ""
-    )
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head="! unrelated"), "")
     assert not ok
 
 
@@ -360,9 +346,7 @@ def test_hyperxmp_relocate_covers_let_sandwich(tmp_path: Path) -> None:
         "\\RequirePackage[bookmarksnumbered,unicode]{hyperref}\n",
         encoding="utf-8",
     )
-    ok, note = apply(
-        "pkg_order_hyperxmp_relocate", mk_ctx(tmp_path), "hyperxmp"
-    )
+    ok, note = apply("pkg_order_hyperxmp_relocate", mk_ctx(tmp_path), "hyperxmp")
     assert ok, note
     t = (tmp_path / "acmart.cls").read_text()
     assert t.index("{hyperref}") < t.index("{hyperxmp}")

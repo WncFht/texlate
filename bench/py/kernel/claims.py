@@ -22,6 +22,7 @@ one component: canon ids like `math.QA/9601001` or `2301.12345` carry dots
 that would otherwise be indistinguishable from component separators.
 Escaping/safe_id are re-exported from kernel.idnorm — single implementation.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -81,6 +82,7 @@ def parse_claim_lock_name(path) -> tuple[str, str, str]:
 
 
 # --- the lease ------------------------------------------------------------------
+
 
 class ClaimLease:
     """flock lease on one (idc, arm, variant) cell — the paid-dedup mutex.
@@ -151,7 +153,7 @@ class ClaimLease:
         self.release()
         return False
 
-    def __del__(self):                      # hygiene only; explicit release wins
+    def __del__(self):  # hygiene only; explicit release wins
         with suppress(Exception):
             self.release()
 

@@ -53,12 +53,8 @@ def test_load_yaml_dir_scalar_conflict_rejected(tmp_path: Path) -> None:
 
 def test_load_yaml_dir_nested_maps_merge(tmp_path: Path) -> None:
     """map 段递归合并：嵌套 dict 逐键并、嵌套 list 拼接（meta/filemap 同款路径）。"""
-    (tmp_path / "10-a.yaml").write_text(
-        "meta:\n  loop:\n    a: 1\n    xs: [x]\n"
-    )
-    (tmp_path / "20-b.yaml").write_text(
-        "meta:\n  loop:\n    b: 2\n    xs: [y]\n"
-    )
+    (tmp_path / "10-a.yaml").write_text("meta:\n  loop:\n    a: 1\n    xs: [x]\n")
+    (tmp_path / "20-b.yaml").write_text("meta:\n  loop:\n    b: 2\n    xs: [y]\n")
     data = load_yaml(tmp_path)
     assert data["meta"]["loop"] == {"a": 1, "b": 2, "xs": ["x", "y"]}
 

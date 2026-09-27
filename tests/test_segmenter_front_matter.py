@@ -152,11 +152,7 @@ def test_fm_doc_mode_abstract_gets_abstract_ctx() -> None:
 def test_fm_title_missing_arg_falls_back_cover() -> None:
     r"""``\title`` 无 ``{arg}``（裸 token）：回放+字面盖过，不出块不崩。"""
     tex = (
-        "\\documentclass{article}\n"
-        "\\title\n"
-        "\\begin{document}\n"
-        "Body.\n"
-        "\\end{document}\n"
+        "\\documentclass{article}\n\\title\n\\begin{document}\nBody.\n\\end{document}\n"
     )
     res = scan(tex, frozenset({"title"}))
     assert not [c for c in res.chunks if c.context == "title"]
@@ -180,11 +176,7 @@ def test_fm_abstract_env_unclosed() -> None:
 
     env 弹栈时 ``_handle_env_end`` 无匹配只记 stray——残缺输入安全退化。
     """
-    tex = (
-        "\\documentclass{article}\n"
-        "\\begin{abstract}\n"
-        "Dangling abstract.\n"
-    )
+    tex = "\\documentclass{article}\n\\begin{abstract}\nDangling abstract.\n"
     res = parse_tex(tex, front_matter=frozenset({"abstract"}))
     # 重建恒等 + 平铺仍成立（validate 可能有告警——只查不变式前两条）
     assert reconstruct(res) == tex
@@ -196,19 +188,17 @@ def test_fm_abstract_env_unclosed() -> None:
 def test_front_matter_of_defaults() -> None:
     """``front_matter_of({})`` → 缺省 ``{abstract,title}``（作者默认关）。"""
     assert front_matter_of({}) == frozenset({"abstract", "title"})
-    assert front_matter_of({"front_matter": None}) == frozenset(
-        {"abstract", "title"}
-    )
+    assert front_matter_of({"front_matter": None}) == frozenset({"abstract", "title"})
 
 
 def test_front_matter_of_explicit_dict() -> None:
     """显式 dict：缺键按缺省、显式 False 关、显式 True 开。"""
-    assert front_matter_of(
-        {"front_matter": {"author": True}}
-    ) == frozenset({"abstract", "title", "author"})
-    assert front_matter_of(
-        {"front_matter": {"abstract": False}}
-    ) == frozenset({"title"})
+    assert front_matter_of({"front_matter": {"author": True}}) == frozenset(
+        {"abstract", "title", "author"}
+    )
+    assert front_matter_of({"front_matter": {"abstract": False}}) == frozenset(
+        {"title"}
+    )
     assert (
         front_matter_of(
             {"front_matter": {"abstract": False, "title": False, "author": False}}

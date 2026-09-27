@@ -35,6 +35,7 @@ stage 链（单件串行 + 一条正交定点臂）：
 - 工作区新家：``~/.local/state/texlate/corpus-build/expand/``（work_v3
   已灭；TarDirs 同构布局，frame_lookup 共享件在 corpus-build 根）。
 """
+
 from __future__ import annotations
 
 import csv
@@ -54,9 +55,7 @@ from pathlib import Path
 # soak/_corpus_common 同款自举；TEXLATE_SRC 冻结快照语义一致。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import index as indexmod
@@ -317,9 +316,7 @@ def _plan(ctx):
         return "fail"
     cell_n = Counter(r["stratum_cell"] for r in core)
     try:
-        fr_band, fr_cat, fr_all, rates_mode, rates_detail = _resolve_rates(
-            ctx, d, rows
-        )
+        fr_band, fr_cat, fr_all, rates_mode, rates_detail = _resolve_rates(ctx, d, rows)
     except (RuntimeError, OSError, json.JSONDecodeError) as e:
         ctx.emit_note(f"rates_source 解析失败: {e}", level="warn")
         return "fail"
@@ -474,9 +471,7 @@ def _select_members(ctx, d: dict) -> list[dict] | None:
         f["cat_group"] = fr["cat_group"]
         f["license_class"] = fr["license_class"]
         f["_cell"] = cell
-        f["cluster_id"] = f.get("cluster_id") or c2y.get(
-            cc.member_yymm(f["member"])
-        )
+        f["cluster_id"] = f.get("cluster_id") or c2y.get(cc.member_yymm(f["member"]))
         (old_pool if f["item"] in old_items else new_pool)[cell].append(f)
     for v in list(old_pool.values()) + list(new_pool.values()):
         rng.shuffle(v)
@@ -522,6 +517,7 @@ def _select_members(ctx, d: dict) -> list[dict] | None:
 
 def _member_fetch_fn(rec: dict, old_tars: dict, offs: dict):
     """lake.hydrate fetch_fn：blob 回取 → sha 复核 → stage 物化 + meta。"""
+
     def fn(idc, stage):
         blob = cc.fetch_blob(rec, old_tars, offs)
         sha = hashlib.sha256(blob).hexdigest()
@@ -529,9 +525,15 @@ def _member_fetch_fn(rec: dict, old_tars: dict, offs: dict):
             msg = f"sha256 mismatch {sha[:12]}"
             raise OSError(msg)
         return cc.materialize_into_stage(
-            rec, blob, sha, stage,
-            layer="expand", cluster_prefix="EXP", reason="expand_quota",
+            rec,
+            blob,
+            sha,
+            stage,
+            layer="expand",
+            cluster_prefix="EXP",
+            reason="expand_quota",
         )
+
     return fn
 
 
@@ -544,9 +546,7 @@ def _extract(ctx):
     if limit:
         sel = sel[:limit]
     manifest = d["manifest"]
-    done = {
-        cc.canon_id(r["id"]) for r in cc.read_jsonl(manifest) if r.get("id")
-    }
+    done = {cc.canon_id(r["id"]) for r in cc.read_jsonl(manifest) if r.get("id")}
     # 回补: lake cell 完整而 manifest 缺行（截尾场景）→ 从 cell meta 补行；
     # meta 不可解析则不标 done，走重抓自愈（hydrate 重写 meta+行）
     n_backfill = 0
@@ -569,9 +569,7 @@ def _extract(ctx):
     todo = [r for r in sel if cc.canon_id(r["id"]) not in done]
     chunks = cc.load_chunks(d["v3"])
     old_items = {c["item"] for c in chunks}
-    tag_of_item = {
-        c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks
-    }
+    tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
     need_items = {r["item"] for r in todo}
     old_tars = {
         it: d["v3"] / "tars" / f"{it}.tar"
@@ -579,9 +577,7 @@ def _extract(ctx):
         if (d["v3"] / "tars" / f"{it}.tar").exists()
     }
     offs = {
-        it: cc.offsets_for(
-            it, d["dirs"].members, tag_of_item, d["v3"] / "members"
-        )
+        it: cc.offsets_for(it, d["dirs"].members, tag_of_item, d["v3"] / "members")
         for it in need_items
     }
     n0 = len(todo)
@@ -591,9 +587,10 @@ def _extract(ctx):
     run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
     n_ok = n_err = 0
     jobs = max(1, int(ctx.params["jobs"]))
-    with manifest.open("a", encoding="utf-8") as mfh, ThreadPoolExecutor(
-        max_workers=jobs
-    ) as ex:
+    with (
+        manifest.open("a", encoding="utf-8") as mfh,
+        ThreadPoolExecutor(max_workers=jobs) as ex,
+    ):
         futs = {
             ex.submit(
                 lake.hydrate,
@@ -786,9 +783,7 @@ def _fetch_ids(ctx):
                     d["fails"],
                     {
                         "id": pid,
-                        "status": (
-                            res.status.value if res is not None else "empty"
-                        ),
+                        "status": (res.status.value if res is not None else "empty"),
                         "detail": getattr(res, "detail", ""),
                         "permanent": holder.get("permanent"),
                     },
@@ -833,9 +828,7 @@ def _qc(ctx):
     recs = cc.read_jsonl(d["records"])
     err_recs = [r for r in recs if r["state"] != "ok"]
     stats = (
-        json.loads(d["select_stats"].read_text())
-        if d["select_stats"].exists()
-        else {}
+        json.loads(d["select_stats"].read_text()) if d["select_stats"].exists() else {}
     )
     lines = [
         "# expand 层自检",
@@ -880,15 +873,11 @@ spec = Spec(
     kind="corpus_expand",
     items=[{"id": "corpus-expand"}],
     params={
-        "workdir": Param(
-            type=str, default=str(cc.BUILD_ROOT / "expand"), fp=False
-        ),
+        "workdir": Param(type=str, default=str(cc.BUILD_ROOT / "expand"), fp=False),
         "build_root": Param(type=str, default=str(cc.BUILD_ROOT), fp=False),
         "corpus_dir": Param(type=str, default=str(cc.CORPUS), fp=False),
         "frame_dir": Param(type=str, default=str(cc.FRAME), fp=False),
-        "v3_workdir": Param(
-            type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False
-        ),
+        "v3_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False),
         "target": Param(type=int, default=3740),
         "bias": Param(type=float, default=1.0),
         "reuse_frac": Param(type=float, default=0.3),

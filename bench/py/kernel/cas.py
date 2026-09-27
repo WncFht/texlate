@@ -15,6 +15,7 @@ make the caller's file share the soon-to-be-0444 inode). ``link_out`` links
 out of it — dst may share the object inode, and is NEVER chmod'd; on EXDEV it
 gets its own copy which is made read-only to preserve projection semantics.
 """
+
 from __future__ import annotations
 
 import errno
@@ -41,8 +42,9 @@ def _cas_lock(exclusive: bool):
     dedup hits) hold SH so gc cannot unlink an inode between the caller's
     stat and its link/refresh; gc_sweep takes EX per candidate so its own
     stat→unlink is atomic against a racing reference."""
-    with locks.flock(paths.lake_locks_dir() / "cas.lock",
-                     exclusive=exclusive, blocking=True):
+    with locks.flock(
+        paths.lake_locks_dir() / "cas.lock", exclusive=exclusive, blocking=True
+    ):
         yield
 
 
@@ -107,8 +109,9 @@ def store_file(src, kind: str = "file") -> str:
             _refresh(pre_obj)
             return pre_sha
     pre_obj.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(pre_obj.parent), prefix=f".{pre_sha}.",
-                               suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(
+        dir=str(pre_obj.parent), prefix=f".{pre_sha}.", suffix=".tmp"
+    )
     try:
         os.fchmod(fd, _OBJ_MODE)  # before the write so fsync covers the mode
         h = hashlib.sha256()
@@ -160,8 +163,11 @@ def link_out(sha: str, dst, kind: str = "blob") -> Path:
             dst_st = dst.stat()
         except FileNotFoundError:
             dst_st = None
-        if dst_st is not None and dst_st.st_dev == src_st.st_dev \
-                and dst_st.st_ino == src_st.st_ino:
+        if (
+            dst_st is not None
+            and dst_st.st_dev == src_st.st_dev
+            and dst_st.st_ino == src_st.st_ino
+        ):
             return dst  # already the same inode
         if dst_st is not None or dst.is_symlink():
             dst.unlink()

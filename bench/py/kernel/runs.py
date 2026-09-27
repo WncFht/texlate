@@ -34,6 +34,7 @@ Rules baked here:
   evaporating (the ``vault_check`` callable is the byte-security oracle;
   falsy = paid bytes unharvested = block).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -84,6 +85,7 @@ class BlockedDelete(Exception):
 
 # --- small append helper ---------------------------------------------------------
 
+
 def _append_line(path: Path, payload: bytes) -> None:
     """Heal a torn tail, append payload in ONE os.write, fsync.
 
@@ -125,9 +127,12 @@ def _append_line(path: Path, payload: bytes) -> None:
 
 
 def _append_row(path: Path, row: dict) -> None:
-    line = json.dumps(
-        row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8") + b"\n"
+    line = (
+        json.dumps(
+            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        + b"\n"
+    )
     _append_line(path, line)
 
 
@@ -149,15 +154,20 @@ def _kernel_seq(rundir: RunDir) -> int:
     return lo - 1
 
 
-def _emit_note(rundir: RunDir, text: str, level: str = "info",
-               safe_id: str | None = None) -> None:
+def _emit_note(
+    rundir: RunDir, text: str, level: str = "info", safe_id: str | None = None
+) -> None:
     """Emit a note event (ledger + this run's shard, same critical section)."""
     kw = {}
     if safe_id is not None:
         kw = {"id": safe_id, "idc": idc_from_safe(safe_id)}
     ev = events.make_event(
-        events.T_NOTE, run=rundir.run, seq=_kernel_seq(rundir),
-        text=text, level=level, **kw,
+        events.T_NOTE,
+        run=rundir.run,
+        seq=_kernel_seq(rundir),
+        text=text,
+        level=level,
+        **kw,
     )
     ledger.emit(ev, run_dir=rundir.path)
 
@@ -255,9 +265,14 @@ def _check_name(what: str, value: str) -> None:
         raise ValueError(msg)
 
 
-def create_run(kind: str, slug: str | None = None, date: str | None = None,
-               spec_dict: dict | None = None, spec_hash: str = "",
-               spec_env: dict | None = None) -> RunDir:
+def create_run(
+    kind: str,
+    slug: str | None = None,
+    date: str | None = None,
+    spec_dict: dict | None = None,
+    spec_hash: str = "",
+    spec_env: dict | None = None,
+) -> RunDir:
     """Materialize a run: mkdir the §1 tree, write spec/env/empty jsonls,
     mint run_seq under the ledger lock, register in runs.jsonl.
 
@@ -293,13 +308,15 @@ def create_run(kind: str, slug: str | None = None, date: str | None = None,
     # (sweep/doctor material), never a registered run without its archive.
     fsutil.atomic_write(
         rdir / "spec.json",
-        json.dumps(spec_dict or {}, ensure_ascii=False, sort_keys=True,
-                   indent=2).encode("utf-8"),
+        json.dumps(
+            spec_dict or {}, ensure_ascii=False, sort_keys=True, indent=2
+        ).encode("utf-8"),
     )
     fsutil.atomic_write(
         rdir / "spec_env.json",
-        json.dumps(spec_env or {}, ensure_ascii=False, sort_keys=True,
-                   indent=2).encode("utf-8"),
+        json.dumps(spec_env or {}, ensure_ascii=False, sort_keys=True, indent=2).encode(
+            "utf-8"
+        ),
     )
     (rdir / "invocations.jsonl").touch()
     (rdir / "events.jsonl").touch()
@@ -309,8 +326,9 @@ def create_run(kind: str, slug: str | None = None, date: str | None = None,
     locks.touch(rdir / "heartbeat")
 
     if not spec_hash and spec_dict is not None:
-        blob = json.dumps(spec_dict, ensure_ascii=False, sort_keys=True,
-                          separators=(",", ":")).encode("utf-8")
+        blob = json.dumps(
+            spec_dict, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
         spec_hash = hashlib.sha256(blob).hexdigest()
 
     run_id = f"{kind}/{date}/{slug}"
@@ -343,8 +361,7 @@ def load_run(kind: str, date: str, slug: str) -> RunDir:
 # --- plan / invocations / cases ---------------------------------------------------------
 
 
-def freeze_plan(rundir: RunDir, cells: list[dict],
-                replan: bool = False) -> list[dict]:
+def freeze_plan(rundir: RunDir, cells: list[dict], replan: bool = False) -> list[dict]:
     """Frozen-plan semantics (spec.freeze_plan / §3.1 invariant).
 
     ``plan.json`` exists and ``replan`` is False → return its cell list
@@ -360,8 +377,14 @@ def freeze_plan(rundir: RunDir, cells: list[dict],
     norm = []
     for c in cells:
         cell = {
-            "id": None, "idc": None, "arm": "-", "up": "-",
-            "variant": "-", "stage": None, "needs": [], "fp_input": None,
+            "id": None,
+            "idc": None,
+            "arm": "-",
+            "up": "-",
+            "variant": "-",
+            "stage": None,
+            "needs": [],
+            "fp_input": None,
         }
         cell.update(c)
         if cell["idc"] is None:
@@ -374,16 +397,22 @@ def freeze_plan(rundir: RunDir, cells: list[dict],
     return norm
 
 
-def add_invocation(rundir: RunDir, flags: dict, spec_hash: str = "",
-                   code_stamp: str = "") -> None:
+def add_invocation(
+    rundir: RunDir, flags: dict, spec_hash: str = "", code_stamp: str = ""
+) -> None:
     """Append one invocations.jsonl row: {flags, spec_hash, code_stamp, ts}.
 
     Spec tweaks change the invocation record, never the run identity (R15).
     """
-    _append_row(rundir.invocations_path(), {
-        "flags": dict(flags), "spec_hash": spec_hash,
-        "code_stamp": code_stamp, "ts": round(time.time(), 3),
-    })
+    _append_row(
+        rundir.invocations_path(),
+        {
+            "flags": dict(flags),
+            "spec_hash": spec_hash,
+            "code_stamp": code_stamp,
+            "ts": round(time.time(), 3),
+        },
+    )
 
 
 def add_case(rundir: RunDir, row: dict) -> None:
@@ -394,8 +423,9 @@ def add_case(rundir: RunDir, row: dict) -> None:
 # --- locks / liveness ---------------------------------------------------------------------
 
 
-def cell_lock(rundir: RunDir, safe_id: str,
-              blocking: bool = True) -> AbstractContextManager[int]:
+def cell_lock(
+    rundir: RunDir, safe_id: str, blocking: bool = True
+) -> AbstractContextManager[int]:
     """Context manager holding ``work/{safe_id}/.lock`` (LOCK_EX, blocking).
 
     The same-id serializer inside a run (§2.1 cell critical section). The
@@ -406,8 +436,7 @@ def cell_lock(rundir: RunDir, safe_id: str,
     )
 
 
-def heartbeat_loop(rundir: RunDir, interval_s: float = 15.0,
-                   stop_event=None) -> None:
+def heartbeat_loop(rundir: RunDir, interval_s: float = 15.0, stop_event=None) -> None:
     """Touch the heartbeat every ``interval_s`` — run in a daemon thread.
 
     ``stop_event`` is a threading.Event; when absent the loop is infinite
@@ -444,11 +473,16 @@ def active_runs(max_age_s: float = _HEARTBEAT_FRESH_S) -> list[dict]:
         if locks.lock_free(rdir / ".lock"):
             continue
         kind, date, slug = rdir.relative_to(base).parts
-        out.append({
-            "kind": kind, "date": date, "slug": slug,
-            "run": f"{kind}/{date}/{slug}", "path": rdir,
-            "heartbeat_age": age,
-        })
+        out.append(
+            {
+                "kind": kind,
+                "date": date,
+                "slug": slug,
+                "run": f"{kind}/{date}/{slug}",
+                "path": rdir,
+                "heartbeat_age": age,
+            }
+        )
     return out
 
 
@@ -515,11 +549,8 @@ def accounting_check(rundir: RunDir) -> dict:
     dup_terminal = sorted(
         (k for k in queued if terminal.get(k, 0) > queued[k]), key=repr
     )
-    extra_terminal = sorted(
-        (k for k in terminal if k not in queued), key=repr
-    )
-    ok = not (extra_queued or missing_terminal or dup_terminal
-              or extra_terminal)
+    extra_terminal = sorted((k for k in terminal if k not in queued), key=repr)
+    ok = not (extra_queued or missing_terminal or dup_terminal or extra_terminal)
     return {
         "plan": len(plan_keys),
         "queued": len(queued),
@@ -556,8 +587,9 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
     """
     cell = rundir.work(safe_id)
     try:
-        with locks.flock(rundir.cell_lock_path(safe_id),
-                         exclusive=True, blocking=False):
+        with locks.flock(
+            rundir.cell_lock_path(safe_id), exclusive=True, blocking=False
+        ):
             # Delete-under-lock (R21): a probe-only check leaves a TOCTOU —
             # a racer acquiring between probe and rmtree loses its lock
             # inode and a fresh lock double-owns the cell. The lock is
@@ -568,7 +600,8 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
                     rundir,
                     f"remove_cell_tree BLOCKED for {safe_id}: PINNED "
                     f"marker present — unpin before delete",
-                    level="warn", safe_id=safe_id,
+                    level="warn",
+                    safe_id=safe_id,
                 )
                 msg = (
                     f"{safe_id}: cell carries a PINNED marker — "
@@ -580,7 +613,8 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
                     rundir,
                     f"remove_cell_tree BLOCKED for {safe_id}: paid tree "
                     f"without vault meta — harvest before delete",
-                    level="warn", safe_id=safe_id,
+                    level="warn",
+                    safe_id=safe_id,
                 )
                 msg = (
                     f"{safe_id}: paid cell tree with no vault meta — "
@@ -596,7 +630,8 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
             rundir,
             f"remove_cell_tree BLOCKED for {safe_id}: cell lock held — "
             f"live cell, refusing delete (R21)",
-            level="warn", safe_id=safe_id,
+            level="warn",
+            safe_id=safe_id,
         )
         msg = (
             f"{safe_id}: cell lock held — refusing delete (R21: rmtree "

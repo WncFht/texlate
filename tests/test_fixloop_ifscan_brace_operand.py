@@ -61,9 +61,7 @@ def test_let_lbrace_operand_in_def_body() -> None:
     r"""def 体内 ``\let\Y{`` —— operand ``{`` 不开组, 后续 ``}`` 正收 def
     体, ``\ifbaz`` 落活区 (旧版 ``{`` 误开 grp → ``}`` 错配收 grp →
     def 残留 → ``\ifbaz`` 误判 def-open)。"""
-    r = scan_ifs(
-        "\\def\\foo{x\\let\\Y{}\\ifbaz\n\\begin{document}x\\end{document}\n"
-    )
+    r = scan_ifs("\\def\\foo{x\\let\\Y{}\\ifbaz\n\\begin{document}x\\end{document}\n")
     assert [o[0] for o in r.unclosed_live] == ["ifbaz"]
     assert r.live_opens == 1
 

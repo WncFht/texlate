@@ -212,9 +212,7 @@ class TestDownstreamContract:
     def test_intercepted_chunk_is_non_auth_outcome(self) -> None:
         """真发过请求的拦截块计 non_auth——与正常非-auth 结果同口径。"""
         pipe = pl.XlatPipeline(translator=_Fuser(), validator=pass_validate)
-        out = asyncio.run(
-            pipe.run([mk_chunk(_FUSED_SRC, "c1")])
-        )
+        out = asyncio.run(pipe.run([mk_chunk(_FUSED_SRC, "c1")]))
         assert out[0].error_kind == "validate"
         assert pipe.auth_gate.non_auth == 1
         assert not pipe.auth_gate.tripped

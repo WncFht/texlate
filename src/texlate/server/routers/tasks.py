@@ -368,8 +368,10 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             return _json_error(409, str(e), "invalid_transition")
         try:
             if (
-                main_req and main_req != str(row.get("main_tex") or "")
-            ) or engine_stale or mock_done:
+                (main_req and main_req != str(row.get("main_tex") or ""))
+                or engine_stale
+                or mock_done
+            ):
                 # 换主文件（body.main 与 options.main 同口径）或显式换引擎 →
                 # 解析产物作废（chunks/base/zh 重建，src/ 保留）；派生产物行
                 # 与磁盘件并删——残行会让 files/reader 照发上一轮产物

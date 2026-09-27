@@ -387,7 +387,6 @@ class TestValidSlotTextLookalikes:
         assert _vst("译\u200b文")  # 零宽夹在可见字符间放行
         assert _vst("\u200c\u200djoiner")  # 零宽起头的真实文本放行
 
-
     def test_bare_slot_id_text_accepted(self) -> None:
         """observed 不误伤：裸 ``S0000``（无括号）是合法译文成分——
         引用 ``S0000`` 节号/全角 ``［1］`` 引用号的译文不该被拒。"""

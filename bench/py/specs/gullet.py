@@ -34,6 +34,7 @@ r"""gullet — corpus 宏展开抽干评测器（``gullet_bench.py`` 的 Spec v2
   soak 的 sorted-pool 形）。
 - ``summarize`` 不进城——聚合归 Wave-D 分析动词读 records 重建。
 """
+
 from __future__ import annotations
 
 import functools
@@ -48,9 +49,7 @@ from pathlib import Path
 # specs/_sabotage.py 同款自举；TEXLATE_SRC 冻结快照语义一致。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import idnorm, lake
@@ -111,8 +110,7 @@ def _items() -> list[dict]:
                 "id": str(row["id"]),
                 "layer": row.get("layer"),
                 "variant": EPOCH,
-                "fp_input": row.get("main_tex_sha256")
-                or row.get("blob_sha256"),
+                "fp_input": row.get("main_tex_sha256") or row.get("blob_sha256"),
                 "params": {"stratum": row.get("stratum_cell") or ""},
             }
         )
@@ -234,8 +232,7 @@ def _gexpand(ctx) -> dict:
         for k, (a, b) in enumerate(zip(toks, toks2, strict=True)):
             if not _tok_eq(a, b):
                 metrics["fp"] = (
-                    f"tok@{k} {a.kind}:{a.text[:24]!r}"
-                    f"!={b.kind}:{b.text[:24]!r}"
+                    f"tok@{k} {a.kind}:{a.text[:24]!r}!={b.kind}:{b.text[:24]!r}"
                 )
                 break
         else:

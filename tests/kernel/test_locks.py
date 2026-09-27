@@ -5,6 +5,7 @@ are independent lock contexts even inside one process, so most contention
 tests run in-process on separate fds. detach_with_lock gives real
 cross-process coverage.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -19,13 +20,14 @@ from kernel import locks, paths
 
 # --- flock -----------------------------------------------------------------
 
+
 def test_flock_exclusive_blocks_second_fd(broot):
     p = broot / "locks" / "a.lock"
     with locks.flock(p) as fd1:
         assert isinstance(fd1, int)
-        fd2 = os.open(p, os.O_RDWR)              # separate fd: real contention
+        fd2 = os.open(p, os.O_RDWR)  # separate fd: real contention
         try:
-            with pytest.raises(BlockingIOError):    # raw fcntl, separate fd
+            with pytest.raises(BlockingIOError):  # raw fcntl, separate fd
                 fcntl.flock(fd2, fcntl.LOCK_EX | fcntl.LOCK_NB)
         finally:
             os.close(fd2)
@@ -41,9 +43,9 @@ def test_flock_nonblocking_raises_wouldblock(broot):
 def test_flock_shared_coexist_exclusive_fails(broot):
     p = broot / "locks" / "c.lock"
     with locks.flock(p, exclusive=False):
-        with locks.flock(p, exclusive=False):   # second SH on another fd: fine
+        with locks.flock(p, exclusive=False):  # second SH on another fd: fine
             pass
-        assert not locks.lock_free(p)            # EX probe fails under SH hold
+        assert not locks.lock_free(p)  # EX probe fails under SH hold
 
 
 def test_flock_released_on_ctx_exit(broot):
@@ -58,8 +60,8 @@ def test_lock_file_never_unlinked(broot):
     inode0 = None
     with locks.flock(p) as fd:
         inode0 = os.fstat(fd).st_ino
-    assert p.exists()                            # still there after release
-    assert p.stat().st_ino == inode0             # same inode — R21
+    assert p.exists()  # still there after release
+    assert p.stat().st_ino == inode0  # same inode — R21
     with locks.flock(p):
         pass
     assert p.stat().st_ino == inode0
@@ -70,6 +72,7 @@ def test_lock_free_fresh_path(broot):
 
 
 # --- heartbeat ---------------------------------------------------------------
+
 
 def test_heartbeat_age_missing(broot):
     assert locks.heartbeat_age(broot / "nope") is None
@@ -89,6 +92,7 @@ def test_touch_and_heartbeat_age(broot):
 
 # --- kernel-active / pause / auth_dead ---------------------------------------
 
+
 def test_kernel_active_hold_and_idle(broot):
     assert locks.kernel_idle()
     with locks.kernel_active_hold():
@@ -98,7 +102,7 @@ def test_kernel_active_hold_and_idle(broot):
 
 def test_kernel_active_two_runners(broot):
     with locks.kernel_active_hold():
-        with locks.kernel_active_hold():        # second SH hold coexists
+        with locks.kernel_active_hold():  # second SH hold coexists
             assert not locks.kernel_idle()
         assert not locks.kernel_idle()
     assert locks.kernel_idle()
@@ -117,10 +121,11 @@ def test_auth_dead_sentinel_cycle(broot):
     assert "first 401" in p.read_text()
     locks.clear_auth_dead()
     assert not locks.auth_dead()
-    locks.clear_auth_dead()                      # idempotent
+    locks.clear_auth_dead()  # idempotent
 
 
 # --- paid_slot -----------------------------------------------------------------
+
 
 def test_paid_slot_yields_index_and_releases(broot):
     with locks.paid_slot() as i:
@@ -136,7 +141,7 @@ def test_paid_slot_first_free(broot):
             with locks.paid_slot() as c:
                 assert c == 2
         with locks.paid_slot() as d:
-            assert d == 1                          # freed slot reused
+            assert d == 1  # freed slot reused
 
 
 def test_paid_slot_cap_nonblocking(broot):
@@ -177,26 +182,28 @@ def test_paid_slot_blocking_waits_for_release(broot):
 
 # --- detach_with_lock (R22) -----------------------------------------------------
 
+
 def test_detach_pure_holder_and_fail_fast(broot):
     lp = broot / "locks" / "det.lock"
-    proc = locks.detach_with_lock([], lp)        # argv empty -> pure holder
+    proc = locks.detach_with_lock([], lp)  # argv empty -> pure holder
     try:
-        assert proc.poll() is None               # alive, holding the lock
+        assert proc.poll() is None  # alive, holding the lock
         assert not locks.lock_free(lp)
         t0 = time.monotonic()
         with pytest.raises(locks.WouldBlock):
-            locks.detach_with_lock([], lp)       # second fire: fail fast
+            locks.detach_with_lock([], lp)  # second fire: fail fast
         assert time.monotonic() - t0 < 5
     finally:
         proc.kill()
         proc.wait()
-    assert locks.lock_free(lp)                   # death released the lock
+    assert locks.lock_free(lp)  # death released the lock
 
 
 def test_detach_exec_keeps_lock(broot):
     lp = broot / "locks" / "det2.lock"
     proc = locks.detach_with_lock(
-        [sys.executable, "-c", "import time; time.sleep(60)"], lp)
+        [sys.executable, "-c", "import time; time.sleep(60)"], lp
+    )
     try:
         assert proc.poll() is None
         # lock survived exec (fd marked inheritable in the stub)
@@ -209,13 +216,13 @@ def test_detach_exec_keeps_lock(broot):
 
 def test_detach_bad_argv_fails_fast(broot):
     with pytest.raises(FileNotFoundError):
-        locks.detach_with_lock(["definitely-not-a-real-binary-xyz"],
-                               broot / "locks" / "det3.lock")
+        locks.detach_with_lock(
+            ["definitely-not-a-real-binary-xyz"], broot / "locks" / "det3.lock"
+        )
 
 
 def test_detach_ack_eof_gives_runtime_error(broot, monkeypatch):
     # stub that dies before ack -> parent must raise, not hang
     monkeypatch.setattr(locks, "_DETACH_STUB", "import sys; sys.exit(3)")
     with pytest.raises(RuntimeError):
-        locks.detach_with_lock([], broot / "locks" / "det4.lock",
-                               ack_timeout=5)
+        locks.detach_with_lock([], broot / "locks" / "det4.lock", ack_timeout=5)

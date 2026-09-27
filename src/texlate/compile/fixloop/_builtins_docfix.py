@@ -74,14 +74,10 @@ def pdfstring_cs_disarm(
     if main is None:
         return False, "no main file"
     t = ctx.read(main) or ""
-    todo = [
-        n for n in names if rf"\def\csname {n[1:]}\endcsname{{}}" not in t
-    ]
+    todo = [n for n in names if rf"\def\csname {n[1:]}\endcsname{{}}" not in t]
     if not todo:
         return False, "offenders already disarmed"
-    defs = "".join(
-        rf"\expandafter\def\csname {n[1:]}\endcsname{{}}" for n in todo
-    )
+    defs = "".join(rf"\expandafter\def\csname {n[1:]}\endcsname{{}}" for n in todo)
     snippet = (
         "\\ifdefined\\pdfstringdefDisableCommands\n"
         f"  \\pdfstringdefDisableCommands{{{defs}}}\n"
@@ -277,9 +273,7 @@ def _seam_prov_covered(
             continue
         for m in _live_matches(_INPUT_SITE_RE, ft):
             p = PurePosixPath(m.group(1).strip())
-            if stem in (p.stem, p.name) and _prov_loaded_before(
-                ft, m.start(), prov
-            ):
+            if stem in (p.stem, p.name) and _prov_loaded_before(ft, m.start(), prov):
                 return True
     return False
 

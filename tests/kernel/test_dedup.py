@@ -7,12 +7,10 @@ tail / paid_pool snapshot / vault meta files); tombstone & quar verdict
 -> 'missing'; clean -> 'absent'; quote() bucket partition +
 regen_decisions; regen_allowed's four-condition gate; attempted_unpaid.
 """
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from kernel import events, idnorm, paths
 from kernel.claims import ClaimLease
@@ -53,24 +51,53 @@ def _append(evs) -> int:
 def _cell(seq, run="r1", idc=IDC, status="ok", stage="xlat", arm=ARM, **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_CELL, run=run, seq=seq, idc=idc, arm=arm, up="-",
-        variant="-", stage=stage, status=status, dur_s=1.5, sig="cat:pay",
-        code="deadbeef", fp="fp1", **kw)
+        events.T_CELL,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm=arm,
+        up="-",
+        variant="-",
+        stage=stage,
+        status=status,
+        dur_s=1.5,
+        sig="cat:pay",
+        code="deadbeef",
+        fp="fp1",
+        **kw,
+    )
 
 
 def _asset(seq, idc=IDC, kind="zh", state="verified", run="r1", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_ASSET, run=run, seq=seq, idc=idc, arm=ARM, variant="-",
-        kind=kind, path=f"vault/{kind}/{idc}", sha="sha1", bytes=123,
-        state=state, **kw)
+        events.T_ASSET,
+        run=run,
+        seq=seq,
+        idc=idc,
+        arm=ARM,
+        variant="-",
+        kind=kind,
+        path=f"vault/{kind}/{idc}",
+        sha="sha1",
+        bytes=123,
+        state=state,
+        **kw,
+    )
 
 
 def _tombstone(idc=IDC, kind="zh", **kw):
     kw.setdefault("id", idc)
     return events.make_event(
-        events.T_TOMBSTONE, idc=idc, arm=ARM, variant="-", kind=kind,
-        reason="lost bytes", lost_run="r0", **kw)
+        events.T_TOMBSTONE,
+        idc=idc,
+        arm=ARM,
+        variant="-",
+        kind=kind,
+        reason="lost bytes",
+        lost_run="r0",
+        **kw,
+    )
 
 
 def _sealed_index(broot):
@@ -83,8 +110,7 @@ def _sealed_index(broot):
 def _write_manifest(rows):
     p = paths.vault_manifest_path()
     with open(p, "a", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, sort_keys=True) + "\n")
+        f.writelines(json.dumps(r, sort_keys=True) + "\n" for r in rows)
 
 
 def _manifest_row(idc, arm=ARM, variant=V, **kw):
@@ -112,8 +138,7 @@ def _write_meta(idc, arm=ARM, variant=V, altseq=None, body=None, name=None):
     return p
 
 
-def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary",
-                 kinds=("zh",)):
+def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary", kinds=("zh",)):
     """A physically committed vault copy: real leaf bytes + a real-shaped
     meta (zone/verdict/files={kind:[{path,size}]}), filename via
     vault.meta_key — what harvest actually leaves on disk."""
@@ -124,18 +149,35 @@ def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary",
     key = vault.dir_key(arm, variant, altseq)
     files = {}
     for kind in kinds:
-        root = (paths.vault_dir() / "quar" / kind) if zone == "quar" \
+        root = (
+            (paths.vault_dir() / "quar" / kind)
+            if zone == "quar"
             else paths.vault_dir() / kind
+        )
         leaf = root / sid / key
         leaf.mkdir(parents=True, exist_ok=True)
         payload = f"bytes-{idc}-{kind}".encode()
         (leaf / f"{kind}.bin").write_bytes(payload)
-        files[kind] = [{"path": f"{kind}.bin", "size": len(payload),
-                        "sha256": "0" * 64}]
-    body = {"idc": idc, "arm": arm, "variant": variant, "altseq": altseq,
-            "zone": zone, "verdict": verdict, "files": files}
-    return _write_meta(idc, arm, variant, altseq=altseq, body=body,
-                       name=vault.meta_key(idc, arm, variant, altseq))
+        files[kind] = [
+            {"path": f"{kind}.bin", "size": len(payload), "sha256": "0" * 64}
+        ]
+    body = {
+        "idc": idc,
+        "arm": arm,
+        "variant": variant,
+        "altseq": altseq,
+        "zone": zone,
+        "verdict": verdict,
+        "files": files,
+    }
+    return _write_meta(
+        idc,
+        arm,
+        variant,
+        altseq=altseq,
+        body=body,
+        name=vault.meta_key(idc, arm, variant, altseq),
+    )
 
 
 # -- snapshot ----------------------------------------------------------------------
@@ -190,11 +232,11 @@ def test_watermark_behind_unseals(broot):
     _append([_cell(1, status="ok")])
     idx = _sealed_index(broot)
     _append([_tombstone(IDC2)])  # durable bytes the index has NOT seen
-    oracle = DedupOracle.snapshot(idx)   # min_offset includes the tombstone
+    oracle = DedupOracle.snapshot(idx)  # min_offset includes the tombstone
     # first check catches the index up — verdicts come from real evidence,
     # not a stale-watermark stall
     assert oracle.check(IDC, ARM) == VERIFIED
-    assert oracle.check(IDC2, ARM) == MISSING      # tombstone now visible
+    assert oracle.check(IDC2, ARM) == MISSING  # tombstone now visible
     idx.close()
 
 
@@ -255,11 +297,13 @@ def test_claimed_beats_verified(broot):
 
 
 def test_verified_via_paid_pool_snapshot(broot):
-    _append([
-        _cell(1, idc="a/1", status="ok"),
-        _cell(2, idc="a/2", status="partial"),
-        _cell(3, idc="a/3", status="clean"),   # terminal but not paid-pool
-    ])
+    _append(
+        [
+            _cell(1, idc="a/1", status="ok"),
+            _cell(2, idc="a/2", status="partial"),
+            _cell(3, idc="a/3", status="clean"),  # terminal but not paid-pool
+        ]
+    )
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.check("a/1", ARM) == VERIFIED
@@ -269,33 +313,37 @@ def test_verified_via_paid_pool_snapshot(broot):
 
 
 def test_verified_via_manifest_tail(broot):
-    _write_manifest([
-        _manifest_row("a/1", bytes_ok=True),
-        _manifest_row("a/2", assets={"zh": "p", "splice": None}),
-        _manifest_row("a/3", has_splice=True),          # legacy row shape
-        _manifest_row("a/4", bytes_ok=False),           # demoted — no bytes
-        {"garbage": True},
-    ])
+    _write_manifest(
+        [
+            _manifest_row("a/1", bytes_ok=True),
+            _manifest_row("a/2", assets={"zh": "p", "splice": None}),
+            _manifest_row("a/3", has_splice=True),  # legacy row shape
+            _manifest_row("a/4", bytes_ok=False),  # demoted — no bytes
+            {"garbage": True},
+        ]
+    )
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.check("a/1", ARM) == VERIFIED
     assert oracle.check("a/2", ARM) == VERIFIED
     assert oracle.check("a/3", ARM) == VERIFIED
-    assert oracle.check("a/4", ARM) == ABSENT     # demote row won
+    assert oracle.check("a/4", ARM) == ABSENT  # demote row won
     idx.close()
 
 
 def test_manifest_tail_last_row_wins_per_altseq(broot):
     """A demote row only kills its own altseq's evidence (§3.10.4)."""
-    _write_manifest([
-        _manifest_row("a/1", altseq="0", bytes_ok=True),
-        _manifest_row("a/1", altseq="1", bytes_ok=True),
-        _manifest_row("a/1", altseq="1", bytes_ok=False),  # demote alt 1 only
-        _manifest_row("a/2", bytes_ok=True),
-        _manifest_row("a/2", bytes_ok=False),              # demote sole copy
-    ])
+    _write_manifest(
+        [
+            _manifest_row("a/1", altseq="0", bytes_ok=True),
+            _manifest_row("a/1", altseq="1", bytes_ok=True),
+            _manifest_row("a/1", altseq="1", bytes_ok=False),  # demote alt 1 only
+            _manifest_row("a/2", bytes_ok=True),
+            _manifest_row("a/2", bytes_ok=False),  # demote sole copy
+        ]
+    )
     tail = manifest_tail(paths.vault_manifest_path())
-    assert ("a/1", ARM, V) in tail       # altseq 0 still alive
+    assert ("a/1", ARM, V) in tail  # altseq 0 still alive
     assert ("a/2", ARM, V) not in tail
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
@@ -316,17 +364,23 @@ def test_manifest_tail_tolerates_torn_and_bad_rows(broot):
 
 def test_verified_via_vault_meta_file(broot):
     _commit_copy("cs/0601023", verdict="primary")
-    _commit_copy("cs/0601024", verdict="quar")    # quar + bytes = §3.8 dedup hit
-    _write_meta("cs/0601033", body={"verdict": "pending",   # pending ≠ bytes
-                                    "assets": {"zh": "x.pdf"}})
-    _write_meta("cs/0601034", body={"verdict": "primary",
-                                    "assets": {}})         # no declared bytes
+    _commit_copy("cs/0601024", verdict="quar")  # quar + bytes = §3.8 dedup hit
+    _write_meta(
+        "cs/0601033",
+        body={
+            "verdict": "pending",  # pending ≠ bytes
+            "assets": {"zh": "x.pdf"},
+        },
+    )
+    _write_meta(
+        "cs/0601034", body={"verdict": "primary", "assets": {}}
+    )  # no declared bytes
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.check("cs/0601023", ARM) == VERIFIED
-    assert oracle.check("cs/0601024", ARM) == VERIFIED   # quar + bytes verifies
-    assert oracle.check("cs/0601033", ARM) != VERIFIED   # pending = no-bytes
-    assert oracle.check("cs/0601034", ARM) != VERIFIED   # no assets declared
+    assert oracle.check("cs/0601024", ARM) == VERIFIED  # quar + bytes verifies
+    assert oracle.check("cs/0601033", ARM) != VERIFIED  # pending = no-bytes
+    assert oracle.check("cs/0601034", ARM) != VERIFIED  # no assets declared
     idx.close()
 
 
@@ -343,11 +397,9 @@ def test_partial_kind_meta_does_not_verify_uncovered_needs(broot):
     oracle = DedupOracle.snapshot(idx)
     # full need span: zh never sealed and nothing is dead -> absent, so
     # the paid cell re-runs (resuming from the state checkpoint)
-    assert oracle.check("cs/0601040", ARM,
-                        need_kinds={"zh", "state"}) == ABSENT
+    assert oracle.check("cs/0601040", ARM, need_kinds={"zh", "state"}) == ABSENT
     # a stage needing only the sealed kind still verifies
-    assert oracle.check("cs/0601040", ARM,
-                        need_kinds={"state"}) == VERIFIED
+    assert oracle.check("cs/0601040", ARM, need_kinds={"state"}) == VERIFIED
     # callers without need_kinds keep the cell-level leg
     assert oracle.check("cs/0601040", ARM) == VERIFIED
     idx.close()
@@ -356,14 +408,11 @@ def test_partial_kind_meta_does_not_verify_uncovered_needs(broot):
 def test_split_kinds_across_copies_verify(broot):
     """Two intact copies each declaring a different needed kind union to
     full coverage — kind coverage is per-cell, not per-copy."""
-    _commit_copy("cs/0601041", verdict="primary", altseq="0",
-                 kinds=("zh",))
-    _commit_copy("cs/0601041", verdict="alt", altseq="1",
-                 kinds=("state",))
+    _commit_copy("cs/0601041", verdict="primary", altseq="0", kinds=("zh",))
+    _commit_copy("cs/0601041", verdict="alt", altseq="1", kinds=("state",))
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    assert oracle.check("cs/0601041", ARM,
-                        need_kinds={"zh", "state"}) == VERIFIED
+    assert oracle.check("cs/0601041", ARM, need_kinds={"zh", "state"}) == VERIFIED
     idx.close()
 
 
@@ -399,9 +448,13 @@ def test_verified_legs_are_durable_not_live_index(broot):
     _append([_cell(1, status="ok"), _asset(2, state="verified")])
     idx = _sealed_index(broot)
     assert (IDC, ARM, V) in idx.vault_bytes_ok()
-    oracle = DedupOracle(idx, manifest_tail=None, paid_pool_snap=None,
-                         sealed_gen=idx.sealed_state()[0],
-                         min_offset=idx.sealed_state()[1])
+    oracle = DedupOracle(
+        idx,
+        manifest_tail=None,
+        paid_pool_snap=None,
+        sealed_gen=idx.sealed_state()[0],
+        min_offset=idx.sealed_state()[1],
+    )
     assert oracle.check(IDC, ARM) == ABSENT
     # ...and the same cell with a frozen leg verifies
     oracle2 = DedupOracle.snapshot(idx)
@@ -427,7 +480,7 @@ def test_quar_verdict_means_missing(broot):
     _write_meta("cs/0601035", body={"verdict": "quar", "assets": {}})
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    assert oracle.check("a/1", ARM) == MISSING    # index vault_meta quar verdict
+    assert oracle.check("a/1", ARM) == MISSING  # index vault_meta quar verdict
     assert oracle.check("cs/0601035", ARM) == MISSING  # durable meta quar verdict
     idx.close()
 
@@ -465,23 +518,25 @@ def test_missing_never_implied_by_paid_attempt(broot):
 
 
 def test_attempted_unpaid_classification(broot):
-    _append([
-        _cell(1, idc="a/1", status="reject"),
-        _cell(2, idc="a/2", status="fail"),
-        _cell(3, idc="a/3", status="fault"),
-        _cell(4, idc="a/4", status="dirty_pdf"),
-        _cell(5, idc="a/5", status="ok"),
-        _cell(6, idc="a/5", status="reject", stage="fixloop"),
-        _cell(7, idc="a/6", status="error"),   # retriable — not attempted
-        _cell(8, idc="a/7", status="reject", cat="regen_gate"),  # gate artifact
-    ])
+    _append(
+        [
+            _cell(1, idc="a/1", status="reject"),
+            _cell(2, idc="a/2", status="fail"),
+            _cell(3, idc="a/3", status="fault"),
+            _cell(4, idc="a/4", status="dirty_pdf"),
+            _cell(5, idc="a/5", status="ok"),
+            _cell(6, idc="a/5", status="reject", stage="fixloop"),
+            _cell(7, idc="a/6", status="error"),  # retriable — not attempted
+            _cell(8, idc="a/7", status="reject", cat="regen_gate"),  # gate artifact
+        ]
+    )
     idx = _sealed_index(broot)
     for idc in ("a/1", "a/2", "a/3", "a/4"):
         assert attempted_unpaid(idx, idc, ARM, V), idc
-    assert not attempted_unpaid(idx, "a/5", ARM, V)   # ok exists → recovered
-    assert not attempted_unpaid(idx, "a/6", ARM, V)   # error is retriable
-    assert not attempted_unpaid(idx, "a/7", ARM, V)   # regen_gate ≠ attempt
-    assert not attempted_unpaid(idx, "a/8", ARM, V)   # never seen
+    assert not attempted_unpaid(idx, "a/5", ARM, V)  # ok exists → recovered
+    assert not attempted_unpaid(idx, "a/6", ARM, V)  # error is retriable
+    assert not attempted_unpaid(idx, "a/7", ARM, V)  # regen_gate ≠ attempt
+    assert not attempted_unpaid(idx, "a/8", ARM, V)  # never seen
     idx.close()
 
 
@@ -489,12 +544,14 @@ def test_attempted_unpaid_classification(broot):
 
 
 def test_quote_partitions_mixed_set(broot):
-    _append([
-        _cell(1, idc="a/1", status="ok"),            # reuse (paid pool)
-        _cell(2, idc="a/2", status="partial"),       # reuse
-        _cell(3, idc="a/4", status="reject"),        # attempted
-        _tombstone(idc="a/3"),                        # missing
-    ])
+    _append(
+        [
+            _cell(1, idc="a/1", status="ok"),  # reuse (paid pool)
+            _cell(2, idc="a/2", status="partial"),  # reuse
+            _cell(3, idc="a/4", status="reject"),  # attempted
+            _tombstone(idc="a/3"),  # missing
+        ]
+    )
     _write_manifest([_manifest_row("a/5", bytes_ok=True)])  # reuse via manifest
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
@@ -503,9 +560,13 @@ def test_quote_partitions_mixed_set(broot):
     assert lease.acquire()
     try:
         cells = [
-            ("a/1", ARM, V), ("a/2", ARM, V), ("a/3", ARM, V),
-            ("a/4", ARM, V), ("a/5", ARM, V), ("a/6", ARM, V),
-            ("a/7", ARM, V),                          # brand new
+            ("a/1", ARM, V),
+            ("a/2", ARM, V),
+            ("a/3", ARM, V),
+            ("a/4", ARM, V),
+            ("a/5", ARM, V),
+            ("a/6", ARM, V),
+            ("a/7", ARM, V),  # brand new
             {"idc": "a/8", "arm": ARM, "variant": V},  # dict form
         ]
         rep = oracle.quote(cells)
@@ -521,7 +582,10 @@ def test_quote_partitions_mixed_set(broot):
     assert len(flat) == len(cells)
 
     assert rep["buckets"]["reuse"] == [
-        ("a/1", ARM, V), ("a/2", ARM, V), ("a/5", ARM, V)]
+        ("a/1", ARM, V),
+        ("a/2", ARM, V),
+        ("a/5", ARM, V),
+    ]
     assert rep["buckets"]["missing"] == [("a/3", ARM, V)]
     assert rep["buckets"]["claimed"] == [("a/6", ARM, V)]
     assert rep["buckets"]["attempted"] == [("a/4", ARM, V)]
@@ -550,10 +614,12 @@ def test_quote_attempted_needs_paid_flag(broot):
     _append([_cell(1, idc="a/1", status="fail")])
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    rep = oracle.quote([
-        {"idc": "a/1", "arm": ARM, "variant": V, "stage_paid": False},
-        {"idc": "a/1", "arm": ARM, "variant": V, "stage_paid": True},
-    ])
+    rep = oracle.quote(
+        [
+            {"idc": "a/1", "arm": ARM, "variant": V, "stage_paid": False},
+            {"idc": "a/1", "arm": ARM, "variant": V, "stage_paid": True},
+        ]
+    )
     assert rep["buckets"]["new"] == [("a/1", ARM, V)]
     assert rep["buckets"]["attempted"] == [("a/1", ARM, V)]
     idx.close()
@@ -565,8 +631,15 @@ def test_quote_attempted_needs_paid_flag(broot):
 def test_regen_allowed_requires_all_four(broot):
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    base = dict(idc=IDC, arm=ARM, variant=V,
-                allow_regen=True, sel_hit=True, max_cost=1.0, yes=True)
+    base = dict(
+        idc=IDC,
+        arm=ARM,
+        variant=V,
+        allow_regen=True,
+        sel_hit=True,
+        max_cost=1.0,
+        yes=True,
+    )
     assert oracle.regen_allowed(**base)
     for kill in ("allow_regen", "sel_hit", "max_cost", "yes"):
         kw = dict(base)
@@ -608,9 +681,11 @@ def test_unparseable_meta_name_contributes_nothing(broot):
     """The filename is the authoritative credential (§3.10.4): a meta
     whose name does not parse is invisible to the oracle — its body can
     never greenlight a skip; doctor's meta-less report owns the anomaly."""
-    _write_meta("cs/0601029", name="strange-name.json",
-                body={"verdict": "verified",
-                      "files": {"zh": [{"path": "x", "size": 1}]}})
+    _write_meta(
+        "cs/0601029",
+        name="strange-name.json",
+        body={"verdict": "verified", "files": {"zh": [{"path": "x", "size": 1}]}},
+    )
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.check("cs/0601029", ARM) == ABSENT
@@ -623,8 +698,12 @@ def test_oracle_without_snapshot_is_unsealed_when_index_lags(broot):
     _append([_cell(1, status="ok")])
     idx = _sealed_index(broot)
     gen, wm = idx.sealed_state()
-    oracle = DedupOracle(idx, manifest_tail={(IDC, ARM, V)},
-                         paid_pool_snap={(IDC, ARM, V)},
-                         sealed_gen=gen, min_offset=wm + 1)
+    oracle = DedupOracle(
+        idx,
+        manifest_tail={(IDC, ARM, V)},
+        paid_pool_snap={(IDC, ARM, V)},
+        sealed_gen=gen,
+        min_offset=wm + 1,
+    )
     assert oracle.check(IDC, ARM) == UNSEALED
     idx.close()

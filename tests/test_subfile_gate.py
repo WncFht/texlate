@@ -61,9 +61,7 @@ def _assert_prologue_gated(out: str, engine: str) -> None:
 @pytest.mark.parametrize(
     ("child", "head"),
     [
-        pytest.param(
-            _CHILD, "\\documentclass[../root.tex]{subfiles}", id="subfiles"
-        ),
+        pytest.param(_CHILD, "\\documentclass[../root.tex]{subfiles}", id="subfiles"),
         pytest.param(
             _STANDALONE_CHILD,
             "\\documentclass[tikz,border=4pt]{standalone}",
@@ -82,9 +80,7 @@ def test_child_no_preamble_prologue(child: str, head: str, engine: str) -> None:
 @pytest.mark.parametrize(
     ("child", "needle", "pixel"),
     [
-        pytest.param(
-            _CHILD, "child body", "child \\pdfpxdimen body", id="subfiles"
-        ),
+        pytest.param(_CHILD, "child body", "child \\pdfpxdimen body", id="subfiles"),
         pytest.param(
             _STANDALONE_CHILD,
             "\\tikz\\draw(0,0)--(1,1);",

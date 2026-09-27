@@ -127,7 +127,10 @@ def test_fb_snippet_deferred_postpatch_contract() -> None:
     text = "\n".join(got)
     assert "\\AtBeginDocument{%" in text
     assert text.index("\\AtBeginDocument{%") < text.index("\\newunicodechar{Ā}")
-    tail_head_forms = ("\\RequirePackage{newunicodechar}", "\\newfontfamily\\txlatecjkfb")
+    tail_head_forms = (
+        "\\RequirePackage{newunicodechar}",
+        "\\newfontfamily\\txlatecjkfb",
+    )
     for form in tail_head_forms:
         assert form not in text.split("\\AtBeginDocument", 1)[1]
     acts = [ln for ln in got if ln.startswith("\\newunicodechar")]

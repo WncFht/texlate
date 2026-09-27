@@ -443,9 +443,7 @@ MNRAS_BUGGY_CLS = (
 )
 
 
-def mnras_buggy_cls(
-    *, before: Iterable[str] = (), after: Iterable[str] = ()
-) -> str:
+def mnras_buggy_cls(*, before: Iterable[str] = (), after: Iterable[str] = ()) -> str:
     """mnras v3.2 病件指纹骨架：头注行 + ``before`` 行 + ``\\ds@usegraphicx`` 病行 + ``after`` 行。
 
     指纹不变量是头注 + 病行（行内联 ``\\usepackage``）；``before``/``after``
@@ -488,9 +486,7 @@ def read_rel(wdir: Path, rel: str) -> str:
 
 def code_lines(body: str) -> str:
     """滤 % 注释行后拼接——pin 断言不得被注释文本夹带。"""
-    return "\n".join(
-        ln for ln in body.splitlines() if not ln.lstrip().startswith("%")
-    )
+    return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
 
 
 def which_only(*names: str) -> Callable[[str], str | None]:
@@ -575,9 +571,7 @@ def mk_vendor(tmp_path: Path) -> Path:
 
 def vendored_fetch(ctx: LoopCtx, payload: str, root: Path) -> tuple[bool, str]:
     """``TRANSFORM_FNS["vendored_fetch"]`` 直驱壳——``{"dir": str(root)}`` params 内置。"""
-    return TRANSFORM_FNS["vendored_fetch"](
-        ctx, None, payload, {"dir": str(root)}
-    )
+    return TRANSFORM_FNS["vendored_fetch"](ctx, None, payload, {"dir": str(root)})
 
 
 # ------------------------------------------------------------ shim-pin 族
@@ -723,11 +717,7 @@ class MockEngine:
         return MockRes(Path(wdir), main, self.script[i])
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if (
-            self.probe_cwd
-            and cwd is not None
-            and (Path(cwd) / fname).is_file()
-        ):
+        if self.probe_cwd and cwd is not None and (Path(cwd) / fname).is_file():
             return str(Path(cwd) / fname)
         if fname in self.available:
             return f"/texmf/{fname}"

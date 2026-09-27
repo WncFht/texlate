@@ -193,9 +193,7 @@ def test_abd_hook_injected_pre_docclass(tmp_path: Path) -> None:
         "\\AtBeginDocument{\\expandafter\\let\\csname sh\\endcsname\\TeXlateUndefCs}"
     ) in text
     # 钩注册位必须先于 \documentclass —— FIFO 首钩, 抢在 babel 钩注册前。
-    assert text.index("\\AtBeginDocument{\\expandafter") < text.index(
-        "\\documentclass"
-    )
+    assert text.index("\\AtBeginDocument{\\expandafter") < text.index("\\documentclass")
     # 迟延定义者不被立即 \let 覆盖 → docclass 块不重发。
     assert "% fixloop: batch undefine" not in text
 

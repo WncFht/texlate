@@ -119,8 +119,7 @@ class TestMdZip:
             snap = wait_terminal(c, tid)
             assert snap["status"] == "fault"
             assert (
-                store_call(c, c.app.state.store.file_record, tid, "md_zip")
-                is not None
+                store_call(c, c.app.state.store.file_record, tid, "md_zip") is not None
             )
             engs[0] = FakeEngine()
             r = c.post(f"/api/task/{tid}/retry", json={})

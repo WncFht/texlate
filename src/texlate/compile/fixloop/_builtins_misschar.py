@@ -1430,9 +1430,7 @@ def _rewrite_enc_sites(t: str, rx: re.Pattern[str]) -> tuple[str, int]:
 def _glyph_uses(t: str, glyph_re: re.Pattern[str]) -> set[str]:
     """活文本里命中的字形 cs 名集合 (遮盖区命中不计)。"""
     masked = mask_tex(t)
-    return {
-        m[1] for m in glyph_re.finditer(masked) if _is_live(m, masked, t)
-    }
+    return {m[1] for m in glyph_re.finditer(masked) if _is_live(m, masked, t)}
 
 
 def _scan_sites(

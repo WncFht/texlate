@@ -1,6 +1,7 @@
 """P3 retention verbs — CAS projection (cas_link_tree / cas_link_leaves),
 splice slim (_splice_keep / slim_splice), and the prune shrink gate
 (_cell_shrinkable + shrink-on-blocked wiring)."""
+
 from __future__ import annotations
 
 import hashlib
@@ -36,28 +37,35 @@ def _sha(data: bytes) -> str:
 
 
 def _manifest_rows() -> list[dict]:
-    return [r for _ln, r, _raw in events.iter_jsonl(paths.vault_manifest_path())
-            if isinstance(r, dict)]
+    return [
+        r
+        for _ln, r, _raw in events.iter_jsonl(paths.vault_manifest_path())
+        if isinstance(r, dict)
+    ]
 
 
 def _meta(idc=IDC, arm="real", variant="-", altseq="0") -> dict:
     return json.loads(
-        vault.meta_path(idc, arm, variant, altseq).read_text(encoding="utf-8"))
+        vault.meta_path(idc, arm, variant, altseq).read_text(encoding="utf-8")
+    )
 
 
 def _splice_src(tmp_path: Path, name: str = "sp") -> Path:
     """Real-shaped splice leaf: stem-matched final pdf + arm + log kept;
     dup pdf, root figs, tex source, figs/ and anc/ all doomed."""
-    return _tree(tmp_path / name, {
-        "Manuscript.tex": b"\\bye",
-        "Manuscript.pdf": _blob(5000, b"final-pdf"),
-        ".fixloop-entry.pdf": _blob(5000, b"dup-pdf"),
-        "fig1.pdf": _blob(3000, b"figpdf"),
-        "figs/f.pdf": b"nested-fig",
-        "anc/a.txt": b"anc",
-        "Manuscript.log": b"log-bytes",
-        ".xlat-arm.json": b"{}",
-    })
+    return _tree(
+        tmp_path / name,
+        {
+            "Manuscript.tex": b"\\bye",
+            "Manuscript.pdf": _blob(5000, b"final-pdf"),
+            ".fixloop-entry.pdf": _blob(5000, b"dup-pdf"),
+            "fig1.pdf": _blob(3000, b"figpdf"),
+            "figs/f.pdf": b"nested-fig",
+            "anc/a.txt": b"anc",
+            "Manuscript.log": b"log-bytes",
+            ".xlat-arm.json": b"{}",
+        },
+    )
 
 
 # --- cas_link_tree ------------------------------------------------------------------
@@ -98,8 +106,9 @@ def test_cas_link_tree_sha_map_hit_skips_store(broot, tmp_path, monkeypatch):
     monkeypatch.setattr(cas, "store_file", boom)
     stats = vault.cas_link_tree(tree, {"f.bin": sha})
     assert stats["linked"] == 1
-    assert os.stat(tree / "f.bin").st_ino == \
-        os.stat(cas.object_path(sha, "file")).st_ino
+    assert (
+        os.stat(tree / "f.bin").st_ino == os.stat(cas.object_path(sha, "file")).st_ino
+    )
 
 
 # --- cas_link_leaves (retroverb) ------------------------------------------------------
@@ -115,17 +124,27 @@ def test_iter_committed_leaves_shared_root_yields_once(broot):
 
 def test_cas_link_leaves_links_fused_leaf_and_refuses(broot):
     # pre-hook leaf: hand-built committed dir, already read-only fused
-    leaf = _tree(paths.vault_dir() / "splice" / SID / "real", {
-        "big.pdf": _blob(BIG, b"pdf"),
-        "note.txt": b"small",
-    })
+    leaf = _tree(
+        paths.vault_dir() / "splice" / SID / "real",
+        {
+            "big.pdf": _blob(BIG, b"pdf"),
+            "note.txt": b"small",
+        },
+    )
     vault._chmod_readonly_tree(leaf, include_root=True)
 
     dry = vault.cas_link_leaves(kind="splice", dry=True)
-    assert dry == [{
-        "zone": "main", "kind": "splice", "sid": SID, "key": "real",
-        "candidates": 1, "bytes": BIG, "linked": 0,
-    }]
+    assert dry == [
+        {
+            "zone": "main",
+            "kind": "splice",
+            "sid": SID,
+            "key": "real",
+            "candidates": 1,
+            "bytes": BIG,
+            "linked": 0,
+        }
+    ]
     # dry is pure — private inode, nothing stored
     assert not cas.has(_sha(_blob(BIG, b"pdf")), kind="file")
 
@@ -142,8 +161,9 @@ def test_cas_link_leaves_links_fused_leaf_and_refuses(broot):
 
 def test_cas_link_leaves_idc_filter(broot):
     for sid in (SID, SID2):
-        _tree(paths.vault_dir() / "zh" / sid / "real",
-              {"b.bin": _blob(BIG, sid.encode())})
+        _tree(
+            paths.vault_dir() / "zh" / sid / "real", {"b.bin": _blob(BIG, sid.encode())}
+        )
     rows = vault.cas_link_leaves(kind="zh", idc=IDC2)
     assert [r["sid"] for r in rows] == [SID2]
 
@@ -155,15 +175,21 @@ def test_splice_keep_stem_match(broot, tmp_path):
     leaf = _splice_src(tmp_path)
     keep = vault._splice_keep(leaf)
     assert {p.name for p in keep} == {
-        "Manuscript.pdf", ".xlat-arm.json", "Manuscript.log"}
+        "Manuscript.pdf",
+        ".xlat-arm.json",
+        "Manuscript.log",
+    }
 
 
 def test_splice_keep_largest_pdf_fallback(broot, tmp_path):
-    leaf = _tree(tmp_path / "leaf", {
-        "src.tex": b"t",           # stem 'src' matches no pdf
-        "a.pdf": _blob(100, b"a"),
-        "b.pdf": _blob(9000, b"b"),
-    })
+    leaf = _tree(
+        tmp_path / "leaf",
+        {
+            "src.tex": b"t",  # stem 'src' matches no pdf
+            "a.pdf": _blob(100, b"a"),
+            "b.pdf": _blob(9000, b"b"),
+        },
+    )
     keep = vault._splice_keep(leaf)
     assert {p.name for p in keep} == {"b.pdf"}
 
@@ -183,8 +209,13 @@ def test_slim_splice_dry_then_real(broot, tmp_path):
     assert d["kept"] == [".xlat-arm.json", "Manuscript.log", "Manuscript.pdf"]
     assert d["dropped_bytes"] > 0
     # dry is pure — every doomed node still on disk
-    for rel in ("Manuscript.tex", ".fixloop-entry.pdf", "fig1.pdf",
-                "figs/f.pdf", "anc/a.txt"):
+    for rel in (
+        "Manuscript.tex",
+        ".fixloop-entry.pdf",
+        "fig1.pdf",
+        "figs/f.pdf",
+        "anc/a.txt",
+    ):
         assert (leaf / rel).exists(), rel
 
     rows = vault.slim_splice()
@@ -192,7 +223,10 @@ def test_slim_splice_dry_then_real(broot, tmp_path):
     r = rows[0]
     assert r["zone"] == "pending"  # logical zone comes from meta
     assert {p.name for p in leaf.iterdir()} == {
-        ".xlat-arm.json", "Manuscript.log", "Manuscript.pdf"}
+        ".xlat-arm.json",
+        "Manuscript.log",
+        "Manuscript.pdf",
+    }
     meta = _meta()
     assert [row["path"] for row in meta["files"]["splice"]] == r["kept"]
     assert meta["bytes"] == pre_bytes - r["dropped_bytes"]
@@ -236,7 +270,10 @@ def test_slim_splice_metaless_leaf_still_slims(broot, tmp_path):
     assert len(rows) == 1 and rows[0]["meta"] is False
     vault.slim_splice()
     assert {p.name for p in leaf.iterdir()} == {
-        ".xlat-arm.json", "Manuscript.log", "Manuscript.pdf"}
+        ".xlat-arm.json",
+        "Manuscript.log",
+        "Manuscript.pdf",
+    }
     last = _manifest_rows()[-1]
     assert last["op"] == "slim" and last["bytes"] is None
 
@@ -265,8 +302,7 @@ def test_cell_shrinkable_gate(broot):
 
 
 def test_prune_shrinks_checkpoint_only_blocked_cell(broot):
-    rd = runs.create_run("soak", date="2026-09-24",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-24", spec_dict={"kind": "soak"})
     cell = rd.work("9901.00009")
     (cell / "state.real@v1").mkdir(parents=True)
     (cell / "state.real@v1" / "state.json").write_bytes(b"paid-ckpt")
@@ -278,8 +314,8 @@ def test_prune_shrinks_checkpoint_only_blocked_cell(broot):
     (cell / ".xlat-stage" / "main.tex").write_bytes(b"staging")
 
     rc = cli.main(["prune", "--run", rd.run, "--keep", "events"])
-    assert rc == cli.EXIT_FAIL          # still blocked — paid shape present
-    assert cell.exists()                # cell root survives
+    assert rc == cli.EXIT_FAIL  # still blocked — paid shape present
+    assert cell.exists()  # cell root survives
     # checkpoint + shell kept, rebuildable bulk gone
     assert (cell / "state.real@v1" / "state.json").exists()
     assert (cell / "state.real@v1" / "xlat-detail.jsonl").exists()
@@ -289,8 +325,7 @@ def test_prune_shrinks_checkpoint_only_blocked_cell(broot):
 
 
 def test_prune_paid_product_cell_stays_whole(broot):
-    rd = runs.create_run("soak", date="2026-09-24",
-                         spec_dict={"kind": "soak"})
+    rd = runs.create_run("soak", date="2026-09-24", spec_dict={"kind": "soak"})
     cell = rd.work("9901.00010")
     (cell / "splice.real").mkdir(parents=True)
     (cell / "splice.real" / "M.pdf").write_bytes(b"paid")
@@ -321,6 +356,6 @@ def test_prune_tar_deletes_tar_and_part(broot, tmp_path, monkeypatch):
     assert freed == len(b"TAR") + len(b"PART")
     assert not (tars / "2501_001.tar").exists()
     assert not (tars / "2501_001.tar.part").exists()
-    assert (tars / "2501_002.tar").exists()      # only the named chunk dies
+    assert (tars / "2501_002.tar").exists()  # only the named chunk dies
     # already-gone tar is a no-op, not an error
     assert corpus_v3._prune_tar({"item": "2501_001"}) == 0

@@ -107,8 +107,7 @@ def test_premature_seam_injects_when_provider_after_call(tmp_path: Path) -> None
         "\\begin{document}\nx\n\\end{document}\n",
     )
     err = (
-        "./main.tex:2: LaTeX Error: Missing \\begin{document}.\n"
-        "l.2 \\numberwithin{e\n"
+        "./main.tex:2: LaTeX Error: Missing \\begin{document}.\nl.2 \\numberwithin{e\n"
     )
     ctx = mk_ctx(tmp_path, err_head=err)
     eng = MockEngine([], available={"amsmath.sty"})
@@ -131,8 +130,7 @@ def test_premature_seam_abstains_when_provider_before_call(tmp_path: Path) -> No
         "\\begin{document}\nx\n\\end{document}\n",
     )
     err = (
-        "./main.tex:3: LaTeX Error: Missing \\begin{document}.\n"
-        "l.3 \\numberwithin{e\n"
+        "./main.tex:3: LaTeX Error: Missing \\begin{document}.\nl.3 \\numberwithin{e\n"
     )
     ctx = mk_ctx(tmp_path, err_head=err)
     eng = MockEngine([], available={"amsmath.sty"})
@@ -154,10 +152,7 @@ def test_premature_seam_input_offender_covered(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
     )
     _write(tmp_path, "sub.tex", "\\numberwithin{equation}{section}\n")
-    err = (
-        "./sub.tex:1: LaTeX Error: Missing \\begin{document}.\n"
-        "l.1 \\numberwithin{e\n"
-    )
+    err = "./sub.tex:1: LaTeX Error: Missing \\begin{document}.\nl.1 \\numberwithin{e\n"
     ctx = mk_ctx(tmp_path, err_head=err)
     eng = MockEngine([], available={"amsmath.sty"})
     ok, _note = premature_cs_guard(ctx, eng, None, {})
@@ -178,10 +173,7 @@ def test_premature_seam_input_offender_late_provider(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
     )
     _write(tmp_path, "sub.tex", "\\numberwithin{equation}{section}\n")
-    err = (
-        "./sub.tex:1: LaTeX Error: Missing \\begin{document}.\n"
-        "l.1 \\numberwithin{e\n"
-    )
+    err = "./sub.tex:1: LaTeX Error: Missing \\begin{document}.\nl.1 \\numberwithin{e\n"
     ctx = mk_ctx(tmp_path, err_head=err)
     eng = MockEngine([], available={"amsmath.sty"})
     ok, note = premature_cs_guard(ctx, eng, None, {})
@@ -279,9 +271,7 @@ def test_font_sub_shim_skips_commented_sites(tmp_path: Path) -> None:
         "\\end{document}\n",
     )
     params = {
-        "shim_map": {
-            "bbm": {"usepackage": "dsfont", "cs_map": {"mathbbm": "mathds"}}
-        }
+        "shim_map": {"bbm": {"usepackage": "dsfont", "cs_map": {"mathbbm": "mathds"}}}
     }
     ok, note = font_sub_shim(mk_ctx(tmp_path), None, None, params)
     assert ok, note

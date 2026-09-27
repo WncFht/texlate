@@ -213,15 +213,11 @@ async def _parse_multipart(
     except _pymp.exceptions.ParseError as e:
         # python-multipart 引擎错（boundary 不符/伪 boundary 行/参数畸形）——
         # starlette 只包自家回调侧 MultiPartException，引擎错直穿成 500
-        raise _api_error(
-            400, f"malformed multipart: {e}", "invalid_request"
-        ) from e
+        raise _api_error(400, f"malformed multipart: {e}", "invalid_request") from e
     return await _collect_form(form, spool_dir)
 
 
-async def _collect_form(
-    form: FormData, spool_dir: Path
-) -> dict[str, str | UploadPart]:
+async def _collect_form(form: FormData, spool_dir: Path) -> dict[str, str | UploadPart]:
     """逐字段收集：文件流式落 spool、str 直收；中途失败就地回收已落盘件。
 
     异常面（累计额度 413/体闸/cancel）下调用方只收到异常拿不到 ``out``
@@ -239,9 +235,7 @@ async def _collect_form(
                     _spool_part, val.file, tmp, UPLOAD_CAP - file_bytes
                 )
                 file_bytes += size
-                out[name] = UploadPart(
-                    filename=val.filename or "", path=tmp, size=size
-                )
+                out[name] = UploadPart(filename=val.filename or "", path=tmp, size=size)
             elif isinstance(val, str):
                 out[name] = val
     except BaseException:
@@ -282,9 +276,7 @@ def _require_file_part(form: dict[str, str | UploadPart]) -> UploadPart:
         )
     if file.size == 0:
         _discard_part(file)
-        raise _ApiError(
-            400, {"detail": "empty upload", "code": "invalid_request"}
-        )
+        raise _ApiError(400, {"detail": "empty upload", "code": "invalid_request"})
     return file
 
 

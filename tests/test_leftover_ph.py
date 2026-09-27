@@ -221,9 +221,7 @@ class TestCacheAndResume:
         store.finish()
 
         t = pl.MockTranslator()
-        out = run_pipeline(
-            [big_para("c1")], translator=t, state=StateStore(outdir)
-        )
+        out = run_pipeline([big_para("c1")], translator=t, state=StateStore(outdir))
         assert t.calls  # 旧记录被拦截踢出 completed——真重翻发生
         assert out[0].status == "ok"
         assert "[[MATH_99]]" not in out[0].translation

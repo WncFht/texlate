@@ -21,12 +21,10 @@ import time
 from pathlib import Path
 
 import pytest
-
 from conftest import write_verify_stamp
 from kernel import (
     doctor,
     events,
-    index as indexmod,
     kernel,
     ledger,
     locks,
@@ -34,8 +32,13 @@ from kernel import (
     paths,
     report,
     runs,
-    spec as specmod,
     vault,
+)
+from kernel import (
+    index as indexmod,
+)
+from kernel import (
+    spec as specmod,
 )
 
 BENCH_PY = Path(__file__).resolve().parents[2] / "bench" / "py"

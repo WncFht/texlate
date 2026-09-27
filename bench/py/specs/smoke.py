@@ -10,6 +10,7 @@ inline fixture; ``transform`` uppercases it to ``work/{id}/zh/out.txt``
 (needs ingest -> ok); ``report`` emits a metrics row (needs transform ->
 ok, mutates nothing).
 """
+
 from kernel.spec import Param, Spec, Stage
 
 # Canon-clean synthetic ids (9901 = January 2099 — collides with nothing

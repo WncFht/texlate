@@ -60,6 +60,7 @@ def _default_user_path() -> Path:
     """
     return sys.modules[__name__].USER_GLOSSARY_PATH
 
+
 #: 文档级过滤用的词边界正则模板（IGNORECASE|ASCII，照 ieeA `_build_glossary_hints`）
 _TERM_BOUNDARY = r"(?<!\w){}(?!\w)"
 

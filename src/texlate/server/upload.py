@@ -145,10 +145,7 @@ def _zip_kind(data: bytes) -> str:
                         head = fp.read(64).strip()
                 except (KeyError, RuntimeError, NotImplementedError, OSError):
                     head = b""  # 加密/坏成员与 _zip_member_payload 同族——退 upload_tex 交解包处报错
-            if (
-                head == b"application/epub+zip"
-                or "META-INF/container.xml" in names
-            ):
+            if head == b"application/epub+zip" or "META-INF/container.xml" in names:
                 return "epub"
     except zipfile.BadZipFile:
         pass  # 坏 zip 交给 upload_tex 路在解包处报错
