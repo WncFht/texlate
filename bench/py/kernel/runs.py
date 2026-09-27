@@ -71,7 +71,6 @@ __all__ = [
     "remove_cell_tree",
 ]
 
-_HEAL_CHUNK = 64 * 1024
 _HEARTBEAT_FRESH_S = 600.0  # <10min fresh per §3.10.1 zombie rule
 
 _NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -103,7 +102,7 @@ def _append_line(path: Path, payload: bytes) -> None:
         offset = size
         pos = size
         while pos > 0:
-            n = min(_HEAL_CHUNK, pos)
+            n = min(fsutil.HEAL_CHUNK, pos)
             pos -= n
             buf = os.pread(fd, n, pos)
             idx = buf.rfind(b"\n")

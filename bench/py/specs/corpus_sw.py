@@ -63,19 +63,18 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-# src/ + bench/py 双自举——load_spec exec 时 bench/py 已在 sys.path；worker
-# 独立进程 ``python specs/corpus_sw.py --worker`` 形态下两径都要
-# （parsebench 同款先例）。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
+# worker 裸跑 ``python specs/x.py --worker`` 时 bench/py 不在
+# sys.path——先立起才够得着 specs.*（load_spec 径下幂等）。
 _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
 from kernel import fsutil, idnorm, lake, paths
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
@@ -1081,7 +1080,6 @@ spec = Spec(
     prefetch=False,  # builder 段内自管 hydrate——预取器对本 spec 无的放矢
     lake_source="arxiv",
 )
-
 
 if __name__ == "__main__":
     sys.exit(_worker_cli(sys.argv))

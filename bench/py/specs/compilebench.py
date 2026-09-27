@@ -47,19 +47,15 @@ import random
 import re
 import shutil
 import subprocess
-import sys
 from collections import defaultdict
 from pathlib import Path
 
-# src/ 不在 `bench` 入口 sys.path 上（kernel 惰性 import texlate.*）——
-# specs/soak.py 同款自举。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import fsutil, idnorm, lake
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 
@@ -106,7 +102,6 @@ VERDICT_MAP = {
     "fail": "FAIL",
     "reject": "reject",
 }
-
 
 # ---------------------------------------------------------------- frame 构建
 
@@ -556,7 +551,6 @@ def _cb_compile(ctx) -> dict:
 
 
 # ---------------------------------------------------------------- spec
-
 
 spec = Spec(
     kind="compilebench",

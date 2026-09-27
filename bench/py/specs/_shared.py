@@ -19,10 +19,13 @@ loop).
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import threading
 import time
 from types import SimpleNamespace
 
+from kernel import events
 from kernel import paid as paidmod
 
 __all__ = [
@@ -333,3 +336,84 @@ class SessionTranslator:
                 raise
             raise respotted from e
         return res["text"]
+
+
+# ------------------------------------------------------------ records 末条账
+#
+# 「末条账·跨全 run」投影是 spec 层公共判读件：ctx.upstream_rec 是
+# run∪foreign_runs 域，run2 里 run1 的账出域（本 run 那行是 dedup 非
+# DONE）——on 谓词/want_fix/expect_cjk/质检补票这些「上游账」判读必须读
+# 全域，否则跨 run 续跑全部看成 None 走歪。soak/e2e_real/quality 曾各
+# 藏一份同构副本，统一收此处。
+
+_DONE_STS = tuple(sorted(events.STATUS_DONE))
+
+#: IN 位串只插占位符个数（模块级常量）——值仍全参数化。
+_LAST_DONE_SQL = (
+    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"  # noqa: S608
+    "fp,dur_s,metrics,errors,ts FROM records "
+    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+    f"AND status IN ({','.join('?' * len(_DONE_STS))}) "
+    "ORDER BY rowid DESC LIMIT 1"
+)
+
+_LAST_ANY_SQL = (
+    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
+    "fp,dur_s,metrics,errors,ts FROM records "
+    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+    "ORDER BY rowid DESC LIMIT 1"
+)
+
+_LAST_STS_SQL = (
+    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
+    "fp,dur_s,metrics,errors,ts FROM records "
+    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+    "AND status=? ORDER BY rowid DESC LIMIT 1"
+)
+
+
+def _last_row(
+    ctx,
+    stage: str,
+    *,
+    done_only: bool = False,
+    status: str | None = None,
+    variant: str | None = None,
+) -> dict | None:
+    """末条账（任意 status；done_only=True 时同 _last_done 旧口径）。
+
+    ``status`` 等值过滤钉到指定账——declined 闸行也占 DONE 位会遮蔽
+    早先真账，质检补票须钉 ok。``variant`` 覆盖 ctx.variant——quality
+    的 ctx.variant 带 @EPOCH 后缀查不了源账，须显式传源 variant。
+    """
+    idx = ctx.index
+    if idx is None:
+        return None
+    var = ctx.variant if variant is None else variant
+    if status is not None:
+        row = idx.conn.execute(
+            _LAST_STS_SQL, (ctx.idc, ctx.arm, ctx.up, var, stage, status)
+        ).fetchone()
+    elif done_only:
+        row = idx.conn.execute(
+            _LAST_DONE_SQL, (ctx.idc, ctx.arm, ctx.up, var, stage, *_DONE_STS)
+        ).fetchone()
+    else:
+        row = idx.conn.execute(
+            _LAST_ANY_SQL, (ctx.idc, ctx.arm, ctx.up, var, stage)
+        ).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    for col in ("metrics", "errors"):
+        v = d.get(col)
+        if isinstance(v, str):
+            with contextlib.suppress(ValueError):
+                d[col] = json.loads(v)
+        d[col] = ctx._unblob(d[col])
+    return d
+
+
+def _last_done(ctx, stage: str, variant: str | None = None) -> dict | None:
+    """末条 DONE 账·跨全 run——``_needs_eval`` 的 dedup-look-through 同域。"""
+    return _last_row(ctx, stage, done_only=True, variant=variant)

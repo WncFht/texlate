@@ -77,8 +77,6 @@ __all__ = [
     "unpin",
 ]
 
-_HEAL_CHUNK = 64 * 1024
-
 #: Pin truth file — lives at the cell dir root (``{cell}/PINNED`` for lake
 #: cells, ``work/{safe_id}/PINNED`` for run cells). Every byte-deleting verb
 #: honors it; the catalog ``pinned`` field is its ledger-replayable
@@ -140,7 +138,7 @@ def _append_line(path: Path, payload: bytes) -> None:
             offset = size
             pos = size
             while pos > 0:
-                n = min(_HEAL_CHUNK, pos)
+                n = min(fsutil.HEAL_CHUNK, pos)
                 pos -= n
                 buf = os.pread(fd, n, pos)
                 idx = buf.rfind(b"\n")

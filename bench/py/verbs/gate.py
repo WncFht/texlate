@@ -115,12 +115,7 @@ def _norm_dt(dt: datetime | None) -> datetime | None:
 
 
 def _open_index() -> index_mod.Index:
-    idx = index_mod.Index()
-    try:
-        idx.tail_ingest()
-    except Exception as exc:
-        print(f"note: tail_ingest failed ({exc}) — index may be stale", file=sys.stderr)
-    return idx
+    return index_mod.open_index()
 
 
 # ---------------------------------------------------------------- run 解析

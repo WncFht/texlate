@@ -69,16 +69,13 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-# src/ 不在 `bench` 入口 sys.path 上——extract 的 unpack_blob 惰性 import
-# texlate.arxiv（compilebench/soak 同款自举）。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import fsutil, idnorm, lake, paths
 from kernel.events import iter_jsonl
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 REPO = Path(__file__).resolve().parents[3]
 #: 持久 builder 工作区（旧 bench/work_v3 新家——多日断点状态全在这棵树下）。

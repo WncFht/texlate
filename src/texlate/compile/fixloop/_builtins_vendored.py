@@ -18,6 +18,7 @@ from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
     _fixloop_log,
+    _index_candidates,
     _inject_write,
     _live_matches,
     _mark_injected,
@@ -148,16 +149,9 @@ def _index_providers(eng: Engine, fname: str) -> list[str]:
     """``filemap`` + ``ctan_fetch.peek_index`` 查 ``fname`` 的 bundle/TL 提供包。
 
     只收 ``query`` 精确命中 —— ``suggest`` 前缀猜测面太宽, 不足以佐证
-    撞名遮蔽。
+    撞名遮蔽 (``_index_candidates`` 默认 ``suggest=False``)。
     """
-    pkgs = list(eng.filemap(fname))
-    if not pkgs:
-        fetcher = getattr(eng, "ctan_fetch", None)
-        peek = getattr(fetcher, "peek_index", None)
-        idx = peek() if callable(peek) else None
-        if idx is not None:
-            pkgs = idx.query(fname)
-    return pkgs
+    return _index_candidates(eng, fname)
 
 
 def find_vendored_shadows(

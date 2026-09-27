@@ -13,17 +13,11 @@ test_sabotage_arms 钉 ``emb._plan_b/_apply_*``），translators_bench
 from __future__ import annotations
 
 import hashlib
-import os
 import re
-import sys
-from pathlib import Path
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# 本模块按驱动惯例自举，TEXLATE_SRC 冻结快照语义同 e2e_mock_bench。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from texlate.latex.placeholder import PH_RX
 from texlate.validate.l0 import _ECHO_SIGS

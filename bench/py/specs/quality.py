@@ -20,8 +20,8 @@ item 携带 ``stage`` 字段走 kernel 单 stage 路由（kernel.py:276
 ``wanted`` 过滤）——一个 item 只物化一个 cell，无空转 cell 占账。
 
 读径：``ctx.upstream_rec`` 按本 cell variant 查不到源 variant 的账，
-故资格复核手搓 ``_last_done``（soak.py:182 同款全域域 SQL）——
-末条 DONE 行投影、fail/clean/partial 全在 STATUS_DONE 内。资产经
+故资格复核经 ``specs._shared._last_done`` 显式传 ``variant=src_variant``
+（全域末条 DONE 行投影、fail/clean/partial 全在 STATUS_DONE 内）。资产经
 ``vault.restore`` 物化（**绝不复读活树**——replay-mutex-window
 教训）；vault 目录名为 ``{kind}.{arm}[@{variant}]``（``_work_dirname``，
 ``'-'`` variant 省略 ``@`` 段）。
@@ -42,24 +42,23 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import os
 import sqlite3
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pypdf  # 版本敏感（dossier：跨机 landmark 口径）→ 版本记 metrics
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# soak.py:49-56 同款自举。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
+if TYPE_CHECKING:
+    from pathlib import Path
 
-from kernel import events, idnorm, paths, vault
+from kernel import idnorm, paths, vault
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs import _qmetrics as qm
+from specs._shared import _DONE_STS, _last_done
 
 EPOCH = "v1"
 
@@ -67,8 +66,6 @@ _XLAT_STAGE = "xlat"
 _XLAT_ELIGIBLE = ("ok", "partial", "fail")
 _COMPILE_STAGES = ("compile", "base")
 _COMPILE_ELIGIBLE = ("clean", "partial")
-_DONE_STS = tuple(sorted(events.STATUS_DONE))
-
 
 # ---------------------------------------------------------------- items/select
 
@@ -165,36 +162,8 @@ def _select(item: dict, rp: dict) -> bool:
 
 
 # ---------------------------------------------------------------- 源账复核
-
-_LAST_DONE_SQL = (
-    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"  # noqa: S608
-    "fp,dur_s,metrics,errors,ts FROM records "
-    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
-    f"AND status IN ({','.join('?' * len(_DONE_STS))}) "
-    "ORDER BY rowid DESC LIMIT 1"
-)
-
-
-def _last_done(ctx, stage: str, variant: str) -> dict | None:
-    """末条 DONE 账·跨全 run（soak.py:182 同款——ctx.variant 带 EPOCH 后缀，
-    源账查不了，域=全 records 投影末条胜）。"""
-    idx = ctx.index
-    if idx is None:
-        return None
-    row = idx.conn.execute(
-        _LAST_DONE_SQL,
-        (ctx.idc, ctx.arm, ctx.up, variant, stage, *_DONE_STS),
-    ).fetchone()
-    if row is None:
-        return None
-    d = dict(row)
-    for col in ("metrics", "errors"):
-        v = d.get(col)
-        if isinstance(v, str):
-            with contextlib.suppress(ValueError):
-                d[col] = json.loads(v)
-        d[col] = ctx._unblob(d[col])
-    return d
+# ``_last_done`` 共享实现收 specs/_shared.py——本 spec 的 ctx.variant 带
+# @EPOCH 后缀查不了源账，调用点恒显式传 ``variant=src_variant``。
 
 
 def _gate(status: str, code: str, cat: str, payload) -> dict:

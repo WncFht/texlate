@@ -19,7 +19,8 @@ from texlate.cli._common import _is_dir
 from texlate.cli._output import (
     _FALLBACK_DIV,
     console,
-    fixloop_round_line,
+    fixloop_frame_line,
+    l2_done_line,
     log_line_filtered,
     make_translate_progress,
     status,
@@ -243,31 +244,6 @@ def _thin_follow(client: httpx.Client, task_id: str, wait: float) -> str | None:
             typer.echo(f"{reason}——回退快照轮询", err=True)
             return _thin_wait(client, task_id, remaining)
         retries += 1
-
-
-def l2_done_line(p: Mapping[str, Any]) -> str | None:
-    """``l2`` 帧 → 状态行文本；非 ``done`` 相位 ``None``（``CliSink._on_l2`` 同口径）。"""
-    if p.get("phase") != "done":
-        return None
-    if not p.get("enabled"):
-        return "l2 skipped"
-    return (
-        f"l2 done retranslated={p.get('retranslated', 0)}"
-        f" fallback={p.get('fallback', 0)} errors={p.get('errors', 0)}"
-    )
-
-
-def fixloop_frame_line(p: Mapping[str, Any]) -> str | None:
-    """``fixloop`` round/done 帧 → 状态行文本；其余相位 ``None``（``CliSink`` 同口径）。"""
-    phase = p.get("phase")
-    if phase == "round":
-        r = p.get("round")
-        return fixloop_round_line(r) if isinstance(r, dict) else f"fixloop round {r}"
-    if phase == "done":
-        cell = p.get("cell") or {}
-        n = len(cell.get("rounds") or [])
-        return f"fixloop done verdict={cell.get('verdict') or '—'} rounds={n}"
-    return None
 
 
 class _ChunkProgress:

@@ -25,6 +25,8 @@ import statistics
 import sys
 from pathlib import Path
 
+from verbs import _common
+
 HELP = "xlatbench eval_records → 模型榜 / 本地重判"
 
 _JUDGE_KEYS = (
@@ -47,38 +49,11 @@ def _err(msg: str) -> None:
 
 
 def _open_index():
-    """Index + tail_ingest（cli._open_index 同式）。"""
-    from kernel import index as index_mod
-
-    idx = index_mod.Index()
-    try:
-        idx.tail_ingest()
-    except Exception as exc:
-        _err(f"note: tail_ingest failed ({exc}) — index may be stale")
-    return idx
+    return _common._open_index(_err)
 
 
 def _run_ref(ref: str):
-    """run 引用 → (run_name, rundir)。kind/date/slug 或 runs/ 下目录。"""
-    from kernel import paths
-
-    p = Path(ref)
-    if p.is_dir():
-        try:
-            rel = p.resolve().relative_to(paths.runs_dir().resolve())
-        except ValueError:
-            rel = None
-        if rel is not None and len(rel.parts) >= 3:
-            return "/".join(rel.parts[:3]), p
-        _err(f"run dir outside runs/: {ref}")
-        return None, None
-    parts = ref.split("/")
-    if len(parts) == 3:
-        d = paths.run_dir(*parts)
-        if d.is_dir():
-            return ref, d
-    _err(f"run not found: {ref!r} (need kind/date/slug or a runs/ dir)")
-    return None, None
+    return _common._run_ref(ref, _err)
 
 
 def _run_kind(idx, run_name: str) -> str | None:
@@ -86,37 +61,9 @@ def _run_kind(idx, run_name: str) -> str | None:
     return r["kind"] if r else None
 
 
-def _unblob(val, rundir: Path | None):
-    from kernel import report as report_mod
-
-    blob_dir = None
-    if rundir is not None and (rundir / "derived" / "blobs").is_dir():
-        blob_dir = rundir / "derived" / "blobs"
-    return report_mod._unblob(val, blob_dir)
-
-
-def _payload(raw, rundir: Path | None):
-    """json 列 → 值 → $blob 解引用（blob 文件读不出则 marker 原样）。"""
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except ValueError:
-            return None
-    return _unblob(raw, rundir)
-
-
-def _eval_rows(idx, run_name: str) -> list[dict]:
-    """末条胜集：(idc,arm,up,variant) 键 seq 大者胜。"""
-    wins: dict[tuple, dict] = {}
-    for r in idx.conn.execute(
-        "SELECT seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
-        "dur_s,metrics,errors,ts FROM eval_records WHERE run=? ORDER BY seq",
-        (run_name,),
-    ):
-        wins[(r["idc"], r["arm"], r["up"], r["variant"])] = dict(r)
-    return list(wins.values())
+_unblob = _common._unblob
+_payload = _common._payload
+_eval_rows = _common._eval_rows
 
 
 def _rec_of(row: dict, rundir: Path | None) -> dict:

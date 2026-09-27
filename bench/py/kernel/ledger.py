@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, NamedTuple
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from kernel import paths
+from kernel import fsutil, paths
 from kernel.events import (
     T_RUN_REGISTERED,
     EventError,
@@ -54,7 +54,6 @@ from kernel.events import (
     validate,
 )
 
-_HEAL_CHUNK = 64 * 1024
 _SCANBACK_WINDOW = 8 * 1024 * 1024
 _SEQ_NAME_WIDTH = 8  # zero-pad seq fields so name-sort == chronological
 _HASH_CHAIN_GENESIS = "0" * 64
@@ -105,7 +104,7 @@ def _healed_size(fd: int, size: int) -> int:
     """
     pos = size
     while pos > 0:
-        n = min(_HEAL_CHUNK, pos)
+        n = min(fsutil.HEAL_CHUNK, pos)
         pos -= n
         buf = os.pread(fd, n, pos)
         idx = buf.rfind(b"\n")

@@ -75,19 +75,18 @@ import time
 import traceback
 from pathlib import Path
 
-# src/ + bench/py 双自举——load_spec exec 时 bench/py 已在 sys.path（cli
-# 保证）；worker 独立进程 ``python specs/parsebench.py --worker`` 形态下
-# 两径都要（specs/_sabotage.py 同款；TEXLATE_SRC 冻结快照语义一致）。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
+# worker 裸跑 ``python specs/x.py --worker`` 时 bench/py 不在
+# sys.path——先立起才够得着 specs.*（load_spec 径下幂等）。
 _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
 from kernel import idnorm, lake, paths
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs._leak import LEAK_PATTERNS
@@ -1044,7 +1043,6 @@ def _eval(ctx) -> dict:
 
 # ---------------------------------------------------------------- spec
 
-
 spec = Spec(
     kind="parsebench",
     params={
@@ -1097,7 +1095,6 @@ spec = Spec(
         ),
     ],
 )
-
 
 if __name__ == "__main__":
     raise SystemExit(_worker_cli())

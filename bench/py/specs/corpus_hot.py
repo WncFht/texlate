@@ -45,25 +45,20 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import shutil
-import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-# src/ 不在 `bench` 入口 sys.path 上——specs 同款自举（httpx 等产品件
-# 一律 fn 内 lazy import，模块面零产品依赖）。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import events, idnorm, lake, paths
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 REPO = Path(__file__).resolve().parents[3]
 CORPUS = REPO / "bench" / "corpus"

@@ -42,21 +42,17 @@ import json
 import os
 import random
 import shutil
-import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# specs/_sabotage.py 同款自举；TEXLATE_SRC 冻结快照语义一致。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
-from kernel import events, fsutil, idnorm, lake, paths, vault
+from kernel import fsutil, idnorm, lake, paths, vault
 from kernel import paid as paidmod
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
@@ -68,6 +64,7 @@ from specs._shared import (
     SessionClient,
     SessionTranslator,
     TimedTranslator,
+    _last_done,
     devin_factory,
 )
 from specs._xlat_async import translate_tree_async
@@ -122,7 +119,6 @@ _ON_PRED: dict[str, object] = {
     # union-pdf（1e 审计 +414 phantom 上限）；error(harness 崩) 树态不定同排。
     "all": lambda c: c.get("status") not in {"reject", "skip", "error"},
 }
-
 
 # ---------------------------------------------------------------- 小件共用
 
@@ -193,45 +189,6 @@ def _ensure_translated(ctx) -> tuple[Path | None, dict | None]:
     zh = ctx.upstream_asset_dir("zh")
     marker = _xlat_marker(zh) if zh is not None else None
     return zh, marker
-
-
-_DONE_STS = tuple(sorted(events.STATUS_DONE))
-
-#: IN 位串只插占位符个数（模块级常量）——值仍全参数化。
-_LAST_DONE_SQL = (
-    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"  # noqa: S608
-    "fp,dur_s,metrics,errors,ts FROM records "
-    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
-    f"AND status IN ({','.join('?' * len(_DONE_STS))}) "
-    "ORDER BY rowid DESC LIMIT 1"
-)
-
-
-def _last_done(ctx, stage: str) -> dict | None:
-    """末条 DONE 账·跨全 run——``_needs_eval`` 的 dedup-look-through 同域。
-
-    ``ctx.upstream_rec`` 是 run∪foreign_runs 域：run2 里 run1 的 compile
-    DONE 行出域（本 run 那行是 dedup 非 DONE）——on 谓词/expect_cjk/
-    engine_resolved 这些「上游账」判读必须读全域，否则跨 run 续跑全部
-    看成 None 走歪（fixloop 永不修/expect_cjk 恒 True）。
-    """
-    idx = ctx.index
-    if idx is None:
-        return None
-    row = idx.conn.execute(
-        _LAST_DONE_SQL,
-        (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, *_DONE_STS),
-    ).fetchone()
-    if row is None:
-        return None
-    d = dict(row)
-    for col in ("metrics", "errors"):
-        v = d.get(col)
-        if isinstance(v, str):
-            with contextlib.suppress(ValueError):
-                d[col] = json.loads(v)
-        d[col] = ctx._unblob(d[col])
-    return d
 
 
 def _main_rel(ctx, tree: Path) -> str | None:
@@ -1087,7 +1044,6 @@ def _fixloop(ctx) -> dict:
 
 
 # ---------------------------------------------------------------- spec
-
 
 spec = Spec(
     kind="soak",

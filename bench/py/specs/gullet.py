@@ -38,22 +38,17 @@ r"""gullet — corpus 宏展开抽干评测器（``gullet_bench.py`` 的 Spec v2
 from __future__ import annotations
 
 import functools
-import os
 import random
-import sys
 import time
 from collections import Counter
 from pathlib import Path
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# specs/_sabotage.py 同款自举；TEXLATE_SRC 冻结快照语义一致。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import idnorm, lake
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from texlate.arxiv.locate import locate
@@ -241,7 +236,6 @@ def _gexpand(ctx) -> dict:
 
 
 # ---------------------------------------------------------------- spec
-
 
 spec = Spec(
     kind="gullet",

@@ -47,6 +47,7 @@ import fcntl
 import json
 import os
 import sqlite3
+import sys
 import time
 from contextlib import contextmanager, suppress
 from pathlib import Path
@@ -1142,6 +1143,27 @@ def rebuild_index(path=None) -> Index:
     """Open (tolerating schema-version drift) + rebuild + return the Index."""
     idx = Index(path, force_schema=True)
     idx.rebuild()
+    return idx
+
+
+def open_index(path=None, *, warn=None) -> Index:
+    """Index + tail_ingest — the standard read-side entry point.
+
+    A failed ingest is reported via ``warn`` and the (stale) projection is
+    returned anyway — reading must never fail on a torn ledger tail.
+    ``warn=None`` degrades to a bare stderr print. doctor/sweep's
+    exists-or-None flavor is a different contract (read-side purity) and
+    stays local to those modules.
+    """
+    idx = Index(path)
+    try:
+        idx.tail_ingest()
+    except Exception as exc:
+        msg = f"note: tail_ingest failed ({exc}) — index may be stale"
+        if warn is not None:
+            warn(msg)
+        else:
+            print(msg, file=sys.stderr)
     return idx
 
 

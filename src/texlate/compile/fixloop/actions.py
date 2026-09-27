@@ -21,7 +21,11 @@ from typing import TYPE_CHECKING, Any
 import regex
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._builtins_common import _fp_diff, _wdir_fingerprint
+from texlate.compile.fixloop._builtins_common import (
+    _fp_diff,
+    _index_candidates,
+    _wdir_fingerprint,
+)
 from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
@@ -590,24 +594,6 @@ def _vendored_drop(
     except OSError as e:
         return None, str(e)
     return dst, None
-
-
-def _index_candidates(eng: Engine, fname: str, *, suggest: bool = False) -> list[str]:
-    """``filemap`` + ``ctan_fetch.peek_index`` 索引查包链 (``_builtins_vendored._index_providers`` 同构)。
-
-    ``suggest=True`` 时 ``query`` 空集再退 ``suggest`` 前缀猜测——候选提示
-    面可宽; 遮蔽佐证面 (``_index_providers``) 应保持默认 ``False`` 只收精确命中。
-    """
-    pkgs = list(eng.filemap(fname))
-    if not pkgs:
-        fetcher = getattr(eng, "ctan_fetch", None)
-        peek = getattr(fetcher, "peek_index", None)
-        idx = peek() if callable(peek) else None
-        if idx is not None:
-            pkgs = idx.query(fname)
-            if suggest and not pkgs:
-                pkgs = idx.suggest(fname.rsplit(".", 1)[0])
-    return pkgs
 
 
 def _filemap_candidates(eng: Engine, fname: str) -> list[str]:

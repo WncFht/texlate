@@ -69,21 +69,17 @@ import hashlib
 import json
 import os
 import shutil
-import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# specs/_sabotage.py 同款自举；TEXLATE_SRC 冻结快照语义一致。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
-from kernel import events, fsutil, idnorm, vault
+from kernel import fsutil, idnorm, vault
 from kernel import paid as paidmod
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
@@ -93,6 +89,8 @@ from specs._shared import (
     PaidEscape,
     SessionClient,
     TimedTranslator,
+    _last_done,
+    _last_row,
     devin_factory,
 )
 from specs._xlat_async import translate_tree_async
@@ -132,78 +130,6 @@ EPOCH = "v1"
 #: 付费臂名——与 mock 兄弟臂/soak 生产臂隔开 (idc,arm,variant) vault+claim
 #: 键域（soak 用 '-' 默认臂，本 spec 恒 'real'）。
 ARM = "real"
-
-_DONE_STS = tuple(sorted(events.STATUS_DONE))
-
-#: IN 位串只插占位符个数（模块级常量）——值仍全参数化。
-_LAST_DONE_SQL = (
-    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"  # noqa: S608
-    "fp,dur_s,metrics,errors,ts FROM records "
-    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
-    f"AND status IN ({','.join('?' * len(_DONE_STS))}) "
-    "ORDER BY rowid DESC LIMIT 1"
-)
-
-
-def _last_done(ctx, stage: str) -> dict | None:
-    """末条 DONE 账·跨全 run——``_needs_eval`` 的 dedup-look-through 同域。
-
-    ``ctx.upstream_rec`` 是 run∪foreign_runs 域：run2 里 run1 的账出域
-    （本 run 那行是 dedup 非 DONE）——want_fix/want_base/expect_cjk 这些
-    「上游账」判读必须读全域，否则跨 run 续跑全部看成 None 走歪。
-    """
-    return _last_row(ctx, stage, done_only=True)
-
-
-_LAST_ANY_SQL = (
-    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
-    "fp,dur_s,metrics,errors,ts FROM records "
-    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
-    "ORDER BY rowid DESC LIMIT 1"
-)
-
-_LAST_STS_SQL = (
-    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
-    "fp,dur_s,metrics,errors,ts FROM records "
-    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
-    "AND status=? ORDER BY rowid DESC LIMIT 1"
-)
-
-
-def _last_row(
-    ctx, stage: str, *, done_only: bool = False, status: str | None = None
-) -> dict | None:
-    """末条账（任意 status；done_only=True 时同 _last_done 旧口径；
-    ``status`` 等值过滤——declined 闸行也占 DONE 位会遮蔽早先真账，
-    质检补票须钉到 ok）。"""
-    idx = ctx.index
-    if idx is None:
-        return None
-    if status is not None:
-        row = idx.conn.execute(
-            _LAST_STS_SQL,
-            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, status),
-        ).fetchone()
-    elif done_only:
-        row = idx.conn.execute(
-            _LAST_DONE_SQL,
-            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, *_DONE_STS),
-        ).fetchone()
-    else:
-        row = idx.conn.execute(
-            _LAST_ANY_SQL,
-            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage),
-        ).fetchone()
-    if row is None:
-        return None
-    d = dict(row)
-    for col in ("metrics", "errors"):
-        v = d.get(col)
-        if isinstance(v, str):
-            with contextlib.suppress(ValueError):
-                d[col] = json.loads(v)
-        d[col] = ctx._unblob(d[col])
-    return d
 
 
 def _gate(
@@ -1053,7 +979,6 @@ def _layoutqc(ctx) -> dict:
 
 
 # ---------------------------------------------------------------- spec
-
 
 spec = Spec(
     kind="e2e_real",

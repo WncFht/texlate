@@ -42,25 +42,20 @@ import csv
 import hashlib
 import json
 import math
-import os
 import random
 import re
-import sys
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-# src/ 不在 `bench` 入口的 sys.path 上（kernel 惰性 import texlate.*）——
-# soak/_corpus_common 同款自举；TEXLATE_SRC 冻结快照语义一致。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import index as indexmod
 from kernel import lake, paths
 from kernel.spec import Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _corpus_common as cc
 

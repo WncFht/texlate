@@ -172,12 +172,7 @@ def _pre_write() -> None:
 
 def _open_index() -> index_mod.Index:
     """Open the derived index and pull it current (incremental tail ingest)."""
-    idx = index_mod.Index()
-    try:
-        idx.tail_ingest()
-    except Exception as exc:
-        _err(f"note: tail_ingest failed ({exc}) — index may be stale")
-    return idx
+    return index_mod.open_index(warn=_err)
 
 
 def _print_json(obj) -> None:

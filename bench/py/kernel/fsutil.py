@@ -54,6 +54,9 @@ class DriftError(Exception):
 
 # --- durability ---------------------------------------------------------------
 
+#: torn-tail 愈合的倒扫块大小——lake/runs/ledger 三处 append 路径共用。
+HEAL_CHUNK = 64 * 1024
+
 
 def fsync_dir(path) -> None:
     """fsync a directory so a rename/create inside it is durable."""

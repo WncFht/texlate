@@ -46,20 +46,16 @@ import functools
 import os
 import random
 import shutil
-import sys
 from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-# src/ 不在 `bench` 入口的 sys.path 上——soak/_sabotage 同款自举；
-# TEXLATE_SRC 冻结快照语义一致（须在 texlate.* import 之前）。
-sys.path.insert(
-    0,
-    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
-)
-
 from kernel import events, fsutil, idnorm, lake
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs._sabotage import (
@@ -122,7 +118,6 @@ _HYDRATABLE = frozenset({"hydrated", "pinned", "raw_only"})
 
 #: cells 终态域——DONE ∪ KERNEL（dedup/claimed 等内核终态同算落地）。
 _TERMINAL = events.STATUS_DONE | getattr(events, "STATUS_KERNEL", frozenset())
-
 
 # ---------------------------------------------------------------- items/select
 
@@ -581,7 +576,6 @@ def _run(ctx):
 
 
 # ---------------------------------------------------------------- spec
-
 
 spec = Spec(
     kind="e2e_mock",
