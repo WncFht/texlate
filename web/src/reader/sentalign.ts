@@ -1,5 +1,5 @@
 // sentalign —— 句级双语对位（sent-align lane，v1 纯前端 B 方案）。
-// 实施文档：docs/dev/ux-impl-2026-09-22/sent-align…实施文档.md。
+// 实施文档：docs/dev/projects/ux-impl-2026-09-22/sent-align…实施文档.md。
 // 四段纯逻辑 + 一段会话，全部 jsdom 可单测：
 //   splitZh          zhseg.py 的正则臂移植（「。！？!?…+闭引号」run、ASCII '.'
 //                    过 _abbrev_dot 闸、_GUARD_RX 保护区、{} 深度>0 抑制、\\

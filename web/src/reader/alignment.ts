@@ -1,4 +1,4 @@
-// 位置模型与映射 —— docs/research/product/web-layer.md §5.3/§5.4。
+// 位置模型与映射 —— docs/research/product/2026-09-15-web-layer.md §5.3/§5.4。
 // 坐标线性化：x = Σheights[0..page-1] + share * h[page]；pairs 带 x 时
 // share=(col+fraction)/2——阅读序键 (page,col,fraction) 与坐标同构
 // （xs 单调、插值不穿栏）；全无 x 退 fraction（旧数据逐位同旧）。

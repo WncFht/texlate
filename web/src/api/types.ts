@@ -218,7 +218,7 @@ export interface TranslateOptions {
         prefer?: "reuse" | "fresh";
         /** 取源通道：eprint=LaTeX 主链（默认）| html=arXiv HTML 降级链 */
         source?: "eprint" | "html";
-        /** 完成后打包 .share.zip 社区缓存包（shared-cache.md §6 opt-in） */
+        /** 完成后打包 .share.zip 社区缓存包（2026-09-16-shared-cache.md §6 opt-in） */
         share_pack?: boolean;
         /** preamble 前置内容翻译开关（摘要/标题/作者各自独立） */
         front_matter?: {
