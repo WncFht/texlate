@@ -27,7 +27,14 @@ r"""resid — zh 树残英清扫：未进 chunk 表的英文 run → 就地翻�
   头（否则 ``\item`` 变 ``\中文`` 断命令）；span 再裁到 alnum 核心，
   边沿 ``()``/``.``/``,`` 标点留原文保配对；
 - 判据沿用 ``nets`` 门槛+豁免：≥8 词、≥40 拉丁、tech/人名/ident-list
-  三豁免；
+  三豁免；另设**短胞格档** ≥4 词、≥18 拉丁——QC 残英网按渲染行计词，
+  数据表短语行卡 nets 门槛漏收照样积成 residual_en；数字 token 过半
+  与逗号单字段全小写清单两闸防啃 cite 键串/版本串；键值型命令参数
+  （``\cite``/``\ref``/``\label``/``\url`` 族）整段预置哨兵；
+- 遮盖区是硬边界——``mask_tex`` 遮区逐位转 ``\x00`` 哨兵、env/math
+  遮区两端置哨兵：span 按原文坐标回写，遮区跨进 run 会把 ``% 注释``/
+  ``\verb``/``$..$`` 原始文本一并吃掉（v1 桥接形实测吞数学对，zh 树
+  ``$`` 计数差为普查口径）；
 - span 去重逐条翻译，``resid_v1`` role 复用段级缓存桶——续跑不
   重烧；
 - 清理闸：回译含结构符（``\{}&$%#^_~``/``[[``）或零 CJK → 弃置留
@@ -64,8 +71,13 @@ __all__ = ["DEFAULT_OPTS", "SweepOpts", "find_resid_spans", "sweep_tree"]
 
 #: span 分切字符族——cs/组/单元格/数学/注释/上下标/粘连/vert 界一律断；
 #: 单 ``\n`` 不切（散文源文常 80 列硬折行，切了碎成欠阈残段漏收），
-#: 空行级段落界由 ``_PARA_BOUND_RX`` 先行切开。
-_SPAN_DELIM_RX: Final = re.compile(r"[\\{}&$%#^_~|]")
+#: 空行级段落界由 ``_PARA_BOUND_RX`` 先行切开。``\x00`` 是遮盖区哨
+#: 兵——``mask_tex`` 遮区（注释/``\verb``/verbatim 族/死环境）逐位转哨
+#: 兵、env/math 遮区两端各置一个；否则遮盖区跨进 run 变成内部空白，
+#: 回写时把坐标内原始 ``$..$``/``\verb``/注释文本一并吃掉（1906.00256
+#: 实测胞格 ``Low-amplitude $\sim 0.05$ mag in $VRI$`` 类混排重灾区，
+#: v1 桥接形 zh 树 ``$`` 计数亏 28 实证）。
+_SPAN_DELIM_RX: Final = re.compile(r"[\\{}&$%#^_~|\x00]")
 _PARA_BOUND_RX: Final = re.compile(r"\n[ \t]*\n")
 #: 回译清理闸：span 嵌在 ``&``/``{}``/cs 邻域，回译带任一类结构符即弃。
 _ZH_BAD_RX: Final = re.compile(r"[\\{}&$%#^_~]|\[\[")
@@ -82,6 +94,27 @@ _MATH_OPEN_RX: Final = re.compile(r"(?<!\\)(\$\$|\$)|\\[\[\(]")
 #: cs 名+可选 ``*``+可选 ``[..]`` 参及后随空白，否则 ``\item`` 变 ``\中文``
 #: 断命令。``\section{题目}`` 的 cs 名片剥空自身，brace 内正文照常评。
 _CS_HEAD_RX: Final = re.compile(r"[A-Za-z@]+\*?[ \t]*(\[[^\]\n]*\])?[ \t]*")
+
+#: 短胞格档——QC 残英网按**渲染行**计词（``≥4`` 词），数据表短语行
+#: 5-8 词/20-37 拉丁虽低于 nets 门槛照样积成 residual_en（1906.00256
+#: 实测 73 行主块全是这类）。两闸防误啃：token 半数含数字拒收
+#: （``cite{a2008,b2010}`` 多键串/版本串），逗号单字段全小写清单拒收
+#: （``smith, jones, taylor`` 形 cite 键串——``PMS, CTT`` 类大写缩写表
+#: 仍放行，这类本就是 QC 想翻的对象）。
+_SPAN_MIN_WORDS_SHORT: Final = 4
+_SPAN_MIN_LATIN_SHORT: Final = 18
+_KEYLIST_MIN_SEGS: Final = 2
+_DIGIT_IN_RX: Final = re.compile(r"\d")
+
+#: 键值型命令参数整体排除——``\cite{...}``/``\ref``/``\label``/``\url``/
+#: ``\path``/``\input`` 族的括号内容是键名不是散文，tier-2 降阈后 4+ 键
+#: 串会够线被误译断引用；整段预置哨兵比分切后猜形稳。
+_KEY_ARG_RX: Final = re.compile(
+    r"\\(?:cite[A-Za-z]*|nocite|ref|eqref|pageref|autoref|[cC]ref|label|"
+    r"input|include|includegraphics|bibliography|bibliographystyle|"
+    r"addbibresource|url|path|doi)[ \t]*"
+    r"(?:\[[^\]\n]*\][ \t]*){0,2}\{[^}\n]*\}"
+)
 
 _SYS_PROMPT: Final = (
     "Translate the English text to Simplified Chinese. The text is a fragment "
@@ -193,7 +226,16 @@ def _span_ok(core: str) -> bool:
     words = _RESID_EN_WORD_RX.findall(core)
     lat = sum(1 for c in core if c.isascii() and c.isalpha())
     if len(words) < _RESID_EN_MIN_WORDS or lat < _RESID_EN_MIN_LATIN:
-        return False
+        if len(words) < _SPAN_MIN_WORDS_SHORT or lat < _SPAN_MIN_LATIN_SHORT:
+            return False
+        dig = sum(1 for w in words if _DIGIT_IN_RX.search(w))
+        if dig * 2 >= len(words):
+            return False
+        segs = [s.strip() for s in core.split(",") if s.strip()]
+        if len(segs) >= _KEYLIST_MIN_SEGS and all(
+            len(_RESID_EN_WORD_RX.findall(s)) == 1 and s.islower() for s in segs
+        ):
+            return False
     return not (_tech_run(core) or _keep_verbatim_run(core) or _ident_list_run(core))
 
 
@@ -203,10 +245,22 @@ def find_resid_spans(text: str) -> list[tuple[int, int, str]]:
     ``mask_tex`` 等长遮盖取位——span 落在原文坐标系，调用方按 ``end``
     降序回写。span 文本保留原换行（送译前折叠，回写整段替换）。
     """
-    masked = mask_tex(text)
+    base = mask_tex(text)
+    if len(base) != len(text):  # mask_tex 等长契约违约——坐标系不可用，整文弃扫
+        return []
+    # mask_tex 遮区（注释/verbatim 族/``\verb``/死环境）逐位转哨兵——span
+    # 回写按原文坐标进行，遮区一旦跨进 run，替换会把 ``% 注释``/``\verb|x|``
+    # 的原始文本一并吃掉（``\verb`` 内可见文本丢失是成品级损毁）。
+    masked = "".join("\x00" if a != b else b for a, b in zip(text, base, strict=True))
     chars = list(masked)
     for s, e in _excl_env_regions(masked) + _excl_math_regions(masked):
         chars[s:e] = [c if c in "\r\n" else " " for c in masked[s:e]]
+        if s < e:
+            chars[s] = chars[e - 1] = "\x00"
+    masked = "".join(chars)
+    for m in _KEY_ARG_RX.finditer(masked):
+        s, e = m.start(), m.end()
+        chars[s:e] = "\x00" * (e - s)
     masked = "".join(chars)
 
     spans: list[tuple[int, int, str]] = []

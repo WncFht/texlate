@@ -175,6 +175,85 @@ def test_spans_short_run_under_threshold() -> None:
     assert find_resid_spans(t) == []
 
 
+def test_spans_short_cell_tier2() -> None:
+    """短胞格档——QC 渲染行口径下的数据表短语（1906.00256 实测主块）。"""
+    short_cells = [
+        "No NIR excess, PMS in CMD and CCD",
+        "Kinematic outlier, PMS in CMD",
+        "Eclipsing feature in the phased light curve",
+        "On the CTT locus in CCD, PMS in RI CMD",
+    ]
+    for cell in short_cells:
+        t = _tab(f"A & {cell} \\\\")
+        runs = [r for _s, _e, r in find_resid_spans(t)]
+        assert runs == [cell], cell
+
+
+def test_spans_short_cell_tier2_cite_keys_rejected() -> None:
+    """键值型命令参数整段排除——``\\citep`` 键串从源头不进 run。"""
+    t = _tab("A & \\citep{smith, jones, taylor, brown} \\\\")
+    assert find_resid_spans(t) == []
+    t = _tab("A & \\citep{aa2008, bb2010, cc2015, dd2017} \\\\")
+    assert find_resid_spans(t) == []
+    t = _tab("A & \\eqref{eq:mass}, \\label{sec:obs}, \\url{https://x.y/a-b} \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_short_cell_tier2_lowercase_prose_kept() -> None:
+    """全小写真散文放行——小写闸只管逗号单字段键串形。"""
+    t = _tab("A & and even more prose here \\\\")
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["and even more prose here"]
+
+
+def test_spans_short_cell_tier2_lowercase_keylist_rejected() -> None:
+    """逗号单字段全小写清单=漏网 cite 键串形拒收（白名单外的键串兜底）。"""
+    t = _tab("A & smith, jones, taylor, brown \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_short_cell_tier2_verbatim_header_exempt() -> None:
+    """表头全大写短胞格——``_keep_verbatim_run`` 豁免照管。"""
+    t = _tab("A & ID Band MJD Mag Error \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_inline_math_boundary_not_bridged() -> None:
+    """遮盖区是硬边界——混排胞格的 span 不得吞掉原始 ``$..$`` 坐标。
+
+    ``Low-amplitude $\\sim 0.05$ mag in $VRI$`` 类：桥接形 span 回写会
+    把 ``\\sim``/``$VRI$`` 原式吃掉（成品损毁），哨兵切开后只留两侧
+    碎片（欠阈自然弃收）。
+    """
+    t = _tab(
+        "A & Low-amplitude $\\sim 0.05$ mag in $VRI$, quite long English "
+        "run after math \\\\"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["quite long English run after math"]
+
+
+def test_spans_comment_boundary_not_bridged() -> None:
+    """``%`` 注释遮区同哨兵——行尾注释坐标不进 span，``\\citep`` 类注释内件不丢。"""
+    t = "This is a sufficiently long English clause here % keep \\citep{x}\nA & ok \\\\"
+    (spans,) = find_resid_spans(_tab(t))
+    _s, _e, run = spans
+    assert run == "This is a sufficiently long English clause here"
+    assert "%" not in run
+
+
+def test_spans_verb_boundary_not_bridged() -> None:
+    r"""``\verb|x-y|`` 遮区断开——桥接回写会吃掉可见 ``x-y`` 文本。"""
+    t = _tab(
+        "A & This is a long English clause \\verb|x-y| and even more prose here \\\\"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [
+        "This is a long English clause",
+        "and even more prose here",
+    ]
+
+
 def _latin_ok(s: str) -> bool:
     lat = sum(1 for c in s if c.isascii() and c.isalpha())
     return lat >= _RESID_EN_MIN_LATIN
