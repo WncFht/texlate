@@ -140,6 +140,9 @@
     - `misc-pack 实现文档：缺 key 防护 + arXiv ID canon + lake pin + .bib 导出.md` — misc-pack 四件
     - `⌘-inspect 修饰键检视层 实现文档.md` — ⌘-Inspect（2026-09-26 增补）
     - `sel-translate 选区翻译 — 实现文档.md` — **已砍未实施**（2026-09-23 落地波裁决）
+    - `kept-refs-design.md` — misc-pack M4 设计稿：kept_refs 表 + refs.bib 双级组装（2026-09-29 自 tmp/ 归档）
+    - `fu-id-conv LaTeXML id 词表普查.md` — find-usages 证据附件：LaTeXML id 词表普查（2026-09-29 自 tmp/ 归档）
+    - `ct-card-states 状态机实证.md` — cite-translate 证据附件：卡片状态机实证（2026-09-29 自 tmp/ 归档）
 - 汇总输入：`tmp/ux-research-20260922/synth-master-inputs.json`（209 份 agent 结构化输出全集）
 - 可直接移植的 spike 代码：`exp/ss-ctxmenu/`（ContextMenu.tsx 422+ctxmenu.css 104+594 行测试）、`exp/ss-floatbar/floatbar.mjs`（305 行）、`exp/ss-cmdreg/`（253 行 +42 测试）、`exp/ss-hotkeys/keymap.js`（66 cell 全绿）、`exp/ct-toast/`（toastStore.ts+ToastHost.tsx）、`exp/fu-popover-spike/figIndex.ts`、`exp/st-modal/`（锚定 + 拖拽 26/26）、`exp/ms-urlnorm/norm_spike.py`（30 形态表 +44 对抗探针）、`exp/cl-settings-spike/`（变换矩阵 64 输出 roundtrip 全对）
 - 语料真相：真实 dual.json 在 `~/.texlate/tasks/`（repo 内无 populated 样例，align-sample 已实证）；zh-store/bench 供回测

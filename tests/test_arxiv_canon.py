@@ -1,6 +1,6 @@
 """M2 canon() 验收：30 形态表全收 + 44 对抗探针拒收面 + 壳不变式。
 
-规格 tmp/ux-research-20260922/arxiv-id-canon-spec.md + misc-pack 实现文档
+规格 docs/spec/arxiv-id-canon.md + misc-pack 实现文档
 §M2；对抗面实测表 exp/ms-urlnorm/rerun_adv.txt（6 回归形必收、8 过收形
 必拒、spoof/``..``/unicode/v0 必拒）。
 """

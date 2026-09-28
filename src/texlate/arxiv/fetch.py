@@ -141,7 +141,7 @@ _NO_HEAD: Final = HeadInfo(http_status=0, url="")
 
 
 # ---------------------------------------------------------------- canon
-# 单源归一化（规格 docs 对应 tmp/ux-research-20260922/arxiv-id-canon-spec.md）：
+# 单源归一化（契约 docs/spec/arxiv-id-canon.md）：
 # 剥离序管线化——锚定正则前缀剥（不 urlparse 任意 host，端口/双斜杠/怪
 # scheme 结构性拒收），``ar5iv.org``/``alphaxiv.org`` 走显式 host 白名单臂
 # （动词限 abs|pdf|html，须带 scheme），LANL 镜像/ADS bibcode/散文形不收。

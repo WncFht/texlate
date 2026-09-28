@@ -81,7 +81,7 @@
 **本特性对 LaTeX 翻译管线零改动**——全部走既有 `POST /api/arxiv/{id}/translate` 任务面。变更集中在「条目→id」抽取侧：
 
 1. **`extractRefIds` DOI 正则放宽**（web/src/reader/citations.ts:67）：现行要求 `doi.org/` 或 `doi:` 前缀，漏 `\doi{}`/`\mn@doi{}`/`doi={}` 裸形共 5,325 条（7.1%）；加裸 `10.\d{4,9}/\S+` 臂（条界止于 `.,;)]}` 尾）覆盖 36.3%→43.3%。
-2. **客户端 canon 归一**（新建小函数，或按 tmp/ux-research-20260922/arxiv-id-canon-spec.md 落地共享 canon）：cite 条目 arxivId 可能带 `vN`、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本+剥 class+小写化 archive。
+2. **客户端 canon 归一**（新建小函数，或按 `docs/spec/arxiv-id-canon.md` 契约落地共享 canon）：cite 条目 arxivId 可能带 `vN`、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本+剥 class+小写化 archive。
 3. **L2 反补已可用**：refs.py 的 S2 回包已带 `externalIds.ArXiv`→`meta().arxivId`（refs.py:154-155），DOI-only 条目自动升级出 arXiv 链，前端零改动。
 4. **已知数据缺口（接受，不堵）**：dual.json `ph` 仅 8/128 文档有（eprint 链主路专属）→ citeIndex 覆盖率天然受限，lazy dest 兜底条目不进 refsLookup（refMeta 只从 citeIndex.entries() 播种）——面板对该类条目显示「无可解析 id」；arxiv_html 链 `_build_dual_html` 不写 ph → dom 视图 citeIndex=0。这些是上游产物面问题，不在本特性面修。
 5. **可选**：refs.py `_MAX_REFS=400` 超限整包 400（前端 `.catch` 静默）→ 4/1228 巨型文献表文档 L2 全灭；改「截断 400 + truncated 标志」或前端分片提交。

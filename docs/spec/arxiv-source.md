@@ -50,6 +50,8 @@
 - `meta.json` 同存 `requested_id`（含用户钉版原文）与 `resolved_version`；命中缓存后 best-effort 调 `resolve_version` 比对——feed 宣告最新版 > 命中版 → 加 `stale:v{N} available` 告警，不自动升级（`fetch.py::_stale_warnings`）。
 - 用户钉 `vN` 但版本不存在 → 上游 404；版本史由 `PaperMeta.has_version`/`resolve_version` 经 Atom→OAI 链还原（§3）。
 
+> 标识符归一化（canon）剥离序管线、host 白名单臂与校验全集 → [arxiv-id-canon.md](arxiv-id-canon.md)。
+
 ### 1.4 `acquire_source` 主流程
 
 `fetch.py::acquire_source(id, fetcher, cache, offline=False)` 三段式：`_head_phase`（HEAD + etag 比对命中短路）→ `_get_phase`（GET + sniff + unpack）→ `_commit_phase`（`SourceCache.commit` 原子入库）。`offline=True` 走 `_offline_phase`——完全不触碰 fetcher：钉版精确查、未钉版取已缓存最高版，无缓存报 `error/offline_no_cache`，不静默换版本、不降级联网。结果集 `AcquireStatus`：`ok`/`cache_hit`/`not_found`/`pdf_only`/`unknown_format`/`unpack_error`/`too_large`/`parked`/`budget_exhausted`/`error`。终态条目（`pdf_only`/`unknown_format`）命中缓存时如实透传而非伪装 `cache_hit`（`_HIT_PASSTHROUGH`）；条目目录在但 meta 不可读 → `error/corrupt_cache` 待清理而非静默重下。

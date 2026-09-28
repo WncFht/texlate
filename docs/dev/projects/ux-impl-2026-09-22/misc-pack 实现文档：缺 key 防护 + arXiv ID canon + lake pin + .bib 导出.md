@@ -9,7 +9,7 @@
 | M3   | lake 格位 pin + CAS GC 接线           | ms-pin        | evict 已认 `pinned` 字段但无 pin/unpin 动词、catalog 重建丢 pin、CAS `gc_sweep` 零调用方  |
 | M4   | 参考文献 .bib 导出（+kept refs 选配） | ms-bib-export | src.tar .bib verbatim 覆盖 68.2% key，id 臂走远端 bibtex，meta 合成兜底；S2 恒 429 不进链 |
 
-证据文件：`tmp/ux-research-20260922/exp/ms-{keyless,urlnorm,pin,bib-export}/`、设计稿 `tmp/ux-research-20260922/arxiv-id-canon-spec.md` 与 `kept-refs-design.md`。
+证据文件：`tmp/ux-research-20260922/exp/ms-{keyless,urlnorm,pin,bib-export}/`、canon 契约 `docs/spec/arxiv-id-canon.md`、设计稿 `kept-refs-design.md`（本目录）。
 
 ---
 
