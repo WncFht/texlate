@@ -79,6 +79,10 @@ def _splice_copy_index(
         files = meta.get("files") or {}
         if "splice" not in files or not vault._copy_intact(meta):  # noqa: SLF001
             continue
+        # 该副本的 splice 已墓碑化（字节判失）——不参与测量竞争，否则
+        # 低 altseq 优选会把 regen 前的 pre-fix 产物当现役读（0928 实证）
+        if "splice" in (meta.get("tombstoned_kinds") or ()):
+            continue
         try:
             z = vault._norm_zone(meta.get("zone", "pending"))  # noqa: SLF001
         except ValueError:

@@ -1068,6 +1068,9 @@ def dedup_hit(idc, arm, variant) -> bool:
     for row in query(idc, arm, variant):
         if row.get("_parse_error") or row.get("verdict") not in DEDUP_VERDICTS:
             continue
+        files = row.get("files") or {}
+        if files and len(set(files) - set(row.get("tombstoned_kinds") or ())) == 0:
+            continue  # 全 kind 墓碑化的副本不抵 dedup——字节已判失，须重产
         if row["bytes_ok"]:
             return True
     return False
@@ -1694,8 +1697,11 @@ def restore(idc, arm, variant, dest, altseq=None, mode: str = "copy") -> int:
         zone = _norm_zone(meta.get("zone", "pending"))
         sid = idnorm.safe_id(idc)
         key = dir_key(arm, variant, meta.get("altseq", "0"))
+        dead = set(meta.get("tombstoned_kinds") or ())
         made = 0
         for kind in meta.get("files", {}):
+            if kind in dead:
+                continue  # 墓碑 kind 不物化——字节已判失，送出即沉默喂旧货
             src = _kind_root(zone, kind) / sid / key
             d = dest / _work_dirname(kind, arm, variant)
             if mode == "link":
@@ -1731,7 +1737,12 @@ def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
         if not _copy_intact(meta):
             continue
         files = meta.get("files")
-        coverage = -len(files) if isinstance(files, dict) else 0
+        live = (
+            len(set(files) - set(meta.get("tombstoned_kinds") or ()))
+            if isinstance(files, dict)
+            else 0
+        )
+        coverage = -live
         cands.append(
             (coverage, _copy_product_bad(meta), _ZONE_RANK.get(z, 4), key[3], meta)
         )
@@ -1774,6 +1785,21 @@ def tombstone(
                 "ts": ts,
             }
         )
+        # 墓碑是 kind 级语义但副本整体留在 primary/intact——不标记则
+        # _select_copy/dedup_hit/qc 复测仍把旧字节当现役产物读（2609-28
+        # regen 复测误读 altseq=0 实证）。给声明了该 kind 的每个副本 meta
+        # 打 tombstoned_kinds 标记：coverage/物化/dedup 全部让位活 kind。
+        for mp, mkey, mmeta in _iter_metas_for(idc):
+            if mkey is None or mmeta is None or mkey[1:3] != (arm, variant):
+                continue
+            if kind not in (mmeta.get("files") or {}):
+                continue
+            tk = mmeta.setdefault("tombstoned_kinds", [])
+            if kind not in tk:
+                tk.append(kind)
+                tk.sort()
+                mmeta["ts"] = ts
+                _write_meta(mp, mmeta)
     ev = events.make_event(
         events.T_TOMBSTONE,
         id=id or idc,
@@ -1802,6 +1828,8 @@ _REKEY_ZONES = frozenset({"primary", "alt", "pending"})
 def _kind_intact(meta: dict, kind: str) -> bool:
     """``_copy_intact`` 的单 kind 版——rekey 按 kind 子集搬, 只看目标 kind
     的声明件是否全在且 size 精确。"""
+    if kind in (meta.get("tombstoned_kinds") or ()):
+        return False
     try:
         zone = _norm_zone(meta.get("zone", "pending"))
         idc = _check_idc(meta["idc"])
