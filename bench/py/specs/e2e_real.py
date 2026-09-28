@@ -362,6 +362,7 @@ def _xlat(ctx) -> dict:
                 oversize_cap=int(ctx.params["oversize_cap"]),
                 scan_fn=_scan_tree,
                 validator=lambda s, z: validate_pair(s, z).feedback(),
+                resid_sweep=bool(ctx.params.get("resid_sweep")),
             )
         )
     except PaidEscape as e:
@@ -1000,6 +1001,8 @@ spec = Spec(
         # \pdfsavepos 版面真值注入（compile/marks.py）——bench 默认开，
         # 开销 <1%；zh 臂走 prepare_chinese kwarg，en 臂走 _base 直注
         "marks": Param(bool, default=True, fp=True),
+        # 保护区体残英清扫（xlat.resid）——真臂无 seg-cache，span 不缓存
+        "resid_sweep": Param(bool, default=False, fp=True),
     },
     items=_items,
     select=_select,

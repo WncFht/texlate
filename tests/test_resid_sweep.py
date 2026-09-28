@@ -1,0 +1,307 @@
+"""tests/test_resid_sweep.py — ``xlat.resid`` zh 树残英清扫的出货闸件。
+
+覆盖三面：
+
+- ``find_resid_spans`` 抽取面：tabular 胞格/顶层散文/include 盲区文件
+  内正文、括号内联、空行分段、80 列折行整段；豁免面 math 域/文献体/
+  verbatim 族/注释/tech/人名/ident-list；
+- ``_clean_zh`` 清理闸：零 CJK/结构符回译弃置；
+- ``sweep_tree`` 端到端：就地回写保结构件、跨文件去重一次烧、缓存命中
+  免烧、败者留英文不毁树。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import re
+from typing import TYPE_CHECKING
+
+import pytest
+
+from texlate.textutil.nets import _RESID_EN_MIN_LATIN
+from texlate.xlat.resid import (
+    _CACHE_ROLE,
+    _clean_zh,
+    find_resid_spans,
+    sweep_tree,
+)
+from texlate.xlat.state import segment_key
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+_EN = "This is a sufficiently long English sentence inside the table cell"
+_EN2 = "Another distinct English run that also lives inside the float body"
+
+
+def _tab(inner: str) -> str:
+    return (
+        "\\begin{table}\n\\centering\n\\begin{tabular}{ll}\n"
+        f"{inner}\n\\end{{tabular}}\n\\end{{table}}\n"
+    )
+
+
+def test_spans_tabular_cell() -> None:
+    t = _tab(f"Foo & {_EN} \\\\")
+    (spans,) = find_resid_spans(t)
+    start, end, run = spans
+    assert run == _EN
+    assert t[start:end] == _EN
+
+
+def test_spans_nested_env_inner_cells() -> None:
+    t = _tab(f"A & {_EN} \\\\\nB & {_EN2} \\\\")
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN, _EN2]
+
+
+def test_spans_toplevel_prose() -> None:
+    """resolver 盲 include 文件的顶层散文——残英第三形态的正主。"""
+    t = f"\\section{{Merkle Tree}}\\label{{sec::mt}}\n\n{_EN}\n\n{_EN2}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN, _EN2]
+
+
+def test_spans_brace_interior() -> None:
+    t = _tab(f"\\multicolumn{{2}}{{c}}{{{_EN}}} \\\\")
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN]
+
+
+def test_spans_itemize_body() -> None:
+    t = f"\\begin{{itemize}}\n\\item {_EN}\n\\end{{itemize}}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN]
+
+
+def test_spans_comment_masked() -> None:
+    t = _tab(f"% {_EN}\nA & ok \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_verbatim_env_masked() -> None:
+    t = (
+        "\\begin{verbatim}\n"
+        "This English code comment must never be translated at all ever.\n"
+        "\\end{verbatim}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_inline_verb_masked() -> None:
+    t = f"正文 \\verb|{_EN}| 已译。\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_bibliography_excluded() -> None:
+    t = (
+        "\\begin{thebibliography}{9}\n"
+        "\\bibitem{x} A. Author, This is a very long English title that must "
+        "stay English forever.\n"
+        "\\end{thebibliography}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_unclosed_bib_to_eof() -> None:
+    t = f"\\begin{{thebibliography}}{{9}}\n\\bibitem{{x}} {_EN}\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_math_env_excluded() -> None:
+    t = (
+        "\\begin{equation}\n"
+        "x = \\text{a very long English clause living inside math mode here}\n"
+        "\\end{equation}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_inline_math_excluded() -> None:
+    t = (
+        "where $\\sigma \\text{ denotes a quite long English explanation here }$ "
+        "and $x$ 已译。\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_display_math_excluded() -> None:
+    t = "\\[ y = \\text{another long English clause inside display math mode} \\]\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_tech_run_exempt() -> None:
+    tech = "scipy.optimize.minimize(method='bfgs') returns res.x[0] = 1.5e-4"
+    assert _latin_ok(tech)
+    t = _tab(f"A & {tech} \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_name_list_exempt() -> None:
+    names = "John von Neumann, Alan Turing, Claude Shannon, Donald Knuth"
+    t = _tab(f"A & {names} \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_ident_list_exempt() -> None:
+    ids = "atexit, builtins, functools, itertools, operator, signal, sys"
+    t = _tab(f"A & {ids} \\\\")
+    assert find_resid_spans(t) == []
+
+
+def test_spans_para_boundary_splits() -> None:
+    body = f"\\parbox{{5cm}}{{{_EN}\n\n{_EN2}}}"
+    t = _tab(f"A & {body} \\\\")
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN, _EN2]
+
+
+def test_spans_wrapped_line_kept_whole() -> None:
+    wrapped = "This is a long wrapped sentence that continues\non the next line inside the same cell"
+    t = _tab(f"A & {wrapped} \\\\")
+    (spans,) = find_resid_spans(t)
+    assert spans[2] == wrapped
+
+
+def test_spans_unclosed_nonexcl_env_scans() -> None:
+    """未闭合的非排除 env——体文照常扫描（tabular 不在排除名单）。"""
+    t = f"\\begin{{tabular}}{{l}}\n{_EN}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == [_EN]
+
+
+def test_spans_short_run_under_threshold() -> None:
+    t = _tab("A & short en text \\\\")
+    assert find_resid_spans(t) == []
+
+
+def _latin_ok(s: str) -> bool:
+    lat = sum(1 for c in s if c.isascii() and c.isalpha())
+    return lat >= _RESID_EN_MIN_LATIN
+
+
+def test_clean_zh_gates() -> None:
+    assert _clean_zh("  你好，世界  ") == "你好，世界"
+    assert _clean_zh("pure english no cjk") is None
+    assert _clean_zh("中文带{结构}符") is None
+    assert _clean_zh("中文夹[[PH_1]]占位") is None
+    assert _clean_zh("中文带\\cmd 命令") is None
+    assert _clean_zh("") is None
+
+
+class _MapTranslator:
+    """查表型 translator——miss 记 None 形，raise_map 注入败者臂。"""
+
+    def __init__(self, table: dict[str, str], raise_on: set[str] | None = None) -> None:
+        self.table = table
+        self.raise_on = raise_on or set()
+        self.calls: list[str] = []
+
+    async def translate(
+        self,
+        *,
+        system: str,  # noqa: ARG002 -- 协议形参伪件不消费
+        user: str,
+        temperature: float,  # noqa: ARG002 -- 协议形参伪件不消费
+        max_tokens: int,  # noqa: ARG002 -- 协议形参伪件不消费
+    ) -> str:
+        self.calls.append(user)
+        if user in self.raise_on:
+            msg = f"boom:{user[:20]}"
+            raise RuntimeError(msg)
+        return self.table.get(user, "未映射兜底译文")
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", s)
+
+
+def test_sweep_rewrites_in_place(tmp_path: Path) -> None:
+    tex = tmp_path / "main.tex"
+    tex.write_text(_tab(f"Foo & {_EN} \\\\"), encoding="utf-8")
+    tr = _MapTranslator({_norm(_EN): "这是一段足够长的中文译文占位"})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    out = tex.read_text(encoding="utf-8")
+    assert "这是一段足够长的中文译文占位" in out
+    assert "Foo &" in out
+    assert "\\\\" in out
+    assert "\\begin{tabular}" in out
+    assert _EN not in out
+    assert m["replaced"] == 1
+    assert m["calls"] == 1
+
+
+def test_sweep_dedup_across_files(tmp_path: Path) -> None:
+    for name in ("a.tex", "b.tex"):
+        (tmp_path / name).write_text(_tab(f"A & {_EN} \\\\"), encoding="utf-8")
+    tr = _MapTranslator({_norm(_EN): "同一句中文译文"})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    two = 2
+    assert m["uniq"] == 1
+    assert m["calls"] == 1
+    assert m["replaced"] == two
+    assert len(tr.calls) == 1
+
+
+def test_sweep_zero_cjk_rejected(tmp_path: Path) -> None:
+    tex = tmp_path / "m.tex"
+    raw = _tab(f"A & {_EN} \\\\")
+    tex.write_text(raw, encoding="utf-8")
+    tr = _MapTranslator({_norm(_EN): "still english output"})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    assert m["kept_en"] == 1
+    assert tex.read_text(encoding="utf-8") == raw
+
+
+def test_sweep_structchar_rejected(tmp_path: Path) -> None:
+    tex = tmp_path / "m.tex"
+    raw = _tab(f"A & {_EN} \\\\")
+    tex.write_text(raw, encoding="utf-8")
+    tr = _MapTranslator({_norm(_EN): "译文带{花括号}"})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    assert m["kept_en"] == 1
+    assert tex.read_text(encoding="utf-8") == raw
+
+
+def test_sweep_translator_error_kept(tmp_path: Path) -> None:
+    tex = tmp_path / "m.tex"
+    raw = _tab(f"A & {_EN} \\\\")
+    tex.write_text(raw, encoding="utf-8")
+    tr = _MapTranslator({}, raise_on={_norm(_EN)})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    assert m["kept_en"] == 1
+    assert tex.read_text(encoding="utf-8") == raw
+
+
+def test_sweep_cache_hit_skips_call(tmp_path: Path) -> None:
+    tex = tmp_path / "m.tex"
+    tex.write_text(_tab(f"A & {_EN} \\\\"), encoding="utf-8")
+    key = segment_key(_EN, _CACHE_ROLE)
+    cache = {key: "缓存里的中文译文"}
+    tr = _MapTranslator({})
+    m = asyncio.run(sweep_tree(tmp_path, tr, cache=cache))
+    assert m["cache_hits"] == 1
+    assert m["calls"] == 0
+    assert tr.calls == []
+    assert "缓存里的中文译文" in tex.read_text(encoding="utf-8")
+
+
+def test_sweep_cache_store_on_miss(tmp_path: Path) -> None:
+    (tmp_path / "m.tex").write_text(_tab(f"A & {_EN} \\\\"), encoding="utf-8")
+    cache: dict = {}
+    tr = _MapTranslator({_norm(_EN): "新译中文"})
+    asyncio.run(sweep_tree(tmp_path, tr, cache=cache))
+    assert segment_key(_EN, _CACHE_ROLE) in cache
+
+
+def test_sweep_empty_tree(tmp_path: Path) -> None:
+    (tmp_path / "m.tex").write_text("全中文无保护区。\n", encoding="utf-8")
+    tr = _MapTranslator({})
+    m = asyncio.run(sweep_tree(tmp_path, tr))
+    assert m["files"] == 0
+    assert m["spans"] == 0
+    assert tr.calls == []
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-q"]))

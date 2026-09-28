@@ -18,6 +18,8 @@ from texlate.pipecore import delivered
 from texlate.pipecore import scan_tree as _scan_tree
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.pipeline import PipelineConfig, XlatPipeline
+from texlate.xlat.resid import SweepOpts
+from texlate.xlat.resid import sweep_tree as _resid_sweep_tree
 from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
@@ -37,6 +39,7 @@ async def translate_tree_async(
     validator: Callable | None = None,
     post_run: Callable | None = None,
     cache: dict | None = None,
+    resid_sweep: bool = False,
 ) -> tuple[dict, list]:
     """bench 两臂共享的 async 翻译编排体——``benchlib.translate_tree_async`` 候升位。
 
@@ -60,6 +63,13 @@ async def translate_tree_async(
     - 畸形 ``chunk_id`` 守备解析记 fault+bad_chunk_id 不炸整篇——
       续跑腐记录/translator 违约向量下比对拍裸解更稳（e2e_real 裸解形
       是已漂移副本，勿回抄）。
+    - ``resid_sweep``：splice 写回后对 ``root`` 全部 ``.tex`` 跑保护区体
+      残英清扫（``xlat.resid.sweep_tree``）——保护区体文不进 chunk 表
+      （segmenter ``MINED_ONLY`` 口径），胞格散文/浮体说明永远留英，
+      rexlat 结构性救不回；清扫在 root 全 ``.tex`` 面扫而非仅触块文件，
+      覆盖零 chunk 的纯表 appendix。metrics 落 ``stats_d["resid_sweep"]``。
+      复用同一 ``cache`` 桶（``resid_v1`` role 入键——span 缓存与
+      chunk 缓存同桶不同名域），付费口径随调用方。
     """
     scans, chunks, fault_files, support_files = (scan_fn or _scan_tree)(root)
     total_chars = sum(len(c.content) for c in chunks)
@@ -145,6 +155,18 @@ async def translate_tree_async(
         f.write_text(zh, encoding="utf-8")
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
+    resid_m: dict | None = None
+    if resid_sweep:
+        resid_m = await _resid_sweep_tree(
+            root,
+            translator,
+            SweepOpts(
+                concurrency=cfg.concurrency,
+                temperature=cfg.temperature,
+                max_tokens=cfg.max_tokens,
+            ),
+            cache=cache,
+        )
     stats_d = {
         "files": n_files,
         "chunks": len(chunks),
@@ -161,4 +183,6 @@ async def translate_tree_async(
         # AuthTrippedError 即停，本键兜篇均不足阈值块的慢速失血）。
         "auth_all_failed": pipe.auth_gate.all_failed,
     }
+    if resid_m is not None:
+        stats_d["resid_sweep"] = resid_m
     return stats_d, results

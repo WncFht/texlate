@@ -652,6 +652,7 @@ def _xlat(ctx) -> dict:
                 validator=lambda s, z: validate_pair(s, z).feedback(),
                 post_run=_post_run,
                 cache=seg,
+                resid_sweep=bool(ctx.params.get("resid_sweep")),
             )
         )
     except PaidEscape as e:
@@ -1072,6 +1073,7 @@ spec = Spec(
         "model": Param(str, default=DEFAULT_MODEL, fp=True),
         "llm": Param(bool, default=False, fp=True),
         "no_probe": Param(bool, default=False, fp=False),
+        "resid_sweep": Param(bool, default=False, fp=True),
     },
     items=_items,
     select=_select,
