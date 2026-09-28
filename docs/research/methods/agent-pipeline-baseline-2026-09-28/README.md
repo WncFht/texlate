@@ -213,13 +213,15 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 1. **token 经济性**：texlate 毛输入仅 agent 的 1/5.6、新输入剔除病理后更低——分段批翻 + 单轮请求 + 稳定 system prompt 前缀是结构性优势；agent 的逐轮全量重发靠 ~91% 缓存命中续命，命中折价但不免费，且把计费暴露在驱逐抽签之下。
 2. **texlate 输入大头是 v4 病理**：ph→ph 恒等注入把 doc 级常数烙进每请求 prompt，又在并发波里以 ~46% 全价率反复重发（19506 新输入 95.6% 即此）。v5 manifest 名单行把该常数压成单行点名册（单批实测 119,802→4,408 in-tok，−96.3%），且点名册本身仍是稳定前缀、可继续吃缓存。
 3. **交付保证**：agent 必出 PDF 但时长/输出通胀、长文有 ngram 退化；texlate 有 partial/fault 终态但已交付部分闸值干净。
-4. **v5 对照臂**：同 10 篇、`xlat-prompt-v5`、`prefer=fresh` 重跑 texlate 臂 → 三臂图（agent / v4 / v5）+ 逐篇 prompt_tokens 瀑布；`tools/arms_tokens.py --arms <v5窗>` 复算。预期形态：19506 的 in_max 从 ~122k 回落到 <10k、in_p50 不再与 cr_max 同阶。
+4. **v5 常数实测**（真函数 `collect_doc_placeholders`+`render_placeholder_manifest` 在本批任务 chunks 上直接算得，无 LLM）：十篇 manifest 106–3,686 字符——ph 重头篇全走退化 `TYPE×n` 形（19506 仅 **110 字符** ≈ ~50 tok，20533 113c、20739 106c），稀疏编号篇仍走连续段枚举（19929 3,210c、20581 3,686c 贴 4kc 上限）。v5 system 常数推 ≈0.6–9.6k vs v4 0.27–115k；同 miss 谱推算 v5 新输入 ≈**1.52M**（v4 的 25%、agent 的 32%、自身载荷 0.90M 的 1.7×）——见 [三臂对比图](charts/arms-v5-projection.png)。
+5. **v5 对照臂**：同 10 篇、`xlat-prompt-v5`、`prefer=fresh` 重跑 texlate 臂 → 三臂图（agent / v4 / v5）+ 逐篇 prompt_tokens 瀑布；`tools/arms_tokens.py --arms <v5窗>` 复算。预期形态：19506 的 in_max 从 ~122k 回落到 <10k、in_p50 不再与 cr_max 同阶。
 
 ## 8. 图
 
 ![逐篇毛输入 grouped bar（log）](charts/baseline-input-tokens.png)
 ![输出 token + 请求数](charts/baseline-output-calls.png)
 ![残英 eff/unreached 行数](charts/baseline-quality.png)
+![三臂新输入 + system 常数（v4/v5̂/agent）](charts/arms-v5-projection.png)
 
 ## 9. 数据源与复算
 
