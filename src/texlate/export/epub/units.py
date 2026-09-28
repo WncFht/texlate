@@ -8,10 +8,10 @@ hidden）与行内 marker 候选判定全在本叶。
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from bs4 import BeautifulSoup, NavigableString, Tag
-from lxml import etree
+from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
+from lxml import etree  # ty: ignore[unresolved-import]  # 编译扩展无 stub，同 docx.py
 
 from texlate.export.common import MalformedEpubError
 from texlate.export.filters import (
@@ -60,14 +60,14 @@ def _inline_hidden(element: Tag) -> bool:
     if element.has_attr("hidden"):
         return True
     style = element.get("style")
-    if style:
+    if isinstance(style, str) and style:
         m = CSS_DISPLAY_RE.search(style)
         return bool(m and m.group(1).lower() == "none")
     return False
 
 
 def _ancestor_skip_reason(  # noqa: C901, PLR0911 -- 祖先链逐条短路即 bbm skip 判定表，return 数就是规则数
-    node: Tag, exclude_tags: Iterable[str]
+    node: PageElement, exclude_tags: Iterable[str]
 ) -> str | None:
     """文本节点的跳过理由；``None`` = 可翻译。"""
     hidden = False
@@ -80,7 +80,7 @@ def _ancestor_skip_reason(  # noqa: C901, PLR0911 -- 祖先链逐条短路即 bb
             return "ruby"
         if name in exclude_tags:
             return "excluded-tag"
-        epub_type = ancestor.get("epub:type") or ""
+        epub_type = cast("str", ancestor.get("epub:type") or "")
         if "pagebreak" in epub_type or "page-list" in epub_type:
             return "pagebreak"
         role = ancestor.get("role") or ""
@@ -97,7 +97,7 @@ def _ancestor_skip_reason(  # noqa: C901, PLR0911 -- 祖先链逐条短路即 bb
     return None
 
 
-def _nearest_block(node: Tag) -> Tag | None:
+def _nearest_block(node: PageElement) -> Tag | None:
     """最近的 block 祖先（owner 判定的唯一事实源）。"""
     for ancestor in node.parents:
         if ancestor.name in BLOCK_TAGS:
@@ -105,7 +105,7 @@ def _nearest_block(node: Tag) -> Tag | None:
     return None
 
 
-def _renders_between(node: Tag, owner: Tag) -> bool:
+def _renders_between(node: PageElement, owner: Tag) -> bool:
     """保留但未拥有的文本是否真的渲染在两个 run 之间。
 
     隐藏文本与 ruby 注音留在 DOM 却不分隔两侧文字（注音渲染在基字*上方*），
@@ -284,7 +284,7 @@ def _runs_for_owner(  # noqa: C901 -- 事件流→run 的 case 分派，拆分�
         if kind == "marker":
             sentinel = f"{seq}"
             seq += 1
-            sentinels.append((sentinel, node))
+            sentinels.append((sentinel, cast("Tag", node)))
             parts.append(sentinel)
             continue
         # owned / glue 文本片段——glue 只在 run 已开时才带词间空白

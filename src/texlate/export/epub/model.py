@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from bs4 import BeautifulSoup, Tag
-    from lxml.etree import _Element
+    from lxml.etree import _Element  # ty: ignore[unresolved-import]  # 编译扩展无 stub
 
 
 @dataclass

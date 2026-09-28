@@ -36,15 +36,13 @@ texlate = "texlate.cli:app"
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
-# typecheck 棘轮：exclude 列出的是存量诊断待清面（2026-09-28 测量
-# 1691 诊断 / 94 文件——segmenter token 动态属性与 server/worker
-# 鸭子类型占大头）。未列文件=0 诊断基线，CI `uvx ty@0.0.82 check src`
-# 钉死（tools/tests/bench 属脚本类不在闸径）；修干净一个就从列表删
-# 一行，归零后摘整个 section。
+# typecheck 棘轮：exclude 列出的是存量诊断待清面。2026-09-28 首波已清
+# 62 文件 / 1080 诊断（segmenter+gullet+export+compile 大半面），剩 27 行
+# 全是另一会话在飞区（server/cli/fixloop-actions/pipecore/repair/share/
+# l2/pipeline），归其收口时逐件清。未列文件=0 诊断基线，CI
+# `uvx ty@0.0.82 check src` 钉死（tools/tests/bench 属脚本类不在闸径）。
 [tool.ty.src]
 exclude = [
-  # 整目录脏（epub 子包未在首波 eligible 名单，单独清）
-  "src/texlate/export/epub/**",
   # 散点文件（按路径序）——均在另一会话在飞区，归其收口时清
   "src/texlate/cli/_common.py",
   "src/texlate/cli/share.py",

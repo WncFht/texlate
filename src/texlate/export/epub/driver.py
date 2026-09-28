@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lxml import etree
+from lxml import etree  # ty: ignore[unresolved-import]  # 编译扩展无 stub，同 docx.py
 
 from texlate.export.common import (
     ApplyCounts,

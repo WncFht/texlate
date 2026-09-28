@@ -11,6 +11,7 @@ import re
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import (
+    AttributeValueList,
     CData,
     Comment,
     Declaration,
@@ -113,7 +114,7 @@ def _sanitize_tag(tag: Tag) -> None:
         for key in tag.attrs
         if key.startswith("xmlns:") and _is_xml_ncname(key[len("xmlns:") :])
     }
-    new_attrs: dict[str, object] = {}
+    new_attrs: dict[str, str | AttributeValueList] = {}
     for key, val in tag.attrs.items():
         if key == "xmlns":
             clean_key = key  # 默认命名空间声明自身即绑定源，原样保留

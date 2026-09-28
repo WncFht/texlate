@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 
 from texlate.export.common import STUB_ONLY_RE
 from texlate.export.filters import sanitize_xml_text
@@ -14,6 +14,8 @@ from texlate.export.markers import marker_report, reconcile_markers, split_on_ma
 from .tags import BLOCK_TAGS, SINGLETON_TAGS
 
 if TYPE_CHECKING:
+    from bs4.element import AttributeValueList
+
     from .model import Unit
 
 
@@ -62,7 +64,7 @@ def _stamp_translation(span: Tag, source: Tag, language: str) -> Tag:
     cls = list(span.get("class") or [])
     if "texlate-zh" not in cls:
         cls.append("texlate-zh")
-    span["class"] = cls
+    span["class"] = cast("AttributeValueList", cls)
     for attr in _LANG_ATTRS:
         if language and attr in source.attrs:
             span[attr] = language
@@ -85,9 +87,9 @@ def _append_inline_translation(
     return span
 
 
-def _inline_subtree_root(node: Tag, owner: Tag) -> object:
+def _inline_subtree_root(node: PageElement, owner: Tag) -> PageElement:
     """文本节点最外层行内祖先（block 之下）——锚定插译的落点标记。"""
-    root: object = node
+    root: PageElement = node
     for ancestor in node.parents:
         if ancestor is owner or ancestor.name in BLOCK_TAGS:
             break
@@ -112,7 +114,9 @@ def _insert_anchored_translation(
     language: str,
 ) -> Tag:
     """多 run owner 的锚定插译：译文跟在 run 末尾节点之后。"""
-    tail = _inline_subtree_root(unit.run_nodes[-1], unit.owner)
+    owner = cast("Tag", unit.owner)
+    soup = cast("BeautifulSoup", unit.soup)
+    tail = _inline_subtree_root(unit.run_nodes[-1], owner)
     owned = {id(n) for n in unit.run_nodes}
     if (
         isinstance(tail, Tag)
@@ -123,12 +127,12 @@ def _insert_anchored_translation(
         span.clear()
         _restamp_language(span, language)
         _strip_duplicate_ids(span)
-        _stamp_translation(span, unit.owner, language)
+        _stamp_translation(span, owner, language)
     else:
-        span = unit.soup.new_tag("span")
-        _stamp_translation(span, unit.owner, language)
+        span = soup.new_tag("span")
+        _stamp_translation(span, owner, language)
     span.string = text
-    line_break = unit.soup.new_tag("br")
+    line_break = soup.new_tag("br")
     tail.insert_after(line_break)
     line_break.insert_after(span)
     return span
@@ -140,7 +144,7 @@ def _insert_clone_translation(
     language: str,
 ) -> Tag | None:
     """常规路径：克隆 owner → 摊平成译文纯文本 → strip id → 插到原文后。"""
-    owner = unit.owner
+    owner = cast("Tag", unit.owner)
     new_p = copy(owner)
     new_p.clear()
     new_p.string = text
@@ -167,7 +171,7 @@ def _restore_markers(unit: Unit, inserted: Tag) -> None:
         raw = str(text_node)
         if not any(token in raw for token in tokens):
             continue
-        pieces: list[object] = []
+        pieces: list[PageElement] = []
         for kind, value in split_on_markers(raw, tokens):
             if kind == "text":
                 pieces.append(NavigableString(value))
@@ -199,7 +203,8 @@ def _insert_dom(unit: Unit, zh: str, language: str) -> str | None:
         return warn
     if not zh.strip() or STUB_ONLY_RE.fullmatch(zh):
         return warn  # 空译文/纯 ``[n]`` 序号桩——插出去只是空壳或线渣
-    owner = unit.owner
+    owner = cast("Tag", unit.owner)
+    soup = cast("BeautifulSoup", unit.soup)
     if zh.strip() == unit.text.strip():
         return warn  # 译文=原文（echo/回退）——插入只会制造同文重复
     # 无 <body> 的畸形文档里 owner 退到 <html> 乃至文档根：克隆会在根部造出
@@ -217,7 +222,7 @@ def _insert_dom(unit: Unit, zh: str, language: str) -> str | None:
         or owner.name == "nav"  # 克隆会把 epub:type 复制成第二个 landmark
         or owner.find_parent("nav") is not None
     ):
-        inserted = _append_inline_translation(unit.soup, owner, zh, language)
+        inserted = _append_inline_translation(soup, owner, zh, language)
     elif unit.is_multi_run or owner.name == "body" or root_owner:
         inserted = _insert_anchored_translation(unit, zh, language)
         if root_owner:
