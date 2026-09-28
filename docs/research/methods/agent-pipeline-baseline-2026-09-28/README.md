@@ -56,7 +56,7 @@
 
 读法：
 
-- **新输入**两臂同量级——但 texlate 的 5.98M 里约 4.08M 是 19506 一篇 ph 表全量重发（占该篇新输入 95.6%）；剔除病态篇后 texlate 实质新输入约 1.9M，**agent 新输入约为其 2.5×**。
+- **新输入**两臂同量级——但 texlate 的 5.98M 里约 4.08M 是 19506 一篇 ph 表全量重发（占该篇新输入 95.6%）；剔除病态篇后 texlate 实质新输入约 1.9M，**agent 新输入约为其 2.5×**；进一步拆到「有效载荷 vs 重发虚耗」后 texlate 载荷仅 ~0.9M vs agent ~3.3M（§4.4）。
 - **毛输入** agent 54.9M 是 texlate 9.75M 的 5.6×——agent 靠约 91% cache_read 命中循环整篇上下文；texlate 分段批翻天然低重发。
 - **输出** agent 约 2×——迭代编译修复 + 自由式行文产生更多非译文 token（工具调用、自述、重试）。
 
@@ -133,6 +133,24 @@ B 与 H **全程交错**——不是「首次写缓存、其后全命中」的�
 
 读法：`cr_max` 与文档 ph/术语体量同阶（19330 仅 272 → 19506 达 115,200）——v4 把 doc_ph 量级直接烙进了每次请求的 prompt 体积；命中率整体仅 ~24%（71/294），且越大表越吃亏（20533/19929/20739/20581 的 in_p50 ≈ 其 cr_max 量级 = 常态全量自费）。20610 全篇零命中。
 
+### 4.4 新输入构成总账：为什么 texlate 总量略高
+
+把两臂新输入各拆成「有效载荷」与「重发虚耗」两块（miss 判定 = `cache_read==0`；texlate system 规模取该篇 `cr_max` 观测值）：
+
+| 臂         | 新输入合计 |                 有效载荷 |                                          重发虚耗 | 虚耗占比 |
+| ---------- | ---------: | -----------------------: | ------------------------------------------------: | -------: |
+| texlate v4 |  5,981,717 |  源文 user ≈ **902,843** | system 重发 ≈ 5,078,874（19506 一篇占 3,919,040） |  **85%** |
+| agent      |  4,748,872 | 逐轮增量 ≈ **3,298,789** |  全量重发 ≈ 1,450,083（62 次 cr=0 事件/893 调用） |      31% |
+
+读法：
+
+- **有效载荷面 agent 是 texlate 的 ~3.7×**——agent 每轮新增（工具回显+新译文+指令回执）累计 3.3M；texlate 真正必须新发的只有批请求的 user 源文 0.9M（理想缓存下 texlate 新输入上限就是 ~0.9M）。
+- **texlate 总量反超只因虚耗更大**：v4 ph 表把 system 撑到 3k~115k/篇，而并发批下 ~76% 调用 miss（223/294），每波次几乎逐调用全价重付；agent 重发只发生在缓存失守/compaction 点（7% 调用），单次 ~10–70k。
+- **重发形态也不同**：texlate miss 与 hit 全程交错（并发抽签），agent 重发成簇（19506 的 #42–55 连续 14 次 ~20k 冷缓存带 + compaction 后 28–70k 单次回放）。
+- **`cr=272` 是跨文档公共前言之底**：大量 miss 调用仍拿到 272 tok 的部分命中——各篇 system 头部（任务句+条款起首）逐字节一致，互相给对方攒了缓存；分歧点即 `<Glossary>` 块开始处。
+
+即：**texlate 的新输入更高不是结构劣势，是 v4 病理 + 并发抽签的合成事故**；v5 把 system 常数压到单行点名册后，同样 76% miss 率的代价只剩每波次小几千。
+
 ## 5. 时效（submit→terminal，秒）
 
 | 论文       | agent | texlate |     | 论文       | agent | texlate |
@@ -177,9 +195,9 @@ B 与 H **全程交错**——不是「首次写缓存、其后全命中」的�
 
 ## 8. 图
 
-- [逐篇毛输入 grouped bar（log）](charts/baseline-input-tokens.png)
-- [输出 token + 请求数](charts/baseline-output-calls.png)
-- [残英 eff/unreached 行数](charts/baseline-quality.png)
+![逐篇毛输入 grouped bar（log）](charts/baseline-input-tokens.png)
+![输出 token + 请求数](charts/baseline-output-calls.png)
+![残英 eff/unreached 行数](charts/baseline-quality.png)
 
 ## 9. 数据源与复算
 
