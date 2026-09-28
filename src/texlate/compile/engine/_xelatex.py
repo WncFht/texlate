@@ -29,6 +29,7 @@ from texlate.compile.sandbox import (
     _texmfdist,
     child_env,
 )
+from texlate.texlog import log_text_of
 from texlate.textutil import env_raw, safe_is_file
 from texlate.textutil.osutil import ENV_TLNET
 
@@ -46,12 +47,17 @@ log = logging.getLogger(__name__)
 MAX_PASSES = 2
 
 #: 续趟判据（B14 fix#7 rerun-gate）：逐趟 stdout 匹配——命中即 LaTeX 自报
-#: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音），也不收
-#: biber 系请求——citation 缺件由 ``_bib_pass`` 按文件态（.bcf/.aux）
-#: 补趟处理，log 串探测在截断 log 上不可靠（lane-bibpass 设计取舍）。
+#: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音）。
+#: qc-impl 扩臂 (fp resolve-pass): ``(citation|reference)...undefined``
+#: 与 ``Please (re)run Biber/BibTeX`` 入面——0806.3788 型 bib 内 brace
+#: 错吞掉 Rerun 尾标时 citation undefined 是唯一存活签名; biber/bibtex
+#: 请求行同理要续趟吸收 (bib 趟由 ``_bib_pass`` 文件态承, 本行只管
+#: "再给一趟 tex" 的自适应信号)。
 _RERUN_HINT_RX: Final = re.compile(
     r"rerun to get|label\(s\) may have changed|there were undefined references"
-    r"|table widths have changed",
+    r"|table widths have changed"
+    r"|(?:citation|reference)s?\b[^\n]*?undefined"
+    r"|please \(re\)run\s+(?:biber|bibtex)",
     re.IGNORECASE,
 )
 
@@ -83,6 +89,27 @@ _BIB_TOOL_TIMEOUT_MAX: Final = 60.0
 _BBL_TAIL_RX: Final = re.compile(rb"\\end\{thebibliography\}|\\endinput")
 _BBL_TAIL_BYTES: Final = 4096
 
+#: ``.bcf`` 完整性门 (qc-impl fp bbl_backup): 尾标 ``</bcf:controlfile>``
+#: 缺席即截断件——kill 撞档残留喂 biber 会触发其 "malformed → Deleted"
+#: 自毁路径删掉在席好 .bbl (1706.00240 实证), 宁缺不跑。
+_BCF_TAIL_RX: Final = re.compile(rb"</bcf:controlfile\s*>")
+_BCF_TAIL_BYTES: Final = 8192
+_BCF_MIN_BYTES: Final = 200
+
+#: aux 引用记录键面——``\citation{keys}`` (classic) 与
+#: ``\abx@aux@cite{<refsection>}{key}`` (biblatex, 首参为段号) 同收。
+_AUX_CITE_RX: Final = re.compile(
+    r"\\(?:citation|abx@aux@cite(?:\{[^}]*\})?)\{([^}]*)\}"
+)
+#: bbl 键面——``\bibitem[..]{key}`` (classic) 与 ``\entry{key}{..}``
+#: (biblatex) 同收; 覆盖度复核的"已供键"面。
+_BBL_KEY_RX: Final = re.compile(
+    r"\\(?:bibitem(?:\[[^\]]*\])?|entry)\{([^}]*)\}"
+)
+#: ``\bibdata{name[,name2]}``——bibdata 可解性判 (无 .bib → bibtex 必败,
+#: 让位异名收编臂)。
+_BIBDATA_RX: Final = re.compile(r"\\bibdata\{([^}]*)\}")
+
 
 def _has_bbl(bbl: Path) -> bool:
     """同侪 ``.bbl`` 在席判据——空文件视同缺席（无物可失），查不了态按在席。
@@ -107,6 +134,76 @@ def _bbl_complete(bbl: Path) -> bool:
     except OSError:
         return False
     return _BBL_TAIL_RX.search(tail) is not None
+
+
+def _bcf_intact(bcf: Path) -> bool:
+    """``.bcf`` 完整性判: 尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
+    try:
+        data = bcf.read_bytes()
+    except OSError:
+        return False
+    if len(data) < _BCF_MIN_BYTES:
+        return False
+    return _BCF_TAIL_RX.search(data[-_BCF_TAIL_BYTES:]) is not None
+
+
+def _aux_cite_keys(text: str) -> set[str]:
+    r"""Aux 文本 → 引用键集 (``\\citation``/``\\abx@aux@cite`` 双签名)。"""
+    keys: set[str] = set()
+    for m in _AUX_CITE_RX.finditer(text):
+        keys.update(k.strip() for k in m.group(1).split(",") if k.strip())
+    return keys
+
+
+def _bbl_keys(bbl: Path) -> set[str]:
+    r"""``.bbl`` 已供键集 (``\\bibitem``/``\\entry`` 双签名); 读败 → 空集。"""
+    try:
+        text = bbl.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    return {
+        k.strip()
+        for m in _BBL_KEY_RX.finditer(text)
+        for k in m.group(1).split(",")
+        if k.strip()
+    }
+
+
+def _bbl_stray_candidate(bbl: Path) -> bool:
+    r"""异名收编闸: ``thebibliography`` env 完整 + ``\\bibitem`` ≥1 (全文扫)。
+
+    与 ``_bbl_complete`` 的尾窗判不同源——BMC 式 bbl 在
+    ``\\end{thebibliography}`` 后还拖 ``\\BMCxmlcomment`` XML 注块
+    (0812.0841 ``dimer.bbl`` 实证: 尾标在全文 23% 处, 尾窗判假阴),
+    收编臂按"书目 env 完整"全文判, 截断件看的是新产尾标不是存量文件。
+    """
+    try:
+        text = bbl.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return (
+        "\\begin{thebibliography}" in text
+        and "\\end{thebibliography}" in text
+        and "\\bibitem" in text
+    )
+
+
+def _bibdata_resolvable(aux_text: str, wdir: Path, out: Path) -> bool:
+    r"""``\\bibdata{name,...}`` 指名的 ``<name>.bib`` 是否至少一件可解。
+
+    BIBINPUTS 面 = ``wdir:out`` 前缀 + 全树 rglob 宽档 (嵌套稿 ``dir/x.bib``
+    亦算可解——bibtex argv 同效); 全不可解 → False 让位异名收编臂。
+    """
+    for m in _BIBDATA_RX.finditer(aux_text):
+        for name in (n.strip() for n in m.group(1).split(",")):
+            if not name:
+                continue
+            base = name if name.endswith(".bib") else f"{name}.bib"
+            if (wdir / base).is_file() or (out / base).is_file():
+                return True
+            if any(wdir.rglob(Path(base).name)):
+                return True
+    return False
 
 
 def _prepare_main(
@@ -460,15 +557,18 @@ class XelatexEngine:
             # 重跑；提示缺席照旧即收。钉死档（passes=N）rc!=0 恒停、不吃提示。
             # 信号死（负 rc / 包裹层 128+N）是外部截杀非定败，留续趟通道。
             hint = _RERUN_HINT_RX.search(out_s) is not None
-            # bib 中间趟（lane-bibpass）：后面还有趟才补——趟间产物
-            # （.bcf/.aux）此刻最新。本趟恒收的死相（超时/exec 败/无 pdf）
-            # 与钉死档 rc!=0 不补（补了也吃不到下趟）。采纳即续趟信号；
-            # 自适应档再放一趟——pass2 载 .bbl 把 \bibcite 落 aux，pass3
-            # 才渲文内 [n]（PoC 实证 2 趟仍 [?]）。钉死档 caller 钉了 N，
-            # 只在趟间补 bib、不延趟。
+            # bib 中间趟（lane-bibpass）：趟间产物（.bcf/.aux）此刻最新。
+            # qc-impl 扩闸 (fp bibtex_pass_coverage/bbl_backup): 旧 ``p <
+            # eff_passes`` 闸把末趟封死——passes=1 的 sealed 格 (fixloop
+            # 分类趟/salvage) 永远轮不到 bib; 现放宽为任何趟后都评, 若在
+            # 末趟补成则 ``eff_passes = p+1`` 自延一趟让 tex 吸收新 .bbl
+            # (钉死档 caller 钉了 N 也在 bib 采纳时破例延一趟——不延则
+            # 新 bbl 无人消费)。本趟恒收的死相（超时/exec 败/无 pdf）与
+            # 钉死档 rc!=0 不补（补了也吃不到下趟）。采纳即续趟信号；
+            # pass2 载 .bbl 把 \bibcite 落 aux，pass3 才渲文内 [n]
+            # （PoC 实证 2 趟仍 [?]）。
             if (
-                p < eff_passes
-                and not res.bib_ran
+                not res.bib_ran
                 and not (to or rc is None or not pdf.exists())
                 and (rc == 0 or sig is not None or passes is None)
             ):
@@ -481,11 +581,12 @@ class XelatexEngine:
                     per_pass=per_pass,
                     should_cancel=should_cancel,
                 )
-                if res.bib_ran and passes is None:
-                    eff_passes += 1
-                    # 延趟后按剩余预算重劈 per_pass——``timeout/eff_passes``
-                    # 本就是总墙钟约束：不劈则 timeout=240 的 2 趟起跑
-                    # （per_pass=120）延成 3 趟可烧 360s，静默超预算。
+                if res.bib_ran and p >= eff_passes:
+                    # 末趟才补成 → 自延一趟吸收; 延趟后按剩余预算重劈
+                    # per_pass——``timeout/eff_passes`` 本就是总墙钟约束:
+                    # 不劈则 timeout=240 的 2 趟起跑 (per_pass=120) 延成
+                    # 3 趟可烧 360s，静默超预算。
+                    eff_passes = p + 1
                     per_pass = max(
                         10.0, (timeout - res.seconds) / max(1, eff_passes - p)
                     )
@@ -515,7 +616,7 @@ class XelatexEngine:
         _harvest(res, wdir, main, out, pdf, log, log_text)
         return res
 
-    def _bib_pass(  # noqa: C901, PLR0912, PLR0913 -- compile 上下文面集中透传；两臂各一段顺序闸
+    def _bib_pass(  # noqa: C901, PLR0912, PLR0913, PLR0915 -- compile 上下文面集中透传；两臂各一段顺序闸
         self,
         wdir: Path,
         out: Path,
@@ -533,20 +634,30 @@ class XelatexEngine:
         biblatex 自身保证：``backend=biber`` 才产 ``.bcf``；
         ``backend=bibtex`` 不产 bcf，走 aux ``\citation``+``\bibdata``）：
 
-        1. ``<stem>.bcf`` 在 out 且 ``<stem>.bbl`` 缺席 → ``biber <stem>``；
+        1. ``<stem>.bcf`` 在 out 且完整 (``_bcf_intact`` 尾标+尺寸门——
+           截断 .bcf 喂 biber 触发其 malformed→Deleted 自毁路径删在席
+           bbl, 1706.00240 实证, 宁缺不跑):
+           - ``<stem>.bbl`` 缺席 → ``biber <stem>``;
+           - 在席但 aux 引用键未全覆盖 (覆盖度复核) → 备份
+             ``.fixloop-bak`` 后重跑, 完整采纳/回滚 (biber 败北自删时
+             旧件照还——fp bbl_backup);
         2. 否则逐 aux（``out.rglob`` 排序截 ``_BIB_AUX_SCAN_MAX``）：含
-           ``\citation``+``\bibdata`` 且同侪 ``.bbl`` 缺席 →
-           ``bibtex <aux-rel-stem>``（latexmk 逐 aux 算法——``\include``
-           子件与 multibib 同吃，PoC 实证 ``bibtex sub/ch1`` 可用）。
+           ``\citation``+``\bibdata``:
+           - 同侪 ``.bbl`` 缺席: ``\bibdata`` 可解 → ``bibtex
+             <aux-rel-stem>``（latexmk 逐 aux 算法——``\include`` 子件与
+             multibib 同吃，PoC 实证 ``bibtex sub/ch1`` 可用）; 不可解
+             且全树恰一份完整异名 ``*.bbl`` → 收编为所需 stem (jobname
+             错配稿, 0812.0841 ``dimer.bbl``→``BMC_qbio.bbl`` 实证);
+           - 在席但覆盖度缺键 → 同备份重跑臂 ("I didn't find a database
+             entry" = 覆盖度缺口非错误, out_s 检测落 note)。
 
         工具 argv 走 ``_apply_sandbox`` 同款包裹（bwrap 下 bibtex/biber
         实测可跑）；``BIBINPUTS``/``BSTINPUTS`` 补 ``wdir``/``out`` 前缀
-        覆盖 out≠cwd 场景（env 键本在透传/挂载白名单内）。同侪 ``.bbl``
-        在席即跳过（``_has_bbl``——bundled .bbl 永不 clobber）。采纳闸：
+        覆盖 out≠cwd 场景（env 键本在透传/挂载白名单内）。采纳闸：
         产物须尾标完整（``_bbl_complete``；biber 另须 rc==0——败北会自删
-        poison），不完整件是本趟新产出，删除免毒下一趟。返回采纳记录
-        ``["bibtex:<rel-stem>", ...]``——空表即未跑/未采纳，调用方不计
-        续趟信号。失败仅记 debug，永不中断 pass 环。
+        poison），不完整件是本趟新产出，删除免毒下一趟（备份回滚优先）。
+        返回采纳记录 ``["bibtex:<rel-stem>", ...]``——空表即未跑/未采纳，
+        调用方不计续趟信号。失败仅记 debug，永不中断 pass 环。
         """
         ran: list[str] = []
         bib_env = dict(env)
@@ -574,17 +685,73 @@ class XelatexEngine:
                 should_cancel=should_cancel,
             )
 
+        def _backup(bbl: Path) -> Path | None:
+            """在席 bbl 快照 ``.fixloop-bak``——重跑败北/自删的回滚件。"""
+            try:
+                bak = bbl.with_name(bbl.name + ".fixloop-bak")
+                bak.write_bytes(bbl.read_bytes())
+            except OSError:
+                return None
+            return bak
+
+        def _restore(bak: Path | None, bbl: Path) -> bool:
+            """新产不完整且旧件还在备份 → 回滚 (删本趟残件, 还原旧件)。"""
+            if bak is None or not bak.is_file():
+                return False
+            try:
+                bbl.unlink(missing_ok=True)
+                bak.rename(bbl)
+            except OSError:
+                return False
+            return True
+
+        def _rollback(bak: Path | None, bbl: Path) -> None:
+            """Adopt 失败清算: 有备份回滚, 无备份删本趟残件免毒下趟。"""
+            if _restore(bak, bbl):
+                return
+            if bak is not None:
+                bak.unlink(missing_ok=True)
+            if not _bbl_complete(bbl):
+                bbl.unlink(missing_ok=True)
+
         bbl_main = out / f"{stem}.bbl"
-        if (out / f"{stem}.bcf").is_file():
-            if _has_bbl(bbl_main):
-                return ran  # bundled .bbl 在席——不跑 biber（败北自删实证）
+        bcf_main = out / f"{stem}.bcf"
+        if bcf_main.is_file():
+            if not _bcf_intact(bcf_main):
+                log.debug("biber skipped: %s.bcf truncated/incomplete", stem)
+                return ran
+            cite_keys: set[str] = set()
+            aux_main = out / f"{stem}.aux"
+            if aux_main.is_file():
+                with contextlib.suppress(OSError):
+                    cite_keys = _aux_cite_keys(
+                        aux_main.read_text(encoding="utf-8", errors="replace")
+                    )
+            need = not _has_bbl(bbl_main)
+            bak: Path | None = None
+            if not need and cite_keys:
+                # 在席 bbl 覆盖度复核 (fp bibtex_pass_coverage): aux 键
+                # 未全覆盖 → 在席件陈旧/异源——备份后仍跑 biber。
+                missing = cite_keys - _bbl_keys(bbl_main)
+                if missing:
+                    need = True
+                    bak = _backup(bbl_main)
+                    log.debug(
+                        "bbl coverage gap for %s: %d cite key(s) missing",
+                        stem,
+                        len(missing),
+                    )
+            if not need:
+                return ran  # bundled/覆盖完整 .bbl 在席——不跑 biber
             if (tool := _eng.find_tool("biber")) is None:
                 return ran
             rc, out_s, _sec, to = _run([tool, stem])
             if rc == 0 and not to and _bbl_complete(bbl_main):
                 ran.append(f"biber:{stem}")
+                if bak is not None:
+                    bak.unlink(missing_ok=True)
             else:
-                bbl_main.unlink(missing_ok=True)  # 本趟残件——不喂下一趟
+                _rollback(bak, bbl_main)
                 log.debug(
                     "biber %s not adopted rc=%s to=%s: %.200s", stem, rc, to, out_s
                 )
@@ -593,19 +760,61 @@ class XelatexEngine:
         if (tool := _eng.find_tool("bibtex")) is None:
             return ran
         for aux in sorted(out.rglob("*.aux"))[:_BIB_AUX_SCAN_MAX]:
-            bbl = aux.with_suffix(".bbl")
-            if _has_bbl(bbl):
-                continue  # bundled/已产——永不 clobber
             try:
                 text = aux.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
             if "\\citation" not in text or "\\bibdata" not in text:
                 continue
+            bbl = aux.with_suffix(".bbl")
+            cite_keys = _aux_cite_keys(text)
+            if _has_bbl(bbl):
+                # 覆盖度复核: 缺键 → 备份重跑 (fp bibtex_pass_coverage 臂2)
+                missing = cite_keys - _bbl_keys(bbl)
+                if not missing or not cite_keys:
+                    continue
+                if not _bibdata_resolvable(text, wdir, out):
+                    continue  # 无 .bib 可再生——缺键是空跑, 在席件不碰
+                bak = _backup(bbl)
+                rel = str(aux.relative_to(out).with_suffix(""))
+                rc, out_s, _sec, to = _run([tool, rel])
+                if _bbl_complete(bbl):
+                    ran.append(f"bibtex:{rel}(coverage)")
+                    if bak is not None:
+                        bak.unlink(missing_ok=True)
+                else:
+                    _rollback(bak, bbl)
+                    log.debug(
+                        "bibtex %s coverage-rerun not adopted rc=%s to=%s: %.200s",
+                        rel, rc, to, out_s,
+                    )
+                continue
+            # bbl 缺席: \bibdata 可解 → bibtex; 不可解 → 异名收编兜底
+            if not _bibdata_resolvable(text, wdir, out):
+                strays = [
+                    p
+                    for p in sorted(set(wdir.rglob("*.bbl")) | set(out.rglob("*.bbl")))
+                    if p.resolve() != bbl.resolve()
+                    and p.suffix == ".bbl"
+                    and _bbl_stray_candidate(p)
+                ]
+                if len(strays) != 1:
+                    continue  # 恰一份才收编——多份无从归因
+                stray = strays[0]
+                try:
+                    bbl.write_bytes(stray.read_bytes())
+                except OSError:
+                    continue
+                ran.append(f"adopt:{stray.name}->{bbl.name}")
+                log.debug("adopted stray bbl %s -> %s", stray, bbl)
+                continue
             rel = str(aux.relative_to(out).with_suffix(""))
             rc, out_s, _sec, to = _run([tool, rel])
             if _bbl_complete(bbl):
-                ran.append(f"bibtex:{rel}")
+                missed = len(cite_keys - _bbl_keys(bbl)) if cite_keys else 0
+                # "I didn't find a database entry" = 覆盖度缺口非错误——
+                # 完整产物照采纳, 缺口键数落 note 供账本。
+                ran.append(f"bibtex:{rel}" + (f"(missing:{missed})" if missed else ""))
             else:
                 bbl.unlink(missing_ok=True)  # 截断/空 bbl——删除免毒下趟
                 log.debug(
@@ -887,9 +1096,7 @@ class XelatexEngine:
         return rc == 0 and not to
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """``repair.log_text_of`` 同口径：log_text 优先、``.log`` 兜底、stdout_tail 收尾。"""
-        from texlate.repair import log_text_of  # noqa: PLC0415 -- 循环，惰载
-
+        """``texlog.log_text_of`` 同口径：log_text 优先、``.log`` 兜底、stdout_tail 收尾。"""
         info = parse_log(log_text_of(res), project_root=res.workdir)
         _salvage_driver_fatal(info, res)
         return info

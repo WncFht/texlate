@@ -16,6 +16,8 @@ patch 打旧锚（``toolchain.find_tool``/``repair.fixloop`` 等）与打
 ``seams.X`` 拦 seams 路由消费点，两平面不互通（叶文件未改前
 ``engine.X`` 是唯一确定性叶锚）。``sandbox``/``cli``/``upload``
 各模块自带锚位同理——本缝只覆盖经其路由的消费点。
+
+docclass 注入缝几何原语在 ``_docseams.py``——名近而义异，勿混。
 """
 
 from __future__ import annotations

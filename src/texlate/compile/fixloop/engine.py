@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile import ctan
+from texlate.compile.engine._base import _driver_fatal
 from texlate.compile.fixloop._builtins_common import _mc_parse_log
 from texlate.compile.fixloop.actions import (
     _REJECT_PREFIX,
@@ -62,7 +63,7 @@ from texlate.compile.logparse import (
     parse_log,
     parse_text,
 )
-from texlate.texlog import driver_fatal_line, normalize_stderr_errors
+from texlate.texlog import normalize_stderr_errors
 from texlate.textutil import DOCCLASS_RX, decode_tex
 
 if TYPE_CHECKING:
@@ -182,24 +183,12 @@ def _res_has_pdf(res: CompResLike) -> bool:
 
 
 def _res_driver_fatal(res: CompResLike) -> str | None:
-    r"""``res`` 的下游驱动 fatal 证据行（无则 None）——``_driver_fatal`` 鸭形对版。
+    r"""``res`` 的下游驱动 fatal 证据行——``_driver_fatal`` 单源 + 鸭形谓词。
 
-    证据 = ``stdout_tail`` 有 ``*: fatal:`` 签名行 ∧ 编译呈失败相
-    （``killed_signal`` 置位 / ``rc`` 非零 / 无 pdf）——``fatal:`` 字面
-    行单有不足采：``\\write18`` 类孙件 fatal 可被主进程恢复，rc=0 且
-    出 pdf 按 impl 侧同一契约不算驱动死。
+    判定本体在 ``engine._base._driver_fatal``；``_res_has_pdf`` 作注入
+    谓词兼容替身 ``has_pdf`` 为方法/缺位的 ``CompResLike``。
     """
-    line = driver_fatal_line(getattr(res, "stdout_tail", "") or "")
-    if line is None:
-        return None
-    if getattr(res, "killed_signal", None) is not None:
-        return line
-    rc = getattr(res, "rc", None)
-    if rc is not None and rc != 0:
-        return line
-    if not _res_has_pdf(res):
-        return line
-    return None
+    return _driver_fatal(res, has_pdf=_res_has_pdf)
 
 
 def _res_died(res: CompResLike) -> bool:
@@ -375,6 +364,30 @@ def _commit_reject(cell: dict[str, Any], rule: Rule, note: str) -> None:
         cell["reject_route"] = r
 
 
+def _rule_needs_pass(rule: Rule) -> bool:
+    """规则 yaml 解析趟请求: ``action.params.needs_pass: true`` → True。
+
+    ``builtin_transform`` 的 params 面不受 ``_ACTION_PARAM_KEYS`` 白名单
+    约束 (ruleset.py:588-607 未列该 kind)——yaml 作者对动了 aux/cite
+    记录面的修复规标 ``needs_pass: true`` 即挂引擎能力; builtin 直写
+    ``ctx.needs_pass`` 同义 (facade 转落 ``ctx.ledger.needs_pass``)。
+    """
+    action = rule.action or {}
+    params = action.get("params") or {}
+    return bool(params.get("needs_pass"))
+
+
+#: 出货前解析趟判据——编译 log 里仍存活的 rerun/undefined-ref/cite 请
+#: 求面。xelatex ``_RERUN_HINT_RX`` 的超集: 加 ``(citation|reference)..
+#: undefined`` (0806.3788 型 Rerun 尾标被 bib brace 错吞后 citation
+#: undefined 是唯一存活签名) 与 ``Please (re)run`` (biber/bibtex 请求行)。
+_UNRESOLVED_MARKS_RX = re.compile(
+    r"rerun to get|label\(s\) may have changed|there were undefined|"
+    r"(?:citation|reference)s?\b[^\n]*?undefined|please \(re\)run",
+    re.IGNORECASE,
+)
+
+
 def _report_of(
     res: CompResLike,
     warn_patterns: list[dict[str, Any]],
@@ -521,6 +534,12 @@ class _CtxLedger:
     #: 每 flag 记一次 advisory，cell 落 ``engine_flags_dropped``。
     flags_dropped: list[str] = field(default_factory=list)
     advisories: list[str] = field(default_factory=list)
+    #: 解析趟请求旗 (qc-impl fp resolve-pass): 规则 yaml
+    #: ``action.params.needs_pass: true`` 或 builtin 直写 (bbl 再生/citekey
+    #: 改写类动了 aux/cite 记录面的修复) → 下一轮 ``_round_compile`` 走
+    #: ``passes=None`` 引擎自适应趟让 ``\newlabel``/``\bibcite`` 同轮解齐;
+    #: 轮头消费即清 (一次性闸, 非持续态)。
+    needs_pass: bool = False
 
 
 #: 平铺字段名 → 所属分组: LoopCtx facade 经此表把 ``ctx.<field>`` 读写
@@ -545,6 +564,7 @@ _CTX_FIELD_GROUP = {
     "engine_flags": "ledger",
     "flags_dropped": "ledger",
     "advisories": "ledger",
+    "needs_pass": "ledger",
 }
 
 
@@ -788,6 +808,8 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
         if applied:
             ctx.ledger.applied.add(key)
             ctx.ledger.actions.append({"round": -1, "rule": rule.id, "detail": note})
+            if _rule_needs_pass(rule):  # gate 相规则同可请求解析趟
+                ctx.ledger.needs_pass = True
     return None, None
 
 
@@ -969,6 +991,8 @@ def _precheck_phase(
         )
         if applied and note.startswith(_REJECT_PREFIX):
             return f"reject:{rule.id}", _note_route(note)
+        if applied and _rule_needs_pass(rule):  # precheck 规则同可请求解析趟
+            ctx.ledger.needs_pass = True
     return None, None
 
 
@@ -1054,6 +1078,9 @@ class _FixRun:
     #: 的基线: 出口时账顶增长 = 末次编译后仍有 apply 落件。
     acts_mark: int | None = None
     rnd: int = 0
+    #: 自动解析趟 once-per-cell 闸——pagerange 类永不解析标签格的
+    #: rerun-hint 恒存, 无闸会逐轮回环 (fp resolve-pass dedup)。
+    resolve_done: bool = False
 
     def _floor_snapshot(self) -> None:
         """快照入口态 PDF。
@@ -1096,6 +1123,60 @@ class _FixRun:
         ctx.invalidate_suffixes(_VOLATILE_EXTS)
         _note_dropped_flags(ctx, res)
         return res
+
+    def _aux_seeded(self) -> bool:
+        r"""工程任一 ``.aux`` 已产标签/引用记录——解析趟要解的目标在 aux 面。
+
+        ``\newlabel``/``\bibcite`` (natbib/plain 系) 与 ``\citation``/
+        ``\abx@aux@cite`` (bibtex/biblatex 系) 四签名任一在场即播种;
+        未播种格的 undefined 纯属首轮 aux 空转 (常规 rerun-hint 升遍
+        自足, 不走本臂)。文件面有界 (≤32 件) 防巨型工程扫盘。
+        """
+        marks = ("\\newlabel", "\\bibcite", "\\citation", "\\abx@aux@cite")
+        for f in sorted(self.ctx.io.wdir.rglob("*.aux"))[:32]:
+            t = self.ctx.read(f)
+            if t and any(k in t for k in marks):
+                return True
+        return False
+
+    def _resolve_tail(
+        self,
+        res: CompResLike,
+        rep: ErrReport,
+        *,
+        best_effort: bool = False,
+    ) -> tuple[CompResLike, ErrReport, float]:
+        r"""出货前解析趟: log 残存 rerun/undefined 标 → 补发自适应趟。
+
+        fp resolve-pass——``passes=None`` 续趟。
+        判据三合: 本轮出 pdf (有产品才有"解齐引用"价值) ∧ 编译未死 ∧
+        ``_UNRESOLVED_MARKS_RX`` 命中 rep.raw ∧ aux 已播种 (要解的
+        ``\newlabel``/``\bibcite`` 记录确实在盘)。命中即补一发引擎自适
+        应趟并以其 res/rep 覆盖调用面——undef-ref 残存的 PDF 不再带
+        ``??`` 出货 (qc xlat_broken_refs 桶 17 格实证)。``resolve_done``
+        once-per-cell 闸防 pagerange 类永不解析签的回环; tectonic 自定
+        遍数天然豁免 (impl del passes, 本臂判据直接短路)。返
+        ``(res, rep, 补趟秒数)``——未命中 ``sec=0`` 原样回传。
+        """
+        ctx = self.ctx
+        if (
+            self.resolve_done
+            or ctx.deps.engine_name == "tectonic"
+            or not _res_has_pdf(res)
+            or _res_died(res)
+            or not _UNRESOLVED_MARKS_RX.search(rep.raw or "")
+            or not self._aux_seeded()
+        ):
+            return res, rep, 0.0
+        self.resolve_done = True
+        res2 = self._compile(passes=None, best_effort=best_effort)
+        rep2 = _report_of(res2, self.rs.warn_patterns, ctx.io.wdir)
+        sec = float(getattr(res2, "seconds", getattr(res2, "sec", 0.0)))
+        ctx.ledger.events.append(
+            "resolve pass: unresolved marks + seeded aux → adaptive compile "
+            f"(pdf={_res_has_pdf(res2)} err={rep2.n_bang})"
+        )
+        return res2, rep2, sec
 
     def rounds(self) -> None:
         """主轮循环: 每轮 aux-sweep→分类编译→终止判→派发落账; 穷尽 → ``max_rounds``。"""
@@ -1142,6 +1223,8 @@ class _FixRun:
         if note.startswith(_REJECT_PREFIX):
             _commit_reject(cell, rule, note)
             return "break"
+        if _rule_needs_pass(rule):  # yaml ``action.params.needs_pass`` 解析趟请求
+            ctx.ledger.needs_pass = True
         action_entry: dict[str, Any] = {"round": rnd, "rule": rule.id, "detail": note}
         if sec_via is not None:
             action_entry["via"] = sec_via
@@ -1158,7 +1241,16 @@ class _FixRun:
         类机制靠第二遍 ``\\write`` 填实成品), 复编重分类回流同一决策面。
         """
         ctx, rs, rnd = self.ctx, self.rs, self.rnd
-        res = self._compile(passes=1)  # 分类轮只读 pass-1 log——第二遍不产新分类信号
+        if ctx.ledger.needs_pass:
+            # 上轮 apply 请求解析趟 (yaml ``action.params.needs_pass`` 或
+            # builtin 直写——bbl 再生/citekey 改写类动了 aux/cite 记录面,
+            # 单趟 log 分类不足以吸收) → 本轮分类编译直接走引擎自适应遍数,
+            # ``\newlabel``/``\bibcite`` 同轮解齐。一次性闸, 消费即清。
+            ctx.ledger.needs_pass = False
+            res = self._compile(passes=None)
+            ctx.ledger.events.append(f"r{rnd} resolve-pass (needs_pass requested)")
+        else:
+            res = self._compile(passes=1)  # 分类轮只读 pass-1 log——第二遍不产新分类信号
         rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)
         cat, pay = _round_cat(rs, rep, res)
         round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
@@ -1189,6 +1281,18 @@ class _FixRun:
                 f"r{rnd} finalize: pass-1 clean → {self.passes}-pass "
                 f"(pdf={_res_has_pdf(res)} err={rep.n_bang} cat={cat})"
             )
+        elif (  # 出货前解析趟 (qc-impl fp resolve-pass): 不判 n_bang==0——
+            # 残错格同值得 "pdf 出货前把引用解齐" (17 格实证面), warn_cat
+            # 轮亦收; aux 未播种/marks 缺席/已跑过由 _resolve_tail 自闸。
+            self.passes > 1
+            and self.ctx.deps.engine_name != "tectonic"
+            and not _res_died(res)
+            and _res_has_pdf(res)
+        ):
+            res, rep, rsec = self._resolve_tail(res, rep)
+            if rsec:
+                cat, pay = _round_cat(rs, rep, res)
+                round_sec += rsec
         self.last_rep = rep
         ctx.round.point(cat, pay, rep)
         # 本轮 missing-char 码位面 (error-cat 轮同记)——缺字族 dedup
@@ -1452,6 +1556,8 @@ class _FixRun:
                 "via": "warn_preempt",
             }
         )
+        if _rule_needs_pass(wrule):  # 补发规则同可请求解析趟
+            ctx.ledger.needs_pass = True
         label = rnd if isinstance(rnd, str) else f"r{rnd}"
         ctx.ledger.events.append(f"{label} warn-preempt -> {wrule.id} ({wnote})")
         # apply 已落地——探针编译瞬间陈旧, 兜底槽必须弃用
@@ -1503,6 +1609,9 @@ class _FixRun:
             return
         res = self._compile(passes=1)
         rep = _report_of(res, self.rs.warn_patterns, ctx.io.wdir)
+        # 解析趟后处理同套——写后复验的 pass-1 产物若仍带 undef 标且 aux
+        # 已播种, 补一发自适应趟再落 entry (fp resolve-pass 尾段复用)。
+        res, rep, _rsec = self._resolve_tail(res, rep)
         cat, pay = _round_cat(self.rs, rep, res)
         self.last_rep = rep  # log_excerpt 消费终态报告
         # 与轮 entry 同式 (adjudication #10 Guard A): halt + n_bang>0
@@ -1573,6 +1682,9 @@ class _FixRun:
             if self.salvage_rep is not None
             else _report_of(sres, self.rs.warn_patterns, ctx.io.wdir)
         )
+        # 解析趟后处理同套 (best_effort 档续传 nonstopmode)——兜底产物
+        # 若仍带 undef 标且 aux 已播种, 补一发自适应趟再落 sentry entry。
+        sres, srep, _rsec = self._resolve_tail(sres, srep, best_effort=True)
         # best_effort (nonstopmode) 全程 log 不截——Guard A 豁免 (adjudication #10)。
         sentry = self._append_round(
             sres,

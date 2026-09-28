@@ -5,11 +5,11 @@ r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降�
 （CJK 九段）/ Libertinus Serif（西里尔·组合符·拉丁扩展）符号字体补齐。
 
 docs/spec/compile.md 注入缝：
-- 兼容块 → `\begin{document}` 前（``_seams._splice_before_document``，depth-0 锚）
-- 字体系块 → `\documentclass{}` 后（``_seams.find_docclass_ends``：逐缝注入，
+- 兼容块 → `\begin{document}` 前（``_docseams._splice_before_document``，depth-0 锚）
+- 字体系块 → `\documentclass{}` 后（``_docseams.find_docclass_ends``：逐缝注入，
   `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）
 - preamble 消费仿真定义 → 同 docclass 缝（normalize.XETEX_EARLY_DEFS 经
-  ``_seams`` find_docclass_ends/_splice_after_seams 消费；无 bd/子档闸——
+  ``_docseams`` find_docclass_ends/_splice_after_seams 消费；无 bd/子档闸——
   bd 藏 ``\input`` 子件形态 main 零 bd，2609.19376 实案）
 - `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
   互不兼容；route_project 已降级为 latex209_suspect 试编标记——
@@ -20,10 +20,10 @@ docs/spec/compile.md 注入缝：
 
 C4 拆分：本模块宿 CJK 注入编排（``inject_cjk``/``_input_hop_*``/
 ``prepare_chinese``）。缝原语（``_splice_*``/``find_docclass_ends``）
-出叶 ``_seams``——inject/layout/normalize 三向单向消费；主文件发现+
+出叶 ``_docseams``——inject/layout/normalize 三向单向消费；主文件发现+
 ``\input`` 闭包+filecontents 虚拟 FS 出叶 ``mainfile``，版式手术
 （FLOAT_SIZING/TABLE_FITTING/wrapfloat 降级）出叶 ``layout``——两叶
-消费名经本模块静态回引（钉点面守恒；layout 缝原语已转 ``_seams``
+消费名经本模块静态回引（钉点面守恒；layout 缝原语已转 ``_docseams``
 单向取用，旧 inject↔layout 顶层互引环断，``__getattr__`` 惰性转口退役）。
 """
 
@@ -45,9 +45,9 @@ from texlate.textutil import (
     safe_resolve,
 )
 
-from ._seams import _splice_after_seams, _splice_before_document, find_docclass_ends
+from ._docseams import _splice_after_seams, _splice_before_document, find_docclass_ends
 from .latex209 import upgrade_209
-from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _seams 后环断，钉点名转静态回引
+from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _docseams 后环断，钉点名转静态回引
     FLOAT_SIZING,
     TABLE_FITTING,
     _demote_wrapfloats_text,
@@ -418,7 +418,7 @@ def _sentinel_wrap(block: str, sentinel: str, *, what: str) -> str:
     r"""多缝/多锚幂等哨兵包裹：活臂执行立 ``\def\<sentinel>{1}`` 哨，余点整块跳过。
 
     ``\fi`` 配对安全前提：被包块内 ``\if`` 全成对（skip 计数平衡）。
-    ``_seams._splice_before_document`` 的 multi-bd 包裹同构——本助手是
+    ``_docseams._splice_before_document`` 的 multi-bd 包裹同构——本助手是
     docclass 多缝侧的对应件（layout ``_float_sized`` 同款手写点收编位）。
     """
     return (
@@ -598,13 +598,15 @@ def _input_hop_inject(
     return None
 
 
-def _project_uses(root: Path, needle: str) -> bool:
+def _project_uses(root: Path, needle: str | tuple[str, ...]) -> bool:
     r"""工程树任一主后缀 tex 源遮盖视图含 ``needle`` → True（树级特性闸）。
 
     ``demote_wrapfloats``/``inject_float_sizing`` 同款 ``_iter_files`` 全树
     口径——threeparttable 等活在 ``\input`` 子件里的用法不该因子件不在
     main 文本面而漏钩子（软链/隐藏目录豁免随 walker 自带）。
+    ``needle`` 收 tuple → 任一子串命中即真（一次走查多针）。
     """
+    needles = (needle,) if isinstance(needle, str) else needle
     for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
         try:
             blob = path.read_bytes()
@@ -612,7 +614,8 @@ def _project_uses(root: Path, needle: str) -> bool:
             continue
         if _tar_disguised(blob):
             continue
-        if needle in visible_tex(decode_tex(blob)):
+        vis = visible_tex(decode_tex(blob))
+        if any(n in vis for n in needles):
             return True
     return False
 
@@ -626,7 +629,9 @@ def _table_fitting(tex: str) -> str:
     无 bd 有 dc 缝走缝后锚（多缝 ``_sentinel_wrap`` 幂等），两无原样返回。
     """
     vis = visible_tex(tex)
-    if TABLE_FITTING.strip() in tex or not DOCCLASS_RX.search(vis):
+    if TABLE_FITTING.strip() in tex or "TeXlateFitTable" in tex:
+        return tex
+    if not DOCCLASS_RX.search(vis):
         return tex
     if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
         return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
@@ -648,7 +653,12 @@ def _fit_table_hook(root: Path, main_text: str, hop: str | None) -> str:
     子件命中时原地写回。hop 为 root 相对 posix（``info["input_hop"]``）。
     """
     new_text = _table_fitting(main_text)
-    if new_text != main_text or TABLE_FITTING.strip() in main_text or hop is None:
+    if (
+        new_text != main_text
+        or TABLE_FITTING.strip() in main_text
+        or "TeXlateFitTable" in main_text
+        or hop is None
+    ):
         return new_text  # 已落 / 已在档 / 无携带者可落
     tgt = safe_resolve(root / hop)
     if tgt is None or not tgt.is_relative_to(root) or not tgt.is_file():
@@ -668,7 +678,7 @@ def _fit_table_hook(root: Path, main_text: str, hop: str | None) -> str:
     return new_text
 
 
-def prepare_chinese(
+def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂（mode/三开关），合并参数对象是假收口
     root: Path,
     main: Path | str,
     *,
@@ -702,10 +712,13 @@ def prepare_chinese(
         hop = _input_hop_inject(root, main_path, text, mode=mode)
         if hop is not None:
             new_text, info = hop
-    if _project_uses(root, "threeparttable"):
-        # 已带 CJK 的工程（status=already）同样要 threeparttable 溢宽钩子；
+    if _project_uses(
+        root, ("threeparttable", "deluxetable", "sidewaystable", "tabular")
+    ):
+        # 已带 CJK 的工程（status=already）同样要表族溢宽钩子；
         # 树级闸——用法在 \input 子件里的工程也兜；bd 藏 hop 子件时钩子
-        # 经 _fit_table_hook 落携带者。
+        # 经 _fit_table_hook 落携带者。"tabular" 子串覆盖
+        # tabular*/tabularx/tabulary 同族，近乎全量工程命中。
         new_text = _fit_table_hook(root, new_text, info.get("input_hop"))
     if new_text != text:
         main_path.write_text(new_text, encoding="utf-8")

@@ -51,6 +51,20 @@
 # 书写约束: flow 集合 {..}/[..] 必须单行写完 (子集解析器不跨行)。
 #
 # 每条规则逐条带注释: 出处为 spike 行号 (fixloop.py Lxxx) 或 docs/spec/compile.md 行号。
+#
+# ════════════════════════════════════════════════════════════════
+# rules 条目 schema 图例（各分片头注「见 rules/00-base.yaml 头注」所指段，
+# 原 30-route.yaml 头注 2026-09-28 归位本文件——首个按名序装载的分片）：
+#   第二层: 修复规则 （条数不手维护——`grep -c '^  - id: ' rules/*.yaml`）
+#   phase: gate(每轮分类后最先评估) / precheck(编译前一次性) / loop(每轮)
+#   同 phase 内按 order 升序, 首个 when+condition 满足且 dedup 未命中的执行。
+#   engines.<name>.mode: native | same(源改写天然可移植) | degrade | unsupported | skip
+#   condition 原语: tool_available / cap_available / engine_in /
+#     main_head_contains / source_contains / ctx_suggests / fileset /
+#     vendored_shadow / package_version_ge / prim_read_form /
+#     err_outside_fileset / shim_known / cache_dir_glob / any:[...]
+#     (未知键 → 规则跳过, fail-closed)
+# ════════════════════════════════════════════════════════════════
 
 version: 1
 

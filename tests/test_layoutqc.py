@@ -493,16 +493,18 @@ def test_plain_residual_en_refs_tail_cut() -> None:
 
 
 def test_word_overlap_pairs() -> None:
-    # 两行同 x 区间、y 中心差 > 半高 → 跨行重叠对
+    # 两行部分 x 重叠、y 中心差 > 半高 → 跨行重叠对（token >4 字符且
+    # x 互不包含——逃逸堆叠豁免；en×en 须 base 侧 cjk_gate=False 才计）
     words = [
-        (100, 100, 160, 112, "a"),
-        (100, 107, 160, 119, "b"),  # 与 a 跨行重叠（cy 差 7 > 半高 6）
-        (300, 100, 360, 112, "c"),  # 远离
+        (100, 100, 160, 112, "alpha"),
+        (120, 106, 180, 120, "bravo"),  # 与 alpha 跨行重叠（cy 差 7 > 6）
+        (300, 100, 360, 112, "charlie"),  # 远离
     ]
-    assert _word_overlap_pairs(words) >= 1
+    assert _word_overlap_pairs(words, cjk_gate=False) >= 1
+    assert _word_overlap_pairs(words) == 0  # en×en 被 zh 侧闸剔
     # 同行相邻词不重叠
-    same_line = [(100, 100, 160, 112, "a"), (162, 100, 220, 112, "b")]
-    assert _word_overlap_pairs(same_line) == 0
+    same_line = [(100, 100, 160, 112, "alpha"), (162, 100, 240, 112, "bravo")]
+    assert _word_overlap_pairs(same_line, cjk_gate=False) == 0
 
 
 def test_word_overlap_math_symbols_skipped() -> None:

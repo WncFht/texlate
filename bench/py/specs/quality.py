@@ -250,13 +250,17 @@ def _splice_cred(ctx, src_variant: str) -> tuple[str, str] | None:
     旧 work/{id}/splice/ 是 last-writer-wins，importer 把幸存字节归到
     translator arm（'real'）credential 下而非 compile 行自报 arm
     （zh/base）——故 credential 必须按 vault 实查，不能照抄 records
-    arm。选中的 credential 记入 metrics.asset 供归因审计。
+    arm。无产物 pdf 的 splice 副本（fig-only/pdf-less 残壳）先被
+    _copy_product_ok 闸掉——compile_metrics 拿不到 pdf 的 cred 不能发。
+    选中的 credential 记入 metrics.asset 供归因审计。
     """
     try:
         cands = [
             m
             for m in vault.query(ctx.idc)
-            if m.get("bytes_ok") and "splice" in (m.get("files") or {})
+            if m.get("bytes_ok")
+            and "splice" in (m.get("files") or {})
+            and vault._copy_product_ok(m, "splice")[0]  # noqa: SLF001
         ]
     except vault.VaultError:
         return None

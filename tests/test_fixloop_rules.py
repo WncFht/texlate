@@ -63,6 +63,15 @@ def test_phase_ordering() -> None:
         "pstricks_route",
         # C5 (W31): svg 包 tectonic 硬墙 → 路由 xelatex
         "svg_route",
+        # qc-impl-2026-09-28 (诊断批): psfrag 硬路由/带负 order 的导言
+        # 规范化件 (负值在解包/209 升级之前先跑——裸 psfrag/caption
+        # skip/lscape 冲突在解包前就得平)
+        "psfrag_route",
+        "caption_skip_clamp",
+        "psfrag_strip_xelatex",
+        "epsfbox_fit",
+        "lscape_revtex_guard",
+        "ref_double_brace_strip",
         # W164 (stybegindoc lane): e-print 内嵌 tar 冒名 .sty/.cls → 解包
         "tar_blob_extract",
         # failmine3 (#164b): docclass 自带子档剥至 body —— 解包后收, 预检前清死导言
@@ -72,10 +81,16 @@ def test_phase_ordering() -> None:
         "latex209_upgrade",
         # shipclscen: 随源 .cls/.sty 内裸 \input X.sty → exact-restore @ 包裹
         "shipped_sty_input_wrap",
+        # qc-impl: textheight/baselineskip 冻结在 slotrevert 前 (还原文
+        # 本几何前先钉死版心, 防 209-era \textheight 漂移喂错 baseline)
+        "textheight_baselineskip_freeze",
         # slotrevert (#188): zh 化机位实参按 baseline 配对还原 —— 还原的
         # \usepackage{真名} 供 static_precheck 装包扫描收
         "slot_arg_revert",
         "static_precheck",
+        # qc-impl: bibinfo 解除 + ps/graphics dvips 路由殿 static 后
+        "bibinfo_disarm",
+        "ps_graphics_dvips_route",
         # C5 (W58): arara/!TEX 注释指令收割殿后
         "build_directive_harvest",
     ]
@@ -91,8 +106,11 @@ def test_phase_ordering() -> None:
     # 真件归位先于一切 stub/generate/install (e-print 自带件 verbatim
     # 拷贝是钦定内容面); taxonfix: tikz/pgf_library_install 入 order:9 族
     # (40-install 同 order 稳定序在 45-graphics 之前)
-    assert loop[:11] == [
+    assert loop[:12] == [
         "biber_biblatex_skew_route",
+        # tectonic_bib_stall_route (order:8.1, 82711b12 入): skew(8) 后、
+        # wrapromote(8.5) 前——tectonic 内嵌 bibtex/biber 双盲区硬路由
+        "tectonic_bib_stall_route",
         "main_wrapper_promote",
         "eps_converted_alias",
         "fileset_relocate",

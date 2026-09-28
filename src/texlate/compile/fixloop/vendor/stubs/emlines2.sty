@@ -1,0 +1,19 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% emlines2.sty 替身：emlines 二号套件 (同 emTeX/TeXCAD 系，不在
+% TL) → epic 等价面。0812.0852 实证与 emlines 双载
+% (\usepackage{emlines}\usepackage{emlines2} 连排)——\emline
+% 用 \providecommand 定义，双载/交叠装载互不死。epic 缺席退
+% 调时 noop 吞参保编译。
+% 注意: \emline 定义不进 \IfFileExists 分支 —— 内核
+% \IfFileExists 经 \def\reserved@a{<branch>} 捕获分支体,
+% 分支内 #1 未转 ##1 会炸 Illegal parameter number (smoke 实证)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{emlines2}[2026/09/28 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{emlines2.sty is a compatibility shim -> epic drawline}
+\DeclareOption*{}
+\ProcessOptions\relax
+\IfFileExists{epic.sty}{\RequirePackage{epic}}{%
+  \PackageWarningNoLine{texlate-stub}{emlines2: epic absent, \string\emline\space degraded to no-op}}
+% \emline{x1}{y1}{tag1}{x2}{y2}{tag2} (emlines 同款面)
+\providecommand{\emline}[6]{\@ifundefined{drawline}{}{\drawline(#1,#2)(#4,#5)}}
+\endinput

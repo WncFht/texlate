@@ -21,13 +21,24 @@ def _ctx(tmp_path: Path, runner: RunFn | None = None) -> LoopCtx:
     )
 
 
+# bbl_regen 的 .bcf 完整性门（≥200B + 尾窗 </bcf:controlfile>）拒收截断件——
+# fixture 得是能过门的最小合法 bcf，不再是空壳占位。
+_BCF = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<bcf:controlfile version="3.10" xmlns:bcf="https://sourceforge.net/projects/biblatex">'
+    '<bcf:datasource type="file" datatype="bibtex">ms.bib</bcf:datasource>'
+    + " " * 64
+    + "</bcf:controlfile>"
+)
+
+
 def _biber_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
     return 1, "ERROR - biber died", 0.5, False
 
 
 def test_bbl_regen_ok(tmp_path: Path) -> None:
     """2009.11064 形: ms.bcf 在场, ``biber ms`` rc=0 → True + .bbl 落地。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF, encoding="utf-8")
     (tmp_path / "ms.bib").write_text("@book{a}", encoding="utf-8")
     calls: list[list[str]] = []
 
@@ -44,7 +55,7 @@ def test_bbl_regen_ok(tmp_path: Path) -> None:
 
 def test_bbl_regen_biber_fail(tmp_path: Path) -> None:
     """biber rc≠0 → False, note 带 rc。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF, encoding="utf-8")
     ok, note = bbl_regen(_ctx(tmp_path, runner=_biber_fail), None, None, {})
     assert not ok
     assert "rc=1" in note
@@ -66,7 +77,7 @@ def test_bbl_regen_no_bcf(tmp_path: Path) -> None:
 
 def test_bbl_regen_timeout_fails(tmp_path: Path) -> None:
     """biber 超时 (rc=None, to=True) → False。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF, encoding="utf-8")
 
     def _to(_argv: list[str], _t: int, _w: Path) -> tuple:
         return None, "", 60.0, True
@@ -78,8 +89,8 @@ def test_bbl_regen_timeout_fails(tmp_path: Path) -> None:
 
 def test_bbl_regen_multi_bcf_partial(tmp_path: Path) -> None:
     """多 .bcf → 逐 stem 尝试; 一成一败 → True (applied-anything), note 记败。"""
-    (tmp_path / "a.bcf").write_text("<bcf/>", encoding="utf-8")
-    (tmp_path / "b.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "a.bcf").write_text(_BCF, encoding="utf-8")
+    (tmp_path / "b.bcf").write_text(_BCF, encoding="utf-8")
     calls: list[list[str]] = []
 
     def _mixed(argv: list[str], _t: int, w: Path) -> tuple:
@@ -98,7 +109,7 @@ def test_bbl_regen_multi_bcf_partial(tmp_path: Path) -> None:
 def test_bbl_regen_nested_bcf(tmp_path: Path) -> None:
     """嵌套 .bcf → argv 传 wdir 相对 stem, .bbl 落 .bcf 同目录。"""
     (tmp_path / "sub").mkdir()
-    (tmp_path / "sub" / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "sub" / "ms.bcf").write_text(_BCF, encoding="utf-8")
     calls: list[list[str]] = []
 
     def _spy(argv: list[str], _t: int, w: Path) -> tuple:

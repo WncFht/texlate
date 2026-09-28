@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -107,19 +107,26 @@ rules:
               \def\doublespace{\def\baselinestretch{1.6}\normalsize}
               \def\eqsecnum{\@addtoreset{equation}{section}%
               \def\theequation{\thesection-\arabic{equation}}}
-              % ── deluxetable 复合面 (aaspp4 实证模型): \@delspec 延迟开张 ──
-              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
-              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              % ── deluxetable 复合面 (aaspp4 实证模型 + qc-impl 2026-09-28
+              %   vendor/stubs/aasms4.sty:57-72 自开张移植): 真件 \tablehead/
+              %   \startdata 各自可开 tabular。旧 stub 只在 \tablehead 开张、
+              %   \startdata 纯 noop → 稿省 \tablehead 直书 \startdata 时整表
+              %   塌成一段 (impl-builtins item 2 让渡条)。开张标记
+              %   \aasfour@dtopen 用 \gdef —— \tablehead 尾端在 halign 格内
+              %   展开, \def 随格组消亡传到 \startdata 已丢; env 开头
+              %   \global\let 复位供同稿多表。\@delspec 缺席兜底 'l'。 ──
+              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
+              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
               \let\planotable=\deluxetable
               \let\endplanotable=\enddeluxetable
               \def\tablewidth#1{}
               \def\tablecolumns#1{}
               \def\tablecaption#1{\caption{#1}}
-              \def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline}
+              \def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline\gdef\aasfour@dtopen{1}}
               \def\tabletail#1{}
               \def\tableheadfrac#1{}
-              \def\startdata{}
-              \def\enddata{\endtabular}
+              \def\startdata{\@ifundefined{aasfour@dtopen}{\@ifundefined{@delspec}{\def\@delspec{l}}{}\expandafter\tabular\expandafter{\@delspec}\gdef\aasfour@dtopen{1}}{}}
+              \def\enddata{\@ifundefined{aasfour@dtopen}{}{\endtabular\global\let\aasfour@dtopen\@undefined}}
               \def\nl{\\}
               \let\nextline=\nl
               \def\tableline{\hline}
@@ -810,8 +817,14 @@ rules:
               % article 原版 tabular{c} 囚 \begin{itemize}/\bigskip →
               % Not allowed in LR mode (0712.1912 实证); 段落组内
               % \\ 续排、块级内容全存活。
+              % qc-impl 2026-09-28 (vendor/shims/JHEP.cls:103-107 移植):
+              % preprint 行并入标题块顶 —— 原为 AtBeginDocument \sissa@mk
+              % 前独立 emit, 与 \maketitle 脱粘 → p1 孤 preprint+folio、
+              % p2 真 title 孤儿页 (0806.2466/0812.0770/0905.0580/1107.0383
+              % 四格实证); 入 \@maketitle 后与 title 同 flushleft 同页排出。
               \def\@maketitle{%
                 \begin{flushleft}%
+                  \ifx\sissa@preprint\@empty\else{\footnotesize\sissa@preprint\par}\vskip.5em\fi
                   {\LARGE\sffamily\bfseries\@title\par}%
                   \vskip1.5em%
                   {\normalsize\bfseries\sffamily\@author\par}%
@@ -832,9 +845,9 @@ rules:
                 \begin{table}[htbp]\centering#3\caption{#5}\end{table}}
               % \auto@maketitle: emit 在 AtBeginDocument (真件同款), 随后冻结
               % \maketitle —— 稿显式调用成 no-op, 不调也不丢 frontmatter
+              % (qc-impl: preprint 行移入 \@maketitle 顶, 此处不再独立 emit)
               \let\sissa@mk\maketitle
               \AtBeginDocument{%
-                \ifx\sissa@preprint\@empty\else\noindent{\footnotesize\sissa@preprint}\par\fi
                 \sissa@mk
                 \ifx\sissa@collaboration\@empty\else\par\noindent{\itshape\sissa@collaboration}\par\fi
                 \ifx\sissa@affils\@empty\else\par\noindent{\small\sissa@affils}\par\fi
@@ -1096,6 +1109,9 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{epl2}[2026/09/18 fixloop legacy shim -> article + epl polyfills]
               \LoadClassWithOptions{article}
+              % qc-impl 2026-09-28: +graphicx belt (vendor shims 真件先中,
+              % 本键兜底面; manifest deferred_to_rules_lane 项)
+              \RequirePackage{graphicx}
               % ── frontmatter 存值 (PRE 调用, \maketitle 包装吐) ──
               \let\epl@abstract\@empty
               \let\epl@inst\@empty
@@ -1302,12 +1318,19 @@ rules:
           # 收集、\subjclass[2000]{...}、\keywords{...}、\onehalfspacing)
           # —— memoir 底 (TL 在库) + ams frontmatter polyfill。
           memo-l.cls:
-            needs: ["memoir.cls", "setspace.sty"]
+            # qc-impl 2026-09-28: +amsthm.sty belt (vendor/stubs 真件
+            # 常态先中, 本键只在 vendored_fetch 绕行时兜底 —— manifest
+            # deferred_to_rules_lane 项)
+            needs: ["memoir.cls", "setspace.sty", "amsthm.sty"]
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{memo-l}[2026/09/26 fixloop legacy shim -> memoir + ams-addr polyfills]
               \LoadClassWithOptions{memoir}
               \RequirePackage{setspace}
+              % qc-impl 2026-09-28: +amsthm (vendor stub :17 同款) —— 稿
+              % \theoremstyle{definition}/{remark}+\begin{proof} 面不装
+              % amsthm 即 Undefined; TL 在场恒可载, 稿自装幂等
+              \RequirePackage{amsthm}
               \let\memol@subj\@empty
               \let\memol@keys\@empty
               \providecommand{\address}[1]{\g@addto@macro\@author{\\ {\normalsize\itshape\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}}
@@ -1789,18 +1812,21 @@ rules:
               \let\tightenlines=\tighten
               \def\singlespace{\def\baselinestretch{1.0}\normalsize}
               \def\doublespace{\def\baselinestretch{1.6}\normalsize}
-              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
-              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              % qc-impl 2026-09-28: 同 aas4_body 自开张移植 (aasms4.sty 同款
+              %   \aasfour@dtopen 标记) —— 稿省 \tablehead 直书 \startdata
+              %   面整表塌一段, 同款修复
+              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
+              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
               \let\planotable=\deluxetable
               \let\endplanotable=\enddeluxetable
               \def\tablewidth#1{}
               \def\tablecolumns#1{}
               \def\tablecaption#1{\caption{#1}}
-              \def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline}
+              \def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline\gdef\aasfour@dtopen{1}}
               \def\tabletail#1{}
               \def\tableheadfrac#1{}
-              \def\startdata{}
-              \def\enddata{\endtabular}
+              \def\startdata{\@ifundefined{aasfour@dtopen}{\@ifundefined{@delspec}{\def\@delspec{l}}{}\expandafter\tabular\expandafter{\@delspec}\gdef\aasfour@dtopen{1}}{}}
+              \def\enddata{\@ifundefined{aasfour@dtopen}{}{\endtabular\global\let\aasfour@dtopen\@undefined}}
               \def\nl{\\}
               \let\nextline=\nl
               \def\tableline{\hline}

@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -330,3 +330,257 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-armgap4/census.md §2605.29672; engine _bib_pass .bcf→biber 通道"
+
+  # ════════════════════════════════════════════════════════════════
+  # 2026-09-28 qc-impl (vault QC replay 诊断蒸馏 impl-rules.json,
+  #   合流 IDX 0/17/28/36/49 + 26/45): warn 管线消费臂 + bib 预检小件。
+  #   全部新条挂 conservative risk + qc-impl provenance; builtin 只引
+  #   已注册名 (bbl_regen/purge_corrupt_intermediates)。
+  # ════════════════════════════════════════════════════════════════
+
+  # warn_bbl_version → bbl_regen (IDX 0/28/49 合流, warn_id 统一
+  # bbl_version): biblatex 'wrong format version' 警告稿无 '!' 行, 原
+  # bbl_regen(:74) 的 undefined_cs+payload_required 门永不点火。本规把
+  # warn 面格送进同一 builtin: fmt<3.0 隔离臂无需 .bcf, fmt 3.x+.bcf
+  # 走 biber 重生成; 无 .bib 的 3.1/3.2 格 builtin 内 biber 自删有
+  # .fixloop-bak 回滚兜 (bbl_format_version_rewrite builtin 已写体未
+  # 注册——注册后加 lacks_ext:[.bib] 前置臂接 fmt3.x 再生无路面)。
+  - id: bbl_version_regen
+    description: "warn_bbl_version (.bbl 头标版本拒载警告) → bbl_regen 隔离/重生成"
+    phase: loop
+    order: 158.5 # bbl_regen(158) 同簇 warn 入口
+    when: { category: warn_bbl_version }
+    condition:
+      fileset: { has_ext: [.bbl] }
+      tool_available: biber
+    action:
+      kind: builtin_transform
+      function: bbl_regen
+    risk: low # builtin 自带 .bcf 完整性门 + fmt<3.0 隔离 + fmt≥3.0 备份回滚
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "qc replay bbl-format 桶 21 格 (2112.00121/2208.00058/2302.00046 verbatim dump 13 + author-hash 4 + 等)",
+          error: "Package biblatex Warning: File 'x.bbl' is wrong format version - expected 3.3 → 裸 sortlist/authorhash 排印",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX0/IDX28/IDX49"
+
+  # 'No file X.bbl'/'File x.bbl not found' 型 missing_file → bbl_regen:
+  # .bcf 在场 = biblatex 稿, biber <stem> 直接生出缺失 .bbl; 比
+  # install_file 语义对路 (.bbl 是生成件非可装包)。2601.09875 同签名
+  # 的 warning-only 变体由 warn_undef_ref 面 bbl_cite_undef_regen 收
+  # (该格零 '!' 错, missing_file 类不到)。
+  - id: bbl_missing_regen
+    description: "missing_file payload=*.bbl + .bcf 在场 → biber <stem> 就地再生成"
+    phase: loop
+    order: 158.6 # 装包臂耗尽后的生成件救济位
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "(No file|File) [`'][^`'\\n]*\\.bbl"
+      fileset: { has_ext: [.bcf] }
+      tool_available: biber
+    action:
+      kind: builtin_transform
+      function: bbl_regen
+    risk: low # builtin .bcf 完整性门 + 备份臂; 不碰 .tex
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2601.09875 (qc xlat_broken_refs/vis 桶)",
+          error: "No file 13thJan.bbl + There were undefined references (28 Citation-undefined, 15pp pdf)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX0/IDX17"
+
+  # warn_undef_ref → bbl_regen (IDX17b/49 合流): Citation-undefined 存留
+  # + .bcf 在场 = 末遍 bib 趟缺跑/陈旧 .bbl; biber 重生成 + needs_pass
+  # 续趟把新 .bbl 的 \\bibcite 面写回 .aux。消耗轮序在注入臂前:
+  # 根因格再生即解, 注入臂兜 cls/pagerange 类签名。
+  - id: bbl_cite_undef_regen
+    description: "warn_undef_ref + .bcf → bbl_regen 重跑 bib 趟 (stale/缺席 .bbl 的 cite-undef 根因臂)"
+    phase: loop
+    order: 158.7 # warn_undef_ref 消费族首臂: bib 根因先于标签注入
+    when: { category: warn_undef_ref }
+    condition:
+      fileset: { has_ext: [.bcf] }
+      tool_available: biber
+    action:
+      kind: builtin_transform
+      function: bbl_regen
+    risk: low # biber rc≠0/bcf 截断/在席 bbl 皆有 builtin 内闸与备份
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2212.00026 + 2601.09875 warn-only 变体 (qc xlat_broken_refs)",
+          error: "There were undefined references / Citation undefined ×28 — .bcf 在席而 .bbl 缺席或陈旧",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX17(b)/IDX49 合流"
+
+  # ── pagerange/endlabel 注入族 (IDX36/54 合流, builtin
+  #    pagerange_label_inject 未注册 → 逐键 lookahead 闸 + 字面注入的
+  #    regex_rewrite 同义表达) ──
+  # 机理: 类模板约定 \\pagerange{\\pageref{firstpage}--\\pageref{lastpage}}
+  #   靠作者手放 \\label{firstpage}/\\label{lastpage}; 缺标签 → 'Reference
+  #   firstpage undefined'。注入点位字面: firstpage 紧随 \\begin{document}
+  #   (页 1), lastpage 紧贴 \\end{document} 前 (末页)。不走
+  #   \\AtEndDocument——0707.3683 jpsj 自定义 \\enddocument 早关 aux,
+  #   钩内 \\label 可能落 aux 关闭后; 字面注入先于关序。
+  # condition 单键三判 (regex 模块 lookahead): \A 锚 (?!...\\label{key}
+  #   存活行不存在——% 前缀注释行不算活) ∧ (?=...ref 族用键) ∧ 中性体。
+  - id: pagerange_firstpage_inject
+    description: "warn_undef_ref + ref 族用 firstpage 而 \\label{firstpage} 缺席 → \\begin{document} 后注标签"
+    phase: loop
+    order: 158.8
+    when: { category: warn_undef_ref }
+    condition:
+      source_contains: "(?sm)\\A(?!.*?^[^%\\n]*\\\\label\\s*\\{\\s*firstpage\\s*\\})(?=[\\s\\S]*?\\\\(?:pagerange|pageref|autoref|nameref|eqref|[cCvVf]?ref|labelref)\\b[^}\\n]{0,80}?\\bfirstpage\\b)[\\s\\S]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\begin\\{document\\}",
+              repl: "\\g<0>\n\\\\label{firstpage}% fixloop-qlabel",
+              match_surface: "masked",
+            }
+    risk: low # 键缺席门 + masked 面; 注入即 \\label 幂等 (再轮 label 存活即不再点)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1306.0005, 1607.00383, 1607.00386 (qc xlat_broken_refs)",
+          error: "LaTeX Warning: Reference `firstpage' undefined — \\pagerange{firstpage--lastpage} 约定标签缺放",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX36/IDX54"
+    known_gap: "cls 内部引用键 (revtex LastBibItem/totpages TotPages) 源面无 ref-use 字面, 本规不盖——须 log 键提取 builtin (pagerange_label_inject 未注册)"
+
+  - id: pagerange_lastpage_inject
+    description: "warn_undef_ref + ref 族用 lastpage 而 \\label{lastpage} 缺席 → \\end{document} 前注标签"
+    phase: loop
+    order: 158.9
+    when: { category: warn_undef_ref }
+    condition:
+      source_contains: "(?sm)\\A(?!.*?^[^%\\n]*\\\\label\\s*\\{\\s*lastpage\\s*\\})(?=[\\s\\S]*?\\\\(?:pagerange|pageref|autoref|nameref|eqref|[cCvVf]?ref|labelref)\\b[^}\\n]{0,80}?\\blastpage\\b)[\\s\\S]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\end\\{document\\}|\\\\enddocument\\b",
+              repl: "\\\\label{lastpage}% fixloop-qlabel\n\\g<0>",
+              match_surface: "masked",
+            }
+    risk: low # 同 firstpage 臂; \\enddocument 裸形 (jpsj) 同收
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1107.0455, 1107.0726, 2208.00008, 2607.09718, 0707.3683 (qc xlat_broken_refs)",
+          error: "LaTeX Warning: Reference `lastpage' undefined — mnras/mn2e pagerange 约定标签缺放/被注释",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX36/IDX54"
+    known_gap: "末页尾随浮体 (\\end{document} 的 \\clearpage 批放) 落点晚于注入位 → lastpage 页码可能偏早一页; 语义近似优于 ?? 未解"
+
+  # warn_undef_ref → purge_corrupt_intermediates (IDX17b 窄臂): 引用断链
+  # 且 .aux/.bbl/.blg 有真损坏件 (utf-8 劈断/末行截断) 时清场, 下遍
+  # 引擎重写干净件即收。builtin 损坏谓词自门——健康陈旧 aux 不删
+  # (2212.00026 型陈旧键面由 bbl_cite_undef_regen+续趟覆盖)。
+  - id: cite_undef_aux_purge
+    description: "warn_undef_ref + 损坏中间件在席 → purge_corrupt_intermediates 清 aux/bbl/blg"
+    phase: loop
+    order: 159.0 # 注入族后殿后: 断链且中间件损坏才清
+    when: { category: warn_undef_ref }
+    condition:
+      any:
+        - { fileset: { has_ext: [.aux] } }
+        - { fileset: { has_ext: [.bbl] } }
+    action:
+      kind: builtin_transform
+      function: purge_corrupt_intermediates
+      params: { exts: [.aux, .bbl, .blg] }
+    risk: low # builtin 损坏谓词 (utf-8 fail/末行不完整) 自门; 全健康即 decline
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2212.00026 (qc xlat_broken_refs)",
+          error: "There were undefined references — 陈旧/损坏 aux 键面残响",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX17(b)"
+    known_gap: "健康陈旧 aux (well-formed 但键过期) 不满足损坏谓词不删——真 stale-aux 面靠续趟重写覆盖"
+
+  # invalid_char 归口 + 报错落 .bbl → 控制字节剥除 (IDX45 的
+  # bbl_ctrl_sanitize builtin 未注册 → regex 同义): 0x00-08/0B/0C/0E-1F
+  # 裸控制字节在 .bbl 内逢必杀 (合法 bbl 文本无此面)。ctx_suggests 钉
+  # 报错文件面到 .bbl, 不碰 .tex 源。
+  - id: bbl_ctrl_bytes_strip
+    description: "invalid_char @ .bbl → 剥 [\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f] 控制字节"
+    phase: loop
+    order: 159.2 # bbl 面件注入族后
+    when: { category: invalid_char }
+    condition:
+      ctx_suggests: "\\.bbl"
+      fileset: { has_ext: [.bbl] }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.bbl]
+        rewrites:
+          - { pattern: "[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]", repl: "" }
+    risk: low # 非法控制字节无保留义; 剥后拼接不改变合法文本语义
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2407.06789 (qc xlat_broken_refs)",
+          error: "bbl 读死在 entry ~9 —— 0x0B 控制字节嵌 {\\x0B{S}}umak, 143 hits 全下游 cite",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX45 (builtin bbl_ctrl_sanitize 未注册 → regex 同义)"
+
+  # 1003.0045 (qc xlat_residual_en): 稿面 .bbl 残留 \\bibinfo{a}{v} 壳
+  #   —— revtex/aps 系标记宏, 宿主类不定义即裸 cs 断链。剥壳留值
+  #   \\bibinfo{a}{v} → {v} 语义恒等 (revtex 稿该宏本就排版为
+  #   分组值)。precheck 一次性面: .bbl 不在 source_blob 扩展集
+  #   (.tex/.sty/.cls) → fileset 门 + rewrite 零命中自 decline。
+  - id: bibinfo_disarm
+    description: ".bbl 内 \\bibinfo{a}{v} 壳 → {v} 剥除 (宿主类无定义时的断链预拆)"
+    phase: precheck
+    order: 1 # static_precheck(0) 后: 装包落定再拆壳
+    when: { always: true }
+    condition:
+      fileset: { has_ext: [.bbl] }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.bbl]
+        rewrites:
+          - { pattern: "\\\\bibinfo\\s*\\{[^{}\\n]*\\}\\s*\\{", repl: "{" }
+    risk: low # 壳剥语义恒等; 0 命中不点火
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0045 (qc xlat_residual_en)",
+          error: "\\bibinfo 残留在 .bbl —— 宿主类无定义即 undefined_cs",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json IDX26"

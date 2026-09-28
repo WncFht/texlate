@@ -1642,7 +1642,7 @@ def _reconcile_pending(env, idx):
         idc, arm, variant = meta["idc"], meta["arm"], meta["variant"]
         altseq = meta.get("altseq", "0")
         try:
-            zone, verdict = _verdict_for(idx, spec, idc, arm, variant)
+            zone, verdict = _verdict_for(idx, spec, idc, arm, variant, meta=meta)
             if verdict == "pending_abort":
                 for k in spec.mutating_kinds() or ("zh",):
                     vault.tombstone(
@@ -1676,10 +1676,12 @@ def _reconcile_pending(env, idx):
             )
 
 
-def _verdict_for(idx, spec, idc, arm, variant):
+def _verdict_for(idx, spec, idc, arm, variant, meta=None):
     """pending meta verdict from this run's cell rows (§3.5 reconcile):
     any clean-class -> (primary, primary); fail-class only -> (quar, quar);
-    nothing parseable -> pending_abort; else (primary, alt)."""
+    nothing parseable -> pending_abort; else (primary, alt). A clean
+    verdict is capped at alt when the copy's declared splice lacks a
+    product pdf (fig-only/pdf-less shells must not certify a cell)."""
     statuses = set()
     for r in idx.conn.execute(
         "SELECT status FROM cells WHERE idc=? AND arm=? AND variant=?",
@@ -1687,12 +1689,21 @@ def _verdict_for(idx, spec, idc, arm, variant):
     ):
         statuses.add(r["status"])
     if statuses & {"ok", "partial", "clean"}:
-        return ("primary", "primary")
-    if statuses and statuses <= {"fail", "fault", "dirty_pdf", "reject"}:
-        return ("quar", "quar")
-    if not statuses:
+        zone, verdict = "primary", "primary"
+    elif statuses and statuses <= {"fail", "fault", "dirty_pdf", "reject"}:
+        zone, verdict = "quar", "quar"
+    elif not statuses:
         return ("pending", "pending_abort")
-    return ("primary", "alt")
+    else:
+        zone, verdict = "primary", "alt"
+    if (
+        verdict == "primary"
+        and isinstance(meta, dict)
+        and "splice" in (meta.get("files") or {})
+        and not vault._copy_product_ok(meta, "splice")[0]  # noqa: SLF001
+    ):
+        verdict = "alt"  # 无产物 pdf 的 splice 副本不得晋 primary
+    return (zone, verdict)
 
 
 # --- plan (dry run) -----------------------------------------------------------------------

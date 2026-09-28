@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile._seams import find_docclass_ends
+from texlate.compile._docseams import find_docclass_ends
 from texlate.compile.fixloop._builtins_common import (
     _LOAD_SITE_RE,
     PDFTEX_PRIMS,

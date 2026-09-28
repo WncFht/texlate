@@ -45,18 +45,30 @@
 \def\eqsecnum{\@addtoreset{equation}{section}%
 \def\theequation{\thesection-\arabic{equation}}}
 % ── deluxetable 复合面 (aaspp4 实证模型): \@delspec 延迟开张 ──
-\newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
-\newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+\newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}%
+\global\let\aasfour@dtopen\@undefined}{\end{table}}
+\newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}%
+\global\let\aasfour@dtopen\@undefined}{\end{table}}
 \let\planotable=\deluxetable
 \let\endplanotable=\enddeluxetable
 \def\tablewidth#1{}
 \def\tablecolumns#1{}
 \def\tablecaption#1{\caption{#1}}
-\def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline}
+% deluxetable 双开张点 (aaspp4 同修): 真件 \tablehead/\startdata
+% 各自可开 tabular。旧 stub 只在 \tablehead 开张、\startdata 纯
+% noop → 稿省 \tablehead 直书 \startdata 时整表塌成一段。开张标记
+% \aasfour@dtopen 用 \gdef——\tablehead 尾端在 halign 格内展开,
+% \def 随格组消亡传到 \startdata 已丢; env 开头 \global\let 复位
+% 供同稿多表。\@delspec 缺席兜底 'l'。
+\def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline
+\gdef\aasfour@dtopen{1}}
 \def\tabletail#1{}
 \def\tableheadfrac#1{}
-\def\startdata{}
-\def\enddata{\endtabular}
+\def\startdata{\@ifundefined{aasfour@dtopen}{%
+\@ifundefined{@delspec}{\def\@delspec{l}}{}%
+\expandafter\tabular\expandafter{\@delspec}\gdef\aasfour@dtopen{1}}{}}
+\def\enddata{\@ifundefined{aasfour@dtopen}{}{\endtabular
+\global\let\aasfour@dtopen\@undefined}}
 \def\nl{\\}
 \let\nextline=\nl
 \def\tableline{\hline}

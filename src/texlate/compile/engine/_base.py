@@ -176,13 +176,17 @@ def _collect_compile_outputs(res: CompRes, outputs: list[str]) -> None:
         res.timed_out = True
 
 
-def _driver_fatal(res: CompRes) -> str | None:
+def _driver_fatal(
+    res: CompRes, *, has_pdf: Callable[[CompRes], bool] = lambda r: r.has_pdf
+) -> str | None:
     r"""CompRes 的下游驱动 fatal 证据行（无则 ``None``）——clean 否决/归因单源。
 
     证据 = ``stdout_tail`` 有 ``*: fatal:`` 签名行 ∧ 编译呈失败相
     （``killed_signal`` 置位 / ``rc`` 非零 / 无 pdf）——``fatal:``
     字面行单有不足采：``\\write18`` 类孙件 fatal 可被主进程恢复，
     rc=0 且出 pdf 的编译按既有契约不算驱动死（salvage 阴性钉）。
+    ``has_pdf`` 谓词可注入——fixloop 侧鸭形 ``CompResLike`` 替身经
+    ``_res_has_pdf``（callable 兜底 pdf 字段）传入，本体判定同源。
     """
     line = driver_fatal_line(getattr(res, "stdout_tail", "") or "")
     if line is None:
@@ -192,7 +196,7 @@ def _driver_fatal(res: CompRes) -> str | None:
     rc = getattr(res, "rc", None)
     if rc is not None and rc != 0:
         return line
-    if not res.has_pdf:
+    if not has_pdf(res):
         return line
     return None
 

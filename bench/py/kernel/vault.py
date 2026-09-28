@@ -143,6 +143,104 @@ _ZONE_TAG = {
 # restore() preference when several copies of a cell exist.
 _ZONE_RANK = {"primary": 0, "alt": 1, "quar": 2, "pending": 3}
 
+# --- product presence -----------------------------------------------------------
+#
+# A commit marker + intact declared bytes prove a copy EXISTS; they do NOT prove
+# the copy carries the product it is supposed to display. fixloop-dedup and
+# quick-terminal harvests seal pdf-less splice workspaces (fig*.pdf assets only,
+# or no pdf at all), and record-level verdicts then vouch them as product
+# (qc no_pdf 普查 ~97 格根因). The predicate below is the single source of
+# truth; consumers gate/rank on it instead of trusting the verdict alone.
+
+#: Kinds with a product notion — zh's product is the translated .tex tree,
+#: splice's is the compiled paper pdf. state/layoutqc leaves are payload dirs
+#: (state.json/qc.json) with no further product concept.
+_PRODUCT_KINDS = frozenset({"zh", "splice"})
+
+#: Root-level pdf stems carrying these prefixes are figure assets, not the
+#: compiled paper (the fig-only seal shape — e.g. a splice leaf holding
+#: fig1..fig18.pdf and no product pdf counts as product-LESS).
+_FIGISH_STEM_RE = re.compile(r"(?:fig|plot|pic)", re.IGNORECASE)
+
+
+def _copy_file_rels(src, kind: str) -> list[str] | None:
+    """posix-rel paths of one kind inside a copy — None when the kind is
+    absent/unresolvable.
+
+    ``src`` accepts either a vault meta dict (its ``files`` declaration is
+    consulted — callers pair it with ``_copy_intact``/``bytes_ok`` for
+    physicality) or a filesystem dir (vault leaf / restored work dir),
+    scanned live. Read-only; no writes."""
+    if isinstance(src, dict):
+        files = src.get("files")
+        flist = files.get(kind) if isinstance(files, dict) else None
+        if not isinstance(flist, list) or not flist:
+            return None
+        return [
+            e["path"]
+            for e in flist
+            if isinstance(e, dict)
+            and isinstance(e.get("path"), str)
+            and e["path"]
+        ]
+    d = Path(src)
+    if not d.is_dir():
+        return None
+    return [rel for _p, rel in _iter_files(d)]
+
+
+def _copy_product_ok(src, kind: str) -> tuple[bool, str]:
+    """(ok, reason) — the copy's ``kind`` dir actually holds product bytes.
+
+    splice  product = a compiled-paper pdf: a ``.pdf`` whose stem matches a
+            declared ``.tex`` stem (the ``_splice_keep`` final-pdf rule —
+            also rescues nested/fig-named pairs), else a ROOT-level ``.pdf``
+            whose stem is not fig/plot/pic-prefixed (``.fixloop-entry.pdf``
+            floor snapshots and meta-skew names like ``MQD_Manuscript.pdf``
+            count here; ``fig*.pdf`` figure assets and ``figures/*.pdf``
+            nested assets do not).
+    zh      product = >=1 declared ``.tex`` (the translated source tree).
+    others  no product notion — always (True, "na"); those copies can only
+            ever be judged by intactness.
+    """
+    rels = _copy_file_rels(src, kind)
+    if rels is None:
+        return False, "kind_absent"
+    if kind == "zh":
+        if any(r.endswith(".tex") for r in rels):
+            return True, "tex"
+        return False, "no_tex"
+    if kind == "splice":
+        tex_stems = {
+            r.rsplit("/", 1)[-1][: -len(".tex")] for r in rels if r.endswith(".tex")
+        }
+        root_pdf = False
+        for r in rels:
+            if not r.endswith(".pdf"):
+                continue
+            stem = r.rsplit("/", 1)[-1][: -len(".pdf")]
+            if stem in tex_stems:
+                return True, "stem_match"
+            if "/" not in r and not _FIGISH_STEM_RE.match(stem):
+                root_pdf = True
+        return (True, "root_pdf") if root_pdf else (False, "no_product_pdf")
+    return True, "na"
+
+
+def _copy_product_bad(meta: dict) -> int:
+    """Number of declared product-kinds that are product-less — the ranking
+    penalty a copy pays for sealing a shell (0 = every declared product kind
+    carries its product; a state-only leaf declares no product kinds at all
+    and scores 0 — its payload IS its product)."""
+    files = meta.get("files")
+    if not isinstance(files, dict):
+        return 0
+    return sum(
+        1
+        for k in files
+        if k in _PRODUCT_KINDS and not _copy_product_ok(meta, k)[0]
+    )
+
 
 class VaultError(Exception):
     """Base failure for vault operations."""
@@ -1609,8 +1707,17 @@ def restore(idc, arm, variant, dest, altseq=None, mode: str = "copy") -> int:
 
 
 def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
-    """Best intact copy for restore: exact altseq when given, else by zone
-    preference then lowest altseq."""
+    """Best intact copy for restore: exact altseq when given, else by kind
+    coverage, product presence, zone preference, then lowest altseq.
+
+    Ranking order is (coverage desc, product-bad asc, zone_rank, altseq):
+    richer-kind copies serve more consumers (state hydration must not lose
+    to a fuller copy), and among equal-coverage copies a product-bearing
+    one always wins — a pdf-less splice shell can never shadow a repaired
+    sibling (the reseal/clobber rescue). Product-badness demotes, never
+    excludes: when every copy is product-less the last-resort copy still
+    serves tex-workspace/zh hydrators — a hard gate would deadlock the
+    fixloop repair path it is meant to unblock."""
     cands = []
     for _mp, key, meta in _iter_metas():
         if key is None or meta is None or key[:3] != (idc, arm, variant):
@@ -1623,11 +1730,15 @@ def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
             continue
         if not _copy_intact(meta):
             continue
-        cands.append((_ZONE_RANK.get(z, 4), key[3], meta))
+        files = meta.get("files")
+        coverage = -len(files) if isinstance(files, dict) else 0
+        cands.append(
+            (coverage, _copy_product_bad(meta), _ZONE_RANK.get(z, 4), key[3], meta)
+        )
     if not cands:
         return None
-    cands.sort(key=lambda t: (t[0], t[1]))
-    return cands[0][2]
+    cands.sort(key=lambda t: t[:4])
+    return cands[0][4]
 
 
 def tombstone(

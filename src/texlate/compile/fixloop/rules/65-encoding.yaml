@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1

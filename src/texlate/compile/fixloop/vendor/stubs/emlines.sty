@@ -1,0 +1,23 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% emlines.sty 替身：emTeX/TeXCAD 绘线段套件 (© E. Mattes，不在
+% TL) → epic \drawline 等价面。0812.0852 实证：article 稿
+% \usepackage{emlines}，picture env (unitlength=0.07cm) 内
+% \emline×112。真件走 \special{em:line} 依赖 dvips 后处理，
+% xelatex 无收 → 改 epic \drawline (纯 picture-mode，任意斜率
+% 小数点安全，内核 \line 限整数互质斜率)；epic 缺席退
+% 调时 noop 吞参保编译。
+% 注意: \emline 定义不进 \IfFileExists 分支 —— 内核
+% \IfFileExists 经 \def\reserved@a{<branch>} 捕获分支体,
+% 分支内 #1 未转 ##1 会炸 Illegal parameter number (smoke 实证)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{emlines}[2026/09/28 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{emlines.sty is a compatibility shim -> epic drawline}
+\DeclareOption*{}
+\ProcessOptions\relax
+\IfFileExists{epic.sty}{\RequirePackage{epic}}{%
+  \PackageWarningNoLine{texlate-stub}{emlines: epic absent, \string\emline\space degraded to no-op}}
+% \emline{x1}{y1}{tag1}{x2}{y2}{tag2}: tag 参为 TeXCAD 节点号，
+% 纯注释义 → 吞。坐标记法 decimal-unitlength 与 \drawline 同形。
+% \@ifundefined{drawline} 调时闸: epic 在场直行, 缺席 noop。
+\providecommand{\emline}[6]{\@ifundefined{drawline}{}{\drawline(#1,#2)(#4,#5)}}
+\endinput

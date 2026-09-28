@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 #
 # 本片区别的入口面：qc_wanted 补票格 (e2e_real _QC_WANTED_MIN——编译
 # clean/ok 但版面重缺陷) 进 fixloop 后无 '!' 错可分类，靠 warnings 段
@@ -68,3 +68,291 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "rules/95-targeted.yaml float_h_demote 原规; tmp/qc_replay/summary.json"
     known_gap: "非 [H] 形 float_lost (env 丢名/multicols 内浮体等) 无 [H] 站可降级, builtin decline 让位; 真超高浮体降级后仍 overfull vbox 但内容可见——float_lost→float_fit 降级即修复语义"
+
+  # ── 2026-09-28 qc-impl lane: vault QC replay layout:overfull 簇 ──
+  # tabular_fit builtin (layoutfix 叶): 表族 env 钩 adjustbox 包
+  # (tabular/tabular*/tabularx/tabulary/tabu/deluxetable/smalldeluxetable),
+  # 流 env (longtable/supertabular/mpsupertabular) shrink, p{\textwidth}
+  # →p{0.85\linewidth}, 负 \hspace 剥除, minipage ≥160mm→adjustbox 裹。
+  # source_contains 条件必须含 minipage —— 0905.1250 格唯一超宽面是
+  # minipage 160mm 装子表, 无 tabular 字面即 decline 漏治。
+  - id: tabular_overfull_fit
+    description: "warn_overfull + 表族/minipage 字面 → tabular_fit env 钩 adjustbox 收缩"
+    phase: loop
+    order: 212
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\\\(begin|end)\\{(tabularx?|tabulary|tabu|deluxetable|smalldeluxetable|longtable|supertabular|mpsupertabular|minipage)"
+    action:
+      kind: builtin_transform
+      function: tabular_fit
+    risk: low # 只包 adjustbox/改 p 列宽; env 名白名单外不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "layout:overfull 表族簇 —— 整盒超宽非词间 glue 病因, para_loosen 无解需盒级收缩",
+        }
+      - {
+          corpus: "qc_inspect 0905.1250",
+          error: "minipage 160mm 装子表超栏 —— minipage 臂必须进条件字面否则漏治",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py tabular_fit; tmp/qc_impl_spec/impl-rules.json"
+    known_gap: "无表族/minipage 字面的 overfull (纯文本/图形盒) builtin decline; 已 adjustbox 包裹面幂等"
+
+  # math_run_break builtin: \relpenalty/\binoppenalty=0 放行行内数学
+  # 断点 + tier2 (emergencystretch=3em/tolerance=9999) 升级。长行内数学
+  # $...$ 是 overfull 头号内联不可断物 (qc replay 实测多格)——TeX 默认
+  # 关系/二元符后罚 10000 禁断, 归零即让行内公式在运算符处断行。
+  - id: math_inline_break
+    description: "warn_overfull + 长行内数学 → math_run_break 罚归零放断点"
+    phase: loop
+    order: 213
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\$[^$\\n]{24,}\\$"
+    action:
+      kind: builtin_transform
+      function: math_run_break
+    risk: low # 数学断行视觉代价 << 出血; 无数学面 preamble 参数无害
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "layout:overfull 长行内数学簇 —— relpenalty/binoppenalty 禁断致整串出血",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py math_run_break; tmp/qc_impl_spec/impl-rules.json"
+    known_gap: "display 数学/env 内公式不走行内罚机制 (display_math_shrink 214 管); 数学字面 <24pt 阈值外 decline"
+
+  # display_math_shrink builtin: 17 个 display env (equation/align/gather/
+  # multline/flalign/eqnarray/IEEEeqnarray/dmath/displaymath/bea 等) env
+  # hook 注 \footnotesize+\arraycolsep1.5pt+\jot2pt+muskip 收紧, $$ 与
+  # \[ 裸面 adjustbox 裹。陈列数学超宽是 overfull 次大簇——字号+列距
+  # 收缩比松化直接, adjustbox 兜底真巨盒。
+  - id: display_math_shrink
+    description: "warn_overfull + display 数学 env → display_math_shrink 字号/列距收缩+adjustbox 兜底"
+    phase: loop
+    order: 214
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\\\(begin|end)\\{(equation|align|gather|multline|flalign|eqnarray|IEEEeqnarray|dmath|displaymath|bea)|\\$\\$|\\\\\\["
+    action:
+      kind: builtin_transform
+      function: display_math_shrink
+    risk: low # 字体参数收紧不改公式内容; adjustbox max width 只缩不放大
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "layout:overfull display 数学簇 —— 整陈列盒超栏需字号/列距收缩非行内断点",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py display_math_shrink; tmp/qc_impl_spec/impl-rules.json"
+    known_gap: "env 名白名单外 display (自编环境) 不钩; 已收缩仍超的巨公式 adjustbox 也只到 \\linewidth"
+
+  # ── 2026-09-28 qc-impl lane: qc_wanted 无签名面 precheck 兜底 ──
+  # 2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 把下一浮体吸上
+  # 来与 fig caption 叠印 (geo_text_overlap 源) —— 编译 clean/ok 无 '!'
+  # 错可分类, log 面无签名, 进 fixloop 后只有 precheck always 面可达
+  # (本片头注: warn_* 伪类不覆盖此族)。负 belowskip 是合法省空间手
+  # 法但 qc 判定叠印即缺陷——钳零仅 spacing 变松不丢内容。两形:
+  # captionsetup 键值 belowskip=-N + \\setlength{\\belowcaptionskip}{-N}。
+  - id: caption_skip_clamp
+    description: "负 belowskip/\\belowcaptionskip 钳零 —— 浮体负距吸叠 caption (qc_wanted 无签名 precheck 兜底)"
+    phase: precheck
+    order: -7
+    when: { always: true }
+    condition:
+      source_contains: "belowskip\\s*=\\s*-|\\\\setlength\\s*\\{\\\\belowcaptionskip\\}\\s*\\{[^}]*-"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(belowskip\\s*=\\s*)-[\\d.]+\\s*[a-z]{2}",
+              repl: "\\g<1>0pt",
+              match_surface: "masked",
+            }
+          - {
+              pattern: "(\\\\setlength\\s*\\{\\\\belowcaptionskip\\}\\s*\\{)\\s*-[\\d.]+\\s*[a-z]{2}\\s*(\\})",
+              repl: "\\g<1>0pt\\g<2>",
+              match_surface: "masked",
+            }
+    risk: low # 负 skip 钳零仅 spacing 变松不丢内容不毁版式
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 负距吸叠下一浮体与 caption 叠印 —— 无 log 签名仅 precheck 可达",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json caption_skip_clamp"
+    known_gap: "above skip/负 \\vspace 吸叠不收 (只钳 caption 下距单签名); 无单位负值 (如 -\\smallskipamount) 形不收"
+
+  # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin (vbox_geometry_clamp/
+  #   url_run_break/bib_sloppy/verbatim_listing_shrink) 未在 builtins
+  #   TRANSFORM_FNS 注册 —— 本簇全部落 regex_rewrite 等价臂, 不可达子臂
+  #   逐条记 known_gap。
+  # vbox_geometry_clamp spec 三臂中只 (a) 静态臂 regex 可达: 负/零
+  # \headheight 页高 hack 钳回 0pt (0806.1975 '\headheight -.75 in'
+  # 正例)。vbox 签走 overfull_vbox→warn_overfull 别名路进 (D1 已落
+  # 20-warnings:51 + 10-taxonomy:991), ctx 行再窄化 \vbox 字样防
+  # hbox 格误中本臂。
+  - id: vbox_headheight_clamp
+    description: "warn_overfull (Overfull \\vbox 臂) + 负 \\headheight hack → 钳回 0pt (vbox_geometry_clamp 静态臂)"
+    phase: loop
+    order: 216 # display_math_shrink(214) 后; vbox 签专属
+    when: { category: warn_overfull }
+    condition:
+      ctx_suggests: "Overfull \\\\vbox"
+      source_contains: "\\\\headheight\\s*=?\\s*-\\s*[0-9.]|\\\\setlength\\s*\\{\\s*\\\\headheight\\s*\\}\\s*\\{\\s*-"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 裸赋值形 '\headheight -.75 in' / '\headheight=-12pt'
+          - {
+              pattern: "\\\\headheight\\s*=?\\s*-\\s*[0-9.]+\\s*(pt|mm|cm|in|em|ex|bp|pc|dd|cc|sp)\\b",
+              repl: "\\\\headheight=0pt",
+              match_surface: masked,
+            }
+          # \setlength{\headheight}{-<dimen>} 形 (含 '-\paperheight' 表达式)
+          - {
+              pattern: "(\\\\setlength\\s*\\{\\s*\\\\headheight\\s*\\}\\s*\\{\\s*)-[^}\\n]*?(\\})",
+              repl: "\\g<1>0pt\\g<2>",
+              match_surface: masked,
+            }
+    risk: low # 负 headheight 恒为压缩 hack 位, 钳回 0pt = 版心几何复原非掩饰
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay layout:overfull vbox 桶 (qc-impl-2026-09-28)",
+          error: "0806.1975 '\\headheight -.75 in' 页高 hack → 均匀 Overfull \\vbox",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item5 vbox_geometry_clamp"
+    known_gap: "builtin 缺席砍掉两臂: (b) log 读 'Overfull \\vbox (Npt too high' 众数 → \\addtolength\\textheight{Npt} 收均匀每页溢出 (1312.0469/2609.20593) 需读上轮 log 不可达; (c) \\floatpagefraction/\\@fpsep 兜底臂同缺"
+
+  # url_run_break spec 的 regex 等价: (a) preamble 注 xurl/url +
+  # \UrlBreaks 保守断点集 (url.sty:32 原生形 \\do\\<char>); (b) masked
+  # 裸 https?:// 包 \url —— {/|/" 前瞻挡 \url/\href/\path/verbatim 语境内
+  # 重包与 |-delimited 形; marker 幂等跨轮。
+  - id: url_literal_break
+    description: "warn_overfull + 裸 URL/长字面串 → xurl/url 断点集注入 + 裸 https?:// 包 \\url (url_run_break regex 近似)"
+    phase: loop
+    order: 217
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "https?://|\\\\texttt\\s*\\{[^}]{24,}\\}|\\\\tt\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .bbl]
+        rewrites:
+          # (a) preamble 注 xurl (任意字符可断) / url 兜底 + 保守断点集;
+          #   \begin{document} 前插入, marker \txlateurlbrk 前瞻幂等
+          - {
+              pattern: "(?<!\\\\def\\\\txlateurlbrk\\{\\}\n)(\\\\begin\\s*\\{document\\})",
+              repl: "\\IfFileExists{xurl.sty}{\\usepackage{xurl}}{\\usepackage{url}}\n\\urlstyle{same}\n\\def\\UrlBreaks{\\do\\/\\do\\-\\do\\_\\do\\.\\do\\=\\do\\?}\n\\def\\txlateurlbrk{}\n\\g<1>",
+              match_surface: masked,
+            }
+          # (b) 裸 URL 包 \url: lookbehind 挡 {/| 前缀 (\url{}/\href{}{}/\
+          #   path{}/verb| 内字面不沾), 尾集排 $&%#\\"'<>| 截界
+          - {
+              pattern: "(?<![\\\\{}|])https?://[^\\s{}$&%#\\\\\"'<>|]+",
+              repl: "\\\\url{\\g<0>}",
+              match_surface: masked,
+            }
+    risk: medium # 裸 URL 包 \url 改排版行为 (加断点可折行) —— 修复向非毁损向; masked 面挡 verbatim/注释
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay layout:overfull unbreakable_url 桶 (qc-impl-2026-09-28)",
+          error: "1003.0639 裸 URL footnote / 2502.02773 github URL / 2504.16891 hf 长 hash 等 8 格 —— 不可断字面串拉竭词间 glue",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item6 url_run_break"
+    known_gap: "(c) \\texttt{≥24 长串}→\\path 与 (d) {\\tt ..} 组臂未采——\\path verbatim 读法下源内 #/%/\\ 字面转义分歧, regex 层判不出安全面, 保守拒改; \\path 参内花括号残稿先天不收"
+
+  # bib_sloppy spec 的 regex 等价: preamble 注 env 钩 —— 钩码在
+  # thebibliography 环境组内执行, \sloppy 作用域天然限 bib 区。
+  - id: bib_para_loosen
+    description: "warn_overfull + thebibliography → env 钩 \\sloppy+\\emergencystretch=2em (bib_sloppy regex 等价)"
+    phase: loop
+    order: 218
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\\\begin\\s*\\{thebibliography\\}"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?<!\\\\def\\\\txlatebibloose\\{\\}\n)(\\\\begin\\s*\\{document\\})",
+              repl: "\\AddToHook{env/thebibliography/begin}{\\sloppy\\emergencystretch=2em\\relax}\n\\def\\txlatebibloose{}\n\\g<1>",
+              match_surface: masked,
+            }
+    risk: low # 只抬 bib 区排版参数; env 钩作用域自限不外溢正文
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay layout:overfull bib 桶 (qc-impl-2026-09-28)",
+          error: "1206.5920 revtex \\bibinfo bibitem 118.8pt / 2212.00052 条目 245pt —— bib 段落 glue 耗尽",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item7 bib_sloppy"
+    known_gap: "\\bibitem 内 '\\mbox{\\cite{..}}' 不拆簇臂未采 (需 builtin 语义定位); 非 thebibliography 环境的 bib 面 (revtex 自定义 env/手写列表) 不收"
+
+  # verbatim_listing_shrink spec 的 regex 等价: env 钩收 verbatim/alltt/
+  # lstlisting 字号; \AtBeginDocument 内 \\IfPackageLoadedTF 双包
+  # 门控 —— listings 注 breaklines/breakanywhere + footnotesize,
+  # tcolorbox 注 listing options (2503.18866 tcblisting CJK run 147pt
+  # 实证: 无空格串只能 breakanywhere 截断)。
+  - id: verbatim_listing_shrink
+    description: "warn_overfull + verbatim/lstlisting/tcblisting/alltt → 字号收缩 + breakanywhere (verbatim_listing_shrink regex 等价)"
+    phase: loop
+    order: 219
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\\\begin\\s*\\{(verbatim|lstlisting|tcblisting|alltt)\\}"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?<!\\\\def\\\\txlatevblist\\{\\}\n)(\\\\begin\\s*\\{document\\})",
+              repl: "\\AddToHook{env/verbatim/begin}{\\footnotesize}\n\\AddToHook{env/alltt/begin}{\\footnotesize}\n\\AddToHook{env/lstlisting/begin}{\\footnotesize}\n\\AtBeginDocument{\\IfPackageLoadedTF{listings}{\\lstset{basicstyle=\\footnotesize\\ttfamily,breaklines=true,breakanywhere=true}}{}\\IfPackageLoadedTF{tcolorbox}{\\tcbset{listing options={breakanywhere=true}}}{}}\n\\def\\txlatevblist{}\n\\g<1>",
+              match_surface: masked,
+            }
+    risk: low # 字号收缩+断行开关不改字面内容; 包缺席时 IfPackageLoadedTF 空臂
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay layout:overfull verbatim 桶 (qc-impl-2026-09-28)",
+          error: "2609.19244 verbatim 40-63pt / 2503.18866 tcblisting CJK run 147pt —— 逐字面不可断行超宽",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item8 verbatim_listing_shrink"
+    known_gap: "minted env 不收 (shell-escape 恒禁面自带别的死法); tcblisting 走 minted 引擎时 listing options 键不达 (verbatim 引擎面覆盖); \\VerbatimInput/lstinputlisting 文件载入形不收"

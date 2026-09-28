@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -155,12 +155,18 @@ rules:
               polyfill: "\n\\providecommand{\\newblock}{\\hskip .11em plus .33em minus .07em}",
             }
           # 2501.14787 (repro-2501-2026-09-16): \DeclareUnicodeCharacter 是
-          # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸) → lccode
-          # 惯用法 polyfill。normalize.XETEX_COMPATIBILITY 同源 shim
-          # (c582736 已源头落); 本条目兜底绕开 normalize 的编译路径。
+          # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸)。
+          # normalize.XETEX_COMPATIBILITY 同源 shim (c582736 已源头落);
+          # 本条目兜底绕开 normalize 的编译路径。
+          # REPAIR (qc-impl 2026-09-28, 1812.00318): 旧 lccode/\lowercase
+          # 惯用法在注入路径上坏 —— '~' 若已 active 则 `\~` 读成重音符
+          # 非字符码, 十六进制参 ("0394 等) 被排版成 1096pt overfull 显示
+          # 串。换 csname 自证形: \csname u8:\number"#1\endcsname ——
+          # \number" 把十六进制实参转十进 ucs 键 (ucs.def 键面即
+          # u8:<decimal>), \csname 不吃 catcode 不设 ~ 名。
           DeclareUnicodeCharacter:
             {
-              polyfill: "\n\\providecommand{\\DeclareUnicodeCharacter}[2]{\\begingroup\\lccode`\\~=\"#1\\relax\\lowercase{\\endgroup\\catcode`~\\active\\protected\\def~}{#2}}",
+              polyfill: "\n\\providecommand{\\DeclareUnicodeCharacter}[2]{\\expandafter\\def\\csname u8:\\number\"#1\\endcsname{#2}}",
             }
           # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
           # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass
@@ -638,12 +644,9 @@ rules:
             {
               polyfill: "\n\\providecommand{\\hangcaption}[2][]{\\par\\smallskip\\noindent\\hangafter=1\\hangindent=1.5em #2\\par\\smallskip}",
             }
-          # latex2html html.sty 链接宏 (1511.02851): hyperref 在场则真链,
-          # 缺席保锚文本不丢文
-          htmladdnormallink:
-            {
-              polyfill: "\n\\providecommand{\\htmladdnormallink}[2]{\\ifdefined\\href\\href{#2}{#1}\\else#1\\fi}",
-            }
+          # latex2html html.sty 链接宏 (1511.02851): 键位下移合并至
+          # qc-impl 追加条 (L915 附近, \\else\\url{#2} 更富退路) —— 同键
+          # 双定义只存活后者, 此槽删除防分叉
           # axodraw 时代 \Line(x,y)(x,y) (hep-ph/0111339): pict2e 原生
           # \Line(#1,#2)(#3,#4) 全签名兼容 → 装真包实绘 (gobble stub 的
           # 替代品; 同体 \LongArrow 属下一层 payload 见 lane 报告)
@@ -886,6 +889,63 @@ rules:
           sc:
             {
               polyfill: "\n\\ifdefined\\rm\\else\\DeclareOldFontCommand{\\rm}{\\normalfont\\rmfamily}{\\mathrm}\\fi\\ifdefined\\sf\\else\\DeclareOldFontCommand{\\sf}{\\normalfont\\sffamily}{\\mathsf}\\fi\\ifdefined\\tt\\else\\DeclareOldFontCommand{\\tt}{\\normalfont\\ttfamily}{\\mathtt}\\fi\\ifdefined\\bf\\else\\DeclareOldFontCommand{\\bf}{\\normalfont\\bfseries}{\\mathbf}\\fi\\ifdefined\\it\\else\\DeclareOldFontCommand{\\it}{\\normalfont\\itshape}{\\mathit}\\fi\\ifdefined\\sl\\else\\DeclareOldFontCommand{\\sl}{\\normalfont\\slshape}{\\mathsl}\\fi\\ifdefined\\sc\\else\\DeclareOldFontCommand{\\sc}{\\normalfont\\scshape}{\\mathsc}\\fi",
+            }
+          # ── 2026-09-28 qc-impl lane (vault QC replay targeted 补表) ──
+          # 0712.1200/0712.1491: thebibliography 展开链 `...ent \z@
+          # \bibpreamble \bibfont` —— 首炸 payload=\bibpreamble (bibfont
+          # 条已在上游但顺位在后); noop 接上让链续走到已覆盖的 bibfont
+          bibpreamble: { polyfill: "\n\\providecommand\\bibpreamble{}" }
+          # 1812.00152: \Romannum{4} 大写罗马 —— kernel \romannumeral
+          # 升级形 (uppercase 包 romannumeral 小写输出)
+          Romannum:
+            {
+              polyfill: "\n\\providecommand\\Romannum[1]{\\uppercase\\expandafter{\\romannumeral#1\\relax}}",
+            }
+          # 2011.13824: \textulc{..} 小型大写 → \textsc 近似
+          textulc: { polyfill: "\n\\providecommand\\textulc[1]{\\textsc{#1}}" }
+          # 2208.00022: hyperref 缺席下 \autoref → \ref 降级
+          autoref: { polyfill: "\n\\providecommand\\autoref[1]{\\ref{#1}}" }
+          # 2112.00078: T2A-era 西里尔字形开关 \cyrsftsn → noop
+          cyrsftsn: { polyfill: "\n\\providecommand\\cyrsftsn{}" }
+          # 1706.00066 + 1511.02851 (qc-impl 合并原位键 —— 上游同键槽已删):
+          # emulateapj/latex2html 时代 \htmladdnormallink{text}{url}
+          # 参序 (text,url) → \href{url}{text}; hyperref 缺席 \url 退路
+          # (打出 URL 比只留锚文本多保链接信息)
+          htmladdnormallink:
+            {
+              polyfill: "\n\\providecommand\\htmladdnormallink[2]{\\ifdefined\\href\\href{#2}{#1}\\else\\url{#2}\\fi}",
+            }
+          # 2212.00138: payload=\set@color 而病根是 \current@color 毒化
+          # (PoS.cls 钩序, 见上 current@color 条) —— 别名键指同一 polyfill
+          set@color:
+            {
+              polyfill: "\n\\AddToHook{begindocument/before}{\\expandafter\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\expandafter\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
+            }
+          # tkz-obj 废弃装载器 \usetkzobj{all} (modern tkz-euclide 移除)
+          # → noop 吞参
+          usetkzobj: { polyfill: "\n\\providecommand{\\usetkzobj}[1]{}" }
+          # ieeeaccess-era \AddSpotColor{space}{name}{disp}{"c m y k"}
+          # 4 参签名 —— spotcolor.sty 在 TL 缺席时 payload 直达;
+          # 真 cmyk 仿真走 85-shim spotcolor_xetex_shadow (vendor 件)
+          AddSpotColor: { polyfill: "\n\\providecommand{\\AddSpotColor}[4]{}" }
+          # 1003.0045 (qc-impl 2026-09-28): revtex bibitem 渲染链残留
+          # \bibinfo{field}{content} —— 类面缺席时 ucs; 打 #2 保字段
+          # 内容 (年份/页码不丢), 比 noop 全吞多保书目信息
+          bibinfo: { polyfill: "\n\\providecommand{\\bibinfo}[2]{#2}" }
+          # \Ref → \ref (already_def/undefined 双面; provide 已定义时
+          # no-op 兜 renew 接管)
+          Ref: { polyfill: "\n\\providecommand{\\Ref}[1]{\\ref{#1}}" }
+          # pst-calculate vendor 真件在档 → 装载优先 + provide 兜底;
+          # ifpst@useCalc 是 \newif 布尔 (非宏) —— \let\iffalse 语义
+          # 保真 (calc 特性关), csname 形免 @ catcode 断名
+          pscalculate:
+            {
+              usepackage: pst-calculate,
+              polyfill: "\n\\providecommand{\\pscalculate}[1]{}",
+            }
+          ifpst@useCalc:
+            {
+              polyfill: "\n\\expandafter\\let\\csname ifpst@useCalc\\endcsname\\iffalse",
             }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
@@ -1728,3 +1788,425 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-unk26spec/bundles.json B5 + tmp/lane-unk26/census.md"
+
+  # ─── 2026-09-28 qc-impl lane (vault QC replay 各簇 targeted 单格件) ───
+  # 2208.00122: macros.sty \\setallmainfonts{Noto Serif} 把 newpxmath+
+  # mathspec+texlate mathmap 压过 16 symbol families → 'Too many symbol
+  # fonts declared' → 'Symbol font Latin:m:it is not defined' 级联 +
+  # geo_text_overlap。\\setallmainfonts→\\setmainfont 只留文本面
+  # (sf/tt 回落默认), 数学符号槽释放 —— 不改 mathspec 装载行 (最小侵入)。
+  - id: mathspec_budget_relief
+    description: "mathspec \\setallmainfonts 超 16 symbol-family 预算 → 重写 \\setmainfont (文本面保留)"
+    phase: loop
+    order: 193 # C-bucket 单格件簇 (184-192) 后; 强 ctx 签名限臂
+    when: { category: undefined_cs }
+    condition:
+      ctx_suggests: "Symbol font|Too many symbol fonts"
+      source_contains: "\\\\setallmainfonts|mathspec"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\setallmainfonts(\\s*\\[[^\\]]*\\])?\\s*\\{([^}]*)\\}",
+              repl: "\\\\setmainfont\\g<1>{\\g<2>}",
+              match_surface: masked,
+            }
+    risk: medium # 字体语义改变 (sf/tt 回默认, 数学面交还既有 mathmap); ctx 强签名限臂
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2208.00122 (vault QC replay layout:overfull, qc-impl-2026-09-28)",
+          error: "macros.sty:30 \\setallmainfonts{Noto Serif} → Too many symbol fonts declared → Symbol font Latin:m:it is not defined + geo_text_overlap×8pp",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json mathspec_budget_relief"
+    known_gap: "\\setmain(sans|mono)font 同款调用不收 (未观测); 剥 mathspec 装载行备选案未采 (字重面损失更大)"
+
+  # 1107.0304: infix-RPN.tex:477 \\let\\@nil\\relax 毒化内核 sentinel
+  # (@nil 本 undefined, 变 \\relax 后 \\@for/分隔符扫描全坏 → undefined_cs
+  # 级联)。装载行后插 csname 形恢复 (装载点 @=12 域, \\csname @nil
+  # \\endcsname 免 catcode 断名); lookahead 挡重复注入幂等。
+  - id: infix_rpn_nil_restore
+    description: "infix-RPN/infixplot 装载毒化 \\@nil sentinel → 载行后注 \\csname 形 \\let 恢复"
+    phase: loop
+    order: 194
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      source_contains: "infix-RPN|infixplot|pst-infix"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "((?:\\\\input|\\\\usepackage|\\\\RequirePackage)[^\\n]*infix[^\\n]*\\n?)(?!\\\\expandafter\\\\let\\\\csname @nil)",
+              repl: "\\g<1>\\\\expandafter\\\\let\\\\csname @nil\\\\endcsname\\\\undefined\n",
+              match_surface: masked,
+            }
+    risk: low # 只在 infix 装载行后注一行; sentinel 复位 = 内核原态
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1107.0304 (vault QC replay layout:no_pdf, qc-impl-2026-09-28)",
+          error: "infix-RPN.tex:477 \\let\\@nil\\relax → sentinel 毒化 undefined_cs 级联",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json infix_rpn_nil_restore"
+    known_gap: "babel-first 装载序备选未采 (本臂定位精确); 多行 \\input 块内 infix 引用不收"
+
+  # 1106.5915/1107.0158: imsart 系 (arximspdf/imsart/econsocart) saferef/
+  # ead 机制与现代 hyperref 撞 → 'Illegal parameter number' / \\ead
+  # 级联 0 页。类自带 nohyperref 选项 (arximspdf.cls:185) —— 选项追加
+  # 臂: 无选项形加 [nohyperref], 有选项形 prepend; 已含 nohyperref
+  # 的 opts 块 lookahead 全串拒中保幂等。
+  - id: imsart_nohyperref
+    description: "imsart 系类 + hyperref 撞 → \\documentclass 选项追加 nohyperref (类原生选项)"
+    phase: loop
+    order: 195
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      ctx_suggests: "Illegal parameter number|saferef|safe@setref|\\\\ead\\b"
+      source_contains: "\\\\documentclass(\\[[^\\]\\n]*\\])?\\s*\\{(arximspdf|imsart|econsocart)"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\documentclass)\\s*\\{(arximspdf|imsart|econsocart)",
+              repl: "\\g<1>[nohyperref]{\\g<2>",
+              match_surface: masked,
+            }
+          - {
+              pattern: "(\\\\documentclass\\[)((?:(?!nohyperref)[^\\]\\n])*)(\\]\\s*\\{(?:arximspdf|imsart|econsocart))",
+              repl: "\\g<1>nohyperref,\\g<2>\\g<3>",
+              match_surface: masked,
+            }
+    risk: low # 类原生声明选项; 已带该选项稿双闸拒中
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1106.5915/1107.0158 (vault QC replay layout:float_lost, qc-impl-2026-09-28)",
+          error: "saferef vs modern hyperref abort at \\printaddresses / \\ead/aug machinery clash → 0 pages; arximspdf.cls:185 nohyperref 原生选项",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json imsart_nohyperref"
+    known_gap: "非 imsart 系 saferef 撞不收 ( ctx 签名是 imsart 专属); 类非三名的 imsart 衍生不收"
+
+  # 0806.2759: TL amstex.sty v1.2f 不自报错 (obsolete 行注释态) →
+  # pkg_obsolete 签名永不点火, cs_table amstex 条够不到。装载即毁
+  # kernel 参机制 → amsthm proof 定义 runaway → Missing \\begin{document}
+  # → p1 排 '1.'。源级改 \\usepackage 行 amstex→amsmath (cs_table
+  # strip_pkg+usepackage 同语义, 无签名面走 regex 直达)。
+  - id: amstex_conflict_strip
+    description: "\\usepackage{amstex} (TL 兼容尸位毁 kernel 参机制) → 改写 amsmath 装载"
+    phase: loop
+    order: 196
+    when:
+      any:
+        - { category: syntax }
+        - { category: other }
+    condition:
+      source_contains: "\\\\usepackage(\\s*\\[[^\\]]*\\])?\\s*\\{[^}]*\\bamstex\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # [^}]*? 非贪婪 —— {amstex} 单名与 {amscd,amstex} 表内位通吃
+          - {
+              pattern: "(\\\\usepackage(?:\\s*\\[[^\\]]*\\])?\\s*\\{[^}]*?)\\bamstex\\b",
+              repl: "\\g<1>amsmath",
+              match_surface: masked,
+            }
+    risk: low # amstex 在 LaTeX2e 恒为误载 (ams 全部功能已由 amsmath 覆盖)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.2759 (vault QC replay vis_blank_page, qc-impl-2026-09-28)",
+          error: "amstex.sty v1.2f 不自报错 + 毁 kernel 参机制 → amsthm proof runaway → Missing \\begin{document} → '1.' junk p1",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json amstex_conflict_strip"
+    known_gap: "\\input amstex 裸载形不收 (未观测); amstex 真特性 (\\define 等) 用户稿会转 undefined_cs 由派发链接手"
+
+  # 1607.00012: \\SI{e-1.5} 缺尾数 → siunitx \\q_stop 夸克循环
+  # runaway abort (bibliography 前截死)。插入尾数 1: \\SI{e-1.5}→
+  # \\SI{1e-1.5}; lookahead [-+0-9.] 挡 \\SI{electron..} 词面误中。
+  - id: siunitx_si_arg_sanitize
+    description: "\\SI{e±N} 缺尾数科学记法 → 补尾数 1 (\\SI{1e±N})"
+    phase: loop
+    order: 197
+    when:
+      any:
+        - { category: runaway_scan }
+        - { category: syntax }
+    condition:
+      ctx_suggests: "\\\\SI|\\\\num|siunitx"
+      source_contains: "\\\\(?:SI|num)\\s*\\{\\s*e[-+0-9.]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .bbl]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:SI|num))\\s*\\{\\s*e(?=[-+0-9.])",
+              repl: "\\g<1>{1e",
+              match_surface: masked,
+            }
+    risk: low # 纯指数缺尾数是非法输入; 1e±N 语义等价且合法
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1607.00012 (vault QC replay xlat_broken_refs, qc-impl-2026-09-28)",
+          error: "\\SI{e-1.5} runaway abort —— \\q_stop 夸克循环截死在 bibliography 前",
+        }
+      - {
+          corpus: "1607.00012 zh 面实测 (qc-impl 复查 2026-09-28)",
+          error: "\\num{e-4}/\\num{e-5.5}/\\num{e-5.0}/\\num{e-4.5}/\\num{e-4.0} 同形同格 (原 '未观测' 注撤销)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json siunitx_si_arg_sanitize"
+    known_gap: "\\SI{1.5e-2} 已带尾数正常形不沾; \\SIrange/\\numrange 双参区间形 e-负值不收 (未观测)"
+
+  # illegal_unit payload 无组 (taxonomy 裸签) —— px 闸落 ctx/source
+  # 双侧: err ctx 显 px 字样 + 源带 数字px 字面才点火。
+  # `<num>px` → `<num>pt` (印刷单位直替; [0-9] 捕获保小数前缀完整:
+  # "12.5px" 匹配 "5px" 位 → "12.5pt")。
+  - id: unit_px_rewrite
+    description: "非法单位 px (web 习惯残留) → pt 直替"
+    phase: loop
+    order: 198
+    when: { category: illegal_unit }
+    condition:
+      ctx_suggests: "px"
+      source_contains: "[0-9]\\s*px\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls, .bbl]
+        rewrites:
+          - {
+              pattern: "([0-9])\\s*px\\b",
+              repl: "\\g<1>pt",
+              match_surface: masked,
+            }
+    risk: low # px 非 TeX 单位; pt 是最接近印刷等价 (96dpi→1px≈0.75pt 微差不纠)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay misc_singles (qc-impl-2026-09-28)",
+          error: "Illegal unit of measure — px 字面进长度参",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json unit_px_rewrite"
+    known_gap: "px 转 pt 的精确 0.75 换算不做 (尺寸近似即可编译); 0px/词内 px 字面不收"
+
+  # 1607.00450: revtex4-x + pdfpages → pdfpages 拉 lscape → \\LS@rot
+  # 把 \\@outputbox 裹 \\rotatebox{90} 每页旋转 (词盒 10pt 宽横排)。
+  # ver@ 存根预标 lscape/pdflscape 已载 → pdfpages RequirePackage
+  # no-op 而 revtex 自带旋转路保留。无 log 签名 (compile 伪 clean) →
+  # precheck 恒面 + 双 lookahead (revtex4 类 + pdfpages 装载同见) 限臂。
+  - id: lscape_revtex_guard
+    description: "revtex4+pdfpages 组合 → pdfpages 行头注 ver@ 存根挡 lscape 拉载 (页旋转毒化防)"
+    phase: precheck
+    order: -6 # pstricks_route(-10)/static_precheck(0) 之间 —— 预载声明改写
+    when: { always: true }
+    condition:
+      source_contains: "(?=[\\s\\S]*\\\\documentclass[^\\n]*\\{revtex4)(?=[\\s\\S]*\\\\usepackage[^\\n]*\\{pdfpages\\})"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\usepackage\\s*(\\[[^\\]]*\\])?\\s*\\{pdfpages\\}",
+              repl: "\\\\csname ver@lscape.sty\\\\endcsname\\\\csname ver@pdflscape.sty\\\\endcsname\n\\g<0>",
+              match_surface: masked,
+            }
+    risk: low # ver@ 存根只挡 lscape/pdflscape 拉载; revtex 自转路不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1607.00450 (vault QC replay geo_margin_breach, qc-impl-2026-09-28)",
+          error: "revtex4-1 + pdfpages → lscape \\LS@rot 裹 \\@outputbox 每页旋转, 词盒 10pt 宽",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json lscape_revtex_guard"
+    known_gap: "revtex4 外类 + pdfpages 组合不闸 (未观测毒化); doc 显式 \\usepackage{lscape} 真用例会被存根静默挡 (罕见)"
+
+  # xlat 产物 \\ref{{key}} 双括层 → arg 成 {k} 组配不上 label 'k'
+  # → ?? 断引 (无编译签名, QC 面见 xlat_broken_refs)。剥一层括:
+  # \\ref/\\cite/\\eqref/\\autoref/\\pageref 族通用。masked 挡
+  # verbatim/注释内字面。无 log 签名 → precheck 恒面。
+  - id: ref_double_brace_strip
+    description: "\\ref{{key}} xlat 双括层 → \\ref{key} 剥层 (broken-ref 静默缺陷源级修)"
+    phase: precheck
+    order: -5.5
+    when: { always: true }
+    condition:
+      source_contains: "\\\\(ref|cite|eqref|autoref|pageref)\\s*\\{\\s*\\{"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\((?:ref|cite|eqref|autoref|pageref)[a-z]*\\*?)\\s*\\{\\s*\\{([^{}\\n]*)\\}\\s*\\}",
+              repl: "\\\\\\g<1>{\\g<2>}",
+              match_surface: masked,
+            }
+    risk: low # {{k}} 形恒非有意 (label 键不含 { }); 正常单括稿零命中
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay xlat_broken_refs (qc-impl-2026-09-28)",
+          error: "\\ref{{k}} arg 成 {k} 组 → label 'k' 配不上 → ?? 断引 (xlat 包层残留)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json ref_double_brace_strip"
+    known_gap: "三重复括/内层含他宏形不收; \\cite 同形同臂覆盖"
+
+  # ─── 2026-09-28 qc-impl lane 续批 (vault QC replay misc_singles 残格) ───
+  # 1003.0235: feynmf 两遍工 —— \\usepackage{feynmf} 编译中 \\openout
+  # 生成 phi.mf, 下轮要 mf 先跑产 phi.tfm; no-shell-escape 恒禁 \\write18
+  # 而 mf 宿主在场 (/usr/bin/mf) → run_tool 直跑 mf <stem>.mf (proof
+  # mode 默认即产 metric —— TeX 只取 tfm 装进 \\f@ynmf 字体), 下轮编译
+  # 过装载点。once_per_payload 防同 stem 重复跑; spec 备臂 feynmf→
+  # feynmp 改写未采 (mpost 同样要外跑且 .mp/.mf 源面异)。
+  - id: feynmf_mf_pass
+    description: "missing_tfm + 稿用 feynmf → run_tool mf <stem>.mf 补产 TFM (两遍工缺跑修复)"
+    phase: loop
+    order: 199.9 # install_tfm(20)/driver_tfm_hoist(21) 先试 —— feynmf 私产 stem 名在 CTAN/filemap 恒 miss 落此
+    when: { category: missing_tfm, payload_required: true }
+    condition:
+      source_contains: "feynmf"
+      tool_available: mf
+    action:
+      kind: run_tool
+      params:
+        argv: ["mf", "-interaction=nonstopmode", "{payload}.mf"]
+        once_per_payload: true
+        timeout: 120
+    risk: low # mf 在编译 cwd 只产 <stem>.tfm/gf/log 不触源件; stem 无 .mf 源时 mf rc≠0 benign
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0235 (vault QC replay misc_singles, qc-impl-2026-09-28)",
+          error: "feynmf: Files phi.mf and phi.tfm not found → Font \\f@ynmf:phi not loadable → 'File ended within \\read' EOF 截死",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item50(c) feynmf_mf_pass"
+    known_gap: "proof-mode PK 位形 (dpi) 与 xdvipdfmx 期望不合时字形退化但编译过; missing_file 形 (稿直 \\input *.mf 缺席) 签异不收"
+
+  # misc_singles (a): babel_opt|spanish —— babel_lang_ldf_install 的
+  # ldf 映射面无 spanish.ldf (TL2025+ babel 不再单体 ldf 制), install
+  # 臂恒 miss → 剥 babel 选项表里的 spanish 词位保编译 (语种回默认,
+  # 断词/连字规则退化优于全灭)。payload_pattern 钉 spanish 防其他
+  # babel_opt 格误中; 三臂覆盖 表内中尾位/表首位/独位 全形。
+  - id: babel_opt_drop_uninstallable
+    description: "babel_opt|spanish (ldf 无映射不可装) → \\usepackage[..spanish..]{babel} 选项词位剥除"
+    phase: loop
+    order: 199.91
+    when: { category: babel_opt, payload_required: true }
+    condition:
+      payload_pattern: "^spanish$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # 中/尾位 ',spanish' 连前逗号剥
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]\\n]*?),\\s*spanish\\b",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+          # 表首位 'spanish,' 剥名留 [ 与后续项
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)\\s*spanish\\s*,\\s*",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+          # 独位 [spanish] → 整选项块剥
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*)\\[\\s*spanish\\s*\\](\\s*\\{babel\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: masked,
+            }
+    risk: medium # 语种选项剥除 → babel 回默认断词/连字规则; 不剥则 babel_opt 恒炸全灭, 退化优于死
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay misc_singles (qc-impl-2026-09-28)",
+          error: "Package babel Error: Unknown option `spanish' —— ldf 不在 install 映射面, 恒炸",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item50(a) babel_opt_drop_uninstallable"
+    known_gap: "\\documentclass[..spanish..] 全局选项形态不收 (该行无法判 babel 装载面, 剥除易误伤他包选项); babel_undef (语言本体未声明) 签异不归本臂"
+
+  # item24(a) spec builtin imsart_printead_shim 未注册 —— regex 等价:
+  # imsart 系类 \\printead 走 \\@@printead[#1]#2{\\ead@size #2} 内部
+  # 签名, hyperref/saferef 级联下定义位丢失 → 'Illegal parameter
+  # number'/\\ead 级联 0 页。导言 \\providecommand 补位 (类内真定义
+  # 在场则 noop 不覆盖); \\makeatletter 段包裹保 @ 字面 catcode
+  # (注入位 preamble @=12 域)。与 imsart_nohyperref(195) 姊妹臂
+  # 互补: 彼关 hyperref 拉载, 此补定义缺位。
+  - id: imsart_printead_restore
+    description: "imsart 系 \\printead/\\ead 撞 → 导言补 \\@@printead 签名定义 (providecommand 守卫形)"
+    phase: loop
+    order: 199.92
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Illegal parameter number|ead@|printead"
+      source_contains: "\\\\@?@?printead"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?<!\\\\def\\\\txlateprintead\\{\\}\n)(\\\\begin\\s*\\{document\\})",
+              repl: "\\makeatletter\\providecommand\\@@printead[#1]#2{\\ead@size #2}\\makeatother\n\\def\\txlateprintead{}\n\\g<1>",
+              match_surface: masked,
+            }
+    risk: low # \\providecommand 不覆盖类内真定义; cs 签名钉死 spec 形
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1107.0158 (vault QC replay layout:no_pdf, qc-impl-2026-09-28)",
+          error: "\\printead:417/423 'Illegal parameter number' → \\ead/aug 机制级联 → 0 pages",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json item24(a) imsart_printead_shim"
+    known_gap: "\\ead@size 亦缺席时守卫内调用仍 ucs (交下游 cs 面续修); myectaart_frontmatter (item24c) 需 docfix builtin 剥 2.09 字体命令, 不归本臂"

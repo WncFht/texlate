@@ -114,7 +114,26 @@ def _bbl_format_version(bbl: Path) -> tuple[int, int] | None:
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
-def bbl_regen(
+#: ``.bcf`` 完整性门 —— 尾标 ``</bcf:controlfile>`` 缺席即截断件
+#: (kill 撞档残留, 1706.00240 实证: biber 对 truncated .bcf 会自删
+#: 在席好 .bbl——截断 .bcf 下宁缺不跑)。
+_BCF_TAIL_RX = re.compile(rb"</bcf:controlfile\s*>")
+_BCF_TAIL_BYTES = 8192
+_BCF_MIN_BYTES = 200
+
+
+def _bcf_intact(bcf: Path) -> bool:
+    """``.bcf`` 完整性判: 尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
+    try:
+        data = bcf.read_bytes()
+    except OSError:
+        return False
+    if len(data) < _BCF_MIN_BYTES:
+        return False
+    return _BCF_TAIL_RX.search(data[-_BCF_TAIL_BYTES:]) is not None
+
+
+def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；臂间状态互锁难拆
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""Bundled 旧版 .bbl 撞新 biblatex → ``biber <stem>`` 就地重生成 (.bcf 在场)。
@@ -129,47 +148,154 @@ def bbl_regen(
     旧实现 ``if not done: return False`` 白做; 残留 bbl 头标
     ``bbl format version <3.0`` 同理是 poison (biblatex 硬拒), 删除后变
     "no bbl" 软缺——无文献但出 PDF, 比硬错强。
+
+    qc-impl 扩展 (fp bbl_regen_ext + bbl_backup, 2026-09-28):
+
+    - **前置隔离扫**: 循环前全树 ``*.bbl`` 头标扫描, fmt<3.0 一律改名
+      ``<name>.bbl.fixloop-stale`` (保留 forensic, 不靠 .bcf 门——无
+      .bcf 稿同样收; ``citekey_sanitize`` 等后续 bbl 消费臂不读改名件)。
+      3.1/3.2 档**不**进此扫——``bbl_format_version_rewrite`` 是其正解
+      (无 .bib 格再生无路, 隔离即掐灭唯一挽手)。
+    - **.bcf 完整性门**: 尾标缺席/尺寸不足 → 跳过 biber 不碰在席 bbl
+      (截断 .bcf 跑 biber = 自毁臂)。
+    - **备份臂**: biber 前 fmt≥3.0 的在席 .bbl 快照 ``.fixloop-bak``;
+      biber 失手且 bbl 消失 → 回滚, fmt<3.0 不备份 (poison 不回滚)。
     """
     del eng, payload, params
+    # —— 前置: 全树陈旧 bbl 隔离 (与 .bcf 有无无关) ——
+    quarantined: list[str] = []
+    for bbl in sorted(ctx.wdir.rglob("*.bbl")):
+        if bbl.name.endswith(".fixloop-stale") or not bbl.is_file():
+            continue
+        ver = _bbl_format_version(bbl)
+        if ver is not None and ver < (3, 0):
+            try:
+                bbl.rename(bbl.with_name(bbl.name + ".fixloop-stale"))
+            except OSError:
+                continue
+            ctx.invalidate(bbl)
+            quarantined.append(f"{bbl.name}(fmt {ver[0]}.{ver[1]})")
     bcfs = sorted(ctx.wdir.rglob("*.bcf"))
     if not bcfs:
+        if quarantined:
+            ctx.needs_pass = True
+            return True, f"quarantined stale bbl: {', '.join(quarantined)}"
         return False, "no .bcf in project"
     done: list[str] = []
     dropped: list[str] = []
     failed: list[str] = []
+    restored: list[str] = []
     for bcf in bcfs:
         stem = str(bcf.relative_to(ctx.wdir).with_suffix(""))
         bbl = bcf.with_suffix(".bbl")
         had_bbl = bbl.exists()
+        bbl_ver = _bbl_format_version(bbl) if had_bbl else None
+        if not _bcf_intact(bcf):
+            failed.append(f"{bcf.name} truncated-bcf")
+            continue
+        backup: Path | None = None
+        if had_bbl and bbl_ver is not None and bbl_ver >= (3, 0):
+            backup = bbl.with_name(bbl.name + ".fixloop-bak")
+            try:
+                backup.write_bytes(bbl.read_bytes())
+            except OSError:
+                backup = None
         rc, _out, to = ctx.run_tool(["biber", stem], 60)
         if rc == 0 and not to:
             done.append(bcf.name)
             ctx.invalidate(bbl)
+            if backup is not None:
+                backup.unlink(missing_ok=True)
             continue
         if had_bbl and not bbl.exists():
+            if backup is not None:
+                # biber 自删了本可用的 bbl → 回滚 (非清场: fmt≥3.0 非 poison)
+                try:
+                    backup.rename(bbl)
+                    ctx.invalidate(bbl)
+                    restored.append(bbl.name)
+                    continue
+                except OSError:
+                    pass
             # biber 自删 poison (陈旧格式拒载清场) —— 真实盘变, 计 progress
             ctx.invalidate(bbl)
             dropped.append(f"{bbl.name}(biber-rm)")
-        elif (
-            bbl.is_file()
-            and (ver := _bbl_format_version(bbl)) is not None
-            and ver < (3, 0)  # bbl 格式主版本门 (biblatex 3.x 硬拒 <3.0)
-        ):
-            bbl.unlink()
-            ctx.invalidate(bbl)
-            dropped.append(f"{bbl.name}(fmt {ver[0]}.{ver[1]})")
         else:
+            if backup is not None:
+                backup.unlink(missing_ok=True)  # bbl 未被删 → 备份无用
             failed.append(f"{bcf.name} rc={rc}{'/timeout' if to else ''}")
-    if not done and not dropped:
+    if quarantined:
+        dropped.append(f"quarantined: {', '.join(quarantined)}")
+    if not done and not dropped and not restored:
         return False, f"biber regen failed: {'; '.join(failed)}"
     parts: list[str] = []
     if done:
         parts.append(f"regen: {', '.join(done)}")
+        ctx.needs_pass = True  # 新 bbl 由续趟吸收——解析趟请求
     if dropped:
         parts.append(f"stale-dropped: {', '.join(dropped)}")
+    if restored:
+        parts.append(f"restored: {', '.join(restored)}")
     if failed:
         parts.append(f"failed: {'; '.join(failed)}")
     return True, "; ".join(parts)
+
+
+#: log 签名 ``... expected version X.Y`` —— 期望档提取 (biblatex 逐档
+#: 硬校验, 期望版本以 log 宣判为准; 无签名兜底当前 TL 3.3)。
+_BBL_EXPECTED_RE = re.compile(r"expected (?:version )?(\d+)\.(\d+)")
+
+
+def bbl_format_version_rewrite(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""无 .bib 可再生的 fmt 3.x 旧 .bbl → 头标版本号改写到 biblatex 期望档。
+
+    实证面 (qc unfixable_bbl_ver 桶, 2 格): 2208.00058 (51 键)/2208.00174
+    捆绑 fmt 3.1/3.2 .bbl 撞 TL biblatex "expected 3.3" 拒载 → thebibliography
+    全文以 ``\\sortlist``/``\\entry`` 裸排 verbatim 倾倒 (vis_bbl_dump);
+    工程内无 .bib → biber 再生无路。修 = 头标 ``bbl format version`` 改
+    期望档 + preamble 兜 ``\\sortlist`` 等 bbl 内部 cs 的 provide-shim
+    (3.x 族间 cs 面微差, 期望档覆盖后 biblatex 自供定义, shim 只在残缺
+    时兜底, ``\\providecommand`` 不覆写已有定义)。
+
+    门: fmt∈[3.0,期望) 且**全树无 .bib** (有 bib 走 ``bbl_regen`` 再生
+    正解); log 有 ``wrong format version`` 签名, 或虽无签名但 fmt<期望
+    (biblatex 逐档硬校验, 3.1/3.2 在 3.21 下同病)。fmt<3.0 结构与 3.x
+    异构, 不改写——由 ``bbl_regen`` 隔离臂收。
+    """
+    del eng, payload, params
+    if any(ctx.wdir.rglob("*.bib")):
+        return False, ".bib present — biber regen is the correct path"
+    log = _fixloop_log(ctx)
+    exp = (3, 3)
+    m_exp = _BBL_EXPECTED_RE.search(log)
+    if m_exp is not None:
+        exp = (int(m_exp.group(1)), int(m_exp.group(2)))
+    rewritten: list[str] = []
+    for bbl in sorted(ctx.wdir.rglob("*.bbl")):
+        if bbl.name.endswith((".fixloop-stale", ".fixloop-bak")):
+            continue
+        ver = _bbl_format_version(bbl)
+        if ver is None or not (3, 0) <= ver < exp:
+            continue
+        try:
+            data = bbl.read_bytes()
+        except OSError:
+            continue
+        # 头标整段替换到期望档——``bbl format version 3.1`` → ``3.3``
+        new = _BBL_VER_RE.sub(
+            rf"bbl format version {exp[0]}.{exp[1]}".encode(), data, count=1
+        )
+        if new == data:
+            continue
+        bbl.write_bytes(new)
+        ctx.invalidate(bbl)
+        rewritten.append(f"{bbl.name}({ver[0]}.{ver[1]}→{exp[0]}.{exp[1]})")
+    if not rewritten:
+        return False, "no 3.x stale-format .bbl without .bib"
+    ctx.needs_pass = True  # 改写 bbl 由续趟重读——解析趟请求
+    return True, f"bbl header rewritten to {exp[0]}.{exp[1]}: {', '.join(rewritten)}"
 
 
 #: cite/bib 键面词法单源已并 ``texlate.textutil`` (``CITE_FAMILY_RE``/

@@ -8,8 +8,8 @@ r"""版式手术 —— inject.py C4 拆分出叶。
 2609.19101 zh p6 双亚型实证）。
 
 缝原语（``_splice_after_seams``/``_splice_before_document``/``find_docclass_ends``）
-已独立成 ``_seams`` 叶，本叶顶层 ``from ._seams import`` 取用；inject 侧
-对本叶公共名静态回引（缝原语出 ``_seams`` 后环断，顶层无双向 import 环）。
+已独立成 ``_docseams`` 叶，本叶顶层 ``from ._docseams import`` 取用；inject 侧
+对本叶公共名静态回引（缝原语出 ``_docseams`` 后环断，顶层无双向 import 环）。
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from texlate.textutil import (
     iter_depth0,
 )
 
-from ._seams import _splice_after_seams, _splice_before_document, find_docclass_ends
+from ._docseams import _splice_after_seams, _splice_before_document, find_docclass_ends
 from .mainfile import _MAIN_TEX_SUFFIXES
 from .mask import apply_edits, group_end, visible_tex
 from .normalize import _read_tex
@@ -33,25 +33,26 @@ from .transcode import _iter_files
 if TYPE_CHECKING:
     from pathlib import Path
 
-#: FLOAT_SIZING 仅在有 figure/table 时注入（docs/spec/compile.md）。
-FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
-\usepackage{graphicx}
+#: FLOAT_SIZING 仅在工程含浮体环境时注入（docs/spec/compile.md）。
+#: ``\@endfloatbox`` 仅浮体收尾机制调用——``\@captype`` 在位即整类浮体
+#: （algorithm/algocf/listing/sideways*/deluxetable 内层 table/sn-jnl
+#: ``tableorg`` 包装等具名 env 无需白名单枚举——白名单会漏改名壳，
+#: 2503.10198 ``\@currenvir=tableorg`` 实证）。宽 ``>\textwidth`` / 高
+#: ``>\textheight`` 两臂各自 shrink-only（旋转浮体两维天然随 90°
+#: 对调，同一对限仍然正确）。
+FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v2
+\RequirePackage{graphicx}
 \begingroup
 \makeatletter
 \AtBeginDocument{%
 \let\texlate@endfloatbox\@endfloatbox
 \def\@endfloatbox{%
 \texlate@endfloatbox
-\def\texlate@figure{figure}%
-\def\texlate@figurestar{figure*}%
-\def\texlate@table{table}%
-\def\texlate@tablestar{table*}%
-\let\texlate@floatscope\@empty
-\ifx\@currenvir\texlate@figure\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@figurestar\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@table\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@tablestar\def\texlate@floatscope{1}\fi
-\ifx\texlate@floatscope\@empty\else
+\expandafter\ifx\csname @captype\endcsname\relax\else
+\ifdim\wd\@currbox>\textwidth
+\typeout{TeXlate-Float-Fit: \@captype\space \csname the\@captype\endcsname; width \the\wd\@currbox; limit \the\textwidth}%
+\global\setbox\@currbox=\vbox{\resizebox{\textwidth}{!}{\box\@currbox}}%
+\fi
 \ifdim\dimexpr\ht\@currbox+\dp\@currbox\relax>\textheight
 \edef\texlate@floatwidth{\the\wd\@currbox}%
 \edef\texlate@floatheight{\the\dimexpr\textheight-\baselineskip\relax}%
@@ -63,9 +64,17 @@ FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
 \endgroup
 """
 
-#: TABLE_FITTING hook threeparttable（adjustbox max width）。
-TABLE_FITTING = r"""% texlate: fit complete measured table containers v1
-\usepackage{adjustbox}
+#: TABLE_FITTING：表族环境整环境 adjustbox shrink-only（>linewidth/超页高才缩）。
+#: ``env/X/before`` 在内核 ``\begin`` 里先于 ``\begingroup`` 发（latex.ltx
+#: 15346-15354），``/after`` 在 ``\endgroup`` 后——恰是整环境外包位。
+#: 覆盖 tabular/tabular*/tabularx/tabulary/threeparttable；**排除**
+#: longtable/xltabular/supertabular（跨页断行被盒化即死）与
+#: sidewaystable/deluxetable（本体产 ``\@float`` 浮体，盒内 ``\@float``
+#: 丢浮体报错——前者内层字面 tabular 仍被 tabular 钩兜住，后者由
+#: FLOAT_SIZING 的 ``\@endfloatbox`` 补丁整盒缩）。``\ifmmode`` 臂挡
+#: ``$\begin{tabular}$`` 数学内联形；``\iftexlate@tablefit`` 嵌套守。
+TABLE_FITTING = r"""% texlate: fit complete measured table containers v2
+\RequirePackage{adjustbox}
 \begingroup
 \makeatletter
 \AtBeginDocument{%
@@ -73,25 +82,36 @@ TABLE_FITTING = r"""% texlate: fit complete measured table containers v1
 \newenvironment{TeXlateFitTable}{%
 \iftexlate@tablefit
 \let\texlate@endtablefit\relax
+\else\ifmmode
+\let\texlate@endtablefit\relax
 \else
 \texlate@tablefittrue
 \def\texlate@endtablefit{\end{adjustbox}}%
-\begin{adjustbox}{max width=\linewidth}%
-\fi\ignorespaces
+\begin{adjustbox}{max width=\linewidth,max totalheight=\textheight}%
+\fi\fi\ignorespaces
 }{\texlate@endtablefit}%
 \AddToHook{env/threeparttable/before}{\begin{TeXlateFitTable}}%
 \AddToHook{env/threeparttable/after}{\end{TeXlateFitTable}}%
+\AddToHook{env/tabular/before}{\begin{TeXlateFitTable}}%
+\AddToHook{env/tabular/after}{\end{TeXlateFitTable}}%
+\AddToHook{env/tabular*/before}{\begin{TeXlateFitTable}}%
+\AddToHook{env/tabular*/after}{\end{TeXlateFitTable}}%
+\AddToHook{env/tabularx/before}{\begin{TeXlateFitTable}}%
+\AddToHook{env/tabularx/after}{\end{TeXlateFitTable}}%
+\AddToHook{env/tabulary/before}{\begin{TeXlateFitTable}}%
+\AddToHook{env/tabulary/after}{\end{TeXlateFitTable}}%
 }
 \endgroup
 """
 
 
 def inject_float_sizing(root: Path) -> int:
-    r"""FLOAT_SIZING 前导块：仅在工程确实含 figure/table 环境时注入主文件。
+    r"""FLOAT_SIZING 前导块：仅在工程确实含浮体环境时注入主文件。
 
-    超高 float 用 `\resizebox*` 缩进页高 + `\typeout{TeXlate-Float-Fit:}`
-    供日志回读。返回注入文件数——``_float_sized`` 对每个带 ``\documentclass``
-    的源档各注一份，多 docclass 工程（subfiles 子档）可 >1。
+    超宽/超高 float 用 `\resizebox`/`\resizebox*` 缩进版心 +
+    `\typeout{TeXlate-Float-Fit:}` 供日志回读。返回注入文件数——
+    ``_float_sized`` 对每个带 ``\documentclass`` 的源档各注一份，
+    多 docclass 工程（subfiles 子档）可 >1。
     """
     # ``_iter_files``（os.walk followlinks=False + 软链/隐藏豁免）而非
     # rglob——本函数会写回树内文件，rglob 穿软链目录会把链外件当包内件
@@ -102,7 +122,11 @@ def inject_float_sizing(root: Path) -> int:
         if text is not None:
             sources[path] = text
     if not any(
-        re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
+        re.search(
+            r"\\begin\s*\{(?:figure|table|algorithm|algocf|listing|lstlisting"
+            r"|tcolorbox|tableorg|deluxetable|sidewaystable|sidewaysfigure)\*?\}",
+            visible_tex(text),
+        )
         for text in sources.values()
     ):
         return 0
@@ -128,7 +152,11 @@ def _float_sized(text: str) -> str:
     ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
     """
     vis = visible_tex(text)
-    if FLOAT_SIZING.strip() in text or not DOCCLASS_RX.search(vis):
+    # ``texlate@endfloatbox`` 哨兵兼容 v1 旧块——已注过（任一版本）跳过，
+    # 否则 v2 再注会把 ``\@endfloatbox`` 链进自身旧补丁造成递归死循环。
+    if FLOAT_SIZING.strip() in text or "texlate@endfloatbox" in text:
+        return text
+    if not DOCCLASS_RX.search(vis):
         return text
     if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
         return _splice_before_document(text, FLOAT_SIZING, sentinel="TeXlateFloatFit")
@@ -146,8 +174,9 @@ def _float_sized(text: str) -> str:
 
 
 def inject_table_fitting(tex: str) -> str:
-    """TABLE_FITTING 前导块：工程含 threeparttable 时注入（调用方负责判据）。"""
-    if TABLE_FITTING.strip() in tex:
+    """TABLE_FITTING 前导块：工程含表族环境时注入（调用方负责判据）。"""
+    # ``TeXlateFitTable`` 环境名跨版本稳定——v1 旧块也兜幂等。
+    if TABLE_FITTING.strip() in tex or "TeXlateFitTable" in tex:
         return tex
     return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
 

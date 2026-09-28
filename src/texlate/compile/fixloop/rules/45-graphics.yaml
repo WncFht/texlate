@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -615,3 +615,67 @@ rules:
         }
     stats: { fires: 5, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-firedunfixed/report.md item5; tmp/lane-epsconv/"
+
+  # ── 2026-09-28 qc-impl lane: vault QC replay layout:overfull 图形臂 ──
+  # gfx_width_clamp builtin (layoutfix 叶): adjustbox[export] + 每
+  # \includegraphics max width=\linewidth, 对 pair-sum≥0.98 并排图收缩,
+  # width=N\linewidth N>1 → \linewidth。图形整盒超宽非词间 glue 病因,
+  # para_loosen(210) 无解 —— 盒级钳幅即修复语义。
+  - id: gfx_overfull_clamp
+    description: "warn_overfull + \\includegraphics 字面 → gfx_width_clamp 盒宽钳 \\linewidth"
+    phase: loop
+    order: 215
+    when: { category: warn_overfull }
+    condition:
+      source_contains: "\\\\includegraphics"
+    action:
+      kind: builtin_transform
+      function: gfx_width_clamp
+    risk: low # max width 只缩不放大; 已合规图幂等
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "layout:overfull 图形簇 —— \\includegraphics 整盒超栏需钳幅非排版松化",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py gfx_width_clamp; tmp/qc_impl_spec/impl-rules.json"
+    known_gap: "ps/eps 引用未转 graphicx 面不在 \\includegraphics 字面内 decline; width 已是 \\linewidth 内幂等"
+
+  # psfrag 是 pdftex/dvips-era 包: \\psfrag{tag}{repl} 只改写 EPS 内
+  # 文字标签, xelatex 路线无 dvips 后端、宏调用本身在 PDF 路线恒无
+  # 效果还可能炸 undefined (稿面偶见 pstricks 混载)。precheck 注释
+  # 化整行 —— 图形仍走原 EPS/PDF 件, 只丢标签替换义。masked 面跳过
+  # 注释/verbatim 内字面。
+  - id: psfrag_strip_xelatex
+    description: "xelatex 路线 \\psfrag 行 → 注释化 (pdftex 专用标签替换, xdvipdfmx 无此机制)"
+    phase: precheck
+    order: -6.5 # static_precheck(0) 前 —— 预扫见 psfrag 不拦路由
+    when: { always: true }
+    condition:
+      source_contains: "\\\\psfrag"
+      engine_in: [xelatex]
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?m)^[ \\t]*\\\\psfrag[^\\n]*",
+              repl: "% \\g<0>",
+              match_surface: masked,
+            }
+    risk: low # 只注释 psfrag 调用行; xelatex 下该宏本就无效
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: skip } # tectonic 走 dvips 兼容面的稿不剥
+    provenance:
+      - {
+          corpus: "vault QC replay (qc-impl-2026-09-28)",
+          error: "psfrag 混载面 —— xelatex 无 dvips 标签替换机制, 调用行炸/静默无效",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json psfrag_strip_xelatex"
+    known_gap: "\\psfrag 扫描跨行实参不在单行字面内 (masked 面罕见); 标签替换义丢失不补偿"

@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -151,6 +151,7 @@ rules:
             figset,
             platecomment,
             splittablenotes,
+            texttwelveudash,
           ]
         body: |
           \NeedsTeXFormat{LaTeX2e}
@@ -177,6 +178,10 @@ rules:
           \providecommand{\ccc}[1]{}
           \@ifundefined{references}{\newenvironment{references}{}{}}{}
           \providecommand{\rotate}{}
+          % 1907.10408 (qc-impl): aastex \texttwelveudash 十二连破折号
+          % (em-dash ×4 视觉) → \textemdash 近似; 缺位时 \keywords 展开
+          % 成空剩 FFFD 框
+          \providecommand{\texttwelveudash}{\textemdash}
           \endinput
     engines:
       xelatex: { mode: native } # 实际不可达: engine_in 门只放行 tectonic
@@ -191,11 +196,13 @@ rules:
 
   # loop1-2410.00012: ieeeaccess.cls \RequirePackage{spotcolor} —— spotcolor
   # 是 pdfTeX-only 包 (内部 \pdfobj/\pdflastobj 原语), xelatex/tectonic 下
-  # 必炸 undefined_cs; missing_file 通路打不到 (TL 有真包)。xespotcolor
-  # (TL 有) 是同 API 的 xetex 继任 (\AddSpotColor/\SpotSpace/xcolor 的
-  # spotcolor 色彩模型全兼容) → wdir 注同名 stub 遮蔽桥接。
+  # 必炸 undefined_cs; missing_file 通路打不到 (TL 有真包)。
+  # REWRITE (qc-impl 2026-09-28): xespotcolor 桥接弃用 —— cls 无 cmyk
+  # 退路 (else 支即 spotcolor 路), pdfcolorstack/pdfrefobj payload 经
+  # cls 内直调浮出救不了; 改纯 xcolor 仿真 (cmyk 解析 + spotcolor
+  # 模型拦截 named + 余 API noop), needs 清零去外部依赖。
   - id: spotcolor_xetex_shadow
-    description: "spotcolor (pdfTeX-only) → wdir 注 spotcolor.sty stub 桥 xespotcolor"
+    description: "spotcolor (pdfTeX-only) → wdir 注 spotcolor.sty stub (xcolor cmyk 仿真)"
     phase: loop
     order: 156 # aastex_bundle_shadow(155) 同档: 遮蔽先于逐宏补
     when:
@@ -209,7 +216,7 @@ rules:
       function: bundled_class_shadow
       params:
         target: spotcolor.sty
-        needs: ["xespotcolor.sty"]
+        needs: [] # 纯 xcolor 仿真不再桥 xespotcolor —— 零外部依赖
         cs_set: # spotcolor 公开 API 名 + 其内部 pdfTeX 原语 (两口径 payload)
           [
             SpotSpace,
@@ -221,13 +228,66 @@ rules:
             csgrab,
             pdfobj,
             pdflastobj,
+            pdfcolorstack,
+            pdfrefobj,
           ]
+        # REWRITE (qc-impl 2026-09-28): xespotcolor 桥接弃用 ——
+        # ieeeaccess.cls 无 cmyk 退路 (else 支即 spotcolor 路本身),
+        # \pdfcolorstack/\pdfrefobj payload 面经 cls 内直调浮出
+        # (桥接件救不了包外原语)。改纯 xcolor 仿真: AddSpotColor 4 参
+        # (space/name/disp/"c m y k") 空隔分词 cmyk 解析落
+        # \definecolor{name}{cmyk}{c,m,y,k}; \definecolor 包装拦截
+        # {spotcolor}{name,tint} 模型 → {named}{name} (取首元, tint
+        # 舍近似); NewSpotColorSpace/SetPageColorSpace/
+        # SetPageColorResource/SpotSpace 全 noop。
         body: |
           \NeedsTeXFormat{LaTeX2e}
-          \ProvidesPackage{spotcolor}[2026/09/16 fixloop shadow -> xespotcolor]
-          \DeclareOption*{\PassOptionsToPackage{\CurrentOption}{xespotcolor}}
+          \ProvidesPackage{spotcolor}[2026/09/28 fixloop shadow -> xcolor cmyk emulation]
+          \DeclareOption*{}
           \ProcessOptions\relax
-          \RequirePackage{xespotcolor}
+          \RequirePackage{xcolor}
+          % \AddSpotColor{space}{name}{disp}{"c m y k"} →
+          % \definecolor{name}{cmyk}{c,m,y,k}: 空隔分词靠限定参
+          % (尾部补 0 0 0 垫不齐 3 元组面), #6 吞残段
+          \def\txl@spot@cmyk#1#2 #3 #4 #5 #6\@nil{%
+            \definecolor{#1}{cmyk}{#2,#3,#4,#5}}
+          \providecommand{\AddSpotColor}[4]{%
+            \txl@spot@cmyk{#2}#4 0 0 0 \@nil}
+          % \definecolor{x}{spotcolor}{name,tint} → {named}{name}
+          % (取逗号前首元 = AddSpotColor 已定义色); xcolor 真签名带
+          % [type] 可选参 —— \@ifnextchar 派发两臂, opt 臂同查
+          % spotcolor 模型 (模型在 #3 位), 余者原样直通防吞 [..]
+          \let\txl@spot@origdefinecolor\definecolor
+          \def\txl@spot@first#1,#2\@nil{\def\txl@spot@nm{#1}}
+          \def\txl@spot@dc@plain#1#2#3{%
+            \begingroup
+            \def\txl@spot@m{#2}\def\txl@spot@s{spotcolor}%
+            \ifx\txl@spot@m\txl@spot@s
+              \endgroup
+              \expandafter\txl@spot@first#3,\@nil
+              \txl@spot@origdefinecolor{#1}{named}{\txl@spot@nm}%
+            \else
+              \endgroup
+              \txl@spot@origdefinecolor{#1}{#2}{#3}%
+            \fi}
+          \def\txl@spot@dc@opt[#1]#2#3#4{%
+            \begingroup
+            \def\txl@spot@m{#3}\def\txl@spot@s{spotcolor}%
+            \ifx\txl@spot@m\txl@spot@s
+              \endgroup
+              \expandafter\txl@spot@first#4,\@nil
+              \txl@spot@origdefinecolor[#1]{#2}{named}{\txl@spot@nm}%
+            \else
+              \endgroup
+              \txl@spot@origdefinecolor[#1]{#2}{#3}{#4}%
+            \fi}
+          \def\definecolor{\@ifnextchar[\txl@spot@dc@opt\txl@spot@dc@plain}
+          % 余 API 面 noop: 色彩空间登记/页面资源/SpotSpace 空串
+          \providecommand{\NewSpotColorSpace}[1]{}
+          \providecommand{\SetPageColorSpace}[1]{}
+          \providecommand{\SetPageColorResource}[1]{}
+          \providecommand{\SpotColor}[2]{}
+          \def\SpotSpace{ }
           \endinput
     engines:
       xelatex: { mode: native }
@@ -287,7 +347,63 @@ rules:
     stats: { fires: 9, rescued_cells: 7, status: active }
     source_ref: "loop2-delta unfixable:pdftex_prim ×6 全为 \\usepackage[accsupp]{axessibility}"
 
-  # 0905.0193: e-print 捆绑 svjour.cls (2003) 但零 .clo 伴船, TL 亦不收录
+  # 2504.07951 (qc-impl 2026-09-28): accsupp 是 pdfTeX-era ActualText
+  # 标注包 —— 体内 \pdfliteral/\pdfobj/\pdfrefobj/\pdfannot/
+  # \pdflastobj 原语在 xelatex 下 undefined_cs→pdftex_prim 级联;
+  # accsupp 也常随 [accsupp]{axessibility} 装载面被上游引入
+  # (axessibility stub 吞选项后 accsupp 本身若被直拉仍炸)。包面
+  # 语义只是"包夹文本附加 ActualText" —— noop 吞选项/端点 cs,
+  # 被包夹正文照排不丢字。
+  - id: accsupp_xetex_shadow
+    description: "accsupp (pdfTeX-era ActualText 标注) → wdir 注 accsupp.sty noop stub (包夹文本保留)"
+    phase: loop
+    order: 157.5 # axessibility_xetex_shadow(157) 同档姊妹臂: 遮蔽先于逐宏补
+    when:
+      any:
+        - { category: warn_missing_char } # 缺字面亦可浮出 (族臂判据认 when 含此)
+        - { category: undefined_cs, payload_required: true }
+        - { category: pdftex_prim, payload_required: true }
+    condition:
+      source_contains: "accsupp"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: accsupp.sty
+        needs: []
+        cs_set: # 包体 pdfTeX 原语 + 公开 API 端点 (payload 口径两路命中)
+          [
+            pdfliteral,
+            pdfobj,
+            pdfrefobj,
+            pdfannot,
+            pdflastobj,
+            BeginAccSupp,
+            EndAccSupp,
+            AccSupp,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesPackage{accsupp}[2026/09/28 fixloop shadow -> no-op (pdfTeX-only)]
+          \DeclareOption*{}
+          \ProcessOptions\relax
+          % accsupp API 面: \BeginAccSupp{opts}...\EndAccSupp{} 包夹
+          % + \AccSupp{opts}{text} 一次形 —— noop 吞选项, 包夹文本照排
+          \providecommand{\BeginAccSupp}[1]{}
+          \providecommand{\EndAccSupp}[1]{}
+          \providecommand{\AccSupp}[2]{#2}
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2504.07951 (vault QC replay, qc-impl-2026-09-28)",
+          error: "accsupp.sty 内 pdfliteral/pdfobj/pdfrefobj/pdfannot/pdflastobj 原语 → undefined_cs/pdftex_prim 级联",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json accsupp_xetex_shadow; axessibility_xetex_shadow(157) 同构"
+    known_gap: "ActualText 标注义丢失 (无视觉差异, 仅可访问性元数据); 包内非 API 原语调用面已由 stub 整体遮蔽不触"
   # → \DeclareOption* 里 \InputIfFileExists{sv\CurrentOption.clo} 逐选项
   # 落空, \journalopt 停 \@empty → "Class SVJour Error: No valid journal
   # specified" + \stop。builtin 按 \documentclass 选项写 sv<opt>.clo noop
@@ -397,6 +513,10 @@ rules:
           # 输出, 版面旋转由 deluxetable 侧自理; astro-ph/0003115
           # (documentstyle[aj_pt4], 编译走到 l.356 仅炸本宏) 实证
           ptlandscape: ""
+          # 1907.10408 (qc-impl 2026-09-28): aastex-era \texttwelveudash
+          # 十二连破折 → \textemdash 近似 (aastex_bundle_shadow body
+          # 同位条目, emulateapj shim 体同式)
+          texttwelveudash: "\\textemdash"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

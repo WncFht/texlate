@@ -14,66 +14,153 @@
 - `judge`：clean/partial/fail 判定三件套 + 中文渲染检查
 - `sandbox`：env 白名单 + sandbox-exec + killpg
 - `toolchain`：tectonic 五平台 sha256 钉死分发 + 托管件自动安装
+
+惰性门面（PEP 562，同 ``xlat``/``fixloop`` 形制）：``__all__`` 平名经
+``__getattr__`` 映射回子模块惰性解析——``import texlate.compile`` 不再
+急切拉入 engine/inject/normalize 全链（audit：包外消费者全为子模块级
+import，平名消费仅测试钉点与跨包转口；``import texlate.compile.logparse``
+从 73 个 texlate 模块降至 ~2）。不在映射的子模块名走 ``import .X``
+兜底（``seams``/``ctan``/``latex209`` 等——``from texlate.compile import X``
+与 ``compile.X`` 同达）。
 """
 
-from texlate.textutil import decode_tex
+from __future__ import annotations
 
-from ._seams import find_docclass_end
-from .engine import (
-    CompRes,
-    Engine,
-    LogInfo,
-    RouteDecision,
-    TectonicEngine,
-    XelatexEngine,
-    classify_error,
-    compiled_dependencies,
-    engine_for,
-    parse_log,
-    route_project,
-)
-from .inject import (
-    ACM_BASELINESTRETCH_GUARD,
-    CTEX_LINE,
-    XECJK_BLOCK,
-    InjectRejectError,
-    classify_no_main,
-    demote_wrapfloats,
-    find_main_tex,
-    inject_cjk,
-    inject_float_sizing,
-    inject_table_fitting,
-    prepare_chinese,
-)
-from .judge import (
-    CLEAN_ERR_MAX,
-    Verdict,
-    count_missing_chars,
-    judge,
-    log_died_mid_doc,
-    pdf_cjk_chars,
-    pdf_text_stats,
-)
-from .mask import (
-    TEX_SOURCE_SUFFIXES,
-    apply_edits,
-    group_end,
-    visible_tex,
-    without_comments,
-)
-from .normalize import (
-    PIXEL_COMPATIBILITY,
-    TECTONIC_FONT_COMPATIBILITY,
-    XETEX_COMPATIBILITY,
-    XETEX_EARLY_DEFS,
-    normalize_engine,
-    normalize_project,
-    source_path_violations,
-)
-from .probe import DepProbe, DepsDiff, ProbeReport, dep_seen, deps_diff, target_probe
-from .sandbox import child_env, find_tool, run_process, sandbox_wrap
-from .toolchain import ensure_tectonic, install_tectonic, resolve_tool
+import importlib
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from texlate.textutil import decode_tex
+
+    from ._docseams import find_docclass_end
+    from .engine import (
+        CompRes,
+        Engine,
+        LogInfo,
+        RouteDecision,
+        TectonicEngine,
+        XelatexEngine,
+        classify_error,
+        compiled_dependencies,
+        engine_for,
+        parse_log,
+        route_project,
+    )
+    from .inject import (
+        ACM_BASELINESTRETCH_GUARD,
+        CTEX_LINE,
+        XECJK_BLOCK,
+        InjectRejectError,
+        classify_no_main,
+        demote_wrapfloats,
+        find_main_tex,
+        inject_cjk,
+        inject_float_sizing,
+        inject_table_fitting,
+        prepare_chinese,
+    )
+    from .judge import (
+        CLEAN_ERR_MAX,
+        Verdict,
+        count_missing_chars,
+        judge,
+        log_died_mid_doc,
+        pdf_cjk_chars,
+        pdf_text_stats,
+    )
+    from .mask import (
+        TEX_SOURCE_SUFFIXES,
+        apply_edits,
+        group_end,
+        visible_tex,
+        without_comments,
+    )
+    from .normalize import (
+        PIXEL_COMPATIBILITY,
+        TECTONIC_FONT_COMPATIBILITY,
+        XETEX_COMPATIBILITY,
+        XETEX_EARLY_DEFS,
+        normalize_engine,
+        normalize_project,
+        source_path_violations,
+    )
+    from .probe import (
+        DepProbe,
+        DepsDiff,
+        ProbeReport,
+        dep_seen,
+        deps_diff,
+        target_probe,
+    )
+    from .sandbox import child_env, find_tool, run_process, sandbox_wrap
+    from .toolchain import ensure_tectonic, install_tectonic, resolve_tool
+
+#: 平名 → 源模块。``.x`` 相对 spec = 包内叶；绝对 spec = 跨包转口
+#: （``decode_tex`` 钉 texlate.textutil——eager 期同款转口语义）。
+_SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
+    "._docseams": ("find_docclass_end",),
+    ".engine": (
+        "CompRes",
+        "Engine",
+        "LogInfo",
+        "RouteDecision",
+        "TectonicEngine",
+        "XelatexEngine",
+        "classify_error",
+        "compiled_dependencies",
+        "engine_for",
+        "parse_log",
+        "route_project",
+    ),
+    ".inject": (
+        "ACM_BASELINESTRETCH_GUARD",
+        "CTEX_LINE",
+        "XECJK_BLOCK",
+        "InjectRejectError",
+        "classify_no_main",
+        "demote_wrapfloats",
+        "find_main_tex",
+        "inject_cjk",
+        "inject_float_sizing",
+        "inject_table_fitting",
+        "prepare_chinese",
+    ),
+    ".judge": (
+        "CLEAN_ERR_MAX",
+        "Verdict",
+        "count_missing_chars",
+        "judge",
+        "log_died_mid_doc",
+        "pdf_cjk_chars",
+        "pdf_text_stats",
+    ),
+    ".mask": (
+        "TEX_SOURCE_SUFFIXES",
+        "apply_edits",
+        "group_end",
+        "visible_tex",
+        "without_comments",
+    ),
+    ".normalize": (
+        "PIXEL_COMPATIBILITY",
+        "TECTONIC_FONT_COMPATIBILITY",
+        "XETEX_COMPATIBILITY",
+        "XETEX_EARLY_DEFS",
+        "normalize_engine",
+        "normalize_project",
+        "source_path_violations",
+    ),
+    ".probe": ("DepProbe", "DepsDiff", "ProbeReport", "dep_seen", "deps_diff", "target_probe"),
+    ".sandbox": ("child_env", "find_tool", "run_process", "sandbox_wrap"),
+    ".toolchain": ("ensure_tectonic", "install_tectonic", "resolve_tool"),
+    "texlate.textutil": ("decode_tex",),
+}
+
+_LAZY: dict[str, str] = {
+    name: mod for mod, names in _SUBMODULE_EXPORTS.items() for name in names
+}
+
+# 字面列表——ruff F822 静态点名要字面值；键集 = _LAZY 键集，新增导出两侧同步。
 __all__ = [
     "ACM_BASELINESTRETCH_GUARD",
     "CLEAN_ERR_MAX",
@@ -132,3 +219,25 @@ __all__ = [
     "visible_tex",
     "without_comments",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """平名惰性解析 → 子模块属性；子模块名走 ``import .X`` 兜底。"""
+    mod = _LAZY.get(name)
+    if mod is not None:
+        value = getattr(importlib.import_module(mod, __name__), name)
+        globals()[name] = value
+        return value
+    try:
+        return importlib.import_module(f".{name}", __name__)
+    except ModuleNotFoundError as e:
+        # 只在「真无此子模块」时翻 AttributeError——叶内自身的缺依赖
+        # ModuleNotFoundError 不吞，原样抛出保住真因。
+        if e.name == f"{__name__}.{name}":
+            msg = f"module {__name__!r} has no attribute {name!r}"
+            raise AttributeError(msg) from None
+        raise
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY))

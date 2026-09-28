@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from pathlib import Path
 
-from ._seams import _splice_before_document
+from ._docseams import _splice_before_document
 from .mainfile import _MAIN_TEX_SUFFIXES
 from .mask import visible_tex
 from .normalize import _read_tex

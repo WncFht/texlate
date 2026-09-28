@@ -40,7 +40,7 @@ from texlate.textutil import (
 )
 
 # 缝原语回引同 layout.py——inject 不反向依赖 normalize，单向无环。
-from ._seams import _splice_after_seams, find_docclass_ends
+from ._docseams import _splice_after_seams, find_docclass_ends
 from .mask import (
     TEX_SOURCE_SUFFIXES,
     apply_edits,

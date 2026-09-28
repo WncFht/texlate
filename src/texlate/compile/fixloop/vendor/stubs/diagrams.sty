@@ -47,6 +47,18 @@
 \providecommand{\luTo}{\nwarrow}
 \providecommand{\ldTo}{\swarrow}
 \providecommand{\rMapsto}{\mapsto}
+% —— Mapsto 全族补全 (0906.4725 \uMapsto/\dMapsto 实证 undef): l/h 映
+%    真符 \mapsfrom 系 (amssymb 在场用, 缺席降实线), u/d/v 与对角
+%    四向数学字体无对应 → 方向实线近似 (同 Onto/Into 降级惯例) ——
+\providecommand{\lMapsto}{\@ifundefined{mapsfrom}{\leftarrow}{\mapsfrom}}
+\providecommand{\hMapsto}{\mapsto}
+\providecommand{\uMapsto}{\uparrow}
+\providecommand{\dMapsto}{\downarrow}
+\providecommand{\vMapsto}{\downarrow}
+\providecommand{\ruMapsto}{\nearrow}
+\providecommand{\rdMapsto}{\searrow}
+\providecommand{\luMapsto}{\nwarrow}
+\providecommand{\ldMapsto}{\swarrow}
 \providecommand{\rOnto}{\twoheadrightarrow}
 \providecommand{\rInto}{\rightarrowtail}
 \providecommand{\lOnto}{\twoheadleftarrow}
@@ -72,6 +84,15 @@
 \providecommand{\ldInto}{\swarrow}
 \providecommand{\rEquals}{=}
 \providecommand{\hEquals}{=}
+% —— Equals 双线族补全: 数学字体双线仅横放 =, 纵/对角向同形降级 ——
+\providecommand{\lEquals}{=}
+\providecommand{\uEquals}{=}
+\providecommand{\dEquals}{=}
+\providecommand{\vEquals}{=}
+\providecommand{\ruEquals}{=}
+\providecommand{\rdEquals}{=}
+\providecommand{\luEquals}{=}
+\providecommand{\ldEquals}{=}
 \providecommand{\uEar}{\uparrow}
 \providecommand{\dEar}{\downarrow}
 \providecommand{\rEar}{\to}
@@ -94,6 +115,31 @@
 \providecommand{\rdDashto}{\searrow}
 \providecommand{\luDashto}{\nwarrow}
 \providecommand{\ldDashto}{\swarrow}
+% —— Line 无头线段族: 横向 \relbar (mathrel 短横, diagram 格恒在
+%    数学域安全)、纵向 \vert, 对角向 amssymb \diagup/\diagdown
+%    在场用真件、缺席降方向箭头 (同 Dashto 判定惯例) ——
+\providecommand{\rLine}{\relbar}
+\providecommand{\lLine}{\relbar}
+\providecommand{\hLine}{\relbar}
+\providecommand{\uLine}{\vert}
+\providecommand{\dLine}{\vert}
+\providecommand{\vLine}{\vert}
+\providecommand{\ruLine}{\@ifundefined{diagup}{\nearrow}{\diagup}}
+\providecommand{\rdLine}{\@ifundefined{diagdown}{\searrow}{\diagdown}}
+\providecommand{\luLine}{\@ifundefined{diagup}{\nwarrow}{\diagup}}
+\providecommand{\ldLine}{\@ifundefined{diagdown}{\swarrow}{\diagdown}}
+% —— Dotsto 点线箭头族: 数学字体无点线箭头真件 → 全族按 Dashto
+%    同款降级 (r/l/h 借 \dashrightarrow 系, 余向实线) ——
+\providecommand{\rDotsto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\lDotsto}{\@ifundefined{dashleftarrow}{\leftarrow}{\dashleftarrow}}
+\providecommand{\hDotsto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\uDotsto}{\uparrow}
+\providecommand{\dDotsto}{\downarrow}
+\providecommand{\vDotsto}{\downarrow}
+\providecommand{\ruDotsto}{\nearrow}
+\providecommand{\rdDotsto}{\searrow}
+\providecommand{\luDotsto}{\nwarrow}
+\providecommand{\ldDotsto}{\swarrow}
 % —— 结构杂项 ——
 \providecommand{\pile}[1]{\begin{array}{c}#1\end{array}}
 \providecommand{\eps}{\varepsilon}

@@ -1,5 +1,8 @@
 r"""docclass/bd 注入缝原语 —— inject.py 出叶（C4 拆分）。
 
+原名 ``_seams.py``，改名避与 ``seams.py``（monkeypatch 注册面）撞名——
+本叶是注入缝几何件，非 patch 缝。
+
 概念归属：``\documentclass``/``\documentstyle`` 缝位走查与回填原语——
 ``find_docclass_ends``（visible_tex 遮盖视图上的 depth-0 直缝 + 嵌套
 条件构造包容缝 + 宏包声明 proxy 缝）、``_splice_after_seams`` 逐缝回填、
@@ -67,6 +70,14 @@ def _docclass_close(vis: str, start: int) -> int:
         elif c == "}":
             dc -= 1
             if seen_brace and dc == 0 and db <= 0:
+                # 畸形 ``{cls}[opts]`` 形态（选项段落在类名花括**后**——
+                # 1003.0691 ``\documentclass{article}[11pt,onecolumn,letter]``、
+                # 1803.00252 ``{revtex4}[12pt]`` 实档）：不吞则缝位停在 ``}``，
+                # ``[opts]`` 孤儿化成 stray-text 页 + Missing ``\begin{document}``。
+                # 只认 ``[``——``{`` 尾随组是普通文本组不可吞。
+                arg = _trailing_arg(vis, j + 1)
+                if arg is not None and vis[arg] == "[":
+                    return group_end(vis, arg)
                 return j + 1
         if j - start > _DOCCLASS_SCAN_LIMIT:
             break
@@ -186,7 +197,9 @@ def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     for m, depth in iter_depth(DOCCLASS_RX, vis):
         if depth == 0:
             close = _docclass_close(vis, m.end())
-            if close > 0 and vis[close - 1] == "}":
+            if close > 0 and vis[close - 1] in "}]":
+                # ``]`` 收尾 = ``{cls}[opts]`` 畸形序吞尾成功（``_docclass_close``
+                # 对尾随 ``[opts]`` 组返 ``]`` 后 offset）——同属闭合缝。
                 insert, lineno = _seam_after_close(tex, vis, close)
             else:
                 # 无 {..} 的裸 \documentclass：退化为行尾注入。
@@ -252,6 +265,50 @@ def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
     return hits[0] if hits else None
 
 
+#: 条件净深计数（遮盖视图）：``\if*`` 开臂 / ``\fi`` 闭臂。
+_COND_OPEN_RX = re.compile(r"\\if[a-zA-Z@]*")
+_COND_CLOSE_RX = re.compile(r"\\fi(?![a-zA-Z@])")
+#: ``\newif\iffoo`` 声明位的 ``\if`` token 占开臂名额但不是条件体——
+#: 按 ``\newif`` 数回吐（TABLE_FITTING 自带 ``\newif\iftexlate@tablefit``）。
+_COND_DECL_RX = re.compile(r"\\newif(?![a-zA-Z@])")
+
+
+def _conditional_delta(vis: str) -> int:
+    r"""遮盖视图条件净深：``\if*`` 开数 − ``\fi`` 闭数 − ``\newif`` 声明数。
+
+    只比对**净深差**——文件自带 ``\ifdef``/``\ifstrempty`` 类宏面（无
+    ``\fi`` 配对的 etoolbox 判宏）在双侧等值抵销；遮蔽移位（块落进逐字
+    区被抹平 / 缝合扰动揭开活码）才会让差值偏离 ``n×块净深``。
+    """
+    return (
+        len(_COND_OPEN_RX.findall(vis))
+        - len(_COND_CLOSE_RX.findall(vis))
+        - len(_COND_DECL_RX.findall(vis))
+    )
+
+
+def _balance_or_fallback(tex: str, out: str, block: str, n: int) -> str:
+    r"""注入后条件平衡自检：失衡回退 ``\documentclass`` 缝前位 / 文件头。
+
+    注入只追加 ``\n``+块（块内 ``\if/\fi`` 恒成对，净深差应为
+    ``n×block_delta``）；失衡 ⇒ 缝位咬穿逐字遮蔽或条件臂错位
+    （1107.0304 ``Incomplete \iffalse`` 全稿吞没类）。回退重插首个
+    ``\documentclass`` **前**（缝前位不在任何条件/逐字遮蔽内）；块内
+    ``\usepackage`` 在该位是内核级硬错（latex.ltx ``\usepackage before
+    \documentclass``），回退副本先降为 ``\RequirePackage``（前导区语义
+    等价、且是唯一的 docclass 前置安全装载器）。无 docclass 落文件头。
+    """
+    expect = _conditional_delta(visible_tex(tex)) + n * _conditional_delta(
+        visible_tex(block)
+    )
+    if _conditional_delta(visible_tex(out)) == expect:
+        return out
+    safe_block = block.replace("\\usepackage", "\\RequirePackage")
+    m = DOCCLASS_RX.search(visible_tex(tex))
+    pos = m.start() if m else 0
+    return tex[:pos] + "\n" + safe_block + "\n" + tex[pos:]
+
+
 def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) -> str:
     r"""逐缝 ``\n``+block 回填——pos 为原 tex 绝对 offset，顺序累加 delta。"""
     out = tex
@@ -259,6 +316,8 @@ def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) 
     for pos, _ln, _c in hits:
         out = out[: pos + delta] + "\n" + block + out[pos + delta :]
         delta += len(block) + 1
+    if hits:
+        out = _balance_or_fallback(tex, out, block, len(hits))
     return out
 
 
@@ -307,6 +366,7 @@ def _splice_before_document(
         return tex
     if len(positions) > 1:
         block = _sentinel_wrap(block, sentinel, what=sentinel, why="multi-bd")
+    out = tex
     for pos in reversed(positions):
-        tex = tex[:pos] + "\n" + block + tex[pos:]
-    return tex
+        out = out[:pos] + "\n" + block + out[pos:]
+    return _balance_or_fallback(tex, out, block, len(positions))

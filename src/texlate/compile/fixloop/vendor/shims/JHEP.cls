@@ -100,6 +100,11 @@
 % (0712.1912 实证); 段落组内 \\ 续排、块级内容全存活。
 \def\@maketitle{%
   \begin{flushleft}%
+    % preprint 编号并入标题块顶 (原为 AtBeginDocument \sissa@mk 前
+    % 独立 emit: 与 \maketitle 脱粘 → 0806.2466/0812.0770/0905.0580/
+    % 1107.0383 四格实证 p1 孤 preprint+folio、p2 真 title 孤儿页)。
+    % 入 \@maketitle 后与 title 同 flushleft 同页排出。
+    \ifx\sissa@preprint\@empty\else{\footnotesize\sissa@preprint\par}\vskip.5em\fi
     {\LARGE\sffamily\bfseries\@title\par}%
     \vskip1.5em%
     {\normalsize\bfseries\sffamily\@author\par}%
@@ -122,7 +127,6 @@
 % \maketitle —— 稿显式调用成 no-op, 不调也不丢 frontmatter
 \let\sissa@mk\maketitle
 \AtBeginDocument{%
-  \ifx\sissa@preprint\@empty\else\noindent{\footnotesize\sissa@preprint}\par\fi
   \sissa@mk
   \ifx\sissa@collaboration\@empty\else\par\noindent{\itshape\sissa@collaboration}\par\fi
   \ifx\sissa@affils\@empty\else\par\noindent{\small\sissa@affils}\par\fi
@@ -140,6 +144,16 @@
     \ifx\sissa@revised\@empty\else revised \sissa@revised;\space\fi
     \ifx\sissa@accepted\@empty\else accepted \sissa@accepted\fi
   \endgroup\par
+  % amsthm 缺位兜底 (JHEP 稿定理面): 真 JHEP.cls 不装 amsthm 但稿
+  % 常直接用 \begin{proof}。defer 到 begindocument 判存活——稿自造
+  % proof env (1107.0383) 或自装 amsthm (1312.0578) 恒赢。
+  % \theoremstyle 不补: amsthm 装载用 \newcommand{\theoremstyle},
+  % 类侧任何预占名会让后装 amsthm 炸 already-defined, 且内核
+  % \newtheorem 恒在无需补。proof env 走 \@ifundefined 闸。
+  \providecommand{\proofname}{Proof}%
+  \providecommand{\qed}{\hfill$\square$}%
+  \@ifundefined{proof}{%
+    \newenvironment{proof}[1][\proofname]{\par\noindent\textbf{#1.}\space}{\qed\par}}{}%
   \let\maketitle\relax}
 \providecommand{\ps@myplain}{\let\@mkboth\@gobbletwo
   \let\@oddhead\@empty\def\@oddfoot{\hfil-- \thepage\ --\hfil}%

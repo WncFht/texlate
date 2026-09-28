@@ -1,0 +1,27 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% osajnl.sty 替身：OSA 期刊样式包版 (© OSA，不在 TL) —— 稿在
+% article 类上 \usepackage{osajnl} (0812.1178 实证 \ocis/\address
+% 调用)。同 osa_body 面去类件化：\ProvidesClass/\LoadClassWithOptions
+% 在 \usepackage 路径非法，改 \ProvidesPackage + 选项吞。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{osajnl}[2026/09/28 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{osajnl.sty is a compatibility shim -> OSA surface}
+\DeclareOption*{}
+\ProcessOptions\relax
+% ── OSA frontmatter 面 (同 osa_body 系) ──
+\providecommand{\ocis}[1]{\par\noindent\textbf{OCIS codes:} #1\par}
+\providecommand{\ociscodes}[1]{\par\noindent\textbf{OCIS codes:} #1\par}
+\providecommand{\email}[1]{\texttt{#1}}
+\providecommand{\homepage}[1]{\texttt{#1}}
+\providecommand{\address}[1]{\\{\footnotesize #1}}
+\providecommand{\journal}[1]{}
+\providecommand{\doi}[1]{}
+% osajnl2 版式开关 \setboolean{shortarticle} → no-op 吞 (osa_body 同款)
+\providecommand{\setboolean}[2]{}
+\providecommand{\bibliographyfullrefs}[1]{}
+\providecommand{\dates}[1]{}
+\providecommand{\journalref}[1]{}
+\providecommand{\articletype}[1]{}
+\@ifundefined{backmatter}{\newenvironment{backmatter}{}{}}{}
+\providecommand{\bmsection}[1]{\section*{#1}}
+\endinput

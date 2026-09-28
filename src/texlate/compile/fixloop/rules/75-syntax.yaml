@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -2364,6 +2364,82 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md runaway_scan row; bench/corpus/2606.18573/extracted/main.tex:300 原稿双括对照; main.aux 0 redactcite (aux 健康证非回读)"
+
+  # 1003.0322 (qc-impl 2026-09-28, vault QC replay xlat_broken_refs):
+  # 段首连排 `\\ \\` 裸换行 (xlat 产物/源生缺陷) 在 vertical mode 下
+  # 炸 "There's no line here to end" (归 syntax, taxonomy L908) ——
+  # l.733 截死在 \input{bbl} 前 → 107 引用键全 ?。删整行序列 (vmode
+  # 下 \\ 本就非法, 删优于 \\medskip 近似); masked 面跳过注释/
+  # verbatim 内字面。
+  - id: strip_vmode_bsbs
+    description: "vmode 段首 `\\\\ \\\\` 连排裸换行行 → 整行剥除 (There's no line here to end 修)"
+    phase: loop
+    order: 199.79 # redactcite_brace_close(199.78) 姊妹位 —— runaway/syntax 同簇空档
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "no line here to end"
+      source_contains: "(?m)^[ \\t]*\\\\\\\\[ \\t]*\\\\\\\\[ \\t]*$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?m)^[ \\t]*\\\\\\\\[ \\t]*\\\\\\\\[ \\t]*$",
+              repl: "",
+              match_surface: "masked",
+            }
+    risk: low # vmode 下 \\ 恒非法; 独句行剥除不吞正文文本
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0322 (vault QC replay xlat_broken_refs, qc-impl-2026-09-28)",
+          error: "l.733 '\\\\ \\\\' vmode 行截死在 \\input{bbl} 前 → 107 键全 ? —— 源重写非 pass 问题",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json strip_vmode_bsbs"
+    known_gap: "`\\\\ \\\\` 后随非空行的段落中位形不收 (hmode 下该序列合法换行); 行尾带注释形不收"
+
+  # 2026-09-28 qc-impl lane: revtex4*/aastex/emulateapj 年代类 vs 现代
+  # array.sty 列规错位 → 'Extra \or'/'Unrecognized array package'/
+  # 'Incomplete \if' 风暴 (10 cells, 100-err cap 前 bibliography 不达)。
+  # spec 原方 builtin array_preamble_shim 未落地——regex 近似臂:
+  # \\documentclass 行后前置 \\RequirePackage{array}。array 全 texlive
+  # 标配、已载则 \\RequirePackage 幂等, 年代类未预载 array 是其 p{}/m{}
+  # 列规炸 Extra \or 的经典根因——前置装载即修 missing_p_colspec +
+  # revtex41_newarray_incompat 子集。前瞻防 loop 轮重复注入。
+  - id: revtex_array_clash
+    description: "syntax 'Extra \\or' 风暴 + 年代类/自定义列规 → \\RequirePackage{array} 前置 (array_preamble_shim 的 regex 近似臂)"
+    phase: loop
+    order: 199.8 # strip_vmode_bsbs(199.79) 后; 'Extra \\or' 签专属无竞争
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Extra \\\\or|Unrecognized array package|Incomplete \\\\if"
+      source_contains: "\\\\documentclass[^\\n]*\\{(revtex|aastex|emulateapj)|\\\\newcolumntype|\\\\begin\\{tabularx?\\}[^\\n{]*\\{[^}\\n]*[pmb]\\{"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?m)^(\\\\documentclass[^\\n]*)\\n(?!\\s*\\\\RequirePackage\\{array\\})",
+              repl: "\\g<1>\n\\\\RequirePackage{array} % texlate: array preload (era-class colspec clash)",
+              match_surface: "masked",
+            }
+    risk: low # array 幂等装载无副作用; 仅 \\documentclass 行后插一行, 不碰列规字面
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay layout:float_lost 簇 10 cells (qc-impl-2026-09-28)",
+          error: "revtex_array_preamble_clash/revtex41_newarray_incompat/missing_array_package_p_colspec —— 'Extra \\or' 风暴 100-err cap 截杀 bibliography",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json revtex_array_clash"
+    known_gap: "列规降级/\\newcolumntype guard/deluxetable 拆解半臂需 builtin array_preamble_shim——本规只覆盖前置装载可修子集; emulateapj \\@endpefalse 级联走 cls 补丁非本臂"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

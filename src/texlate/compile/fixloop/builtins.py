@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from texlate.compile.fixloop._builtins_bib import (
+        bbl_format_version_rewrite,
         bbl_regen,
         bbl_stub_rewrite,
         biber_biblatex_skew_route,
@@ -103,6 +104,13 @@ if TYPE_CHECKING:
         pstricks_dvips_preflight,
         svg_prepare,
         xbb_pregen,
+    )
+    from texlate.compile.fixloop._builtins_layoutfix import (
+        display_math_shrink,
+        fffd_context_fix,
+        gfx_width_clamp,
+        math_run_break,
+        tabular_fit,
     )
     from texlate.compile.fixloop._builtins_misc import (
         aux_seed_undefined_refs,
@@ -187,6 +195,7 @@ if TYPE_CHECKING:
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     "_builtins_bib": (
+        "bbl_format_version_rewrite",
         "bbl_regen",
         "bbl_stub_rewrite",
         "biber_biblatex_skew_route",
@@ -257,6 +266,13 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "pstricks_dvips_preflight",
         "svg_prepare",
         "xbb_pregen",
+    ),
+    "_builtins_layoutfix": (
+        "display_math_shrink",
+        "fffd_context_fix",
+        "gfx_width_clamp",
+        "math_run_break",
+        "tabular_fit",
     ),
     "_builtins_misc": (
         "aux_seed_undefined_refs",
@@ -424,6 +440,12 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "float_h_demote",
     "float_opt_cs_expand",
     "para_loosen",
+    "tabular_fit",
+    "math_run_break",
+    "display_math_shrink",
+    "gfx_width_clamp",
+    "fffd_context_fix",
+    "bbl_format_version_rewrite",
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
@@ -473,6 +495,7 @@ __all__ = [
     "accent_mark_fix",
     "amsmath_family_retire",
     "aux_seed_undefined_refs",
+    "bbl_format_version_rewrite",
     "bbl_regen",
     "bbl_stub_rewrite",
     "biber_biblatex_skew_route",
@@ -488,11 +511,13 @@ __all__ = [
     "ctlseq_undefine",
     "doc_absent_stub",
     "docstrip_generate",
+    "display_math_shrink",
     "driver_missing_image_stub",
     "driver_tfm_hoist",
     "eps_converted_alias",
     "eps_to_pdf",
     "extract_tar_blobs",
+    "fffd_context_fix",
     "fileset_relocate",
     "find_vendored_shadows",
     "float_h_demote",
@@ -504,6 +529,7 @@ __all__ = [
     "fontspec_clone_sub",
     "fontspec_kernel_shadow_retire",
     "generated_stub",
+    "gfx_width_clamp",
     "graphic_case_link",
     "graphic_missing_placeholder",
     "graphic_repair",
@@ -518,6 +544,7 @@ __all__ = [
     "legacy_pkg_shim",
     "macro_glyph_fix",
     "main_wrapper_promote",
+    "math_run_break",
     "missing_char_fix",
     "nfss_cmd_enc_polyfill",
     "nfss_enc_scheme_relax",
@@ -550,6 +577,7 @@ __all__ = [
     "svg_prepare",
     "svjour_clo_stub",
     "tcolorbox_breakable_inject",
+    "tabular_fit",
     "tectonic_bib_stall_route",
     "undefine_for_redef",
     "undefined_env_polyfill",

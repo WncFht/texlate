@@ -12,7 +12,7 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from texlate.compile._seams import find_docclass_ends
+from texlate.compile._docseams import find_docclass_ends
 from texlate.texlog import _mc_parse_log
 from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex, safe_is_file
 

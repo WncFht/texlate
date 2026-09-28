@@ -3,7 +3,7 @@
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
 # 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
-# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/00-base.yaml 头注。
 # 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
 # `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
 version: 1
@@ -69,8 +69,9 @@ rules:
           - { id: bullet, cps: [0x2022], replace: "\\mbox{\\textbullet}" }
           - { id: hellip, cps: [0x2026], replace: "\\mbox{\\dots}" }
           # ── outband 覆盖 (scout-misschar-coverage 2026-09-17, ×13 pids) ──
-          # FFFD 替换符 = 源 mojibake 破折号 (bibitem 页码 '2481–2508') → 连字符
-          - { id: fffd_repl, cps: [0xFFFD], replace: "-" }
+          # FFFD 条目已撤 (2026-09-28 qc-impl): 无语境 '-' 盲换产
+          # '许-多'/'C-orcoles' 错修实证 —— 移交 fffd_context_fix 规则
+          # (order 25.6) 邻域分派: CJK 间{} / 页码-- / 拉丁名断\'。
           # C1 控制符 / LRM / ZWSP / BOM —— 零宽不可见, 空组剥除;
           # misscharext 补完 200B-200F Cf 块 (2410.00026 ZWNJ bib→bbl)
           - { id: c1_ctrl, ranges: [[0x80, 0x9F]], replace: "{}" }
@@ -238,6 +239,44 @@ rules:
           - { id: zcaron_up, cps: [0x17D], replace: "\\mbox{\\v{Z}}" }
           - { id: umacron, cps: [0x16B], replace: "\\mbox{\\={u}}" }
           - { id: umacron_up, cps: [0x16A], replace: "\\mbox{\\={U}}" }
+          # ── 2026-09-28 qc-impl 补表 (vault QC replay vis_degenerate 桶) ──
+          # PUA F067/F074 = Symbol 字体私区字面后随真数学 (0812.1274)
+          # —— γ/τ 语义还原 (同 pua_f047 先例但本对有数学对等)
+          - { id: pua_f067, cps: [0xF067], replace: "\\ensuremath{\\gamma}" }
+          - { id: pua_f074, cps: [0xF074], replace: "\\ensuremath{\\tau}" }
+          # ߞ U+07DE Adlam 误植进 biblio (1306.0160) —— 无拉丁对等, 剥除
+          - { id: adlam_07de, cps: [0x07DE], replace: "{}" }
+          # □ U+25A1 白方块 (2105.00157 lmroman 无槽) —— picture env 内
+          # \framebox(w,h) 才是真图形盒; 裸文本态 \framebox(7,7) 会把
+          # '(' 误当必选参排版 —— 须连 picture 环境一起注
+          - {
+              id: white_sq,
+              cps: [0x25A1],
+              replace: "\\mbox{\\begin{picture}(7,7)\\put(0,0){\\framebox(7,7){}}\\end{picture}}",
+            }
+          # 圈码 ①-⑳ (2503.01891) —— builtin 序数臂缺位期 replace 表
+          # 逐码位显式映射是唯一可达面; \textcircled 核心自带,
+          # \scriptsize 防圈外溢出
+          - { id: circ_01, cps: [0x2460], replace: "\\mbox{\\textcircled{\\scriptsize 1}}" }
+          - { id: circ_02, cps: [0x2461], replace: "\\mbox{\\textcircled{\\scriptsize 2}}" }
+          - { id: circ_03, cps: [0x2462], replace: "\\mbox{\\textcircled{\\scriptsize 3}}" }
+          - { id: circ_04, cps: [0x2463], replace: "\\mbox{\\textcircled{\\scriptsize 4}}" }
+          - { id: circ_05, cps: [0x2464], replace: "\\mbox{\\textcircled{\\scriptsize 5}}" }
+          - { id: circ_06, cps: [0x2465], replace: "\\mbox{\\textcircled{\\scriptsize 6}}" }
+          - { id: circ_07, cps: [0x2466], replace: "\\mbox{\\textcircled{\\scriptsize 7}}" }
+          - { id: circ_08, cps: [0x2467], replace: "\\mbox{\\textcircled{\\scriptsize 8}}" }
+          - { id: circ_09, cps: [0x2468], replace: "\\mbox{\\textcircled{\\scriptsize 9}}" }
+          - { id: circ_10, cps: [0x2469], replace: "\\mbox{\\textcircled{\\scriptsize 10}}" }
+          - { id: circ_11, cps: [0x246A], replace: "\\mbox{\\textcircled{\\scriptsize 11}}" }
+          - { id: circ_12, cps: [0x246B], replace: "\\mbox{\\textcircled{\\scriptsize 12}}" }
+          - { id: circ_13, cps: [0x246C], replace: "\\mbox{\\textcircled{\\scriptsize 13}}" }
+          - { id: circ_14, cps: [0x246D], replace: "\\mbox{\\textcircled{\\scriptsize 14}}" }
+          - { id: circ_15, cps: [0x246E], replace: "\\mbox{\\textcircled{\\scriptsize 15}}" }
+          - { id: circ_16, cps: [0x246F], replace: "\\mbox{\\textcircled{\\scriptsize 16}}" }
+          - { id: circ_17, cps: [0x2470], replace: "\\mbox{\\textcircled{\\scriptsize 17}}" }
+          - { id: circ_18, cps: [0x2471], replace: "\\mbox{\\textcircled{\\scriptsize 18}}" }
+          - { id: circ_19, cps: [0x2472], replace: "\\mbox{\\textcircled{\\scriptsize 19}}" }
+          - { id: circ_20, cps: [0x2473], replace: "\\mbox{\\textcircled{\\scriptsize 20}}" }
         # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
         # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
         # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
@@ -589,7 +628,11 @@ rules:
           corpus: "2605.28727 (_quarantine, main.tex:461 \\usepackage{kotex}; binds :35-46 在场死)",
           error: "Missing character: 质现会状态软并… ×7364 in [UnBatang.ttf] —— 同机理",
         }
-    stats: { fires: 0, rescued_cells: 0, status: proposed }
+      - {
+          corpus: "2112.00007 (qc-impl-2026-09-28 转正验证, tmp/qc_inspect 格)",
+          error: "dispatch 门双证齐: main.tex:177 \\usepackage{kotex} 行首锚中 + Missing character 声/导/语/义/图/纵 ×N in [UnBatang(Bold).ttf]/script=hang —— hani 落 hanja 路由族实证, 应点火",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: active }
     source_ref: "tmp/lane-pairbun2/ — failmine7 census mass_cjk_unbatang 桶; xetexko.sty hanja 路由对账"
 
   # ─── F4f (misscharcen #169, loop3 残余普查): bibtex-era ``^^XX`` UTF-8
@@ -763,3 +806,126 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "task #293 fontfb lane; tmp/lane-singlesweep/mech_buckets.json fontenc-def-absent"
+
+  # ─── 2026-09-28 qc-impl lane (vault QC replay vis_degenerate 桶) ───
+  # FFFD 字面邻域分派 —— 替已撤 char_table fffd_repl('-') 盲换 (无语境
+  # 连字符产 '许-多'/'C-orcoles' 错修实证)。builtin 按跑双侧邻域分派:
+  # CJK 间→{} (0812.1323/1206.0210/1206.5329); 数字/页码→-- (1107.0677/
+  # 1812.00010); 拉丁名断点→\' (1003.0894/1306.2279); emoji/hashtag/兜底
+  # →{} (2501.16123/2302.00102/2409.11654)。
+  - id: fffd_context_fix
+    mechanisms: [W42, W43]
+    description: "字面 U+FFFD mojibake 残痕 → 邻域分派替换 (CJK间{}/页码--/拉丁断\\')"
+    phase: loop
+    order: 25.6 # missing_char_fix(25) 后同窗 —— FFFD 已不在 char_table, 本臂是唯一直达面
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    condition:
+      source_contains: "\\ufffd" # 无字面即 decline, 不烧 stats
+    action:
+      kind: builtin_transform
+      function: fffd_context_fix
+      params:
+        exts: [.tex, .bbl, .cls, .sty]
+    risk: low # 只动字面 FFFD 跑, 邻域两侧都不靠才剥除
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay vis_degenerate (qc-impl-2026-09-28): 0812.1323/1206.0210/1206.5329/1003.0894/1107.0677/1306.2279/1812.00010/2302.00102/2409.11654/2501.16123 — 10 cells",
+          error: "FFFD 字面无语境 '-' 盲换产 '许-多'/'C-orcoles' 错修; 邻域分派逐跑定语义",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py fffd_context_fix; tmp/qc_impl_spec/impl-rules.json"
+    known_gap: "嵌 PDF 轴标内 FFFD 非字面位不属本臂; 注释/verbatim 遮盖域不动"
+
+  # lmsans 宿主 CJK 缺字专臂 (2212.00111): 标题槽 OT 字面落 lmsans17
+  # —— cjk_font_fallback(27) 逐字绑 FandolSong 进 sans 标题字形违和
+  # 且死 \selectfont 上下文有炸面。font_not 双重否定白名单化:
+  # `^((?!lmsans).)*$` 只收宿主名含 lmsans 的缺字码位 (其余字体缺字
+  # 不匹配即跳, 留 cjk/hani 臂照常认领); 逐字 \newunicodechar 文本级
+  # 去重 —— 本臂先行写绑后 27/29 同字跳过, 无争写。
+  - id: cjk_sans_fallback
+    mechanisms: [W42, W43]
+    description: "CJK 缺字落 lmsans* sans 标题槽 → newunicodechar 逐字回退 FandolHei (sans 同族对齐)"
+    phase: loop
+    order: 26.6 # font_fallback(26) 后/cjk_font_fallback(27) 前 —— lmsans 字先绑 sans 体再让通用臂收余
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 }
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # 汉字带三面 (同 hani 臂) —— lmsans 宿主缺字实测全落此
+        fallback_ranges:
+          - [0x3400, 0x4DBF]
+          - [0x4E00, 0x9FFF]
+          - [0xF900, 0xFAFF]
+        # 文件形先 (fandol TL 包, kpathsea 可达+install 补装),
+        # 家族名兜异装环境
+        fallback_fonts:
+          - { name: "FandolHei-Regular.otf", install: true }
+          - "Noto Sans CJK SC"
+          - "Source Han Sans SC"
+        fallback_cs: txlatecjksf # 与 txlatefallback/txlatecjkfb/txlatekofb/txlatehanifb 并存不撞
+        # 只认 lmsans* 宿主: 双重否定 = 全串不含 lmsans 即跳 (claim
+        # 集 = lmsans 宿主缺字 ∩ hani 带); lmsans 宿主 FFFD/circ 等
+        # 带外码位天然不沾
+        font_not: "^((?!lmsans).)*$"
+    risk: low # 逐字绑且白名单宿主; 候选探测不过 decline
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2212.00111 (vault QC replay vis_degenerate, qc-impl-2026-09-28)",
+          error: "Missing character: CJK in lmsans17 —— sans 标题槽缺字逐字绑 serif FandolSong 违和且死 \\selectfont 面有炸",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json cjk_sans_fallback; 60-misschar.yaml cjk/hani 臂同构"
+    known_gap: "lmsans 宿主外的 CJK 缺字不归本臂 (cjk/hani/hangul 各臂照常); \\setCJKsansfont 路线备选 (spec 并列案) 未采——逐字绑与既有族机制同构且对死 \\selectfont 面等效"
+
+  # OT1 `\c{a}` 组合 cedilla → ogonek 预组字 (2211.04497): Dr{\c a}-
+  # {\.z}kowska 意在 Drążkowska —— a/e 无 cedilla 预组字形, \c 产
+  # base+U+0327 组合符 lmroman 无槽缺字。限定 a/e 两字母 (真 ogonek
+  # 字母; c/s/t 真 cedilla 不动) + err ctx U+0327 双闸 —— accent
+  # 臂 (25.5) 之先收 (否则 \c{a} 被剥成裸 a 语义错)。
+  - id: cedilla_ogonek_fix
+    mechanisms: [W42, W43]
+    description: "\\c{a}/\\c a (OT1 cedilla 意图 ogonek) → \\k{a} 预组字改写 (限 a/e + U+0327 缺字证)"
+    phase: loop
+    order: 25.4 # accent_mark_fix(25.5) 之先 —— a/e cedilla 是真 ogonek, 让 accent 剥除会丢语义
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 }
+    condition:
+      ctx_suggests: "U\\+0327" # 组合 cedilla 缺字指纹 (Other 缺字不烧 stats)
+      source_contains: "\\\\c\\s*\\{?\\s*[aeAE]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .bbl]
+        rewrites:
+          - {
+              pattern: "\\\\c\\s*\\{?\\s*([aeAE])\\s*\\}?",
+              repl: "\\\\k{\\g<1>}",
+              match_surface: masked,
+            }
+    risk: low # a/e 无 cedilla 正字法 —— 该形恒为 ogonek 误写或垃圾, 改 \\k 优于剥除
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2211.04497 (vault QC replay vis_degenerate, qc-impl-2026-09-28)",
+          error: "Missing character U+0327 — Dr{\\c a}{\\.z}kowska 意在 Drążkowska, \\c 产组合符 lmroman 无槽",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json cedilla_ogonek_fix"
+    known_gap: "\\c 后隔组写法 (\\c{a} 已含; \\c {a} 空白-组形已收) 外多 token 分隔不收; 非 a/e 宿主 (\\c{t} 等真 cedilla 域) 归 accent_mark_fix"

@@ -1,0 +1,26 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% opex3.sty 替身：OSA Optics Express 三号样式包 (© OSA，不在 TL)
+% → article 上 OSA frontmatter 面。1107.0779 实证 \ocis/\email/
+% \address 调用面；同 shim_map osa_body (osajnl.cls) 面去类件化
+% (\usepackage 路径禁 \ProvidesClass/\LoadClassWithOptions)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{opex3}[2026/09/28 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{opex3.sty is a compatibility shim -> OSA surface}
+\DeclareOption*{}
+\ProcessOptions\relax
+% ── OSA frontmatter 面 (同 osa_body 系) ──
+\providecommand{\ocis}[1]{\par\noindent\textbf{OCIS codes:} #1\par}
+\providecommand{\ociscodes}[1]{\par\noindent\textbf{OCIS codes:} #1\par}
+\providecommand{\email}[1]{\texttt{#1}}
+\providecommand{\homepage}[1]{\texttt{#1}}
+\providecommand{\address}[1]{\\{\footnotesize #1}}
+\providecommand{\journal}[1]{}
+\providecommand{\doi}[1]{}
+\providecommand{\setboolean}[2]{}
+\providecommand{\bibliographyfullrefs}[1]{}
+\providecommand{\dates}[1]{}
+\providecommand{\journalref}[1]{}
+\providecommand{\articletype}[1]{}
+\@ifundefined{backmatter}{\newenvironment{backmatter}{}{}}{}
+\providecommand{\bmsection}[1]{\section*{#1}}
+\endinput

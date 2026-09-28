@@ -1,0 +1,11 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% bibmods.sty 替身：revtex4 时代书目修饰件 (SciWord/TCI 随附, TL/
+% CTAN 皆无) → stub。1107.0525 实证：稿 \usepackage{bibmods} 后
+% 书目全走 revtex4-2 自带宏, 无 bibmods 专属 cs 调用 → 纯 noop
+% + 任意选项吞 (拒收选项即 Unknown option 炸)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{bibmods}[2026/09/28 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{bibmods.sty is a compatibility shim}
+\DeclareOption*{}
+\ProcessOptions\relax
+\endinput

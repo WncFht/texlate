@@ -93,6 +93,37 @@ def cjk_punct_close_guard(s: str) -> str:
     return _insert_masked(s, _CJK_PUNCT_CLOSE_RX, "{}")
 
 
+#: 引用/标签族 ``\cs{{key}}`` 双层花括形（译文侧偶发机械错——1003.0675
+#: ``\ref{{key}}`` ×13 实证，内层组使 key 名带上 ``{}`` 即 undefined ref）。
+#: 仅当外层组恰为单层内组时折叠（``{a{b}c}``/``{{a},{b}}`` 非机械形不收），
+#: 名字长名在前免 ``cite`` 前缀吞 ``citep``/``citet`` 命中。
+_DBL_BRACE_ARG_RX = re.compile(
+    r"\\(citealp|citep|citet|autoref|eqref|pageref|nameref|footref"
+    r"|footnote|label|cref|Cref|cite|ref)(\*?)[ \t]*\{\s*\{([^{}]*)\}\s*\}"
+)
+
+
+def dblbrace_arg_fix(s: str) -> str:
+    r"""``\ref{{key}}`` → ``\ref{key}``：译文双层花括机械折叠（splice 后归一）。
+
+    只在译文路径启用（identity 面保持逐字节）；命中点取 ``mask_tex``
+    遮盖视图——verbatim/comment 体内的字面 ``{{}}`` 不动——原串逆序
+    回放替换（``_insert_masked`` 同骨架，插换同位）。
+    """
+    masked = mask_tex(s)
+    edits = [
+        (
+            m.start(),
+            m.end(),
+            "\\" + m.group(1) + (m.group(2) or "") + "{" + m.group(3) + "}",
+        )
+        for m in _DBL_BRACE_ARG_RX.finditer(masked)
+    ]
+    for start, end, repl in reversed(edits):
+        s = s[:start] + repl + s[end:]
+    return s
+
+
 #: 段尾控制字（``\foo``/``\@foo``）：译文字母直接贴上即成更长 cs 名
 #: （``\item FSU`` → ``\itemFSU``，realarm bug-B LLM 回显侧融合）。
 #: 接缝判据 ``needs_seam_space`` 走 ``textutil.nets`` 单源——cs 尾形
@@ -805,6 +836,80 @@ def strip_seq_marks(text: str) -> str:
     return SEQ_MARK_RX.sub("", text)
 
 
+_ENV_TOKEN_COUNT_RX = re.compile(r"\\(begin|end)\s*\{([^{}\s]+)\}")
+#: C1 控制面（U+0080–U+009F）——双编码残渣烙进产物的哨兵（2105.03852
+#: ``Popovi─Н``/2208.00132 ``SipÅ\x91cz`` 类，上游 decode 漏检的落稿兜捕）。
+_C1_CTRL_RX = re.compile(r"[\x80-\x9f]")
+
+
+def splice_emit_issues(  # noqa: C901 — 四臂哨兵平铺即清单
+    src_tex: str,
+    zh_tex: str,
+    translations: dict[int, str] | None,
+    rel: str,
+) -> list[str]:
+    r"""splice 落稿哨兵：zh 产物体检 → note 串（``[]``=干净，``emit_*`` 命名）。
+
+    - ``emit_brace_skew``：src/zh 花括净深背离（0905.2435 类——
+      ``\edcorr{a}{b}`` 第二实参被译文抬出括号、配对区发散）；
+      双侧取 ``mask_tex`` 遮盖视图净深**差**，src 自带失衡不重复归咎。
+    - ``emit_env_unpaired``：zh 内某环境 ``\begin``/``\end`` 数不等且
+      src 同环境配对正常——splice/译文新引入的配对崩坏（译文内补写
+      ``\begin`` 忘 ``\end`` 即此形）。
+    - ``emit_trans_dropped``：交付译文逐字面段（``[[PH_n]]`` 占位符切开）
+      逐字出现在 zh 的字符加权覆盖 <90%——2508.03541 abstract 完整交付
+      而产物半途截断类。
+    - ``emit_fffd``/``emit_c1_ctrl``：U+FFFD/C1 控制面烙进 zh 源——
+      上游解码腐坏的落稿端可见哨兵。
+
+    只报不拦：note 由调用方并入 ``slot_diffs`` 对账通道。
+    """
+    issues: list[str] = []
+
+    def _brace_depth(text: str) -> int:
+        d = 0
+        for ev, _name in _brace_events(mask_tex(text)):
+            d += 1 if ev == "open" else -1
+        return d
+
+    skew = _brace_depth(zh_tex) - _brace_depth(src_tex)
+    if skew:
+        issues.append(f"emit_brace_skew:{rel}:{skew:+d}")
+
+    def _env_delta(text: str) -> Counter[str]:
+        d: Counter[str] = Counter()
+        for m in _ENV_TOKEN_COUNT_RX.finditer(mask_tex(text)):
+            d[m.group(2)] += 1 if m.group(1) == "begin" else -1
+        return d
+
+    src_env = _env_delta(src_tex)
+    zh_env = _env_delta(zh_tex)
+    new_unpaired = sorted(
+        name for name, d in zh_env.items() if d != 0 and src_env.get(name, 0) == 0
+    )
+    if new_unpaired:
+        issues.append(f"emit_env_unpaired:{rel}:{','.join(new_unpaired[:6])}")
+
+    if translations:
+        total = hit = 0
+        for t in translations.values():
+            for seg in PH_RX.split(t):
+                seg = seg.strip()
+                if len(seg) < 6:  # 短片段对 post-fix 触碰过敏，按字符加权才稳
+                    continue
+                total += len(seg)
+                if seg in zh_tex:
+                    hit += len(seg)
+        if total and hit * 10 < total * 9:
+            issues.append(f"emit_trans_dropped:{rel}:{hit * 100 // total}%")
+
+    if (n := zh_tex.count("\ufffd")) > 0:
+        issues.append(f"emit_fffd:{rel}:{n}")
+    if (n := len(_C1_CTRL_RX.findall(zh_tex))) > 0:
+        issues.append(f"emit_c1_ctrl:{rel}:{n}")
+    return issues
+
+
 class _Expander:
     r"""``[[X_n]]`` 占位符 DAG 递归展开器（``reconstruct``/``chunk_spans`` 单源）。
 
@@ -1091,6 +1196,7 @@ def reconstruct(
     if translations:
         result = cjk_glue_fix(result)
         result = cjk_punct_close_guard(result)
+        result = dblbrace_arg_fix(result)
     return result
 
 

@@ -43,6 +43,7 @@ from texlate.latex.api import scan_tex_tree
 from texlate.latex.reconstruct import (
     reconstruct,
     seq_mark_issues,
+    splice_emit_issues,
     strip_seq_marks,
 )
 from texlate.repair import (
@@ -50,7 +51,6 @@ from texlate.repair import (
     ENV_NO_FIXLOOP,
     consume_engine_flags,
     fixloop_cell_parts,
-    log_text_of,
     merge_flags,
     ruleset_with_baseline,
     run_fixloop,
@@ -65,8 +65,9 @@ from texlate.repair_l2 import (
     split_cid,
     unknown_env_of,
 )
+from texlate.texlog import log_text_of
 from texlate.textutil import PH_RX, env_flag, env_str
-from texlate.textutil.osutil import ENV_FRONT_MATTER, ENV_NO_SEQ_MARKS
+from texlate.textutil.osutil import ENV_FRONT_MATTER, ENV_NO_SEQ_MARKS, opt_switch
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
@@ -88,6 +89,7 @@ if TYPE_CHECKING:
     from texlate.compile.probe import ProbeReport
     from texlate.latex.model import Chunk, ScanResult
     from texlate.repair import CrossRetry
+    from texlate.xlat.client import ChatClient
     from texlate.xlat.pipeline import ChunkResult, Translator
 
 log = logging.getLogger(__name__)
@@ -100,6 +102,7 @@ __all__ = [
     "PipeJob",
     "RepairPolicy",
     "ReportSink",
+    "auto_glossary_fn",
     "baseline_snapshot",
     "compile_judge",
     "compile_judge_tail",
@@ -276,31 +279,47 @@ def scan_tree(
     return scans, chunks, [rel for rel, _exc in tree.fault], tree.support
 
 
-def _auto_glossary_fn(
-    translator: Translator | None,
+def auto_glossary_fn(
+    client: ChatClient | None,
+    model: str,
+    memo: dict[str, Any] | None = None,
+    memo_key: str = "terms",
 ) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
-    """为带 ``client`` 的 translator（GatewayTranslator）接 ``autogloss.extract_terms``。
+    """``PipelineConfig.auto_glossary_fn`` 装配工厂（e2e/worker 两臂单源）。
 
-    MockTranslator/无 client 注入件 → ``None``（mock/bench 路径不打网关）。
-    抽取臂沿用翻译同模（BYOK 端点模型名网关私有，硬编公网名会 404）。
-    备忘防 ``pipe.run`` 二次调用重抽。
+    ``client=None`` → ``None``（mock/无 key 路径不打网关）。``memo`` 给
+    跨 ``pipe.run`` 复用的备忘袋——worker 侧 ``ctx.memo`` 防 resume 重抽；
+    缺省 = 本 fn 私有袋只防二次调用重抽。``memo_key`` 备忘键名——调用方
+    共享袋时自取名防撞键。
     """
-    client = getattr(translator, "client", None)
     if client is None:
         return None
-    model = str(getattr(translator, "model", "") or DEFAULT_MODEL)
-    memo: dict[str, dict[str, str]] = {}
+    store: dict[str, Any] = {} if memo is None else memo
 
     async def _fn(texts: list[str]) -> dict[str, str]:
         from texlate.xlat.autogloss import (  # noqa: PLC0415 -- 可选件惰载
             extract_terms,
         )
 
-        if "terms" not in memo:
-            memo["terms"] = await extract_terms(texts, client, model=model)
-        return memo["terms"]
+        if memo_key not in store:
+            store[memo_key] = await extract_terms(texts, client, model=model)
+        return store[memo_key]
 
     return _fn
+
+
+def _auto_glossary_fn(
+    translator: Translator | None,
+) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
+    """取 translator 的 ``.client``/``.model`` 转调 ``auto_glossary_fn`` 的装配糖。
+
+    MockTranslator/无 client 注入件 → ``None``（mock/bench 路径不打网关）。
+    抽取臂沿用翻译同模（BYOK 端点模型名网关私有，硬编公网名会 404）。
+    """
+    return auto_glossary_fn(
+        getattr(translator, "client", None),
+        str(getattr(translator, "model", "") or DEFAULT_MODEL),
+    )
 
 
 def _env_judge_pass(
@@ -443,6 +462,14 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         rel = f.relative_to(root).as_posix()
         if notes := paired_slot_diff(res.vtex, zh, rel):
             slot_diffs[rel] = notes
+        # emit 哨兵（splice_emit_verifier 项）：花括净深背离/环境配对崩坏/
+        # 交付译文 <90% 逐字在场/U+FFFD+C1 mojibake——note 并入 slot_diffs
+        # 对账通道，只报不拦。
+        if emit_notes := splice_emit_issues(res.vtex, zh, trans, rel):
+            slot_diffs.setdefault(rel, []).extend(emit_notes)
+            log.warning(
+                "emit splice issues in %s: %s", rel, "; ".join(emit_notes[:8])
+            )
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
     stats = {
@@ -684,22 +711,20 @@ def _opt_switch(
     *,
     explicit: bool | None,
 ) -> bool:
-    """修复链单开关决议：``explicit`` > ``options[key]`` > ``not env_flag``。
+    """修复链单开关决议：``explicit`` > ``options[key]`` > ``not env_flag``——薄壳。
 
-    ``options`` 值容忍 bool 与 ``"0"/"false"/"no"/"off"`` 字符串 false 系
-    ——worker ``opt_bool`` 同口径；``TEXLATE_NO_*`` env 是「关」语义，
+    三层链与 ``"0"/"false"/"no"/"off"`` 字符串 false 系归一化单源在
+    ``textutil.osutil.opt_switch``；``TEXLATE_NO_*`` env 是「关」语义，
     取反喂入故缺省皆开。e2e 只喂 explicit、worker 只喂 options——两臂
-    各自的两级闸是同一条优先级链上的不同入口，在此收口。
+    各自的两级闸是同一条优先级链上的不同入口。本私有名保 worker
+    ``compile`` 的 pipecore 消费面。
     """
-    if explicit is not None:
-        return explicit
-    if options is not None:
-        v = options.get(key)
-        if v is not None:
-            if isinstance(v, bool):
-                return v
-            return str(v).strip().lower() not in ("0", "false", "no", "off")
-    return not env_flag(env_name, default=False)
+    return opt_switch(
+        options,
+        key,
+        lambda: not env_flag(env_name, default=False),
+        explicit=explicit,
+    )
 
 
 @dataclass(frozen=True)

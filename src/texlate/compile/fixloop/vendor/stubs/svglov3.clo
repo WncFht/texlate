@@ -16,6 +16,18 @@
 \def\validfor{svjour3}
 \global\let\if@runhead\iftrue
 \input{size10.clo}
+% svjour3 frontmatter 脚注件 (2511.15773 实证: 真 .clo 供 \thanksref/
+% \thankstext —— 稿未随件则 \author 内 \thanksref{e1,addr1} 炸
+% Undefined cs)。\thanksref 吃逗号分隔 key 列, \@for 逐项 \ref
+% 上标; \thankstext{key}{text} 走 AtBeginDocument 双语境安全钩
+% (in-doc 立行/preamble 存值同款) —— \refstepcounter 起专数器写
+% \label 使 \ref 可解, \footnotetext 落页脚。稿自供恒赢
+% (\providecommand 先行)。定义须在 \svglovrestore 前 (@=letter 窗内)。
+\@ifundefined{c@svthanks}{\newcounter{svthanks}\setcounter{svthanks}{0}}{}
+\providecommand{\thanksref}[1]{\textsuperscript{%
+\def\svt@sep{}\@for\svt@k:=#1\do{\svt@sep\ref{\svt@k}\def\svt@sep{,}}}}
+\providecommand{\thankstext}[2]{\AtBeginDocument{%
+\refstepcounter{svthanks}\label{#1}\footnotetext{#2}}}
 \svglovrestore
 \PackageWarningNoLine{texlate-stub}{svglov3.clo is a size/layout shim}
 \endinput

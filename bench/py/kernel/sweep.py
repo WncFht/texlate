@@ -343,12 +343,14 @@ def _sweep_stale_claims(idx: index.Index | None, report: dict) -> None:
 
 
 def _verdict_for(
-    idx: index.Index | None, idc: str, arm: str, variant: str
+    idx: index.Index | None, idc: str, arm: str, variant: str, meta: dict | None = None
 ) -> tuple[str, str]:
     """(zone, verdict) for a pending meta from index cell evidence (§3.5
     cross-run pick_final, last-clean-wins):
     any clean-ish terminal → primary; failure-only → quar; no evidence →
-    alt (bytes stay dedup-visible as a non-primary copy)."""
+    alt (bytes stay dedup-visible as a non-primary copy). A clean verdict
+    is capped at alt when the copy's declared splice lacks a product pdf
+    (fig-only/pdf-less shells must not certify a cell)."""
     if idx is None:
         return "primary", "alt"
     rows = idx.conn.execute(
@@ -357,10 +359,19 @@ def _verdict_for(
     ).fetchall()
     statuses = {r["status"] for r in rows}
     if statuses & _CLEAN_STATUSES:
-        return "primary", "primary"
-    if statuses & _FAIL_STATUSES:
-        return "quar", "quar"
-    return "primary", "alt"
+        zone, verdict = "primary", "primary"
+    elif statuses & _FAIL_STATUSES:
+        zone, verdict = "quar", "quar"
+    else:
+        zone, verdict = "primary", "alt"
+    if (
+        verdict == "primary"
+        and isinstance(meta, dict)
+        and "splice" in (meta.get("files") or {})
+        and not vault._copy_product_ok(meta, "splice")[0]  # noqa: SLF001
+    ):
+        verdict = "alt"  # 无产物 pdf 的 splice 副本不得晋 primary
+    return zone, verdict
 
 
 def _sweep_pending_metas(
@@ -398,7 +409,7 @@ def _sweep_pending_metas(
                     level="warn",
                 )
                 continue
-            zone, verdict = _verdict_for(idx, idc, arm, variant)
+            zone, verdict = _verdict_for(idx, idc, arm, variant, meta=meta)
             vault.promote(idc, arm, variant, altseq, zone, verdict, source_run="sweep")
             report["promoted"].append(
                 {

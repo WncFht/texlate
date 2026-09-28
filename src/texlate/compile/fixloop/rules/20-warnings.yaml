@@ -30,3 +30,22 @@ warnings:
   # warn_overfull/warn_float_big 伪类别驱修复轮, 不进 engine 判红面。
   - { id: overfull_hbox, pattern: "Overfull \\\\hbox" } # qc layout:overfull 探针
   - { id: float_too_large, pattern: "Float too large for page" } # qc layout:float_lost/float_fit 探针
+  # ── 2026-09-28 qc-impl (vault QC replay 诊断蒸馏 impl-rules.json) ──
+  # undef_ref_warn: Reference/Citation/Label undefined 警告 + 'There were
+  #   undefined references' 尾标 → warn_undef_ref 伪类别 (10-taxonomy),
+  #   消费臂 = 80-bib.yaml pagerange/endlabel 注入族 + bbl_cite_undef_regen。
+  #   首遍噪音由引擎 _resolve_tail 出货前解析趟吸收 (aux 已播种 + marks
+  #   命中即自适应补趟); 本 id 只在末遍编译 log 仍报 undefined 时点火。
+  #   redlines.py REDLINES 镜像行由该表属主同步 (mirror pin 测试).
+  - {
+      id: undef_ref_warn,
+      pattern: "LaTeX Warning: (Reference|Citation|Label).{0,80}undefined|There were undefined references",
+    }
+  # bbl_version: biblatex 'File X.bbl is wrong format version' 警告 →
+  #   warn_bbl_version → bbl_version_regen (80-bib order 158.5)。
+  #   warning-only 稿无 '!' 行, 原 bbl_regen 的 undefined_cs 门永不命中。
+  - { id: bbl_version, pattern: "is wrong format version" }
+  # overfull_vbox: Overfull \vbox → 10-taxonomy 别名行复用 warn_overfull
+  #   类别 (tabular/math/display/gfx 各消费臂自门谓词; 专属 vbox 臂
+  #   vbox_geometry_clamp builtin 未注册, 落地后可拆伪类别)。
+  - { id: overfull_vbox, pattern: "Overfull \\\\vbox" }

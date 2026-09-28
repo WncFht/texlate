@@ -17,9 +17,11 @@ dedup 全跳（ok 是 DONE 态），--regen 又是付费字节闸不适用于免
 - 副本选择 (variant,altseq) 感知：默认 restore 取最低 altseq，但
   重封留下的 altseq=0 常是 state-only 残壳，且 rekey 只搬 zh/state
   ——老胞 splice 完好副本常只在 '-' 键域。本工具逐格在全 variant
-  键域挑「含 splice 的完好副本」（.tex 齐者优先——artifact-only
-  封件测不了 env 面；再按含 layoutqc 封件、zone、低 altseq、
-  variant 字典序排）；--variant 钉回单变体旧口径。
+  键域挑「含 splice 的完好副本」，且 splice 必须实有产物 pdf
+  （vault._copy_product_ok——pdf-less 封件只产 phantom no_pdf；
+  .tex 齐者优先——artifact-only 封件测不了 env 面；再按含 layoutqc
+  封件、zone、低 altseq、variant 字典序排）；--variant 钉回单变体
+  旧口径。
 - artifact-only 封件的格遮蔽 layout:dropped_env（splice 无 .tex 时
   env_inventory 恒空会全量误报）并标 env_masked——env 缺口在
   本批不可离线测量。
@@ -80,6 +82,11 @@ def _splice_copy_index(
         try:
             z = vault._norm_zone(meta.get("zone", "pending"))  # noqa: SLF001
         except ValueError:
+            continue
+        # 产物闸：无产物 pdf 的 splice 封件（fig-only / pdf-less 残壳）测了
+        # 只能落 phantom layout:no_pdf——index 直接跳过，格侧落 no_splice
+        # 诊断而非假 sig（与 dedup._PRODUCT_GATE_KINDS 同谓词，防双份漂移）
+        if not vault._copy_product_ok(meta, "splice")[0]:  # noqa: SLF001
             continue
         # artifact-only 封件（splice 只封 pdf/log/txlm）测不了 env 面——
         # 有 .tex 的副本优先，让 dropped_env/marks_coverage 可测

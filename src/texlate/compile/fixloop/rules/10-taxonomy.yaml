@@ -978,4 +978,15 @@ taxonomy:
   # 损伤更重, 同命中时先分诊)
   - { id: warn_overfull, scope: warnings, warn_id: overfull_hbox } # qc layout:overfull/geo_margin_breach 同根
   - { id: warn_float_big, scope: warnings, warn_id: float_too_large } # qc layout:float_lost/float_fit 同根
+  # ── 2026-09-28 qc-impl warn 段扩展 (序即语义) ——
+  # warn_bbl_version 先于 warn_undef_ref: 陈旧 .bbl 格两签共存, bbl 再生
+  #   是根因修复 (cite-undef 表象随 regen+needs_pass 自愈); 反序会让
+  #   undef_ref 消费臂先烧轮而 bbl 永不到场。消费臂见 80-bib.yaml。
+  - { id: warn_bbl_version, scope: warnings, warn_id: bbl_version } # biblatex 拒载旧 .bbl 头标 → bbl_version_regen
+  - { id: warn_undef_ref, scope: warnings, warn_id: undef_ref_warn } # ?? 引用残存 → pagerange/endlabel 注入 + bbl_cite_undef_regen
+  # overfull_vbox 不另立伪类别——vbox 专属臂 (vbox_geometry_clamp) builtin
+  #   未注册缺席; 别名行把 vbox 警告格送 warn_overfull 消费族
+  #   (tabular_fit/math_run_break/display_math_shrink/gfx_width_clamp 各臂
+  #   source_contains 自门, 不中即 dirty_pdf 诚实裁决)。
+  - { id: warn_overfull, scope: warnings, warn_id: overfull_vbox } # Overfull \vbox → warn_overfull 复用
   # 都不中: err 为空 → clean; err 非空 → other

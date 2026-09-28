@@ -51,11 +51,21 @@ BITMAP_FONT_PKG_NAMES: Final = frozenset(
 #: 兜底信号，0905.2435/0905.4369 实证）。裸 `\psline`/`\psframe` 族不收——
 #: polyfill 守卫与自定义宏残影假命中（corpus 全扫零独立命中；新口径
 #: 68 vs 旧 61，反增收 `{amsmath,pstricks}` 非首元素声明）。
-_PSTRICKS_RE = re.compile(
-    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*"
-    r"\{[^}]*?\b(?:pstricks(?:-\w+)?|pst-\w+)\b|"
-    r"\\begin\s*\{pspicture\*?\}|\\pspicture\b|\\psset\b"
+#: 交替支单源：本叶 ``_PSTRICKS_RE`` 与 fixloop ``_FAMILY_TOKENS``
+#: （``@pstricks``——30-route.yaml 两规则外置行锚后嵌入）共用；两侧均按
+#: ``sorted(-len, s)`` 定序拼交替，口径零漂移。
+PSTRICKS_SIG_ALTS: Final = frozenset(
+    {
+        (
+            r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*"
+            r"\{[^}]*?\b(?:pstricks(?:-\w+)?|pst-\w+)\b"
+        ),
+        r"\\begin\s*\{pspicture\*?\}",
+        r"\\pspicture\b",
+        r"\\psset\b",
+    }
 )
+_PSTRICKS_RE = re.compile("|".join(sorted(PSTRICKS_SIG_ALTS, key=lambda s: (-len(s), s))))
 _MINTED_FROZEN_RE = re.compile(r"frozencache")
 #: ``frozencache`` 须与 minted 装载共现才翻 tectonic 优先（§4.2
 #: "frozencache + minted"）——散文裸提 ``frozencache`` 词不构成信号。

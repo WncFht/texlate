@@ -113,6 +113,14 @@ MISSING_CATS = frozenset({"regen_gate", "upstream-lost"})
 # manifest/meta zone spellings that assert byte loss.
 LOSS_ZONES = frozenset({"tombstone", "lost", "missing"})
 
+# need_kinds members whose 'verified' requires product-file evidence inside
+# an intact copy — not merely declared kind bytes. splice is the diagnosed
+# poison surface (pdf-less workspace seals kept minting verified off
+# archive-era DONE rows). zh stays ungated on purpose: its marker/tex
+# product gate is the _ensure_translated lane's concern, and import-era
+# zh copies legitimately predate it — widening this set is a paid re-burn.
+_PRODUCT_GATE_KINDS = frozenset({"splice"})
+
 _MANIFEST_TAIL_ROWS = 5000  # §3.10.6 ②: ~5k tail rows, hashed at run start
 _MANIFEST_WINDOW = 4 * 1024 * 1024  # byte window covering ~5k manifest rows
 
@@ -327,8 +335,12 @@ def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
 
 def _scan_vault_meta(idc: str, arm: str, variant: str):
     """Durable meta-dir scan for one cell -> (bytes_ok, missing, io_error,
-    kinds). ``kinds`` is the union of asset kinds that intact bytes-ok
-    copies vouch for — a meta only ever proves the kinds it declares.
+    kinds, product_kinds). ``kinds`` is the union of asset kinds that intact
+    bytes-ok copies vouch for — a meta only ever proves the kinds it
+    declares. ``product_kinds`` narrows further: kinds whose copies also
+    carry the product file itself (splice's compiled pdf, zh's .tex) via
+    vault._copy_product_ok — intactness alone has historically vouched
+    product-less shells.
 
     Delegates iteration+parse+intactness to vault.query — the single meta
     implementation — so the §3.10.4 filename-authoritative credential and
@@ -344,11 +356,12 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
     try:
         rows = vault.query(idc, _norm(arm), _norm(variant))
     except ValueError:
-        return False, False, False, set()  # non-canon idc: no vault bytes
+        return False, False, False, set(), set()  # non-canon idc: no vault bytes
     except OSError:
-        return False, False, True, set()
+        return False, False, True, set(), set()
     bytes_ok = miss = False
     kinds: set[str] = set()
+    prod_kinds: set[str] = set()
     for row in rows:
         if row.get("_parse_error"):
             miss = True
@@ -357,12 +370,16 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
         if verdict in BYTES_OK_VERDICTS:
             if row.get("bytes_ok"):
                 bytes_ok = True
-                kinds |= {str(k) for k in (row.get("files") or {})}
+                files = row.get("files") or {}
+                kinds |= {str(k) for k in files}
+                for k in files:
+                    if vault._copy_product_ok(row, str(k))[0]:  # noqa: SLF001
+                        prod_kinds.add(str(k))
             else:
                 miss = True
         if verdict in MISSING_VERDICTS:
             miss = True
-    return bytes_ok, miss, False, kinds
+    return bytes_ok, miss, False, kinds, prod_kinds
 
 
 # -- index-side evidence (only ever read under a seal) -----------------------------
@@ -596,12 +613,14 @@ class DedupOracle:
         # 3. verified — durable/frozen legs only: manifest tail bytes_ok,
         #    vault meta on disk, the frozen paid_pool snapshot. The live
         #    index is advisory, never a verified leg.
-        meta_ok, meta_missing, meta_io_error, meta_kinds = _scan_vault_meta(
-            idc, arm, variant
+        meta_ok, meta_missing, meta_io_error, meta_kinds, prod_kinds = (
+            _scan_vault_meta(idc, arm, variant)
         )
         if meta_io_error:
             return UNSEALED
-        if self._verified(key, meta_ok, meta_kinds, need_kinds, stage_name):
+        if self._verified(
+            key, meta_ok, meta_kinds, need_kinds, stage_name, prod_kinds
+        ):
             return VERIFIED
 
         # 4. missing — tombstone/quar evidence with no verified leg.
@@ -641,7 +660,13 @@ class DedupOracle:
         return bool(row and row["op"] == "release" and row["fate"] == "verified")
 
     def _verified(
-        self, key, meta_ok: bool, meta_kinds, need_kinds, stage_name=None
+        self,
+        key,
+        meta_ok: bool,
+        meta_kinds,
+        need_kinds,
+        stage_name=None,
+        prod_kinds=frozenset(),
     ) -> bool:
         """The verified legs under kind-aware adjudication.
 
@@ -661,6 +686,15 @@ class DedupOracle:
         let a never-completed stage dedup forever off its own garbage
         splice; cross-stage pool rows (xlat ok vouching fixloop splice)
         close the same way.
+
+        prod_kinds: kinds some intact copy proves product-bearing via
+        vault._copy_product_ok. When need intersects _PRODUCT_GATE_KINDS
+        (splice), NO leg may vouch a product-less copy — manifest tail,
+        paid_pool and meta alike are stale-seal poisoned otherwise
+        (fixloop dedup'ing forever off pdf-less reseals is the no_pdf
+        root cause). The gate wraps the whole need-path: absent product
+        evidence the verdict falls to absent/missing and the stage
+        actually re-runs.
         """
         ev = self.kind_evidence.get(key)
         alive = ev["alive"] if ev else set()
@@ -668,6 +702,9 @@ class DedupOracle:
         ag_dead = bool(ev and ev["ag_dead"])
         need = {str(k) for k in need_kinds} if need_kinds else None
         if need:
+            prod_need = need & _PRODUCT_GATE_KINDS
+            if prod_need and not prod_need <= set(prod_kinds):
+                return False
             done = self._stage_done(key, stage_name)
             if need <= alive and done:
                 return True
