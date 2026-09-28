@@ -754,7 +754,11 @@ def _doc_order(task_dir: Path, chunks: list[dict[str, Any]]) -> dict[int, int]:
     for root_dir in (task_dir / "base", task_dir / "zh"):
         if not root_dir.is_dir():
             continue
-        texs = {p.relative_to(root_dir).as_posix(): p for p in root_dir.rglob("*.tex")}
+        texs = {
+            p.relative_to(root_dir).as_posix(): p
+            for p in root_dir.rglob("*")
+            if p.suffix.lower() == ".tex"
+        }
         doc_root = next(
             (rel for rel, p in texs.items() if "\\documentclass" in _read_tex(p)),
             None,

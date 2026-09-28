@@ -1860,7 +1860,9 @@ rules:
             # 只拆含 \ 的尾 (吞掉的 env/cs 才产 Missing$); % 头与散文尾不动。
             GLUE_RE = re.compile(r"(?m)^([ \t]*\\end\{comment\})[ \t]*(\S[^\n]*)$")
             fixed = []
-            for p in sorted(Path(".").rglob("*.tex")):
+            for p in sorted(
+                q for q in Path(".").rglob("*") if q.suffix.lower() == ".tex"
+            ):
                 if not p.is_file():
                     continue
                 try:

@@ -556,7 +556,7 @@ def _collect_jobs(root: Path) -> tuple[list[tuple[Path, str, list]], dict[str, N
     """扫 ``root`` 全部 ``.tex`` 取残英 span——同步件，async 侧 ``to_thread`` 起。"""
     jobs: list[tuple[Path, str, list[tuple[int, int, str]]]] = []
     uniq: dict[str, None] = {}
-    for p in sorted(root.rglob("*.tex")):
+    for p in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
         raw = p.read_text(encoding="utf-8", errors="replace")
         spans = find_resid_spans(raw)
         if not spans:

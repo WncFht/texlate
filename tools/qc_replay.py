@@ -52,6 +52,7 @@ sys.path.insert(0, str(_REPO / "bench" / "py"))
 sys.path.insert(0, str(_REPO / "src"))
 
 from kernel import vault  # noqa: E402
+from kernel.dedup import _canon  # noqa: E402
 from kernel.lake import cell_dir  # noqa: E402
 from specs._layoutqc import _tier_of, qc_paper  # noqa: E402
 
@@ -149,26 +150,74 @@ def _cell_list(
           SELECT idc, status, json_extract(metrics,'$.sig_counts') sc,
                  ROW_NUMBER() OVER (PARTITION BY idc ORDER BY ts DESC) rn
           FROM records WHERE stage='layoutqc' AND status!='dedup'
+        ), lm AS (
+          SELECT idc, json_extract(metrics,'$.inject.layout_marks') v,
+                 ROW_NUMBER() OVER (PARTITION BY idc ORDER BY ts DESC) rn
+          FROM records WHERE stage='compile' AND status!='dedup'
         )
-        SELECT i.idc, q.status, q.sc, COALESCE(c.mr, r.mr, p.mr) FROM ids i
+        SELECT i.idc, q.status, q.sc, COALESCE(c.mr, r.mr, p.mr),
+          CASE WHEN m.idc IS NULL THEN NULL
+               WHEN m.v >= 1 THEN 1 ELSE 0 END
+        FROM ids i
         LEFT JOIN lq q ON q.idc=i.idc AND q.rn=1
         LEFT JOIN lc c ON c.idc=i.idc AND c.rn=1
         LEFT JOIN lr r ON r.idc=i.idc AND r.rn=1
         LEFT JOIN lp p ON p.idc=i.idc AND p.rn=1
+        LEFT JOIN lm m ON m.idc=i.idc AND m.rn=1
         """
     ).fetchall()
     copies = _splice_copy_index(variant, arm)
+    # id 形归一：index 键为 canon 形（cat/id），ledger idc 混存 safe 形
+    # （cat--id）——双侧 canon 后 join（0928：794 格假 no_splice 实证）
+    copies_canon = {}
+    for k, v in copies.items():
+        copies_canon.setdefault(k, v)
+        ck = _canon(k)
+        if ck:
+            copies_canon.setdefault(ck, v)
     out = [
         {
             "idc": i,
             "prev_status": s,
             "prev_sig_counts": json.loads(sc) if sc else {},
             "main_rel": m,
-            "copy": copies.get(i),
+            # marks_expected 三态：compile 记录 inject.layout_marks≥1
+            # →True；记录在而键缺/0→False（pre-era 编译或零钩 env）；
+            # 无 compile 记录→None。喂 marks_absent 的出处闸。
+            "marks_expected": (None if me is None else bool(me)),
+            "copy": copies_canon.get(i) or copies_canon.get(_canon(i) or ""),
         }
-        for i, s, sc, m in rows
+        for i, s, sc, m, me in rows
     ]
     return sorted(out, key=lambda c: c["idc"])
+
+
+def _derive_main_rel(splice: Path) -> str | None:
+    """main_rel 账外兜底——封件内 \\documentclass 承载 tex 与产物 pdf 同 stem
+    者优先（stem 配对=编译链自证），次选最浅 documentclass 件。旧胞 ledger
+    未落 main_rel 时回收测量面（0928：803 格账外封件实证）。"""
+    texs = sorted(p for p in splice.rglob("*") if p.suffix.lower() == ".tex")
+    if not texs:
+        return None
+    mains = [
+        p
+        for p in texs
+        if "\\documentclass" in p.read_text(encoding="utf-8", errors="ignore")[:8192]
+    ]
+    cands = mains or texs
+    pdf_by_stem = {}
+    for p in splice.rglob("*"):
+        if p.suffix.lower() != ".pdf":
+            continue
+        if p.name.endswith(".fixloop-entry.pdf"):
+            continue
+        pdf_by_stem[p.stem] = max(pdf_by_stem.get(p.stem, 0), p.stat().st_size)
+    paired = [p for p in cands if p.stem in pdf_by_stem]
+    if paired:
+        pick = max(paired, key=lambda p: pdf_by_stem[p.stem])
+        return pick.relative_to(splice).as_posix()
+    pick = min(cands, key=lambda p: (len(p.relative_to(splice).parts), str(p)))
+    return pick.relative_to(splice).as_posix()
 
 
 def _backfill_txlm(paper: Path, splice: Path, main_rel: str) -> str:
@@ -215,6 +264,11 @@ def _replay_cell(
         out["error"] = "no_splice"
         return out
     if not main_rel:
+        main_rel = _derive_main_rel(splice)
+        if main_rel:
+            out["main_rel"] = main_rel
+            out["main_rel_derived"] = True
+    if not main_rel:
         out["error"] = "no_main_rel"
         return out
     out["txlm_src"] = _backfill_txlm(paper, splice, main_rel)
@@ -227,12 +281,13 @@ def _replay_cell(
             base_dir=None,
             src_dir=src if src.is_dir() else None,
             marks_era=marks_era,
+            marks_expected=item.get("marks_expected"),
             flag_dir=None,
         )
         drop_sigs: set[str] = set()
         # artifact-only 封件无 .tex → env_inventory(splice) 恒空，
         # dropped_env 会把 src 全部 env 报成「丢」——遮蔽此不可测量面
-        if not any(splice.rglob("*.tex")):
+        if not any(p.suffix.lower() == ".tex" for p in splice.rglob("*")):
             drop_sigs.add("layout:dropped_env")
             out["env_masked"] = True
         # 非 marks-era 管线（soak 链不产 txlm）marks_absent 恒发=纯噪音

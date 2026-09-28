@@ -1873,7 +1873,9 @@ def qc_paper(
     # \maketitle/titlepage 行号集（overfull 降权）+ documentclass
     # 双面判定共用一份拼合体。
     try:
-        tex_files = sorted(splice_dir.rglob("*.tex"))[:_TEX_HAY_MAX]
+        tex_files = sorted(
+            p for p in splice_dir.rglob("*") if p.suffix.lower() == ".tex"
+        )[:_TEX_HAY_MAX]
     except OSError:
         tex_files = []
     parts = []
