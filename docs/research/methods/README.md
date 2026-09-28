@@ -15,6 +15,7 @@
 | [2026-09-18-layout-defects-bench.md](2026-09-18-layout-defects-bench.md)     | 版式损伤 bench：ctex zihao 字号膨胀与 CJK 不可断段落双根因的机制链、A/B 量化与证伪记录（修复已落地 inject 层）                                                 |
 | [2026-09-19-bench-metrics-corpusv3.md](2026-09-19-bench-metrics-corpusv3.md) | corpus_v3 全量综合测试指标总表：12 臂逐臂读数、失败类分布、已知缺口与过程教训                                                                                  |
 | [metrics-2026-09-19/](metrics-2026-09-19/)                                   | 评测体系全景报告工程：LaTeX 报告源码 + PDF + 全部原始数据（时间线 CSV/commit 全录/大事记），自包含可重建                                                       |
+| [agent-pipeline-baseline-2026-09-28/](agent-pipeline-baseline-2026-09-28/)   | agent 直翻 vs texlate 管线双臂基线：同模型同网关同 10 篇逐篇 token/质量/时效账 + v4 ph 重发病理定位——v5 对照臂底稿                                             |
 
 ## 阅读建议
 

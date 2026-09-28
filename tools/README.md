@@ -24,6 +24,7 @@
 | 工具           | 作用                                                                                                                                       | 用法                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `qc_replay.py` | layoutqc 离线重放：vault 现行封件过**工作树**检测器，与账上旧口径逐格差分（检测器修订后的实测面；dedup 会跳 DONE 格，spec 重跑拿不到新数） | `.venv/bin/python tools/qc_replay.py [--out tmp/qc_replay] [--jobs 8] [--id X ...]` → `papers.jsonl`+`summary.json` |
+| `arms_tokens.py` | 双臂 token 对账：按任务时间窗切网关 `logs` 表（api+key+ms 窗隔离），逐臂逐篇出 calls/input/cache_read/output JSON | `.venv/bin/python tools/arms_tokens.py [--arms arms.json] [--out tmp/arms-tokens.json]` |
 
 口径注意：zh txlm 从 layoutqc 封件回填（splice 封件常缺）；artifact-only 封件遮
 `layout:dropped_env` 并标 `env_masked`；账本 mode=ro、vault 硬链只读——零写账。
