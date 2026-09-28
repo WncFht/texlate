@@ -114,29 +114,50 @@ _KEYLIST_MIN_SEGS: Final = 2
 _DIGIT_IN_RX: Final = re.compile(r"\d")
 
 #: 键值型命令参数整体排除——``\cite{...}``/``\ref``/``\label``/``\url``/
-#: ``\path``/``\input``/``\tikzset``/``\pgfplotsset`` 族的括号内容是键名
-#: 不是散文，tier-2 降阈后 4+ 键串会够线被误译断引用/断键；整段预置哨
-#: 兵比分切后猜形稳。
+#: ``\path``/``\input`` 族的括号内容是键名不是散文，tier-2 降阈后 4+ 键
+#: 串会够线被误译断引用；整段预置哨兵比分切后猜形稳。嵌套花括号的
+#: ``\tikzset`` 族另走 ``_BRACE_ARG_CS_RX`` 配对扫描。
 _KEY_ARG_RX: Final = re.compile(
     r"\\(?:cite[A-Za-z]*|nocite|ref|eqref|pageref|autoref|[cC]ref|label|"
     r"input|include|includegraphics|bibliography|bibliographystyle|"
-    r"addbibresource|url|path|doi|tikzset|pgfplotsset|pgfkeys|pgfqkeys|"
-    r"usetikzlibrary|hypersetup)[ \t]*"
+    r"addbibresource|url|path|doi)[ \t]*"
     r"(?:\[[^\]\n]*\][ \t]*){0,2}\{[^}\n]*\}"
 )
+
+#: ``\tikzset``/``\pgfplotsset``/``\pgfkeys``/``\hypersetup`` 族的 brace
+#: 参整段罩——参数体是键表可能嵌套 ``{...}``（``a/.style={k=v}``），
+#: 扁平 ``[^}\n]*`` 只能吃到首个 ``}`` 就断（2609.20069 ``chip/.style``
+#: 漏罩实证）。正则只定位 cs 头，``{}`` 区间由配对扫描给。
+_BRACE_ARG_CS_RX: Final = re.compile(
+    r"\\(?:tikzset|pgfplotsset|pgfkeys|pgfqkeys|pgfkeysalso|"
+    r"usetikzlibrary|hypersetup)\b"
+)
+_BRACE_ARG_MAX: Final = 2
 
 #: ``[...]`` 选项表——pgfkeys 键表（``\addplot[only marks, mark=*, mark
 #: options={fill=white}]``/``\begin{axis}[scale only axis, width=...]``）
 #: 形状与散文不可分，但键名翻成中文即 ``key_unknown``/``dirty_pdf`` 编译
 #: 损毁（2609.20069 实测）。按花括号深度切顶层逗号段：每段键部（首个
 #: 深度-0 ``=`` 前）须为 pgfkeys 名形；``=`` 段只哨兵键名、值域照常可
-#: 扫（``xlabel={Time (s)}`` 值是散文该译），布尔键段整段哨兵。全键形
-#: 且（任一带 ``=`` 或全短键 ≥2 段）才算键表——单段无 ``=`` 的长散文
-#: 括号（``[see Section 3]`` 类）不误伤；键串散文假阳代价=漏译一行，
-#: 远轻于断编译。
-_BRACKET_RX: Final = re.compile(r"\[([^\[\]\n]*)\]")
+#: 扫（``xlabel={Time (s)}`` 值是散文该译）——但 ``.style={键表}`` 形值
+#: 自身是键表时整段哨兵；布尔键段整段哨兵。全键形且（任一带 ``=`` 或
+#: 全短键 ≥2 段）才算键表——单段无 ``=`` 的长散文括号（``[see Section
+#: 3]`` 类）不误伤；键串散文假阳代价=漏译一行，远轻于断编译。``\n``
+#: 许可跨行选项表（``\begin{axis}[\n scale only axis,...`` 实证逃脱面）。
+#: 扁平 ``\[[^\[\]]*\]`` 吃不了嵌套 ``[``——``legend image code/.code=
+#: {\draw[#1] ...}`` 值域内层括号截断整表匹配，\begin{axis} 键表全漏
+#: （2609.20069 v1.5 实证）。开符只定位起点，闭位走 ``_match_bracket``
+#: 配对扫描；``\[``/``\]`` 转义（display math）不计深度。
+_BRACKET_OPEN_RX: Final = re.compile(r"(?<!\\)\[")
 _KEY_NAME_RX: Final = re.compile(r"[A-Za-z@*./][A-Za-z0-9@* .+_'/-]*")
 _KEYLIST_MAX_KEY_WORDS: Final = 3
+#: ``key={...}`` 值域暗语签名——内层键表之外的代码体（``\draw``/``#1``/
+#: tikz 路径 ``;``）整段哨兵，只罩键名会让 code 值漏进扫描面。
+_CODE_VALUE_RX: Final = re.compile(r"\\[A-Za-z@*]|[#;]")
+#: 键名后缀即 code/style 族——``grid style``/``.append style``/``.code``
+#: 值域恒为键表或代码。``label`` 也算（``label={fig:x}`` 是内部引用键），
+#: 但须 ``/``、``.``、空白或串首前缀——``xlabel``/``ylabel`` 不能误中。
+_CODE_KEY_RX: Final = re.compile(r"(?:^|[\s/.])(?:style|code|cmd|label)$")
 #: 散文括号 cs 豁免——``\item[标签]``/``\caption[短题]``/章节的 ``[..]``
 #: 是面向读者的散文不是键表；括号前 text 尾落这类 cs 时跳过键表面罩。
 _PROSE_BRACKET_CS: Final = frozenset(
@@ -161,58 +182,159 @@ _PROSE_BRACKET_CS_RX: Final = re.compile(
 )
 
 
+def _group_depth(c: str, prev: str, depth: int) -> int:
+    r"""分组符深度迁移——``{}``/``()``/``[]`` 三类，``\x`` 转义不计。"""
+    if prev == "\\":
+        return depth
+    if c in "{([":
+        return depth + 1
+    if c in "})]":
+        return max(0, depth - 1)
+    return depth
+
+
 def _top0_segs(inner: str) -> list[tuple[int, int]]:
-    """花括号深度-0 逗号切段——``{a, b}`` 值域内逗号不切。"""
+    """分组深度-0 逗号切段——``{a, b}``/``(a, b)``/``[a, b]`` 内逗号不切。"""
     bounds: list[tuple[int, int]] = []
     depth = 0
     start = 0
     for i, c in enumerate(inner):
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth = max(0, depth - 1)
-        elif c == "," and depth == 0:
+        nd = _group_depth(c, inner[i - 1] if i else "", depth)
+        if c == "," and depth == 0:
             bounds.append((start, i))
             start = i + 1
+        depth = nd
     bounds.append((start, len(inner)))
     return bounds
 
 
 def _key_part(seg: str) -> tuple[str, bool]:
-    """段内首个深度-0 ``=`` 前的键部；返回 ``(key_text, has_eq)``。"""
+    r"""段内首个深度-0 ``=`` 前的键部；``\x`` 转义不计分组。"""
     depth = 0
     for i, c in enumerate(seg):
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-        elif c == "=" and depth == 0:
+        nd = _group_depth(c, seg[i - 1] if i else "", depth)
+        if c == "=" and depth == 0:
             return seg[:i], True
+        depth = nd
     return seg, False
 
 
-def _bracket_key_spans(inner: str, base: int) -> list[tuple[int, int]]:
-    """``[...]`` 内 pgfkeys 键名区间（``base``=inner 起点的全文坐标）。
+def _seg_whole_mask(key_norm: str, vstr: str) -> bool:
+    r"""``key=val`` 段是否整段哨兵——值域非散文即罩。
 
-    非键表形 → ``[]``（调用方面罩跳过）。键表形时 ``=`` 段只回键名区间
-    ——值留在扫描面让 ``xlabel={英文标签}`` 照常译；布尔段整段置哨兵。
+    三触发：code 键名（``.code``/``.style``/``label``——值恒非散文）；
+    非 ``{}`` 包裹值（枚举/数字/暗语——``anchor=north west`` 实证留在
+    可见面会与 ``] (节点名) at (x,y`` 桥成 run 全段被翻）；``{}`` 值
+    内层合键表形或含暗语签名（``\x`` cs/``#``/``;``）。
+    """
+    if _CODE_KEY_RX.search(key_norm):
+        return True
+    if not (vstr.startswith("{") and vstr.endswith("}")):
+        return True
+    vinner = vstr[1:-1]
+    return (
+        bool(_keylist_mask_spans(vinner, 0, 1))
+        or _CODE_VALUE_RX.search(vinner) is not None
+    )
+
+
+def _keylist_mask_spans(inner: str, base: int, depth: int = 0) -> list[tuple[int, int]]:
+    r"""键表内哨兵区间（``inner``=``[...]``/``{...}`` 体文，``base``=全文坐标）。
+
+    非键表形 → ``[]``。``=`` 段默认只罩键名（``xlabel={散文}`` 值留扫）；
+    值恰为 ``{...}`` 包裹且自身合键表形（``.style={k=v,...}``）→ 整段
+    哨兵——样式体的键是两级键表，只罩键名会让内层键漏进扫描面
+    （``chip/.style={圆角=2pt}`` 实证）。键名校验前压平内部空白——跨行
+    选项表的键名可能含 ``\n``。
     """
     bounds = _top0_segs(inner)
     spans: list[tuple[int, int]] = []
     has_eq = False
+    nseg = 0
     for ss, se in bounds:
-        ktxt, eq = _key_part(inner[ss:se])
+        seg = inner[ss:se]
+        if not seg.strip(" \t\r\n\x00"):
+            continue  # 尾逗残段/前级哨兵残段（``\cite{..}`` 已遮）——不违例不算段
+        ktxt, eq = _key_part(seg)
         key = ktxt.strip()
-        if not _KEY_NAME_RX.fullmatch(key):
+        key_norm = re.sub(r"[\s\x00]+", " ", key)
+        if not _KEY_NAME_RX.fullmatch(key_norm):
             return []
         has_eq = has_eq or eq
-        if not eq and len(_RESID_EN_WORD_RX.findall(key)) > _KEYLIST_MAX_KEY_WORDS:
+        if not eq and len(_RESID_EN_WORD_RX.findall(key_norm)) > _KEYLIST_MAX_KEY_WORDS:
             return []
+        nseg += 1
+        val = seg[len(ktxt) + 1 :] if eq else ""
+        whole = eq and depth == 0 and _seg_whole_mask(key_norm, val.strip())
+        if whole:
+            lead = len(seg) - len(seg.lstrip())
+            spans.append((base + ss + lead, base + ss + len(seg.rstrip())))
+            continue
         lead = len(ktxt) - len(ktxt.lstrip())
         spans.append((base + ss + lead, base + ss + lead + len(key)))
-    if not has_eq and len(bounds) < _KEYLIST_MIN_SEGS:
+    if not has_eq and nseg < _KEYLIST_MIN_SEGS:
         return []
     return spans
+
+
+def _match_brace(masked: str, i: int) -> int:
+    r"""``masked[i]=='{'`` 起的配对 ``}`` 后位；``\{``/``\}`` 不计；未闭合返行尾。"""
+    depth = 0
+    j = i
+    while j < len(masked):
+        if masked[j] == "{" and (j == 0 or masked[j - 1] != "\\"):
+            depth += 1
+        elif masked[j] == "}" and (j == 0 or masked[j - 1] != "\\"):
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    nl = masked.find("\n", i)
+    return nl if nl != -1 else len(masked)
+
+
+def _match_bracket(masked: str, i: int) -> int:
+    r"""``masked[i]=='['`` 起的配对 ``]`` 后位；``\[``/``\]`` 不计；未闭合返行尾。"""
+    depth = 0
+    j = i
+    while j < len(masked):
+        if masked[j] == "[" and (j == 0 or masked[j - 1] != "\\"):
+            depth += 1
+        elif masked[j] == "]" and (j == 0 or masked[j - 1] != "\\"):
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    nl = masked.find("\n", i)
+    return nl if nl != -1 else len(masked)
+
+
+def _brace_arg_spans(masked: str) -> list[tuple[int, int]]:
+    r"""``\tikzset`` 族 cs 后的 ``{...}`` 参区间——花括号配对扫描。
+
+    cs 名后跳过 ``[opt]`` 与空白，逐个 ``{`` 起配对到平衡 ``}``；未闭合
+    罩到行尾（保守）。最多 ``_BRACE_ARG_MAX`` 个连排参（``\pgfqkeys``
+    带路径+键表两参）。
+    """
+    out: list[tuple[int, int]] = []
+    for m in _BRACE_ARG_CS_RX.finditer(masked):
+        pos = m.end()
+        n_args = 0
+        while n_args < _BRACE_ARG_MAX:
+            while pos < len(masked) and masked[pos] in " \t\n":
+                pos += 1
+            if masked[pos : pos + 1] == "[":
+                close = masked.find("]", pos)
+                if close == -1:
+                    break
+                pos = close + 1
+                continue
+            if masked[pos : pos + 1] != "{":
+                break
+            out.append((pos, _match_brace(masked, pos)))
+            n_args += 1
+            pos = out[-1][1]
+    return out
 
 
 _SYS_PROMPT: Final = (
@@ -350,14 +472,26 @@ def _mask_zones(text: str, base: str) -> str:
         if s < e:
             chars[s] = chars[e - 1] = "\x00"
     masked = "".join(chars)
+    for s, e in _brace_arg_spans(masked):
+        chars[s:e] = "\x00" * (e - s)
+    masked = "".join(chars)
     for m in _KEY_ARG_RX.finditer(masked):
         s, e = m.start(), m.end()
         chars[s:e] = "\x00" * (e - s)
     masked = "".join(chars)
-    for m in _BRACKET_RX.finditer(masked):
+    pos = 0
+    while True:
+        m = _BRACKET_OPEN_RX.search(masked, pos)
+        if m is None:
+            break
+        pos = m.start() + 1  # 内层 ``[`` 照常再扫——``#1`` 形自败不罩
         if _PROSE_BRACKET_CS_RX.search(masked[max(0, m.start() - 72) : m.start()]):
             continue
-        for s, e in _bracket_key_spans(m.group(1), m.start(1)):
+        end = _match_bracket(masked, m.start())
+        inner_end = end - 1 if masked[end - 1 : end] == "]" else end
+        for s, e in _keylist_mask_spans(
+            masked[m.start() + 1 : inner_end], m.start() + 1
+        ):
             chars[s:e] = "\x00" * (e - s)
     return "".join(chars)
 

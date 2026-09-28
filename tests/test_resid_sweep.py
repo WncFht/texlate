@@ -309,6 +309,123 @@ def test_spans_linebreak_optarg_not_masked() -> None:
     assert find_resid_spans(t) == []
 
 
+def test_spans_multiline_axis_options_masked() -> None:
+    r"""跨行 ``\begin{axis}[\n scale only axis,\n width=...``——2609.20069 逃脱形。"""
+    t = (
+        "\\begin{axis}[\n"
+        "  scale only axis,\n"
+        "  width=0.85\\linewidth,\n"
+        "  height=0.36\\linewidth,\n"
+        "]\n\\addplot {x};\n\\end{axis}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_style_nested_keylist_masked() -> None:
+    r"""``.style={键表}`` 值自身是键表——只罩键名会让内层键漏扫（chip 实证）。"""
+    t = (
+        "\\begin{tikzpicture}[chip/.style={rounded corners=2pt, "
+        "inner sep=3pt, font=\\scriptsize, align=left}]\n"
+        "\\node[chip] {已译};\n\\end{tikzpicture}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_tikzset_nested_braces_masked() -> None:
+    r"""``\tikzset{...}`` 嵌套花括号配对吃全参——扁平 ``[^}]*`` 只到首个 ``}``。"""
+    t = (
+        "\\tikzset{box/.style={draw=black!30, rounded corners=3pt, "
+        "align=left, inner sep=5pt},\n"
+        "chip/.style={rounded corners=2pt, inner sep=3pt, font=\\scriptsize}}\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_pgfqkeys_two_args_masked() -> None:
+    r"""``\pgfqkeys{/tikz}{keys}`` 双参都吃。"""
+    t = "\\pgfqkeys{/tikz}{scale only axis, rounded corners}\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_axis_xlabel_value_still_translated() -> None:
+    r"""``xlabel={散文}`` 值不是键表——罩键名留值域照常译。"""
+    t = (
+        "\\begin{axis}[\n  scale only axis,\n  width=0.8\\textwidth,\n"
+        "  xlabel={A very long english axis label},\n]\n\\end{axis}\n"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["A very long english axis label"]
+
+
+def test_spans_hypersetup_masked() -> None:
+    r"""``\hypersetup{pdftitle={...}}`` 嵌套参全罩——元数据留英合法。"""
+    t = "\\hypersetup{pdftitle={A very long english document title}}\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_axis_code_value_inner_bracket_masked() -> None:
+    r"""``.code={\draw[#1] ...}`` 内层括号截断扁平 ``[^\[\]]*``——v1.5 实证逃逸。
+
+    整表 ``\begin{axis}[...]`` 因值域内 ``[#1]`` 匹配失败而全漏；配对扫
+    +code 键值整段哨兵后只剩 ``ylabel={散文}`` 值域可译。
+    """
+    t = (
+        "\\begin{axis}[\n"
+        "  scale only axis,\n"
+        "  width=0.88\\linewidth,\n"
+        "  ylabel={Median attack success rate across all models},\n"
+        "  symbolic x coords={Narwhal,Bullshark,Mysticeti},\n"
+        "  legend image code/.code={\\draw[#1] (0cm,-0.06cm) rectangle "
+        "(0.18cm,0.10cm);},\n"
+        "  axis y line*=left,\n"
+        "]\n\\addplot {x};\n\\end{axis}\n"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    joined = "\n".join(runs)
+    assert "scale only axis" not in joined
+    assert "rectangle" not in joined
+    assert "legend image code" not in joined
+    assert "symbolic" not in joined
+    assert any("Median attack success rate" in r for r in runs)
+
+
+def test_spans_axis_code_key_unbraced_value_masked() -> None:
+    r"""``.code`` 键无 ``{}`` 包裹值也整段罩——code 键名本身就是暗语。"""
+    t = "\\begin{axis}[legend image code/.code=\\draw rectangle;, ymin=0]\n\\end{axis}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    joined = "\n".join(runs)
+    assert "rectangle" not in joined
+    assert "legend image code" not in joined
+
+
+def test_spans_axis_label_key_not_codeword() -> None:
+    r"""``xlabel`` 以 ``label`` 结尾但不是 code 键——散文值域照常可译。"""
+    t = (
+        "\\begin{axis}[xlabel={A very long english axis label}, "
+        "label={fig:internal}, ymin=0]\n\\end{axis}\n"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["A very long english axis label"]
+
+
+def test_spans_node_anchor_enum_value_masked() -> None:
+    r"""``anchor=north west`` 非 ``{}`` 包裹枚举值——v1.5 实证桥接损毁。
+
+    值域留可见面时 ``north west] (codebases) at (0,0`` 汇成 run 整段被翻，
+    节点名/``]``/坐标全灭（``codebases.east`` 悬空）。整段哨兵后尾巴
+    碎片不足阈值自然弃收。
+    """
+    t = (
+        "\\node[box, fill=cbSky!15, text width=7.4cm, anchor=north west] "
+        "(codebases) at (0,0)\n  {\\textbf{Instrumented codebases.} 已译正文};\n"
+        "\\draw[side] (codebases.east) -- (env.west);\n"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    joined = "\n".join(runs)
+    assert "codebases" not in joined
+    assert "north west" not in joined
+
+
 def _latin_ok(s: str) -> bool:
     lat = sum(1 for c in s if c.isascii() and c.isalpha())
     return lat >= _RESID_EN_MIN_LATIN
