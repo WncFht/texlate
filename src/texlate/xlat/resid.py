@@ -30,7 +30,10 @@ r"""resid — zh 树残英清扫：未进 chunk 表的英文 run → 就地翻�
   三豁免；另设**短胞格档** ≥4 词、≥18 拉丁——QC 残英网按渲染行计词，
   数据表短语行卡 nets 门槛漏收照样积成 residual_en；数字 token 过半
   与逗号单字段全小写清单两闸防啃 cite 键串/版本串；键值型命令参数
-  （``\cite``/``\ref``/``\label``/``\url`` 族）整段预置哨兵；
+  （``\cite``/``\ref``/``\label``/``\url``/``\tikzset`` 族）整段预置
+  哨兵；``[...]`` 键表按花括号深度切顶层逗号段——键名置哨兵、
+  ``=value`` 值域留扫（pgfkeys 选项翻中文即 ``key_unknown`` 断编译，
+  2609.20069 实证），``\item``/``\caption`` 散文括号豁免；
 - 遮盖区是硬边界——``mask_tex`` 遮区逐位转 ``\x00`` 哨兵、env/math
   遮区两端置哨兵：span 按原文坐标回写，遮区跨进 run 会把 ``% 注释``/
   ``\verb``/``$..$`` 原始文本一并吃掉（v1 桥接形实测吞数学对，zh 树
@@ -93,7 +96,11 @@ _MATH_OPEN_RX: Final = re.compile(r"(?<!\\)(\$\$|\$)|\\[\[\(]")
 #: 片首控制序列名——``\`` 切分后残片以 cs 名开头（``\item 散文``），剥掉
 #: cs 名+可选 ``*``+可选 ``[..]`` 参及后随空白，否则 ``\item`` 变 ``\中文``
 #: 断命令。``\section{题目}`` 的 cs 名片剥空自身，brace 内正文照常评。
+#: 散文括号 cs（``\item``/``\caption``/章节族）的 ``[..]`` 是读者可见散
+#: 文不是选项——走 ``_CS_HEAD_NOOPT_RX`` 不吃括号，留给键表罩+抽取面。
 _CS_HEAD_RX: Final = re.compile(r"[A-Za-z@]+\*?[ \t]*(\[[^\]\n]*\])?[ \t]*")
+_CS_HEAD_NOOPT_RX: Final = re.compile(r"[A-Za-z@]+\*?[ \t]*")
+_CS_NAME_RX: Final = re.compile(r"[A-Za-z@]+\*?")
 
 #: 短胞格档——QC 残英网按**渲染行**计词（``≥4`` 词），数据表短语行
 #: 5-8 词/20-37 拉丁虽低于 nets 门槛照样积成 residual_en（1906.00256
@@ -107,14 +114,106 @@ _KEYLIST_MIN_SEGS: Final = 2
 _DIGIT_IN_RX: Final = re.compile(r"\d")
 
 #: 键值型命令参数整体排除——``\cite{...}``/``\ref``/``\label``/``\url``/
-#: ``\path``/``\input`` 族的括号内容是键名不是散文，tier-2 降阈后 4+ 键
-#: 串会够线被误译断引用；整段预置哨兵比分切后猜形稳。
+#: ``\path``/``\input``/``\tikzset``/``\pgfplotsset`` 族的括号内容是键名
+#: 不是散文，tier-2 降阈后 4+ 键串会够线被误译断引用/断键；整段预置哨
+#: 兵比分切后猜形稳。
 _KEY_ARG_RX: Final = re.compile(
     r"\\(?:cite[A-Za-z]*|nocite|ref|eqref|pageref|autoref|[cC]ref|label|"
     r"input|include|includegraphics|bibliography|bibliographystyle|"
-    r"addbibresource|url|path|doi)[ \t]*"
+    r"addbibresource|url|path|doi|tikzset|pgfplotsset|pgfkeys|pgfqkeys|"
+    r"usetikzlibrary|hypersetup)[ \t]*"
     r"(?:\[[^\]\n]*\][ \t]*){0,2}\{[^}\n]*\}"
 )
+
+#: ``[...]`` 选项表——pgfkeys 键表（``\addplot[only marks, mark=*, mark
+#: options={fill=white}]``/``\begin{axis}[scale only axis, width=...]``）
+#: 形状与散文不可分，但键名翻成中文即 ``key_unknown``/``dirty_pdf`` 编译
+#: 损毁（2609.20069 实测）。按花括号深度切顶层逗号段：每段键部（首个
+#: 深度-0 ``=`` 前）须为 pgfkeys 名形；``=`` 段只哨兵键名、值域照常可
+#: 扫（``xlabel={Time (s)}`` 值是散文该译），布尔键段整段哨兵。全键形
+#: 且（任一带 ``=`` 或全短键 ≥2 段）才算键表——单段无 ``=`` 的长散文
+#: 括号（``[see Section 3]`` 类）不误伤；键串散文假阳代价=漏译一行，
+#: 远轻于断编译。
+_BRACKET_RX: Final = re.compile(r"\[([^\[\]\n]*)\]")
+_KEY_NAME_RX: Final = re.compile(r"[A-Za-z@*./][A-Za-z0-9@* .+_'/-]*")
+_KEYLIST_MAX_KEY_WORDS: Final = 3
+#: 散文括号 cs 豁免——``\item[标签]``/``\caption[短题]``/章节的 ``[..]``
+#: 是面向读者的散文不是键表；括号前 text 尾落这类 cs 时跳过键表面罩。
+_PROSE_BRACKET_CS: Final = frozenset(
+    {
+        "item",
+        "caption",
+        "chapter",
+        "part",
+        "section",
+        "subsection",
+        "subsubsection",
+        "paragraph",
+        "subparagraph",
+        "footnote",
+        "thanks",
+        "title",
+        "author",
+    }
+)
+_PROSE_BRACKET_CS_RX: Final = re.compile(
+    r"\\(?:" + "|".join(sorted(_PROSE_BRACKET_CS, key=len, reverse=True)) + r")\*?\s*$"
+)
+
+
+def _top0_segs(inner: str) -> list[tuple[int, int]]:
+    """花括号深度-0 逗号切段——``{a, b}`` 值域内逗号不切。"""
+    bounds: list[tuple[int, int]] = []
+    depth = 0
+    start = 0
+    for i, c in enumerate(inner):
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth = max(0, depth - 1)
+        elif c == "," and depth == 0:
+            bounds.append((start, i))
+            start = i + 1
+    bounds.append((start, len(inner)))
+    return bounds
+
+
+def _key_part(seg: str) -> tuple[str, bool]:
+    """段内首个深度-0 ``=`` 前的键部；返回 ``(key_text, has_eq)``。"""
+    depth = 0
+    for i, c in enumerate(seg):
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        elif c == "=" and depth == 0:
+            return seg[:i], True
+    return seg, False
+
+
+def _bracket_key_spans(inner: str, base: int) -> list[tuple[int, int]]:
+    """``[...]`` 内 pgfkeys 键名区间（``base``=inner 起点的全文坐标）。
+
+    非键表形 → ``[]``（调用方面罩跳过）。键表形时 ``=`` 段只回键名区间
+    ——值留在扫描面让 ``xlabel={英文标签}`` 照常译；布尔段整段置哨兵。
+    """
+    bounds = _top0_segs(inner)
+    spans: list[tuple[int, int]] = []
+    has_eq = False
+    for ss, se in bounds:
+        ktxt, eq = _key_part(inner[ss:se])
+        key = ktxt.strip()
+        if not _KEY_NAME_RX.fullmatch(key):
+            return []
+        has_eq = has_eq or eq
+        if not eq and len(_RESID_EN_WORD_RX.findall(key)) > _KEYLIST_MAX_KEY_WORDS:
+            return []
+        lead = len(ktxt) - len(ktxt.lstrip())
+        spans.append((base + ss + lead, base + ss + lead + len(key)))
+    if not has_eq and len(bounds) < _KEYLIST_MIN_SEGS:
+        return []
+    return spans
+
 
 _SYS_PROMPT: Final = (
     "Translate the English text to Simplified Chinese. The text is a fragment "
@@ -239,6 +338,30 @@ def _span_ok(core: str) -> bool:
     return not (_tech_run(core) or _keep_verbatim_run(core) or _ident_list_run(core))
 
 
+def _mask_zones(text: str, base: str) -> str:
+    r"""全部哨兵面罩管道——``mask_tex`` 差区+排除 env/数学+键值参+键表。
+
+    返回等长工作文本：遮区逐位 ``\x00``/空白，可见面原样。
+    """
+    masked = "".join("\x00" if a != b else b for a, b in zip(text, base, strict=True))
+    chars = list(masked)
+    for s, e in _excl_env_regions(masked) + _excl_math_regions(masked):
+        chars[s:e] = [c if c in "\r\n" else " " for c in masked[s:e]]
+        if s < e:
+            chars[s] = chars[e - 1] = "\x00"
+    masked = "".join(chars)
+    for m in _KEY_ARG_RX.finditer(masked):
+        s, e = m.start(), m.end()
+        chars[s:e] = "\x00" * (e - s)
+    masked = "".join(chars)
+    for m in _BRACKET_RX.finditer(masked):
+        if _PROSE_BRACKET_CS_RX.search(masked[max(0, m.start() - 72) : m.start()]):
+            continue
+        for s, e in _bracket_key_spans(m.group(1), m.start(1)):
+            chars[s:e] = "\x00" * (e - s)
+    return "".join(chars)
+
+
 def find_resid_spans(text: str) -> list[tuple[int, int, str]]:
     """残英 span 抽取：zh ``.tex`` 文本 → ``(start, end, span_text)`` 列表。
 
@@ -251,17 +374,7 @@ def find_resid_spans(text: str) -> list[tuple[int, int, str]]:
     # mask_tex 遮区（注释/verbatim 族/``\verb``/死环境）逐位转哨兵——span
     # 回写按原文坐标进行，遮区一旦跨进 run，替换会把 ``% 注释``/``\verb|x|``
     # 的原始文本一并吃掉（``\verb`` 内可见文本丢失是成品级损毁）。
-    masked = "".join("\x00" if a != b else b for a, b in zip(text, base, strict=True))
-    chars = list(masked)
-    for s, e in _excl_env_regions(masked) + _excl_math_regions(masked):
-        chars[s:e] = [c if c in "\r\n" else " " for c in masked[s:e]]
-        if s < e:
-            chars[s] = chars[e - 1] = "\x00"
-    masked = "".join(chars)
-    for m in _KEY_ARG_RX.finditer(masked):
-        s, e = m.start(), m.end()
-        chars[s:e] = "\x00" * (e - s)
-    masked = "".join(chars)
+    masked = _mask_zones(text, base)
 
     spans: list[tuple[int, int, str]] = []
     p_start = 0
@@ -277,7 +390,13 @@ def find_resid_spans(text: str) -> list[tuple[int, int, str]]:
             pos += len(piece) + 1  # +1 = 被吃掉的分切字符
             body = piece
             if start > 0 and masked[start - 1] == "\\":
-                cm = _CS_HEAD_RX.match(body)
+                nm = _CS_NAME_RX.match(body)
+                cs = nm.group(0).rstrip("*") if nm is not None else ""
+                cm = (
+                    _CS_HEAD_NOOPT_RX.match(body)
+                    if cs in _PROSE_BRACKET_CS
+                    else _CS_HEAD_RX.match(body)
+                )
                 if cm is not None:
                     start += cm.end()
                     body = body[cm.end() :]

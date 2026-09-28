@@ -254,6 +254,61 @@ def test_spans_verb_boundary_not_bridged() -> None:
     ]
 
 
+def test_spans_pgfkeys_options_masked() -> None:
+    r"""``\addplot[...]`` 键表——键名翻中文即 ``key_unknown``（2609.20069 实证）。"""
+    t = (
+        "\\addplot[only marks, mark=triangle*, mark options={fill=white}, "
+        "color=AttackSpeculative, mark size=2.6pt, line width=1.1pt] "
+        "table {data.dat};\n"
+    )
+    assert find_resid_spans(t) == []
+
+
+def test_spans_axis_env_options_masked() -> None:
+    r"""``\begin{axis}[...]`` 键表同罩；``xlabel={散文值}`` 的值域照常可译。"""
+    t = (
+        "\\begin{axis}[scale only axis, width=0.8\\textwidth, "
+        "xlabel={A very long english axis label}, xmode=log]\n"
+        "\\addplot {x};\n\\end{axis}\n"
+    )
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["A very long english axis label"]
+
+
+def test_spans_tikz_draw_boolean_keys_masked() -> None:
+    """无 ``=`` 的纯布尔键表——全短键多段仍按键表面罩。"""
+    t = "\\draw[thick, rounded corners, dashed] (0,0) -- (1,1);\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_item_label_prose_not_masked() -> None:
+    r"""``\item[标签]`` 是散文不是键表——豁免面罩照常译。"""
+    t = "\\begin{description}\n\\item[At test time, the defender wins] 正文。\n\\end{description}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["At test time, the defender wins"]
+
+
+def test_spans_caption_short_prose_not_masked() -> None:
+    r"""``\caption[短题]`` 同豁免——短题是面向读者的散文。"""
+    t = "\\caption[Short english caption for the list of figures]{Long cap}\n"
+    runs = [r for _s, _e, r in find_resid_spans(t)]
+    assert runs == ["Short english caption for the list of figures"]
+
+
+def test_spans_tikzset_brace_arg_masked() -> None:
+    r"""``\tikzset{}``/``\pgfplotsset{}`` 括号键表整段罩。"""
+    t = "\\tikzset{every mark/.append style={fill=white}}\n"
+    assert find_resid_spans(t) == []
+    t = "\\pgfplotsset{compat=1.18}\n"
+    assert find_resid_spans(t) == []
+
+
+def test_spans_linebreak_optarg_not_masked() -> None:
+    r"""``\\[2pt]`` 断行可选参不是键表——数字键名不符形不罩。"""
+    t = _tab("A & text \\\\[2pt]\n")
+    assert find_resid_spans(t) == []
+
+
 def _latin_ok(s: str) -> bool:
     lat = sum(1 for c in s if c.isascii() and c.isalpha())
     return lat >= _RESID_EN_MIN_LATIN
