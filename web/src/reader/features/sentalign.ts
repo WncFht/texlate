@@ -22,15 +22,15 @@
 // i18n：menu.sent.gotoPeer 键整合期进 zh.ts/en.ts——注册 title 即该键，
 //   MENU_LABELS 镜像串 "跳到对侧句 / Jump to peer sentence"。
 
-import type { Pos } from "../alignment";
+import type { Pos } from "../logic/alignment";
 import type { Command, Registry } from "../cmd/cmdreg";
 import type { CmdCtx } from "../cmd/commands";
-import { paneSide } from "../paneUtils";
+import { paneSide } from "../logic/paneUtils";
 import {
     SentAlignSession,
     type SaSide,
     type SentAlignDeps,
-} from "../sentalign";
+} from "../align/sentalign";
 
 // ------------------------------------------------------------------ 契约面
 

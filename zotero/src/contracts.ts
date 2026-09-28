@@ -103,7 +103,17 @@ export interface TaskSnapshot {
   created_at: number;
   updated_at: number;
   counters: TaskCounters;
-  error: { code?: string; detail?: string; message?: string } | null;
+  /**
+   * error_json 键面 = code/message/retryable + 审计 extras 平铺
+   * （reject_at、fixloop/precheck/l2/share/babeldoc——emit._fail/_reject 的
+   * detail dict 经 err.update 并进顶层，wire 从不发 "detail" 键）。
+   */
+  error: {
+    code?: string;
+    message?: string;
+    retryable?: boolean;
+    [k: string]: unknown;
+  } | null;
   warnings: unknown[];
   /** db kind → url path, e.g. {"zh_pdf": "/api/files/t_x/zh.pdf"} */
   artifacts: Record<string, string>;
@@ -114,8 +124,9 @@ export interface TaskSnapshot {
 }
 
 export interface FileInfo {
-  bytes: number;
-  sha256: string;
+  /** DB 列可空——缺失产物登记记 NULL（worker/emit.py _register 同旧口径） */
+  bytes: number | null;
+  sha256: string | null;
   created_at: number;
   url: string;
 }
@@ -264,7 +275,8 @@ export interface AttachedArtifact {
   kind: string;
   itemID: number;
   title: string;
-  bytes: number;
+  /** dedup-skip 臂原样转发 manifest bytes——wire 可 null（见 FileInfo） */
+  bytes: number | null;
 }
 
 export interface AttachResult {

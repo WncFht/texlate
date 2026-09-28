@@ -15,7 +15,7 @@ import {
     placeBar,
     type FloatBarApi,
     type RectLike,
-} from "../reader/FloatBar";
+} from "../reader/chrome/FloatBar";
 
 // ---------------------------------------------------------------- placeBar
 

@@ -5,7 +5,7 @@ import {
     destPointOf,
     extractBibAtDest,
     type PdfDocLike,
-} from "../reader/citations";
+} from "../reader/cite/citations";
 
 const ref = { num: 7, gen: 0 };
 

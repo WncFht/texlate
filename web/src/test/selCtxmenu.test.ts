@@ -21,7 +21,7 @@ import {
     type CtxItem,
     type CtxMenuOpts,
     type CtxOpen,
-} from "../reader/ContextMenu";
+} from "../reader/chrome/ContextMenu";
 import { Registry, type Command } from "../reader/cmd/cmdreg";
 import { MENU_LABELS, type CmdCtx } from "../reader/cmd/commands";
 import { currentLang, t } from "../i18n";

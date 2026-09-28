@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { pdfSeqsForText } from "../reader/copylatex";
+import { pdfSeqsForText } from "../reader/cite/copylatex";
 
 const TASKS = join(homedir(), ".texlate/tasks");
 const CMAPS = join(process.cwd(), "node_modules/pdfjs-dist/cmaps/");

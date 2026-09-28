@@ -36,9 +36,9 @@ import {
     pdfSeqsForText,
     selChunks,
     type PdfDualLike,
-} from "../copylatex";
-import { openLatexCard, type LatexCardHandle } from "../LatexCard";
-import { paneSide } from "../paneUtils";
+} from "../cite/copylatex";
+import { openLatexCard, type LatexCardHandle } from "../cards/LatexCard";
+import { paneSide } from "../logic/paneUtils";
 
 // ------------------------------------------------------------------ 契约面
 

@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "solid-js/web";
 import type { PDFSlick } from "@pdfslick/solid";
-import FindBar from "../reader/FindBar";
+import FindBar from "../reader/panes/FindBar";
 
 interface Bus {
     dispatch: ReturnType<typeof vi.fn>;

@@ -33,9 +33,9 @@ vi.mock("../api/client", async (importOriginal) => {
 });
 
 import { createSignal } from "solid-js";
-import LivePane, { mergeLive, type LiveChunk } from "../reader/LivePane";
-import HtmlPane from "../reader/HtmlPane";
-import { chunkUntranslated } from "../reader/markdown";
+import LivePane, { mergeLive, type LiveChunk } from "../reader/panes/LivePane";
+import HtmlPane from "../reader/panes/HtmlPane";
+import { chunkUntranslated } from "../reader/logic/markdown";
 import { parseHash } from "../App";
 import Home from "../pages/Home";
 import { taskStore } from "../stores/tasks";

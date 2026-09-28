@@ -5,8 +5,8 @@ import {
     scrollTopFor,
     SyncEngine,
     type PaneLike,
-} from "../reader/sync";
-import type { Pos } from "../reader/alignment";
+} from "../reader/logic/sync";
+import type { Pos } from "../reader/logic/alignment";
 
 /** 假滚动容器：scrollTop/clientHeight + EventTarget 语义的最小实现 */
 class FakeEl {

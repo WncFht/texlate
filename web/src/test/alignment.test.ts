@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createPositionMapper, type Alignment } from "../reader/alignment";
+import {
+    createPositionMapper,
+    type Alignment,
+} from "../reader/logic/alignment";
 
 const heights = { original: [1, 1, 1, 1], translated: [1, 1, 1, 1, 1, 1] };
 

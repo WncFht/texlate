@@ -15,7 +15,7 @@ vi.mock("marked", () => ({
 }));
 
 import { render } from "solid-js/web";
-import HtmlPane from "../reader/HtmlPane";
+import HtmlPane from "../reader/panes/HtmlPane";
 
 let dispose: (() => void) | undefined;
 

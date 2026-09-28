@@ -70,12 +70,12 @@ vi.mock("../api/client", async (importOriginal) => {
     };
 });
 
-vi.mock("../reader/PdfPane", () => ({ default: mocks.pdfStub }));
-vi.mock("../reader/HtmlPane", () => ({ default: mocks.htmlStub }));
+vi.mock("../reader/panes/PdfPane", () => ({ default: mocks.pdfStub }));
+vi.mock("../reader/panes/HtmlPane", () => ({ default: mocks.htmlStub }));
 
 import { render } from "solid-js/web";
 import Reader from "../pages/Reader";
-import { zoomToFontPx } from "../reader/paneUtils";
+import { zoomToFontPx } from "../reader/logic/paneUtils";
 
 let dispose: (() => void) | undefined;
 

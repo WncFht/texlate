@@ -153,7 +153,7 @@ async function finish(
       return { itemID, ok: true, status, taskId, attach };
     }
     case "fault": {
-      const detail = snap.error?.detail ?? snap.error?.message ?? snap.message;
+      const detail = snap.error?.message ?? snap.message;
       return fail(
         pw,
         itemID,

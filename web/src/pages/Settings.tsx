@@ -11,7 +11,7 @@ import {
     TARGET_LANGS,
 } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
-import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdfTheme";
+import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdf/pdfTheme";
 
 /** 并发夹取 1..16——与 Home 任务选项（home/options.ts）同一口径 */
 const clampConcurrency = (v: number) =>

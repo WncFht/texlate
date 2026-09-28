@@ -21,7 +21,7 @@ vi.mock("../api/client", async (importOriginal) => {
     };
 });
 
-vi.mock("../reader/markdown", () => ({
+vi.mock("../reader/logic/markdown", () => ({
     loadMdLibs: () =>
         Promise.resolve({
             mdToHtml: mocks.mdToHtml,
@@ -29,7 +29,7 @@ vi.mock("../reader/markdown", () => ({
         }),
 }));
 
-import GuidePane from "../reader/GuidePane";
+import GuidePane from "../reader/panes/GuidePane";
 
 const OV = {
     available: true,

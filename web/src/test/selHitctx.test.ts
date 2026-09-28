@@ -5,13 +5,8 @@
 // pending 闸、counterpartAvail、zh badge、caps 缺省、flattenCtx 谓词键。
 
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-    classifyDestName,
-    classifyLtxEl,
-    flattenCtx,
-    snapshotHit,
-    CTX_KEYS,
-} from "../reader/cmd/hitctx";
+import { classifyDestName, classifyLtxEl } from "../reader/logic/citekind";
+import { flattenCtx, snapshotHit, CTX_KEYS } from "../reader/cmd/hitctx";
 
 const FIXTURE = `
 <div id="paneEn" class="pane pane-dom" tabindex="0" data-side="original">

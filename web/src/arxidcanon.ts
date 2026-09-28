@@ -11,7 +11,7 @@
 //     （`[\w.-]+\.` 的 . 挡死 notarxiv.org 寄生域）+ ar5iv/alphaxiv 白名单
 //     臂（scheme 必带、动词限 abs|pdf|html——/overview 等未实证动词不收）；
 //     首尾 / 全剥。仍比服务端窄是刻意的——怪输入留给服务端 400。
-// 消费面：stores/tasks.canonArxivKey、reader/citations.canonRefId（同键
+// 消费面：stores/tasks.canonArxivKey、reader/cite/citations.canonRefId（同键
 // 两名）、home/search.parseArxivId（严格臂 + era 闸/vN 校验叠层）。
 // 校验非本层职责——canonStrip 只做剥壳，坏输入剥完仍非 id，era/形判由
 // 调用方叠（search.ts 的 YYMM 闸；服务端 normalize_arxiv_id 收口）。

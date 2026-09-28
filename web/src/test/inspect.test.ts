@@ -12,7 +12,7 @@ import {
     type InspectDeps,
     type InspectHandle,
 } from "../reader/features/inspect";
-import type { DocId } from "../reader/alignment";
+import type { DocId } from "../reader/logic/alignment";
 
 const IS_MAC = /mac/i.test(
     (navigator as Navigator & { userAgentData?: { platform?: string } })

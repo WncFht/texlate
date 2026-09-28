@@ -20,7 +20,10 @@ vi.mock("../api/client", async (importOriginal) =>
 );
 
 import { ApiError, type TaskSnapshot } from "../api/client";
-import { createHtmlFallback, createTaskRetry } from "../reader/taskActions";
+import {
+    createHtmlFallback,
+    createTaskRetry,
+} from "../reader/chrome/taskActions";
 import { resetHomeMocks } from "./_homekit";
 import { snap as fakeSnap } from "./fakes";
 

@@ -21,7 +21,7 @@
 
 import type { Command, Registry } from "../cmd/cmdreg";
 import type { CmdCtx } from "../cmd/commands";
-import { fillPairZh, type UsageEntry, type UsageIndex } from "../usages";
+import { fillPairZh, type UsageEntry, type UsageIndex } from "../cite/usages";
 
 const OPEN_DELAY = 150;
 const CLOSE_DELAY = 350;

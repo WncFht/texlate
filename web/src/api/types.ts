@@ -188,9 +188,11 @@ export interface WarningEvent {
 export interface TaskErrorEvent {
     code: ErrorCode;
     message: string;
-    stage?: TaskStage;
+    /** error 帧恒带 stage 键：row.stage 缺席时服务端发显式 null（emit.py/runner.py 两处同） */
+    stage?: TaskStage | null;
     retryable: boolean;
-    chunk_seq?: number;
+    /** wire 恒发 null（emit.py error 帧 chunk_seq=None 占位）——声明纠错防按非空假设消费 */
+    chunk_seq?: number | null;
 }
 
 export interface DoneStats {
@@ -299,8 +301,9 @@ export const DB_TO_URL_KIND: Record<string, FileKind> = {
 };
 
 export interface FileEntry {
-    bytes: number;
-    sha256: string;
+    /** DB 列可空——缺失产物登记记 NULL（worker/emit.py _register 同旧口径） */
+    bytes: number | null;
+    sha256: string | null;
     created_at: number;
     /** 服务端直接给的下载路径（/api/files/{id}/{url_kind}） */
     url: string;
@@ -312,7 +315,7 @@ export interface FileManifest {
 
 // ---------- reader 线形（§5.3/§5.4 位置模型） ----------
 // Pos/Alignment 等是服务端序列化的载荷形状（reader info / dual.json /
-// position 持久化），归 API 契约层；reader/alignment.ts 的
+// position 持久化），归 API 契约层；reader/logic/alignment.ts 的
 // createPositionMapper/PosMap 是消费这些形状的本地映射逻辑。
 
 export interface Pos {

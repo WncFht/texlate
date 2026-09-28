@@ -23,7 +23,7 @@
 //   math → return；阅读面内 → 吞；余 → return。
 //   ⚠ 吞必 preventDefault：pdf.js 内链「不弹新标签」靠 onclick return
 //   false——被截停后平台默认（⌘+click 新开标签复制 SPA）会复活。
-import type { DocId } from "../alignment";
+import type { DocId } from "../logic/alignment";
 
 export interface InspectHandle {
     el: HTMLElement;

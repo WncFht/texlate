@@ -16,8 +16,8 @@ import {
     stripSentSpans,
     type SaSide,
     type SentSpan,
-} from "../reader/sentalign";
-import type { Pos } from "../reader/alignment";
+} from "../reader/align/sentalign";
+import type { Pos } from "../reader/logic/alignment";
 
 beforeEach(() => {
     document.body.innerHTML = "";

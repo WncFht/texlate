@@ -8,7 +8,7 @@ import {
     outlineColor,
     pageSizeText,
     zoomToFontPx,
-} from "../reader/paneUtils";
+} from "../reader/logic/paneUtils";
 
 describe("fmtBytes", () => {
     it("非法/缺失 → 占位符", () => {

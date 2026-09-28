@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveReaderView } from "../reader/view";
+import { resolveReaderView } from "../reader/logic/view";
 
 const chunk = { seq: 1, en: "a", zh: "甲" };
 

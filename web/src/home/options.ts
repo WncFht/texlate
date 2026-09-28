@@ -1,7 +1,7 @@
 // options —— Home 任务选项表单态：opt* 信号簇 + TranslateOptions 收集 +
 // multipart 上传字段快照 + per-request BYOK（仅存组件态，提交成功即清，
 // 不落 settings）+ 表单行描述（optCommon/optAdv——数据驱动渲染的行表）。
-// 自 pages/Home.tsx 拆出（reader/taskActions 模式：纯逻辑工厂，页面只
+// 自 pages/Home.tsx 拆出（reader/chrome/taskActions 模式：纯逻辑工厂，页面只
 // 装配）；控件渲染（optControl/optRow）在同簇 OptionsForm.tsx。
 
 import { createSignal } from "solid-js";

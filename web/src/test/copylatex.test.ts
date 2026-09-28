@@ -12,7 +12,7 @@ import {
     pdfSeqsForText,
     selChunks,
     setCopyLatexMode,
-} from "../reader/copylatex";
+} from "../reader/cite/copylatex";
 
 const q = <T extends Element = Element>(sel: string): T =>
     document.querySelector<T>(sel)!;

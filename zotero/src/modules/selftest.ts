@@ -145,13 +145,16 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
         arts = await fetchArts();
       }
       if (Object.keys(arts).length === 0) {
-        const e = finalSnap.error?.detail ?? finalSnap.error?.message ?? "-";
+        const e = finalSnap.error?.message ?? "-";
         throw new StepError(
           `empty artifacts (status=${finalSnap.status} ${e})`,
         );
       }
       const per = Object.entries(arts)
-        .map(([k, f]) => `${k}=${f.bytes}B sha256=${f.sha256.slice(0, 12)}`)
+        .map(
+          ([k, f]) =>
+            `${k}=${f.bytes}B sha256=${f.sha256?.slice(0, 12) ?? "-"}`,
+        )
         .join(" ");
       return [arts, `kinds=[${Object.keys(arts).join(",")}] ${per}`];
     });

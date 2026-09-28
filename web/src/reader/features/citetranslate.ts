@@ -32,14 +32,14 @@ import type {
 } from "../../api/client";
 import { settingsStore } from "../../stores/settings";
 import type { ToastAction } from "../../stores/toastStore";
-import type { BibEntry, CiteIndex, RefMeta } from "../citations";
+import type { BibEntry, CiteIndex, RefMeta } from "../cite/citations";
 import {
     createCiteTranslate,
     ctText,
     type CiteSubmitOutcome,
     type CiteTranslate,
     type RefItem,
-} from "../citeTranslate";
+} from "../cite/citeTranslate";
 
 export interface CiteTranslateOpts {
     /** 文献索引活访问器（buildCiteIndex(dual) memo——dual 晚到时自动重算） */

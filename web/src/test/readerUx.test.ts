@@ -3,7 +3,7 @@
 //  - externalLinksBlank：正文内 http(s) 外链一律新窗 + noopener（U2）
 
 import { describe, expect, it } from "vitest";
-import { externalLinksBlank } from "../reader/paneUtils";
+import { externalLinksBlank } from "../reader/logic/paneUtils";
 
 describe("externalLinksBlank", () => {
     it("http(s) 外链 → target=_blank + noopener；锚点/相对链不动", () => {

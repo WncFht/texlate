@@ -8,7 +8,7 @@
 // jsdom 无默认打字/链接导航默认动作——input/clicks 断言只取动作面。
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { attachReaderKeys, ctxName } from "../reader/keymap";
+import { attachReaderKeys, ctxName } from "../reader/chrome/keymap";
 
 // ------------------------------------------------------------- fixture
 

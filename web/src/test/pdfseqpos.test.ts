@@ -2,7 +2,12 @@
 // 齐全闸、seqLands 阅读序排序、containingSeq 含点块 floor 语义
 // （双栏 col 分流、无 x 投影降级、距离闸 null）。
 import { describe, expect, it } from "vitest";
-import { containingSeq, seqLands, seqPairs, seqPos } from "../reader/pdfseqpos";
+import {
+    containingSeq,
+    seqLands,
+    seqPairs,
+    seqPos,
+} from "../reader/pdf/pdfseqpos";
 
 const MAP = {
     "3": {

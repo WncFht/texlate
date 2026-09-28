@@ -3,7 +3,7 @@
 // 清场 / lineRects 去重滤壳 / reduced-motion 全静默 / 单轨清算。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cancelLand, land, lineRects, press } from "../reader/anim";
+import { cancelLand, land, lineRects, press } from "../reader/align/anim";
 
 const rect = (top: number, left = 0, width = 100, height = 12): DOMRect =>
     ({

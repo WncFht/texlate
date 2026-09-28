@@ -20,10 +20,10 @@ vi.mock("../api/client", async (importOriginal) => {
     return clientModuleMock(importOriginal, mocks);
 });
 
-vi.mock("../reader/PdfPane", async () => ({
+vi.mock("../reader/panes/PdfPane", async () => ({
     default: (await import("./_sharekit")).mkPaneStub("pdf-pane-stub"),
 }));
-vi.mock("../reader/HtmlPane", async () => ({
+vi.mock("../reader/panes/HtmlPane", async () => ({
     default: (await import("./_sharekit")).mkPaneStub("html-pane-stub"),
 }));
 

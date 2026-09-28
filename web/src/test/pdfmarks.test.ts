@@ -12,7 +12,7 @@ import {
     MCID_BASE,
     seqOfMarkedSpan,
     seqOfTextItem,
-} from "../reader/pdfmarks";
+} from "../reader/pdf/pdfmarks";
 import { makeChunkResolver } from "../reader/sel/coveredChunks";
 
 // ------------------------------------------------------------- 解码面

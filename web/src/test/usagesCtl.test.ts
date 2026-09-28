@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { attachUsages, type UsagesOpen } from "../reader/features/findusages";
-import { buildUsageIndex } from "../reader/usages";
+import { buildUsageIndex } from "../reader/cite/usages";
 
 const DOC = `
     <nav><p><a href="#F1">toc</a></p></nav>

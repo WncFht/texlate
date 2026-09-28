@@ -29,15 +29,18 @@ import { taskStore } from "../stores/tasks";
 import { downloadItems } from "../taskFiles";
 import { mergeResultStats } from "../taskStats";
 import ProgressGrid from "../components/ProgressGrid";
-import type { DownloadItem, Mode } from "../components/Toolbar";
-import type { DocId } from "../reader/alignment";
-import { buildCiteIndex } from "../reader/citations";
-import { resolveReaderView } from "../reader/view";
+import type { DownloadItem, Mode } from "../reader/chrome/Toolbar";
+import type { DocId } from "../reader/logic/alignment";
+import { buildCiteIndex } from "../reader/cite/citations";
+import { resolveReaderView } from "../reader/logic/view";
 import ReaderView from "../reader/ReaderView";
-import TaskProgress from "../reader/TaskProgress";
-import ResultBody, { RESULT_TEXT } from "../reader/ResultBody";
-import ShareBlock, { createSharePack } from "../reader/ShareBlock";
-import { createHtmlFallback, createTaskRetry } from "../reader/taskActions";
+import TaskProgress from "../reader/chrome/TaskProgress";
+import ResultBody, { RESULT_TEXT } from "../reader/chrome/ResultBody";
+import ShareBlock, { createSharePack } from "../reader/chrome/ShareBlock";
+import {
+    createHtmlFallback,
+    createTaskRetry,
+} from "../reader/chrome/taskActions";
 import { t } from "../i18n";
 
 export default function Reader(props: {
@@ -65,7 +68,7 @@ export default function Reader(props: {
     const [readerGone, setReaderGone] = createSignal(false);
     // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
     const share = createSharePack(() => props.taskId);
-    // 终态编排（retry/HTML 换链）——reader/taskActions 工厂，信号内聚在件内
+    // 终态编排（retry/HTML 换链）——reader/chrome/taskActions 工厂，信号内聚在件内
     const retry = createTaskRetry({
         taskId: () => props.taskId,
         nav: (to) => props.nav(to),

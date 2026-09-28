@@ -1,6 +1,6 @@
 // Home —— 纯入口页：arXiv 输入 + 文件上传 + 选项（任务管理 #/tasks、
 // alphaXiv 榜单 #/discover 已拆出；此处只留进行中提示行指路）。
-// 结构（reader/taskActions 同例）：编排逻辑全在 home/ 簇工厂（options/
+// 结构（reader/chrome/taskActions 同例）：编排逻辑全在 home/ 簇工厂（options/
 // search/upload/submit/health/dropzone），渲染片段在同簇组件——
 // 本页只留表单态、布局 JSX 与装配。
 

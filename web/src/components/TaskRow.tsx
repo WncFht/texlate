@@ -25,7 +25,9 @@ function fmtRel(ts: number, now: number): string {
     return new Date(ms).toLocaleDateString();
 }
 
-/** 行内 ↻ 重试臂：终态可重跑的状态集（needs_auth 缺 key，走 ⚙ 设置链接） */
+/** 行内 ↻ 重试臂：server RETRYABLE_FROM（store/_common.py：
+    fault/partial/cancelled/interrupted/needs_auth）剔 needs_auth——缺 key
+    走 ⚙ 设置链接而非重试。server 扩集时本表须同步。 */
 export const RETRYABLE = new Set([
     "fault",
     "partial",

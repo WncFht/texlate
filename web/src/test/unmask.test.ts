@@ -2,7 +2,7 @@
 // unmaskLatex：[[TYPE_n]] 掩码反查 + 未掩码 LaTeX 残件清理
 
 import { describe, expect, it } from "vitest";
-import { unmaskLatex } from "../reader/markdown";
+import { unmaskLatex } from "../reader/logic/markdown";
 
 // 用脱节点当宿主即可：createTreeWalker/closest/textContent 都支持 detached
 const host = (html: string): HTMLElement => {

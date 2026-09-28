@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { marked } from "marked";
 import renderMathInElement from "katex/contrib/auto-render";
-import { sanitizeDomHtml, sanitizeHtml } from "../reader/sanitize";
+import { sanitizeDomHtml, sanitizeHtml } from "../reader/logic/sanitize";
 
 const render = (md: string) =>
     sanitizeHtml(marked.parse(md, { async: false }) as string);

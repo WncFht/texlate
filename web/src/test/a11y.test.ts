@@ -18,7 +18,7 @@ vi.mock("../api/client", async (importOriginal) =>
 );
 
 import { render } from "solid-js/web";
-import DocInfo from "../reader/DocInfo";
+import DocInfo from "../reader/panes/DocInfo";
 import TaskList from "../components/TaskList";
 import type { TaskSnapshot } from "../api/client";
 import { flush, resetHomeMocks } from "./_homekit";

@@ -34,7 +34,7 @@ export interface Unwatcher {
 
 /**
  * PdfPane/HtmlPane 桩组件工厂（隔离 pdfjs/katex）：
- *   vi.mock("../reader/PdfPane", async () => ({
+ *   vi.mock("../reader/panes/PdfPane", async () => ({
  *       default: (await import("./_sharekit")).mkPaneStub("pdf-pane-stub"),
  *   }));
  */

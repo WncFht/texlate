@@ -113,7 +113,13 @@ export async function attachArtifacts(
         const got = await client.downloadFile(taskId, urlKind, tmpPath, {
           expectPdf: urlKind.endsWith(".pdf"),
         });
-        if (got.sha256.toLowerCase() !== info.sha256.toLowerCase()) {
+        // NULL sha256（登记时产物缺席——worker/emit.py _register 记 NULL）
+        // = 无校验基线，与 server `?version=` 的 `rec.get("sha256")` 空判
+        // 同口径：跳过比对放行；真缺件早在 downloadFile 的 404 落网。
+        if (
+          info.sha256 != null &&
+          got.sha256.toLowerCase() !== info.sha256.toLowerCase()
+        ) {
           result.failed.push({
             kind: urlKind,
             reason: `sha256 mismatch expected ${info.sha256} got ${got.sha256}`,

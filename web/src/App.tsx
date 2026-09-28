@@ -18,7 +18,7 @@ import Tasks from "./pages/Tasks";
 import Discover from "./pages/Discover";
 import Settings from "./pages/Settings";
 import ToastHost from "./components/ToastHost";
-import { applyPaletteChrome } from "./reader/pdfTheme";
+import { applyPaletteChrome } from "./reader/pdf/pdfTheme";
 import { taskStore } from "./stores/tasks";
 import { t } from "./i18n";
 

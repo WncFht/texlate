@@ -30,7 +30,7 @@ import {
     CHUNK_WINDOW,
     pollChunksOnce,
     subscribeChunks,
-} from "../reader/chunkPoll";
+} from "../reader/logic/chunkPoll";
 import type { TaskChunkRow, TaskChunksPage } from "../api/client";
 
 const row = (seq: number, status: string, zh = ""): TaskChunkRow => ({

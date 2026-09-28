@@ -13,7 +13,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, type TaskSnapshot } from "../api/client";
-import { canonRefId, extractRefIds } from "../reader/citations";
+import { canonRefId, extractRefIds } from "../reader/cite/citations";
 import {
     createCiteTranslate,
     createRefStatus,
@@ -24,11 +24,11 @@ import {
     translateBandPct,
     type CiteTranslateDeps,
     type RefItem,
-} from "../reader/citeTranslate";
+} from "../reader/cite/citeTranslate";
 import { registerCiteTranslate } from "../reader/features/citetranslate";
 import { Registry } from "../reader/cmd/cmdreg";
 import type { CmdCtx } from "../reader/cmd/commands";
-import RefTaskChip from "../reader/RefTaskChip";
+import RefTaskChip from "../reader/cards/RefTaskChip";
 import { render } from "solid-js/web";
 import { currentLang } from "../i18n";
 import { snap } from "./fakes";

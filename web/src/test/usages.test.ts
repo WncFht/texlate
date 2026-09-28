@@ -21,7 +21,7 @@ import {
     pdfCiteDests,
     usageEntryFromCiteMap,
     usageHostOf,
-} from "../reader/usages";
+} from "../reader/cite/usages";
 import {
     citeKeys,
     maskedSentenceAt,
@@ -30,7 +30,7 @@ import {
     sentenceStarts,
     unmaskText,
     zhTokenSentence,
-} from "../reader/uscontext";
+} from "../reader/cite/uscontext";
 import type { DualChunk } from "../api/types";
 
 const HTML = readFileSync(

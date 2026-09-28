@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "solid-js/web";
-import DomPane from "../reader/DomPane";
+import DomPane from "../reader/panes/DomPane";
 
 const PAGE = `<!doctype html><html><head><title>paper</title></head><body>
 <nav class="site-nav">arxiv-nav-chrome</nav>
