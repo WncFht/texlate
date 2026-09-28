@@ -1,12 +1,12 @@
-# agent 直翻 vs texlate 管线：双臂基线（2026-09-28，v4 口径）
+# agent 直翻 vs texlate 管线：双臂基线与 v5 推算（2026-09-28，v4 口径）
 
-> **结论**：agent 直翻毛输入为 texlate 的 5.6×、新输入剔除 ph 重发病理后约为 2.5×；agent 10/10 必出 PDF 但长文时长发散，texlate 有 partial/fault 终态但已交付部分闸值干净。texlate 输入大头是 v4 ph→ph 恒等注入在并发批上的缓存抽签——v5 manifest 名单行的攻击靶。
-> **状态**：时点证据（2026-09-28 口径，`xlat-prompt-v4` 基线臂）
+> **结论**：agent 直翻毛输入为 texlate 的 5.6×、有效载荷为 3.7×，但 texlate 新输入总量反而略高——差额全部来自 v4 `ph→ph` 恒等注入把 doc 级常数烙进每请求、在并发批上以 ~76% miss 率全价重发（虚耗占该臂新输入 85%）。v5 把该常数压成单行 manifest（真函数实测 106–3,686 字符/篇），同 miss 谱推算新输入 ≈1.52M：v4 的 25%、agent 的 32%。质量面 agent 10/10 必出 PDF 但长文时长发散；texlate 有 partial/fault 终态、已交付部分闸值干净。
+> **状态**：时点证据（2026-09-28 口径，`xlat-prompt-v4` 基线臂 + v5 常数推算）
 > **日期**：2026-09-28
 
 两臂同模型 `swe-2-medium`、同网关、同 10 篇论文、同日同时段交错在飞——token 侧差异即方案差异，无模型/时段混淆。本包是后续 v5 对照臂的基线：`baseline-tokens.json` 为逐篇快照，`tools/arms_tokens.py` 可复算。
 
-## 1. 两臂定义
+## 1. 两臂定义与口径
 
 | 臂          | 形态                                                                    | 执行面                                                                         | prompt 形态                                                                   |
 | ----------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -15,11 +15,11 @@
 
 **口径名词**（网关 `logs` 表三列）：`input_tokens` = **新输入**，本次请求真正新发的 token（未命中前缀缓存，全价计费）；`cache_read_tokens` = **缓存读**，请求与前序请求共享的前缀命中上游前缀缓存的部分（折价计费）；`output_tokens` = 输出。**毛输入 = 新输入 + 缓存读**，即模型实际吃掉的输入总长。
 
-**缓存不是「多轮」概念**：texlate 每个翻译请求确实独立单轮、互不携带对话历史——但前缀缓存是**跨请求**机制：只要后一个请求的 prompt 开头与前一个逐字节一致，共享前缀即命中。texlate 批翻时同一文档的全部批请求共享同一份 system prompt（规则 + 文档术语表 + ph 恒等表），天然具备可缓存前缀；agent 则每轮重发整段对话，前一轮的完整上下文字面就是下一轮的前缀，命中近乎完美。两臂 cache_read 的量级差正是两种「前缀复用形态」的差。
+**「缓存」不是多轮概念**：texlate 每个翻译请求确实独立单轮、互不携带对话历史——但前缀缓存是**跨请求**机制：只要后一个请求的 prompt 开头与前一个逐字节一致，共享前缀即命中。texlate 批翻时同一文档的全部批请求共享同一份 system prompt（规则 + 文档术语表 + ph 恒等表），天然具备可缓存前缀；agent 则每轮重发整段对话，前一轮的完整上下文字面就是下一轮的前缀，命中近乎完美。两臂 cache_read 的量级差正是两种「前缀复用形态」的差。
 
 数据面：agent 侧取网关 `logs` 表（`api=openai-responses`，按 codex 状态日志的 START→次 START 窗口切）+ codex `turn.completed` 自报交叉；texlate 侧取 server `task_usage`（逐任务权威，与网关窗 `in+cache_read` 逐字节核平）。质量侧为 zh PDF 抽文闸（残英/缺字/断引/退化重复）。逐篇快照与本表一致：`baseline-tokens.json`。
 
-## 2. Token 账本（逐篇）
+## 2. Token 账本
 
 `in` = 新输入，`cr` = cache_read，`out` = 输出。`codex_in/out` 为 codex 端自报毛输入/输出。
 
@@ -41,9 +41,9 @@
 
 - **2609.19506 / 2609.20523 agent 行**：网关窗口径大于 codex 自报（19506 gw in+cr=10.56M vs codex 2.01M；20523 gw 3.15M vs codex 2.28M）。其余各篇 `gw in+cr == codex_in` 逐字节成立 → 差值归「窗口内其他 responses 消费者或 codex turn 截面欠计」；保守读法以 codex 自报为 agent 下限、网关为上限。
 - **texlate calls 与 `task_usage` 差**：20523 gw 35 vs tu 19（+16 全部 status-200——partial 任务 fixloop/L2 llm_hook 修复调用不计 `task_usage` 但属管线成本，已计入）、20581 gw 33 vs tu 32（+1 为一条 429 限流拒收、零 token）；其余各篇逐数吻合。
-- **texlate 2609.19506**：`prompt_tokens=7,838,219`（gw 拆 in 4.27M + cr 3.57M）——v4 ph→ph 恒等注入逐批重发病理，一篇独吃本臂总输入约 80%。**此数即 v5 manifest 名单行的攻击靶**，机理见 §4。
+- **texlate 2609.19506**：`prompt_tokens=7,838,219`（gw 拆 in 4.27M + cr 3.57M）——v4 ph→ph 恒等注入逐批重发病理，一篇独吃本臂总输入约 80%。**此数即 v5 manifest 名单行的攻击靶**，机理见 §3.2/§3.4、前瞻见 §4。
 
-## 3. 总量对比
+### 总量对比
 
 | 指标             |      agent | texlate v4 | 倍率 a/t |
 | ---------------- | ---------: | ---------: | -------: |
@@ -54,15 +54,23 @@
 | 输出 token       |    612,897 |    312,778 |    1.96× |
 | codex 自报毛输入 | 45,434,502 |          — |        — |
 
+![逐篇毛输入 grouped bar（log）](charts/baseline-input-tokens.png)
+
+_图 1 · 逐篇毛输入（新输入+缓存读，log 轴）——agent 整篇上下文逐轮回放 vs texlate 分段批翻；agent 合计 54.9M 为 texlate 9.75M 的 5.6×，构成机理见 §3。_
+
+![输出 token + 请求数](charts/baseline-output-calls.png)
+
+_图 2 · 逐篇输出 token 与调用数——agent 合计输出 613k/893 次调用（编译修复迭代 + 工具回显驱动），texlate 313k/294 次。_
+
 读法：
 
-- **新输入**两臂同量级——但 texlate 的 5.98M 里约 4.08M 是 19506 一篇 ph 表全量重发（占该篇新输入 95.6%）；剔除病态篇后 texlate 实质新输入约 1.9M，**agent 新输入约为其 2.5×**；进一步拆到「有效载荷 vs 重发虚耗」后 texlate 载荷仅 ~0.9M vs agent ~3.3M（§4.4）。
+- **新输入**两臂同量级——但 texlate 的 5.98M 里约 4.08M 是 19506 一篇 ph 表全量重发（占该篇新输入 95.6%）；剔除病态篇后 texlate 实质新输入约 1.9M，**agent 新输入约为其 2.5×**；进一步拆到「有效载荷 vs 重发虚耗」后 texlate 载荷仅 ~0.9M vs agent ~3.3M（§3.4）。
 - **毛输入** agent 54.9M 是 texlate 9.75M 的 5.6×——agent 靠约 91% cache_read 命中循环整篇上下文；texlate 分段批翻天然低重发。
 - **输出** agent 约 2×——迭代编译修复 + 自由式行文产生更多非译文 token（工具调用、自述、重试）。
 
-## 4. 输入结构解剖：两臂为什么长这样
+## 3. 输入结构解剖：两臂为什么长这样
 
-### 4.1 agent：增量上下文模型——每轮重发全量、靠前缀缓存续命
+### 3.1 agent：增量上下文模型——每轮重发全量、靠前缀缓存续命
 
 codex agent 的每个 API 调用都重发完整对话（系统指令 + 已读文件 + 工具输出 + 已写译文），上下文随任务进展单调膨胀（19929 平台在 ~186k；262k 窗口、auto-compact 阈值 230k）。上游前缀缓存把「本轮新增」与「历史前缀」劈开：本轮新增落新输入，历史前缀命中缓存。
 
@@ -110,7 +118,7 @@ agent 请求画像（逐篇）：
 
 构成：codex 系统指令 + 任务句恒定 ~10k（各篇首 call `in=10,245` 高度一致——20610 走另一入口仅 469）；其后每轮把「已读 e-print 源文 + 历轮工具输出 + 已写译文草稿」整段再发，新增仅增量。req 均长 61k 约为 texlate 33k 的 2×；19929 的 126k 均值说明它长期贴着 ~190k 平台跑（compaction 阈值 230k / 窗口 262k）。
 
-### 4.2 texlate：单轮独立请求 + 跨请求前缀缓存抽签
+### 3.2 texlate：单轮独立请求 + 跨请求前缀缓存抽签
 
 API 无状态：每个 HTTP 请求必须自带完整 prompt，两次调用间服务端无会话——「重发」不是额外动作而是每次请求的默认形态，前缀缓存只决定这串字节按 cache_read 折价还是 input 全价记账。texlate 每个请求都是 `system(prompt 装配) + user(本批源文)` 的单轮调用，各请求无对话历史。同一文档的全部批请求 system prompt 逐字节一致（v4 装配：任务句 + C\*/B\* 条款 + `<Glossary>` 块 = 真术语行 + **ph→ph 恒等行**）——理想形态下第二个请求起 system 全命中，新输入只剩 user 源文。
 
@@ -134,7 +142,7 @@ B 与 H **全程交错**——不是「首次写缓存、其后全命中」的�
 
 **结论**：19506 的 4.27M 新输入里约 95.6% 是同一串 ~120k 字节被反复自费重发——正是恒等注入把「doc 级常数」塞进了每次调用，v5 manifest 把这份常数压成单行点名册后，自费面只剩小几千。
 
-### 4.3 逐篇逐调用画像（texlate 臂）
+### 3.3 逐篇逐调用画像（texlate 臂）
 
 `in_p50` = 单次调用新输入中位，`in_max` = 最大单次新输入，`cr_max` = 最大单次缓存读（≈ 该文档 system prompt 可缓存前缀规模），`hit_calls` = 有命中的调用数，`doc_ph` = chunks 源文里去重 `[[TYPE_n]]` 占位符 id 数，`ph表≈` = doc_ph×14 tok 估算，`req均长` = 毛输入/calls，`user中位` = 命中调用的新输入中位（≈ 本批源文）。
 
@@ -155,7 +163,7 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 
 请求总长：全体均 33,167 tok（中位 9,223）——双峰：ph 轻文档 ~3.3–7.7k（≈ 小 system + user 源文），ph 重文档 11–106k（命中调用也要回放整个 system）。user 源文本批中位 0.9–6.4k，即「有效载荷」本身并不大；v4 把 doc_ph 量级直接烙进每次请求的 prompt 体积，才是请求膨胀的唯一机制。
 
-### 4.4 新输入构成总账：为什么 texlate 总量略高
+### 3.4 新输入构成总账：为什么 texlate 总量略高
 
 把两臂新输入各拆成「有效载荷」与「重发虚耗」两块（miss 判定 = `cache_read==0`；texlate system 规模取该篇 `cr_max` 观测值）：
 
@@ -171,7 +179,31 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 - **重发形态也不同**：texlate miss 与 hit 全程交错（并发抽签），agent 重发成簇（19506 的 #42–55 连续 14 次 ~20k 冷缓存带 + compaction 后 28–70k 单次回放）。
 - **`cr=272` 是跨文档公共前言之底**：大量 miss 调用仍拿到 272 tok 的部分命中——各篇 system 头部（任务句+条款起首）逐字节一致，互相给对方攒了缓存；分歧点即 `<Glossary>` 块开始处。
 
-即：**texlate 的新输入更高不是结构劣势，是 v4 病理 + 并发抽签的合成事故**；v5 把 system 常数压到单行点名册后，同样 76% miss 率的代价只剩每波次小几千。
+即：**texlate 的新输入更高不是结构劣势，是 v4 病理 + 并发抽签的合成事故**；v5 把 system 常数压到单行点名册后，同样 76% miss 率的代价只剩每波次小几千（§4）。
+
+## 4. v5 前瞻：manifest 常数实测与三臂推算
+
+§3.4 已定位 texlate 新输入超额的唯一机制：v4 `ph→ph` 恒等表把 doc_ph 条恒等行烙进每个批请求的 system。v5（`xlat-prompt-v5`，已落地）把它换成**单行 manifest 点名册**——`render_placeholder_manifest` 按编号连续段压缩成 `[[H_a]]..[[H_b]]`，总长超 4,000 字符退化为 `TYPE×n` 计数。
+
+### 4.1 常数实测：真函数直算，无 LLM
+
+用真函数 `collect_doc_placeholders` + `render_placeholder_manifest` 在本批任务 chunks 上直接算得（非估算）：十篇 manifest **106–3,686 字符**——ph 重头篇全走退化 `TYPE×n` 形（19506 仅 **110 字符** ≈ ~50 tok，20533 113c、20739 106c），稀疏编号篇仍走连续段枚举（19929 3,210c、20581 3,686c 贴 4kc 上限）。v5 system 常数推 ≈**0.6–9.6k**，对照 v4 **0.27–115k**。
+
+### 4.2 同 miss 谱推算：新输入 5.98M → 1.52M
+
+把 v4 观测的 miss 谱（各篇 cr=0 调用数）原样照搬，只把每次 miss 的 system 常数换成 S_v5（非 ph 头部 + manifest tok）：
+
+![三臂新输入 + system 常数（agent/v4/v5 推算）](charts/arms-v5-projection.png)
+
+_图 3 · 三臂新输入与 system 常数——panel A 逐篇新输入（log）：Σ agent 4.75M / v4 5.98M / v5 推算 1.52M；panel B 逐篇 system 常数：v4 ph 恒等表 → v5 manifest 单行（19506：115,200→≈9.6k）。`*` 标记的 19330/20610 两篇 v4 实测≈裸载荷、无命中可观测，v5 柱因 miss 谱照搬读作上界。_
+
+- **v5 推算新输入 ≈1.52M** = v4 的 25%、agent 的 32%、自身载荷 0.90M 的 1.7×。
+- 余量全是重发：miss 率不变的前提下，单次 miss 代价从 ~3k–115k 压到 ~0.6–9.6k；manifest 本身仍是稳定前缀，命中照常折价。
+- 单批实证：恒等表换点名册后 119,802→4,408 in-tok（−96.3%）。
+
+### 4.3 v5 对照臂（待跑）
+
+同 10 篇、`xlat-prompt-v5`、`prefer=fresh` 重跑 texlate 臂 → 三臂实测图（agent / v4 / v5）+ 逐篇 prompt_tokens 瀑布；`tools/arms_tokens.py --arms <v5窗>` 复算。预期形态：19506 的 in_max 从 ~122k 回落到 <10k、in_p50 不再与 cr_max 同阶。
 
 ## 5. 时效（submit→terminal，秒）
 
@@ -202,6 +234,10 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 | 2609.19990 | rc0 / done         | 0 / 3        | 4 / 38        | — / 1,154       | **10** / 1  | — / 0       | 0 / 0           |
 | 2609.20581 | rc0 / fault        | 0 / —        | 4 / —         | 514 / —         | 2 / —       | 0 / —       | 0 / —           |
 
+![残英 eff/unreached 行数](charts/baseline-quality.png)
+
+_图 4 · 残英闸逐篇对照——texlate 19844 真实 findings（26 eff 行）、19990 unreached 38 行；19506 双臂 tail-cut 巨量系 references 保留倾向，非翻译质量差分。_
+
 读法：
 
 - **交付率**：agent 全产出 PDF（codex 迭代编译死磕）；texlate done/partial/fault 混合——管线终态受 fixloop 预算与 L2 归因限制，partial/fault 篇残英闸无可抽产物（—）。
@@ -210,20 +246,12 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 
 ## 7. 基线裁决
 
-1. **token 经济性**：texlate 毛输入仅 agent 的 1/5.6、新输入剔除病理后更低——分段批翻 + 单轮请求 + 稳定 system prompt 前缀是结构性优势；agent 的逐轮全量重发靠 ~91% 缓存命中续命，命中折价但不免费，且把计费暴露在驱逐抽签之下。
-2. **texlate 输入大头是 v4 病理**：ph→ph 恒等注入把 doc 级常数烙进每请求 prompt，又在并发波里以 ~46% 全价率反复重发（19506 新输入 95.6% 即此）。v5 manifest 名单行把该常数压成单行点名册（单批实测 119,802→4,408 in-tok，−96.3%），且点名册本身仍是稳定前缀、可继续吃缓存。
-3. **交付保证**：agent 必出 PDF 但时长/输出通胀、长文有 ngram 退化；texlate 有 partial/fault 终态但已交付部分闸值干净。
-4. **v5 常数实测**（真函数 `collect_doc_placeholders`+`render_placeholder_manifest` 在本批任务 chunks 上直接算得，无 LLM）：十篇 manifest 106–3,686 字符——ph 重头篇全走退化 `TYPE×n` 形（19506 仅 **110 字符** ≈ ~50 tok，20533 113c、20739 106c），稀疏编号篇仍走连续段枚举（19929 3,210c、20581 3,686c 贴 4kc 上限）。v5 system 常数推 ≈0.6–9.6k vs v4 0.27–115k；同 miss 谱推算 v5 新输入 ≈**1.52M**（v4 的 25%、agent 的 32%、自身载荷 0.90M 的 1.7×）——见 [三臂对比图](charts/arms-v5-projection.png)。
-5. **v5 对照臂**：同 10 篇、`xlat-prompt-v5`、`prefer=fresh` 重跑 texlate 臂 → 三臂图（agent / v4 / v5）+ 逐篇 prompt_tokens 瀑布；`tools/arms_tokens.py --arms <v5窗>` 复算。预期形态：19506 的 in_max 从 ~122k 回落到 <10k、in_p50 不再与 cr_max 同阶。
+1. **token 经济性**：texlate 毛输入仅 agent 的 1/5.6、有效载荷仅 1/3.7——分段批翻 + 单轮请求 + 稳定 system 前缀是结构性优势；agent 的逐轮全量重发靠 ~91% 缓存命中续命，命中折价但不免费，且把计费暴露在驱逐抽签之下。
+2. **texlate 新输入反超是 v4 病理 + 并发抽签的合成事故**：ph→ph 恒等注入把 doc 级常数烙进每请求 prompt（19506 新输入 95.6% 即此、全臂虚耗占 85%），又在并发波里以 ~46–76% 全价率反复重付。
+3. **v5 攻击面成立但仍是推算**：manifest 名单行把该常数压成单行（单批实测 119,802→4,408 in-tok，−96.3%；十篇常数实测 106–3,686 字符），同 miss 谱推算新输入 1.52M——定论待 §4.3 对照臂实测。
+4. **交付保证**：agent 必出 PDF 但时长/输出通胀、长文有 ngram 退化；texlate 有 partial/fault 终态但已交付部分闸值干净。
 
-## 8. 图
-
-![逐篇毛输入 grouped bar（log）](charts/baseline-input-tokens.png)
-![输出 token + 请求数](charts/baseline-output-calls.png)
-![残英 eff/unreached 行数](charts/baseline-quality.png)
-![三臂新输入 + system 常数（v4/v5̂/agent）](charts/arms-v5-projection.png)
-
-## 9. 数据源与复算
+## 8. 数据源与复算
 
 | 件                 | 口径                                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------------------- |
@@ -232,3 +260,4 @@ system prompt 构成（v4 装配，逐篇恒定）= 任务句 + C\*/B\* 条款 +
 | agent 事件流       | codex `exec --json` 逐篇日志，`turn.completed.usage` 自报                                             |
 | 质量闸             | zh PDF 抽文扫描件（残英/缺字/断引/退化规则闸）                                                        |
 | 逐篇快照           | `baseline-tokens.json`（本目录，`tools/arms_tokens.py` 生成形）                                       |
+| 图 3 生成脚本      | `tmp/fig_v5_projection.py`（scratch 未入库；推算输入件均为本文常数，可手算复核）                      |
