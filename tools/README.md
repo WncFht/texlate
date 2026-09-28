@@ -28,3 +28,23 @@
 
 口径注意：zh txlm 从 layoutqc 封件回填（splice 封件常缺）；artifact-only 封件遮
 `layout:dropped_env` 并标 `env_masked`；账本 mode=ro、vault 硬链只读——零写账。
+
+## 对照臂实验与网关对账
+
+driver→wins→usage 两步链 + 离线臂重放/存活率审计；网关 `logs.time` 是毫秒 epoch，窗切按 api+key_hash 隔离（同 key 面须带 `--key` 防串窗）。
+
+| 工具             | 作用                                                                                                                       | 用法                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `arm_driver.py`  | 对照臂驱动：逐篇 POST translate + 轮询终态落窗口 JSON（串行提交=窗不重叠，下游窗切前提）                                   | `.venv/bin/python tools/arm_driver.py --papers id1,id2[@file] [--prefer fresh] [--out tmp/arm-wins.json]`                  |
+| `arm_usage.py`   | 逐臂逐篇网关账本对账（取代 `arms_tokens.py`）：ms 窗切 logs + task_usage/chunks 富化 + window_balanced 校验                | `.venv/bin/python tools/arm_usage.py --wins tmp/arm-wins.json --key <hash> [--date YYYY-MM-DD]`（多臂 `--arms arms.json`） |
+| `replay_arm.py`  | prompt 臂离线重放：extract 树→kind 装箱→臂注册表 system/user→网关→parse+member 审计+raw 落盘                               | `.venv/bin/python tools/replay_arm.py <extract_dir> <kind> <arm> <all\|N\|NxR>` → `tmp/replay_raw_<arm>_<kind>/`           |
+| `ph_survival.py` | ph id 存活率对照（只读统计）：`chunks.src_text` vs `translation` 的 `[[TYPE_n]]` 集合差分，同篇双臂配对 kept/missing/extra | `.venv/bin/python tools/ph_survival.py <a> <b> [...] [--labels v4,v5] [--out ...]`                                         |
+
+lib 件（非入口）：`_arm_lib.py`（arm 组 +0800 hms 窗契约 TZ8/hms/hms_ms/DAY_MS 单源）、`_prompts_v4.py`/`_prompts_v5.py`（FROZEN prompt 套件快照——replay_arm v4/v5/v6 实验臂唯一事实源，刻意不随 `src/texlate/xlat/prompts.py` 漂移；产线现行形态走 `prod` 臂）。
+
+## 批量接力与源码 codemod
+
+| 工具                | 作用                                                                                                                          | 用法                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `chain_runs.sh`     | 触发件终态接力跑批：`--pid/--proc/--marker/--flag` 闸（默认全终态，`--any` 任一）→ `--then` 逐段裸 exec，START/EXIT/DONE 打戳 | `tools/chain_runs.sh --log tmp/x/run.log --log-dir tmp/x --pid 123 -- cmd1 --then cmd2` |
+| `fix_raise_msgs.py` | raise 字面量外提 codemod：`raise E(<lit>)` → `msg` 外提批处理（TRY003/EM 消债；默认 dry-run，`--write` 落盘）                 | `.venv/bin/python tools/fix_raise_msgs.py [PATH ...] [--write]`                         |
