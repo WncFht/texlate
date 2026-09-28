@@ -93,7 +93,7 @@ class _Core:
         self._run_brace = 0  # 当前 run 内 dispatch 级 {−} 深度（孤 } 判据）
 
     def spawn(
-        self, *, in_arg: bool | None = None, mined: bool | None = None
+        self: Segmenter, *, in_arg: bool | None = None, mined: bool | None = None
     ) -> Segmenter:
         """子分段器：共享 state/vt/cons/file_texts，env_stack 拷贝，gen+1。
 
@@ -226,7 +226,7 @@ class _Core:
             self._run_start = vspan.start
         self._run.append(_RunItem(surface, ident, vspan.start, vspan.end))
 
-    def _rappend_tok(self, t: Tok) -> None:
+    def _rappend_tok(self: Segmenter, t: Tok) -> None:
         r"""gen=0 文本 token：覆盖 gap+本体；surface=渲染形，ident=vtex 切片。
 
         新 run 首项的前间隙（``\cs`` 吞空格/``%`` 注释）剖成独立 LITERAL
@@ -438,7 +438,7 @@ class _Core:
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
             self._pending_settle(pending, s, register=False)
             return
-        lead = len(_LEAD_WS_RX.match(s).group(0))
+        lead = len(m.group(0)) if (m := _LEAD_WS_RX.match(s)) else 0
         trail_m = _TRAIL_WS_RX.search(s)
         trail = len(trail_m.group(0)) if trail_m else 0
         hi = len(s) - trail
@@ -592,7 +592,7 @@ class _Core:
         self._open_toks = []
         self._open_side_effect = False
 
-    def _close_group(self) -> None:
+    def _close_group(self: Segmenter) -> None:
         """收组：surface 进 run 一项，ident = ``[[EXPAND_n]]``（体=调用切片）。
 
         注意 ``Span.__len__`` = 区间长——零宽 span 为 falsy，判空必须用

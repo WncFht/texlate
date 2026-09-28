@@ -3,7 +3,9 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 from __future__ import annotations
 
 from typing import (
+    TYPE_CHECKING,
     NamedTuple,
+    cast,
 )
 
 import texlate.latex.tables as _tables
@@ -57,6 +59,9 @@ from ._common import (
     _WSpec,
 )
 
+if TYPE_CHECKING:
+    from texlate.latex.segmenter import Segmenter
+
 r"""``Segmenter`` 组内 surface 收拢引擎——``_close_group``/``_grp_pending`` 的
 组内对价（``_grp_*`` 族）；流侧 pend/absorb 机械在 ``pending.py``。"""
 
@@ -80,7 +85,9 @@ class _PendRem(NamedTuple):
 
 
 class _GrpScan:
-    def _grp_delim_body_end(self, toks: list[Tok], i: int, j: int) -> int | None:
+    def _grp_delim_body_end(
+        self: Segmenter, toks: list[Tok], i: int, j: int
+    ) -> int | None:
         r"""``toks[j]`` = 定界 token 的逐字闭界扫描 → j_end；未闭 → None。
 
         ``_handle_verb``/``_protect_cs`` 定界支的组内镜像：cs 定界
@@ -106,7 +113,7 @@ class _GrpScan:
             k += 1
         return None
 
-    def _grp_verb_end(self, toks: list[Tok], i: int) -> int | None:
+    def _grp_verb_end(self: Segmenter, toks: list[Tok], i: int) -> int | None:
         r"""组内 ``\verb|..|``/``\verb*``/``\lstinline[opt]|..|``/``{..}`` → j_end。
 
         ``_handle_verb`` 的组内镜像（组内无文件字节可扫——定界/配对全在
@@ -162,7 +169,7 @@ class _GrpScan:
         return ("grp", brace, depth) if depth else None
 
     def _grp_spec_walk(
-        self, toks: list[Tok], i: int, m: object
+        self: Segmenter, toks: list[Tok], i: int, m: object
     ) -> tuple[int, list[tuple[int, int, int]], _PendRem | None]:
         r"""Opaque/math 宏 ``m.spec`` + 体尾 key-arg 槽的组内位序走参。
 
@@ -212,7 +219,7 @@ class _GrpScan:
         return end, cand, rem
 
     def _grp_opaque_args(
-        self, toks: list[Tok], i: int, name: str, m: object
+        self: Segmenter, toks: list[Tok], i: int, name: str, m: object
     ) -> tuple[int, list[tuple[int, int]]]:
         r"""Opaque/math 宏 ``m.spec`` 的组内位序走参 → ``(参末位, 散文参界列)``。
 
@@ -231,7 +238,7 @@ class _GrpScan:
             if _prose_arg_hit(name, nth2, self._grp_surfs(toks[a0 + 1 : a1 - 1]))
         ]
 
-    def _group_surface(self) -> list[str] | None:
+    def _group_surface(self: Segmenter) -> list[str] | None:
         r"""组成员 token → surface 段：结构命令再生保护段产 ph。
 
         展开表面里的 ``\\begin/\\end{env}``（math/verb/protected 整段、
@@ -254,7 +261,7 @@ class _GrpScan:
         return self._grp_scan(self._open_toks)
 
     def _grp_emit_carved(  # noqa: PLR0913, PLR0917 — carve 发射面（输出/区间/切列/深度/警标）七件原位
-        self,
+        self: Segmenter,
         out: list[str],
         toks: list[Tok],
         i: int,
@@ -291,7 +298,7 @@ class _GrpScan:
         return j2
 
     def _grp_scan(  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
-        self, toks: list[Tok], depth: int = 0
+        self: Segmenter, toks: list[Tok], depth: int = 0
     ) -> list[str] | None:
         r"""``_group_surface`` 的 toks 参数化引擎——探针散文参子扫复用。
 
@@ -514,7 +521,11 @@ class _GrpScan:
                     else None
                 )
                 if e is not None:
-                    self._cat_surf(out, self._grp_ph(typ, self._grp_surfs(toks[i:e])))
+                    # e 非 None ⟹ typ 非 None（e 仅在 typ 非 None 时求解）
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(cast("PhType", typ), self._grp_surfs(toks[i:e])),
+                    )
                     i = e
                     continue
                 if ek == "env_begin" and typ is not None:
@@ -707,7 +718,11 @@ class _GrpScan:
             # 宏表登记名不吃 argspec（主流 ``m is None`` 闸的组内对价——
             # env-macro 行只截 env_begin/env_end，opaque/math 宏上行已兜，
             # 其余登记名落探针同规）
-            e2 = _tables.argspec_lookup(name, self.state.pkgs) if m2 is None else None
+            e2 = (
+                _tables.argspec_lookup(name, cast("set[str]", self.state.pkgs))
+                if m2 is None
+                else None
+            )
             if e2 is not None:
                 policy = e2.policy
                 if policy in ("literal", "transparent"):

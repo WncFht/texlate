@@ -42,6 +42,7 @@ from texlate.arxiv.ratelimit import BudgetExhaustedError, ParkedError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from xml.etree.ElementTree import Element
 
 #: Atom API 端点（export 桶；arxiv.org/api 302 到此，直接打 canonical）
 ATOM_API: Final = "https://export.arxiv.org/api/query"
@@ -63,7 +64,7 @@ def _vsuf(ver: int | None) -> str:
     return f"v{ver}" if ver else ""
 
 
-def _text(parent: ElementTree.Element, tag: str) -> str:
+def _text(parent: Element, tag: str) -> str:
     """取子元素文本并折叠空白（Atom summary/title 常带换行缩进）。"""
     el = parent.find(tag)
     if el is None or el.text is None:
@@ -144,7 +145,7 @@ def _get(fetcher: Fetcher, url: str) -> httpx.Response | None:
     return resp if resp.status_code == HTTPStatus.OK else None
 
 
-def _atom_entry(entry: ElementTree.Element) -> PaperMeta | None:
+def _atom_entry(entry: Element) -> PaperMeta | None:
     """单 ``<entry>`` → PaperMeta；错误/无效 entry → None。
 
     坏 id 时 API 回 ``<title>Error</title>`` 形态的错误 entry——其 ``<id>``
@@ -380,7 +381,7 @@ def resolve_version(
     want = want if want is not None else pin
     meta = fetch_metadata(base, fetcher=fetcher)
     latest = meta.latest_version if meta is not None else None
-    if latest is None:
+    if meta is None or latest is None:
         return None
     if want is None:
         return latest
@@ -464,7 +465,7 @@ def _probe_html(
             return hit
     meta = fetch_metadata(base, fetcher=fetcher)
     latest = meta.latest_version if meta is not None else None
-    if latest is None:
+    if meta is None or latest is None:
         return None
     tried.add(latest)  # 裸 id 探的就是最新版
     if ver_req:

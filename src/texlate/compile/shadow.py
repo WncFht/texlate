@@ -14,7 +14,7 @@ import re
 import shutil  # noqa: F401 -- 测试锚：tests patch ``shadow.shutil.which`` 落共享模块对象，``seams.find_tool`` 内部同拦
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -250,7 +250,8 @@ def _shadow_broken_system_packages(
     if engine not in ("xelatex", "lualatex"):
         return []
     # 工具发现单源走 seams（macOS 落点回退 + seams/toolchain 双锚 patch 面）。
-    kpse = seams.find_tool("kpsewhich")
+    # seams.__getattr__ 惰性回指返 object——cast 只补 ty 签名视图。
+    kpse = cast("Callable[[str], str | None]", seams.find_tool)("kpsewhich")
     if not kpse:
         return []
     root = root.resolve()

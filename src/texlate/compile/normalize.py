@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from typing import Any
 
     from texlate.textutil import EncodingVerdict
 
@@ -1018,7 +1019,7 @@ def _normalize_tex_files(
     root: Path,
     engine: str,
     main: str | None,
-    stats: dict[str, object],
+    stats: dict[str, Any],
     encodings: dict[str, dict[str, str | None]],
 ) -> None:
     """逐 tex 件主手术：转码 + `normalize_engine` + bbl 替换；累计 files/rewritten。"""

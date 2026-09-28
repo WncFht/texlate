@@ -36,7 +36,7 @@ import tempfile
 import zipfile
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import httpx
 
@@ -252,7 +252,11 @@ def find_managed(name: str = "tectonic") -> str | None:
 
 def resolve_tool(name: str) -> str | None:
     """系统件（``find_tool``：PATH/常见落点）→ 托管件。探测面用，不触网。"""
-    return seams.find_tool(name) or seams.find_managed(name)
+    # seams.__getattr__ 惰性回指返 object——cast 只补 ty 签名视图，
+    # 运行时仍是逐调用经 seams 查名（monkeypatch 缝语义不变）。
+    find = cast("Callable[[str], str | None]", seams.find_tool)
+    managed = cast("Callable[[str], str | None]", seams.find_managed)
+    return find(name) or managed(name)
 
 
 def _run_version(binary: str) -> subprocess.CompletedProcess[bytes] | None:
@@ -303,13 +307,16 @@ def ensure_tectonic(
     让 ``find_managed`` 永远命中坏件、每次编译都踩 Popen 异常）。要 raise
     语义的显式安装走 ``install_tectonic``。
     """
-    found = seams.resolve_tool("tectonic")
+    # cast 同上——seams 惰性回指的 ty 视图补丁，运行时逐调用查名不变。
+    found = cast("Callable[[str], str | None]", seams.resolve_tool)("tectonic")
     if found:
         return found
-    if not seams.download_allowed():
+    if not cast("Callable[[], bool]", seams.download_allowed)():
         return None
     try:
-        path = seams.install_tectonic(system=system, machine=machine, client=client)
+        path = cast("Callable[..., Path]", seams.install_tectonic)(
+            system=system, machine=machine, client=client
+        )
     except (
         OSError,
         RuntimeError,

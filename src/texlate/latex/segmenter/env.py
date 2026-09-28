@@ -6,7 +6,7 @@ import re
 from bisect import (
     bisect_left,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from texlate.latex.model import (
     PhType,
@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from texlate.latex.mouth import (
         Tok,
     )
+    from texlate.latex.segmenter import Segmenter
 
 r"""``Segmenter`` 环境机制（begin/end 分类、参数尾、端点查找）。"""
 
@@ -54,7 +55,9 @@ r"""``Segmenter`` 环境机制（begin/end 分类、参数尾、端点查找）�
 class _Env:
     # ------------------------------------------------------------ env
 
-    def _env_name(self, src: TokenSource) -> tuple[str | None, Tok | None, list[Tok]]:
+    def _env_name(
+        self: Segmenter, src: TokenSource
+    ) -> tuple[str | None, Tok | None, list[Tok]]:
         r"""``{env}`` 组收集：返回 (env 名, rbrace token, 全消费 token 列)。
 
         前扫跨 space 与 ``eol_par``——``\end`` 换段 ``{name}`` 形（断行
@@ -82,7 +85,7 @@ class _Env:
         return hit[0], hit[1], consumed
 
     def _handle_env_begin(  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
-        self, t: Tok, src: TokenSource, m: MacroDef | None = None
+        self: Segmenter, t: Tok, src: TokenSource, m: MacroDef | None = None
     ) -> None:
         r"""``\begin{env}`` token 版：verbatim/math/protected/transparent。
 
@@ -98,6 +101,8 @@ class _Env:
                 return
         else:
             env, close_t = m.target_env, t
+        # env 非 None ⟹ close_t 非 None（_env_name 不变式；宏端点 arm 取 t）
+        close_t = cast("Tok", close_t)
         if env == "document":
             self._doc_opened = True  # 防中段 \documentclass 重入 preamble 档
         reg = self.state.macros.lookup_env(env)
@@ -221,7 +226,7 @@ class _Env:
         src.scope_push()
 
     def _unclosed_env(  # noqa: PLR0913, PLR0917 — 尾参四件+区间+发射开关随调用臂平铺
-        self,
+        self: Segmenter,
         src: TokenSource,
         fid: int,
         close_t: Tok,
@@ -250,7 +255,7 @@ class _Env:
         self.state.warnings.append(ScanWarning("unclosed_env", v_begin.start, env))
 
     def _handle_env_end(
-        self, t: Tok, src: TokenSource, m: MacroDef | None = None
+        self: Segmenter, t: Tok, src: TokenSource, m: MacroDef | None = None
     ) -> None:
         r"""``\end{env}``：in_arg→ENVTAG；``\end{document}``→顶层截停。
 
@@ -266,6 +271,8 @@ class _Env:
                 return
         else:
             env, close_t = m.target_env, t
+        # env 非 None ⟹ close_t 非 None（同 _handle_env_begin）
+        close_t = cast("Tok", close_t)
         self._cover_gap(fid, t.pos[1])  # \end 前间隙 → 字面项（不进 ENVTAG 体）
         vspan = self._cover_to(fid, close_t.pos[2])
         if self.in_arg:
@@ -293,7 +300,7 @@ class _Env:
             # 无档可回，否则顶层 env 一弹栈余文全灭（t_e300 实证 13 段丢）。
             self._preamble = True
 
-    def _env_pop(self, env: str, vpos: int) -> int:
+    def _env_pop(self: Segmenter, env: str, vpos: int) -> int:
         r"""v1 ``_env_pop`` 移植：弹 env 栈，返回弹出数（= scope_pop 次数）。
 
         栈顶即 target → 1；深匹配 → 隐式弹中间层 + ``env_mismatch``；
@@ -317,7 +324,7 @@ class _Env:
         return 0
 
     def _handle_pair_block(
-        self, t: Tok, src: TokenSource, name: str, m: object | None
+        self: Segmenter, t: Tok, src: TokenSource, name: str, m: object | None
     ) -> None:
         r"""``cs`` 对界 DSL 块（``\labellist…\endlabellist`` pinlabel 形，W29）。
 
@@ -353,7 +360,7 @@ class _Env:
         self._emit_ph(PhType.ENV, v_begin.start, vend, body)
 
     def _find_pair_end(  # ``_find_env_end`` 配对 cs 版同款单遍扫描
-        self, src: TokenSource, open_: str, close: str
+        self: Segmenter, src: TokenSource, open_: str, close: str
     ) -> tuple[Tok, Tok, list[Tok]] | None:
         r"""``cs`` 对界块收尾扫描（``_find_env_end`` 的配对 cs 版）。
 
@@ -381,13 +388,14 @@ class _Env:
                 if n2 is None:
                     src.unread(grp)
                     continue
+                c2 = cast("Tok", c2)  # n2 非 None ⟹ c2 非 None（_env_name 不变式）
                 collected.extend(grp)
                 if n2 == open_:
                     return x, c2, collected[: -(1 + len(grp))]
                 continue
 
     def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
-        self,
+        self: Segmenter,
         src: TokenSource,
         fid: int,
         pos: int,
@@ -467,7 +475,7 @@ class _Env:
         return pos
 
     def _eat_env_args_spec(
-        self, src: TokenSource, fid: int, pos: int, env: str, e: ArgspecEntry
+        self: Segmenter, src: TokenSource, fid: int, pos: int, env: str, e: ArgspecEntry
     ) -> int:
         r"""Argspec 签名驱动的 ``\begin`` 尾参：非文本参吃掉进 LITERAL。
 
@@ -494,7 +502,9 @@ class _Env:
                 # 只是缺省标注，定理 ``[Name]`` 不归其管——F6 语义保持）。
                 content = self.file_texts[fid][a.cs : a.ce]
                 if role == "text" or (
-                    a.spec.delim != "<>" and not env_opt_is_format(env, content)
+                    a.spec is not None
+                    and a.spec.delim != "<>"
+                    and not env_opt_is_format(env, content)
                 ):
                     self._unread_args(src, args[k:])
                     return eat_end
@@ -507,7 +517,7 @@ class _Env:
         return eat_end
 
     def _env_with_mined(
-        self,
+        self: Segmenter,
         *,
         env: str,
         vbegin: Span,
@@ -532,7 +542,7 @@ class _Env:
         # \caption 照产 chunk（in_arg=True 会内联化不产，T12 回归）
         sub = self.spawn(in_arg=False, mined=True)
         sub.env_stack.append(env)
-        sub.scan(_ListSource(body_toks), self.file_texts)
+        sub.scan(cast("TokenSource", _ListSource(body_toks)), self.file_texts)
         sub_end = len(self.vt)  # 子扫 pieces 平铺到此（scan 尾部兜底保证）
         self._cover_to(tag.pos[0], tag.pos[1])  # 子扫丢 token 的体尾字节兜底
         vend = self._cover_to(last.pos[0], last.pos[2])
@@ -547,7 +557,7 @@ class _Env:
             + self.vt.slice(vend.start, vend.end)
         ), vend.end
 
-    def _resolve_macro(self, src: TokenSource, name: str) -> object | None:
+    def _resolve_macro(self: Segmenter, src: TokenSource, name: str) -> object | None:
         r"""宏表查名（``Alias`` 解一层）。
 
         Gullet 源查 ``src.macros``；``_ListSource`` 子扫查共享的
@@ -559,7 +569,7 @@ class _Env:
         return tab.resolve(tab.lookup(name))
 
     def _replay_dead(
-        self, src: TokenSource, tag_span: tuple[int, int, int]
+        self: Segmenter, src: TokenSource, tag_span: tuple[int, int, int]
     ) -> tuple[Tok, Tok, list[Tok]] | None:
         r"""墓标命中回放：拉到 end tag 末 token，tag 前 token 归 body。
 
@@ -597,7 +607,7 @@ class _Env:
         return None
 
     def _dead_env_close(
-        self, x: Tok, env: str, close_pos: tuple[int, int, int]
+        self: Segmenter, x: Tok, env: str, close_pos: tuple[int, int, int]
     ) -> bool:
         r"""Dead 族闭合判据：``\end`` cs 与 ``{env}`` rbrace 同 fid + 行锚字面。
 
@@ -611,7 +621,7 @@ class _Env:
         )
 
     def _find_env_end(  # noqa: C901, PLR0911, PLR0912, PLR0915 — begin/end/csname-end/verb/宏端点五分支单遍查找
-        self, src: TokenSource, env: str, qpos: tuple[int, int, int]
+        self: Segmenter, src: TokenSource, env: str, qpos: tuple[int, int, int]
     ) -> tuple[Tok, Tok, list[Tok]] | None:
         r"""Token 版 env 配对（``read()`` 原始流——前瞻不触发展开副作用）。
 
@@ -680,6 +690,7 @@ class _Env:
                     # （``\begin \end{figure}`` 形），v1 pos 不动等价
                     src.unread(grp)
                     continue
+                c = cast("Tok", c)  # n 非 None ⟹ c 非 None（_env_name 不变式）
                 collected.extend(grp)
                 if env in DEAD_ENVS:
                     # comment 族行锚整行终结、体不嵌套（_env_stop dead 臂
@@ -762,7 +773,7 @@ class _Env:
                     end_tag.append((x.pos[0], x.pos[1], x.pos[2]))
 
     def _skip_verb_toks(  # noqa: C901 — 定界三形平铺
-        self, src: TokenSource, collected: list[Tok]
+        self: Segmenter, src: TokenSource, collected: list[Tok]
     ) -> None:
         r"""``\verb``/``\lstinline`` 定界体 token 跳读（假 ``\end`` 不计）。
 
@@ -797,7 +808,9 @@ class _Env:
             if x.kind == "eol_par" or x.text == delim:
                 return
 
-    def _scan_skip(self, src: TokenSource, x: Tok, collected: list[Tok]) -> bool:
+    def _scan_skip(
+        self: Segmenter, src: TokenSource, x: Tok, collected: list[Tok]
+    ) -> bool:
         r"""前瞻扫描跳过件：``\verb`` 定界体跳读 + ``\input`` 族交回展开。
 
         ``True`` = 本 token 已处置（调用方 ``continue``）。前瞻 ``read()``
@@ -819,7 +832,7 @@ class _Env:
         return False
 
     def _skip_verbatim_env_toks(
-        self, src: TokenSource, env: str, collected: list[Tok]
+        self: Segmenter, src: TokenSource, env: str, collected: list[Tok]
     ) -> None:
         r"""嵌套 verbatim env 体整段跳读（体内 ``\end{target}`` 是字面）。
 
@@ -840,6 +853,7 @@ class _Env:
             if n is None:
                 src.unread(grp)  # 回吐重分派（同 _find_env_end）
                 continue
+            c = cast("Tok", c)  # n 非 None ⟹ c 非 None（_env_name 不变式）
             collected.extend(grp)
             if dead:
                 if x.text == "end" and n == env and self._dead_env_close(x, env, c.pos):

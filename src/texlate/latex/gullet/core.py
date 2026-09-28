@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
 class _Core:
     def __init__(
-        self,
+        self: Gullet,
         text: str = "",
         *,
         root_dir: str = "",
@@ -89,7 +89,7 @@ class _Core:
 
     # ------------------------------------------------------------ 源栈
 
-    def push_source(self, text: str, path: str = "") -> int:
+    def push_source(self: Gullet, text: str, path: str = "") -> int:
         """压新输入源，返回其 ``file_id``；有路径即入 ``_seen`` 祖先栈。"""
         fid = len(self.file_texts)
         self.file_texts.append(text)
@@ -102,7 +102,7 @@ class _Core:
             self._seen_fid[fid] = r
         return fid
 
-    def read(self) -> Tok | None:
+    def read(self: Gullet) -> Tok | None:
         """拉原始 token（``itertokens`` TeX.py:249-279）：栈顶耗尽即弹。"""
         while self.inputs:
             t = self.inputs[-1].next()
@@ -116,7 +116,7 @@ class _Core:
                 self._seen.discard(r)  # 祖先栈回撤：兄弟位合法重包含不断
         return None
 
-    def unread(self, toks: list[Tok] | tuple[Tok, ...]) -> None:
+    def unread(self: Gullet, toks: list[Tok] | tuple[Tok, ...]) -> None:
         """推回前端（``pushTokens`` TeX.py:455-467）：栈空 → 新建 token 源。"""
         if not toks:
             return
@@ -126,7 +126,7 @@ class _Core:
         else:
             self.inputs[-1].push_tokens(list(toks))
 
-    def skip_past(self, fid: int, pos: int) -> bool:  # noqa: C901 — 栈序/tokbuf 回压/跨界守门平铺即 resync 规则表
+    def skip_past(self: Gullet, fid: int, pos: int) -> bool:  # noqa: C901 — 栈序/tokbuf 回压/跨界守门平铺即 resync 规则表
         r"""逐字区 resync（分段器 ``\begin{verbatim}``/``\verb`` 用）。
 
         分段器在**文件字节**上找到闭合符后调此：把 ``fid`` 源的消费指针
@@ -190,25 +190,25 @@ class _Core:
     #: file_id<0 合成源）——分段器 EOF 守护读此。
     eof_pops = True
 
-    def live_inputs(self) -> list[Mouth]:
+    def live_inputs(self: Gullet) -> list[Mouth]:
         """Live 输入栈（``TokenSource`` 契约：弹栈尾盖/ph 懒采样快照）。"""
         return self.inputs
 
-    def scope_push(self) -> None:
+    def scope_push(self: Gullet) -> None:
         """组开回报（§4）：宏表 + catcode 对称推帧。"""
         self.macros.push_scope()
         self.cats.push()
 
-    def scope_pop(self) -> None:
+    def scope_pop(self: Gullet) -> None:
         """组闭回报：宏表/catcode 对称弹（底帧不弹由两侧各自兜底）。"""
         self.macros.pop_scope()
         self.cats.pop()
 
-    def env_sig(self, target: str) -> frozenset:
+    def env_sig(self: Gullet, target: str) -> frozenset:
         """Target env 端点宏签名（墓标作废键）——宏表快照委托。"""
         return self.macros.env_sig(target)
 
-    def text_run_end(self, t: Tok, files: list[str]) -> int | None:
+    def text_run_end(self: Gullet, t: Tok, files: list[str]) -> int | None:
         r"""栈顶 ``Mouth`` 刚产 gen=0 文本 token 的批扫快进 → run 末位。
 
         ``t`` 须是栈顶刚产的 token——``file_id`` 同、``tokbuf`` 空、
@@ -232,7 +232,7 @@ class _Core:
 
     # ------------------------------------------------------------ 主循环
 
-    def next_expanded(self) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — 分派顺序即 §8.2/§8.6（宏表先行）
+    def next_expanded(self: Gullet) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — 分派顺序即 §8.2/§8.6（宏表先行）
         r"""展开主循环（``TeX.__iter__`` TeX.py:281-340）。
 
         拉原始 token → 非 cs 直交 → cs 查宏表（先行：``\ifb`` 单位宏 /
@@ -300,7 +300,7 @@ class _Core:
                 return out
             return t  # LaTeX 内建/未知 cs → 分段器按 argspec 表处理
 
-    def _can_expand(self, t: Tok) -> bool:
+    def _can_expand(self: Gullet, t: Tok) -> bool:
         """三级限制：``gen>=MAX_GEN``/``steps>BUDGET`` → 不再展开（§3.4）。"""
         # ``BUDGET`` 走包属性迟绑定——tests 猴子补丁 ``texlate.latex.gullet.BUDGET``
         # 的接缝必须读运行时值；顶层 import 则是 __init__→core→__init__ 加载环。
@@ -318,18 +318,18 @@ class _Core:
             return False
         return True
 
-    def __iter__(self) -> Gullet:
+    def __iter__(self: Gullet) -> Gullet:
         """迭代协议：``next_expanded() → None`` 耗尽。"""
         return self
 
-    def __next__(self) -> Tok:
+    def __next__(self: Gullet) -> Tok:
         """``next_expanded() → None`` 时 ``StopIteration``。"""
         t = self.next_expanded()
         if t is None:
             raise StopIteration
         return t
 
-    def expand_all(self) -> list[Tok]:
+    def expand_all(self: Gullet) -> list[Tok]:
         """抽干展开流（测试/分段器喂流便利）。"""
         out: list[Tok] = []
         while True:
@@ -338,7 +338,7 @@ class _Core:
                 return out
             out.append(t)
 
-    def _warn(self, kind: str, t: Tok | None, detail: str) -> None:
+    def _warn(self: Gullet, kind: str, t: Tok | None, detail: str) -> None:
         """登记 ``ScanWarning``；pos 取 token 起点（无 token → 0）。
 
         ``ScanWarning.pos`` 是 int 装不下 fid——多文件时 detail 前挂
@@ -350,7 +350,7 @@ class _Core:
         self.warnings.append(ScanWarning(kind, pos, detail))
 
     def _consumed(
-        self,
+        self: Gullet,
         tag: str,
         trig: Tok,
         trace: list[Tok] | None,
@@ -382,7 +382,7 @@ class _Core:
 
     # ------------------------------------------------------------ 原语分派
 
-    def _exec_prim(self, t: Tok) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — 原语表平铺即 §8.2 expandables 集
+    def _exec_prim(self: Gullet, t: Tok) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — 原语表平铺即 §8.2 expandables 集
         """原语执行：``Tok`` → 直交分段器；``None`` → 已处理继续循环。"""
         name = t.text
         if name in ("def", "edef", "gdef", "xdef"):

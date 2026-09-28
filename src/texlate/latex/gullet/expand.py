@@ -2,6 +2,10 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：e
 
 from __future__ import annotations
 
+from typing import (
+    TYPE_CHECKING,
+)
+
 from texlate.latex.mouth import (
     Tok,
 )
@@ -16,6 +20,11 @@ from .entries import (
 from .names import (
     _EXPAND_KINDS,
 )
+
+if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        Gullet,
+    )
 
 # \romannumeral 减记表（TeX 产出小写罗马；n>3999 走 consumed 兜底不展开）
 _ROMAN_TAB = (
@@ -58,7 +67,7 @@ def _to_roman(n: int) -> str:
 class _Expand:
     # ------------------------------------------------------------ expandafter/csname/ifundefined
 
-    def _do_expandafter(self, _trig: Tok) -> Tok | None:
+    def _do_expandafter(self: Gullet, _trig: Tok) -> Tok | None:
         r"""``\expandafter\t1\t2``：``t2`` 展开一次再推回（Primitives.py:495-512）。
 
         推回序为 ``[t1]+展开结果``；触发 token 本体已消费不回吐（gap literal）。
@@ -76,7 +85,7 @@ class _Expand:
         return None
 
     def _try_expand_macro(
-        self,
+        self: Gullet,
         t: Tok,
         r: object,
         *,
@@ -124,7 +133,7 @@ class _Expand:
             self._trace = saved
         return out
 
-    def _expand_once(self, t: Tok) -> list[Tok]:  # noqa: C901, PLR0911 — 表项/原语各态一分支 + 别名链迭代
+    def _expand_once(self: Gullet, t: Tok) -> list[Tok]:  # noqa: C901, PLR0911 — 表项/原语各态一分支 + 别名链迭代
         r"""单步展开（``\expandafter`` 用）：可展宏/可展原语就地一步；其余 ``[t]``。
 
         str 别名链逐跳迭代（``\let\a\b``+``\let\b\a`` 成环 → 按不可展交出
@@ -167,12 +176,12 @@ class _Expand:
             return self._roman_expand(t)
         return [t]
 
-    def _do_csname(self, _trig: Tok) -> Tok | None:
+    def _do_csname(self: Gullet, _trig: Tok) -> Tok | None:
         r"""``\csname..\endcsname`` → 合成 cs token 推回（Primitives.py:413-424）。"""
         self.unread([self._read_csname()])
         return None
 
-    def _read_csname(self) -> Tok:
+    def _read_csname(self: Gullet) -> Tok:
         r"""读到 ``\endcsname`` 合成 cs；流尽 → 空名 cs（容忍）。"""
         name: list[str] = []
         start: tuple[int, int, int] | None = None
@@ -190,7 +199,7 @@ class _Expand:
         pos = start if start is not None else (-1, -1, -1)
         return Tok("cs", "".join(name), pos)
 
-    def _do_ifundefined(self, trig: Tok) -> Tok | None:
+    def _do_ifundefined(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\@ifundefined{name}{T}{F}`` 选支推回（Base/LaTeX ``__init__.py:36-45``）。
 
         ``name`` 已定义（宏表/原语/内建名集）→ 推 ``F``；否则推 ``T``。
@@ -221,7 +230,7 @@ class _Expand:
 
     # ------------------------------------------------------------ romannumeral/uppercase
 
-    def _do_romannumeral(self, trig: Tok) -> Tok | None:
+    def _do_romannumeral(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\romannumeral<num>`` → 罗马字母推回（W28 idiom 的展开臂）。
 
         产物恒经 ``unread`` 回主流：``n>0`` → 小写罗马 letter token
@@ -232,7 +241,7 @@ class _Expand:
         self.unread(self._roman_expand(trig))
         return None
 
-    def _roman_expand(self, trig: Tok) -> list[Tok]:
+    def _roman_expand(self: Gullet, trig: Tok) -> list[Tok]:
         r"""``\romannumeral`` 单步展开产物（``\expandafter``/原语分派共用）。"""
         n = self._read_number()
         lr = self._last_read
@@ -248,7 +257,7 @@ class _Expand:
             Tok("letter", ch, trig.pos, trig.gen + 1, call) for ch in _to_roman(int(n))
         ]
 
-    def _do_case(self, trig: Tok, *, upper: bool) -> Tok | None:
+    def _do_case(self: Gullet, trig: Tok, *, upper: bool) -> Tok | None:
         r"""``\uppercase``/``\lowercase{..}``（W28 idiom 的壳臂）。
 
         ``<general text>`` 扫 ``{`` 走 get_x_token 语义——途中可展开 token
@@ -303,7 +312,7 @@ class _Expand:
         )
         return None
 
-    def _case_expand_cs(self, t: Tok) -> bool:  # noqa: PLR0911 — 可展原语逐名分派平铺
+    def _case_expand_cs(self: Gullet, t: Tok) -> bool:  # noqa: PLR0911 — 可展原语逐名分派平铺
         r"""``\uppercase`` 扫 ``{`` 途中的单枚 cs：可展开 → 展开推回 ``True``。"""
         name = t.text
         r = self.macros.resolve(self.macros.lookup(name))

@@ -8,7 +8,7 @@ already_def ``\\let\\X\\@undefined`` 让位注入 (寄存器/盒型分配名护�
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from texlate.compile._docseams import find_docclass_ends
 from texlate.compile.fixloop._builtins_common import (
@@ -414,7 +414,9 @@ def cs_targeted_fix(  # noqa: C901, PLR0912 - spec 键序分派表, 每键一处
             return False, f"{payload} not in cs-fix table"
         base = {"cs_map": {cs: split}}
     spec = {k: v for k, v in base.items() if k != "engines"}
-    spec.update((base.get("engines") or {}).get(ctx.engine_name) or {})
+    spec.update(
+        cast("dict[str, Any]", (base.get("engines") or {}).get(ctx.engine_name) or {})
+    )
     done: list[str] = []
     if strip := spec.get("strip_pkg"):
         n = _map_tex_files(

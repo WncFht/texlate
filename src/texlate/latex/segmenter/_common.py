@@ -1344,7 +1344,10 @@ class TokenSource(Protocol):
     """
 
     # ---- 展开源能力面（_ListSource 恒定缺省） ----
-    macros: ScopeMacroTable | None  # 宏表（ListSource=None——查名回落 state.macros）
+    @property
+    def macros(self) -> ScopeMacroTable | None:
+        """宏表（ListSource=None——查名回落 state.macros）。"""
+        ...
     pop_seq: int  # 栈弹事件钟（ListSource 恒 0）
     push_seq: int  # 栈压事件钟（ListSource 恒 0）
     unmatched_open: set[tuple[tuple[int, int, int], int]] | None
@@ -1366,7 +1369,7 @@ class TokenSource(Protocol):
         """回吐前端。"""
         ...
 
-    def skip_past(self, fid: int, end: int) -> bool:
+    def skip_past(self, fid: int, end: int, /) -> bool:
         """``fid`` 源对齐到 ``end``——raw 消费段内 token 残骸剔除；成功 ``True``。"""
         ...
 
@@ -1390,7 +1393,7 @@ class TokenSource(Protocol):
         """Target env 端点宏签名（墓标作废键）；回放源签名恒空集。"""
         ...
 
-    def input_expand(self, t: Tok) -> tuple[bool, Tok | None]:
+    def input_expand(self, t: Tok, /) -> tuple[bool, Tok | None]:
         r"""前瞻臂 ``\input`` 族展开 → ``(handled, hit)``；无能力 → ``(False, None)``。"""
         ...
 
@@ -1502,9 +1505,15 @@ class _ListSource:
         return end if end > t.pos[2] else None
 
 
+class _Unpull(Protocol):
+    """``_pull_cursor`` ``unpull`` 闭包形——可选 ``x`` 附尾回吐（``Callable`` 表达不了缺省参）。"""
+
+    def __call__(self, x: Tok | None = None) -> None: ...
+
+
 def _pull_cursor(
     src: TokenSource, fid: int, pulled: list[Tok], committed: Callable[[], int]
-) -> tuple[Callable[[Tok | None], None], Callable[[], Tok | None]]:
+) -> tuple[_Unpull, Callable[[], Tok | None]]:
     r"""流侧拉参游标 ``(unpull, peek)`` 闭包对——``_absorb_slots``/``_absorb_spec`` 共享。
 
     ``pulled`` = 已拉 token 全列，``committed()`` 取当前提交水位（调用方传

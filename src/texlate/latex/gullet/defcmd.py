@@ -5,6 +5,9 @@ from __future__ import annotations
 from itertools import (
     pairwise,
 )
+from typing import (
+    TYPE_CHECKING,
+)
 
 from texlate.latex.mouth import (
     Tok,
@@ -20,6 +23,11 @@ from .expand import (
     _BLOCKED,
     _MISMATCH,
 )
+
+if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        Gullet,
+    )
 
 # ``\edef`` 扫参期可展原语名集（``_exec_prim`` 分派面的无副作用子集）——
 # ``\def/\let/\input/\catcode/\newif`` 族与 ``makeat*``/组原语不可展，
@@ -63,7 +71,7 @@ class _DefCmd:
     # ------------------------------------------------------------ \def 族
 
     def _do_def(
-        self,
+        self: Gullet,
         trig: Tok,
         *,
         global_: bool,
@@ -118,7 +126,7 @@ class _DefCmd:
             trig.text, mname, spec, body, trig, trace, global_=global_, head=head
         )
 
-    def _expand_eager(self, body: list[Tok]) -> list[Tok]:
+    def _expand_eager(self: Gullet, body: list[Tok]) -> list[Tok]:
         r"""``\edef/\xdef`` 体即时展开：体 + 哨兵推回，抽展开流到哨兵止。
 
         哨兵 kind 非 cs、不在任何分派面 → 必然原样浮出；``\noexpand`` 打标
@@ -136,7 +144,7 @@ class _DefCmd:
                 return out
             out.append(t)
 
-    def _eager_step(self) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — next_expanded 的可展子集分派
+    def _eager_step(self: Gullet) -> Tok | None:  # noqa: C901, PLR0911, PLR0912 — next_expanded 的可展子集分派
         r"""``\edef`` drain 单步——``next_expanded`` 的可展开子集同构。
 
         宏表侧同径（可展 ``MacroDef`` 代入 / ``IfCond`` 求值 / 别名换名），
@@ -202,13 +210,13 @@ class _DefCmd:
         """Trace 末 token 的 end（def 登记 src 用）。"""
         return trace[-1].pos[2] if trace else -1
 
-    def _def_fail(self, trig: Tok, trace: list[Tok], why: str) -> Tok:
+    def _def_fail(self: Gullet, trig: Tok, trace: list[Tok], why: str) -> Tok:
         r"""定义解析失败（§3.5）：不登记 + 全部回吐 + ``\def`` 本体交出。"""
         self._warn("def_parse_fail", trig, why)
         self.unread(trace)
         return trig
 
-    def _do_prefix(self, trig: Tok, name: str) -> Tok | None:
+    def _do_prefix(self: Gullet, trig: Tok, name: str) -> Tok | None:
         r"""``\long/\outer/\global/\protected`` 前缀：链到定义族才生效。
 
         链目标 = ``\def`` 族 + ``\let`` + ``\newif``（任意序前缀均可叠）；
@@ -278,7 +286,7 @@ class _DefCmd:
         return sum(1 for a in spec if a.kind not in ("literal_match", "eq"))
 
     def _compile_param_text(  # noqa: C901, PLR0912 — 参数文本文法平铺即 §8.4 表
-        self, ptext: list[Tok], *, has_brace: bool
+        self: Gullet, ptext: list[Tok], *, has_brace: bool
     ) -> list[Arg] | None:
         r"""``\def`` 参数文本 → ``list[Arg]``（§8.4/§5.2 编译表）。
 

@@ -3,7 +3,7 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import texlate.latex.tables as _tables
 from texlate.latex.gullet import (
@@ -56,10 +56,13 @@ from .grpscan import (
 )
 
 if TYPE_CHECKING:
-    from texlate.latex.model import ArgspecEntry
+    from texlate.latex.model import ArgspecEntry, ScanState
     from texlate.latex.mouth import (
         Tok,
     )
+    from texlate.latex.segmenter import Segmenter
+
+    from ._common import _Vtex
 
 r"""``Segmenter`` 参数读取/保护调用/各 handler/argspec 发射。"""
 
@@ -104,7 +107,58 @@ _BODY_CS_NAMES = frozenset(
     }
 )
 
+
 class _Args:
+    # ------------------------------------------------------------ 宿主契约（ty 静态面）
+    # god-class 机械拆分的静态代价：``Segmenter``（``__init__.py``）经 mixin
+    # 链注入的状态/方法在本文件孤检时对 ty 不可见——``TYPE_CHECKING`` 声明
+    # 即契约，签名与宿主 mixin（``core.py``/``mainloop.py``/``pending.py``）
+    # 定义保持一致；宿主签名改动时同步此处。
+    if TYPE_CHECKING:
+        # ``_Core.__init__`` 注入的状态
+        state: ScanState
+        in_arg: bool
+        gen: int
+        vt: _Vtex
+        file_texts: list[str]
+        pieces: list[Piece]
+        env_stack: list[str]
+        force_chunk: bool
+        _stop: bool
+
+        # ``_Core``/``_MainLoop``/``_Pending`` 提供的方法
+        def spawn(
+            self, *, in_arg: bool | None = None, mined: bool | None = None
+        ) -> Segmenter: ...
+        def _cover_to(self, fid: int, end: int) -> Span: ...
+        def _cover_text(self, fid: int, end: int) -> tuple[Span, str]: ...
+        def _cover_gap(self, fid: int, tok_start: int) -> None: ...
+        def _cover_ph(
+            self, fid: int, end: int, typ: PhType, gap: Tok | None = None
+        ) -> Span: ...
+        def _ph(
+            self, typ: PhType, body: str, cut: tuple[int, int] | None = None
+        ) -> str: ...
+        def _rappend(self, surface: str, ident: str, vspan: Span) -> None: ...
+        def _rappend_tok(self, t: Tok) -> None: ...
+        def _rappend_ph(self, ph: str, vspan: Span) -> None: ...
+        def _flush_run(self, end_pos: int) -> None: ...
+        def _emit(self, vstart: int, vend: int) -> None: ...
+        def _emit_ph(self, typ: PhType, vstart: int, vend: int, body: str) -> None: ...
+        def _new_chunk(
+            self, content: str, context: str, gspan: Span, ident: str
+        ) -> str: ...
+        def _skip_past(self, src: TokenSource, fid: int, end: int) -> None: ...
+        def _tail_scan_end(self, fid: int, pos: int, kind: str) -> int | None: ...
+        def _tikz_tail_end(self, fid: int, pos: int) -> int | None: ...
+        def _math_skip_textarg(self, src: TokenSource, body: list[Tok]) -> None: ...
+        def _absorb_slots(
+            self, src: TokenSource, fid: int, slots: list[str]
+        ) -> list[Tok]: ...
+        def _keyarg_tail(
+            self, m: object, src: TokenSource | None = None, depth: int = 0
+        ) -> str | None: ...
+
     # ------------------------------------------------------------ 参数读取（token 版 _args）
 
     @staticmethod
@@ -1547,7 +1601,9 @@ class _Args:
                 self._cover_ph(fid, b, typ, gap=t)
                 return
         if m is None:
-            e = _tables.argspec_lookup(name or t.text, self.state.pkgs)
+            e = _tables.argspec_lookup(
+                name or t.text, cast("set[str]", self.state.pkgs)
+            )
             if e is not None:
                 self._handle_argspec_cs(t, src, e)
                 return
@@ -1731,22 +1787,22 @@ class _Args:
                     # 非文本参/括号字面段不进 run surface——``[[CMD]]`` 代位
                     # （2310.16788 ``[origin=c]``→``[这是译文]`` 机理：凡
                     # argspec chunk-arg 名 in_arg 皆漏）
-                    vmark = self._cover_ph(fid, int(x), PhType.CMD).end
+                    vmark = self._cover_ph(fid, cast("int", x), PhType.CMD).end
                     continue
-                vmark = self._rappend_subscan(x, vmark)
+                vmark = self._rappend_subscan(cast("_ArgTok", x), vmark)
             return
         self._cover_gap(fid, t.pos[1])  # 同上——字面 piece 不含前隙
-        v0 = self._cover_to(fid, int(ops[0][1]))
+        v0 = self._cover_to(fid, cast("int", ops[0][1]))
         self._flush_run(v0.start)
         self._emit(v0.start, v0.end)
         cur_v = v0.end
         for op, x in ops[1:]:
             if op == "lit":
-                v = self._cover_to(fid, int(x))
+                v = self._cover_to(fid, cast("int", x))
                 self._emit(v.start, v.end)
                 cur_v = v.end
                 continue
-            rendered = self._subscan_render(x)
+            rendered = self._subscan_render(cast("_ArgTok", x))
             gspan = Span(cur_v, len(self.vt))
             refs = "".join(
                 self._new_chunk(part, e.name, gspan, part)
@@ -1771,7 +1827,7 @@ class _Args:
         """
         fid = a.fid
         sub = self.spawn(in_arg=True)
-        sub.scan(_ListSource(list(a.toks)), self.file_texts)
+        sub.scan(cast("TokenSource", _ListSource(list(a.toks))), self.file_texts)
         sub_end = len(self.vt)
         self._cover_to(fid, a.ce)
         rendered = "".join(p.text for p in sub.pieces)

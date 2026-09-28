@@ -32,6 +32,9 @@ from .tokutil import (
 )
 
 if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        Gullet,
+    )
     from texlate.latex.mouth import (
         Tok,
     )
@@ -40,7 +43,7 @@ if TYPE_CHECKING:
 class _Input:
     # ------------------------------------------------------------ \input 族
 
-    def input_expand(self, trig: Tok) -> tuple[bool, Tok | None]:
+    def input_expand(self: Gullet, trig: Tok) -> tuple[bool, Tok | None]:
         r"""前瞻臂 ``\input`` 族展开（``TokenSource`` 契约）→ ``(True, hit)``。
 
         分段器 env/verbatim 体配对用 ``read()`` 原始前瞻、不触发展开——
@@ -55,7 +58,7 @@ class _Input:
             self.unread(self._trace)  # ArgMismatch 回吐协议（§3.5）
             return True, None
 
-    def _do_input(self, trig: Tok, name: str) -> Tok | None:  # noqa: C901, PLR0912, PLR0915 — 八形态参数语法平铺即 §7 触发面
+    def _do_input(self: Gullet, trig: Tok, name: str) -> Tok | None:  # noqa: C901, PLR0912, PLR0915 — 八形态参数语法平铺即 §7 触发面
         r"""``\input`` 族：解析文件名 → 压新 Mouth 进 ``inputs``（§10）。
 
         失败（参数缺席/不存在/超深/已见）→ ``ArgMismatch``——§3.5 协议由
@@ -129,7 +132,7 @@ class _Input:
         tag_text = f"input_tag:{hit}:{tag}" if tag is not None else f"input:{hit}"
         return self._consumed(tag_text, trig, trace)
 
-    def _read_bare_filename(self, trace: list[Tok]) -> str | None:
+    def _read_bare_filename(self: Gullet, trace: list[Tok]) -> str | None:
         r"""``\input file`` 裸名形：``[A-Za-z0-9._/-]+`` 至空白/反斜杠。
 
         引号形 ``\input"a b.tex"``（web2c 带空格文件名约定）——开引号起
@@ -155,7 +158,7 @@ class _Input:
             or None
         )
 
-    def _file_dir_of(self, t: Tok) -> str:
+    def _file_dir_of(self: Gullet, t: Tok) -> str:
         r"""Token 所在文件的目录（``\input`` 查找序第一级）。
 
         内存源（无路径）不回退 CWD——返回 ``root_dir``，空串即三级查找全空

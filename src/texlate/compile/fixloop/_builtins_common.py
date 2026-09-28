@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from texlate.compile._docseams import find_docclass_ends
 from texlate.texlog import _mc_parse_log
@@ -451,7 +451,7 @@ def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
     """
     main = ctx.main_path()
     t = ctx.read(main) if main is not None else None
-    if t is None or snippet in t:
+    if main is None or t is None or snippet in t:
         return False
     hits = find_docclass_ends(t)
     if not hits:
@@ -494,7 +494,7 @@ def _inject_before_anchor(  # noqa: PLR0913 - é”š/depth0/strict_first/fallback å
     """
     main = ctx.main_path()
     t = ctx.read(main) if main is not None else None
-    if t is None or snippet in t:
+    if main is None or t is None or snippet in t:
         return False
     masked = mask_tex(t)
     pos: int | None = None
@@ -514,7 +514,7 @@ def _inject_before_anchor(  # noqa: PLR0913 - é”š/depth0/strict_first/fallback å
         if fallback == "head":
             ctx.write(main, snippet + "\n" + t)
             return True
-        return fallback(ctx, snippet)
+        return cast("Callable[[LoopCtx, str], bool]", fallback)(ctx, snippet)
     ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
     return True
 

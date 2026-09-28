@@ -29,7 +29,7 @@ def _merge_ranges(
             out[-1][1] = max(out[-1][1], hi)
         else:
             out.append([lo, hi])
-    return tuple(tuple(p) for p in out)
+    return tuple((p[0], p[1]) for p in out)
 
 
 def _in_ranges(

@@ -13,7 +13,7 @@ import contextlib
 import re
 import shutil
 from pathlib import Path, PurePath, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from texlate.compile.fixloop._builtins_common import (
     _fixloop_log,
@@ -26,12 +26,14 @@ from texlate.compile.fixloop._builtins_common import (
     _wdir_fingerprint,
     _wdir_project_files,
 )
-from texlate.compile.fixloop._builtins_graphics import (
-    _EPS_EXTS,
+from texlate.compile.fixloop._builtins_gfx_missing import (
     _EPS_KV_RE,
     _GRAPHIC_EXTS,
     _INCLUDE_GFX_RE,
     _KV_FILE_RE,
+)
+from texlate.compile.fixloop._builtins_graphics import (
+    _EPS_EXTS,
     _NUMERIC_EXT_RE,
     _norm_graphic_name,
 )
@@ -1579,7 +1581,7 @@ def tcolorbox_breakable_inject(
         return False, "breakable lib absent and no tcolorbox load site to attach"
     lib_note = ""
     if not lib_loaded:
-        f, pos = site
+        f, pos = cast("tuple[Path, int]", site)  # 上闸已排 site=None
         t = ctx.read(f) or ""
         ctx.write(f, t[:pos] + "\n\\tcbuselibrary{breakable} % fixloop\n" + t[pos:])
         lib_note = f" +\\tcbuselibrary{{breakable}} in {f.name}"

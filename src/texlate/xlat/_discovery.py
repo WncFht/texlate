@@ -20,7 +20,7 @@ import logging
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
 import httpx
@@ -116,7 +116,8 @@ def is_free_gateway_url(base_url: str) -> bool:
 def _safe_int(value: object) -> int:
     """面板元数据字段 → int；coerce 失败退化 0——展示元数据非合同字段，单字段畸形不挡成员入集。"""
     try:
-        return int(value or 0)
+        # 同 ``_dialects._usage_int``——cast 只对齐 int() 受容面。
+        return int(cast("Any", value) or 0)
     except (TypeError, ValueError, OverflowError):
         return 0
 

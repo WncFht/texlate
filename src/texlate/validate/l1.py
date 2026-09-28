@@ -436,7 +436,8 @@ class TsValidator:
         proc, self._proc = self._proc, None
         if proc is not None:
             try:
-                proc.stdin.close()  # type: ignore[union-attr]
+                assert proc.stdin is not None  # noqa: S101 -- Popen 时已声明 PIPE
+                proc.stdin.close()
                 proc.wait(timeout=5)
             except (OSError, subprocess.SubprocessError):
                 proc.kill()

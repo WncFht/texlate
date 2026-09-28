@@ -110,7 +110,7 @@ class RedactFilter(logging.Filter):
     形态。filter 绝不能炸掉日志调用——provider 异常吞掉按空集处理。
     """
 
-    def __init__(self, key_provider: object = None) -> None:
+    def __init__(self, key_provider: Callable[[], Iterable[str]] | None = None) -> None:
         """key_provider: ``() -> Iterable[str]``，None 时只抹正则形态。"""
         super().__init__()
         self._key_provider = key_provider

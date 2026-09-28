@@ -5,7 +5,7 @@ from __future__ import annotations
 from bisect import (
     bisect_left,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import texlate.latex.tables as _tables
 from texlate.latex.gullet import (
@@ -55,12 +55,13 @@ if TYPE_CHECKING:
     from texlate.latex.mouth import (
         Tok,
     )
+    from texlate.latex.segmenter import Segmenter
 
 r"""``Segmenter`` 组内再生保护段（``_grp_*`` 单遍扫描器族）。"""
 
 
 class _Group:
-    def _grp_ph(self, typ: PhType, body: str) -> str:
+    def _grp_ph(self: Segmenter, typ: PhType, body: str) -> str:
         r"""组内 surface ph：先挂 ``_run_pending``。
 
         run 转 chunk 才入 ``ph_map``——literal 冲刷只渲染 ident，surface
@@ -88,13 +89,13 @@ class _Group:
             out.append(" ")
         out.append(s)
 
-    def _grp_surfs(self, toks: list[Tok]) -> str:
+    def _grp_surfs(self: Segmenter, toks: list[Tok]) -> str:
         out: list[str] = []
         for t in toks:
             self._cat_surf(out, self._tok_surface(t))
         return "".join(out)
 
-    def _grp_envtag(self, toks: list[Tok], i: int) -> tuple[str, int] | None:
+    def _grp_envtag(self: Segmenter, toks: list[Tok], i: int) -> tuple[str, int] | None:
         r"""``\\begin``/``\\end`` + ws + ``{name}`` → ``(name, j_end)``；失配 None。
 
         主流对价：``_env_name``——扫描本体 = ``_common._scan_envtag``
@@ -115,7 +116,7 @@ class _Group:
         hit = _scan_envtag(pull, self._tok_surface)
         return (hit[0], j) if hit is not None else None
 
-    def _grp_env_macro(self, t: Tok) -> tuple[str, str] | None:
+    def _grp_env_macro(self: Segmenter, t: Tok) -> tuple[str, str] | None:
         r"""组内 env_begin/env_end 宏端点 → ``(kind, target_env)``；非宏 None。"""
         m = self.state.macros.resolve(self.state.macros.lookup(t.text))
         kind = getattr(m, "kind", "")
@@ -124,7 +125,7 @@ class _Group:
         return None
 
     def _grp_find_env_end(  # noqa: C901 — begin/end/cs-end/宏端点四臂单遍深度扫描平铺
-        self, toks: list[Tok], i: int, env: str
+        self: Segmenter, toks: list[Tok], i: int, env: str
     ) -> int | None:
         r"""``i`` 起找配对 ``\\end{env}``（同名 begin/宏端点计深度）→ j_end。
 
@@ -179,7 +180,7 @@ class _Group:
             j += 1
         return None
 
-    def _grp_math_end(self, toks: list[Tok], i: int) -> int | None:
+    def _grp_math_end(self: Segmenter, toks: list[Tok], i: int) -> int | None:
         r"""Mathshift 配对（``$$`` 双 token 形）→ 闭界 j（含）；未中 None。"""
         dbl = i + 1 < len(toks) and toks[i + 1].kind == "mathshift"
         j = i + 2 if dbl else i + 1
@@ -195,7 +196,7 @@ class _Group:
             j += 1
         return None
 
-    def _grp_delim_end(self, toks: list[Tok], i: int, want: str) -> int | None:
+    def _grp_delim_end(self: Segmenter, toks: list[Tok], i: int, want: str) -> int | None:
         r"""``\\[``/``\\(`` 配对 ``\\]``/``\\)`` → j_end；未中 None。"""
         j = i + 1
         n = len(toks)
@@ -207,7 +208,7 @@ class _Group:
         return None
 
     def _grp_pair_end(
-        self, toks: list[Tok], i: int, open_: str, close: str
+        self: Segmenter, toks: list[Tok], i: int, open_: str, close: str
     ) -> int | None:
         r"""``cs`` 对界块组内配对（``_find_pair_end`` 的 toks 版）→ j_end（含）。
 
@@ -262,7 +263,7 @@ class _Group:
         return None
 
     def _walk_spec_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 归一槽型各一分支，平铺即三字母表语义并集
-        self, toks: list[Tok], pos: int, elems: list[_WSpec] | tuple[_WSpec, ...]
+        self: Segmenter, toks: list[Tok], pos: int, elems: list[_WSpec] | tuple[_WSpec, ...]
     ) -> _WalkRes:
         r"""物化 token 列上的归一 spec 走参 → ``_WalkRes``。
 
@@ -523,7 +524,7 @@ class _Group:
                 nth += 1  # 实消费参占序——``_prose_args_of`` 序数同口径
         return _WalkRes(end, cand, None, None, None)
 
-    def _grp_call_end(self, toks: list[Tok], i: int, mand: int) -> int:
+    def _grp_call_end(self: Segmenter, toks: list[Tok], i: int, mand: int) -> int:
         r"""Cs + ``*``? + ``[opt]``≤3 + ``{arg}``≤mand → j_end（``_protect_cs`` 镜像）。
 
         走参本体 = ``_walk_spec_toks``——``_call_slots(["m"]*mand)``
@@ -532,7 +533,7 @@ class _Group:
         elems = [_slot_elem(s) for s in _call_slots(["m"] * mand)]
         return self._walk_spec_toks(toks, i + 1, elems).end
 
-    def _grp_keyval_tail_end(self, toks: list[Tok], j: int) -> int:
+    def _grp_keyval_tail_end(self: Segmenter, toks: list[Tok], j: int) -> int:
         r"""``_keyval_tail_end`` 的组内对价——keyval 形 ``{..}`` 组续吃。
 
         形状门同 ``_KEYVAL_GROUP_RX``：组内 surface join 判 ``key=`` 起头，
@@ -554,7 +555,7 @@ class _Group:
                 return j
             j = e
 
-    def _grp_protect_block_end(self, toks: list[Tok], i: int) -> int:
+    def _grp_protect_block_end(self: Segmenter, toks: list[Tok], i: int) -> int:
         r"""``\author[opt]{..}`` 整块保护的组内对价（``_handle_protect_block``）。
 
         ``{arg}`` 未跟随时 abort——``[opt]`` 段不进覆盖（主流只护 cs 本体
@@ -586,7 +587,7 @@ class _Group:
             j += 1
         return j
 
-    def _grp_tail_end(self, toks: list[Tok], i: int, rx: re.Pattern[str]) -> int | None:
+    def _grp_tail_end(self: Segmenter, toks: list[Tok], i: int, rx: re.Pattern[str]) -> int | None:
         r"""``toks[i:]`` 非文本尾参扫 → j_end；形不合 → None。
 
         主版 ``_tail_scan_end``（字节正则）的组内对价：surface join 后
@@ -616,7 +617,7 @@ class _Group:
             return None  # 匹配界落 token 内（cs 名被尾参切断）——不吃半截
         return i + k
 
-    def _grp_tikz_end(self, toks: list[Tok], i: int) -> int | None:
+    def _grp_tikz_end(self: Segmenter, toks: list[Tok], i: int) -> int | None:
         r"""组内裸 ``\tikz <path>;`` 的 ``;`` 定界扫描 → j_end；非路径形 → None。
 
         ``_tikz_tail_end``（字节版）的 token 对价：首非空 token 须是
@@ -647,7 +648,7 @@ class _Group:
             j += 1
         return None
 
-    def _grp_bsbs(self, toks: list[Tok], i: int) -> int | None:
+    def _grp_bsbs(self: Segmenter, toks: list[Tok], i: int) -> int | None:
         r"""组内 ``\\`` 的可选 dimen 参 → j_end；``\\[5pt]``/``\\*[2em]`` 命中。
 
         ``_BSBS_OPT_RX`` 的 token 版：``*``? + ``[atom]``——内容非 dimen
@@ -659,7 +660,7 @@ class _Group:
         return res.end if res.cand else None
 
     def _grp_spec_args_end(  # noqa: PLR0913 — 组内走参面（toks/起点/spec/角色/env/开关）原位
-        self,
+        self: Segmenter,
         toks: list[Tok],
         j: int,
         spec: list[ArgSpec],
@@ -694,7 +695,7 @@ class _Group:
         ]
         return self._walk_spec_toks(toks, j, elems).end
 
-    def _argspec_env(self, env: str, reg: object | None) -> ArgspecEntry | None:
+    def _argspec_env(self: Segmenter, env: str, reg: object | None) -> ArgspecEntry | None:
         r"""Argspec env 条目查询——``_handle_env_begin`` 族表门控同集。"""
         if (
             reg is not None
@@ -705,10 +706,10 @@ class _Group:
             or env in ENV_MANDATORY_ARG
         ):
             return None
-        return _tables.argspec_lookup_env(env, self.state.pkgs)
+        return _tables.argspec_lookup_env(env, cast("set[str]", self.state.pkgs))
 
     def _grp_env_args_end(
-        self,
+        self: Segmenter,
         toks: list[Tok],
         j: int,
         env: str,
@@ -746,7 +747,7 @@ class _Group:
                     j = e
         return j
 
-    def _grp_probe_end(self, toks: list[Tok], i: int) -> _WalkRes | None:
+    def _grp_probe_end(self: Segmenter, toks: list[Tok], i: int) -> _WalkRes | None:
         r"""未知命令探针的组内版（``_handle_unknown_cs``：``[opt]``? + ``{m}``×6、禁单 token 参）。
 
         任一参数命中 → ``_WalkRes``（``end`` 调用界、``cand`` 逐参界——
@@ -756,7 +757,7 @@ class _Group:
         res = self._walk_spec_toks(toks, i + 1, [_slot_elem(s) for s in _PEND_PROBE])
         return res if res.end > i + 1 else None
 
-    def _grp_arg_prose(self, inner: list[Tok]) -> bool:
+    def _grp_arg_prose(self: Segmenter, inner: list[Tok]) -> bool:
         r"""组内 ``{..}`` 参内容的散文判据——``_opaque_arg_prose`` 的 token 级对价。
 
         组内 token 的 ``pos`` 指调用点/定义体（gen>0 无本段字节），不能
@@ -768,7 +769,7 @@ class _Group:
         return _prose_word_hit(text)
 
     def _grp_probe_prose_args(
-        self, toks: list[Tok], probe: _WalkRes, name: str
+        self: Segmenter, toks: list[Tok], probe: _WalkRes, name: str
     ) -> list[tuple[int, int]]:
         r"""探针调用 ``toks[i:probe.end]`` 内的散文 ``{..}`` 参 → ``(``{`` 位, ``}`` 后位)`` 列。
 

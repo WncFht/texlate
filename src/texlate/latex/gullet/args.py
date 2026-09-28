@@ -2,6 +2,10 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：s
 
 from __future__ import annotations
 
+from typing import (
+    TYPE_CHECKING,
+)
+
 from texlate.latex.mouth import (
     Tok,
 )
@@ -15,31 +19,36 @@ from .tokutil import (
     expand_def,
 )
 
+if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        Gullet,
+    )
+
 
 class _Args:
     # ------------------------------------------------------------ 参数读取
     # 全部走 read()（原始未展开流，TeX.py:704-714 同构）；消费计入 trace。
 
-    def _rt(self, trace: list[Tok]) -> Tok | None:
+    def _rt(self: Gullet, trace: list[Tok]) -> Tok | None:
         """``read()`` + 消费计入 ``trace``（回吐账户）。"""
         t = self.read()
         if t is not None:
             trace.append(t)
         return t
 
-    def _rt_skip(self, trace: list[Tok]) -> Tok | None:
+    def _rt_skip(self: Gullet, trace: list[Tok]) -> Tok | None:
         """``_rt`` 跳过 space token（eol_par 不跳——不定界参不跨段）。"""
         while True:
             t = self._rt(trace)
             if t is None or t.kind != "space":
                 return t
 
-    def _pushback(self, trace: list[Tok], t: Tok) -> None:
+    def _pushback(self: Gullet, trace: list[Tok], t: Tok) -> None:
         """已读 token 回吐流且销账（防 unread(trace) 双份）。"""
         trace.pop()
         self.unread([t])
 
-    def _read_undelimited(self, trace: list[Tok]) -> list[Tok]:
+    def _read_undelimited(self: Gullet, trace: list[Tok]) -> list[Tok]:
         r"""不定界参（``readToken`` TeX.py:786-841）。
 
         跳前导空白后：``{`` → 平衡组（剥外层括号）；``$`` → 到下一 ``$`` 止
@@ -64,7 +73,7 @@ class _Args:
             raise ArgMismatch
         return [t]
 
-    def _read_balanced(self, trace: list[Tok]) -> list[Tok]:
+    def _read_balanced(self: Gullet, trace: list[Tok]) -> list[Tok]:
         """``{`` 已消费 → 收到配对 ``}`` 止（内层含括号，外层剥掉）。"""
         out: list[Tok] = []
         level = 1
@@ -81,7 +90,7 @@ class _Args:
             out.append(t)
 
     def _read_grouping(  # noqa: C901 — 自定界组三类开符合一
-        self, trace: list[Tok], open_c: str, close_c: str
+        self: Gullet, trace: list[Tok], open_c: str, close_c: str
     ) -> list[Tok] | None:
         r"""``[..]``/``<..>`` 可选参（``readGrouping`` TeX.py:863-908）。
 
@@ -123,7 +132,7 @@ class _Args:
                         return out
             out.append(t2)
 
-    def _req_grouping(self, trace: list[Tok], open_c: str, close_c: str) -> list[Tok]:
+    def _req_grouping(self: Gullet, trace: list[Tok], open_c: str, close_c: str) -> list[Tok]:
         r"""``_read_grouping`` 的必需形：首 token 非 opener → ``ArgMismatch``。
 
         必需 ``{…}``/``[…]`` 参缺席即参数不匹配，与流尽同径走 §3.5 回吐
@@ -134,7 +143,7 @@ class _Args:
             raise ArgMismatch
         return grp
 
-    def _read_delimited(self, trace: list[Tok], delim: list[Tok]) -> list[Tok]:
+    def _read_delimited(self: Gullet, trace: list[Tok], delim: list[Tok]) -> list[Tok]:
         r"""定界参（``__init__.py:1211-1219``）：读到后缀==``delim`` 止。
 
         定界 token 消费不入参；``{`` 起平衡组整组入参（**含括号**——组内
@@ -158,7 +167,7 @@ class _Args:
                 del out[-k:]
                 return out
 
-    def _read_until_lbrace(self, trace: list[Tok]) -> list[Tok]:
+    def _read_until_lbrace(self: Gullet, trace: list[Tok]) -> list[Tok]:
         r"""``#{`` 型：读到 ``lbrace`` 回吐不消费（``__init__.py:1196-1205``）。"""
         out: list[Tok] = []
         while True:
@@ -170,7 +179,7 @@ class _Args:
                 return out
             out.append(t)
 
-    def _read_star(self, trace: list[Tok], char: str) -> list[Tok]:
+    def _read_star(self: Gullet, trace: list[Tok], char: str) -> list[Tok]:
         """``*``/``tX`` 可选修饰：命中 → ``[tok]``；否则回吐 + ``[]``。"""
         t = self._rt_skip(trace)
         if t is not None and t.kind != "cs" and t.text == char:
@@ -179,7 +188,7 @@ class _Args:
             self._pushback(trace, t)
         return []
 
-    def _read_eq(self, trace: list[Tok]) -> None:
+    def _read_eq(self: Gullet, trace: list[Tok]) -> None:
         r"""``\let\a=\b`` 的可选 ``=``：不占参数位。"""
         t = self._rt_skip(trace)
         if t is not None and (t.kind == "cs" or t.text != "="):
@@ -188,7 +197,7 @@ class _Args:
     # ------------------------------------------------------------ invoke
 
     def _invoke(  # noqa: C901, PLR0912 — spec 参数型平铺即 §4.1 表
-        self, trig: Tok, m: MacroDef
+        self: Gullet, trig: Tok, m: MacroDef
     ) -> list[Tok]:
         r"""按 ``spec`` 读参 + ``expand_def`` 代入（§5.3/§5.4 统一）。
 
@@ -250,7 +259,7 @@ class _Args:
                 raise ArgMismatch
         return self._stamp_call_origin(expand_def(m.body, params, trig), trig)
 
-    def _stamp_call_origin(self, out: list[Tok], trig: Tok) -> list[Tok]:
+    def _stamp_call_origin(self: Gullet, out: list[Tok], trig: Tok) -> list[Tok]:
         r"""产物 ``origin`` 补打为**整调用区间** ``(fid, trig.start, trace末.end)``。
 
         ``expand_def`` 只打 ``trig.pos``（cs 名区间）——``\sw{a}{b}`` 的

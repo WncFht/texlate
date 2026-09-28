@@ -25,14 +25,14 @@ import logging
 import math
 import re
 from io import BytesIO
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from pypdf import PdfReader
     from pypdf._page import PageObject
-    from pypdf.generic import DictionaryObject
+    from pypdf.generic import Destination, DictionaryObject
 
 __all__ = ["build_alignment", "extract_landmarks"]
 
@@ -70,10 +70,10 @@ def _category(name: str) -> str:
     return "other"
 
 
-def _dest_page(r: object, dest: object) -> int | None:
+def _dest_page(r: PdfReader, dest: Destination) -> int | None:
     """Dest → 0-based 页号；坏 dest 当缺锚（None），不让整篇作废。"""
     try:
-        return r.get_destination_page_number(dest)  # type: ignore[attr-defined]
+        return r.get_destination_page_number(dest)
     except Exception as e:  # noqa: BLE001 -- pypdf 内部异常类型发散
         log.debug("named dest 页号解析失败，按缺锚丢弃: %s", e)
         return None
@@ -102,10 +102,10 @@ def _page_height(p: PageObject) -> float:
     return h if math.isfinite(h) and h > 0 else 792.0
 
 
-def _dest_yfrac(dest: object, height: float) -> float | None:
+def _dest_yfrac(dest: Destination, height: float) -> float | None:
     """``/Top`` → 底向上 0..1；缺省/畸形 → None（按页顶锚处理，``_pos`` 出 0.0）。"""
     try:
-        top = dest.get("/Top")  # type: ignore[attr-defined]
+        top = dest.get("/Top")
         y = float(top) / height if top is not None else None
     except Exception as e:  # noqa: BLE001 -- float(巨型 NumberObject) OverflowError 等畸形 dest 当缺锚，不作废整侧
         log.debug("named dest /Top 解析失败，按页顶锚处理: %s", e)
@@ -251,7 +251,7 @@ def _graphic_signature(obj: DictionaryObject) -> str:
     )
 
     if obj.get("/Subtype") == "/Form":
-        return hashlib.sha256(obj.get_data()).hexdigest()
+        return hashlib.sha256(cast("StreamObject", obj).get_data()).hexdigest()
     metadata = DictionaryObject(
         {
             key: _direct_metadata(value)
@@ -262,7 +262,7 @@ def _graphic_signature(obj: DictionaryObject) -> str:
     stream = BytesIO()
     metadata.write_to_stream(stream)
     signature = hashlib.sha256(stream.getbuffer())
-    signature.update(StreamObject.get_data(obj))
+    signature.update(StreamObject.get_data(cast("StreamObject", obj)))
     return signature.hexdigest()
 
 
@@ -308,7 +308,7 @@ def _graphic_regions(  # noqa: C901, PLR0912, PLR0915 -- content-stream 算子�
             try:
                 if args[0] not in resources:  # 非名 operand 的 in 也会炸——进 try
                     continue
-                obj = resources[args[0]].get_object()
+                obj = cast("DictionaryObject", resources[args[0]].get_object())
                 if obj.get("/Subtype") not in ("/Form", "/Image"):
                     continue
                 bounds = obj.get("/BBox", (0, 0, 1, 1))

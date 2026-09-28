@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -159,7 +159,7 @@ def _inline_verb_span(text: str, i: int, n: int) -> tuple[int, int, int] | None:
     start = inline.end()
     skipped = False
     if inline[1].startswith("lstinline"):
-        options = _LSTINLINE_OPT_RX.match(text, start)
+        options = cast("re.Match[str]", _LSTINLINE_OPT_RX.match(text, start))
         start = options.end()
         if start >= n or text[start].isspace():
             return None

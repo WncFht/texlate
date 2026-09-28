@@ -306,7 +306,10 @@ def _parse_patches(raw: str, max_patches: int) -> tuple[list[Patch], list[str]]:
     rejects: list[str] = []
     for it in items[:max_patches]:
         one = _one_patch(it)
-        (patches.append if isinstance(one, Patch) else rejects.append)(one)
+        if isinstance(one, Patch):
+            patches.append(one)
+        else:
+            rejects.append(one)
     if len(items) > max_patches:
         rejects.append(f"dropped {len(items) - max_patches} patch(es) over cap")
     return patches, rejects

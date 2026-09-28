@@ -16,8 +16,26 @@ if TYPE_CHECKING:
     from typing import Final
 
     from texlate.compile.loginfo import LogInfo
+    from texlate.compile.proc import run_process
+    from texlate.compile.toolchain import ensure_tectonic, tectonic_version
 
-import texlate.compile.engine as _eng
+    class _EngNS:
+        """``_eng`` 静态面——锚位真签名经 staticmethod 别名钉入。
+
+        ``engine/__init__`` 经 seams ``__getattr__`` 惰性回指锚位模块，ty
+        仅见 ``object``；借 TYPE_CHECKING 命名空间把 ``_eng.X`` 回查收窄到
+        真签名。仅类型面视图——运行期 ``else`` 分支绑定原样，patch 缝
+        （``monkeypatch.setattr(engine.X, …)`` → 叶侧 ``_eng.X`` 命中）零漂移。
+        """
+
+        ensure_tectonic = staticmethod(ensure_tectonic)
+        run_process = staticmethod(run_process)
+        tectonic_version = staticmethod(tectonic_version)
+
+    _eng = _EngNS()
+else:
+    import texlate.compile.engine as _eng
+
 from texlate.compile.loginfo import parse_log
 from texlate.compile.sandbox import _apply_sandbox, _rc_to_signal, child_env
 from texlate.texlog import normalize_stderr_errors
@@ -295,7 +313,9 @@ class TectonicEngine:
             outputs.append(out_s)
             # 末次尝试的 timeout 态才算数——首拉超时后重试成功不能再背
             # timed_out=True（否则 judge 走 timeout 短路，出了 pdf 也判 fail）。
-            res.timed_out = to
+            # ``to`` 可携活哨原因 str——槽位短暂带 str 经
+            # ``_collect_compile_outputs`` 归位 sentry_reason 并复归 bool。
+            res.timed_out = to  # ty: ignore[invalid-assignment]
             if not to:
                 break
         res.passes = 1

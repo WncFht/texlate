@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from texlate.redlines import REDLINES_BY_ID, name_pattern
 from texlate.texlog import misschar_sweep_hits
@@ -38,6 +38,8 @@ from .sandbox import find_tool, run_process
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+
+    from texlate.redlines import LayerSpec
 
 #: `!` 错误容忍上限（docs/spec/compile.md）。
 CLEAN_ERR_MAX = 3
@@ -121,7 +123,11 @@ _MISSCHAR_GATE_RX = re.compile(_MISSCHAR_GATE[1])
 _MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
 #: C0 测量扫掠豁免 notes 词干——pattern=None 的算法型登记行，只取 name
 #: （判定在 ``texlog.misschar_sweep_hits``，picinpar ``\computeilg`` 类）。
-_MISSCHAR_SWEEP = REDLINES_BY_ID["missing_char_sweep"].judge.name
+# ``missing_char_sweep`` 登记行恒有 judge 位（pattern=None 的算法型行也
+# 带 name）——cast 只向 ty 声明登记契约，None 时 .name 照旧 AttributeError。
+_MISSCHAR_SWEEP = cast(
+    "LayerSpec", REDLINES_BY_ID["missing_char_sweep"].judge
+).name
 
 #: thm-restate ``restatable`` 观察探针（``restatable_loss`` 行，单源
 #: ``texlate.redlines``）：包加载痕迹 → notes。env-name 参被译 → 存体

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from typing import Final
+    from typing import Any, Final
 
     from ._base import Engine
 
@@ -214,10 +214,10 @@ ENGINE_NAMES: Final = frozenset({"auto", "xelatex", "tectonic"})
 
 
 def engine_for(name: str, **kwargs: object) -> Engine:
-    """按名构造引擎实例。"""
+    """按名构造引擎实例（kwargs 原样透传 ctor，错配键由引擎 ctor TypeError 拒）。"""
     if name == "xelatex":
-        return XelatexEngine(**kwargs)  # type: ignore[arg-type]
+        return XelatexEngine(**cast("dict[str, Any]", kwargs))
     if name == "tectonic":
-        return TectonicEngine(**kwargs)  # type: ignore[arg-type]
+        return TectonicEngine(**cast("dict[str, Any]", kwargs))
     msg = f"未知引擎 {name!r}"
     raise ValueError(msg)

@@ -13,7 +13,7 @@ import re
 import shutil
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
@@ -611,7 +611,7 @@ def journal_cs_polyfill(
         return False, f"{payload} not a known journal macro"
     main = ctx.main_path()
     t = ctx.read(main) if main is not None else None
-    if t is None:
+    if main is None or t is None:
         return False, "no main tex"
     block = "% fixloop: AAS journal-macro polyfills (类文件过老缺定义)\n" + "\n".join(
         rf"\providecommand{{\{name}}}{{{exp}}}" for name, exp in sorted(table.items())
@@ -1587,7 +1587,7 @@ def cs_rebind(
         *_fb_preamble_lines(fam, font),
     ]
     for cp, cs in fresh:
-        ch = _mc_chr(cp)
+        ch = cast("str", _mc_chr(cp))  # fresh ⊆ todo——上游已滤 ch is not None
         lines.append(
             rf"\AtBeginDocument{{\protected\def\{cs}{{{_fb_font_body(fam, ch)}}}}}"
         )

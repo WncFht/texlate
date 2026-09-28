@@ -2,6 +2,8 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 import texlate.latex.tables as _tables
 from texlate.latex.gullet import (
     MacroDef,
@@ -60,6 +62,9 @@ from .grpscan import (
     _GrpScan,
     _PendRem,
 )
+
+if TYPE_CHECKING:
+    from texlate.latex.segmenter import Segmenter
 
 r"""``Segmenter`` 跨边界待绑参——流侧 pend/absorb 机械。组内 ``_grp_*``
 surface 引擎在 ``grpscan.py``，经 ``_Pending(_GrpScan)`` 并入同一 MRO。"""
@@ -138,7 +143,7 @@ def _pull_boundary(x: Tok | None, fid: int, *, par: bool = True) -> bool:
 
 class _Pending(_GrpScan):
     def _slots_walk_toks(
-        self, toks: list[Tok], j: int, slots: list[str] | tuple[str, ...]
+        self: Segmenter, toks: list[Tok], j: int, slots: list[str] | tuple[str, ...]
     ) -> list[str] | None:
         r"""槽形在组内 token 列上的推行 → 剩余槽列 / ``None``。
 
@@ -152,7 +157,7 @@ class _Pending(_GrpScan):
         return list(slots[res.rem :]) if res.rem is not None else None
 
     def _pull_group(
-        self, src: TokenSource, x: Tok, *, brace: bool, fid: int
+        self: Segmenter, src: TokenSource, x: Tok, *, brace: bool, fid: int
     ) -> list[Tok] | None:
         r"""``_collect_group`` 拉取打包 → ``[x, *inner, closer]`` / ``None``。
 
@@ -168,7 +173,7 @@ class _Pending(_GrpScan):
         return [x, *inner, closer]
 
     def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧 _slots_walk_toks 对价
-        self, src: TokenSource, fid: int, slots: list[str]
+        self: Segmenter, src: TokenSource, fid: int, slots: list[str]
     ) -> list[Tok]:
         r"""槽形从 ``read()`` 流吸参 → 已消费 token 列（拉取序，可空）。
 
@@ -286,7 +291,7 @@ class _Pending(_GrpScan):
                     seq = [x]
                     while True:
                         y = src.read()
-                        if _pull_boundary(y, fid):
+                        if y is None or _pull_boundary(y, fid):
                             src.unread([*seq, *([y] if y is not None else [])])
                             seq = []
                             break
@@ -323,7 +328,7 @@ class _Pending(_GrpScan):
         seq: list[Tok] = []
         while True:
             y = src.read()
-            if _pull_boundary(y, fid, par=False):
+            if y is None or _pull_boundary(y, fid, par=False):
                 if y is not None:
                     src.unread([y])
                 src.unread(seq)
@@ -343,7 +348,7 @@ class _Pending(_GrpScan):
                 return seq
 
     def _absorb_spec(  # noqa: C901, PLR0912, PLR0915 — spec 字母各一分支，平铺即流侧 _grp_spec_walk 对价
-        self, src: TokenSource, fid: int, spec: list, cont: tuple | None = None
+        self: Segmenter, src: TokenSource, fid: int, spec: list, cont: tuple | None = None
     ) -> list[Tok]:
         r"""Gullet ``Arg`` spec 从 ``read()`` 流吸参 → 已消费 token 列（可空）。
 
@@ -484,7 +489,7 @@ class _Pending(_GrpScan):
                         matched = True
                         continue
                     y = src.read()
-                    if _pull_boundary(y, fid):
+                    if y is None or _pull_boundary(y, fid):
                         if y is not None:
                             src.unread([y])
                         runaway = True
@@ -516,7 +521,7 @@ class _Pending(_GrpScan):
                 found = False
                 while True:
                     y = src.read()
-                    if _pull_boundary(y, fid):
+                    if y is None or _pull_boundary(y, fid):
                         if y is not None:
                             src.unread([y])
                         break
@@ -534,7 +539,7 @@ class _Pending(_GrpScan):
         return pulled[:committed]
 
     def _keyarg_tail(  # noqa: C901, PLR0912 — 体形态分派 + key-arg 判定，平铺即规则
-        self, m: object, src: TokenSource | None = None, depth: int = 0
+        self: Segmenter, m: object, src: TokenSource | None = None, depth: int = 0
     ) -> str | None:
         r"""宏体尾 cs 解析到 key-arg 名（``\def\x{..\label}`` 形）→ 名 / ``None``。
 
@@ -575,7 +580,7 @@ class _Pending(_GrpScan):
             return None
         return self._keyarg_tail(m2, src, depth + 1)
 
-    def _cite_ref_mand(self, name: str) -> int:
+    def _cite_ref_mand(self: Segmenter, name: str) -> int:
         r"""cite/ref 名的强制参数目——argspec 签名优先，无条目回落 1。
 
         ``\joref{a}{j}{v}{p}{y}``/``\crefrange{a}{b}`` 这类多参书目宏：
@@ -583,14 +588,14 @@ class _Pending(_GrpScan):
         里 ``m``/``v``/``n`` 位计数目即真参目（``o``/``s`` 由 ``_protect_cs``
         自身的星/可选步覆盖）。``\cite`` ``o m`` → 1，行为不变。
         """
-        e = _tables.argspec_lookup(name, self.state.pkgs)
+        e = _tables.argspec_lookup(name, cast("set[str]", self.state.pkgs))
         if e is None or not e.signature:
             return 1
         spec = _chunk_spec_cached(e.signature)
         return max(1, sum(1 for s in spec if s.kind in ("m", "v", "n")))
 
     def _pend_spec_of(  # noqa: C901, PLR0911, PLR0912 — _group_surface 分派行序镜像，平铺即语义
-        self, name: str, src: TokenSource
+        self: Segmenter, name: str, src: TokenSource
     ) -> tuple[list[str] | MacroDef | None, str]:
         r"""组内 cs → 待绑参槽形/登记 opaque 宏 + key-arg 名（``_group_surface`` 各行镜像）。
 
@@ -664,14 +669,18 @@ class _Pending(_GrpScan):
             # 登记 opaque/math 宏（``_grp_scan`` opaque 行同位）：``m.spec``
             # 位序走参决定真待绑尾——探针 ``o m×6`` 槽把 spec 外 ``{..}``
             # 误吸进组尾（登记宏 nargs 越界过吸）
-            return m, ""
+            return cast("MacroDef", m), ""
         if name in PAIR_BLOCK_ALL:
             # 对界块开/闭 cs 无槽形——``\pinlabel{tex}`` 等体 token
             # 留主流（探针槽会误吸界外 pinlabel 参进组）
             return None, ""
         # 宏表登记名不吃 argspec（主流 ``_handle_unknown_cs`` ``m is None``
         # 闸同规——登记名走下方 keyarg/探针，包签名不得领槽）
-        e = _tables.argspec_lookup(name, self.state.pkgs) if m is None else None
+        e = (
+            _tables.argspec_lookup(name, cast("set[str]", self.state.pkgs))
+            if m is None
+            else None
+        )
         if e is not None:
             if e.policy in ("literal", "transparent"):
                 return None, ""
@@ -700,7 +709,7 @@ class _Pending(_GrpScan):
             return _pend_call_slots(ka), ka
         return list(_PEND_PROBE), ""
 
-    def _grp_pending(self, src: TokenSource) -> tuple[list[str] | _PendRem, str] | None:
+    def _grp_pending(self: Segmenter, src: TokenSource) -> tuple[list[str] | _PendRem, str] | None:
         r"""组尾待绑参检测 → ``(剩余槽列/_PendRem, keyarg 名)`` / ``None``。
 
         右起扫 ``_open_toks`` 首个有槽形/登记 opaque 宏的 cs，其参扫须吃
@@ -725,7 +734,7 @@ class _Pending(_GrpScan):
         return None
 
     def _absorb_pending(  # noqa: C901 — 槽列/spec 双臂各一序，平铺即规则
-        self, t: Tok, src: TokenSource
+        self: Segmenter, t: Tok, src: TokenSource
     ) -> bool:
         r"""组尾待绑参吸纳：``t``（界外首 token）回流作首候选，拉参入组。
 
@@ -740,7 +749,7 @@ class _Pending(_GrpScan):
         """
         o = self._open_origin
         hit = self._grp_pending(src)
-        if hit is None:
+        if hit is None or o is None:
             return False
         pend, ka = hit
         src.unread([t])  # t 回流作首候选——槽列完整后统一拉取

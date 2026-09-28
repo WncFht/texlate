@@ -28,10 +28,10 @@ import subprocess
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from texlate.compile import ctan
-from texlate.compile.engine._base import _driver_fatal
+from texlate.compile.engine._base import CompRes, _driver_fatal
 from texlate.compile.fixloop._builtins_common import _mc_parse_log
 from texlate.compile.fixloop.actions import (
     _REJECT_PREFIX,
@@ -109,7 +109,10 @@ class CompResLike(Protocol):
     经 getattr 链兼容。
     """
 
-    pdf: object  # Path | None | bool
+    @property
+    def pdf(self) -> object:
+        """``Path | None | bool`` 鸭形宽容读 (只读——fixloop 不写 ``res.pdf``)。"""
+        ...
     log_path: Path | None
     timed_out: bool
     seconds: float
@@ -124,7 +127,10 @@ class Engine(Protocol):
     ``filemap(fname)`` 五个方法 + ``caps``。
     """
 
-    caps: set[str] | frozenset[str]  # {kpsewhich,tlmgr,updmap,shell_escape,bundle}
+    @property
+    def caps(self) -> set[str] | frozenset[str]:
+        """能力集 {kpsewhich,tlmgr,updmap,shell_escape,bundle} (只读元数据)。"""
+        ...
 
     def compile(  # noqa: PLR0913  # 镜像 impl Engine.compile 调用面
         self,
@@ -145,7 +151,7 @@ class Engine(Protocol):
         """
         ...
 
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
+    def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
         """Kpsewhich | 本地+bundle 探测; 命中返路径, 缺返 None。
 
         ``cwd`` 可选 (impl 签名 ``probe_file(fname, *, cwd=None)``): 传 wdir
@@ -157,8 +163,8 @@ class Engine(Protocol):
         """装提供 ``fname`` 的包: tlmgr --usermode | ctan_fetch 降级。"""
         ...
 
-    def rebuild_fontmaps(self) -> None:
-        """updmap-user | noop (tectonic)。"""
+    def rebuild_fontmaps(self) -> bool | None:
+        """updmap-user | noop (tectonic)——impl ``-> bool``, noop 替身可 ``None``。"""
         ...
 
     def filemap(self, fname: str) -> list[str]:
@@ -173,7 +179,7 @@ LlmHook = Callable[["LoopCtx", "ErrReport"], tuple[bool, str]]
 # ── Engine 适配辅助 (impl-compile CompRes/Engine 的字段名差分吸收) ──
 
 
-def _res_has_pdf(res: CompResLike) -> bool:
+def _res_has_pdf(res: CompResLike | CompRes) -> bool:
     """Pdf 产出判定: impl ``has_pdf`` (非空文件) 优先, 否则 pdf 字段真值。"""
     hp = getattr(res, "has_pdf", None)
     # 鸭子实现若把 has_pdf 写成方法而非 property，bound method 恒真——调用之
@@ -188,7 +194,7 @@ def _res_driver_fatal(res: CompResLike) -> str | None:
     判定本体在 ``engine._base._driver_fatal``；``_res_has_pdf`` 作注入
     谓词兼容替身 ``has_pdf`` 为方法/缺位的 ``CompResLike``。
     """
-    return _driver_fatal(res, has_pdf=_res_has_pdf)
+    return _driver_fatal(cast("CompRes", res), has_pdf=_res_has_pdf)
 
 
 def _res_died(res: CompResLike) -> bool:
@@ -891,9 +897,9 @@ def _wire_filemap_overrides(
             return [v] if isinstance(v, str) else []
         return list(orig(fname))
 
-    filemap.overrides_wrapped = True  # type: ignore[attr-defined]  # 幂等: 重入不叠包
+    filemap.overrides_wrapped = True  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]  # 幂等: 重入不叠包
     try:
-        eng.filemap = filemap  # type: ignore[method-assign]  # 实例遮蔽协议方法
+        eng.filemap = filemap  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]  # 实例遮蔽协议方法
     except Exception as e:  # noqa: BLE001  # 遮蔽失败不阻塞: 退化为原生 filemap
         ctx.ledger.advisories.append(
             f"filemap overrides wire failed: {type(e).__name__}: {e}"
@@ -915,7 +921,7 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
     # ——全局可见树，跨跑污染 base 对照线（modec-rerun 实证：youngtab.sty 进
     # ~/texmf 后 1306.1931 base 臂 fail→clean 假象）。装包隔离到任务树内。
     if getattr(eng, "texmfhome", "unset") is None:
-        eng.texmfhome = wdir / "_texmf"  # type: ignore[attr-defined]
+        eng.texmfhome = wdir / "_texmf"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         ctx.ledger.events.append("wire texmfhome -> workdir _texmf")
     if ctx.deps.engine_name != "tectonic":
         return
@@ -923,7 +929,7 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
         return
     vg = rs.filemap_cfg.get("version_guard") or {}
     try:
-        eng.ctan_fetch = ctan.CtanFetcher(
+        eng.ctan_fetch = ctan.CtanFetcher(  # ty: ignore[invalid-assignment]  # 协议外成员动态注入 (tectonic 专属 callable)
             wdir,
             overrides=rs.filemap_cfg.get("overrides") or {},
             epoch=(str(vg["texlive_format_epoch"]) if vg.get("enabled") else None),
@@ -1090,7 +1096,7 @@ class _FixRun:
         reject:* 不救。
         """
         ctx = self.ctx
-        main_pdf = ctx.io.wdir / Path(ctx.io.main_rel).with_suffix(".pdf")
+        main_pdf = ctx.io.wdir / Path(cast("str", ctx.io.main_rel)).with_suffix(".pdf")
         if main_pdf.is_file() and main_pdf.stat().st_size > 0:
             snap = ctx.io.wdir / ".fixloop-entry.pdf"
             try:
@@ -1114,8 +1120,8 @@ class _FixRun:
         ctx = self.ctx
         res = self.eng.compile(
             ctx.io.wdir,
-            ctx.io.main_rel,
-            passes=passes,
+            cast("str", ctx.io.main_rel),  # 循环期 main_rel 必已置位 (_setup_ctx 落值)
+            passes=cast("int", passes),  # None 透传 impl 自适应趟 (impl 面 int|None, 本协议面 int)
             best_effort=best_effort,
             flags=list(ctx.ledger.engine_flags),
             **self.compile_kw,
@@ -1220,6 +1226,7 @@ class _FixRun:
                 return "break"
             if flow == "continue":
                 return None
+        rule = cast("Rule", rule)  # flow=None ⇒ _secondary 契约携 Rule (rule None 不返)
         if note.startswith(_REJECT_PREFIX):
             _commit_reject(cell, rule, note)
             return "break"
@@ -1725,7 +1732,7 @@ class _FixRun:
             and self.floor_snap is not None
             and not v_end.startswith("reject:")
         ):
-            main_pdf = ctx.io.wdir / Path(ctx.io.main_rel).with_suffix(".pdf")
+            main_pdf = ctx.io.wdir / Path(cast("str", ctx.io.main_rel)).with_suffix(".pdf")
             main_pdf.unlink(missing_ok=True)  # 末态同名碎片先清再拷, 防半截混语义
             shutil.copy2(self.floor_snap, main_pdf)
             cell["floor_from"] = v_end

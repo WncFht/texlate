@@ -2,7 +2,10 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import (
+    TYPE_CHECKING,
+    cast,
+)
 
 from texlate.latex.gullet import (
     IfSetter,
@@ -47,9 +50,13 @@ from ._common import (
 )
 
 if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        MacroDef,
+    )
     from texlate.latex.mouth import (
         Tok,
     )
+    from texlate.latex.segmenter import Segmenter
 
 r"""``Segmenter`` 主循环/preamble/分派/math/verb。"""
 
@@ -90,7 +97,7 @@ _FRONT_ARG_NAMES = frozenset({"title", "author"})
 class _MainLoop:
     # ------------------------------------------------------------ 主循环
 
-    def scan(self, src: TokenSource, files: list[str], doc_begin: int = -1) -> None:  # noqa: C901, PLR0912, PLR0915 — preamble/consumed/组界/dispatch 四态平铺即主循环
+    def scan(self: Segmenter, src: TokenSource, files: list[str], doc_begin: int = -1) -> None:  # noqa: C901, PLR0912, PLR0915 — preamble/consumed/组界/dispatch 四态平铺即主循环
         r"""消费 ``src`` 至耗尽。``files`` = fid→源文本表（gullet.file_texts）。
 
         ``doc_begin`` = fid-0 上 ``\\begin{document}`` 的 ``\\begin`` 起点
@@ -128,7 +135,11 @@ class _MainLoop:
                             )
                         )
                 self._ph_scan_n = len(self.file_texts)
-            if live_srcs is not None and (src.pop_seq, src.push_seq) != stack_ck:
+            if (
+                gullet_inputs is not None
+                and live_srcs is not None
+                and (src.pop_seq, src.push_seq) != stack_ck
+            ):
                 stack_ck = (src.pop_seq, src.push_seq)
                 # 子文件源耗尽被 read() 弹栈：尾部不成 token 的字节（注释/
                 # 空白尾）补盖 + 零宽 run 项（surface="" 不落译文面，ident
@@ -237,7 +248,7 @@ class _MainLoop:
         if tail_from < len(self.vt):
             self._emit(max(tail_from, v0), len(self.vt))
 
-    def _preamble_tok(self, t: Tok, src: TokenSource) -> None:
+    def _preamble_tok(self: Segmenter, t: Tok, src: TokenSource) -> None:
         r"""Preamble 档单 token：覆盖进 vtex 不 emit。
 
         emit 推迟到 ``\\begin{document}`` 检出或 EOF 的 tail emit——整段
@@ -275,7 +286,7 @@ class _MainLoop:
             src.scope_pop()
         self._cover_to(fid, b)
 
-    def _preamble_doc_end(self, t: Tok, src: TokenSource, fid: int, b: int) -> bool:
+    def _preamble_doc_end(self: Segmenter, t: Tok, src: TokenSource, fid: int, b: int) -> bool:
         r"""``\begin{document}`` 检出（字面或 env_begin 宏端点）→ 翻档。
 
         字面 ``\begin{document}`` 盖到 ``{document}`` 闭花括号；``\startdoc``
@@ -290,7 +301,7 @@ class _MainLoop:
         if t.text == "begin":
             env, close_t, consumed = self._env_name(src)
             if env == "document":
-                end = close_t.pos[2]
+                end = cast("Tok", close_t).pos[2]
             elif env == "abstract" and env in self.state.front_matter:
                 # 前置 abstract env：名字回放后走正常 env_begin（\begin 行
                 # literal + env_stack/scope 推入），体 token 翻回主流
@@ -331,7 +342,7 @@ class _MainLoop:
             return "\n\n"
         return t.text
 
-    def _note_input(self, t: Tok) -> bool:
+    def _note_input(self: Segmenter, t: Tok) -> bool:
         r"""``input:``/``input_tag:`` consumed marker → ``inputs[]`` 登记。
 
         ``input_tag`` 的 payload 带 ``:tag`` 尾——rpartition 剥掉。返回是否
@@ -344,7 +355,7 @@ class _MainLoop:
         self.state.inputs.append((len(self.vt), path))
         return True
 
-    def _on_consumed(self, t: Tok) -> None:
+    def _on_consumed(self: Segmenter, t: Tok) -> None:
         r"""``consumed`` marker：gullet 静默消费区间的显形（契约 §4）。
 
         ``text`` = ``tag:name``——``input:path`` 记 ``inputs[]`` 且调用点
@@ -362,14 +373,14 @@ class _MainLoop:
             vspan = self._cover_to(fid, b)
             self._emit(vspan.start, vspan.end)
 
-    def _cons_bump(self, fid: int, end: int) -> None:
+    def _cons_bump(self: Segmenter, fid: int, end: int) -> None:
         r"""``\\input`` 调用点字节只推进 cons 不进 vtex（输出不含该行）。"""
         if end > self._cons(fid):
             self.cons[fid] = end
 
     # ------------------------------------------------------------ 分派
 
-    def _text_run_end(self, t: Tok, src: TokenSource) -> int | None:
+    def _text_run_end(self: Segmenter, t: Tok, src: TokenSource) -> int | None:
         r"""gen=0 文本头起的连续文本 run 末位（不含）；不可批 → ``None``。
 
         委托 ``src.text_run_end``（``TokenSource`` 契约）：Gullet 臂走栈顶
@@ -378,7 +389,7 @@ class _MainLoop:
         """
         return src.text_run_end(t, self.file_texts)
 
-    def _dispatch(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.2 分派表 19 行平铺，顺序即语义
+    def _dispatch(self: Segmenter, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.2 分派表 19 行平铺，顺序即语义
         r"""cs/结构 token 主分派——v1 ``_dispatch_cmd`` 的 token 版逐行移植。"""
         fid, _a, b = t.pos
         if t.kind in _TEXT_RUN_HEADS and t.gen == 0:
@@ -505,10 +516,10 @@ class _MainLoop:
             #     OPAQUE 含数学特征的那半）→ 整调用 [[MACRO]]
             kind = getattr(m, "kind", "")
             if kind == "env_begin":
-                self._handle_env_begin(t, src, m)
+                self._handle_env_begin(t, src, cast("MacroDef | None", m))
                 return
             if kind == "env_end":
-                self._handle_env_end(t, src, m)
+                self._handle_env_end(t, src, cast("MacroDef | None", m))
                 return
             if kind in ("opaque", "math"):
                 self._handle_opaque_macro(t, src, m)
@@ -566,7 +577,7 @@ class _MainLoop:
 
     # ------------------------------------------------------------ math
 
-    def _on_math(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — $$ 邻接/闭符分支平铺即 §3.3
+    def _on_math(self: Segmenter, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — $$ 邻接/闭符分支平铺即 §3.3
         r"""``$``/``$$`` 配对：拉 token 到同窗 mathshift 止（``$$``=紧邻双 token）。
 
         混排闭符 ``\)/\]`` 同收——LaTeX 数学态内 ``\)=`` ``$``、``\]=``
@@ -669,7 +680,9 @@ class _MainLoop:
             # ``Missing $``/``Display math should end with $$`` 错因）。
             # 孤定界符不再逐字进 run（``$`` 裸落可译 chunk = dollar leak
             # 主族残留）——[[CMD]] 单项保真：字节全保、chunk 只见占位符。
-            vspan = self._cover_ph(fid, nxt.pos[2] if disp else b, PhType.CMD, gap=t)
+            vspan = self._cover_ph(
+                fid, cast("Tok", nxt).pos[2] if disp else b, PhType.CMD, gap=t
+            )
             self.state.warnings.append(ScanWarning("unpaired_dollar", vspan.start, "$"))
             if body:
                 if x is None and src.eof_pops:
@@ -709,7 +722,7 @@ class _MainLoop:
             elif z.kind == close_kind and z.text == close_ch:
                 depth -= 1
 
-    def _math_skip_textarg(self, src: TokenSource, body: list[Tok]) -> None:
+    def _math_skip_textarg(self: Segmenter, src: TokenSource, body: list[Tok]) -> None:
         r"""``\text`` 族正文参整段收进 ``body``：``*``?+``[opt]``≤2+``{..}`` 定序跳扫。
 
         读到的 token 全进 ``body`` 两路均安全：paired 路只凭 vspan 盖字节、
@@ -740,7 +753,7 @@ class _MainLoop:
 
     # ------------------------------------------------------------ verb
 
-    def _handle_verb(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — verb 三形各一支，平铺即 W9/W10
+    def _handle_verb(self: Segmenter, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — verb 三形各一支，平铺即 W9/W10
         r"""``\\verb|..|``/``\\verb*``/``\\lstinline[opt]|..|``/``{...}`` 配对形。
 
         定界符 = 命令后首个非空白 token；``{..}`` 配对形按平衡组收；
@@ -806,7 +819,7 @@ class _MainLoop:
         end = close + 1
         self._protect_span(PhType.VERB, fid, t.pos[1], end, src=src)
 
-    def _skip_past(self, src: TokenSource, fid: int, end: int) -> None:
+    def _skip_past(self: Segmenter, src: TokenSource, fid: int, end: int) -> None:
         """Resync ``fid`` 源到 ``end``——raw 区段不经 token 流（契约 §4）。
 
         调 ``gullet.skip_past`` 真 API（tokbuf 残骸剔除 + 栈深找 fid +
@@ -816,7 +829,7 @@ class _MainLoop:
         """
         src.skip_past(fid, end)
 
-    def _tail_scan_end(self, fid: int, pos: int, kind: str) -> int | None:
+    def _tail_scan_end(self: Segmenter, fid: int, pos: int, kind: str) -> int | None:
         r"""``pos`` 起的非文本尾参字节扫 → end；形不合 → None。
 
         ``kind`` ∈ ``_TAIL_RX``：``dimen``/``count``/``rule``/``font``/
@@ -829,7 +842,7 @@ class _MainLoop:
         return m.end() if m is not None and m.end() > pos else None
 
     def _tikz_tail_end(  # noqa: C901, PLR0911, PLR0912 — 字节级 ; 定界扫：深度/注释/终止判定逐字符平铺
-        self, fid: int, pos: int
+        self: Segmenter, fid: int, pos: int
     ) -> int | None:
         r"""裸 ``\tikz <path>;`` 语句的 ``;`` 定界尾扫 → end；非路径形 → None。
 

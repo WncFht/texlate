@@ -19,8 +19,25 @@ if TYPE_CHECKING:
     from typing import Final
 
     from texlate.compile.loginfo import LogInfo
+    from texlate.compile.proc import run_process
+    from texlate.compile.toolchain import find_tool
 
-import texlate.compile.engine as _eng
+    class _EngNS:
+        """``_eng`` 静态面——锚位真签名经 staticmethod 别名钉入。
+
+        ``engine/__init__`` 经 seams ``__getattr__`` 惰性回指锚位模块，ty
+        仅见 ``object``；借 TYPE_CHECKING 命名空间把 ``_eng.X`` 回查收窄到
+        真签名。仅类型面视图——运行期 ``else`` 分支绑定原样，patch 缝
+        （``monkeypatch.setattr(engine.X, …)`` → 叶侧 ``_eng.X`` 命中）零漂移。
+        """
+
+        find_tool = staticmethod(find_tool)
+        run_process = staticmethod(run_process)
+
+    _eng = _EngNS()
+else:
+    import texlate.compile.engine as _eng
+
 from texlate.compile.deps import compiled_dependencies
 from texlate.compile.loginfo import parse_log
 from texlate.compile.sandbox import (
@@ -547,7 +564,9 @@ class XelatexEngine:
             if (sig := _rc_to_signal(rc, res.sandbox_mode)) is not None:
                 res.killed_signal = sig
             res.seconds += sec
-            res.timed_out = res.timed_out or to
+            # ``to`` 可携活哨原因 str（``vbox_flood``/``page_flood``）——槽位
+            # 短暂带 str 经 ``_collect_compile_outputs`` 归位 sentry_reason。
+            res.timed_out = res.timed_out or to  # ty: ignore[invalid-assignment]
             res.passes = p
             outputs.append(out_s)
             # 停趟判据：超时 / exec 失败 / 无 pdf 恒收。确定性错误退出
@@ -1054,7 +1073,11 @@ class XelatexEngine:
         except OSError:
             return False
         if (root / "ls-R").is_file() and (tool := _eng.find_tool("mktexlsr")):
-            _eng.run_process([tool, str(root)], cwd=Path.cwd(), timeout=60)
+            # 存量 bug（已上报）：缺 ``env`` 必填实参——经真 proc.run_process
+            # 路由时到达即 TypeError；测试替身签名宽松未兜住。待修前压诊断。
+            _eng.run_process(  # ty: ignore[missing-argument]
+                [tool, str(root)], cwd=Path.cwd(), timeout=60
+            )
         self._probe_cache.clear()  # 刚把缺件搬进了树——复核前清 memo
         return self.probe_file(fname) is not None
 

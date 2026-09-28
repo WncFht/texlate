@@ -34,7 +34,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -42,7 +42,9 @@ from docx.oxml.ns import qn
 from docx.oxml.parser import parse_xml
 from docx.shared import RGBColor
 from docx.text.paragraph import Paragraph
-from lxml import etree
+
+# lxml.etree 是编译扩展（.so + .pyx 源）——ty 无 stub 面可解析，运行侧正常。
+from lxml import etree  # ty: ignore[unresolved-import]
 
 from texlate.xlat.pipeline import ChunkIn, ChunkResult
 
@@ -67,7 +69,10 @@ if TYPE_CHECKING:
 
     from docx.document import Document as DocumentObject
     from docx.opc.part import Part
-    from lxml.etree import _Element
+    from docx.types import ProvidesStoryPart
+
+    # ty 同样看不见编译扩展内的 ``_Element``——注解按 Unknown 退化。
+    from lxml.etree import _Element  # ty: ignore[unresolved-import]
 
     from texlate.xlat.pipeline import Translator
 
@@ -329,7 +334,9 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
     for attr in (qn("w14:paraId"), qn("w14:textId")):
         new_ct_p.attrib.pop(attr, None)
     p_el.addnext(new_ct_p)
-    para = Paragraph(new_ct_p, None)
+    # 脱体段落无 story part——python-docx 的 parent 仅在 ``.part`` 属性链上
+    # 消费，add_run/元素操作全走 ``_p``，None 是刻意的 detached 挂法。
+    para = Paragraph(new_ct_p, cast("ProvidesStoryPart", None))
     run = para.add_run(zh_text)
     src_rpr = _first_rpr(p_el)
     if src_rpr is not None:

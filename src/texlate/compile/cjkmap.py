@@ -12,10 +12,11 @@ server worker 与 e2e/cli 管线共用本模块；CMap 资源随包分发在
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from typing import Any
 
     from pypdf import PdfWriter
     from pypdf._page import PageObject
@@ -38,7 +39,10 @@ def _font_needs_gb1_cmap(font: DictionaryObject) -> bool:
         or font.get("/Encoding") not in ("/Identity-H", "/Identity-V")
     ):
         return False
-    child = font["/DescendantFonts"][0].get_object()
+    # ``DictionaryObject.__getitem__`` 只钉 ``PdfObject`` 基类——运行时
+    # ``/DescendantFonts`` 恒为 ArrayObject（非 list 形态由调用方
+    # TypeError 兜底同跳），cast 仅补 ty 视图。
+    child = cast("list[Any]", font["/DescendantFonts"])[0].get_object()
     system = child.get("/CIDSystemInfo", {})
     if not isinstance(system, dict):
         # dict.get 不解引用——间接引用的 CIDSystemInfo 先 get_object
@@ -46,14 +50,14 @@ def _font_needs_gb1_cmap(font: DictionaryObject) -> bool:
     return system.get("/Registry") == "Adobe" and system.get("/Ordering") == "GB1"
 
 
-def _page_resources(page: PageObject) -> list[object]:
+def _page_resources(page: PageObject) -> list[Any]:
     """页有效 ``/Resources`` 链——页自身 + 各 ``/Pages`` 祖先节点全收。
 
     ``/Resources`` 是 PDF 可继承属性，但空/稀疏页级表不遮蔽祖先的共享
     字体表（产出器常把 GB1 字体挂 ``/Pages`` 做全文档共享）——逐层收集
     而非取最近一层。畸形父链/环按截断处理：已收部分照常返回。
     """
-    out: list[object] = []
+    out: list[Any] = []
     node: object = page
     ancestry: set[int] = set()
     while isinstance(node, dict) and id(node) not in ancestry:
@@ -77,7 +81,8 @@ def _iter_group_members(group: object, seen: set[int]) -> Iterator[DictionaryObj
     ``get_object`` 后才能 ``.values()``；畸形段/坏成员各自坍弃，不穿透。
     """
     try:
-        group = group.get_object() if group else {}
+        # 任意形态 PDF 对象——cast 只对齐 get_object 的 ty 视图。
+        group = cast("Any", group).get_object() if group else {}
     except (AttributeError, KeyError, IndexError, TypeError):
         return
     if not isinstance(group, dict):

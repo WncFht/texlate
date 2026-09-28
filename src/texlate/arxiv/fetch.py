@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Final, Self
+from typing import TYPE_CHECKING, Any, Final, Self
 
 import httpx
 
@@ -300,10 +300,10 @@ def canon(raw: str, *, strict_era: bool = True) -> CanonId:
     raise CanonError(reason="bad_shape", raw=orig)
 
 
-def try_canon(raw: str, **kw: object) -> CanonId | None:
+def try_canon(raw: str, *, strict_era: bool = True) -> CanonId | None:
     """``canon`` 不抛变体——不可识别归 ``None``。"""
     try:
-        return canon(raw, **kw)  # type: ignore[arg-type]
+        return canon(raw, strict_era=strict_era)
     except CanonError:
         return None
 
@@ -769,7 +769,7 @@ def _refresh_head(resp: httpx.Response, head: HeadInfo) -> HeadInfo | None:
     )
 
 
-def __getattr__(name: str) -> object:
+def __getattr__(name: str) -> Any:  # noqa: ANN401 -- 惰性 facade 回指，类型须透传给全部 `from fetch import acquire_source` 消费点
     """``acquire_source`` 惰性回指 ``acquire.py``——本模块引用面不变。
 
     端到端编排（``_head_phase``/``_get_phase``/``_commit_phase``/缓存命中

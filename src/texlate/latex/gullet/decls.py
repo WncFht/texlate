@@ -8,6 +8,9 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 from __future__ import annotations
 
 import sys
+from typing import (
+    TYPE_CHECKING,
+)
 
 from texlate.latex.macro_table import (
     scan_xparse,
@@ -42,11 +45,16 @@ from .tokutil import (
     _surface,
 )
 
+if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        Gullet,
+    )
+
 
 class _Decls:
     # ------------------------------------------------------------ \newcommand 族
 
-    def _read_def_name(self, trace: list[Tok]) -> str | None:
+    def _read_def_name(self: Gullet, trace: list[Tok]) -> str | None:
         r"""``{\cmd}`` 或 ``\cmd`` 读宏名（``name:cs``）。"""
         t = self._rt_skip(trace)
         if t is None:
@@ -61,7 +69,7 @@ class _Decls:
             return ""
         return None
 
-    def _read_opt_int(self, trace: list[Tok]) -> int | None:
+    def _read_opt_int(self: Gullet, trace: list[Tok]) -> int | None:
         """可选 ``[n]``：返回 int 值；缺席 ``None``（组 token 照常入 ``trace``）。"""
         grp = self._read_grouping(trace, "[", "]")
         if grp is None:
@@ -88,7 +96,7 @@ class _Decls:
         return spec
 
     def _register_cmd(  # noqa: PLR0913, PLR0917 — 登记尾参数面即各定义点所持上下文
-        self,
+        self: Gullet,
         tag: str,
         mname: str,
         spec: list[Arg],
@@ -125,7 +133,7 @@ class _Decls:
             self.macros.set(mname, entry, scope)
         return self._consumed(f"{tag}:{mname}", trig, trace, head)
 
-    def _do_newcmd(self, trig: Tok, name: str) -> Tok | None:
+    def _do_newcmd(self: Gullet, trig: Tok, name: str) -> Tok | None:
         r"""``\newcommand[*]{\n}[N][d]{B}``（``Definitions.py:15-24``）。
 
         ``*`` 只吃 token；``[N][d]`` 同在 → ``spec=[o(d)]+m×(N-1)``——
@@ -150,7 +158,7 @@ class _Decls:
             name, mname, spec, body, trig, trace, provide=name == "providecommand"
         )
 
-    def _do_newenv(self, trig: Tok) -> Tok | None:
+    def _do_newenv(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\newenvironment[*]{env}[N][d]{before}{after}``（Definitions.py:42-51）。"""
         trace = self._trace = []
         self._read_star(trace, "*")
@@ -179,14 +187,14 @@ class _Decls:
         )
         return self._consumed(f"newenv:{envname}", trig, trace)
 
-    def _env_is_math(self, env: str) -> bool:
+    def _env_is_math(self: Gullet, env: str) -> bool:
         r"""Env 名判数学：内建 ``MATH_ENVS`` / 已注册 ``body_role=math`` 用户 env。"""
         if env in MATH_ENVS or env.rstrip("*") in MATH_ENVS:
             return True
         reg = self.macros.lookup_env(env)
         return reg is not None and reg.body_role == "math"
 
-    def _env_body_role(self, before: list[Tok]) -> str:
+    def _env_body_role(self: Gullet, before: list[Tok]) -> str:
         r"""``\newenvironment`` before 体尾开数学 → ``"math"``（否则 ``""``）。
 
         1003.0112（miss×180）：before 尾 ``\eqnarray`` 的 env 体实为数学，
@@ -216,7 +224,7 @@ class _Decls:
         )
         return "math" if math else ""
 
-    def _env_tail_begin_role(self, before: list[Tok], i: int) -> str:
+    def _env_tail_begin_role(self: Gullet, before: list[Tok], i: int) -> str:
         r"""``\begin{env}`` 收尾尾形：回找配对 ``{``，前驱 cs 为 ``\begin`` 才取 env 名。"""
         depth, j = 1, i - 1
         while j >= 0:
@@ -237,14 +245,14 @@ class _Decls:
         env = _surface(before[j + 1 : i]).strip()
         return "math" if self._env_is_math(env) else ""
 
-    def _read_env_name(self, trace: list[Tok]) -> str | None:
+    def _read_env_name(self: Gullet, trace: list[Tok]) -> str | None:
         """``{env}`` 读环境名（``name:str``）。"""
         grp = self._read_grouping(trace, "{", "}")
         if grp is None:
             return None
         return _surface(grp).strip()
 
-    def _do_newtheorem(self, trig: Tok) -> Tok | None:
+    def _do_newtheorem(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\newtheorem{n}[c]{cap}[w]``（Definitions.py:61-90）→ 定理类 env。"""
         trace = self._trace = []
         self._read_star(trace, "*")
@@ -261,7 +269,7 @@ class _Decls:
         )
         return self._consumed(f"newtheorem:{envname}", trig, trace)
 
-    def _do_mathop(self, trig: Tok) -> Tok | None:
+    def _do_mathop(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\DeclareMathOperator[*]{\n}{B}`` → 体包 ``\operatorname{B}``（amsmath.py:111-123）。"""
         trace = self._trace = []
         self._read_star(trace, "*")
@@ -289,7 +297,7 @@ class _Decls:
         )
         return self._consumed(f"mathop:{mname}", trig, trace)
 
-    def _do_xparse(self, trig: Tok, name: str) -> Tok | None:
+    def _do_xparse(self: Gullet, trig: Tok, name: str) -> Tok | None:
         r"""``\NewDocumentCommand{\n}{spec}{B}``（§4.3 xparse 子集）。
 
         spec 含 ``v/b/e/E/x`` → 整条不登记（体原样回吐走字面）。
@@ -318,7 +326,7 @@ class _Decls:
         )
 
     def _parse_xparse(  # noqa: C901, PLR0911, PLR0912 — SpecItem 角色平铺即 §4.3 lowering 表
-        self, s: str
+        self: Gullet, s: str
     ) -> list[Arg] | None:
         r"""Xparse spec 串 → ``list[Arg]``；不支持字母 → ``None``。
 
@@ -389,14 +397,14 @@ class _Decls:
                 return None  # verb/body/embel_dft/xexp/未知角色 → 整条不登记
         return out
 
-    def _lex(self, s: str) -> list[Tok]:
+    def _lex(self: Gullet, s: str) -> list[Tok]:
         """字面串 → token 列（xparse 默认值/``u{}`` 定界用；共享 cats）。"""
         return list(Mouth(s, -1, self.cats))
 
     # ------------------------------------------------------------ \let/\newif/\catcode
 
     def _do_let(
-        self, trig: Tok, *, global_: bool = False, head: Tok | None = None
+        self: Gullet, trig: Tok, *, global_: bool = False, head: Tok | None = None
     ) -> Tok | None:
         r"""``\let\a[=]\b``（Primitives.py:369-374 + Context.py:1175-1193）。
 
@@ -437,7 +445,7 @@ class _Decls:
         return self._consumed(f"let:{nt.text}", trig, trace, head)
 
     def _do_newif(
-        self, trig: Tok, *, global_: bool = False, head: Tok | None = None
+        self: Gullet, trig: Tok, *, global_: bool = False, head: Tok | None = None
     ) -> Tok | None:
         r"""``\newif\ifX`` 三项登记（Context.newif Context.py:1008-1041）。
 
@@ -459,7 +467,7 @@ class _Decls:
         self.macros.set(flag + "false", IfSetter(flag, value=False), scope)
         return self._consumed(f"newif:{flag}", trig, trace, head)
 
-    def _do_catcode(self, trig: Tok) -> Tok | None:
+    def _do_catcode(self: Gullet, trig: Tok) -> Tok | None:
         r"""``\catcode<num>=<num>``（Primitives.py:401-411）。
 
         字符码位 = TeX ``<number>``：``` `` ``x`` 字符码 / 十进制 / ``'`` 八

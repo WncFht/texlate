@@ -620,7 +620,7 @@ def _sniff_arbitrate(  # noqa: C901 — argmax+声明采纳链即规格序
                 declared_text_score = _score_text(blob.decode(declared))
             except (UnicodeDecodeError, LookupError):
                 declared_text_score = None
-    if declared_text_score is not None:
+    if declared is not None and declared_text_score is not None:
         best = max(candidates, key=lambda c: c[2], default=None)
         # 声明是作者先验：解码非负且落后不超过一个标点级分差即采纳——
         # 相对比例会把「decl=latin1 实 latin-1 法文」让给 mac_roman

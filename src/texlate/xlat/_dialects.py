@@ -11,7 +11,7 @@ usage/结果载具 ``Usage``/``ChatResult``/``ChatOptions`` 同驻本叶——�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from texlate.xlat._errors import (
     ChatError,
@@ -65,7 +65,9 @@ class ChatOptions:
 def _usage_int(value: object) -> int:
     """响应 usage 数值字段 → int；非数值/非有限值（str 不可解析、容器、NaN/inf）一律 ``MalformedResponseError``。"""
     try:
-        return int(value or 0)
+        # 入面是任意 JSON 值——cast 只对齐 ty 的 int() 受容面，
+        # ``or 0`` 的 falsy→0 语义与异常分类路径不动。
+        return int(cast("Any", value) or 0)
     except (TypeError, ValueError, OverflowError) as e:
         msg = f"usage field is not a finite integer (got {type(value).__name__})"
         raise MalformedResponseError(msg) from e

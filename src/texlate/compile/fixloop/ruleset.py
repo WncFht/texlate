@@ -33,7 +33,7 @@ RULES_PATH = Path(__file__).with_name("rules")
 #: ``@pstricks`` 单源在 compile/engine/_route.py ``PSTRICKS_SIG_ALTS``
 #: (route 静态签名与规则条件同口径; 行锚 ``^[ \t]*`` 留在 yaml 侧外置,
 #: token 不含锚, 嵌进遮盖视图/raw 源两用)。
-_FAMILY_TOKENS: dict[str, frozenset[str]] = {
+_FAMILY_TOKENS: dict[str, frozenset[str] | tuple[str, ...]] = {
     "@pdftex_prims": builtins.PDFTEX_PRIMS,
     "@pstricks": PSTRICKS_SIG_ALTS,
 }

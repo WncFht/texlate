@@ -179,7 +179,8 @@ class _ChunkProgress:
                 self._progress = make_translate_progress()
                 self._progress.start()
                 self._task = self._progress.add_task("translate", total=self._total)
-            self._progress.update(self._task, completed=done)
+            if self._task is not None:
+                self._progress.update(self._task, completed=done)
         elif self._total and (
             done >= self._total or done % max(1, self._total // _FALLBACK_DIV) == 0
         ):

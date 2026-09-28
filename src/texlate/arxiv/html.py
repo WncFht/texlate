@@ -44,6 +44,8 @@ from .fetch import Fetcher, req_base_ver
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
+    from bs4.element import PageElement
+
 # ---------------------------------------------------------------- 错误分类
 
 
@@ -208,6 +210,17 @@ def _classes(el: Tag) -> set[str]:
     return set(el.get("class") or [])
 
 
+def _attr_str(el: Tag, name: str) -> str:
+    """单值属性 → ``str``。
+
+    bs4 ``Tag.get`` 联合类型含 ``AttributeValueList``——那是多值属性
+    （``class``/``rel`` 等）的形状，单值属性（``href``/``style``/``id``）
+    运行期恒为 ``str``，isinstance 收窄即诚实的静态口径。
+    """
+    v = el.get(name)
+    return v if isinstance(v, str) else ""
+
+
 def _has_prefix(cls: set[str], prefixes: tuple[str, ...]) -> bool:
     return any(c.startswith(prefixes) for c in cls)
 
@@ -220,7 +233,7 @@ def _inline_text(el: Tag, ctx: _InlineCtx) -> str:
     降级链调用方的 ``except HtmlError``。
     """
     parts: list[str] = []
-    stack: list[Iterator[Tag | NavigableString]] = [iter(el.children)]
+    stack: list[Iterator[PageElement]] = [iter(el.children)]
     while stack:
         node = next(stack[-1], None)
         if node is None:
@@ -233,7 +246,7 @@ def _inline_text(el: Tag, ctx: _InlineCtx) -> str:
 
 
 def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过/下钻的分派表，分支即 DOM 契约条目
-    node: Tag | NavigableString, ctx: _InlineCtx, parts: list[str]
+    node: PageElement, ctx: _InlineCtx, parts: list[str]
 ) -> Tag | None:
     """单节点分派：token/文本入账返回 ``None``；透明内联容器返回自身。
 
@@ -275,7 +288,7 @@ def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过
         parts.append(ctx.tok("GRAPHICS", node))
         return None
     if name == "a":
-        href = node.get("href") or ""
+        href = _attr_str(node, "href")
         if "ltx_url" in cls:
             parts.append(ctx.tok("URL", node))
             return None
@@ -415,7 +428,7 @@ def _fallback_title(art: Tag) -> Tag | None:
         if not _classes(box) & _TITLEBOX_CLS:
             continue
         for el in (d for d in box.descendants if isinstance(d, Tag)):
-            m = _FONT_PCT_RX.search(el.get("style") or "")
+            m = _FONT_PCT_RX.search(_attr_str(el, "style"))
             if m and float(m.group(1)) > _TITLE_FONT_PCT:
                 return el
     return None
@@ -437,7 +450,7 @@ def _enumerate_blocks(  # noqa: C901, PLR0915 -- 块分派 + support/嵌套闸 +
 
     def key_of(el: Tag) -> str:
         nonlocal synth
-        base = el.get("id") or ""
+        base = _attr_str(el, "id")
         if not base:
             synth += 1
             base = f"b{synth}"

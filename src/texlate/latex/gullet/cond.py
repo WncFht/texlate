@@ -29,6 +29,10 @@ if TYPE_CHECKING:
         Callable,
     )
 
+    from texlate.latex.gullet import (
+        Gullet,
+    )
+
 
 def _branch_markers(
     sel: list[Tok], edge: Tok | None, trig: Tok, tag: str
@@ -59,7 +63,7 @@ def _branch_markers(
 class _Cond:
     # ------------------------------------------------------------ \if 族
 
-    def _do_if(self, t: Tok) -> Tok | None:
+    def _do_if(self: Gullet, t: Tok) -> Tok | None:
         r"""``\if`` 两档（§8.6/§7.1）。
 
         可求值 → ``process_if(which)`` 只推回选中支；不可求值 → 条件已按
@@ -82,7 +86,7 @@ class _Cond:
             f"if:{t.text}", t, None, end=end if end is not None else cond_end
         )
 
-    def _eval_if(self, name: str) -> bool | int | None:  # noqa: C901, PLR0911, PLR0912 — 可求值族平铺即 §8.6 表
+    def _eval_if(self: Gullet, name: str) -> bool | int | None:  # noqa: C901, PLR0911, PLR0912 — 可求值族平铺即 §8.6 表
         r"""``\if`` 条件求值：``None`` → 界标档。条件 token 无条件消费。"""
         if name == "iftrue":
             return True
@@ -155,21 +159,21 @@ class _Cond:
             return True if self._is_defined(cname) else None
         return None  # 未知 if* → 界标
 
-    def _is_defined(self, name: str) -> bool:
+    def _is_defined(self: Gullet, name: str) -> bool:
         r"""``\ifdefined``/``\ifcsname``/``\@ifundefined`` 的"已定义"判定（§8.6）。
 
         宏表命中或内建名集——``_BUILTINS`` 已含 ``_PRIMS``，原语名不必单列。
         """
         return self.macros.lookup(name) is not None or name in _BUILTINS
 
-    def _read_if_tok(self) -> Tok | None:
+    def _read_if_tok(self: Gullet) -> Tok | None:
         r"""``\if/\ifx`` 的一个比较 token（跳过空白）。"""
         while True:
             t = self.read()
             if t is None or t.kind != "space":
                 return t
 
-    def _read_relation(self) -> str | None:
+    def _read_relation(self: Gullet) -> str | None:
         """``<``/``>``/``=`` 关系符（非符 → 回吐）。"""
         t = self._read_if_tok()
         if t is not None and t.kind != "cs" and t.text in _REL_CHARS:
@@ -179,7 +183,7 @@ class _Cond:
         return None
 
     def _read_run(
-        self, pred: Callable[[Tok], bool], trace: list[Tok] | None = None
+        self: Gullet, pred: Callable[[Tok], bool], trace: list[Tok] | None = None
     ) -> str:
         r"""``pred`` 命中的连续 token 文本（共用 read-while-pred 循环）。
 
@@ -202,7 +206,7 @@ class _Cond:
             break
         return "".join(chars)
 
-    def _read_number(self) -> float | None:  # noqa: C901, PLR0911, PLR0912 — TeX <number> 各形态一分支
+    def _read_number(self: Gullet) -> float | None:  # noqa: C901, PLR0911, PLR0912 — TeX <number> 各形态一分支
         r"""读 TeX 数（``readInteger`` TeX.py:1592-1643 砍半）。
 
         可选符号 + 数字串 / ``'77`` 八进制 / ``"ff`` 十六进制 / ``` `` `x`` 字符码 /
@@ -264,7 +268,7 @@ class _Cond:
         return None
 
     def process_if(  # noqa: C901 — 案例收集循环分支平铺即 TeX.py:531-585
-        self,
+        self: Gullet,
         which: bool | int,  # noqa: FBT001 — \ifcase 值与 True/False 同槽（plasTeX which 同形）
         *,
         trig: Tok,

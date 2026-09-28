@@ -48,6 +48,7 @@ from .placeholders import (
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
+    from typing import TypeGuard
 
 log = logging.getLogger(__name__)
 
@@ -323,7 +324,7 @@ def _make_slots(encoded: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
     return slots, seq
 
 
-def _valid_slot_text(v: object) -> bool:
+def _valid_slot_text(v: object) -> TypeGuard[str]:
     """槽译文合法性：非空字符串、无槽位/占位符 token 形态（含非规范变体）。
 
     规范槽位是 ``⟪S0000⟫``、占位符是 ``[[X]]`` 系；模型回显的残码不限
