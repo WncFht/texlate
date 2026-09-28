@@ -408,7 +408,7 @@ class PipelineConfig:
     auth_fail_threshold: int = 3
     #: 逐篇术语抽取件（``autogloss.extract_terms`` 的 partial）——
     #: ``async (masked_texts) -> {en: zh}``；None=关。抽取结果进 doc_glossary
-    #: 底层（同 key 由既有五层表赢——curated 覆盖 auto）。调用方负责
+    #: 底层（同 key 由既有四层表赢——curated 覆盖 auto）。调用方负责
     #: memoize（worker ctx.memo / e2e 单例），否则 resume 会重抽。
     auto_glossary_fn: Callable[[list[str]], Awaitable[dict[str, str]]] | None = None
 
@@ -449,6 +449,7 @@ class XlatPipeline:
         self.auth_gate = AuthGate(self.cfg.auth_fail_threshold)
         self._doc_glossary: dict[str, str] = {}
         self._paper_ctx = ""
+        self._ph_manifest = ""
         self._prompts: dict[tuple[str, bool, bool], str] = {}
 
     # ------------------------------------------------------------ 物化
@@ -465,6 +466,7 @@ class XlatPipeline:
                 glossary_terms=self._doc_glossary,
                 batch=batch,
                 paper_context=self._paper_ctx if paper_ctx else None,
+                placeholder_manifest=self._ph_manifest or None,
             )
         return self._prompts[key]
 
@@ -499,7 +501,7 @@ class XlatPipeline:
         """
         self._doc_glossary = dict(auto_terms or {})
         if self.glossary is not None:
-            # curated 五层表 update 在后赢同 key——auto 抽取层是底座
+            # curated 四层表 update 在后赢同 key——auto 抽取层是底座
             self._doc_glossary.update(
                 self.glossary.doc_filter(c.content for c in chunks)
             )
@@ -510,6 +512,12 @@ class XlatPipeline:
         self._paper_ctx = next(
             (c.content[:PAPER_CTX_MAX_CHARS] for c in chunks if c.kind == "abstract"),
             "",
+        )
+        # 文档级占位符点名册（v5 恒等注入替代件）——与 doc_filter 同口径
+        # 全量集（含已完成块，续跑逐字节一致）。单行压 <Glossary> 块末行，
+        # 占位符多的文档也只是 O(类型+连续段) 而非 O(占位符) 重发。
+        self._ph_manifest = placeholders.render_placeholder_manifest(
+            placeholders.collect_doc_placeholders(c.content for c in chunks)
         )
         # 同实例二次 run 换了文档 → 术语块变了，prompt memo 必须失效重渲染
         self._prompts.clear()

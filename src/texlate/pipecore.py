@@ -77,7 +77,6 @@ from texlate.xlat.pipeline import (
     XlatPipeline,
     chunk_to_in,
 )
-from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -410,9 +409,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         config=PipelineConfig(
             auto_glossary_fn=_auto_glossary_fn(translator) if auto_glossary else None
         ),
-        glossary=Glossary.load(
-            placeholders=collect_doc_placeholders(c.content for c in chunks)
-        ),
+        glossary=Glossary.load(),
         validator=validator or pair_feedback,
         cache={},
         on_result=_on_result,

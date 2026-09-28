@@ -90,7 +90,6 @@ from texlate.xlat.pipeline import (
     PipelineConfig,
     RetryPolicy,
 )
-from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.prompts import PROMPT_VERSION
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -623,7 +622,6 @@ def _xlat(ctx) -> dict:
             user_path=qp._NO_USER_GLOSSARY,
             local_path=(src / LOCAL_GLOSSARY_NAME) if src else None,
             categories=[cat_group],
-            placeholders=collect_doc_placeholders(c.content for c in chunks),
         )
 
     def _post_run(pipe) -> None:

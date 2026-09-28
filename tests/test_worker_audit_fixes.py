@@ -115,7 +115,12 @@ class TestPhFragments:
 
 
 class TestGlossaryLayers:
-    """Fix2：``_make_glossary`` 五层——categories（arxiv 分类）+ placeholders 恒等注入。"""
+    """Fix2：``_make_glossary`` 四层——categories（arxiv 分类）等真术语层。
+
+    v5：⑤层 ph→ph 恒等注入已删——占位符点名册改走
+    ``pipeline._materialize`` → ``render_placeholder_manifest`` 单行压
+    ``<Glossary>`` 块末行（TestBypassArms 的 L2 面有实证）。
+    """
 
     def test_categories_layer(self, tmp_path: Path) -> None:
         ctx, worker, _store = mk_ctx(tmp_path, options={"arxiv_categories": ["cs.LG"]})
@@ -124,15 +129,12 @@ class TestGlossaryLayers:
         cat_terms = {en for en, t in g.terms.items() if t.source == "category:cs.LG"}
         assert "Abstractive Summarization" in cat_terms
 
-    def test_placeholders_layer(self, tmp_path: Path) -> None:
+    def test_no_placeholder_identity_rows(self, tmp_path: Path) -> None:
+        """v5：恒等注入层已删——术语表里无 ``[[X_n]]: [[X_n]]`` 行。"""
         ctx, worker, _store = mk_ctx(tmp_path)
-        g = worker._make_glossary(  # noqa: SLF001
-            ctx, placeholders=["[[MATH_2]]"]
-        )
+        g = worker._make_glossary(ctx)  # noqa: SLF001
         assert g is not None
-        entry = g.terms["[[MATH_2]]"]
-        assert entry.zh == "[[MATH_2]]"  # 恒等注入：逼模型原样回抄
-        assert entry.source == "placeholder"
+        assert not any(en.startswith("[[") and t.zh == en for en, t in g.terms.items())
 
     def test_fetch_arxiv_persists_categories(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -278,7 +280,9 @@ class TestBypassArms:
         )
         run, _db = worker._l2_run_state(ctx, ctx.root / "build-zh")  # noqa: SLF001
         assert run.pipe.glossary is not None
-        assert run.pipe._doc_glossary.get(ph) == ph  # noqa: SLF001
+        # v5：ph 不进 _doc_glossary（恒等行已删）——改在 manifest 点名
+        assert run.pipe._doc_glossary.get(ph) != ph  # noqa: SLF001
+        assert ph in run.pipe._ph_manifest  # noqa: SLF001
         assert run.pipe.cache is None
 
 

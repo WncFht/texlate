@@ -45,6 +45,7 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "ANY_PH_RX",
         "BARE_PH_RX",
         "PH_FUZZY_RX",
+        "PH_MANIFEST_HEADER",
         "TYPED_PH_RX",
         "PhDiff",
         "collect_doc_placeholders",
@@ -53,6 +54,7 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "encode_newlines",
         "is_placeholder_only",
         "recover_copied_tokens",
+        "render_placeholder_manifest",
         "sort_key",
     ),
     "prompts": (

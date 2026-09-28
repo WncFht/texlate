@@ -1,4 +1,4 @@
-"""glossary：三级合并优先级 / ph 恒等注入 / 文档级过滤 / yaml 装载归一。"""
+"""glossary：四级合并优先级 / 文档级过滤 / yaml 装载归一（v5：ph 恒等注入已删）。"""
 
 from pathlib import Path
 
@@ -69,27 +69,23 @@ class TestTieredMerge:
         assert gl.load_table(f) == {"Transformer": "Transformer"}
 
 
-class TestPlaceholderIdentity:
-    def test_ph_injected_lowest_priority(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(
-            terms_dir=terms_dir,
-            user_path=NO_USER,
-            placeholders=["[[MATH_2]]", "[[MATH_10]]", "[[SL]]"],
-        )
-        assert g.terms["[[MATH_2]]"].zh == "[[MATH_2]]"
-        assert g.terms["[[MATH_2]]"].source == "placeholder"
-        # 排序键在 doc_filter 里体现
+class TestPlaceholderLayerRemoved:
+    """v5：⑤层 ph→ph 恒等注入已删——占位符点名走 manifest（placeholders 模块）。"""
 
-    def test_ph_never_overrides_real_term(
-        self, terms_dir: Path, tmp_path: Path
-    ) -> None:
-        user = tmp_path / "u.yaml"
-        user.write_text('"[[MATH_1]]": 占位一号\n', encoding="utf-8")
-        g = gl.Glossary.load(
-            terms_dir=terms_dir, user_path=user, placeholders=["[[MATH_1]]"]
-        )
-        assert g.terms["[[MATH_1]]"].zh == "占位一号"
-        assert g.terms["[[MATH_1]]"].source == "user"
+    def test_placeholders_kwarg_gone(self, terms_dir: Path) -> None:
+        with pytest.raises(TypeError):
+            gl.Glossary.load(  # ty: ignore[call-arg]
+                terms_dir=terms_dir,
+                user_path=NO_USER,
+                placeholders=["[[MATH_2]]"],
+            )
+
+    def test_ph_shaped_term_is_ordinary(self) -> None:
+        """占位符同形的 en 行不再有 corpus 直通特权——按真术语命中过滤。"""
+        g = gl.Glossary()
+        g.terms["[[MATH_2]]"] = gl.TermEntry("[[MATH_2]]", "数学二号", "user")
+        assert g.doc_filter(["irrelevant text"]) == {}
+        assert g.doc_filter(["see [[MATH_2]] here"]) == {"[[MATH_2]]": "数学二号"}
 
 
 class TestDocFilter:
@@ -109,16 +105,15 @@ class TestDocFilter:
         out = g.doc_filter(["ATTENTION is all you need"])
         assert "attention" in out
 
-    def test_placeholders_always_included_sorted(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(
-            terms_dir=terms_dir,
-            user_path=NO_USER,
-            placeholders=["[[MATH_10]]", "[[CITE_1]]", "[[MATH_2]]"],
-        )
-        out = g.doc_filter(["irrelevant text"])
-        keys = list(out)
-        # 占位符按 sort_key 排在真术语后；本文真术语全不命中
-        assert keys == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]"]
+    def test_ph_shaped_terms_sort_with_real_terms(self) -> None:
+        """v5：占位符同形行无 ``sort_key`` 尾排特权——混在真术语 ``en.lower()`` 序里。"""
+        g = gl.Glossary()
+        g.terms["zzz"] = gl.TermEntry("zzz", "Z", "user")
+        g.terms["[[MATH_2]]"] = gl.TermEntry("[[MATH_2]]", "M2", "user")
+        g.terms["[[MATH_10]]"] = gl.TermEntry("[[MATH_10]]", "M10", "user")
+        out = g.doc_filter(["x [[MATH_2]] [[MATH_10]] zzz y"])
+        # en.lower() 字典序——"[["(0x5B) 排在字母前，数字尾按字符序
+        assert list(out) == ["[[MATH_10]]", "[[MATH_2]]", "zzz"]
 
 
 class TestDocFilterWsFlex:

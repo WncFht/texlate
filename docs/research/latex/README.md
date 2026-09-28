@@ -39,11 +39,11 @@
 
 ### 翻译 prompt 与出件
 
-| 文件                                               | 内容                                                                                                                                                 |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [prompt-glossary-spec.md](prompt-glossary-spec.md) | prompt 套件 + 术语表设计：LaTeXTrans/MathTranslate/ieeA 三源证据、ph→ph 恒等注入、批量/断点协议——已落地 `xlat/prompts.py` + `glossary.py` + `terms/` |
-| [doc-formats.md](doc-formats.md)                   | bbm 的 EPUB/DOCX 机制解剖（DRM 允许表、clone-insert、对齐阶梯）+ 抄/不抄清单——已落地 `export/`（含落地差分注记）                                     |
-| [pdf-path.md](pdf-path.md)                         | babeldoc sidecar 规格：分层静默回退、进度事件、AGPL 边界、MinerU 对比——已落地 `server/babeldoc.py`（spawn-CLI 形）                                   |
+| 文件                                               | 内容                                                                                                                                                                                |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [prompt-glossary-spec.md](prompt-glossary-spec.md) | prompt 套件 + 术语表设计：LaTeXTrans/MathTranslate/ieeA 三源证据、ph→ph 恒等注入（v5 已由 manifest 名单行替代）、批量/断点协议——已落地 `xlat/prompts.py` + `glossary.py` + `terms/` |
+| [doc-formats.md](doc-formats.md)                   | bbm 的 EPUB/DOCX 机制解剖（DRM 允许表、clone-insert、对齐阶梯）+ 抄/不抄清单——已落地 `export/`（含落地差分注记）                                                                    |
+| [pdf-path.md](pdf-path.md)                         | babeldoc sidecar 规格：分层静默回退、进度事件、AGPL 边界、MinerU 对比——已落地 `server/babeldoc.py`（spawn-CLI 形）                                                                  |
 
 ### 外部实现解剖与对齐实证
 

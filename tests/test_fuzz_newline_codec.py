@@ -423,7 +423,7 @@ class TestCodecContracts:
 
 
 class TestPlaceholderClauseConsistency:
-    """C9 条款命名一致性——docs/spec/translate.md 勘误钉住的 5/8 划分。"""
+    """Placeholders 条款（v4 C9）命名一致性——docs/spec/translate.md 勘误钉住的 5/8 划分。"""
 
     def test_named_bare_tokens_are_module_constants(self) -> None:
         """条款点名的每个裸 token 都是 placeholders 模块实存常量。"""

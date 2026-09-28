@@ -1,4 +1,4 @@
-"""glossary 层 + 路径牢笼 fuzz——五层合并 oracle 对账 + confine 不变量。
+"""glossary 层 + 路径牢笼 fuzz——四层合并 oracle 对账 + confine 不变量。
 
 不变量清单：
 
@@ -8,15 +8,17 @@
   根内 ``is_file`` 逐根判定——base 侧目录命中不遮蔽 glossary_dir 同名文件。
   随机敌意名字（含 unicode/空白/换行/surrogateescape/``~``/反斜杠/
   伪 ``..`` 形态）永不逃逸、永不在界内输入上抛。
-- ``Glossary.load`` 五层序 user > local > category（声明序 → 文件序，
-  先写者胜）> default > placeholder——随机分层构造对独立 oracle 逐
-  ``(zh, source)`` 对账；占位符绝不覆盖真术语。
+- ``Glossary.load`` 四层序 user > local > category（声明序 → 文件序，
+  先写者胜）> default——随机分层构造对独立 oracle 逐 ``(zh, source)``
+  对账。v5：⑤层 ph 恒等注入已删（O(占位符)×O(调用) 重发事故根因），
+  点名走 ``placeholders.render_placeholder_manifest`` 单行压
+  ``<Glossary>`` 末行；其排序种子无关性由子进程实证钉续保。
 - ``flatten_terms``：三形态归一 + 非 mapping/顶层 list 值只抛
   ``TypeError``；``load_csv`` 对界内文本恒回 ``dict[str, str]``（键非空）
   且逐字节确定；``load_index`` 缺/空 → ``{}``、结构脏 → ``TypeError``。
 - ``doc_filter``：真术语命中面 == 独立 oracle（ASCII fold 子串扫描 +
-  ASCII ``\\w`` 词边界）；输出序 = 真术语按 ``en.lower()`` 稳定序 +
-  占位符按 ``sort_key`` 排尾；同输入逐字节确定。
+  ASCII ``\\w`` 词边界）；输出序 = ``en.lower()`` 稳定序；同输入逐字节
+  确定。占位符同形行不再有 corpus 直通/sort_key 尾排特权。
 
 缺陷台账（``tmp/glossary-fuzz/`` 实证，2026-09-17，xfail-strict 钉——
 修复后 XPASS 即拆钉信号）：
@@ -66,9 +68,10 @@
   resolve 到进程 CWD（生产不可达——settings 强制绝对+现存目录）。
 - ``doc_filter`` 多行术语（csv 引号字段/yaml 键内嵌 ``\\n``）可命中
   ``\\n``-join 接缝——无单 chunk 含它却被注入（phantom 注入位浪费）。
-- 用户术语 en 与占位符同形（``[[MATH_1]]``）时占位符恒等注入被
-  ``setdefault`` 挡死——用户层优先是规格，但形同占位符的术语会诱导
-  模型「翻译」占位符（PLAUSIBLE 设计张力，非纯实现缺陷）。
+- 用户术语 en 与占位符同形（``[[MATH_1]]``）时按真术语走——corpus
+  含该 token 即注入 ``- [[MATH_1]]: 数学``，诱导模型「翻译」占位符
+  → ph diff 丢标（PLAUSIBLE 设计张力，非纯实现缺陷；v5 删恒等层后
+  对撞面收窄但诱导面仍在）。
 - ``Glossary.load`` 对显式路径**不做 confine**——confine 边界在 worker
   侧，load 是纯装载器（by design，钉住防误读）。
 - ``Path.exists()`` 对 NUL 路径吞 ``ValueError`` 返 False——``load``
@@ -99,7 +102,7 @@ from texlate.xlat.glossary import (
     load_table,
     load_yaml,
 )
-from texlate.xlat.placeholders import sort_key
+from texlate.xlat.placeholders import render_placeholder_manifest, sort_key
 
 if TYPE_CHECKING:
     import random
@@ -831,7 +834,7 @@ def test_load_index_escape_mechanism(tmp_path: Path) -> None:
     assert g.terms["ok"].zh == "1"
 
 
-# ---------------------------------------------------------------- Glossary.load 五层
+# ---------------------------------------------------------------- Glossary.load 四层
 
 
 def _wcsv(path: Path, table: dict[str, str]) -> None:
@@ -840,7 +843,7 @@ def _wcsv(path: Path, table: dict[str, str]) -> None:
 
 
 def test_load_layer_precedence(tmp_path: Path) -> None:
-    """五层序钉：user > local > category(声明序→文件序) > default > placeholder。"""
+    """四层序钉：user > local > category(声明序→文件序) > default。"""
     tdir = tmp_path / "terms"
     tdir.mkdir()
     (tdir / "index.yaml").write_text(
@@ -859,7 +862,6 @@ def test_load_layer_precedence(tmp_path: Path) -> None:
         local_path=loc,
         categories=["catA", "catB"],
         terms_dir=tdir,
-        placeholders=["shared", "phonly"],
     )
     got = {k: (v.zh, v.source) for k, v in g.terms.items()}
     assert got["shared"] == ("user", "user")
@@ -869,7 +871,8 @@ def test_load_layer_precedence(tmp_path: Path) -> None:
     assert got["bonly"] == ("vb", "category:catA")  # 同 cat 文件序先写胜
     assert got["conly"] == ("vc", "category:catB")
     assert got["donly"] == ("vd", "default")
-    assert got["phonly"] == ("phonly", "placeholder")
+    # v5：占位符同形串只是普通 en——无自动恒等注入层
+    assert "[[MATH_1]]" not in got
     # 声明序翻转 → 赢家翻转（顺序即规格）
     g2 = Glossary.load(
         categories=["catB", "catA"], terms_dir=tdir, include_default=False
@@ -936,16 +939,18 @@ def test_load_no_confine_by_design(tmp_path: Path) -> None:
 
 
 def test_load_user_placeholder_shape_overrides(tmp_path: Path) -> None:
-    """观察钉（PLAUSIBLE 设计张力）：用户术语 en 与占位符同形时，
-    占位符恒等注入被 ``setdefault`` 挡死——``[[MATH_1]]`` 被映射成用户
-    zh 进 prompt，模型可能「照译」占位符 → ph diff 丢标。"""
+    """观察钉（PLAUSIBLE 设计张力，v5 收窄）：用户术语 en 与占位符同形
+    时按真术语走——corpus 含该 token 即注入 ``- [[MATH_1]]: 数学``，
+    模型可能「照译」占位符 → ph diff 丢标。v5 删恒等注入后同形 en 不再
+    有 ``setdefault`` 对撞面，但诱导面仍在。"""
     u = tmp_path / "u.csv"
     _wcsv(u, {"[[MATH_1]]": "数学"})
-    g = Glossary.load(user_path=u, include_default=False, placeholders=["[[MATH_1]]"])
+    g = Glossary.load(user_path=u, include_default=False)
     assert g.terms["[[MATH_1]]"].source == "user"
     assert g.terms["[[MATH_1]]"].zh == "数学"
-    # doc_filter 将其当真术语注入（corpus 含该 token 时）
+    # 按真术语 corpus 过滤（无直通特权）——含 token 才注入
     assert g.doc_filter(["see [[MATH_1]] here"]) == {"[[MATH_1]]": "数学"}
+    assert g.doc_filter(["irrelevant"]) == {}
 
 
 def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支，分支即层语义
@@ -960,7 +965,6 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
     cats_pool = ("cA", "cB", "cC")
     ens = ["alpha", "beta", "gamma", "delta", "eps", "zeta", "[[PH_1]]", "[[M_2]]"]
     zhs = ["甲", "乙", "丙", "丁"]
-    phs_pool = ["[[P_1]]", "[[P_2]]", "[[Q_1]]", "alpha", "[[PH_1]]"]
     for it in range(_FUZZ_ITERS_MED):
         d = tmp_path / f"i{it}"
         tdir = d / "terms"
@@ -1017,10 +1021,6 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
             _wcsv(tdir / "default.csv", dt)
             if include_default:
                 put(dt, "default")
-        # ⑤ placeholder 层——oracle 镜像 ``(sort_key, ph)`` 全序
-        phs = [rng.choice(phs_pool) for _ in range(rng.randint(0, 4))]
-        for ph in sorted(set(phs), key=lambda p: (sort_key(p), p)):
-            exp.setdefault(ph, (ph, "placeholder"))
 
         g = Glossary.load(
             user_path=u,
@@ -1028,7 +1028,6 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
             categories=cats,
             terms_dir=tdir,
             include_default=include_default,
-            placeholders=phs,
         )
         got = [(k, v.zh, v.source) for k, v in g.terms.items()]
         want = [(k, zh, src) for k, (zh, src) in exp.items()]
@@ -1041,7 +1040,6 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
             categories=cats,
             terms_dir=tdir,
             include_default=include_default,
-            placeholders=phs,
         )
         assert [(k, v.zh, v.source) for k, v in g2.terms.items()] == got
 
@@ -1057,13 +1055,13 @@ def test_sort_key_order_pins() -> None:
     assert sort_key("[[A_1]]") == sort_key("[[A_01]]")
     assert sort_key("A") == sort_key("[[A]]")
     assert sort_key("x_3") == sort_key("[[x_3]]")
-    # 任意字符串不抛（placeholders 参数是不受信 iterable）
+    # 任意字符串不抛（喂给排序键的输入不受信——manifest 入参同理）
     for s in ("", "[", "]", "_5", "a_", "__", "[[", "x_1_2", "日本語"):
         sort_key(s)
 
 
 def _ph_order_in_subprocess(seed: int) -> str:
-    """``PYTHONHASHSEED=seed`` 子进程里的占位符合并序（D7 实证仪）。"""
+    """``PYTHONHASHSEED=seed`` 子进程里的 manifest 渲染（D7 实证仪，v5 续保）。"""
     toks = [
         "[[A_1]]",
         "[[A_01]]",
@@ -1075,8 +1073,8 @@ def _ph_order_in_subprocess(seed: int) -> str:
         "[[x_3]]",
     ]
     code = (
-        "from texlate.xlat.glossary import Glossary;"
-        f"print(list(Glossary.load(include_default=False, placeholders={toks!r}).terms))"
+        "from texlate.xlat.placeholders import render_placeholder_manifest;"
+        f"print(render_placeholder_manifest({toks!r}))"
     )
     r = subprocess.run(  # noqa: S603 -- 固定 argv 无外部输入
         [sys.executable, "-c", code],
@@ -1090,19 +1088,20 @@ def _ph_order_in_subprocess(seed: int) -> str:
 
 
 def test_placeholder_order_seed_independent() -> None:
-    """D7 已修：注入序与 ``PYTHONHASHSEED`` 无关——排序键 ``(sort_key, ph)``
-    全序消歧；``collect_doc_placeholders`` 同口径。"""
+    """D7 已修（v5 续保）：manifest 渲染序与 ``PYTHONHASHSEED`` 无关——
+    ``render_placeholder_manifest``/``collect_doc_placeholders`` 排序键
+    ``(sort_key, ph)`` 全序消歧。"""
     orders = {_ph_order_in_subprocess(seed) for seed in (0, 1, 2, 42, 1337)}
     assert len(orders) == 1
 
 
 def test_placeholder_dedup_and_order() -> None:
-    """占位符去重 + ``sort_key`` 序（非碰撞面逐字节确定）。"""
-    g = Glossary.load(
-        include_default=False,
-        placeholders=["[[B_2]]", "[[A_10]]", "[[A_2]]", "[[A_2]]"],
+    """v5：去重 + ``sort_key`` 序挪到 manifest 渲染（非碰撞面逐字节确定）。"""
+    out = render_placeholder_manifest(["[[B_2]]", "[[A_10]]", "[[A_2]]", "[[A_2]]"])
+    assert out == (
+        "- placeholders used in this document (preserve each verbatim): "
+        "[[A_2]], [[A_10]], [[B_2]]"
     )
-    assert list(g.terms) == ["[[A_2]]", "[[A_10]]", "[[B_2]]"]
 
 
 # ---------------------------------------------------------------- doc_filter
@@ -1170,23 +1169,17 @@ def _oracle_term_hit(en: str, corpus: str) -> bool:
 def _oracle_doc_filter(
     terms: list[tuple[str, str, str]], texts: list[str]
 ) -> dict[str, str]:
-    """``doc_filter`` 结构重放：真术语 oracle 命中 → ``en.lower()`` 稳定序；
-    占位符不滤 corpus、``sort_key`` 排尾。"""
+    """``doc_filter`` 结构重放：oracle 命中 → ``en.lower()`` 稳定序（v5：
+    占位符同形行无直通特权，``src`` 字段仅作 provenance 不再分流）。"""
     corpus = "\n".join(texts)
-    real = [
-        (en, zh)
-        for en, zh, src in terms
-        if src != "placeholder" and _oracle_term_hit(en, corpus)
-    ]
+    real = [(en, zh) for en, zh, _src in terms if _oracle_term_hit(en, corpus)]
     real.sort(key=lambda t: t[0].lower())  # stable — tie 保 terms 序
-    phs = [(en, zh) for en, zh, src in terms if src == "placeholder"]
-    phs.sort(key=lambda t: (sort_key(t[0]), t[0]))
-    return dict([*real, *phs])
+    return dict(real)
 
 
 def test_doc_filter_boundary_pins() -> None:
     """词边界语义钉：IGNORECASE 命中、``\\w`` 邻接拒、符号术语尾界、
-    大小写双形态共存、占位符不滤 corpus 恒发。"""
+    大小写双形态共存。"""
     g = Glossary()
     for en in ["AI", "C++", "a.b", "naïve", "Foo", "foo"]:
         g.terms[en] = TermEntry(en, "T", "user")
@@ -1220,28 +1213,28 @@ def test_doc_filter_seam_phantom() -> None:
     assert g.doc_filter(["a x", "z y b"]) == {}  # 'x\nz' 非 seam 形 → 不中
 
 
-def test_doc_filter_placeholder_unconditional() -> None:
-    """占位符不滤 corpus 恒发（它们本来就是文档收集物）；空 corpus 同发。"""
+def test_doc_filter_placeholder_shape_ordinary() -> None:
+    """v5：占位符同形行走真术语口径——corpus 不命中即不入表。"""
     g = Glossary()
-    g.terms["[[M_2]]"] = TermEntry("[[M_2]]", "[[M_2]]", "placeholder")
+    g.terms["[[M_2]]"] = TermEntry("[[M_2]]", "[[M_2]]", "user")
     g.terms["real"] = TermEntry("real", "真", "user")
-    assert g.doc_filter(["unrelated"]) == {"[[M_2]]": "[[M_2]]"}
-    assert g.doc_filter([]) == {"[[M_2]]": "[[M_2]]"}
+    assert g.doc_filter(["unrelated"]) == {}
+    assert g.doc_filter(["has [[M_2]] here"]) == {"[[M_2]]": "[[M_2]]"}
 
 
 def test_doc_filter_output_order() -> None:
-    """输出序 = 真术语 ``en.lower()`` 序 + 占位符 ``sort_key`` 尾。"""
+    """输出序 = ``en.lower()`` 稳定序——占位符同形行混排无尾排特权。"""
     g = Glossary()
     for en in ["zebra", "Apple", "mango"]:
         g.terms[en] = TermEntry(en, en + "z", "user")
     for ph in ("[[B_1]]", "[[A_9]]"):
-        g.terms[ph] = TermEntry(ph, ph, "placeholder")
-    assert list(g.doc_filter(["zebra apple mango"])) == [
+        g.terms[ph] = TermEntry(ph, ph, "user")
+    assert list(g.doc_filter(["zebra apple mango [[B_1]] [[A_9]]"])) == [
+        "[[A_9]]",
+        "[[B_1]]",
         "Apple",
         "mango",
         "zebra",
-        "[[A_9]]",
-        "[[B_1]]",
     ]
 
 
@@ -1254,7 +1247,6 @@ def test_fuzz_doc_filter_oracle() -> None:
             en = rng.choice(_EN_SOUP)
             src = rng.choice(["user", "local", "category:c", "default"])
             if rng.random() < 0.2:  # noqa: PLR2004 -- soup 概率
-                src = "placeholder"
                 en = rng.choice(["[[P_1]]", "[[Q_2]]", "[[M_10]]"])
             g.terms.setdefault(en, TermEntry(en, f"z{en}", src))
         terms = [(e.en, e.zh, e.source) for e in g.terms.values()]

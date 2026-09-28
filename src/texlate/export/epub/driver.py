@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 
 _PIPELINE_VERSION = "export-epub-1"
 
-#: unit kind 一律 ``para``——``_KIND_CLAUSES`` 的合法键是 LaTeX 语境（xlat/
+#: unit kind 一律 ``para``——``_KIND_RULES`` 的合法键是 LaTeX 语境（xlat/
 #: 不属本模块），EPUB 散文用 para 的最宽条款 + 占位符契约已够
 
 

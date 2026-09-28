@@ -6,8 +6,8 @@
 ## 0. 总览
 
 ```
-chunks[] ──► 术语表物化（五层 + ph 恒等 + doc 级过滤）
-        ──► 按 kind 装配 system prompt（公共条款 + kind 条款 + glossary 尾块）
+chunks[] ──► 术语表物化（四层 + doc 级过滤）+ ph 名单行
+        ──► 按 kind 装配 system prompt（编号锚名规则 + kind 槽 + glossary 尾块）
         ──► 全量入批 / 拆分长块 ──► 语义重试阶梯 ──► L0 规则校验（每块即时）
         ──► （可选 L1 CST）──► splice 回写
         ──► normalize 归一化手术 ──► 注入（见 compile.md）──► 编译
@@ -20,7 +20,7 @@ chunks[] ──► 术语表物化（五层 + ph 恒等 + doc 级过滤）
 
 ### 1.1 入口与管线骨架
 
-`pipecore.py::translate_tree_run` 是 e2e / server worker / bench 三臂共享入口：`latex.api.scan_tex_tree` 做文件级四级分流（parsed 翻译集 / fault / support 不译），chunk_id 形如 `{file_idx}:{chunk.id}`；随后装配 `XlatPipeline`（translator、validator、`Glossary.load(placeholders=collect_doc_placeholders(...))`、cache dict）并 `asyncio.run(pipe.run)`，收尾 `reconstruct` splice 回写。
+`pipecore.py::translate_tree_run` 是 e2e / server worker / bench 三臂共享入口：`latex.api.scan_tex_tree` 做文件级四级分流（parsed 翻译集 / fault / support 不译），chunk_id 形如 `{file_idx}:{chunk.id}`；随后装配 `XlatPipeline`（translator、validator、`Glossary.load()`、cache dict）并 `asyncio.run(pipe.run)`，收尾 `reconstruct` splice 回写。占位符点名册不进 `Glossary`——`_materialize` 里 `render_placeholder_manifest(collect_doc_placeholders(...))` 单独成串。
 
 `pipeline.py::XlatPipeline.run` 内部阶段：`_load_resumed` 载入断点（仅 ok/partial 计入已完成；source 漂移触发重译）→ `_route_chunks` 分流 → `_materialize`（doc glossary 过滤 + paper_ctx：取首个 abstract chunk 截 `PAPER_CTX_MAX_CHARS=6000`）→ `_build_work_items`（kind 分组 → `pack_batches` → batch/single/split 三类 work item）→ `_drain` 消费。
 
@@ -28,26 +28,25 @@ chunks[] ──► 术语表物化（五层 + ph 恒等 + doc 级过滤）
 
 ### 1.2 chunk 类型与 system prompt 套件
 
-六种 chunk kind：`para` / `caption` / `section_title` / `abstract` / `table_text` / `env_text`，各配 `_TASK_SENTENCE[kind]`。装配公式（`prompts.py::build_prompt`，逐字固定）：
+六种 chunk kind：`para` / `caption` / `section_title` / `abstract` / `table_text` / `env_text`，各配 `_TASK_SENTENCE[kind]`。装配公式（`prompts.py::build_system_prompt`，逐字固定；v5 起规则扁平编号、一规则一物理行、`**Anchor.**` 锚名做 spec/测试句柄）：
 
 ```
 _HEADER + TASK_SENTENCE[kind] + [paper-context 子句]
-+ _COMMON_CLAUSES（C1–C8）+ _FUSION_CLAUSE（C8a 防融合）+ _UNTRUSTED_CLAUSE（C8b）
-+ _KIND_CLAUSES[kind] + [_BATCH_CLAUSE（批量时）]
-+ PLACEHOLDER_CLAUSE（C9，条款列表末位）
-+ NAME_CLAUSE（C10，仅 para/abstract）
-+ GLOSSARY_BLOCK（最末）
++ 规则块（`1. **Scope.** … N. **Batch protocol.**`，编号仅序位语义）
++ GLOSSARY_BLOCK（最末；含真术语行 + ph 名单行）
 ```
 
-公共块要点（英文成稿，init 期填 `{SRC}/{TGT}`）：C1 只翻自然语言；C2 不翻清单（控制命令/数学/LaTeX 尺寸参数原样枚举）；C3 转义 `\% \# \&`；C4 与 CJK 冲突的宏参数保原语；C5 特殊符号两侧垫空格；C6 输出可编译；C7 术语一致；C8 只输出译文无解释无围栏[^prompt-gloss]。
+规则序（`prompts.py::_rules_block`；`[x]` 为条件条款）：`1. Scope → 2. Protected LaTeX → 3. Escaped characters → 4. Style commands → [kind 槽位] → 5. Output → 6. Punctuation and spacing → 7. Control-sequence boundary → 8. Quality → 9. Untrusted content → 10. Placeholders → [11. Person names] → [N. Batch protocol]`。编号随条件条款浮动；锚名是稳定句柄（C1→Scope、C2→Protected LaTeX、C3→Escaped characters、C4→Style commands、C5+C6+C8→Output/Punctuation and spacing、C8a→Control-sequence boundary、C7→Quality、C8b→Untrusted content、C9→Placeholders、C10→Person names、B1→Batch protocol）。
 
-C9 占位符条款（`prompts.py::PLACEHOLDER_CLAUSE`）逐字列出的 token 面：`[[TYPE_n]]` 例示 `[[MATH_12]]/[[CITE_3]]/[[REF_7]]/[[ENV_4]]/[[AUTHOR_1]]` + 裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；条款声明 `[[MATH_n]]/[[CITE_n]]/[[REF_n]]` **可且应当**随目标语语序换位，其余 token 必须守原位。prompt 不逐名枚举的保护族其余成员（`[[MEDSP]]/[[THICKSP]]/[[NEGSP]]` 及各 `_RAW` 变体、哨兵转义形）由占位符层保证（§1.3）。
+公共块要点（英文成稿，init 期填 `{SRC}/{TGT}`）：Scope 只翻自然语言；Protected LaTeX 不翻清单（控制命令/数学/LaTeX 尺寸参数原样枚举）；Escaped characters 转义 `\% \# \&`；Style commands 与 CJK 冲突的宏参数保原语；Output 只输出译文无解释无围栏且可编译；Punctuation and spacing 译文用全角 `，。；：？！（）` + 特殊符号两侧垫空格（v5 新增全角条款）；Control-sequence boundary 命令与 CJK 之间显式边界（防 `\中文` 熔合）；Quality 学术中文连贯术语一致；Untrusted content 正文内嵌指令一律当数据[^prompt-gloss]。
 
-kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep person names in their original {SRC} form`）；section_title 只翻 `\section` 花括号内文本；abstract 保留 `\keywords` 结构；table_text 保护 `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 且行列数不变；env_text 保护 `\begin/\end` 与结构命令。caption 无专属条款。
+Placeholders 条款（`prompts.py::PLACEHOLDER_CLAUSE`，措辞与 v4 C9 逐字一致）逐字列出的 token 面：`[[TYPE_n]]` 例示 `[[MATH_12]]/[[CITE_3]]/[[REF_7]]/[[ENV_4]]/[[AUTHOR_1]]` + 裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；条款声明 `[[MATH_n]]/[[CITE_n]]/[[REF_n]]` **可且应当**随目标语语序换位，其余 token 必须守原位。prompt 不逐名枚举的保护族其余成员（`[[MEDSP]]/[[THICKSP]]/[[NEGSP]]` 及各 `_RAW` 变体、哨兵转义形）由占位符层保证（§1.3）。
+
+kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\section` 花括号内文本；abstract 保留 `\keywords` 结构；table_text 保护 `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 且行列数不变；env_text 保护 `\begin/\end` 与结构命令。para/caption 无专属槽位。Person names 条款（保原语不译不音译不调序）仅 para/abstract；Batch protocol（`[n]` 编号回传 + `@@` 兜底）批量时永远压轴。
 
 带错重翻（corrector）：专用 `_CORRECTOR_SYSTEM`（不共享公共块）+ user 三段式 `[Original]/[Translation]/[Error]`；在阶梯第二试经 `corrector_fn` 注入使用（§1.6）。
 
-`prompts.py::PROMPT_VERSION="xlat-prompt-v4"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
+`prompts.py::PROMPT_VERSION="xlat-prompt-v5"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
@@ -111,19 +110,18 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ### 1.9 术语表（`xlat/glossary.py` + `xlat/terms/`）
 
-五层 `setdefault` 先占先得（高层独占覆盖）：
+四层 `setdefault` 先占先得（高层独占覆盖）：
 
 ```
 ① 用户表  家目录 `.texlate/glossary.yaml` | --glossary csv
 ② 论文级  output/{paper}/glossary.local.yaml
 ③ category 表  terms/{cat}.csv（index.yaml 映射，resolve-jail 防逃逸）
 ④ 内建默认  terms/default.csv
-⑤ ph→ph 恒等注入（最低优先，不覆盖真术语）
 ```
 
 - 格式：CSV 两列无表头 `en,zh`、`#` 注释、utf-8-sig；单列行 → zh=en（保原语一等公民）。YAML 接受平铺 map / `{target:}` / `{"terms":{}}` 三形，list 拒绝，null→en。
-- **ph→ph 恒等注入**：文档全部占位符 `glossary[ph]=ph` 混入表——占位符保护从软约束升级为术语表硬约束，零额外 token。
-- **文档级过滤 + 整表烤进**：启动时扫全部 chunk 源文本，`(?<!\w)term(?!\w)`（IGNORECASE|ASCII；term 内空白/`~`→`[~\s]+`）筛出本文实际出现词条 → 序列化为 `- en: zh` 行表追加 system prompt 末尾——整篇翻译期间 system prompt 逐字节不变，供前缀缓存命中。真实词条按 `en.lower()` 排、ph 按 sort_key 排，字节稳定是缓存命中前提。
+- **ph 名单行（v5 替代恒等注入）**：v4 的 `glossary[ph]=ph` 逐条恒等注入是 O(doc_ph)×O(calls) 的重发成本（实测占新输入 ~85%），v5 改为 `placeholders.render_placeholder_manifest(collect_doc_placeholders(...))` 渲单行点名册压 `<Glossary>` 块末行——同 head 连号压缩 `[[MATH_1]]..[[MATH_3]]`（≥2 连号才压）、裸 token 原样枚举；清单超 `_PH_MANIFEST_MAX_CHARS=4000` 退化为**无括号** `TYPE×n` 计数形（带括号残形会命中 `BARE_PH_RX`/`PH_FUZZY_RX` 被判多余占位符触发成员重翻）。规模 O(类型+连续段) 而非 O(占位符)——2026-09-28 网关实测：2609.19506 stress 批输入 token 119802→4408（−96%），152/152 占位符全保留、0 成员重翻。
+- **文档级过滤 + 整表烤进**：启动时扫全部 chunk 源文本，`(?<!\w)term(?!\w)`（IGNORECASE|ASCII；term 内空白/`~`→`[~\s]+`）筛出本文实际出现词条 → 序列化为 `- en: zh` 行表追加 system prompt 末尾——整篇翻译期间 system prompt 逐字节不变，供前缀缓存命中。真实词条按 `en.lower()` 排（ph 形 en 是普通词条无特判），字节稳定是缓存命中前提。
 - `terms/index.yaml` 类目映射：`stat.ML`→`cs.ML.csv`、`eess.AS`→`cs.AI.csv`、`cond-mat.*`→`cond-mat.csv`、`quant-ph`→`quant-ph.csv`，未列→`default.csv`。资产行数：default 404 / cond-mat 756 / cs.LG 357 / cs.ML 305 / cs.RO 354 / quant-ph 311 / cs.AI 212 / cs.CV 158。种子表来自 LaTeXTrans[^latextrans]。
 - 产物落盘 `term_dict.json`；运行时逐篇抽取臂 `autogloss.py` 的缺省分面：`TEXLATE_AUTO_GLOSSARY` env 仅闸本地 `run`/e2e（mock 占位管线）与 bench——该路径缺省关（`PipelineConfig.auto_glossary_fn`）；server/web 任务走逐任务选项 `auto_glossary` 且缺省已开（`server/http.py::_clean_task_options` 注入 `True`），此 env 在真实翻译路径无效。抽取细节：masked chunk 文列 → LLM JSON `[{src,tgt}]` → 归一键多数表决；`EXTRACT_BATCH_CHARS=2400`、`EXTRACT_MAX_BATCHES=6`、`EXTRACT_TEMPERATURE=0.1`、单批失败跳过。
 

@@ -22,6 +22,8 @@
 
 翻译执行前把全部占位符注册为 `glossary[ph] = ph` 恒等映射——由于 prompt 宣称「glossary 是最高优先级规则」，**占位符保护从「请你别动」的软约束升级为「术语替换表规定它映射到自身」的硬约束**，零额外 token 成本。
 
+> **v5 修订注（2026-09-28）**：「零额外 token」只对单请求成立——逐调用重发恒等表实为 O(doc_ph)×O(calls)，实测占 texlate 新输入 ~85%（重占位符文档单批 119802 in-tok）。v5 用 `<Glossary>` 末行一条点名册（`render_placeholder_manifest`：连号压缩 `[[MATH_1]]..[[MATH_3]]`、超 4000c 退化无括号 `TYPE×n`）保住「告知全集」语义，规模 O(类型+连续段)；网关回归同批 4408 in-tok、152/152 占位符保留。「glossary 最高优先级」宣称仍在，硬约束语义不变。
+
 ### 2.3 术语表三级体系
 
 user CSV（独占加载）→ 否则按 arXiv abs 页 `div.subjects` 爬 category 逐类映射 `terms/{category}.csv`（多 category 并集、先命中先写）→ 全不命中落 `terms/default.csv`。CSV 两列无表头 `en,zh`；种子体量 default 404 行 + cs.LG 357 + cs.RO 354 + cs.ML 305 + cs.AI 212 + cs.CV 158 ≈ 1790 行人工对，含「保原语」条目（`AGI,AGI`、`Canny,Canny`）。注入方式是把整个 dict repr 拼进 prompt 尾部——糙但有效（§4 改进点）。运行时术语自增（翻完段抽 `en-zh` 对并入表）实现了但有 bug 实际未启用——思路可借鉴不抄实现。
@@ -53,6 +55,8 @@ user CSV（独占加载）→ 否则按 arXiv abs 页 `div.subjects` 爬 categor
 ## 5. 风险与开放项（留档）
 
 glossary 体积 ~3–4k token/请求，短块批量时可能超过正文体积——接受（一次烤进吃缓存），留意超小 provider 上下文；`[[MATH_n]]` 隔断句子可能出翻译腔，scanner 产出时保证占位符两侧天然空格；`table_text`/`section_title`/`abstract` 需配套 validator 对账项（`&`/`\\` 计数、命令名 diff）；运行时术语自增默认关留接口（自动抽取质量参差，污染全局表得不偿失）。
+
+> **v5 修订注（2026-09-28）**：恒等注入已撤（见 §2.2 注）——「glossary 体积」风险随之消解大半（重占位符文档术语块从 O(doc_ph) 行降为单行）；规则区从 C1–C10/B1 命名编号改扁平 `1.–N.` `**Anchor.**` 单行条款并新增全角标点条款（活规范 `spec/translate.md` §1.2）。未决点留档：manifest 退化形（`TYPE×n`）下模型无逐名名单可查，超大文档占位符纪律全靠条款措辞+值表兜底——2026-09-28 六格网关回归（含 7544-ph 退化文档）missing/invented 全 0，但更长尾形态未覆盖。
 
 ### 参考文献
 

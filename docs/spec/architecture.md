@@ -15,7 +15,7 @@ acquire_source ──► route_project(引擎路由) ──► XlatPipeline     
                     scan_tex_tree             ·占位符 reconcile    judge(clean/partial/fail)
                      ·v2 Gullet+Segmenter     ·L0 校验           修复链: precheck→L2→fixloop
                      ·四级分流                ·段缓存/断点续       embed ToUnicode(cmap)
-                     ·chunks 入库             ·glossary 5 层      build_alignment(dual.json)
+                     ·chunks 入库             ·glossary 4 层      build_alignment(dual.json)
                                                                    → 产物登记(files 表)
 ```
 
@@ -37,7 +37,7 @@ acquire_source ──► route_project(引擎路由) ──► XlatPipeline     
 
 ### 2.4 翻译（`xlat/`）
 
-`XlatPipeline`（`xlat/pipeline.py`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 五层术语（user > paper-local > category > default > ph）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/l0.py` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
+`XlatPipeline`（`xlat/pipeline.py`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 四层术语（user > paper-local > category > default；ph 名单行随 `<Glossary>` 末行另注）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/l0.py` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
 
 ### 2.5 编译与判定（`compile/`）
 

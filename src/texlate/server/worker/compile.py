@@ -76,7 +76,6 @@ from texlate.xlat.pipeline import (
     XlatPipeline,
     chunk_to_in,
 )
-from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.state import atomic_json
 
 from ._common import (
@@ -933,17 +932,10 @@ class _Compile:
                 zh = ok.get(db_cid)
                 if zh is not None:
                     trans.setdefault(fidx, {})[c.id] = zh
-        if "doc_ph" not in ctx.memo:
-            ctx.memo["doc_ph"] = collect_doc_placeholders(
-                ci.content for ci in chunk_ins.values()
-            )
         pipe = XlatPipeline(
             self._make_translator(ctx),
             config=PipelineConfig(tgt_lang=_tgt_lang(str(ctx.row["target_lang"]))),
-            glossary=self._make_glossary(
-                ctx,
-                placeholders=ctx.memo["doc_ph"],
-            ),
+            glossary=self._make_glossary(ctx),
             validator=pair_feedback,
         )
         # 旁路 pipe 不经 run()——_doc_glossary 恒 {}，L2 重译 prompt 会

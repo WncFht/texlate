@@ -48,8 +48,9 @@ async def translate_tree_async(
     恒返 ``(stats, results)``（e2e_real 弃 results 不用）。注入面全 kw-only：
 
     - ``glossary_fn(chunks) -> Glossary | None``：回调式术语表注入——
-      ``Glossary.load`` 的 ``placeholders`` 要 post-scan chunks 经
-      ``collect_doc_placeholders`` 算，调用方预计算即双扫，故按回调给。
+      术语层依赖 post-scan chunks（local 层路径由 src 决定），按回调给。
+      占位符点名不走本表——``pipeline._materialize`` 自行全量扫描渲染
+      manifest 压 ``<Glossary>`` 末行（v5）。
     - ``post_run(pipe) -> None``：``pipe.run`` 后调一次——term_dict 落盘等
       要 ``pipe._doc_glossary``/``pipe.state`` 面的观测件由此接。
     - ``scan_fn``/``validator``：调用侧**显式**传自家模块全局

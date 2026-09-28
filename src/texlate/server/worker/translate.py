@@ -35,7 +35,6 @@ from texlate.xlat.pipeline import (
     Translator,
     XlatPipeline,
 )
-from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.prompts import PROMPT_VERSION
 
 from ._common import (
@@ -329,10 +328,9 @@ class _Translate:
     ) -> dict[str, Any]:
         """段头纯计算簇（``_to_thread`` 里跑）：glossary/cache/frag 映射/inputs/对账表。
 
-        ``collect_doc_placeholders`` 全量扫 src_text、``_ph_frag_map``
-        逐块重建 ChunkIn、``Glossary.load`` 的文件读、``_make_cache``
-        的术语层指纹哈希——5k 块量级秒级 CPU/IO，全在主 loop 上跑会
-        堵死 SSE/心跳/分发。本簇零 DB 触（``_make_glossary`` 的
+        ``_ph_frag_map`` 逐块重建 ChunkIn、``Glossary.load`` 的文件读、
+        ``_make_cache`` 的术语层指纹哈希——5k 块量级秒级 CPU/IO，全在主
+        loop 上跑会堵死 SSE/心跳/分发。本簇零 DB 触（``_make_glossary``
         ``_warning`` 经 ``_on_loop`` 回弹保持单写者）；``all_chunks``
         与 ``cache.prewarm`` 的 SELECT 留 loop 线程。
         """
@@ -340,13 +338,8 @@ class _Translate:
         # recover_copied_tokens 抄回修复臂整条死代码（_l2_run_state 同款
         # chunk_to_in(ph_map=) 模式；DB chunk_id ↔ scans 按 byte span 对账）
         frag_of = self._ph_frag_map(ctx)
-        if "doc_ph" not in ctx.memo:
-            ctx.memo["doc_ph"] = collect_doc_placeholders(r["src_text"] for r in rows)
         return {
-            "glossary": self._make_glossary(
-                ctx,
-                placeholders=ctx.memo["doc_ph"],
-            ),
+            "glossary": self._make_glossary(ctx),
             "cache": self._make_cache(ctx),
             "frag_of": frag_of,
             "inputs": [
@@ -847,19 +840,18 @@ class _Translate:
             return []
         return [c for c in raw if isinstance(c, str)]
 
-    def _make_glossary(
-        self, ctx: TaskCtx, *, placeholders: Iterable[str] = ()
-    ) -> Glossary | None:
+    def _make_glossary(self, ctx: TaskCtx) -> Glossary | None:
         """术语表：config.glossary 路径优先（confine 后），缺省内置默认层。
 
-        五层序：user > local(``base/glossary.local.yaml``) > categories
-        （arXiv 声明分类 → ``terms/*.csv`` 经 index.yaml）> default >
-        placeholders（``[[X_n]]`` 恒等注入逼模型原样回抄）。
+        四层序：user > local(``base/glossary.local.yaml``) > categories
+        （arXiv 声明分类 → ``terms/*.csv`` 经 index.yaml）> default。
+        占位符点名册不走本表——``pipeline._materialize`` 经
+        ``render_placeholder_manifest`` 单行压 ``<Glossary>`` 块末行。
 
         每任务 2~4 调（主链/env_judge/L2/pdf 臂同形构造）——``ctx.memo``
-        按 ``("glossary", frozenset(placeholders))`` 备忘复用。
+        按 ``"glossary"`` 备忘复用。
         """
-        mkey = ("glossary", frozenset(placeholders))
+        mkey = "glossary"
         if mkey in ctx.memo:
             return ctx.memo[mkey]
         cfg = ctx.config()
@@ -867,15 +859,12 @@ class _Translate:
         try:
             path, local = self._glossary_layers(ctx, cfg, warn=True)
             if path is None:
-                g = Glossary.load(
-                    local_path=local, categories=cats, placeholders=placeholders
-                )
+                g = Glossary.load(local_path=local, categories=cats)
             else:
                 g = Glossary.load(
                     user_path=path,
                     local_path=local,
                     categories=cats,
-                    placeholders=placeholders,
                 )
         except Exception as e:  # noqa: BLE001 -- 术语表是增强件：load 面 TypeError/yaml.YAMLError 等非 OSError/ValueError 同降级无表
             self._log(ctx, f"glossary load failed: {e}")
@@ -958,8 +947,8 @@ class _Translate:
             except OSError:
                 user_sig = ""
         # categories 进指纹：不同分类 → category 层术语不同 → 同源句的
-        # 翻译函数不同，跨论文共享必须按分类分桶。placeholders 是恒等
-        # 注入且逐文档漂移——进指纹会把缓存锁死成单文档桶，不进。
+        # 翻译函数不同，跨论文共享必须按分类分桶。文档占位符点名册逐文档
+        # 漂移——进指纹会把缓存锁死成单文档桶，不进。
         cats = ",".join(self._arxiv_categories(ctx))
         # base_url 进指纹：同名 model 换后端（free 网关 vs BYOK 端点）产出
         # 不同——缺此项段缓存跨 provider 混桶中毒（spec file_cache_key

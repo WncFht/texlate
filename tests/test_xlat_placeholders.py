@@ -1,4 +1,4 @@
-"""placeholders：换行编码 round-trip / 占位符对账 / 恒等排序 / recover_copied_tokens。"""
+"""placeholders：换行编码 round-trip / 占位符对账 / manifest 点名册 / recover_copied_tokens。"""
 
 import subprocess
 import sys
@@ -261,6 +261,83 @@ def test_collect_doc_placeholders_stable_order() -> None:
     docs = ["b [[MATH_10]] [[SL]]", "a [[CITE_1]] [[MATH_2]]"]
     out = ph.collect_doc_placeholders(docs)
     assert out == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]", "[[SL]]"]
+
+
+class TestPlaceholderManifest:
+    """``render_placeholder_manifest``——v5 恒等注入替代件（``<Glossary>`` 末行）。"""
+
+    def test_empty(self) -> None:
+        assert ph.render_placeholder_manifest([]) == ""
+        assert ph.render_placeholder_manifest(["notaph", "x_3"]) == ""
+
+    def test_header_shape(self) -> None:
+        out = ph.render_placeholder_manifest(["[[MATH_1]]"])
+        assert out.startswith(ph.PH_MANIFEST_HEADER)
+        assert out.startswith("- ")  # 合法混入 ``- en: zh`` 行表
+        assert "\n" not in out  # 单行——压块末行用
+
+    def test_consecutive_run_compressed(self) -> None:
+        """同 head 连号段 ≥2 压 ``[[H_a]]..[[H_b]]``。"""
+        out = ph.render_placeholder_manifest(
+            ["[[MATH_1]]", "[[MATH_2]]", "[[MATH_3]]", "[[CITE_5]]"]
+        )
+        assert out == (ph.PH_MANIFEST_HEADER + "[[CITE_5]], [[MATH_1]]..[[MATH_3]]")
+
+    def test_gap_breaks_runs(self) -> None:
+        """稀疏编号不伪造在册 id——分段各压各的。"""
+        out = ph.render_placeholder_manifest(
+            ["[[MATH_1]]", "[[MATH_2]]", "[[MATH_4]]", "[[MATH_5]]"]
+        )
+        assert "[[MATH_1]]..[[MATH_2]]" in out
+        assert "[[MATH_4]]..[[MATH_5]]" in out
+        assert "[[MATH_3]]" not in out
+
+    def test_single_not_compressed(self) -> None:
+        out = ph.render_placeholder_manifest(["[[MATH_7]]"])
+        assert out == ph.PH_MANIFEST_HEADER + "[[MATH_7]]"
+
+    def test_bare_tokens_verbatim(self) -> None:
+        """裸标记原样直出、排同型带号之前（sort_key n=-1）。"""
+        out = ph.render_placeholder_manifest(["[[SL]]", "[[MATH_1]]", "[[NBSP]]"])
+        assert "[[NBSP]]" in out
+        assert "[[SL]]" in out
+        assert "[[MATH_1]]" in out
+
+    def test_dedup_and_zero_pad_tie(self) -> None:
+        """sort_key 同键（``[[A_1]]``/``[[A_01]]``）按 token 字面消歧；去重。"""
+        out = ph.render_placeholder_manifest(
+            ["[[A_1]]", "[[A_01]]", "[[A_1]]", "[[A_2]]"]
+        )
+        # "[[A_01]]" < "[[A_1]]" 字面序；两 n=1 各自单出（不同 token 不互压）
+        assert "[[A_01]]" in out
+        body = out[len(ph.PH_MANIFEST_HEADER) :]
+        assert body.count("[[A_1]]") == 1
+        assert "[[A_2]]" in out
+
+    def test_non_ph_filtered(self) -> None:
+        """``[[x_3]]``（小写）、``[[123]]`` 等非 ANY_PH 形态剔除。"""
+        out = ph.render_placeholder_manifest(
+            ["[[x_3]]", "[[123]]", "[[MATH_1]]", "plain"]
+        )
+        assert out == ph.PH_MANIFEST_HEADER + "[[MATH_1]]"
+
+    def test_overlong_degrades_to_counts(self) -> None:
+        """>4000c 退化无括号 ``TYPE×n`` 计数形——不含 ``[[``（防回抄判 extra）。"""
+        toks = [f"[[MATH_{i}]]" for i in range(0, 8000, 7)]
+        out = ph.render_placeholder_manifest(toks)
+        assert out.startswith(ph.PH_MANIFEST_HEADER)
+        assert "[[" not in out  # BARE_PH_RX/PH_FUZZY_RX 均不吃 → 回抄无毒
+        assert f"MATH×{len(toks)}" in out
+
+    def test_degrade_counts_multiple_heads(self) -> None:
+        """稀疏号防连号压缩——两 head 各 400 token 即顶破 4000c 退化。"""
+        toks = [f"[[MATH_{i * 17}]]" for i in range(400)] + [
+            f"[[CITE_{i * 13}]]" for i in range(400)
+        ]
+        out = ph.render_placeholder_manifest(toks)
+        assert "[[" not in out
+        assert "MATH×400" in out
+        assert "CITE×400" in out
 
 
 class TestSentinelClosedLoop:

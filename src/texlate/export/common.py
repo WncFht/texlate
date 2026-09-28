@@ -16,7 +16,6 @@ import yaml
 from texlate.export.markers import reconcile_markers
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
-from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.placeholders import diff as _ph_diff
 from texlate.xlat.state import StateStore
 
@@ -227,9 +226,6 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
     ``(结果表, 计数)`` 供调用方组 ``ExportReport``。
     """
     g = coerce_glossary(glossary)
-    for ph in collect_doc_placeholders(c.content for c in chunks):
-        g = g or Glossary()
-        g.terms.setdefault(ph, TermEntry(ph, ph, "placeholder"))
     pipe = XlatPipeline(
         translator,
         state=store,

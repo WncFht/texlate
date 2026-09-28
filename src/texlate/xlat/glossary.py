@@ -1,4 +1,4 @@
-"""三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt（docs/spec/translate.md）。
+"""三级术语表 + 文档级过滤烤进稳定 system prompt（docs/spec/translate.md）。
 
 yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target: zh}}` /
 `{"terms": {...}}` 三种形态归一为平表，list 值拒绝（宁可拒载不静默读歪）。
@@ -9,7 +9,10 @@ yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target
     ② 论文级     output/{paper}/glossary.local.yaml              介于 user 与 category
     ③ category  terms/{primary_cat}.csv（+ 次 category 并集，声明序先命中先写）
     ④ 内建默认   terms/default.csv                               兜底
-    ⑤ 占位符     ph→ph 恒等注入                                   最低，不覆盖真术语
+
+占位符点名不走本模块——v5 起由 ``placeholders.render_placeholder_manifest``
+渲染单行点名册压 ``<Glossary>`` 块末行（pipeline._materialize 接线），
+替代旧⑤层 ph→ph 恒等注入（O(文档占位符)×O(调用) 重发事故根因）。
 
 种子表 `terms/*.csv` 搬运自 LaTeXTrans（MIT，tmp/refs/LaTeXTrans/terms/），
 category→file 映射 `terms/index.yaml`——加领域不改代码。
@@ -29,8 +32,6 @@ from typing import TYPE_CHECKING
 import yaml
 
 from texlate.textutil import data_root, safe_is_file, safe_resolve
-
-from .placeholders import sort_key
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
@@ -152,7 +153,7 @@ class TermEntry:
 
     en: str
     zh: str
-    source: str  # "user" | "local" | "category:<cat>" | "default" | "placeholder"
+    source: str  # "user" | "local" | "category:<cat>" | "default"
 
 
 @dataclass
@@ -164,7 +165,7 @@ class Glossary:
     # ------------------------------------------------------------ 加载
 
     @classmethod
-    def load(  # noqa: PLR0913 -- 五层优先级每层一个 kw-only 参数，spec 形态
+    def load(
         cls,
         *,
         user_path: Path | None = None,
@@ -172,12 +173,10 @@ class Glossary:
         categories: Iterable[str] = (),
         terms_dir: Path = DEFAULT_TERMS_DIR,
         include_default: bool = True,
-        placeholders: Iterable[str] = (),
     ) -> Glossary:
-        """按优先级装载五层。`categories` 为 arXiv category 声明序（先命中先写）。
+        """按优先级装载四层。`categories` 为 arXiv category 声明序（先命中先写）。
 
-        加载顺序 = 优先级从高到低，`setdefault` 语义保证先写者胜；
-        占位符恒等注入最后执行——优先级最低，绝不覆盖真术语。
+        加载顺序 = 优先级从高到低，`setdefault` 语义保证先写者胜。
         """
         g = cls()
         # ① 用户表（缺省读 数据目录/glossary.yaml；显式 path 优先）
@@ -207,10 +206,6 @@ class Glossary:
             default = terms_dir / "default.csv"
             if safe_is_file(default):
                 g._merge(load_table(default), "default")
-        # ⑤ 占位符恒等注入（最低优先级）；sort_key 非全序，同键按 ph 消歧
-        # ——逐字节稳定是前缀缓存命中前提（D7）
-        for ph in sorted(set(placeholders), key=lambda p: (sort_key(p), p)):
-            g.terms.setdefault(ph, TermEntry(ph, ph, "placeholder"))
         return g
 
     def _merge(self, table: Mapping[str, str], source: str) -> None:
@@ -224,22 +219,15 @@ class Glossary:
 
         命中语义 = `(?<!\\w)term(?!\\w)`（IGNORECASE|ASCII、词内 `[~\\s]+` 缝）
         整篇过滤一次——保证 system prompt 恒定；实现走 `_term_hit` 扫描
-        （corpus 只 `_afold` 一次，非逐术语 `re.search`）。渲染排序：真术语按
-        en（IGNORECASE）字典序、占位符按 `sort_key` 排尾——逐字节稳定是
-        前缀缓存命中前提。
+        （corpus 只 `_afold` 一次，非逐术语 `re.search`）。渲染排序：术语按
+        en（IGNORECASE）字典序——逐字节稳定是前缀缓存命中前提。
         """
         corpus = _afold("\n".join(texts))
-        real: list[TermEntry] = []
-        phs: list[TermEntry] = []
-        for en, entry in self.terms.items():
-            if entry.source == "placeholder":
-                phs.append(entry)
-                continue
-            if _term_hit(en, corpus):
-                real.append(entry)
+        real: list[TermEntry] = [
+            entry for en, entry in self.terms.items() if _term_hit(en, corpus)
+        ]
         real.sort(key=lambda e: e.en.lower())
-        phs.sort(key=lambda e: (sort_key(e.en), e.en))
-        return {e.en: e.zh for e in [*real, *phs]}
+        return {e.en: e.zh for e in real}
 
     def as_dict(self) -> dict[str, str]:
         """`{en: zh}` 平铺（term_dict.json 落盘用）。"""

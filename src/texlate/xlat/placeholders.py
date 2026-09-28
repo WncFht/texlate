@@ -58,7 +58,7 @@ PARA_NEWLINE = "[[PL]]"
 SOFT_NEWLINE_RAW = "[[SL_RAW]]"
 PARA_NEWLINE_RAW = "[[PL_RAW]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
-#: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 C9 保护契约；
+#: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 Placeholders 条款保护契约；
 #: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
 #: realpostfix2 E22 实证: 2203.13012 `~` 丢、2403.15096 `\,`/`\;` 丢) ——
 #: `~`/`\,`/`\:`/`\;`/`\!` 各占一 token 保 decode 无损; 裸标记语法
@@ -422,7 +422,7 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
 
 
 def collect_doc_placeholders(contents: Iterable[str]) -> list[str]:
-    """收集文档全部 chunk 的占位符集合，按 `sort_key` 稳定排序（术语表注入用）。
+    """收集文档全部 chunk 的占位符集合，按 `sort_key` 稳定排序（manifest 点名用）。
 
     ``sort_key`` 非全序（``[[A_1]]``/``[[A_01]]`` 同键）——同键按 token 字面
     消歧，否则 tie 落 set 迭代序 = 哈希序，注入序随 PYTHONHASHSEED 漂移。
@@ -431,3 +431,54 @@ def collect_doc_placeholders(contents: Iterable[str]) -> list[str]:
     for text in contents:
         seen.update(ANY_PH_RX.findall(text))
     return sorted(seen, key=lambda p: (sort_key(p), p))
+
+
+# ---------------------------------------------------------------- 点名册 manifest
+
+#: manifest 行头——压 ``<Glossary>`` 块末行的文档级占位符点名册（v5 恒等表
+#: 替代件；实测字节形见 docs/spec/translate.md §1.9）。``- `` 前缀使其合法
+#: 混入 ``- en: zh`` 行表。
+PH_MANIFEST_HEADER = "- placeholders used in this document (preserve each verbatim): "
+
+#: manifest 行字符上限——超出退化为无括号计数形 ``TYPE×n``（恒等表 98% 体积
+#: 事故的重发闸）。稀疏编号文档最差实测 ~3.2kc，4000 留头部使常见规模
+#: 仍走已验证的连续段枚举形。
+_PH_MANIFEST_MAX_CHARS = 4000
+
+
+def render_placeholder_manifest(phs: Iterable[str]) -> str:
+    """文档占位符集 → 单行点名册（``<Glossary>`` 块末行；⑤层恒等注入的替代件）。
+
+    入参任意 iterable——``ANY_PH_RX.fullmatch`` 过滤后按 ``(sort_key, 字面)``
+    排序；同 head 连续编号段压 ``[[H_a]]..[[H_b]]``（≥2 连号即压，稀疏区不
+    伪造在册 id——虚增 id 正对 invented-placeholder 校验判据），裸标记原样
+    直出。渲染超 ``_PH_MANIFEST_MAX_CHARS`` 退化为无括号计数形 ``TYPE×n``：
+    ``[[CITE]]`` 命中 ``BARE_PH_RX``、``[[CITE_n]]`` 命中 ``PH_FUZZY_RX``，
+    括号形若被回抄均判 extra 触发成员级重翻，故退化形不含任何 ``[[…]]``。
+    空集返回 ``""``。
+    """
+    toks = sorted(
+        {p for p in phs if ANY_PH_RX.fullmatch(p)},
+        key=lambda p: (sort_key(p), p),
+    )
+    if not toks:
+        return ""
+    parts: list[str] = []
+    i = 0
+    while i < len(toks):
+        head, n = sort_key(toks[i])
+        if n < 0:
+            parts.append(toks[i])
+            i += 1
+            continue
+        j = i + 1
+        while j < len(toks) and sort_key(toks[j]) == (head, n + j - i):
+            j += 1
+        parts.append(f"{toks[i]}..{toks[j - 1]}" if j - i > 1 else toks[i])
+        i = j
+    line = PH_MANIFEST_HEADER + ", ".join(parts)
+    if len(line) <= _PH_MANIFEST_MAX_CHARS:
+        return line
+    counts = Counter(sort_key(t)[0] for t in toks)
+    tally = ", ".join(f"{h}×{c}" for h, c in counts.items())
+    return PH_MANIFEST_HEADER + tally

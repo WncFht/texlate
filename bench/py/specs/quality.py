@@ -202,6 +202,8 @@ def _qxlat(ctx):
         )
     sdir = dest / vault._work_dirname("state", ctx.arm, src_variant)
     # 持久化 term_dict（真实注入表）优先于重建假设表
+    # 口径变化（v5）：占位符恒等行已移出术语表——term_dict 只剩真术语，
+    # ph 点名册改走 <Glossary> 末行 manifest，不进本文件。
     term_dict = None
     tdp = sdir / "term_dict.json"
     if tdp.is_file():

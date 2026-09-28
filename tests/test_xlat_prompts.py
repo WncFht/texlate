@@ -1,6 +1,43 @@
-"""prompts：公共块逐字共享 / kind 条款 / C9-C10 压轴 / 术语表尾块 / corrector / judge。"""
+"""prompts：公共块逐字共享 / kind 条款槽 / 锚名序 / 术语表+manifest 尾块 / corrector / judge。"""
 
-from texlate.xlat import prompts
+import re
+
+from texlate.xlat import placeholders, prompts
+
+#: 恒在条款锚名集（kind 槽、Person names、Batch protocol 之外）
+_COMMON_ANCHORS = (
+    "Scope",
+    "Protected LaTeX",
+    "Escaped characters",
+    "Style commands",
+    "Output",
+    "Punctuation and spacing",
+    "Control-sequence boundary",
+    "Quality",
+    "Untrusted content",
+    "Placeholders",
+)
+
+_RULE_RX = re.compile(r"^(\d+)\. \*\*(.+?)\.\*\* (.*)$")
+
+
+def _rule_lines(prompt_text: str) -> list[str]:
+    """规则区编号行（``i. **锚名.** 条款``）——每条规则一个物理行。"""
+    return [ln for ln in prompt_text.split("\n") if _RULE_RX.match(ln)]
+
+
+def _anchors(prompt_text: str) -> list[str]:
+    """规则区锚名序列。"""
+    return [m.group(2) for ln in _rule_lines(prompt_text) if (m := _RULE_RX.match(ln))]
+
+
+def _anchor_map(prompt_text: str) -> dict[str, str]:
+    """锚名 → 条款体（编号剥离——编号随 kind/batch 漂移，语义引用走锚名）。"""
+    return {
+        m.group(2): m.group(3)
+        for ln in _rule_lines(prompt_text)
+        if (m := _RULE_RX.match(ln))
+    }
 
 
 class TestKindPrompts:
@@ -14,31 +51,69 @@ class TestKindPrompts:
             "env_text",
         )
 
-    def test_common_block_shared_verbatim(self) -> None:
-        """C1..C8 公共块在全部 kind 间逐字共享（前缀缓存前提）。"""
-        p1 = prompts.build_system_prompt("para")
-        p2 = prompts.build_system_prompt("caption")
-        # 公共块 = C1 行到 C8 行尾
-        c1 = p1.index("C1.")
-        c8_end = p1.index("no comments.") + len("no comments.")
-        common1 = p1[c1:c8_end]
-        assert common1 in p2
+    def test_common_rules_shared_verbatim(self) -> None:
+        """公共条款体（去编号后）全 kind 逐字共享（前缀缓存前提）。"""
+        base = _anchor_map(prompts.build_system_prompt("para"))
         for kind in prompts.all_kinds():
-            assert common1 in prompts.build_system_prompt(kind)
+            got = _anchor_map(prompts.build_system_prompt(kind))
+            for anchor in _COMMON_ANCHORS:
+                assert got[anchor] == base[anchor], (kind, anchor)
 
-    def test_c9_tail_position(self) -> None:
-        """C9 是条款列表末位（其后只允许 C10/术语表）。"""
+    def test_numbering_sequential(self) -> None:
+        """编号 1..N 连续递增（数字只做位置柄，不做语义引用）。"""
+        for kind in prompts.all_kinds():
+            for batch in (False, True):
+                nums = [
+                    int(m.group(1))
+                    for ln in _rule_lines(
+                        prompts.build_system_prompt(kind, batch=batch)
+                    )
+                    if (m := _RULE_RX.match(ln))
+                ]
+                assert nums == list(range(1, len(nums) + 1)), (kind, batch)
+
+    def test_anchor_order_para(self) -> None:
+        """para 锚名序钉：Scope 簇 → 尾簇 → Person names（kind 槽空）。"""
+        assert _anchors(prompts.build_system_prompt("para")) == [
+            "Scope",
+            "Protected LaTeX",
+            "Escaped characters",
+            "Style commands",
+            "Output",
+            "Punctuation and spacing",
+            "Control-sequence boundary",
+            "Quality",
+            "Untrusted content",
+            "Placeholders",
+            "Person names",
+        ]
+
+    def test_kind_slot_position(self) -> None:
+        """kind 条款槽插在 Scope 簇（1-4）之后、Output 之前。"""
+        slots = {
+            "section_title": "Section commands",
+            "abstract": "Abstract structure",
+            "table_text": "Table structure",
+            "env_text": "Environment structure",
+        }
+        for kind, anchor in slots.items():
+            anchors = _anchors(prompts.build_system_prompt(kind))
+            assert anchors[4] == anchor, kind
+            assert anchors[5] == "Output", kind
+
+    def test_placeholders_tail_position(self) -> None:
+        """Placeholders 是尾簇末条（其后只许 Person names/Batch protocol）。"""
         p = prompts.build_system_prompt("caption")
         assert prompts.PLACEHOLDER_CLAUSE in p
-        tail = p[p.index("C9.") :]
-        assert "C1." not in tail
-        assert "C8." not in tail
+        assert _anchors(p)[-1] == "Placeholders"
+        para = _anchors(prompts.build_system_prompt("para"))
+        assert para[-2:] == ["Placeholders", "Person names"]
 
-    def test_c10_only_para_abstract(self) -> None:
-        assert "C10." in prompts.build_system_prompt("para")
-        assert "C10." in prompts.build_system_prompt("abstract")
+    def test_person_names_only_para_abstract(self) -> None:
+        assert "Person names" in _anchors(prompts.build_system_prompt("para"))
+        assert "Person names" in _anchors(prompts.build_system_prompt("abstract"))
         for kind in ("caption", "section_title", "table_text", "env_text"):
-            assert "C10." not in prompts.build_system_prompt(kind)
+            assert "Person names" not in _anchors(prompts.build_system_prompt(kind))
 
     def test_lang_fill(self) -> None:
         p = prompts.build_system_prompt("para", src_lang="English", tgt_lang="Chinese")
@@ -59,16 +134,16 @@ class TestKindPrompts:
         assert "\\multicolumn" in prompts.build_system_prompt("table_text")
         assert "human-readable sentences" in prompts.build_system_prompt("env_text")
 
-    def test_batch_clause(self) -> None:
+    def test_batch_protocol_last(self) -> None:
         p = prompts.build_system_prompt("para", batch=True)
-        assert "B1." in p
+        assert _anchors(p)[-1] == "Batch protocol"
         assert "@@" in p
-        assert "B1." not in prompts.build_system_prompt("para")
+        assert "Batch protocol" not in _anchors(prompts.build_system_prompt("para"))
 
     def test_glossary_last(self) -> None:
-        g = {"attention": "注意力", "[[MATH_1]]": "[[MATH_1]]"}
+        g = {"attention": "注意力", "backbone": "骨干网络"}
         p = prompts.build_system_prompt("para", glossary_terms=g)
-        assert p.rstrip().endswith("- [[MATH_1]]: [[MATH_1]]")
+        assert p.rstrip().endswith("- backbone: 骨干网络")
         assert "<Glossary>:" in p
         assert "- attention: 注意力" in p
 
@@ -76,24 +151,54 @@ class TestKindPrompts:
         assert "<Glossary>" not in prompts.build_system_prompt(
             "para", glossary_terms={}
         )
+        assert "<Glossary>" not in prompts.build_system_prompt(
+            "para", placeholder_manifest=""
+        )
 
-    def test_fusion_clause_all_kinds_before_c9(self) -> None:
-        """C8a 反熔合条款（B4a 跨模型通病防御）：全 kind 有、在 C9 之前。"""
+    def test_placeholder_manifest_last_line(self) -> None:
+        """v5：点名册单行压 ``<Glossary>`` 块最末——恒等注入的替代件。"""
+        manifest = placeholders.render_placeholder_manifest(
+            ["[[MATH_2]]", "[[CITE_3]]", "[[MATH_1]]"]
+        )
+        assert manifest == (
+            placeholders.PH_MANIFEST_HEADER + "[[CITE_3]], [[MATH_1]]..[[MATH_2]]"
+        )
+        p = prompts.build_system_prompt("para", placeholder_manifest=manifest)
+        assert p.rstrip().endswith(manifest)
+        # 恒等行不再注入——ph 以点名形出现而非 "- [[X_n]]: [[X_n]]" 行
+        assert "- [[MATH_1]]: [[MATH_1]]" not in p
+
+    def test_manifest_with_real_glossary(self) -> None:
+        """真术语行在前、manifest 恒末行。"""
+        manifest = placeholders.render_placeholder_manifest(["[[MATH_1]]"])
+        p = prompts.build_system_prompt(
+            "para",
+            glossary_terms={"attention": "注意力"},
+            placeholder_manifest=manifest,
+        )
+        assert p.rstrip().endswith(manifest)
+        assert p.index("- attention: 注意力") < p.index(manifest)
+
+    def test_cs_boundary_and_untrusted_positions(self) -> None:
+        """cs-boundary/untrusted 防御条款：全 kind 有、在 Placeholders 之前。"""
         for kind in prompts.all_kinds():
             p = prompts.build_system_prompt(kind)
-            assert "C8a." in p
-            assert p.index("C8a.") < p.index("C9.")
-
-    def test_untrusted_clause_all_kinds(self) -> None:
-        """C8b untrusted 条款：全 kind 有、在 C8a 之后 C9 之前。"""
-        for kind in prompts.all_kinds():
-            p = prompts.build_system_prompt(kind)
-            assert "C8b." in p
+            anchors = _anchors(p)
             assert "untrusted document content" in p
-            assert p.index("C8a.") < p.index("C8b.") < p.index("C9.")
+            assert (
+                anchors.index("Control-sequence boundary")
+                < anchors.index("Untrusted content")
+                < anchors.index("Placeholders")
+            )
 
-    def test_c9_movable_license(self) -> None:
-        """C9 v4 改写：删 reorder 禁令 + movable/fixed 二分授权句。"""
+    def test_fullwidth_punctuation_clause(self) -> None:
+        """v5 新增全角标点显式枚举（ASCII 标点漂移的验证抑制件）。"""
+        for kind in prompts.all_kinds():
+            p = prompts.build_system_prompt(kind)
+            assert "，。；：？！（）" in p
+
+    def test_placeholders_clause_wording(self) -> None:
+        """Placeholders 条款措辞钉：movable/fixed 二分授权（v4 逐字）。"""
         clause = prompts.PLACEHOLDER_CLAUSE
         assert "reorder" not in clause
         assert "may and should change" in clause
@@ -110,8 +215,10 @@ class TestKindPrompts:
         assert "Paper context" in p
         assert "never translate, append, or summarize it" in p
         assert ctx in p
-        # 插在 task 句与 C1 公共块之间
-        assert p.index("Your task") < p.index("Paper context") < p.index("C1.")
+        # 插在 task 句与规则区之间
+        assert (
+            p.index("Your task") < p.index("Paper context") < p.index("1. **Scope.**")
+        )
         # 缺席两态：None 与 "" 同效
         bare = prompts.build_system_prompt("para")
         assert "Paper context" not in bare

@@ -71,8 +71,9 @@ class TestStageTranslateTermDict:
         out = ctx.root / "export-state" / "term_dict.json"
         assert out.is_file()
         term_dict = json.loads(out.read_text(encoding="utf-8"))
-        # 占位符恒等注入无条件进 doc_filter 尾部——$x+y$ 的 [[MATH_*]] 必在
-        assert any(k.startswith("[[MATH_") and term_dict[k] == k for k in term_dict)
+        # v5：占位符恒等行已移出 term_dict——ph 点名走 <Glossary> 末行
+        # manifest，不落本文件；只剩真术语行
+        assert not any(k.startswith("[[") and term_dict[k] == k for k in term_dict)
 
     def test_no_glossary_still_no_crash(
         self,
