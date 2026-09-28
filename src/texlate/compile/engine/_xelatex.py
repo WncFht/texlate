@@ -40,6 +40,7 @@ else:
 
 from texlate.compile.deps import compiled_dependencies
 from texlate.compile.loginfo import parse_log
+from texlate.compile.mask import visible_tex
 from texlate.compile.sandbox import (
     _apply_sandbox,
     _rc_to_signal,
@@ -62,6 +63,14 @@ from ._cache import load_search_cache, save_search_cache, tlmgr_search_cache_pat
 log = logging.getLogger(__name__)
 
 MAX_PASSES = 2
+
+#: 自适应档续趟硬顶（qc-impl wave-2）——``passes=None`` 起步 ``MAX_PASSES``
+#: 趟，趟末 rerun/undef 提示仍在即按剩余墙钟重劈预算自延一趟，至本顶停
+#: 补。bib 采纳 → ``\bibcite`` 落 aux → 文内 ``[n]`` 渲染要 3 趟（PoC
+#: 实证 2 趟仍 ``[?]``），cap=2 在末趟截死即 ``??`` 出货（broken_refs
+#: ~34 格实证面）。显式 ``passes=N`` 钉死档不吃本顶——caller 钉几趟跑
+#: 几趟；bib 末趟采纳的破例延趟同不受限（新 bbl 必须有人消费）。
+_ADAPTIVE_PASS_CAP: Final = 4
 
 #: 续趟判据（B14 fix#7 rerun-gate）：逐趟 stdout 匹配——命中即 LaTeX 自报
 #: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音）。
@@ -120,12 +129,93 @@ _AUX_CITE_RX: Final = re.compile(
 )
 #: bbl 键面——``\bibitem[..]{key}`` (classic) 与 ``\entry{key}{..}``
 #: (biblatex) 同收; 覆盖度复核的"已供键"面。
-_BBL_KEY_RX: Final = re.compile(
-    r"\\(?:bibitem(?:\[[^\]]*\])?|entry)\{([^}]*)\}"
-)
+_BBL_KEY_RX: Final = re.compile(r"\\(?:bibitem(?:\[[^\]]*\])?|entry)\{([^}]*)\}")
 #: ``\bibdata{name[,name2]}``——bibdata 可解性判 (无 .bib → bibtex 必败,
 #: 让位异名收编臂)。
 _BIBDATA_RX: Final = re.compile(r"\\bibdata\{([^}]*)\}")
+
+#: 出货闸输入覆盖 (qc-impl wave-2): masked 视图深度0扫描——首个
+#: ``\end{document}`` = 输入吃活到收束；先到的顶层 ``\endinput`` = 输入
+#: 被截停 (其后全部死代码——``\end{document}`` 在尾也吃不到, 0906.4725
+#: 型文献表腰斩件)。``\end{document}`` 之后的 live 尾巴不算伤: TeX
+#: 本就忽视, 作者草稿尾注常见。
+_ENDDOC_RX: Final = re.compile(r"\\end\s*\{\s*document\s*\}")
+_ENDINPUT_RX: Final = re.compile(r"\\endinput(?![a-zA-Z@])")
+#: ``\input{name}``/``\include{name}`` 两形态: 花括号与裸名 (plain 风)。
+#: 花括号形先匹配 (``\input{sub/a}`` 与 ``\input sub/a`` 同收)。
+_INCLUDE_SRC_RX: Final = re.compile(
+    r"\\(?:input|include)(?![a-zA-Z@])\s*(?:\{([^}]+)\}|([^\s{}\\]+))"
+)
+#: ``\input`` 链跟进深度顶——main_wrapper_promote 的 wrapper→真身一跳
+#: 足够, 再深即病态链。
+_ENDDOC_MAX_DEPTH: Final = 2
+
+
+#: ``\\endinput`` 执行豁免形——``\\let\\cs\\endinput``/``\\def\\cs{..}``
+#: 把它存进宏体不执行 (pstricks ``\\let\\PSTricksLoaded\\endinput`` 实证);
+#: 行头查赋值系 cs 即足, 真截停的 ``\\endinput`` 行内无赋值前件。
+_ENDINPUT_DEF_RX: Final = re.compile(
+    r"\\(?:let|def|gdef|edef|xdef|newcommand|renewcommand|providecommand)\b"
+)
+
+
+def _enddoc_scan(masked: str) -> tuple[int | None, int]:
+    r"""Masked 视图扫描 → (``\end{document}`` pos, 截停 pos)。
+
+    ``\end{document}`` 任意深度都执行 (分组不阻执行), 命中即收束;
+    ``\endinput`` 仅深度0 且非赋值右值时计——包内宏体存储形不截停。
+    返回 ``(None, cut)``: ``cut`` = 截停位置或 ``len``。
+    """
+    depth = 0
+    i, n = 0, len(masked)
+    while i < n:
+        ch = masked[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}" and depth:
+            depth -= 1
+        elif ch == "\\":
+            m = _ENDDOC_RX.match(masked, i)
+            if m is not None:
+                return i, n
+            m = _ENDINPUT_RX.match(masked, i)
+            if m is not None and depth == 0:
+                head = masked[masked.rfind("\n", 0, i) + 1 : i]
+                if not _ENDINPUT_DEF_RX.search(head):
+                    return None, i
+        i += 1
+    return None, n
+
+
+def _input_covers_enddoc(path: Path, _depth: int = 0) -> bool:
+    r"""编译输入覆盖闸。
+
+    ``path`` (含 ``\input`` 链 ≤``_ENDDOC_MAX_DEPTH`` 层) 能吃活到
+    ``\end{document}`` 即 covered。主件顶层先见 ``\endinput`` → 其后
+    输入全死, 只跟进截停点之前的 ``\input``/``\include``——wrapper
+    main 把 ``\end{document}`` 放真身件是本闸存在的原因。
+    读不动/链断 = 不覆盖。
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    masked = visible_tex(text)
+    end_pos, cut = _enddoc_scan(masked)
+    if end_pos is not None:
+        return True
+    if _depth >= _ENDDOC_MAX_DEPTH:
+        return False
+    for inc in _INCLUDE_SRC_RX.finditer(masked, 0, cut):
+        name = (inc.group(1) or inc.group(2) or "").strip()
+        if not name:
+            continue
+        cand = path.parent / name
+        if not cand.suffix:
+            cand = cand.with_suffix(".tex")
+        if cand.is_file() and _input_covers_enddoc(cand, _depth + 1):
+            return True
+    return False
 
 
 def _has_bbl(bbl: Path) -> bool:
@@ -151,6 +241,52 @@ def _bbl_complete(bbl: Path) -> bool:
     except OSError:
         return False
     return _BBL_TAIL_RX.search(tail) is not None
+
+
+#: ``.bbl`` 头窗 ``% $ biblatex bbl format version X.Y $`` 声明组。
+_BBL_VER_RX: Final = re.compile(rb"biblatex bbl format version\s+([\d.]+)")
+_BBL_HEAD_BYTES: Final = 2048
+#: biblatex.sty 内期待值 ``\def\blx@bblversion{X.Y}``。
+_BLX_VER_RX: Final = re.compile(r"\\def\\blx@bblversion\{([\d.]+)\}")
+#: ``\blx@bblversion`` 进程内 memo (texmf 路径键)——每格 kpsewhich 已
+#: memo, 本层只省 sty 重复读; texmf 树 install 通路在册期间不换版。
+_BLX_VER_MEMO: dict[str, str | None] = {}
+
+
+def _bbl_decl_version(bbl: Path) -> str | None:
+    """``.bbl`` 头窗声明的 bbl format 版本; 无声明 (classic bibtex 件) → None。"""
+    try:
+        head = bbl.read_bytes()[:_BBL_HEAD_BYTES]
+    except OSError:
+        return None
+    m = _BBL_VER_RX.search(head)
+    return m.group(1).decode("ascii", "replace") if m else None
+
+
+def _bbl_version_skewed(bbl: Path, probe: Callable[[str], str | None]) -> bool:
+    r"""在席 bbl 声明版 ≠ 装机 biblatex 期待版 (``\blx@bblversion``)。
+
+    随稿 ``.bbl`` 由作者旧 biber 产 (format 3.2), 装机 biblatex 3.21 要
+    3.3——版本不符 biblatex 只警告不拒读, 但 ``\\datalist`` 结构失配
+    解不成书目 → 原始 name-hash 数据直排成页 (2312.00752 ``un=0,
+    uniquepart=base,hash=…`` 全文 dump + 524 overfull 实证, vault 25 格
+    同纹)。任一侧读不出 (无 bbl/无 biblatex) → False 保守放行。
+    """
+    decl = _bbl_decl_version(bbl)
+    if decl is None:
+        return False
+    sty = probe("biblatex.sty")
+    if sty is None:
+        return False
+    if sty not in _BLX_VER_MEMO:
+        try:
+            text = Path(sty).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        m = _BLX_VER_RX.search(text)
+        _BLX_VER_MEMO[sty] = m.group(1) if m else None
+    want = _BLX_VER_MEMO[sty]
+    return want is not None and decl != want
 
 
 def _bcf_intact(bcf: Path) -> bool:
@@ -277,6 +413,11 @@ def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数�
     res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
     res.workdir = wdir
     res.deps = compiled_dependencies(wdir, main, out, res.engine)
+    # 出货闸 (qc-impl wave-2): 编译输入须吃活到 ``\end{document}``——
+    # ``log_truncated`` 只盖 halt_on_error 趟中截死; 输入件残 (无收尾
+    # token) 与顶层 ``\endinput`` 截停在 best_effort 下静默出残 pdf。
+    # 两引擎同闸 (tectonic 拼写即 ``wdir/main``, _checked_main 上游已过)。
+    res.input_truncated = not _input_covers_enddoc(Path(os.path.normpath(wdir / main)))
 
 
 # ================================================================ xelatex
@@ -503,7 +644,8 @@ class XelatexEngine:
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。
 
         ``passes=None``（缺省）= 自适应门：趟输出出现 rerun 提示族
-        （``_RERUN_HINT_RX``）即续跑，上限 ``MAX_PASSES``；显式 int =
+        （``_RERUN_HINT_RX``）即续跑——起步 ``MAX_PASSES`` 趟, 趟末提示
+        仍在按剩余预算再延一趟, 硬顶 ``_ADAPTIVE_PASS_CAP``；显式 int =
         无条件 ≤N 遍。停趟判据：超时/exec 失败（rc=None）/无 pdf 即停
         ——同输入重跑必同炸；错误退出（rc>0 非信号）仅自适应档被 rerun
         提示压过（提示即 LaTeX 自报 .aux 状态已变、pass-2 非同一输入），
@@ -586,6 +728,7 @@ class XelatexEngine:
             # 钉死档 rc!=0 不补（补了也吃不到下趟）。采纳即续趟信号；
             # pass2 载 .bbl 把 \bibcite 落 aux，pass3 才渲文内 [n]
             # （PoC 实证 2 趟仍 [?]）。
+            adopted = False
             if (
                 not res.bib_ran
                 and not (to or rc is None or not pdf.exists())
@@ -600,16 +743,27 @@ class XelatexEngine:
                     per_pass=per_pass,
                     should_cancel=should_cancel,
                 )
-                if res.bib_ran and p >= eff_passes:
-                    # 末趟才补成 → 自延一趟吸收; 延趟后按剩余预算重劈
-                    # per_pass——``timeout/eff_passes`` 本就是总墙钟约束:
-                    # 不劈则 timeout=240 的 2 趟起跑 (per_pass=120) 延成
-                    # 3 趟可烧 360s，静默超预算。
-                    eff_passes = p + 1
-                    per_pass = max(
-                        10.0, (timeout - res.seconds) / max(1, eff_passes - p)
-                    )
-            hint = hint or bool(res.bib_ran)
+                adopted = bool(res.bib_ran)
+            hint = hint or adopted
+            # 延趟两臂同一预算口径 (末趟到顶才延, 各 +1): bib 本趟采纳
+            # (钉死档亦延——新 bbl 须有人消费) 或自适应档提示仍在且未撞
+            # ``_ADAPTIVE_PASS_CAP`` (qc-impl wave-2: bib 首趟采纳→
+            # \bibcite 落 aux→文内 [n] 要第 3 趟, cap=2 末趟截停即 ``??``
+            # 出货; 死相趟不延——续趟必同死)。延趟后按剩余墙钟重劈
+            # per_pass——``timeout/eff_passes`` 本就是总墙钟约束: 不劈则
+            # timeout=240 的 2 趟起跑 (per_pass=120) 延成 3 趟可烧 360s,
+            # 静默超预算。
+            if p >= eff_passes and (
+                adopted
+                or (
+                    passes is None
+                    and hint
+                    and eff_passes < _ADAPTIVE_PASS_CAP
+                    and not (to or rc is None or not pdf.exists())
+                )
+            ):
+                eff_passes = p + 1
+                per_pass = max(10.0, (timeout - res.seconds) / max(1, eff_passes - p))
             if (
                 to
                 or rc is None
@@ -760,6 +914,13 @@ class XelatexEngine:
                         stem,
                         len(missing),
                     )
+            if not need and _bbl_version_skewed(bbl_main, self.probe_file):
+                # 在席 bbl 版本复核: 随稿件由旧 biber 产 → biblatex 期待版
+                # 不符 → \datalist 失配原文直排 (name-hash 满页 dump,
+                # 2312.00752 实证)。同陈旧件处理: 备份后重跑 biber。
+                need = True
+                bak = _backup(bbl_main)
+                log.debug("bbl format skew for %s — rerunning biber", stem)
             if not need:
                 return ran  # bundled/覆盖完整 .bbl 在席——不跑 biber
             if (tool := _eng.find_tool("biber")) is None:
@@ -805,7 +966,10 @@ class XelatexEngine:
                     _rollback(bak, bbl)
                     log.debug(
                         "bibtex %s coverage-rerun not adopted rc=%s to=%s: %.200s",
-                        rel, rc, to, out_s,
+                        rel,
+                        rc,
+                        to,
+                        out_s,
                     )
                 continue
             # bbl 缺席: \bibdata 可解 → bibtex; 不可解 → 异名收编兜底

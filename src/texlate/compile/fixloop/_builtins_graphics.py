@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     _live_matches,
     _map_tex_files,
+    _splice,
 )
 from texlate.texlog import PS_GRAPHIC_EXTS
 from texlate.textutil import mask_tex, safe_is_file
@@ -683,6 +684,75 @@ def pdf_asset_sanitize(
     if failed:
         note += f"; failed: {'; '.join(failed)}"
     return True, note
+
+
+# ════════════════════════════════════════════════════════════════
+# rotatebox_caption_pad: figure env 内旋转图 caption 前垫 (qc99)
+# ════════════════════════════════════════════════════════════════
+
+#: figure/figure* env 块 (遮盖视图锚边界对, 注释/verbatim 不锚)。
+_FIG_ENV_RX = re.compile(r"\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}")
+
+#: 旋转签名 —— ``\\rotatebox`` 盒或 graphicx ``angle=`` 键 (90/180/270
+#: 族; 0°/小角不产生 bbox-ink 错位机制, 防爆半径只咬旋转面)。
+_ROTATED_RX = re.compile(r"\\rotatebox\b|\bangle\s*=\s*-?(?:90|180|270)\b")
+
+_CAPTION_RX = re.compile(r"\\caption\b")
+_ABOVECAP_RX = re.compile(r"\\abovecaptionskip")
+
+#: 垫高量 —— 0812.0424 实测 eps bb 外轴标墨迹下探 ~10-15pt, EN base
+#: 同 bleed 但 1 行 caption 勉强擦过; zh 2 行 caption 撞进 bleed 带。
+_ROTFIG_PAD = "14pt"
+
+
+def _rotfig_caption_pad_text(t: str, pad: str) -> tuple[str, int]:
+    vis = mask_tex(t)
+    edits: list[tuple[int, int, str]] = []
+    for m in _FIG_ENV_RX.finditer(vis):
+        block = m.group(0)
+        if not _ROTATED_RX.search(block) or not _CAPTION_RX.search(block):
+            continue
+        if _ABOVECAP_RX.search(block):
+            continue  # 已有显式 abovecaptionskip → 幂等跳过
+        # env 头后即注——figure 组内 setlength 对组内 minipage/caption
+        # 全可见 (0707.3761 双 minipage+caption 对同效), 且天然先于
+        # \caption 读值点。锚点须越过 ``[placement]`` 可选参
+        # (0707.3761 ``[hb]`` 实证), 否则它被落成 figure 体首字面文本。
+        head_end = t.index("}", m.start()) + 1
+        j = head_end
+        while j < m.end() and t[j] in " \t\n":
+            j += 1
+        if j < m.end() and t[j] == "[":
+            close = t.find("]", j + 1, m.end())
+            if close != -1:
+                head_end = close + 1
+        edits.append(
+            (head_end, head_end, f"\n\\setlength{{\\abovecaptionskip}}{{{pad}}}")
+        )
+    if not edits:
+        return t, 0
+    return _splice(t, edits), len(edits)
+
+
+def rotatebox_caption_pad(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Figure env 含旋转图 + ``\\caption`` → env 头注 ``\\abovecaptionskip`` 垫高。
+
+    实证 (qc99 2026-09-28): 0812.0424 ``\\rotatebox{-90}{\\includegraphics
+    [width=0.34\\linewidth]{fig5a.eps}}`` —— eps BoundingBox 外轴标墨迹
+    (matplotlib 族通病, 标签挂出 bb) 旋到盒下 ~10-15pt bleed; EN base
+    同 bleed 但 1 行 caption 擦过, zh 2 行撞进 (labels 720-731 vs
+    caption 叠印)。0707.3761 同族 ``angle=270`` includegraphics 形。
+    编译 clean 无 log 签名, 唯 precheck ``always`` 面可达。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex", ".sty"))
+    pad = str(params.get("pad") or _ROTFIG_PAD)
+    n = _map_tex_files(ctx, exts, lambda t: _rotfig_caption_pad_text(t, pad))
+    if not n:
+        return False, "no rotated-graphic figure envs needing caption pad"
+    return True, f"abovecaptionskip {pad} padded in {n} file(s)"
 
 
 # ════════════════════════════════════════════════════════════════

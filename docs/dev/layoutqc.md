@@ -22,7 +22,7 @@
 
 ## 2. splice 机制决定的五类盲区（splice fork 确认）
 
-splice = **reflow 重编译**（译文写回 .tex 整树重编，pipecore.py:~390），非 BabelDOC 式 overlay。zh 树注入三件版面手术（compile/layout.py）：FLOAT_SIZING（超高浮体 \resizebox*，并发 `TeXlate-Float-Fit` typeout——**发射了没人消费**）、TABLE_FITTING（仅 threeparttable 套 adjustbox）、demote_wrapfloats（wrapfig→普通浮体，嵌套/条件内的逃过）。
+splice = **reflow 重编译**（译文写回 .tex 整树重编，pipecore.py:~390），非 BabelDOC 式 overlay。zh 树注入两件版面手术（compile/layout.py）：FLOAT_SIZING（超高浮体 \resizebox*，并发 `TeXlate-Float-Fit` typeout——**发射了没人消费**）、demote_wrapfloats（wrapfig→普通浮体，嵌套/条件内的逃过）；TABLE_FITTING 0930 拔除（成对钩 ended-by 毁编 ~1200 事件，钳宽归 fixloop `tabular_fit` 源级跨度包）。
 
 | 缺陷类   | 机制                                                  | 现状                         |
 | -------- | ----------------------------------------------------- | ---------------------------- |

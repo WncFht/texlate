@@ -21,9 +21,9 @@ r"""compile/inject.py 对抗性性质 fuzz —— 中文注入缝扫描 / CJK �
   闭包 bd 检测；越出工程根（``../``/绝对路径）不跟随；语言序/main 名加成/
   确定性排序。
 - ``classify_no_main``：latex209 / plain_tex / garbage / None 四桶与遮盖口径。
-- ``inject_float_sizing``/``inject_table_fitting``/``prepare_chinese``：
-  项目级 figure 门、dc+bd 文件谓词、threeparttable 门、非 UTF-8 重写、
-  幂等二跑。
+- ``inject_float_sizing``/``prepare_chinese``：项目级 figure 门、
+  dc+bd 文件谓词、非 UTF-8 重写、幂等二跑（TABLE_FITTING 0930 拔除——
+  threeparttable 门随弃，表族钳宽归 fixloop ``tabular_fit`` 源级跨度包）。
 
 历史钉账（I1–I9 全部修复于 0d93d66、xfail 已拆——留档为覆盖语义注脚，
 下列缺陷形态即本文件断言防回归的对象）：
@@ -85,7 +85,6 @@ from texlate.compile.inject import (
     CJK_PRESENT_RE,
     CTEX_LINE,
     OVERFLOW_MITIGATION,
-    TABLE_FITTING,
     TEXT_8BIT_FALLBACK,
     THEOREM_ANCHOR_SHIM,
     TIE_ACCENT_FIX,
@@ -95,7 +94,6 @@ from texlate.compile.inject import (
     find_main_tex,
     inject_cjk,
     inject_float_sizing,
-    inject_table_fitting,
     prepare_chinese,
 )
 from texlate.compile.mask import visible_tex
@@ -504,11 +502,14 @@ def test_inject_209_upgrade_paths() -> None:
     assert "\\usepackage{xeCJK}" in out
 
 
-def test_inject_ds_shipped_sty_ds_at_rejects(tmp_path: Path) -> None:
-    r"""随源 ``<cls>.sty`` 检出 ``ds@`` 分发定义 → 按 latex209_ds_at 拒。"""
+def test_inject_ds_shipped_sty_ds_at_bridges(tmp_path: Path) -> None:
+    r"""随源 ``<cls>.sty`` 检出 ``ds@`` 分发定义 → ds@ 桥升级后正常注入。"""
     (tmp_path / "mycls.sty").write_text("\\def\\ds@preprint{}\n")
-    with pytest.raises(InjectRejectError, match="inject_reject:latex209_ds_at"):
-        inject_cjk("\\documentstyle{mycls}\n" + _DOC, root=tmp_path)
+    out, info = inject_cjk("\\documentstyle{mycls}\n" + _DOC, root=tmp_path)
+    assert info["status"] == "injected"
+    assert info["upgrade209"]["ds_bridge"] is True
+    assert "\\documentclass{article}" in out
+    assert "\\input{mycls.sty}" in out
 
 
 # --------------------------------------------------------------- 钉样缺陷
@@ -799,25 +800,12 @@ def test_float_project_wide_and_idempotent(tmp_path: Path) -> None:
     assert inject_float_sizing(proj2) == 2  # noqa: PLR2004
 
 
-def test_table_fitting_block() -> None:
-    r"""无 ``\begin{document}`` 锚原样返回；块落锚前；子串幂等。"""
-    tex = "\\documentclass{article}\nno body env\n"
-    assert inject_table_fitting(tex) == tex
-    out = inject_table_fitting("\\documentclass{article}\n" + _DOC)
-    assert TABLE_FITTING.strip() in out
-    assert out.index("TeXlateFitTable") < out.index("\\begin{document}")
-    assert inject_table_fitting(out) == out
-
-
 # ------------------------------------------------------------ prepare_chinese
 
 
 def test_prepare_no_docline_and_table_gates(tmp_path: Path) -> None:
-    r"""no-docline 零写盘；注释内 ``threeparttable`` 不触门；裸子串门过触发。
-
-    ``\threeparttableish`` 宏名也触门（characterization：良性过触发——
-    加载 adjustbox + 挂不上的 env hook，编译层面无害）。
-    """
+    r"""no-docline 零写盘；``threeparttable`` 门 0930 拔除——裸子串亦不再
+    注入（成对钩毁编面归 fixloop 源级跨度包）。"""
     main = tmp_path / "main.tex"
     main.write_text("just a fragment\n")
     info = prepare_chinese(tmp_path, "main.tex", float_sizing=False)
@@ -833,7 +821,7 @@ def test_prepare_no_docline_and_table_gates(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\newcommand{\\threeparttableish}{x}\n" + _DOC
     )
     prepare_chinese(tmp_path, "main.tex", float_sizing=False)
-    assert "TeXlateFitTable" in main.read_text()
+    assert "TeXlateFitTable" not in main.read_text()
 
 
 def test_prepare_209_end_to_end(tmp_path: Path) -> None:
@@ -886,8 +874,8 @@ def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
 
     dc 在 main、bd+figure+threeparttable 在 ``\input`` 子文件：ctex 注入
     落在 main（缝在）；FLOAT_SIZING 改 dc-only 门（``\AtBeginDocument``
-    钩子不在乎 bd 落哪个文件）→ 1；threeparttable 门走树级判、
-    TABLE_FITTING 经 dc 缝 fallback 落 main preamble → 注。
+    钩子不在乎 bd 落哪个文件）→ 1；TABLE_FITTING 0930 拔除——
+    threeparttable 在席亦不再挂表族钩。
     """
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\input{body}\n")
     (tmp_path / "body.tex").write_text(
@@ -900,7 +888,7 @@ def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
     text = (tmp_path / "main.tex").read_text()
     assert CTEX_LINE in text
     assert "fit complete oversized float boxes" in text
-    assert "TeXlateFitTable" in text
+    assert "TeXlateFitTable" not in text
 
 
 # --------------------------------------------------------------- 随机 fuzz

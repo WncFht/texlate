@@ -164,9 +164,13 @@ rules:
           # 串。换 csname 自证形: \csname u8:\number"#1\endcsname ——
           # \number" 把十六进制实参转十进 ucs 键 (ucs.def 键面即
           # u8:<decimal>), \csname 不吃 catcode 不设 ~ 名。
+          # REPAIR (qc99 2026-09-28, copernicus.cls:1169+): cls 在
+          # \documentclass 执行期即调 \DeclareUnicodeCharacter ——
+          # halt_on_error 下 post-docclass polyfill 永远落不到, 改
+          # polyfill_pre 缝到 docclass 前 (无需 \n 前缀: 注入点在行首)。
           DeclareUnicodeCharacter:
             {
-              polyfill: "\n\\providecommand{\\DeclareUnicodeCharacter}[2]{\\expandafter\\def\\csname u8:\\number\"#1\\endcsname{#2}}",
+              polyfill_pre: "\\providecommand{\\DeclareUnicodeCharacter}[2]{\\expandafter\\def\\csname u8:\\number\"#1\\endcsname{#2}}",
             }
           # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
           # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass

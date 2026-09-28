@@ -2443,3 +2443,37 @@ rules:
         }
     stats: { fires: 14, rescued_cells: 6, status: active }
     source_ref: "tmp/lane-inputsty209/ — d0-d3 arm 对比实证; bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
+
+  # qc99 (2026-09-28, quant-ph/0003035): 稿内 ``\usepackage{amssymbols}``
+  # 是 ``amssymb`` 的复数拼写笔误 —— TL 查无此名 → missing_file 死循环。
+  # 真包 amssymb 在 TL, 源面改写名胜过 shim_map 替身 (无 stub 件产出、
+  # 装载点即真名)。payload_pattern 钉名单: 单表项不起 builtin 新开销,
+  # 后续同族笔误 (e.q. amsthm→amstheorem) 可续扩表。
+  - id: pkg_alias_rewrite
+    description: "包名拼写变体 (amssymbols → amssymb) → 装载点改写为 TL 真名"
+    phase: loop
+    order: 11.9 # vendored_fetch(11.5) 后、legacy_pkg_shim(12) 前: 先中者拿签
+    when: { category: missing_file, payload_required: true }
+    condition:
+      payload_pattern: "^amssymbols\\.sty$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage|LoadClass|documentclass)\\s*(?:\\[[^\\]]*\\]\\s*)?\\{[^{}]*?)\\bamssymbols\\b",
+              repl: "\\g<1>amssymb",
+            }
+    risk: low # 同族名改写, 装载语义即真包
+    known_gap: "仅 amssymbols 单名; \\documentstyle 2.09 选项槽名单内同形未覆盖 (2.09 臂归 latex209 车道)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源码改写天然可移植
+    provenance:
+      - {
+          corpus: "qc99 2026-09-28 (quant-ph/0003035, quantview-tcs.tex:163)",
+          error: "File `amssymbols.sty' not found (\\usepackage{amssymbols} 复数笔误)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item d"

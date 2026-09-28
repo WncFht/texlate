@@ -109,6 +109,7 @@ from ._tectonic import (
     _mirror_source_dirs,
 )
 from ._xelatex import (
+    _ADAPTIVE_PASS_CAP,
     _OUTPUT_REKEY_PREFIXES,
     _PROBE_MEMO_MAX,
     _RERUN_HINT_RX,
@@ -129,6 +130,7 @@ __all__ = [
     "PST_PKG_PREFIXES",
     "TECTONIC_BUNDLE_PIN",
     "WARNING_RED_LINES",
+    "_ADAPTIVE_PASS_CAP",
     "_BITMAP_FONT_PKGS",
     "_MINTED_FROZEN_RE",
     "_MINTED_PKG_RE",

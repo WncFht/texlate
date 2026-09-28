@@ -8,7 +8,7 @@ r"""docclass/bd 注入缝原语 —— inject.py 出叶（C4 拆分）。
 条件构造包容缝 + 宏包声明 proxy 缝）、``_splice_after_seams`` 逐缝回填、
 ``_splice_before_document`` ``\begin{document}`` 前 depth-0 锚、
 ``_sentinel_wrap`` 多缝/多锚幂等哨兵包裹。
-消费侧 ``inject``（CJK 注入）/``layout``（FLOAT_SIZING/TABLE_FITTING）/
+消费侧 ``inject``（CJK 注入）/``layout``（FLOAT_SIZING）/
 ``normalize``（XETEX_EARLY_DEFS）/fixloop builtins 单向取用——本叶仅
 依赖 textutil/mask，零 compile 内回引，无环。
 """
@@ -269,7 +269,7 @@ def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
 _COND_OPEN_RX = re.compile(r"\\if[a-zA-Z@]*")
 _COND_CLOSE_RX = re.compile(r"\\fi(?![a-zA-Z@])")
 #: ``\newif\iffoo`` 声明位的 ``\if`` token 占开臂名额但不是条件体——
-#: 按 ``\newif`` 数回吐（TABLE_FITTING 自带 ``\newif\iftexlate@tablefit``）。
+#: 按 ``\newif`` 数回吐（注入块/稿面自带 ``\newif\iffoo`` 同此例）。
 _COND_DECL_RX = re.compile(r"\\newif(?![a-zA-Z@])")
 
 

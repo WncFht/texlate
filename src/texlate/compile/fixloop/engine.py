@@ -1277,9 +1277,10 @@ class _FixRun:
         ):
             res = self._compile(
                 # yaml ``compile_passes`` 权威依旧: >1 才进本臂; 值 ≤2 时传
-                # ``None`` 走引擎自适应门 (rerun-hint 才升遍, MAX_PASSES=2
-                # 同值), >2 是超自适应上限的显式诉求, 原样透传无条件执行。
-                passes=None if self.passes <= 2 else self.passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应上限
+                # ``None`` 走引擎自适应门 (rerun-hint 才升遍, 起步
+                # MAX_PASSES=2, 提示仍在自延至 _ADAPTIVE_PASS_CAP),
+                # >2 是钉死趟数诉求, 原样透传无条件执行。
+                passes=None if self.passes <= 2 else self.passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应起步
             )
             rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)
             cat, pay = _round_cat(rs, rep, res)

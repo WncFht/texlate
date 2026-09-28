@@ -277,6 +277,21 @@ rules:
           - { id: circ_18, cps: [0x2471], replace: "\\mbox{\\textcircled{\\scriptsize 18}}" }
           - { id: circ_19, cps: [0x2472], replace: "\\mbox{\\textcircled{\\scriptsize 19}}" }
           - { id: circ_20, cps: [0x2473], replace: "\\mbox{\\textcircled{\\scriptsize 20}}" }
+          # ── 2026-09-28 qc-impl 补表尾 (vault QC replay misschar 尾簇) ──
+          # đ/Đ (0x111/0x110 塞克人名族): [0xC0,0x17F] fb 带内, 但
+          #   pre-tokenized 站点 (\name/\textbf) 逃出活化窗 —— 源级
+          #   转写 dj/Dj (bibtex 标准罗马化, đ 无 accent 组合等价形)。
+          - { id: dstroke, cps: [0x111], replace: "dj" }
+          - { id: dstroke_up, cps: [0x110], replace: "Dj" }
+          # ő/Ő (0x151/0x150 匈牙利双锐音) —— \H accent 机制形, 无字体槽依赖
+          - { id: ohungar, cps: [0x151], replace: "\\mbox{\\H{o}}" }
+          - { id: ohungar_up, cps: [0x150], replace: "\\mbox{\\H{O}}" }
+          # 𝜗 U+1D717 数学斜体 theta 变体 (LinLibertine 无槽, ittheta
+          #   0x1D703 同族先例) —— \vartheta 是 curly-theta 语义对等
+          - { id: itvartheta, cps: [0x1D717], replace: "\\ensuremath{\\vartheta}" }
+          # 遬 U+906C (FandolSong 缺槽 —— hani fb 绑到 FandolSong 仍是
+          #   tofu): 古同「速」, 语义异体字替换。
+          - { id: su_variant, cps: [0x906C], replace: "速" }
         # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
         # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
         # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
@@ -895,6 +910,37 @@ rules:
   # base+U+0327 组合符 lmroman 无槽缺字。限定 a/e 两字母 (真 ogonek
   # 字母; c/s/t 真 cedilla 不动) + err ctx U+0327 双闸 —— accent
   # 臂 (25.5) 之先收 (否则 \c{a} 被剥成裸 a 语义错)。
+  # 2609.19583 (qc-impl): unicode-math-table.tex 已知名遮蔽 doc
+  # \\newcommand (\\smt=U+2AAA 盖 {SMT\\xspace}) —— char_table 字面
+  # 臂救字面不救 cs 产出, \\AtBeginDocument 复位行 (钩按注册序, 导言
+  # 末位注入晚于 umath 字体装载钩)。builtin 内 umath 装载复检 +
+  # \\UnicodeMathSymbol 名表∩doc-def 交集——无交集 decline。
+  - id: umath_doc_cs_restore
+    description: "unicode-math 遮蔽 doc \\newcommand 名 → \\AtBeginDocument \\renewcommand 复位"
+    phase: loop
+    order: 25.45 # 产出类站点臂簇内: cedilla(25.4)/accent(25.5) 之间——cs 名遮蔽先于逐字面修
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 }
+    condition:
+      source_contains: "unicode-math|unicode_math|\\\\setmathfont"
+    action:
+      kind: builtin_transform
+      function: umath_doc_cs_restore
+    risk: low # 复位 doc 自己写下的定义——body 原文搬运, 不引入新内容
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.19583 (vault QC replay vis_degenerate, qc-impl-2026-09-28)",
+          error: "Missing character U+2AAA in LinLibertine — unicode-math-table.tex:1302 \\smt 遮蔽 doc \\newcommand{\\smt}{SMT\\xspace} → 节首 tofu",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json umath_doc_cs_restore (idx20)"
+    known_gap: "doc 在 \\AtBeginDocument 内已自复位时本臂重发同义钩 (无害); \\if 死臂内 def 亦会收割——复位居多错换一版死臂 body, 活臂仍自证; \\def/\\let 形定义不收"
+
   - id: cedilla_ogonek_fix
     mechanisms: [W42, W43]
     description: "\\c{a}/\\c a (OT1 cedilla 意图 ogonek) → \\k{a} 预组字改写 (限 a/e + U+0327 缺字证)"

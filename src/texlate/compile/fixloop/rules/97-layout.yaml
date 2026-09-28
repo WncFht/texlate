@@ -70,14 +70,19 @@ rules:
     known_gap: "非 [H] 形 float_lost (env 丢名/multicols 内浮体等) 无 [H] 站可降级, builtin decline 让位; 真超高浮体降级后仍 overfull vbox 但内容可见——float_lost→float_fit 降级即修复语义"
 
   # ── 2026-09-28 qc-impl lane: vault QC replay layout:overfull 簇 ──
-  # tabular_fit builtin (layoutfix 叶): 表族 env 钩 adjustbox 包
-  # (tabular/tabular*/tabularx/tabulary/tabu/deluxetable/smalldeluxetable),
-  # 流 env (longtable/supertabular/mpsupertabular) shrink, p{\textwidth}
-  # →p{0.85\linewidth}, 负 \hspace 剥除, minipage ≥160mm→adjustbox 裹。
+  # tabular_fit builtin (layoutfix 叶, v2): 盒表 env 源级跨度
+  # adjustbox{max width=\linewidth,max totalheight=\textheight} 包
+  # (tabular/tabular*/tabularx/tabulary/tabu/smalldeluxetable
+  # /threeparttable, 最外层跨度/数学域跳过/v1 注块+TABLE_FITTING 残块
+  # 整剥), 流 env (longtable/supertabular/mpsupertabular/deluxetable)
+  # env/begin 钩 shrink, p{\textwidth}→p{0.85\linewidth}, 负 \hspace
+  # 剥除, minipage ≥160mm→adjustbox 裹。0930 v1 成对钩法拔除——
+  # env/before+after 钩在配对不候场形毁编 (~1200 事件), 见
+  # legacy_clamp_purge (75-syntax order95)。
   # source_contains 条件必须含 minipage —— 0905.1250 格唯一超宽面是
   # minipage 160mm 装子表, 无 tabular 字面即 decline 漏治。
   - id: tabular_overfull_fit
-    description: "warn_overfull + 表族/minipage 字面 → tabular_fit env 钩 adjustbox 收缩"
+    description: "warn_overfull + 表族/minipage 字面 → tabular_fit 跨度 adjustbox 收缩 (v2)"
     phase: loop
     order: 212
     when: { category: warn_overfull }
@@ -200,7 +205,147 @@ rules:
     source_ref: "tmp/qc_impl_spec/impl-rules.json caption_skip_clamp"
     known_gap: "above skip/负 \\vspace 吸叠不收 (只钳 caption 下距单签名); 无单位负值 (如 -\\smallskipamount) 形不收"
 
-  # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin (vbox_geometry_clamp/
+  # 1503.00038 (qc-impl): sig-alternate.cls:1009 \\@startsection{section}
+  # 六参 afterskip {4pt} —— fandol CJK extents 下标题贴正文
+  # (geo_text_overlap, 600dpi seam 0 白行)。编译 clean 无 log 签名 →
+  # precheck always 面; builtin 单位折算闸 afterskip∈(0,~1.4ex) →
+  # {1.5ex}, 负值 run-in 标题/glue/cs 形不收 (regex 只咬纯字面量)。
+  - id: cjk_section_skip_floor
+    description: "cls/sty \\@startsection 小正 afterskip (0<x<~1.4ex) 垫 1.5ex —— CJK extents 下标题贴正文"
+    phase: precheck
+    order: -6.5 # caption_skip_clamp(-7) 后同批无签名版面面
+    when: { always: true }
+    condition:
+      source_contains: "\\\\@startsection"
+    action:
+      kind: builtin_transform
+      function: section_skip_floor
+      params: { exts: [.cls, .sty, .tex] }
+    risk: medium # 改 cls 内部件 spacing (标题贴正变松) —— 不丢内容不毁版式骨架
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay geo_text_overlap 桶 (qc-impl-2026-09-28)",
+          error: "1503.00038 sig-alternate.cls:1009 afterskip 4pt → fandol CJK extents 标题贴正文 seam 0 白行",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc_impl_spec/impl-rules.json cjk_section_skip_floor (idx64)"
+    known_gap: "glue 形 (plus/minus 连尾) 与 cs/dimen 形 afterskip 不收——只动纯字面量; cls 私有包装宏/\\section 直定义面不收"
+
+  # 2504.07951 (qc99, iccv.sty:479): \def\maketitlesupplementary{ \newpage
+  #   \twocolumn[...] } —— \newpage 不冲积压浮体, suppl 段首 twocolumn
+  #   盒与滞留 float 页挤压 → 浮体堆 (geo_text_overlap/叠印桶)。
+  #   修 = \clearpage 换 \newpage (先 flush 滞留浮体再开 twocolumn) +
+  #   def 首行注 \floatpagefraction=0.15 (松浮页成页门槛, 滞留浮体
+  #   更早成页不再压到文末)。lookahead 闸 idempotence: 已含
+  #   floatpagefraction 的 def 不再注入。
+  - id: maketitle_suppl_float_flush
+    description: "sty 内 \\maketitlesupplementary 定义修补 —— \\newpage→\\clearpage 冲浮体 + def 内注 \\floatpagefraction 0.15"
+    phase: precheck
+    order: -6.4 # cjk_section_skip_floor(-6.5) 同批无签名版面面
+    when: { always: true }
+    condition:
+      source_contains: "\\\\maketitlesupplementary"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.sty]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:g?def|newcommand|renewcommand)\\s*\\{?\\\\maketitlesupplementary\\}?\\s*(?:\\[\\d+\\])?\\s*\\{[\\s\\S]{0,300}?)\\\\newpage",
+              repl: "\\g<1>\\\\clearpage",
+              match_surface: masked,
+            }
+          - {
+              pattern: "(\\\\(?:g?def|newcommand|renewcommand)\\s*\\{?\\\\maketitlesupplementary\\}?\\s*(?:\\[\\d+\\])?\\s*\\{(?![\\s\\S]{0,200}?floatpagefraction))",
+              repl: "\\g<1>\\\\renewcommand{\\\\floatpagefraction}{0.15}%\n",
+              match_surface: masked,
+            }
+    risk: medium # 改 sty 宏定义内部件; flush 浮体改落页分布但不丢内容不毁版式
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay geo_text_overlap 桶 (qc99 2026-09-28)",
+          error: "2504.07951 iccv.sty:479 \\maketitlesupplementary{ \\newpage \\twocolumn[...] } suppl 浮体堆叠",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item e"
+    known_gap: "非 \\maketitlesupplementary 名的同类 suppl 开场宏不收; def 体 >300 字符外的 \\newpage 不收"
+
+  # qc99 (2026-09-28): ACM \\@uchead 簇 cls (sig-alternate/soups/
+  #   www2010-accepted/vldb/sig-alternate-2013 六件同纹行): \@sect
+  #   display 分支内 ``\vskip -12pt  %gkmt, 11 aug 99 and GM July 2000
+  #   (was -14) - numbered section head spacing`` —— pdflatex 度量下
+  #   题→正净差 14.98pt, xelatex 下塌成 4.35pt (EN build-base 同塌,
+  #   引擎级非 CJK 特异) → geo_text_overlap 标题贴正文。
+  #   校准: -12pt→-2pt 复 ~14.35pt ≈ 原件。旁生 ``\vskip -9pt`` 行
+  #   (ssect/更紧排语境) 不动; 闸用 @uchead 族标, 非 ACM 簇 -12pt 不收。
+  - id: uchead_vskip_relax
+    description: "ACM \\@uchead 簇 cls `\\vskip -12pt` gkmt 补偿 → -2pt —— xelatex 下标题贴正文塌距"
+    phase: precheck
+    order: -6.3 # 同批无签名版面面 (caption/cjk_section 邻位)
+    when: { always: true }
+    condition:
+      source_contains: "\\\\@uchead"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.cls, .sty]
+        rewrites:
+          - {
+              pattern: "\\\\vskip\\s*-12\\s*pt\\b",
+              repl: "\\\\vskip -2pt",
+              match_surface: masked,
+            }
+    risk: medium # 改 cls 内部件 spacing (标题下距复 ~10pt) —— 不丢内容
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay geo_text_overlap 桶 (qc99 2026-09-28; soups.cls:1062/sig-alternate.cls:1090/www2010-accepted.cls:1078/vldb.cls:1059/sig-alternate-2013.cls:1090 六格同纹)",
+          error: "\\@sect display 分支 \\vskip -12pt gkmt hack → xelatex 标题贴正文 (iy≈3.3-3.4 叠印)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item f; 校准: pdflatex 净差 14.98pt / 塌后 4.35pt → -2pt 复 14.35pt"
+    known_gap: "\\vskip -9pt 旁生行 (ssect/tighter 语境) 不收; 非 @uchead 族标的 -12pt 不收"
+
+  # qc99 (2026-09-28): 旋转图 ink-bleed 族 —— eps BoundingBox 外轴标
+  #   墨迹旋到盒下 (matplotlib 族标签挂出 bb 通病), caption 撞进 bleed
+  #   带: 0812.0424 \rotatebox{-90}{\includegraphics{fig5a.eps}} 与
+  #   0707.3761 angle=270 includegraphics 形 (0812.1253 同族推定)。
+  #   EN base 同 bleed 但 1 行 caption 擦过, zh 2 行撞进 →
+  #   geo_text_overlap。编译 clean 无 log 签名 → precheck always 面;
+  #   builtin 逐 env 块判 (旋转签+caption+未垫) 注 abovecaptionskip。
+  - id: rotfig_caption_pad
+    description: "figure env 含旋转图 (\\rotatebox/angle=90|180|270) + \\caption → env 头注 \\abovecaptionskip 垫高 —— eps bb 外墨迹 bleed 叠 caption"
+    phase: precheck
+    order: -6.2 # 同批无签名版面面 (uchead/suppl 邻位)
+    when: { always: true }
+    condition:
+      source_contains: "\\\\rotatebox|\\bangle\\s*=\\s*-?(?:90|180|270)\\b"
+    action:
+      kind: builtin_transform
+      function: rotatebox_caption_pad
+      params: { exts: [.tex, .sty] }
+    risk: low # caption 上距垫松 —— 不丢内容不毁版式; 已垫 env 幂等跳过
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault QC replay geo_text_overlap 桶 (qc99 2026-09-28)",
+          error: "0812.0424 \\rotatebox{-90} eps 轴标 bleed 720-731 叠 zh caption / 0707.3761 angle=270 同族",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item h"
+    known_gap: "figure env 外旋转图 (table/散排) 不收; bleed >pad 量时叠印残留 (bb 外墨迹无界, 垫高是工程近似)"
+
+  # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin (vbox_geometry_clamp/ (vbox_geometry_clamp/
   #   url_run_break/bib_sloppy/verbatim_listing_shrink) 未在 builtins
   #   TRANSFORM_FNS 注册 —— 本簇全部落 regex_rewrite 等价臂, 不可达子臂
   #   逐条记 known_gap。

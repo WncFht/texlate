@@ -343,6 +343,7 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     env: dict[str, str],
     timeout: float,
     out_cap: int = 8 * 1024 * 1024,
+    merge_stderr: bool = True,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[int | None, str, float, bool | str]:
     r"""同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶 + POSIX rlimits。
@@ -356,6 +357,10 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     视同超时收树，原因字符串随槽位回吐（调用方 truthiness 用法不变，
     ``res.timed_out`` 短暂携 str 后由 ``_collect_compile_outputs`` 归位
     ``CompRes.sentry_reason``）。
+    ``merge_stderr=False`` 把 stderr 丢 DEVNULL 而非并入 stdout——文本
+    计量型调用面（``judge.pdf_text_stats``）要它：外来告警行插进管道
+    会劈断多字节 UTF-8 序列，decode 面产出假 U+FFFD 污染计数（poppler
+    ``Syntax Warning`` 劈 CJK 实详见该函数注释）。
 
     POSIX 走 ``_drain_bounded``：单调钟 deadline + 子进程死透即收——
     孙进程握管/死锁（xelatex↔xdvipdfmx 形）、墙钟拨回都不再挂死。
@@ -377,7 +382,7 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
             # r1 出 4.4MB pdf / r2 emergency stop 即此不确定性）；钉 DEVNULL =
             # 确定性 EOF → emergency stop → missing_file 归因稳定。
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.STDOUT if merge_stderr else subprocess.DEVNULL,
             start_new_session=(sys.platform != "win32"),
             # PLW1509: rlimits 只能 fork 后 exec 前装——回调只碰
             # resource.setrlimit（纯 syscall 封套，不取锁不分配）。

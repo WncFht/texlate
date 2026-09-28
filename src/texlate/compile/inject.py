@@ -22,20 +22,18 @@ C4 拆分：本模块宿 CJK 注入编排（``inject_cjk``/``_input_hop_*``/
 ``prepare_chinese``）。缝原语（``_splice_*``/``find_docclass_ends``）
 出叶 ``_docseams``——inject/layout/normalize 三向单向消费；主文件发现+
 ``\input`` 闭包+filecontents 虚拟 FS 出叶 ``mainfile``，版式手术
-（FLOAT_SIZING/TABLE_FITTING/wrapfloat 降级）出叶 ``layout``——两叶
+（FLOAT_SIZING/wrapfloat 降级）出叶 ``layout``——两叶
 消费名经本模块静态回引（钉点面守恒；layout 缝原语已转 ``_docseams``
 单向取用，旧 inject↔layout 顶层互引环断，``__getattr__`` 惰性转口退役）。
 """
 
 from __future__ import annotations
 
-import contextlib
 import re
 from typing import TYPE_CHECKING
 
 from texlate.textutil import (
     BEGIN_DOC_RX,
-    DOCCLASS_RX,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
     _tar_disguised,
@@ -49,12 +47,10 @@ from ._docseams import _splice_after_seams, _splice_before_document, find_doccla
 from .latex209 import upgrade_209
 from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _docseams 后环断，钉点名转静态回引
     FLOAT_SIZING,
-    TABLE_FITTING,
     _demote_wrapfloats_text,
     _float_sized,
     demote_wrapfloats,
     inject_float_sizing,
-    inject_table_fitting,
 )
 from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
     _MAIN_TEX_SUFFIXES,
@@ -65,7 +61,6 @@ from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_
 )
 from .marks import inject_layout_marks
 from .mask import visible_tex
-from .transcode import _iter_files
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -598,86 +593,6 @@ def _input_hop_inject(
     return None
 
 
-def _project_uses(root: Path, needle: str | tuple[str, ...]) -> bool:
-    r"""工程树任一主后缀 tex 源遮盖视图含 ``needle`` → True（树级特性闸）。
-
-    ``demote_wrapfloats``/``inject_float_sizing`` 同款 ``_iter_files`` 全树
-    口径——threeparttable 等活在 ``\input`` 子件里的用法不该因子件不在
-    main 文本面而漏钩子（软链/隐藏目录豁免随 walker 自带）。
-    ``needle`` 收 tuple → 任一子串命中即真（一次走查多针）。
-    """
-    needles = (needle,) if isinstance(needle, str) else needle
-    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
-        try:
-            blob = path.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue
-        vis = visible_tex(decode_tex(blob))
-        if any(n in vis for n in needles):
-            return True
-    return False
-
-
-def _table_fitting(tex: str) -> str:
-    r"""单文件 TABLE_FITTING 注入：``_float_sized`` 同构——bd 优先，无 bd 落 dc 缝。
-
-    ``inject_table_fitting`` 只走 ``_splice_before_document``——bd 不在档
-    （编排壳 main，bd 藏 ``\input`` 子件）时静默不落。本助手补 docclass
-    缝 fallback：有 bd 走 bd 前锚（原 ``inject_table_fitting`` 口径），
-    无 bd 有 dc 缝走缝后锚（多缝 ``_sentinel_wrap`` 幂等），两无原样返回。
-    """
-    vis = visible_tex(tex)
-    if TABLE_FITTING.strip() in tex or "TeXlateFitTable" in tex:
-        return tex
-    if not DOCCLASS_RX.search(vis):
-        return tex
-    if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
-        return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
-    hits = find_docclass_ends(tex)
-    if not hits:
-        return tex
-    block = TABLE_FITTING
-    if len(hits) > 1:
-        block = _sentinel_wrap(block, "TeXlateTableFit", what="table fitting")
-    return _splice_after_seams(tex, hits, block)
-
-
-def _fit_table_hook(root: Path, main_text: str, hop: str | None) -> str:
-    r"""TABLE_FITTING 落点编排：main 先尝，main 无锚则落 ``input_hop`` 携带子件。
-
-    编排壳形态（main 无 dc/bd，``inject_cjk`` 经一跳落在 hop 子件）下
-    preamble 载体是子件——钩子的 ``\usepackage{adjustbox}``/``AddToHook``
-    必须进组合 preamble，写 main 无效。返回（可能改写的）main 文本；
-    子件命中时原地写回。hop 为 root 相对 posix（``info["input_hop"]``）。
-    """
-    new_text = _table_fitting(main_text)
-    if (
-        new_text != main_text
-        or TABLE_FITTING.strip() in main_text
-        or "TeXlateFitTable" in main_text
-        or hop is None
-    ):
-        return new_text  # 已落 / 已在档 / 无携带者可落
-    tgt = safe_resolve(root / hop)
-    if tgt is None or not tgt.is_relative_to(root) or not tgt.is_file():
-        return new_text
-    try:
-        blob = tgt.read_bytes()
-    except OSError:
-        return new_text
-    if _tar_disguised(blob):
-        return new_text
-    sub = decode_tex(blob)
-    new_sub = _table_fitting(sub)
-    if new_sub != sub:
-        # 子件不可写不阻断——钩子缺失只是溢宽不兜
-        with contextlib.suppress(OSError):
-            tgt.write_text(new_sub, encoding="utf-8")
-    return new_text
-
-
 def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂（mode/三开关），合并参数对象是假收口
     root: Path,
     main: Path | str,
@@ -689,8 +604,9 @@ def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂�
 ) -> dict:
     r"""工程级中文注入编排：ctex/xeCJK 注入 + 浮体钩子 + wrapfloat 降级。
 
-    主文件 ctex/xeCJK + 按需 FLOAT_SIZING/TABLE_FITTING；全树 wrapfloat
-    降级为普通浮体（``demote_wrap=False`` 时跳过）。
+    主文件 ctex/xeCJK + 按需 FLOAT_SIZING；全树 wrapfloat 降级为普通
+    浮体（``demote_wrap=False`` 时跳过）。TABLE_FITTING 表族成对钩
+    0930 拔除（配对失衡毁编面归 fixloop ``tabular_fit`` 源级跨度包）。
 
     返回注入报告 dict（注入缝行号/模式/已存在标记/wrapfloats_demoted）。
     `\documentstyle` 工程抛 InjectRejectError——调用方应记
@@ -712,14 +628,6 @@ def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂�
         hop = _input_hop_inject(root, main_path, text, mode=mode)
         if hop is not None:
             new_text, info = hop
-    if _project_uses(
-        root, ("threeparttable", "deluxetable", "sidewaystable", "tabular")
-    ):
-        # 已带 CJK 的工程（status=already）同样要表族溢宽钩子；
-        # 树级闸——用法在 \input 子件里的工程也兜；bd 藏 hop 子件时钩子
-        # 经 _fit_table_hook 落携带者。"tabular" 子串覆盖
-        # tabular*/tabularx/tabulary 同族，近乎全量工程命中。
-        new_text = _fit_table_hook(root, new_text, info.get("input_hop"))
     if new_text != text:
         main_path.write_text(new_text, encoding="utf-8")
     if demote_wrap:

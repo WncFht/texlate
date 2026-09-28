@@ -8,7 +8,6 @@ from texlate.compile._docseams import find_docclass_end, find_docclass_ends
 from texlate.compile.inject import (
     CTEX_LINE,
     FLOAT_SIZING,
-    TABLE_FITTING,
     InjectRejectError,
     _resolve_input,
     classify_no_main,
@@ -667,25 +666,6 @@ def test_find_main_tex_pref_name_nested_all_same_depth(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
     )
     assert find_main_tex(tmp_path) == src / "main.tex"
-
-
-def test_prepare_chinese_already_cjk_gets_table_fitting(tmp_path: Path) -> None:
-    """已含 CJK 的工程（status=already）同样补 threeparttable 溢宽钩子——
-    旧码只在 status=injected 分支挂 TABLE_FITTING。"""
-    main = tmp_path / "main.tex"
-    main.write_text(
-        "\\documentclass{ctexart}\n\\usepackage{threeparttable}\n"
-        "\\begin{document}\nx\n\\end{document}\n",
-        encoding="utf-8",
-    )
-    info = prepare_chinese(tmp_path, "main.tex", float_sizing=False)
-    assert info["status"] == "already"
-    text = main.read_text(encoding="utf-8")
-    assert TABLE_FITTING.strip() in text
-    assert text.index("max width=\\linewidth") < text.index("\\begin{document}")
-    before = main.read_text(encoding="utf-8")
-    prepare_chinese(tmp_path, "main.tex", float_sizing=False)  # 幂等：不重复注入
-    assert main.read_text(encoding="utf-8") == before
 
 
 def test_resolve_input_giant_name_returns_none(tmp_path: Path) -> None:

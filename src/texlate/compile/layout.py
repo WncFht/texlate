@@ -1,11 +1,16 @@
 r"""版式手术 —— inject.py C4 拆分出叶。
 
 概念归属：译文侧版式适配——``FLOAT_SIZING``（超高 figure/table 浮体
-``\resizebox*`` 缩进页高 + ``\typeout`` 日志回读）、``TABLE_FITTING``
-（threeparttable 套 adjustbox 限宽）、wrapfig 三环境降级
+``\resizebox*`` 缩进页高 + ``\typeout`` 日志回读）、wrapfig 三环境降级
 （``demote_wrapfloats``：wrapfigure/wraptable/wrapfloat → 普通浮体——
 绕排落点依赖后续段落行数，译文缩短必然漂移，重则 caption 裁出版心，
 2609.19101 zh p6 双亚型实证）。
+
+``TABLE_FITTING``（表族 env/before+after 成对钩 adjustbox）0930 拔除：
+成对钩在 begin/end 配对不候场形（cls ``\@tabular`` cs 形收尾、
+``\end{document}`` 早退、宏内 env）与 fixloop v1 ``TeXlateTabClamp``
+同挂时钩序错位，双压崩成 ``ended by`` 毁编（vault 普查 ~1200 事件）；
+表族钳宽归 fixloop ``tabular_fit`` v2 源级跨度包（warn_overfull 驱动）。
 
 缝原语（``_splice_after_seams``/``_splice_before_document``/``find_docclass_ends``）
 已独立成 ``_docseams`` 叶，本叶顶层 ``from ._docseams import`` 取用；inject 侧
@@ -60,46 +65,6 @@ FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v2
 \typeout{TeXlate-Float-Fit: \@captype\space \csname the\@captype\endcsname; height \the\dimexpr\ht\@currbox+\dp\@currbox\relax; limit \texlate@floatheight}%
 \global\setbox\@currbox=\vbox{\hbox to\texlate@floatwidth{\hfil\resizebox*{!}{\texlate@floatheight}{\box\@currbox}\hfil}}%
 \fi\fi\fi}%
-}
-\endgroup
-"""
-
-#: TABLE_FITTING：表族环境整环境 adjustbox shrink-only（>linewidth/超页高才缩）。
-#: ``env/X/before`` 在内核 ``\begin`` 里先于 ``\begingroup`` 发（latex.ltx
-#: 15346-15354），``/after`` 在 ``\endgroup`` 后——恰是整环境外包位。
-#: 覆盖 tabular/tabular*/tabularx/tabulary/threeparttable；**排除**
-#: longtable/xltabular/supertabular（跨页断行被盒化即死）与
-#: sidewaystable/deluxetable（本体产 ``\@float`` 浮体，盒内 ``\@float``
-#: 丢浮体报错——前者内层字面 tabular 仍被 tabular 钩兜住，后者由
-#: FLOAT_SIZING 的 ``\@endfloatbox`` 补丁整盒缩）。``\ifmmode`` 臂挡
-#: ``$\begin{tabular}$`` 数学内联形；``\iftexlate@tablefit`` 嵌套守。
-TABLE_FITTING = r"""% texlate: fit complete measured table containers v2
-\RequirePackage{adjustbox}
-\begingroup
-\makeatletter
-\AtBeginDocument{%
-\newif\iftexlate@tablefit
-\newenvironment{TeXlateFitTable}{%
-\iftexlate@tablefit
-\let\texlate@endtablefit\relax
-\else\ifmmode
-\let\texlate@endtablefit\relax
-\else
-\texlate@tablefittrue
-\def\texlate@endtablefit{\end{adjustbox}}%
-\begin{adjustbox}{max width=\linewidth,max totalheight=\textheight}%
-\fi\fi\ignorespaces
-}{\texlate@endtablefit}%
-\AddToHook{env/threeparttable/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/threeparttable/after}{\end{TeXlateFitTable}}%
-\AddToHook{env/tabular/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/tabular/after}{\end{TeXlateFitTable}}%
-\AddToHook{env/tabular*/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/tabular*/after}{\end{TeXlateFitTable}}%
-\AddToHook{env/tabularx/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/tabularx/after}{\end{TeXlateFitTable}}%
-\AddToHook{env/tabulary/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/tabulary/after}{\end{TeXlateFitTable}}%
 }
 \endgroup
 """
@@ -171,14 +136,6 @@ def _float_sized(text: str) -> str:
             "\\def\\TeXlateFloatFit{1}%\n" + FLOAT_SIZING + "\\fi\n"
         )
     return _splice_after_seams(text, hits, block)
-
-
-def inject_table_fitting(tex: str) -> str:
-    """TABLE_FITTING 前导块：工程含表族环境时注入（调用方负责判据）。"""
-    # ``TeXlateFitTable`` 环境名跨版本稳定——v1 旧块也兜幂等。
-    if TABLE_FITTING.strip() in tex or "TeXlateFitTable" in tex:
-        return tex
-    return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
 
 
 #: wrapfig 三环境：wrapfigure[*]/wraptable[*]/wrapfloat{type}——绕排落点依赖

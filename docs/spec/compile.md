@@ -96,13 +96,13 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `inject_cjk(tex, *, mode="ctex", root, _defer_math_fallback) -> (text, info)`；`InjectRejectError(ValueError)` 带 `.reason`（msg=`inject_reject:<reason>`）。`\documentstyle` 先走 `latex209.upgrade_209`（§4.4）——不可转才抛拒，「禁止注入」是兜底语义。status ∈ `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚）。seam 定位 `find_docclass_ends`（visible_tex depth-0 docclass seam 表 + `_macro_proxy_seams` 宏体兜底）、`_splice_before_document`（`\begin{document}` 锚，空白容忍；允许 bd 落 `\input` 闭包内）。注入块 = `CTEX_LINE`(`\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}`；非 ctex 模式给 XECJK_BLOCK) + ACM_BASELINESTRETCH_GUARD + THEOREM_ANCHOR_SHIM + CJK_FIRST_USE_WARMUP + TIE_ACCENT_FIX + TEXT_8BIT_FALLBACK + OVERFLOW_MITIGATION；`CJK_MATH_FALLBACK` 沉 pre-bd（mathgroup 编号）；多 seam 加 `\ifdefined\TeXlateCJKloaded` 幂等壳。`_input_hop_inject` 一跳 `\input` 载具注入（cap 64）。
 
-`prepare_chinese(root, main, *, mode, float_sizing=True, demote_wrap=True)`：tar 伪装→reject("nontex")；no-docline→hop；threeparttable→`inject_table_fitting`（visible_tex 无条件扫，status=already 工程再进亦生效）；`demote_wrapfloats`+`inject_float_sizing` 入 info。**ctex 默认路径**（双引擎实测可编译、白拿节名汉化）；xeCJK+fontspec 为降级路径（ctex 冲突签名→fixloop 或探测切换）。
+`prepare_chinese(root, main, *, mode, float_sizing=True, demote_wrap=True)`：tar 伪装→reject("nontex")；no-docline→hop；`demote_wrapfloats`+`inject_float_sizing` 入 info。**ctex 默认路径**（双引擎实测可编译、白拿节名汉化）；xeCJK+fontspec 为降级路径（ctex 冲突签名→fixloop 或探测切换）。
 
 ### 4.2 版式手术（`compile/layout.py`）
 
 - `FLOAT_SIZING`（有 figure/table 才注入）：@endfloatbox patch，ht+dp>`\textheight`→`\resizebox*` 缩 + `\typeout{TeXlate-Float-Fit}` 回读。
-- `TABLE_FITTING`：threeparttable env hooks→`adjustbox{max width=\linewidth}`。
 - `demote_wrapfloats`：wrap*→figure/table[!htb]+centering+minipage 原宽，负 vspace 删。
+- ~~`TABLE_FITTING`~~（0930 拔除）：表族 env/before+after 成对钩套 adjustbox 在配对不候场形（cls cs 形收尾/宏内 env/`\end{document}` 早退）及与 fixloop v1 注块并挂时崩 `ended by` 毁编（vault ~1200 事件）；表族钳宽归 fixloop `tabular_fit` v2 源级跨度包（warn_overfull 驱动，97-layout.yaml）。
 
 ### 4.3 cmap 注入（`compile/cjkmap.py`）
 

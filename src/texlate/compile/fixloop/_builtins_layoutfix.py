@@ -2,9 +2,10 @@ r"""_builtins_layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtin
 
 ``warn_overfull`` 驱动的版面钳 builtin 族 (qc_replay 2026-09-27 普查):
 
-- ``tabular_fit``: 表族盒宽钳到 ``\linewidth`` —— env 钩 ``adjustbox``
-  装箱可断语义无关的表环境 (``TABLE_FITTING``/threeparttable 同钩法先例,
-  compile/layout.py:67-86) + 可断页表族 (longtable 系) env/begin 局部收缩
+- ``tabular_fit``: 表族盒宽钳到 ``\linewidth`` —— 源级跨度
+  ``adjustbox{max width=\linewidth,max totalheight=\textheight}`` 包
+  (inject 侧 ``TABLE_FITTING`` 成对钩法 0930 拔除后本 builtin 是表族
+  钳宽唯一面) + 可断页表族 (longtable 系) env/begin 局部收缩
   + 列声明 ``p{\textwidth}``/表域负 ``\hspace``/绝对宽 minipage 文本臂。
 - ``math_run_break``: 行内数学断点 penalty 清零 + para_loosen tier2 剂量。
 - ``display_math_shrink``: 编号对齐族 env/before 字号+muskip 收缩 +
@@ -110,20 +111,23 @@ def _in_spans(marks: list[int], pos: int) -> bool:
 # ════════════════════════════════════════════════════════════════
 
 #: adjustbox 装箱面表族 —— 单页盒语义环境, 装箱不失跨页断行。
-#: spec E 列逐名 (``array`` 是数学盒不入钩面, display_math_shrink 分管)。
+#: spec E 列逐名 (``array`` 是数学盒不入钩面, display_math_shrink 分管);
+#: ``threeparttable`` 同单页盒语义并入 (旧 TABLE_FITTING 钩面同款)。
 _TAB_BOX_ENVS = (
     "tabular",
     "tabular*",
     "tabularx",
     "tabulary",
     "tabu",
-    "deluxetable",
     "smalldeluxetable",
+    "threeparttable",
 )
 
 #: 可断页表族 —— 装箱即失跨页断行语义 (spec 已钉陷), 走 env/begin 局部
-#: 收缩 (字号+``\tabcolsep``, 组内设定 env 末自还原)。
-_TAB_FLOW_ENVS = ("longtable", "supertabular", "mpsupertabular")
+#: 收缩 (字号+``\tabcolsep``, 组内设定 env 末自还原)。``deluxetable``
+#: 跨页长表同理移此——0930 实证 env 成对钩在配对不候场面失衡
+#: (``ended by`` 93 格), 长表族本就不许装箱。
+_TAB_FLOW_ENVS = ("longtable", "supertabular", "mpsupertabular", "deluxetable")
 
 #: 文本臂 (p{} 列声明/负 \hspace 剥除) 的表域跨度族——钩面 + 断页族 +
 #: 旋转/包装容器 (内部才是出血站位)。
@@ -133,53 +137,144 @@ _TAB_SPAN_ENVS = frozenset(
     + ("sidewaystable", "sidewaysdeluxetable", "sidewaysfigure", "threeparttable")
 )
 
-_TAB_ANY_RX = re.compile(
-    r"\\begin\s*\{(?:"
-    + "|".join(re.escape(e) for e in _TAB_SPAN_ENVS)
-    + r")\}"
+_TAB_FLOW_ANY_RX = re.compile(
+    r"\\begin\s*\{(?:" + "|".join(re.escape(e) for e in _TAB_FLOW_ENVS) + r")\}"
 )
 
 
-def _tabular_snippet(flow_size: str) -> str:
-    r"""表族钳宽前导块 (``TABLE_FITTING`` 同钩法, 再入闸防嵌套自叠)。
+#: 成对钩残块整剥式 (marker 行 → 首个 ``\endgroup``)——in-place 再跑
+#: fixloop 的稿面若带 v1 注块必须清掉, 否则成对钩继续毁编组。
+#: inject 侧 ``TABLE_FITTING`` (compile/layout.py 0930 拔除注入) 在席稿
+#: 同剥——``env/E/before+after`` 成对钩与文本跨度包并存即双压崩
+#: (0930 普查: ``TabClamp ended by \end{TeXlateFitTable}`` 系 1080 事件)。
+_LEGACY_CLAMP_RX = re.compile(
+    r"% texlate(?:-fixloop)?: (?:table width clamp v1"
+    r"|fit complete measured table containers[^\n]*)\n[\s\S]*?\\endgroup\n?"
+)
 
-    可装箱族: ``env/E/before``+``after`` 对包 ``adjustbox{max width=
-    \linewidth}``——只缩超宽者, 不比 resizebox 拉宽小表; ``\newif`` 再入
-    闸使嵌套 tabular (表内表) 不叠包。可断页族: ``env/E/begin`` 组内
-    ``\<size>``+``\tabcolsep`` 局部收缩, 断页语义不动。
+#: 块边界失配形态的兜底行剥——成对钩注册行单删即拆解 (env 定义残壳
+#: 无钩触发是死码无害)。
+_LEGACY_HOOK_RX = re.compile(
+    r"\\AddToHook\{env/[^}\n]+/(?:before|after)\}"
+    r"\{\\(?:begin|end)\{TeXlate(?:FitTable|TabClamp)\}\}%?\n?"
+)
+
+
+def _strip_legacy_clamp(t: str) -> str:
+    """剥成对钩钳宽残块——fixloop v1 注块 + inject TABLE_FITTING 块/散钩行。"""
+    return _LEGACY_HOOK_RX.sub("", _LEGACY_CLAMP_RX.sub("", t))
+
+
+#: 数学域 env 名单——``_env_spans`` 取跨。``array`` 仅数学内合法, 同收。
+_MATH_ENVS = frozenset(
+    {
+        "math",
+        "displaymath",
+        "equation",
+        "equation*",
+        "align",
+        "align*",
+        "alignat",
+        "alignat*",
+        "xalignat",
+        "xxalignat",
+        "gather",
+        "gather*",
+        "multline",
+        "multline*",
+        "flalign",
+        "flalign*",
+        "eqnarray",
+        "eqnarray*",
+        "dmath",
+        "dmath*",
+        "dseries",
+        "dgroup",
+        "dgroup*",
+        "array",
+    }
+)
+
+#: 行内/展示数学域字面形——``$$`` 先配 (``$`` 单符会把它劈两半);
+#: ``\$`` 转义与 ``$x$$`` 相邻形由 lookbehind/lookahead 挡。
+_MATH_INLINE_RX = re.compile(
+    r"\$\$[\s\S]*?\$\$"
+    r"|(?<!\\)\$(?!\$)[\s\S]*?(?<!\\)\$(?!\$)"
+    r"|\\\([\s\S]*?\\\)"
+    r"|\\\[[\s\S]*?\\\]"
+)
+
+
+def _math_marks(vis: str) -> list[int]:
+    r"""遮盖视图数学域合并边界列 (``_in_spans`` 直吃)。
+
+    盒表 env 落数学内时 adjustbox 文本包会把 hbox 材料楔进数学模式
+    (Missing $ 崩), 旧 TABLE_FITTING ``\ifmmode`` 臂的静态等价守卫。
+    """
+    spans = _env_spans(vis, _MATH_ENVS)
+    spans.extend(m.span() for m in _MATH_INLINE_RX.finditer(vis))
+    return _span_marks(spans)
+
+
+def _tabular_snippet(flow_size: str) -> str:
+    r"""表族钳宽前导块 v2: adjustbox 载备 + 可断页族 ``env/E/begin`` 收缩钩。
+
+    可装箱族改走源级跨度包 (``_tabular_box_edits``)——``env/E/before+
+    after`` 成对钩在 ``\\begin{E}`` 参数读取位前即注入, begin/end 配对
+    不候场形 (cls 内部 ``\\@tabular``/宏内 env/跨名收尾) 即崩成
+    ``ended by`` 失衡 (0930 普查 93 格实证), 钩面换成文本跨度包。
+    可断页族钩只注组内参数, 无成对面包裹, 维持 ``env/E/begin`` 钩法。
     """
     lines = [
-        "% texlate-fixloop: table width clamp v1",
+        "% texlate-fixloop: table width clamp v2",
         "\\usepackage{adjustbox}",
-        "\\begingroup",
-        "\\makeatletter",
-        "\\AtBeginDocument{%",
-        "\\newif\\iftexlate@tabclampin",
-        "\\newenvironment{TeXlateTabClamp}{%",
-        "\\iftexlate@tabclampin",
-        "\\let\\texlate@endtabclamp\\relax",
-        "\\else",
-        "\\texlate@tabclampintrue",
-        "\\def\\texlate@endtabclamp{\\end{adjustbox}}%",
-        "\\begin{adjustbox}{max width=\\linewidth}%",
-        "\\fi\\ignorespaces",
-        "}{\\texlate@endtabclamp}%",
     ]
-    for e in _TAB_BOX_ENVS:
-        lines.extend(
-            (
-                f"\\AddToHook{{env/{e}/before}}{{\\begin{{TeXlateTabClamp}}}}%",
-                f"\\AddToHook{{env/{e}/after}}{{\\end{{TeXlateTabClamp}}}}%",
-            )
-        )
     lines.extend(
         f"\\AddToHook{{env/{e}/begin}}{{\\{flow_size}"
         "\\setlength{\\tabcolsep}{2pt}\\relax}%"
         for e in _TAB_FLOW_ENVS
     )
-    lines.append("}")
-    lines.append("\\endgroup")
     return "\n".join(lines)
+
+
+def _tabular_box_edits(t: str, state: dict[str, int]) -> tuple[str, int]:
+    r"""最外层盒表 env 跨度 → ``adjustbox{max width,max totalheight}`` 文本包。
+
+    跨度由 ``_env_spans`` 栈配对出 (残稿容错), 内嵌 env 一律弃跨——
+    外层盒已罩住内层。紧邻前缀已带 ``\begin{adjustbox}`` 的跨度幂等跳过;
+    ``lo`` 落数学域的跨度跳过 (``$\begin{tabular}$`` 内联形——盒材料
+    楔进数学模式即崩, 旧 TABLE_FITTING ``\ifmmode`` 臂同款守卫)。
+    """
+    vis = mask_tex(t)
+    spans = _env_spans(vis, frozenset(_TAB_BOX_ENVS))
+    if not spans:
+        return t, 0
+    outer = [s for s in spans if not any(o[0] < s[0] < s[1] < o[1] for o in spans)]
+    math = _math_marks(vis)
+    edits: list[tuple[int, int, str]] = []
+    n = 0
+    for lo, hi in outer:
+        if _in_spans(math, lo):
+            continue  # 数学域内不包
+        # 回看窗 ≥ 自注行全长 (``\begin{adjustbox}{max width=..,max
+        # totalheight=..}\n`` ≈70B)——窗短于插入行会把 ``\begin`` 切断,
+        # 幂等闸失效即叠包 (二跑 ``box-env wrapped x1`` 实证)。
+        pre = vis[max(0, lo - 128) : lo]
+        if re.search(r"\\begin\{adjustbox\}\s*\{[^}\n]*\}\s*$", pre):
+            continue  # 已包 (幂等)
+        edits.append(
+            (
+                lo,
+                lo,
+                "\\begin{adjustbox}{max width=\\linewidth,max totalheight=\\textheight}\n",
+            )
+        )
+        edits.append((hi, hi, "\n\\end{adjustbox}"))
+        n += 1
+    if not edits:
+        return t, 0
+    state["box"] += n
+    return _splice(t, edits), n
 
 
 #: ``p{<dim>}`` 列声明里版心级宽度声明 —— ``\textwidth``/``\linewidth``/
@@ -255,8 +350,7 @@ def _tabular_text_edits(  # noqa: C901 -- 三臂顺序闸共一个 span/live 走
         m
         for m in _MINIPAGE_RX.finditer(vis)
         if _is_live(m, vis, t)
-        and float(m.group(1)) * _MINIPAGE_UNIT_PT[m.group(2)]
-        >= _MINIPAGE_CLAMP_PT
+        and float(m.group(1)) * _MINIPAGE_UNIT_PT[m.group(2)] >= _MINIPAGE_CLAMP_PT
     ]
     for bm in begins:
         depth = 0
@@ -269,7 +363,11 @@ def _tabular_text_edits(  # noqa: C901 -- 三臂顺序闸共一个 span/live 走
         if end_pos is None:
             continue
         edits.append(
-            (bm.start(), bm.start(), "\\begin{adjustbox}{max width=\\linewidth}")
+            (
+                bm.start(),
+                bm.start(),
+                "\\begin{adjustbox}{max width=\\linewidth,max totalheight=\\textheight}",
+            )
         )
         edits.append((end_pos, end_pos, "\\end{adjustbox}"))
         n += 1
@@ -282,15 +380,21 @@ def _tabular_text_edits(  # noqa: C901 -- 三臂顺序闸共一个 span/live 走
 def tabular_fit(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""warn_overfull 表族臂: 盒宽钳到 ``\linewidth`` 三面合修。
+    r"""warn_overfull 表族臂: 盒宽钳到 ``\linewidth`` 三面合修 (v2)。
 
     实证面 (qc wide_tabular 桶, 24 格): ``tabular{...}`` 超宽盒在浮体里
     出血无警告签名差异 (``in paragraph``/``in alignment`` 同收)。
 
-    - **钩注臂**: ``env/E/before+after`` ``adjustbox`` 装箱 (可装箱族) +
-      ``env/E/begin`` 局部 ``\<size>``/``\tabcolsep`` 收缩 (可断页族,
+    - **盒表源包臂** (v2): 最外层盒表 env 跨度文本级 ``adjustbox{max
+      width=\linewidth,max totalheight=\textheight}`` 包——``env/E/before+
+      after`` 成对钩法在 begin/end 配对不候场形 (cls ``\@tabular``/宏内
+      env/跨名收尾) 崩成 ``ended by`` 失衡毁编 (0930 普查 ~1200 事件),
+      换栈配对的文本跨度包; 数学域内跨度跳过 (``\ifmmode`` 臂等价守卫);
+      fixloop v1 注块/inject TABLE_FITTING 块+散钩行在席整剥。
+    - **断页族钩臂**: ``env/E/begin`` 局部 ``\<size>``/``\tabcolsep``
+      收缩 (longtable/supertabular/deluxetable 跨页不可装箱),
       收缩档按本轮 log 最大 overfull 幅度选: ≥40pt ``\footnotesize``
-      否则 ``\small``)。
+      否则 ``\small``。
     - **文本臂**: 表域内 ``p{\textwidth}`` 列声明 → ``p{0.85\linewidth}``
       (2105.03891) + 负 ``\hspace`` 剥除 (1607.00323)。
     - **minipage 臂**: abs-dim ≥160mm ``\begin{minipage}`` 外套
@@ -301,33 +405,64 @@ def tabular_fit(
     """
     del eng, payload
     exts = tuple(params.get("exts") or (".tex",))
-    state = {"minipage": 0}
-    n_files = _map_tex_files(
-        ctx, exts, lambda t: _tabular_text_edits(t, state)
-    )
+    state = {"minipage": 0, "box": 0}
+
+    def _edits(t: str) -> tuple[str, int]:
+        t2 = _strip_legacy_clamp(t)
+        stripped = t2 != t
+        t2, n_box = _tabular_box_edits(t2, state)
+        t2, n_txt = _tabular_text_edits(t2, state)
+        return t2, n_box + n_txt + (1 if stripped else 0)
+
+    n_files = _map_tex_files(ctx, exts, _edits)
     blob = "\n".join(mask_tex(t) for f in ctx.tex_files(exts) if (t := ctx.read(f)))
-    has_env = _TAB_ANY_RX.search(blob) is not None
-    if not (has_env or state["minipage"]):
+    need_snippet = bool(
+        state["box"] or state["minipage"] or _TAB_FLOW_ANY_RX.search(blob)
+    )
+    if not need_snippet:
         if n_files:
-            return True, f"table-span text edits in {n_files} file(s)"
+            return True, f"table-span edits in {n_files} file(s)"
         return False, "no table-family env / oversized minipage"
     mx = _max_overfull_pt(_fixloop_log(ctx))
     flow_size = "footnotesize" if mx >= 40.0 else "small"  # noqa: PLR2004 - 幅度档阈
-    snippet = _tabular_snippet(flow_size)
-    injected = _inject_before_begindoc(ctx, snippet, fallback="head")
+    injected = _inject_before_begindoc(
+        ctx, _tabular_snippet(flow_size), fallback="head"
+    )
     parts: list[str] = []
     if injected:
-        parts.append(
-            f"env-hook clamp injected (box={len(_TAB_BOX_ENVS)} "
-            f"flow={len(_TAB_FLOW_ENVS)} @{flow_size})"
-        )
+        parts.append(f"adjustbox + flow-shrink @{flow_size}")
+    if state["box"]:
+        parts.append(f"box-env wrapped x{state['box']}")
     if n_files:
-        parts.append(f"span edits in {n_files} file(s)")
+        parts.append(f"text edits in {n_files} file(s)")
     if state["minipage"]:
         parts.append(f"minipage wrapped x{state['minipage']}")
     if not parts:
         return False, "clamp block already present, no edits"
     return True, "; ".join(parts)
+
+
+def legacy_clamp_purge(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""env_mismatch 自注成对钩残块整剥。
+
+    inject ``TABLE_FITTING`` (compile/layout.py, 0930 拔除注入) 与
+    fixloop v1 ``TeXlateTabClamp`` 注块并存/在席稿面走 ``ended by``
+    失衡毁编; 源级跨度包不消费该签 (warn_overfull 驱动), 本臂专职
+    中和 (0930 普查 ~1200 事件面)。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex",))
+
+    def _strip(t: str) -> tuple[str, int]:
+        t2 = _strip_legacy_clamp(t)
+        return t2, 1 if t2 != t else 0
+
+    n = _map_tex_files(ctx, exts, _strip)
+    if not n:
+        return False, "no legacy table-clamp block"
+    return True, f"purged paired-hook clamp blocks in {n} file(s)"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -345,9 +480,7 @@ _MATHRUN_SNIPPET = (
 
 #: tier2 剂量——para_loosen 未注时随本块同注 (断不开的段落仍需三遍排版
 #: 兜底); 已注走就地升级 (下方正则臂)。
-_MATHRUN_TIER2 = (
-    "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
-)
+_MATHRUN_TIER2 = "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
 
 #: ``para_loosen`` 注入块标记行 (_builtins_misc._LOOSEN_SNIPPET 首行)——
 #: 已注检出即升级剂量而非重注 (同位赋值后注后胜, 不叠注语义靠升级臂)。
@@ -391,12 +524,12 @@ def math_run_break(
             parts.append("loosen dose upgraded to tier2 (3em/9999)")
             t = nt
     if _MATHRUN_SNIPPET.split("\n", 1)[0] not in t:
-        snippet = _MATHRUN_SNIPPET + (
-            "" if _LOOSEN_MARK in t else _MATHRUN_TIER2
-        )
+        snippet = _MATHRUN_SNIPPET + ("" if _LOOSEN_MARK in t else _MATHRUN_TIER2)
         if _inject_before_begindoc(ctx, snippet, fallback="head"):
-            parts.append("injected \\relpenalty/\\binoppenalty=0"
-                         + ("" if _LOOSEN_MARK in t else " +tier2 stretch"))
+            parts.append(
+                "injected \\relpenalty/\\binoppenalty=0"
+                + ("" if _LOOSEN_MARK in t else " +tier2 stretch")
+            )
     if not parts:
         return False, "math-run hints already present"
     return True, "; ".join(parts)
@@ -516,9 +649,7 @@ def display_math_shrink(
     blob = "\n".join(mask_tex(t) for f in ctx.tex_files(exts) if (t := ctx.read(f)))
     injected = False
     if _DISP_ANY_RX.search(blob) is not None:
-        injected = _inject_before_begindoc(
-            ctx, _display_snippet(size), fallback="head"
-        )
+        injected = _inject_before_begindoc(ctx, _display_snippet(size), fallback="head")
     parts: list[str] = []
     if injected:
         parts.append(f"env-shrink hooks injected @{size}")
@@ -534,9 +665,7 @@ def display_math_shrink(
 # ════════════════════════════════════════════════════════════════
 
 #: ``\includegraphics`` 调用点 (遮盖面)——组 ``opts`` 含括号。
-_GFX_CALL_RX = re.compile(
-    r"\\includegraphics\*?(?P<opts>\[[^\]\n]*\])?\s*\{[^}\n]*\}"
-)
+_GFX_CALL_RX = re.compile(r"\\includegraphics\*?(?P<opts>\[[^\]\n]*\])?\s*\{[^}\n]*\}")
 
 #: ``width=<f>\linewidth`` 族——f>1 即字面超宽 (pgfplots ``width=1.3
 #: \linewidth`` 同收, 不只 \includegraphics 域)。
@@ -681,11 +810,7 @@ def _ensure_adjustbox_export(ctx: LoopCtx) -> bool:
             opts = m.group("opts_inner") or ""
             if re.search(r"(?:^|,)\s*export\s*(?=,|$)", opts):
                 continue  # export 已在
-            names = (
-                (m.group("before") or "")
-                + "adjustbox"
-                + (m.group("after") or "")
-            )
+            names = (m.group("before") or "") + "adjustbox" + (m.group("after") or "")
             new = (
                 f"\\{m.group('cmd')}"
                 f"[{opts + ',' if opts.strip() else ''}export]"
@@ -813,3 +938,78 @@ def fffd_context_fix(
     if not n:
         return False, "no literal U+FFFD in live surface"
     return True, f"context-dispatched U+FFFD runs in {n} file(s)"
+
+
+# ════════════════════════════════════════════════════════════════
+# section_skip_floor: \\@startsection 小正 afterskip 垫底 (qc-impl)
+# ════════════════════════════════════════════════════════════════
+
+#: ``\\@startsection{name}{lvl}{indent}{beforeskip}{afterskip}{style}``
+#: 六参形 —— afterskip (第 5 参) 纯字面量捕获 (组 1 = 含花括整参,
+#: 组 2 = 数值, 组 3 = 单位)。glue 形 (``1.5ex plus .2ex``) 与 cs 形
+#: (``\\smallskipamount``) 不匹配本式, 天然不收。
+_STARTSEC_RX = re.compile(
+    r"\\@startsection\s*"
+    r"\{[^{}]*\}\s*"  # name
+    r"\{[^{}]*\}\s*"  # level
+    r"\{[^{}]*\}\s*"  # indent
+    r"\{[^{}]*\}\s*"  # beforeskip
+    r"(\{\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]{2})\s*\})"  # afterskip 字面量
+)
+
+#: 单位 → pt 折算 (「小正」门近似值即可——ex/em 按 10pt 标准体估,
+#: 误判域仅限 1.0–1.4 档 afterskip, 垫到 1.5ex 仍是无害小垫高)。
+_DIMEN_PT: dict[str, float] = {
+    "pt": 1.0,
+    "bp": 1.00375,
+    "pc": 12.0,
+    "in": 72.27,
+    "cm": 28.4528,
+    "mm": 2.84528,
+    "dd": 1.07,
+    "cc": 12.84,
+    "sp": 1.0 / 65536,
+    "ex": 4.3,
+    "em": 10.0,
+}
+
+#: afterskip 地板 (~1.4ex @10pt ≈ 6pt) 与目标值 —— sig-alternate.cls
+#: 4pt 实证在闸内 (1503.00038: fandol CJK extents 下标题贴正文)。
+_AFTERSKIP_FLOOR_PT = 6.0
+_AFTERSKIP_TARGET = "{1.5ex}"
+
+
+def _section_skip_floor_text(t: str) -> tuple[str, int]:
+    vis = mask_tex(t)
+    edits: list[tuple[int, int, str]] = []
+    for m in _STARTSEC_RX.finditer(vis):
+        num, unit = m.group(2), m.group(3).lower()
+        factor = _DIMEN_PT.get(unit)
+        if factor is None:
+            continue  # mu/陌生单位不动
+        pt = float(num) * factor
+        if not 0 < pt < _AFTERSKIP_FLOOR_PT:
+            continue  # 负值本不匹配 (regex 无 - 位); 零/已足高跳过
+        edits.append((m.start(1), m.end(1), _AFTERSKIP_TARGET))
+    if not edits:
+        return t, 0
+    return _splice(t, edits), len(edits)
+
+
+def section_skip_floor(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""cls/sty ``\\@startsection`` 小正 afterskip (0 < x < ~1.4ex) → ``1.5ex``。
+
+    实证 (qc-impl 2026-09-28, 1503.00038): ``sig-alternate.cls:1009``
+    ``\\@startsection{section}...{4pt}`` —— afterskip 4pt 在 fandol CJK
+    extents 下标题贴正文 (``geo_text_overlap``, 600dpi seam 0 白行)。
+    编译 clean 无 log 签名, 唯 precheck ``always`` 面可达。负值
+    (run-in 标题有意设计) 与 glue/cs 形不收——只动纯字面量。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".cls", ".sty", ".tex"))
+    n = _map_tex_files(ctx, exts, _section_skip_floor_text)
+    if not n:
+        return False, r"no small positive \@startsection afterskip"
+    return True, f"afterskip floored to 1.5ex in {n} file(s)"

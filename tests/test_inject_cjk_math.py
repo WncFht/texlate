@@ -23,11 +23,9 @@ from texlate.compile.inject import (
     CJK_FIRST_USE_WARMUP,
     CJK_MATH_FALLBACK,
     FLOAT_SIZING,
-    TABLE_FITTING,
     TIE_ACCENT_FIX,
     _float_sized,
     inject_cjk,
-    inject_table_fitting,
 )
 
 DOC = (
@@ -212,11 +210,8 @@ def test_bd_shorthand_newcommand_not_split() -> None:
 
 
 def test_float_table_fitting_skip_indef_bd() -> None:
-    r"""FLOAT_SIZING/TABLE_FITTING 同口径：不楔进 ``\def`` 宏体，落真 bd 前。"""
-    for block, inject in (
-        (FLOAT_SIZING, _float_sized),
-        (TABLE_FITTING, inject_table_fitting),
-    ):
+    r"""FLOAT_SIZING：不楔进 ``\def`` 宏体，落真 bd 前（TABLE_FITTING 0930 拔除）。"""
+    for block, inject in ((FLOAT_SIZING, _float_sized),):
         out = inject(BD_DEF_DOC)
         assert block.strip() in out
         needle = "\\def\\bd{\\begin{document}}"

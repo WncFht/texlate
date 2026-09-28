@@ -102,6 +102,7 @@ if TYPE_CHECKING:
         eps_to_pdf,
         pdf_asset_sanitize,
         pstricks_dvips_preflight,
+        rotatebox_caption_pad,
         svg_prepare,
         xbb_pregen,
     )
@@ -109,7 +110,9 @@ if TYPE_CHECKING:
         display_math_shrink,
         fffd_context_fix,
         gfx_width_clamp,
+        legacy_clamp_purge,
         math_run_break,
+        section_skip_floor,
         tabular_fit,
     )
     from texlate.compile.fixloop._builtins_misc import (
@@ -144,6 +147,7 @@ if TYPE_CHECKING:
         nfss_cmd_enc_polyfill,
         nfss_enc_scheme_relax,
         nfss_fam_declare,
+        umath_doc_cs_restore,
     )
     from texlate.compile.fixloop._builtins_paralong import (
         para_longize,
@@ -264,6 +268,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "eps_to_pdf",
         "pdf_asset_sanitize",
         "pstricks_dvips_preflight",
+        "rotatebox_caption_pad",
         "svg_prepare",
         "xbb_pregen",
     ),
@@ -271,7 +276,9 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "display_math_shrink",
         "fffd_context_fix",
         "gfx_width_clamp",
+        "legacy_clamp_purge",
         "math_run_break",
+        "section_skip_floor",
         "tabular_fit",
     ),
     "_builtins_misc": (
@@ -306,6 +313,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "nfss_cmd_enc_polyfill",
         "nfss_enc_scheme_relax",
         "nfss_fam_declare",
+        "umath_doc_cs_restore",
     ),
     "_builtins_paralong": ("para_longize",),
     "_builtins_pkgload": (
@@ -392,6 +400,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "nfss_cmd_enc_polyfill",
     "nfss_enc_scheme_relax",
     "nfss_fam_declare",
+    "umath_doc_cs_restore",
     "graphic_case_link",
     "graphic_repair",
     "restore_support_from_src",
@@ -442,10 +451,13 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "para_loosen",
     "tabular_fit",
     "math_run_break",
+    "section_skip_floor",
     "display_math_shrink",
     "gfx_width_clamp",
     "fffd_context_fix",
     "bbl_format_version_rewrite",
+    "rotatebox_caption_pad",
+    "legacy_clamp_purge",
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
@@ -509,9 +521,9 @@ __all__ = [
     "cs_rebind",
     "cs_targeted_fix",
     "ctlseq_undefine",
+    "display_math_shrink",
     "doc_absent_stub",
     "docstrip_generate",
-    "display_math_shrink",
     "driver_missing_image_stub",
     "driver_tfm_hoist",
     "eps_converted_alias",
@@ -541,6 +553,7 @@ __all__ = [
     "journal_cs_polyfill",
     "keep_latin_tokens",
     "latex209_upgrade",
+    "legacy_clamp_purge",
     "legacy_pkg_shim",
     "macro_glyph_fix",
     "main_wrapper_promote",
@@ -567,6 +580,8 @@ __all__ = [
     "restore_support_from_src",
     "revtex209_surface_polyfill",
     "revtex_era_retire",
+    "rotatebox_caption_pad",
+    "section_skip_floor",
     "shim_pkgs_in_use",
     "shipped_sty_input_wrap",
     "siunitx_incompat_peace",
@@ -576,9 +591,10 @@ __all__ = [
     "subfile_docclass_strip",
     "svg_prepare",
     "svjour_clo_stub",
-    "tcolorbox_breakable_inject",
     "tabular_fit",
+    "tcolorbox_breakable_inject",
     "tectonic_bib_stall_route",
+    "umath_doc_cs_restore",
     "undefine_for_redef",
     "undefined_env_polyfill",
     "vendored_fetch",

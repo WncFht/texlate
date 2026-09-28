@@ -368,6 +368,34 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX0/IDX28/IDX49"
 
+  # bbl_version_regen 无路面兜底 (qc-impl unfixable_bbl_ver 桶, 前置注记
+  # 已预告): fmt 3.x 旧 .bbl 且**全树无 .bib** → biber 再生无路, 唯一挽手
+  # 是头标版本改写到期望档 (builtin 内 .bib 复检 + fmt∈[3.0,期望) 闸 +
+  # 期望档 log 签名提取)。排 bbl_version_regen(158.5) 后: 有 .bcf 稿先让
+  # biber 试跑, 失败落到本臂——双臂条件互补不互抢 (本臂 lacks_ext:[.bib]
+  # 时 regen 臂 biber 至多白跑一次, .bcf 不完整/失手有 builtin 备份兜)。
+  - id: bbl_version_nobib_rewrite
+    description: "warn_bbl_version + 无 .bib 再生路 → fmt3.x 头标改写到期望档 (bbl_format_version_rewrite)"
+    phase: loop
+    order: 158.55 # bbl_version_regen(158.5) 失手/无 .bcf 后的 fmt3.x 唯一挽手
+    when: { category: warn_bbl_version }
+    condition:
+      fileset: { has_ext: [.bbl], lacks_ext: [.bib] }
+    action:
+      kind: builtin_transform
+      function: bbl_format_version_rewrite
+    risk: low # 头标单行版本号改写 + provide-shim 兜底; builtin 自验 fmt∈[3.0,exp)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "qc replay unfixable_bbl_ver 桶 (2208.00058 fmt3.1/2208.00174 fmt3.2, margin_breach verbatim dump ~12 格同族)",
+          error: "File 'x.bbl' is wrong format version - expected 3.3 + 无 .bib → \\sortlist/\\entry 裸排",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "80-bib.yaml:346 前置注记 (bbl_version_regen) + _builtins_bib.bbl_format_version_rewrite docstring"
+
   # 'No file X.bbl'/'File x.bbl not found' 型 missing_file → bbl_regen:
   # .bcf 在场 = biblatex 稿, biber <stem> 直接生出缺失 .bbl; 比
   # install_file 语义对路 (.bbl 是生成件非可装包)。2601.09875 同签名

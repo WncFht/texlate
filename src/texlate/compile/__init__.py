@@ -5,7 +5,7 @@
 - `transcode`：支持件字节转码/净化（aux/bib/中间件/PS 文件——invalid_utf8 修复臂一）
 - `shadow`：系统包遮蔽（kpsewhich 解析 + 本地件遮蔽——invalid_utf8 修复臂三）
 - `latex209`：LaTeX 2.09 ``documentstyle`` → LaTeX2e 受限升级器（compat 模式唯一注入通路）
-- `inject`：ctex/xeCJK 中文注入 + FLOAT_SIZING/TABLE_FITTING
+- `inject`：ctex/xeCJK 中文注入 + FLOAT_SIZING
 - `cjkmap`：GB1→UCS2 ToUnicode CMap 注入（zh.pdf 复制/检索修复）
 - `engine`：Engine Protocol + xelatex/tectonic + 静态路由 + compiled_dependencies（实现在 deps.py 经 facade 回引）
 - `deps`：编译器自述输入集解析（.fls INPUT / dependencies.mk——翻译文件集权威）
@@ -56,7 +56,6 @@ if TYPE_CHECKING:
         find_main_tex,
         inject_cjk,
         inject_float_sizing,
-        inject_table_fitting,
         prepare_chinese,
     )
     from .judge import (
@@ -122,7 +121,6 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "find_main_tex",
         "inject_cjk",
         "inject_float_sizing",
-        "inject_table_fitting",
         "prepare_chinese",
     ),
     ".judge": (
@@ -150,7 +148,14 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "normalize_project",
         "source_path_violations",
     ),
-    ".probe": ("DepProbe", "DepsDiff", "ProbeReport", "dep_seen", "deps_diff", "target_probe"),
+    ".probe": (
+        "DepProbe",
+        "DepsDiff",
+        "ProbeReport",
+        "dep_seen",
+        "deps_diff",
+        "target_probe",
+    ),
     ".sandbox": ("child_env", "find_tool", "run_process", "sandbox_wrap"),
     ".toolchain": ("ensure_tectonic", "install_tectonic", "resolve_tool"),
     "texlate.textutil": ("decode_tex",),
@@ -200,7 +205,6 @@ __all__ = [
     "group_end",
     "inject_cjk",
     "inject_float_sizing",
-    "inject_table_fitting",
     "install_tectonic",
     "judge",
     "log_died_mid_doc",

@@ -69,8 +69,32 @@ rules:
               pattern: "(\\\\newfontfamily|\\\\newfontface|\\\\setfontface|\\\\newCJKfontfamily)(\\s*(?:\\[[^\\]]*\\]\\s*)?)(\\s*\\{[^}]*\\}|\\\\[a-zA-Z@]+)(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}\\s*\\}",
               repl: '\g<1>\g<2>\g<3>\g<4>{Latin Modern Roman}',
             }
+          # ── qc99 (2026-09-28, 2609.20684): babel \babelfont 面 ──
+          # \babelfont[<langs>]{<fam>}[<features>]{<font>} —— 主参尾 brace
+          # 才是 fontspec_missing payload 槽位; features 括号内 XxxFont=
+          # 引用同族文件名 (Amiri-Bold.ttf 等) 会下轮连环报缺 → 当括号
+          # 全由 *Font= 键构成时整括号丢弃, 目标家族自解析 Bold/Italic
+          # 面 (Naskh/LM 均带真字重)。arabic 臂必先于 generic 臂 (generic
+          # 同样匹配 [arabic] 括号, 抢跑会把阿拉伯语面换 LM → tofu)。
+          - {
+              pattern: "(\\\\babelfont\\s*\\[[^\\]]*arabic[^\\]]*\\]\\s*\\{[^}]*\\})\\s*\\[\\s*(?:(?:BoldFont|ItalicFont|BoldItalicFont|SlantedFont|BoldSlantedFont|SwashFont|BoldSwashFont|SmallCapsFont|UprightFont)\\s*=\\s*[^,\\]]+\\s*(?:,\\s*)?)+\\]\\s*\\{\\s*{payload}(?:\\.(?:otf|ttf|ttc|OTF|TTF|TTC))?\\s*\\}",
+              repl: '\g<1>{Noto Naskh Arabic}',
+            }
+          - {
+              pattern: "(\\\\babelfont\\s*(?:\\[[^\\]]*\\]\\s*)?\\{[^}]*\\})\\s*\\[\\s*(?:(?:BoldFont|ItalicFont|BoldItalicFont|SlantedFont|BoldSlantedFont|SwashFont|BoldSwashFont|SmallCapsFont|UprightFont)\\s*=\\s*[^,\\]]+\\s*(?:,\\s*)?)+\\]\\s*\\{\\s*{payload}(?:\\.(?:otf|ttf|ttc|OTF|TTF|TTC))?\\s*\\}",
+              repl: '\g<1>{Latin Modern Roman}',
+            }
+          # features 括号含非 *Font 键 (Script/Scale 等) → 保留括号只换主参
+          - {
+              pattern: "(\\\\babelfont\\s*\\[[^\\]]*arabic[^\\]]*\\]\\s*\\{[^}]*\\})(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}(?:\\.(?:otf|ttf|ttc|OTF|TTF|TTC))?\\s*\\}",
+              repl: '\g<1>\g<2>{Noto Naskh Arabic}',
+            }
+          - {
+              pattern: "(\\\\babelfont\\s*(?:\\[[^\\]]*\\]\\s*)?\\{[^}]*\\})(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}(?:\\.(?:otf|ttf|ttc|OTF|TTF|TTC))?\\s*\\}",
+              repl: '\g<1>\g<2>{Latin Modern Roman}',
+            }
     risk: medium # 字体观感改变 (Noto→LM); 只对已确认装不上的字体动手
-    known_gap: "显示名解析依赖 engine 的 FONTCONFIG_FILE 注入 (texmf opentype 注册); payload 含正则元字符会过配 (brace 边界已挡大部分); addfontfeatures 等冷门 cs 未覆盖 → applied=False"
+    known_gap: "显示名解析依赖 engine 的 FONTCONFIG_FILE 注入 (texmf opentype 注册); payload 含正则元字符会过配 (brace 边界已挡大部分); addfontfeatures 等冷门 cs 未覆盖 → applied=False; \babelfont features 括号混非 *Font 键时括号保留、其内缺名字体下轮仍可能报缺 (applied=False 落人工)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

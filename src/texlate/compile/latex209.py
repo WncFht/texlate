@@ -158,7 +158,9 @@ _CLASS_MAP: dict[str, _ClassSpec] = {
             {"referee", "letters", "usegraphicx", "useAMS", "usenatbib", "dcolumn"}
         ),
     ),
-    "jpsj": _ClassSpec("jpsj3"),
+    # jpsj → jpsj2：JPSJ 官方 2e 继任类（TL 在库；jpsj3 从未发行，
+    # 盲升必 missing_file——seceq/twocolumn 等内建选项原生收）。
+    "jpsj": _ClassSpec("jpsj2"),
     "elsart": _ClassSpec(
         "elsarticle",
         options=frozenset(
@@ -719,6 +721,77 @@ def _uses_ds_at(root: Path | None, cls: str) -> bool:
     return False
 
 
+def _style209_path(root: Path | None, cls: str) -> str | None:
+    r"""随源 ``<cls>.sty`` 检出 → 相对 ``root`` 的 posix 路径；缺席 ``None``。
+
+    桥体只 ``\input`` ``.sty`` 载体——2.09 documentstyle 本体一律以 ``.sty``
+    发行；只携 ``.cls`` 的工程走原盲升（真 2e 类文件可直接载）。tar 伪装
+    件同 ``_uses_ds_at`` 闸剔除；多命中取目录最浅者（编译
+    ``cwd=main.parent`` 的平铺案排前）。
+    """
+    if root is None or ".." in cls or not _GLOB_SAFE_RE.fullmatch(cls):
+        return None
+    for cand in sorted(
+        (c for c in root.rglob(f"{cls}.sty") if c.is_file()),
+        key=lambda c: (len(c.relative_to(root).parts), str(c)),
+    ):
+        try:
+            blob = cand.read_bytes()
+        except OSError:
+            continue
+        if _tar_disguised(blob):
+            continue
+        return cand.relative_to(root).as_posix()
+    return None
+
+
+def _ds_at_bridge(cls: str, sty_rel: str, opts: list[str]) -> str:
+    r"""随源 2.09 documentstyle 桥体——``\input{<cls>.sty}`` + ``\@options`` 分发件。
+
+    ``\@options`` 是 2.09 样式文件的自分发钩：样式本体在定义完
+    ``ds@<opt>`` 处理器后自行调用它，逐选项执行 ``\ds@<opt>``，未定义则
+    ``\input{<opt>.sty}``。2e 内核无此宏——本桥复刻其语义：分发字面
+    选项表（未定义处理器退回 ``\IfFileExists`` 装载，缺席跳过），执行后
+    自耗成空操作；样式不调用时由桥尾补调一次——恰好一次分发。同窗口
+    ``\@ifdefinable`` 放开为无条件执行：2.09 样式假设独占计数器空间
+    （``\newcounter{section}`` 等撞上预载类已注册名），lax 版让重分配
+    直接生效。
+    """
+    safe_opts = [o for o in opts if _GLOB_SAFE_RE.fullmatch(o)]
+    bare = f"\\input{{{cls}.sty}}"
+    if sty_rel == f"{cls}.sty":
+        load = bare
+    else:
+        # sty 在子目录——先按编译 cwd 裸名解析（main.parent 邻位常态），
+        # 再退 root 相对路径；两路皆空时回退裸名让 missing_file 走正常
+        # 归因面。
+        rel = f"\\input{{{sty_rel}}}"
+        load = (
+            f"\\IfFileExists{{{cls}.sty}}{{{bare}}}"
+            f"{{\\IfFileExists{{{sty_rel}}}{{{rel}}}{{{bare}}}}}"
+        )
+    return (
+        "% texlate: LaTeX 2.09 ds@ bridge —— 随源 documentstyle 当 2e 样式装载\n"
+        "\\makeatletter\n"
+        "\\def\\@options{\\@for\\@tempa:="
+        + ",".join(safe_opts)
+        + "\\do{\\@ifundefined{ds@\\@tempa}"
+        "{\\IfFileExists{\\@tempa.sty}{\\input{\\@tempa.sty}}{}}"
+        "{\\@nameuse{ds@\\@tempa}}}\\gdef\\@options{}}\n"
+        # ``\renewcommand``/``\DeclareTextCommand`` 会把 ``\@ifdefinable``
+        # 重绑回自恢复体 ``\@rc@ifdefinable``（其体内首动作即还原内核版）——
+        # 两路同放开才护得住整个 \input 窗口。
+        "\\let\\@ifdefinable@orig\\@ifdefinable\n"
+        "\\let\\@rc@ifdefinable@orig\\@rc@ifdefinable\n"
+        "\\def\\@ifdefinable#1#2{#2}\\def\\@rc@ifdefinable#1#2{#2}\n"
+        + load
+        + "\n\\@options\n"
+        "\\let\\@ifdefinable\\@ifdefinable@orig\n"
+        "\\let\\@rc@ifdefinable\\@rc@ifdefinable@orig\n"
+        "\\makeatother"
+    )
+
+
 def _target_resolvable(root: Path | None, target: str) -> bool:
     """改名目标类可解析性——工程树 ``<target>.cls`` 或系统 kpsewhich 命中。
 
@@ -994,13 +1067,15 @@ def _primary_docstyle(vis: str) -> re.Match[str] | None:
     return next(iter_depth0(DOCSTYLE_DECL_RX, vis), None)
 
 
-def upgrade_209(  # noqa: C901 -- 守卫链 + shim 分派逐支对应升级决策条目
+def upgrade_209(  # noqa: C901, PLR0912 -- 守卫链 + shim 分派逐支对应升级决策条目
     tex: str, *, root: Path | None = None
 ) -> tuple[str, dict]:
     r"""首个深度 0 ``\documentstyle`` 升级为 2e 形态；返回 ``(new_tex, info)``。
 
     ``root`` 提供工程树（可选）：选项位检出随源 ``<opt>.sty`` 进 ``\usepackage``；
-    未映射类名检出随源 ``<cls>.sty/.cls`` 且含 ``ds@`` 定义 → 拒转。
+    未映射非标准类携随源 ``<cls>.sty`` → ds@ 桥（article 底 + ``\input`` 样式
+    + ``\@options`` 分发件，``info["ds_bridge"]`` 置位）；无随源载体且检出
+    ``ds@`` 定义 → 拒转。
     残余的活 ``\documentstyle`` 记号（宏体/次分支）逐 token 改名
     ``\documentclass``——compat 下二次声明照样非法。
 
@@ -1021,28 +1096,45 @@ def upgrade_209(  # noqa: C901 -- 守卫链 + shim 分派逐支对应升级决�
     cls = m.group(2).strip()
     if not cls:
         return tex, {"status": "no-docstyle"}
-    if cls in _DS_AT_CLASSES or (
-        cls not in _CLASS_MAP and cls not in _STD_CLASSES and _uses_ds_at(root, cls)
+    # ds@ 桥：未映射非标准类携 ``<cls>.sty`` 随源即走「article 底 + \input
+    # 样式 + \@options 分发」桥路，不再拒转；只有无载体可桥时保留原拒收。
+    sty_rel: str | None = None
+    if cls not in _CLASS_MAP and cls not in _STD_CLASSES:
+        sty_rel = _style209_path(root, cls)
+    if sty_rel is None and (
+        cls in _DS_AT_CLASSES
+        or (
+            cls not in _CLASS_MAP and cls not in _STD_CLASSES and _uses_ds_at(root, cls)
+        )
     ):
         return tex, {
             "status": "reject",
             "reason": "latex209_ds_at",
             "class": cls,
         }
-    spec = _CLASS_MAP.get(cls)
-    target = spec.target if spec is not None else cls
-    if target != cls and not _target_resolvable(root, target):
-        # 盲升守卫：改名目标类双侧（工程/系统 texmf）不可解析——升上去
-        # missing_file 必死（jpsj→jpsj3 类不在 CTAN），拒转记台账。
-        return tex, {
-            "status": "reject",
-            "reason": "latex209_no_target",
-            "class": cls,
-            "target": target,
-        }
-    cls_opts, pkg_opts, shipped, stripped = _route_opts(
-        _split_opts(m.group(1)), spec, root, target
-    )
+    opts = _split_opts(m.group(1))
+    if sty_rel is not None:
+        spec = None
+        target = "article"
+        # 选项全量进 ``\@options`` 字面分发表（2.09 原语义）；内核选项另
+        # 留类选项位让 article 侧拿到真实效果——两路不冲突。
+        cls_opts = [o for o in opts if o in _KERNEL_OPTS]
+        pkg_opts: list[str] = []
+        shipped: list[str] = []
+        stripped: list[str] = []
+    else:
+        spec = _CLASS_MAP.get(cls)
+        target = spec.target if spec is not None else cls
+        if target != cls and not _target_resolvable(root, target):
+            # 盲升守卫：改名目标类双侧（工程/系统 texmf）不可解析——升上去
+            # missing_file 必死（jpsj→jpsj3 教训：jpsj3 从未发行），拒转记台账。
+            return tex, {
+                "status": "reject",
+                "reason": "latex209_no_target",
+                "class": cls,
+                "target": target,
+            }
+        cls_opts, pkg_opts, shipped, stripped = _route_opts(opts, spec, root, target)
     lines = [
         _PRE_CLASS_SHIM,
         f"\\documentclass[{','.join(cls_opts)}]{{{target}}}"
@@ -1050,6 +1142,8 @@ def upgrade_209(  # noqa: C901 -- 守卫链 + shim 分派逐支对应升级决�
         else f"\\documentclass{{{target}}}",
         COMPAT_SHIM,
     ]
+    if sty_rel is not None:
+        lines.append(_ds_at_bridge(cls, sty_rel, opts))
     if target == "revtex4-2":
         # revtex4-2 删除面整块 polyfill——209 revtex 文稿习惯
         # （\twocolumn[...] 宽头、序言裸 \author、\wideabs、\pacs）
@@ -1082,6 +1176,8 @@ def upgrade_209(  # noqa: C901 -- 守卫链 + shim 分派逐支对应升级决�
         "orig": tex[m.start() : m.end()],
         "class": cls,
         "target": target,
+        "ds_bridge": sty_rel is not None,
+        "bridge_sty": sty_rel,
         "class_opts": cls_opts,
         "pkg_opts": pkg_opts,
         "shipped": shipped,

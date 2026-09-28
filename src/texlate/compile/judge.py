@@ -23,7 +23,10 @@ pdftotext 缺席时降级为 log 判据：`Missing character:` 计数==0。
 
 from __future__ import annotations
 
+import contextlib
 import re
+import shutil
+import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
@@ -92,6 +95,11 @@ def pdf_text_stats(pdf: Path, *, timeout: float = 60) -> tuple[int, int] | None:
     抽取层 12741 个 U+FFFD / 0 个真 CJK）：pdftotext 把 notdef/无
     ToUnicode 字形归一成 U+FFFD——``Missing character`` 告警计数够不到
     的「字形在但映射死」形态（Identity-H 断 CMap）也由这一面曝。
+
+    ``merge_stderr=False``：poppler ``Syntax Warning`` 告警行并入 stdout
+    会落在多字节 UTF-8 序列中间（t_e9fbf860 实证：17 条 EMC 告警劈出
+    21 个假 U+FFFD、抽取全净的交付件被误判 partial）——stderr 分离让
+    计数只反映抽取文本本身。
     """
     tool = find_tool("pdftotext")
     if tool is None or not pdf.is_file():
@@ -101,6 +109,7 @@ def pdf_text_stats(pdf: Path, *, timeout: float = 60) -> tuple[int, int] | None:
         cwd=pdf.parent,
         env={},
         timeout=timeout,
+        merge_stderr=False,
     )
     if to or rc != 0:
         return None
@@ -390,17 +399,62 @@ def _signal_attribution(res: CompRes) -> int | None:
 DEAD_GLYPH_MIN = 20
 
 
+def _post_embed_text_stats(pdf: Path) -> tuple[int, int] | None:
+    """交付态复测：``embed_cjk_mappings`` 打临时副本再抽一趟 → ``(CJK, U+FFFD)``。
+
+    判据口径对齐交付件——GB1 无 ToUnicode 是交付链末端例行补救的形态
+    （worker ``_embed_tounicode``/e2e ``tounicode_fonts``/retranslate
+    同件恒注），raw 抽取出的死字形里注得活的部分非内容缺陷；c32920
+    型真死层注不活，复测后照旧计红。副本失败 → None → 按原始测量判。
+    """
+    try:
+        from .cjkmap import embed_cjk_mappings  # noqa: PLC0415 -- 冷路径惰载
+    except ImportError:
+        return None
+    tmp: Path | None = None
+    try:
+        from pathlib import Path  # noqa: PLC0415 -- 同上冷路径惰载
+
+        # 副本落 pdf 同目录而非系统 /tmp——同文件系统同配额域，
+        # /tmp tmpfs 的 EDQUOT 与跨盘 copyfile 都不沾边
+        with tempfile.NamedTemporaryFile(
+            suffix=".pdf", dir=pdf.parent, delete=False
+        ) as fh:
+            tmp = Path(fh.name)
+        shutil.copyfile(pdf, tmp)
+        embed_cjk_mappings(tmp)
+        return pdf_text_stats(tmp)
+    except Exception:  # noqa: BLE001 -- 复测是增强件，失败按原始测量判
+        return None
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
+
+
 def _cjk_render_check(v: Verdict, res: CompRes) -> None:
     """中文渲染检查（expect_cjk 时）：pdftotext 一趟出 CJK+死字形，缺席降级 log 判据。"""
     st = pdf_text_stats(res.pdf) if res.pdf else None
     cjk = -1 if st is None else st[0]
+    dead = -1 if st is None else st[1]
+    if (
+        st is not None
+        and res.pdf is not None
+        and (dead >= DEAD_GLYPH_MIN or cjk < CJK_MIN_CHARS)
+    ):
+        st2 = _post_embed_text_stats(res.pdf)
+        if st2 is not None and st2 != st:
+            v.notes.append(
+                f"tounicode_embed:cjk {st[0]}→{st2[0]},ufffd {st[1]}→{st2[1]}"
+            )
+            cjk, dead = st2
     v.cjk_chars = cjk
-    if st is not None:
-        v.dead_chars = st[1]
+    if dead >= 0:
+        v.dead_chars = dead
         # 部分死层（Identity-H 断 CMap/字体子集缺 glyph 抽取成 FFFD）：
         # 视觉在但复制/搜索/对位锚全死——cjk>0 逃过 tofu 否决，此门补判。
-        if st[1] >= DEAD_GLYPH_MIN:
-            v.reasons.append(f"dead_glyphs:ufffd×{st[1]}")
+        if dead >= DEAD_GLYPH_MIN:
+            v.reasons.append(f"dead_glyphs:ufffd×{dead}")
     if cjk == 0:
         # hep-th 教训：8 页 PDF、0 中文字节——全线最坏静默失败。
         v.reasons.append("cjk_chars=0")
@@ -491,7 +545,7 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
     return v
 
 
-def judge(  # noqa: C901 — 判定树逐支平铺（tofu 否决为末位支）
+def judge(  # noqa: C901, PLR0912 — 判定树逐支平铺（tofu 否决为末位支）
     res: CompRes,
     *,
     expect_cjk: bool = False,
@@ -557,6 +611,10 @@ def judge(  # noqa: C901 — 判定树逐支平铺（tofu 否决为末位支）
     # 非测量值, 证不了 errors≤CLEAN_ERR_MAX; 测量缺陷非内容缺陷但同否 clean。
     if getattr(res, "log_truncated", False):
         v.reasons.append("log_truncated")
+    # 出货闸 (qc-impl wave-2): 输入未吃活到 \end{document}——残尾/顶层
+    # \endinput 截停的 pdf 腰斩出货, best_effort 下无 error 可计。
+    if getattr(res, "input_truncated", False):
+        v.reasons.append("input_truncated")
     # Guard B: 供了 baseline 时终产物腰斩 <50% 记内容回归——0 错编译同样
     # 可丢内容 (误删附录类), clean 不豁免。
     if baseline_pdf_bytes and res.pdf_bytes < baseline_pdf_bytes * 0.5:

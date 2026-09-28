@@ -129,6 +129,35 @@ rules:
     stats: { fires: 1, rescued_cells: 1 }
     source_ref: "fixloop.py L409-426"
 
+  # 0930 拔除注入的成对钩自伤中和臂: inject TABLE_FITTING (layout.py
+  # 旧块) 与 fixloop v1 TeXlateTabClamp 注块并存时钩序错位, 单挂亦在
+  # cs 形收尾/\end{document} 早退下失衡 → "ended by" 毁编 (vault 普查
+  # ~1200 事件: TabClamp×FitTable 对撞 1080 + FitTable 单独 ~215)。
+  # env_mismatch 是毁编签, 残块剥掉后由后续轮真错真修; 钩面警戒只认
+  # 自家注入名 (TeXlate 前缀), 稿面原生 env_mismatch 不吃本臂。
+  - id: legacy_clamp_purge
+    description: "env_mismatch + TeXlate 成对钩残块在席 → 整剥注块+散钩行"
+    phase: loop
+    order: 95 # hyphenation_sane(90) 与 soul_cjk_mbox(100) 之间——毁编先中和再轮真修
+    when: { category: env_mismatch }
+    condition:
+      source_contains: "TeXlate"
+    action:
+      kind: builtin_transform
+      function: legacy_clamp_purge
+    risk: low # 只剥 texlate 自注块/散钩行, 不碰稿面文本
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "vault splice 普查 2026-09-30",
+          error: "\\begin{TeXlateTabClamp} ended by \\end{TeXlateFitTable} 系 1080 事件 + FitTable 单独 215——成对钩配对不候场毁编",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_layoutfix.py legacy_clamp_purge/_strip_legacy_clamp; compile/layout.py TABLE_FITTING 0930 拔除"
+    known_gap: "稿面原生 env_mismatch (无 TeXlate 残块) 不归本臂——decline 留给后续 syntax 规则; 块边界失配形态靠散钩行兜底剥"
+
   - id: soul_cjk_mbox
     description: "soul 族 (\\hl\\ul\\st\\so\\caps) 参数含 CJK → \\mbox 包裹防逐字重构"
     phase: loop
@@ -994,9 +1023,12 @@ rules:
   # nonstop 模式必死。忠实 stub 而非注释: \typein{msg} → \typeout{msg}
   # (横幅照常打印, 跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
   # 空输入即作者默许的默认 → \typeout{msg}\def\cs{}。
+  # qc99 (2026-09-28, hep-th/9412166): 同族裸原语 ``\read-1 to\yesno``
+  # (终端流号 -1; ``\read\myread`` 文件流不受影响——模式钉 ``-\d``)
+  # → ``\def\yesno{}`` 空读默认, ``\ifx`` 定走 else 分支。
   - id: typein_neutralize
     mechanisms: [W78]
-    description: "\\typein 交互读 → \\typeout 打印 (两参形补 \\def\\cs{} 默认空)"
+    description: "\\typein/\\read-1 交互读 → \\typeout 打印 / \\def\\cs{} 空读默认"
     phase: loop
     order: 180
     when:
@@ -1006,7 +1038,7 @@ rules:
         # (hep-ph/0111248), other 臂保活; source_contains 收紧防爆半径
         - { category: other, payload_required: false }
     condition:
-      source_contains: "\\\\typein"
+      source_contains: "\\\\typein|\\\\read\\s*-\\s*\\d"
     action:
       kind: regex_rewrite
       params:
@@ -1017,8 +1049,12 @@ rules:
               repl: '\\typeout\g<2>\\def\g<1>{}',
             }
           - { pattern: "\\\\typein(\\s*\\{)", repl: '\\typeout\g<1>' }
+          - {
+              pattern: "\\\\read\\s*-\\s*\\d+\\s*to\\s*(\\\\[a-zA-Z@]+)",
+              repl: '\\def\g<1>{}',
+            }
     risk: low # nonstop 下交互本就不可能; msg 保留在 transcript
-    known_gap: "msg 内嵌套 {} 时两参形不命中 ({[^{}]*} 边界) → 落单参形也不中 (后跟 [) → applied=False; 裸 \\read-1 原语未覆盖"
+    known_gap: "msg 内嵌套 {} 时两参形不命中 ({[^{}]*} 边界) → 落单参形也不中 (后跟 [) → applied=False; \\read 后无 to/寄存器变形 (\\read-1to\\cs 无空格可中, \\read-1 \\cs 裸存式) 未覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

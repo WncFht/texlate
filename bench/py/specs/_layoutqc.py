@@ -50,7 +50,9 @@ OVERLAP_MIN_PAIRS: Final = 3  # 重叠词对下限
 #: bbox 相擦带——IoU∈[0.30,0.45) 且纵向重叠 <2.5pt（或小盒高 20%）
 #: 的「擦边」对视为 bbox 相擦非墨触（0812.1246/1012.1161 实证）。
 OVERLAP_GRAZE_HI: Final = 0.45
-OVERLAP_GRAZE_IY: Final = 2.5
+OVERLAP_GRAZE_IY: Final = (
+    2.6  # 巨型 unionbox 标题 bbox 上缘膨胀相擦（真伤族 iy≈3.3+，0928 实证不波及）
+)
 CURVES_INK_MIN: Final = 0.005
 #: 缺字框聚簇阈——单页 ≥4 个空心矩形才算 .notdef 连珠（单个 □
 #: 可为合法符号/复选框）。
@@ -73,12 +75,10 @@ _HARD_SIGS: Final = frozenset(
     {
         "layout:no_pdf",
         "layout:pdf_corrupt",
-        "layout:marks_coverage",
         "layout:lost_element",
         "layout:float_seq_mismatch",
         "layout:dropped_env",
         "layout:offpage",
-        "layout:paper_mismatch",
         "layout:float_lost",
         "align_page_count",
         "align_figure_lost",
@@ -103,6 +103,9 @@ _WARN_SIGS: Final = frozenset(
         "layout:float_drift",
         "layout:order_inversion",
         "layout:overfull",
+        # 浮盒超高 ≥60pt 深溢出兜底（geo_margin_breach cy>b+20 死区
+        # 对纯图形深裁切零覆盖——float_lost 簇 verify 要求保留）。
+        "layout:float_oversize_big",
         "geo_header_lost",
         "align_order_break",
         "regress_ink_profile",
@@ -112,6 +115,12 @@ _INFO_SIGS: Final = frozenset(
     {
         "layout:float_fit",
         "layout:marks_absent",
+        # env_inventory 全树数 \begin 把死代码计进期望面（孤儿文件/
+        # \iffalse 块/\newcommand 体）——8/9 命中是假缺口
+        # （marks_chain 簇实证）；live-env 口径落地前暂驻 INFO。
+        "layout:marks_coverage",
+        # 浮盒超高 <60pt——下边距吸收、内容不丢，记账不挡。
+        "layout:float_oversize",
         # 深带但仍在页内的越界（folio 家具/源置几何/回退框误伤）——
         # 真离页词仍走 geo_margin_breach（WARN）
         "geo_deep_band",
@@ -119,6 +128,13 @@ _INFO_SIGS: Final = frozenset(
         "vis_widow_page",
         # \maketitle/titlepage 测量盒的整版过宽（cms-tdr banner 实证）
         "layout:overfull_titlepage",
+        # 众数页尺寸比对后仍失配=期刊 trim-size special 单页偏离
+        # （2505.06967 spr-astr-addons papersize special 实证）——源稿
+        # 既定排版声明非内容伤，降 INFO 记账（0928 pdf_integrity 簇裁定）。
+        "layout:paper_mismatch",
+        # \\output 例程内溢出=页眉页脚家具/超高 vbox（源稿本就溢出
+        # 或模板属性，overfull 簇 0928 裁定 accept_as_is——记录不挡）。
+        "layout:overfull_output",
     }
 )  # 曲线化文本页墨量阈（页码空页<此）
 PAGE_RATIO_LO: Final = 0.6  # zh/base 页数比合法带
@@ -130,8 +146,9 @@ RESIDUAL_EN_FURNITURE: Final = 4  # 归一后正文域复现 ≥N 次的行=页�
 RESIDUAL_EN_HEAVY_FRAC: Final = 0.15  # frac ≥ 此 → xlat_residual_en_heavy
 DEGEN_NGRAM: Final = 5  # 重复 n-gram 长度
 DEGEN_NGRAM_MAX: Final = 20  # 同 n-gram 出现上限
-DEGEN_PERIODIC_MIN_LINES: Final = 3  # 行内周期占位行数阈（修辞性
-# 重复偶发单行不计）
+DEGEN_PERIODIC_MIN_LINES: Final = 20  # 行内周期占位行数阈——只计
+# 含 CJK 的行（mock 占位洪水全是「这是译文」整行连珠 ≥377 行；
+# 图区标签/括号 stretch glyph 的非 CJK 连珠 ≤16 行，0928 簇裁定）
 EMPTY_PAGE_CHARS: Final = 10  # 空页字符下限
 EMPTY_PAGE_MAX: Final = 2  # 空页容忍数
 SKELETON_LCS_MIN: Final = 0.6  # 骨架 LCS 覆盖率下限
@@ -182,14 +199,28 @@ _OVERFULL_RX: Final = re.compile(
 _OVERFULL_LINE_RX: Final = re.compile(
     r"(?:detected at line|at lines?)\s+(\d+)(?:--(\d+))?"
 )
+#: \\output 例程内溢出——``has occurred while \output is active``
+#: （日志 79 列折行允许 ``has occurred\nwhile \output is active``）：
+#: 页眉页脚家具 + 超高 vbox 族，accept_as_is 降 ``overfull_output``。
+_OUTPUT_ACTIVE_RX: Final = re.compile(r"\\output\s+is\s+active")
 _FLOAT_FIT_RX: Final = re.compile(r"TeXlate-Float-Fit")
 #: 浮体丢失只认浮体自身签名——``Float too large`` 及 float 丢失字样；
 #: ``Reference/Citation `x' undefined`` 行改走 xlat_broken_refs 面
 #: （_UNDEF_KEY_RX 抽键做 zh-base 差集）。
 _FLOAT_LOST_RX: Final = re.compile(
-    r"Float too large|lost floats?|\bfloat\b[^\n]*\blost\b",
+    r"lost floats?|\bfloat\b[^\n]*\blost\b",
     re.IGNORECASE,
 )
+#: ``Float too large for page by Xpt``——原子浮盒超高仍整盒出页，
+#: 溢出由下边距/页脚区吸收；与真裁切无线性相关（0928 float_lost
+#: 簇复核：post-fix 8/9 渲全整、真裁切全被 geo_margin_breach 同页
+#: 捕获）。劈出 float_lost 降 INFO；≥60pt 深溢出留 WARN 兜底——
+#: geo_margin_breach 的 cy>b+20 死区对纯图形深裁切不可见。
+_FLOAT_OVERSIZE_RX: Final = re.compile(
+    r"Float too large[^\n]*?by\s*([\d.]+)\s*pt|(Float too large)",
+    re.IGNORECASE,
+)
+FLOAT_OVERSIZE_WARN_PT: Final = 60.0
 _UNDEF_KEY_RX: Final = re.compile(
     r"(?:Reference|Citation)\s+`([^']+)'\s+on page\s+\d+\s+undefined",
     re.IGNORECASE,
@@ -204,9 +235,7 @@ _ASCII_LINE_RX: Final = re.compile(r"^[A-Za-z0-9 ,.'()\[\]:;/&+-]{25,}$")
 #: bib 区 ASCII 行判定（加 ~_%# 与拉丁扩展/连接号/弯引号容忍——
 #: 作者名变音符与页码 en-dash 是 bib 常态；与 en_lines 计数用的
 #: _ASCII_LINE_RX 拆开，防宽字符集波及主计数）。
-_BIB_LINE_RX: Final = re.compile(
-    r"^[A-Za-z0-9 À-ɏ‐-―‘-” ,.'()\[\]:;/&+~_%#=-]{20,}$"
-)
+_BIB_LINE_RX: Final = re.compile(r"^[A-Za-z0-9 À-ɏ‐-―‘-” ,.'()\[\]:;/&+~_%#=-]{20,}$")
 _REFS_HEAD_RX: Final = re.compile(
     r"^\s*(?:\d+\s*[.、]?\s*)?(?:references|bibliography|参考文献)\s*$",
     re.IGNORECASE,
@@ -223,12 +252,11 @@ _BIB_CORRO_RX: Final = re.compile(
     re.IGNORECASE,
 )
 #: author-year 尾段探测——无 [N] 簇时按作者/年份行密度锚 bib 区。
-_BIB_AY_RX: Final = re.compile(
-    r"et al\.|\(\d{4}\)|^\s*[A-Z][a-z]+,\s*[A-Z]\."
-)
+_BIB_AY_RX: Final = re.compile(r"et al\.|\(\d{4}\)|^\s*[A-Z][a-z]+,\s*[A-Z]\.")
 #: DOI/arXiv/ISBN 行——簇区密度 ≥0.3 作独立 bib 证据。
-_BIB_ID_RX: Final = re.compile(r"doi|arxiv[:.]|isbn|10\.\d{4,}/|https?://",
-    re.IGNORECASE)
+_BIB_ID_RX: Final = re.compile(
+    r"doi|arxiv[:.]|isbn|10\.\d{4,}/|https?://", re.IGNORECASE
+)
 
 
 def _refs_cut(lines: list[str]) -> int:
@@ -262,11 +290,13 @@ def _refs_cut(lines: list[str]) -> int:
     if len(marks) < 3:
         return len(lines)
     start = len(marks) - 1
+    trunc_by_drop = False
     for k in range(len(marks) - 2, -1, -1):
         if marks[k + 1][0] - marks[k][0] > 80:
             break
         nk, nk1 = marks[k][1], marks[k + 1][1]
         if nk is not None and nk1 is not None and nk > nk1 + 2:
+            trunc_by_drop = True
             break  # 正文 [N] 引用倒灌截断
         start = k
     cluster = marks[start:]
@@ -277,15 +307,41 @@ def _refs_cut(lines: list[str]) -> int:
     tail = nums[-3:]
     anchored = (
         any(n == 1 for n in nums)
-        or (
-            len(nums) >= 3
-            and len(tail) == 3
-            and tail[0] < tail[1] < tail[2]
-        )
+        or (len(nums) >= 3 and len(tail) == 3 and tail[0] < tail[1] < tail[2])
         or (not nums and ays >= 3)
     )
-    if not anchored:
-        return len(lines)
+    if anchored:
+        ok = _bib_cluster_cut(lines, cluster)
+        # numdrop 截断的簇可能把 cut 落在 bib 中段（双栏交错编号回跳
+        # >2 顶破截断但幸存尾段仍严格递增+稠密——0928 实证两格漏切
+        # 870/1387 起 bib 只切到 1114/1796）。改用纯行距回连扩簇，
+        # 扩展簇仍过判据则取更深的 cut。
+        if ok is not None and trunc_by_drop:
+            ext = _tail_bib_cluster(lines, marks)
+            if ext is not None:
+                ok_ext = _bib_cluster_cut(lines, ext)
+                if ok_ext is not None and ok_ext < ok:
+                    return ok_ext
+        return ok if ok is not None else len(lines)
+    # 锚失败兜底（无 heading 稿 + 双栏交错把编号单调性顶破——
+    # numdrop 截断导致 [1] 落簇外/尾段非严格递增，bib 客观在
+    # 而 cut=len 全量计入正文域，0928 residual_en FP 三格实证）：
+    # (a) 尾段稠密回扫——末 marker 在文末 ~15 非空行内即 bib 真在
+    #     尾，只按行距 >80 截断回连（不做 numdrop）；
+    # (b) 前向锚——首个标号 1 marker 后 30 行内再现 ≥2 marker 即
+    #     bib 起点（正文 [1] 引用伪锚由簇区密度判据拒）。
+    for cand in (_tail_bib_cluster(lines, marks), _fwd_anchor_cluster(marks)):
+        if cand is None:
+            continue
+        ok = _bib_cluster_cut(lines, cand)
+        if ok is not None:
+            return ok
+    return len(lines)
+
+
+def _bib_cluster_cut(lines: list[str], cluster: list[tuple]) -> int | None:
+    """簇区判据共享出口：marker 行 bib-ASCII 占比 ≥50% 或簇区
+    DOI/arXiv/ISBN 行密度 ≥0.3 → 返 cut，否则 None。"""
     cut = cluster[0][0]
     mark_lines = [lines[i].strip() for i, _, _ in cluster]
     ascii_frac = sum(1 for ln in mark_lines if _BIB_LINE_RX.match(ln)) / max(
@@ -293,7 +349,35 @@ def _refs_cut(lines: list[str]) -> int:
     )
     span = [ln for ln in lines[cut:] if ln.strip()]
     doi_frac = sum(1 for ln in span if _BIB_ID_RX.search(ln)) / max(len(span), 1)
-    return cut if ascii_frac >= 0.5 or doi_frac >= 0.3 else len(lines)
+    return cut if ascii_frac >= 0.5 or doi_frac >= 0.3 else None
+
+
+def _tail_bib_cluster(lines: list[str], marks: list[tuple]) -> list[tuple] | None:
+    """尾段稠密兜底簇：末 marker 须在文末 ~15 非空行内（bib 真在尾段），
+    仅行距 >80 截断回连——双栏交错下编号回跳是常态，numdrop 不可用。"""
+    last_nonempty = max((i for i, ln in enumerate(lines) if ln.strip()), default=-1)
+    if last_nonempty - marks[-1][0] > 15:
+        return None
+    start = len(marks) - 1
+    for k in range(len(marks) - 2, -1, -1):
+        if marks[k + 1][0] - marks[k][0] > 80:
+            break
+        start = k
+    cluster = marks[start:]
+    return cluster if len(cluster) >= 3 else None
+
+
+def _fwd_anchor_cluster(marks: list[tuple]) -> list[tuple] | None:
+    """前向锚兜底簇：首个标号 1 的 brk/num marker，后 30 行内再现
+    ≥2 marker 即候选 bib 起点。"""
+    for j, (i, n, kind) in enumerate(marks):
+        if n != 1 or kind not in ("brk", "num"):
+            continue
+        near = sum(1 for ii, _, _ in marks[j + 1 :] if ii - i <= 30)
+        if near >= 2:
+            return marks[j:]
+        return None
+    return None
 
 
 _SKELETON_RX: Final = re.compile(
@@ -317,27 +401,126 @@ _CJK_RX: Final = re.compile(r"[一-鿿぀-ヿ가-힯]")
 #: 括号/底顶 2308–230B/27C0–27FF、n-ary 2A00–2AFF、增补箭头
 #: 2900–297F、希腊 0370–03FF、质数 2032–2037、±×÷——pymupdf 把
 #: frac/sub/sup 堆叠与 CJK 合成 unionbox 时的碰撞豁免族。
-_MATH_RX: Final = re.compile(
-    "[̃-ͯͰ-Ͽˆ˜′-‷∀-⋿⌈-⌋⟀-⟿⤀-⥿⨀-⫿±×÷𝐀-𝟿]"
-)
-#: zh 参与判定——CJK 命中且不含 U+FFFD（图内坏 cmap 字体抽出的
-#: ``푣`` 类 token 不算 zh 墨，2503.05281 实证）。
+_MATH_RX: Final = re.compile("[̃-ͯͰ-Ͽˆ˜′-‷∀-⋿⌈-⌋⟀-⟿⤀-⥿⨀-⫿±×÷𝐀-𝟿]")
+#: BMP noncharacter 面——U+FDD0–FDEF/FFFE/FFFF，坏 cmap 抽出件常带
+#: （``푥￿``/``푦￿`` 族，0928 text_overlap 图内伪 zh 对实证）。
+_NONCHAR_RX: Final = re.compile("[﷐-﷯￾￿]")
+
+
+#: zh 参与判定——CJK 命中且不含 U+FFFD 或 noncharacter（图内坏 cmap
+#: 字体抽出的 ``푣``/``푥￿`` 类 token 不算 zh 墨，2503.05281 实证）。
 def _zh_tok(t: str) -> bool:
-    return _CJK_RX.search(t) is not None and "\ufffd" not in t
+    return (
+        _CJK_RX.search(t) is not None
+        and "\ufffd" not in t
+        and _NONCHAR_RX.search(t) is None
+    )
 
 
 #: 结构性首页行——分隔白页豁免：空页下一非空页首行命中即
 #: verso/章前隔页（openright/twoside/frontmatter 常态）。
+#: ``\d+(?:\.\d+)*\.?\s``=无关键字编号头（``2. 预备知识``/``3.2 X``
+#: 页首）与 ``isbn``（版权/colophon 页）——1503.00131 实证缺口。
 _STRUCT_HEAD_RX: Final = re.compile(
     r"^\s*(?:chapter|part|appendix|section|abstract|references|"
     r"bibliography|contents|preface|prologue|epilogue|acknowledg\w*|"
-    r"declaration|glossary|index|第.{0,8}[章节部篇回]|附录|参考文献|"
+    r"declaration|glossary|index|isbn\b|第.{0,8}[章节部篇回]|附录|参考文献|"
     r"目录|前言|序言|绪论|引言|致谢|声明|摘要|符号表|术语表|结论|"
-    r"尾声|索引|致读者|插图|表格)",
+    r"尾声|索引|致读者|插图|表格|\d+(?:\.\d+)*\.?\s)",
     re.IGNORECASE,
 )
 #: folio 行（页码/罗马码）——页内唯一文字是 folio 时页仍算家具页。
 _FOLIO_RX: Final = re.compile(r"^\s*[\dIVXLCDMivxlcdm]{1,8}\s*$")
+_ROMAN_DIGIT: Final = {
+    "i": 1,
+    "v": 5,
+    "x": 10,
+    "l": 50,
+    "c": 100,
+    "d": 500,
+    "m": 1000,
+}
+#: frontmatter 域深度——\blankpage 族标记佐证只作用于前 N 个 PDF
+#: 页（verify 0928：tex 里存在 \blankpage 绝不能豁免全篇空页）。
+FRONTMATTER_PAGES: Final = 10
+#: tex 侧「显式造白页」标记族——\blankpage(memoir)/\clearempty
+#: doublepage/\cleartooddpage 等；裸 \clearpage 不产白页不收。
+_BLANKPAGE_RX: Final = re.compile(
+    r"\\(?:blankpage|clearemptydoublepage|cleartooddpage|"
+    r"cleartoevenpage|cleardoublepage|cleartoleftpage)\b"
+)
+
+
+#: \\title{…} 参数提取（一层嵌套花括号容差）——扉页/标题页 verso
+#: 豁免的文档标题证据源。
+_TITLE_ARG_RX: Final = re.compile(
+    r"\\title\s*(?:\[[^\]]*\])?\s*\{((?:[^{}]|\{[^{}]*\})*)\}"
+)
+
+
+def _struct_head(head: str, doc_title: str | None = None) -> bool:
+    """页首行是否结构性标题（verso/分隔白页豁免的佐证判）。
+
+    ``doc_title``=splice tex ``\\title`` 参数 squash 串——标题页
+    首行即论文标题本身（``Universitá`` 式机构行之外的另一族无
+    关键字页首，1503.00131 实证）：head squash 与 title 互为前缀
+    即中（截断抽取/题+副题单行都盖）。"""
+    if _STRUCT_HEAD_RX.match(head):
+        return True
+    hk = re.sub(r"\s+", "", head)
+    return bool(
+        doc_title
+        and len(doc_title) >= 6
+        and len(hk) >= 4
+        and (doc_title.startswith(hk) or hk.startswith(doc_title))
+    )
+
+
+def _folio_val(ln: str) -> int | None:
+    """folio 行→页码整数（阿拉伯/罗马数字）；非 folio 行返 None。
+
+    verso 判定的真口径：frontmatter 罗马码段让 PDF 序数与印刷页码
+    错位（1812.00314 实证），能读到 folio 就以它为准。"""
+    s = ln.strip()
+    if not s or not _FOLIO_RX.match(ln):
+        return None
+    if s.isdigit():
+        return int(s)
+    vals = [_ROMAN_DIGIT.get(c) for c in s.lower()]
+    if any(v is None for v in vals):
+        return None
+    tot = 0
+    for k, v in enumerate(vals):
+        tot += -v if k + 1 < len(vals) and v < vals[k + 1] else v
+    return tot or None
+
+
+def _verso_blank(
+    pi: int, text_page: str, twoside: bool, blankpage_marker: bool
+) -> bool:
+    """单页级 verso 豁免（pdftotext 页文本口径）。
+
+    - 页自带 folio 可解 → folio 偶数即 verso（twoside 限定）；folio
+      缺席退回 PDF 序数 (pi+1)%2 旧口径；
+    - frontmatter 域 + twoside + tex 有 \\blankpage 族标记 → 佐证压
+      （只当前 N 页，全篇不适用）。"""
+    if not twoside:
+        return False
+    folio = next(
+        (v for ln in text_page.splitlines() if (v := _folio_val(ln)) is not None),
+        None,
+    )
+    if folio is not None:
+        return folio % 2 == 0
+    if (pi + 1) % 2 == 0:
+        return True
+    # frontmatter 域（roman 偏移使 PDF 序数与 folio 奇偶错开，
+    # 1812.00314 实证击穿序数判）+ twoside → 空页全 verso 授权；
+    # 原 \blankpage 族标记臂（同限 frontmatter 域）被全域判吸收，
+    # 参数保留给调用面记账——域外空页仍不得豁免（0928 裁定）。
+    return pi < FRONTMATTER_PAGES
+
+
 #: furniture 频次的数字归一（页眉年份/页码变体坍缩）。
 _DIGIT_RX: Final = re.compile(r"\d+")
 _NORM_RX: Final = re.compile(r"[^a-z0-9]+")
@@ -424,10 +607,12 @@ def _logscan(
     >50pt 不变。``title_lines`` 给出 splice tex 的 \\maketitle/
     titlepage 行号集——全部驱动级（≥20pt）溢出都落在标题语境时降为
     ``layout:overfull_titlepage``（INFO；cms-tdr banner 测量盒实证）。
-    """
+    第四层：``while \\output is active`` 例程内条目（页眉页脚家具/
+    超高 vbox）剔出正文溢出计数，单列 ``layout:overfull_output``
+    INFO 记账（overfull 簇 0928 accept_as_is 裁定）。"""
     findings: list[dict] = []
     seen: set[tuple[str, float]] = set()
-    ov: list[tuple[str, float, int | None]] = []
+    ov: list[tuple[str, float, int | None, bool]] = []
     for m in _OVERFULL_RX.finditer(log_text):
         kind, pt = m.group(1), float(m.group(2))
         if kind == "v" and pt < OVERFULL_VBOX_FLOOR_PT:
@@ -437,23 +622,36 @@ def _logscan(
             continue
         seen.add(key)
         ctx = log_text[m.end() : m.end() + 160]
+        # \\output 例程判只认本条语境段——下一条 Overfull 起头截断，
+        # 不然相邻条目的 "while \output is active" 会跨界误染。
+        seg = ctx.split("Overfull", 1)[0]
+        out_active = bool(_OUTPUT_ACTIVE_RX.search(seg))
         lm = _OVERFULL_LINE_RX.search(ctx)
-        ov.append((kind, pt, int(lm.group(1)) if lm else None))
+        ov.append((kind, pt, int(lm.group(1)) if lm else None, out_active))
     fit = len(_FLOAT_FIT_RX.findall(log_text))
     lost = len(_FLOAT_LOST_RX.findall(log_text))
+    over_hits = _FLOAT_OVERSIZE_RX.findall(log_text)
+    over_pts = [float(a) for a, b in over_hits if a]
+    over_unknown = len(over_hits) - len(over_pts)
     undef_keys = sorted(set(_UNDEF_KEY_RX.findall(log_text)))
+    ov_body = [o for o in ov if not o[3]]
+    ov_out = [o for o in ov if o[3]]
+    body_max = max((p for _, p, _, _ in ov_body), default=0.0)
     metrics = {
         "overfull_n": len(ov),
-        "overfull_max_pt": max((p for _, p, _ in ov), default=0.0),
-        "overfull_vbox_n": sum(1 for k, _, _ in ov if k == "v"),
+        "overfull_max_pt": max((p for _, p, _, _ in ov), default=0.0),
+        "overfull_vbox_n": sum(1 for k, _, _, _ in ov if k == "v"),
+        "overfull_output_n": len(ov_out),
         "float_fit_typeout": fit,
         "float_lost_warn": lost,
+        "float_oversize_n": len(over_hits),
+        "float_oversize_max_pt": max(over_pts, default=0.0),
         "undef_ref_keys": undef_keys,
     }
-    if (
-        len(ov) > OVERFULL_COUNT and metrics["overfull_max_pt"] >= OVERFULL_COUNT_MIN_PT
-    ) or metrics["overfull_max_pt"] > OVERFULL_MAX_PT:
-        drivers = [o for o in ov if o[1] >= OVERFULL_COUNT_MIN_PT]
+    if (len(ov_body) > OVERFULL_COUNT and body_max >= OVERFULL_COUNT_MIN_PT) or (
+        body_max > OVERFULL_MAX_PT
+    ):
+        drivers = [o for o in ov_body if o[1] >= OVERFULL_COUNT_MIN_PT]
         title_ctx = bool(
             title_lines
             and drivers
@@ -462,17 +660,41 @@ def _logscan(
         findings.append(
             {
                 "sig": (
-                    "layout:overfull_titlepage"
-                    if title_ctx
-                    else "layout:overfull"
+                    "layout:overfull_titlepage" if title_ctx else "layout:overfull"
                 ),
-                "n": len(ov),
-                "max_pt": metrics["overfull_max_pt"],
-                "vbox_n": metrics["overfull_vbox_n"],
+                "n": len(ov_body),
+                "max_pt": body_max,
+                "vbox_n": sum(1 for k, _, _, _ in ov_body if k == "v"),
+            }
+        )
+    if ov_out:
+        # \\output 例程溢出（页眉页脚家具/超高 vbox）——源稿本就溢出或
+        # 模板属性，accept_as_is：发 INFO sig 记账不进 dirty（overfull
+        # 簇 0928 裁定；headfoot 7 格+超高 vbox 6 格实证）。同格正文域
+        # 溢出仍走 layout:overfull（1306.0005 figure 段实证分层）。
+        findings.append(
+            {
+                "sig": "layout:overfull_output",
+                "n": len(ov_out),
+                "max_pt": max(p for _, p, _, _ in ov_out),
+                "vbox_n": sum(1 for k, _, _, _ in ov_out if k == "v"),
             }
         )
     if fit:
         findings.append({"sig": "layout:float_fit", "n": fit})
+    if over_hits:
+        findings.append(
+            {
+                "sig": (
+                    "layout:float_oversize_big"
+                    if over_unknown
+                    or metrics["float_oversize_max_pt"] >= FLOAT_OVERSIZE_WARN_PT
+                    else "layout:float_oversize"
+                ),
+                "n": len(over_hits),
+                "max_pt": metrics["float_oversize_max_pt"],
+            }
+        )
     if lost:
         findings.append({"sig": "layout:float_lost", "n": lost})
     return findings, metrics
@@ -485,6 +707,8 @@ def _marks_scan(
     src_dir: Path | None,
     zh_pages: int | None = None,
     base_pages: int | None = None,
+    marks_sentinel: bool | None = None,
+    marks_expected: bool | None = None,
 ) -> tuple[list[dict], dict]:
     """marks 查表层：跨臂对照 + 单侧 offpage + 双层覆盖记账。
 
@@ -500,6 +724,22 @@ def _marks_scan(
     findings: list[dict] = []
     metrics: dict = {}
     if zh_txlm is None or not zh_txlm.exists():
+        # 合法缺席闸（0928 marks_chain 簇 49/50 实证全是假洞）：
+        # (a) 封件 tex 有注入哨兵（``\txlm@out``/TeXlateLayoutMarks）
+        #     → 该产物编译期确已注入，txlm 缺席=真链断，照报；
+        # (b) 有 tex 无哨兵 → pre-era/soak 臂产物（不注入 marks），
+        #     缺席是产物出身事实非缺陷；
+        # (c) artifact-only 封件（无 .tex 可验哨兵）→ 退回账本出处
+        #     marks_expected（compile metrics inject.layout_marks），
+        #     False=编译记录里注入键缺席（pre-era 编译）亦压；
+        # (d) 两侧都不可证伪 → 诚实照报。
+        if marks_sentinel is True:
+            return [{"sig": "layout:marks_absent", "side": "zh"}], metrics
+        if marks_sentinel is False or marks_expected is False:
+            metrics["marks_absent_suppressed"] = (
+                "pre_era" if marks_sentinel is False else "not_expected"
+            )
+            return [], metrics
         return [{"sig": "layout:marks_absent", "side": "zh"}], metrics
     zh = parse_txlm(zh_txlm)
     metrics["zh_marks"] = len(zh["marks"])
@@ -602,6 +842,7 @@ def _page_frames(pg, words: list[tuple]) -> list[dict]:
     pw = pg.rect.width
     ph = pg.rect.height
     dil = 2.0
+
     # 共线游程合并：listings 系把框侧边渲成逐行 \\vrule 短段堆叠
     # （1812.00089 p44 实证 ~40 段 14pt 竖段链成 605pt 边），先沿
     # 主轴把「同车道且首尾相接 ≤2pt」的段并成一条，否则短段聚簇
@@ -966,33 +1207,41 @@ def _bbox_scan(
     cross-arm 段——此处只产 per-page 度量）。"""
     findings: list[dict] = []
     metrics: dict = {"pages": len(pages)}
-    # 纸型失配：GEOM pw/ph（\paperwidth，TeX pt）vs PDF mediabox（bp）
-    # ——marks 轴与渲染轴分裂的独立信号（probe 实证 letterpaper 声明
-    # → A4 输出）。比对前先 pt→bp 换算。
-    if (
-        pages
-        and geom.get("pw")
-        and geom.get("ph")
-        and (
-            abs(geom["pw"] * PT2BP - pages[0]["w"]) >= 2.0
-            or abs(geom["ph"] * PT2BP - pages[0]["h"]) >= 2.0
-        )
-    ):
-        findings.append(
-            {
-                "sig": "layout:paper_mismatch",
-                "geom": [geom["pw"], geom["ph"]],
-                "pdf": [pages[0]["w"], pages[0]["h"]],
-            }
-        )
+    # 纸型失配：GEOM pw/ph（\paperwidth，TeX pt）vs PDF 全页众数尺寸
+    # （bp）——只比 pages[0] 会把期刊 trim-size special 的合法单页
+    # 偏离升 HARD（0928 实证）；众数失配才是真的纸型错，偶发单页
+    # 偏离仅记账。
+    if pages and geom.get("pw") and geom.get("ph"):
+        sizes = Counter((round(p["w"], 1), round(p["h"], 1)) for p in pages)
+        (mw, mh), n_mode = sizes.most_common(1)[0]
+        odd = [
+            i + 1
+            for i, p in enumerate(pages)
+            if (round(p["w"], 1), round(p["h"], 1)) != (mw, mh)
+        ]
+        if odd:
+            metrics["paper_size_odd_pages"] = odd
+        if abs(geom["pw"] * PT2BP - mw) >= 2.0 or abs(geom["ph"] * PT2BP - mh) >= 2.0:
+            findings.append(
+                {
+                    "sig": "layout:paper_mismatch",
+                    "geom": [geom["pw"], geom["ph"]],
+                    "pdf": [mw, mh],
+                    "mode_pages": n_mode,
+                }
+            )
     breach_n = overlap_n = band_n = 0
     word_counts: list[int] = []
+    char_counts: list[int] = []
     head_hits = 0
     breach_by_page: list[int] = []
     overlap_by_page: list[int] = []
     for pi, pg in enumerate(pages):
         words = pg["words"]
         word_counts.append(len(words))
+        # CJK 无空格文本按空格计词天然 <3 词/页——text_as_curves
+        # 改吃字符数（0928 pdf_integrity 簇：可读正文页被误判曲线化）
+        char_counts.append(sum(len(w[4]) for w in words))
         nb, off, op = _page_word_stats(pg, geom)
         breach_by_page.append(nb)
         overlap_by_page.append(op)
@@ -1011,9 +1260,7 @@ def _bbox_scan(
             # 源置 geometry（revtex 窄栏 folio）、页码/running head
             # 残词等非离页现象；INFO 立档不报警。
             band_n += nb
-            findings.append(
-                {"sig": "geo_deep_band", "page": pi + 1, "words": nb}
-            )
+            findings.append({"sig": "geo_deep_band", "page": pi + 1, "words": nb})
         if op >= OVERLAP_MIN_PAIRS:
             overlap_n += op
             findings.append({"sig": "geo_text_overlap", "page": pi + 1, "pairs": op})
@@ -1033,6 +1280,7 @@ def _bbox_scan(
     metrics["overlap_by_page"] = overlap_by_page
     metrics["header_pages"] = head_hits
     metrics["word_counts"] = word_counts
+    metrics["char_counts"] = char_counts
     return findings, metrics
 
 
@@ -1043,6 +1291,10 @@ def _plain_scan(
     zh_log: str | None = None,
     tex_hay: str | None = None,
     verb_hay: str | None = None,
+    tex_fffd: bool = False,
+    twoside: bool = False,
+    blankpage_marker: bool = False,
+    doc_title: str | None = None,
 ) -> tuple[list[dict], dict]:
     """pdftotext 纯文本层：退化兜底（olmOCR 系）+ 残留英文两级档
     （furniture 剔除后 frac≥RESIDUAL_EN_HEAVY_FRAC 升 heavy 档）。
@@ -1050,7 +1302,12 @@ def _plain_scan(
     ``base_text``=en 对照臂全文（缺失→全部跨臂豁免退化单侧口径）；
     ``zh_log``=zh 编译日志（FFFD 臂的 Missing-character 佐证）；
     ``tex_hay``/``verb_hay``=splice tex 全文/verbatim 段内容的
-    ``_NORM_RX`` 归一化 blob——残英行回查用。"""
+    ``_NORM_RX`` 归一化 blob——残英行回查用；``tex_fffd``=splice
+    tex 含字面 U+FFFD 字节（FFFD 臂的二号佐证：log 零 missing 时
+    抽取 FFFD 全是嵌入图 ToUnicode 伪影，tex 字面量才是编译进
+    PDF 的真豆腐）；``twoside``/``blankpage_marker`` 供 verso
+    空页豁免（folio 奇偶/frontmatter 标记臂）；``doc_title``=
+    splice ``\\title`` 参数 squash 串（标题页 verso 佐证）。"""
     findings: list[dict] = []
     pages = text.split("\f")
     if pages and not pages[-1].strip():
@@ -1080,9 +1337,10 @@ def _plain_scan(
                 norm_span.setdefault(norm, set()).add(pi)
 
     def _furniture(ln: str) -> bool:
-        return freq[ln] >= RESIDUAL_EN_FURNITURE or len(
-            norm_span.get(_DIGIT_RX.sub("#", ln), ())
-        ) >= RESIDUAL_EN_FURNITURE
+        return (
+            freq[ln] >= RESIDUAL_EN_FURNITURE
+            or len(norm_span.get(_DIGIT_RX.sub("#", ln), ())) >= RESIDUAL_EN_FURNITURE
+        )
 
     en_lines = [
         ln
@@ -1139,7 +1397,6 @@ def _plain_scan(
     ngrams = Counter(
         tuple(toks[i : i + DEGEN_NGRAM]) for i in range(len(toks) - DEGEN_NGRAM + 1)
     )
-    top_rep = max(ngrams.values(), default=0)
     base_empty = None
     if base_text is not None:
         btoks = [t for t in base_text.split() if _WORD_CHAR_RX.search(t)]
@@ -1147,17 +1404,29 @@ def _plain_scan(
             tuple(btoks[i : i + DEGEN_NGRAM])
             for i in range(len(btoks) - DEGEN_NGRAM + 1)
         )
-        top_rep = max(ngrams.values(), default=0)
         bpages = base_text.split("\f")
         if bpages and not bpages[-1].strip():
             bpages.pop()
         base_empty = sum(1 for p in bpages if len(p.strip()) < EMPTY_PAGE_CHARS)
-    # verso/分隔白页豁免：空页的下一非空页首行命中结构性标题
+    # 获胜 n-gram 须含 ≥1 CJK token——Mandelstam 变量表/量子门记号/
+    # CC 页脚的纯非 CJK 周期重复是合法内容（vis_degenerate 簇 0928
+    # 裁定：10/10 触发格全是非 CJK，1404.0028 rep=183 实证）。
+    top_rep = max(
+        (c for g, c in ngrams.items() if any(_CJK_RX.search(t) for t in g)),
+        default=0,
+    )
+    top_rep_all = max(ngrams.values(), default=0)
+    # verso/分隔白页豁免三臂：页自带 folio 偶数/frontmatter+标记
+    # （_verso_blank）；空页的下一非空页首行命中结构性标题
     # （Chapter/第N章/参考文献…）即章前隔页——openright/frontmatter
     # 常态排版非缺陷。
     empty_idx = [i for i, p in enumerate(pages) if len(p.strip()) < EMPTY_PAGE_CHARS]
 
     def _verso(pi: int) -> bool:
+        if _verso_blank(pi, pages[pi], twoside, blankpage_marker):
+            return True
+        if pi == 1 and pages[0].strip():
+            return True  # 扉页后 verso——frontmatter 常态空背
         for j in range(pi + 1, len(pages)):
             if pages[j].strip():
                 head = next(
@@ -1168,26 +1437,38 @@ def _plain_scan(
                     ),
                     "",
                 )
-                return bool(_STRUCT_HEAD_RX.match(head))
+                return _struct_head(head, doc_title)
         return False
 
     empty_eff = [i for i in empty_idx if not _verso(i)]
     # 行内周期占位行数——CJK mock 译文整行无空格，词级 n-gram
     # 只反映局部重复（running head 放阈连它一起放走）；行内
     # 连珠才是真占位签名——页眉每页复现也不产生行内连珠。
+    # 发射口径=CJK 周期单元行数（_CJK_RX 命中重复单元本身——图区
+    # 刻度/CD 标签/括号 stretch 的非 CJK 连珠不点火）。
     periodic = sum(
         1
         for ln in body
         if any(_WORD_CHAR_RX.search(m.group(1)) for m in _PERIODIC_RX.finditer(ln))
+    )
+    periodic_cjk = sum(
+        1
+        for ln in body
+        if any(
+            _WORD_CHAR_RX.search(m.group(1)) and _CJK_RX.search(m.group(1))
+            for m in _PERIODIC_RX.finditer(ln)
+        )
     )
     metrics.update(
         {
             "fffd": fffd,
             "fffd_net": fffd_net,
             "top_ngram_rep": top_rep,
+            "top_ngram_rep_all": top_rep_all,
             "empty_pages": len(empty_idx),
             "empty_pages_eff": len(empty_eff),
             "degen_periodic_lines": periodic,
+            "degen_periodic_cjk": periodic_cjk,
         }
     )
     if base_empty is not None:
@@ -1196,22 +1477,27 @@ def _plain_scan(
     # 数百次——阈值按页数放。无 base 时再加家具地板 rep≤npages 免
     # （每页一次即家具），有 base 由差集承担。
     ngram_cap = max(3 * len(pages), DEGEN_NGRAM_MAX)
-    ngram_fire = top_rep > ngram_cap and (
-        base_text is not None or top_rep > len(pages)
-    )
-    # FFFD 臂：log 缺字行佐证——内嵌图字体不经主编译装载，log 零
-    # Missing character 时 FFFD 面全是图内继承；保险丝 net≥3 仍报
-    # （base 亦残的边角不吞真缺字）。
+    ngram_fire = top_rep > ngram_cap and (base_text is not None or top_rep > len(pages))
+    # FFFD 臂（verify 0928 裁定）：log 在档时 missing>0 一律照发
+    # ——net≤2 的真缺字格实证存在（人名/数学 drop），而 missing==0
+    # 时抽取 FFFD 全是嵌入图 ToUnicode 缺口/空格形/零宽 glyph 伪影
+    # （net 438 亦伪影），仅 tex 含字面 FFFD 字节才发。log 缺席
+    # 退回旧保险丝：net≥3 或 tex 字面量佐证。
     if zh_log is None:
-        fffd_fire = fffd_net > 0
+        fffd_fire = fffd_net >= DEGEN_FFFD_FUSE or (tex_fffd and fffd_net > 0)
     else:
         missing = len(re.findall(r"Missing character", zh_log))
         metrics["missing_chars"] = missing
-        fffd_fire = fffd_net >= DEGEN_FFFD_FUSE or (missing > 0 and fffd_net > 0)
+        fffd_fire = fffd_net > 0 and (missing > 0 or tex_fffd)
     empty_fire = (
         (len(empty_eff) - base_empty) if base_empty is not None else len(empty_eff)
     ) > EMPTY_PAGE_MAX
-    if fffd_fire or ngram_fire or empty_fire or periodic >= DEGEN_PERIODIC_MIN_LINES:
+    if (
+        fffd_fire
+        or ngram_fire
+        or empty_fire
+        or periodic_cjk >= DEGEN_PERIODIC_MIN_LINES
+    ):
         findings.append(
             {
                 "sig": "vis_degenerate",
@@ -1219,7 +1505,7 @@ def _plain_scan(
                 "fffd_net": fffd_net,
                 "top_ngram_rep": top_rep,
                 "empty_pages": len(empty_eff),
-                "periodic_lines": periodic,
+                "periodic_lines": periodic_cjk,
             }
         )
     # 断链引用：未解析 \cite/\ref 渲成 ?? run——编译 pass 不全的
@@ -1258,7 +1544,9 @@ def _images_per_page(pdf: Path) -> dict[int, int]:
     out = _run(["pdfimages", "-list", pdf.name], cwd=pdf.parent)
     per: dict[int, int] = {}
     for ln in out.splitlines():
-        m = re.match(r"\s*(\d+)\s+\d+\s+image\s", ln)
+        # stencil/smask 位图也算墨——1-bit stencil 图版页曾被漏计失去
+        # curves/void 豁免（0928 pdf_integrity 簇实证）。
+        m = re.match(r"\s*(\d+)\s+\d+\s+(?:image|stencil|smask)\s", ln)
         if m:
             per[int(m.group(1))] = per.get(int(m.group(1)), 0) + 1
     return per
@@ -1322,6 +1610,8 @@ def _raster_scan(
     zh_text_pages: list[str] | None = None,
     zh_geo: list[dict] | None = None,
     twoside: bool = False,
+    blankpage_marker: bool = False,
+    doc_title: str | None = None,
 ) -> tuple[list[dict], dict]:
     """raster 检查：空白/墨团/空洞/tofu（zh 单侧）+ 栏数/规则
     对拍（跨臂）。
@@ -1331,10 +1621,14 @@ def _raster_scan(
     text_as_curves 同一豁免族：位图页的大墨块是内容不是泼溅）。
     ``zh_text_pages``=pdftotext 逐页文本（verso/孤行判定）；``zh_geo``
     =_bbox_pages 页 dict（frames 键给 void 的封印框兜底闸）；
-    ``twoside``=文档双面排版（偶数 verso 空白页合法）。
+    ``twoside``=文档双面排版（偶数 verso 空白页合法）；
+    ``blankpage_marker``=tex 含 \\blankpage 族显式造白页标记
+    （frontmatter 域佐证，全篇不放大）；``doc_title``=splice
+    ``\\title`` squash 串（标题页 verso 佐证）。
 
     空白页抑制四层：base ±1 窗同空白（源承）/下一非白页首行结构性
-    标题（章前分隔）/twoside 偶数页（verso）/末页 folio-only（收尾）。
+    标题（章前分隔）/verso（folio 偶数优先、PDF 序数兜底、
+    frontmatter+blankpage 标记佐证）/末页 folio-only（收尾）。
     近空页（墨量过空白地板但 <WIDOW_INK_MAX 且正文 ≤2 行）降为
     ``vis_widow_page``（INFO）——孤行页是排版丑态非缺陷面。"""
     findings: list[dict] = []
@@ -1369,9 +1663,7 @@ def _raster_scan(
                 supp = False
                 if base_pages:
                     lo, hi = max(0, i - 1), min(len(base_pages), i + 2)
-                    if any(
-                        base_pages[j]["ink"] < BLANK_INK_MAX for j in range(lo, hi)
-                    ):
+                    if any(base_pages[j]["ink"] < BLANK_INK_MAX for j in range(lo, hi)):
                         supp = True  # en 原件同页位留白——源承非缺陷
                 if not supp and zh_text_pages is not None:
                     for j in range(i + 1, n_tx):
@@ -1384,11 +1676,16 @@ def _raster_scan(
                                 ),
                                 "",
                             )
-                            if _STRUCT_HEAD_RX.match(head):
+                            if _struct_head(head, doc_title):
                                 supp = True  # 章/部/附录前分隔白页
                             break
-                if not supp and twoside and (i + 1) % 2 == 0:
-                    supp = True  # 双面排版偶数 verso 留白
+                if not supp and _verso_blank(
+                    i,
+                    zh_text_pages[i] if i < n_tx else "",
+                    twoside,
+                    blankpage_marker,
+                ):
+                    supp = True  # folio 偶数/序数兜底/frontmatter 标记 verso
                 if (
                     not supp
                     and i == 1
@@ -1397,9 +1694,7 @@ def _raster_scan(
                 ):
                     supp = True  # 扉页后 verso——frontmatter 常态空背
                 if not supp and i == n_zh - 1 and zh_text_pages is not None:
-                    tail_ls = [
-                        ln for ln in zh_text_pages[i].splitlines() if ln.strip()
-                    ]
+                    tail_ls = [ln for ln in zh_text_pages[i].splitlines() if ln.strip()]
                     if all(_FOLIO_RX.match(ln) for ln in tail_ls):
                         supp = True  # 末页仅页码——收尾留白
                 if supp:
@@ -1433,7 +1728,11 @@ def _raster_scan(
         # 无 void_ink 时退 frames 兜底：≥15% 页面积矢量框簇内有词心
         # 或 ≥8 小矢量件 → 合法封印框不报。
         v_int = pg.get("void_int", pg["void_frac"])
-        if i < n_zh - 1 and v_int > VOID_FRAC_MIN:
+        if (
+            i < n_zh - 1
+            and v_int > VOID_FRAC_MIN
+            and not (zh_images or {}).get(i + 1, 0)
+        ):
             if "void_ink" in pg:
                 void_hit = pg["void_ink"] < VOID_INT_INK_MIN
             else:
@@ -1448,9 +1747,7 @@ def _raster_scan(
                 )
             if void_hit:
                 void += 1
-                findings.append(
-                    {"sig": "vis_void", "page": i + 1, "frac": v_int}
-                )
+                findings.append({"sig": "vis_void", "page": i + 1, "frac": v_int})
         if pg.get("tofu", 0) >= TOFU_MIN_PAGE:
             tofu_pages.append(i + 1)
     if tofu_pages:
@@ -1538,6 +1835,7 @@ def qc_paper(
     base_dir: Path | None = None,
     src_dir: Path | None = None,
     marks_era: bool = False,
+    marks_expected: bool | None = None,
     flag_dir: Path | None = None,
 ) -> dict:
     """一篇的 T0 全检。返回 ``{findings, metrics, qc_tier,
@@ -1546,6 +1844,9 @@ def qc_paper(
     splice_dir/main_rel 定位 zh 产物；base_dir 缺席→跨臂项全降级为
     单侧（marks_absent/page_count/skeleton 只记 zh 侧度量）。
     ``marks_era``=双臂注入编译语境（marks_absent 升 WARN）；
+    ``marks_expected``=账本出处（compile metrics inject.layout_marks
+    ≥1→True、记录在而无注入→False、无记录→None）——marks_absent
+    的 artifact-only 兜底闸，sentinel 可验时让位；
     ``flag_dir`` 非空且 tier≥warn 时把标记页 PNG 收割进该目录
     （§11.2 分诊素材契约）。
     """
@@ -1554,23 +1855,15 @@ def qc_paper(
     mp = Path(main_rel)
     zh_dir = splice_dir / mp.parent
     stem = mp.stem
-    # zh_pdf 解析链：{stem}.pdf → .fixloop-entry.pdf 地板快照 →
-    # 目录内最大非 fig 命名 *.pdf（main_rel 陈旧/meta skew 面收
-    # zone/altseq 判定之外的产物缺席假阳性）。
+    # zh_pdf 解析链：{stem}.pdf → .fixloop-entry.pdf 地板快照。
+    # 「最大非 fig」兜底已撤——它会把矢量图件当正文喂全部检测面
+    # （geo/vis/curves 全面打偏，pdf_integrity 簇 0928 实证）；产物
+    # 不在预期名位直出 no_pdf，比假 sig 诚实。
     zh_pdf = zh_dir / f"{stem}.pdf"
     if not zh_pdf.exists():
         alt = zh_dir / ".fixloop-entry.pdf"
         if alt.exists():
             zh_pdf = alt
-        else:
-            cands = [
-                c
-                for c in zh_dir.glob("*.pdf")
-                if not re.match(r"(?i)(?:fig|plot|pic)", c.stem)
-            ]
-            if cands:
-                with suppress(OSError):
-                    zh_pdf = max(cands, key=lambda c: c.stat().st_size)
     if zh_pdf.name != f"{stem}.pdf":
         metrics["pdf_fallback"] = zh_pdf.name
     zh_log = zh_dir / f"{stem}.log"
@@ -1598,15 +1891,28 @@ def qc_paper(
             )
             or None
         )
-    dc = re.search(
-        r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}", src_blob
-    )
+    dc = re.search(r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}", src_blob)
     twoside = bool(
         dc
         and (
             re.search(r"twoside|openright", dc.group(1) or "")
             or dc.group(2).strip() in {"book", "scrbook", "memoir", "amsbook"}
         )
+    )
+    # blob 派生佐证三面：marks 注入哨兵（txlm@out/TeXlateLayoutMarks
+    # 任一成注入时代编译）/tex 字面 U+FFFD 字节/\blankpage 族标记。
+    # 无 tex 可验 → sentinel None（artifact-only，退回账本出处闸）。
+    marks_sentinel = (
+        ("txlm@out" in src_blob or "TeXlateLayoutMarks" in src_blob)
+        if src_blob
+        else None
+    )
+    tex_fffd = "\ufffd" in src_blob
+    blankpage_marker = bool(src_blob) and bool(_BLANKPAGE_RX.search(src_blob))
+    # \title \u53c2\u6570 squash\u2014\u2014\u6807\u9898\u9875 verso \u4f50\u8bc1\uff08_struct_head \u9875\u9996\u6bd4\u5bf9\uff09\u3002
+    _tm = _TITLE_ARG_RX.search(src_blob)
+    doc_title = (
+        re.sub(r"\\[a-zA-Z@]+\*?|[{}\s]|\\\\", "", _tm.group(1)) if _tm else None
     )
 
     log_text = ""
@@ -1616,9 +1922,7 @@ def qc_paper(
     except OSError:
         pass
     title_lines = (
-        _frontmatter_lines(tex_files)
-        if "Overfull" in log_text and tex_files
-        else None
+        _frontmatter_lines(tex_files) if "Overfull" in log_text and tex_files else None
     )
     f, m = _logscan(log_text, title_lines)
     findings += f
@@ -1648,9 +1952,7 @@ def qc_paper(
     try:
         for aux in zh_dir.glob("*.aux"):
             newlabel_keys |= set(
-                _NEWLABEL_RX.findall(
-                    aux.read_text(encoding="utf-8", errors="replace")
-                )
+                _NEWLABEL_RX.findall(aux.read_text(encoding="utf-8", errors="replace"))
             )
     except OSError:
         pass
@@ -1663,22 +1965,51 @@ def qc_paper(
     metrics["log"]["undef_new"] = sorted(zh_new_undef)
     zh_geom = parse_txlm(zh_txlm)["geom"] if zh_txlm.exists() else {}
 
+    pages: list[dict] = []
     if zh_pdf.exists():
         zh_text = _run(["pdftotext", zh_pdf.name, "-"], cwd=zh_pdf.parent)
         zh_text_pages = zh_text.split("\f")
         if zh_text_pages and not zh_text_pages[-1].strip():
             zh_text_pages.pop()
+        # 整篇 \f 切分在含图页丢假空页（2212.00026 实证：p4-7 全空、
+        # -f/-l 逐页重抽有完整正文）——可疑空页逐页复核，重抽出文字
+        # 则补回（degen-empty 与 raster verso 两路共用这份页列表）。
+        reex = 0
+        for i, ptxt in enumerate(zh_text_pages):
+            if len(ptxt.strip()) >= EMPTY_PAGE_CHARS or reex >= 16:
+                continue
+            per = _run(
+                [
+                    "pdftotext",
+                    "-f",
+                    str(i + 1),
+                    "-l",
+                    str(i + 1),
+                    zh_pdf.name,
+                    "-",
+                ],
+                cwd=zh_pdf.parent,
+            )
+            if len(per.strip()) >= EMPTY_PAGE_CHARS:
+                # 单页重抽自带尾部 \f——不剥会在回并时造幻影空页
+                zh_text_pages[i] = per.rstrip("\f")
+                reex += 1
+        if reex:
+            zh_text = "\f".join(zh_text_pages)
+            metrics["text_reextracted_pages"] = reex
         base_text = None
         if base_pdf is not None and base_pdf.exists():
-            base_text = _run(
-                ["pdftotext", base_pdf.name, "-"], cwd=base_pdf.parent
-            )
+            base_text = _run(["pdftotext", base_pdf.name, "-"], cwd=base_pdf.parent)
         f, m = _plain_scan(
             zh_text,
             base_text or None,
             zh_log=log_text if zh_log.exists() else None,
             tex_hay=tex_hay,
             verb_hay=verb_hay,
+            tex_fffd=tex_fffd,
+            twoside=twoside,
+            blankpage_marker=blankpage_marker,
+            doc_title=doc_title,
         )
         findings += f
         metrics["text"] = m
@@ -1701,13 +2032,9 @@ def qc_paper(
             w_base = ebrk + BROKEN_BARE_W * (etot - ebrk)
         bnet = w_zh - w_base
         metrics["text"]["broken_refs_net"] = round(bnet, 1)
-        if bnet < BROKEN_REFS_MIN and (
-            not zh_log.exists() or not zh_new_undef
-        ):
+        if bnet < BROKEN_REFS_MIN and (not zh_log.exists() or not zh_new_undef):
             before = len(findings)
-            findings[:] = [
-                f_ for f_ in findings if f_.get("sig") != "xlat_broken_refs"
-            ]
+            findings[:] = [f_ for f_ in findings if f_.get("sig") != "xlat_broken_refs"]
             metrics["text"]["broken_refs_suppressed"] = before - len(findings)
         if base_text:
             base_pages = base_text.split("\f")
@@ -1786,9 +2113,7 @@ def qc_paper(
                 parse_txlm(btx)["geom"] if btx is not None and btx.exists() else {}
             )
             base_stats = [
-                _page_word_stats(
-                    pg, base_geom, ascii_run_exempt=False, cjk_gate=False
-                )
+                _page_word_stats(pg, base_geom, ascii_run_exempt=False, cjk_gate=False)
                 for pg in base_bbox
             ]
             kept: list[dict] = []
@@ -1808,11 +2133,7 @@ def qc_paper(
                         (bn if sig_ == "geo_margin_breach" else bo)
                         for bn, _boff, bo in win
                     ]
-                    zval = (
-                        f_["words"]
-                        if sig_ == "geo_margin_breach"
-                        else f_["pairs"]
-                    )
+                    zval = f_["words"] if sig_ == "geo_margin_breach" else f_["pairs"]
                     bval = max(vals, default=0)
                     if zval <= max(bval * 1.5, bval + 3):
                         suppressed += 1
@@ -1864,6 +2185,8 @@ def qc_paper(
                 zh_text_pages=zh_text_pages,
                 zh_geo=pages,
                 twoside=twoside,
+                blankpage_marker=blankpage_marker,
+                doc_title=doc_title,
             )
             findings += f
             metrics["raster"] = m
@@ -1872,13 +2195,13 @@ def qc_paper(
             # 族已知缺陷类）。位图图版页被 images>0 排除；带页码的空页
             # ink 极低自然不过阈。矢量图不可提取文本页仍会过——罕见，
             # 留人工分诊。
-            wcs = metrics["bbox"].get("word_counts", [])
+            ccs = metrics["bbox"].get("char_counts", [])
             curves = [
                 i + 1
                 for i, pg in enumerate(rz["pages"])
                 if pg["ink"] > CURVES_INK_MIN
-                and i < len(wcs)
-                and wcs[i] < 3
+                and i < len(ccs)
+                and ccs[i] < 10
                 and zh_images.get(i + 1, 0) == 0
             ]
             if curves:
@@ -1902,9 +2225,41 @@ def qc_paper(
         src_dir,
         zh_pages=metrics.get("text", {}).get("npages_text"),
         base_pages=metrics.get("base_pages"),
+        marks_sentinel=marks_sentinel,
+        marks_expected=marks_expected,
     )
     findings += f
     metrics["marks"] = m
+    # offpage 锚渲染佐证：savepos 在变换容器内（rotatebox/resizebox/
+    # sidewaystable）报变换前坐标——渲染在框内也判出页（pdf_integrity
+    # 簇 0928 实证）。同页词级 bbox 全部在页内 → 锚证无渲染佐证，压。
+    # 页词 <3（图版/近空页）佐证力不足，保留 finding。
+    if pages:
+        n_supp = 0
+        kept: list[dict] = []
+        for f_ in findings:
+            if f_.get("sig") != "layout:offpage":
+                kept.append(f_)
+                continue
+            p_ = f_.get("p")
+            if not isinstance(p_, int) or not (1 <= p_ <= len(pages)):
+                kept.append(f_)
+                continue
+            pg = pages[p_ - 1]
+            has_off_word = any(
+                w_[0] < -2.0
+                or w_[1] < -2.0
+                or w_[2] > pg["w"] + 2.0
+                or w_[3] > pg["h"] + 2.0
+                for w_ in pg["words"]
+            )
+            if len(pg["words"]) >= 3 and not has_off_word:
+                n_supp += 1
+                continue
+            kept.append(f_)
+        if n_supp:
+            findings[:] = kept
+            metrics["marks"]["offpage_suppressed"] = n_supp
     # §11.2 契约键：tier/flagged/sig_counts——保留扫描器与分诊
     # 直接消费；tier≥warn 时标记页 PNG 收割（目检素材随 QC 报告走）。
     sig_counts = Counter(f_["sig"] for f_ in findings)

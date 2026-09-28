@@ -49,6 +49,12 @@ class CompRes:
     #: （nonstopmode）跑全程不截。tectonic 与测试替身不盖此章，消费端
     #: getattr 容错按不截断处理（judge.py:462）。
     log_truncated: bool = False
+    #: 出货闸（qc-impl wave-2）——编译输入未覆盖 ``\end{document}``：主件
+    #: 顶层无收尾 token 且 ``\input`` 链（≤2 层）亦无, 或主件先被顶层
+    #: ``\endinput`` 截停。``log_truncated`` 盖 halt_on_error 趟中截死;
+    #: 本闸收 best_effort 静默吃活不足与输入件残 (0906.4725 型文献表
+    #: 腰斩)。消费端 getattr 容错, 不盖章引擎按不截断处理。
+    input_truncated: bool = False
     timed_out: bool = False
     #: 活哨截杀原因（``vbox_flood``/``page_flood``）——``run_process``
     #: 经 ``timed_out`` 槽回吐 str，``_collect_compile_outputs`` 归位到
@@ -117,7 +123,8 @@ class Engine(Protocol):
         """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。
 
         ``passes`` = 遍数上限：``None``（缺省）自适应——xelatex pass-1 后
-        按 log rerun 提示族续跑（上限 ``MAX_PASSES``）；显式 int 无条件
+        按 log rerun 提示族续跑（起步 ``MAX_PASSES``, 趟末提示仍在按剩
+        余预算自延, 硬顶 ``_ADAPTIVE_PASS_CAP``）；显式 int 无条件
         ≤N 遍（fixloop 收敛终编/bench 对齐口径）。两口径失败路径同停：
         错误退出/exec 失败/无 pdf/超时即不再跑下一趟。
 
