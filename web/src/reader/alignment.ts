@@ -15,13 +15,7 @@ import type {
     RegionCoord,
 } from "../api/types";
 
-export type {
-    Alignment,
-    AlignmentPair,
-    AlignmentRegion,
-    Pos,
-    RegionCoord,
-};
+export type { Alignment, AlignmentPair, AlignmentRegion, Pos, RegionCoord };
 
 export type DocId = "original" | "translated";
 export type Side = DocId;
@@ -31,10 +25,29 @@ export type PosMap = (pos: Pos, from: Side) => Pos;
 /** 对侧名——ReaderView 的 target/updateDrift/jumpBack 与 mapper 共用 */
 export const other = (s: Side): Side =>
     s === "original" ? "translated" : "original";
-const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+const clamp = (v: number, lo: number, hi: number) =>
+    Math.min(Math.max(v, lo), hi);
 
-/** 栏判定：x>=0.45 → 右栏；x 缺席（旧数据/滚动位无 x）→ 0 */
-const colOf = (p: Pos): number => (p.x != null && p.x >= 0.45 ? 1 : 0);
+/** 双栏分界：x（页宽分位）≥ 此值 → 右栏。seqpos keyCmp、行带收窄、
+    栏降级守卫共用口径——凭感觉改这值会让四处判定互相错位。 */
+export const COL_X_SPLIT = 0.45;
+
+/** 栏判定：x>=COL_X_SPLIT → 右栏；x 缺席（旧数据/滚动位无 x）→ 0 */
+export const colOf = (p: Pos): number =>
+    p.x != null && p.x >= COL_X_SPLIT ? 1 : 0;
+
+/** 页内阅读序份额 (col+frac)/2——左栏压进 [0,.5)、右栏 [.5,1)，
+    阅读序与坐标同构（toLinear share / sentalign roLin 同式） */
+export const colShare = (p: Pos): number => (colOf(p) + p.fraction) / 2;
+
+/** 「本页存在 col 栏地标」守卫——右半点击的栏降级判定共用
+    （pdfseqpos containingSeq / sentalign fracInBlock）：本页无右栏锚
+    时右半点击退 col0，防被 col1 floor 吸到页底锚。 */
+export const pageHasCol = (
+    lands: readonly { pos: Pos }[],
+    page: number,
+    col = 1,
+): boolean => lands.some((l) => l.pos.page === page && colOf(l.pos) === col);
 
 interface SideGeom {
     pages: number;
@@ -42,7 +55,11 @@ interface SideGeom {
     off: number[]; // off[i] = Σh[0..i-1]，长度 pages+1
 }
 
-function geom(side: Side, heights: Alignment["heights"], pages: number): SideGeom {
+function geom(
+    side: Side,
+    heights: Alignment["heights"],
+    pages: number,
+): SideGeom {
     const hs = heights?.[side];
     const h = (p: number) => hs?.[p - 1] ?? 1;
     const off = new Array<number>(pages + 1).fill(0);
@@ -52,9 +69,9 @@ function geom(side: Side, heights: Alignment["heights"], pages: number): SideGeo
 
 function toLinear(g: SideGeom, pos: Pos, colAware: boolean): number {
     const page = clamp(Math.round(pos.page), 1, g.pages);
-    // col-aware：页内份额 (col+frac)/2——左栏压进 [0,.5)、右栏
-    // [.5,1)，阅读序与坐标同构；否则原 fraction 份额
-    const share = colAware ? (colOf(pos) + pos.fraction) / 2 : pos.fraction;
+    // col-aware：页内份额走 colShare 折栏（阅读序与坐标同构）；
+    // 否则原 fraction 份额
+    const share = colAware ? colShare(pos) : pos.fraction;
     return g.off[page - 1] + share * g.h(page);
 }
 
@@ -74,11 +91,7 @@ function fromLinear(g: SideGeom, x: number, colAware: boolean): Pos {
     const rem = hh > 0 ? clamp((x - g.off[lo]) / hh, 0, 1) : 0;
     // 栏半页反解：≤0.5 属左栏（0.5 取页底 frac=1，防底→顶跳变），
     // >0.5 右栏；x 不回写——消费面只吃 page+fraction
-    const fraction = colAware
-        ? rem <= 0.5
-            ? rem * 2
-            : (rem - 0.5) * 2
-        : rem;
+    const fraction = colAware ? (rem <= 0.5 ? rem * 2 : (rem - 0.5) * 2) : rem;
     return { page: lo + 1, fraction };
 }
 
@@ -132,8 +145,16 @@ export function createPositionMapper(
     pages: { original: number; translated: number },
 ): PosMap {
     const geoms: Record<Side, SideGeom> = {
-        original: geom("original", alignment?.heights, Math.max(1, pages.original)),
-        translated: geom("translated", alignment?.heights, Math.max(1, pages.translated)),
+        original: geom(
+            "original",
+            alignment?.heights,
+            Math.max(1, pages.original),
+        ),
+        translated: geom(
+            "translated",
+            alignment?.heights,
+            Math.max(1, pages.translated),
+        ),
     };
 
     // pairs 任一侧带 x → 双栏阅读序线性化（toLinear 的 share 口径）；
@@ -148,10 +169,26 @@ export function createPositionMapper(
     // regions → 源侧线性区间表（升序）
     const regions = (alignment?.regions ?? [])
         .map((r) => {
-            const so = toLinear(geoms.original, { page: r.original.page, fraction: r.original.start }, colAware);
-            const eo = toLinear(geoms.original, { page: r.original.page, fraction: r.original.end }, colAware);
-            const st = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.start }, colAware);
-            const et = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.end }, colAware);
+            const so = toLinear(
+                geoms.original,
+                { page: r.original.page, fraction: r.original.start },
+                colAware,
+            );
+            const eo = toLinear(
+                geoms.original,
+                { page: r.original.page, fraction: r.original.end },
+                colAware,
+            );
+            const st = toLinear(
+                geoms.translated,
+                { page: r.translated.page, fraction: r.translated.start },
+                colAware,
+            );
+            const et = toLinear(
+                geoms.translated,
+                { page: r.translated.page, fraction: r.translated.end },
+                colAware,
+            );
             // 两侧区间同口径 min/max 归一——start>end 的反向 region 在
             // 命中插值时 y 会倒序映射（ds>de 折返），先归一保单调
             return {
@@ -164,16 +201,28 @@ export function createPositionMapper(
     // pairs → 两个方向的单调折线（线性化已含 col——按值排序即
     // 阅读序 (page,col,fraction) 排序）
     const byOrig = [...pairs].sort(
-        (a, b) => toLinear(geoms.original, a.original, colAware) - toLinear(geoms.original, b.original, colAware),
+        (a, b) =>
+            toLinear(geoms.original, a.original, colAware) -
+            toLinear(geoms.original, b.original, colAware),
     );
     const byTrans = [...pairs].sort(
-        (a, b) => toLinear(geoms.translated, a.translated, colAware) - toLinear(geoms.translated, b.translated, colAware),
+        (a, b) =>
+            toLinear(geoms.translated, a.translated, colAware) -
+            toLinear(geoms.translated, b.translated, colAware),
     );
 
-    const xsO = byOrig.map((p) => toLinear(geoms.original, p.original, colAware));
-    const ysO = byOrig.map((p) => toLinear(geoms.translated, p.translated, colAware));
-    const xsT = byTrans.map((p) => toLinear(geoms.translated, p.translated, colAware));
-    const ysT = byTrans.map((p) => toLinear(geoms.original, p.original, colAware));
+    const xsO = byOrig.map((p) =>
+        toLinear(geoms.original, p.original, colAware),
+    );
+    const ysO = byOrig.map((p) =>
+        toLinear(geoms.translated, p.translated, colAware),
+    );
+    const xsT = byTrans.map((p) =>
+        toLinear(geoms.translated, p.translated, colAware),
+    );
+    const ysT = byTrans.map((p) =>
+        toLinear(geoms.original, p.original, colAware),
+    );
 
     const interp = (x: number, xs: number[], ys: number[]): number => {
         if (xs.length === 0) return x;

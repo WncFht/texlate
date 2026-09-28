@@ -36,9 +36,7 @@ export function lineRects(els: Iterable<Element>): DOMRect[] {
     }
     return [...rows.values()]
         .sort((a, b) => a.top - b.top || a.left - b.left)
-        .map(
-            (g) => new DOMRect(g.left, g.top, g.right - g.left, g.height),
-        );
+        .map((g) => new DOMRect(g.left, g.top, g.right - g.left, g.height));
 }
 
 const reduceMotion = (): boolean =>
@@ -119,9 +117,8 @@ export function land(
     if (from) {
         // 跨页 seq 首行可能在视口外——连线指到看不见的点不如指首个可见行
         const t =
-            rects.find(
-                (r) => r.bottom > 0 && r.top < window.innerHeight,
-            ) ?? rects[0]!;
+            rects.find((r) => r.bottom > 0 && r.top < window.innerHeight) ??
+            rects[0]!;
         const x0 = from.x;
         const y0 = from.y;
         const x1 = t.left;
@@ -202,4 +199,6 @@ declare global {
     }
 }
 
+// 待用集成面：__saAnim 是 dev 探针出口（follow.ts 原语组的运行时挂载
+// 点）——勿按死码清。
 if (typeof window !== "undefined") window.__saAnim = saAnimProbe;

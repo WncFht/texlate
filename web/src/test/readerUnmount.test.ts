@@ -58,7 +58,9 @@ let dispose: (() => void) | undefined;
 const origHidden = Object.getOwnPropertyDescriptor(document, "hidden");
 
 beforeEach(() => {
-    mocks.snapshot.mockReset().mockImplementation(() => Promise.resolve(snap()));
+    mocks.snapshot
+        .mockReset()
+        .mockImplementation(() => Promise.resolve(snap()));
     // done 到达 → loadReader：reader 拉不到（fatal 兜底），manifest 空
     mocks.reader.mockReset().mockRejectedValue(new Error("no reader"));
     mocks.files.mockReset().mockResolvedValue({ artifacts: {} });
@@ -99,9 +101,7 @@ describe("Reader 编排", () => {
             ),
         );
         expect(document.querySelector(".task-progress")).not.toBeNull();
-        await vi.waitFor(() =>
-            expect(document.title).toBe("42% · Paper X"),
-        );
+        await vi.waitFor(() => expect(document.title).toBe("42% · Paper X"));
         dispose();
         dispose = undefined;
         expect(unwatch).toHaveBeenCalledWith("t1");
@@ -113,9 +113,7 @@ describe("Reader 编排", () => {
             () => Reader({ taskId: "t1", nav: vi.fn() }),
             document.body,
         );
-        await vi.waitFor(() =>
-            expect(mocks.openTaskEvents).toHaveBeenCalled(),
-        );
+        await vi.waitFor(() => expect(mocks.openTaskEvents).toHaveBeenCalled());
         // 真实服务器建连即推 snapshot 帧（upsertTask 填充行——done 只补丁在册行）
         handlersOf(0).snapshot?.(snap());
         // 模拟用户切走：hidden 之后 done 到达才闪

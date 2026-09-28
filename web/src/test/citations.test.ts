@@ -36,9 +36,9 @@ describe("destPointOf", () => {
         });
     });
     it("FitR：[ref,fit,l,b,r,t] → y=top（5 号槽；4 号是 right 横坐标）", () => {
-        expect(
-            destPointOf([ref, { name: "FitR" }, 50, 100, 540, 700]),
-        ).toEqual({ ref, x: null, y: 700 });
+        expect(destPointOf([ref, { name: "FitR" }, 50, 100, 540, 700])).toEqual(
+            { ref, x: null, y: 700 },
+        );
     });
     it("整页型 Fit/FitV/FitB 与畸形输入 → y=null / null", () => {
         expect(destPointOf([ref, { name: "Fit" }])).toEqual({

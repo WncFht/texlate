@@ -1,17 +1,6 @@
-import { readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE = join(
-    root,
-    readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse()[0],
-    "chrome-linux64/chrome",
-);
-const browser = await chromium.launch({ executablePath: EXE });
+import { launch } from "./lib/pwkit.mjs";
+
+const browser = await launch();
 const ctx = await browser.newContext({
     viewport: { width: 1200, height: 900 },
 });

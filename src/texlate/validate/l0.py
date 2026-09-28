@@ -83,6 +83,7 @@ from texlate.textutil import (
     PH_ANY_LIKE_RX,
     PH_FUZZY_RX,
     bare_cs_net,
+    dangerous_cs_net,
     lev_capped,
     mask_comments,
     ph_in_cs_net,
@@ -1222,6 +1223,32 @@ def _check_bare_cs(ctx: _Ctx) -> None:
         )
 
 
+def _check_dangerous_cs(ctx: _Ctx) -> None:
+    r"""译文新增危险控制序列（``DANGEROUS_CS`` 表名净差）——注入签名。
+
+    ``macro`` 泛条目同现属有意分层（见 ``_check_bare_cs`` 约定），本网兜
+    ``bare_cs`` 未管的良形非数学危险 cs：``\input{/etc/passwd}``/
+    ``\write18``（词法 ``write``+``18``）/``\def``/``\catcode``/
+    ``\csname`` 逃逸族——数学域不豁免（``$\input$`` 照样执行）。判定口径
+    单源在 ``textutil.dangerous_cs_net``（pipeline
+    ``_intercept_dangerous_cs`` 副层共用）。已知盲区挂账：
+    ``\begin{filecontents}`` 类 env 名参数写文件不产 cs 事件，归 env
+    名面另网。
+    """
+    net = dangerous_cs_net(ctx.src, ctx.zh)
+    if net:
+        toks = ", ".join(f"\\{nme} ×{n}" for nme, n in sorted(net.items()))
+        ctx.issues.append(
+            Issue(
+                "dangerous_cs",
+                Severity.ERROR,
+                f"译文注入危险控制序列 ×{sum(net.values())}: {toks}"
+                f"（IO/定义覆写/catcode/装包逃逸族——应整体重译或回退原文）",
+                found=toks,
+            )
+        )
+
+
 def _tail_unterminated_comment(toks: list[tuple[str, str, int]], sm: str) -> str | None:
     r"""文本尾段未终结注释的签名（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
 
@@ -1304,11 +1331,11 @@ def _check_protocol_echo(ctx: _Ctx) -> None:
 
 #: 缓存否决级规则 id 集——pipeline 升格拦截网（``xlat.pipeline._INTERCEPT_NETS``
 #: 各条 ``l0_rule`` 字段）镜像复判的 l0 规则集：段级缓存命中与续跑装载旁路
-#: ``validate_pair``，这四类 error 级签名由拦截网兜底防毒译出货
+#: ``validate_pair``，这五类 error 级签名由拦截网兜底防毒译出货
 #: （``placeholder`` 网只镜像 zh−src 净多出占位符臂——缺失/锚定臂归阶梯
 #: 修复管辖）。与注册表成员双向钉，漂移由 ``TestInterceptRegistry`` 拦截。
 CACHE_VETO_RULES: Final = frozenset(
-    {"placeholder", "ph_in_cs", "bare_cs", "residual_en"}
+    {"placeholder", "ph_in_cs", "bare_cs", "residual_en", "dangerous_cs"}
 )
 
 
@@ -1328,6 +1355,7 @@ _CHECKERS: Final[tuple[Callable[[_Ctx], None], ...]] = (
     _check_item_glue,
     _check_ph_in_cs,
     _check_bare_cs,
+    _check_dangerous_cs,
     _check_protocol_echo,
     _check_comment_eof,
 )

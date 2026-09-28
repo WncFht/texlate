@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 # 兼容再出口：字符原语扶正于 ``chars.py``（零依赖叶），旧
 # ``from texlate.latex.model import ws_skip`` 调用面不破坏——
@@ -188,10 +188,10 @@ class ScanResult:
 class ScanState:
     r"""一切可变状态的共享容器（spawn 只共享这一个引用，W7 扶正）。
 
-    ``pkgs`` 由 v2 segmenter 写（``\usepackage``/``\RequirePackage``/
-    ``\documentclass`` 已加载包名）——**无消费方**：argspec 查表不
-    按包门控（``tables.argspec_lookup*`` 的 ``_pkgs`` 是死参），字段
-    按观测仪表刻意保留（包名集可审计/调试），非门控输入。
+    ``pkgs`` 是死管残位：argspec 查表永不按包门控（``tables.argspec_lookup*``
+    的 ``_pkgs`` 是死参，外部测试钉死 ``state.pkgs`` 读口与两参调用形），
+    写侧机械（segmenter ``\usepackage`` 登记臂）已拆除——ClassVar 空集
+    只保属性形态，不再有写方。
     """
 
     issuer: PlaceholderIssuer
@@ -203,7 +203,7 @@ class ScanState:
     ph_reserved: set[str] = field(
         default_factory=set
     )  # 源文自带 [[X_n]] 形字面 → 签发避让
-    pkgs: set[str] = field(default_factory=set)
+    pkgs: ClassVar[frozenset[str]] = frozenset()
     #: preamble 前置发射白名单（{"abstract","title","author"} 子集）——
     #: ``\begin{document}`` 前命中的项照常 emit chunk，未登记项维持
     #: preamble 整段盖过（缺省空集 = 历史行为）。

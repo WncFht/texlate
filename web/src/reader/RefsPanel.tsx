@@ -9,18 +9,8 @@
 // z 层约定（selsys.css 注）：cite-card=30 < floatbar=35 < ctx-menu=40，
 // 面板取 45（盖住菜单层，仍在 toast-host 之下）。
 
-import {
-    createSignal,
-    For,
-    onCleanup,
-    onMount,
-    Show,
-} from "solid-js";
-import {
-    api,
-    apiErrText,
-    type TaskSnapshot,
-} from "../api/client";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { api, apiErrText, type TaskSnapshot } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { toast } from "../stores/toastStore";
 import {
@@ -50,10 +40,8 @@ interface Props {
 
 /** 条目可译 id——L1 抽取 arxivId 优先，L2 meta.externalIds.ArXiv 反补兜底
     （DOI-only 条目经 S2 反补后同样可译） */
-const entryArxiv = (
-    e: BibEntry,
-    meta: Props["meta"],
-): string | undefined => e.arxivId ?? meta?.(e.key)?.arxivId;
+const entryArxiv = (e: BibEntry, meta: Props["meta"]): string | undefined =>
+    e.arxivId ?? meta?.(e.key)?.arxivId;
 
 export default function RefsPanel(props: Props) {
     const [confirm, setConfirm] = createSignal<PreflightBuckets | null>(null);
@@ -71,9 +59,7 @@ export default function RefsPanel(props: Props) {
     // 挂载期自登记为工厂的 key 面板宿主——submit/submitAll 的 auth 分支
     // 走本面板内联框；卸载摘回（卡脚钮等其它入口回落工厂默认宿主）
     onMount(() => {
-        props.ct.setAuthHost((retry) =>
-            setAuthBox({ key: "", run: retry }),
-        );
+        props.ct.setAuthHost((retry) => setAuthBox({ key: "", run: retry }));
     });
     onCleanup(() => props.ct.setAuthHost(undefined));
 
@@ -88,9 +74,7 @@ export default function RefsPanel(props: Props) {
             else props.onClose();
         };
         document.addEventListener("keydown", onKey, true);
-        onCleanup(() =>
-            document.removeEventListener("keydown", onKey, true),
-        );
+        onCleanup(() => document.removeEventListener("keydown", onKey, true));
     });
     onMount(() => queueMicrotask(() => panelEl?.focus()));
 
@@ -128,8 +112,7 @@ export default function RefsPanel(props: Props) {
         setBusy("submit");
         try {
             const out = await props.ct.submitAll(b.fresh);
-            for (const f of out.failed)
-                toast.err(`${f.arxivId}: ${f.message}`);
+            for (const f of out.failed) toast.err(`${f.arxivId}: ${f.message}`);
             if (out.stoppedBy !== "auth") setConfirm(null);
         } finally {
             setBusy(null);
@@ -159,11 +142,7 @@ export default function RefsPanel(props: Props) {
         setAuthBox({
             key: "",
             run: async (apiKey) => {
-                const res = await api.retry(
-                    taskId,
-                    undefined,
-                    { apiKey },
-                );
+                const res = await api.retry(taskId, undefined, { apiKey });
                 taskStore.patch(taskId, {
                     status: res.status,
                     stage: undefined,
@@ -175,7 +154,9 @@ export default function RefsPanel(props: Props) {
             },
         });
 
-    const idBadge = (e: BibEntry): { kind: "arxiv" | "doi" | "none"; text: string } => {
+    const idBadge = (
+        e: BibEntry,
+    ): { kind: "arxiv" | "doi" | "none"; text: string } => {
         if (entryArxiv(e, props.meta)) return { kind: "arxiv", text: "arXiv" };
         if (e.doi ?? props.meta?.(e.key)?.doi)
             return { kind: "doi", text: "DOI" };
@@ -258,7 +239,12 @@ export default function RefsPanel(props: Props) {
                             background: "var(--paper,#fbf7ec)",
                         }}
                     >
-                        <div style={{ "font-weight": 600, "margin-bottom": "6px" }}>
+                        <div
+                            style={{
+                                "font-weight": 600,
+                                "margin-bottom": "6px",
+                            }}
+                        >
                             {ctText("confirmTitle")}
                         </div>
                         <div>
@@ -288,23 +274,32 @@ export default function RefsPanel(props: Props) {
                                     n: b().counts.fresh,
                                     lo: fmtEta(
                                         estimateEta(
-                                            b().counts.active + b().counts.fresh,
+                                            b().counts.active +
+                                                b().counts.fresh,
                                         ).lo,
                                     ),
                                     hi: fmtEta(
                                         estimateEta(
-                                            b().counts.active + b().counts.fresh,
+                                            b().counts.active +
+                                                b().counts.fresh,
                                         ).hi,
                                     ),
                                 })}
                             </div>
                         </Show>
-                        <div style={{ "margin-top": "10px", display: "flex", gap: "8px" }}>
+                        <div
+                            style={{
+                                "margin-top": "10px",
+                                display: "flex",
+                                gap: "8px",
+                            }}
+                        >
                             <button
                                 type="button"
                                 class="tb-btn"
                                 disabled={
-                                    b().counts.fresh === 0 || busy() === "submit"
+                                    b().counts.fresh === 0 ||
+                                    busy() === "submit"
                                 }
                                 onClick={() => void runBatch()}
                             >
@@ -341,7 +336,10 @@ export default function RefsPanel(props: Props) {
                         <input
                             type="password"
                             class="tx-select"
-                            style={{ width: "100%", "box-sizing": "border-box" }}
+                            style={{
+                                width: "100%",
+                                "box-sizing": "border-box",
+                            }}
                             placeholder={ctText("authPlaceholder")}
                             aria-label={ctText("authPlaceholder")}
                             value={a().key}
@@ -359,7 +357,13 @@ export default function RefsPanel(props: Props) {
                                 e.stopPropagation();
                             }}
                         />
-                        <div style={{ "margin-top": "8px", display: "flex", gap: "8px" }}>
+                        <div
+                            style={{
+                                "margin-top": "8px",
+                                display: "flex",
+                                gap: "8px",
+                            }}
+                        >
                             <button
                                 type="button"
                                 class="tb-btn"
@@ -382,7 +386,13 @@ export default function RefsPanel(props: Props) {
 
             {/* 条目行——label/截断正文/id 徽标/状态钮/meta 标题；
                 done|active 行渲链接 #/reader/{task_id} */}
-            <div style={{ flex: 1, "overflow-y": "auto", padding: "6px 14px 14px" }}>
+            <div
+                style={{
+                    flex: 1,
+                    "overflow-y": "auto",
+                    padding: "6px 14px 14px",
+                }}
+            >
                 <For each={props.entries}>
                     {(e, i) => {
                         const aid = () => entryArxiv(e, props.meta);
@@ -390,7 +400,10 @@ export default function RefsPanel(props: Props) {
                         const row = () => rowOf(e);
                         const linkable = () => {
                             const r = row();
-                            return r && !["fault", "cancelled", "interrupted"].includes(r.status)
+                            return r &&
+                                !["fault", "cancelled", "interrupted"].includes(
+                                    r.status,
+                                )
                                 ? r.task_id
                                 : undefined;
                         };
@@ -425,7 +438,8 @@ export default function RefsPanel(props: Props) {
                                                 style={{
                                                     display: "-webkit-box",
                                                     "-webkit-line-clamp": "2",
-                                                    "-webkit-box-orient": "vertical",
+                                                    "-webkit-box-orient":
+                                                        "vertical",
                                                     overflow: "hidden",
                                                 }}
                                             >
@@ -439,7 +453,8 @@ export default function RefsPanel(props: Props) {
                                                 style={{
                                                     display: "-webkit-box",
                                                     "-webkit-line-clamp": "2",
-                                                    "-webkit-box-orient": "vertical",
+                                                    "-webkit-box-orient":
+                                                        "vertical",
                                                     overflow: "hidden",
                                                     color: "inherit",
                                                 }}
@@ -449,7 +464,10 @@ export default function RefsPanel(props: Props) {
                                         )}
                                     </Show>
                                     <Show when={m()?.title}>
-                                        <div class="muted" style={{ "font-size": "12px" }}>
+                                        <div
+                                            class="muted"
+                                            style={{ "font-size": "12px" }}
+                                        >
                                             {m()?.title}
                                         </div>
                                     </Show>

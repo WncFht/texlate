@@ -41,12 +41,7 @@ import {
     type DocId,
     type Pos,
 } from "./alignment";
-import {
-    containingSeq,
-    seqLands,
-    seqPairs,
-    seqPos,
-} from "./pdfseqpos";
+import { containingSeq, seqLands, seqPairs, seqPos } from "./pdfseqpos";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import { buildCiteIndex, type BibEntry, type RefMeta } from "./citations";
@@ -70,16 +65,8 @@ import {
     type CmdCtx,
     type CmdDeps,
 } from "./cmd/commands";
-import {
-    snapshotHit,
-    type HitCtx,
-    type PaneSide,
-} from "./cmd/hitctx";
-import {
-    cmdLabel,
-    menuItemsFor,
-    useContextMenu,
-} from "./ContextMenu";
+import { snapshotHit, type HitCtx, type PaneSide } from "./cmd/hitctx";
+import { cmdLabel, menuItemsFor, useContextMenu } from "./ContextMenu";
 import { FloatBar, type FloatBarApi, type FloatBarItem } from "./FloatBar";
 import { collapseSelection, hasLiveSelection } from "./sel/selection";
 import { segmentDoc, type SegSide, type SentMark } from "./sel/sentseg";
@@ -87,20 +74,14 @@ import { makeCursor, type Cursor } from "./sel/cursor";
 import { chunkUntranslated } from "./markdown";
 import CiteCard, { CiteCardBody } from "./CiteCard";
 import { registerFindUsages } from "./features/findusages";
-import {
-    registerCopyLatex,
-    type CopyLatexPane,
-} from "./features/copylatex";
+import { registerCopyLatex, type CopyLatexPane } from "./features/copylatex";
 import { registerCiteTranslate } from "./features/citetranslate";
 import {
     attachSentAlign,
     registerSentAlign,
     type SentAlignPane,
 } from "./features/sentalign";
-import {
-    attachInspect,
-    type InspectHandle,
-} from "./features/inspect";
+import { attachInspect, type InspectHandle } from "./features/inspect";
 import RefsPanel from "./RefsPanel";
 import { fromParamOf } from "./tasknav";
 import {
@@ -312,15 +293,11 @@ export default function ReaderView(props: Props) {
                             if (s != null) return s;
                         }
                         const p =
-                            "posAtPoint" in h
-                                ? h.posAtPoint?.(x, y)
-                                : null;
+                            "posAtPoint" in h ? h.posAtPoint?.(x, y) : null;
                         // 距离闸内置于 containingSeq（floor>1.2 页/
                         // 早于首锚>1 页 → null）——稀疏 seqpos 下落回
                         // jumpPosToPdf 比例旧路
-                        return p
-                            ? containingSeq(seqposMap(), saSide, p)
-                            : null;
+                        return p ? containingSeq(seqposMap(), saSide, p) : null;
                     },
                 });
             }
@@ -334,22 +311,22 @@ export default function ReaderView(props: Props) {
             navBegin: () => onNavBegin(),
             recordJump: (dst, pre, post) => {
                 if (!pre || !post || samePos(pre, post)) return;
-                navStacks[
-                    dst === "zh" ? "translated" : "original"
-                ].recordJump(pre, post, ++navPairSeq);
+                navStacks[dst === "zh" ? "translated" : "original"].recordJump(
+                    pre,
+                    post,
+                    ++navPairSeq,
+                );
             },
             mapPos: (pos, from) =>
                 mapper()(pos, from === "zh" ? "translated" : "original"),
             pdfDest: (dst, pos) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 return h && "posDest" in h
                     ? (h.posDest?.(pos) ?? Promise.resolve(null))
                     : Promise.resolve(null);
             },
             pdfJump: (dst, dest) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 return Promise.resolve(
                     h && "mirrorDest" in h
                         ? (h.mirrorDest?.(dest) ?? null)
@@ -357,11 +334,8 @@ export default function ReaderView(props: Props) {
                 );
             },
             pdfFlash: (dst, pos) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
-                return h && "flashAtPos" in h
-                    ? h.flashAtPos?.(pos)
-                    : undefined;
+                const h = handles()[dst === "zh" ? "translated" : "original"];
+                return h && "flashAtPos" in h ? h.flashAtPos?.(pos) : undefined;
             },
             // seq 臂：seqpos 直锚（Option B 服务端注入的消费口）
             seqPos: (seq, side) => seqPos(seqposMap(), seq, side),
@@ -370,37 +344,29 @@ export default function ReaderView(props: Props) {
             seqOfChunk: (key) => seqOf().get(key) ?? null,
             chunkLen: (seq, side) => seqLenOf().get(seq)?.[side] ?? 0,
             pdfFlashSeq: (dst, seq, pos) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "flashSeq" in h) return h.flashSeq?.(seq, pos);
-                if (h && "flashAtPos" in h && pos)
-                    return h.flashAtPos?.(pos);
+                if (h && "flashAtPos" in h && pos) return h.flashAtPos?.(pos);
                 return undefined;
             },
             // 句级落点原料：marked 字形叶（PdfPane.seqLeaves 桥）
             pdfSeqLeaves: (dst, seq) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
-                return h && "seqLeaves" in h
-                    ? h.seqLeaves?.(seq)
-                    : undefined;
+                const h = handles()[dst === "zh" ? "translated" : "original"];
+                return h && "seqLeaves" in h ? h.seqLeaves?.(seq) : undefined;
             },
             pdfFlashEls: (dst, els) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "flashEls" in h) h.flashEls?.(els);
             },
             // 悬停伴显桥：pdf 侧经 hoverSeq 锚/带染色（dom 侧无此面，
             // sentalign 内 DOM 对侧自己染 [data-sid] span）
             pdfHover: (dst, seq, pos, cls) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "hoverSeq" in h) h.hoverSeq?.(seq, pos, cls);
             },
             // 句级悬停色桥：pdf 侧逐叶 saTint（sentalign 句级揭示面）
             pdfTintEls: (dst, els, cls) => {
-                const h =
-                    handles()[dst === "zh" ? "translated" : "original"];
+                const h = handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "tintEls" in h) h.tintEls?.(els, cls);
             },
             // 动效三件套：点击涟漪/落句连线+行擦入（anim.ts 全 fixed
@@ -870,8 +836,7 @@ export default function ReaderView(props: Props) {
         let armed = false;
         let selected = false;
         for (const s of ["original", "translated"] as const) {
-            const st = (handles()[s] as PaneHandle | undefined)
-                ?.pdfjsState?.();
+            const st = (handles()[s] as PaneHandle | undefined)?.pdfjsState?.();
             if (st) {
                 armed = armed || st.armed;
                 selected = selected || st.selected;
@@ -983,8 +948,8 @@ export default function ReaderView(props: Props) {
             rootEl: () => panesEl,
             handleOf: (side) => handles()[side] as InspectHandle | undefined,
             pdfjsArmed: (side) =>
-                ((handles()[side] as PaneHandle | undefined)?.pdfjsState?.()
-                    .armed ?? false),
+                (handles()[side] as PaneHandle | undefined)?.pdfjsState?.()
+                    .armed ?? false,
             anyPdfjsArmed: () => pdfjsAgg().armed,
             hasLiveSelection: () => hasLiveSelection(document),
             mirror: (dst, dest) => mirrorTo(dst, dest, 2, ++navPairSeq),
@@ -1043,8 +1008,7 @@ export default function ReaderView(props: Props) {
         document.addEventListener("keydown", onKey, true);
         cursors[side] = {
             ...cur,
-            dispose: () =>
-                document.removeEventListener("keydown", onKey, true),
+            dispose: () => document.removeEventListener("keydown", onKey, true),
         };
     };
 
@@ -1117,7 +1081,9 @@ export default function ReaderView(props: Props) {
             if (!document.hidden) void taskStore.ensureFresh(0);
         };
         document.addEventListener("visibilitychange", onVis);
-        onCleanup(() => document.removeEventListener("visibilitychange", onVis));
+        onCleanup(() =>
+            document.removeEventListener("visibilitychange", onVis),
+        );
     });
 
     // pane 外窄区（分栏条/jump-back/占位 veil）的滚轮 → 活动窗格滚动口；
@@ -1147,8 +1113,7 @@ export default function ReaderView(props: Props) {
     onMount(() => {
         const onCtx = (e: Event) => {
             const t = e.target as Element | null;
-            if (t?.closest?.(".live-pane"))
-                ctxm.onContextMenu(e as MouseEvent);
+            if (t?.closest?.(".live-pane")) ctxm.onContextMenu(e as MouseEvent);
         };
         document.addEventListener("contextmenu", onCtx);
         onCleanup(() => document.removeEventListener("contextmenu", onCtx));
@@ -1158,8 +1123,7 @@ export default function ReaderView(props: Props) {
         engine?.dispose();
         if (driftRaf) window.cancelAnimationFrame(driftRaf);
         // sel-system：双侧游标/观察器/分句表卸载（幂等——paneDisposed 可能已清）
-        for (const s of ["original", "translated"] as const)
-            unwireSelPane(s);
+        for (const s of ["original", "translated"] as const) unwireSelPane(s);
         // Wave C lanes：copy-latex 委托/卡、sent-align 会话+命令、
         // cite-translate 两命令全卸（注册面幂等——重挂不叠）
         cl.dispose();

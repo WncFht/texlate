@@ -3,14 +3,14 @@
 契约（``xlat/pipeline.py`` ``_ledger_call`` 双档网 + ``_drain``/``run``
 序章尾两处收敛重抛）：
 
-- ``_collect`` 六个账本调用点（``_INTERCEPT_NETS`` 四条 interceptor +
+- ``_collect`` 七个账本调用点（``_INTERCEPT_NETS`` 五条 interceptor +
   ``auth_gate.record`` + ``_emit``）任一点抛 ``KeyboardInterrupt``/
   ``SystemExit`` → 收 ``fatal`` 账本，同结果内剩余调用点与后续结果照常
   入账，绝不外泄；
 - worker 不死：``fatal`` 已挂后剩余 item 排空 ``task_done``（不再发翻译
   请求）→ ``queue.join()`` 不锁；
 - ``_drain`` join 后 ``raise fatal[0]`` → ``run()`` 向外抛原异常实例；
-- 序章（``_load_resumed`` 四点 + ``_route_chunks`` 散文豁免臂六点）同款
+- 序章（``_load_resumed`` 四点 + ``_route_chunks`` 散文豁免臂七点）同款
   收账——``run()`` 在 ``state.start()``/队列编前排 ``raise fatal[0]``，
   翻译请求零发出。
 
@@ -194,7 +194,7 @@ class TestPrologueFatalLedger:
     """序章面：``_load_resumed``/``_route_chunks`` 与 ``_collect`` 同款收账。
 
     ``run()`` 在 ``state.start()``/队列编排之前摆统一账本——``_route_chunks``
-    散文豁免臂六点（4 interceptor + ``auth_gate.record`` + ``_emit``）与
+    散文豁免臂七点（5 interceptor + ``auth_gate.record`` + ``_emit``）与
     ``_load_resumed`` 逐记录四点任一处抛 ``BaseException`` → 收 ``fatal``，
     序章尾 ``raise fatal[0]``——先于 ``_drain``，故翻译请求零发出。
     """

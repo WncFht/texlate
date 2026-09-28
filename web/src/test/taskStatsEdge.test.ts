@@ -30,7 +30,9 @@ describe("mergeResultStats 边界", () => {
     });
 
     it("usage 仅 model（无计量字段）→ null（面板不渲染）", () => {
-        expect(mergeResultStats(undefined, undefined, { model: "gpt-x" })).toBeNull();
+        expect(
+            mergeResultStats(undefined, undefined, { model: "gpt-x" }),
+        ).toBeNull();
     });
 
     it("done.stats 只有未识别附加键 → 不点亮（附加键不进 ResultStats）", () => {

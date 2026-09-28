@@ -36,8 +36,7 @@ export function mergeResultStats(
         seconds: stats?.seconds,
         failed: stats?.chunks_failed ?? counters?.failed,
         stageSeconds: stats?.stage_seconds as
-            | Record<string, number>
-            | undefined,
+            Record<string, number> | undefined,
         fixloop: typeof stats?.fixloop === "string" ? stats.fixloop : undefined,
         l2: stats?.l2 as ResultStats["l2"],
         calls: usage?.calls,

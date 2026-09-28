@@ -20,7 +20,11 @@ module.exports = [
             "bench/corpus*/", // arXiv 语料 corpus/corpus_v2/corpus…（gitignored 子目录，e-print 自带 .js）
             "**/.venv*/", // python venv 内的 js
             "tmp/", // gitignored 实验区——refs/ 里 clone 的嵌套 flat config 会拖崩 eslint
+            "**/tmp/", // 嵌套 tmp（web/tmp/ 等）同政策
             "src/texlate/server/static/", // build-web.sh 产出的 SPA 打包物（gitignored）
+            "web/", // 独立 ESM 工程：自带 eslint.config.cjs + npm run lint 把关；
+            // 裸克隆下根链下钻会 require("typescript-eslint") MODULE_NOT_FOUND 崩链，
+            // 且本配置的 commonjs sourceType 会在其 ESM .ts/.mjs 上 parse-error
             "zotero/", // 插件子项目自带 eslint.config.mjs（@zotero-plugin 配置
             // + Zotero 全局量）——同 web/ 取舍：不假设 node_modules 在场，lint
             // 由 zotero 自己的 npm lint:check 把关；本配置的 commonjs sourceType

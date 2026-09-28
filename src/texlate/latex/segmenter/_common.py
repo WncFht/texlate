@@ -1282,15 +1282,6 @@ def _pick_cut(s: str, i: int, hard: int) -> int:  # noqa: C901 — 切点优先�
     return cut
 
 
-# 包加载命令：已加载包名集入 ``ScanState.pkgs``——纯观测仪表（argspec
-# 查表 ``_pkgs`` 是死参不读，见 ``tables.argspec_lookup``），无门控消费方。
-# 全部已在 BOUNDARY_NAMES（非 preamble 文档走 row 14 字面档时同步登记）。
-_PKG_CMDS = frozenset(
-    {"usepackage", "RequirePackage", "documentclass", "documentstyle"}
-)
-_PKG_ARG_SPEC = [ArgSpec("o"), ArgSpec("m")]
-
-
 # ------------------------------------------------------------------ vtex
 
 
@@ -1598,6 +1589,49 @@ class _ArgTok:
     toks: list[Tok] = field(default_factory=list)  # 去括号内容 token
     all_toks: list[Tok] = field(default_factory=list)
     spec: ArgSpec | None = None
+
+    @classmethod
+    def group(  # noqa: PLR0913, PLR0917 — 组参记录构造面（fid/开闭符/内体/回吐/spec）六件原位
+        cls,
+        fid: int,
+        open_t: Tok,
+        closer: Tok,
+        inner: list[Tok],
+        pulled: list[Tok],
+        spec: ArgSpec,
+    ) -> _ArgTok:
+        r"""组参记录：content 去括号区间、full 含括号、``all_toks`` 含前后 ws+括号。"""
+        return cls(
+            fid,
+            open_t.pos[2],
+            closer.pos[1],
+            open_t.pos[1],
+            closer.pos[2],
+            inner,
+            [*pulled, open_t, *inner, closer],
+            spec,
+        )
+
+    @classmethod
+    def single(cls, fid: int, x: Tok, pulled: list[Tok], spec: ArgSpec) -> _ArgTok:
+        r"""单 token 参记录：``fs==cs``/``fe==ce``，``all_toks`` 含前置 ws。"""
+        return cls(fid, x.pos[1], x.pos[2], x.pos[1], x.pos[2], [x], [*pulled, x], spec)
+
+    @classmethod
+    def empty(cls, fid: int, end: int, spec: ArgSpec) -> _ArgTok:
+        r"""零宽占位参记录：可选参缺席，``fs==fe`` 占 spec 位序。"""
+        return cls(fid, end, end, end, end, spec=spec)
+
+
+def _verb_delim_tok(t: Tok) -> bool:
+    r"""``\verb``/``\url`` 定界 token 判据（主版 verbatim 支三面镜像同判据）。
+
+    cs token 恒可（其定界字符即 ``\``）；其余须单字符、非字母数字、不在
+    ``" \t\n\r%{}[]"`` 排除集。
+    """
+    return t.kind == "cs" or (
+        len(t.text) == 1 and not t.text.isalnum() and t.text not in " \t\n\r%{}[]"
+    )
 
 
 def _doc_begin_of(tex0: str) -> int:

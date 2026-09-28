@@ -73,6 +73,7 @@ from typing import TYPE_CHECKING
 from xml.sax.saxutils import escape
 
 import pytest
+from _exportkit import _zip_only
 from _fuzzkit import fuzz_rng
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
@@ -312,13 +313,9 @@ def zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
     return buf.getvalue()
 
 
-def _pack(members: dict[str, bytes]) -> bytes:
-    return zip_bytes(members.items())
-
-
 def _write_epub(tmp: Path, name: str, members: dict[str, bytes]) -> Path:
     p = tmp / f"{name}.epub"
-    p.write_bytes(_pack(members))
+    p.write_bytes(_zip_only(members))
     return p
 
 

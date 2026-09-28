@@ -1,6 +1,6 @@
 # 评测协议与分层契约
 
-本仓的评测体系由 `bench/TIERS.md`（一个问题该在哪一层被抓）与 `docs/spec/benchmark.md`（B1–B7 评测器规格）定义；外部库选型期的逐库横评协议 `bench/PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。本文把现行契约重整为公开口径：先讲四层验证契约，再讲语料与陷阱夹具的底材纪律，最后是 bench 产物落盘的工具链关系。各 spec/动词的逐件清单见 `dev/tools-runbook.md` §3。
+本仓的评测体系由本文 §1（一个问题该在哪一层被抓——原 `bench/TIERS.md` 已并档为指路针 stub）与 `docs/spec/benchmark.md`（B1–B7 评测器规格）定义；外部库选型期的逐库横评协议 `bench/PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。本文把现行契约重整为公开口径：先讲四层验证契约，再讲语料与陷阱夹具的底材纪律，最后是 bench 产物落盘的工具链关系。各 spec/动词的逐件清单见 `dev/tools-runbook.md` §3。
 
 > **2026-09-23 Wave-F 注记**：trizone-ledger v2 迁移收口，旧 harness（stagerun/stage__/各评测器脚本/triage/rundiff/gate_scorecard/benchlib/corpus build__/report/）全部删除，继任面 = `bench/py/specs/*.py`（`uv run python bench/py/bench run <spec>` 跑批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）。run 产物不再落仓内——`$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（仓外账本根，git 天然不碰）。
 

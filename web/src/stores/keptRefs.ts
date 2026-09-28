@@ -55,8 +55,7 @@ export const keptRefs = {
             else n[key] = payload;
             return n;
         });
-        const job = () =>
-            api.refsKeepWrite(taskId, key, had ? null : payload);
+        const job = () => api.refsKeepWrite(taskId, key, had ? null : payload);
         tail = tail.then(job).catch(() => {
             // 其后同 key 又有 toggle → 本拍意图已被顶替，不回灌
             if (keySeq.get(key) !== my) return;

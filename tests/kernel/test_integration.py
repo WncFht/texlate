@@ -52,32 +52,36 @@ SMOKE_IDS = ("9901.00001", "9901.00002", "9901.00003")
 PAID_IDS = ("9901.00001", "9901.00002")
 PAID_KEYS = sorted((("9901.00001", "a", "-"), ("9901.00002", "a", "-")))
 
+_SMOKE_CELLS = 9  # 3 ids x 3 stages
+_PAID_CELLS = 6  # 2 ids x 3 stages
+_PAID_REFUSAL_RC = 2  # CLI 付费闸拒跑退出码
+
 
 # --- helpers -------------------------------------------------------------------
 
 
-def _quiet(**kw):
-    kw.setdefault("emit", lambda *a, **k: None)
+def _quiet(**kw: object) -> dict[str, object]:
+    kw.setdefault("emit", lambda *_a, **_k: None)
     return kw
 
 
-def _shard(rd) -> list[dict]:
+def _shard(rd: runs.RunDir) -> list[dict]:
     return [
         e for _ln, e, _raw in events.iter_jsonl(rd.events_path()) if isinstance(e, dict)
     ]
 
 
-def _typed(rd, etype: str) -> list[dict]:
+def _typed(rd: runs.RunDir, etype: str) -> list[dict]:
     return [e for e in _shard(rd) if e.get("type") == etype]
 
 
-def _cells(rd, stage: str | None = None) -> list[dict]:
+def _cells(rd: runs.RunDir, stage: str | None = None) -> list[dict]:
     return [
         e for e in _typed(rd, events.T_CELL) if stage is None or e.get("stage") == stage
     ]
 
 
-def _cell(rd, idc: str, stage: str) -> dict | None:
+def _cell(rd: runs.RunDir, idc: str, stage: str) -> dict | None:
     rows = [e for e in _cells(rd, stage) if e.get("idc") == idc]
     return rows[-1] if rows else None
 
@@ -89,12 +93,12 @@ class _FakeClient:
     which lands on ``client.chat(model=..., messages=...)``.
     """
 
-    def __init__(self, latency_s: float = 0.0):
+    def __init__(self, latency_s: float = 0.0) -> None:
         self.calls = 0
         self.latency_s = latency_s
         self._lock = threading.Lock()
 
-    def chat(self, model=None, messages=None, **_kw):
+    def chat(self, *_a: object, **_kw: object) -> dict:
         if self.latency_s:
             time.sleep(self.latency_s)  # held inside claim + paid_slot
         with self._lock:
@@ -102,10 +106,12 @@ class _FakeClient:
         return {"usage": {"in_tok": 100, "out_tok": 50}, "text": "ok"}
 
 
-def _factory(client, counter: list | None = None) -> paid.GatewayFactory:
+def _factory(
+    client: _FakeClient, counter: list[int] | None = None
+) -> paid.GatewayFactory:
     """GatewayFactory over a client double; counter[0] tracks client builds."""
 
-    def make(_ctx=None):
+    def make(_ctx: object = None) -> _FakeClient:
         if counter is not None:
             counter[0] += 1
         return client
@@ -113,7 +119,7 @@ def _factory(client, counter: list | None = None) -> paid.GatewayFactory:
     return paid.GatewayFactory(make, prices={"in": 1e-6, "out": 2e-6})
 
 
-def _switch_root(monkeypatch, root: Path) -> Path:
+def _switch_root(monkeypatch: pytest.MonkeyPatch, root: Path) -> Path:
     """Point the whole zone at a second isolated root (paths read env live)."""
     monkeypatch.setenv(paths.ENV_ROOT, str(root))
     paths.ensure_layout()
@@ -124,25 +130,29 @@ def _switch_root(monkeypatch, root: Path) -> Path:
 # --- scenario 1: smoke spec end to end ------------------------------------------
 
 
-def test_s01_smoke_spec_end_to_end(broot, tmp_path):
+def test_s01_smoke_spec_end_to_end(
+    broot: Path,  # noqa: ARG001 -- fixture 副作用
+    tmp_path: Path,
+) -> None:
     """spec load -> plan -> queued/started/terminal per cell -> accounting
     ok -> export --legacy records/{stage}.jsonl matching the cells."""
     res = kernel.run(str(SMOKE_SPEC), date=DATE, slug="s1", **_quiet())
     assert res["ok"] is True
-    assert res["cells"] == 9  # 3 ids x 3 stages
-    assert res["counts"].get("ok") == 9
+    assert res["cells"] == _SMOKE_CELLS
+    assert res["counts"].get("ok") == _SMOKE_CELLS
     assert res["accounting"]["ok"] is True
 
     rd = runs.load_run("smoke", DATE, "s1")
     types = [e["type"] for e in _shard(rd)]
     assert types.count("run_registered") == 1
-    assert types.count("cell_queued") == 9
-    assert types.count("cell_started") == 9
-    assert types.count("cell") == 9
+    assert types.count("cell_queued") == _SMOKE_CELLS
+    assert types.count("cell_started") == _SMOKE_CELLS
+    assert types.count("cell") == _SMOKE_CELLS
     assert all(e["status"] == "ok" for e in _cells(rd))
     assert "finished" in types
     acct = runs.accounting_check(rd)
-    assert acct["ok"] is True and acct["terminal"] == 9
+    assert acct["ok"] is True
+    assert acct["terminal"] == _SMOKE_CELLS
 
     # derive: native report projection -> cells.jsonl + report.md + cases.jsonl
     idx = indexmod.Index()
@@ -159,10 +169,10 @@ def test_s01_smoke_spec_end_to_end(broot, tmp_path):
         for ln in cells_f.read_text(encoding="utf-8").splitlines()
         if ln.strip()
     ]
-    assert len(rows) == 9, f"cells.jsonl: {len(rows)} rows"
+    assert len(rows) == _SMOKE_CELLS, f"cells.jsonl: {len(rows)} rows"
     for stage in ("ingest", "transform", "report"):
         stage_rows = [r for r in rows if r["stage"] == stage]
-        assert len(stage_rows) == 3, f"{stage}: {len(stage_rows)} rows"
+        assert len(stage_rows) == len(SMOKE_IDS), f"{stage}: {len(stage_rows)} rows"
         assert {r["id"] for r in stage_rows} == set(SMOKE_IDS)
         assert all(r["status"] == "ok" for r in stage_rows)
     rep_rows = [r for r in rows if r["stage"] == "report"]
@@ -175,7 +185,7 @@ def test_s01_smoke_spec_end_to_end(broot, tmp_path):
 # --- scenario 2: resume is a done-set no-op --------------------------------------
 
 
-def test_s02_resume_done_set(broot):
+def test_s02_resume_done_set(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """resume=True on a fully-terminal run queues and finishes zero cells."""
     r1 = kernel.run(str(SMOKE_SPEC), date=DATE, slug="rs", **_quiet())
     assert r1["ok"] is True
@@ -189,7 +199,7 @@ def test_s02_resume_done_set(broot):
     assert len(_typed(rd, events.T_CELL_QUEUED)) == n_queued
     assert len(_cells(rd)) == n_terminal
     # every cell short-circuited on this-run terminal state
-    assert r2["counts"] == {"already-terminal": 9}
+    assert r2["counts"] == {"already-terminal": _SMOKE_CELLS}
     # and the append-only shard keeps the equation balanced
     assert runs.accounting_check(rd)["ok"] is True
 
@@ -197,7 +207,7 @@ def test_s02_resume_done_set(broot):
 # --- scenario 7: concurrent double-run pays exactly once -------------------------
 
 
-def test_s07_concurrent_double_run_single_payer(broot):
+def test_s07_concurrent_double_run_single_payer(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """Two kernel.run invocations racing the same paid cells: the claim
     flock serializes them — exactly one acquire-winning sequence per paid
     key, total spend = one pass (no double burn)."""
@@ -206,7 +216,7 @@ def test_s07_concurrent_double_run_single_payer(broot):
     errors: list = []
     gate = threading.Barrier(3)
 
-    def worker(slug):
+    def worker(slug: str) -> None:
         try:
             gate.wait(timeout=30)
             results[slug] = kernel.run(
@@ -243,11 +253,11 @@ def test_s07_concurrent_double_run_single_payer(broot):
     # at most one acquire-winning sequence per (idc,arm,variant)
     acq_keys = sorted((e["idc"], e["arm"], e["variant"]) for e in acquires)
     assert acq_keys == PAID_KEYS
-    assert len(releases) == 2
+    assert len(releases) == len(PAID_KEYS)
     # the wallet-side proof: exactly one paid request per xlat cell-key
-    assert client.calls == 2
+    assert client.calls == len(PAID_IDS)
     xlat = _cells(rd_a, "xlat") + _cells(rd_b, "xlat")
-    assert len(xlat) == 4
+    assert len(xlat) == 2 * len(PAID_IDS)
     for e in xlat:
         assert e["status"] in ("ok", "claimed", "dedup"), e
     for idc in PAID_IDS:
@@ -259,7 +269,7 @@ def test_s07_concurrent_double_run_single_payer(broot):
 # --- scenario 8: accounting equation violation is named --------------------------
 
 
-def test_s08_accounting_equation_detects_gap(broot):
+def test_s08_accounting_equation_detects_gap(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """Fabricate a missing terminal (plan cell + cell_queued, no terminal)
     -> accounting_check.ok False and the gap is named."""
     res = kernel.run(str(SMOKE_SPEC), date=DATE, slug="acct", **_quiet())
@@ -307,7 +317,9 @@ def test_s08_accounting_equation_detects_gap(broot):
 # --- scenario 10: CLI subprocess surface ------------------------------------------
 
 
-def test_s10_cli_subprocess_surface(broot, tmp_path):
+def test_s10_cli_subprocess_surface(  # noqa: PLR0915 -- CLI 全链路串行剧本，拆分断 env/cli 闭包
+    broot: Path, tmp_path: Path
+) -> None:
     """`bench` shim end-to-end against $TEXLATE_BENCH_ROOT: init, spec list,
     plan, run, status, derive, doctor — sane exit codes."""
     repo_bench = tmp_path / "repo-bench"
@@ -326,13 +338,14 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
         os.pathsep
     )
 
-    def cli(*args):
-        return subprocess.run(
+    def cli(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # noqa: S603 -- argv 全为内部字面量与 sys.executable
             [sys.executable, str(SHIM), *args],
             env=env,
             capture_output=True,
             text=True,
             timeout=180,
+            check=False,
         )
 
     r = cli("init")
@@ -346,9 +359,11 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
     assert r.returncode == 0, r.stderr
-    assert "smoke" in r.stdout and "paid_stub" in r.stdout
+    assert "smoke" in r.stdout
+    assert "paid_stub" in r.stdout
 
     r = cli("spec", "list")
     assert r.returncode == 0, r.stderr
@@ -380,7 +395,7 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
     pause.touch()
     try:
         r = cli("run", "paid_stub", "--date", DATE, "--slug", "paused")
-        assert r.returncode == 2, f"{r.stdout}\n{r.stderr}"
+        assert r.returncode == _PAID_REFUSAL_RC, f"{r.stdout}\n{r.stderr}"
         assert "PAUSE" in r.stderr
         r = cli("plan", "smoke")
         assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
@@ -415,7 +430,11 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
 # --- scenario 3: paid_stub end to end ---------------------------------------------
 
 
-def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
+def test_s03_paid_stub_end_to_end(
+    broot: Path,  # noqa: ARG001 -- fixture 副作用
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Paid path over the shipped stub: pay once (usage metered, claim
     acquire+release audited, asset rows), second run dedups with zero new
     paid requests."""
@@ -434,14 +453,14 @@ def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
     assert r1["ok"] is True
     rd1 = runs.load_run("paid_stub", DATE, "p1")
     cells = _cells(rd1)
-    assert len(cells) == 6  # 2 ids x 3 stages
+    assert len(cells) == _PAID_CELLS
     assert all(e["status"] == "ok" for e in cells)
-    assert client.calls == 2  # one paid request per xlat cell
+    assert client.calls == len(PAID_IDS)  # one paid request per xlat cell
     assert fn_calls == [1]  # the lazy client was built exactly once
-    assert factory.meter.requests() == 2
+    assert factory.meter.requests() == len(PAID_IDS)
     # usage recorded through the token accountant:
     # 2 x (100*1e-6 + 50*2e-6) = 0.0004
-    assert abs(factory.meter.spent() - 0.0004) < 1e-9
+    assert factory.meter.spent() == pytest.approx(0.0004)
     claims = _typed(rd1, events.T_CLAIM)
     for idc in PAID_IDS:
         ops = [e["op"] for e in claims if e["idc"] == idc and e.get("slot") is None]
@@ -464,9 +483,9 @@ def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
     assert r2["ok"] is True
     rd2 = runs.load_run("paid_stub", DATE, "p2")
     cells2 = _cells(rd2)
-    assert len(cells2) == 6
+    assert len(cells2) == _PAID_CELLS
     assert all(e["status"] == "dedup" for e in cells2)
-    assert client.calls == 2  # unchanged — nothing re-paid
+    assert client.calls == len(PAID_IDS)  # unchanged — nothing re-paid
     assert fn_calls == [1]  # factory call count stayed 1-run's worth
 
     # §3.5 contract: a paid run's bytes land in the vault — the xlat
@@ -486,7 +505,9 @@ def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
 # --- scenario 4: tombstoned cell + the 4-flag regen gate ----------------------------
 
 
-def test_s04_tombstone_regen_gate(broot, tmp_path, monkeypatch):
+def test_s04_tombstone_regen_gate(
+    broot: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Tombstoned paid cell: bare run -> reject/regen_gate; the full
     --allow-regen + --sel + --max-cost + --yes gate -> proceeds."""
     client = _FakeClient()
@@ -513,7 +534,8 @@ def test_s04_tombstone_regen_gate(broot, tmp_path, monkeypatch):
     )
     rd1 = runs.load_run("paid_stub", DATE, "rg1")
     x1 = _cell(rd1, "9901.00001", "xlat")
-    assert x1["status"] == "reject" and x1["cat"] == "regen_gate"
+    assert x1["status"] == "reject"
+    assert x1["cat"] == "regen_gate"
     assert _cell(rd1, "9901.00002", "xlat")["status"] == "ok"
     assert client.calls == 1  # only the untombstoned twin paid
 
@@ -522,7 +544,7 @@ def test_s04_tombstone_regen_gate(broot, tmp_path, monkeypatch):
     _switch_root(monkeypatch, tmp_path / "broot2")
     vault.tombstone("9901.00001", "a", "-", "zh", "test-lost")
     client2 = _FakeClient()
-    r3 = kernel.run(
+    kernel.run(
         str(PAID_SPEC),
         date=DATE,
         slug="rg3",
@@ -535,7 +557,7 @@ def test_s04_tombstone_regen_gate(broot, tmp_path, monkeypatch):
     )
     rd3 = runs.load_run("paid_stub", DATE, "rg3")
     assert _cell(rd3, "9901.00001", "xlat")["status"] == "ok"
-    assert client2.calls == 2  # regen authorized -> paid again
+    assert client2.calls == len(PAID_IDS)  # regen authorized -> paid again
 
     # CONTRACT-VIOLATION (the regen dead door): back on the first root the
     # SAME authorization must proceed — but 'reject' is in STATUS_DONE, so
@@ -559,13 +581,17 @@ def test_s04_tombstone_regen_gate(broot, tmp_path, monkeypatch):
         f"4-flag regen on a regen_gate-rejected cell must re-pay; got "
         f"{x2['status']!r} — records dedup masks the regen gate"
     )
-    assert client.calls == 2
+    assert client.calls == len(PAID_IDS)
 
 
 # --- scenario 5: PAUSE holds cells, clear releases --------------------------------
 
 
-def test_s05_pause_gate(broot, tmp_path, monkeypatch):
+def test_s05_pause_gate(
+    broot: Path,  # noqa: ARG001 -- fixture 副作用
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """PAUSE engaged -> paid cells refuse without spending; cleared ->
     the same run resumes and pays."""
     client = _FakeClient()
@@ -587,7 +613,8 @@ def test_s05_pause_gate(broot, tmp_path, monkeypatch):
     for e in _cells(rd1, "ingest"):
         assert e["status"] == "ok"
     for e in _cells(rd1, "xlat"):
-        assert e["status"] == "error" and e["cat"] == "pause"
+        assert e["status"] == "error"
+        assert e["cat"] == "pause"
     for e in _cells(rd1, "report"):
         assert e["status"] == "skip"
     assert client.calls == 0
@@ -603,8 +630,8 @@ def test_s05_pause_gate(broot, tmp_path, monkeypatch):
         **_quiet(),
     )
     assert r2["ok"] is True
-    assert client.calls == 2  # proceed: both paid cells pay
-    assert sum(1 for e in _cells(rd1) if e["status"] == "ok") == 6
+    assert client.calls == len(PAID_IDS)  # proceed: both paid cells pay
+    assert sum(1 for e in _cells(rd1) if e["status"] == "ok") == _PAID_CELLS
     assert runs.accounting_check(rd1)["ok"] is True
 
     # CONTRACT-VIOLATION probe — the state a mid-run crash leaves behind:
@@ -670,18 +697,19 @@ def test_s05_pause_gate(broot, tmp_path, monkeypatch):
     )
     assert client2.calls == 0  # nothing burned — and the loss is diagnosed
     for e in _cells(rd, "xlat"):
-        assert e["status"] == "fault" and e.get("cat") == "upstream-lost", (
+        assert e["status"] == "fault", (
             f"paid cell whose upstream terminal lost its product must land "
             f"fault/upstream-lost — got {e['status']!r} "
             f"cat={e.get('cat')!r}: 'dedup' means verified bytes minted "
             "from nothing, 'error/pause' hides real loss behind a hold"
         )
+        assert e.get("cat") == "upstream-lost"
 
 
 # --- scenario 6: unsealed index refuses spend -------------------------------------
 
 
-def test_s06_index_unsealed_no_spend(broot):
+def test_s06_index_unsealed_no_spend(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """Dirty the index -> paid cells land error/index_unsealed with zero
     spend; rebuild seals -> resume pays."""
     client = _FakeClient()
@@ -728,14 +756,14 @@ def test_s06_index_unsealed_no_spend(broot):
         gateway_factory=factory,
         **_quiet(),
     )
-    assert client.calls == 2, (
+    assert client.calls == len(PAID_IDS), (
         f"resume after index rebuild must pay the never-paid cells; "
         f"calls={client.calls} — a FREE stage's ok was counted as "
         "paid-verified bytes"
     )
 
 
-def test_s06b_first_fire_gate_stamp(broot):
+def test_s06b_first_fire_gate_stamp(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """§6 Phase-3 首火闸: no fresh vault-verify stamp -> the paid spec
     refuses at the gate (coverage.json keeps the evidence, zero spend);
     a fresh stamp -> the refused run resumes and pays."""
@@ -752,8 +780,10 @@ def test_s06b_first_fire_gate_stamp(broot):
         )
     rd = runs.load_run("paid_stub", DATE, "ff1")
     cov = json.loads((rd.derived() / "coverage.json").read_text(encoding="utf-8"))
-    assert cov["verify_fresh"] is False and cov["sealed"] is True
-    assert _cells(rd) == [] and client.calls == 0
+    assert cov["verify_fresh"] is False
+    assert cov["sealed"] is True
+    assert _cells(rd) == []
+    assert client.calls == 0
 
     write_verify_stamp()  # `bench vault verify` clean-pass evidence
     kernel.run(
@@ -765,13 +795,13 @@ def test_s06b_first_fire_gate_stamp(broot):
         gateway_factory=_factory(client),
         **_quiet(),
     )
-    assert client.calls == 2
+    assert client.calls == len(PAID_IDS)
 
 
 # --- scenario 9: AUTH_DEAD refuses pre-flight --------------------------------------
 
 
-def test_s09_auth_dead_preflight_refusal(broot):
+def test_s09_auth_dead_preflight_refusal(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
     """AUTH_DEAD sentinel -> paid cells refuse before the claim/factory;
     cleared -> resume pays."""
     client = _FakeClient()
@@ -790,7 +820,8 @@ def test_s09_auth_dead_preflight_refusal(broot):
         )
         rd1 = runs.load_run("paid_stub", DATE, "ad1")
         for e in _cells(rd1, "xlat"):
-            assert e["status"] == "error" and e["cat"] == "auth_dead"
+            assert e["status"] == "error"
+            assert e["cat"] == "auth_dead"
         assert client.calls == 0  # refused pre-flight…
         assert fn_calls == [0]  # …before the client was even built
     finally:
@@ -807,7 +838,7 @@ def test_s09_auth_dead_preflight_refusal(broot):
         gateway_factory=factory,
         **_quiet(),
     )
-    assert client.calls == 2, (
+    assert client.calls == len(PAID_IDS), (
         f"resume after AUTH_DEAD clears must pay; calls={client.calls} — "
         "a FREE stage's ok was counted as paid-verified bytes"
     )

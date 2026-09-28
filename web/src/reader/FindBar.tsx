@@ -142,7 +142,11 @@ export default function FindBar(props: Props) {
                         ↓
                     </button>
                     <span class="fb-count" aria-live="polite">
-                        {findCountText(state(), count(), query() ? t.pane.findNone : "")}
+                        {findCountText(
+                            state(),
+                            count(),
+                            query() ? t.pane.findNone : "",
+                        )}
                     </span>
                     <button
                         type="button"

@@ -1,4 +1,9 @@
-r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\newcommand 族 + \let/\newif/\catcode。"""
+r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\newcommand 族 + \let/\newif/\catcode。
+
+同名异件：``texlate.textutil.decls`` 是文档声明/结构探测**正则**族
+（``\documentclass``/``\begin{document}`` 等）——宏声明执行归本件，
+声明字面探测归彼。
+"""
 
 from __future__ import annotations
 

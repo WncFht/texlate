@@ -8,11 +8,14 @@ Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from kernel import events, lake, paths
 from kernel.idnorm import safe_id
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 IDC = "2101.00001"
 
@@ -61,7 +64,8 @@ def _lake_events() -> list[dict]:
 # --- LakeCatalog ---------------------------------------------------------------------
 
 
-def test_catalog_absent_set_mark_used_last_wins(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_catalog_absent_set_mark_used_last_wins() -> None:
     cat = lake.LakeCatalog.load()
     assert cat.state(IDC) == "absent"
     assert cat.rows() == {}
@@ -75,7 +79,7 @@ def test_catalog_absent_set_mark_used_last_wins(broot: Path) -> None:
     cat2 = lake.LakeCatalog.load()
     assert cat2.state(IDC) == "hydrated"
     row = cat2.rows()[IDC]
-    assert row["n_files"] == 3
+    assert row["n_files"] == 3  # noqa: PLR2004 -- 断言字面量
     assert row["source"] == "arxiv"
     assert row["last_used_at"] > 0  # mark_used survived the merge
 
@@ -86,7 +90,8 @@ def test_catalog_absent_set_mark_used_last_wins(broot: Path) -> None:
     assert all(e["idc"] == IDC and e["id"] == IDC for e in evs)
 
 
-def test_catalog_load_tolerates_bad_lines(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_catalog_load_tolerates_bad_lines() -> None:
     cat = lake.LakeCatalog.load()
     cat.set(IDC, "hydrated")
     with paths.lake_catalog_path().open("ab") as f:
@@ -98,19 +103,22 @@ def test_catalog_load_tolerates_bad_lines(broot: Path) -> None:
 # --- cell_dir / is_complete -------------------------------------------------------------
 
 
-def test_cell_dir_uses_safe_id(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_cell_dir_uses_safe_id() -> None:
     d = lake.cell_dir("cond-mat/9601002")
     assert d == paths.lake_corpus_dir() / "arxiv" / "cond-mat--9601002"
     d2 = lake.cell_dir("2101.00001", source="sw")
     assert d2 == paths.lake_corpus_dir() / "sw" / "2101.00001"
 
 
-def test_is_complete_true_on_consistent_cell(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_is_complete_true_on_consistent_cell() -> None:
     _mk_cell(IDC, {"a.tex": b"aa", "sub/b.bib": b"bb"}, meta={"n_files": 2})
     assert lake.is_complete(IDC)
 
 
-def test_is_complete_false_on_half_tree(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_is_complete_false_on_half_tree() -> None:
     d = _mk_cell(IDC, {"a.tex": b"aa", "b.bib": b"bb"}, meta={"n_files": 2})
     # crash tore the tree: one payload file vanished
     (d / "extracted" / "b.bib").unlink()
@@ -120,7 +128,8 @@ def test_is_complete_false_on_half_tree(broot: Path) -> None:
     assert not lake.is_complete(IDC)
 
 
-def test_is_complete_false_when_meta_unparseable_or_missing(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_is_complete_false_when_meta_unparseable_or_missing() -> None:
     d = _mk_cell(IDC, {"a.tex": b"aa"}, meta={"n_files": 1})
     (d / "meta.json").write_text("{torn")
     assert not lake.is_complete(IDC)
@@ -128,11 +137,13 @@ def test_is_complete_false_when_meta_unparseable_or_missing(broot: Path) -> None
     assert not lake.is_complete(IDC)
 
 
-def test_is_complete_false_when_dir_missing(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_is_complete_false_when_dir_missing() -> None:
     assert not lake.is_complete("9999.99999")
 
 
-def test_is_complete_counts_only_payload(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_is_complete_counts_only_payload() -> None:
     # bookkeeping files (meta/mtree/files.txt) and raw/ are not payload
     d = _mk_cell(
         IDC, {"a.tex": b"aa"}, meta={"n_files": 1}, raw={"payload.bin": b"raw"}
@@ -145,7 +156,8 @@ def test_is_complete_counts_only_payload(broot: Path) -> None:
 # --- skeleton ----------------------------------------------------------------------------
 
 
-def test_register_skeleton_manifested_no_bytes(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_register_skeleton_manifested_no_bytes() -> None:
     d = lake.register_skeleton(IDC)
     assert d.is_dir()
     assert lake.LakeCatalog.load().state(IDC) == "skeleton"
@@ -157,7 +169,8 @@ def test_register_skeleton_manifested_no_bytes(broot: Path) -> None:
 # --- hydrate ---------------------------------------------------------------------------------
 
 
-def test_hydrate_fetch_builds_complete_cell(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_fetch_builds_complete_cell() -> None:
     def fetch(idc: str, stage: Path) -> dict:
         assert idc == IDC  # fetcher receives the cell's idc
         ex = stage / "extracted"
@@ -166,20 +179,23 @@ def test_hydrate_fetch_builds_complete_cell(broot: Path) -> None:
         (ex / "b.bib").write_bytes(b"bib")
         return {"unpack_ver": "v1"}
 
-    got = lake.hydrate(IDC, fetch_fn=fetch, run_seq=7)
+    run_seq = 7
+    got = lake.hydrate(IDC, fetch_fn=fetch, run_seq=run_seq)
     assert got == lake.cell_dir(IDC)
     assert lake.is_complete(IDC)
     meta = json.loads((got / "meta.json").read_text())
-    assert meta["n_files"] == 2 and meta["run_seq"] == 7
+    assert meta["n_files"] == 2  # noqa: PLR2004 -- 断言字面量
+    assert meta["run_seq"] == run_seq
     assert meta["unpack_ver"] == "v1"  # fetch_fn's extra meta merged in
     assert lake.LakeCatalog.load().state(IDC) == "hydrated"
     assert _lake_events()[-1]["state"] == "hydrated"
     # staging dir cleaned up
-    stage = paths.lake_tmp_dir() / "rebuild" / "7" / f"{safe_id(IDC)}.stage"
+    stage = paths.lake_tmp_dir() / "rebuild" / str(run_seq) / f"{safe_id(IDC)}.stage"
     assert not stage.exists()
 
 
-def test_hydrate_double_check_under_lock_no_refetch(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_double_check_under_lock_no_refetch() -> None:
     calls = []
 
     def fetch(_idc: str, stage: Path) -> None:
@@ -196,7 +212,8 @@ def test_hydrate_double_check_under_lock_no_refetch(broot: Path) -> None:
     assert len(calls) == 1
 
 
-def test_hydrate_dest_occupied_first_wins(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_dest_occupied_first_wins() -> None:
     # a complete cell already occupies the destination
     d = _mk_cell(IDC, {"orig.tex": b"original"}, meta={"n_files": 1})
     calls = []
@@ -214,7 +231,8 @@ def test_hydrate_dest_occupied_first_wins(broot: Path) -> None:
     assert not (d / "extracted" / "new.tex").exists()
 
 
-def test_hydrate_replaces_torn_dest(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_replaces_torn_dest() -> None:
     # occupied but INCOMPLETE dest is the hydrator's to finish
     d = _mk_cell(IDC, {"half.tex": b"half"}, meta={"n_files": 9})
 
@@ -230,13 +248,15 @@ def test_hydrate_replaces_torn_dest(broot: Path) -> None:
     assert lake.is_complete(IDC)
 
 
-def test_hydrate_lazy_unfetchable_returns_none(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_lazy_unfetchable_returns_none() -> None:
     lake.register_skeleton(IDC)
     assert lake.hydrate(IDC) is None  # no fetch_fn, no raw — lazy
     assert lake.hydrate("9999.99999") is None
 
 
-def test_hydrate_raw_only_reextracts_locally(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_raw_only_reextracts_locally() -> None:
     # raw tree on disk, extracted evicted — zero-network rebuild
     d = _mk_cell(IDC, {}, meta={"n_files": 0}, raw={"a.tex": b"aa", "sub/b.bib": b"bb"})
     (d / "meta.json").write_text(json.dumps({"n_files": 99, "stale": True}))
@@ -248,15 +268,18 @@ def test_hydrate_raw_only_reextracts_locally(broot: Path) -> None:
     assert (d / "raw" / "a.tex").exists()
     assert lake.is_complete(IDC)
     meta = json.loads((d / "meta.json").read_text())
-    assert meta["n_files"] == 2 and meta["rebuilt_from"] == "raw"
+    assert meta["n_files"] == 2  # noqa: PLR2004 -- 断言字面量
+    assert meta["rebuilt_from"] == "raw"
     assert meta["stale"] is True  # old meta fields preserved
 
 
-def test_hydrate_fetch_failure_cleans_stage_and_raises(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_hydrate_fetch_failure_cleans_stage_and_raises() -> None:
     def boom(_idc: str, stage: Path) -> None:
         (stage / "extracted").mkdir(parents=True)
         (stage / "extracted" / "x").write_bytes(b"x")
-        raise RuntimeError("fetch exploded")
+        msg = "fetch exploded"
+        raise RuntimeError(msg)
 
     with pytest.raises(RuntimeError, match="fetch exploded"):
         lake.hydrate(IDC, fetch_fn=boom, run_seq=3)
@@ -268,7 +291,8 @@ def test_hydrate_fetch_failure_cleans_stage_and_raises(broot: Path) -> None:
 # --- admit ----------------------------------------------------------------------------------
 
 
-def test_admit_cap_gate(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_admit_cap_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEXLATE_LAKE_CAP_GB", "0")
     assert not lake.admit(1)  # zero cap admits nothing
     monkeypatch.setenv("TEXLATE_LAKE_CAP_GB", "100")
@@ -277,7 +301,8 @@ def test_admit_cap_gate(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not lake.admit(101 * 1024**3)  # beyond the cap
 
 
-def test_admit_floor_gate(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_admit_floor_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEXLATE_LAKE_CAP_GB", "100")
     # absurd floor: nothing admissible
     monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", str(10**9))
@@ -287,8 +312,7 @@ def test_admit_floor_gate(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 # --- evict ------------------------------------------------------------------------------------
 
 
-def _evict_cell(
-    broot: Path,
+def _evict_cell(  # noqa: PLR0913 -- 参数面即契约
     idc: str,
     *,
     last_used: float,
@@ -317,21 +341,24 @@ def _evict_cell(
     return d
 
 
-def test_evict_orphans_first_then_extracted(broot: Path) -> None:
-    orphan = _evict_cell(broot, "2101.00010", last_used=10, manifested=False)
-    a = _evict_cell(broot, "2101.00011", last_used=20)
-    b = _evict_cell(broot, "2101.00012", last_used=30)
+@pytest.mark.usefixtures("broot")
+def test_evict_orphans_first_then_extracted() -> None:
+    orphan = _evict_cell("2101.00010", last_used=10, manifested=False)
+    a = _evict_cell("2101.00011", last_used=20)
+    b = _evict_cell("2101.00012", last_used=30)
 
     removed = lake.evict(1)  # smallest target still takes the orphan first
     assert removed == [orphan]
     assert not orphan.exists()
-    assert (a / "extracted").exists() and (b / "extracted").exists()
+    assert (a / "extracted").exists()
+    assert (b / "extracted").exists()
     assert lake.LakeCatalog.load().state("2101.00010") == "evicted"
 
 
-def test_evict_extracted_before_raw_lru_order(broot: Path) -> None:
-    a = _evict_cell(broot, "2101.00020", last_used=10)  # oldest
-    b = _evict_cell(broot, "2101.00021", last_used=20)
+@pytest.mark.usefixtures("broot")
+def test_evict_extracted_before_raw_lru_order() -> None:
+    a = _evict_cell("2101.00020", last_used=10)  # oldest
+    b = _evict_cell("2101.00021", last_used=20)
     cat = lake.LakeCatalog.load()
 
     # target = exactly one extracted tree: only the LRU cell's projection goes
@@ -341,35 +368,41 @@ def test_evict_extracted_before_raw_lru_order(broot: Path) -> None:
     assert not (a / "extracted").exists()
     assert (a / "raw").exists()  # raw survives tier 1
     assert cat.state("2101.00020") == "raw_only"
-    assert (b / "extracted").exists() and cat.state("2101.00021") == "hydrated"
+    assert (b / "extracted").exists()
+    assert cat.state("2101.00021") == "hydrated"
 
 
-def test_evict_full_tiers_pinned_and_network_untouched(broot: Path) -> None:
-    a = _evict_cell(broot, "2101.00030", last_used=10)
-    pin = _evict_cell(broot, "2101.00031", last_used=20, pinned=True)
-    net = _evict_cell(broot, "2101.00032", last_used=30, regen_cost="network")
+@pytest.mark.usefixtures("broot")
+def test_evict_full_tiers_pinned_and_network_untouched() -> None:
+    a = _evict_cell("2101.00030", last_used=10)
+    pin = _evict_cell("2101.00031", last_used=20, pinned=True)
+    net = _evict_cell("2101.00032", last_used=30, regen_cost="network")
     cat = lake.LakeCatalog.load()
 
     lake.evict(10**9, catalog=cat)  # way past everything
     # a: extracted then raw both evicted
-    assert not (a / "extracted").exists() and not (a / "raw").exists()
+    assert not (a / "extracted").exists()
+    assert not (a / "raw").exists()
     assert cat.state("2101.00030") == "evicted"
     # net: extracted projection evicted (tier order), raw KEPT (network regen)
     assert not (net / "extracted").exists()
     assert (net / "raw").exists()
     assert cat.state("2101.00032") == "raw_only"
     # pinned: fully untouched
-    assert (pin / "extracted").exists() and (pin / "raw").exists()
+    assert (pin / "extracted").exists()
+    assert (pin / "raw").exists()
     assert cat.state("2101.00031") == "hydrated"
 
 
-def test_evict_returns_removed_paths(broot: Path) -> None:
-    a = _evict_cell(broot, "2101.00040", last_used=10)
+@pytest.mark.usefixtures("broot")
+def test_evict_returns_removed_paths() -> None:
+    a = _evict_cell("2101.00040", last_used=10)
     removed = lake.evict(10**9)
     assert set(removed) == {a / "extracted", a / "raw"}
     # lake_cell events recorded each tier transition
     states = [e["state"] for e in _lake_events()]
-    assert "raw_only" in states and "evicted" in states
+    assert "raw_only" in states
+    assert "evicted" in states
 
 
 # --- shrink_shell --------------------------------------------------------------------------------

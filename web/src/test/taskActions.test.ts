@@ -69,9 +69,7 @@ describe("createHtmlFallback.can()", () => {
 
     it("拦截：无任务 / 非 arxiv kind / 无 arxiv_id / 非取源段错误码 / 无错误", () => {
         const nav = vi.fn();
-        expect(
-            createHtmlFallback({ task: () => null, nav }).can(),
-        ).toBe(false);
+        expect(createHtmlFallback({ task: () => null, nav }).can()).toBe(false);
         for (const over of [
             { kind: "upload_tex" },
             { arxiv_id: null },
@@ -114,8 +112,10 @@ describe("createHtmlFallback.run()", () => {
             nav: vi.fn(),
         });
         await a.run();
-        const options = mocks.translate.mock.calls[0][1]
-            ?.options as Record<string, unknown>;
+        const options = mocks.translate.mock.calls[0][1]?.options as Record<
+            string,
+            unknown
+        >;
         expect(options).toEqual({ source: "html" });
 
         mocks.translate.mockClear();
@@ -127,7 +127,7 @@ describe("createHtmlFallback.run()", () => {
         expect(mocks.translate).not.toHaveBeenCalled();
     });
 
-    it("失败：ApiError → detail；普通 Error → message（无 \"Error: \" 前缀）", async () => {
+    it('失败：ApiError → detail；普通 Error → message（无 "Error: " 前缀）', async () => {
         mocks.translate.mockRejectedValueOnce(
             new ApiError(502, "网关 502", "fetch_failed"),
         );

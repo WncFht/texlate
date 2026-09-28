@@ -13,14 +13,7 @@ const [loaded, setLoaded] = createSignal(false);
 // none=原纸+OS chrome（逃生口：暗 OS 下仍可达白纸+暗界面）；
 // 命名槽=锁定 {纸面,chrome} 对。OS 监听与 chrome 落点在 pdfTheme.ts。
 export type PaperThemeChoice =
-    | "auto"
-    | "none"
-    | "dark"
-    | "onedark"
-    | "black"
-    | "snow"
-    | "sepia"
-    | "paper";
+    "auto" | "none" | "dark" | "onedark" | "black" | "snow" | "sepia" | "paper";
 const PAPER_KEY = "texlate-paper-theme";
 
 const readPaperTheme = (): PaperThemeChoice => {
@@ -143,7 +136,11 @@ export const settingsStore = {
         const next = await api.putSettings(patch);
         // ignored 仅在有丢弃字段时才下发——浅合并会让上一轮的非空值挂留，
         // 显式归一到本轮回执
-        setSettings((cur) => ({ ...cur, ...next, ignored: next.ignored ?? [] }));
+        setSettings((cur) => ({
+            ...cur,
+            ...next,
+            ignored: next.ignored ?? [],
+        }));
         return next;
     },
 

@@ -14,12 +14,18 @@ bench/work_*/
 # lockfile 由 npm 生成——格式化会让每次 regen 出全文件 diff
 **/package-lock.json
 # 构建产物与 vendored 区（与 .markdownlint-cli2.jsonc 同政策）
+/dist/
 web/dist/
+src/texlate/server/static/
 zotero/.scaffold/build/
 .agents/
 .pytest_cache/
 # bench 生成数据帧（脚本重写，同 bench/results/ 政策）
 bench/frame/
+# gitignored 实验区（prettier 不读 .gitignore，须显式排除）
+tmp/
+**/tmp/
 # 本地研究产物/杂项数据不落格式化面
 paper-search-*/
-per_anchor.json
+# docs 内嵌 HTML 是图件资产非源码（prettier html 会重排内嵌 SVG/script）
+docs/**/*.html

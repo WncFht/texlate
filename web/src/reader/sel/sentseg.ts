@@ -119,12 +119,10 @@ export function segmentBlock(
     // 逆序处理——前插不扰后插的节点偏移。
     const locate = (g: number) => {
         for (const s of spans)
-            if (g >= s.g0 && g <= s.g1)
-                return { node: s.node, off: g - s.g0 };
+            if (g >= s.g0 && g <= s.g1) return { node: s.node, off: g - s.g0 };
         return null;
     };
-    const sideName =
-        block.closest(".pane")?.getAttribute("data-side") ?? "d";
+    const sideName = block.closest(".pane")?.getAttribute("data-side") ?? "d";
     const sorted = [...cuts].sort((a, b) => b - a);
     const marks: SentMark[] = [];
     let k = sorted.length;

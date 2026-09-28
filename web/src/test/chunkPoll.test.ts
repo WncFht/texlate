@@ -41,7 +41,10 @@ const row = (seq: number, status: string, zh = ""): TaskChunkRow => ({
     zh,
 });
 
-const page = (chunks: TaskChunkRow[], total = chunks.length): TaskChunksPage => ({
+const page = (
+    chunks: TaskChunkRow[],
+    total = chunks.length,
+): TaskChunksPage => ({
     chunks,
     total,
 });

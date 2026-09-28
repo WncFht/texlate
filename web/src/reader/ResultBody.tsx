@@ -61,12 +61,12 @@ export default function ResultBody(props: Props) {
     // warnings 是 "[code] message" 串——mock_translator 命中即「keyless
     // 走了 mock 翻译」信号，done 态给重试 + key 输入（M1 止血）
     const mockWarn = () =>
-        (props.task?.warnings ?? []).some((w) =>
-            w.includes("mock_translator"),
-        );
+        (props.task?.warnings ?? []).some((w) => w.includes("mock_translator"));
     return (
         <>
-            <h2 class="rp-status">{RESULT_TEXT[props.st] ?? t.status[props.st] ?? props.st}</h2>
+            <h2 class="rp-status">
+                {RESULT_TEXT[props.st] ?? t.status[props.st] ?? props.st}
+            </h2>
             <Show when={props.task?.error}>
                 {(e) => (
                     <p class="form-error">
@@ -79,7 +79,12 @@ export default function ResultBody(props: Props) {
                 {(e) => (
                     <p class="form-error" role="alert">
                         [{e().code ?? "retry"}] {e().message}
-                        <Show when={e().status === 401 || e().code === "auth_required"}>
+                        <Show
+                            when={
+                                e().status === 401 ||
+                                e().code === "auth_required"
+                            }
+                        >
                             {" "}
                             {t.reader.retryHintAuth}
                         </Show>
@@ -121,13 +126,17 @@ export default function ResultBody(props: Props) {
                         <Show when={s().latency != null}>
                             <div class="stat">
                                 <dt>{t.reader.statsLatency}</dt>
-                                <dd class="stat-num">{fmtElapsed(s().latency ?? 0)}</dd>
+                                <dd class="stat-num">
+                                    {fmtElapsed(s().latency ?? 0)}
+                                </dd>
                             </div>
                         </Show>
                         <Show when={s().seconds != null}>
                             <div class="stat">
                                 <dt>{t.reader.statsSeconds}</dt>
-                                <dd class="stat-num">{fmtElapsed(s().seconds ?? 0)}</dd>
+                                <dd class="stat-num">
+                                    {fmtElapsed(s().seconds ?? 0)}
+                                </dd>
                             </div>
                         </Show>
                         <Show when={s().failed != null}>

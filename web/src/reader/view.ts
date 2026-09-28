@@ -11,7 +11,8 @@
 
 import type { DualJson, ReaderInfo } from "../api/client";
 
-export type ReaderViewState = "loading" | "pdf" | "html" | "dom" | "files" | "empty";
+export type ReaderViewState =
+    "loading" | "pdf" | "html" | "dom" | "files" | "empty";
 
 export function resolveReaderView(
     // "dom" 判定需要 documents（html artifact url 载体）——Partial 放宽到

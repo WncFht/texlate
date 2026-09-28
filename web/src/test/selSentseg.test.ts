@@ -37,9 +37,7 @@ describe("segmentBlock en", () => {
         );
         const marks = segmentBlock(b.querySelector("[data-chunk]")!, "S1");
         expect(marks).toHaveLength(4);
-        const texts = marks.map((_, i) =>
-            sentenceText(document, marks, i),
-        );
+        const texts = marks.map((_, i) => sentenceText(document, marks, i));
         expect(texts).toEqual([
             "First sentence.",
             "Second longer!",
@@ -85,10 +83,7 @@ describe("segmentBlock en", () => {
         expect(texts).toEqual(["end.Next sentence.", "After that.", "Last"]);
     });
     it("markers are zero-width i.sb with tabindex=-1 role=mark side-named id", () => {
-        const b = pane(
-            "original",
-            `<div data-chunk="S1">First. Second.</div>`,
-        );
+        const b = pane("original", `<div data-chunk="S1">First. Second.</div>`);
         const marks = segmentBlock(b.querySelector("[data-chunk]")!, "S1");
         for (const m of marks) {
             expect(m.marker.tagName).toBe("I");
@@ -135,7 +130,11 @@ describe("segmentBlock zh", () => {
             "translated",
             `<div data-chunk="S1">第一句。 第二句！ 第三句？ 还有； 末句</div>`,
         );
-        const marks = segmentBlock(b.querySelector("[data-chunk]")!, "S1", "zh");
+        const marks = segmentBlock(
+            b.querySelector("[data-chunk]")!,
+            "S1",
+            "zh",
+        );
         const texts = marks.map((_, i) => sentenceText(document, marks, i));
         expect(texts).toEqual([
             "第一句。",
@@ -150,7 +149,11 @@ describe("segmentBlock zh", () => {
             "translated",
             `<div data-chunk="S1">第一句。第二句！末句</div>`,
         );
-        const marks = segmentBlock(b.querySelector("[data-chunk]")!, "S1", "zh");
+        const marks = segmentBlock(
+            b.querySelector("[data-chunk]")!,
+            "S1",
+            "zh",
+        );
         expect(marks).toHaveLength(1);
     });
     it("zh ids carry the pane's data-side (translated)", () => {
@@ -158,7 +161,11 @@ describe("segmentBlock zh", () => {
             "translated",
             `<div data-chunk="S1">第一句。 第二句。</div>`,
         );
-        const marks = segmentBlock(b.querySelector("[data-chunk]")!, "S1", "zh");
+        const marks = segmentBlock(
+            b.querySelector("[data-chunk]")!,
+            "S1",
+            "zh",
+        );
         expect(marks[0]!.marker.id).toBe("sb-translated-S1-0");
     });
 });
@@ -218,9 +225,7 @@ describe("segmentDoc", () => {
             (m) => (m as HTMLElement).id,
         );
         expect(new Set(ids).size).toBe(ids.length); // 双侧同 seq 不撞 id
-        expect(ids.filter((i) => i.startsWith("sb-original-"))).toHaveLength(
-            2,
-        );
+        expect(ids.filter((i) => i.startsWith("sb-original-"))).toHaveLength(2);
         expect(ids.filter((i) => i.startsWith("sb-translated-"))).toHaveLength(
             2,
         );

@@ -44,10 +44,7 @@ describe("DocInfo 文档信息弹层", () => {
 
     it("Escape → onClose", async () => {
         const onClose = vi.fn();
-        dispose = render(
-            () => DocInfo({ store, onClose }),
-            document.body,
-        );
+        dispose = render(() => DocInfo({ store, onClose }), document.body);
         await flush();
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
         expect(onClose).toHaveBeenCalledTimes(1);
@@ -55,10 +52,7 @@ describe("DocInfo 文档信息弹层", () => {
 
     it("非 Escape 键不触发关闭", async () => {
         const onClose = vi.fn();
-        dispose = render(
-            () => DocInfo({ store, onClose }),
-            document.body,
-        );
+        dispose = render(() => DocInfo({ store, onClose }), document.body);
         await flush();
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
         expect(onClose).not.toHaveBeenCalled();

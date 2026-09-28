@@ -171,33 +171,46 @@ describe("selChunks 闭区间 + anchor", () => {
 describe("pdfSeqsForText 归一化段级锚定", () => {
     const dual = {
         chunks: [
-            { seq: 1, en: "The quick brown fox jumps over the lazy dog.", zh: "敏捷的棕毛狐狸跳过懒狗。" },
-            { seq: 2, en: "We prove that the bound is tight for all n greater than three.", zh: "我们证明该界对所有大于三的 n 是紧的。" },
-            { seq: 3, en: "Figure 2 shows the resulting architecture diagram.", zh: "图 2 给出了最终的架构图。" },
+            {
+                seq: 1,
+                en: "The quick brown fox jumps over the lazy dog.",
+                zh: "敏捷的棕毛狐狸跳过懒狗。",
+            },
+            {
+                seq: 2,
+                en: "We prove that the bound is tight for all n greater than three.",
+                zh: "我们证明该界对所有大于三的 n 是紧的。",
+            },
+            {
+                seq: 3,
+                en: "Figure 2 shows the resulting architecture diagram.",
+                zh: "图 2 给出了最终的架构图。",
+            },
         ],
     };
     it("en 侧选区命中相邻段 → 闭区间", () => {
-        const sel = "the lazy dog.   We prove that the bound is tight for all n"; // 跨段+多空格
+        const sel =
+            "the lazy dog.   We prove that the bound is tight for all n"; // 跨段+多空格
         expect(pdfSeqsForText(dual, sel, "en")).toEqual([1, 2]);
     });
     it("智能引号/破折号归一化", () => {
-        const d2 = { chunks: [{ seq: 5, en: "a “quoted” thing—here", zh: "" }] };
-        expect(
-            pdfSeqsForText(d2, 'A "QUOTED" thing—here', "en"),
-        ).toEqual([5]);
+        const d2 = {
+            chunks: [{ seq: 5, en: "a “quoted” thing—here", zh: "" }],
+        };
+        expect(pdfSeqsForText(d2, 'A "QUOTED" thing—here', "en")).toEqual([5]);
     });
     it("zh 侧选区对 zh 文本锚定", () => {
-        expect(
-            pdfSeqsForText(dual, "证明该界对所有大于三的", "zh"),
-        ).toEqual([2]);
+        expect(pdfSeqsForText(dual, "证明该界对所有大于三的", "zh")).toEqual([
+            2,
+        ]);
     });
     it("只命中边界段 → 单段区间；无命中 → 空", () => {
         expect(pdfSeqsForText(dual, "architecture diagram.", "en")).toEqual([
             3,
         ]);
-        expect(
-            pdfSeqsForText(dual, "totally unrelated prose", "en"),
-        ).toEqual([]);
+        expect(pdfSeqsForText(dual, "totally unrelated prose", "en")).toEqual(
+            [],
+        );
     });
     it("空选区/无 chunks → 空", () => {
         expect(pdfSeqsForText(dual, "   ", "en")).toEqual([]);

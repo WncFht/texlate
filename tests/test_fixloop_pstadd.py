@@ -125,7 +125,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
     (tmp_path / "pstricks-add.tex").write_text("% stub\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _BANG_ERR
-    ok, why = actions._cond_ok(
+    ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
         rule(_RULE_ID).condition, rule(_RULE_ID), ctx, None, None
     )
     assert ok, why

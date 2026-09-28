@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench" / "py"))
-
 from kernel import paths
 from kernel.idnorm import (
     AMBIG,

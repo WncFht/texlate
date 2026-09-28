@@ -52,7 +52,7 @@ describe("expFollow 一阶跟随", () => {
         const expected = (v * dt * (1 - a)) / a;
         expect(lag).toBeGreaterThan(expected * 0.95);
         expect(lag).toBeLessThan(expected * 1.05);
-        expect(Math.abs(lag - v / k)).toBeLessThan(v / k * 0.1); // ≈v/k 连续极限
+        expect(Math.abs(lag - v / k)).toBeLessThan((v / k) * 0.1); // ≈v/k 连续极限
 
         x = 0;
         t = 0;

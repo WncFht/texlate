@@ -112,7 +112,9 @@ describe("Home 上传进度条", () => {
         const { input, form, upBtn } = mountHome(Home);
         input.value = "2501.14787";
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
 
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
         await flush();
@@ -128,7 +130,9 @@ describe("Home 上传进度条", () => {
         input.value = "2501.14787";
         input.dispatchEvent(new Event("input", { bubbles: true }));
         const ev = () =>
-            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            form.dispatchEvent(
+                new Event("submit", { bubbles: true, cancelable: true }),
+            );
         ev();
         ev();
         await flush();

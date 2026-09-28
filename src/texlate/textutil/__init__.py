@@ -27,7 +27,7 @@ r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿�
   （validate 不能 import xlat），故宿于底叶。
 - ``osutil``：os 边界小件——``env_flag``/``env_str``/``env_float``/
   ``env_raw``/``env_opt`` 读取族 + ``data_root``/``set_data_dir`` +
-  ``safe_resolve``/``safe_is_file``/``safe_is_dir`` 路径防御 +
+  ``safe_resolve``/``safe_is_file``/``safe_is_dir``/``safe_rel`` 路径防御 +
   ``utc_now``/``filtered_env``/``DEFAULT_BIND_*`` 派生共享件。
 - ``targate``：tar 伪装二进制闸（``_tar_disguised``/``_tar_header_ok``
   ——compile/latex 两层共用，不能锚在消费层）。
@@ -103,6 +103,7 @@ from .nets import (  # noqa: F401
     _RESID_EN_NAME_MIN_TOKENS,
     _RESID_EN_WORD_RX,
     CS_OR_SYM_RX,
+    DANGEROUS_CS,
     JSON_FENCE_RX,
     MATH_CS,
     PH_ANY_LIKE_RX,
@@ -114,6 +115,7 @@ from .nets import (  # noqa: F401
     bare_cs_net,
     cs_events_spans,
     cs_letter_tail_rx,
+    dangerous_cs_net,
     est_tokens,
     lev_capped,
     needs_seam_space,
@@ -134,6 +136,7 @@ from .osutil import (  # noqa: F401
     filtered_env,
     safe_is_dir,
     safe_is_file,
+    safe_rel,
     safe_resolve,
     set_data_dir,
     utc_now,
@@ -149,6 +152,7 @@ __all__ = [
     "CJK_RX",
     "CMD_BOUNDARY",
     "CS_OR_SYM_RX",
+    "DANGEROUS_CS",
     "DEAD_ENVS",
     "DEAD_TAIL_RX",
     "DECL_NAME_RX",
@@ -180,6 +184,7 @@ __all__ = [
     "clean_decl_name",
     "cs_events_spans",
     "cs_letter_tail_rx",
+    "dangerous_cs_net",
     "data_root",
     "dead_end_anchored",
     "dead_env_end",
@@ -206,6 +211,7 @@ __all__ = [
     "residual_en_net",
     "safe_is_dir",
     "safe_is_file",
+    "safe_rel",
     "safe_resolve",
     "scan_ifs",
     "set_data_dir",

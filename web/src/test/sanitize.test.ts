@@ -14,7 +14,7 @@ const render = (md: string) =>
 describe("sanitizeHtml（HtmlPane marked 输出消毒）", () => {
     it("script/事件处理器/javascript: 链接被剥", () => {
         const out = render(
-            'text<script>alert(1)</script>\n\n<img src=x onerror=alert(2)>\n\n[click](javascript:alert(3))',
+            "text<script>alert(1)</script>\n\n<img src=x onerror=alert(2)>\n\n[click](javascript:alert(3))",
         );
         expect(out).not.toContain("<script");
         expect(out).not.toContain("onerror");
@@ -54,7 +54,9 @@ describe("sanitizeHtml（HtmlPane marked 输出消毒）", () => {
 
     it("sanitize 后 KaTeX auto-render 产物完好（.katex/.katex-html 就位）", () => {
         const host = document.createElement("div");
-        host.innerHTML = render("损失函数为 $L = \\sum_i \\ell_i$ 且 $$E = mc^2$$。");
+        host.innerHTML = render(
+            "损失函数为 $L = \\sum_i \\ell_i$ 且 $$E = mc^2$$。",
+        );
         renderMathInElement(host, {
             delimiters: [
                 { left: "$$", right: "$$", display: true },

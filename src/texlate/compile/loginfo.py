@@ -1,9 +1,9 @@
 r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/spec/validate.md）。
 
 行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex、
-单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；事件流物化件
-``ParsedLog``/``parse_events`` 与产生者三支判定 ``producer_tag`` 归
-``compile.logparse``（CompRes stash 缝就绪后同迁 texlog——同一 log
+单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；产生者三支判定
+``producer_tag`` 同归 texlog，事件流物化件 ``ParsedLog``/``parse_events``
+归 ``compile.logparse``（CompRes stash 缝就绪后迁 texlog——同一 log
 引擎侧建一份即供本层/logparse/l2 三面投影）。本模块持语义产物
 （错误计数/首错上下文/红线命中 ``warnings_hit`` 与 ``warnings_sys``
 归因）与 ``classify_error`` 薄适配——匹配语义（head/tail 有序评估、
@@ -29,10 +29,9 @@ from texlate.compile.logparse import (
     ParsedLog,
     Taxonomy,
     parse_events,
-    producer_tag,
 )
 from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
-from texlate.texlog import L_NUM_RE, misschar_sweep_hits
+from texlate.texlog import L_NUM_RE, misschar_sweep_hits, producer_tag
 
 log = logging.getLogger(__name__)
 

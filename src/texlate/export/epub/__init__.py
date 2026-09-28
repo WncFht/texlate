@@ -41,6 +41,7 @@ from .sanitize import _sanitize_dom
 from .serialize import book_soups, save_epub
 from .units import iter_units
 
+# ``_`` 名入 ``__all__`` 是刻意测试缝（test_export_zip_guard/test_export_epub 直引钉参数）——勿按私有死码清
 __all__ = [
     "_EPUB_INFLATED_MAX",
     "_EPUB_MEMBER_MAX",

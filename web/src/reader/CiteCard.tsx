@@ -63,9 +63,7 @@ export default function CiteCard(props: CardProps) {
         };
         // capture 先于 ReaderView 的全局 Esc（帮助层语义无碍——卡优先收）
         document.addEventListener("keydown", onKey, true);
-        onCleanup(() =>
-            document.removeEventListener("keydown", onKey, true),
-        );
+        onCleanup(() => document.removeEventListener("keydown", onKey, true));
     });
 
     return (

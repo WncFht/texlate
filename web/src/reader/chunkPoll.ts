@@ -8,11 +8,7 @@
 // SSE 降级（transport!=live / chunkItems 空）回退旧整窗拉取保正确性。
 // in-flight 闸防慢响应叠拍；最新累积页缓存让迟到的订阅者即取即得。
 
-import {
-    api,
-    type TaskChunkRow,
-    type TaskChunksPage,
-} from "../api/client";
+import { api, type TaskChunkRow, type TaskChunksPage } from "../api/client";
 import { taskStore } from "../stores/tasks";
 
 const POLL_MS = 2500;
@@ -55,9 +51,7 @@ function tick(taskId: string, forceFull = false): Promise<void> {
             // 增量道：SSE 在线且已知块状态——只拉状态翻转的 seq；
             // 未见过的 pending 也算脏（首拍把全窗文本拉齐，含未译段原文）
             const delta =
-                !forceFull &&
-                live?.transport === "live" &&
-                items.length > 0;
+                !forceFull && live?.transport === "live" && items.length > 0;
             if (delta) {
                 const dirty: number[] = [];
                 const itemStatus = new Map<number, string>();

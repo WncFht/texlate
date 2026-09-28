@@ -81,6 +81,7 @@ from texlate.xlat._dialects import (  # noqa: F401 -- 出叶回引：方言编�
     _responses_usage,
     _str_field,
     _usage_int,
+    dialect_headers,
 )
 from texlate.xlat._discovery import (  # noqa: F401 -- 出叶回引：发现链与端点闸迁 _discovery，钉点名守恒
     _LOOPBACK_HOSTS,
@@ -88,6 +89,7 @@ from texlate.xlat._discovery import (  # noqa: F401 -- 出叶回引：发现链�
     DEFAULT_MODEL_DENYLIST,
     DEFAULT_MODEL_PREFERENCE,
     FALLBACK_MAX_CANDIDATES,
+    LOOPBACK_HOSTS,
     PROBE_MAX_TOKENS,
     PROBE_TIMEOUT,
     FreeModel,
@@ -97,6 +99,7 @@ from texlate.xlat._discovery import (  # noqa: F401 -- 出叶回引：发现链�
     fallback_candidates,
     is_free_gateway_url,
     list_models,
+    model_ids_from,
     normalize_base_url,
     panel_models,
     pick_model,
@@ -184,7 +187,7 @@ def provider_for_url(base_url: str) -> str:
         host = (urlsplit(base_url).hostname or "").lower()
     except ValueError:
         host = ""  # 畸形 URL 按未知 host 处理（落空到 "custom"），请求期 InvalidURL→ChatError 再报
-    if host in _LOOPBACK_HOSTS:
+    if host in LOOPBACK_HOSTS:
         return "gateway"
     if host == "api.anthropic.com":
         return "anthropic"

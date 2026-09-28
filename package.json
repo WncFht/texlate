@@ -1,8 +1,8 @@
 {
     "private": true,
     "scripts": {
-        "format": "prettier --write \"**/*.md\" \"**/*.{yaml,yml}\" \"**/*.{js,mjs,cjs,json}\"",
-        "format:check": "prettier --check \"**/*.md\" \"**/*.{yaml,yml}\" \"**/*.{js,mjs,cjs,json}\"",
+        "format": "prettier --write \"**/*.md\" \"**/*.{yaml,yml}\" \"**/*.{js,mjs,cjs,ts,tsx,json,css,html}\"",
+        "format:check": "prettier --check \"**/*.md\" \"**/*.{yaml,yml}\" \"**/*.{js,mjs,cjs,ts,tsx,json,css,html}\"",
         "lint:md": "markdownlint-cli2 \"**/*.md\"",
         "lint:py": "ruff format --check . && ruff check .",
         "lint:js": "eslint . --max-warnings 0"

@@ -397,7 +397,8 @@ export const t = {
         baseUrl: "Base URL",
         model: "模型",
         dialect: "API 方言",
-        dialectHint: "auto 按端点识别；仅异形端点（responses-only 反代等）需手选",
+        dialectHint:
+            "auto 按端点识别；仅异形端点（responses-only 反代等）需手选",
         dialectAuto: "自动",
         targetLang: "目标语言",
         glossary: "术语表",
@@ -431,7 +432,8 @@ export const t = {
         langEn: "English",
         floatbar: "划词浮条",
         floatbarHint: "选中文字后弹出快捷操作条（复制 / 双语对照 / 查找）",
-        cursorHint: "阅读器内按 v 进入句游标：j/k 逐句移动，Enter 选句，t 看对侧译文，c 复制",
+        cursorHint:
+            "阅读器内按 v 进入句游标：j/k 逐句移动，Enter 选句，t 看对侧译文，c 复制",
         // === sent-align / 通知（Wave C lanes） ===
         sentAlign: "句级双语对位",
         sentAlignHint: "阅读器内悬停高亮双语对应句，点击跳到对侧位置",

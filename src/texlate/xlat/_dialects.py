@@ -207,6 +207,17 @@ def _anthropic_headers(api_key: str) -> dict[str, str]:
     }
 
 
+def dialect_headers(dialect: str, api_key: str) -> dict[str, str]:
+    """生效方言 → 鉴权头分派——``anthropic`` 走 ``x-api-key``，其余 Bearer。
+
+    ``ChatClient._request_plan`` 与外部探活面（cli ``doctor``）的同口径件；
+    空 key 语义由各方言头函数自理（openai 不发头、anthropic 发空值）。
+    """
+    if dialect == "anthropic":
+        return _anthropic_headers(api_key)
+    return _openai_headers(api_key)
+
+
 def _anthropic_body(
     model: str,
     messages: list[dict[str, str]],

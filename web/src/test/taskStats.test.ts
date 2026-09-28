@@ -12,12 +12,16 @@ describe("mergeResultStats（done.stats 优先 + counters/usage 兜底）", () =
     });
 
     it("usage 细分透传：calls/prompt/completion/latency 各字段独立", () => {
-        const r = mergeResultStats(undefined, { tokens: 9100 }, {
-            calls: 24,
-            prompt_tokens: 6100,
-            completion_tokens: 3000,
-            latency_s: 41.6,
-        });
+        const r = mergeResultStats(
+            undefined,
+            { tokens: 9100 },
+            {
+                calls: 24,
+                prompt_tokens: 6100,
+                completion_tokens: 3000,
+                latency_s: 41.6,
+            },
+        );
         expect(r).toMatchObject({
             tokens: 9100,
             calls: 24,
@@ -28,8 +32,16 @@ describe("mergeResultStats（done.stats 优先 + counters/usage 兜底）", () =
     });
 
     it("无 done 帧时 counters 兜底 tokens/failed", () => {
-        const r = mergeResultStats(undefined, { tokens: 1200, failed: 3 }, undefined);
-        expect(r).toMatchObject({ tokens: 1200, failed: 3, seconds: undefined });
+        const r = mergeResultStats(
+            undefined,
+            { tokens: 1200, failed: 3 },
+            undefined,
+        );
+        expect(r).toMatchObject({
+            tokens: 1200,
+            failed: 3,
+            seconds: undefined,
+        });
     });
 
     it("三源全缺席 → null（stat-strip 不渲染）", () => {

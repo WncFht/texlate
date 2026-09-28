@@ -6,37 +6,17 @@
 // 用法: TASK=t_xxx WEB_BASE=http://127.0.0.1:8765 \
 //       node scripts/sentalign_depth_probe.mjs   (cwd=web/scripts)
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { info, launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const TASK = process.env.TASK ?? "t_1f616ca071d9ac97";
 const DEPTH = Number(process.env.DEPTH ?? "0.65");
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
-const PW_TMP = join(homedir(), ".cache/pw-tmp");
-mkdirSync(PW_TMP, { recursive: true });
 
 const MC = 50000;
 const DIR = process.env.DIRECTION ?? "en2zh"; // zh2en = 反向臂
 const SRC = DIR === "zh2en" ? "translated" : "original";
 const DST = DIR === "zh2en" ? "original" : "translated";
-const info = (s) => console.log(`INFO  ${s}`);
 
 // en 侧逐屏扫出首个「够高 marked 段」：返点击点（首行 + DEPTH 深处）与块几何
 const pickTall = (seqposJson, depth) => `(async () => {
@@ -169,10 +149,9 @@ const run = async () => {
     const seqpos = readerInfo.seqpos ?? {};
     info(`task=${TASK} seqpos=${Object.keys(seqpos).length}`);
 
-    const browser = await chromium.launch({
-        executablePath: EXE,
+    const browser = await launch({
         args: ["--disable-dev-shm-usage", "--no-sandbox"],
-        env: { ...process.env, TMPDIR: PW_TMP },
+        tmp: true,
     });
     const page = await browser.newPage({
         viewport: { width: 1680, height: 1000 },

@@ -179,6 +179,18 @@ _MIRROR_PREFIX_RE: Final = re.compile(
 _EXT_RE: Final = re.compile(r"\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$", re.IGNORECASE)
 _TAILNOTE_RE: Final = re.compile(r"\s*\[[^\]]{1,20}\]\s*$", re.ASCII)
 
+#: 自由文本 arXiv id 抽取器单源（``findall`` 友好：唯一捕获组 = 裸 id
+#: base，钉版 ``vN`` 匹配但不入组）。形状 = ``_OLD_ID_RE`` 的 classful
+#: 容忍形（``math.QA/0309136`` 也中）∪ 新形 ``YYMM.NNNNN``——与 canon
+#: 的「剥离+校验」分工不同：本件只管在自由文本里捞出候选串，上下文
+#: 前缀闸归消费方（``bibexport.extract_ids`` 的 arxiv.org/arXiv: 臂）。
+#: 其余已知消费点 bench/py booster/iclr_map/corpus_hot/_layoutqc 待接线。
+ARXIV_ID_FIND_RX: Final = re.compile(
+    r"\b([A-Za-z-]+(?:\.[A-Za-z][A-Za-z-]*)?/\d{7}|\d{4}\.\d{4,5})"
+    r"(?:[vV]\d{1,3})?\b",
+    re.ASCII,
+)
+
 
 class CanonError(ValueError):
     """canon 拒收——``reason`` ∈ bad_shape|bad_month|bad_era|bad_version|unsafe。"""

@@ -12,15 +12,13 @@ metrics.qc_wanted。
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import pytest
+    from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench" / "py"))
+    import pytest
 
 from kernel import events
 from kernel.ctx import Ctx

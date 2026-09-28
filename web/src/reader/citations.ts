@@ -12,6 +12,7 @@
 
 import type { DualJson } from "../api/client";
 import type { RefMeta } from "../api/types";
+import { canonArxivKey } from "../arxidcanon";
 import { PH_TOKEN_RX, phText, RESIDUE_RULES } from "./markdown";
 
 export type { RefMeta };
@@ -61,8 +62,7 @@ export function extractRefIds(text: string): {
         ) ?? /\b(\d{4}\.\d{4,5})(?:v\d+)?\b/.exec(text);
     if (m1) {
         const id = m1[1];
-        if (id.includes("/") || validNewArxivId(id.slice(0, 4)))
-            arxivId = id;
+        if (id.includes("/") || validNewArxivId(id.slice(0, 4))) arxivId = id;
     }
     // 裸 DOI 臂（cite-translate §数据底盘：36.3%→43.3%）：\doi{}/\mn@doi{}/
     // doi={} 等不带 doi.org/doi: 前缀的形——5,325 条（7.1%）此前全漏。
@@ -76,50 +76,11 @@ export function extractRefIds(text: string): {
 
 /**
  * arXiv/DOI id 匹配键（cite-translate 双侧 canon——条目侧与 task 行
- * arxiv_id 两侧都过本函数才比）：剥 URL/arXiv:/DOI/OAI 前缀、?# 尾、
- * 尾注 [class]、下载扩展名、vN 钉版、safe_id `--`→`/` 回流、旧式
- * class（archive.CLASS/NNNNNNN → archive/NNNNNNN）、全小写。
- * 校验非职责——坏输入只是匹配不上（strict canon 是 parseArxivId/服务端
- * normalize_arxiv_id 的事）；与 tasks.ts canonArxivKey 同管线、有意平行：
- * stores←reader 方向不允许 import，共享 canon 单源化是 misc-pack M2
- * 后续项（tmp/ux-research-20260922/arxiv-id-canon-spec.md）。
+ * arxiv_id 两侧都过本函数才比）：canonArxivKey（arxidcanon.ts 单源）的
+ * 本域惯名别名。校验非职责——坏输入只是匹配不上（strict canon 是
+ * parseArxivId/服务端 normalize_arxiv_id 的事）。
  */
-export function canonRefId(raw: string | undefined | null): string {
-    if (raw == null) return "";
-    let s = String(raw).trim();
-    if (!s) return "";
-    // 存储拼写回流：`--` 不可能出现在合法 id 内，unfold 无歧义
-    s = s.replace(/--/g, "/");
-    // 前缀循环至不动点（URL/DOI/OAI/arXiv: 可叠套）
-    for (;;) {
-        const prev = s;
-        s = s.replace(
-            /^(?:https?:\/\/)?[\w.-]*arxiv\.org\/(?:abs|pdf|src|e-print|html|format)\/+/i,
-            "",
-        );
-        s = s.replace(/^https?:\/\/(?:dx\.|www\.)?doi\.org\//i, "");
-        s = s.replace(/^doi:\s*/i, "");
-        s = s.replace(/^10\.48550\/arxiv\./i, "");
-        s = s.replace(/^oai\s*:\s*arxiv\.org\s*:\s*/i, "");
-        s = s.replace(/^arxiv\s*[:.]\s*/i, "");
-        if (s === prev) break;
-    }
-    s = s.replace(/[?#].*$/, ""); // ?query/#frag 尾
-    s = s.replace(/[\s/]+$/, ""); // 尾 "/" 与空白
-    s = s.replace(/\s*\[[^\]]{1,20}\]\s*$/, ""); // [cs.CL] 引用尾注
-    for (;;) {
-        const prev = s;
-        s = s.replace(/\.(pdf|ps|eps|dvi|gz|tgz|tar\.gz)$/i, "");
-        if (s === prev) break;
-    }
-    s = s.replace(/^(.+?)[vV](\d{1,3})$/, "$1"); // 版本尾 vN
-    // 旧式 base 剥 class + archive 小写（math.GT/0309136 → math/0309136）
-    s = s.replace(
-        /^([-a-zA-Z]+)(?:\.[A-Za-z][A-Za-z-]*)?\/(\d{7})$/,
-        (_m, a: string, d: string) => `${a.toLowerCase()}/${d}`,
-    );
-    return s.toLowerCase();
-}
+export const canonRefId = canonArxivKey;
 
 /** 文本级掩码解析 + 排版残件清理（unmaskLatex 的纯字符串对应物） */
 function cleanBibText(raw: string, ph: Record<string, string>): string {
@@ -145,11 +106,17 @@ export function buildCiteIndex(dual: DualJson | null | undefined): CiteIndex {
         const en = c.en ?? "";
         // chunk 内全部掩码 token 的出现序——BIB token 的条目正文终点是
         // 下一个 BIB token 起点（跨 chunk 的尾条在 chunk 尾截断）
-        const toks: { idx: number; end: number; kind: string; n: string }[] = [];
+        const toks: { idx: number; end: number; kind: string; n: string }[] =
+            [];
         PH_TOKEN_RX.lastIndex = 0;
         let m: RegExpExecArray | null;
         while ((m = PH_TOKEN_RX.exec(en)))
-            toks.push({ idx: m.index, end: m.index + m[0].length, kind: m[1], n: m[2] });
+            toks.push({
+                idx: m.index,
+                end: m.index + m[0].length,
+                kind: m[1],
+                n: m[2],
+            });
         for (let i = 0; i < toks.length; i++) {
             const tk = toks[i];
             if (tk.kind !== "BIB") continue;
@@ -160,7 +127,11 @@ export function buildCiteIndex(dual: DualJson | null | undefined): CiteIndex {
             const key = km[2].trim();
             const nextBib = toks.slice(i + 1).find((t) => {
                 const b = ph[`[[${t.kind}_${t.n}]]`];
-                return t.kind === "BIB" && b != null && BIBITEM_VAL_RX.test(b.trim());
+                return (
+                    t.kind === "BIB" &&
+                    b != null &&
+                    BIBITEM_VAL_RX.test(b.trim())
+                );
             });
             const rawText = en.slice(tk.end, nextBib?.idx ?? en.length);
             const text = cleanBibText(rawText, ph);
@@ -338,6 +309,9 @@ export async function extractBibAtDest(
         picked.push(ln.str);
         prevY = ln.y;
     }
-    const text = picked.join(" ").replace(/\s{2,}/g, " ").trim();
+    const text = picked
+        .join(" ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
     return text ? { text } : null;
 }

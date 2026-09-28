@@ -13,11 +13,10 @@
 
 from __future__ import annotations
 
-import io
-import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _exportkit import _epub, _write_epub
 from docx import Document
 from typer.testing import CliRunner
 
@@ -35,56 +34,10 @@ if TYPE_CHECKING:
 
 _RUNNER = CliRunner()
 
-_CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-"""
-
-_XHTML_TMPL = """<?xml version="1.0" encoding="utf-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>t</title></head>
-<body>{body}</body>
-</html>
-"""
-
 #: 术语必须真实出现在文档正文——``doc_filter`` 按词边界过滤，缺席词不进 prompt。
 _BODY = "<p>The transformer architecture relies on attention.</p>"
 _TERM_LINE = "- transformer: 变形金刚"
-
-
-def _epub(body: str = _BODY) -> bytes:
-    """最小合法 EPUB zip：mimetype + container + OPF + 单章。"""
-    opf = """<?xml version="1.0"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bid">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="bid">test-book</dc:identifier>
-    <dc:title>Test</dc:title>
-    <dc:language>en</dc:language>
-  </metadata>
-  <manifest>
-    <item id="c0" href="ch1.xhtml" media-type="application/xhtml+xml"/>
-  </manifest>
-  <spine>
-    <itemref idref="c0"/>
-  </spine>
-</package>
-"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", _CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", opf)
-        z.writestr("OEBPS/ch1.xhtml", _XHTML_TMPL.format(body=body))
-    return buf.getvalue()
-
-
-def _write_epub(tmp_path: Path, body: str = _BODY) -> Path:
-    src = tmp_path / "book.epub"
-    src.write_bytes(_epub(body))
-    return src
+_CH1 = {"ch1.xhtml": _BODY}
 
 
 def _make_docx(path: Path, paras: list[str]) -> Path:
@@ -156,7 +109,7 @@ class TestCoerceGlossary:
 
 class TestGlossaryReachesPrompt:
     def test_epub_dict_terms_in_system(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         tr = MockTranslator()
         export_document(
             src, tmp_path / "out.epub", tr, glossary={"transformer": "变形金刚"}
@@ -165,7 +118,7 @@ class TestGlossaryReachesPrompt:
         assert all(_TERM_LINE in s for s in _systems(tr))
 
     def test_epub_path_terms_in_system(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         gfile = tmp_path / "g.yaml"
         gfile.write_text("transformer: 变形金刚\n", encoding="utf-8")
         tr = MockTranslator()
@@ -173,7 +126,7 @@ class TestGlossaryReachesPrompt:
         assert any(_TERM_LINE in s for s in _systems(tr))
 
     def test_epub_glossary_instance(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         g = Glossary(
             terms={"transformer": TermEntry("transformer", "变形金刚", "user")}
         )
@@ -183,7 +136,10 @@ class TestGlossaryReachesPrompt:
 
     def test_epub_placeholder_terms_in_system(self, tmp_path: Path) -> None:
         """spec-xlat#10：export 链占位符恒等注入——``[[IMG_n]]`` marker 进尾块。"""
-        src = _write_epub(tmp_path, "<p>Text <img src='i.png'/> tail.</p>")
+        src = _write_epub(
+            tmp_path,
+            _epub({"ch1.xhtml": "<p>Text <img src='i.png'/> tail.</p>"}, ncx=False),
+        )
         tr = MockTranslator()
         export_document(src, tmp_path / "out.epub", tr)
         assert _systems(tr)
@@ -201,7 +157,7 @@ class TestGlossaryReachesPrompt:
 
     def test_term_absent_from_doc_not_in_prompt(self, tmp_path: Path) -> None:
         """文档级过滤：词条未在正文出现 → 不进 system prompt（逐字节恒定）。"""
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         tr = MockTranslator()
         export_document(
             src, tmp_path / "out.epub", tr, glossary={"perceptron": "感知机"}
@@ -210,14 +166,14 @@ class TestGlossaryReachesPrompt:
         assert all("perceptron" not in s for s in _systems(tr))
 
     def test_no_glossary_no_block(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         tr = MockTranslator()
         translate_epub(src, tmp_path / "out.epub", tr)
         assert _systems(tr)
         assert all("<Glossary>" not in s for s in _systems(tr))
 
     def test_export_document_bad_path_raises(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         with pytest.raises(ExportError, match="glossary"):
             export_document(
                 src,
@@ -232,7 +188,7 @@ class TestCliGlossary:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """--glossary 接线直证：translator 抓在本地，prompt 里查到词条。"""
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         gfile = tmp_path / "g.yaml"
         gfile.write_text("transformer: 变形金刚\n", encoding="utf-8")
         tr = MockTranslator()
@@ -246,7 +202,7 @@ class TestCliGlossary:
         assert any(_TERM_LINE in s for s in _systems(tr))
 
     def test_missing_glossary_exit_1(self, tmp_path: Path) -> None:
-        src = _write_epub(tmp_path)
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         result = _RUNNER.invoke(
             app,
             ["export", str(src), "--mock", "--glossary", str(tmp_path / "no.yaml")],

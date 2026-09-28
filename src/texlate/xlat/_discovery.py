@@ -73,7 +73,10 @@ class FreeModel:
 
 # ---------------------------------------------------------------- 端点归一/闸判定
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+#: 旧私有钉点名兼容件——``texlate.xlat.client._LOOPBACK_HOSTS`` 回引面与
+#: 存量 import 锚点（server.validate/http 旧写法）转口期保留；新消费一律公开名
+_LOOPBACK_HOSTS = LOOPBACK_HOSTS
 #: tailnet CGNAT 段（与 ``settings._is_plaintext_ok_host`` 同信任域——
 #: 自有网段上跑的只会是部署方自有服务，探活打过去不烧第三方 quota）
 _TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
@@ -102,7 +105,7 @@ def is_free_gateway_url(base_url: str) -> bool:
         host = (urlsplit(normalize_base_url(base_url)).hostname or "").lower()
     except ValueError:
         return False  # 畸形 URL 必非内置网关——发现/探活面零放行
-    if host in _LOOPBACK_HOSTS or host.endswith(".ts.net"):
+    if host in LOOPBACK_HOSTS or host.endswith(".ts.net"):
         return True
     try:
         return ipaddress.ip_address(host) in _TAILNET_V4
@@ -143,7 +146,7 @@ async def _get_json(client: ChatClient, path: str) -> tuple[Any, str]:
         raise MalformedResponseError(msg) from e
 
 
-def _model_ids_from(items: object) -> list[str] | None:
+def model_ids_from(items: object) -> list[str] | None:
     """``/v1/models`` 的 ``data`` 成员 → 模型 id 列；非 list 回 ``None``。
 
     ``list_models``（上方）与 ``server.providers.list_provider_models``
@@ -155,6 +158,10 @@ def _model_ids_from(items: object) -> list[str] | None:
     return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
 
 
+#: 旧私有钉点名兼容件——存量 import 锚点转口期保留；新消费一律公开名
+_model_ids_from = model_ids_from
+
+
 async def list_models(client: ChatClient) -> list[str]:
     """`GET /v1/models` → 模型 id 列表。"""
     data, snippet = await client._get_json("/v1/models")  # noqa: SLF001 -- 出叶委托面（同模块实现组）
@@ -163,7 +170,7 @@ async def list_models(client: ChatClient) -> list[str]:
         raise MalformedResponseError(msg)
     # ``or []``：``data`` 缺失/None/空值按空集过闸（非畸形）——与 providers
     # 侧 ``data.get("data")`` 直取的 None 失败口径刻意不同，勿并
-    ids = _model_ids_from(data.get("data") or [])
+    ids = model_ids_from(data.get("data") or [])
     if ids is None:
         msg = f"unexpected data field: {snippet}"
         raise MalformedResponseError(msg)

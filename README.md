@@ -113,11 +113,13 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 
 ## 仓库布局
 
-- `src/texlate/` — 产品代码：`arxiv/` 获取层、`latex/` 半解析管线、`xlat/` 翻译编排、`validate/` L0/L1/L2、`compile/` 引擎+fixloop、`server/` Web 后端、`export/`、`cli.py`
+- `src/texlate/` — 产品代码：`arxiv/` 获取层、`latex/` 半解析管线、`xlat/` 翻译编排、`validate/` L0/L1/L2、`compile/` 引擎+fixloop、`server/` Web 后端、`export/`、`cli/` 命令行包
 - `web/` — SolidJS+Vite+pdfslick 阅读器（独立 package.json；`npx tsc --noEmit && npx eslint . && npx vitest run`）
+- `zotero/` — Zotero 7 插件（TypeScript 瘦客户端，调远端 texlate 服务）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有守卫，干净 clone 全绿）
 - `docs/` — [`docs/README.md`](docs/README.md) 总索引，六分区：`guide/` 用户文档 + `spec/` 技术规范（实现唯一事实源）+ `decisions/` ADR 决策史 + `dev/` 贡献者文档 + `research/` 调研档案 + `log/` 工程日志；维护规则 [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md)
-- `bench/` — 评测 harness（`TIERS.md` 分层契约 + `docs/spec/benchmark.md` 评测器规格；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/corpus/` 三件套（`build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）重建）
+- `bench/` — 评测 harness（`TIERS.md` 分层契约 + `docs/spec/benchmark.md` 评测器规格 + `docs/spec/bench-trizone.md` 三区账本设计；`py/`=trizone 内核 `kernel/` + 评测 `specs/` + 分析 `verbs/`，统一入口 `bench/py/bench`；`corpus/` 语料清单入库、载荷与产物在 `$TEXLATE_BENCH_ROOT`（缺省 `~/.local/share/texlate-bench`）的 lake/runs/vault 区）
+- `tools/` — tracked 诊断/度量脚本（`tools/README.md` 逐件登记）
 - `Dockerfile` / `.github/workflows/` — 容器形态与 CI（pre-commit 同源）
 
 ## 开发
@@ -134,9 +136,9 @@ pre-commit 前置工具：`npm install` + `autocorrect ruff shfmt shellcheck act
 
 ## License
 
-Apache-2.0（见 LICENSE）。`compile/fixloop/vendor/files/` 内第三方期刊宏包各随其原许可、`vendor/stubs/` 为本项目净室实现——逐件说明见 NOTICE。
+Apache-2.0（见 LICENSE）。`compile/fixloop/vendor/files/` 内第三方期刊宏包各随其原许可、`vendor/stubs/` 与 `vendor/shims/` 为本项目净室实现——逐件说明见 NOTICE。
 
 ## 致谢
 
-- [hjfy.top](https://hjfy.top/)（吴多益）——产品原型与全部关键设计共识（实现自述：[知乎原文](https://zhuanlan.zhihu.com/p/1905569596599169419)，产品侦察 `docs/research/product/hjfy-site.md`）
+- [hjfy.top](https://hjfy.top/)（吴多益）——产品原型与全部关键设计共识（实现自述：[知乎原文](https://zhuanlan.zhihu.com/p/1905569596599169419)，产品侦察 `docs/research/product/2026-09-14-hjfy-site.md`）
 - [ieeA](https://github.com/zcyisiee/ieeA)——参考实现，借鉴模式

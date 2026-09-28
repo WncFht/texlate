@@ -31,14 +31,22 @@ describe("findCountText", () => {
     const NONE = "无匹配";
 
     it("notFound → noneLabel", () => {
-        expect(findCountText(FIND_STATE.notFound, { current: 0, total: 0 }, NONE)).toBe(NONE);
+        expect(
+            findCountText(FIND_STATE.notFound, { current: 0, total: 0 }, NONE),
+        ).toBe(NONE);
         // 即使 count 陈旧，notFound 优先
-        expect(findCountText(FIND_STATE.notFound, { current: 3, total: 9 }, NONE)).toBe(NONE);
+        expect(
+            findCountText(FIND_STATE.notFound, { current: 3, total: 9 }, NONE),
+        ).toBe(NONE);
     });
 
     it("有匹配 → current/total", () => {
-        expect(findCountText(FIND_STATE.found, { current: 3, total: 12 }, NONE)).toBe("3/12");
-        expect(findCountText(FIND_STATE.wrapped, { current: 1, total: 12 }, NONE)).toBe("1/12");
+        expect(
+            findCountText(FIND_STATE.found, { current: 3, total: 12 }, NONE),
+        ).toBe("3/12");
+        expect(
+            findCountText(FIND_STATE.wrapped, { current: 1, total: 12 }, NONE),
+        ).toBe("1/12");
     });
 
     it("无结果集/pending → 空串", () => {
@@ -50,7 +58,9 @@ describe("findCountText", () => {
 
 describe("outlineColor", () => {
     it("三通道 → rgb()；缺省 → undefined", () => {
-        expect(outlineColor(new Uint8ClampedArray([255, 0, 0]))).toBe("rgb(255, 0, 0)");
+        expect(outlineColor(new Uint8ClampedArray([255, 0, 0]))).toBe(
+            "rgb(255, 0, 0)",
+        );
         expect(outlineColor([0, 0, 0])).toBe("rgb(0, 0, 0)");
         expect(outlineColor(null)).toBeUndefined();
         expect(outlineColor(undefined)).toBeUndefined();
@@ -98,8 +108,12 @@ describe("fmtDate", () => {
 
 describe("annotFileName（带批注副本文件名）", () => {
     it("{task}-{en|zh}-annotated.pdf", () => {
-        expect(annotFileName("t_abc", "original")).toBe("t_abc-en-annotated.pdf");
-        expect(annotFileName("t_abc", "translated")).toBe("t_abc-zh-annotated.pdf");
+        expect(annotFileName("t_abc", "original")).toBe(
+            "t_abc-en-annotated.pdf",
+        );
+        expect(annotFileName("t_abc", "translated")).toBe(
+            "t_abc-zh-annotated.pdf",
+        );
     });
 });
 

@@ -48,8 +48,16 @@ export const mkPaneStub = (className: string) => () => {
 export const shareReaderInfo = (tid: string): ReaderInfo => ({
     view: "pdf",
     documents: {
-        original: { version: "v-en", pages: 3, url: `/api/files/${tid}/en.pdf` },
-        translated: { version: "v-zh", pages: 4, url: `/api/files/${tid}/zh.pdf` },
+        original: {
+            version: "v-en",
+            pages: 3,
+            url: `/api/files/${tid}/en.pdf`,
+        },
+        translated: {
+            version: "v-zh",
+            pages: 4,
+            url: `/api/files/${tid}/zh.pdf`,
+        },
     },
     reading: null,
 });

@@ -164,7 +164,11 @@ describe("Reader「分享本译文」调用与结果态", () => {
 
     it("409 invalid_state → 可读错误「任务未终态」", async () => {
         mocks.sharePack.mockRejectedValue(
-            new ApiError(409, "任务状态 translating：仅 done/partial 终态可打包", "invalid_state"),
+            new ApiError(
+                409,
+                "任务状态 translating：仅 done/partial 终态可打包",
+                "invalid_state",
+            ),
         );
         mount();
         await settle();
@@ -177,19 +181,29 @@ describe("Reader「分享本译文」调用与结果态", () => {
 
     it("422 share_pack_rejected → 「该任务不可共享」", async () => {
         mocks.sharePack.mockRejectedValue(
-            new ApiError(422, "任务无 arxiv_id（不参与共享寻址）", "share_pack_rejected"),
+            new ApiError(
+                422,
+                "任务无 arxiv_id（不参与共享寻址）",
+                "share_pack_rejected",
+            ),
         );
         mount();
         await settle();
         openShare();
         clickShare();
         await settle();
-        expect(q(".share-err")?.textContent).toContain(t.reader.shareErrRejected);
+        expect(q(".share-err")?.textContent).toContain(
+            t.reader.shareErrRejected,
+        );
     });
 
     it("422 share_pack_artifacts → 「产物未齐」并附服务端 detail", async () => {
         mocks.sharePack.mockRejectedValue(
-            new ApiError(422, "缺必需产物: ['zh-src.zip']", "share_pack_artifacts"),
+            new ApiError(
+                422,
+                "缺必需产物: ['zh-src.zip']",
+                "share_pack_artifacts",
+            ),
         );
         mount();
         await settle();

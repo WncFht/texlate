@@ -13,6 +13,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from _exportkit import _zip_only
 from conftest import live_app, make_app, task_events, upload, wait_terminal
 from starlette.testclient import TestClient
 
@@ -40,11 +41,9 @@ def _docx() -> bytes:
 
 def _epub() -> bytes:
     """最小 epub 魔数载荷（mimetype=application/epub+zip → _zip_kind→epub）。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("mimetype", "application/epub+zip")
-        zf.writestr("OEBPS/content.opf", "<package/>")
-    return buf.getvalue()
+    return _zip_only(
+        {"mimetype": "application/epub+zip", "OEBPS/content.opf": "<package/>"}
+    )
 
 
 def _task_kind(client: TestClient, task_id: str) -> str:

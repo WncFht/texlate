@@ -13,9 +13,7 @@ import { makeChunkResolver } from "./coveredChunks";
 type SelLike = Pick<Selection, "rangeCount" | "getRangeAt"> | null;
 
 /** 复制口径文本：逐 range cloneContents().textContent（多 range 拼接）。 */
-export function selectionCopyText(
-    rangeOrSel: Range | SelLike,
-): string {
+export function selectionCopyText(rangeOrSel: Range | SelLike): string {
     if (!rangeOrSel) return "";
     if ("getRangeAt" in rangeOrSel) {
         let out = "";

@@ -19,7 +19,7 @@
 
 - 核心层三十年均匀抽样保证长尾覆盖正确性（astro-ph→cs 全 cat_group），hot 层补需求轴（首日 72 篇 CS 占 51% vs 核心层 18%——负载分布实证差异）。
 - pdf_only 是真实负载固有类：hot 层取源 13–28% 候选无 TeX 源，记录 `fetch_fail.jsonl` 不删——分布证据本身有值。
-- 证据：主仓 `bench/corpus/MANIFEST.md`（含四层扩层收官记录与 QC）、`docs/09` S0–S5 抽样管线；调研档案 `research/corpus/v3-plan.md`、`research/corpus/frame-and-allocation.md`。
+- 证据：主仓 `bench/corpus/MANIFEST.md`（含四层扩层收官记录与 QC）、`docs/09` S0–S5 抽样管线（原编号档已随 2026-09-20 文档库重建撤编，后继 `docs/spec/corpus.md`）；调研档案 `research/corpus/v3-plan.md`、`research/corpus/frame-and-allocation.md`。
 
 ## 演变
 
@@ -27,7 +27,9 @@
 - 2026-09-16→17：expand 3866 + hot 166 增补，合计 5232（勘误链：原记 5133，后核 5232，再核八层 13,266）。
 - 2026-09-19：评测/dev 分轨扩层 +8,034（holdout/dev_vol/dev_failmine/dev_recent），八层 13,266 篇 · 46GB；并发事故留痕（supp 清单互没去重 + cell-adoption 不分层 → 5 id 跨层双落，已清账修管线）。
 - 2026-09-20：**七库合一**——`bench/corpus/` 成唯一物理根（~14k 篇 · 54.9G），corpus_v2/corpus_m1k/corpus_iclr 树 rename 并入（947 搬移 + 251 去重 + 3 冲突版本双保留进 `_alt-versions/`），兼容壳 symlink 拆除；`corpus_daily`（滚动 soak）与 `corpus_iclr_pdf`（PDF 产物库）生命周期不同不并入。物理拆分至 `corpus_v3/`/`corpus_m1k/`/`corpus_v2/` 独立根的再分层在途（以 `dev/repository.md` 与 MANIFEST 实数为准）。
+- 2026-09-21：`corpus_daily` 滚动层整体下线删除（`daily_arxiv` 管线同撤）。
+- 2026-09-23（Wave-F/trizone-ledger v2）：「再分层在途」由 trizone 口径实质取代——不走分库目录，改清单/数据分离：`bench/corpus/` 只留 tracked manifest 与台账，物化载荷迁仓外 `$TEXLATE_BENCH_ROOT/lake/corpus/`；构建管线重写为 `bench/py/specs/corpus_*.py` spec；`benchlib.EVAL_ONLY_LAYERS` 治理件随 benchlib 删除，EVAL_ONLY 口径移 `kernel/spec.py::EVAL_LAYERS`（`{"holdout","eval_only"}`，spec 须声明 `eval=True` 才进帧）。
 
 ## 现状
 
-物理根 `bench/corpus/`：层 manifest（v1/v2/core/booster/expand/hot/holdout/dev_vol/dev_failmine/dev_recent/m1k-*/iclr）+ `mechanisms.jsonl` + `nominations/` + `eval_coverage.json`（B04/B06 覆盖簿记）；管线 `bench/py/corpus/build_corpus_{v2,v3,layers,expand,m1k}.py` + `build_sw_layer.py` + `build_hot_layer.py` + `daily_arxiv.py`；治理件 `benchlib.EVAL_ONLY_LAYERS`。滚动层 `bench/corpus_daily/`（每日增删不并入）。
+清单根 `bench/corpus/`：层 manifest（v1/v2/core/booster/expand/hot/holdout/dev_vol/dev_failmine/dev_recent/m1k-*/iclr）+ `mechanisms.jsonl` + `nominations/` + `eval_coverage.json`（B04/B06 覆盖簿记）——trizone 后只存 tracked 清单与台账，物化载荷在仓外 `$TEXLATE_BENCH_ROOT/lake/corpus/`；构建管线 `bench/py/specs/`（`frame_build` + `corpus_{v3,layers,expand,hot,sw,hydrate}`，`bench run <spec>` 入口；v2/m1k 系一次性构建无 spec 继任）；治理件 `kernel/spec.py::EVAL_LAYERS`（holdout/eval_only 层仅 `eval=True` spec 进帧）。滚动层 `bench/corpus_daily/` 已退役（2026-09-21）。

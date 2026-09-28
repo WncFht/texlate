@@ -106,9 +106,7 @@ export function ctxName(t: EventTarget | null): string {
     if (he.tagName === "A") return "link";
     if (he.tagName === "BUTTON") return "btn";
     if (he.closest?.(".pane")) return "viewer";
-    return he.className
-        ? String(he.className).split(" ")[0]!
-        : he.tagName;
+    return he.className ? String(he.className).split(" ")[0]! : he.tagName;
 }
 
 export function attachReaderKeys(
@@ -120,8 +118,7 @@ export function attachReaderKeys(
         hooks.inFindbar ??
         ((t: EventTarget | null) =>
             !!(t as Element | null)?.closest?.(".findbar"));
-    const hasSelection =
-        hooks.hasSelection ?? (() => hasLiveSelection(doc));
+    const hasSelection = hooks.hasSelection ?? (() => hasLiveSelection(doc));
     const onCite =
         hooks.onCite ??
         ((t: EventTarget | null) =>
@@ -247,10 +244,7 @@ export function attachReaderKeys(
             return;
         }
         // 10. pdf.js 编辑器选中态占有 Backspace/Delete
-        if (
-            pdfjs().selected &&
-            (e.key === "Backspace" || e.key === "Delete")
-        ) {
+        if (pdfjs().selected && (e.key === "Backspace" || e.key === "Delete")) {
             done("pdfjs:own");
             return;
         }

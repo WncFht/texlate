@@ -5,34 +5,15 @@
 
 import { createSignal } from "solid-js";
 import type { DiscoverHit } from "../api/client";
+import { canonStrip } from "../arxidcanon";
 import { createDebouncedAxSearch } from "../axsearch";
 
-// 与服务端 arxiv/fetch.canon 同口径（arxiv-id-canon-spec §2 剥离序管线
-// 的 JS 镜像）：strip → safe_id `--`→`/` 回流 → 锚定前缀循环剥 → ?# 截断
-// → 首尾 / → [class] 尾注 → 扩展名循环剥 → vN 钉版 → 旧形 class 剥壳 →
-// archive 小写 → MM+era 白名单校验。锚定前缀剥（不 urlparse 任意 host）
-// 结构性拒端口/双斜杠/怪 scheme/寄生域名；仍比服务端窄是刻意的——
-// 怪输入留给服务端 400 回来报错。
+// 剥壳段在 arxidcanon.ts 单源（strict 臂——与服务端 arxiv/fetch.canon
+// 同口径 canon spec §2 的 JS 镜像）。本层只叠提交校验：vN 合法性
+// （v0 拒）、新旧形 id 判 + MM+era 白名单闸。锚定前缀剥（不 urlparse
+// 任意 host）结构性拒端口/双斜杠/怪 scheme/寄生域名；仍比服务端窄是
+// 刻意的——怪输入留给服务端 400 回来报错。
 
-// 前缀剥壳组（循环至不动点——`arXiv:10.48550/arXiv.…` 链式前缀逐层剥）。
-// arxiv.org 臂 scheme 可省但子域必须点界（[\w.-]+\. 的 . 结尾挡死
-// notarxiv.org 寄生域）；ar5iv/alphaxiv 白名单臂 scheme 必带、动词限
-// abs|pdf|html（/overview 等未实证动词不收）。
-const PREFIX_RXS = [
-    /^(?:https?:\/\/)?(?:[\w.-]+\.)?arxiv\.org\/(?:abs|pdf|src|e-print|html|format)\/+/i,
-    /^https?:\/\/(?:[\w.-]+\.)?(?:ar5iv|alphaxiv)\.org\/(?:abs|pdf|html)\/+/i,
-    /^https?:\/\/(?:dx\.|www\.)?doi\.org\//i,
-    /^doi:\s*/i,
-    /^10\.48550\/ar[Xx]iv\./,
-    /^oai\s*:\s*arxiv\.org\s*:\s*/i,
-    /^arxiv\s*[:.]\s*/i,
-];
-// [cs.CL] 引用尾注 / 下载扩展名尾（循环剥：x.tar.gz 逐层）
-const TAILNOTE_RX = /\s*\[[^\]]{1,20}\]$/;
-const EXT_RX = /\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$/i;
-const VER_RX = /^(.+?)[vV](\d{1,3})$/;
-// 旧形剥 class：archive(.class)?/NNNNNNN → archive/NNNNNNN
-const CLASS_RX = /^([-a-zA-Z]+)(?:\.[A-Za-z][A-Za-z-]*)?\/(\d{7})$/;
 const ID_NEW_RX = /^(\d{2})(\d{2})\.(\d{4,5})$/;
 const ID_OLD_RX = /^([a-z-]+)\/(\d{2})(\d{2})\d{3}$/;
 
@@ -43,35 +24,11 @@ const ID_OLD_RX = /^([a-z-]+)\/(\d{2})(\d{2})\d{3}$/;
  * 0000..0703。v0/v1234 拒；v03→v3、V→v 归一。
  */
 export function parseArxivId(raw: string): string | null {
-    // safe_id 回流：`--` 永不可能在合法 id 内（archive 只带单 `-`）——无歧义
-    let s = raw.trim().replace(/--/g, "/");
-    // 前缀循环剥至不动点（doi.org → 10.48550/arXiv. 链式）
-    for (;;) {
-        const before = s;
-        for (const rx of PREFIX_RXS) s = s.replace(rx, "");
-        if (s === before) break;
-    }
-    s = s.replace(/[?#].*$/, "");
-    s = s.trim().replace(/^\/+|\/+$/g, "");
-    s = s.replace(TAILNOTE_RX, "");
-    for (;;) {
-        const t = s.replace(EXT_RX, "");
-        if (t === s) break;
-        s = t;
-    }
-    let ver: number | null = null;
-    const vm = VER_RX.exec(s);
-    if (vm) {
-        ver = Number(vm[2]);
-        if (ver < 1) return null; // v0 判非法（不静默去钉）
-        s = vm[1];
-    }
-    const cm = CLASS_RX.exec(s);
-    if (cm) s = `${cm[1].toLowerCase()}/${cm[2]}`;
+    const { base: s, ver } = canonStrip(raw, true);
+    if (ver !== null && ver < 1) return null; // v0 判非法（不静默去钉）
 
     const now = new Date();
-    const curYYMM =
-        (now.getFullYear() % 100) * 100 + (now.getMonth() + 1);
+    const curYYMM = (now.getFullYear() % 100) * 100 + (now.getMonth() + 1);
     const nm = ID_NEW_RX.exec(s);
     if (nm) {
         const mm = Number(nm[2]);

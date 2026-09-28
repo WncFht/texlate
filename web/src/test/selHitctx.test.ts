@@ -96,9 +96,7 @@ describe("snapshotHit: cite lane", () => {
         expect(hit.cite.targetKind).toBe("bib");
         expect(hit.cite.bibkey).toBe("bib.bib13");
         expect(hit.cite.targetExists).toBe(true);
-        expect(hit.cite.targetEl?.classList.contains("ltx_bibitem")).toBe(
-            true,
-        );
+        expect(hit.cite.targetEl?.classList.contains("ltx_bibitem")).toBe(true);
         expect(hit.cite.entryText).toContain("Smith et al.");
         expect(hit.cite.cardFillable).toBe(true);
         expect(hit.cite.arxivId).toBe("2105.12345");

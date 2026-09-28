@@ -1,27 +1,10 @@
 // 纸面×背景协同审计:逐色板截图 + 关键面(gutter/page/pane/panel)实际取色。
 // 用法:node scripts/theme_pair_audit.mjs;产物 scripts/shots/pair-*.png
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://[::1]:5199";
 const TASK = process.env.TASK ?? "t_0000000000000a01";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
 
 const THEMES = [
     "auto",
@@ -66,7 +49,7 @@ const PROBE = `(() => {
     };
 })()`;
 
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await launch();
 for (const t of THEMES) {
     const ctx = await browser.newContext({
         viewport: { width: 1440, height: 900 },

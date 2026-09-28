@@ -48,8 +48,7 @@ const optControl = (row: OptRow): JSX.Element => {
 
 /** 单行 label+控件渲染——两组共用；seg 行内嵌按钮，label 元素让位 div */
 const optRow = (row: OptRow) => {
-    const hint = () =>
-        typeof row.hint === "function" ? row.hint() : row.hint;
+    const hint = () => (typeof row.hint === "function" ? row.hint() : row.hint);
     const inner = (
         <>
             <span>

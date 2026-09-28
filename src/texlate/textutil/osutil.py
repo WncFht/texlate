@@ -7,7 +7,8 @@ r"""os 边界小件 —— env 名表/读取与路径防御的各层共用单源
 调用方）；数据根统一 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（只定位不
 mkdir，副作用归调用方）。``safe_resolve``/``safe_is_file`` 是
 ``Path`` 防御层——上游恶意/病态名触发的 ``OSError``/``RuntimeError``/
-``ValueError`` 一律收敛为缺席语义。
+``ValueError`` 一律收敛为缺席语义；``safe_rel`` 是纯词法级相对路径
+守卫（``..``/绝对/NUL 拒收，不触盘）。
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import math
 import os
 import tempfile
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -57,6 +58,19 @@ def safe_is_file(path: Path) -> bool:
 def safe_is_dir(path: Path) -> bool:
     r"""``Path.is_dir()`` 防御层：``_safe_pred`` 同口径——NUL ``ValueError``/``OSError`` → False。"""
     return _safe_pred(path, Path.is_dir)
+
+
+def safe_rel(name: str) -> PurePosixPath | None:
+    """``name`` → ``PurePosixPath``; 空名/绝对路径/``..`` 段/NUL → ``None``。
+
+    词法级路径守卫（不做存在性/解析）：fixloop 各注入/归位 builtin 统一
+    的 payload 拒收口——非相对安全名一律 decline，绝不把 ``../x``/``/etc/x``
+    写进 wdir。
+    """
+    rel = PurePosixPath(name)
+    if not name or rel.is_absolute() or ".." in rel.parts or "\x00" in name:
+        return None
+    return rel
 
 
 # ------------------------------------------------------------------ env 名表

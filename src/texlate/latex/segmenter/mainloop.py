@@ -34,8 +34,6 @@ from ._common import (
     _MATH_CLOSE_CS,
     _MATH_TEXTARG,
     _MATH_TEXTARG_OPT_CAP,
-    _PKG_ARG_SPEC,
-    _PKG_CMDS,
     _PROTECT_TYP,
     _TAIL_CAP,
     _TAIL_RX,
@@ -43,7 +41,6 @@ from ._common import (
     _VERB_LIKE,
     TokenSource,
     _accent_cs,
-    _ArgTok,
     _cite_ref_type,
     _fams,
     _inline_lit_cs,
@@ -266,14 +263,6 @@ class _MainLoop:
             and self._preamble_chunk_arg(t, src, t.text)
         ):
             return
-        if t.kind == "cs" and t.text in _PKG_CMDS and t.gen == 0:
-            # preamble 包声明：抽出 ``{pkg}`` 名单登记 argspec 门控；
-            # 参数 token 回放照走 preamble 覆盖（含 \input 进来的声明）。
-            args, _e = self._args_tok(src, fid, _PKG_ARG_SPEC, b)
-            self._note_pkgs(args)
-            self._unread_args(src, args)
-            self._cover_to(fid, b)
-            return
         if t.gen > 0:
             if t.origin is not None:
                 self._cover_to(t.origin[0], t.origin[2])
@@ -377,18 +366,6 @@ class _MainLoop:
         r"""``\\input`` 调用点字节只推进 cons 不进 vtex（输出不含该行）。"""
         if end > self._cons(fid):
             self.cons[fid] = end
-
-    def _note_pkgs(self, args: list[_ArgTok]) -> None:
-        r"""包加载命令已消费的 ``m`` 参 → 包名集入 ``state.pkgs``。
-
-        ``\\usepackage{a,b}`` 逗号名单拆分；参未实消费（零宽占位）跳过。
-        """
-        for a in args:
-            if a.spec is not None and a.spec.kind == "m" and a.fe > a.fs:
-                for raw in "".join(x.text for x in a.toks).split(","):
-                    nm = raw.strip()
-                    if nm:
-                        self.state.pkgs.add(nm)
 
     # ------------------------------------------------------------ 分派
 

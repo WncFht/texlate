@@ -94,8 +94,7 @@ describe("extractRefIds 裸 DOI 臂", () => {
     });
     it("doi.org/ 前缀形 + 条界残尾剥除", () => {
         expect(
-            extractRefIds("see https://doi.org/10.5555/abc-def. Next")
-                .doi,
+            extractRefIds("see https://doi.org/10.5555/abc-def. Next").doi,
         ).toBe("10.5555/abc-def");
     });
     it("无 DOI 文本不产", () => {
@@ -304,7 +303,12 @@ describe("submit 七态分派", () => {
     it("409 结构化 task_id → existing + track", async () => {
         const { deps, track } = mkDeps({
             postTranslate: vi.fn(async () => {
-                throw new ApiError(409, "duplicate", "duplicate_active", tid(9));
+                throw new ApiError(
+                    409,
+                    "duplicate",
+                    "duplicate_active",
+                    tid(9),
+                );
             }),
         });
         const o = await createCiteTranslate(deps).submit("2401.00009");
@@ -604,7 +608,9 @@ describe("ctText 双语兜底与计数模板", () => {
     const zh = currentLang() === "zh"; // jsdom navigator=en-US → en 兜底
     it("cite 扩展键（未合入走内置兜底）", () => {
         expect(ctText("cite.translate")).toBe(zh ? "翻译此文" : "Translate");
-        expect(ctText("cite.openZh")).toBe(zh ? "打开译文" : "Open translation");
+        expect(ctText("cite.openZh")).toBe(
+            zh ? "打开译文" : "Open translation",
+        );
     });
     it("counts 模板计数插值", () => {
         const s = ctText("counts", {
@@ -620,15 +626,11 @@ describe("ctText 双语兜底与计数模板", () => {
         expect(s).not.toContain("{");
     });
     it("warnBig / cta / waitEta 模板", () => {
-        expect(ctText("cta", { n: 5 })).toBe(
-            zh ? "翻译 5 篇" : "Translate 5",
+        expect(ctText("cta", { n: 5 })).toBe(zh ? "翻译 5 篇" : "Translate 5");
+        expect(ctText("waitEta", { lo: "47s", hi: "4min" })).toContain("47s");
+        expect(ctText("warnBig", { n: 20, lo: "15min", hi: "1.3h" })).toContain(
+            "20",
         );
-        expect(
-            ctText("waitEta", { lo: "47s", hi: "4min" }),
-        ).toContain("47s");
-        expect(
-            ctText("warnBig", { n: 20, lo: "15min", hi: "1.3h" }),
-        ).toContain("20");
     });
 });
 
@@ -776,9 +778,7 @@ describe("RefTaskChip 行投影渲染", () => {
         const el = chipEl()!;
         expect(el.tagName).toBe("BUTTON");
         expect(el.textContent).toContain(ctText("cite.translate"));
-        el.dispatchEvent(
-            new MouseEvent("click", { bubbles: true }),
-        );
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         expect(onT).toHaveBeenCalledOnce();
         d();
     });

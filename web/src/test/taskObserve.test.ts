@@ -159,9 +159,7 @@ describe("track / intents / taskByArxiv", () => {
         // 服务端历史行保留 class+大小写——两侧过 canon 后同键
         taskStore.track("c2", { arxivId: "math.GT/0309136" });
         expect(taskStore.taskByArxiv("math/0309136")?.task_id).toBe("c2");
-        expect(taskStore.taskByArxiv("MATH.GT/0309136v1")?.task_id).toBe(
-            "c2",
-        );
+        expect(taskStore.taskByArxiv("MATH.GT/0309136v1")?.task_id).toBe("c2");
         // benchlib safe_id 回流形 + DOI 前缀形
         taskStore.track("c3", { arxivId: "hep-th--9901001" });
         expect(taskStore.taskByArxiv("HEP-TH/9901001")?.task_id).toBe("c3");
@@ -400,16 +398,12 @@ describe("完成通知（恰一次）", () => {
                 created.push({ body, tag: opts?.tag });
             }
         }
-        const prevHidden = Object.getOwnPropertyDescriptor(
-            document,
-            "hidden",
-        );
+        const prevHidden = Object.getOwnPropertyDescriptor(document, "hidden");
         Object.defineProperty(document, "hidden", {
             value: true,
             configurable: true,
         });
-        (globalThis as Record<string, unknown>).Notification =
-            FakeNotification;
+        (globalThis as Record<string, unknown>).Notification = FakeNotification;
         try {
             handlersOf(mocks, 0).done?.({
                 status: "done",

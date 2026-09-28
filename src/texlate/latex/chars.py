@@ -67,28 +67,50 @@ def has_par_break(s: str) -> bool:
     return bool(_PAR_BREAK_RX.search(s))
 
 
-def match_brace(tex: str, i: int, *, verbatim: bool = False) -> int | None:
-    r"""``tex[i]=='{'`` → 匹配 ``'}'`` 的后一位；未闭 → None。
+def match_brace(  # noqa: C901, PLR0913 — 栈配四旋钮（openers/nest/cap/eol）参数化面即规格，逐支平铺
+    tex: str,
+    i: int,
+    *,
+    verbatim: bool = False,
+    openers: str = "{",
+    nest: str | None = None,
+    cap: int | None = None,
+    eol: re.Pattern[str] | None = None,
+) -> int | None:
+    r"""``tex[i]`` ∈ ``openers`` → 匹配闭符的后一位；未闭/越 ``cap`` → None。
 
-    verbatim=False 时 ``%..EOL`` 内括号不计（TeX 语义）；``\X`` 跳两字符。
+    ``nest`` = 体内可嵌套的开符集（缺省 = ``openers``——``{`` 组内
+    ``[`` 是字面，``[`` 组内 ``{`` 是否配对由 nest 决定）。
+    ``%..EOL`` 内括号不计（``verbatim=True`` 关闭——``%`` 按字面过）；
+    EOL 定界缺省 ``\n``，``eol`` 给正则可扩到 ``\r``（``textutil.mask``
+    的 ``[\r\n]`` 口径）。``\X`` 跳两字符。
     """
-    if i >= len(tex) or tex[i] != "{":
+    if i >= len(tex) or tex[i] not in openers:
         return None
-    depth, j, n = 1, i + 1, len(tex)
+    if nest is None:
+        nest = openers
+    closers = ["}" if tex[i] == "{" else "]"]
+    j, n = i + 1, (min(len(tex), cap) if cap is not None else len(tex))
     while j < n:
         c = tex[j]
         if c == "\\":
             j += 2
             continue
         if c == "%" and not verbatim:
-            k = tex.find("\n", j)
+            if eol is not None:
+                m = eol.search(tex, j)
+                k = -1 if m is None else m.start()
+            else:
+                k = tex.find("\n", j)
             j = n if k < 0 else k + 1
             continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
+        if c == "{" and "{" in nest:
+            closers.append("}")
+        elif c == "[" and "[" in nest:
+            closers.append("]")
+        elif c == closers[-1]:
+            closers.pop()
+            if not closers:
                 return j + 1
         j += 1
     return None
@@ -157,7 +179,7 @@ def strip_brace_comments(raw: str) -> str:
     ``\begin{%\ncomment}``/``\input{%\nfile}`` 的实参是 ``comment``/``file``
     ——注释段留在名里会让 DEAD_ENVS 查表/missing_input 查找整体失手。
     ``\X`` 跳双字符——``\%`` 转义名不剥。``env_name_at`` 与
-    ``flatten._try_input`` 共用的共享原语（经 ``model`` 再出口）。
+    ``flatten._try_input`` 共用的共享原语。
     """
     if "%" not in raw:
         return raw

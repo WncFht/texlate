@@ -89,7 +89,8 @@ def _emit(rd: runs.RunDir, seq: int, idc: str, status: str | None = None) -> dic
 # --- init / spec list / stubs ------------------------------------------------------
 
 
-def test_init_creates_layout(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_init_creates_layout(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["init"]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "bench root" in out
@@ -106,7 +107,8 @@ def test_init_creates_layout(broot: Path, capsys: pytest.CaptureFixture) -> None
     assert paths.seqfile_path().exists()
 
 
-def test_spec_list_finds_specs(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_spec_list_finds_specs(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["spec", "list"]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "smoke.py" in out
@@ -116,9 +118,8 @@ def test_spec_list_finds_specs(broot: Path, capsys: pytest.CaptureFixture) -> No
 
 
 @pytest.mark.parametrize("name", ["triage", "gate", "dossier"])
-def test_verbs_bare_invocation_exit_2(
-    broot: Path, capsys: pytest.CaptureFixture, name: str
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_verbs_bare_invocation_exit_2(capsys: pytest.CaptureFixture, name: str) -> None:
     """verbs landed under bench/py/verbs/ — bare invocation is a usage refusal.
 
     triage's required ``run`` positional exits via argparse ``SystemExit(2)``;
@@ -136,13 +137,15 @@ def test_verbs_bare_invocation_exit_2(
 # --- status ------------------------------------------------------------------------
 
 
-def test_status_empty_root(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_status_empty_root(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["status"]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "runs: 0" in out
 
 
-def test_status_tail_and_run_and_id(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_status_tail_and_run_and_id(capsys: pytest.CaptureFixture) -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
     _emit(rd, 2, "9901.00001", status="ok")
@@ -164,9 +167,8 @@ def test_status_tail_and_run_and_id(broot: Path, capsys: pytest.CaptureFixture) 
     assert "xlat" in out
 
 
-def test_status_id_canon_invalid_still_ok(
-    broot: Path, capsys: pytest.CaptureFixture
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_status_id_canon_invalid_still_ok(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["status", "--id", "smoke/0001"]) == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "canon" in out  # non-ok canon verdict surfaced, not hidden
@@ -175,12 +177,14 @@ def test_status_id_canon_invalid_still_ok(
 # --- vault -------------------------------------------------------------------------
 
 
-def test_vault_verify_empty_ok(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_vault_verify_empty_ok(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["vault", "verify", "--level", "stat"]) == cli.EXIT_OK
     assert "metas=0" in capsys.readouterr().out
 
 
-def test_vault_adopt_and_tombstone(broot: Path, tmp_path: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_vault_adopt_and_tombstone(tmp_path: Path) -> None:
     donor = tmp_path / "orphan-bytes"
     donor.mkdir()
     (donor / "out.pdf").write_bytes(b"orphan pdf")
@@ -217,7 +221,8 @@ def test_vault_adopt_and_tombstone(broot: Path, tmp_path: Path) -> None:
     )
 
 
-def test_vault_restore_empty_fails(broot: Path, tmp_path: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_vault_restore_empty_fails(tmp_path: Path) -> None:
     rc = cli.main(
         [
             "vault",
@@ -235,9 +240,8 @@ def test_vault_restore_empty_fails(broot: Path, tmp_path: Path) -> None:
 # --- ledger -------------------------------------------------------------------------
 
 
-def test_ledger_tail_ingest_and_rebuild(
-    broot: Path, capsys: pytest.CaptureFixture
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_ledger_tail_ingest_and_rebuild(capsys: pytest.CaptureFixture) -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
     _emit(rd, 2, "9901.00001", status="ok")
@@ -249,8 +253,9 @@ def test_ledger_tail_ingest_and_rebuild(
     assert "rebuild-index" in capsys.readouterr().out
 
 
+@pytest.mark.usefixtures("broot")
 def test_ledger_ingest_external_dry(
-    broot: Path, tmp_path: Path, capsys: pytest.CaptureFixture
+    tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:
     src = tmp_path / "ext.jsonl"
     src.write_text(
@@ -272,14 +277,16 @@ def test_ledger_ingest_external_dry(
     assert capsys.readouterr().out.strip()  # stats json printed
 
 
-def test_ledger_import_missing_path(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_ledger_import_missing_path() -> None:
     assert cli.main(["ledger", "import", "no/such/file.jsonl"]) == cli.EXIT_REFUSED
 
 
 # --- lake ----------------------------------------------------------------------------
 
 
-def test_lake_status_register_evict(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_lake_status_register_evict(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["lake", "status"]) == cli.EXIT_OK
     assert "cells=" in capsys.readouterr().out
 
@@ -295,9 +302,8 @@ def test_lake_status_register_evict(broot: Path, capsys: pytest.CaptureFixture) 
 # --- backup / prune -------------------------------------------------------------------
 
 
-def test_backup_writes_tar_without_index(
-    broot: Path, capsys: pytest.CaptureFixture
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_backup_writes_tar_without_index(capsys: pytest.CaptureFixture) -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     _emit(rd, 1, "9901.00001")
 
@@ -313,7 +319,8 @@ def test_backup_writes_tar_without_index(
     assert not any("index.sqlite" in n for n in names)
 
 
-def test_prune_keeps_list_and_cell_trees(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_prune_keeps_list_and_cell_trees() -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     (rd.path / "report.md").write_text("# report\n")
     (rd.path / "junk.tmp").write_text("junk")
@@ -343,7 +350,8 @@ def test_prune_keeps_list_and_cell_trees(broot: Path) -> None:
     assert not (rd.path / "work").exists()
 
 
-def test_prune_blocks_paid_shaped_cell(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_prune_blocks_paid_shaped_cell() -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     cell = rd.work("9901.00002")
     (cell / "zh.mock").mkdir(parents=True)
@@ -354,7 +362,8 @@ def test_prune_blocks_paid_shaped_cell(broot: Path) -> None:
     assert cell.exists()  # unharvested paid bytes survive the prune
 
 
-def test_prune_unknown_keep_token(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_prune_unknown_keep_token() -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     assert (
         cli.main(
@@ -373,8 +382,8 @@ def test_prune_unknown_keep_token(broot: Path) -> None:
 # --- doctor / fsck / sweep --------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("broot")
 def test_doctor_clean_root(
-    broot: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
@@ -390,8 +399,8 @@ def test_doctor_clean_root(
     assert "[FAIL]" not in out
 
 
+@pytest.mark.usefixtures("broot")
 def test_doctor_switch_ok_reports_verdict(
-    broot: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
@@ -408,12 +417,14 @@ def test_doctor_switch_ok_reports_verdict(
     assert "SWITCH-" in out
 
 
-def test_fsck_clean_root(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_fsck_clean_root() -> None:
     assert cli.main(["fsck"]) == cli.EXIT_OK
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_fake_module(
-    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     monkeypatch.setitem(
         sys.modules,
@@ -425,7 +436,8 @@ def test_sweep_fake_module(
 
 
 @pytest.mark.skipif(HAS_SWEEP, reason="kernel.sweep landed — real module used")
-def test_sweep_unavailable_exit_2(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_unavailable_exit_2(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["sweep"]) == cli.EXIT_REFUSED
     assert "unavailable" in capsys.readouterr().err
 
@@ -433,8 +445,9 @@ def test_sweep_unavailable_exit_2(broot: Path, capsys: pytest.CaptureFixture) ->
 # --- run / plan dispatch ---------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("broot")
 def test_run_dispatches_kernel_run(
-    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     order: list[str] = []
     seen: dict = {}
@@ -491,7 +504,8 @@ def test_run_dispatches_kernel_run(
     assert '"ok": true' in capsys.readouterr().out
 
 
-def test_run_not_ok_exit_1(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_run_not_ok_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         sys.modules,
         "kernel.kernel",
@@ -500,7 +514,8 @@ def test_run_not_ok_exit_1(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert cli.main(["run", "smoke"]) == cli.EXIT_FAIL
 
 
-def test_run_bad_param_refused(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_run_bad_param_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         sys.modules,
         "kernel.kernel",
@@ -509,7 +524,8 @@ def test_run_bad_param_refused(broot: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert cli.main(["run", "smoke", "notkv"]) == cli.EXIT_REFUSED
 
 
-def test_run_unknown_spec(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_run_unknown_spec(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         sys.modules,
         "kernel.kernel",
@@ -519,15 +535,19 @@ def test_run_unknown_spec(broot: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.skipif(HAS_KERNEL, reason="kernel.kernel landed — real path runs")
-def test_run_unavailable_exit_2(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_run_unavailable_exit_2(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["run", "smoke"]) == cli.EXIT_REFUSED
     assert "unavailable" in capsys.readouterr().err
 
 
+@pytest.mark.usefixtures("broot")
 def test_plan_prints_buckets(
-    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
-    def fake_plan(spec_or_path: str, params: dict | None = None, **kw: object) -> dict:
+    def fake_plan(
+        _spec_or_path: str, _params: dict | None = None, **_kw: object
+    ) -> dict:
         return {
             "quote": {
                 "new": 3,
@@ -555,8 +575,9 @@ def test_plan_prints_buckets(
     assert "would run: 2" in out
 
 
+@pytest.mark.usefixtures("broot")
 def test_pause_refuses_paid_run_only(
-    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     """PAUSE is a paid-spend fence (§6 Phase-3 rescope): paid specs refuse,
     free specs and plan run straight through."""
@@ -606,8 +627,9 @@ def test_pause_fails_closed_on_unprovable_spec(
 # --- detach -----------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("broot")
 def test_detach_paid_spec_requires_max_cost(
-    broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     monkeypatch.setitem(
         sys.modules,
@@ -642,7 +664,8 @@ def test_detach_paid_spec_requires_max_cost(
 # --- derive ---------------------------------------------------------------------
 
 
-def test_derive_balanced_run(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_derive_balanced_run(capsys: pytest.CaptureFixture) -> None:
     rd = runs.create_run("soak", date="2026-09-21", spec_dict={"kind": "soak"})
     runs.freeze_plan(rd, [_cell("9901.00001")])
     _emit(rd, 1, "9901.00001")
@@ -658,7 +681,8 @@ def test_derive_balanced_run(broot: Path, capsys: pytest.CaptureFixture) -> None
     assert (proj / "cases.jsonl").is_file()
 
 
-def test_derive_unknown_run(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_derive_unknown_run() -> None:
     assert cli.main(["derive", "--run", "nope/2026-01-01/none"]) == cli.EXIT_REFUSED
 
 
@@ -672,7 +696,8 @@ def _sub_env(root: Path) -> dict:
     return env
 
 
-def test_python_dash_m_kernel(broot: Path, tmp_path: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_python_dash_m_kernel(tmp_path: Path) -> None:
     other = tmp_path / "subroot"
     res = subprocess.run(
         [sys.executable, "-m", "kernel", "init"],
@@ -686,7 +711,8 @@ def test_python_dash_m_kernel(broot: Path, tmp_path: Path) -> None:
     assert (other / "ledger").is_dir()
 
 
-def test_bench_shim_executable(broot: Path, tmp_path: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_bench_shim_executable(tmp_path: Path) -> None:
     shim = BENCH_PY / "bench"
     assert shim.is_file()
     assert os.access(shim, os.X_OK)
@@ -710,7 +736,8 @@ def test_bench_shim_executable(broot: Path, tmp_path: Path) -> None:
 @pytest.mark.skipif(
     not (HAS_KERNEL and HAS_SPEC), reason="kernel.kernel/kernel.spec not yet landed"
 )
-def test_smoke_spec_end_to_end(broot: Path, capsys: pytest.CaptureFixture) -> None:
+@pytest.mark.usefixtures("broot")
+def test_smoke_spec_end_to_end(capsys: pytest.CaptureFixture) -> None:
     spec_path = BENCH_PY / "specs" / "smoke.py"
     rc = cli.main(["run", str(spec_path)])
     out = capsys.readouterr().out

@@ -211,10 +211,7 @@ export default function GuidePane(props: { arxivId?: string }) {
                                         </ul>
                                     </aside>
                                 </Show>
-                                <article
-                                    class="guide-body"
-                                    ref={setBodyEl}
-                                />
+                                <article class="guide-body" ref={setBodyEl} />
                             </div>
                             <Show when={(o().citations?.length ?? 0) > 0}>
                                 <footer class="guide-cites">

@@ -119,7 +119,10 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
     /** 集合非空才挂共享定时器；首个任务入集即补一拍（与原 startPoll 的 void tick() 同语义） */
     function syncListPoll() {
         if (listPolled.size && listPollTimer === undefined) {
-            listPollTimer = setInterval(() => void tickList(), POLL_INTERVAL_MS);
+            listPollTimer = setInterval(
+                () => void tickList(),
+                POLL_INTERVAL_MS,
+            );
             void tickList();
         } else if (!listPolled.size && listPollTimer !== undefined) {
             clearInterval(listPollTimer);

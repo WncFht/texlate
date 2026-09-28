@@ -14,9 +14,9 @@ from texlate.export.common import (
     GlossaryArg,
     MalformedEpubError,
     apply_translations,
+    run_export,
     safe_language,
 )
-from texlate.export.docx import run_export
 from texlate.export.filters import sanitize_xml_text
 from texlate.export.markers import reconcile_markers
 from texlate.xlat.pipeline import ChunkIn, ChunkResult
@@ -110,7 +110,7 @@ def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
         )
 
     chunks = [ChunkIn(u.job_id, u.text, u.kind) for u in units]
-    # 枚举后段（state/pipeline/清理/报告）与 DOCX 臂逐行同构——共享 docx.run_export
+    # 枚举后段（state/pipeline/清理/报告）与 DOCX 臂逐行同构——共享 common.run_export
     return run_export(
         src,
         dst,

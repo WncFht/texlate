@@ -53,7 +53,8 @@ def _mint(slug: str, run: str | None = None) -> int:
 # --- emit / iter round-trip -------------------------------------------------------
 
 
-def test_emit_iter_roundtrip_ordering(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_iter_roundtrip_ordering() -> None:
     evs = [_note(i, f"n{i}") for i in range(5)]
     offsets = [ledger.emit(ev) for ev in evs]
     assert offsets == sorted(offsets)
@@ -62,7 +63,8 @@ def test_emit_iter_roundtrip_ordering(broot: Path) -> None:
     assert [events.dumps(g) for g in got] == [events.dumps(e) for e in evs]
 
 
-def test_emit_returns_byte_offset_of_line(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_returns_byte_offset_of_line() -> None:
     ev1, ev2 = _note(1), _note(2)
     off1 = ledger.emit(ev1)
     off2 = ledger.emit(ev2)
@@ -72,7 +74,8 @@ def test_emit_returns_byte_offset_of_line(broot: Path) -> None:
     assert data[off2:].startswith(events.dumps(ev2).encode())
 
 
-def test_emit_rejects_invalid_event(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_rejects_invalid_event() -> None:
     with pytest.raises(events.EventError):
         ledger.emit({"type": "bogus"})
     # nothing was written
@@ -82,7 +85,8 @@ def test_emit_rejects_invalid_event(broot: Path) -> None:
 # --- torn-tail heal -----------------------------------------------------------------
 
 
-def test_torn_tail_heals_partial_line(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_torn_tail_heals_partial_line() -> None:
     p = paths.events_path()
     good = events.dumps(_note(1)).encode() + b"\n"
     p.write_bytes(good + b'{"type":"note","seq":12')  # interrupted append
@@ -91,10 +95,11 @@ def test_torn_tail_heals_partial_line(broot: Path) -> None:
     assert off == len(good)
     assert p.read_bytes() == good + events.dumps(ev2).encode() + b"\n"
     # every line parses
-    assert len(_parsed(p)) == 2
+    assert len(_parsed(p)) == 2  # noqa: PLR2004 -- 断言字面量
 
 
-def test_torn_tail_no_newline_at_all_truncates_to_zero(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_torn_tail_no_newline_at_all_truncates_to_zero() -> None:
     p = paths.events_path()
     p.write_bytes(b'{"type":"note","seq":12')  # whole file is one torn line
     ev = _note(1)
@@ -103,7 +108,8 @@ def test_torn_tail_no_newline_at_all_truncates_to_zero(broot: Path) -> None:
     assert p.read_bytes() == events.dumps(ev).encode() + b"\n"
 
 
-def test_clean_tail_needs_no_heal(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_clean_tail_needs_no_heal() -> None:
     ev = _note(1)
     ledger.emit(ev)
     before = paths.events_path().read_bytes()
@@ -115,7 +121,8 @@ def test_clean_tail_needs_no_heal(broot: Path) -> None:
 # --- dual-write ----------------------------------------------------------------------
 
 
-def test_dual_write_to_run_dir(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_dual_write_to_run_dir() -> None:
     rdir = paths.run_dir(KIND, DATE, "dual1")
     evs = [_note(i) for i in range(3)]
     for ev in evs:
@@ -124,7 +131,8 @@ def test_dual_write_to_run_dir(broot: Path) -> None:
     assert shard.read_bytes() == paths.events_path().read_bytes()
 
 
-def test_dual_write_torn_shard_also_heals(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_dual_write_torn_shard_also_heals() -> None:
     rdir = paths.run_dir(KIND, DATE, "dual2")
     rdir.mkdir(parents=True)
     shard = rdir / "events.jsonl"
@@ -134,7 +142,8 @@ def test_dual_write_torn_shard_also_heals(broot: Path) -> None:
     assert shard.read_bytes() == events.dumps(ev).encode() + b"\n"
 
 
-def test_emit_batch_dual_write(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_batch_dual_write() -> None:
     rdir = paths.run_dir(KIND, DATE, "dual3")
     evs = [_note(i) for i in range(4)]
     ledger.emit_batch(evs, run_dir=rdir)
@@ -144,10 +153,11 @@ def test_emit_batch_dual_write(broot: Path) -> None:
 # --- emit_batch ----------------------------------------------------------------------
 
 
-def test_emit_batch_all_lines_present(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_batch_all_lines_present() -> None:
     evs = [_cell(i) for i in range(10)]
     offsets = ledger.emit_batch(evs)
-    assert len(offsets) == 10
+    assert len(offsets) == len(evs)
     assert offsets == sorted(offsets)
     got = _parsed(paths.events_path())
     assert [events.dumps(g) for g in got] == [events.dumps(e) for e in evs]
@@ -158,11 +168,13 @@ def test_emit_batch_all_lines_present(broot: Path) -> None:
         assert data[off : off + len(raw)] == raw
 
 
-def test_emit_batch_empty_returns_empty(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_batch_empty_returns_empty() -> None:
     assert ledger.emit_batch([]) == []
 
 
-def test_emit_batch_validates_all_before_writing(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_batch_validates_all_before_writing() -> None:
     evs = [_note(1), {"type": "bogus"}, _note(2)]
     with pytest.raises(events.EventError):
         ledger.emit_batch(evs)
@@ -172,7 +184,8 @@ def test_emit_batch_validates_all_before_writing(broot: Path) -> None:
 # --- sink ----------------------------------------------------------------------------
 
 
-def test_sink_applies_inside_lock_and_failure_marks_dirty(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sink_applies_inside_lock_and_failure_marks_dirty() -> None:
     seen = []
     ledger.emit(_note(1), sink=seen.append)
     assert len(seen) == 1
@@ -188,14 +201,15 @@ def test_sink_applies_inside_lock_and_failure_marks_dirty(broot: Path) -> None:
     off = ledger.emit(_note(2), sink=boom)
     assert flag.exists()
     assert off > 0
-    assert len(_parsed(paths.events_path())) == 2
+    assert len(_parsed(paths.events_path())) == 2  # noqa: PLR2004 -- 断言字面量
 
 
-def test_emit_batch_sink_failures_isolated_per_event(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_emit_batch_sink_failures_isolated_per_event() -> None:
     seen = []
 
     def flaky(ev: dict) -> None:
-        if ev["seq"] == 2:
+        if ev["seq"] == 2:  # noqa: PLR2004 -- 测试桩内嵌字面量
             msg = "one bad apply"
             raise RuntimeError(msg)
         seen.append(ev["seq"])
@@ -203,21 +217,23 @@ def test_emit_batch_sink_failures_isolated_per_event(broot: Path) -> None:
     ledger.emit_batch([_note(1), _note(2), _note(3)], sink=flaky)
     assert seen == [1, 3]
     assert paths.index_dirty_path().exists()
-    assert len(_parsed(paths.events_path())) == 3
+    assert len(_parsed(paths.events_path())) == 3  # noqa: PLR2004 -- 断言字面量
 
 
 # --- run_seq minting ------------------------------------------------------------------
 
 
-def test_mint_run_seq_monotonic(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_mint_run_seq_monotonic() -> None:
     n1 = _mint("m1")
     n2 = _mint("m2")
     n3 = _mint("m3")
     assert (n1, n2, n3) == (1, 2, 3)
-    assert int(paths.seqfile_path().read_text().strip()) == 3
+    assert int(paths.seqfile_path().read_text().strip()) == 3  # noqa: PLR2004 -- 断言字面量
 
 
-def test_mint_emits_run_registered_and_dual_writes(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_mint_emits_run_registered_and_dual_writes() -> None:
     n = _mint("mreg")
     got = _parsed(paths.events_path())
     reg = [ev for ev in got if ev["type"] == "run_registered"]
@@ -231,7 +247,8 @@ def test_mint_emits_run_registered_and_dual_writes(broot: Path) -> None:
     assert [e["run_seq"] for e in _parsed(shard)] == [n]
 
 
-def test_mint_survives_seqfile_deletion_via_scanback(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_mint_survives_seqfile_deletion_via_scanback() -> None:
     n1 = _mint("del1")
     _mint("del2")
     paths.seqfile_path().unlink()
@@ -239,13 +256,15 @@ def test_mint_survives_seqfile_deletion_via_scanback(broot: Path) -> None:
     assert n3 == n1 + 2  # scanback over the hot tail recovered the high-water
 
 
-def test_mint_ignores_runs_jsonl(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_mint_ignores_runs_jsonl() -> None:
     # A report row claiming run_seq=999 must not influence minting.
     ledger.append_run_row({"run": "ghost", "run_seq": 999, "fake": True})
     assert _mint("real1") == 1
 
 
-def test_scanback_ignores_non_run_registered_run_seq(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_scanback_ignores_non_run_registered_run_seq() -> None:
     # A note carrying a foreign run_seq must not feed the mint max.
     ev = events.make_event(
         events.T_NOTE, run="r", seq=1, text="x", level="info", run_seq=999
@@ -255,7 +274,8 @@ def test_scanback_ignores_non_run_registered_run_seq(broot: Path) -> None:
     assert _mint("nb1") == 1
 
 
-def test_scanback_tolerates_bad_lines(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_scanback_tolerates_bad_lines() -> None:
     _mint("sb1")
     p = paths.events_path()
     with p.open("ab") as f:
@@ -263,20 +283,21 @@ def test_scanback_tolerates_bad_lines(broot: Path) -> None:
     assert ledger.scanback_max_run_seq() == 1
 
 
-def test_scanback_finds_seq_beyond_window(
-    broot: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_scanback_finds_seq_beyond_window(monkeypatch: pytest.MonkeyPatch) -> None:
     _mint("old")
     # shrink the window so the run_registered falls out of the tail window —
     # the fallback full forward scan must still find it
-    monkeypatch.setattr("kernel.ledger._SCANBACK_WINDOW", 64)
+    window = 64
+    monkeypatch.setattr("kernel.ledger._SCANBACK_WINDOW", window)
     for i in range(20):
         ledger.emit(_note(i, "f" * 512))
-    assert paths.events_path().stat().st_size > 64
+    assert paths.events_path().stat().st_size > window
     assert ledger.scanback_max_run_seq() == 1
 
 
-def test_scanback_sees_sealed_segments_when_tail_empty(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_scanback_sees_sealed_segments_when_tail_empty() -> None:
     n = _mint("sealed1")
     zst = ledger.seal_if_needed(max_bytes=1)
     assert zst is not None
@@ -284,7 +305,8 @@ def test_scanback_sees_sealed_segments_when_tail_empty(broot: Path) -> None:
     assert ledger.scanback_max_run_seq() == n
 
 
-def test_append_run_row_report_only(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_append_run_row_report_only() -> None:
     off = ledger.append_run_row({"run": "r1", "run_seq": 1, "status": "done"})
     assert off == 0
     rows = _parsed(paths.runs_jsonl_path())
@@ -294,7 +316,8 @@ def test_append_run_row_report_only(broot: Path) -> None:
 # --- watermark ------------------------------------------------------------------------
 
 
-def test_watermark_offset_exact(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_watermark_offset_exact() -> None:
     assert ledger.watermark_offset() == 0
     ev = _note(1)
     off = ledger.emit(ev)
@@ -303,7 +326,8 @@ def test_watermark_offset_exact(broot: Path) -> None:
     assert wm == paths.events_path().stat().st_size
 
 
-def test_watermark_stops_at_torn_tail(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_watermark_stops_at_torn_tail() -> None:
     ev = _note(1)
     ledger.emit(ev)
     clean = paths.events_path().stat().st_size
@@ -315,7 +339,8 @@ def test_watermark_stops_at_torn_tail(broot: Path) -> None:
 # --- sealing ----------------------------------------------------------------------------
 
 
-def test_seal_rotation_produces_zst_chain_and_empty_tail(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_rotation_produces_zst_chain_and_empty_tail() -> None:
     n1 = _mint("s1")
     for i in range(4):
         ledger.emit(_cell(i))
@@ -340,7 +365,7 @@ def test_seal_rotation_produces_zst_chain_and_empty_tail(broot: Path) -> None:
     assert row["prev_seal_sha"] == "0" * 64  # genesis
     assert row["zst_sha"] == hashlib.sha256(zst.read_bytes()).hexdigest()
     assert row["raw_sha"] == hashlib.sha256(raw.read_bytes()).hexdigest()
-    assert row["lines"] == 6  # 2 run_registered + 4 cells
+    assert row["lines"] == 6  # noqa: PLR2004 -- 断言字面量（2 run_registered + 4 cells）
     assert row["bytes"] == raw.stat().st_size
 
     # second seal links the hash chain
@@ -348,11 +373,12 @@ def test_seal_rotation_produces_zst_chain_and_empty_tail(broot: Path) -> None:
     zst2 = ledger.seal_if_needed(now_ts=ts + 1, max_bytes=1)
     assert zst2 is not None
     rows = _parsed(paths.seals_path())
-    assert len(rows) == 2
+    assert len(rows) == 2  # noqa: PLR2004 -- 断言字面量
     assert rows[1]["prev_seal_sha"] == rows[0]["zst_sha"]
 
 
-def test_iter_all_events_spans_sealed_and_hot(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_iter_all_events_spans_sealed_and_hot() -> None:
     _mint("ord1")
     for i in range(3):
         ledger.emit(_note(i))
@@ -382,7 +408,8 @@ def test_iter_all_events_spans_sealed_and_hot(broot: Path) -> None:
         assert offs == sorted(offs)
 
 
-def test_iter_all_events_yields_none_on_bad_lines(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_iter_all_events_yields_none_on_bad_lines() -> None:
     ledger.emit(_note(1))
     with paths.events_path().open("ab") as f:
         f.write(b"garbage line\n")
@@ -394,7 +421,8 @@ def test_iter_all_events_yields_none_on_bad_lines(broot: Path) -> None:
     assert evs[2] is not None
 
 
-def test_seal_age_trigger(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_age_trigger() -> None:
     old = events.make_event(
         events.T_NOTE,
         run="r",
@@ -408,16 +436,19 @@ def test_seal_age_trigger(broot: Path) -> None:
     assert zst is not None
 
 
-def test_seal_not_needed_returns_none(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_not_needed_returns_none() -> None:
     ledger.emit(_note(1))  # fresh, small
     assert ledger.seal_if_needed() is None
 
 
-def test_seal_empty_tail_never_seals(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_empty_tail_never_seals() -> None:
     assert ledger.seal_if_needed(max_bytes=1) is None
 
 
-def test_recover_interrupted_seal(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_recover_interrupted_seal() -> None:
     """A crashed seal (raw segment, no .zst, no seals row) is completed on the
     next seal_if_needed pass — zst produced, hash-chain row appended."""
     for i in range(3):
@@ -441,7 +472,8 @@ def test_recover_interrupted_seal(broot: Path) -> None:
     assert any(s in (zst.name, orphan.name) for s, _o, _e in ledger.iter_all_events())
 
 
-def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_recover_drops_corrupt_partial_zst() -> None:
     for i in range(2):
         ledger.emit(_cell(i))
     sdir = paths.sealed_dir()
@@ -458,13 +490,14 @@ def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
     seg_evs = [
         e for s, _o, e in ledger.iter_all_events() if s in (zst.name, orphan.name)
     ]
-    assert len([e for e in seg_evs if e]) == 2
+    assert len([e for e in seg_evs if e]) == 2  # noqa: PLR2004 -- 断言字面量
 
 
 # --- seal_gc ----------------------------------------------------------------------------
 
 
-def test_seal_gc_deletes_verified_aged_raw(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_gc_deletes_verified_aged_raw() -> None:
     for i in range(3):
         ledger.emit(_cell(i))
     ts = time.time()
@@ -483,7 +516,8 @@ def test_seal_gc_deletes_verified_aged_raw(broot: Path) -> None:
     assert any(s == zst.name for s, _o, _e in ledger.iter_all_events())
 
 
-def test_seal_gc_keeps_unverified(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_gc_keeps_unverified() -> None:
     for i in range(2):
         ledger.emit(_cell(i))
     ts = time.time()
@@ -495,7 +529,8 @@ def test_seal_gc_keeps_unverified(broot: Path) -> None:
     assert raw.exists()
 
 
-def test_seal_gc_skips_unsealed_raw(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_seal_gc_skips_unsealed_raw() -> None:
     # a raw segment with no seals row (interrupted seal) is never gc'd
     sdir = paths.sealed_dir()
     orphan = sdir / "events-00000001-00000001-999.jsonl"
@@ -507,7 +542,8 @@ def test_seal_gc_skips_unsealed_raw(broot: Path) -> None:
 # --- concurrency ------------------------------------------------------------------------
 
 
-def test_concurrent_emits_serialize(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_concurrent_emits_serialize() -> None:
     """Two threads appending >4KB lines must produce zero interleaved bytes:
     every line in the file parses as exactly one emitted event."""
     big_a = ["A" * 4096 + str(i) for i in range(8)]
@@ -530,7 +566,7 @@ def test_concurrent_emits_serialize(broot: Path) -> None:
 
     assert not errors
     lines = _lines(paths.events_path())
-    assert len(lines) == 16
+    assert len(lines) == len(big_a) + len(big_b)
     texts = set()
     for ln in lines:
         ev = json.loads(ln)  # raises if bytes interleaved
@@ -538,7 +574,8 @@ def test_concurrent_emits_serialize(broot: Path) -> None:
     assert texts == set(big_a) | set(big_b)
 
 
-def test_concurrent_mints_unique(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_concurrent_mints_unique() -> None:
     seqs = []
     errs = []
 

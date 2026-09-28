@@ -9,7 +9,13 @@ describe("isDocKind（无对照阅读器的插译产物路）", () => {
     });
 
     it("tex/pdf 路与未知 kind → false（upload_pdf 产 dual.json 有阅读器）", () => {
-        for (const k of ["arxiv", "upload_tex", "upload_pdf", "share", "mystery"]) {
+        for (const k of [
+            "arxiv",
+            "upload_tex",
+            "upload_pdf",
+            "share",
+            "mystery",
+        ]) {
             expect(isDocKind(k)).toBe(false);
         }
     });

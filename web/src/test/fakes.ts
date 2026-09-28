@@ -3,7 +3,10 @@
 
 import type { TaskSnapshot } from "../api/client";
 
-export function snap(id: string, over: Partial<TaskSnapshot> = {}): TaskSnapshot {
+export function snap(
+    id: string,
+    over: Partial<TaskSnapshot> = {},
+): TaskSnapshot {
     const status = over.status ?? "done";
     return {
         task_id: id,

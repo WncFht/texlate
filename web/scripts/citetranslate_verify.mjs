@@ -23,40 +23,12 @@
 //   6. zero-errors   —— pageerror/console.error 清零。
 // 用法: node scripts/citetranslate_verify.mjs   (cwd=web/scripts)
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { check, info, launch, results, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const TASK = process.env.TASK ?? "t_d7c669e8b3c92149";
 const AUTH_MOCK = process.env.AUTH_MOCK === "1"; // 测凭证门臂
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
-const PW_TMP = join(homedir(), ".cache/pw-tmp");
-mkdirSync(PW_TMP, { recursive: true });
-
-const results = [];
-const check = (name, ok, detail = "") => {
-    results.push({ name, ok, detail });
-    console.log(
-        `${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`,
-    );
-};
-const info = (s) => console.log(`INFO  ${s}`);
 
 // 罐装行：定死 arxiv_id 匹配面板条目概率过低——灌 queued 行只在
 // taskByArxiv 撞不上时自然落 idle 臂；本脚本断言面不依赖罐装行命中。
@@ -65,10 +37,9 @@ const posted = []; // translate POST 拦截日志
 
 async function run() {
     const errors = [];
-    const browser = await chromium.launch({
-        executablePath: EXE,
+    const browser = await launch({
         args: ["--disable-gpu", "--disable-dev-shm-usage"],
-        env: { ...process.env, TMPDIR: PW_TMP },
+        tmp: true,
     });
     const ctx = await browser.newContext({
         viewport: { width: 1500, height: 950 },

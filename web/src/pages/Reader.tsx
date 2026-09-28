@@ -275,8 +275,7 @@ export default function Reader(props: {
     const [docTitles, setDocTitles] = createSignal<
         Partial<Record<DocId, string>>
     >({});
-    const pdfTitle = () =>
-        docTitles().original || docTitles().translated || "";
+    const pdfTitle = () => docTitles().original || docTitles().translated || "";
     const title = () =>
         task()?.title || pdfTitle() || task()?.arxiv_id || props.taskId;
     // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态；

@@ -82,10 +82,7 @@ export function createHomeUpload(deps: {
 
     /** 单件执行体：precheck + 状态翻转 + uploadOne——upload/uploadBatch 共用。
      *  成功回 ``{res}``，失败回 ``{err}`` 文案（单件路 setError、批路汇总）。 */
-    const runOne = async (
-        f: File,
-        snap: UploadFields,
-    ): Promise<RunResult> => {
+    const runOne = async (f: File, snap: UploadFields): Promise<RunResult> => {
         const bad = precheckUpload(f);
         if (bad) return { err: `${f.name}：${bad}` };
         deps.setError("");

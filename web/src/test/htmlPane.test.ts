@@ -71,13 +71,15 @@ describe("HtmlPane chunk 解析失败兜底", () => {
             document.body,
         );
         await vi.waitFor(() =>
-            expect(
-                document.body.querySelectorAll("[data-chunk]").length,
-            ).toBe(2),
+            expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
+                2,
+            ),
         );
 
         const chunks = document.body.querySelectorAll("[data-chunk]");
-        expect(chunks[1].getAttribute("data-chunk")).toBe('1"><img onerror="x()">');
+        expect(chunks[1].getAttribute("data-chunk")).toBe(
+            '1"><img onerror="x()">',
+        );
         expect(chunks[1].querySelector("img")).toBeNull();
     });
 });

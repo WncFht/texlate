@@ -27,7 +27,13 @@ from typing import Final
 
 from texlate.arxiv._texutil import TEX_EXT, strip_comments
 from texlate.arxiv.sniff import check_pdf_wrapper
-from texlate.textutil import BEGIN_DOC_RX, CMD_BOUNDARY, DOCCLASS_RX, decode_tex
+from texlate.textutil import (  # noqa: F401  # safe_rel 转口——词法单源已迁 textutil.osutil，钉点不破
+    BEGIN_DOC_RX,
+    CMD_BOUNDARY,
+    DOCCLASS_RX,
+    decode_tex,
+    safe_rel,
+)
 
 _FILENAME_PRIOR: Final = frozenset(
     {"main", "paper", "ms", "root", "manuscript", "thesis"}
@@ -199,19 +205,6 @@ def _norm_arg(arg: str) -> str | None:
     if not parts or any(p == ".." for p in parts):
         return None
     return "/".join(parts)
-
-
-def safe_rel(name: str) -> PurePosixPath | None:
-    """``name`` → ``PurePosixPath``; 空名/绝对路径/``..`` 段/NUL → ``None``。
-
-    词法级路径守卫（不做存在性/解析）：fixloop 各注入/归位 builtin 统一
-    的 payload 拒收口——非相对安全名一律 decline，绝不把 ``../x``/``/etc/x``
-    写进 wdir。
-    """
-    rel = PurePosixPath(name)
-    if not name or rel.is_absolute() or ".." in rel.parts or "\x00" in name:
-        return None
-    return rel
 
 
 def _parent_dir(rel: str) -> str:

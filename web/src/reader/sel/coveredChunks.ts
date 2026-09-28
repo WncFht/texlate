@@ -74,12 +74,8 @@ export function makeChunkResolver(
 ): CoveredChunks {
     const R = RangeCtor ?? bodyEl.ownerDocument!.defaultView!.Range;
     const sel = spec.selector;
-    const chunkEls = [
-        ...bodyEl.querySelectorAll<Element>(sel),
-    ] as Element[];
-    const idxOf = new Map<Element, number>(
-        chunkEls.map((e, i) => [e, i]),
-    );
+    const chunkEls = [...bodyEl.querySelectorAll<Element>(sel)] as Element[];
+    const idxOf = new Map<Element, number>(chunkEls.map((e, i) => [e, i]));
     const er = bodyEl.ownerDocument!.createRange();
     const endsAfterStart = (el: Element, selR: Range): boolean => {
         er.selectNodeContents(el);

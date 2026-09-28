@@ -163,10 +163,7 @@ export default function TaskRow(props: {
                 </a>
             </Show>
             <Show when={RETRYABLE.has(props.task.status)}>
-                <span
-                    class="task-retry"
-                    ref={(el) => (retryWrap = el)}
-                >
+                <span class="task-retry" ref={(el) => (retryWrap = el)}>
                     <button
                         type="button"
                         class="task-act"

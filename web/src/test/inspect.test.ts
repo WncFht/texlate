@@ -304,8 +304,7 @@ describe("armed 揭示", () => {
         (
             document as unknown as {
                 elementFromPoint?:
-                    | ((x: number, y: number) => Element | null)
-                    | undefined;
+                    ((x: number, y: number) => Element | null) | undefined;
             }
         ).elementFromPoint = fn ?? undefined;
     };

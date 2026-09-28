@@ -85,10 +85,7 @@
 /* ---- 卡网格 ---- */
 .ax-grid {
     display: grid;
-    grid-template-columns: repeat(
-        auto-fill,
-        minmax(var(--ax-min, 316px), 1fr)
-    );
+    grid-template-columns: repeat(auto-fill, minmax(var(--ax-min, 316px), 1fr));
     gap: 14px;
 }
 

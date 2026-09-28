@@ -324,9 +324,7 @@ export function patchPdfPage(pg: PdfPageLike) {
         // pdf.js 6.x:params.canvas 为主路(内部 getContext 自取),
         // canvasContext 为旧签名——两者同源,getContext 返回同一实例
         const ctx =
-            params?.canvasContext ??
-            params?.canvas?.getContext?.("2d") ??
-            null;
+            params?.canvasContext ?? params?.canvas?.getContext?.("2d") ?? null;
         if (
             theme &&
             ctx &&
@@ -401,7 +399,8 @@ export function applyPdfTheme(slick: PDFSlick | null | undefined) {
         t?.reset?.();
     }
     viewer.update();
-    if (tv) while (tv.forceRendering()) {
-        /* 逐次排队可见缩略图,直到没有可渲的 */
-    }
+    if (tv)
+        while (tv.forceRendering()) {
+            /* 逐次排队可见缩略图,直到没有可渲的 */
+        }
 }

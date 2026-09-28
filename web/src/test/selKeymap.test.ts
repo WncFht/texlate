@@ -65,7 +65,13 @@ beforeEach(() => {
         configurable: true,
         value: true,
     });
-    layers = { cite: false, find: false, menu: false, info: false, help: false };
+    layers = {
+        cite: false,
+        find: false,
+        menu: false,
+        info: false,
+        help: false,
+    };
     st = { armed: false, selected: false, editorExists: false };
     log = [];
     keys = attachReaderKeys({
@@ -76,8 +82,7 @@ beforeEach(() => {
             else layers[l as LayerName] = false;
         },
         inFindbar: (t) =>
-            layers.find &&
-            !!(t as Element | null)?.closest?.(".findbar"),
+            layers.find && !!(t as Element | null)?.closest?.(".findbar"),
         hasSelection: () => {
             const s = document.getSelection()!;
             return !s.isCollapsed && s.toString().length > 0;
@@ -121,7 +126,12 @@ function pdfjsMimic(e: KeyboardEvent) {
             st.editorExists = false;
             st.selected = false;
             log.push({ kind: "pdfjs", action: "delete", eff: true });
-        } else if (/^Arrow/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        } else if (
+            /^Arrow/.test(e.key) &&
+            !e.altKey &&
+            !e.ctrlKey &&
+            !e.metaKey
+        ) {
             log.push({ kind: "pdfjs", action: "translate", eff: true });
         }
         return;
@@ -130,10 +140,7 @@ function pdfjsMimic(e: KeyboardEvent) {
         log.push({ kind: "pdfjs", action: "delete", eff: false }); // 空转
         return;
     }
-    if (
-        (e.key === "Enter" || e.key === " ") &&
-        t.closest?.(".pane") != null
-    ) {
+    if ((e.key === "Enter" || e.key === " ") && t.closest?.(".pane") != null) {
         st.editorExists = true;
         st.selected = true;
         log.push({ kind: "pdfjs", action: "newEditor", eff: true });
@@ -266,8 +273,20 @@ const CELLS: Cell[] = [
     { ctx: "help", key: "[", P: "pass" },
     { ctx: "help", key: "t", P: "pass" },
     { ctx: "menu", key: "Escape", P: "esc:menu", closed: ["menu"] },
-    { ctx: "body", key: "t", P: "pass", opts: { ctrlKey: true }, prevented: false },
-    { ctx: "selZh", key: "t", P: "pass", opts: { ctrlKey: true }, prevented: false },
+    {
+        ctx: "body",
+        key: "t",
+        P: "pass",
+        opts: { ctrlKey: true },
+        prevented: false,
+    },
+    {
+        ctx: "selZh",
+        key: "t",
+        P: "pass",
+        opts: { ctrlKey: true },
+        prevented: false,
+    },
     { ctx: "setInput", key: "f", P: "ui:find", opts: { ctrlKey: true } },
     { ctx: "selZh", key: "t", P: "pass", opts: { repeat: true } },
     { ctx: "viewer", key: "[", P: "page:-1", opts: { repeat: true } },
@@ -380,9 +399,7 @@ describe("STACKS — Esc 层叠剧本（每 Esc 恰塌一层）", () => {
                         (x.kind === "pdfjs" && x.action === "unselect"),
                 )
                 .map((x) =>
-                    x.kind === "pdfjs"
-                        ? "editor"
-                        : String(x.action).slice(4),
+                    x.kind === "pdfjs" ? "editor" : String(x.action).slice(4),
                 );
             seq.push([...new Set(evs.slice(consumed))]);
             consumed = evs.length;
@@ -415,9 +432,10 @@ describe("STACKS — Esc 层叠剧本（每 Esc 恰塌一层）", () => {
         ]);
     });
     it("editor+cite → [[editor],[cite]]（editor 最内层先塌）", () => {
-        expect(
-            escSeq(["cite"], { edSel: true, focusBody: true }),
-        ).toEqual([["editor"], ["cite"]]);
+        expect(escSeq(["cite"], { edSel: true, focusBody: true })).toEqual([
+            ["editor"],
+            ["cite"],
+        ]);
     });
     it("editor+find(focus fb) → [[find],[editor]]（findbar Esc 先行）", () => {
         expect(escSeq(["find"], { edSel: true })).toEqual([

@@ -10,10 +10,15 @@ import json
 import os
 import threading
 import time
-from pathlib import Path
 
 import pytest
 from kernel import events, ledger, locks, paths, runs
+
+# 每个测试都要隔离 BENCH_ROOT——broot 只要副作用，全模块钉版不再逐个形参声明
+pytestmark = pytest.mark.usefixtures("broot")
+
+# 刚 touch 过的心跳 age 上界：远小于内核新鲜阈 _HEARTBEAT_FRESH_S(600s) 的宽限
+_RECENT_HEARTBEAT_S = 5
 
 
 def _cell(id_: str, arm: str = "zh", stage: str = "xlat") -> dict:
@@ -73,7 +78,7 @@ def _shard(rd: runs.RunDir) -> list[dict]:
 # --- create_run layout (§1 tree) -------------------------------------------------
 
 
-def test_create_run_layout_matches_spec_tree(broot: Path) -> None:
+def test_create_run_layout_matches_spec_tree() -> None:
     rd = runs.create_run(
         "soak",
         spec_dict={"kind": "soak", "params": {"n": 3}},
@@ -102,7 +107,8 @@ def test_create_run_layout_matches_spec_tree(broot: Path) -> None:
     # run_registered dual-written into the shard by mint
     shard = _shard(rd)
     regs = [e for e in shard if e["type"] == "run_registered"]
-    assert len(regs) == 1 and regs[0]["run_seq"] == rd.run_seq == 1
+    assert len(regs) == 1
+    assert regs[0]["run_seq"] == rd.run_seq == 1
     assert regs[0]["run"] == f"soak/{rd.date}/soak"
     # runs.jsonl report row
     rows = [
@@ -123,12 +129,12 @@ def test_create_run_layout_matches_spec_tree(broot: Path) -> None:
     ]
 
 
-def test_create_run_default_date_is_utc(broot: Path) -> None:
+def test_create_run_default_date_is_utc() -> None:
     rd = runs.create_run("adhoc")
     assert rd.date == time.strftime("%Y-%m-%d", time.gmtime())
 
 
-def test_create_run_slug_unique_suffix(broot: Path) -> None:
+def test_create_run_slug_unique_suffix() -> None:
     rd1 = runs.create_run("soak", date="2026-09-21")
     rd2 = runs.create_run("soak", date="2026-09-21")
     rd3 = runs.create_run("soak", date="2026-09-21")
@@ -136,25 +142,26 @@ def test_create_run_slug_unique_suffix(broot: Path) -> None:
     assert (rd1.run_seq, rd2.run_seq, rd3.run_seq) == (1, 2, 3)
 
 
-def test_create_run_explicit_slug_collision_raises(broot: Path) -> None:
+def test_create_run_explicit_slug_collision_raises() -> None:
     runs.create_run("soak", slug="w1", date="2026-09-21")
     with pytest.raises(FileExistsError):
         runs.create_run("soak", slug="w1", date="2026-09-21")
 
 
-def test_create_run_bad_components_rejected(broot: Path) -> None:
-    with pytest.raises(ValueError):
+def test_create_run_bad_components_rejected() -> None:
+    with pytest.raises(ValueError, match=r"kind.*not a safe path component"):
         runs.create_run("bad/kind")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"slug.*not a safe path component"):
         runs.create_run("soak", slug="../x")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
         runs.create_run("soak", date="09/21")
 
 
-def test_load_run_reattaches(broot: Path) -> None:
+def test_load_run_reattaches() -> None:
     rd = runs.create_run("fixloop", slug="f1", date="2026-09-21")
     rd2 = runs.load_run("fixloop", "2026-09-21", "f1")
-    assert rd2.path == rd.path and rd2.run_seq == rd.run_seq
+    assert rd2.path == rd.path
+    assert rd2.run_seq == rd.run_seq
     with pytest.raises(FileNotFoundError):
         runs.load_run("fixloop", "2026-09-21", "nope")
 
@@ -162,7 +169,7 @@ def test_load_run_reattaches(broot: Path) -> None:
 # --- freeze_plan --------------------------------------------------------------------
 
 
-def test_freeze_plan_writes_then_reuses_verbatim(broot: Path) -> None:
+def test_freeze_plan_writes_then_reuses_verbatim() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     cells = [_cell("2401.00001"), _cell("2401.00002")]
     got = runs.freeze_plan(rd, cells)
@@ -186,7 +193,7 @@ def test_freeze_plan_writes_then_reuses_verbatim(broot: Path) -> None:
 # --- invocations / cases ----------------------------------------------------------------
 
 
-def test_add_invocation_and_case(broot: Path) -> None:
+def test_add_invocation_and_case() -> None:
     rd = runs.create_run("xlat", date="2026-09-21")
     runs.add_invocation(
         rd, {"resume": True, "max_cost": 5}, spec_hash="abc", code_stamp="def"
@@ -199,7 +206,8 @@ def test_add_invocation_and_case(broot: Path) -> None:
         {"resume": True, "max_cost": 5},
         {"resume": True},
     ]
-    assert rows[0]["spec_hash"] == "abc" and rows[0]["code_stamp"] == "def"
+    assert rows[0]["spec_hash"] == "abc"
+    assert rows[0]["code_stamp"] == "def"
 
     runs.add_case(rd, {"id": "2401.00001", "verdict": "primary"})
     cases = [r for _ln, r, _raw in events.iter_jsonl(rd.cases_path()) if r is not None]
@@ -209,7 +217,7 @@ def test_add_invocation_and_case(broot: Path) -> None:
 # --- cell_lock -----------------------------------------------------------------------------
 
 
-def test_cell_lock_serializes_same_id(broot: Path) -> None:
+def test_cell_lock_serializes_same_id() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     order: list[tuple[str, str]] = []
 
@@ -230,14 +238,14 @@ def test_cell_lock_serializes_same_id(broot: Path) -> None:
     assert order == [("enter", "A"), ("exit", "A"), ("enter", "B"), ("exit", "B")]
 
 
-def test_cell_lock_nb_raises_while_held(broot: Path) -> None:
+def test_cell_lock_nb_raises_while_held() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     with runs.cell_lock(rd, "s1"):
         assert not locks.lock_free(rd.cell_lock_path("s1"))
     assert locks.lock_free(rd.cell_lock_path("s1"))
 
 
-def test_run_lock_nb_failfast(broot: Path) -> None:
+def test_run_lock_nb_failfast() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     with rd.lock(), pytest.raises(locks.WouldBlock), rd.lock():
         pass
@@ -249,7 +257,7 @@ def test_run_lock_nb_failfast(broot: Path) -> None:
 # --- heartbeat / active_runs -----------------------------------------------------------------
 
 
-def test_heartbeat_loop_touches_until_stopped(broot: Path) -> None:
+def test_heartbeat_loop_touches_until_stopped() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     hb = rd.heartbeat_path()
     old = time.time() - 3600
@@ -268,7 +276,7 @@ def test_heartbeat_loop_touches_until_stopped(broot: Path) -> None:
     assert locks.heartbeat_age(hb) < 1.0
 
 
-def test_active_runs_fresh_locked_only(broot: Path) -> None:
+def test_active_runs_fresh_locked_only() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     # fresh heartbeat but NO lock held -> not active
     rd.heartbeat_touch()
@@ -277,15 +285,16 @@ def test_active_runs_fresh_locked_only(broot: Path) -> None:
     with rd.lock():
         got = runs.active_runs()
         assert [g["run"] for g in got] == [rd.run]
-        assert got[0]["kind"] == "soak" and got[0]["slug"] == "soak"
-        assert got[0]["heartbeat_age"] < 5
+        assert got[0]["kind"] == "soak"
+        assert got[0]["slug"] == "soak"
+        assert got[0]["heartbeat_age"] < _RECENT_HEARTBEAT_S
         # stale heartbeat + lock held -> zombie, not active
         old = time.time() - 3600
         os.utime(rd.heartbeat_path(), (old, old))
         assert runs.active_runs() == []
 
 
-def test_active_runs_ignores_non_run_dirs(broot: Path) -> None:
+def test_active_runs_ignores_non_run_dirs() -> None:
     stray = paths.runs_dir() / "soak" / "2026-09-21"
     stray.mkdir(parents=True)
     (stray / "not-a-run").write_text("x")  # file, not dir
@@ -295,20 +304,24 @@ def test_active_runs_ignores_non_run_dirs(broot: Path) -> None:
 # --- accounting_check ---------------------------------------------------------------------------
 
 
-def test_accounting_check_balanced_run_is_ok(broot: Path) -> None:
+def test_accounting_check_balanced_run_is_ok() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
-    runs.freeze_plan(rd, [_cell("2401.00001"), _cell("2401.00002")])
+    cells = [_cell("2401.00001"), _cell("2401.00002")]
+    runs.freeze_plan(rd, cells)
     _queued(rd, 1, "2401.00001")
     _queued(rd, 2, "2401.00002")
     _terminal(rd, 3, "2401.00001")
     _terminal(rd, 4, "2401.00002", status="fail")
     res = runs.accounting_check(rd)
     assert res["ok"] is True
-    assert res["plan"] == 2 and res["queued"] == 2 and res["terminal"] == 2
-    assert res["missing_terminal"] == [] and res["extra_queued"] == []
+    assert res["plan"] == len(cells)
+    assert res["queued"] == len(cells)
+    assert res["terminal"] == len(cells)
+    assert res["missing_terminal"] == []
+    assert res["extra_queued"] == []
 
 
-def test_accounting_check_missing_terminal_and_extra_queued(broot: Path) -> None:
+def test_accounting_check_missing_terminal_and_extra_queued() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     runs.freeze_plan(rd, [_cell("2401.00001"), _cell("2401.00002")])
     _queued(rd, 1, "2401.00001")
@@ -322,7 +335,7 @@ def test_accounting_check_missing_terminal_and_extra_queued(broot: Path) -> None
     assert [k[0] for k in res["extra_queued"]] == ["2401.00003"]
 
 
-def test_accounting_check_dup_terminal_is_violation(broot: Path) -> None:
+def test_accounting_check_dup_terminal_is_violation() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     runs.freeze_plan(rd, [_cell("2401.00001")])
     _queued(rd, 1, "2401.00001")
@@ -333,7 +346,7 @@ def test_accounting_check_dup_terminal_is_violation(broot: Path) -> None:
     assert [k[0] for k in res["dup_terminal"]] == ["2401.00001"]
 
 
-def test_accounting_check_no_plan_flags_all_queued(broot: Path) -> None:
+def test_accounting_check_no_plan_flags_all_queued() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     _queued(rd, 1, "2401.00001")
     _terminal(rd, 2, "2401.00001")
@@ -345,7 +358,7 @@ def test_accounting_check_no_plan_flags_all_queued(broot: Path) -> None:
 # --- remove_cell_tree ------------------------------------------------------------------------------
 
 
-def test_remove_cell_tree_deletes_and_notes(broot: Path) -> None:
+def test_remove_cell_tree_deletes_and_notes() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     cell = rd.work("2401--00001")
     (cell / "zh.mock").mkdir(parents=True)
@@ -355,7 +368,8 @@ def test_remove_cell_tree_deletes_and_notes(broot: Path) -> None:
     assert not cell.exists()
     # note emitted to BOTH ledger and the run shard (dual-write)
     notes = [e for e in _shard(rd) if e["type"] == "note"]
-    assert len(notes) == 1 and "2401--00001" in notes[0]["text"]
+    assert len(notes) == 1
+    assert "2401--00001" in notes[0]["text"]
     ledger_notes = [
         e
         for _ln, e, _raw in events.iter_jsonl(paths.events_path())
@@ -367,14 +381,14 @@ def test_remove_cell_tree_deletes_and_notes(broot: Path) -> None:
     assert notes[0]["seq"] < 0
 
 
-def test_remove_cell_tree_missing_dir_still_notes(broot: Path) -> None:
+def test_remove_cell_tree_missing_dir_still_notes() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     runs.remove_cell_tree(rd, "ghost--00000")  # no-op delete, note still lands
     notes = [e for e in _shard(rd) if e["type"] == "note"]
     assert len(notes) == 1
 
 
-def test_remove_cell_tree_blocks_unpaid_unharvested(broot: Path) -> None:
+def test_remove_cell_tree_blocks_unpaid_unharvested() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     cell = rd.work("2401--00002")
     (cell / "zh.mock").mkdir(parents=True)
@@ -384,11 +398,12 @@ def test_remove_cell_tree_blocks_unpaid_unharvested(broot: Path) -> None:
     assert (cell / "zh.mock" / "out.pdf").exists()  # nothing was deleted
     # the block is on the books — a warn note, not silent
     notes = [e for e in _shard(rd) if e["type"] == "note"]
-    assert len(notes) == 1 and notes[0]["level"] == "warn"
+    assert len(notes) == 1
+    assert notes[0]["level"] == "warn"
     assert "BLOCKED" in notes[0]["text"]
 
 
-def test_remove_cell_tree_vault_secured_deletes(broot: Path) -> None:
+def test_remove_cell_tree_vault_secured_deletes() -> None:
     rd = runs.create_run("soak", date="2026-09-21")
     cell = rd.work("2401--00003")
     (cell / "zh.mock").mkdir(parents=True)

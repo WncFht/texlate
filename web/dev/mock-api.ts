@@ -1344,10 +1344,7 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         });
         return true;
     }
-    if (
-        (mm = m(/^\/api\/task\/([^/]+)\/chunks$/)) &&
-        req.method === "GET"
-    ) {
+    if ((mm = m(/^\/api\/task\/([^/]+)\/chunks$/)) && req.method === "GET") {
         const t = tasks.get(mm[1]);
         if (!t) return (notFound(res), true);
         const total = t.counters.total || TOTAL_CHUNKS;
@@ -1375,9 +1372,7 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         const seqRange =
             wanted ??
             [
-                ...Array(
-                    Math.max(0, Math.min(total, off + lim) - off),
-                ).keys(),
+                ...Array(Math.max(0, Math.min(total, off + lim) - off)).keys(),
             ].map((k) => k + off);
         for (const i of seqRange) {
             if (i >= total) continue;

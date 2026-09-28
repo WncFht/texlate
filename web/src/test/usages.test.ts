@@ -211,8 +211,9 @@ describe("句界护栏", () => {
     });
     it("掩码路：depth/转义/缩写/SL-PL 边界", () => {
         // depth>0 的 "." 不切；尾词 ≤3 字母按缩写豁免（batch.abbrev_cut）
-        expect(maskedSentenceStarts("Done. Two {in.depth x. y} end."))
-            .toEqual([0, 6]);
+        expect(maskedSentenceStarts("Done. Two {in.depth x. y} end.")).toEqual([
+            0, 6,
+        ]);
         const esc = "a \\\\ done. c"; // 源文 `a \\ done. c`
         expect(maskedSentenceStarts(esc)).toEqual([0, 11]);
         expect(maskedSentenceStarts("Fig. 2 works. Next.")).toEqual([0, 14]);
@@ -311,7 +312,11 @@ describe("buildCiteUsageMap", () => {
         // 跨 src_file 桶各自独立——不互相污染
         const ok = buildCiteUsageMap({
             chunks: [
-                chunk({ seq: 1, en: "[[CITE_3]]", ph: { "[[CITE_3]]": "\\cite{x}" } }),
+                chunk({
+                    seq: 1,
+                    en: "[[CITE_3]]",
+                    ph: { "[[CITE_3]]": "\\cite{x}" },
+                }),
                 chunk({
                     seq: 2,
                     src_file: "other.tex",
@@ -377,7 +382,9 @@ describe("fillPairZh — (id,ord) 跨 pane 对", () => {
     it("zh 侧缺条目/缺 ord → 该句 zhText 留 null；幂等", () => {
         const en = buildUsageIndex(side("en", "fig"));
         const zh = buildUsageIndex(
-            mini(`<p>仅 <a href="#F1">一</a> 处。</p><figure id="F1" class="ltx_figure"></figure>`),
+            mini(
+                `<p>仅 <a href="#F1">一</a> 处。</p><figure id="F1" class="ltx_figure"></figure>`,
+            ),
         );
         const e = en.forId("F1")!;
         fillPairZh(e, zh);

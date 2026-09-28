@@ -246,7 +246,9 @@ const NONTEXT_SEL = "table, math, img, svg, figure, video, canvas, iframe";
 function texOf(mathEl: Element): string | null {
     const alt = mathEl.getAttribute("alttext");
     if (alt) return alt;
-    const ann = mathEl.querySelector("annotation[encoding='application/x-tex']");
+    const ann = mathEl.querySelector(
+        "annotation[encoding='application/x-tex']",
+    );
     return ann?.textContent?.trim() || null;
 }
 
@@ -278,7 +280,12 @@ function citeAnchorOf(target: Element | null): CiteAnchor | null {
             .split(",")
             .map((k) => k.trim())
             .filter(Boolean);
-        return { a: hit, targetId: keys[0] ?? null, bibkey: keys[0] ?? null, keys };
+        return {
+            a: hit,
+            targetId: keys[0] ?? null,
+            bibkey: keys[0] ?? null,
+            keys,
+        };
     }
     // .ltx_cite 容器（点中括号/逗号非链面）→ 取内层首链
     const a = hit.matches("a[href^='#']")
@@ -311,8 +318,7 @@ function byId(scope: Element | Document, id: string): Element | null {
     } catch {
         /* 落兜底扫 */
     }
-    for (const e of scope.querySelectorAll("[id]"))
-        if (e.id === id) return e;
+    for (const e of scope.querySelectorAll("[id]")) if (e.id === id) return e;
     return null;
 }
 
@@ -424,8 +430,8 @@ export function snapshotHit(
         ? null
         : targetEl
           ? targetEl.matches?.(".bib-anchor,[data-bib-key]")
-            ? "bib"
-            : classifyLtxEl(targetEl)
+              ? "bib"
+              : classifyLtxEl(targetEl)
           : ca.targetId
             ? classifyDestName(ca.targetId)
             : "other";
@@ -522,8 +528,7 @@ export function snapshotHit(
         hasEn: enText != null && enText.trim() !== "",
         hasZh: zhText != null && zhText.trim() !== "",
         zhUntranslated:
-            (paneSide === "zh" &&
-                !!chunkEl?.querySelector(".chunk-badge")) ||
+            (paneSide === "zh" && !!chunkEl?.querySelector(".chunk-badge")) ||
             (chunkKey != null && (deps.zhUntranslated?.(chunkKey) ?? false)),
         hasNontext: !!chunkEl?.querySelector(NONTEXT_SEL),
         hasPh: !!chunkEl?.querySelector("[data-ph]"),

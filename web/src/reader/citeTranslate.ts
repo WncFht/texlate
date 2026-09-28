@@ -37,7 +37,7 @@ import {
 } from "../api/client";
 import { taskStore, type TaskLive } from "../stores/tasks";
 import { toast, type ToastAction } from "../stores/toastStore";
-import { currentLang, fmt, t } from "../i18n";
+import { tLane } from "../i18n";
 import { canonRefId, type BibEntry } from "./citations";
 import { readerHashWithFrom } from "./tasknav";
 
@@ -105,7 +105,8 @@ const CT_TRAN_EN: Record<keyof typeof CT_TRAN_ZH, string> = {
     hint: "Translated papers are skipped; tasks run in background",
     cta: "Translate {n}",
     ctaAllDone: "All translated",
-    warnBig: "Submitting {n} at once occupies the queue ~{lo}–{hi} — consider a smaller batch",
+    warnBig:
+        "Submitting {n} at once occupies the queue ~{lo}–{hi} — consider a smaller batch",
     toastQueued: "Queued",
     toastDone: "Already translated",
     toastView: "View",
@@ -134,21 +135,14 @@ export function ctText(
     key: CiteTranKey | `cite.${CiteChipKey}`,
     vars?: Record<string, string | number>,
 ): string {
-    let tpl: string | undefined;
-    if (key.startsWith("cite.")) {
-        const leaf = key.slice(5) as CiteChipKey;
-        tpl = (
-            t.cite as unknown as Record<string, string | undefined>
-        )?.[leaf];
-        tpl ??= currentLang() === "zh" ? CT_CITE_ZH[leaf] : CT_CITE_EN[leaf];
-    } else {
-        const k = key as CiteTranKey;
-        tpl = (
-            t as unknown as Record<string, Record<string, string> | undefined>
-        ).citeTran?.[k];
-        tpl ??= currentLang() === "zh" ? CT_TRAN_ZH[k] : CT_TRAN_EN[k];
-    }
-    return vars ? fmt(tpl, vars) : tpl;
+    if (key.startsWith("cite."))
+        return tLane(
+            "cite",
+            key.slice(5),
+            { zh: CT_CITE_ZH, en: CT_CITE_EN },
+            vars,
+        );
+    return tLane("citeTran", key, { zh: CT_TRAN_ZH, en: CT_TRAN_EN }, vars);
 }
 
 // ---------------------------------------------------------------- 状态机
@@ -283,9 +277,7 @@ export type RefStatusReducer = ReturnType<typeof createRefStatus>;
 // ---------------------------------------------------- 行投影（组件主路）
 
 /** chip 视图相：五态机 + needs_auth 单列（输 key CTA 不交状态机） */
-export type RefChipPhase =
-    | RefPhase
-    | "needsAuth";
+export type RefChipPhase = RefPhase | "needsAuth";
 
 export interface RefView {
     phase: RefChipPhase;
@@ -474,7 +466,9 @@ export interface CiteTranslate {
     fmtEta: typeof fmtEta;
 }
 
-export function createCiteTranslate(deps: CiteTranslateDeps = {}): CiteTranslate {
+export function createCiteTranslate(
+    deps: CiteTranslateDeps = {},
+): CiteTranslate {
     const post =
         deps.postTranslate ??
         ((id: string, body: TranslateOptions, byok?: ByokHeaders) =>
@@ -503,8 +497,7 @@ export function createCiteTranslate(deps: CiteTranslateDeps = {}): CiteTranslate
     /** 内联 key 面板宿主——面板挂载期覆盖 deps.onNeedAuth（批内 401 收
         key 走面板内联框）；undefined 回落 deps 宿主/兜底 toast */
     let authHost:
-        | ((retry: (apiKey: string) => Promise<void>) => void)
-        | undefined;
+        ((retry: (apiKey: string) => Promise<void>) => void) | undefined;
 
     /** 401/凭证门统一出面口：有宿主交宿主（带续跑回调），无宿主 err toast */
     const fireNeedAuth = (retry: (apiKey: string) => Promise<void>) => {
@@ -532,11 +525,16 @@ export function createCiteTranslate(deps: CiteTranslateDeps = {}): CiteTranslate
     const byokFor = (apiKey?: string): ByokHeaders | undefined => {
         const key = apiKey ?? sessionKey;
         const base = deps.byok?.() ?? {};
-        return key ? { ...base, apiKey: key } : base.apiKey ? base : (Object.keys(base).length ? base : undefined);
+        return key
+            ? { ...base, apiKey: key }
+            : base.apiKey
+              ? base
+              : Object.keys(base).length
+                ? base
+                : undefined;
     };
 
-    const keyReady = () =>
-        deps.hasApiKey?.() !== false || !!sessionKey;
+    const keyReady = () => deps.hasApiKey?.() !== false || !!sessionKey;
 
     /**
      * 单条提交（内部——quiet 时压 toast，批量路自担汇总条）。
@@ -568,8 +566,7 @@ export function createCiteTranslate(deps: CiteTranslateDeps = {}): CiteTranslate
             // 409 duplicate_active——静默收编为「已在队列」，指向回包
             // task_id（覆盖 interrupted 占键槽/别名归一同行情形）
             if (ae?.status === 409) {
-                const tid =
-                    ae.taskId ?? ae.detail.match(/t_[0-9a-f]{16}/)?.[0];
+                const tid = ae.taskId ?? ae.detail.match(/t_[0-9a-f]{16}/)?.[0];
                 if (tid) {
                     track(tid, arxivId);
                     return { kind: "existing", taskId: tid };

@@ -18,7 +18,7 @@ import { usePDFSlick } from "@pdfslick/solid";
 import type { PDFSlick } from "@pdfslick/core";
 import "@pdfslick/solid/dist/pdf_viewer.css";
 
-import type { DocId, Pos } from "./alignment";
+import { colOf, COL_X_SPLIT, type DocId, type Pos } from "./alignment";
 import {
     capturePos,
     jumpTo,
@@ -271,8 +271,7 @@ export default function PdfPane(props: Props) {
     let saTintCls = "";
     // 在场悬停请求——textLayer 懒渲染/重渲后按此补染（渲染把锚 span
     // 整棵换掉，不染则 peer 页现形后悬停色依旧缺席）
-    let saTintReq: { seq: number; pos: Pos | null; cls: string } | null =
-        null;
+    let saTintReq: { seq: number; pos: Pos | null; cls: string } | null = null;
     const saTint = (els: HTMLElement[], cls: string) => {
         const old = saTintCls;
         for (const el of saTintEls) {
@@ -298,27 +297,25 @@ export default function PdfPane(props: Props) {
     // textLayer 按 offsetTop 分位取行；pos.x 在场收窄到同栏半区（右栏
     // 落点不染同 y 左栏行），收窄空集（缝带点击）落回整带兜底
     const bandElsAt = (pos: Pos): HTMLElement[] => {
-        const views = (
-            viewer() as unknown as { _pages?: PdfPageViewLike[] }
-        )?._pages;
+        const views = (viewer() as unknown as { _pages?: PdfPageViewLike[] })
+            ?._pages;
         const div = views?.[pos.page - 1]?.div;
         if (!div) return [];
         const y = pos.fraction * div.offsetHeight;
         const band = [
             ...div.querySelectorAll<HTMLElement>(".textLayer span"),
         ].filter(
-            (sp) =>
-                sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
+            (sp) => sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
         );
-        const wantCol = (pos.x ?? 0) >= 0.45;
+        const wantCol = colOf(pos) === 1;
         const els =
             pos.x == null
                 ? band
                 : band.filter(
                       (sp) =>
-                          ((sp.offsetLeft + sp.offsetWidth / 2) /
-                              div.offsetWidth) >=
-                              0.45 ===
+                          (sp.offsetLeft + sp.offsetWidth / 2) /
+                              div.offsetWidth >=
+                              COL_X_SPLIT ===
                           wantCol,
                   );
         if (els.length) return els;
@@ -545,7 +542,8 @@ export default function PdfPane(props: Props) {
             : [`cite.${key}`, `bib.${key}`, key];
         const destName =
             cands.find((d) => destSites.get(d)?.length) ??
-            (cands.find((d) => destNames.has(d)) ?? cands[0]!);
+            cands.find((d) => destNames.has(d)) ??
+            cands[0]!;
         const sites = destSites.get(destName) ?? [];
         usageJumps = sites;
         // 图/表/式锚的 dest 尾号≠印刷编号（figure.caption.11 可能是「图 1」）
@@ -674,9 +672,9 @@ export default function PdfPane(props: Props) {
                 const pg = await doc.getPage(page);
                 const annots = await (
                     pg as PdfPageLike & {
-                        getAnnotations?(o: { intent: string }): Promise<
-                            { dest?: unknown; rect?: number[] }[]
-                        >;
+                        getAnnotations?(o: {
+                            intent: string;
+                        }): Promise<{ dest?: unknown; rect?: number[] }[]>;
                     }
                 ).getAnnotations?.({ intent: "display" });
                 const pview = (pg as unknown as { view?: number[] }).view;
@@ -749,8 +747,7 @@ export default function PdfPane(props: Props) {
             } catch {
                 /* 单页注记/文本拉取失败不挡后续页 */
             }
-            if (!destScanAbort && oi < order.length)
-                idle(() => void step());
+            if (!destScanAbort && oi < order.length) idle(() => void step());
         };
         void step();
         // dest 落点解析与页扫并行——二者独立面，串行时 destAtPoint 要等
@@ -787,9 +784,7 @@ export default function PdfPane(props: Props) {
             return p;
         };
         const entries =
-            all instanceof Map
-                ? [...all.entries()]
-                : Object.entries(all);
+            all instanceof Map ? [...all.entries()] : Object.entries(all);
         let i = 0;
         const step = async () => {
             if (destScanAbort || i >= entries.length) return;
@@ -813,9 +808,7 @@ export default function PdfPane(props: Props) {
                             ? view[3] - view[1]
                             : vp.height;
                     const w =
-                        view && view.length >= 4
-                            ? view[2] - view[0]
-                            : vp.width;
+                        view && view.length >= 4 ? view[2] - view[0] : vp.width;
                     if (!(h > 0)) continue;
                     const x0 = view?.[0] ?? 0;
                     const y0 = view?.[1] ?? 0;
@@ -828,8 +821,7 @@ export default function PdfPane(props: Props) {
                             ? null
                             : Math.min(Math.max((pt.x - x0) / w, 0), 1);
                     const arr =
-                        destPos.get(pnum) ??
-                        destPos.set(pnum, []).get(pnum)!;
+                        destPos.get(pnum) ?? destPos.set(pnum, []).get(pnum)!;
                     arr.push({ name, frac, fx });
                     destPoint.set(name, { page: pnum, frac, fx });
                 } catch {
@@ -873,9 +865,7 @@ export default function PdfPane(props: Props) {
             // 走 document 监听，bubbles 事件即触发 setQuery→emitDebounced
             if (query != null && findInput) {
                 findInput.value = query;
-                findInput.dispatchEvent(
-                    new Event("input", { bubbles: true }),
-                );
+                findInput.dispatchEvent(new Event("input", { bubbles: true }));
             }
             findInput?.focus();
             if (query != null) findInput?.select();
@@ -979,9 +969,8 @@ export default function PdfPane(props: Props) {
     const landingFlash = (pos: Pos | null, attempt = 0): void => {
         if (!pos) return;
         if (performance.now() - saFlashAt < 400) return;
-        const views = (
-            viewer() as unknown as { _pages?: PdfPageViewLike[] }
-        )?._pages;
+        const views = (viewer() as unknown as { _pages?: PdfPageViewLike[] })
+            ?._pages;
         const div = views?.[pos.page - 1]?.div;
         if (!div) return;
         const r = div.getBoundingClientRect();
@@ -990,13 +979,7 @@ export default function PdfPane(props: Props) {
         const cy = r.top + r.height * pos.fraction + 4;
         let seq: number | null = null;
         if (c)
-            for (const xf of [
-                pos.x ?? 0.3,
-                pos.x ?? 0.7,
-                0.3,
-                0.7,
-                0.5,
-            ]) {
+            for (const xf of [pos.x ?? 0.3, pos.x ?? 0.7, 0.3, 0.7, 0.5]) {
                 const sp = c.ownerDocument
                     .elementFromPoint(r.left + r.width * xf, cy)
                     ?.closest<HTMLElement>(MARKED_SEL);
@@ -1006,8 +989,7 @@ export default function PdfPane(props: Props) {
                 }
             }
         let els: HTMLElement[] = [];
-        if (seq != null)
-            els = (handle.seqEls?.(seq) ?? []).flatMap(leafEls);
+        if (seq != null) els = (handle.seqEls?.(seq) ?? []).flatMap(leafEls);
         if (!els.length) els = bandElsAt(pos);
         if (els.length) {
             saFlash(els);
@@ -1053,9 +1035,7 @@ export default function PdfPane(props: Props) {
                                     ? 0.5
                                     : Math.min(
                                           Math.max(
-                                              1 -
-                                                  (pt.y - (view?.[1] ?? 0)) /
-                                                      h,
+                                              1 - (pt.y - (view?.[1] ?? 0)) / h,
                                               0,
                                           ),
                                           1,
@@ -1077,8 +1057,7 @@ export default function PdfPane(props: Props) {
         }
         // 首拍延 180ms——同轨上 sentalign 句级闪多在此窗内落定，届时
         // 新闪闸自然让行，纯 nav 跳的闪在滚动落定后才出反而更贴
-        if (pos)
-            window.setTimeout(() => landingFlash(pos), 180);
+        if (pos) window.setTimeout(() => landingFlash(pos), 180);
     };
 
     const handle: PaneHandle = {
@@ -1155,9 +1134,9 @@ export default function PdfPane(props: Props) {
         seqEls: (seq) => {
             const c = viewer()?.container;
             if (!c) return [];
-            return [
-                ...c.querySelectorAll<HTMLElement>(MARKED_SEL),
-            ].filter((el) => seqOfMarkedSpan(el) === seq);
+            return [...c.querySelectorAll<HTMLElement>(MARKED_SEL)].filter(
+                (el) => seqOfMarkedSpan(el) === seq,
+            );
         },
         seqPage: (seq) => seqPageMap.get(seq)?.page ?? null,
         seqAtPoint: (x, y) => {
@@ -1256,7 +1235,8 @@ export default function PdfPane(props: Props) {
             }
             const dest = inspectDestName(x, y, t);
             if (!dest) return false;
-            const span = (t as Element | null)?.closest?.(".textLayer span") ?? null;
+            const span =
+                (t as Element | null)?.closest?.(".textLayer span") ?? null;
             return openUsagesFor(dest, span, {
                 left: x - 1,
                 right: x + 1,
@@ -1470,7 +1450,9 @@ export default function PdfPane(props: Props) {
                 details?: { hasSelectedEditor?: boolean };
                 hasSelectedEditor?: boolean;
             };
-            edSelected = !!(d.details?.hasSelectedEditor ?? d.hasSelectedEditor);
+            edSelected = !!(
+                d.details?.hasSelectedEditor ?? d.hasSelectedEditor
+            );
         };
         bus.on("editingstateschanged", onEdState);
         // textLayer 懒渲/重渲把锚 span 整棵换掉——存活悬停按 saTintReq
@@ -1664,10 +1646,7 @@ export default function PdfPane(props: Props) {
             // 本体开卡瞬间 pdf.js 的 selectionRendering 重排 textLayer 节点，
             // 指针原地不动也吐 pointerout（rel=非卡元素）——开卡宽限窗内
             // 只认真锚离开，噪声窗后恢复正常宽限关
-            if (
-                (card() || ucard()) &&
-                performance.now() >= scrollGraceUntil
-            )
+            if ((card() || ucard()) && performance.now() >= scrollGraceUntil)
                 armClose();
         };
         const onFocusIn = (e: FocusEvent) => {
@@ -1755,9 +1734,8 @@ export default function PdfPane(props: Props) {
             // 卡锚=点击点小矩形；文本片命中时 span 兼作 label 语境源
             // （anchorTextOf 捞印刷体「Fig. 3」）
             const span =
-                (e.target as Element | null)?.closest?.(
-                    ".textLayer span",
-                ) ?? null;
+                (e.target as Element | null)?.closest?.(".textLayer span") ??
+                null;
             openUsagesFor(dest, span, {
                 left: e.clientX - 1,
                 right: e.clientX + 1,
@@ -1796,7 +1774,10 @@ export default function PdfPane(props: Props) {
             for (const rec of records) {
                 for (const node of rec.addedNodes) {
                     if (!(node instanceof Element)) continue;
-                    if (node instanceof HTMLAnchorElement && node.matches(ANCHOR_SEL))
+                    if (
+                        node instanceof HTMLAnchorElement &&
+                        node.matches(ANCHOR_SEL)
+                    )
                         labelAnchor(node);
                     for (const a of node.querySelectorAll<HTMLAnchorElement>(
                         ANCHOR_SEL,
@@ -1911,10 +1892,7 @@ export default function PdfPane(props: Props) {
                                     destNames.has(c().dest) ||
                                     destSites.get(c().dest)?.length
                                         ? () =>
-                                              openUsagesFor(
-                                                  c().dest,
-                                                  curAnchor,
-                                              )
+                                              openUsagesFor(c().dest, curAnchor)
                                         : undefined
                                 }
                                 usagesCount={destSites.get(c().dest)?.length}

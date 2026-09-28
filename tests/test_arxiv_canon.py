@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from texlate.arxiv.fetch import (
+    ARXIV_ID_FIND_RX,
     CanonError,
     canon,
     normalize_arxiv_id,
@@ -231,3 +232,23 @@ class TestShells:
             req_base_ver("9912.00001")
         with pytest.raises(ValueError, match="bad_version"):
             req_base_ver("2301.12345", 0)
+
+
+# ------------------------------------------------------------ 自由文本抽取
+
+
+class TestFindRx:
+    """``ARXIV_ID_FIND_RX``：自由文本抽取器单源（findall 只回裸 base）。"""
+
+    def test_findall_three_shapes(self) -> None:
+        ids = ARXIV_ID_FIND_RX.findall(
+            "see arXiv:math.QA/0309136 and hep-th/9901001v2 and 2301.12345"
+        )
+        # classful 旧形容忍命中；钉版串匹配但 vN 不入组
+        assert ids == ["math.QA/0309136", "hep-th/9901001", "2301.12345"]
+
+    def test_boundary_rejects_glue(self) -> None:
+        assert ARXIV_ID_FIND_RX.search("2301.123456") is None  # 位长 runover
+        assert ARXIV_ID_FIND_RX.search("x2301.12345") is None  # 前缀黏字
+        assert ARXIV_ID_FIND_RX.search("2301.12345x") is None  # 后缀黏字
+        assert ARXIV_ID_FIND_RX.search("2301.12345v2x") is None  # 钉版黏字

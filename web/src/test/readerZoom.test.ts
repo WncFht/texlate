@@ -125,12 +125,17 @@ describe("Reader 缩放恢复落地", () => {
         );
 
         await vi.waitFor(() => {
-            expect(mocks.paneHandles.original?.setScale).toHaveBeenCalledWith(1.5);
-            expect(mocks.paneHandles.translated?.setScale).toHaveBeenCalledWith(1.5);
+            expect(mocks.paneHandles.original?.setScale).toHaveBeenCalledWith(
+                1.5,
+            );
+            expect(mocks.paneHandles.translated?.setScale).toHaveBeenCalledWith(
+                1.5,
+            );
         });
         // % 值走 setScale；setScaleValue 至多被初值 page-width 命中
         // （zoom 恢复前的挂载首帧），不带别的命名值
-        for (const call of mocks.paneHandles.original!.setScaleValue!.mock.calls) {
+        for (const call of mocks.paneHandles.original!.setScaleValue!.mock
+            .calls) {
             expect(call[0]).toBe("page-width");
         }
     });
@@ -146,9 +151,9 @@ describe("Reader 缩放恢复落地", () => {
         );
 
         await vi.waitFor(() => {
-            expect(mocks.paneHandles.original?.setScaleValue).toHaveBeenCalledWith(
-                "page-fit",
-            );
+            expect(
+                mocks.paneHandles.original?.setScaleValue,
+            ).toHaveBeenCalledWith("page-fit");
         });
     });
 

@@ -29,9 +29,7 @@ describe("unmaskLatex：掩码反查", () => {
     });
 
     it("CITE/REF/BIB：剥壳成 [key] / (label)", () => {
-        const el = host(
-            `<p>see [[CITE_1]] cf [[REF_2]] entry [[BIB_3]]</p>`,
-        );
+        const el = host(`<p>see [[CITE_1]] cf [[REF_2]] entry [[BIB_3]]</p>`);
         unmaskLatex(el, {
             "[[CITE_1]]": "\\cite{vaswani17,other}",
             "[[REF_2]]": "\\eqref{eq:attn}",
@@ -91,9 +89,7 @@ describe("unmaskLatex：残件清理", () => {
         const el = host(`<p>a~b</p><pre>x \\newblock y</pre>`);
         unmaskLatex(el);
         expect(el.querySelector("p")!.textContent).toBe("a b");
-        expect(el.querySelector("pre")!.textContent).toBe(
-            "x \\newblock y",
-        );
+        expect(el.querySelector("pre")!.textContent).toBe("x \\newblock y");
     });
 
     it("带参格式命令剥壳（嵌套/双参）", () => {
@@ -104,15 +100,11 @@ describe("unmaskLatex：残件清理", () => {
                 `\\texorpdfstring{vis}{pdf}</p>`,
         );
         unmaskLatex(el);
-        expect(el.textContent).toBe(
-            "projected baseline length a b warn vis",
-        );
+        expect(el.textContent).toBe("projected baseline length a b warn vis");
     });
 
     it("断行可选参与残余单反斜杠", () => {
-        const el = host(
-            `<p>Title \\\\[0.2in] next \\[1em] and\\\\ more</p>`,
-        );
+        const el = host(`<p>Title \\\\[0.2in] next \\[1em] and\\\\ more</p>`);
         unmaskLatex(el);
         expect(el.textContent).toBe("Title next and more");
     });

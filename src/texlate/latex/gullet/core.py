@@ -9,7 +9,6 @@ from typing import (
     TYPE_CHECKING,
 )
 
-import texlate.latex.gullet as _g
 from texlate.latex.model import (
     ScanWarning,
 )
@@ -303,6 +302,10 @@ class _Core:
 
     def _can_expand(self, t: Tok) -> bool:
         """三级限制：``gen>=MAX_GEN``/``steps>BUDGET`` → 不再展开（§3.4）。"""
+        # ``BUDGET`` 走包属性迟绑定——tests 猴子补丁 ``texlate.latex.gullet.BUDGET``
+        # 的接缝必须读运行时值；顶层 import 则是 __init__→core→__init__ 加载环。
+        import texlate.latex.gullet as _g  # noqa: PLC0415
+
         if t.gen >= MAX_GEN:
             if not self.overflow:
                 self.overflow = True

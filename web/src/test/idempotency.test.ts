@@ -51,7 +51,9 @@ describe("Idempotency-Key（create 三路）", () => {
 
     it("在飞并发同参（双击竞态）→ 两发同 key", async () => {
         const releases: Array<(r: Response) => void> = [];
-        const spy = stubFetch(() => new Promise<Response>((r) => releases.push(r)));
+        const spy = stubFetch(
+            () => new Promise<Response>((r) => releases.push(r)),
+        );
         const p1 = api.translate("2501.00003");
         const p2 = api.translate("2501.00003");
         expect(spy).toHaveBeenCalledTimes(2);
@@ -90,7 +92,9 @@ describe("Idempotency-Key（create 三路）", () => {
         expect(sentHeaders(spy)["Idempotency-Key"]).toBe(k1);
 
         // 另一文件 → 另一意图 → 新 key
-        await expect(api.upload(new File(["y"], "up-idem-2.tex"))).rejects.toThrow();
+        await expect(
+            api.upload(new File(["y"], "up-idem-2.tex")),
+        ).rejects.toThrow();
         const k2 = sentHeaders(spy)["Idempotency-Key"];
         expect(k2).toBeTruthy();
         expect(k2).not.toBe(k1);
@@ -111,7 +115,9 @@ describe("Idempotency-Key（create 三路）", () => {
 
     it("显式 byok.idempotencyKey → 原样透传、不占意图位", async () => {
         const spy = stubFetch();
-        await api.translate("2501.00008", undefined, { idempotencyKey: "explicit-1" });
+        await api.translate("2501.00008", undefined, {
+            idempotencyKey: "explicit-1",
+        });
         expect(sentHeaders(spy)["Idempotency-Key"]).toBe("explicit-1");
 
         // 显式 key 不进 pending——同参自动提交走自己的生成路径
@@ -123,10 +129,14 @@ describe("Idempotency-Key（create 三路）", () => {
 
     it("改 apiKey 重发同一提交→仍复用 idem key（凭证不是意图）", async () => {
         const spy = stubFetch(netFail);
-        await expect(api.translate("2501.00009", undefined, { apiKey: "sk-a" })).rejects.toThrow();
+        await expect(
+            api.translate("2501.00009", undefined, { apiKey: "sk-a" }),
+        ).rejects.toThrow();
         const k1 = sentHeaders(spy)["Idempotency-Key"];
 
-        await expect(api.translate("2501.00009", undefined, { apiKey: "sk-b" })).rejects.toThrow();
+        await expect(
+            api.translate("2501.00009", undefined, { apiKey: "sk-b" }),
+        ).rejects.toThrow();
         expect(sentHeaders(spy)["Idempotency-Key"]).toBe(k1);
         expect(sentHeaders(spy)["X-Texlate-Key"]).toBe("sk-b");
     });

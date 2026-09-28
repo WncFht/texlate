@@ -77,9 +77,10 @@ export default function RefTaskChip(props: Props) {
                 (props.retry ?? retryDefault)(v.taskId),
             ).finally(() => setBusy(false));
         } else if (v.phase === "needsAuth" && v.taskId) {
-            (props.onAuth ?? ((id) => (location.hash = readerHashWithFrom(id))))(
-                v.taskId,
-            );
+            (
+                props.onAuth ??
+                ((id) => (location.hash = readerHashWithFrom(id)))
+            )(v.taskId);
         }
     };
 

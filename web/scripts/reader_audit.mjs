@@ -1,29 +1,14 @@
 // 阅读器全交互审计:面板开闭/主题/导航/进度页 + console 错误捕获
 // 用法:node scripts/reader_audit.mjs
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const DONE = "t_d7c669e8b3c92149";
 const TRANSLATING = "t_25e3f4d173b4db4a";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE = join(
-    root,
-    readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse()[0],
-    "chrome-linux64/chrome",
-);
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
 
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
-
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await launch();
 const ctx = await browser.newContext({
     viewport: { width: 1500, height: 950 },
 });

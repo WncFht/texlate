@@ -1,29 +1,14 @@
 // 图/表/公式引用查位置 v1 实测：滚动找 figure/table/equation 锚 → 悬停出 UsagesCard → 右键出 cite.usages
-import { readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { openPage, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const TASK = process.env.TASK ?? "t_65d2d6b1cca13638";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .at(-1),
-        "chrome-linux64/chrome",
-    );
 
-const b = await chromium.launch({
-    executablePath: EXE,
-    args: ["--disable-dev-shm-usage", "--no-sandbox"],
+const { browser: b, page: pg } = await openPage(`${BASE}/#/reader/${TASK}`, {
+    viewport: { width: 1600, height: 900 },
+    waitUntil: "networkidle",
+    launchOpts: { args: ["--disable-dev-shm-usage", "--no-sandbox"] },
 });
-const pg = await b.newPage({ viewport: { width: 1600, height: 900 } });
-await pg.goto(`${BASE}/#/reader/${TASK}`, { waitUntil: "networkidle" });
 await pg.waitForSelector("section.linkAnnotation a[href^='#']", {
     timeout: 20000,
 });
@@ -104,7 +89,7 @@ const card = await pg.evaluate(() => {
         : null;
 });
 console.log("hover usages card:", JSON.stringify(card));
-await pg.screenshot({ path: "reflook-hover.png" });
+await pg.screenshot({ path: `${SHOTS}reflook-hover.png` });
 await pg.mouse.move(900, 300); // 挪走收卡
 await pg.waitForTimeout(600);
 await pg.mouse.click(target.x, target.y, { button: "right" });
@@ -119,5 +104,5 @@ const menu = await pg.evaluate(() =>
         .filter(Boolean),
 );
 console.log("ctxmenu items:", JSON.stringify(menu));
-await pg.screenshot({ path: "reflook-ctx.png" });
+await pg.screenshot({ path: `${SHOTS}reflook-ctx.png` });
 await b.close();

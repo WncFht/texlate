@@ -50,7 +50,9 @@ function lex(src: string): Tok[] {
         TOKEN_RE.lastIndex = i;
         const m = TOKEN_RE.exec(src);
         if (!m || m.index !== i)
-            throw new Error(`when: bad token at ${i} in ${JSON.stringify(src)}`);
+            throw new Error(
+                `when: bad token at ${i} in ${JSON.stringify(src)}`,
+            );
         i = TOKEN_RE.lastIndex;
         if (m[1])
             toks.push({
@@ -249,9 +251,7 @@ export class Registry<C extends Ctx = Ctx> {
     }
     /** 单命令启用判定（visible 之上叠 enableWhen）。 */
     isEnabled(cmd: Command<C>, ctx: C): boolean {
-        return (
-            cmd.enableWhen === undefined || compileWhen(cmd.enableWhen)(ctx)
-        );
+        return cmd.enableWhen === undefined || compileWhen(cmd.enableWhen)(ctx);
     }
     /** eval(ctx)：谓词层对外统一求值口——返回「可见集」。 */
     eval(ctx: C): Command<C>[] {
@@ -316,8 +316,7 @@ export function auditWhenKeys(
             const missing = [...new Set(whenKeys(src))].filter(
                 (k) => !produced.has(k),
             );
-            if (missing.length)
-                bad.push({ id: c.id, clause, keys: missing });
+            if (missing.length) bad.push({ id: c.id, clause, keys: missing });
         }
     }
     return bad;

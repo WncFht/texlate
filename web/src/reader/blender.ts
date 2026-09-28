@@ -40,7 +40,10 @@ const Matrices = {
         [-0.028369706963208136, 1.0099954580058226, 0.021041398966943008],
         [0.012314001688319899, -0.020507696433477912, 1.3303659366080753],
     ],
-    multiply(A: number[] | number[][], B: number[] | number[][]): number[] | number[][] {
+    multiply(
+        A: number[] | number[][],
+        B: number[] | number[][],
+    ): number[] | number[][] {
         const m = A.length;
         if (!Array.isArray(A[0])) A = [A as number[]];
         if (!Array.isArray(B[0])) B = (B as number[]).map((x) => [x]);
@@ -49,7 +52,9 @@ const Matrices = {
         const p = bM[0].length;
         const bCols = bM[0].map((_, i) => bM.map((x) => x[i]));
         let product: number[] | number[][] = aM.map((row) =>
-            bCols.map((col) => row.reduce((a, c, i) => a + c * (col[i] || 0), 0)),
+            bCols.map((col) =>
+                row.reduce((a, c, i) => a + c * (col[i] || 0), 0),
+            ),
         );
         if (m === 1) product = product[0] as number[];
         if (p === 1) return (product as number[][]).map((x) => x[0]);
@@ -58,8 +63,14 @@ const Matrices = {
 };
 
 const sRGB = {
-    toXYZ_M: Matrices.multiply(Matrices.D65toD50, Matrices.linSRGBtoXYZ) as number[][],
-    fromXYZ_M: Matrices.multiply(Matrices.XYZtoLinSRGB, Matrices.D50toD65) as number[][],
+    toXYZ_M: Matrices.multiply(
+        Matrices.D65toD50,
+        Matrices.linSRGBtoXYZ,
+    ) as number[][],
+    fromXYZ_M: Matrices.multiply(
+        Matrices.XYZtoLinSRGB,
+        Matrices.D50toD65,
+    ) as number[][],
     D50: [0.3457 / 0.3585, 1.0, (1.0 - 0.3457 - 0.3585) / 0.3585],
     EPS: 216 / 24389,
     EPS3: 24 / 116,
@@ -106,7 +117,8 @@ const sRGB = {
         return rgb.map((val) => {
             const sign = val < 0 ? -1 : 1;
             const abs = Math.abs(val);
-            if (abs > 0.0031308) return sign * (1.055 * Math.pow(abs, 1 / 2.4) - 0.055);
+            if (abs > 0.0031308)
+                return sign * (1.055 * Math.pow(abs, 1 / 2.4) - 0.055);
             return 12.92 * val;
         });
     },
@@ -172,7 +184,9 @@ class Color {
         return Math.sqrt(
             this.lab.reduce(
                 (acc, c, i) =>
-                    isNaN(c) || isNaN(other.lab[i]) ? acc : acc + (other.lab[i] - c) ** 2,
+                    isNaN(c) || isNaN(other.lab[i])
+                        ? acc
+                        : acc + (other.lab[i] - c) ** 2,
                 0,
             ),
         );
@@ -199,7 +213,8 @@ class Color {
 
     static parseHex(str: string): number[] {
         const out: number[] = [];
-        for (const m of str.matchAll(/[a-f0-9]{2}/gi)) out.push(parseInt(m[0], 16) / 255);
+        for (const m of str.matchAll(/[a-f0-9]{2}/gi))
+            out.push(parseInt(m[0], 16) / 255);
         return out.slice(0, 3);
     }
     static parseRGB(str: string): number[] {
@@ -277,7 +292,12 @@ export class Blender {
             this.origStrokeRect(x, y, w, h);
             delete this.cachedImage;
         };
-        ctx.fillText = (text: string, x: number, y: number, maxWidth?: number) => {
+        ctx.fillText = (
+            text: string,
+            x: number,
+            y: number,
+            maxWidth?: number,
+        ) => {
             if (typeof ctx.fillStyle !== "string") {
                 return this.origFillText(text, x, y, maxWidth);
             }
@@ -364,9 +384,12 @@ export class Blender {
 
     private getTextStyle(color: Color, textBg: Color, minContrast = 30): Color {
         const diffL = (c: Color) => Math.abs(c.lightness - textBg.lightness);
-        if (this.background.deltaE(textBg) > 2.3 && diffL(color) < minContrast) {
-            return [color, this.background, this.foreground].reduce((best, c) =>
-                diffL(c) > diffL(best) ? c : best,
+        if (
+            this.background.deltaE(textBg) > 2.3 &&
+            diffL(color) < minContrast
+        ) {
+            return [color, this.background, this.foreground].reduce(
+                (best, c) => (diffL(c) > diffL(best) ? c : best),
             );
         }
         return color;
@@ -388,14 +411,19 @@ export class Blender {
         return set.size;
     }
 
-    private neutralRatio(imageData: ImageData, deviation = 12, step = 16): number {
+    private neutralRatio(
+        imageData: ImageData,
+        deviation = 12,
+        step = 16,
+    ): number {
         const { data } = imageData;
         let neutral = 0;
         let total = 0;
         for (let i = 0; i < data.length; i += 4 * step) {
             if (data[i + 3] < 32) continue;
             total++;
-            if (this.isNeutral(data[i], data[i + 1], data[i + 2], deviation)) neutral++;
+            if (this.isNeutral(data[i], data[i + 1], data[i + 2], deviation))
+                neutral++;
         }
         return total ? neutral / total : 0;
     }
@@ -450,9 +478,12 @@ export class Blender {
         const [fgR, fgG, fgB] = this.foreground.rgb.map((e) => e * 255);
         let sx: number, sy: number, sWidth: number, sHeight: number;
         let dx: number, dy: number, dWidth: number, dHeight: number;
-        const iw = (img as HTMLImageElement).naturalWidth || (img as HTMLCanvasElement).width;
+        const iw =
+            (img as HTMLImageElement).naturalWidth ||
+            (img as HTMLCanvasElement).width;
         const ih =
-            (img as HTMLImageElement).naturalHeight || (img as HTMLCanvasElement).height;
+            (img as HTMLImageElement).naturalHeight ||
+            (img as HTMLCanvasElement).height;
         if (args.length === 3) {
             [dx, dy] = args.slice(1) as [number, number];
             sWidth = iw;
@@ -471,7 +502,16 @@ export class Blender {
         } else if (args.length === 9) {
             [sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight] = args.slice(
                 1,
-            ) as number[] as [number, number, number, number, number, number, number, number];
+            ) as number[] as [
+                number,
+                number,
+                number,
+                number,
+                number,
+                number,
+                number,
+                number,
+            ];
         } else {
             this.origDrawImage(...args);
             return;
@@ -502,7 +542,11 @@ export class Blender {
                     this.forceInversion = true;
                 }
             }
-            if (!this.dark && lightness >= 150 && this.neutralRatio(imageData) >= 0.9) {
+            if (
+                !this.dark &&
+                lightness >= 150 &&
+                this.neutralRatio(imageData) >= 0.9
+            ) {
                 type = "gradient";
             }
         } else if (this.distinctColors(imageData, 3) <= 2) {
@@ -514,7 +558,18 @@ export class Blender {
             if (args.length === 3) this.origDrawImage(offCanvas, dx, dy);
             else if (args.length === 5)
                 this.origDrawImage(offCanvas, dx, dy, dWidth, dHeight);
-            else this.origDrawImage(offCanvas, 0, 0, sWidth, sHeight, dx, dy, dWidth, dHeight);
+            else
+                this.origDrawImage(
+                    offCanvas,
+                    0,
+                    0,
+                    sWidth,
+                    sHeight,
+                    dx,
+                    dy,
+                    dWidth,
+                    dHeight,
+                );
         };
 
         if (type === "gradient") {
@@ -585,7 +640,9 @@ export class Blender {
 
     private isNeutral(r: number, g: number, b: number, dev: number): boolean {
         return (
-            Math.abs(r - g) < dev && Math.abs(r - b) < dev && Math.abs(g - b) < dev
+            Math.abs(r - g) < dev &&
+            Math.abs(r - b) < dev &&
+            Math.abs(g - b) < dev
         );
     }
 
@@ -606,7 +663,8 @@ export class Blender {
         const yi = Math.round(y);
         const cw = this.ctx.canvas.width;
         const ch = this.ctx.canvas.height;
-        if (xi < 0 || yi < 0 || xi >= cw || yi >= ch) return new Color([0, 0, 0]);
+        if (xi < 0 || yi < 0 || xi >= cw || yi >= ch)
+            return new Color([0, 0, 0]);
         const idx = (yi * cw + xi) * 4;
         const d = this.cachedImage.data;
         return new Color([d[idx] / 255, d[idx + 1] / 255, d[idx + 2] / 255]);
@@ -624,7 +682,11 @@ export class Blender {
                 : 25 + bg.lightness * 0.3;
         const targetChroma = Math.max(origChroma * 1.2, 20);
         return new Color(
-            [targetL, Math.cos(hue) * targetChroma, Math.sin(hue) * targetChroma],
+            [
+                targetL,
+                Math.cos(hue) * targetChroma,
+                Math.sin(hue) * targetChroma,
+            ],
             "lab",
         );
     }

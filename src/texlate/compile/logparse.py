@@ -27,7 +27,7 @@ C8 单遍事件流 (architecture-review-2026-09-19 §8): 文件栈走查/错误�
 回放、不再私有错误行判定 (三消费面同词素三写已并)。事件流物化件
 ``ParsedLog`` (``parse_events``) 是 CompRes stash 缝的投影底件——引擎
 编译期一份即可供 ``loginfo``/本层/l2 三面各自投影 (产生者三支判定
-``producer_tag`` 亦经本层共享, 归宿均 ``texlog``)。
+``producer_tag`` 单源 ``texlog``, 本层 import 消费)。
 """
 
 from __future__ import annotations
@@ -46,9 +46,8 @@ from texlate.texlog import (
     L_NUM_SRC,
     TAIL_LINES,
     LogEvent,
-    is_dos_eps,
-    is_project_file,
     iter_log_events,
+    producer_tag,
 )
 
 __all__ = [
@@ -58,7 +57,6 @@ __all__ = [
     "parse_events",
     "parse_log",
     "parse_text",
-    "producer_tag",
 ]
 
 #: ``Overfull \vbox ... while \output is active`` —— ``\clearpage`` 输出例程
@@ -244,28 +242,6 @@ _POST_LINES = 6
 #: 走全文扫描原语义。归因按**行**进行: 收进本集的 id 其 pattern 须是行内
 #: 匹配形 (跨行 pattern 在本面不命中, 与全文 ``re.search`` 有语义差)。
 _FILE_ATTRIBUTED_WARNS = frozenset({"invalid_utf8"})
-
-
-def producer_tag(
-    inner: str | None, root: Path | None, cache: dict[str, bool]
-) -> str | None:
-    """警告产生者三支判定——工程件 → ``None``; 系统件 → 文件名 tag。
-
-    警告/红线产生文件 ``inner`` (事件 ``ev.inner`` = 栈顶最内具名帧) →
-    ``(dos-eps)`` 尾标名 / 裸文件名 / ``None`` 三态: DOS 魔数 EPS
-    (normalize ``dos_eps_skipped`` 原样保留的二进制件, 残余警告是必然
-    残余非可修缺陷) 打 ``(dos-eps)`` 标便于台账对账; 余下系统
-    texmf/bundle 件给裸文件名; 工程件与 ``None``/不可判 token
-    (``is_project_file`` 保守归工程) 返回 ``None``。dos-eps 判**先于**
-    工程判——skipped 件就在工程树内, 先 ``is_project_file`` 会错归工程。
-    loginfo ``_scan_error_lines``/l2 ``_mark_redline`` 同口径 (三消费面
-    各把三态映到自家记录形); 归宿 ``texlog`` 归因原语, 随 stash 迁移。
-    """
-    if is_dos_eps(inner, root, cache):
-        return f"{Path(inner).name if inner else '?'}(dos-eps)"
-    if is_project_file(inner, root):
-        return None
-    return Path(inner).name if inner else "?"
 
 
 @dataclass(slots=True)

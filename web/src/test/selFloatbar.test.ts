@@ -71,7 +71,12 @@ describe("placeBar", () => {
             if (w + 2 * BAR_MARGIN > vw || h + 2 * BAR_MARGIN > vh) continue;
             const ax = rnd() % vw;
             const ay = rnd() % vh;
-            const a = rect(ax, ay, ax + 1 + (rnd() % 60), ay + 1 + (rnd() % 30));
+            const a = rect(
+                ax,
+                ay,
+                ax + 1 + (rnd() % 60),
+                ay + 1 + (rnd() % 30),
+            );
             const p = placeBar(
                 a,
                 w,
@@ -117,7 +122,9 @@ beforeEach(() => {
         return { ...barRect, x: barRect.left, y: barRect.top } as DOMRect;
     };
     Range.prototype.getClientRects = function () {
-        return [{ ...barRect, x: barRect.left, y: barRect.top }] as unknown as DOMRectList;
+        return [
+            { ...barRect, x: barRect.left, y: barRect.top },
+        ] as unknown as DOMRectList;
     };
     document.body.innerHTML = `
 <div class="panes"><div class="pane" data-side="original">
@@ -221,16 +228,17 @@ describe("FloatBar 组件", () => {
                 disconnect() {}
             },
         );
-        dispose = render(() =>
-            FloatBar({
-                itemsFor: () => [
-                    { id: "sel.copy", label: "Copy" },
-                    { id: "sel.find", label: "Find", hint: "L" },
-                ],
-                onAction,
-                observeEls: () => [document.querySelector(".panes")],
-                apiRef: (a) => (api = a),
-            }),
+        dispose = render(
+            () =>
+                FloatBar({
+                    itemsFor: () => [
+                        { id: "sel.copy", label: "Copy" },
+                        { id: "sel.find", label: "Find", hint: "L" },
+                    ],
+                    onAction,
+                    observeEls: () => [document.querySelector(".panes")],
+                    apiRef: (a) => (api = a),
+                }),
             document.body,
         );
         select(document.getElementById("c0")!);
@@ -251,13 +259,15 @@ describe("FloatBar 组件", () => {
         let suppressed = false;
         let empty = true;
         let api: FloatBarApi | null = null;
-        dispose = render(() =>
-            FloatBar({
-                itemsFor: () => (empty ? [] : [{ id: "sel.copy", label: "C" }]),
-                onAction: () => {},
-                suppressed: () => suppressed,
-                apiRef: (a) => (api = a),
-            }),
+        dispose = render(
+            () =>
+                FloatBar({
+                    itemsFor: () =>
+                        empty ? [] : [{ id: "sel.copy", label: "C" }],
+                    onAction: () => {},
+                    suppressed: () => suppressed,
+                    apiRef: (a) => (api = a),
+                }),
             document.body,
         );
         select(document.getElementById("c0")!);

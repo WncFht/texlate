@@ -9,39 +9,11 @@
 // 服务须已重启（seqpos 顶层字段）+ web build 已同步 static。
 // 用法: TASK=t_xxx node scripts/sentalign_seq_verify.mjs   (cwd=web/scripts)
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { check, info, launch, results, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const TASK = process.env.TASK ?? "t_65d2d6b1cca13638";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
-const PW_TMP = join(homedir(), ".cache/pw-tmp");
-mkdirSync(PW_TMP, { recursive: true });
-
-const results = [];
-const check = (name, ok, detail = "") => {
-    results.push({ name, ok, detail });
-    console.log(
-        `${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`,
-    );
-};
-const info = (s) => console.log(`INFO  ${s}`);
 
 // 与 pdfseqpos.nearestSeq 同算法（node 侧期望 seq 推算）
 const nearestSeq = (map, side, pos) => {
@@ -104,10 +76,9 @@ const run = async () => {
         console.log(`WARN  view=${readerInfo.view}`);
     console.log(`INFO  task=${TASK} seqpos=${nSeq}`);
 
-    const browser = await chromium.launch({
-        executablePath: EXE,
+    const browser = await launch({
         args: ["--disable-dev-shm-usage", "--no-sandbox"],
-        env: { ...process.env, TMPDIR: PW_TMP },
+        tmp: true,
     });
     const page = await browser.newPage({
         viewport: { width: 1680, height: 1000 },

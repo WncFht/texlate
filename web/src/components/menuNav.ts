@@ -19,8 +19,7 @@ export function menuRoving(e: KeyboardEvent, onTab: () => void): void {
     const idx = items.indexOf(document.activeElement as HTMLElement);
     let next: number;
     if (e.key === "ArrowDown") next = idx < 0 ? 0 : (idx + 1) % items.length;
-    else if (e.key === "ArrowUp")
-        next = idx <= 0 ? items.length - 1 : idx - 1;
+    else if (e.key === "ArrowUp") next = idx <= 0 ? items.length - 1 : idx - 1;
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = items.length - 1;
     else if (e.key === "Tab") {
@@ -43,9 +42,7 @@ export function menuTriggerKey(
     if (e.key !== "ArrowDown") return;
     e.preventDefault();
     open();
-    queueMicrotask(() =>
-        root()?.querySelector<HTMLElement>(ITEMS)?.focus(),
-    );
+    queueMicrotask(() => root()?.querySelector<HTMLElement>(ITEMS)?.focus());
 }
 
 /**

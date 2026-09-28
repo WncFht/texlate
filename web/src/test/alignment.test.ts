@@ -25,9 +25,21 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { id: "a", original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                { id: "b", original: { page: 3, fraction: 0 }, translated: { page: 4, fraction: 0 } },
-                { id: "c", original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                {
+                    id: "a",
+                    original: { page: 1, fraction: 0 },
+                    translated: { page: 1, fraction: 0 },
+                },
+                {
+                    id: "b",
+                    original: { page: 3, fraction: 0 },
+                    translated: { page: 4, fraction: 0 },
+                },
+                {
+                    id: "c",
+                    original: { page: 4, fraction: 0 },
+                    translated: { page: 6, fraction: 0 },
+                },
             ],
         };
         const map = createPositionMapper(al, { original: 4, translated: 6 });
@@ -43,7 +55,9 @@ describe("createPositionMapper", () => {
         // 首对之前 clamp 到首对
         expect(map({ page: 1, fraction: 0 }, "original").page).toBe(1);
         // 末对之后 clamp
-        expect(map({ page: 4, fraction: 0.9 }, "original")).toMatchObject({ page: 6 });
+        expect(map({ page: 4, fraction: 0.9 }, "original")).toMatchObject({
+            page: 6,
+        });
     });
 
     it("landmarks 反向：译文 → 原文 同样走 pairs 分段插值", () => {
@@ -51,9 +65,21 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { id: "a", original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                { id: "b", original: { page: 3, fraction: 0 }, translated: { page: 4, fraction: 0 } },
-                { id: "c", original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                {
+                    id: "a",
+                    original: { page: 1, fraction: 0 },
+                    translated: { page: 1, fraction: 0 },
+                },
+                {
+                    id: "b",
+                    original: { page: 3, fraction: 0 },
+                    translated: { page: 4, fraction: 0 },
+                },
+                {
+                    id: "c",
+                    original: { page: 4, fraction: 0 },
+                    translated: { page: 6, fraction: 0 },
+                },
             ],
         };
         const map = createPositionMapper(al, { original: 4, translated: 6 });
@@ -81,8 +107,14 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                { original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                {
+                    original: { page: 1, fraction: 0 },
+                    translated: { page: 1, fraction: 0 },
+                },
+                {
+                    original: { page: 4, fraction: 0 },
+                    translated: { page: 6, fraction: 0 },
+                },
             ],
             regions: [
                 {
@@ -108,8 +140,14 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                { original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                {
+                    original: { page: 1, fraction: 0 },
+                    translated: { page: 1, fraction: 0 },
+                },
+                {
+                    original: { page: 4, fraction: 0 },
+                    translated: { page: 6, fraction: 0 },
+                },
             ],
             regions: [
                 {
@@ -127,8 +165,13 @@ describe("createPositionMapper", () => {
     });
 
     it("viewport 字段透传", () => {
-        const map = createPositionMapper({ kind: "pages", heights }, { original: 4, translated: 6 });
-        expect(map({ page: 1, fraction: 0.1, viewport: 0.2 }, "original").viewport).toBe(0.2);
+        const map = createPositionMapper(
+            { kind: "pages", heights },
+            { original: 4, translated: 6 },
+        );
+        expect(
+            map({ page: 1, fraction: 0.1, viewport: 0.2 }, "original").viewport,
+        ).toBe(0.2);
     });
 
     it("heights 缺失时按每页 1 计", () => {
@@ -136,8 +179,14 @@ describe("createPositionMapper", () => {
             {
                 kind: "landmarks",
                 pairs: [
-                    { original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                    { original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                    {
+                        original: { page: 1, fraction: 0 },
+                        translated: { page: 1, fraction: 0 },
+                    },
+                    {
+                        original: { page: 4, fraction: 0 },
+                        translated: { page: 6, fraction: 0 },
+                    },
                 ],
             },
             { original: 4, translated: 6 },
@@ -152,10 +201,26 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { id: "a", original: { page: 1, fraction: 0, x: 0.1 }, translated: { page: 1, fraction: 0, x: 0.1 } },
-                { id: "b", original: { page: 2, fraction: 0.9, x: 0.1 }, translated: { page: 2, fraction: 0.9, x: 0.1 } },
-                { id: "c", original: { page: 2, fraction: 0.1, x: 0.6 }, translated: { page: 2, fraction: 0.1, x: 0.6 } },
-                { id: "d", original: { page: 3, fraction: 0, x: 0.1 }, translated: { page: 3, fraction: 0, x: 0.1 } },
+                {
+                    id: "a",
+                    original: { page: 1, fraction: 0, x: 0.1 },
+                    translated: { page: 1, fraction: 0, x: 0.1 },
+                },
+                {
+                    id: "b",
+                    original: { page: 2, fraction: 0.9, x: 0.1 },
+                    translated: { page: 2, fraction: 0.9, x: 0.1 },
+                },
+                {
+                    id: "c",
+                    original: { page: 2, fraction: 0.1, x: 0.6 },
+                    translated: { page: 2, fraction: 0.1, x: 0.6 },
+                },
+                {
+                    id: "d",
+                    original: { page: 3, fraction: 0, x: 0.1 },
+                    translated: { page: 3, fraction: 0, x: 0.1 },
+                },
             ],
         };
         const map = createPositionMapper(al, { original: 4, translated: 6 });
@@ -175,12 +240,32 @@ describe("createPositionMapper", () => {
             kind: "landmarks",
             heights,
             pairs: [
-                { id: "a", original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
-                { id: "b", original: { page: 2, fraction: 0 }, translated: { page: 2, fraction: 0 } },
+                {
+                    id: "a",
+                    original: { page: 1, fraction: 0 },
+                    translated: { page: 1, fraction: 0 },
+                },
+                {
+                    id: "b",
+                    original: { page: 2, fraction: 0 },
+                    translated: { page: 2, fraction: 0 },
+                },
                 // 假锚：原文 p3 错锚到译文 p6（邻锚期望 ~p3，偏 3 页 > 2 均页高）
-                { id: "bad", original: { page: 3, fraction: 0 }, translated: { page: 6, fraction: 0 } },
-                { id: "c", original: { page: 4, fraction: 0 }, translated: { page: 4, fraction: 0 } },
-                { id: "d", original: { page: 5, fraction: 0 }, translated: { page: 5, fraction: 0 } },
+                {
+                    id: "bad",
+                    original: { page: 3, fraction: 0 },
+                    translated: { page: 6, fraction: 0 },
+                },
+                {
+                    id: "c",
+                    original: { page: 4, fraction: 0 },
+                    translated: { page: 4, fraction: 0 },
+                },
+                {
+                    id: "d",
+                    original: { page: 5, fraction: 0 },
+                    translated: { page: 5, fraction: 0 },
+                },
             ],
         };
         const map = createPositionMapper(al, { original: 4, translated: 6 });

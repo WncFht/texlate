@@ -13,7 +13,7 @@ import { fmtBytes } from "../reader/paneUtils";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import PurgeDialog from "./PurgeDialog";
 import TaskRow, { RETRYABLE } from "./TaskRow";
-import { t } from "../i18n";
+import { fmt, t } from "../i18n";
 
 interface Props {
     tasks: TaskSnapshot[];
@@ -25,12 +25,6 @@ type Filter = "all" | "active" | "done" | "failed";
 /** 「未完成」筛选桶：终态里非 done 的全部——由 TERMINAL 派生不另立清单
  *  （TaskRow RETRYABLE = 本桶 − needs_auth；单源待 hoist 到 api/types.ts） */
 const isFailed = (s: TaskStatus): boolean => isTerminal(s) && s !== "done";
-
-/** i18n 模板 {k} 插值——本地副本；单源待 hoist 到 i18n/index.ts 供全站共用 */
-const fmt = (tpl: string, vars: Record<string, string | number>): string =>
-    tpl.replace(/\{(\w+)\}/g, (m, k: string) =>
-        k in vars ? String(vars[k]) : m,
-    );
 
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
@@ -137,8 +131,7 @@ export default function TaskList(props: Props) {
 
     /** 任一互斥操作在途（行内取消/重试 acting、删除 deleting、清理 cleaning）——
      *  slim/purge/删除入口共用一把锁，防并行提交互相踩 */
-    const busy = () =>
-        cleaning() || deleting() !== null || acting() !== null;
+    const busy = () => cleaning() || deleting() !== null || acting() !== null;
 
     const confirmDelete = async (task: TaskSnapshot) => {
         if (!isTerminal(task.status) || busy()) {
@@ -326,7 +319,9 @@ export default function TaskList(props: Props) {
                                 {cleaning()
                                     ? t.home.slimBusy
                                     : t.home.maintSlim}
-                                <Show when={!cleaning() && (estBytes() ?? 0) > 0}>
+                                <Show
+                                    when={!cleaning() && (estBytes() ?? 0) > 0}
+                                >
                                     <span class="menu-hint">
                                         {fmt(t.home.maintSlimEst, {
                                             size: fmtBytes(estBytes()!),

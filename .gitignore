@@ -23,13 +23,6 @@ bench/archive-*/*
 # 交接台账——本机保留，不入发布仓
 docs/HANDOFF-*.md
 
-# 个人 tailscale 网关运维件（公开仓无意义）
-scripts/gwcap/
-scripts/gw-tunnel.sh
-scripts/gw-health.sh
-scripts/tcp-relay.py
-scripts/find-gateway-hog.sh
-
 # tex 编译中间产物
 *.aux
 *.log
@@ -51,8 +44,12 @@ scripts/find-gateway-hog.sh
 
 # 工具缓存
 .ruff_cache/
+.pytest_cache/
 
 # 调研实验现场 (repos/reports/experiments)
 tmp/
 
 .DS_Store
+
+/paper-search-logs/
+/paper-search-reports/

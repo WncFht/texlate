@@ -6,13 +6,17 @@ const chunk = { seq: 1, en: "a", zh: "甲" };
 describe("resolveReaderView（html 视图降级门）", () => {
     it("info 未到 → loading", () => {
         expect(resolveReaderView(null, undefined)).toBe("loading");
-        expect(resolveReaderView(undefined, { chunks: [chunk] })).toBe("loading");
+        expect(resolveReaderView(undefined, { chunks: [chunk] })).toBe(
+            "loading",
+        );
     });
 
     it("view 缺省/为 pdf → pdf（不等 dual.json）", () => {
         expect(resolveReaderView({}, undefined)).toBe("pdf");
         expect(resolveReaderView({ view: "pdf" }, null)).toBe("pdf");
-        expect(resolveReaderView({ view: "pdf" }, { chunks: [chunk] })).toBe("pdf");
+        expect(resolveReaderView({ view: "pdf" }, { chunks: [chunk] })).toBe(
+            "pdf",
+        );
     });
 
     it("view=html + dual.json 未落定 → loading（不闪 pdf 面板）", () => {
@@ -20,7 +24,9 @@ describe("resolveReaderView（html 视图降级门）", () => {
     });
 
     it("view=html + chunks 非空 → html", () => {
-        expect(resolveReaderView({ view: "html" }, { chunks: [chunk] })).toBe("html");
+        expect(resolveReaderView({ view: "html" }, { chunks: [chunk] })).toBe(
+            "html",
+        );
     });
 
     it("view=html + dual.json 拉取失败（null）→ empty", () => {
@@ -28,7 +34,9 @@ describe("resolveReaderView（html 视图降级门）", () => {
     });
 
     it("view=html + chunks 空数组/缺字段 → empty（不出空 HtmlPane）", () => {
-        expect(resolveReaderView({ view: "html" }, { chunks: [] })).toBe("empty");
+        expect(resolveReaderView({ view: "html" }, { chunks: [] })).toBe(
+            "empty",
+        );
         expect(resolveReaderView({ view: "html" }, {})).toBe("empty");
     });
 });
@@ -86,8 +94,8 @@ describe("done-doc 决议（docx/epub 任务 reader 404 → files 产物面板�
 
     it("info 在则 readerGone 不改既有判定", () => {
         expect(resolveReaderView({ view: "pdf" }, null, true)).toBe("pdf");
-        expect(resolveReaderView({ view: "html" }, { chunks: [chunk] }, true)).toBe(
-            "html",
-        );
+        expect(
+            resolveReaderView({ view: "html" }, { chunks: [chunk] }, true),
+        ).toBe("html");
     });
 });

@@ -2,12 +2,7 @@
 // 齐全闸、seqLands 阅读序排序、containingSeq 含点块 floor 语义
 // （双栏 col 分流、无 x 投影降级、距离闸 null）。
 import { describe, expect, it } from "vitest";
-import {
-    containingSeq,
-    seqLands,
-    seqPairs,
-    seqPos,
-} from "../reader/pdfseqpos";
+import { containingSeq, seqLands, seqPairs, seqPos } from "../reader/pdfseqpos";
 
 const MAP = {
     "3": {
@@ -108,9 +103,9 @@ describe("containingSeq", () => {
     it("无 x 退化投影 floor——栏不可判仍取 (page,frac) 最大不超者", () => {
         // (1,.55) 无 x：投影 ≤ 的有 seq1(.1)/seq2(.5)/seq3(.1)，
         // 最大者 seq2——与带 x 路径（seq3）口径不同是有意降级
-        expect(
-            containingSeq(COLMAP, "en", { page: 1, fraction: 0.55 }),
-        ).toBe(2);
+        expect(containingSeq(COLMAP, "en", { page: 1, fraction: 0.55 })).toBe(
+            2,
+        );
     });
     it("早于全部地标：≤1 页收首锚，>1 页 null", () => {
         // (1,col0,.05) 早于首锚 (1,col0,.1) 0.05 页 → 收 seq1
@@ -127,9 +122,7 @@ describe("containingSeq", () => {
             containingSeq(LATE, "en", { page: 1, fraction: 0, x: 0.1 }),
         ).toBeNull();
         // 无 x 同闸
-        expect(
-            containingSeq(LATE, "en", { page: 1, fraction: 0 }),
-        ).toBeNull();
+        expect(containingSeq(LATE, "en", { page: 1, fraction: 0 })).toBeNull();
     });
     it("floor 距离闸：线性距 >1.2 页 → null（稀疏 seqpos 落旧路）", () => {
         // 点击 p5：floor 是 seq5(p2.2)，距 3.3 页 → 拒
@@ -203,15 +196,12 @@ describe("containingSeq", () => {
         ).toBe(10);
     });
     it("空 map / 该侧全缺 → null", () => {
+        expect(containingSeq({}, "en", { page: 1, fraction: 0 })).toBeNull();
         expect(
-            containingSeq({}, "en", { page: 1, fraction: 0 }),
-        ).toBeNull();
-        expect(
-            containingSeq(
-                { "9": { o: { page: 1, fraction: 0 } } },
-                "zh",
-                { page: 1, fraction: 0 },
-            ),
+            containingSeq({ "9": { o: { page: 1, fraction: 0 } } }, "zh", {
+                page: 1,
+                fraction: 0,
+            }),
         ).toBeNull();
     });
 });

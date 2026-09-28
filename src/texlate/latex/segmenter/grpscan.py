@@ -53,6 +53,7 @@ from ._common import (
     _pend_call_slots,
     _prose_arg_hit,
     _slot_elem,
+    _verb_delim_tok,
     _WSpec,
 )
 
@@ -60,18 +61,6 @@ r"""``Segmenter`` 组内 surface 收拢引擎——``_close_group``/``_grp_pendi
 组内对价（``_grp_*`` 族）；流侧 pend/absorb 机械在 ``pending.py``。"""
 
 _IMPORT2 = ("import", "subimport")
-
-
-def _verb_delim_tok(t: Tok) -> bool:
-    r"""``\verb``/``\url`` 定界 token 判据（主版 verbatim 支三面镜像同判据）。
-
-    cs token 恒可（其定界字符即 ``\``）；其余须单字符、非字母数字、不在
-    ``" \t\n\r%{}[]"`` 排除集。暂存本叶——``args.py`` 两处同款判据归位
-    ``_common`` 时一并收。
-    """
-    return t.kind == "cs" or (
-        len(t.text) == 1 and not t.text.isalnum() and t.text not in " \t\n\r%{}[]"
-    )
 
 
 class _PendRem(NamedTuple):

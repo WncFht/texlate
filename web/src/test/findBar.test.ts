@@ -20,8 +20,7 @@ let dispose: (() => void) | undefined;
 let bus: Bus;
 
 const slickOf = () => ({ eventBus: bus }) as unknown as PDFSlick;
-const input = () =>
-    document.body.querySelector<HTMLInputElement>(".fb-input")!;
+const input = () => document.body.querySelector<HTMLInputElement>(".fb-input")!;
 
 const type = (v: string) => {
     const el = input();
@@ -140,9 +139,7 @@ describe("FindBar", () => {
     it("✕ 关闭钮 → findbarclose+onClose", () => {
         const onClose = mount();
         // .fb-row 三钮序：↑ prev / ↓ next / ✕ close
-        document.body
-            .querySelectorAll<HTMLButtonElement>(".fb-btn")[2]
-            .click();
+        document.body.querySelectorAll<HTMLButtonElement>(".fb-btn")[2].click();
         expect(bus.dispatch).toHaveBeenCalledWith("findbarclose", {});
         expect(onClose).toHaveBeenCalledTimes(1);
     });

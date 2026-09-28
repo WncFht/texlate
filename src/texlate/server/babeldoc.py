@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from texlate.server.settings import TARGET_LANGS
-from texlate.textutil import env_float, filtered_env
+from texlate.textutil import env_float, filtered_env, is_cjk_cp
 from texlate.textutil.osutil import ENV_BABELDOC_TIMEOUT
 from texlate.xlat.client import normalize_base_url, redact
 
@@ -396,7 +396,7 @@ def cjk_ratio(pdf_path: Path, *, max_pages: int = 8) -> float | None:
         cjk = alpha = 0
         for page in PdfReader(str(pdf_path)).pages[:max_pages]:
             for ch in page.extract_text() or "":
-                if "㐀" <= ch <= "䶿" or "一" <= ch <= "鿿":
+                if is_cjk_cp(ord(ch)):
                     cjk += 1
                 elif ch.isalpha():
                     alpha += 1

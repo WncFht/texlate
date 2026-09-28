@@ -15,7 +15,11 @@ class FakeXHR {
     static instances: FakeXHR[] = [];
     upload = {
         onprogress: null as
-            | ((e: { loaded: number; total: number; lengthComputable: boolean }) => void)
+            | ((e: {
+                  loaded: number;
+                  total: number;
+                  lengthComputable: boolean;
+              }) => void)
             | null,
     };
     headers: Record<string, string> = {};
@@ -52,11 +56,16 @@ class FakeXHR {
         this.onabort?.();
     }
     progress(loaded: number, total: number, computable = true) {
-        this.upload.onprogress?.({ loaded, total, lengthComputable: computable });
+        this.upload.onprogress?.({
+            loaded,
+            total,
+            lengthComputable: computable,
+        });
     }
     respond(status: number, body: unknown) {
         this.status = status;
-        this.responseText = typeof body === "string" ? body : JSON.stringify(body);
+        this.responseText =
+            typeof body === "string" ? body : JSON.stringify(body);
         this.onload?.();
     }
 }
@@ -88,7 +97,12 @@ import { api, ApiError } from "../api/client";
 describe("api.upload/shareImport 上传进度（XHR 路）", () => {
     it("onProgress → xhr.upload.onprogress 触发回调（loaded/total），202 解析 JSON", async () => {
         const prog = vi.fn();
-        const p = api.upload(new File(["src"], "paper.tex"), undefined, undefined, prog);
+        const p = api.upload(
+            new File(["src"], "paper.tex"),
+            undefined,
+            undefined,
+            prog,
+        );
         const xhr = lastXhr();
 
         expect(xhr.method).toBe("POST");
@@ -108,7 +122,12 @@ describe("api.upload/shareImport 上传进度（XHR 路）", () => {
 
     it("lengthComputable=false / total=0 事件不触发回调", async () => {
         const prog = vi.fn();
-        const p = api.upload(new File(["x"], "a.tex"), undefined, undefined, prog);
+        const p = api.upload(
+            new File(["x"], "a.tex"),
+            undefined,
+            undefined,
+            prog,
+        );
         const xhr = lastXhr();
         xhr.progress(100, 0, false);
         xhr.progress(100, 0);
@@ -182,7 +201,7 @@ describe("api.upload/shareImport 上传进度（XHR 路）", () => {
         await p2;
     });
 
-    it("abort → TypeError(\"upload aborted\")，同文件重发复用 key", async () => {
+    it('abort → TypeError("upload aborted")，同文件重发复用 key', async () => {
         const file = new File(["x"], "abort.tex");
         const p1 = api.upload(file, undefined, undefined, vi.fn());
         const k1 = lastXhr().headers["Idempotency-Key"];
@@ -198,8 +217,16 @@ describe("api.upload/shareImport 上传进度（XHR 路）", () => {
     });
 
     it("HTTP 错误 → ApiError（detail/code 解析口径同 fetch 路）", async () => {
-        const p = api.upload(new File(["x"], "bad.tex"), undefined, undefined, vi.fn());
-        lastXhr().respond(422, { detail: "unsupported_format", code: "unsupported_format" });
+        const p = api.upload(
+            new File(["x"], "bad.tex"),
+            undefined,
+            undefined,
+            vi.fn(),
+        );
+        lastXhr().respond(422, {
+            detail: "unsupported_format",
+            code: "unsupported_format",
+        });
         await expect(p).rejects.toSatisfy(
             (e) =>
                 e instanceof ApiError &&

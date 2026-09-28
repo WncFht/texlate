@@ -25,11 +25,7 @@ const BASE = "/api";
  *  closed        —— 彻底断开（终态收尾/服务端 HTTP 错误终拒/主动 close）
  */
 export type TransportState =
-    | "live"
-    | "connecting"
-    | "reconnecting"
-    | "polling"
-    | "closed";
+    "live" | "connecting" | "reconnecting" | "polling" | "closed";
 
 export interface TaskEventHandlers {
     snapshot?: (s: TaskSnapshot) => void;

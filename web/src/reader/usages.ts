@@ -133,7 +133,9 @@ function targetLabel(host: HTMLElement, kind: UsageKind, id: string): string {
     switch (kind) {
         case "figure":
         case "table":
-            label = pick("figcaption .ltx_tag, .ltx_tag_figure, .ltx_tag_table");
+            label = pick(
+                "figcaption .ltx_tag, .ltx_tag_figure, .ltx_tag_table",
+            );
             break;
         case "bib":
             label = pick(".ltx_tag_bibitem");
@@ -147,8 +149,9 @@ function targetLabel(host: HTMLElement, kind: UsageKind, id: string): string {
         case "section":
             label =
                 pick(".ltx_title") ??
-                (host.querySelector("h1,h2,h3,h4,h5,h6")?.textContent
-                    ?.replace(/\s+/g, " ")
+                (host
+                    .querySelector("h1,h2,h3,h4,h5,h6")
+                    ?.textContent?.replace(/\s+/g, " ")
                     .trim() ||
                     null);
             break;
@@ -224,9 +227,7 @@ export function buildUsageIndex(
     const ordSeq = new Map<string, number>(); // id → 已见可索引锚数
     let totalAnchors = 0;
 
-    for (const a of root.querySelectorAll<HTMLAnchorElement>(
-        "a[href^='#']",
-    )) {
+    for (const a of root.querySelectorAll<HTMLAnchorElement>("a[href^='#']")) {
         if (a.closest(CHROME_SEL)) continue;
         const href = a.getAttribute("href") ?? "";
         if (href.length < 2) continue;
@@ -265,7 +266,7 @@ export function buildUsageIndex(
             charOff: -1,
             seq: chunkEl
                 ? (opts.seqOf?.(chunkEl.getAttribute("data-chunk") ?? "") ??
-                    null)
+                  null)
                 : null,
         };
 
@@ -415,9 +416,9 @@ export function buildCiteUsageMap(
             const body = ph[tokName];
             if (m[1] === "CITE") {
                 hasTokens = true;
-                (buckets.get(bucket) ?? buckets.set(bucket, []).get(bucket)!).push(
-                    Number(m[2]),
-                );
+                (
+                    buckets.get(bucket) ?? buckets.set(bucket, []).get(bucket)!
+                ).push(Number(m[2]));
                 const keys = body != null ? citeKeys(body) : [];
                 const sent = maskedSentenceAt(
                     en,
@@ -437,7 +438,9 @@ export function buildCiteUsageMap(
                 for (const k of keys) {
                     const arr = byKey.get(k) ?? [];
                     // 同 token 位在同 key 下只记一次
-                    if (!arr.some((o) => o.seq === seq && o.charOff === m.index))
+                    if (
+                        !arr.some((o) => o.seq === seq && o.charOff === m.index)
+                    )
                         arr.push(occ);
                     byKey.set(k, arr);
                 }

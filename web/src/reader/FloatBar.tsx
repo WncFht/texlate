@@ -399,8 +399,7 @@ export function createFloatBar(opts: CreateFloatBarOpts = {}): FloatBarApi {
             const rect = anchorRect(curRange);
             if (!rect) return hide();
             if (offscreen(rect)) return hide(true);
-            if (opts.allowShow && !opts.allowShow(curRange))
-                return hide(true);
+            if (opts.allowShow && !opts.allowShow(curRange)) return hide(true);
             place(rect);
             show();
         });

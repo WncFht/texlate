@@ -410,7 +410,9 @@ export default function Discover(props: { nav(to: string): void }) {
                                         </Show>
                                     </a>
                                     <div class="ax-card-foot">
-                                        <span class="muted ax-meta">{meta}</span>
+                                        <span class="muted ax-meta">
+                                            {meta}
+                                        </span>
                                         <Show when={id}>
                                             <span class="ax-foot-actions">
                                                 <button

@@ -14,7 +14,8 @@ import { t, langChoice, setLang, type LangChoice } from "../i18n";
 import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdfTheme";
 
 /** 并发夹取 1..16——与 Home 任务选项（home/options.ts）同一口径 */
-const clampConcurrency = (v: number) => Math.max(1, Math.min(16, Math.floor(v)));
+const clampConcurrency = (v: number) =>
+    Math.max(1, Math.min(16, Math.floor(v)));
 
 /** 预设的模型清单：models[] 或单数 model；自定义/无模型预设 → 空表走自由输入 */
 const providerModels = (p?: Provider): string[] =>
@@ -264,7 +265,9 @@ export default function Settings() {
                                 pickProvider(e.currentTarget.value)
                             }
                         >
-                            <option value="">{t.settings.providerCustom}</option>
+                            <option value="">
+                                {t.settings.providerCustom}
+                            </option>
                             <For each={settingsStore.providers()}>
                                 {(p) => (
                                     <option value={p.id}>
@@ -298,9 +301,7 @@ export default function Settings() {
                             <input
                                 name="model"
                                 value={model()}
-                                onInput={(e) =>
-                                    setModel(e.currentTarget.value)
-                                }
+                                onInput={(e) => setModel(e.currentTarget.value)}
                             />
                         }
                     >
@@ -352,10 +353,8 @@ export default function Settings() {
                 <div class="settings-field">
                     <span>{t.settings.engine}</span>
                     <Segmented
-                        options={segOptsWithCurrent(
-                            ENGINES,
-                            engine(),
-                            (en) => (en === "auto" ? t.home.engineAuto : en),
+                        options={segOptsWithCurrent(ENGINES, engine(), (en) =>
+                            en === "auto" ? t.home.engineAuto : en,
                         )}
                         value={engine()}
                         onChange={setEngine}
@@ -440,9 +439,7 @@ export default function Settings() {
                             { value: "off", label: t.home.optOff },
                         ]}
                         value={settingsStore.floatbar() ? "on" : "off"}
-                        onChange={(v) =>
-                            settingsStore.setFloatbar(v === "on")
-                        }
+                        onChange={(v) => settingsStore.setFloatbar(v === "on")}
                         ariaLabel={t.settings.floatbar}
                     />
                     <em class="muted">{t.settings.cursorHint}</em>
@@ -459,9 +456,7 @@ export default function Settings() {
                             { value: "off", label: t.home.optOff },
                         ]}
                         value={settingsStore.sentAlign() ? "on" : "off"}
-                        onChange={(v) =>
-                            settingsStore.setSentAlign(v === "on")
-                        }
+                        onChange={(v) => settingsStore.setSentAlign(v === "on")}
                         ariaLabel={t.settings.sentAlign}
                     />
                 </div>

@@ -11,8 +11,9 @@ regen_decisions; regen_allowed's four-condition gate; attempted_unpaid.
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
-from kernel import events, idnorm, paths
+from kernel import events, idnorm, paths, vault
 from kernel.claims import ClaimLease
 from kernel.dedup import (
     ABSENT,
@@ -27,6 +28,9 @@ from kernel.dedup import (
 )
 from kernel.index import Index
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 IDC = "cs/2401.00001"
 IDC2 = "hep-ph/9901223"
 ARM = "zh"
@@ -36,11 +40,11 @@ V = "-"
 # -- helpers ---------------------------------------------------------------------
 
 
-def _append(evs) -> int:
+def _append(evs: list[dict]) -> int:
     """Append events to the hot-tail ledger; returns bytes written."""
     p = paths.events_path()
     n = 0
-    with open(p, "a", encoding="utf-8") as f:
+    with p.open("a", encoding="utf-8") as f:
         for ev in evs:
             line = events.dumps(ev) + "\n"
             f.write(line)
@@ -48,7 +52,15 @@ def _append(evs) -> int:
     return n
 
 
-def _cell(seq, run="r1", idc=IDC, status="ok", stage="xlat", arm=ARM, **kw):
+def _cell(  # noqa: PLR0913, PLR0917 -- 参数面即契约（cell 事件字段面）
+    seq: int,
+    run: str = "r1",
+    idc: str = IDC,
+    status: str = "ok",
+    stage: str = "xlat",
+    arm: str = ARM,
+    **kw: object,
+) -> dict:
     kw.setdefault("id", idc)
     return events.make_event(
         events.T_CELL,
@@ -68,7 +80,14 @@ def _cell(seq, run="r1", idc=IDC, status="ok", stage="xlat", arm=ARM, **kw):
     )
 
 
-def _asset(seq, idc=IDC, kind="zh", state="verified", run="r1", **kw):
+def _asset(
+    seq: int,
+    idc: str = IDC,
+    kind: str = "zh",
+    state: str = "verified",
+    run: str = "r1",
+    **kw: object,
+) -> dict:
     kw.setdefault("id", idc)
     return events.make_event(
         events.T_ASSET,
@@ -86,7 +105,7 @@ def _asset(seq, idc=IDC, kind="zh", state="verified", run="r1", **kw):
     )
 
 
-def _tombstone(idc=IDC, kind="zh", **kw):
+def _tombstone(idc: str = IDC, kind: str = "zh", **kw: object) -> dict:
     kw.setdefault("id", idc)
     return events.make_event(
         events.T_TOMBSTONE,
@@ -100,35 +119,41 @@ def _tombstone(idc=IDC, kind="zh", **kw):
     )
 
 
-def _sealed_index(broot):
+def _sealed_index(broot: Path) -> Index:  # noqa: ARG001 -- fixture 副作用（要求隔离 BENCH_ROOT 已就位）
     """Index rebuilt (sealed) over the current ledger."""
     idx = Index()
     idx.rebuild()
     return idx
 
 
-def _write_manifest(rows):
+def _write_manifest(rows: list[dict]) -> None:
     p = paths.vault_manifest_path()
-    with open(p, "a", encoding="utf-8") as f:
+    with p.open("a", encoding="utf-8") as f:
         f.writelines(json.dumps(r, sort_keys=True) + "\n" for r in rows)
 
 
-def _manifest_row(idc, arm=ARM, variant=V, **kw):
+def _manifest_row(idc: str, arm: str = ARM, variant: str = V, **kw: object) -> dict:
     row = {"idc": idc, "arm": arm, "variant": variant, "zone": "primary"}
     row.update(kw)
     return row
 
 
-def _write_meta(idc, arm=ARM, variant=V, altseq=None, body=None, name=None):
+def _write_meta(  # noqa: PLR0913, PLR0917 -- 参数面即契约（§3.10.4 meta 六元组）
+    idc: str,
+    arm: str = ARM,
+    variant: str = V,
+    altseq: str | None = None,
+    body: dict | None = None,
+    name: str | None = None,
+) -> Path:
     """Write a vault/meta file in the §3.10.4 layout; returns its path."""
-    from kernel.idnorm import escape_component, safe_id
-
     if name is None:
-        name = escape_component(safe_id(idc)) + "." + escape_component(arm)
+        name = idnorm.escape_component(idnorm.safe_id(idc))
+        name += "." + idnorm.escape_component(arm)
         if variant != "-":
-            name += "@" + escape_component(variant)
+            name += "@" + idnorm.escape_component(variant)
         if altseq is not None:
-            name += "." + escape_component(str(altseq))
+            name += "." + idnorm.escape_component(str(altseq))
         name += ".json"
     rec = {"idc": idc, "arm": arm, "variant": variant}
     if body:
@@ -138,12 +163,17 @@ def _write_meta(idc, arm=ARM, variant=V, altseq=None, body=None, name=None):
     return p
 
 
-def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary", kinds=("zh",)):
+def _commit_copy(  # noqa: PLR0913, PLR0917 -- 参数面即契约（vault copy 六元组）
+    idc: str,
+    arm: str = ARM,
+    variant: str = V,
+    altseq: str = "0",
+    verdict: str = "primary",
+    kinds: tuple[str, ...] = ("zh",),
+) -> Path:
     """A physically committed vault copy: real leaf bytes + a real-shaped
     meta (zone/verdict/files={kind:[{path,size}]}), filename via
     vault.meta_key — what harvest actually leaves on disk."""
-    from kernel import vault
-
     zone = "quar" if verdict in ("quar", "quarantine") else "primary"
     sid = idnorm.safe_id(idc)
     key = vault.dir_key(arm, variant, altseq)
@@ -183,7 +213,7 @@ def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary", kinds=(
 # -- snapshot ----------------------------------------------------------------------
 
 
-def test_snapshot_captures_all_three_legs(broot):
+def test_snapshot_captures_all_three_legs(broot: Path) -> None:
     _append([_cell(1, status="ok")])
     _write_manifest([_manifest_row(IDC2, bytes_ok=True)])
     idx = _sealed_index(broot)
@@ -199,7 +229,7 @@ def test_snapshot_captures_all_three_legs(broot):
     idx.close()
 
 
-def test_snapshot_empty_bench_is_sealed_absent(broot):
+def test_snapshot_empty_bench_is_sealed_absent(broot: Path) -> None:
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.sealed()
@@ -210,7 +240,7 @@ def test_snapshot_empty_bench_is_sealed_absent(broot):
 # -- unsealed gate -------------------------------------------------------------------
 
 
-def test_dirty_index_unseals_everything(broot):
+def test_dirty_index_unseals_everything(broot: Path) -> None:
     """Even a manifest-verified cell answers 'unsealed' on a dirty index —
     the seal failure is the alarm that must surface (§3.10.6 ③)."""
     _write_manifest([_manifest_row(IDC, bytes_ok=True)])
@@ -223,7 +253,7 @@ def test_dirty_index_unseals_everything(broot):
     idx.close()
 
 
-def test_watermark_behind_unseals(broot):
+def test_watermark_behind_unseals(broot: Path) -> None:
     """A snapshot whose min_offset covers bytes the index has not ingested
     heals itself: check() runs ONE catch-up tail_ingest before declaring
     unsealed — the seal only stays broken when the index still cannot
@@ -240,7 +270,7 @@ def test_watermark_behind_unseals(broot):
     idx.close()
 
 
-def test_gen_mismatch_unseals(broot):
+def test_gen_mismatch_unseals(broot: Path) -> None:
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     idx.rebuild()  # bumps sealed_gen
@@ -248,7 +278,7 @@ def test_gen_mismatch_unseals(broot):
     idx.close()
 
 
-def test_unsealed_beats_claimed(broot):
+def test_unsealed_beats_claimed(broot: Path) -> None:
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     lease = ClaimLease(IDC, ARM, V)
@@ -264,7 +294,7 @@ def test_unsealed_beats_claimed(broot):
 # -- claimed -------------------------------------------------------------------------
 
 
-def test_live_claim_returns_claimed(broot):
+def test_live_claim_returns_claimed(broot: Path) -> None:
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     lease = ClaimLease(IDC, ARM, V)
@@ -277,7 +307,7 @@ def test_live_claim_returns_claimed(broot):
     idx.close()
 
 
-def test_claimed_beats_verified(broot):
+def test_claimed_beats_verified(broot: Path) -> None:
     """A live claim outranks even durable verified evidence — someone is
     actively re-doing the cell (check order: claimed before verified)."""
     _append([_cell(1, status="ok")])
@@ -296,7 +326,7 @@ def test_claimed_beats_verified(broot):
 # -- verified legs ---------------------------------------------------------------------
 
 
-def test_verified_via_paid_pool_snapshot(broot):
+def test_verified_via_paid_pool_snapshot(broot: Path) -> None:
     _append(
         [
             _cell(1, idc="a/1", status="ok"),
@@ -312,7 +342,7 @@ def test_verified_via_paid_pool_snapshot(broot):
     idx.close()
 
 
-def test_verified_via_manifest_tail(broot):
+def test_verified_via_manifest_tail(broot: Path) -> None:
     _write_manifest(
         [
             _manifest_row("a/1", bytes_ok=True),
@@ -331,7 +361,7 @@ def test_verified_via_manifest_tail(broot):
     idx.close()
 
 
-def test_manifest_tail_last_row_wins_per_altseq(broot):
+def test_manifest_tail_last_row_wins_per_altseq(broot: Path) -> None:
     """A demote row only kills its own altseq's evidence (§3.10.4)."""
     _write_manifest(
         [
@@ -352,9 +382,11 @@ def test_manifest_tail_last_row_wins_per_altseq(broot):
     idx.close()
 
 
-def test_manifest_tail_tolerates_torn_and_bad_rows(broot):
+def test_manifest_tail_tolerates_torn_and_bad_rows(
+    broot: Path,  # noqa: ARG001 -- fixture 副作用（BENCH_ROOT 隔离）
+) -> None:
     p = paths.vault_manifest_path()
-    with open(p, "a", encoding="utf-8") as f:
+    with p.open("a", encoding="utf-8") as f:
         f.write('{"idc":"a/1","arm":"zh","variant":"-","bytes_ok":true}\n')
         f.write("{not json\n")
         f.write('{"idc":"a/2","arm":"zh","variant":"-","bytes_ok":true')  # torn tail
@@ -362,7 +394,7 @@ def test_manifest_tail_tolerates_torn_and_bad_rows(broot):
     assert tail == {("a/1", "zh", "-")}
 
 
-def test_verified_via_vault_meta_file(broot):
+def test_verified_via_vault_meta_file(broot: Path) -> None:
     _commit_copy("cs/0601023", verdict="primary")
     _commit_copy("cs/0601024", verdict="quar")  # quar + bytes = §3.8 dedup hit
     _write_meta(
@@ -384,7 +416,7 @@ def test_verified_via_vault_meta_file(broot):
     idx.close()
 
 
-def test_partial_kind_meta_does_not_verify_uncovered_needs(broot):
+def test_partial_kind_meta_does_not_verify_uncovered_needs(broot: Path) -> None:
     """retry39 regression: a {state}-only harvest (xlat checkpoint sealed,
     zh never produced) must NOT mint 'verified' for a stage whose
     need_kinds span zh+state — the meta only vouches kinds it declares.
@@ -405,7 +437,7 @@ def test_partial_kind_meta_does_not_verify_uncovered_needs(broot):
     idx.close()
 
 
-def test_split_kinds_across_copies_verify(broot):
+def test_split_kinds_across_copies_verify(broot: Path) -> None:
     """Two intact copies each declaring a different needed kind union to
     full coverage — kind coverage is per-cell, not per-copy."""
     _commit_copy("cs/0601041", verdict="primary", altseq="0", kinds=("zh",))
@@ -416,7 +448,7 @@ def test_split_kinds_across_copies_verify(broot):
     idx.close()
 
 
-def test_committed_but_bytes_gone_is_missing(broot):
+def test_committed_but_bytes_gone_is_missing(broot: Path) -> None:
     """Meta verdict=primary whose declared files are absent on disk is
     §3.6's third state (付过费但字节没了) -> missing -> regen gate, never
     a silent verified skip and never an ungated re-pay."""
@@ -430,7 +462,7 @@ def test_committed_but_bytes_gone_is_missing(broot):
     idx.close()
 
 
-def test_unparseable_meta_body_is_missing_evidence(broot):
+def test_unparseable_meta_body_is_missing_evidence(broot: Path) -> None:
     """Filename claims our cell but body unreadable = broken commit
     marker — missing-side evidence (spend-refusing), never 'absent'."""
     p = _write_meta("cs/0601026", body={"verdict": "primary"})
@@ -441,7 +473,7 @@ def test_unparseable_meta_body_is_missing_evidence(broot):
     idx.close()
 
 
-def test_verified_legs_are_durable_not_live_index(broot):
+def test_verified_legs_are_durable_not_live_index(broot: Path) -> None:
     """index.vault_bytes_ok()/live cells are advisory: an oracle built
     WITHOUT frozen legs answers 'absent' even though the index says ok —
     verified is only ever minted from durable/frozen facts."""
@@ -465,7 +497,7 @@ def test_verified_legs_are_durable_not_live_index(broot):
 # -- missing -------------------------------------------------------------------------
 
 
-def test_tombstone_event_means_missing(broot):
+def test_tombstone_event_means_missing(broot: Path) -> None:
     _append([_tombstone(IDC)])
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
@@ -474,7 +506,7 @@ def test_tombstone_event_means_missing(broot):
     idx.close()
 
 
-def test_quar_verdict_means_missing(broot):
+def test_quar_verdict_means_missing(broot: Path) -> None:
     """quar verdict + no byte evidence = §3.6 missing∪quarantine hard stop."""
     _append([_asset(1, idc="a/1", state="pending", verdict="quar")])
     _write_meta("cs/0601035", body={"verdict": "quar", "assets": {}})
@@ -485,7 +517,7 @@ def test_quar_verdict_means_missing(broot):
     idx.close()
 
 
-def test_lost_cell_means_missing(broot):
+def test_lost_cell_means_missing(broot: Path) -> None:
     _append([_cell(1, idc="a/1", status="lost")])
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
@@ -493,7 +525,7 @@ def test_lost_cell_means_missing(broot):
     idx.close()
 
 
-def test_verified_leg_beats_missing_evidence(broot):
+def test_verified_leg_beats_missing_evidence(broot: Path) -> None:
     """tombstone evidence + durable bytes -> verified wins (check order):
     per-altseq reality is 'one copy lost, one copy alive'."""
     _append([_tombstone(IDC)])
@@ -504,7 +536,7 @@ def test_verified_leg_beats_missing_evidence(broot):
     idx.close()
 
 
-def test_missing_never_implied_by_paid_attempt(broot):
+def test_missing_never_implied_by_paid_attempt(broot: Path) -> None:
     """A reject/fail cell with NO tombstone evidence is 'absent' in the
     bytes domain — the attempted-unpaid bucket is quote()'s business."""
     _append([_cell(1, idc="a/1", status="reject")])
@@ -517,7 +549,7 @@ def test_missing_never_implied_by_paid_attempt(broot):
 # -- attempted_unpaid ------------------------------------------------------------------
 
 
-def test_attempted_unpaid_classification(broot):
+def test_attempted_unpaid_classification(broot: Path) -> None:
     _append(
         [
             _cell(1, idc="a/1", status="reject"),
@@ -543,7 +575,7 @@ def test_attempted_unpaid_classification(broot):
 # -- quote -------------------------------------------------------------------------------
 
 
-def test_quote_partitions_mixed_set(broot):
+def test_quote_partitions_mixed_set(broot: Path) -> None:
     _append(
         [
             _cell(1, idc="a/1", status="ok"),  # reuse (paid pool)
@@ -576,7 +608,8 @@ def test_quote_partitions_mixed_set(broot):
     assert rep["sealed"]
     assert rep["total"] == len(cells)
     for b in ("new", "reuse", "missing", "claimed", "attempted", "unsealed"):
-        assert isinstance(rep[b], int) and isinstance(rep["buckets"][b], list)
+        assert isinstance(rep[b], int)
+        assert isinstance(rep["buckets"][b], list)
     # partition: every input cell in exactly one bucket
     flat = sorted(k for keys in rep["buckets"].values() for k in keys)
     assert len(flat) == len(cells)
@@ -596,19 +629,21 @@ def test_quote_partitions_mixed_set(broot):
     idx.close()
 
 
-def test_quote_unsealed_reports_everything_unsealed(broot):
+def test_quote_unsealed_reports_everything_unsealed(broot: Path) -> None:
     _append([_cell(1, idc="a/1", status="ok")])
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     idx.note_dirty("boom")
     rep = oracle.quote([("a/1", ARM, V), ("a/2", ARM, V)])
     assert not rep["sealed"]
-    assert rep["unsealed"] == 2 and rep["new"] == 0 and rep["reuse"] == 0
+    assert rep["unsealed"] == 2  # noqa: PLR2004 -- 断言字面量（两个入格全 unsealed）
+    assert rep["new"] == 0
+    assert rep["reuse"] == 0
     assert rep["regen_decisions"] == []
     idx.close()
 
 
-def test_quote_attempted_needs_paid_flag(broot):
+def test_quote_attempted_needs_paid_flag(broot: Path) -> None:
     """Free-stage cells with fail statuses are cheap to rerun -> 'new',
     not 'attempted' (the attempted bucket is a paid-cell concept)."""
     _append([_cell(1, idc="a/1", status="fail")])
@@ -628,29 +663,31 @@ def test_quote_attempted_needs_paid_flag(broot):
 # -- regen gate ---------------------------------------------------------------------------
 
 
-def test_regen_allowed_requires_all_four(broot):
+def test_regen_allowed_requires_all_four(broot: Path) -> None:
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    base = dict(
-        idc=IDC,
-        arm=ARM,
-        variant=V,
-        allow_regen=True,
-        sel_hit=True,
-        max_cost=1.0,
-        yes=True,
-    )
+    base = {
+        "idc": IDC,
+        "arm": ARM,
+        "variant": V,
+        "allow_regen": True,
+        "sel_hit": True,
+        "max_cost": 1.0,
+        "yes": True,
+    }
     assert oracle.regen_allowed(**base)
     for kill in ("allow_regen", "sel_hit", "max_cost", "yes"):
         kw = dict(base)
         kw[kill] = False if kill != "max_cost" else None
         assert not oracle.regen_allowed(**kw), kill
     # --rerun/--recode shaped intent has no regen power
-    assert not oracle.regen_allowed(IDC, ARM, V, False, True, 1.0, True)
+    assert not oracle.regen_allowed(
+        IDC, ARM, V, allow_regen=False, sel_hit=True, max_cost=1.0, yes=True
+    )
     idx.close()
 
 
-def test_missing_cells_are_the_regen_decision_list(broot):
+def test_missing_cells_are_the_regen_decision_list(broot: Path) -> None:
     """regen_decisions == missing bucket exactly; tombstoned ids never
     auto-enter a run set — they wait for the human's --regen (§3.6)."""
     _append([_tombstone(idc="a/3"), _tombstone(idc="a/4")])
@@ -665,7 +702,7 @@ def test_missing_cells_are_the_regen_decision_list(broot):
 # -- meta filename parsing ----------------------------------------------------------------
 
 
-def test_meta_scan_variant_and_altseq_names(broot):
+def test_meta_scan_variant_and_altseq_names(broot: Path) -> None:
     """Variant/altseq name forms parse back to the right cell key."""
     _commit_copy("cs/0601027", variant="rep3", verdict="primary")
     _commit_copy("cs/0601028", altseq="2", verdict="primary")
@@ -677,7 +714,7 @@ def test_meta_scan_variant_and_altseq_names(broot):
     idx.close()
 
 
-def test_unparseable_meta_name_contributes_nothing(broot):
+def test_unparseable_meta_name_contributes_nothing(broot: Path) -> None:
     """The filename is the authoritative credential (§3.10.4): a meta
     whose name does not parse is invisible to the oracle — its body can
     never greenlight a skip; doctor's meta-less report owns the anomaly."""
@@ -692,7 +729,7 @@ def test_unparseable_meta_name_contributes_nothing(broot):
     idx.close()
 
 
-def test_oracle_without_snapshot_is_unsealed_when_index_lags(broot):
+def test_oracle_without_snapshot_is_unsealed_when_index_lags(broot: Path) -> None:
     """Hand-built oracle with min_offset beyond the index watermark must
     not greenlight — the seal check is fail-closed by construction."""
     _append([_cell(1, status="ok")])

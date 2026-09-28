@@ -20,21 +20,11 @@
 //  * menuItemsFor —— cmdreg → CtxItem[] 桥（SECTION_ORDER 分段插 sep，
 //    enableWhen → disabled 不 hidden，title 走 i18n t-path 解析）。
 
-import {
-    createSignal,
-    For,
-    onCleanup,
-    onMount,
-    Show,
-} from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { currentLang, t } from "../i18n";
+import { currentLang, tPath } from "../i18n";
 import type { Command, Registry } from "./cmd/cmdreg";
-import {
-    MENU_LABELS,
-    SECTION_ORDER,
-    type CmdCtx,
-} from "./cmd/commands";
+import { MENU_LABELS, SECTION_ORDER, type CmdCtx } from "./cmd/commands";
 import type { HitCtx } from "./cmd/hitctx";
 
 /** 菜单贴视口的边距 / 首帧估宽 / 单项估高（onMount 前防出屏用） */
@@ -284,9 +274,11 @@ function MenuLevel(props: LevelProps) {
                     e.stopPropagation();
                     openSub(Number(li.dataset.i), li, true);
                     queueMicrotask(() =>
-                        li.querySelector<HTMLElement>(
-                            ":scope > .ctx-sub " + ENABLED.slice(7),
-                        )?.focus(),
+                        li
+                            .querySelector<HTMLElement>(
+                                ":scope > .ctx-sub " + ENABLED.slice(7),
+                            )
+                            ?.focus(),
                     );
                 }
                 return;
@@ -489,16 +481,6 @@ export function useContextMenu(
 }
 
 // ---------------------------------------------------------------- cmdreg 桥
-
-/** i18n t-path 解析（"menu.sel.copy" → t.menu.sel.copy）；缺键 null。 */
-const tPath = (path: string): string | null => {
-    let cur: unknown = t;
-    for (const k of path.split(".")) {
-        if (cur == null || typeof cur !== "object") return null;
-        cur = (cur as Record<string, unknown>)[k];
-    }
-    return typeof cur === "string" ? cur : null;
-};
 
 /** 命令显示名：title 作 i18n key 解析 → MENU_LABELS 镜像 → id 兜底。 */
 export function cmdLabel(c: { id: string; title: string }): string {

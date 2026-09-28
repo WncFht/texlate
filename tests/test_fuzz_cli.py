@@ -21,16 +21,15 @@ export 父链 OSError/TRANSLATOR typo 静默忽略/doctor InvalidURL）已修复
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import re
-import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import httpx
 import pytest
+from _exportkit import _epub
 from _fuzzkit import fuzz_rng
 from conftest import FakeFetcher, make_targz, mk_task_dir
 from typer.testing import CliRunner, Result
@@ -59,31 +58,6 @@ _MAIN_TEX = (
     "\\end{document}\n"
 )
 
-_CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-"""
-
-_OPF = """<?xml version="1.0"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="b">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="b">t</dc:identifier><dc:title>t</dc:title><dc:language>en</dc:language>
-  </metadata>
-  <manifest><item id="c0" href="c0.xhtml" media-type="application/xhtml+xml"/></manifest>
-  <spine><itemref idref="c0"/></spine>
-</package>
-"""
-
-_XHTML = (
-    '<?xml version="1.0" encoding="utf-8"?>'
-    '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title></head>'
-    "<body><p>Hello world paragraph for export.</p></body></html>"
-)
-
-
 def _clean(result: Result) -> None:
     """干净退出 oracle：无真实异常逃逸、输出无 Traceback 字样。"""
     exc = result.exception
@@ -93,13 +67,7 @@ def _clean(result: Result) -> None:
 
 def _epub_blob() -> bytes:
     """最小合法 EPUB zip（mimetype + container + OPF + 一章）。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", _CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _OPF)
-        z.writestr("OEBPS/c0.xhtml", _XHTML)
-    return buf.getvalue()
+    return _epub({"c0.xhtml": "<p>Hello world paragraph for export.</p>"}, ncx=False)
 
 
 class _TripwireFetcher:

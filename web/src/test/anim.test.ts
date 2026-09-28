@@ -71,9 +71,9 @@ describe("anim 句对位动效层", () => {
         expect(d.startsWith("M 10 20 C ")).toBe(true);
         expect(d.endsWith(", 300 206")).toBe(true); // 200+12/2
         vi.advanceTimersByTime(1150);
-        expect(
-            document.querySelectorAll(".sa-wipe,.sa-arc-svg"),
-        ).toHaveLength(0);
+        expect(document.querySelectorAll(".sa-wipe,.sa-arc-svg")).toHaveLength(
+            0,
+        );
     });
 
     it("land 行数封顶 8——九行落句只擦前八", () => {
@@ -96,9 +96,9 @@ describe("anim 句对位动效层", () => {
 
     it("land 单轨——在飞连线/擦入被新 land 当场清算", () => {
         land({ x: 1, y: 1 }, [elWithRects([rect(100)])]);
-        expect(
-            document.querySelectorAll(".sa-wipe,.sa-arc-svg"),
-        ).toHaveLength(2);
+        expect(document.querySelectorAll(".sa-wipe,.sa-arc-svg")).toHaveLength(
+            2,
+        );
         land({ x: 2, y: 2 }, [elWithRects([rect(300), rect(320)])]);
         const wipes = document.querySelectorAll<HTMLElement>(".sa-wipe");
         expect(wipes).toHaveLength(2); // 新两行；旧一行已摘
@@ -109,9 +109,9 @@ describe("anim 句对位动效层", () => {
     it("land 空 els/全壳零矩形 → 什么都不产", () => {
         land({ x: 1, y: 1 }, []);
         land({ x: 1, y: 1 }, [elWithRects([])]);
-        expect(
-            document.querySelectorAll(".sa-wipe,.sa-arc-svg"),
-        ).toHaveLength(0);
+        expect(document.querySelectorAll(".sa-wipe,.sa-arc-svg")).toHaveLength(
+            0,
+        );
     });
 
     it("land 不杀在飞涟漪——press ack 与连线并存（同帧 press→land）", () => {
@@ -128,7 +128,9 @@ describe("anim 句对位动效层", () => {
         vi.advanceTimersByTime(900); // 还在 1100ms 窗内
         press(5, 5); // 新按下（其 land 未决——涟漪归 press 管）
         vi.advanceTimersByTime(210); // A 自清钟到点
-        expect(document.querySelectorAll(".sa-wipe,.sa-arc-svg")).toHaveLength(0);
+        expect(document.querySelectorAll(".sa-wipe,.sa-arc-svg")).toHaveLength(
+            0,
+        );
         expect(document.querySelector(".sa-ripple")).toBeTruthy();
     });
 
@@ -142,9 +144,7 @@ describe("anim 句对位动效层", () => {
 
     it("land 连线终点取首个视口内行——跨页 seq 不连画外点", () => {
         // jsdom innerHeight=768：首行 top=-40 画外，次行 100 画内
-        land({ x: 1, y: 1 }, [
-            elWithRects([rect(-40, 30), rect(100, 30)]),
-        ]);
+        land({ x: 1, y: 1 }, [elWithRects([rect(-40, 30), rect(100, 30)])]);
         const d = document
             .querySelector(".sa-arc-svg path")!
             .getAttribute("d")!;

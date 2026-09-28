@@ -67,9 +67,9 @@ describe("writeFeedCache（容量逐最旧）", () => {
         }
         // 同键重写不膨胀
         writeFeedCache("k0", [paper({ id: "p0b" })], st, 999);
-        expect(
-            Object.keys(JSON.parse(st.map.get(FEED_CACHE)!)),
-        ).toHaveLength(FEED_CACHE_MAX);
+        expect(Object.keys(JSON.parse(st.map.get(FEED_CACHE)!))).toHaveLength(
+            FEED_CACHE_MAX,
+        );
         // 第 MAX+1 个新键 → 最旧的 k1 出局（k0 ts 已刷新成最新）
         writeFeedCache("newest", [paper({ id: "pn" })], st, 1000);
         const map = JSON.parse(st.map.get(FEED_CACHE)!) as Record<
@@ -94,9 +94,10 @@ describe("writeFeedCache（容量逐最旧）", () => {
 });
 
 describe("cardId/dedup（跨页去重稳定键）", () => {
-    it("卡 id 回退链：universal_paper_id → canonical_id → \"\"", () => {
-        expect(cardId(paper({ universal_paper_id: "u1", canonical_id: "c1" })))
-            .toBe("u1");
+    it('卡 id 回退链：universal_paper_id → canonical_id → ""', () => {
+        expect(
+            cardId(paper({ universal_paper_id: "u1", canonical_id: "c1" })),
+        ).toBe("u1");
         expect(cardId(paper({ canonical_id: "c1" }))).toBe("c1");
         expect(cardId(paper({}))).toBe("");
     });
@@ -111,8 +112,9 @@ describe("cardId/dedup（跨页去重稳定键）", () => {
             paper({}),
         ];
         const out = dedup(rows, seen);
-        expect(out.map((r) => r.universal_paper_id ?? r.canonical_id ?? r.id))
-            .toEqual(["u1", "c1", "row-id"]);
+        expect(
+            out.map((r) => r.universal_paper_id ?? r.canonical_id ?? r.id),
+        ).toEqual(["u1", "c1", "row-id"]);
     });
 
     it("翻页：page>1 对累计 seen 集去重（榜单流动推回同篇）", () => {

@@ -25,43 +25,60 @@ export default function DocInfo(props: Props) {
     const rows = (): [string, string][] => {
         const s = props.store;
         return (
-            [
-                [t.pane.fFilename, s.filename],
-                [t.pane.fTitle, s.title],
-                [t.pane.fAuthor, s.author],
-                [t.pane.fSubject, s.subject],
-                [t.pane.fKeywords, typeof s.keywords === "string" ? s.keywords : undefined],
-                [t.pane.fCreator, s.creator],
-                [t.pane.fProducer, s.producer],
-                [t.pane.fVersion, s.version],
-                [t.pane.fPages, s.numPages ? String(s.numPages) : undefined],
+            (
                 [
-                    t.pane.fPageSize,
-                    // 与兄弟行同口径：缺席 → undefined 整行不渲，不留「—」
-                    s.pageSize
-                        ? pageSizeText(s.pageSize, {
-                              portrait: t.pane.portrait,
-                              landscape: t.pane.landscape,
-                          })
-                        : undefined,
-                ],
-                [t.pane.fSize, s.filesize != null ? fmtBytes(s.filesize) : undefined],
-                [
-                    t.pane.fLinearized,
-                    s.isLinearized == null
-                        ? undefined
-                        : s.isLinearized
-                          ? t.pane.yes
-                          : t.pane.no,
-                ],
-                [t.pane.fCreated, s.creationDate ? fmtDate(s.creationDate) : undefined],
-                [
-                    t.pane.fModified,
-                    s.modificationDate ? fmtDate(s.modificationDate) : undefined,
-                ],
-            ] as [string, string | undefined][]
-            // 空字段整行不渲染——多数 PDF 元数据稀，一屏「—」比少几行更乱
-        ).filter(([, v]) => !!v) as [string, string][];
+                    [t.pane.fFilename, s.filename],
+                    [t.pane.fTitle, s.title],
+                    [t.pane.fAuthor, s.author],
+                    [t.pane.fSubject, s.subject],
+                    [
+                        t.pane.fKeywords,
+                        typeof s.keywords === "string" ? s.keywords : undefined,
+                    ],
+                    [t.pane.fCreator, s.creator],
+                    [t.pane.fProducer, s.producer],
+                    [t.pane.fVersion, s.version],
+                    [
+                        t.pane.fPages,
+                        s.numPages ? String(s.numPages) : undefined,
+                    ],
+                    [
+                        t.pane.fPageSize,
+                        // 与兄弟行同口径：缺席 → undefined 整行不渲，不留「—」
+                        s.pageSize
+                            ? pageSizeText(s.pageSize, {
+                                  portrait: t.pane.portrait,
+                                  landscape: t.pane.landscape,
+                              })
+                            : undefined,
+                    ],
+                    [
+                        t.pane.fSize,
+                        s.filesize != null ? fmtBytes(s.filesize) : undefined,
+                    ],
+                    [
+                        t.pane.fLinearized,
+                        s.isLinearized == null
+                            ? undefined
+                            : s.isLinearized
+                              ? t.pane.yes
+                              : t.pane.no,
+                    ],
+                    [
+                        t.pane.fCreated,
+                        s.creationDate ? fmtDate(s.creationDate) : undefined,
+                    ],
+                    [
+                        t.pane.fModified,
+                        s.modificationDate
+                            ? fmtDate(s.modificationDate)
+                            : undefined,
+                    ],
+                ] as [string, string | undefined][]
+            )
+                // 空字段整行不渲染——多数 PDF 元数据稀，一屏「—」比少几行更乱
+                .filter(([, v]) => !!v) as [string, string][]
+        );
     };
 
     return (

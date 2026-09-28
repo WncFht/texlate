@@ -21,13 +21,16 @@ function buildBody(): HTMLElement {
     for (let i = 0; i < 40; i++) {
         if (i === 6) html += `<p class="uncovered">license residue line</p>`;
         if (i === 12)
-            html += `<div class="ltx_para" data-chunk="S1.p12">host text ` +
+            html +=
+                `<div class="ltx_para" data-chunk="S1.p12">host text ` +
                 `<span class="ltx_note" data-chunk="footnote3">nested note ` +
                 `text here</span> tail text of host</div>`;
         else if (i === 20)
-            html += `<div class="ltx_para" data-chunk="S2.p20">para with ` +
+            html +=
+                `<div class="ltx_para" data-chunk="S2.p20">para with ` +
                 `<a href="#bib.bib1">[1]</a> and <b>bold</b> inline</div>`;
-        else html += `<div class="ltx_para" data-chunk="S${i}">chunk ${i} body text sentence.</div>`;
+        else
+            html += `<div class="ltx_para" data-chunk="S${i}">chunk ${i} body text sentence.</div>`;
     }
     html += `<p class="uncovered">trailing uncovered tail</p>`;
     body.innerHTML = html;
@@ -46,8 +49,7 @@ const allText = (el: Element): Text[] => {
         if (n.nodeValue!.trim()) ts.push(n as Text);
     return ts;
 };
-const tn = (el: Element | undefined, idx = 0): Text =>
-    allText(el!)[idx]!;
+const tn = (el: Element | undefined, idx = 0): Text => allText(el!)[idx]!;
 
 const oracle = (r: Range): string[] =>
     chunkEls
@@ -70,12 +72,7 @@ beforeEach(() => {
 
 describe("directed cases (vs intersectsNode oracle)", () => {
     const sel = () => document.getSelection()!;
-    const grab = (
-        a: Node,
-        ao: number,
-        b: Node,
-        bo: number,
-    ): string[] => {
+    const grab = (a: Node, ao: number, b: Node, bo: number): string[] => {
         sel().setBaseAndExtent(a, ao, b, bo);
         const r = sel().getRangeAt(0);
         const got = resolver(r);
@@ -85,8 +82,8 @@ describe("directed cases (vs intersectsNode oracle)", () => {
 
     it("cross-3-block", () => {
         const keys = grab(tn(chunkEls[5]), 3, tn(chunkEls[8]), 4);
-        const want = [5, 6, 7, 8].map(
-            (i) => chunkEls[i]!.getAttribute("data-chunk")!,
+        const want = [5, 6, 7, 8].map((i) =>
+            chunkEls[i]!.getAttribute("data-chunk")!,
         );
         expect(keys).toEqual(want);
     });
@@ -99,15 +96,13 @@ describe("directed cases (vs intersectsNode oracle)", () => {
         expect(anchorAfterFocus(sel())).toBe(false);
     });
     it("nested footnote anchor: inside-note selection → host+note", () => {
-        const note = chunkEls.find((e) =>
-            e.classList.contains("ltx_note"),
-        )!;
+        const note = chunkEls.find((e) => e.classList.contains("ltx_note"))!;
         const keys = grab(tn(note), 2, tn(note), 6);
         expect(keys).toEqual(["S1.p12", "footnote3"]);
     });
     it("nested footnote: host-start → after-note tail covers both", () => {
-        const host = chunkEls.find((e) =>
-            e.getAttribute("data-chunk") === "S1.p12",
+        const host = chunkEls.find(
+            (e) => e.getAttribute("data-chunk") === "S1.p12",
         )!;
         const texts = allText(host);
         const tail = texts.at(-1)!;
@@ -197,8 +192,8 @@ describe("fuzz vs intersectsNode (seeded rng)", () => {
         let fails = 0;
         for (let i = 0; i < 200; i++) {
             const host =
-                chunkEls[Math.floor(rnd() * chunkEls.length)]!
-                    .parentElement ?? bodyEl;
+                chunkEls[Math.floor(rnd() * chunkEls.length)]!.parentElement ??
+                bodyEl;
             const b = texts[Math.floor(rnd() * texts.length)]!;
             sel.setBaseAndExtent(
                 host,
@@ -224,8 +219,7 @@ describe("coveredChunksAcross + selectionCopyText", () => {
     it("cross-pane selection unions both bodies", () => {
         const zh = document.createElement("div");
         zh.className = "pane-html-body";
-        zh.innerHTML =
-            `<div data-chunk="S0">译文零</div><div data-chunk="S1">译文一</div>`;
+        zh.innerHTML = `<div data-chunk="S0">译文零</div><div data-chunk="S1">译文一</div>`;
         document.body.appendChild(zh);
         const sel = document.getSelection()!;
         const startKey = chunkEls[38]!.getAttribute("data-chunk")!;

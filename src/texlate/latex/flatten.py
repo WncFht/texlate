@@ -26,6 +26,9 @@ import errno
 import re
 from pathlib import Path
 
+from texlate.latex.chars import (
+    strip_brace_comments,
+)
 from texlate.latex.model import (
     ScanWarning,
     env_name_at,
@@ -116,12 +119,14 @@ def resolve_input(
 
     # 阶段序：各根 × 候选名（含 .tex 补全）→ 各根 × basename 补 .tex。
     # 历史第三段「各根 × 裸名」恒被首段候选覆盖，不再单开。
-    # 「有无扩展名」只看 tex 格式尾——``Path.suffix`` 把词干点号误当
-    # 扩展名（arXiv ``N.N_name`` 命名族 ``2.1.10_CC`` → ``.10_CC``），
-    # 漏补 .tex 即漏解（e116 实证 67/74 件 missing_input）。
+    # 「有无扩展名」判据 = 尾段字母起头——``Path.suffix`` 把词干点号误当
+    # 扩展名（arXiv ``N.N_name`` 命名族 ``2.1.10_CC`` → ``.10_CC``），漏补
+    # .tex 即漏解（e116 实证 67/74 件 missing_input）；``.tex`` 独认则
+    # ``defs.sty`` 显式扩展名被追加的 ``defs.sty.tex`` 影子压过。
+    sfx = Path(fname).suffix
     names = (
         [fname]
-        if fname.lower().endswith(".tex")
+        if sfx and not sfx[1:2].isdigit()
         else [fname + ".tex", fname + ".TEX", fname]
     )
     stem = Path(fname).name
@@ -165,33 +170,6 @@ def extract_tag_region(tex: str, tag: str) -> str | None:
         return None
     e = end_rx.search(tex, s.end())
     return tex[s.end() : e.start() if e else len(tex)]
-
-
-def _strip_brace_comments(raw: str) -> str:
-    r"""``{arg}`` 花括实参内 ``%``→EOL 注释段剔除（``chars.env_name_at`` 同款 tokenize 语义）。
-
-    ``\input{%\nfile}`` 的实参是 ``file``——注释段留在名里会让查找整体
-    失手（``missing_input`` 假告警 + 整调用回吐字面；v2 Mouth 在 tokenize
-    层天然吃掉同源注释）。``\X`` 跳双字符——``\%`` 转义名不剥，后续
-    ``"\\" in fname`` 拒斥兜底仍在（保守回吐字面）。
-    """
-    if "%" not in raw:
-        return raw
-    out: list[str] = []
-    k = 0
-    while k < len(raw):
-        c = raw[k]
-        if c == "\\":
-            out.append(raw[k : k + 2])
-            k += 2
-            continue
-        if c == "%":
-            nl = raw.find("\n", k)
-            k = len(raw) if nl < 0 else nl + 1
-            continue
-        out.append(c)
-        k += 1
-    return "".join(out)
 
 
 def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/spec/latex-pipeline.md 五条铁律）
@@ -324,7 +302,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            fname, end = _strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
+            fname, end = strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
         elif name in ("input", "@input") and pos < n and tex[pos] == '"':
             # 引号裸名 \input"a b.tex"（web2c 带空格名）——收到闭引号，
             # 缺席按非输入尝试回吐（同未配对花括号）
@@ -345,7 +323,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             if not e:
                 return None
             fname, end, shell = (
-                _strip_brace_comments(tex[pos + 1 : e - 1]).strip(),
+                strip_brace_comments(tex[pos + 1 : e - 1]).strip(),
                 e,
                 True,
             )
@@ -356,13 +334,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            subdir = _strip_brace_comments(tex[pos + 1 : e - 1]).strip()
+            subdir = strip_brace_comments(tex[pos + 1 : e - 1]).strip()
             p2 = ws_skip(tex, e)
             if p2 < n and tex[p2] == "{":
                 e3 = match_brace(tex, p2)
                 if not e3:
                     return None
-                fname, end = _strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
+                fname, end = strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
                 fname = str(Path(subdir) / fname) if subdir else fname
             else:
                 return None
@@ -373,7 +351,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            fname, end = _strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
+            fname, end = strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
             # {then}{else} 参数留在流内继续逐字
         else:
             return None
@@ -387,13 +365,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, p)
             if not e:
                 return None
-            fname = _strip_brace_comments(tex[p + 1 : e - 1]).strip()
+            fname = strip_brace_comments(tex[p + 1 : e - 1]).strip()
             p2 = ws_skip(tex, e)
             if p2 < n and tex[p2] == "{":
                 e3 = match_brace(tex, p2)
                 if not e3:
                     return None
-                tag, end = _strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
+                tag, end = strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
             else:
                 return None
         else:

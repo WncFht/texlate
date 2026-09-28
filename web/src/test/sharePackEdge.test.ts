@@ -69,7 +69,9 @@ describe("分享钮渲染门——补充状态组合", () => {
     });
 
     it("cancelled + pdf 视图 → 结果横幅挂 rp-actions 但无分享钮", async () => {
-        mocks.snapshot.mockResolvedValue(shareSnap(TID, { status: "cancelled" }));
+        mocks.snapshot.mockResolvedValue(
+            shareSnap(TID, { status: "cancelled" }),
+        );
         mount();
         await settle();
         expect(q(".result-banner .rp-actions")).not.toBeNull();
@@ -104,7 +106,9 @@ describe("分享错误码映射——补充分支", () => {
     });
 
     it("映射外 code（internal）→ 回退原文 detail，不带映射文案", async () => {
-        mocks.sharePack.mockRejectedValue(new ApiError(500, "db locked", "internal"));
+        mocks.sharePack.mockRejectedValue(
+            new ApiError(500, "db locked", "internal"),
+        );
         mount();
         await settle();
         openShare();
@@ -123,7 +127,9 @@ describe("分享错误码映射——补充分支", () => {
         openShare();
         clickShare();
         await settle();
-        expect(q(".share-err")?.textContent).toContain("[share_pack] bad gateway");
+        expect(q(".share-err")?.textContent).toContain(
+            "[share_pack] bad gateway",
+        );
     });
 
     it("非 ApiError（网络型 TypeError）→ [share_pack] + e.message", async () => {
@@ -133,11 +139,15 @@ describe("分享错误码映射——补充分支", () => {
         openShare();
         clickShare();
         await settle();
-        expect(q(".share-err")?.textContent).toContain("[share_pack] network down");
+        expect(q(".share-err")?.textContent).toContain(
+            "[share_pack] network down",
+        );
     });
 
     it("409 无 code → 按状态码映射「任务未终态」", async () => {
-        mocks.sharePack.mockRejectedValue(new ApiError(409, "仍在 translating"));
+        mocks.sharePack.mockRejectedValue(
+            new ApiError(409, "仍在 translating"),
+        );
         mount();
         await settle();
         openShare();
@@ -178,7 +188,11 @@ describe("分享 busy 态与失败后重试", () => {
         const btn = shareBtn();
         expect(btn?.disabled).toBe(true);
         expect(btn?.textContent).toContain(t.reader.shareBusy);
-        resolveShare({ share_key: "s-busy-1", url: "s-busy-1.share.zip", bytes: 1 });
+        resolveShare({
+            share_key: "s-busy-1",
+            url: "s-busy-1.share.zip",
+            bytes: 1,
+        });
         await settle();
         expect(q(".share-ok")?.textContent).toContain("s-busy-1");
         expect(shareBtn()).toBeNull();
@@ -186,7 +200,9 @@ describe("分享 busy 态与失败后重试", () => {
 
     it("失败后钮留场可再点 → sharePack 再调一次；成功后错误清空", async () => {
         mocks.sharePack
-            .mockRejectedValueOnce(new ApiError(500, "boom", "share_pack_failed"))
+            .mockRejectedValueOnce(
+                new ApiError(500, "boom", "share_pack_failed"),
+            )
             .mockResolvedValue({ share_key: "s-retry-2", url: "u", bytes: 1 });
         mount();
         await settle();

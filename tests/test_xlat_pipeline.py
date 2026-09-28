@@ -523,6 +523,7 @@ class TestCachePoisonGuard:
         pipe._cache_store(c, "译 [[MATH_99]]")  # noqa: SLF001 -- leftover_ph
         pipe._cache_store(c, "译 \\fo[[MATH_1]]o")  # noqa: SLF001 -- ph_in_cs
         pipe._cache_store(c, "译 \\alpha 发射体")  # noqa: SLF001 -- bare_cs
+        pipe._cache_store(c, "译文 \\input{main} 尾")  # noqa: SLF001 -- dangerous_cs
         pipe._cache_store(  # noqa: SLF001 -- residual_en（tier-B 混血长句臂）
             c,
             "前文。The quick brown fox jumps over the lazy dog "
@@ -543,6 +544,7 @@ class TestInterceptRegistry:
             "ph_in_cs",
             "bare_cs",
             "residual_en",
+            "dangerous_cs",
         }
 
     def test_l0_rule_set_matches_cache_veto(self) -> None:
@@ -561,6 +563,7 @@ class TestInterceptRegistry:
             ("leftover_ph", "plain English sentence here.", "译文 [[MATH_9]] 尾"),
             ("ph_in_cs", "plain English sentence here.", "译文 \\fo[[X_1]]o 尾"),
             ("bare_cs", "alpha emitters in the lab.", "\\alpha 发射体"),
+            ("dangerous_cs", "plain English sentence here.", "译文 \\input{main} 尾"),
             (
                 "residual_en",
                 (

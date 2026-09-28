@@ -16,7 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from texlate.textutil import bare_cs_net, ph_in_cs_net, residual_en_net
+from texlate.textutil import (
+    bare_cs_net,
+    dangerous_cs_net,
+    ph_in_cs_net,
+    residual_en_net,
+)
 
 from . import placeholders
 
@@ -118,6 +123,11 @@ def _fmt_residual_en(hits: list[str]) -> tuple[str, str]:
     )
 
 
+def _fmt_dangerous_cs(hits: Counter[str]) -> tuple[str, str]:
+    """``dangerous_cs`` 载荷 → (warn, reason)。"""
+    return _fmt_cs_bomb("dangerous_cs", "dangerous cs injected", hits)
+
+
 #: 升格拦截网注册表（唯一枚举面）——``_interceptable`` bool 形、
 #: ``_ledger_intercepts`` 账本形、``retranslate_chunk`` 裸形三处消费点
 #: 同迭代本表，新增网不再三处各点名。
@@ -145,6 +155,12 @@ _INTERCEPT_NETS: tuple[_InterceptNet, ...] = (
         detect=residual_en_net,
         fmt=_fmt_residual_en,
         l0_rule="residual_en",
+    ),
+    _InterceptNet(
+        name="dangerous_cs",
+        detect=dangerous_cs_net,
+        fmt=_fmt_dangerous_cs,
+        l0_rule="dangerous_cs",
     ),
 )
 
@@ -222,3 +238,16 @@ def _intercept_residual_en(r: ChunkResult) -> None:
     DB ``ok`` 静默出货。缓存命中/续跑旁路 validator 时本层是唯一闸。
     """
     _net_apply(_NET_BY_NAME["residual_en"], r)
+
+
+def _intercept_dangerous_cs(r: ChunkResult) -> None:
+    r"""``dangerous_cs`` 升格拦截：zh 新增 ``DANGEROUS_CS`` 表名 → fault + 回退原文。
+
+    ``_intercept_bare_cs`` 同构副层——判定口径 = ``textutil.dangerous_cs_net``
+    （与 l0 ``_check_dangerous_cs`` 逐字节一致），缓存/续跑旁路 validator
+    时此层是唯一闸。面覆盖 ``bare_cs`` 未管的良形非数学危险 cs：
+    ``\input{/etc/passwd}``/``\write18``（词法 ``write``+``18``）/
+    ``\def``/``\catcode``/``\csname`` 逃逸族——数学域不豁免
+    （``$\input$`` 照样执行）。
+    """
+    _net_apply(_NET_BY_NAME["dangerous_cs"], r)

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from texlate.textutil import EncodingVerdict
 
+from texlate.texlog import PS_GRAPHIC_EXTS
 from texlate.textutil import _tar_disguised, decode_tex, decode_tex_with
 
 from .mask import TEX_SOURCE_SUFFIXES
@@ -61,7 +62,7 @@ INTERMEDIATE_SUFFIXES = {
 #: ``fig2.epsf`` ``%%Copyright \xa9`` latin-1、0806.2219
 #: ``fig02b.epsi`` ``%%CreationDate`` GBK 日期）——走 catch-all 整件
 #: 转码会把数据行高字节一并改写，必须走本臂保数据段字节。
-PS_GRAPHIC_SUFFIXES = {".eps", ".epsf", ".epsi", ".mps", ".ps"}
+PS_GRAPHIC_SUFFIXES: Final = PS_GRAPHIC_EXTS
 
 #: 已知二进制后缀——catch-all 转码豁免名单。漏网的冷门二进制最坏被
 #: latin-1→UTF-8 改写：编译树内只有 TeX 文本读取会触它（原样也只会

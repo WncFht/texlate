@@ -1,29 +1,12 @@
 // 主题快切 + 暗色 PDF 反色截图验证（mock 后端，vite dev 已跑在 ::1:5199）
 // 用法:node scripts/theme_shot.mjs;产物 scripts/shots/theme-*.png
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://[::1]:5199";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
 
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
-
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await launch();
 
 async function shot(url, theme, name, waitMs = 1200) {
     const ctx = await browser.newContext({

@@ -14,9 +14,9 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from lxml import etree
 
 from texlate.export.common import MalformedEpubError
-from texlate.export.docx import job_digest
 from texlate.export.filters import (
     is_unit_text,
+    job_digest,
     normalize_text,
 )
 from texlate.export.markers import (

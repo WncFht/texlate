@@ -12,12 +12,13 @@ import shutil
 import time
 from pathlib import Path
 
+import pytest
 from kernel import claims, events, index, lake, ledger, locks, paths, runs, sweep, vault
 from kernel.idnorm import safe_id
 
 
 def _make_zombie_run(
-    kind: str = "soak", slug: str = "z1", cells=("2401.00001",)
+    kind: str = "soak", slug: str = "z1", cells: tuple[str, ...] = ("2401.00001",)
 ) -> runs.RunDir:
     """A registered run with queued+started cells, a stale heartbeat and a
     free run.lock — the §3.10.1 zombie signature."""
@@ -125,7 +126,8 @@ def _claim_acquire(run: str, seq: int, idc: str) -> dict:
 # --- zombies ----------------------------------------------------------------
 
 
-def test_sweep_reaps_zombie_run(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_reaps_zombie_run() -> None:
     rd = _make_zombie_run()
     # a live claim lease left behind by the dead runner
     ledger.emit(_claim_acquire(rd.run, 30, "2401.00001"), run_dir=rd.path)
@@ -137,21 +139,24 @@ def test_sweep_reaps_zombie_run(broot: Path) -> None:
     lost = [
         e for e in _shard(rd) if e.get("type") == "cell" and e.get("status") == "lost"
     ]
-    assert len(lost) == 1 and lost[0]["idc"] == "2401.00001"
+    assert len(lost) == 1
+    assert lost[0]["idc"] == "2401.00001"
     assert lost[0]["seq"] < 0  # kernel negative seq
     # claim reaped (audit event) — the projection also clears the key's
     # paid_slots mirror rows
     reaps = [
         e for e in _shard(rd) if e.get("type") == "claim" and e.get("op") == "reap"
     ]
-    assert len(reaps) == 1 and reaps[0]["idc"] == "2401.00001"
+    assert len(reaps) == 1
+    assert reaps[0]["idc"] == "2401.00001"
     assert rep["reaped_claims"][0]["idc"] == "2401.00001"
     # zombie note present
     notes = [e for e in _shard(rd) if e.get("type") == "note"]
     assert any("zombie" in n["text"] for n in notes)
 
 
-def test_sweep_locked_cell_survives(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_locked_cell_survives() -> None:
     rd = _make_zombie_run()
     sid = safe_id("2401.00001")
     # a live worker still holds the cell lock — split-brain, never reap
@@ -165,29 +170,38 @@ def test_sweep_locked_cell_survives(broot: Path) -> None:
     assert lost == []
 
 
-def test_sweep_fresh_run_is_not_a_zombie(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_fresh_run_is_not_a_zombie() -> None:
     rd = _make_zombie_run()
     rd.heartbeat_touch()  # fresh heartbeat
     rep = sweep.sweep()
     assert rep["zombies"] == []
 
 
-def test_sweep_light_still_reaps_zombies(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_light_still_reaps_zombies() -> None:
     rd = _make_zombie_run()
     rep = sweep.sweep(light=True)
     assert [z["run"] for z in rep["zombies"]] == [rd.run]
     # housekeeping duties are skipped in the light pass
-    assert rep["promoted"] == [] and rep["adopted"] == []
-    assert rep["harvest_pending"] == [] and rep["tombstoned"] == []
+    assert rep["promoted"] == []
+    assert rep["adopted"] == []
+    assert rep["harvest_pending"] == []
+    assert rep["tombstoned"] == []
 
 
-def test_sweep_concurrent_returns_skipped(broot: Path) -> None:
-    with locks.flock(sweep._sweep_lock_path(), exclusive=True):
+@pytest.mark.usefixtures("broot")
+def test_sweep_concurrent_returns_skipped() -> None:
+    with locks.flock(
+        sweep._sweep_lock_path(),  # noqa: SLF001 -- 钉私有面：并发互斥锁路径无公共等价
+        exclusive=True,
+    ):
         rep = sweep.sweep()
     assert rep.get("skipped")
 
 
-def test_sweep_stale_claim_reaped_when_run_dir_gone(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_stale_claim_reaped_when_run_dir_gone() -> None:
     """Index shows acquire-open, flock free, run dir missing entirely —
     the dead-claimant case the zombie pass cannot see."""
     idx = index.Index()
@@ -196,10 +210,12 @@ def test_sweep_stale_claim_reaped_when_run_dir_gone(broot: Path) -> None:
     rep = sweep.sweep(light=True)
     assert rep["reaped_claims"][0]["idc"] == "2401.00011"
     reaps = [e for e in _ledger_events("claim") if e.get("op") == "reap"]
-    assert len(reaps) == 1 and reaps[0]["idc"] == "2401.00011"
+    assert len(reaps) == 1
+    assert reaps[0]["idc"] == "2401.00011"
 
 
-def test_sweep_live_claim_lock_vetoes_reap(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_live_claim_lock_vetoes_reap() -> None:
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/x", 1, "2401.00012"))
     idx.close()
@@ -212,8 +228,9 @@ def test_sweep_live_claim_lock_vetoes_reap(broot: Path) -> None:
 # --- pending metas ------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_pending_meta_promotes_with_index(
-    broot: Path, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = _vault_src(tmp_path)
     mpath = vault.harvest(
@@ -230,11 +247,13 @@ def test_sweep_pending_meta_promotes_with_index(
     rep = sweep.sweep()
     assert [p["verdict"] for p in rep["promoted"]] == ["primary"]
     rows = vault.query("2401.00001", "zh", "-")
-    assert rows[0]["zone"] == "primary" and rows[0]["verdict"] == "primary"
+    assert rows[0]["zone"] == "primary"
+    assert rows[0]["verdict"] == "primary"
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_pending_meta_alt_without_evidence(
-    broot: Path, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = _vault_src(tmp_path)
     vault.harvest("2401.00002", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
@@ -242,11 +261,13 @@ def test_sweep_pending_meta_alt_without_evidence(
     rep = sweep.sweep()
     assert [p["verdict"] for p in rep["promoted"]] == ["alt"]
     rows = vault.query("2401.00002", "zh", "-")
-    assert rows[0]["zone"] == "primary" and rows[0]["verdict"] == "alt"
+    assert rows[0]["zone"] == "primary"
+    assert rows[0]["verdict"] == "alt"
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_pending_meta_failure_evidence_goes_quar(
-    broot: Path, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = _vault_src(tmp_path)
     vault.harvest("2401.00013", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
@@ -257,11 +278,13 @@ def test_sweep_pending_meta_failure_evidence_goes_quar(
     rep = sweep.sweep()
     assert [p["verdict"] for p in rep["promoted"]] == ["quar"]
     rows = vault.query("2401.00013", "zh", "-")
-    assert rows[0]["zone"] == "quar" and rows[0]["verdict"] == "quar"
+    assert rows[0]["zone"] == "quar"
+    assert rows[0]["verdict"] == "quar"
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_pending_meta_tombstones_incomplete(
-    broot: Path, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = _vault_src(tmp_path)
     mpath = vault.harvest(
@@ -283,8 +306,9 @@ def test_sweep_pending_meta_tombstones_incomplete(
     assert any(t["idc"] == "2401.00003" for t in tombs)
 
 
+@pytest.mark.usefixtures("broot")
 def test_sweep_pending_meta_owned_by_active_run_untouched(
-    broot: Path, tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rd = runs.create_run("soak", slug="live", date="2026-09-21")
     rd.heartbeat_touch()
@@ -301,7 +325,8 @@ def test_sweep_pending_meta_owned_by_active_run_untouched(
 # --- orphans ------------------------------------------------------------------
 
 
-def test_sweep_meta_less_dir_adopted_then_report_only(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_meta_less_dir_adopted_then_report_only() -> None:
     sid = safe_id("2401.00004")
     leaf = paths.vault_dir() / "zh" / sid / "zh"
     leaf.mkdir(parents=True)
@@ -313,14 +338,16 @@ def test_sweep_meta_less_dir_adopted_then_report_only(broot: Path) -> None:
     assert [a["idc"] for a in rep["adopted"]] == ["2401.00004"]
     assert leaf.exists()  # adopt never deletes
     rows = vault.query("2401.00004", "zh", "-")
-    assert rows and all(r["verdict"] == "quar" for r in rows)
+    assert rows
+    assert all(r["verdict"] == "quar" for r in rows)
 
     rep2 = sweep.sweep()
     assert rep2["adopted"] == []  # sibling meta now blocks
     assert rep2["meta_less"][0]["reason"] == "sibling_meta"
 
 
-def test_sweep_young_meta_less_dir_report_only(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_young_meta_less_dir_report_only() -> None:
     sid = safe_id("2401.00005")
     leaf = paths.vault_dir() / "zh" / sid / "zh"
     leaf.mkdir(parents=True)
@@ -330,7 +357,8 @@ def test_sweep_young_meta_less_dir_report_only(broot: Path) -> None:
     assert rep["meta_less"][0]["reason"] == "young"
 
 
-def test_sweep_lake_orphan_adopted_into_catalog(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_lake_orphan_adopted_into_catalog() -> None:
     cell = paths.lake_corpus_dir() / "arxiv" / safe_id("2401.00006")
     (cell / "raw").mkdir(parents=True)
     (cell / "raw" / "payload.txt").write_text("payload")
@@ -341,7 +369,8 @@ def test_sweep_lake_orphan_adopted_into_catalog(broot: Path) -> None:
     assert cat.rows()["2401.00006"]["manifested"] is False
 
 
-def test_sweep_lake_cataloged_dir_not_orphan(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_lake_cataloged_dir_not_orphan() -> None:
     cell = paths.lake_corpus_dir() / "arxiv" / safe_id("2401.00015")
     (cell / "raw").mkdir(parents=True)
     cat = lake.LakeCatalog.load()
@@ -353,7 +382,8 @@ def test_sweep_lake_cataloged_dir_not_orphan(broot: Path) -> None:
 # --- harvest-pending ------------------------------------------------------------
 
 
-def test_sweep_harvest_pending_flags_done_without_bytes(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_harvest_pending_flags_done_without_bytes() -> None:
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/x", 1, "2401.00007"))
     idx.apply_event(_cell_event("r/2026-09-20/x", 2, "2401.00007", "ok"))
@@ -365,9 +395,8 @@ def test_sweep_harvest_pending_flags_done_without_bytes(broot: Path) -> None:
     assert any("harvest-pending" in n["text"] for n in notes)
 
 
-def test_sweep_harvest_pending_silent_when_bytes_ok(
-    broot: Path, tmp_path: Path
-) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_harvest_pending_silent_when_bytes_ok(tmp_path: Path) -> None:
     src = _vault_src(tmp_path)
     vault.harvest("2401.00008", "zh", "-", {"zh": src}, source_run="adhoc/2026-09-20/x")
     idx = index.Index()
@@ -378,7 +407,8 @@ def test_sweep_harvest_pending_silent_when_bytes_ok(
     assert rep["harvest_pending"] == []
 
 
-def test_sweep_harvest_pending_silent_when_tombstoned(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_harvest_pending_silent_when_tombstoned() -> None:
     vault.tombstone("2401.00016", "zh", "-", "zh", reason="test")
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/x", 1, "2401.00016"))
@@ -394,7 +424,10 @@ def test_sweep_harvest_pending_silent_when_tombstoned(broot: Path) -> None:
 # --- permafail tombstones -------------------------------------------------------
 
 
-def test_sweep_permafail_tombstones_old_failures(broot: Path, monkeypatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_permafail_tombstones_old_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     idx = index.Index()
     idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00009", "fail"))
     idx.close()
@@ -406,7 +439,8 @@ def test_sweep_permafail_tombstones_old_failures(broot: Path, monkeypatch) -> No
     assert any(t["idc"] == "2401.00009" and t["kind"] == "cell" for t in tombs)
 
 
-def test_sweep_permafail_skips_redeemed_cells(broot: Path, monkeypatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_permafail_skips_redeemed_cells(monkeypatch: pytest.MonkeyPatch) -> None:
     idx = index.Index()
     idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00010", "fail"))
     idx.apply_event(_cell_event("r/2026-09-20/y", 2, "2401.00010", "ok"))
@@ -416,7 +450,8 @@ def test_sweep_permafail_skips_redeemed_cells(broot: Path, monkeypatch) -> None:
     assert rep["tombstoned"] == []
 
 
-def test_sweep_permafail_skips_young_failures(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_permafail_skips_young_failures() -> None:
     idx = index.Index()
     idx.apply_event(_cell_event("r/2026-09-20/x", 1, "2401.00017", "fail"))
     idx.close()
@@ -424,7 +459,10 @@ def test_sweep_permafail_skips_young_failures(broot: Path) -> None:
     assert rep["tombstoned"] == []
 
 
-def test_sweep_permafail_regen_gate_not_an_attempt(broot: Path, monkeypatch) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_permafail_regen_gate_not_an_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     idx = index.Index()
     idx.apply_event(
         events.make_event(
@@ -450,7 +488,8 @@ def test_sweep_permafail_regen_gate_not_an_attempt(broot: Path, monkeypatch) -> 
 # --- duty 6: ledger seal ------------------------------------------------------------
 
 
-def test_sweep_full_pass_seals_aged_tail(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_full_pass_seals_aged_tail() -> None:
     """The full pass is the §3.10.5 driver — an over-age tail rotates into
     sealed/ and the hot tail is recreated empty."""
     old = events.make_event(
@@ -478,7 +517,8 @@ def test_sweep_full_pass_seals_aged_tail(broot: Path) -> None:
     assert paths.events_path().stat().st_size == 0
 
 
-def test_sweep_seal_gc_requires_index_replay(broot: Path) -> None:
+@pytest.mark.usefixtures("broot")
+def test_sweep_seal_gc_requires_index_replay() -> None:
     """seal_gc's watermark leg is Index.sealed_done(): a verified, aged raw
     segment is deleted only once the index reports it replayed — and with
     no index open at all nothing is deletable."""

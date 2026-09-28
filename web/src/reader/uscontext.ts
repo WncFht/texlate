@@ -116,9 +116,7 @@ export function sentenceAround(
     const start = starts[i];
     const end = starts[i + 1] ?? cm.text.length;
     const text = cm.text.slice(start, end).replace(/\s+/g, " ").trim();
-    return text
-        ? { text, start, end, anchorStart: cm.anchorStart }
-        : null;
+    return text ? { text, start, end, anchorStart: cm.anchorStart } : null;
 }
 
 // ================================================================ 可读化
@@ -295,7 +293,12 @@ export function zhTokenSentence(
     // PH_TOKEN_RX（replace 会重置 lastIndex），裸 exec 循环可能死循环
     for (const m of zhText.matchAll(PH_TOKEN_RX)) {
         if (`${m[1]}_${m[2]}` !== want) continue;
-        const s = maskedSentenceAt(zhText, ph ?? {}, m.index, m.index + m[0].length);
+        const s = maskedSentenceAt(
+            zhText,
+            ph ?? {},
+            m.index,
+            m.index + m[0].length,
+        );
         return s?.text ?? null;
     }
     return null;

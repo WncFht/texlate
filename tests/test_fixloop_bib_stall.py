@@ -87,7 +87,7 @@ def test_cant_open_bib_with_bbl(tmp_path: Path) -> None:
 def test_cant_open_bib_no_bbl_safe(tmp_path: Path) -> None:
     """缺 .bib 且无 .bbl → biber 缺料属实非本路由面 → False。"""
     _write_log(tmp_path, _BIB_OPEN)
-    ok, note = tectonic_bib_stall_route(_ctx(tmp_path), None, None, {})
+    ok, _note = tectonic_bib_stall_route(_ctx(tmp_path), None, None, {})
     assert not ok
 
 

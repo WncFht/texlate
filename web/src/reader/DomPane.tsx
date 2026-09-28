@@ -166,8 +166,7 @@ export default function DomPane(props: Props) {
             if (!map) {
                 map = new Map();
                 for (const c of props.chunks ?? []) {
-                    if (c.chunk_id != null)
-                        map.set(c.chunk_id, Number(c.seq));
+                    if (c.chunk_id != null) map.set(c.chunk_id, Number(c.seq));
                 }
             }
             return map.get(key) ?? null;
@@ -271,8 +270,7 @@ export default function DomPane(props: Props) {
         return jumpToEl(id, el, true);
     };
     // eslint-disable-next-line solid/reactivity -- 命令式 handle 槽：card()/ucard() 在调用期读是有意的
-    handle.escOpen = (l) =>
-        l === "cite" && (card() != null || ucard() != null);
+    handle.escOpen = (l) => l === "cite" && (card() != null || ucard() != null);
     handle.escClose = (l) => {
         if (l === "cite") {
             closeCard();
@@ -289,8 +287,7 @@ export default function DomPane(props: Props) {
         const d = dest as
             | { u?: number; id?: string; ord?: number; chunkOrd?: number }
             | string;
-        if (typeof d === "string")
-            return handle.gotoAnchor?.(d) ?? null;
+        if (typeof d === "string") return handle.gotoAnchor?.(d) ?? null;
         if (d && d.u === 1 && typeof d.id === "string") {
             // 同 id 第 ord 个可索引锚——dst 侧索引同口径计数（非 chrome +
             // 可解析 + 非自指），ord 跨 pane 一致
@@ -401,10 +398,8 @@ export default function DomPane(props: Props) {
         // 克隆 bibitem——零解析格式全保真；剥 id/href 防 dup-id 与卡内误跳
         const clone = bibEl.cloneNode(true) as HTMLElement;
         clone.removeAttribute("id");
-        for (const n of clone.querySelectorAll("[id]"))
-            n.removeAttribute("id");
-        for (const n of clone.querySelectorAll("a"))
-            n.removeAttribute("href");
+        for (const n of clone.querySelectorAll("[id]")) n.removeAttribute("id");
+        for (const n of clone.querySelectorAll("a")) n.removeAttribute("href");
         const seq = ++cardSeq;
         curAnchor = a;
         scrollGraceUntil = performance.now() + 600;
@@ -663,8 +658,7 @@ export default function DomPane(props: Props) {
                             kept={props.citeKept?.(c().id)}
                             onShowUsages={
                                 usageIndex?.forEl(c().target)
-                                    ? () =>
-                                          usagesCtl?.openFor(c().target)
+                                    ? () => usagesCtl?.openFor(c().target)
                                     : undefined
                             }
                             usagesCount={

@@ -38,6 +38,7 @@ import {
     type PdfDualLike,
 } from "../copylatex";
 import { openLatexCard, type LatexCardHandle } from "../LatexCard";
+import { paneSide } from "../paneUtils";
 
 // ------------------------------------------------------------------ 契约面
 
@@ -94,15 +95,12 @@ async function defaultPost(
     taskId: string,
     body: LatexRequest,
 ): Promise<LatexResponse> {
-    const res = await fetch(
-        `/api/task/${encodeURIComponent(taskId)}/latex`,
-        {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout?.(15_000) ?? null,
-        },
-    );
+    const res = await fetch(`/api/task/${encodeURIComponent(taskId)}/latex`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout?.(15_000) ?? null,
+    });
     if (!res.ok) {
         let detail = res.statusText;
         let code: string | undefined;
@@ -125,9 +123,6 @@ async function defaultPost(
 
 const MATH_SEL = "math, .katex, mjx-container";
 
-const paneSide = (p: CopyLatexPane): "en" | "zh" =>
-    p.side === "zh" || p.side === "translated" ? "zh" : "en";
-
 export function registerCopyLatex(
     reg: Registry<CmdCtx>,
     opts: CopyLatexOpts,
@@ -142,13 +137,11 @@ export function registerCopyLatex(
     const copiedChars = (n: number, approx: boolean) =>
         fmt(clText("reader.copyLatex.copiedChars", "已复制 {n} 字符"), {
             n,
-        }) + (approx ? clText("reader.copyLatex.approxTag", "（近似重构）") : "");
+        }) +
+        (approx ? clText("reader.copyLatex.approxTag", "（近似重构）") : "");
     const copiedChunks = (chunks: number, chars: number, approx: boolean) =>
         fmt(
-            clText(
-                "reader.copyLatex.copiedChunks",
-                "已复制 {n} 段 · {m} 字符",
-            ),
+            clText("reader.copyLatex.copiedChunks", "已复制 {n} 段 · {m} 字符"),
             { n: chunks, m: chars },
         ) +
         (approx ? clText("reader.copyLatex.approxTag", "（近似重构）") : "");
@@ -161,10 +154,7 @@ export function registerCopyLatex(
         const okc = await copy(res.latex);
         if (!okc)
             return err(
-                clText(
-                    "reader.copyLatex.failed",
-                    "复制失败——剪贴板不可用",
-                ),
+                clText("reader.copyLatex.failed", "复制失败——剪贴板不可用"),
             );
         ok(
             copiedChunks(
@@ -186,16 +176,11 @@ export function registerCopyLatex(
     const copyMath = async (el: Element): Promise<void> => {
         const r = await mathTexFrom(el);
         if (!r)
-            return err(
-                clText("reader.copyLatex.noSrc", "该公式无 LaTeX 源"),
-            );
+            return err(clText("reader.copyLatex.noSrc", "该公式无 LaTeX 源"));
         const okc = await copy(r.tex);
         if (!okc)
             return err(
-                clText(
-                    "reader.copyLatex.failed",
-                    "复制失败——剪贴板不可用",
-                ),
+                clText("reader.copyLatex.failed", "复制失败——剪贴板不可用"),
             );
         ok(copiedChars(r.tex.length, r.approx));
     };
@@ -246,7 +231,11 @@ export function registerCopyLatex(
 
     /** 选区起点所在 pane（head 侧判定源；live-pane 无 .pane 壳的盲区补） */
     const paneOfNode = (n: Node | null): CopyLatexPane | undefined => {
-        const el = n ? (n.nodeType === 3 ? n.parentElement : (n as Element)) : null;
+        const el = n
+            ? n.nodeType === 3
+                ? n.parentElement
+                : (n as Element)
+            : null;
         if (!el) return undefined;
         return opts.panes().find((p) => p.bodyEl && p.bodyEl.contains(el));
     };
@@ -267,8 +256,8 @@ export function registerCopyLatex(
                     "zh" ||
                 paneOfNode(hit.sel.range?.startContainer ?? null)?.side ===
                     "translated"
-                  ? "zh"
-                  : "en";
+                    ? "zh"
+                    : "en";
             // B 路 marked-content 锚：sel.chunks 已载数值 seq（hitctx 的
             // .textLayer resolver 产出）——精确直用；空集 → C 路模糊兜底
             const marked = (hit.sel.chunks ?? [])
@@ -281,12 +270,7 @@ export function registerCopyLatex(
         } else {
             const range = hit.sel.range;
             if (!range)
-                return err(
-                    clText(
-                        "reader.copyLatex.noSel",
-                        "没有可用选区",
-                    ),
-                );
+                return err(clText("reader.copyLatex.noSel", "没有可用选区"));
             const seqSet = new Set<number>();
             const headSide = paneOfNode(range.startContainer);
             const tailSide = paneOfNode(range.endContainer);

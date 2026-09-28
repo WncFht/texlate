@@ -8,14 +8,27 @@ broot index——其余 verb main 是同形薄壳，函数面即本体）。
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
+import pytest
 from kernel import events
 from kernel.index import Index
 from verbs import dossier, gate, rundiff, triage
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-def _cell(run, seq, idc="2101.12345", stage="compile", status="ok", **kw):
+
+def _cell(
+    run: str,
+    seq: int,
+    idc: str = "2101.12345",
+    stage: str = "compile",
+    status: str = "ok",
+    **kw: object,
+) -> dict:
     return events.make_event(
         events.T_CELL,
         run=run,
@@ -31,7 +44,15 @@ def _cell(run, seq, idc="2101.12345", stage="compile", status="ok", **kw):
     )
 
 
-def _reg_run(idx, run, run_seq, kind="e2e_real", date="2026-01-01", slug="s"):
+def _reg_run(  # noqa: PLR0913 -- helper 参数面即 T_RUN_REGISTERED 事件字段契约
+    idx: Index,
+    run: str,
+    run_seq: int,
+    *,
+    kind: str = "e2e_real",
+    date: str = "2026-01-01",
+    slug: str = "s",
+) -> None:
     idx.apply_event(
         events.make_event(
             events.T_RUN_REGISTERED,
@@ -49,7 +70,8 @@ def _reg_run(idx, run, run_seq, kind="e2e_real", date="2026-01-01", slug="s"):
 # -- triage --------------------------------------------------------------------
 
 
-def test_triage_load_records_last_wins(broot):
+@pytest.mark.usefixtures("broot")
+def test_triage_load_records_last_wins() -> None:
     idx = Index()
     _reg_run(idx, "r1", 1)
     idx.apply_event(_cell("r1", 1, status="fail", sig="missing_file:x.sty"))
@@ -60,7 +82,8 @@ def test_triage_load_records_last_wins(broot):
     assert recs[0]["src"] == "records"
 
 
-def test_triage_build_tickets_clusters(broot):
+@pytest.mark.usefixtures("broot")
+def test_triage_build_tickets_clusters() -> None:
     recs = [
         # 同 (stage,sig-bucket) 两格并一票
         {
@@ -91,9 +114,9 @@ def test_triage_build_tickets_clusters(broot):
     ]
     tickets = triage.build_tickets(recs, None)
     sigs = {t["signature"]: t for t in tickets}
-    assert len(tickets) == 2  # skip-upstream 与裸 ok 豁免
+    assert len(tickets) == 2  # noqa: PLR2004 -- 断言字面量（应产票数）
     miss = sigs["missing_file:x.sty"]
-    assert miss["count"] == 2
+    assert miss["count"] == 2  # noqa: PLR2004 -- 断言字面量（同桶合并格数）
     assert miss["example_ids"] == ["a", "b"]
     assert miss["repro_path"] is None  # rundir=None → 恒 None
     assert miss["sig_id"].startswith("compile-")
@@ -102,7 +125,7 @@ def test_triage_build_tickets_clusters(broot):
     assert "warning" in ph["notes"]
 
 
-def test_triage_compute_metrics_pipeline_regression():
+def test_triage_compute_metrics_pipeline_regression() -> None:
     recs = [
         {
             "id": "p1",
@@ -137,13 +160,18 @@ def test_triage_compute_metrics_pipeline_regression():
         {"kind": "fixloop_degraded", "id": "p2", "before": "partial", "after": "stuck"}
     ]
     fl = line["fixloop"]
-    assert fl["attempted"] == 2 and fl["rescued"] == 1
+    assert fl["attempted"] == 2  # noqa: PLR2004 -- 断言字面量（fixloop 尝试数）
+    assert fl["rescued"] == 1
     md = triage.render_report(line, [], "test")
     assert "p1" not in md or "pipeline_introduced" in md  # 回归行进汇总行
-    assert "| compile |" in md and "| fixloop |" in md
+    assert "| compile |" in md
+    assert "| fixloop |" in md
 
 
-def test_triage_main_writes_derived(broot, tmp_path, monkeypatch):
+@pytest.mark.usefixtures("broot")
+def test_triage_main_writes_derived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     idx = Index()
     _reg_run(idx, "r1", 1, kind="k", date="2026-01-02", slug="s1")
     idx.apply_event(
@@ -163,16 +191,20 @@ def test_triage_main_writes_derived(broot, tmp_path, monkeypatch):
     )
     assert rc == 0
     tickets = [
-        json.loads(l) for l in (out / "tickets.jsonl").read_text().splitlines() if l
+        json.loads(line)
+        for line in (out / "tickets.jsonl").read_text().splitlines()
+        if line
     ]
-    assert len(tickets) == 1 and tickets[0]["count"] == 1
+    assert len(tickets) == 1
+    assert tickets[0]["count"] == 1
     assert "# triage report — r1" in (out / "report.md").read_text()
 
 
 # -- rundiff --------------------------------------------------------------------
 
 
-def test_rundiff_stage_cells_and_diff(broot):
+@pytest.mark.usefixtures("broot")
+def test_rundiff_stage_cells_and_diff() -> None:
     idx = Index()
     _reg_run(idx, "ra", 1)
     _reg_run(idx, "rb", 2)
@@ -186,18 +218,21 @@ def test_rundiff_stage_cells_and_diff(broot):
     ca = rundiff.stage_cells(idx, "ra")["compile"]
     cb = rundiff.stage_cells(idx, "rb")["compile"]
     d = rundiff.diff_stage(ca, cb)
-    assert len(d["improved"]) == 1 and d["improved"][0]["id"] == "p1"
-    assert len(d["degraded"]) == 1 and d["degraded"][0]["id"] == "p2"
+    assert len(d["improved"]) == 1
+    assert d["improved"][0]["id"] == "p1"
+    assert len(d["degraded"]) == 1
+    assert d["degraded"][0]["id"] == "p2"
     assert d["degraded"][0]["sig_b"] == "undefined_cs:\\foo"
     assert [e["id"] for e in d["added"]] == ["p4"]
     assert [e["id"] for e in d["removed"]] == ["p3"]
     assert d["matrix"][("fail", "clean")] == 1
     assert d["matrix"][("(absent)", "partial")] == 1
     md = rundiff.render_md("ra", "rb", {"compile": d})
-    assert "## compile" in md and "### degraded (1)" in md
+    assert "## compile" in md
+    assert "### degraded (1)" in md
 
 
-def test_rundiff_deep_churn():
+def test_rundiff_deep_churn() -> None:
     ra = {
         ("p", "a", "-", "-"): {
             "id": "p",
@@ -217,7 +252,8 @@ def test_rundiff_deep_churn():
         }
     }
     d = rundiff.diff_stage(ra, rb, deep=True)
-    assert len(d["same"]) == 1 and len(d["churn"]) == 1
+    assert len(d["same"]) == 1
+    assert len(d["churn"]) == 1
     c = d["churn"][0]["churn"]
     assert c["sig"] == ("s1", "s2")
     assert c["n_errors"] == (5, 50)
@@ -227,7 +263,7 @@ def test_rundiff_deep_churn():
 # -- gate ----------------------------------------------------------------------
 
 
-def _comp(status="clean", **m):
+def _comp(status: str = "clean", **m: object) -> dict:
     return {
         "status": status,
         "arm": "zh",
@@ -238,7 +274,7 @@ def _comp(status="clean", **m):
     }
 
 
-def test_gate_pick_final_paths():
+def test_gate_pick_final_paths() -> None:
     c = _comp("clean")
     stage, r, drop = gate.pick_final(c, None)
     assert (stage, r, drop) == ("compile", c, None)
@@ -262,7 +298,9 @@ def test_gate_pick_final_paths():
         "metrics": {"compile_fp": gate.compile_fp(c), "compile_status_before": "clean"},
     }
     stage, r, drop = gate.pick_final(c, f_ok)
-    assert stage == "fixloop" and r is f_ok and drop is None
+    assert stage == "fixloop"
+    assert r is f_ok
+    assert drop is None
     # fp 不匹配 → 陈旧作废
     f_stale = {
         "status": "clean",
@@ -282,7 +320,7 @@ def test_gate_pick_final_paths():
     assert drop == "no_csb"
 
 
-def test_gate_scan_rows_and_tally():
+def test_gate_scan_rows_and_tally() -> None:
     rows = [
         {
             "stage": "compile",
@@ -345,30 +383,35 @@ def test_gate_scan_rows_and_tally():
         },
     ]
     comp, st, si = gate.scan_rows(rows, "compile", arm="zh", upstream="-")
-    assert st["rows"] == 5 and st["accepted"] == 2
-    assert st["unique"] == 1 and st["superseded"] == 1
-    assert st["arm_filtered"] == 1 and st["upstream_filtered"] == 1
+    assert st["rows"] == 5  # noqa: PLR2004 -- 断言字面量（compile 行数）
+    assert st["accepted"] == 2  # noqa: PLR2004 -- 断言字面量（末条胜+基线臂）
+    assert st["unique"] == 1
+    assert st["superseded"] == 1
+    assert st["arm_filtered"] == 1
+    assert st["upstream_filtered"] == 1
     assert st["arm_mismatch"] == 1
     assert comp["p1"]["status"] == "fail"  # append 序末条胜
-    assert si["ts_max"] == 20.0
+    assert si["ts_max"] == 20.0  # noqa: PLR2004 -- 断言字面量（末条 ts）
     fix, fst, _ = gate.scan_rows(rows, "fixloop", arm=None, upstream="-")
     assert fst["accepted"] == 1
     suspects = gate.window_suspects(comp, fix)  # fixloop ts=25 > compile p1 ts=20
     assert suspects == set()  # compile 更晚才算 suspect
-    t = gate._tally(comp, fix, suspects)
+    t = gate._tally(comp, fix, suspects)  # noqa: SLF001 -- 钉私有拼账面（无公共等价）
     # p1: fixloop csb='fail' 等值接管（无 fp → legacy_status 档）
-    assert t["end"]["fixloop:clean"] == 1 and t["total"] == 1
-    assert t["end_pdf"] == 1 and t["uni_pdf"] == 1
+    assert t["end"]["fixloop:clean"] == 1
+    assert t["total"] == 1
+    assert t["end_pdf"] == 1
+    assert t["uni_pdf"] == 1
     assert t["csb_check"]["legacy_status"] == 1
-    g = gate._gate(t["end_pdf"], t["total"])  # 1/1 → 过 90% 门
-    assert g["pass"] is True and g["need"] == 0
-    g2 = gate._gate(8, 10)  # 80% → 缺 1 格
-    assert g2["pass"] is False and g2["need"] == 1
+    g = gate._gate(t["end_pdf"], t["total"])  # noqa: SLF001 -- 钉私有判门面；1/1 → 过 90% 门
+    assert g["pass"] is True
+    assert g["need"] == 0
+    g2 = gate._gate(8, 10)  # noqa: SLF001 -- 钉私有判门面；80% → 缺 1 格
+    assert g2["pass"] is False
+    assert g2["need"] == 1
 
 
-def test_gate_check_freeze_signals():
-    from datetime import UTC, datetime
-
+def test_gate_check_freeze_signals() -> None:
     now = datetime.now(UTC)
     fz = gate.check_freeze(
         ["r1"],
@@ -386,19 +429,21 @@ def test_gate_check_freeze_signals():
         "recent_write:r1",
     } <= set(fz["reasons"])
     fz2 = gate.check_freeze(["r1"], {}, {"compile": {"ts_max": None}}, [], now)
-    assert fz2["status"] == "frozen" and fz2["reasons"] == []
+    assert fz2["status"] == "frozen"
+    assert fz2["reasons"] == []
 
 
-def test_gate_stem_of():
-    assert gate._stem_of("runx_compile") == "runx"
-    assert gate._stem_of("runx_records_fixloop") == "runx_records"
-    assert gate._stem_of("plain") == "plain"
+def test_gate_stem_of() -> None:
+    assert gate._stem_of("runx_compile") == "runx"  # noqa: SLF001 -- 钉私有名拆解面
+    assert gate._stem_of("runx_records_fixloop") == "runx_records"  # noqa: SLF001 -- 钉私有名拆解面
+    assert gate._stem_of("plain") == "plain"  # noqa: SLF001 -- 钉私有名拆解面
 
 
 # -- dossier -------------------------------------------------------------------
 
 
-def test_dossier_fetch_and_latest(broot):
+@pytest.mark.usefixtures("broot")
+def test_dossier_fetch_and_latest() -> None:
     idx = Index()
     _reg_run(idx, "r1", 1)
     idx.apply_event(_cell("r1", 1, stage="compile", status="fail", arm="base"))
@@ -423,20 +468,21 @@ def test_dossier_fetch_and_latest(broot):
             payload={"corpus": "2101.12345", "cond": "fixloop", "verdict": "clean"},
         )
     )
-    rows = dossier._fetch_records(idx, ["2101.12345"])
-    assert len(rows) == 3
+    rows = dossier._fetch_records(idx, ["2101.12345"])  # noqa: SLF001 -- 钉私有取数面
+    assert len(rows) == 3  # noqa: PLR2004 -- 断言字面量（record 行数）
     assert rows[0]["upstream"] == "-"  # up→upstream 映射
-    recs = dossier._group_stages(rows)
-    latest = dossier._latest(recs)["compile"]
-    assert len(latest) == 2  # (id,arm,up) 键两格
+    recs = dossier._group_stages(rows)  # noqa: SLF001 -- 钉私有分组面
+    latest = dossier._latest(recs)["compile"]  # noqa: SLF001 -- 钉私有末条面
+    assert len(latest) == 2  # noqa: PLR2004 -- 断言字面量（(id,arm,up) 键两格）
     # 主 compile：zh 臂末条 attempted（skip 格不算）
-    comp = dossier._primary_compile(recs)
+    comp = dossier._primary_compile(recs)  # noqa: SLF001 -- 钉私有主编译面
     assert comp["sig"] == "missing_file:x.sty"
-    cases = dossier._fetch_cases(idx, ["2101.12345"])
+    cases = dossier._fetch_cases(idx, ["2101.12345"])  # noqa: SLF001 -- 钉私有取数面
     assert cases == [{"corpus": "2101.12345", "cond": "fixloop", "verdict": "clean"}]
 
 
-def test_dossier_work_inventory(broot, tmp_path):
+@pytest.mark.usefixtures("broot")
+def test_dossier_work_inventory(tmp_path: Path) -> None:
     w = tmp_path / "w"
     (w / "src").mkdir(parents=True)
     (w / "src" / "main.tex").write_text("x")
@@ -455,7 +501,8 @@ def test_dossier_work_inventory(broot, tmp_path):
     (w / "_texmf" / "home" / "tex/latex").mkdir(parents=True)
     (w / "_texmf" / "home" / "tex/latex" / "x.sty").write_text("s")
     inv = dossier.work_inventory(w)
-    assert inv["present"] and inv["src"]["files"] == 1
+    assert inv["present"]
+    assert inv["src"]["files"] == 1
     assert inv["xlat_arm"]["arm"] == "real"
     assert inv["xlat_arms"]["xlat-zh.jsonl"]["counts"] == {"ok": 1, "fail": 1}
     assert inv["splice_compile"]["pdf"] == ["m.pdf"]
@@ -464,7 +511,8 @@ def test_dossier_work_inventory(broot, tmp_path):
     assert inv["texmf_installed"] == ["tex/latex/x.sty"]
 
 
-def test_dossier_load_tickets(broot, tmp_path):
+@pytest.mark.usefixtures("broot")
+def test_dossier_load_tickets(tmp_path: Path) -> None:
     rd = tmp_path / "rd"
     (rd / "derived").mkdir(parents=True)
     (rd / "derived" / "tickets.jsonl").write_text(

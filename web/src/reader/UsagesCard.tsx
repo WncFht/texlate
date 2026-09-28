@@ -10,7 +10,7 @@
 
 import { onCleanup, onMount, For, Show } from "solid-js";
 
-import { currentLang, fmt, t } from "../i18n";
+import { tLane } from "../i18n";
 import { cardPlacement, type UsageEntry, type UsageSite } from "./usages";
 
 const CARD_W = 380;
@@ -45,9 +45,7 @@ export function usagesText(
     key: string,
     vars?: Record<string, string | number>,
 ): string {
-    const dict = (t as unknown as { usages?: Record<string, string> }).usages;
-    const tpl = dict?.[key] ?? FALLBACK[currentLang()][key] ?? key;
-    return vars ? fmt(tpl, vars) : tpl;
+    return tLane("usages", key, FALLBACK, vars);
 }
 
 const trunc = (s: string): string =>
@@ -127,9 +125,7 @@ export default function UsagesCard(props: CardProps) {
             onPointerLeave={() => props.onCardLeave?.()}
         >
             <div class="usage-card-head">
-                <span class="usage-card-label">
-                    {props.entry.target.label}
-                </span>
+                <span class="usage-card-label">{props.entry.target.label}</span>
                 <span class="usage-card-count">
                     {usagesText("count", { n: count() })}
                 </span>
@@ -137,9 +133,7 @@ export default function UsagesCard(props: CardProps) {
             <Show
                 when={props.entry.sites.length}
                 fallback={
-                    <div class="usage-card-empty">
-                        {usagesText("empty")}
-                    </div>
+                    <div class="usage-card-empty">{usagesText("empty")}</div>
                 }
             >
                 <ol class="usage-card-list">

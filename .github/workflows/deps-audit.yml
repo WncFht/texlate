@@ -1,0 +1,37 @@
+name: Deps audit
+
+# 依赖 CVE 周报闸——lockfile 钉死意味着已知 CVE 会钉在旧版无人发现，
+# 本 job 负责把钉住的旧版里的 CVE 浮出来。weekly + 手触发；push 不跑
+# （CVE 库是外部数据源，不该挡开发回路）。
+on:
+  schedule:
+    - cron: "17 2 * * 1" # 周一 02:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: pip-audit + npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: pip-audit（uv.lock 钉盘口径）
+        run: uvx pip-audit --locked --skip-editable || uvx pip-audit -r pyproject.toml
+
+      - name: npm audit（web + zotero + 根 toolchain）
+        run: |
+          npm audit --omit=dev || true
+          npm audit --prefix web --omit=dev || true
+          npm audit --prefix zotero || true

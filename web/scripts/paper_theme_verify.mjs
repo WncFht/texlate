@@ -1,26 +1,11 @@
 // 纸面配色槽验证:逐槽切 settingsStore → canvas 物理像素均值 + --page-bg-color 断言
 // 用法:node scripts/paper_theme_verify.mjs
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://127.0.0.1:8765";
 const TASK = "t_d7c669e8b3c92149";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE = join(
-    root,
-    readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse()[0],
-    "chrome-linux64/chrome",
-);
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
 
 // 期望 canvas 均值亮度区间(物理像素):暗槽 <120,亮/原色 >180
 const CASES = [
@@ -34,7 +19,7 @@ const CASES = [
     { id: "auto", dark: false, expect: "light" },
 ];
 
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await launch();
 const ctx = await browser.newContext({
     viewport: { width: 1400, height: 900 },
 });

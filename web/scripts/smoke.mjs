@@ -5,42 +5,11 @@
 // 环境:WEB_BASE 覆盖端口(默认 5173,vite 端口漂移时看 dev log);
 //      PW_EXE 覆盖 chromium 路径(默认探测 ~/.cache/ms-playwright/chromium-*/)。
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { check, launch, results, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://localhost:5199";
-const findChromium = () => {
-    const root = join(homedir(), ".cache/ms-playwright");
-    const dirs = readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse();
-    for (const d of dirs) {
-        for (const rel of ["chrome-linux64/chrome", "chrome-linux/chrome"]) {
-            const p = join(root, d, rel);
-            if (existsSync(p)) return p;
-        }
-    }
-    throw new Error(`no chromium under ${root} — set PW_EXE`);
-};
-const EXE = process.env.PW_EXE ?? findChromium();
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
 
-const results = [];
-const check = (name, ok, extra = "") => {
-    results.push({ name, ok, extra });
-    console.log(
-        `${ok ? "PASS" : "FAIL"}  ${name}${extra ? " — " + extra : ""}`,
-    );
-};
-
-const browser = await chromium.launch({
-    executablePath: EXE,
-    args: ["--no-sandbox"],
-});
+const browser = await launch({ args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
 const consoleErrors = [];

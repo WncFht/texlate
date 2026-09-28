@@ -165,7 +165,10 @@ export default function Toolbar(props: Props) {
 
             {/* ⋯ 溢出菜单——≤640px 由 responsive.css 翻出，收纳 .tb-opt 控件。
                 DOM 位置紧贴 title：移动端与返回同行居右上，桌面 display:none 无布局影响 */}
-            <div class="tb-menu-wrap tb-more-wrap" ref={(el) => (moreWrap = el)}>
+            <div
+                class="tb-menu-wrap tb-more-wrap"
+                ref={(el) => (moreWrap = el)}
+            >
                 <button
                     type="button"
                     class="tb-btn"
@@ -263,8 +266,7 @@ export default function Toolbar(props: Props) {
                                 value={settingsStore.paperTheme()}
                                 onChange={(e) =>
                                     settingsStore.setPaperTheme(
-                                        e.currentTarget
-                                            .value as Parameters<
+                                        e.currentTarget.value as Parameters<
                                             typeof settingsStore.setPaperTheme
                                         >[0],
                                     )
@@ -535,10 +537,7 @@ export default function Toolbar(props: Props) {
                 ?
             </button>
 
-            <div
-                class="tb-menu-wrap tb-opt"
-                ref={(el) => (menuWrap = el)}
-            >
+            <div class="tb-menu-wrap tb-opt" ref={(el) => (menuWrap = el)}>
                 <button
                     type="button"
                     class="tb-btn"

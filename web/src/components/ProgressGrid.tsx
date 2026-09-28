@@ -7,7 +7,7 @@
 
 import { createMemo, Index } from "solid-js";
 import type { ChunkItem } from "../api/client";
-import { t } from "../i18n";
+import { fmt, t } from "../i18n";
 
 interface Props {
     total: number;
@@ -24,12 +24,6 @@ const STATUS_CLASS: Record<string, string> = {
     fallback_orig: "cell-fallback",
     failed: "cell-failed",
 };
-
-/** i18n 模板 {k} 插值——本地副本；单源待 hoist 到 i18n/index.ts 供全站共用 */
-const fmt = (tpl: string, vars: Record<string, string | number>): string =>
-    tpl.replace(/\{(\w+)\}/g, (m, k: string) =>
-        k in vars ? String(vars[k]) : m,
-    );
 
 export default function ProgressGrid(props: Props) {
     // 定长下标表——total 不变即引用不变，<Index> 行零重建

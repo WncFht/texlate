@@ -183,9 +183,9 @@ describe("attachUsages", () => {
             body.querySelector('[id="bib.b1"]')!.getAttribute("tabindex"),
         ).toBe("0");
         ctl.dispose();
-        body
-            .querySelector("#F1")!
-            .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        body.querySelector("#F1")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true }),
+        );
         expect(ctl.isOpen()).toBe(false);
     });
 });

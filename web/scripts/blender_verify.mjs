@@ -3,28 +3,11 @@
 // 读回,所以均值变暗 = Blender 在渲染期改写了像素,而非老 CSS 兜底。
 // 用法:node scripts/blender_verify.mjs
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch, SHOTS } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://[::1]:5199";
 const TASK = process.env.TASK ?? "t_d7c669e8b3c92149";
-const root = join(homedir(), ".cache/ms-playwright");
-const EXE =
-    process.env.PW_EXE ??
-    join(
-        root,
-        readdirSync(root)
-            .filter((x) => x.startsWith("chromium-"))
-            .sort()
-            .reverse()[0],
-        "chrome-linux64/chrome",
-    );
-if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
 
 // 主视区第一页 canvas 的平均亮度(步长采样) + 近 bg/fg 像素占比
 const SAMPLE = `(() => { try {
@@ -65,7 +48,7 @@ const THUMB_SAMPLE = `(() => { try {
     return { avg: +(s/n).toFixed(1) };
     } catch { return null; } })()`;
 
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await launch();
 const ctx = await browser.newContext({
     viewport: { width: 1400, height: 950 },
 });

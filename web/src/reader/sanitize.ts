@@ -102,8 +102,10 @@ function sanitizeRules(rules: CSSRuleList, out: string[]): void {
         } else if (
             rule instanceof CSSMediaRule ||
             rule instanceof CSSSupportsRule ||
-            (typeof CSSLayerBlockRule === "function" && rule instanceof CSSLayerBlockRule) ||
-            (typeof CSSContainerRule === "function" && rule instanceof CSSContainerRule) ||
+            (typeof CSSLayerBlockRule === "function" &&
+                rule instanceof CSSLayerBlockRule) ||
+            (typeof CSSContainerRule === "function" &&
+                rule instanceof CSSContainerRule) ||
             (typeof CSSScopeRule === "function" && rule instanceof CSSScopeRule)
         ) {
             const inner: string[] = [];
@@ -111,11 +113,13 @@ function sanitizeRules(rules: CSSRuleList, out: string[]): void {
             const head = rule.cssText.slice(0, rule.cssText.indexOf("{"));
             out.push(`${head}{${inner.join("")}}`);
         } else if (rule instanceof CSSKeyframesRule) {
-            for (const kf of rule.cssRules) cleanDecls((kf as CSSKeyframeRule).style);
+            for (const kf of rule.cssRules)
+                cleanDecls((kf as CSSKeyframeRule).style);
             out.push(rule.cssText);
         } else if (
             rule instanceof CSSFontFaceRule ||
-            (typeof CSSCounterStyleRule === "function" && rule instanceof CSSCounterStyleRule)
+            (typeof CSSCounterStyleRule === "function" &&
+                rule instanceof CSSCounterStyleRule)
         ) {
             out.push(rule.cssText);
         }

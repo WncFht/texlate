@@ -22,25 +22,22 @@
 
 ## 2. `scripts/` — 运维脚本
 
-| 脚本                                   | 用途                                                                                                                            |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `agent-links.sh`                       | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖 |
-| `build-web.sh`                         | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci`                                |
-| `crossnote-links.sh`                   | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                            |
-| `demo.sh [id] [--real]`                | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                    |
-| `dev-smoke.sh [--keep]`                | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                         |
-| `errsweep.sh`                          | 错误清扫 agent 启动器：隔离 worktree 上按 runbook 蒸馏修复，flock 单实例；见 `dev/automation.md`                                |
-| `find-gateway-hog.sh`                  | 「谁在打网关」归因链：连接→进程→会话指纹逐级定位                                                                                |
-| `fmt-shell.sh`                         | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2`                                          |
-| `git-stash-export.sh`                  | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引                                            |
-| `gw-health.sh`                         | 网关多路健康探测聚合单行报告，任一失败 exit 1（URL/超时均可 env 覆盖）                                                          |
-| `gw-tunnel.sh`                         | 网关 SSH 隧道常驻管理（`start/stop/status/logs`）：重连循环 + setsid 脱管，产品链要求 localhost 端点时把远端服务映射回本地      |
-| `loc.sh [--cloc]`                      | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列                                                                    |
-| `pyspy-triage.sh <PID>`                | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进    |
-| `server-smoke.sh [port] [dir]`         | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID                                   |
-| `tcp-relay.py <lport> <rhost> <rport>` | 微型 asyncio TCP 转发（纯 stdlib），让只认 localhost 的组件吃到远端服务                                                         |
+| 脚本                           | 用途                                                                                                                                                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-links.sh`               | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖                                                                             |
+| `bench-backup.sh`              | trizone bench 根日备：`python3 -m kernel backup`（ledger + vault meta/manifest + lake durable/catalog + run keep-tier；vault 载荷字节归 restic 不管）+ tar 轮转保最新 3 份；`scripts/systemd/` 有配套 timer |
+| `build-web.sh`                 | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci`                                                                                                            |
+| `crossnote-links.sh`           | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                                                                                                        |
+| `demo.sh [id] [--real]`        | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                                                                                                |
+| `dev-smoke.sh [--keep]`        | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                                                                                                     |
+| `errsweep.sh`                  | 错误清扫 agent 启动器：隔离 worktree 上按 `dev/errsweep-runbook.md` 蒸馏修复，flock 单实例                                                                                                                  |
+| `fmt-shell.sh`                 | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2`                                                                                                                      |
+| `git-stash-export.sh`          | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引                                                                                                                        |
+| `loc.sh [--cloc]`              | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列                                                                                                                                                |
+| `pyspy-triage.sh <PID>`        | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进                                                                                |
+| `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID                                                                                                               |
 
-两个子目录：`scripts/systemd/` 是 errsweep 的 systemd --user service/timer 样例（`ExecStart` 指向 `scripts/errsweep.sh`，部署时按本机路径调整）；`scripts/gwcap/` 是本机网关并发闸组件（nftables REDIRECT + 信号量代理 + bypass 规则维护），属单机部署载荷、已退役留档。
+子目录 `scripts/systemd/` 收 systemd --user unit 件——`texlate-errsweep` 与 `texlate-bench-backup` 两套 service/timer（`ExecStart` 写死部署机路径，迁移时按目标机调整）。旧 `scripts/gwcap/` 网关并发闸组件已删，取证走 git 历史。
 
 ## 3. `bench/py/` — spec 套、分析动词与内核
 
@@ -129,7 +126,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 - `web/dev/mock-api.ts` — vite dev 中间件 mock 后端（默认 ON，`VITE_MOCK_API=0` 关）；`/api/health` 回 `version:"mock"` 即 mock/真后端鉴别器；seed 任务覆盖各终态档。
 - `web/scripts/smoke.mjs` — playwright-core e2e 冒烟（首页→提交→进度→阅读器→下载→响应式），自带 `package.json`；`WEB_BASE`/`PW_EXE` 覆盖，截图留 `scripts/shots/`。`guide_probe.mjs`/`guide_shot.mjs` 是一次性截图探针。
-- `web/scripts/cite_verify.mjs` — 引用 UX 行为级实测（hover 卡/Esc/click 跳+split 镜像/nav chip ↩↪/Backspace/触屏 tap/L2 meta/零 console 错，16 断言），打活服 `127.0.0.1:8765` + 真实任务 `t_d7c669e8b3c92149`（`TASK` 可换）。**环境坑**：本机 `/tmp` tmpfs 近满时 chromium `--disable-dev-shm-usage` 共享内存落盘即渲染进程 SIGTRAP（随机 Target crashed）——脚本内置 `TMPDIR=~/.cache/pw-tmp` 根治，新 playwright 脚本照抄此两行；另 `evaluate("string",arg)` 字符串函数不收 arg（静默 undefined），传参必须写真函数。`blender_verify.mjs`/`paper_theme_verify.mjs` 是 PDF 暗色管线的同款实测。
+- `web/scripts/*_verify.mjs` 一族 — playwright 行为级实测族（引用/翻译卡/锚点/usages/sentalign/selsys/主题等），范式件是 `cite_verify.mjs`（hover 卡/Esc/click 跳+split 镜像/nav chip ↩↪/Backspace/触屏 tap/L2 meta/零 console 错，16 断言），打活服 `127.0.0.1:8765` + 真实任务 `t_d7c669e8b3c92149`（`TASK` 可换）。**环境坑**：本机 `/tmp` tmpfs 近满时 chromium `--disable-dev-shm-usage` 共享内存落盘即渲染进程 SIGTRAP（随机 Target crashed）——公共 bootstrap `web/scripts/lib/pwkit.mjs` 已收 chromium 探测（`PW_EXE` 覆盖）+ `PW_TMP`=`~/.cache/pw-tmp` 挪 TMPDIR 出 tmpfs 的根治 + `SHOTS`/`check`/`results` 计数，新 playwright 脚本 `import` 它而非照抄 preamble；另 `evaluate("string",arg)` 字符串函数不收 arg（静默 undefined），传参必须写真函数。
 - 三件套自检：`npx tsc --noEmit && npx eslint . && npx vitest run`。
 
 ## 6. 运维手法沉淀（通用）

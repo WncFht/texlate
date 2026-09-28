@@ -26,7 +26,14 @@ vi.mock("../api/client", async (importOriginal) =>
 
 import { ApiError } from "../api/client";
 import Home from "../pages/Home";
-import { flush, FM_OPTS, mountHome, pick, resetHomeMocks, type } from "./_homekit";
+import {
+    flush,
+    FM_OPTS,
+    mountHome,
+    pick,
+    resetHomeMocks,
+    type,
+} from "./_homekit";
 
 beforeEach(() => resetHomeMocks(mocks));
 
@@ -119,7 +126,9 @@ describe("Home 临时 API Key——上传两路", () => {
         type(input, "2501.14787");
         type(key, "sk-keep-2");
 
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
         await flush();
 

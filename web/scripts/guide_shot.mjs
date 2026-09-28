@@ -1,22 +1,10 @@
-import { readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
-const root = join(homedir(), ".cache/ms-playwright");
-const exe = join(
-    root,
-    readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse()[0],
-    "chrome-linux64/chrome",
-);
-const browser = await chromium.launch({ executablePath: exe });
-const page = await browser.newPage({ viewport: { width: 1200, height: 1500 } });
+import { openPage, SHOTS } from "./lib/pwkit.mjs";
+
 const task = process.env.TASK ?? "t_a096368649765da9";
-await page.goto(`http://127.0.0.1:8765/#/reader/${task}`, {
-    waitUntil: "domcontentloaded",
-});
+const { browser, page } = await openPage(
+    `http://127.0.0.1:8765/#/reader/${task}`,
+    { viewport: { width: 1200, height: 1500 } },
+);
 await page.waitForTimeout(3500);
 // 模式选择器——找含「导读/guide」的选项
 const clicked = await page.evaluate(() => {
@@ -59,5 +47,5 @@ const stats = await page.evaluate(() => {
     };
 });
 console.log(JSON.stringify(stats, null, 1));
-await page.screenshot({ path: "guide.png", fullPage: true });
+await page.screenshot({ path: `${SHOTS}guide.png`, fullPage: true });
 await browser.close();

@@ -29,9 +29,13 @@ export interface InspectHandle {
     el: HTMLElement;
     bodyEl?(): HTMLElement | undefined;
     /** dom/html 臂 usages 索引——forEl 宿主命中探测（armed hover 强化用） */
-    usageIndex?(): {
-        forEl(el: Element | null): { target: { el: HTMLElement; kind: string } } | undefined;
-    } | undefined;
+    usageIndex?():
+        | {
+              forEl(
+                  el: Element | null,
+              ): { target: { el: HTMLElement; kind: string } } | undefined;
+          }
+        | undefined;
     /** pdf 臂 dest 命中探测（armed hover 强化用）——tol 走 inspect 紧容差 */
     destAtPoint?(x: number, y: number, tol?: number): string | null;
     /** pdf 臂非锚命中 → dest + 落点行带元素（armed hover 揭示染色面；
@@ -62,7 +66,9 @@ export interface InspectDeps {
 }
 
 const ACCEL_IS_MAC = (() => {
-    const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+    const nav = navigator as Navigator & {
+        userAgentData?: { platform?: string };
+    };
     const plat = nav.userAgentData?.platform ?? nav.platform ?? "";
     return /mac/i.test(plat);
 })();
@@ -70,7 +76,8 @@ const ACCEL_IS_MAC = (() => {
 const isAccel = (e: MouseEvent | KeyboardEvent) =>
     ACCEL_IS_MAC ? e.metaKey : e.ctrlKey;
 
-const otherSide = (s: DocId): DocId => (s === "original" ? "translated" : "original");
+const otherSide = (s: DocId): DocId =>
+    s === "original" ? "translated" : "original";
 
 const normSide = (v: string | null | undefined): DocId | null =>
     v === "original" || v === "translated" ? v : null;
@@ -122,7 +129,9 @@ export function attachInspect(deps: InspectDeps): { dispose(): void } {
         let hots: Element[] = [];
         let cur: HTMLElement | null = null;
         const el = doc.elementFromPoint?.(x, y) ?? null;
-        const side = normSide(el?.closest?.(".pane")?.getAttribute("data-side"));
+        const side = normSide(
+            el?.closest?.(".pane")?.getAttribute("data-side"),
+        );
         const h = side ? deps.handleOf(side) : undefined;
         if (h && side && !deps.pdfjsArmed?.(side)) {
             const body = h.bodyEl?.();

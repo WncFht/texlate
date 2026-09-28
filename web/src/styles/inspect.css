@@ -17,7 +17,8 @@
 
 /* ── pdf 锚揭示：注释覆盖层无文字——inset 底线 + 浅底纹 ── */
 .panes.insp-armed section.linkAnnotation > a {
-    box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--cinnabar) 55%, transparent);
+    box-shadow: inset 0 -2px 0 0
+        color-mix(in srgb, var(--cinnabar) 55%, transparent);
     background: color-mix(in srgb, var(--cinnabar) 10%, transparent);
 }
 
@@ -39,7 +40,8 @@
     text-decoration-color: color-mix(in srgb, var(--cinnabar) 85%, transparent);
 }
 .panes.insp-armed section.linkAnnotation > a.insp-hot {
-    box-shadow: inset 0 -2px 0 0 color-mix(in srgb, var(--cinnabar) 85%, transparent);
+    box-shadow: inset 0 -2px 0 0
+        color-mix(in srgb, var(--cinnabar) 85%, transparent);
     background: color-mix(in srgb, var(--cinnabar) 18%, transparent);
 }
 

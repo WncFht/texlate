@@ -13,5 +13,7 @@ export const fmtElapsed = (sec: number) => {
     const s = Math.max(0, Math.floor(sec));
     const m = Math.floor(s / 60);
     const h = Math.floor(m / 60);
-    return h > 0 ? `${h}:${pad2(m % 60)}:${pad2(s % 60)}` : `${m}:${pad2(s % 60)}`;
+    return h > 0
+        ? `${h}:${pad2(m % 60)}:${pad2(s % 60)}`
+        : `${m}:${pad2(s % 60)}`;
 };

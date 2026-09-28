@@ -111,8 +111,7 @@ export function registerCiteTranslate(
         },
         byok: opts.byok,
         hasApiKey:
-            opts.hasApiKey ??
-            (() => settingsStore.settings()?.has_api_key),
+            opts.hasApiKey ?? (() => settingsStore.settings()?.has_api_key),
         onNeedAuth: opts.onNeedAuth,
         nav: opts.nav,
         toastOk: opts.toastOk,

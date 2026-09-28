@@ -8,14 +8,10 @@ resolve paths lazily from env, so monkeypatching works without any caching.
 from __future__ import annotations
 
 import json
-import sys
 import time
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench" / "py"))
-
 from kernel import paths
 
 
@@ -40,7 +36,7 @@ def write_verify_stamp() -> None:
 
 
 @pytest.fixture
-def broot(tmp_path, monkeypatch):
+def broot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "broot"
     monkeypatch.setenv(paths.ENV_ROOT, str(root))
     for env in (paths.ENV_LEDGER, paths.ENV_RUNS, paths.ENV_VAULT, paths.ENV_LAKE):

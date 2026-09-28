@@ -27,12 +27,14 @@ import {
 } from "./liveFrames";
 import { createTransport } from "./taskTransport";
 import { toast } from "./toastStore";
+import { canonArxivKey } from "../arxidcanon";
 import { currentLang, fmt, t } from "../i18n";
 
 // 门面再导出：live 面类型与传输调参常量是 store 公开面的一部分——
 // 消费方（TaskProgress/tests）从 tasks.ts 单点拿，不追内部文件布局
 export type { TaskLive } from "./liveFrames";
 export { MAX_SSE_TASKS, POLL_INTERVAL_MS } from "./taskTransport";
+export { canonArxivKey };
 
 interface TasksState {
     tasks: TaskSnapshot[];
@@ -79,51 +81,6 @@ interface TaskIntent {
  * 测试可经 taskStore.intents 读/清；业务面只走 track/taskByArxiv。
  */
 const intents = new Map<string, TaskIntent>();
-
-/**
- * arXiv id 匹配键（taskByArxiv 双侧归一）：剥 URL/arXiv:/DOI/OAI 前缀、
- * ?#尾、vN 版本、尾注 [class]、下载扩展名、旧式 class
- * （archive.CLASS/NNNNNNN → archive/NNNNNNN）、`--`→`/`、全小写。
- * 服务端落库 arxiv_id 的历史行保留 class 与大小写、M2 后为 canon.base
- * ——两侧都过本函数才比，两种落库形同键。
- * 注意：这是 taskByArxiv 私有最小实现（不做校验、不抛错——坏输入只是
- * 匹配不上）；misc-pack M2 的共享 canon 落地后应换绑单源
- * （tmp/ux-research-20260922/arxiv-id-canon-spec.md 管线序照抄）。
- */
-export function canonArxivKey(raw: string): string {
-    let s = raw.trim();
-    // 存储拼写回流：`--` 不可能出现在合法 id 内，unfold 无歧义
-    s = s.replace(/--/g, "/");
-    // 前缀循环至不动点（URL/DOI/OAI/arXiv: 可叠套）
-    for (;;) {
-        const prev = s;
-        s = s.replace(
-            /^(?:https?:\/\/)?[\w.-]*arxiv\.org\/(?:abs|pdf|src|e-print|html|format)\/+/i,
-            "",
-        );
-        s = s.replace(/^https?:\/\/(?:dx\.|www\.)?doi\.org\//i, "");
-        s = s.replace(/^doi:\s*/i, "");
-        s = s.replace(/^10\.48550\/arxiv\./i, "");
-        s = s.replace(/^oai\s*:\s*arxiv\.org\s*:\s*/i, "");
-        s = s.replace(/^arxiv\s*[:.]\s*/i, "");
-        if (s === prev) break;
-    }
-    s = s.replace(/[?#].*$/, ""); // ?query/#frag 尾
-    s = s.replace(/[\s/]+$/, ""); // 尾 "/" 与空白
-    s = s.replace(/\s*\[[^\]]{1,20}\]\s*$/, ""); // [cs.CL] 引用尾注
-    for (;;) {
-        const prev = s;
-        s = s.replace(/\.(pdf|ps|eps|dvi|gz|tgz|tar\.gz)$/i, "");
-        if (s === prev) break;
-    }
-    s = s.replace(/^(.+?)[vV](\d{1,3})$/, "$1"); // 版本尾 vN
-    // 旧式 base 剥 class + archive 小写（math.GT/0309136 → math/0309136）
-    s = s.replace(
-        /^([-a-zA-Z]+)(?:\.[A-Za-z][A-Za-z-]*)?\/(\d{7})$/,
-        (_m, a: string, d: string) => `${a.toLowerCase()}/${d}`,
-    );
-    return s.toLowerCase();
-}
 
 /** task_id 行定位一处口径（upsert/stage/done/patch/task 共用） */
 function rowIndex(id: string): number {
@@ -217,8 +174,7 @@ function settleLive(taskId: string) {
  */
 function notifyTpl(): { done?: string; failed?: string; view: string } {
     const k = (t as unknown as Record<string, unknown>).taskNotify as
-        | { done?: string; failed?: string; view?: string }
-        | undefined;
+        { done?: string; failed?: string; view?: string } | undefined;
     return {
         done: k?.done,
         failed: k?.failed,
@@ -295,8 +251,7 @@ function dropTask(taskId: string) {
     forgetTaskEvents(taskId);
     // 竞态桥里指向已删任务的登记一并清——否则 taskByArxiv 在 TTL 内
     // 继续合成「幽灵 queued 占位行」
-    for (const [k, it] of intents)
-        if (it.taskId === taskId) intents.delete(k);
+    for (const [k, it] of intents) if (it.taskId === taskId) intents.delete(k);
     setState("tasks", (list) => list.filter((t) => t.task_id !== taskId));
     setState(
         "live",

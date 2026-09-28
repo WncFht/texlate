@@ -31,7 +31,8 @@ const keySet = (o: Record<string, unknown>): string[] => {
 
 const expectNonEmptyLeaves = (o: Record<string, unknown>) =>
     walkLeaves(o, "", (p, v) => {
-        if (typeof v === "string") expect(v.trim().length, p).toBeGreaterThan(0);
+        if (typeof v === "string")
+            expect(v.trim().length, p).toBeGreaterThan(0);
     });
 
 describe("en/zh —— 键级 parity（Record 段 typeof 守不到，靠这里）", () => {

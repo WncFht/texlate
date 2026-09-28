@@ -30,9 +30,7 @@ export default function SuggestList(props: {
                                     type="button"
                                     id={`ax-sug-${i()}`}
                                     role="option"
-                                    aria-selected={
-                                        props.sg.activeHit() === i()
-                                    }
+                                    aria-selected={props.sg.activeHit() === i()}
                                     class="ax-suggest-item"
                                     classList={{
                                         on: props.sg.activeHit() === i(),

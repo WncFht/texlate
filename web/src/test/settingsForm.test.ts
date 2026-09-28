@@ -24,7 +24,8 @@ import { mountToBody } from "./helpers";
 
 function mount() {
     mountToBody(() => Settings());
-    const form = document.body.querySelector<HTMLFormElement>("form.settings-form");
+    const form =
+        document.body.querySelector<HTMLFormElement>("form.settings-form");
     if (!form) throw new Error("settings form missing");
     // 优先 [name=] 稳定口（同 model 字段先例）；Settings.tsx 的
     // api_key/base_url/concurrency 尚未挂 name 属性——挂上后本查询自动走
@@ -45,7 +46,9 @@ function mount() {
 }
 
 function submit(form: HTMLFormElement) {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+    );
 }
 
 beforeEach(() => {
@@ -122,7 +125,10 @@ describe("Settings 表单提交", () => {
         expect(mocks.putSettings).toHaveBeenCalledWith(
             expect.not.objectContaining({ api_key: expect.anything() }),
         );
-        const sent = mocks.putSettings.mock.calls[0][0] as Record<string, unknown>;
+        const sent = mocks.putSettings.mock.calls[0][0] as Record<
+            string,
+            unknown
+        >;
         expect("api_key" in sent).toBe(false);
     });
 });

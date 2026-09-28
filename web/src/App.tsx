@@ -99,10 +99,7 @@ export default function App() {
                 <a href="#/" classList={{ on: route().page === "home" }}>
                     {t.nav.translate}
                 </a>
-                <a
-                    href="#/tasks"
-                    classList={{ on: route().page === "tasks" }}
-                >
+                <a href="#/tasks" classList={{ on: route().page === "tasks" }}>
                     {t.nav.tasks}
                     <Show when={activeCount() > 0}>
                         <span class="nav-badge">{activeCount()}</span>

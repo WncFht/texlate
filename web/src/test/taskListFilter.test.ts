@@ -108,8 +108,8 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
     it("筛选 chips：进行中/已完成/异常", async () => {
         renderList();
         const chip = (label: string) =>
-            [...root.querySelectorAll(".task-chip")].find(
-                (b) => b.textContent?.startsWith(label),
+            [...root.querySelectorAll(".task-chip")].find((b) =>
+                b.textContent?.startsWith(label),
             )!;
         click(chip(t.home.fActive));
         await flush();
@@ -241,9 +241,9 @@ describe("U5：清理菜单 + 删除确认框", () => {
         renderList();
         await openMenu();
         expect(mocks.slimTasks).toHaveBeenCalledWith({ dry: true });
-        expect(
-            root.querySelector(".maint-slim .menu-hint")?.textContent,
-        ).toBe(t.home.maintSlimEst.replace("{size}", "1.4 MB"));
+        expect(root.querySelector(".maint-slim .menu-hint")?.textContent).toBe(
+            t.home.maintSlimEst.replace("{size}", "1.4 MB"),
+        );
         expect(root.querySelector(".maint-purge .menu-hint")?.textContent).toBe(
             t.home.purgeN.replace("{n}", "4"),
         );
@@ -302,9 +302,7 @@ describe("U5：清理菜单 + 删除确认框", () => {
         await openMenu();
         click(root.querySelector(".maint-purge") as HTMLElement);
         await flush();
-        const cb = root.querySelector(
-            ".purge-opt input",
-        ) as HTMLInputElement;
+        const cb = root.querySelector(".purge-opt input") as HTMLInputElement;
         cb.checked = false;
         cb.dispatchEvent(new Event("change", { bubbles: true }));
         await flush();

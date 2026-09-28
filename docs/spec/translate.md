@@ -93,7 +93,7 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 ### 1.7 拦截网与缓存口径
 
-`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline.py` 回引）注册四张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`——与 `l0.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
+`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline.py` 回引）注册五张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`、`dangerous_cs`——与 `l0.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
 
 缓存三层口径[^texglot]：
 
@@ -143,7 +143,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ## 2. 校验链（`validate/`）
 
-三层分工 L0 规则 / L1 tree-sitter CST / L2 编译 log 回灌，**全部 src↔zh 相对判定**（译文不得比原文更坏——src 自带不平衡继承容忍，只报新增损伤）。编排侧消费点：`CACHE_VETO_RULES={placeholder, ph_in_cs, bare_cs, residual_en}` 缓存写入/命中否决面（与 §1.7 `_INTERCEPT_NETS` 镜像）、`report.py::pair_feedback` 字段化反馈文本（`previous_validation_error`/`slot_validation_failures` 阶梯注入面）、`L2Verdict` 修复链触发。完整规则表、L1 baseline 协议、L2 归因豁免与聚合口径见 `spec/validate.md`（L0 实测见[^l0-rules]，L1 实测见[^l1-ts]）。
+三层分工 L0 规则 / L1 tree-sitter CST / L2 编译 log 回灌，**全部 src↔zh 相对判定**（译文不得比原文更坏——src 自带不平衡继承容忍，只报新增损伤）。编排侧消费点：`CACHE_VETO_RULES={placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}` 缓存写入/命中否决面（与 §1.7 `_INTERCEPT_NETS` 镜像）、`report.py::pair_feedback` 字段化反馈文本（`previous_validation_error`/`slot_validation_failures` 阶梯注入面）、`L2Verdict` 修复链触发。完整规则表、L1 baseline 协议、L2 归因豁免与聚合口径见 `spec/validate.md`（L0 实测见[^l0-rules]，L1 实测见[^l1-ts]）。
 
 ## 3. 修复与归一化
 

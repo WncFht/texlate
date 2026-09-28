@@ -22,34 +22,12 @@
 //   WEB_BASE=http://127.0.0.1:8765 node scripts/floor_verify.mjs --reader t_xxx
 //   PW_EXE 覆盖 chromium（默认探测 ~/.cache/ms-playwright/chromium-*/）。
 
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launch } from "./lib/pwkit.mjs";
 
 const BASE = process.env.WEB_BASE ?? "http://localhost:5199";
 const ridx = process.argv.indexOf("--reader");
 const READER =
     ridx < 0 ? null : (process.argv[ridx + 1] ?? "t_0000000000000a01");
-
-const findChromium = () => {
-    const root = join(homedir(), ".cache/ms-playwright");
-    const dirs = readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse();
-    for (const d of dirs) {
-        for (const rel of ["chrome-linux64/chrome", "chrome-linux/chrome"]) {
-            const p = join(root, d, rel);
-            if (existsSync(p)) return p;
-        }
-    }
-    throw new Error(`no chromium under ${root} — set PW_EXE`);
-};
-const EXE = process.env.PW_EXE ?? findChromium();
-
-const SHOTS = new URL("./shots/", import.meta.url).pathname;
-mkdirSync(SHOTS, { recursive: true });
 
 let fails = 0;
 const leg = (route, name, state, detail = "") => {
@@ -89,10 +67,7 @@ const exempt = (url, status) =>
 // 只要有一处来自 app 样式 → FAIL（stray */ 吞 :root / clamp 缺空格丢声明）。
 const VENDOR_ORIGIN = /node_modules|pdf_viewer|pdfslick/;
 
-const browser = await chromium.launch({
-    executablePath: EXE,
-    args: ["--no-sandbox"],
-});
+const browser = await launch({ args: ["--no-sandbox"] });
 
 /** pageerror/console 真错 + 非豁免 4xx/5xx 响应收集（response 按 URL
     归因——console 的「Failed to load resource」不带 URL，跳过）。 */

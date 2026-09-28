@@ -27,6 +27,7 @@ from texlate.compile.fixloop._builtins_common import (
     _live_matches,
     _map_tex_files,
 )
+from texlate.texlog import PS_GRAPHIC_EXTS
 from texlate.textutil import mask_tex, safe_is_file
 
 if TYPE_CHECKING:
@@ -50,13 +51,7 @@ def pstricks_dvips_preflight(
     return True, f"REJECT: route={route} dvips-resources-ok"
 
 
-_EPS_EXTS = (
-    ".eps",
-    ".epsf",
-    ".epsi",
-    ".mps",
-    ".ps",
-)  # 与 normalize.PS_GRAPHIC_SUFFIXES 同步
+_EPS_EXTS = tuple(sorted(PS_GRAPHIC_EXTS))  # 单源 texlog.PS_GRAPHIC_EXTS
 #: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证:
 #: ps_image 只认 .eps/.ps 把它漏归 other), 与 _EPS_EXTS 并列进扫源面。
 _NUMERIC_EXT_RE = re.compile(r"^\.\d+$")

@@ -404,9 +404,9 @@ export default function HtmlPane(props: Props) {
                 // 快径 offset=seq 直取一行（chunks 页按 seq 升序、seq 0 基
                 // 连续的服务端契约）；未命中退整窗扫描——offset 语义漂移
                 // （稀疏 seq/行序变化）时仍找得到
-                let row = (
-                    await api.taskChunks(taskId, seq, 1)
-                ).chunks.find((r) => r.seq === seq);
+                let row = (await api.taskChunks(taskId, seq, 1)).chunks.find(
+                    (r) => r.seq === seq,
+                );
                 if (!row) {
                     row = (
                         await api.taskChunks(taskId, 0, CHUNK_WINDOW)

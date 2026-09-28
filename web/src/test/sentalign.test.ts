@@ -79,10 +79,7 @@ describe("splitZh zh 正则臂", () => {
 
     it("数字邻接 ASCII 点按缩写兜（v2. / 3.14. 后跟空白不切）", () => {
         const t = "版本 v2. 已发布。下一版。";
-        expect(texts(t, splitZh(t))).toEqual([
-            "版本 v2. 已发布。",
-            "下一版。",
-        ]);
+        expect(texts(t, splitZh(t))).toEqual(["版本 v2. 已发布。", "下一版。"]);
     });
 
     it("保护区：[[]] token / $..$ / URL 内的点不切", () => {
@@ -304,13 +301,14 @@ const paneBody = (inner: string): HTMLElement => {
     return b;
 };
 
-const tick = (ms = 5): Promise<void> =>
-    new Promise((r) => setTimeout(r, ms));
+const tick = (ms = 5): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 describe("SentAlignSession", () => {
-    const EN = `<div data-chunk="c0"><p>Alpha one. Beta two gamma.</p></div>` +
+    const EN =
+        `<div data-chunk="c0"><p>Alpha one. Beta two gamma.</p></div>` +
         `<div data-chunk="c1"><p>Gamma tail.</p></div>`;
-    const ZH = `<div data-chunk="c0"><p>甲一。乙二丙。</p></div>` +
+    const ZH =
+        `<div data-chunk="c0"><p>甲一。乙二丙。</p></div>` +
         `<div data-chunk="c1"><p>丙尾。</p></div>`;
 
     it("双侧 mount → data-bead 双侧标引（{chunk}.{b} 形）", async () => {
@@ -333,20 +331,15 @@ describe("SentAlignSession", () => {
         await s.mountSide("en", en);
         await s.mountSide("zh", zh);
         const sp = en.querySelector('[data-sid="c0.0"]')!;
-        sp.dispatchEvent(
-            new MouseEvent("pointerover", { bubbles: true }),
-        );
+        sp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
         const hot = document.querySelectorAll(".sa-hot");
         expect(hot).toHaveLength(1);
         expect(hot[0]).toBe(sp);
         const peer = document.querySelectorAll(".sa-peer");
         expect(peer.length).toBeGreaterThan(0);
-        for (const p of peer)
-            expect(p.getAttribute("data-bead")).toBe("c0.0");
+        for (const p of peer) expect(p.getAttribute("data-bead")).toBe("c0.0");
         // 离开到空白处 → 全清
-        sp.dispatchEvent(
-            new MouseEvent("pointerout", { bubbles: true }),
-        );
+        sp.dispatchEvent(new MouseEvent("pointerout", { bubbles: true }));
         expect(document.querySelectorAll(".sa-hot,.sa-peer")).toHaveLength(0);
         s.destroy();
     });
@@ -670,9 +663,7 @@ describe("SentAlignSession", () => {
               ];
 
     it("PDF→PDF 句级落点：u 在场+dst 叶在场 → 句首叶 Pos + pdfFlashEls 句域闪（不碰整段闪）", async () => {
-        const pdf = paneBody(
-            `<div class="textLayer"><span>line.</span></div>`,
-        );
+        const pdf = paneBody(`<div class="textLayer"><span>line.</span></div>`);
         const leaves = fakeZhLeaves();
         const calls: string[] = [];
         const s = new SentAlignSession({
@@ -680,12 +671,9 @@ describe("SentAlignSession", () => {
             seqPos: () => ({ page: 3, fraction: 0.1 }),
             seqLands: LANDS,
             pdfSeqLeaves: () => leaves,
-            pdfFlashEls: (_d, els) =>
-                calls.push(`pdfFlashEls:${els.length}`),
+            pdfFlashEls: (_d, els) => calls.push(`pdfFlashEls:${els.length}`),
             pdfDest: (_d, pos) => {
-                calls.push(
-                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
-                );
+                calls.push(`pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`);
                 return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
             },
             pdfJump: () =>
@@ -723,9 +711,7 @@ describe("SentAlignSession", () => {
     });
 
     it("句级臂叶缺席 → 锚区间插值落点 + pdfFlash 行带→整段殿后", async () => {
-        const pdf = paneBody(
-            `<div class="textLayer"><span>line.</span></div>`,
-        );
+        const pdf = paneBody(`<div class="textLayer"><span>line.</span></div>`);
         const calls: string[] = [];
         const s = new SentAlignSession({
             seqPos: () => ({ page: 3, fraction: 0.1 }),
@@ -733,9 +719,7 @@ describe("SentAlignSession", () => {
             pdfSeqLeaves: () => [],
             pdfFlashEls: () => calls.push("pdfFlashEls"),
             pdfDest: (_d, pos) => {
-                calls.push(
-                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
-                );
+                calls.push(`pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`);
                 return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
             },
             pdfJump: () =>
@@ -774,9 +758,7 @@ describe("SentAlignSession", () => {
     });
 
     it("marked 双出现（TOC 重放+真标）→ 按锚页择真标组", async () => {
-        const pdf = paneBody(
-            `<div class="textLayer"><span>line.</span></div>`,
-        );
+        const pdf = paneBody(`<div class="textLayer"><span>line.</span></div>`);
         // 同 seq 两枚 marked：p1 TOC 残件 + p3 正文真标
         const tocPg = document.createElement("div");
         tocPg.setAttribute("data-page-number", "1");
@@ -797,14 +779,10 @@ describe("SentAlignSession", () => {
             pdfSeqLeaves: () => [tocLeaf, ...leaves],
             pdfFlashEls: (_d, els) =>
                 calls.push(
-                    `pdfFlashEls:${els
-                        .map((e) => e.textContent)
-                        .join(",")}`,
+                    `pdfFlashEls:${els.map((e) => e.textContent).join(",")}`,
                 ),
             pdfDest: (_d, pos) => {
-                calls.push(
-                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
-                );
+                calls.push(`pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`);
                 return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
             },
             pdfJump: () =>
@@ -842,12 +820,9 @@ describe("SentAlignSession", () => {
             seqPos: () => ({ page: 3, fraction: 0.1 }),
             seqLands: LANDS,
             pdfSeqLeaves: () => leaves,
-            pdfFlashEls: (_d, els) =>
-                calls.push(`pdfFlashEls:${els.length}`),
+            pdfFlashEls: (_d, els) => calls.push(`pdfFlashEls:${els.length}`),
             pdfDest: (_d, pos) => {
-                calls.push(
-                    `pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`,
-                );
+                calls.push(`pdfDest:${pos.page}@${pos.fraction.toFixed(2)}`);
                 return [pos.page - 1, { name: "XYZ" }, 0, 0, null];
             },
             pdfJump: () =>
@@ -1037,8 +1012,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
         ];
         expect(from).toMatchObject({ x: 33, y: 44 });
         expect(els.length).toBeGreaterThan(0);
-        for (const el of els)
-            expect(el.getAttribute("data-bead")).toBe("c0.0");
+        for (const el of els) expect(el.getAttribute("data-bead")).toBe("c0.0");
         s.destroy();
     });
 
@@ -1050,13 +1024,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
         const s = new SentAlignSession({
             anim: { press, land },
             seqPos: () => ({ page: 6, fraction: 0.3 }),
-            pdfDest: (_d, pos) => [
-                pos.page - 1,
-                { name: "XYZ" },
-                0,
-                100,
-                null,
-            ],
+            pdfDest: (_d, pos) => [pos.page - 1, { name: "XYZ" }, 0, 100, null],
             pdfJump: () =>
                 Promise.resolve({
                     pre: { page: 1, fraction: 0 },
@@ -1161,9 +1129,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
         await s.mountSide("en", en);
         s.mountPdfSide("zh");
         const sp = en.querySelector('[data-sid="c0.0"]')!;
-        sp.dispatchEvent(
-            new MouseEvent("pointerover", { bubbles: true }),
-        );
+        sp.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }));
         // bead 是 DOM↔DOM 概念——pdf 对侧无 bead 也有 seq 对位；
         // 先两发 clearHot 剥轨再上新 peer
         expect(calls).toEqual([
@@ -1215,9 +1181,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
             new MouseEvent("pointermove", { bubbles: true }),
         );
         expect(zh.querySelectorAll(".sa-peer").length).toBeGreaterThan(0);
-        pdf.dispatchEvent(
-            new MouseEvent("pointerleave", { bubbles: true }),
-        );
+        pdf.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
         expect(zh.querySelectorAll(".sa-peer")).toHaveLength(0);
         s.destroy();
     });
@@ -1418,9 +1382,7 @@ describe("句对位动效（press/land/pdfHover 接线）", () => {
         s.jumpToPeer("c0.1", "en");
         expect(land).toHaveBeenCalledTimes(1);
         expect(land.mock.calls[0]![0]).toBeNull();
-        expect(
-            (land.mock.calls[0]![1] as Element[]).length,
-        ).toBeGreaterThan(0);
+        expect((land.mock.calls[0]![1] as Element[]).length).toBeGreaterThan(0);
         s.destroy();
     });
 });

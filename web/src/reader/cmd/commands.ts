@@ -202,8 +202,7 @@ export function registerCommands(
             title: "menu.cite.doi",
             sec: "cite",
             when: "cite.targetKind == 'bib' && cite.doi",
-            run: (c) =>
-                openUrl(c.deps, `https://doi.org/${c.hit.cite.doi}`),
+            run: (c) => openUrl(c.deps, `https://doi.org/${c.hit.cite.doi}`),
         },
         {
             id: "cite.alphaxiv",

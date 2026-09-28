@@ -853,7 +853,8 @@ def argspec_tables() -> tuple[dict[str, ArgspecEntry], dict[str, ArgspecEntry]]:
     ``ScanState.pkgs`` 门控，但 ``pkgs`` 只收**本文件**
     ``\\usepackage``/``\\documentclass``——工程按 ``\\input`` 拆开后
     体文件查不到导言区包名，包门必假阴 → 门控已退役，两侧查表
-    均不按包过滤（``pkgs`` 收集端仍在，纯观测仪表）。
+    均不按包过滤（``pkgs`` 收集端已拆，``ScanState.pkgs`` 只剩
+    ClassVar 空集保读口形态——外部测试钉死）。
     """
     raw = resources.files("texlate.latex").joinpath("data/argspec.json")
     data = json.loads(raw.read_text(encoding="utf-8"))

@@ -10,11 +10,11 @@ r"""``export.epub`` OPF ``dc:language`` 外科改写 + QName 净化回归。
 
 from __future__ import annotations
 
-import io
 import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _exportkit import _CONTAINER_XML, _XHTML_TMPL, _epub_zip
 from bs4 import BeautifulSoup
 from lxml import etree
 
@@ -23,21 +23,6 @@ from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-"""
-
-XHTML_TMPL = """<?xml version="1.0" encoding="utf-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>t</title></head>
-<body>{body}</body>
-</html>
-"""
 
 _DC_XMLNS = ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
 
@@ -60,17 +45,18 @@ def _opf(metadata: str, *, metadata_attrs: str = _DC_XMLNS) -> str:
 
 def _run_opf(tmp_path: Path, opf: str) -> bytes:
     """最小 EPUB（单章 + 给定 OPF）跑全链，返回出包 OPF 字节。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", opf)
-        z.writestr(
-            "OEBPS/ch1.xhtml",
-            XHTML_TMPL.format(body="<p>Hello translatable paragraph.</p>"),
-        )
     src = tmp_path / "book.epub"
-    src.write_bytes(buf.getvalue())
+    src.write_bytes(
+        _epub_zip(
+            {
+                "META-INF/container.xml": _CONTAINER_XML,
+                "OEBPS/content.opf": opf,
+                "OEBPS/ch1.xhtml": _XHTML_TMPL.format(
+                    body="<p>Hello translatable paragraph.</p>"
+                ),
+            }
+        )
+    )
     dst = tmp_path / "out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:

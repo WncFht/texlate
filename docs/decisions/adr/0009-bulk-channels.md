@@ -21,16 +21,18 @@
 
 - 「近期 + 保真含图 + 规模」三角只能选二：TIGER 止 2412、IA 冻 2020-10、scholarweave 有损、e-print 日 85 篇——2501+ 无损批量是规模化唯一硬约束。
 - OAI-PMH 实测单日 2715 headers/4s、全量回填约 2h——增量通道便宜先做。
-- 证据：调研档案 `research/arxiv/2026-09-19-scale-roadmap.md`、`research/arxiv/bulk-channels.md`、`research/arxiv/oai-pmh.md`；主仓 `docs/05` §5.9（S3 manifest 切块 + 引用排序 edges.jsonl → rank.txt，同 region EC2 免 egress）。
+- 证据：调研档案 `research/arxiv/2026-09-19-scale-roadmap.md`、`research/arxiv/bulk-channels.md`、`research/arxiv/oai-pmh.md`；主仓 `docs/05` §5.9（S3 manifest 切块 + 引用排序 edges.jsonl → rank.txt，同 region EC2 免 egress——原编号档已随 2026-09-20 文档库重建撤编，细案仅存 git 历史与本条目）。
 
 ## 演变
 
 - 2026-09-15：批量层定位 M4 远期（S3 + 引用排序预译语料）。
 - 2026-09-19：规模化路线升级——「广泛 paper 测试」目标下，枚举增量、era 三分渠道、pdf_only 物化层、withdrawn 对账、oracle 校准五件先行；S3 付费重议为显式决策点。daily soak 管线已启动（RSS→export→corpus_daily→stagerun，约千篇/日量级滚动）。
+- 2026-09-21：滚动增量层退役——`daily_arxiv` 管线（timer/脚本）与 `bench/corpus_daily/` 滚动语料整体下线删除。
+- 2026-09-23（Wave-F）：语料构建管线重写为 `bench/py/specs/` spec 谱系（旧 `bench/py/corpus/build_*.py` 全删，`bench run <spec>` 统一入口）；物化载荷迁仓外 `$TEXLATE_BENCH_ROOT/lake/corpus/`，仓内 `bench/corpus/` 只留 tracked manifest 与台账。
 
 ## 现状
 
-落地为 `bench/frame/frame.parquet` 抽样框 + `bench/py/corpus/` 管线（`build_corpus_{v2,v3,layers,expand,m1k}` + `build_sw_layer` + `build_hot_layer` + `daily_arxiv`）+ `bench/corpus_daily/` 滚动语料库；S3 通道未启用（决策点挂账）。逐篇通道实现见 ADR-0008。
+落地为 `bench/frame/frame.parquet` 抽样框（`bench run frame_build` 再生）+ 语料构建 spec 谱系 `bench/py/specs/corpus_{v3,layers,expand,hot,sw}.py` + `corpus_hydrate.py`（湖格水合）；滚动增量层已随 2026-09-21 下线不存在。S3 通道未启用（决策点挂账）。逐篇通道实现见 ADR-0008。
 
 ### 参考文献
 

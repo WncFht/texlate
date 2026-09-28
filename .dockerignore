@@ -1,30 +1,20 @@
-# 构建上下文只需要: src/ web/ pyproject.toml uv.lock README.md Dockerfile
+# 白名单口径：构建上下文只要 web/ src/ pyproject.toml uv.lock README.md
+# （黑名单形态漏 zotero/~170M、.agents/、web/scripts/ 等 ~350M 死重）
 
-# VCS / agent 本机层 / 工具缓存
-.git
-.claude
-.crossnote
-.github
-.ruff_cache
-Dockerfile
-.dockerignore
+*
 
-# python
-.venv
-.venv_*
-**/__pycache__
+!web/
+!src/
+!pyproject.toml
+!uv.lock
+!README.md
+
+# web 内再排除——npm ci / vite build 镜像内重建；dev/ 保留（vite.config 静态 import）
+web/node_modules/
+web/dist/
+web/tmp/
+web/scripts/
+
+# python 缓存不随上下文走
+**/__pycache__/
 **/*.pyc
-
-# node（web 由镜像内阶段重建；dev/ 保留——vite.config 静态 import 它）
-node_modules
-web/node_modules
-web/dist
-
-# 非交付面
-tmp
-bench
-tests
-docs
-scripts
-*.log
-.DS_Store

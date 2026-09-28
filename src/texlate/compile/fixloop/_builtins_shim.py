@@ -15,7 +15,6 @@ from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.arxiv.locate import safe_rel
 from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
@@ -40,7 +39,7 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
 from texlate.compile.latex209 import REVTEX209_CORE
 from texlate.latex.tables import MATH_ENVS
-from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file
+from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file, safe_rel
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -354,7 +353,7 @@ def _safe_rel(name: str) -> PurePosixPath | None:
 
     各注入/归位 builtin 统一的 payload 拒收口——非相对安全名一律 decline,
     绝不把 ``../x``/``/etc/x`` 写进 wdir。词法单源
-    ``texlate.arxiv.locate.safe_rel`` (misc 叶经本件回引)。
+    ``texlate.textutil.osutil.safe_rel`` (misc 叶经本件回引)。
     """
     return safe_rel(name)
 

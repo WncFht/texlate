@@ -13,22 +13,17 @@
 //
 // 安全约定：本文件只产纯串——alttext/annotation/选区文本绝不 innerHTML。
 
-import { t } from "../i18n";
+import { tPath } from "../i18n";
 
 // ---------------------------------------------------------------- i18n 兜底
 
 /**
  * t-path 解析 + 回退串——i18n 键在整合期才进 zh.ts/en.ts（i18n.test.ts
  * parity 守护），此间以 fb 双语句兜底；键落地后自动走 t.*。
- * 用法：clText("reader.copyLatex.copy", "复制")。
+ * 用法：clText("reader.copyLatex.copy", "复制")。walker 单源 = i18n.tPath。
  */
 export function clText(path: string, fb: string): string {
-    let cur: unknown = t;
-    for (const k of path.split(".")) {
-        if (cur == null || typeof cur !== "object") return fb;
-        cur = (cur as Record<string, unknown>)[k];
-    }
-    return typeof cur === "string" ? cur : fb;
+    return tPath(path) ?? fb;
 }
 
 // ---------------------------------------------------------------- 公式提取
@@ -46,9 +41,7 @@ export function mathTexSync(el: Element | null): MathTex | null {
     if (!el) return null;
     const alt = el.getAttribute("alttext");
     if (alt && alt.trim()) return { tex: alt, approx: false };
-    const ann = el.matches(ANN_SEL)
-        ? el
-        : el.querySelector(ANN_SEL);
+    const ann = el.matches(ANN_SEL) ? el : el.querySelector(ANN_SEL);
     const t = ann?.textContent?.trim();
     return t ? { tex: t, approx: false } : null;
 }
@@ -153,9 +146,7 @@ export function selChunks(
         const key = el.getAttribute("data-chunk") ?? "";
         hits.push({ el, key, seq: seqOf(key) });
     }
-    const nums = hits
-        .map((h) => h.seq)
-        .filter((n): n is number => n != null);
+    const nums = hits.map((h) => h.seq).filter((n): n is number => n != null);
     const seqs: number[] = [];
     if (nums.length) {
         const lo = Math.min(...nums);
@@ -226,7 +217,8 @@ const toksOf = (s: string): string[] => normSel(s).match(TOK_RX) ?? [];
  * 对齐 pdf 字形层再进 token 面。
  */
 const texStrip = (s: string): string =>
-    s.replace(/\[\[[A-Z]+_\d+\]\]/g, " ")
+    s
+        .replace(/\[\[[A-Z]+_\d+\]\]/g, " ")
         .replace(/\$[^$]*\$|\\\([^)]*\\\)|\\\[[^\]]*\\\]/g, " ")
         .replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?/g, " ")
         .replace(/[{}]/g, " ")
@@ -449,9 +441,7 @@ export function pdfSeqsForText(
  */
 export async function copyText(
     s: string,
-    doc: Document | null = typeof document !== "undefined"
-        ? document
-        : null,
+    doc: Document | null = typeof document !== "undefined" ? document : null,
 ): Promise<boolean> {
     try {
         const clip = doc?.defaultView?.navigator?.clipboard;
@@ -497,8 +487,8 @@ export function copyLatexMode(
         const s =
             storage === undefined
                 ? typeof localStorage !== "undefined"
-                  ? localStorage
-                  : null
+                    ? localStorage
+                    : null
                 : storage;
         return s?.getItem(MODE_KEY) === "whole" ? "whole" : "sent";
     } catch {
@@ -514,8 +504,8 @@ export function setCopyLatexMode(
         const s =
             storage === undefined
                 ? typeof localStorage !== "undefined"
-                  ? localStorage
-                  : null
+                    ? localStorage
+                    : null
                 : storage;
         s?.setItem(MODE_KEY, m);
     } catch {

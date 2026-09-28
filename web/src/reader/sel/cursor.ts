@@ -229,7 +229,8 @@ export function makeCursor(deps: CursorDeps): Cursor {
         r.detach();
         state.payload = {
             text: alt,
-            side: hit.marker.closest(".pane")?.getAttribute("data-side") ?? null,
+            side:
+                hit.marker.closest(".pane")?.getAttribute("data-side") ?? null,
         };
         say(`translation: ${alt.slice(0, 80)}`);
         hooks?.act?.("translate", { sid: m.sid, len: alt.length });

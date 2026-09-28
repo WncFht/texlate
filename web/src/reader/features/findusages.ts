@@ -95,10 +95,7 @@ export interface UsagesDeps {
 
 export interface UsagesCtl {
     /** 命令/外部开卡路：目标元素或目标 id；anchor 给卡锚位 */
-    openFor(
-        target: Element | string | null,
-        anchor?: Element | null,
-    ): boolean;
+    openFor(target: Element | string | null, anchor?: Element | null): boolean;
     /** 关卡；refocus=true 走 Esc 还焦通路（suppressFocusOpenFor 防复开） */
     close(refocus?: boolean): void;
     /** 宿主卡 hoverable 续命回接 */
@@ -239,7 +236,12 @@ export function attachUsages(
             if (!cardOpen && !openTimer)
                 armOpen(() => {
                     if (!entry.target.el?.isConnected) return;
-                    fire(entry, entry.target.el, anchorRect(entry.target.el), "hover");
+                    fire(
+                        entry,
+                        entry.target.el,
+                        anchorRect(entry.target.el),
+                        "hover",
+                    );
                 });
             return;
         }
@@ -305,8 +307,7 @@ export function attachUsages(
         const entry = entryOf(t);
         const host = entry?.target.el ?? null;
         if (!entry || !host || !HOVERABLE.has(entry.target.kind)) return;
-        if (!(t instanceof HTMLElement) || !t.matches(":focus-visible"))
-            return; // 指针点击引发的 focus 不出卡
+        if (!(t instanceof HTMLElement) || !t.matches(":focus-visible")) return; // 指针点击引发的 focus 不出卡
         fire(entry, host, anchorRect(host), "focus");
     };
     const onFocusOut = (e: FocusEvent) => {
@@ -372,12 +373,7 @@ export function attachUsages(
                   ? anchorRect(host)
                   : null;
             if (!rect) return false;
-            fire(
-                entry,
-                a?.isConnected ? a : (host ?? a)!,
-                rect,
-                "command",
-            );
+            fire(entry, a?.isConnected ? a : (host ?? a)!, rect, "command");
             return true;
         },
         close: doClose,

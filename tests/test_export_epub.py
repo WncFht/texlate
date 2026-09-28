@@ -7,12 +7,12 @@ r"""``export.epub`` 双语插译测试——手工最小 EPUB zip，不碰真书
 
 from __future__ import annotations
 
-import io
 import re
 import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _exportkit import _CONTAINER_XML, _XHTML_TMPL, _epub, _epub_zip, _opf, _write_epub
 from bs4 import BeautifulSoup
 from lxml import etree
 
@@ -26,30 +26,6 @@ from texlate.xlat.state import ChunkRecord, StateStore
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-"""
-
-NCX_XML = """<?xml version="1.0"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <navMap>
-    <navPoint id="np1"><navLabel><text>Chapter One</text></navLabel>
-      <content src="ch1.xhtml"/></navPoint>
-  </navMap>
-</ncx>
-"""
-
-XHTML_TMPL = """<?xml version="1.0" encoding="utf-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>t</title></head>
-<body>{body}</body>
-</html>
-"""
 
 FONT_OBFUSCATED_ENCRYPTION = """<?xml version="1.0"?>
 <encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"
@@ -67,85 +43,11 @@ AES_ENCRYPTION = FONT_OBFUSCATED_ENCRYPTION.replace(
 )
 
 
-def _opf(chapters: list[str], *, ncx: bool = True, fixed: bool = False) -> str:
-    items = "\n".join(
-        f'    <item id="c{i}" href="{name}" media-type="application/xhtml+xml"/>'
-        for i, name in enumerate(chapters)
-    )
-    refs = "\n".join(f'    <itemref idref="c{i}"/>' for i in range(len(chapters)))
-    ncx_item = (
-        '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n'
-        if ncx
-        else ""
-    )
-    layout = (
-        '    <meta property="rendition:layout">pre-paginated</meta>\n' if fixed else ""
-    )
-    return f"""<?xml version="1.0"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bid">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="bid">test-book</dc:identifier>
-    <dc:title>Test</dc:title>
-    <dc:language>en</dc:language>
-{layout}  </metadata>
-  <manifest>
-{items}
-{ncx_item}  </manifest>
-  <spine>
-{refs}
-  </spine>
-</package>
-"""
-
-
-def _epub_zip(members: dict[str, bytes | str], *, mimetype: bool = True) -> bytes:
-    """最小 EPUB zip 构造：``mimetype`` 恒首件且 ZIP_STORED（规范要求）。
-
-    其余成员按 dict 序写入；``mimetype=False`` 造缺首件的畸形包。
-    """
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        if mimetype:
-            z.writestr(
-                "mimetype",
-                "application/epub+zip",
-                compress_type=zipfile.ZIP_STORED,
-            )
-        for name, blob in members.items():
-            z.writestr(name, blob)
-    return buf.getvalue()
-
-
-def _epub(
-    chapters: dict[str, str],
-    *,
-    ncx: bool = True,
-    extra: dict[str, bytes | str] | None = None,
-    fixed: bool = False,
-) -> bytes:
-    members: dict[str, bytes | str] = {
-        "META-INF/container.xml": CONTAINER_XML,
-        "OEBPS/content.opf": _opf(list(chapters), ncx=ncx, fixed=fixed),
-    }
-    for name, body in chapters.items():
-        members[f"OEBPS/{name}"] = XHTML_TMPL.format(body=body)
-    if ncx:
-        members["OEBPS/toc.ncx"] = NCX_XML
-    members.update(extra or {})
-    return _epub_zip(members)
-
-
-def _write_epub(tmp_path: Path, blob: bytes, name: str = "book.epub") -> Path:
-    src = tmp_path / name
-    src.write_bytes(blob)
-    return src
-
-
 def _epub_raw(xhtml: str) -> bytes:
     """整篇 xhtml 原文进包——绕过 ``_epub`` 的 ``<body>`` 模板，畸形文档专用。"""
     return _epub_zip(
         {
-            "META-INF/container.xml": CONTAINER_XML,
+            "META-INF/container.xml": _CONTAINER_XML,
             "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
             "OEBPS/ch1.xhtml": xhtml,
         }
@@ -216,9 +118,9 @@ def test_dc_language_with_attributes(tmp_path: Path) -> None:
         tmp_path,
         _epub_zip(
             {
-                "META-INF/container.xml": CONTAINER_XML,
+                "META-INF/container.xml": _CONTAINER_XML,
                 "OEBPS/content.opf": opf,
-                "OEBPS/ch1.xhtml": XHTML_TMPL.format(body="<p>Textus unus.</p>"),
+                "OEBPS/ch1.xhtml": _XHTML_TMPL.format(body="<p>Textus unus.</p>"),
             }
         ),
     )
@@ -519,9 +421,9 @@ def test_percent_encoded_href_resolves(tmp_path: Path) -> None:
         tmp_path,
         _epub_zip(
             {
-                "META-INF/container.xml": CONTAINER_XML,
+                "META-INF/container.xml": _CONTAINER_XML,
                 "OEBPS/content.opf": _opf_href("ch%201.xhtml"),
-                "OEBPS/ch 1.xhtml": XHTML_TMPL.format(body="<p>Spaced name doc.</p>"),
+                "OEBPS/ch 1.xhtml": _XHTML_TMPL.format(body="<p>Spaced name doc.</p>"),
             }
         ),
     )
@@ -593,14 +495,14 @@ def test_non_utf8_decl_restamped(tmp_path: Path) -> None:
     回归：bs4 只改写 ``<meta charset>``，``<?xml encoding?>`` PI 原样透传——
     声明说谎让严格 XML 阅读器按 latin-1 解 utf-8 字节（mojibake/拒绝）。
     """
-    latin = XHTML_TMPL.format(body="<p>Caf\xe9 latin text here.</p>").replace(
+    latin = _XHTML_TMPL.format(body="<p>Caf\xe9 latin text here.</p>").replace(
         'encoding="utf-8"', 'encoding="ISO-8859-1"'
     )
     src = _write_epub(
         tmp_path,
         _epub_zip(
             {
-                "META-INF/container.xml": CONTAINER_XML,
+                "META-INF/container.xml": _CONTAINER_XML,
                 "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
                 "OEBPS/ch1.xhtml": latin.encode("latin-1"),
             }
@@ -621,9 +523,9 @@ def test_missing_mimetype_gets_canonical(tmp_path: Path) -> None:
         tmp_path,
         _epub_zip(
             {
-                "META-INF/container.xml": CONTAINER_XML,
+                "META-INF/container.xml": _CONTAINER_XML,
                 "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
-                "OEBPS/ch1.xhtml": XHTML_TMPL.format(body="<p>No mimetype.</p>"),
+                "OEBPS/ch1.xhtml": _XHTML_TMPL.format(body="<p>No mimetype.</p>"),
             },
             mimetype=False,
         ),
@@ -648,15 +550,15 @@ def test_nav_stray_text_no_dup_landmark(tmp_path: Path) -> None:
         tmp_path,
         _epub_zip(
             {
-                "META-INF/container.xml": CONTAINER_XML,
+                "META-INF/container.xml": _CONTAINER_XML,
                 "OEBPS/content.opf": _opf(["c1.xhtml"], ncx=False).replace(
                     "</manifest>",
                     '    <item id="nav" href="nav.xhtml"'
                     ' media-type="application/xhtml+xml" properties="nav"/>\n'
                     "  </manifest>",
                 ),
-                "OEBPS/nav.xhtml": XHTML_TMPL.format(body=nav_body),
-                "OEBPS/c1.xhtml": XHTML_TMPL.format(
+                "OEBPS/nav.xhtml": _XHTML_TMPL.format(body=nav_body),
+                "OEBPS/c1.xhtml": _XHTML_TMPL.format(
                     body="<p>Chapter content paragraph.</p>"
                 ),
             }

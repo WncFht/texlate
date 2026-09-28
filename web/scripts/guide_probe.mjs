@@ -1,21 +1,9 @@
-import { readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
-const root = join(homedir(), ".cache/ms-playwright");
-const exe = join(
-    root,
-    readdirSync(root)
-        .filter((x) => x.startsWith("chromium-"))
-        .sort()
-        .reverse()[0],
-    "chrome-linux64/chrome",
+import { openPage, SHOTS } from "./lib/pwkit.mjs";
+
+const { browser, page } = await openPage(
+    `http://127.0.0.1:8765/#/reader/t_a096368649765da9`,
+    { viewport: { width: 1200, height: 1500 } },
 );
-const browser = await chromium.launch({ executablePath: exe });
-const page = await browser.newPage({ viewport: { width: 1200, height: 1500 } });
-await page.goto(`http://127.0.0.1:8765/#/reader/t_a096368649765da9`, {
-    waitUntil: "domcontentloaded",
-});
 await page.waitForTimeout(3000);
 await page.evaluate(() => {
     const els = [...document.querySelectorAll("button,select,[role=button]")];
@@ -41,5 +29,5 @@ const r = await page.evaluate(() => {
     };
 });
 console.log(JSON.stringify(r, null, 1));
-await page.screenshot({ path: "guide2.png", fullPage: true });
+await page.screenshot({ path: `${SHOTS}guide2.png`, fullPage: true });
 await browser.close();

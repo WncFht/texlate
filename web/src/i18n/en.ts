@@ -98,10 +98,12 @@ export const t = {
         purgeBusy: "Deleting…",
         purgeDone: "Deleted {n} items",
         slimBusy: "Cleaning…",
-        slimTip: "Remove intermediate files of finished tasks — PDFs and artifacts are kept",
+        slimTip:
+            "Remove intermediate files of finished tasks — PDFs and artifacts are kept",
         slimFreed: "Freed {size}",
         slimNone: "Nothing to clean",
-        purgeTip: "Permanently delete finished tasks and their artifacts (PDFs unrecoverable)",
+        purgeTip:
+            "Permanently delete finished tasks and their artifacts (PDFs unrecoverable)",
         cancelTask: "Cancel task",
         cancelTip: "Cancel this task — progress so far is kept; retry later",
         retryTip: "Retry this task",
@@ -229,7 +231,8 @@ export const t = {
         helpFind: "Find in document",
         helpNavBack: "Jump back to before the citation jump",
         helpNavHist: "Citation-jump history back / forward",
-        helpInspect: "Inspect citation target / element usages (hold modifier to reveal)",
+        helpInspect:
+            "Inspect citation target / element usages (hold modifier to reveal)",
         helpHelp: "Open / close this help",
         retrying: "Retrying…",
         tryHtml: "Retry via the arXiv HTML channel",
@@ -493,7 +496,8 @@ export const t = {
         hint: "Translated papers are skipped; tasks run in background",
         cta: "Translate {n}",
         ctaAllDone: "All translated",
-        warnBig: "Submitting {n} at once occupies the queue ~{lo}–{hi} — consider a smaller batch",
+        warnBig:
+            "Submitting {n} at once occupies the queue ~{lo}–{hi} — consider a smaller batch",
         toastQueued: "Queued",
         toastDone: "Already translated",
         toastView: "View",

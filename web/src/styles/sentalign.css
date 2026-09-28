@@ -15,8 +15,7 @@
 .sa-peer {
     background: color-mix(in srgb, var(--ochre) 16%, transparent);
     border-radius: 3px;
-    box-shadow: 0 0 0 1px
-        color-mix(in srgb, var(--ochre) 22%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ochre) 22%, transparent);
 }
 
 /* 点击落点闪示——cite-flash 同款节奏（28% 峰值→透明 1.4s） */
@@ -45,8 +44,7 @@
 
 [data-theme="dark"] .sa-peer {
     background: color-mix(in srgb, var(--ochre) 24%, transparent);
-    box-shadow: 0 0 0 1px
-        color-mix(in srgb, var(--ochre) 32%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ochre) 32%, transparent);
 }
 
 /* ---------- sa-anim 动效层（anim.ts——全 fixed/transform，零重排） ---------- */

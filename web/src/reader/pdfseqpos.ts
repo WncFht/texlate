@@ -12,7 +12,7 @@
 //   containingSeq 点击位 Pos → 含点 seq——PDF 点击点不在 TLXC span
 //                 上时的兜底锚定（en.pdf 无标记恒走这里）
 
-import type { AlignmentPair, Pos } from "./alignment";
+import { colOf, pageHasCol, type AlignmentPair, type Pos } from "./alignment";
 
 /** GET /reader ``seqpos`` 顶层字段形状（与 api/types ReaderInfo.seqpos 同构） */
 export type SeqPosMap = Record<string, { o?: Pos; t?: Pos }>;
@@ -20,9 +20,6 @@ export type SeqPosMap = Record<string, { o?: Pos; t?: Pos }>;
 type SaSide = "en" | "zh";
 
 const sideKey = (side: SaSide): "o" | "t" => (side === "en" ? "o" : "t");
-
-/** 栏判定：x>=0.45 → 右栏；x 缺席（旧数据）→ 0（左栏/单栏同义） */
-const colOf = (p: Pos): number => (p.x != null && p.x >= 0.45 ? 1 : 0);
 
 /** 页线性位（page+fraction，seqpos.py 同款）——距离闸/插值口径 */
 const linOf = (p: Pos): number => p.page + p.fraction;
@@ -43,11 +40,7 @@ export const ROW_DOWN = 0.017;
 export const ROW_EPSX = 0.025;
 
 /** seq + 侧 → Pos；无该 seq/该侧缺位 → null */
-export function seqPos(
-    map: SeqPosMap,
-    seq: number,
-    side: SaSide,
-): Pos | null {
+export function seqPos(map: SeqPosMap, seq: number, side: SaSide): Pos | null {
     return map[String(seq)]?.[sideKey(side)] ?? null;
 }
 
@@ -111,12 +104,14 @@ export function containingSeq(
             if (d < -ROW_UP || d > ROW_DOWN) continue;
             if (pos.x < p.x - ROW_EPSX || pos.x > p.x1 + ROW_EPSX) continue;
             const key: [number, number, number] =
-                p.x <= pos.x
-                    ? [0, -p.x, Math.abs(d)]
-                    : [1, p.x, Math.abs(d)];
-            if (!rowKey || key[0] < rowKey[0]
-                || (key[0] === rowKey[0] && (key[1] < rowKey[1]
-                    || (key[1] === rowKey[1] && key[2] < rowKey[2])))) {
+                p.x <= pos.x ? [0, -p.x, Math.abs(d)] : [1, p.x, Math.abs(d)];
+            if (
+                !rowKey ||
+                key[0] < rowKey[0] ||
+                (key[0] === rowKey[0] &&
+                    (key[1] < rowKey[1] ||
+                        (key[1] === rowKey[1] && key[2] < rowKey[2])))
+            ) {
                 rowKey = key;
                 rowSeq = l.seq;
             }
@@ -125,8 +120,7 @@ export function containingSeq(
         // 本页无右栏地标（单栏页/右栏无锚/旧数据全 col0）→ 栏位降级，
         // 防右半点击被 col1 floor 吸到页底锚（对抗复核 N1 实证）
         const eff =
-            pos.x >= 0.45 &&
-            !lands.some((l) => l.pos.page === pos.page && colOf(l.pos) === 1)
+            colOf(pos) === 1 && !pageHasCol(lands, pos.page)
                 ? { ...pos, x: 0 }
                 : pos;
         // 全键 floor——栏序参与比较
@@ -154,8 +148,7 @@ export function containingSeq(
             for (let i = g0; i <= best; i++) {
                 const px = lands[i]!.pos.x;
                 if (px == null) continue;
-                const k: [number, number] =
-                    px <= pos.x ? [0, -px] : [1, px];
+                const k: [number, number] = px <= pos.x ? [0, -px] : [1, px];
                 if (!pk || k[0] < pk[0] || (k[0] === pk[0] && k[1] < pk[1])) {
                     pk = k;
                     best = i;

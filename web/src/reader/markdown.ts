@@ -238,8 +238,7 @@ export function unmaskLatex(
             p.closest("code,pre,.ph-tok,.katex,[data-ph],.cite-ref,.bib-anchor")
         )
             continue;
-        if (PH_PROBE.test(t.data) || RESIDUE_PROBE.test(t.data))
-            nodes.push(t);
+        if (PH_PROBE.test(t.data) || RESIDUE_PROBE.test(t.data)) nodes.push(t);
     }
     for (const node of nodes) {
         const text = node.data;
@@ -292,8 +291,9 @@ export function unmaskLatex(
                     // 的 data-bib-key 索引键与 usages.ts BIBITEM_KEY_RX 同口径）
                     const sp = document.createElement("span");
                     sp.className = "bib-anchor";
-                    const km =
-                        /\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/.exec(body);
+                    const km = /\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/.exec(
+                        body,
+                    );
                     if (km) sp.dataset.bibKey = km[1];
                     sp.textContent = rep;
                     frag.appendChild(sp);

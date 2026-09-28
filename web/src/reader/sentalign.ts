@@ -29,7 +29,7 @@
 // 不是句（句数不等 7.53% chunk 天然降级组高亮，绝不伪装 1:1）。
 // 契约：sid/bead → 元素集合——任何消费方一律 querySelectorAll，禁单元素假设。
 
-import type { Pos } from "./alignment";
+import { colOf, colShare, pageHasCol, type Pos } from "./alignment";
 import { MARKED_SEL } from "./pdfmarks";
 import { ROW_DOWN, ROW_EPSX, ROW_UP } from "./pdfseqpos";
 import { forEachSliced } from "./sync";
@@ -61,11 +61,10 @@ export interface SentInfo {
 const other = (s: SaSide): SaSide => (s === "en" ? "zh" : "en");
 const clamp = (v: number, lo: number, hi: number) =>
     Math.min(Math.max(v, lo), hi);
-const colOf = (p: Pos): number => (p.x != null && p.x >= 0.45 ? 1 : 0);
-/** 阅读序位 page+(col+frac)/2——与 alignment.ts share 同构；跨栏
+/** 阅读序位 page+colShare——alignment.ts share 同式；跨栏
     续块 S=(p,c0,.5)→S'=(p,c1,.1) 下 lin 差仍为正（page+frac 线性位
     在该情形下为负、u 恒夹 0/1——对抗复核 N2 实证） */
-const roLin = (p: Pos): number => p.page + (colOf(p) + p.fraction) / 2;
+const roLin = (p: Pos): number => p.page + colShare(p);
 
 // ================================================================== 切句
 
@@ -135,7 +134,10 @@ export function splitZh(text: string): SentSpan[] {
     for (const c of [...cuts].sort((a, b) => a - b)) {
         // 吸收界后空白/换行入前句
         let e = c;
-        while (e < n && (text[e] === " " || text[e] === "\t" || text[e] === "\n"))
+        while (
+            e < n &&
+            (text[e] === " " || text[e] === "\t" || text[e] === "\n")
+        )
             e++;
         if (text.slice(prev, c).trim()) spans.push([prev, e]);
         prev = e;
@@ -200,7 +202,9 @@ export function splitEn(text: string): SentSpan[] {
         }
         if (out.length) {
             const prev = out[out.length - 1]!;
-            const pseg = flat.slice(prev[0], prev[1]).replace(EN_CLOSERS_RX, "");
+            const pseg = flat
+                .slice(prev[0], prev[1])
+                .replace(EN_CLOSERS_RX, "");
             const nxt = flat.slice(s, e).trimStart();
             if (enFragTail(pseg, nxt)) {
                 out[out.length - 1] = [prev[0], e];
@@ -393,9 +397,7 @@ function textNodesOf(block: Element): Text[] {
 
 /** 摘除块内全部 sid span（重注入前的归位——文本并回裸节点） */
 export function stripSentSpans(block: Element): void {
-    for (const sp of [
-        ...block.querySelectorAll<HTMLElement>("[data-sid]"),
-    ]) {
+    for (const sp of [...block.querySelectorAll<HTMLElement>("[data-sid]")]) {
         const parent = sp.parentNode!;
         while (sp.firstChild) parent.insertBefore(sp.firstChild, sp);
         parent.removeChild(sp);
@@ -444,9 +446,7 @@ export function injectSentSpans(
             const bare =
                 parent != null &&
                 parent.nodeType === 1 &&
-                RESTRICTED_SPAN_PARENTS.has(
-                    (parent as Element).localName,
-                );
+                RESTRICTED_SPAN_PARENTS.has((parent as Element).localName);
             const list = pieceMap.get(r.node) ?? [];
             list.push({ start: a - r.start, end: b - r.start, k, bare });
             pieceMap.set(r.node, list);
@@ -551,7 +551,11 @@ export interface SentAlignDeps {
     chunkLen?(seq: number, side: SaSide): number;
     /** seq 锚闪示（PdfPane.flashSeq 桥——markedContent 整组闪；
         缺省调用方落回 pdfFlash 行带）。返实际打闪元素集（anim.land 用） */
-    pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): Element[] | undefined;
+    pdfFlashSeq?(
+        dst: SaSide,
+        seq: number,
+        pos: Pos | null,
+    ): Element[] | undefined;
     /** dst pdf 侧 seq 的 marked 字形叶（PdfPane.seqLeaves 桥）——句级
         落点/闪示的原料；已渲染页才查得到，缺席退插值/直锚+整段闪 */
     pdfSeqLeaves?(dst: SaSide, seq: number): HTMLElement[] | undefined;
@@ -736,8 +740,7 @@ export class SentAlignSession {
             // 句级 hot：指针下叶所在句叶集（pdfSentUnder）→ 逐叶 sa-hot；
             // 缺料（非叶上/切空/dep 缺）退整锚/行带旧路。dedup 防 60ms
             // 节流重标同句闪帧
-            const sentEls =
-                t != null ? this.pdfSentUnder(side, seq, t) : null;
+            const sentEls = t != null ? this.pdfSentUnder(side, seq, t) : null;
             if (sentEls?.length && this.deps.pdfTintEls) {
                 if (!sameEls(sentEls, lastHotEls, "sa-hot")) {
                     this.deps.pdfTintEls(side, sentEls, "sa-hot");
@@ -770,7 +773,11 @@ export class SentAlignSession {
             }
             // 尾沿：节流窗内的移动存末笔，窗满补评——指针停在句上时
             // 悬停色不许留在旧 seq 上
-            pend = { x: e.clientX, y: e.clientY, t: e.target as Element | null };
+            pend = {
+                x: e.clientX,
+                y: e.clientY,
+                t: e.target as Element | null,
+            };
             if (!pendT)
                 pendT = window.setTimeout(() => {
                     pendT = 0;
@@ -789,7 +796,10 @@ export class SentAlignSession {
         el.addEventListener("pointerleave", onLeave);
         // 静止指针下窗格滚动——句料位移悬停即失效（scroll 不冒泡，
         // capture 抓内层 pdfSlickContainer）
-        el.addEventListener("scroll", onLeave, { capture: true, passive: true });
+        el.addEventListener("scroll", onLeave, {
+            capture: true,
+            passive: true,
+        });
         this.pdfHoverDetach.set(side, () => {
             el.removeEventListener("pointermove", onMove);
             el.removeEventListener("pointerleave", onLeave);
@@ -818,8 +828,7 @@ export class SentAlignSession {
             return;
         }
         const u =
-            this.fracInBlock(side, seq, pos ? () => pos : undefined)?.u ??
-            null;
+            this.fracInBlock(side, seq, pos ? () => pos : undefined)?.u ?? null;
         if (this.pdfTargets.has(dst)) {
             const sent = u != null ? this.pdfSentAt(dst, seq, u) : null;
             if (sent?.els.length && this.deps.pdfTintEls) {
@@ -859,7 +868,7 @@ export class SentAlignSession {
             );
             const sent = cs?.sents.length
                 ? (cs.sents.find((s) => s.end > u * cs.concatLen) ??
-                    cs.sents[cs.sents.length - 1])
+                  cs.sents[cs.sents.length - 1])
                 : null;
             if (sent) {
                 const spans = chunks.flatMap((e) => [
@@ -899,7 +908,8 @@ export class SentAlignSession {
         // 对侧 bead 标引清不掉源侧概念——本侧没了对位即失效，剥对侧 bead 标
         const os = this.sides.get(other(side));
         if (os)
-            for (const cs of os.chunks.values()) this.writeBeads(other(side), cs, null);
+            for (const cs of os.chunks.values())
+                this.writeBeads(other(side), cs, null);
     }
 
     destroy(): void {
@@ -924,8 +934,8 @@ export class SentAlignSession {
         const hotSid = hotSp?.getAttribute("data-sid") ?? null;
         const hotSide = hotSp
             ? st.body.contains(hotSp)
-              ? side
-              : other(side)
+                ? side
+                : other(side)
             : null;
         const hoverHit =
             (hotSp != null && el.contains(hotSp)) ||
@@ -1007,7 +1017,11 @@ export class SentAlignSession {
 
     /** data-bead 写回：beads[i] 覆盖句 [s0,s1) 全部同 sid span 打 "{key}.{i}"；
         null = 剥光 */
-    private writeBeads(side: SaSide, cs: ChunkState, beads: Bead[] | null): void {
+    private writeBeads(
+        side: SaSide,
+        cs: ChunkState,
+        beads: Bead[] | null,
+    ): void {
         const spans = [...cs.el.querySelectorAll("[data-sid]")];
         for (const sp of spans) sp.removeAttribute("data-bead");
         if (!beads) return;
@@ -1018,7 +1032,9 @@ export class SentAlignSession {
             for (let k = k0; k < k1; k++) {
                 const sid = cs.sents[k]?.sid;
                 if (!sid) continue;
-                for (const sp of cs.el.querySelectorAll(attrSel("data-sid", sid)))
+                for (const sp of cs.el.querySelectorAll(
+                    attrSel("data-sid", sid),
+                ))
                     sp.setAttribute("data-bead", `${keyOf(cs)}.${b}`);
             }
         }
@@ -1083,9 +1099,7 @@ export class SentAlignSession {
         const bead = sp.getAttribute("data-bead");
         this.lastKey = `${side}|${sid}|${bead ?? ""}`;
         const block = sp.closest("[data-chunk]") ?? st.body;
-        this.hotEls = [
-            ...block.querySelectorAll(attrSel("data-sid", sid)),
-        ];
+        this.hotEls = [...block.querySelectorAll(attrSel("data-sid", sid))];
         for (const el of this.hotEls) el.classList.add("sa-hot");
         if (bead) {
             const os = this.sides.get(other(side));
@@ -1093,8 +1107,7 @@ export class SentAlignSession {
                 this.peerEls = [
                     ...os.body.querySelectorAll(attrSel("data-bead", bead)),
                 ];
-                for (const el of this.peerEls)
-                    el.classList.add("sa-peer");
+                for (const el of this.peerEls) el.classList.add("sa-peer");
             }
         }
         if (
@@ -1273,11 +1286,7 @@ export class SentAlignSession {
                         if (!els?.length) {
                             els = this.deps.pdfFlash?.(dst, r.post);
                             if (!els?.length && seq != null)
-                                els = this.deps.pdfFlashSeq?.(
-                                    dst,
-                                    seq,
-                                    r.post,
-                                );
+                                els = this.deps.pdfFlashSeq?.(dst, seq, r.post);
                             // 落点页懒渲（resolve 在 scroll 写位后、
                             // textLayer 未起，冷页实测 ~500ms）——
                             // 双拍重试；命中即封代际灭在途同伴；
@@ -1289,10 +1298,7 @@ export class SentAlignSession {
                                         const late = trySent();
                                         if (late?.length) {
                                             this.flashGen++;
-                                            this.animLand(
-                                                from ?? null,
-                                                late,
-                                            );
+                                            this.animLand(from ?? null, late);
                                         }
                                     }, ms);
                         }
@@ -1372,8 +1378,7 @@ export class SentAlignSession {
             sents.find(([, e]) => e > target) ?? sents[sents.length - 1]!;
         const els = leaves.filter(
             (el, i) =>
-                offs[i]! < s1 &&
-                s0 < offs[i]! + (el.textContent ?? "").length,
+                offs[i]! < s1 && s0 < offs[i]! + (el.textContent ?? "").length,
         );
         if (!els.length) return null;
         // 句首叶 → 落点 Pos（posAtPoint 同口径：页号+页内 top-down
@@ -1387,8 +1392,7 @@ export class SentAlignSession {
             page,
             fraction: clamp((r.top - pr.top) / pr.height, 0, 1),
         };
-        if (pr.width > 0)
-            pos.x = clamp((r.left - pr.left) / pr.width, 0, 1);
+        if (pr.width > 0) pos.x = clamp((r.left - pr.left) / pr.width, 0, 1);
         return { pos, els };
     }
 
@@ -1437,9 +1441,7 @@ export class SentAlignSession {
     ): void {
         const st = this.sides.get(dst);
         if (!st?.body) return;
-        const els = [
-            ...st.body.querySelectorAll(attrSel("data-bead", bead)),
-        ];
+        const els = [...st.body.querySelectorAll(attrSel("data-bead", bead))];
         if (!els.length) return;
         const pre = st.capture?.() ?? null;
         const first = els[0] as HTMLElement;
@@ -1470,9 +1472,7 @@ export class SentAlignSession {
         const u = fb?.u ?? null;
         const st = this.sides.get(dst);
         if (st?.body && this.deps.seqOfChunk) {
-            const els = [
-                ...st.body.querySelectorAll("[data-chunk]"),
-            ].filter(
+            const els = [...st.body.querySelectorAll("[data-chunk]")].filter(
                 (el) =>
                     this.deps.seqOfChunk!(
                         el.getAttribute("data-chunk") ?? "",
@@ -1490,9 +1490,8 @@ export class SentAlignSession {
                         first.getAttribute("data-chunk") ?? "",
                     );
                     const sent = cs?.sents.length
-                        ? (cs.sents.find(
-                              (s) => s.end > u * cs.concatLen,
-                          ) ?? cs.sents[cs.sents.length - 1]!)
+                        ? (cs.sents.find((s) => s.end > u * cs.concatLen) ??
+                          cs.sents[cs.sents.length - 1]!)
                         : null;
                     const spans = sent
                         ? [
@@ -1566,11 +1565,7 @@ export class SentAlignSession {
             p0.x <= sp.x1 + ROW_EPSX;
         const p = onRow
             ? { ...p0, x: sp.x }
-            : p0.x != null &&
-                p0.x >= 0.45 &&
-                !lands.some(
-                    (l) => l.pos.page === p0.page && colOf(l.pos) === 1,
-                )
+            : colOf(p0) === 1 && !pageHasCol(lands, p0.page)
               ? { ...p0, x: 0 }
               : p0;
         const a = roLin(lands[i]!.pos);
@@ -1642,11 +1637,8 @@ export class SentAlignSession {
     ): void {
         const dst = other(src);
         if (!this.pdfTargets.has(dst) && !this.deps.pdfJump) return;
-        const key = sp
-            .closest("[data-chunk]")
-            ?.getAttribute("data-chunk");
-        const seq =
-            key != null ? (this.deps.seqOfChunk?.(key) ?? null) : null;
+        const key = sp.closest("[data-chunk]")?.getAttribute("data-chunk");
+        const seq = key != null ? (this.deps.seqOfChunk?.(key) ?? null) : null;
         // 句内分位充块内插值的 u——seq 锚是块首，u 把落点推进块内
         // （seqLands dep 缺席时 interpDst 直接 null，等价旧版直锚）；
         // dst 叶在场时 pdfSentAt 直接给句级 Pos+闪集

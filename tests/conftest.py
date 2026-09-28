@@ -83,39 +83,6 @@ KEY = "dalianis2020"
 #: ctan/tlpdb 测试统一镜像字面量。
 MIRROR = "https://m.test/tlnet"
 
-#: bench/corpus 数据层根（gitignored 重产物）——corpus 用例一律走 skipif 守卫。
-CORPUS_DIR = Path(__file__).resolve().parent.parent / "bench" / "corpus"
-
-_HAS_CORPUS_V1 = any(CORPUS_DIR.rglob("*.tex"))
-_HAS_CORPUS_V2 = any(CORPUS_DIR.rglob("meta.json"))
-
-#: v1 数据层（扁平 *.tex 收编面）守卫。
-needs_corpus_v1 = pytest.mark.skipif(
-    not _HAS_CORPUS_V1,
-    reason="bench/corpus 数据层不在场（gitignored 重产物）",
-)
-#: ``needs_corpus`` 即 v1 口径——e2e_mock 系用例的既有名。
-needs_corpus = needs_corpus_v1
-#: v2 数据层（meta.json 层）守卫。
-needs_corpus_v2 = pytest.mark.skipif(
-    not _HAS_CORPUS_V2,
-    reason="bench/corpus 数据层不在场（gitignored 重产物）",
-)
-
-
-def corpus_raw_blobs() -> list[Path]:
-    """manifest_v2.jsonl → 各 id ``raw.*`` blob 列（manifest 缺席即空表）。"""
-    import json  # noqa: PLC0415
-
-    manifest = CORPUS_DIR / "manifest_v2.jsonl"
-    if not manifest.is_file():
-        return []
-    return sorted(
-        b
-        for line in manifest.read_text().splitlines()
-        for b in (CORPUS_DIR / json.loads(line)["id"]).glob("raw.*")
-    )
-
 
 @pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
@@ -635,27 +602,6 @@ def mk_fetcher(
     )
 
 
-class EchoTranslator:
-    """原样回显（剥掉批行 ``[n]`` 前缀）——译文 == 原文走 unchanged 分支。"""
-
-    async def translate(self, **_kw: object) -> str:
-        """``user`` 逐行剥 ``[n]`` 批前缀回显。"""
-        user = str(_kw["user"])
-        return "\n".join(re.sub(r"^\[\d+\]\s?", "", ln) for ln in user.split("\n"))
-
-
-class CtrlTranslator:
-    """译文带 XML 非法控制字符——docx ``insert_after``/epub 插入侧必须先剥除。
-
-    回归锚点（docx 侧）：``w:t.text = "\\x0b..."`` lxml 直接 ``ValueError``，
-    一条脏译文炸掉整次导出（``_apply`` 无逐条护栏）。
-    """
-
-    async def translate(self, **_kw: object) -> str:
-        """恒吐 ``\\x0b``/``\\x01``/``\\x00`` 混合脏译文。"""
-        return "译\x0b文\x01控\x00制"
-
-
 def make_app(tmp_path: Path, **overrides: object) -> FastAPI:
     """create_app 包装：data_dir 落 tmp_path，默认 start_worker=False。"""
     from texlate.server.app import create_app  # noqa: PLC0415 -- server extra 延迟
@@ -855,15 +801,6 @@ def ph_bodies(res: ScanResult, kind: str = "CMD") -> list[str]:
     ]
 
 
-def ph_items(res: ScanResult, kind: str) -> dict[str, str]:
-    """``[[KIND_n]]`` 键→体字典——需要键的断言面（pairblock/semantics 形）。"""
-    return {
-        ph: body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(rf"\[\[{kind}_\d+\]\]", ph)
-    }
-
-
 def cmd_bodies(res: ScanResult) -> list[str]:
     """全部 ``[[CMD_n]]`` ph 体（覆盖区间原文）。"""
     return ph_bodies(res, "CMD")
@@ -957,11 +894,6 @@ def _issues(rep: L0Report, rule: str) -> list:
     return [i for i in rep.issues if i.rule == rule]
 
 
-def l0_issues(rep: L0Report, rule: str) -> list:
-    """``rep.issues`` 按 ``rule`` 过滤（``_issues`` 的公开名同体）。"""
-    return _issues(rep, rule)
-
-
 def l0_sev(rep: L0Report, rule: str) -> list:
     """``rep.issues`` 按 ``rule`` 过滤取 severity 列。"""
     return [i.severity for i in rep.issues if i.rule == rule]
@@ -1004,11 +936,6 @@ def mk_chunk_row(seq: int, **over: object) -> dict:
         "src_text": f"t{seq}",
     }
     return row | over
-
-
-def mk_chunk_rows(n: int, **over: object) -> list[dict]:
-    """seq 0..n-1 的 ``mk_chunk_row`` 批（``**over`` 逐行透传覆盖）。"""
-    return [mk_chunk_row(seq, **over) for seq in range(n)]
 
 
 def chunk_row(
@@ -1150,17 +1077,3 @@ def make_project(root: Path, main: str = MINI_TEX) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     (root / "main.tex").write_text(main, encoding="utf-8")
     return root
-
-
-def make_docx(path: Path, paras: Iterable[str | tuple[str, str | None]]) -> Path:
-    """最小 docx 构造器——str 段落或 ``(text, style)`` 对（styled 变体）。"""
-    from docx import Document  # noqa: PLC0415 -- docx extra 延迟
-
-    doc = Document()
-    for p in paras:
-        if isinstance(p, tuple):
-            doc.add_paragraph(p[0], style=p[1])
-        else:
-            doc.add_paragraph(p)
-    doc.save(str(path))
-    return path

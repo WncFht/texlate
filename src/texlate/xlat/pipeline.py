@@ -54,6 +54,7 @@ from .intercept import (
     # 包装函钉点面——``_net_apply_fn`` 经 ``globals()`` 晚绑定取件，
     # tests ``monkeypatch.setattr(pl, "_intercept_*")`` 缝在本模块命名空间
     _intercept_bare_cs,  # noqa: F401
+    _intercept_dangerous_cs,  # noqa: F401
     _intercept_leftover_ph,  # noqa: F401
     _intercept_ph_in_cs,  # noqa: F401
     _intercept_residual_en,  # noqa: F401

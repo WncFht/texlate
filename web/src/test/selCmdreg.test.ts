@@ -93,7 +93,9 @@ describe("when cache + whenKeys", () => {
     });
     it("whenKeys extracts all referenced keys", () => {
         expect(
-            whenKeys("cite.targetKind == 'bib' && (cite.entryText || cite.cardFillable)").sort(),
+            whenKeys(
+                "cite.targetKind == 'bib' && (cite.entryText || cite.cardFillable)",
+            ).sort(),
         ).toEqual(["cite.cardFillable", "cite.entryText", "cite.targetKind"]);
         expect(whenKeys("!a && !(b || c)")).toEqual(["a", "b", "c"]);
         expect(whenKeys("view == 'dom'")).toEqual(["view"]);
@@ -102,10 +104,12 @@ describe("when cache + whenKeys", () => {
 
 // ============================================================ Registry 语义
 
-const mk = (
-    id: string,
-    over: Partial<Command> = {},
-): Command => ({ id, title: `menu.${id}`, run: () => {}, ...over });
+const mk = (id: string, over: Partial<Command> = {}): Command => ({
+    id,
+    title: `menu.${id}`,
+    run: () => {},
+    ...over,
+});
 
 describe("Registry", () => {
     it("duplicate id rejected at register time", () => {
@@ -127,17 +131,24 @@ describe("Registry", () => {
         expect(r.visible(ctx).map((c) => c.id)).toEqual(["v1", "v3"]);
         expect(r.enabled(ctx).map((c) => c.id)).toEqual(["v1"]);
         // enableWhen 满足后启用——visible 集不变（disabled 不 hidden）
-        expect(
-            r.enabled({ a: 1, en: 1 }).map((c) => c.id),
-        ).toEqual(["v1", "v3"]);
+        expect(r.enabled({ a: 1, en: 1 }).map((c) => c.id)).toEqual([
+            "v1",
+            "v3",
+        ]);
         // eval() = 可见集别名
         expect(r.eval(ctx).map((c) => c.id)).toEqual(["v1", "v3"]);
     });
     it("run() refuses invisible/disabled; runUnchecked bypasses gates", async () => {
         const log: string[] = [];
         const r = new Registry()
-            .register({ ...mk("a", { when: "x" }), run: () => void log.push("a") })
-            .register({ ...mk("b", { enableWhen: "en" }), run: () => void log.push("b") });
+            .register({
+                ...mk("a", { when: "x" }),
+                run: () => void log.push("a"),
+            })
+            .register({
+                ...mk("b", { enableWhen: "en" }),
+                run: () => void log.push("b"),
+            });
         expect(await r.run("a", {})).toBe(false);
         expect(await r.run("b", {})).toBe(false); // enableWhen 未满足
         expect(log).toEqual([]);
@@ -149,8 +160,14 @@ describe("Registry", () => {
     it("byKey dispatches first when+enabled match in register order", async () => {
         const log: string[] = [];
         const r = new Registry()
-            .register({ ...mk("a", { keys: ["s"], when: "x" }), run: () => void log.push("a") })
-            .register({ ...mk("b", { keys: ["s"] }), run: () => void log.push("b") });
+            .register({
+                ...mk("a", { keys: ["s"], when: "x" }),
+                run: () => void log.push("a"),
+            })
+            .register({
+                ...mk("b", { keys: ["s"] }),
+                run: () => void log.push("b"),
+            });
         const hit = r.byKey("s", {});
         expect(hit?.id).toBe("b"); // a 的 when 不过 → 落到 b
         const hit2 = r.byKey("s", { x: 1 });
@@ -222,7 +239,13 @@ describe("registerCommands (menu-spec 18)", () => {
         // node 环境无 DOM——手工造最小 HitCtx 形状（snapshotHit 在 jsdom 测试
         // 里另有覆盖；此处只喂谓词层关心的字段）
         const hit = {
-            sel: { text: "", trimmed: "", inChunk: false, chunks: [], range: null },
+            sel: {
+                text: "",
+                trimmed: "",
+                inChunk: false,
+                chunks: [],
+                range: null,
+            },
             cite: {
                 targetKind: null,
                 targetExists: false,

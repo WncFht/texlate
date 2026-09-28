@@ -28,7 +28,9 @@ const snap = (
 beforeEach(() => {
     mocks.tasks.mockReset();
     mocks.deleteTask.mockReset().mockResolvedValue(undefined);
-    mocks.openTaskEvents.mockReset().mockReturnValue({ close: vi.fn(), closed: false });
+    mocks.openTaskEvents
+        .mockReset()
+        .mockReturnValue({ close: vi.fn(), closed: false });
 });
 
 describe("taskStore.remove（DELETE /task/{id} + 本地移除）", () => {
@@ -47,7 +49,10 @@ describe("taskStore.remove（DELETE /task/{id} + 本地移除）", () => {
     it("在途任务删除：同时断开 SSE channel 并清 live 条目", async () => {
         mocks.tasks.mockResolvedValue([snap("t_live", "translating")]);
         await taskStore.refresh();
-        expect(mocks.openTaskEvents).toHaveBeenCalledWith("t_live", expect.anything());
+        expect(mocks.openTaskEvents).toHaveBeenCalledWith(
+            "t_live",
+            expect.anything(),
+        );
         expect(taskStore.live("t_live")).toBeDefined();
 
         await taskStore.remove("t_live");
@@ -61,7 +66,9 @@ describe("taskStore.remove（DELETE /task/{id} + 本地移除）", () => {
     it("后端 404 视为已删：不抛错，本地照常移除", async () => {
         mocks.tasks.mockResolvedValue([snap("t_gone")]);
         await taskStore.refresh();
-        mocks.deleteTask.mockRejectedValueOnce(new ApiError(404, "task not found"));
+        mocks.deleteTask.mockRejectedValueOnce(
+            new ApiError(404, "task not found"),
+        );
 
         await expect(taskStore.remove("t_gone")).resolves.toBeUndefined();
         expect(taskStore.task("t_gone")).toBeUndefined();

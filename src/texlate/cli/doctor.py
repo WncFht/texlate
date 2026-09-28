@@ -224,6 +224,7 @@ def _doc_gateway() -> _Check:
     )
     from texlate.xlat.client import (  # noqa: PLC0415
         dialect_for_url,
+        dialect_headers,
         normalize_base_url,
     )
 
@@ -250,15 +251,7 @@ def _doc_gateway() -> _Check:
         return _Check("gateway", "warn", f"dialect 配置非法：{e}")
     tag = f"，dialect={eff}" if eff != "openai" else ""
     url = f"{base_url}/v1/models"
-    if api_key:
-        # 鉴权头随生效方言：anthropic 走 x-api-key，openai/responses 走 Bearer
-        headers = (
-            {"x-api-key": api_key}
-            if eff == "anthropic"
-            else {"Authorization": f"Bearer {api_key}"}
-        )
-    else:
-        headers = {}
+    headers = dialect_headers(eff, api_key) if api_key else {}
     try:
         r = httpx.get(
             url,

@@ -4,12 +4,7 @@
 // 需要在 retry 时 reset，状态不下沉组件内）；组件本体纯展示。
 
 import { createSignal, Show } from "solid-js";
-import {
-    api,
-    ApiError,
-    errText,
-    type SharePackResponse,
-} from "../api/client";
+import { api, ApiError, errText, type SharePackResponse } from "../api/client";
 import { t } from "../i18n";
 
 export interface ShareError {
@@ -27,7 +22,9 @@ const SHARE_ERR_TEXT: Record<string, string> = {
 const shareErrText = (ae: ApiError | null, e: unknown) => {
     const detail = ae?.detail ?? errText(e);
     const mapped =
-        ae?.status === 409 ? t.reader.shareErrState : SHARE_ERR_TEXT[ae?.code ?? ""];
+        ae?.status === 409
+            ? t.reader.shareErrState
+            : SHARE_ERR_TEXT[ae?.code ?? ""];
     return mapped ? (detail ? `${mapped}（${detail}）` : mapped) : detail;
 };
 
@@ -91,7 +88,9 @@ export default function ShareBlock(props: Props) {
                     fallback={
                         <span class="share-ok">
                             {t.reader.shareOk}
-                            <code class="share-key">{props.result!.share_key}</code>
+                            <code class="share-key">
+                                {props.result!.share_key}
+                            </code>
                             <button
                                 type="button"
                                 class="tb-btn share-copy"

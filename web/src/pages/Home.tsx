@@ -4,13 +4,7 @@
 // search/upload/submit/health/dropzone），渲染片段在同簇组件——
 // 本页只留表单态、布局 JSX 与装配。
 
-import {
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-    Show,
-} from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { landingHash } from "../api/client";
 import ActiveLine from "../home/ActiveLine";
 import HealthLine from "../home/HealthLine";

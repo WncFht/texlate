@@ -2,3 +2,4 @@ node_modules/
 dist/
 scripts/node_modules/
 scripts/shots/
+scripts/*.png

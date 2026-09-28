@@ -4,7 +4,12 @@
 import type { DocId } from "./alignment";
 
 /** pdfjs PDFFindController 的 FindState 枚举（web/pdf_viewer.mjs 不导出，本地镜像） */
-export const FIND_STATE = { found: 0, notFound: 1, wrapped: 2, pending: 3 } as const;
+export const FIND_STATE = {
+    found: 0,
+    notFound: 1,
+    wrapped: 2,
+    pending: 3,
+} as const;
 
 export interface FindCount {
     current: number;
@@ -37,7 +42,9 @@ export function fmtBytes(n: number | null | undefined): string {
 }
 
 /** 大纲条目的 color: Uint8ClampedArray → CSS rgb()；缺色 → undefined */
-export function outlineColor(c: ArrayLike<number> | null | undefined): string | undefined {
+export function outlineColor(
+    c: ArrayLike<number> | null | undefined,
+): string | undefined {
     if (!c || c.length < 3) return undefined;
     return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
@@ -68,13 +75,21 @@ export function pageSizeText(
 
 /** 日期字段（creationDate 等可为 null）→ 本地串或 "—" */
 export function fmtDate(d: Date | null | undefined): string {
-    return d instanceof Date && !Number.isNaN(d.getTime()) ? d.toLocaleString() : "—";
+    return d instanceof Date && !Number.isNaN(d.getTime())
+        ? d.toLocaleString()
+        : "—";
 }
 
 /** 「下载带批注副本」文件名：{task}-{en|zh}-annotated.pdf */
 export function annotFileName(taskId: string, side: DocId): string {
     return `${taskId}-${side === "original" ? "en" : "zh"}-annotated.pdf`;
 }
+
+/** pane.side 词表 → 侧：'zh'|'translated' → zh，其余/缺席 → en。
+    sentalign/copylatex 两 lane 的 pane 描述子共用此判（side 是宿主自定
+    词表 string，不是 DocId——未识别的怪值按 en 侧处理）。 */
+export const paneSide = (p: { side?: string }): "en" | "zh" =>
+    p.side === "zh" || p.side === "translated" ? "zh" : "en";
 
 /**
  * 缩放选择值 → html/dom 窗格正文字号（px）。pdf 走 setScale 不经过这里。

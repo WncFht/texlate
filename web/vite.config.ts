@@ -137,10 +137,7 @@ export default defineConfig({
                       // 钩子在出向请求上 setHeader
                       configure(proxy) {
                           proxy.on("proxyReq", (req) => {
-                              req.setHeader(
-                                  "origin",
-                                  "http://127.0.0.1:8765",
-                              );
+                              req.setHeader("origin", "http://127.0.0.1:8765");
                           });
                       },
                   },

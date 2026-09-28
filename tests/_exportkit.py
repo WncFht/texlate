@@ -2,19 +2,20 @@
 + ``_opf``/``_epub_zip``/``_epub``/``_zip_only``/``_write_epub`` 套件。
 
 ``test_cli_export``/``test_export_epub``/``test_export_glossary``/
-``test_fuzz_export``/``test_fuzz_export2``/``test_fuzz_cli`` 逐文件复刻的
-最小合法 EPUB 构造件归此一处（沿用 ``_fixloopkit``/``_workerkit``/
-``_tarkit`` 抽取先例）。``_opf``/``_epub`` 取 ``test_export_epub`` 超集
-签名——``ncx=`` 缺省 True 产 manifest ``toc.ncx`` 项 + ``OEBPS/toc.ncx``
-成员；无 NCX 的消费方（``test_cli_export`` 臂）显式 ``ncx=False``，
-产出与旧无-ncx 件逐字节同体（成员序：mimetype 首件 ZIP_STORED →
-container.xml → content.opf → 章节 → extra）。
+``test_fuzz_cli``/``test_server_upload`` 逐文件复刻的最小合法 EPUB 构造件
+归此一处（沿用 ``_fixloopkit``/``_workerkit``/``_tarkit`` 抽取先例）。
+``_opf``/``_epub`` 取 ``test_export_epub`` 超集签名——``ncx=`` 缺省 True
+产 manifest ``toc.ncx`` 项 + ``OEBPS/toc.ncx`` 成员；无 NCX 的消费方
+（``test_cli_export`` 臂）显式 ``ncx=False``，产出与旧无-ncx 件逐字节
+同体（成员序：mimetype 首件 ZIP_STORED → container.xml → content.opf
+→ 章节 → extra）。
 
 异形件仍留各文件本地：``test_fuzz_export2._opf`` 是
 ``(items: list[tuple], spine, extra)`` 字节形签名、``test_fuzz_export``
-的 ``_opf``/``_write_epub(tmp, name, members)``/``_ncx`` 是生成器件、
-``test_export_glossary._epub(body)``/``_write_epub(tmp, body)`` 是单章
-简形、``test_fuzz_cli._OPF``/``_XHTML`` 是单行定死体——签名/粒度不同，
+的 ``_container_xml(opf_path)``/``_opf(items, spine)``/``_ncx(labels)``/
+``_xhtml(decl/head/doctype)``/``zip_bytes(tuple 流)`` 是生成器件、
+``test_export_zip_guard._wepub`` 是 EPUB2 无 metadata/无 mimetype 极简形、
+``test_export_epub_serialize._opf`` 是 metadata 注入形——签名/粒度不同，
 不并入本件。
 """
 

@@ -25,8 +25,9 @@ docs/spec/latex-pipeline.md。
 from __future__ import annotations
 
 # ------------------------------------------------------------------ 兼容面
-# 旧单文件模块属性面的在役子集：``BUDGET``（core._can_expand 经 ``_g.BUDGET``
-# 取包属性——tests monkeypatch 面）、``_tok_eq``（bench gullet_bench 消费）。
+# 旧单文件模块属性面的在役子集：``BUDGET``（core._can_expand 函数级迟绑定
+# 读本属性——tests monkeypatch 面，顶层 import 即加载环）、``_tok_eq``
+# （bench gullet_bench 消费）。
 # 其余泄漏导入名零消费已修剪；``__all__`` 即公共面。
 from texlate.latex.tables import (
     BUDGET as BUDGET,

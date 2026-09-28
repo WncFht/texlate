@@ -15,7 +15,7 @@ l0 ``validate_pair`` 侧（oracle 全部独立代码路径）：
 - ``src_literal`` 净差豁免口径（src 自带模糊形 verbatim 不算臆造）；
 - ``%`` 前 ``\\`` run 奇偶决定 token 落「注释区臆造」还是「正文多出」；
 - key/brace/math/env/cs_names/item_glue/macro/echo/length 逐规则独立
-  oracle 交叉验证；bare_cs/ph_in_cs 存在性谓词。
+  oracle 交叉验证；bare_cs/ph_in_cs/dangerous_cs 存在性谓词。
 
 l1 ``TsValidator`` 侧（全离线——fake proc + monkeypatch 传输层，不依赖 node）：
 
@@ -53,6 +53,7 @@ from _fuzzkit import fuzz_rng, soup_join
 
 from texlate.textutil import (
     bare_cs_net,
+    dangerous_cs_net,
     ph_in_cs_net,
     residual_en_net,
 )
@@ -81,6 +82,7 @@ _RULES = {
     "item_glue",
     "ph_in_cs",
     "bare_cs",
+    "dangerous_cs",
     "protocol_echo",
     "comment_eof",
     "residual_en",
@@ -1177,6 +1179,34 @@ def test_fuzz_residual_en_existence() -> None:
         rep = validate_pair(src, zh)
         hits = [i for i in rep.issues if i.rule == "residual_en"]
         assert len(hits) == len(residual_en_net(src, zh)), f"{src!r} / {zh!r}"
+        assert all(i.severity is Severity.ERROR for i in hits)
+        seen += len(hits)
+    assert seen > 0
+
+
+def test_fuzz_dangerous_cs_existence() -> None:
+    """dangerous_cs 网与 l0 规则口径一致 fuzz：net 命中 ⇔ 恰一条聚合 issue。
+
+    钉档构造输入保证非 vacuous（zh 净增 ``\\input``/``\\def``）；soup 含
+    ``\\documentclass``/``\\newcommand`` 随机命中顺带压「命中即 ERROR」落形。
+    """
+    rng = fuzz_rng(20261024)
+    fixed = [
+        ("plain English source sentence.", "译文 \\input{main} 尾"),
+        ("src words here.", "前文 \\def\\x{y} 后文"),
+    ]
+    seen = 0
+    for src, zh in fixed:
+        rep = validate_pair(src, zh)
+        hits = [i for i in rep.issues if i.rule == "dangerous_cs"]
+        assert hits, f"{src!r} / {zh!r}"  # 构造必命中——防口径漂移致 vacuous
+        seen += len(hits)
+    for _ in range(2000):
+        src = soup_join(rng, _SOUP, 0, 14)
+        zh = soup_join(rng, _SOUP, 0, 14)
+        rep = validate_pair(src, zh)
+        hits = [i for i in rep.issues if i.rule == "dangerous_cs"]
+        assert len(hits) == (1 if dangerous_cs_net(src, zh) else 0), f"{src!r} / {zh!r}"
         assert all(i.severity is Severity.ERROR for i in hits)
         seen += len(hits)
     assert seen > 0

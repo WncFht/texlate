@@ -24,14 +24,7 @@ vi.mock("../api/client", async (importOriginal) =>
 
 import { ApiError } from "../api/client";
 import Home from "../pages/Home";
-import {
-    flush,
-    mountHome,
-    pick,
-    resetHomeMocks,
-    RESP,
-    type,
-} from "./_homekit";
+import { flush, mountHome, pick, resetHomeMocks, RESP, type } from "./_homekit";
 
 const errText = () =>
     document.body.querySelector(".form-error")?.textContent ?? "";
@@ -47,23 +40,16 @@ describe("Home 批量上传 —— 多文件分支", () => {
             )
             .mockResolvedValue(RESP);
         const { file } = mountHome(Home);
-        pick(file, [
-            new File(["a"], "a.tex"),
-            new File(["b"], "b.tex"),
-        ]);
+        pick(file, [new File(["a"], "a.tex"), new File(["b"], "b.tex")]);
 
-        await vi.waitFor(() =>
-            expect(mocks.upload).toHaveBeenCalledTimes(1),
-        );
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(1));
         expect(mocks.upload.mock.calls[0][0].name).toBe("a.tex");
         await flush();
         // 第一件未结案 → 第二件不得发出（顺序语义）
         expect(mocks.upload).toHaveBeenCalledTimes(1);
 
         resolveFirst!(RESP);
-        await vi.waitFor(() =>
-            expect(mocks.upload).toHaveBeenCalledTimes(2),
-        );
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(2));
         expect(mocks.upload.mock.calls[1][0].name).toBe("b.tex");
     });
 
@@ -79,9 +65,7 @@ describe("Home 批量上传 —— 多文件分支", () => {
             new File(["c"], "c.tex"),
         ]);
 
-        await vi.waitFor(() =>
-            expect(mocks.upload).toHaveBeenCalledTimes(3),
-        );
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(3));
         await flush();
         await flush();
 
@@ -100,13 +84,8 @@ describe("Home 批量上传 —— 多文件分支", () => {
         await flush();
         mocks.tasks.mockClear(); // 撇开挂载时 ensureFresh 的那一拍
 
-        pick(file, [
-            new File(["a"], "a.tex"),
-            new File(["b"], "b.tex"),
-        ]);
-        await vi.waitFor(() =>
-            expect(mocks.upload).toHaveBeenCalledTimes(2),
-        );
+        pick(file, [new File(["a"], "a.tex"), new File(["b"], "b.tex")]);
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(2));
         await flush();
         await flush();
 
@@ -122,10 +101,7 @@ describe("Home 批量上传 —— 多文件分支", () => {
         );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
 
-        pick(file, [
-            new File(["a"], "a.tex"),
-            new File(["b"], "b.tex"),
-        ]);
+        pick(file, [new File(["a"], "a.tex"), new File(["b"], "b.tex")]);
         await flush();
         await flush();
         expect(mocks.upload).not.toHaveBeenCalled();

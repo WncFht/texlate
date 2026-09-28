@@ -84,7 +84,10 @@ export default function LatexCard(props: LatexCardProps) {
     // ---- CiteCard 同款定位：首渲按「锚下方」，onMount 量高不够翻上 ----
     const initLeft = () => {
         const w = Math.min(CARD_W, window.innerWidth - 16);
-        return Math.min(Math.max(8, props.rect.left), window.innerWidth - w - 8);
+        return Math.min(
+            Math.max(8, props.rect.left),
+            window.innerWidth - w - 8,
+        );
     };
     const initTop = () => props.rect.bottom + GAP;
 
@@ -160,7 +163,10 @@ export default function LatexCard(props: LatexCardProps) {
                     {(m) => (
                         <>
                             {/* textContent 注入——绝不 innerHTML */}
-                            <pre class="latex-src" data-approx={m().approx || undefined}>
+                            <pre
+                                class="latex-src"
+                                data-approx={m().approx || undefined}
+                            >
                                 {body()}
                             </pre>
                             <div class="latex-foot">
@@ -239,12 +245,7 @@ export function openLatexCard(
     document.body.appendChild(host);
     let open = true;
     const dispose = render(
-        () => (
-            <LatexCard
-                {...opts}
-                onClose={() => handle.close()}
-            />
-        ),
+        () => <LatexCard {...opts} onClose={() => handle.close()} />,
         host,
     );
     const handle: LatexCardHandle = {

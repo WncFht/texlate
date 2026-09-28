@@ -52,6 +52,8 @@ from .transcode import (
     AUX_BIB_SUFFIXES,
     _hidden_path,
     _iter_files,
+    _read_tex,
+    _read_tex_path,  # noqa: F401  # 转口再导出（与本件 ``_iter_files`` 同款先例）
     _record_verdict,
     _transcode_support_files,
 )
@@ -550,7 +552,7 @@ def _latin_font_edits(
 
 
 # ---------------------------------------------------------------- 伪装二进制闸
-#: tar 伪装件判定宿于 ``textutil.encoding._tar_disguised``（本件经 facade
+#: tar 伪装件判定宿于 ``textutil.targate._tar_disguised``（本件经 facade
 #: import 消费——compile/latex 两层共用的字节闸不能锚在消费层，规格注记
 #: 随迁）。本档残留件：支持件兼容前导块注入的 NUL 探测窗——
 #: ``_transcode_one`` 漏网二进制闸同族；strict-UTF-8 字节面下 NUL 即非文本
@@ -587,29 +589,11 @@ def _strip_lead_junk(blob: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------- 树遍历/读件共享低层件
-# ``_iter_files`` 单源在 ``transcode.py``（import 回引，``judge.py`` 惰载
-# ``from .normalize import _iter_files`` 经本件命名空间再导出仍可达）：
-# ``suffixes=None`` 不按后缀过滤——按文件名判定（``_neutralize_junk_files``
-# 名单件）或排除式 catch-all 面用；``skip_hidden=False`` 留给统计口径须含
-# 隐藏件的调用方（``_normalize_tex_files`` 的 ``stats["files"]`` 先计后跳）。
-def _read_tex_path(path: Path) -> bytes | None:
-    """读件原始字节；OSError（不可读件）/tar 伪装件 → ``None``。
-
-    tar 伪装件成员字节不是手术面——转码/改写都会腐蚀 blob。
-    """
-    try:
-        blob = path.read_bytes()
-    except OSError:
-        return None
-    return None if _tar_disguised(blob) else blob
-
-
-def _read_tex(path: Path) -> str | None:
-    """``_read_tex_path`` + ``decode_tex``——tex 源解码文本或 ``None``。"""
-    blob = _read_tex_path(path)
-    return None if blob is None else decode_tex(blob)
-
-
+# ``_iter_files``/``_read_tex_path``/``_read_tex`` 单源在 ``transcode.py``
+# （import 回引，``judge.py``/``mainfile.py``/``layout.py``/``marks.py`` 经
+# 本件命名空间再导出仍可达）：``suffixes=None`` 不按后缀过滤——按文件名
+# 判定或排除式 catch-all 面用；``skip_hidden=False`` 留给统计口径须含隐藏件
+# 的调用方（``_normalize_tex_files`` 的 ``stats["files"]`` 先计后跳）。
 def _tex_sources(root: Path) -> dict[Path, str]:
     """工程内非隐藏 tex 源 → 解码文本；软链/不可读件/tar 伪装件跳过。"""
     sources: dict[Path, str] = {}

@@ -1,4 +1,4 @@
-r"""latex 层 tar 伪装 .tex 闸（``_tar_disguised`` 宿于 ``textutil.encoding``）。
+r"""latex 层 tar 伪装 .tex 闸（``_tar_disguised`` 宿于 ``textutil.targate``，facade 转口）。
 
 ``test_inject_targate.py`` 的翻译臂姊妹闸：inject 侧挡「tar 被当文本 tex
 消费」，本闸挡 parse→reconstruct 写回面——``decode_tex`` 永不抛（latin-1

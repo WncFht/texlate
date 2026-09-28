@@ -251,9 +251,7 @@ describe("LivePane —— 边译边读", () => {
         vi.useFakeTimers();
         try {
             mountToBody(() => LivePane({ taskId: "t_stop" }));
-            await vi.waitFor(() =>
-                expect(mocks.taskChunks).toHaveBeenCalled(),
-            );
+            await vi.waitFor(() => expect(mocks.taskChunks).toHaveBeenCalled());
             unmountLast();
             const n = mocks.taskChunks.mock.calls.length;
             await vi.advanceTimersByTimeAsync(2600);
@@ -298,9 +296,7 @@ describe("HtmlPane —— 未翻译徽标", () => {
     });
 
     it("原文侧任何状态都不挂徽标", async () => {
-        mount("original", [
-            { seq: 0, en: "e0", zh: "", status: "failed" },
-        ]);
+        mount("original", [{ seq: 0, en: "e0", zh: "", status: "failed" }]);
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
                 1,

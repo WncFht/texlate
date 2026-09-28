@@ -67,9 +67,7 @@ describe("DomPane", () => {
             document.body,
         );
         await vi.waitFor(() =>
-            expect(
-                document.body.querySelector(".pane-error"),
-            ).not.toBeNull(),
+            expect(document.body.querySelector(".pane-error")).not.toBeNull(),
         );
 
         fetchMock.mockResolvedValueOnce(okRes(PAGE));

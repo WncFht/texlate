@@ -37,7 +37,6 @@ from ._common import (
     _DEAD_ARG_NAMES,
     _DEAD_TAIL_NAMES,
     _MATH_TEXTARG,
-    _PKG_CMDS,
     _PROTECT_TYP,
     _SWALLOW_ARG_NAMES,
     _TAIL_CAP,
@@ -50,10 +49,10 @@ from ._common import (
     _pend_call_slots,
     _pick_cut,
     _prose_text_hit,
+    _verb_delim_tok,
 )
 from .grpscan import (
     _IMPORT2,
-    _verb_delim_tok,
 )
 
 if TYPE_CHECKING:
@@ -104,43 +103,6 @@ _BODY_CS_NAMES = frozenset(
         "part",
     }
 )
-
-# ------------------------------------------------------------- _ArgTok 构造厂
-# 三构形本地版（hoist 候选 ``_common._ArgTok`` classmethod ``.group/.single/
-# .empty``——mainloop/pending 面也有同形手抄点）：组参（``{..}``/``[..]``/
-# 定界对）、单 token 参、零宽占位。
-
-
-def _argtok_group(  # noqa: PLR0913, PLR0917 — 组参记录构造面（fid/开闭符/内体/回吐/spec）六件原位
-    fid: int,
-    open_t: Tok,
-    closer: Tok,
-    inner: list[Tok],
-    pulled: list[Tok],
-    spec: ArgSpec,
-) -> _ArgTok:
-    r"""组参记录：content 去括号区间、full 含括号、``all_toks`` 含前后 ws+括号。"""
-    return _ArgTok(
-        fid,
-        open_t.pos[2],
-        closer.pos[1],
-        open_t.pos[1],
-        closer.pos[2],
-        inner,
-        [*pulled, open_t, *inner, closer],
-        spec,
-    )
-
-
-def _argtok_single(fid: int, x: Tok, pulled: list[Tok], spec: ArgSpec) -> _ArgTok:
-    r"""单 token 参记录：``fs==cs``/``fe==ce``，``all_toks`` 含前置 ws。"""
-    return _ArgTok(fid, x.pos[1], x.pos[2], x.pos[1], x.pos[2], [x], [*pulled, x], spec)
-
-
-def _argtok_empty(fid: int, end: int, spec: ArgSpec) -> _ArgTok:
-    r"""零宽占位参记录：可选参缺席，``fs==fe`` 占 spec 位序。"""
-    return _ArgTok(fid, end, end, end, end, spec=spec)
-
 
 class _Args:
     # ------------------------------------------------------------ 参数读取（token 版 _args）
@@ -332,7 +294,7 @@ class _Args:
             if x is None:
                 # par/EOF 停：ws 回放主流重扫（v1 主循环从 end 续读）
                 self._unread_pulled(src, pulled)
-                out.append(_argtok_empty(fid, end, s))
+                out.append(_ArgTok.empty(fid, end, s))
                 continue
             if s.kind in ("m", "v"):
                 if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
@@ -342,20 +304,20 @@ class _Args:
                         self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
+                    out.append(_ArgTok.group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 elif x.kind == "cs" or not allow_single_token:
                     # 单 token 参数不跨 '\'（BUG1）；禁用即停
                     self._unread_pulled(src, pulled, x)
                     break
                 else:
-                    out.append(_argtok_single(fid, x, pulled, s))
+                    out.append(_ArgTok.single(fid, x, pulled, s))
                     end = x.pos[2]
             elif s.kind == "n":
                 # 裸 cs 名参（``\setlength\parskip{4pt}``）：cs token 直收、
                 # 或 {..}/[..] 组——其余形失配即终止（强制参同 m）
                 if x.kind == "cs":
-                    out.append(_argtok_single(fid, x, pulled, s))
+                    out.append(_ArgTok.single(fid, x, pulled, s))
                     end = x.pos[2]
                 elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
                     hit = self._collect_group(src, x, brace=x.kind == "lbrace")
@@ -363,7 +325,7 @@ class _Args:
                         self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
+                    out.append(_ArgTok.group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 else:
                     self._unread_pulled(src, pulled, x)
@@ -375,32 +337,32 @@ class _Args:
                         self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
+                    out.append(_ArgTok.group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 else:
                     self._unread_pulled(src, pulled, x)
-                    out.append(_argtok_empty(fid, end, s))
+                    out.append(_ArgTok.empty(fid, end, s))
             elif s.kind == "s":
                 if x.kind == "other" and x.text == "*":
-                    out.append(_argtok_single(fid, x, pulled, s))
+                    out.append(_ArgTok.single(fid, x, pulled, s))
                     end = x.pos[2]
                 else:
                     self._unread_pulled(src, pulled, x)
-                    out.append(_argtok_empty(fid, end, s))
+                    out.append(_ArgTok.empty(fid, end, s))
             elif s.kind == "t" and s.delim:
                 if x.kind != "cs" and x.text == s.delim[0]:
-                    out.append(_argtok_single(fid, x, pulled, s))
+                    out.append(_ArgTok.single(fid, x, pulled, s))
                     end = x.pos[2]
                 else:
                     self._unread_pulled(src, pulled, x)
-                    out.append(_argtok_empty(fid, end, s))
+                    out.append(_ArgTok.empty(fid, end, s))
             elif s.kind in ("d", "D", "r", "R") and s.delim:
                 op, cl = s.delim[0], s.delim[-1]
                 if x.kind == "cs" or x.text != op:
                     self._unread_pulled(src, pulled, x)
                     if s.kind in ("r", "R"):
                         break  # 定界强制缺失 → 参数不匹配，停读
-                    out.append(_argtok_empty(fid, end, s))
+                    out.append(_ArgTok.empty(fid, end, s))
                     continue
                 dtoks = [x]
                 inner = []
@@ -417,7 +379,7 @@ class _Args:
                 if closer is None:
                     self._unread_pulled(src, pulled, *dtoks)
                     break
-                out.append(_argtok_group(fid, x, closer, inner, pulled, s))
+                out.append(_ArgTok.group(fid, x, closer, inner, pulled, s))
                 end = closer.pos[2]
             elif s.kind == "e":
                 # 修饰参 ``e{^_}``：逐个 token 试吃 ``X{arg}``/``X<tok>``，
@@ -557,7 +519,7 @@ class _Args:
             else:
                 # 'b'/无 delim 的 dDrRt/未知：不消费但占零宽位
                 self._unread_pulled(src, pulled, x)
-                out.append(_argtok_empty(fid, end, s))
+                out.append(_ArgTok.empty(fid, end, s))
         return out, end
 
     def _try_args(  # noqa: PLR0913 — 三连惯用式参面（源/fid/spec/pos0/双开关）原位
@@ -1001,8 +963,10 @@ class _Args:
 
     @staticmethod
     def _arg_body_shaped(a: _ArgTok) -> bool:
-        r"""参 token 流是否块级排版体（而非参数槽）：``eol_par`` 空行（TeX
-        ``\long`` 语义多段参）或 ``\begin``/``\end``/``\item``/节题 cs 任一即体。
+        r"""参 token 流是否块级排版体（而非参数槽）。
+
+        ``eol_par`` 空行（TeX ``\long`` 语义多段参）或
+        ``\begin``/``\end``/``\item``/节题 cs 任一即体。
         """
         for x in a.all_toks:
             if x.kind == "eol_par":
@@ -1142,7 +1106,7 @@ class _Args:
                 return end
             end = closer.pos[2]
 
-    def _handle_boundary(  # noqa: C901 — tail/spec/in_arg 三路分派平铺即边界语义
+    def _handle_boundary(  # tail/spec/in_arg 三路分派平铺即边界语义
         self, t: Tok, src: TokenSource, name: str
     ) -> None:
         r"""边界命令：flush + LITERAL（含 ``BOUNDARY_TAIL``/dimen 尾参）。
@@ -1178,11 +1142,7 @@ class _Args:
         elif spec is not None:
             hit = self._try_args(src, fid, spec, b)
             if hit is not None:
-                args, end = hit
-                if name in _PKG_CMDS:
-                    # 无 preamble 文档（无 \begin{document}）：包声明走
-                    # 字面档时同步登记 argspec 门控
-                    self._note_pkgs(args)
+                end = hit[1]
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)

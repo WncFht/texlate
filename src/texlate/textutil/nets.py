@@ -239,6 +239,104 @@ def bare_cs_net(src: str, zh: str) -> Counter[str]:
     return out
 
 
+#: 危险控制序列表——zh 译文侧新增这些 cs 名即注入签名（与 ``bare_cs_net``
+#: 两子类不交：良形非数学危险 cs 由本网兜底）。四族：IO 与文件/进程面
+#: （``\input``/``\write18``——词法件是 ``write``+``18``，表内 ``write``
+#: 即兜住——``\openout`` 等）、定义覆写与 cs 名构造（``\def`` 原语族 +
+#: ``\csname``/``\expandafter`` 名构造族）、catcode/字符码改写、装包与
+#: 全局态（``\usepackage``/``\batchmode`` 族）。已知盲区挂账：
+#: ``\begin{filecontents}`` 类 env 名参数写文件不产 cs 事件，归 env 名
+#: 面另网，不进本表。
+DANGEROUS_CS: Final = frozenset(
+    {
+        # IO 与文件/进程面
+        "input",
+        "include",
+        "includeonly",
+        "endinput",
+        "stop",
+        "openin",
+        "openout",
+        "read",
+        "readline",
+        "write",
+        "immediate",
+        "special",
+        "font",
+        "directlua",
+        # 定义覆写与 cs 名构造（def 原语族）
+        "def",
+        "edef",
+        "gdef",
+        "xdef",
+        "let",
+        "futurelet",
+        "csname",
+        "endcsname",
+        "expandafter",
+        "noexpand",
+        "string",
+        "meaning",
+        "newcommand",
+        "renewcommand",
+        "providecommand",
+        "DeclareRobustCommand",
+        "newtheorem",
+        "chardef",
+        "mathchardef",
+        "countdef",
+        "dimendef",
+        "skipdef",
+        "muskipdef",
+        "toksdef",
+        # catcode / 字符码改写
+        "catcode",
+        "lccode",
+        "uccode",
+        "sfcode",
+        "mathcode",
+        "delcode",
+        "makeatletter",
+        "makeatother",
+        # 装包与全局态
+        "usepackage",
+        "RequirePackage",
+        "RequirePackageWithOptions",
+        "documentclass",
+        "LoadClass",
+        "LoadClassWithOptions",
+        "AtBeginDocument",
+        "AtEndDocument",
+        "AtBeginDvi",
+        "AtEndOfClass",
+        "AtEndOfPackage",
+        "setcounter",
+        "setlength",
+        "batchmode",
+        "nonstopmode",
+        "scrollmode",
+        "errorstopmode",
+        "errmessage",
+    }
+)
+
+
+def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
+    r"""译文侧危险 cs 注入净差（Counter 多重集）。
+
+    ``DANGEROUS_CS`` 表名在 zh 中出现计数净超 src → 注入签名
+    （``\input{/etc/passwd}``/``\write18``/``\def\x``/``\catcode`` 逃逸族）。
+    数学域**不豁免**——``$\input$`` 照样执行；注释区 ``mask_comments``
+    屏蔽；src 自带同形按多重集差豁免（src 行文引用命令名时 zh 保留
+    不冤）。L0 ``_check_dangerous_cs`` 与 pipeline
+    ``_intercept_dangerous_cs`` 共用本口径。
+    """
+    s_ev, _ = cs_events_spans(mask_comments(src))
+    z_ev, _ = cs_events_spans(mask_comments(zh))
+    diff = Counter(n for n, _ in z_ev) - Counter(n for n, _ in s_ev)
+    return Counter({n: c for n, c in diff.items() if n in DANGEROUS_CS})
+
+
 #: 带号/无号占位符剥皮——``[[TYPE_n]]`` 与 ``[[TYPE]]`` 整 token 形
 #: （``xlat.placeholders.ANY_PH_RX`` 的宽口径姊妹：那边按签发面逐型收口，
 #: 校验域只须"占位符样 token 全剥"一件——prose 口径/注释占位符共用本件；

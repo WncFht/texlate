@@ -14,7 +14,12 @@
                 var p = localStorage.getItem("texlate-paper-theme");
                 if (p === null) {
                     var t0 = localStorage.getItem("texlate-theme");
-                    p = t0 === "dark" ? "dark" : t0 === "light" ? "paper" : "auto";
+                    p =
+                        t0 === "dark"
+                            ? "dark"
+                            : t0 === "light"
+                              ? "paper"
+                              : "auto";
                 }
                 var d =
                     p === "dark" ||

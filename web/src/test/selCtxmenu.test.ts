@@ -118,7 +118,14 @@ let dispose: (() => void) | undefined;
 const ITEMS: CtxItem[] = [
     { id: "copy", label: "Copy" },
     { id: "sep", sep: true },
-    { id: "jump", label: "Jump", children: [{ id: "sub1", label: "Sub A" }, { id: "sub2", label: "Sub B" }] },
+    {
+        id: "jump",
+        label: "Jump",
+        children: [
+            { id: "sub1", label: "Sub A" },
+            { id: "sub2", label: "Sub B" },
+        ],
+    },
     { id: "off", label: "Disabled", disabled: true },
 ];
 
@@ -138,10 +145,11 @@ const open = (
 };
 
 const menuEl = () => document.querySelector<HTMLElement>(".ctx-menu");
-const rows = (scope?: ParentNode) =>
-    [...(scope ?? document).querySelectorAll<HTMLElement>(
+const rows = (scope?: ParentNode) => [
+    ...(scope ?? document).querySelectorAll<HTMLElement>(
         ".ctx-menu li[role='menuitem']",
-    )];
+    ),
+];
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
@@ -160,16 +168,19 @@ describe("useContextMenu", () => {
         const seen: CtxOpen[] = [];
         let ctx!: ReturnType<typeof useContextMenu>;
         dispose = render(() => {
-            ctx = useContextMenu((o) => {
-                seen.push(o);
-                return ITEMS;
-            }, {
-                snapshot: (_e, base) => ({
-                    ...base,
-                    hit: { marker: 1 } as unknown as CtxOpen["hit"],
-                    cmd: { tag: "ctx" } as unknown as CtxOpen["cmd"],
-                }),
-            });
+            ctx = useContextMenu(
+                (o) => {
+                    seen.push(o);
+                    return ITEMS;
+                },
+                {
+                    snapshot: (_e, base) => ({
+                        ...base,
+                        hit: { marker: 1 } as unknown as CtxOpen["hit"],
+                        cmd: { tag: "ctx" } as unknown as CtxOpen["cmd"],
+                    }),
+                },
+            );
             return ctx.menu();
         }, document.body);
         open(ctx, 120, 140);
@@ -248,9 +259,7 @@ describe("useContextMenu", () => {
         // Esc 关
         open(ctx);
         await tick();
-        document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Escape" }),
-        );
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
         await tick();
         expect(ctx.isOpen()).toBe(false);
         expect(onClose).toHaveBeenCalledTimes(1);
@@ -350,7 +359,9 @@ describe("已修缺陷回归", () => {
         const sub = document.querySelector<HTMLElement>(".ctx-sub");
         expect(sub).not.toBeNull();
         // 子菜单首行聚焦后 ArrowDown → 移到 s2；事件不冒到根 ul 委托
-        const subRows = [...sub!.querySelectorAll<HTMLElement>("li[role='menuitem']")];
+        const subRows = [
+            ...sub!.querySelectorAll<HTMLElement>("li[role='menuitem']"),
+        ];
         subRows[0]!.focus();
         key(subRows[0]!, "ArrowDown");
         await tick();
@@ -386,9 +397,7 @@ describe("menuItemsFor", () => {
         r.register(mk("pane.find", "pane"));
         r.register(mk("sel.copy", "sel"));
         const items = menuItemsFor(r, ctxOf());
-        const order = items
-            .filter((i) => !i.sep)
-            .map((i) => i.id);
+        const order = items.filter((i) => !i.sep).map((i) => i.id);
         expect(order).toEqual(["sel.copy", "chunk.copySrc", "pane.find"]);
         expect(items.filter((i) => i.sep).length).toBe(2); // 三段两缝
     });
@@ -420,7 +429,12 @@ describe("menuItemsFor", () => {
             sec: "cite",
             run: () => {},
         });
-        r.register({ id: "x.y", title: "no.such.key", sec: "z", run: () => {} });
+        r.register({
+            id: "x.y",
+            title: "no.such.key",
+            sec: "z",
+            run: () => {},
+        });
         const items = menuItemsFor(r, ctxOf(), {
             label: (c) => (c.id === "cite.jump" ? "跳至文献条目" : undefined),
         });

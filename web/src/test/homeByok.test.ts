@@ -24,13 +24,7 @@ vi.mock("../api/client", async (importOriginal) =>
 );
 
 import Home from "../pages/Home";
-import {
-    flush,
-    FM_OPTS,
-    mountHome,
-    resetHomeMocks,
-    type,
-} from "./_homekit";
+import { flush, FM_OPTS, mountHome, resetHomeMocks, type } from "./_homekit";
 
 beforeEach(() => resetHomeMocks(mocks));
 
@@ -40,7 +34,9 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         type(input, "2501.14787");
         type(key, "sk-temp-1");
 
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
         await flush();
 
@@ -55,10 +51,16 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         const { input, form } = mountHome(Home);
         type(input, "2501.14787");
 
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
 
-        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", FM_OPTS, undefined);
+        expect(mocks.translate).toHaveBeenCalledWith(
+            "2501.14787",
+            FM_OPTS,
+            undefined,
+        );
     });
 
     it("纯空白 key 视同未填 → 不透传", async () => {
@@ -66,10 +68,16 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         type(input, "2501.14787");
         type(key, "   ");
 
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
 
-        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", FM_OPTS, undefined);
+        expect(mocks.translate).toHaveBeenCalledWith(
+            "2501.14787",
+            FM_OPTS,
+            undefined,
+        );
     });
 
     it("临时 key 不触碰 settings store（纯 per-request，不发 PUT）", async () => {
@@ -77,7 +85,9 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         type(input, "2501.14787");
         type(key, "sk-temp-2");
 
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
         await flush();
 

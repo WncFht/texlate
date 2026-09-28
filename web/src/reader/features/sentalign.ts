@@ -25,6 +25,7 @@
 import type { Pos } from "../alignment";
 import type { Command, Registry } from "../cmd/cmdreg";
 import type { CmdCtx } from "../cmd/commands";
+import { paneSide } from "../paneUtils";
 import {
     SentAlignSession,
     type SaSide,
@@ -72,9 +73,6 @@ export interface SentAlignHandle {
 }
 
 // ------------------------------------------------------------------ attach
-
-const paneSide = (p: SentAlignPane): SaSide =>
-    p.side === "zh" || p.side === "translated" ? "zh" : "en";
 
 export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
     const session = new SentAlignSession(opts.deps ?? {});

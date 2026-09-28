@@ -14,11 +14,7 @@ import {
     type Mock,
 } from "vitest";
 import { makeCursor, type Cursor } from "../reader/sel/cursor";
-import {
-    segmentDoc,
-    sentenceText,
-    type SentMark,
-} from "../reader/sel/sentseg";
+import { segmentDoc, sentenceText, type SentMark } from "../reader/sel/sentseg";
 
 const EN_HTML =
     `<div data-chunk="S0">Alpha four. Beta five.</div>` +
@@ -107,8 +103,7 @@ const mode = () => cur.state.mode;
 const idx = () => cur.state.cur;
 const says = () => fsm.filter((f) => f.kind === "say").map((f) => f.msg);
 const lastSay = () => says().at(-1) as string | undefined;
-const sentText = (i: number, all = sentsEn) =>
-    sentenceText(document, all, i);
+const sentText = (i: number, all = sentsEn) => sentenceText(document, all, i);
 
 describe("cursor modal (roving)", () => {
     it("v on focused pane enters cursor mode at first visible sentence", () => {
@@ -150,16 +145,12 @@ describe("cursor modal (roving)", () => {
         press("v");
         press("]"); // S0 → 跳过 F0(无句) → S2 首句
         expect(idx()).toBe(2); // sents: 0,1=S0; 2,3,4=S2; 5=S3
-        expect(sentsEn[idx()]!.chunkEl.getAttribute("data-chunk")).toBe(
-            "S2",
-        );
+        expect(sentsEn[idx()]!.chunkEl.getAttribute("data-chunk")).toBe("S2");
         press("h"); // 回 S0 首句
         expect(idx()).toBe(0);
         press("l");
         press("l"); // S2 → S3
-        expect(sentsEn[idx()]!.chunkEl.getAttribute("data-chunk")).toBe(
-            "S3",
-        );
+        expect(sentsEn[idx()]!.chunkEl.getAttribute("data-chunk")).toBe("S3");
     });
     it("Home/End first/last, no wrap", () => {
         paneEn.focus();
@@ -192,9 +183,7 @@ describe("cursor modal (roving)", () => {
         press("c");
         await Promise.resolve();
         expect(clip).toBe(sentText(1));
-        expect(fsm.some((f) => f.kind === "copy" && f.ok === true)).toBe(
-            true,
-        );
+        expect(fsm.some((f) => f.kind === "copy" && f.ok === true)).toBe(true);
     });
     it("t swaps payload to other-side same-sid sentence", async () => {
         paneEn.focus();
@@ -242,8 +231,7 @@ describe("cursor modal (roving)", () => {
         expect(idx()).toBe(3);
     });
     it("markers never create tab stops (tabindex=-1 恒)", () => {
-        for (const s of sentsEn)
-            expect(s.marker.tabIndex).toBe(-1);
+        for (const s of sentsEn) expect(s.marker.tabIndex).toBe(-1);
     });
     it("modal keys are suppressed (sIP) — leakSpy sees nothing modal", () => {
         paneEn.focus();

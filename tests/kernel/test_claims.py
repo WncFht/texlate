@@ -10,23 +10,25 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
 from kernel import claims, locks, paths
 
 # --- encoding / path shape ------------------------------------------------------
 
 
-def test_escape_roundtrip():
+def test_escape_roundtrip() -> None:
     for s in ("zh", "real", "v1", "a.b@c%d-e", "-", "x y", "%"):
         assert claims.unescape_component(claims.escape_component(s)) == s
     assert claims.escape_component("a.b@c%d") == "a%2Eb%40c%25d"
 
 
-def test_safe_id_convention():
+def test_safe_id_convention() -> None:
     assert claims.safe_id("cond-mat/9601001") == "cond-mat--9601001"
     assert claims.safe_id("2301.12345") == "2301.12345"
 
 
-def test_claim_lock_path_shape(broot):
+@pytest.mark.usefixtures("broot")
+def test_claim_lock_path_shape() -> None:
     p = claims.claim_lock_path("cond-mat/9601001", "zh")
     assert p.parent == paths.claims_locks_dir()
     assert p.name == "cond-mat--9601001.zh.lock"
@@ -43,7 +45,8 @@ def test_claim_lock_path_shape(broot):
     assert pb.name == "2301%2E12345.zh.lock"
 
 
-def test_claim_lock_name_roundtrip(broot):
+@pytest.mark.usefixtures("broot")
+def test_claim_lock_name_roundtrip() -> None:
     cases = [
         ("cond-mat/9601001", "zh", "-"),
         ("math.QA/9701001", "real", "rep2"),
@@ -56,7 +59,8 @@ def test_claim_lock_name_roundtrip(broot):
         assert (got_idc, got_arm, got_variant) == (idc, arm or "-", variant or "-")
 
 
-def test_claim_path_injectivity(broot):
+@pytest.mark.usefixtures("broot")
+def test_claim_path_injectivity() -> None:
     """No two distinct (idc, arm, variant) tuples map to the same filename.
 
     Domain note: idc must be canon — canon ids never contain '--' (design
@@ -84,7 +88,8 @@ def test_claim_path_injectivity(broot):
 # --- ClaimLease basics ------------------------------------------------------------
 
 
-def test_lease_acquire_release(broot):
+@pytest.mark.usefixtures("broot")
+def test_lease_acquire_release() -> None:
     lease = claims.ClaimLease("cond-mat/9601001", "zh")
     assert lease.acquire()
     assert lease.held
@@ -95,14 +100,16 @@ def test_lease_acquire_release(broot):
     lease.release()  # idempotent
 
 
-def test_lease_acquire_idempotent(broot):
+@pytest.mark.usefixtures("broot")
+def test_lease_acquire_idempotent() -> None:
     lease = claims.ClaimLease("cond-mat/9601001")
     assert lease.acquire()
     assert lease.acquire()  # already ours
     lease.release()
 
 
-def test_double_claim_only_one_wins(broot):
+@pytest.mark.usefixtures("broot")
+def test_double_claim_only_one_wins() -> None:
     """Two ClaimLease objects (distinct fds) — exactly one acquires."""
     l1 = claims.ClaimLease("cond-mat/9601001", "zh")
     l2 = claims.ClaimLease("cond-mat/9601001", "zh")
@@ -113,7 +120,8 @@ def test_double_claim_only_one_wins(broot):
     l2.release()
 
 
-def test_different_cells_do_not_contend(broot):
+@pytest.mark.usefixtures("broot")
+def test_different_cells_do_not_contend() -> None:
     l1 = claims.ClaimLease("cond-mat/9601001", "zh")
     l2 = claims.ClaimLease("cond-mat/9601001", "splice")
     l3 = claims.ClaimLease("cond-mat/9601001", "zh", "rep2")
@@ -123,7 +131,8 @@ def test_different_cells_do_not_contend(broot):
         lease.release()
 
 
-def test_held_by_other(broot):
+@pytest.mark.usefixtures("broot")
+def test_held_by_other() -> None:
     l1 = claims.ClaimLease("cond-mat/9601001", "zh")
     l2 = claims.ClaimLease("cond-mat/9601001", "zh")
     assert not l1.held_by_other()  # free -> no other holder
@@ -134,12 +143,13 @@ def test_held_by_other(broot):
     assert not l2.held_by_other()
 
 
-def test_blocking_acquire_waits_for_release(broot):
+@pytest.mark.usefixtures("broot")
+def test_blocking_acquire_waits_for_release() -> None:
     l1 = claims.ClaimLease("cond-mat/9601001", "zh")
     l2 = claims.ClaimLease("cond-mat/9601001", "zh")
     assert l1.acquire()
 
-    def drop():
+    def drop() -> None:
         time.sleep(0.15)
         l1.release()
 
@@ -147,19 +157,20 @@ def test_blocking_acquire_waits_for_release(broot):
     th.start()
     t0 = time.monotonic()
     assert l2.acquire(blocking=True)
-    assert time.monotonic() - t0 >= 0.1
+    assert time.monotonic() - t0 >= 0.1  # noqa: PLR2004 -- 断言字面量（等待下限）
     l2.release()
     th.join()
 
 
-def test_concurrent_double_claim_never_two(broot):
+@pytest.mark.usefixtures("broot")
+def test_concurrent_double_claim_never_two() -> None:
     """N racing leases: flock atomicity — never more than one holder at once."""
     n = 8
     barrier = threading.Barrier(n)
     state = {"holding": 0, "max_held": 0}
     guard = threading.Lock()
 
-    def race():
+    def race() -> None:
         lease = claims.ClaimLease("cond-mat/9601001", "zh")
         barrier.wait(timeout=10)
         if lease.acquire():  # one-shot NB attempt
@@ -180,7 +191,8 @@ def test_concurrent_double_claim_never_two(broot):
     assert state["max_held"] == 1  # exactly one NB winner
 
 
-def test_lease_context_manager(broot):
+@pytest.mark.usefixtures("broot")
+def test_lease_context_manager() -> None:
     with claims.ClaimLease("cond-mat/9601001", "zh") as lease:
         assert lease.held
         assert not locks.lock_free(lease.path)
@@ -191,7 +203,8 @@ def test_lease_context_manager(broot):
 # --- cross-process exclusion --------------------------------------------------------
 
 
-def test_foreign_process_holder_blocks_claim(broot):
+@pytest.mark.usefixtures("broot")
+def test_foreign_process_holder_blocks_claim() -> None:
     lp = claims.claim_lock_path("cond-mat/9601001", "zh")
     proc = locks.detach_with_lock([], lp)  # child holds the claim lock
     try:
@@ -210,7 +223,8 @@ def test_foreign_process_holder_blocks_claim(broot):
 # --- reaper ---------------------------------------------------------------------
 
 
-def test_reaper_collect_free_claims(broot):
+@pytest.mark.usefixtures("broot")
+def test_reaper_collect_free_claims() -> None:
     held = claims.ClaimLease("cond-mat/9601001", "zh")
     dead = claims.ClaimLease("hep-th/9601001", "zh")
     dead.acquire()
@@ -225,7 +239,8 @@ def test_reaper_collect_free_claims(broot):
     assert held.path in claims.reaper_collect()
 
 
-def test_reaper_collect_foreign_death(broot):
+@pytest.mark.usefixtures("broot")
+def test_reaper_collect_foreign_death() -> None:
     lp = claims.claim_lock_path("cond-mat/9601001", "zh")
     proc = locks.detach_with_lock([], lp)
     assert lp not in claims.reaper_collect()  # live holder
