@@ -8,8 +8,12 @@ r"""批量协议（docs/spec/translate.md + batchmodel-2026-09-18 修订）：�
   批目标大小 ``total/n_req``。字符硬顶 12000（实测 [n] 协议 19K/53 条
   干净解析；12K 字符 ≈ 4.2K 输出 token，8192 max_tokens 留足 reasoning
   余量），条数软顶 32（只为整批退单翻的爆炸半径兜底，非协议需要）。
-- 协议：请求 `[1] xxx\n[2] yyy`；响应按行首锚定 `[n]` 解析，`@@` 独占行
-  分隔兜底；数量不符/序号越界/解析歧义 → `None`，调用方整批退化逐条单翻。
+- 协议：请求 `[1] keep: [[X_1]] … | xxx\n[2] yyy`——ph 成员的序号行挂
+  ``keep:`` 名单点名该成员须保真的占位符集合，``|`` 分隔名单与成员正文
+  （夜跑归因：ph 密集成员是梯级重试风暴源，点名是枚举辅助；
+  keep-roster-and-values-truncation-2026-09-29 实证回显零发生）——响应按
+  行首锚定 `[n]` 解析，`@@` 独占行分隔兜底；数量不符/序号越界/解析歧义
+  → `None`，调用方整批退化逐条单翻。
 - 跳过：纯占位符 chunk（`placeholders.is_placeholder_only`）不发请求。
 """
 
@@ -19,7 +23,7 @@ import math
 import re
 from typing import TYPE_CHECKING, TypeVar
 
-from .placeholders import EOL_RX, PARA_NEWLINE, SOFT_NEWLINE, encode_newlines
+from .placeholders import EOL_RX, PARA_NEWLINE, SOFT_NEWLINE, encode_newlines, find_all
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -51,6 +55,16 @@ _ATAT_ONLY_RX = re.compile(r"\s*@@\s*")
 #: `@@` 段的空槽判定：裸 `[n]` 序号桩 = 实质空译——同
 #: export.common.STUB_ONLY_RE 语义（xlat 不反向依赖 export，正则不贵）。
 _STUB_ONLY_RX = re.compile(r"\s*(?:\[\d+\]\s*)+")
+#: 段首 `keep:` 名单回显——协议元数据被镜像回译文首行/段首内联时剥除；
+#: 紧跟只收 ph token 列 + 可选 `|` 分隔符（``keep:`` 撞真实译文开头的
+#: 概率≈0，中文译文不会以纯 ``keep: [[X_n]]`` 序列起头）。
+_KEEP_ECHO_RX = re.compile(
+    r"^keep:(?:[ \t]*\[\[[A-Z][A-Z_]*_?\d*\]\])+[ \t]*\|?[ \t]*\n?"
+)
+#: 名单独占段判定（名单回显后零译文——见 _strip_keep_echo）
+_KEEP_ONLY_RX = re.compile(
+    r"^keep:(?:[ \t]*\[\[[A-Z][A-Z_]*_?\d*\]\])+[ \t]*\|?[ \t]*$"
+)
 #: `@@` 段内的协议序号泄漏闸：非嵌套 `[k]`——`[[k]]` 双括号属占位符族字面、
 #: 不吃内层（`[k]` k∉{1..n} 不可能是序号分隔符，按引用号内容放行，见
 #: parse_batch_response 安全侧裁定）。
@@ -67,6 +81,7 @@ def pack_batches(  # noqa: PLR0913 -- 装箱旋钮面即 PipelineConfig.batch_* 
     max_items: int = BATCH_MAX_ITEMS,
     min_chars: int = BATCH_MIN_CHARS,
     item_overhead: int = BATCH_ITEM_OVERHEAD,
+    overheads: Sequence[int] | None = None,
     workers: int = 1,
 ) -> list[list[int]]:
     r"""顺序等大装箱 + K 量化波次对齐 → 每批是 contents 的下标列表（保持原序）。
@@ -79,8 +94,21 @@ def pack_batches(  # noqa: PLR0913 -- 装箱旋钮面即 PipelineConfig.batch_* 
     等大填充；``max_chars``/``max_items`` 是硬顶，任何时候都可提前封批
     （等大只是目标，硬顶优先）。单成员超 ``max_chars`` 的原子块不拆——
     独占一批原样放行（>hard_limit 的上游已切分，此处纯防御）。
+
+    ``overheads``（与 contents 等长）逐项顶替 ``item_overhead``——ph 密度
+    决定 keep 头长、定值 8 会低估实发 payload 让批悄悄超硬顶（32 个满载
+    成员多出 ~20k 未计字符 ≈ max_tokens 击穿面）；调用方喂
+    ``batch_member_overhead`` 的逐项值，测试/离线箱留默认常量即可。
     """
-    lens = [len(t) + item_overhead for t in contents]
+    if overheads is not None and len(overheads) != len(contents):
+        msg = (
+            f"pack_batches: overheads len {len(overheads)} != contents {len(contents)}"
+        )
+        raise ValueError(msg)
+    lens = [
+        len(t) + (overheads[i] if overheads is not None else item_overhead)
+        for i, t in enumerate(contents)
+    ]
     if not lens:
         return []
     total = sum(lens)
@@ -117,16 +145,60 @@ def encode_batch(contents: Sequence[str]) -> str:
     return payload
 
 
+def _keep_prefix(enc: str) -> str:
+    """``[n]`` 序号行内嵌的 ``keep:`` 名单前缀——该成员须保真的占位符集合（首见序）。
+
+    ph-free 成员返回 ``""``——名单只在有占位符可丢时出现，不给纯文本段
+    添协议噪声。裸族 token（``[[SL]]``/``[[NBSP]]`` 等）与类型化
+    ``[[X_n]]`` 同列——点名覆盖八族锻造型丢失的全部案面。行形保持单行：
+    名单与正文同行、``|`` 分隔——``[k]``/``@@`` 等协议形起头的成员编码
+    留在行中永不误锚定（两行式曾把它们拱上行首吃掉整个多重集）。
+    """
+    ids = find_all(enc)
+    return f"keep: {' '.join(ids)} | " if ids else ""
+
+
+def batch_member_overhead(text: str) -> int:
+    """``pack`` 容量口径的 per-member 行开销 = ``[n] `` 编号 + keep 前缀（精确按编码后 token 集）。
+
+    keep 前缀长随成员 ph 密度浮动（ph 最重成员 ~60 id ≈ 660c），装箱不计会
+    把超硬顶的批发出去——``max_tokens`` 击穿面换来的正是解析失败退单翻。
+    ``encode_newlines`` 此处重跑一次（发件子集在 ``_batch_call`` 再编），
+    换来 keep 名单与线发字节的严格同源。
+    """
+    enc = encode_newlines(text)[0]
+    return BATCH_ITEM_OVERHEAD + len(_keep_prefix(enc))
+
+
 def encode_batch_members(contents: Sequence[str]) -> tuple[str, list[str]]:
     r"""``encode_batch`` 的成员级形态：``(拼接 payload, 各成员编码后文本)``。
 
-    成员编码只跑一次——调用方（``pipeline._batch_call``）取 ``members[k]``
-    直作 ``bare_token_audit`` 基线，基线字节与线发字节结构性同源，
-    免逐成员二次 ``encode_newlines`` 重推导。
+    ph 成员行形 ``[i] keep: <ids> | <enc>``——``keep:`` 名单点名保真集、
+    ``|`` 分隔名单与正文（枚举辅助，实测夜跑降级面全是 ph 密集成员）；
+    ph-free 行形保持 ``[i] <enc>``。成员编码只跑一次——调用方
+    （``pipeline._batch_call``）取 ``members[k]`` 直作 ``bare_token_audit``
+    基线，基线字节与线发字节结构性同源，免逐成员二次
+    ``encode_newlines`` 重推导。
     """
     members = [encode_newlines(text)[0] for text in contents]
-    lines = [f"[{i}] {enc}" for i, enc in enumerate(members, 1)]
+    lines = [f"[{i}] {_keep_prefix(enc)}{enc}" for i, enc in enumerate(members, 1)]
     return "\n".join(lines), members
+
+
+def _strip_keep_echo(seg: str) -> str:
+    """剥段首 ``keep:`` 名单回显（``|`` 分隔符可有可无、可接换行）。
+
+    名单独占段 → ``""``——回显不是译文，空段信号走 ``all(out)`` 让整批退
+    单翻：名单与成员 ph 多重集天然同集，留下非空段会骗过 ``diff`` 把
+    ``keep: [[X_n]]`` 原文漏成译文。
+    """
+    if _KEEP_ONLY_RX.fullmatch(seg):
+        return ""
+    if m := _KEEP_ECHO_RX.match(seg):
+        rest = seg[m.end() :]
+        if rest.strip():
+            return rest
+    return seg
 
 
 def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
@@ -134,7 +206,8 @@ def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
 
     段内 ``@@`` 独占行按协议残码剥除——``@@`` 是 spec 兜底分隔符而非译文
     内容，编号响应里混入的 ``@@`` 行保留原文即字面泄漏进 PDF；剥除后段空
-    视同空段，整批拒收。
+    视同空段，整批拒收。段首 ``keep:`` 回显同按残码剥除（独占段判空，
+    名单与成员 ph 同集会骗过 ``diff`` 漏成译文——宁整批退不静默放行）。
     """
     matches = list(rx.finditer(text))
     if not matches:
@@ -147,7 +220,7 @@ def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         seg = text[m.end() : end]
         seg = "\n".join(ln for ln in seg.split("\n") if not _ATAT_ONLY_RX.fullmatch(ln))
-        out[int(m.group(1)) - 1] = seg.strip()
+        out[int(m.group(1)) - 1] = _strip_keep_echo(seg.strip()).strip()
     return out if all(out) else None
 
 
@@ -174,7 +247,9 @@ def parse_batch_response(text: str, n: int) -> list[str] | None:
     if out is not None:
         return out
 
-    parts = [p.strip() for p in _ATAT_LINE_RX.split(text)]
+    # 段首 `keep:` 回显同剥——`@@` 模式模型已弃编号，名单镜像率更低但同残码待遇
+    # （独占段剥成空串 → 下方 stub 过滤后段数不足 → 整批退，同安全侧裁定）
+    parts = [_strip_keep_echo(p.strip()).strip() for p in _ATAT_LINE_RX.split(text)]
     # 裸 `[n]` 桩段按空槽丢弃——否则 n=1 时 `[1]` 回显会原样漏成译文
     parts = [p for p in parts if p and not _STUB_ONLY_RX.fullmatch(p)]
     if len(parts) != n:

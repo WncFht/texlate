@@ -42,11 +42,11 @@ _HEADER + TASK_SENTENCE[kind] + [paper-context 子句]
 
 Placeholders 条款（`prompts.py::PLACEHOLDER_CLAUSE`，措辞与 v4 C9 逐字一致）逐字列出的 token 面：`[[TYPE_n]]` 例示 `[[MATH_12]]/[[CITE_3]]/[[REF_7]]/[[ENV_4]]/[[AUTHOR_1]]` + 裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；条款声明 `[[MATH_n]]/[[CITE_n]]/[[REF_n]]` **可且应当**随目标语语序换位，其余 token 必须守原位。prompt 不逐名枚举的保护族其余成员（`[[MEDSP]]/[[THICKSP]]/[[NEGSP]]` 及各 `_RAW` 变体、哨兵转义形）由占位符层保证（§1.3）。
 
-kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\section` 花括号内文本；abstract 保留 `\keywords` 结构；table_text 保护 `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 且行列数不变；env_text 保护 `\begin/\end` 与结构命令。para/caption 无专属槽位。Person names 条款（保原语不译不音译不调序）仅 para/abstract；Batch protocol（`[n]` 编号回传 + `@@` 兜底）批量时永远压轴。
+kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\section` 花括号内文本；abstract 保留 `\keywords` 结构；table_text 保护 `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 且行列数不变；env_text 保护 `\begin/\end` 与结构命令。para/caption 无专属槽位。Person names 条款（保原语不译不音译不调序）仅 para/abstract；Batch protocol（`keep:` 名单说明 + `[n]` 编号回传 + `@@` 兜底）批量时永远压轴。
 
 带错重翻（corrector）：专用 `_CORRECTOR_SYSTEM`（不共享公共块）+ user 三段式 `[Original]/[Translation]/[Error]`；在阶梯第二试经 `corrector_fn` 注入使用（§1.6）。
 
-`prompts.py::PROMPT_VERSION="xlat-prompt-v5"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
+`prompts.py::PROMPT_VERSION="xlat-prompt-v6"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
@@ -61,10 +61,10 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 
 ### 1.4 批量协议（`xlat/batch.py`）
 
-- **无短/长分流**：所有 chunk 一律进批。`pack_batches` 常量：`BATCH_MAX_CHARS=12000`、`BATCH_MAX_ITEMS=32`、`BATCH_MIN_CHARS=2500`、`BATCH_ITEM_OVERHEAD=8`；`n_req=max(ceil(total/max_chars), min(workers, total//min_chars))`，超出 worker 数时向上取整到 worker 倍数做 K 量化等长分包。
-- 请求编码 `[1]…[n]` 行首编号；`@@` 独占行为兜底分隔。
-- 解析 `parse_batch_response`：先归一全部 Unicode 行界，再只认**行首锚定** `^\s*\[(\d+)\]`（MULTILINE）；序号多重集须恰为 {1..n}（乱序归位）且段段非空。行内 `[k]` 不可用作分隔——与正文引用号在 token 层不可区分，命中即整批拒收。
-- `@@` 路径：段数恰 n 才收；段内出现 `[k]`（1≤k≤n）判序号泄漏拒收（`[0]`/`[k]` k>n/`[[k]]` 按字面放行）；裸 `[n]` 桩段（`_STUB_ONLY_RX`）按空槽丢弃；编号段内 `@@` 独占行按协议残码剥除。
+- **无短/长分流**：所有 chunk 一律进批。`pack_batches` 常量：`BATCH_MAX_CHARS=12000`、`BATCH_MAX_ITEMS=32`、`BATCH_MIN_CHARS=2500`、`BATCH_ITEM_OVERHEAD=8`；`n_req=max(ceil(total/max_chars), min(workers, total//min_chars))`，超出 worker 数时向上取整到 worker 倍数做 K 量化等长分包。装箱容量按 `overheads` 逐项实记：管线喂 `batch_member_overhead`（`[n]` 编号 + `keep:` 前缀实长——ph 密集成员名单可达数百字符，平摊 8c 会低估实发 payload 悄悄超硬顶击穿 `max_tokens`）。
+- 请求编码 `[1]…[n]` 行首编号；含占位符的成员序号行内嵌 `keep: <ids> |` 名单前缀（`[i] keep: [[MATH_1]] [[SL]] | <enc>`——点名该成员须保真的占位符集合，`|` 分隔名单与正文；ph-free 成员保持 `[i] <enc>` 无前缀）。名单取 `find_all` 首见序去重、裸族 token（`[[SL]]`/`[[NBSP]]` 等）与类型化 `[[X_n]]` 同列——v6 落地件，对症夜跑归因的 ph 密集成员梯级重试风暴[^keep-roster]。
+- 解析 `parse_batch_response`：先归一全部 Unicode 行界，再只认**行首锚定** `^\s*\[(\d+)\]`（MULTILINE）；序号多重集须恰为 {1..n}（乱序归位）且段段非空。行内 `[k]` 不可用作分隔——与正文引用号在 token 层不可区分，命中即整批拒收。段首 `keep: <ids>` 回显（`|`/换行可有可无）按协议残码剥除；名单独占段判空——名单与成员 ph 多重集天然同集，留非空会骗过 `diff` 漏成译文。
+- `@@` 路径：段数恰 n 才收；段内出现 `[k]`（1≤k≤n）判序号泄漏拒收（`[0]`/`[k]` k>n/`[[k]]` 按字面放行）；裸 `[n]` 桩段（`_STUB_ONLY_RX`）按空槽丢弃；编号段内 `@@` 独占行按协议残码剥除；`keep:` 回显同剥。
 - 退化：数量不符/越界/歧义 → 整批退回逐条单翻（复用并发额度）。
 
 ### 1.5 并发、退避与熔断
@@ -86,7 +86,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 | 3   | `_stage_slots` 槽位 | `⟪S%04d⟫` 槽位 JSON（`response_format=json_object`）、`SLOTS_PER_BATCH=8`、`SLOT_MAX_CHARS=1500`、`SLOTS_MAX_ROUNDS=2`；失败槽只重问失败批 |
 | 4   | `fallback_orig`     | 回退原文                                                                                                                                   |
 
-`_valid_slot_text` 按**字符出现**拒收槽译文：`⟪`/`⟫`/`[[`/`]]` 任一出现即非法，覆盖非规范/未闭合/小写残码与半边 token——畸形 token 放行会把原文带进译文。`bare_token_audit(shown_src, zh_raw)` 在解码前对 8 个解码族裸令牌做多重集比对。
+`_valid_slot_text` 按**字符出现**拒收槽译文：`⟪`/`⟫`/`[[`/`]]` 任一出现即非法，覆盖非规范/未闭合/小写残码与半边 token——畸形 token 放行会把原文带进译文。`bare_token_audit(shown_src, zh_raw)` 在解码前对 8 个解码族裸令牌做多重集比对；`_BENIGN_MISS_TOKENS={NBSP}` 只赦**丢失**向（`in>out`——`[[NBSP]]` 丢了 decode 后只少个 `~`，是夜跑唯一存活失败类、对 prompt 侧一切变体免疫，审计侧赦免得解[^keep-roster]）；`in<out`（凭空铸 token）一切族维持硬败。
 
 结果映射：`LadderResult.status ∈ {ok, recovered, fallback_orig}`；pipeline 把 `recovered`→chunk `partial`、`fallback_orig`→`fault` + `error_kind="validate"`。`ChunkResult.status ∈ {ok, skipped, fault, partial}`，`fell_back` 属性；`error_kind ∈ {"", auth, provider, crash, validate}`。
 

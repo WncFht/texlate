@@ -40,7 +40,9 @@ if TYPE_CHECKING:
 #: 块 / paper_context abstract 锚定块（texglot llm.py 同族机制打包实装）
 #: v5: 删⑤层 ph→ph 恒等注入（O(占位符)×O(调用) 重发事故根因）→ <Glossary>
 #: 末行单行占位符点名册；规则区扁平 1..N + **锚名.** + 一条款一物理行
-PROMPT_VERSION = "xlat-prompt-v5"
+#: v6: 批成员序号行挂 `keep:` 名单点名该成员占位符集（ph 密集成员梯级重试
+#: 风暴的结构对症；段内 values 行经 QE 实测零质效且 +100% 字节故不落）
+PROMPT_VERSION = "xlat-prompt-v6"
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
 
@@ -117,14 +119,16 @@ NAME_CLAUSE = (
     "translate, transliterate, or reorder them."
 )
 
-#: Batch protocol 条款体——编号协议 `[1]…[n]` 主协议 + `@@` 兜底分隔
+#: Batch protocol 条款体——`keep:` 名单说明 + 编号协议 `[1]…[n]` 主协议 + `@@` 兜底分隔
 _BATCH_CLAUSE = (
     "The input is a numbered list of independent fragments ([1], [2], "
-    "...). Translate each fragment independently and return the "
-    "translations with the same numbering and order — one [n] section "
-    "per input fragment, no merging, no omissions. If you cannot keep "
-    "the numbering, separate the translations with @@ on its own line "
-    "instead."
+    '...). A "keep:" list after a fragment\'s number names the '
+    "placeholders that fragment must preserve verbatim in its "
+    "translation — it is protocol metadata, not source text; never "
+    "repeat it in your output. Translate each fragment independently and "
+    "return one [n] section per input fragment in the same order — no "
+    "merging, no omissions. If you cannot keep the numbering, separate "
+    "the translations with @@ on its own line instead."
 )
 
 #: (锚名, 条款体) —— 编号渲染时生成；锚名是 spec/测试的语义引用柄

@@ -138,6 +138,8 @@ class TestKindPrompts:
         p = prompts.build_system_prompt("para", batch=True)
         assert _anchors(p)[-1] == "Batch protocol"
         assert "@@" in p
+        # v6：批条款向模型说明 keep: 名单是协议元数据、不得回显进译文
+        assert "keep:" in p
         assert "Batch protocol" not in _anchors(prompts.build_system_prompt("para"))
 
     def test_glossary_last(self) -> None:

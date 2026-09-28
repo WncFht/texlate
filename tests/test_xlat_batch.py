@@ -59,7 +59,7 @@ class TestPackBatches:
 class TestEncodeParse:
     def test_encode_numbered(self) -> None:
         text = batch.encode_batch(["hello world", "second\nline"])
-        assert text == "[1] hello world\n[2] second[[SL]]line"
+        assert text == "[1] hello world\n[2] keep: [[SL]] | second[[SL]]line"
 
     def test_parse_numbered(self) -> None:
         raw = "[1] 你好\n[2] 世界 [[MATH_1]]"

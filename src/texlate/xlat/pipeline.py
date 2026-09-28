@@ -36,6 +36,7 @@ from .batch import (
     BATCH_MAX_ITEMS,
     BATCH_MIN_CHARS,
     CHUNK_HARD_LIMIT,
+    batch_member_overhead,
     encode_batch_members,
     pack_batches,
     parse_batch_response,
@@ -1040,11 +1041,13 @@ class XlatPipeline:
         work_items: list[WorkItem] = []
         seq = 0
         for grp_chunks in by_kind.values():  # dict 保 insertion 序——批次确定性
+            contents = [c.content for c in grp_chunks]
             for grp in pack_batches(
-                [c.content for c in grp_chunks],
+                contents,
                 max_chars=self.cfg.batch_max_chars,
                 max_items=self.cfg.batch_max_items,
                 min_chars=self.cfg.batch_min_chars,
+                overheads=[batch_member_overhead(t) for t in contents],
                 workers=self.cfg.concurrency,
             ):
                 if len(grp) == 1:

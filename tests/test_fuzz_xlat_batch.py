@@ -40,6 +40,7 @@ from texlate.xlat import pipeline as xp
 from texlate.xlat import placeholders as ph
 from texlate.xlat import retry as rt
 from texlate.xlat.client import AuthError, ChatError, RetryableHTTPError
+from texlate.xlat.mock import MockTranslator
 
 # ---------------------------------------------------------------- 私有面薄封装
 
@@ -119,14 +120,20 @@ class TestEncodeBatch:
         assert "[0]" not in out
 
     def test_per_member_newline_codec(self) -> None:
-        # observed: 每成员独立过 encode_newlines——\n→[[SL]]、\n\n→[[PL]]、~→[[NBSP]]
+        # observed: 每成员独立过 encode_newlines——\n→[[SL]]、\n\n→[[PL]]、~→[[NBSP]]；
+        # ph 成员序号行内嵌 ``keep:`` 名单点名保真集（v6 批协议）
         out = xb.encode_batch(["a\nb", "c\n\nd", "x~y"])
-        assert out == "[1] a[[SL]]b\n[2] c[[PL]]d\n[3] x[[NBSP]]y"
+        assert out == (
+            "[1] keep: [[SL]] | a[[SL]]b\n"
+            "[2] keep: [[PL]] | c[[PL]]d\n"
+            "[3] keep: [[NBSP]] | x[[NBSP]]y"
+        )
 
     def test_member_literal_ph_escaped(self) -> None:
-        # observed: 成员字面 [[SL]] 升级 [[SL_RAW]]——编码面不产裸换行也不碰撞 token
+        # observed: 成员字面 [[SL]] 升级 [[SL_RAW]]——编码面不产裸换行也不碰撞
+        # token；[[SL_RAW]] 匹配类型化占位符形 → keep 名单照点
         out = xb.encode_batch(["lit [[SL]] here"])
-        assert out == "[1] lit [[SL_RAW]] here"
+        assert out == "[1] keep: [[SL_RAW]] | lit [[SL_RAW]] here"
 
     def test_empty_member_emits_marker_only_line(self) -> None:
         # observed: 空成员 → ``[k] `` 裸行（响应侧 strip 成空段 → 整批解析失败）
@@ -337,6 +344,117 @@ class TestParseNonAnchored:
         # observed: ``@@`` 段内非嵌套 ``[k]``(k∈{1..n}) = 协议残码/引用号
         # 歧义 → 整批拒收（was: 非锚定先行切走、``@@`` 行字面落段）
         assert xb.parse_batch_response("x [1] p [2] q\n@@\nz", 2) is None
+
+
+# ---------------------------------------------------------------- parse keep 回显剥除
+
+
+class TestParseKeepEcho:
+    """``keep:`` 名单回显按协议残码剥除——名单是元数据不是译文。
+
+    实测回显率≈0（keep-roster-and-values-truncation-2026-09-29），剥除是
+    防 ``diff`` 同集漏检的保险：名单与成员 ph 天然同集，残留 ``keep:``
+    行可能多重集相等静默放行。
+    """
+
+    def test_keep_echo_own_line_stripped(self) -> None:
+        # observed: 名单镜像回段首独占行——剥除后取正文
+        out = xb.parse_batch_response(
+            "[1] keep: [[MATH_1]] [[CITE_2]]\n译文 [[MATH_1]] [[CITE_2]]\n[2] 乙",
+            2,
+        )
+        assert out == ["译文 [[MATH_1]] [[CITE_2]]", "乙"]
+
+    def test_keep_echo_inline_pipe_stripped(self) -> None:
+        # observed: `keep: ids |` 内联镜像（与请求同形）——名单+分隔符剥除
+        out = xb.parse_batch_response("[1] keep: [[NBSP]] | 译文正文~尾\n[2] 乙", 2)
+        assert out == ["译文正文~尾", "乙"]
+
+    def test_keep_echo_inline_no_pipe_stripped(self) -> None:
+        # observed: 名单回显不带 ``|`` 也剥——模型丢分隔符不挡名单剥除
+        out = xb.parse_batch_response("[1] keep: [[MATH_1]] 译文甲\n[2] 乙", 2)
+        assert out == ["译文甲", "乙"]
+
+    def test_keep_echo_only_member_kills_batch(self) -> None:
+        # observed: 名单独占段（回显后零译文）→ 整批 None 退单翻——
+        # 名单 ph 多重集与成员同集，留下非空会骗过 diff 漏成译文
+        assert xb.parse_batch_response("[1] keep: [[MATH_1]]\n[2] 乙", 2) is None
+        assert xb.parse_batch_response("[1] keep: [[MATH_1]] |\n[2] 乙", 2) is None
+
+    def test_keep_echo_in_atat_sections(self) -> None:
+        # observed: ``@@`` 兜底段首同款剥除
+        out = xb.parse_batch_response("keep: [[MATH_1]]\n译文甲\n@@\n乙", 2)
+        assert out == ["译文甲", "乙"]
+        # 独占段 → 段数不足 → None
+        assert xb.parse_batch_response("keep: [[MATH_1]]\n@@\n乙", 2) is None
+
+    def test_member_content_leading_keep_text_kept(self) -> None:
+        # observed: 段首 ``keep:`` 后无 ph token 列不是名单——按内容收
+        out = xb.parse_batch_response("[1] keep: the result\n[2] 乙", 2)
+        assert out == ["keep: the result", "乙"]
+
+    def test_mock_translator_swallows_keep_roster(self) -> None:
+        # observed: mock 应答不回显名单——真实线发请求形态下批往返仍过
+        user = xb.encode_batch(["see [[MATH_1]] now", "plain text"])
+        assert "keep:" in user  # 前提：真实请求面含名单前缀
+        out = asyncio.run(
+            MockTranslator().translate(
+                system="", user=user, temperature=0.0, max_tokens=8192
+            )
+        )
+        assert "keep:" not in out
+        parts = xb.parse_batch_response(out, 2)
+        assert parts is not None
+        assert "[[MATH_1]]" in parts[0]
+
+
+# ---------------------------------------------------------------- bare_token_audit NBSP 宽容
+
+
+class TestBareTokenAudit:
+    """八族 token 多重集对账 + ``_BENIGN_MISS_TOKENS`` 丢失向宽容。"""
+
+    def test_missing_nbsp_forgiven(self) -> None:
+        # observed: [[NBSP]] 丢失（in>out）赦免——decode 后只少 ``~``
+        # 是良性排版伤；夜跑唯一存活失败类、对一切 keep 变体免疫
+        assert rt.bare_token_audit("a[[NBSP]]b", "译文") == ""
+        assert rt.bare_token_audit("a[[NBSP]]b[[NBSP]]c", "译[[NBSP]]文") == ""
+
+    def test_extra_nbsp_hard_fail(self) -> None:
+        # observed: 凭空铸 [[NBSP]]（in<out）仍硬败——锻造是幻觉签名
+        err = rt.bare_token_audit("ab", "译[[NBSP]]文")
+        assert "structural token multiset mismatch" in err
+        assert "NBSP" in err
+
+    def test_other_families_missing_hard_fail(self) -> None:
+        # observed: 宽容只给 NBSP——[[SL]]/[[PL]] 同向丢失仍硬败
+        assert "[[SL]]" in rt.bare_token_audit("a[[SL]]b", "译文")
+        assert "[[PL]]" in rt.bare_token_audit("a[[PL]]b", "译文")
+
+
+# ---------------------------------------------------------------- per-member 开销记账
+
+
+class TestMemberOverhead:
+    def test_batch_member_overhead_counts_keep(self) -> None:
+        # observed: ph-free 恒 BATCH_ITEM_OVERHEAD；ph 成员加 keep 前缀实长
+        assert xb.batch_member_overhead("plain text") == xb.BATCH_ITEM_OVERHEAD
+        text = "a~b"
+        enc = ph.encode_newlines(text)[0]
+        keep = f"keep: {' '.join(ph.find_all(enc))} | "
+        assert xb.batch_member_overhead(text) == xb.BATCH_ITEM_OVERHEAD + len(keep)
+
+    def test_overheads_per_item_replaces_default(self) -> None:
+        # observed: overheads 逐项顶替 item_overhead——keep 头长计入容量
+        assert xb.pack_batches(["x" * 5, "y" * 5], max_chars=20, overheads=[9, 9]) == [
+            [0],
+            [1],
+        ]
+        assert xb.pack_batches(["x" * 5, "y" * 5], max_chars=20, overheads=[4, 4]) == [
+            [0, 1]
+        ]
+        with pytest.raises(ValueError, match="overheads len"):
+            xb.pack_batches(["a"], overheads=[1, 2])
 
 
 # ---------------------------------------------------------------- parse @@ 兜底
@@ -704,7 +822,9 @@ class TestPipelineBatch:
             xp.ChunkIn("b", "second\nline", "para"),
         ]
         _run(chunks, t)
-        assert t.calls[0]["user"] == "[1] first text\n[2] second[[SL]]line"
+        assert t.calls[0]["user"] == (
+            "[1] first text\n[2] keep: [[SL]] | second[[SL]]line"
+        )
         assert t.calls[0]["rf"] is None
 
     def test_pure_ph_chunks_never_requested(self) -> None:

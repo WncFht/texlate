@@ -202,6 +202,10 @@ def write_jsonl_rows(path: Path, rows: Iterable[object]) -> None:
 
 _NUM_LINE_RX = re.compile(r"^\[\d+\]")
 _NUM_SPLIT_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
+#: `[n] keep: ids |` 名单前缀——协议元数据不是待译内容；回显侧剥掉
+#: 同 mock._MOCK_NUM_RX 口径（留着会被 `zh:` 前缀弄成非段首 echo、
+#: _strip_keep_echo 够不到、名单 token 变 extra-ph 全体退单翻）
+_KEEP_REST_RX = re.compile(r"^keep:(?:[ \t]*\[\[[A-Z][A-Z_]*_?\d*\]\])+[ \t]*\|?[ \t]*")
 
 
 def echo_reply(user: str) -> str:
@@ -220,9 +224,15 @@ def zh_prefix_reply(user: str) -> str:
 
 
 def zh_lines_reply(user: str) -> str:
-    """``[n] rest`` 逐行回 ``[n] zh:rest``；不匹配行原样透传（residual 臂批缺省）。"""
+    """``[n] rest`` 逐行回 ``[n] zh:rest``；不匹配行原样透传（residual 臂批缺省）。
+
+    ``[n] keep: ids | rest`` 的名单前缀剥掉再挂 ``zh:``——真实模型不回显
+    协议元数据（prompts 条款明令），伪件同理才不构成假退单翻。
+    """
     return "\n".join(
-        f"{m.group(1)} zh:{m.group(2)}" if (m := _NUM_SPLIT_RX.match(ln)) else ln
+        f"{m.group(1)} zh:{_KEEP_REST_RX.sub('', m.group(2))}"
+        if (m := _NUM_SPLIT_RX.match(ln))
+        else ln
         for ln in user.split("\n")
     )
 

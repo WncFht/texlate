@@ -539,11 +539,14 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
     for c in pending:
         by_kind.setdefault(c.kind, []).append(c)
     for grp in by_kind.values():
+        contents = [c.content for c in grp]
         groups = xb.pack_batches(
-            [c.content for c in grp],
+            contents,
             max_chars=cfg.batch_max_chars,
             max_items=cfg.batch_max_items,
             min_chars=cfg.batch_min_chars,
+            # v6 keep 前缀逐项实长——管线同口径，oracle 不复刻会假报批路由分歧
+            overheads=[xb.batch_member_overhead(t) for t in contents],
             workers=cfg.concurrency,
         )
         for idxs in groups:

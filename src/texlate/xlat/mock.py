@@ -28,8 +28,16 @@ _MOCK_TOKEN_RX = re.compile(
 #: 原样回显不进译文（scout-triage-2026-09-17 F-echo 1 格，low；
 #: ``bench/py/qualbench.py`` 同源副本同盲区）。
 _PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")
-#: 批行 `[n]` 前缀识别（mock 回显编号用）
-_MOCK_NUM_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
+#: 批行 `[n]` 前缀识别（mock 回显编号用）——`[n] keep: ids |` 名单前缀是
+#: 协议元数据非待译内容，剥到只剩序号（回显 ids 会成 extra-ph）。
+_MOCK_NUM_RX = re.compile(
+    r"^(\[\d+\])\s?(?:keep:(?:[ \t]*\[\[[A-Z][A-Z_]*_?\d*\]\])+[ \t]*\|?[ \t]*)?(.*)$",
+    re.DOTALL,
+)
+#: 批输入判定：首行是序号头且全文 ≥2 个序号头行（单 chunk 开头字面 `[1]`
+#: 只有 1 头仍走整体回译；批恒 ≥2 成员）
+_MOCK_HEAD_RX = re.compile(r"^\[\d+\](?:[ \t]|$)")
+_MOCK_BATCH_MIN_HEADS = 2
 
 #: mock 译文密度：每 ~8 个英文字符折一倍 ``MOCK_ZH``——E24 token 比带
 #: [0.3,3.0] 下 mock 输出须贴近真实 CJK 密度（4 字固定桩对任何
@@ -108,7 +116,8 @@ class MockTranslator:
         # extra-placeholder 校验失败、批回显路径也走不到（整批退单翻）。
         body = user.partition("\n\n" + prompts.VALUE_CONTEXT_HEADER)[0]
         lines = body.split("\n")
-        if lines and all(_MOCK_NUM_RX.match(ln) for ln in lines if ln.strip()):
+        n_heads = sum(1 for ln in lines if _MOCK_HEAD_RX.match(ln))
+        if lines and n_heads >= _MOCK_BATCH_MIN_HEADS and _MOCK_HEAD_RX.match(lines[0]):
             return "\n".join(
                 f"{m.group(1)} {_mock_translate_text(m.group(2), self.zh)}"
                 if (m := _MOCK_NUM_RX.match(ln))

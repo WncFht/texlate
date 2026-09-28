@@ -205,6 +205,14 @@ _DECODE_FAM_TOKENS: tuple[str, ...] = (
     NEGSP,
 )
 
+#: 丢失向宽容族——``[[NBSP]]`` 丢失只少一个 ``~`` 防断行空格（CJK 译文里几乎
+#: 不可见，post-decode ``diff`` 本来就对它全盲）。夜跑归因：唯一存活失败类是
+#: 批相关 NBSP 喷雾（同批至多 5 成员同丢），对一切 keep/反馈变体免疫——不修
+#: 审计侧则该成员永远走满阶梯到 partial（keep-roster-and-values-truncation
+#: -2026-09-29 §6）。只赦 in>out（丢）；in<out（凭空铸 token）维持硬败——
+#: ``\!``/``\:`` 类落入文本域是编译炸弹、锻造型丢失是幻觉签名。
+_BENIGN_MISS_TOKENS: frozenset[str] = frozenset({NBSP})
+
 
 def bare_token_audit(shown_src: str, zh_raw: str) -> str:
     """Decode 前对账：``shown_src`` 与生应答 ``zh_raw`` 的八族 token 多重集须逐族相等。
@@ -213,12 +221,25 @@ def bare_token_audit(shown_src: str, zh_raw: str) -> str:
     ``encode_newlines`` 产物，corrector/retranslate 是未编码原文（模型所见
     不同，期望多重集随之不同）。返回违规描述（``""``=通过），走各路径现成
     的校验失败通道消化（阶梯重试/批退单翻/fault 回退）。
+
+    ``_BENIGN_MISS_TOKENS`` 族只赦「丢」（in>out）；「多」（in<out）一切族
+    硬败——锻造签名不可放行。赦免计数走 ``log.info`` 留观测面。
     """
-    bad = [
-        f"{tok}(in={shown_src.count(tok)},out={zh_raw.count(tok)})"
-        for tok in _DECODE_FAM_TOKENS
-        if shown_src.count(tok) != zh_raw.count(tok)
-    ]
+    bad: list[str] = []
+    forgiven: list[str] = []
+    for tok in _DECODE_FAM_TOKENS:
+        i_n, o_n = shown_src.count(tok), zh_raw.count(tok)
+        if i_n == o_n:
+            continue
+        if tok in _BENIGN_MISS_TOKENS and i_n > o_n:
+            forgiven.append(f"{tok}(in={i_n},out={o_n})")
+        else:
+            bad.append(f"{tok}(in={i_n},out={o_n})")
+    if forgiven:
+        log.info(
+            "bare_token_audit: benign missing tokens forgiven: %s",
+            ", ".join(forgiven),
+        )
     if not bad:
         return ""
     return "structural token multiset mismatch: " + ", ".join(bad)
