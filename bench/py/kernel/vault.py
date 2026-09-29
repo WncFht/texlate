@@ -510,6 +510,63 @@ def _non_regular(root: Path) -> list[Path]:
     return [p for p, kind in fsutil._iter_tree(Path(root)) if kind in ("link", "other")]
 
 
+def _pdf_intact(path: Path) -> tuple[bool, str]:
+    """(ok, reason) — tolerant structural check on a .pdf payload: ``%PDF-``
+    magic at offset 0 plus ``startxref``/``%%EOF`` inside the last ~1 KiB.
+    Not a parser — it only proves the bytes are a complete pdf rather than
+    a truncated/torn write or foreign content (the pdf_corrupt class:
+    killed compiles sealed half-written product pdfs)."""
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as fh:
+            if fh.read(5) != b"%PDF-":
+                return False, "bad_header"
+            fh.seek(max(0, size - 1024))
+            tail = fh.read()
+    except OSError:
+        return False, "unreadable"
+    if b"%%EOF" not in tail:
+        return False, "no_eof"
+    if b"startxref" not in tail:
+        return False, "no_startxref"
+    return True, "ok"
+
+
+def _product_pdf_rels(kind: str, rels: list[str]) -> list[str]:
+    """rels subset that is the kind's DELIVERABLE pdf — exactly the files
+    ``_copy_product_ok`` would vouch as splice product (stem-matched to a
+    declared .tex, else root-level non-figish). Only splice has a pdf
+    product notion: zh's product is the .tex tree — its pdf payloads are
+    source cargo (arXiv tarballs routinely ship stray author pdfs) and
+    gating them would refuse paid bytes over dead cargo, looping regen on
+    corrupt-at-source quirks."""
+    if kind != "splice":
+        return []
+    tex_stems = {
+        r.rsplit("/", 1)[-1][: -len(".tex")] for r in rels if r.endswith(".tex")
+    }
+    out = []
+    for r in rels:
+        if not r.endswith(".pdf"):
+            continue
+        stem = r.rsplit("/", 1)[-1][: -len(".pdf")]
+        if stem in tex_stems or ("/" not in r and not _FIGISH_STEM_RE.match(stem)):
+            out.append(r)
+    return out
+
+
+def _corrupt_product_pdfs(kind: str, files: list[tuple[Path, str]]) -> list[dict]:
+    """[{path, reason}] for deliverable pdfs failing ``_pdf_intact`` — the
+    seal-time acceptance gate."""
+    by_rel = {rel: p for p, rel in files}
+    out = []
+    for rel in _product_pdf_rels(kind, [rel for _p, rel in files]):
+        ok, why = _pdf_intact(by_rel[rel])
+        if not ok:
+            out.append({"path": rel, "reason": why})
+    return out
+
+
 def _safe_rel(rel) -> str | None:
     """Declared-path sanity: relative, non-empty, no '.'/'..' segments — a
     corrupt meta must never steer verify/restore outside its leaf dir."""
@@ -670,7 +727,13 @@ def harvest(
     missing/non-dir source, non-regular files inside (links/fifos — the
     vault holds regular bytes only), all-empty asset trees, occupied
     destination (explicit altseq), missing sentinel, cross-device staging.
-    """
+
+    Seal gate: a kind whose DELIVERABLE pdf fails _pdf_intact (truncated or
+    foreign bytes — the pdf_corrupt class) is refused per-kind: it is
+    excluded from the copy and recorded in meta/manifest as seal_refused,
+    so the corrupt pdf never enters the vault and no verdict/product claim
+    can ever vouch for it. When every kind is refused the harvest raises —
+    an empty copy is not a copy."""
     idc = _check_idc(idc)
     arm = _comp(arm)
     variant = _comp(variant)
@@ -691,6 +754,7 @@ def harvest(
         msg = f"unknown asset kinds {sorted(unknown)} (allowed: {sorted(KINDS)})"
         raise ValueError(msg)
     srcs: dict[str, Path] = {}
+    refused: dict[str, list[dict]] = {}
     for k in kinds:
         src = Path(assets[k])
         if not src.is_dir():
@@ -707,7 +771,18 @@ def harvest(
         if not files or all(p.stat().st_size == 0 for p, _ in files):
             msg = f"asset {k} carries no non-empty bytes: {src}"
             raise VaultError(msg)
+        bad = _corrupt_product_pdfs(k, files)
+        if bad:
+            refused[k] = bad
+            continue
         srcs[k] = src
+    if not srcs:
+        msg = (
+            "every asset kind refused at seal — corrupt deliverable pdf: "
+            f"{json.dumps(refused, ensure_ascii=False, sort_keys=True)}"
+        )
+        raise VaultError(msg)
+    kinds = sorted(srcs)
     sid = idnorm.safe_id(idc)
     with locks.flock(paths.vault_lock_path(), exclusive=True):
         chosen = _choose_altseq(idc, arm, variant, altseq)
@@ -790,6 +865,8 @@ def harvest(
             }
             if model is not None:
                 meta["model"] = model
+            if refused:
+                meta["seal_refused"] = refused
             _write_meta(mpath, meta)
             row = {
                 "op": _op,
@@ -810,6 +887,8 @@ def harvest(
             }
             if model is not None:
                 row["model"] = model
+            if refused:
+                row["seal_refused"] = refused
             _append_manifest_locked(row)
             fsutil.fsync_dir(paths.vault_dir())
         except BaseException:

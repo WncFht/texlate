@@ -832,7 +832,9 @@ def _compile(ctx) -> dict:
     metrics["engine"] = eng
     metrics["main_rel"] = main_rel
     try:
-        metrics["inject"] = prepare_chinese(splice, main_rel)
+        metrics["inject"] = prepare_chinese(
+            splice, main_rel, layout_marks=bool(ctx.params["marks"])
+        )
     except InjectRejectError as e:
         metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
         return _gate("reject", "inject_reject", "inject", e.reason, metrics)
@@ -931,7 +933,9 @@ def _fixloop(ctx) -> dict:
         return _gate("error", "no_main_tex", "fixloop", classify_no_main(splice) or "")
     metrics: dict = {"splice_rebuilt": True}
     try:
-        metrics["inject"] = prepare_chinese(splice, main_rel)
+        metrics["inject"] = prepare_chinese(
+            splice, main_rel, layout_marks=bool(ctx.params["marks"])
+        )
     except InjectRejectError as e:
         metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
         return _gate("reject", "inject_reject", "inject", e.reason, metrics)
@@ -1070,6 +1074,7 @@ spec = Spec(
         "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS, fp=True),
         "model": Param(str, default=DEFAULT_MODEL, fp=True),
         "llm": Param(bool, default=False, fp=True),
+        "marks": Param(bool, default=True, fp=True),
         "no_probe": Param(bool, default=False, fp=False),
         "resid_sweep": Param(bool, default=False, fp=True),
     },

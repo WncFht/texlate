@@ -154,11 +154,14 @@ def _rules(img) -> int:
     return rules
 
 
-def _void_frac(img) -> tuple[float, float]:
-    """textblock 近似区内白区双口径。返 (最大白矩形占比, 最大内部
-    白连通块占比)——内部白块要求连通块不贴测量区任何边（真「掉图
-    窟窿」语义：洞四周皆有墨；目录收尾/末页留白必贴底边，天然不
-    报警；页底背景是一个贴边巨连通块，不进内部口径）。"""
+def _void_frac(img) -> tuple[float, float, float]:
+    """textblock 近似区内白区三口径。返 (最大白矩形占比, 最大内部
+    白连通块占比, 块内墨率)——内部白块要求连通块不贴测量区任何边
+    （真「掉图窟窿」语义：洞四周皆有墨；目录收尾/末页留白必贴底边，
+    天然不报警；页底背景是一个贴边巨连通块，不进内部口径）。
+    块内墨率 = 最大内部白 CC 的包围盒内墨像素占比——tcolorbox/
+    listing/坐标框封出的白内腔装着文字/图件（墨>0），真空洞≈0
+    （0928 blank_void 簇：12/12 void 格全是框内白腔误报）。"""
     w, h = img.size
     scale = min(1.0, 160.0 / w)
     if scale < 1.0:
@@ -169,7 +172,7 @@ def _void_frac(img) -> tuple[float, float]:
     cols = list(range(m[0], w - m[0]))
     rows = list(range(m[1], h - m[1]))
     if not cols or not rows:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0
     nc, nr = len(cols), len(rows)
     white = [[px[x, y] >= 240 for x in cols] for y in rows]
     # 口径一：最大白矩形（histogram maximal-rectangle）——栈存
@@ -189,9 +192,11 @@ def _void_frac(img) -> tuple[float, float]:
                 best = max(best, hh * (i - idx))
                 start = idx
             stack.append((start, cur))
-    # 口径二：不贴区边的最大白色连通块（4-邻接 BFS）
+    # 口径二：不贴区边的最大白色连通块（4-邻接 BFS）——顺手记下
+    # 冠军块的包围盒，供口径三量块内墨率。
     seen = [[False] * nc for _ in range(nr)]
     best_int = 0
+    best_box: tuple[int, int, int, int] | None = None
     for y0 in range(nr):
         for x0 in range(nc):
             if not white[y0][x0] or seen[y0][x0]:
@@ -200,9 +205,13 @@ def _void_frac(img) -> tuple[float, float]:
             seen[y0][x0] = True
             n = 0
             touches = False
+            bx0 = by0 = nc + nr
+            bx1 = by1 = -1
             while q:
                 x, y = q.pop()
                 n += 1
+                bx0, by0 = min(bx0, x), min(by0, y)
+                bx1, by1 = max(bx1, x), max(by1, y)
                 if x == 0 or y == 0 or x == nc - 1 or y == nr - 1:
                     touches = True
                 for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
@@ -214,10 +223,22 @@ def _void_frac(img) -> tuple[float, float]:
                     ):
                         seen[ny][nx] = True
                         q.append((nx, ny))
-            if not touches:
-                best_int = max(best_int, n)
+            if not touches and n > best_int:
+                best_int = n
+                best_box = (bx0, by0, bx1, by1)
     tot = max(nc * nr, 1)
-    return best / tot, best_int / tot
+    void_ink = 0.0
+    if best_box is not None:
+        bx0, by0, bx1, by1 = best_box
+        area = max((bx1 - bx0 + 1) * (by1 - by0 + 1), 1)
+        ink = sum(
+            1
+            for y in range(by0, by1 + 1)
+            for x in range(bx0, bx1 + 1)
+            if not white[y][x]
+        )
+        void_ink = ink / area
+    return best / tot, best_int / tot, void_ink
 
 
 def _columns(img) -> int:
@@ -353,7 +374,7 @@ def main() -> int:
             except Exception:  # noqa: S112 — 单页 PNG 解码失败跳过（页级降级不毙整篇；stdout 是 JSON 协议面不能 log）
                 continue
             w, h = img.size
-            vf, vi = _void_frac(img)
+            vf, vi, vink = _void_frac(img)
             dark, tofu = _cc_scan(img)
             out["pages"].append(
                 {
@@ -365,6 +386,7 @@ def main() -> int:
                     "rules": _rules(img),
                     "void_frac": round(vf, 4),
                     "void_int": round(vi, 4),
+                    "void_ink": round(vink, 4),
                     "cols": _columns(img),
                 }
             )

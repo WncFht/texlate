@@ -922,6 +922,11 @@ def _layoutqc(ctx) -> dict:
         base_dir=base_dir,
         src_dir=src,
         marks_era=bool(ctx.params["marks"]),
+        # compile metrics 的 inject.layout_marks 是 marks 注入的账本
+        # 口径——marks_absent 出处闸（缺席预期 vs 真断链）。
+        marks_expected=(
+            None if not cm else (cm.get("inject") or {}).get("layout_marks", 0) >= 1
+        ),
         flag_dir=out_dir / "flagged",
     )
     findings = qc["findings"]
