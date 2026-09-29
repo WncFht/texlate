@@ -301,4 +301,7 @@
 \providecommand{\nar}{New A Rev.}
 \providecommand{\pasa}{PASA}
 \providecommand{\rmxaa}{Rev.~Mexicana Astron. Astrofis.}
+% picins 面 (9612050 实证 \picplace{4.0cm}×5+): era 稿插图占位指示 —
+% 真身是 picins 图片窗占位, stub 以等高等空白落位
+\providecommand{\picplace}[1]{\par\medskip\noindent\vspace{#1}\par\medskip}
 \endinput
