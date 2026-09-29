@@ -29,6 +29,9 @@ r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿�
   ``env_raw``/``env_opt`` 读取族 + ``data_root``/``set_data_dir`` +
   ``safe_resolve``/``safe_is_file``/``safe_is_dir``/``safe_rel`` 路径防御 +
   ``utc_now``/``filtered_env``/``DEFAULT_BIND_*`` 派生共享件。
+- ``secrets``：secret 形态脱敏表两档单源——``SECRET_PATTERNS``（严档，
+  ``xlat._errors`` 错误文本道）+ ``SECRET_LOG_PATTERNS``（宽档，
+  ``logsetup``/``logredact`` 日志道），共享行字面只定义一次。
 - ``targate``：tar 伪装二进制闸（``_tar_disguised``/``_tar_header_ok``
   ——compile/latex 两层共用，不能锚在消费层）。
 """
@@ -142,6 +145,7 @@ from .osutil import (  # noqa: F401
     set_data_dir,
     utc_now,
 )
+from .secrets import SECRET_LOG_PATTERNS, SECRET_PATTERNS
 from .targate import _TAR_HEADER_LEN, _tar_disguised, _tar_header_ok  # noqa: F401
 
 __all__ = [
@@ -176,6 +180,8 @@ __all__ = [
     "PH_ANY_LIKE_RX",
     "PH_FUZZY_RX",
     "PH_RX",
+    "SECRET_LOG_PATTERNS",
+    "SECRET_PATTERNS",
     "SUBDOC_CHILD_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",

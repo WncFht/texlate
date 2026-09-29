@@ -377,7 +377,7 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
 class _Ctx:
     """``(src, zh)`` 校验对的共享预处理视图缓存（``_CHECKERS`` 入参）。
 
-    14 条 checker 曾按 ``(src, zh, issues)`` 签名各自重推同一批词法/遮盖/
+    各 checker 曾按 ``(src, zh, issues)`` 签名各自重推同一批词法/遮盖/
     散文视图（每对 ``_lex`` ×13、``mask_comments`` ×9、``_prose`` ×4）；
     全部改为随本对象惰性派生——每视图每对只算一次，未消费的侧不付成本。
     """

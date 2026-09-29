@@ -21,6 +21,7 @@ from texlate.latex.mouth import (
     _text_run_rx,
 )
 from texlate.latex.tables import (
+    BUDGET,
     INPUT_CMDS,
     MAX_GEN,
 )
@@ -300,21 +301,22 @@ class _Core:
                 return out
             return t  # LaTeX 内建/未知 cs → 分段器按 argspec 表处理
 
+    def _budget(self: Gullet) -> int:
+        """展开步数预算——``Gullet``（``__init__``）覆写绑包属性迟读 tests 补丁面。"""
+        return BUDGET
+
     def _can_expand(self: Gullet, t: Tok) -> bool:
         """三级限制：``gen>=MAX_GEN``/``steps>BUDGET`` → 不再展开（§3.4）。"""
-        # ``BUDGET`` 走包属性迟绑定——tests 猴子补丁 ``texlate.latex.gullet.BUDGET``
-        # 的接缝必须读运行时值；顶层 import 则是 __init__→core→__init__ 加载环。
-        import texlate.latex.gullet as _g  # noqa: PLC0415
-
         if t.gen >= MAX_GEN:
             if not self.overflow:
                 self.overflow = True
                 self._warn("gen_overflow", t, f"gen>={MAX_GEN} unexpanded")
             return False
-        if self.steps >= _g.BUDGET:
+        budget = self._budget()
+        if self.steps >= budget:
             if not self.overflow:
                 self.overflow = True
-                self._warn("expansion_overflow", t, f"steps>{_g.BUDGET}")
+                self._warn("expansion_overflow", t, f"steps>{budget}")
             return False
         return True
 

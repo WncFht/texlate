@@ -23,7 +23,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from texlate.latex.model import Chunk, ScanResult, ScanWarning, Span
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
@@ -841,6 +841,10 @@ _ENV_TOKEN_COUNT_RX = re.compile(r"\\(begin|end)\s*\{([^{}\s]+)\}")
 #: ``Popovi─Н``/2208.00132 ``SipÅ\x91cz`` 类，上游 decode 漏检的落稿兜捕）。
 _C1_CTRL_RX = re.compile(r"[\x80-\x9f]")
 
+#: ``emit_trans_dropped`` 覆盖加权的片段长度下限——短片段对 post-fix
+#: 触碰过敏，低于此长不进字符加权口径。
+_SEG_HIT_MIN_CHARS: Final = 6
+
 
 def splice_emit_issues(  # noqa: C901 — 四臂哨兵平铺即清单
     src_tex: str,
@@ -848,7 +852,7 @@ def splice_emit_issues(  # noqa: C901 — 四臂哨兵平铺即清单
     translations: dict[int, str] | None,
     rel: str,
 ) -> list[str]:
-    r"""splice 落稿哨兵：zh 产物体检 → note 串（``[]``=干净，``emit_*`` 命名）。
+    r"""Splice 落稿哨兵：zh 产物体检 → note 串（``[]``=干净，``emit_*`` 命名）。
 
     - ``emit_brace_skew``：src/zh 花括净深背离（0905.2435 类——
       ``\edcorr{a}{b}`` 第二实参被译文抬出括号、配对区发散）；
@@ -894,12 +898,12 @@ def splice_emit_issues(  # noqa: C901 — 四臂哨兵平铺即清单
         total = hit = 0
         for t in translations.values():
             for seg in PH_RX.split(t):
-                seg = seg.strip()
-                if len(seg) < 6:  # 短片段对 post-fix 触碰过敏，按字符加权才稳
+                seg_s = seg.strip()
+                if len(seg_s) < _SEG_HIT_MIN_CHARS:
                     continue
-                total += len(seg)
-                if seg in zh_tex:
-                    hit += len(seg)
+                total += len(seg_s)
+                if seg_s in zh_tex:
+                    hit += len(seg_s)
         if total and hit * 10 < total * 9:
             issues.append(f"emit_trans_dropped:{rel}:{hit * 100 // total}%")
 

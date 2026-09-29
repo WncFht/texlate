@@ -11,10 +11,11 @@
 from __future__ import annotations
 
 import json
-import re
 import ssl
 
 import httpx
+
+from texlate.textutil.secrets import SECRET_PATTERNS as _SECRET_PATTERNS
 
 # ---------------------------------------------------------------- 常量
 
@@ -281,13 +282,9 @@ def _raise_for_finish(finish: str, content: str, *, detail: str = "") -> None:
 
 # ---------------------------------------------------------------- 脱敏
 
-_SECRET_PATTERNS = [
-    re.compile(r"Bearer\s+\S+", re.IGNORECASE),
-    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"sk-ant-[A-Za-z0-9_-]{4,}"),
-    re.compile(r"AIza[0-9A-Za-z_-]{10,}"),
-    re.compile(r"(?:api[_-]?key|x-api-key|token)[=:]\s*[\"']?\S+", re.IGNORECASE),
-]
+#: 严档 secret 形态表——单源 ``textutil.secrets.SECRET_PATTERNS``，本模块
+#: 别名转口保 ``xlat._errors._SECRET_PATTERNS``（及 ``client`` 回引链）
+#: 钉点名不变；覆盖不变量 ``tests/test_secret_patterns.py`` 钉住。
 
 
 def redact(text: str, api_key: str = "") -> str:

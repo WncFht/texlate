@@ -25,8 +25,9 @@ _MOCK_TOKEN_RX = re.compile(
 )
 #: 行内字母 run（mock 译文替换单位；``[^\n]`` 不跨行——保住换行布局）
 #: 勘误 2026-09-17（登记不修）：ASCII 盲区——西里尔/希腊文等非 ASCII 散文
-#: 原样回显不进译文（scout-triage-2026-09-17 F-echo 1 格，low；
-#: ``bench/py/qualbench.py`` 同源副本同盲区）。
+#: 原样回显不进译文（scout-triage-2026-09-17 F-echo 1 格，low）。
+#: 本件是 bench ``specs/_qualframe._mock_translate`` 的同名同源单源——
+#: bench 侧应 import 本叶而非自持副本（token/prose-run/zh 串三件套漂移面）。
 _PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")
 #: 批行 `[n]` 前缀识别（mock 回显编号用）——`[n] keep: ids |` 名单前缀是
 #: 协议元数据非待译内容，剥到只剩序号（回显 ids 会成 extra-ph）。

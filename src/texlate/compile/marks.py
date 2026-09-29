@@ -240,14 +240,6 @@ def env_sequence(root: Path, envs: frozenset = _FLOAT_ENVS) -> list[str]:
     return seq
 
 
-def _uid_key(uid: str) -> tuple[str, str, str] | None:
-    """``<env>-<ord>-<b|e>`` → (env, ord, side)；不合成 None。"""
-    m = _UID_RX.match(uid)
-    if not m:
-        return None
-    return m.group(1), m.group(2), m.group(3)
-
-
 def _drift_findings(
     pairs: list[tuple[int, str, str, dict, dict]],
     *,

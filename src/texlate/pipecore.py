@@ -464,9 +464,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         # 对账通道，只报不拦。
         if emit_notes := splice_emit_issues(res.vtex, zh, trans, rel):
             slot_diffs.setdefault(rel, []).extend(emit_notes)
-            log.warning(
-                "emit splice issues in %s: %s", rel, "; ".join(emit_notes[:8])
-            )
+            log.warning("emit splice issues in %s: %s", rel, "; ".join(emit_notes[:8]))
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
     stats = {
@@ -713,8 +711,8 @@ def _opt_switch(
     三层链与 ``"0"/"false"/"no"/"off"`` 字符串 false 系归一化单源在
     ``textutil.osutil.opt_switch``；``TEXLATE_NO_*`` env 是「关」语义，
     取反喂入故缺省皆开。e2e 只喂 explicit、worker 只喂 options——两臂
-    各自的两级闸是同一条优先级链上的不同入口。本私有名保 worker
-    ``compile`` 的 pipecore 消费面。
+    各自的两级闸是同一条优先级链上的不同入口。pipecore 内部件——
+    worker 侧经 ``worker._common.opt_bool`` 本地化（``_seq_marks_on``）。
     """
     return opt_switch(
         options,

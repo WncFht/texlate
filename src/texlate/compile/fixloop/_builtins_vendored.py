@@ -23,6 +23,7 @@ from texlate.compile.fixloop._builtins_common import (
     _inject_write,
     _live_matches,
     _mark_injected,
+    _read_utf8,
     _resolve_site,
 )
 from texlate.textutil import safe_is_file
@@ -672,14 +673,6 @@ def _is_revtex40a(text: str) -> bool:
         _REVTEX40_NAME_RE.search(text) is not None
         and _REVTEX40_UCLC_RE.search(text) is not None
     )
-
-
-def _read_utf8(f: Path) -> str:
-    """utf-8 直读 (指纹探测用, 树外件不走 ctx 缓存); 不可读 → ``""``。"""
-    try:
-        return f.read_text(encoding="utf-8", errors="replace")
-    except (OSError, ValueError):
-        return ""
 
 
 def _retire_revtex40a_files(

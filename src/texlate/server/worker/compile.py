@@ -33,7 +33,6 @@ from texlate.pipecore import (
     DB_TO_PIPE,
     PipeJob,
     RepairPolicy,
-    _opt_switch,
     compile_judge,
     delivered_db,
     fixloop_flags_tail,
@@ -96,6 +95,7 @@ from ._common import (
     _translator_clients,
     _write_compile_done,
     chunk_db_id,
+    opt_bool,
     zh_slot,
 )
 from .html import (
@@ -121,6 +121,13 @@ if TYPE_CHECKING:
 from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
+
+
+def _seq_marks_on(options: dict[str, Any]) -> bool:
+    """seq_marks 三级闸：``options`` 显式 > ``TEXLATE_NO_SEQ_MARKS`` env（缺省开）。"""
+    return opt_bool(
+        options, "seq_marks", lambda: not env_flag(ENV_NO_SEQ_MARKS, default=False)
+    )
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
@@ -360,9 +367,7 @@ class _Compile:
         shutil.copytree(ctx.base_dir, ctx.zh_dir)
         rows = self._on_loop(self._all_chunks, ctx)
         trans = self._env_judge_filter(ctx, _delivered_map(rows), rows)
-        marks_on = _opt_switch(
-            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
-        )
+        marks_on = _seq_marks_on(ctx.options())
         # moving-arg 全量放行（废 .tex 面 RX 闸）：hyperref 常经 .cls/.sty 传递
         # 加载，.tex 扫描必漏检——漏检时同 MCID 被 .toc 重放成双 BDC，命中又
         # 误杀全部标题/图题锚。实证注入仅换 pdfstring 期 hyperref
@@ -598,9 +603,7 @@ class _Compile:
         口径与 _build_zh 同序累计，双侧 seq 对位一致。谓词拒绝/失衡文件
         剥锚留原文，注锚异常不挡编译。
         """
-        marks_on = _opt_switch(
-            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
-        )
+        marks_on = _seq_marks_on(ctx.options())
         if not marks_on or not ctx.scans:
             return
         seq0 = 0
@@ -1033,9 +1036,7 @@ class _Compile:
                     lambda t, p: self._repair_event(ctx, t, p),
                 ),
                 baseline_sigs=self._en_err_sigs(ctx),
-                seq_marks=_opt_switch(
-                    ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
-                ),
+                seq_marks=_seq_marks_on(ctx.options()),
             )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发；clients

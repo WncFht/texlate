@@ -905,3 +905,11 @@ def _brace_end(vis: str, pos: int) -> int:
             depth -= 1
         j += 1
     return j
+
+
+def _read_utf8(f: Path) -> str:
+    """utf-8 直读 (指纹探测用, 树外件不走 ctx 缓存); 不可读 → ``""``。"""
+    try:
+        return f.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        return ""

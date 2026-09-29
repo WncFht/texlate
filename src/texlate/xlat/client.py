@@ -92,6 +92,7 @@ from texlate.xlat._discovery import (  # noqa: F401 -- 出叶回引：发现链�
     LOOPBACK_HOSTS,
     PROBE_MAX_TOKENS,
     PROBE_TIMEOUT,
+    TAILNET_V4,
     FreeModel,
     _get_json,
     _safe_int,

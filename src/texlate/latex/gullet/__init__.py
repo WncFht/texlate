@@ -25,9 +25,9 @@ docs/spec/latex-pipeline.md。
 from __future__ import annotations
 
 # ------------------------------------------------------------------ 兼容面
-# 旧单文件模块属性面的在役子集：``BUDGET``（core._can_expand 函数级迟绑定
-# 读本属性——tests monkeypatch 面，顶层 import 即加载环）、``_tok_eq``
-# （bench gullet_bench 消费）。
+# 旧单文件模块属性面的在役子集：``BUDGET``（tests monkeypatch 面——
+# ``Gullet._budget`` 覆写读本模块全局迟绑定，core 侧纯方法分派无回指
+# import）、``_tok_eq``（bench gullet_bench 消费）。
 # 其余泄漏导入名零消费已修剪；``__all__`` 即公共面。
 from texlate.latex.tables import (
     BUDGET as BUDGET,
@@ -94,3 +94,7 @@ class Gullet(_Core, _Args, _DefCmd, _Decls, _Input, _Expand, _Cond, _Classify):
     用法：``Gullet(tex, root_dir=dir)`` 或 ``Gullet()`` + ``push_source``；
     ``next_expanded()`` 逐枚取展开后 token 直到 ``None``。
     """
+
+    def _budget(self) -> int:
+        """预算读位钉本模块全局 ``BUDGET``——``monkeypatch.setattr`` 的接缝面。"""
+        return BUDGET

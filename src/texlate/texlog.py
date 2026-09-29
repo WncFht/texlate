@@ -33,14 +33,12 @@ from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Protocol
 
 from texlate.textutil import safe_resolve
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-
-    from texlate.compile.engine import CompRes
 
 __all__ = [
     "CTX_LINES",
@@ -585,10 +583,18 @@ def iter_log_events(lines: Iterable[str]) -> Iterator[LogEvent]:
         )
 
 
-# ================================================================ CompRes 日志提取
+# ================================================================ log 全文提取
 
 
-def log_text_of(res: CompRes) -> str:
+class _LogTextSource(Protocol):
+    """``log_text_of`` 的输入面——``CompRes`` 同形即收，本叶不引 compile 回边。"""
+
+    log_text: str
+    log_path: Path | None
+    stdout_tail: str
+
+
+def log_text_of(res: _LogTextSource) -> str:
     """``CompRes`` → log 全文（``.log`` 非空优先、``stdout_tail`` 兜底）。
 
     被杀编译会留 0 字节 ``.log``——``exists()`` 判据下空文件返空串会

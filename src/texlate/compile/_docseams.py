@@ -40,7 +40,7 @@ _ENV_OPEN_RE = re.compile(
 _DOCCLASS_SCAN_LIMIT = 4000
 
 
-def _docclass_close(vis: str, start: int) -> int:
+def _docclass_close(vis: str, start: int) -> int:  # noqa: C901 -- 遮盖视图词法扫描状态机平铺
     r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。
 
     在 visible_tex 遮盖视图上扫——`%` 注释/verbatim 已等长抹成空格，

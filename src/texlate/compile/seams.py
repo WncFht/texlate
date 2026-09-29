@@ -18,6 +18,9 @@ patch 打旧锚（``toolchain.find_tool``/``repair.fixloop`` 等）与打
 各模块自带锚位同理——本缝只覆盖经其路由的消费点。
 
 docclass 注入缝几何原语在 ``_docseams.py``——名近而义异，勿混。
+``texlate.server.worker.seams`` 是 worker 层同款 monkeypatch 面
+（机制异——彼件 eager bind + 两名惰性回指，本件全名 ``_SOURCES``
+map 惰性回指）；同名是刻意的跨层同款收口，非撞车。
 """
 
 from __future__ import annotations

@@ -372,7 +372,13 @@ def new_task_id() -> str:
 
 
 def valid_task_id(task_id: str) -> bool:
-    """task_id 形态校验（路径参数白名单，绝不进 SQL 拼接）。"""
+    """task_id 形态校验（路径参数白名单，绝不进 SQL 拼接）。
+
+    严档=「本库自产 id」形制闸（``t_``+16hex，``new_task_id`` 唯一产口）。
+    ``cli/thin._THIN_TASK_ID_RX`` 的宽档白名单是刻意分层非漂移——cli
+    不引 server 层，且瘦客户端校验的是对端回收值的注入安全而非本库
+    形制（测试桩 ``t_thin*`` 非 hex 合法）。两侧勿互抄口径。
+    """
     if len(task_id) != _TASK_ID_LEN or not task_id.startswith(_TASK_ID_PREFIX):
         return False
     try:

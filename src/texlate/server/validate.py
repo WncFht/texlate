@@ -11,9 +11,9 @@ import ipaddress
 from urllib.parse import urlsplit
 
 from texlate.xlat.client import (
-    _LOOPBACK_HOSTS,
-    _TAILNET_V4,
     API_DIALECTS,
+    LOOPBACK_HOSTS,
+    TAILNET_V4,
     normalize_base_url,
 )
 
@@ -27,10 +27,10 @@ def _is_plaintext_ok_host(hostname: str) -> bool:
     tailnet 放行依据：WireGuard 传输本身已加密，HTTP 不泄密。
     """
     h = hostname.lower()
-    if h in _LOOPBACK_HOSTS or h.endswith(".ts.net"):
+    if h in LOOPBACK_HOSTS or h.endswith(".ts.net"):
         return True
     try:
-        return ipaddress.ip_address(h) in _TAILNET_V4
+        return ipaddress.ip_address(h) in TAILNET_V4
     except ValueError:
         return False
 

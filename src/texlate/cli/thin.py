@@ -42,6 +42,11 @@ _SSE_RETRIES = 2
 #: ``t_thin*`` 形兼容到 ``[A-Za-z0-9_-]``）——回收值直拼 URL 路径与
 #: 下载 dest 目录名，``/`` ``\\`` ``.`` 形会穿出 ``/api/task/`` namespace
 #: 或逃逸 dest 仓外，必须在 ``_thin_submit`` 边界挡下。
+#: 与 ``store._common.valid_task_id``（``t_``+16hex 严档）刻意两档分层：
+#: 彼是服务端「本库自产 id」形制闸（入库/孤儿清扫/删务守卫）；本件是
+#: 瘦客户端对**对端回收值**的注入安全白名单——cli 不许 import server 层
+#: （无 server extra 安装形态），且对端 id 形制不属本库管辖，只需保证
+#: 拼路径不逃逸，故宽形为正确口径而非可收紧的欠严。
 _THIN_TASK_ID_RX = re.compile(r"t_[A-Za-z0-9_-]+")
 
 

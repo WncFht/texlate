@@ -10,21 +10,19 @@ uvicorn/httpx 三方输出），``propagate`` 保持 True 让 pytest caplog
 级别三来源：显式参 > ``TEXLATE_LOG`` env（``debug|info|warning|error|off``
 归一小写）> 调用方 default。文件路径三态经 ``_file_from_env``：
 ``TEXLATE_LOG_FILE`` 未设/空 → 调用方 default 形参；``off`` → 关文件；
-其余 → 路径。脱敏面本地自足不反引 xlat——本模块是日志底座
-（``cli/run.py``/server ``__main__`` 顶层经），引 ``xlat.client`` 会拖入
-httpx/asyncio/ssl 全栈，纯 ``re`` 小件就地实现：``SECRET_LOG_PATTERNS``
-单表全覆盖 ``xlat.client._SECRET_PATTERNS``（sk- 宽松形收编基表两档），
-``scrub`` 与 ``RedactFilter`` 共用同一迭代面不再各养可漂移的
-``key.replace + rx.sub``；待提升 ``textutil`` 单源后 client 与本模块
-同引一处。``RedactFilter`` 类体从 ``server/logredact.py`` 下沉本层，
-原址 re-export 保名字面。
+其余 → 路径。脱敏表单源 ``textutil.secrets``——本模块是日志底座
+（``cli/run.py``/server ``__main__`` 顶层经）不反引 ``xlat``（拖入
+httpx/asyncio/ssl 全栈），``SECRET_LOG_PATTERNS`` 宽档表与
+``xlat._errors`` 严档基表同叶两档、共享行字面单源；``scrub`` 与
+``RedactFilter`` 共用同一迭代面不再各养可漂移的
+``key.replace + rx.sub``。``RedactFilter`` 类体从 ``server/logredact.py``
+下沉本层，原址 re-export 保名字面。
 """
 
 from __future__ import annotations
 
 import contextlib
 import logging
-import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -34,6 +32,7 @@ from rich.logging import RichHandler
 
 from texlate.textutil import env_opt, env_str
 from texlate.textutil.osutil import ENV_LOG, ENV_LOG_FILE
+from texlate.textutil.secrets import SECRET_LOG_PATTERNS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -71,22 +70,10 @@ _MANAGED_ATTR = "_texlate_managed"
 _LOG_FILE_MAX_BYTES = 4 * 1024 * 1024
 _LOG_FILE_BACKUPS = 3
 
-#: 日志面 secret 形态表——``xlat.client._SECRET_PATTERNS`` 基表的全覆盖
-#: 超集：Bearer/AIza/api_key= 三行同形；``sk-`` 放宽（``.`` 入类 + ``{4,}``
-#: 下限）收编基表 ``sk-{8,}``/``sk-ant-{4,}`` 两档与旧表 ``sk-ant-.`` 冗行
-#: （窄形先跑会把 ``sk-…….`` 截成 ``***.尾`` 留残，单宽行无此坑）；
-#: ``key-`` 宽松形为日志面独有。纯 ``re`` 小件就地单表——底座层不反引
-#: ``xlat.client``（拖 httpx/asyncio/ssl 全栈），待提升 ``textutil`` 单源。
-#: 覆盖不变量由 ``tests/test_secret_patterns.py`` 钉住（基表新形态无
-#: 日志表覆盖即红）。``scrub``/``RedactFilter._scrub`` 共用同一份迭代面
-#: （server ``logredact._KEY_PATTERNS`` 名字面同源）。
-SECRET_LOG_PATTERNS = [
-    re.compile(r"Bearer\s+\S+", re.IGNORECASE),
-    re.compile(r"sk-[A-Za-z0-9._-]{4,}"),
-    re.compile(r"key-[A-Za-z0-9._-]{4,}"),
-    re.compile(r"AIza[0-9A-Za-z_-]{10,}"),
-    re.compile(r"(?:api[_-]?key|x-api-key|token)[=:]\s*[\"']?\S+", re.IGNORECASE),
-]
+#: 日志面 secret 形态表（宽档）——单源 ``textutil.secrets.SECRET_LOG_PATTERNS``
+#: 转口：``scrub``/``RedactFilter._scrub`` 共用同一份迭代面，server
+#: ``logredact._KEY_PATTERNS`` 名字面同源；覆盖不变量由
+#: ``tests/test_secret_patterns.py`` 钉住。
 
 
 def scrub(text: str, api_key: str = "") -> str:

@@ -77,9 +77,11 @@ LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 #: 旧私有钉点名兼容件——``texlate.xlat.client._LOOPBACK_HOSTS`` 回引面与
 #: 存量 import 锚点（server.validate/http 旧写法）转口期保留；新消费一律公开名
 _LOOPBACK_HOSTS = LOOPBACK_HOSTS
-#: tailnet CGNAT 段（与 ``settings._is_plaintext_ok_host`` 同信任域——
+#: tailnet CGNAT 段（与 ``server.validate._is_plaintext_ok_host`` 同信任域——
 #: 自有网段上跑的只会是部署方自有服务，探活打过去不烧第三方 quota）
-_TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
+TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
+#: 旧私有钉点名兼容件——同 ``_LOOPBACK_HOSTS`` 转口期保留；新消费一律公开名
+_TAILNET_V4 = TAILNET_V4
 
 
 def normalize_base_url(base_url: str) -> str:
@@ -108,7 +110,7 @@ def is_free_gateway_url(base_url: str) -> bool:
     if host in LOOPBACK_HOSTS or host.endswith(".ts.net"):
         return True
     try:
-        return ipaddress.ip_address(host) in _TAILNET_V4
+        return ipaddress.ip_address(host) in TAILNET_V4
     except ValueError:
         return False
 
