@@ -1,9 +1,0 @@
-[Unit]
-Description=daily texlate errsweep at 18:23 (after 10:30 soak batch accumulates errors)
-
-[Timer]
-OnCalendar=*-*-* 18:23:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target

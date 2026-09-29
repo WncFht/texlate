@@ -10,9 +10,9 @@
 | `tools-runbook.md`      | 工具与运维手册：产品 CLI 简表、`scripts/` 全脚本、`bench/py/` spec 套/分析动词/kernel 分域清单、`bench/ts/` 与 `web/` 冒烟工具、运维手法沉淀                    | 现行   |
 | `bench-harness.md`      | 评测协议与分层契约：L0–L3 问题归层规则、四项评测内容、fixtures 字节即语义纪律、corpus 层化布局、run 产物仓外账本根                                              | 契约   |
 | `seams.md`              | 测试补丁缝纪律：惰性门面 patch 叶子、注册表 setitem、LoopCtx 平名转写；改动时的两侧义务与已登记接缝清单                                                         | 契约   |
-| `errsweep-runbook.md`   | errsweep 清扫 agent 完整工作指令与人工审计契约（`scripts/errsweep.sh` 每日喂给 agent 的文本）——**被 `bench/py/specs/errsweep.py` 以路径引用，不可移动**         | 契约   |
+| `errsweep-runbook.md`   | errsweep 清扫 agent 工作指令/审计契约——**链路已退役 2026-09-29，留存为历史档案**                                                                                    | 档案   |
 | `layoutqc.md`           | 版面质检 v2：分层检测电池（T0 bbox/日志、T1 raster+BIoU、T2 savepos 真值+LLM 评审）设计 + §10 校准实录 + §11 契约；`bench/py/specs/_layoutqc.py` 引用           | 契约   |
-| `automation.md`         | 每日自动化系统：errsweep（错误沉淀→根因蒸馏修复，在役）的设计与操作契约；daily-soak 已退役留一行指针                                                            | 现行   |
+| `automation.md`         | 每日自动化系统设计档案——daily-soak 与 errsweep 均已退役（分别 2026-09-21/09-29）                                                                                   | 档案   |
 | `bench-massrun-plan.md` | bench 全量重建执行计划与运行台账：14,290 篇双轨方案、qc_replay 检验通道、evict 磁盘策略、监控清单与逐波 append-only 记录（2026-09-25 开工，promo 10-16 前收官） | 在执行 |
 
 ## `projects/` — 一次性工作包

@@ -30,14 +30,14 @@
 | `crossnote-links.sh`           | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                                                                                                        |
 | `demo.sh [id] [--real]`        | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                                                                                                |
 | `dev-smoke.sh [--keep]`        | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                                                                                                     |
-| `errsweep.sh`                  | 错误清扫 agent 启动器：隔离 worktree 上按 `dev/errsweep-runbook.md` 蒸馏修复，flock 单实例                                                                                                                  |
+
 | `fmt-shell.sh`                 | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2`                                                                                                                      |
 | `git-stash-export.sh`          | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引                                                                                                                        |
 | `loc.sh [--cloc]`              | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列                                                                                                                                                |
 | `pyspy-triage.sh <PID>`        | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进                                                                                |
 | `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID                                                                                                               |
 
-子目录 `scripts/systemd/` 收 systemd --user unit 件——`texlate-errsweep` 与 `texlate-bench-backup` 两套 service/timer（`ExecStart` 写死部署机路径，迁移时按目标机调整）。旧 `scripts/gwcap/` 网关并发闸组件已删，取证走 git 历史。
+子目录 `scripts/systemd/` 收 systemd --user unit 件——`texlate-bench-backup` service/timer（`texlate-errsweep` 已于 2026-09-29 随链路退役拆除）（`ExecStart` 写死部署机路径，迁移时按目标机调整）。旧 `scripts/gwcap/` 网关并发闸组件已删，取证走 git 历史。
 
 ## 3. `bench/py/` — spec 套、分析动词与内核
 
@@ -70,7 +70,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 | `smoke`     | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用                    |
 | `census`    | 湖审计 spec：全部 manifested cell 走一遍，零付费                            |
 | `quality`   | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
-| `errsweep`  | 错误沉淀清扫的 kernel run 形态（协议见 `dev/errsweep-runbook.md`）          |
+
 | `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate                   |
 
 语料构建谱系（旧 `bench/py/corpus/build_*.py` 的 spec 重写）：

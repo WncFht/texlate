@@ -1,14 +1,16 @@
 # 自动化系统
 
-> **2026-09-21 变更**：daily-soak 链路整体退役——`texlate-daily-soak.timer` 已 disable+unit 拆除、`scripts/daily-soak.sh` 与 `bench/py/corpus/daily_arxiv.py` 已删、`corpus_daily` 语料区废弃。errsweep（§2）仍在役，但其上游错误来源（soak 产出的每日新错误账）已断供。
+> **2026-09-21 变更**：daily-soak 链路整体退役——`texlate-daily-soak.timer` 已 disable+unit 拆除、`scripts/daily-soak.sh` 与 `bench/py/corpus/daily_arxiv.py` 已删、`corpus_daily` 语料区废弃。
+>
+> **2026-09-29 变更**：errsweep 链路整体退役——`texlate-errsweep.service` 已 disable+unit 拆除、`scripts/errsweep.sh`、`scripts/systemd/texlate-errsweep.{service,timer}`、`bench/py/specs/errsweep.py` 已删。三条 `errsweep/<date>` 分支的未合并修复已逐条评估落地 master（relink/DisableLigatures/prim_clobber_rename/math_alphabet def-guard/era surface/l0 名单豁免 + 两份 sweep 报告进 `docs/research/errsweep/`），worktree 已清。退役原因：上游 soak 断供后错误矿枯竭，且错误蒸馏已由 fixloop 规则库评审流程接管。
 
-本仓原有两套每日定时运行的自动化系统构成闭环：arXiv 日更 soak 负责**生产**，errsweep 负责**消费**。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer 触发。soak 退役后只剩 errsweep 在跑。
+本仓原有两套每日定时运行的自动化系统构成闭环：arXiv 日更 soak 负责**生产**，errsweep 负责**消费**。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer 触发。**两套均已退役**，本节留存作设计档案。
 
 ## 1. arXiv 日更 soak（已退役 2026-09-21）
 
 退役记录：RSS 枚举（cs+math 公告日批，~1200 篇/日）→ `acquire_source` 串行限速取源 → stagerun 五 stage 批跑 → `corpus_daily/` 滚动语料 + `bench/results/soak-<date>/` 产物（errsweep 主矿）。退役原因：语料/bench 扩展方向转向钉版重建（见 `projects/2026-09-23-rebuild-plan-v4.md`），日更滚动面不再维护。管线细节与回填通道（pastweek 分页 / OAI-PMH 日窗）设计存 git 历史（删前 HEAD `git show` 可检），arXiv 端点行为结论保留在 `../research/arxiv/` 各件。
 
-## 2. errsweep 错误清扫（`scripts/errsweep.sh`）
+## 2. errsweep 错误清扫（已退役 2026-09-29）
 
 ### 2.1 定位
 

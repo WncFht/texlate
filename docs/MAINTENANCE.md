@@ -128,7 +128,7 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 
 ## 10. 自动化写入位
 
-- errsweep agent 的报告落 `research/errsweep/<date>-sweep.md`（完整契约见 `dev/errsweep-runbook.md`），域索引由报告方顺带维护。
+- errsweep agent 的报告落 `research/errsweep/<date>-sweep.md`（链路已退役 2026-09-29；历史契约见 `dev/errsweep-runbook.md`）。
 - 其余自动化（定时任务等）不直接向 `docs/` 写件——产出落各自 results/state 区，摘要由人归档进 `log/`。
 
 ## 11. 工具链与提交纪律

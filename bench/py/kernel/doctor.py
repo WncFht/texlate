@@ -42,7 +42,7 @@ Checks:
     queues          quarantine/adjudication row counts surfaced
     switch_ok       only with switch_ok=True: the §3.10.9 drain gate —
                     kernel_idle() AND no active runs AND no PAUSE AND no
-                    live lane-* tmp writers AND no live errsweep worktree.
+                    live lane-* tmp writers.
                     detail is the single line 'SWITCH-OK' when clear, so
                     scripts can grep for it
 
@@ -70,7 +70,7 @@ __all__ = [
 
 LEDGER_HOT_TAIL_MAX = 512 * 1024 * 1024  # §3.10.1 hot-tail hard gate
 _FS_FLOOR_GB = 27.0  # §3.10.1 fs_avail reserve
-_LANE_FRESH_S = 600.0  # lane/errsweep liveness window
+_LANE_FRESH_S = 600.0  # lane liveness window
 
 _PAID_OK = frozenset({"ok", "partial"})
 
@@ -639,24 +639,6 @@ def _live_lane_writers(now: float) -> list[str]:
     return out
 
 
-def _live_errsweep_worktrees(now: float) -> list[str]:
-    """errsweep/<date> worktrees under the repo root with activity fresher
-    than the liveness window (shallow mtime scan — cheap and enough for a
-    drain gate)."""
-    base = _repo_root() / "errsweep"
-    if not base.is_dir():
-        return []
-    out = []
-    for d in sorted(base.iterdir()):
-        if not d.is_dir():
-            continue
-        try:
-            newest = max([d.stat().st_mtime] + [p.stat().st_mtime for p in d.iterdir()])
-        except OSError:
-            continue
-        if now - newest < _LANE_FRESH_S:
-            out.append(str(d))
-    return out
 
 
 def _check_switch_ok(checks: list) -> None:
@@ -672,9 +654,6 @@ def _check_switch_ok(checks: list) -> None:
     lanes = _live_lane_writers(now)
     if lanes:
         blocked.append(f"live lane writers: {lanes[:5]}")
-    err = _live_errsweep_worktrees(now)
-    if err:
-        blocked.append(f"live errsweep worktrees: {err[:5]}")
     _check(
         checks,
         "switch_ok",
