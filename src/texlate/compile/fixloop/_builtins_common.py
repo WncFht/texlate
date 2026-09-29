@@ -882,3 +882,26 @@ def _advise(ctx: LoopCtx, adv: str) -> None:
     """
     if adv not in ctx.advisories:
         ctx.advisories.append(adv)
+
+
+def _skip_ws(vis: str, pos: int) -> int:
+    r"""``" \t"`` 空白跳过 → 首个非空白位 (mask 后可视流词法; misc 叶另有含 ``\\n`` 变体)。"""
+    while pos < len(vis) and vis[pos] in " \t":
+        pos += 1
+    return pos
+
+
+def _brace_end(vis: str, pos: int) -> int:
+    r"""``vis[pos]=='{'`` → 配对 ``}`` 后 offset; 未配对 → ``len(vis)``。"""
+    depth, j = 1, pos + 1
+    while j < len(vis) and depth:
+        c = vis[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        j += 1
+    return j

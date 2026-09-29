@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     _FB_FONT,
     _MATH_SHIM_CS,
+    _brace_end,
     _inject_after_docclass,
     _inject_before_begindoc,
     _is_live,
@@ -28,6 +29,7 @@ from texlate.compile.fixloop._builtins_common import (
     _mc_plan,
     _mc_seen,
     _mc_table,
+    _skip_ws,
     _splice,
 )
 from texlate.latex.tables import MATH_ENVS
@@ -1563,28 +1565,6 @@ def _umath_names(ctx: LoopCtx) -> frozenset[str] | None:
         return None
     _UMATH_CACHE["names"] = frozenset(_UMATH_ROW_RX.findall(data))
     return _UMATH_CACHE["names"]
-
-
-def _skip_ws(t: str, pos: int) -> int:
-    while pos < len(t) and t[pos] in " \t":
-        pos += 1
-    return pos
-
-
-def _brace_end(t: str, pos: int) -> int:
-    r"""``t[pos]=='{'`` → 配对 ``}`` 后 offset; 未配对 → ``len(t)``。"""
-    depth, j = 1, pos + 1
-    while j < len(t) and depth:
-        c = t[j]
-        if c == "\\":
-            j += 2
-            continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-        j += 1
-    return j
 
 
 def _cs_tok_end(t: str, pos: int) -> int:

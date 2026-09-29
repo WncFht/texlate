@@ -659,6 +659,9 @@ _REV_DELEGATE_TMPL = (
     "\\LoadClassWithOptions{revtex4-2}\n"
     "\\frontmatter@init\n"
     "\\let\\frontmatter@init\\relax\n"
+    # clsfidcen 补面 (hep-ph/0111060 verbatim eqnarray 对齐位) —— 与
+    # 90-shim-legacy.yaml revtex4.cls body 同体
+    "\\providecommand{\\mathindent}{\\@centering}\n"
     "\\endinput\n"
 )
 

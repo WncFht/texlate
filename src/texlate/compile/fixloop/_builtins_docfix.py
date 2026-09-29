@@ -18,10 +18,12 @@ from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _LOAD_SITE_RE,
+    _brace_end,
     _fixloop_log,
     _inject_after_docclass,
     _live_matches,
     _load_elems,
+    _skip_ws,
     _splice,
 )
 from texlate.textutil import mask_tex
@@ -425,28 +427,6 @@ _DEF_PARAM_MAX = 64
 
 #: ``\csname`` 形 def 名的随尾 ``\endcsname`` —— ``_def_extent`` 名位专用。
 _ENDCSNAME_RE = re.compile(r"\\endcsname(?![A-Za-z])")
-
-
-def _skip_ws(vis: str, pos: int) -> int:
-    while pos < len(vis) and vis[pos] in " \t":
-        pos += 1
-    return pos
-
-
-def _brace_end(vis: str, pos: int) -> int:
-    r"""``vis[pos]=='{'`` → 配对 ``}`` 后 offset; 未配对 → ``len(vis)``。"""
-    depth, j = 1, pos + 1
-    while j < len(vis) and depth:
-        c = vis[j]
-        if c == "\\":
-            j += 2
-            continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-        j += 1
-    return j
 
 
 def _cs_end(vis: str, pos: int) -> int:
