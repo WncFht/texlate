@@ -362,10 +362,21 @@ def test_same_source_doi_exempt() -> None:
 
 
 def test_same_source_email_with_prose_still_fires() -> None:
-    """邮箱 token 剥净后仍残散文（"Correspondence:"）→ 豁免不过放，照常追责。"""
-    src = "Correspondence: firstname.lastname@some-university.edu"
+    """邮箱 token 剥净后仍残散文 → 豁免不过放，照常追责。
+
+    "Correspondence: <email>" 形已被 ``name_list_prose`` 收编（地址栏
+    verbatim 即正确态），本例用真散文夹邮箱保「残散文仍追责」面。
+    """
+    src = "Please direct correspondence to firstname.lastname@some-university.edu promptly"
     rep = validate_pair(src, src)
     assert _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_correspondence_line_exempt() -> None:
+    """通讯行整段 verbatim = 地址栏签名——``name_list_prose`` 豁免面实证。"""
+    src = "Correspondence: firstname.lastname@some-university.edu"
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
 
 
 def test_same_source_url_with_prose_still_fires() -> None:
@@ -382,6 +393,65 @@ def test_same_source_near_echo_not_flagged() -> None:
     rep = validate_pair(src, zh)
     assert not _issues(rep, "same_source"), str(rep)
     assert rep.ok, str(rep)
+
+
+def test_same_source_name_list_exempt() -> None:
+    """人名/贡献者名单 verbatim 回显 = 正确态（名单留拉丁原名）。
+
+    web t_4000988e seq-234 (est=629 贡献者名单) 实证：模型照抄名单是
+    合法产出，same_source 误杀 → 阶梯尽回退原文。判据 =
+    ``textutil.name_list_prose``（``residual_en`` run 级豁免同签名段级化）。
+    """
+    src = (
+        "Shanghao Lu, Shangyan Zhou, Shanhuang Chen, Shaofei Cai, "
+        "Shaoheng Nie, Shaoyuan Chen, Shengding Hu, Shengkai Lin, "
+        "Shengwen Ran, Shengyu Liu, Shi Bai, Shi Feng."
+    )
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+    assert rep.ok, str(rep)
+
+
+def test_same_source_name_leading_sentence_still_caught() -> None:
+    """名单签名不免一般散文——首字母大写占比 <70% 的整段回显仍 error。"""
+    src = (
+        "Prof. Smith reported that the transformer architecture uses "
+        "attention mechanisms for all benchmark datasets."
+    )
+    rep = validate_pair(src, src)
+    assert _issues(rep, "same_source"), str(rep)
+
+
+def test_length_name_list_annotated_style_exempt() -> None:
+    """音译+原文括号注释 (~3.2x) 是名单块合法膨胀——web t_25e3f4d1 seq-69 实形。
+
+    上界放宽至 ``TOKEN_RATIO_HI_NAMELIST``(4.0)；``residual_en`` 侧
+    ``_keep_verbatim_run`` run 级豁免本就放行括号内原名，不级联。
+    """
+    src = "Brendan Roof, Georg Grab, Simone Alessi, Dominik Safaric."
+    zh = (
+        "布伦丹·鲁夫（Brendan Roof）、格奥尔格·格拉布（Georg Grab）、"
+        "西蒙娜·阿莱西（Simone Alessi）、多米尼克·萨法里奇（Dominik Safaric）。"
+    )
+    rep = validate_pair(src, zh)
+    assert not [i for i in _issues(rep, "length") if "长度比" in i.message], str(rep)
+    assert rep.ok, str(rep)
+
+
+def test_length_name_list_runaway_still_caught() -> None:
+    """名单 src 的 >4x 膨胀仍拒收——豁免只抬上界不拆闸。"""
+    src = "Brendan Roof, Georg Grab, Simone Alessi, Dominik Safaric."
+    zh = "布伦丹·鲁夫（Brendan Roof）、格奥尔格·格拉布（Georg Grab）。" * 6
+    rep = validate_pair(src, zh)
+    assert any("长度比" in i.message for i in rep.issues), str(rep)
+
+
+def test_length_normal_prose_hi_bound_unchanged() -> None:
+    """普通散文上界不放宽——>3x 膨胀仍 error。"""
+    src = "the transformer architecture uses attention mechanisms."
+    zh = "这一段译文长度被刻意拉长很多很多倍。" * 4
+    rep = validate_pair(src, zh)
+    assert any("长度比" in i.message for i in rep.issues), str(rep)
 
 
 # ---------------------------------------------------------------- macro

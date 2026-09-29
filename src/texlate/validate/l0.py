@@ -86,6 +86,7 @@ from texlate.textutil import (
     dangerous_cs_net,
     lev_capped,
     mask_comments,
+    name_list_prose,
     ph_in_cs_net,
     residual_en_net,
 )
@@ -212,6 +213,11 @@ _ECHO_SIGS: Final = (
 #: 合法件双侧留 ~4x 余量，带外即退化坍缩/膨胀。
 TOKEN_RATIO_LO: Final = 0.30
 TOKEN_RATIO_HI: Final = 3.00
+#: 人名/专名列 src 的长度比上界——音译+原文括号注释风格（每名 →
+#: 中文音译+``(拉丁原名)``）合法膨胀 ~2.6-3.4x，标准 3.0 上界误杀
+#: （web t_25e3f4d1 seq-67..77 实测 3.04-3.32）。下界不放宽——
+#: 名单译空/截断仍是退化。
+TOKEN_RATIO_HI_NAMELIST: Final = 4.00
 #: 剥后 src est_token 下界——之下按纯占位符/短残段豁免（输出=输入是正确态，
 #: babeldoc ``input_token_count>10`` 同口径）。
 _MIN_PROSE_TOKENS: Final = 10
@@ -919,16 +925,20 @@ def _check_same_source(ctx: _Ctx) -> None:
     豁免：``[[BIB_`` bib 直通块（留英合法）、剥后 src <10 est_token
     （纯占位符/短残段——输出=输入是正确态，babeldoc ``input_token_count>10``
     同口径）、整段纯非语言成分（URL/DOI/邮箱/``\url`` 包裹类——恒等即
-    正确译文，裸链 est 可越 10 线）。仅规范化等值比较不取近似度——
-    qualbase 实测 >0.85 相似档唯一命中是合法邮箱块；拉丁主导门槛豁免
-    ``zh==en`` 含 CJK 的合法恒等译文（share.py 收录口径同款情形）。
+    正确译文，裸链 est 可越 10 线）、人名/专名列 src（verbatim 回显即
+    正确态——``name_list_prose`` 判据，与 ``residual_en`` run 级豁免
+    同签名；web t_4000988e seq-234 est=629 贡献者名单实证）。仅规范化
+    等值比较不取近似度——qualbase 实测 >0.85 相似档唯一命中是合法邮箱块；
+    拉丁主导门槛豁免 ``zh==en`` 含 CJK 的合法恒等译文（share.py 收录
+    口径同款情形）。
     """
     if "[[BIB_" in ctx.src:
         return
     # ``est_tokens`` 只数 CJK + 非空白字符，大小写不变——共享未小写视图的
     # est 与 ``ss`` 上重算同值（length 臂消费同一 ``ctx.est_src``）。
+    # ``name_list_prose`` 须吃未小写 ``prose_src``——首字母大写占比是判据本体。
     ss, sz = ctx.prose_src.lower(), ctx.prose_zh.lower()
-    if ctx.est_src < _MIN_PROSE_TOKENS or ss != sz:
+    if ctx.est_src < _MIN_PROSE_TOKENS or ss != sz or name_list_prose(ctx.prose_src):
         return
     if not re.search(r"[a-z]", _NONLING_RX.sub("", ss)):
         return
@@ -955,13 +965,18 @@ def _check_length(ctx: _Ctx) -> None:
     if ts >= _MIN_PROSE_TOKENS:
         tz = ctx.est_zh
         r = tz / ts
-        if not TOKEN_RATIO_LO <= r <= TOKEN_RATIO_HI:
+        hi = (
+            TOKEN_RATIO_HI_NAMELIST
+            if name_list_prose(ctx.prose_src)
+            else TOKEN_RATIO_HI
+        )
+        if not TOKEN_RATIO_LO <= r <= hi:
             issues.append(
                 Issue(
                     "length",
                     Severity.ERROR,
                     f"长度比(token 代理) {r:.2f} 超出 "
-                    f"[{TOKEN_RATIO_LO},{TOKEN_RATIO_HI}] "
+                    f"[{TOKEN_RATIO_LO},{hi}] "
                     f"(src~{ts:.0f} zh~{tz:.0f})",
                 )
             )

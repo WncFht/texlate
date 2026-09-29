@@ -54,6 +54,7 @@ from _fuzzkit import fuzz_rng, soup_join
 from texlate.textutil import (
     bare_cs_net,
     dangerous_cs_net,
+    name_list_prose,
     ph_in_cs_net,
     residual_en_net,
 )
@@ -954,6 +955,7 @@ def _o_strip_for_length(s: str) -> str:
 _LEN_MIN_TOKENS = 10
 _LEN_RATIO_LO = 0.30
 _LEN_RATIO_HI = 3.00
+_LEN_RATIO_HI_NAMELIST = 4.00
 _LEN_LAT_MIN = 8
 _LEN_CJK_SHARE = 0.30
 
@@ -976,7 +978,8 @@ def _o_length_sigs(src: str, zh: str) -> set[str]:
     ts = _o_est_tokens(ss)
     if ts >= _LEN_MIN_TOKENS:
         r = _o_est_tokens(sz) / ts
-        if not _LEN_RATIO_LO <= r <= _LEN_RATIO_HI:
+        hi = _LEN_RATIO_HI_NAMELIST if name_list_prose(ss) else _LEN_RATIO_HI
+        if not _LEN_RATIO_LO <= r <= hi:
             sigs.add("ratio")
     cjk = len(_CJK_RX.findall(sz))
     lat = sum(1 for ch in sz if ch.isascii() and ch.isalpha())
@@ -986,8 +989,10 @@ def _o_length_sigs(src: str, zh: str) -> set[str]:
 
 
 def _o_same_source_hit(src: str, zh: str) -> bool:
-    """same_source 规则 oracle：bib/短残段豁免 + 规范化等值 + 拉丁主导。"""
+    """same_source 规则 oracle：bib/短残段/名单块豁免 + 规范化等值 + 拉丁主导。"""
     if "[[BIB_" in src:
+        return False
+    if name_list_prose(_o_strip_for_length(src)):
         return False
     ss = _o_strip_for_length(src).lower()
     sz = _o_strip_for_length(zh).lower()

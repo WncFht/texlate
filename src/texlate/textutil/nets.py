@@ -507,6 +507,16 @@ def _ident_list_run(core: str) -> bool:
         ident / len(toks) >= _RESID_EN_IDENT_SHARE
         and comma / len(toks) >= _RESID_EN_IDENT_COMMA_SHARE
     )
+def name_list_prose(s: str) -> bool:
+    """整段 prose 是否人名/专名/地址列签名（``_keep_verbatim_run`` 同口径段级化）。
+
+    作者/贡献者名单、consortium 块、地址栏——``residual_en`` 的 run 级豁免
+    升为段级判定。此类 src 的 verbatim 回显（名单留拉丁原名）与音译+原文
+    括号注释（长度 ~2.6-3.4x 合法膨胀）都是正确译文态；L0 ``same_source``
+    与 ``length`` 上界各消费本判据豁免（web t_25e3f4d1 seq-67..77 +
+    t_4000988e seq-234 实证：名单块阶梯尽、回退原文，用户面失译）。
+    """
+    return _keep_verbatim_run(s)
 
 
 def residual_en_net(src: str, zh: str) -> list[str]:
