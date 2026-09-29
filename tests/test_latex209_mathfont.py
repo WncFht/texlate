@@ -196,9 +196,14 @@ def test_uses_ds_at_tar_disguised_skipped(tmp_path: Path) -> None:
     assert "\\documentclass[opta]{myj}" in out
 
 
-def test_uses_ds_at_real_sty_still_rejects(tmp_path: Path) -> None:
-    """真文本 ``<cls>.sty`` 内 ``ds@`` 分发照样拒——闸不吃真签名。"""
+def test_uses_ds_at_real_sty_bridges(tmp_path: Path) -> None:
+    """真文本 ``<cls>.sty`` 内 ``ds@`` 分发 → ds@ 桥（.sty 即载体）；仅 .cls 仍拒。"""
     (tmp_path / "myj.sty").write_bytes(b"\\@namedef{ds@opta}{\\relax}\n")
+    _out, info = upgrade_209("\\documentstyle[opta]{myj}\nx\n", root=tmp_path)
+    assert info["status"] == "converted"
+    assert info["ds_bridge"] is True
+    (tmp_path / "myj.sty").unlink()
+    (tmp_path / "myj.cls").write_bytes(b"\\@namedef{ds@opta}{\\relax}\n")
     _out, info = upgrade_209("\\documentstyle[opta]{myj}\nx\n", root=tmp_path)
     assert info["status"] == "reject"
     assert info["reason"] == "latex209_ds_at"

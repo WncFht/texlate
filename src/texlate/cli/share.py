@@ -13,12 +13,14 @@ import typer
 
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.cli._common import _CLI_FILE, _CLI_PATH, _is_dir, _is_file, app
-from texlate.server.store import row_json
 from texlate.share import (
     KEY_PART_FIELDS,
     ShareError,
+    cache_key_for,
+    cache_scope,
     glossary_content_hash,
     pack_share,
+    share_manifest,
     unpack_share,
 )
 from texlate.textutil import data_root
@@ -137,9 +139,7 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
     ——``front_matter``（``|fm:``）与 ``source``（``|src:``）都是键成分，
     重算必须同料。
     """
-    from texlate.pipecore import ran_front_matter  # noqa: PLC0415
-    from texlate.server.settings import cache_scope  # noqa: PLC0415
-    from texlate.server.worker import cache_key_for  # noqa: PLC0415
+    from texlate.pipecore import ran_front_matter  # noqa: PLC0415 -- 重依赖延迟导入
 
     stored = str(row.get("cache_key") or "")
     if not stored:
@@ -175,47 +175,6 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
             err=True,
         )
         raise typer.Exit(1)
-
-
-def _share_manifest(  # noqa: PLR0913 -- 键材料组与 manifest 同面
-    *,
-    arxiv_base: str,
-    version: int | None,
-    model: str,
-    target_lang: str,
-    glossary_hash: str,
-    options: Mapping[str, Any],
-    contributor: str | None = None,
-) -> dict[str, object]:
-    """``KEY_PART_FIELDS`` 七组分 + ``front_matter``/``contributor`` manifest dict。
-
-    ``server/worker/share.py`` ``share_pack_manifest`` 是同构孪生——正式
-    单源目标位 ``texlate.share``（``KEY_PART_FIELDS``/``_key_parts``
-    邻居，签名 ``share_manifest(*, arxiv_base, version, model,
-    target_lang, glossary_hash, options, contributor=None)`` 与本件一致），
-    落地后本件退役改 import。
-    """
-    from texlate.pipecore import ran_front_matter  # noqa: PLC0415 -- 重依赖延迟导入
-    from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
-    from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
-
-    manifest: dict[str, object] = {
-        "arxiv_id": arxiv_base,
-        "version": f"v{version}" if version is not None else "",
-        "model": model,
-        "prompt_ver": PROMPT_VERSION,
-        "target_lang": target_lang,
-        "glossary_hash": glossary_hash,
-        # 前置发射集进 key_parts——不同 fm 的任务产物不同包（∅ 记 ""
-        # 兼容旧包重算；与 worker share_pack_manifest 同口径）。
-        # 实跑集还原：done 行经 parse 写回恒带显式 dict；缺席 =
-        # pre-feature 行（实跑 ∅）不标缺省
-        "front_matter": ",".join(sorted(ran_front_matter(options))),
-        "pipeline_ver": PIPELINE_VERSION,
-    }
-    if contributor:
-        manifest["contributor"] = contributor
-    return manifest
 
 
 def _share_glossary_hash(
@@ -313,6 +272,10 @@ def share_pack(
     ``prompt_ver``/``pipeline_ver`` 取本装管线常量、``glossary_hash`` 由
     自定义术语表层内容派生——取不到一律显式报错，不编造进键。
     """
+    from texlate.server.store import (  # noqa: PLC0415 -- server 层件按子命令惰载
+        row_json,
+    )
+
     task_dir = _share_task_dir(task, data_dir)
     db = _share_db(task_dir, data_dir)
     if db is None:
@@ -332,7 +295,7 @@ def share_pack(
     _share_verify_pipeline(row, base, ver, model, lang, opts)
     cfg = row_json(row, "config_json")
     try:
-        manifest = _share_manifest(
+        manifest = share_manifest(
             arxiv_base=base,
             version=ver,
             model=model,

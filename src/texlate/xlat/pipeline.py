@@ -280,6 +280,16 @@ class GatewayTranslator:
 
         return await call_with_backoff(_go, policy=self.policy)
 
+    async def aclose(self) -> None:
+        """关自持 ``ChatClient``——须在消费侧存活 loop 内 await（幂等）。
+
+        ``drive_pipeline`` 经 ``getattr(translator, "aclose")`` 在管线消费
+        loop 内回收 httpx 池——无本件时池只能在外层新 loop 上关（连接绑死
+        loop 的「foreign loop」坑）。委托 ``client.aclose``——非自持
+        client（``_own=False``）在其内短路为 no-op。
+        """
+        await self.client.aclose()
+
 
 def _strip_json_fence(raw: str) -> str:
     """剥掉整段 ``` 围栏；非围栏原文原样返回。"""

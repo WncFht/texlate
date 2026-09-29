@@ -33,7 +33,7 @@ except ModuleNotFoundError:  # pragma: no cover -- 旧式包名回落（同 star
 from texlate.compile.engine import ENGINE_NAMES
 from texlate.server.settings import UPLOAD_CAP, server_mode
 from texlate.textutil import utc_now
-from texlate.xlat.client import _LOOPBACK_HOSTS
+from texlate.xlat.client import LOOPBACK_HOSTS
 
 if TYPE_CHECKING:
     from typing import BinaryIO
@@ -267,16 +267,10 @@ def _require_file_part(form: dict[str, str | UploadPart]) -> UploadPart:
     """``file`` 字段闸：缺席/非文件字段 → 400；空文件收掉 spool 件后 → 400。"""
     file = form.get("file")
     if not isinstance(file, UploadPart):
-        raise _ApiError(
-            400,
-            {
-                "detail": "multipart field 'file' required",
-                "code": "invalid_request",
-            },
-        )
+        raise _api_error(400, "multipart field 'file' required", "invalid_request")
     if file.size == 0:
         _discard_part(file)
-        raise _ApiError(400, {"detail": "empty upload", "code": "invalid_request"})
+        raise _api_error(400, "empty upload", "invalid_request")
     return file
 
 
@@ -286,9 +280,8 @@ def _form_options(form: dict[str, str | UploadPart]) -> dict[str, Any]:
     try:
         options = json.loads(options_raw) if options_raw else {}
     except (ValueError, RecursionError):
-        raise _ApiError(
-            400,
-            {"detail": "options 字段不是合法 JSON", "code": "invalid_request"},
+        raise _api_error(
+            400, "options 字段不是合法 JSON", "invalid_request"
         ) from None
     if not isinstance(options, dict):
         options = {}
@@ -482,7 +475,7 @@ def _loopback_bind(host: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         h = _host_only(host)
-        return h in _LOOPBACK_HOSTS or h.endswith(".localhost")
+        return h in LOOPBACK_HOSTS or h.endswith(".localhost")
 
 
 def _exposed_bind_warning(host: str) -> str | None:

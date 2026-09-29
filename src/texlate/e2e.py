@@ -54,8 +54,7 @@ from texlate.pipecore import (
 from texlate.pipecore import scan_tree as _scan_tree
 from texlate.repair import embed_tounicode_quiet
 from texlate.repair_l2 import ENV_ENV_JUDGE, L2_MAX_CHUNKS
-from texlate.textutil import env_flag
-from texlate.textutil.osutil import ENV_AUTO_GLOSSARY
+from texlate.textutil.osutil import ENV_AUTO_GLOSSARY, env_switch
 from texlate.validate.l0 import validate_pair
 
 if TYPE_CHECKING:
@@ -74,16 +73,6 @@ log = logging.getLogger(__name__)
 # 由 test_e2e 直调、``_tail_dict`` 是 test_bench_harness 的 judge_dict 键集对拍面）
 _delivered = delivered
 _tail_dict = tail_dict
-
-
-def env_switch(name: str, *, explicit: bool | None, default: bool) -> bool:
-    """三态开关归一：显式参数优先，``None`` 才读 ``env_flag``。
-
-    本模块就地副本——共享单源应为 ``texlate.textutil.osutil.env_switch``
-    （hoist 后删此定义、改从 ``texlate.textutil`` 导入，调用点不变）。
-    env 仍在调用时读取，``monkeypatch.setenv`` 缝不受影响。
-    """
-    return explicit if explicit is not None else env_flag(name, default=default)
 
 
 def engine_for(name: str, **kw: object) -> Engine:

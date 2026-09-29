@@ -39,6 +39,9 @@ if TYPE_CHECKING:
 # 每个测试都要隔离 BENCH_ROOT——broot 只要副作用，全模块钉版不再逐个形参声明
 pytestmark = pytest.mark.usefixtures("broot")
 
+# vault 收割闸拒收缺头/缺尾的产品 pdf——splice 夹具须结构完整
+_PDF = b"%PDF-1.4\nstartxref\n0\n%%EOF\n"
+
 # -- fixture helpers ---------------------------------------------------------
 
 
@@ -507,11 +510,11 @@ def test_import_zhstore(tmp_path: Path) -> None:
     (zh / "0712.0031" / "zh").mkdir(parents=True)
     (zh / "0712.0031" / "splice").mkdir(parents=True)
     (zh / "0712.0031" / "zh" / "main.pdf").write_bytes(b"%PDF-1")
-    (zh / "0712.0031" / "splice" / "m.pdf").write_bytes(b"%PDF-2")
+    (zh / "0712.0031" / "splice" / "m.pdf").write_bytes(_PDF)
     # B: declared zh, no bytes -> tombstone
     # C: _quarantine zone, splice bytes under _quarantine/ -> verified
     (zh / "_quarantine" / "0712.0033" / "splice").mkdir(parents=True)
-    (zh / "_quarantine" / "0712.0033" / "splice" / "s.pdf").write_bytes(b"%PDF-3")
+    (zh / "_quarantine" / "0712.0033" / "splice" / "s.pdf").write_bytes(_PDF)
     # orphan dir with no manifest row
     (zh / "0909.9999").mkdir()
     (zh / "0909.9999" / "x.pdf").write_bytes(b"%PDF-4")
@@ -604,13 +607,13 @@ def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
         p.write_bytes(payload)
 
     put("0712.0031/zh/main.pdf", b"%PDF-zh")
-    put("0712.0031/splice/m.pdf", b"%PDF-sp")
+    put("0712.0031/splice/m.pdf", _PDF)
     (zh / "0712.0031" / "provenance.json").write_text(
         json.dumps(
             {"arm": "real", "source_run": "run-a", "api_key": "sk-8675309-secret"}
         )
     )
-    put("_quarantine/0712.0033/splice/s.pdf", b"%PDF-q")
+    put("_quarantine/0712.0033/splice/s.pdf", _PDF)
     put("_quarantine/0712.0034/zh/m.pdf", b"%PDF-pq")
     put("bad id/zh/m.pdf", b"%PDF-bad")
     put("0909.9999/zh/m.pdf", b"%PDF-orphan")

@@ -105,10 +105,7 @@ class TaskRunner:
         不可恢复），此处再防御性排除；其余按 settings/env 重决议
         secrets——决议不到 key 时与冷启动同语义走 MockTranslator 警告链。
         """
-        rows = self.store.conn.execute(
-            "SELECT id, model FROM tasks WHERE status = 'queued'"
-            " AND auth_source != 'header' ORDER BY created_at, id"
-        ).fetchall()
+        rows = self.store.queued_rows()
         if not rows:
             return
         auth = resolve_auth(SettingsStore(self.worker.data_dir).load())

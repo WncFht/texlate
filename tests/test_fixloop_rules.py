@@ -69,6 +69,14 @@ def test_phase_ordering() -> None:
         "psfrag_route",
         "caption_skip_clamp",
         "psfrag_strip_xelatex",
+        # qc-impl-2026-09-28 续批: section afterskip 垫底 (与上条 -6.5 同
+        # order 稳定序按分片文件名拼接)
+        "cjk_section_skip_floor",
+        # qc99 rules-batch: suppl 浮体冲页 / ACM uchead -12pt 校准 /
+        # 旋转图 caption 垫 —— 同批无签名版面面三件
+        "maketitle_suppl_float_flush",
+        "uchead_vskip_relax",
+        "rotfig_caption_pad",
         "epsfbox_fit",
         "lscape_revtex_guard",
         "ref_double_brace_strip",

@@ -5,6 +5,9 @@ r"""文档声明/结构探测正则族的单一事实源。
 
 消费侧一律在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数；
 本族只管 pattern，视图归调用方。
+
+同名异件：``texlate.latex.gullet.decls`` 是 ``\newcommand`` 族宏声明
+**执行**臂（Gullet 子模块）——声明字面探测归本件，宏声明执行归彼。
 """
 
 from __future__ import annotations
@@ -72,9 +75,9 @@ SUBDOC_CHILD_RX: Final = re.compile(
 
 #: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop actions
 #: ``_DEP_DECL_RE`` / normalize ``_PACKAGE_USE_RX``·``_CLASS_USE_RX`` /
-#: probe ``_PKG_RE``·``_CLS_RE`` / inject / fixloop.builtins /
-#: segmenter ``_PKG_CMDS`` 逐站归并）。``documentclass``/``documentstyle``
-#: 属文档声明族、``DOCCLASS_NAMES`` 已单源，不在此列。
+#: probe ``_PKG_RE``·``_CLS_RE`` / inject / fixloop.builtins 逐站归并）。
+#: ``documentclass``/``documentstyle`` 属文档声明族、``DOCCLASS_NAMES``
+#: 已单源，不在此列。
 LOADER_CMDS: Final = frozenset(
     {
         "usepackage",

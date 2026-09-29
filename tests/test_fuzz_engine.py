@@ -774,7 +774,7 @@ def test_xelatex_auto_rerun_gate_no_hint(
 def test_xelatex_auto_rerun_gate_hints(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """自适应档：rerun 提示族逐形命中即续趟；提示出现在趟输出尾段。"""
+    """自适应档：rerun 提示族逐形命中即续趟——提示每趟都在则自延至硬顶。"""
     (tmp_path / "main.tex").write_text("x")
     for hint in (
         "LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.",
@@ -784,6 +784,11 @@ def test_xelatex_auto_rerun_gate_hints(
         ),
         "LaTeX Warning: There were undefined references.",
         "Package longtable Warning: Table widths have changed. Rerun LaTeX.",
+        (
+            "Package biblatex Warning: Please (re)run Biber on the file: main\n"
+            "(biblatex)                and rerun LaTeX afterwards."
+        ),
+        "LaTeX Warning: Citation 'k1' on page 2 undefined on input line 9.",
     ):
         calls: list[dict[str, object]] = []
         monkeypatch.setattr(
@@ -792,20 +797,61 @@ def test_xelatex_auto_rerun_gate_hints(
         res = XelatexEngine(binary="/bin/true").compile(
             tmp_path, "main.tex", sandbox=False
         )
-        assert len(calls) == 2 and res.passes == 2, hint  # noqa: PLR2004, PT018
+        # 每趟输出恒含提示 → 起步 2 趟后逐趟自延, 撞 _ADAPTIVE_PASS_CAP 停
+        cap = eng_mod._ADAPTIVE_PASS_CAP  # noqa: SLF001
+        assert len(calls) == cap, hint
+        assert res.passes == cap, hint
+
+
+def test_xelatex_auto_rerun_hint_clears_pass2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：提示 pass-1 有 pass-2 清 → 恰 2 趟收（bib→aux→[n] 常态链）。"""
+    (tmp_path / "main.tex").write_text("x")
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(
+            calls,
+            [
+                (0, "LaTeX Warning: There were undefined references.\n", False),
+                (0, "clean pass\n", False),
+            ],
+        ),
+    )
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 2 and res.passes == 2  # noqa: PLR2004, PT018
+
+
+def test_xelatex_auto_rerun_third_pass_resolves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：提示 pass-2 仍在 → 延趟 (旧 cap=2 在此截死即 ``??`` 出货)。"""
+    (tmp_path / "main.tex").write_text("x")
+    calls: list[dict[str, object]] = []
+    hint = "LaTeX Warning: There were undefined references.\n"
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(calls, [(0, hint, False), (0, hint, False), (0, "clean\n", False)]),
+    )
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 3 and res.passes == 3  # noqa: PLR2004, PT018
 
 
 def test_xelatex_auto_rerun_noise_no_pass2(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """自适应档不误续：rerunfilecheck 包名行/biber 请求不构成续趟信号。"""
+    """自适应档不误续：rerunfilecheck 包名行不构成续趟信号。
+
+    biber/bibtex 请求行自 fp resolve-pass 起是刻意续趟信号 (``_bib_pass``
+    跑工具趟 + tex 吸收新 bbl), 不再列噪音面——hints 表已含其形。
+    """
     (tmp_path / "main.tex").write_text("x")
     for noise in (
         "Package: rerunfilecheck 2022/07/05 v1.10 Rerun check for auxiliary files",
-        (
-            "Package biblatex Warning: Please (re)run Biber on the file: main\n"
-            "(biblatex)                and rerun LaTeX afterwards."
-        ),
+        "Package biblatex Info: backend biber configured.\n",
     ):
         calls: list[dict[str, object]] = []
         monkeypatch.setattr(
@@ -828,6 +874,68 @@ def test_xelatex_explicit_passes_ungated(
         tmp_path, "main.tex", passes=3, sandbox=False
     )
     assert len(calls) == 3 and res.passes == 3  # noqa: PLR2004, PT018
+
+
+def test_xelatex_input_truncated_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """出货闸：输入无 ``\\end{document}``/顶层 ``\\endinput`` 截停 →
+    ``input_truncated`` 盖章——残尾 pdf 不得带 clean 出货。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, side=_write_pdf))
+    # 无收尾 token —— 输入件残
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\\begin{document}x")
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is True
+    # 顶层 \endinput 截停——真 \end{document} 在尾也吃不到
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\n\\endinput\n"
+        "more \\end{document}\n"
+    )
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is True
+    # 正常收束——尾部草稿/live 尾巴不算伤
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n"
+        "% author draft below\n\\section{todo}"
+    )
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is False
+
+
+def test_xelatex_input_covers_via_input_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """出货闸跟进 ``\\input`` 链：wrapper main 的 ``\\end{document}`` 在真身件。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, side=_write_pdf))
+    (tmp_path / "body.tex").write_text("\\begin{document}x\\end{document}")
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\\input{body}")
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is False
+    # 链断（\\input 的件也没有 \end{document}）→ 仍截停
+    (tmp_path / "body.tex").write_text("\\begin{document}x")
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is True
+    # \let 存储形不截停
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\n"
+        "\\let\\myend\\endinput\n\\end{document}\n"
+    )
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.input_truncated is False
 
 
 def _write_pdf_and_log(cmd: list[str], _cwd: Path, _n: int) -> None:
@@ -915,16 +1023,23 @@ def test_xelatex_rc_break_without_hint_unchanged(
 def test_xelatex_hint_every_pass_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """自适应档：趟趟 rc=1+提示 → 跑满 ``MAX_PASSES`` 封顶——有提示也不空转。"""
+    """自适应档：趟趟 rc=1+提示 → 自延至 ``_ADAPTIVE_PASS_CAP`` 封顶——有
+    提示也不空转，钉死顶防永不收敛签。"""
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         eng_mod,
         "run_process",
-        _seq_run(calls, [(1, _RERUN_HINT, False), (1, _RERUN_HINT, False)]),
+        _seq_run(
+            calls,
+            [(1, _RERUN_HINT, False)] * eng_mod._ADAPTIVE_PASS_CAP,  # noqa: SLF001
+        ),
     )
     (tmp_path / "main.tex").write_text("x")
     res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
-    assert len(calls) == 2 and res.passes == 2 and res.rc == 1  # noqa: PLR2004, PT018
+    cap = eng_mod._ADAPTIVE_PASS_CAP  # noqa: SLF001
+    assert len(calls) == cap
+    assert res.passes == cap
+    assert res.rc == 1
 
 
 def test_xelatex_pinned_passes_ignores_hint(

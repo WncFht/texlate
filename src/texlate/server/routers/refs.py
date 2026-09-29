@@ -8,19 +8,17 @@ UX 调研 §0/§4）：浏览器绝不按 hover 直连 S2/OpenAlex——免 key 
 条目走 Crossref ``/works/{doi}`` 补（公共池 5rps，并发闸 4）。
 
 机会型面：任一上游失败 ``degraded=true`` 仍 200 尽力返回——绝不 502
-打错误面（卡字段缺位前端静默隐藏）。缓存照抄 ``discover._TtlCache``
-双桶：命中 24h、miss 负缓存 10min（429 风暴期不重复鞭尸上游）。
-httpx client 按 loop 分桶 + ``_aclose_clients`` lifespan 钩——跨环
-复用炸 "attached to a different loop"（discover.py 同款坑）。
+打错误面（卡字段缺位前端静默隐藏）。缓存 ``_TtlCache``（单源
+``texlate.server._ttlcache``）双桶：命中 24h、miss 负缓存 10min
+（429 风暴期不重复鞭尸上游）。httpx client 按 loop 分桶 +
+``_aclose_clients`` lifespan 钩——跨环复用炸 "attached to a
+different loop"（discover.py 同款坑，池机制同在 ``_ttlcache``）。
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import re
-import time
-from collections import OrderedDict
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
@@ -28,12 +26,12 @@ from fastapi import Request, Response
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.server import bibexport
-from texlate.server.http import _ApiError, _read_body
+from texlate.server._common import norm_doi, src_tar_path
+from texlate.server._ttlcache import LoopClientPool, _TtlCache
+from texlate.server.http import _api_error, _read_body
 from texlate.server.store import StoreError
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import httpx
     from fastapi import FastAPI
 
@@ -54,81 +52,38 @@ _MAX_DOI = 256
 _MAX_ARXIV = 64
 
 
-class _TtlCache[T]:
-    """key → (expires_monotonic, value)，容量有界 LRU 头出（discover.py 同款）。"""
-
-    def __init__(self, ttl: float, max_entries: int) -> None:
-        self.ttl = ttl
-        self.max_entries = max_entries
-        self._d: OrderedDict[str, tuple[float, T]] = OrderedDict()
-
-    def get(self, key: str) -> T | None:
-        hit = self._d.get(key)
-        if hit is None:
-            return None
-        exp, val = hit
-        if exp < time.monotonic():
-            self._d.pop(key, None)
-            return None
-        self._d.move_to_end(key)
-        return val
-
-    def put(self, key: str, val: T) -> None:
-        self._d[key] = (time.monotonic() + self.ttl, val)
-        self._d.move_to_end(key)
-        while len(self._d) > self.max_entries:
-            self._d.popitem(last=False)
-
-
 #: 上游 id（``ARXIV:x``/``DOI:x``）→ meta 24h；miss 负缓存 10min 挡 429 鞭尸
 _meta_cache = _TtlCache[dict[str, Any]](ttl=86400, max_entries=4096)
 _neg_cache = _TtlCache[dict[str, Any]](ttl=600, max_entries=2048)
 
-#: loop 分桶 AsyncClient——连接池绑创建时 running loop（discover.py 同坑）
-_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
+
+def _new_client() -> httpx.AsyncClient:
+    """本环懒建 refs 上游 client（S2/Crossref 共用一条连接池）。"""
+    import httpx  # noqa: PLC0415 -- 重依赖惰性加载
+
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0),
+        follow_redirects=True,
+        headers={
+            "User-Agent": "texlate-refs (mailto:texlate@localhost)",
+        },
+    )
+
+
+#: loop 分桶 AsyncClient——连接池绑创建时 running loop（跨环复用炸
+#: "attached to a different loop"）；桶管理/死环摘除/收尾单源
+#: ``LoopClientPool``（``texlate.server._ttlcache``）
+_clients = LoopClientPool(_new_client, label="refs")
 
 
 def _client() -> httpx.AsyncClient:
-    """取当前环的共享 client（惰性建，顺带摘除死环条目）。"""
-    import httpx  # noqa: PLC0415 -- 重依赖惰性加载
-
-    loop = asyncio.get_running_loop()
-    for dead in [lp for lp in _clients if lp.is_closed()]:
-        del _clients[dead]
-    cli = _clients.get(loop)
-    if cli is None:
-        cli = httpx.AsyncClient(
-            timeout=httpx.Timeout(15.0),
-            follow_redirects=True,
-            headers={
-                "User-Agent": "texlate-refs (mailto:texlate@localhost)",
-            },
-        )
-        _clients[loop] = cli
-    return cli
+    """取当前环的共享 client——测试经 monkeypatch 本面注入 MockTransport。"""
+    return _clients.get()
 
 
 async def _aclose_clients() -> None:
     """尽力关全部 loop 桶 client——app lifespan 收尾用。"""
-    while _clients:
-        cli = _clients.pop(next(iter(_clients)))
-        try:
-            await cli.aclose()
-        except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
-            log.debug("refs client aclose failed: %s: %s", type(e).__name__, e)
-
-
-_DOI_RX = re.compile(r"^10\.\d{4,9}/\S+$", re.IGNORECASE)
-_DOI_PREFIX_RX = re.compile(
-    r"^(?:(?:https?://)?(?:dx\.|www\.)?doi\.org/|doi:\s*)", re.IGNORECASE
-)
-
-
-def _norm_doi(raw: str) -> str | None:
-    """DOI 归一：剥 doi.org/ 各族前缀与 doi: + ?# 截断 + lowercase；非法形拒收。"""
-    d = _DOI_PREFIX_RX.sub("", raw.strip())
-    d = d.split("?", 1)[0].split("#", 1)[0].strip().rstrip(".,;)]}")
-    return d.lower() if _DOI_RX.match(d) else None
+    await _clients.aclose_all()
 
 
 def _s2_to_meta(paper: dict[str, Any]) -> dict[str, Any]:
@@ -253,7 +208,7 @@ def _collect_jobs(refs: list[Any]) -> list[tuple[str, str, str | None]]:
             continue
         seen.add(key)
         doi = r.get("doi")
-        doi = _norm_doi(doi) if isinstance(doi, str) and len(doi) <= _MAX_DOI else None
+        doi = norm_doi(doi) if isinstance(doi, str) and len(doi) <= _MAX_DOI else None
         s2id: str | None = None
         raw_ax = r.get("arxivId")
         if isinstance(raw_ax, str) and len(raw_ax) <= _MAX_ARXIV:
@@ -331,9 +286,7 @@ async def _cr_fallback(
 async def _lookup(body: dict[str, Any]) -> dict[str, Any]:
     refs = body.get("refs")
     if not isinstance(refs, list) or len(refs) > _MAX_REFS:
-        raise _ApiError(
-            400, {"detail": "refs: list required (<=400)", "code": "bad_request"}
-        )
+        raise _api_error(400, "refs: list required (<=400)", "bad_request")
 
     jobs = _collect_jobs(refs)
     meta: dict[str, dict[str, Any]] = {}
@@ -364,20 +317,18 @@ async def _kept_put(deps: AppDeps, request: Request, task_id: str) -> dict[str, 
     body = await _read_body(request)
     key = body.get("key")
     if not isinstance(key, str) or not key or len(key) > _MAX_KEY:
-        raise _ApiError(
-            400, {"detail": f"key: str 1..{_MAX_KEY}", "code": "bad_request"}
-        )
+        raise _api_error(400, f"key: str 1..{_MAX_KEY}", "bad_request")
     payload = body.get("payload")
     if payload is None:
         # unkeep——幂等（未存在也 200，乐观写回滚不区分先态）
         deps.store.kept_delete(task_id, key)
         return {"kept": False}
     if not isinstance(payload, dict):
-        raise _ApiError(400, {"detail": "payload: object|null", "code": "bad_request"})
+        raise _api_error(400, "payload: object|null", "bad_request")
     try:
         deps.store.kept_put(task_id, key, payload)
     except StoreError as e:
-        raise _ApiError(400, {"detail": str(e), "code": "bad_request"}) from e
+        raise _api_error(400, str(e), "bad_request") from e
     return {"kept": True}
 
 
@@ -387,23 +338,8 @@ def _kept_delete(
     """按 key 删 kept（``:path`` 容纳 key 内 ``/``）；未命中 → 404。"""
     deps.get_task(request, task_id)
     if not deps.store.kept_delete(task_id, key):
-        raise _ApiError(404, {"detail": "kept ref not found", "code": "not_found"})
+        raise _api_error(404, "kept ref not found", "not_found")
     return {"kept": False}
-
-
-def _src_tar_path(deps: AppDeps, task_id: str) -> Path | None:
-    """src.tar blob 落盘定位：files 表登记 + resolve/is_relative_to 防逃逸。
-
-    ``file_get`` 同款口径——登记路径可能脏，resolve 后必须仍在 task 目录内。
-    """
-    rec = deps.store.file_record(task_id, "src_tar")
-    if rec is None:
-        return None
-    task_root = deps.task_dir(task_id).resolve()
-    cand = (task_root / str(rec["path"])).resolve()
-    if cand.is_relative_to(task_root) and cand.is_file():
-        return cand
-    return None
 
 
 def _qint(request: Request, name: str) -> int:
@@ -412,9 +348,7 @@ def _qint(request: Request, name: str) -> int:
     try:
         return int(raw)
     except ValueError as e:
-        raise _ApiError(
-            400, {"detail": f"{name}: int flag", "code": "bad_request"}
-        ) from e
+        raise _api_error(400, f"{name}: int flag", "bad_request") from e
 
 
 async def _refs_bib(deps: AppDeps, request: Request, task_id: str) -> Response:
@@ -425,7 +359,7 @@ async def _refs_bib(deps: AppDeps, request: Request, task_id: str) -> Response:
     download = _qint(request, "download")
     kept = deps.store.kept_list(task_id)
     idx = await asyncio.to_thread(
-        bibexport.load_src_index, _src_tar_path(deps, task_id)
+        bibexport.load_src_index, src_tar_path(deps, task_id)
     )
 
     if keys:

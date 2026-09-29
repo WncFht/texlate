@@ -31,10 +31,9 @@ from texlate.texlog import (
     CTX_LINES,
     L_NUM_RE,
     TAIL_LINES,
-    is_dos_eps,
-    is_project_file,
     iter_log_events,
     match_error_line,
+    producer_tag,
 )
 from texlate.textutil import is_cjk_cp
 
@@ -344,19 +343,15 @@ def _mark_redline(
     （normalize ``dos_eps_skipped`` 原样保留件）视同系统件降级并打
     ``(dos-eps)`` 标（loginfo.py ``_scan_error_lines`` 同口径）；其余类
     全量进 ``redlines``（missing_glyph/file_not_found 按内容论不按产生
-    文件论）。
+    文件论）。三支判定单源 = ``texlog.producer_tag``——本件只消费
+    tag，``cls@`` 前缀与 ``sys_hits``/``redlines`` 归集桶是 l2 侧语义。
     """
     ws = scan.ws
     if cls == "invalid_utf8":
         inner = next((s for s in reversed(stack) if s), None)
-        if is_dos_eps(inner, scan.project_root, scan.dos_eps_cache):
-            hit = f"{cls}@{Path(inner).name if inner else '?'}(dos-eps)"
-            if hit not in scan.seen_sys:
-                scan.seen_sys.add(hit)
-                ws.sys_hits.append(hit)
-            return
-        if not is_project_file(inner, scan.project_root):
-            hit = f"{cls}@{Path(inner).name if inner else '?'}"
+        tag = producer_tag(inner, scan.project_root, scan.dos_eps_cache)
+        if tag is not None:
+            hit = f"{cls}@{tag}"
             if hit not in scan.seen_sys:
                 scan.seen_sys.add(hit)
                 ws.sys_hits.append(hit)

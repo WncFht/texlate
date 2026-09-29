@@ -13,9 +13,11 @@ import sqlite3
 import time
 from typing import TYPE_CHECKING
 
-from texlate.server.store._common import _Repo
+from texlate.server.store._common import _qmarks, _Repo
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from texlate.server.store import Store
 
 
@@ -25,6 +27,9 @@ class CacheRepo(_Repo):
     #: 命中记账兜底阈值——正常靠 ``flush_chunk_batch``/``close`` 顺带落；
     #: 长串纯命中不触发批写时按此 distinct-key 量自立事务落一次。
     _CACHE_HIT_FLUSH = 64
+
+    #: ``cache_get_many`` 分批 ``IN`` 查询批大小（SQLITE_MAX_VARIABLE_NUMBER 下限 999 留余量）
+    _IN_BATCH = 500
 
     def __init__(self, store: Store, hits: dict[str, int]) -> None:
         """回指门面 + 共享命中缓冲（``store._cache_hits`` 同一对象）。"""
@@ -50,6 +55,46 @@ class CacheRepo(_Repo):
             return None
         self.count_hit(key)
         return str(row["translation"])
+
+    def cache_get_many(self, keys: Iterable[str]) -> dict[str, str]:
+        """段缓存分批 ``IN`` 批读 → ``{key: translation}`` 命中子集。
+
+        ``SegmentCache.prewarm`` 的预载面——5k 逐键 ``cache_get`` 会把
+        同等次数 SELECT 全堵在 loop 线程。命中**不**记 ``hit_count``：
+        预载是读面优化不是真命中，记账留给消费点
+        （``__getitem__``→``count_hit``）单发不双发。
+        """
+        keys = list(keys)
+        out: dict[str, str] = {}
+        for i in range(0, len(keys), self._IN_BATCH):
+            batch = keys[i : i + self._IN_BATCH]
+            rows = self.conn.execute(
+                "SELECT key, translation FROM translation_cache"  # noqa: S608 -- 占位符批查，值全参数化
+                f" WHERE key IN ({_qmarks(batch)})",
+                batch,
+            ).fetchall()
+            for r in rows:
+                out[str(r["key"])] = str(r["translation"])
+        return out
+
+    def cache_contains(self, key: str) -> bool:
+        """存在性探测（不记 hit_count——``SegmentCache.__contains__`` 同语义）。"""
+        row = self.conn.execute(
+            "SELECT 1 FROM translation_cache WHERE key = ?", (key,)
+        ).fetchone()
+        return row is not None
+
+    def cache_delete(self, key: str) -> bool:
+        """毒条目摘除（``del cache[key]`` 语义面）→ 是否删到行。
+
+        自立事务 commit——摘除是冷路径（一次一条），无批事务可骑；
+        毒条目不摘除会逃逸成 worker crash-skip 而非自愈重翻。
+        """
+        cur = self.conn.execute(
+            "DELETE FROM translation_cache WHERE key = ?", (key,)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def cache_put_batch(self, cache_puts: list[tuple[str, str, str, str]]) -> None:
         """段缓存批量 upsert——不 commit，骑 ``flush_chunk_batch`` 事务。

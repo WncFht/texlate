@@ -14,9 +14,9 @@ import typer
 
 import texlate.cli as _cli
 from texlate.cli._common import _CLI_PATH, app
-from texlate.textutil import env_str
 from texlate.textutil.osutil import (
     ENV_TRANSLATOR,  # 名表单源登记处——facade 未转口 ENV_* 故叶直引
+    translator_mode,
 )
 
 if TYPE_CHECKING:
@@ -81,26 +81,15 @@ def export(
         # （aclose 幂等，本 finally 二次关是安全 no-op）；本 finally 兜的是
         # 管线未起形（ExportError 前置拒）——此时 client 从未绑 loop，
         # 新 loop 上 aclose 合法。
-        client = getattr(translator, "client", None)
-        if client is not None:
-            asyncio.run(client.aclose())
+        aclose = getattr(translator, "aclose", None)
+        if aclose is not None:
+            asyncio.run(aclose())
     typer.echo(
         f"{report.dst} — 插译 {report.translated}/{report.units}"
         f"（unchanged {report.unchanged} / skipped {report.skipped}"
         f" / fault {report.fault}）",
         err=True,
     )
-
-
-def translator_mode() -> str:
-    """``TEXLATE_TRANSLATOR`` 归一读取：``env_str`` 口径，未设/置空 → ``""``。
-
-    只归一不裁决——``TRANSLATOR_MODES`` 白名单的处置归消费侧（本模块未知值
-    exit 2 显式拒；server 三读点对未知值**静默按 auto 回落**，两边 typo
-    语义不同口径、待单源化时统一裁决）。四读点同口径的单源目标位
-    ``textutil.osutil``（``env_str`` 邻居、``ENV_TRANSLATOR`` 名表登记处）。
-    """
-    return env_str(ENV_TRANSLATOR)
 
 
 def _export_translator(model: str | None, *, mock: bool) -> Translator:
@@ -125,20 +114,6 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
         MockTranslator,
     )
 
-    class _CliGatewayTranslator(GatewayTranslator):
-        """``aclose`` 补位：供 ``drive_pipeline`` in-loop finally 回收 client。
-
-        ``drive_pipeline`` 经 ``getattr(translator, "aclose")`` 在管线消费
-        loop 内 await——无 ``aclose`` 时 httpx 池只能由 cli ``finally``
-        在新 ``asyncio.run`` loop 上关，连接绑死 loop 外关池即
-        「foreign loop」坑。待 ``xlat.pipeline.GatewayTranslator`` 长出
-        原生 ``aclose`` 后本类退役。
-        """
-
-        async def aclose(self) -> None:
-            """委托 ``self.client.aclose()``——须在调用方存活 loop 内 await。"""
-            await self.client.aclose()
-
     force = translator_mode()
     env_url, api_key, env_model, env_dialect = env_credentials()
     if mock or force == "mock":
@@ -161,7 +136,7 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
             err=True,
         )
         return MockTranslator()
-    return _CliGatewayTranslator(
+    return GatewayTranslator(
         ChatClient(
             env_url or DEFAULT_BASE_URL,
             api_key,

@@ -30,9 +30,10 @@ import zipfile
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
-from texlate.arxiv.fetch import normalize_arxiv_id
+from texlate.arxiv.fetch import ARXIV_ID_FIND_RX, normalize_arxiv_id
+from texlate.server._common import norm_doi
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -57,10 +58,12 @@ _BIBITEM_RX = re.compile(
     r"(?=\\bibitem|\\end\{thebibliography\}|\Z)",
     re.DOTALL,
 )
-_DOI_PREFIX_RX = re.compile(
-    r"^(?:(?:https?://)?(?:dx\.|www\.)?doi\.org/|doi:\s*)", re.IGNORECASE
+#: 上下文前缀臂（``extract_ids`` 优先臂）——裸 id 形状单源在
+#: ``arxiv.fetch.ARXIV_ID_FIND_RX``，本件只补 arxiv.org/arXiv: 前缀闸
+_ARXIV_CTX_RX = re.compile(
+    r"(?:arxiv\.org/(?:abs|pdf)/|arXiv[:\s])" + ARXIV_ID_FIND_RX.pattern,
+    re.IGNORECASE,
 )
-_DOI_RX = re.compile(r"^10\.\d{4,9}/\S+$", re.IGNORECASE)
 
 
 # ------------------------------------------------------------ .bib 解析原语
@@ -173,12 +176,7 @@ def clean_bib_text(t: str) -> str:
 def extract_ids(text: str) -> tuple[str | None, str | None]:
     """``citations.ts extractRefIds`` 的 python 移植：排版文本 → (arxiv, doi)。"""
     arxiv = None
-    m = re.search(
-        r"(?:arxiv\.org/(?:abs|pdf)/|arXiv[:\s])"
-        r"([a-z-]+/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?",
-        text,
-        re.IGNORECASE,
-    ) or re.search(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b", text)
+    m = _ARXIV_CTX_RX.search(text) or ARXIV_ID_FIND_RX.search(text)
     if m:
         arxiv = m.group(1)
     m2 = re.search(r"(?:doi\.org/|doi[:\s]+)(10\.\d{4,9}/\S+)", text, re.IGNORECASE)
@@ -249,15 +247,6 @@ class RefItem:
         return bool(self.arxiv or self.doi or self.text)
 
 
-def _norm_doi(raw: object) -> str | None:
-    """kept/抽取面 DOI 归一：剥前缀 + 百分号解码（bbl 编码实证坑）+ lowercase。"""
-    if not isinstance(raw, str):
-        return None
-    d = _DOI_PREFIX_RX.sub("", raw.strip())
-    d = unquote(d).split("?", 1)[0].split("#", 1)[0].strip().rstrip(".,;)]}")
-    return d.lower() if _DOI_RX.match(d) else None
-
-
 def _norm_arxiv(raw: object) -> str | None:
     """kept/抽取面 arXiv id 归一 → canon base（剥版本——DataCite DOI 按 base 解）。"""
     if not isinstance(raw, str):
@@ -285,10 +274,10 @@ def plan_items(
         if not text and isinstance(kp.get("text"), str):
             text = clean_bib_text(kp["text"])
         arxiv = _norm_arxiv(kp.get("arxivId"))
-        doi = _norm_doi(kp.get("doi"))
+        doi = norm_doi(kp.get("doi"))
         if (not arxiv and not doi) and text:
             ax, d = extract_ids(text)
-            arxiv, doi = _norm_arxiv(ax), _norm_doi(d)
+            arxiv, doi = _norm_arxiv(ax), norm_doi(d)
         meta = kp.get("meta") if isinstance(kp.get("meta"), dict) else None
         items.append(
             RefItem(

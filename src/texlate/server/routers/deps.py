@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import HTTPException, Request
 
 from texlate.pipecore import front_matter_of
-from texlate.server.http import _ApiError
+from texlate.server.http import _api_error
 from texlate.server.settings import (
     TARGET_LANGS,
     AuthContext,
@@ -83,7 +83,7 @@ class AppDeps:
                 salt=self.salt,
             )
         except ValueError as e:
-            raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
+            raise _api_error(400, str(e), "invalid_request") from e
         request.state.auth_ctx = auth
         return auth
 
@@ -114,15 +114,11 @@ class AppDeps:
         try:
             model = validate_model(model_raw or auth.model)
         except ValueError as e:
-            raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
+            raise _api_error(400, str(e), "invalid_request") from e
         target_lang = lang_raw or str(auth.settings["target_lang"])
         if target_lang not in TARGET_LANGS:
-            raise _ApiError(
-                400,
-                {
-                    "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
-                    "code": "invalid_request",
-                },
+            raise _api_error(
+                400, f"target_lang ∈ {sorted(TARGET_LANGS)}", "invalid_request"
             )
         return model, target_lang
 
@@ -165,20 +161,12 @@ class AppDeps:
             return
         usage = self.store.tenant_usage(auth.tenant)
         if q_tasks and usage["tasks"] >= q_tasks:
-            raise _ApiError(
-                429,
-                {
-                    "detail": f"tenant 任务配额已用尽（{q_tasks}）",
-                    "code": "quota_exceeded",
-                },
+            raise _api_error(
+                429, f"tenant 任务配额已用尽（{q_tasks}）", "quota_exceeded"
             )
         if q_bytes and usage["bytes"] + incoming_bytes > q_bytes:
-            raise _ApiError(
-                429,
-                {
-                    "detail": f"tenant 字节配额超限（{q_bytes}B）",
-                    "code": "quota_exceeded",
-                },
+            raise _api_error(
+                429, f"tenant 字节配额超限（{q_bytes}B）", "quota_exceeded"
             )
         if not peer:
             return
@@ -191,20 +179,12 @@ class AppDeps:
         else:
             self.ip_quota.move_to_end(peer)
         if q_tasks and bucket[0] >= q_tasks:
-            raise _ApiError(
-                429,
-                {
-                    "detail": f"同 IP 任务配额已用尽（{q_tasks}）",
-                    "code": "quota_exceeded",
-                },
+            raise _api_error(
+                429, f"同 IP 任务配额已用尽（{q_tasks}）", "quota_exceeded"
             )
         if q_bytes and bucket[1] + incoming_bytes > q_bytes:
-            raise _ApiError(
-                429,
-                {
-                    "detail": f"同 IP 字节配额超限（{q_bytes}B）",
-                    "code": "quota_exceeded",
-                },
+            raise _api_error(
+                429, f"同 IP 字节配额超限（{q_bytes}B）", "quota_exceeded"
             )
         # 过闸才累计——被拒请求不占桶；建行失败的多计是保守方向
         bucket[0] += 1
@@ -258,13 +238,11 @@ class AppDeps:
             # 凭证指纹分桶（见 settings.cache_scope）。
             active = store.find_active_by_cache_key(cache_key)
             if active is not None:
-                raise _ApiError(
+                raise _api_error(
                     409,
-                    {
-                        "detail": f"active task {active['id']} exists",
-                        "task_id": active["id"],
-                        "code": "duplicate_active",
-                    },
+                    f"active task {active['id']} exists",
+                    "duplicate_active",
+                    task_id=active["id"],
                 )
             done = store.find_reusable(cache_key)
             if done is not None:
@@ -342,13 +320,11 @@ class AppDeps:
                 # （原来裸 re-raise 出 FastAPI 成无码 500）
                 active = store.find_active_by_cache_key(cache_key)
                 if active is not None:
-                    raise _ApiError(
+                    raise _api_error(
                         409,
-                        {
-                            "detail": f"active task {active['id']} exists",
-                            "task_id": active["id"],
-                            "code": "duplicate_active",
-                        },
+                        f"active task {active['id']} exists",
+                        "duplicate_active",
+                        task_id=active["id"],
                     ) from None
                 # 持槽行已迁出 ACTIVE（查-写窗内完成/取消）：needs_auth
                 # 撞键行收编 200——缺 key 重交指向可补 key 的既有行，

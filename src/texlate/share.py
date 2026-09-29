@@ -3,9 +3,11 @@
 设计见 ``docs/research/product/2026-09-16-shared-cache.md``。三层要点：
 
 - 寻址：``share_key`` = ``sha256(arxiv_id|ver|model|prompt_ver|lang|
-  glossary_hash|pipeline_ver)``——与 ``server.worker.cache_key_for``
-  的产物级 dedup 键同构但独立：dedup 键是本地任务去重（per_key scope
-  可按凭证指纹分桶），本键是跨实例公开寻址，永不拼凭证/租户成分。
+  glossary_hash|pipeline_ver)``——与产物级 dedup 键 ``cache_key_for``
+  同构但独立：dedup 键是本地任务去重（``cache_scope``=per_key 时按
+  凭证指纹分桶），本键是跨实例公开寻址，永不拼凭证/租户成分。
+  ``cache_key_for``/``cache_scope``/``PIPELINE_VERSION`` 单源驻本
+  模块——worker 经 ``_common`` 转口、cli 直取，两臂同源防公式漂移。
 - 包格式：``{share_key}.share.zip`` = ``manifest.json`` + ``zh-src.zip``
   + ``dual.json`` + 可选 ``zh.pdf``；manifest 自校验（key_parts 重算
   share_key、逐产物 sha256/bytes 对账）。``zh.pdf`` 缺席的 partial 包
@@ -31,7 +33,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.textutil import append_jsonl, safe_is_file, utc_now
+from texlate import __version__
+from texlate.textutil import append_jsonl, env_str, safe_is_file, utc_now
+from texlate.textutil.osutil import ENV_CACHE_SCOPE
+from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -58,6 +63,8 @@ KEY_PART_FIELDS = (
 )
 #: 允许空串的组分（version="" 表 latest 别名、glossary_hash="" 表无术语表）。
 _EMPTY_OK = frozenset({"version", "glossary_hash"})
+#: 管线版本（cache_key/share_key 共有组分；prompt 模板或产品版本变即失效）。
+PIPELINE_VERSION = f"texlate-{__version__}|{PROMPT_VERSION}"
 #: manifest.json 尺寸上限（正常 <4KB，超限按坏包处理）。
 _MANIFEST_MAX = 1 << 20
 #: 单产物成员尺寸上限（论文工程含图一般 <100MB；宽松取 256MB 防 zip 炸弹）。
@@ -149,7 +156,7 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     内容，非空时作为组分插在 ``pipeline_ver`` 前；空串省略成分，
     与前置全盖过的历史包同键（旧包重算口径不变）。前六组分含 ``|``
     会破坏分隔 → ShareError；``pipeline_ver`` 是末位组分，自身允许含
-    ``|``（``worker.PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"``
+    ``|``（``PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"``
     本就如此，末位含分隔符无解析歧义）。各组分 strip 归一——与
     ``_key_parts`` 的 manifest 侧归一同口径，边缘空白不进键（域内无意义）。
     """
@@ -171,6 +178,62 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
             msg = f"share_key component must not contain '|': {part!r}"
             raise ShareError(msg)
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+# ---------------------------------------------------------------- dedup 键
+
+
+def cache_scope() -> str:
+    """``TEXLATE_CACHE_SCOPE``：``shared``（默认）| ``per_key``。
+
+    ``shared`` = hjfy 对等共享缓存（既定产品特性：公开论文的翻译结果是
+    确定性函数，跨租户 reuse 省下重复 LLM 调用）；``per_key`` 把
+    ``sha256(api_key)[:16]`` 混入缓存键按凭证分桶——消除「探测他租户是否
+    译过某论文」的存在性 oracle，代价是缓存命中按 key 碎片化。
+    旧名 ``tenant`` 同义 ``per_key``；非法值回落 ``shared``。
+    """
+    v = env_str(ENV_CACHE_SCOPE) or "shared"
+    if v in ("per_key", "tenant"):
+        return "per_key"
+    if v != "shared":
+        log.warning("TEXLATE_CACHE_SCOPE=%r 非法，回落 shared", v)
+    return "shared"
+
+
+def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 面
+    *,
+    arxiv_id: str,
+    version: int | None,
+    model: str,
+    target_lang: str,
+    api_key: str = "",
+    source: str = "eprint",
+    front_matter: frozenset[str] | None = None,
+) -> str:
+    """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
+
+    故意不含租户身份（§4.3：公开论文的确定性函数可跨租户 reuse——
+    hjfy 对等共享缓存是既定产品特性）；``cache_scope()=="per_key"``
+    时把 ``sha256(api_key)[:16]`` 拼进材料按凭证分桶，消除跨租户
+    缓存存在性 oracle（匿名桶 key="" 共享一桶，与 tenant_for 同语义）。
+
+    ``source`` = 获取渠道：eprint 默认（材料不变，存量缓存续命）；
+    ``html`` 等异源追加 ``|src:`` 成分——同 id@ver 的 eprint 与 html
+    任务产物链不同构，channel-blind 会串桶互喂错产物。
+
+    ``front_matter`` = preamble 前置发射集（调用方已按 options 缺省
+    归一）：改变扫描块集即改变产物，非空追加 ``|fm:`` 成分分桶；
+    空集/None = 前置全盖过的历史形态，材料不变续命存量缓存。
+    """
+    ver = f"v{version}" if version else ""
+    material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
+    if source != "eprint":
+        material += f"|src:{source}"
+    if front_matter:
+        material += f"|fm:{','.join(sorted(front_matter))}"
+    if cache_scope() == "per_key":
+        material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
+    return hashlib.sha256(material.encode()).hexdigest()
 
 
 def glossary_content_hash(
@@ -296,8 +359,6 @@ def share_manifest(  # noqa: PLR0913 -- 键材料组与 manifest 同面，参数
     才进 manifest（``pack_share`` 缺省自产 ``c-<16hex>`` 匿名 id）。
     """
     from texlate.pipecore import ran_front_matter  # noqa: PLC0415 -- 重依赖延迟导入
-    from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
-    from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
 
     manifest: dict[str, object] = {
         "arxiv_id": arxiv_base,

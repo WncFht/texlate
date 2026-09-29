@@ -274,13 +274,13 @@ def test_scan_tree_gate_ordering_pins(tmp_path: Path) -> None:
 
 
 def test_bench_runners_bind_same_scan_tree() -> None:
-    """三 runner 持同一函数对象——from-import 绑定没漂回内联副本。"""
-    erb = pytest.importorskip("e2e_real_bench")
-    sx = pytest.importorskip("stage_xlat")
-    emb = pytest.importorskip("e2e_mock_bench")
+    """bench 三臂持同一函数对象——from-import 绑定没漂回内联副本。"""
+    erb = pytest.importorskip("specs.e2e_real")
+    xa = pytest.importorskip("specs._xlat_async")
+    emb = pytest.importorskip("specs.e2e_mock")
 
     assert erb._scan_tree is e2e._scan_tree  # noqa: SLF001
-    assert sx._scan_tree is e2e._scan_tree  # noqa: SLF001
+    assert xa._scan_tree is e2e._scan_tree  # noqa: SLF001
     assert emb._scan_tree is e2e._scan_tree  # noqa: SLF001
 
 
@@ -306,13 +306,13 @@ def test_e2e_mock_bench_translate_tree_gate_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """bench mock 臂同契约：stats 三键 + ``emb._scan_tree`` 属性查找可钩。"""
-    emb = pytest.importorskip("e2e_mock_bench")
+    emb = pytest.importorskip("specs.e2e_mock")
     work = tmp_path / "w"
     exp = _gate_tree(work)
     _crash_on(monkeypatch, {"broken.tex"})
     calls = _scan_spy(monkeypatch, emb, emb._scan_tree)  # noqa: SLF001
 
-    stats, _run, _results = emb.translate_tree(work, MockTranslator())
+    stats, _run, _results = emb._translate_tree(work, MockTranslator())  # noqa: SLF001
 
     assert calls == [work]
     for k in _GATE_KEYS:
@@ -322,44 +322,20 @@ def test_e2e_mock_bench_translate_tree_gate_keys(
     assert stats["support_skipped"] == len(exp["support"])
 
 
-def test_e2e_real_bench_translate_tree_gate_keys(
+def test_xlat_async_translate_tree_gate_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """real 臂（async + StateStore + GatewayTranslator 协议桩）真调 _scan_tree。
-
-    ★3 前此臂零闸——support/fault 键本身就是回归对象，不只取值。
-    """
-    erb = pytest.importorskip("e2e_real_bench")
+    """``specs._xlat_async.translate_tree_async``——e2e_real/xlat 两臂共享的
+    async 编排单源（e2e_real_bench.translate_tree 与 stage_xlat._translate_tree
+    的正身）——同闸契约：stats 三键 + 模块属性查找可钩 + 逐块结果只盖扫描件。"""
+    xa = pytest.importorskip("specs._xlat_async")
     work = tmp_path / "w"
     exp = _gate_tree(work)
     _crash_on(monkeypatch, {"broken.tex"})
-    calls = _scan_spy(monkeypatch, erb, erb._scan_tree)  # noqa: SLF001
-
-    stats = asyncio.run(
-        erb.translate_tree(work, _StubTranslator(), tmp_path / "st", PipelineConfig())
-    )
-
-    assert calls == [work]  # from-import 绑定：打 erb 自家模块属性即中
-    for k in _GATE_KEYS:
-        assert k in stats
-    assert stats["fault_files"] == exp["faults"]
-    assert stats["support_files"] == exp["support"]
-    assert stats["support_skipped"] == len(exp["support"])
-    assert stats["files"] == len(exp["scans"])  # 全 mock 交付 → 全扫描件写回
-
-
-def test_stage_xlat_translate_tree_gate_keys(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """stagerun xlat 臂（async，返回 (stats, results) 二元）同闸契约。"""
-    sx = pytest.importorskip("stage_xlat")
-    work = tmp_path / "w"
-    exp = _gate_tree(work)
-    _crash_on(monkeypatch, {"broken.tex"})
-    calls = _scan_spy(monkeypatch, sx, sx._scan_tree)  # noqa: SLF001
+    calls = _scan_spy(monkeypatch, xa, xa._scan_tree)  # noqa: SLF001
 
     stats, results = asyncio.run(
-        sx._translate_tree(  # noqa: SLF001
+        xa.translate_tree_async(
             work, _StubTranslator(), tmp_path / "st", PipelineConfig()
         )
     )
@@ -370,6 +346,7 @@ def test_stage_xlat_translate_tree_gate_keys(
     assert stats["fault_files"] == exp["faults"]
     assert stats["support_files"] == exp["support"]
     assert stats["support_skipped"] == len(exp["support"])
+    assert stats["files"] == len(exp["scans"])  # 全 mock 交付 → 全扫描件写回
     # 逐块结果只覆盖扫描件块——support/fault 件的 chunk 从未进 pipeline
     assert all(_CID_RX.match(r.chunk_id) for r in results)
 

@@ -55,6 +55,7 @@ __all__ = [
     "L_NUM_SRC",
     "NONERR_FILELINE_RE",
     "NONERR_MSG_RE",
+    "PS_GRAPHIC_EXTS",
     "TAIL_LINES",
     "TEX_FILE_EXTS",
     "WARN_MSG_SRC",
@@ -70,6 +71,7 @@ __all__ = [
     "misschar_sweep_hits",
     "normalize_stderr_errors",
     "patch_graphic_top",
+    "producer_tag",
     "update_file_stack",
 ]
 
@@ -186,15 +188,17 @@ def update_file_stack(
             j += 1
 
 
-#: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面。同一 5 件 PS 集现存三处
-#: 三名：本件 / ``normalize.PS_GRAPHIC_SUFFIXES`` / fixloop builtins
-#: ``_EPS_EXTS``——手工同步（builtins 冻结窗内不可外引，单源化待其解冻）。
-#: 另注意 builtins ``_GRAPHIC_EXTS`` 是**同名不同物**的 9 件全图形族
+#: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面——5 件集单源在本件：
+#: ``transcode.PS_GRAPHIC_SUFFIXES`` 与 fixloop ``_builtins_graphics._EPS_EXTS``
+#: 均为本件别名/转口。另注意 builtins ``_GRAPHIC_EXTS``
+#: （``_builtins_gfx_missing``）是**同名不同物**的 9 件全图形族
 #: （含 pdf/png/jpg）——本件名加 ``_PS_`` 前缀即为消撞。形状判定拒收的
 #: graphic token（逗号/截断形，如 ``fig,1.eps``）入 ``None`` 配对帧；
 #: engine/l2/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
 #: 补回栈顶真名。
-_PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+#: 旧私名钉点——tests/test_fuzz_texlog 经 ``texlog._PS_GRAPHIC_EXTS`` 消费。
+_PS_GRAPHIC_EXTS = PS_GRAPHIC_EXTS
 
 
 def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
@@ -209,7 +213,7 @@ def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
     if lp < 0 or lp < ln.rfind(")"):
         return
     m = _OPEN_TOKEN_RX.match(ln, lp + 1)
-    if m and Path(m.group(0)).suffix.lower() in _PS_GRAPHIC_EXTS:
+    if m and Path(m.group(0)).suffix.lower() in PS_GRAPHIC_EXTS:
         stack[-1] = m.group(0)
 
 
@@ -310,6 +314,28 @@ def is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> 
         ok = False
     cache[token] = ok
     return ok
+
+
+def producer_tag(
+    inner: str | None, root: Path | None, cache: dict[str, bool]
+) -> str | None:
+    """警告产生者三支判定——工程件 → ``None``；系统件 → 文件名 tag。
+
+    警告/红线产生文件 ``inner``（事件 ``ev.inner`` = 栈顶最内具名帧）→
+    ``(dos-eps)`` 尾标名 / 裸文件名 / ``None`` 三态：DOS 魔数 EPS
+    （normalize ``dos_eps_skipped`` 原样保留的二进制件，残余警告是必然
+    残余非可修缺陷）打 ``(dos-eps)`` 标便于台账对账；余下系统
+    texmf/bundle 件给裸文件名；工程件与 ``None``/不可判 token
+    （``is_project_file`` 保守归工程）返回 ``None``。dos-eps 判**先于**
+    工程判——skipped 件就在工程树内，先 ``is_project_file`` 会错归工程。
+    logparse ``_AttrWarns``/loginfo ``_scan_error_lines``/l2
+    ``_mark_redline`` 三消费面同口径（各把三态映到自家记录形）。
+    """
+    if is_dos_eps(inner, root, cache):
+        return f"{Path(inner).name if inner else '?'}(dos-eps)"
+    if is_project_file(inner, root):
+        return None
+    return Path(inner).name if inner else "?"
 
 
 # ================================================================ 错误行词法

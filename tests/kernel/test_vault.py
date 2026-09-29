@@ -243,6 +243,82 @@ def test_harvest_refuses_bad_assets(tmp_path: Path) -> None:
         vault.harvest(IDC, "r", "-", {"zh": linked})
 
 
+_PDF_OK = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n"
+    b"xref\n0 1\n0000000000 65535 f \ntrailer<</Size 1>>\n"
+    b"startxref\n9\n%%EOF\n"
+)
+
+
+@pytest.mark.usefixtures("broot")
+def test_harvest_seals_intact_product_pdf(tmp_path: Path) -> None:
+    sp = _tree(
+        tmp_path / "w/splice.r",
+        {"main.tex": b"tex", "main.pdf": _PDF_OK, "figs/f.pdf": b"%PDF-x"},
+    )
+    mpath = vault.harvest(IDC, "r", "-", {"splice": sp})
+    meta = json.loads(mpath.read_text(encoding="utf-8"))
+    assert set(meta["files"]) == {"splice"}
+    assert "seal_refused" not in meta
+    sd = paths.vault_dir() / "splice" / SID / "r"
+    assert (sd / "main.pdf").read_bytes() == _PDF_OK
+
+
+@pytest.mark.usefixtures("broot")
+def test_harvest_refuses_corrupt_product_pdf(tmp_path: Path) -> None:
+    zh = _tree(tmp_path / "w/zh.r", {"main.md": b"# zh", "stray.pdf": b"%PDF-x"})
+    sp = _tree(
+        tmp_path / "w/splice.r",
+        {"main.tex": b"tex", "main.pdf": b"%PDF-1.4\ntruncated-no-eof"},
+    )
+    mpath = vault.harvest(IDC, "r", "-", {"zh": zh, "splice": sp})
+    meta = json.loads(mpath.read_text(encoding="utf-8"))
+    # splice refused per-kind — never declared, so no verdict/product claim
+    # can vouch for the corrupt bytes; zh seals unaffected
+    assert set(meta["files"]) == {"zh"}
+    assert meta["seal_refused"]["splice"] == [
+        {"path": "main.pdf", "reason": "no_eof"}
+    ]
+    row = _manifest_rows()[-1]
+    assert row["kinds"] == ["zh"]
+    assert row["seal_refused"]["splice"][0]["reason"] == "no_eof"
+    assert not (paths.vault_dir() / "splice" / SID / "r").exists()
+    assert {e["kind"] for e in _events_of("asset")} == {"zh"}
+    # vault holds no splice evidence — product_ok cannot claim it
+    assert vault._copy_product_ok(meta, "splice") == (False, "kind_absent")  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("broot")
+def test_harvest_refuses_garbage_pdf_header(tmp_path: Path) -> None:
+    sp = _tree(
+        tmp_path / "w/splice.r",
+        {"main.tex": b"tex", "main.pdf": b"not a pdf at all%%EOF\nstartxref\n0"},
+    )
+    with pytest.raises(vault.VaultError, match="refused at seal"):
+        vault.harvest(IDC, "r", "-", {"splice": sp})
+    assert not list(paths.vault_meta_dir().glob("*.json"))
+
+
+@pytest.mark.usefixtures("broot")
+def test_harvest_pdf_gate_scope(tmp_path: Path) -> None:
+    # cargo pdfs are NOT gated: zh pdfs are source assets (product = .tex);
+    # nested/figish splice pdfs never count as the deliverable either
+    zh = _tree(tmp_path / "w/zh.r", {"t.tex": b"tex", "fig.pdf": b"junk"})
+    sp = _tree(
+        tmp_path / "w/splice.r",
+        {
+            "main.tex": b"tex",
+            "main.pdf": _PDF_OK,
+            "figures/fig1.pdf": b"junk",
+            "fig2.pdf": b"junk",
+        },
+    )
+    mpath = vault.harvest(IDC, "r", "-", {"zh": zh, "splice": sp})
+    meta = json.loads(mpath.read_text(encoding="utf-8"))
+    assert set(meta["files"]) == {"zh", "splice"}
+    assert "seal_refused" not in meta
+
+
 # --- promote -------------------------------------------------------------------------
 
 

@@ -21,7 +21,8 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
+    from typing import Any
 
 
 # ---------------------------------------------------------------- 路径防御
@@ -160,6 +161,7 @@ ENV_TS_WORKER: Final = "TEXLATE_TS_WORKER"
 # 解析失败/nan/inf 回默认（范围裁剪归调用方）；数据根统一
 # ``TEXLATE_DATA_DIR`` > ``~/.texlate``（只定位不 mkdir，副作用归调用方）。
 _TRUE_WORDS: Final = frozenset({"1", "true", "yes", "on"})
+_FALSE_WORDS: Final = frozenset({"0", "false", "no", "off"})
 
 
 def env_flag(name: str, *, default: bool) -> bool:
@@ -177,6 +179,31 @@ def env_switch(name: str, *, explicit: bool | None, default: bool) -> bool:
     本地件的沉淀单源）。
     """
     return explicit if explicit is not None else env_flag(name, default=default)
+
+
+def opt_switch(
+    options: Mapping[str, Any] | None,
+    key: str,
+    env_on: Callable[[], bool],
+    *,
+    explicit: bool | None = None,
+) -> bool:
+    """「``explicit`` > ``options[key]`` > ``env_on()``」三层开关决议单源。
+
+    ``options`` 值容忍 ``bool`` 与 ``"0"/"false"/"no"/"off"`` 字符串
+    false 系；``env_on`` 是「开」语义的零参 callable——``NO_*`` 系 env
+    由调用侧取反喂入。env 在调用时读取，``monkeypatch.setenv`` 缝不受
+    影响。pipecore ``_opt_switch`` 与 worker ``opt_bool`` 两壳共用本件。
+    """
+    if explicit is not None:
+        return explicit
+    if options is not None:
+        v = options.get(key)
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            return str(v).strip().lower() not in _FALSE_WORDS
+    return env_on()
 
 
 def env_float(name: str, default: float) -> float:
@@ -218,9 +245,10 @@ def env_opt(name: str) -> str | None:
 def translator_mode() -> str:
     """``TEXLATE_TRANSLATOR`` 归一读取：``env_str`` 口径，未设/置空 → ``""``。
 
-    只归一不裁决——``TRANSLATOR_MODES`` 白名单的处置归消费侧
-    （``cli.export`` 未知值 exit 2 显式拒；server 三读点对未知值**静默按
-    auto 回落**——两侧 typo 语义不同口径、统一裁决待定）。
+    五读点（``cli.export`` + server 四处）统一经本件归一。只归一不裁
+    决——``TRANSLATOR_MODES`` 白名单处置归消费侧：``cli.export`` 未知值
+    exit 2 显式拒，server 各读点对未知值**静默按 auto 回落**（两侧 typo
+    口径是刻意分层：CLI 交互面 typo 即报错，server 不因脏 env 杀任务）。
     """
     return env_str(ENV_TRANSLATOR)
 
@@ -294,6 +322,10 @@ def atomic_write(path: Path, data: bytes | str, *, mode: int | None = 0o600) -> 
     ``os.replace`` 收尾（跨平台可覆盖——POSIX rename 语义）；``mode=None``
     跳过 chmod，产物权限留 mkstemp 缺省 0600（bench ``atomic_write_text``
     同构件的委托口径）。
+
+    撞名警示：``bench/py/kernel/fsutil.py`` 有同名 ``atomic_write``——
+    CAS 耐久口径（bytes-only/fsync+dir fsync/父目录须先存在），与本件
+    刻意分层勿合并。
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(

@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.arxiv.fetch import normalize_arxiv_id
-from texlate.pipecore import ran_front_matter
 from texlate.server.settings import share_dir
 from texlate.server.store import row_json
 from texlate.share import (
@@ -19,14 +18,13 @@ from texlate.share import (
     index_append,
     pack_share,
     share_key,
+    share_manifest,
     unpack_share,
 )
 from texlate.textutil import CJK_RX
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.prompts import PROMPT_VERSION
 
 from ._common import (
-    PIPELINE_VERSION,
     PROGRESS,
     TaskCtx,
     _row_status_snap,
@@ -424,28 +422,23 @@ class _Share:
         完成钩与 ``POST /api/task/{id}/share/pack`` 共用同一派生面：
         ``arxiv_id`` 取库内现值（fetch 后已钉版成 ``{id}v{N}``），
         ``normalize_arxiv_id`` 拆回 base+ver 进组分；``glossary_hash``
-        走 ``_share_glossary_hash``（翻译时生效层的复合指纹）；
-        ``prompt_ver``/``pipeline_ver`` 钉当前管线常量。
+        走 ``_share_glossary_hash``（翻译时生效层的复合指纹）。
+        组分拼装单源 ``share.share_manifest``——prompt_ver/pipeline_ver
+        钉当前管线常量、front_matter 记实跑集（∅ 记 "" 兼容旧包重算）。
         """
         base, ver = normalize_arxiv_id(str(row.get("arxiv_id") or ""))
         if not base:
             return None
         cfg = row_json(row, "config_json")
         opts = row_json(row, "options_json")
-        return {
-            "arxiv_id": base,
-            "version": f"v{ver}" if ver is not None else "",
-            "model": str(row["model"]),
-            "prompt_ver": PROMPT_VERSION,
-            "target_lang": str(row["target_lang"]),
-            "glossary_hash": self._share_glossary_hash(ctx, cfg),
-            # 前置发射集进 key_parts——不同 fm 的任务产物不同包（与
-            # cache_key ``|fm:`` 成分同口径；∅ 记 "" 兼容旧包）。
-            # ran_front_matter = 实跑集还原：parse 写回后 done 行恒带
-            # 显式 dict；缺席 = pre-feature 行（实跑 ∅）不标缺省
-            "front_matter": ",".join(sorted(ran_front_matter(opts))),
-            "pipeline_ver": PIPELINE_VERSION,
-        }
+        return share_manifest(
+            arxiv_base=base,
+            version=ver,
+            model=str(row["model"]),
+            target_lang=str(row["target_lang"]),
+            glossary_hash=self._share_glossary_hash(ctx, cfg),
+            options=opts,
+        )
 
     async def _maybe_share_pack(self, ctx: TaskCtx) -> None:
         """opt-in 共享包完成钩（2026-09-16-shared-cache.md §7/§8）：``_stage_compile`` 各终态分支末尾调用。

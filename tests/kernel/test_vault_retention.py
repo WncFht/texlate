@@ -39,6 +39,13 @@ def _blob(n: int, seed: bytes) -> bytes:
     return (seed * (n // len(seed) + 1))[:n]
 
 
+def _pdf(n: int, seed: bytes = b"x") -> bytes:
+    """n-byte structurally valid pdf — vault's seal gate refuses product
+    pdfs lacking the %PDF- head or startxref/%%EOF tail."""
+    pad = (seed * n)[: max(0, n - 28)]
+    return b"%PDF-1.4\n" + pad + b"\nstartxref\n0\n%%EOF\n"
+
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -66,8 +73,8 @@ def _splice_src(tmp_path: Path, name: str = "sp") -> Path:
         tmp_path / name,
         {
             "Manuscript.tex": b"\\bye",
-            "Manuscript.pdf": _blob(5000, b"final-pdf"),
-            ".fixloop-entry.pdf": _blob(5000, b"dup-pdf"),
+            "Manuscript.pdf": _pdf(5000, b"final-pdf"),
+            ".fixloop-entry.pdf": _pdf(5000, b"dup-pdf"),
             "fig1.pdf": _blob(3000, b"figpdf"),
             "figs/f.pdf": b"nested-fig",
             "anc/a.txt": b"anc",

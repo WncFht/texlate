@@ -49,7 +49,6 @@ from texlate.repair import (
     ENV_FIXLOOP_LLM,
     embed_tounicode_quiet,
     fixloop_cell_parts,
-    log_text_of,
     merge_flags,
 )
 from texlate.repair_l2 import (
@@ -66,8 +65,9 @@ from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
-from texlate.textutil import env_flag, env_str
-from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
+from texlate.texlog import log_text_of
+from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, translator_mode
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.pipeline import (
@@ -83,11 +83,13 @@ from ._common import (
     _PROBE_LIST_CAP,
     _PROBE_SEEN_TAG,
     _SENTINELS,
+    FAILED_DB,
     PROGRESS,
     SegmentCache,
     TaskCtx,
     _compile_done_verdict,
     _new_usage_meter,
+    _repend_puts,
     _scrub_deep,
     _Sink,
     _tgt_lang,
@@ -101,10 +103,6 @@ from .html import (
 )
 from .share import (
     _share_sourced,
-)
-from .translate import (
-    FAILED_DB,
-    _repend_puts,
 )
 
 if TYPE_CHECKING:
@@ -643,7 +641,7 @@ class _Compile:
         )
 
     def _log_text_of(self, res: CompRes) -> str:
-        """``repair.log_text_of`` 单源委托（.log 非空优先、stdout_tail 兜底）。"""
+        """``texlog.log_text_of`` 单源委托（.log 非空优先、stdout_tail 兜底）。"""
         return log_text_of(res)
 
     def _expect_cjk(self, ctx: TaskCtx) -> bool:
@@ -885,7 +883,7 @@ class _Compile:
             tr = self._translator_factory(ctx)
             clients = _translator_clients(tr)
             return make_llm_hook(translator=tr), self._meter_usage(clients), clients
-        force = env_str(ENV_TRANSLATOR)
+        force = translator_mode()
         if not ctx.secrets.api_key or force == "mock":
             if opt:
                 self._log(ctx, "llm_hook: 无 BYOK api_key——跳过 escalate_llm")

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
-from texlate.server.http import _ApiError, _json_error, _read_body
+from texlate.server.http import _api_error, _json_error, _read_body
 from texlate.server.settings import (
     SettingsStore,
     provider_presets,
@@ -43,15 +43,10 @@ def _settings_write_gate() -> None:
     走 settings.json 文件 / env / CLI ``--configure``。
     """
     if server_mode() == "server":
-        raise _ApiError(
+        raise _api_error(
             403,
-            {
-                "detail": (
-                    "server 模式下 settings 由部署方管理（settings.json/env），"
-                    "API 写关闭"
-                ),
-                "code": "forbidden",
-            },
+            "server 模式下 settings 由部署方管理（settings.json/env），API 写关闭",
+            "forbidden",
         )
 
 

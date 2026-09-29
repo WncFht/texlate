@@ -22,6 +22,7 @@ import posixpath
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 from texlate.xlat.state import atomic_json
@@ -182,7 +183,7 @@ def _cluster_lines(
     return lines
 
 
-def _reading_order(  # noqa: C901
+def _reading_order(  # noqa: C901, PLR0912 -- 中缝扫描/左右归类/跨栏行重排为同一排版启发式阶梯，拆散反失上下文
     lines: list[Any], width: float
 ) -> tuple[list[Any], tuple[float, float] | None]:
     """双栏检测 → (重排行, 中缝带 (gl,gr) | None)。
@@ -938,7 +939,7 @@ def _match_bounded(  # noqa: C901, PLR0912, PLR0915 -- gram 锚定+兜底+打分
             bl = [b for b in sm2.get_matching_blocks() if b.size]
             if not bl or not all(
                 b.b == a.b + a.size and b.a - (a.a + a.size) <= _CITE_GAP
-                for a, b in zip(bl, bl[1:])
+                for a, b in pairwise(bl)
             ):
                 continue
             cov = sum(b.size for b in bl) / ln

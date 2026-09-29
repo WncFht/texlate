@@ -8,10 +8,10 @@
 ``_files``/``_cache``/``_events``/``_usage`` 六个聚合 repo 共享门面同一
 连接（构造只回指 Store，conn 惰性经 ``store.conn`` 取）。``Store`` 留
 组合门面：连接生命周期 + 跨聚合编排（``flush_chunk_batch``/``snapshot``
-+ ``sweep_retention``——``app._sweep_delete`` 的同步孪生，生产走
-loop-native 版，本函数仅测试面在用），其余 ``store.X`` 一律经
-``__getattr__`` 透传到对应 repo——调用面/私有名/monkeypatch 实例遮蔽
-语义全保。
++ ``sweep_retention``——``app._sweep_delete`` 的同步臂，淘汰序/剪停
+判定单源 ``_retention_drop_order``；生产走 loop-native 版，本函数
+仅测试面在用），其余 ``store.X`` 一律经 ``__getattr__`` 透传到对应
+repo——调用面/私有名/monkeypatch 实例遮蔽语义全保。
 """
 
 from __future__ import annotations
@@ -39,6 +39,7 @@ from texlate.server.store._common import (
     StoreError,
     TransitionError,
     _dir_size,
+    _retention_drop_order,
     new_task_id,
     slim_task_dir,
     valid_task_id,
@@ -225,9 +226,9 @@ class Store:
         不在本函数范围。
 
         生产面由 ``app._sweep_delete``（loop-native 版）持有同语义——
-        ``_drop`` 同走 ``delete_task_guard(blocked=ACTIVE_STATUSES)``
-        条件删：候选枚举到执行间被 retry 回 ``queued`` 的任务当场拒删，
-        不许闸漂移。
+        阶段二淘汰序/剪停判定单源 ``_retention_drop_order``；``_drop``
+        同走 ``delete_task_guard(blocked=ACTIVE_STATUSES)`` 条件删：
+        候选枚举到执行间被 retry 回 ``queued`` 的任务当场拒删，不许闸漂移。
         """
         removed: list[str] = []
         freed = 0
@@ -249,12 +250,19 @@ class Store:
         if max_total_bytes > 0:
             total = _dir_size(tasks_dir)
             if total > max_total_bytes:
-                for tid in self.terminal_oldest_first():
-                    if total <= max_total_bytes:
-                        break
-                    sz = _drop(tid)
-                    freed += sz
-                    total -= sz
+                order = _retention_drop_order(
+                    self.terminal_oldest_first(),
+                    total_bytes=total,
+                    cap_bytes=max_total_bytes,
+                )
+                try:
+                    tid = next(order)
+                    while True:
+                        sz = _drop(tid)
+                        freed += sz
+                        tid = order.send(sz)
+                except StopIteration:
+                    pass
         return {"removed": removed, "freed_bytes": freed}
 
     # ------------------------------------------------------------ snapshot

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -10,7 +9,6 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from texlate import __version__
 from texlate.arxiv.fetch import AcquireStatus
 from texlate.pipecore import (
     DB_TO_PIPE as _DB_TO_PIPE,
@@ -21,15 +19,19 @@ from texlate.pipecore import (
 from texlate.pipecore import (
     delivered_db,
 )
+from texlate.server._ttlcache import LoopClientPool
 from texlate.server.settings import (
     COMPILE_TIMEOUT_MAX_S,
     DEFAULT_COMPILE_TIMEOUT_S,
-    cache_scope,
     scrub,
 )
 from texlate.server.store import row_json
+from texlate.share import (  # noqa: F401 -- 寻址键单源在 share，本件转口
+    PIPELINE_VERSION,
+    cache_key_for,
+)
 from texlate.textutil import env_float
-from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT
+from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT, opt_switch
 from texlate.xlat.client import (
     ChatClient,
     ChatError,
@@ -39,7 +41,6 @@ from texlate.xlat.pipeline import (
     ChunkResult,
     GatewayTranslator,
 )
-from texlate.xlat.prompts import PROMPT_VERSION
 from texlate.xlat.state import ChunkRecord, StateStore, atomic_json
 
 if TYPE_CHECKING:
@@ -68,9 +69,6 @@ PROGRESS = {
     "compiling": (90, 99),
 }
 
-#: 管线版本（cache_key 成分；prompt 模板或产品版本变即失效）
-PIPELINE_VERSION = f"texlate-{__version__}|{PROMPT_VERSION}"
-
 #: chunk 落盘批量 flush 阈值（§3.4.2：每 8 块或 500ms）
 _FLUSH_N = 8
 
@@ -90,15 +88,11 @@ def _env_timeout(name: str, default: float) -> float:
 def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> bool:
     """options[key] 显式值 > env_on()——worker 开关统一 explicit 优先（e2e 同式）。
 
-    options 值容忍 bool 与 ``"0"/"false"/"no"/"off"`` 字符串 false 系；
-    env_on 是「开」语义的零参 callable（NO_ 系 env 由调用侧取反喂入）。
+    薄壳——三层链与 ``"0"/"false"/"no"/"off"`` 字符串 false 系归一化单源
+    在 ``textutil.osutil.opt_switch``；env_on 是「开」语义零参 callable
+    （NO_ 系 env 由调用侧取反喂入）。
     """
-    v = options.get(key)
-    if v is not None:
-        if isinstance(v, bool):
-            return v
-        return str(v).strip().lower() not in ("0", "false", "no", "off")
-    return env_on()
+    return opt_switch(options, key, env_on)
 
 
 #: 编译超时（docs/spec/compile.md 默认值；server 路径无 --timeout flag）——
@@ -435,42 +429,6 @@ def zh_slot(row: dict[str, Any]) -> str:
     return t if delivered_db(row["status"], t) and isinstance(t, str) else ""
 
 
-def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 面
-    *,
-    arxiv_id: str,
-    version: int | None,
-    model: str,
-    target_lang: str,
-    api_key: str = "",
-    source: str = "eprint",
-    front_matter: frozenset[str] | None = None,
-) -> str:
-    """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
-
-    故意不含租户身份（§4.3：公开论文的确定性函数可跨租户 reuse——
-    hjfy 对等共享缓存是既定产品特性）；``cache_scope()=="per_key"``
-    时把 ``sha256(api_key)[:16]`` 拼进材料按凭证分桶，消除跨租户
-    缓存存在性 oracle（匿名桶 key="" 共享一桶，与 tenant_for 同语义）。
-
-    ``source`` = 获取渠道：eprint 默认（材料不变，存量缓存续命）；
-    ``html`` 等异源追加 ``|src:`` 成分——同 id@ver 的 eprint 与 html
-    任务产物链不同构，channel-blind 会串桶互喂错产物。
-
-    ``front_matter`` = preamble 前置发射集（调用方已按 options 缺省
-    归一）：改变扫描块集即改变产物，非空追加 ``|fm:`` 成分分桶；
-    空集/None = 前置全盖过的历史形态，材料不变续命存量缓存。
-    """
-    ver = f"v{version}" if version else ""
-    material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
-    if source != "eprint":
-        material += f"|src:{source}"
-    if front_matter:
-        material += f"|fm:{','.join(sorted(front_matter))}"
-    if cache_scope() == "per_key":
-        material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
-    return hashlib.sha256(material.encode()).hexdigest()
-
-
 # ---------------------------------------------------------------- 段缓存桥
 
 
@@ -483,9 +441,6 @@ class SegmentCache:
     ``_pending ∪ _written ∪ _pre`` 纯内存；未预载保持逐键读穿透。
     写进 pending 缓冲由 ``drain`` 随 chunk flush 事务落盘。
     """
-
-    #: ``prewarm`` 分批 IN 查询的批大小（SQLITE_MAX_VARIABLE_NUMBER 下限 999 留余量）
-    _PREWARM_BATCH = 500
 
     def __init__(
         self,
@@ -515,23 +470,16 @@ class SegmentCache:
         """一次性 ``IN`` 批查预载命中——替掉 ``__contains__``/``__getitem__`` 逐键 SELECT。
 
         逐键读的代价：5k 块 = 5k 次 loop 线程同步查询（单写者纪律下 conn
-        只在 loop 线程用，缓存读全部堵在主循环上）。预载后单写者下本
-        run 期间无第三方写入，漏读不存在；run 内自写经 ``_written`` 续命。
-        只能在 loop 线程调（conn 线程亲和）。
+        只在 loop 线程用，缓存读全部堵在主循环上）；分批 ``IN`` 单源在
+        ``CacheRepo.cache_get_many``。预载后单写者下本 run 期间无第三方
+        写入，漏读不存在；run 内自写经 ``_written`` 续命。只能在 loop
+        线程调（conn 线程亲和）。
         """
-        keys = list(dict.fromkeys(seg_keys))
-        pre: dict[str, str] = {}
-        for i in range(0, len(keys), self._PREWARM_BATCH):
-            batch = keys[i : i + self._PREWARM_BATCH]
-            qmarks = ",".join("?" * len(batch))
-            rows = self._store.conn.execute(
-                "SELECT key, translation FROM translation_cache"  # noqa: S608 -- 占位符批查，值全参数化
-                f" WHERE key IN ({qmarks})",
-                [self._full(k) for k in batch],
-            ).fetchall()
-            for r in rows:
-                pre[str(r["key"])[len(self._prefix) + 1 :]] = str(r["translation"])
-        self._pre = pre
+        full = [self._full(k) for k in dict.fromkeys(seg_keys)]
+        cut = len(self._prefix) + 1
+        self._pre = {
+            k[cut:]: v for k, v in self._store.cache_get_many(full).items()
+        }
 
     def __contains__(self, seg_key: object) -> bool:
         """存在性探测（不 bump hit_count——命中计数只在 ``__getitem__``）。"""
@@ -541,11 +489,7 @@ class SegmentCache:
             return True
         if self._pre is not None:
             return seg_key in self._pre
-        row = self._store.conn.execute(
-            "SELECT 1 FROM translation_cache WHERE key = ?",
-            (self._full(seg_key),),
-        ).fetchone()
-        return row is not None
+        return self._store.cache_contains(self._full(seg_key))
 
     def __getitem__(self, seg_key: str) -> str:
         """读穿透：pending/written → 预载表/表（命中记 hit_count）。"""
@@ -590,10 +534,7 @@ class SegmentCache:
         self._written.pop(seg_key, None)
         if self._pre is not None:
             self._pre.pop(seg_key, None)
-        self._store.conn.execute(
-            "DELETE FROM translation_cache WHERE key = ?", (self._full(seg_key),)
-        )
-        self._store.conn.commit()
+        self._store.cache_delete(self._full(seg_key))
 
     def __len__(self) -> int:
         """待写缓冲长度。"""
@@ -872,7 +813,8 @@ class _PerCallTranslator:
     finally 即此钩）。死 loop 条目在下次 ``_client()`` 按
     ``loop.is_closed`` 摘除（回不了死 loop 关，FD 归 GC——泄漏上界
     同原形态）。``usage_sink`` 仍接同一 meter；``retry_model`` 备选与
-    primary 同 loop client（同 endpoint+key）。
+    primary 同 loop client（同 endpoint+key）。分桶/摘除/尽力收尾
+    机制单源在 ``server._ttlcache.LoopClientPool``（routers 同款池）。
     """
 
     def __init__(  # noqa: PLR0913 -- BYOK 凭证面平铺（url/key/model/dialect + retry + sink）
@@ -891,37 +833,31 @@ class _PerCallTranslator:
         self._retry_model = retry_model
         self._dialect = dialect
         self._sink = sink
-        self._clients: dict[asyncio.AbstractEventLoop, ChatClient] = {}
+        self._pool: LoopClientPool[ChatClient] = LoopClientPool(
+            self._make_client, label="per-call"
+        )
 
     @property
     def clients(self) -> list[ChatClient]:
         """存活 loop 的 client 面——``_translator_clients`` 接线用（死 loop 不可关不列）。"""
-        return [c for lp, c in self._clients.items() if not lp.is_closed()]
+        return self._pool.live()
+
+    def _make_client(self) -> ChatClient:
+        """当前 running loop 桶的 client 构造（``LoopClientPool`` 回调）。"""
+        return ChatClient(
+            self._base_url,
+            self._api_key,
+            usage_sink=self._sink,
+            dialect=self._dialect,
+        )
 
     def _client(self) -> ChatClient:
-        """本 running loop 的懒建 client（顺带摘除死 loop 条目）。"""
-        loop = asyncio.get_running_loop()
-        for dead in [lp for lp in self._clients if lp.is_closed()]:
-            del self._clients[dead]
-        client = self._clients.get(loop)
-        if client is None:
-            client = ChatClient(
-                self._base_url,
-                self._api_key,
-                usage_sink=self._sink,
-                dialect=self._dialect,
-            )
-            self._clients[loop] = client
-        return client
+        """本 running loop 的懒建 client（池顺带摘除死 loop 条目）。"""
+        return self._pool.get()
 
     async def aclose(self) -> None:
         """关**本 running loop** 的 client——消费侧 loop 收尾钩（export run 包装 finally）。"""
-        client = self._clients.pop(asyncio.get_running_loop(), None)
-        if client is not None:
-            try:
-                await client.aclose()
-            except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
-                log.debug("per-call client aclose failed: %s: %s", type(e).__name__, e)
+        await self._pool.aclose_current()
 
     async def translate(
         self,

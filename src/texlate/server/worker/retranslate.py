@@ -18,15 +18,14 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.judge import judge
-from texlate.pipecore import _opt_switch
 from texlate.repair_l2 import (
     _resplice,
     _slot_diffs,
     split_cid,
 )
 from texlate.server.settings import scrub
-from texlate.textutil import env_str
-from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
+from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, opt_switch, translator_mode
 
 from ._common import (
     TaskCtx,
@@ -115,7 +114,7 @@ class _Retranslate:
         if (
             self._translator_factory is None
             and not ctx.secrets.api_key
-            and env_str(ENV_TRANSLATOR) != "mock"
+            and translator_mode() != "mock"
         ):
             # 无 key 静默回退 MockTranslator 会把占位译文覆盖真实译文——
             # 重译是真金白银的用户动作，拒绝 mock 污染（factory 注入与
@@ -188,8 +187,10 @@ class _Retranslate:
             ctx.zh_dir,
             ctx.main_rel,
             {fidx},
-            seq_marks=_opt_switch(
-                ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+            seq_marks=opt_switch(
+                ctx.options(),
+                "seq_marks",
+                lambda: not env_flag(ENV_NO_SEQ_MARKS, default=False),
             ),
         )
         for rel, notes in _slot_diffs(run, ctx.zh_dir, {fidx}).items():

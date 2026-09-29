@@ -4,18 +4,17 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
 from typer.models import TyperPath
 
-from texlate.textutil import env_raw, safe_is_dir, safe_is_file
-from texlate.textutil.osutil import (
-    ENV_CACHE_DIR,  # 名表单源登记处——facade 未转口 ENV_* 故叶直引（同 cli/export.py）
-)
+from texlate.textutil import safe_is_dir, safe_is_file
+from texlate.textutil.osutil import cache_root
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import click
 
 app = typer.Typer(
@@ -24,25 +23,7 @@ app = typer.Typer(
 )
 
 
-def _cache_root() -> Path:
-    """缓存根：``TEXLATE_CACHE_DIR`` > ``$XDG_CACHE_HOME/texlate`` > ``~/.cache/texlate``。
-
-    ``textutil.data_root`` 的缓存侧对称件——只定位不 mkdir。``TEXLATE_CACHE``
-    不复用：已登记为 ctan filemap 叶目录（``compile/ctan.py``）。待 hoist 至
-    ``textutil/osutil.py``——engine ``_cache``/``_xelatex``/``sandbox`` 同根消费。
-    """
-    raw = env_raw(ENV_CACHE_DIR)
-    if raw:
-        return Path(raw).expanduser()
-    xdg = env_raw("XDG_CACHE_HOME")
-    return (
-        Path(xdg).expanduser() / "texlate"
-        if xdg
-        else Path.home() / ".cache" / "texlate"
-    )
-
-
-_DEFAULT_CACHE = _cache_root() / "src"
+_DEFAULT_CACHE = cache_root() / "src"
 
 #: 路径串控制字符（C0/C1——NUL 为代表）。
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")

@@ -4,9 +4,9 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
 回灌副作用不同），以下四件同型逻辑只在此维护一份：
 
 - ``log_text_of``：``CompRes`` → 日志全文（``.log`` 非空优先、
-  ``stdout_tail`` 兜底——tectonic 常无 .log；与 ``engine.parse_log``
-  同口径：空文件/读失败一律退 tail，空 .log 直返空串会把只存在于
-  stdout 的 missing-char 信号静默丢掉）
+  ``stdout_tail`` 兜底——tectonic 常无 .log）——本体已下沉
+  ``texlog.log_text_of``（2026-09-21，叶子层零运行期依赖），本件
+  回引保 ``repair.log_text_of`` 旧锚钉点面
 - ``ResProxy``：``Engine`` 透传代理，记末次 ``CompRes``（fixloop
   轮内重编的终判原料）
 - ``fixloop_cell_parts``：fixloop cell → ``(逐轮摘要, setup 动作)``——
@@ -50,6 +50,7 @@ from texlate.compile.fixloop.engine import (
     precheck_pass,  # noqa: F401 -- repair.precheck_pass 旧锚位（seams.__getattr__ 回指面）
 )
 from texlate.compile.judge import judge
+from texlate.texlog import log_text_of
 from texlate.textutil import safe_is_file, safe_resolve
 from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
     ENV_FIXLOOP_LLM,  # fixloop ``escalate_llm`` 钩开关——默认值两臂有意不同（e2e opt-in False / worker BYOK 默认 True，见 ``_llm_hook_pack``）
@@ -69,20 +70,6 @@ VERDICT_RANK = {"clean": 3, "partial": 2, "fail": 1, "reject": 0}
 
 #: 环境开关名（``ENV_NO_FIXLOOP``/``ENV_FIXLOOP_LLM``）本体注册在
 #: ``textutil.osutil``——本模块同名回引保 ``repair.ENV_*`` 钉点面
-
-
-def log_text_of(res: CompRes) -> str:
-    """``CompRes`` → log 全文（``.log`` 非空优先、``stdout_tail`` 兜底）。
-
-    被杀编译会留 0 字节 ``.log``——``exists()`` 判据下空文件返空串会
-    让 missing-char 等只存在于 stdout 的信号静默丢失；缺席/空文件/读
-    失败一律退 ``stdout_tail``。
-    """
-    text = getattr(res, "log_text", "") or ""
-    if not text and res.log_path is not None:
-        with suppress(OSError):
-            text = res.log_path.read_text(encoding="utf-8", errors="replace")
-    return text or res.stdout_tail or ""
 
 
 def embed_tounicode_quiet(

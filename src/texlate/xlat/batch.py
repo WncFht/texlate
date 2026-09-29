@@ -23,7 +23,15 @@ import math
 import re
 from typing import TYPE_CHECKING, TypeVar
 
-from .placeholders import EOL_RX, PARA_NEWLINE, SOFT_NEWLINE, encode_newlines, find_all
+from texlate.latex.chars import match_brace
+
+from .placeholders import (
+    EOL_RX,
+    PARA_NEWLINE,
+    SOFT_NEWLINE,
+    encode_newlines,
+    find_all,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -299,24 +307,16 @@ _CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\*?$")
 def _group_end(text: str, start: int, cap: int) -> int | None:
     r"""``text[start]``（``{``/``[``）起的配对括号组尾后位置。
 
-    ``\\`` 转义双跳；超 ``cap`` 或未闭合 → ``None``。
+    ``\\`` 转义双跳；超 ``cap`` 或未闭合 → ``None``。同开符深度计——
+    ``nest=text[start]`` 即原 depth 语义（``{`` 组内 ``[`` 是字面）。
+    非开符位 ``start`` → ``None``（旧实现把任意字符当同符计深是死面——
+    调用方只喂 ``{``/``[`` 位，见 ``_cs_arg_heads``）。
     """
-    close = "}" if text[start] == "{" else "]"
-    depth = 0
-    i, n = start, min(len(text), cap)
-    while i < n:
-        c = text[i]
-        if c == "\\":
-            i += 2
-            continue
-        if c == text[start]:
-            depth += 1
-        elif c == close:
-            depth -= 1
-            if depth == 0:
-                return i + 1
-        i += 1
-    return None
+    if start >= len(text) or text[start] not in "{[":
+        return None
+    return match_brace(
+        text, start, openers="{[", nest=text[start], verbatim=True, cap=cap
+    )
 
 
 def _cs_arg_heads(text: str, cut: int, w: int) -> list[int]:

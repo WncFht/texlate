@@ -10,17 +10,15 @@ alphaXiv 的 CORS 固定回 ``allow-origin: https://www.alphaxiv.org``——
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
-from collections import OrderedDict
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Request, Response
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
-from texlate.server.http import _ApiError
+from texlate.server._ttlcache import LoopClientPool, _TtlCache
+from texlate.server.http import _api_error
 
 if TYPE_CHECKING:
     import httpx
@@ -39,83 +37,45 @@ _FEED_INTERVALS = frozenset({"3 Days", "7 Days", "30 Days", "90 Days", "All time
 _SEARCH_Q_MAX = 200
 
 
-class _TtlCache[T]:
-    """key → (expires_monotonic, value)，容量有界 LRU 头出。"""
-
-    def __init__(self, ttl: float, max_entries: int) -> None:
-        """``ttl`` 秒；超 ``max_entries`` 逐最旧键。"""
-        self.ttl = ttl
-        self.max_entries = max_entries
-        self._d: OrderedDict[str, tuple[float, T]] = OrderedDict()
-
-    def get(self, key: str) -> T | None:
-        """命中返值；缺席/过期返 ``None``（顺手摘除）。"""
-        hit = self._d.get(key)
-        if hit is None:
-            return None
-        exp, val = hit
-        if exp < time.monotonic():
-            self._d.pop(key, None)
-            return None
-        self._d.move_to_end(key)
-        return val
-
-    def put(self, key: str, val: T) -> None:
-        """写入 + LRU 排序 + 容量逐出。"""
-        self._d[key] = (time.monotonic() + self.ttl, val)
-        self._d.move_to_end(key)
-        while len(self._d) > self.max_entries:
-            self._d.popitem(last=False)
-
-
 #: 进程内 TTL 缓存——feed 10min、搜索 2min、导读 30min、OG 字节 24h。
 #: 都是只读公共数据的弱新鲜度面；容量上界防内存账失控。
+#: （``_TtlCache``/loop 分桶池单源在 ``texlate.server._ttlcache``）
 _feed_cache = _TtlCache[dict[str, Any]](ttl=600, max_entries=64)
 _search_cache = _TtlCache[list[dict[str, Any]]](ttl=120, max_entries=256)
 _overview_cache = _TtlCache[dict[str, Any]](ttl=1800, max_entries=256)
 _og_cache = _TtlCache[bytes](ttl=86400, max_entries=64)
 
+
+def _new_client() -> httpx.AsyncClient:
+    """本环懒建 alphaXiv client（连接池绑创建时 running loop）。"""
+    import httpx  # noqa: PLC0415 -- 重依赖惰性加载
+
+    return httpx.AsyncClient(
+        base_url=_AX_API,
+        timeout=httpx.Timeout(10.0),
+        follow_redirects=True,
+        headers={"User-Agent": "texlate-discover"},
+    )
+
+
 #: 按事件环分桶的 AsyncClient——httpx 连接池绑创建时的 running loop，
-#: 跨环复用炸 "attached to a different loop"（worker/_common.py 同款坑）。
-#: 键用 loop 对象本体（强引用）：``id()`` 键在环销毁后会被新环复用
-#: 地址，捞到死环绑定的 client 每请求炸 ``RuntimeError``（非
-#: ``httpx.HTTPError``，``_ax_get`` 翻不出 502 直接 500）。死环条目
-#: 在 ``_client()`` 按 ``is_closed()`` 顺手摘除——回不了死环 aclose，
-#: FD 归 GC（泄漏上界同 worker/_common.py 接受形态）。
-_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
+#: 跨环复用炸 "attached to a different loop"（worker ``_PerCallTranslator``
+#: 同款坑，桶管理/死环摘除/尽力收尾单源在 ``LoopClientPool``）。
+_clients = LoopClientPool(_new_client, label="discover")
 
 
 def _client() -> httpx.AsyncClient:
-    """取当前环的共享 client（惰性建，顺带摘除死环条目）。"""
-    import httpx  # noqa: PLC0415 -- 重依赖惰性加载
-
-    loop = asyncio.get_running_loop()
-    for dead in [lp for lp in _clients if lp.is_closed()]:
-        del _clients[dead]
-    cli = _clients.get(loop)
-    if cli is None:
-        cli = httpx.AsyncClient(
-            base_url=_AX_API,
-            timeout=httpx.Timeout(10.0),
-            follow_redirects=True,
-            headers={"User-Agent": "texlate-discover"},
-        )
-        _clients[loop] = cli
-    return cli
+    """取当前环的共享 client（池懒建 + 死环摘除）。"""
+    return _clients.get()
 
 
 async def _aclose_clients() -> None:
     """尽力关全部 loop 桶 client——app lifespan 收尾用（``bus.close_all()`` 旁）。
 
-    逐条 pop+aclose、单条失败不挡其余：异环/死环绑定的 client aclose
-    抛 ``RuntimeError`` 在预期内（死环条目本就关不掉，FD 归 GC）。
+    异环/死环绑定的 client aclose 抛 ``RuntimeError`` 在预期内（死环条目
+    本就关不掉，FD 归 GC）——逐条尽力而为在 ``aclose_all`` 内。
     """
-    while _clients:
-        cli = _clients.pop(next(iter(_clients)))
-        try:
-            await cli.aclose()
-        except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
-            log.debug("discover client aclose failed: %s: %s", type(e).__name__, e)
+    await _clients.aclose_all()
 
 
 async def _ax_get(path: str, params: dict[str, Any] | None = None) -> httpx.Response:
@@ -125,21 +85,16 @@ async def _ax_get(path: str, params: dict[str, Any] | None = None) -> httpx.Resp
     try:
         return await _client().get(path, params=params)
     except httpx.HTTPError as e:
-        raise _ApiError(
-            502,
-            {"detail": f"alphaxiv upstream: {e}", "code": "discover_upstream"},
+        raise _api_error(
+            502, f"alphaxiv upstream: {e}", "discover_upstream"
         ) from e
 
 
 def _check_2xx(resp: httpx.Response, what: str) -> None:
     """上游非 200 → 502（404 语义由调用方在调本函数前自行拦截）。"""
     if resp.status_code != HTTPStatus.OK:
-        raise _ApiError(
-            502,
-            {
-                "detail": f"alphaxiv {what}: {resp.status_code}",
-                "code": "discover_upstream",
-            },
+        raise _api_error(
+            502, f"alphaxiv {what}: {resp.status_code}", "discover_upstream"
         )
 
 
@@ -153,23 +108,17 @@ def _ax_json[T](resp: httpx.Response, what: str, expect: type[T]) -> T:
     try:
         data = resp.json()
     except (TypeError, ValueError) as e:
-        raise _ApiError(
-            502,
-            {
-                "detail": f"alphaxiv {what}: bad json: {e}",
-                "code": "discover_upstream",
-            },
+        raise _api_error(
+            502, f"alphaxiv {what}: bad json: {e}", "discover_upstream"
         ) from e
     if not isinstance(data, expect):
-        raise _ApiError(
+        raise _api_error(
             502,
-            {
-                "detail": (
-                    f"alphaxiv {what}: expect {expect.__name__}, "
-                    f"got {type(data).__name__}"
-                ),
-                "code": "discover_upstream",
-            },
+            (
+                f"alphaxiv {what}: expect {expect.__name__}, "
+                f"got {type(data).__name__}"
+            ),
+            "discover_upstream",
         )
     return data
 
@@ -183,10 +132,7 @@ def _checked_arxiv_id(raw: str) -> str:
     """
     base, ver = normalize_arxiv_id(raw)
     if not valid_id(base):
-        raise _ApiError(
-            400,
-            {"detail": f"bad arxiv id {raw!r}", "code": "invalid_request"},
-        )
+        raise _api_error(400, f"bad arxiv id {raw!r}", "invalid_request")
     return f"{base}v{ver}" if ver is not None else base
 
 
@@ -199,12 +145,8 @@ async def _fetch_overview(aid: str) -> dict[str, Any] | None:
     try:
         pvid = _ax_json(resp, "legacy", dict)["paper"]["paper_version"]["id"]
     except (KeyError, TypeError) as e:
-        raise _ApiError(
-            502,
-            {
-                "detail": f"alphaxiv legacy 形状异常: {e}",
-                "code": "discover_upstream",
-            },
+        raise _api_error(
+            502, f"alphaxiv legacy 形状异常: {e}", "discover_upstream"
         ) from e
     resp = await _ax_get(f"/papers/v3/{pvid}/overview/status")
     if resp.status_code == HTTPStatus.NOT_FOUND:
@@ -251,20 +193,12 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
     ) -> dict[str, Any]:
         """首页 feed 透传（sort/interval 白名单 + 分页 clamp）。"""
         if sort not in _FEED_SORTS:
-            raise _ApiError(
-                400,
-                {
-                    "detail": f"sort ∈ {sorted(_FEED_SORTS)}",
-                    "code": "invalid_request",
-                },
+            raise _api_error(
+                400, f"sort ∈ {sorted(_FEED_SORTS)}", "invalid_request"
             )
         if interval not in _FEED_INTERVALS:
-            raise _ApiError(
-                400,
-                {
-                    "detail": f"interval ∈ {sorted(_FEED_INTERVALS)}",
-                    "code": "invalid_request",
-                },
+            raise _api_error(
+                400, f"interval ∈ {sorted(_FEED_INTERVALS)}", "invalid_request"
             )
         page = max(1, min(100, page))
         page_size = max(1, min(30, page_size))
@@ -291,9 +225,8 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
         """快搜建议代理（``search/v2/paper/fast``，``{paperId,title,snippet,link}`` 列表）。"""
         q = q.strip()
         if not q or len(q) > _SEARCH_Q_MAX:
-            raise _ApiError(
-                400,
-                {"detail": f"q 须为 1–{_SEARCH_Q_MAX} 字符", "code": "invalid_request"},
+            raise _api_error(
+                400, f"q 须为 1–{_SEARCH_Q_MAX} 字符", "invalid_request"
             )
         cached = _search_cache.get(q)
         if cached is not None:
@@ -333,9 +266,7 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
         if cached is None:
             resp = await _ax_get(f"/open-graph/v1/paper/{aid}")
             if resp.status_code == HTTPStatus.NOT_FOUND:
-                raise _ApiError(
-                    404, {"detail": "og not available", "code": "not_found"}
-                )
+                raise _api_error(404, "og not available", "not_found")
             _check_2xx(resp, "open-graph")
             cached = resp.content
             _og_cache.put(aid, cached)

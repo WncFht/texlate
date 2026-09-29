@@ -13,7 +13,7 @@ from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
-from texlate.server.http import _ApiError
+from texlate.server.http import _api_error, _ApiError
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.worker import KIND_URL
 
@@ -48,12 +48,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
         """``hjfy`` 轮询端点共用解析：id 归一校验 + tenant 内最新任务行（无 → 404）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
         if not valid_id(base):
-            raise _ApiError(
-                400,
-                {
-                    "detail": f"invalid arxiv id: {arxiv_id!r}",
-                    "code": "invalid_request",
-                },
+            raise _api_error(
+                400, f"invalid arxiv id: {arxiv_id!r}", "invalid_request"
             )
         row = deps.store.find_latest_by_arxiv(deps.auth(request).tenant, base, ver)
         if row is None:

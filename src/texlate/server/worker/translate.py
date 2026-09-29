@@ -12,14 +12,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from texlate.pipecore import auto_glossary_fn
 from texlate.repair import resolve_glossary_path
 from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
 from texlate.server.settings import (
     cache_scope,
     validate_model,
 )
-from texlate.textutil import env_flag, env_str
-from texlate.textutil.osutil import ENV_TRANSLATOR
+from texlate.textutil import env_flag
+from texlate.textutil.osutil import translator_mode
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL, AuthError, ChatClient, UsageRecord
 from texlate.xlat.glossary import (
@@ -43,13 +44,17 @@ from ._common import (
     _FLUSH_N,
     _PIPE_TO_DB,
     _SPLICE_STALE_KINDS,
+    FAILED_DB,
     PROGRESS,
     DBStateBridge,
     SegmentCache,
     TaskCtx,
     _FallbackTranslator,
+    _glossary_option,
     _new_usage_meter,
     _PerCallTranslator,
+    _repend_puts,
+    _row_status_snap,
     _tgt_lang,
     _translate_progress,
     _translator_clients,
@@ -71,36 +76,6 @@ from texlate.server.worker import seams
 log = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
-
-#: chunks.status 的失败终态集（done 集 = ``_DB_TO_PIPE`` 键、pipecore
-#: 状态图单源，不另建常量）。候选归位点：``_common.py`` 的
-#: ``_DB_TO_PIPE`` 别名旁（或上游 ``pipecore`` 状态空间段）
-FAILED_DB = frozenset({"fallback_orig", "failed"})
-
-
-def _row_status_snap(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[str, str]]:
-    """Chunks 行 → ``{chunk_id: (status, translation)}`` 快照——splice 失效对账面。
-
-    ``_translate_prep``/``_invalidate_splice`` 两处同款（worker ``share``
-    臂 ``_stage_share_apply`` 第三处同款未合——``_common.py`` 归位候选，
-    ``_SPLICE_STALE_KINDS`` 旁）；BLOB/None 格统一 ``str(... or "")`` coerce。
-    """
-    return {
-        r["chunk_id"]: (str(r["status"]), str(r["translation"] or "")) for r in rows
-    }
-
-
-def _repend_puts(cache: SegmentCache, puts: list[tuple[str, str, str, str]]) -> None:
-    """``drain()`` 已取走但落盘失败 → 回挂 pending 等下轮 flush 重投。
-
-    drain 元组是全键（``{prefix}:{seg_key}``）——剥前缀还原 seg_key 走
-    ``__setitem__`` 口径回挂；``_written`` 内读副本留着无碍（重投写库
-    幂等）。回挂本是 ``SegmentCache`` 接口义务（``repend()`` 候选——
-    ``_common.py`` 归位），本函数是就地实现。
-    """
-    cut = len(cache._prefix) + 1  # noqa: SLF001 -- 回挂须剥全键前缀（类无公共面）
-    for key, translation, _model, _lang in puts:
-        cache[key[cut:]] = translation
 
 
 class _NullCache(SegmentCache):
@@ -157,11 +132,6 @@ class _NullCache(SegmentCache):
         self._written.update(self._pending)
         self._pending.clear()
         return []
-
-
-def _glossary_option(ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
-    """生效 ``glossary`` 选项：``config.glossary``（settings 透传）> ``options.glossary``。"""
-    return str(cfg.get("glossary") or ctx.options().get("glossary") or "")
 
 
 class _Translate:
@@ -331,7 +301,7 @@ class _Translate:
         ``_ph_frag_map`` 逐块重建 ChunkIn、``Glossary.load`` 的文件读、
         ``_make_cache`` 的术语层指纹哈希——5k 块量级秒级 CPU/IO，全在主
         loop 上跑会堵死 SSE/心跳/分发。本簇零 DB 触（``_make_glossary``
-        ``_warning`` 经 ``_on_loop`` 回弹保持单写者）；``all_chunks``
+        的 ``_warning`` 经 ``_on_loop`` 回弹保持单写者）；``all_chunks``
         与 ``cache.prewarm`` 的 SELECT 留 loop 线程。
         """
         # 主链 ChunkIn 必须带 ph_fragments——不给则 _repair_fn 恒 None，
@@ -712,7 +682,7 @@ class _Translate:
         if self._translator_factory is not None:
             tr = self._translator_factory(ctx)
         else:
-            force = env_str(ENV_TRANSLATOR)
+            force = translator_mode()
             if force == "mock":
                 tr = MockTranslator()
             elif force == "gateway" or ctx.secrets.api_key:
@@ -885,20 +855,12 @@ class _Translate:
         # opt_bool 口径（"0"/"false" 字符串系判假），两站须同改
         if not opt_bool(ctx.options(), "auto_glossary", lambda: False) or not clients:
             return None
-        client = clients[0]
-        model = str(ctx.secrets.model or DEFAULT_MODEL)
-        memo_key = "autogloss_terms"
-
-        async def _fn(texts: list[str]) -> dict[str, str]:
-            from texlate.xlat.autogloss import (  # noqa: PLC0415 -- 可选件惰载
-                extract_terms,
-            )
-
-            if memo_key not in ctx.memo:
-                ctx.memo[memo_key] = await extract_terms(texts, client, model=model)
-            return ctx.memo[memo_key]  # type: ignore[return-value] -- memo 存的就是 dict
-
-        return _fn
+        return auto_glossary_fn(
+            clients[0],
+            str(ctx.secrets.model or DEFAULT_MODEL),
+            ctx.memo,
+            "autogloss_terms",
+        )
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。
@@ -918,7 +880,7 @@ class _Translate:
         opts = ctx.options()
         if (
             not ctx.secrets.api_key
-            or env_str(ENV_TRANSLATOR) == "mock"
+            or translator_mode() == "mock"
             or opt_bool(opts, "no_seg_cache", lambda: False)
             or opt_bool(opts, "mock_run", lambda: False)
         ):

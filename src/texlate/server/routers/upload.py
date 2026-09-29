@@ -18,7 +18,7 @@ from texlate.server.http import (
     _FILENAME_MAX,
     UploadPart,
     _accepted,
-    _ApiError,
+    _api_error,
     _discard_part,
     _form_options,
     _form_text,
@@ -42,22 +42,14 @@ def _check_upload_route(route: str, babeldoc: str | None, filename: str) -> None
     工具探测面。
     """
     if route == "unknown":
-        raise _ApiError(
-            400,
-            {
-                "detail": f"无法识别上传格式: {filename}",
-                "code": "unsupported_format",
-            },
+        raise _api_error(
+            400, f"无法识别上传格式: {filename}", "unsupported_format"
         )
     if route == "upload_pdf" and babeldoc is None:
-        raise _ApiError(
+        raise _api_error(
             501,
-            {
-                "detail": (
-                    "babeldoc 未安装：pipx install babeldoc / uv tool install babeldoc"
-                ),
-                "code": "unsupported_format",
-            },
+            "babeldoc 未安装：pipx install babeldoc / uv tool install babeldoc",
+            "unsupported_format",
         )
 
 
@@ -103,12 +95,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:
             # 抛 ENAMETOOLONG 成 500——同闸先拒。
             safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
             if safe in (".", "..") or len(safe) > _FILENAME_MAX:
-                raise _ApiError(
-                    400,
-                    {
-                        "detail": f"unsafe filename: {filename!r}",
-                        "code": "invalid_request",
-                    },
+                raise _api_error(
+                    400, f"unsafe filename: {filename!r}", "invalid_request"
                 )
             # 先落 blob（建行前），再建行+入队——task_id 两侧共用
             task_id = new_task_id()

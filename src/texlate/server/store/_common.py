@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import sqlite3
-    from collections.abc import Iterable, Sized
+    from collections.abc import Generator, Iterable, Sized
     from pathlib import Path
 
     from texlate.server.store import Store
@@ -347,6 +347,23 @@ def slim_task_dir(
             with contextlib.suppress(OSError):
                 d.rmdir()
     return freed
+
+
+def _retention_drop_order(
+    candidates: Iterable[str], *, total_bytes: int, cap_bytes: int
+) -> Generator[str, int, None]:
+    """驱动 retention 容量阶段淘汰序（``Store.sweep_retention``/``app._sweep_delete`` 单源）。
+
+    send-协议生成器：每轮 ``yield`` 一个候选 tid → 调用方执行删减 →
+    ``send(实释字节)`` 回喂；``total <= cap`` 或候选穷尽即停。删减本体
+    两侧 IO 形态不同（同步直跑 vs 逐段 ``to_thread``）留在调用方——本
+    生成器只单源「下一个候选 + 累计剪停」判定，防孪生阶梯漂移。
+    """
+    for tid in candidates:
+        if total_bytes <= cap_bytes:
+            break
+        freed = yield tid
+        total_bytes -= freed
 
 
 def new_task_id() -> str:

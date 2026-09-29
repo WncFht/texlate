@@ -82,6 +82,7 @@ from texlate.compile.judge import (
 from texlate.compile.latex209 import (
     _CLASS_MAP,
     _DS_AT_CLASSES,
+    _GLOB_SAFE_RE,
     _INCOMPAT_PKGS,
     _KERNEL_OPTS,
     _MULTICOLS_SHIM,
@@ -90,6 +91,7 @@ from texlate.compile.latex209 import (
     _REVTEX209_SHIM,
     _STD_CLASSES,
     COMPAT_SHIM,
+    _ds_at_bridge,
     _ships_style,
     _split_opts,
     _uses_ds_at,
@@ -872,10 +874,11 @@ class _Oracle209(NamedTuple):
     shipped: list[str]
     stripped: list[str]
     out: str
+    bridge: str | None = None  # ds@ 桥时携随源 sty 的 root 相对路径
 
 
 def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
-    tex: str, *, sty_stems: set[str], ds_at: set[str]
+    tex: str, *, sty_stems: set[str], sty_paths: dict[str, str], ds_at: set[str]
 ) -> _Oracle209:
     """独立重述 ``upgrade_209``——含输出全文重建（残token改名倒序回填）。"""
     vis = visible_tex(tex)
@@ -885,30 +888,49 @@ def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
     cls = m.group(2).strip()
     if not cls:
         return _Oracle209("no-docstyle", None, None, None, [], [], [], [], tex)
-    if cls in _DS_AT_CLASSES or (
-        cls not in _CLASS_MAP and cls not in _STD_CLASSES and cls in ds_at
+    sty_rel: str | None = None
+    if (
+        cls not in _CLASS_MAP
+        and cls not in _STD_CLASSES
+        and ".." not in cls
+        and _GLOB_SAFE_RE.fullmatch(cls)
+    ):
+        sty_rel = sty_paths.get(cls)
+    if sty_rel is None and (
+        cls in _DS_AT_CLASSES
+        or (cls not in _CLASS_MAP and cls not in _STD_CLASSES and cls in ds_at)
     ):
         return _Oracle209("reject", "latex209_ds_at", cls, None, [], [], [], [], tex)
-    spec = _CLASS_MAP.get(cls)
-    target = spec.target if spec is not None else cls
-    # fuzz 臂 _target_resolvable 恒 True → 无 latex209_no_target 支
-    incompat = _INCOMPAT_PKGS.get(target, frozenset())
-    cls_opts: list[str] = []
-    pkg_opts: list[str] = []
-    shipped: list[str] = []
-    stripped: list[str] = []
-    for opt in _oracle_split(m.group(1)):
-        o = spec.rename.get(opt, opt) if spec is not None else opt
-        if o in incompat:
-            stripped.append(o)
-        elif o in _KERNEL_OPTS or (spec is not None and o in spec.options):
-            cls_opts.append(o)
-        elif o in _PKG_OPTS or (".." not in o and o in sty_stems):
-            pkg_opts.append(o)
-            if o not in _PKG_OPTS:
-                shipped.append(o)
-        else:
-            cls_opts.append(o)
+    if sty_rel is not None:
+        # ds@ 桥：article 底 + 字面 \@options 分发表——选项不进三路分派，
+        # 内核选项同付两路（类选项位实效果 + 字面 ds@ 分发）。
+        spec = None
+        target = "article"
+        cls_opts = [o for o in _oracle_split(m.group(1)) if o in _KERNEL_OPTS]
+        pkg_opts: list[str] = []
+        shipped: list[str] = []
+        stripped: list[str] = []
+    else:
+        spec = _CLASS_MAP.get(cls)
+        target = spec.target if spec is not None else cls
+        # fuzz 臂 _target_resolvable 恒 True → 无 latex209_no_target 支
+        incompat = _INCOMPAT_PKGS.get(target, frozenset())
+        cls_opts = []
+        pkg_opts = []
+        shipped = []
+        stripped = []
+        for opt in _oracle_split(m.group(1)):
+            o = spec.rename.get(opt, opt) if spec is not None else opt
+            if o in incompat:
+                stripped.append(o)
+            elif o in _KERNEL_OPTS or (spec is not None and o in spec.options):
+                cls_opts.append(o)
+            elif o in _PKG_OPTS or (".." not in o and o in sty_stems):
+                pkg_opts.append(o)
+                if o not in _PKG_OPTS:
+                    shipped.append(o)
+            else:
+                cls_opts.append(o)
     lines = [
         _PRE_CLASS_SHIM,
         f"\\documentclass[{','.join(cls_opts)}]{{{target}}}"
@@ -916,6 +938,8 @@ def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
         else f"\\documentclass{{{target}}}",
         COMPAT_SHIM,
     ]
+    if sty_rel is not None:
+        lines.append(_ds_at_bridge(cls, sty_rel, _oracle_split(m.group(1))))
     if target == "revtex4-2":
         lines.append(_REVTEX209_SHIM)
     if "multicol" in stripped:
@@ -927,7 +951,16 @@ def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
     for dm in reversed([*DOCSTYLE_RX.finditer(vis2)]):
         out = out[: dm.start()] + "\\documentclass" + out[dm.end() :]
     return _Oracle209(
-        "converted", None, cls, target, cls_opts, pkg_opts, shipped, stripped, out
+        "converted",
+        None,
+        cls,
+        target,
+        cls_opts,
+        pkg_opts,
+        shipped,
+        stripped,
+        out,
+        sty_rel,
     )
 
 
@@ -1015,11 +1048,20 @@ class TestLatex209:
         (tmp_path / "mycls.sty").write_text("\\@namedef{ds@opta}{\\relax}\n")
         (tmp_path / "weird-cls.sty").write_text("\\def\\ds@epsfig{}\n")
         sty_stems = {p.stem for p in tmp_path.rglob("*.sty")}
+        # ``_style209_path`` 同构：stem → 目录最浅命中的 root 相对 posix 路径
+        sty_paths: dict[str, str] = {}
+        for p in sorted(
+            tmp_path.rglob("*.sty"),
+            key=lambda p: (len(p.relative_to(tmp_path).parts), str(p)),
+        ):
+            sty_paths.setdefault(p.stem, p.relative_to(tmp_path).as_posix())
         ds_at = {"mycls", "weird-cls"}
         for _ in range(300):
             tex = _gen_209_doc(rng)
             out, info = upgrade_209(tex, root=tmp_path)
-            exp = _oracle_209(tex, sty_stems=sty_stems, ds_at=ds_at)
+            exp = _oracle_209(
+                tex, sty_stems=sty_stems, sty_paths=sty_paths, ds_at=ds_at
+            )
             ctx = f"tex={tex!r}\ninfo={info}\nexp={exp.status}"
             assert info["status"] == exp.status, ctx
             assert out == exp.out, ctx  # 全文重建等值（含残 token 改名）
@@ -1034,18 +1076,35 @@ class TestLatex209:
                 vis = visible_tex(out)
                 assert DOCSTYLE_RX.search(vis) is None  # 无活 docstyle 残留
                 assert COMPAT_SHIM in out
-                # 分派守恒：三路输出 == 改名后选项多重集
-                renamed = [
-                    (
-                        _CLASS_MAP[exp.cls].rename.get(o, o)
-                        if exp.cls in _CLASS_MAP
-                        else o
-                    )
-                    for o in _oracle_split(_oracle_primary(visible_tex(tex)).group(1))
-                ]
-                assert Counter(exp.cls_opts) + Counter(exp.pkg_opts) + Counter(
-                    exp.stripped
-                ) == Counter(renamed), ctx
+                if exp.bridge is not None:
+                    # ds@ 桥：选项全量进字面 \@options 分发表——三路守恒不适用
+                    assert info["ds_bridge"] is True
+                    assert info["bridge_sty"] == exp.bridge
+                    assert f"\\input{{{exp.bridge}}}" in out
+                    assert f"\\input{{{exp.cls}.sty}}" in out
+                    safe = [
+                        o
+                        for o in _oracle_split(
+                            _oracle_primary(visible_tex(tex)).group(1)
+                        )
+                        if _GLOB_SAFE_RE.fullmatch(o)
+                    ]
+                    assert f"\\@for\\@tempa:={','.join(safe)}\\do" in out, ctx
+                else:
+                    # 分派守恒：三路输出 == 改名后选项多重集
+                    renamed = [
+                        (
+                            _CLASS_MAP[exp.cls].rename.get(o, o)
+                            if exp.cls in _CLASS_MAP
+                            else o
+                        )
+                        for o in _oracle_split(
+                            _oracle_primary(visible_tex(tex)).group(1)
+                        )
+                    ]
+                    assert Counter(exp.cls_opts) + Counter(exp.pkg_opts) + Counter(
+                        exp.stripped
+                    ) == Counter(renamed), ctx
                 assert set(exp.shipped) == set(exp.pkg_opts) - _PKG_OPTS, ctx
                 assert set(exp.stripped) <= _INCOMPAT_PKGS.get(exp.target, frozenset())
                 assert ("multicol" in exp.stripped) == (_MULTICOLS_SHIM in out), ctx
@@ -1111,14 +1170,18 @@ class TestLatex209:
             assert out == f"\\documentstyle{{{cls}}}\nx\n"
 
     def test_ds_at_true_positive_reject(self, tmp_path: Path) -> None:
-        """随源 .sty/.cls 内真分发标记 → reject（对照组，当前即成立）。"""
+        """随源 .sty 内真分发标记 → ds@ 桥；仅 .cls 载体 → 维持 reject。"""
         (tmp_path / "aa.sty").write_text("\\@namedef{ds@opta}{\\relax}\n")
         (tmp_path / "bb.cls").write_text("\\def\\ds@preprint{}\n")
-        for cls in ("aa", "bb"):
-            out, info = upgrade_209(f"\\documentstyle[opta]{{{cls}}}\n", root=tmp_path)
-            assert info["status"] == "reject", cls
-            assert info["reason"] == "latex209_ds_at"
-            assert out == f"\\documentstyle[opta]{{{cls}}}\n"
+        out, info = upgrade_209("\\documentstyle[opta]{aa}\n", root=tmp_path)
+        assert info["status"] == "converted"
+        assert info["ds_bridge"] is True
+        assert "\\input{aa.sty}" in out
+        tex = "\\documentstyle[opta]{bb}\n"
+        out, info = upgrade_209(tex, root=tmp_path)
+        assert info["status"] == "reject"
+        assert info["reason"] == "latex209_ds_at"
+        assert out == tex
 
     @pytest.mark.parametrize(
         "sty_body",

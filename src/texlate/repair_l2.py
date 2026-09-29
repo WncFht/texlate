@@ -37,7 +37,7 @@ from texlate.latex.tables import (
     PROTECTED_ENVS,
     VERBATIM_ENVS,
 )
-from texlate.repair import log_text_of
+from texlate.texlog import log_text_of
 from texlate.textutil import env_flag
 from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
     ENV_ENV_JUDGE,
@@ -297,7 +297,7 @@ async def env_judge_all(
 
 
 def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
-    """CompRes → L2Verdict：``repair.log_text_of`` 全文 → ``parse_log_text``。
+    """CompRes → L2Verdict：``texlog.log_text_of`` 全文 → ``parse_log_text``。
 
     被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 L2 臂
     静默空转（``log_text_of`` 单源同口径：``.log`` 非空优先、缺席/

@@ -116,7 +116,7 @@ def test_upgrade_showkeys_class_vs_pkg() -> None:
 
 def test_upgrade_class_map() -> None:
     """映射类改名；未映射类名原样保留（缺 .cls 交 fixloop CTAN fetch）。"""
-    for src, tgt in [("mn", "mnras"), ("jpsj", "jpsj3"), ("elsart", "elsarticle")]:
+    for src, tgt in [("mn", "mnras"), ("jpsj", "jpsj2"), ("elsart", "elsarticle")]:
         out, info = upgrade_209(f"\\documentstyle{{{src}}}\nx\n")
         assert f"\\documentclass{{{tgt}}}" in out
         assert info["target"] == tgt
@@ -136,10 +136,21 @@ def test_upgrade_ds_at_static_reject() -> None:
 
 
 def test_upgrade_ds_at_dynamic(tmp_path: Path) -> None:
-    r"""随源 ``<cls>.sty`` 内检出 ds@ 选项分发定义 → 拒。"""
+    r"""随源 ``<cls>.sty`` 内检出 ds@ 选项分发定义 → ds@ 桥升级（不再拒）。
+
+    桥只认 ``.sty`` 载体——只携 ``<cls>.cls`` 的 ds@ 工程维持原拒收契约。
+    """
     (tmp_path / "myj.sty").write_text("\\@namedef{ds@opta}{\\relax}\n")
     out, info = upgrade_209("\\documentstyle[opta]{myj}\nx\n", root=tmp_path)
-    assert out == "\\documentstyle[opta]{myj}\nx\n"
+    assert info["status"] == "converted"
+    assert info["ds_bridge"] is True
+    assert "\\input{myj.sty}" in out
+
+    (tmp_path / "myj.sty").unlink()
+    (tmp_path / "myj.cls").write_text("\\@namedef{ds@opta}{\\relax}\n")
+    tex = "\\documentstyle[opta]{myj}\nx\n"
+    out, info = upgrade_209(tex, root=tmp_path)
+    assert out == tex
     assert info["status"] == "reject"
     assert info["reason"] == "latex209_ds_at"
 
@@ -291,14 +302,14 @@ def test_target_resolvable_no_kpse_fails_open(
 def test_upgrade_rename_target_missing_rejects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """改名目标类双侧不可解析 → ``latex209_no_target`` 拒转（0111097 jpsj3 实证）。"""
+    """改名目标类双侧不可解析 → ``latex209_no_target`` 拒转（0111097 jpsj2 实证）。"""
     monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: False)
     tex = "\\documentstyle[epsfig,seceq,twocolumn]{jpsj}\nx\n"
     out, info = upgrade_209(tex, root=tmp_path)
     assert out == tex  # 拒转不改写原文
     assert info["status"] == "reject"
     assert info["reason"] == "latex209_no_target"
-    assert info["target"] == "jpsj3"
+    assert info["target"] == "jpsj2"
 
 
 def test_upgrade_target_guard_skips_unmapped(

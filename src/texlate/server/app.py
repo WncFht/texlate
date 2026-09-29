@@ -68,7 +68,7 @@ from texlate.server.store import (
     TransitionError,
     valid_task_id,
 )
-from texlate.server.store._common import _dir_size
+from texlate.server.store._common import _dir_size, _retention_drop_order
 from texlate.server.worker import (
     URL_KIND,
     PipelineWorker,
@@ -76,7 +76,7 @@ from texlate.server.worker import (
     _env_timeout,
 )
 from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT
-from texlate.xlat.client import _LOOPBACK_HOSTS
+from texlate.xlat.client import LOOPBACK_HOSTS
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
@@ -155,8 +155,8 @@ async def _sweep_delete(  # noqa: C901 -- 两阶段淘汰阶梯平铺
 
     ``sweep_retention`` 的 loop-native 版——决策查询（``TaskRepo``
     单侧化）+ ``delete_task_guard`` 条件写留在 loop，``_dir_size``/
-    ``rmtree`` 重 I/O 逐段 ``to_thread``。settings 每拍重读（PUT 即
-    生效，不用重启）。
+    ``rmtree`` 重 I/O 逐段 ``to_thread``；阶段二淘汰序/剪停判定单源
+    ``_retention_drop_order``。settings 每拍重读（PUT 即生效，不用重启）。
     """
     st = settings_store.load()
     days = int(st.get("retention_days") or 0)
@@ -183,12 +183,19 @@ async def _sweep_delete(  # noqa: C901 -- 两阶段淘汰阶梯平铺
         cap = max_gb * (1 << 30)
         total = await asyncio.to_thread(_dir_size, tasks_dir)
         if total > cap:
-            for tid in store.terminal_oldest_first():
-                if total <= cap:
-                    break
-                sz = await _drop(tid)
-                freed_bytes += sz
-                total -= sz
+            order = _retention_drop_order(
+                store.terminal_oldest_first(),
+                total_bytes=total,
+                cap_bytes=cap,
+            )
+            try:
+                tid = next(order)
+                while True:
+                    sz = await _drop(tid)
+                    freed_bytes += sz
+                    tid = order.send(sz)
+            except StopIteration:
+                pass
     if removed:
         log.info(
             "retention sweep: %s",
@@ -348,7 +355,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
             if not _loopback_peer(request):
                 return _json_error(403, f"peer {peer} not allowed", "forbidden")
             host = request.headers.get("host", "")
-            if not host or _host_only(host) not in _LOOPBACK_HOSTS:
+            if not host or _host_only(host) not in LOOPBACK_HOSTS:
                 return _json_error(
                     403, f"host {host or '<absent>'} not allowed", "forbidden"
                 )

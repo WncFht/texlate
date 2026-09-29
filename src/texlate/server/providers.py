@@ -12,11 +12,11 @@ from __future__ import annotations
 from typing import Any
 
 from texlate.textutil import env_raw
-from texlate.xlat._discovery import _model_ids_from
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
     PROVIDER_KEY_ENV,
+    model_ids_from,
     normalize_base_url,
     provider_for_url,
 )
@@ -59,8 +59,8 @@ def list_provider_models(
         # UnicodeDecodeError 同属 ValueError——探活失败面收敛 None
         return None
     items = data.get("data") if isinstance(data, dict) else None
-    # 非 list → ``_model_ids_from`` 回 ``None``——与探活失败面同口径收敛
-    return _model_ids_from(items)
+    # 非 list → ``model_ids_from`` 回 ``None``——与探活失败面同口径收敛
+    return model_ids_from(items)
 
 
 def provider_presets(settings: dict[str, Any]) -> list[dict[str, Any]]:

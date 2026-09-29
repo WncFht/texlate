@@ -74,9 +74,9 @@ from texlate.server.validate import (  # noqa: F401 -- 边界校验出叶
     validate_dialect,
     validate_model,
 )
+from texlate.share import cache_scope  # noqa: F401 -- 寻址键政策出叶（单源在 share）
 from texlate.textutil import data_root, env_flag, env_raw, env_str
 from texlate.textutil.osutil import (
-    ENV_CACHE_SCOPE,
     ENV_MODE,
     ENV_MODEL_PROBE,
     ENV_SHARE_DIR,
@@ -138,23 +138,6 @@ def data_dir() -> Path:
 def server_mode() -> str:
     """``TEXLATE_MODE``：``local``（默认）| ``server``（多租户部署形态）。"""
     return env_str(ENV_MODE) or "local"
-
-
-def cache_scope() -> str:
-    """``TEXLATE_CACHE_SCOPE``：``shared``（默认）| ``per_key``。
-
-    ``shared`` = hjfy 对等共享缓存（既定产品特性：公开论文的翻译结果是
-    确定性函数，跨租户 reuse 省下重复 LLM 调用）；``per_key`` 把
-    ``sha256(api_key)[:16]`` 混入缓存键按凭证分桶——消除「探测他租户是否
-    译过某论文」的存在性 oracle，代价是缓存命中按 key 碎片化。
-    旧名 ``tenant`` 同义 ``per_key``；非法值回落 ``shared``。
-    """
-    v = env_str(ENV_CACHE_SCOPE) or "shared"
-    if v in ("per_key", "tenant"):
-        return "per_key"
-    if v != "shared":
-        log.warning("TEXLATE_CACHE_SCOPE=%r 非法，回落 shared", v)
-    return "shared"
 
 
 def share_dir(root: Path | None = None) -> Path:

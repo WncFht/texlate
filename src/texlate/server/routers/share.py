@@ -21,7 +21,7 @@ from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.pipecore import FRONT_MATTER_NAMES
 from texlate.server.http import (
     _accepted,
-    _ApiError,
+    _api_error,
     _discard_part,
     _form_options,
     _json_error,
@@ -72,36 +72,22 @@ def _share_parts_checked(
     """
     base, embedded = normalize_arxiv_id(parts["arxiv_id"])
     if embedded is not None or not valid_id(base):
-        raise _ApiError(
-            400,
-            {
-                "detail": f"key_parts.arxiv_id 非法: {parts['arxiv_id']!r}",
-                "code": "share_invalid",
-            },
+        raise _api_error(
+            400, f"key_parts.arxiv_id 非法: {parts['arxiv_id']!r}", "share_invalid"
         )
     lang = parts["target_lang"]
     if lang not in TARGET_LANGS:
-        raise _ApiError(
-            400,
-            {
-                "detail": f"key_parts.target_lang ∈ {sorted(TARGET_LANGS)}",
-                "code": "share_invalid",
-            },
+        raise _api_error(
+            400, f"key_parts.target_lang ∈ {sorted(TARGET_LANGS)}", "share_invalid"
         )
     try:
         model = validate_model(parts["model"])
     except ValueError as e:
-        raise _ApiError(
-            400, {"detail": f"key_parts.model: {e}", "code": "share_invalid"}
-        ) from e
+        raise _api_error(400, f"key_parts.model: {e}", "share_invalid") from e
     ver_s = parts["version"]  # "v5" 钉版 / "" latest 别名
     if ver_s and not re.fullmatch(r"v\d{1,3}", ver_s):
-        raise _ApiError(
-            400,
-            {
-                "detail": f"key_parts.version 须为 vN 钉版形: {ver_s!r}",
-                "code": "share_invalid",
-            },
+        raise _api_error(
+            400, f"key_parts.version 须为 vN 钉版形: {ver_s!r}", "share_invalid"
         )
     return base, ver_s, model, lang, (int(ver_s[1:]) if ver_s else None)
 
@@ -224,19 +210,14 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 )
             except ShareError as e:
                 await deps.drop_task_dir(tid)
-                raise _ApiError(
-                    400,
-                    {
-                        "detail": f"share bundle invalid: {e}",
-                        "code": "share_invalid",
-                    },
+                raise _api_error(
+                    400, f"share bundle invalid: {e}", "share_invalid"
                 ) from e
             except sqlite3.IntegrityError:
                 # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
                 await deps.drop_task_dir(tid)
-                raise _ApiError(
-                    409,
-                    {"detail": "active task exists", "code": "duplicate_active"},
+                raise _api_error(
+                    409, "active task exists", "duplicate_active"
                 ) from None
             except Exception:
                 # 落盘/解包/校验/建行/入队任何失败（含 _ApiError 与非预期异常）
