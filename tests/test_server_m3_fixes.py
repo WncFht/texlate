@@ -18,9 +18,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 import texlate.server.app as app_mod
 import texlate.server.settings as settings_mod
 from texlate.server import babeldoc as bd

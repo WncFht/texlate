@@ -15,6 +15,22 @@ repos:
         entry: ./node_modules/.bin/markdownlint-cli2 --fix
         language: system
         types: [markdown]
+      - id: md-table-align
+        name: md table display-width realign
+        # MD060 按显示宽度（CJK=2）判对齐——markdownlint --fix/prettier 修
+        # 不齐的表由本件原位改写兜底（MAINTENANCE §11「先 align 再 lint」
+        # 的自动化）；幂等，已对齐的表零 diff。改写类 fail-re-add 语义同上。
+        entry: uv run python tools/md_table_align.py
+        language: system
+        types: [markdown]
+      - id: docs-linkcheck
+        name: docs/ markdown dead-link check
+        # 全量扫 docs/（pass_filenames: false）——删/改名目标件不触发本钩
+        # 的盲区由 CI format job 同命令兜底。
+        entry: uv run python tools/docs_linkcheck.py
+        language: system
+        files: '^docs/.*\.md$'
+        pass_filenames: false
       - id: ruff-format-md
         name: ruff format (md python fences)
         # CI `ruff format --check .` 连 md 内 python 栅栏一起查；gfs stdin

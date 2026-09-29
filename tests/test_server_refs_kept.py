@@ -12,11 +12,6 @@ from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("httpx", reason="server extra 未装")
-
 import httpx
 from conftest import (
     force_status,
@@ -32,6 +27,7 @@ from texlate.server.routers import refs
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pytest
     from starlette.testclient import TestClient
 
 ARXIV = "2401.00004"

@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     import random
     from collections.abc import Callable
 
-from conftest import make_targz
+from conftest import FakeClock, make_targz, mk_fetcher
 
 from texlate.arxiv._texutil import strip_comments
 from texlate.arxiv.cache import CacheError, SourceCache
@@ -152,21 +152,6 @@ _P_HAVE_ETAG = 0.5
 _P_HAVE_LM = 0.3
 
 
-class _Clock:
-    """注入限速器/重试的 fake 时钟：sleep 即前进，零真等待。"""
-
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0
-        self.slept: list[float] = []
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.slept.append(d)
-        self.t += d
-
-
 def _no_sleep(_d: float) -> None:
     return None
 
@@ -176,29 +161,6 @@ def _park_bucket(rl: RateLimiter, url: str) -> None:
     for _ in range(2):
         rl.acquire(url)
         rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)
-
-
-def _fetcher(  # noqa: PLR0913 -- 线形 fetcher 工厂，每 kwarg 即一个注入面
-    handler: Callable[[httpx.Request], httpx.Response],
-    clk: _Clock,
-    *,
-    hosts: tuple[str, ...] = ("arxiv.org", "export.arxiv.org"),
-    rl: RateLimiter | None = None,
-    follow_redirects: bool = False,
-    sleep: Callable[[float], None] | None = None,
-) -> Fetcher:
-    """MockTransport fetcher——``rl`` 传预置桶（park 面）；``sleep`` 是
-    Fetcher 层重试睡眠，默认 clk.sleep 假睡（需真抛 OverflowError 的钉
-    传 ``time.sleep``）。"""
-    return Fetcher(
-        rl if rl is not None else RateLimiter(clock=clk.now, sleep=clk.sleep),
-        client=httpx.Client(
-            transport=httpx.MockTransport(handler),
-            follow_redirects=follow_redirects,
-        ),
-        hosts=hosts,
-        sleep=clk.sleep if sleep is None else sleep,
-    )
 
 
 _TINY_TEX = b"\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
@@ -470,8 +432,8 @@ def test_acquire_corrupt_gzip_body_e2e(tmp_path: Path) -> None:
             )
         return httpx.Response(HTTPStatus.OK, content=_zlib_error_blob())
 
-    clk = _Clock()
-    f = _fetcher(handler, clk)
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk)
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR
 
@@ -587,7 +549,7 @@ def test_fuzz_jitter_bounds() -> None:
 def test_fuzz_ratelimit_ops() -> None:
     """随机 acquire/report/clock 推进：异常集封闭 + 预算上界 + park 自洽。"""
     rng = fuzz_rng(_SEED + 9)
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     for _ in range(_RL_OPS):
         op = rng.random()
@@ -610,7 +572,7 @@ def test_fuzz_ratelimit_ops() -> None:
 
 def test_ratelimit_state_roundtrip(tmp_path: Path) -> None:
     """状态落盘→重载：同日同计数、桶位一致。"""
-    clk = _Clock()
+    clk = FakeClock()
     sp = tmp_path / "rl.json"
     rl = RateLimiter(sp, clock=clk.now, sleep=clk.sleep)
     for url in _RL_URLS[:5]:
@@ -651,11 +613,11 @@ def test_fuzz_ratelimit_corrupt_state(tmp_path: Path) -> None:
     for i, blob in enumerate(blobs):
         sp = tmp_path / f"rl{i}.json"
         sp.write_bytes(blob)
-        RateLimiter(sp, clock=_Clock().now, sleep=_no_sleep)
+        RateLimiter(sp, clock=FakeClock().now, sleep=_no_sleep)
     for i in range(200):
         sp = tmp_path / f"rz{i}.json"
         sp.write_bytes(rng.randbytes(rng.randint(0, 200)))
-        RateLimiter(sp, clock=_Clock().now, sleep=_no_sleep)
+        RateLimiter(sp, clock=FakeClock().now, sleep=_no_sleep)
 
 
 def test_ratelimit_state_float_overflow(tmp_path: Path) -> None:
@@ -668,12 +630,12 @@ def test_ratelimit_state_float_overflow(tmp_path: Path) -> None:
             sp.write_text(
                 json.dumps({"buckets": {"h|c": {field: 1e999}}}), encoding="utf-8"
             )
-        RateLimiter(sp, clock=_Clock().now, sleep=_no_sleep)
+        RateLimiter(sp, clock=FakeClock().now, sleep=_no_sleep)
 
 
 def test_ratelimit_day_rollover_resets_budget() -> None:
     """跨日推进：预算归零重来。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     rl.acquire("https://arxiv.org/src/x")  # 建立当日 _day 锚
     rl._requests_today = DAILY_BUDGET  # noqa: SLF001 -- 铺当日满额
@@ -745,8 +707,8 @@ def test_acquire_corrupt_meta_error_e2e(tmp_path: Path) -> None:
             },
         )
 
-    clk = _Clock()
-    f = _fetcher(handler, clk)
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk)
     res = acquire_source("2001.00001", fetcher=f, cache=cache)
     assert res.status is AcquireStatus.ERROR  # 期望：损坏条目归 error 而非崩
 
@@ -865,8 +827,8 @@ def test_head_cd_version_overflow_e2e(tmp_path: Path) -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(HTTPStatus.OK, headers={"content-disposition": cd})
 
-    clk = _Clock()
-    f = _fetcher(handler, clk)
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk)
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR
 
@@ -890,8 +852,8 @@ def test_get_cd_version_overflow_e2e(tmp_path: Path) -> None:
             HTTPStatus.OK, content=_TINY_TGZ, headers={"content-disposition": evil_cd}
         )
 
-    clk = _Clock()
-    f = _fetcher(handler, clk)
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk)
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR
 
@@ -916,9 +878,9 @@ def test_retry_after_inf_returns_error(tmp_path: Path) -> None:
             HTTPStatus.TOO_MANY_REQUESTS, headers={"retry-after": "1e999"}
         )
 
-    clk = _Clock()
+    clk = FakeClock()
     # 真 sleep——inf 立刻 OverflowError，不会真等（假睡会吞掉这条路径）
-    f = _fetcher(handler, clk, hosts=("arxiv.org",), sleep=time.sleep)
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",), sleep=time.sleep)
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR  # 期望归类，不是崩
 
@@ -1039,8 +1001,8 @@ def test_fuzz_acquire_source_scenarios(tmp_path: Path) -> None:
                 )
             return httpx.Response(_g, content=_b, headers={"etag": _e})
 
-        clk = _Clock()
-        f = _fetcher(handler, clk)
+        clk = FakeClock()
+        f = mk_fetcher(handler, clk)
         res = acquire_source(aid, fetcher=f, cache=cache, offline=offline)
         # —— 结果契约 ——
         assert isinstance(res, AcquireResult)
@@ -1080,8 +1042,8 @@ def test_acquire_retry_attempt_cap() -> None:
         calls.append(req.url.host)
         return httpx.Response(HTTPStatus.SERVICE_UNAVAILABLE)
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org", "export.arxiv.org"))
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org", "export.arxiv.org"))
     head = f.head_src("2001.00001")
     assert head.http_status == HTTPStatus.SERVICE_UNAVAILABLE
     assert calls == ["arxiv.org"] * _MAX_ATTEMPTS
@@ -1183,16 +1145,18 @@ def test_fuzz_fetch_metadata_bodies() -> None:
         oai = rng.choice(_META_BODIES)
         astat = rng.choice([200, 200, 200, 404, 500])
         ostat = rng.choice([200, 200, 404])
-        clk = _Clock()
-        f = _fetcher(_meta_handler(atom, oai, atom_status=astat, oai_status=ostat), clk)
+        clk = FakeClock()
+        f = mk_fetcher(
+            _meta_handler(atom, oai, atom_status=astat, oai_status=ostat), clk
+        )
         m = fetch_metadata("2001.00001", fetcher=f)
         _check_paper_meta(m)
 
 
 def test_fetch_metadata_bomb_falls_back_to_oai() -> None:
     """实体炸弹打 Atom → defusedxml 拦 → OAI 兜底仍出结果。"""
-    clk = _Clock()
-    f = _fetcher(_meta_handler(_ENTITY_BOMB, _OAI_OK.encode()), clk)
+    clk = FakeClock()
+    f = mk_fetcher(_meta_handler(_ENTITY_BOMB, _OAI_OK.encode()), clk)
     m = fetch_metadata("2001.00001", fetcher=f)
     assert m is not None
     assert m.source == "oai-raw"
@@ -1205,8 +1169,8 @@ def test_fuzz_resolve_version_contract() -> None:
     for _ in range(200):
         atom = rng.choice(_META_BODIES)
         oai = rng.choice(_META_BODIES)
-        clk = _Clock()
-        f = _fetcher(_meta_handler(atom, oai), clk)
+        clk = FakeClock()
+        f = mk_fetcher(_meta_handler(atom, oai), clk)
         want = rng.choice([None, 1, 2, 3, 99])
         got = resolve_version("2001.00001", want, fetcher=f)
         if want is None:
@@ -1215,7 +1179,7 @@ def test_fuzz_resolve_version_contract() -> None:
             assert got in {want, None}
 
 
-def _degrade_fetcher(statuses: dict[str, int], clk: _Clock) -> Fetcher:
+def _degrade_fetcher(statuses: dict[str, int], clk: FakeClock) -> Fetcher:
     def handler(req: httpx.Request) -> httpx.Response:
         for prefix, st in statuses.items():
             if req.url.path.startswith(prefix):
@@ -1229,7 +1193,7 @@ def _degrade_fetcher(statuses: dict[str, int], clk: _Clock) -> Fetcher:
             return httpx.Response(HTTPStatus.OK, content=_ATOM_OK.encode())
         return httpx.Response(HTTPStatus.NOT_FOUND)
 
-    return _fetcher(handler, clk, hosts=("arxiv.org",), follow_redirects=True)
+    return mk_fetcher(handler, clk, hosts=("arxiv.org",), follow_redirects=True)
 
 
 def test_fuzz_degrade_contract() -> None:
@@ -1257,7 +1221,7 @@ def test_fuzz_degrade_contract() -> None:
                 ]
             ),
         }
-        clk = _Clock()
+        clk = FakeClock()
         f = _degrade_fetcher(statuses, clk)
         version = rng.choice([None, 1, 3])
         if reason not in valid:
@@ -1481,10 +1445,10 @@ def _ok_200(_req: httpx.Request) -> httpx.Response:
 
 def _acq_fetcher(
     handler: Callable[[httpx.Request], httpx.Response],
-) -> tuple[Fetcher, _Clock]:
-    """单 host acquire 用 fetcher（复用 _Clock/_fetcher 同族约定）。"""
-    clk = _Clock()
-    return _fetcher(handler, clk, hosts=("arxiv.org",)), clk
+) -> tuple[Fetcher, FakeClock]:
+    """单 host acquire 用 fetcher（复用 conftest ``FakeClock``/``mk_fetcher`` 同族约定）。"""
+    clk = FakeClock()
+    return mk_fetcher(handler, clk, hosts=("arxiv.org",)), clk
 
 
 def _src_handler(
@@ -1813,8 +1777,8 @@ def test_transport_error_retries_then_raises() -> None:
         msg = "boom"
         raise httpx.ConnectError(msg, request=req)
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",))
     with pytest.raises(httpx.TransportError):
         f.head_src("2001.00001")
     assert len(calls) == _MAX_ATTEMPTS
@@ -1831,8 +1795,8 @@ def test_deterministic_request_error_not_retried() -> None:
             headers={"location": str(req.url)},
         )
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org",), follow_redirects=True)
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",), follow_redirects=True)
     with pytest.raises(httpx.TooManyRedirects):
         f.head_src("2001.00001")
     # httpx 内部重定向环（max_redirects）单次 send 内烧穿——不走退避表
@@ -1841,7 +1805,7 @@ def test_deterministic_request_error_not_retried() -> None:
 
 def test_across_hosts_park_failover() -> None:
     """主 host 被 park → 同路径自动走 export 镜像桶拿 200。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     _park_bucket(rl, "https://arxiv.org/src/x")
     assert rl.parked_until("https://arxiv.org/src/x") > clk.t
@@ -1853,7 +1817,7 @@ def test_across_hosts_park_failover() -> None:
             headers={"content-disposition": _CD_V1},
         )
 
-    f = _fetcher(handler, clk, rl=rl)
+    f = mk_fetcher(handler, clk, rl=rl)
     head = f.head_src("2001.00001")
     assert head.http_status == HTTPStatus.OK
     assert head.resolved_version == 1
@@ -1866,21 +1830,21 @@ def test_across_hosts_park_beats_transport_error() -> None:
         msg = "down"
         raise httpx.ConnectError(msg, request=req)
 
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     _park_bucket(rl, "https://arxiv.org/src/x")
-    f = _fetcher(handler, clk, rl=rl)
+    f = mk_fetcher(handler, clk, rl=rl)
     with pytest.raises(ParkedError):
         f.head_src("2001.00001")
 
 
 def test_across_hosts_all_parked_raises_first() -> None:
     """全 host park → 首个 ParkedError（failover 穷尽语义）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     for host in ("arxiv.org", "export.arxiv.org"):
         _park_bucket(rl, f"https://{host}/src/x")
-    f = _fetcher(_ok_200, clk, rl=rl)
+    f = mk_fetcher(_ok_200, clk, rl=rl)
     with pytest.raises(ParkedError, match=r"arxiv\.org"):
         f.head_src("2001.00001")
 
@@ -1890,7 +1854,7 @@ def test_across_hosts_all_parked_raises_first() -> None:
 
 def test_path_class_isolation_pin() -> None:
     """park 键带 path-class：/api 被 park 不挡 /src（实测口径 docs/spec/arxiv-source.md 勘误）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     _park_bucket(rl, "https://export.arxiv.org/api/query?id_list=x")
     assert rl.parked_until("https://export.arxiv.org/api/query?id_list=x") > clk.t
@@ -1902,7 +1866,7 @@ def test_path_class_isolation_pin() -> None:
 def test_park_escalation_doubles() -> None:
     """断路器逐次翻倍 + consec_429 不随 park 过期清零——过期后单发 429 即再触，
     时长 2^1×base×jitter（≥1.6×base）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     url = "https://arxiv.org/src/x"
     _park_bucket(rl, url)
@@ -1920,7 +1884,7 @@ def test_park_escalation_doubles() -> None:
 
 def test_budget_boundary_exact() -> None:
     """日预算边界：恰 DAILY_BUDGET 发通过，第 N+1 发 BudgetExhausted。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     for i in range(DAILY_BUDGET):
         rl.acquire(f"https://arxiv.org/src/p{i}")
@@ -1930,7 +1894,7 @@ def test_budget_boundary_exact() -> None:
 
 def test_backward_clock_inflates_pacing() -> None:
     """观察钉：墙钟回拨 → pacing wait 吃满回拨量（docstring 已记代价）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     rl.acquire("https://arxiv.org/src/a")
     clk.t -= 10000.0  # NTP 回拨 ~2.8h
@@ -2035,8 +1999,8 @@ def test_degrade_version_fallback_unbounded() -> None:
             return httpx.Response(HTTPStatus.OK, content=atom)
         return httpx.Response(HTTPStatus.NOT_FOUND)
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",))
     res = degrade("2001.00001", fetcher=f, reason=DegradeReason.PARSE_FAILED, version=2)
     assert res.tier is DegradeTier.NONE
     assert len(calls) <= _BURN_BOUND
@@ -2044,7 +2008,7 @@ def test_degrade_version_fallback_unbounded() -> None:
 
 def test_degrade_fallback_park_aborts() -> None:
     """版本回退中途 park → abort 归 NONE/兜底层，不继续空烧。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     # 预 park content 桶（/html 与 /pdf 同属 content path-class）
     _park_bucket(rl, "https://arxiv.org/src/x")
@@ -2053,7 +2017,7 @@ def test_degrade_fallback_park_aborts() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(HTTPStatus.OK, content=b"<feed/>")
 
-    f = _fetcher(handler, clk, hosts=("arxiv.org",), rl=rl)
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",), rl=rl)
     res = degrade("2001.00001", fetcher=f, reason=DegradeReason.PARSE_FAILED, version=2)
     assert res.tier is DegradeTier.NONE
     assert any("abort" in p for p in res.probed)
@@ -2076,8 +2040,8 @@ def test_oai_version_zero_padded_collapses() -> None:
             return httpx.Response(HTTPStatus.OK, content=oai)
         return httpx.Response(HTTPStatus.NOT_FOUND)
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",))
     m = fetch_metadata("2001.00001", fetcher=f)
     assert m is not None
     assert [v.version for v in m.versions] == [7, 7, _OAI_PAD_LATEST]
@@ -2191,8 +2155,8 @@ def test_fetch_html_stub_check_split_brain() -> None:
             text='<html><body><script>var x="ltx_document";</script></body></html>',
         )
 
-    clk = _Clock()
-    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    clk = FakeClock()
+    f = mk_fetcher(handler, clk, hosts=("arxiv.org",))
     text = fetch_html("1501.00001", fetcher=f)  # 过闸
     with pytest.raises(HtmlNotAvailableError):
         parse_arxiv_html(text)  # DOM 判据拦
@@ -2226,8 +2190,8 @@ def test_fuzz_fetch_html_statuses() -> None:
         ) -> httpx.Response:
             return httpx.Response(_s, text=_b)
 
-        clk = _Clock()
-        f = _fetcher(handler, clk, hosts=("arxiv.org",))
+        clk = FakeClock()
+        f = mk_fetcher(handler, clk, hosts=("arxiv.org",))
         try:
             out = fetch_html("1501.00001", fetcher=f)
         except allowed_exc:
@@ -2237,18 +2201,18 @@ def test_fuzz_fetch_html_statuses() -> None:
 
 def test_fetch_html_parked_propagates() -> None:
     """fetch_html 的 park/预算异常原样上抛（不重包装成 HtmlError）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     _park_bucket(rl, "https://arxiv.org/src/x")
-    f = _fetcher(_ok_200, clk, hosts=("arxiv.org",), rl=rl)
+    f = mk_fetcher(_ok_200, clk, hosts=("arxiv.org",), rl=rl)
     with pytest.raises(ParkedError):
         fetch_html("1501.00001", fetcher=f)
 
 
 def test_fetch_html_bad_id_valueerror() -> None:
     """坏 id（含版本 <1）→ ValueError（调用方错误语义，与 head_src 同型）。"""
-    clk = _Clock()
-    f = _fetcher(_ok_200, clk, hosts=("arxiv.org",))
+    clk = FakeClock()
+    f = mk_fetcher(_ok_200, clk, hosts=("arxiv.org",))
     with pytest.raises(ValueError, match="bad arxiv id"):
         fetch_html("../etc/passwd", fetcher=f)
     with pytest.raises(ValueError, match="bad arxiv id"):

@@ -17,10 +17,6 @@ from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-
 from conftest import force_status, get_row, mk_api_task, mk_task_row
 
 if TYPE_CHECKING:

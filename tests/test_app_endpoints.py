@@ -15,10 +15,6 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _workerkit import _insert_chunk as _wk_insert_chunk
 from conftest import (
     MINI_TEX,

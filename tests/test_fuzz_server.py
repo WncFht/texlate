@@ -48,10 +48,6 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _fuzzkit import fuzz_rng, short
 from conftest import chunk_row, force_status, mk_api_task, mk_store, mk_task_id
 

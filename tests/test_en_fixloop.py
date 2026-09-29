@@ -12,10 +12,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-
 from conftest import RecordingEngine
 
 from texlate.server.events import EventBus
@@ -25,6 +21,8 @@ from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+
+    import pytest
 
 _TEX = (
     "\\documentclass{article}\n"

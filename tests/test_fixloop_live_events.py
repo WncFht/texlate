@@ -18,11 +18,6 @@ import json
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _workerkit import _insert_chunk, mk_ctx
 from conftest import (
     MINI_TEX,
@@ -45,6 +40,8 @@ from texlate.xlat.pipeline import MockTranslator
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+
+    import pytest
 
 
 @lru_cache(maxsize=1)

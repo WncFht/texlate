@@ -22,6 +22,7 @@ r"""impl2 pack-24 回归钉 —— 遮盖视图站点纪律 / 元素级包名判
 from pathlib import Path
 
 from _fixloopkit import mk_ctx
+from conftest import _write
 from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
@@ -32,14 +33,6 @@ from texlate.compile.fixloop._builtins_docfix import (
 )
 from texlate.compile.fixloop._builtins_pkgload import font_sub_shim
 from texlate.compile.fixloop.llm_hook import _banned
-
-
-def _write(tmp_path: Path, name: str, text: str) -> Path:
-    p = tmp_path / name
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
-
 
 # ═══════════ _drop_pkg_loads 元素级判 ═══════════
 

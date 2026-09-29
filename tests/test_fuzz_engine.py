@@ -891,8 +891,7 @@ def test_xelatex_input_truncated_gate(
     assert res.input_truncated is True
     # 顶层 \endinput 截停——真 \end{document} 在尾也吃不到
     (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\\begin{document}x\n\\endinput\n"
-        "more \\end{document}\n"
+        "\\documentclass{article}\\begin{document}x\n\\endinput\nmore \\end{document}\n"
     )
     res = XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=1, sandbox=False

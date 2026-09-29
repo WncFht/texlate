@@ -13,12 +13,6 @@ from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-pytest.importorskip("uvicorn", reason="server extra 未装")
-
 from conftest import force_status, get_row, make_app, mk_api_task, reg_artifact
 from starlette.testclient import TestClient
 from typer.testing import CliRunner
@@ -29,6 +23,8 @@ from texlate.server.store import StoreError
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 ARXIV = "2401.00031"
 KEY_A = {"X-Texlate-Key": "sk-tenant-a"}

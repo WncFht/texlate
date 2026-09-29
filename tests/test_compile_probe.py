@@ -7,6 +7,8 @@ TlpdbIndex）覆盖 local/tl_pkg/missing 三分支；``deps_diff``/``dep_seen``
 
 from pathlib import Path
 
+from conftest import _write
+
 from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.probe import (
     dep_seen,
@@ -24,12 +26,6 @@ _INDEX = TlpdbIndex(
         "pstricks.sty": ["pstricks"],
     }
 )
-
-
-def _write(root: Path, rel: str, text: str) -> None:
-    p = root / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
 
 
 def test_three_way_resolution(tmp_path: Path) -> None:

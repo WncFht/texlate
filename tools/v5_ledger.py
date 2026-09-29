@@ -14,10 +14,12 @@ import statistics as st
 import sys
 from pathlib import Path
 
+import _env
+
 GW = Path.home() / ".local/state/devin-2api/devin-2api.db"
-TX = Path.home() / ".texlate/texlate.db"
-WINS = Path("tmp/v5-arm-wins.json")
-OUT = Path("tmp/v5-ledger.json")
+TX = _env.DB
+WINS = _env.REPO / "tmp/v5-arm-wins.json"
+OUT = _env.REPO / "tmp/v5-ledger.json"
 KEY = "268cd341e843e55f"
 PH_RX = re.compile(r"\[\[([A-Z]+)_(\d+)\]\]")
 BASE = 1790553600  # 2026-09-28 00:00 UTC
@@ -75,8 +77,7 @@ def main() -> None:
                 tu_latency_s=round(tu[3], 1),
             )
             rec["window_balanced"] = (
-                rec["input"] + rec["cache_read"] == tu[1]
-                and rec["calls"] == tu[0]
+                rec["input"] + rec["cache_read"] == tu[1] and rec["calls"] == tu[0]
             )
         ch = tx.execute(
             "select count(*),"

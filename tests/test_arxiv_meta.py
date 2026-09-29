@@ -242,7 +242,9 @@ def test_degrade_request_error_falls_through() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler), follow_redirects=True
+    )
     clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
@@ -349,7 +351,7 @@ def test_degrade_parse_failed_html_latest() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), redirects=True)
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), follow_redirects=True)
     res = degrade("1412.6980", fetcher=f, reason=DegradeReason.PARSE_FAILED)
     assert res.tier is DegradeTier.HTML
     assert res.url.endswith("/html/1412.6980v9")
@@ -388,7 +390,7 @@ def test_degrade_pdf_only_goes_pdf_first() -> None:
         msg = f"unexpected {req.url.path}"
         raise AssertionError(msg)
 
-    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), redirects=True)
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), follow_redirects=True)
     res = degrade("1412.6980", fetcher=f, reason=DegradeReason.PDF_ONLY)
     assert res.tier is DegradeTier.PDF
     assert res.version == LATEST

@@ -34,9 +34,6 @@ if TYPE_CHECKING:
     from texlate.server.store import Store
 
 import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-
 from _drivekit import drive
 from _fuzzkit import fuzz_rng
 from _workerkit import _insert_chunk, mk_ctx

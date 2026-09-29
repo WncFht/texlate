@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from conftest import FakeClock
 
 from texlate.arxiv.fetch import DL_CAP, Fetcher, FetchStatus
 from texlate.arxiv.locate import _iter_files, locate
@@ -14,19 +15,6 @@ from texlate.arxiv.ratelimit import BudgetExhaustedError, RateLimiter
 
 MAIN_TEX = "\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
 UNDER_BUDGET_REQUESTS = 50
-
-
-class _Clock:
-    """注入限速器的假时钟：sleep 即前进。"""
-
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0  # 一个真实 epoch（day rollover 语义正常）
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.t += d
 
 
 def test_iter_files_dir_symlink_loop(tmp_path: Path) -> None:
@@ -80,7 +68,7 @@ def test_get_src_body_streaming_cap() -> None:
             )
         return httpx.Response(HTTPStatus.OK, content=gen())
 
-    clk = _Clock()
+    clk = FakeClock()
     fetcher = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
         client=httpx.Client(transport=httpx.MockTransport(handler)),
@@ -96,7 +84,7 @@ def test_requests_today_clamped_to_budget(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A14：腐坏巨值计数钳回日预算——仍 fail-closed 但值域收拢 + warning。"""
-    clk = _Clock()
+    clk = FakeClock()
     day = time.strftime("%Y-%m-%d", time.gmtime(clk.t))
     state = tmp_path / "rl.json"
     state.write_text(
@@ -112,7 +100,7 @@ def test_requests_today_clamped_to_budget(
 
 def test_requests_today_under_budget_untouched(tmp_path: Path) -> None:
     """合法计数原样加载——钳制只作用于越域值。"""
-    clk = _Clock()
+    clk = FakeClock()
     day = time.strftime("%Y-%m-%d", time.gmtime(clk.t))
     state = tmp_path / "rl.json"
     state.write_text(

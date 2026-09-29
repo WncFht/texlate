@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 fcntl = pytest.importorskip("fcntl", reason="无 fcntl 平台锁语义不适用")
-pytest.importorskip("uvicorn", reason="server extra 未装")
 
 _RUNNER = CliRunner()
 

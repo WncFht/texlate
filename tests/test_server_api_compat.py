@@ -17,10 +17,6 @@ import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-
 from conftest import make_zip, mk_api_task, mk_chunk_row
 
 from texlate.server.store import new_task_id
@@ -28,6 +24,7 @@ from texlate.server.store import new_task_id
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
     from starlette.testclient import TestClient
 
     from texlate.server.store import Store

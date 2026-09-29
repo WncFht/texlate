@@ -369,5 +369,8 @@ export interface SelftestResult {
  * server: health → extract arXiv id → createTask → poll → listFiles →
  * download → attach → read Extra mark → build reader URL. Returns the
  * structured result; each step records attributable evidence.
+ * Gated: refuses with a `dev-gate` failure unless the global-branch pref
+ * `extensions.zotero.texlate.devSelftest === true` (dev-verify writes it
+ * via RDP; production xpi ships the code but stays inert without it).
  */
 export type Selftest = (itemID: number) => Promise<SelftestResult>;

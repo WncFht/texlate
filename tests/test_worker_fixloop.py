@@ -9,11 +9,6 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _drivekit import drive
 from _workerkit import mk_ctx
 from conftest import MINI_TEX, RecordingEngine
@@ -25,6 +20,8 @@ from texlate.server.store import ERROR_CODES
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
     from texlate.server.store import Store
     from texlate.server.worker import PipelineWorker, TaskCtx

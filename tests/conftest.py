@@ -9,6 +9,7 @@ test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入：本 con
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import io
 import logging
 import os
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
     from texlate.arxiv.fetch import Fetcher, HeadInfo, SrcResult
+    from texlate.arxiv.ratelimit import RateLimiter
     from texlate.compile.engine import CompRes
     from texlate.latex.gullet import Gullet
     from texlate.latex.model import ScanResult
@@ -82,6 +84,78 @@ KEY = "dalianis2020"
 
 #: ctan/tlpdb 测试统一镜像字面量。
 MIRROR = "https://m.test/tlnet"
+
+#: server-extra 收集闸——原为 46 个测试文件顶部各自的 ``pytest.importorskip``
+#: 样板；收编为收集期整文件跳过（最小装环境免 collection error）。
+#: starlette.testclient/httpx 不单列：fastapi 必带 starlette、httpx 是核心
+#: 依赖，其缺席已被 fastapi 闸覆盖。新 server 依赖测试须在此登记——漏登在
+#: 最小环境是响亮 ImportError 而非静默跳过。
+_SERVER_TEST_DEPS: dict[tuple[str, ...], list[str]] = {
+    ("fastapi",): [
+        "test_app_endpoints.py",
+        "test_en_fixloop.py",
+        "test_fixloop_live_events.py",
+        "test_fuzz_app_boundary.py",
+        "test_fuzz_server.py",
+        "test_fuzz_sidecar.py",
+        "test_fuzz_worker.py",
+        "test_probe_wire.py",
+        "test_retranslate.py",
+        "test_server_api.py",
+        "test_server_api_compat.py",
+        "test_server_arxiv_html.py",
+        "test_server_audit_fixes.py",
+        "test_server_babeldoc.py",
+        "test_server_byok.py",
+        "test_server_discover.py",
+        "test_server_gate.py",
+        "test_server_keyless_gate.py",
+        "test_server_l2.py",
+        "test_server_m3_fixes.py",
+        "test_server_persist.py",
+        "test_server_polish.py",
+        "test_server_refs_kept.py",
+        "test_server_security.py",
+        "test_server_settings.py",
+        "test_server_sidecar.py",
+        "test_server_srccut.py",
+        "test_server_sse.py",
+        "test_server_upload.py",
+        "test_server_wave2.py",
+        "test_server_worker.py",
+        "test_share_apply.py",
+        "test_share_hook.py",
+        "test_share_postpack.py",
+        "test_share_wire.py",
+        "test_worker_audit_fixes.py",
+        "test_worker_cancel_protocol.py",
+        "test_worker_fixloop.py",
+        "test_worker_parse.py",
+        "test_worker_share.py",
+        "test_worker_term_dict.py",
+    ],
+    ("fastapi", "uvicorn"): [
+        "test_server_api_fixes.py",
+        "test_server_api_fixes2.py",
+    ],
+    ("uvicorn",): ["test_cli_web_lock.py"],
+}
+
+collect_ignore = [
+    name
+    for deps, names in _SERVER_TEST_DEPS.items()
+    for name in names
+    if any(importlib.util.find_spec(mod) is None for mod in deps)
+]
+
+
+def pytest_report_header() -> str | None:
+    if collect_ignore:
+        return (
+            f"server-extra 缺失：collect_ignore 整集跳过 "
+            f"{len(collect_ignore)} 个测试文件"
+        )
+    return None
 
 
 @pytest.fixture
@@ -553,7 +627,7 @@ class FakeFetcher:
 class FakeClock:
     """注入限速器/重试的 fake 时钟：sleep 即前进并记账，零真等待。
 
-    六份逐文件 ``_Clock`` 的统一形——``slept`` 是全集成员（不读的变体
+    逐文件 ``_Clock`` 副本的统一形——``slept`` 是全集成员（不读的变体
     缺席此属性也无妨，clk.sleeps 读取点改名为 slept 即对齐）。
     """
 
@@ -572,17 +646,21 @@ class FakeClock:
         self.t += d
 
 
-def mk_fetcher(
+def mk_fetcher(  # noqa: PLR0913 -- 线形 fetcher 工厂，每 kwarg 即一个注入面
     handler: httpx.MockTransport | Callable[[httpx.Request], httpx.Response],
     clk: FakeClock,
     *,
     hosts: tuple[str, ...] = ("arxiv.org", "export.arxiv.org"),
-    redirects: bool = False,
+    follow_redirects: bool = False,
+    rl: RateLimiter | None = None,
+    sleep: Callable[[float], None] | None = None,
 ) -> Fetcher:
     """共享 MockTransport ``Fetcher`` 工厂——限速/重试睡眠全挂 ``clk``。
 
     ``handler`` 收预制 ``httpx.MockTransport``（meta/fetch/html 形）或裸
-    ``Callable``（fuzz 形，此处包一层 MockTransport）。
+    ``Callable``（fuzz 形，此处包一层 MockTransport）。``rl`` 传预置桶
+    （断路/park 注入面）；``sleep`` 是 ``Fetcher`` 层重试睡眠，默认
+    ``clk.sleep`` 假睡（需真睡眠语义的钉传 ``time.sleep``）。
     """
     import httpx as _httpx  # noqa: PLC0415
 
@@ -595,10 +673,10 @@ def mk_fetcher(
         else _httpx.MockTransport(handler)
     )
     return Fetcher(
-        RateLimiter(clock=clk.now, sleep=clk.sleep),
-        client=_httpx.Client(transport=transport, follow_redirects=redirects),
+        rl if rl is not None else RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=_httpx.Client(transport=transport, follow_redirects=follow_redirects),
         hosts=hosts,
-        sleep=clk.sleep,
+        sleep=clk.sleep if sleep is None else sleep,
     )
 
 

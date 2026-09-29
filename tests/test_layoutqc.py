@@ -416,6 +416,7 @@ def test_plain_fffd() -> None:
     f4, _m4 = _plain_scan("正常文本 � 出现\n", zh_log=clean_log, tex_fffd=True)
     assert any(x["sig"] == "vis_degenerate" for x in f4)
 
+
 def test_plain_broken_refs() -> None:
     """断链引用 ?? run——每 run 计一位点；≥8 位点报警（2505.21476
     正文 646 ?? 字符实证）。修辞双问号/全角？？不过阈。"""
@@ -859,8 +860,7 @@ def test_logscan_output_routine_accept() -> None:
     assert _tier_of(f) == "clean"  # INFO 不抬 dirty 档
     # 混合格：正文溢出 + 例程家具——两 sig 分层各记
     f2, _m2 = _logscan(
-        "Overfull \\hbox (55.0pt too wide) in paragraph at lines 12--13\n"
-        + log
+        "Overfull \\hbox (55.0pt too wide) in paragraph at lines 12--13\n" + log
     )
     sigs = {x["sig"] for x in f2}
     assert sigs == {"layout:overfull", "layout:overfull_output"}

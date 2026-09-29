@@ -72,9 +72,9 @@ dev-profile                 dev-server                     dev-zotero
 ### dev-verify
 
 - **适用条件** — dev-server/dev-zotero/rdp 三件套就位；fixture 由 dev-profile 注入（脚本按 `[texlate-fixture]` 标题重发现并分类，不信固定 id）；`uv sync --extra server` + tectonic 同 dev-server。
-- **变换方法** — dev-server run 起 mock 服 → dev-zotero verify 断言插件 loaded → rdp 写 serverUrl/pollInterval/pollTimeout prefs（global 位——裸 set 只写 profile 支，默认值 8765 仍生效）→ reset 清 fixture 的 `texlate:` 标记与 TeXlate 附件（幂等前提）→ 逐 fixture `api.selftest(id)` 断言 extract 源与 ID 形态 → 负例 `selftestNonArxiv` → `computeMenuState` 三态 → xpi 解包校验 manifest strict_min/max → 幂等重跑。sabotage 档见下节。
+- **变换方法** — dev-server run 起 mock 服 → dev-zotero verify 断言插件 loaded → rdp 写 devSelftest/serverUrl/pollInterval/pollTimeout prefs（global 位——裸 set 只写 profile 支，默认值 8765 仍生效；devSelftest 是 selftest 的调用时闸门，生产 xpi 惰性、opt-in 才跑）→ reset 清 fixture 的 `texlate:` 标记与 TeXlate 附件（幂等前提）→ 逐 fixture `api.selftest(id)` 断言 extract 源与 ID 形态 → 负例 `selftestNonArxiv` → `computeMenuState` 三态 → xpi 解包校验 manifest strict_min/max → 幂等重跑。sabotage 档见下节。
 - **资源约束** — scratch 全在 `TEXLATE_DEV_ROOT`（`selftest-*.json` 原始证据、`.sabotaged` 暂挪文件）；reset 只碰 `[texlate-fixture]` 条目；selftest 死线 `TEXLATE_DEV_SELFTEST_TIMEOUT`（默认 420s）；full 档 ~5–15min（真实 arXiv+tectonic，prefer=reuse 使已译 id 秒回）。
-- **验证证据** — 每条 PASS 行带 taskId/sha256 前缀/bytes/itemID/source=；原始 SelftestResult JSON 落 `tmp/zotero-dev/selftest-*.json`；入库 transcript 在 `zotero/dev/dev-verify-report.txt`（tmp/ 下同名是最近工作副本）。
+- **验证证据** — 每条 PASS 行带 taskId/sha256 前缀/bytes/itemID/source=；原始 SelftestResult JSON 落 `tmp/zotero-dev/selftest-*.json`；transcript 工作副本为 `tmp/zotero-dev/dev-verify-report.txt`（一次性产物，不入库）。
 - **用法** — `dev-verify [full|quick|sabotage]`（缺省 full，无其他 flag）。full=全矩阵（协议 e2e + 插件加载 + 6 fixture + 负例 + 菜单态 + xpi + 幂等重跑）；quick=协议 e2e + 插件加载 + 1 fixture + 负例 + 菜单态 + xpi；sabotage=三例破坏测验。退出码只计真失败——sabotage 的期望 FAIL 不影响 exit。
 
 ## 一次完整验证会话

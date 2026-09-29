@@ -12,9 +12,6 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from texlate.server.http import _ApiError
 from texlate.server.routers import discover as discover_mod
 

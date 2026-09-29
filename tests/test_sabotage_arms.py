@@ -23,7 +23,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 tb = pytest.importorskip("translators_bench")  # 重链 texlate.* + specs._sabotage
-emb = pytest.importorskip("specs._sabotage")  # e2e_mock_bench 死后正身（Mode B/C 唯一事实源）
+emb = pytest.importorskip(
+    "specs._sabotage"
+)  # e2e_mock_bench 死后正身（Mode B/C 唯一事实源）
 
 from texlate.latex.placeholder import PH_RX  # noqa: E402
 from texlate.xlat.pipeline import (  # noqa: E402

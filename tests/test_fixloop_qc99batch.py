@@ -86,10 +86,7 @@ def test_babelfont_arabic_mixed_bracket_kept(tmp_path: Path) -> None:
 
 
 def test_babelfont_generic_fontkey_bracket_drop(tmp_path: Path) -> None:
-    tex = (
-        "\\babelfont{rm}[\n  BoldFont=PTSerif-Bold.ttf\n]"
-        "{PTSerif-Regular.ttf}\n"
-    )
+    tex = "\\babelfont{rm}[\n  BoldFont=PTSerif-Bold.ttf\n]{PTSerif-Regular.ttf}\n"
     ctx = mk_ctx_files(tmp_path, {"main.tex": tex})
     ok, _ = apply("font_name_substitute", ctx, "PTSerif-Regular")
     assert ok

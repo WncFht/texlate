@@ -10,12 +10,10 @@ import asyncio
 import json
 from typing import TYPE_CHECKING
 
-import pytest
-
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytest.importorskip("fastapi", reason="server extra 未装")
+    import pytest
 
 from _workerkit import mk_ctx, scan_base
 

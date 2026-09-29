@@ -20,13 +20,10 @@ Mac Finder-info/资源叉二进制前缀剥除, 行首 ``\documentstyle``/
 from pathlib import Path
 
 from _fixloopkit import EngStub, apply, mk_ctx, rule
+from conftest import _write
 
 from texlate.compile.fixloop import actions
 from texlate.compile.normalize import _strip_lead_junk, normalize_project
-
-
-def _write(tmp_path: Path, body: str, name: str = "main.tex") -> None:
-    (tmp_path / name).write_text(body, encoding="utf-8")
 
 
 def _apply(rid: str, tmp_path: Path, err_head: str = "") -> tuple[bool, str]:
@@ -64,7 +61,9 @@ def test_mathbd_rules_registered() -> None:
 
 
 def test_soul_cs_mbox_wraps_single_cs_arg(tmp_path: Path) -> None:
-    _write(tmp_path, "\\usepackage{soul}\n\\hl{\\model} 与 \\so{ \\reason }\n")
+    _write(
+        tmp_path, "main.tex", "\\usepackage{soul}\n\\hl{\\model} 与 \\so{ \\reason }\n"
+    )
     applied, _ = _apply("soul_cs_mbox", tmp_path)
     assert applied
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -75,7 +74,7 @@ def test_soul_cs_mbox_wraps_single_cs_arg(tmp_path: Path) -> None:
 def test_soul_cs_mbox_declines_non_single_cs(tmp_path: Path) -> None:
     """多 token 实参与字面文本不命中 → applied=False 不烧轮次。"""
     body = "\\hl{\\model and text}\n\\hl{plain words}\n"
-    _write(tmp_path, body)
+    _write(tmp_path, "main.tex", body)
     applied, _ = _apply("soul_cs_mbox", tmp_path)
     assert not applied
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == body
@@ -83,7 +82,7 @@ def test_soul_cs_mbox_declines_non_single_cs(tmp_path: Path) -> None:
 
 def test_soul_cs_mbox_idempotent(tmp_path: Path) -> None:
     """已裹站点实参为 \\mbox{..} 非单 cs → 第二轮 decline。"""
-    _write(tmp_path, "\\hl{\\mbox{\\model}}\n")
+    _write(tmp_path, "main.tex", "\\hl{\\mbox{\\model}}\n")
     applied, _ = _apply("soul_cs_mbox", tmp_path)
     assert not applied
 
@@ -110,6 +109,7 @@ def test_math_revert_cond_gate(tmp_path: Path) -> None:
 def test_math_revert_rewrites_five_alphabets(tmp_path: Path) -> None:
     _write(
         tmp_path,
+        "main.tex",
         "\\mathit{ Ann. of Phys. 70} $\\mathbf{x}_i$ \\mathrm{d}\\mathsf{S}\\mathtt{T} \\mathbb{R}\n",
     )
     applied, _ = _apply("math_alphabet_209_revert", tmp_path)
@@ -124,7 +124,7 @@ def test_math_revert_rewrites_five_alphabets(tmp_path: Path) -> None:
 def test_math_revert_masked_comment_untouched(tmp_path: Path) -> None:
     """masked 面: 注释内字面 \\mathit{ 不改写。"""
     body = "% \\mathit{example}\n\\mathit{real}\n"
-    _write(tmp_path, body)
+    _write(tmp_path, "main.tex", body)
     applied, _ = _apply("math_alphabet_209_revert", tmp_path)
     assert applied
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -144,7 +144,9 @@ _IMPROPER_MIT = (
 
 def test_bm_alias_cond_gate(tmp_path: Path) -> None:
     _write(
-        tmp_path, "\\documentclass{article}\n$\\boldsymbol{\\xi}$\n\\begin{document}\n"
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n$\\boldsymbol{\\xi}$\n\\begin{document}\n",
     )
     ok, _ = _cond("bm_symbfit_alias", tmp_path, _IMPROPER_MIT)
     assert ok
@@ -152,7 +154,7 @@ def test_bm_alias_cond_gate(tmp_path: Path) -> None:
 
 def test_bm_alias_declines_pdfstring_offender(tmp_path: Path) -> None:
     """offender 非 \\mit<cs> (pdfstring \\times 族) → 让位 pdfstring_cs_disarm。"""
-    _write(tmp_path, "$\\boldsymbol{\\xi}$\n\\begin{document}\n")
+    _write(tmp_path, "main.tex", "$\\boldsymbol{\\xi}$\n\\begin{document}\n")
     head = (
         "Improper alphabetic constant.\n<to be read again>\n  \\times\n"
         "l.291 \\maketitle"
@@ -163,7 +165,7 @@ def test_bm_alias_declines_pdfstring_offender(tmp_path: Path) -> None:
 
 def test_bm_alias_declines_no_bm_usage(tmp_path: Path) -> None:
     """源面无 \\bm/\\boldsymbol 使用 → decline (\\mit 肇事非 bm 语境)。"""
-    _write(tmp_path, "\\documentclass{article}\n\\begin{document}\nx\n")
+    _write(tmp_path, "main.tex", "\\documentclass{article}\n\\begin{document}\nx\n")
     ok, _ = _cond("bm_symbfit_alias", tmp_path, _IMPROPER_MIT)
     assert not ok
 
@@ -171,6 +173,7 @@ def test_bm_alias_declines_no_bm_usage(tmp_path: Path) -> None:
 def test_bm_alias_injects_before_begindoc(tmp_path: Path) -> None:
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n\\usepackage{bm}\n% \\begin{document} 注释行\n"
         "\\begin{document}\n$\\bm{\\mu}$\n\\end{document}\n",
     )

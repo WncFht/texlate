@@ -1,17 +1,19 @@
 """real-arm regen 副本钉扎复测 (e2e_real/2026-09-28/e2e_real)。"""
+
 import json, sys, tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-sys.path.insert(0, "tools")
-sys.path.insert(0, "bench/py")
+import _env  # noqa: F401 -- src 登程须先于 texlate/kernel import
+
+sys.path.insert(0, str(_env.BENCH_PY))
 import qc_replay as qr
 from kernel import vault
 
-OUT = Path("tmp/qc_replay_real_new")
+OUT = _env.REPO / "tmp/qc_replay_real_new"
 OUT.mkdir(parents=True, exist_ok=True)
 
-cohort = [l.strip() for l in open("tmp/qc_regen_real_ids.txt") if l.strip()]
+cohort = [l.strip() for l in open(_env.REPO / "tmp/qc_regen_real_ids.txt") if l.strip()]
 want = set(cohort)
 
 best = {}
@@ -34,11 +36,14 @@ for it in items:
     it["copy"] = (b[1], b[2]) if b else None
 work = Path(tempfile.mkdtemp(prefix="qc_real_new_", dir=OUT))
 res = []
-with ProcessPoolExecutor(max_workers=4) as ex, (OUT/"papers.jsonl").open("w") as fh:
+with ProcessPoolExecutor(max_workers=4) as ex, (OUT / "papers.jsonl").open("w") as fh:
     futs = [ex.submit(qr._replay_cell, it, work, "real", True) for it in items]
     for f in futs:
-        r = f.result(); res.append(r); fh.write(json.dumps(r, ensure_ascii=False)+"\n")
+        r = f.result()
+        res.append(r)
+        fh.write(json.dumps(r, ensure_ascii=False) + "\n")
 from collections import Counter
+
 print("tiers:", Counter(r.get("qc_tier") for r in res))
 print("src_run of copies:", Counter(b[3] for b in best.values()))
 for r in res:

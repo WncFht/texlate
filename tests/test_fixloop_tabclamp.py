@@ -114,9 +114,7 @@ def test_legacy_clamp_purge_negative(tmp_path: Path) -> None:
 def test_tabular_fit_wraps_box_and_strips_legacy(tmp_path: Path) -> None:
     """v2 主路径: legacy 块整剥 + 外层 tabular 文本级 adjustbox 包。"""
     doc = (
-        "\\documentclass{article}\n"
-        + _FIT_BLOCK
-        + "\\begin{document}\n"
+        "\\documentclass{article}\n" + _FIT_BLOCK + "\\begin{document}\n"
         "\\begin{tabular}{ll}\na&b\\\\\n\\end{tabular}\n"
         "\\end{document}\n"
     )

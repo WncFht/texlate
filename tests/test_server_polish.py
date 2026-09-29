@@ -7,11 +7,6 @@ from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from conftest import (
     get_row,
     live_app,
@@ -33,6 +28,8 @@ from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 
 class TestF3RejectPartial:

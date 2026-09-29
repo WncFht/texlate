@@ -58,6 +58,7 @@ _MAIN_TEX = (
     "\\end{document}\n"
 )
 
+
 def _clean(result: Result) -> None:
     """干净退出 oracle：无真实异常逃逸、输出无 Traceback 字样。"""
     exc = result.exception

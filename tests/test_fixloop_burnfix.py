@@ -21,6 +21,7 @@ fix 3 ``bbl_stub_rewrite`` count=0: multibib 双 ``\bibliography`` 档
 from pathlib import Path
 
 from _fixloopkit import mk_ctx
+from conftest import _write
 from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
@@ -39,13 +40,6 @@ _PREMATURE = TRANSFORM_FNS["premature_cs_guard"]
 
 
 # _fixloopkit.write_file 落位后与 paralong/institutesig 同体归并（needs_hoist 已记）。
-def _write(tmp_path: Path, name: str, text: str) -> Path:
-    p = tmp_path / name
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
-
-
 #: docclass 藏进 ``\IfFileExists`` 两臂 —— B5a 起 depth>0 可执行构造命中
 #: 产缝于构造 depth-0 收尾后 (0812.0615 lang10.tex 同构), 注入物落整个
 #: 条件构造之后、两臂任一执行的真声明之后。

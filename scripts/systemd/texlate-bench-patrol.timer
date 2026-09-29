@@ -1,0 +1,9 @@
+[Unit]
+Description=texlate bench soak patrol every 10min (enable during soak waves only)
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -18,10 +18,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _drivekit import drive
 from _workerkit import mk_ctx, scan_base
 from conftest import MINI_TEX, FakeFetcher, make_targz

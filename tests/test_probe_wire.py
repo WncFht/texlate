@@ -11,10 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pytest
 from conftest import FakeEngine
-
-pytest.importorskip("fastapi", reason="server extra 未装")
 
 from texlate.compile.ctan import TlpdbIndex
 from texlate.server.events import EventBus
@@ -24,6 +21,8 @@ from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
+
+    import pytest
 
     from texlate.compile.engine import CompRes
 

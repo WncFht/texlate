@@ -7,12 +7,10 @@ import zipfile
 from functools import partial
 from http import HTTPStatus
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
+if TYPE_CHECKING:
+    import pytest
 from _exportkit import _zip_only
 from conftest import live_app, make_app, task_events, upload, wait_terminal
 from starlette.testclient import TestClient

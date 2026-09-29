@@ -5,6 +5,7 @@ import {
   type SelftestResult,
   type SelftestStep,
 } from "../contracts";
+import { config } from "../../package.json";
 import { extractArxivId } from "./arxivId";
 import { attachArtifacts, getTexlateMark } from "./attach";
 import { createClient } from "./client";
@@ -17,6 +18,12 @@ import { fieldText, sleep } from "../utils/misc";
 /**
  * selftest.ts — e2e chain verification for dev-verify (RDP eval). Same modules
  * as production; per-step attributable evidence in SelftestResult. NEVER throws.
+ *
+ * The module ships in the production xpi by design — dev-verify validates the
+ * shipping artifact — but stays inert unless explicitly armed: run() refuses
+ * with a dev-gate failure unless the undocumented pref
+ * `${config.prefsPrefix}.devSelftest === true` exists on the global branch
+ * (dev-verify writes it via RDP in phase_prefs; no prefs.js default, no UI).
  */
 
 /** Assertion failure inside a step — message lands verbatim in detail. */
@@ -68,6 +75,16 @@ async function step<T>(
 async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
   const steps: SelftestStep[] = [];
   let taskId: string | undefined;
+  if (
+    Zotero.Prefs.get(`${config.prefsPrefix}.devSelftest`, true) !== true
+  ) {
+    steps.push({
+      name: "dev-gate",
+      ok: false,
+      detail: `${config.prefsPrefix}.devSelftest pref not enabled (global branch)`,
+    });
+    return { ok: false, itemID, steps, error: "dev-gate" };
+  }
   try {
     const item = await step(steps, "resolve-item", () => {
       const it = Zotero.Items.get(itemID);

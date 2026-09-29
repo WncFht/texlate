@@ -11,10 +11,6 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from conftest import mk_api_task, mk_task_row
 
 from texlate.server.events import EventBus, sse_frame

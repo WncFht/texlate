@@ -18,10 +18,9 @@ payload 首段非 main_dir 祖先 → 目录级链罩整枝 (Content/* 链式缺
 
 from pathlib import Path
 
-from texlate.compile.logparse import ErrReport
-
 from texlate.compile.fixloop.actions import _apply_install_file, _relink_misplaced
 from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.logparse import ErrReport
 
 
 class _ProbeEng:

@@ -13,11 +13,6 @@ from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from _drivekit import drive
 from _workerkit import mk_ctx
 from conftest import MINI_TEX, mk_task_row

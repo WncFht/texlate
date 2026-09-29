@@ -3,6 +3,7 @@ from http import HTTPStatus
 from pathlib import Path
 
 import pytest
+from conftest import FakeClock
 
 from texlate.arxiv.ratelimit import (
     BREAKER_STRIKES,
@@ -23,20 +24,7 @@ PARKCAP_HI = 7200.0 * 1.21
 TWO_REQUESTS = 2
 
 
-class _Clock:
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0  # 一个真实 epoch（day  rollover 语义正常）
-        self.slept: list[float] = []
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.slept.append(d)
-        self.t += d
-
-
-def _limiter(clk: _Clock, **kw: float) -> RateLimiter:
+def _limiter(clk: FakeClock, **kw: float) -> RateLimiter:
     return RateLimiter(policy=RatePolicy(**kw), clock=clk.now, sleep=clk.sleep)
 
 
@@ -59,7 +47,7 @@ def test_jitter_deterministic() -> None:
 
 
 def test_pacing_per_host() -> None:
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     url = "https://arxiv.org/src/2001.00001"
     rl.acquire(url)  # 首次不等待
@@ -74,7 +62,7 @@ def test_pacing_per_host() -> None:
 
 def test_pacing_shared_across_path_class() -> None:
     """同一 host 的不同 path-class 共享 pacing（每 host 全局间隔）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     rl.acquire("https://arxiv.org/src/2001.00001")
     rl.acquire("https://arxiv.org/api/query?x=1")
@@ -82,7 +70,7 @@ def test_pacing_shared_across_path_class() -> None:
 
 
 def test_breaker_park_per_path() -> None:
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     api = "https://arxiv.org/api/query"
@@ -103,7 +91,7 @@ def test_breaker_doubling_and_cap() -> None:
 
     consec_429 过阈后不归零——过期后再吃 429 一次就按 park_step 翻倍重 park。
     """
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     first_until = _trip(rl, clk, src)
@@ -116,7 +104,7 @@ def test_breaker_doubling_and_cap() -> None:
     assert third_until - clk.t <= PARKCAP_HI
 
 
-def _trip(rl: RateLimiter, clk: _Clock, url: str) -> float:
+def _trip(rl: RateLimiter, clk: FakeClock, url: str) -> float:
     for _ in range(BREAKER_STRIKES):
         rl.acquire(url)
         clk.t += GAP
@@ -124,7 +112,7 @@ def _trip(rl: RateLimiter, clk: _Clock, url: str) -> float:
     return rl.parked_until(url)
 
 
-def _repark(rl: RateLimiter, clk: _Clock, url: str) -> float:
+def _repark(rl: RateLimiter, clk: FakeClock, url: str) -> float:
     rl.acquire(url)
     clk.t += GAP
     rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)
@@ -132,7 +120,7 @@ def _repark(rl: RateLimiter, clk: _Clock, url: str) -> float:
 
 
 def test_success_resets_breaker() -> None:
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     rl.acquire(src)
@@ -148,7 +136,7 @@ def test_success_resets_breaker() -> None:
 
 
 def test_404_resets_breaker() -> None:
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     rl.acquire(src)
@@ -164,7 +152,7 @@ def test_404_resets_breaker() -> None:
 
 
 def test_daily_budget() -> None:
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk, daily_budget=3)
     for _ in range(3):
         rl.acquire("https://arxiv.org/src/x")
@@ -174,7 +162,7 @@ def test_daily_budget() -> None:
 
 
 def test_state_persistence(tmp_path: Path) -> None:
-    clk = _Clock()
+    clk = FakeClock()
     state = tmp_path / "rl.json"
     rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
     rl.acquire("https://arxiv.org/src/x")
@@ -187,7 +175,7 @@ def test_state_persistence(tmp_path: Path) -> None:
     data = json.loads(state.read_text())
     assert data["requests_today"] == TWO_REQUESTS
 
-    clk2 = _Clock()
+    clk2 = FakeClock()
     clk2.t = clk.t
     rl2 = RateLimiter(state, clock=clk2.now, sleep=clk2.sleep)
     assert rl2.requests_today == TWO_REQUESTS
@@ -201,7 +189,7 @@ def test_load_corrupt_state_starts_clean(tmp_path: Path) -> None:
     state.write_text(
         '{"day": 5, "requests_today": "oops", "buckets": {"h|c": {"last_ts": "bad"}}}'
     )
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
     assert rl.requests_today == 0
     rl.acquire("https://arxiv.org/src/x")  # 不拦请求路径
@@ -209,7 +197,7 @@ def test_load_corrupt_state_starts_clean(tmp_path: Path) -> None:
 
 def test_parked_until_expired_is_zero() -> None:
     """过期 park 返回 0（文档承诺 0=未 park），不再回吐历史时间戳。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     until = _trip(rl, clk, src)
@@ -220,7 +208,7 @@ def test_parked_until_expired_is_zero() -> None:
 
 def test_parked_acquire_no_budget_cost() -> None:
     """park 中的 acquire 先于预算检查被拒——parked 探测不烧日预算。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk, daily_budget=100)
     src = "https://arxiv.org/src/x"
     _trip(rl, clk, src)
@@ -232,7 +220,7 @@ def test_parked_acquire_no_budget_cost() -> None:
 
 def test_406_strikes_trip_breaker() -> None:
     """406（IP 配额窗）与 429 同计 strike——文档勘误 2026-09-17 口径。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     for _ in range(BREAKER_STRIKES):
@@ -245,7 +233,7 @@ def test_406_strikes_trip_breaker() -> None:
 
 def test_5xx_neither_strikes_nor_resets() -> None:
     """5xx 中性：不计 strike 也不证明窗口已过（保持既有 strike 数）。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = _limiter(clk)
     src = "https://arxiv.org/src/x"
     rl.acquire(src)
@@ -286,7 +274,7 @@ def test_load_nonfinite_and_out_of_range_state(tmp_path: Path) -> None:
             }
         )
     )
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
     assert rl.requests_today == 0  # -5 → 0
     # park_until=1e30 → 钳到有界 horizon（仍视为在 park——保守不锤被罚路径）
@@ -302,7 +290,7 @@ def test_load_nonfinite_and_out_of_range_state(tmp_path: Path) -> None:
 
 def test_report_high_park_step_no_overflow() -> None:
     """``2**park_step`` 读侧钳 ``_PARK_STEP_MAX``——巨 step 不再 int→float 炸。"""
-    clk = _Clock()
+    clk = FakeClock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     url = "https://arxiv.org/src/x"
     rl.acquire(url)

@@ -48,6 +48,12 @@ jobs:
           brew install taplo
           git ls-files -z '*.toml' | xargs -0r taplo fmt --check
 
+      # docs/ 死链闸：stdlib-only 脚本，ubuntu 镜像自带 python3 即可跑——
+      # pre-commit 只拦 docs/*.md 改动触发的面，删目标件/改路径的全量
+      # 复核在本步（本地不过 CI 必挂的同源约定）。
+      - name: docs linkcheck
+        run: python3 tools/docs_linkcheck.py
+
   secrets:
     name: Secrets (gitleaks)
     runs-on: ubuntu-latest

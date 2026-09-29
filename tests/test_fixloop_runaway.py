@@ -10,6 +10,8 @@ r"""killsem lane (2026-09-20): runaway_output 修复面双臂钉。
 
 from pathlib import Path
 
+from conftest import _write
+
 from texlate.compile.fixloop import actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
@@ -52,10 +54,6 @@ def _cond(rid: str, tmp_path: Path) -> tuple[bool, str]:
     )
 
 
-def _write(tmp_path: Path, body: str, name: str = "main.tex") -> None:
-    (tmp_path / name).write_text(body, encoding="utf-8")
-
-
 def test_runaway_rules_registered() -> None:
     tcb = _rule("tcolorbox_breakable_inject")
     assert tcb.order == 199.7  # noqa: PLR2004 - schema 断言值
@@ -87,6 +85,7 @@ def test_tcb_fires_lib_loaded_opts_prepended(tmp_path: Path) -> None:
     """2311.04163 形: ``[most]`` bundle 已含 breakable 库 → 纯 per-env 键补。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\usepackage[most]{tcolorbox}\n"
         "\\begin{document}\n"
@@ -106,6 +105,7 @@ def test_tcb_fires_injects_lib_when_absent(tmp_path: Path) -> None:
     """库未载但有 ``\\usepackage{tcolorbox}`` 装载点 → 先补 ``\\tcbuselibrary``。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\usepackage{tcolorbox}\n"
         "\\begin{document}\n\\begin{tcolorbox}[enhanced]\nx\n\\end{tcolorbox}\n\\end{document}\n",
@@ -121,6 +121,7 @@ def test_tcb_tcbuselibrary_site_also_anchors(tmp_path: Path) -> None:
     """``\\tcbuselibrary{skins}`` 站点算装载点 (breakable 不在列 → 补载)。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\usepackage{tcolorbox}\n\\tcbuselibrary{skins}\n"
         "\\begin{document}\n\\begin{tcolorbox}\nx\n\\end{tcolorbox}\n\\end{document}\n",
@@ -136,6 +137,7 @@ def test_tcb_bundle_lib_tokens_count_loaded(tmp_path: Path) -> None:
     for lib in ("breakable", "many", "most", "all"):
         _write(
             tmp_path,
+            "main.tex",
             "\\documentclass{article}\n"
             f"\\tcbuselibrary{{{lib}}}\n"
             "\\begin{document}\n\\begin{tcolorbox}[x=1]\nx\n\\end{tcolorbox}\n\\end{document}\n",
@@ -151,6 +153,7 @@ def test_tcb_declines_no_load_site(tmp_path: Path) -> None:
     """env 在但全文无 tcolorbox 装载点 (cls 内载等) → 补键产 unknown-key 新错, 让位。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\begin{document}\n\\begin{tcolorbox}\nx\n\\end{tcolorbox}\n\\end{document}\n",
     )
@@ -162,7 +165,9 @@ def test_tcb_declines_no_load_site(tmp_path: Path) -> None:
 
 def test_tcb_declines_no_sites(tmp_path: Path) -> None:
     _write(
-        tmp_path, "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     ok, note = _apply("tcolorbox_breakable_inject", tmp_path)
     assert not ok
@@ -173,6 +178,7 @@ def test_tcb_newtcolorbox_def_patched(tmp_path: Path) -> None:
     """2504.11741 形: ``\\newtcolorbox`` def 的末位 options 组补键。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\usepackage[many,breakable]{tcolorbox}\n"
         "\\newtcolorbox{notebox}{colback=yellow!10}\n"
@@ -190,6 +196,7 @@ def test_tcb_neg_key_flipped(tmp_path: Path) -> None:
     """``unbreakable``/``breakable=false`` 否定形即肇事者 → 翻正为 ``breakable``。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n\\usepackage{tcolorbox}\n\\tcbuselibrary{breakable}\n"
         "\\begin{document}\n"
         "\\begin{tcolorbox}[unbreakable,colback=red]\nx\n\\end{tcolorbox}\n"
@@ -208,6 +215,7 @@ def test_tcb_idempotent_second_round(tmp_path: Path) -> None:
     """补键后再无 unbreakable 站 → 重放 decline (与 dedup 键双保险)。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n\\usepackage[most]{tcolorbox}\n"
         "\\begin{document}\n\\begin{tcolorbox}[a=1]\nx\n\\end{tcolorbox}\n\\end{document}\n",
     )
@@ -224,7 +232,7 @@ def test_tcb_commented_site_masked(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\usepackage[most]{tcolorbox}\n"
         "% \\begin{tcolorbox}[unbreakable]\n\\begin{document}\nx\n\\end{document}\n"
     )
-    _write(tmp_path, src)
+    _write(tmp_path, "main.tex", src)
     ok, _ = _apply("tcolorbox_breakable_inject", tmp_path)
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
@@ -233,12 +241,15 @@ def test_tcb_commented_site_masked(tmp_path: Path) -> None:
 def test_tcb_cond_gate(tmp_path: Path) -> None:
     """source_contains 粗筛: 无 tcolorbox env/def 字面 → condition 拒。"""
     _write(
-        tmp_path, "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     ok, _ = _cond("tcolorbox_breakable_inject", tmp_path)
     assert not ok
     _write(
         tmp_path,
+        "main.tex",
         "\\usepackage{tcolorbox}\n\\begin{document}\n\\begin{tcolorbox}\nx\n\\end{tcolorbox}\n",
     )
     ok, _ = _cond("tcolorbox_breakable_inject", tmp_path)
@@ -249,6 +260,7 @@ def test_float_demote_fires(tmp_path: Path) -> None:
     """2608.09867 形: ``[H]`` 系混排 → ``!``+placement (``p`` 保底, 无 h/t/b 补 ``ht``)。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n\\usepackage{float}\n\\begin{document}\n"
         "\\begin{figure}[H]\na\n\\end{figure}\n"
         "\\begin{table}[H!tbp]\nb\n\\end{table}\n"
@@ -271,7 +283,7 @@ def test_float_demote_declines(tmp_path: Path) -> None:
         "% \\begin{figure}[H]\nx\n",  # masked 注释站
         "\\begin{table}[H,name=x]\ny\n\\end{table}\n",  # 非 placement 白名单
     ):
-        _write(tmp_path, "\\documentclass{article}\n" + body)
+        _write(tmp_path, "main.tex", "\\documentclass{article}\n" + body)
         ok, _ = _apply("float_h_demote", tmp_path)
         assert not ok, body
 
@@ -280,6 +292,7 @@ def test_float_demote_mixed_keeps_nonplacement(tmp_path: Path) -> None:
     """同文件 ``[H,name=x]`` 非白名单组不动, ``[H]`` 组照降。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n"
         "\\begin{table}[H,name=x]\na\n\\end{table}\n"
         "\\begin{table}[H]\nb\n\\end{table}\n",
@@ -294,6 +307,7 @@ def test_float_demote_mixed_keeps_nonplacement(tmp_path: Path) -> None:
 def test_float_demote_idempotent(tmp_path: Path) -> None:
     _write(
         tmp_path,
+        "main.tex",
         "\\documentclass{article}\n\\begin{document}\n\\begin{figure}[H]\nx\n\\end{figure}\n\\end{document}\n",
     )
     ok, _ = _apply("float_h_demote", tmp_path)
@@ -305,10 +319,10 @@ def test_float_demote_idempotent(tmp_path: Path) -> None:
 
 def test_float_demote_cond_gate(tmp_path: Path) -> None:
     """source_contains 粗筛钉字面 ``[`` 内 ``H`` —— ``[h]``/无浮体 → 拒。"""
-    _write(tmp_path, "\\begin{figure}[h]\nx\n\\end{figure}\n")
+    _write(tmp_path, "main.tex", "\\begin{figure}[h]\nx\n\\end{figure}\n")
     ok, _ = _cond("float_h_demote", tmp_path)
     assert not ok
-    _write(tmp_path, "\\begin{algorithm}[H]\nx\n\\end{algorithm}\n")
+    _write(tmp_path, "main.tex", "\\begin{algorithm}[H]\nx\n\\end{algorithm}\n")
     ok, _ = _cond("float_h_demote", tmp_path)
     assert ok
 
@@ -317,10 +331,11 @@ def test_arms_no_crossfire(tmp_path: Path) -> None:
     """签名互斥: tcolorbox 格 float 臂让位, [H] 格 tcb 臂让位。"""
     _write(
         tmp_path,
+        "main.tex",
         "\\usepackage[most]{tcolorbox}\n\\begin{tcolorbox}\nx\n\\end{tcolorbox}\n",
     )
     ok, _ = _apply("float_h_demote", tmp_path)
     assert not ok
-    _write(tmp_path, "\\begin{figure}[H]\nx\n\\end{figure}\n")
+    _write(tmp_path, "main.tex", "\\begin{figure}[H]\nx\n\\end{figure}\n")
     ok, _ = _apply("tcolorbox_breakable_inject", tmp_path)
     assert not ok

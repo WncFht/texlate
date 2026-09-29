@@ -1,0 +1,8 @@
+[Unit]
+Description=texlate bench soak patrol (one-line vitals to tmp/bench-patrol.log)
+
+[Service]
+Type=oneshot
+Environment=PATH=/home/fanghaotian/.local/bin:/home/fanghaotian/.cargo/bin:/usr/local/bin:/usr/bin
+ExecStart=/home/fanghaotian/src/texlate/tools/bench_patrol.sh
+TimeoutStartSec=120

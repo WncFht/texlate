@@ -9,16 +9,12 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("fastapi", reason="server extra 未装")
-pytest.importorskip("starlette.testclient", reason="server extra 未装")
-
 from texlate.server.settings import SettingsStore, server_salt
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
     from starlette.testclient import TestClient
 
 

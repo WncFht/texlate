@@ -208,8 +208,10 @@ phase_zotero() {
 
 #: prefs —— 关键：第三个参数 true 写全局支（getPref 只读全局支；裸 set 写
 #: profile 支、pref 面仍见默认 8765 → 自测会打到真实 gateway）。
+#: devSelftest 是 selftest.ts 的调用时闸门（生产 xpi 惰性，opt-in 才跑）。
 phase_prefs() {
-  rdp_val "Zotero.Prefs.set('$PREF.serverUrl','$BASE',true), \
+  rdp_val "Zotero.Prefs.set('$PREF.devSelftest',true,true), \
+Zotero.Prefs.set('$PREF.serverUrl','$BASE',true), \
 Zotero.Prefs.set('$PREF.pollIntervalMs',2000,true), \
 Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), 'ok'" 15 >/dev/null ||
     {
@@ -219,7 +221,7 @@ Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), 'ok'" 15 >/dev/null ||
   local got
   got="$(rdp_val "Zotero.Prefs.get('$PREF.serverUrl',true)" 15 || echo '?')"
   if [[ $got == \"$BASE\" || $got == "$BASE" ]]; then
-    pass prefs "serverUrl=$BASE pollInterval=2000ms pollTimeout=900000ms (global branch)"
+    pass prefs "devSelftest=1 serverUrl=$BASE pollInterval=2000ms pollTimeout=900000ms (global branch)"
   else
     fail prefs "serverUrl readback=$got expected $BASE"
     return 1
