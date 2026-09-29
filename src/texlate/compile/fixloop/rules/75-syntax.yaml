@@ -1089,12 +1089,12 @@ rules:
         exts: [.tex, .bbl]
         rewrites:
           - {
-              pattern: "\\\\math(it|bf|rm|sf|tt)\\{",
+              pattern: "(?<!(?:\\\\[gex]?def|\\\\let|\\\\newcommand|\\\\renewcommand|\\\\providecommand|\\\\DeclareRobustCommand|\\\\DeclareMathAlphabet)\\*?\\s*\\{?\\s*)\\\\math(it|bf|rm|sf|tt)\\{",
               repl: '{\\\g<1> ',
               match_surface: "masked",
             }
-    risk: low # {\it X} 双域皆合法 (\DeclareOldFontCommand mode-aware); 回退后无 \math<xx>{ 字面残留 → 幂等
-    known_gap: "裸 \\mathit x 无括号形不收; \\mathbb/\\mathfrak 等 209-switch 五件套外的 math-alphabet 签名闸自拒"
+    risk: low # {\it X} 双域皆合法 (\DeclareOldFontCommand mode-aware); 回退后无 \math<xx>{ 字面残留 → 幂等; def-csname 位 lookbehind 豁免 (regex 模块变宽 lookbehind)
+    known_gap: "裸 \\mathit x 无括号形不收; \\mathbb/\\mathfrak 等 209-switch 五件套外的 math-alphabet 签名闸自拒; \\expandafter\\def\\csname math<xx>\\endcsname 构名定义位不可见 (cs 字面缺席天然豁免)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2478,26 +2478,33 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json revtex_array_clash"
     known_gap: "列规降级/\\newcolumntype guard/deluxetable 拆解半臂需 builtin array_preamble_shim——本规只覆盖前置装载可修子集; emulateapj \\@endpefalse 级联走 cls 补丁非本臂"
-  # ── 2026-09-20 errsweep (soak overnite 残余 unfixable:syntax 对) ──
-  # era 稿宏件 (mymacros 族) \def\mag{...} 把 TeX 放大率寄存器原语覆写
-  # 成文本宏 → xetex.def \Gin@setpagesize \ifnum\mag=\@m 在
-  # \begin{document} 读不到数 → Missing number (cat=syntax)。
+  # ── 2026-09-20 errsweep (soak overnite 残余 unfixable:syntax/capacity) ──
+  # era 稿宏件把内核名当文本宏覆写, 两形实证:
+  #   \def\mag{...} (mymacros 族) 覆写 TeX 放大率寄存器原语 → xetex.def
+  #     \Gin@setpagesize \ifnum\mag=\@m 在 \begin{document} 读不到数 →
+  #     Missing number (cat=syntax);
+  #   \def\mathrm{\rm} 覆写数学字母内核命令 → \@fontswitch{\rm}{\mathrm}
+  #     展开 \mathrm 回到 {\rm} 自指 → input stack 爆 (cat=capacity)。
   # 修 = baseline 原件树内 def+全部调用点同改 \<prefix><name>
-  # (builtin 单一边界正则通吃 def/let/newcommand 各定义形), 原语名
-  # 归位; 装入件不动 (包件内 \mag 是合法原语读)。两例 \mag 均系
-  # 死定义 (正文零调用), 改名零排版面差。
+  # (builtin 单一边界正则通吃 def/let/newcommand 各定义形), 内核名
+  # 归位; 装入件不动 (包件内同名是合法读)。错签随内核读位而异
+  # (Missing number/stack/他形) → 不带 ctx_suggests, def 在 baseline
+  # 树即 builtin 自证, 不在即落穿。
   - id: prim_clobber_rename
-    description: "用户档 \\def\\<primitive> 覆写寄存器原语 (\\mag 族) → baseline 树内全站改名 \\texlateuser<name>"
+    description: "用户档 \\def\\<kernel/prim> 覆写原语或内核命令 (\\mag/\\mathrm 族) → baseline 树内全站改名 \\texlateuser<name>"
     phase: loop
-    order: 199.79 # redactcite_brace_close(199.78) 之后, undefined_cs_guess(900) 之前; Missing-number-at-begindoc + clobber-def 双签专属
-    when: { category: syntax }
-    condition:
-      ctx_suggests: "Missing number" # 原语读位拿不到数才在此签; 其他 syntax 错不进
+    order: 199.79 # redactcite_brace_close(199.78) 之后, undefined_cs_guess(900) 之前; clobber-def 源签专属
+    when:
+      any:
+        - { category: syntax }
+        - { category: capacity }
     action:
       kind: builtin_transform
       function: primitive_clobber_rename # def 不在 baseline 树即落穿; names 表只收实证名
-    risk: low # masked-guard 认 def 形 + baseline 树限界 (装入件/包件原语读不沾); 撞名弃权
-    known_gap: "\\csname mag\\endcsname 构名/\\magnification 级 plain 族未收; 用户件内以 \\ifnum\\mag 读原语意图者改名后同破 (覆写前已破, 非新增)"
+      params:
+        names: [mag, mathrm]
+    risk: low # masked-guard 认 def 形 + baseline 树限界 (装入件/包件原语读不沾); 撞名弃权; 改名是双侧同改, 用户宏语义原样保留
+    known_gap: "\\csname<name>\\endcsname 构名/\\magnification 级 plain 族未收; 用户件内以 \\ifnum\\mag 读原语意图者改名后同破 (覆写前已破, 非新增); names 表外新 clobber 名须实证补录"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2510,8 +2517,12 @@ rules:
           corpus: "astro-ph/0103349 (stagerun-overnite-2026-09-20 errsweep)",
           error: "cmastars.tex \\def\\mag{\\hbox{$^{\\rm m}$}} 同款覆写, begin-doc Missing number",
         }
+      - {
+          corpus: "hep-ph/9612367 (stagerun-overnite-2026-09-20 errsweep)",
+          error: "cavendish_9615.tex:19 \\def\\mathrm{\\rm} → \\@fontswitch{\\rm}{\\mathrm} 自指 input stack=10000 @ ${\\rm jj} (改名后 \\texlateusermathrm 双域自适应)",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "errsweep-2026-09-20 bisect: mnras/art+graphicx+\\def\\mag 最小复现 (mintest t5/t6/t8); xetex.def:408-410 读位"
+    source_ref: "errsweep-2026-09-20 bisect: mnras/art+graphicx+\\def\\mag 最小复现 (mintest t5/t6/t8); xetex.def:408-410 \\mag 读位; fontswitch \\rm→\\mathrm 委派链"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
