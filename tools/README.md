@@ -5,29 +5,56 @@
 
 ## seqpos 对位度量组（reader EN↔ZH 映射质量）
 
-| 工具                    | 作用                                                                                                     | 用法                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `seqpos_warm.py`        | 预算所有任务的 seqpos.json（reader 首开免懒算峰；幂等，缓存命中秒回）                                    | `.venv/bin/python tools/seqpos_warm.py`                                           |
-| `seqpos_audit.py`       | **精度 oracle**：pymupdf `search_for` 字面搜索当真值，按侧×臂报 cov/wrong_page/p50/p90/miss + seq 缺席率 | `.venv/bin/python tools/seqpos_audit.py [task_id ...]` → `tmp/seqpos-audit2.json` |
-| `seqpos_clicksim.py`    | **点击→seq 仿真**：nearest/floor_y/floor_c 三 picker 对照，逐块均匀取点报错选率                          | `.venv/bin/python tools/seqpos_clicksim.py`                                       |
-| `mapper_audit.py`       | 滚动同步 mapper 复刻：相邻逆序率/锯齿幅度/LOO 兜底误差                                                   | `.venv/bin/python tools/mapper_audit.py`                                          |
-| `seqpos_verify_mask.py` | occurrence 遮蔽检测：ambig 命中下 audit 是否把错 occurrence 洗成 0 误差                                  | `.venv/bin/python tools/seqpos_verify_mask.py`                                    |
-| `mark_bias.py`          | 标记偏置量化：mark frac vs 首字形真值分布（stale-tm 回归探针）                                           | `.venv/bin/python tools/mark_bias.py`                                             |
+| 工具                    | 作用                                                                                                                     | 用法                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `seqpos_warm.py`        | 预算所有任务的 seqpos.json（reader 首开免懒算峰；幂等，缓存命中秒回）                                                    | `.venv/bin/python tools/seqpos_warm.py`                                           |
+| `seqpos_audit.py`       | **精度 oracle**：pymupdf `search_for` 字面搜索当真值，按侧×臂报 cov/wrong_page/p50/p90/miss + seq 缺席率                 | `.venv/bin/python tools/seqpos_audit.py [task_id ...]` → `tmp/seqpos-audit2.json` |
+| `seqpos_clicksim.py`    | **点击→seq 仿真**：nearest/floor_y/floor_c 三 picker 对照，逐块均匀取点报错选率                                          | `.venv/bin/python tools/seqpos_clicksim.py`                                       |
+| `mapper_audit.py`       | 滚动同步 mapper 复刻：相邻逆序率/锯齿幅度/LOO 兜底误差                                                                   | `.venv/bin/python tools/mapper_audit.py`                                          |
+| `seqpos_verify_mask.py` | occurrence 遮蔽检测：ambig 命中下 audit 是否把错 occurrence 洗成 0 误差                                                  | `.venv/bin/python tools/seqpos_verify_mask.py`                                    |
+| `mark_bias.py`          | 标记偏置量化：mark frac vs 首字形真值分布（stale-tm 回归探针）                                                           | `.venv/bin/python tools/mark_bias.py`                                             |
+| `seqpos_e2e_sim.py`     | **端到端点击→对侧落点仿真**：生产 PDF→PDF 链路复刻（seqAtPoint→jumpSeq→兜底链）逐块报错选率 + 栏型普查/x 覆盖/锚序倒置率 | `.venv/bin/python tools/seqpos_e2e_sim.py [task_id ...]` → `tmp/seqpos-e2e.json`  |
 
 度量基线（2026-09-24 修复前）：`tmp/seqpos-audit2-BEFORE.json`；修后重跑对比。
 
-依赖关系：audit/clicksim/verify_mask 读 `~/.texlate/tasks/*/seqpos.json`+`dual.json`+双 PDF，
-并 import `texlate.server.seqpos` 内部件（`_char_stream`/`_tex_strip`）——签名漂移时同步改这里。
+依赖关系：audit/clicksim/verify_mask/e2e_sim 读 `~/.texlate/tasks/*/seqpos.json`+`dual.json`+双 PDF；
+仿真共用件已收 `_seqpos_lib.py`（mapper/picker/真值探针单一事实源），并 import
+`texlate.server.seqpos` 内部件（`_char_stream`/`_tex_strip`）——签名漂移时同步改这里。
 
 ## bench 质检重放
 
 | 工具           | 作用                                                                                                                                       | 用法                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `qc_replay.py` | layoutqc 离线重放：vault 现行封件过**工作树**检测器，与账上旧口径逐格差分（检测器修订后的实测面；dedup 会跳 DONE 格，spec 重跑拿不到新数） | `.venv/bin/python tools/qc_replay.py [--out tmp/qc_replay] [--jobs 8] [--id X ...]` → `papers.jsonl`+`summary.json` |
-| `arms_tokens.py` | 双臂 token 对账：按任务时间窗切网关 `logs` 表（api+key+ms 窗隔离），逐臂逐篇出 calls/input/cache_read/output JSON | `.venv/bin/python tools/arms_tokens.py [--arms arms.json] [--out tmp/arms-tokens.json]` |
 
 口径注意：zh txlm 从 layoutqc 封件回填（splice 封件常缺）；artifact-only 封件遮
 `layout:dropped_env` 并标 `env_masked`；账本 mode=ro、vault 硬链只读——零写账。
+
+## 存量任务手术与湖账普查
+
+| 工具                | 作用                                                                                                                                      | 用法                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `remark_rebuild.py` | 存量任务离线重注锚+重编译：base/ 重扫→双侧 marked splice→重编译→pdf/DB/dual 原子更新；parity 闸拒收 seq 错位任务（宁缺勿滥）              | `.venv/bin/python tools/remark_rebuild.py [task_id...] [--en-only\|--zh-only\|--zh-min-rate X\|--force]` |
+| `reseg_rekey.py`    | 分段器演进致 rescan≠dual 时把 chunks 表/dual.json 重键到当前 chunk 流（remark parity 闸放行前置；单事务+旧行备份 `tmp/rekey-<tid>.json`） | `.venv/bin/python tools/reseg_rekey.py [task_id...]`（缺省=parity 失配全量）                             |
+| `ph_remap.py`       | rekey 遗留 ph id 修复：读 rekey 备份按解析序逐位把译文 `[[X_n]]` 重映射到新编号（失配即弃映，幂等空转）                                   | `.venv/bin/python tools/ph_remap.py <task_id>...`                                                        |
+| `xlat_pending.py`   | 存量任务 pending chunks 离线补译：XlatPipeline 走真实网关回写 chunks/dual.json/tasks（凭证取任务 config+settings 同构装配）               | `.venv/bin/python tools/xlat_pending.py <task_id>...`                                                    |
+| `repair_census.py`  | 修复普查：台账 events 驱动，never-passed 修复池按签名聚类 → `tmp/repair-census.json`+簇表                                                 | `.venv/bin/python tools/repair_census.py [--out ...] [--stage compile,fixloop]`                          |
+| `arms_tokens.py`    | 双臂 token 对账：按任务时间窗切网关 `logs` 表（api+key+ms 窗隔离），逐臂逐篇出 calls/input/cache_read/output JSON                         | `.venv/bin/python tools/arms_tokens.py [--arms arms.json] [--out tmp/arms-tokens.json]`                  |
+
+## 文档与文本工具
+
+| 工具                | 作用                                                                                            | 用法                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `docs_linkcheck.py` | docs/ 相对链接检查：markdown 链接/图片/行内路径引用的目标存在性校验（exit 1 列死链）            | `.venv/bin/python tools/docs_linkcheck.py [--root docs]`   |
+| `md_table_align.py` | MD060 aligned 表风格重排器：按显示宽度（CJK=2，wcwidth 口径）把表块各列重排到统一列位，原位改写 | `.venv/bin/python tools/md_table_align.py FILE [FILE ...]` |
+
+## lib 件与系统级巡检（非手跑入口）
+
+| 件                | 作用                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_env.py`         | tools/ 脚本环境自举（lib 件非入口）：import 即把仓根 `src/` 推上 `sys.path`，外露 `TEXLATE_ROOT`/`TASKS`/`DB` 常量                                      |
+| `_seqpos_lib.py`  | seqpos/alignment 仿真共用件（lib 件非入口）：mapper_audit/seqpos_e2e_sim/seqpos_clicksim 的 mapper、picker、lit 真值探针单一事实源                      |
+| `bench_patrol.sh` | bench 巡检哨兵（系统级 cron/systemd timer 驱动的保底层，只量不判）：量 df/心跳/events 鲜度/records 进度/网关配额，越闸打 WARN 落 `tmp/bench-patrol.log` |
 
 ## 对照臂实验与网关对账
 

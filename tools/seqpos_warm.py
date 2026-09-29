@@ -6,15 +6,11 @@ seqpos 升级（_VERSION bump）后必须重跑，否则 reader 首开逐个懒�
 """
 
 import json
-import sys
 import time
 import traceback
-from pathlib import Path
 
-sys.path.insert(0, "src")
-from texlate.server.seqpos import seqpos_for_task  # noqa: E402
-
-TASKS = Path.home() / ".texlate/tasks"
+from _env import TASKS
+from texlate.server.seqpos import seqpos_for_task
 
 for tdir in sorted(TASKS.iterdir()):
     dual_p = tdir / "dual.json"

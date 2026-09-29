@@ -1,0 +1,218 @@
+{
+ "2609.19330": {
+  "task_id": "t_b099e82a7b015b1c",
+  "status": "done",
+  "findings": [],
+  "metrics": {
+   "chars": 11511,
+   "npages_text": 5,
+   "en_tail_cut": 647,
+   "residual_en_lines": 6,
+   "residual_en_eff": 3,
+   "en_unreached_lines": 1,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 1,
+   "top_ngram_rep_all": 1,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.19844": {
+  "task_id": "t_68bbf6bd73dd2ea0",
+  "status": "done",
+  "findings": [
+   {
+    "sig": "xlat_residual_en",
+    "lines": 26,
+    "frac": 0.048
+   }
+  ],
+  "metrics": {
+   "chars": 15112,
+   "npages_text": 8,
+   "en_tail_cut": 794,
+   "residual_en_lines": 27,
+   "residual_en_eff": 26,
+   "en_unreached_lines": 0,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 1,
+   "top_ngram_rep_all": 1,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.20533": {
+  "task_id": "t_7e1dffc680590bc8",
+  "status": "partial",
+  "findings": [],
+  "metrics": {
+   "chars": 23664,
+   "npages_text": 16,
+   "en_tail_cut": 49,
+   "residual_en_lines": 0,
+   "residual_en_eff": 0,
+   "en_unreached_lines": 0,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 1,
+   "top_ngram_rep_all": 1,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.19506": {
+  "task_id": "t_dd5be1b06af44e2c",
+  "status": "done",
+  "findings": [],
+  "metrics": {
+   "chars": 262364,
+   "npages_text": 140,
+   "en_tail_cut": 16217,
+   "residual_en_lines": 14,
+   "residual_en_eff": 7,
+   "en_unreached_lines": 7,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 12,
+   "top_ngram_rep_all": 12,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.20610": {
+  "task_id": "t_04bc77c137f3aa4c",
+  "status": "done",
+  "findings": [],
+  "metrics": {
+   "chars": 10323,
+   "npages_text": 9,
+   "en_tail_cut": 533,
+   "residual_en_lines": 1,
+   "residual_en_eff": 0,
+   "en_unreached_lines": 1,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 2,
+   "top_ngram_rep_all": 2,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.19929": {
+  "task_id": "t_d9cb56da1be9a3ba",
+  "status": "done",
+  "findings": [],
+  "metrics": {
+   "chars": 28216,
+   "npages_text": 25,
+   "en_tail_cut": 1698,
+   "residual_en_lines": 8,
+   "residual_en_eff": 2,
+   "en_unreached_lines": 6,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 3,
+   "top_ngram_rep_all": 3,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.20739": {
+  "task_id": "t_9909e575fbc0eb98",
+  "status": "partial",
+  "findings": [],
+  "metrics": {
+   "chars": 38783,
+   "npages_text": 31,
+   "en_tail_cut": 1143,
+   "residual_en_lines": 1,
+   "residual_en_eff": 0,
+   "en_unreached_lines": 1,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 1,
+   "top_ngram_rep_all": 1,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.20523": {
+  "task_id": "t_dfc7c0fcbfd5ed8e",
+  "status": "partial",
+  "error": "missing zh.pdf"
+ },
+ "2609.19990": {
+  "task_id": "t_0394d089ba2733b3",
+  "status": "done",
+  "findings": [],
+  "metrics": {
+   "chars": 55832,
+   "npages_text": 27,
+   "en_tail_cut": 1118,
+   "residual_en_lines": 21,
+   "residual_en_eff": 3,
+   "en_unreached_lines": 16,
+   "fffd": 0,
+   "fffd_net": 0,
+   "top_ngram_rep": 1,
+   "top_ngram_rep_all": 1,
+   "empty_pages": 0,
+   "empty_pages_eff": 0,
+   "degen_periodic_lines": 0,
+   "degen_periodic_cjk": 0,
+   "empty_pages_base": 0,
+   "missing_chars": 0,
+   "broken_refs": 0,
+   "broken_refs_brk": 0
+  }
+ },
+ "2609.20581": {
+  "task_id": "t_31980b5ad471afe2",
+  "status": "fault",
+  "error": "missing zh.pdf"
+ }
+}

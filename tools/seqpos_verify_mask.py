@@ -11,14 +11,12 @@ outside the window while another hit is inside -> masked error candidate.
 import bisect as bs
 import json
 import sys
-from pathlib import Path
 
-sys.path.insert(0, "src")
-import pymupdf  # noqa: E402
+import pymupdf
 
-from texlate.server.seqpos import _doc_order, _norm_chars, _tex_strip  # noqa: E402
+from _env import TASKS
+from texlate.server.seqpos import _doc_order, _norm_chars, _tex_strip
 
-TASKS = Path.home() / ".texlate/tasks"
 PROBE_N = 30
 
 

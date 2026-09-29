@@ -11,16 +11,13 @@ seqpos v6+ 改锚到标内首字形后，本工具对比的是新旧口径差异
 
 import json
 import re
-import sys
 from pathlib import Path
 
-sys.path.insert(0, "src")
-import pymupdf  # noqa: E402
-from pypdf import PdfReader  # noqa: E402
+import pymupdf
+from pypdf import PdfReader
 
-from texlate.server.seqpos import _norm_chars, _tex_strip  # noqa: E402
-
-TASKS = Path.home() / ".texlate/tasks"
+from _env import TASKS
+from texlate.server.seqpos import _norm_chars, _tex_strip
 BDC_RX = re.compile(r"\\special\{pdf:code /TLXC <</MCID (\d+)>> BDC\}")
 ARG_RX = re.compile(r"\\([a-zA-Z@]+\*?)\s*\{\s*$")
 SECT_CS = {

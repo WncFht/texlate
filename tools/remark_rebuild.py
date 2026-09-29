@@ -23,29 +23,26 @@ import zipfile
 from hashlib import sha256
 from pathlib import Path
 
-sys.path.insert(0, "src")
-from texlate.align import build_alignment  # noqa: E402
-from texlate.compile.engine._route import engine_for  # noqa: E402
-from texlate.compile.inject import prepare_chinese  # noqa: E402
-from texlate.latex.api import scan_tex_tree  # noqa: E402
-from texlate.latex.reconstruct import (  # noqa: E402
+from _env import DB, TASKS
+from texlate.align import build_alignment
+from texlate.compile.engine._route import engine_for
+from texlate.compile.inject import prepare_chinese
+from texlate.latex.api import scan_tex_tree
+from texlate.latex.reconstruct import (
     reconstruct,
     seq_mark_issues,
     strip_seq_marks,
 )
-from texlate.pipecore import (  # noqa: E402
+from texlate.pipecore import (
     delivered_db,
     fixloop_round,
     probe_report,
     ran_front_matter,
 )
-from texlate.server.seqpos import _char_stream  # noqa: E402
-from texlate.server.upload import pdf_pages  # noqa: E402
-from texlate.server.worker._common import chunk_db_id  # noqa: E402
+from texlate.server.seqpos import _char_stream
+from texlate.server.upload import pdf_pages
+from texlate.server.worker._common import chunk_db_id
 
-ROOT = Path.home() / ".texlate"
-DB = ROOT / "texlate.db"
-TASKS = ROOT / "tasks"
 COMPILE_TIMEOUT = 600.0
 
 

@@ -60,9 +60,9 @@ PARA_NEWLINE_RAW = "[[PL_RAW]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
 #: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 Placeholders 条款保护契约；
 #: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
-#: realpostfix2 E22 实证: 2203.13012 `~` 丢、2403.15096 `\,`/`\;` 丢) ——
+#: realpostfix2 E22 实证：2203.13012 `~` 丢、2403.15096 `\,`/`\;` 丢) ——
 #: `~`/`\,`/`\:`/`\;`/`\!` 各占一 token 保 decode 无损; 裸标记语法
-#: [A-Z_]+ 不吃数字, 命名不带参数位。
+#: [A-Z_]+ 不吃数字，命名不带参数位。
 SOFT_SPACE = "[[SP]]"
 #: 源文本字面 `[[SP]]` 的转义形态
 SOFT_SPACE_RAW = "[[SP_RAW]]"
@@ -77,7 +77,7 @@ THICKSP_RAW = "[[THICKSP_RAW]]"
 NEGSP = "[[NEGSP]]"  # `\!` 负 thin
 NEGSP_RAW = "[[NEGSP_RAW]]"
 
-#: 字面转义链族表——(tag, token, RAW 形, 源字面)。字面 token 的防碰撞转义是
+#: 字面转义链族表——(tag, token, RAW 形，源字面)。字面 token 的防碰撞转义是
 #: 不限定深的闭链：``token→RAW→sentinel(2)→sentinel(3)→…`` 逐级升层
 #: （sentinel 级名程序化生成，见 ``_sentinel``），decode 反向逐级降回——
 #: 替代旧定深四相链（开放端：源含 ``LIT2`` 级以上字面时 decode 降级失真）。
@@ -405,7 +405,7 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
     """模型把受保护原文抄回译文时，**exact+unique** 才换回 token（docs/spec/translate.md）。
 
     仅当占位符在 zh 中缺失、且其原文片段在 zh 中恰好出现一次时替换。
-    返回 (修复后译文, 已修复占位符列表)。
+    返回 (修复后译文，已修复占位符列表)。
     """
     present = set(ANY_PH_RX.findall(zh))
     recovered: list[str] = []

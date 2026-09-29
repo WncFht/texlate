@@ -80,6 +80,7 @@ soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队�
 
 - 凭证：XDG 配置根下 `texlate/errsweep.env`（0600，gitignore 外）——`ANTHROPIC_BASE_URL=<内部 Anthropic 兼容端点>` + `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_MODEL=claude-opus-4-6`（2026-09-19 裁决：与会话同款，不换 swe-2）。systemd 干净环境不继承会话 env，launcher 显式 source；换模型改这里。
 - 装 timer：`systemctl --user link <repo>/scripts/systemd/texlate-errsweep.service <repo>/scripts/systemd/texlate-errsweep.timer && systemctl --user daemon-reload && systemctl --user enable --now texlate-errsweep.timer`
+- 现状注（2026-09-28 查）：开发机上 `texlate-errsweep.timer` 未 link/未 enable——`systemctl --user list-timers` 无此单元（`texlate-errsweep.service` 已 link 但无触发源，机制休眠中）；最近实际跑批 `$TEXLATE_BENCH_ROOT/runs/errsweep/2026-09-22/`。要复活按上条重挂 timer，或直接 `bench run errsweep` 手动跑。
 - 手动跑一次：`bench run errsweep`（trizone-ledger run 路径；spec 在 `bench/py/specs/errsweep.py`，单实例由 run 锁保证；agent 日志在 `$TEXLATE_BENCH_ROOT/runs/errsweep/<date>/<slug>/derived/sweep.log`）
 - 审修复：`git log errsweep/<date>` + 报告 → merge/cherry-pick → `git worktree remove <state>/texlate/errsweep-wt-<date>` + `git branch -d errsweep/<date>`
 - 遗留 worktree 定期清：`git worktree list` 里 `errsweep-wt-*` 已合并即删。

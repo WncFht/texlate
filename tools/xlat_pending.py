@@ -13,23 +13,18 @@ import json
 import sqlite3
 import sys
 import time
-from pathlib import Path
 
-sys.path.insert(0, "src")
-from texlate.chunk import ChunkIn  # noqa: E402
-from texlate.pipecore import PIPE_TO_DB, delivered_db  # noqa: E402
-from texlate.server.worker._common import chunk_error_code  # noqa: E402
-from texlate.validate.l0 import pair_feedback  # noqa: E402
-from texlate.xlat.client import ChatClient  # noqa: E402
-from texlate.xlat.pipeline import (  # noqa: E402
+from _env import DB, TASKS, TEXLATE_ROOT
+from texlate.chunk import ChunkIn
+from texlate.pipecore import PIPE_TO_DB, delivered_db
+from texlate.server.worker._common import chunk_error_code
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.client import ChatClient
+from texlate.xlat.pipeline import (
     GatewayTranslator,
     PipelineConfig,
     XlatPipeline,
 )
-
-ROOT = Path.home() / ".texlate"
-DB = ROOT / "texlate.db"
-TASKS = ROOT / "tasks"
 
 
 async def translate_pending(db: sqlite3.Connection, tid: str) -> str:
@@ -37,7 +32,7 @@ async def translate_pending(db: sqlite3.Connection, tid: str) -> str:
     if not row:
         return "skip: 无任务行"
     cfg = json.loads(row[0] or "{}")
-    settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8"))
+    settings = json.loads((TEXLATE_ROOT / "settings.json").read_text(encoding="utf-8"))
     # 网关/模型恒取 settings 现状（devin-2api + swe-2-medium）——任务
     # config_json 的 llm7/GLM/gpt-4o-mini 是已死供应商的历史残影，照走必败
     # （t_e300/t_32fc 实证）；tasks.model/config_json 同步刷新到现行通道。

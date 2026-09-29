@@ -15,30 +15,17 @@ unmarked。absent=1-len(sp)/len(chunks) 单列——seqpos.json 缺整条=双向
 """
 
 import json
-import re
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "src")
-import pymupdf  # noqa: E402
+import pymupdf
 
-from texlate.server.seqpos import _char_stream, _tex_strip  # noqa: E402
+from _env import TASKS
+from _seqpos_lib import lit_probe
+from texlate.server.seqpos import _char_stream
 
-TASKS = Path.home() / ".texlate/tasks"
 MISS_FRAC = 0.08
-PH = re.compile(r"\[\[[A-Z]+_\d+\]\]")
-
-
-def lit_probe(txt: str, want: int = 24) -> str | None:
-    """chunk 文本 → 最长裸文本片段（去占位符/归一空白，截 want 字符）。"""
-    s = _tex_strip(txt or "")
-    frags = [re.sub(r"\s+", " ", f.strip()) for f in PH.split(s)]
-    frags = [f for f in frags if len(re.sub(r"[^0-9A-Za-z一-鿿]", "", f)) >= 4]
-    if not frags:
-        return None
-    best = max(frags, key=len)
-    return best[:want] if len(best) > want else best
 
 
 def truth(doc: pymupdf.Document, phrase: str | None):

@@ -17,103 +17,31 @@ en↔zh 锚序倒置率、栏边界应力（右栏顶/左栏底点击的栏序�
 """
 
 import json
-import re
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "src")
-import pymupdf  # noqa: E402
+import pymupdf
 
-from texlate.server.seqpos import _char_stream, _tex_strip  # noqa: E402
+from _env import TASKS
+from _seqpos_lib import (
+    COL_X,
+    col_of,
+    create_position_mapper,
+    degrade,
+    key_of,
+    lin_of,
+    lit_probes,
+    nearest,
+    ro_lin,
+    truth_rects,
+)
+from texlate.server.seqpos import _char_stream
 
-TASKS = Path.home() / ".texlate/tasks"
-PH = re.compile(r"\[\[[A-Z]+_\d+\]\]")
-COL_X = 0.45
-
-
-_SEG_SPLIT = re.compile(r"\[\[[A-Z]+_\d+\]\]|\$[^$]*\$|\\\([^)]*\\\)|\\\[[^\]]*\]")
-_ALNUM_CH = re.compile(r"[0-9A-Za-z一-鿿]")
-_CJK_CH = re.compile(r"[一-鿿]")
-
-
-def lit_probe(txt: str, short_ok: bool = False) -> list[str]:
-    """真值探针组——洞外连段 + 多相位滑窗。
-
-    探针必须取占位符/行间数学之间的连段：先剥成空格再切片会得到跨洞
-    针，PDF 洞位是真字形（数学/引用/图表号），跨洞探针永远全灭
-    （bedd zh 侧 60% 盲区实证）。CJK 可在任意字间断行 → 定宽滑窗
-    多相位铺满，至少一格整窗落单行内；段含 CJK 时另发去空格变体
-    （\\textbf{后件：}由 → 后件：由 连排无空白，假洞=latex 命令位）。
-    short_ok：seq 有锚页时用 ≥2 字针兜底（'引言'级短题头近窗可钉）。
-    """
-    cands: list[str] = []
-    for piece in _SEG_SPLIT.split(txt or ""):
-        seg = _tex_strip(piece)
-        sp = re.sub(r"\s+", " ", seg).strip()
-        variants = [sp]
-        if _CJK_CH.search(sp):
-            ns = sp.replace(" ", "")
-            if ns != sp:
-                variants.append(ns)
-        cands.extend(v for v in variants if len(_ALNUM_CH.findall(v)) >= 4)
-    if not cands:
-        if not short_ok:
-            return []
-        sp = re.sub(r"\s+", " ", _tex_strip(txt or "")).strip()
-        return [
-            v[:12]
-            for v in dict.fromkeys((sp, sp.replace(" ", "")))
-            if len(_ALNUM_CH.findall(v)) >= 2
-        ]
-    out: list[str] = []
-
-    def add(p: str) -> None:
-        if p and p not in out and len(out) < 9:
-            out.append(p)
-
-    best = max(cands, key=len)
-    add(best[:24])
-    wide = 10 if _CJK_CH.search(best) else 16
-    if len(best) > wide:
-        for off in range(0, len(best) - wide + 1, max(wide - 2, 1)):
-            add(best[off : off + wide])
-        add(best[-wide:])
-    for c in sorted(cands, key=len, reverse=True):
-        add(c if len(c) <= 24 else c[:24])
-    return out
+_SIDE = {"o": "original", "t": "translated"}
 
 
-# ---------- 生产语义复刻（pdfseqpos.ts / sentalign.ts / alignment.ts） ----------
-
-
-def col_of(p: dict) -> int:
-    return 1 if (p.get("x") is not None and p["x"] >= COL_X) else 0
-
-
-def lin_of(p: dict) -> float:
-    return p["page"] + p["fraction"]
-
-
-def ro_lin(p: dict) -> float:
-    """sentalign.ts roLin：page + (col+frac)/2——页内阅读序分位。"""
-    return p["page"] + (col_of(p) + p["fraction"]) / 2
-
-
-def key_of(p: dict) -> tuple:
-    return (p["page"], col_of(p), p["fraction"])
-
-
-def degrade(lands, pos):
-    """本页无右栏地标时右半点击退 col0（containingSeq/fracInBlock 同款）。"""
-    if (
-        pos.get("x") is not None
-        and pos["x"] >= COL_X
-        and not any(l[1]["page"] == pos["page"] and col_of(l[1]) == 1 for l in lands)
-    ):
-        return {**pos, "x": 0}
-    return pos
-
+# ---------- 生产语义复刻（pdfseqpos.ts / sentalign.ts；alignment 件在 _seqpos_lib） ----------
 
 # 同行判定非对称窗：锚=行顶、点击=行内 → d∈[-0.004,+0.017]（pdfseqpos 同款）
 ROW_UP = 0.004
@@ -193,21 +121,6 @@ def containing(lands: list[tuple[int, dict]], pos: dict) -> int | None:
     return lands[best][0] if abs(lin_of(lands[best][1]) - lin_of(pos)) <= 1.2 else None
 
 
-def nearest(lands: list[tuple[int, dict]], pos: dict, max_score: float = 1.0):
-    """旧 picker 基线：|Δfraction| 最近（同页）/ dpage+ 页沿距（跨页）。"""
-    best, bs = None, 1e18
-    for k, p in lands:
-        dp = abs(p["page"] - pos["page"])
-        sc = (
-            abs(p["fraction"] - pos["fraction"])
-            if dp == 0
-            else dp + (1 - p["fraction"] if p["page"] < pos["page"] else p["fraction"])
-        )
-        if sc < bs:
-            bs, best = sc, k
-    return best if bs <= max_score else None
-
-
 def frac_in_block(lands, seq, pos):
     """sentalign.fracInBlock：u=(roLin(click)−roLin(S))/(roLin(S')−roLin(S))。
 
@@ -272,89 +185,7 @@ def interp_dst(lands, seq, u_pack, dst_side, len_src, len_dst):
     return out
 
 
-def make_mapper(pairs: list[tuple[dict, dict]]):
-    """mapPos 兜底（alignment.ts，pairs-only、页高均一化近似）。"""
-    colaware = any(o.get("x") is not None or t.get("x") is not None for o, t in pairs)
-
-    def to_l(p):
-        share = (col_of(p) + p["fraction"]) / 2 if colaware else p["fraction"]
-        return (p["page"] - 1) + share
-
-    def from_l(x):
-        page = int(x) + 1
-        rem = x - int(x)
-        frac = (rem * 2 if rem <= 0.5 else (rem - 0.5) * 2) if colaware else rem
-        return {"page": page, "fraction": frac}
-
-    def build(i, j):
-        pts = sorted(pairs, key=lambda pr: to_l(pr[i]))
-        return [to_l(p[i]) for p in pts], [to_l(p[j]) for p in pts]
-
-    xys = {"o": build(0, 1), "t": build(1, 0)}
-
-    def interp(x, xs, ys):
-        if not xs:
-            return x
-        if x <= xs[0]:
-            return ys[0]
-        if x >= xs[-1]:
-            return ys[-1]
-        lo, hi = 0, len(xs) - 1
-        while lo + 1 < hi:
-            mid = (lo + hi) >> 1
-            if xs[mid] <= x:
-                lo = mid
-            else:
-                hi = mid
-        span = xs[lo + 1] - xs[lo]
-        t = (x - xs[lo]) / span if span > 0 else 0
-        return ys[lo] + t * (ys[lo + 1] - ys[lo])
-
-    def go(pos, frm):
-        xs, ys = xys[frm]
-        return from_l(interp(to_l(pos), xs, ys))
-
-    return go
-
-
 # ---------- 真值与普查 ----------
-
-
-def _scan(doc, phrase, pages):
-    out = []
-    for pno in pages:
-        pg = doc[pno]
-        for r in pg.search_for(phrase):
-            out.append((pno + 1, r, pg.rect.width, pg.rect.height))
-    return out
-
-
-def truth_rects(doc, probes, near_page=None, win=2):
-    """search_for 探针组 → [(pno1, rect, w, h)]。近窗全探针并集，远窗先中先用。
-
-    近窗必须并集全探针：滑窗片在锚位出现点可能恰跨断行全灭、却在
-    孪生出现点单行命中——首中即返会把真值钉到远端孪生（a7c5 seq13
-    en 锚 0.839 vs 真值错挑 0.088 实证）；并集后近锚挑选才稳。
-    """
-    pages = list(range(doc.page_count))
-    if near_page is not None:
-        lo, hi = near_page - 1 - win, near_page - 1 + win
-        span = [p for p in pages if lo <= p <= hi]
-        seen: set[tuple] = set()
-        near: list[tuple] = []
-        for phrase in probes:
-            for h in _scan(doc, phrase, span):
-                k = (h[0], round(h[1].x0, 1), round(h[1].y0, 1))
-                if k not in seen:
-                    seen.add(k)
-                    near.append(h)
-        if near:
-            return near
-    for phrase in probes:
-        out = _scan(doc, phrase, pages)
-        if out:
-            return out
-    return []
 
 
 def col_census(doc) -> tuple[int, int]:
@@ -396,8 +227,15 @@ def sim(tid: str) -> dict:
         for s, k2 in (("o", "o"), ("t", "t"))
     }
     sp_by_seq = {int(k): v for k, v in sp.items()}
-    pairs = [(v["o"], v["t"]) for v in sp.values() if v.get("o") and v.get("t")]
-    mapper = make_mapper(pairs)
+    pairs = [
+        {"original": v["o"], "translated": v["t"]}
+        for v in sp.values()
+        if v.get("o") and v.get("t")
+    ]
+    mapper = create_position_mapper(
+        {"pairs": pairs},
+        {"original": en.page_count, "translated": zh.page_count},
+    )
 
     rects: dict[int, dict] = {}
     for ss, comp in sp.items():
@@ -408,7 +246,7 @@ def sim(tid: str) -> dict:
             cp = comp.get(side)
             hits = truth_rects(
                 doc,
-                lit_probe(c.get(tkey) or "", short_ok=cp is not None),
+                lit_probes(c.get(tkey) or "", short_ok=cp is not None),
                 cp["page"] if cp else None,
             )
             if not hits:
@@ -464,7 +302,7 @@ def sim(tid: str) -> dict:
                 if picked is None:
                     st["null"] += 1
                     # 生产兜底：jumpPosToPdf = mapPos 比例映射
-                    land_pos = mapper(pos, side)
+                    land_pos = mapper(pos, _SIDE[side])
                 else:
                     if picked == seq:
                         st["pick"] += 1
@@ -481,7 +319,7 @@ def sim(tid: str) -> dict:
                         land_pos = dict(dp) if dp else None
                     if land_pos is None:
                         st["nodst"] += 1
-                        land_pos = mapper(pos, side)
+                        land_pos = mapper(pos, _SIDE[side])
                 if dst_rect is None:
                     st["tnd"] += 1  # dst 无真值探针——不计 e2e 分母（测量盲区非落地错）
                     continue

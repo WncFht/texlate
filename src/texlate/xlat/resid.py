@@ -94,10 +94,10 @@ _EXCL_ENVS: Final = set(MATH_ENVS) | {"thebibliography"}
 _MATH_OPEN_RX: Final = re.compile(r"(?<!\\)(\$\$|\$)|\\[\[\(]")
 
 #: 片首控制序列名——``\`` 切分后残片以 cs 名开头（``\item 散文``），剥掉
-#: cs 名+可选 ``*``+可选 ``[..]`` 参及后随空白，否则 ``\item`` 变 ``\中文``
+#: cs 名 + 可选 ``*``+可选 ``[..]`` 参及后随空白，否则 ``\item`` 变 ``\中文``
 #: 断命令。``\section{题目}`` 的 cs 名片剥空自身，brace 内正文照常评。
 #: 散文括号 cs（``\item``/``\caption``/章节族）的 ``[..]`` 是读者可见散
-#: 文不是选项——走 ``_CS_HEAD_NOOPT_RX`` 不吃括号，留给键表罩+抽取面。
+#: 文不是选项——走 ``_CS_HEAD_NOOPT_RX`` 不吃括号，留给键表罩 + 抽取面。
 _CS_HEAD_RX: Final = re.compile(r"[A-Za-z@]+\*?[ \t]*(\[[^\]\n]*\])?[ \t]*")
 _CS_HEAD_NOOPT_RX: Final = re.compile(r"[A-Za-z@]+\*?[ \t]*")
 _CS_NAME_RX: Final = re.compile(r"[A-Za-z@]+\*?")
@@ -138,7 +138,7 @@ _BRACE_ARG_MAX: Final = 2
 #: options={fill=white}]``/``\begin{axis}[scale only axis, width=...]``）
 #: 形状与散文不可分，但键名翻成中文即 ``key_unknown``/``dirty_pdf`` 编译
 #: 损毁（2609.20069 实测）。按花括号深度切顶层逗号段：每段键部（首个
-#: 深度-0 ``=`` 前）须为 pgfkeys 名形；``=`` 段只哨兵键名、值域照常可
+#: 深度 -0 ``=`` 前）须为 pgfkeys 名形；``=`` 段只哨兵键名、值域照常可
 #: 扫（``xlabel={Time (s)}`` 值是散文该译）——但 ``.style={键表}`` 形值
 #: 自身是键表时整段哨兵；布尔键段整段哨兵。全键形且（任一带 ``=`` 或
 #: 全短键 ≥2 段）才算键表——单段无 ``=`` 的长散文括号（``[see Section
@@ -194,7 +194,7 @@ def _group_depth(c: str, prev: str, depth: int) -> int:
 
 
 def _top0_segs(inner: str) -> list[tuple[int, int]]:
-    """分组深度-0 逗号切段——``{a, b}``/``(a, b)``/``[a, b]`` 内逗号不切。"""
+    """分组深度 -0 逗号切段——``{a, b}``/``(a, b)``/``[a, b]`` 内逗号不切。"""
     bounds: list[tuple[int, int]] = []
     depth = 0
     start = 0
@@ -437,7 +437,7 @@ def _edge_bounds(run: str) -> tuple[int, int]:
 
 
 def _span_ok(core: str) -> bool:
-    """候选核心是否真残英散文——``nets`` 残英网同款门槛+豁免。
+    """候选核心是否真残英散文——``nets`` 残英网同款门槛 + 豁免。
 
     span 天生 verbatim（未送译的源文直留），``_ident_list_run`` 在 nets
     侧的 ``core in ss`` 前置此处恒真——名表列无条件豁免。

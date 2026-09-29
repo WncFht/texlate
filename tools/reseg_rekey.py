@@ -22,16 +22,12 @@ import time
 from hashlib import sha256
 from pathlib import Path
 
-sys.path.insert(0, "src")
-from texlate.latex.api import scan_tex_tree  # noqa: E402
-from texlate.pipecore import delivered_db, ran_front_matter  # noqa: E402
-from texlate.server.upload import pdf_pages  # noqa: E402
-from texlate.server.worker._common import chunk_db_id  # noqa: E402
-from texlate.xlat.prompts import normalize_kind  # noqa: E402
-
-ROOT = Path.home() / ".texlate"
-DB = ROOT / "texlate.db"
-TASKS = ROOT / "tasks"
+from _env import DB, TASKS
+from texlate.latex.api import scan_tex_tree
+from texlate.pipecore import delivered_db, ran_front_matter
+from texlate.server.upload import pdf_pages
+from texlate.server.worker._common import chunk_db_id
+from texlate.xlat.prompts import normalize_kind
 
 _WS = re.compile(r"\s+")
 _PH_TOK_RX = re.compile(r"\[\[[A-Z]+_\d+\]\]")

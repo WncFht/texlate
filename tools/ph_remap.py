@@ -16,12 +16,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "src")
-from texlate.pipecore import delivered_db  # noqa: E402
-
-ROOT = Path.home() / ".texlate"
-DB = ROOT / "texlate.db"
-TASKS = ROOT / "tasks"
+from _env import DB, TASKS
+from texlate.pipecore import delivered_db
 
 _PH_TOK_RX = re.compile(r"\[\[[A-Z]+_\d+\]\]")
 
