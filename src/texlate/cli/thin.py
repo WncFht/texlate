@@ -17,12 +17,11 @@ import typer
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.cli._common import _is_dir
 from texlate.cli._output import (
-    _FALLBACK_DIV,
+    _ChunkProgress,
     console,
     fixloop_frame_line,
     l2_done_line,
     log_line_filtered,
-    make_translate_progress,
     status,
 )
 from texlate.pipecore import FRONT_MATTER_NAMES
@@ -30,8 +29,6 @@ from texlate.pipecore import FRONT_MATTER_NAMES
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any
-
-    from rich.progress import Progress, TaskID
 
 #: 与 server/store.py TERMINAL_STATUSES 同集——瘦客户端不能 import server 层
 #: （无 server extra 的安装形态下 cli 也要可用）。
@@ -244,45 +241,6 @@ def _thin_follow(client: httpx.Client, task_id: str, wait: float) -> str | None:
             typer.echo(f"{reason}——回退快照轮询", err=True)
             return _thin_wait(client, task_id, remaining)
         retries += 1
-
-
-class _ChunkProgress:
-    """chunk 计数 → tty 进度条 / 非 tty 退化行的 sink 无关策略件。
-
-    tty 下 ``make_translate_progress`` Live 条 advance；非 tty 按
-    ``_output._FALLBACK_DIV`` 节奏节流单行。
-    ``close()`` 停 Live——断流/终帧/回轮询前必须收工，否则刷新区残留。
-    ``CliSink._on_translate``/``_finish_translate`` 同策，拟迁 ``_output.py``
-    供两 sink 共用。
-    """
-
-    def __init__(self, label: str = "chunks") -> None:
-        self._label = label
-        self._progress: Progress | None = None
-        self._task: TaskID | None = None
-        self._total = 0
-
-    def update(self, done: int, total: int | None = None) -> None:
-        """新 ``done`` 计数（可携新 ``total``）→ 进度条 advance / 退化行节流。"""
-        if total:
-            self._total = total
-        if console.is_terminal and self._total:
-            if self._progress is None:
-                self._progress = make_translate_progress()
-                self._progress.start()
-                self._task = self._progress.add_task("translate", total=self._total)
-            self._progress.update(self._task, completed=done)
-        elif self._total and (
-            done >= self._total or done % max(1, self._total // _FALLBACK_DIV) == 0
-        ):
-            console.print(f"  {self._label} {done}/{self._total}", style="dim")
-
-    def close(self) -> None:
-        """进度条收工——断流/终帧/回轮询前必须停 Live，否则刷新区残留。"""
-        if self._progress is not None:
-            self._progress.stop()
-            self._progress = None
-            self._task = None
 
 
 class _SseFollow:

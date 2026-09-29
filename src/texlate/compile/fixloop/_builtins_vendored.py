@@ -17,6 +17,7 @@ from texlate.arxiv.locate import safe_rel
 from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
+    _advise,
     _fixloop_log,
     _index_candidates,
     _inject_write,
@@ -188,12 +189,6 @@ def find_vendored_shadows(
         if ld is not None and sd is not None and ld < sd:
             cands.append((f, ld, sd, str(rp)))
     return cands
-
-
-def _advise(ctx: LoopCtx, adv: str) -> None:
-    """幂等 advisory 记账 —— 同文条目不重复落 ``ctx.ledger.advisories``。"""
-    if adv not in ctx.ledger.advisories:
-        ctx.ledger.advisories.append(adv)
 
 
 def _isolate_rename(f: Path, suffix: str) -> Path:

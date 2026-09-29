@@ -22,11 +22,13 @@ import regex
 
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop._builtins_common import (
+    _advise,
     _fp_diff,
     _index_candidates,
     _wdir_fingerprint,
 )
 from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
+from texlate.compile.fixloop._builtins_vendored import _vendored_drop
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
 from texlate.textutil import mask_tex, safe_is_file
@@ -49,12 +51,6 @@ def _probe(eng: Engine, fname: str, cwd: Path | None = None) -> str | None:
         except TypeError:
             pass  # 裸签名实现 → 退回 fname-only
     return eng.probe_file(fname)
-
-
-def _advise(ctx: LoopCtx, adv: str) -> None:
-    """幂等 advisory 记账 —— 同文条目不重复落 (``_builtins_vendored._advise`` 同口径)。"""
-    if adv not in ctx.advisories:
-        ctx.advisories.append(adv)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -555,45 +551,6 @@ def _scan_vendored(
     if dropped:
         _dep_fanout(ctx, eng, dropped, set(ctx.installed), depth=2)
     return out
-
-
-def _vendored_drop(
-    ctx: LoopCtx, root: Path, fname: str
-) -> tuple[Path | None, str | None]:
-    """单件 vendored 落盘链: rel 守卫 → 查件 → 落位 → 覆写闸 → copy。
-
-    ``vendored_fetch_multi`` 同款五步 (``safe_rel``/``_vendored_source``/
-    ``_resolve_site``/exists-guard/copyfile)——(dst, None) 成 /
-    (None, reason) 败, reason 与该臂 notes 词表同口径
-    (``unsafe``/``not vendored``/``escapes wdir``/``present``/OSError 文)。
-    """
-    # 延迟 import: arxiv 链重, 与 _builtins_vendored 同单源
-    from texlate.arxiv.locate import (  # noqa: PLC0415
-        safe_rel,
-    )
-
-    rel = safe_rel(fname)
-    if rel is None:
-        return None, "unsafe"
-    src = builtins._vendored_source(root, fname)  # noqa: SLF001 - vendored 查件单源
-    if src is None:
-        return None, "not vendored"
-    dst = builtins._resolve_site(ctx, rel)  # noqa: SLF001 - 落位口径单源
-    if dst is None:
-        return None, "escapes wdir"
-    if dst.exists():
-        return (
-            None,
-            "present",
-        )  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
-        # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
-        # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
-    try:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dst)
-    except OSError as e:
-        return None, str(e)
-    return dst, None
 
 
 def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
