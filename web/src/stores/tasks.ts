@@ -28,7 +28,7 @@ import {
 import { createTransport } from "./taskTransport";
 import { toast } from "./toastStore";
 import { canonArxivKey } from "../arxidcanon";
-import { currentLang, fmt, t } from "../i18n";
+import { currentLang, fmt, t, tPath } from "../i18n";
 
 // 门面再导出：live 面类型与传输调参常量是 store 公开面的一部分——
 // 消费方（TaskProgress/tests）从 tasks.ts 单点拿，不追内部文件布局
@@ -169,16 +169,16 @@ function settleLive(taskId: string) {
  */
 
 /**
- * i18n 键 t.taskNotify.* 由 misc-frontend lane 合入——合入前经安全取键
- * 拿模板/按钮文案，缺席回落拼装串（类型面不报错的运行期兜底）。
+ * i18n 键 t.taskNotify.* 由 misc-frontend lane 合入——合入前经 tPath 安全
+ * 取键拿模板/按钮文案，缺席回落拼装串（类型面不报错的运行期兜底）。
  */
 function notifyTpl(): { done?: string; failed?: string; view: string } {
-    const k = (t as unknown as Record<string, unknown>).taskNotify as
-        { done?: string; failed?: string; view?: string } | undefined;
     return {
-        done: k?.done,
-        failed: k?.failed,
-        view: k?.view ?? (currentLang() === "zh" ? "查看" : "View"),
+        done: tPath("taskNotify.done") ?? undefined,
+        failed: tPath("taskNotify.failed") ?? undefined,
+        view:
+            tPath("taskNotify.view") ??
+            (currentLang() === "zh" ? "查看" : "View"),
     };
 }
 

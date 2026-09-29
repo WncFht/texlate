@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { landingHash } from "../api/client";
-import { downloadItems, isDocKind } from "../taskFiles";
+import { downloadItems, fmtBytes, isDocKind } from "../taskFiles";
+
+describe("fmtBytes", () => {
+    it("非法/缺失 → 占位符", () => {
+        expect(fmtBytes(undefined)).toBe("—");
+        expect(fmtBytes(null)).toBe("—");
+        expect(fmtBytes(-5)).toBe("—");
+        expect(fmtBytes(Number.NaN)).toBe("—");
+    });
+
+    it("分档：B / KB / MB", () => {
+        expect(fmtBytes(0)).toBe("0 B");
+        expect(fmtBytes(512)).toBe("512 B");
+        expect(fmtBytes(2048)).toBe("2.0 KB");
+        expect(fmtBytes(5 * 1024 * 1024)).toBe("5.0 MB");
+        expect(fmtBytes(150 * 1024)).toBe("150 KB");
+    });
+});
 
 describe("isDocKind（无对照阅读器的插译产物路）", () => {
     it("docx/epub → true", () => {

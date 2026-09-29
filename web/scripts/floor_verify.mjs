@@ -328,6 +328,10 @@ if (READER) {
     const page = await browser.newPage({
         viewport: { width: 1280, height: 800 },
     });
+    // 生产构建下 __saAnim 探针默认不挂（anim.ts 门控）——导航前预置请求旗
+    await page.addInitScript(() => {
+        window.__saAnimOn = true;
+    });
     const errs = [];
     watchErrors(page, errs);
     try {

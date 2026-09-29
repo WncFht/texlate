@@ -19,22 +19,18 @@ vi.mock("../api/client", async (importOriginal) => {
 
 import { type TaskSnapshot } from "../api/client";
 import { MAX_SSE_TASKS, POLL_INTERVAL_MS, taskStore } from "../stores/tasks";
-import { snap as fakeSnap } from "./fakes";
 import {
     channelOf,
     handlersOf,
     mkChannel,
+    mkSnap,
     openedFor,
     trackWatches,
 } from "./_taskkit";
 
-// (id, status, updated) 旧签名保留——updated 映 updated_at（0 回 fakes 基线戳）
-const snap = (
-    id: string,
-    status: TaskSnapshot["status"],
-    updated = 0,
-): TaskSnapshot =>
-    fakeSnap(id, { status, updated_at: updated || 1_700_000_000 });
+// (id, status, updated) 签名 = mkSnap() 出厂形——updated 映 updated_at
+// （0 回基线戳，done→100 其余→40 同口径）
+const snap = mkSnap();
 
 const used: string[] = [];
 // afterEach 统一 unwatch used 桶（幂等）——注册见 _taskkit 头注

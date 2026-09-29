@@ -9,7 +9,7 @@ import {
 import type { TaskSnapshot, TaskStatus } from "../api/client";
 import { api, errText, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
-import { fmtBytes } from "../reader/logic/paneUtils";
+import { fmtBytes } from "../taskFiles";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import PurgeDialog from "./PurgeDialog";
 import TaskRow, { RETRYABLE } from "./TaskRow";

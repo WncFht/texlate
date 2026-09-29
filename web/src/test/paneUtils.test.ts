@@ -3,29 +3,11 @@ import {
     annotFileName,
     FIND_STATE,
     findCountText,
-    fmtBytes,
     fmtDate,
     outlineColor,
     pageSizeText,
     zoomToFontPx,
 } from "../reader/logic/paneUtils";
-
-describe("fmtBytes", () => {
-    it("非法/缺失 → 占位符", () => {
-        expect(fmtBytes(undefined)).toBe("—");
-        expect(fmtBytes(null)).toBe("—");
-        expect(fmtBytes(-5)).toBe("—");
-        expect(fmtBytes(Number.NaN)).toBe("—");
-    });
-
-    it("分档：B / KB / MB", () => {
-        expect(fmtBytes(0)).toBe("0 B");
-        expect(fmtBytes(512)).toBe("512 B");
-        expect(fmtBytes(2048)).toBe("2.0 KB");
-        expect(fmtBytes(5 * 1024 * 1024)).toBe("5.0 MB");
-        expect(fmtBytes(150 * 1024)).toBe("150 KB");
-    });
-});
 
 describe("findCountText", () => {
     const NONE = "无匹配";

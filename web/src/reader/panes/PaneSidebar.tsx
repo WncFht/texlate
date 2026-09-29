@@ -24,7 +24,8 @@ import type {
     TPDFDocumentOutline,
 } from "@pdfslick/solid";
 import { t } from "../../i18n";
-import { fmtBytes, outlineColor } from "../logic/paneUtils";
+import { fmtBytes } from "../../taskFiles";
+import { outlineColor } from "../logic/paneUtils";
 
 export type SideTab = "thumbs" | "outline" | "attach";
 

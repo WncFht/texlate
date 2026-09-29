@@ -1,5 +1,7 @@
-// 阅读器窗格侧件的纯函数层 —— 文件大小/查找计数/大纲颜色/页面尺寸文案。
+// 阅读器窗格侧件的纯函数层 —— 查找计数/大纲颜色/页面尺寸等文案。
 // 与 pdfjs/pdfslick 解耦，供 vitest 直接断言。
+// fmtBytes 已迁 ../../taskFiles.ts（components 可及中立叶——components→
+// reader 上行边禁区）。
 
 import type { DocId } from "./alignment";
 
@@ -25,20 +27,6 @@ export function findCountText(
     if (state === FIND_STATE.notFound) return noneLabel;
     if (count && count.total > 0) return `${count.current}/${count.total}`;
     return "";
-}
-
-/** 附件/文档信息的字节数 → "1.2 MB" 风格短文案 */
-export function fmtBytes(n: number | null | undefined): string {
-    if (n == null || !Number.isFinite(n) || n < 0) return "—";
-    if (n < 1024) return `${n} B`;
-    const units = ["KB", "MB", "GB", "TB"];
-    let v = n / 1024;
-    let i = 0;
-    while (v >= 1024 && i < units.length - 1) {
-        v /= 1024;
-        i++;
-    }
-    return `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
 /** 大纲条目的 color: Uint8ClampedArray → CSS rgb()；缺色 → undefined */

@@ -196,9 +196,13 @@ export const saAnimProbe = {
 declare global {
     interface Window {
         __saAnim?: typeof saAnimProbe;
+        /** e2e 探针请求旗——verify 脚本在导航前经 addInitScript 预置，
+            让生产构建也能挂探针（floor_verify --reader 打真后端场景） */
+        __saAnimOn?: boolean;
     }
 }
 
-// 待用集成面：__saAnim 是 dev 探针出口（follow.ts 原语组的运行时挂载
-// 点）——勿按死码清。
-if (typeof window !== "undefined") window.__saAnim = saAnimProbe;
+// __saAnim 是 e2e 探针出口：dev/vitest 直挂（import.meta.env.DEV），生产
+// 构建只在 __saAnimOn 预置时挂——常规 prod 页面不带探针面。
+if (typeof window !== "undefined" && (import.meta.env.DEV || window.__saAnimOn))
+    window.__saAnim = saAnimProbe;

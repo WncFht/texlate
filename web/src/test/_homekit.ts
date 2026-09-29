@@ -18,7 +18,9 @@ export const RESP = {
     reader_url: "/api/task/t_0000000000000f01/reader",
 };
 
-export const flush = () => new Promise((r) => setTimeout(r, 0));
+// flush 单源在 _taskkit（node-env 可引侧件）——本件再导出供 Home 族一处
+// import 收口（_fetchkit 亦经此转口）
+export { flush } from "./_taskkit";
 
 // collectOptions 恒写 front_matter（UI 态即意图）——translate fields /
 // upload fields.options 共用的 options 形
