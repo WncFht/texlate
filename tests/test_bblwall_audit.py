@@ -19,7 +19,7 @@
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, mini_rs
+from _fixloopkit import CLEAN_LOG, MockEngine, mini_rs
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop.builtins import (

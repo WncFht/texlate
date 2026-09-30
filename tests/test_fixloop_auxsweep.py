@@ -8,7 +8,7 @@ static_precheck 扫描与 ``_dep_stems`` 双侧不产依赖噪音。
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop.engine import _dep_stems

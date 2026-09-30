@@ -20,9 +20,8 @@ fix 3 ``bbl_stub_rewrite`` count=0: multibib 双 ``\bibliography`` 档
 
 from pathlib import Path
 
-from _fixloopkit import mk_ctx
+from _fixloopkit import MockEngine, mk_ctx
 from conftest import _write
-from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop._builtins_common import _inject_after_docclass

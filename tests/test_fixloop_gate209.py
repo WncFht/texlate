@@ -10,7 +10,7 @@ gate 的 missing_file 支无真可达群体 → 整支删除, 只留 latex209 �
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 

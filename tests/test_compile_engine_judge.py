@@ -3,7 +3,7 @@
 judge verdict 与机位审计单测在 ``test_compile_judge.py``（``_res`` 现为
 conftest ``make_comp_res`` 的原位别名——salvage/utf8 用例仍消费，judge
 套件经 ``from test_compile_engine_judge import _res`` 借用，
-``test_fixloop_loop`` 中枢同款先例）；sandbox/child_env 单测在
+``_fixloopkit`` 公共骨架同款先例）；sandbox/child_env 单测在
 ``test_compile_sandbox.py``。
 
 引擎实跑不进单测——由 bench/py/e2e_mock_bench.py 驱动覆盖。

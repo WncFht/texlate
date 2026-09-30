@@ -15,8 +15,7 @@ v3.94 ``:742 \\colorlet`` 错会退役→重投→死循环)。
 
 from pathlib import Path
 
-from _fixloopkit import classify, rs, rule
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine, classify, rs, rule
 
 from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS

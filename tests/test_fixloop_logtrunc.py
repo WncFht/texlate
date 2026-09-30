@@ -26,7 +26,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from test_fixloop_loop import (
+from _fixloopkit import (
     BOOM_LOG,
     BOOM_TAXONOMY,
     CLEAN_LOG,

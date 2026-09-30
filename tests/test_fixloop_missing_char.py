@@ -17,7 +17,7 @@ hangul 路由 (kotexfix #196) 已拆 ``test_fixloop_kotex.py``。
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop._builtins_misschar import (

@@ -21,9 +21,8 @@ r"""impl2 pack-24 回归钉 —— 遮盖视图站点纪律 / 元素级包名判
 
 from pathlib import Path
 
-from _fixloopkit import mk_ctx
+from _fixloopkit import MockEngine, mk_ctx
 from conftest import _write
-from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop._builtins_common import _drop_pkg_loads

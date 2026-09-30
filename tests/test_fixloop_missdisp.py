@@ -16,7 +16,7 @@ misschar3 车道普查双缺陷对账:
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, SalvageMockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, SalvageMockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 

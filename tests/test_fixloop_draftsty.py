@@ -20,8 +20,7 @@ no-op exit 0), 首个 ``\\endinput`` 前 (缺席则 EOF) 注入良性
 
 from pathlib import Path
 
-from _fixloopkit import apply, classify, mk_ctx, rs, rule
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine, apply, classify, mk_ctx, rs, rule
 
 from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.engine import Rule

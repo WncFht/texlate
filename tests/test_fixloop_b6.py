@@ -19,8 +19,15 @@ post warn-preempt 统一入账点) 即补一发非 best_effort 编译, entry
 
 from pathlib import Path
 
-from _fixloopkit import CLEAN_LOG, MockEngine, make_proj, mini_rs
-from test_fixloop_loop import BOOM_LOG, BOOM_TAXONOMY, run_tool_rules
+from _fixloopkit import (
+    BOOM_LOG,
+    BOOM_TAXONOMY,
+    CLEAN_LOG,
+    MockEngine,
+    make_proj,
+    mini_rs,
+    run_tool_rules,
+)
 
 from texlate.compile.fixloop import Ruleset, fixloop
 

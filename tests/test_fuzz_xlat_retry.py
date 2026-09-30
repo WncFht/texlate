@@ -30,7 +30,7 @@ from texlate.xlat.client import ChatError, RetryableHTTPError
 # ---------------------------------------------------------------- 私有面薄封装
 # 下方薄封装/伪件同时是 ``test_fuzz_xlat_slots``/``test_fuzz_xlat_ladder`` 的
 # 共享脚手架——两文件经 ``from test_fuzz_xlat_retry import`` 取件
-# （``test_fixloop_loop`` 枢纽先例同法），勿因本文件未直用而删。
+# （``_fixloopkit`` 公共骨架同法），勿因本文件未直用而删。
 
 _vst = rt._valid_slot_text  # noqa: SLF001 -- 私有契约正是被测面
 _make_slots = rt._make_slots  # noqa: SLF001

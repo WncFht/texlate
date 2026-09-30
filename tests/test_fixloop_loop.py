@@ -2,8 +2,9 @@
 
 MockEngine 对齐 impl-compile ``compile/engine.py`` 的 CompRes/Engine 字段名
 (pdf: Path|None / has_pdf / pdf_bytes / seconds / stdout_tail / caps frozenset)
-——canonical 副本已迁 ``_fixloopkit``, 本文件 re-export 保
-``from test_fixloop_loop import MockEngine`` 的 20+ 兄弟文件既有 idiom。
+——脚本臂共享件 canonical 本营在 ``_fixloopkit``
+(BOOM_LOG/BOOM_TAXONOMY/run_tool_rules/MockTectonic/SalvageMockEngine
+亦同), 本文件与 30+ 兄弟文件一样从 kit 取件。
 
 专题块已拆出: tar 伪装件 → test_fixloop_tarblob.py, aux 截断清场 +
 _dep_stems → test_fixloop_auxsweep.py, main_rel/find_main_tex →
@@ -14,46 +15,21 @@ test_fixloop_passes.py。
 from pathlib import Path
 
 from _fixloopkit import (
+    BOOM_LOG,
+    BOOM_TAXONOMY,
     CLEAN_LOG,
-    MAIN_TEX,  # noqa: F401 - 纯 re-export: finalize_died 等兄弟件从本文件取件
     MockEngine,
-    MockRes,
+    MockTectonic,
+    SalvageMockEngine,
     make_proj,
     mini_rs,
+    run_tool_rules,
 )
 
 from texlate.compile.ctan import CtanFetcher
 from texlate.compile.fixloop import builtins, fixloop
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.logparse import ErrReport
-
-
-class MockTectonic(MockEngine):
-    name = "tectonic"
-    caps = frozenset({"bundle"})
-
-    def __init__(self, script: list, **kw: object) -> None:
-        super().__init__(script, **kw)
-        self.ctan_fetch = None  # fixloop 应注入 CtanFetcher
-        self.filemap_index: dict[str, list[str]] = {}
-
-
-BOOM_TAXONOMY = [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
-BOOM_LOG = "! BOOM every time\n"
-
-
-def run_tool_rules(n: int) -> list[dict]:
-    """boom 类 run_tool 规则 ×n —— 跨轮 apply/dedup 占位派发件。"""
-    return [
-        {
-            "id": f"fix{i}",
-            "phase": "loop",
-            "order": i,
-            "when": {"category": "boom"},
-            "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
-        }
-        for i in range(1, n + 1)
-    ]
 
 
 # ---------------------------------------------------------------- 基本流转
@@ -585,29 +561,6 @@ def test_unsupported_mode_falls_to_llm(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- best-effort 兜底
-class SalvageMockEngine(MockEngine):
-    """best_effort 感知: 兜底轮 (best_effort=True) 放残页 pdf 出来。"""
-
-    def compile(
-        self,
-        wdir: Path,
-        main: str,
-        *,
-        passes: int = 2,
-        best_effort: bool = False,
-        **_kw: object,
-    ) -> MockRes:
-        del passes
-        if best_effort:
-            self.rounds += 1
-            return MockRes(
-                Path(wdir),
-                main,
-                {"log": "! Undefined control sequence.\n", "pdf": True},
-            )
-        return super().compile(wdir, main, passes=1, **_kw)
-
-
 def test_salvage_best_effort_rescues(tmp_path: Path) -> None:
     """规则耗尽且无 pdf → nonstopmode 兜底 pass 救残页 → best_effort_pdf。"""
     eng = SalvageMockEngine([{"log": "! Undefined control sequence.\nl.5 \\mycs\n"}])

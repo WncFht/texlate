@@ -12,7 +12,7 @@ apply 轮次只续窗口不占判负; 真耗尽格烧轮止于派发枯竭, 不�
 
 from pathlib import Path
 
-from test_fixloop_loop import (
+from _fixloopkit import (
     BOOM_LOG,
     BOOM_TAXONOMY,
     CLEAN_LOG,

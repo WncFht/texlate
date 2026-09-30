@@ -10,8 +10,7 @@ r"""capacity input_stack verdict 路由 —— 上游递归帧 → ``unfixable:i
 
 from pathlib import Path
 
-from _fixloopkit import classify, rs
-from test_fixloop_loop import MockEngine, make_proj
+from _fixloopkit import MockEngine, classify, make_proj, rs
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.logparse import parse_text

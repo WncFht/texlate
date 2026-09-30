@@ -8,7 +8,7 @@ r"""main_rel 显式主档 + ``find_main_tex``/``LoopCtx.tex_files`` 探测钉 (#
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop.engine import LoopCtx, find_main_tex

@@ -17,8 +17,7 @@ pgflibrary 形无 tikzlib 孪生故须双探)。
 
 from pathlib import Path
 
-from _fixloopkit import classify, rs
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, classify, make_proj, rs
 
 from texlate.compile.fixloop import fixloop
 

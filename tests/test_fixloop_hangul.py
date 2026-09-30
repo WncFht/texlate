@@ -9,7 +9,7 @@ cjk_font_fallback 带表已剔出谚文段 (FandolSong 无 hangul 块,
 
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.builtins import font_fallback
@@ -299,7 +299,7 @@ def test_fixloop_e2e_dispatches_both_arms(tmp_path: Path) -> None:
     ``\\newfontfamily`` 注入块不触发 ``_CJK_MECH_RE`` 误判
     (``newfontfamily`` ≠ ``newCJKfontfamily``)。
     """
-    from test_fixloop_loop import CLEAN_LOG, make_proj  # noqa: PLC0415
+    from _fixloopkit import CLEAN_LOG, make_proj  # noqa: PLC0415
 
     from texlate.compile.fixloop import fixloop  # noqa: PLC0415
 

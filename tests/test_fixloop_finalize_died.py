@@ -12,7 +12,7 @@ mid-\shipout) 同样产 pdf + 截断干净 log, 漏闸后同轮重编正好读�
 from functools import lru_cache
 from pathlib import Path
 
-from test_fixloop_loop import MAIN_TEX, MockEngine
+from _fixloopkit import MAIN_TEX, MockEngine
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.engine import fixloop

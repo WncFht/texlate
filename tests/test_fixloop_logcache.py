@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from test_fixloop_loop import MockEngine, make_proj, mini_rs
+from _fixloopkit import MockEngine, make_proj, mini_rs
 
 from texlate.compile.fixloop import builtins, fixloop
 from texlate.compile.fixloop.engine import _VOLATILE_EXTS, LoopCtx

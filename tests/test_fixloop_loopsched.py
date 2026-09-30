@@ -18,7 +18,7 @@ unfixable/stuck。修复 = 每个规则应用点前后做 wdir 指纹 diff
 
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine, MockRes
+from _fixloopkit import MockEngine, MockRes
 
 from texlate.compile.fixloop import fixloop, load_ruleset
 from texlate.compile.fixloop._builtins_common import _wdir_fingerprint

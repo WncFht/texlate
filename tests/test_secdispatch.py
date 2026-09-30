@@ -10,7 +10,7 @@ option_clash 类规则够到真根因。
 
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine, MockRes, make_proj, mini_rs
+from _fixloopkit import MockEngine, MockRes, make_proj, mini_rs
 
 from texlate.compile.fixloop import fixloop, load_ruleset
 from texlate.compile.fixloop.ruleset import Ruleset

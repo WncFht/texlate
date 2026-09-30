@@ -15,7 +15,7 @@ gr-qc/0104075 residdiag 实证
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.engine import CompRes
 from texlate.compile.fixloop import fixloop

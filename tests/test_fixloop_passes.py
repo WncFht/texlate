@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 import regex
-from test_fixloop_loop import (
+from _fixloopkit import (
     CLEAN_LOG,
     MockEngine,
     MockRes,

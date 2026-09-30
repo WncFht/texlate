@@ -1,7 +1,7 @@
 """judge.py 的单测（verdict 构成/信号归因/CJK 否决 + 机位审计探针）。
 
 ``CompRes`` 原料厂 ``_res`` 借自 ``test_compile_engine_judge``——
-``test_fixloop_loop`` 中枢共享测试替身的同款先例。引擎实跑不进单测。
+``_fixloopkit`` 公共骨架共享测试替身的同款先例。引擎实跑不进单测。
 """
 
 import importlib

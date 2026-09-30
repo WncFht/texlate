@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import pytest
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS

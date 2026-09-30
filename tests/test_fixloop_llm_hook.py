@@ -13,7 +13,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 import texlate.compile.fixloop.llm_hook as llm_hook_mod
 from texlate.compile.fixloop import fixloop

@@ -50,8 +50,11 @@
 - 脚本化 e2e 臂：``CLEAN_LOG``/``XETEX_CLEAN_LOG``/``MAIN_TEX`` 语料 +
   ``MockRes``/``MockEngine``（逐轮吐 spec 的脚本引擎；``caps``/
   ``available``/``installable``/``probe_cwd`` kwarg 折各车道变体）+
-  ``make_proj``/``mini_rs`` 工厂——与 ``test_fixloop_loop`` 同形
-  canonical 副本，新测试文件从这里取件，不再 import 测试模块。
+  ``make_proj``/``mini_rs`` 工厂 + ``BOOM_LOG``/``BOOM_TAXONOMY``/
+  ``run_tool_rules``（合成 ruleset 机械钉语料）+ ``MockTectonic``/
+  ``SalvageMockEngine``（tectonic/best_effort 引擎变体）——原
+  ``test_fixloop_loop`` hub 共享件全数迁此，含 loop 文件自身的
+  30+ 兄弟文件一律从这里取件，不 import 测试模块。
   ``ScriptEng``/``ScriptedEng``/``ScriptedRes``/``SpecRes``/
   ``ScriptedEngine``/``ScriptEngine``/``LoopEngine`` 为历代命名别名
   （``ScriptedEngine`` 与 test_e2e_wiring.py:84 的 callable-script 类
@@ -635,8 +638,8 @@ def write_shim(wdir: Path, name: str) -> None:
 
 # ---------------------------------------------------------------- 脚本化 e2e 臂
 #
-# ``test_fixloop_loop`` 同形 canonical 副本（逐字节对齐——只抽不写回，
-# loop 文件原样保留待迁；新测试文件从这里取件，不 import 测试模块）。
+# 原 ``test_fixloop_loop`` hub 的 canonical 本营（共享件逐字节迁此——
+# loop 文件自身也改为从这里 import，任何文件不再 import 测试模块）。
 
 CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
 #: XeTeX banner 变体 (aux_eof/csvsimple/mnrasretire/enguard 等 ~10 文件同体)。
@@ -772,6 +775,60 @@ def mini_rs(
             "rules": rules,
         }
     )
+
+
+# ---- test_fixloop_loop 迁出件: 合成 ruleset 语料 + 引擎变体 ----
+
+#: 恒炸 taxonomy——``boom`` taxon 每轮命中 (stuck/dedup/max_rounds 机械钉)。
+BOOM_TAXONOMY = [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
+BOOM_LOG = "! BOOM every time\n"
+
+
+def run_tool_rules(n: int) -> list[dict]:
+    """boom 类 run_tool 规则 ×n —— 跨轮 apply/dedup 占位派发件。"""
+    return [
+        {
+            "id": f"fix{i}",
+            "phase": "loop",
+            "order": i,
+            "when": {"category": "boom"},
+            "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
+        }
+        for i in range(1, n + 1)
+    ]
+
+
+class MockTectonic(MockEngine):
+    name = "tectonic"
+    caps = frozenset({"bundle"})
+
+    def __init__(self, script: list, **kw: object) -> None:
+        super().__init__(script, **kw)
+        self.ctan_fetch = None  # fixloop 应注入 CtanFetcher
+        self.filemap_index: dict[str, list[str]] = {}
+
+
+class SalvageMockEngine(MockEngine):
+    """best_effort 感知: 兜底轮 (best_effort=True) 放残页 pdf 出来。"""
+
+    def compile(
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 2,
+        best_effort: bool = False,
+        **_kw: object,
+    ) -> MockRes:
+        del passes
+        if best_effort:
+            self.rounds += 1
+            return MockRes(
+                Path(wdir),
+                main,
+                {"log": "! Undefined control sequence.\n", "pdf": True},
+            )
+        return super().compile(wdir, main, passes=1, **_kw)
 
 
 # ---- 同体别名: 各 finding 的历代命名全归 MockRes/MockEngine canonical 对 ----

@@ -8,7 +8,7 @@ cjk_warmup (HG 类无效)。签名源: 2410.18001 (lmroman ×544) /
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop.builtins import missing_char_fix

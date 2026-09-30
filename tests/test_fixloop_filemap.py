@@ -16,8 +16,8 @@ INDEX_EXTS↔OVERLAY_EXTS 解耦 / cs glue-残骸前缀拆分 fallback。
 import lzma
 from pathlib import Path
 
+from _fixloopkit import MockEngine
 from test_fixloop_ctan import make_tarxz
-from test_fixloop_loop import MockEngine
 
 from texlate.compile.ctan import (
     INDEX_EXTS,

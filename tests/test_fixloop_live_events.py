@@ -18,6 +18,7 @@ import json
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
+from _fixloopkit import MockEngine
 from _workerkit import _insert_chunk, mk_ctx
 from conftest import (
     MINI_TEX,
@@ -28,7 +29,6 @@ from conftest import (
     wait_terminal,
 )
 from starlette.testclient import TestClient
-from test_fixloop_loop import MockEngine
 from test_server_l2 import L2FlakyEngine
 
 from texlate.compile.engine import CompRes, LogInfo

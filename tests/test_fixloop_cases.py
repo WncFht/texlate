@@ -2,8 +2,7 @@
 
 from pathlib import Path
 
-from _fixloopkit import rs
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj, rs
 
 from texlate.compile.fixloop import CaseSink, load_cases
 from texlate.compile.fixloop.cases import (

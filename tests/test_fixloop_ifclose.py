@@ -18,8 +18,7 @@ draftsty-phantom (展开态 \\iffalse 源件字面平衡) 判别器, 平衡即 n
 
 from pathlib import Path
 
-from _fixloopkit import apply, classify, mk_ctx, rs, rule
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine, apply, classify, mk_ctx, rs, rule
 
 from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.engine import LoopCtx, Rule

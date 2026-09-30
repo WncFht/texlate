@@ -22,7 +22,7 @@ known_gap (不修, 钉档): hoist 目标 ``mp.parent`` —— main_rel 在子目
 from functools import lru_cache
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine, make_proj
+from _fixloopkit import MockEngine, make_proj
 
 from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx

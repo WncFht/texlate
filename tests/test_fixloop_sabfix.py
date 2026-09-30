@@ -25,7 +25,7 @@ fontenc 载入归名 fontenc.sty:115, cat=options_section)。
 import re
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine
+from _fixloopkit import MockEngine
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop._builtins_bib import (
