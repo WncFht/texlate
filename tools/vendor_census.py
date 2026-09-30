@@ -37,6 +37,7 @@ PROVIDES_RE = re.compile(
     r"(?:\s|%[^\n]*)*(?:\[([^\]]{0,120})\]|\{([^}]{0,120})\})?"
 )
 
+
 # files whose bytes are not utf-8 text (binary font metrics etc.)
 def read_text(p: Path) -> str | None:
     try:
@@ -74,8 +75,10 @@ def haystack_files() -> list[Path]:
     return uniq
 
 
-HAY = [(f, f.read_text(encoding="utf-8", errors="replace").splitlines())
-       for f in haystack_files()]
+HAY = [
+    (f, f.read_text(encoding="utf-8", errors="replace").splitlines())
+    for f in haystack_files()
+]
 
 
 def refs_in_code(basename: str) -> list[str]:
@@ -122,7 +125,9 @@ for e in entries:
     by_stem.setdefault(e["stem"], []).append(e)
 
 # sibling references: does another vendored file mention basename or stem?
-WORD = lambda s: re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(s) + r"(?![A-Za-z0-9_.-])")
+WORD = lambda s: re.compile(
+    r"(?<![A-Za-z0-9_.-])" + re.escape(s) + r"(?![A-Za-z0-9_.-])"
+)
 
 for e in entries:
     base = e["basename"]
@@ -147,7 +152,11 @@ by_stem_sha: dict[tuple[str, str], list[dict]] = {}
 for e in entries:
     by_stem_sha.setdefault((e["stem"], e["sha256"]), []).append(e)
 for e in entries:
-    twins = [o["basename"] for o in by_stem_sha.get((e["stem"], e["sha256"]), []) if o is not e]
+    twins = [
+        o["basename"]
+        for o in by_stem_sha.get((e["stem"], e["sha256"]), [])
+        if o is not e
+    ]
     e["twin_of"] = twins[0] if twins and e["basename"] == e["stem"] else None
 
 # constructed-name sibling edges the literal scan cannot see:
@@ -177,6 +186,7 @@ for e in entries:
                     stem_hits.append(f"{rel}:{i}")
     e["stem_refs"] = stem_hits
 
+
 # classify
 def classify(e: dict) -> tuple[str, str]:
     if e["code_refs"]:
@@ -190,11 +200,28 @@ def classify(e: dict) -> tuple[str, str]:
     # plausible library item: standard TeX-loadable extension means a
     # missing_file payload of this basename can legitimately occur
     if e["basename"].rsplit(".", 1)[-1] in (
-        "sty", "cls", "tex", "def", "cfg", "clo", "ldf", "rtx", "con", "fd",
-        "tfm", "mf", "bbx", "cbx", "lbx", "map", "enc", "pro",
+        "sty",
+        "cls",
+        "tex",
+        "def",
+        "cfg",
+        "clo",
+        "ldf",
+        "rtx",
+        "con",
+        "fd",
+        "tfm",
+        "mf",
+        "bbx",
+        "cbx",
+        "lbx",
+        "map",
+        "enc",
+        "pro",
     ):
         return "b", "library stock (no header)"
     return "c", "no refs, no header, non-loadable name"
+
 
 for e in entries:
     cls, ev = classify(e)

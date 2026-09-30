@@ -1,4 +1,4 @@
-# Lane 03：OpenCitations / Crossref / Lens / OpenAIRE / Wikidata
+# Lane 03: OpenCitations / Crossref / Lens / OpenAIRE / Wikidata
 
 > **结论**：OpenCitations Index 是唯一活跃的 CC0 专用十亿级边集；OpenAIRE（2.35B 边）同量级但为 CC BY 4.0、再分发须署名（fatcat refcat 是另一 CC0 数十亿边集但 ~2021-22 起停滞，OpenAlex ~2.4B 边同为 CC0 但嵌于 works 语料非专用边集）；OC 字段干净且自带自引标志，但 DOI 中心模型要求自建 arXiv↔DOI 映射；Crossref 是上游原料而非成品服务；Lens 专有只能当查询后端。
 > **状态**：时点证据（2026-09-19 口径）
@@ -8,7 +8,7 @@
 
 - **OpenCitations Index**：早年分库（COCI/POCI/DOCI/CROCI）已合并为统一 Index，原各库退化为来源标签[^ocindex]。2026-07 dump 收 **2,559,460,009 条边**，来源含 Crossref、DataCite、PubMed、OpenAIRE、JaLC 等[^ocdump]；配套 Meta 库 147M 书目实体并已对齐 OpenAlex 标识符[^ocmeta]。
 - **Crossref**：DOI 注册局元数据 API，上游原料层。
-- **Lens.org**：Cambia 商业学术+专利库（>248M 学术记录 + >138M 专利），学术↔专利引用边是差异化卖点[^lensapi]。
+- **Lens.org**：Cambia 商业学术 + 专利库（>248M 学术记录 + >138M 专利），学术↔专利引用边是差异化卖点[^lensapi]。
 - **OpenAIRE Graph**：欧盟开放学术基础设施，Zenodo 半年 dump。
 - **Wikidata**：`cites work`（P2860）众包声明。
 

@@ -65,7 +65,9 @@ PSTRICKS_SIG_ALTS: Final = frozenset(
         r"\\psset\b",
     }
 )
-_PSTRICKS_RE = re.compile("|".join(sorted(PSTRICKS_SIG_ALTS, key=lambda s: (-len(s), s))))
+_PSTRICKS_RE = re.compile(
+    "|".join(sorted(PSTRICKS_SIG_ALTS, key=lambda s: (-len(s), s)))
+)
 _MINTED_FROZEN_RE = re.compile(r"frozencache")
 #: ``frozencache`` 须与 minted 装载共现才翻 tectonic 优先（§4.2
 #: "frozencache + minted"）——散文裸提 ``frozencache`` 词不构成信号。

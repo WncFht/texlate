@@ -166,11 +166,11 @@ Empty cells (no node entry) render **nothing**. No placeholder rect, no role chi
 
 Three styles, bound to topology. Connectors drawn **before** all node rects (z-order rule).
 
-| `style` | Stroke | Width | Dash | Marker | When required |
-|---|---|---|---|---|---|
-| `normal` | `#4f5d75` (muted) | 1.0 | — | `arrow` | Standard data hand-off between steps or actors. Unlabelled. |
-| `focal-in` / `focal-out` | `#eb6c36` (accent) | 1.2 | — | `arrow-accent` | Every edge whose endpoint is the focal node (`focal-in`) or origin is the focal node (`focal-out`). |
-| `trigger` | `#4f5d75` (muted) | 1.0 | `4,3` | `arrow-sm` | Orchestration trigger (scheduler → tool, manual override → upstream step). Unlabelled. |
+| `style`                  | Stroke             | Width | Dash  | Marker         | When required                                                                                       |
+| ------------------------ | ------------------ | ----- | ----- | -------------- | --------------------------------------------------------------------------------------------------- |
+| `normal`                 | `#4f5d75` (muted)  | 1.0   | —     | `arrow`        | Standard data hand-off between steps or actors. Unlabelled.                                         |
+| `focal-in` / `focal-out` | `#eb6c36` (accent) | 1.2   | —     | `arrow-accent` | Every edge whose endpoint is the focal node (`focal-in`) or origin is the focal node (`focal-out`). |
+| `trigger`                | `#4f5d75` (muted)  | 1.0   | `4,3` | `arrow-sm`     | Orchestration trigger (scheduler → tool, manual override → upstream step). Unlabelled.              |
 
 **Defs block** (required, three markers):
 
@@ -227,17 +227,17 @@ Any node, lane, or step accepts an optional `color: "#hex"`. Mirrors `type-data-
 
 Applied to:
 
-| Element | Light | Dark |
-|---|---|---|
-| Container fill (`rect`) | `rgba(C, 0.06)` | `rgba(C_light, 0.10)` |
-| Container stroke | `rgba(C, 0.35)` (stroke-width 1) | `rgba(C_light, 0.45)` |
-| Role chip fill | `rgba(C, 0.18)` | `rgba(C_light, 0.22)` |
-| Role chip text | `C` | `C_light` |
-| Title text | `C` | `C_light` |
-| Sub-label (in → out) | **unchanged** (muted) | **unchanged** (muted) |
-| Tool label | **unchanged** (soft) | **unchanged** (soft) |
-| Data-type chips | **unchanged** | **unchanged** |
-| Arrows touching this node | **unchanged** — topology-driven | **unchanged** |
+| Element                   | Light                            | Dark                  |
+| ------------------------- | -------------------------------- | --------------------- |
+| Container fill (`rect`)   | `rgba(C, 0.06)`                  | `rgba(C_light, 0.10)` |
+| Container stroke          | `rgba(C, 0.35)` (stroke-width 1) | `rgba(C_light, 0.45)` |
+| Role chip fill            | `rgba(C, 0.18)`                  | `rgba(C_light, 0.22)` |
+| Role chip text            | `C`                              | `C_light`             |
+| Title text                | `C`                              | `C_light`             |
+| Sub-label (in → out)      | **unchanged** (muted)            | **unchanged** (muted) |
+| Tool label                | **unchanged** (soft)             | **unchanged** (soft)  |
+| Data-type chips           | **unchanged**                    | **unchanged**         |
+| Arrows touching this node | **unchanged** — topology-driven  | **unchanged**         |
 
 `C_light` = the same hex lightened ~15% for dark-mode contrast (e.g., `#b85450` → `#d97a78`).
 
@@ -281,24 +281,24 @@ If zero or >1 of any focal slot are declared, halt and ask the user.
 
 ## 6. Dark mode
 
-| Token | Light | Dark |
-|---|---|---|
-| Paper | `#f5f5f5` | `#2d3142` |
-| Ink | `#2d3142` | `#f5f5f5` |
-| Muted | `#4f5d75` | `#bfc0c0` |
-| Soft | `#7a8399` | `#8e98ac` |
-| Accent | `#eb6c36` | `#f08a59` |
-| Dot pattern | `rgba(45,49,66,0.10)` | `rgba(245,245,245,0.10)` |
-| Lane tint | `rgba(45,49,66,0.018)` | `rgba(245,245,245,0.025)` |
-| Dividers | `rgba(45,49,66,0.12)` | `rgba(245,245,245,0.12)` |
-| Label col divider | `rgba(45,49,66,0.20)` | `rgba(245,245,245,0.22)` |
-| Default chip fill | `rgba(45,49,66,0.12)` | `rgba(245,245,245,0.12)` |
-| Focal chip fill | `rgba(235,108,54,0.20)` | `rgba(240,138,89,0.22)` |
-| Default node fill | white | `rgba(245,245,245,0.04)` |
-| Default node stroke | `rgba(45,49,66,0.25)` | `rgba(245,245,245,0.20)` |
-| Focal node fill | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)` |
-| Focal node stroke | `#eb6c36` | `#f08a59` |
-| Custom component colors | `C` | `C_light` (lighten ~15%) |
+| Token                   | Light                   | Dark                      |
+| ----------------------- | ----------------------- | ------------------------- |
+| Paper                   | `#f5f5f5`               | `#2d3142`                 |
+| Ink                     | `#2d3142`               | `#f5f5f5`                 |
+| Muted                   | `#4f5d75`               | `#bfc0c0`                 |
+| Soft                    | `#7a8399`               | `#8e98ac`                 |
+| Accent                  | `#eb6c36`               | `#f08a59`                 |
+| Dot pattern             | `rgba(45,49,66,0.10)`   | `rgba(245,245,245,0.10)`  |
+| Lane tint               | `rgba(45,49,66,0.018)`  | `rgba(245,245,245,0.025)` |
+| Dividers                | `rgba(45,49,66,0.12)`   | `rgba(245,245,245,0.12)`  |
+| Label col divider       | `rgba(45,49,66,0.20)`   | `rgba(245,245,245,0.22)`  |
+| Default chip fill       | `rgba(45,49,66,0.12)`   | `rgba(245,245,245,0.12)`  |
+| Focal chip fill         | `rgba(235,108,54,0.20)` | `rgba(240,138,89,0.22)`   |
+| Default node fill       | white                   | `rgba(245,245,245,0.04)`  |
+| Default node stroke     | `rgba(45,49,66,0.25)`   | `rgba(245,245,245,0.20)`  |
+| Focal node fill         | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)`   |
+| Focal node stroke       | `#eb6c36`               | `#f08a59`                 |
+| Custom component colors | `C`                     | `C_light` (lighten ~15%)  |
 
 ---
 
@@ -331,14 +331,14 @@ Same catalog as `type-data-flow.md` §8.
 
 ### Chip codes
 
-| Code | Color (light) | Color (dark) | Meaning |
-|------|---------------|--------------|---------|
-| `LS` | `#7c8f6f` sage | `#9caf8f` | List / assignment / task |
-| `DB` | `#5e7a9b` dusty-blue | `#82a0c0` | Dataset / tabular records |
-| `TB` | `#b8915a` mustard | `#d3ad7a` | Table (analysis-ready) |
-| `FL` | `#9c6b50` rust-brown | `#b88670` | File / document / report |
-| `WB` | `#6e6479` slate | `#8d8298` | Web / press / public release |
-| N/A | omit chip entirely | — | Unknown or not applicable |
+| Code | Color (light)        | Color (dark) | Meaning                      |
+| ---- | -------------------- | ------------ | ---------------------------- |
+| `LS` | `#7c8f6f` sage       | `#9caf8f`    | List / assignment / task     |
+| `DB` | `#5e7a9b` dusty-blue | `#82a0c0`    | Dataset / tabular records    |
+| `TB` | `#b8915a` mustard    | `#d3ad7a`    | Table (analysis-ready)       |
+| `FL` | `#9c6b50` rust-brown | `#b88670`    | File / document / report     |
+| `WB` | `#6e6479` slate      | `#8d8298`    | Web / press / public release |
+| N/A  | omit chip entirely   | —            | Unknown or not applicable    |
 
 Text inside chip: white, font-size 5, weight 700, mono.
 
@@ -359,14 +359,14 @@ Each row introduced by a category label at `x = label_col_w + 4` (= 144). The de
 
 ## 10. Complexity budget
 
-| Dimension | Max |
-|---|---|
-| Lanes (actors) | 6 |
-| Steps | 12 |
-| Nodes per lane | Nodes = active steps only — empty cells are invisible |
-| Labelled arrows | 0 by default (label only for non-step concepts) |
-| Data-type chips per node | 2 (input + output) |
-| Custom-colored elements (§4) | 3 (in addition to focal node + focal step) |
+| Dimension                    | Max                                                   |
+| ---------------------------- | ----------------------------------------------------- |
+| Lanes (actors)               | 6                                                     |
+| Steps                        | 12                                                    |
+| Nodes per lane               | Nodes = active steps only — empty cells are invisible |
+| Labelled arrows              | 0 by default (label only for non-step concepts)       |
+| Data-type chips per node     | 2 (input + output)                                    |
+| Custom-colored elements (§4) | 3 (in addition to focal node + focal step)            |
 
 Above 6 lanes or 12 steps: split into two diagrams (overview + detail).
 

@@ -10,7 +10,7 @@
 ## 裁决
 
 - **Prompt 体系**：6 个 chunk-kind system prompt（v5 起规则扁平编号 `1.–N.` 单行 `**Anchor.**` 锚名条款：Scope 簇 → kind 槽位 → Output → Punctuation and spacing（全角标点）→ Control-sequence boundary → Quality → Untrusted content → Placeholders → Person names（仅 para/abstract）→ Batch protocol 永远压轴；编号仅序位语义，锚名是稳定句柄 → 术语表块永远置末；有 `paper_context` 时任务句后另插摘要锚定块）；模板措辞变更必须 bump `PROMPT_VERSION`（段级缓存键含此值）。前缀缓存友好：system prompt + 术语表 + 占位符契约放前缀并稳定排序。
-- **术语表四级**：全局默认表 → `primary_category` 映射领域包 → 文档级过滤取并集烘进稳定 system prompt；**ph 名单行**（v5 替代恒等注入）——`render_placeholder_manifest` 把全部文档占位符压成 `<Glossary>` 末行一条点名册（同 head 连号 `[[MATH_1]]..[[MATH_3]]`、超 4000c 退化无括号 `TYPE×n`），O(类型+连续段) 替代 O(占位符)×O(calls) 重发（实测恒等注入占新输入 ~85%，2026-09-28 网关回归：19506 stress 批 119802→4408 in-tok，152/152 保留）；`autogloss` 自动术语抽取（masked chunk → LLM 域名词表 → 多数表决）。
+- **术语表四级**：全局默认表 → `primary_category` 映射领域包 → 文档级过滤取并集烘进稳定 system prompt；**ph 名单行**（v5 替代恒等注入）——`render_placeholder_manifest` 把全部文档占位符压成 `<Glossary>` 末行一条点名册（同 head 连号 `[[MATH_1]]..[[MATH_3]]`、超 4000c 退化无括号 `TYPE×n`），O(类型 + 连续段) 替代 O(占位符)×O(calls) 重发（实测恒等注入占新输入 ~85%，2026-09-28 网关回归：19506 stress 批 119802→4408 in-tok，152/152 保留）；`autogloss` 自动术语抽取（masked chunk → LLM 域名词表 → 多数表决）。
 - **批量协议**：全量 chunk 入批、按字符硬顶 `BATCH_MAX_CHARS=12000` + 成员软顶 `BATCH_MAX_ITEMS=32` 控批（按 `n_req` K 量化等大装箱）+ `[n]` 编号 + `@@` 兜底行 + 整批失败直退单翻（无折半梯子——解析/调用失败的批成员直接落逐段单翻）——批阈值是最大成本杠杆（E20：请求数降 ~10×、总 token 降 ~40%）；超大原子 chunk 先切分再入批（`CHUNK_HARD_LIMIT=6000`）。
 - **重试阶梯**：整段 ×2（`previous_validation_error`/`slot_validation_failures` 字段化反馈）→ 行级修复 → slots JSON 兜底（`⟪S0000⟫` 槽位协议，失败槽只重问失败批）→ 三振 `fallback_orig` + `partial` 终态。
 - **辅助**：LLM-judge 判未知 env 可译性（temp=0、True/False、few-shot、fail-open）；`recover_copied_tokens`（模型把受保护原文抄回时唯一出现才换回 token）；断点续翻 state 落盘；段级缓存内容寻址。

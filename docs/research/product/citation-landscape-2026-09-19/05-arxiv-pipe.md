@@ -16,7 +16,7 @@
 
 ## 引用边抽取管线对比
 
-**PDF 侧天花板**：GROBID（事实标准 PDF→TEI 抽取器）官方 benchmark：参考文献抽取+解析 PMC 集 0.87 F1、bioRxiv ~0.90；孤立参考文献解析 >0.90 instance-level；引文上下文对齐 0.76–0.91 F1 视评测集[^grobid]。横评中 GROBID out-of-box 居首（0.89），重训后 0.92；组合使用 GROBID+AnyStyle 最优[^parsereval][^freepipe]。**PDF 路线单工具 ~0.87–0.90 F1 是天花板，字段级错误与漏抽不可避免。**
+**PDF 侧天花板**：GROBID（事实标准 PDF→TEI 抽取器）官方 benchmark：参考文献抽取 + 解析 PMC 集 0.87 F1、bioRxiv ~0.90；孤立参考文献解析 >0.90 instance-level；引文上下文对齐 0.76–0.91 F1 视评测集[^grobid]。横评中 GROBID out-of-box 居首（0.89），重训后 0.92；组合使用 GROBID+AnyStyle 最优[^parsereval][^freepipe]。**PDF 路线单工具 ~0.87–0.90 F1 是天花板，字段级错误与漏抽不可避免。**
 
 **LaTeX 源侧**：S2ORC（ACL 2020）论文明示「直接访问源码，引文跨度、参考文献、图表 caption、节标题、公式检测精度 near-perfect」，共处理 1.5M 篇 arXiv LaTeX；配套 `s2orc-doc2json` 开源[^s2orc][^doc2json]。unarXive（Saier & Färber）是直接先例：LaTeXML 转 XML 抽结构化全文，2022 版含 **1.9M 篇结构化全文、63M 条参考文献（28M 已链 OpenAlex）、134M 个 in-text 引用标记（65M 已链接）**、742M 条数学式 LaTeX 保留，横跨 32 年；Zenodo permissively-licensed 子集公开直下、full 版受限申请，HF 有现成 citation-recommendation 训练集[^unarxiv22][^unxgit]。值得注意的反例：S2ORC 发现 LaTeX 侧**元数据**质量反而比 PDF 差（自定义宏花样多），故聚簇仍用 PDF/出版商元数据——抽取分工值得借鉴。
 

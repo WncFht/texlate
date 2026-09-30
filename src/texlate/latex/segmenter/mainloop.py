@@ -97,7 +97,9 @@ _FRONT_ARG_NAMES = frozenset({"title", "author"})
 class _MainLoop:
     # ------------------------------------------------------------ 主循环
 
-    def scan(self: Segmenter, src: TokenSource, files: list[str], doc_begin: int = -1) -> None:  # noqa: C901, PLR0912, PLR0915 — preamble/consumed/组界/dispatch 四态平铺即主循环
+    def scan(  # noqa: C901, PLR0912, PLR0915 — preamble/consumed/组界/dispatch 四态平铺即主循环
+        self: Segmenter, src: TokenSource, files: list[str], doc_begin: int = -1
+    ) -> None:
         r"""消费 ``src`` 至耗尽。``files`` = fid→源文本表（gullet.file_texts）。
 
         ``doc_begin`` = fid-0 上 ``\\begin{document}`` 的 ``\\begin`` 起点
@@ -286,7 +288,9 @@ class _MainLoop:
             src.scope_pop()
         self._cover_to(fid, b)
 
-    def _preamble_doc_end(self: Segmenter, t: Tok, src: TokenSource, fid: int, b: int) -> bool:
+    def _preamble_doc_end(
+        self: Segmenter, t: Tok, src: TokenSource, fid: int, b: int
+    ) -> bool:
         r"""``\begin{document}`` 检出（字面或 env_begin 宏端点）→ 翻档。
 
         字面 ``\begin{document}`` 盖到 ``{document}`` 闭花括号；``\startdoc``

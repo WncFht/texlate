@@ -358,9 +358,7 @@ async def _refs_bib(deps: AppDeps, request: Request, task_id: str) -> Response:
     all_flag = _qint(request, "all")
     download = _qint(request, "download")
     kept = deps.store.kept_list(task_id)
-    idx = await asyncio.to_thread(
-        bibexport.load_src_index, src_tar_path(deps, task_id)
-    )
+    idx = await asyncio.to_thread(bibexport.load_src_index, src_tar_path(deps, task_id))
 
     if keys:
         wanted = [k.strip() for k in keys.split(",") if k.strip()]

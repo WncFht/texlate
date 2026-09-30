@@ -259,9 +259,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "premature_cs_guard",
         "spacefactor_atdef_wrap",
     ),
-    "envpoly": (
-        "undefined_env_polyfill",
-    ),
+    "envpoly": ("undefined_env_polyfill",),
     "filefix": (
         "doc_absent_stub",
         "driver_tfm_hoist",

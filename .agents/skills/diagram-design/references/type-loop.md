@@ -141,14 +141,14 @@ Include the full circle extrema `cx +/- R`, `cy +/- R` plus station bounds and m
 
 ## 3. Visual grammar
 
-| Element | Treatment |
-|---|---|
-| Station | Standard node: `paper` fill, `ink` stroke, `radius-md`; name in `node-name`, sublabel in `sublabel` |
-| Hub | The one dark element: `ink` fill, `paper` text; slightly larger than a station |
-| Focal station | At most one: `accent-tint` fill, `accent` stroke; station name may use `accent` |
-| Ring flow | Circular `A R R 0 0 1` arcs on the station circle, solid `muted` stroke, default arrowhead at the destination; clockwise only |
-| Write-back spoke | Dashed `soft` stroke at reduced emphasis, `stroke-dasharray="5,4"`, with a `soft` arrowhead |
-| Spoke label | `arrow-label` role, `soft`, uppercase, paper mask, 6–10px clear of the connector |
+| Element          | Treatment                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Station          | Standard node: `paper` fill, `ink` stroke, `radius-md`; name in `node-name`, sublabel in `sublabel`                           |
+| Hub              | The one dark element: `ink` fill, `paper` text; slightly larger than a station                                                |
+| Focal station    | At most one: `accent-tint` fill, `accent` stroke; station name may use `accent`                                               |
+| Ring flow        | Circular `A R R 0 0 1` arcs on the station circle, solid `muted` stroke, default arrowhead at the destination; clockwise only |
+| Write-back spoke | Dashed `soft` stroke at reduced emphasis, `stroke-dasharray="5,4"`, with a `soft` arrowhead                                   |
+| Spoke label      | `arrow-label` role, `soft`, uppercase, paper mask, 6–10px clear of the connector                                              |
 
 Draw in this order: paper or optional dot grid → ring arrows → dashed spokes → spoke-label masks and labels → station boxes → hub → text. The nodes mask microscopic connector overshoot, while every intended endpoint still lands on an edge.
 
@@ -173,15 +173,15 @@ SKILL.md §6 applies in full except for the two Loop-specific connector primitiv
 
 Apply the style-guide inversion rule; do not invent a second palette.
 
-| Role | Light | Dark |
-|---|---|---|
-| Canvas and station fill | `paper` | dark `paper` |
-| Primary text and station stroke | `ink` | inverted `ink` |
-| Hub fill / hub text | `ink` / `paper` | inverted `ink` / dark `paper` |
-| Ring flow | `muted` | dark `muted` |
-| Write-back spokes and labels | `soft` | dark `soft` |
-| Focal fill / stroke | `accent-tint` / `accent` | dark `accent-tint` / brighter dark `accent` |
-| Rule and dot grid | `rule` | inverted `rule` at the same opacity |
+| Role                            | Light                    | Dark                                        |
+| ------------------------------- | ------------------------ | ------------------------------------------- |
+| Canvas and station fill         | `paper`                  | dark `paper`                                |
+| Primary text and station stroke | `ink`                    | inverted `ink`                              |
+| Hub fill / hub text             | `ink` / `paper`          | inverted `ink` / dark `paper`               |
+| Ring flow                       | `muted`                  | dark `muted`                                |
+| Write-back spokes and labels    | `soft`                   | dark `soft`                                 |
+| Focal fill / stroke             | `accent-tint` / `accent` | dark `accent-tint` / brighter dark `accent` |
+| Rule and dot grid               | `rule`                   | inverted `rule` at the same opacity         |
 
 The semantic relationship stays unchanged in dark mode: one `ink`-filled hub, one optional `accent` station, neutral solid ring arrows, and lighter dashed write-backs.
 
@@ -203,16 +203,16 @@ The semantic relationship stays unchanged in dark mode: one `ink`-filled hub, on
 
 ## 7. Anti-patterns
 
-| Anti-pattern | Why it fails / correction |
-|---|---|
-| Two hubs | Two accumulated states create two systems. Draw two diagrams. |
-| Solid spokes | They look like primary flow and kill the dashed return signal. Use dashed `soft` write-backs. |
-| Stations at uneven angles without reason | The ring stops reading as one operating cadence. Use equal `360/N` spacing unless a documented phase grouping requires a deliberate gap. |
-| Mixed arc + orthogonal ring segments | The ring becomes a rounded rectangle. Every segment must be a circular arc of the same radius so the ring reads as one continuous circle. |
-| Connectors crossing the hub | Flow becomes confused with state. Route the ring outside or enlarge the radius. |
-| Accent on multiple stations | The editorial gate disappears. Keep one focal station at most. |
-| More than 8 stations | Labels and spokes crowd the hub. Split into overview + detail. |
-| A cycle that never actually returns | That is a Flowchart arranged in a circle. Use Flowchart and show the real endpoint. |
+| Anti-pattern                             | Why it fails / correction                                                                                                                 |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Two hubs                                 | Two accumulated states create two systems. Draw two diagrams.                                                                             |
+| Solid spokes                             | They look like primary flow and kill the dashed return signal. Use dashed `soft` write-backs.                                             |
+| Stations at uneven angles without reason | The ring stops reading as one operating cadence. Use equal `360/N` spacing unless a documented phase grouping requires a deliberate gap.  |
+| Mixed arc + orthogonal ring segments     | The ring becomes a rounded rectangle. Every segment must be a circular arc of the same radius so the ring reads as one continuous circle. |
+| Connectors crossing the hub              | Flow becomes confused with state. Route the ring outside or enlarge the radius.                                                           |
+| Accent on multiple stations              | The editorial gate disappears. Keep one focal station at most.                                                                            |
+| More than 8 stations                     | Labels and spokes crowd the hub. Split into overview + detail.                                                                            |
+| A cycle that never actually returns      | That is a Flowchart arranged in a circle. Use Flowchart and show the real endpoint.                                                       |
 
 ---
 

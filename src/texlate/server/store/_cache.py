@@ -90,9 +90,7 @@ class CacheRepo(_Repo):
         自立事务 commit——摘除是冷路径（一次一条），无批事务可骑；
         毒条目不摘除会逃逸成 worker crash-skip 而非自愈重翻。
         """
-        cur = self.conn.execute(
-            "DELETE FROM translation_cache WHERE key = ?", (key,)
-        )
+        cur = self.conn.execute("DELETE FROM translation_cache WHERE key = ?", (key,))
         self.conn.commit()
         return cur.rowcount > 0
 

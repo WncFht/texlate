@@ -1,6 +1,6 @@
 # canon 规范化实证：arxiv.org 301 实录、官方规则与 manifest 普查
 
-> **结论**：canon 契约（`docs/spec/arxiv-id-canon.md`）的远端行为底座——arxiv.org 对旧形带 class、大写 archive、大写 `V` 一律 301 到剥壳小写形，新旧形 seq 位数跨时代互认；本仓 manifest 14,398 个 id 中 slash 旧形全为裸 `archive/NNNNNNN` 拼写（无 class 形），canon 剥 class+小写化后与存量落库形天然同键。
+> **结论**：canon 契约（`docs/spec/arxiv-id-canon.md`）的远端行为底座——arxiv.org 对旧形带 class、大写 archive、大写 `V` 一律 301 到剥壳小写形，新旧形 seq 位数跨时代互认；本仓 manifest 14,398 个 id 中 slash 旧形全为裸 `archive/NNNNNNN` 拼写（无 class 形），canon 剥 class+ 小写化后与存量落库形天然同键。
 >
 > **状态**：时点证据（2026-09-22 口径）
 > **日期**：2026-09-22

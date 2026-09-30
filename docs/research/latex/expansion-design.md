@@ -52,7 +52,7 @@ plasTeX 无任何展开限制——`\def\x{\x}` 死循环只能靠外部 alarm �
 
 定义点在 gullet 内消费并登记，统一编译为 `spec: list[Arg]` + `body: list[Tok]`（`#n` 为 Parameter token）。`Arg.kind ∈ {m, o, star, eq, delim, until_group}`：`m` 强制（`{..}` 或单 token）、`o` 可选带默认、`star` 字面 `*`、`eq` 可选 `=`（`\let\a=\b`）、`delim` 定界参数（读到定界 token 序列为止，定界被消费不入参）、`until_group` 对应 `#{` 尾随组（读到 `{` 回吐不消费）。
 
-逐类要点：`\newcommand{\x}[2][a]` 的可选位计入 N（`#1` 可选 + `#2` 强制）——v1 按 `opt+N` 多读一个是 bug，已修；`\providecommand` 是 `setdefault`、`\renewcommand` 覆盖写；`\edef/\xdef` 体在登记时即时展开（`_expand_eager` 哨兵界标法：体+哨兵推回流、抽展开产物至哨兵止；体内 `\noexpand` 给下一 token 打单发 `xprotect`）；`\newtheorem` 登记 env 透明项 + caption 元数据；`\newif\iffoo` 登记三项（旗标 + `\footrue/\foofalse` setter）；`\let\a\b` 存当时的 MacroDef 快照引用（`\b` 后改不影响 `\a`）。xparse spec 实现 `m o O s t d D r R u g l` 子集，含 `v/b/e/E/x` 的定义整条降级不登记。
+逐类要点：`\newcommand{\x}[2][a]` 的可选位计入 N（`#1` 可选 + `#2` 强制）——v1 按 `opt+N` 多读一个是 bug，已修；`\providecommand` 是 `setdefault`、`\renewcommand` 覆盖写；`\edef/\xdef` 体在登记时即时展开（`_expand_eager` 哨兵界标法：体 + 哨兵推回流、抽展开产物至哨兵止；体内 `\noexpand` 给下一 token 打单发 `xprotect`）；`\newtheorem` 登记 env 透明项 + caption 元数据；`\newif\iffoo` 登记三项（旗标 + `\footrue/\foofalse` setter）；`\let\a\b` 存当时的 MacroDef 快照引用（`\b` 后改不影响 `\a`）。xparse spec 实现 `m o O s t d D r R u g l` 子集，含 `v/b/e/E/x` 的定义整条降级不登记。
 
 ### 5.1 `\def` 参数文本编译（前移 plasTeX 调用点逻辑）
 

@@ -25,7 +25,7 @@ sanitize 影响面：raw 70314 → 存活 70157（剥 157 个 id，全部位于�
 | `g<n>`                                 | object/img.ltx_graphics                 | 图内图形件（`Sx1.F5.g2`）                                               |
 | `pic<n>`                               | svg.ltx_picture                         | tikz 图（嵌在字母子图内 `A5.F10.sf2a.pic1`）                            |
 | `fig<n>`                               | figure.ltx_figure_panel                 | 嵌在表单元格里的图板                                                    |
-| `E<n>`/`Ex<n>`                         | table.ltx_equation                      | 公式（x=无号；`Ex42Xa` 中 X+字母=子公式 (a)(b)）                        |
+| `E<n>`/`Ex<n>`                         | table.ltx_equation                      | 公式（x=无号；`Ex42Xa` 中 X+ 字母=子公式 (a)(b)）                       |
 | `EG<n>`/`EGx<n>`                       | table.ltx_equationgroup                 | 公式组                                                                  |
 | `Thm<env><n>`                          | div.ltx_theorem                         | 定理——前缀嵌环境类名：Thmtheorem/Thmthm/Thmfact/Thmclaim/Thmmaintheorem |
 | `I<n>`/`i<n>`/`ix<n>`                  | ltx_itemize/ltx_enumerate/ltx_item      | 列表/项（itemize 项恒无号→ix）                                          |

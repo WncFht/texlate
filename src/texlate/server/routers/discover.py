@@ -85,9 +85,7 @@ async def _ax_get(path: str, params: dict[str, Any] | None = None) -> httpx.Resp
     try:
         return await _client().get(path, params=params)
     except httpx.HTTPError as e:
-        raise _api_error(
-            502, f"alphaxiv upstream: {e}", "discover_upstream"
-        ) from e
+        raise _api_error(502, f"alphaxiv upstream: {e}", "discover_upstream") from e
 
 
 def _check_2xx(resp: httpx.Response, what: str) -> None:
@@ -114,10 +112,7 @@ def _ax_json[T](resp: httpx.Response, what: str, expect: type[T]) -> T:
     if not isinstance(data, expect):
         raise _api_error(
             502,
-            (
-                f"alphaxiv {what}: expect {expect.__name__}, "
-                f"got {type(data).__name__}"
-            ),
+            (f"alphaxiv {what}: expect {expect.__name__}, got {type(data).__name__}"),
             "discover_upstream",
         )
     return data
@@ -193,9 +188,7 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
     ) -> dict[str, Any]:
         """首页 feed 透传（sort/interval 白名单 + 分页 clamp）。"""
         if sort not in _FEED_SORTS:
-            raise _api_error(
-                400, f"sort ∈ {sorted(_FEED_SORTS)}", "invalid_request"
-            )
+            raise _api_error(400, f"sort ∈ {sorted(_FEED_SORTS)}", "invalid_request")
         if interval not in _FEED_INTERVALS:
             raise _api_error(
                 400, f"interval ∈ {sorted(_FEED_INTERVALS)}", "invalid_request"
@@ -225,9 +218,7 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
         """快搜建议代理（``search/v2/paper/fast``，``{paperId,title,snippet,link}`` 列表）。"""
         q = q.strip()
         if not q or len(q) > _SEARCH_Q_MAX:
-            raise _api_error(
-                400, f"q 须为 1–{_SEARCH_Q_MAX} 字符", "invalid_request"
-            )
+            raise _api_error(400, f"q 须为 1–{_SEARCH_Q_MAX} 字符", "invalid_request")
         cached = _search_cache.get(q)
         if cached is not None:
             return cached

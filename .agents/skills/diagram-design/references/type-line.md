@@ -112,13 +112,13 @@ Non-focal series: `stroke="rgba(45,49,66,0.68)"` at `stroke-width="1.2"`, dots `
 
 What each binding buys, and what it costs to omit:
 
-| Binding | Without it |
-|---|---|
+| Binding                             | Without it                                                                                                                                                                                |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `data-from` / `data-to` on the line | The checker would have to read the labels, and a series whose label went missing would drop silently out of the verified set — the exact hole that let a treemap cell ship 50% oversized. |
-| `data-end` on a value label | A printed number could not be cross-checked against the value it claims to state. |
-| `data-role="name"` on a name label | Two series names could be exchanged between rows, renaming both lines, with every number still correct in isolation. |
-| `data-axis` on a state caption | The captions could be swapped, reversing the direction every slope is read in. |
-| `data-state` on a state caption | Swapping just the two visible strings leaves both captions in place and reverses the figure anyway. |
+| `data-end` on a value label         | A printed number could not be cross-checked against the value it claims to state.                                                                                                         |
+| `data-role="name"` on a name label  | Two series names could be exchanged between rows, renaming both lines, with every number still correct in isolation.                                                                      |
+| `data-axis` on a state caption      | The captions could be swapped, reversing the direction every slope is read in.                                                                                                            |
+| `data-state` on a state caption     | Swapping just the two visible strings leaves both captions in place and reverses the figure anyway.                                                                                       |
 
 `scripts/verify-slopegraph.py` requires all of them, cross-checks each visible string against its binding, and reports any label drawn nearer another series' endpoint than its own — a label on the wrong row renames the line.
 

@@ -40,9 +40,7 @@ from pathlib import Path
 import pytest
 from _fixloopkit import code_lines, n_err, requires_xelatex, run_xelatex
 
-STUBS = (
-    Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/stubs"
-)
+STUBS = Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/stubs"
 SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
 
 # (stub 文件名, 命名空间前缀) —— aa.cls 用 aa@, aas4 系共享 aas@ (双载守卫互斥)

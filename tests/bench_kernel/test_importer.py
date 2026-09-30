@@ -432,7 +432,9 @@ def test_import_benchdb(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "8675309-supersecret" not in events.dumps(sec)
 
 
-def test_import_benchdb_idempotent_and_dry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_import_benchdb_idempotent_and_dry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     db_path = _mk_benchdb(tmp_path / "bench.db")
     index = Index()

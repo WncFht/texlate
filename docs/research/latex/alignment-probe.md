@@ -1,6 +1,6 @@
 # 双语滚动同步锚点探针 — named destinations 保留率验证
 
-> **结论**：named-dest 滚动同步方案成立——ctex 注入 + 全文翻译不改变锚点名集合（结构未破坏的 10/11 对保留率 ≥0.94，其中 8 对 =1.000），位置漂移单调可由单调链+插值吸收；剩余约 1/3 无 hyperref 语料（实测 31%）需兜底。
+> **结论**：named-dest 滚动同步方案成立——ctex 注入 + 全文翻译不改变锚点名集合（结构未破坏的 10/11 对保留率 ≥0.94，其中 8 对 =1.000），位置漂移单调可由单调链 + 插值吸收；剩余约 1/3 无 hyperref 语料（实测 31%）需兜底。
 > **状态**：时点证据（2026-09-14 口径；方案已落地为 `align.py::build_alignment` → `dual.json`，规范见 `spec/architecture.md`）
 > **日期**：2026-09-14
 
@@ -14,7 +14,7 @@
 
 ## e2e base↔A 锚点统计（核心表）
 
-按 A 侧 (page, −y/页高） 排序求 B 侧非降最大权子链；权重 section\* 12 / figure|table 10 / equation 4 / cite 2 / 其他 1。Δp = pageB−pageA（mock 译文为定长短句 → 系统性压缩，负值=前移）。frac-drift = (page+1−y)/N 归一化阅读位置差。
+按 A 侧 (page, −y/页高）排序求 B 侧非降最大权子链；权重 section\* 12 / figure|table 10 / equation 4 / cite 2 / 其他 1。Δp = pageB−pageA（mock 译文为定长短句 → 系统性压缩，负值=前移）。frac-drift = (page+1−y)/N 归一化阅读位置差。
 
 | 工程            | dests base→zh | 保留率    | 页数 base→zh | Δp med | frac-drift \|d\|med | 单调链 n  | 链权比   | section 入链      |
 | --------------- | ------------- | --------- | ------------ | ------ | ------------------- | --------- | -------- | ----------------- |
@@ -41,7 +41,7 @@ e2e base↔B（幻觉译，4 对）：保留率 0.96–0.98，掉的是 cite.\*/
 
 ## 关键发现
 
-1. **名集合对 ctex+译文惰性**。所有存活锚点名逐字节一致（含 `cite.DBLP:journals/corr/BritzGLL17` 这类特殊字符名）；没有因 ctex/xeCJK 产生重命名或 fit 类型变化（两侧全 /XYZ）。
+1. **名集合对 ctex+ 译文惰性**。所有存活锚点名逐字节一致（含 `cite.DBLP:journals/corr/BritzGLL17` 这类特殊字符名）；没有因 ctex/xeCJK 产生重命名或 fit 类型变化（两侧全 /XYZ）。
 2. **掉锚机制 = 内容被吃掉，不是渲染问题**。1502.01589 中 `\input introduction … \input grid` 七行连续输入落入同一 chunk 被 mock 整段替换，正文 258 个锚点整批消失；`\input` 行前后各一行存活佐证边界在 chunk 内部。2609.09529 丢 12 个同理。→ 由此立规：**`\input`/`\include`/`\label`/`\bibitem` 必须留在占位符侧、禁入可译 chunk**（已落地——v2 管线 `\input` 由 gullet 压栈处理、`\label` 系走 PROTECT 分派，见 `segmenter-integration.md`）。
 3. **名 = 计数器值，重编号即改名**。2609.06443 zh 多出 Item.106–115（itemize 计数器因上游 chunk 丢失而漂移）；engine 对照组里 equation.1 vs equation.0.1、cite.\* 有无，均由 aux/bib pass 差异造成。按名配对天然容忍（改名=失配降级为插值），但也意味着**译文侧结构完整性直接决定锚点率**。
 4. **页漂移大但形状健康**。mock 压缩下 Δp 中位 −3…−75；归一化阅读位置漂移 \|d\|med 1.6–8%，p90 ≤16%（健康对）。真实译文长度约为英文 0.6–0.8×，漂移方向相同、幅度更小。

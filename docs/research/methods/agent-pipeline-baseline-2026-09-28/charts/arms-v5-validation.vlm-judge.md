@@ -4,35 +4,43 @@
 - intent: `/home/fanghaotian/src/texlate/tmp/fig-intent.md`（文本截取）
 - backend: `claude`
 - date: 2026-09-29
-- 性质: advisory——本单结论不阻断交付、不进机器审计退出码
+- 性质：advisory——本单结论不阻断交付、不进机器审计退出码
 
 ## 意图摘要
 
 # 三臂图组主张台账（vlm-judge 靶子）
 
-## arms-input-tokens.png（图1）
+## arms-input-tokens.png（图 1）
+
 主张：v5 总量把输入病理治到 agent 以下（Σ 1.29M < 4.75M）、且逐篇不劣于 v4（10/10）；19844/20581 两篇 v5>agent 为例外（重试/退单翻堆量），图内已标注。
+
 - 数据：网关 logs 窗Σ实测。agent=openai-responses 全天窗；v4=chat key 1edae 17:14-18:21 窗；v5=chat key 268cd 23:28-00:35 窗（与 task_usage 逐字节核平）。
 - 总量：agent 4.75M / v4 5.98M / v5 1.29M；调用数 893/294/393（+34%，19506 单篇 ~1.9×）。
 - v5 调用数膨胀根因是成员级退单翻（整批解析失败退回单条重发），单次 ~3k 全价——不算病理。
 
-## arms-request-ekg.png（图2）
+## arms-request-ekg.png（图 2）
+
 主张：同篇 2609.19506 三臂逐调用新输入心电图——v4 红刺=ph→ph 恒等表 miss 全价重发（~122k 等高），金条=缓存命中调用（in 只剩 user）；v5 140 调用全 miss 但塌平到 ~1–6.5k；agent 橙刺=缓存失守全量回放、金场=增量命中常态。暖色（橙/红）跨臂同义=全价重发，金=命中，面板标题内声明。
+
 - 数据：三臂各自网关窗全部调用按序绘，x=调用序，y=单次 input_tokens（log）。
 
-## arms-v5-validation.png（图3）
-主张：v5 记账模型（Σuser 载荷 + miss次数×S_v5 常数）推算 1.53M vs 实测 1.29M（84%）——整体偏保守、逐篇同形；实测偏低因 S_v5 常数 ~1k 小于常数估上限。反超篇（20739/19990/20581）= v5 调用数被退单翻/重试放大，推算按 v4 miss 调用数未覆盖此变量。
+## arms-v5-validation.png（图 3）
+
+主张：v5 记账模型（Σuser 载荷 + miss 次数×S_v5 常数）推算 1.53M vs 实测 1.29M（84%）——整体偏保守、逐篇同形；实测偏低因 S_v5 常数 ~1k 小于常数估上限。反超篇（20739/19990/20581）= v5 调用数被退单翻/重试放大，推算按 v4 miss 调用数未覆盖此变量。
+
 - 数据：推算=同口径常数函数；实测=网关窗Σ。
 
-## arms-quality.png（图4）
+## arms-quality.png（图 4）
+
 主张：v5 质量零代价——残英有效行与 ngram 退化分三臂逐篇对比，v5≈v4 全项持平或更优；agent B 面 19506 ngram≈55 为三臂最大退化点（19990≈10 次之，已标注）。n/a 记号 = 无 zh.pdf 产物（texlate 两臂 20523/20581），与真零分可区分；agent 十篇皆有产物。
+
 - 数据：zh PDF 抽文闸 _plain_scan 同规则三臂；unreached/tail-cut 等覆盖指标在文中表不入图。
 
 ## Checklist
 
 ### 1. 主张—数据一致性
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 顶部主张、标题与含义框里的每条断言，是否都有曲线/形状/数值上的直接证据？
 - [ ] 有没有主张断言的趋势、大小或因果，在绘制内容里找不到支撑，甚至与证据相反？
@@ -41,7 +49,7 @@
 
 ### 2. 标签可读性
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 全部文字在交付尺寸下是否可读：字号、对比度足够，无裁切、截断或溢出边框？
 - [ ] 每个符号、缩写与记号是否在使用处或含义框中定义？有无未解释的孤立记号？
@@ -49,7 +57,7 @@
 
 ### 3. 编码通道可辨识度
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 同时出现的色相是否两两可辨（含明度相近色对与色盲安全）？
 - [ ] 颜色即语义是否成立：同一色相全图同一含义，换含义才换色相，明度只表幅度？
@@ -58,7 +66,7 @@
 
 ### 4. 阅读顺序
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 视觉动线是否按论证顺序推进（主张→结构/数据→结论），而非让视线来回跳？
 - [ ] 连接器方向与语义流向是否一致；反馈回路、分支合流是否一眼可辨？
@@ -66,7 +74,7 @@
 
 ### 5. 未埋点碰撞风险
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 是否有未进审计的文字/标签压在线上、框上或其他文字上（机器审计只覆盖埋点对象）？
 - [ ] 画布边缘是否有被裁掉半个的元素？连接线是否擦过非端点对象？
@@ -74,7 +82,7 @@
 
 ### 6. 图—caption 一致性
 
-判定：____（PASS / CONCERN / FAIL）　证据：____
+判定：****（PASS / CONCERN / FAIL）证据：****
 
 - [ ] 底部含义框/标识行描述的是否恰是实际画出的对象，不多不少？
 - [ ] 若 intent 给了正文 caption 或台账：图内文字与之是否互相印证，而非各说各话？
@@ -101,21 +109,21 @@ ____（PASS = 全部条目通过；CONCERN = 有疑点需人工复核；FAIL = �
 ## 作者声明的意图
 # 三臂图组主张台账（vlm-judge 靶子）
 
-## arms-input-tokens.png（图1）
+## arms-input-tokens.png（图 1）
 主张：v5 总量把输入病理治到 agent 以下（Σ 1.29M < 4.75M）、且逐篇不劣于 v4（10/10）；19844/20581 两篇 v5>agent 为例外（重试/退单翻堆量），图内已标注。
 - 数据：网关 logs 窗Σ实测。agent=openai-responses 全天窗；v4=chat key 1edae 17:14-18:21 窗；v5=chat key 268cd 23:28-00:35 窗（与 task_usage 逐字节核平）。
 - 总量：agent 4.75M / v4 5.98M / v5 1.29M；调用数 893/294/393（+34%，19506 单篇 ~1.9×）。
 - v5 调用数膨胀根因是成员级退单翻（整批解析失败退回单条重发），单次 ~3k 全价——不算病理。
 
-## arms-request-ekg.png（图2）
+## arms-request-ekg.png（图 2）
 主张：同篇 2609.19506 三臂逐调用新输入心电图——v4 红刺=ph→ph 恒等表 miss 全价重发（~122k 等高），金条=缓存命中调用（in 只剩 user）；v5 140 调用全 miss 但塌平到 ~1–6.5k；agent 橙刺=缓存失守全量回放、金场=增量命中常态。暖色（橙/红）跨臂同义=全价重发，金=命中，面板标题内声明。
 - 数据：三臂各自网关窗全部调用按序绘，x=调用序，y=单次 input_tokens（log）。
 
-## arms-v5-validation.png（图3）
-主张：v5 记账模型（Σuser 载荷 + miss次数×S_v5 常数）推算 1.53M vs 实测 1.29M（84%）——整体偏保守、逐篇同形；实测偏低因 S_v5 常数 ~1k 小于常数估上限。反超篇（20739/19990/20581）= v5 调用数被退单翻/重试放大，推算按 v4 miss 调用数未覆盖此变量。
+## arms-v5-validation.png（图 3）
+主张：v5 记账模型（Σuser 载荷 + miss 次数×S_v5 常数）推算 1.53M vs 实测 1.29M（84%）——整体偏保守、逐篇同形；实测偏低因 S_v5 常数 ~1k 小于常数估上限。反超篇（20739/19990/20581）= v5 调用数被退单翻/重试放大，推算按 v4 miss 调用数未覆盖此变量。
 - 数据：推算=同口径常数函数；实测=网关窗Σ。
 
-## arms-quality.png（图4）
+## arms-quality.png（图 4）
 主张：v5 质量零代价——残英有效行与 ngram 退化分三臂逐篇对比，v5≈v4 全项持平或更优；agent B 面 19506 ngram≈55 为三臂最大退化点（19990≈10 次之，已标注）。n/a 记号 = 无 zh.pdf 产物（texlate 两臂 20523/20581），与真零分可区分；agent 十篇皆有产物。
 - 数据：zh PDF 抽文闸 _plain_scan 同规则三臂；unreached/tail-cut 等覆盖指标在文中表不入图。
 
@@ -154,28 +162,34 @@ ____（PASS = 全部条目通过；CONCERN = 有疑点需人工复核；FAIL = �
 
 已审图。以下按 checklist 逐条判定。
 
-## 评审：arms-v5-validation.png（图3）
+## 评审：arms-v5-validation.png（图 3）
 
 **1. 主张—数据一致性 — PASS**
+
 - Σ 主张有证：标注框 "Σ 推算 1.53M → 实测 1.29M（84%）"，10 组柱目测合计与之相符（推算 ≈1.5M、实测 ≈1.2M）。
 - "整体偏保守" 有证：7/10 篇 hatch（推算）> 实心（实测）。
 - 反超篇断言精确命中：20739、19990、20581 三组恰为实心 > hatch，与标注框列名一一对应，无漏报无多报；其余各篇方向一致，无未解释的反转。
-- 最高柱 19506（~650k/450k）与台账图2 焦点篇一致，不算未解释异常。
+- 最高柱 19506（~650k/450k）与台账图 2 焦点篇一致，不算未解释异常。
 - 截断声明 "arXiv 2609.xxxxx" 在轴标题声明一次，不会误读。
 
 **2. 标签可读性 — PASS**
+
 - 标题、标注框三行、图例、x 刻度（45° 旋转必要）、y 轴竖排 "新输入 token / 篇" 均可读，无裁切无豆腐块；底部灰字标识行对比度在交付尺寸下可辨。
 
 **3. 编码通道可辨识 — PASS**
+
 - 单 teal 色相族 + hatch/实心双纹理区分推算/实测，同族同义（皆为 v5 量），纹理与类别单调对应；活跃色相 1 族 + 中性灰，远在预算内，色盲安全。
 
 **4. 阅读顺序 — PASS**
-- 标题→左上主张框→柱组→底部口径行，动线顺论证；x 序非数值非升幂（疑为处理序/与图1 对齐），未声明但不误导。
+
+- 标题→左上主张框→柱组→底部口径行，动线顺论证；x 序非数值非升幂（疑为处理序/与图 1 对齐），未声明但不误导。
 
 **5. 未埋点碰撞 — PASS**
+
 - 标注框位于左上空白区，底边高于最高柱（19506 ~650k 未及 10⁶ 区）；图例右上无压柱；画布边缘无半裁元素。
 
 **6. 图—caption 一致性 — CONCERN**
+
 - 底部标识行写 "推算 = v4 观测 miss 谱 × S_v5 常数"，字面是乘法；台账主张的模型是 "Σuser 载荷 + miss 次数 × S_v5"（加法两项）。caption 丢了载荷项、把加法写成乘法——标注框 "批载荷 < 推算上限" 虽暗示载荷存在，但单行公式与台账口径不互证。属措辞级偏差，非主张冲突。
 - 另：三篇反超柱仅靠 ID 对名定位，柱/刻度上无视觉标记（星号或描边），读者需自行搜寻。
 
@@ -187,6 +201,6 @@ ____（PASS = 全部条目通过；CONCERN = 有疑点需人工复核；FAIL = �
 
 ## 产物
 
-- 评审单: `/home/fanghaotian/src/texlate/docs/research/methods/agent-pipeline-baseline-2026-09-28/charts/arms-v5-validation.vlm-judge.md`
-- 评审对象: `/home/fanghaotian/src/texlate/docs/research/methods/agent-pipeline-baseline-2026-09-28/charts/arms-v5-validation.png`
+- 评审单：`/home/fanghaotian/src/texlate/docs/research/methods/agent-pipeline-baseline-2026-09-28/charts/arms-v5-validation.vlm-judge.md`
+- 评审对象：`/home/fanghaotian/src/texlate/docs/research/methods/agent-pipeline-baseline-2026-09-28/charts/arms-v5-validation.png`
 - intent: `/home/fanghaotian/src/texlate/tmp/fig-intent.md`

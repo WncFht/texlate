@@ -1,6 +1,6 @@
 # Lane 07：ResearchRabbit 逆向
 
-> **结论**：迭代式引用链发现的代表产品——seeds→候选扩展（直引+共享 refs/citations+合著+语义）→connectedness 归一化排序，核心无 LLM；数据三源全公开、算法零壁垒，真正资产是 session/step checkpoint-branch 交互模型；全端点鉴权无公共 API。
+> **结论**：迭代式引用链发现的代表产品——seeds→候选扩展（直引 + 共享 refs/citations+合著+语义）→connectedness 归一化排序，核心无 LLM；数据三源全公开、算法零壁垒，真正资产是 session/step checkpoint-branch 交互模型；全端点鉴权无公共 API。
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
@@ -30,12 +30,12 @@ ResearchRabbit 2021 年创立于西雅图（Michael Ma 创始），文献发现�
 ## 可借鉴点
 
 - **session/step checkpoint-branch 对象模型是交互设计上的真正资产**——迭代链发现产品的「可回退、可分叉」语义值得照抄。
-- connectedness 归一化排序 + 候选四类来源（直引/BC/CC/合著/语义）是「图遍历+打分」经典工程，无黑盒。
+- connectedness 归一化排序 + 候选四类来源（直引/BC/CC/合著/语义）是「图遍历 + 打分」经典工程，无黑盒。
 - 只索引 OA metadata 的口径是现成的合规免责声明写法。
 
 ## 结论
 
-数据层（三源聚合）与算法层（邻域扩展+加权排序）全部可复刻，壁垒只在候选集数十万量级时的预计算图与服务化遍历能力。未验证项：语义相似的具体 embedding 模型、共被引/耦合在 Similar 打分中的权重、「quality of citations」的具体度量。
+数据层（三源聚合）与算法层（邻域扩展 + 加权排序）全部可复刻，壁垒只在候选集数十万量级时的预计算图与服务化遍历能力。未验证项：语义相似的具体 embedding 模型、共被引/耦合在 Similar 打分中的权重、「quality of citations」的具体度量。
 
 ### 参考文献
 

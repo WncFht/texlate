@@ -6,7 +6,7 @@
 
 ## 1. 口径
 
-12 个多样项目语料（amsart/revtex4-2/IEEEtran/acmart+Agda/elsarticle/subfiles+私类/2.2MB book/LaTeX2.09/法语 babel+T1/latin-5+pstricks/minted/tikz 重度）。引擎：xelatex（TeX Live 2026）vs tectonic 0.17.0（bundle 快照 ctex 2.5.8/fontspec 2.8a/minted 2.6，普遍比 TL2026 旧）。统一在 `\documentclass` 后字节级注入 `\usepackage[fontset=fandol,UTF8]{ctex}`；timeout 240s；clean 判据 = 出 PDF 且末遍 log `!` 错误 ≤3。
+12 个多样项目语料（amsart/revtex4-2/IEEEtran/acmart+Agda/elsarticle/subfiles+ 私类/2.2MB book/LaTeX2.09/法语 babel+T1/latin-5+pstricks/minted/tikz 重度）。引擎：xelatex（TeX Live 2026）vs tectonic 0.17.0（bundle 快照 ctex 2.5.8/fontspec 2.8a/minted 2.6，普遍比 TL2026 旧）。统一在 `\documentclass` 后字节级注入 `\usepackage[fontset=fandol,UTF8]{ctex}`；timeout 240s；clean 判据 = 出 PDF 且末遍 log `!` 错误 ≤3。
 
 首轮矩阵结果：xelatex 4 clean / 1 pdf~ / 7 FAIL；tectonic 7 clean / 1 pdf~ / 4 FAIL。修复探针后 xelatex 达 7 clean + 4 pdf~ + 1 FAIL；联合 clean 覆盖 9/12，全灭仅 hep-th（LaTeX2.09 + 私类，三引擎全死）。
 

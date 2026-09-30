@@ -140,11 +140,11 @@ Solid paper fill across `viewBox`. No dot pattern. Each zone box:
 
 Three visual kinds:
 
-| `kind` | Fill | Stroke | Stroke width | Stroke dash | Name ink | Sub ink |
-| --- | --- | --- | --- | --- | --- | --- |
-| `standard` | `#FFFFFF` | `ink` | 1 | — | `ink` | `muted` |
-| `focal` | `accent @ 0.07` | `accent` | 1.4 | — | `ink` | `accent` (line 1) + `muted` (line 2) |
-| `external` | `#FFFFFF` | `muted` | 1 | `4,3` | `ink` | `muted` |
+| `kind`     | Fill            | Stroke   | Stroke width | Stroke dash | Name ink | Sub ink                              |
+| ---------- | --------------- | -------- | ------------ | ----------- | -------- | ------------------------------------ |
+| `standard` | `#FFFFFF`       | `ink`    | 1            | —           | `ink`    | `muted`                              |
+| `focal`    | `accent @ 0.07` | `accent` | 1.4          | —           | `ink`    | `accent` (line 1) + `muted` (line 2) |
+| `external` | `#FFFFFF`       | `muted`  | 1            | `4,3`       | `ink`    | `muted`                              |
 
 **Icon placement** (24×24, monochrome via `currentColor` — see `references/primitive-icons.md`):
 
@@ -225,12 +225,12 @@ Reused verbatim from `type-process.md` §3.1. No diagonals — ever.
 
 ### 3.2 Exit / entry sides (configurable; defaults below)
 
-| Topology | Default exit side of source | Default entry side of destination |
-| --- | --- | --- |
-| Same zone, dst below | bottom | top |
-| Same zone, dst above | top | bottom |
-| Cross-zone, horizontal flow | right | top (or bottom, whichever is closer to src_cy) |
-| Vertical-orientation diagram | bottom | top |
+| Topology                     | Default exit side of source | Default entry side of destination              |
+| ---------------------------- | --------------------------- | ---------------------------------------------- |
+| Same zone, dst below         | bottom                      | top                                            |
+| Same zone, dst above         | top                         | bottom                                         |
+| Cross-zone, horizontal flow  | right                       | top (or bottom, whichever is closer to src_cy) |
+| Vertical-orientation diagram | bottom                      | top                                            |
 
 A connector can override via `connectors[k].from_side` / `connectors[k].to_side` (`top | right | bottom | left`). **Backward references** (right→left in horizontal orientation, up in vertical orientation) are permitted only when at least one endpoint has `kind: external`, and must be `dashed: true`.
 
@@ -240,11 +240,11 @@ The path's last command ends at the destination's rectangle edge (`V {dst_top}` 
 
 ### 3.4 Style → stroke + marker
 
-| `style` | Stroke color | Stroke width | Marker |
-| --- | --- | --- | --- |
-| `neutral` | `muted` | 1.0 | `url(#arrow)` |
-| `link` | `link` | 1.2 | `url(#arrow-link)` |
-| `accent` | `accent` | 1.4 | `url(#arrow-accent)` |
+| `style`   | Stroke color | Stroke width | Marker               |
+| --------- | ------------ | ------------ | -------------------- |
+| `neutral` | `muted`      | 1.0          | `url(#arrow)`        |
+| `link`    | `link`       | 1.2          | `url(#arrow-link)`   |
+| `accent`  | `accent`     | 1.4          | `url(#arrow-accent)` |
 
 Add `stroke-dasharray="4 3"` when `dashed: true`.
 
@@ -274,12 +274,12 @@ The label sits **near the source end** of the connector (not at the mid-segment)
 
 **Placement formulas** (label box is 18px tall × `w` wide; centered on `{label_cx, label_cy}`):
 
-| Segment exiting source | `label_cx` | `label_cy` | Effect |
-| --- | --- | --- | --- |
-| Horizontal (right exit) | `src_right + 6 + w/2` | `src_cy − 14` | Label sits 6 px past the source, 5 px above the line |
-| Horizontal (left exit, backward) | `src_left − 6 − w/2` | `src_cy − 14` | Label sits 6 px before the source, 5 px above the line |
-| Vertical (bottom exit) | `src_cx + 6 + w/2` | `src_bot + 14` | Label sits 6 px right of the line, 5 px below the source edge |
-| Vertical (top exit, backward) | `src_cx + 6 + w/2` | `src_top − 14` | Label sits 6 px right of the line, 5 px above the source edge |
+| Segment exiting source           | `label_cx`            | `label_cy`     | Effect                                                        |
+| -------------------------------- | --------------------- | -------------- | ------------------------------------------------------------- |
+| Horizontal (right exit)          | `src_right + 6 + w/2` | `src_cy − 14`  | Label sits 6 px past the source, 5 px above the line          |
+| Horizontal (left exit, backward) | `src_left − 6 − w/2`  | `src_cy − 14`  | Label sits 6 px before the source, 5 px above the line        |
+| Vertical (bottom exit)           | `src_cx + 6 + w/2`    | `src_bot + 14` | Label sits 6 px right of the line, 5 px below the source edge |
+| Vertical (top exit, backward)    | `src_cx + 6 + w/2`    | `src_top − 14` | Label sits 6 px right of the line, 5 px above the source edge |
 
 For cross-zone H+Q+V routes the label binds to the **horizontal** segment, since that segment is anchored at the source. Place the label early on that horizontal run — never on the Q-bend or the vertical tail.
 
@@ -297,14 +297,14 @@ All connectors (paths + lines + labels) emit BEFORE any component rect, so node 
 
 Per-component, same shape as every other parametric type in this skill.
 
-| Element | Light | Dark |
-| --- | --- | --- |
-| Container fill | `rgba(C, 0.06)` | `rgba(C_light, 0.10)` |
-| Container stroke | `rgba(C, 0.45)` (width 1) | `rgba(C_light, 0.55)` |
-| Component name text | `C` | `C_light` |
-| Icon glyph | inherits ink via `currentColor` (unchanged) | inherits ink (unchanged) |
-| Sub-label | muted (unchanged) | muted (unchanged) |
-| Connectors touching this component | **unchanged** — topology-driven | **unchanged** |
+| Element                            | Light                                       | Dark                     |
+| ---------------------------------- | ------------------------------------------- | ------------------------ |
+| Container fill                     | `rgba(C, 0.06)`                             | `rgba(C_light, 0.10)`    |
+| Container stroke                   | `rgba(C, 0.45)` (width 1)                   | `rgba(C_light, 0.55)`    |
+| Component name text                | `C`                                         | `C_light`                |
+| Icon glyph                         | inherits ink via `currentColor` (unchanged) | inherits ink (unchanged) |
+| Sub-label                          | muted (unchanged)                           | muted (unchanged)        |
+| Connectors touching this component | **unchanged** — topology-driven             | **unchanged**            |
 
 `C_light` = the same hex lightened ~15 % for dark-mode contrast (e.g., `#7a8c47` → `#9aac67`, `#b85450` → `#d97a78`).
 
@@ -336,24 +336,24 @@ If your diagram needs more than 2 focal components, you've collapsed two narrati
 
 ## 6. Dark mode
 
-| Role | Light | Dark |
-| --- | --- | --- |
-| paper | `paper` | `ink` |
-| ink | `ink` | `paper` |
-| muted | `muted` | `muted` |
-| accent | `accent` | `accent` |
-| link | `link` | `link` |
-| zone background | `ink @ 0.02` | `paper @ 0.04` |
-| zone border | `ink @ 0.10` | `paper @ 0.14` |
-| standard component fill | `#FFFFFF` | `paper @ 0.04` |
-| standard component stroke | `ink` | `paper @ 0.32` |
-| focal fill | `accent @ 0.07` | `accent @ 0.12` |
-| focal stroke | `accent` | `accent` |
-| external stroke | `muted` (dashed) | `muted` (dashed) |
-| footer fill | `ink @ 0.03` | `paper @ 0.05` |
-| footer stroke | `ink @ 0.18` | `paper @ 0.20` |
-| label mask fill | `paper` | `ink` |
-| custom-color components | `C` | `C_light` (≈ +15 %) |
+| Role                      | Light            | Dark                |
+| ------------------------- | ---------------- | ------------------- |
+| paper                     | `paper`          | `ink`               |
+| ink                       | `ink`            | `paper`             |
+| muted                     | `muted`          | `muted`             |
+| accent                    | `accent`         | `accent`            |
+| link                      | `link`           | `link`              |
+| zone background           | `ink @ 0.02`     | `paper @ 0.04`      |
+| zone border               | `ink @ 0.10`     | `paper @ 0.14`      |
+| standard component fill   | `#FFFFFF`        | `paper @ 0.04`      |
+| standard component stroke | `ink`            | `paper @ 0.32`      |
+| focal fill                | `accent @ 0.07`  | `accent @ 0.12`     |
+| focal stroke              | `accent`         | `accent`            |
+| external stroke           | `muted` (dashed) | `muted` (dashed)    |
+| footer fill               | `ink @ 0.03`     | `paper @ 0.05`      |
+| footer stroke             | `ink @ 0.18`     | `paper @ 0.20`      |
+| label mask fill           | `paper`          | `ink`               |
+| custom-color components   | `C`              | `C_light` (≈ +15 %) |
 
 ---
 

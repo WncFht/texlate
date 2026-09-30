@@ -12,7 +12,7 @@
 
 ### 2.1 关键 flag
 
-`--pages` 1-based 页选；`--qps` 全局漏桶（默认 4，`--pool-max-workers` 缺省=qps）；`--max-pages-per-part` 分段串行翻译再合并（大 PDF 控内存，进度事件带 `part_index/total_parts`）；`--generate-offline-assets`/`--restore-offline-assets` 打包/还原全量资产 zip（sha3-256 逐个校验——air-gap/镜像构建利器）；`--warmup` 预热 ONNX+字体+cmap+tiktoken；`--no-send-temperature` 请求体不带 temperature（私有网关兼容性坑的解法）；`--no-dual`/`--no-mono`/`--use-alternating-pages-dual`/`--watermark-output-mode` 产物控制；**`--working-dir` 非 None 即触发 tracking JSON 落盘**（检测假成功的关键，见 §3）；`--custom-system-prompt` 替换 LLM prompt 的 role_block（注入风格的口子）；`--glossary-files`/`--no-auto-extract-glossary` 术语表；`--openai{,-model,-base-url,-api-key}` 唯一翻译服务；`--openai-term-extraction-*` 术语提取可拆独立小模型；`--only-include-translated-page` 配合 pages 只出被译页。全部 TOML 键 = CLI 长选项名。
+`--pages` 1-based 页选；`--qps` 全局漏桶（默认 4，`--pool-max-workers` 缺省=qps）；`--max-pages-per-part` 分段串行翻译再合并（大 PDF 控内存，进度事件带 `part_index/total_parts`）；`--generate-offline-assets`/`--restore-offline-assets` 打包/还原全量资产 zip（sha3-256 逐个校验——air-gap/镜像构建利器）；`--warmup` 预热 ONNX+ 字体+cmap+tiktoken；`--no-send-temperature` 请求体不带 temperature（私有网关兼容性坑的解法）；`--no-dual`/`--no-mono`/`--use-alternating-pages-dual`/`--watermark-output-mode` 产物控制；**`--working-dir` 非 None 即触发 tracking JSON 落盘**（检测假成功的关键，见 §3）；`--custom-system-prompt` 替换 LLM prompt 的 role_block（注入风格的口子）；`--glossary-files`/`--no-auto-extract-glossary` 术语表；`--openai{,-model,-base-url,-api-key}` 唯一翻译服务；`--openai-term-extraction-*` 术语提取可拆独立小模型；`--only-include-translated-page` 配合 pages 只出被译页。全部 TOML 键 = CLI 长选项名。
 
 ### 2.2 管线与缓存
 

@@ -159,9 +159,7 @@ def test_paid_slot_cap_nonblocking(broot: Path) -> None:  # noqa: ARG001 -- fixt
     with ExitStack() as st:
         got = [st.enter_context(locks.paid_slot(nslots=4)) for _ in range(4)]
         assert sorted(got) == [0, 1, 2, 3]
-        with pytest.raises(locks.WouldBlock), locks.paid_slot(
-            nslots=4, blocking=False
-        ):
+        with pytest.raises(locks.WouldBlock), locks.paid_slot(nslots=4, blocking=False):
             pass
 
 
@@ -169,8 +167,9 @@ def test_paid_slot_blocking_timeout(broot: Path) -> None:  # noqa: ARG001 -- fix
     with ExitStack() as st:
         for _ in range(2):
             st.enter_context(locks.paid_slot(nslots=2))
-        with pytest.raises(TimeoutError), locks.paid_slot(
-            nslots=2, timeout=0.2, poll_s=0.02
+        with (
+            pytest.raises(TimeoutError),
+            locks.paid_slot(nslots=2, timeout=0.2, poll_s=0.02),
         ):
             pass
 

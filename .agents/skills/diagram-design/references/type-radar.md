@@ -28,13 +28,13 @@ A series with values `[v0, v1, ..., v(N-1)]` becomes a `<polygon>` with `points=
 
 ### Pre-computed reference (N=5, cx=500, cy=240, R=160, S=10, integer-rounded)
 
-| Fraction `f` | i=0 (top) | i=1 | i=2 | i=3 | i=4 |
-|---|---|---|---|---|---|
-| 0.2 | 500,208 | 530,230 | 519,266 | 481,266 | 470,230 |
-| 0.4 | 500,176 | 561,220 | 538,292 | 462,292 | 439,220 |
-| 0.6 | 500,144 | 591,211 | 556,317 | 444,317 | 409,211 |
-| 0.8 | 500,112 | 622,201 | 575,343 | 425,343 | 378,201 |
-| 1.0 | 500,80  | 652,191 | 594,369 | 406,369 | 348,191 |
+| Fraction `f` | i=0 (top) | i=1     | i=2     | i=3     | i=4     |
+| ------------ | --------- | ------- | ------- | ------- | ------- |
+| 0.2          | 500,208   | 530,230 | 519,266 | 481,266 | 470,230 |
+| 0.4          | 500,176   | 561,220 | 538,292 | 462,292 | 439,220 |
+| 0.6          | 500,144   | 591,211 | 556,317 | 444,317 | 409,211 |
+| 0.8          | 500,112   | 622,201 | 575,343 | 425,343 | 378,201 |
+| 1.0          | 500,80    | 652,191 | 594,369 | 406,369 | 348,191 |
 
 For an arbitrary value `v` on axis `i`, take the unit offset from the row above for that axis (e.g. axis 1: offset `(152, -49)` from center) and scale by `v/S`. **Drop coords as integers — fractional pixels in SVG render fine, but integers keep the file scannable.**
 
@@ -53,14 +53,14 @@ Each vertex: `center + (v/10) · (outer_i − center)`, rounded to the nearest p
 
 The skill's "1-focal" rule still holds: `accent` is reserved for the focal series, and a small editorial palette (`series-1` through `series-5`, defined in [`style-guide.md`](style-guide.md)) covers the non-focal series. Don't reach for free-form colors.
 
-| Slot | Token | Light | Dark |
-|---|---|---|---|
-| Focal | `accent` | `#eb6c36` | `#f08a59` |
-| 1 | `series-1` (sage) | `#7c8f6f` | `#9caf8f` |
-| 2 | `series-2` (dusty-blue) | `#5e7a9b` | `#82a0c0` |
-| 3 | `series-3` (mustard) | `#b8915a` | `#d3ad7a` |
-| 4 | `series-4` (rust-brown) | `#9c6b50` | `#b88670` |
-| 5 | `series-5` (slate) | `#6e6479` | `#8d8298` |
+| Slot  | Token                   | Light     | Dark      |
+| ----- | ----------------------- | --------- | --------- |
+| Focal | `accent`                | `#eb6c36` | `#f08a59` |
+| 1     | `series-1` (sage)       | `#7c8f6f` | `#9caf8f` |
+| 2     | `series-2` (dusty-blue) | `#5e7a9b` | `#82a0c0` |
+| 3     | `series-3` (mustard)    | `#b8915a` | `#d3ad7a` |
+| 4     | `series-4` (rust-brown) | `#9c6b50` | `#b88670` |
+| 5     | `series-5` (slate)      | `#6e6479` | `#8d8298` |
 
 ## Anti-patterns
 

@@ -22,20 +22,20 @@
 
 ## 2. `scripts/` — 运维脚本
 
-| 脚本                           | 用途                                                                                                                                                                                                        |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent-links.sh`               | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖                                                                             |
-| `bench-backup.sh`              | trizone bench 根日备：`python3 -m kernel backup`（ledger + vault meta/manifest + lake durable/catalog + run keep-tier；vault 载荷字节归 restic 不管）+ tar 轮转保最新 3 份；`scripts/systemd/` 有配套 timer |
-| `build-web.sh`                 | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci`                                                                                                            |
-| `crossnote-links.sh`           | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                                                                                                        |
-| `demo.sh [id] [--real]`        | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                                                                                                |
-| `dev-smoke.sh [--keep]`        | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                                                                                                     |
+| 脚本                    | 用途                                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-links.sh`        | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖                                                                             |
+| `bench-backup.sh`       | trizone bench 根日备：`python3 -m kernel backup`（ledger + vault meta/manifest + lake durable/catalog + run keep-tier；vault 载荷字节归 restic 不管）+ tar 轮转保最新 3 份；`scripts/systemd/` 有配套 timer |
+| `build-web.sh`          | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci`                                                                                                            |
+| `crossnote-links.sh`    | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                                                                                                        |
+| `demo.sh [id] [--real]` | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                                                                                                |
+| `dev-smoke.sh [--keep]` | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                                                                                                     |
 
-| `fmt-shell.sh`                 | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2`                                                                                                                      |
-| `git-stash-export.sh`          | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引                                                                                                                        |
-| `loc.sh [--cloc]`              | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列                                                                                                                                                |
-| `pyspy-triage.sh <PID>`        | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进                                                                                |
-| `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID                                                                                                               |
+| `fmt-shell.sh` | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2` |
+| `git-stash-export.sh` | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引 |
+| `loc.sh [--cloc]` | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列 |
+| `pyspy-triage.sh <PID>` | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进 |
+| `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID |
 
 子目录 `scripts/systemd/` 收 systemd --user unit 件——`texlate-bench-backup` service/timer（`texlate-errsweep` 已于 2026-09-29 随链路退役拆除）（`ExecStart` 写死部署机路径，迁移时按目标机调整）。旧 `scripts/gwcap/` 网关并发闸组件已删，取证走 git 历史。
 
@@ -64,14 +64,14 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 管线与内核自检 spec：
 
-| spec        | 用途                                                                        |
-| ----------- | --------------------------------------------------------------------------- |
-| `soak`      | 生产主线五段链单 run 串行：ingest→parse→xlat→compile→fixloop（付费臂在内）  |
-| `smoke`     | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用                    |
-| `census`    | 湖审计 spec：全部 manifested cell 走一遍，零付费                            |
-| `quality`   | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
+| spec      | 用途                                                                        |
+| --------- | --------------------------------------------------------------------------- |
+| `soak`    | 生产主线五段链单 run 串行：ingest→parse→xlat→compile→fixloop（付费臂在内）  |
+| `smoke`   | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用                    |
+| `census`  | 湖审计 spec：全部 manifested cell 走一遍，零付费                            |
+| `quality` | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
 
-| `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate                   |
+| `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate |
 
 语料构建谱系（旧 `bench/py/corpus/build_*.py` 的 spec 重写）：
 
@@ -99,12 +99,12 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 ### 3.3 观测与共享件
 
-| 件                     | 用途                                                                                                                                                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ops/status_panel.py`      | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index                                                                                                                |
-| `ops/task_ping.py`         | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度                                                                                                                                               |
-| `tests/_translators.py`    | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用                                                                                                   |                                                                                                   |
-| `specs/_*.py`          | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |
+| 件                      | 用途                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ops/status_panel.py`   | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index                                                                                                                |
+| `ops/task_ping.py`      | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度                                                                                                                                               |
+| `tests/_translators.py` | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用                                                                                                   |
+| `specs/_*.py`           | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |
 
 ### 3.4 ICLR 章节长度研究件
 

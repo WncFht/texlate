@@ -33,7 +33,7 @@ A/B 修复效果（89 篇真实臂全体，改行重编译）：
 
 ## 证伪与归因
 
-- CJK 落进 display math：此前「34%」是朴素正则把 `$$`-close+散文+`$$`-open 误判；TeX 语义态机复扫真值 ≈0–1/301，非缺陷源。
+- CJK 落进 display math：此前「34%」是朴素正则把 `$$`-close+ 散文+`$$`-open 误判；TeX 语义态机复扫真值 ≈0–1/301，非缺陷源。
 - 对齐/公式 overfull 多为 en 固有：36 篇 zh 超标里大部分 en 臂同坏或更坏（`0707.2318` 双臂同 74.8pt；`1003.4522` en 65.7 > zh 53.2）；真 zh 加重仅个位数，且大半由 zihao 膨胀解释。
 - 最大单点出血（`1502.02341` 686pt）是 biber/biblatex 版本错配（`.bbl` 由异版 biber 生成→`\blx@dlist@type` 未定义→文献段整段塌方），en 臂同损 585pt——基础设施问题（tectonic biber mismatch，另案），不是版式缺陷。
 - 浮动体丢失 zh 新增 0 例；`TeXlate-Float-Fit` 在 zh 臂触发 196 次（FLOAT_SIZING 机制在干活）。

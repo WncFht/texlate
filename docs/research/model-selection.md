@@ -159,19 +159,19 @@
 
 [^pricing]: 各厂刊例价：阿里云百炼模型服务定价 [help.aliyun.com](https://help.aliyun.com/zh/model-studio/billing-for-model-studio)；DeepSeek API 定价 [api-docs.deepseek.com](https://api-docs.deepseek.com/quick_start/pricing)；OpenAI API 定价 [openai.com](https://openai.com/api/pricing/)
 
-[^ms]: ModelScope 魔搭免费推理额度说明. [modelscope.cn](https://modelscope.cn/docs)；限额响应头参考实现 [github.com](https://github.com/Morningstars666/ModelScopeApiBalanceCheck)
+[^ms]: ModelScope 魔搭免费推理额度说明。[modelscope.cn](https://modelscope.cn/docs)；限额响应头参考实现 [github.com](https://github.com/Morningstars666/ModelScopeApiBalanceCheck)
 
-[^glm]: 智谱 bigmodel 模型概览与速率限制. [docs.bigmodel.cn](https://docs.bigmodel.cn/cn/guide/start/model-overview)
+[^glm]: 智谱 bigmodel 模型概览与速率限制。[docs.bigmodel.cn](https://docs.bigmodel.cn/cn/guide/start/model-overview)
 
-[^sf]: SiliconFlow 免费层说明. [getmodelkey.com](https://www.getmodelkey.com/zh/guides/siliconflow-api-free-tier-2026/)
+[^sf]: SiliconFlow 免费层说明。[getmodelkey.com](https://www.getmodelkey.com/zh/guides/siliconflow-api-free-tier-2026/)
 
-[^bailian]: 阿里云百炼新人免费额度及用完即停说明. [help.aliyun.com](https://help.aliyun.com/zh/model-studio/new-free-quota)
+[^bailian]: 阿里云百炼新人免费额度及用完即停说明。[help.aliyun.com](https://help.aliyun.com/zh/model-studio/new-free-quota)
 
 [^gemini]: Google. Gemini API rate limits. [ai.google.dev](https://ai.google.dev/gemini-api/docs/rate-limits)
 
 [^groq]: Groq. Rate limits. [console.groq.com](https://console.groq.com/docs/rate-limits)
 
-[^or]: OpenRouter. API limits 与 free 变体. [openrouter.ai](https://openrouter.ai/docs/guides/routing/model-variants/free)
+[^or]: OpenRouter. API limits 与 free 变体。[openrouter.ai](https://openrouter.ai/docs/guides/routing/model-variants/free)
 
 [^cf]: Cloudflare. Workers AI pricing. [developers.cloudflare.com](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 

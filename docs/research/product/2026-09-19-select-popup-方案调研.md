@@ -25,7 +25,7 @@ MDN/BCD 的"不支持"标注滞后于实装——有开发者实测 Firefox 150.
 
 `select, ::picker(select) { appearance: base-select }` 后弹层进 top-layer 变 DOM 可样式化：`::picker(select)` 面板、`option` padding/hover/`:checked`、`::checkmark`、`::picker-icon`、`optgroup`、`select:open`、top-layer 动画、anchor 定位全开[^chrome-blog][^mdn]。不支持浏览器原样渲染原生弹层，零回退代价——`@supports (appearance: base-select)` 门内收全部皮肤。产物即终态：Firefox 转正后无需改动。代价：Firefox 用户在转正前仍见原生蓝（不差于现状）；mobile 端失去 OS 滚轮选择器（换一致体验，Settings 场景可接受）。注意 `multiple`/`size` 不支持、select 内禁放可交互元素[^chrome-rfc]。
 
-### B. Kobalte Select（@kobalte/core）
+### B. Kobalte Select (@kobalte/core)
 
 SolidJS 标准答案：WAI-ARIA listbox 全套（typeahead/方向键/焦点管理/modal）、隐藏原生 select 做表单集成、Floating UI 定位参数齐全（flip/sameWidth/fitViewport）、分组/描述/错误文案/虚拟滚动[^kobalte]。维护活跃（0.13.14 @ 2026-09-07，2.0 alpha 在飞，MIT）。代价：依赖树 + 10 处调用点重写 + 皮肤自绘；平台转正后多一次"留依赖还是迁回原生"的决策——正是要避免的重复开发。且同 A 一样丢移动端 OS 选择器。
 
@@ -63,7 +63,7 @@ SolidJS 标准答案：WAI-ARIA listbox 全套（typeahead/方向键/焦点管�
 
 [^fx-anchor]: Mozilla. Bug 1988225 — Anchor positioning enabled by default（Firefox 147）. [bugzilla.mozilla.org](https://bugzilla.mozilla.org/show_bug.cgi?id=1988225)
 
-[^bcd-issue]: mdn/browser-compat-data issue 29593 — Firefox 150.0.1 flag-on 实测兼容. [github.com](https://github.com/mdn/browser-compat-data/issues/29593)
+[^bcd-issue]: mdn/browser-compat-data issue 29593 — Firefox 150.0.1 flag-on 实测兼容。[github.com](https://github.com/mdn/browser-compat-data/issues/29593)
 
 [^jake]: Jake Archibald. The Goldilocks customizable select height 2026. [jakearchibald.com](https://jakearchibald.com/2026/goldilocks-select-height/)
 

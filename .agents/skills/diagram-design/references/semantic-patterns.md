@@ -6,17 +6,17 @@ Use one primary pattern per figure. A second pattern may supply at most one supp
 
 ## Routing table
 
-| The reader must understand… | Semantic pattern | Nearest visual type |
-|---|---|---|
-| Many arrivals competing for finite service capacity | **Fan-in queue / bottleneck** | Data flow |
-| Repeated questions, inputs, controls, and outputs across stages | **Stage framework with semantic slots** | Process |
-| A loose conversation becoming a durable structured record | **Unstructured input → structured artifact** | Data flow |
-| Why two policy decisions differ and where they first diverge | **Paired policy-evaluation traces** | Flowchart |
-| Which routes cross a trust boundary and which routes are blocked | **Secure paved road** | Architecture |
-| Which controls apply at each enforcement surface | **Governance / control catalog** | Layer stack |
-| How defenses reduce risk and what risk remains | **Compensating security layers** | Layer stack |
-| Which sub-elements a system decomposes into, each independently citable and traced to its implementation | **Traceable block decomposition** | Tree |
-| How one subject progresses through phases, waits, retries, cancellation, and terminal outcomes | **Lifecycle phase map** | State Machine |
+| The reader must understand…                                                                              | Semantic pattern                             | Nearest visual type |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------- |
+| Many arrivals competing for finite service capacity                                                      | **Fan-in queue / bottleneck**                | Data flow           |
+| Repeated questions, inputs, controls, and outputs across stages                                          | **Stage framework with semantic slots**      | Process             |
+| A loose conversation becoming a durable structured record                                                | **Unstructured input → structured artifact** | Data flow           |
+| Why two policy decisions differ and where they first diverge                                             | **Paired policy-evaluation traces**          | Flowchart           |
+| Which routes cross a trust boundary and which routes are blocked                                         | **Secure paved road**                        | Architecture        |
+| Which controls apply at each enforcement surface                                                         | **Governance / control catalog**             | Layer stack         |
+| How defenses reduce risk and what risk remains                                                           | **Compensating security layers**             | Layer stack         |
+| Which sub-elements a system decomposes into, each independently citable and traced to its implementation | **Traceable block decomposition**            | Tree                |
+| How one subject progresses through phases, waits, retries, cancellation, and terminal outcomes           | **Lifecycle phase map**                      | State Machine       |
 
 ## 1. Fan-in queue / bottleneck
 

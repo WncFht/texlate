@@ -6,17 +6,17 @@
 
 ## 各平台机制
 
-**Google Scholar**：官方不披露算法，逆向研究（Beel & Gipp 2009 系列，136 万+ 文章位次分析）确认 GS 对关键词检索、Related articles、Cited by 用**三套不同排序算法**；被引数是最重排序因子，标题命中权重高，全文词频几乎无影响，且对近期文章有补偿性加权以抵消马太效应[^beel09a][^beel09b]。**My updates**（2012 上线，前提是有公开 Scholar profile）官方自述四信号：本人论文的内容、论文间的引用图、兴趣随时间漂移、合作者与所引作者[^gsblog]——「用自己的出版物当 profile」范式，作者身份本身就是兴趣模型，用户零操作。**Alerts** 两条线：关键词 alert 与 citation alert（自己论文被引时邮件）——被引是最朴素最强的相关信号[^lse]。无官方 API，事实标准方案是 SerpAPI 类付费抓取（`cites` 参数取被引、`related:` 取相关文，按月配额）[^serpapi]。
+**Google Scholar**：官方不披露算法，逆向研究（Beel & Gipp 2009 系列，136 万 + 文章位次分析）确认 GS 对关键词检索、Related articles、Cited by 用**三套不同排序算法**；被引数是最重排序因子，标题命中权重高，全文词频几乎无影响，且对近期文章有补偿性加权以抵消马太效应[^beel09a][^beel09b]。**My updates**（2012 上线，前提是有公开 Scholar profile）官方自述四信号：本人论文的内容、论文间的引用图、兴趣随时间漂移、合作者与所引作者[^gsblog]——「用自己的出版物当 profile」范式，作者身份本身就是兴趣模型，用户零操作。**Alerts** 两条线：关键词 alert 与 citation alert（自己论文被引时邮件）——被引是最朴素最强的相关信号[^lse]。无官方 API，事实标准方案是 SerpAPI 类付费抓取（`cites` 参数取被引、`related:` 取相关文，按月配额）[^serpapi]。
 
 **Semantic Scholar**：Recommendations API 只有两端点——`POST /recommendations/v1/papers`（body 正负例 paperId 列表，可混用外部 ID）与 `GET .../forpaper/{id}`，单次最多 500 条按相关度排序[^s2swagger][^s2medium]。实测关键发现：`forpaper` 带 `from=recent|all-cs` 池参数（swagger 定义、默认 `recent`，仅 forpaper 上有）——对 2017 年「Attention is All you Need」（19.3 万被引）在默认 `recent` 池（~近 3 个月新论文，「跟上最新进展」型）**返回空数组**，但 `from=all-cs` 覆盖全 CS 语料并返回真实推荐（live 验证）——双池设计使 forpaper 同时能做全库相似检索[^s2swagger][^s2faq]。Research Feeds 用「state-of-the-art 论文 embedding、对比学习训练」（SPECTER 一脉），正例=library 论文、负例=标 "not relevant"，建议 5 正 3 负起步，日更[^s2faq]。FeedLens（UIST 2022）透露内部抽象：每个 feed 是一个 per-user 偏好模型（lens），把「用户兴趣」建模为 embedding 空间里的方向[^feedlens]。未鉴权共享池限流紧、易 429，API key 免费申请。
 
-**Microsoft Academic（历史范本，最完整公开配方）**：MAG 虽停运，arXiv:1905.08880 留下了工业级论文推荐最完整的设计与评估文档[^mag]：①**全库预计算**——为 ~1.6 亿篇英文论文/专利每篇静态生成推荐列表随 MAG on Azure 开放下载，「推荐即数据」而非在线计算；②**加权混合**——共被引（CcB，高质量但覆盖低）+ 内容 embedding（CB，覆盖全库但精度低）两支用可调 mapping function 融合；③**novelty–authority 旋钮**——调参在「推新」与「推权威」间滑动；④冷启动走 CB 支路保全库覆盖；⑤CB 支路用聚类加速近邻搜索（全库两两 2.56×10¹⁶ 不可行）；⑥40 人用户研究 2400+ 推荐对验证 CcB 支路与人工评分强相关。基本是「引用图谱+内容混合、全库离线预计算」路线的标准答案。
+**Microsoft Academic（历史范本，最完整公开配方）**：MAG 虽停运，arXiv:1905.08880 留下了工业级论文推荐最完整的设计与评估文档[^mag]：①**全库预计算**——为 ~1.6 亿篇英文论文/专利每篇静态生成推荐列表随 MAG on Azure 开放下载，「推荐即数据」而非在线计算；②**加权混合**——共被引（CcB，高质量但覆盖低）+ 内容 embedding（CB，覆盖全库但精度低）两支用可调 mapping function 融合；③**novelty–authority 旋钮**——调参在「推新」与「推权威」间滑动；④冷启动走 CB 支路保全库覆盖；⑤CB 支路用聚类加速近邻搜索（全库两两 2.56×10¹⁶ 不可行）；⑥40 人用户研究 2400+ 推荐对验证 CcB 支路与人工评分强相关。基本是「引用图谱 + 内容混合、全库离线预计算」路线的标准答案。
 
 **ResearchGate**：算法未完整公开，第三方按行为归纳为人口属性（机构/领域）+ 关系网络（关注/合著）+ 内容三路加权[^rgrec]——差异化在**社交图是引用图之外的第二张网**。
 
 **Mendeley**：有较完整自研披露（arXiv:1409.1357）[^mendeley]：线上 Related research 最初是内容过滤；评测对比 item-based 协同过滤（训练数据=用户文库 co-readership——谁把哪篇收进 library）vs 内容过滤 vs 混合，结果 **CF 略优于 CBF 但部分场景失效，混合最好（precision ~70%）**；co-readership 的独立研究结论：readership 网精度最高但覆盖低，co-readership 兼顾精度与覆盖[^coread]。
 
-**NASA ADS**（机制披露最细，arXiv:1209.1318）：摘要页右侧 **8 个推荐位各用一种算法**——向量空间最近邻、近邻论文读者的最多共读、读后紧随/之前最常读的、近 3 个月近邻中最常读的最新论文等，一个位置一个算法等于并排 A/B[^ads]；「What People are Reading」= most co-read、「What Experts are Citing」= 聚合参考文献表、「Reviews and Introductory Papers」= 聚合施引列表；向量空间由近期主流期刊参考文献里的索引词+专业读者阅读模式共同构建。
+**NASA ADS**（机制披露最细，arXiv:1209.1318）：摘要页右侧 **8 个推荐位各用一种算法**——向量空间最近邻、近邻论文读者的最多共读、读后紧随/之前最常读的、近 3 个月近邻中最常读的最新论文等，一个位置一个算法等于并排 A/B[^ads]；「What People are Reading」= most co-read、「What Experts are Citing」= 聚合参考文献表、「Reviews and Introductory Papers」= 聚合施引列表；向量空间由近期主流期刊参考文献里的索引词 + 专业读者阅读模式共同构建。
 
 **数字图书馆史前史**：CiteSeer（鼻祖，2006 停更）有四类链接推荐——文内被引、施引、共被引、active bibliography，加 TF-IDF 内容相似与 1–5 显式评分，**共被引推荐 2003 年就已产品化**；ACM DL 有内容型 find-similar 与行为型 readers-also-read 两路；IEEE Xplore 落地很浅[^dl-survey]。
 

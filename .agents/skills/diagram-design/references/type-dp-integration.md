@@ -196,13 +196,13 @@ All side-column nodes use fixed `w=160 h=64`. Same fill / stroke pattern: fill `
 
 Five styles, bound to topology. Don't let user override style on focal-touching, bar-originating, or Trino → consumer edges — those are fixed by rule.
 
-| `style` | Stroke | Width | Dash | Marker | When required |
-|---|---|---|---|---|---|
-| `primary` | `#eb6c36` (focal_accent) | 1.4 | — | `arrow-accent` | Every edge whose endpoint is a `focal: true` component. Also every Trino → consumer edge (serve-flow rule). |
-| `secondary` | `#4f5d75` (muted) | 1.2 | — | `arrow` | Default for internal platform-component edges and source → platform edges that don't touch focal. |
-| `federated` | `#2e5aa8` (link-blue) | 1.0 | `4,3` | `arrow-link` | Federation queries (e.g., source DB → Trino). |
-| `trigger` | `#4f5d75` (muted) | 1.0 | `4,3` | `arrow` | Every edge originating from a `kind: bar` component (Airflow drops). Unlabelled. |
-| `auth` | `#eb6c36` | 1.2 | `5,4` | `arrow-accent` | Every edge from a footer node up to the zone bottom edge. **Never to a specific component.** |
+| `style`     | Stroke                   | Width | Dash  | Marker         | When required                                                                                               |
+| ----------- | ------------------------ | ----- | ----- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `primary`   | `#eb6c36` (focal_accent) | 1.4   | —     | `arrow-accent` | Every edge whose endpoint is a `focal: true` component. Also every Trino → consumer edge (serve-flow rule). |
+| `secondary` | `#4f5d75` (muted)        | 1.2   | —     | `arrow`        | Default for internal platform-component edges and source → platform edges that don't touch focal.           |
+| `federated` | `#2e5aa8` (link-blue)    | 1.0   | `4,3` | `arrow-link`   | Federation queries (e.g., source DB → Trino).                                                               |
+| `trigger`   | `#4f5d75` (muted)        | 1.0   | `4,3` | `arrow`        | Every edge originating from a `kind: bar` component (Airflow drops). Unlabelled.                            |
+| `auth`      | `#eb6c36`                | 1.2   | `5,4` | `arrow-accent` | Every edge from a footer node up to the zone bottom edge. **Never to a specific component.**                |
 
 **Defs block** (required, five markers — exactly):
 
@@ -218,14 +218,14 @@ Five styles, bound to topology. Don't let user override style on focal-touching,
 
 ### 3.1 Exit / entry sides (non-negotiable)
 
-| Edge kind | Exit side of source | Entry side of target |
-|---|---|---|
-| Source → platform component | **right** of source | **left** of target |
-| Platform → platform (same row) | **right** | **left** |
-| Bar → row node (vertical drop) | **bottom** of bar at `node_cx(target)` | **top** of target |
-| Platform → consumer | **right** of source platform component | **left** of consumer |
-| Footer → zone | **top** of footer (at `footer_auth_x(k)`) | zone bottom edge `y = zone_y + zone_h` |
-| Footer → component (any specific one) | **forbidden** |
+| Edge kind                             | Exit side of source                       | Entry side of target                   |
+| ------------------------------------- | ----------------------------------------- | -------------------------------------- |
+| Source → platform component           | **right** of source                       | **left** of target                     |
+| Platform → platform (same row)        | **right**                                 | **left**                               |
+| Bar → row node (vertical drop)        | **bottom** of bar at `node_cx(target)`    | **top** of target                      |
+| Platform → consumer                   | **right** of source platform component    | **left** of consumer                   |
+| Footer → zone                         | **top** of footer (at `footer_auth_x(k)`) | zone bottom edge `y = zone_y + zone_h` |
+| Footer → component (any specific one) | **forbidden**                             |                                        |
 
 ### 3.2 Routing
 
@@ -264,16 +264,16 @@ Any source, consumer, platform component (node or bar), or footer node accepts a
 
 **Where the color is applied** (`C = color`):
 
-| Element | Light | Dark |
-|---|---|---|
-| Container fill (`rect` body) | `rgba(C, 0.06)` | `rgba(C_light, 0.10)` |
-| Container stroke | `rgba(C, 0.35)` (`stroke-width=1` for nodes, `0.8` for bars) | `rgba(C_light, 0.45)` |
-| Role badge stroke | `rgba(C, 0.40)` | `rgba(C_light, 0.55)` |
-| Role badge text | `rgba(C, 0.85)` | `rgba(C_light, 1.0)` |
-| Icon stroke / fill | `C` | `C_light` |
-| Name text | `C` | `C_light` |
-| Subtitle text | **unchanged** (muted) | **unchanged** (muted) |
-| Connectors touching this component | **unchanged** — topology-driven | **unchanged** |
+| Element                            | Light                                                        | Dark                  |
+| ---------------------------------- | ------------------------------------------------------------ | --------------------- |
+| Container fill (`rect` body)       | `rgba(C, 0.06)`                                              | `rgba(C_light, 0.10)` |
+| Container stroke                   | `rgba(C, 0.35)` (`stroke-width=1` for nodes, `0.8` for bars) | `rgba(C_light, 0.45)` |
+| Role badge stroke                  | `rgba(C, 0.40)`                                              | `rgba(C_light, 0.55)` |
+| Role badge text                    | `rgba(C, 0.85)`                                              | `rgba(C_light, 1.0)`  |
+| Icon stroke / fill                 | `C`                                                          | `C_light`             |
+| Name text                          | `C`                                                          | `C_light`             |
+| Subtitle text                      | **unchanged** (muted)                                        | **unchanged** (muted) |
+| Connectors touching this component | **unchanged** — topology-driven                              | **unchanged**         |
 
 `C_light` = the same hex lightened ~15% for dark-mode contrast (e.g., `#b85450` → `#d97a78`).
 
@@ -305,21 +305,21 @@ Any source, consumer, platform component (node or bar), or footer node accepts a
 
 ## 6. Dark mode
 
-| Token | Light | Dark |
-|---|---|---|
-| Page paper | `#f5f5f5` | `#2d3142` |
-| Ink | `#2d3142` | `#f5f5f5` |
-| Muted | `#4f5d75` | `#bfc0c0` |
-| Accent | `#eb6c36` | `#f08a59` |
-| Link (federated) | `#2e5aa8` | `#6a95d8` |
-| Side-column fill | `rgba(79,93,117,0.06)` | `rgba(245,245,245,0.06)` |
-| Side-column stroke | `#7a8399` | `rgba(245,245,245,0.30)` |
-| Zone fill | `rgba(45,49,66,0.025)` | `rgba(245,245,245,0.04)` |
-| Zone stroke | `rgba(45,49,66,0.32)` | `rgba(245,245,245,0.30)` |
-| Non-focal bar fill | `rgba(45,49,66,0.05)` | `rgba(245,245,245,0.06)` |
-| Focal fill | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)` |
-| Focal stroke | `#eb6c36` | `#f08a59` |
-| Custom component colors | `C` | `C_light` (lighten ~15%) |
+| Token                   | Light                   | Dark                     |
+| ----------------------- | ----------------------- | ------------------------ |
+| Page paper              | `#f5f5f5`               | `#2d3142`                |
+| Ink                     | `#2d3142`               | `#f5f5f5`                |
+| Muted                   | `#4f5d75`               | `#bfc0c0`                |
+| Accent                  | `#eb6c36`               | `#f08a59`                |
+| Link (federated)        | `#2e5aa8`               | `#6a95d8`                |
+| Side-column fill        | `rgba(79,93,117,0.06)`  | `rgba(245,245,245,0.06)` |
+| Side-column stroke      | `#7a8399`               | `rgba(245,245,245,0.30)` |
+| Zone fill               | `rgba(45,49,66,0.025)`  | `rgba(245,245,245,0.04)` |
+| Zone stroke             | `rgba(45,49,66,0.32)`   | `rgba(245,245,245,0.30)` |
+| Non-focal bar fill      | `rgba(45,49,66,0.05)`   | `rgba(245,245,245,0.06)` |
+| Focal fill              | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)`  |
+| Focal stroke            | `#eb6c36`               | `#f08a59`                |
+| Custom component colors | `C`                     | `C_light` (lighten ~15%) |
 
 ---
 

@@ -6,7 +6,7 @@
 
 ## SPECTER 一系：用引用图监督的文本 embedding
 
-**SPECTER**（ACL 2020，奠基）：SciBERT 上继续预训练，监督信号是引用图本身——三元组（query 论文、正例=被引论文、负例=未被引者）L2 triplet margin loss；负例分两档（随机 easy negative + 被正例引用但未被 query 引用的二跳 hard negative）。输入只有标题+摘要，**推理时不需要任何引用信息**——新鲜无引论文当天可出向量，768 维[^specter]。配套 SciDocs 基准（7 个文档级任务）。官方明示两套产出渠道（HF 权重与 S2 线上预计算 embedding）由不同版本模型产出、**不可混用**[^specter-gh]。
+**SPECTER**（ACL 2020，奠基）：SciBERT 上继续预训练，监督信号是引用图本身——三元组（query 论文、正例=被引论文、负例=未被引者）L2 triplet margin loss；负例分两档（随机 easy negative + 被正例引用但未被 query 引用的二跳 hard negative）。输入只有标题 + 摘要，**推理时不需要任何引用信息**——新鲜无引论文当天可出向量，768 维[^specter]。配套 SciDocs 基准（7 个文档级任务）。官方明示两套产出渠道（HF 权重与 S2 线上预计算 embedding）由不同版本模型产出、**不可混用**[^specter-gh]。
 
 **SciNCL**（EMNLP 2022，修正采样缺陷）：指出 SPECTER 把「被引/未被引」当离散 0/1 信号的硬伤——引用了 query 的论文可能被采为负例、引用本身含礼貌性噪声。对策：先在引用图上训图 embedding（DeepWalk 系），再在图 embedding 空间做受控 kNN 采样得到连续相似度与不碰撞的难正负例。SciDocs 12 项指标赢 SPECTER 九项，且只需 1% 训练三元组[^scincl][^scincl-gh]。
 
@@ -26,9 +26,9 @@
 
 ## 图派方法
 
-**ProNE**（IJCAI 2019，工业级可跑）：清华 THUDM，稀疏矩阵分解初始化+谱空间传播增强（高阶 Cheeger 不等式调制），**单线程 29 小时嵌 1 亿节点**，比 20 线程 LINE/DeepWalk/node2vec 快 10–400 倍；谱传播还能当通用增强器给其他方法 +10% 相对提升——是目前已验证能单机跑全规模学术引用图的图派方案[^prone][^prone-gh]。
+**ProNE**（IJCAI 2019，工业级可跑）：清华 THUDM，稀疏矩阵分解初始化 + 谱空间传播增强（高阶 Cheeger 不等式调制），**单线程 29 小时嵌 1 亿节点**，比 20 线程 LINE/DeepWalk/node2vec 快 10–400 倍；谱传播还能当通用增强器给其他方法 +10% 相对提升——是目前已验证能单机跑全规模学术引用图的图派方案[^prone][^prone-gh]。
 
-随机游走系亿级训练要「周到月」级，更多作 benchmark；GNN 代表 HGT（WWW 2020，MAG 异构图类型感知注意力+相对时间编码），但 transductive——新节点进图要重训或额外设计 inductive 变体，生产上不如「文本 encoder+ANN」灵活[^hgt]。
+随机游走系亿级训练要「周到月」级，更多作 benchmark；GNN 代表 HGT（WWW 2020，MAG 异构图类型感知注意力 + 相对时间编码），但 transductive——新节点进图要重训或额外设计 inductive 变体，生产上不如「文本 encoder+ANN」灵活[^hgt]。
 
 ## 选型路线（数百万篇量级 similar-papers 服务）
 
@@ -52,7 +52,7 @@ embedding 侧「引用图当监督信号」是最经济的融合——向量天�
 
 [^scincl]: Ostendorff, Rethmeier, Augenstein, Gipp, Rehm. Neighborhood Contrastive Learning for Scientific Document Representations. EMNLP 2022. [aclanthology.org/2022.emnlp-main.802](https://aclanthology.org/2022.emnlp-main.802/)
 
-[^scincl-gh]: malteos. SciNCL 代码与模型卡. [github.com/malteos/scincl](https://github.com/malteos/scincl/)
+[^scincl-gh]: malteos. SciNCL 代码与模型卡。[github.com/malteos/scincl](https://github.com/malteos/scincl/)
 
 [^scirepeval]: Singh, D'Arcy, Cohan, Downey, Feldman. SciRepEval. EMNLP 2023. [aclanthology.org/2023.emnlp-main.338](https://aclanthology.org/2023.emnlp-main.338/)
 
@@ -68,12 +68,12 @@ embedding 侧「引用图当监督信号」是最经济的融合——向量天�
 
 [^s2-recs-docs]: Semantic Scholar API Guide. Recommendations API. [semanticscholar-api-docs](https://mulatta.github.io/semanticscholar-api-docs/en/06-recommendations/)
 
-[^openalex-docs]: OpenAlex. Work object documentation — related_works 定义. [openalex-docs](https://github.com/ourresearch/openalex-docs/blob/main/api-entities/works/work-object/README.md)
+[^openalex-docs]: OpenAlex. Work object documentation — related_works 定义。[openalex-docs](https://github.com/ourresearch/openalex-docs/blob/main/api-entities/works/work-object/README.md)
 
 [^multi-persp]: Academic Article Recommendation Using Multiple Perspectives. [arXiv:2407.05836](https://doi.org/10.48550/arxiv.2407.05836)
 
 [^prone]: Zhang, Dong, Wang, Tang, Ding. ProNE: Fast and Scalable Network Representation Learning. IJCAI 2019. [ijcai.org/proceedings/2019/594](https://www.ijcai.org/proceedings/2019/0594.pdf)
 
-[^prone-gh]: THUDM. ProNE 参考实现. [github.com/THUDM/ProNE](https://github.com/THUDM/ProNE/)
+[^prone-gh]: THUDM. ProNE 参考实现。[github.com/THUDM/ProNE](https://github.com/THUDM/ProNE/)
 
 [^hgt]: Hu, Dong, Wang, Sun. Heterogeneous Graph Transformer. WWW 2020.

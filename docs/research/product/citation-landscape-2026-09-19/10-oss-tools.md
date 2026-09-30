@@ -4,9 +4,9 @@
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
-## Citation Gecko（gecko-react，MIT）
+## Citation Gecko (gecko-react, MIT)
 
-React SPA + 小 express server（只做 Zotero/Mendeley OAuth 代理，学术数据全从浏览器直连第三方 API）[^gecko-readme]。数据流：seed 四路输入（BibTeX/Crossref 检索/Zotero/Mendeley）→ Crossref `works?filter=doi:a,doi:b,...` 批量拉元数据+references（50 DOI/批）→ OpenCitations `index/api/v1/citations/{doi}` 逐 DOI 拉入边 → 本地图。核心 ~190 行：Papers 字典 + Edges 数组，去重优先级 MAG ID→DOI→title+首作者姓；**双指标 `seedsCitedBy`（被多少 seed 引=奠基作）/`seedsCited`（引了多少 seed=同领域新作）排序推荐，零 embedding**。整个闭环 ~600 行 JS，是纯前端方案的最小完整样本。
+React SPA + 小 express server（只做 Zotero/Mendeley OAuth 代理，学术数据全从浏览器直连第三方 API）[^gecko-readme]。数据流：seed 四路输入（BibTeX/Crossref 检索/Zotero/Mendeley）→ Crossref `works?filter=doi:a,doi:b,...` 批量拉元数据+references（50 DOI/批）→ OpenCitations `index/api/v1/citations/{doi}` 逐 DOI 拉入边 → 本地图。核心 ~190 行：Papers 字典 + Edges 数组，去重优先级 MAG ID→DOI→title+ 首作者姓；**双指标 `seedsCitedBy`（被多少 seed 引=奠基作）/`seedsCited`（引了多少 seed=同领域新作）排序推荐，零 embedding**。整个闭环 ~600 行 JS，是纯前端方案的最小完整样本。
 
 ## Local Citation Network（GPL-3，活跃维护 v1.32）
 
@@ -14,7 +14,7 @@ React SPA + 小 express server（只做 Zotero/Mendeley OAuth 代理，学术数
 
 ## Zotero Cita（Wikimedia 资助）
 
-Zotero 插件，三大模块：引用元数据管理、Wikidata P2860 双向同步（OAuth 写回）、内嵌 LCN[^cita-readme]。**4 个 indexer**：OC Meta/Index v2、OpenAlex（特别处理 `10.48550/arxiv.*` DOI 映射回 arXiv ID + 过滤自引边）、S2（`paper/search/match` 标题模糊匹配是免费的 citation resolution + batch references）、Crossref[^cita-src]。**matcher.ts 是 PID 消歧参考实现**：ISBN/DOI/QID 冲突即否、年差>1 即否、要求首作者姓+首字母命中。「一次取 4 index、按 PID 消歧、缺口互填」是离线补全引用边的工程模板；还能把校正后的边写回 Wikidata——引用图不只吃数据还能反哺。
+Zotero 插件，三大模块：引用元数据管理、Wikidata P2860 双向同步（OAuth 写回）、内嵌 LCN[^cita-readme]。**4 个 indexer**：OC Meta/Index v2、OpenAlex（特别处理 `10.48550/arxiv.*` DOI 映射回 arXiv ID + 过滤自引边）、S2（`paper/search/match` 标题模糊匹配是免费的 citation resolution + batch references）、Crossref[^cita-src]。**matcher.ts 是 PID 消歧参考实现**：ISBN/DOI/QID 冲突即否、年差>1 即否、要求首作者姓 + 首字母命中。「一次取 4 index、按 PID 消歧、缺口互填」是离线补全引用边的工程模板；还能把校正后的边写回 Wikidata——引用图不只吃数据还能反哺。
 
 ## Scholia（GPL-3，Toolforge 托管）
 
@@ -29,8 +29,8 @@ Flask webapp，页面数据 100% 来自 Wikidata 实时 SPARQL[^scholia-repo]。
 1. 最小发现闭环（Gecko 模式）：seeds→Crossref 批量→OC 逐 DOI→本地图→双指标排序，~600 行零后端。
 2. 四源抽象层（LCN 模式）：统一 wrapper + 各源批查技巧（`cites:`/`cited_by:` 过滤、S2 batch 坑）+ 完整度指标。
 3. 间接引用扩展（RICS）：直引 + coCited/coCiting 两档，rank=四项之和。
-4. 多源补全+消歧（Cita 模式）：4 indexer + PID 消歧 + `10.48550/arxiv.*` 映射 + 剔自引边 + 写回 Wikidata。
-5. SPARQL 模板页（Scholia 模式）：自建图落 RDF 时一个端点+模板页即成站。
+4. 多源补全 + 消歧（Cita 模式）：4 indexer + PID 消歧 + `10.48550/arxiv.*` 映射 + 剔自引边 + 写回 Wikidata。
+5. SPARQL 模板页（Scholia 模式）：自建图落 RDF 时一个端点 + 模板页即成站。
 6. 局部图指标（litstudy 模式）：refs 列表→BC/CC 矩阵，40 行/算法。
 7. 分层时间布局：LCN year-level hierarchical + 形状编码是引用图可读性标杆。
 

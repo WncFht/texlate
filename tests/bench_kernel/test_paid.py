@@ -55,9 +55,9 @@ def test_meter_price_table_flat_and_per_mtok() -> None:
     assert m3.usd_for(
         {"in_tok": 10, "out_tok": 10, "model": "model-a"}
     ) == pytest.approx(10e-6)
-    assert m3.usd_for(
-        {"in_tok": 10, "out_tok": 10, "model": "other"}
-    ) == pytest.approx(10e-6)
+    assert m3.usd_for({"in_tok": 10, "out_tok": 10, "model": "other"}) == pytest.approx(
+        10e-6
+    )
     assert m.usd_for(None) == 0.0
 
 

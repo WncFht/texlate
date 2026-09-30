@@ -14,12 +14,12 @@
 
 ## Message kinds
 
-| Kind | Stroke | Marker | When |
-|---|---|---|---|
-| Call (sync) | solid muted or link-blue | filled | Request that expects a reply |
-| Return | **dashed** muted (or match call color) | filled | Reply to a sync call — never solid |
-| Async / fire-and-forget | dashed muted | **open** arrowhead | Beacons, events, one-way notify |
-| Headline success | solid accent (≤1–2 messages) | accent filled | Primary happy-path response only |
+| Kind                    | Stroke                                 | Marker             | When                               |
+| ----------------------- | -------------------------------------- | ------------------ | ---------------------------------- |
+| Call (sync)             | solid muted or link-blue               | filled             | Request that expects a reply       |
+| Return                  | **dashed** muted (or match call color) | filled             | Reply to a sync call — never solid |
+| Async / fire-and-forget | dashed muted                           | **open** arrowhead | Beacons, events, one-way notify    |
+| Headline success        | solid accent (≤1–2 messages)           | accent filled      | Primary happy-path response only   |
 
 ### Open arrowhead (async)
 
@@ -55,11 +55,11 @@ Dark mode: frame fill `rgba(245,245,245,0.04)`, stroke `rgba(245,245,245,0.22)`,
 
 ### Operators
 
-| Operator | Regions | Divider | Guard label |
-|---|---|---|---|
-| `opt` | 1 | none | `[if condition]` under the tab (Geist Mono 8px) |
-| `alt` | **2 max** | dashed horizontal hairline across the frame | `[guard]` on region 1; `[else]` (or a second guard) on region 2 |
-| `loop` | 1 | none | `[for each item]` or `[retry ≤ 3]` under the tab |
+| Operator | Regions   | Divider                                     | Guard label                                                     |
+| -------- | --------- | ------------------------------------------- | --------------------------------------------------------------- |
+| `opt`    | 1         | none                                        | `[if condition]` under the tab (Geist Mono 8px)                 |
+| `alt`    | **2 max** | dashed horizontal hairline across the frame | `[guard]` on region 1; `[else]` (or a second guard) on region 2 |
+| `loop`   | 1         | none                                        | `[for each item]` or `[retry ≤ 3]` under the tab                |
 
 ### Guard + divider primitives
 

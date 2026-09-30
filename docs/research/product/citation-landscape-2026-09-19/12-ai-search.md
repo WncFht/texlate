@@ -8,19 +8,19 @@
 
 **Elicit**（Ought 孵化的独立公司，AI 系统性文献综述）：语料 138M（S2 主力周更 + OpenAlex + PubMed 去重）[^elicit-corpus]。管线两阶段：自研 embedding 全库排序（被引数、发表时间作为排序特征之一）→ LLM 对 top 1000 精排/筛选[^elicit-search]。产品面 Find Papers/Systematic Review/Extract Data/Research Agent；API + 官方 MCP，Pro $49/月[^elicit-api][^elicit-pricing]。
 
-**Consensus**（波士顿 2021，「AI-native 版 Google Scholar」）：语料宣称 220M（S2+OpenAlex+自爬）[^consensus-library]。三段式 IR：embedding+BM25 混合召回 → top 1500 按质量信号重排（**被引数**、SJR、时间）→ 大模型精排 top 20[^consensus-how]。标志功能 Consensus Meter：微调开源模型把 top 5–20 篇结论分类 Yes/No/Possibly 汇总成仪表[^consensus-meter]。Pro $20/月[^consensus-plans]。
+**Consensus**（波士顿 2021，「AI-native 版 Google Scholar」）：语料宣称 220M（S2+OpenAlex+ 自爬）[^consensus-library]。三段式 IR：embedding+BM25 混合召回 → top 1500 按质量信号重排（**被引数**、SJR、时间）→ 大模型精排 top 20[^consensus-how]。标志功能 Consensus Meter：微调开源模型把 top 5–20 篇结论分类 Yes/No/Possibly 汇总成仪表[^consensus-meter]。Pro $20/月[^consensus-plans]。
 
-**Undermind**（YC 孵化，两位 MIT 物理博士）：agentic 学术搜索的代表——管线三件套 **semantic embeddings + citations + LLM reasoning**：embedding 召回候选后 LLM 像人类研究者一样**沿引用链探索**、反思进展、决定下一步直到收敛；用 capture-recapture 统计法估计覆盖率（「已找到约 90%」）[^undermind-whitepaper][^aarontay]。语料 S2 ~2 亿篇（标题+摘要级），单次搜索 3–6 分钟[^casrai-undermind]。白皮书宣称找到的相关论文是 GS 前 5 页的 10 倍[^undermind-whitepaper]。Pro $16/月[^undermind-site]。
+**Undermind**（YC 孵化，两位 MIT 物理博士）：agentic 学术搜索的代表——管线三件套 **semantic embeddings + citations + LLM reasoning**：embedding 召回候选后 LLM 像人类研究者一样**沿引用链探索**、反思进展、决定下一步直到收敛；用 capture-recapture 统计法估计覆盖率（「已找到约 90%」）[^undermind-whitepaper][^aarontay]。语料 S2 ~2 亿篇（标题 + 摘要级），单次搜索 3–6 分钟[^casrai-undermind]。白皮书宣称找到的相关论文是 GS 前 5 页的 10 倍[^undermind-whitepaper]。Pro $16/月[^undermind-site]。
 
 **SciSpace**（前身 Typeset.io，「检索→阅读→写作」全流程）：语料 280M+、含 50M+ OA 全文 PDF；向量检索+rerank；Copilot 的 related papers 是「与选中文字相似」的内容 embedding，**非引用图**[^scispace-aaai][^casrai-scispace]。Premium $12/月[^theaiselect]。
 
-**Keenious**（挪威，文档级推荐+图书馆机构市场）：语料治理最透明——OpenAlex 全量 ~5.1 亿 → 类型过滤 ~2.88 亿 → 人工抽样评级剔除非学术源 → 记录级质检得 **~1.81 亿**终索引；精选索引内重算 FWCI[^keenious-index][^keenious-openalex]。检索=embedding（标题+摘要入库向量）+BM25 rank fusion + 学术信号微调 + research areas 聚类[^keenious-search]。引用图只用 FWCI 标量形式。Plus $10/月[^keenious-pricing]。
+**Keenious**（挪威，文档级推荐 + 图书馆机构市场）：语料治理最透明——OpenAlex 全量 ~5.1 亿 → 类型过滤 ~2.88 亿 → 人工抽样评级剔除非学术源 → 记录级质检得 **~1.81 亿**终索引；精选索引内重算 FWCI[^keenious-index][^keenious-openalex]。检索=embedding（标题 + 摘要入库向量）+BM25 rank fusion + 学术信号微调 + research areas 聚类[^keenious-search]。引用图只用 FWCI 标量形式。Plus $10/月[^keenious-pricing]。
 
-**Scinapse / Pluto Labs**（首尔）：**唯一整体押注引用图的产品**——数据=MAG+PubMed+PMC+OpenAlex+S2+自爬 250M+[^scinapse-data]；自研 agent 跑在引用图上，官网明写定位「Text embeddings find the right topic but miss the specific research agenda. Our citation graph — bibliographic coupling and co-citation — recovers the signal they miss」[^scinapse-site]。Basic $23/Pro $36/Max $52/月[^scinapse-pricing]。
+**Scinapse / Pluto Labs**（首尔）：**唯一整体押注引用图的产品**——数据=MAG+PubMed+PMC+OpenAlex+S2+ 自爬 250M+[^scinapse-data]；自研 agent 跑在引用图上，官网明写定位「Text embeddings find the right topic but miss the specific research agenda. Our citation graph — bibliographic coupling and co-citation — recovers the signal they miss」[^scinapse-site]。Basic $23/Pro $36/Max $52/月[^scinapse-pricing]。
 
 ## 关键实证：Topic Is Not Agenda
 
-Pluto Labs 的 arXiv:2605.07158 是本调研最重要的实证[^pluto-paper]：全量 OpenAlex 引用表（~25 亿条）在 358 万篇论文上建**增广引用图**——直接引用 + 文献耦合（≥3 共同引用、Salton 加权、剔除被引超 500 的热门 refs）+ 共被引（≥3 共同施引、剔除施引超 200 的综述型），三层合并 1.53 亿边（均值度 85.5）；Leiden CPM 两级社区（L1 子领域/L2 研究议程）。结论：**四个 SOTA embedding（Gemini/Qwen3-8B/Qwen3-0.6B/SPECTER2）在 L1 有 45–52% top-10 同区率，但 L2 议程级只剩 15–21%**——每 10 篇语义近邻里约 8 篇不在同一研究议程，SPECTER2 这种引用对比训练的反而最差；而换到 top-1 命中率口径看，「BM25+被引数重排」这种刻意简单的探针拿 **59.6% L2 命中**，比最强 embedding（Gemini 50.6%）高 9 个点[^pluto-paper]。第三方评注认为 L2 分区 ground-truth 稳健性待同行评审[^pith-review]。
+Pluto Labs 的 arXiv:2605.07158 是本调研最重要的实证[^pluto-paper]：全量 OpenAlex 引用表（~25 亿条）在 358 万篇论文上建**增广引用图**——直接引用 + 文献耦合（≥3 共同引用、Salton 加权、剔除被引超 500 的热门 refs）+ 共被引（≥3 共同施引、剔除施引超 200 的综述型），三层合并 1.53 亿边（均值度 85.5）；Leiden CPM 两级社区（L1 子领域/L2 研究议程）。结论：**四个 SOTA embedding（Gemini/Qwen3-8B/Qwen3-0.6B/SPECTER2）在 L1 有 45–52% top-10 同区率，但 L2 议程级只剩 15–21%**——每 10 篇语义近邻里约 8 篇不在同一研究议程，SPECTER2 这种引用对比训练的反而最差；而换到 top-1 命中率口径看，「BM25+ 被引数重排」这种刻意简单的探针拿 **59.6% L2 命中**，比最强 embedding（Gemini 50.6%）高 9 个点[^pluto-paper]。第三方评注认为 L2 分区 ground-truth 稳健性待同行评审[^pith-review]。
 
 ## 可借鉴点
 

@@ -88,12 +88,12 @@ Not for: a third value that is really a category (use the focal accent or facet 
 
 What each binding buys, and what it costs to omit:
 
-| Binding | Without it |
-|---|---|
-| `data-x` / `data-y` on the circle | A nudged centre could not be caught — the drawn position would be the only statement of the value. |
-| `data-size` on the circle | Nothing pins area to the value, and radius-proportional sizing renders identically plausible. |
-| `data-name` on the circle | An unnamed bubble cannot be labelled or cross-checked, and drops out of every comparison silently. |
-| `data-name` on a label | Two labels could be exchanged between bubbles, renaming both, with every number still correct in isolation. |
+| Binding                              | Without it                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `data-x` / `data-y` on the circle    | A nudged centre could not be caught — the drawn position would be the only statement of the value.            |
+| `data-size` on the circle            | Nothing pins area to the value, and radius-proportional sizing renders identically plausible.                 |
+| `data-name` on the circle            | An unnamed bubble cannot be labelled or cross-checked, and drops out of every comparison silently.            |
+| `data-name` on a label               | Two labels could be exchanged between bubbles, renaming both, with every number still correct in isolation.   |
 | `data-tick` / `data-value` on a tick | The printed axis could be relabelled wholesale — every bubble honestly placed on a scale the axis lies about. |
 
 `scripts/verify-bubble.py` derives both axis scales and the area constant from the set itself (Theil–Sen, leave-one-out, so one dishonest bubble cannot drag the line it is measured against), requires at most one accent bubble, checks paint order on overlaps, and holds every bound label and tick against the mark it describes. Deliberately **not** `data-series`: that attribute is the slopegraph contract, and using it here would put every bubble file inside `verify-slopegraph.py`'s scope.
@@ -161,12 +161,12 @@ Not for: two variables (that is the parent scatter); comparing distributions acr
 
 What each binding buys, and what it costs to omit:
 
-| Binding | Without it |
-|---|---|
-| `data-value` on the circle | A dot nudged along the value axis could not be caught — the drawn position would be the only statement of the value. |
+| Binding                                  | Without it                                                                                                                                                                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-value` on the circle               | A dot nudged along the value axis could not be caught — the drawn position would be the only statement of the value.                                                                                                                           |
 | `data-name` on the focal/outlier circles | An unnamed outlier cannot be labelled or cross-checked, and two swapped labels rename both dots silently. The name must be non-empty and unique to one dot: two dots sharing a name collapse into one entry, so a single label satisfies both. |
-| `data-name` on a label | The label floats free — it could name a dot that is not there, or drift to a neighbour. |
-| `data-tick` / `data-value` on a tick | The printed axis could be relabelled wholesale — every dot honestly placed on a scale the axis lies about. |
+| `data-name` on a label                   | The label floats free — it could name a dot that is not there, or drift to a neighbour.                                                                                                                                                        |
+| `data-tick` / `data-value` on a tick     | The printed axis could be relabelled wholesale — every dot honestly placed on a scale the axis lies about.                                                                                                                                     |
 
 `scripts/verify-beeswarm.py` derives the value scale from the dots themselves, requires dots sharing a value to share a position, refuses any overprinted pair, holds every dot to one radius and every non-focal dot to one fill, caps the accent at one dot and the labels at six, requires every `data-name` to be non-empty and unique, and checks every bound label and tick against the mark it describes; `scripts/test-verify-beeswarm.py` proves each check in both polarities and pins the sibling scope treaty in both directions.
 

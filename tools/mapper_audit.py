@@ -96,9 +96,7 @@ for taskdir in sorted(TASKS.glob("t_*")):
                 for k2, v2 in sp.items()
                 if k2 != k and isinstance(v2, dict) and v2.get("o") and v2.get("t")
             ]
-            fm = create_position_mapper(
-                {**al, "pairs": base_pairs + others}, pages
-            )
+            fm = create_position_mapper({**al, "pairs": base_pairs + others}, pages)
             pred = to_linear(gd, fm(v[sk], frm), False)
             errs.append(abs(pred - to_linear(gd, v[dk], False)))
         errs.sort()

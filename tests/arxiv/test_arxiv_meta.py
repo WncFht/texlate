@@ -242,9 +242,7 @@ def test_degrade_request_error_falls_through() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    client = httpx.Client(
-        transport=httpx.MockTransport(handler), follow_redirects=True
-    )
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
     clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),

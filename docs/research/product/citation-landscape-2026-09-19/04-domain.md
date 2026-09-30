@@ -28,7 +28,7 @@ ADS 的核心价值不在数据（要 token、有日额），而在它把「引�
 ## PubMed 系：生物医学引用闭环
 
 - **iCite**（NIH OPA）：免鉴权 REST `/api/pubs?pmids=`（≤1000 个/次），返回 `cited_by`/`references` 双向边 + `relative_citation_ratio`（RCR 领域归一化引用影响力）+ `nih_percentile` + 现成可视化坐标；figshare 有全量快照[^icite-api][^icite-fields]。
-- **NIH-OCC**：iCite 背后的数据集——MedLine/PMC + Crossref + 自家 ML 从开放全文抽取合并，2019 年已有 4.2 亿+ PubMed↔PubMed 边；构建配方「Crossref 打底 + 全文 ML 抽取补齐 DOI 前时代」本身是范本[^nih-occ]。
+- **NIH-OCC**：iCite 背后的数据集——MedLine/PMC + Crossref + 自家 ML 从开放全文抽取合并，2019 年已有 4.2 亿 + PubMed↔PubMed 边；构建配方「Crossref 打底 + 全文 ML 抽取补齐 DOI 前时代」本身是范本[^nih-occ]。
 - **Europe PMC**：免鉴权 REST ~10rps，`/{source}/{id}/citations` 与 `/references`（source 含 MED/PMC/PPR preprint），3300 万出版物、1940 万有 refs[^epmc-rest]。
 
 ## zbMATH / OpenAIRE / DBLP

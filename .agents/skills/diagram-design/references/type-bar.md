@@ -48,13 +48,13 @@ Focal bar: replace fill with `rgba(235,108,54,0.12)`, stroke with `#eb6c36`, lab
 - **Plot area:** left margin 200px for row labels — this replaces the 80px margin above — so `x` 200→960, `y` 40→420 inside `0 0 1000 500`. Row labels right-aligned at x=188, Geist 11px 600 ink (the category-label size this type already uses).
 - **Rows:** the 4–8 bar count cap applies. Pitch and origin are fixed per row count so the block stays inside the plot band — a 64px pitch from y=96 overflows y=420 at seven rows:
 
-  | rows | pitch | first row `y` | last row `y` |
-  | --- | --- | --- | --- |
-  | 4 | 88 | 96 | 360 |
-  | 5 | 64 | 96 | 352 |
-  | 6 | 64 | 76 | 396 |
-  | 7 | 52 | 72 | 384 |
-  | 8 | 48 | 68 | 404 |
+| rows | pitch | first row `y` | last row `y` |
+| ---- | ----- | ------------- | ------------ |
+| 4    | 88    | 96            | 360          |
+| 5    | 64    | 96            | 352          |
+| 6    | 64    | 76            | 396          |
+| 7    | 52    | 72            | 384          |
+| 8    | 48    | 68            | 404          |
 
 - **Gridlines:** vertical at each tick, `rgba(45,49,66,0.08)` 0.8px, spanning y 56→408. At the domain floor the axis line replaces the gridline rather than doubling it: `rgba(45,49,66,0.25)` 1px, y 40→420.
 - **Tick labels:** centered under each gridline at y=440, Geist Mono 8px muted.

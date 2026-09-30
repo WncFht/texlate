@@ -1,6 +1,6 @@
 # Lane 08：Litmaps 逆向
 
-> **结论**：本质是把 Crossref+S2+OpenAlex 三家开放元数据合并去重后自建 2.7 亿节点引用图、再以异步 search job 提供互联度推荐的服务——数据管道是主要资产，算法本身直白，record schema（内嵌边数组+多源 ID）与 Monitor（持久化发现查询）可直接抄。
+> **结论**：本质是把 Crossref+S2+OpenAlex 三家开放元数据合并去重后自建 2.7 亿节点引用图、再以异步 search job 提供互联度推荐的服务——数据管道是主要资产，算法本身直白，record schema（内嵌边数组 + 多源 ID）与 Monitor（持久化发现查询）可直接抄。
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
@@ -18,11 +18,11 @@ Litmaps 2016 年创立于新西兰惠灵顿（Axton Pitt + Kyle Webster），初
 
 docs 列三个可选算法，与前端 bundle 算法注册表逐字对应[^docs-algo]：
 
-| key                | 展示名                                | 机制                                                     |
-| ------------------ | ------------------------------------- | -------------------------------------------------------- |
-| `shallow`          | Shared Citations & References（默认） | 一跳邻域（citations+references+共被引）按图内互联度排序  |
-| `authorFiltration` | Common Authors                        | 共同作者合作模式召回                                     |
-| `semantic`         | Similar Text                          | 标题+摘要 embedding/LLM 语义检索，**唯一不用引用的算法** |
+| key                | 展示名                                | 机制                                                       |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------- |
+| `shallow`          | Shared Citations & References（默认） | 一跳邻域（citations+references+ 共被引）按图内互联度排序   |
+| `authorFiltration` | Common Authors                        | 共同作者合作模式召回                                       |
+| `semantic`         | Similar Text                          | 标题 + 摘要 embedding/LLM 语义检索，**唯一不用引用的算法** |
 
 隐藏模式 `seed`：输入恰 1 篇且无过滤时前端改写算法为 `seed` 返回 20 条。可视化排序轴：**Momentum**（被引数按新近度调整）、**Map Connectivity**（图内被引数）、Cite Count、Ref Count、Publication Date[^docs-vis]。
 
@@ -39,7 +39,7 @@ API 基址 `api.litmaps.com`；错误体 `{"error":true,"reason":...}`；解码�
 
 ## 结论
 
-数据层（三家开放源 ingest→多源 id 对齐→版本归并→内嵌边表落库）是真正壁垒也是最大工程量，等于「重做一个小号 OpenAlex」；算法层出奇的薄（一跳邻域+图内互联度），任何人拿到引用图都能复刻。
+数据层（三家开放源 ingest→多源 id 对齐→版本归并→内嵌边表落库）是真正壁垒也是最大工程量，等于「重做一个小号 OpenAlex」；算法层出奇的薄（一跳邻域 + 图内互联度），任何人拿到引用图都能复刻。
 
 ### 参考文献
 

@@ -49,7 +49,7 @@
 
 - `chunks` 表每行自带 `(seq, chunk_id, src_file, byte_start, byte_end)`，`chunk_id=sha256(src_file:start:end)[:24]`（`server/worker/_common.py:399`）。span→`decode_tex` 切片即权威片段：10/10 可抽、重扫同 span、零中段切割、零括号失衡（cl-span-extract）。
 - `sentence_ends`（`xlat/batch.py:327`）句界扫描器：depth==0 的 `.!?`+后随空白、`\\` 转义双跳、`{}` 深度跟踪、缩写豁免——直接复用做 sentclip 收边（raw tex 上无 `[[SL]]` token 但 `\n` 分支原生生效）。
-- `decode_tex`（`textutil/encoding.py:771`） arXiv 编码净化。
+- `decode_tex`（`textutil/encoding.py:771`）arXiv 编码净化。
 - dom 链 `<math>` 双载体 100%（alttext=annotation 逐字节等）。
 
 **改动清单**：
@@ -61,19 +61,19 @@
 
 ## 前端改动（文件级）
 
-| 文件                                                 | 改动                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `web/src/reader/sanitize.ts`                         | `DOM_PROFILE.ADD_ATTR` 加 `"alttext"`；头注补「alttext=copy-latex 载体」                                                                                                                                                                                                                                                                                  |
-| `web/src/reader/copylatex.ts`（新，纯逻辑可 vitest） | ①`mathTexFrom(el)`：alttext→katex annotation→mathml-to-latex 懒载三级提取；②`selChunks(bodyEl, lane)`：`Range.intersectsNode` 扫 `[data-chunk]`→seq 区间+头尾 anchor 文本（各 ≤400 字符，含选区边缘上下文）；③`pdfSeqsForText(dual, selText, side)`：归一化 difflib 段级锚定；④`copyText(s)`：`navigator.clipboard.writeText` + textarea execCommand 兜底 |
-| `web/src/reader/LatexCard.tsx`（新）                 | 公式源卡组件：CiteCard 定位逻辑抽出/复刻（rect anchor、翻上、Esc、scroll-close），内文 `<pre>` textContent + 复制钮 + 界符开关 + approx 标                                                                                                                                                                                                                |
-| `web/src/reader/SelBar.tsx`（新）                    | 选区浮动条：selectionchange 驱动、拖选抑制、pointercancel/blur 救援、随滚跟随、离屏隐、`user-select:none`、档位菜单、结果 toast（复用 `.pane-toast` 样式类）                                                                                                                                                                                              |
-| `web/src/reader/DomPane.tsx`                         | `bodyEl` 委托 `click`：`closest('math')`→开 LatexCard（alttext 路径）；不挂选区条（无 LaTeX 源）                                                                                                                                                                                                                                                          |
-| `web/src/reader/HtmlPane.tsx` / `LivePane.tsx`       | 挂 `SelBar`（taskId prop 已有于 HtmlPane；LivePane 需透传）+ math click→LatexCard（`.katex` 路径）。`repaint`/增量补丁后无需重挂——委托在 bodyEl 上                                                                                                                                                                                                        |
-| `web/src/reader/PdfPane.tsx`（P2）                   | textLayer 容器挂 SelBar；`chunks` prop 由 ReaderView 经 PaneSlot 补传（现只 html 视图消费）                                                                                                                                                                                                                                                               |
-| `web/src/reader/PaneSlot.tsx` / `ReaderView.tsx`     | taskId/dual chunks 透传补齐；无逻辑改动                                                                                                                                                                                                                                                                                                                   |
-| `web/src/api/types.ts` + `rest.ts`                   | `LatexSelRequest/LatexSelResponse` 类型 + `api.latexSelection(taskId, body)`                                                                                                                                                                                                                                                                              |
-| `web/src/i18n/{zh,en}.ts`                            | `reader.copyLatex*` 键组（卡标题/复制/已复制 N 段/档名/approx 标/失败），双语逐键对（i18n.test.ts 守护）                                                                                                                                                                                                                                                  |
-| `web/src/styles/copylatex.css`（新）                 | `.latex-card`、`.sel-bar`、`.latex-approx` 徽标；复用 cite.css 的卡片外观变量                                                                                                                                                                                                                                                                             |
+| 文件                                                 | 改动                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web/src/reader/sanitize.ts`                         | `DOM_PROFILE.ADD_ATTR` 加 `"alttext"`；头注补「alttext=copy-latex 载体」                                                                                                                                                                                                                                                                                    |
+| `web/src/reader/copylatex.ts`（新，纯逻辑可 vitest） | ①`mathTexFrom(el)`：alttext→katex annotation→mathml-to-latex 懒载三级提取；②`selChunks(bodyEl, lane)`：`Range.intersectsNode` 扫 `[data-chunk]`→seq 区间 + 头尾 anchor 文本（各 ≤400 字符，含选区边缘上下文）；③`pdfSeqsForText(dual, selText, side)`：归一化 difflib 段级锚定；④`copyText(s)`：`navigator.clipboard.writeText` + textarea execCommand 兜底 |
+| `web/src/reader/LatexCard.tsx`（新）                 | 公式源卡组件：CiteCard 定位逻辑抽出/复刻（rect anchor、翻上、Esc、scroll-close），内文 `<pre>` textContent + 复制钮 + 界符开关 + approx 标                                                                                                                                                                                                                  |
+| `web/src/reader/SelBar.tsx`（新）                    | 选区浮动条：selectionchange 驱动、拖选抑制、pointercancel/blur 救援、随滚跟随、离屏隐、`user-select:none`、档位菜单、结果 toast（复用 `.pane-toast` 样式类）                                                                                                                                                                                                |
+| `web/src/reader/DomPane.tsx`                         | `bodyEl` 委托 `click`：`closest('math')`→开 LatexCard（alttext 路径）；不挂选区条（无 LaTeX 源）                                                                                                                                                                                                                                                            |
+| `web/src/reader/HtmlPane.tsx` / `LivePane.tsx`       | 挂 `SelBar`（taskId prop 已有于 HtmlPane；LivePane 需透传）+ math click→LatexCard（`.katex` 路径）。`repaint`/增量补丁后无需重挂——委托在 bodyEl 上                                                                                                                                                                                                          |
+| `web/src/reader/PdfPane.tsx`（P2）                   | textLayer 容器挂 SelBar；`chunks` prop 由 ReaderView 经 PaneSlot 补传（现只 html 视图消费）                                                                                                                                                                                                                                                                 |
+| `web/src/reader/PaneSlot.tsx` / `ReaderView.tsx`     | taskId/dual chunks 透传补齐；无逻辑改动                                                                                                                                                                                                                                                                                                                     |
+| `web/src/api/types.ts` + `rest.ts`                   | `LatexSelRequest/LatexSelResponse` 类型 + `api.latexSelection(taskId, body)`                                                                                                                                                                                                                                                                                |
+| `web/src/i18n/{zh,en}.ts`                            | `reader.copyLatex*` 键组（卡标题/复制/已复制 N 段/档名/approx 标/失败），双语逐键对（i18n.test.ts 守护）                                                                                                                                                                                                                                                    |
+| `web/src/styles/copylatex.css`（新）                 | `.latex-card`、`.sel-bar`、`.latex-approx` 徽标；复用 cite.css 的卡片外观变量                                                                                                                                                                                                                                                                               |
 
 **委托 vs 逐元素监听**：全部交互走 pane 级 `bodyEl` 委托（DomPane 现有 `click`/`pointerover` 委托同款），KaTeX 重扫/chunk 重绘/增量补丁不破坏监听。
 
@@ -94,13 +94,13 @@
 
 **服务端流程**（纯逻辑落 `src/texlate/server/srccut.py`，文件 IO 走 `asyncio.to_thread`——reader.py 同款）：
 
-1. `deps.get_task`（id 形态+存在+tenant 三检）；`kind=="arxiv_html"` 早拒 422。
+1. `deps.get_task`（id 形态 + 存在+tenant 三检）；`kind=="arxiv_html"` 早拒 422。
 2. `ChunkRepo.spans_by_seqs(task_id, seqs)`（新 repo 方法，列集 `seq,chunk_id,src_file,byte_start,byte_end,kind,src_text`——`_PREVIEW_COLS` 无 span 列故新方法不复用）。
 3. 逐行取源切片，**三级回落链**：
     - `tasks/{id}/base/{src_file}` → `read_bytes`→`decode_tex`→`text[byte_start:byte_end]`（**字符偏移切 str，不是字节**——列名谎称，cl-seq-map 实测非 ASCII 文件 367/400 行 char≠byte）；
     - base 缺席（slim 清过）→ `src.tar` 同 relpath 成员切片 + **校验头**：切片归一化前缀须与 `src_text` 归一化头匹配（`main.tex` 被 normalize 注入 ~1.5KB 头致 span 漂移，不匹配即弃此臂）；
     - 皆败 → `dual.json` `chunks[seq].en` + `ph` 反掩码重构（实证 exact 7/8、norm-unique 8/8），置 `approx:true`。
-4. `mode=sent` 且 anchor 在场：anchor 归一化（空白折叠+智能引号归一+`[[TYPE_n]]`↔ph 体展开对照面）后 difflib 在边界切片内定位（cl-arb-sel anchor 臂 med 误差 0）；切点外扩至 `sentence_ends` 最近界；锚定置信不足（最长匹配块 < anchor 归一化长 ×0.6）→ 该侧退 whole。**置信不足不报错**——降级档即正确行为。
+4. `mode=sent` 且 anchor 在场：anchor 归一化（空白折叠 + 智能引号归一+`[[TYPE_n]]`↔ph 体展开对照面）后 difflib 在边界切片内定位（cl-arb-sel anchor 臂 med 误差 0）；切点外扩至 `sentence_ends` 最近界；锚定置信不足（最长匹配块 < anchor 归一化长 ×0.6）→ 该侧退 whole。**置信不足不报错**——降级档即正确行为。
 5. `gaps`：同 `src_file` 相邻 chunk 间插入 `text[prev_end:next_start]` 原文（注释/`\section`/`\label` 料，占文件字节 15–37%），单 gap 截 2KB；跨 `src_file` 插 `% ── file: {src_file} ──` 注释界标（LaTeX 安全）。
 6. 切片 `
 
@@ -114,7 +114,7 @@
 **vitest（`web/src/test/`）**：
 
 - `sanitize.test.ts`：补断言 `alttext` 存活、`semantics`/`annotation` 仍剥（现有 mathMl 用例旁加）。
-- `copylatex.test.ts`（新）：math 提取三径（alttext 优先/annotation 次/全无→fallback mock）；`selChunks` 在含嵌套锚+无行锚（bibitem/figure）夹具上的 seq 区间正确（ss-dom-sel 普查形态）；anchor 抽取截帽；pdf 模糊锚定对 dual 夹具命中预期 seq 区间；剪贴板兜底路径。
+- `copylatex.test.ts`（新）：math 提取三径（alttext 优先/annotation 次/全无→fallback mock）；`selChunks` 在含嵌套锚 + 无行锚（bibitem/figure）夹具上的 seq 区间正确（ss-dom-sel 普查形态）；anchor 抽取截帽；pdf 模糊锚定对 dual 夹具命中预期 seq 区间；剪贴板兜底路径。
 - `selBar.test.ts`（新）：拖选抑制、pointercancel 救援、离屏隐藏、cross-pane 锚位。
 - i18n parity 由既有 `i18n.test.ts` 自动覆盖。
 
@@ -124,7 +124,7 @@
 - 端点：whole 档基线切片 == `decode_tex(base/file)[start:end]` 逐字节；sent 档对带句中切点的 anchor 外扩句界；anchor 失配退 whole；gaps 含块间注释；跨文件界标；arxiv_html 422；seqs 超帽 400；base 缺席走 tar/approx 臂（造无 base 有 tar 与全无两 fixture）；租户 404。
 - `sentence_ends` 对 raw tex（无 token 编码）回归用例。
 
-**e2e（`web/scripts/copylatex_verify.mjs`，cite_verify.mjs 同款 Playwright 骨架）**：真实任务双链——dom 视图点公式出卡+复制内容含 `\frac`/`\begin`；html 视图选段落→条→剪贴板含原始宏调用；zh 侧选区退整段档；Esc/滚动收卡；零 console 错。环境坑记注：`TMPDIR=~/.cache/pw-tmp` 防 /tmp tmpfs 撑爆 chromium（ADR-0021 实证）。
+**e2e（`web/scripts/copylatex_verify.mjs`，cite_verify.mjs 同款 Playwright 骨架）**：真实任务双链——dom 视图点公式出卡 + 复制内容含 `\frac`/`\begin`；html 视图选段落→条→剪贴板含原始宏调用；zh 侧选区退整段档；Esc/滚动收卡；零 console 错。环境坑记注：`TMPDIR=~/.cache/pw-tmp` 防 /tmp tmpfs 撑爆 chromium（ADR-0021 实证）。
 
 ## 工作量与分期
 
@@ -132,13 +132,13 @@
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------- |
 | P0                     | sanitize 一行 + 公式源卡（dom+html/live）+ i18n + vitest + e2e 公式面                                                                                        | 2–3 天 | 零后端；mathml-to-latex 懒载打包条目录 package.json |
 | P1                     | 后端端点+repo 方法+srccut 纯件；html/live 选区条（whole+sentclip+gaps）；e2e 选区面                                                                          | 3–4 天 | P0 的 SelBar/clipboard 件可复用                     |
-| P2                     | pdf 视图：chunks 透传+模糊锚定整段档；zh 侧选区接通；`with_defs`（若 defs.json 持久化同期落）                                                                | 2–3 天 | P1 端点；锚定质量需 20+ 真实选区样本复验            |
+| P2                     | pdf 视图：chunks 透传 + 模糊锚定整段档；zh 侧选区接通；`with_defs`（若 defs.json 持久化同期落）                                                              | 2–3 天 | P1 端点；锚定质量需 20+ 真实选区样本复验            |
 | P3（研究项，另行裁决） | pdf 精确档：splice 期 accsupp `ActualText` 宏包裹（spike：宏回卷覆盖 98.1%，roundtrip 净）→ pdf.js 文本层出 sentinel → 边界级映射；dom 链「复制块 HTML」旁路 | 不定   | spike 已证载体机制；需新评估编译兼容面              |
 
 ## 风险
 
 1. **byte_start/byte_end 列名谎称**（cl-seq-map）：实为 Python str 字符偏移。切片必须 `decode_tex` 后对 str 切——对 bytes 切在非 ASCII 文件必错（实测 367/400 行分叉）。文档/代码注释要钉死，改名是 breaking 另议。
-2. **坐标系=base/ 归一化树**：normalize 注入 ~1.5KB 头+改写 `\input`，`src.tar` 回退对被动过的文件 span 漂移——必须带校验头闸（§后端 3），main 文件为高危位。
+2. **坐标系=base/ 归一化树**：normalize 注入 ~1.5KB 头 + 改写 `\input`，`src.tar` 回退对被动过的文件 span 漂移——必须带校验头闸（§后端 3），main 文件为高危位。
 3. **展开面 vs 原始面**（cl-macro）：`src_text`=L1 展开面，`[[EXPAND_n]]` 只活在 ph_map identity 轨；raw 切片保原始调用点（`\salve{}`）但**宏定义不在切片内**——粘到别处不编译。v1 接受（忠实复制语义）；P3 `with_defs` 补。
 4. **KaTeX annotation ≠ 源切片级精确**（cl-dialect）：annotation 是 phText 喂入体剥界符形——`$$\begin…$$` 包裹被剥、语义等价但非逐字节；且源体本身 25% 逐公式 KaTeX 不可渲（74/83% 干净率）不影响复制（源照旧给）但**不要在卡里做「预览渲染」承诺**。
 5. **选区条交互暗坑**（ss-floatbar 全谱）：拖选期泄漏定位、missed pointerup stuck、条自身被拖选、pane margin 移动无 scroll 事件 stale——§交互规格的对策（抑制/救援/user-select/RO 重定位）逐条对应实测坑，不可省。

@@ -29,39 +29,39 @@
 
 ## 2. 域词一词一义
 
-| 词           | 义项                                                                         | 备注                                                                 |
-| ------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 格           | bench cell——一篇×一档位的评测单元                                            | ledger `cell` 事件的口语形                                           |
-| 波           | run 批次实例（如 `soak-2026-09-27` 一批）                                    | 新名一律日期戳，不编号                                               |
+| 词           | 义项                                                                         | 备注                                                                        |
+| ------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 格           | bench cell——一篇×一档位的评测单元                                            | ledger `cell` 事件的口语形                                                  |
+| 波           | run 批次实例（如 `soak-2026-09-27` 一批）                                    | 新名一律日期戳，不编号                                                      |
 | 支           | fixloop 判定分支（taxonomy 分类树的一支）                                    | 勿与 ledger `arm` 字段混；bench 评测臂义的旧 `arm` 注释归一为「臂」非「支」 |
-| 臂           | bench 评测臂（`zh 臂`/`real 臂`/`mock 臂`——ledger `arm` 字段的中文注称）    | 注释统一用「臂」；wire/标识符仍写 `arm`（§1 冻结）                    |
-| 缝           | monkeypatch seam——测试可替换件的模块级收口面                                 | 三缝辨见 §3                                                          |
-| lane         | 并行工作面（多会话/多 runner 互不叠加通道）                                  | 散文可用，不作变量名                                                 |
-| canon 双形   | `cat/id` 原始拼写 ↔ `cat--id` 归一拼写                                       | 匹配走 `idnorm.idc_from_safe` 双侧归一                               |
-| 三区         | runs（执行档案）/vault（付费字节）/lake（免费载荷）                          | trizone-ledger 骨架                                                  |
-| 账三层       | events.jsonl（append-only 事实源）→ index.sqlite（可弃投影）→ report（读面） | index 可重建                                                         |
-| hydrate      | lake cell `skeleton→hydrated` 物化                                           | 对应 evict 反向                                                      |
-| claim        | paid 闸认领行（`acquire`/`release`/`reap` 三 op）                            | `CLAIM_OPS`                                                          |
-| case         | 逐样本评审行（cell 终态批内 buffer，崩格不留孤儿）                           | `T_CASE`                                                             |
-| blob offload | metrics/errors >4KB 外置 `derived/blobs/<sha>.json`                          | `{"$blob":…,"$bytes":…}` 标记形                                      |
-| 活哨         | sentry——编译期 watchdog 截杀（page_flood/killsem/超时）                      | 归因回吐 `sentry:` payload                                           |
-| 入场/derive  | 历史账普查进 ledger / 投影重建                                               | importer/report 边界件                                               |
+| 臂           | bench 评测臂（`zh 臂`/`real 臂`/`mock 臂`——ledger `arm` 字段的中文注称）     | 注释统一用「臂」；wire/标识符仍写 `arm`（§1 冻结）                          |
+| 缝           | monkeypatch seam——测试可替换件的模块级收口面                                 | 三缝辨见 §3                                                                 |
+| lane         | 并行工作面（多会话/多 runner 互不叠加通道）                                  | 散文可用，不作变量名                                                        |
+| canon 双形   | `cat/id` 原始拼写 ↔ `cat--id` 归一拼写                                       | 匹配走 `idnorm.idc_from_safe` 双侧归一                                      |
+| 三区         | runs（执行档案）/vault（付费字节）/lake（免费载荷）                          | trizone-ledger 骨架                                                         |
+| 账三层       | events.jsonl（append-only 事实源）→ index.sqlite（可弃投影）→ report（读面） | index 可重建                                                                |
+| hydrate      | lake cell `skeleton→hydrated` 物化                                           | 对应 evict 反向                                                             |
+| claim        | paid 闸认领行（`acquire`/`release`/`reap` 三 op）                            | `CLAIM_OPS`                                                                 |
+| case         | 逐样本评审行（cell 终态批内 buffer，崩格不留孤儿）                           | `T_CASE`                                                                    |
+| blob offload | metrics/errors >4KB 外置 `derived/blobs/<sha>.json`                          | `{"$blob":…,"$bytes":…}` 标记形                                             |
+| 活哨         | sentry——编译期 watchdog 截杀（page_flood/killsem/超时）                      | 归因回吐 `sentry:` payload                                                  |
+| 入场/derive  | 历史账普查进 ledger / 投影重建                                               | importer/report 边界件                                                      |
 
 ## 3. 同名异义登记表
 
 新增同名件义务：(a) 两侧 docstring 互辨；(b) 登记本表。
 
-| 名              | 件                                                                                                            | 义                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `patchseams.py` | `compile/`                                                                                                    | compile 层 monkeypatch 面（`_SOURCES` map 全惰性 `__getattr__` 回指） |
-| `seams.py`      | `server/worker/`                                                                                              | worker 层 monkeypatch 面（eager bind + 两名惰性回指）                 |
-| `_docseams.py`  | `compile/`                                                                                                    | docclass 注入缝几何原语——**非** monkeypatch 面，名近义异              |
-| `decls.py`      | `latex/gullet/` vs `textutil/`                                                                                | 同名双件域不同（gullet 声明表 vs 文本声明表）                         |
-| `kernel`        | `bench/py/kernel/` vs `tests/bench_kernel/`                                                                   | bench 账本内核 vs 其测试套件（原 `tests/kernel` 改名消歧）            |
+| 名              | 件                                                                                                                         | 义                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `patchseams.py` | `compile/`                                                                                                                 | compile 层 monkeypatch 面（`_SOURCES` map 全惰性 `__getattr__` 回指） |
+| `seams.py`      | `server/worker/`                                                                                                           | worker 层 monkeypatch 面（eager bind + 两名惰性回指）                 |
+| `_docseams.py`  | `compile/`                                                                                                                 | docclass 注入缝几何原语——**非** monkeypatch 面，名近义异              |
+| `decls.py`      | `latex/gullet/` vs `textutil/`                                                                                             | 同名双件域不同（gullet 声明表 vs 文本声明表）                         |
+| `kernel`        | `bench/py/kernel/` vs `tests/bench_kernel/`                                                                                | bench 账本内核 vs 其测试套件（原 `tests/kernel` 改名消歧）            |
 | `arm`           | ledger 字段（冻结，§1） / 注释面「臂」（bench 评测臂）与「支/分支」（taxonomy 判定分支） / web `armed*`（二次确认 arming） | 三义分层：wire 字段 / 中文注释两词分义 / UI 确认态                    |
-| `tier`          | `qc_tier`（冻结 metrics 键） / `_MATHRUN_STRONG`（layoutfix 剂量档，原 `tier2`） / `validate` L0/L1/L2 校验层 | 三义：QC 分级 / 修复剂量档 / 校验层号                                 |
-| `zone`          | ledger asset `zone`（冻结枚举） / `reconstruct.in_env_args`（原 `_env_arg_zone` 判位）                        | 数据枚举 vs 位置谓词                                                  |
-| `clean`         | `cell.status` 终态词（compile verdict） / `qc_tier` 档（零 finding）                                          | 两个 clean 不同义                                                     |
+| `tier`          | `qc_tier`（冻结 metrics 键） / `_MATHRUN_STRONG`（layoutfix 剂量档，原 `tier2`） / `validate` L0/L1/L2 校验层              | 三义：QC 分级 / 修复剂量档 / 校验层号                                 |
+| `zone`          | ledger asset `zone`（冻结枚举） / `reconstruct.in_env_args`（原 `_env_arg_zone` 判位）                                     | 数据枚举 vs 位置谓词                                                  |
+| `clean`         | `cell.status` 终态词（compile verdict） / `qc_tier` 档（零 finding）                                                       | 两个 clean 不同义                                                     |
 
 ## 4. 新规锚点
 

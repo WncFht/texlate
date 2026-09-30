@@ -48,9 +48,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
         """``hjfy`` 轮询端点共用解析：id 归一校验 + tenant 内最新任务行（无 → 404）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
         if not valid_id(base):
-            raise _api_error(
-                400, f"invalid arxiv id: {arxiv_id!r}", "invalid_request"
-            )
+            raise _api_error(400, f"invalid arxiv id: {arxiv_id!r}", "invalid_request")
         row = deps.store.find_latest_by_arxiv(deps.auth(request).tenant, base, ver)
         if row is None:
             # 刻意不走统一 ``{"detail","code"}`` 错误面：hjfy 轮询客户端

@@ -142,13 +142,13 @@ Solid paper fill across the full viewBox. No dot pattern.
 
 ### 2.4 Cell style table
 
-| `level` | Fill | Stroke | Text color | Text weight |
-|---|---|---|---|---|
-| `full` | `ink @ 0.08` | `ink @ 0.12` | `ink` | 600 |
-| `rw` | `#FFFFFF` | `ink @ 0.12` | `ink` | 400 |
-| `read` | `muted @ 0.08` | `ink @ 0.12` | `muted` | 400 |
-| `none` | `paper` | `ink @ 0.12` | `soft` | 400 |
-| **focal** | `accent @ 0.07` | `accent` (1.4) | `accent` | 600 |
+| `level`   | Fill            | Stroke         | Text color | Text weight |
+| --------- | --------------- | -------------- | ---------- | ----------- |
+| `full`    | `ink @ 0.08`    | `ink @ 0.12`   | `ink`      | 600         |
+| `rw`      | `#FFFFFF`       | `ink @ 0.12`   | `ink`      | 400         |
+| `read`    | `muted @ 0.08`  | `ink @ 0.12`   | `muted`    | 400         |
+| `none`    | `paper`         | `ink @ 0.12`   | `soft`     | 400         |
+| **focal** | `accent @ 0.07` | `accent` (1.4) | `accent`   | 600         |
 
 The focal cell can carry a 2nd line (`sub:`) rendered in `accent` with the `sublabel` role at 8px and 0.85 opacity.
 
@@ -178,12 +178,12 @@ Three independent override axes — per-cell, per-component (row), per-role (col
 
 Tints a specific intersection cell. Applied to:
 
-| Element | Light | Dark |
-|---|---|---|
-| Cell fill | `rgba(C, 0.08)` | `rgba(C_light, 0.12)` |
-| Cell stroke | `rgba(C, 0.45)` width 1.0 | `rgba(C_light, 0.55)` width 1.0 |
-| Value text | `C` | `C_light` |
-| Sub text (if present) | `rgba(C, 0.85)` | `rgba(C_light, 0.95)` |
+| Element               | Light                     | Dark                            |
+| --------------------- | ------------------------- | ------------------------------- |
+| Cell fill             | `rgba(C, 0.08)`           | `rgba(C_light, 0.12)`           |
+| Cell stroke           | `rgba(C, 0.45)` width 1.0 | `rgba(C_light, 0.55)` width 1.0 |
+| Value text            | `C`                       | `C_light`                       |
+| Sub text (if present) | `rgba(C, 0.85)`           | `rgba(C_light, 0.95)`           |
 
 `C_light` = the same hex lightened ~15% for dark-mode contrast.
 
@@ -191,20 +191,20 @@ Tints a specific intersection cell. Applied to:
 
 Tints the row's **label cell only** (left column). The data cells in that row keep their per-cell `level` styling — the row color flags *what* this component is, not *what permissions live in it*.
 
-| Element | Light | Dark |
-|---|---|---|
-| Label cell fill | `rgba(C, 0.06)` | `rgba(C_light, 0.10)` |
+| Element           | Light                     | Dark                            |
+| ----------------- | ------------------------- | ------------------------------- |
+| Label cell fill   | `rgba(C, 0.06)`           | `rgba(C_light, 0.10)`           |
 | Label cell stroke | `rgba(C, 0.45)` width 0.8 | `rgba(C_light, 0.55)` width 0.8 |
-| Component name | `C` | `C_light` |
-| Hint text | unchanged (muted) | unchanged (muted) |
+| Component name    | `C`                       | `C_light`                       |
+| Hint text         | unchanged (muted)         | unchanged (muted)               |
 
 ### 4.3 Per-role `color`  (`roles[j].color`)
 
 Tints the **column banner only** (top row). Cells underneath keep their `level` styling. Replaces the default navy banner fill with the chosen hex.
 
-| Element | Light & Dark (banner is the same in both modes) |
-|---|---|
-| Banner fill | `C` |
+| Element               | Light & Dark (banner is the same in both modes)        |
+| --------------------- | ------------------------------------------------------ |
+| Banner fill           | `C`                                                    |
 | Role name + code text | `#FFFFFF` if `C` is dark (luminance ≤ 0.5), else `ink` |
 
 If you pick a mid-luminance hex (e.g., yellow `#c9a23a`), the text auto-flips to ink for contrast. Pair `roles[j].text_color: "#hex"` to override this auto-pick.
@@ -239,22 +239,22 @@ If zero or >1 `focal: true` cells are declared, halt and ask the user.
 
 ## 6. Dark mode
 
-| Token | Light | Dark |
-|---|---|---|
-| Paper | `paper` | `ink` |
-| Ink | `ink` | `paper` |
-| Muted | `muted` | `soft` |
-| Soft (no-access text) | `soft` | `muted` |
-| Accent | `accent` | `accent` |
-| Role-banner fill | `ink` | `ink` |
-| Header / row stroke | `ink @ 0.12` | `paper @ 0.18` |
-| Full / Admin fill | `ink @ 0.08` | `paper @ 0.10` |
-| R/W fill | `#FFFFFF` | `paper @ 0.06` |
-| Read fill | `muted @ 0.08` | `soft @ 0.12` |
-| No-access fill | `paper` | `paper @ 0.02` |
-| Focal fill | `accent @ 0.07` | `accent @ 0.12` |
-| Focal stroke | `accent` | `accent` |
-| Custom component colors | `C` | `C_light` (lighten ~15%) |
+| Token                   | Light           | Dark                     |
+| ----------------------- | --------------- | ------------------------ |
+| Paper                   | `paper`         | `ink`                    |
+| Ink                     | `ink`           | `paper`                  |
+| Muted                   | `muted`         | `soft`                   |
+| Soft (no-access text)   | `soft`          | `muted`                  |
+| Accent                  | `accent`        | `accent`                 |
+| Role-banner fill        | `ink`           | `ink`                    |
+| Header / row stroke     | `ink @ 0.12`    | `paper @ 0.18`           |
+| Full / Admin fill       | `ink @ 0.08`    | `paper @ 0.10`           |
+| R/W fill                | `#FFFFFF`       | `paper @ 0.06`           |
+| Read fill               | `muted @ 0.08`  | `soft @ 0.12`            |
+| No-access fill          | `paper`         | `paper @ 0.02`           |
+| Focal fill              | `accent @ 0.07` | `accent @ 0.12`          |
+| Focal stroke            | `accent`        | `accent`                 |
+| Custom component colors | `C`             | `C_light` (lighten ~15%) |
 
 ---
 

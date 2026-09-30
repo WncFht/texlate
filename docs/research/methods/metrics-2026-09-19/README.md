@@ -6,14 +6,14 @@
 
 ## 文件说明
 
-| 件                         | 说明                                                                                                                                                                                                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `report.tex` + `sec-*.tex` | 报告源码：主文件 + 七节（background / bench / history / snapshot / failures / takeaway / appendix）                                                                                                                                                                     |
-| `report.pdf`               | 编译产物，直接可读                                                                                                                                                                                                                                                      |
-| `data/`                    | 全部原始数据：六条时间线 CSV（scorecard / parse / corpus / rules-tests / qual-xlat / commits-by-day 每日 commit 数）、`arms_history.csv` 377 行评测流水（各轮 run 目录名+样本量+头条读数）、`commits.json` 1,648 条 commit 全录（敏感串已脱敏）、`milestones.md` 大事记 |
-| `refs/`                    | 上一期复盘的两张图（`metrics-timeline.svg`、`assets-growth.svg`）；原档的源文档快照（评测器/语料规格、机制台账等）未随迁——对应正文档案见 `research/` 各域与 `spec/`                                                                                                     |
-| `make_readme_figs.py`      | README 图生成脚本（matplotlib，读 `data/` CSV 写 PNG）；机器相关件（字体路径）需按环境调整                                                                                                                                                                              |
-| `bench-pipeline.html`      | 管线架构图的 diagram-design 源文件（playwright 导出 PNG 的源头），非构建产物，保留作图源                                                                                                                                                                                |
+| 件                         | 说明                                                                                                                                                                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report.tex` + `sec-*.tex` | 报告源码：主文件 + 七节（background / bench / history / snapshot / failures / takeaway / appendix）                                                                                                                                                                         |
+| `report.pdf`               | 编译产物，直接可读                                                                                                                                                                                                                                                          |
+| `data/`                    | 全部原始数据：六条时间线 CSV（scorecard / parse / corpus / rules-tests / qual-xlat / commits-by-day 每日 commit 数）、`arms_history.csv` 377 行评测流水（各轮 run 目录名 + 样本量 + 头条读数）、`commits.json` 1,648 条 commit 全录（敏感串已脱敏）、`milestones.md` 大事记 |
+| `refs/`                    | 上一期复盘的两张图（`metrics-timeline.svg`、`assets-growth.svg`）；原档的源文档快照（评测器/语料规格、机制台账等）未随迁——对应正文档案见 `research/` 各域与 `spec/`                                                                                                         |
+| `make_readme_figs.py`      | README 图生成脚本（matplotlib，读 `data/` CSV 写 PNG）；机器相关件（字体路径）需按环境调整                                                                                                                                                                                  |
+| `bench-pipeline.html`      | 管线架构图的 diagram-design 源文件（playwright 导出 PNG 的源头），非构建产物，保留作图源                                                                                                                                                                                    |
 
 ## 复现构建
 

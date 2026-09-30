@@ -1,6 +1,6 @@
 # arXiv 主站串行探针实录（两波合并）：线缆格式 / 条件请求 / 旧 id 归并 / license 机读位 / HTML 版本矩阵 / v-diff 复用率 / 190 发大样本
 
-> **结论**：HEAD `/src/{id}` 的 content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）即 hasSrc+格式预检；条件请求 304 全面支持；旧式 id `math.AG/`、`HEP-TH/` 均 301 归并 archive 小写形；`/html/{id}` latest 可能是 includepdf 包装壳 stub，须逐版本回退探测；v1→latest 的 .tex 行复用率中位 0.55 → 增量重翻可省 ~50–85%；旧式 id 源码率 98.1%、新式 94.8%、遗留格式零观测。
+> **结论**：HEAD `/src/{id}` 的 content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）即 hasSrc+ 格式预检；条件请求 304 全面支持；旧式 id `math.AG/`、`HEP-TH/` 均 301 归并 archive 小写形；`/html/{id}` latest 可能是 includepdf 包装壳 stub，须逐版本回退探测；v1→latest 的 .tex 行复用率中位 0.55 → 增量重翻可省 ~50–85%；旧式 id 源码率 98.1%、新式 94.8%、遗留格式零观测。
 > **状态**：时点证据（2026-09-14 口径，两波合计 ~296 发、间隔 ≥3.1s、零并发）。结论已并入 [layer.md](layer.md) 并实装进 `src/texlate/arxiv/`（fetch 的 cd 三态解析/304 重验证、sniff 的 wrapper 检测、ratelimit 的断路器）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库（并原名映射：`serial2.md` → 本文 §B）
 
@@ -54,7 +54,7 @@
 
 ### A.7 发现层
 
-- `arxiv.org/rss/{cat}` →302→ `export.arxiv.org/rss/{cat}`（**export 桶**，与 Atom API 同池）：cs.LG 实测 558KB / 260 item，每条含 `guid=oai:arXiv.org:{id}v{n}`（带版本）、`announce_type`（new/cross/replace/replace-cross）、`dc:rights`（license URL）、`dc:creator`、标题+摘要；`skipDays` Sat/Sun（工作日日更）。信息密度远高于 list 页，**日更种子源首选**。
+- `arxiv.org/rss/{cat}` →302→ `export.arxiv.org/rss/{cat}`（**export 桶**，与 Atom API 同池）：cs.LG 实测 558KB / 260 item，每条含 `guid=oai:arXiv.org:{id}v{n}`（带版本）、`announce_type`（new/cross/replace/replace-cross）、`dc:rights`（license URL）、`dc:creator`、标题 + 摘要；`skipDays` Sat/Sun（工作日日更）。信息密度远高于 list 页，**日更种子源首选**。
 - `arxiv.org/list/{cat}/new`（arxiv.org 桶）直出 818KB HTML，三节 New/Cross/Replacement 同数 260——主站桶热备。
 
 ### A.8 类目表

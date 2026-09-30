@@ -143,12 +143,12 @@ Field labels use the `node-name` role at 11px in ink. Field values use the `subl
 
 Four canonical styles, picked per tier via `tiers[i].style`. Default mapping if `style` is omitted: tier 0 → `outer`, last tier → `cold`, focal tier (if any) → `focal`, others → `default`.
 
-| `style` | Card fill | Card stroke | Header band fill | Bucket text | Example value text |
-|---|---|---|---|---|---|
-| `outer` | `#FFFFFF` | `muted` 1.0 solid | `muted @ 0.10` | `muted` | `muted` |
-| `default` | `#FFFFFF` | `ink` 1.0 solid | `ink @ 0.06` | `muted` | `muted` |
-| `focal` | `accent @ 0.07` | `accent` 1.6 solid | `accent @ 0.14` | `accent` | `accent` |
-| `cold` | `paper-2` | `muted` 1.0 dashed `5,3` | `muted @ 0.18` | `muted` | `muted` |
+| `style`   | Card fill       | Card stroke              | Header band fill | Bucket text | Example value text |
+| --------- | --------------- | ------------------------ | ---------------- | ----------- | ------------------ |
+| `outer`   | `#FFFFFF`       | `muted` 1.0 solid        | `muted @ 0.10`   | `muted`     | `muted`            |
+| `default` | `#FFFFFF`       | `ink` 1.0 solid          | `ink @ 0.06`     | `muted`     | `muted`            |
+| `focal`   | `accent @ 0.07` | `accent` 1.6 solid       | `accent @ 0.14`  | `accent`    | `accent`           |
+| `cold`    | `paper-2`       | `muted` 1.0 dashed `5,3` | `muted @ 0.18`   | `muted`     | `muted`            |
 
 `rx = 6` on all card rects.
 
@@ -175,11 +175,11 @@ The cubic geometry: anchor y = 80 (tier top), control y = 0 (top of viewBox). Cu
 
 **Chained anchors:** consecutive arcs share their meeting points (arc 0→1 ends at the same `(tier_cx(1), 80)` where arc 1→2 begins). Visually each tier's top-center acts as a "joint" — data arrives at the top of the card, gets transformed inside, and leaves out the top toward the next tier. The arrow-head plunge plus the next arc's straight-up emergence read as a single payload-handoff motion.
 
-| `style` | Stroke | Width | Dash | Marker |
-|---|---|---|---|---|
-| `normal` | `muted` | 1.4 | — | `arrow` |
-| `focal` | `accent` | 1.6 | — | `arrow-accent` |
-| `lifecycle` | `muted` | 1.4 | `4,3` | `arrow` |
+| `style`     | Stroke   | Width | Dash  | Marker         |
+| ----------- | -------- | ----- | ----- | -------------- |
+| `normal`    | `muted`  | 1.4   | —     | `arrow`        |
+| `focal`     | `accent` | 1.6   | —     | `arrow-accent` |
+| `lifecycle` | `muted`  | 1.4   | `4,3` | `arrow`        |
 
 **Auto-style rules:**
 - If `promotions[k].to` references the **focal tier**, the style auto-promotes to `focal` (accent, width 1.6, `arrow-accent` marker).
@@ -245,16 +245,16 @@ Any tier or path entry accepts an optional `color: "#hex"`. Mirrors `type-proces
 
 Applied to:
 
-| Element | Light | Dark |
-|---|---|---|
-| Card fill | `rgba(C, 0.07)` | `rgba(C_light, 0.10)` |
-| Card stroke | `C` (width 1.4) | `C_light` (width 1.4) |
-| Header band fill | `rgba(C, 0.14)` | `rgba(C_light, 0.18)` |
-| Title text | ink (unchanged — title stays readable) | ink (unchanged) |
-| Bucket text | `C` | `C_light` |
-| Example values | `C` | `C_light` |
-| Field labels / field values | **unchanged** (ink / muted) | **unchanged** |
-| Connectors touching this tier | **unchanged** — topology-driven | **unchanged** |
+| Element                       | Light                                  | Dark                  |
+| ----------------------------- | -------------------------------------- | --------------------- |
+| Card fill                     | `rgba(C, 0.07)`                        | `rgba(C_light, 0.10)` |
+| Card stroke                   | `C` (width 1.4)                        | `C_light` (width 1.4) |
+| Header band fill              | `rgba(C, 0.14)`                        | `rgba(C_light, 0.18)` |
+| Title text                    | ink (unchanged — title stays readable) | ink (unchanged)       |
+| Bucket text                   | `C`                                    | `C_light`             |
+| Example values                | `C`                                    | `C_light`             |
+| Field labels / field values   | **unchanged** (ink / muted)            | **unchanged**         |
+| Connectors touching this tier | **unchanged** — topology-driven        | **unchanged**         |
 
 `C_light` = the same hex lightened ~15% for dark-mode contrast.
 
@@ -297,20 +297,20 @@ If zero or >1 tiers carry `focal: true`, halt and ask the user.
 
 ## 6. Dark mode
 
-| Token | Light | Dark |
-|---|---|---|
-| Paper | `paper` | `ink` |
-| Ink | `ink` | `paper` |
-| Muted | `muted` | `soft` |
-| Accent | `accent` | `accent` |
-| Fog (cold tier fill) | `paper-2` | `paper @ 0.06` |
-| White (default card fill) | `#FFFFFF` | `paper @ 0.04` |
-| Card stroke ink (default style) | `ink` | `paper @ 0.30` |
-| Header band ink-tint | `ink @ 0.06` | `paper @ 0.08` |
-| Header band muted-tint | `muted @ 0.10` | `soft @ 0.16` |
-| Header band cold-tint | `muted @ 0.18` | `soft @ 0.24` |
-| Header band accent-tint | `accent @ 0.14` | `accent @ 0.20` |
-| Custom component colors | `C` | `C_light` (lighten ~15%) |
+| Token                           | Light           | Dark                     |
+| ------------------------------- | --------------- | ------------------------ |
+| Paper                           | `paper`         | `ink`                    |
+| Ink                             | `ink`           | `paper`                  |
+| Muted                           | `muted`         | `soft`                   |
+| Accent                          | `accent`        | `accent`                 |
+| Fog (cold tier fill)            | `paper-2`       | `paper @ 0.06`           |
+| White (default card fill)       | `#FFFFFF`       | `paper @ 0.04`           |
+| Card stroke ink (default style) | `ink`           | `paper @ 0.30`           |
+| Header band ink-tint            | `ink @ 0.06`    | `paper @ 0.08`           |
+| Header band muted-tint          | `muted @ 0.10`  | `soft @ 0.16`            |
+| Header band cold-tint           | `muted @ 0.18`  | `soft @ 0.24`            |
+| Header band accent-tint         | `accent @ 0.14` | `accent @ 0.20`          |
+| Custom component colors         | `C`             | `C_light` (lighten ~15%) |
 
 ---
 

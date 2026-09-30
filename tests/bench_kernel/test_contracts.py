@@ -548,9 +548,7 @@ def test_canon_drift_emits_fail_loud_signal(tmp_path: Path) -> None:
     evs = [e for _n, _o, e in ledger.iter_all_events() if isinstance(e, dict)]
     cells = [e for e in evs if e["type"] == "cell"]
     assert cells
-    assert all(e["idc"] == "q-alg/9703043" for e in cells), (
-        "frozen canon must land"
-    )
+    assert all(e["idc"] == "q-alg/9703043" for e in cells), "frozen canon must land"
     signals = [
         e
         for e in evs
@@ -912,9 +910,7 @@ def test_plan_freeze_verbatim_on_rerun() -> None:
         [{"id": "2401.00001"}, {"id": "2401.00002"}],
         kind="tfz",
     )
-    kernel.run(
-        spec2, resume=True, date=r1["date"], slug=r1["slug"], jobs=1, **_quiet()
-    )
+    kernel.run(spec2, resume=True, date=r1["date"], slug=r1["slug"], jobs=1, **_quiet())
     assert rd.plan_path().read_bytes() == plan0, "frozen plan.json mutated on rerun"
     evs = _hot_events()
     assert not any(

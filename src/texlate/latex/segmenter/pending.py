@@ -348,7 +348,11 @@ class _Pending(_GrpScan):
                 return seq
 
     def _absorb_spec(  # noqa: C901, PLR0912, PLR0915 — spec 字母各一分支，平铺即流侧 _grp_spec_walk 对价
-        self: Segmenter, src: TokenSource, fid: int, spec: list, cont: tuple | None = None
+        self: Segmenter,
+        src: TokenSource,
+        fid: int,
+        spec: list,
+        cont: tuple | None = None,
     ) -> list[Tok]:
         r"""Gullet ``Arg`` spec 从 ``read()`` 流吸参 → 已消费 token 列（可空）。
 
@@ -709,7 +713,9 @@ class _Pending(_GrpScan):
             return _pend_call_slots(ka), ka
         return list(_PEND_PROBE), ""
 
-    def _grp_pending(self: Segmenter, src: TokenSource) -> tuple[list[str] | _PendRem, str] | None:
+    def _grp_pending(
+        self: Segmenter, src: TokenSource
+    ) -> tuple[list[str] | _PendRem, str] | None:
         r"""组尾待绑参检测 → ``(剩余槽列/_PendRem, keyarg 名)`` / ``None``。
 
         右起扫 ``_open_toks`` 首个有槽形/登记 opaque 宏的 cs，其参扫须吃

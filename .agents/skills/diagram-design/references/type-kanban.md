@@ -13,12 +13,12 @@
 
 Every card renders in exactly one of four states. Document and use all four when the board has enough cards to show them:
 
-| State | Fill | Stroke | Extra |
-|---|---|---|---|
-| `default` | white | `ink` | — |
-| `blocked` | `accent @ 0.05` | `accent` (full opacity) dashed `4,4` | 4px `accent` bar on the card's left edge |
-| `waiting / external` | `ink @ 0.02` | `ink @ 0.20` dashed `4,3` | — |
-| `done` | `ink @ 0.05` | `muted` | — |
+| State                | Fill            | Stroke                               | Extra                                    |
+| -------------------- | --------------- | ------------------------------------ | ---------------------------------------- |
+| `default`            | white           | `ink`                                | —                                        |
+| `blocked`            | `accent @ 0.05` | `accent` (full opacity) dashed `4,4` | 4px `accent` bar on the card's left edge |
+| `waiting / external` | `ink @ 0.02`    | `ink @ 0.20` dashed `4,3`            | —                                        |
+| `done`               | `ink @ 0.05`    | `muted`                              | —                                        |
 
 These map directly onto the SKILL.md §5 node-treatment table (`security` → blocked, `optional` → waiting/external, `store` → done) — the board reuses the system's existing semantic fills rather than inventing new ones.
 

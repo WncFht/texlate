@@ -47,7 +47,7 @@ Connected Papers 2019 年创立于以色列特拉维夫，四人团队（Alex Ta
 
 ## 结论
 
-架构可完全复刻：S2 dump → 出入边倒排 → 每篇算共被引+耦合加权相似度 → top-40 → spring layout → 压缩 blob 存 KV。他们只做到「单图 + 多源合并 + 月度版本」；实时构建、引用意图（scite 式）、embedding 混合相似度、流式渐进图都是空白空间。
+架构可完全复刻：S2 dump → 出入边倒排 → 每篇算共被引 + 耦合加权相似度 → top-40 → spring layout → 压缩 blob 存 KV。他们只做到「单图 + 多源合并 + 月度版本」；实时构建、引用意图（scite 式）、embedding 混合相似度、流式渐进图都是空白空间。
 
 ### 参考文献
 

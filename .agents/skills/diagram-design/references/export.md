@@ -119,12 +119,12 @@ Default `device_scale_factor=2` for crisp output. Accept `1` for compact assets 
 
 The PNG's pixel dimensions are the SVG's `viewBox` × `device_scale_factor`. So the size decision was already made when the diagram was drawn — see [`output-spec.md` §2](output-spec.md) for the presets. Export only picks the multiplier.
 
-| Destination | Scale | Result from a 1280×720 `viewBox` |
-| --- | --- | --- |
-| Docs, README, wiki | 2 | 2560×1440 |
-| Slide deck (projected) | 2 | 2560×1440 |
-| Print / PDF handout | 3 | 3840×2160 |
-| Inline thumbnail, email | 1 | 1280×720 |
+| Destination             | Scale | Result from a 1280×720 `viewBox` |
+| ----------------------- | ----- | -------------------------------- |
+| Docs, README, wiki      | 2     | 2560×1440                        |
+| Slide deck (projected)  | 2     | 2560×1440                        |
+| Print / PDF handout     | 3     | 3840×2160                        |
+| Inline thumbnail, email | 1     | 1280×720                         |
 
 ### Hitting an exact pixel size
 

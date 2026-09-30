@@ -45,9 +45,7 @@ from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.builtins.shim import _SVJOUR_CLO_BODY
 from texlate.compile.fixloop.engine import LoopCtx
 
-SHIMS = (
-    Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/shims"
-)
+SHIMS = Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/shims"
 
 _XELATEX = shutil.which("xelatex")
 _COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")

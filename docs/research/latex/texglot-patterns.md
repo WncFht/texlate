@@ -129,12 +129,12 @@
 | `compiler.py:1431`              | env 过滤按子串 KEY/TOKEN/SECRET/PASSWORD                     | 误伤 `MONKEY`/`KEYSTONE` 等；正向做法是白名单 env                                     |
 | `main.py:53-60`                 | 本地 API 无鉴权，只靠 Origin/Sec-Fetch-Site + TrustedHost    | 本机任意进程可 curl `/api/jobs`；texlate server 模式另有 401 鉴权（`server/auth.py`） |
 | `main.py:69-93`                 | i18n 中间件对每个 `/api` JSON 响应读全 body 重序列化查表翻译 | 英文 UI 依赖后端中文原文不漂移——脆耦合；应返回 error code 由前端翻                    |
-| `desktop/package.json`          | mac ad-hoc 签名 + `hardenedRuntime:false`                    | dmg 下载者要绕 Gatekeeper；公发必须正签+公证                                          |
+| `desktop/package.json`          | mac ad-hoc 签名 + `hardenedRuntime:false`                    | dmg 下载者要绕 Gatekeeper；公发必须正签 + 公证                                        |
 | `llm.py:336-347`                | 每段请求都带 ~400 词 system prompt                           | 无 prompt caching 意识；texlate glossary/prompt 设计考虑了前缀缓存命中                |
 | `jobs.py:528-541`               | cache 文件按 config hash 命名但永不清理                      | `cache-*.json` 无限累积；texlate 需 GC 策略（当前同样遗留）                           |
 | `config.py:164`                 | api_key 明文存 settings.json（0600）                         | BYOK 常态取舍但要承认；texlate 选择 key 不落盘（内存 `Secrets`）                      |
 | `figure_alignment.py:51-57`     | 图形签名用原始压缩字节                                       | 两次编译 flate 字节不保证一致；应对解码后内容或图像 hash                              |
-| `PdfReader.tsx`（1200 行）      | 单组件巨石：阅读器+批注+同步+持久化                          | texlate 前端照 `readerNavigation.ts` 纯函数剥离方式写                                 |
+| `PdfReader.tsx`（1200 行）      | 单组件巨石：阅读器 + 批注 + 同步 + 持久化                    | texlate 前端照 `readerNavigation.ts` 纯函数剥离方式写                                 |
 | `jobs.py:302-304`               | `shutil.rmtree` 直接删目录无软删                             | 风险低但重试路径多；texlate 用哨兵文件做段级幂等                                      |
 
 值得一提的「糙但有担当」：翻译失败的段保留原文并把任务标 `partial` 而非 `failed`，配合 cache 可断点续翻——方向对，texlate 继承此语义（`delivered` 口径）。

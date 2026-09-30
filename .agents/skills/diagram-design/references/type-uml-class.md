@@ -4,14 +4,14 @@
 
 **Other UML diagrams — route elsewhere.** UML is a family; only the class diagram gets its own grammar here:
 
-| UML diagram | Use instead |
-|---|---|
-| Sequence | [type-sequence.md](type-sequence.md) |
-| State machine | [type-state.md](type-state.md) |
-| Component | [type-architecture.md](type-architecture.md) |
-| Deployment | [type-architecture.md](type-architecture.md) |
-| Activity | [type-swimlane.md](type-swimlane.md) or [type-flowchart.md](type-flowchart.md) |
-| Conceptual / domain ER | [type-er.md](type-er.md) |
+| UML diagram            | Use instead                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| Sequence               | [type-sequence.md](type-sequence.md)                                           |
+| State machine          | [type-state.md](type-state.md)                                                 |
+| Component              | [type-architecture.md](type-architecture.md)                                   |
+| Deployment             | [type-architecture.md](type-architecture.md)                                   |
+| Activity               | [type-swimlane.md](type-swimlane.md) or [type-flowchart.md](type-flowchart.md) |
+| Conceptual / domain ER | [type-er.md](type-er.md)                                                       |
 
 ## Layout conventions
 
@@ -27,14 +27,14 @@
 
 Define every marker used in `<defs>` and show all six in the legend, even the ones not used in the diagram body — the legend is this type's complete grammar reference.
 
-| Relationship | Line | Ending (at the target/owner end) |
-|---|---|---|
-| Inheritance (`extends`) | solid | large **hollow triangle** — `paper` fill, `ink` stroke |
-| Realization (`implements`) | dashed `5,4` | same hollow triangle |
-| Composition (owns, cascades) | solid | **filled diamond** at the OWNER end, `ink` fill |
-| Aggregation (has, independent) | solid | **hollow diamond** at the OWNER end |
-| Association | solid | plain open arrowhead, multiplicity at BOTH ends |
-| Dependency (uses) | dashed `4,3` | plain open arrowhead |
+| Relationship                   | Line         | Ending (at the target/owner end)                       |
+| ------------------------------ | ------------ | ------------------------------------------------------ |
+| Inheritance (`extends`)        | solid        | large **hollow triangle** — `paper` fill, `ink` stroke |
+| Realization (`implements`)     | dashed `5,4` | same hollow triangle                                   |
+| Composition (owns, cascades)   | solid        | **filled diamond** at the OWNER end, `ink` fill        |
+| Aggregation (has, independent) | solid        | **hollow diamond** at the OWNER end                    |
+| Association                    | solid        | plain open arrowhead, multiplicity at BOTH ends        |
+| Dependency (uses)              | dashed `4,3` | plain open arrowhead                                   |
 
 Multiplicities (`1`, `0..*`, `1..*`) sit in Geist Mono 8px, 10–12px off the box edge, on an opaque mask over the line — same convention as ER cardinality labels.
 

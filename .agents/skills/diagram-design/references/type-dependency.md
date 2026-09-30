@@ -17,13 +17,13 @@
 
 ## Complexity budget
 
-| Limit | Rule |
-|---|---|
-| Max nodes | 9 |
-| Max edges | 14 |
-| Max rank layers | 4 |
-| Max highlighted cycles | 1 |
-| Max accent elements | 2 |
+| Limit                  | Rule |
+| ---------------------- | ---- |
+| Max nodes              | 9    |
+| Max edges              | 14   |
+| Max rank layers        | 4    |
+| Max highlighted cycles | 1    |
+| Max accent elements    | 2    |
 
 Over budget: collapse a leaf cluster into one aggregate node labelled with its count (e.g. `+6 leaves`), and say so in a caption — don't silently drop nodes.
 

@@ -164,12 +164,12 @@ Empty cells (no node entry) render **nothing**. No placeholder rect, no role chi
 
 Four styles, bound to topology. Connectors are drawn **before** all node rects (z-order rule).
 
-| `style` | Stroke | Width | Dash | Marker | When required |
-|---|---|---|---|---|---|
-| `muted` | `muted` | 1.0 | — | `arr-muted` | Standard data hand-off between steps or within a lane. |
-| `trigger` | `muted` | 1.0 | `4,3` | `arr-muted` | Governance trigger — an admin action enables downstream work. Unlabelled. |
-| `accent` | `accent` | 1.2 | — | `arr-accent` | Focal cross-role handoff. **Exactly one per diagram**, labeled. |
-| `link` | `link` | 1.0 | — | `arr-link` | Published / externally-consumed output. |
+| `style`   | Stroke   | Width | Dash  | Marker       | When required                                                             |
+| --------- | -------- | ----- | ----- | ------------ | ------------------------------------------------------------------------- |
+| `muted`   | `muted`  | 1.0   | —     | `arr-muted`  | Standard data hand-off between steps or within a lane.                    |
+| `trigger` | `muted`  | 1.0   | `4,3` | `arr-muted`  | Governance trigger — an admin action enables downstream work. Unlabelled. |
+| `accent`  | `accent` | 1.2   | —     | `arr-accent` | Focal cross-role handoff. **Exactly one per diagram**, labeled.           |
+| `link`    | `link`   | 1.0   | —     | `arr-link`   | Published / externally-consumed output.                                   |
 
 **Defs block** (required, three markers):
 
@@ -203,17 +203,17 @@ Any node, lane, or step may declare an optional `color: "#hex"`. Mirrors high-le
 
 Applied to:
 
-| Element | Light | Dark |
-|---|---|---|
-| Container fill (`rect`) | `rgba(C, 0.06)` | `rgba(C_light, 0.10)` |
-| Container stroke | `rgba(C, 0.35)` (stroke-width 1) | `rgba(C_light, 0.45)` |
-| Role chip fill | `rgba(C, 0.18)` | `rgba(C_light, 0.22)` |
-| Role chip text | `C` | `C_light` |
-| Title text | `C` | `C_light` |
-| Sub-label | **unchanged** (muted) | **unchanged** (muted) |
-| Tool label | **unchanged** (soft) | **unchanged** (soft) |
-| Data-type chips | **unchanged** | **unchanged** |
-| Arrows touching this node | **unchanged** — topology-driven | **unchanged** |
+| Element                   | Light                            | Dark                  |
+| ------------------------- | -------------------------------- | --------------------- |
+| Container fill (`rect`)   | `rgba(C, 0.06)`                  | `rgba(C_light, 0.10)` |
+| Container stroke          | `rgba(C, 0.35)` (stroke-width 1) | `rgba(C_light, 0.45)` |
+| Role chip fill            | `rgba(C, 0.18)`                  | `rgba(C_light, 0.22)` |
+| Role chip text            | `C`                              | `C_light`             |
+| Title text                | `C`                              | `C_light`             |
+| Sub-label                 | **unchanged** (muted)            | **unchanged** (muted) |
+| Tool label                | **unchanged** (soft)             | **unchanged** (soft)  |
+| Data-type chips           | **unchanged**                    | **unchanged**         |
+| Arrows touching this node | **unchanged** — topology-driven  | **unchanged**         |
 
 `C_light` = the same hex lightened ~15% for dark-mode contrast (e.g., `#b85450` → `#d97a78`).
 
@@ -257,24 +257,24 @@ If zero or >1 of any focal slot are declared, halt and ask the user.
 
 ## 6. Dark mode
 
-| Token | Light | Dark |
-|---|---|---|
-| Paper | `paper` | `ink` |
-| Ink | `ink` | `paper` |
-| Muted | `muted` | `soft` |
-| Soft | `soft` | `rule-solid` |
-| Accent | `accent` | `accent` |
-| Link | `link` | `link` |
-| Dot pattern | `ink @ 0.10` | `paper @ 0.10` |
-| Lane tint | `ink @ 0.018` | `paper @ 0.025` |
-| Dividers | `ink @ 0.12` | `paper @ 0.12` |
-| Default chip fill | `ink @ 0.12` | `paper @ 0.12` |
-| Focal chip fill | `accent @ 0.20` | `accent @ 0.22` |
-| Default node fill | `paper` | `paper @ 0.04` |
-| Default node stroke | `ink @ 0.25` | `paper @ 0.20` |
-| Focal node fill | `accent @ 0.07` | `accent @ 0.12` |
-| Focal node stroke | `accent` | `accent` |
-| Custom component colors | `C` | `C_light` (lighten ~15%) |
+| Token                   | Light           | Dark                     |
+| ----------------------- | --------------- | ------------------------ |
+| Paper                   | `paper`         | `ink`                    |
+| Ink                     | `ink`           | `paper`                  |
+| Muted                   | `muted`         | `soft`                   |
+| Soft                    | `soft`          | `rule-solid`             |
+| Accent                  | `accent`        | `accent`                 |
+| Link                    | `link`          | `link`                   |
+| Dot pattern             | `ink @ 0.10`    | `paper @ 0.10`           |
+| Lane tint               | `ink @ 0.018`   | `paper @ 0.025`          |
+| Dividers                | `ink @ 0.12`    | `paper @ 0.12`           |
+| Default chip fill       | `ink @ 0.12`    | `paper @ 0.12`           |
+| Focal chip fill         | `accent @ 0.20` | `accent @ 0.22`          |
+| Default node fill       | `paper`         | `paper @ 0.04`           |
+| Default node stroke     | `ink @ 0.25`    | `paper @ 0.20`           |
+| Focal node fill         | `accent @ 0.07` | `accent @ 0.12`          |
+| Focal node stroke       | `accent`        | `accent`                 |
+| Custom component colors | `C`             | `C_light` (lighten ~15%) |
 
 ---
 
@@ -308,13 +308,13 @@ Either chip may be omitted (e.g., a sink node has only an input chip; a source-o
 
 ### Chip codes
 
-| Code | Color | Meaning |
-|------|-------|---------|
-| `WB` | `#6e6479` (mauve) | Web / Public data |
-| `DB` | `#5e7a9b` (steel-blue) | Dataset / Raw file |
-| `TB` | `#b8915a` (amber) | Table / Analysis-ready |
-| `FL` | `#9c6b50` (sienna) | File / Report / Export |
-| `LS` | `#4a7c59` (forest) | Live stream / Event |
+| Code | Color                  | Meaning                |
+| ---- | ---------------------- | ---------------------- |
+| `WB` | `#6e6479` (mauve)      | Web / Public data      |
+| `DB` | `#5e7a9b` (steel-blue) | Dataset / Raw file     |
+| `TB` | `#b8915a` (amber)      | Table / Analysis-ready |
+| `FL` | `#9c6b50` (sienna)     | File / Report / Export |
+| `LS` | `#4a7c59` (forest)     | Live stream / Event    |
 
 Text inside chip: white, `eyebrow` role at 5px, weight 700.
 
@@ -337,14 +337,14 @@ All legend items align on a single horizontal strip per row. Do not stack vertic
 
 ## 10. Complexity budget
 
-| Dimension | Max |
-|---|---|
-| Lanes (roles) | 4 |
-| Steps | 6 |
-| Nodes per lane | Nodes = active steps only — empty cells are invisible (no placeholder box) |
-| Labelled arrows | 1 (focal accent only) |
-| Data-type chips per node | 2 |
-| Custom-colored elements (§4) | 3 (in addition to focal node + focal step) |
+| Dimension                    | Max                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| Lanes (roles)                | 4                                                                          |
+| Steps                        | 6                                                                          |
+| Nodes per lane               | Nodes = active steps only — empty cells are invisible (no placeholder box) |
+| Labelled arrows              | 1 (focal accent only)                                                      |
+| Data-type chips per node     | 2                                                                          |
+| Custom-colored elements (§4) | 3 (in addition to focal node + focal step)                                 |
 
 Above 4 lanes or 6 steps: split into two diagrams (e.g., ingestion pipeline / analytics pipeline).
 

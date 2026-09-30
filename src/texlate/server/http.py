@@ -280,9 +280,7 @@ def _form_options(form: dict[str, str | UploadPart]) -> dict[str, Any]:
     try:
         options = json.loads(options_raw) if options_raw else {}
     except (ValueError, RecursionError):
-        raise _api_error(
-            400, "options 字段不是合法 JSON", "invalid_request"
-        ) from None
+        raise _api_error(400, "options 字段不是合法 JSON", "invalid_request") from None
     if not isinstance(options, dict):
         options = {}
     return _clean_task_options(options)

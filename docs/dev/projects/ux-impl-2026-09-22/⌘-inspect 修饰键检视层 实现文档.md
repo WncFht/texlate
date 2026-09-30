@@ -65,7 +65,7 @@
 
 ## 文件级落点
 
-- `web/src/reader/features/inspect.ts`：armed 状态机/`hoverEval` 双路（body 锚族+宿主 / pdf `destHotAt`）/`hotEls[]` 元素集/pend 节流/Esc 挂栈；`InspectHandle` 增 `destHotAt` 可选口。
+- `web/src/reader/features/inspect.ts`：armed 状态机/`hoverEval` 双路（body 锚族 + 宿主 / pdf `destHotAt`）/`hotEls[]` 元素集/pend 节流/Esc 挂栈；`InspectHandle` 增 `destHotAt` 可选口。
 - `web/src/reader/PdfPane.tsx`：`inspectAt`/`inspectDestAt`/`destHotAt`/`flashDest`/`tintEls` handle + `scanDests` 螺旋序 + `resolveDestPoints` 并行 + `destPoint`/`destLineText`/`destRowLabel`/`bandElsNear` + `landingFlash`/`saFlashAt` + `destAtPoint` opts（kinds/maxDx）。
 - `web/src/reader/DomPane.tsx`/`HtmlPane.tsx`：armed 揭示（锚面标热/宿主标热）+ `inspectAt` 臂。
 - `web/src/reader/ReaderView.tsx`：三臂挂 inspect 会话、`mirrorTo` 成功支 `flashDest` 补点、`pdfTintEls` dep 桥（句级悬停色）。

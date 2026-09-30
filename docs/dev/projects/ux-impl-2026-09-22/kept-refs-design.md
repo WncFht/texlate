@@ -105,5 +105,5 @@ keys → for each:
 - **`.bib` 组装两级 → 三臂**：misc-pack M4 在 ① verbatim 与 ② 快照合成之间加了 Lane B 远端 bibtex 臂——无 verbatim 但有 arxiv/doi 线索时走 crosscite（DOI→`doi.org/<unquoted>`、arXiv→`doi.org/10.48550/arXiv.<id>` DataCite）+ Crossref `query.bibliographic` 末臂（`title-overlap>=0.5` 门控，S2 因 429 常态不进链）；远端臂失败/超时/低重叠一律降级 Lane C 绝不 502。实现落点 `server/bibexport.py`。
 - **`refs.bib` 端点扩参**：除 `keys=` 外增 `all=1`（无 kept 时默认全可解 key、有 kept 时默认只导 kept 子集，`all=1` 出全量）与 `download=1`（仅此时下发 `Content-Disposition: attachment`）；新增响应头 `X-Refs-Degraded`（降级 key 数 + 文件头注释双层报告）与 `X-Refs-Truncated`（`_MAX_REFS` 截断信号）。
 - **kept 端点增 DELETE 臂**：`DELETE /api/task/{id}/refs/kept/{key:path}`（`:path` 容纳 key 内 `/`，未命中 404）——与 `PUT payload:null` unkeep 两形并存。
-- **DomPane 缺口已补**（§3 计划项落地）：PaneSlot 现给 DomPane 传 `citeMeta` + `onToggleKeep`；`stores/keptRefs.ts` 落地为**模块单例**（reader 页单任务单例，深层 pane 经 PaneSlot 直读——设计稿「Map 分桶 vs 局部 signal」两案实际取第三形态），toggle 带乐观写+回滚+全局写链串行+keySeq 代次闸。
+- **DomPane 缺口已补**（§3 计划项落地）：PaneSlot 现给 DomPane 传 `citeMeta` + `onToggleKeep`；`stores/keptRefs.ts` 落地为**模块单例**（reader 页单任务单例，深层 pane 经 PaneSlot 直读——设计稿「Map 分桶 vs 局部 signal」两案实际取第三形态），toggle 带乐观写 + 回滚 + 全局写链串行+keySeq 代次闸。
 - **风险 2 退化已实证**：eprint 无 .bib 且抽取失败时导出 `@misc{key}` 空壳——`bibexport.py` 代码注释具名回指本稿（"kept-refs-design 风险 2 已知退化"）。

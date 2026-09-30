@@ -34,7 +34,7 @@ EPUB 特有注意点：**mimetype 必须第一且 ZIP_STORED**（OCF 硬性要�
 
 python-docx[^python-docx]（MIT）。插译核心 ~30 行：`copy.deepcopy(paragraph._p)` → 只留 `w:pPr`（段落属性连 numPr/缩进/样式 id 一起继承——译文列表项拿到自己的编号）→ `addnext` → `add_run(译文)` → 首个 run 的 rPr 深拷继承字体字号 → `w:eastAsia` 中文回退字体 + 双语区分色。重打包零成本（`doc.save()` 全量保 part，无 mimetype 约束）。
 
-遍历矩阵（每面独立）：正文+表格 `iter_inner_content()`（`doc.paragraphs` 只给 body 顶层漏表格内段落）；表格 cell 递归（`w:tc` 也是 BlockItemContainer）；页眉页脚每 section 三份（even/first_page 变体）；文本框/形状 `.//w:txbxContent/w:p`（raw XML，python-docx 不建模）；内容控件 `w:sdt→w:sdtContent`；脚注/尾注/批注经 `word/footnotes.xml` 等 raw part。跳过面：`w:instrText`/`w:fldSimple`（域代码/TOC）、`w:del`（修订删除）、`m:oMath`；`w:ins`（修订插入）v1 翻。marker 对应 `w:r` 里的 drawing/object/math 子树——`⟦img1⟧`/`⟦math1⟧` 写回时 deepcopy 原 `w:r`；v1 简化：保护物是整段主体直接 skip（双语下原文段反正留着）。
+遍历矩阵（每面独立）：正文 + 表格 `iter_inner_content()`（`doc.paragraphs` 只给 body 顶层漏表格内段落）；表格 cell 递归（`w:tc` 也是 BlockItemContainer）；页眉页脚每 section 三份（even/first_page 变体）；文本框/形状 `.//w:txbxContent/w:p`（raw XML，python-docx 不建模）；内容控件 `w:sdt→w:sdtContent`；脚注/尾注/批注经 `word/footnotes.xml` 等 raw part。跳过面：`w:instrText`/`w:fldSimple`（域代码/TOC）、`w:del`（修订删除）、`m:oMath`；`w:ins`（修订插入）v1 翻。marker 对应 `w:r` 里的 drawing/object/math 子树——`⟦img1⟧`/`⟦math1⟧` 写回时 deepcopy 原 `w:r`；v1 简化：保护物是整段主体直接 skip（双语下原文段反正留着）。
 
 ## 4. 落地实况与有意偏差（2026-09-16 实装 + 09-17 勘误）
 

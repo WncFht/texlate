@@ -3,7 +3,7 @@
 > **状态**：已完成（时点实录 2026-09-22；自 `spec/bench-trizone.md` 文件头迁出——活契约不承载执行叙事）
 > **日期**：2026-09-22
 
-Phase 0–2 是 trizone-ledger v2 内核四波构建（Wave A–C，见 [2026-09-22-bench内核wave-d收官.md](2026-09-22-bench内核wave-d收官.md)）同期的存量资产普查进场波次。以下为执行当时的原始记录，逐字保留。
+Phase 0–2 是 trizone-ledger v2 内核四波构建（Wave A–C，见 [2026-09-22-bench 内核 wave-d 收官.md](2026-09-22-bench内核wave-d收官.md)）同期的存量资产普查进场波次。以下为执行当时的原始记录，逐字保留。
 
 ## Phase 0 已收口（2026-09-22）
 
@@ -11,7 +11,7 @@ Phase 0–2 是 trizone-ledger v2 内核四波构建（Wave A–C，见 [2026-09
 
 ## Phase 1 已收口（2026-09-22）
 
-四源全量进场，ledger 443,612 行——bench.db 248,211 行→225,528 事件+22,683 隔离（160 run）；bench/ 全扫 235,356 行→205,348 事件+28,188 隔离+1,820 重跳（265 run，含补扫的 records/ 目录 stage 账与 eval/cells 恢复账）；flip14/15 车道 294 行全落；zh-store 5,481 行→10,576 事件+3 隔离、0 孤儿。绿判据全过：逐源 行=事件+隔离+重跳 精确平；抽样对拍 200/200 事件 sha 在 dedupe、20/20 隔离 dedup_sha 复算一致、25/25 (run,id,stage) 组 (status,dur_s,code) 多重集逐拍相等；`rebuild-index` 41.5s≤60s；四源重跑 emitted=0 ledger 零增长（幂等）；ledger 全文零命中网关密钥/tailnet 段。修复一处实伤：import 铸的 run 目录无 heartbeat/.lock，全部命中僵尸签名→每写命令重扫 ~172MB 分账并追加 428 条 warn note（已产 1,438 条 note + 2,868 条 seq_conflict 隔离，皆该缺陷产物）；sweep 三处修正后轻量版 85ms、零增长（`da15db34`）。PAUSE 保持挂载。
+四源全量进场，ledger 443,612 行——bench.db 248,211 行→225,528 事件 +22,683 隔离（160 run）；bench/ 全扫 235,356 行→205,348 事件 +28,188 隔离 +1,820 重跳（265 run，含补扫的 records/ 目录 stage 账与 eval/cells 恢复账）；flip14/15 车道 294 行全落；zh-store 5,481 行→10,576 事件 +3 隔离、0 孤儿。绿判据全过：逐源 行=事件 + 隔离 + 重跳 精确平；抽样对拍 200/200 事件 sha 在 dedupe、20/20 隔离 dedup_sha 复算一致、25/25 (run,id,stage) 组 (status,dur_s,code) 多重集逐拍相等；`rebuild-index` 41.5s≤60s；四源重跑 emitted=0 ledger 零增长（幂等）；ledger 全文零命中网关密钥/tailnet 段。修复一处实伤：import 铸的 run 目录无 heartbeat/.lock，全部命中僵尸签名→每写命令重扫 ~172MB 分账并追加 428 条 warn note（已产 1,438 条 note + 2,868 条 seq_conflict 隔离，皆该缺陷产物）；sweep 三处修正后轻量版 85ms、零增长（`da15db34`）。PAUSE 保持挂载。
 
 ## Phase 2 已收口（2026-09-22）
 

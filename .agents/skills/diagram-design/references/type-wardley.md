@@ -15,12 +15,12 @@
 
 ## Complexity budget
 
-| Limit | Rule |
-|---|---|
-| Max components | 9 |
-| Max dependency links | 12 |
-| Max movement arrows | 2 |
-| Max accent elements | 2 |
+| Limit                | Rule |
+| -------------------- | ---- |
+| Max components       | 9    |
+| Max dependency links | 12   |
+| Max movement arrows  | 2    |
+| Max accent elements  | 2    |
 
 ## Anti-patterns
 

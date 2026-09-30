@@ -18,7 +18,7 @@
 
 三日战役由双环并行构成：compile/修复侧 selfimp（texlate-5d 系）与翻译质量侧 selfimp-qual（texlate-d9），共享同一 append-only 台账。修复侧主线是「records 驱动普查 → 车道归因/实修 → flipcheck 复放实证」：failmine/tailbucket/firedunfixed/chronic347 等普查道逐轮把残池切成同质族，车道以「先证根因、后落规则、顺带真纸验证」为常态工艺，规则库、taxonomy、vendor stub、segmenter/argspec、inject/normalize 各面同时推进。质量侧主线是「协议换代 → 基线 → 回归门」：esa2 单发协议（stated100 主分 + derived100 自洽校验 + 双裁 contested 通道）替换旧 1–5 分制，qualbase 1200 chunk 基线落地后冻结 300 钉子集作回归门，XCOMET-QE 建第三族三角臂。全程伴生的是多会话共仓工艺：私 index + pathspec-only 提交、共享 index staged-D 巡检、peer 撞区互斥协调、replay 波与 impl 车道之间的活树读写互斥（replay-mutex）。
 
-## 卷1 主体（blob-ledger.md，L1–1380）
+## 卷 1 主体（blob-ledger.md，L1–1380）
 
 ### 环启动与 wave-1 二十三车道（09-18 09:10 起）
 
@@ -70,14 +70,14 @@
 - L1 新低（09-19 口径）：parsebench corpus_v3 全量 identity strict 1955/1955 = 100%、leak **0/128460 = 0.000%**（前轮 0.040% → 归零）；operandfix `2f4a905` 的 626 名扫描终止表把 log-payload/裸括号泄面归零是主功。
 - 深夜波：wave-5 组 17 dir-arm 复放 + catchup 自动点火（canon/raw id 双侧归一修复 253 格 norecord 漏跑；loop2 work/ 早前被清致 401 格 rerun_no_zh → B 段 580 格全链重建）；重建终态 526/619 clean 态（85%）。verify-wave1 收割 **83 up / 0 down**；clean% 门⑤审计 PASS（结构性：波只触 `--on nonclean`）。规则库此夜冲至 139。
 
-### 卷1 末段（09-19 约 17:55–19:00，L1280–1380）
+### 卷 1 末段（09-19 约 17:55–19:00，L1280–1380）
 
 - `7b865317` slotrev（slot_arg_revert 约 605 行 builtin + 约 30 行机位扩展表——zh 机位实参对 pristine 基线逐 kind 序号对齐 revert，分歧整 kind 跳防错位）落地；`8ec129ce` ifscanner（新 textutil 叶 477 行活位扫描器，253 行内嵌双壳收窄为薄壳，phantom 类显式化）落地；`22304933` subfile_docclass_strip 经 verifier164b 裁定 KEEP 后复落（三格子档归属与 pre-docclass 执行面均实证）。
 - pathspec 卷扫事故三连发（`001094d`/`0db4133`/`df72ac8`）：交织文件在 diff↔commit 间隙被别家新写内容整文件卷走，最重一次卷入未落地注册行致 HEAD 悬空——沉淀规则：交织文件只能 `apply --cached` + 裸 commit，单主文件 pathspec 无妨；taxonomy/facade 共享面提交前立即重 diff。
 - `4509653d` 陈树横扫事故：peer 车道以陈旧基线成树提交，静默回退 wave-10 全部修复面（16 件回退 + 3 测试档删除）；检出路径 = `git show HEAD:` marker 复查 → `git log` 二分，恢复 = `d34d08f1` 经 blob-sha 复用重落 13 件。此后「每次 harvest 复验 HEAD marker」成为门巡常项。
-- 门①–⑤ 口径在卷内成形并全程巡守：①L0 pytest 绿 ②L1 parsebench identity/leak ③目标格翻转实证 ④sabotage escaped=0 ⑤clean% 单调无回归；至卷1 末全绿（L0 7259+1 隔绿、L1 1955/1955+0.000%、sab-r7 40 格 escaped=0、clean 池 32/32 单调）。
+- 门①–⑤ 口径在卷内成形并全程巡守：①L0 pytest 绿 ②L1 parsebench identity/leak ③目标格翻转实证 ④sabotage escaped=0 ⑤clean% 单调无回归；至卷 1 末全绿（L0 7259+1 隔绿、L1 1955/1955+0.000%、sab-r7 40 格 escaped=0、clean 池 32/32 单调）。
 
-## 卷2–8 增量（blob-ledger2.md–blob-ledger8.md）
+## 卷 2–8 增量（blob-ledger2.md–blob-ledger8.md）
 
 ### blob-ledger2.md（L1381–1390，约 19:15 巡检脉冲）
 
@@ -107,7 +107,7 @@ roster 10 全活无交付；在飞 diff 全可归因（gfx 系/peer tolerant-loa
 
 quiet hold：无交付无新批，roster 10 全活，census 类长爬属正常。
 
-## 卷9 独占增量（blob-ledger9.md L1435–1774）
+## 卷 9 独占增量（blob-ledger9.md L1435–1774）
 
 ### 09-19 深夜至 09-20 凌晨收割尾潮（约 21:45–03:10）
 
@@ -139,22 +139,22 @@ quiet hold：无交付无新批，roster 10 全活，census 类长爬属正常�
 
 ## 事故录
 
-| 时点口径      | 事故                                                        | 后果与处置                                                                                                                              |
-| ------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 09-18 10:10   | rt1 xlat.jsonl inode 被换（ORPHANED_FD）                    | 孤儿 953 行经 /proc 快照+tail 跟随者抢救；判 smoke→real 交接竞态；沉淀=守护件 setsid 脱管                                               |
-| 09-18 15:20   | loop2 fixloop 段悬挂（novem.tex 4.1 万页暴走+ReDoS+EOF 丢） | 三失速模态取证，run_process 排干环 + regex timeout 落地；清盘误删 work/ 致重启零产出——清盘前核在飞工作树                                |
-| 09-18 21:55   | `_bounded_sub` 线程弃守假安全                               | spinner C 层不放 GIL 致批冻结；regex 原生 timeout 修复（`dc0b886`），「超时返 None≠安全」入册                                           |
-| 09-18 22:05   | revtex209 polyfill `##` 双写自伤                            | 首触即伤把排序错换成更糟错；单 `#` 修 + `##` 禁入断言（`f3f013d`）                                                                      |
-| 09-18 22:50   | autogloss-reg 双 orchestrator                               | 巡检误判死亡重拉起第二 driver，孤儿 judge 并发写 records ~5min（PIPE_BUF 内未撕行）；「kill 父≠灭门」「resume-safe≠duplicate-safe」入册 |
-| 09-19 白天    | pathspec 卷扫三连（`001094d`/`0db4133`/`df72ac8`）          | 交织文件被整文件卷入别家在飞 hunk 致 HEAD 悬空；规则化=交织件 apply --cached 分账                                                       |
-| 09-19 约10:0x | ENOSPC：`/` 100%（go-build 缓存 209G）                      | fc9 中段崩 + 0B run_meta 每 stage 卡死；恢复=截 jsonl 净行 + 删 run_meta 重发，「0B 必删」入册                                          |
-| 09-19 约11:0x | loop4 波烙进在飞破损注入件                                  | 152/160 格同签名全灭，波判 INVALID；净树重跑 46 升 0 降——沉淀=replay-mutex                                                              |
-| 09-19 午间    | 裸 commit 卷走 peer 预 staged 12 件（`c0cf77d`）            | 共享 index 不设防；reset --soft 逐件退回零损，commit 前 diff --cached 对账入册                                                          |
-| 09-19 下午    | B5 毒窗：yaml 先落于 builtin 注册                           | 338 格 RulesetError 全灭 + 恢复波在飞再毒约 30 格；standing rule=fixloop 写件即验 Ruleset.load()，波在飞禁落引用新 builtin 的 yaml      |
-| 09-19 18:45   | `4509653d` 陈树横扫                                         | peer 以陈旧基线成树提交静默回退 wave-10 全修复面；marker 复验+二分检出，`d34d08f1` blob-sha 复用恢复 13 件                              |
-| 09-20 17:49   | wave-14/15 早产空跑                                         | zh 未播种 222 格 0.0s 全错；作废隔离 .void-1749，all-clear 后重发                                                                       |
-| 09-20 18:20   | repoint 越界吃 yaml 闭引号                                  | Ruleset.load() 全灭，`b379e4d7` 修 + `6d7ca9cd` 全量还原 14 处吞字符伤                                                                  |
-| 全程          | canon/raw id 两形混存                                       | seeder 发 canon、records 记 raw → 253 格 norecord 漏跑；双侧 canon() 归一修复（与现有 id 归一须知同族）                                 |
+| 时点口径       | 事故                                                        | 后果与处置                                                                                                                              |
+| -------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 09-18 10:10    | rt1 xlat.jsonl inode 被换（ORPHANED_FD）                    | 孤儿 953 行经 /proc 快照+tail 跟随者抢救；判 smoke→real 交接竞态；沉淀=守护件 setsid 脱管                                               |
+| 09-18 15:20    | loop2 fixloop 段悬挂（novem.tex 4.1 万页暴走+ReDoS+EOF 丢） | 三失速模态取证，run_process 排干环 + regex timeout 落地；清盘误删 work/ 致重启零产出——清盘前核在飞工作树                                |
+| 09-18 21:55    | `_bounded_sub` 线程弃守假安全                               | spinner C 层不放 GIL 致批冻结；regex 原生 timeout 修复（`dc0b886`），「超时返 None≠安全」入册                                           |
+| 09-18 22:05    | revtex209 polyfill `##` 双写自伤                            | 首触即伤把排序错换成更糟错；单 `#` 修 + `##` 禁入断言（`f3f013d`）                                                                      |
+| 09-18 22:50    | autogloss-reg 双 orchestrator                               | 巡检误判死亡重拉起第二 driver，孤儿 judge 并发写 records ~5min（PIPE_BUF 内未撕行）；「kill 父≠灭门」「resume-safe≠duplicate-safe」入册 |
+| 09-19 白天     | pathspec 卷扫三连（`001094d`/`0db4133`/`df72ac8`）          | 交织文件被整文件卷入别家在飞 hunk 致 HEAD 悬空；规则化=交织件 apply --cached 分账                                                       |
+| 09-19 约 10:0x | ENOSPC：`/` 100%（go-build 缓存 209G）                      | fc9 中段崩 + 0B run_meta 每 stage 卡死；恢复=截 jsonl 净行 + 删 run_meta 重发，「0B 必删」入册                                          |
+| 09-19 约 11:0x | loop4 波烙进在飞破损注入件                                  | 152/160 格同签名全灭，波判 INVALID；净树重跑 46 升 0 降——沉淀=replay-mutex                                                              |
+| 09-19 午间     | 裸 commit 卷走 peer 预 staged 12 件（`c0cf77d`）            | 共享 index 不设防；reset --soft 逐件退回零损，commit 前 diff --cached 对账入册                                                          |
+| 09-19 下午     | B5 毒窗：yaml 先落于 builtin 注册                           | 338 格 RulesetError 全灭 + 恢复波在飞再毒约 30 格；standing rule=fixloop 写件即验 Ruleset.load()，波在飞禁落引用新 builtin 的 yaml      |
+| 09-19 18:45    | `4509653d` 陈树横扫                                         | peer 以陈旧基线成树提交静默回退 wave-10 全修复面；marker 复验 + 二分检出，`d34d08f1` blob-sha 复用恢复 13 件                            |
+| 09-20 17:49    | wave-14/15 早产空跑                                         | zh 未播种 222 格 0.0s 全错；作废隔离 .void-1749，all-clear 后重发                                                                       |
+| 09-20 18:20    | repoint 越界吃 yaml 闭引号                                  | Ruleset.load() 全灭，`b379e4d7` 修 + `6d7ca9cd` 全量还原 14 处吞字符伤                                                                  |
+| 全程           | canon/raw id 两形混存                                       | seeder 发 canon、records 记 raw → 253 格 norecord 漏跑；双侧 canon() 归一修复（与现有 id 归一须知同族）                                 |
 
 ## 关键数字簿
 

@@ -75,9 +75,7 @@ async function step<T>(
 async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
   const steps: SelftestStep[] = [];
   let taskId: string | undefined;
-  if (
-    Zotero.Prefs.get(`${config.prefsPrefix}.devSelftest`, true) !== true
-  ) {
+  if (Zotero.Prefs.get(`${config.prefsPrefix}.devSelftest`, true) !== true) {
     steps.push({
       name: "dev-gate",
       ok: false,

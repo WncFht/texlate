@@ -114,7 +114,7 @@
 
 - 参考:Perplexity Comet 浏览器发布站（The Brand Identity：Black/Blue/Cream；《2001 太空漫游》气质）
 - 适配:AI 产品发布站、科技品牌宣言页、活动倒计时页、未来感 landing、概念发布会
-- 视觉 DNA:配色纯黑#0A0A0A+ 奶油纸白 cream#F0EAD8+ 一抹钴蓝 - 孔雀蓝#2B4F91，低饱和像老式天文图录。字体高反差衬线（古典天文图册感）+ 留白。布局线描轨道/抛物线 SVG、行星圆点、奶油底压黑字、古籍式排印。标志元素：SVG 天体轨道线、奶油 + 蓝+黑三色、复古衬线大字、天文图录质感。
+- 视觉 DNA:配色纯黑#0A0A0A+ 奶油纸白 cream#F0EAD8+ 一抹钴蓝 - 孔雀蓝#2B4F91，低饱和像老式天文图录。字体高反差衬线（古典天文图册感）+ 留白。布局线描轨道/抛物线 SVG、行星圆点、奶油底压黑字、古籍式排印。标志元素：SVG 天体轨道线、奶油 + 蓝 + 黑三色、复古衬线大字、天文图录质感。
 - HTML 实现：纯 CSS+SVG 还原静态版八成气质。SVG path 画轨道抛物线+CSS 径向定位行星圆点 + 三色变量 + 高反差衬线。缺口是「太空落到地球」的全屏视频转场（灵魂部分）——降级为 CSS scroll 视差+SVG 轨道旋转近似。
 - 字体:Cormorant Garamond / EB Garamond（高反差衬线）+ Space Mono
 
@@ -274,7 +274,7 @@
 
 - 参考:Mailchimp Brand Book(Collins 2018)、New Yorker 漫画气质、Cooper 圆润衬线、Cavendish 荧光黄
 - 适配：有态度的品牌 deck、创意机构提案、文化向 town hall、反 SaaS 极简的营销页
-- 视觉 DNA:配色=Cavendish 荧光黄#FFE01B 大面积 + 黑+少量撞色，反 SaaS 极简。字体=Cooper 式圆润衬线大标题 (playful)+杂志式留白编排。母版=①荧光黄满底 + 怪诞标题②杂志式不规则留白排版③大字玩梗文案。标志=荧光黄、圆润衬线、playful 编排、怪诞手绘气质 (降级为几何色块/emoji 替代真插画)
+- 视觉 DNA:配色=Cavendish 荧光黄#FFE01B 大面积 + 黑 + 少量撞色，反 SaaS 极简。字体=Cooper 式圆润衬线大标题 (playful)+杂志式留白编排。母版=①荧光黄满底 + 怪诞标题②杂志式不规则留白排版③大字玩梗文案。标志=荧光黄、圆润衬线、playful 编排、怪诞手绘气质 (降级为几何色块/emoji 替代真插画)
 - HTML 实现：荧光黄 background；圆润衬线 font-family；杂志留白用非对称 Grid。手绘猩猩/插画这一核心元素无 AI 生图无法做，降级为 CSS 几何色块 + 大号 emoji+ 不规则 transform 旋转的文字块替代，插画缺失还原度降约 20%
 - 字体:Fraunces(可调圆润)/ Bree Serif 替代 Cooper；正文 Inter
 
@@ -290,7 +290,7 @@
 
 - 参考:Spotify Wrapped 2022/2023/2025、Memphis撞色、Y2K/Maximalism、duotone人像渐变
 - 适配：年度回顾 (情绪出圈向)、个性化数据卡、社交分享竖屏卡、品牌年终
-- 视觉 DNA:配色=高饱和撞色满版背景 (品红 + 青+橙)+Spotify 绿点睛+duotone 双色渐变。字体=顶天立地巨型数字，年份/数字做 3D 膨胀/金属质感。母版=①撞色满版 + 巨型膨胀数字②duotone 人像/色块底 + 反白大字③竖屏可分享卡。标志=巨型膨胀 3D 数字、撞色满版、duotone 渐变、年份金属质感、竖屏 story 卡
+- 视觉 DNA:配色=高饱和撞色满版背景 (品红 + 青 + 橙)+Spotify 绿点睛+duotone 双色渐变。字体=顶天立地巨型数字，年份/数字做 3D 膨胀/金属质感。母版=①撞色满版 + 巨型膨胀数字②duotone 人像/色块底 + 反白大字③竖屏可分享卡。标志=巨型膨胀 3D 数字、撞色满版、duotone 渐变、年份金属质感、竖屏 story 卡
 - HTML 实现：撞色满版 background；3D 膨胀数字用 CSS text-shadow 多层叠加+transform:perspective 或 SVG+stroke 制造立体 (非真 3D 渲染)；duotone 用 mix-blend-mode+ 渐变叠在灰度图占位块上。金属质感降级为渐变填充文字 background-clip:text，还原度降约 15%
 - 字体:Archivo Black / Anton 超粗 + 数字 Clash Display
 
@@ -439,7 +439,7 @@
 
 - 参考:Otto Neurath 与 Gerd Arntz 于 1920s 维也纳创立的 ISOTYPE 国际图形教育系统
 - 适配：人口/社会/公共政策数据、面向低识字门槛的公共传播、教育海报
-- 视觉 DNA:配色=有限套色 (黑 + 红+蓝 + 土黄) 平涂，无渐变无阴影。母版=同一图标重复 N 次表示数量——**放大图标表示更多是错的**，这是该体系最核心的规矩。标志=剪影图标阵列、横向排列、左侧文字标签、极强秩序感
+- 视觉 DNA:配色=有限套色 (黑 + 红 + 蓝 + 土黄) 平涂，无渐变无阴影。母版=同一图标重复 N 次表示数量——**放大图标表示更多是错的**，这是该体系最核心的规矩。标志=剪影图标阵列、横向排列、左侧文字标签、极强秩序感
 - HTML 实现：图标用内联 SVG 剪影+CSS repeat 布局，HTML 天然适配。图标可自绘几何剪影，不需外部素材
 - 字体:Jost / Archivo(Futura 替代)
 
@@ -563,7 +563,7 @@
 
 - 参考:Josef Müller-Brockmann《Grid Systems in Graphic Design》、Ulm 学派、瑞士国际主义年报传统
 - 适配：企业年报、机构报告、需要长期沿用一套版式的系列文档
-- 视觉 DNA:配色=白底 + 黑+单一强调色。母版=严格模块网格 (常 12 栏)、所有元素吸附栏线、左对齐齐头不齐尾、大量呼吸性留白但不空。标志=可见的网格逻辑、Helvetica 系、非居中排版、层级靠字号与间距而非装饰
+- 视觉 DNA:配色=白底 + 黑 + 单一强调色。母版=严格模块网格 (常 12 栏)、所有元素吸附栏线、左对齐齐头不齐尾、大量呼吸性留白但不空。标志=可见的网格逻辑、Helvetica 系、非居中排版、层级靠字号与间距而非装饰
 - HTML 实现:CSS Grid 直接映射栏网格，是本库与 HTML 最同构的一种。零素材
 - 字体:Inter / Archivo(Helvetica 替代)
 

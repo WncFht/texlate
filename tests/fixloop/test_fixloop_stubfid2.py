@@ -49,12 +49,8 @@ import pytest
 
 from texlate.compile.fixloop import load_ruleset
 
-SHIMS = (
-    Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/shims"
-)
-STUBS = (
-    Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/stubs"
-)
+SHIMS = Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/shims"
+STUBS = Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/stubs"
 
 _XELATEX = shutil.which("xelatex")
 _COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")

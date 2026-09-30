@@ -63,7 +63,7 @@
 
 ### D. 完成通知（toast + 系统通知）
 
-- **挂点**：`live.done` 物化是唯一汇聚面——7 条终态入径（SSE done 帧 / snapshot 终态 / 共享列表轮询 / refresh / 独轮询 tick / 探活 / resync）全部收敛到 2 个写点（tasks.ts convergeTerminal:148 合成 + done handler:284）。推荐挂法 A=store 内 emit：convergeTerminal 既有 `if (!live.done)` 守卫内发一次、done handler 在 batch 前快照 hadDone 后置守卫发一次。等价挂法 B=App 根 createEffect 扫 `state.live` done 翻转（零 store 改动）。harness 实测 10 场景：守卫版 8 次恰一次/轮；naive 版在「snapshot 终态+迟到 done」序下真发 2 次。refresh 初见终态不报存量（天然免打扰）、deleted 帧不报、retry 新轮再报一次（resetLive 复位即 rearm）。
+- **挂点**：`live.done` 物化是唯一汇聚面——7 条终态入径（SSE done 帧 / snapshot 终态 / 共享列表轮询 / refresh / 独轮询 tick / 探活 / resync）全部收敛到 2 个写点（tasks.ts convergeTerminal:148 合成 + done handler:284）。推荐挂法 A=store 内 emit：convergeTerminal 既有 `if (!live.done)` 守卫内发一次、done handler 在 batch 前快照 hadDone 后置守卫发一次。等价挂法 B=App 根 createEffect 扫 `state.live` done 翻转（零 store 改动）。harness 实测 10 场景：守卫版 8 次恰一次/轮；naive 版在「snapshot 终态 + 迟到 done」序下真发 2 次。refresh 初见终态不报存量（天然免打扰）、deleted 帧不报、retry 新轮再报一次（resetLive 复位即 rearm）。
 - **显示门**：`document.hidden && permission==='granted'` → `new Notification`（`tag=texlate-${taskId}` 幂等去重）；否则 in-app toast。isFailed(status) 分 ok/err 变体。
 - **权限流**：Chrome 153 实测无手势 requestPermission → denied（1s 后 resolve），deny 后秒拒不再弹。故权限只能在用户手势内请求——Settings 页加「任务完成通知」开关，onClick 里 requestPermission；granted 后 show 事件 <300ms；`PermissionStatus.onchange` 可热追撤销（granted→prompt）。
 - **toast**：移植 ct-toast spike（toastStore.ts 127 行 + ToastHost.tsx 38 行，14/14 探针过）：模块级 createSignal + 纯对象门面（对齐 settings.ts/tasks.ts 落地形），栈上限 3 逐最旧、默认 TTL 4500ms（与 RETX_TOAST_MS 同口径）、err 9000ms、key 去重刷计时器、行内 action（「查看」「重试」）。宿主挂 App.tsx 顶层一处，role 分档 err→alert 其余→status。**vitest 注记**：store 依赖 window——测试文件须 `@vitest-environment jsdom`（node 环境 push 抛 ReferenceError，spike 已实证）。
@@ -81,7 +81,7 @@
 **本特性对 LaTeX 翻译管线零改动**——全部走既有 `POST /api/arxiv/{id}/translate` 任务面。变更集中在「条目→id」抽取侧：
 
 1. **`extractRefIds` DOI 正则放宽**（web/src/reader/citations.ts:67）：现行要求 `doi.org/` 或 `doi:` 前缀，漏 `\doi{}`/`\mn@doi{}`/`doi={}` 裸形共 5,325 条（7.1%）；加裸 `10.\d{4,9}/\S+` 臂（条界止于 `.,;)]}` 尾）覆盖 36.3%→43.3%。
-2. **客户端 canon 归一**（新建小函数，或按 `docs/spec/arxiv-id-canon.md` 契约落地共享 canon）：cite 条目 arxivId 可能带 `vN`、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本+剥 class+小写化 archive。
+2. **客户端 canon 归一**（新建小函数，或按 `docs/spec/arxiv-id-canon.md` 契约落地共享 canon）：cite 条目 arxivId 可能带 `vN`、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本 + 剥 class+ 小写化 archive。
 3. **L2 反补已可用**：refs.py 的 S2 回包已带 `externalIds.ArXiv`→`meta().arxivId`（refs.py:154-155），DOI-only 条目自动升级出 arXiv 链，前端零改动。
 4. **已知数据缺口（接受，不堵）**：dual.json `ph` 仅 8/128 文档有（eprint 链主路专属）→ citeIndex 覆盖率天然受限，lazy dest 兜底条目不进 refsLookup（refMeta 只从 citeIndex.entries() 播种）——面板对该类条目显示「无可解析 id」；arxiv_html 链 `_build_dual_html` 不写 ph → dom 视图 citeIndex=0。这些是上游产物面问题，不在本特性面修。
 5. **可选**：refs.py `_MAX_REFS=400` 超限整包 400（前端 `.catch` 静默）→ 4/1228 巨型文献表文档 L2 全灭；改「截断 400 + truncated 标志」或前端分片提交。
@@ -146,7 +146,7 @@
 | M3      | 完成通知（emit 挂点 + Notification 门 + Settings 开关）                                     | 1d     |
 | M4      | extractRefIds 裸 DOI、DomPane citeIndex/citeMeta 接线、refs.py 截断、retry-500 修复         | 1d     |
 
-合计 ~6d。M1 即交付可用闭环（单条翻译+徽标+toast）；M2 是批量主功能；M3/M4 可独立并行。
+合计 ~6d。M1 即交付可用闭环（单条翻译 + 徽标+toast）；M2 是批量主功能；M3/M4 可独立并行。
 
 ## 风险
 
@@ -158,7 +158,7 @@
 | 批观测降档          | MAX_SSE_TASKS=3；列表轮询行无 queue_position                         | 批行只显粗状态；位次文案不进批面板；pin 只给当前 reader 任务                                         |
 | idem key 独断       | 同 key 异 id 回旧行（V5 实证）                                       | per-ref `createFp` 含 arxivId 天然隔离；跨会话重发靠服务端 cache_key 层兜底（409/200 收编）          |
 | 429 半途截断        | quota_exceeded 存在；批中第 k 条起 429                               | 串行 await 遇 429 即停，toast「已提交 k/N，配额满」+ 面板重分类                                      |
-| 通知双发            | snapshot 终态+迟到 done 序下 naive 版真发 2 次                       | 守卫内 emit（convergeTerminal 的 `!live.done` 检查内 / hadDone 快照）；Notification `tag` 幂等双保险 |
+| 通知双发            | snapshot 终态 + 迟到 done 序下 naive 版真发 2 次                     | 守卫内 emit（convergeTerminal 的 `!live.done` 检查内 / hadDone 快照）；Notification `tag` 幂等双保险 |
 | 无手势权限拒        | Chrome 153 无手势 requestPermission→denied 且不再弹                  | 只在 Settings 开关 onClick 内请求                                                                    |
 | 稀疏数组炸传输      | reconcile 收缩产洞→find 遇洞 TypeError→全 transport 瘫               | M0 必修前置                                                                                          |
 | 租户串扰读感        | 409 跨租户泄露 task_id，但 GET 即 404 死链                           | 409 一律渲「已有任务」+ 跳转过 reader 404 兜底，文案不承诺可开                                       |

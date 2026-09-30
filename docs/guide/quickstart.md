@@ -84,4 +84,4 @@ scripts/build-web.sh
 
 `doctor` 有 `fail` 项 → 按提示修环境；arXiv 拉取失败 → 检查网络或对已缓存的论文用 `--offline`；编译失败 → `faq.md` 的「编译失败怎么办」；译文是占位文本 → 没配 key，看 `byok.md`。
 
-[^uv]: Astral. uv 安装文档. [docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/)
+[^uv]: Astral. uv 安装文档。[docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/)

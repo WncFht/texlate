@@ -104,13 +104,13 @@ For a page containing bespoke diagrams or editorial figures, inspect their rende
 
 Propose a diff by filling this table:
 
-| Role | Detected | Confidence |
-|---|---|---|
-| paper | `#f8f6f0` | high |
-| ink | `#111111` | high |
-| muted | `#6b6b68` | medium |
-| accent | `#c73a2b` | high |
-| … | … | … |
+| Role   | Detected  | Confidence |
+| ------ | --------- | ---------- |
+| paper  | `#f8f6f0` | high       |
+| ink    | `#111111` | high       |
+| muted  | `#6b6b68` | medium     |
+| accent | `#c73a2b` | high       |
+| …      | …         | …          |
 
 Flag low-confidence guesses so the user can correct before applying.
 
@@ -242,13 +242,13 @@ Finally, check any path the user provides explicitly. If the skill is still not 
 
 Glob the skill directory for any of these files and read them all:
 
-| Priority | Pattern | What to look for |
-|---|---|---|
-| 1 | `*.css`, `colors*.css`, `tokens.css` | CSS custom properties in `:root { --color-*: …; }` |
-| 2 | `tokens.json`, `design-tokens.json`, `*.tokens.json` | Style Dictionary / Figma token JSON |
-| 3 | `SKILL.md`, `README.md` | Markdown tables listing colors, fonts, hex values |
-| 4 | `style-guide.md`, `*design*.md` | Any narrative design documentation |
-| 5 | `*.html` (preview/example files) | Inline `<style>` blocks — scan `:root` and `body` rules |
+| Priority | Pattern                                              | What to look for                                        |
+| -------- | ---------------------------------------------------- | ------------------------------------------------------- |
+| 1        | `*.css`, `colors*.css`, `tokens.css`                 | CSS custom properties in `:root { --color-*: …; }`      |
+| 2        | `tokens.json`, `design-tokens.json`, `*.tokens.json` | Style Dictionary / Figma token JSON                     |
+| 3        | `SKILL.md`, `README.md`                              | Markdown tables listing colors, fonts, hex values       |
+| 4        | `style-guide.md`, `*design*.md`                      | Any narrative design documentation                      |
+| 5        | `*.html` (preview/example files)                     | Inline `<style>` blocks — scan `:root` and `body` rules |
 
 Read all matches and merge — CSS custom properties take priority over inferred values from HTML.
 
@@ -257,14 +257,14 @@ Read all matches and merge — CSS custom properties take priority over inferred
 **From CSS custom properties:**
 Map variable names to semantic roles using name-heuristics:
 
-| If the variable name contains… | Map to role |
-|---|---|
-| `background`, `bg`, `paper`, `surface`, `canvas` | `paper` |
-| `foreground`, `text`, `body`, `ink`, `on-surface` | `ink` |
-| `muted`, `subtle`, `secondary`, `caption` | `muted` |
-| `accent`, `brand`, `primary`, `cta`, `highlight` | `accent` |
-| `border`, `rule`, `divider`, `outline` | `rule` |
-| `mono`, `code`, `pre` | `sublabel` font |
+| If the variable name contains…                    | Map to role     |
+| ------------------------------------------------- | --------------- |
+| `background`, `bg`, `paper`, `surface`, `canvas`  | `paper`         |
+| `foreground`, `text`, `body`, `ink`, `on-surface` | `ink`           |
+| `muted`, `subtle`, `secondary`, `caption`         | `muted`         |
+| `accent`, `brand`, `primary`, `cta`, `highlight`  | `accent`        |
+| `border`, `rule`, `divider`, `outline`            | `rule`          |
+| `mono`, `code`, `pre`                             | `sublabel` font |
 
 **From JSON tokens:** follow the same heuristics on key names. If the JSON follows Style Dictionary format (`{ "color": { "brand": { "value": "#…" } } }`), flatten the path and apply heuristics to the leaf key.
 

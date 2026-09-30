@@ -33,13 +33,13 @@ A **layout variant** of the standard quadrant — same house skin (warm paper, d
 
 ### What makes it the consultant variant
 
-| Move | Standard quadrant | Consultant special |
-|---|---|---|
-| Axis arrows | single-ended | **double-ended** — both axes have `marker-start` + `marker-end` |
-| Cell content | small dots with labels | **named scenario + 1–3 line description** |
+| Move            | Standard quadrant         | Consultant special                                                     |
+| --------------- | ------------------------- | ---------------------------------------------------------------------- |
+| Axis arrows     | single-ended              | **double-ended** — both axes have `marker-start` + `marker-end`        |
+| Cell content    | small dots with labels    | **named scenario + 1–3 line description**                              |
 | Quadrant corner | short tag (e.g. DO FIRST) | **numbered tag + axis combination** (`01 · DIMENSION-A / DIMENSION-B`) |
-| Focal accent | coral on one *item* | coral on one *quadrant* — tinted bg + coral stroke + coral corner tag |
-| Axes | 1px muted ink | **1.2px ink** (slightly heavier — the axes carry more of the figure) |
+| Focal accent    | coral on one *item*       | coral on one *quadrant* — tinted bg + coral stroke + coral corner tag  |
+| Axes            | 1px muted ink             | **1.2px ink** (slightly heavier — the axes carry more of the figure)   |
 
 Both variants use the same Jobs-minimal axis labels: one word at each arrow tip, no glyphs, no parentheticals. The only axis difference is that the consultant variant uses double-ended arrows instead of single-ended.
 

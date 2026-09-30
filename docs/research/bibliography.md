@@ -29,7 +29,7 @@
 
 Saier & Färber 的 unarXive：把 arXiv LaTeX 源码大规模转换为结构化全文、标注文内引用并链接元数据的学术数据集[^unarxive20]。本项目从它拿了什么：arXiv 源码→结构化全文转换的可行性先例与规模参照；其「LaTeX 源比 PDF 携带更富结构」的论据是 texlate 选源码路线的直接支撑。
 
-### unarXive 2022（2023）
+### unarXive 2022 (2023)
 
 Saier、Krause & Färber 的 unarXive 2022：全量 arXiv 预处理的 NLP 语料，含结构化全文与引用网络[^unarxive22]；kitopen_record.html 是 KITopen 数据仓中该数据集的正式发布记录页[^kitopen]。本项目从它拿了什么：全量 arXiv 语料的构建口径（版本覆盖、全文结构标注、引用边抽取），以及语料层设计与评测规模的蓝本。（留存两件 PDF 字节级相同，实为同一份 arXiv 预印本。）
 
@@ -89,4 +89,4 @@ multiagent-survey.pdf 为一份内部生态调研的 PDF 快照（标注 2026-09
 
 [^nougat]: Blecher, L., Cucurull, G., Scialom, T., & Stojnic, R. Nougat: Neural Optical Understanding for Academic Documents. ICLR 2024. [arxiv.org](https://arxiv.org/abs/2308.13418)
 
-[^olmocr]: Allen Institute for AI. olmOCR 工具包与评测件. [github.com/allenai/olmocr](https://github.com/allenai/olmocr)；olmOCR: Unlocking Trillions of Tokens in PDFs with Vision Language Models. [arxiv.org](https://arxiv.org/abs/2502.18443)
+[^olmocr]: Allen Institute for AI. olmOCR 工具包与评测件。[github.com/allenai/olmocr](https://github.com/allenai/olmocr)；olmOCR: Unlocking Trillions of Tokens in PDFs with Vision Language Models. [arxiv.org](https://arxiv.org/abs/2502.18443)

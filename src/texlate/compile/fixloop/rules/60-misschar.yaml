@@ -257,26 +257,106 @@ rules:
           # 圈码 ①-⑳ (2503.01891) —— builtin 序数臂缺位期 replace 表
           # 逐码位显式映射是唯一可达面; \textcircled 核心自带,
           # \scriptsize 防圈外溢出
-          - { id: circ_01, cps: [0x2460], replace: "\\mbox{\\textcircled{\\scriptsize 1}}" }
-          - { id: circ_02, cps: [0x2461], replace: "\\mbox{\\textcircled{\\scriptsize 2}}" }
-          - { id: circ_03, cps: [0x2462], replace: "\\mbox{\\textcircled{\\scriptsize 3}}" }
-          - { id: circ_04, cps: [0x2463], replace: "\\mbox{\\textcircled{\\scriptsize 4}}" }
-          - { id: circ_05, cps: [0x2464], replace: "\\mbox{\\textcircled{\\scriptsize 5}}" }
-          - { id: circ_06, cps: [0x2465], replace: "\\mbox{\\textcircled{\\scriptsize 6}}" }
-          - { id: circ_07, cps: [0x2466], replace: "\\mbox{\\textcircled{\\scriptsize 7}}" }
-          - { id: circ_08, cps: [0x2467], replace: "\\mbox{\\textcircled{\\scriptsize 8}}" }
-          - { id: circ_09, cps: [0x2468], replace: "\\mbox{\\textcircled{\\scriptsize 9}}" }
-          - { id: circ_10, cps: [0x2469], replace: "\\mbox{\\textcircled{\\scriptsize 10}}" }
-          - { id: circ_11, cps: [0x246A], replace: "\\mbox{\\textcircled{\\scriptsize 11}}" }
-          - { id: circ_12, cps: [0x246B], replace: "\\mbox{\\textcircled{\\scriptsize 12}}" }
-          - { id: circ_13, cps: [0x246C], replace: "\\mbox{\\textcircled{\\scriptsize 13}}" }
-          - { id: circ_14, cps: [0x246D], replace: "\\mbox{\\textcircled{\\scriptsize 14}}" }
-          - { id: circ_15, cps: [0x246E], replace: "\\mbox{\\textcircled{\\scriptsize 15}}" }
-          - { id: circ_16, cps: [0x246F], replace: "\\mbox{\\textcircled{\\scriptsize 16}}" }
-          - { id: circ_17, cps: [0x2470], replace: "\\mbox{\\textcircled{\\scriptsize 17}}" }
-          - { id: circ_18, cps: [0x2471], replace: "\\mbox{\\textcircled{\\scriptsize 18}}" }
-          - { id: circ_19, cps: [0x2472], replace: "\\mbox{\\textcircled{\\scriptsize 19}}" }
-          - { id: circ_20, cps: [0x2473], replace: "\\mbox{\\textcircled{\\scriptsize 20}}" }
+          - {
+              id: circ_01,
+              cps: [0x2460],
+              replace: "\\mbox{\\textcircled{\\scriptsize 1}}",
+            }
+          - {
+              id: circ_02,
+              cps: [0x2461],
+              replace: "\\mbox{\\textcircled{\\scriptsize 2}}",
+            }
+          - {
+              id: circ_03,
+              cps: [0x2462],
+              replace: "\\mbox{\\textcircled{\\scriptsize 3}}",
+            }
+          - {
+              id: circ_04,
+              cps: [0x2463],
+              replace: "\\mbox{\\textcircled{\\scriptsize 4}}",
+            }
+          - {
+              id: circ_05,
+              cps: [0x2464],
+              replace: "\\mbox{\\textcircled{\\scriptsize 5}}",
+            }
+          - {
+              id: circ_06,
+              cps: [0x2465],
+              replace: "\\mbox{\\textcircled{\\scriptsize 6}}",
+            }
+          - {
+              id: circ_07,
+              cps: [0x2466],
+              replace: "\\mbox{\\textcircled{\\scriptsize 7}}",
+            }
+          - {
+              id: circ_08,
+              cps: [0x2467],
+              replace: "\\mbox{\\textcircled{\\scriptsize 8}}",
+            }
+          - {
+              id: circ_09,
+              cps: [0x2468],
+              replace: "\\mbox{\\textcircled{\\scriptsize 9}}",
+            }
+          - {
+              id: circ_10,
+              cps: [0x2469],
+              replace: "\\mbox{\\textcircled{\\scriptsize 10}}",
+            }
+          - {
+              id: circ_11,
+              cps: [0x246A],
+              replace: "\\mbox{\\textcircled{\\scriptsize 11}}",
+            }
+          - {
+              id: circ_12,
+              cps: [0x246B],
+              replace: "\\mbox{\\textcircled{\\scriptsize 12}}",
+            }
+          - {
+              id: circ_13,
+              cps: [0x246C],
+              replace: "\\mbox{\\textcircled{\\scriptsize 13}}",
+            }
+          - {
+              id: circ_14,
+              cps: [0x246D],
+              replace: "\\mbox{\\textcircled{\\scriptsize 14}}",
+            }
+          - {
+              id: circ_15,
+              cps: [0x246E],
+              replace: "\\mbox{\\textcircled{\\scriptsize 15}}",
+            }
+          - {
+              id: circ_16,
+              cps: [0x246F],
+              replace: "\\mbox{\\textcircled{\\scriptsize 16}}",
+            }
+          - {
+              id: circ_17,
+              cps: [0x2470],
+              replace: "\\mbox{\\textcircled{\\scriptsize 17}}",
+            }
+          - {
+              id: circ_18,
+              cps: [0x2471],
+              replace: "\\mbox{\\textcircled{\\scriptsize 18}}",
+            }
+          - {
+              id: circ_19,
+              cps: [0x2472],
+              replace: "\\mbox{\\textcircled{\\scriptsize 19}}",
+            }
+          - {
+              id: circ_20,
+              cps: [0x2473],
+              replace: "\\mbox{\\textcircled{\\scriptsize 20}}",
+            }
           # ── 2026-09-28 qc-impl 补表尾 (vault QC replay misschar 尾簇) ──
           # đ/Đ (0x111/0x110 塞克人名族): [0xC0,0x17F] fb 带内, 但
           #   pre-tokenized 站点 (\name/\textbf) 逃出活化窗 —— 源级
@@ -288,7 +368,11 @@ rules:
           - { id: ohungar_up, cps: [0x150], replace: "\\mbox{\\H{O}}" }
           # 𝜗 U+1D717 数学斜体 theta 变体 (LinLibertine 无槽, ittheta
           #   0x1D703 同族先例) —— \vartheta 是 curly-theta 语义对等
-          - { id: itvartheta, cps: [0x1D717], replace: "\\ensuremath{\\vartheta}" }
+          - {
+              id: itvartheta,
+              cps: [0x1D717],
+              replace: "\\ensuremath{\\vartheta}",
+            }
           # 遬 U+906C (FandolSong 缺槽 —— hani fb 绑到 FandolSong 仍是
           #   tofu): 古同「速」, 语义异体字替换。
           - { id: su_variant, cps: [0x906C], replace: "速" }

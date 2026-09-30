@@ -32,7 +32,7 @@ CWTS（莱顿）van Eck 与 Waltman 开发的 Java 桌面程序，算法文档�
 
 ## CitNetExplorer：直接引用网的时间轴探索
 
-van Eck & Waltman 2014，继承 HistCite「algorithmic historiography」路线：**直接引用网+时间轴布局**，纵轴出版年分层、横轴引用关联度[^vaneck2014cne]。HistCite 只能数百篇，CitNetExplorer 撑**百万级**节点。核心交互 **drill-down + expansion**：全图逐层下钻到子网再反向扩张补齐；分析件含连通分量、模块度聚类、core publications、论文间最短/最长引用路径。
+van Eck & Waltman 2014，继承 HistCite「algorithmic historiography」路线：**直接引用网 + 时间轴布局**，纵轴出版年分层、横轴引用关联度[^vaneck2014cne]。HistCite 只能数百篇，CitNetExplorer 撑**百万级**节点。核心交互 **drill-down + expansion**：全图逐层下钻到子网再反向扩张补齐；分析件含连通分量、模块度聚类、core publications、论文间最短/最长引用路径。
 
 ## bibliometrix / biblioshiny：可编程全流程
 

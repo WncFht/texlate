@@ -183,9 +183,7 @@ class AppDeps:
                 429, f"同 IP 任务配额已用尽（{q_tasks}）", "quota_exceeded"
             )
         if q_bytes and bucket[1] + incoming_bytes > q_bytes:
-            raise _api_error(
-                429, f"同 IP 字节配额超限（{q_bytes}B）", "quota_exceeded"
-            )
+            raise _api_error(429, f"同 IP 字节配额超限（{q_bytes}B）", "quota_exceeded")
         # 过闸才累计——被拒请求不占桶；建行失败的多计是保守方向
         bucket[0] += 1
         bucket[1] += incoming_bytes

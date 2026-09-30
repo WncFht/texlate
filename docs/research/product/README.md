@@ -23,7 +23,7 @@
 | [2026-09-21-citation-ux.md](2026-09-21-citation-ux.md)                           | 引用跳转/跳回 + 悬浮卡 126-agent 生态调研：同锚双语义（hover=卡 click=跳）+ 自研跳回栈裁决；PDFHistory 进 SPA 毒药、本地 bib 串三路兜底、S2/OpenAlex 429 铁律；**已落地 v1（ADR-0021，cite_verify.mjs 16/16）**；原始数据在 [citation-ux-2026-09-21/](citation-ux-2026-09-21/) |
 | [2026-09-22-reader-theme-pairing.md](2026-09-22-reader-theme-pairing.md)         | 阅读主题配对调研：chrome 主题 × 纸面配色业界做法——沉浸式阅读器单控件驱动整面裁决；**已落地**（chrome light/dark/onedark + 纸面 paper/dark/onedark 配对）                                                                                                                       |
 | [2026-09-23-pdf-anchoring.md](2026-09-23-pdf-anchoring.md)                       | PDF 窗格功能锚定可行性 13-agent 调研：「PDF 位置→chunk seq」是唯一真缺口；C 模糊锚已在产线、A SyncTeX ~1 周、B marked-content 注锚 3-5 天已双引擎实证；ActualText/tagpdf/覆盖式改形均否决                                                                                      |
-| [2026-09-22-apple-lookup-conventions.md](2026-09-22-apple-lookup-conventions.md) | macOS/iOS Look Up 与选区交互范式源清单：多入口冗余/点选+选区双粒度/词典→知识→web 自适应卡十公约——**时点证据 2026-09-22**，sel-system 落地参照                                                                                                                                  |
+| [2026-09-22-apple-lookup-conventions.md](2026-09-22-apple-lookup-conventions.md) | macOS/iOS Look Up 与选区交互范式源清单：多入口冗余/点选 + 选区双粒度/词典→知识→web 自适应卡十公约——**时点证据 2026-09-22**，sel-system 落地参照                                                                                                                                |
 
 ### 端到端验证与强化记录
 

@@ -56,7 +56,9 @@ def test_atomic_write_mode_born_readonly(tmp_path: Path) -> None:
 def test_atomic_write_cleans_tmp_on_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(os, "fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync")))
+    monkeypatch.setattr(
+        os, "fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync"))
+    )
     with pytest.raises(OSError, match="fsync"):
         fsutil.atomic_write(tmp_path / "f", b"data")
     assert not (tmp_path / "f").exists()

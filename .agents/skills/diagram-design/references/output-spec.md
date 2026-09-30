@@ -2,12 +2,12 @@
 
 Four dials decide what an imported diagram becomes. Set them **before** redrawing — they change the deliverable, layout, type ramp, node count, and wording, so retrofitting them afterwards means redrawing.
 
-| Dial | Question it answers | Default |
-|---|---|---|
-| **Format** | Where does this file land? | `html` |
-| **Size** | How big is the canvas, and how far away is the reader? | `doc-inline` |
-| **Detail level** | Reproduce every element, or compress it? | `balanced` |
-| **Audience** | How technical should the wording be? | `mixed` |
+| Dial             | Question it answers                                    | Default      |
+| ---------------- | ------------------------------------------------------ | ------------ |
+| **Format**       | Where does this file land?                             | `html`       |
+| **Size**         | How big is the canvas, and how far away is the reader? | `doc-inline` |
+| **Detail level** | Reproduce every element, or compress it?               | `balanced`   |
+| **Audience**     | How technical should the wording be?                   | `mixed`      |
 
 Infer choices that are clear from the request (for example, "for my deck" implies a slide preset). Ask one concise question for anything material that remains ambiguous. If the user does not care, use the defaults above and say which ones you used.
 
@@ -15,25 +15,25 @@ Infer choices that are clear from the request (for example, "for my deck" implie
 
 ## 1. Format
 
-| Format | Deliverable | Keeps | Drops |
-|---|---|---|---|
-| `html` | self-contained `.html` (default) | header, diagram, summary cards, footer, live fonts | nothing |
-| `svg` | `.svg` next to the source | the `<svg>` node, vector text | editorial wrapper; fonts substitute in offline tools |
-| `png` | `.png` at `device_scale_factor` | pixels exactly as the browser renders them | vector editability |
-| `html+png` | both | — | — |
+| Format     | Deliverable                      | Keeps                                              | Drops                                                |
+| ---------- | -------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| `html`     | self-contained `.html` (default) | header, diagram, summary cards, footer, live fonts | nothing                                              |
+| `svg`      | `.svg` next to the source        | the `<svg>` node, vector text                      | editorial wrapper; fonts substitute in offline tools |
+| `png`      | `.png` at `device_scale_factor`  | pixels exactly as the browser renders them         | vector editability                                   |
+| `html+png` | both                             | —                                                  | —                                                    |
 
 Always generate the HTML first — `svg` and `png` are produced *from* it via [`export.md`](export.md). Never hand-author an SVG file directly; the HTML is the source of truth and the only artifact the taste gate (SKILL.md §9) is written against.
 
 Pick by destination:
 
-| Destination | Format | Size preset |
-|---|---|---|
-| Blog post, README, docs site | `html` (embed) or `png` | `doc-inline` |
-| Keynote / PowerPoint / Google Slides | `png` @2 | `slide-16x9` |
-| Figma / Illustrator / further editing | `svg` | `fit` |
-| X / LinkedIn / OG link card | `png` @2 | `social-og` |
-| Printed handout, PDF deck | `png` @3 | `print-a4-landscape` |
-| Confluence / Notion / internal wiki | `png` @2 | `doc-wide` |
+| Destination                           | Format                  | Size preset          |
+| ------------------------------------- | ----------------------- | -------------------- |
+| Blog post, README, docs site          | `html` (embed) or `png` | `doc-inline`         |
+| Keynote / PowerPoint / Google Slides  | `png` @2                | `slide-16x9`         |
+| Figma / Illustrator / further editing | `svg`                   | `fit`                |
+| X / LinkedIn / OG link card           | `png` @2                | `social-og`          |
+| Printed handout, PDF deck             | `png` @3                | `print-a4-landscape` |
+| Confluence / Notion / internal wiki   | `png` @2                | `doc-wide`           |
 
 ---
 
@@ -41,17 +41,17 @@ Pick by destination:
 
 The preset sets the SVG `viewBox`. Every value below is divisible by 4, so the grid rule in SKILL.md §7 still holds.
 
-| Preset | viewBox | Aspect | PNG @2 | Type ramp | Use |
-|---|---|---|---|---|---|
-| `doc-inline` (default) | `0 0 960 600` | 8:5 | 1920×1200 | standard | Body-width diagram in a post or README |
-| `doc-wide` | `0 0 1280 720` | 16:9 | 2560×1440 | standard | Full-width docs, wiki pages |
-| `slide-16x9` | `0 0 1280 720` | 16:9 | 2560×1440 | presentation | Deck slide, projected |
-| `slide-4x3` | `0 0 1024 768` | 4:3 | 2048×1536 | presentation | Legacy deck templates |
-| `social-og` | `0 0 1200 632` | ~1.9:1 | 2400×1264 | presentation | Link preview card |
-| `social-square` | `0 0 1080 1080` | 1:1 | 2160×2160 | presentation | Feed post, carousel |
-| `print-a4-landscape` | `0 0 1120 792` | ~1.41:1 | @3 → 3360×2376 | print | A4 landscape, ~10mm margins at 96dpi |
-| `print-letter-landscape` | `0 0 1056 816` | ~1.29:1 | @3 → 3168×2448 | print | US Letter landscape |
-| `fit` | derived from content | any | @2 | standard | Vector hand-off; no fixed frame |
+| Preset                   | viewBox              | Aspect  | PNG @2         | Type ramp    | Use                                    |
+| ------------------------ | -------------------- | ------- | -------------- | ------------ | -------------------------------------- |
+| `doc-inline` (default)   | `0 0 960 600`        | 8:5     | 1920×1200      | standard     | Body-width diagram in a post or README |
+| `doc-wide`               | `0 0 1280 720`       | 16:9    | 2560×1440      | standard     | Full-width docs, wiki pages            |
+| `slide-16x9`             | `0 0 1280 720`       | 16:9    | 2560×1440      | presentation | Deck slide, projected                  |
+| `slide-4x3`              | `0 0 1024 768`       | 4:3     | 2048×1536      | presentation | Legacy deck templates                  |
+| `social-og`              | `0 0 1200 632`       | ~1.9:1  | 2400×1264      | presentation | Link preview card                      |
+| `social-square`          | `0 0 1080 1080`      | 1:1     | 2160×2160      | presentation | Feed post, carousel                    |
+| `print-a4-landscape`     | `0 0 1120 792`       | ~1.41:1 | @3 → 3360×2376 | print        | A4 landscape, ~10mm margins at 96dpi   |
+| `print-letter-landscape` | `0 0 1056 816`       | ~1.29:1 | @3 → 3168×2448 | print        | US Letter landscape                    |
+| `fit`                    | derived from content | any     | @2             | standard     | Vector hand-off; no fixed frame        |
 
 ### Deriving `fit`
 
@@ -61,24 +61,24 @@ Round the content bounding box **up** to the next multiple of 4, then add the fi
 
 Node names shrink relative to the canvas as it grows — resist that. Scale the ramp with the preset so a projected slide stays readable from the back row.
 
-| Role | standard | presentation | print |
-|---|---|---|---|
-| Title (Instrument Serif) | 28 | 40 | 32 |
-| Node name (Geist 600) | 12 | 16 | 12 |
-| Sublabel (Geist Mono) | 9 | 12 | 9 |
-| Arrow label (Geist Mono) | 8 | 12 | 8 |
-| Eyebrow / tag (Geist Mono) | 8 | 8 | 8 |
-| Node box min height | 48 | 64 | 48 |
-| Min gap between nodes | 24 | 40 | 24 |
+| Role                       | standard | presentation | print |
+| -------------------------- | -------- | ------------ | ----- |
+| Title (Instrument Serif)   | 28       | 40           | 32    |
+| Node name (Geist 600)      | 12       | 16           | 12    |
+| Sublabel (Geist Mono)      | 9        | 12           | 9     |
+| Arrow label (Geist Mono)   | 8        | 12           | 8     |
+| Eyebrow / tag (Geist Mono) | 8        | 8            | 8     |
+| Node box min height        | 48       | 64           | 48    |
+| Min gap between nodes      | 24       | 40           | 24    |
 
 Every `font-size` is one of the role values above for the preset in use, or one of these named exceptions:
 
-| Exception | Font | Sizes |
-|---|---|---|
+| Exception                                                                               | Font                        | Sizes                       |
+| --------------------------------------------------------------------------------------- | --------------------------- | --------------------------- |
 | Dense annotation: legend keys, axis ticks, chart data labels, source lines, in-box tags | Geist Mono or Geist regular | 7 to 11, half steps allowed |
-| Chart series or row name: bar category, line or bump series, gantt row, matrix header | Geist 600 | 10 to 11 |
-| Group or entity heading | Geist 600 | 14 |
-| Decorative watermark numerals at or under 0.08 opacity | any | any |
+| Chart series or row name: bar category, line or bump series, gantt row, matrix header   | Geist 600                   | 10 to 11                    |
+| Group or entity heading                                                                 | Geist 600                   | 14                          |
+| Decorative watermark numerals at or under 0.08 opacity                                  | any                         | any                         |
 
 An exception is bound to the font beside it, weight included: Geist at 600 or heavier is the node-name voice, lighter Geist is annotation. So a Geist 600 node name cannot borrow the dense-annotation range down to 7, and a Geist Mono tick cannot borrow the 14 reserved for headings. A chart row carries a name in the same Geist 600 voice at a rank the ramp has no row for, which is why it has an exception of its own rather than a licence to shrink: `type-bar.md`, `type-gantt.md` and `type-line.md` all set that name at 10 or 11.
 
@@ -90,24 +90,24 @@ Thirty-three declared sizes across sixteen files predate this contract. They are
 
 Each is registered against the font carrying it, because that is what the sweep checks. It classifies every element first, resolving `class` attributes through the stylesheet, `var(--font-mono)` back to the family it names, and a `{node-name}` token to the ramp row that owns it, then applies only the exceptions open to that font. The canonical role sizes stay one union, so a size on the ramp for any role is on contract wherever it appears. An element whose font it cannot read gets no exception at all. It reads the `<svg>` and any CSS rule worn by an element inside it, so the prose around a diagram does not count as diagram type.
 
-| File | Sizes | What they are |
-|---|---|---|
-| `assets/example-data-flow.html` | Geist Mono 5, Geist Mono 6 | chip text and role label, both set in CSS |
-| `assets/example-data-flow-dark.html` | Geist Mono 5, Geist Mono 6 | chip text and role label, both set in CSS |
-| `assets/example-data-flow-full.html` | Geist Mono 5, Geist Mono 6 | chip text and role label, both set in CSS |
-| `assets/example-nested.html` | Instrument Serif 14, Instrument Serif 14 | two italic serif asides |
-| `assets/example-nested-dark.html` | Instrument Serif 14, Instrument Serif 14 | two italic serif asides |
-| `assets/example-nested-full.html` | Instrument Serif 14, Instrument Serif 14 | two italic serif asides |
-| `assets/example-paved-road-animated.html` | Geist 600 13 | boundary node name |
-| `assets/example-process.html` | Geist Mono 6 | role chip |
-| `assets/example-process-dark.html` | Geist Mono 6 | role chip |
-| `assets/example-process-full.html` | Geist Mono 6 | role chip |
-| `assets/example-quadrant-consultant.html` | Geist 600 13 | inline dot glyph in a `tspan` |
-| `assets/example-queue-animated.html` | Geist 600 13, Geist 600 22, Geist 600 24 | state caption and two fill counters |
-| `assets/example-treemap.html` | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names |
-| `assets/example-treemap-dark.html` | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names |
-| `assets/example-treemap-full.html` | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names |
-| `references/type-treemap.md` | Geist 600 13 | the cell-name line of the documented pattern |
+| File                                      | Sizes                                                | What they are                                |
+| ----------------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| `assets/example-data-flow.html`           | Geist Mono 5, Geist Mono 6                           | chip text and role label, both set in CSS    |
+| `assets/example-data-flow-dark.html`      | Geist Mono 5, Geist Mono 6                           | chip text and role label, both set in CSS    |
+| `assets/example-data-flow-full.html`      | Geist Mono 5, Geist Mono 6                           | chip text and role label, both set in CSS    |
+| `assets/example-nested.html`              | Instrument Serif 14, Instrument Serif 14             | two italic serif asides                      |
+| `assets/example-nested-dark.html`         | Instrument Serif 14, Instrument Serif 14             | two italic serif asides                      |
+| `assets/example-nested-full.html`         | Instrument Serif 14, Instrument Serif 14             | two italic serif asides                      |
+| `assets/example-paved-road-animated.html` | Geist 600 13                                         | boundary node name                           |
+| `assets/example-process.html`             | Geist Mono 6                                         | role chip                                    |
+| `assets/example-process-dark.html`        | Geist Mono 6                                         | role chip                                    |
+| `assets/example-process-full.html`        | Geist Mono 6                                         | role chip                                    |
+| `assets/example-quadrant-consultant.html` | Geist 600 13                                         | inline dot glyph in a `tspan`                |
+| `assets/example-queue-animated.html`      | Geist 600 13, Geist 600 22, Geist 600 24             | state caption and two fill counters          |
+| `assets/example-treemap.html`             | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names     |
+| `assets/example-treemap-dark.html`        | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names     |
+| `assets/example-treemap-full.html`        | Geist 600 7, Geist 600 7, Geist 600 13, Geist 600 13 | two cell index glyphs and two cell names     |
+| `references/type-treemap.md`              | Geist 600 13                                         | the cell-name line of the documented pattern |
 
 New diagrams get no rows here. Bringing one of these onto the ramp is a visual change to a shipped example and belongs in its own PR.
 
@@ -125,11 +125,11 @@ Presentation ramp implies fewer nodes — 16px names in 64px boxes eat the canva
 
 How much of the source survives. This is a *count* dial — it governs how many elements make it through, not how they're worded (that's §4).
 
-| Level | Nodes | Edges | Sublabels | What survives |
-|---|---|---|---|---|
-| `faithful` (詳細) | ≤24, zoned | ≤32 | every port, protocol, version | Every distinct component in the source. Only exact duplicates merge. |
-| `balanced` (default) | ≤12 | ≤16 | technical sublabel on ≤4 nodes | Components that carry the story; leaf clusters collapse to one node each. |
-| `simplified` (簡略) | ≤7 | ≤9 | none | Capabilities and their sequence. Infrastructure disappears. |
+| Level                | Nodes      | Edges | Sublabels                      | What survives                                                             |
+| -------------------- | ---------- | ----- | ------------------------------ | ------------------------------------------------------------------------- |
+| `faithful` (詳細)    | ≤24, zoned | ≤32   | every port, protocol, version  | Every distinct component in the source. Only exact duplicates merge.      |
+| `balanced` (default) | ≤12        | ≤16   | technical sublabel on ≤4 nodes | Components that carry the story; leaf clusters collapse to one node each. |
+| `simplified` (簡略)  | ≤7         | ≤9    | none                           | Capabilities and their sequence. Infrastructure disappears.               |
 
 `balanced` and `simplified` sit inside the standard complexity budget (SKILL.md §7). **`faithful` deliberately exceeds it** — that's the trade, and it comes with conditions:
 
@@ -157,19 +157,19 @@ Anything cut in steps 2–6 goes in the fidelity ledger (§5). Step 1 doesn't ne
 
 Independent of the detail dial: the same 12 nodes get named differently for a platform team than for a steering committee. Detail sets *how many*; audience sets *what they're called*.
 
-| Audience | Node names | Sublabels | Edge labels | Never |
-|---|---|---|---|---|
-| `engineer` | exact service / component names | protocol, port, version, image tag | `POST /v2/orders`, `SQL`, `gRPC` | Vague verbs like "connects to" |
-| `mixed` (default) | component names, expanded acronyms | technology only where it changes a decision | plain verbs — `verifies`, `writes`, `notifies` | Ports, versions, internal codenames |
-| `executive` | capabilities and outcomes | none | business verbs — `approves`, `pays out` | Vendor names, infrastructure, protocols |
+| Audience          | Node names                         | Sublabels                                   | Edge labels                                    | Never                                   |
+| ----------------- | ---------------------------------- | ------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
+| `engineer`        | exact service / component names    | protocol, port, version, image tag          | `POST /v2/orders`, `SQL`, `gRPC`               | Vague verbs like "connects to"          |
+| `mixed` (default) | component names, expanded acronyms | technology only where it changes a decision | plain verbs — `verifies`, `writes`, `notifies` | Ports, versions, internal codenames     |
+| `executive`       | capabilities and outcomes          | none                                        | business verbs — `approves`, `pays out`        | Vendor names, infrastructure, protocols |
 
 Worked example — the same node through all three:
 
-| Audience | Node name | Sublabel |
-|---|---|---|
-| `engineer` | `Auth Service` | `JWT · RS256 · :8443` |
-| `mixed` | `Auth Service` | `token check` |
-| `executive` | `Sign-in` | — |
+| Audience    | Node name      | Sublabel              |
+| ----------- | -------------- | --------------------- |
+| `engineer`  | `Auth Service` | `JWT · RS256 · :8443` |
+| `mixed`     | `Auth Service` | `token check`         |
+| `executive` | `Sign-in`      | —                     |
 
 Two rules that hold at every audience level:
 

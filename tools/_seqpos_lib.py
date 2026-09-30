@@ -143,9 +143,7 @@ def _drop_outliers(pairs: list, geoms: dict, col_aware: bool) -> list:
             span = xs[k + 1] - xs[k - 1]
             if span <= 0:
                 continue
-            exp = ys[k - 1] + (ys[k + 1] - ys[k - 1]) * (
-                (xs[k] - xs[k - 1]) / span
-            )
+            exp = ys[k - 1] + (ys[k + 1] - ys[k - 1]) * ((xs[k] - xs[k - 1]) / span)
             if abs(ys[k] - exp) > 2 * unit:
                 drop.add(order[k])
     return [p for i, p in enumerate(pairs) if i not in drop] if drop else pairs

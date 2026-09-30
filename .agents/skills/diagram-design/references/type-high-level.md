@@ -242,12 +242,12 @@ Vertical chevrons honor the per-chevron `color` override documented in §2.2 —
 
 These are non-negotiable. Pick the style **automatically** from the topology — do not let the user override style on focal-touching or bar-originating edges.
 
-| `style` | Stroke | Width | Dash | Marker | When required |
-|---|---|---|---|---|---|
-| `primary` | `#eb6c36` | 1.2 | — | `arrow-accent` | Every edge whose endpoint is the `focal` node. |
-| `secondary` | `#4f5d75` | 1.0 | — | `arrow` | Default for source→component and component→component when neither endpoint is focal. |
-| `trigger` | `#4f5d75` | 1.0 | `4,3` | `arrow-sm` | Every edge originating from a `kind: bar` component. |
-| `query` | `rgba(45,49,66,0.30)` | 1.0 | `4,3` | `arrow` | Read-back edges (e.g., focal ↔ Trino). |
+| `style`     | Stroke                | Width | Dash  | Marker         | When required                                                                        |
+| ----------- | --------------------- | ----- | ----- | -------------- | ------------------------------------------------------------------------------------ |
+| `primary`   | `#eb6c36`             | 1.2   | —     | `arrow-accent` | Every edge whose endpoint is the `focal` node.                                       |
+| `secondary` | `#4f5d75`             | 1.0   | —     | `arrow`        | Default for source→component and component→component when neither endpoint is focal. |
+| `trigger`   | `#4f5d75`             | 1.0   | `4,3` | `arrow-sm`     | Every edge originating from a `kind: bar` component.                                 |
+| `query`     | `rgba(45,49,66,0.30)` | 1.0   | `4,3` | `arrow`        | Read-back edges (e.g., focal ↔ Trino).                                               |
 
 **Defs block** (required, exactly these four markers):
 
@@ -262,13 +262,13 @@ These are non-negotiable. Pick the style **automatically** from the topology —
 
 ### 3.1 Exit / entry sides (non-negotiable)
 
-| Edge kind | Exit side of source | Entry side of target |
-|---|---|---|
-| Source → cluster node | **right** of source node | **left** of target |
-| Component → component (within cluster) | **right** | **left** |
-| Bar component → node | **bottom** of bar | **top** of node |
-| Cross-cutting bar | — (emits no edges) | — |
-| Vertical chevron | — (labels only; emits no edges) | — |
+| Edge kind                              | Exit side of source             | Entry side of target |
+| -------------------------------------- | ------------------------------- | -------------------- |
+| Source → cluster node                  | **right** of source node        | **left** of target   |
+| Component → component (within cluster) | **right**                       | **left**             |
+| Bar component → node                   | **bottom** of bar               | **top** of node      |
+| Cross-cutting bar                      | — (emits no edges)              | —                    |
+| Vertical chevron                       | — (labels only; emits no edges) | —                    |
 
 ### 3.2 Routing
 
@@ -289,16 +289,16 @@ A component may declare an optional `color: "#hex"` (CSS color string). The over
 
 **Where the color is applied** (given `C = color`):
 
-| Element | Light mode | Dark mode |
-|---|---|---|
-| Container fill (`rect` body) | `rgba(C, 0.06)` | `rgba(C, 0.10)` |
-| Container stroke | `rgba(C, 0.35)` (`stroke-width=1` for nodes, `0.8` for bars) | `rgba(C, 0.45)` |
-| Role badge stroke (nodes) | `rgba(C, 0.40)` | `rgba(C, 0.55)` |
-| Role badge text (nodes) | `rgba(C, 0.85)` | `rgba(C, 1.0)` |
-| Icon fill / stroke | `C` | lighten `C` by ~15% (or use `C` if already light) |
-| Name text | `C` | lighten `C` |
-| Subtitle text | **unchanged** (`muted`) | **unchanged** (`muted`) |
-| Connectors touching this component | **unchanged** (still topology-driven) | **unchanged** |
+| Element                            | Light mode                                                   | Dark mode                                         |
+| ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Container fill (`rect` body)       | `rgba(C, 0.06)`                                              | `rgba(C, 0.10)`                                   |
+| Container stroke                   | `rgba(C, 0.35)` (`stroke-width=1` for nodes, `0.8` for bars) | `rgba(C, 0.45)`                                   |
+| Role badge stroke (nodes)          | `rgba(C, 0.40)`                                              | `rgba(C, 0.55)`                                   |
+| Role badge text (nodes)            | `rgba(C, 0.85)`                                              | `rgba(C, 1.0)`                                    |
+| Icon fill / stroke                 | `C`                                                          | lighten `C` by ~15% (or use `C` if already light) |
+| Name text                          | `C`                                                          | lighten `C`                                       |
+| Subtitle text                      | **unchanged** (`muted`)                                      | **unchanged** (`muted`)                           |
+| Connectors touching this component | **unchanged** (still topology-driven)                        | **unchanged**                                     |
 
 The subtitle stays muted because it's parenthetical metadata — only the primary identity (name + icon + border) carries the color signal.
 
@@ -395,22 +395,22 @@ The visual contract: the vertical chevron's column visually "owns" the bar/cross
 
 When `dark: true`, swap these tokens:
 
-| Token | Light | Dark |
-|---|---|---|
-| Page paper | `#f5f5f5` | `#1c1f2e` |
-| Ink | `#2d3142` | `#f5f5f5` |
-| Muted text | `#4f5d75` | `rgba(245,245,245,0.65)` |
-| Chevron dark fill | `#2d3142` | `#3d4460` |
-| Chevron light fill | `#3d4460` | `#4a5270` |
-| Chevron label | `#f5f5f5` | `#f5f5f5` (unchanged) |
-| Dashed border | `rgba(45,49,66,0.20)` | `rgba(245,245,245,0.22)` |
-| Cluster border | `rgba(45,49,66,0.18)` | `rgba(245,245,245,0.18)` |
-| Node fill | white | `rgba(245,245,245,0.06)` |
-| Node stroke | `rgba(45,49,66,0.25)` | `rgba(245,245,245,0.20)` |
-| Focal fill | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)` |
-| Focal stroke | `#eb6c36` | `#f08a59` |
-| Accent connector | `#eb6c36` | `#f08a59` |
-| Dot pattern | `rgba(45,49,66,0.10)` | `rgba(245,245,245,0.10)` |
+| Token              | Light                   | Dark                     |
+| ------------------ | ----------------------- | ------------------------ |
+| Page paper         | `#f5f5f5`               | `#1c1f2e`                |
+| Ink                | `#2d3142`               | `#f5f5f5`                |
+| Muted text         | `#4f5d75`               | `rgba(245,245,245,0.65)` |
+| Chevron dark fill  | `#2d3142`               | `#3d4460`                |
+| Chevron light fill | `#3d4460`               | `#4a5270`                |
+| Chevron label      | `#f5f5f5`               | `#f5f5f5` (unchanged)    |
+| Dashed border      | `rgba(45,49,66,0.20)`   | `rgba(245,245,245,0.22)` |
+| Cluster border     | `rgba(45,49,66,0.18)`   | `rgba(245,245,245,0.18)` |
+| Node fill          | white                   | `rgba(245,245,245,0.06)` |
+| Node stroke        | `rgba(45,49,66,0.25)`   | `rgba(245,245,245,0.20)` |
+| Focal fill         | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.12)`  |
+| Focal stroke       | `#eb6c36`               | `#f08a59`                |
+| Accent connector   | `#eb6c36`               | `#f08a59`                |
+| Dot pattern        | `rgba(45,49,66,0.10)`   | `rgba(245,245,245,0.10)` |
 
 ---
 

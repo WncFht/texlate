@@ -23,11 +23,11 @@ Use for editorial asides — the "italic pointer" that marks a detail without co
 
 ## Colors
 
-| Intent | Text | Leader |
-|---|---|---|
-| Neutral aside | ink `#2d3142` | `rgba(45,49,66,0.40)` |
-| Focal / accent | coral `#eb6c36` | `rgba(235,108,54,0.50)` |
-| Tertiary (muted) | muted `#4f5d75` | `rgba(45,49,66,0.30)` |
+| Intent           | Text            | Leader                  |
+| ---------------- | --------------- | ----------------------- |
+| Neutral aside    | ink `#2d3142`   | `rgba(45,49,66,0.40)`   |
+| Focal / accent   | coral `#eb6c36` | `rgba(235,108,54,0.50)` |
+| Tertiary (muted) | muted `#4f5d75` | `rgba(45,49,66,0.30)`   |
 
 ## Anti-patterns
 - Solid arrow leader (reads as a flow arrow).

@@ -19,7 +19,7 @@ hjfy 的最大壁垒不是架构而是规则库厚度——~5000 篇人肉修复
 
 ## 理由
 
-- E8：16 条 spike 规则无损 yaml 化；11 条引擎无关、5 条需降级（4 条汇到 ctan_fetch 原语）。
+- E8:16 条 spike 规则无损 yaml 化；11 条引擎无关、5 条需降级（4 条汇到 ctan_fetch 原语）。
 - E9/E17/E19 增补规则面：`pdftex_prim_polyfill`（读取型 `\ifnum\pdfoutput` 需 `\chardef` polyfill）、`vendored_sty_shadow`（按 ProvidesPackage 日期比较 + 错误触发 rename 隔离——同目录 IEEEtran.cls 是唯一来源盲删必死）、`minted_v3_rewrite`、`eps_route`、`non_utf8_source`（iconv 转码或注 `[latin*]{inputenc}`）、`pstricks_dvips_preflight`、`bbl_stub_shadow`（`\bibliography{x}`→`\input{main.bbl}` 阻断 stub 遮蔽）、`font_sub_shim`、ctan_fetch 版本兼容前置。
 - 2026-09-17 vendored_fetch 实证：492 格全 fail 面一波打到 73.2% clean、scorecard clean +101——「机制归因 → 资产化 → 重跑」闭环打通。
 - 证据：主仓 `docs/05` E8/E9/E17/E19；调研档案 `research/latex/fixloop-rules.md`、`research/latex/ctanfetch-probe.md`、`research/latex/pstricks-route.md`。

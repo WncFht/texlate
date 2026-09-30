@@ -42,9 +42,7 @@ def _check_upload_route(route: str, babeldoc: str | None, filename: str) -> None
     工具探测面。
     """
     if route == "unknown":
-        raise _api_error(
-            400, f"无法识别上传格式: {filename}", "unsupported_format"
-        )
+        raise _api_error(400, f"无法识别上传格式: {filename}", "unsupported_format")
     if route == "upload_pdf" and babeldoc is None:
         raise _api_error(
             501,

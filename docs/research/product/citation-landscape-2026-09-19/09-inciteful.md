@@ -37,13 +37,13 @@ API 面全部免鉴权：`POST /openalex/query/{W-id}?prune={n}` 建图+SQL（�
 
 ## 算法（官方文档 + 前端 SQL 模板双重取证）
 
-**建图**：单 seed 以无向边处理，depth-1 拉全部引用+被引，depth-2 再扩一层收层内边；典型 depth-2 图 1–5 万节点，预计超 15 万节点停在 depth-1 并建议加关键词过滤[^pde]。多 seed 造虚拟节点 cites 全部 seed，相似度相对虚拟节点算。
+**建图**：单 seed 以无向边处理，depth-1 拉全部引用 + 被引，depth-2 再扩一层收层内边；典型 depth-2 图 1–5 万节点，预计超 15 万节点停在 depth-1 并建议加关键词过滤[^pde]。多 seed 造虚拟节点 cites 全部 seed，相似度相对虚拟节点算。
 
 **指标五件套全标准算法**：PageRank（重要性，局部子图迭代，作者侧 `partial_page_rank` 摊到作者）；**Adamic/Adar**（耦合相似——共同引用按 1/log 被引数 加权，共享冷门引用权重高）；**Salton 余弦**（共被引，分母 √(被引数之积) 补偿规模悬殊）；BFS distance；`num_citing` 排序识别综述（引用图内论文最多者≈综述）。
 
 **前端 SQL 模板可直接照抄**：相似论文 `ORDER BY adamic_adar + COALESCE(cocite,0) DESC`；重要论文 `ORDER BY page_rank DESC`；近期重要加 `published_year > (strftime('%Y', 'now') - 3)`；作者榜 `SUM(partial_page_rank)`；LitReview 作者加权 `SUM(page_rank / (CASE WHEN num_authors < 4 THEN num_authors WHEN sequence = 0 OR sequence = num_authors - 1 THEN 3 ELSE num_authors * 3 END))`；新锐学者 `MIN(published_year) > (strftime('%Y', 'now') - 10)`；机构/期刊榜 `SUM(page_rank)` 分组聚合。
 
-**Literature Connector**：全图当无向图做双向 BFS——两端逐层扩展到前沿相交，只保留最短路径上的点边；`extend` 参数把路径上限+1 层；作者称「还没遇到过连不上的」[^lcd]。
+**Literature Connector**：全图当无向图做双向 BFS——两端逐层扩展到前沿相交，只保留最短路径上的点边；`extend` 参数把路径上限 +1 层；作者称「还没遇到过连不上的」[^lcd]。
 
 ## 可借鉴点
 

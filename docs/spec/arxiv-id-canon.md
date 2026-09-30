@@ -118,14 +118,14 @@ NEW: ^(\d{4})\.(\d{4,5})$                            # YYMM.NNNNN
 ## 5. 接口
 
 ```python
-def canon(raw: str, *, strict_era: bool = True) -> CanonId: ...   # raises CanonError
+def canon(raw: str, *, strict_era: bool = True) -> CanonId: ...  # raises CanonError
 def try_canon(raw: str, *, strict_era: bool = True) -> CanonId | None: ...
 ```
 
 - `CanonError.reason` ∈ `bad_shape`/`bad_month`/`bad_era`/`bad_version`/`unsafe`——需分因文案的调用方自取（`req_base_ver` 把 reason 折进 `ValueError` 文案）；HTTP 建任务入口走 `normalize_arxiv_id`+`valid_id` 平文案，前端同样不逐因渲染（统一格式错）。
-- 薄壳三件套（旧签名零变化）：`normalize_arxiv_id(raw) -> (base, ver)`——canon 拒收时回剥离剩件+`None`（保留「任意输入不抛」旧契约，剩件恒过不了 `valid_id`）；`valid_id(base)` 收窄为「已是规范形」判定（canon 成立、无钉版、`str()` 回读等于输入）；`req_base_ver(id, version)` 归一+钉版合并+校验（`version` 实参优先于串内 `vN`）。
+- 薄壳三件套（旧签名零变化）：`normalize_arxiv_id(raw) -> (base, ver)`——canon 拒收时回剥离剩件+`None`（保留「任意输入不抛」旧契约，剩件恒过不了 `valid_id`）；`valid_id(base)` 收窄为「已是规范形」判定（canon 成立、无钉版、`str()` 回读等于输入）；`req_base_ver(id, version)` 归一 + 钉版合并 + 校验（`version` 实参优先于串内 `vN`）。
 - web `canonStrip(raw, strict=false)` 双口径（剥壳单源，校验归调用方叠层）：**loose**=匹配键口径（host `[\w.-]*` 不挡寄生域、无镜像臂、多 `www.doi.org` 臂、只剥尾 `/`——坏输入只是匹配不上，宁宽不漏）；**strict**=提交校验口径（子域点界 + 镜像白名单臂 + 首尾 `/` 同剥）。仍刻意比服务端窄——怪输入留给服务端 400。
-- `canonArxivKey`（loose+整串小写）是双侧归一匹配键：`stores/tasks.ts` 的 taskByArxiv/preflight、`citations.ts::canonRefId` 同键两名——历史落库行保留 class/大小写、新落库是 canon base，两侧都过本键才比。
+- `canonArxivKey`（loose+ 整串小写）是双侧归一匹配键：`stores/tasks.ts` 的 taskByArxiv/preflight、`citations.ts::canonRefId` 同键两名——历史落库行保留 class/大小写、新落库是 canon base，两侧都过本键才比。
 
 ## 6. 未落地清单
 

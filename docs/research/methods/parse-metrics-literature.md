@@ -17,9 +17,9 @@
 | GROBID[^grobid]                 | PDF header/引用/全文抽取      | 字段级 P/R/F1 + instance 级（整条 citation 全对才算）                                                                                                   | 四种文本匹配档：strict（exact）/ soft（忽略标点大小写空格）/ relative Levenshtein / Ratcliff-Obershelp；authors 集合级                                                                                                            | PMC_sample_1943、bioRxiv-2000、PLOS_1000、eLife_984 | 按字段、按语料          | 无 CI；明示「非绝对质量，是版本间回归追踪」                      |
 | Nougat[^nougat]                 | PDF→markup OCR                | normalized edit distance（ED/max(len)）、BLEU、METEOR、token 级 P/R/F1                                                                                  | 逐页算分后取均值（`metrics.py`）；软相似度路线代表                                                                                                                                                                                | arXiv 页测试集                                      | —                       | 指标名据源码确认                                                 |
 | olmOCR-bench[^olmocr]           | PDF→text 抽取                 | unit-test 式事实断言：TextPresence(PRESENT/ABSENT)/TextOrder/Format/Table/Math/Footnote/Baseline 七类                                                   | 分桶通过率表 + Overall ±CI（如 72.0±1.1）                                                                                                                                                                                         | 7,000+ test cases / 1,400 documents                 | 按文档类型分桶          | 报 CI（±1.0 量级）                                               |
-| BabelDOC[^babeldoc]             | PDF 翻译保版式                | BIoU（源/译版面 bbox IoU）；Likert 1–5 四维：Layout Fidelity/Translation Precision/Visual Aesthetics/Terminology Consistency；UTB/page（未译文本块/页） | 200 页 benchmark（80 学术+60 技术文档+60 专利）；3 标注员盲评 + LLM judge；消融 60 页按页型分层                                                                                                                                   | 200 页                                              | 按领域 3 桶、消融按页型 | 无 CI                                                            |
+| BabelDOC[^babeldoc]             | PDF 翻译保版式                | BIoU（源/译版面 bbox IoU）；Likert 1–5 四维：Layout Fidelity/Translation Precision/Visual Aesthetics/Terminology Consistency；UTB/page（未译文本块/页） | 200 页 benchmark（80 学术 +60 技术文档 +60 专利）；3 标注员盲评 + LLM judge；消融 60 页按页型分层                                                                                                                                 | 200 页                                              | 按领域 3 桶、消融按页型 | 无 CI                                                            |
 | PDFMathTranslate[^pdfmathtrans] | PDF 翻译保版式                | 无保真度量；仅能力矩阵 + 速度 sec/page                                                                                                                  | 定性对比表                                                                                                                                                                                                                        | —                                                   | —                       | 无                                                               |
-| LaTeXTrans[^latextrans]         | LaTeX 翻译（多 agent）        | COMETKIWI（wmt22-cometkiwi-da 篇级）；LLM-judge 4 维 0–10；fc_score = clamp(100−10·errors−2·warnings+20·编译成功, 0,100)（数 .log 行）                  | ~50 篇 arXiv × 后端模型对比                                                                                                                                                                                                       | ~50 篇                                              | 按后端模型              | 无 CI                                                            |
+| LaTeXTrans[^latextrans]         | LaTeX 翻译（多 agent）        | COMETKIWI（wmt22-cometkiwi-da 篇级）；LLM-judge 4 维 0–10；fc_score = clamp(100−10·errors−2·warnings+20·编译成功，0,100)（数 .log 行）                  | ~50 篇 arXiv × 后端模型对比                                                                                                                                                                                                       | ~50 篇                                              | 按后端模型              | 无 CI                                                            |
 | MathTranslate[^mathtranslate]   | LaTeX 翻译                    | 无定量评测；定性声明「math perfectly kept」；issues.md 已知问题清单                                                                                     | —                                                                                                                                                                                                                                 | —                                                   | —                       | —                                                                |
 | texglot[^texglot]               | LaTeX 翻译                    | 无定量评测；管线内自检「protected markers/structure/target language」不合→重试→失败保留原文段+exit 1 标记                                               | —                                                                                                                                                                                                                                 | —                                                   | —                       | —                                                                |
 
@@ -58,7 +58,7 @@
 ### 2.6 翻译管线同行：两极分化
 
 - 定量端：BabelDOC（BIoU + 4 维 Likert + UTB/page + 200 页分层 + 3 人盲评 + LLM-judge）；LaTeXTrans（COMETKIWI QE + 4 维 LLM-judge + fc_score 编译健康分——数 .log 的 Error/Warning 行加权扣分、编译成功 +20，与 verdict 的「错误计数独立于 PDF 产出」同思想，但它是软分数非硬门）。
-- 定性端：PDFMathTranslate 只有能力矩阵+速度；MathTranslate/texglot 零定量。texglot 的「校验不过→重试→保留原文+exit code 标记」与 validator+降级思路一致。
+- 定性端：PDFMathTranslate 只有能力矩阵 + 速度；MathTranslate/texglot 零定量。texglot 的「校验不过→重试→保留原文+exit code 标记」与 validator+ 降级思路一致。
 - 可借新指标：BabelDOC 的 UTB（Untranslated Text Blocks）/page——真实翻译阶段「残留未译块率」的官方命名；BIoU 对纯 TeX 路线不可直接搬，但「同 parser 解析双侧产物再对齐」的方法论可移植到 zh/en 双 PDF 段落对齐。
 
 ### 2.7 解析器自测惯例（对「解析对了」的判定）
@@ -76,7 +76,7 @@
 - 小样本人工核验必报 CI：unarXive 用 Wilson score interval + Jeffreys interval 并列 @0.95/0.99（300 样本）；olmOCR-bench 对通过率报 ±CI（约 95% 置信，~±1 个百分点量级）。→ 人工评估与语料通过率都应带 Wilson 95% CI。
 - 分层报告是默认动作：按文档类型（olmOCR 8 桶）、领域（BabelDOC 3 域）、年份（unarXive 2018 子集）、解析通道（S2ORC PDF vs LaTeX）、字段（GROBID）。→ 分层轴天然存在：docclass/语言/年代/文件规模。
 - 失败归因分解：报「失败原因分布」而不仅是失败率（unarXive 的 31%/26% 拆解、S2ORC 的 PDF 丢弃原因表）。
-- 定性判据写成可复现操作定义：S2ORC 附录把「title 正确」写成 exact-match+容许变体表——trap 期望列（「保护/可译/不崩」）已是此风格，可再补匹配容差说明。
+- 定性判据写成可复现操作定义：S2ORC 附录把「title 正确」写成 exact-match+ 容许变体表——trap 期望列（「保护/可译/不崩」）已是此风格，可再补匹配容差说明。
 
 ## 4. 指标名推荐与学理映射
 
@@ -114,7 +114,7 @@
 
 [^s2orc]: Lo et al. S2ORC: The Semantic Scholar Open Research Corpus. ACL 2020. [aclanthology.org/2020.acl-main.447](https://aclanthology.org/2020.acl-main.447/)
 
-[^grobid]: Lopez et al. GROBID end-to-end evaluation 官方文档. [grobid.readthedocs.io](https://grobid.readthedocs.io/en/latest/End-to-end-evaluation/)
+[^grobid]: Lopez et al. GROBID end-to-end evaluation 官方文档。[grobid.readthedocs.io](https://grobid.readthedocs.io/en/latest/End-to-end-evaluation/)
 
 [^nougat]: Blecher et al. Nougat: Neural Optical Understanding for Academic Documents. ICLR 2024（指标名据 `metrics.py`）. [github.com/facebookresearch/nougat](https://github.com/facebookresearch/nougat)
 

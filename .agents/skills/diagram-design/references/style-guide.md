@@ -14,18 +14,18 @@ To generate your own from a website URL, see [`onboarding.md`](onboarding.md).
 
 Every token is referred to by **semantic role**, not by its hex value. Type references (`type-*.md`) and SKILL.md say `accent`, not `#f7591f`.
 
-| Role | Purpose | Default (light) | Default (dark) |
-|---|---|---|---|
-| `paper` | Page background, default node fill | `#f5f5f5` (white-smoke) | `#2d3142` (jet-black) |
-| `paper-2` | Diagram container bg, secondary fill | `#ececec` | `#393e53` |
-| `ink` | Primary text, primary stroke | `#2d3142` (jet-black) | `#f5f5f5` (white-smoke) |
-| `muted` | Secondary text, default arrow stroke | `#4f5d75` (blue-slate) | `#bfc0c0` (silver) |
-| `soft` | Sublabels, boundary labels | `#7a8399` | `#8e98ac` |
-| `rule` | Hairline borders | `rgba(45,49,66,0.12)` | `rgba(245,245,245,0.12)` |
-| `rule-solid` | Stronger borders, baselines | `#bfc0c0` (silver) | `rgba(191,192,192,0.25)` |
-| `accent` | Focal / 1–2 max per diagram | `#eb6c36` (atomic-tangerine) | `#f08a59` |
-| `accent-tint` | Fill for accent-bordered boxes | `rgba(235,108,54,0.08)` | `rgba(240,138,89,0.10)` |
-| `link` | HTTP/API calls, external arrows | `#2e5aa8` | `#6a95d8` |
+| Role          | Purpose                              | Default (light)              | Default (dark)           |
+| ------------- | ------------------------------------ | ---------------------------- | ------------------------ |
+| `paper`       | Page background, default node fill   | `#f5f5f5` (white-smoke)      | `#2d3142` (jet-black)    |
+| `paper-2`     | Diagram container bg, secondary fill | `#ececec`                    | `#393e53`                |
+| `ink`         | Primary text, primary stroke         | `#2d3142` (jet-black)        | `#f5f5f5` (white-smoke)  |
+| `muted`       | Secondary text, default arrow stroke | `#4f5d75` (blue-slate)       | `#bfc0c0` (silver)       |
+| `soft`        | Sublabels, boundary labels           | `#7a8399`                    | `#8e98ac`                |
+| `rule`        | Hairline borders                     | `rgba(45,49,66,0.12)`        | `rgba(245,245,245,0.12)` |
+| `rule-solid`  | Stronger borders, baselines          | `#bfc0c0` (silver)           | `rgba(191,192,192,0.25)` |
+| `accent`      | Focal / 1–2 max per diagram          | `#eb6c36` (atomic-tangerine) | `#f08a59`                |
+| `accent-tint` | Fill for accent-bordered boxes       | `rgba(235,108,54,0.08)`      | `rgba(240,138,89,0.10)`  |
+| `link`        | HTTP/API calls, external arrows      | `#2e5aa8`                    | `#6a95d8`                |
 
 > **Brand palette source:** this skin maps to a five-color brand palette — `jet-black #2d3142`, `silver #bfc0c0`, `white-smoke #f5f5f5`, `atomic-tangerine #eb6c36`, `blue-slate #4f5d75`. The `soft`, `rule`, and `link` tokens are derived (lighter slate, ink-at-opacity, and a saturated variant in the blue-slate hue family) to cover roles the brand palette doesn't name directly.
 
@@ -39,13 +39,13 @@ Any `rgba(28,25,23, X)` in light becomes `rgba(250,247,242, X)` in dark. Same op
 
 A small set of desaturated, editorial-tone colors for chart types that genuinely need to distinguish multiple overlapping entities (currently: **radar**). The "1-focal" rule still holds — `accent` is reserved for the focal series; the palette below covers the rest.
 
-| Token | Light | Dark | Notes |
-|---|---|---|---|
-| `series-1` | `#7c8f6f` (sage) | `#9caf8f` | Non-focal series |
+| Token      | Light                  | Dark      | Notes            |
+| ---------- | ---------------------- | --------- | ---------------- |
+| `series-1` | `#7c8f6f` (sage)       | `#9caf8f` | Non-focal series |
 | `series-2` | `#5e7a9b` (dusty-blue) | `#82a0c0` | Non-focal series |
-| `series-3` | `#b8915a` (mustard) | `#d3ad7a` | Non-focal series |
+| `series-3` | `#b8915a` (mustard)    | `#d3ad7a` | Non-focal series |
 | `series-4` | `#9c6b50` (rust-brown) | `#b88670` | Non-focal series |
-| `series-5` | `#6e6479` (slate) | `#8d8298` | Non-focal series |
+| `series-5` | `#6e6479` (slate)      | `#8d8298` | Non-focal series |
 
 Fills sit at `0.18` opacity light, `0.22` dark; strokes use the full color. **Don't backfill these tokens to non-chart types** — architecture, swimlane, etc. continue to use muted-ink variants. The series palette is opt-in for diagrams where overlapping shapes demand distinguishable color, not a license to add color elsewhere.
 
@@ -53,17 +53,17 @@ Fills sit at `0.18` opacity light, `0.22` dark; strokes use the full color. **Do
 
 A self-contained palette for the terminal-window primitive (see [primitive-terminal.md](primitive-terminal.md)) — a CLI-chrome register for dev-tool posts and technical social cards. It does not replace the default skin above and isn't affected by onboarding; it's a second, fixed skin you opt into per-diagram.
 
-| Token | Hex | Purpose |
-|---|---|---|
-| `terminal-page` | `#0a0a0a` | Page background behind the window |
-| `terminal-paper` | `#141414` | Window body, node fill |
-| `terminal-bar` | `#1b1b1b` | Titlebar strip |
-| `terminal-border` | `#2b2b2b` | Window border, hairlines |
-| `terminal-ink` | `#f5f5f5` | Primary text, primary stroke (same white-smoke as default `ink`) |
-| `terminal-muted` | `#9a9a9a` | Secondary text, sublabels, ring stroke |
-| `terminal-soft` | `#5c5c5c` | Tertiary — inactive dots, spokes |
-| `terminal-accent` | `#ff5a36` | The one accent — focal station, prompt sign, active dot |
-| `terminal-accent-tint` | `rgba(255,90,54,0.12)` | Fill for accent-bordered boxes |
+| Token                  | Hex                    | Purpose                                                          |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `terminal-page`        | `#0a0a0a`              | Page background behind the window                                |
+| `terminal-paper`       | `#141414`              | Window body, node fill                                           |
+| `terminal-bar`         | `#1b1b1b`              | Titlebar strip                                                   |
+| `terminal-border`      | `#2b2b2b`              | Window border, hairlines                                         |
+| `terminal-ink`         | `#f5f5f5`              | Primary text, primary stroke (same white-smoke as default `ink`) |
+| `terminal-muted`       | `#9a9a9a`              | Secondary text, sublabels, ring stroke                           |
+| `terminal-soft`        | `#5c5c5c`              | Tertiary — inactive dots, spokes                                 |
+| `terminal-accent`      | `#ff5a36`              | The one accent — focal station, prompt sign, active dot          |
+| `terminal-accent-tint` | `rgba(255,90,54,0.12)` | Fill for accent-bordered boxes                                   |
 
 **1-accent rule still holds.** Everything that isn't `terminal-ink` or `terminal-muted`/`terminal-soft` should be `terminal-accent` — never introduce a second hue.
 
@@ -71,14 +71,14 @@ A self-contained palette for the terminal-window primitive (see [primitive-termi
 
 ## Typography
 
-| Role | Family | Size | Weight | Usage |
-|---|---|---|---|---|
-| `title` | Instrument Serif | 1.75rem | 400 | Page H1 |
-| `node-name` | Geist (sans) | 12px | 600 | Human-readable labels |
-| `sublabel` | Geist Mono | 9px | 400 | Port, protocol, URL, field type |
-| `eyebrow` | Geist Mono | 7–8px | 500, tracked 0.18em, uppercase | Type tags, axis labels |
-| `arrow-label` | Geist Mono | 8px | 400, tracked 0.06em | Arrow annotations |
-| `callout` | Instrument Serif *italic* | 14px | 400 | Editorial asides only |
+| Role          | Family                    | Size    | Weight                         | Usage                           |
+| ------------- | ------------------------- | ------- | ------------------------------ | ------------------------------- |
+| `title`       | Instrument Serif          | 1.75rem | 400                            | Page H1                         |
+| `node-name`   | Geist (sans)              | 12px    | 600                            | Human-readable labels           |
+| `sublabel`    | Geist Mono                | 9px     | 400                            | Port, protocol, URL, field type |
+| `eyebrow`     | Geist Mono                | 7–8px   | 500, tracked 0.18em, uppercase | Type tags, axis labels          |
+| `arrow-label` | Geist Mono                | 8px     | 400, tracked 0.06em            | Arrow annotations               |
+| `callout`     | Instrument Serif *italic* | 14px    | 400                            | Editorial asides only           |
 
 ### Font stack
 
@@ -148,15 +148,15 @@ Counting by script is still the trap. `Шкаф ODF-2` is four Cyrillic letters,
 
 ## Stroke, radius, spacing
 
-| Token | Value | Use |
-|---|---|---|
-| `stroke-thin` | `0.8` | Tag-box outlines, leaf nodes |
-| `stroke-default` | `1` | Most strokes |
-| `stroke-strong` | `1.2` | Emphasis strokes |
-| `radius-sm` | `4` | Small tags |
-| `radius-md` | `6` | Node boxes |
-| `radius-lg` | `8` | Containers, rings |
-| `grid` | `4` | Every coord, size, and gap is divisible by 4 (hard rule) |
+| Token            | Value | Use                                                      |
+| ---------------- | ----- | -------------------------------------------------------- |
+| `stroke-thin`    | `0.8` | Tag-box outlines, leaf nodes                             |
+| `stroke-default` | `1`   | Most strokes                                             |
+| `stroke-strong`  | `1.2` | Emphasis strokes                                         |
+| `radius-sm`      | `4`   | Small tags                                               |
+| `radius-md`      | `6`   | Node boxes                                               |
+| `radius-lg`      | `8`   | Containers, rings                                        |
+| `grid`           | `4`   | Every coord, size, and gap is divisible by 4 (hard rule) |
 
 ---
 
@@ -164,15 +164,15 @@ Counting by script is still the trap. `Шкаф ODF-2` is four Cyrillic letters,
 
 Semantic role combinations — reference these by name in type specs.
 
-| Type | Fill | Stroke |
-|---|---|---|
-| `focal` (1–2 max) | `accent-tint` | `accent` |
-| `backend` | `#ffffff` (white) | `ink` |
-| `store` | `ink @ 0.05` | `muted` |
-| `external` | `ink @ 0.03` | `ink @ 0.30` |
-| `input` | `muted @ 0.10` | `soft` |
-| `optional` | `ink @ 0.02` | `ink @ 0.20` dashed `4,3` |
-| `security` | `accent @ 0.05` | `accent @ 0.50` dashed `4,4` |
+| Type              | Fill              | Stroke                       |
+| ----------------- | ----------------- | ---------------------------- |
+| `focal` (1–2 max) | `accent-tint`     | `accent`                     |
+| `backend`         | `#ffffff` (white) | `ink`                        |
+| `store`           | `ink @ 0.05`      | `muted`                      |
+| `external`        | `ink @ 0.03`      | `ink @ 0.30`                 |
+| `input`           | `muted @ 0.10`    | `soft`                       |
+| `optional`        | `ink @ 0.02`      | `ink @ 0.20` dashed `4,3`    |
+| `security`        | `accent @ 0.05`   | `accent @ 0.50` dashed `4,4` |
 
 ---
 

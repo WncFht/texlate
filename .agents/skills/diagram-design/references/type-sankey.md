@@ -27,26 +27,26 @@ Pick **one px-per-unit constant `k`** for the whole diagram and apply it to ever
 
 ### Worked reference (k = 0.02 px/unit, budget = 12,000 CI minutes)
 
-| Node | Quantity | Height (px) |
-|---|---|---|
-| CI minutes (col 1) | 12,000 | 240 |
-| Unit tests | 5,200 | 104 |
-| E2E | 4,000 | 80 |
-| Build | 2,000 | 40 |
-| Lint | 800 | 16 |
-| Passed | 9,400 | 188 |
-| Failed | 1,600 | 32 |
-| Flaked | 1,000 | 20 |
+| Node               | Quantity | Height (px) |
+| ------------------ | -------- | ----------- |
+| CI minutes (col 1) | 12,000   | 240         |
+| Unit tests         | 5,200    | 104         |
+| E2E                | 4,000    | 80          |
+| Build              | 2,000    | 40          |
+| Lint               | 800      | 16          |
+| Passed             | 9,400    | 188         |
+| Failed             | 1,600    | 32          |
+| Flaked             | 1,000    | 20          |
 
 Each column's node heights sum to the same 240px total — that invariant (total-in equals total-out) is what makes the diagram trustworthy at a glance. If your columns don't sum to the same total, the data has a leak or the layout has a bug.
 
 ## Complexity budget
 
-| Limit | Rule |
-|---|---|
-| Max stage columns | 3 |
-| Max nodes | 8 |
-| Max flows (ribbons) | 12 |
+| Limit               | Rule                                                                              |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Max stage columns   | 3                                                                                 |
+| Max nodes           | 8                                                                                 |
+| Max flows (ribbons) | 12                                                                                |
 | Max accent elements | 2 (a focal path's ribbons count as one, regardless of how many segments it spans) |
 
 Over budget → split into two linked Sankeys (e.g. an overview stage-1→stage-2 diagram plus a detail stage-2→stage-3 diagram) rather than cramming a fourth column or a ninth node into one canvas.

@@ -94,9 +94,7 @@ class LoopClientPool[C: _Aclosable]:
 
     async def aclose_current(self) -> None:
         """关**本 running loop** 的 client——ephemeral-loop 消费面收尾钩。"""
-        await self._aclose_one(
-            self._clients.pop(asyncio.get_running_loop(), None)
-        )
+        await self._aclose_one(self._clients.pop(asyncio.get_running_loop(), None))
 
     async def aclose_all(self) -> None:
         """尽力关全部桶——app lifespan 收尾用（单条失败不挡其余）。"""

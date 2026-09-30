@@ -46,7 +46,7 @@
 | 09-16 | compilebench v4 复跑 | 同 n180 样本                                                    | union pdf 70.6%/clean 38.3%（基线复测稳定）                      |
 | 09-16 | base-v3-full         | n=5,059 全 dev 层基线                                           | union pdf 71.3%/clean 40.2%;missing_file 占 base fail 92.1%      |
 | 09-16 | compilebench-v3-zh   | zh 条件臂首跑                                                   | union pdf 66.7%/clean 44.4%(normalize 代价面初测）               |
-| 09-16 | qualbench 新建       | LLM-judge 1-5 分+六 flag 协议                                   | 质量臂诞生（hjfy 都没有的能力）                                  |
+| 09-16 | qualbench 新建       | LLM-judge 1-5 分 + 六 flag 协议                                 | 质量臂诞生（hjfy 都没有的能力）                                  |
 | 09-16 | stagerun-loop1       | 五阶段批量驱动 n=5,124 格全 DAG                                 | scorecard union pdf **97.89%**/clean 84.99%;fixloop rescue 84.0% |
 | 09-16 | 4e89bbb6 等          | mechanisms.jsonl 台账合并扩充                                   | 机制台账 →210 条                                                 |
 
@@ -65,16 +65,16 @@
 
 ## D4 · 2026-09-18 selfimp 常驻环（23+ 车道并行）
 
-| 日期  | 来源                | 事件                                                 | 指标影响                                                            |
-| ----- | ------------------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| 09-18 | 6d7c4a38            | **selfimp loop 启动**:overseer 台账+R1 报告+假设骨架 | 多代理常驻改进环成形；wave-1 23 lane 发车                           |
-| 09-18 | stagerun-loop2      | 5,135 格冻结快照全 DAG(6d7c4a3)                      | scorecard union pdf 97.26%/clean **86.42%**(clean +1.43pt vs loop1) |
-| 09-18 | c2-dollar 车道      | dollar 族跨边界失配收口                              | leak 57→**0**/136,049 chunks（核心层口径）——四年债单类清零          |
-| 09-18 | a4-scorecard        | gate_scorecard schema v3(csb 三档/freeze 四信号）    | loop1 复跑 97.89/84.99 分毫不差——评测器自证稳定                     |
-| 09-18 | qualbase            | esa2 协议 judge=swe-2-max n=1200                     | mean **92.9** [92.4,93.3],contested 8.1%——质量基线建档              |
-| 09-18 | qualdrift           | n=300 vs qualbase                                    | mean 92.8,KS drift pass——评审稳定性验证                             |
-| 09-18 | review-2026-09-18   | 指标复盘报告+时间线图                                | 历史文档层成形                                                      |
-| 09-18 | manifest_2026-09-18 | corpus_daily 日更 soak 首批                          | 新语料渠道（RSS→export→daily→stagerun)                              |
+| 日期  | 来源                | 事件                                                   | 指标影响                                                            |
+| ----- | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| 09-18 | 6d7c4a38            | **selfimp loop 启动**:overseer 台账+R1 报告 + 假设骨架 | 多代理常驻改进环成形；wave-1 23 lane 发车                           |
+| 09-18 | stagerun-loop2      | 5,135 格冻结快照全 DAG(6d7c4a3)                        | scorecard union pdf 97.26%/clean **86.42%**(clean +1.43pt vs loop1) |
+| 09-18 | c2-dollar 车道      | dollar 族跨边界失配收口                                | leak 57→**0**/136,049 chunks（核心层口径）——四年债单类清零          |
+| 09-18 | a4-scorecard        | gate_scorecard schema v3(csb 三档/freeze 四信号）      | loop1 复跑 97.89/84.99 分毫不差——评测器自证稳定                     |
+| 09-18 | qualbase            | esa2 协议 judge=swe-2-max n=1200                       | mean **92.9** [92.4,93.3],contested 8.1%——质量基线建档              |
+| 09-18 | qualdrift           | n=300 vs qualbase                                      | mean 92.8,KS drift pass——评审稳定性验证                             |
+| 09-18 | review-2026-09-18   | 指标复盘报告 + 时间线图                                | 历史文档层成形                                                      |
+| 09-18 | manifest_2026-09-18 | corpus_daily 日更 soak 首批                            | 新语料渠道（RSS→export→daily→stagerun)                              |
 
 ## D5 · 2026-09-19 全量综合测试日
 

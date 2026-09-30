@@ -30,13 +30,13 @@ far_y(k) = CY ∓ 168
 
 ### Pre-computed reference (5-bone layout, HEAD=1200, CY=320)
 
-| Bone `k` | Category slot | Side | `attach_x` | `far_x, far_y` |
-|---|---|---|---|---|
-| 1 | first | above | 880 | 784, 152 |
-| 2 | second | below | 720 | 624, 488 |
-| 3 | third | above | 560 | 464, 152 |
-| 4 | fourth | below | 400 | 304, 488 |
-| 5 | fifth | above | 240 | 144, 152 |
+| Bone `k` | Category slot | Side  | `attach_x` | `far_x, far_y` |
+| -------- | ------------- | ----- | ---------- | -------------- |
+| 1        | first         | above | 880        | 784, 152       |
+| 2        | second        | below | 720        | 624, 488       |
+| 3        | third         | above | 560        | 464, 152       |
+| 4        | fourth        | below | 400        | 304, 488       |
+| 5        | fifth         | above | 240        | 144, 152       |
 
 A 6th bone (below) would attach at `x=80`, far endpoint `(-16, 488)`, and its category tag would run from `x=-76` to `x=44` against a viewBox that starts at `x=-40`. It clips. **Five is the ceiling at `HEAD=1200`**: to draw a 6th, widen `HEAD` *and* the viewBox width by at least 160 each, keeping the viewBox origin at `-40`. Both have to move together — widening `HEAD` alone pushes the 200px effect box to `1360..1560` past the `1440` right edge, trading a clipped tag on the left for a clipped effect on the right. Or drop a category.
 
@@ -51,12 +51,12 @@ The tick itself is a 32px horizontal line from `(tick_x, tick_y)` to `(tick_x - 
 
 ## Complexity budget
 
-| Limit | Rule |
-|---|---|
-| Max categories (bones) | 5 at `HEAD=1200`. A 6th requires a widened canvas — see Geometry |
-| Max sub-causes per bone | 3 |
-| Max sub-causes total | 18 |
-| Max accent elements | 2 (root-cause bone+tag, effect box) |
+| Limit                   | Rule                                                             |
+| ----------------------- | ---------------------------------------------------------------- |
+| Max categories (bones)  | 5 at `HEAD=1200`. A 6th requires a widened canvas — see Geometry |
+| Max sub-causes per bone | 3                                                                |
+| Max sub-causes total    | 18                                                               |
+| Max accent elements     | 2 (root-cause bone+tag, effect box)                              |
 
 ## Anti-patterns
 

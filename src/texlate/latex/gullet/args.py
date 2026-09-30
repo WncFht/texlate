@@ -132,7 +132,9 @@ class _Args:
                         return out
             out.append(t2)
 
-    def _req_grouping(self: Gullet, trace: list[Tok], open_c: str, close_c: str) -> list[Tok]:
+    def _req_grouping(
+        self: Gullet, trace: list[Tok], open_c: str, close_c: str
+    ) -> list[Tok]:
         r"""``_read_grouping`` 的必需形：首 token 非 opener → ``ArgMismatch``。
 
         必需 ``{…}``/``[…]`` 参缺席即参数不匹配，与流尽同径走 §3.5 回吐

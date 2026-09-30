@@ -276,9 +276,7 @@ def test_harvest_refuses_corrupt_product_pdf(tmp_path: Path) -> None:
     # splice refused per-kind — never declared, so no verdict/product claim
     # can vouch for the corrupt bytes; zh seals unaffected
     assert set(meta["files"]) == {"zh"}
-    assert meta["seal_refused"]["splice"] == [
-        {"path": "main.pdf", "reason": "no_eof"}
-    ]
+    assert meta["seal_refused"]["splice"] == [{"path": "main.pdf", "reason": "no_eof"}]
     row = _manifest_rows()[-1]
     assert row["kinds"] == ["zh"]
     assert row["seal_refused"]["splice"][0]["reason"] == "no_eof"

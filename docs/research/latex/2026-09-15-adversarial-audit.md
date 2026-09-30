@@ -58,7 +58,7 @@
 
 **def_parse_fail −108 / missing_input −27 同源**：`pstricks.tex` 的 `\endinput` 在 offset 925，其后还有 828 个 `\def` 与 2 个 `\input`；`aps.rtx.tex` marker 后 131 个 `\def`；`gtoutput.tex` marker 后 268 个 `\def` + 16 个 `\input`。TeX 本身也读不到 marker 之后的内容——截停是正确语义，减少的 warning 都是「本来就不该扫到」。
 
-**unpaired_dollar 净 +1**：`2410.17903` +2 是 #15 的行为变化——`$$…\n\t\t\n…$$` 数组夹只含 tab 的空白行（TeX 同样视为 `\par`），旧代码跨段配对救回、新判据弃配+告警并级联出第二个 unpaired；`1306.2365` −1 是 #3 豁免消掉的误报。chunk 总数 −442 可解释：endinput 截停去掉本就不该译的 marker 后文本 + 宏登记改善后参数归位；identity/leak 两硬指标不变。
+**unpaired_dollar 净 +1**：`2410.17903` +2 是 #15 的行为变化——`$$…\n\t\t\n…$$` 数组夹只含 tab 的空白行（TeX 同样视为 `\par`），旧代码跨段配对救回、新判据弃配 + 告警并级联出第二个 unpaired；`1306.2365` −1 是 #3 豁免消掉的误报。chunk 总数 −442 可解释：endinput 截停去掉本就不该译的 marker 后文本 + 宏登记改善后参数归位；identity/leak 两硬指标不变。
 
 ## 4. 留档未修项与残余风险
 

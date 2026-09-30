@@ -18,13 +18,13 @@ Three nesting levels, outermost to innermost — reuses the containment grammar 
 
 ## Complexity budget
 
-| Limit | Rule |
-|---|---|
-| Max zones | 3 |
-| Max infrastructure nodes | 6 |
-| Max artifact chips | 9 |
-| Max network paths | 8 |
-| Max accent elements | 2 |
+| Limit                    | Rule |
+| ------------------------ | ---- |
+| Max zones                | 3    |
+| Max infrastructure nodes | 6    |
+| Max artifact chips       | 9    |
+| Max network paths        | 8    |
+| Max accent elements      | 2    |
 
 Over budget → split into one deployment diagram per environment.
 

@@ -543,6 +543,8 @@ def _ident_list_run(core: str) -> bool:
         ident / len(toks) >= _RESID_EN_IDENT_SHARE
         and comma / len(toks) >= _RESID_EN_IDENT_COMMA_SHARE
     )
+
+
 def name_list_prose(s: str) -> bool:
     """整段 prose 是否人名/专名/地址列签名（``_keep_verbatim_run`` 同口径段级化）。
 

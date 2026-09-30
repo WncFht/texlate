@@ -196,7 +196,9 @@ class _Group:
             j += 1
         return None
 
-    def _grp_delim_end(self: Segmenter, toks: list[Tok], i: int, want: str) -> int | None:
+    def _grp_delim_end(
+        self: Segmenter, toks: list[Tok], i: int, want: str
+    ) -> int | None:
         r"""``\\[``/``\\(`` 配对 ``\\]``/``\\)`` → j_end；未中 None。"""
         j = i + 1
         n = len(toks)
@@ -263,7 +265,10 @@ class _Group:
         return None
 
     def _walk_spec_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 归一槽型各一分支，平铺即三字母表语义并集
-        self: Segmenter, toks: list[Tok], pos: int, elems: list[_WSpec] | tuple[_WSpec, ...]
+        self: Segmenter,
+        toks: list[Tok],
+        pos: int,
+        elems: list[_WSpec] | tuple[_WSpec, ...],
     ) -> _WalkRes:
         r"""物化 token 列上的归一 spec 走参 → ``_WalkRes``。
 
@@ -587,7 +592,9 @@ class _Group:
             j += 1
         return j
 
-    def _grp_tail_end(self: Segmenter, toks: list[Tok], i: int, rx: re.Pattern[str]) -> int | None:
+    def _grp_tail_end(
+        self: Segmenter, toks: list[Tok], i: int, rx: re.Pattern[str]
+    ) -> int | None:
         r"""``toks[i:]`` 非文本尾参扫 → j_end；形不合 → None。
 
         主版 ``_tail_scan_end``（字节正则）的组内对价：surface join 后
@@ -695,7 +702,9 @@ class _Group:
         ]
         return self._walk_spec_toks(toks, j, elems).end
 
-    def _argspec_env(self: Segmenter, env: str, reg: object | None) -> ArgspecEntry | None:
+    def _argspec_env(
+        self: Segmenter, env: str, reg: object | None
+    ) -> ArgspecEntry | None:
         r"""Argspec env 条目查询——``_handle_env_begin`` 族表门控同集。"""
         if (
             reg is not None

@@ -53,7 +53,7 @@
 - 1255/1255 tick：phase ∈ 四相、pct ∈ [0,100]
 - rerun 复位 7/7（终态后 stage 帧 → pct ≤25）
 - snapshot 路终判与行终态一致 329/329（SSE 路 315/329——缺的 14 个全是零事件任务，印证第 2 条）
-- 终态 done/partial pct==100：133/133（经 SSE 收敛的）
+- 终态 done/partial pct==100:133/133（经 SSE 收敛的）
 
 ## 产物
 

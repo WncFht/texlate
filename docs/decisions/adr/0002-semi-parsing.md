@@ -22,7 +22,7 @@ LaTeX 是图灵完备的宏语言——`\def`/条件/catcode 让「正确解析�
 ## 理由
 
 - E1：miniscanner spike 259/259 文件、32/32 陷阱、0.11% 泄漏、identity 100%、1.3ms——半解析 + 区间 splice 路线被实证。
-- E2：25 处残留泄漏归因为 4 机制（单 token 误吃参 / in-arg 注释 / env `*` / in-arg 条件式），全部有修法——按重写规格落地为产品代码。
+- E2:25 处残留泄漏归因为 4 机制（单 token 误吃参 / in-arg 注释 / env `*` / in-arg 条件式），全部有修法——按重写规格落地为产品代码。
 - AST round-trip 不可行：严格解析器在真实脏语料必破（语料含真·缺 `$` 文件）；pieces 覆盖全文 + identity 逐字节一致证明「宁粗勿断」。
 - 未知命令如果按 argspec 吃参，自定义宏（横评未覆盖 ≈22% 出现）会把正文吞进参数；宁可漏译不可错译。
 - 证据：主仓 `docs/05` E1/E2/E3（argspec 覆盖 78.6%/98.9%）；调研档案 `research/latex/miniscanner-rewrite-spec.md`、`research/corpus/parsebench-v1.md`。
@@ -35,4 +35,4 @@ LaTeX 是图灵完备的宏语言——`\def`/条件/catcode 让「正确解析�
 
 ## 现状
 
-实现落在 `latex/` 包：`mouth.py`+`flatten.py`（输入展平）→ `gullet/`（宏展开，ADR-0003）→ `segmenter/`（pieces+chunks+占位符）→ `reconstruct.py`（DAG memoized 展开回写）+ `tables.py`/`model.py`/`chars.py`/`placeholder.py`/`macro_table.py`/`api.py`/`prose.py`；签名表 `latex/data/argspec.json`（现行 1858 条 = 1595 宏 + 263 环境，装载零 GAP；计数口径以 `research/latex/ctan-argspec.md` 生成源为准）。parsebench 口径：identity 100%、leak 0.040%。
+实现落在 `latex/` 包：`mouth.py`+`flatten.py`（输入展平）→ `gullet/`（宏展开，ADR-0003）→ `segmenter/`（pieces+chunks+ 占位符）→ `reconstruct.py`（DAG memoized 展开回写）+ `tables.py`/`model.py`/`chars.py`/`placeholder.py`/`macro_table.py`/`api.py`/`prose.py`；签名表 `latex/data/argspec.json`（现行 1858 条 = 1595 宏 + 263 环境，装载零 GAP；计数口径以 `research/latex/ctan-argspec.md` 生成源为准）。parsebench 口径：identity 100%、leak 0.040%。

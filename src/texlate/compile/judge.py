@@ -134,9 +134,7 @@ _MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
 #: （判定在 ``texlog.misschar_sweep_hits``，picinpar ``\computeilg`` 类）。
 # ``missing_char_sweep`` 登记行恒有 judge 位（pattern=None 的算法型行也
 # 带 name）——cast 只向 ty 声明登记契约，None 时 .name 照旧 AttributeError。
-_MISSCHAR_SWEEP = cast(
-    "LayerSpec", REDLINES_BY_ID["missing_char_sweep"].judge
-).name
+_MISSCHAR_SWEEP = cast("LayerSpec", REDLINES_BY_ID["missing_char_sweep"].judge).name
 
 #: thm-restate ``restatable`` 观察探针（``restatable_loss`` 行，单源
 #: ``texlate.redlines``）：包加载痕迹 → notes。env-name 参被译 → 存体

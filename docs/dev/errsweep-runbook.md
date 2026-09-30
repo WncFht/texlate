@@ -1,7 +1,7 @@
 # errsweep 运行手册 — texlate 错误清扫 agent
 
 > **已退役 2026-09-29**：timer/service/spec/启动脚本全拆（见 `automation.md` 退役注记），本文档留存为历史协议档案——两份 sweep 报告与三批修复 commit 的评审契约以它为准，勿据此重启定时链路。
-
+>
 > 本文档是 `bench run errsweep`（spec 在 `bench/py/specs/errsweep.py`）经 `claude -p` 喂给清扫 agent 的完整工作指令，同时是人工审计该 agent 行为的契约。改流程改这里。它是人工「tickets → spawn fixer → 三门验收」loop 的自动化版——协议本身以本文为准（旧人工 runbook 已随 bench/py 重写撤销）。
 
 ## 身份与目标

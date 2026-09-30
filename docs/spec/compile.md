@@ -231,7 +231,7 @@ for rnd in 1..max_rounds(8):
 | `builtins.csbind` | 上古/产出 cs 守卫重绑（shim C3 再拆叶）：`font_cs_shim`（AMS 上古字体 cs→`\font` 绑 CM）/`cs_rebind`（TFM 缺字→回退字体）/`bm_mathchar_wrap`（`\bm` 撞 XeTeX 15-bit mathchar 墙） | |
 | `builtins.csfix` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） | |
 | `builtins.docfix` | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹） | |
-| `builtins.envpoly` | `undefined_env_polyfill`（shim C3 再拆叶）：`Environment X undefined` proven+批扩面 `\ifcsname` 守卫 noop（pkg_map 命中装真包/`\renewenvironment` 站点守卫/ companion 对偶） | |
+| `builtins.envpoly` | `undefined_env_polyfill`（shim C3 再拆叶）：`Environment X undefined` proven+ 批扩面 `\ifcsname` 守卫 noop（pkg_map 命中装真包/`\renewenvironment` 站点守卫/ companion 对偶） | |
 | `builtins.filefix` | payload 文件归位/占位（shim C3 再拆叶）：`fileset_relocate`（+顶层目录整树镜像）/`driver_tfm_hoist`/`generated_stub`/`doc_absent_stub` | |
 | `builtins.graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/pdf_asset_sanitize/xbb_pregen + 共享原语（`_iter_project_files`/`_try_gs_redistill` 等单源） | |
 | `builtins.gfx_missing` | missing_graphic 缺图域（graphics C3 再拆叶）：`graphic_case_link`/`graphic_repair`/`includepdf_missing_stub`/`graphic_missing_placeholder`/`raster_pdf_rename`/`driver_missing_image_stub` | |
@@ -245,7 +245,7 @@ for rnd in 1..max_rounds(8):
 | `builtins.pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 | |
 | `builtins.shim` | shim_map stub/遮蔽注入：legacy_pkg_shim/svjour_clo_stub/journal_cs_polyfill/bundled_class_shadow/shim_pkgs_in_use/revtex209_surface_polyfill | |
 | `builtins.slotrev` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
-| `builtins.tarblob` | `extract_tar_blobs`（misc C3 再拆叶）：tar 伪装件检测（ustar 窗+头校验）/regular-file 成员补缺/blob 改名 `*.tarblob` 退役 | |
+| `builtins.tarblob` | `extract_tar_blobs`（misc C3 再拆叶）：tar 伪装件检测（ustar 窗 + 头校验）/regular-file 成员补缺/blob 改名 `*.tarblob` 退役 | |
 | `builtins.vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire | |
 
 ### 6.7 `vendor/` 离线资产三层

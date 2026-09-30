@@ -13,7 +13,7 @@
 | Semantic Scholar | `x-api-key`（免费申请）         | **HTTP 429** → 匿名不可用                                                                        |
 | Crossref         | 无（礼貌 UA 带 mailto 即可）    | 可用                                                                                             |
 | DBLP             | 无（礼貌 UA）                   | **被反爬**：200 但返回 bot 检测 HTML；curl 直连同样拦                                            |
-| OpenReview       | v1/v2 登录态（用户名+密码）     | 匿名 403 ChallengeRequired                                                                       |
+| OpenReview       | v1/v2 登录态（用户名 + 密码）   | 匿名 403 ChallengeRequired                                                                       |
 
 其 `.env` 加载模式可抄：从脚本目录向上找第一个 `.env`（到 repo root 止），`os.environ.setdefault` 注入、shell 已导出值优先——免依赖的凭据加载范式。
 
