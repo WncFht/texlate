@@ -1171,8 +1171,8 @@ def test_lookahead_window_bounded(
     """Window bound: with LOOKAHEAD_CELLS=2 the prefetcher never runs
     more than 2 hydrations ahead of the execution frontier."""
     monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
-    monkeypatch.setattr(kernel, "LOOKAHEAD_CELLS", _LOOKAHEAD_WINDOW)
-    monkeypatch.setattr(kernel, "LOOKAHEAD_BYTES", 10**12)
+    monkeypatch.setattr("kernel._kernel_lookahead.LOOKAHEAD_CELLS", _LOOKAHEAD_WINDOW)
+    monkeypatch.setattr("kernel._kernel_lookahead.LOOKAHEAD_BYTES", 10**12)
     state = {"fetched": 0, "started": 0, "viol": 0}
     lock = threading.Lock()
 
