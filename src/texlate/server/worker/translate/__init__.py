@@ -1,14 +1,14 @@
 """``PipelineWorker._Translate``——translating 段 + 译器/词表/用量接线。
 
-god-split: 实现体按域拆进同包 6 叶——``translate_stage``（translating
-段编排 + ``_Translate`` 组合根）、``translate_cache``（``_NullCache``
-段缓存全哑面 + ``_make_cache`` 防毒围栅）、``translate_xlator``
-（Translator 构造决策链 + mock_run 审计键）、``translate_glossary``
-（术语表层解析/装配/自动抽取接线）、``translate_envjudge``（env_judge
-判定过滤）、``translate_usage``（usage 记账 + 旁路臂收尾）。本文件是
+god-split: 实现体按域拆进同包 6 叶——``translate.stage``（translating
+段编排 + ``_Translate`` 组合根）、``translate.cache``（``_NullCache``
+段缓存全哑面 + ``_make_cache`` 防毒围栅）、``translate.xlator``
+（Translator 构造决策链 + mock_run 审计键）、``translate.glossary``
+（术语表层解析/装配/自动抽取接线）、``translate.envjudge``（env_judge
+判定过滤）、``translate.usage``（usage 记账 + 旁路臂收尾）。本文件是
 PEP 562 惰性门面（同 ``compile``/``_common`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
-``translate.X`` 公共面与 ``from .translate import X`` 不变；拆分前
+``translate.X`` 公共面与 ``from texlate.server.worker.translate import X`` 不变；拆分前
 单件期 import 期名面（stdlib 模块名/typing 绑定/``_common`` 转口/
 texlate 顶层名）同样逐名惰性解析。
 monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）。
@@ -80,18 +80,18 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "translate_cache": (
+    "cache": (
         "_NullCache",
         "_TranslateCache",
     ),
-    "translate_envjudge": ("_TranslateEnvJudge",),
-    "translate_glossary": ("_TranslateGlossary",),
-    "translate_stage": (
+    "envjudge": ("_TranslateEnvJudge",),
+    "glossary": ("_TranslateGlossary",),
+    "stage": (
         "_Translate",
         "_TranslateStage",
     ),
-    "translate_usage": ("_T", "_TranslateUsage"),
-    "translate_xlator": ("_TranslateXlator",),
+    "usage": ("_T", "_TranslateUsage"),
+    "xlator": ("_TranslateXlator",),
 }
 
 _LAZY: dict[str, str] = {

@@ -1,4 +1,4 @@
-"""worker.translate_cache — 段缓存门面 + M1 防毒围栅栏 (worker.translate 域缝叶)。
+"""worker.translate.cache — 段缓存门面 + M1 防毒围栅栏 (worker.translate 域缝叶)。
 
 ``_NullCache`` 段缓存全哑面（无 key/mock/``no_seg_cache`` 形态持久面整层
 短路）；``_TranslateCache`` mixin 的 ``_make_cache`` = cfg 指纹前缀
@@ -12,15 +12,14 @@ from typing import TYPE_CHECKING
 
 from texlate.server.settings import cache_scope
 from texlate.server.worker import seams
+from texlate.server.worker._common import SegmentCache, opt_bool
 from texlate.textutil.osutil import translator_mode
 from texlate.xlat.prompts import PROMPT_VERSION
-
-from ._common import SegmentCache, opt_bool
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 class _NullCache(SegmentCache):

@@ -2,7 +2,7 @@
 
 ``_StageError``/``_RouteRejectError``/``_ShareRejectError`` 是 ``run()``
 收口前的终态裁决载体（fault / partial+reject_at 分流）；``_SectionAbort``
-是 ephemeral-loop 段内取消哨兵——``_common_xlator._AbortingTranslator``
+是 ephemeral-loop 段内取消哨兵——``_common.xlator._AbortingTranslator``
 置位即抛、export 内嵌管线的 ``_worker`` 按 ``except Exception`` 归
 crash-skip（CancelledError 会把 task 直接打死，``queue.join()`` 永挂）。
 """

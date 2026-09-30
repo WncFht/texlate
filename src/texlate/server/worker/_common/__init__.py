@@ -1,19 +1,19 @@
 """``server.worker`` 包共享低层件——TaskCtx/常量/桥/译器包装（原 worker.py 顶层段）。
 
-拆分：实现体按职域下沉同包八叶——``_common_ctx``（``Secrets``/``TaskCtx``
-运行上下文 dataclass）、``_common_const``（进度刻度/kind 双向映射/哨兵面/
-probe·fixloop 常量表 + ``_row_status_snap`` 行快照）、``_common_util``
+拆分：实现体按职域下沉同包八叶——``_common.ctx``（``Secrets``/``TaskCtx``
+运行上下文 dataclass）、``_common.const``（进度刻度/kind 双向映射/哨兵面/
+probe·fixloop 常量表 + ``_row_status_snap`` 行快照）、``_common.util``
 （env/开关/``COMPILE_TIMEOUT`` 读入 + ``_scrub_deep``/进度/语言/术语小件）、
-``_common_state``（``chunk_db_id``/``zh_slot``/``FAILED_DB``/
+``_common.state``（``chunk_db_id``/``zh_slot``/``FAILED_DB``/
 ``chunk_error_code``/``DBStateBridge`` chunks 行面与断点桥 + pipecore
-状态图转口）、``_common_segcache``（``SegmentCache`` 段缓存桥 +
-``_repend_puts`` 回挂）、``_common_client``（usage meter/ChatClient
-接线小件/``_Sink`` 适配）、``_common_xlator``（``_FallbackTranslator``/
+状态图转口）、``_common.segcache``（``SegmentCache`` 段缓存桥 +
+``_repend_puts`` 回挂）、``_common.client``（usage meter/ChatClient
+接线小件/``_Sink`` 适配）、``_common.xlator``（``_FallbackTranslator``/
 ``_PerCallTranslator``/``_AbortingTranslator`` 译器包装）、
-``_common_errors``（阶段/路由/share/段内取消四类控制流信号）。本文件是
+``_common.errors``（阶段/路由/share/段内取消四类控制流信号）。本文件是
 PEP 562 惰性门面（同 ``xlat.pipeline``/``kernel.index`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
-``from ._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
+``from texlate.server.worker._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
 直跨（``texlate.server.worker._common_*``），不经本门面。
 """
 
@@ -42,22 +42,22 @@ if TYPE_CHECKING:
         scrub,
     )
     from texlate.server.store import row_json
-    from texlate.server.worker._common_const import (
+    from texlate.server.worker._common.const import (
         KIND_URL,
         PROGRESS,
         URL_KIND,
         artifact_urls,
     )
-    from texlate.server.worker._common_ctx import Secrets, TaskCtx
-    from texlate.server.worker._common_segcache import SegmentCache
-    from texlate.server.worker._common_state import (
+    from texlate.server.worker._common.ctx import Secrets, TaskCtx
+    from texlate.server.worker._common.segcache import SegmentCache
+    from texlate.server.worker._common.state import (
         FAILED_DB,
         DBStateBridge,
         chunk_db_id,
         chunk_error_code,
         zh_slot,
     )
-    from texlate.server.worker._common_util import COMPILE_TIMEOUT, opt_bool
+    from texlate.server.worker._common.util import COMPILE_TIMEOUT, opt_bool
     from texlate.share import PIPELINE_VERSION, cache_key_for
     from texlate.textutil import env_float
     from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT, opt_switch
@@ -68,13 +68,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_common_client": (
+    "client": (
         "_Sink",
         "_aclose_clients",
         "_new_usage_meter",
         "_translator_clients",
     ),
-    "_common_const": (
+    "const": (
         "KIND_URL",
         "PROGRESS",
         "URL_KIND",
@@ -92,21 +92,21 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_write_compile_done",
         "artifact_urls",
     ),
-    "_common_ctx": (
+    "ctx": (
         "Secrets",
         "TaskCtx",
     ),
-    "_common_errors": (
+    "errors": (
         "_RouteRejectError",
         "_SectionAbort",
         "_ShareRejectError",
         "_StageError",
     ),
-    "_common_segcache": (
+    "segcache": (
         "SegmentCache",
         "_repend_puts",
     ),
-    "_common_state": (
+    "state": (
         "DBStateBridge",
         "FAILED_DB",
         "_DB_TO_PIPE",
@@ -115,7 +115,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "chunk_error_code",
         "zh_slot",
     ),
-    "_common_util": (
+    "util": (
         "COMPILE_TIMEOUT",
         "_ENV_TIMEOUT_MAX_S",
         "_env_timeout",
@@ -125,7 +125,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_translate_progress",
         "opt_bool",
     ),
-    "_common_xlator": (
+    "xlator": (
         "_AbortingTranslator",
         "_FallbackTranslator",
         "_PerCallTranslator",
@@ -222,7 +222,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性 / stdlib 绑定 / texlate 顶层名。"""
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"texlate.server.worker.{leaf}"), name)
+        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
         globals()[name] = value
         return value
     if name in _STDLIB_MODS:

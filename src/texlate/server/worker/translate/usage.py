@@ -1,4 +1,4 @@
-"""worker.translate_usage — usage 记账 + 旁路臂收尾叶 (worker.translate 域缝叶)。
+"""worker.translate.usage — usage 记账 + 旁路臂收尾叶 (worker.translate 域缝叶)。
 
 ``_meter_usage`` ``usage_sink`` 装配糖、``_persist_usage`` 真实 usage
 落账唯一实现（旁路臂累加/唯一记账臂替换估算）、``_run_ephemeral``
@@ -14,15 +14,13 @@ import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from texlate.server.worker import seams
-
-from ._common import _new_usage_meter
+from texlate.server.worker._common import _new_usage_meter
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
-
-    from ._common import TaskCtx
 
 log = logging.getLogger(__name__)
 

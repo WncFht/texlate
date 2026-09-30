@@ -1,4 +1,4 @@
-"""worker.compile_fixloop — fixloop/precheck/llm_hook 救援链叶 (worker.compile 域缝叶)。
+"""worker.compile.fixloop — fixloop/precheck/llm_hook 救援链叶 (worker.compile 域缝叶)。
 
 规则引擎救援（``_run_fixloop`` zh 臂 / ``_fixloop_en`` en 臂 / 共享核
 ``_fixloop_pass``）、第 0 招预检（``_precheck_attempt``）、``escalate_llm``
@@ -27,20 +27,19 @@ from texlate.repair import (
     fixloop_cell_parts,
     merge_flags,
 )
-from texlate.textutil import env_flag
-from texlate.textutil.osutil import translator_mode
-from texlate.xlat.client import DEFAULT_MODEL
-
-from ._common import (
+from texlate.server.worker._common import (
     _new_usage_meter,
     _scrub_deep,
     _Sink,
     _translator_clients,
 )
-from .compile_splice import _sync_fixed_sources
-from .share import (
+from texlate.server.worker.compile.splice import _sync_fixed_sources
+from texlate.server.worker.share import (
     _share_sourced,
 )
+from texlate.textutil import env_flag
+from texlate.textutil.osutil import translator_mode
+from texlate.xlat.client import DEFAULT_MODEL
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -52,9 +51,8 @@ if TYPE_CHECKING:
     )
     from texlate.compile.fixloop.engine import LlmHook
     from texlate.compile.judge import Verdict
+    from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
-
-    from ._common import TaskCtx
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-"""worker.translate_envjudge — env_judge 判定过滤叶 (worker.translate 域缝叶)。
+"""worker.translate.envjudge — env_judge 判定过滤叶 (worker.translate 域缝叶)。
 
 ``_env_judge_enabled`` 开关仲裁（options 显式优先、``TEXLATE_ENV_JUDGE``
 缺省、共享译文任务恒关）、``_env_judge_filter`` 静态表外 env 块 LLM
@@ -10,16 +10,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
+from texlate.server.worker._common import (
+    _tgt_lang,
+    _translator_clients,
+    chunk_db_id,
+    opt_bool,
+)
+from texlate.server.worker.share import _share_sourced
 from texlate.textutil import env_flag
 from texlate.xlat.pipeline import PipelineConfig, XlatPipeline
 
-from ._common import _tgt_lang, _translator_clients, chunk_db_id, opt_bool
-from .share import _share_sourced
-
 if TYPE_CHECKING:
     from texlate.latex.model import Chunk
-
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 class _TranslateEnvJudge:

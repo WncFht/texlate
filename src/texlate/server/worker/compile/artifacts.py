@@ -1,4 +1,4 @@
-"""worker.compile_artifacts — 交付产物叶 (worker.compile 域缝叶)。
+"""worker.compile.artifacts — 交付产物叶 (worker.compile 域缝叶)。
 
 编译尾段产出物：``dual.json``（documents 版本/pages + 页级 alignment
 + chunks + ph 反查表 + seqpos 预算）、``md.zip`` 降级产物（双语
@@ -18,19 +18,18 @@ from texlate.server.upload import (
     pdf_pages,
 )
 from texlate.server.worker import seams
-from texlate.xlat.state import atomic_json
-
-from ._common import (
+from texlate.server.worker._common import (
     zh_slot,
 )
-from .html import (
+from texlate.server.worker.html import (
     _dual_chunk_row,
 )
+from texlate.xlat.state import atomic_json
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 class _CompileArtifacts:

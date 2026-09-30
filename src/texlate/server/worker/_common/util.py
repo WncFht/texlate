@@ -16,14 +16,14 @@ from texlate.server.settings import (
     DEFAULT_COMPILE_TIMEOUT_S,
     scrub,
 )
-from texlate.server.worker._common_const import PROGRESS
+from texlate.server.worker._common.const import PROGRESS
 from texlate.textutil import env_float
 from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT, opt_switch
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from texlate.server.worker._common_ctx import TaskCtx
+    from texlate.server.worker._common.ctx import TaskCtx
 
 #: env 超时值 24h 封顶——更大属配置错误；单源在 settings
 #: （``COMPILE_TIMEOUT_MAX_S``），本别名保 ``worker.__init__`` 再出口旧名

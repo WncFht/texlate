@@ -1,4 +1,4 @@
-"""worker.translate_glossary — 术语表层解析/装配叶 (worker.translate 域缝叶)。
+"""worker.translate.glossary — 术语表层解析/装配叶 (worker.translate 域缝叶)。
 
 ``_glossary_path`` ``glossary`` 选项 confine 仲裁、``_local_glossary``
 论文级 ``glossary.local.yaml`` 探测、``_glossary_layers`` 生效层三面
@@ -14,20 +14,18 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.pipecore import auto_glossary_fn
 from texlate.repair import resolve_glossary_path
+from texlate.server.worker._common import _glossary_option, opt_bool
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import (
     LOCAL_GLOSSARY_NAME,
     Glossary,
 )
 
-from ._common import _glossary_option, opt_bool
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping
 
+    from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
-
-    from ._common import TaskCtx
 
 
 class _TranslateGlossary:

@@ -1,4 +1,4 @@
-"""worker.compile_engine — 引擎接线 + 依赖探针 + 实况帧 plumbing 叶 (worker.compile 域缝叶)。
+"""worker.compile.engine — 引擎接线 + 依赖探针 + 实况帧 plumbing 叶 (worker.compile 域缝叶)。
 
 引擎构造单点族（``_task_texmf``/``_new_engine``/``_engine``/``_fixloop_engine``）、
 编译前后依赖探针播报与差分对拍（``_probe_target``/``_probe_diff``）、修复链
@@ -19,13 +19,12 @@ from texlate.pipecore import (
     probe_report,
 )
 from texlate.server.worker import seams
-from texlate.texlog import log_text_of
-
-from ._common import (
+from texlate.server.worker._common import (
     _PROBE_LIST_CAP,
     _PROBE_SEEN_TAG,
     _scrub_deep,
 )
+from texlate.texlog import log_text_of
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,8 +34,7 @@ if TYPE_CHECKING:
         Engine,
     )
     from texlate.compile.probe import ProbeReport
-
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 log = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""worker.compile_en — en.pdf 臂叶 (worker.compile 域缝叶)。
+"""worker.compile.en — en.pdf 臂叶 (worker.compile 域缝叶)。
 
 原文侧编译链：``build-en`` 一次性树 copytree + seq 锚 identity 注锚
 + 编译 + fixloop 基建救援 + 截断残件判定（``_en_died``）+ en 侧
@@ -22,8 +22,7 @@ from texlate.repair_l2 import (
     err_signatures,
     err_signatures_text,
 )
-
-from .compile_splice import _seq_marks_on
+from texlate.server.worker.compile.splice import _seq_marks_on
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,8 +30,7 @@ if TYPE_CHECKING:
     from texlate.compile.engine import (
         CompRes,
     )
-
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 class _CompileEn:

@@ -1,4 +1,4 @@
-"""worker.compile_splice — zh 工程物化叶 (worker.compile 域缝叶)。
+"""worker.compile.splice — zh 工程物化叶 (worker.compile 域缝叶)。
 
 译文 splice 回 ``zh/`` 源码树 + ctex 注入 + ``zh-src.zip`` 登记，
 以及 fixloop/L2 改动回灌 ``zh/`` 的镜像同步件（``_sync_fixed_sources``
@@ -29,21 +29,20 @@ from texlate.latex.reconstruct import (
 from texlate.pipecore import (
     delivered_db,
 )
-from texlate.textutil import env_flag
-from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
-
-from ._common import (
+from texlate.server.worker._common import (
     _FIXLOOP_SRC_EXTS,
     _SENTINELS,
     chunk_db_id,
     opt_bool,
 )
+from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 log = logging.getLogger(__name__)
 

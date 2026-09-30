@@ -1,9 +1,9 @@
-"""worker.compile_stage — compiling 段编排 + ``_Compile`` 组合根叶 (worker.compile 域缝叶)。
+"""worker.compile.stage — compiling 段编排 + ``_Compile`` 组合根叶 (worker.compile 域缝叶)。
 
 终态阶梯编排（``_stage_compile``/``_compile_zh_or_salvage``/``_no_pdf_finish``）、
 zh 编译修复链驱动（``_compile_zh``：compile→judge→precheck→L2→fixloop→judge）、
 修复摘要归集件 ``_repair_detail``；``_Compile`` 是全部 compile_* 叶
-mixin 的组合根——worker ``PipelineWorker`` 经 ``from .compile import _Compile``
+mixin 的组合根——worker ``PipelineWorker`` 经 ``from texlate.server.worker.compile import _Compile``
 拿到的即本类，方法集分布见各叶 docstring。
 """
 
@@ -23,25 +23,23 @@ from texlate.pipecore import (
     reject_verdict,
 )
 from texlate.server.store import TERMINAL_STATUSES
-
-from ._common import (
+from texlate.server.worker._common import (
     PROGRESS,
     _compile_done_verdict,
     _write_compile_done,
 )
-from .compile_artifacts import _CompileArtifacts
-from .compile_en import _CompileEn
-from .compile_engine import _CompileEngine
-from .compile_fixloop import _CompileFixloop
-from .compile_l2 import _CompileL2
-from .compile_splice import _CompileSplice
+from texlate.server.worker.compile.artifacts import _CompileArtifacts
+from texlate.server.worker.compile.en import _CompileEn
+from texlate.server.worker.compile.engine import _CompileEngine
+from texlate.server.worker.compile.fixloop import _CompileFixloop
+from texlate.server.worker.compile.l2 import _CompileL2
+from texlate.server.worker.compile.splice import _CompileSplice
 
 if TYPE_CHECKING:
     from texlate.compile.engine import (
         CompRes,
     )
-
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 def _repair_detail(ctx: TaskCtx, *, include_share: bool = False) -> dict[str, Any]:

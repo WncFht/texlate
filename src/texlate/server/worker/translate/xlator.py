@@ -1,4 +1,4 @@
-"""worker.translate_xlator — Translator 构造决策链叶 (worker.translate 域缝叶)。
+"""worker.translate.xlator — Translator 构造决策链叶 (worker.translate 域缝叶)。
 
 ``_resolve_translator`` 统一构造决策链（``translator_factory`` 注入 →
 ``TEXLATE_TRANSLATOR=mock`` → 网关臂 → 无 key 硬失败）、``_retry_model_of``
@@ -12,19 +12,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from texlate.server.settings import validate_model
+from texlate.server.worker._common import _FallbackTranslator, _PerCallTranslator
 from texlate.textutil.osutil import translator_mode
 from texlate.xlat.client import DEFAULT_MODEL, AuthError, ChatClient
 from texlate.xlat.pipeline import GatewayTranslator, MockTranslator
 
-from ._common import _FallbackTranslator, _PerCallTranslator
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import UsageRecord
     from texlate.xlat.pipeline import Translator
-
-    from ._common import TaskCtx
 
 
 class _TranslateXlator:

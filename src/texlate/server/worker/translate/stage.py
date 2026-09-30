@@ -1,4 +1,4 @@
-"""worker.translate_stage — translating 段编排叶 + ``_Translate`` 组合根 (worker.translate 域缝叶)。
+"""worker.translate.stage — translating 段编排叶 + ``_Translate`` 组合根 (worker.translate 域缝叶)。
 
 translating 段主链：``_stage_translate``（XlatPipeline 跑 chunks pending
 集 + 批量 flush 落盘）、``_teardown_translate``（正常/fault/cancel 全
@@ -7,7 +7,7 @@ translating 段主链：``_stage_translate``（XlatPipeline 跑 chunks pending
 ``_flush_translate``（批量事务落盘 + chunk 事件）、``_invalidate_splice``
 （译文变更摘 ``.splice-done`` 哨兵 + 陈旧产物并删）。``_Translate`` 是
 全部 translate_* 叶 mixin 的组合根——worker ``PipelineWorker`` 经
-``from .translate import _Translate``（惰性门面）取得。
+``from texlate.server.worker.translate import _Translate``（惰性门面）取得。
 """
 
 from __future__ import annotations
@@ -21,14 +21,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from texlate.server.worker import seams
-from texlate.validate.l0 import pair_feedback
-from texlate.xlat.pipeline import (
-    ChunkIn,
-    PipelineConfig,
-    XlatPipeline,
-)
-
-from ._common import (
+from texlate.server.worker._common import (
     _DB_TO_PIPE,
     _FLUSH_MS,
     _FLUSH_N,
@@ -45,17 +38,22 @@ from ._common import (
     _translator_clients,
     chunk_error_code,
 )
-from .translate_cache import _TranslateCache
-from .translate_envjudge import _TranslateEnvJudge
-from .translate_glossary import _TranslateGlossary
-from .translate_usage import _TranslateUsage
-from .translate_xlator import _TranslateXlator
+from texlate.server.worker.translate.cache import _TranslateCache
+from texlate.server.worker.translate.envjudge import _TranslateEnvJudge
+from texlate.server.worker.translate.glossary import _TranslateGlossary
+from texlate.server.worker.translate.usage import _TranslateUsage
+from texlate.server.worker.translate.xlator import _TranslateXlator
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.pipeline import (
+    ChunkIn,
+    PipelineConfig,
+    XlatPipeline,
+)
 
 if TYPE_CHECKING:
+    from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
     from texlate.xlat.pipeline import ChunkResult
-
-    from ._common import TaskCtx
 
 log = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@
 client 按 running loop 懒建复用（分桶/摘除/尽力收尾机制单源在
 ``server._ttlcache.LoopClientPool``）；``_AbortingTranslator`` 是
 ``_run_doc`` 的取消传导包装（``cancel_flag`` 置位 → 抛
-``_common_errors._SectionAbort`` 快失败收敛）。
+``_common.errors._SectionAbort`` 快失败收敛）。
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from texlate.server._ttlcache import LoopClientPool
-from texlate.server.worker._common_errors import _SectionAbort
+from texlate.server.worker._common.errors import _SectionAbort
 from texlate.xlat.client import ChatClient, ChatError
 from texlate.xlat.pipeline import GatewayTranslator
 

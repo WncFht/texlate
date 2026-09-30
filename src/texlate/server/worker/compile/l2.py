@@ -1,4 +1,4 @@
-"""worker.compile_l2 — L2 回灌 + 块级回写事务叶 (worker.compile 域缝叶)。
+"""worker.compile.l2 — L2 回灌 + 块级回写事务叶 (worker.compile 域缝叶)。
 
 L2 译文归因修复链：``_l2_run_state`` 重建 ``repair_l2.TreeRun`` 形态、
 ``_l2_repair_zh`` 一轮回灌（resplice→重编→复判）、``_l2_writeback``
@@ -23,15 +23,7 @@ from texlate.repair_l2 import (
     retranslate_hits,
     split_cid,
 )
-from texlate.validate.l0 import pair_feedback
-from texlate.xlat.pipeline import (
-    ChunkIn,
-    PipelineConfig,
-    XlatPipeline,
-    chunk_to_in,
-)
-
-from ._common import (
+from texlate.server.worker._common import (
     FAILED_DB,
     SegmentCache,
     _repend_puts,
@@ -41,13 +33,20 @@ from ._common import (
     _translator_clients,
     chunk_db_id,
 )
-from .compile_splice import (
+from texlate.server.worker.compile.splice import (
     _delivered_map,
     _seq_marks_on,
     _sync_fixed_sources,
 )
-from .share import (
+from texlate.server.worker.share import (
     _share_sourced,
+)
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.pipeline import (
+    ChunkIn,
+    PipelineConfig,
+    XlatPipeline,
+    chunk_to_in,
 )
 
 if TYPE_CHECKING:
@@ -59,8 +58,7 @@ if TYPE_CHECKING:
         Engine,
     )
     from texlate.compile.judge import Verdict
-
-    from ._common import TaskCtx
+    from texlate.server.worker._common import TaskCtx
 
 
 class _CompileL2:

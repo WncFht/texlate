@@ -1,14 +1,14 @@
 """``PipelineWorker._Compile`` + fixloop 模块件——compiling 段全链。
 
-god-split: 实现体按域拆进同包 7 叶——``compile_splice``（zh 工程物化：
-splice/zip/源码回灌同步）、``compile_engine``（引擎构造/任务 texmf 树/
-依赖探针/修复实况帧）、``compile_en``（en.pdf 臂）、``compile_fixloop``
-（fixloop/precheck/llm_hook 救援链）、``compile_l2``（L2 回灌 + 块级
-回写事务）、``compile_artifacts``（dual.json/md.zip/ToUnicode 交付产物）、
-``compile_stage``（终态阶梯编排 + zh 编译链驱动 + ``_Compile`` 组合根）。
+god-split: 实现体按域拆进同包 7 叶——``compile.splice``（zh 工程物化：
+splice/zip/源码回灌同步）、``compile.engine``（引擎构造/任务 texmf 树/
+依赖探针/修复实况帧）、``compile.en``（en.pdf 臂）、``compile.fixloop``
+（fixloop/precheck/llm_hook 救援链）、``compile.l2``（L2 回灌 + 块级
+回写事务）、``compile.artifacts``（dual.json/md.zip/ToUnicode 交付产物）、
+``compile.stage``（终态阶梯编排 + zh 编译链驱动 + ``_Compile`` 组合根）。
 本文件是 PEP 562 惰性门面（同 ``seqpos/__init__``/``fixloop/builtins``
 形制）——平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访
-解析并缓存，``compile.X`` 公共面与 ``from .compile import X`` 不变。
+解析并缓存，``compile.X`` 公共面与 ``from texlate.server.worker.compile import X`` 不变。
 monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）
 ——``compile.X`` 读到的恒是叶子对象，但 ``setattr(compile, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
@@ -23,30 +23,30 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.server.worker.compile_artifacts import (
+    from texlate.server.worker.compile.artifacts import (
         _CompileArtifacts,
     )
-    from texlate.server.worker.compile_en import (
+    from texlate.server.worker.compile.en import (
         _CompileEn,
     )
-    from texlate.server.worker.compile_engine import (
+    from texlate.server.worker.compile.engine import (
         _CompileEngine,
     )
-    from texlate.server.worker.compile_fixloop import (
+    from texlate.server.worker.compile.fixloop import (
         _CompileFixloop,
         _fixloop_summary,
     )
-    from texlate.server.worker.compile_l2 import (
+    from texlate.server.worker.compile.l2 import (
         _CompileL2,
     )
-    from texlate.server.worker.compile_splice import (
+    from texlate.server.worker.compile.splice import (
         _CompileSplice,
         _delivered_map,
         _seq_mark_scrub,
         _seq_marks_on,
         _sync_fixed_sources,
     )
-    from texlate.server.worker.compile_stage import (
+    from texlate.server.worker.compile.stage import (
         _Compile,
         _CompileStage,
         _repair_detail,
@@ -55,22 +55,22 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "compile_artifacts": ("_CompileArtifacts",),
-    "compile_en": ("_CompileEn",),
-    "compile_engine": ("_CompileEngine",),
-    "compile_fixloop": (
+    "artifacts": ("_CompileArtifacts",),
+    "en": ("_CompileEn",),
+    "engine": ("_CompileEngine",),
+    "fixloop": (
         "_CompileFixloop",
         "_fixloop_summary",
     ),
-    "compile_l2": ("_CompileL2",),
-    "compile_splice": (
+    "l2": ("_CompileL2",),
+    "splice": (
         "_CompileSplice",
         "_delivered_map",
         "_seq_mark_scrub",
         "_seq_marks_on",
         "_sync_fixed_sources",
     ),
-    "compile_stage": (
+    "stage": (
         "_Compile",
         "_CompileStage",
         "_repair_detail",
