@@ -242,6 +242,11 @@ spec = Spec(
     env_probes=["python"],
     code_deps=[
         "bench/py/specs/_fixture_matrix.py",
+        "bench/py/specs/_fixture_matrix_base.py",
+        "bench/py/specs/_fixture_matrix_tricky.py",
+        "bench/py/specs/_fixture_matrix_xw.py",
+        "bench/py/specs/_fixture_matrix_dm.py",
+        "bench/py/specs/_fixture_matrix_eval.py",
         "src/texlate/latex",
         "src/texlate/textutil.py",
         "bench/fixtures",
