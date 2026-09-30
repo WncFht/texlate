@@ -1,4 +1,4 @@
-r"""``latex.reconstruct_mark`` — zh.pdf seq 注锚机械（``reconstruct`` god-file 机械拆分叶）。
+r"""``latex.reconstruct.mark`` — zh.pdf seq 注锚机械（``reconstruct`` god-file 机械拆分叶）。
 
 ``/TLXC <</MCID 50000+seq>> BDC … EMC`` marked-content 锚的 token
 工厂 + 五闸谓词面（soul 栈/对齐 env/skip context/moving-arg/行间界，

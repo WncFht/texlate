@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_tok`` — token 源抽象（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.tok`` — token 源抽象（``_common`` god-file 机械拆分叶）。
 
 ``TokenSource`` 拉取契约 + 能力面 Protocol（展开源独有 live 栈/宏表/前瞻
 展开，回放源恒定缺省作答）+ ``_ListSource`` in_arg 子扫 deque 源 +

@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_util`` — 杂项常量/小 helper（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.util`` — 杂项常量/小 helper（``_common`` god-file 机械拆分叶）。
 
 清洗/注释/保护类型小表 + ``CHUNK_ARG_SPEC`` 解析缓存 + 组内再生保护常量 +
 ``_pick_cut`` 切点优先级链（``_split_bounds``/``_split_rendered`` 共用）。

@@ -1,4 +1,4 @@
-r"""``latex.reconstruct_validate`` — 译文契约校验 + ScanResult 结构校验（``reconstruct`` god-file 机械拆分叶）。
+r"""``latex.reconstruct.validate`` — 译文契约校验 + ScanResult 结构校验（``reconstruct`` god-file 机械拆分叶）。
 
 ``validate_translation``：``chunk.placeholders`` 多重集必须逐枚出现
 在译文 text 里（缺失/幻觉双侧报，``Counter`` 差集口径）。``

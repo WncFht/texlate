@@ -1,4 +1,4 @@
-r"""``latex.reconstruct_emit`` — splice 落稿哨兵（``reconstruct`` god-file 机械拆分叶）。
+r"""``latex.reconstruct.emit`` — splice 落稿哨兵（``reconstruct`` god-file 机械拆分叶）。
 
 ``splice_emit_issues`` 四臂体检：``emit_brace_skew`` 花括净深背离 /
 ``emit_env_unpaired`` env 配对崩坏 / ``emit_trans_dropped`` 交付译文
@@ -13,7 +13,7 @@ from collections import Counter
 from typing import Final
 
 from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct_mark import _brace_events
+from texlate.latex.reconstruct.mark import _brace_events
 from texlate.textutil import mask_tex
 
 _ENV_TOKEN_COUNT_RX = re.compile(r"\\(begin|end)\s*\{([^{}\s]+)\}")

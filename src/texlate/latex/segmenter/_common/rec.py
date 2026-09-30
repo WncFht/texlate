@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_rec`` — 记录型与 env/vtex helper（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.rec`` — 记录型与 env/vtex helper（``_common`` god-file 机械拆分叶）。
 
 ``_Vtex`` 叙事序虚拟文本 + ``_RunItem``/``_EnvDeadTok``/``_ArgTok`` run/
 墓标/参数记录型 + env 族三件（``_env_ph_type``/``_env_mand_count``/

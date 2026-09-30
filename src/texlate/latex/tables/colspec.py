@@ -1,4 +1,4 @@
-r"""``latex.tables_colspec`` — 列型前导启发（``tables`` god-file 机械拆分叶）。
+r"""``latex.tables.colspec`` — 列型前导启发（``tables`` god-file 机械拆分叶）。
 
 未注册环境 ``\\begin{env}{preamble}`` 第一参的列型判据：剥 cs 名与
 内层花括号组（``*{n}{spec}`` 先解卷）后只剩列型字符且含列型字母 →

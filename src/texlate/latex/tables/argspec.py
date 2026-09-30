@@ -1,4 +1,4 @@
-r"""``latex.tables_argspec`` — ``data/argspec.json`` 装载与查表（``tables`` god-file 机械拆分叶）。
+r"""``latex.tables.argspec`` — ``data/argspec.json`` 装载与查表（``tables`` god-file 机械拆分叶）。
 
 ``argspec_tables`` 懒加载 + 进程级缓存 → ``(macros, envs)`` 两张
 ``name → ArgspecEntry`` 表；``argspec_lookup``/``argspec_lookup_env``

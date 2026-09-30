@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_slots`` — 待绑参槽列 ↔ 归一走参元（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.slots`` — 待绑参槽列 ↔ 归一走参元（``_common`` god-file 机械拆分叶）。
 
 槽字母表（``_PEND_CALL*``/``_PEND_PROBE``/``_HYPERREF_SLOTS``/``_BSBS_SLOTS``/
 ``_ACCENT_SLOTS``/``_KEYARG_*``/``_COND_GROUP_ARGS``）与 ``_WSpec`` 归一投影

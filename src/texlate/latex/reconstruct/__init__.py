@@ -19,7 +19,7 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/spec/latex-pipeline.md）
 C3 拆分：实现体按域拆进 ``latex/`` 下 ``reconstruct_<域>.py`` 五兄弟叶，
 本文件是 PEP 562 惰性门面（同 ``fixloop/builtins/__init__`` 形制）——
 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
-``reconstruct.X`` 公共面与 ``from ... import X`` 测试面不变。叶子私名
+``reconstruct.X`` 公共面与 ``from  import X`` 测试面不变。叶子私名
 同样经映射回引（``_Expander``/``_mark_open`` 等原门面名面全守恒），
 新代码请直引叶子模块。monkeypatch 锚点注意：setattr 只遮蔽门面不改
 叶子——patch 须指向叶子模块同名。
@@ -32,14 +32,14 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.latex.reconstruct_core import _Expander, reconstruct
-    from texlate.latex.reconstruct_emit import (
+    from texlate.latex.reconstruct.core import _Expander, reconstruct
+    from texlate.latex.reconstruct.emit import (
         _C1_CTRL_RX,
         _ENV_TOKEN_COUNT_RX,
         _SEG_HIT_MIN_CHARS,
         splice_emit_issues,
     )
-    from texlate.latex.reconstruct_fix import (
+    from texlate.latex.reconstruct.fix import (
         _CJK_PUNCT_CLOSE_RX,
         _CJK_PUNCT_RIGHT,
         _CJK_RX,
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
         translation_tokens,
         unicode_math_fix,
     )
-    from texlate.latex.reconstruct_mark import (
+    from texlate.latex.reconstruct.mark import (
         _ARG_TOK_RX,
         _BRACE_TOK_RX,
         _MARK_ALIGN_ENVS,
@@ -96,24 +96,24 @@ if TYPE_CHECKING:
         seq_mark_issues,
         strip_seq_marks,
     )
-    from texlate.latex.reconstruct_validate import (
+    from texlate.latex.reconstruct.validate import (
         TranslationVerdict,
         validate_result,
         validate_translation,
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "reconstruct_core": (
+    "core": (
         "_Expander",
         "reconstruct",
     ),
-    "reconstruct_emit": (
+    "emit": (
         "_C1_CTRL_RX",
         "_ENV_TOKEN_COUNT_RX",
         "_SEG_HIT_MIN_CHARS",
         "splice_emit_issues",
     ),
-    "reconstruct_fix": (
+    "fix": (
         "_CJK_PUNCT_CLOSE_RX",
         "_CJK_PUNCT_RIGHT",
         "_CJK_RX",
@@ -133,7 +133,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "translation_tokens",
         "unicode_math_fix",
     ),
-    "reconstruct_mark": (
+    "mark": (
         "_ARG_TOK_RX",
         "_BRACE_TOK_RX",
         "_MARK_ALIGN_ENVS",
@@ -170,7 +170,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "seq_mark_issues",
         "strip_seq_marks",
     ),
-    "reconstruct_validate": (
+    "validate": (
         "TranslationVerdict",
         "validate_result",
         "validate_translation",

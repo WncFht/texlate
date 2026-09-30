@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_fams`` — 分派族表与行判据谓词（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.fams`` — 分派族表与行判据谓词（``_common`` god-file 机械拆分叶）。
 
 族 tag → 行判据单源 ``_FAM_BIND`` + ``_fams`` 序列表投影：三面分派表
 （``mainloop._DISPATCH_FAMS``/``pending._GRP_SURFACE_FAMS``/

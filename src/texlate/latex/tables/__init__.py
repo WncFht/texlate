@@ -4,17 +4,17 @@ r"""命令族常量表（纯数据，零逻辑）。
 外加重写新增表：``ARG_TRANSPARENT_ENVS`` / ``CHUNK_ARG_SPEC`` /
 ``\\if`` 两档分族 / 回压常数。
 
-拆分：实现体按域拆进同包五叶——``tables_names``（阈值 + 环境族 +
+拆分：实现体按域拆进同包五叶——``tables.names``（阈值 + 环境族 +
 命令族名表 + ``CHUNK_ARG_SPEC`` + model 兼容再出口五名）、
-``tables_scan``（``\\if`` 两档 + 扫描层共享表 + ``PAIR_BLOCK_*`` +
-``strip_fname_quotes``）、``tables_tail``（``BOUNDARY_TAIL``/
+``tables.scan``（``\\if`` 两档 + 扫描层共享表 + ``PAIR_BLOCK_*`` +
+``strip_fname_quotes``）、``tables.tail``（``BOUNDARY_TAIL``/
 ``DIMEN_TAIL_KIND``/``BOX_TAIL_NAMES``/``TRANSPARENT_HEAD_SPEC``
-尾参 spec 表）、``tables_argspec``（``data/argspec.json`` 装载 +
-``argspec_lookup*`` 两路查表）、``tables_colspec``（列型前导启发
+尾参 spec 表）、``tables.argspec``（``data/argspec.json`` 装载 +
+``argspec_lookup*`` 两路查表）、``tables.colspec``（列型前导启发
 ``looks_like_colspec``）。本文件是 PEP 562 惰性门面（同
 ``compile.normalize`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回叶子，
 ``__getattr__`` 首访解析并缓存，``tables.X`` 公共面与
-``from ... import X`` 属性读面不变。叶子间互引走全路径直跨，
+``from  import X`` 属性读面不变。叶子间互引走全路径直跨，
 不经本门面。monkeypatch 锚点注意：setattr 只遮蔽门面不改叶子——
 patch 须指向叶子模块同名。
 """
@@ -26,7 +26,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.latex.tables_argspec import (
+    from texlate.latex.tables.argspec import (
         argspec_lookup,
         argspec_lookup_env,
         argspec_tables,
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
         json,
         resources,
     )
-    from texlate.latex.tables_colspec import (
+    from texlate.latex.tables.colspec import (
         _COLSPEC_CHARS,
         _COLSPEC_COLS,
         _COLSPEC_CS_RX,
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
         _COLSPEC_STAR_RX,
         looks_like_colspec,
     )
-    from texlate.latex.tables_names import (
+    from texlate.latex.tables.names import (
         _DEAD_ENVS,
         _VERBATIM_ENVS,
         ACCENT_CHARS,
@@ -74,7 +74,7 @@ if TYPE_CHECKING:
         ArgspecEntry,
         annotations,
     )
-    from texlate.latex.tables_scan import (
+    from texlate.latex.tables.scan import (
         _WS_CHARS,
         COND_RX,
         FILENAME_CHARS,
@@ -88,7 +88,7 @@ if TYPE_CHECKING:
         re,
         strip_fname_quotes,
     )
-    from texlate.latex.tables_tail import (
+    from texlate.latex.tables.tail import (
         BOUNDARY_TAIL,
         BOX_TAIL_NAMES,
         DIMEN_TAIL_KIND,
@@ -96,7 +96,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "tables_argspec": (
+    "argspec": (
         "argspec_lookup",
         "argspec_lookup_env",
         "argspec_tables",
@@ -104,7 +104,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "json",
         "resources",
     ),
-    "tables_colspec": (
+    "colspec": (
         "_COLSPEC_CHARS",
         "_COLSPEC_COLS",
         "_COLSPEC_CS_RX",
@@ -112,7 +112,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_COLSPEC_STAR_RX",
         "looks_like_colspec",
     ),
-    "tables_names": (
+    "names": (
         "ACCENT_CHARS",
         "ARG_TRANSPARENT_ENVS",
         "ArgSpec",
@@ -144,7 +144,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_VERBATIM_ENVS",
         "annotations",
     ),
-    "tables_scan": (
+    "scan": (
         "COND_RX",
         "FILENAME_CHARS",
         "IF_CONST",
@@ -158,7 +158,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "re",
         "strip_fname_quotes",
     ),
-    "tables_tail": (
+    "tail": (
         "BOUNDARY_TAIL",
         "BOX_TAIL_NAMES",
         "DIMEN_TAIL_KIND",

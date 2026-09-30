@@ -1,19 +1,19 @@
 r"""``latex/segmenter`` 共享层——常量/helper/数据类（原模块级原样搬移）。
 
-拆分：实现体按域拆进同包七叶——``_common_tail``（非文本尾参扫：操作数
+拆分：实现体按域拆进同包七叶——``_common.tail``（非文本尾参扫：操作数
 正则机 + ``_OPERAND_SCAN_STOP`` 终止符集 + ``_TAIL_RX`` 六别尾扫）、
-``_common_slots``（待绑参槽字母表 ↔ ``_WSpec`` 归一投影 +
-``_COND_GROUP_ARGS``）、``_common_fams``（``_FAM_BIND`` 分派族表单源 +
+``_common.slots``（待绑参槽字母表 ↔ ``_WSpec`` 归一投影 +
+``_COND_GROUP_ARGS``）、``_common.fams``（``_FAM_BIND`` 分派族表单源 +
 ``_fams`` 行投影 + cite-ref/accent/inline-literal 谓词 +
-``_MATH_TEXTARG``）、``_common_prose``（散文参门控：keyval/名单形状门 +
-词链判据 + 吞块/死文本名闸）、``_common_tok``（``TokenSource`` 契约 +
-``_ListSource`` 回放源 + ``_pull_cursor`` 游标对）、``_common_rec``
+``_MATH_TEXTARG``）、``_common.prose``（散文参门控：keyval/名单形状门 +
+词链判据 + 吞块/死文本名闸）、``_common.tok``（``TokenSource`` 契约 +
+``_ListSource`` 回放源 + ``_pull_cursor`` 游标对）、``_common.rec``
 （``_Vtex`` + ``_RunItem``/``_EnvDeadTok``/``_ArgTok`` 记录型 + env 族
-helper 三件 + ``_verb_delim_tok``/``_doc_begin_of``）、``_common_util``
+helper 三件 + ``_verb_delim_tok``/``_doc_begin_of``）、``_common.util``
 （清洗/注释小表 + ``_chunk_spec_cached`` + ``_pick_cut`` 切点链）。
 本文件是 PEP 562 惰性门面（同 ``server.worker._common`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
-``from ._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
+``from texlate.latex.segmenter._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
 直跨（``texlate.latex.segmenter._common_*``），不经本门面。
 """
 
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from texlate.latex.macro_table import parse_argspec
     from texlate.latex.model import ArgSpec, PhType, Span
     from texlate.latex.placeholder import PH_RX
-    from texlate.latex.segmenter._common_tok import TokenSource
+    from texlate.latex.segmenter._common.tok import TokenSource
     from texlate.latex.tables import (
         ACCENT_CHARS,
         BOUNDARY_NAMES,
@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_RX, mask_tex
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_common_fams": (
+    "fams": (
         "_ENV_CS",
         "_FAM_BIND",
         "_MATH_CLOSE_CS",
@@ -78,7 +78,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_fams",
         "_inline_lit_cs",
     ),
-    "_common_prose": (
+    "prose": (
         "_COMMA_LIST_RX",
         "_DEAD_ARG_NAMES",
         "_DEAD_TAIL_NAMES",
@@ -96,7 +96,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_prose_text_hit",
         "_prose_word_hit",
     ),
-    "_common_rec": (
+    "rec": (
         "_ArgTok",
         "_EnvDeadTok",
         "_RunItem",
@@ -107,7 +107,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_scan_envtag",
         "_verb_delim_tok",
     ),
-    "_common_slots": (
+    "slots": (
         "_ACCENT_SLOTS",
         "_BSBS_SLOTS",
         "_COND_GROUP_ARGS",
@@ -130,7 +130,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_pend_slot_of",
         "_slot_elem",
     ),
-    "_common_tail": (
+    "tail": (
         "_BSBS_OPT_RX",
         "_DIMEN_NUM",
         "_DIMEN_UNIT",
@@ -146,14 +146,14 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_TAIL_RX",
         "_WS_NOPAR",
     ),
-    "_common_tok": (
+    "tok": (
         "_ListSource",
         "_TEXT_RUN_HEADS",
         "_Unpull",
         "TokenSource",
         "_pull_cursor",
     ),
-    "_common_util": (
+    "util": (
         "_ARG_COMMENT_RX",
         "_CHUNK_SPEC_CACHE",
         "_CLEAN_CMD_RX",
@@ -174,7 +174,7 @@ _LAZY: dict[str, str] = {
 }
 
 # 拆分前单件期模块属性面——stdlib 模块名与 texlate 顶层绑定也按名惰性解析，
-# 读面（``from ._common import X``/属性访问两形）与拆分前逐名等价。
+# 读面（``from texlate.latex.segmenter._common import X``/属性访问两形）与拆分前逐名等价。
 _STDLIB_MODS = ("re",)
 _EXTRA_BINDINGS = {
     "NamedTuple": "typing",

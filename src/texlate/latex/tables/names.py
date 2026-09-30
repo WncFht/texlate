@@ -1,4 +1,4 @@
-r"""``latex.tables_names`` — 阈值/环境族/命令族名表（``tables`` god-file 机械拆分叶）。
+r"""``latex.tables.names`` — 阈值/环境族/命令族名表（``tables`` god-file 机械拆分叶）。
 
 原型 ``miniscanner.py`` 常量区的扶正搬迁（含 discard 修正后的终值）：
 CHUNK/BUDGET/MAX_* 阈值、MATH/VERBATIM/PROTECTED env 族、chunk-arg/

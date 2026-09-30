@@ -1,4 +1,4 @@
-r"""``latex.reconstruct_core`` — pieces splice + 占位符 DAG 递归展开（``reconstruct`` god-file 机械拆分叶）。
+r"""``latex.reconstruct.core`` — pieces splice + 占位符 DAG 递归展开（``reconstruct`` god-file 机械拆分叶）。
 
 ``_Expander``：``trans_map → ph_map → chunks[idx].content → 字面``
 优先级展开器，memo + ``active`` 环检内建；注锚开启时停用 memo
@@ -13,7 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
-from texlate.latex.reconstruct_fix import (
+from texlate.latex.reconstruct.fix import (
     PAR_RUN_RX,
     cjk_glue_fix,
     cjk_punct_close_guard,
@@ -21,7 +21,7 @@ from texlate.latex.reconstruct_fix import (
     seg_join,
     translation_tokens,
 )
-from texlate.latex.reconstruct_mark import (
+from texlate.latex.reconstruct.mark import (
     _MARK_ALIGN_ENVS,
     _MARK_MOVING_CTX,
     _MARK_NONTEXT_CS,

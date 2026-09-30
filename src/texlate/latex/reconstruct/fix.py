@@ -1,4 +1,4 @@
-r"""``latex.reconstruct_fix`` — splice 译文侧修正链（``reconstruct`` god-file 机械拆分叶）。
+r"""``latex.reconstruct.fix`` — splice 译文侧修正链（``reconstruct`` god-file 机械拆分叶）。
 
 ``translations`` 落盘前的逐条/全局修正：``_restore_linestarts`` 行首
 ``\cs`` 归位 → ``unicode_math_fix`` → ``LATIN_ITEM_RX`` 保险丝（

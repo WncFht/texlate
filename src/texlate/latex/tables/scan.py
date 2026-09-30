@@ -1,4 +1,4 @@
-r"""``latex.tables_scan`` — 扫描层共享表与 \\if 两档（``tables`` god-file 机械拆分叶）。
+r"""``latex.tables.scan`` — 扫描层共享表与 \\if 两档（``tables`` god-file 机械拆分叶）。
 
 \\if 两档分族（``COND_RX``/``IF_CONST*``）、``PROTECTED_PARAM_CMDS``
 保护位参数启发、scan 层 \\input 触发面（``INPUT_SCAN_CMDS``/
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from texlate.latex.tables_names import CITE_NAMES, REF_NAMES
+from texlate.latex.tables.names import CITE_NAMES, REF_NAMES
 
 # ---------------------------------------------------------------- \if 两档
 

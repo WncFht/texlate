@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_prose`` — 散文参门控（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.prose`` — 散文参门控（``_common`` god-file 机械拆分叶）。
 
 调用点散文参判定的单源管线：keyval/逗号名单/裸键列形状门 +
 ``\\index``/``\\label`` 零宽调用剥除 + ≥4 连词词链判据 +

@@ -1,4 +1,4 @@
-r"""``latex.tables_tail`` — 结构尾参表（``tables`` god-file 机械拆分叶）。
+r"""``latex.tables.tail`` — 结构尾参表（``tables`` god-file 机械拆分叶）。
 
 ``BOUNDARY_TAIL`` BOUNDARY 命令的结构尾参 spec、``DIMEN_TAIL_KIND``
 裸操作数/赋值形命令的尾参种别（dimen/count/arith/rule/font/assign/

@@ -1,4 +1,4 @@
-r"""``latex.segmenter._common_tail`` — 非文本尾参扫（``_common`` god-file 机械拆分叶）。
+r"""``latex.segmenter._common.tail`` — 非文本尾参扫（``_common`` god-file 机械拆分叶）。
 
 裸操作数/赋值形命令的 dimension 尾：``\\vskip3pt``、``\\[5pt]``、
 ``\\font\\cs=cmr10 at 12pt`` 的非文本槽位不在 ``{}`` 组内——操作数
