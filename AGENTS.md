@@ -52,4 +52,5 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 - `bench/py/` 分两档：kernel/verbs/顶层工具纯 stdlib，系统 `python3 bench/py/bench <verb>` 即可跑；**`specs/` 里 import `texlate.*` 的 spec（e2e_mock/compilebench 等）要走装了依赖的 venv**——`uv run python bench/py/bench run <spec>`（`specs/_bootstrap.ensure()` 负责把 `src/` 准入 sys.path，但 httpx/typer 只在 venv 里）。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv（现 absent，按需重建）。
 - `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
 - `bench/corpus/` 语料清单是 arXiv e-print 解压原样的索引面，不改写；语料载荷在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（git checkout 之外）；新增语料登记对应 `MANIFEST.md`/`manifest*.jsonl`。
+- 写注释/起新名/改旧名先读 `docs/dev/conventions.md`（注释引用纪律 + 命名纪律：新键日期戳、禁编号代号）；冻结名与撞名登记在 `docs/spec/glossary.md`。
 - 参考实现 [ieeA](https://github.com/zcyisiee/ieeA) 只借鉴模式不搬代码。

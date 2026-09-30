@@ -10,6 +10,7 @@
 | `tools-runbook.md`      | 工具与运维手册：产品 CLI 简表、`scripts/` 全脚本、`bench/py/` spec 套/分析动词/kernel 分域清单、`bench/ts/` 与 `web/` 冒烟工具、运维手法沉淀                    | 现行   |
 | `bench-harness.md`      | 评测协议与分层契约：L0–L3 问题归层规则、四项评测内容、fixtures 字节即语义纪律、corpus 层化布局、run 产物仓外账本根                                              | 契约   |
 | `seams.md`              | 测试补丁缝纪律：惰性门面 patch 叶子、注册表 setitem、LoopCtx 平名转写；改动时的两侧义务与已登记接缝清单                                                         | 契约   |
+| `conventions.md`        | 代码注释与命名规约：注释引用纪律（禁 tmp/ 证据、行号锚规则）、命名纪律（日期戳/禁编号/同名登记义务）、冻结面——名册在 `../spec/glossary.md`                         | 契约   |
 | `errsweep-runbook.md`   | errsweep 清扫 agent 工作指令/审计契约——**链路已退役 2026-09-29，留存为历史档案**                                                                                    | 档案   |
 | `layoutqc.md`           | 版面质检 v2：分层检测电池（T0 bbox/日志、T1 raster+BIoU、T2 savepos 真值+LLM 评审）设计 + §10 校准实录 + §11 契约；`bench/py/specs/_layoutqc.py` 引用           | 契约   |
 | `automation.md`         | 每日自动化系统设计档案——daily-soak 与 errsweep 均已退役（分别 2026-09-21/09-29）                                                                                   | 档案   |

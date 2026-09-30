@@ -15,3 +15,4 @@
 | `benchmark.md`      | 评测套件规范：B1–B7 评测器矩阵与分层契约                                                                                                                    |
 | `bench-trizone.md`  | bench 内核终态设计：trizone 三区账本（事件账唯一事实源 + 字节按再生成本分区 + fail-closed 付费裁决）；架构图 `assets/trizone-arch.svg`                      |
 | `seqpos-decoder.md` | seqpos 解码层契约：双解码器 `_char_stream`、标记可信链、有界针配、行幅面栏判定、死区抑制、`_VERSION` 缓存纪律                                               |
+| `glossary.md`       | 术语表与冻结名登记：ledger/metrics/数据目录冻结键名册、域词一词一义、同名异义登记表——改名前先查                                                             |
