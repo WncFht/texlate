@@ -77,3 +77,4 @@ lib 件（非入口）：`_arm_lib.py`（arm 组 +0800 hms 窗契约 TZ8/hms/hms
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `chain_runs.sh`     | 触发件终态接力跑批：`--pid/--proc/--marker/--flag` 闸（默认全终态，`--any` 任一）→ `--then` 逐段裸 exec，START/EXIT/DONE 打戳 | `tools/chain_runs.sh --log tmp/x/run.log --log-dir tmp/x --pid 123 -- cmd1 --then cmd2` |
 | `fix_raise_msgs.py` | raise 字面量外提 codemod：`raise E(<lit>)` → `msg` 外提批处理（TRY003/EM 消债；默认 dry-run，`--write` 落盘）                 | `.venv/bin/python tools/fix_raise_msgs.py [PATH ...] [--write]`                         |
+| `ac_py_restore.py`  | autocorrect-on-py 手术回植：`--fix` 后把非 docstring 的字符串字面量按 token 对齐回植为 HEAD 原文（防夹具/协议串被平文改写） | `.venv/bin/python tools/ac_py_restore.py FILE...`（在 `autocorrect --fix` 之后跑）       |
