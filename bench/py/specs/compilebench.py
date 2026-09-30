@@ -58,6 +58,7 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
@@ -250,52 +251,24 @@ def _items() -> list[dict]:
 # ---------------------------------------------------------------- select 收窄
 
 
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
+def _dims(ctx: _sel.Ctx) -> bool:
+    """condition（arm ∈ 名单，"all" 通配）+ engines（variant@head ∈ 名单）。"""
+    conds = _sel.csv_set(ctx.rp.get("condition") or "baseline")
+    if "all" not in conds and str(ctx.item.get("arm")) not in conds:
+        return False
+    engs = _sel.csv_set(ctx.rp.get("engines") or "")
+    return not engs or str(ctx.item.get("variant", "")).split("@", 1)[0] in engs
+
+
+def _n_first(ctx: _sel.Ctx) -> bool:
+    return ctx.raw in set(_PIDS[: ctx.n])
 
 
 def _select(item: dict, rp: dict) -> bool:
     """run 期收窄（全 fp=False selector 族）：``ids=`` canon 双拼写直选 →
     ``condition=``（默认 baseline，逗分或 all）→ ``engines=`` →
     ``only=`` idc 子串 → ``n=`` 前 n 篇（sample 定序）。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        raw = str(item.get("id") or "")
-        r = _canon(raw)
-        idc = r.idc if r.ok and r.idc else raw
-        if raw not in want and idc not in want:
-            return False
-    conds = {
-        s.strip()
-        for s in str(rp.get("condition") or "baseline").split(",")
-        if s.strip()
-    }
-    if "all" not in conds and str(item.get("arm")) not in conds:
-        return False
-    engs = {s.strip() for s in str(rp.get("engines") or "").split(",") if s.strip()}
-    if engs and str(item.get("variant", "")).split("@", 1)[0] not in engs:
-        return False
-    only = str(rp.get("only") or "").strip()
-    if only:
-        raw = str(item.get("id") or "")
-        r = _canon(raw)
-        idc = r.idc if r.ok and r.idc else raw
-        needle_r = _canon(only)
-        needle = needle_r.idc if needle_r.ok and needle_r.idc else only
-        if needle not in idc:
-            return False
-    n = int(rp.get("n") or 0)
-    return not (n > 0 and str(item.get("id")) not in set(_PIDS[:n]))
+    return _sel.select(item, rp, pre=_dims, ids="gate", only="canon", sample=_n_first)
 
 
 # ---------------------------------------------------------------- 编译核
@@ -569,6 +542,7 @@ spec = Spec(
             "cb_compile",
             _cb_compile,
             eval=True,  # 终态行进 eval_records 车道
+            # 唯一字母表（含 fault、缺 dirty_pdf）——不为单点造预设。
             status_class={
                 "ok": "terminal",  # 词表要求——fn 不返但下游 accept 参照
                 "clean": "terminal",

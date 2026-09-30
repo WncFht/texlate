@@ -50,14 +50,15 @@ import pypdf  # 版本敏感（dossier：跨机 landmark 口径）→ 版本记 
 if TYPE_CHECKING:
     from pathlib import Path
 
-from kernel import idnorm, paths, vault
-from kernel.spec import Param, Spec, Stage
+from kernel import paths, vault
+from kernel.spec import SC_OK_ONLY, Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
 from specs import _qmetrics as qm
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from specs._shared import _DONE_STS, _last_done
 
 EPOCH = "v1"
@@ -138,27 +139,17 @@ def _src_items() -> list[dict]:
     return items
 
 
+def _run(ctx: _sel.Ctx) -> bool:
+    want_run = str(ctx.rp.get("run") or "").strip()
+    return not want_run or want_run in str(
+        (ctx.item.get("params") or {}).get("src_run") or ""
+    )
+
+
 def _select(item: dict, rp: dict) -> bool:
-    """``run`` selector：src_run 子串收窄；``ids``：canon 双侧归一直选。"""
-    want_run = str(rp.get("run") or "").strip()
-    if want_run and want_run not in str(
-        (item.get("params") or {}).get("src_run") or ""
-    ):
-        return False
-    ids_p = str(rp.get("ids") or "").strip()
-    if ids_p:
-        want: set[str] = set()
-        for raw_tok in ids_p.split(","):
-            tok = raw_tok.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            res = idnorm.canon_id(tok)
-            if res.ok and res.idc:
-                want.add(res.idc)
-        if str(item.get("id")) not in want:
-            return False
-    return True
+    """``run`` selector：src_run 子串收窄；``ids``：canon want 集、item 侧
+    raw 直比。"""
+    return _sel.select(item, rp, pre=_run, ids="gate", item_canon="off")
 
 
 # ---------------------------------------------------------------- 源账复核
@@ -387,20 +378,12 @@ spec = Spec(
         Stage(
             "qxlat",
             _qxlat,
-            status_class={
-                "ok": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
+            status_class=SC_OK_ONLY,
         ),
         Stage(
             "qcompile",
             _qcompile,
-            status_class={
-                "ok": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
+            status_class=SC_OK_ONLY,
         ),
     ],
 )

@@ -54,7 +54,7 @@ from pathlib import Path
 import httpx
 from kernel import idnorm, lake
 from kernel import paid as paidmod
-from kernel.spec import Param, Spec, Stage
+from kernel.spec import SC_OK_PARTIAL, Param, Spec, Stage
 
 from specs import _bootstrap
 
@@ -592,12 +592,7 @@ spec = Spec(
             _xlat,
             paid=True,
             dedup_key=("idc", "arm", "variant"),
-            status_class={
-                "ok": "terminal",
-                "partial": "terminal",
-                "error": "retriable",
-                "skip": "retriable",
-            },
+            status_class=SC_OK_PARTIAL,
         ),
     ],
     gateway_factory=devin_factory(),

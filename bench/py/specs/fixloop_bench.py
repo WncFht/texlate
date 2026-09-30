@@ -65,13 +65,12 @@ import contextlib
 import functools
 import json
 import os
-import random
 import shutil
 import sqlite3
 import time
 from pathlib import Path
 
-from kernel import fsutil, idnorm, paths
+from kernel import fsutil, paths
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
@@ -80,6 +79,7 @@ _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as _flx
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from specs._shared import case_bridge
 from texlate.compile import route_project
 from texlate.compile.fixloop import fixloop
@@ -129,11 +129,6 @@ def _tier_of(verdict) -> str:
 # ---------------------------------------------------------------- items
 
 
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
-
-
 def _baseline_rows() -> dict[str, dict]:
     """index 复原 corpusv2 基线：{idc: metrics dict}（只读连接）。"""
     idx = paths.index_path()
@@ -179,7 +174,7 @@ def _manifest_sha() -> dict[str, str]:
             )
             if not sha:
                 continue
-            res = _canon(row["id"])
+            res = _sel.canon_res(row["id"])
             key = res.idc if res.ok and res.idc else str(row["id"])
             out.setdefault(key, str(sha))
             out.setdefault(str(row["id"]), str(sha))
@@ -198,7 +193,7 @@ def _items() -> list[dict]:
     for idc in sorted(rows):
         m = rows[idc]
         engines_m = m.get("engines") or {}
-        res = _canon(idc)
+        res = _sel.canon_res(idc)
         cid = res.idc if res.ok and res.idc else idc
         for eng in ENGINES:
             be = engines_m.get(eng) or {}
@@ -237,49 +232,31 @@ def _sample_idcs(n: int, seed: int) -> set[str]:
     """论文级 seeded 抽样（样本 n 篇 → 该篇全部引擎格保留）。"""
     pool: set[str] = set()
     for it in _items_cached():
-        res = _canon(it["id"])
+        res = _sel.canon_res(it["id"])
         if res.ok and res.idc:
             pool.add(res.idc)
-    pool_l = sorted(pool)
-    rng = random.Random(seed)
-    return set(rng.sample(pool_l, min(n, len(pool_l))))
+    return _sel.seeded(sorted(pool), n, seed)
+
+
+def _engines(ctx: _sel.Ctx) -> bool:
+    engs = _sel.csv_set(ctx.rp.get("engines") or "xelatex,tectonic")
+    return not engs or str((ctx.item.get("params") or {}).get("engine")) in engs
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.idc in _sample_idcs(ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
     """run 期收窄：engines → ids（raw/canon 双侧）→ only 子串 → n/seed 抽样。"""
-    engs = {
-        s.strip()
-        for s in str(rp.get("engines") or "xelatex,tectonic").split(",")
-        if s.strip()
-    }
-    if engs and str((item.get("params") or {}).get("engine")) not in engs:
-        return False
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    ids_p = str(rp.get("ids") or "").strip()
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    only = str(rp.get("only") or "").strip()
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        if needle not in idc and only not in raw:
-            return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        return idc in _sample_idcs(n, seed)
-    return True
+    return _sel.select(
+        item,
+        rp,
+        pre=_engines,
+        ids="decisive",
+        only="either",
+        sample=_n_sample,
+    )
 
 
 # ---------------------------------------------------------------- stage
@@ -468,6 +445,7 @@ spec = Spec(
         Stage(
             "fl_b3",
             _fl_b3,
+            # 唯一字母表（ok/fault + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "fault": "terminal",

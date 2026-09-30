@@ -61,6 +61,7 @@ from specs import _bootstrap
 
 _bootstrap.ensure()
 
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from texlate.validate import l0
 from texlate.validate.l0 import Severity, validate_pair
 
@@ -826,42 +827,36 @@ def _items() -> list[dict]:
     return items
 
 
+def _n_run(ctx: _sel.Ctx) -> bool:
+    """n 抽样只圈 vb_run 池——探针格不是样本（B6 gate 的一部分）。"""
+    pool = sorted(str(it["id"]) for it in _ITEMS_POOL if it.get("stage") == "vb_run")
+    return ctx.raw in _sel.seeded(pool, ctx.n, ctx.seed)
+
+
 def _select(item: dict, rp: dict) -> bool:
     """窄化面：ids 逗列 / only 子串 / layers 层滤 / n+seed 湖内抽样。
 
-    probes 格：无窄化或窄化显式命中时选入；n 抽样只圈 vb_run 池，
-    探针格不被抽走（它是 B6 gate 的一部分，不是样本）。
+    probes 格：无窄化或窄化显式命中时选入；探针格不走标准管道
+    （layers/n 不应圈走它——它是 B6 gate 的一部分，不是样本）。
     """
-    is_probe = item.get("stage") == "vb_probes"
-    ids_p = str(rp.get("ids") or "").strip()
-    only = str(rp.get("only") or "").strip()
-    if is_probe:
+    if item.get("stage") == "vb_probes":
+        ids_p = str(rp.get("ids") or "").strip()
         if ids_p:
-            return "__probes__" in {t.strip() for t in ids_p.split(",") if t.strip()}
+            return "__probes__" in _sel.csv_set(ids_p)
+        only = str(rp.get("only") or "").strip()
         if only:
             return only in "__probes__"
         return True
-    pid = str(item.get("id") or "")
-    if ids_p:
-        want = {t.strip() for t in ids_p.split(",") if t.strip()}
-        if pid not in want:
-            return False
-    layers = {s.strip() for s in str(rp.get("layers") or "").split(",") if s.strip()}
-    if layers:
-        il = item.get("layers") or [item.get("layer")]
-        if not set(il) & layers:
-            return False
-    if only and only not in pid:
-        return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        pool = sorted(
-            str(it["id"]) for it in _ITEMS_POOL if it.get("stage") == "vb_run"
-        )
-        keep = set(random.Random(seed).sample(pool, min(n, len(pool))))
-        return pid in keep
-    return True
+    return _sel.select(
+        item,
+        rp,
+        ids="gate",
+        canon=False,
+        layers="",
+        layers_any=True,
+        only="raw",
+        sample=_n_run,
+    )
 
 
 _ITEMS_POOL: list[dict] = []  # select 的 n 抽样池（items() 物化后回填）
@@ -1049,6 +1044,7 @@ spec = Spec(
             "vb_run",
             _vb_run,
             eval=True,
+            # 唯一字母表（ok/fail/clean + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "fail": "terminal",
@@ -1061,6 +1057,7 @@ spec = Spec(
             "vb_probes",
             _vb_probes,
             eval=True,
+            # 唯一字母表（ok/fail 缺 skip——探针格无重试面）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "fail": "terminal",

@@ -37,7 +37,7 @@ import urllib.request
 from pathlib import Path
 
 from kernel import fsutil
-from kernel.spec import Param, Spec, Stage
+from kernel.spec import SC_OK_FAIL, Param, Spec, Stage
 
 REPO = Path(__file__).resolve().parents[3]
 _HF_REPO = "librarian-bots/arxiv-metadata-snapshot"
@@ -694,9 +694,6 @@ def _stamp(ctx):
     return "ok"
 
 
-_SC = {"ok": "terminal", "fail": "terminal", "error": "retriable", "skip": "retriable"}
-
-
 def _upstream_sha() -> str | None:
     """上游 head sha——plan 期一次性解析；ProxyHandler({}) 显式禁代理
     （泄漏的 127.0.0.1:7890 会把 HF 打成 SSL EOF，env -i 只管子进程）。"""
@@ -735,17 +732,17 @@ spec = Spec(
         "timeout_s": Param(type=int, default=3600, fp=False),
     },
     stages=[
-        Stage("snapshot", _snapshot, status_class=dict(_SC)),
-        Stage("derive", _derive, needs=[("snapshot", {"ok"})], status_class=dict(_SC)),
+        Stage("snapshot", _snapshot, status_class=SC_OK_FAIL),
+        Stage("derive", _derive, needs=[("snapshot", {"ok"})], status_class=SC_OK_FAIL),
         Stage(
-            "indexes", _indexes, needs=[("snapshot", {"ok"})], status_class=dict(_SC)
+            "indexes", _indexes, needs=[("snapshot", {"ok"})], status_class=SC_OK_FAIL
         ),
         Stage(
             "allocate",
             _allocate,
             needs=[("derive", {"ok"}), ("indexes", {"ok"})],
-            status_class=dict(_SC),
+            status_class=SC_OK_FAIL,
         ),
-        Stage("stamp", _stamp, needs=[("allocate", {"ok"})], status_class=dict(_SC)),
+        Stage("stamp", _stamp, needs=[("allocate", {"ok"})], status_class=SC_OK_FAIL),
     ],
 )

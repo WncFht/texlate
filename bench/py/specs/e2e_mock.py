@@ -42,15 +42,13 @@ precheck scan_install 的网络/系统副作用在付费闸定义外——登记
 
 from __future__ import annotations
 
-import functools
 import os
-import random
 import shutil
 from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from kernel import events, fsutil, idnorm, lake
+from kernel import events, fsutil, lake
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
 
 from specs import _bootstrap
@@ -58,6 +56,7 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
+from specs import _select as _sel  # run 期收窄单源（ids/layers/only/n 管道）
 from specs._sabotage import (
     PerturbTranslator,
     SabotageTranslator,
@@ -136,7 +135,7 @@ def _pool() -> dict:
                 continue
             if r.get("format") == "stub" or not r.get("n_tex"):
                 continue
-            res = idnorm.canon_id(str(pid))
+            res = _sel.canon_res(str(pid))
             idc = res.idc if res.ok and res.idc else str(pid)
             st = cat.state(idc)
             if st in _HYDRATABLE:
@@ -161,8 +160,9 @@ def _items() -> list[dict]:
     """全 frame：每 paper 连续发 8 cond 格（paper-major——同 idc 格相邻，
     same_id_serial 组内按发射序串行，pipe-tec→base-tec 序在此保证）。"""
     out: list[dict] = []
-    for pid in sorted(_pool()):
-        p = _pool()[pid]
+    pool = _pool()
+    for pid in sorted(pool):
+        p = pool[pid]
         out.extend(
             {
                 "id": pid,
@@ -174,11 +174,6 @@ def _items() -> list[dict]:
             for cond in CONDS
         )
     return out
-
-
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
 
 
 def _sample_idcs(
@@ -193,52 +188,30 @@ def _sample_idcs(
             and (not needle or needle in p["idc"])
         }
     )
-    rng = random.Random(seed)
-    return set(rng.sample(cands, min(n, len(cands))))
+    return _sel.seeded(cands, n, seed)
+
+
+def _conds(ctx: _sel.Ctx) -> bool:
+    conds = _sel.csv_set(ctx.rp.get("conditions") or DEFAULT_CONDITIONS)
+    return str(ctx.item.get("variant")) in conds
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.idc in _sample_idcs(_pool(), ctx.layers, ctx.needle, ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
     """G1 plan-filter：conditions（variant 门）→ ids 直选（bypass layers）
     → layers（缺省 core）→ only canon 子串 → n/seed 抽样。"""
-    conds = {
-        c.strip()
-        for c in str(rp.get("conditions") or DEFAULT_CONDITIONS).split(",")
-        if c.strip()
-    }
-    if str(item.get("variant")) not in conds:
-        return False
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    ids_p = str(rp.get("ids") or "").strip()
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    layers = {
-        s.strip() for s in str(rp.get("layers") or "core").split(",") if s.strip()
-    }
-    if layers and str(item.get("layer") or "") not in layers:
-        return False
-    needle = ""
-    only = str(rp.get("only") or "").strip()
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        if needle not in idc:
-            return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        return idc in _sample_idcs(_pool(), layers, needle, n, seed)
-    return True
+    return _sel.select(
+        item,
+        rp,
+        pre=_conds,
+        ids="decisive",
+        layers="core",
+        only="canon",
+        sample=_n_sample,
+    )
 
 
 # ---------------------------------------------------------------- Mode B/C 条件体
@@ -620,6 +593,7 @@ spec = Spec(
         Stage(
             "run",
             _run,
+            # 唯一字母表（五终态缺 dirty_pdf + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "clean": "terminal",

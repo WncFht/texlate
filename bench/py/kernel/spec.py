@@ -51,6 +51,11 @@ __all__ = [
     "EVAL_LAYERS",
     "EXECUTORS",
     "PARAM_TYPES",
+    "SC_OK_FAIL",
+    "SC_OK_ONLY",
+    "SC_OK_PARTIAL",
+    "SC_OK_REJECT",
+    "SC_SPECTRUM_UP",
     "SELECTOR_PARAMS",
     "STATUS_CLASSES",
     "Param",
@@ -86,6 +91,56 @@ DEFAULT_STATUS_CLASS = dict(
         }.items()
     )
 )
+
+# Named status_class presets for the shapes that recur verbatim across
+# shipped specs (census: 13 of ~30 Stage sites share these five tables).
+# Each preset is an exact-shape copy — dict content is wire data (lands in
+# spec.json / plan fp), never extend a preset to fit a new stage. A stage
+# whose fn-verdict alphabet matches no preset declares its own literal
+# inline (mandatory-declaration teeth in compile_checks apply either way).
+#
+# skip=upstream 档（SC_SPECTRUM_UP）表「skip 是等上游格」的链段语义；
+# 无 _UP 后缀的预设 skip=retriable（自格重试面）。
+SC_SPECTRUM_UP = {
+    "ok": "terminal",
+    "clean": "terminal",
+    "partial": "terminal",
+    "fail": "terminal",
+    "reject": "terminal",
+    "dirty_pdf": "terminal",
+    "skip": "upstream",
+    "error": "retriable",
+}
+
+# 二值 verdict（ok/fail）仪器格。
+SC_OK_FAIL = {
+    "ok": "terminal",
+    "fail": "terminal",
+    "skip": "retriable",
+    "error": "retriable",
+}
+
+# 裁决 verdict（ok/reject）——fn 无 skip 面，error 是唯一 retriable。
+SC_OK_REJECT = {
+    "ok": "terminal",
+    "reject": "terminal",
+    "error": "retriable",
+}
+
+# 纯测量格——verdict 只返 ok（发现全进 metrics）。
+SC_OK_ONLY = {
+    "ok": "terminal",
+    "skip": "retriable",
+    "error": "retriable",
+}
+
+# 部分成功 verdict（ok/partial）——翻译族产物格。
+SC_OK_PARTIAL = {
+    "ok": "terminal",
+    "partial": "terminal",
+    "skip": "retriable",
+    "error": "retriable",
+}
 
 EXECUTORS = frozenset({"thread", "process", "async-owned"})
 
@@ -231,7 +286,9 @@ class Stage:
     status_class {status: 'terminal'|'retriable'|'upstream'} — optional;
             DEFAULT_STATUS_CLASS applies when omitted. Declare whenever
             the stage can return non-standard statuses (paid stages
-            SHOULD — §3.1's mandatory review point).
+            SHOULD — §3.1's mandatory review point). The SC_* presets
+            cover the recurring fn-verdict alphabets; a unique alphabet
+            stays an inline literal.
     dedup_key None (asset default (idc,arm,variant)) | callable
             cell->(idc,arm,variant) | tuple of cell-field names.
     eval    stage's terminal rows also land in the eval_records lane

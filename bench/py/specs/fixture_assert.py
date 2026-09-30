@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 from kernel.spec import Param, Spec, Stage
 
 from specs import _fixture_matrix as fm
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -112,17 +113,15 @@ def _items() -> list[dict]:
     ]
 
 
+def _fixture(ctx: _sel.Ctx) -> bool:
+    """``fixture=`` 子串门——挂 post：decisive ids 命中时不得补查。"""
+    needle = str(ctx.rp.get("fixture") or "").strip()
+    return not needle or needle in ctx.raw
+
+
 def _select(item: dict, rp: dict) -> bool:
     """run 期子集化：ids= 精确逗分 → fixture= 子串 → only= 子串。"""
-    name = str(item.get("id") or "")
-    ids = str(rp.get("ids") or "").strip()
-    if ids:
-        return name in {t.strip() for t in ids.split(",") if t.strip()}
-    for key in ("fixture", "only"):
-        needle = str(rp.get(key) or "").strip()
-        if needle and needle not in name:
-            return False
-    return True
+    return _sel.select(item, rp, ids="decisive", canon=False, only="raw", post=_fixture)
 
 
 def _fx_assert(ctx) -> dict:
@@ -228,6 +227,7 @@ spec = Spec(
             "fx_assert",
             _fx_assert,
             eval=True,
+            # 唯一字母表（四终态缺 skip——fn 无重试面）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "partial": "terminal",

@@ -81,12 +81,13 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from kernel.spec import Param, Spec, Stage
+from kernel.spec import SC_OK_REJECT, Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from specs._shared import (
     DEFAULT_BASE_URL,
     DEFAULT_PRICES,
@@ -708,41 +709,31 @@ class _Select:
     def __init__(self) -> None:
         self.seen = 0
 
-    def __call__(self, item: dict, rp: dict) -> bool:
-        frames_p = str(rp.get("frames") or "").strip()
-        if frames_p:
-            want = {s.strip() for s in frames_p.split(",") if s.strip()}
-            if want and str(item.get("lane") or "") not in want:
-                return False
-        ids_p = str(rp.get("ids") or "").strip()
-        if ids_p:
-            from kernel import idnorm
+    def _dims(self, ctx: _sel.Ctx) -> bool:
+        frames = _sel.csv_set(ctx.rp.get("frames"))
+        if frames and str(ctx.item.get("lane") or "") not in frames:
+            return False
+        judges = _sel.csv_set(ctx.rp.get("judges"))
+        return (
+            not judges
+            or str((ctx.item.get("params") or {}).get("judge") or "") in judges
+        )
 
-            want: set[str] = set()
-            for tok0 in ids_p.split(","):
-                tok = tok0.strip()
-                if not tok:
-                    continue
-                want.add(tok)
-                r = idnorm.canon_id(tok)
-                if r.ok and r.idc:
-                    want.add(r.idc)
-            raw = str(item.get("id") or "")
-            if raw not in want and idnorm.idc_from_safe(raw) not in want:
-                return False
-        judges_p = str(rp.get("judges") or "").strip()
-        if judges_p:
-            want_j = {s.strip() for s in judges_p.split(",") if s.strip()}
-            if (
-                want_j
-                and str((item.get("params") or {}).get("judge") or "") not in want_j
-            ):
-                return False
-        n = int(rp.get("n") or 0)
-        if n > 0 and self.seen >= n:
+    def _take(self, ctx: _sel.Ctx) -> bool:
+        if self.seen >= ctx.n:
             return False
         self.seen += 1
         return True
+
+    def __call__(self, item: dict, rp: dict) -> bool:
+        return _sel.select(
+            item,
+            rp,
+            pre=self._dims,
+            ids="gate",
+            item_canon="safe",
+            sample=self._take,
+        )
 
 
 # ---------------------------------------------------------------- 格函数
@@ -904,11 +895,7 @@ spec = Spec(
             paid=True,
             eval=True,
             dedup_key=("idc", "arm", "variant"),
-            status_class={
-                "ok": "terminal",
-                "reject": "terminal",
-                "error": "retriable",
-            },
+            status_class=SC_OK_REJECT,
         ),
     ],
     freeze_plan=True,

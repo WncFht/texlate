@@ -38,19 +38,19 @@ r"""gullet — corpus 宏展开抽干评测器（``gullet_bench.py`` 的 Spec v2
 from __future__ import annotations
 
 import functools
-import random
 import time
 from collections import Counter
 from pathlib import Path
 
-from kernel import idnorm, lake
-from kernel.spec import Param, Spec, Stage
+from kernel import lake
+from kernel.spec import SC_OK_FAIL, Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from texlate.arxiv.locate import locate
 from texlate.latex.gullet import ArgMismatch, Gullet, _tok_eq
 from texlate.textutil import decode_tex
@@ -113,45 +113,20 @@ def _items() -> list[dict]:
 
 
 @functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
-
-
-@functools.cache
 def _sample_set(n: int, seed: int) -> frozenset:
     """旧抽样器原样：``Random(seed).sample(文件序 ids, min(n,len))``。"""
     ids = [it["id"] for it in _items()]
-    return frozenset(random.Random(seed).sample(ids, min(n, len(ids))))
+    return frozenset(_sel.seeded(ids, n, seed))
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.raw in _sample_set(ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
     """G1 plan-filter：ids 直选（canon 双侧归一）→ only 子串 →
     n/seed 文件序抽样。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    only = str(rp.get("only") or "").strip()
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        if needle not in idc:
-            return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        return raw in _sample_set(n, int(rp.get("seed") or 0))
-    return True
+    return _sel.select(item, rp, ids="decisive", only="canon", sample=_n_sample)
 
 
 # ---------------------------------------------------------------- stage: gexpand
@@ -264,12 +239,7 @@ spec = Spec(
         Stage(
             "gexpand",
             _gexpand,
-            status_class={
-                "ok": "terminal",
-                "fail": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
+            status_class=SC_OK_FAIL,
         ),
     ],
 )

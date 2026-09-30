@@ -60,11 +60,9 @@ v2 改读 ``res.inputs``（parse_file 自己登记的 ``(vpos, resolved realpath
 from __future__ import annotations
 
 import difflib
-import functools
 import json
 import math
 import os
-import random
 import re
 import shutil
 import signal
@@ -81,14 +79,15 @@ _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
-from kernel import idnorm, lake, paths
-from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+from kernel import lake, paths
+from kernel.spec import EVAL_LAYERS, SC_OK_PARTIAL, Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
+from specs import _select as _sel  # run 期收窄单源（ids/layers/only/n 管道）
 from specs._leak import LEAK_PATTERNS
 from texlate.latex import (
     flatten_inputs,
@@ -639,11 +638,6 @@ def _items() -> list[dict]:
     return _ITEMS
 
 
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
-
-
 _CAT_MEMO: dict = {"sig": None, "cat": None}
 
 
@@ -665,7 +659,7 @@ def _sampleable(item: dict) -> bool:
     """--n 抽样池谓词：**extracted 字节在场**（旧式「盘上可扫论文」同义——
     catalog 标 hydrated/pinned，或未登记但盘上完整）。raw_only 不在池：
     probe 判 partial 终态不可测，抽中即浪费样本位。"""
-    res = _canon(item["id"])
+    res = _sel.canon_res(item["id"])
     if not res.ok or not res.idc:
         return False
     st = _catalog().state(res.idc)
@@ -682,7 +676,7 @@ def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
     for it in _items():
         if layers and str(it.get("layer") or "") not in layers:
             continue
-        res = _canon(it["id"])
+        res = _sel.canon_res(it["id"])
         idc = res.idc if res.ok and res.idc else str(it["id"])
         if needle and needle not in idc:
             continue
@@ -691,45 +685,19 @@ def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
         if res.ok and res.idc:
             pool.append(res.idc)
     pool = sorted(set(pool))
-    rng = random.Random(seed)
-    return set(rng.sample(pool, min(n, len(pool))))
+    return _sel.seeded(pool, n, seed)
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.idc in _sample_ids(ctx.layers, ctx.needle, ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
     """G1 plan-filter：--ids 直选（canon 双拼写归一，bypass layers）→
     --layers（缺省 core）→ --only canon 子串 → --n/--seed 可测格抽样。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    layers = {
-        s.strip() for s in str(rp.get("layers") or "core").split(",") if s.strip()
-    }
-    if layers and str(item.get("layer") or "") not in layers:
-        return False
-    only = str(rp.get("only") or "").strip()
-    needle = ""
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        if needle not in idc:
-            return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        return idc in _sample_ids(layers, needle, n, seed)
-    return True
+    return _sel.select(
+        item, rp, ids="decisive", layers="core", only="canon", sample=_n_sample
+    )
 
 
 # ---------------------------------------------------------------- stage fns
@@ -1072,18 +1040,14 @@ spec = Spec(
         Stage(
             "pb_probe",
             _probe,
-            status_class={
-                "ok": "terminal",
-                "partial": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
+            status_class=SC_OK_PARTIAL,
         ),
         Stage(
             "pb_eval",
             _eval,
             needs=[("pb_probe", {"ok"})],
             eval=True,
+            # 唯一字母表（ok/partial/clean/fail + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "partial": "terminal",

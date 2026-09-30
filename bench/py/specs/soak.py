@@ -38,18 +38,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import functools
 import json
 import os
-import random
 import shutil
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kernel import fsutil, idnorm, lake, paths, vault
+from kernel import fsutil, lake, paths, vault
 from kernel import paid as paidmod
-from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+from kernel.spec import EVAL_LAYERS, SC_SPECTRUM_UP, Param, Spec, Stage
 
 from specs import _bootstrap
 
@@ -58,6 +56,7 @@ _bootstrap.ensure()
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
 from specs import _qmetrics as qp  # S5 指标单源（quality_proxies 叶化）
+from specs import _select as _sel  # run 期收窄单源（ids/layers/only/n 管道）
 from specs._shared import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
@@ -245,11 +244,6 @@ def _items() -> list[dict]:
     return _ITEMS
 
 
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
-
-
 _CAT_MEMO: dict = {"sig": None, "cat": None}
 
 
@@ -269,7 +263,7 @@ def _catalog() -> lake.LakeCatalog:
 
 def _sampleable(item: dict) -> bool:
     """--n 抽样池谓词：catalog 标可水化态，或未登记但盘上完整（seed 湖）。"""
-    res = _canon(item["id"])
+    res = _sel.canon_res(item["id"])
     if not res.ok or not res.idc:
         return False
     st = _catalog().state(res.idc)
@@ -298,7 +292,7 @@ def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
     for it in _items():
         if layers and str(it.get("layer") or "") not in layers:
             continue
-        res = _canon(it["id"])
+        res = _sel.canon_res(it["id"])
         idc = res.idc if res.ok and res.idc else str(it["id"])
         if needle and needle not in idc:
             continue
@@ -307,47 +301,21 @@ def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
         if res.ok and res.idc:
             pool.append(res.idc)
     pool = sorted(set(pool))
-    rng = random.Random(seed)
-    out = set(rng.sample(pool, min(n, len(pool))))
+    out = _sel.seeded(pool, n, seed)
     _SAMPLE_MEMO[key] = out
     return out
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.idc in _sample_ids(ctx.layers, ctx.needle, ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
     """G1 plan-filter：--ids 直选（canon 双拼写归一，bypass layers）→
     --layers（缺省 core）→ --only canon 子串 → --n/--seed 湖内抽样。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    layers = {
-        s.strip() for s in str(rp.get("layers") or "core").split(",") if s.strip()
-    }
-    if layers and str(item.get("layer") or "") not in layers:
-        return False
-    only = str(rp.get("only") or "").strip()
-    needle = ""
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        if needle not in idc:
-            return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        return idc in _sample_ids(layers, needle, n, seed)
-    return True
+    return _sel.select(
+        item, rp, ids="decisive", layers="core", only="canon", sample=_n_sample
+    )
 
 
 # ---------------------------------------------------------------- stage: ingest
@@ -1029,6 +997,7 @@ spec = Spec(
         Stage(
             "ingest",
             _ingest,
+            # 唯一字母表（ok/reject + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "reject": "terminal",
@@ -1041,6 +1010,7 @@ spec = Spec(
             _parse,
             needs=[("ingest", {"ok"})],
             mutates=["zh"],
+            # 唯一字母表（ok/reject + upskip）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "reject": "terminal",
@@ -1055,6 +1025,7 @@ spec = Spec(
             paid=True,
             mutates=["zh", "state"],
             dedup_key=("idc", "arm", "variant"),
+            # 唯一字母表（ok/partial/fail/reject + upskip）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "partial": "terminal",
@@ -1069,16 +1040,7 @@ spec = Spec(
             _compile,
             needs=[("xlat", {"ok", "partial"})],
             mutates=["splice"],
-            status_class={
-                "ok": "terminal",
-                "clean": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "dirty_pdf": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
+            status_class=SC_SPECTRUM_UP,
         ),
         Stage(
             "fixloop",
@@ -1091,16 +1053,7 @@ spec = Spec(
             paid=True,
             mutates=["splice"],
             dedup_key=("idc", "arm", "variant"),
-            status_class={
-                "ok": "terminal",
-                "clean": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "dirty_pdf": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
+            status_class=SC_SPECTRUM_UP,
         ),
     ],
 )

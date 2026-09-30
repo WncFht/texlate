@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import random
 import re
 import shutil
 import struct
@@ -52,11 +51,13 @@ import zlib
 from pathlib import Path
 
 from kernel import fsutil
-from kernel.spec import Param, Spec, Stage
+from kernel.spec import SC_OK_FAIL, Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
+
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 
 ROOT = Path(__file__).resolve().parents[3]
 NOMINATIONS = ROOT / "bench" / "nominations" / "wrapfloat_ids.jsonl"
@@ -313,37 +314,35 @@ def _items() -> list[dict]:
     return items
 
 
-def _corpus_sample(ids: list[str], n: int, seed: int) -> set[str]:
-    """corpus 族 seeded 抽 n（benchlib.pick_sample 同口径：排序池 + Random 抽）。"""
-    pool = sorted(set(ids))
-    rng = random.Random(seed)
-    return set(rng.sample(pool, min(n, len(pool))))
+def _post(ctx: _sel.Ctx) -> bool:
+    """fixture 门 + corpus 族 n>0 开门——挂 post：decisive ids 直选须 bypass
+    两闸（旧式 ids 命中即返，fixture/n 均不查）。"""
+    if ctx.item.get("stage") == "wf_case":
+        fixture = str(ctx.rp.get("fixture") or "").strip()
+        return not fixture or str(ctx.item.get("params", {}).get("fixture")) == fixture
+    # wf_pair：corpus 族须 n>0 显式开门（237 格双臂编译非默认面）
+    return ctx.n > 0
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    if ctx.item.get("stage") != "wf_pair":
+        return True
+    return ctx.raw in _sel.seeded(_corpus_pool(), ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
-    """ids 直选（两族通吃，bypass n）→ synth 族 fixture/only 过滤 →
-    corpus 族 n>0 才入场（旧 --corpus 缺省 0 = synth-only 的口径守恒）。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    raw = str(item.get("id") or "")
-    if ids_p:
-        want = {t.strip() for t in ids_p.split(",") if t.strip()}
-        return raw in want
-    if item.get("stage") == "wf_case":
-        fixture = str(rp.get("fixture") or "").strip()
-        if fixture and str(item.get("params", {}).get("fixture")) != fixture:
-            return False
-        only = str(rp.get("only") or "").strip()
-        return not only or only in raw
-    # wf_pair：corpus 族须 n>0 显式开门（237 格双臂编译非默认面）
-    only = str(rp.get("only") or "").strip()
-    if only and only not in raw:
-        return False
-    n = int(rp.get("n") or 0)
-    if n <= 0:
-        return False
-    seed = int(rp.get("seed") or 20260919)
-    pool = _corpus_pool()
-    return raw in _corpus_sample(pool, n, seed)
+    """ids 直选（两族通吃，raw only，bypass fixture/n）→ only 子串 →
+    synth 族 fixture 门 + corpus 族 n>0 开门 → seeded 抽样。"""
+    return _sel.select(
+        item,
+        rp,
+        ids="decisive",
+        canon=False,
+        only="raw",
+        post=_post,
+        sample=_n_sample,
+        seed_default=20260919,
+    )
 
 
 _CORPUS_POOL: list[str] | None = None
@@ -510,17 +509,13 @@ spec = Spec(
         Stage(
             "wf_case",
             _wf_case,
-            status_class={
-                "ok": "terminal",
-                "fail": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
+            status_class=SC_OK_FAIL,
             eval=True,
         ),
         Stage(
             "wf_pair",
             _wf_pair,
+            # 唯一字母表（ok/fail/partial + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "fail": "terminal",

@@ -53,7 +53,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import random
 import re
 import shutil
 import sys
@@ -67,7 +66,7 @@ try:
 except ImportError:
     _PYPDF_V = None
 
-from kernel import fsutil, idnorm, vault
+from kernel import fsutil, vault
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
@@ -75,6 +74,7 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
+from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -476,41 +476,29 @@ def _items_cached() -> list[dict]:
 def _sample_ids(n: int, seed: int) -> set[str]:
     """论文级 seeded 抽样（样本 n 篇 → 该篇全部 rel 格保留）。"""
     pool = sorted({str(it["id"]) for it in _items_cached()})
-    rng = random.Random(seed)
-    return set(rng.sample(pool, min(n, len(pool))))
+    return _sel.seeded(pool, n, seed)
+
+
+def _lane(ctx: _sel.Ctx) -> bool:
+    lanes = _sel.csv_set(ctx.rp.get("lane") or "vault,manifest")
+    return not lanes or str(ctx.item.get("lane")) in lanes
+
+
+def _n_sample(ctx: _sel.Ctx) -> bool:
+    return ctx.raw in _sample_ids(ctx.n, ctx.seed)
 
 
 def _select(item: dict, rp: dict) -> bool:
-    """run 期收窄：lane → ids（raw/canon 双侧）→ only 子串 → n/seed 抽样。"""
-    lanes = {
-        s.strip()
-        for s in str(rp.get("lane") or "vault,manifest").split(",")
-        if s.strip()
-    }
-    if lanes and str(item.get("lane")) not in lanes:
-        return False
-    raw = str(item.get("id") or "")
-    ids_p = str(rp.get("ids") or "").strip()
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = idnorm.canon_id(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        if raw not in want and idnorm.idc_from_safe(raw) not in want:
-            return False
-    only = str(rp.get("only") or "").strip()
-    if only and only not in raw:
-        return False
-    n = int(rp.get("n") or 0)
-    if n > 0:
-        seed = int(rp.get("seed") or 0)
-        return raw in _sample_ids(n, seed)
-    return True
+    """run 期收窄：lane → ids（raw/safe 双侧）→ only 子串 → n/seed 抽样。"""
+    return _sel.select(
+        item,
+        rp,
+        pre=_lane,
+        ids="gate",
+        item_canon="safe",
+        only="raw",
+        sample=_n_sample,
+    )
 
 
 # ---------------------------------------------------------------- en 基线格内编译
@@ -698,6 +686,7 @@ spec = Spec(
         Stage(
             "al_pair",
             _al_pair,
+            # 唯一字母表（ok/fail/clean/reject + 双 retriable）——不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "fail": "terminal",

@@ -72,9 +72,9 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kernel import fsutil, idnorm, vault
+from kernel import fsutil, vault
 from kernel import paid as paidmod
-from kernel.spec import Param, Spec, Stage
+from kernel.spec import SC_OK_REJECT, SC_SPECTRUM_UP, Param, Spec, Stage
 
 from specs import _bootstrap
 
@@ -82,6 +82,7 @@ _bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
+from specs import _select as _sel  # run 期收窄单源（ids/only 管道）
 from specs._layoutqc import qc_paper
 from specs._shared import (
     DEFAULT_MODEL,
@@ -183,35 +184,10 @@ def _items() -> list[dict]:
     return rows
 
 
-@functools.cache
-def _canon(raw: str):
-    return idnorm.canon_id(str(raw))
-
-
 def _select(item: dict, rp: dict) -> bool:
     """G1 plan-filter：--ids 直选（canon 双拼写+cat 别名折叠归一）→
     --only canon 子串——旧驱动 --ids/--only 窄化的 run 级等价物。"""
-    ids_p = str(rp.get("ids") or "").strip()
-    raw = str(item.get("id") or "")
-    res = _canon(raw)
-    idc = res.idc if res.ok and res.idc else raw
-    if ids_p:
-        want: set[str] = set()
-        for tok0 in ids_p.split(","):
-            tok = tok0.strip()
-            if not tok:
-                continue
-            want.add(tok)
-            r = _canon(tok)
-            if r.ok and r.idc:
-                want.add(r.idc)
-        return raw in want or idc in want
-    only = str(rp.get("only") or "").strip()
-    if only:
-        r = _canon(only)
-        needle = r.idc if r.ok and r.idc else only
-        return needle in idc
-    return True
+    return _sel.select(item, rp, ids="decisive", only="canon")
 
 
 # ---------------------------------------------------------------- stage: route
@@ -965,11 +941,7 @@ spec = Spec(
         Stage(
             "route",
             _route,
-            status_class={
-                "ok": "terminal",
-                "reject": "terminal",
-                "error": "retriable",
-            },
+            status_class=SC_OK_REJECT,
         ),
         Stage(
             "xlat",
@@ -978,6 +950,8 @@ spec = Spec(
             paid=True,
             mutates=["zh", "state"],
             dedup_key=("idc", "arm", "variant"),
+            # 唯一字母表（ok/partial/fail/reject + 双 retriable）——无第二处
+            # 同款，不为单点造预设。
             status_class={
                 "ok": "terminal",
                 "partial": "terminal",
@@ -992,16 +966,7 @@ spec = Spec(
             _compile,
             needs=[("xlat", {"ok", "partial"})],
             mutates=["splice"],
-            status_class={
-                "ok": "terminal",
-                "clean": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "dirty_pdf": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
+            status_class=SC_SPECTRUM_UP,
         ),
         Stage(
             "fixloop",
@@ -1015,31 +980,13 @@ spec = Spec(
                 "compile": {"clean", "partial", "fail", "reject", "dirty_pdf"},
             },
             mutates=["splice"],
-            status_class={
-                "ok": "terminal",
-                "clean": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "dirty_pdf": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
+            status_class=SC_SPECTRUM_UP,
         ),
         Stage(
             "base",
             _base,
             needs=[("route", {"ok", "reject"})],
-            status_class={
-                "ok": "terminal",
-                "clean": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "dirty_pdf": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
+            status_class=SC_SPECTRUM_UP,
         ),
         Stage(
             "layoutqc",
@@ -1071,6 +1018,7 @@ spec = Spec(
                 },
             },
             mutates=["layoutqc"],
+            # 唯一字母表（clean/ok/reject + upskip）——不为单点造预设。
             status_class={
                 "clean": "terminal",
                 "ok": "terminal",
