@@ -32,6 +32,19 @@ ledger 而非共享 work/ 目录）。
 （``for ex, group in by_exec.items()``），混 executor 会把链拆成两波
 让下游集体 needs-skip；``process`` 被 run() 明拒（env/meter 不可
 pickle）。xlat 的 async 编排由 fn 内 ``asyncio.run`` 自持。
+
+拆分（facade 化 god-split）：实现体按 stage 段拆进同包私有叶——
+``_soak_items``（corpus 行投影/catalog 缓存/抽样/items+select 挂点与
+ROOT/CORPUS/EPOCH/_HYDRATABLE 常量）、``_soak_ingest``（src 物化段）、
+``_soak_parse``（route→normalize→scan 段）、``_soak_xlat``（翻译段）、
+``_soak_compile``（splice 重建小件 + compile 段）、``_soak_fixloop``
+（修复段）、``_soak_spec``（spec 组合根）。本文件是 PEP 562 惰性门面
+（同 ``specs/corpus_v3.py`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
+叶子，``soak.X`` 与 ``from ... import X`` 面不变；``spec`` 住
+``_soak_spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
+``from specs._soak_X import Y`` 不绕本门面（避环）。monkeypatch 锚点
+注意：实现名住叶子模块——setattr patch 须指到叶子，门面 setattr
+只遮蔽门面不改叶子（同 corpus_v3 先例）。
 """
 
 from __future__ import annotations
@@ -52,6 +65,10 @@ from kernel.spec import EVAL_LAYERS, SC_SPECTRUM_UP, Param, Spec, Stage
 from specs import _bootstrap
 
 _bootstrap.ensure()
+
+import importlib
+import sys
+from typing import TYPE_CHECKING
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
@@ -98,962 +115,232 @@ from texlate.xlat.pipeline import (
 )
 from texlate.xlat.prompts import PROMPT_VERSION
 
-ROOT = Path(__file__).resolve().parents[3]
-CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
+if TYPE_CHECKING:
+    from specs._soak_compile import (
+        _compile,
+        _engine,
+        _ensure_translated,
+        _main_rel,
+        _rebuild,
+    )
+    from specs._soak_fixloop import (
+        _ON_PRED,
+        _fixloop,
+    )
+    from specs._soak_ingest import (
+        _BAD_FMTS,
+        _ingest,
+    )
+    from specs._soak_items import (
+        _CAT_MEMO,
+        _HYDRATABLE,
+        _ITEMS,
+        _SAMPLE_MEMO,
+        CORPUS,
+        EPOCH,
+        ROOT,
+        _catalog,
+        _corpus_rows,
+        _items,
+        _n_sample,
+        _sample_ids,
+        _sampleable,
+        _select,
+    )
+    from specs._soak_parse import _parse
+    from specs._soak_spec import spec
+    from specs._soak_xlat import _xlat
 
-#: 键域纪元——与 e2e_real 同一 "v1"，让 rekey 进 v1 的 139 格老 zh
-#: 与本 spec 产物共享 (idc,arm,variant) dedup/vault 键域；不加则 soak
-#: 落 "-" 域，与质检/保险库口径分裂。
-EPOCH = "v1"
 
-#: lake catalog 中「自带或可免费自愈字节」的态——hydrated/pinned 直读，
-#: raw_only 经 hydrate() 本地重解包零网络回 hydrated。
-_HYDRATABLE = frozenset({"hydrated", "pinned", "raw_only"})
-
-#: fmt 死路词表（本路径永不可解——reject 的 manifest_dead_end 系）。
-_BAD_FMTS = frozenset({"stub", "pdf", "error"})
-
-_ON_PRED: dict[str, object] = {
-    "fail": lambda c: c.get("status") == "fail",
-    "nonclean": lambda c: c.get("status") in {"fail", "partial"},
-    "misschar": lambda c: benchlib.misschar_partial(
-        c.get("status"), (c.get("metrics") or {}).get("verdict") or {}
+_LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
+    "_soak_items": (
+        "CORPUS",
+        "EPOCH",
+        "ROOT",
+        "_CAT_MEMO",
+        "_HYDRATABLE",
+        "_ITEMS",
+        "_SAMPLE_MEMO",
+        "_catalog",
+        "_corpus_rows",
+        "_items",
+        "_n_sample",
+        "_sample_ids",
+        "_sampleable",
+        "_select",
     ),
-    "clean": lambda c: c.get("status") == "clean",
-    # reject/skip 无有效 splice 树——post-judge 编译被拒英文树会虚增
-    # union-pdf（1e 审计 +414 phantom 上限）；error(harness 崩) 树态不定同排。
-    "all": lambda c: c.get("status") not in {"reject", "skip", "error"},
+    "_soak_ingest": (
+        "_BAD_FMTS",
+        "_ingest",
+    ),
+    "_soak_parse": ("_parse",),
+    "_soak_xlat": ("_xlat",),
+    "_soak_compile": (
+        "_compile",
+        "_engine",
+        "_ensure_translated",
+        "_main_rel",
+        "_rebuild",
+    ),
+    "_soak_fixloop": (
+        "_ON_PRED",
+        "_fixloop",
+    ),
+    "_soak_spec": ("spec",),
 }
 
-# ---------------------------------------------------------------- 小件共用
-#
-# _gate/_swap_in/_ensure_kind/_xlat_marker/_compile_judge/case_bridge 单源在
-# specs/_shared.py（e2e_real/fixloop_bench 同款——勿再长本地副本）。
+_LAZY: dict[str, str] = {
+    name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
+}
+
+_PKG = __package__ or "specs"  # load_spec exec 径下 __package__ 是 ""
+
+# 字面列表——ruff F401 re-export 判定要静态 __all__；键集 = _LAZY 键集 +
+# import 期名面（HEAD 全量 import 的平名）。新增导出两侧同步
+# （``_export_drift`` 是三表同步闸）。
+__all__ = [
+    "CORPUS",
+    "DEFAULT_BASE_URL",
+    "DEFAULT_MODEL",
+    "EPOCH",
+    "EVAL_LAYERS",
+    "LOCAL_GLOSSARY_NAME",
+    "PROMPT_VERSION",
+    "ROOT",
+    "SC_SPECTRUM_UP",
+    "UTC",
+    "_BAD_FMTS",
+    "_CAT_MEMO",
+    "_HYDRATABLE",
+    "_ITEMS",
+    "_ON_PRED",
+    "_SAMPLE_MEMO",
+    "AuthTrippedError",
+    "GatewayTranslator",
+    "Glossary",
+    "InjectRejectError",
+    "PaidEscape",
+    "Param",
+    "Path",
+    "PipelineConfig",
+    "ResProxy",
+    "RetryPolicy",
+    "Ruleset",
+    "SessionClient",
+    "SessionTranslator",
+    "Spec",
+    "Stage",
+    "TimedTranslator",
+    "XelatexEngine",
+    "_bootstrap",
+    "_catalog",
+    "_compile",
+    "_compile_judge",
+    "_corpus_rows",
+    "_engine",
+    "_ensure_kind",
+    "_ensure_translated",
+    "_fixloop",
+    "_gate",
+    "_ingest",
+    "_items",
+    "_last_done",
+    "_main_rel",
+    "_n_sample",
+    "_parse",
+    "_rebuild",
+    "_sample_ids",
+    "_sampleable",
+    "_scan_tree",
+    "_sel",
+    "_select",
+    "_swap_in",
+    "_xlat",
+    "_xlat_marker",
+    "asyncio",
+    "benchlib",
+    "case_bridge",
+    "classify_no_main",
+    "contextlib",
+    "datetime",
+    "delivered",
+    "devin_factory",
+    "find_main_tex",
+    "fixloop",
+    "flb",
+    "fsutil",
+    "json",
+    "lake",
+    "make_llm_hook",
+    "normalize_project",
+    "os",
+    "paidmod",
+    "paths",
+    "prepare_chinese",
+    "qp",
+    "route_project",
+    "scan_tex_tree",
+    "shutil",
+    "spec",
+    "time",
+    "translate_tree_async",
+    "validate_pair",
+    "vault",
+]
 
 
-def _rebuild(zh: Path, splice: Path) -> None:
-    """zh.- → splice.- 原样重建（旧 stagerun_lib.rebuild_splice 同式）。"""
-    if splice.exists():
-        shutil.rmtree(splice)
-    fsutil.copy_mutating(zh, splice)
+def __getattr__(name: str) -> object:
+    """平名惰性解析 → 叶子属性。"""
+    leaf = _LAZY.get(name)
+    if leaf is not None:
+        value = getattr(importlib.import_module(f"{_PKG}.{leaf}"), name)
+        globals()[name] = value
+        return value
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
 
-def _ensure_translated(ctx) -> tuple[Path | None, dict | None]:
-    """(zh dir, marker_doc) — marker 选树：同 run 上游优先，无 marker
-    回退 vault 已封副本。
+def __dir__() -> list[str]:
+    return __all__
 
-    parse/xlat 共 zh 键域：上游 parse 实跑产的 zh.- 树无
-    .xlat-arm.json，同 run xlat dedup 不再产物，下游 compile/fixloop
-    拿到的是遮蔽 marker 载荷的 parse 树（regen-888 27 格
-    not_translated 实证）。xlat 自己吃未标 parse 树走 _ensure_kind，
-    不走这里。
+
+def _export_drift() -> list[str]:
+    """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
+
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖:
+
+    - ``_LAZY`` 键全进 ``__all__``;
+    - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      ``AttributeError`` 唯一的提前闸;
+    - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
+
+    审计实载全部叶子, 只供测试调用, 装载期不自检。
     """
-    zh = _ensure_kind(ctx, "zh")
-    marker = _xlat_marker(zh) if zh is not None else None
-    if marker is not None:
-        return zh, marker
-    with contextlib.suppress(OSError):
-        if zh is not None:
-            shutil.rmtree(zh)
-    with contextlib.suppress(vault.VaultError):
-        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(), mode="copy")
-    zh = ctx.upstream_asset_dir("zh")
-    marker = _xlat_marker(zh) if zh is not None else None
-    return zh, marker
-
-
-def _main_rel(ctx, tree: Path) -> str | None:
-    """main_rel 三段式：parse 账 metrics → zh.-/parse.json → find_main_tex。"""
-    rec = _last_done(ctx, "parse")
-    m = ((rec or {}).get("metrics") or {}).get("main_rel")
-    if m:
-        return str(m)
-    zh = ctx.upstream_asset_dir("zh")
-    pj = (zh / "parse.json") if zh is not None else None
-    if pj is not None and pj.is_file():
-        try:
-            doc = json.loads(pj.read_text())
-            if doc.get("main_rel"):
-                return str(doc["main_rel"])
-        except (json.JSONDecodeError, OSError):
-            pass
-    found = find_main_tex(tree)
-    return found.relative_to(tree).as_posix() if found else None
-
-
-def _engine(ctx, root: Path) -> str:
-    """engine 三段式：params ≠ auto → parse 账 engine_resolved → route 兜底。"""
-    eng = str(ctx.params.get("engine") or "xelatex")
-    if eng != "auto":
-        return eng
-    rec = _last_done(ctx, "parse")
-    m = ((rec or {}).get("metrics") or {}).get("engine_resolved")
-    if m:
-        return str(m)
-    try:
-        return route_project(root, prefer="xelatex").engines[0]
-    except Exception:
-        return "xelatex"
-
-
-# ---------------------------------------------------------------- items/select
-
-
-def _corpus_rows() -> list[dict]:
-    """manifest*.jsonl 全行（eval 层剔除 + 同 id 首见胜）。
-
-    行字段随 cell 全量携带：id/layer/cat_group/format/channel/item/
-    member + fp_input=blob_sha256|main_tex_sha256。
-    """
-    rows: list[dict] = []
-    seen: set[str] = set()
-    for mp in sorted(CORPUS.glob("manifest*.jsonl")):
-        for row in benchlib.iter_jsonl(mp):
-            if not isinstance(row, dict):
-                continue
-            pid = row.get("id")
-            if not pid or pid in seen:
-                continue
-            if row.get("layer") in EVAL_LAYERS:
-                continue  # holdout 层只进 eval spec（spec.eval 门）
-            seen.add(pid)
-            rows.append(
-                {
-                    "id": str(pid),
-                    "variant": EPOCH,
-                    "layer": row.get("layer"),
-                    "cat_group": row.get("cat_group"),
-                    "format": row.get("format"),
-                    "channel": row.get("channel"),
-                    "item": row.get("item"),
-                    "member": row.get("member"),
-                    "fp_input": row.get("blob_sha256") or row.get("main_tex_sha256"),
-                }
-            )
-    return rows
-
-
-_ITEMS: list[dict] | None = None
-
-
-def _items() -> list[dict]:
-    """materialize-once item 源——compile_checks 物化进 spec.items。"""
-    global _ITEMS  # noqa: PLW0603
-    if _ITEMS is None:
-        _ITEMS = _corpus_rows()
-    return _ITEMS
-
-
-_CAT_MEMO: dict = {"sig": None, "cat": None}
-
-
-def _catalog() -> lake.LakeCatalog:
-    """mtime+size 签名缓存的 catalog 投影——在飞 hydrate 写行即失效重载。"""
-    p = paths.lake_catalog_path()
-    try:
-        st = p.stat()
-        sig = (st.st_mtime_ns, st.st_size)
-    except OSError:
-        sig = None
-    if sig != _CAT_MEMO["sig"] or _CAT_MEMO["cat"] is None:
-        _CAT_MEMO["cat"] = lake.LakeCatalog.load()
-        _CAT_MEMO["sig"] = sig
-    return _CAT_MEMO["cat"]
-
-
-def _sampleable(item: dict) -> bool:
-    """--n 抽样池谓词：catalog 标可水化态，或未登记但盘上完整（seed 湖）。"""
-    res = _sel.canon_res(item["id"])
-    if not res.ok or not res.idc:
-        return False
-    st = _catalog().state(res.idc)
-    if st in _HYDRATABLE:
-        return True
-    if st in ("failed", "empty"):
-        return False
-    return lake.is_complete(res.idc)
-
-
-_SAMPLE_MEMO: dict = {}
-
-
-def _sample_ids(layers: set[str], needle: str, n: int, seed: int) -> set[str]:
-    """分层不区分地 seeded 抽 n 个 canon id（benchlib.pick_sample 的湖版）。
-
-    select 钩子按 item 逐格调本函数——抽样结果按 (layers,needle,n,seed)
-    记忆化，否则 plan 是 O(items²) 且每趟重建都重新付 catalog 装载
-    （hydrate 在飞写 catalog 时每次 _sampleable 都可能触发重载）。
-    """
-    key = (frozenset(layers), needle, n, seed)
-    hit = _SAMPLE_MEMO.get(key)
-    if hit is not None:
-        return hit
-    pool = []
-    for it in _items():
-        if layers and str(it.get("layer") or "") not in layers:
-            continue
-        res = _sel.canon_res(it["id"])
-        idc = res.idc if res.ok and res.idc else str(it["id"])
-        if needle and needle not in idc:
-            continue
-        if not _sampleable(it):
-            continue
-        if res.ok and res.idc:
-            pool.append(res.idc)
-    pool = sorted(set(pool))
-    out = _sel.seeded(pool, n, seed)
-    _SAMPLE_MEMO[key] = out
-    return out
-
-
-def _n_sample(ctx: _sel.Ctx) -> bool:
-    return ctx.idc in _sample_ids(ctx.layers, ctx.needle, ctx.n, ctx.seed)
-
-
-def _select(item: dict, rp: dict) -> bool:
-    """G1 plan-filter：--ids 直选（canon 双拼写归一，bypass layers）→
-    --layers（缺省 core）→ --only canon 子串 → --n/--seed 湖内抽样。"""
-    return _sel.select(
-        item, rp, ids="decisive", layers="core", only="canon", sample=_n_sample
-    )
-
-
-# ---------------------------------------------------------------- stage: ingest
-
-
-def _ingest(ctx) -> dict:
-    """catalog 状态机分类 → src_path 物化；四键 metrics 同旧口径。
-
-    cat=code 旧约——sig 要能分流 stub_format/eprint_fetch_unwired 等
-    （旧世界 errors[0].cat 就是 code 字符串本身）。cat=ingest 只留给
-    no_extracted torn 格。
-    """
-    cell = ctx.cell
-    fmt = cell.get("format")
-    ch = cell.get("channel")
-    item = cell.get("item")
-    member = cell.get("member")
-    metrics = {
-        "n_files": 0,
-        "main_tex_guess": None,
-        "source": "ia" if item else None,
-        "sha256_ok": None,
-    }
-
-    st = _catalog().state(ctx.idc)
-    complete = lake.is_complete(ctx.idc)
-    if not complete:
-        # fmt 死路只在缺字节时判（旧式：extracted 在场者不看 manifest
-        # format 标签）；catalog state 再真也救不回 stub/pdf/error 伪条目。
-        if fmt in _BAD_FMTS:
-            c = f"{fmt}_format"
-            return _gate("reject", c, c, member, metrics)
-        if st == "failed":
-            # manifest_dead_end 系：catalog 判死的格 reject。
-            return _gate("reject", "catalog_failed", "catalog_failed", member, metrics)
-        if st == "empty":
-            # 空载荷格——src_path() 会把它投影成伪 ok 空树，先截。
-            return _gate("reject", "empty_payload", "empty_payload", member, metrics)
-
-    src = ctx.src_path()
-    if src is not None:
-        main = find_main_tex(src)
-        metrics.update(
-            {
-                "n_files": sum(1 for p in src.rglob("*") if p.is_file()),
-                "main_tex_guess": (main.relative_to(src).as_posix() if main else None),
-                "source": "lake",
-            }
-        )
-        return {"status": "ok", "metrics": metrics}
-    # src_path None 且 catalog 声称有货 = torn 湖格（raw/extracted 双缺，
-    # fetch_fn 未接）——error；未登记/不可水化态走 skip 分类树。
-    if complete or st in _HYDRATABLE:
-        return _gate("error", "no_extracted", "ingest", ctx.idc, metrics)
-    if not item:
-        c = "eprint_fetch_unwired" if ch == "arxiv_eprint" else "no_item"
-        return _gate("skip", c, c, member, metrics)
-    return _gate(
-        "skip", "ia_fetch_unwired", "ia_fetch_unwired", f"item={item}", metrics
-    )
-
-
-# ---------------------------------------------------------------- stage: parse
-
-
-def _parse(ctx) -> dict:
-    """route(src) → .zh-build 暂存 → find_main → normalize → scan →
-    zh.-/ + zh.-/parse.json（_parse_job 的 ctx 版平移）。
-
-    parse.json 双落点：``paper_dir/parse.json``（旧 ``wid/parse.json``
-    同位，本 run 诊断面）+ ``zh.-/parse.json``（随树封 vault——跨 run
-    的 main_rel/engine_resolved 消费面；route_reject 不出 zh.- 树，
-    与旧式 zh/ 缺席同义）。
-    """
-    src = ctx.src_path()
-    if src is None:
-        return _gate("skip", "no_src", "upstream", "lake cell materialization failed")
-    paper = ctx.paper_dir()
-    pj_root = paper / "parse.json"
-    stage = paper / ".zh-build"
-
-    def _write_doc(doc: dict) -> None:
-        text = json.dumps(doc, ensure_ascii=False, indent=1)
-        pj_root.write_text(text, encoding="utf-8")
-        zh = ctx.upstream_asset_dir("zh")
-        if zh is not None:
-            (zh / "parse.json").write_text(text, encoding="utf-8")
-
-    metrics: dict = {}
-    route = route_project(src)
-    metrics["route"] = {
-        "engines": route.engines,
-        "reject": route.reject,
-        "reasons": route.reasons,
-        "non_utf8": route.non_utf8,
-        "latex209_suspect": route.latex209_suspect,
-    }
-    doc: dict = {"id": ctx.idc, "route": metrics["route"]}
-    if route.reject:
-        doc["status"] = "reject"
-        if stage.exists():
-            shutil.rmtree(stage)
-        _write_doc(doc)
-        return _gate("reject", "route_reject", "route", route.reject, metrics)
-
-    if stage.exists():
-        shutil.rmtree(stage)
-    fsutil.copy_mutating(src, stage)
-
-    main = find_main_tex(stage)
-    if main is None:
-        sub = classify_no_main(stage)
-        doc["status"] = "reject"
-        doc["no_main_sub"] = sub
-        zh = ctx.asset_dir("zh")
-        _swap_in(stage, zh)  # zh.- 在场=未归一化原料树（旧式同形）
-        _write_doc(doc)
-        metrics["no_main_sub"] = sub
-        return _gate("reject", "no_main_tex", "parse", sub or "", metrics)
-    main_rel = main.relative_to(stage).as_posix()
-    eng = str(ctx.params.get("engine") or "xelatex")
-    if eng == "auto":
-        eng = route.engines[0] if route.engines else "xelatex"
-    norm = normalize_project(stage, eng, main_rel)
-    doc.update({"main_rel": main_rel, "engine_resolved": eng, "normalize": norm})
-    metrics.update({"main_rel": main_rel, "engine_resolved": eng, "normalize": norm})
-
-    scan = scan_tex_tree(stage)
-    files: list[dict] = []
-    warn_kinds: dict[str, int] = {}
-    unresolved: list[str] = []
-    n_chunks = 0
-    parse_fail = [f"{rel}: {exc!r:.160}" for rel, exc in scan.fault]
-    support = sorted(scan.support)
-    for _abs, rel, res in scan.parsed:
-        ws = [{"kind": w.kind, "pos": w.pos, "detail": w.detail} for w in res.warnings]
-        for w in res.warnings:
-            warn_kinds[w.kind] = warn_kinds.get(w.kind, 0) + 1
-        ins = [name for _pos, name in res.inputs]
-        unresolved.extend(f"{rel}:{n}" for n in ins)
-        n_chunks += len(res.chunks)
-        files.append(
-            {
-                "rel": rel,
-                "n_chunks": len(res.chunks),
-                "chunk_kinds": sorted({c.context for c in res.chunks}),
-                "warnings": ws,
-                "inputs": ins,
-            }
-        )
-    doc.update(
-        {
-            "status": "ok",
-            "files": files,
-            "parse_fail": parse_fail,
-            "support_files": support,
-            "totals": {
-                "tex_files": len(files),
-                "support_files": len(support),
-                "chunks": n_chunks,
-                "warn_kinds": dict(sorted(warn_kinds.items())),
-                "unresolved": unresolved,
-            },
-        }
-    )
-    zh = ctx.asset_dir("zh")
-    _swap_in(stage, zh)
-    _write_doc(doc)
-    metrics.update(
-        {
-            "tex_files": len(files),
-            "support_files": len(support),
-            "chunks": n_chunks,
-            "warn_kinds": doc["totals"]["warn_kinds"],
-            "n_unresolved": len(unresolved),
-            "parse_fail": parse_fail,
-        }
-    )
-    out = {"status": "ok", "metrics": metrics}
-    if parse_fail:
-        out["errors"] = [
-            {"code": "parse_file", "cat": "parse", "payload": p}
-            for p in parse_fail[:10]
-        ]
-    return out
-
-
-# ---------------------------------------------------------------- stage: xlat
-#
-# SessionClient/TimedTranslator/SessionTranslator/PaidEscape 单源在
-# specs/_shared.py——e2e_real/qualbench 复用同一桥。
-
-
-def _xlat(ctx) -> dict:
-    """zh.- → .zh-xlat 暂存翻译 → swap_in + state.- 明细 + marker。
-
-    全程「真网关」语义（soak 即 real 臂）：术语表注入 + term/leak 指标
-    恒开；oversize_cap 恒生效（配额闸）。
-    """
-    zh = _ensure_kind(ctx, "zh")
-    if zh is None or not (zh / "parse.json").exists():
-        return _gate(
-            "skip", "no_parse_tree", "upstream", "zh.-/ or zh.-/parse.json missing"
-        )
-    cat_group = ctx.cell.get("cat_group") or ""
-    src = ctx.src_path()  # local 术语层锚（glossary.local.yaml 在论文树）
-    session = ctx.gateway()
-    if not ctx.params.get("no_probe"):
-        session.probe_model()  # GatewayChat 无 probe_model → 门检后即 True
-
-    client = SessionClient(session)
-    translator = TimedTranslator(
-        GatewayTranslator(
-            client,
-            str(ctx.params["model"]),
-            policy=RetryPolicy(max_tries=int(ctx.params["max_tries"])),
-        )
-    )
-    cfg = PipelineConfig(concurrency=int(ctx.params["concurrency"]))
-    seg = ctx.seg_cache(
-        prompt_version=PROMPT_VERSION,
-        base_url=DEFAULT_BASE_URL,
-        model=str(ctx.params["model"]),
-        lang="zh",
-        glossary=cat_group,
-    )
-
-    def _glossary_fn(chunks: list) -> Glossary:
-        return Glossary.load(
-            user_path=qp._NO_USER_GLOSSARY,
-            local_path=(src / LOCAL_GLOSSARY_NAME) if src else None,
-            categories=[cat_group],
-        )
-
-    def _post_run(pipe) -> None:
-        if pipe.state is None:
-            return
-        # term_dict 落盘（state.-/term_dict.json）——观测件不毁账。
-        with contextlib.suppress(Exception):
-            pipe.state.save_maps(term_dict=pipe._doc_glossary)
-
-    state_dir = ctx.asset_dir("state")
-    staging = ctx.paper_dir() / ".zh-xlat"
-    if staging.exists():
-        shutil.rmtree(staging)
-    fsutil.copy_mutating(zh, staging)
-
-    try:
-        stats, results = asyncio.run(
-            translate_tree_async(
-                staging,
-                translator,
-                state_dir,
-                cfg,
-                oversize_cap=int(ctx.params["oversize_cap"]),
-                glossary_fn=_glossary_fn,
-                scan_fn=_scan_tree,
-                validator=lambda s, z: validate_pair(s, z).feedback(),
-                post_run=_post_run,
-                cache=seg,
-                resid_sweep=bool(ctx.params.get("resid_sweep")),
-            )
-        )
-    except PaidEscape as e:
-        # 拆舱：mid-flight 付费族异常（PAUSE 中启/abort/budget/越闸
-        # PaidAbortCell）原样交内核映射——绝不落成终态 fail 假账。
-        raise e.orig from e
-    except AuthTrippedError as e:
-        # 篇内连续 auth-fail 熔断 = 凭证死透——PaidAbortCell 映
-        # fail+auth_dead+auth_tripped（旧 error→fail 改判对拍单列）。
-        msg = f"{ctx.idc}: auth circuit tripped ({e})"
-        raise paidmod.PaidAbortCell(msg) from e
-
-    # req_timing 三分拆（口径注记：chat_s = session.request 全程含
-    # paid_slot 排队——旧「纯 HTTP 时延」义不存在于 session 桥；
-    # backoff_s = GatewayTranslator span − 线时；sem_wait_s 恒 0，
-    # 全局闸角色由 paid_slot 顶掉且其等待计入 chat_s）。
-    stats["req_timing"] = {
-        "calls": translator.calls,
-        "chat_calls": client.chat_calls,
-        "chat_s": round(client.chat_s, 1),
-        "backoff_s": round(max(0.0, translator.span_s - client.chat_s), 1),
-        "sem_wait_s": 0.0,
-        "span_s": round(translator.span_s, 1),
-    }
-
-    metrics = {"translate": stats}
-    if stats.get("oversize"):
-        shutil.rmtree(staging, ignore_errors=True)
-        return _gate(
-            "reject",
-            "oversize",
-            "xlat",
-            f"src_chars={stats['src_chars']}",
-            metrics,
-        )
-
-    # 逐块明细（triage/契约审计原料）——随 state.- 进 vault。
-    detail = state_dir / "xlat-detail.jsonl"
-    with detail.open("w", encoding="utf-8") as fh:
-        for r in results:
-            benchlib.write_jsonl(
-                fh,
-                {
-                    "chunk_id": r.chunk_id,
-                    "status": r.status,
-                    "attempts": r.attempts,
-                    "batched": r.batched,
-                    "skipped": r.fell_back,
-                    "error_kind": r.error_kind,
-                    "skip_reason": r.skip_reason,
-                    "warnings": r.warnings,
-                },
-            )
-    (staging / ".xlat-arm.json").write_text(
-        json.dumps(
-            {
-                "arm": ctx.arm,
-                "model": str(ctx.params["model"]),
-                "ts": datetime.now(UTC).isoformat(),
-            },
-            ensure_ascii=False,
-        )
-    )
-    _swap_in(staging, zh)
-
-    stats.update(qp.scan_leak([(r.chunk_id, r.source or "") for r in results]))
-    delivered_rows = [
-        (r.chunk_id, r.source or "", r.translation or "")
-        for r in results
-        if delivered(r)
+    mod = sys.modules[__name__]
+    drift = [
+        f"{name} in _LEAF_EXPORTS but missing from __all__"
+        for name in _LAZY
+        if name not in __all__
     ]
-    try:
-        td = qp.rebuild_term_dict(
-            cat_group or None,
-            [s for _c, s, _t in delivered_rows],
-            (src / LOCAL_GLOSSARY_NAME) if src else None,
-        )
-        stats.update(qp.score_terms(delivered_rows, td))
-    except Exception as e:  # 观测件不毁账——重建失败记 note 不落 error 格
-        stats.update(
-            {
-                "term_applicable": None,
-                "term_hit": None,
-                "term_hit_rate": None,
-                "term_misses": [],
-                "term_dict_size": None,
-                "term_note": f"rebuild_failed:{type(e).__name__}",
-            }
-        )
-
-    n_bad = stats["fault"] + stats["skipped"]
-    if stats["leftover_ph"] > 0:
-        return _gate("fail", "leftover_ph", "xlat", str(stats["leftover_ph"]), metrics)
-    if stats["chunks"] and n_bad == stats["chunks"]:
-        return _gate("fail", "all_chunks_bad", "xlat", str(stats["chunks"]), metrics)
-    if n_bad or stats["fault_files"]:
-        return _gate(
-            "partial",
-            "chunks_bad",
-            "xlat",
-            f"fault={stats['fault']} skipped={stats['skipped']}",
-            metrics,
-        )
-    return {"status": "ok", "metrics": metrics}
-
-
-# ---------------------------------------------------------------- stage: compile
-
-
-def _compile(ctx) -> dict:
-    """splice.- 重建 + inject + judge；base 臂折进 metrics.base。
-
-    base 先跑（src 直编归因臂）——zh 臂半途门控时本格仍带齐 base
-    观测（旧两臂独立任务等价的覆盖面守恒）。
-    """
-    metrics: dict = {}
-    timeout = float(ctx.params["timeout"])
-
-    # ---- base 归因臂（src 原样直编，不 normalize 不 inject） -------------
-    src = ctx.src_path()
-    if src is not None:
-        bmain = find_main_tex(src)
-        if bmain is None:
-            metrics["base"] = {
-                "status": "reject",
-                "code": "no_main_tex",
-                "cat": "compile",
-                "payload": classify_no_main(src) or "",
-            }
-        else:
-            b_rel = bmain.relative_to(src).as_posix()
-            bdir = ctx.paper_dir() / "build-base"
-            if bdir.exists():
-                shutil.rmtree(bdir)
-            fsutil.copy_mutating(src, bdir)
-            b_eng = _engine(ctx, src)
-            b_tail = _compile_judge(bdir, b_rel, b_eng, timeout, expect_cjk=False)
-            metrics["base"] = {
-                "engine": b_eng,
-                "main_rel": b_rel,
-                **b_tail,
-            }
-
-    # ---- zh 臂 ------------------------------------------------------------
-    zh, marker_doc = _ensure_translated(ctx)
-    if marker_doc is None:
-        return _gate(
-            "skip",
-            "not_translated",
-            "upstream",
-            "zh.- missing or no .xlat-arm.json",
-            metrics,
-        )
-    metrics["xlat_ts"] = marker_doc.get("ts")
-    splice = ctx.asset_dir("splice")
-    _rebuild(zh, splice)
-    main_rel = _main_rel(ctx, splice)
-    if not main_rel:
-        return _gate(
-            "reject", "no_main_tex", "compile", classify_no_main(splice) or "", metrics
-        )
-    eng = _engine(ctx, splice)
-    metrics["engine"] = eng
-    metrics["main_rel"] = main_rel
-    try:
-        metrics["inject"] = prepare_chinese(
-            splice, main_rel, layout_marks=bool(ctx.params["marks"])
-        )
-    except InjectRejectError as e:
-        metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
-        return _gate("reject", "inject_reject", "inject", e.reason, metrics)
-    # 0-chunk 主文档（includepdf 壳）无译文产出 → 不期待 CJK；
-    # xlat 账缺席时保守默认 True。记入 metrics 供 fixloop 复判同口径。
-    # 跨 run 域：xlat 本 run dedup 时 DONE 底账在前 run。
-    xr = _last_done(ctx, "xlat")
-    _tr = ((xr or {}).get("metrics") or {}).get("translate") or {}
-    expect_cjk = _tr.get("chunks") != 0
-    metrics["expect_cjk"] = expect_cjk
-    tail = _compile_judge(splice, main_rel, eng, timeout, expect_cjk=expect_cjk)
-    metrics.update(tail)
-    v = tail["verdict"]
-    if v["status"] in ("clean", "partial"):
-        pdf = splice / Path(main_rel).with_suffix(".pdf")
-        if not pdf.is_file():
-            pdfs = [p for p in splice.glob("*.pdf") if p.is_file()]
-            pdf = max(pdfs, key=lambda p: p.stat().st_mtime) if pdfs else None
-        if pdf is not None:
-            with contextlib.suppress(Exception):
-                metrics["landmark"] = qp.landmark_metrics(pdf, splice)
-    out = {
-        "status": v["status"],
-        "metrics": metrics,
-        "sig": benchlib.verdict_sig(v, tail["compile"].get("first_error")),
+    if len(__all__) != len(set(__all__)):
+        drift.append("__all__ has duplicate entries")
+    for name in __all__:
+        try:
+            getattr(mod, name)
+        except Exception as exc:  # 审计兜全漂移, 非首错即死
+            drift.append(f"__all__ entry {name} does not resolve: {exc}")
+    local_publics = {
+        name
+        for name, v in vars(mod).items()
+        if not name.startswith("_")
+        and name not in _LAZY
+        and callable(v)
+        and getattr(v, "__module__", None) == __name__
     }
-    if v["status"] not in ("clean", "partial"):
-        out["errors"] = [
-            {
-                "code": v.get("category") or "compile_fail",
-                "cat": v.get("category"),
-                "payload": v.get("payload"),
-            }
-        ]
-    elif v.get("category"):
-        out["errors"] = [
-            {
-                "code": v["category"],
-                "cat": v["category"],
-                "payload": v.get("payload"),
-            }
-        ]
-    return out
-
-
-# ---------------------------------------------------------------- stage: fixloop
-
-
-def _fixloop(ctx) -> dict:
-    """compile 非 clean 格修复：恒自 zh.- 重建 splice.-（rerun-only），
-    冷 usertree + Ruleset + ResProxy + post 复判同 compile 刻度。"""
-    t0 = time.monotonic()
-    # on 谓词读域 = _needs_eval 同域（跨全 run 末条 DONE）——本 run
-    # upstream_rec 在 compile dedup 的续跑 run 里返 None，会误判成
-    # 「无修必要」白放行。
-    comp_rec = _last_done(ctx, "compile") or {}
-    want = _ON_PRED[str(ctx.params.get("on") or "fail")]
-    if not want(comp_rec):
-        # on 谓词不中 = 「本轮无修必要」——ok + ran=False 终态触发
-        # §3.5 harvest，把上游付费字节封进 vault；skip 是 retriable
-        # 会让 zh.-/state.- 滞留 work/ 等 sweep/adopt 捞。
-        return {
-            "status": "ok",
-            "metrics": {
-                "mode": ctx.params.get("on"),
-                "fixloop_ran": False,
-                "on_gate": comp_rec.get("status"),
-                "compile_fp": benchlib.compile_fp(comp_rec) if comp_rec else None,
-            },
-        }
-
-    zh, marker_doc = _ensure_translated(ctx)
-    if marker_doc is None:
-        return _gate(
-            "skip", "not_translated", "upstream", "zh.- missing or no .xlat-arm.json"
-        )
-    splice = ctx.asset_dir("splice")
-    _rebuild(zh, splice)
-    main_rel = _main_rel(ctx, splice)
-    if not main_rel:
-        return _gate("error", "no_main_tex", "fixloop", classify_no_main(splice) or "")
-    metrics: dict = {"splice_rebuilt": True}
-    try:
-        metrics["inject"] = prepare_chinese(
-            splice, main_rel, layout_marks=bool(ctx.params["marks"])
-        )
-    except InjectRejectError as e:
-        metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
-        return _gate("reject", "inject_reject", "inject", e.reason, metrics)
-
-    texmf = ctx.paper_dir() / "_texmf"
-    if texmf.exists():
-        shutil.rmtree(texmf)  # 冷启动——防半成品 usertree 偏暖
-    eng = flb._make_engine("xelatex", texmf, splice)
-    # baseline_dir 逐格注入：params 在共享 flb.RS 上无法按 pid 注入，
-    # 故每格 Ruleset.load() 后按 transform 名注入 src/ 原件树。
-    src = ctx.src_path()
-    rs = flb.RS
-    if src is not None and src.is_dir():
-        rs = Ruleset.load()
-        for rule in rs.rules:
-            act = rule.raw.get("action") or {}
-            if act.get("kind") == "builtin_transform" and act.get("function") in {
-                "restore_support_from_src",
-                "slot_arg_revert",
-            }:
-                act.setdefault("params", {})["baseline_dir"] = str(src)
-    timeout = float(ctx.params["timeout"])
-    llm_hook = None
-    if ctx.params.get("llm"):
-        llm_hook = make_llm_hook(
-            translator=SessionTranslator(ctx.gateway(), str(ctx.params["model"]))
-        )
-    try:
-        proxy = ResProxy(eng)
-        cell = fixloop(
-            splice,
-            proxy,
-            ruleset=rs,
-            engine_name="xelatex",
-            main_rel=main_rel,
-            corpus_id=ctx.idc,
-            cond="fixloop",
-            runner=flb._texmf_runner(texmf),
-            case_sink=case_bridge(ctx),
-            llm_hook=llm_hook,
-            compile_timeout=timeout,
-        )
-        fix_last = proxy.last
-    except PaidEscape as e:
-        raise e.orig from e  # 拆舱交内核——harness_crash 兜底绝不收付费族
-    except Exception as e:
-        cell = {
-            "project": ctx.idc,
-            "engine": "xelatex",
-            "verdict": f"harness_crash:{type(e).__name__}",
-            "log_excerpt": str(e)[:500],
-            "rounds": [],
-            "actions": [],
-        }
-        fix_last = None
-    cell_wall = round(time.monotonic() - t0, 1)
-    # post 复判吃 fixloop 末轮 CompRes——与产品侧 res = fix_last or
-    # first 同口径；兜底 fresh-compile 仅早退/崩溃/主档错位形。
-    if fix_last is not None and cell.get("main") == main_rel:
-        res = fix_last
-        post_src = "fixloop_last"
-    else:
-        jeng = XelatexEngine(
-            halt_on_error=False, texmfhome=texmf, repository=flb.TUNA_TLNET
-        )
-        res = jeng.compile(splice, main_rel, timeout=timeout, sandbox=False)
-        post_src = "fresh_compile"
-    expect_cjk = (comp_rec.get("metrics") or {}).get("expect_cjk", True)
-    tail = benchlib.judge_dict(res, expect_cjk=expect_cjk)
-
-    rounds = cell.get("rounds") or []
-    fv = str(cell.get("verdict") or "?")
-    fcat, fpay = benchlib.fixloop_attr(rounds, fv, cell.get("final_cat"))
-    v = tail["verdict"]
-    csb = comp_rec.get("status")
-    tail["regressed"] = benchlib.STATUS_RANK.get(
-        str(v["status"] or ""), -1
-    ) < benchlib.STATUS_RANK.get(str(csb or ""), -1)
-    actions = cell.get("actions") or []
-    metrics.update(
-        {
-            "mode": ctx.params.get("on"),
-            "fixloop_ran": True,
-            "compile_status_before": csb,
-            "compile_fp": benchlib.compile_fp(comp_rec) if comp_rec else None,
-            "fixloop_verdict": fv,
-            "final_cat": fcat,
-            "rounds": len(rounds),
-            "n_actions": len(actions),
-            "rules_fired": list(
-                dict.fromkeys(str(a["rule"]) for a in actions if a.get("rule"))
-            ),
-            "gate_fired": list(cell.get("gate_fired") or []),
-            "installed": cell.get("installed") or [],
-            "floor_restored": bool(cell.get("floor_restored")),
-            "fixloop_wall_s": cell_wall,
-            "post_src": post_src,
-            "post": tail,
-        }
-    )
-    out = {
-        "status": v["status"],
-        "metrics": metrics,
-        "sig": benchlib.fixloop_sig(fv, fcat, fpay),
-    }
-    if v["status"] != "clean":
-        out["errors"] = [{"code": fv, "cat": fcat, "payload": fpay}]
-    return out
-
-
-# ---------------------------------------------------------------- spec
-
-spec = Spec(
-    kind="soak",
-    params={
-        "n": Param(int, default=0),
-        "seed": Param(int, default=42),
-        "ids": Param(str, default="", fp=False),
-        "layers": Param(str, default="core", fp=False),
-        "only": Param(str, default="", fp=False),
-        "on": Param(
-            str,
-            default="fail",
-            choices=["fail", "nonclean", "misschar", "clean", "all"],
-            fp=False,
-        ),
-        "engine": Param(
-            str,
-            default="xelatex",
-            choices=["auto", "xelatex", "tectonic"],
-            fp=True,
-        ),
-        "concurrency": Param(int, default=10, fp=True),
-        "max_tries": Param(int, default=5, fp=True),
-        "timeout": Param(float, default=240.0, fp=True),
-        "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS, fp=True),
-        "model": Param(str, default=DEFAULT_MODEL, fp=True),
-        "llm": Param(bool, default=False, fp=True),
-        "marks": Param(bool, default=True, fp=True),
-        "no_probe": Param(bool, default=False, fp=False),
-        "resid_sweep": Param(bool, default=False, fp=True),
-    },
-    items=_items,
-    select=_select,
-    freeze_plan=True,
-    executor="thread",
-    env_probes=["xelatex", "tlmgr", "tectonic"],
-    code_deps=[
-        "src/texlate/compile",
-        "src/texlate/latex",
-        "src/texlate/textutil",
-        "src/texlate/xlat",
-        "src/texlate/pipecore.py",
-        "src/texlate/validate",
-    ],
-    lake=True,
-    prefetch=True,
-    fetch_fn=None,
-    lake_source="arxiv",
-    same_id_serial=True,
-    dedup_key=("idc", "arm", "variant"),
-    gateway_factory=devin_factory(nslots=64),
-    stages=[
-        Stage(
-            "ingest",
-            _ingest,
-            # 唯一字母表（ok/reject + 双 retriable）——不为单点造预设。
-            status_class={
-                "ok": "terminal",
-                "reject": "terminal",
-                "skip": "retriable",
-                "error": "retriable",
-            },
-        ),
-        Stage(
-            "parse",
-            _parse,
-            needs=[("ingest", {"ok"})],
-            mutates=["zh"],
-            # 唯一字母表（ok/reject + upskip）——不为单点造预设。
-            status_class={
-                "ok": "terminal",
-                "reject": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
-        ),
-        Stage(
-            "xlat",
-            _xlat,
-            needs=[("parse", {"ok"})],
-            paid=True,
-            mutates=["zh", "state"],
-            dedup_key=("idc", "arm", "variant"),
-            # 唯一字母表（ok/partial/fail/reject + upskip）——不为单点造预设。
-            status_class={
-                "ok": "terminal",
-                "partial": "terminal",
-                "fail": "terminal",
-                "reject": "terminal",
-                "skip": "upstream",
-                "error": "retriable",
-            },
-        ),
-        Stage(
-            "compile",
-            _compile,
-            needs=[("xlat", {"ok", "partial"})],
-            mutates=["splice"],
-            status_class=SC_SPECTRUM_UP,
-        ),
-        Stage(
-            "fixloop",
-            _fixloop,
-            needs=[("compile", {"clean", "partial"})],
-            # reject 也必须送 fn 落 ok+ran=False 终态——needs-skip 会把
-            # 付费 zh/state 字节滞留 work/ 等 sweep（_ON_PRED 全排
-            # reject，进 fn 即走无修必要短路）。
-            on={"compile": {"fail", "dirty_pdf", "reject"}},
-            paid=True,
-            mutates=["splice"],
-            dedup_key=("idc", "arm", "variant"),
-            status_class=SC_SPECTRUM_UP,
-        ),
-    ],
-)
+    drift += [
+        f"{name} defined locally but missing from __all__"
+        for name in sorted(local_publics)
+        if name not in __all__
+    ]
+    return drift
