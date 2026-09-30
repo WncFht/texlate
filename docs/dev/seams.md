@@ -30,4 +30,4 @@
 - `texlate.compile.fixloop.builtins.TRANSFORM_FNS` — `builtin_transform` 注册表，setitem 缝。
 - `texlate.compile.fixloop._engine_run` 内 `_match_apply_landing`/`_gate_eval`/`_warn_preempt` — engine 拆叶后这些名实体在 `_engine_disp`，`_FixRun`（`_engine_run`）经 `from _engine_disp import` 绑定进自己命名空间，patch 点 = 消费方 `_engine_run.<name>`（patch facade `engine.X` 或属主 `_engine_disp.X` 都拦不到 `_FixRun` 内调用）。
 - `LoopCtx` 平铺字段全集 — `_CTX_FIELD_GROUP` 收录名。
-- `xlat/pipeline.py` 对 `_intercept_*`/`AuthGate` 的 patch 点 —— 出叶到 `intercept.py`/`authgate.py` 后以 `from .intercept import _intercept_*` 保持名字在本模块命名空间，测试照旧 `monkeypatch.setattr(pl, "_intercept_bare_cs", ...)`/`pl.AuthGate.record`，patch 点 = 消费方命名空间（非叶子同名）。
+- `xlat/pipeline.py` 对 `_intercept_*`/`AuthGate` 的 patch 点 —— `_intercept_*` 包装函与注册表实体已出叶 `intercept.py`/`authgate.py`，门面经 `from .intercept import _intercept_*` 回绑进本模块 globals；账本/裸形两消费点（`pipeline_ledger._ledger_intercepts`、`pipeline_single.retranslate_chunk`）经驻留门面的 `_net_apply_fn` 以 `globals()` 晚绑定取件——`setattr(pl, "_intercept_bare_cs", ...)`/`pl.AuthGate.record` 照旧触达真调用。新增一网只动 `_INTERCEPT_NETS` 条目 + intercept.py 同名包装函。
