@@ -311,6 +311,10 @@ def _group_end(text: str, start: int, cap: int) -> int | None:
     ``nest=text[start]`` 即原 depth 语义（``{`` 组内 ``[`` 是字面）。
     非开符位 ``start`` → ``None``（旧实现把任意字符当同符计深是死面——
     调用方只喂 ``{``/``[`` 位，见 ``_cs_arg_heads``）。
+
+    姊妹面 :func:`texlate.compile.mask.group_end`——同为
+    ``latex.chars.match_brace`` 栈配委托但异契约（``nest="{"`` 恒不嵌
+    ``[``、``%``→EOL 注释跳过、无 cap、失败返 ``len``），勿并。
     """
     if start >= len(text) or text[start] not in "{[":
         return None

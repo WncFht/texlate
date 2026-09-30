@@ -47,6 +47,10 @@ def group_end(s: str, pos: int) -> int:
     感知转义 `\{`、嵌套与 `%` 注释；找不到配对时返回 `len(s)`。
     核心循环 = ``latex.chars.match_brace`` 参数化栈配（`{` 恒压 `}`、
     `[` 仅最外层可作 opener，`[\r\n]` 注释界）。
+
+    姊妹面 ``xlat.batch._group_end``——同为 ``match_brace`` 委托但异契约
+    （``nest`` 随开符同符计深、``%`` 按字面过、``cap`` 界、失败返
+    ``None``/非开符返 ``None``），勿并。
     """
     if pos >= len(s) or s[pos] not in "[{":
         return pos

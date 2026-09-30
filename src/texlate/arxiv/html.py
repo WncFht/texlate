@@ -37,12 +37,12 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import Comment, Declaration, Doctype, ProcessingInstruction
 
 from texlate.chunk import ChunkIn, normalize_kind
-from texlate.textutil import PH_RX
+from texlate.textutil import PH_RX, PhIssuer
 
 from .fetch import Fetcher, req_base_ver
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping
+    from collections.abc import Iterator, Mapping
 
     from bs4.element import PageElement
 
@@ -109,47 +109,27 @@ class HtmlDoc:
     arxiv_id: str = ""
 
 
-class _Issuer:
-    """``[[TYPE_n]]`` 签发器（裸名版 :class:`PlaceholderIssuer`）。
-
-    ``reserved`` = 源文自带 ``[[X_n]]`` 字面集——签发撞上会让 reconstruct
-    把原文当占位符展开（placeholder.py 同源教训），遇撞顺延编号。
-    """
-
-    __slots__ = ("_n", "_reserved")
-
-    def __init__(self, reserved: Iterable[str] = ()) -> None:
-        """计数归零；``reserved`` 收保留字面集。"""
-        self._n = 0
-        self._reserved = set(reserved)
-
-    def new(self, typ: str, body: str, ph_map: dict[str, str]) -> str:
-        """签发 ``[[typ_n]]`` 并登记 ``ph_map``。"""
-        while True:
-            self._n += 1
-            ph = f"[[{typ}_{self._n}]]"
-            if ph not in ph_map and ph not in self._reserved:
-                break
-        ph_map[ph] = body
-        return ph
-
-
 @dataclass(slots=True)
 class _InlineCtx:
-    """行内抽取共享态：签发器 + 全局 ph_map + 迟发 footnote 队列。
+    """行内抽取共享态：签发器 + 保留字面集 + 全局 ph_map + 迟发 footnote 队列。
 
-    ``title_el`` = pre-2000 兜底题元（``_fallback_title`` 判出）——宿主块
-    内联时整体跳过：title 块独立产出，文本不双计入账。
+    ``issuer`` = 裸名 ``[[TYPE_n]]`` 签发器（单源 :class:`texlate.textutil.
+    PhIssuer`——``NOTE``/``TABLE`` 等枚举外 TYPE 不经 ``PhType`` 强类型面）。
+    ``reserved`` = 源文自带 ``[[X_n]]`` 字面集——签发撞上会让 reconstruct
+    把原文当占位符展开，遇撞顺延编号。``title_el`` = pre-2000 兜底题元
+    （``_fallback_title`` 判出）——宿主块内联时整体跳过：title 块独立
+    产出，文本不双计入账。
     """
 
-    issuer: _Issuer
+    issuer: PhIssuer
     ph_map: dict[str, str]
+    reserved: frozenset[str] = frozenset()
     notes: list[Tag] = field(default_factory=list)
     title_el: Tag | None = None
 
     def tok(self, typ: str, el: Tag) -> str:
         """元素 → 两侧带空格的 token 串（空格靠 squash 归一）。"""
-        return " " + self.issuer.new(typ, str(el), self.ph_map) + " "
+        return " " + self.issuer.new(typ, str(el), self.ph_map, self.reserved) + " "
 
 
 # ---------------------------------------------------------------- 行内抽取
@@ -518,7 +498,7 @@ def _article_ctx(html: str, arxiv_id: str) -> tuple[BeautifulSoup, Tag, _InlineC
         raise HtmlNotAvailableError(
             arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
         )
-    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    ctx = _InlineCtx(PhIssuer(), {}, frozenset(PH_RX.findall(art.get_text())))
     return soup, art, ctx
 
 

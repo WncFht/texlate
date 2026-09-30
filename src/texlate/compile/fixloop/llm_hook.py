@@ -18,7 +18,9 @@ rules/ ``action.kind: escalate_llm`` / ``engines.*.fallback: escalate_llm``
 (key 另按已决议端点 provider 专名 env 兜底 —— ``xlat.client.env_key_for_url``
 单源, ``env_credentials``/server ``env_key_for`` 同口径); 单次调用
 ``timeout_s`` 60s, 模块级信号量把同时在飞的网关请求压在 4
-(swe-2-medium 并发硬闸)。
+(swe-2-medium 并发硬闸)。``xlat.client`` 依赖一律函数内迟引
+(compile 层 eager 引 xlat 层是层级倒置——import 本模块不再拉 httpx/
+xlat 栈, ``LlmFixer()`` 构造/``_ask`` 网关路才解析)。
 
 注: 本轮 taxonomy ``cat``/``pay`` 若由 engine 落到 ``ctx.err_cat``/
 ``ctx.err_pay`` (冻结期未挂) 会进 prompt 与 note; 未挂时 getattr 兜底
@@ -39,13 +41,6 @@ import httpx
 
 from texlate.textutil import JSON_FENCE_RX, env_raw, safe_resolve
 from texlate.textutil.osutil import ENV_BASE_URL, ENV_DIALECT, ENV_MODEL
-from texlate.xlat.client import (
-    DEFAULT_BASE_URL,
-    DEFAULT_MODEL,
-    ChatClient,
-    ChatOptions,
-    env_key_for_url,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -388,6 +383,12 @@ class LlmFixer:
         max_patches: int = DEFAULT_MAX_PATCHES,
     ) -> None:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
+        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引: compile 层 module-top 不引 xlat 栈
+            DEFAULT_BASE_URL,
+            DEFAULT_MODEL,
+            env_key_for_url,
+        )
+
         self.translator = translator
         self.base_url = base_url or env_raw(ENV_BASE_URL) or DEFAULT_BASE_URL
         self.api_key = (
@@ -410,6 +411,11 @@ class LlmFixer:
                 max_tokens=self.max_tokens,
                 response_format={"type": "json_object"},
             )
+        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引: 仅网关路解析
+            ChatClient,
+            ChatOptions,
+        )
+
         timeout = httpx.Timeout(self.timeout_s, connect=10.0)
         msgs = [
             {"role": "system", "content": system},

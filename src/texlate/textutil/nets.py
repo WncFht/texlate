@@ -9,6 +9,9 @@ r"""校验域知识件 —— net 检测器簇与共享口径件（validate/xlat
 - 共享口径件：``JSON_FENCE_RX``（LLM 应答 fence 剥皮）/``PH_RX``/
   ``PH_FUZZY_RX``/``PH_ANY_LIKE_RX``（占位符词法）/``CS_OR_SYM_RX``/
   ``prose_text``/``est_tokens``/``lev_capped``。
+- 签发件：``PhIssuer``——``[[TYPE_n]]`` 单调签发器（裸名 str 面；
+  ``latex.placeholder.PlaceholderIssuer`` 的 ``PhType`` 强类型面与
+  arxiv html 降级链共用本件）。
 """
 
 from __future__ import annotations
@@ -46,6 +49,39 @@ PH_FUZZY_RX: Final = re.compile(
     r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
     r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
 )
+
+
+class PhIssuer:
+    r"""``[[TYPE_n]]`` 单调签发器（跨层单源）。
+
+    ``typ`` 收裸名 ``str``——canonical 强类型面
+    :class:`texlate.latex.placeholder.PlaceholderIssuer` 在本件上叠
+    ``PhType`` 枚举适配；arxiv html 降级链（``NOTE``/``TABLE`` 等枚举外
+    TYPE）直用本件。``reserved`` = 源文自带 ``[[X_n]]`` 形字面集合——签发
+    撞上会让 reconstruct 把原文当占位符展开（identity 破），遇撞顺延编号。
+    """
+
+    __slots__ = ("_n",)
+
+    def __init__(self) -> None:
+        """计数器归零。"""
+        self._n = 0
+
+    def new(
+        self,
+        typ: str,
+        body: str,
+        ph_map: dict[str, str],
+        reserved: set[str] | frozenset[str] | None = None,
+    ) -> str:
+        """签发 ``[[typ_n]]`` 并把本体登记进 ``ph_map``。"""
+        while True:
+            self._n += 1
+            ph = f"[[{typ}_{self._n}]]"
+            if ph not in ph_map and (reserved is None or ph not in reserved):
+                break
+        ph_map[ph] = body
+        return ph
 
 
 _PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")

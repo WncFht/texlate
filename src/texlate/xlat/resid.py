@@ -278,7 +278,13 @@ def _keylist_mask_spans(inner: str, base: int, depth: int = 0) -> list[tuple[int
 
 
 def _match_brace(masked: str, i: int) -> int:
-    r"""``masked[i]=='{'`` 起的配对 ``}`` 后位；``\{``/``\}`` 不计；未闭合返行尾。"""
+    r"""``masked[i]=='{'`` 起的配对 ``}`` 后位；``\{``/``\}`` 不计；未闭合返行尾。
+
+    与 ``latex.chars.match_brace`` 的异契约面（勿委托）：转义判定是
+    前一字符 ``\`` 哨兵——``\\{``（字面反斜杠 + 组）此式视同转义不计，
+    ``match_brace`` 的 ``\X`` 双跳则会计深；未闭合契约返行尾（键表
+    罩面保守罩残），非 ``None``。
+    """
     depth = 0
     j = i
     while j < len(masked):
@@ -294,7 +300,12 @@ def _match_brace(masked: str, i: int) -> int:
 
 
 def _match_bracket(masked: str, i: int) -> int:
-    r"""``masked[i]=='['`` 起的配对 ``]`` 后位；``\[``/``\]`` 不计；未闭合返行尾。"""
+    r"""``masked[i]=='['`` 起的配对 ``]`` 后位；``\[``/``\]`` 不计；未闭合返行尾。
+
+    契约分歧同 ``_match_brace``（前一字符哨兵 + 未闭合返行尾——
+    ``latex.chars.match_bracket``/``match_brace`` 的 ``\X`` 双跳 +
+    ``None`` 口径勿并）。
+    """
     depth = 0
     j = i
     while j < len(masked):
