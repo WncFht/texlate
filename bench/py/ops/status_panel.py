@@ -41,11 +41,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 REPO = Path(__file__).resolve().parents[3]
 try:
+    from kernel import events as _kevents
     from kernel import paths as _kpaths
 
     BENCH_ROOT = _kpaths.root()
     RUNS_DIR = _kpaths.runs_dir()
-except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
+except Exception:  # kernel is stdlib-only; fallback mirrors it
+    _kevents = None
     BENCH_ROOT = Path(
         os.environ.get(
             "TEXLATE_BENCH_ROOT", Path.home() / ".local" / "share" / "texlate-bench"
@@ -317,12 +319,22 @@ def _rate_sample(done: int) -> tuple[float | None, float]:
     return None, 0.0
 
 
+_BLOB_SHA_RE = re.compile(r"[0-9a-f]{64}")
+
+
 def _unblob(val, blob_dir: Path | None):
-    """{"$blob": sha, "$bytes": n} 卸载标记 → run derived/blobs/ 载荷
-    （kernel.report._unblob 同式——panel 保持轻依赖不 import kernel.report）。"""
+    """{"$blob": sha, "$bytes": n} 卸载标记 → run derived/blobs/ 载荷——
+    ``kernel.events.unblob`` 委派；kernel 缺席（裸跑降级面）时 inline
+    严格形兜底。"""
+    if _kevents is not None:
+        return _kevents.unblob(val, blob_dir)
     if not (
         isinstance(val, dict)
         and set(val) == {"$blob", "$bytes"}
+        and isinstance(val["$blob"], str)
+        and _BLOB_SHA_RE.fullmatch(val["$blob"])
+        and isinstance(val["$bytes"], int)
+        and not isinstance(val["$bytes"], bool)
         and blob_dir is not None
     ):
         return val

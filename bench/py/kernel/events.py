@@ -34,10 +34,7 @@ import hashlib
 import json
 import re
 import time
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
 
 SCHEMA_V = 1
 
@@ -429,6 +426,28 @@ def is_blob_marker(val) -> bool:
     )
 
 
+def unblob(val, blob_dir: Path | None):
+    """Read-side inverse of ``maybe_offload``: resolve a well-formed
+    ``{"$blob": sha, "$bytes": n}`` marker to the payload at
+    ``blob_dir/<sha>.json``.
+
+    The marker is returned verbatim when ``blob_dir`` is None or the blob
+    file is missing/unparseable — a projection must not invent data. Only
+    the strict ``is_blob_marker`` shape resolves (a dict that merely
+    contains ``$blob`` is payload, never a marker). This is the single
+    read-side resolver; kernel.report._unblob / ctx._unblob /
+    verbs._common._unblob are delegates pinned by callers and tests.
+    """
+    if not (is_blob_marker(val) and blob_dir is not None):
+        return val
+    try:
+        return json.loads(
+            (Path(blob_dir) / f"{val['$blob']}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return val
+
+
 def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
     """Offload oversized metrics/errors payloads to blob_dir/<sha>.json.
 
@@ -472,6 +491,11 @@ def iter_jsonl(path: Path):
 
     Bad lines yield event=None so callers can count/quarantine them — the
     read-side contract is skip-and-warn, never crash on a torn line.
+    OSError (missing file etc.) propagates to the caller. Deliberate
+    contract cousins, not copies: ``specs/_benchlite.iter_jsonl`` yields
+    values only with ``on_bad`` policy knobs (spec-side), and
+    ``verbs/_common._iter_jsonl`` is this reader's OSError-tolerant
+    values-only projection (verb-side).
     """
     with open(path, encoding="utf-8", errors="replace") as f:
         for lineno, raw_line in enumerate(f, 1):

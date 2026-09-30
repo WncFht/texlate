@@ -174,20 +174,11 @@ class Ctx:
     def _unblob(self, val):
         """Resolve a {"$blob": sha} offload marker against this run's
         derived/blobs — records store the marker form (§3.1), instruments
-        get the payload back."""
-        if not (isinstance(val, dict) and isinstance(val.get("$blob"), str)):
+        get the payload back. Strict shape via ``kernel.events.unblob``."""
+        if self.rundir is None:
             return val
-        import re as _re
-
-        if self.rundir is None or not _re.fullmatch(r"[0-9a-f]{64}", val["$blob"]):
-            return val
-        p = Path(self.rundir.path) / "derived" / "blobs" / f"{val['$blob']}.json"
-        try:
-            import json
-
-            return json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return val
+        blob_dir = Path(self.rundir.path) / "derived" / "blobs"
+        return events.unblob(val, blob_dir)
 
     # --- paths ------------------------------------------------------------------------
 

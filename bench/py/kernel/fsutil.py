@@ -97,6 +97,56 @@ def atomic_write(path, data: bytes, mode: int | None = None) -> None:
         raise
 
 
+def healed_size(fd: int, size: int) -> int:
+    """Byte offset just past the last ``b'\\n'`` in ``fd``; 0 if the file
+    has none.
+
+    Scans backwards in ``HEAL_CHUNK`` blocks — O(one chunk) for a clean
+    tail, O(file) only for a pathological newline-free file.
+    """
+    pos = size
+    while pos > 0:
+        n = min(HEAL_CHUNK, pos)
+        pos -= n
+        buf = os.pread(fd, n, pos)
+        idx = buf.rfind(b"\n")
+        if idx != -1:
+            return pos + idx + 1
+    return 0
+
+
+def healed_append(path, payload: bytes) -> int:
+    """Heal torn tail, append payload in ONE ``os.write``, fsync. Return
+    base offset.
+
+    lake/runs/ledger 三处 append 路径共用的落盘原语——锁归属调用方
+    （ledger/.lock、lake/.locks/.catalog.lock、run-local 单写者免锁）。
+    A short write raises OSError — the torn remnant is healed away by the
+    next append. Parent dirs are mkdir'd; dir fsync runs only on first
+    create.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existed = path.exists()
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        size = os.fstat(fd).st_size
+        offset = healed_size(fd, size) if size else 0
+        if offset != size:
+            os.ftruncate(fd, offset)
+        if payload:
+            n = os.write(fd, payload)
+            if n != len(payload):
+                msg = f"short write {n}/{len(payload)} on {path}"
+                raise OSError(msg)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    if not existed:
+        fsync_dir(path.parent)
+    return offset
+
+
 # --- tree walking ---------------------------------------------------------------
 
 

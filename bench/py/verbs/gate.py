@@ -37,12 +37,14 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kernel import index as index_mod
 from kernel import paths
 from kernel import runs as runs_mod
 
 from verbs._common import (
     _all_runs,
+    _open_index,
+    _rec_cols,
+    _seed_match,
     _stem_group,
     _stem_of,  # noqa: F401 — tests/bench_kernel/test_verbs.py 钉 gate._stem_of 私有名
 )
@@ -116,10 +118,6 @@ def _norm_dt(dt: datetime | None) -> datetime | None:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
-def _open_index() -> index_mod.Index:
-    return index_mod.open_index()
-
-
 # ---------------------------------------------------------------- run 解析
 
 
@@ -139,11 +137,9 @@ def _resolve_runs(idx, run_arg: str | None, kind: str | None):
     if kind is not None:
         rows = [r for r in rows if r.get("kind") == kind]
     if run_arg:
-        seeds = [r for r in rows if r.get("run") == run_arg]
-        if not seeds:
-            seeds = [r for r in rows if str(r.get("run")).startswith(run_arg)]
-        if not seeds:
-            return None, f"run not found: {run_arg!r}"
+        seeds, serr = _seed_match(rows, run_arg)
+        if serr is not None:
+            return None, serr
     else:
         cand = sorted(rows, key=lambda r: r.get("run_seq") or 0, reverse=True)
         seeds = []
@@ -157,29 +153,6 @@ def _resolve_runs(idx, run_arg: str | None, kind: str | None):
 
 
 # ---------------------------------------------------------------- records 读取
-
-
-def _blob_dir_for(run_row: dict | None) -> Path | None:
-    if not run_row:
-        return None
-    k, d, s = run_row.get("kind"), run_row.get("date"), run_row.get("slug")
-    if not all(isinstance(x, str) for x in (k, d, s)):
-        return None
-    return paths.run_dir(k, d, s) / "derived" / "blobs"
-
-
-def _unblob(val, blob_dir: Path | None):
-    """{"$blob":sha} 卸载标记 → 该 run derived/blobs 下的真值（读侧镜像
-    ctx._unblob——records.metrics 存的是标记形）。"""
-    if not (isinstance(val, dict) and isinstance(val.get("$blob"), str)):
-        return val
-    if blob_dir is None:
-        return val
-    p = blob_dir / f"{val['$blob']}.json"
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return val
 
 
 def _fetch_rows(idx, run_names: list[str]) -> list[dict]:
@@ -196,21 +169,7 @@ def _fetch_rows(idx, run_names: list[str]) -> list[dict]:
         " ORDER BY COALESCE(ru.run_seq, 9223372036854775807), r.seq",
         run_names,
     )
-    out = []
-    for row in cur.fetchall():
-        d = dict(row)
-        blob_dir = _blob_dir_for(d)
-        for col in ("metrics", "errors"):
-            v = d.get(col)
-            if isinstance(v, str):
-                try:
-                    v = json.loads(v)
-                except ValueError:
-                    v = None
-            d[col] = _unblob(v, blob_dir)
-        d["upstream"] = d.get("up")  # pick_final 旧字段名映射
-        out.append(d)
-    return out
+    return [_rec_cols(dict(row)) for row in cur.fetchall()]
 
 
 def scan_rows(

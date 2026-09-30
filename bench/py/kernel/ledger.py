@@ -96,47 +96,11 @@ def _ledger_lock() -> Iterator[None]:
         os.close(fd)  # close releases the flock
 
 
-def _healed_size(fd: int, size: int) -> int:
-    """Byte offset just past the last b'\\n' in fd; 0 if the file has none.
-
-    Scans backwards in chunks — O(one chunk) for a clean tail, O(file) only
-    for a pathological newline-free file.
-    """
-    pos = size
-    while pos > 0:
-        n = min(fsutil.HEAL_CHUNK, pos)
-        pos -= n
-        buf = os.pread(fd, n, pos)
-        idx = buf.rfind(b"\n")
-        if idx != -1:
-            return pos + idx + 1
-    return 0
-
-
 def _append_payload_locked(path: Path, payload: bytes) -> int:
-    """Heal torn tail, append payload in ONE syscall, fsync. Return base offset.
-
-    Caller must hold the ledger lock. A short write raises OSError — the torn
-    remnant is healed away by the next append.
-    """
-    existed = path.exists()
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        size = os.fstat(fd).st_size
-        offset = _healed_size(fd, size) if size else 0
-        if offset != size:
-            os.ftruncate(fd, offset)
-        if payload:
-            n = os.write(fd, payload)
-            if n != len(payload):
-                msg = f"short write {n}/{len(payload)} on {path}"
-                raise OSError(msg)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    if not existed:
-        fsutil.fsync_dir(path.parent)
-    return offset
+    """``kernel.fsutil.healed_append`` — caller must hold the ledger lock
+    (the ``_locked`` name keeps the lock contract visible at call sites;
+    vault._append_manifest_locked borrows this name cross-module)."""
+    return fsutil.healed_append(path, payload)
 
 
 def _apply_sink(sink, ev: dict) -> None:
@@ -393,7 +357,7 @@ def watermark_offset() -> int:
     fd = os.open(p, os.O_RDONLY)
     try:
         size = os.fstat(fd).st_size
-        return _healed_size(fd, size) if size else 0
+        return fsutil.healed_size(fd, size) if size else 0
     finally:
         os.close(fd)
 

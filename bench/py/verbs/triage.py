@@ -84,7 +84,7 @@ def load_records(index, run, blob_dir=None, table="both"):
     而非 ``idc``：triage 是审计面，``math--X``/``math/X`` 双拼写同存的账
     本身就是要捞的病灶，canon 归一会把两形静默并键遮住分裂信号。
     """
-    from kernel import report as _report
+    from kernel import events
 
     best = {}
     for t in _TABLES[table]:
@@ -106,8 +106,8 @@ def load_records(index, run, blob_dir=None, table="both"):
                 "code": row["code"],
                 "fp": row["fp"],
                 "dur_s": row["dur_s"],
-                "metrics": _report._unblob(_jcol(row["metrics"]), blob_dir),
-                "errors": _report._unblob(_jcol(row["errors"]), blob_dir),
+                "metrics": events.unblob(_jcol(row["metrics"]), blob_dir),
+                "errors": events.unblob(_jcol(row["errors"]), blob_dir),
                 "ts": row["ts"],
                 "src": t,
             }

@@ -123,42 +123,13 @@ _SHELL_KEEP_GLOB = (
 
 
 def _append_line(path: Path, payload: bytes) -> None:
-    """Heal torn tail, append payload in ONE os.write, fsync — same contract
-    as the ledger path, serialized through ``lake/.locks/.catalog.lock``:
-    different cells' writers append the shared catalog concurrently, and an
-    unlocked heal-truncate can clip a racing writer's fresh line."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """``kernel.fsutil.healed_append`` — same contract as the ledger path,
+    serialized through ``lake/.locks/.catalog.lock``: different cells'
+    writers append the shared catalog concurrently, and an unlocked
+    heal-truncate can clip a racing writer's fresh line."""
     catalog_lock = paths.lake_locks_dir() / ".catalog.lock"
     with locks.flock(catalog_lock, exclusive=True, blocking=True):
-        existed = path.exists()
-        fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
-        try:
-            size = os.fstat(fd).st_size
-            offset = size
-            pos = size
-            while pos > 0:
-                n = min(fsutil.HEAL_CHUNK, pos)
-                pos -= n
-                buf = os.pread(fd, n, pos)
-                idx = buf.rfind(b"\n")
-                if idx != -1:
-                    offset = pos + idx + 1
-                    break
-            else:
-                offset = 0
-            if offset != size:
-                os.ftruncate(fd, offset)
-            if payload:
-                n = os.write(fd, payload)
-                if n != len(payload):
-                    msg = f"short write {n}/{len(payload)} on {path}"
-                    raise OSError(msg)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    if not existed:
-        fsutil.fsync_dir(path.parent)
+        fsutil.healed_append(path, payload)
 
 
 def _append_row(path: Path, row: dict) -> None:

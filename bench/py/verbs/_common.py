@@ -94,14 +94,54 @@ def _stem_group(rows: list[dict], seeds: list[dict], run_arg):
 
 
 def _unblob(val, rundir: Path | None):
-    """rundir 派生 derived/blobs 目录 → ``kernel.report._unblob``（严格
-    marker 形才解；宽松版见 verbs/gate.py 本地件——两口径勿混）。"""
-    from kernel import report as report_mod
+    """rundir 派生 derived/blobs 目录 → ``kernel.events.unblob``（严格
+    marker 形才解——全栈统一口径；gate/dossier 原宽松副本已收编）。"""
+    from kernel import events
 
     blob_dir = None
     if rundir is not None and (rundir / "derived" / "blobs").is_dir():
         blob_dir = rundir / "derived" / "blobs"
-    return report_mod._unblob(val, blob_dir)
+    return events.unblob(val, blob_dir)
+
+
+def _blob_dir_of(d: dict) -> Path | None:
+    """records×runs JOIN 行 (kind/date/slug) → run_dir/derived/blobs；
+    无 is_dir 闸（读败则 marker 原样，与 None 同果）。"""
+    from kernel import paths
+
+    k, dt, s = d.get("kind"), d.get("date"), d.get("slug")
+    if not all(isinstance(x, str) for x in (k, dt, s)):
+        return None
+    return paths.run_dir(k, dt, s) / "derived" / "blobs"
+
+
+def _rec_cols(d: dict) -> dict:
+    """index records 行原位整形：metrics/errors json 解 + $blob 解引用
+    （严格形）+ ``up``→``upstream`` 旧字段别名。gate/dossier 同源收编。"""
+    from kernel import events
+
+    blob_dir = _blob_dir_of(d)
+    for col in ("metrics", "errors"):
+        v = d.get(col)
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except ValueError:
+                v = None
+        d[col] = events.unblob(v, blob_dir)
+    d["upstream"] = d.get("up")
+    return d
+
+
+def _seed_match(rows: list[dict], run_arg: str):
+    """run 引用 → seed runs 行：精确名先，否则前缀匹配；零命中 →
+    ``(None, err)``。gate._resolve_runs/dossier._resolve_run_group 同源。"""
+    seeds = [r for r in rows if r.get("run") == run_arg]
+    if not seeds:
+        seeds = [r for r in rows if str(r.get("run")).startswith(run_arg)]
+    if not seeds:
+        return None, f"run not found: {run_arg!r}"
+    return seeds, None
 
 
 def _payload(raw, rundir: Path | None):

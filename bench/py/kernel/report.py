@@ -39,17 +39,9 @@ def _iso(ts) -> str | None:
 
 
 def _unblob(val, blob_dir: Path | None):
-    """Resolve a {"$blob": sha, "$bytes": n} offload marker back to the
-    payload under run derived/blobs/. Marker is kept verbatim when the blob
-    file is unreadable — a projection must not invent data. Only the strict
-    marker shape resolves."""
-    if not (events.is_blob_marker(val) and blob_dir is not None):
-        return val
-    p = blob_dir / f"{val['$blob']}.json"
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return val
+    """``kernel.events.unblob`` 私有别名——tests 钉本名；严格 marker 形才解，
+    blob 读不出则 marker 原样（projection 不造数）。"""
+    return events.unblob(val, blob_dir)
 
 
 # --- event sources -------------------------------------------------------------

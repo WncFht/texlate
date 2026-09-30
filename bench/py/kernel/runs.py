@@ -40,13 +40,11 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
-import os
 import re
 import shutil
 import time
 from contextlib import suppress
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kernel import events, fsutil, lake, ledger, locks, paths
@@ -55,6 +53,7 @@ from kernel.idnorm import idc_from_safe
 
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
+    from pathlib import Path
 
 __all__ = [
     "BlockedDelete",
@@ -86,43 +85,13 @@ class BlockedDelete(Exception):
 
 
 def _append_line(path: Path, payload: bytes) -> None:
-    """Heal a torn tail, append payload in ONE os.write, fsync.
-
-    Same append contract as the ledger path minus the lock: run-local jsonl
-    files have exactly one writer (the owning run), so flock is unnecessary —
-    but the torn-tail heal still applies after a crash mid-append. payload
-    must already include the trailing newline.
+    """``kernel.fsutil.healed_append`` — same append contract as the ledger
+    path minus the lock: run-local jsonl files have exactly one writer (the
+    owning run), so flock is unnecessary — but the torn-tail heal still
+    applies after a crash mid-append. payload must already include the
+    trailing newline.
     """
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existed = path.exists()
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        size = os.fstat(fd).st_size
-        offset = size
-        pos = size
-        while pos > 0:
-            n = min(fsutil.HEAL_CHUNK, pos)
-            pos -= n
-            buf = os.pread(fd, n, pos)
-            idx = buf.rfind(b"\n")
-            if idx != -1:
-                offset = pos + idx + 1
-                break
-        else:
-            offset = 0
-        if offset != size:
-            os.ftruncate(fd, offset)
-        if payload:
-            n = os.write(fd, payload)
-            if n != len(payload):
-                msg = f"short write {n}/{len(payload)} on {path}"
-                raise OSError(msg)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    if not existed:
-        fsutil.fsync_dir(path.parent)
+    fsutil.healed_append(path, payload)
 
 
 def _append_row(path: Path, row: dict) -> None:

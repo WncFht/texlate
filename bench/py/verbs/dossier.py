@@ -29,12 +29,14 @@ import sys
 from pathlib import Path
 
 from kernel import idnorm, paths, vault
-from kernel import index as index_mod
 
 from verbs._common import (
     _STAGE_SUFFIXES,
     _all_runs,
     _iter_jsonl,
+    _open_index,
+    _rec_cols,
+    _seed_match,
     _stem_group,
     _stem_of,
 )
@@ -105,10 +107,6 @@ def _maybe_reexec_venv() -> None:
     )
 
 
-def _open_index() -> index_mod.Index:
-    return index_mod.open_index()
-
-
 def _load_registry():
     try:
         return idnorm.PapersRegistry.load()
@@ -122,14 +120,12 @@ def _load_registry():
 def _resolve_run_group(idx, run_arg: str):
     """run 名 → 账组 runs 行（import 拆账的 *_records_<stage> 兄弟并组）。
 
-    精确 → 前缀唯一 → stem 并组；跨 stem 即歧义 (None, err)。
+    精确 → 前缀 → stem 并组；跨 stem 即歧义 (None, err)。
     """
     rows = _all_runs(idx)
-    seeds = [r for r in rows if r.get("run") == run_arg]
-    if not seeds:
-        seeds = [r for r in rows if str(r.get("run")).startswith(run_arg)]
-    if not seeds:
-        return None, f"run not found: {run_arg!r}"
+    seeds, serr = _seed_match(rows, run_arg)
+    if serr is not None:
+        return None, serr
     return _stem_group(rows, seeds, run_arg)
 
 
@@ -146,35 +142,9 @@ def _rundir(run_row: dict | None) -> Path | None:
 # ---------------------------------------------------------------- records/cases 读取
 
 
-def _unblob(val, blob_dir: Path | None):
-    """{"$blob":sha} 标记 → run derived/blobs 真值（读侧镜像 ctx._unblob）。"""
-    if not (isinstance(val, dict) and isinstance(val.get("$blob"), str)):
-        return val
-    if blob_dir is None:
-        return val
-    try:
-        return json.loads(
-            (blob_dir / f"{val['$blob']}.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return val
-
-
 def _row_to_rec(d: dict) -> dict:
     """index 行 → 旧 records 形（``up``→``upstream``，id 取 idc 正形）。"""
-    blob_dir = None
-    k, dt, s = d.get("kind"), d.get("date"), d.get("slug")
-    if all(isinstance(x, str) for x in (k, dt, s)):
-        blob_dir = paths.run_dir(k, dt, s) / "derived" / "blobs"
-    for col in ("metrics", "errors"):
-        v = d.get(col)
-        if isinstance(v, str):
-            try:
-                v = json.loads(v)
-            except ValueError:
-                v = None
-        d[col] = _unblob(v, blob_dir)
-    d["upstream"] = d.get("up")
+    _rec_cols(d)
     d["id"] = d.get("idc") or d.get("id")
     return d
 
