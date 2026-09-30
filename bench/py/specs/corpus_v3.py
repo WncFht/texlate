@@ -47,8 +47,10 @@ Stage 链（单件 ``{"id": "corpus-v3"}`` 串行——成员级断点在工作�
   异国 complete cell（无 layer 标记）在 lake_lock 下原地并入 v3 meta
   （旧驱动无条件覆写 meta.json 的同义动作）；layer 冲突 → orphan_adopt。
 - 特征提取块（TEXT_EXT..eval_signatures/blob_features/_texts_features/
-  unpack_blob）逐字节 verbatim；strip_comments 引 _benchlite 单源
-  （verbatim 不感知口径——texlate.arxiv._texutil 版语义不同勿替）。
+  unpack_blob）与通用件（log/open_url/safe_name/REPO..TIGER_DL/SEED/
+  frame_lookup 装载/cell_meta/canon 归一/RAW_NAME/atomic_write）全部走
+  ``specs._corpus_common``（cc）单源——本文件此前是逐字节副本，dedup
+  后 v3 专属注记已回填 cc 注释面。
 """
 
 from __future__ import annotations
@@ -56,16 +58,13 @@ from __future__ import annotations
 import csv
 import gzip
 import hashlib
-import io
 import json
 import os
 import random
 import re
-import sys
 import tarfile
 import time
 import urllib.error
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -74,11 +73,11 @@ from kernel.events import iter_jsonl
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
-from specs._benchlite import strip_comments
 
 _bootstrap.ensure()
 
-REPO = Path(__file__).resolve().parents[3]
+from specs import _corpus_common as cc
+
 #: 持久 builder 工作区（旧 bench/work_v3 新家——多日断点状态全在这棵树下）。
 WORK = (
     Path(os.environ.get("TEXLATE_CORPUS_WORK", ""))
@@ -86,19 +85,12 @@ WORK = (
     else Path.home() / ".local" / "state" / "texlate" / "corpus-build" / "v3"
 )
 TARS = WORK / "tars"
-CORPUS = REPO / "bench" / "corpus"
-FRAME = REPO / "bench" / "frame"  # frame_bootstrap(ord-0) 物化区（gitignored 数据）
 CHUNKS_JSON = WORK / "chunks.json"
-SEED = 42  # 抽样口径常量（非旋钮——进 params 会诱改口径）
-UA = {"User-Agent": "texlate-corpus-v3/1.0 (research benchmark build)"}
-TIMEOUT = 60
+#: frame_lookup stage 产物落点（v3 私有——corpus-build 根的共享件是
+#: cc.ensure_frame_lookup 的另一契约，勿混用）。
+FRAME_LOOKUP_GZ = WORK / "frame_lookup.tsv.gz"
 
-IA_DL = "https://archive.org/download/{item}/{item}.tar"
-IA_META = "https://archive.org/metadata/{item}"
 IA_ZIPSUM = "https://archive.org/download/{item}/{item}_zipsum.tsv"
-TIGER_DL = (
-    "https://huggingface.co/datasets/TIGER-Lab/arxiv-latex-5T/resolve/main/{name}.tar"
-)
 
 #: lake cell 落点维度——全部下游 spec 的 lake_source 共识。
 LAKE_SOURCE = "arxiv"
@@ -108,20 +100,12 @@ BAND_OF_CLUSTER = {}  # cluster_id -> year_band, filled by load_allocation()
 # ---------------- 通用 ----------------
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    fsutil.atomic_write(Path(path), text.encode("utf-8"))
-
-
 def _read_jsonl(path: Path) -> list[dict]:
     return [row for _ln, row, _raw in iter_jsonl(Path(path)) if isinstance(row, dict)]
 
 
 def load_allocation() -> list[dict]:
-    with (FRAME / "allocation-core.csv").open(newline="") as fh:
+    with (cc.FRAME / "allocation-core.csv").open(newline="") as fh:
         rows = list(csv.DictReader(fh))
     for r in rows:
         r["quota_core"] = int(r["quota_core"])
@@ -135,21 +119,7 @@ def load_chunks() -> list[dict]:
 
 
 def save_chunks(chunks: list[dict]) -> None:
-    _atomic_write_text(CHUNKS_JSON, json.dumps(chunks, indent=1) + "\n")
-
-
-def open_url(url: str, headers: dict | None = None, timeout: int = TIMEOUT):
-    req = urllib.request.Request(  # noqa: S310 — bench 下载脚本, URL 全是固定 https 端点
-        url, headers={**UA, **(headers or {})}
-    )
-    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — 同上
-
-
-def safe_name(name: str) -> str | None:
-    p = Path(name.lstrip("./"))
-    if p.is_absolute() or ".." in p.parts:
-        return None
-    return str(p)
+    cc.atomic_write_text(CHUNKS_JSON, json.dumps(chunks, indent=1) + "\n")
 
 
 # ---------------- plan ----------------
@@ -170,7 +140,7 @@ _FRAME_INPUTS = (
 
 
 def _plan(ctx):
-    missing = [f for f in _FRAME_INPUTS if not (FRAME / f).is_file()]
+    missing = [f for f in _FRAME_INPUTS if not (cc.FRAME / f).is_file()]
     if missing:
         ctx.emit_note(
             f"frame 资产缺席 {missing} — 先跑 frame_bootstrap(ord-0)", level="warn"
@@ -179,14 +149,14 @@ def _plan(ctx):
     WORK.mkdir(parents=True, exist_ok=True)
     alloc = load_allocation()
     ia_idx: dict[str, dict[int, dict]] = {}
-    with (FRAME / "item-index.csv").open(newline="") as fh:
+    with (cc.FRAME / "item-index.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             ia_idx.setdefault(r["yymm"], {})[int(r["chunk"])] = {
                 "item": r["identifier"],
                 "size": int(r["size"]),
             }
     tiger_idx: dict[str, dict[int, dict]] = {}
-    with (FRAME / "tiger-files.csv").open(newline="") as fh:
+    with (cc.FRAME / "tiger-files.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             m = re.match(r"arXiv_src_(\d{4})_(\d{3})\.tar$", r["path"])
             if not m:
@@ -201,22 +171,22 @@ def _plan(ctx):
         yymm, ch = row["yymm"], row["channel"]
         idx = ia_idx if ch == "ia" else tiger_idx
         if yymm not in idx:
-            log(f"!! {row['cluster_id']} {yymm} 在 {ch} 索引中不存在")
+            cc.log(f"!! {row['cluster_id']} {yymm} 在 {ch} 索引中不存在")
             continue
         avail = sorted(idx[yymm])
         if len(avail) != row["n_chunks"]:
-            log(f"!! {yymm} 索引块数 {len(avail)} != allocation {row['n_chunks']}")
+            cc.log(f"!! {yymm} 索引块数 {len(avail)} != allocation {row['n_chunks']}")
         for cid in pick_chunk_ids(len(avail)):
             if cid not in idx[yymm]:
-                log(f"!! {yymm} chunk {cid} 缺")
+                cc.log(f"!! {yymm} chunk {cid} 缺")
                 continue
             info = idx[yymm][cid]
             if ch == "ia":
                 item = info["item"]
-                url = IA_DL.format(item=item)
+                url = cc.IA_DL.format(item=item)
             else:
                 item = f"arXiv_src_{yymm}_{cid:03d}"
-                url = TIGER_DL.format(name=item)
+                url = cc.TIGER_DL.format(name=item)
             chunks.append(
                 {
                     "cluster_id": row["cluster_id"],
@@ -244,7 +214,7 @@ def _plan(ctx):
         if c["channel"] != "ia" or c.get("sha1") is not None:
             continue
         try:
-            with open_url(IA_META.format(item=c["item"])) as r:
+            with cc.open_url(cc.IA_META.format(item=c["item"])) as r:
                 meta = json.loads(r.read())
             (WORK / "meta" / f"{c['item']}.json").write_text(json.dumps(meta))
             for f in meta.get("files", []):
@@ -252,7 +222,7 @@ def _plan(ctx):
                     c["sha1"] = f.get("sha1")
                     c["md5"] = f.get("md5")
                     if int(f.get("size", 0)) != c["size"]:
-                        log(
+                        cc.log(
                             f"  {c['item']} size idx {c['size']} -> "
                             f"meta {f.get('size')}"
                         )
@@ -263,15 +233,15 @@ def _plan(ctx):
                 c["has_zipsum"] = False
             n_meta += 1
         except Exception as e:
-            log(f"  meta fail {c['item']}: {e}")
+            cc.log(f"  meta fail {c['item']}: {e}")
 
     save_chunks(chunks)
     by_ch = {}
     for c in chunks:
         by_ch.setdefault(c["channel"], []).append(c)
     for ch, lst in by_ch.items():
-        log(f"{ch}: {len(lst)} chunks, {sum(c['size'] for c in lst) / 1e9:.2f} GB")
-    log(f"total {len(chunks)} chunks -> {CHUNKS_JSON}")
+        cc.log(f"{ch}: {len(lst)} chunks, {sum(c['size'] for c in lst) / 1e9:.2f} GB")
+    cc.log(f"total {len(chunks)} chunks -> {CHUNKS_JSON}")
     return {
         "status": "ok",
         "metrics": {
@@ -332,7 +302,7 @@ def fetch_one(c: dict) -> dict:
 def stream_download(c: dict, part: Path, have: int) -> None:
     """把 chunk 余量流进 .part (have>0 时 Range 续传); 完成后核对尺寸."""
     headers = {"Range": f"bytes={have}-"} if have else {}
-    r = open_url(c["url"], headers=headers, timeout=120)
+    r = cc.open_url(c["url"], headers=headers, timeout=120)
     try:
         resumed = bool(have) and r.status == 206
         with open(part, "ab" if resumed else "wb") as f:
@@ -389,7 +359,7 @@ def _fetch(ctx):
     ]
     if limit:
         todo = todo[: int(limit)]
-    log(
+    cc.log(
         f"fetch: {len(todo)} chunks pending"
         + (f" (channel={channel})" if channel else "")
     )
@@ -399,7 +369,7 @@ def _fetch(ctx):
         if not todo:
             break
         if round_no > 1:
-            log(f"retry round {round_no}: {len(todo)} chunks")
+            cc.log(f"retry round {round_no}: {len(todo)} chunks")
             for c in todo:
                 c["state"] = "pending"
             time.sleep(5)
@@ -410,12 +380,12 @@ def _fetch(ctx):
                 save_chunks(chunks)
                 if c["state"] == "done":
                     done_bytes += c["size"]
-                    log(
+                    cc.log(
                         f"  ok {c['item']} {c['size'] / 1e6:.0f}MB "
                         f"{c['elapsed_s']}s | session {done_bytes / 1e9:.2f}GB"
                     )
                 else:
-                    log(f"  FAIL {c['item']}: {c.get('error')}")
+                    cc.log(f"  FAIL {c['item']}: {c.get('error')}")
                 (WORK / "download_progress.jsonl").open("a").write(
                     json.dumps(
                         {
@@ -430,7 +400,7 @@ def _fetch(ctx):
                     + "\n"
                 )
     n_done = sum(c["state"] == "done" for c in chunks)
-    log(f"fetch done: {n_done}/{len(chunks)} chunks complete")
+    cc.log(f"fetch done: {n_done}/{len(chunks)} chunks complete")
     failed = [c["item"] for c in chunks if c["state"] == "failed"]
     return {
         "status": "ok" if n_done == len(chunks) else "partial",
@@ -459,13 +429,13 @@ def _zipsum(ctx):
             n_hit += 1
             continue
         try:
-            with open_url(IA_ZIPSUM.format(item=c["item"])) as r:
+            with cc.open_url(IA_ZIPSUM.format(item=c["item"])) as r:
                 data = r.read()
             out.write_bytes(data)
             n_hit += 1
-            log(f"zipsum {c['item']} {len(data)}B")
+            cc.log(f"zipsum {c['item']} {len(data)}B")
         except urllib.error.HTTPError as e:
-            log(f"zipsum {c['item']} HTTP {e.code}")
+            cc.log(f"zipsum {c['item']} HTTP {e.code}")
             if e.code == 404:  # 永久缺失才钉死; 5xx 留下轮重试
                 c["has_zipsum"] = False
                 n_404 += 1
@@ -473,7 +443,7 @@ def _zipsum(ctx):
                 n_err += 1
         except (urllib.error.URLError, OSError) as e:
             n_err += 1
-            log(f"zipsum {c['item']} {type(e).__name__}: {e} — 跳过重试")
+            cc.log(f"zipsum {c['item']} {type(e).__name__}: {e} — 跳过重试")
     save_chunks(chunks)
     return {
         "status": "ok",
@@ -482,543 +452,8 @@ def _zipsum(ctx):
 
 
 # ---------------- scan (S2) ----------------
-# 特征提取逐字节 lift build_corpus_v3（其本身改编自 ia-pilot 原型的 scan_tar.py;
-# 增量: blob_sha256 / stub / staging 输出 / zipsum 交叉核验）.
-
-TEXT_EXT = {
-    ".tex",
-    ".sty",
-    ".cls",
-    ".bbl",
-    ".bib",
-    ".txt",
-    ".def",
-    ".clo",
-    ".cfg",
-    ".ltx",
-    ".dtx",
-    ".ins",
-    ".fd",
-    ".bst",
-    ".mf",
-    ".mac",
-}
-DOCCLASS_RX = re.compile(
-    r"\\(documentclass|documentstyle)\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}",
-    re.DOTALL,
-)
-INPUT_RX = re.compile(
-    r"\\(?:input|include|InputIfFileExists)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
-)
-# deadpkg 名单：净室 stub 族（禁再分发→missing_file 必中）+ vendored 真件族
-# （pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
-# revtex 只钉裸名——revtex4/revtex4-2 是 CTAN 现役，\b 边界天然排除。
-DEAD_PKGS = {
-    "aa",
-    "aasms4",
-    "aaspp4",
-    "aastex",
-    "aipproc",
-    "aipmod",
-    "apjfonts",
-    "axodraw",
-    "boxedeps",
-    "citesort",
-    "complexity",
-    "diagrams",
-    "elsart",
-    "emulateapj",
-    "epsf",
-    "epsfx",
-    "eqsecnum",
-    "espcrc1",
-    "espcrc2",
-    "iopart",
-    "imsart",
-    "jhep3",
-    "jheppub",
-    "jinstpub",
-    "mn2e",
-    "moriond",
-    "psfig",
-    "pst-node",
-    "revtex",
-    "slashbox",
-    "sprocl",
-    "svglov3",
-    "svjour",
-    "svjour3",
-    "sw20lart",
-    "tcilatex",
-    "texsort",
-}
-DEADPKG_ALT = "|".join(sorted(DEAD_PKGS, key=len, reverse=True)).replace("-", "[-]")
-DEADPKG_RX = re.compile(
-    r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*?(?:"
-    + DEADPKG_ALT
-    + r")\b|"
-    + r"\\document(?:class|style)\s*(?:\[[^\]]*\])?\s*\{[^}]*?(?:"
-    + DEADPKG_ALT
-    + r")\b|"
-    + r"\\documentstyle\[[^\]]*(?:"
-    + DEADPKG_ALT
-    + r")\b|"
-    + r"\\input\s*\{?[^{}\s]*(?:"
-    + DEADPKG_ALT
-    + r")\b",
-    re.IGNORECASE,
-)
-
-FLAG_RX = {
-    "minted": re.compile(
-        # \mint 定界（W108）：必须是 minted 调用形（[opts]{lang}）——作者常以
-        # \def\mint{\int..} 表多重积分，\b 裸匹配会把定义体/积分用法误作 flag
-        r"\\begin\{minted\}|\\inputminted|"
-        r"\\mint(?:inline)?(?:\[[^\]]*\])?\{[a-zA-Z0-9_+.-]+\}|"
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*minted"
-    ),
-    "pstricks": re.compile(
-        r"\\begin\{pspicture\}|\\ps[A-Z]|"
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{pst[-a-z]*"
-    ),
-    "tikz": re.compile(
-        r"\\begin\{tikzpicture\}|\\tikz\b|\\usetikzlibrary|"
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*tikz"
-    ),
-    "biblatex": re.compile(
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{biblatex|"
-        r"\\addbibresource|\\printbibliography"
-    ),
-    "hyperref": re.compile(
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*hyperref|"
-        r"\\hypersetup"
-    ),
-    "amsmath": re.compile(
-        r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*amsmath|"
-        r"\\begin\{align|\\begin\{equation"
-    ),
-    "epsfig": re.compile(
-        r"\\epsfig\{|\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{epsfig|"
-        r"\\includegraphics(?:\[[^\]]*\])?\{[^}]*\.e?ps\}?",
-        re.IGNORECASE,
-    ),
-    # failmine 矿类旗（2026-09-19 扩库）：命中即"现代引擎大概率 missing_file /
-    # 走 vendor stub"的论文——名单对齐 fixloop/vendor/{stubs,files} 绝版族 +
-    # loop1 残差签名族（aasms4/psfig/pst-node/JHEP3/epsf）。三种命中形态：
-    # \usepackage{}/\RequirePackage{}、\documentstyle 选项位、\input X.sty。
-    "deadpkg": DEADPKG_RX,
-    # 旧式 pdftex 原语直写（unfixable:pdftex_prim:* 族）：现代引擎不认的
-    # 原语赋值——只钉赋值形（=\d），读位（\ifnum\pdfoutput）不算病灶。
-    "pdftex_prim": re.compile(
-        r"\\pdf(?:compresslevel|objcompresslevel|decimaldigits|"
-        r"optionalwaysusepdfpagebox|omitcharset|suppressptexinfo)\s*=?|"
-        r"\\pdfoutput\s*=\s*\d"
-    ),
-    # babel 非英语选项族（残差签名 babel_opt:german）：选项位命中即记——
-    # 只钉 babel 包，其他包的 german 同名选项不捞。
-    "babel_german": re.compile(
-        r"\\(?:usepackage|RequirePackage)\[[^\]]*german[^\]]*\]\{babel\}|"
-        r"\\usepackage\{babel\}[^\n]*german"
-    ),
-}
-AUTOIGNORE = b"%auto-ignore"
-
-# ---- EVAL 良性形态签名（mechanisms.jsonl EVAL 族；blob_features 簿记进 signatures）----
-USEP_RX = re.compile(r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{([^}]*)\}")
-# W35 期刊样式以 \usepackage 加载的已知样式包（jheppub 类——2.09 docstyle 选项系同款）
-JOURNAL_STY_PKGS = {
-    "jheppub",
-    "jinstpub",
-    "aasms4",
-    "aaspp4",
-    "sprocl",
-    "espcrc2",
-    "moriond",
-    "aipmod",
-    "eqsecnum",
-    "emulateapj",
-}
-# W62 kitchen-sink 异质 DSL 包（证据谱：CJKutf8+skak+xypic+tikz-cd+commath+faktor+nccmath）
-DSL_PKGS = {
-    "skak",
-    "xypic",
-    "tikz-cd",
-    "commath",
-    "faktor",
-    "nccmath",
-    "chess",
-    "amscd",
-    "pb-diagram",
-    "forest",
-    "qtree",
-    "xy",
-}
-# W64 \documentclass 非常规 option 位期刊样式（证据 ecta；同谱补 jhep/jcap/mnras/aastex
-# + revtex 期刊/学会位 pra..prx/aps/aip——实测 docclass_opts 谱见 1502.06414）
-JOURNAL_OPTS = {
-    "ecta",
-    "jhep",
-    "jcap",
-    "mnras",
-    "aastex",
-    "aps",
-    "aip",
-    "pra",
-    "prb",
-    "prc",
-    "prd",
-    "pre",
-    "prl",
-    "prx",
-    "rmp",
-}
-# W70 选项错拼判定基线：LaTeX 内核 + 主流类选项白名单（编辑距 ≤1 即疑 typo）
-KERNEL_OPTS = {
-    "8pt",
-    "9pt",
-    "10pt",
-    "11pt",
-    "12pt",
-    "14pt",
-    "17pt",
-    "20pt",
-    "a4paper",
-    "a5paper",
-    "b5paper",
-    "letterpaper",
-    "legalpaper",
-    "executivepaper",
-    "landscape",
-    "twocolumn",
-    "onecolumn",
-    "twoside",
-    "oneside",
-    "draft",
-    "final",
-    "fleqn",
-    "leqno",
-    "titlepage",
-    "notitlepage",
-    "openright",
-    "openany",
-    "openbib",
-    "preprint",
-    "preprintnumbers",
-    "superscriptaddress",
-    "amsmath",
-    "amssymb",
-    "amsfonts",
-    "floatfix",
-    "nofootinbib",
-    "showkeys",
-    "showpacs",
-    "longbibliography",
-    "reprint",
-    "conference",
-    "journal",
-    "technote",
-    "compsoc",
-    "peerreview",
-    "review",
-    "manuscript",
-    "screen",
-    "referee",
-    "english",
-    "proc",
-    "overfull",
-    "numbered",
-    "authoryear",
-    # 实测语料补录（避免标准类选项误作 typo 候选）:
-    # amsart 系 eqno/tags/limits 位
-    "reqno",
-    "tbtags",
-    "centertags",
-    "intlimits",
-    "nointlimits",
-    "sumlimits",
-    "nosumlimits",
-    "namelimits",
-    "nonamelimits",
-    # IEEEtran 学会位
-    "comsoc",
-    "transmag",
-    # svjour/aip 系参考文献样式位
-    "author-year",
-}
-ORG_LABEL_RX = re.compile(r"\\label\{sec:org[0-9a-f]{5,9}\}")
-EDITOR_LEFT_RX = re.compile(r"\\label\{[a-z]+:enter-label\}|\\textbf\{\}")
-PLAIN_OUT_RX = re.compile(
-    r"\\(?:headline|footline|output|shipout)\s*(?=[={\\])|\\shipout\b"
-)
-MANUAL_BF_RX = re.compile(r"\{\\bf[a-z]*\b")
-CENTERLINE_RX = re.compile(r"\\centerline\b")
-SECTION_RX = re.compile(r"\\(?:sub)*section\*?\s*[{\[]")
-XREF_RX = re.compile(r"\\jobname\.xref|\.xref\b")
-
-
-def _dist1(a: str, b: str) -> bool:
-    """a 与 b 编辑距离恰为 1（W70 选项错拼：12pi↔12pt）。"""
-    la, lb = len(a), len(b)
-    if abs(la - lb) > 1:
-        return False
-    if la == lb:
-        return sum(x != y for x, y in zip(a, b, strict=True)) == 1
-    if la > lb:
-        a, b = b, a
-    i = 0
-    while i < len(a) and a[i] == b[i]:
-        i += 1
-    return a[i:] == b[i + 1 :]
-
-
-def eval_signatures(blob_txt: str) -> dict[str, object]:
-    """良性形态签名簿记 → {mech_id: 命中明细}；只在 paper 自身 tex（剥注释后）上看。
-
-    每条对应 mechanisms.jsonl EVAL 族一行——把「长得像故障的良性形态」注记进
-    features，供归因/狩猎区分真缺陷与形态签名（W48 协作残留、W88 手排、W70 typo 等）。
-    """
-    sig: dict[str, object] = {}
-    pkgs = Counter(
-        p.strip()
-        for m in USEP_RX.finditer(blob_txt)
-        for p in m.group(1).split(",")
-        if p.strip()
-    )
-    if dups := sorted(p for p, c in pkgs.items() if c >= 2):
-        sig["W48"] = dups
-    if jsty := sorted(pkgs.keys() & JOURNAL_STY_PKGS):
-        sig["W35"] = jsty
-    if ORG_LABEL_RX.search(blob_txt):
-        sig["W39"] = True
-    if n := len(EDITOR_LEFT_RX.findall(blob_txt)):
-        sig["W60"] = n
-    if (dsl := sorted(pkgs.keys() & DSL_PKGS)) and len(dsl) >= 2:
-        sig["W62"] = dsl
-    dcls_opts = {
-        o.strip()
-        for m in DOCCLASS_RX.finditer(blob_txt)
-        if m.group(1) == "documentclass" and m.group(2)
-        for o in m.group(2).split(",")
-        if o.strip()
-    }
-    if jopt := sorted(dcls_opts & JOURNAL_OPTS):
-        sig["W64"] = jopt
-    if typos := sorted(
-        o
-        for o in dcls_opts - JOURNAL_OPTS - KERNEL_OPTS
-        if any(_dist1(o, k) for k in KERNEL_OPTS)
-    ):
-        sig["W70"] = typos
-    if not SECTION_RX.search(blob_txt) and (
-        len(MANUAL_BF_RX.findall(blob_txt)) >= 3
-        or len(CENTERLINE_RX.findall(blob_txt)) >= 2
-    ):
-        sig["W88"] = True
-    if outs := sorted({o.strip() for o in PLAIN_OUT_RX.findall(blob_txt)}):
-        sig["W93"] = outs
-    if XREF_RX.search(blob_txt):
-        sig["W106"] = True
-    return sig
-
-
-def looks_like_tar(b: bytes) -> bool:
-    if len(b) < 512:
-        return False
-    if b[257:262] == b"ustar":
-        return True
-    try:
-        chksum = int(b[148:156].split(b"\0", 1)[0].strip() or b"0", 8)
-        calc = sum(b[:148]) + 8 * 32 + sum(b[156:512])
-    except ValueError:
-        return False
-    return calc == chksum
-
-
-def norm_target(raw: str) -> str:
-    t = raw.strip().strip("{}").strip('"').strip("'")
-    t = t.replace("\\", "/").lstrip("./")
-    if not Path(t).suffix:
-        t += ".tex"
-    return t
-
-
-def input_depth(tex_by_norm: dict[str, str], roots: list[str]) -> int:
-    edges: dict[str, set[str]] = {}
-    for path, text in tex_by_norm.items():
-        deps = set()
-        base = Path(path).parent
-        for m in INPUT_RX.finditer(text):
-            t = norm_target(m.group(1))
-            cands = (str(base / t), t, str(base / Path(t).name))
-            hit = next(
-                (
-                    x
-                    for x in (str(Path(x)) if x.startswith("/") else x for x in cands)
-                    if x in tex_by_norm
-                ),
-                None,
-            )
-            if hit is not None:
-                deps.add(hit)
-        edges[path] = deps
-    starts = roots or list(tex_by_norm)
-    best = 0
-    for s in starts:
-        seen: dict[str, int] = {}
-        stack = [(s, 0)]
-        while stack:
-            node, d = stack.pop()
-            if seen.get(node, -1) >= d or d > 32:
-                continue
-            seen[node] = d
-            best = max(best, d)
-            stack.extend((nxt, d + 1) for nxt in edges.get(node, ()))
-    return best
-
-
-def member_id(name: str) -> str:
-    """'9802/astro-ph9802001.gz' → 'astro-ph/9802001';
-    '1201/1201.00012.gz' → '1201.00012'."""
-    stem = Path(name).name
-    stem = re.sub(r"\.(gz|pdf|tar\.gz)$", "", stem)
-    m = re.match(r"([a-z-]+(?:\.[A-Z]{2})?)(\d{7})$", stem)
-    if m:
-        return f"{m.group(1)}/{m.group(2)}"
-    return stem
-
-
-def blob_features(name: str, blob: bytes) -> dict:
-    """单个 e-print blob → 特征 dict (scan_tar 版 + sha256/stub/staging texts).
-
-    特征口径见 _texts_features: flags=tex 通道 / flags_vendored=sty·cls·bbl 通道
-    / flags_commented=剥注释差集 / signatures=EVAL 良性形态簿记。
-    """
-    rec: dict = {
-        "member": name,
-        "id": member_id(name),
-        "member_bytes": len(blob),
-        "blob_sha256": hashlib.sha256(blob).hexdigest(),
-    }
-    if blob[:5] == b"%PDF-":
-        rec["format"] = "pdf"
-        return rec
-    if blob[:2] == b"\x1f\x8b":
-        try:
-            data = gzip.decompress(blob)
-        except OSError as e:
-            rec["format"] = "error"
-            rec["error"] = f"gunzip: {e}"
-            return rec
-    else:
-        data = blob
-    if data.lstrip()[:20].startswith(AUTOIGNORE):
-        rec["format"] = "stub"
-        rec["uncompressed_bytes"] = len(data)
-        return rec
-    if looks_like_tar(data):
-        rec["format"] = "tar"
-        try:
-            inner = tarfile.open(fileobj=io.BytesIO(data), mode="r:")
-            files = [m for m in inner.getmembers() if m.isreg()]
-        except tarfile.TarError as e:
-            rec["format"] = "error"
-            rec["error"] = f"inner tar: {e}"
-            return rec
-        texts: dict[str, bytes] = {}
-        n_tex = 0
-        total_bytes = 0
-        for m in files:
-            total_bytes += m.size
-            ext = Path(m.name).suffix.lower()
-            if ext == ".tex":
-                n_tex += 1
-            if ext in TEXT_EXT and m.size < 8 << 20:
-                f = inner.extractfile(m)
-                if f:
-                    texts[m.name.lstrip("./")] = f.read()
-        rec["n_total_files"] = len(files)
-        rec["n_tex_files"] = n_tex
-        rec["uncompressed_bytes"] = total_bytes
-    else:
-        rec["format"] = "gz"
-        rec["n_total_files"] = 1
-        head = data.lstrip()[:8]
-        is_tex = not head.startswith((b"%!PS", b"%PDF"))
-        rec["n_tex_files"] = 1 if is_tex else 0
-        if not is_tex:
-            rec["gz_payload"] = "ps/pdf"
-        rec["uncompressed_bytes"] = len(data)
-        texts = {Path(name).name.replace(".gz", ".tex"): data}
-
-    tex_texts: dict[str, str] = {}
-    non_utf8 = False
-    for p, b in texts.items():
-        try:
-            s = b.decode("utf-8")
-        except UnicodeDecodeError:
-            non_utf8 = True
-            s = b.decode("utf-8", "replace")
-        if Path(p).suffix.lower() == ".tex" or rec["format"] == "gz":
-            tex_texts[p] = s
-    rec["non_utf8"] = non_utf8
-    rec["_texts"] = texts  # staging 用, 不落 jsonl
-    rec.update(_texts_features(tex_texts, texts))
-    return rec
-
-
-def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
-    """tex_texts(剥注释前 tex 文本)+texts(全部文本件)→ 形态特征字段。
-
-    blob_features(scan_tar) 与 fetch-ids extracted 树共用同一计算——特征口径
-    单点维护, 避免两通道漂移。
-    """
-    rec: dict = {}
-    tex_raw = "\n".join(tex_texts.values())
-    sty_raw = "\n".join(
-        b.decode("utf-8", "replace")
-        for p, b in texts.items()
-        if Path(p).suffix.lower() in {".sty", ".cls", ".bbl"}
-    )
-    blob_txt = strip_comments(tex_raw)
-    sty_txt = strip_comments(sty_raw)
-    dcls_ms = list(DOCCLASS_RX.finditer(blob_txt))
-    rec["docclasses"] = sorted({m.group(3).strip() for m in dcls_ms})
-    rec["docstyle"] = any(m.group(1) == "documentstyle" for m in dcls_ms)
-    # W80-feat: 2.09 \documentstyle[jheppub,12pt]{article} 的期刊样式本体在 option 位
-    rec["docstyle_opts"] = sorted(
-        {
-            o.strip()
-            for m in dcls_ms
-            if m.group(1) == "documentstyle" and m.group(2)
-            for o in m.group(2).split(",")
-            if o.strip()
-        }
-    )
-    rec["docclass_opts"] = sorted(
-        {
-            o.strip()
-            for m in dcls_ms
-            if m.group(1) == "documentclass" and m.group(2)
-            for o in m.group(2).split(",")
-            if o.strip()
-        }
-    )
-    roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
-    rec["tex_roots"] = sorted(roots)
-    rec["input_depth"] = input_depth(tex_texts, roots)
-    # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把
-    # 宏包自带形态(如样式文件内嵌 pstricks 钩)误记为论文自身 flag
-    rec["flags"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(blob_txt))
-    rec["flags_vendored"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(sty_txt))
-    # W109: hunter rg 命中剥注释复核——只活在注释里的命中单列(raw 有 stripped 无)
-    raw_scan = tex_raw + "\n" + sty_raw
-    stripped_hits = set(rec["flags"]) | set(rec["flags_vendored"])
-    rec["flags_commented"] = sorted(
-        {k for k, rx in FLAG_RX.items() if rx.search(raw_scan)} - stripped_hits
-    )
-    if sig := eval_signatures(blob_txt):
-        rec["signatures"] = sig
-    return rec
+# 特征提取机（TEXT_EXT..eval_signatures/blob_features/_texts_features 全套）
+# → specs._corpus_common 单源（cc.*）——勿再长第三份 verbatim。
 
 
 def _scan_chunk(c: dict) -> None:
@@ -1030,7 +465,7 @@ def _scan_chunk(c: dict) -> None:
         d.mkdir(parents=True, exist_ok=True)
     mout, fout = mdir / f"{tag}.jsonl", fdir / f"{tag}.jsonl"
     if fout.exists() and mout.exists():
-        log(f"scan {tag}: already done, skip")
+        cc.log(f"scan {tag}: already done, skip")
         return
     mtmp, ftmp = mout.with_suffix(".tmp"), fout.with_suffix(".tmp")
     zsum = {}
@@ -1058,11 +493,11 @@ def _scan_chunk(c: dict) -> None:
             f = tar.extractfile(m)
             blob = f.read() if f else b""
             try:
-                rec = blob_features(m.name, blob)
+                rec = cc.blob_features(m.name, blob)
             except Exception as e:  # 成员级异常不阻断
                 rec = {
                     "member": m.name,
-                    "id": member_id(m.name),
+                    "id": cc.member_id(m.name),
                     "member_bytes": m.size,
                     "format": "error",
                     "error": f"{type(e).__name__}: {e}",
@@ -1074,7 +509,7 @@ def _scan_chunk(c: dict) -> None:
             if texts and (rec.get("n_tex_files") or 0) >= 1:
                 mdir_out = sdir / rec["id"]
                 for rel, content in texts.items():
-                    rel_safe = safe_name(rel)
+                    rel_safe = cc.safe_name(rel)
                     if rel_safe is None:
                         continue
                     gzf = mdir_out / (rel_safe + ".gz")
@@ -1085,10 +520,10 @@ def _scan_chunk(c: dict) -> None:
             rec["item"] = c["item"]
             fw.write(json.dumps(rec) + "\n")
             if n % 500 == 0:
-                log(f"  {tag}: {n} members, {time.time() - t0:.0f}s")
+                cc.log(f"  {tag}: {n} members, {time.time() - t0:.0f}s")
     mtmp.rename(mout)
     ftmp.rename(fout)
-    log(
+    cc.log(
         f"scan {tag}: {n} members {time.time() - t0:.1f}s"
         + (f" zipsum_mismatch={n_mismatch}" if zsum else "")
     )
@@ -1108,7 +543,7 @@ def _scan(ctx):
         except Exception as e:
             n_failed += 1
             failed.append(tag)
-            log(f"!! scan {tag}: {type(e).__name__}: {e}")
+            cc.log(f"!! scan {tag}: {type(e).__name__}: {e}")
     status = "ok" if n_failed == 0 and n_scanned else "partial"
     return {
         "status": status,
@@ -1133,7 +568,7 @@ def _frame_lookup(ctx):
         )
         return "fail"
     t = pq.read_table(
-        FRAME / "frame.parquet",
+        cc.FRAME / "frame.parquet",
         columns=[
             "id",
             "tar_yymm",
@@ -1143,64 +578,31 @@ def _frame_lookup(ctx):
             "license_class",
         ],
     )
-    out = WORK / "frame_lookup.tsv.gz"
+    out = FRAME_LOOKUP_GZ
     out.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(out, "wt") as f:
         cols = [t.column(n).to_pylist() for n in t.column_names]
         for row in zip(*cols, strict=True):
             f.write("\t".join("" if v is None else str(v) for v in row) + "\n")
-    log(f"frame_lookup: {t.num_rows} rows -> {out}")
+    cc.log(f"frame_lookup: {t.num_rows} rows -> {out}")
     return {"status": "ok", "metrics": {"frame_rows": t.num_rows}}
-
-
-def load_frame_lookup() -> dict[str, dict]:
-    path = WORK / "frame_lookup.tsv.gz"
-    lut = {}
-    with gzip.open(path, "rt") as f:
-        for line in f:
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 6:
-                continue
-            i, ty, yb, cg, pc, lc = parts[:6]
-            lut[i] = {
-                "tar_yymm": ty,
-                "year_band": yb,
-                "cat_group": cg,
-                "primary_cat": pc,
-                "license_class": lc,
-            }
-    return lut
-
-
-def frame_get(lut: dict, pid: str) -> dict | None:
-    """成员 id → frame 行; 旧式 math.XX/ 归并 math/ 回退."""
-    r = lut.get(pid)
-    if r is None and "/" in pid:
-        arch, num = pid.split("/", 1)
-        if "." in arch:
-            r = lut.get(f"{arch.split('.')[0]}/{num}")
-    return r
 
 
 # ---------------- sample (S3a) ----------------
 
 
-def eligible(f: dict) -> bool:
-    return f.get("format") in ("tar", "gz") and (f.get("n_tex_files") or 0) >= 1
-
-
 def _sample(ctx):
-    rng = random.Random(SEED)
+    rng = random.Random(cc.SEED)
     alloc = {r["cluster_id"]: r for r in load_allocation()}
     mix: dict[str, dict[str, float]] = {}
-    mix_path = FRAME / "cluster-cat-mix.csv"
+    mix_path = cc.FRAME / "cluster-cat-mix.csv"
     if not mix_path.is_file():
         ctx.emit_note(f"frame 资产缺席 {mix_path.name}", level="warn")
         return "fail"
     with mix_path.open(newline="") as fh:
         for r in csv.DictReader(fh):
             mix.setdefault(r["yymm"], {})[r["cat_group"]] = float(r["share"])
-    lut = load_frame_lookup()
+    lut = cc.load_frame_lookup(FRAME_LOOKUP_GZ)
     chunks = load_chunks()
 
     feats_by_cluster: dict[str, list[dict]] = {}
@@ -1227,7 +629,7 @@ def _sample(ctx):
         pool = []
         n_join_miss = 0
         for f in feats:
-            fr = frame_get(lut, f["id"])
+            fr = cc.frame_get(lut, f["id"])
             if fr is None:
                 n_join_miss += 1
                 f["cat_group"] = "unknown"
@@ -1239,7 +641,7 @@ def _sample(ctx):
                 if fr["tar_yymm"] != yymm:
                     f["yymm_mismatch"] = True
             # 只有 frame 命中的成员进核心池 (事后分层权重需要 cat_group)
-            if fr is not None and eligible(f):
+            if fr is not None and cc.eligible(f):
                 pool.append(f)
             # ---- booster 候选预筛 (不中选也可入池, extract 阶段只挑最终提名) ----
             whys: dict[str, list[str]] = {}
@@ -1359,7 +761,7 @@ def _sample(ctx):
     for k, lst in booster_pool.items():
         booster_pool[k] = [c for c in lst if c["id"] not in core_ids]
 
-    _atomic_write_text(
+    cc.atomic_write_text(
         WORK / "sample_core.json",
         json.dumps(
             {
@@ -1385,10 +787,12 @@ def _sample(ctx):
         )
         + "\n",
     )
-    _atomic_write_text(
+    cc.atomic_write_text(
         WORK / "booster_pool.json", json.dumps(booster_pool, indent=1) + "\n"
     )
-    _atomic_write_text(WORK / "sample_report.json", json.dumps(report, indent=1) + "\n")
+    cc.atomic_write_text(
+        WORK / "sample_report.json", json.dumps(report, indent=1) + "\n"
+    )
     for r in report:
         att = ", ".join(f"{g}:{a['got']}/{a['target']}" for g, a in r["attain"].items())
         print(
@@ -1396,7 +800,7 @@ def _sample(ctx):
             f"pool={r['members_scanned']} elig={r['eligible']} "
             f"picked={r['picked']} miss={r['frame_join_miss']} | {att}"
         )
-    log(
+    cc.log(
         f"sample: {sum(r['picked'] for r in report)} core picks, "
         f"booster pool { {k: len(v) for k, v in booster_pool.items()} }"
     )
@@ -1414,58 +818,6 @@ def _sample(ctx):
 # ---------------- extract (S4) — lake 物化 ----------------
 
 
-def unpack_blob(blob: bytes, fmt: str, dest: Path) -> tuple[int, list[str]]:
-    """raw e-print blob → ``dest/extracted/``（归并产品 ``texlate.arxiv`` unpack）。
-
-    sniff 做有上限 gunzip + 魔数复核——``fmt`` 只是扫描侧标注，内容优先、不符
-    记 fmt_mismatch 告警；tar 走产品逐成员过滤（容量/setuid/link/casefold/
-    stub），单文件 gz 沿用旧命名：tex → ``main.tex``、ps/pdf payload 按真实
-    扩展名落盘。非 tar/gz 与解包硬错误 → ``(0, warns)``，不炸批。
-    """
-    from texlate.arxiv import (  # 仅 extract 路径需要 (pyarrow 同例；其余 stage 保持 stdlib-only)
-        BlobKind,
-        SniffError,
-        UnpackError,
-        sniff,
-        unpack_single,
-        unpack_tar,
-    )
-
-    if fmt not in ("tar", "gz"):
-        return 0, [f"{fmt} member — blob 留存不解包"]
-    ext_dir = dest / "extracted"
-    ext_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        s = sniff(blob)
-    except SniffError as e:
-        return 0, [f"sniff_error:{e}"]
-    if s.oversized or s.payload is None:
-        return 0, [
-            f"inflated_too_large:{s.inflated_size}"
-            if s.oversized
-            else f"cannot unpack kind={s.kind}"
-        ]
-    try:
-        if s.kind is BlobKind.TAR:
-            res = unpack_tar(s.payload, ext_dir)
-            if fmt != "tar":
-                res.warnings.append("fmt_mismatch:gz->tar")
-            return res.n_files, res.warnings
-        if s.kind is BlobKind.SINGLE:
-            head = s.payload.lstrip()[:8]
-            if head.startswith((b"%!PS", b"%PDF")):
-                ext = ".ps" if head.startswith(b"%!PS") else ".pdf"
-                (ext_dir / f"main{ext}").write_bytes(s.payload)
-                return 1, [f"single-gz payload sniffed as {ext}"]
-            res = unpack_single(s.payload, ext_dir, stem_hint="main")
-            if fmt != "gz":
-                res.warnings.append("fmt_mismatch:tar->single")
-            return res.n_files, res.warnings
-    except UnpackError as e:
-        return 0, [f"unpack_error:{e}"]
-    return 0, [f"cannot unpack kind={s.kind}"]
-
-
 class _MemberFault(Exception):
     """成员级故障——fetch_fn 内抛，stage fn 捕，记 cell errors 不毁 stage。"""
 
@@ -1475,27 +827,6 @@ class _MemberFault(Exception):
         super().__init__(f"{cat}:{payload}")
 
 
-_RAW_NAME = {
-    "tar": "raw.tar.gz",
-    "gz": "raw.gz",
-    "pdf": "raw.pdf",
-    "stub": "raw.stub",
-}
-
-
-def _cell_meta(d: Path) -> dict:
-    try:
-        m = json.loads((Path(d) / "meta.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return m if isinstance(m, dict) else {}
-
-
-def _idc_of(pid: str) -> str:
-    res = idnorm.canon_id(pid)
-    return res.idc if res.ok and res.idc else pid
-
-
 def _cell_state(idc: str, layer: str) -> str:
     """lake cell 相对本管线的归属态：ours/conflict/build。
 
@@ -1503,7 +834,7 @@ def _cell_state(idc: str, layer: str) -> str:
     catalog empty 皆短路返回，是否并入在 hydrate 落点后读 meta 折叠判定。
     torn ours（meta 在而 payload 缺）走 build 交 hydrate 重建修复。
     """
-    meta = _cell_meta(lake.cell_dir(idc, LAKE_SOURCE))
+    meta = cc.cell_meta(lake.cell_dir(idc, LAKE_SOURCE))
     if not meta:
         return "build"
     if meta.get("layer") == layer and meta.get("member"):
@@ -1523,7 +854,7 @@ def _adopt_cell(idc: str, extra: dict) -> None:
     sid = idnorm.safe_id(idc)
     with lake.lake_lock(sid):
         d = lake.cell_dir(idc, LAKE_SOURCE)
-        meta = _cell_meta(d)
+        meta = cc.cell_meta(d)
         if meta.get("layer"):
             return
         d.mkdir(parents=True, exist_ok=True)
@@ -1576,7 +907,7 @@ def _member_meta(
         "item": item,
         "member": member,
         "raw_sha256": sha,
-        "raw_file": _RAW_NAME.get(feat["format"], "raw.bin"),
+        "raw_file": cc.RAW_NAME.get(feat["format"], "raw.bin"),
         "format": feat["format"],
         "tex_files": feat.get("n_tex_files"),
         "bytes": nbytes,
@@ -1624,8 +955,8 @@ def _make_fetch(
     tar_path = TARS / f"{item}.tar" if item else None
     member = rec["member"]
     fmt = feat["format"]
-    raw_name = _RAW_NAME.get(fmt, "raw.bin")
-    idc = _idc_of(rec["id"])
+    raw_name = cc.RAW_NAME.get(fmt, "raw.bin")
+    idc = cc.canon_or_self(rec["id"])
 
     def fetch(_idc: str, stage: Path) -> dict:
         stage = Path(stage)
@@ -1656,7 +987,7 @@ def _make_fetch(
         (stage / "raw" / raw_name).write_bytes(blob)
         warns = []
         if fmt in ("tar", "gz"):
-            _n_ext, warns = unpack_blob(blob, fmt, stage)
+            _n_ext, warns = cc.unpack_blob(blob, fmt, stage)
         else:
             warns.append(f"{fmt} member — blob 留存不解包（B07 归因材料）")
         main_sha = None
@@ -1727,7 +1058,7 @@ def _extract_members(
             if feat is None:
                 faults.append(("canon_drift", f"{rec['id']}:{mname} 无 features 记录"))
                 continue
-            idc = _idc_of(rec["id"])
+            idc = cc.canon_or_self(rec["id"])
             state = _cell_state(idc, layer)
             if state == "ours":
                 stats["reused"] += 1
@@ -1758,7 +1089,7 @@ def _extract_members(
             if d is None:
                 faults.append(("no_bulk_route", f"{idc}:{mname} hydrate 空返"))
                 continue
-            meta = _cell_meta(d)
+            meta = cc.cell_meta(d)
             if meta.get("layer") == layer and meta.get("member"):
                 stats["empty" if not meta.get("n_files") else "hydrated"] += 1
             elif meta.get("layer"):
@@ -1817,7 +1148,7 @@ def _rebuild_manifest(layer: str, out_name: str) -> list[dict]:
         for d in sorted(root.iterdir()):
             if not d.is_dir():
                 continue
-            meta = _cell_meta(d)
+            meta = cc.cell_meta(d)
             if (
                 meta.get("layer") != layer
                 or not meta.get("member")
@@ -1848,8 +1179,8 @@ def _rebuild_manifest(layer: str, out_name: str) -> list[dict]:
                 row["mech_tags"] = meta.get("mech_tags", [])
                 row["pick_reason"] = meta.get("pick_reason")
             rows.append(row)
-    _atomic_write_text(
-        CORPUS / out_name,
+    cc.atomic_write_text(
+        cc.CORPUS / out_name,
         "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n",
     )
     return rows
@@ -1861,7 +1192,7 @@ def _stage_extract(ctx):
     except ImportError:
         ctx.emit_note("texlate.arxiv 不可导入（需项目 venv）", level="warn")
         return "fail"
-    CORPUS.mkdir(exist_ok=True)
+    cc.CORPUS.mkdir(exist_ok=True)
     load_allocation()  # BAND_OF_CLUSTER
     sample = json.loads((WORK / "sample_core.json").read_text())
     wanted: dict[str, dict[str, dict]] = {}
@@ -1874,7 +1205,7 @@ def _stage_extract(ctx):
     # TARS 用完即删：booster 选集缺席时本段是唯一消费者，全 tag 可删；
     # 在场时只删 booster 用不到的 chunk（其成员提取走同一批 tar）。
     prune_tars: set[str] | None = set(wanted)
-    sel_path = CORPUS / "booster_selection.jsonl"
+    sel_path = cc.CORPUS / "booster_selection.jsonl"
     if sel_path.is_file():
         bsel = {s["id"] for s in _read_jsonl(sel_path) if s.get("id")}
         tag_of_item = {
@@ -1900,7 +1231,7 @@ def _stage_extract(ctx):
     manifest = _rebuild_manifest("core", "manifest.jsonl")
     _write_manifest_md(manifest)
     faults = stats.pop("faults")
-    log(f"extract done: {stats} | manifest {len(manifest)} rows -> {CORPUS}")
+    cc.log(f"extract done: {stats} | manifest {len(manifest)} rows -> {cc.CORPUS}")
     return {
         "status": "partial" if faults else "ok",
         "metrics": {**stats, "manifest_rows": len(manifest)},
@@ -1950,13 +1281,13 @@ def _write_manifest_md(manifest: list[dict]) -> None:
         f"| {r['format']} | {r['n_tex']} |"
         for r in sorted(manifest, key=lambda r: (r["cluster_id"], r["id"]))
     )
-    md = CORPUS / "MANIFEST.md"
+    md = cc.CORPUS / "MANIFEST.md"
     if md.exists() and "## 补强层" in md.read_text(encoding="utf-8"):
         # 现行 MANIFEST.md 含手补的 booster/hot/expand 策展段——整文件重写
         # 会把它们抹掉; 核心表如需重生成请人工合并进现有文件
-        log("MANIFEST.md 含策展段，跳过重写（核心表如需更新请手工合并）")
+        cc.log("MANIFEST.md 含策展段，跳过重写（核心表如需更新请手工合并）")
         return
-    _atomic_write_text(md, "\n".join(lines) + "\n")
+    cc.atomic_write_text(md, "\n".join(lines) + "\n")
 
 
 def _stage_extract_booster(ctx):
@@ -1965,7 +1296,7 @@ def _stage_extract_booster(ctx):
     选集由 booster-select 动词产出；成员定位走 features.jsonl（id→member/
     item/sha256 全在）。manifest_booster.jsonl 独立文件不碰核心。
     """
-    sel_path = CORPUS / "booster_selection.jsonl"
+    sel_path = cc.CORPUS / "booster_selection.jsonl"
     if not sel_path.is_file():
         ctx.emit_note(
             "booster_selection.jsonl 缺席——booster-select 动词未跑，skip 留下轮",
@@ -1977,7 +1308,7 @@ def _stage_extract_booster(ctx):
     except ImportError:
         ctx.emit_note("texlate.arxiv 不可导入（需项目 venv）", level="warn")
         return "fail"
-    CORPUS.mkdir(exist_ok=True)
+    cc.CORPUS.mkdir(exist_ok=True)
     load_allocation()
     sel = _read_jsonl(sel_path)
     want = {s["id"]: s for s in sel if s.get("id")}
@@ -1990,16 +1321,16 @@ def _stage_extract_booster(ctx):
                     feat_by_id[f["id"]] = f
     skipped = sorted(set(want) - set(feat_by_id))
     for pid in skipped:
-        log(f"!! {pid} 无 features 记录（member 定位失败——跳过）")
+        cc.log(f"!! {pid} 无 features 记录（member 定位失败——跳过）")
 
     # frame join 补 cat_group/license_class（旧 extract_booster 同款 lut 回查）
-    lut = load_frame_lookup() if (WORK / "frame_lookup.tsv.gz").exists() else {}
+    lut = cc.load_frame_lookup(FRAME_LOOKUP_GZ) if FRAME_LOOKUP_GZ.exists() else {}
     chunks = load_chunks()
     tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
     wanted: dict[str, dict[str, dict]] = {}
     feat_lut: dict[str, dict] = {}
     for f in feat_by_id.values():
-        fr = frame_get(lut, f["id"]) or {}
+        fr = cc.frame_get(lut, f["id"]) or {}
         tag = tag_of_item.get(f["item"], "unknown")
         wanted.setdefault(tag, {})[f["member"]] = {
             "id": f["id"],
@@ -2027,7 +1358,7 @@ def _stage_extract_booster(ctx):
     )
     manifest = _rebuild_manifest("booster", "manifest_booster.jsonl")
     faults = stats.pop("faults")
-    log(
+    cc.log(
         f"extract_booster done: {stats} | manifest {len(manifest)} rows"
         + (
             f" | skipped(no features): {len(skipped)} {skipped[:10]}"
@@ -2057,12 +1388,12 @@ def _qc(ctx):
     import subprocess
 
     problems: list[str] = []
-    manifest = _read_jsonl(CORPUS / "manifest.jsonl")
+    manifest = _read_jsonl(cc.CORPUS / "manifest.jsonl")
     ids = [r["id"] for r in manifest]
     dup = sorted({i for i in ids if ids.count(i) > 1})
     if dup:
         problems.append(f"id 重复: {dup[:8]}")
-    v2_dir = REPO / "bench" / "corpus_v2"
+    v2_dir = cc.REPO / "bench" / "corpus_v2"
     overlap: list = []
     if v2_dir.is_dir():
         v2_ids = {p.name for p in v2_dir.iterdir() if p.is_dir()}
@@ -2075,9 +1406,9 @@ def _qc(ctx):
     # lake 对账：manifest 行 → cell complete（empty 态 pdf/stub 是合法终态）
     missing = []
     for r in manifest:
-        idc = _idc_of(r["id"])
+        idc = cc.canon_or_self(r["id"])
         d = lake.cell_dir(idc, LAKE_SOURCE)
-        meta = _cell_meta(d)
+        meta = cc.cell_meta(d)
         if not meta:
             missing.append(r["id"])
     if missing:
@@ -2100,7 +1431,7 @@ def _qc(ctx):
                 "bench/corpus/manifest_booster.jsonl",
                 "bench/corpus/MANIFEST.md",
             ],
-            cwd=REPO,
+            cwd=cc.REPO,
             capture_output=True,
             text=True,
             timeout=30,
@@ -2130,7 +1461,7 @@ def _qc(ctx):
         f"| {r['picked']} | {r['frame_join_miss']} |"
         for r in report
     )
-    _atomic_write_text(WORK / "qc_report.md", "\n".join(lines) + "\n")
+    cc.atomic_write_text(WORK / "qc_report.md", "\n".join(lines) + "\n")
     print("\n".join(lines[:8]))
     return {
         "status": "fail" if problems else "clean",
@@ -2199,5 +1530,9 @@ spec = Spec(
             status_class=dict(_STATUS),
         ),
         Stage("qc", _qc, needs=[("extract", {"ok"})], status_class=dict(_STATUS)),
+    ],
+    code_deps=[
+        "bench/py/specs/_corpus_common.py",
+        "src/texlate/arxiv",
     ],
 )

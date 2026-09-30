@@ -38,19 +38,14 @@ stage 链（单件串行 + 一条正交定点臂）：
 
 from __future__ import annotations
 
-import csv
-import hashlib
 import json
 import math
 import random
-import re
 import time
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from kernel import index as indexmod
-from kernel import lake, paths
+from kernel import lake
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
@@ -58,19 +53,6 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from specs import _corpus_common as cc
-
-REPO = Path(__file__).resolve().parents[3]
-SEED = 42
-_RUN_REF = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9._-]*/[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*"
-)
-#: plan 依赖的 frame 资产清单——frame_build ord-0 前置；缺一件即 fail-closed。
-_FRAME_NEEDS = (
-    "item-index.csv",
-    "tiger-files.csv",
-    "allocation-core.csv",
-    "cluster-cat-mix.csv",
-)
 
 
 def _dirs(ctx) -> dict:
@@ -93,107 +75,6 @@ def _dirs(ctx) -> dict:
     }
 
 
-def _load_plan(d: dict) -> dict | None:
-    try:
-        return json.loads(d["plan"].read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-# ---------------------------------------------------------------- rates_source 三路解析
-
-
-def _rate(stat: dict[str, Counter]) -> dict[str, float]:
-    return {
-        k: c["bad"] / (c["bad"] + c["ok"])
-        for k, c in stat.items()
-        if c["bad"] + c["ok"]
-    }
-
-
-def _rates_from_idstatus(
-    id_status: dict[str, str], manifest_rows: list[dict], frame_dir: Path
-) -> tuple[dict, dict, float]:
-    """{id: status} × manifest×frame join → (band_bad_rate, cat_bad_rate, global).
-
-    bad=status∈{fail,reject,partial}（n100_rates 同口径）；id 双侧 canon 归一。"""
-    by_id = {cc.canon_id(r["id"]): r for r in manifest_rows if r.get("id")}
-    c2b = cc.cluster2band(frame_dir)
-    band_stat: dict[str, Counter] = defaultdict(Counter)
-    cat_stat: dict[str, Counter] = defaultdict(Counter)
-    n_bad = 0
-    for pid, st in id_status.items():
-        bad = st in ("fail", "reject", "partial")
-        n_bad += bad
-        m = by_id.get(cc.canon_id(pid), {})
-        band = c2b.get(m.get("cluster_id"), "?")
-        cat = m.get("cat_group") or "?"
-        band_stat[band]["bad" if bad else "ok"] += 1
-        cat_stat[cat]["bad" if bad else "ok"] += 1
-    if not id_status:
-        return {}, {}, 0.0
-    return _rate(band_stat), _rate(cat_stat), n_bad / len(id_status)
-
-
-def _run_id_statuses(run_id: str) -> dict[str, str] | None:
-    """run ref → index cells 末 stage per-id status（canon id → status）。"""
-    rdir = paths.runs_dir() / run_id
-    spec_fp = rdir / "spec.json"
-    if not spec_fp.is_file():
-        return None
-    try:
-        stages = [s["name"] for s in json.loads(spec_fp.read_text()).get("stages", [])]
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not stages:
-        return None
-    idx = indexmod.Index()
-    rows = idx.conn.execute(
-        "SELECT idc,status FROM cells WHERE last_run=? AND stage=?",
-        (run_id, stages[-1]),
-    )
-    return {cc.canon_id(r["idc"]): r["status"] for r in rows}
-
-
-def _resolve_rates(
-    ctx, d: dict, manifest_rows: list[dict]
-) -> tuple[dict, dict, float, str, str]:
-    """rates_source → (fr_band, fr_cat, fr_all, mode, detail)。
-
-    三路：run ref | rates json | flat_fallback。显式源解析失败 → RuntimeError
-    （fail-closed：口径错配绝不能静默退化成 flat）。"""
-    src = str(ctx.params.get("rates_source") or "").strip()
-    if not src or src.lower() in {"flat", "none", "flat_fallback"}:
-        return {}, {}, 0.0, "flat_fallback", "no rates_source"
-    p = Path(src).expanduser()
-    if p.is_file():
-        data = json.loads(p.read_text())
-        if isinstance(data, dict) and ("band" in data or "cat" in data):
-            return (
-                dict(data.get("band") or {}),
-                dict(data.get("cat") or {}),
-                float(data.get("global") or 0.0),
-                "rates_file",
-                str(p),
-            )
-        # 旧 results.json 形 {id: {status:…}}（或 {id: status}）
-        idst = {
-            str(k): (v.get("status") if isinstance(v, dict) else str(v))
-            for k, v in data.items()
-        }
-        fr_b, fr_c, fr_a = _rates_from_idstatus(idst, manifest_rows, d["frame"])
-        return fr_b, fr_c, fr_a, "idstatus_file", str(p)
-    if _RUN_REF.fullmatch(src):
-        idst = _run_id_statuses(src)
-        if idst is None:
-            msg = f"rates_source run 不可解析（spec.json/stages 缺）: {src}"
-            raise RuntimeError(msg)
-        fr_b, fr_c, fr_a = _rates_from_idstatus(idst, manifest_rows, d["frame"])
-        return fr_b, fr_c, fr_a, "run", src
-    msg = f"rates_source 既不是文件也不是 run ref: {src!r}"
-    raise RuntimeError(msg)
-
-
 # ---------------------------------------------------------------- plan
 
 
@@ -204,72 +85,6 @@ def _scanned_items(d: dict) -> set[str]:
         for p in base.glob("*.done"):
             items.add(p.stem)
     return items
-
-
-def _candidate_items(d: dict) -> dict[str, list[dict]]:
-    """{band: [item…]} 全量未扫候选（ia item-index ∪ tiger-files）。"""
-    done = _scanned_items(d)
-    out: dict[str, list[dict]] = defaultdict(list)
-    with (d["frame"] / "item-index.csv").open(newline="") as fh:
-        for r in csv.DictReader(fh):
-            item = r["identifier"]
-            if item in done:
-                continue
-            yymm = r["yymm"]
-            out[cc.band_of_yymm(yymm)].append(
-                {
-                    "item": item,
-                    "yymm": yymm,
-                    "chunk_no": int(r["chunk"]),
-                    "channel": "ia",
-                    "size": int(r["size"]),
-                    "url": cc.item_url("ia", item),
-                }
-            )
-    with (d["frame"] / "tiger-files.csv").open(newline="") as fh:
-        for r in csv.DictReader(fh):
-            m = re.match(r"(arXiv_src_(\d{4})_(\d{3}))\.tar$", r["path"])
-            if not m or m.group(1) in done:
-                continue
-            yymm = m.group(2)
-            out[cc.band_of_yymm(yymm)].append(
-                {
-                    "item": m.group(1),
-                    "yymm": yymm,
-                    "chunk_no": int(m.group(3)),
-                    "channel": "tiger",
-                    "size": int(r["size_bytes"]),
-                    "oid16": r["lfs_oid16"],
-                    "url": cc.item_url("tiger", m.group(1)),
-                }
-            )
-    for v in out.values():
-        v.sort(key=lambda it: (it["yymm"], it["chunk_no"]))
-    return out
-
-
-def _order_items(cands: list[dict], cluster_months: set[str]) -> list[dict]:
-    """候选项排序: 跨月 round-robin——每轮每月取 1 块, 先把月份摊满再回到
-    同月下一块; 簇月在前, 非簇月种子 shuffle 避免挤在年带一端."""
-    by_month: dict[str, list[dict]] = defaultdict(list)
-    for it in cands:
-        by_month[it["yymm"]].append(it)
-    cl = sorted(m for m in by_month if m in cluster_months)
-    nc = sorted(m for m in by_month if m not in cluster_months)
-    random.Random(SEED).shuffle(nc)
-    months = cl + nc
-    ordered = []
-    depth = 0
-    while True:
-        progressed = False
-        for m in months:
-            lst = by_month[m]
-            if depth < len(lst):
-                ordered.append(lst[depth])
-                progressed = True
-        if not progressed:
-            return ordered
-        depth += 1
 
 
 def _chunk_yield_by_band(d: dict) -> dict[str, float]:
@@ -297,7 +112,7 @@ def _chunk_yield_by_band(d: dict) -> dict[str, float]:
 def _plan(ctx):
     d = _dirs(ctx)
     d["workdir"].mkdir(parents=True, exist_ok=True)
-    missing = [f for f in _FRAME_NEEDS if not (d["frame"] / f).is_file()]
+    missing = [f for f in cc.FRAME_NEEDS if not (d["frame"] / f).is_file()]
     if missing:
         ctx.emit_note(
             f"frame 资产缺 {missing} — frame_build(ord-0) 前置未跑",
@@ -311,7 +126,9 @@ def _plan(ctx):
         return "fail"
     cell_n = Counter(r["stratum_cell"] for r in core)
     try:
-        fr_band, fr_cat, fr_all, rates_mode, rates_detail = _resolve_rates(ctx, d, rows)
+        fr_band, fr_cat, fr_all, rates_mode, rates_detail = cc.resolve_rates(
+            ctx.params.get("rates_source"), rows, d["frame"]
+        )
     except (RuntimeError, OSError, json.JSONDecodeError) as e:
         ctx.emit_note(f"rates_source 解析失败: {e}", level="warn")
         return "fail"
@@ -339,7 +156,7 @@ def _plan(ctx):
     yld = _chunk_yield_by_band(d)
     reuse = {c: int(q * reuse_frac) for c, q in quotas.items()}
     need_new = {c: q - reuse[c] for c, q in quotas.items()}
-    cands = _candidate_items(d)
+    cands = cc.candidate_items(d["frame"], _scanned_items(d))
     cluster_months = set(cc.yymm2cluster(d["frame"]))
     picked: list[dict] = []
     for band in sorted(band_q):
@@ -354,7 +171,7 @@ def _plan(ctx):
         members_needed = members_needed * pool_margin / 0.91  # 合格率余量
         per_chunk = yld.get(band, 300)
         n_items = max(min_items, math.ceil(members_needed / per_chunk))
-        ordered = _order_items(cands.get(band, []), cluster_months)
+        ordered = cc.order_items(cands.get(band, []), cluster_months)
         take = ordered[:n_items]
         picked.extend(take)
     plan = {
@@ -364,7 +181,7 @@ def _plan(ctx):
             "bias_lambda": bias,
             "reuse_frac": reuse_frac,
             "pool_margin": pool_margin,
-            "seed": SEED,
+            "seed": cc.SEED,
             "rates_source": str(ctx.params.get("rates_source") or ""),
             "rates_mode": rates_mode,
         },
@@ -401,7 +218,7 @@ def _plan(ctx):
 
 def _scan(ctx):
     d = _dirs(ctx)
-    plan = _load_plan(d)
+    plan = cc.load_plan(d["plan"])
     if plan is None:
         ctx.emit_note("expand_plan.json 缺/不可解析 — 先跑 plan", level="warn")
         return "error"
@@ -428,12 +245,12 @@ def _scan(ctx):
 
 def _select_members(ctx, d: dict) -> list[dict] | None:
     """全局选样: cell 配额 → old/new 池分摊 → 选单 [{id,member,item,…}]."""
-    plan = _load_plan(d)
+    plan = cc.load_plan(d["plan"])
     if plan is None:
         return None
     quotas = plan["quotas"]
     reuse_frac = float(ctx.params["reuse_frac"])
-    rng = random.Random(SEED)
+    rng = random.Random(cc.SEED)
     excl = cc.existing_ids(d["corpus"])
     chunks = cc.load_chunks(d["v3"])
     old_items = {c["item"] for c in chunks}
@@ -510,28 +327,6 @@ def _select_members(ctx, d: dict) -> list[dict] | None:
     return sel
 
 
-def _member_fetch_fn(rec: dict, old_tars: dict, offs: dict):
-    """lake.hydrate fetch_fn：blob 回取 → sha 复核 → stage 物化 + meta。"""
-
-    def fn(idc, stage):
-        blob = cc.fetch_blob(rec, old_tars, offs)
-        sha = hashlib.sha256(blob).hexdigest()
-        if sha != rec["blob_sha256"]:
-            msg = f"sha256 mismatch {sha[:12]}"
-            raise OSError(msg)
-        return cc.materialize_into_stage(
-            rec,
-            blob,
-            sha,
-            stage,
-            layer="expand",
-            cluster_prefix="EXP",
-            reason="expand_quota",
-        )
-
-    return fn
-
-
 def _extract(ctx):
     d = _dirs(ctx)
     sel = _select_members(ctx, d)
@@ -540,107 +335,16 @@ def _extract(ctx):
     limit = int(ctx.params.get("limit") or 0)
     if limit:
         sel = sel[:limit]
-    manifest = d["manifest"]
-    done = {cc.canon_id(r["id"]) for r in cc.read_jsonl(manifest) if r.get("id")}
-    # 回补: lake cell 完整而 manifest 缺行（截尾场景）→ 从 cell meta 补行；
-    # meta 不可解析则不标 done，走重抓自愈（hydrate 重写 meta+行）
-    n_backfill = 0
-    for rec in sel:
-        pid = cc.canon_id(rec["id"])
-        if pid in done:
-            continue
-        src = rec["channel"]
-        cell = lake.cell_dir(rec["id"], source=src)
-        if not (cell / "meta.json").exists() or not lake.is_complete(
-            rec["id"], source=src
-        ):
-            continue
-        row = cc.manifest_row_from_meta(None, cell)
-        if row is None:
-            continue
-        cc.append_jsonl(manifest, row)
-        done.add(pid)
-        n_backfill += 1
-    todo = [r for r in sel if cc.canon_id(r["id"]) not in done]
-    chunks = cc.load_chunks(d["v3"])
-    old_items = {c["item"] for c in chunks}
-    tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
-    need_items = {r["item"] for r in todo}
-    old_tars = {
-        it: d["v3"] / "tars" / f"{it}.tar"
-        for it in need_items & old_items
-        if (d["v3"] / "tars" / f"{it}.tar").exists()
-    }
-    offs = {
-        it: cc.offsets_for(it, d["dirs"].members, tag_of_item, d["v3"] / "members")
-        for it in need_items
-    }
-    n0 = len(todo)
-    todo = [r for r in todo if r["member"] in offs.get(r["item"], {})]
-    if n0 - len(todo):
-        ctx.emit_note(f"{n0 - len(todo)} members 无 offset 记录，跳过", level="warn")
-    run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
-    n_ok = n_err = 0
-    jobs = max(1, int(ctx.params["jobs"]))
-    with (
-        manifest.open("a", encoding="utf-8") as mfh,
-        ThreadPoolExecutor(max_workers=jobs) as ex,
-    ):
-        futs = {
-            ex.submit(
-                lake.hydrate,
-                rec["id"],
-                _member_fetch_fn(rec, old_tars, offs),
-                rec["channel"],
-                run_seq,
-            ): rec
-            for rec in todo
-        }
-        for fut in as_completed(futs):
-            rec = futs[fut]
-            pid = rec["id"]
-            try:
-                cell = fut.result()
-                if lake.is_complete(pid, source=rec["channel"]):
-                    row = cc.manifest_row_from_meta(None, cell)
-                    if row is not None:
-                        mfh.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        mfh.flush()
-                    n_ok += 1
-                    st = "ok"
-                else:
-                    n_err += 1
-                    st = "error: empty payload"
-            except Exception as e:
-                n_err += 1
-                st = f"error: {type(e).__name__}: {e}"
-                ctx.emit_note(f"  ERR {pid}: {st}", level="warn")
-            cc.append_jsonl(
-                d["records"],
-                {
-                    "id": pid,
-                    "item": rec["item"],
-                    "member": rec["member"],
-                    "cell": rec["_cell"],
-                    "pool": rec.get("_pool"),
-                    "state": st,
-                    "ts": time.strftime("%FT%T"),
-                },
-            )
-    ctx.emit(
-        {
-            "metric": "expand_extract",
-            "selected": len(sel),
-            "todo": len(todo),
-            "ok": n_ok,
-            "err": n_err,
-            "backfilled": n_backfill,
-            "manifest": str(manifest),
-        }
+    return cc.extract_selected(
+        ctx,
+        sel,
+        d,
+        layer="expand",
+        cluster_prefix="EXP",
+        reason="expand_quota",
+        metric="expand_extract",
+        rec_extra=lambda rec: {"pool": rec.get("_pool")},
     )
-    if n_err == 0:
-        return "ok"
-    return "partial" if n_ok else "error"
 
 
 # ---------------------------------------------------------------- fetch_ids（正交定点臂）
@@ -806,7 +510,7 @@ def _fetch_ids(ctx):
 
 def _qc(ctx):
     d = _dirs(ctx)
-    plan = _load_plan(d)
+    plan = cc.load_plan(d["plan"])
     if plan is None:
         ctx.emit_note("expand_plan.json 缺 — qc 无配额分母", level="warn")
         return "error"

@@ -34,7 +34,7 @@ manifest_dev_recent ids ∪ 其他 manifest ids ∪ 已 complete 湖格，逐 rg
 
 蓄意 delta（相对 build_sw_layer.py）：
 - meta.features 减配为 {docclasses, docstyle, docstyle_opts, docclass_opts,
-  tex_roots, non_utf8}——tex_roots 口径逐字节同源（同 DOCCLASS_RX + 同
+  tex_roots, non_utf8}——tex_roots 口径逐字节同源（同 cc.DOCCLASS_RX + 同
   strip_comments），保 main_tex_sha256 语义；input_depth/flags_*/
   signatures 的机器（FLAG_RX/eval_signatures/input_depth 依赖网）未移植，
   无任何下游读 features。
@@ -69,13 +69,15 @@ _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
-from kernel import fsutil, idnorm, lake, paths
+from kernel import lake, paths
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
 from specs._benchlite import iter_jsonl, strip_comments
 
 _bootstrap.ensure()
+
+from specs import _corpus_common as cc
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
@@ -105,28 +107,6 @@ _HEP_PHYS = {"hep-ph", "hep-th", "hep-ex", "hep-lat", "gr-qc", "physics"}
 _GROUPS = {"cs", "math", "cond-mat", "astro-ph"}
 
 FILE_MARK = re.compile(r"^={10,}\r?\nFILE: (.+?)\r?\n={10,}\r?\n", re.MULTILINE)
-DOCCLASS_RX = re.compile(
-    r"\\(documentclass|documentstyle)\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}",
-    re.DOTALL,
-)
-TEXT_EXT = {
-    ".tex",
-    ".sty",
-    ".cls",
-    ".bbl",
-    ".bib",
-    ".txt",
-    ".def",
-    ".clo",
-    ".cfg",
-    ".ltx",
-    ".dtx",
-    ".ins",
-    ".fd",
-    ".bst",
-    ".mf",
-    ".mac",
-}
 
 # ---------------------------------------------------------------- 小工具
 
@@ -136,22 +116,12 @@ def _sw() -> Path:
     return paths.lake_durable_dir() / "sw"
 
 
-def _canon(raw) -> str:
-    """双侧归一：canon 可解 → idc，否则原样（mixed-id-forms 前科）。"""
-    res = idnorm.canon_id(str(raw))
-    return res.idc if res.ok and res.idc else str(raw)
-
-
 def _iter_jsonl(path: Path):
     """OSError 容忍（缺席/截尾）+ 坏行跳过——benchlib.iter_jsonl 薄转。"""
     try:
         yield from iter_jsonl(path)
     except OSError:
         return
-
-
-def _atomic_text(path: Path, text: str) -> None:
-    fsutil.atomic_write(path, text.encode("utf-8"))
 
 
 def yymm_recent(yymm_id: str | None, min_yymm: str) -> bool:
@@ -210,9 +180,9 @@ def _reduced_features(files: dict[str, str]) -> dict:
     """
     tex_texts = {p: t for p, t in files.items() if Path(p).suffix.lower() == ".tex"}
     blob_txt = strip_comments("\n".join(tex_texts.values()))
-    dcls_ms = list(DOCCLASS_RX.finditer(blob_txt))
+    dcls_ms = list(cc.DOCCLASS_RX.finditer(blob_txt))
     roots = sorted(
-        p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))
+        p for p, t in tex_texts.items() if cc.DOCCLASS_RX.search(strip_comments(t))
     )
     return {
         "docclasses": sorted({m.group(3).strip() for m in dcls_ms}),
@@ -313,7 +283,7 @@ def _w_footer(shard: int, out: Path) -> int:
             )
         except Exception:
             rgs.append({"i": i, "rows": rg.num_rows, "ymin": "", "ymax": ""})
-    _atomic_text(out, json.dumps({"rows": md.num_rows, "rgs": rgs}))
+    cc.atomic_write_text(out, json.dumps({"rows": md.num_rows, "rgs": rgs}))
     return 0
 
 
@@ -337,7 +307,7 @@ def _w_pool(shard: int, rg: int, min_yymm: str, out: Path) -> int:
         for r in t.to_pylist()
         if yymm_recent(r["yymm_id"], min_yymm)
     ]
-    _atomic_text(out, "".join(json.dumps(x) + "\n" for x in rows))
+    cc.atomic_write_text(out, "".join(json.dumps(x) + "\n" for x in rows))
     return 0
 
 
@@ -405,7 +375,7 @@ def _worker_cli(argv: list) -> int:
 
 def _manifest_ids(path: Path) -> set[str]:
     """一 manifest 文件的 canon id 集。"""
-    return {_canon(r["id"]) for r in _iter_jsonl(path) if r.get("id")}
+    return {cc.canon_or_self(r["id"]) for r in _iter_jsonl(path) if r.get("id")}
 
 
 def _all_manifest_ids() -> set[str]:
@@ -511,7 +481,7 @@ def _footers(ctx):
             cat[int(fp.stem)] = json.loads(fp.read_text())
         except (OSError, ValueError):
             continue
-    _atomic_text(sw / "footers.json", json.dumps(cat, indent=1) + "\n")
+    cc.atomic_write_text(sw / "footers.json", json.dumps(cat, indent=1) + "\n")
     min_yymm = str(ctx.params.get("min_yymm") or "2501")
     recent = sum(
         1
@@ -598,7 +568,7 @@ def _pool(ctx):
                 "rows": len(part),
             }
         )
-    _atomic_text(sw / "pool.jsonl", "\n".join(lines) + ("\n" if lines else ""))
+    cc.atomic_write_text(sw / "pool.jsonl", "\n".join(lines) + ("\n" if lines else ""))
     return {
         "status": "ok",
         "metrics": {
@@ -626,7 +596,7 @@ def _assign(ctx):
     n_dr = int(ctx.params.get("n_ep_devrecent") or 300)
     pool = [r for r in _iter_jsonl(pool_path) if r.get("id")]
     taken = _all_manifest_ids()
-    pool = [r for r in pool if _canon(r["id"]) not in taken]
+    pool = [r for r in pool if cc.canon_or_self(r["id"]) not in taken]
     by_month: dict[str, list[dict]] = defaultdict(list)
     for r in pool:
         by_month[r["yymm_id"][:4]].append(r)
@@ -688,11 +658,15 @@ def _assign(ctx):
     out_sw = sw / "assign_sw.jsonl"
     out_ho = sw / "assign_holdout.jsonl"
     out_dr = sw / "assign_dev_recent.jsonl"
-    _atomic_text(
+    cc.atomic_write_text(
         out_sw, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in sw_picks)
     )
-    _atomic_text(out_ho, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in ho))
-    _atomic_text(out_dr, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in dr))
+    cc.atomic_write_text(
+        out_ho, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in ho)
+    )
+    cc.atomic_write_text(
+        out_dr, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in dr)
+    )
     return {
         "status": "ok",
         "metrics": {
@@ -804,7 +778,7 @@ def _rehydrate(ctx):
     by_rg: dict[tuple[int, int], list[dict]] = defaultdict(list)
     n_done = n_taken = 0
     for p in picks:
-        idc = _canon(p["id"])
+        idc = cc.canon_or_self(p["id"])
         if idc in taken:
             if idc in done:
                 n_done += 1
@@ -825,7 +799,7 @@ def _rehydrate(ctx):
         for (sn, rgi), plist in sorted(by_rg.items()):
             pending: list[dict] = []
             for p in plist:
-                idc = _canon(p["id"])
+                idc = cc.canon_or_self(p["id"])
                 if lake.is_complete(idc):
                     # 湖格在、manifest 行不在（hydrate→append 崩溃窗）：
                     # meta.json 重建行直接补账，不碰网络。
@@ -893,7 +867,7 @@ def _rehydrate(ctx):
                     if not any(pf.lower().endswith(".tex") for pf in files):
                         n_skip += 1
                         continue
-                    idc = _canon(p["id"])
+                    idc = cc.canon_or_self(p["id"])
                     try:
                         d = lake.hydrate(
                             idc,
@@ -1050,6 +1024,7 @@ spec = Spec(
     lake=True,
     prefetch=False,  # builder 段内自管 hydrate——预取器对本 spec 无的放矢
     lake_source="arxiv",
+    code_deps=["bench/py/specs/_corpus_common.py"],
 )
 
 if __name__ == "__main__":

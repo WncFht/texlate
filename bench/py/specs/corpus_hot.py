@@ -51,17 +51,21 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from kernel import events, idnorm, lake, paths
+if TYPE_CHECKING:
+    from pathlib import Path
+
+from kernel import events, lake, paths
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
-REPO = Path(__file__).resolve().parents[3]
-CORPUS = REPO / "bench" / "corpus"
+from specs import _corpus_common as cc
+
+CORPUS = cc.CORPUS
 MANIFEST_HOT = CORPUS / "manifest_hot.jsonl"
 
 UA = {
@@ -72,14 +76,6 @@ ARXIV_SRC = "S4306400194"  # OpenAlex source id: arXiv (Cornell)
 
 _NEW_ID_RX = re.compile(r"^(\d{4})\.\d{4,5}$")
 _ABS_RX = re.compile(r"arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5})", re.IGNORECASE)
-
-
-class _HaltBatch(Exception):
-    """全局限流（parked/budget_exhausted）——停批，本次 run 到此为止。"""
-
-
-class _TransientMiss(Exception):
-    """逐件瞬态 miss（error/unpack_error）——记 fetch_fail 续走下一候选。"""
 
 
 def _durable() -> Path:
@@ -316,16 +312,6 @@ def _manifest_row(cand: dict, meta: dict, cell: Path) -> dict:
     }
 
 
-def _read_cell_meta(pid: str) -> dict:
-    try:
-        meta = json.loads(
-            (lake.cell_dir(pid) / "meta.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return {}
-    return meta if isinstance(meta, dict) else {}
-
-
 def _make_fetch_fn(cand: dict, slot: dict, fetcher, cache):
     """闭包 fetch_fn：cand 语义 + acquire 结果槽随 hydrate 进 cell。"""
 
@@ -338,7 +324,7 @@ def _make_fetch_fn(cand: dict, slot: dict, fetcher, cache):
         slot["detail"] = res.detail
         slot["ver"] = res.resolved_version
         if res.status in (AcquireStatus.PARKED, AcquireStatus.BUDGET):
-            raise _HaltBatch(res.status.value)
+            raise cc.HaltFetch(res.status.value)
         if res.status in (
             AcquireStatus.NOT_FOUND,
             AcquireStatus.PDF_ONLY,
@@ -347,7 +333,7 @@ def _make_fetch_fn(cand: dict, slot: dict, fetcher, cache):
         ):
             return _miss_meta(cand, res.status.value, res.detail or "")
         if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
-            raise _TransientMiss(res.status.value)
+            raise cc.TransientMiss(res.status.value)
         assert res.entry is not None
         entry_dir = res.entry.dir
         shutil.copytree(entry_dir / "extracted", stage / "extracted")
@@ -412,12 +398,11 @@ def _fetch(ctx):
                 if pid in done_ids:
                     n_skipped += 1
                     continue
-                res_c = idnorm.canon_id(pid)
-                idc = res_c.idc if res_c.ok else pid
+                idc = cc.canon_or_self(pid)
                 if lake.is_complete(idc):
                     # 半程截尾自愈：cell 已完整而 manifest 行未落——回补
                     # 不重抓（原 corpus/{id}/extracted 分支的湖版）。
-                    meta = _read_cell_meta(idc)
+                    meta = cc.cell_meta(lake.cell_dir(idc))
                     mf.write(
                         json.dumps(
                             _manifest_row(cand, meta, lake.cell_dir(idc)),
@@ -442,7 +427,7 @@ def _fetch(ctx):
                         fetch_fn=_make_fetch_fn(cand, slot, fetcher, cache),
                         run_seq=ctx.rundir.run_seq,
                     )
-                except _HaltBatch as hb:
+                except cc.HaltFetch as hb:
                     _ff(pid, str(hb), slot.get("detail"))
                     n_fail += 1
                     truncated = {
@@ -450,7 +435,7 @@ def _fetch(ctx):
                         "msg": f"{hb} — 限流到顶，停批续跑",
                     }
                     break
-                except _TransientMiss as tm:
+                except cc.TransientMiss as tm:
                     _ff(pid, str(tm), slot.get("detail"))
                     n_fail += 1
                     ctx.emit(
@@ -474,7 +459,7 @@ def _fetch(ctx):
                 if slot.get("ran"):
                     n_new += 1
                 if lake.is_complete(idc):
-                    meta = _read_cell_meta(idc)
+                    meta = cc.cell_meta(lake.cell_dir(idc))
                     mf.write(
                         json.dumps(
                             _manifest_row(cand, meta, lake.cell_dir(idc)),
@@ -498,7 +483,7 @@ def _fetch(ctx):
                     )
                 else:
                     # 永久 miss → durable empty cell（meta 记因，不再重抓）
-                    meta = _read_cell_meta(idc)
+                    meta = cc.cell_meta(lake.cell_dir(idc))
                     st = str(meta.get("acquire_status") or "empty")
                     _ff(pid, st, meta.get("acquire_detail"))
                     n_fail += 1
@@ -612,5 +597,9 @@ spec = Spec(
     ],
     lake=True,
     prefetch=False,
-    code_deps=["src/texlate/arxiv", "src/texlate/textutil/osutil.py"],
+    code_deps=[
+        "bench/py/specs/_corpus_common.py",
+        "src/texlate/arxiv",
+        "src/texlate/textutil/osutil.py",
+    ],
 )

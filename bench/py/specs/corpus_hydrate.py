@@ -64,7 +64,7 @@ _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
-from kernel import idnorm, lake, locks, paths
+from kernel import lake, locks, paths
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
@@ -90,8 +90,7 @@ _SETTLED_CAT = frozenset({"empty", "failed"})
 
 
 def _canon(raw) -> str:
-    res = idnorm.canon_id(str(raw))
-    return res.idc if res.ok and res.idc else cc.canon_id(raw)
+    return cc.canon_or_self(raw, fallback=cc.canon_id)
 
 
 def _rowmap(corpus: Path) -> dict[str, dict]:
