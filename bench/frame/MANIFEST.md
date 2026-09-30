@@ -20,8 +20,8 @@
 
 ## 消费者
 
-- `bench/py/corpus/build_corpus_v3.py`（frame-lookup 子命令读 frame.parquet）与 expand/hot 层 builder
-- `bench/py/parsebench.py`（strata-era-cat.csv 分层权重）
+- `bench/py/specs/corpus_*.py` 语料构建 spec（frame-lookup 读 frame.parquet）——原 `bench/py/corpus/build_*.py` 散件已退役
+- `bench/py/specs/parsebench.py`（strata-era-cat.csv 分层权重）
 
 ## 刷新口径
 
