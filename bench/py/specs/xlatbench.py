@@ -601,7 +601,7 @@ spec = Spec(
     same_id_serial=True,
     env_probes=["python"],
     code_deps=[
-        "src/texlate/validate/l0.py",
+        "src/texlate/validate",
         "src/texlate/latex",
         "src/texlate/arxiv/locate.py",
         "src/texlate/xlat",
