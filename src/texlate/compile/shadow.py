@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shutil  # noqa: F401 -- 测试锚：tests patch ``shadow.shutil.which`` 落共享模块对象，``seams.find_tool`` 内部同拦
+import shutil  # noqa: F401 -- 测试锚：tests patch ``shadow.shutil.which`` 落共享模块对象，``patchseams.find_tool`` 内部同拦
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Final, cast
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from texlate.compile import seams
+from texlate.compile import patchseams
 from texlate.textutil import DECL_TAIL, decode_tex, decode_tex_with
 
 from .mask import TEX_SOURCE_SUFFIXES, visible_tex
@@ -249,9 +249,9 @@ def _shadow_broken_system_packages(
     """
     if engine not in ("xelatex", "lualatex"):
         return []
-    # 工具发现单源走 seams（macOS 落点回退 + seams/toolchain 双锚 patch 面）。
-    # seams.__getattr__ 惰性回指返 object——cast 只补 ty 签名视图。
-    kpse = cast("Callable[[str], str | None]", seams.find_tool)("kpsewhich")
+    # 工具发现单源走 patchseams（macOS 落点回退 + patchseams/toolchain 双锚
+    # patch 面）。patchseams.__getattr__ 惰性回指返 object——cast 只补 ty 签名视图。
+    kpse = cast("Callable[[str], str | None]", patchseams.find_tool)("kpsewhich")
     if not kpse:
         return []
     root = root.resolve()

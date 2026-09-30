@@ -153,7 +153,7 @@ async def _sweep_delete(  # noqa: C901 -- 两阶段淘汰阶梯平铺
 ) -> None:
     """删除段：``retention_days``/``retention_max_gb`` 淘汰整任务（全 0 = 关）。
 
-    ``sweep_retention`` 的 loop-native 版——决策查询（``TaskRepo``
+    retention 淘汰的 loop-native 实现——决策查询（``TaskRepo``
     单侧化）+ ``delete_task_guard`` 条件写留在 loop，``_dir_size``/
     ``rmtree`` 重 I/O 逐段 ``to_thread``；阶段二淘汰序/剪停判定单源
     ``_retention_drop_order``。settings 每拍重读（PUT 即生效，不用重启）。

@@ -1,4 +1,4 @@
-"""tests/kernel/test_verbs.py — verbs 层最小端到端覆盖。
+"""tests/bench_kernel/test_verbs.py — verbs 层最小端到端覆盖。
 
 gate / triage / rundiff / dossier 四动词的函数面：index 投影进账 →
 读侧聚合 → 产物渲染。CLI main() 只测 triage 一条（_cli._open_index 换

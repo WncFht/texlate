@@ -3,9 +3,9 @@ r"""子进程 runner：Popen 管线 + 单调钟排干环 + 超时 killpg + rlimi
 自 ``sandbox.py`` 出叶——本叶只管执行件；OS 沙箱策略面（env 白名单 /
 sandbox-exec / bwrap 挂载与能力探测）留 ``sandbox.py``，runner 名经其
 ``from .proc import`` 再出口，旧 ``sandbox.X`` 路径原样可 import。
-``run_process`` 亦入 ``compile.seams`` 缝面（惰性回指本模块——patch
-``seams.X`` 或 ``proc.X`` 同拦 seams 路由消费点；``engine``/``sandbox``
-回引锚各归其包，详见 seams docstring）。
+``run_process`` 亦入 ``compile.patchseams`` 缝面（惰性回指本模块——patch
+``patchseams.X`` 或 ``proc.X`` 同拦 patchseams 路由消费点；
+``engine``/``sandbox`` 回引锚各归其包，详见 patchseams docstring）。
 
 - 进程组隔离（`start_new_session`）+ `killpg` 杀整棵进程树；非 POSIX 降级
   为 `proc.kill()`。子进程输出封顶 8MB 防内存炸。

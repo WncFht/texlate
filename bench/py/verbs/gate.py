@@ -44,7 +44,7 @@ from kernel import runs as runs_mod
 from verbs._common import (
     _all_runs,
     _stem_group,
-    _stem_of,  # noqa: F401 — tests/kernel/test_verbs.py 钉 gate._stem_of 私有名
+    _stem_of,  # noqa: F401 — tests/bench_kernel/test_verbs.py 钉 gate._stem_of 私有名
 )
 from verbs._vocab import COMPILED_STATUS as COMPILED
 from verbs._vocab import STATUS_RANK as _RANK

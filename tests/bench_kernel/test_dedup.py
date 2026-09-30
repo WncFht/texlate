@@ -1,4 +1,4 @@
-"""tests/kernel/test_dedup.py — fail-closed paid-gate oracle (§3.6/§3.10.6).
+"""tests/bench_kernel/test_dedup.py — fail-closed paid-gate oracle (§3.6/§3.10.6).
 
 Covers: snapshot captures all three frozen legs; unsealed index (dirty
 flag or watermark behind) -> 'unsealed' for every input, even verified

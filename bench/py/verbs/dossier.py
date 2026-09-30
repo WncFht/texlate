@@ -1074,171 +1074,6 @@ def render_md(d: dict) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------- selftest
-
-
-def selftest() -> int:
-    """合成内存账 + tmp workdir → build/render 全链自检（不碰真 index）。"""
-    import tempfile
-
-    recs = {
-        "ingest": [
-            {
-                "id": "9999.0001",
-                "idc": "9999.0001",
-                "stage": "ingest",
-                "arm": "-",
-                "upstream": "-",
-                "status": "ok",
-                "dur_s": 0.1,
-                "metrics": {},
-                "errors": [],
-                "sig": "",
-                "run": "t/run",
-            }
-        ],
-        "parse": [
-            {
-                "id": "9999.0001",
-                "idc": "9999.0001",
-                "stage": "parse",
-                "arm": "-",
-                "upstream": "-",
-                "status": "ok",
-                "dur_s": 0.2,
-                "metrics": {
-                    "main_rel": "m.tex",
-                    "engine_resolved": "xelatex",
-                    "route": {},
-                    "totals": {"chunks": 3},
-                },
-                "errors": [],
-                "sig": "",
-                "run": "t/run",
-            }
-        ],
-        "xlat": [
-            {
-                "id": "9999.0001",
-                "idc": "9999.0001",
-                "stage": "xlat",
-                "arm": "mock",
-                "upstream": "-",
-                "status": "ok",
-                "dur_s": 1.0,
-                "metrics": {"translate": {"chunks": 2, "ok": 1, "fault": 1}},
-                "errors": [],
-                "sig": "",
-                "run": "t/run",
-            }
-        ],
-        "compile": [
-            {
-                "id": "9999.0001",
-                "idc": "9999.0001",
-                "stage": "compile",
-                "arm": "zh",
-                "upstream": "mock",
-                "status": "fail",
-                "dur_s": 1.0,
-                "metrics": {
-                    "engine": "xelatex",
-                    "verdict": {
-                        "status": "fail",
-                        "category": "missing_file",
-                        "payload": "foo.sty",
-                        "cjk_chars": -1,
-                    },
-                    "compile": {
-                        "pdf_bytes": 0,
-                        "first_error": "! LaTeX Error: File `foo.sty' not found.",
-                    },
-                    "inject": {"status": "injected", "mode": "ctex"},
-                },
-                "errors": [
-                    {
-                        "code": "missing_file",
-                        "cat": "missing_file",
-                        "payload": "foo.sty",
-                    }
-                ],
-                "sig": "missing_file:foo.sty",
-                "run": "t/run",
-            }
-        ],
-        "fixloop": [
-            {
-                "id": "9999.0001",
-                "idc": "9999.0001",
-                "stage": "fixloop",
-                "arm": "fix",
-                "upstream": "mock",
-                "status": "clean",
-                "dur_s": 2.0,
-                "metrics": {
-                    "compile_status_before": "fail",
-                    "fixloop_verdict": "clean",
-                    "rounds": 1,
-                },
-                "errors": [],
-                "sig": "clean",
-                "run": "t/run",
-            }
-        ],
-    }
-    with tempfile.TemporaryDirectory() as td:
-        wdir = Path(td) / "9999.0001"
-        (wdir / "zh").mkdir(parents=True)
-        (wdir / "splice").mkdir(parents=True)
-        (wdir / "zh" / ".xlat-arm.json").write_text('{"arm":"mock"}', encoding="utf-8")
-        (wdir / "parse.json").write_text(
-            json.dumps(
-                {
-                    "id": "9999.0001",
-                    "status": "ok",
-                    "main_rel": "m.tex",
-                    "engine_resolved": "xelatex",
-                    "route": {},
-                    "totals": {"chunks": 3},
-                }
-            ),
-            encoding="utf-8",
-        )
-        (wdir / "splice" / "m.log").write_text(
-            "x\n! LaTeX Error: File `foo.sty' not found.\ny\n", encoding="utf-8"
-        )
-        (wdir / "xlat-mock.jsonl").write_text(
-            '{"chunk_id":"0:0","status":"ok"}\n'
-            '{"chunk_id":"0:1","status":"fault","error_kind":"timeout"}\n',
-            encoding="utf-8",
-        )
-        inv = work_inventory(wdir)
-        d = build_dossier(
-            "9999.0001",
-            {"9999.0001"},
-            recs,
-            [],
-            wdir,
-            inv,
-            run_label="t/run",
-            prior_waves=["t/run"],
-        )
-        md = render_md(d)
-        for needle in (
-            "断点=compile",
-            "missing_file:foo.sty",
-            "0:1",
-            "xelatex",
-            "first_error",
-            "csb=fail",
-        ):
-            assert needle in md, f"缺 {needle}\n{md}"
-        assert d["gap_flags"]["needs_subclass"] is False
-        assert d["signature"]["sig_raw"] == "missing_file:foo.sty"
-        print("selftest ok")
-        return 0
-
-
 # ---------------------------------------------------------------- cli
 
 
@@ -1265,17 +1100,12 @@ def add_args(sp) -> None:
     sp.add_argument(
         "-o", "--out", type=Path, default=None, help="写文件（缺省 stdout）"
     )
-    sp.add_argument(
-        "--selftest", action="store_true", help="合成内存账自检（不碰真 index）"
-    )
 
 
 def main(args) -> int:
     _maybe_reexec_venv()
-    if args.selftest:
-        return selftest()
     if not args.id:
-        print("dossier: id 必填（或 --selftest）", file=sys.stderr)
+        print("dossier: id 必填", file=sys.stderr)
         return 2
 
     res = idnorm.canon_id(args.id, registry=_load_registry())

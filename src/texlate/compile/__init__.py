@@ -20,7 +20,7 @@
 急切拉入 engine/inject/normalize 全链（audit：包外消费者全为子模块级
 import，平名消费仅测试钉点与跨包转口；``import texlate.compile.logparse``
 从 73 个 texlate 模块降至 ~2）。不在映射的子模块名走 ``import .X``
-兜底（``seams``/``ctan``/``latex209`` 等——``from texlate.compile import X``
+兜底（``patchseams``/``ctan``/``latex209`` 等——``from texlate.compile import X``
 与 ``compile.X`` 同达）。
 """
 

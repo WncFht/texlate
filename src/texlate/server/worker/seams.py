@@ -5,7 +5,7 @@ worker 子模块对一切「测试可替换件」一律在调用点 ``seams.X`` 
 ``__init__.py`` 再出口同名供直读面（``texlate.server.worker.X`` 仍解析，
 但 patch 必须打到本模块）。
 
-同名件辨：``texlate.compile.seams`` 是 compile 层同款 monkeypatch 面
+名件辨：``texlate.compile.patchseams`` 是 compile 层同款 monkeypatch 面
 （机制异——彼件全名经 ``_SOURCES`` map 惰性 ``__getattr__`` 回指，
 本件 eager bind + 两名惰性回指）；``texlate.compile._docseams`` 是
 docclass 注入缝几何原语，名近义更异。三者跨包/跨域不互替。

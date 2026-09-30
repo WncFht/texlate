@@ -352,7 +352,7 @@ def slim_task_dir(
 def _retention_drop_order(
     candidates: Iterable[str], *, total_bytes: int, cap_bytes: int
 ) -> Generator[str, int, None]:
-    """驱动 retention 容量阶段淘汰序（``Store.sweep_retention``/``app._sweep_delete`` 单源）。
+    """驱动 retention 容量阶段淘汰序（``app._sweep_delete`` 单源）。
 
     send-协议生成器：每轮 ``yield`` 一个候选 tid → 调用方执行删减 →
     ``send(实释字节)`` 回喂；``total <= cap`` 或候选穷尽即停。删减本体

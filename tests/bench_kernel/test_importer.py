@@ -1,4 +1,4 @@
-"""tests/kernel/test_importer.py — Phase 1 import pipeline contract.
+"""tests/bench_kernel/test_importer.py — Phase 1 import pipeline contract.
 
 Covers: redact() secret surface (gateway key substring, tailscale IPs,
 auth-ish keys — and the false-positive shapes pdf_bytes=86753093 /

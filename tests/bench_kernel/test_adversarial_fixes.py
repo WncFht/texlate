@@ -1,4 +1,4 @@
-"""tests/kernel/test_adversarial_fixes.py — Wave D adjudication regressions.
+"""tests/bench_kernel/test_adversarial_fixes.py — Wave D adjudication regressions.
 
 Each test pins one ids-import-review finding that was adjudicated REAL and
 fixed. Assertions encode the post-fix contract, not observed behavior.

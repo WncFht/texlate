@@ -1,4 +1,4 @@
-"""tests/kernel/test_index.py — index.sqlite projection contract.
+"""tests/bench_kernel/test_index.py — index.sqlite projection contract.
 
 Covers: rebuild equivalence across all event types, tail_ingest watermark
 semantics, (run_seq,seq) replay vs conflict-quarantine, sealed oracle

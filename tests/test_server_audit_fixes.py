@@ -5,7 +5,7 @@ wave 1：``list_tasks_page``/``delete_task_guard`` 契约、``load`` 磁盘缓�
 stale done 重放、``ERROR_CODES`` 名录。
 wave 2：``task_ids``/``queued_rows``/``delete_chunks`` 裸 conn 收口、
 ``chunks_page`` 窄列分页 + limit 钳位、``append_event`` 对已删任务行静默
-丢弃、``sweep_retention`` 两段 GC、``EventBus.stream`` resync 缺口提示帧、
+丢弃、retention 两段 GC、``EventBus.stream`` resync 缺口提示帧、
 ``SettingsStore.save`` 标量类型闸、``load()`` 深拷贝防污染、retention
 设置字段、snapshot options 回显。
 """
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -37,6 +38,7 @@ from texlate.server.store import (
     row_json,
     slim_task_dir,
 )
+from texlate.server.store._common import _dir_size, _retention_drop_order
 from texlate.server.worker import Secrets
 
 if TYPE_CHECKING:
@@ -612,6 +614,46 @@ class TestAppendEventDropped:
         assert bus.publish(tid, "b", {}) == 2  # noqa: PLR2004 -- seq 步进
 
 
+def _sweep_retention(
+    store: Store, tasks_dir: Path, *, max_age_s: float, max_total_bytes: int
+) -> dict[str, Any]:
+    """retention 两段 GC 测试面——生产路径是 ``app._sweep_delete``（async），
+    本件同步直调同一底层机械：``retention_candidates``/``terminal_oldest_first``
+    + ``delete_task_guard`` 条件删 + ``_retention_drop_order`` 剪停单源。
+    """
+    removed: list[str] = []
+    freed = 0
+
+    def _drop(tid: str) -> int:
+        if not store.delete_task_guard(tid, blocked=ACTIVE_STATUSES):
+            return 0
+        sz = _dir_size(tasks_dir / tid)
+        shutil.rmtree(tasks_dir / tid, ignore_errors=True)
+        removed.append(tid)
+        return sz
+
+    if max_age_s > 0:
+        for tid in store.retention_candidates(time.time() - max_age_s):
+            freed += _drop(tid)
+    if max_total_bytes > 0:
+        total = _dir_size(tasks_dir)
+        if total > max_total_bytes:
+            order = _retention_drop_order(
+                store.terminal_oldest_first(),
+                total_bytes=total,
+                cap_bytes=max_total_bytes,
+            )
+            try:
+                tid = next(order)
+                while True:
+                    sz = _drop(tid)
+                    freed += sz
+                    tid = order.send(sz)
+            except StopIteration:
+                pass
+    return {"removed": removed, "freed_bytes": freed}
+
+
 class TestSweepRetention:
     def _mk_terminal(self, store: Store, *, age_s: float = 0.0) -> str:
         """done 任务；``age_s>0`` 把 finished_at/updated_at 回拨构造超龄。"""
@@ -647,7 +689,7 @@ class TestSweepRetention:
         store.conn.commit()
         for t in (old_done, new_done, queued, stale_active):
             self._dir(tdir, t, 10)
-        out = store.sweep_retention(tdir, max_age_s=60.0, max_total_bytes=0)
+        out = _sweep_retention(store, tdir, max_age_s=60.0, max_total_bytes=0)
         assert out == {"removed": [old_done], "freed_bytes": 10}
         assert store.get(old_done) is None
         assert not (tdir / old_done).exists()
@@ -662,7 +704,7 @@ class TestSweepRetention:
         for t in ids:
             self._dir(tdir, t, 100)
         # 300B > 250 → 删最老一个落到 200B 达标即停
-        out = store.sweep_retention(tdir, max_age_s=0.0, max_total_bytes=250)
+        out = _sweep_retention(store, tdir, max_age_s=0.0, max_total_bytes=250)
         assert out == {"removed": [ids[0]], "freed_bytes": 100}
         assert store.get(ids[0]) is None
         assert store.get(ids[1]) is not None
@@ -678,7 +720,7 @@ class TestSweepRetention:
         store.transition(active, "translating", force=True)
         self._dir(tdir, done, 100)
         self._dir(tdir, active, 500)  # ACTIVE 目录再占也不删
-        out = store.sweep_retention(tdir, max_age_s=0.0, max_total_bytes=1)
+        out = _sweep_retention(store, tdir, max_age_s=0.0, max_total_bytes=1)
         assert out["removed"] == [done]
         assert out["freed_bytes"] == 100  # noqa: PLR2004 -- 单任务目录字节
         assert store.get(active) is not None
@@ -686,8 +728,8 @@ class TestSweepRetention:
 
     def test_disabled_noop_and_missing_dir(self, store: Store, tmp_path: Path) -> None:
         tid = self._mk_terminal(store, age_s=99999.0)
-        out = store.sweep_retention(
-            tmp_path / "nonexistent", max_age_s=0.0, max_total_bytes=0
+        out = _sweep_retention(
+            store, tmp_path / "nonexistent", max_age_s=0.0, max_total_bytes=0
         )
         assert out == {"removed": [], "freed_bytes": 0}
         assert store.get(tid) is not None
@@ -697,7 +739,7 @@ class TestSweepRetention:
         tdir = tmp_path / "tasks"
         tdir.mkdir()
         tid = self._mk_terminal(store, age_s=99999.0)
-        out = store.sweep_retention(tdir, max_age_s=60.0, max_total_bytes=0)
+        out = _sweep_retention(store, tdir, max_age_s=60.0, max_total_bytes=0)
         assert out == {"removed": [tid], "freed_bytes": 0}
         assert store.get(tid) is None
 
