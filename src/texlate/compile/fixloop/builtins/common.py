@@ -1,7 +1,7 @@
 r"""builtins.common — fixloop builtins 跨域共享原语 (C3 builtins/__init__.py 拆分叶子)。
 
 跨域 helper 单源: ``mask_tex`` 遮盖视图匹配 / 逐 tex 文件映射 / ``\\usepackage``
-剥载 / ``\\documentclass`` 缝后注入 / pdfTeX 原语清单 (engine._FAMILY_TOKENS
+剥载 / ``\\documentclass`` 缝后注入 / pdfTeX 原语清单 (ruleset._FAMILY_TOKENS
 与 pdftex_prim_polyfill 双侧消费)。只做 helper/常量, 不含注册表条目本体。
 """
 
