@@ -1,4 +1,4 @@
-"""actions._actions_disp — ``action.kind`` 分派 + 规则匹配 + 派发窗 (C5 拆叶)。
+"""actions.actions.disp — ``action.kind`` 分派 + 规则匹配 + 派发窗 (C5 拆叶)。
 
 ``_apply`` 七种 ``action.kind`` 分派 (``reject_route`` 产出
 ``_REJECT_PREFIX`` note 供主循环判读), ``_match_apply`` order 序
@@ -15,17 +15,17 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._actions_cond import (
+from texlate.compile.fixloop.actions.cond import (
     _cond_ok,
     _cond_snap_reset,
     _substitute,
     _when_ok,
 )
-from texlate.compile.fixloop._actions_install import (
+from texlate.compile.fixloop.actions.install import (
     _apply_install_file,
     _apply_scan_install,
 )
-from texlate.compile.fixloop._actions_rewrite import _compile_rewrites, _patch_files
+from texlate.compile.fixloop.actions.rewrite import _compile_rewrites, _patch_files
 from texlate.compile.fixloop.builtins.common import _advise, _fp_diff, _wdir_fingerprint
 
 if TYPE_CHECKING:

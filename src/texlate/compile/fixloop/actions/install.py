@@ -1,4 +1,4 @@
-r"""actions._actions_install — ``scan_install``/``install_file`` 机制 (C5 拆叶)。
+r"""actions.actions.install — ``scan_install``/``install_file`` 机制 (C5 拆叶)。
 
 静态扫 ``\usepackage``/``\documentclass`` → 探测缺失 → 批量装
 (``_apply_scan_install``/``_scan_names``/``_scan_vendored``), 缺文件

@@ -99,7 +99,8 @@ MAIN_DOC = (
 XELATEX = shutil.which("xelatex")
 
 #: 包内 vendor 根 + 三层路径常量——逐文件 ``__file__`` 推导归此一处。
-VENDOR = Path(actions.__file__).resolve().parent / "vendor"
+#: ``actions`` 已收子包（``actions/__init__.py``）——``parents[1]`` 回到 fixloop/。
+VENDOR = Path(actions.__file__).resolve().parents[1] / "vendor"
 #: ``VENDOR`` 别名：部分车道 (stubaudit 等 ~20 件) 按 root 名义引用。
 VENDOR_ROOT = VENDOR
 STUBS = VENDOR / "stubs"

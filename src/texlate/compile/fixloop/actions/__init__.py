@@ -12,10 +12,10 @@ monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 (``texlate.compile.fixloop._actions_<叶>``), 不经本门面。
 
-叶谱：``_actions_cond`` when/condition 评估+cond 快照簇 /
-``_actions_rewrite`` regex_rewrite 时限替换机制 /
-``_actions_install`` scan_install/install_file+依赖闭包 /
-``_actions_disp`` kind 分派+_match_apply+ 派发窗落件同步。
+叶谱：``actions.cond`` when/condition 评估+cond 快照簇 /
+``actions.rewrite`` regex_rewrite 时限替换机制 /
+``actions.install`` scan_install/install_file+依赖闭包 /
+``actions.disp`` kind 分派+_match_apply+ 派发窗落件同步。
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.compile.fixloop._actions_cond import (
+    from texlate.compile.fixloop.actions.cond import (
         _SOURCE_BLOB_EXTS,
         _cond_blob,
         _cond_files,
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
         _substitute,
         _when_ok,
     )
-    from texlate.compile.fixloop._actions_disp import (
+    from texlate.compile.fixloop.actions.disp import (
         _REJECT_PREFIX,
         _apply,
         _apply_landed,
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
         _match_apply,
         _mc_delta,
     )
-    from texlate.compile.fixloop._actions_install import (
+    from texlate.compile.fixloop.actions.install import (
         _COMMENT_CUT_RE,
         _DEP_DECL_RE,
         _DEP_INPUT_RE,
@@ -69,7 +69,7 @@ if TYPE_CHECKING:
         _scan_vendored,
         _try_install_dep,
     )
-    from texlate.compile.fixloop._actions_rewrite import (
+    from texlate.compile.fixloop.actions.rewrite import (
         _SUB_TIMEOUT_S,
         _bounded_sub,
         _compile_rewrites,
@@ -78,7 +78,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_actions_cond": (
+    "cond": (
         "_SOURCE_BLOB_EXTS",
         "_cond_blob",
         "_cond_files",
@@ -93,7 +93,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_substitute",
         "_when_ok",
     ),
-    "_actions_disp": (
+    "disp": (
         "_REJECT_PREFIX",
         "_apply",
         "_apply_landed",
@@ -103,7 +103,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_match_apply",
         "_mc_delta",
     ),
-    "_actions_install": (
+    "install": (
         "_COMMENT_CUT_RE",
         "_DEP_DECL_RE",
         "_DEP_INPUT_RE",
@@ -122,7 +122,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_scan_vendored",
         "_try_install_dep",
     ),
-    "_actions_rewrite": (
+    "rewrite": (
         "_SUB_TIMEOUT_S",
         "_bounded_sub",
         "_compile_rewrites",

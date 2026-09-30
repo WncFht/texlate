@@ -1,4 +1,4 @@
-"""actions._actions_cond — when/condition 评估面 (C5 拆叶)。
+"""actions.actions.cond — when/condition 评估面 (C5 拆叶)。
 
 ``_when_ok`` 匹配 + ``_cond_ok`` 全键分派 + ``{payload}``/``{main_dir}``/
 ``{python}`` 占位 ``_substitute``, cond 树敏感面快照簇 (``_cond_snap``/

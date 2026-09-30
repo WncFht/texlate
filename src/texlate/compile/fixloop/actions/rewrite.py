@@ -1,4 +1,4 @@
-"""actions._actions_rewrite — ``regex_rewrite`` 替换机制 (C5 拆叶)。
+"""actions.actions.rewrite — ``regex_rewrite`` 替换机制 (C5 拆叶)。
 
 ``_bounded_sub``/``_masked_sub`` 时限替换原语 (病态回溯超时归一
 ``None``), ``_patch_files`` 逐文件批量改写，``_compile_rewrites``
