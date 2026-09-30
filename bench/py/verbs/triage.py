@@ -529,7 +529,8 @@ def compute_metrics(recs, run_id, date, wall_s, prev_line):
     if len(pipe) > MAX_REG_IDS:
         regs.append({"kind": "pipeline_introduced_truncated", "total": len(pipe)})
     # 跨段退化: fixloop 终态低于入口态 (loop1 实证 17 格, 本探测器盲区补网)。
-    # 注意基建杀伤会混入——真退化判定需直编复验 (见 wave2-findings loop1 节)。
+    # 注意基建杀伤会混入——真退化判定需直编复验
+    # (见 docs/log/audit-2026-09-16/wave2-findings.md loop1 节)。
     # 只巡 attempted：skip 记录没真跑 fixloop，STATUS_RANK 表外 -1 会假阳退化。
     degraded = sorted(
         (

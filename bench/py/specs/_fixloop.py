@@ -1,7 +1,7 @@
 r"""specs/_fixloop.py — fixloop 配方库（原 ``fixloop_bench.py`` 引擎/配方层）。
 
 冷 usertree XelatexEngine + tlpdb 离线索引 + _NoSandbox + _texmf_runner +
-TUNA 镜像钉 + RS 惰性装载——stagerun ``fixloop``（stage_fixloop）、
+TUNA 镜像钉 + RS 惰性装载——原 stagerun ``fixloop``（stage_fixloop）、
 e2e_real ``pipe_fix_condition``、fixloop_bench 驱动三面共用。模块级无 IO：
 RS 与 tlpdb 索引皆首访才建（PEP 562 __getattr__ + 锁串行）。
 
@@ -50,7 +50,7 @@ from texlate.compile.ctan import CtanFetcher, TlpdbIndex
 from texlate.compile.engine import TECTONIC_BUNDLE_PIN
 from texlate.compile.fixloop import load_ruleset
 
-#: RS 惰性装载: stagerun/e2e_real 顶层 ``import fixloop_bench`` 只为取配方
+#: RS 惰性装载: 旧 stagerun/e2e_real 顶层 ``import fixloop_bench`` 只为取配方
 #: (_NoSandbox/_init_usertree/_index/TUNA_TLNET), import-time 读 rules.yaml
 #: 会撞上半途编辑的规则文件 → 顶层 import 直接崩。模块内走 ``_rs()``, 外部
 #: ``flb.RS`` 经 PEP 562 __getattr__ 兼容, 都是首次访问才加载; 线程池并发

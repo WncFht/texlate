@@ -1,13 +1,13 @@
 """_corpus_common — corpus builder 共享叶（expand/layers/hot/v3 各臂共用）。
 
 逐字提升自 ``bench/py/corpus/build_corpus_v3.py`` +
-``build_corpus_expand.py`` + ``benchlib.py`` 三处（皆随 Wave-F 删除门退役）。
+``build_corpus_expand.py`` + ``benchlib.py`` 三处（皆已随删除门退役）。
 import 期纯 stdlib——``texlate.arxiv``/``pyarrow`` 一律惰性 import 在使用点
 内（scan 链路系统 python3 可载，extract/fetch-ids 臂经 ``uv run`` 进产品环境）。
 
 工作区契约（post-work_v3）：持久 builder 状态落
 ``~/.local/state/texlate/corpus-build/<layer>/`` —— TarDirs 标准布局
-{features,members,tars,meta} 每层一束（ errsweep state 目录先例）。
+{features,members,tars,meta} 每层一束（先例为已退役 errsweep 的 state 目录布局）。
 ``frame_lookup.tsv.gz`` 全 builder 共享单件：
 ``corpus-build/frame_lookup.tsv.gz``，``ensure_frame_lookup`` 缺时从
 ``bench/frame/frame.parquet`` 现算（谁先跑谁建，幂等）。
@@ -60,7 +60,7 @@ TIGER_DL = (
     "https://huggingface.co/datasets/TIGER-Lab/arxiv-latex-5T/resolve/main/{name}.tar"
 )
 
-#: 持久 builder 状态根（work_v3 已灭后的新家；errsweep state 目录先例）。
+#: 持久 builder 状态根（work_v3 已灭后的新家；布局先例为已退役 errsweep 的 state 目录）。
 BUILD_ROOT = Path.home() / ".local" / "state" / "texlate" / "corpus-build"
 
 

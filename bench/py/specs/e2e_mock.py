@@ -33,7 +33,7 @@ Mode B/C 注入件唯一事实源 = ``specs/_sabotage.py``（ops.translators_ben
 - 隔离：``ctx.workspace()/cond`` 每格重打（跨 variant 共享面必须分
   目录+rmtree）；``ctx.src_path()`` 是 0444 湖投影只读面——拷字节经
   ``fsutil.copy_mutating``，投影树上写=改共享 inode 毒湖格。
-- 报告面（matrix/summary/Mode B 门槛/Mode C 存活率）留 Wave-D 动词
+- 报告面（matrix/summary/Mode B 门槛/Mode C 存活率）留分析动词
   读 ledger 终态格——跨 id 聚合不能做成 stage。
 
 PAUSE 只挡付费格，本 spec 无 paid stage 照跑（tectonic bundle 拉取与

@@ -1148,4 +1148,4 @@ dr 删 2），管线修 `e7dc8f96`（异层 cell 只 skip 不克隆 + fetch 后 
 
 冲突双保留（同名不同版）：`1706.03762`（v1 裸版）、`2106.09685`、`2407.21783`（m1k 版）的源库副本移存 `_alt-versions/{id}/`——本根 `{id}/` 始终是 v3 版（manifest blob_sha256 完整），`_alt-versions/` 是落选版本存档。
 
-未并入：`corpus_daily`（滚动窗口，soak 每日增删，生命周期不同）、`corpus_iclr_pdf`（PDF 产物库非 e-print 树）。物理规模 ~54.9G / 14,161 extracted 树 + 38 裸布局树。合并脚本 `tmp/cleanup-a/merge_corpus.py`。
+未并入：`corpus_daily`（滚动窗口语料——日增管线 2026-09-21 已退役，存量树留档未并）、`corpus_iclr_pdf`（PDF 产物库非 e-print 树）。物理规模 ~54.9G / 14,161 extracted 树 + 38 裸布局树。

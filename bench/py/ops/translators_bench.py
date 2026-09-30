@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-r"""translators_bench.py — stagerun ``xlat --arm`` 的 translator 适配层。
+r"""translators_bench.py — 原 stagerun ``xlat --arm`` 的 translator 适配层
+（stagerun 宿主已退役；回归测试仍钉本契约面）。
 
 臂名 → translator 工厂（``make_translator``）+ 破坏台账面（``.ledger`` /
 ``.finalize(results)``）。Sabotage/Perturb 的 **注入实现继承自**
@@ -7,7 +8,7 @@ r"""translators_bench.py — stagerun ``xlat --arm`` 的 translator 适配层。
 逐字节一致由构造保证而非拷贝；e2e_mock 的 ``pipe_mode_condition``
 经 re-export 用同类，两不相扰）。
 
-接线契约（stagerun 与回归测试共用）：
+接线契约（原 stagerun 宿主与回归测试共用；宿主已退役，测试仍钉）：
 
 - translator 协议 = ``texlate.xlat.pipeline.Translator``：
   ``async translate(*, system, user, temperature, max_tokens,
@@ -196,7 +197,7 @@ class PerturbTranslator(_Ledgered, _sab.PerturbTranslator):
         self._init_ledger()
 
 
-#: arm → translator 类。``perturb`` = ``sabotage-c`` 别名（Mode C 位扰）。
+#: ``arm`` → translator 类。``perturb`` = ``sabotage-c`` 别名（Mode C 位扰）。
 _ARMS: dict[str, type] = {
     "mock": MockTranslator,
     "sabotage-b": SabotageTranslator,
@@ -206,10 +207,10 @@ _ARMS: dict[str, type] = {
 
 
 def make_translator(arm: str, **kw: object) -> Translator:
-    """stagerun ``xlat --arm`` 插件点：臂名 → translator 实例。
+    """原 stagerun ``xlat --arm`` 插件点：臂名 → translator 实例。
 
     ``kw`` 透传底层 ctor（``zh=`` 等）。``real`` 需 ChatClient 生命周期，
-    不在此表——stagerun 自装 GatewayTranslator。
+    不在此表——原 stagerun 自装 GatewayTranslator。
     """
     try:
         cls = _ARMS[arm]

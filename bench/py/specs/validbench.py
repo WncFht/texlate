@@ -28,7 +28,7 @@ made a paper's picked chunks depend on the other papers in the run.
 Per-case corruption rng is ``crc32(cid+kind)`` exactly as before, so the
 same (chunk,level,kind) produces the same corruption under any layout.
 
-Aggregation/gates do NOT live here (Wave-D verbs) — the cell emits every
+Aggregation/gates do NOT live here (analysis verbs) — the cell emits every
 field needed to rebuild by_kind_level + clean-FP + the four gates:
 n_cases, per (kind,level) n/detected/missed ids, clean error_fp ids,
 l0_wall_s, l1 coverage. error(retriable) cells are UNEVALUATED — any
@@ -76,8 +76,8 @@ MIN_LEN, MAX_LEN = 40, 4000
 PARSE_TIMEOUT_S = 30
 
 # ---------------------------------------------------------------- 伪译文
-# (tmp/exp/rule-validator/gen_cases.py 原样移植; PH_RX 换产品 l0.PH_ANY_LIKE_RX —
-# 产品版额外认 [[SL]]/[[PL]] 无数字后缀形态, 是 spike 正则的超集.)
+# (rule-validator 原型 gen_cases.py 原样移植; PH_RX 换产品 l0.PH_ANY_LIKE_RX —
+# 产品版额外认 [[SL]]/[[PL]] 无数字后缀形态, 是原型正则的超集.)
 
 VOCAB = (  # noqa: SIM905 — 紧凑词表, 200 元素 list 字面量反而难读
     "研究 方法 结果 模型 数据 分析 实验 表明 本文 提出 算法 网络 训练 参数 "

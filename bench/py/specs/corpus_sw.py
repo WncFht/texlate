@@ -1000,7 +1000,7 @@ def _report(ctx):
 spec = Spec(
     kind="corpus_sw",
     # eval=True：item id 非 canon（"corpus-sw" 是 builder 单元不是 arxiv id）
-    # ——非 eval spec 会过 canon_id 把它当 invalid 丢掉（errsweep 同款）。
+    # ——非 eval spec 会过 canon_id 把它当 invalid 丢掉。
     eval=True,
     items=[{"id": "corpus-sw"}],
     params={

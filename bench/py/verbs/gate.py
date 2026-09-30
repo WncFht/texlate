@@ -57,7 +57,7 @@ PDF_STATUS = {"clean", "partial"}
 
 
 # ---------------------------------------------------------------- 记录指纹
-# compile_fp/_strkey/parse_iso 逐字录自 benchlib（benchlib 随 Wave-F 死；
+# compile_fp/_strkey/parse_iso 逐字录自 benchlib（benchlib 已退役；
 # triage 若也要 compile_fp，归并 verbs/_vocab.py 是 leader 侧缺口，勿各自抄）。
 
 
@@ -639,7 +639,7 @@ def _print_text(t: dict, rep: dict) -> None:
         print("cells=0  (no records)")
         return
     # 首行锚点沿用旧格式(cells=/pdf=/clean=)——end-state 口径；
-    # 真 union 口径另起行。status_panel 转 --json 前正则仍可读。
+    # 真 union 口径另起行。``ops.status_panel`` 转 --json 前正则仍可读。
     print(
         f"cells={total}  pdf={e['pdf']} ({e['pdf_pct']:.2f}%)"
         f"  clean={e['clean']} ({e['clean_pct']:.2f}%)   [end-state]"

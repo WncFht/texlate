@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 r"""iclr/fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → bench/corpus 物化.
 
-镜像 daily_arxiv.py fetch 模式：acquire_source 钉版 HEAD+GET+unpack，
+fetch 模式与已退役 daily_arxiv.py 同源：acquire_source 钉版 HEAD+GET+unpack，
 corpus/{id}/{meta.json,raw.*,extracted/} 布局同 daily 层（合并根）。
-串行 3.05s 单连接纪律不变（日更 soak 同口径），RatePolicy 预算独立账。
+串行 3.05s 单连接纪律不变，RatePolicy 预算独立账。
 
 输入: bench/work_iclr/map.jsonl（match!=no_arxiv 且 arxiv_id 非空行）
 输出: bench/corpus/{id}/ + bench/work_iclr/fetch.jsonl 状态账（终态跳过重入）
@@ -53,10 +53,10 @@ RATE_STATE = WORK / "ratelimit.json"
 UA = {
     "User-Agent": "texlate-iclr-corpus/1.0 (research benchmark; mailto:bench@localhost)"
 }
-DAILY_BUDGET = 20000  # 独立预算账——与 daily soak 的 ratelimit.json 不共享
+DAILY_BUDGET = 20000  # 独立预算账——本 workdir 自带 ratelimit.json，不与其它抓取管线共享
 
 #: stderr 时间戳日志 / RSS 探针 / 终态账 / os.link 物化——benchlib 单源
-#:（daily_arxiv 同源件；log 本名别名保行文不变）。
+#:（原型为已退役 daily_arxiv 同源件；log 本名别名保行文不变）。
 log = benchlib.log
 
 

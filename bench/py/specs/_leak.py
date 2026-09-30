@@ -2,8 +2,8 @@
 
 Single source for the "unprotected LaTeX leaked into a translatable chunk"
 detector: a chunk that matches ANY family counts as a leak; per-family
-hit counts ride metrics. Moved out of ``parsebench.py`` (Wave-A1 §2
-placement) so the parsebench spec and quality_proxies share the exact
+hit counts ride metrics. Moved out of ``parsebench.py`` so the
+parsebench spec and quality_proxies share the exact
 口径 — copy drift between them would silently fork the corpus 0.040%
 baseline.
 """

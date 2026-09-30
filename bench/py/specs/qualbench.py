@@ -66,7 +66,7 @@ DELIBERATE DELTAS（对旧驱动的刻意迁移，均已核对语义）：
   ctx.gateway() **之前** 分流（懒构造=付费断言，mock 格零请求零花费），
   但仍走完整付费段 claim/dedup 机械（刻意：全链自检不豁免）。
 - ``pairs``/``report`` 子命令与抽样 CLI 整体消失——选样下沉
-  ``specs/_qualframe.py``（烘焙产物即 frame），聚合属 Wave-D 动词。
+  ``specs/_qualframe.py``（烘焙产物即 frame），聚合属分析动词。
 - record 落点：records.jsonl append → emit_case（cases 表 + cases.jsonl
   与终态批量原子落）；key={model}|{paper}|{chunk}|{judge}|{proto} 的
   五元组由 (idc,arm,variant) 三键承载（proto/epoch 在 variant 前段）。

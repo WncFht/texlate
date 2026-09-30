@@ -9,8 +9,8 @@ Every bench verb is a subcommand of one argparse program::
 Contract baked here:
 
 - Write commands run a light sweep first (§2.4 — the reaper has an owner).
-  The sweep module is a wave-C sibling; while it is absent the hook is a
-  loud no-op, never a silent skip.
+  The sweep module is imported lazily; while it cannot be imported the
+  hook is a loud no-op, never a silent skip.
 - ``run`` refuses while $ROOT/PAUSE exists only for PAID specs
   (locks.pause_engaged + spec.has_paid — Phase 3 rescope: the fence stops
   spend, not free work; ``plan`` always runs).
@@ -18,7 +18,7 @@ Contract baked here:
   holds the lock itself); a paid spec additionally requires --max-cost
   (§3.6 — detach forces the budget flag).
 - kernel.kernel (run/plan), kernel.spec, kernel.sweep, kernel.doctor are
-  wave-C sibling modules imported lazily — the CLI works for every verb
+  sibling modules imported lazily — the CLI works for every verb
   that only needs foundation/zone modules, and reports a clean
   "not yet available" (exit 2) for the rest instead of crashing.
 
@@ -77,7 +77,7 @@ def _err(msg: str) -> None:
 
 
 def _lazy(modname: str):
-    """Import a wave-C sibling kernel module; (module, None) or (None, err)."""
+    """Import a kernel sibling module lazily; (module, None) or (None, err)."""
     try:
         return importlib.import_module(f"kernel.{modname}"), None
     except Exception as exc:  # ImportError AND in-module failures — report, don't hide

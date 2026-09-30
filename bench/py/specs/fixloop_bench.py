@@ -3,7 +3,7 @@
 每篇 × 每引擎一格：湖投影 → 剥 mode 拷贝 → 产品化
 ``texlate.compile.fixloop.fixloop``（编译→logparse→taxonomy→规则修复→重编，
 ≤ruleset max_rounds=8 轮）。营救率 = baseline FAIL 格内经 fixloop 出
-pdf/clean 层的比例——聚合归分析动词（Wave-D），本 spec 只落逐格 verdict
+pdf/clean 层的比例——聚合归分析动词，本 spec 只落逐格 verdict
 + baseline 对拍字段进 eval_records。
 
 样本面（40 篇 corpus_v2 分层抽样，seed=20260915）：旧
@@ -13,9 +13,9 @@ pdf/clean 层的比例——聚合归分析动词（Wave-D），本 spec 只落�
 run 的 40 条 records（每篇 metrics.engines{eng} 含 baseline
 verdict/category/pdf）。换基线 run 改模块常量 ``BASELINE_RUN``。
 
-payload 现状：该 40 篇在湖 catalog 全 ``skeleton``（Phase-4 迁移期字节未
-水化）——``ctx.src_path()`` 返 None → ``skip``(retriable)。corpus builders
-（Wave-E）或 IA 抓取补水后 resume 自然开跑；**不把 skeleton 当 fail 计**——
+payload 现状：该 40 篇在湖 catalog 全 ``skeleton``（2026-09 迁移期字节
+未水化）——``ctx.src_path()`` 返 None → ``skip``(retriable)。corpus
+builders 或 IA 抓取补水后 resume 自然开跑；**不把 skeleton 当 fail 计**——
 旧世 ``no_source`` 桩行是"字节判死"语义，湖世 skeleton 是"字节在途"，
 语义不同桶（刻意 delta，见下）。
 
@@ -35,7 +35,7 @@ done 定义：终态 = ok∪fault∪{kernel dedup}；skip/error 走 RETRIABLE �
 （base_verdict/base_category/base_pdf），救回率分子/分母可纯从
 eval_records 重建。
 
-EPOCH 约定（Wave-B 重测口径）：``variant = "{eng}@{EPOCH}"``——内核跨
+EPOCH 约定（重测口径）：``variant = "{eng}@{EPOCH}"``——内核跨
 run dedup 按 (idc,arm,up,variant,stage) 永久记忆，测量世代递进靠 bump
 模块常量 ``EPOCH``（code_deps 同动 → fp 标 stale + 新 cell 键）。
 

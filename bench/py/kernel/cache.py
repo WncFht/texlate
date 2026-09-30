@@ -18,7 +18,7 @@ Write discipline (the poison rules, §3.9/R18):
 - correction/fix writers take ``writable=False`` (or a distinct
   ``context`` dim) — a hint-conditioned translation written under the
   plain key poisons the namespace for every later run (the server
-  compile.py:832 precedent: the hint lives outside the key).
+  ``worker/compile.py`` precedent: the hint lives outside the key).
 
 Metrics ride the terminal row: the kernel folds
 ``metrics.cache = {buckets, hits, misses, stores, evictions, bypassed}``

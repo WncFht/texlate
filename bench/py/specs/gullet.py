@@ -32,7 +32,7 @@ r"""gullet — corpus 宏展开抽干评测器（``gullet_bench.py`` 的 Spec v2
 - 抽样口径=旧式 ``Random(seed).sample(manifest 文件序, n)``——
   ``_ITEMS`` 保文件序，``select`` 复现同序同 seed 子集（**不是**
   soak 的 sorted-pool 形）。
-- ``summarize`` 不进城——聚合归 Wave-D 分析动词读 records 重建。
+- ``summarize`` 不进城——聚合归分析动词读 records 重建。
 """
 
 from __future__ import annotations

@@ -16,8 +16,8 @@ dedup 留重跑门：指标逻辑变了 bump EPOCH 即新一轮测量）。
   故按 stage+status 枚举（对既有数据与旧过滤逐格等价：旧 compile
   行 arm 本来就只有 zh/base）。
 
-item 携带 ``stage`` 字段走 kernel 单 stage 路由（kernel.py:276
-``wanted`` 过滤）——一个 item 只物化一个 cell，无空转 cell 占账。
+item 携带 ``stage`` 字段走 kernel 单 stage 路由（``kernel._enumerate_cells``
+的 ``wanted`` 过滤）——一个 item 只物化一个 cell，无空转 cell 占账。
 
 读径：``ctx.upstream_rec`` 按本 cell variant 查不到源 variant 的账，
 故资格复核经 ``specs._shared._last_done`` 显式传 ``variant=src_variant``

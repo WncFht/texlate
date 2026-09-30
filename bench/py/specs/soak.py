@@ -1,4 +1,4 @@
-r"""soak — 生产翻译链单 spec 化（Phase-4 Wave-A2 旗舰件）。
+r"""soak — 生产翻译链单 spec 化。
 
 ingest → parse → xlat(paid) → compile → fixloop(paid) 单 run 内串行——
 ``same_id_serial`` 把同一篇的五个 cell 钉在同一 worker 按 plan 序执行，
@@ -10,7 +10,8 @@ ledger 而非共享 work/ 目录）。
 - ingest：catalog 状态机 → ``ctx.src_path()`` 硬链接场——**先按
   catalog state 分类再调 src_path**（``empty`` 态的 cell 目录会经
   src_path 投影成伪 ok 树）。fetch_fn=None：湖外抓取归 corpus
-  builders（Wave-E），本 spec 只消费已在湖/可自愈的格。
+  builders（corpus_v3/expand/layers/hot 各 spec），本 spec 只消费
+  已在湖/可自愈的格。
 - parse：route → ``.zh-build`` 暂存 → normalize → scan_tex_tree →
   swap_in ``zh.-`` + ``zh.-/parse.json``（随树进 vault，跨 run 消费
   者另读 ``upstream_rec("parse").metrics``）。
@@ -132,7 +133,7 @@ _ON_PRED: dict[str, object] = {
 
 
 def _rebuild(zh: Path, splice: Path) -> None:
-    """zh.- → splice.- 原样重建（stagerun_lib.rebuild_splice 同式）。"""
+    """zh.- → splice.- 原样重建（旧 stagerun_lib.rebuild_splice 同式）。"""
     if splice.exists():
         shutil.rmtree(splice)
     fsutil.copy_mutating(zh, splice)
@@ -537,7 +538,7 @@ def _parse(ctx) -> dict:
 # ---------------------------------------------------------------- stage: xlat
 #
 # SessionClient/TimedTranslator/SessionTranslator/PaidEscape 单源在
-# specs/_shared.py——Wave-C e2e_real/qualbench 复用同一桥。
+# specs/_shared.py——e2e_real/qualbench 复用同一桥。
 
 
 def _xlat(ctx) -> dict:

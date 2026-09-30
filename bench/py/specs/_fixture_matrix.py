@@ -1,6 +1,6 @@
-r"""B2 fixtures 陷阱断言矩阵（docs/spec/benchmark.md §B2）——spike ``miniscanner_test``
-断言矩阵移植到 ``texlate.latex``，从 ``tests/test_bench_regression.py`` _vendor 至此
-（Phase-4 Wave-A1 §2 落点），pytest 侧与跑分器 ``bench/py/fixture_assert.py``
+r"""B2 fixtures 陷阱断言矩阵（docs/spec/benchmark.md §B2）——原型 ``miniscanner_test``
+断言矩阵移植到 ``texlate.latex``，从 ``tests/test_bench_regression.py`` _vendor 至此，
+pytest 侧与跑分器 ``bench/py/specs/fixture_assert.py``
 共享同一份单源。
 
 底材 ``bench/fixtures/*.tex``（入库，逐字节即语义——永不格式化/润色）：
@@ -28,7 +28,7 @@ r"""B2 fixtures 陷阱断言矩阵（docs/spec/benchmark.md §B2）——spike `
   comment env 死块三态行锚、docclass/usepackage 跨行夹注释参、行尾 ``%`` 拼接、
   注释内孤立 ``$`` 不参配对；``env_name_at``/``unescaped_dollar_odd`` 修复面）。
 
-门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在原型里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，消费侧按 ``== "pass"`` 严判。
 
 注意：本模块的 ``LEAK_PATTERNS``（宽 ``ref_family`` 口径）与
@@ -77,7 +77,7 @@ FIXTURE_FILES = [
     )
 ]
 
-# 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
+# 泄漏扫描口径（原型同表）：可译 chunk 内不得出现这些构造
 LEAK_PATTERNS = {
     "dollar": re.compile(r"\$"),
     "cite_family": re.compile(r"\\cite[a-zA-Z]*"),
@@ -95,7 +95,7 @@ LEAK_PATTERNS = {
 
 
 class ParseTimeoutError(Exception):
-    """parse 超时（spike 同款 30s SIGALRM 护栏——挂死型回归也按失败算）。"""
+    """parse 超时（原型同款 30s SIGALRM 护栏——挂死型回归也按失败算）。"""
 
 
 def _alarm(_signum: int, _frame: FrameType | None) -> None:
@@ -117,7 +117,7 @@ def fake_translation(chunk: Chunk, idx: int) -> str:
 
 
 def scan_chunks(res: ScanResult) -> dict:
-    """泄漏扫描（spike 同口径）：可译 chunk 内命中受保护构造的计数。"""
+    """泄漏扫描（原型同口径）：可译 chunk 内命中受保护构造的计数。"""
     hits = dict.fromkeys(LEAK_PATTERNS, 0)
     leaked = 0
     examples = []
@@ -139,7 +139,7 @@ def scan_chunks(res: ScanResult) -> dict:
 
 
 def classify_recon(orig: str, recon: str) -> tuple[str, float, int]:
-    """重建分级：identical / normalized / diverged（spike 同口径）。"""
+    """重建分级：identical / normalized / diverged（原型同口径）。"""
     if orig == recon:
         return "identical", 1.0, -1
 
@@ -206,7 +206,7 @@ class FixtureScan:
 def run_fixture(
     name: str, path: Path, timeout_s: int = 30, top_dir: Path | None = None
 ) -> FixtureScan:
-    """parse + identity/假译文重建一次（spike ``parse_one``+``rebuild_metrics`` 合体）。"""
+    """parse + identity/假译文重建一次（原型 ``parse_one``+``rebuild_metrics`` 合体）。"""
     t0 = time.perf_counter()
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(timeout_s)
@@ -242,10 +242,10 @@ def run_fixture(
 # ---------------------------------------------------------------- tricky.tex 断言矩阵
 
 
-def assert_tricky(  # 逐条断言平铺即清单（spike 同构）
+def assert_tricky(  # 逐条断言平铺即清单（原型同构）
     res: ScanResult, recon: str, recon_fake: str
 ) -> dict[str, dict[str, str]]:
-    """tricky.tex 逐条陷阱断言（spike 移植；``_meta`` 是 info 行非断言）。"""
+    """tricky.tex 逐条陷阱断言（原型移植；``_meta`` 是 info 行非断言）。"""
     chunks = chunks_blob(res)
     ph_vals = "\n".join(res.ph_map.values())
     out: dict[str, dict[str, str]] = {}

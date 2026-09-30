@@ -43,7 +43,7 @@ v2 改读 ``res.inputs``（parse_file 自己登记的 ``(vpos, resolved realpath
   ``fp_input=blob_sha256|main_tex_sha256`` 接 byte-drift 的 stale 标记职责。
 - **report 不是 stage**：files.jsonl/papers.json/summary.md 聚合（Wilson
   CI / cluster bootstrap B=2000 seed=20260915 / frame 加权三口径）归
-  Wave-D derive verb 读 eval_records+records 重建——needs 是 per-cell
+  derive 分析动词读 eval_records+records 重建——needs 是 per-cell
   边表达不了全语料聚合。分母守恒：Σcells ``metrics.n_files`` ≡ 旧
   files.jsonl 行数；``metrics.tot.*`` 逐键与旧 ``aggregate()`` 同名
   同式，Σ 即旧 ``tot[*]``；terminal eval cell 数 ≡ papers.json 行数。

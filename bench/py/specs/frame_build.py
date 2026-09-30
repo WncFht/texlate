@@ -1,4 +1,4 @@
-"""frame_build — bench/frame/ 抽样框资产再生（Wave-E ord-0 前置）。
+"""frame_build — bench/frame/ 抽样框资产再生。
 
 bench/frame/ 全部 13 件资产 gitignored 已灭（payload 无副本），本 spec 是
 唯一再生路径，也是 v3/expand/layers/hot 全部 corpus builder 的前置：

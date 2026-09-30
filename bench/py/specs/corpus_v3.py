@@ -36,7 +36,7 @@ Stage 链（单件 ``{"id": "corpus-v3"}`` 串行——成员级断点在工作�
                  retriable（动词未跑是常态）。
   qc             配额/去重/lake 对账/manifests_tracked → clean|fail。
 
-Wave-E 移植变更（相对旧驱动）：
+移植变更（相对旧驱动）：
 - 工作区 bench/work_v3/（已灭）→ ``~/.local/state/texlate/corpus-build/v3/``
   持久 builder 目录（多日断点语义；ctx.workspace 跨 run 清，不可用）。
 - payload bench/corpus/{id}/ → lake cells（source="arxiv"）；cell meta 带
@@ -482,7 +482,7 @@ def _zipsum(ctx):
 
 
 # ---------------- scan (S2) ----------------
-# 特征提取逐字节 lift build_corpus_v3（其本身改编自 tmp/exp/ia-pilot/scan_tar.py;
+# 特征提取逐字节 lift build_corpus_v3（其本身改编自 ia-pilot 原型的 scan_tar.py;
 # 增量: blob_sha256 / stub / staging 输出 / zipsum 交叉核验）.
 
 TEXT_EXT = {
@@ -2160,7 +2160,7 @@ _STATUS = {
 spec = Spec(
     kind="corpus_v3",
     # eval=True 是单件非论文 id 的 canon 豁免口（非 eval item 全过
-    # canon_id，"corpus-v3" 不是 arXiv 形会被丢——errsweep 同款先例；
+    # canon_id，"corpus-v3" 不是 arXiv 形会被丢；
     # 副作用仅 cell 事件 eval=True 标记，无 stage.eval 行）。
     eval=True,
     items=[{"id": "corpus-v3"}],

@@ -331,7 +331,7 @@ def _blame(row: dict) -> str:
 def _verdict_meta(idx, idcs: list[str]) -> dict[str, dict]:
     """批量取 zh/en 编译 verdict 元数据（records 面，末条胜行口径）。
 
-    新 trizone 里 zh 产物来自 stagerun/e2e 类 run：``compile`` 段 arm=zh
+    新 trizone 里 zh 产物来自旧 stagerun/e2e 类 run：``compile`` 段 arm=zh
     up=real 是 zh 编译 verdict，arm=base 是 en 基线 verdict，``fixloop``
     段是 pipe-fix 对应腿。任一缺失 → None（meta 是归因材料，非配对前提）。
     """

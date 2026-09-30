@@ -19,7 +19,8 @@ human override). A local single cat is not proof of global uniqueness —
 a wrong cat means translating the wrong paper on paid quota.
 
 Read side intentionally does NOT normalize (§3.7): triage's non-canon
-matches are an audit signal — wave-5's 253 missed cells were caught by it.
+matches are an audit signal — an earlier canon-form audit caught 253
+missed cells through it.
 """
 
 from __future__ import annotations

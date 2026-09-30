@@ -2,7 +2,7 @@
 
 对 devin-2api 网关模型集跑分层抽样 LaTeX 段中译，格内过 l0 validator +
 E22 硬契约判定，逐格落 metrics。旧驱动的 report/rejudge/samples 三子命令
-是读 eval_records 的分析动词（Wave-D 边界），不在本 spec。
+是读 eval_records 的分析动词，不在本 spec。
 
 样例帧（spec 常量 = bench 定义本身——旧 --where/--docs/--per-kind/--seed/
 --models/--runs 沉为模块常量，items() 零参在 spec load 物化，run params

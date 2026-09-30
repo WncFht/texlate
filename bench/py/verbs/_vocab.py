@@ -1,7 +1,7 @@
 """Status vocabulary — the verbs' single source of truth.
 
-Verbatim lift of benchlib's status tables (benchlib dies with the Wave-F
-deletion gate; verbs must not import it). Keep semantics identical —
+Verbatim lift of benchlib's status tables (benchlib is retired — verbs
+must not reintroduce it). Keep semantics identical —
 triage 票口径、rundiff 迁移序、gate 覆盖闸全部钉这张表。
 
 跨叶共享词表（DONE/RETRIABLE/STATUS_RANK/TERMINAL_WORDS）一律别名

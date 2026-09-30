@@ -1,9 +1,9 @@
 r"""specs/_xlat_async.py — async 翻译编排单源（原 ``stage_xlat.translate_tree_async``）。
 
 扫描 → oversize 闸 → StateStore → XlatPipeline → 逐块对账 → splice 写回。
-stagerun ``xlat``（``stage_xlat._translate_tree`` 壳）与
-``e2e_real_bench.translate_tree`` 两臂共享；Phase-4 spec 化阶段经
-``from specs._xlat_async import translate_tree_async`` 取同一实现，
+原 stagerun ``xlat``（``stage_xlat._translate_tree`` 壳）与
+``e2e_real_bench.translate_tree`` 两臂共享（两宿主皆已退役）；spec 化
+后经 ``from specs._xlat_async import translate_tree_async`` 取同一实现，
 不各抄一份。
 """
 

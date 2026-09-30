@@ -352,7 +352,7 @@ def xlat_metrics(
             else:
                 patch.update(score_terms(delivered, td))
         except Exception as e:
-            # 观测件不毁账（stage_xlat.py:470 同款 suppress）
+            # 观测件不毁账（soak 同款 suppress——重建失败记 note 不落 error 格）
             patch.update(
                 {
                     "term_applicable": None,

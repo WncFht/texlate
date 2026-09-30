@@ -101,7 +101,7 @@ BYTES_OK_VERDICTS = frozenset(
 # bytes-backed quar verifies, bytes-less quar hard-stops.
 MISSING_VERDICTS = frozenset({"tombstone", "quar", "quarantine", "lost"})
 
-# Paid-arm terminal statuses that mean "we tried, it did not translate" —
+# Terminal statuses on the paid ``arm`` that mean "we tried, it did not translate" —
 # §3.6 attempted-unpaid bucket: not paid-pool, not default-rerun, never
 # auto-regen.
 ATTEMPTED_UNPAID = frozenset({"reject", "fail", "fault", "dirty_pdf"})
@@ -611,7 +611,7 @@ class DedupOracle:
         #     kind-agnostic callers: the claims keyspace is stage-blind —
         #     xlat's release-verified lands on the same (idc,arm,variant)
         #     fixloop checks, so under a named-mutates check the row would
-        #     vouch a stage that never ran (live W3 fixloop-masking 实证).
+        #     vouch a stage that never ran (live run fixloop-masking 实证).
         if not need_kinds and self._release_verified(idc, arm, variant):
             return VERIFIED
 

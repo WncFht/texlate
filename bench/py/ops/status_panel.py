@@ -875,8 +875,8 @@ def _kernel_index() -> sqlite3.Connection | None:
 
 def sec_kernel() -> str:
     """Trizone-ledger kernel feed — index.sqlite projections + lock
-    sentinels + run heartbeats (the v2 supply; legacy collectors below
-    stay until Phase 4)."""
+    sentinels + run heartbeats (the v2 supply; the pre-v2 collectors
+    below still feed the legacy panel sections)."""
     parts = []
     flags = []
     if (BENCH_ROOT / "PAUSE").exists():

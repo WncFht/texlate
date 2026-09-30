@@ -1,4 +1,4 @@
-"""benchlib 遗孤收编——Wave-F 删除前置; benchlib.py 随删除门死。
+"""benchlib 遗孤收编——benchlib.py 已随删除门退役。
 
 spec 侧通用件单源（verbs 侧对应物是 ``verbs/_vocab.py``——两叶互不
 依赖；跨叶共享的状态词表两叶同引 ``kernel.events`` 单源别名）。
@@ -406,8 +406,9 @@ def load_env(path: Path = ENV_FP) -> dict[str, str]:
 def rss_preflight(ua: dict[str, str], feed: str = "cs.CL") -> None:
     """rss.arxiv.org 健康探针——不通 ``sys.exit(3)`` 中止，不进 fetch 烧预算。
 
-    daily_arxiv.preflight / iclr.fetch.preflight 同型下沉：urllib 30s 一发 +
-    ``<rss`` 魔数校验（代理截获会返非 RSS 登录页，净连但语义无货同拦）。
+    iclr.fetch.preflight 同型下沉（原型为已退役 daily_arxiv.preflight）：
+    urllib 30s 一发 + ``<rss`` 魔数校验（代理截获会返非 RSS 登录页，
+    净连但语义无货同拦）。
     """
     import urllib.error
     import urllib.request
@@ -427,7 +428,8 @@ def rss_preflight(ua: dict[str, str], feed: str = "cs.CL") -> None:
 def fetch_done(status_fp: Path, *, id_key: str = "id") -> dict[str, str]:
     """fetch 状态账 jsonl → ``{id: 末条 status}``（仅终态行）——续跑跳过单源。
 
-    daily_arxiv._fetch_done / iclr.fetch._fetch_done 同型下沉。终态集 =
+    iclr.fetch._fetch_done 同型下沉（原型为已退役 daily_arxiv._fetch_done）。
+    终态集 =
     ``AcquireStatus`` 的成功/不可修类（error/budget/parked 留可重试）。
     ``id_key`` 适配异名账键（iclr.fetch 账用 ``arxiv_id``）。
     """
@@ -454,8 +456,8 @@ def materialize_entry(entry_dir: Path, dst: Path) -> None:
     """fetch 缓存条目 → ``corpus/{id}``：rmtree 旧树 + copytree ``os.link``。
 
     硬链接而非拷贝——缓存条目即语料内容，双视图零额外空间；缓存清理后
-    语料仍持有数据（daily_arxiv._materialize 单源；iclr.fetch 复制时丢落
-    ``copy_function`` 属回归——此处复原同口径）。
+    语料仍持有数据（原型为已退役 daily_arxiv._materialize；iclr.fetch
+    复制时丢落 ``copy_function`` 属回归——此处复原同口径）。
     """
     if dst.exists():
         shutil.rmtree(dst)

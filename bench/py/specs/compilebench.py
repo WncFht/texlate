@@ -29,8 +29,8 @@ inject_reject→reject、harness_crash→fault。
 - 旧 baseline 臂双引擎**顺序共享同一脏 wdir**（tectonic 吃 xelatex
   残留 aux/log/missfont）；新格制每 (cond,eng) 独立干净目录——
   cell 间无保序通道，且干净口径更诚实。
-- run 级聚合（summary.md/cells.json/v2 对比）不进城——归 Wave-D
-  derive/report 动词；本 spec 只保证逐 case 行字段足以重建。
+- run 级聚合（summary.md/cells.json/v2 对比）不进城——归 derive/report
+  分析动词；本 spec 只保证逐 case 行字段足以重建。
 
 status 映射：judge clean/partial/fail/reject → 同名 kernel 终态；
 旧词（pdf~/FAIL/no_*）保留在 metrics.verdict 与 case 行 verdict 字段。

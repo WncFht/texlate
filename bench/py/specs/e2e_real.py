@@ -1,4 +1,4 @@
-r"""e2e_real — real-arm 全链路付费评测（Phase-4 Wave-C）。
+r"""e2e_real — real-arm 全链路付费评测。
 
 ``bench/py/e2e_real_bench.py`` 的 spec 化：route → xlat(paid) → compile →
 fixloop → base 五段链。与 soak（生产主线）是同构兄弟——soak 走

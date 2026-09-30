@@ -1455,7 +1455,7 @@ def run(
 
             # 4.5 first-fire gate (§6 Phase-3 首火闸): paid specs show
             #     dedup coverage + sealed index + fresh vault verify, or
-            #     the paid arm refuses — evidence lands in coverage.json
+            #     the paid ``arm`` refuses — evidence lands in coverage.json
             if spec.has_paid():
                 try:
                     _first_fire_gate(spec, oracle, cells, rd)

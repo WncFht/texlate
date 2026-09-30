@@ -437,7 +437,7 @@ def _last_done(ctx, stage: str, variant: str | None = None) -> dict | None:
 def _gate(
     status: str, code: str, cat: str, payload, metrics: dict | None = None
 ) -> dict:
-    """stagerun gate_rec 的 return-dict 版：status + 单条 errors +
+    """旧 stagerun gate_rec 的 return-dict 版：status + 单条 errors +
     可选 metrics；sig 由内核 errors[0] cat:pay 自动合成。"""
     out = {
         "status": status,
@@ -450,7 +450,7 @@ def _gate(
 
 
 def _swap_in(stage_dir: Path, dst: Path) -> None:
-    """暂存树 → dst 的 rename 接力（stagerun_lib.swap_in 同式）。"""
+    """暂存树 → dst 的 rename 接力（旧 stagerun_lib.swap_in 同式）。"""
     old = stage_dir.with_name(f"{stage_dir.name}-old")
     if dst.exists():
         if old.exists():

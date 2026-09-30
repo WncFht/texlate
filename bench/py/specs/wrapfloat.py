@@ -1,4 +1,4 @@
-r"""wrapfloat — wrapfig 绕排碰撞评测（``wrapfloat_bench.py`` 的 spec 化, Wave-B）。
+r"""wrapfloat — wrapfig 绕排碰撞评测（``wrapfloat_bench.py`` 的 spec 化）。
 
 检出语义原样平移：tectonic 编译 → ``pdftohtml -xml`` 逐页 image/text
 bbox 成对交集（绝对面积 + 占小盒比双阈）→ ``pdftotext`` caption 片段
@@ -15,12 +15,12 @@ bbox 成对交集（绝对面积 + 占小盒比双阈）→ ``pdftotext`` captio
   举）：每格 ``stage="wf_pair"`` 单 cell 内双臂对照（原子性约束——
   needs 键钉 arm，跨 arm 依赖不可表达）。nominations 是已水化湖格
   的 wrapfig 检出清单（2026-09-23 扫 2585 complete cell 得 237；
-  Wave-E 应改由 build_corpus_v3 flag 通道再生）。文件缺席时 corpus
+  应改由 corpus builder 通道再生）。文件缺席时 corpus
   族自然空——synth-only spec 是合法形态。
 
 ``arm`` 轴载 orig|demoted；``variant`` 轴载测量代际：模块常量
 ``EPOCH`` 即 variant 值，换代重测 = bump EPOCH 出新 cell 键（内核跨
-run dedup 无 --recode/--rerun——Wave-B 统一约定，同 epoch 内
+run dedup 无 --recode/--rerun——统一约定，同 epoch 内
 dedup/resume 语义正确）。
 
 旧 verdict 词表原样驻 ``metrics.verdict``（synth:
