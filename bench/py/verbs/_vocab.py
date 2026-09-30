@@ -3,7 +3,13 @@
 Verbatim lift of benchlib's status tables (benchlib dies with the Wave-F
 deletion gate; verbs must not import it). Keep semantics identical —
 triage 票口径、rundiff 迁移序、gate 覆盖闸全部钉这张表。
+
+跨叶共享词表（DONE/RETRIABLE/STATUS_RANK/TERMINAL_WORDS）一律别名
+``kernel.events`` 单源——verbs→kernel 合法且词表是全栈最不该漂的口径；
+本叶自有词（OK/SKIP/RESCUED/COMPILED/errors_sig）仍在此声明。
 """
+
+from kernel import events
 
 BENCH_ERROR_STATUS = "bench_error"
 
@@ -28,16 +34,16 @@ RESCUED_STATUS = {
     "dirty_pdf",
     "partial",
 }
-#: fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
-TERMINAL_WORDS = {"stuck", "max_rounds"}
+#: fixloop 终态词 → core 单 (规则面之外的引擎缺口)。单源 kernel/events.py。
+TERMINAL_WORDS = events.TERMINAL_WORDS
 
 #: 状态序数表 (高=好): fixloop_degraded 跨段退化判定与 rundiff 逐格迁移共用;
-#: 表外词 (skip/error/...) 一律按 -1 计。
-STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+#: 表外词 (skip/error/...) 一律按 -1 计。单源 kernel/events.py。
+STATUS_RANK = events.STATUS_RANK
 
-#: 落账即 done（skip/error 可重试）。
-DONE_STATUS = {"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"}
-RETRIABLE_STATUS = {"skip", "error"}
+#: 落账即 done（skip/error 可重试）。单源 kernel/events.py。
+DONE_STATUS = events.STATUS_DONE
+RETRIABLE_STATUS = events.STATUS_RETRIABLE
 
 #: gate_scorecard fix 覆盖门槛——真编译结果集（reject/skip 格的 fixloop 不计）。
 COMPILED_STATUS = {"fail", "partial", "clean"}

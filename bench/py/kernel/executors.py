@@ -17,11 +17,9 @@ Contract:
   the correctness half.
 - executor='thread' → ThreadPoolExecutor (default; sqlite/index objects
   are thread-bound — workers build their own).
-- executor='process' → ProcessPoolExecutor; the pickle boundary means
-  ``run_cell_fn`` must be an importable module-level callable and cells
-  must be pickle-able (plain dicts are). Results come back as (cell,
-  result); a dead worker surfaces as the executor's exception on that
-  group.
+- executor='process' is declared in spec vocabulary (spec.EXECUTORS) but
+  unwired: kernel.py refuses it before dispatch — env/alloc/meter are
+  process-local and cannot cross the pickle boundary.
 - executor='async-owned' → thread executor, but each cell invocation runs
   inside ``contextvars.copy_context().run`` so contextvars set around the
   submission propagate into the cell (the instrument owns its own event
@@ -31,12 +29,11 @@ Contract:
 from __future__ import annotations
 
 import contextvars
-import functools
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["execute_cells"]
 
-_EXECUTORS = ("thread", "process", "async-owned")
+_EXECUTORS = ("thread", "async-owned")
 
 
 def _group_key(cell: dict) -> str:
@@ -111,25 +108,15 @@ def execute_cells(
     runner = _run_group_ctx if executor == "async-owned" else _run_group
 
     results: list = []
-    if executor == "process":
-        # pickle boundary: run_cell_fn and cells must pickle; cells are
-        # plain dicts by construction (§4). The bound callable ships with
-        # each group — an unpicklable (closure) run_cell_fn fails loudly
-        # at submission, not mid-map.
-        bound = functools.partial(runner, run_cell_fn=run_cell_fn)
-        with ProcessPoolExecutor(max_workers=jobs) as pool:
-            for group_res in pool.map(bound, groups):
-                results.extend(group_res)
-    else:
-        with ThreadPoolExecutor(max_workers=jobs) as pool:
-            futs = [(g, pool.submit(runner, g, run_cell_fn)) for g in groups]
-            for g, f in futs:
-                try:
-                    results.extend(f.result())
-                except BaseException as exc:  # group runner itself died
-                    # every cell in THAT group surfaces the failure;
-                    # later groups still collect their real results
-                    results.extend((c, exc) for c in g)
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        futs = [(g, pool.submit(runner, g, run_cell_fn)) for g in groups]
+        for g, f in futs:
+            try:
+                results.extend(f.result())
+            except BaseException as exc:  # group runner itself died
+                # every cell in THAT group surfaces the failure;
+                # later groups still collect their real results
+                results.extend((c, exc) for c in g)
     # restore input order — results arrive grouped
     pos = {id(c): i for i, c in enumerate(cells)}
     results.sort(key=lambda cr: pos.get(id(cr[0]), 0))

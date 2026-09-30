@@ -23,7 +23,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "src"))
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 from specs import _benchlite as benchlib
 

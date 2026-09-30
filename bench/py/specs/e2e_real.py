@@ -67,7 +67,6 @@ import contextlib
 import functools
 import hashlib
 import json
-import os
 import shutil
 import time
 from datetime import UTC, datetime
@@ -89,13 +88,19 @@ from specs._shared import (
     PaidEscape,
     SessionClient,
     TimedTranslator,
+    _compile_judge,
+    _ensure_kind,
+    _gate,
     _last_done,
     _last_row,
+    _swap_in,
+    _xlat_marker,
+    case_bridge,
     devin_factory,
 )
 from specs._xlat_async import translate_tree_async
-from texlate.compile.engine import XelatexEngine, engine_for, route_project
-from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
+from texlate.compile.engine import XelatexEngine, route_project
+from texlate.compile.fixloop import Ruleset, fixloop
 from texlate.compile.inject import (
     InjectRejectError,
     classify_no_main,
@@ -131,56 +136,8 @@ EPOCH = "v1"
 #: 键域（soak 用 '-' 默认臂，本 spec 恒 'real'）。
 ARM = "real"
 
-
-def _gate(
-    status: str, code: str, cat: str, payload, metrics: dict | None = None
-) -> dict:
-    """stagerun gate_rec 的 return-dict 版（soak 同式）：status + 单条
-    errors + 可选 metrics；sig 由内核 errors[0] cat:pay 自动合成。"""
-    out = {
-        "status": status,
-        "code": code,
-        "errors": [{"code": code, "cat": cat, "payload": payload}],
-    }
-    if metrics:
-        out["metrics"] = metrics
-    return out
-
-
-def _swap_in(stage_dir: Path, dst: Path) -> None:
-    """暂存树 → dst 的 rename 接力（stagerun_lib.swap_in 同式）。"""
-    old = stage_dir.with_name(f"{stage_dir.name}-old")
-    if dst.exists():
-        if old.exists():
-            shutil.rmtree(old)
-        os.rename(dst, old)
-    os.rename(stage_dir, dst)
-    if old.exists():
-        shutil.rmtree(old)
-
-
-def _ensure_kind(ctx, kind: str) -> Path | None:
-    """本 run 的 mutates-kind 读径（soak 同式）：同 run 上游产物优先，
-    缺席则 vault restore(mode="copy") 物化全部已封 kind——0444 融合树的
-    可写副本口径。无完好 vault 副本 → None。"""
-    d = ctx.upstream_asset_dir(kind)
-    if d is not None:
-        return d
-    with contextlib.suppress(vault.VaultError):
-        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(), mode="copy")
-    return ctx.upstream_asset_dir(kind)
-
-
-def _xlat_marker(zh: Path) -> dict | None:
-    """``zh.-/.xlat-arm.json`` → dict；缺席 → None。"""
-    p = zh / ".xlat-arm.json"
-    if not zh.is_dir() or not p.exists():
-        return None
-    try:
-        doc = json.loads(p.read_text())
-    except (json.JSONDecodeError, OSError):
-        return None
-    return doc if isinstance(doc, dict) else None
+# _gate/_swap_in/_ensure_kind/_xlat_marker/_compile_judge/case_bridge 单源在
+# specs/_shared.py（soak/fixloop_bench 同款——勿再长本地副本）。
 
 
 # ---------------------------------------------------------------- items/select
@@ -456,16 +413,6 @@ def _xlat(ctx) -> dict:
 # ---------------------------------------------------------------- stage: compile
 
 
-def _compile_judge(
-    work: Path, main_rel: str, timeout: float, *, expect_cjk: bool
-) -> dict:
-    """xelatex best-effort 编译 + judge（旧 _compile_judge 同式）。"""
-    res = engine_for("xelatex", halt_on_error=False).compile(
-        work, main_rel, timeout=timeout, sandbox=True
-    )
-    return benchlib.judge_dict(res, expect_cjk=expect_cjk)
-
-
 def _compile(ctx) -> dict:
     """zh.- → splice.- → inject → xelatex+judge（旧 pipe_xel_condition
     的 inject+compile 段）。expect_cjk 读 xlat 账 translate.chunks。"""
@@ -514,7 +461,7 @@ def _compile(ctx) -> dict:
     _tr = ((xr or {}).get("metrics") or {}).get("translate") or {}
     expect_cjk = _tr.get("chunks") != 0
     metrics["expect_cjk"] = expect_cjk
-    tail = _compile_judge(splice, main_rel, timeout, expect_cjk=expect_cjk)
+    tail = _compile_judge(splice, main_rel, "xelatex", timeout, expect_cjk=expect_cjk)
     metrics.update(tail)
     v = tail["verdict"]
     out = {
@@ -542,22 +489,6 @@ def _compile(ctx) -> dict:
 
 
 # ---------------------------------------------------------------- stage: fixloop
-
-
-class _CaseBridge(CaseSink):
-    """CaseSink → ctx.emit_case 桥（soak 同款）：record 行形状逐字进
-    cases 账道；文件落点 /dev/null（ledger+cases.jsonl 由内核原子写，
-    双重落盘只会留两份漂移面——旧 _dedup_cases 末行胜去重由账道末行胜
-    天然覆盖）。"""
-
-    def __init__(self, ctx) -> None:
-        super().__init__(os.devnull)
-        self._ctx = ctx
-
-    def record(self, cell, **kw):
-        rec = super().record(cell, **kw)
-        self._ctx.emit_case(rec)
-        return rec
 
 
 def _want_fix(mode: str, compile_status, verdict: dict, reject_at) -> bool:
@@ -725,7 +656,7 @@ def _fixloop(ctx) -> dict:
             corpus_id=ctx.idc,
             cond="pipe-fix",
             runner=flb._texmf_runner(texmf),
-            case_sink=_CaseBridge(ctx),
+            case_sink=case_bridge(ctx),
             llm_hook=None,  # 付费面归 sibling spec（paid 静态旗标）
             compile_timeout=timeout,
         )

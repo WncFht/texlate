@@ -31,6 +31,14 @@ from pathlib import Path
 from kernel import idnorm, paths, vault
 from kernel import index as index_mod
 
+from verbs._common import (
+    _STAGE_SUFFIXES,
+    _all_runs,
+    _iter_jsonl,
+    _stem_group,
+    _stem_of,
+)
+
 BENCH = Path(__file__).resolve().parents[2]
 REPO = BENCH.parent
 CORPUS = BENCH / "corpus"
@@ -55,12 +63,11 @@ def _triage_fn(name: str):
     return fn if callable(fn) else None
 
 
-STAGES = ("ingest", "parse", "xlat", "compile", "fixloop", "base")
+STAGES = _STAGE_SUFFIXES  # 阶段词表单源在 verbs/_common.py（原同内容双 tuple）
 _FAIL_WORDS = {"fail", "error", "reject", "crash", "timeout"}
 _SUBCLASS_SIGS = ("other", "syntax", "unfixable:other")
 _WONTFIX_CATS = {"early_eof", "capacity", "latex209", "inject"}
 _EXCERPT_HEAD = 600
-_STAGE_SUFFIXES = ("ingest", "parse", "xlat", "compile", "fixloop", "base")
 
 _RULESET: list = [None]  # 懒装格：[None]=未装 [False]=装败（免 global）
 
@@ -112,40 +119,18 @@ def _load_registry():
 # ---------------------------------------------------------------- run 解析
 
 
-def _stem_of(run: str) -> str:
-    for s in _STAGE_SUFFIXES:
-        suf = f"_{s}"
-        if run.endswith(suf):
-            return run[: -len(suf)]
-    return run
-
-
 def _resolve_run_group(idx, run_arg: str):
     """run 名 → 账组 runs 行（import 拆账的 *_records_<stage> 兄弟并组）。
 
     精确 → 前缀唯一 → stem 并组；跨 stem 即歧义 (None, err)。
     """
-    rows = [
-        dict(r)
-        for r in idx.conn.execute(
-            "SELECT run, run_seq, kind, date, slug FROM runs"
-        ).fetchall()
-    ]
+    rows = _all_runs(idx)
     seeds = [r for r in rows if r.get("run") == run_arg]
     if not seeds:
         seeds = [r for r in rows if str(r.get("run")).startswith(run_arg)]
     if not seeds:
         return None, f"run not found: {run_arg!r}"
-    stems = {_stem_of(str(r["run"])) for r in seeds}
-    if len(stems) > 1:
-        return None, (
-            f"ambiguous run {run_arg!r} — {len(stems)} account stems:"
-            f" {sorted(stems)[:8]}"
-        )
-    stem = next(iter(stems))
-    group = [r for r in rows if _stem_of(str(r["run"])) == stem]
-    group.sort(key=lambda r: r.get("run_seq") or 0)
-    return group, None
+    return _stem_group(rows, seeds, run_arg)
 
 
 def _rundir(run_row: dict | None) -> Path | None:
@@ -285,20 +270,6 @@ def load_tickets(pid_cands: set[str], rundirs: list[Path]) -> list[str]:
                 and pid_cands & {str(x) for x in (r.get("example_ids") or [])}
             )
     return out
-
-
-def _iter_jsonl(path: Path):
-    try:
-        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
-    except OSError:
-        return
 
 
 def _invocations(rundir: Path | None) -> list[dict]:

@@ -199,9 +199,7 @@ def _json_or_raw(text):
 
 
 def _jcanon(obj) -> str:
-    return json.dumps(
-        obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
-    )
+    return events.dumps(obj, default=str)
 
 
 # ---------------------------------------------------------------------------

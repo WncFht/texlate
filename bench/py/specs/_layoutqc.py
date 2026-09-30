@@ -24,6 +24,10 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Final
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from texlate.compile.marks import (
     _MARK_ENVS,
     compare_marks,

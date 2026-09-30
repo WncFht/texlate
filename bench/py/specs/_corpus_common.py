@@ -41,7 +41,6 @@ import re
 import shutil
 import sys
 import tarfile
-import tempfile
 import time
 import urllib.request
 from collections import Counter, defaultdict
@@ -72,6 +71,8 @@ def log(msg: str) -> None:
 # ---------------------------------------------------------------- jsonl / 文件 IO
 # jsonl 三件 + strip_comments 正本在 _benchlite（benchlib 收编叶）——本叶
 # re-export 保旧调用形，勿再长第三份 verbatim。
+from kernel import fsutil, idnorm
+
 from specs._benchlite import (
     append_jsonl,
     iter_jsonl,
@@ -81,20 +82,15 @@ from specs._benchlite import (
 
 
 def atomic_write_text(path: Path, text: str) -> None:
-    """同目录 mkstemp 随机缀落盘 + ``os.replace``——截尾只留 tmp 不伤旧件。"""
-    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+    """kernel ``fsutil.atomic_write`` 的 text 形委托（fsync+dir fsync 全耐久
+    口径；corpus_v3._atomic_write_text 同构）。父目录须先存在。"""
+    fsutil.atomic_write(Path(path), text.encode("utf-8"))
 
 
 def canon_id(pid: str) -> str:
-    """论文 id 规范形：``--`` → ``/``——safe_id 的逆（混合双形归一）。"""
-    return str(pid).replace("--", "/")
+    """论文 id 规范形：safe_id 的逆（混合双形归一）——委托 kernel
+    ``idnorm.idc_from_safe`` 单源（末个 ``--`` 才是分隔符）。"""
+    return idnorm.idc_from_safe(str(pid))
 
 
 # ---------------------------------------------------------------- manifest

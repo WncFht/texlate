@@ -1,14 +1,15 @@
 """benchlib 遗孤收编——Wave-F 删除前置; benchlib.py 随删除门死。
 
-spec 侧通用件单源（verbs 侧对应物是 ``verbs/_vocab.py``——两叶各自
-stdlib-only，互不依赖）。jsonl 三件 + ``strip_comments`` 此前在
-benchlib 与 ``_corpus_common`` 双份 verbatim——本叶收编为正本，
+spec 侧通用件单源（verbs 侧对应物是 ``verbs/_vocab.py``——两叶互不
+依赖；跨叶共享的状态词表两叶同引 ``kernel.events`` 单源别名）。
+jsonl 三件 + ``strip_comments`` 此前在 benchlib 与
+``_corpus_common`` 双份 verbatim——本叶收编为正本，
 ``_corpus_common`` 改作 re-export 转发。
 
 逐字 lift 区（benchlib 原行）：TUNA_TLNET、_IGNORE_BASE/copytree_ignore、
-STATUS_RANK、TERMINAL_WORDS、fixloop_attr、fixloop_sig、_strkey/
-compile_fp、judge_dict/_fixloop_rs/_taxonomy_of、verdict_sig、
-MAX_TOTAL_CHARS、misschar_partial——口径/判决逻辑零改写。
+fixloop_attr、fixloop_sig、_strkey/compile_fp、judge_dict/_fixloop_rs/
+_taxonomy_of、verdict_sig、MAX_TOTAL_CHARS、misschar_partial——口径/
+判决逻辑零改写。STATUS_RANK/TERMINAL_WORDS 转 kernel.events 别名。
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ import shutil
 import sys
 import time
 from pathlib import Path
+
+from kernel import events
 
 try:
     import fcntl
@@ -135,12 +138,9 @@ def strip_comments(tex: str) -> str:
 
 
 # ---------------------------------------------------------------- 状态词汇
-#: fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
-TERMINAL_WORDS = {"stuck", "max_rounds"}
-
-#: 状态序数表 (高=好): fixloop_degraded 跨段退化判定共用;
-#: 表外词 (skip/error/...) 一律按 -1 计。
-STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+#: 单源 kernel/events.py——verbs._vocab 同引同名别名，两叶防漂移。
+TERMINAL_WORDS = events.TERMINAL_WORDS
+STATUS_RANK = events.STATUS_RANK
 
 
 def fixloop_attr(rounds, fv=None, final_cat=None):

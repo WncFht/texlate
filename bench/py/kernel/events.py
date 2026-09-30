@@ -168,6 +168,20 @@ STATUS_RETRIABLE = frozenset({"skip", "error"})
 STATUS_KERNEL = frozenset({"dedup", "claimed", "lost", "unpaid_gate"})
 ALL_STATUSES = STATUS_DONE | STATUS_RETRIABLE | STATUS_KERNEL
 
+# Verdict-class subsets of DONE (§3.5): CLEAN statuses may vouch a pending
+# copy for primary; FAIL = attempted-but-not-clean terminals. The paid-pool
+# set {"ok","partial"} is deliberately narrower (doctor._PAID_OK) — 'clean'
+# is an eval/compile verdict that carries no paid-byte proof.
+STATUS_CLEAN = frozenset({"ok", "partial", "clean"})
+STATUS_FAIL = STATUS_DONE - STATUS_CLEAN
+
+#: 状态序数表 (高=好): fixloop_degraded 跨段退化判定与 rundiff 逐格迁移共用;
+#: 表外词 (skip/error/...) 一律按 -1 计。
+STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+
+#: fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
+TERMINAL_WORDS = {"stuck", "max_rounds"}
+
 # Sub-classification carried in `cat` (errors[0].cat keeps its own semantics —
 # 'upstream' there is the triage-exempt / fixloop-filter / retriable triple-use flag).
 CATS = frozenset(
@@ -188,6 +202,10 @@ CATS = frozenset(
 
 CLAIM_OPS = frozenset({"acquire", "release", "reap"})
 ASSET_KINDS = frozenset({"zh", "splice", "state", "layoutqc", "pdf", "report"})
+#: Vault-managed kinds (pdf/report are work-tree artifacts, never vaulted).
+VAULT_KINDS = frozenset({"zh", "splice", "state", "layoutqc"})
+#: Product-byte kinds the dedup/index layers track (layoutqc is qc sideband).
+VAULT_BYTE_KINDS = frozenset({"zh", "splice", "state"})
 ASSET_STATES = frozenset({"pending", "verified", "tombstone", "adopted", "staged"})
 LAKE_STATES = frozenset(
     {
@@ -379,9 +397,14 @@ def validate(ev: dict) -> None:
         raise EventError(msg)
 
 
-def dumps(ev: dict) -> str:
-    """Canonical single-line serialization (deterministic for hashing)."""
-    return json.dumps(ev, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+def dumps(ev: dict, *, default=None) -> str:
+    """Canonical single-line serialization (deterministic for hashing).
+
+    ``default`` passes through to ``json.dumps`` — importer rows carry
+    arbitrary scraped values that need ``default=str`` coercion."""
+    return json.dumps(
+        ev, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=default
+    )
 
 
 def content_hash(ev: dict) -> str:

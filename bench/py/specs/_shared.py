@@ -21,11 +21,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
+import shutil
 import threading
 import time
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
-from kernel import events
+if TYPE_CHECKING:
+    from pathlib import Path
+
+from kernel import events, vault
 from kernel import paid as paidmod
 
 __all__ = [
@@ -417,3 +423,104 @@ def _last_row(
 def _last_done(ctx, stage: str, variant: str | None = None) -> dict | None:
     """末条 DONE 账·跨全 run——``_needs_eval`` 的 dedup-look-through 同域。"""
     return _last_row(ctx, stage, done_only=True, variant=variant)
+
+
+# ------------------------------------------------------------ spec 管线小件
+#
+# soak→e2e_real 逐字复用簇（_gate/_swap_in/_ensure_kind/_xlat_marker/
+# _compile_judge）+ CaseSink→emit_case 桥——原散于 soak.py/e2e_real.py/
+# fixloop_bench.py 的同形副本收此（soak 改一处 e2e_real 不跟的漂移面）。
+# 函数级惰性 import（engine_for/CaseSink/benchlib）保本模块顶层无
+# texlate/specs 依赖——qualbench/xlatbench 不 _bootstrap.ensure() 也照载。
+
+
+def _gate(
+    status: str, code: str, cat: str, payload, metrics: dict | None = None
+) -> dict:
+    """stagerun gate_rec 的 return-dict 版：status + 单条 errors +
+    可选 metrics；sig 由内核 errors[0] cat:pay 自动合成。"""
+    out = {
+        "status": status,
+        "code": code,
+        "errors": [{"code": code, "cat": cat, "payload": payload}],
+    }
+    if metrics:
+        out["metrics"] = metrics
+    return out
+
+
+def _swap_in(stage_dir: Path, dst: Path) -> None:
+    """暂存树 → dst 的 rename 接力（stagerun_lib.swap_in 同式）。"""
+    old = stage_dir.with_name(f"{stage_dir.name}-old")
+    if dst.exists():
+        if old.exists():
+            shutil.rmtree(old)
+        os.rename(dst, old)
+    os.rename(stage_dir, dst)
+    if old.exists():
+        shutil.rmtree(old)
+
+
+def _ensure_kind(ctx, kind: str) -> Path | None:
+    """本 run 的 mutates-kind 读径：同 run 上游产物优先，缺席则 vault
+    restore(mode="copy") 物化全部已封 kind（0444 融合树的 可写副本
+    口径——消费方可能要改）。无完好 vault 副本 → None。"""
+    d = ctx.upstream_asset_dir(kind)
+    if d is not None:
+        return d
+    with contextlib.suppress(vault.VaultError):
+        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(), mode="copy")
+    return ctx.upstream_asset_dir(kind)
+
+
+def _xlat_marker(zh: Path) -> dict | None:
+    """``zh.-/.xlat-arm.json`` → dict；zh/ marker 缺席 → None。"""
+    p = zh / ".xlat-arm.json"
+    if not zh.is_dir() or not p.exists():
+        return None
+    try:
+        doc = json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def _compile_judge(
+    work: Path,
+    main_rel: str,
+    eng_name: str,
+    timeout: float,
+    *,
+    expect_cjk: bool,
+) -> dict:
+    """best-effort 编译 + judge → {compile, verdict, status}。"""
+    from specs import _benchlite as benchlib
+    from texlate.compile.engine import engine_for
+
+    kw = {"halt_on_error": False} if eng_name == "xelatex" else {}
+    res = engine_for(eng_name, **kw).compile(
+        work, main_rel, timeout=timeout, sandbox=True
+    )
+    return benchlib.judge_dict(res, expect_cjk=expect_cjk)
+
+
+def case_bridge(ctx):
+    """CaseSink → ctx.emit_case 桥实例（soak/e2e_real/fixloop_bench 同款）：
+    record 行形状逐字进 cases 账道；文件落点 /dev/null（ledger+cases.jsonl
+    由内核原子写，双重落盘只会留两份漂移面——旧 _dedup_cases 末行胜去重
+    由账道末行胜天然覆盖）。fixloop_bench 的具名 kwargs
+    (corpus_id/cond/engine) 由 ``**kw`` 直通承载。惰性 CaseSink 载入：
+    本模块顶层不依赖 texlate。"""
+    from texlate.compile.fixloop import CaseSink
+
+    class _CaseBridge(CaseSink):
+        def __init__(self, ctx) -> None:
+            super().__init__(os.devnull)
+            self._ctx = ctx
+
+        def record(self, cell, **kw):
+            rec = super().record(cell, **kw)
+            self._ctx.emit_case(rec)
+            return rec
+
+    return _CaseBridge(ctx)

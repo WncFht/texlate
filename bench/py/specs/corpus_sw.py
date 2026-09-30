@@ -73,6 +73,7 @@ from kernel import fsutil, idnorm, lake, paths
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
+from specs._benchlite import iter_jsonl, strip_comments
 
 _bootstrap.ensure()
 
@@ -142,45 +143,15 @@ def _canon(raw) -> str:
 
 
 def _iter_jsonl(path: Path):
-    """容忍截尾坏行的 JSONL 逐行读。"""
+    """OSError 容忍（缺席/截尾）+ 坏行跳过——benchlib.iter_jsonl 薄转。"""
     try:
-        with open(path, encoding="utf-8") as fh:
-            for raw in fh:
-                line = raw.strip()
-                if not line:
-                    continue
-                try:
-                    yield json.loads(line)
-                except ValueError:
-                    continue
+        yield from iter_jsonl(path)
     except OSError:
         return
 
 
 def _atomic_text(path: Path, text: str) -> None:
     fsutil.atomic_write(path, text.encode("utf-8"))
-
-
-def strip_comments(tex: str) -> str:
-    r"""去注释：``\X`` 先吃两字符，裸 ``%`` 删到行尾（保留换行）。不感知
-    verbatim——benchlib 同源副本（benchlib 死在 Wave-F，新 spec 不引它）。"""
-    out, i, n = [], 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
 
 
 def yymm_recent(yymm_id: str | None, min_yymm: str) -> bool:

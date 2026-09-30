@@ -24,9 +24,9 @@ Contract baked in:
       it don't spam quarantine).
     - rebuild() wipes every projection table and replays the ledger in ONE
       transaction, so a crash mid-rebuild rolls back to the old consistent
-      index. Refused while the kernel is active (locks.kernel_idle() when
-      kernel.locks is available, else an NB-flock probe on the
-      .kernel-active sentinel — the design's authoritative liveness proof).
+      index. Refused while the kernel is active (locks.kernel_idle() — the
+      NB-flock probe on the .kernel-active sentinel is the design's
+      authoritative liveness proof).
       On success: sealed_gen += 1, watermark = fsync'd tail offset,
       .index-dirty cleared AFTER commit.
     - check_sealed() is a fail-closed oracle INPUT for the paid gate (§3.10.6):
@@ -43,7 +43,6 @@ direction for paid cells).
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import sqlite3
@@ -63,11 +62,6 @@ _STATUS_STARTED = "started"
 # Terminal statuses: instrument DONE set ∪ kernel-internal terminal statuses.
 _TERMINAL = events.STATUS_DONE | events.STATUS_KERNEL
 
-# Terminal statuses that count toward the paid pool (§3.6): only bytes that
-# actually cost money and succeeded (ok | partial). reject/fail/fault/
-# dirty_pdf are "attempted-unpaid" and must NOT join the pool.
-_PAID_OK = frozenset({"ok", "partial"})
-
 # vault_meta verdicts whose bytes count as present for the dedup oracle.
 # §3.8: primary/quarantine/alt all dedup-hit; pending is treated as no-bytes;
 # tombstone is a regen_gate hard stop (handled upstream, excluded here).
@@ -76,8 +70,9 @@ _VAULT_BYTES_OK = frozenset(
     {"verified", "primary", "alt", "quar", "quarantine", "adopted"}
 )
 
-# Asset kinds that are vault-managed bytes (pdf/report are work-tree artifacts).
-_VAULT_KINDS = frozenset({"zh", "splice", "state"})
+# Asset kinds that are vault-managed bytes (pdf/report are work-tree artifacts,
+# layoutqc is qc sideband — neither joins the dedup projection).
+_VAULT_KINDS = events.VAULT_BYTE_KINDS
 
 # meta keys reset to "0" on rebuild (schema_v is preserved).
 _META_COUNTERS = (
@@ -204,27 +199,6 @@ def _j(val):
     return json.dumps(val, ensure_ascii=False, sort_keys=True)
 
 
-def _tail_newline_offset(path: Path) -> int:
-    """Byte offset just past the last '\\n' in file; 0 if none/missing."""
-    try:
-        size = path.stat().st_size
-    except FileNotFoundError:
-        return 0
-    if size == 0:
-        return 0
-    pos = size
-    with open(path, "rb") as f:
-        while pos > 0:
-            step = min(pos, 65536)
-            pos -= step
-            f.seek(pos)
-            buf = f.read(step)
-            i = buf.rfind(b"\n")
-            if i >= 0:
-                return pos + i + 1
-    return 0
-
-
 def _file_tag(path: Path) -> str:
     """``st_dev:st_ino`` — the inode identity a byte watermark belongs to.
 
@@ -257,30 +231,12 @@ def _sealed_segment_names() -> set:
 
 
 def _kernel_idle() -> bool:
-    """True when no kernel is running — locks.kernel_idle() when the locks
-    module is available, else an NB-flock probe on the .kernel-active
-    sentinel (a dead kernel's flock is always released, so the probe is the
-    authoritative life/death proof)."""
-    try:
-        from kernel import locks  # type: ignore[import-not-found]
-    except ImportError:
-        locks = None
-    fn = getattr(locks, "kernel_idle", None) if locks is not None else None
-    if fn is not None:
-        return bool(fn())
-    p = paths.kernel_active_path()
-    if not p.exists():
-        return True
-    fd = os.open(p, os.O_RDWR)
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            return False
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        return True
-    finally:
-        os.close(fd)
+    """True when no kernel is running — an NB-flock probe on the
+    .kernel-active sentinel (a dead kernel's flock is always released, so the
+    probe is the authoritative life/death proof)."""
+    from kernel import locks
+
+    return locks.kernel_idle()
 
 
 class Index:
@@ -816,10 +772,8 @@ class Index:
         pending = sorted(_sealed_segment_names() - done)
         if not pending:
             return 0
-        try:
-            from kernel import ledger as _ledger  # type: ignore[import-not-found]
-        except ImportError:
-            _ledger = None
+        from kernel import ledger as _ledger
+
         sdir = paths.sealed_dir()
         applied = 0
         for name in pending:
@@ -833,7 +787,7 @@ class Index:
                         bad += 1
                     else:
                         evs.append(ev)
-            elif zst.exists() and _ledger is not None and _ledger.zst_verified(zst):
+            elif zst.exists() and _ledger.zst_verified(zst):
                 for _n, _off, ev in _ledger._iter_zst(zst):
                     if ev is None:
                         bad += 1
@@ -906,32 +860,20 @@ class Index:
     def _iter_all_events(self):
         """Yield ledger events in authoritative append order.
 
-        Prefers kernel.ledger.iter_all_events() (covers sealed segments +
-        hot tail) when the ledger module is available; falls back to the
-        hot-tail file via events.iter_jsonl. Items may be dicts or tuples
-        carrying the dict — normalized here.
+        kernel.ledger.iter_all_events() covers sealed segments + hot tail —
+        the sole complete source (a hot-tail-only read silently misses
+        sealed history and must never serve a rebuild). Items may be dicts
+        or tuples carrying the dict — normalized here.
         """
-        try:
-            from kernel import ledger  # type: ignore[import-not-found]
-        except ImportError:
-            ledger = None
-        it = getattr(ledger, "iter_all_events", None) if ledger else None
-        if it is not None:
-            for item in it():
-                yield _norm_iter_item(item)
-            return
-        for _lineno, ev, _raw in events.iter_jsonl(paths.events_path()):
-            yield ev
+        from kernel import ledger
+
+        for item in ledger.iter_all_events():
+            yield _norm_iter_item(item)
 
     def _ledger_watermark(self) -> int:
-        try:
-            from kernel import ledger  # type: ignore[import-not-found]
-        except ImportError:
-            ledger = None
-        fn = getattr(ledger, "watermark_offset", None) if ledger else None
-        if fn is not None:
-            return int(fn())
-        return _tail_newline_offset(paths.events_path())
+        from kernel import ledger
+
+        return int(ledger.watermark_offset())
 
     def rebuild(self) -> int:
         """Wipe all projection tables and replay the ledger in one txn.

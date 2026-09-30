@@ -64,12 +64,18 @@ from specs._shared import (
     SessionClient,
     SessionTranslator,
     TimedTranslator,
+    _compile_judge,
+    _ensure_kind,
+    _gate,
     _last_done,
+    _swap_in,
+    _xlat_marker,
+    case_bridge,
     devin_factory,
 )
 from specs._xlat_async import translate_tree_async
-from texlate.compile.engine import XelatexEngine, engine_for, route_project
-from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
+from texlate.compile.engine import XelatexEngine, route_project
+from texlate.compile.fixloop import Ruleset, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
@@ -120,19 +126,9 @@ _ON_PRED: dict[str, object] = {
 }
 
 # ---------------------------------------------------------------- 小件共用
-
-
-def _swap_in(stage_dir: Path, dst: Path) -> None:
-    """暂存树 → dst 的 rename 接力（stagerun_lib.swap_in 同式，就地一份
-    不引删除单文件）。"""
-    old = stage_dir.with_name(f"{stage_dir.name}-old")
-    if dst.exists():
-        if old.exists():
-            shutil.rmtree(old)
-        os.rename(dst, old)
-    os.rename(stage_dir, dst)
-    if old.exists():
-        shutil.rmtree(old)
+#
+# _gate/_swap_in/_ensure_kind/_xlat_marker/_compile_judge/case_bridge 单源在
+# specs/_shared.py（e2e_real/fixloop_bench 同款——勿再长本地副本）。
 
 
 def _rebuild(zh: Path, splice: Path) -> None:
@@ -140,30 +136,6 @@ def _rebuild(zh: Path, splice: Path) -> None:
     if splice.exists():
         shutil.rmtree(splice)
     fsutil.copy_mutating(zh, splice)
-
-
-def _ensure_kind(ctx, kind: str) -> Path | None:
-    """本 run 的 mutates-kind 读径：同 run 上游产物优先，缺席则 vault
-    restore(mode="copy") 物化全部已封 kind（0444 融合树的 可写副本
-    口径——消费方可能要改）。无完好 vault 副本 → None。"""
-    d = ctx.upstream_asset_dir(kind)
-    if d is not None:
-        return d
-    with contextlib.suppress(vault.VaultError):
-        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(), mode="copy")
-    return ctx.upstream_asset_dir(kind)
-
-
-def _xlat_marker(zh: Path) -> dict | None:
-    """``zh.-/.xlat-arm.json`` → dict；zh/ marker 缺席 → None。"""
-    p = zh / ".xlat-arm.json"
-    if not zh.is_dir() or not p.exists():
-        return None
-    try:
-        doc = json.loads(p.read_text())
-    except (json.JSONDecodeError, OSError):
-        return None
-    return doc if isinstance(doc, dict) else None
 
 
 def _ensure_translated(ctx) -> tuple[Path | None, dict | None]:
@@ -222,21 +194,6 @@ def _engine(ctx, root: Path) -> str:
         return route_project(root, prefer="xelatex").engines[0]
     except Exception:
         return "xelatex"
-
-
-def _gate(
-    status: str, code: str, cat: str, payload, metrics: dict | None = None
-) -> dict:
-    """stagerun gate_rec 的 return-dict 版：status + 单条 errors +
-    可选 metrics；sig 由内核 errors[0] cat:pay 自动合成。"""
-    out = {
-        "status": status,
-        "code": code,
-        "errors": [{"code": code, "cat": cat, "payload": payload}],
-    }
-    if metrics:
-        out["metrics"] = metrics
-    return out
 
 
 # ---------------------------------------------------------------- items/select
@@ -760,22 +717,6 @@ def _xlat(ctx) -> dict:
 # ---------------------------------------------------------------- stage: compile
 
 
-def _compile_judge(
-    work: Path,
-    main_rel: str,
-    eng_name: str,
-    timeout: float,
-    *,
-    expect_cjk: bool,
-) -> dict:
-    """best-effort 编译 + judge → {compile, verdict, status}。"""
-    kw = {"halt_on_error": False} if eng_name == "xelatex" else {}
-    res = engine_for(eng_name, **kw).compile(
-        work, main_rel, timeout=timeout, sandbox=True
-    )
-    return benchlib.judge_dict(res, expect_cjk=expect_cjk)
-
-
 def _compile(ctx) -> dict:
     """splice.- 重建 + inject + judge；base 臂折进 metrics.base。
 
@@ -883,21 +824,6 @@ def _compile(ctx) -> dict:
 # ---------------------------------------------------------------- stage: fixloop
 
 
-class _CaseBridge(CaseSink):
-    """CaseSink → ctx.emit_case 桥：record 行形状逐字保留进 cases 账道；
-    文件落点 /dev/null（ledger+cases.jsonl 已由内核原子写，双重落盘
-    只会留两份漂移面）。"""
-
-    def __init__(self, ctx) -> None:
-        super().__init__(os.devnull)
-        self._ctx = ctx
-
-    def record(self, cell, **kw):
-        rec = super().record(cell, **kw)
-        self._ctx.emit_case(rec)
-        return rec
-
-
 def _fixloop(ctx) -> dict:
     """compile 非 clean 格修复：恒自 zh.- 重建 splice.-（rerun-only），
     冷 usertree + Ruleset + ResProxy + post 复判同 compile 刻度。"""
@@ -974,7 +900,7 @@ def _fixloop(ctx) -> dict:
             corpus_id=ctx.idc,
             cond="fixloop",
             runner=flb._texmf_runner(texmf),
-            case_sink=_CaseBridge(ctx),
+            case_sink=case_bridge(ctx),
             llm_hook=llm_hook,
             compile_timeout=timeout,
         )

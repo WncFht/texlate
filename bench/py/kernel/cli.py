@@ -939,10 +939,11 @@ def _evict_done_targets(idx) -> list[str]:
     KERNEL 状态（dedup/claimed/lost/unpaid_gate）非格态裁决——dedup 是
     借用前判、lost 是 run 级僵尸回收标记（回收时机晚于格在后续 run
     完成时会逆序遮蔽真实终态）——两脈都只取最后一条真裁决账。"""
+    kph = ",".join("?" for _ in events.STATUS_KERNEL)
     rows = idx.conn.execute(
-        "SELECT idc, status FROM records WHERE stage='layoutqc'"
-        " AND status NOT IN ('dedup','claimed','lost','unpaid_gate')"
-        " ORDER BY rowid"
+        f"SELECT idc, status FROM records WHERE stage='layoutqc'"  # noqa: S608 -- marks 是 "?"*n 占位符
+        f" AND status NOT IN ({kph}) ORDER BY rowid",
+        tuple(sorted(events.STATUS_KERNEL)),
     ).fetchall()
     last: dict[str, str] = {}
     for r in rows:
@@ -951,10 +952,10 @@ def _evict_done_targets(idx) -> list[str]:
 
     ph = ",".join("?" * len(_PIPELINE_STAGES))
     rows2 = idx.conn.execute(
-        "SELECT idc, status FROM records"
-        " WHERE status NOT IN ('dedup','claimed','lost','unpaid_gate')"
+        f"SELECT idc, status FROM records"  # noqa: S608 -- 两段 IN 都是 "?"*n 占位符
+        f" WHERE status NOT IN ({kph})"
         f" AND stage IN ({ph}) ORDER BY rowid",
-        _PIPELINE_STAGES,
+        (*sorted(events.STATUS_KERNEL), *_PIPELINE_STAGES),
     ).fetchall()
     last2: dict[str, str] = {}
     for r in rows2:
@@ -966,12 +967,10 @@ def _evict_done_targets(idx) -> list[str]:
     for _mp, key, meta in vault._iter_metas():
         if key is None or meta is None:
             continue
-        if key[1] == "real":
-            if key[0] in qc_ok and vault._kind_intact(meta, "zh"):
-                vaulted_real.add(key[0])
-        elif key[1] == "-":
-            if key[0] in term_ok and vault._kind_intact(meta, "zh"):
-                vaulted_dash.add(key[0])
+        if key[1] == "real" and key[0] in qc_ok and vault._kind_intact(meta, "zh"):
+            vaulted_real.add(key[0])
+        elif key[1] == "-" and key[0] in term_ok and vault._kind_intact(meta, "zh"):
+            vaulted_dash.add(key[0])
     return sorted((qc_ok & vaulted_real) | (term_ok & vaulted_dash))
 
 
@@ -1187,7 +1186,9 @@ _PRUNE_KEEP = {
 # heartbeat (structural — a stale mtime IS the zombie evidence).
 _PRUNE_ALWAYS = {".lock", "heartbeat"}
 
-_PAID_TREE_PREFIXES = ("zh", "splice", "state", "xlat-state")
+#: work/ cell dir prefixes that may hold paid bytes — vault byte kinds plus
+#: the "xlat-state" checkpoint spelling (see _CHECKPOINT_DIRS).
+_PAID_TREE_PREFIXES = (*sorted(events.VAULT_BYTE_KINDS), "xlat-state")
 
 
 def _cell_has_paid_bytes(cell: Path) -> bool:
@@ -1414,77 +1415,12 @@ def _print_checks(checks) -> bool:
     return ok
 
 
-def _mini_doctor(fix: bool, switch_ok: bool) -> list[dict]:
-    """Fallback doctor while kernel.doctor is unwritten: layout, sentinels,
-    immortal locks, seqfile sanity, ledger parse, index-dirty flag."""
-    checks: list[dict] = []
-
-    def add(name, ok, detail=""):
-        checks.append({"name": name, "ok": ok, "detail": detail})
-
-    if fix:
-        try:
-            paths.ensure_layout()
-        except Exception as exc:
-            add("layout", False, f"ensure_layout failed: {exc}")
-    root = paths.root()
-    add("root", root.is_dir(), str(root))
-    add(
-        "sentinels",
-        paths.ledger_sentinel_path().exists() and paths.vault_sentinel_path().exists(),
-        "ledger + vault mount proofs present",
-    )
-    add(
-        "lock-files",
-        paths.ledger_lock_path().exists() and paths.vault_lock_path().exists(),
-        "immortal lock files present (never unlinked)",
-    )
-    try:
-        seq = int(paths.seqfile_path().read_text().strip() or "0")
-        add("seqfile", True, f"high-water={seq}")
-    except Exception as exc:
-        add("seqfile", False, f"unparseable: {exc}")
-    bad = 0
-    ep = paths.events_path()
-    if ep.exists():
-        for _ln, ev, _raw in events.iter_jsonl(ep):
-            if ev is None:
-                bad += 1
-    add("ledger-parse", bad == 0, f"bad_lines={bad}")
-    add(
-        "index-dirty",
-        not paths.index_dirty_path().exists(),
-        ".index-dirty absent"
-        if not paths.index_dirty_path().exists()
-        else ".index-dirty PRESENT — rebuild required before paid work",
-    )
-    try:
-        paths.assert_vault_same_volume()
-        add("vault-volume", True, "vault/.staging same device")
-    except Exception as exc:
-        add("vault-volume", False, str(exc))
-    if switch_ok:
-        idle = locks.kernel_idle() and not runs.active_runs()
-        add(
-            "switch-ok",
-            idle,
-            "kernel idle + no active runs"
-            if idle
-            else "kernel busy or active runs — drain first",
-        )
-    return checks
-
-
 def _cmd_doctor(args) -> int:
     mod, err = _lazy("doctor")
     fn = getattr(mod, "doctor", None) if mod is not None else None
     if fn is None:
-        _err(f"note: kernel.doctor unavailable ({err}) — minimal checks only")
-        checks = _mini_doctor(fix=args.fix, switch_ok=args.switch_ok)
-        ok = _print_checks(checks)
-        if args.switch_ok:
-            print("SWITCH-OK" if ok else "SWITCH-BLOCKED")
-        return EXIT_OK if ok else EXIT_FAIL
+        _err(f"doctor: kernel.doctor unavailable ({err})")
+        return EXIT_FAIL
     try:
         rep = fn(fix=args.fix, switch_ok=args.switch_ok)
     except Exception as exc:
@@ -1501,20 +1437,8 @@ def _cmd_fsck(args) -> int:
     mod, err = _lazy("doctor")
     fn = getattr(mod, "fsck", None) if mod is not None else None
     if fn is None:
-        _err(f"note: kernel.doctor.fsck unavailable ({err}) — vault stat scan")
-        try:
-            rep = vault.verify("stat")
-        except Exception as exc:
-            _err(f"fsck fallback failed: {exc}")
-            return EXIT_FAIL
-        print(
-            f"fsck(vault stat): metas={rep['metas']} bad={len(rep['bad'])}"
-            f" meta_bad={len(rep['meta_bad'])}"
-            f" meta_missing={len(rep['meta_missing'])}"
-            f" extra={len(rep['extra'])}"
-        )
-        ok = not rep["bad"] and not rep["meta_bad"]
-        return EXIT_OK if ok else EXIT_FAIL
+        _err(f"fsck: kernel.doctor.fsck unavailable ({err})")
+        return EXIT_FAIL
     try:
         rep = fn(defer_edges=args.defer_edges)
     except Exception as exc:
@@ -1911,15 +1835,10 @@ _DISPATCH = {
     "backup": _cmd_backup,
     "doctor": _cmd_doctor,
     "fsck": _cmd_fsck,
-    "triage": _cmd_verb,
-    "rundiff": _cmd_verb,
-    "gate": _cmd_verb,
-    "dossier": _cmd_verb,
-    "xlat-report": _cmd_verb,
-    "xlat-rejudge": _cmd_verb,
-    "qual-report": _cmd_verb,
-    "booster-select": _cmd_verb,
 }
+# Verb names self-register via verbs.REGISTRY — parser and dispatch read the
+# same table, so a new verb file needs no edits here.
+_DISPATCH.update(dict.fromkeys(_verb_registry(), _cmd_verb))
 
 
 def main(argv=None) -> int:

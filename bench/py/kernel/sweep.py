@@ -86,9 +86,9 @@ ORPHAN_AGE_S = 3600.0  # meta-less dir commit grace
 FAIL_TOMBSTONE_AGE_S = 7 * 86400.0  # permafail → tombstone age
 CAS_GC_GRACE_S = 86400.0  # §3.10.2: 24h store→link grace
 
-_CLEAN_STATUSES = frozenset({"ok", "partial", "clean"})
-_FAIL_STATUSES = frozenset({"fail", "fault", "dirty_pdf", "reject"})
-_VAULT_KINDS = frozenset({"zh", "splice", "state"})
+_CLEAN_STATUSES = events.STATUS_CLEAN
+_FAIL_STATUSES = events.STATUS_FAIL
+_VAULT_KINDS = events.VAULT_BYTE_KINDS
 
 
 def _sweep_lock_path() -> Path:
@@ -306,12 +306,7 @@ def _sweep_stale_claims(idx: index.Index | None, report: dict) -> None:
     lags a release must not produce a spurious reap, so shard-visible
     releases veto the reap.
     """
-    if idx is None:
-        return
-    for idc, arm, variant in sorted(idx.active_claims()):
-        lpath = claims.claim_lock_path(idc, arm, variant)
-        if not locks.lock_free(lpath):
-            continue  # live holder
+    for idc, arm, variant in claims.stale_open(idx):
         row = idx.conn.execute(
             "SELECT run FROM claims"
             " WHERE idc=? AND arm=? AND variant=? AND slot IS NULL"
@@ -368,7 +363,7 @@ def _verdict_for(
         verdict == "primary"
         and isinstance(meta, dict)
         and "splice" in (meta.get("files") or {})
-        and not vault._copy_product_ok(meta, "splice")[0]  # noqa: SLF001
+        and not vault._copy_product_ok(meta, "splice")[0]
     ):
         verdict = "alt"  # 无产物 pdf 的 splice 副本不得晋 primary
     return zone, verdict
@@ -567,9 +562,11 @@ def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
     if not intent:
         return
     done_keys: dict[tuple, list] = {}
+    clean_marks = ",".join("?" for _ in events.STATUS_CLEAN)
     for r in idx.conn.execute(
-        "SELECT idc, arm, variant, stage, status FROM cells"
-        " WHERE status IN ('ok','partial','clean')"
+        f"SELECT idc, arm, variant, stage, status FROM cells"  # noqa: S608 -- marks 是 "?"*n 占位符
+        f" WHERE status IN ({clean_marks})",
+        tuple(sorted(events.STATUS_CLEAN)),
     ):
         done_keys.setdefault((r["idc"], r["arm"], r["variant"]), []).append(r["stage"])
     tail = dedup.manifest_tail()

@@ -126,12 +126,7 @@ def _append_line(path: Path, payload: bytes) -> None:
 
 
 def _append_row(path: Path, row: dict) -> None:
-    line = (
-        json.dumps(
-            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        + b"\n"
-    )
+    line = events.dumps(row).encode("utf-8") + b"\n"
     _append_line(path, line)
 
 
@@ -325,9 +320,7 @@ def create_run(
     locks.touch(rdir / "heartbeat")
 
     if not spec_hash and spec_dict is not None:
-        blob = json.dumps(
-            spec_dict, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
+        blob = events.dumps(spec_dict).encode("utf-8")
         spec_hash = hashlib.sha256(blob).hexdigest()
 
     run_id = f"{kind}/{date}/{slug}"

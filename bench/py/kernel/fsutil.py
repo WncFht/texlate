@@ -70,6 +70,9 @@ def fsync_dir(path) -> None:
 def atomic_write(path, data: bytes, mode: int | None = None) -> None:
     """Durable whole-file write: tmp in same dir → fsync → os.replace → dir fsync.
 
+    撞名警示：``src/texlate/textutil/osutil.py`` 有同名 ``atomic_write``——
+    产品侧轻量口径（str|bytes/mkdir 自理/无 fsync），与本件刻意分层勿合并。
+
     ``mode`` (optional) is fchmod'd on the tmp fd *before* the content write,
     so the destination is born with that mode (CAS objects use mode=0o444,
     no writable window) and the single fsync covers content and mode alike.

@@ -83,6 +83,10 @@ from pathlib import Path
 
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs._shared import (
     DEFAULT_BASE_URL,
     DEFAULT_PRICES,
@@ -724,7 +728,7 @@ class _Select:
                 if r.ok and r.idc:
                     want.add(r.idc)
             raw = str(item.get("id") or "")
-            if raw not in want and raw.replace("--", "/") not in want:
+            if raw not in want and idnorm.idc_from_safe(raw) not in want:
                 return False
         judges_p = str(rp.get("judges") or "").strip()
         if judges_p:

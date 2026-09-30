@@ -40,7 +40,6 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import inspect
-import json
 import re
 import sys
 from pathlib import Path
@@ -819,9 +818,7 @@ def spec_hash(spec: Spec, path=None) -> str:
         "code": code_sha(spec, path),
         "spec": spec.to_dict(),
     }
-    blob = json.dumps(
-        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    blob = events.dumps(payload).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
@@ -845,9 +842,7 @@ def cell_fp(spec: Spec, cell: dict) -> str:
         "input": cell.get("fp_input"),
         "params": fp_params,
     }
-    blob = json.dumps(
-        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    blob = events.dumps(payload).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 

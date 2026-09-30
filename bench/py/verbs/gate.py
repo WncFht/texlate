@@ -41,6 +41,11 @@ from kernel import index as index_mod
 from kernel import paths
 from kernel import runs as runs_mod
 
+from verbs._common import (
+    _all_runs,
+    _stem_group,
+    _stem_of,  # noqa: F401 — tests/kernel/test_verbs.py 钉 gate._stem_of 私有名
+)
 from verbs._vocab import COMPILED_STATUS as COMPILED
 from verbs._vocab import STATUS_RANK as _RANK
 
@@ -49,9 +54,6 @@ SCHEMA = "gate_scorecard/v3"
 ARM = "zh"
 ACTIVE_WRITE_WINDOW_S = 120.0
 PDF_STATUS = {"clean", "partial"}
-#: import 旧账的 per-stage 文件尾缀——stem 展开只认这些尾（run 名尾恰好
-#: 撞上阶段词才拆，别的 ``_xx`` 尾一律视为 run 名本体）。
-_STAGE_SUFFIXES = ("ingest", "parse", "xlat", "compile", "fixloop", "base")
 
 
 # ---------------------------------------------------------------- 记录指纹
@@ -121,22 +123,6 @@ def _open_index() -> index_mod.Index:
 # ---------------------------------------------------------------- run 解析
 
 
-def _stem_of(run: str) -> str:
-    """run 名去尾部 ``_<stage>`` → 账组 stem（无尾 → 原名）。"""
-    for s in _STAGE_SUFFIXES:
-        suf = f"_{s}"
-        if run.endswith(suf):
-            return run[: -len(suf)]
-    return run
-
-
-def _all_runs(idx) -> list[dict]:
-    rows = idx.conn.execute(
-        "SELECT run, run_seq, kind, date, slug FROM runs"
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
 def _has_compile(idx, run: str) -> bool:
     return (
         idx.conn.execute(
@@ -167,18 +153,7 @@ def _resolve_runs(idx, run_arg: str | None, kind: str | None):
                 break
         if not seeds:
             return None, "no run with compile records"
-    stems = {_stem_of(str(r["run"])) for r in seeds}
-    if len(stems) > 1:
-        sample = sorted(stems)[:10]
-        more = f" …+{len(stems) - 10}" if len(stems) > 10 else ""
-        return None, (
-            f"ambiguous run scope {run_arg!r} — {len(stems)} account stems:"
-            f" {sample}{more}（--run 给到单个 stem 再试）"
-        )
-    stem = next(iter(stems))
-    group = [r for r in _all_runs(idx) if _stem_of(str(r["run"])) == stem]
-    group.sort(key=lambda r: r.get("run_seq") or 0)
-    return group, None
+    return _stem_group(_all_runs(idx), seeds, run_arg)
 
 
 # ---------------------------------------------------------------- records 读取

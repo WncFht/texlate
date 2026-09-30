@@ -54,6 +54,10 @@ from pathlib import Path
 from kernel import fsutil
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 ROOT = Path(__file__).resolve().parents[3]
 NOMINATIONS = ROOT / "bench" / "nominations" / "wrapfloat_ids.jsonl"
 

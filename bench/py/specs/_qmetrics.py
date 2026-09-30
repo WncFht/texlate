@@ -31,6 +31,11 @@ import json
 import re
 from pathlib import Path
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
+from specs._benchlite import iter_jsonl
 from specs._leak import LEAK_PATTERNS  # 六族正则单源——勿复制防口径漂移
 
 # 刻意私有 API 依赖（code_deps 声明钉死）：
@@ -63,16 +68,9 @@ def _latest_by(rows, key):
 
 
 def _iter_jsonl(path: Path):
+    """OSError 容忍（缺席/截尾）+ 坏行跳过——benchlib.iter_jsonl 薄转。"""
     try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for raw in fh:
-                line = raw.strip()
-                if not line:
-                    continue
-                try:
-                    yield json.loads(line)
-                except ValueError:
-                    continue
+        yield from iter_jsonl(path)
     except OSError:
         return
 

@@ -162,12 +162,7 @@ def _append_line(path: Path, payload: bytes) -> None:
 
 
 def _append_row(path: Path, row: dict) -> None:
-    line = (
-        json.dumps(
-            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        + b"\n"
-    )
+    line = events.dumps(row).encode("utf-8") + b"\n"
     _append_line(path, line)
 
 
@@ -333,13 +328,7 @@ class LakeCatalog:
             rows.append(row)
             latest[idc] = row
         ledger.emit_batch([_lake_event(r) for r in rows], run_dir=run_dir, sink=sink)
-        payload = b"".join(
-            json.dumps(
-                r, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
-            + b"\n"
-            for r in rows
-        )
+        payload = b"".join(events.dumps(r).encode("utf-8") + b"\n" for r in rows)
         _append_line(p, payload)
         for r in rows:
             self._rows[r["idc"]] = r

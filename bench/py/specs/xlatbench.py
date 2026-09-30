@@ -56,6 +56,10 @@ from kernel import idnorm, lake
 from kernel import paid as paidmod
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs import _benchlite as benchlib
 from specs._shared import devin_factory
 from texlate.arxiv.locate import locate

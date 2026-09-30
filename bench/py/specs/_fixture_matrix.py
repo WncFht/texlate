@@ -45,6 +45,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from texlate.latex import parse_file, reconstruct
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import DOCCLASS_DECL_RX, mask_tex

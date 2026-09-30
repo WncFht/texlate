@@ -23,6 +23,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs import _benchlite as benchlib
 
 from texlate.compile.inject import find_main_tex

@@ -47,7 +47,7 @@ Wave-E 移植变更（相对旧驱动）：
   异国 complete cell（无 layer 标记）在 lake_lock 下原地并入 v3 meta
   （旧驱动无条件覆写 meta.json 的同义动作）；layer 冲突 → orphan_adopt。
 - 特征提取块（TEXT_EXT..eval_signatures/blob_features/_texts_features/
-  unpack_blob）逐字节 verbatim；strip_comments 逐字节 lift benchlib 版
+  unpack_blob）逐字节 verbatim；strip_comments 引 _benchlite 单源
   （verbatim 不感知口径——texlate.arxiv._texutil 版语义不同勿替）。
 """
 
@@ -74,6 +74,7 @@ from kernel.events import iter_jsonl
 from kernel.spec import Param, Spec, Stage
 
 from specs import _bootstrap
+from specs._benchlite import strip_comments
 
 _bootstrap.ensure()
 
@@ -117,32 +118,6 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 def _read_jsonl(path: Path) -> list[dict]:
     return [row for _ln, row, _raw in iter_jsonl(Path(path)) if isinstance(row, dict)]
-
-
-def strip_comments(tex: str) -> str:
-    r"""去注释：``\X`` 先吃两字符（``\%`` 不触发，``\\%`` 后 % 仍是注释），
-    裸 ``%`` 删到行尾（保留换行）。不感知 verbatim。
-
-    逐字节 lift benchlib.strip_comments——特征口径同源件，verbatim 内 ``%``
-    误剥是既有口径（勿换 texlate.arxiv._texutil 的 verbatim 感知版）。
-    """
-    out, i, n = [], 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
 
 
 def load_allocation() -> list[dict]:

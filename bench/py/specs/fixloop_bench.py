@@ -74,10 +74,15 @@ from pathlib import Path
 from kernel import fsutil, idnorm, paths
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs import _benchlite as benchlib
 from specs import _fixloop as _flx
+from specs._shared import case_bridge
 from texlate.compile import route_project
-from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop import fixloop
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
@@ -278,21 +283,9 @@ def _select(item: dict, rp: dict) -> bool:
 
 
 # ---------------------------------------------------------------- stage
-
-
-class _CaseBridge(CaseSink):
-    """CaseSink → ctx.emit_case 桥：fixloop 的原生 case 沉淀同时落
-    cases 表/cases.jsonl（内核批原子提交）；文件面走 os.devnull——
-    ledger 是唯一真账，per-run cases.jsonl 由内核镜像生成。"""
-
-    def __init__(self, ctx) -> None:
-        super().__init__(os.devnull)
-        self._ctx = ctx
-
-    def record(self, cell, *, corpus_id=None, cond=None, engine=None):
-        rec = super().record(cell, corpus_id=corpus_id, cond=cond, engine=engine)
-        self._ctx.emit_case(rec)
-        return rec
+#
+# case_bridge（CaseSink→emit_case 桥）单源在 specs/_shared.py——
+# soak/e2e_real 同款，本件具名 kwargs 由 **kw 直通承载。
 
 
 def _route_of(wdir: Path) -> dict:
@@ -383,7 +376,7 @@ def _fl_b3(ctx) -> dict:
             corpus_id=ctx.idc,
             cond=COND,
             runner=_flx._texmf_runner(texmf) if eng_name == "xelatex" else None,
-            case_sink=_CaseBridge(ctx),
+            case_sink=case_bridge(ctx),
             compile_timeout=(
                 float(ctx.params["timeout"]) or None
                 if float(ctx.params.get("timeout") or 0) > 0

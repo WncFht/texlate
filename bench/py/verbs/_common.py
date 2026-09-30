@@ -47,6 +47,52 @@ def _run_ref(ref: str, err=_err):
     return None, None
 
 
+# ---------------------------------------------------------------- run stem 并组
+#
+# import 拆账把一次收割落成 ``<stem>_records_<stage>`` 兄弟 runs 行——读侧
+# 按 stem 并组还原账组（dossier/gate 原各带逐字副本，收此单源）。
+
+#: 只认这些尾——run 名尾恰好撞上阶段词才拆，别的 ``_xx`` 尾一律视为 run
+#: 名本体。
+_STAGE_SUFFIXES = ("ingest", "parse", "xlat", "compile", "fixloop", "base")
+
+
+def _stem_of(run: str) -> str:
+    """run 名去尾部 ``_<stage>`` → 账组 stem（无尾 → 原名）。"""
+    for s in _STAGE_SUFFIXES:
+        suf = f"_{s}"
+        if run.endswith(suf):
+            return run[: -len(suf)]
+    return run
+
+
+def _all_runs(idx) -> list[dict]:
+    """runs 表全量行——stem 并组池（seed 过滤不影响并组全域）。"""
+    rows = idx.conn.execute(
+        "SELECT run, run_seq, kind, date, slug FROM runs"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _stem_group(rows: list[dict], seeds: list[dict], run_arg):
+    """seeds（选定 runs 行）→ stem 唯一则并组（run_seq 序）；跨 stem 歧义
+    → ``(None, err)``。``rows`` 须为并组池全量（kind/run 过滤只管 seed
+    选取，并组恒跨全域——kind 收窄的 run 其 ``_records_<stage>`` 兄弟可能在
+    别的 kind 下）。"""
+    stems = {_stem_of(str(r["run"])) for r in seeds}
+    if len(stems) > 1:
+        sample = sorted(stems)[:10]
+        more = f" …+{len(stems) - 10}" if len(stems) > 10 else ""
+        return None, (
+            f"ambiguous run scope {run_arg!r} — {len(stems)} account stems:"
+            f" {sample}{more}（--run 给到单个 stem 再试）"
+        )
+    stem = next(iter(stems))
+    group = [r for r in rows if _stem_of(str(r["run"])) == stem]
+    group.sort(key=lambda r: r.get("run_seq") or 0)
+    return group, None
+
+
 def _unblob(val, rundir: Path | None):
     """rundir 派生 derived/blobs 目录 → ``kernel.report._unblob``（严格
     marker 形才解；宽松版见 verbs/gate.py 本地件——两口径勿混）。"""
@@ -80,3 +126,18 @@ def _eval_rows(idx, run_name: str) -> list[dict]:
     ):
         wins[(r["idc"], r["arm"], r["up"], r["variant"])] = dict(r)
     return list(wins.values())
+
+
+def _iter_jsonl(path: Path):
+    """OSError 容忍（缺席/截尾）+ 坏行跳过的 jsonl 逐行 yield——
+    ``kernel.events.iter_jsonl`` 的 ``(lineno, val, raw)`` 三元组投影为
+    纯值流（None 坏行滤掉）。verbs 侧不得引 specs._benchlite，此为本层
+    对应的容忍读口径。"""
+    from kernel import events
+
+    try:
+        for _ln, val, _raw in events.iter_jsonl(path):
+            if val is not None:
+                yield val
+    except OSError:
+        return

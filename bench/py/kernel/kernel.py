@@ -1196,7 +1196,7 @@ def _run_cell(env, cell: dict) -> dict:
         if claim_acquired:
             fate = ctx.claim_fate or (
                 "verified"
-                if status in ("ok", "partial", "clean")
+                if status in events.STATUS_CLEAN
                 else "failed"
                 if status in events.STATUS_DONE
                 else "suspended"
@@ -1688,9 +1688,9 @@ def _verdict_for(idx, spec, idc, arm, variant, meta=None):
         (idc, arm, variant),
     ):
         statuses.add(r["status"])
-    if statuses & {"ok", "partial", "clean"}:
+    if statuses & events.STATUS_CLEAN:
         zone, verdict = "primary", "primary"
-    elif statuses and statuses <= {"fail", "fault", "dirty_pdf", "reject"}:
+    elif statuses and statuses <= events.STATUS_FAIL:
         zone, verdict = "quar", "quar"
     elif not statuses:
         return ("pending", "pending_abort")
@@ -1700,7 +1700,7 @@ def _verdict_for(idx, spec, idc, arm, variant, meta=None):
         verdict == "primary"
         and isinstance(meta, dict)
         and "splice" in (meta.get("files") or {})
-        and not vault._copy_product_ok(meta, "splice")[0]  # noqa: SLF001
+        and not vault._copy_product_ok(meta, "splice")[0]
     ):
         verdict = "alt"  # 无产物 pdf 的 splice 副本不得晋 primary
     return (zone, verdict)

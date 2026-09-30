@@ -61,7 +61,7 @@ import contextlib
 import json
 from pathlib import Path
 
-from kernel import claims, paths
+from kernel import claims, events, paths
 from kernel.idnorm import canon_id
 
 __all__ = [
@@ -373,7 +373,7 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
                 files = row.get("files") or {}
                 kinds |= {str(k) for k in files}
                 for k in files:
-                    if vault._copy_product_ok(row, str(k))[0]:  # noqa: SLF001
+                    if vault._copy_product_ok(row, str(k))[0]:
                         prod_kinds.add(str(k))
             else:
                 miss = True
@@ -430,31 +430,9 @@ def attempted_unpaid(index, idc, arm, variant) -> bool:
 
 def _events_tail_offset() -> int:
     """fsync'd ledger tail offset at call time (§3.10.6 min_offset basis)."""
-    try:
-        from kernel import ledger  # type: ignore[import-not-found]
-    except ImportError:
-        ledger = None
-    fn = getattr(ledger, "watermark_offset", None) if ledger is not None else None
-    if fn is not None:
-        return int(fn())
-    p = paths.events_path()
-    try:
-        size = p.stat().st_size
-    except FileNotFoundError:
-        return 0
-    if size == 0:
-        return 0
-    with open(p, "rb") as f:
-        pos = size
-        while pos > 0:
-            step = min(65536, pos)
-            pos -= step
-            f.seek(pos)
-            buf = f.read(step)
-            i = buf.rfind(b"\n")
-            if i >= 0:
-                return pos + i + 1
-    return 0
+    from kernel import ledger
+
+    return int(ledger.watermark_offset())
 
 
 def _events_tail_tag() -> str:
@@ -613,14 +591,12 @@ class DedupOracle:
         # 3. verified — durable/frozen legs only: manifest tail bytes_ok,
         #    vault meta on disk, the frozen paid_pool snapshot. The live
         #    index is advisory, never a verified leg.
-        meta_ok, meta_missing, meta_io_error, meta_kinds, prod_kinds = (
-            _scan_vault_meta(idc, arm, variant)
+        meta_ok, meta_missing, meta_io_error, meta_kinds, prod_kinds = _scan_vault_meta(
+            idc, arm, variant
         )
         if meta_io_error:
             return UNSEALED
-        if self._verified(
-            key, meta_ok, meta_kinds, need_kinds, stage_name, prod_kinds
-        ):
+        if self._verified(key, meta_ok, meta_kinds, need_kinds, stage_name, prod_kinds):
             return VERIFIED
 
         # 4. missing — tombstone/quar evidence with no verified leg.
@@ -716,7 +692,7 @@ class DedupOracle:
 
     # statuses that prove a stage actually produced its mutates — fail /
     # dedup / skip terminals all harvest-seal the same bytes and must not
-    _VOUCH_STATUSES = frozenset({"ok", "clean", "partial"})
+    _VOUCH_STATUSES = events.STATUS_CLEAN
 
     def _stage_done(self, key, stage_name) -> bool:
         """Calling stage owns a real terminal row in records.
@@ -728,10 +704,11 @@ class DedupOracle:
         if not stage_name:
             return True
         idc, arm, variant = key
+        marks = ",".join("?" for _ in self._VOUCH_STATUSES)
         row = self.index.conn.execute(
-            "SELECT 1 FROM records WHERE idc=? AND arm=? AND variant=?"
-            " AND stage=? AND status IN ('ok','clean','partial') LIMIT 1",
-            (idc, arm, variant, str(stage_name)),
+            "SELECT 1 FROM records WHERE idc=? AND arm=? AND variant=?"  # noqa: S608 -- marks 是 "?"*n 占位符
+            f" AND stage=? AND status IN ({marks}) LIMIT 1",
+            (idc, arm, variant, str(stage_name), *sorted(self._VOUCH_STATUSES)),
         ).fetchone()
         return row is not None
 

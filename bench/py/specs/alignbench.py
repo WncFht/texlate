@@ -70,6 +70,10 @@ except ImportError:
 from kernel import fsutil, idnorm, vault
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from specs import _benchlite as benchlib
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -497,7 +501,7 @@ def _select(item: dict, rp: dict) -> bool:
             r = idnorm.canon_id(tok)
             if r.ok and r.idc:
                 want.add(r.idc)
-        if raw not in want and raw.replace("--", "/") not in want:
+        if raw not in want and idnorm.idc_from_safe(raw) not in want:
             return False
     only = str(rp.get("only") or "").strip()
     if only and only not in raw:

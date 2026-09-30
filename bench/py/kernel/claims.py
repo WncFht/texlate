@@ -46,6 +46,7 @@ __all__ = [
     "parse_claim_lock_name",
     "reaper_collect",
     "safe_id",
+    "stale_open",
     "unescape_component",
 ]
 
@@ -170,3 +171,17 @@ def reaper_collect() -> list[Path]:
     if not d.is_dir():
         return []
     return [p for p in sorted(d.glob("*.lock")) if locks.lock_free(p)]
+
+
+def stale_open(idx) -> list[tuple[str, str, str]]:
+    """(idc, arm, variant) the index shows acquire-open while the flock is
+    free — held-by-dead leases. Detection core shared by the sweep reaper
+    (adds a shard-release veto before mutating) and the doctor audit
+    (report-only, no veto). ``idx=None`` → []."""
+    if idx is None:
+        return []
+    return [
+        (idc, arm, variant)
+        for idc, arm, variant in sorted(idx.active_claims())
+        if locks.lock_free(claim_lock_path(idc, arm, variant))
+    ]

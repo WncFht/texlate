@@ -54,8 +54,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # bench/py 同目录 import
+
+from specs import _bootstrap
+
+_bootstrap.ensure()
 
 import specs._sabotage as _sab  # Mode B/C 注入实现唯一事实源
 

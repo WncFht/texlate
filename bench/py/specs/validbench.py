@@ -57,6 +57,10 @@ from types import SimpleNamespace
 from kernel import fsutil, lake
 from kernel.spec import Param, Spec, Stage
 
+from specs import _bootstrap
+
+_bootstrap.ensure()
+
 from texlate.validate import l0
 from texlate.validate.l0 import Severity, validate_pair
 

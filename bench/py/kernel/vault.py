@@ -112,7 +112,7 @@ __all__ = [
 
 # Asset kinds the vault physically stores (§3.10.1: xlat-state is the third;
 # layoutqc is the fourth——qc.json+txlm 质检包随末段 mutates 格收割).
-KINDS = frozenset({"zh", "splice", "state", "layoutqc"})
+KINDS = events.VAULT_KINDS
 
 # Zone vocabulary: pending/primary/alt live in the kind roots; quar keeps a
 # physical separate root under vault/quar/<kind>/.
@@ -179,9 +179,7 @@ def _copy_file_rels(src, kind: str) -> list[str] | None:
         return [
             e["path"]
             for e in flist
-            if isinstance(e, dict)
-            and isinstance(e.get("path"), str)
-            and e["path"]
+            if isinstance(e, dict) and isinstance(e.get("path"), str) and e["path"]
         ]
     d = Path(src)
     if not d.is_dir():
@@ -236,9 +234,7 @@ def _copy_product_bad(meta: dict) -> int:
     if not isinstance(files, dict):
         return 0
     return sum(
-        1
-        for k in files
-        if k in _PRODUCT_KINDS and not _copy_product_ok(meta, k)[0]
+        1 for k in files if k in _PRODUCT_KINDS and not _copy_product_ok(meta, k)[0]
     )
 
 
@@ -600,10 +596,7 @@ def _write_meta(path: Path, meta: dict) -> None:
 def _append_manifest_locked(row: dict) -> None:
     """Append one manifest row inside vault/.lock. Reuses the ledger's
     append primitive — same torn-tail heal + single-write + fsync contract."""
-    line = (
-        json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
+    line = (events.dumps(row) + "\n").encode("utf-8")
     ledger._append_payload_locked(paths.vault_manifest_path(), line)
 
 
@@ -820,11 +813,7 @@ def harvest(
                     {r["path"]: r["sha256"] for r in rows if r["kind"] == k},
                 )
             rows.sort(key=lambda r: (r["kind"], r["path"]))
-            blob = "".join(
-                json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                + "\n"
-                for r in rows
-            ).encode("utf-8")
+            blob = "".join(events.dumps(r) + "\n" for r in rows).encode("utf-8")
             asset_sha = hashlib.sha256(blob).hexdigest()
             fman = tag / _FILES_MANIFEST
             fman.write_bytes(blob)

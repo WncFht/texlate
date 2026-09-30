@@ -262,7 +262,7 @@ def _splice_cred(ctx, src_variant: str) -> tuple[str, str] | None:
             for m in vault.query(ctx.idc)
             if m.get("bytes_ok")
             and "splice" in (m.get("files") or {})
-            and vault._copy_product_ok(m, "splice")[0]  # noqa: SLF001
+            and vault._copy_product_ok(m, "splice")[0]
         ]
     except vault.VaultError:
         return None

@@ -1,14 +1,8 @@
 {
     "name": "ts",
     "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
+    "private": true,
+    "description": "bench/ts — JS-side LaTeX parser bake-off drivers (latex-utensils / tree-sitter-latex / unified-latex); node_modules also feeds the L1 validator (CI npm ci --prefix bench/ts)",
     "type": "commonjs",
     "dependencies": {
         "@pfoerster/tree-sitter-latex": "^0.6.0",

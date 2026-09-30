@@ -248,13 +248,7 @@ def _check_stray_dirs(checks: list) -> None:
 def _stale_claims(idx: index.Index | None) -> list[tuple]:
     """(idc,arm,variant) the index shows acquire-open while the flock is
     free — held-by-dead leases awaiting a reap audit row."""
-    if idx is None:
-        return []
-    out = []
-    for idc, arm, variant in sorted(idx.active_claims()):
-        if locks.lock_free(claims.claim_lock_path(idc, arm, variant)):
-            out.append((idc, arm, variant))
-    return out
+    return claims.stale_open(idx)
 
 
 def _check_lock_invariants(checks: list, idx: index.Index | None) -> list:
@@ -637,8 +631,6 @@ def _live_lane_writers(now: float) -> list[str]:
                 if age is not None and age < _LANE_FRESH_S:
                     out.append(str(d))
     return out
-
-
 
 
 def _check_switch_ok(checks: list) -> None:

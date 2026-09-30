@@ -113,21 +113,6 @@ def _healed_size(fd: int, size: int) -> int:
     return 0
 
 
-def _fsync_dir(d: Path) -> None:
-    """Best-effort fsync of a directory fd — dirent durability after
-    create/rename/unlink. Never raises."""
-    try:
-        fd = os.open(d, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(fd)
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
-
-
 def _append_payload_locked(path: Path, payload: bytes) -> int:
     """Heal torn tail, append payload in ONE syscall, fsync. Return base offset.
 
@@ -150,7 +135,7 @@ def _append_payload_locked(path: Path, payload: bytes) -> int:
     finally:
         os.close(fd)
     if not existed:
-        _fsync_dir(path.parent)
+        fsutil.fsync_dir(path.parent)
     return offset
 
 
@@ -246,12 +231,7 @@ def append_run_row(row: dict) -> int:
     runs.jsonl is a report-only projection — it is NEVER a minting input.
     Returns the byte offset of the written line.
     """
-    line = (
-        json.dumps(
-            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        + b"\n"
-    )
+    line = dumps(row).encode("utf-8") + b"\n"
     with _ledger_lock():
         return _append_payload_locked(paths.runs_jsonl_path(), line)
 
@@ -395,13 +375,9 @@ def mint_run_seq(run: str, kind: str, date: str, slug: str, spec_hash: str) -> i
             "ts_start": ev["ts_start"],
         }
         _append_payload_locked(
-            paths.runs_jsonl_path(),
-            json.dumps(
-                row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
-            + b"\n",
+            paths.runs_jsonl_path(), dumps(row).encode("utf-8") + b"\n"
         )
-        _fsync_dir(rdir)  # dirent durability for the freshly created run dir
+        fsutil.fsync_dir(rdir)  # dirent durability for the freshly created run dir
         return n
 
 
@@ -659,14 +635,6 @@ def _zstd_compress(raw: Path) -> Path:
     return zst
 
 
-def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _zst_decodes_to(zst: Path, raw: Path) -> bool:
     """Strongest verify: the .zst decompresses to the exact raw bytes."""
     try:
@@ -687,7 +655,7 @@ def _zst_decodes_to(zst: Path, raw: Path) -> bool:
         rc = proc.wait()
     if rc != 0:
         return False
-    return h.hexdigest() == _sha256_file(raw)
+    return h.hexdigest() == fsutil._sha256_file(raw)
 
 
 def _read_seal_rows() -> list[dict]:
@@ -712,12 +680,7 @@ def _last_seal_zst_sha() -> str:
 
 
 def _append_jsonl_row(path: Path, row: dict) -> int:
-    line = (
-        json.dumps(
-            row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        + b"\n"
-    )
+    line = dumps(row).encode("utf-8") + b"\n"
     return _append_payload_locked(path, line)
 
 
@@ -725,7 +688,7 @@ def _seals_row_for(zst: Path, stats: _SegStats, ts: float) -> dict:
     return {
         "file": zst.name,
         "raw_sha": stats.sha256,
-        "zst_sha": _sha256_file(zst),
+        "zst_sha": fsutil._sha256_file(zst),
         "prev_seal_sha": _last_seal_zst_sha(),
         "lines": stats.lines,
         "bytes": stats.nbytes,
@@ -809,8 +772,8 @@ def seal_if_needed(
             _append_jsonl_row(paths.seals_path(), _seals_row_for(zst, stats, now))
         finally:
             _recreate_hot_tail(hot)  # emitters must never see a missing tail
-        _fsync_dir(paths.ledger_dir())
-        _fsync_dir(sdir)
+        fsutil.fsync_dir(paths.ledger_dir())
+        fsutil.fsync_dir(sdir)
         return zst
 
 
@@ -855,5 +818,5 @@ def seal_gc(
             raw.unlink()
             deleted.append(raw)
         if deleted:
-            _fsync_dir(sdir)
+            fsutil.fsync_dir(sdir)
     return deleted
