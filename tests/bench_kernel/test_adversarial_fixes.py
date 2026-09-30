@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
@@ -340,12 +341,14 @@ def test_stage_eval_flag_and_to_dict() -> None:
     assert st2.eval is False
 
 
-def _fake_env(spec: Spec) -> dict:
+def _fake_env(spec: Spec) -> SimpleNamespace:
     class _RD:
         run = "r1"
         path = None
 
-    return {"rd": _RD(), "spec": spec}
+    # kernel.run() 执行环境已打字化为 _RunEnv——钉私有面测试用
+    # SimpleNamespace 鸭型替身（缺属性即 AttributeError，同 dict 键静默收益）。
+    return SimpleNamespace(rd=_RD(), spec=spec)
 
 
 @pytest.mark.usefixtures("broot")

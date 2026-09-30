@@ -36,6 +36,7 @@ from verbs._common import (
     _iter_jsonl,
     _open_index,
     _rec_cols,
+    _rundir,
     _seed_match,
     _stem_group,
     _stem_of,
@@ -127,16 +128,6 @@ def _resolve_run_group(idx, run_arg: str):
     if serr is not None:
         return None, serr
     return _stem_group(rows, seeds, run_arg)
-
-
-def _rundir(run_row: dict | None) -> Path | None:
-    if not run_row:
-        return None
-    k, d, s = run_row.get("kind"), run_row.get("date"), run_row.get("slug")
-    if not all(isinstance(x, str) for x in (k, d, s)):
-        return None
-    p = paths.run_dir(k, d, s)
-    return p if p.is_dir() else None
 
 
 # ---------------------------------------------------------------- records/cases 读取
@@ -642,7 +633,10 @@ def _cross_run(
 
 
 def _rundir_for_name(run: str) -> Path | None:
-    """run 名 → rundir（import-* 平名与 kind/date/slug 两形都兜）。"""
+    """裸 run 名 → rundir（import-* 平名 glob 先、kind/date/slug 三切后）。
+
+    run→rundir 解析族的 name 形——族谱/勿再长新件见 ``_common._rundir``
+    上方注释块；本形只在 _cross_run 拿不到 JOIN 行时兜底。"""
     base = paths.runs_dir()
     for cand in base.glob(f"*/*/{run.rpartition('/')[2] or run}"):
         if cand.is_dir():

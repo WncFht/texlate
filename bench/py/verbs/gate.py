@@ -29,7 +29,6 @@ pick_final/_tally/_report 逐字保留：fp 新鲜度/陈旧语义是 harvest.cl
   显式 ``--arm X`` 钉死任一臂；``--arm -`` 显式取无臂轴数据。
 """
 
-import hashlib
 import json
 import math
 import sys
@@ -50,6 +49,9 @@ from verbs._common import (
 )
 from verbs._vocab import COMPILED_STATUS as COMPILED
 from verbs._vocab import STATUS_RANK as _RANK
+from verbs._vocab import (
+    compile_fp,  # gate.compile_fp 名被 test_verbs 钉——单源在 _vocab
+)
 
 GATE = 0.90
 SCHEMA = "gate_scorecard/v3"
@@ -58,49 +60,10 @@ ACTIVE_WRITE_WINDOW_S = 120.0
 PDF_STATUS = {"clean", "partial"}
 
 
-# ---------------------------------------------------------------- 记录指纹
-# compile_fp/_strkey/parse_iso 逐字录自 benchlib（benchlib 已退役；
-# triage 若也要 compile_fp，归并 verbs/_vocab.py 是 leader 侧缺口，勿各自抄）。
-
-
-def _strkey(d):
-    """dict 键一律 str 化——混合类型键下 ``sort_keys`` 排序即 TypeError。"""
-    return {str(k): v for k, v in d.items()} if isinstance(d, dict) else d
-
-
-def compile_fp(c: dict) -> str:
-    """compile 记录身份指纹（sha256[:16]）——verdict 决定字段的稳定摘要。
-
-    fixloop 记录新鲜度校验的比对料单源：写侧落 ``metrics.compile_fp``，
-    读侧比对——compile 重跑 status 不变但 sig/first_error 已换（同态陈旧）
-    时，``compile_status_before`` 状态等值放行、指纹不等即拦。
-    计时字段（seconds/dur_s）不入——逐跑恒变而非 verdict 语义。
-    """
-    m = c.get("metrics")
-    if not isinstance(m, dict):
-        m = {}
-    comp = m.get("compile")
-    if not isinstance(comp, dict):
-        comp = {}
-    v = m.get("verdict")
-    if not isinstance(v, dict):
-        v = {}
-    blob = json.dumps(
-        [
-            c.get("status"),
-            c.get("sig"),
-            c.get("code"),
-            comp.get("first_error"),
-            v.get("category"),
-            v.get("payload"),
-            _strkey(v.get("error_cats")),
-            _strkey(m.get("taxonomy")),
-        ],
-        ensure_ascii=False,
-        sort_keys=True,
-        default=str,
-    )
-    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+# ---------------------------------------------------------------- 时间解析
+# compile_fp/_strkey 已归并 verbs/_vocab.py（verbs 侧单源——
+# specs/_benchlite.compile_fp 是另一叶同构写侧拷贝，料单改动须双侧同步，
+# 见 _vocab docstring）；gate.compile_fp 由上行 import 转口保测试钉面。
 
 
 def _parse_iso(s):

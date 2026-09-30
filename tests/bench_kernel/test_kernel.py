@@ -1137,10 +1137,10 @@ def test_lookahead_burst_hydrates_all(
     spec = Spec(
         kind="tlake", stages=[], items=[], lake=True, fetch_fn=_lake_fetch(calls)
     )
-    env = {
-        "abort": threading.Event(),
-        "rd": SimpleNamespace(run_seq=1, run="tlake/2026-01-01/x"),
-    }
+    env = SimpleNamespace(
+        abort=threading.Event(),
+        rd=SimpleNamespace(run_seq=1, run="tlake/2026-01-01/x"),
+    )
     la = kernel._Lookahead(env, spec)  # noqa: SLF001 -- 钉私有面（无公共构造入口）
     cells = [
         {"id": i, "idc": i, "arm": "-", "up": "-", "variant": "-", "stage": "a"}

@@ -7,7 +7,15 @@ triage 票口径、rundiff 迁移序、gate 覆盖闸全部钉这张表。
 跨叶共享词表（DONE/RETRIABLE/STATUS_RANK/TERMINAL_WORDS）一律别名
 ``kernel.events`` 单源——verbs→kernel 合法且词表是全栈最不该漂的口径；
 本叶自有词（OK/SKIP/RESCUED/COMPILED/errors_sig）仍在此声明。
+
+记录指纹 compile_fp/_strkey 亦收编于此（gate.py 原私有位；leader 归并
+口——triage/其他 verb 要用一律走本件，勿各自抄）。specs/_benchlite.compile_fp
+是另一叶逐字同构的写侧拷贝——specs↔verbs 互不 import，跨叶真单源只有
+kernel.events，料单字段改动必须双侧同步。
 """
+
+import hashlib
+import json
 
 from kernel import events
 
@@ -59,3 +67,48 @@ def errors_sig(errors: list) -> str:
     cat = str(e0.get("cat") or e0.get("code") or "error")
     pay = str(e0.get("payload") or "")
     return f"{cat}:{pay}".rstrip(":")
+
+
+# ---------------------------------------------------------------- 记录指纹
+
+
+def _strkey(d):
+    """dict 键一律 str 化——混合类型键下 ``sort_keys`` 排序即 TypeError。"""
+    return {str(k): v for k, v in d.items()} if isinstance(d, dict) else d
+
+
+def compile_fp(c: dict) -> str:
+    """compile 记录身份指纹（sha256[:16]）——verdict 决定字段的稳定摘要。
+
+    fixloop 记录新鲜度校验的比对料单源：写侧落 ``metrics.compile_fp``
+    （specs/_benchlite.compile_fp 落账——另一叶同构拷贝，料单同步义务
+    见模块 docstring），读侧 ``verbs.gate.pick_final`` 比对——compile
+    重跑 status 不变但 sig/first_error 已换（同态陈旧）时，
+    ``compile_status_before`` 状态等值放行、指纹不等即拦。
+    计时字段（seconds/dur_s）不入——逐跑恒变而非 verdict 语义。
+    """
+    m = c.get("metrics")
+    if not isinstance(m, dict):
+        m = {}
+    comp = m.get("compile")
+    if not isinstance(comp, dict):
+        comp = {}
+    v = m.get("verdict")
+    if not isinstance(v, dict):
+        v = {}
+    blob = json.dumps(
+        [
+            c.get("status"),
+            c.get("sig"),
+            c.get("code"),
+            comp.get("first_error"),
+            v.get("category"),
+            v.get("payload"),
+            _strkey(v.get("error_cats")),
+            _strkey(m.get("taxonomy")),
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]

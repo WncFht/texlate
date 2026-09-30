@@ -115,6 +115,30 @@ def _blob_dir_of(d: dict) -> Path | None:
     return paths.run_dir(k, dt, s) / "derived" / "blobs"
 
 
+# run→rundir 解析族（输入形各异，勿再长第四种）：
+#
+# - ``_run_ref(ref)``       CLI 引用形——kind/date/slug 串或 runs/ 下目录路径；
+# - ``_rundir(row)``        records×runs JOIN 行形——kind/date/slug 字段；
+# - ``dossier._rundir_for_name``  裸 run 名兜底——import-* 平名 glob + k/d/s
+#   三切两路兜（dossier 残件，import 拆账命名才够得着）。
+# 相关不解名：``_blob_dir_of`` 上行取 row→blobs（无闸）；kernel/paths.run_dir
+# 是纯拼路径（从不碰盘）。
+
+
+def _rundir(run_row: dict | None) -> Path | None:
+    """records×runs JOIN 行 (kind/date/slug) → 存在的 run_dir 路径——
+    dossier 原私有件收编；无闸版姊妹 = 上行 ``_blob_dir_of``。"""
+    if not run_row:
+        return None
+    from kernel import paths
+
+    k, d, s = run_row.get("kind"), run_row.get("date"), run_row.get("slug")
+    if not all(isinstance(x, str) for x in (k, d, s)):
+        return None
+    p = paths.run_dir(k, d, s)
+    return p if p.is_dir() else None
+
+
 def _rec_cols(d: dict) -> dict:
     """index records 行原位整形：metrics/errors json 解 + $blob 解引用
     （严格形）+ ``up``→``upstream`` 旧字段别名。gate/dossier 同源收编。"""

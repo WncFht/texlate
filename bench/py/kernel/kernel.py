@@ -51,6 +51,7 @@ import shutil
 import sys
 import threading
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from kernel import (
@@ -85,6 +86,7 @@ from kernel.ctx import Ctx
 from kernel.spec import Spec, SpecError, cell_fp, compile_checks, load_spec
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 __all__ = ["RunError", "plan", "run"]
@@ -627,7 +629,7 @@ def _terminal_ev(
 ) -> dict:
     ev = events.make_event(
         events.T_CELL,
-        run=env["rd"].run,
+        run=env.rd.run,
         seq=seq,
         id=cell["id"],
         idc=cell["idc"],
@@ -637,7 +639,7 @@ def _terminal_ev(
         stage=cell["stage"],
         status=status,
     )
-    spec = env.get("spec")
+    spec = env.spec
     stage_obj = spec.stage(cell["stage"]) if spec is not None else None
     if (spec is not None and spec.eval) or (
         stage_obj is not None and getattr(stage_obj, "eval", False)
@@ -669,7 +671,7 @@ def _note(env, text: str, level: str = "info"):
     """Kernel note row — negative seqs (kernel writer namespace)."""
     # best-effort: a dead run dir must never kill the cell that wanted a note
     with contextlib.suppress(Exception):
-        runs._emit_note(env["rd"], text, level=level)
+        runs._emit_note(env.rd, text, level=level)
 
 
 # --- lake lookahead prefetcher (§3.10.3 预取双机制) ------------------------------------
@@ -722,17 +724,17 @@ class _Lookahead:
     def _loop(self, idcs: list) -> None:
         spec = self._spec
         env = self._env
-        run_seq = getattr(env["rd"], "run_seq", 0) or 0
+        run_seq = getattr(env.rd, "run_seq", 0) or 0
         source = getattr(spec, "lake_source", "arxiv") or "arxiv"
         for idc in idcs:
-            if self._stop.is_set() or env["abort"].is_set():
+            if self._stop.is_set() or env.abort.is_set():
                 return
             with self._cond:
                 while not (
-                    self._stop.is_set() or env["abort"].is_set() or self._window_open()
+                    self._stop.is_set() or env.abort.is_set() or self._window_open()
                 ):
                     self._cond.wait(timeout=2.0)
-                if self._stop.is_set() or env["abort"].is_set():
+                if self._stop.is_set() or env.abort.is_set():
                     return
             if not lake.admit(0):
                 _note(
@@ -802,10 +804,10 @@ class _Lookahead:
 
 def _thread_index(env):
     """Per-worker-thread Index — sqlite conns are thread-bound."""
-    tl = env["thread_local"]
+    tl = env.thread_local
     idx = getattr(tl, "index", None)
     if idx is None:
-        spec = env.get("spec")
+        spec = env.spec
         eval_stages = {
             s.name for s in getattr(spec, "stages", ()) if getattr(s, "eval", False)
         } or None
@@ -813,21 +815,21 @@ def _thread_index(env):
         tl.index = idx
         tl.oracle = dedupmod.DedupOracle(
             idx,
-            manifest_tail=env["oracle"].manifest_tail,
-            paid_pool_snap=env["oracle"].paid_pool_snap,
-            sealed_gen=env["oracle"].sealed_gen,
-            min_offset=env["oracle"].min_offset,
-            kind_evidence=env["oracle"].kind_evidence,
+            manifest_tail=env.oracle.manifest_tail,
+            paid_pool_snap=env.oracle.paid_pool_snap,
+            sealed_gen=env.oracle.sealed_gen,
+            min_offset=env.oracle.min_offset,
+            kind_evidence=env.oracle.kind_evidence,
         )
     return tl.index, tl.oracle
 
 
 def _emit(env, idx, ev):
-    return ledger.emit(ev, run_dir=env["rd"].path, sink=idx.apply_event)
+    return ledger.emit(ev, run_dir=env.rd.path, sink=idx.apply_event)
 
 
 def _emit_batch(env, idx, evs):
-    return ledger.emit_batch(evs, run_dir=env["rd"].path, sink=idx.apply_event)
+    return ledger.emit_batch(evs, run_dir=env.rd.path, sink=idx.apply_event)
 
 
 def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
@@ -843,12 +845,12 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
     is the last custody point before they are swept (2609.20519 实证:
     xlat/compile 真跑产出 zh/splice, layoutqc 撞上陈旧 declined-verdict
     dedup, 字节随 remove_cell_tree 清零, v1 键域自此永久饥饿)."""
-    spec = env["spec"]
+    spec = env.spec
     if stage_name != spec.last_mutating_stage() or status not in events.STATUS_DONE | {
         "dedup"
     }:
         return
-    rd = env["rd"]
+    rd = env.rd
     ctx = Ctx(rd, cell, idx, spec)
     assets = ctx.asset_dirs()
     if not assets:
@@ -879,9 +881,9 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
 def _run_cell(env, cell: dict) -> dict:
     """One plan cell through the critical section. NEVER raises — every
     path lands exactly one ledger row (terminal or retriable)."""
-    rd: runs.RunDir = env["rd"]
-    spec: Spec = env["spec"]
-    alloc = env["alloc"]
+    rd: runs.RunDir = env.rd
+    spec: Spec = env.spec
+    alloc = env.alloc
     idx, oracle = _thread_index(env)
     idc = str(cell["idc"])
     arm = str(cell.get("arm", "-"))
@@ -906,16 +908,16 @@ def _run_cell(env, cell: dict) -> dict:
     with runs.cell_lock(rd, safe), contextlib.ExitStack() as _stack:
         # lookahead frontier bump — inside cell_lock: a cell queued on the
         # lock has not consumed its prefetched bytes yet
-        la = env.get("lookahead")
+        la = env.lookahead
         if la is not None:
             la.cell_started(idc)
 
         # 0. run-level abort flag (auth breaker tripped mid-run)
-        if env["abort"].is_set():
+        if env.abort.is_set():
             return quick("error", cat="auth_dead")
 
         # 1. already terminal in THIS run (resume continuation)
-        if key in env["terminal_keys"]:
+        if key in env.terminal_keys:
             return {"cell": key, "status": "already-terminal"}
 
         # 2. cross-run dedup — the last VERDICT row (records, not the
@@ -985,15 +987,15 @@ def _run_cell(env, cell: dict) -> dict:
             if verdict == dedupmod.VERIFIED:
                 return quick("dedup")
             if verdict == dedupmod.MISSING:
-                sel_hit = _sel_hit(env["sel"], cell)
+                sel_hit = _sel_hit(env.sel, cell)
                 if not oracle.regen_allowed(
                     k_idc,
                     k_arm,
                     k_var,
-                    env["allow_regen"],
+                    env.allow_regen,
                     sel_hit,
-                    env["max_cost"],
-                    env["yes"],
+                    env.max_cost,
+                    env.yes,
                 ):
                     return quick("reject", cat="regen_gate")
                 _note(
@@ -1004,7 +1006,7 @@ def _run_cell(env, cell: dict) -> dict:
                 )
             # absent (or regen-authorized missing): budget fuse
             try:
-                env["factory"].meter.check(env["max_cost"])
+                env.factory.meter.check(env.max_cost)
             except paidmod.BudgetExceeded as exc:
                 return quick(
                     "reject", cat="budget", errors=[{"cat": "budget", "msg": str(exc)}]
@@ -1089,7 +1091,7 @@ def _run_cell(env, cell: dict) -> dict:
             idx,
             spec,
             alloc=alloc,
-            factory=(env["factory"] if stage is not None and stage.paid else None),
+            factory=(env.factory if stage is not None and stage.paid else None),
         )
         if lease is not None:
             ctx.claim_lease = lease
@@ -1108,7 +1110,7 @@ def _run_cell(env, cell: dict) -> dict:
             status = "fail"
             exc_errors = [{"cat": "auth_dead", "msg": str(exc)}]
         except paidmod.PaidAbortRun as exc:
-            env["abort"].set()
+            env.abort.set()
             status = "error"
             exc_errors = [{"cat": "auth_dead", "msg": str(exc)}]
         except paidmod.PaidPause as exc:
@@ -1253,7 +1255,7 @@ def _run_cell(env, cell: dict) -> dict:
             # window before the terminal row lands; idempotent on the
             # kernel's own lease
             ctx.claim_lease.release()
-        env["emit"](f"[{status}] {idc} {arm}/{up}/{variant}/{stage_name}")
+        env.emit(f"[{status}] {idc} {arm}/{up}/{variant}/{stage_name}")
         return {"cell": key, "status": status, "cat": cat}
 
 
@@ -1294,6 +1296,35 @@ def _wrap_factory(gateway_factory, max_cost):
         f"{type(gateway_factory).__name__}"
     )
     raise TypeError(msg)
+
+
+@dataclass
+class _RunEnv:
+    """run() 管线内部执行环境包——_emit/_note/_Lookahead/_run_cell 等
+    kernel 内部件共享的料单（不跨模块、不入 wire）。
+
+    原 dict bag ~15 个 stringly 键打字化：dict 形态下 typo 键名静默成
+    新键、缺键读回 None 流过，dataclass 形态即 AttributeError 当场爆。
+    三段补齐：构造即锁前 10 字段；锁内段填 alloc/oracle/terminal_keys；
+    执行段填 lookahead/results。``_spec_env`` 的 probe dict 是另一物件
+    （记名进 run metadata）——勿混淆。
+    """
+
+    rd: runs.RunDir
+    spec: Spec
+    factory: paidmod.GatewayFactory | None
+    max_cost: float | None
+    sel: str | None
+    allow_regen: bool
+    yes: bool
+    abort: threading.Event
+    emit: Callable[[str], None]
+    thread_local: threading.local
+    alloc: _SeqAlloc | None = None
+    oracle: dedupmod.DedupOracle | None = None
+    terminal_keys: set[tuple] = field(default_factory=set)
+    lookahead: _Lookahead | None = None
+    results: list = field(default_factory=list)
 
 
 def run(
@@ -1399,18 +1430,18 @@ def run(
         )
 
     # 4-8 under kernel-active + run.lock
-    env = {
-        "rd": rd,
-        "spec": spec,
-        "factory": factory,
-        "max_cost": max_cost,
-        "sel": sel,
-        "allow_regen": allow_regen or regen,
-        "yes": yes,
-        "abort": threading.Event(),
-        "emit": emit,
-        "thread_local": threading.local(),
-    }
+    env = _RunEnv(
+        rd=rd,
+        spec=spec,
+        factory=factory,
+        max_cost=max_cost,
+        sel=sel,
+        allow_regen=allow_regen or regen,
+        yes=yes,
+        abort=threading.Event(),
+        emit=emit,
+        thread_local=threading.local(),
+    )
     stop_hb = threading.Event()
     hb = None
     main_idx = None
@@ -1441,14 +1472,14 @@ def run(
 
             # 5. seq mint + index + oracle snapshot
             alloc = _SeqAlloc(_max_shard_seq(rd) + 1)
-            env["alloc"] = alloc
+            env.alloc = alloc
             main_idx = indexmod.Index()
             main_idx.tail_ingest()
             oracle = dedupmod.DedupOracle.snapshot(
                 main_idx, paid_stages={s.name for s in spec.stages if s.paid}
             )
-            env["oracle"] = oracle
-            env["terminal_keys"] = _shard_terminal_keys(rd)
+            env.oracle = oracle
+            env.terminal_keys = _shard_terminal_keys(rd)
 
             # 4. frozen plan (verbatim on resume unless --replan)
             cells = runs.freeze_plan(rd, cells, replan=replan)
@@ -1476,7 +1507,7 @@ def run(
                     str(c.get("variant", "-")),
                     str(c["stage"]),
                 )
-                if k in env["terminal_keys"]:
+                if k in env.terminal_keys:
                     continue
                 queued.append(
                     events.make_event(
@@ -1505,8 +1536,8 @@ def run(
             lookahead = None
             if spec.lake and spec.prefetch:
                 lookahead = _Lookahead(env, spec)
-                env["lookahead"] = lookahead
-                lookahead.start(cells, env["terminal_keys"])
+                env.lookahead = lookahead
+                lookahead.start(cells, env.terminal_keys)
 
             # 7. executor pass — cells partitioned by effective executor
             by_exec: dict[str, list] = {}
@@ -1517,7 +1548,7 @@ def run(
             results = []
             try:
                 for ex, group in by_exec.items():
-                    if env["abort"].is_set():
+                    if env.abort.is_set():
                         results.extend(
                             (c, {"cell": None, "status": "aborted"}) for c in group
                         )
@@ -1534,13 +1565,13 @@ def run(
             finally:
                 if lookahead is not None:
                     lookahead.stop()
-            env["results"] = results
+            env.results = results
 
             # aborted-run drain: cells the executor never reached still owe
             # the ledger a row — emit it from here (the abort flag makes
             # _run_cell short-circuit, but cells skipped at the group level
             # were never called at all)
-            if env["abort"].is_set():
+            if env.abort.is_set():
                 done_keys = set()
                 for _c, r in results:
                     if isinstance(r, dict) and isinstance(r.get("cell"), tuple):
@@ -1553,7 +1584,7 @@ def run(
                         str(c.get("variant", "-")),
                         str(c["stage"]),
                     )
-                    if k in done_keys or k in env["terminal_keys"]:
+                    if k in done_keys or k in env.terminal_keys:
                         continue
                     _emit(
                         env,
@@ -1593,7 +1624,7 @@ def run(
                 f"accounting={'ok' if acct['ok'] else 'BROKEN'}"
             )
             return {
-                "ok": bool(acct["ok"]) and not env["abort"].is_set(),
+                "ok": bool(acct["ok"]) and not env.abort.is_set(),
                 "run": rd.run,
                 "run_seq": rd.run_seq,
                 "kind": spec.kind,
@@ -1618,7 +1649,7 @@ def run(
 
 def _tally(env) -> dict:
     counts: dict[str, int] = {}
-    for _cell, r in env.get("results", []):
+    for _cell, r in env.results:
         if isinstance(r, dict):
             s = str(r.get("status", "?"))
         elif isinstance(r, BaseException):
@@ -1634,8 +1665,8 @@ def _reconcile_pending(env, idx):
     the cell's verdict — clean statuses -> primary, fail-only -> quar,
     else alt. Missing bytes -> tombstone pending_abort. All verdict
     evidence comes from the index (this run's terminal rows)."""
-    rd = env["rd"]
-    spec = env["spec"]
+    rd = env.rd
+    spec = env.spec
     for meta in vault.pending_metas():
         if meta.get("source_run") != rd.run:
             continue
