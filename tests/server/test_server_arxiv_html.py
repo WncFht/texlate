@@ -116,7 +116,7 @@ class TestArxivHtmlE2E:
         html_client: TestClient,
         clean_env: pytest.MonkeyPatch,
     ) -> None:
-        """``HtmlNotAvailableError`` → ``no_html_source`` fault + retryable=False。"""
+        """``HtmlNotAvailableError`` → ``no_html_source`` fault + retryable=False."""
         from texlate.arxiv.html import HtmlNotAvailableError  # noqa: PLC0415
 
         def _na(*_a: object, **_k: object) -> str:

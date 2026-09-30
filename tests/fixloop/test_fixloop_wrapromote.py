@@ -1,6 +1,6 @@
 """wrapromote —— fragment 误判主档 ``\\input`` wrapper 提升单测。
 
-实证背景 (relocatemiss 诊断, failmine4 soak-2026-09-18 2609.19170):
+实证背景 (relocatemiss 诊断，failmine4 soak-2026-09-18 2609.19170):
 ``find_main_tex`` pass-1 只收字面 ``\\documentclass`` 件 —— 根目录 9 行
 裸 ``\\input`` 编排壳 ``retd_jmlr_jmlr_candidate_20260828.tex`` 永不入
 池; 池内只剩 ``sections/00_preamble.tex`` fragment (止于 ``\\maketitle``,
@@ -67,7 +67,7 @@ def test_wrapper_promote_no_wrapper_abstain(tmp_path: Path) -> None:
 
 
 def test_wrapper_promote_ambiguous_abstain(tmp_path: Path) -> None:
-    """双合格 wrapper → 歧义让位, main_rel 不动。"""
+    """双合格 wrapper → 歧义让位，main_rel 不动。"""
     _mk_cell(tmp_path)
     (tmp_path / "alt.tex").write_text(
         "\\input{sections/00_preamble}\n\\input{sections/08_conclusion}\n",
@@ -81,7 +81,7 @@ def test_wrapper_promote_ambiguous_abstain(tmp_path: Path) -> None:
 
 
 def test_wrapper_promote_main_with_end_abstain(tmp_path: Path) -> None:
-    """现 main 闭包已达 \\end{document} → 非 fragment 误判, 让位。"""
+    """现 main 闭包已达 \\end{document} → 非 fragment 误判，让位。"""
     _mk_cell(tmp_path)
     sec = tmp_path / "sections"
     (sec / "00_preamble.tex").write_text(
@@ -95,7 +95,7 @@ def test_wrapper_promote_main_with_end_abstain(tmp_path: Path) -> None:
 
 
 def test_rule_wrapromote_dispatch(tmp_path: Path) -> None:
-    """wired 规则: emergency + ``no legal \\end found`` 签名即过闸。"""
+    """wired 规则：emergency + ``no legal \\end found`` 签名即过闸。"""
     rl = rule(_RULE)
     ctx = mk_ctx(tmp_path, "main.tex")
     assert actions._when_ok(rl.when, "emergency", None, ctx)  # noqa: SLF001

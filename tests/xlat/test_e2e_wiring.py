@@ -134,7 +134,7 @@ class ScriptedEngine:
         return False
 
     def rebuild_fontmaps(self) -> None:
-        """noop。"""
+        """noop."""
 
     def filemap(self, fname: str) -> list[str]:  # noqa: ARG002
         """无索引。"""

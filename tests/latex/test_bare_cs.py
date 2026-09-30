@@ -146,7 +146,7 @@ class TestNoFalsePositive:
     """双侧夹持外的合法形态不误伤。"""
 
     def test_math_cs_inside_math_ok(self) -> None:
-        """zh 自加 ``$\\alpha$``——数学域内是合法修正方向, 不拦。"""
+        """zh 自加 ``$\\alpha$``——数学域内是合法修正方向，不拦。"""
         src = _LONG_SRC
         out = run_pipeline(
             [mk_chunk(src, "c1")],
@@ -181,7 +181,7 @@ class TestNoFalsePositive:
         assert out[0].status == "ok"
 
     def test_lowercase_extension_real_cs_ok(self) -> None:
-        """``\\cite``→``\\citep`` 全小写延申是真 cs 面——粘合判定要求大写后缀, 不拦。"""
+        """``\\cite``→``\\citep`` 全小写延申是真 cs 面——粘合判定要求大写后缀，不拦。"""
 
         class Citep(pl.MockTranslator):
             async def translate(self, *, user: str, **kw: object) -> str:
@@ -196,7 +196,7 @@ class TestNoFalsePositive:
         assert out[0].status == "ok"
 
     def test_new_legit_text_cs_ok(self) -> None:
-        """zh 新增 ``\\footnote{注}``——定义内文本 cs 非炸弹, 不拦。"""
+        """zh 新增 ``\\footnote{注}``——定义内文本 cs 非炸弹，不拦。"""
         out = run_pipeline(
             [big_para("c1")],
             translator=_Injector("\\footnote{这是译文}"),

@@ -1,8 +1,8 @@
-"""slashbox stub 保真钉 (slash 车道, 2026-09-19):
+"""slashbox stub 保真钉 (slash 车道，2026-09-19):
 
-- ``vendor/stubs/slashbox.sty``: 原件 (K. Yasuoka 1993) 无许可 TL2020 除名,
+- ``vendor/stubs/slashbox.sty``: 原件 (K. Yasuoka 1993) 无许可 TL2020 除名，
   stub 按公开界面同义重写 —— ``\\slashbox``/``\\backslashbox``
-  ``[w][s]{A}{B}`` 双可选参 (w 默认 0pt 自然宽, s∈{l,r,lr} 抑制该侧
+  ``[w][s]{A}{B}`` 双可选参 (w 默认 0pt 自然宽，s∈{l,r,lr} 抑制该侧
   ``\\tabcolsep`` 外探), picture-mode ``\\line`` 对角线 + 双标签。
 - 参内 ``\\\\`` 经 ``\\shortstack`` 消化 —— 1109.5364
   ``\\backslashbox{\\\\climate\\\\ variable}{zone}`` 实证; 退化
@@ -45,7 +45,7 @@ def test_both_public_macros_provided() -> None:
 
 
 def test_picture_mode_diagonal_present() -> None:
-    """双对角线: \\slashbox=/ (1 向), \\backslashbox=\\ (-1 向)。"""
+    """双对角线：\\slashbox=/ (1 向), \\backslashbox=\\ (-1 向)。"""
     code = _code(STUB.read_text(encoding="utf-8"))
     assert "\\line(##1,1)" in code
     assert "\\line(##1,-1)" in code
@@ -61,7 +61,7 @@ def test_args_digested_by_shortstack() -> None:
 
 
 def test_optional_arg_chain_present() -> None:
-    """真件签名 [w][s]{A}{B}: w 默认 0pt 自然宽, s 默认 c (双侧 tabcolsep)。"""
+    """真件签名 [w][s]{A}{B}: w 默认 0pt 自然宽，s 默认 c (双侧 tabcolsep)。"""
     code = _code(STUB.read_text(encoding="utf-8"))
     assert "[0pt]" in code
     assert "[c]" in code

@@ -415,7 +415,7 @@ class TestFileGet:
         assert "/" not in cd.split("filename=")[1]
 
     def test_download_bad_int_400(self, client: TestClient) -> None:
-        """?download=abc → RequestValidationError → 400 invalid_request。"""
+        """?download=abc → RequestValidationError → 400 invalid_request."""
         tid = mk_api_task(client, ARXIV)
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": "abc"})
         assert r.status_code == HTTPStatus.BAD_REQUEST
@@ -691,7 +691,7 @@ class TestRetryEdges:
         ).status_code == (HTTPStatus.NOT_FOUND)
 
     def test_retry_done_409(self, client: TestClient) -> None:
-        """done ∉ RETRYABLE_FROM → 409 invalid_transition。"""
+        """done ∉ RETRYABLE_FROM → 409 invalid_transition."""
         tid = mk_api_task(client, ARXIV, headers=KEY)
         force_status(client, tid, "done")
         r = client.post(f"/api/task/{tid}/retry", json={})
@@ -1160,7 +1160,7 @@ class TestCsrfEdges:
         assert r.status_code == HTTPStatus.FORBIDDEN
 
     def test_origin_ipv6_localhost_403(self, client: TestClient) -> None:
-        """[::1] 与 localhost 是不同 origin（主机形+端口全等比对）——拒。"""
+        """[::1] 与 localhost 是不同 origin（主机形 + 端口全等比对）——拒。"""
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={},

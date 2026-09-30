@@ -94,7 +94,7 @@ def test_driverdef_rule_registered() -> None:
 
 
 def test_driverdef_cond_passes_def_form(tmp_path: Path) -> None:
-    """kaist-ucs 形: 括号面无驱动词, def 指派存在 → 闸放行。"""
+    """kaist-ucs 形：括号面无驱动词，def 指派存在 → 闸放行。"""
     (tmp_path / "main.tex").write_text("\\documentclass{kaist-ucs}\nx\n")
     (tmp_path / "kaist-ucs.cls").write_text(_KAIST_CLS)
     ok, why = _cond(tmp_path)
@@ -114,7 +114,7 @@ def test_driverdef_cond_passes_def_variants(tmp_path: Path) -> None:
 
 
 def test_driverdef_cond_still_passes_bracket_form(tmp_path: Path) -> None:
-    """括号字面驱动词旧路径回归: [dvipdfmx] 依旧放行。"""
+    """括号字面驱动词旧路径回归：[dvipdfmx] 依旧放行。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[dvipdfmx]{hyperref}\n"
     )
@@ -168,7 +168,7 @@ def test_driverdef_apply_gdef_edef(tmp_path: Path) -> None:
 
 
 def test_driverdef_apply_leaves_non_driver_defs(tmp_path: Path) -> None:
-    """非驱动值 def 不动: \\def\\@drivername{custom} 原样保留。"""
+    """非驱动值 def 不动：\\def\\@drivername{custom} 原样保留。"""
     src = "\\documentclass{article}\n\\def\\@drivername{customdrv}\n"
     (tmp_path / "main.tex").write_text(src)
     ok, _ = _apply(tmp_path)
@@ -189,7 +189,7 @@ def test_driverdef_apply_cs_without_driver_substr_untouched(
 
 
 def test_driverdef_apply_bracket_and_def_together(tmp_path: Path) -> None:
-    """括号 + def 混合面一遍过: [dvips]→[], \\def\\@drivername{dvipdfmx}→xetex。"""
+    """括号 + def 混合面一遍过：[dvips]→[], \\def\\@drivername{dvipdfmx}→xetex。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[dvips]{article}\n\\def\\@drivername{dvipdfmx}\n"
         "\\usepackage[\\@drivername]{graphicx}\n"
@@ -203,7 +203,7 @@ def test_driverdef_apply_bracket_and_def_together(tmp_path: Path) -> None:
 
 
 def test_driverdef_apply_whitespace_in_braces(tmp_path: Path) -> None:
-    """值域空白容忍: \\def\\@drivername{ dvipdfmx } → {xetex}。"""
+    """值域空白容忍：\\def\\@drivername{ dvipdfmx } → {xetex}。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\def\\@drivername  { dvipdfmx }\n"
     )
@@ -213,7 +213,7 @@ def test_driverdef_apply_whitespace_in_braces(tmp_path: Path) -> None:
 
 
 def test_driverdef_ruleset_loads() -> None:
-    """本文件钉的三条 driver 规则全在库（规模地板已被甩开, 改在场钉）。"""
+    """本文件钉的三条 driver 规则全在库（规模地板已被甩开，改在场钉）。"""
     ids = {r.id for r in load_ruleset().rules}
     assert {
         "hyperref_driver_neutralize",
@@ -244,7 +244,7 @@ def test_pdftexopt_rule_registered() -> None:
 
 
 def test_pdftexopt_cond_passes_usepackage_site(tmp_path: Path) -> None:
-    """1206.0240 形: \\usepackage[pdftex]{graphicx,color} → 闸放行。"""
+    """1206.0240 形：\\usepackage[pdftex]{graphicx,color} → 闸放行。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[pdftex]{graphicx,color}\n"
     )
@@ -253,7 +253,7 @@ def test_pdftexopt_cond_passes_usepackage_site(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_cond_passes_sty_mention_for_cfg_cell(tmp_path: Path) -> None:
-    """1306.0294 形: source_blob(.sty 可见) 内 pdftex 字样放行 cfg 改写面。"""
+    """1306.0294 形：source_blob(.sty 可见) 内 pdftex 字样放行 cfg 改写面。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     (tmp_path / "geometry.sty").write_text("\\def\\Gm@pdftex{pdftex}\n")
     ok, why = _opt_cond(tmp_path)
@@ -270,7 +270,7 @@ def test_pdftexopt_cond_declines_no_pdftex(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_strips_multipkg_bracket(tmp_path: Path) -> None:
-    """多包括号主案: [pdftex]{graphicx,color} → 裸装载 (graphicx 自侦 xetex)。"""
+    """多包括号主案：[pdftex]{graphicx,color} → 裸装载 (graphicx 自侦 xetex)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[pdftex]{graphicx,color}\n"
     )
@@ -282,7 +282,7 @@ def test_pdftexopt_apply_strips_multipkg_bracket(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_strips_mid_bracket(tmp_path: Path) -> None:
-    """括号中段: [hyperindex, pdftex,colorlinks] → 驱动词独剥。"""
+    """括号中段：[hyperindex, pdftex,colorlinks] → 驱动词独剥。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\usepackage[hyperindex, pdftex,colorlinks=true,backref]{hyperref}\n"
@@ -296,7 +296,7 @@ def test_pdftexopt_apply_strips_mid_bracket(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_executeoptions_cfg(tmp_path: Path) -> None:
-    """vendored cfg 选支: \\ExecuteOptions{pdftex} → {xetex} (兄弟选项保全)。"""
+    """vendored cfg 选支：\\ExecuteOptions{pdftex} → {xetex} (兄弟选项保全)。"""
     cfg = (
         "\\@ifundefined{pdfoutput}%\n"
         "  {\\let\\pdfoutput\\@undefined\n   \\ExecuteOptions{dvips}}%\n"
@@ -316,7 +316,7 @@ def test_pdftexopt_apply_executeoptions_cfg(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_comment_only_site_declines(tmp_path: Path) -> None:
-    """masked 面: 仅注释内 [pdftex] → 不改写不耗火 (applied=False)。"""
+    """masked 面：仅注释内 [pdftex] → 不改写不耗火 (applied=False)。"""
     src = "\\documentclass{article}\n%\\usepackage[pdftex]{graphicx}\n"
     (tmp_path / "main.tex").write_text(src)
     ok, _ = _opt_apply(tmp_path)
@@ -336,7 +336,7 @@ def test_pdftexopt_apply_passopts_brace_form(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_leaves_non_driver_opts(tmp_path: Path) -> None:
-    """对照: 非驱动选项 [svgnames] 与无括号装载原样。"""
+    """对照：非驱动选项 [svgnames] 与无括号装载原样。"""
     src = (
         "\\documentclass{article}\n"
         "\\usepackage[svgnames]{xcolor}\n\\usepackage{graphicx}\n"
@@ -350,7 +350,7 @@ def test_pdftexopt_apply_leaves_non_driver_opts(tmp_path: Path) -> None:
 # ────────────────────────────────────────────────────────────────
 # drvopt-ext (2026-09-19): opt_strip 词闸拓宽 (pdftex→驱动词表) +
 # def 臂 [Dd]river 大小写 + \\newcommand 族指派臂。
-# 实证面: aa.cls/webofc.cls \\newcommand\\<cs>driver{dvips|pdftex}
+# 实证面：aa.cls/webofc.cls \\newcommand\\<cs>driver{dvips|pdftex}
 # 条件选支 (~12 distinct cells); xcolor.sty \\def\\GinDriver{hypertex}
 # (3 cells); maple2e.sty \\edef\\Driver{dvips 系} (1 cell)。
 # ────────────────────────────────────────────────────────────────
@@ -367,7 +367,7 @@ _AA_CLS = (
 
 
 def test_pdftexopt_cond_passes_dvips_only_cell(tmp_path: Path) -> None:
-    """词闸拓宽: 无 pdftex 字样仅 dvips 的格 (hep-lat 形) 放行。"""
+    """词闸拓宽：无 pdftex 字样仅 dvips 的格 (hep-lat 形) 放行。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[dvips]{graphicx,color}\n"
     )
@@ -376,7 +376,7 @@ def test_pdftexopt_cond_passes_dvips_only_cell(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_cond_passes_hypertex_only_cell(tmp_path: Path) -> None:
-    """词闸拓宽: xcolor.sty \\GinDriver{hypertex} 格 (0806.4130 形) 放行。"""
+    """词闸拓宽：xcolor.sty \\GinDriver{hypertex} 格 (0806.4130 形) 放行。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     (tmp_path / "xcolor.sty").write_text("\\def\\GinDriver{hypertex}\n")
     ok, why = _opt_cond(tmp_path)
@@ -384,7 +384,7 @@ def test_pdftexopt_cond_passes_hypertex_only_cell(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_cond_declines_driverless(tmp_path: Path) -> None:
-    """对照: 无任何驱动词 → 闸拒 (拓宽后仍守)。"""
+    """对照：无任何驱动词 → 闸拒 (拓宽后仍守)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[svgnames]{xcolor}\n"
         "\\newcommand{\\mydriver}{custom}\n"
@@ -394,7 +394,7 @@ def test_pdftexopt_cond_declines_driverless(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_newcommand_both_branches(tmp_path: Path) -> None:
-    """aa.cls 形: \\newcommand\\aa@driver{dvips}/{pdftex} 两支全覆写 xetex。"""
+    """aa.cls 形：\\newcommand\\aa@driver{dvips}/{pdftex} 两支全覆写 xetex。"""
     (tmp_path / "aa.cls").write_text(_AA_CLS)
     ok, note = _opt_apply(tmp_path)
     assert ok, note
@@ -406,7 +406,7 @@ def test_pdftexopt_apply_newcommand_both_branches(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_newcommand_braced_cs(tmp_path: Path) -> None:
-    """primaldual 形: \\newcommand{\\mydriver}/{\\renewcommand} 花括号 cs 面。"""
+    """primaldual 形：\\newcommand{\\mydriver}/{\\renewcommand} 花括号 cs 面。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\newcommand{\\mydriver}{hypertex}\n"
@@ -428,7 +428,7 @@ def test_pdftexopt_apply_gindriver_capital(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_edef_driver_capital(tmp_path: Path) -> None:
-    """maple2e.sty \\edef\\Driver{dvips}: edef+大写 Driver 同覆写。"""
+    """maple2e.sty \\edef\\Driver{dvips}: edef+ 大写 Driver 同覆写。"""
     (tmp_path / "maple2e.sty").write_text("\\edef\\Driver{dvips}\n")
     ok, _ = _opt_apply(tmp_path)
     assert ok
@@ -436,7 +436,7 @@ def test_pdftexopt_apply_edef_driver_capital(tmp_path: Path) -> None:
 
 
 def test_pdftexopt_apply_newcommand_non_driver_untouched(tmp_path: Path) -> None:
-    """保守面: \\newcommand\\driver{custom} 非驱动值不改写。"""
+    """保守面：\\newcommand\\driver{custom} 非驱动值不改写。"""
     src = "\\documentclass{article}\n\\newcommand{\\mydriver}{custom}\n"
     (tmp_path / "main.tex").write_text(src)
     ok, _ = _opt_apply(tmp_path)
@@ -456,12 +456,12 @@ _guard_rule, _guard_apply, _guard_cond = _lane("iftex_engine_guard_neutralize", 
 
 def test_iftexguard_rule_registered() -> None:
     rule = _guard_rule()
-    assert rule.order == 47  # noqa: PLR2004 - 致死签先拆, opt_strip(48) 前
+    assert rule.order == 47  # noqa: PLR2004 - 致死签先拆，opt_strip(48) 前
     assert rule.action["kind"] == "regex_rewrite"
 
 
 def test_iftexguard_cond_passes_aaai_sty(tmp_path: Path) -> None:
-    """aaai2027.sty 形: \\RequirePDFTeX 在 .sty → 闸放行。"""
+    """aaai2027.sty 形：\\RequirePDFTeX 在 .sty → 闸放行。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     (tmp_path / "aaai2027.sty").write_text("\\RequirePackage{iftex}\n\\RequirePDFTeX\n")
     ok, why = _guard_cond(tmp_path)
@@ -485,7 +485,7 @@ def test_iftexguard_cond_declines_no_guard(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_neutralizes_pdftex(tmp_path: Path) -> None:
-    """主案: \\RequirePDFTeX → \\relax, 上下文行原样。"""
+    """主案：\\RequirePDFTeX → \\relax, 上下文行原样。"""
     (tmp_path / "aaai2027.sty").write_text(
         "\\RequirePackage{iftex}\n\\RequirePDFTeX\n\\RequirePackage{newtxtext}\n"
     )
@@ -499,7 +499,7 @@ def test_iftexguard_apply_neutralizes_pdftex(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_family_members(tmp_path: Path) -> None:
-    """族级: LuaTeX/pTeX/VTeX 守卫同中和 (xelatex 下全拉闸)。"""
+    """族级：LuaTeX/pTeX/VTeX 守卫同中和 (xelatex 下全拉闸)。"""
     guards = ("LuaTeX", "pTeX", "VTeX")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n" + "".join(f"\\Require{g}\n" for g in guards)
@@ -521,7 +521,7 @@ def test_iftexguard_apply_passing_guard_same_semantics(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_comment_only_declines(tmp_path: Path) -> None:
-    """masked 面: 仅注释内 \\RequirePDFTeX → applied=False。"""
+    """masked 面：仅注释内 \\RequirePDFTeX → applied=False。"""
     src = "\\documentclass{article}\n%\\RequirePDFTeX\n"
     (tmp_path / "main.tex").write_text(src)
     ok, _ = _guard_apply(tmp_path)
@@ -530,7 +530,7 @@ def test_iftexguard_apply_comment_only_declines(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_inline_midline(tmp_path: Path) -> None:
-    """行中嵌: \\A\\RequirePDFTeX\\B → \\relax 不伤邻 token。"""
+    """行中嵌：\\A\\RequirePDFTeX\\B → \\relax 不伤邻 token。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\RequirePackage{iftex}\\RequirePDFTeX\\relax\n"
     )
@@ -541,7 +541,7 @@ def test_iftexguard_apply_inline_midline(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_skips_def_target_sites(tmp_path: Path) -> None:
-    """def-target 位豁免: \\def\\RequirePDFTeX 不换 —— 置换会成 \\def\\relax 灾。"""
+    """def-target 位豁免：\\def\\RequirePDFTeX 不换 —— 置换会成 \\def\\relax 灾。"""
     (tmp_path / "aaai2027.sty").write_text(
         "\\RequirePackage{iftex}\n"
         "\\def\\RequirePDFTeX{\\errmessage{need pdftex}\\endinput}\n"
@@ -557,7 +557,7 @@ def test_iftexguard_apply_skips_def_target_sites(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_def_body_use_site_neutralized(tmp_path: Path) -> None:
-    """def 体内裹站仍是 use 站: \\def\\myguard{\\RequirePDFTeX} → \\relax。"""
+    """def 体内裹站仍是 use 站：\\def\\myguard{\\RequirePDFTeX} → \\relax。"""
     (tmp_path / "aaai2027.sty").write_text(
         "\\RequirePackage{iftex}\n\\def\\myguard{\\RequirePDFTeX}\n"
     )
@@ -569,7 +569,7 @@ def test_iftexguard_apply_def_body_use_site_neutralized(tmp_path: Path) -> None:
 
 
 def test_iftexguard_apply_non_tex_suffix_family(tmp_path: Path) -> None:
-    """非 TeX 尾闸名: pTeXng/HINT/Prote 同中和。"""
+    """非 TeX 尾闸名：pTeXng/HINT/Prote 同中和。"""
     guards = ("pTeXng", "HINT", "Prote")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n" + "".join(f"\\Require{g}\n" for g in guards)

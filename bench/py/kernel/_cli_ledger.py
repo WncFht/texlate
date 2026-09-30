@@ -1,6 +1,6 @@
 """kernel._cli_ledger — ledger 子动词叶 (kernel.cli 拆分叶).
 
-``bench ledger`` 的四动词: import (bench.db / jsonl / scan 目录 / zhstore
+``bench ledger`` 的四动词：import (bench.db / jsonl / scan 目录 / zhstore
 manifest 三源分派)、ingest (外部写者道 run='external' 固定)、
 rebuild-index (抹平重放派生 index)、tail-ingest (增量追平)。
 写动词一律先 ``_pre_write()`` 轻扫 (§2.4)。

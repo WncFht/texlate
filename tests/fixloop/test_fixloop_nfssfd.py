@@ -133,7 +133,7 @@ def test_taxonomy_font_info_inline_no_file_rejected() -> None:
 
     内核字体替换成功时同样印 ``No file`` 字样但带 Font Info 前缀——
     良性 info, 非缺档硬错; NFSS 错行本体签 → taxrow 归 nfss_setup
-    (无消费臂, 路由语义同原 other 兜底)。
+    (无消费臂，路由语义同原 other 兜底)。
     """
     log = (
         "LaTeX Font Info:    No file LGRcmr.fd.\n"
@@ -146,7 +146,7 @@ def test_taxonomy_font_info_inline_no_file_rejected() -> None:
 def test_taxonomy_no_file_fd_without_nfss_not_matched() -> None:
     """裸 ``No file X.fd.`` 但无 NFSS 硬错同窗 → 不抢后续真实错误路由。
 
-    可恢复 .fd 缺档 (substitution 成功) 与无关首错共存时, NFSS 共现
+    可恢复 .fd 缺档 (substitution 成功) 与无关首错共存时，NFSS 共现
     约束把本签关在窗外——错误行本体签名正常评估。
     """
     log = "No file LGRcmr.fd.\n! Undefined control sequence.\nl.5 \\foo\n"
@@ -164,7 +164,7 @@ def test_taxonomy_no_file_nonfd_rejected() -> None:
 
 
 def test_taxonomy_no_file_fd_outside_pre_window() -> None:
-    """``No file`` 距首错 >_PRE_LINES(4) 行 → 窗外不命中, NFSS 头签归 nfss_setup。"""
+    """``No file`` 距首错 >_PRE_LINES(4) 行 → 窗外不命中，NFSS 头签归 nfss_setup。"""
     filler = "\n".join(
         f"LaTeX Font Info:    Trying to load font information for LGR+f{i}"
         " on input line 340."
@@ -190,11 +190,11 @@ def test_taxonomy_existing_missing_file_signatures_intact() -> None:
     )
 
 
-# ─────────────────── errs 边界: 次级错误面无 pre (forward-only) ───────────────────
+# ─────────────────── errs 边界：次级错误面无 pre (forward-only) ───────────────────
 def test_errs_secondary_nfss_boundary() -> None:
     """``rep.errs`` 逐条分类不携 pre——远端次级 NFSS 错行归 nfss_setup (已知边界)。
 
-    首错 ctx8 窗够不到远处 No-file+NFSS 对时, 次级 NFSS 错行保持未覆盖;
+    首错 ctx8 窗够不到远处 No-file+NFSS 对时，次级 NFSS 错行保持未覆盖;
     首错本身是 NFSS 形 (或 ctx8 内含该对) 才经 ``ErrReport.pre``/blob
     路由。两错间距 >CTX_LINES 保证对不出现在首错 ctx 内。
     """
@@ -217,9 +217,9 @@ def test_errs_secondary_nfss_boundary() -> None:
 def test_errs_ctx8_pair_routes_missing_file() -> None:
     """No-file+NFSS 对落在首错 ctx8 内 → missing_file|fd (head-blob 原语义)。
 
-    评估域恒为 first+ctx8——对内签名在窗内即达, 与 ``use_pre`` 无关;
-    条目序让 missing_file 先于 undefined_cs 命中, 装档后下一轮处理
-    undefined_cs (双错皆可修, 路由序不丢修)。
+    评估域恒为 first+ctx8——对内签名在窗内即达，与 ``use_pre`` 无关;
+    条目序让 missing_file 先于 undefined_cs 命中，装档后下一轮处理
+    undefined_cs (双错皆可修，路由序不丢修)。
     """
     log = (
         "! Undefined control sequence.\n"
@@ -247,7 +247,7 @@ def test_install_file_when_dispatch() -> None:
 
 
 def test_install_fd_lowercase_candidate_first(tmp_path: Path) -> None:
-    """内核探测序桥: payload ``LGRcmr.fd`` → 先试小写 ``lgrcmr.fd`` 命中。
+    """内核探测序桥：payload ``LGRcmr.fd`` → 先试小写 ``lgrcmr.fd`` 命中。
 
     filemap/kpsewhich 大小写敏感——实档键 ``lgrcmr.fd``→cbfonts-fd;
     原名 ``LGRcmr.fd`` 无键。小写候选排前 = 内核 ``\\lowercase`` 先探同序。
@@ -283,10 +283,10 @@ def test_install_fd_unpackaged_decline(tmp_path: Path) -> None:
 
 
 def test_install_fd_already_present_lowercase(tmp_path: Path) -> None:
-    """磁盘已有小写实档 (工程/texmf) → already-present 短路, 不重安装。"""
+    """磁盘已有小写实档 (工程/texmf) → already-present 短路，不重安装。"""
     (tmp_path / "lgrcmr.fd").write_text("", encoding="utf-8")
     eng = _EngInstall(tmp_path / "texmf", set())
     ok, note = _apply(_rule("install_file"), tmp_path, "LGRcmr.fd", eng)
     assert ok
     assert "already-present" in note
-    assert eng.install_calls == []  # probe 先中, 零安装调用
+    assert eng.install_calls == []  # probe 先中，零安装调用

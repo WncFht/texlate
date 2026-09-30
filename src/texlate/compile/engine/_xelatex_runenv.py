@@ -36,12 +36,12 @@ class _XelatexEnv:
         add = dict(extra or {})
         # 单行超长的 legacy 宏转储 (TCI tcilcomm.tex 实测 3MB/行) 会顶穿
         # web2c 默认 buf_size=200000 → `Unable to read an entire line` 硬死。
-        # kpathsea cnf 变量可经 env 覆盖, 放宽输入行缓冲即解 (loop1-1706.02464)。
+        # kpathsea cnf 变量可经 env 覆盖，放宽输入行缓冲即解 (loop1-1706.02464)。
         add.setdefault("buf_size", "8000000")
         # fontspec 裸名查找走 fontconfig——texmf 自带 otf (FontAwesome.otf
         # 等) 未注册必炸 "font X cannot be found"。注入一份把
         # texmf-dist/opentype + usertree 字体注册的 conf（2211.12985 实证：
-        # ambient/sandbox 同缺, OSFONTDIR 不吃, FONTCONFIG_FILE 一注即解）。
+        # ambient/sandbox 同缺，OSFONTDIR 不吃，FONTCONFIG_FILE 一注即解）。
         fc = self._fontconfig_conf()
         if fc:
             add.setdefault("FONTCONFIG_FILE", fc)

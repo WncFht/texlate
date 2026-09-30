@@ -66,7 +66,7 @@ def includepdf_missing_stub(
             if safe_is_file(ctx.wdir / a) or safe_is_file(f.parent / a):
                 continue  # 引用本可解析 → 非本 payload 病灶
             out.append(t[prev : m.start()])
-            # 前缀注释形: match 落行中时 % 只吞自身到新行, 不啃原文尾部
+            # 前缀注释形：match 落行中时 % 只吞自身到新行，不啃原文尾部
             out.append(f"% fixloop: \\includepdf stub for {a}\n\\clearpage\\null")
             prev = m.end()
             n += 1

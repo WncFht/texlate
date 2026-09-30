@@ -15,7 +15,7 @@ from texlate.compile.inject import classify_no_main, find_main_tex
 
 
 def _route(ctx) -> dict:
-    """src 物化 → find_main_tex → route_project；meta 四键+main_rel+帧戳
+    """src 物化 → find_main_tex → route_project；meta 四键+main_rel+ 帧戳
     进 metrics（下游经 _last_done 读）。三拒一律 reject+reject_at='route'。"""
     cell = ctx.cell
     metrics: dict = {

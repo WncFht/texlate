@@ -258,7 +258,7 @@ class TestLadder:
         )
         assert res.status == "recovered"
         assert res.stage == "lines"
-        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行1×2 + 行2×1
+        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行 1×2 + 行 2×1
         assert "[[SP]]" in calls[3][1]
 
     def test_line_validate_retry_rescues(self) -> None:
@@ -282,7 +282,7 @@ class TestLadder:
         assert res.status == "recovered"
         assert res.stage == "lines"
         assert "[[MATH_1]]" in res.translation
-        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行1×2 + 行2×1
+        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行 1×2 + 行 2×1
 
     def test_line_fallback_residual_en_reroutes_to_slots(self) -> None:
         """seq-51 核心回归：行译文整句英文回显 → validate 败 → 重试仍回显 →
@@ -324,10 +324,10 @@ class TestLadder:
         assert res.status == "recovered"
         assert res.stage == "slots"
         assert residual_en_net(src, res.translation) == []
-        assert res.attempts == 6  # noqa: PLR2004 -- whole×2 + 行1×1 + 行2×2 + slots×1
+        assert res.attempts == 6  # noqa: PLR2004 -- whole×2 + 行 1×1 + 行 2×2 + slots×1
 
     def test_slots_rescue(self) -> None:
-        """整段+行级全败 → slots JSON 装配 → recovered/slots。"""
+        """整段 + 行级全败 → slots JSON 装配 → recovered/slots。"""
         src = "Alpha text [[MATH_1]] omega text"  # 无句号 → 单行跳过 stage2
 
         async def bad_translate(_text: str, _feedback: str) -> str:

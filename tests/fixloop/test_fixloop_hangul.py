@@ -3,7 +3,7 @@
 谚文码位 (U+AC00-D7A3 音节 + jamo 四段) 落无 hangul 块字体 →
 ``font_fallback`` builtin 经 ``params.fallback_fonts`` 有序候选探测
 (文件形 kpathsea / 家族名 fc-list) 绑首个可解析 ko 字体;
-cjk_font_fallback 带表已剔出谚文段 (FandolSong 无 hangul 块,
+cjk_font_fallback 带表已剔出谚文段 (FandolSong 无 hangul 块，
 绑回 = 错字体谎报), 全候选灭 → decline 不谎报。
 """
 
@@ -64,7 +64,7 @@ def _fc_none(argv: list, timeout: int, wdir: Path) -> tuple:
 def test_hangul_syllable_in_lmroman_binds_undotum(tmp_path: Path) -> None:
     """谚文音节缺字落 lmroman (2410.18001 签名) → 绑 TL unfonts UnDotum。
 
-    文件形候选 ``UnDotum.ttf`` probe 命中即胜, 不经 fc-list。
+    文件形候选 ``UnDotum.ttf`` probe 命中即胜，不经 fc-list。
     """
     _proj(
         tmp_path,
@@ -87,7 +87,7 @@ def test_hangul_in_fandol_still_selected(tmp_path: Path) -> None:
     """谚文落 FandolSong (2403.00013 签名) —— font_not 刻意不收 fandol。
 
     Fandol 系无 hangul 块正是病灶; 旧 cjk 臂 font_not 含 fandol 只挡
-    自己那臂, 本臂必须照样选上。
+    自己那臂，本臂必须照样选上。
     """
     _proj(
         tmp_path,
@@ -115,9 +115,9 @@ def test_hangul_in_ko_capable_font_declines(tmp_path: Path) -> None:
 
 
 def test_hangul_in_ipa_japanese_font_still_selected(tmp_path: Path) -> None:
-    """谚文落 uming (IPA 日系, 无 hangul 块) —— font_not 不收 uming/ukai。
+    """谚文落 uming (IPA 日系，无 hangul 块) —— font_not 不收 uming/ukai。
 
-    IPA 日文字体只盖假名/汉字, 谚文照缺 → 本臂必须认领绑 ko 字体。
+    IPA 日文字体只盖假名/汉字，谚文照缺 → 本臂必须认领绑 ko 字体。
     """
     _proj(
         tmp_path,
@@ -202,7 +202,7 @@ def test_all_candidates_dead_declines(tmp_path: Path) -> None:
 
 
 def test_non_hangul_cjk_untouched_by_ko_arm(tmp_path: Path) -> None:
-    """CJK 码位 (U+8FD9) 不在谚文带 → 本臂不选, 仍归 cjk 臂。"""
+    """CJK 码位 (U+8FD9) 不在谚文带 → 本臂不选，仍归 cjk 臂。"""
     _proj(
         tmp_path,
         'Missing character: There is no 这 ("8FD9) in font futr8t!\n',
@@ -216,7 +216,7 @@ def test_non_hangul_cjk_untouched_by_ko_arm(tmp_path: Path) -> None:
 def test_cjk_arm_ranges_no_longer_claim_hangul(tmp_path: Path) -> None:
     """cjk_font_fallback 带表剔出谚文段 —— 同 log 下不再绑 FandolSong。
 
-    钉死带表收窄: 谚文若仍被 cjk 臂认领 = FandolSong 错绑回潮。
+    钉死带表收窄：谚文若仍被 cjk 臂认领 = FandolSong 错绑回潮。
     """
     _proj(
         tmp_path,
@@ -230,7 +230,7 @@ def test_cjk_arm_ranges_no_longer_claim_hangul(tmp_path: Path) -> None:
 
 
 def test_shipped_rule_params_bind_ko_font(tmp_path: Path) -> None:
-    """实装规则参数面直放: 库内 hangul_font_fallback 参数 → UnDotum 绑定。"""
+    """实装规则参数面直放：库内 hangul_font_fallback 参数 → UnDotum 绑定。"""
     _proj(
         tmp_path,
         "Missing character: There is no 박 (U+BC15) in font cmr10!\n",
@@ -250,9 +250,9 @@ def test_shipped_rule_params_bind_ko_font(tmp_path: Path) -> None:
 
 
 def test_hangul_and_cjk_chars_split_across_arms(tmp_path: Path) -> None:
-    """混合缺字格: CJK 归 txlatecjkfb/FandolSong, 谚文归 txlatekofb/ ko 字体。
+    """混合缺字格：CJK 归 txlatecjkfb/FandolSong, 谚文归 txlatekofb/ ko 字体。
 
-    两臂顺序直放 (loop 跨轮各发一次): 注入块互不吞字, cs 并存。
+    两臂顺序直放 (loop 跨轮各发一次): 注入块互不吞字，cs 并存。
     """
     _proj(
         tmp_path,
@@ -293,9 +293,9 @@ def test_legacy_single_font_path_untouched(tmp_path: Path) -> None:
 
 
 def test_fixloop_e2e_dispatches_both_arms(tmp_path: Path) -> None:
-    """真环路派发钉: 混合缺字格 cjk(27) 先吃汉字, 谚文臂(28) 次轮认领谚文。
+    """真环路派发钉：混合缺字格 cjk(27) 先吃汉字，谚文臂 (28) 次轮认领谚文。
 
-    序位非认领依据 —— 两臂带表已互不重叠, 各轮第一命中臂独享。文中
+    序位非认领依据 —— 两臂带表已互不重叠，各轮第一命中臂独享。文中
     ``\\newfontfamily`` 注入块不触发 ``_CJK_MECH_RE`` 误判
     (``newfontfamily`` ≠ ``newCJKfontfamily``)。
     """

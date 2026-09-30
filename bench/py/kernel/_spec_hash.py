@@ -1,8 +1,8 @@
 """spec 指纹叶 —— code_sha/spec_hash/cell_fp + _iter_dep_files (§3.4 code
-分量: spec 源字节 + code_deps 文件内容, 非 repo sha)。
+分量：spec 源字节 + code_deps 文件内容，非 repo sha)。
 
 原 ``kernel.spec`` 顶层「hashing」段逐字保留——``_iter_dep_files`` 的
-dir-dep rglob 序与 file-dep 路径语义是指纹面, 一字不改。门面回引名单见
+dir-dep rglob 序与 file-dep 路径语义是指纹面，一字不改。门面回引名单见
 ``kernel.spec._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """
 

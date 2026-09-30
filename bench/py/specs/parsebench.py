@@ -93,8 +93,8 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     import difflib
     import json
     import math
@@ -208,8 +208,8 @@ _LAZY: dict[str, str] = {
 }
 
 # HEAD 单件期模块属性面——stdlib 模块名与 kernel/texlate/specs 顶层绑定也按名
-# 惰性解析, ``parsebench.lake``/``parsebench.benchlib`` 等读面 (含 setattr 型
-# monkeypatch 缝, patch 落在共享 module 对象上) 与拆分前逐名等价。
+# 惰性解析，``parsebench.lake``/``parsebench.benchlib`` 等读面 (含 setattr 型
+# monkeypatch 缝，patch 落在共享 module 对象上) 与拆分前逐名等价。
 # ``sys``/``Path``/``_bootstrap`` 是门面自身实绑定 (shim/ensure 所需),
 # globals 命中在先不进惰性道。
 _STDLIB_MODS = (
@@ -310,7 +310,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性 / stdlib 绑定 / kernel·texlate·specs 顶层名。
 
     spec 文件经 ``load_spec`` 以 ``spec_from_file_location`` exec——此时
-    ``__package__`` 为空串, 叶名必须写死 ``specs.`` 前缀 (正常
+    ``__package__`` 为空串，叶名必须写死 ``specs.`` 前缀 (正常
     ``import specs.parsebench`` 径下等价)。
     """
     leaf = _LAZY.get(name)
@@ -350,12 +350,12 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
 
-    注意: 本模块经 load_spec exec 装载后被弹出 ``sys.modules``, 审计只在
+    注意：本模块经 load_spec exec 装载后被弹出 ``sys.modules``, 审计只在
     正常 ``import specs.parsebench`` 的常驻对象上有效。
     """
     mod = sys.modules[__name__]

@@ -36,7 +36,7 @@ _SKIP_PROBE_MIN = 300
 #: 针深嵌标腹（引文汤裹标题、粗标跨块裹全段）或 snap 尾锚投影起点时，
 #: 报位=标顶/臆造起点而非针位（bbb seq0 引文行裹标题、a7c5 zh seq1
 #: snap 异文窗、a7c5 en seq76 针嵌 1525 字标深 900 实证）。LEAD=针头
-#: 距证据起点容差（章/图表标签前缀 ~11 字）,N=校验针长,BLK=实块下限,
+#: 距证据起点容差（章/图表标签前缀 ~11 字）,N=校验针长，BLK=实块下限，
 #: SKIP=头块针内偏移容差（头几字渲染变体）,COV=窗内针头覆盖阈。
 _MARK_HEAD_LEAD = 12
 _MARK_HEAD_N = 16
@@ -73,7 +73,7 @@ def _gram_index(stream: str) -> dict[str, list[int]]:
 
 
 def _sm_cov(stream: str, lo: int, hi: int, needle: str) -> tuple[float, int, int, int]:
-    """窗口内 matching_blocks → (覆盖率, 针起点投影位, 匹配尾位, 最长单块)。
+    """窗口内 matching_blocks → (覆盖率，针起点投影位，匹配尾位，最长单块)。
 
     报告位是针起点投影 ``lo+blocks[0].a-blocks[0].b``（clamp 到 lo）——
     记首块位在针有前导残段时系统性偏后，跨页假锚实证。
@@ -141,7 +141,7 @@ def _head_ok(text: str, needle: str) -> bool:
     return sum(b.size for b in bl) / len(head) >= _MARK_HEAD_COV
 
 
-def _match_bounded(  # noqa: C901, PLR0912, PLR0915 -- gram 锚定+兜底+打分是同一段语义阶梯
+def _match_bounded(  # noqa: C901, PLR0912, PLR0915 -- gram 锚定 + 兜底 + 打分是同一段语义阶梯
     needle: str,
     stream: str,
     gidx: dict[str, list[int]],
@@ -340,7 +340,7 @@ def _offset_at(
     return min(cands, key=lambda b: (abs(b[1] - page), abs(b[2] - frac)))[0]
 
 
-def _match_side(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- 两遍骨架+补缺是单算法阶梯，拆开反失上下文
+def _match_side(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- 两遍骨架 + 补缺是单算法阶梯，拆开反失上下文
     needles: list[tuple[int, str]],
     stream: str,
     prior: dict[int, int] | None = None,

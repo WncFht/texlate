@@ -14,7 +14,7 @@
   retry_429/retried_32k/via_stream/unmetered→metrics 同名。
 metrics/errors >4KB 走 $blob 卸载（run derived/blobs/）——读侧一律
 kernel.report._unblob。rejudge 是纯本地重判（specs.xlatbench._judge
-单源——verb 不复制判定口径）——永不触网关；缺 src/zh 的格 skip+计
+单源——verb 不复制判定口径）——永不触网关；缺 src/zh 的格 skip+ 计
 数，是覆盖缺口而非可补数据。
 """
 
@@ -104,7 +104,7 @@ def _p95(xs: list[float]) -> float:
 
 
 def aggregate(recs: list[dict]) -> tuple[dict[str, dict], list[dict]]:
-    """recs（旧行形）→ (逐模型聚合, 失败清单)——旧 aggregate 逐字。"""
+    """recs（旧行形）→ (逐模型聚合，失败清单)——旧 aggregate 逐字。"""
     rows: dict[str, dict] = {}
     fails: list[dict] = []
     for r in recs:

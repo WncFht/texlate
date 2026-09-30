@@ -41,7 +41,7 @@ def _ctx(tmp_path: Path) -> LoopCtx:
     return ctx
 
 
-# ── 1607.00157 形: file-line 前缀 + CJK 包错 (xelatex base 臂实录) ──
+# ── 1607.00157 形：file-line 前缀 + CJK 包错 (xelatex base 臂实录) ──
 _CJK_FILELINE_LOG = (
     "This is XeTeX, Version 3.141592653-2.6-0.999996 (TeX Live 2025)\n"
     "/work/1607.00157/14C-clustering-r2.tex:58: Package CJK Error: "
@@ -49,14 +49,14 @@ _CJK_FILELINE_LOG = (
     "l.58 \\begin{CJK*}{UTF8}{gbsn}\n"
 )
 
-# ── 1206.0266 形: ``! `` 顶行 (tectonic 实录) ──
+# ── 1206.0266 形：``! `` 顶行 (tectonic 实录) ──
 _CJK_BANG_LOG = (
     "This is Tectonic\n"
     "! Package CJK Error: Invalid character code.\n"
     "l.74 \\begin{CJK}{UTF8}{}\n"
 )
 
-# ── 2601.07372 形: file-line 形 main.tex:222 (xelatex base 臂实录) ──
+# ── 2601.07372 形：file-line 形 main.tex:222 (xelatex base 臂实录) ──
 _CJK_MAIN_LOG = (
     "This is XeTeX\n"
     "/work/2601.07372/main.tex:222: Package CJK Error: Invalid "
@@ -64,7 +64,7 @@ _CJK_MAIN_LOG = (
     "l.222 ...gbsn}\n"
 )
 
-# ── 内核原签守恒: Text line contains an invalid character 仍归同类 ──
+# ── 内核原签守恒：Text line contains an invalid character 仍归同类 ──
 _KERNEL_INVALID_LOG = (
     "This is XeTeX\n"
     "! Text line contains an invalid character.\n"
@@ -105,7 +105,7 @@ def test_kernel_invalid_char_unchanged() -> None:
 
 
 def test_other_cjk_errors_not_captured() -> None:
-    """收紧面: 其他 ``Package CJK Error`` (非 Invalid character code) 不误签。"""
+    """收紧面：其他 ``Package CJK Error`` (非 Invalid character code) 不误签。"""
     log = (
         "! Package CJK Error: You can't use \\CJKchar outside a CJK "
         "environment.\n"
@@ -129,7 +129,7 @@ def test_cjk_env_relax_rule_shape() -> None:
 
 
 def test_source_contains_gate() -> None:
-    """CJK 标记稿过门, 纯字节损坏稿 (无 CJK) 拒门 → 落 97 recode。"""
+    """CJK 标记稿过门，纯字节损坏稿 (无 CJK) 拒门 → 落 97 recode。"""
     pat = _rule("cjk_env_relax").condition["source_contains"]
     assert regex.search(pat, "\\usepackage{CJKutf8}\n\\begin{document}\n")
     assert regex.search(pat, "\\usepackage{CJK,upgreek}\n\\begin{CJK*}{GB}{gbsn}\n")
@@ -138,7 +138,7 @@ def test_source_contains_gate() -> None:
 
 
 def test_cjk_env_relax_utf8(tmp_path: Path) -> None:
-    """2601.07372 形 (UTF-8 ``CJKutf8``): env→组 + xeCJK 换装, 拉丁扩展字符保真。"""
+    """2601.07372 形 (UTF-8 ``CJKutf8``): env→组 + xeCJK 换装，拉丁扩展字符保真。"""
     src = (
         "\\documentclass{article}\n\\usepackage{CJKutf8}\n"
         "\\begin{document}\n\\begin{CJK*}{UTF8}{gbsn}\n"
@@ -159,7 +159,7 @@ def test_cjk_env_relax_utf8(tmp_path: Path) -> None:
 
 def test_cjk_env_relax_gbk_transcode(tmp_path: Path) -> None:
     """1607.00157 形 (GBK 源 ``{CJK,upgreek}`` + ``{GB}{gbsn}``): 字节级
-    ``decode_tex`` 进档, 汉字不读成 FFFD, 逗号包表外科剥离 (upgreek 留)。"""
+    ``decode_tex`` 进档，汉字不读成 FFFD, 逗号包表外科剥离 (upgreek 留)。"""
     src = (
         "\\documentclass{article}\n\\usepackage{CJK,upgreek,fancyhdr}\n"
         "\\begin{document}\n\\begin{CJK*}{GB}{gbsn}\n"

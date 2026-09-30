@@ -65,7 +65,7 @@ def option_clash_merge(
         if first["opts"]:
             first_new = m0.replace(first["opts"], f"[{merged}]", 1)
         else:  # 首个加载无 [opts] → 在花括号前插 [merged]; 原型同点
-            # `str.replace("", ...)` 会逐位插入, 此处修掉该潜伏 bug
+            # `str.replace("", ...)` 会逐位插入，此处修掉该潜伏 bug
             brace = m0.rfind("{")
             first_new = m0[:brace] + f"[{merged}]" + m0[brace:]
         # 首处后所有重复装载点全注释 —— 编辑表交 ``_splice`` 排序回放
@@ -122,12 +122,12 @@ def strip_inputenc(
 _PHYS_LOAD_RE = _pkg_list_re("physics")
 #: 源侧既有 ``\\input{physics.sty}`` 裸载点 —— 只 ``.sty`` 显式形真载 stub:
 #: ``\\input{physics}``/``\\input{physics.tex}`` 走 kpathsea tex 格式只解析
-#: ``physics``/``physics.tex`` (章节文件, 1206.5202 ``\\input{physics}`` 即
+#: ``physics``/``physics.tex`` (章节文件，1206.5202 ``\\input{physics}`` 即
 #: section 件), 永远摸不到 ``physics.sty`` —— ``need_input`` 检测与
 #: ``\\makeatletter`` 包裹双侧都按 ``.sty`` 形收窄。
 _PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics\.sty(?![\w.-])")
 #: 随源件内 ``\\input X.sty`` 站收集用的通用名单形 —— 与 ``_PHYS_INPUT_RE``
-#: 同骨架, 名位放开到任意 stem (允许路径前缀 ``sub/foo.sty``)。
+#: 同骨架，名位放开到任意 stem (允许路径前缀 ``sub/foo.sty``)。
 #: ``(?![\w.-])`` 防 ``.styx`` 半名误中。
 _SHIP_STY_INPUT_RE = re.compile(
     r"\\input\s*\{?\s*[A-Za-z][A-Za-z0-9_./-]*\.sty(?![\w.-])"
@@ -226,7 +226,7 @@ def _scope_step(vis: str, pos: int) -> tuple[int, str | None]:
                 else (
                     ("letter" if mm.group(2) == "11" else "other")
                     if mm.group(2) is not None
-                    # 本族 restore cs —— 只裹非 letter 站, 复元恒 other
+                    # 本族 restore cs —— 只裹非 letter 站，复元恒 other
                     else "other"
                 )
             )
@@ -354,11 +354,11 @@ def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
 #: 内饰共用同一 restore cs, 字面量由 ``_exact_restore_wrap`` 单源产出。
 _STYIN_SEG = _exact_restore_wrap("TeXlateStyInRestore")
 #: shipwrap 存复包裹对 —— ``vendor/stubs/svglov3.clo`` 同款 exact-restore
-#: idiom: ``\\edef`` 先存 ``\\catcode 64`` 现值, ``=11`` 读件, 尾段复元。
+#: idiom: ``\\edef`` 先存 ``\\catcode 64`` 现值，``=11`` 读件，尾段复元。
 #: 宿主 @ 语境不可知 (``\\documentclass``/``\\usepackage`` 载是 11, 裸
 #: ``\\input`` 载是 12) —— 存复形两语境皆回原位; 裸
 #: ``\\makeatletter``/``\\makeatother`` 对会把 @=letter 宿主的后续 @-cs
-#: 强翻回 12 (svglov3.clo 头注: 1608.06693 ``15\\p@`` 实证)。restore cs
+#: 强翻回 12 (svglov3.clo 头注：1608.06693 ``15\\p@`` 实证)。restore cs
 #: 名纯字母 —— 宿主可能正处 @=other, 名里带 ``@`` 自断签名。
 _SHIP_WRAP_PRE = _STYIN_SEG[0] + " "
 _SHIP_WRAP_POST = " " + _STYIN_SEG[1]
@@ -439,7 +439,7 @@ def physics_stub_detach(
         return False, "physics.sty is xparse-form (real CTAN), not stub"
     exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
     # 顶层 live ``\\input{physics.sty}`` 站才算"已在载": 注释内/宏体内
-    # (延迟执行, 未必触发) 命中不算 —— 漏载致命, 双载由 stub 守卫兜底。
+    # (延迟执行，未必触发) 命中不算 —— 漏载致命，双载由 stub 守卫兜底。
     need_input = not _phys_sty_input_sites(ctx.source_blob())
     changed, wrapped = _detach_in_tex_files(ctx, stub, exts, need_input=need_input)
     renamed = _PHYS_PROVIDES_RE.sub(r"\g<1>physics-stub\g<2>", st)
@@ -465,13 +465,13 @@ def physics_stub_detach(
 #: ``\\usepackage``/``\\RequirePackage`` 名单装载点 (``_PKG_LOAD_RE`` 别名) —
 #: siunitx 元素级判定在站点收集后做 (``{siunitx-blah}`` 这类误中由此滤掉)。
 _SIU_LIST_RE = _PKG_LOAD_RE
-#: siunitx v3 ``\\__siunitx_load_check:n`` 的不兼容名单 —— 装载时全查,
+#: siunitx v3 ``\\__siunitx_load_check:n`` 的不兼容名单 —— 装载时全查，
 #: ``\\AtBeginDocument`` 复查前三 (SIunits/sistyle/units)。``ver@X.sty``
 #: 置 ``\\relax`` 即从 ``\\@ifpackageloaded`` 注销 (physics_stub_detach
 #: 同机理); 未载过的名 ``\\csname`` 展开本即 ``\\relax``, 幂等无害。
 _SIU_INCOMPAT_PKGS = ("SIunits", "sistyle", "units", "unitsdef", "fancyunits")
 #: 包裹对 —— exact-restore idiom 同 ``_SHIP_WRAP_*`` (内饰共用 ``_STYIN_SEG``
-#: 裸段, 换行替空格作分隔): 宿主 @ 语境不可知, ``\\edef`` 存现值 ``=11``
+#: 裸段，换行替空格作分隔): 宿主 @ 语境不可知，``\\edef`` 存现值 ``=11``
 #: 读本族 ``\\@ifundefined``, 尾段恒回原位 (裸 ``\\makeatother`` 会把
 #: @=letter 宿主的后续 @-cs 强翻回 12)。
 _SIU_PEACE_PRE = (
@@ -488,9 +488,9 @@ _SIU_PEACE_PRE = (
     + "\n"
 )
 #: 载后复元 ``\\unit`` —— siunitx ``\\NewDocumentCommand\\unit``(sty:9494)
-#: 在 ``\\unit``=``\\relax`` 下当未定义处理正常落定义, 此处把 units 语义
-#: 装回 (units 的 ``\\unit[value]{unit}`` 与 siunitx ``O{} m`` 签名不兼容,
-#: 用 units 语法的文档必须复元, 2105.03729 ``\\unit[38]{mW}`` 实证)。
+#: 在 ``\\unit``=``\\relax`` 下当未定义处理正常落定义，此处把 units 语义
+#: 装回 (units 的 ``\\unit[value]{unit}`` 与 siunitx ``O{} m`` 签名不兼容，
+#: 用 units 语法的文档必须复元，2105.03729 ``\\unit[38]{mW}`` 实证)。
 _SIU_PEACE_POST = (
     "\n" + _STYIN_SEG[0] + "\\@ifundefined{TeXlateSavedUnit}{}"
     "{\\let\\unit\\TeXlateSavedUnit\\let\\TeXlateSavedUnit\\relax}" + _STYIN_SEG[1]
@@ -595,7 +595,7 @@ def font_sub_shim(
             if not new_pkg:
                 continue
 
-            # 装载点: {bbm} 精确 / {a,bbm,c} 列表元素 (其余不动); 遮盖视图
+            # 装载点：{bbm} 精确 / {a,bbm,c} 列表元素 (其余不动); 遮盖视图
             # 定位 —— 注释/verbatim 内的假装载点与假 cs 调用不改写。
             edits = [
                 (
@@ -632,11 +632,11 @@ def font_sub_shim(
 #: A ``only available when <ext> extension loaded`` —— xyarrow.tex:527
 #:   curve/arrow 钩族 (``@/.../``/``@(...)``/``@`{...}`` 形);
 #: B ``<word> feature not loaded`` —— xygraph.tex:163/182/186 的
-#:   ``matrix``/``poly(gon)``/``(ellipse+)arc`` 形, 括号段是注释性修饰,
+#:   ``matrix``/``poly(gon)``/``(ellipse+)arc`` 形，括号段是注释性修饰，
 #:   真扩展名 = 剥 ``(...)`` 后的残余词 (poly/arc/matrix); 词首括号注释
-#:   ``(ellipse+)`` 的 ``+`` 断捕获, 捕获从失衡 ``)`` 起 → 归一时再剥残余
+#:   ``(ellipse+)`` 的 ``+`` 断捕获，捕获从失衡 ``)`` 起 → 归一时再剥残余
 #:   裸括号。
-#: 词间 ``\s+``: TeX 日志 max_print_line=79 折行, "curve\nextension"
+#: 词间 ``\s+``: TeX 日志 max_print_line=79 折行，"curve\nextension"
 #: 跨行是常态 (2607.14648 实证 err_head 原文折行)。
 _XY_EXT_ERR_RES = (
     re.compile(r"only available when ([A-Za-z]+)\s+extension\s+loaded"),
@@ -645,7 +645,7 @@ _XY_EXT_ERR_RES = (
 
 #: ``\\usepackage``/``\\RequirePackage`` 名单装载点 (``_PKG_LOAD_RE`` 别名) ——
 #: 元素级 xy/xypic 判定在站点收集后做 (``xypic.sty`` 是 ``\\input{xy.sty}``
-#: +``\\xyoption{v2}`` 薄壳, ``xy`` 直载 ``xy.sty``)。
+#: +``\\xyoption{v2}`` 薄壳，``xy`` 直载 ``xy.sty``)。
 _XY_LOAD_RE = _PKG_LOAD_RE
 
 

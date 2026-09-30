@@ -95,7 +95,7 @@ def test_endlabellist_stray_is_cmd() -> None:
         "More prose after it continues the same run here."
     )
     assert "endlabellist" not in blob(res)
-    # 保护实证而非仅缺席: [[CMD_*]] ph 体载原 cs（对价 test_labellist_env_body_ 的 [[ENV_ 钉）
+    # 保护实证而非仅缺席：[[CMD_*]] ph 体载原 cs（对价 test_labellist_env_body_ 的 [[ENV_ 钉）
     cmds = [v for k, v in res.ph_map.items() if k.startswith("[[CMD_")]
     assert "\\endlabellist" in cmds
 

@@ -6,10 +6,10 @@ MockEngine 对齐 impl-compile ``compile/engine.py`` 的 CompRes/Engine 字段�
 (BOOM_LOG/BOOM_TAXONOMY/run_tool_rules/MockTectonic/SalvageMockEngine
 亦同), 本文件与 30+ 兄弟文件一样从 kit 取件。
 
-专题块已拆出: tar 伪装件 → test_fixloop_tarblob.py, aux 截断清场 +
+专题块已拆出：tar 伪装件 → test_fixloop_tarblob.py, aux 截断清场 +
 _dep_stems → test_fixloop_auxsweep.py, main_rel/find_main_tex →
 test_fixloop_mainrel.py, passes 分层 + _report_of/_bounded_sub →
-test_fixloop_passes.py。
+test_fixloop_passes.py.
 """
 
 from pathlib import Path
@@ -91,7 +91,7 @@ def test_install_already_present(tmp_path: Path) -> None:
             {"log": "! LaTeX Error: File `local.sty' not found.\n"},
             {"log": CLEAN_LOG, "pdf": True},
         ],
-        available={"article.cls"},  # 喂饱 static_precheck 扫描, 保持 install_calls 干净
+        available={"article.cls"},  # 喂饱 static_precheck 扫描，保持 install_calls 干净
     )
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
@@ -103,7 +103,7 @@ def test_install_already_present(tmp_path: Path) -> None:
 def test_install_requester_fanout(tmp_path: Path) -> None:
     """pst-all meta-wrapper 实证 (delta): 要求方 ``\\RequirePackage`` 连发一轮补齐。
 
-    file:line 锚 ``./pst-all.sty:25:`` 解出要求方 → 其依赖全表批量装,
+    file:line 锚 ``./pst-all.sty:25:`` 解出要求方 → 其依赖全表批量装，
     不再一轮撞一个成员包。"""
     (tmp_path / "pst-all.sty").write_text(
         "\\RequirePackage{pst-node}\n\\RequirePackage{pst-arrow}\n"
@@ -125,7 +125,7 @@ def test_install_requester_fanout(tmp_path: Path) -> None:
 
 
 def test_install_requester_fanout_tail_preempt(tmp_path: Path) -> None:
-    """tail missing_file preempt 抢路由后, 要求方扇出同样生效。"""
+    """tail missing_file preempt 抢路由后，要求方扇出同样生效。"""
     (tmp_path / "pst-all.sty").write_text(
         "\\RequirePackage{pst-node}\n\\RequirePackage{pst-poly}\n"
     )
@@ -296,13 +296,13 @@ def test_eps_route_rejects_on_tectonic(tmp_path: Path) -> None:
     eng = MockTectonic([{"log": CLEAN_LOG, "tail": PS_WALL_TAIL}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "reject:eps_route"
-    # 先编译一轮拿到 ps_image 确证, 再拒 (旧契约是 precheck 零轮即拒)
+    # 先编译一轮拿到 ps_image 确证，再拒 (旧契约是 precheck 零轮即拒)
     assert cell["rounds"][0]["category"] == "ps_image"
     assert isinstance(eng.ctan_fetch, CtanFetcher)  # 降级原语已注入
 
 
 def test_eps_route_fileset_only_clean_on_tectonic(tmp_path: Path) -> None:
-    """v2 关键回归: fileset 含 .eps 但编译干净 → 不拒 (旧版此处即误拒)。"""
+    """v2 关键回归：fileset 含 .eps 但编译干净 → 不拒 (旧版此处即误拒)。"""
     (tmp_path / "fig.eps").write_text("%!PS")
     eng = MockTectonic([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng)
@@ -609,7 +609,7 @@ MISSING_LOG = (
 
 
 def test_floor_restores_entry_pdf(tmp_path: Path) -> None:
-    """入口有 pdf、规则/编译把树打死 → 拷回入口快照, verdict 按既有公式落成。"""
+    """入口有 pdf、规则/编译把树打死 → 拷回入口快照，verdict 按既有公式落成。"""
     proj = make_proj(tmp_path)
     (proj / "main.pdf").write_bytes(b"%PDF-1.4 entry")
     eng = MockEngine([{"log": MISSING_LOG, "wipe_pdf": True}])
@@ -639,7 +639,7 @@ def test_floor_snapshots_round1_when_no_entry_pdf(tmp_path: Path) -> None:
 
 
 def test_floor_never_without_snapshot(tmp_path: Path) -> None:
-    """入口无 pdf 且全程没出过 pdf → 无底可兜, 原样失败。"""
+    """入口无 pdf 且全程没出过 pdf → 无底可兜，原样失败。"""
     eng = MockEngine([{"log": MISSING_LOG}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["floor_restored"] is False
@@ -695,7 +695,7 @@ def test_pdftex_prim_polyfill_object_family(tmp_path: Path) -> None:
     assert ok, note
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\ifdefined\\pdflastobj" in out
-    # 恒头注入: cls 内部读取发生在 \documentclass 加载期间, 类行后太晚
+    # 恒头注入：cls 内部读取发生在 \documentclass 加载期间，类行后太晚
     assert out.index("\\ifdefined\\pdflastobj") < out.index("\\documentclass")
 
 

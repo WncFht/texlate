@@ -31,8 +31,8 @@ from texlate.textutil import safe_is_file
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-#: ``\ProvidesX`` 变元间分隔符——空白 + ``%`` 注释到行尾 (TeX 词法同语义:
-#: ``{n} %^^A comment\n{d}`` docstrip 续行实证, clistmap/lambdax)。
+#: ``\ProvidesX`` 变元间分隔符——空白 + ``%`` 注释到行尾 (TeX 词法同语义：
+#: ``{n} %^^A comment\n{d}`` docstrip 续行实证，clistmap/lambdax)。
 _SEP = r"(?:\s|%[^\n]*)*"
 _DATE_RE = re.compile(
     r"\\Provides(?:Package|Class|File|ExplPackage|ExplClass|ExplFile)"
@@ -64,9 +64,9 @@ _DATE_INDIRECT_RE = re.compile(
     + _SEP
     + r"\\([a-zA-Z@_:]+)"
 )
-#: expl3 brace 槽位间址——``\ProvidesExplX{n}{\cs}{v}`` (texmf 52 处:
-#: \ExplFileDate/\ltlab*date/\g@*@date@tl 等, 皆 \def/\tl_* 族赋值或
-#: \GetIdInfo 设定, ctex.sty 实证)。
+#: expl3 brace 槽位间址——``\ProvidesExplX{n}{\cs}{v}`` (texmf 52 处：
+#: \ExplFileDate/\ltlab*date/\g@*@date@tl 等，皆 \def/\tl_* 族赋值或
+#: \GetIdInfo 设定，ctex.sty 实证)。
 _BRACED_INDIRECT_RE = re.compile(
     r"\\ProvidesExpl(?:Package|Class|File)"
     + _SEP
@@ -77,11 +77,11 @@ _BRACED_INDIRECT_RE = re.compile(
     + r"\\([a-zA-Z@_:]+)"
 )
 #: pst-* 族 .tex 核的日期面约定——``\def\filedate{YYYY/MM/DD}`` (pstricks.tex
-#: v1.15 实证)。\ProvidesX 两径全空时兜底, 同 ``_provides_date`` 口径。
+#: v1.15 实证)。\ProvidesX 两径全空时兜底，同 ``_provides_date`` 口径。
 _FILEDATE_RE = re.compile(r"\\def\\filedate\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}")
 #: ``\GetIdInfo $Id: name.ext ver YYYY-MM-DD ...$`` → ``\ExplFileDate``
 #: (expl3-code.tex auxii/auxiii 实证语义; ctex.sty:31 实证形)。ver==-1 时
-#: expl3 置 ``0000/00/00`` 不可用伪日期 → 不取, 保守 None。
+#: expl3 置 ``0000/00/00`` 不可用伪日期 → 不取，保守 None。
 _GETIDINFO_RE = re.compile(
     r"\\GetIdInfo\s*\$Id:\s*\S+\s+(\S+)\s+(\d{4})[/.-](\d{2})[/.-](\d{2})"
 )
@@ -96,14 +96,14 @@ def _cs_date(text: str, csname: str) -> tuple[int, int, int] | None:
     date = r"\s*\{\s*(\d{4})[/.-](\d{2})[/.-](\d{2})"
     m = re.search(r"\\[egx]?def\s*\\" + re.escape(csname) + date, text)
     if m is None:
-        # expl3 tl 赋值面: \tl_const:Nn/\tl_(g)set:Nn \c_*_date_tl {d}
+        # expl3 tl 赋值面：\tl_const:Nn/\tl_(g)set:Nn \c_*_date_tl {d}
         # (acro/exsheets/xsim 族实证)。
         m = re.search(
             r"\\tl_(?:const|g?set):N[a-zA-Z]\s*\\" + re.escape(csname) + date,
             text,
         )
     if m is None:
-        # LaTeX2e 面: \newcommand*\pgfmxfpDate{YYYY-MM-DD} (pgfmath-xfp 实证)。
+        # LaTeX2e 面：\newcommand*\pgfmxfpDate{YYYY-MM-DD} (pgfmath-xfp 实证)。
         m = re.search(
             r"\\(?:new|renew|provide)command\*?\s*\{?\\"
             + re.escape(csname)
@@ -150,7 +150,7 @@ def _provides_date(text: str) -> tuple[int, int, int] | None:
 def _index_providers(eng: Engine, fname: str) -> list[str]:
     """``filemap`` + ``ctan_fetch.peek_index`` 查 ``fname`` 的 bundle/TL 提供包。
 
-    只收 ``query`` 精确命中 —— ``suggest`` 前缀猜测面太宽, 不足以佐证
+    只收 ``query`` 精确命中 —— ``suggest`` 前缀猜测面太宽，不足以佐证
     撞名遮蔽 (``_index_candidates`` 默认 ``suggest=False``)。
     """
     return _index_candidates(eng, fname)
@@ -226,7 +226,7 @@ def _retire_paired_tex_core(
     sys_txt = _read_utf8(rp)
     ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
     if ld is None or sd is None or ld >= sd:
-        return None  # 无日期面确证新旧——盲删必死, 保留
+        return None  # 无日期面确证新旧——盲删必死，保留
     _isolate_rename(core, suffix)
     note = f"{core.name} (paired core {ld} < {sd})"
     shim = _path_shim_for(ctx, eng, core, str(rp))
@@ -236,7 +236,7 @@ def _retire_paired_tex_core(
 
 
 #: 路径限定装载点扫描面——可含 ``\usepackage``/``\input`` 等装载命令的
-#: tex 系文件 (主稿/子件/宏包互载)。``.fixloop-iso`` 件后缀不入集, 天然跳过。
+#: tex 系文件 (主稿/子件/宏包互载)。``.fixloop-iso`` 件后缀不入集，天然跳过。
 _SITE_SCAN_EXTS = (
     ".tex",
     ".ltx",
@@ -249,8 +249,8 @@ _SITE_SCAN_EXTS = (
     ".clo",
 )
 
-#: 一参装载命令——变元为文件名 (``\usepackage`` 族逗号分枚, 逐枚再拆)。
-#: 覆盖 paper 见过的全部形: ``./x``/``x/y``/``x\y`` 三族路径限定 +
+#: 一参装载命令——变元为文件名 (``\usepackage`` 族逗号分枚，逐枚再拆)。
+#: 覆盖 paper 见过的全部形：``./x``/``x/y``/``x\y`` 三族路径限定 +
 #: documentclass/LoadClass (.cls 同机退役)。
 _PATHQUAL_LOAD1_RE = re.compile(
     r"\\(?:usepackage|RequirePackage|RequirePackageWithOptions|documentclass"
@@ -323,7 +323,7 @@ def _neutral_probe_dir(ctx: LoopCtx) -> Path:
 
     进程 cwd 落 wdir 内时默认 ``Path.cwd()`` 基让 ``safe_is_file`` 直查
     命中 vendored 自件 → "wdir 外系统副本" 探测全灭 (seki era 件全
-    self-hit → vendored_shadow 条件死面实证)。``/`` 同名件概率实零,
+    self-hit → vendored_shadow 条件死面实证)。``/`` 同名件概率实零，
     在场亦属系统面 (语义仍对)。
     """
     return Path(ctx.wdir.resolve().anchor or "/")
@@ -355,10 +355,10 @@ def _write_path_shim(ctx: LoopCtx, f: Path, sys_path: str) -> str:
         abs_s = str(sys_path)
     ext = f.suffix.lower()
     # 选项由 \@fileswith@ptions 按 filename@parse 裸名挂 ``opt@<stem>.<ext>``
-    # ——内层真件 \ProcessOptions 同键直读, 无需 DeclareOption 续传 (e2e 实
-    # 证: 续传把 opt 表复制两份 → 未声明项双报)。shim 与内层真件的
+    # ——内层真件 \ProcessOptions 同键直读，无需 DeclareOption 续传 (e2e 实
+    # 证：续传把 opt 表复制两份 → 未声明项双报)。shim 与内层真件的
     # \ProvidesX{stem} 对全限定请求名各出一条 requested/provides mismatch
-    # 警告——与退役前稿自带件产出的警告同文 (妆饰级, 无功能面差)。
+    # 警告——与退役前稿自带件产出的警告同文 (妆饰级，无功能面差)。
     if ext == ".cls":
         head = (
             "\\NeedsTeXFormat{LaTeX2e}\n"
@@ -406,7 +406,7 @@ def _isolate_cohort_sib(ctx: LoopCtx, eng: Engine, sib: Path, suffix: str) -> li
     return [f"{srel} (cohort)"]
 
 
-def vendored_shadow_isolate(  # 保守闸逐条一处, 缺一不碰
+def vendored_shadow_isolate(  # 保守闸逐条一处，缺一不碰
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/spec/compile.md §6.6)。
@@ -459,12 +459,12 @@ def vendored_shadow_isolate(  # 保守闸逐条一处, 缺一不碰
 
 #: repo 随发 vendored 件子层 —— ``files/`` 真件 (许可逐件核过) 先于
 #: ``stubs/`` 最小宏面 stub; ``shims/`` 收 .cls 替身 stub (aa.cls 暂寄
-#: stubs/)。basename 跨层唯一, 序只文档义。
+#: stubs/)。basename 跨层唯一，序只文档义。
 _VENDOR_SUBDIRS = ("files", "stubs", "shims")
 
 
 def _vendor_root(params: dict[str, Any]) -> Path:
-    """Repo vendored 件根: ``params.dir`` 覆盖, 默认包内 ``vendor/``。"""
+    """Repo vendored 件根：``params.dir`` 覆盖，默认包内 ``vendor/``。"""
     d = params.get("dir")
     return Path(d) if d else Path(__file__).resolve().parent.parent / "vendor"
 
@@ -481,7 +481,7 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
     if not base:
         return None
     # 裸名 payload (``\input tcilatex`` 原语式报告不带扩展) 补 .tex 候选——
-    # TeX 解析侧同名自动补后缀, vendor 查件须同口径否则 stubs/tcilatex.tex
+    # TeX 解析侧同名自动补后缀，vendor 查件须同口径否则 stubs/tcilatex.tex
     # 在仓而报 not vendored。
     names = (base,) if PurePosixPath(base).suffix else (base, base + ".tex")
     for name in names:
@@ -503,7 +503,7 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
 
 
 def _safe_rel_name(name: str) -> PurePosixPath | None:
-    """件名卫: 空名/绝对径/``..``/含 NUL → ``None``; 否则 ``PurePosixPath``。
+    """件名卫：空名/绝对径/``..``/含 NUL → ``None``; 否则 ``PurePosixPath``。
 
     词法单源 ``texlate.arxiv.locate.safe_rel``。
     """
@@ -513,11 +513,11 @@ def _safe_rel_name(name: str) -> PurePosixPath | None:
 def _vendored_drop(
     ctx: LoopCtx, root: Path, fname: str
 ) -> tuple[Path | None, str | None]:
-    """单件 vendored 落盘链: rel 守卫 → 查件 → 落位 → 覆写闸 → copy。
+    """单件 vendored 落盘链：rel 守卫 → 查件 → 落位 → 覆写闸 → copy。
 
     ``vendored_fetch_multi``/``actions._scan_vendored`` 共用五步
     (``safe_rel``/``_vendored_source``/``_resolve_site``/exists-guard/copyfile)
-    ——(dst, None) 成 / (None, reason) 败, reason 与该臂 notes 词表同口径
+    ——(dst, None) 成 / (None, reason) 败，reason 与该臂 notes 词表同口径
     (``unsafe``/``not vendored``/``escapes wdir``/``present``/OSError 文)。
     """
     rel = safe_rel(fname)
@@ -534,7 +534,7 @@ def _vendored_drop(
             None,
             "present",
         )  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
-        # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
+        # missing 探针是 wdir 视域，``_resolve_site`` 落 ``main_dir/rel``
         # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
     try:
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -567,7 +567,7 @@ def vendored_fetch(
         return False, f"{fname}: escapes wdir"
     tier = src.parent.name  # files/stubs/shims 三层 note 标源——cls 替身记 shims
     body = src.read_text(encoding="utf-8", errors="replace")
-    # 指纹闸 (b3a): 同名片四分判——外来件(稿自带/真包)永不覆写; 旧代
+    # 指纹闸 (b3a): 同名片四分判——外来件 (稿自带/真包) 永不覆写; 旧代
     # 注入件 (无指纹但带 vendored/fixloop 行头标记) 覆写刷新。
     done, state = _inject_write(ctx, dst, body, fname)
     if done is not None:
@@ -585,14 +585,14 @@ def vendored_fetch(
 
 #: pre-2019 amsmath 指纹——``\@saveprimitive`` 对 \leqno/\eqno 的调用在
 #: v2.17e (2019-11) 起被 ``\let\@@leqno\leqno`` 直绑取代 (kernel 把 \leqno
-#: 等改成 \protected 宏, 旧件的 primitive 判据必炸 "no longer primitive");
-#: 有此调用即旧件, 改名件 (amsmath2.sty v2.13) 同中——probe 探不到的改名
+#: 等改成 \protected 宏，旧件的 primitive 判据必炸 "no longer primitive");
+#: 有此调用即旧件，改名件 (amsmath2.sty v2.13) 同中——probe 探不到的改名
 #: 遮蔽靠它收网。
 _SAVEPRIM_CALL_RE = re.compile(r"\\@saveprimitive\s*\\(?:leqno|eqno)\b")
 
 #: 改名件 delegate——退役后同名件把载名接回系统/bundle amsmath。
 #: ``{stem}`` 槽留原名注册 (amsmath2 → \ProvidesPackage{amsmath2})。
-#: 尾部 \let-undef 两行: iopart.cls:778 ``\@namedef{equation*}{\[}`` 类
+#: 尾部 \let-undef 两行：iopart.cls:778 ``\@namedef{equation*}{\[}`` 类
 #: 宿主类预占撞现代 amsmath ``\newenvironment{equation*}`` (:2941) ——
 #: 语义等价 (iopart 的 def 字面即 \[...\], amsmath equation* 就是 \[
 #: 的 env 形), 预清让 env 正名; 未定义件上 \let\@undefined 恒无害。
@@ -644,15 +644,15 @@ def amsmath_family_retire(
 
 #: revtex4 v4.0a 双锚指纹——``\ProvidesClass{revtex4}`` 本名精确 (revtex4-1/
 #: 4-2/4b4 各自署 ``{revtex4-1}``/``{revtex4-2}``/``{revtex4b4}``, 唯 v4.0a
-#: 占本名) ∧ ``\@uclcnotmath`` (内嵌 textcase v0.06 大写机, :3737-3750;
+#: 占本名) ∧ ``\@uclcnotmath`` (内嵌 textcase v0.06 大写机，:3737-3750;
 #: 现代 textcase.sty:49 有同名机但走 ``\AddToNoCaseChangeList`` expl3 分支
-#: 永不触此件 → uclc 单锚必误伤现代件, 双锚才确证 v4.0a)。
+#: 永不触此件 → uclc 单锚必误伤现代件，双锚才确证 v4.0a)。
 _REVTEX40_NAME_RE = re.compile(r"\\ProvidesClass\s*\{revtex4\}")
 _REVTEX40_UCLC_RE = re.compile(r"\\@uclcnotmath")
 
 #: delegate——与 90-shim-legacy.yaml shim_map.revtex4.cls 同体 (revtex4-2
-#: 同名桥 + frontmatter 提前武装)。``{stem}`` 槽留原名注册: 本名件退笔名
-#: 接续, 改名件 (revtex4x.cls 等) 保 stem 可解。系统 TL 不署 ``revtex4``
+#: 同名桥 + frontmatter 提前武装)。``{stem}`` 槽留原名注册：本名件退笔名
+#: 接续，改名件 (revtex4x.cls 等) 保 stem 可解。系统 TL 不署 ``revtex4``
 #: 包名 (唯 revtex4-2) —— 本名退役无 delegate 即 missing_file/再中毒。
 _REV_DELEGATE_TMPL = (
     "\\NeedsTeXFormat{LaTeX2e}\n"
@@ -703,7 +703,7 @@ def _retire_revtex40a_files(
 
 
 def _revtex_shadowed_externally(ctx: LoopCtx, eng: Engine) -> bool:
-    """Pass 2 探测: wdir 外/``_texmf`` 内存在 v4.0a revtex4.cls 遮蔽件。"""
+    """Pass 2 探测：wdir 外/``_texmf`` 内存在 v4.0a revtex4.cls 遮蔽件。"""
     resolved = eng.probe_file("revtex4.cls")
     if resolved:
         try:
@@ -779,7 +779,7 @@ def vendored_fetch_multi(
 ) -> tuple[bool, str]:
     """``params.files`` 名单 → vendor/{files,stubs,shims} basename 字节平铺 wdir。
 
-    ``vendored_fetch`` 的文本指纹注入不适用二进制资产 (lams*.tfm 等:
+    ``vendored_fetch`` 的文本指纹注入不适用二进制资产 (lams*.tfm 等：
     utf-8 读+``%`` 指纹行头毁 TFM 二进制头) —— 本动作 ``shutil.copyfile``
     字节级落盘; dst 在场 (稿自带/前轮已投) 跳过不覆 → 幂等。
     """
@@ -803,14 +803,14 @@ def vendored_fetch_multi(
     return True, note
 
 
-#: 稿自带 fontspec 套件——内核耦合件: expl3/关键原语 (``\SetKeys``/
-#: ``\__fontspec_msg_new``/``__keys_``) 随内核滚动, 新版 vendor 喂旧核
+#: 稿自带 fontspec 套件——内核耦合件：expl3/关键原语 (``\SetKeys``/
+#: ``\__fontspec_msg_new``/``__keys_``) 随内核滚动，新版 vendor 喂旧核
 #: (t_c32920: 稿带 fontspec v2.9h/2026-08-11 上 2021-11-15 核 → \SetKeys
-#: undefined 连锁爆, fontspec 初始化全灭 → CJK 字体永不配 → 文本层
-#: U+FFFF 死层) 或旧版喂新核同形态。vendored_shadow 的 ld<sd 只收旧向,
-#: 新向 skew 盲区由本件补——fontspec 跨版本 vendor 无安全面, 系统 kpse
-#: 必有递补, 签名级复核后整族退役 (与 era_bundle_shadow_retire 同
-#: 保守度: 签名不中即 False)。
+#: undefined 连锁爆，fontspec 初始化全灭 → CJK 字体永不配 → 文本层
+#: U+FFFF 死层) 或旧版喂新核同形态。vendored_shadow 的 ld<sd 只收旧向，
+#: 新向 skew 盲区由本件补——fontspec 跨版本 vendor 无安全面，系统 kpse
+#: 必有递补，签名级复核后整族退役 (与 era_bundle_shadow_retire 同
+#: 保守度：签名不中即 False)。
 _FONTSPEC_SUITE = (
     "fontspec.sty",
     "fontspec-xetex.sty",
@@ -847,7 +847,7 @@ def fontspec_kernel_shadow_retire(
         and _FONTSPEC_SKEW_RE.search(_fixloop_log(ctx)) is None
     ):
         return False, "no fontspec kernel-skew signature"
-    # 递补判双路: xelatex 走 probe_file, tectonic 走 filemap/bundle 索引
+    # 递补判双路：xelatex 走 probe_file, tectonic 走 filemap/bundle 索引
     # (probe_file 无 cwd 恒 None——fontspec 在 bundle 内属于恒有件)。
     if _probe_external(ctx, eng, "fontspec.sty") is None and not _index_providers(
         eng, "fontspec.sty"

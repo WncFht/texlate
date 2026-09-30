@@ -429,7 +429,7 @@ _SWEEP_RUN_MIN: Final = 25
 
 
 def _misschar_cp(what: str, cp: str | None) -> int | None:
-    """``(U+XXXX)``/``("XXXX)``/``^^X``名/``^^xx``/裸字符 → 码位；不可判 → None。"""
+    """``(U+XXXX)``/``("XXXX)``/``^^X`` 名/``^^xx``/裸字符 → 码位；不可判 → None。"""
     if cp:
         return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
     w = what.strip()
@@ -446,7 +446,7 @@ def _misschar_cp(what: str, cp: str | None) -> int | None:
 def misschar_sweep_hits(log_text: str) -> int:
     """``Missing character`` 命中中属 C0 测量扫掠签名的消息数（门控豁免量）。
 
-    逐消息解析 ``(码位, 字体)``——nullfont 行本就门控豁免故跳过；不可判
+    逐消息解析 ``(码位，字体)``——nullfont 行本就门控豁免故跳过；不可判
     码位跳过（保守留计）。按字体名归序后找严格升序 C0+DEL 段，长度
     ≥``_SWEEP_RUN_MIN`` 的段全员记扫掠命中；段间其他字体/非 C0 缺字
     不打断（过滤式子序列，多字体扫掠交错仍各自成链）。
@@ -478,7 +478,7 @@ def misschar_sweep_hits(log_text: str) -> int:
 
 
 def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
-    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重; nullfont 滤除。"""
+    """``Missing character`` 行 → {码位：(原字面，字体名)} 去重; nullfont 滤除。"""
     seen: dict[int, tuple[str, str]] = {}
     # U+000A 缺字行自身折行 (缺字本体是换行符) —— 与 misschar_sweep_hits
     # 同源的 ``_MISSCHAR_WRAP_RX`` 预拼回单行再走消息正则。
@@ -487,7 +487,7 @@ def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
         font = m.group("font").rstrip(".,;")
         if font == "nullfont":
             # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
-            # 签名侧经 rules/ missing_char pattern 排除, 这里兜底 wrap 漏网。
+            # 签名侧经 rules/ missing_char pattern 排除，这里兜底 wrap 漏网。
             continue
         cp = _misschar_cp(m.group("what"), m.group("cp"))
         if cp is not None and cp not in seen:

@@ -573,7 +573,7 @@ _GRP_BSBS_CONTENT_RX = re.compile(
 )
 # 组内尾参扫的 surface join 字符窗上限
 _GRP_TAIL_CAP = 96
-# 主路尾参扫的字节窗上限——尾参物理上数十字节级（数+单位+plus/minus 项），
+# 主路尾参扫的字节窗上限——尾参物理上数十字节级（数 + 单位+plus/minus 项），
 # 窗帽让任何未来正则病灶代价有界（held6 ReDoS 教训：嵌 _WS_NOPAR 的匹配
 # 一律不裸跑全文 haystack）
 _TAIL_CAP = 512

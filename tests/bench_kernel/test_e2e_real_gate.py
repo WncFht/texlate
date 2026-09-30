@@ -4,10 +4,10 @@
 靠上一轮 run 立的 layoutqc ``sig_counts`` 进修复环；layoutqc topo 在
 fixloop 之后，本 run 内账未立是设计内口径（本轮质检喂下一轮修复）。
 
-全离线：records 账用真 Index+事件投影；命中路径落到 splice 缺席的
+全离线：records 账用真 Index+ 事件投影；命中路径落到 splice 缺席的
 no_splice 闸证明过了 not_wanted；wanted 全程面再 monkeypatch 引擎
 三件套（_make_engine/fixloop/XelatexEngine/judge_dict）钉
-metrics.qc_wanted。
+metrics.qc_wanted.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """C5 孤儿机制规则单测 (mechmap-2026-09-17 裁决 W31/W37/W68/W79/W18/W102/W66/W58)。
 
-覆盖面:
+覆盖面：
   - ``generated_stub`` —— rungen(W79 ``\\openout`` 面) + nonctan_input(W18
     覆盖层扩展名面) 同 builtin 两检测面;
   - ``docstrip_generate`` —— 包内 .ins 抽取缺件 (stem 匹配/唯一 ins 兜底);
@@ -29,7 +29,7 @@ from texlate.compile.fixloop.engine import LoopCtx, RunFn
 
 
 def test_rungen_stub_openout_target(tmp_path: Path) -> None:
-    """hep-th/9703214 形: ``\\openout\\ftfile=foots.tmp`` → payload 命中写空 stub。"""
+    """hep-th/9703214 形：``\\openout\\ftfile=foots.tmp`` → payload 命中写空 stub。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\newwrite\\ftfile\n"
         "\\openout\\ftfile=foots.tmp\n\\begin{document}\n"
@@ -98,7 +98,7 @@ def test_generated_stub_unsafe_payload(tmp_path: Path) -> None:
 
 
 def test_rungen_stub_existing_not_overwritten(tmp_path: Path) -> None:
-    """盘上已有真件 → False 不覆盖 (L10 指纹闸: 无指纹无名分=外来件)。"""
+    """盘上已有真件 → False 不覆盖 (L10 指纹闸：无指纹无名分=外来件)。"""
     (tmp_path / "main.tex").write_text("\\openout\\w=foots.tmp\n")
     (tmp_path / "foots.tmp").write_text("real content\n")
     ok, note = TRANSFORM_FNS["generated_stub"](
@@ -110,7 +110,7 @@ def test_rungen_stub_existing_not_overwritten(tmp_path: Path) -> None:
 
 
 def test_rungen_stub_idempotent(tmp_path: Path) -> None:
-    """二次触火: stub 已在盘 → False。"""
+    """二次触火：stub 已在盘 → False。"""
     (tmp_path / "main.tex").write_text("\\openout\\w=foots.tmp\n")
     ctx = mk_ctx(tmp_path)
     ok1, _ = TRANSFORM_FNS["generated_stub"](
@@ -127,7 +127,7 @@ def test_rungen_stub_idempotent(tmp_path: Path) -> None:
 
 
 def test_overlay_stub_exts(tmp_path: Path) -> None:
-    """0707.1954 形: .pstex_t/.pdf_t/.pdftex_t 覆盖层缺档 → 空 stub。"""
+    """0707.1954 形：.pstex_t/.pdf_t/.pdftex_t 覆盖层缺档 → 空 stub。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     for name in ("fig.pstex_t", "fig.pdf_t", "fig.pdftex_t"):
         ok, note = TRANSFORM_FNS["generated_stub"](
@@ -245,9 +245,9 @@ def _docstrip(ctx: LoopCtx, payload: str) -> tuple[bool, str]:
 
 
 def test_docstrip_sibling_outputs_invalidated(tmp_path: Path) -> None:
-    """None-poison 主案: pre-run 读过缺件缓存 miss→None, docstrip 一次
-    抽多件落地后, 请求件与兄弟产出的缓存同让位 (旧码只 invalidate hit,
-    兄弟 stale-None 毒化下游)。runner 注入面写两件, 不跑真 latex。"""
+    """None-poison 主案：pre-run 读过缺件缓存 miss→None, docstrip 一次
+    抽多件落地后，请求件与兄弟产出的缓存同让位 (旧码只 invalidate hit,
+    兄弟 stale-None 毒化下游)。runner 注入面写两件，不跑真 latex。"""
     (tmp_path / "foo.ins").write_text("\\input docstrip\n", encoding="utf-8")
 
     def _runner(_argv: list[str], _timeout: int, wdir: Path) -> tuple:
@@ -267,8 +267,8 @@ def test_docstrip_sibling_outputs_invalidated(tmp_path: Path) -> None:
 
 
 def test_docstrip_rewritten_sibling_invalidated(tmp_path: Path) -> None:
-    """改写臂: 既有件 v1 已入缓存, docstrip 重写 v2 → 缓存让位见新文
-    (mtime+size 指纹 diff 命中改写, 不只新建)。"""
+    """改写臂：既有件 v1 已入缓存，docstrip 重写 v2 → 缓存让位见新文
+    (mtime+size 指纹 diff 命中改写，不只新建)。"""
     (tmp_path / "foo.ins").write_text("\\input docstrip\n", encoding="utf-8")
     sibling = tmp_path / "foo.cfg"
     sibling.write_text("% v1\n", encoding="utf-8")
@@ -289,7 +289,7 @@ def test_docstrip_rewritten_sibling_invalidated(tmp_path: Path) -> None:
 
 
 def test_plain_format_magnification_bye(tmp_path: Path) -> None:
-    """``\\magnification`` + ``\\font\\cs=cm*`` + ``^\\bye$`` → REJECT tex-plain。"""
+    """``\\magnification`` + ``\\font\\cs=cm*`` + ``^\\bye$`` → REJECT tex-plain."""
     (tmp_path / "main.tex").write_text(
         "\\magnification=1200\n\\font\\big=cmr12\nplain text\n\\bye\n"
     )
@@ -495,7 +495,7 @@ def test_svg_prepare_no_svg_files(
 def test_svg_prepare_convert_all_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """转换器全败 → False 不谎报, 无残留半文件。"""
+    """转换器全败 → False 不谎报，无残留半文件。"""
     monkeypatch.setattr(shutil, "which", which_only("rsvg-convert"))
     (tmp_path / "a.svg").write_bytes(b"<svg/>")
     (tmp_path / "main.tex").write_text(SVG_MAIN.replace("figs/a.svg", "a.svg"))
@@ -514,7 +514,7 @@ def test_svg_prepare_convert_all_fail(
 def test_svg_prepare_convert_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """二次触火: pdf 复用 + 无活 \\includesvg → False。"""
+    """二次触火：pdf 复用 + 无活 \\includesvg → False。"""
     monkeypatch.setattr(shutil, "which", which_only("rsvg-convert"))
     (tmp_path / "a.svg").write_bytes(b"<svg/>")
     (tmp_path / "main.tex").write_text(SVG_MAIN.replace("figs/a.svg", "a.svg"))
@@ -623,7 +623,7 @@ def test_orphan_rule_ids_in_ruleset() -> None:
     by_id = {r.id: r for r in rs().rules}
     want = {
         "plain_format_route": "plain_format_detect",
-        "svg_route": None,  # reject_route 原语, 无 builtin
+        "svg_route": None,  # reject_route 原语，无 builtin
         "build_directive_harvest": "harvest_build_directives",
         "rungen_stub": "generated_stub",
         "nonctan_input_stub": "generated_stub",

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 def _main_dir_rel(ctx: LoopCtx | None) -> str:
-    """``{main_dir}`` 占位值: main_dir 相对 wdir 的 posix 径; 未知/逃逸 → ``.``。
+    """``{main_dir}`` 占位值：main_dir 相对 wdir 的 posix 径; 未知/逃逸 → ``.``。
 
     run_tool argv 内的落点占位——编译 cwd = main_dir (kpathsea 解析位),
     wdir 根对嵌套 main 不可见; ``main_rel`` 怪径致 main_dir 逃出 wdir
@@ -74,7 +74,7 @@ def _substitute(
 def _when_ok(
     when: dict[str, Any], cat: str | None, pay: str | None, ctx: LoopCtx
 ) -> bool:
-    """When 匹配: ``always`` / ``any:[...]`` / 单条 category 条件。
+    """When 匹配：``always`` / ``any:[...]`` / 单条 category 条件。
 
     无可识别键的候选 fail-closed (与 _cond_ok 未知键对称)——``categry:``
     型 typo 旧行为是对全 category 点火; load 期另有 _when_problems 白名单。
@@ -118,13 +118,13 @@ def _package_version(eng: Engine, fname: str) -> int | None:
 
 
 def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
-    """``err_outside_fileset`` 条件实现: 报错文件栈内层帧判工程外。
+    """``err_outside_fileset`` 条件实现：报错文件栈内层帧判工程外。
 
     ``rep.file_stack[-1]`` = TeX ``l.N`` 报错所在文件 (内层帧); runaway
-    空栈回退 ``popped_files[-1]`` (最近关闭帧肇事口径, 与
+    空栈回退 ``popped_files[-1]`` (最近关闭帧肇事口径，与
     ``_requester_paths`` 同——帧序单源 ``ErrReport.site_frames``)。
     ``is_project_file`` 与红线归因同口径——相对帧/``root`` 内 = 工程
-    (fileset 可 patch), texmf/bundle 帧 = 工程外 (fileset 够不到,
+    (fileset 可 patch), texmf/bundle 帧 = 工程外 (fileset 够不到，
     仅 wdir 无关臂可治)。无栈帧证据 (``rep=None`` 的直驱/旧调用面)
     → False (fail-closed)。
     """
@@ -139,21 +139,21 @@ def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
 # source_contains/prim_read_form 的 tex 拼接 blob 每派发各取一次
 # ════════════════════════════════════════════════════════════════
 #
-# miss 轮 ``_cond_ok`` 逐规则评估数十次, 旧制每次各跑一遍全树 rglob +
+# miss 轮 ``_cond_ok`` 逐规则评估数十次，旧制每次各跑一遍全树 rglob +
 # ~MB 级 join。同一派发窗内两次 ``_cond_ok`` 之间的盘面突变只能经
 # ``_apply`` (规则自写/install 落件/run_tool 产出)——故不变量 =
 # 「每次 ``_apply`` 尝试即整槽作废」(loop/gate/precheck 三相的派发
-# 全经 ``_apply`` 分派, 崩溃半途而废亦在作废后), ``_match_apply``
+# 全经 ``_apply`` 分派，崩溃半途而废亦在作废后), ``_match_apply``
 # 入口再清一次兜住窗间编译产物 (aux/log 落删) 与 pending_esc 直调
 # ``ctx.llm_hook`` 的 ``ctx.write`` —— loop 相文件面恒以当窗树为准。
 # ``_landing_sync`` 的外部落件 ``_texts`` invalidate 在窗尾补刀时
 # memo 若非空 (上次评估缓存未作废), blob 槽另有 ``sig`` 元素级校验
-# (``ctx.read`` 返回对象级比对——invalidate/pop/重写必换对象, 内容
+# (``ctx.read`` 返回对象级比对——invalidate/pop/重写必换对象，内容
 # 相同则 join 相同复用无碍), 与既有 freshness 逐字节同口径;
 # files 槽以 loop 派发窗为刷新界 (gate/precheck 现无 fileset 条件)。
 
 #: ``source_blob`` 拼接扩展名集 —— ``LoopCtx.tex_files`` 缺省值镜像
-#: (快照 ``files`` 表派生 tex 清单, 不再第二遍 rglob)。
+#: (快照 ``files`` 表派生 tex 清单，不再第二遍 rglob)。
 _SOURCE_BLOB_EXTS = (".tex", ".sty", ".cls")
 
 
@@ -249,7 +249,7 @@ def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
     return False
 
 
-def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语分派表, 每键一处
+def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语分派表，每键一处
     cond: dict[str, Any],
     rule: Rule,
     ctx: LoopCtx,

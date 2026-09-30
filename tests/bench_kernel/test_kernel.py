@@ -273,10 +273,10 @@ def test_dedup_pile_over_verdict_still_dedups(
 
 
 def test_last_mutating_dedup_harvests_upstream_products(broot: Path) -> None:
-    """last_mutating 撞 dedup 终态也收字节 —— 2609.20519 实证缺口:
+    """last_mutating 撞 dedup 终态也收字节 —— 2609.20519 实证缺口：
 
-    上游格本 run 真跑产出的 mutates 树, 在末段 dedup 行下以前直接随
-    remove_cell_tree 清零, verdict 留账而字节永远不入 vault。末段自身
+    上游格本 run 真跑产出的 mutates 树，在末段 dedup 行下以前直接随
+    remove_cell_tree 清零，verdict 留账而字节永远不入 vault。末段自身
     kind 在押时 dedup 合法——此时要收的恰是上游新产出的 zh。"""
     # 末段自身 kind 已押 → coll dedup 合法成立 (字节闸放行 dedup)
     lqc_src = broot / "lqc-src"
@@ -313,7 +313,7 @@ def test_last_mutating_dedup_harvests_upstream_products(broot: Path) -> None:
 def test_mutates_dedup_requires_intact_bytes(
     broot: Path,  # noqa: ARG001 -- broot fixture 副作用（隔离 bench root）
 ) -> None:
-    """免费 mutates 格 dedup 要字节在押: verdict-done + vault 缺席 →
+    """免费 mutates 格 dedup 要字节在押：verdict-done + vault 缺席 →
     放行重跑 (免费 regen); 字节补齐后回到 dedup。"""
     calls = []
 

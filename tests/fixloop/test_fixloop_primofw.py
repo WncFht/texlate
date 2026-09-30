@@ -1,15 +1,15 @@
 """fileset 外报错站点 → pdftex_prim/glyphtounicode condition 拓宽单测 (primofw 车道)。
 
-实证背景: axessibility.sty:349-352 四连块 (``\\pdfcompresslevel=0`` /
+实证背景：axessibility.sty:349-352 四连块 (``\\pdfcompresslevel=0`` /
 ``\\pdfoptionpdfminorversion=6`` / ``\\input{glyphtounicode}`` /
 ``\\pdfgentounicode=1``) 落在系统 texmf 件 —— 报错站点不在 ``ctx.tex_files``
 内。旧 condition 只认 wdir 源证据 (``prim_read_form`` /
 ``source_contains glyphtounicode``) → polyfill/shadow 两臂弃守; guard(50)
 的 ``_patch_files`` 同样只扫 fileset → 0-edit 弃守 → unfixable (census ~7 格)。
 
-拓宽面: 新 condition 原语 ``err_outside_fileset`` —— ``rep.file_stack[-1]``
+拓宽面：新 condition 原语 ``err_outside_fileset`` —— ``rep.file_stack[-1]``
 内层帧 (runaway 空栈回退 ``popped_files[-1]``) 经 ``is_project_file`` 判
-工程外即过。只挂在臂不需缺失证据处: guard 仍正确弃守 (patch 不了
+工程外即过。只挂在臂不需缺失证据处：guard 仍正确弃守 (patch 不了
 看不见的件), polyfill (主文件头注入) 与 glyphtounicode_shadow (wdir 落
 stub, TeX 文件解析序 cwd 先截获) 皆 fileset 无关。
 
@@ -18,7 +18,7 @@ polyfill 走 ``\\newcount\\<prim>\\<prim>=1`` —— ``\\chardef`` 形对写型�
 ``\\prim=val`` 变排版字符 + ``=val`` 文本 → Missing ``\\begin{document}``
 转嫁错类 (primofw 车道 t3 真 xelatex 实证); ``\\newcount`` 同点
 全真接管 (t4.tex 过到下一错误)。读型 ``\\ifnum\\<prim>`` 读寄存器初值 1
-与旧 ``\\chardef=1`` 同义, 无回归。
+与旧 ``\\chardef=1`` 同义，无回归。
 """
 
 from pathlib import Path
@@ -30,7 +30,7 @@ from texlate.compile.fixloop.builtins import pdfprim
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.logparse import ErrReport
 
-# 系统 texmf 帧 token (file_stack_at 实录形态: 相对帧 ./ 前缀, 系统帧绝对)。
+# 系统 texmf 帧 token (file_stack_at 实录形态：相对帧 ./ 前缀，系统帧绝对)。
 _AXS_STY = "/usr/share/texmf-dist/tex/latex/axessibility/axessibility.sty"
 _GLYPH_TEX = "/usr/share/texmf-dist/tex/generic/pdftex/glyphtounicode.tex"
 
@@ -121,7 +121,7 @@ def test_cond_err_outside_fileset_no_rep_fails_closed(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 路由层
 def test_route_out_of_fileset_write_site_to_polyfill(tmp_path: Path) -> None:
-    """axessibility 形: 源无 prim → guard/shadow 弃守 → polyfill 接住注入。"""
+    """axessibility 形：源无 prim → guard/shadow 弃守 → polyfill 接住注入。"""
     ctx = _ctx(tmp_path)
     r = match(ctx, "pdfcompresslevel", "pdftex_prim", _rep_sty())
     assert r is not None
@@ -132,7 +132,7 @@ def test_route_out_of_fileset_write_site_to_polyfill(tmp_path: Path) -> None:
         "\\ifdefined\\pdfcompresslevel\\else\\newcount\\pdfcompresslevel"
         "\\pdfcompresslevel=1\\fi" in out
     )
-    # 恒头注入: sty 内使用发生在 \\usepackage 加载期间, docclass 行后太晚
+    # 恒头注入：sty 内使用发生在 \\usepackage 加载期间，docclass 行后太晚
     assert out.index("\\ifdefined\\pdfcompresslevel") < out.index("\\documentclass")
     # guard 正确弃守 (fileset 外件不可 patch) + shadow cs_set 不收
     assert any(d.startswith("pdftex_prim_guard:") for d in ctx.declined)
@@ -140,7 +140,7 @@ def test_route_out_of_fileset_write_site_to_polyfill(tmp_path: Path) -> None:
 
 
 def test_route_second_prim_round_polyfill(tmp_path: Path) -> None:
-    """axessibility :350 形: pdfoptionpdfminorversion 同路 polyfill。"""
+    """axessibility :350 形：pdfoptionpdfminorversion 同路 polyfill。"""
     ctx = _ctx(tmp_path)
     r = match(ctx, "pdfoptionpdfminorversion", "pdftex_prim", _rep_sty())
     assert r is not None
@@ -161,7 +161,7 @@ def test_route_glyphtounicode_payload_to_shadow(tmp_path: Path) -> None:
 
 
 def test_route_in_fileset_read_form_unchanged(tmp_path: Path) -> None:
-    """回归: wdir 源 ``\\ifnum\\pdfoutput`` 读型 → 旧 prim_read_form 臂仍通。"""
+    """回归：wdir 源 ``\\ifnum\\pdfoutput`` 读型 → 旧 prim_read_form 臂仍通。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\ifnum\\pdfoutput=0 x\\fi\n"
@@ -175,7 +175,7 @@ def test_route_in_fileset_read_form_unchanged(tmp_path: Path) -> None:
 
 
 def test_route_in_fileset_write_form_guard_first(tmp_path: Path) -> None:
-    """回归: wdir 源 \\\\pdfoutput=1 写型 → guard(50) 先修, polyfill 不抢。"""
+    """回归：wdir 源 \\\\pdfoutput=1 写型 → guard(50) 先修，polyfill 不抢。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\pdfoutput=1\n"
@@ -189,7 +189,7 @@ def test_route_in_fileset_write_form_guard_first(tmp_path: Path) -> None:
 
 
 def test_route_shadow_still_prefers_source_evidence(tmp_path: Path) -> None:
-    """回归: 源含 glyphtounicode 引用链 + 工程内站点 → shadow 旧臂仍通。"""
+    """回归：源含 glyphtounicode 引用链 + 工程内站点 → shadow 旧臂仍通。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\input{glyphtounicode}\n"
@@ -215,7 +215,7 @@ def test_guard_arm_declines_out_of_fileset(tmp_path: Path) -> None:
 
 
 def test_polyfill_arm_countish_newcount_else_chardef(tmp_path: Path) -> None:
-    """臂形分派: 整型 → ``\\newcount`` 全真接管; 非整型 → ``\\chardef`` 旧形。"""
+    """臂形分派：整型 → ``\\newcount`` 全真接管; 非整型 → ``\\chardef`` 旧形。"""
     ctx = _ctx(tmp_path)
     ok, _ = builtins.pdftex_prim_polyfill(ctx, None, "pdfcompresslevel", {})
     assert ok

@@ -107,7 +107,7 @@ def test_verdate_any_category() -> None:
 
 
 def test_verdate_pads_single_digit_fields(tmp_path: Path) -> None:
-    """日/月单段补两位: filedate 定义位 + Provides 尾括 + 请求尾括。"""
+    """日/月单段补两位：filedate 定义位 + Provides 尾括 + 请求尾括。"""
     (tmp_path / "aa.cls").write_text(
         "\\def\\filedate{2014/12/1}\n\\ProvidesClass{aa}[\\filedate{} v1.0 cls]\n"
     )
@@ -213,7 +213,7 @@ def test_blankline_contiguous_run(tmp_path: Path) -> None:
 
 
 def test_blankline_nonblank_site_noop(tmp_path: Path) -> None:
-    """报错行非空白 (机制不符, 如黏尾) → 零触碰。"""
+    """报错行非空白 (机制不符，如黏尾) → 零触碰。"""
     (tmp_path / "main.tex").write_text("x\n\\end{comment}尾 \\begin{align}\ny\n")
     (tmp_path / "main.log").write_text("./main.tex:2: Missing $ inserted.\n")
     _apply(_rule("missingdollar_blankline"), tmp_path)
@@ -284,7 +284,7 @@ def test_underscore_keyword_gate_outside_bib(tmp_path: Path) -> None:
 
 
 def test_underscore_math_and_verb_masked(tmp_path: Path) -> None:
-    """$..$/\\url{}/已转义 \\_ 域不动, 行尾文本域 _ 照转。"""
+    """$..$/\\url{}/已转义 \\_ 域不动，行尾文本域 _ 照转。"""
     (tmp_path / "main.tex").write_text(
         "note $x_i$ and \\url{http://a_b} plus y_i end\n"
     )

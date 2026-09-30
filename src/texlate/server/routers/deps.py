@@ -1,7 +1,7 @@
 """``AppDeps``：``create_app`` 装配产物 → 路由叶的依赖注入面。
 
 原 ``create_app`` 内的请求级共享闭包（auth 三级决议 / tenant 隔离取行 /
-配额闸 / dedup-建行-入队阶梯）收为方法——叶子 ``register(app, deps)``
+配额闸 / dedup-建行 - 入队阶梯）收为方法——叶子 ``register(app, deps)``
 拿到的同一个实例即当时的装配快照（store/runner/settings_store/salt 皆
 同一对象，行为与原闭包捕获逐字等价）。
 """
@@ -314,7 +314,7 @@ class AppDeps:
             row = store.create_task(**kw)
         except sqlite3.IntegrityError:
             if prefer != "fresh":
-                # 检查-建行之间并发插入撞 ACTIVE 唯一索引——归 duplicate_active
+                # 检查 - 建行之间并发插入撞 ACTIVE 唯一索引——归 duplicate_active
                 # （原来裸 re-raise 出 FastAPI 成无码 500）
                 active = store.find_active_by_cache_key(cache_key)
                 if active is not None:
@@ -324,14 +324,14 @@ class AppDeps:
                         "duplicate_active",
                         task_id=active["id"],
                     ) from None
-                # 持槽行已迁出 ACTIVE（查-写窗内完成/取消）：needs_auth
+                # 持槽行已迁出 ACTIVE（查 - 写窗内完成/取消）：needs_auth
                 # 撞键行收编 200——缺 key 重交指向可补 key 的既有行，
                 # 不发无 task_id 的 409 死信（misc-pack §M1 风险 1）
                 needs = store.find_needs_auth_by_cache_key(cache_key)
                 if needs is not None:
                     return needs, 200, {"reused": True}
                 # 剩余撞键面：持槽行是 mock_run 排除集内行（唯一索引不含
-                # mock 谓词，active mock 行仍占槽）或持槽行在查-写窗内
+                # mock 谓词，active mock 行仍占槽）或持槽行在查 - 写窗内
                 # 消失——无可指认对象时放弃 dedup 键建行（fresh 同语义，
                 # 优于死信 409）
                 kw["cache_key"] = None

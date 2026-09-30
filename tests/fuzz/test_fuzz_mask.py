@@ -678,7 +678,7 @@ def test_dead_env_spaced_end() -> None:
     "form", ["\\verb |%s|", "\\verb\t|%s|", "\\verb* |%s|", "\\verb  !%s!"]
 )
 def test_verb_space_delimiter(form: str) -> None:
-    """``\\verb``+空白+定界符是合法 verb——字面体应被遮盖。"""
+    """``\\verb``+空白 + 定界符是合法 verb——字面体应被遮盖。"""
     tex = "pre " + form % "\\pdfcompresslevel=9" + " post\nNEXT\n"
     masked = visible_tex(tex)
     assert "\\pdfcompresslevel" not in masked

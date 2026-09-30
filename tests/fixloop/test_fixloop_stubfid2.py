@@ -10,7 +10,7 @@
 - ``aastex6x_body`` 共享锚 ×4 键（~109 格）：``\\altaffiliation``/
   track-changes 族（``\\added/\\deleted/\\replaced/\\listofchanges``）/
   ``\\AuthorCollaborationLimit``/``\\lesssim/\\gtrsim`` 画符 + widetext/
-  ruledtabular/contribution envs。
+  ruledtabular/contribution envs.
 - ``vendor/shims/svjour3.cls``（~59 格）：qed 族（画框 ``\\squareforqed``/
   ``\\smartqed`` 行尾式）、``\\makeheadbox/\\setitemindent``、theopargself
   对、``\\spnewtheorem`` 三式路由、*name 英文默认值族。

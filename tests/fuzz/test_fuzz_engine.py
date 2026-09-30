@@ -797,7 +797,7 @@ def test_xelatex_auto_rerun_gate_hints(
         res = XelatexEngine(binary="/bin/true").compile(
             tmp_path, "main.tex", sandbox=False
         )
-        # 每趟输出恒含提示 → 起步 2 趟后逐趟自延, 撞 _ADAPTIVE_PASS_CAP 停
+        # 每趟输出恒含提示 → 起步 2 趟后逐趟自延，撞 _ADAPTIVE_PASS_CAP 停
         cap = eng_mod._ADAPTIVE_PASS_CAP  # noqa: SLF001
         assert len(calls) == cap, hint
         assert res.passes == cap, hint
@@ -1022,7 +1022,7 @@ def test_xelatex_rc_break_without_hint_unchanged(
 def test_xelatex_hint_every_pass_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """自适应档：趟趟 rc=1+提示 → 自延至 ``_ADAPTIVE_PASS_CAP`` 封顶——有
+    """自适应档：趟趟 rc=1+ 提示 → 自延至 ``_ADAPTIVE_PASS_CAP`` 封顶——有
     提示也不空转，钉死顶防永不收敛签。"""
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -1044,7 +1044,7 @@ def test_xelatex_hint_every_pass_bounded(
 def test_xelatex_pinned_passes_ignores_hint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """钉死档（``passes=N``）：rc=1+提示仍首趟即收——提示只在自适应档生效。"""
+    """钉死档（``passes=N``）：rc=1+ 提示仍首趟即收——提示只在自适应档生效。"""
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         eng_mod,
@@ -1061,7 +1061,7 @@ def test_xelatex_pinned_passes_ignores_hint(
 def test_xelatex_signal_death_hint_path_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """信号死+提示：走既有信号通道（非 rc 闸）照续——重排不动这条路径。"""
+    """信号死 + 提示：走既有信号通道（非 rc 闸）照续——重排不动这条路径。"""
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         eng_mod,
@@ -2393,7 +2393,7 @@ def test_asset_for_matrix_and_aliases() -> None:
     """五平台矩阵 verbatim + machine 别名归一（amd64/aarch64/大小写）。"""
     url, sha, name = tc.asset_for("Linux", "x86_64")
     assert name == "tectonic" and "x86_64-unknown-linux-musl.tar.gz" in url  # noqa: PT018
-    url2, sha2, _n = tc.asset_for("Linux", "AMD64")  # 别名+大写同归一
+    url2, sha2, _n = tc.asset_for("Linux", "AMD64")  # 别名 + 大写同归一
     assert (url2, sha2) == (url, sha)
     url3, _s3, _n3 = tc.asset_for("Linux", "aarch64")
     assert "aarch64-unknown-linux-musl.tar.gz" in url3

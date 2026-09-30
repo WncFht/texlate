@@ -1,16 +1,16 @@
-"""稿自带 .sty/.cls ``\\Require{PDF,Lua,LuaMeta}TeX`` 引擎闸剥除单测.
+"""稿自带 .sty/.cls ``\\Require{PDF,Lua,LuaMeta}TeX`` 引擎闸剥除单测。
 
-实证背景 (failmine4 普查, soak-2026-09-18 15 fresh cells 全 2609.*):
+实证背景 (failmine4 普查，soak-2026-09-18 15 fresh cells 全 2609.*):
 e-print 自带 ``aaai2027.sty`` (4 md5 变体) 内置
 ``\\RequirePackage{iftex}`` + ``\\RequirePDFTeX`` 独占行引擎闸
 (:14/:43/:59/:62 变体位) —— xelatex 下 iftex 打横幅
 ``pdfTeX is required to compile this document`` 后 file-line 形
-``aaai2027.sty:N: Emergency stop`` + ``l.N \\RequirePDFTeX`` 回显,
+``aaai2027.sty:N: Emergency stop`` + ``l.N \\RequirePDFTeX`` 回显，
 taxonomy 归 ``emergency`` (2609.19158 build-base/main.log 实读
-``('emergency', None)``)。修复面: err ctx 回显 guard cs ∧ 顶层
+``('emergency', None)``)。修复面：err ctx 回显 guard cs ∧ 顶层
 ``*.sty``/``*.cls`` 在场 ∧ 源 blob 含 guard cs 三证 → sh 脚本逐件剥
 注释行后按独占行形确证删行 (行尾允许空白/% 注释), 尾注
-``texlate-fixloop-injected`` 幂等; ``iftex`` 载留无害, 不路由 pdftex
+``texlate-fixloop-injected`` 幂等; ``iftex`` 载留无害，不路由 pdftex
 (zh 管线定死 xelatex+ctex)。剥面只收 xelatex 下必死子集
 (``PDFTeX``/``LuaTeX``/``LuaMetaTeX``) —— ``\\RequireXeTeX`` 本机通过
 不剥。下游 ``\\pdfinfo`` 原语残留属既有 ``PDFTEX_PRIMS``/shim 覆盖面
@@ -47,7 +47,7 @@ _ERR_LUATEX = (
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
-#: 4 变体实证闸行位 (aaai2027.sty md5 变体: 19164→14, 19559→43,
+#: 4 变体实证闸行位 (aaai2027.sty md5 变体：19164→14, 19559→43,
 #: 19158→59, 20304→62)。
 _GUARD_LINES = (14, 43, 59, 62)
 
@@ -85,13 +85,13 @@ def _cond(ctx: LoopCtx) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_emergency_stop() -> None:
-    """实证签名: file-line `Emergency stop` → emergency (emergency 族条)。"""
+    """实证签名：file-line `Emergency stop` → emergency (emergency 族条)。"""
     cat, _ = classify(_ERR_PDFTEX)
     assert cat == "emergency"
 
 
 def test_taxonomy_emergency_stop_luatex() -> None:
-    """同族臂: \\RequireLuaTeX 死法同归 emergency。"""
+    """同族臂：\\RequireLuaTeX 死法同归 emergency。"""
     cat, _ = classify(_ERR_LUATEX)
     assert cat == "emergency"
 
@@ -119,7 +119,7 @@ def test_rule_wired_loop_phase() -> None:
 
 
 def test_rule_order_after_revtex_before_legacy_shim() -> None:
-    """order 排序自洽: revtex_era_retire(11.98) < 本规则 < legacy_pkg_shim(12)。"""
+    """order 排序自洽：revtex_era_retire(11.98) < 本规则 < legacy_pkg_shim(12)。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["revtex_era_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
@@ -167,7 +167,7 @@ def test_cond_pass_on_signature(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 动作直驱 (真 sh)
 @pytest.mark.parametrize("line", _GUARD_LINES)
 def test_apply_strips_guard_each_variant(tmp_path: Path, line: int) -> None:
-    """4 变体位逐一: guard 独占行删, iftex 载留, 尾注幂等标。"""
+    """4 变体位逐一：guard 独占行删，iftex 载留，尾注幂等标。"""
     src = _guard_sty(line)
     (tmp_path / "aaai2027.sty").write_text(src, encoding="utf-8")
     ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
@@ -177,12 +177,12 @@ def test_apply_strips_guard_each_variant(tmp_path: Path, line: int) -> None:
     assert "\\RequirePackage{iftex}" in patched  # iftex 载留无害
     assert "texlate-fixloop-injected" in patched
     assert "\\newcommand*\\aaaidummy{keep me}" in patched  # 其余逐字节保留
-    # 逐字节差分: 恰删 1 行 + 尾注 1 行
+    # 逐字节差分：恰删 1 行 + 尾注 1 行
     assert len(patched.splitlines()) == len(src.splitlines())
 
 
 def test_apply_strips_luatex_guard(tmp_path: Path) -> None:
-    """同族臂: \\RequireLuaTeX 独占行同剥。"""
+    """同族臂：\\RequireLuaTeX 独占行同剥。"""
     (tmp_path / "aaai2027.sty").write_text(
         _guard_sty(14, "\\RequireLuaTeX"), encoding="utf-8"
     )
@@ -194,7 +194,7 @@ def test_apply_strips_luatex_guard(tmp_path: Path) -> None:
 
 
 def test_apply_keeps_xetex_guard(tmp_path: Path) -> None:
-    """剥面边界: \\RequireXeTeX 本机通过 —— 指纹不中, 文件逐字节不动。"""
+    """剥面边界：\\RequireXeTeX 本机通过 —— 指纹不中，文件逐字节不动。"""
     src = _guard_sty(14, "\\RequireXeTeX")
     (tmp_path / "conf.sty").write_text(src, encoding="utf-8")
     ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
@@ -240,7 +240,7 @@ def test_apply_skips_comment_only_guard(tmp_path: Path) -> None:
 
 
 def test_apply_skips_inline_guard(tmp_path: Path) -> None:
-    """known_gap: guard 行内嵌入 (多 cs 同行) → 指纹要求独占行, 不补丁。"""
+    """known_gap: guard 行内嵌入 (多 cs 同行) → 指纹要求独占行，不补丁。"""
     inline = (
         "\\ProvidesPackage{foo}\n"
         "\\RequirePackage{iftex}\n"
@@ -255,7 +255,7 @@ def test_apply_skips_inline_guard(tmp_path: Path) -> None:
 
 
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
-    """指纹闸: 二次 _apply 同件不再补丁 (防重投/重复删行)。"""
+    """指纹闸：二次 _apply 同件不再补丁 (防重投/重复删行)。"""
     (tmp_path / "aaai2027.sty").write_text(_guard_sty(14), encoding="utf-8")
     ctx = mk_ctx(tmp_path)
     ok1, _ = apply(_RULE_ID, ctx, None)
@@ -268,7 +268,7 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
 
 
 def test_apply_patches_signed_cls(tmp_path: Path) -> None:
-    """.cls 臂: guard 在 cls 件 → 同获剥除。"""
+    """.cls 臂：guard 在 cls 件 → 同获剥除。"""
     (tmp_path / "conf.cls").write_text(_guard_sty(14), encoding="utf-8")
     (tmp_path / "dummy.sty").write_text("\\ProvidesPackage{dummy}\n", encoding="utf-8")
     ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
@@ -282,7 +282,7 @@ def test_apply_patches_signed_cls(tmp_path: Path) -> None:
 
 
 def test_apply_noop_when_dir_empty(tmp_path: Path) -> None:
-    """空 wdir → *.sty 字面量不命中, [ -f ] 兜住 → exit 0 no-op。"""
+    """空 wdir → *.sty 字面量不命中，[ -f ] 兜住 → exit 0 no-op。"""
     ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
     assert ok, note
     assert list(tmp_path.iterdir()) == []
@@ -290,7 +290,7 @@ def test_apply_noop_when_dir_empty(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not _REAL_STY.is_file(), reason="corpus 抽件不在本机 (gitignored)")
 def test_apply_real_aaai2027_sty(tmp_path: Path) -> None:
-    """真实件臂: soak-09-18 抽出 aaai2027.sty 剥后无 guard 行。"""
+    """真实件臂：soak-09-18 抽出 aaai2027.sty 剥后无 guard 行。"""
     real = _REAL_STY.read_text(encoding="utf-8")
     (tmp_path / "aaai2027.sty").write_text(real, encoding="utf-8")
     ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
@@ -299,7 +299,7 @@ def test_apply_real_aaai2027_sty(tmp_path: Path) -> None:
     assert "\\RequirePDFTeX" not in patched
     assert "\\RequirePackage{iftex}" in patched
     assert "texlate-fixloop-injected" in patched
-    # 逐字节差分: 恰删 1 guard 行 + 尾注 1 行
+    # 逐字节差分：恰删 1 guard 行 + 尾注 1 行
     assert len(patched.splitlines()) == len(real.splitlines())
 
 
@@ -315,7 +315,7 @@ def _proj(tmp_path: Path, guard_line: int = 14) -> Path:
 
 
 def test_e2e_emergency_stripped_then_clean(tmp_path: Path) -> None:
-    """整链: Emergency stop 首错 → 闸行剥除 → 下轮 clean。"""
+    """整链：Emergency stop 首错 → 闸行剥除 → 下轮 clean。"""
     eng = MockEngine(
         [
             {"log": _ERR_PDFTEX + "\n"},
@@ -331,7 +331,7 @@ def test_e2e_emergency_stripped_then_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_unsigned_ctx(tmp_path: Path) -> None:
-    """.sty 带 guard 但错误是别家签名 → ctx 闸拒, 不动文件。"""
+    """.sty 带 guard 但错误是别家签名 → ctx 闸拒，不动文件。"""
     eng = MockEngine(
         [
             {"log": "./main.tex:5: Undefined control sequence.\nl.5 \\foo\n"},

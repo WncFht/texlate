@@ -66,13 +66,13 @@ def test_classify_rounds_pass1_final_pass2(tmp_path: Path) -> None:
     assert cell["verdict"] == "clean"
     assert len(cell["rounds"]) == 2  # noqa: PLR2004 - 修复轮 + 收敛轮
     # r1 分类轮 p1; r2 收敛轮 p1 探 + 终编——compile_passes=2 ≤自适应上限
-    # → passes=None (rerun-hint 才升遍, 引擎 MAX_PASSES=2 同值语义)
+    # → passes=None (rerun-hint 才升遍，引擎 MAX_PASSES=2 同值语义)
     assert [c["passes"] for c in eng.calls] == [1, 1, None]
     assert not any(c["best_effort"] for c in eng.calls)
 
 
 def test_first_round_clean_probes_then_finalizes(tmp_path: Path) -> None:
-    """首轮即收敛: p1 探到 clean → 同轮全遍复编——成品仍经第二遍 \\write 填实。"""
+    """首轮即收敛：p1 探到 clean → 同轮全遍复编——成品仍经第二遍 \\write 填实。"""
     eng = PassRecordingEngine([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
@@ -81,7 +81,7 @@ def test_first_round_clean_probes_then_finalizes(tmp_path: Path) -> None:
 
 
 def test_nonconverging_cell_all_pass1(tmp_path: Path) -> None:
-    """不产成品的格: 分类轮 + salvage 兜底全 p1——无收敛终编轮。"""
+    """不产成品的格：分类轮 + salvage 兜底全 p1——无收敛终编轮。"""
     eng = PassRecordingEngine([{"log": "! Undefined control sequence.\nl.5 \\mycs\n"}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "unfixable:undefined_cs"
@@ -91,7 +91,7 @@ def test_nonconverging_cell_all_pass1(tmp_path: Path) -> None:
 
 
 def test_tectonic_converge_no_finalize_recompile(tmp_path: Path) -> None:
-    """tectonic 自定遍数 (impl ``del passes``)——收敛轮不复编, 全程一次 compile。"""
+    """tectonic 自定遍数 (impl ``del passes``)——收敛轮不复编，全程一次 compile。"""
     eng = PassRecordingTectonic([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, engine_name="tectonic")
     assert cell["verdict"] == "clean"
@@ -115,7 +115,7 @@ def test_finalize_recompile_resurfaces_errors(tmp_path: Path) -> None:
     )
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
-    assert len(cell["rounds"]) == 3  # noqa: PLR2004 - r1修 + r2终编浮err修 + r3收敛
+    assert len(cell["rounds"]) == 3  # noqa: PLR2004 - r1 修 + r2 终编浮 err 修 + r3 收敛
     assert cell["rounds"][1]["category"] == "missing_file"
     assert cell["rounds"][1]["payload"] == "other.sty"
     assert [c["passes"] for c in eng.calls] == [1, 1, None, 1, None]

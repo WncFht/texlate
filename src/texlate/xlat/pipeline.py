@@ -19,7 +19,7 @@ PipelineConfig/chunk_to_in 数据契约）、``pipeline_translator``（Translato
 （_XlatMaterialize：system prompt memo + 术语/锚定/点名册 + 段级缓存）、
 ``pipeline_single``（_XlatSingle：阶梯调用点 + L2 回灌）、``pipeline_batch``
 （_XlatBatch：编号批协议 + 退单翻）、``pipeline_ledger``（_XlatLedger：
-skip/直通落形 + 拦截网/auth闸/emit 账本）、``pipeline_orch``（WorkItem +
+skip/直通落形 + 拦截网/auth 闸/emit 账本）、``pipeline_orch``（WorkItem +
 _XlatOrch 主编排 + ``XlatPipeline`` 组合根）。本文件是 PEP 562 惰性门面
 （同 ``kernel.kernel``/``worker.compile`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存。
@@ -299,15 +299,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -320,7 +320,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

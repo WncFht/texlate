@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 #: 的合法键面。
 FRONT_MATTER_NAMES = frozenset({"abstract", "title", "author"})
 
-#: ``options.front_matter`` 各键缺省（摘要+标题开、作者关——既定产品默认）。
+#: ``options.front_matter`` 各键缺省（摘要 + 标题开、作者关——既定产品默认）。
 _FRONT_MATTER_DEFAULT: dict[str, bool] = {
     "abstract": True,
     "title": True,

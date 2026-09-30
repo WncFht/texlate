@@ -37,7 +37,7 @@ _DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 
 
 def test_cmd_polyfill_textprime_tu(tmp_path: Path) -> None:
-    """0712.1142 形: PU-declared ``\\textprime`` TU 下补 ``\\ensuremath{'}`` 体。"""
+    """0712.1142 形：PU-declared ``\\textprime`` TU 下补 ``\\ensuremath{'}`` 体。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ctx = mk_ctx(
         tmp_path,
@@ -75,7 +75,7 @@ def test_cmd_polyfill_unknown_cs_declines(tmp_path: Path) -> None:
 
 
 def test_cmd_polyfill_idempotent(tmp_path: Path) -> None:
-    """二次点火: 声明已在 → decline 不叠写。"""
+    """二次点火：声明已在 → decline 不叠写。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ctx = mk_ctx(tmp_path)
     assert nfss_cmd_enc_polyfill(ctx, EngStub(), "textprime", _params())[0]
@@ -95,7 +95,7 @@ _T2A_SRC = (
 
 
 def test_scheme_relax_t2a_usefont(tmp_path: Path) -> None:
-    """2609.20339 形: ``\\usefont{T2A}``→TU + ``\\CYRZH`` polyfill 落地。"""
+    """2609.20339 形：``\\usefont{T2A}``→TU + ``\\CYRZH`` polyfill 落地。"""
     (tmp_path / "main.tex").write_text(_T2A_SRC, encoding="utf-8")
     ok, note = nfss_enc_scheme_relax(mk_ctx(tmp_path), EngStub(), "T2A", _params())
     assert ok, note
@@ -152,7 +152,7 @@ def test_scheme_relax_bad_payload_declines(tmp_path: Path) -> None:
 
 
 def test_fam_declare_t1_ptm(tmp_path: Path) -> None:
-    """2609.20539 形: ``\\DeclareFontFamily{T1}{ptm}{}`` docclass 后注入。"""
+    """2609.20539 形：``\\DeclareFontFamily{T1}{ptm}{}`` docclass 后注入。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ok, note = nfss_fam_declare(mk_ctx(tmp_path), EngStub(), "T1+ptm", _params())
     assert ok, note
@@ -169,7 +169,7 @@ def test_fam_declare_bad_payload_declines(tmp_path: Path) -> None:
 
 
 def test_fam_declare_idempotent(tmp_path: Path) -> None:
-    """二次点火: 声明已在 → decline。"""
+    """二次点火：声明已在 → decline。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ctx = mk_ctx(tmp_path)
     assert nfss_fam_declare(ctx, EngStub(), "T1+ptm", _params())[0]

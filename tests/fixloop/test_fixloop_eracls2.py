@@ -1,16 +1,16 @@
-"""eraimpl 车道钉 — eracls2 后续批 (task #350, failmine7 普查,
+"""eraimpl 车道钉 — eracls2 后续批 (task #350, failmine7 普查，
 eracls2 车道 candidates 出处逐条注 yaml 注释)。
 
 四组件：
 
 - ``90-shim-legacy.yaml::legacy_pkg_shim`` shim_map 新 8 键：
-  ``l-aa.cls`` (×4 格, A&A Letters 变体 → vendored stubs/aa.cls 桥)、
+  ``l-aa.cls`` (×4 格，A&A Letters 变体 → vendored stubs/aa.cls 桥)、
   ``aip.cls`` (纯 article 面桥)、``ioplppt.cls`` (→ vendored files/
   iopart.cls 桥)、``ichep.cls`` (article 底 + ``\\affil``/命令形
   ``\\abstract``/``\\fnm`` 三件面)、``sn-jnl.cls`` (Springer Nature
-  投稿类 frontmatter 面, journal-shipped 非 CTAN)、``mncite.sty``
-  (MNRAS cite 伴船 noop+别名)、``cropmark.sty`` (纯 noop)、
-  ``revtex.sty`` (REVTeX3 伴船 sty——原身 class-in-sty 架构,
+  投稿类 frontmatter 面，journal-shipped 非 CTAN)、``mncite.sty``
+  (MNRAS cite 伴船 noop+ 别名)、``cropmark.sty`` (纯 noop)、
+  ``revtex.sty`` (REVTeX3 伴船 sty——原身 class-in-sty 架构，
   ``\\@currext`` 存复位绕 latex.ltx 硬拒)。
 - ``vendor/stubs/siam1{0,1,2}.clo``：siamltex.cls 真件 (2511.16127
   随稿) ``:107 \\input{siam1\\@ptsize.clo}`` 尺寸件——内核 sizeNN.clo
@@ -90,7 +90,7 @@ def test_shim_map_loads_entries() -> None:
     assert sm.get("l-aa.cls") == {"loads": "aa", "needs": ["aa.cls"]}
     assert sm.get("aip.cls") == {"loads": "article"}
     assert sm.get("ioplppt.cls") == {"loads": "iopart", "needs": ["iopart.cls"]}
-    # needs 声明的 vendored 替身必须在场, 否则 loads 桥落空
+    # needs 声明的 vendored 替身必须在场，否则 loads 桥落空
     assert (STUBS / "aa.cls").is_file()
     assert (FILES / "iopart.cls").is_file()
 

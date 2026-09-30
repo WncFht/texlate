@@ -1,4 +1,4 @@
-"""fixer-bblwall 2026-09-17 批审计测试.
+"""fixer-bblwall 2026-09-17 批审计测试。
 
 - W2 bbl_regen stale-drop: biber rc≠0 后 (a) bbl 被自删 → invalidate 计
   progress; (b) 头标 ``bbl format version X.Y`` <3.0 → unlink+invalidate
@@ -110,7 +110,7 @@ def test_bbl_regen_fresh_format_survives(tmp_path: Path) -> None:
 
 
 def test_bbl_regen_no_marker_survives(tmp_path: Path) -> None:
-    """无版本头标的 bbl (手写/旧形) → 不删, False。"""
+    """无版本头标的 bbl (手写/旧形) → 不删，False。"""
     (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
     bbl = tmp_path / "ms.bbl"
     bbl.write_text("\\begin{thebibliography}{9}\n", encoding="utf-8")
@@ -124,7 +124,7 @@ def test_bbl_regen_no_marker_survives(tmp_path: Path) -> None:
 
 
 def test_bbl_regen_never_existed_fails(tmp_path: Path) -> None:
-    """bbl 从不存在 (had_bbl=False) → 自删分支不触发, False。"""
+    """bbl 从不存在 (had_bbl=False) → 自删分支不触发，False。"""
     (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
 
     def _fail(_a: list[str], _t: int, _w: Path) -> tuple:
@@ -226,7 +226,7 @@ def test_physics_detach_commented_usepackage_untouched(tmp_path: Path) -> None:
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     physics_stub_detach(_ctx(tmp_path), None, None, {})
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert line in t  # 注释原样保留, \\input 未冲进注释域
+    assert line in t  # 注释原样保留，\\input 未冲进注释域
     assert "\\input{physics.sty}" not in t
 
 
@@ -242,7 +242,7 @@ def test_physics_detach_idempotent(tmp_path: Path) -> None:
 
 
 def test_physics_detach_rule_e2e(tmp_path: Path) -> None:
-    """端到端: siunitx 硬错签名 → 规则点火 → 下一轮 clean。"""
+    """端到端：siunitx 硬错签名 → 规则点火 → 下一轮 clean。"""
     _write_main(tmp_path, "\\usepackage{amsmath,physics,siunitx}", "$\\abs{x}$")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     rs = mini_rs(
@@ -286,7 +286,7 @@ def test_physics_detach_rule_e2e(tmp_path: Path) -> None:
 
 
 def test_detach_loads_helper_unit() -> None:
-    """``_detach_physics_loads`` 单测: 列表/独载/伪名过滤。"""
+    """``_detach_physics_loads`` 单测：列表/独载/伪名过滤。"""
     nt, n = _detach_physics_loads(
         "\\usepackage{physics-tools,physics}\n", add_input=True
     )
@@ -564,7 +564,7 @@ def test_glyphtounicode_no_source_ref_abstains(tmp_path: Path) -> None:
 
 
 def test_glyphtounicode_payload_gate() -> None:
-    """cs_set 外 payload (如 ``\\pdfobj``) → builtin 弃权, 不抢别格。"""
+    """cs_set 外 payload (如 ``\\pdfobj``) → builtin 弃权，不抢别格。"""
     applied, _note = bundled_class_shadow(
         LoopCtx(wdir=Path("/nonexistent"), engine_name="xelatex"),
         None,
@@ -591,7 +591,7 @@ def test_text_8bit_fallback_injected(tmp_path: Path) -> None:
 
 
 def test_text_8bit_fallback_ranges() -> None:
-    """回退带覆盖西里尔/希腊/拉丁扩展/组合符, 不含 CJK 段 (xeCJK 领地)。"""
+    """回退带覆盖西里尔/希腊/拉丁扩展/组合符，不含 CJK 段 (xeCJK 领地)。"""
     for rng in ("0400-0530", "0370-0400", "1E00-1F00", "0300-0370"):
         assert rng in TEXT_8BIT_FALLBACK
     assert "4E00" not in TEXT_8BIT_FALLBACK  # CJK Unified 不派 class

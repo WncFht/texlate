@@ -1,7 +1,7 @@
 """kernel._vault_cred — 凭证代数 (kernel.vault 拆分叶).
 
 Credential = (idc, arm, variant, altseq, zone) — five dimensions, one meta
-file per physical copy. 本叶是无盘状态层: 词汇常量 (KINDS/ZONES/VERDICTS/
+file per physical copy. 本叶是无盘状态层：词汇常量 (KINDS/ZONES/VERDICTS/
 zone↔物理根映射)、四异常、五维命名与解析 (注入式转义 round-trip,
 §3.10.4)、leaf/meta 绝对径定位。一切 lookup 只算名字不触盘。
 """

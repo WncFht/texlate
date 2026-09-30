@@ -2,7 +2,7 @@
 ``scan_base`` 解析直通 + ``_insert_chunk`` 最小行。
 
 ``PipelineWorker`` 段级直调面（``run_stage`` 前门）的配套 harness：
-Store+EventBus+PipelineWorker+真实任务行+TaskCtx 一次装配。原
+Store+EventBus+PipelineWorker+ 真实任务行+TaskCtx 一次装配。原
 ``test_worker_audit_fixes``/``test_fuzz_worker``/``test_worker_term_dict``
 三处同构 ``_mk``/``_scan`` 归此一处；``_insert_chunk`` 最小行件备此供
 worker 道复用（``test_fixloop_live_events``/``test_fuzz_worker`` 已收编；

@@ -202,7 +202,7 @@ class TestShells:
         assert normalize_arxiv_id("1412.6980") == ("1412.6980", None)
 
     def test_normalize_never_raises(self) -> None:
-        """拒收输入 → ``(剥离剩件, None)``——旧契约「任意输入不抛」保留。"""
+        """拒收输入 → ``(剥离剩件，None)``——旧契约「任意输入不抛」保留。"""
         assert normalize_arxiv_id("1412.6980v0") == ("1412.6980v0", None)
         assert normalize_arxiv_id("arxiv.org/abs/") == ("", None)
         assert normalize_arxiv_id("../../etc/passwd") == (

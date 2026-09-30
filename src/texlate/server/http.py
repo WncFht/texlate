@@ -372,7 +372,7 @@ def _clean_task_options(
     int 并 clamp 1–16。
 
     ``inject_defaults=False`` 是 retry 合并臂：只对 body 真实出现的键
-    校验+归一，不注 ``source`` 默认——创建侧把 ``source`` 规范化回写
+    校验 + 归一，不注 ``source`` 默认——创建侧把 ``source`` 规范化回写
     无妨，retry 往存量 options 合并时注默认会把 ``html`` 任务的
     ``source`` 静默改回 ``eprint``。
     """

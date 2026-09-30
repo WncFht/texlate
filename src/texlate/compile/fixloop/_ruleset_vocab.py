@@ -5,7 +5,7 @@
 ``_COND_*``/``_FILESET_KEYS``/``_ENGINE_*``/``_DEGRADE_VALUES``/
 ``_FALLBACK_VALUES``/``_TAXONOMY_SCOPES``/``_BUILTIN_CATS``/
 ``_WHEN_*``/``_MATCH_SURFACES``/``_MECH_ID_RX`` 与 ``RULES_PATH``
-规则库根——纯数据叶, 无 builtins 链依赖 (``loginfo`` 惰性引
+规则库根——纯数据叶，无 builtins 链依赖 (``loginfo`` 惰性引
 ``RULES_PATH`` 的轻径保持)。
 """
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-#: 规则库根: 2026-09-17 起为 ``rules/`` 目录（_yamlish.load_yaml 目录感知
+#: 规则库根：2026-09-17 起为 ``rules/`` 目录（_yamlish.load_yaml 目录感知
 #: 合并多分片; 序敏感段 taxonomy/warnings 各自单文件承载）。``Ruleset.load``
 #: 传显式单文件路径仍兼容（部分规则集亦可单独校验装载）。
 RULES_PATH = Path(__file__).with_name("rules")
@@ -38,8 +38,8 @@ _MECH_ID_RX = re.compile(r"^[BTW]\d+$")
 _ACTION_KEYS = frozenset({"kind", "function", "params"})
 #: 各 action.kind 的 ``params`` 合法键——``actions`` 叶实读名 ∪ 出厂
 #: 注解键 (verify/batch/once_per_payload/hint/context 不消费但收)。
-#: ``builtin_transform`` 缺席有意: 词表随 TRANSFORM_FNS 逐函数定义,
-#: 各 ``builtins/`` 叶自持, 此处不做总表白名单 (造约束)。
+#: ``builtin_transform`` 缺席有意：词表随 TRANSFORM_FNS 逐函数定义，
+#: 各 ``builtins/`` 叶自持，此处不做总表白名单 (造约束)。
 _ACTION_PARAM_KEYS: dict[str, frozenset[str]] = {
     "scan_install": frozenset(
         {"scan_patterns", "noise_filter", "vendored", "dir", "batch", "verify"}
@@ -85,7 +85,7 @@ _FILESET_KEYS = frozenset({"has_ext", "lacks_ext", "sibling_exts"})
 #: 静态路由二引擎 (cli/run.py 同源); 未知名是永不命中的死 spec。
 _ENGINE_NAMES = frozenset({"xelatex", "tectonic"})
 #: ``engines.<name>`` spec 合法键——mode/degrade/fallback 由
-#: ``_match_apply``/``_gate_eval``/``_precheck_phase`` 实读, via/note
+#: ``_match_apply``/``_gate_eval``/``_precheck_phase`` 实读，via/note
 #: 是文档性注解。
 _ENGINE_SPEC_KEYS = frozenset({"mode", "degrade", "fallback", "via", "note"})
 #: ``engines.<name>.degrade`` 合法值——``skip`` 由 ``_match_apply``/``engine``

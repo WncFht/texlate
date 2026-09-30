@@ -33,7 +33,7 @@ def test_tar_blob_sty_byte_identical(tmp_path: Path) -> None:
 
 
 def test_tar_blob_gnu_format_byte_identical(tmp_path: Path) -> None:
-    """GNU tar（``ustar  \\x00`` 魔数+版本域）同闸——非 POSIX ustar 变体也逐字节留。"""
+    """GNU tar（``ustar  \\x00`` 魔数 + 版本域）同闸——非 POSIX ustar 变体也逐字节留。"""
     blob = _tar_blob(fmt=tarfile.GNU_FORMAT)
     assert blob[257:265] == b"ustar  \x00"  # GNU 魔数域（POSIX 是 ``ustar\\x0000``）
     (tmp_path / "AMSbsy.sty").write_bytes(blob)

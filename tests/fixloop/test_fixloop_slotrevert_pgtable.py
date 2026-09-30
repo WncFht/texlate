@@ -83,12 +83,12 @@ def test_pgtable_addplot_keyword_and_bare_expr(tmp_path: Path) -> None:
     out = (work / "main.tex").read_text(encoding="utf-8")
     assert "x expr={\\thisrowno{0}/4}, y expr={\\thisrowno{5}}] {\\tableMG}" in out
     assert "{3.6*x}" in out  # 裸 expr 还原
-    assert "prose {这是译文}" in out  # keyword 门控, 散文不碰
+    assert "prose {这是译文}" in out  # keyword 门控，散文不碰
 
 
 def test_pgtable_divergent_counts_skip(tmp_path: Path) -> None:
     """zh 侧多一个 ``\\pgfplotstableread`` → pgtable kind 整跳 (分歧
-    保护, note 记 colspec 同款 ``kind(n!=m)``)。"""
+    保护，note 记 colspec 同款 ``kind(n!=m)``)。"""
     work, base = _trees(tmp_path)
     src = "\\pgfplotstableread{\na b\n1 2\n}\\ta\n"
     zh = (

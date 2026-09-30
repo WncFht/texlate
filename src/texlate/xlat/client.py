@@ -404,7 +404,7 @@ class ChatClient:
 
     @staticmethod
     def _anthropic_blocks(payload: dict[str, Any]) -> tuple[str, str]:
-        """Content 块列 → (text 合, thinking 合)——实现体出叶 ``_dialects._anthropic_blocks``。"""
+        """Content 块列 → (text 合，thinking 合)——实现体出叶 ``_dialects._anthropic_blocks``。"""
         return _anthropic_blocks(payload)
 
     @staticmethod
@@ -451,7 +451,7 @@ class ChatClient:
 
     @staticmethod
     def _responses_blocks(payload: dict[str, Any]) -> tuple[str, str, list[str]]:
-        """``output`` items → (text 合, reasoning 合, refusal 列)——实现体出叶 ``_dialects._responses_blocks``。"""
+        """``output`` items → (text 合，reasoning 合，refusal 列)——实现体出叶 ``_dialects._responses_blocks``。"""
         return _responses_blocks(payload)
 
     @staticmethod

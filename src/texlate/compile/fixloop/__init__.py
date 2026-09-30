@@ -1,11 +1,11 @@
 """fixloop — yaml 规则驱动的 LaTeX 编译自动修复循环 (docs/spec/compile.md)。
 
-原型 fixloop (16 规则, 22 格 16/16 救回) 的产品化移植:
+原型 fixloop (16 规则，22 格 16/16 救回) 的产品化移植：
 ``rules/`` 目录多分片两层声明式规则库 (taxonomy + rules) + ``engine.fixloop``
 主循环 + ``cases`` 沉淀/回放机制。
-(``ctan``/``logparse`` 已归位 ``texlate.compile.*``, 直引, 不经本门面。)
+(``ctan``/``logparse`` 已归位 ``texlate.compile.*``, 直引，不经本门面。)
 
-引擎边界: 只依赖 :class:`~.engine.Engine` Protocol, 不实现引擎本体。
+引擎边界：只依赖 :class:`~.engine.Engine` Protocol, 不实现引擎本体。
 
 惰性门面 (PEP 562, 同 ``xlat/__init__`` 形制): ``__all__`` 平名经
 ``__getattr__`` 映射回子模块惰性解析——``cases`` 顶层 ``import fcntl``
@@ -69,7 +69,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _SUBMODULE_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步。
 __all__ = [
     "CaseSink",

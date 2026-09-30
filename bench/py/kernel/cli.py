@@ -25,7 +25,7 @@ Contract baked here:
 Exit codes: 0 ok · 1 command ran but reported failure · 2 refused /
 unavailable / not yet implemented.
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_cli_common`` (出口码/惰性装载/
+拆分：实现体按子域下沉同包私有叶 —— ``_cli_common`` (出口码/惰性装载/
 规格面解析/写前轻扫/index 与 registry 开闸/run-dir 归一/尺寸解析)、
 ``_cli_runlike`` (init/run/plan + detach 再执行 + quote 打印)、
 ``_cli_status`` (index 读面)、``_cli_vault`` (vault 八动词)、
@@ -37,11 +37,11 @@ unavailable / not yet implemented.
 ``_cli_verbs`` (verbs.REGISTRY 自注册 + 未实现闸)、
 ``_cli_parser`` (argparse 树)、``_cli_main`` (_DISPATCH + main)。
 本文件是 PEP 562 惰性门面 (同 ``importer``/``kernel.kernel`` 门面
-形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访
-解析并缓存, ``cli.main`` / ``from kernel.cli import _open_index`` 等
-公私名面不变 (verbs/rundiff/triage 读 ``cli._open_index`` 等,
+形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访
+解析并缓存，``cli.main`` / ``from kernel.cli import _open_index`` 等
+公私名面不变 (verbs/rundiff/triage 读 ``cli._open_index`` 等，
 test_verbs setattr 锚 ``kernel.cli._open_index`` 亦不变)。
-monkeypatch 锚点注意: 测试 setattr patch 到门面名上只对「经
+monkeypatch 锚点注意：测试 setattr patch 到门面名上只对「经
 ``cli.X`` 属性读的消费方」生效 (setattr 写真全局遮蔽 ``__getattr__``);
 叶内互调绑定的 patch 须指到叶子模块 (如
 ``kernel._cli_verbs._verb_registry``)。
@@ -251,7 +251,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "EXIT_FAIL",
@@ -352,15 +352,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -373,7 +373,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

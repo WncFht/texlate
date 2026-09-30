@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """docs/ 相对链接检查器：markdown 链接 / 图片 / 行内路径引用的目标存在性校验。
 
-用法: tools/docs_linkcheck.py [--root docs] [--all-refs]
+用法：tools/docs_linkcheck.py [--root docs] [--all-refs]
 
   --root      扫描根目录（默认 docs/）
   --all-refs  额外检查行内反引号内形如 docs/… 或 ./… 的路径（噪声大，默认关）

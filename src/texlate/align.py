@@ -188,7 +188,7 @@ def _pos(d: dict[str, Any]) -> dict[str, Any]:
 # texglot figure_alignment 移植：named dest 是点锚，figure 浮动块的真实纵向
 # 跨度要扫页面 content stream 的 XObject 落点（q/cm/Do/Q 矩阵追踪），同一
 # artwork 双侧用 graphic signature 配对——不解像素，Form 比对 drawing 命令
-# 流、Image 比对元数据+原始存储字节。
+# 流、Image 比对元数据 + 原始存储字节。
 
 #: region 只挂在 figure 锚上（texglot 同口径）——同名锚归属避免 logo/重复图互咬。
 _REGION_PREFIX = ("figure.", "subfigure.")

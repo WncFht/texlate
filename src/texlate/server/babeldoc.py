@@ -357,7 +357,7 @@ def _count_trackers(data: dict[str, Any], samples: list[str]) -> tuple[int, int,
 def assess_tracking(workdir: Path, stem: str) -> dict[str, Any]:
     """Tracking JSON → ``{total, errors, fallbacks, error_samples, found}``。
 
-    schema（il_translator.py:167-188,318-326）：
+    schema (il_translator.py:167-188,318-326):
     ``{page|cross_page|cross_column: [{paragraph: [{llm_translate_trackers:
     [{has_error,error_message,fallback_to_translate,...}]}]}]}``。
     """

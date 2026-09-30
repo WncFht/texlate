@@ -60,7 +60,7 @@ def pair(
 
 
 def _produce_pack(pa: TestClient, data_dir: Path, **kp_over: str) -> tuple[bytes, dict]:
-    """生产端真跑 arxiv 任务 → 任务目录三件套 ``pack_share`` → (包字节, 快照)。"""
+    """生产端真跑 arxiv 任务 → 任务目录三件套 ``pack_share`` → (包字节，快照)。"""
     r = pa.post(f"/api/arxiv/{_ARXIV}/translate", json={})
     assert r.status_code == HTTPStatus.ACCEPTED, r.text
     tid = r.json()["task_id"]

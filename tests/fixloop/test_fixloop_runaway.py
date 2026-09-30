@@ -82,7 +82,7 @@ def test_runaway_when_matches_sentry_and_none_payload(tmp_path: Path) -> None:
 
 
 def test_tcb_fires_lib_loaded_opts_prepended(tmp_path: Path) -> None:
-    """2311.04163 形: ``[most]`` bundle 已含 breakable 库 → 纯 per-env 键补。"""
+    """2311.04163 形：``[most]`` bundle 已含 breakable 库 → 纯 per-env 键补。"""
     _write(
         tmp_path,
         "main.tex",
@@ -150,7 +150,7 @@ def test_tcb_bundle_lib_tokens_count_loaded(tmp_path: Path) -> None:
 
 
 def test_tcb_declines_no_load_site(tmp_path: Path) -> None:
-    """env 在但全文无 tcolorbox 装载点 (cls 内载等) → 补键产 unknown-key 新错, 让位。"""
+    """env 在但全文无 tcolorbox 装载点 (cls 内载等) → 补键产 unknown-key 新错，让位。"""
     _write(
         tmp_path,
         "main.tex",
@@ -175,7 +175,7 @@ def test_tcb_declines_no_sites(tmp_path: Path) -> None:
 
 
 def test_tcb_newtcolorbox_def_patched(tmp_path: Path) -> None:
-    """2504.11741 形: ``\\newtcolorbox`` def 的末位 options 组补键。"""
+    """2504.11741 形：``\\newtcolorbox`` def 的末位 options 组补键。"""
     _write(
         tmp_path,
         "main.tex",
@@ -239,7 +239,7 @@ def test_tcb_commented_site_masked(tmp_path: Path) -> None:
 
 
 def test_tcb_cond_gate(tmp_path: Path) -> None:
-    """source_contains 粗筛: 无 tcolorbox env/def 字面 → condition 拒。"""
+    """source_contains 粗筛：无 tcolorbox env/def 字面 → condition 拒。"""
     _write(
         tmp_path,
         "main.tex",
@@ -257,7 +257,7 @@ def test_tcb_cond_gate(tmp_path: Path) -> None:
 
 
 def test_float_demote_fires(tmp_path: Path) -> None:
-    """2608.09867 形: ``[H]`` 系混排 → ``!``+placement (``p`` 保底, 无 h/t/b 补 ``ht``)。"""
+    """2608.09867 形：``[H]`` 系混排 → ``!``+placement (``p`` 保底，无 h/t/b 补 ``ht``)。"""
     _write(
         tmp_path,
         "main.tex",
@@ -289,7 +289,7 @@ def test_float_demote_declines(tmp_path: Path) -> None:
 
 
 def test_float_demote_mixed_keeps_nonplacement(tmp_path: Path) -> None:
-    """同文件 ``[H,name=x]`` 非白名单组不动, ``[H]`` 组照降。"""
+    """同文件 ``[H,name=x]`` 非白名单组不动，``[H]`` 组照降。"""
     _write(
         tmp_path,
         "main.tex",
@@ -328,7 +328,7 @@ def test_float_demote_cond_gate(tmp_path: Path) -> None:
 
 
 def test_arms_no_crossfire(tmp_path: Path) -> None:
-    """签名互斥: tcolorbox 格 float 臂让位, [H] 格 tcb 臂让位。"""
+    """签名互斥：tcolorbox 格 float 臂让位，[H] 格 tcb 臂让位。"""
     _write(
         tmp_path,
         "main.tex",

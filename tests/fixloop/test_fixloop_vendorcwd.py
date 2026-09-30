@@ -1,11 +1,11 @@
 """vendorcwd 车道 (2609.19664 autopsy, 2026-09-19):
 
-- 落点修复: vendored 件落 kpathsea 解析位 ``main_dir/<payload>`` 而非
+- 落点修复：vendored 件落 kpathsea 解析位 ``main_dir/<payload>`` 而非
   wdir 根 —— 编译 cwd = ``main_path().parent`` (engine/_xelatex),
   嵌套 main (``templates/arxiv/main.tex``) 下 wdir 根平铺对 kpathsea
-  不可见, apply 形成功能 no-op (fired-unfixed)。``_resolve_site``
+  不可见，apply 形成功能 no-op (fired-unfixed)。``_resolve_site``
   与 fileset_relocate 同口径; main 未知退 wdir 根 (旧行为)。
-- no-op 修复: ``_inject_write`` ``current`` 态 (同名片已是本代注入件)
+- no-op 修复：``_inject_write`` ``current`` 态 (同名片已是本代注入件)
   翻成 decline —— 零字节改动返 True 会烧掉本轮 dispatch 并把同签名
   低 order 候选 (fileset_relocate 类) 挡在门外。
 """
@@ -27,7 +27,7 @@ def _nested_ctx(tmp_path: Path) -> LoopCtx:
     return mk_ctx(wdir, "templates/arxiv/main.tex")
 
 
-# ------------------------------------------------------- 落点: nested main
+# ------------------------------------------------------- 落点：nested main
 
 
 def test_vendored_fetch_nested_main_lands_at_main_dir(tmp_path: Path) -> None:
@@ -53,7 +53,7 @@ def test_vendored_fetch_nested_payload_relpath(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_flat_main_unchanged(tmp_path: Path) -> None:
-    """平铺 main 回归: main_dir == wdir → 仍落 wdir 根。"""
+    """平铺 main 回归：main_dir == wdir → 仍落 wdir 根。"""
     root = mk_vendor(tmp_path)
     (root / "files" / "aastex.cls").write_text("% real\n", encoding="utf-8")
     wdir = tmp_path / "w"
@@ -96,7 +96,7 @@ def test_vendored_fetch_main_rel_escape_declines(tmp_path: Path) -> None:
 def test_vendored_fetch_already_current_declines(tmp_path: Path) -> None:
     """同名片已是本代注入件 → (False, no-op): 不烧 dispatch。
 
-    2609.19664 缺陷链: fileset_relocate 字节拷贝触发 _landing_sync 清
+    2609.19664 缺陷链：fileset_relocate 字节拷贝触发 _landing_sync 清
     dedup → 同规则 refire → (True, "already current") 占位 → 更低 order
     候选整轮被挡。
     """
@@ -145,11 +145,11 @@ def test_vendored_fetch_foreign_still_declines(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_casefold_source(tmp_path: Path) -> None:
-    """大小写回退: vendor 仓 ``IEEEconf.cls`` 供 ``ieeeconf.cls`` payload。
+    """大小写回退：vendor 仓 ``IEEEconf.cls`` 供 ``ieeeconf.cls`` payload。
 
-    2310.16788 实证: CTAN 原名件带大写骆驼名, 稿面 ``\\documentclass``
-    小写请求精确查件 miss; casefold 补扫命中, 落盘仍写 payload 原名
-    (kpathsea 按请求名找件, 源名只作字节出处)。
+    2310.16788 实证：CTAN 原名件带大写骆驼名，稿面 ``\\documentclass``
+    小写请求精确查件 miss; casefold 补扫命中，落盘仍写 payload 原名
+    (kpathsea 按请求名找件，源名只作字节出处)。
     """
     root = mk_vendor(tmp_path)
     (root / "files" / "IEEEconf.cls").write_text("% ieeeconf real\n", encoding="utf-8")
@@ -180,7 +180,7 @@ def test_vendored_fetch_exact_beats_casefold(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_multi_nested_main(tmp_path: Path) -> None:
-    """multi 字节平铺同走解析位: 嵌套 main 落 main_dir; 已存在 → skip。"""
+    """multi 字节平铺同走解析位：嵌套 main 落 main_dir; 已存在 → skip。"""
     root = mk_vendor(tmp_path)
     (root / "files" / "lamsarrow.tfm").write_bytes(b"\x00\x01binary")
     ctx = _nested_ctx(tmp_path)
@@ -190,7 +190,7 @@ def test_vendored_fetch_multi_nested_main(tmp_path: Path) -> None:
     dst = ctx.wdir / "templates" / "arxiv" / "lamsarrow.tfm"
     assert dst.read_bytes() == b"\x00\x01binary"
     assert not (ctx.wdir / "lamsarrow.tfm").exists()
-    # 二轮: 全 present → decline (幂等不烧 dispatch)
+    # 二轮：全 present → decline (幂等不烧 dispatch)
     ok2, note2 = TRANSFORM_FNS["vendored_fetch_multi"](ctx, None, None, params)
     assert not ok2
     assert "present" in note2

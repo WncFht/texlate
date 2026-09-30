@@ -62,7 +62,7 @@ def test_ctlseq_cond_passes_signature() -> None:
 
 
 def test_ctlseq_cond_declines_command_form(tmp_path: Path) -> None:
-    """``Command \\X already defined`` 是 already_def 面, 本格不接。"""
+    """``Command \\X already defined`` 是 already_def 面，本格不接。"""
     ok, _ = _cond(
         tmp_path, "foo.sty:10: LaTeX Error: Command \\chinese already defined"
     )
@@ -107,7 +107,7 @@ def test_ctlseq_apply_declines_foreign_file(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_declines_cls_file(tmp_path: Path) -> None:
-    """``.cls`` 错误 (缝前 docclass 内执行) → 拒, 缝顶 \\let 鞭长莫及。"""
+    """``.cls`` 错误 (缝前 docclass 内执行) → 拒，缝顶 \\let 鞭长莫及。"""
     _write_main(tmp_path)
     ok, _ = _apply(
         tmp_path,
@@ -128,7 +128,7 @@ def test_ctlseq_apply_declines_no_inject_mark(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_declines_no_docclass(tmp_path: Path) -> None:
-    """无 docclass 缝 → 退文件头是 cls 前错序, 拒。"""
+    """无 docclass 缝 → 退文件头是 cls 前错序，拒。"""
     _write_main(
         tmp_path,
         "\\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}  "
@@ -166,7 +166,7 @@ def test_ctlseq_apply_batch_multi_names(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_skips_nonfamily_names_in_blob(tmp_path: Path) -> None:
-    """blob 内非族文件撞名不连坐: 只清 ctex 名, hyperref 名留下。"""
+    """blob 内非族文件撞名不连坐：只清 ctex 名，hyperref 名留下。"""
     _write_main(tmp_path)
     err = (
         "/usr/share/texmf-dist/tex/latex/ctex/ctex.sty:500: LaTeX Error: "
@@ -182,7 +182,7 @@ def test_ctlseq_apply_skips_nonfamily_names_in_blob(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_idempotent_second_round(tmp_path: Path) -> None:
-    """二轮复跑: \\let 已落 → applied=False 不再复写。"""
+    """二轮复跑：\\let 已落 → applied=False 不再复写。"""
     _write_main(tmp_path)
     ok1, _ = _apply(tmp_path)
     assert ok1
@@ -192,7 +192,7 @@ def test_ctlseq_apply_idempotent_second_round(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_multi_seam(tmp_path: Path) -> None:
-    """\\ifpdf 双 docclass 形态: 两缝各注 \\let, 均在各自 ctex 行前。"""
+    """\\ifpdf 双 docclass 形态：两缝各注 \\let, 均在各自 ctex 行前。"""
     _write_main(
         tmp_path,
         "\\ifpdf\n\\documentclass{kaist-ucs}\n"

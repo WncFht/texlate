@@ -38,18 +38,18 @@ them from the denominator.
 Full src/zh case text is written to ``rundir.derived()/validbench-cases/
 {safe}.jsonl`` (replay substrate — the old --replay lane's corpus).
 
-拆分: 实现体按职域拆进同包私有叶 —— ``_validbench_pseudo`` (VOCAB 词表 +
+拆分：实现体按职域拆进同包私有叶 —— ``_validbench_pseudo`` (VOCAB 词表 +
 构造性伪译文/rehydrate), ``_validbench_corrupt`` (c01–c10 破坏算子 +
 CORRUPTIONS), ``_validbench_cases`` (root pick + 30s 子进程解析 +
 _gen_paper_cases), ``_validbench_judge`` (_l0_one + L1 常驻 daemon 三件套),
 ``_validbench_probes`` (PROBES + _probe_eval), ``_validbench_main``
 (items/select/_vb_run/_vb_probes/spec 装配)。本文件是 PEP 562 惰性门面
 (同 ``kernel.vault``/``kernel.importer`` 形制) —— 平名经 ``_LEAF_EXPORTS``
-映射回叶子, ``__getattr__`` 首访解析并缓存, ``getattr(module, "spec")`` 与
+映射回叶子，``__getattr__`` 首访解析并缓存，``getattr(module, "spec")`` 与
 ``from specs.validbench import X`` 读面与拆分前逐名等价; HEAD 期模块属性
 面 (stdlib 模块名/kernel/texlate 顶层绑定) 同样惰性解析。叶子间互引走全
 路径直跨 (``specs._validbench_*``), 不经本门面。spec 文件经 load_spec
-exec (非包内导入, ``__package__`` 为空) —— 叶名一律写死 ``specs.`` 前缀,
+exec (非包内导入，``__package__`` 为空) —— 叶名一律写死 ``specs.`` 前缀，
 不靠 ``__package__``。
 """
 
@@ -64,8 +64,8 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     import bisect
     import json
     import random
@@ -180,8 +180,8 @@ _LAZY: dict[str, str] = {
 }
 
 # HEAD 单件期模块属性面——stdlib 模块名与 kernel/texlate 顶层绑定也按名
-# 惰性解析, ``validbench.l0``/``validbench.fsutil`` 等读面 (含 setattr 型
-# monkeypatch 缝, patch 落在共享 module 对象上) 与拆分前逐名等价。
+# 惰性解析，``validbench.l0``/``validbench.fsutil`` 等读面 (含 setattr 型
+# monkeypatch 缝，patch 落在共享 module 对象上) 与拆分前逐名等价。
 _STDLIB_MODS = (
     "bisect",
     "json",
@@ -267,7 +267,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性 / stdlib 绑定 / kernel·texlate 顶层名。
 
     spec 文件经 ``load_spec`` 以 ``spec_from_file_location`` exec——此时
-    ``__package__`` 为空串, 叶名必须写死 ``specs.`` 前缀 (正常
+    ``__package__`` 为空串，叶名必须写死 ``specs.`` 前缀 (正常
     ``import specs.validbench`` 径下等价)。
     """
     leaf = _LAZY.get(name)
@@ -307,12 +307,12 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
 
-    注意: 本模块经 load_spec exec 装载后被弹出 ``sys.modules``, 审计只在
+    注意：本模块经 load_spec exec 装载后被弹出 ``sys.modules``, 审计只在
     正常 ``import specs.validbench`` 的常驻对象上有效。
     """
     mod = sys.modules[__name__]

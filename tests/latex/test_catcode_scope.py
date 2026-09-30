@@ -43,7 +43,7 @@ def scan(body: str, preamble: str = "") -> ScanResult:
 
 
 def base_names(res: ScanResult) -> set[str]:
-    """末态 scope 链全帧可见名（底帧+未弹帧并查）。"""
+    """末态 scope 链全帧可见名（底帧 + 未弹帧并查）。"""
     return {n for s in res.macros.scopes for n in s}
 
 

@@ -23,7 +23,7 @@ from texlate.compile.fixloop import builtins
 
 
 def _type_checking_map() -> dict[str, tuple[str, ...]]:
-    """builtins/__init__.py ``TYPE_CHECKING`` 块 → {叶模块名: import 名集（排序）}。"""
+    """builtins/__init__.py ``TYPE_CHECKING`` 块 → {叶模块名：import 名集（排序）}。"""
     src = Path(builtins.__file__).read_text(encoding="utf-8")
     tree = ast.parse(src)
     out: dict[str, tuple[str, ...]] = {}

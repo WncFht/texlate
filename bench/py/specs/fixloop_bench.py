@@ -42,7 +42,7 @@ run dedup 按 (idc,arm,up,variant,stage) 永久记忆，测量世代递进靠 bu
 刻意 delta（vs 旧驱动）：
 
 - ``--llm``/``--inject-zh`` 臂不移植：llm 是付费面（须独立 paid stage 配
-  gateway_factory+预算闸，另案）；zh 注入臂属 soak 链内 cond，非 B3 测量面。
+  gateway_factory+ 预算闸，另案）；zh 注入臂属 soak 链内 cond，非 B3 测量面。
 - ``--cases-from`` 模式不移植：换基线 = 改 BASELINE_RUN（items 零参物化
   拿不到 run param）。
 - _make_engine/fixloop 异常从「静默丢格（主循环 fut.result() 崩→无行）」
@@ -462,7 +462,7 @@ spec = Spec(
     eval=False,
     env_probes=["xelatex", "tectonic", "tlmgr", "pdftotext"],
     code_deps=[
-        # 被测面进 fp：fixloop 引擎+规则库+配方层+引擎/装包/路由件——
+        # 被测面进 fp：fixloop 引擎 + 规则库 + 配方层 + 引擎/装包/路由件——
         # 任一改动 → stale 标记（重测 = bump EPOCH 换 cell 键）。
         "src/texlate/compile/fixloop",
         "bench/py/specs/_fixloop.py",

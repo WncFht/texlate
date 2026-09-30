@@ -136,7 +136,7 @@ def norm_input_target(raw: str) -> str:
 def expand_inputs(root: Path, main: Path, cap: int = 4 << 20) -> tuple[str, int]:
     """主档文本流内展开 \\input/\\include（按文件目录解析，.tex 补后缀）。
 
-    返回 (展开后全文, 未解析目标数)。深度上界 8，总量 cap 防爆。
+    返回 (展开后全文，未解析目标数)。深度上界 8，总量 cap 防爆。
     """
     unresolved = 0
 
@@ -210,7 +210,7 @@ def expand_inputs(root: Path, main: Path, cap: int = 4 << 20) -> tuple[str, int]
 
 
 def _grab_brace(text: str, start: int) -> tuple[str, int]:
-    """text[start]=='{' → (平衡括号内内容, 结束后位置)。"""
+    """text[start]=='{' → (平衡括号内内容，结束后位置)。"""
     depth, i = 0, start
     n = len(text)
     while i < n:
@@ -228,7 +228,7 @@ def _grab_brace(text: str, start: int) -> tuple[str, int]:
 
 
 def _extract_captions(text: str) -> tuple[str, int]:
-    """抽 \\caption{...} 内文（返回拼接文本, 词数在上游计）。"""
+    """抽 \\caption{...} 内文（返回拼接文本，词数在上游计）。"""
     caps = []
     for m in CAPTION_RX.finditer(text):
         inner, _ = _grab_brace(text, m.end() - 1)
@@ -237,14 +237,14 @@ def _extract_captions(text: str) -> tuple[str, int]:
 
 
 def detex(text: str) -> tuple[str, str]:
-    """LaTeX → 纯文本。返回 (正文文本, 浮动体 caption 文本)。
+    """LaTeX → 纯文本。返回 (正文文本，浮动体 caption 文本)。
 
-    顺序: 抽 caption → 杀浮动体 env → 杀数学 env/$$..$$/$..$ →
+    顺序：抽 caption → 杀浮动体 env → 杀数学 env/$$..$$/$..$ →
     href 留锚文 → drop-arg 命令整删 → 其余命令丢名留参 → 残余 \\cmd 抹除。
     """
     caps = _extract_captions(text)
     prev = None
-    while prev != text:  # env 嵌套: 迭代到不动点
+    while prev != text:  # env 嵌套：迭代到不动点
         prev = text
         text = KILL_ENV_RX.sub(" ", text)
         text = MATH_ENV_RX.sub(" ", text)
@@ -432,7 +432,7 @@ def analyze_paper(pdir: Path) -> dict:
     if am:
         abstract_words = count_words(detex(am.group(1))[0])
 
-    # 边界点扫描: section / appendix / references 标记
+    # 边界点扫描：section / appendix / references 标记
     marks: list[tuple[int, str, dict]] = []
     for m in SEC_RX.finditer(body):
         title, _end = _grab_brace(body, m.end() - 1)
@@ -516,7 +516,7 @@ def analyze_paper(pdir: Path) -> dict:
         s["words"] for s in sections if s["appendix"] or s["bucket"] == "appendix"
     )
     refs_words = sum(s["words"] for s in sections if s["bucket"] == "references")
-    # 参考文献条数: bbl \bibitem 优先, 退 .bib @entry
+    # 参考文献条数：bbl \bibitem 优先，退 .bib @entry
     n_bib = len(re.findall(r"\\bibitem", body))
     if n_bib == 0:
         for bib in ext.rglob("*.bib"):

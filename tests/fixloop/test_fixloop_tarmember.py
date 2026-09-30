@@ -1,16 +1,16 @@
-"""tar 伪装件成员补写期待文件名槽位回归 (tarmember 车道, shipclscen 普查)。
+"""tar 伪装件成员补写期待文件名槽位回归 (tarmember 车道，shipclscen 普查)。
 
-bug 机制: 旧序先 ``_extract_members`` 后 ``rename``——tar blob 全程占着
-自己的文件名, 与槽位同名的成员被 no-clobber ``dest.exists()`` 永远跳过,
+bug 机制：旧序先 ``_extract_members`` 后 ``rename``——tar blob 全程占着
+自己的文件名，与槽位同名的成员被 no-clobber ``dest.exists()`` 永远跳过，
 改名 ``*.tarblob`` 后期待文件名彻底缺席 → ``\\documentclass``/``\\input``
 落空 → missing_file→stub 或 Missing ``\\begin{document}``。
 
-修复 = **先改名再抽**: blob 让出槽位后, basename 命中槽位的成员 (任意
+修复 = **先改名再抽**: blob 让出槽位后，basename 命中槽位的成员 (任意
 深度) 或与槽位同 stem 的 ``.sty`` 兄弟件 (槽位限 ``.cls``——2.09 时代
-class 本体即以 .sty 发行) 补写回期待路径。实案: astro-ph/0104007
+class 本体即以 .sty 发行) 补写回期待路径。实案：astro-ph/0104007
 ``aipproc.cls`` tar 内含 ``aipproc.sty`` (``\\documentstyle{aipproc}``
 compat 读 ``aipproc.cls``); 0707.0382 ``AMSbsy.sty`` tar 无同名成员
-→ 不写不错位, texlive 真件兜 ``\\usepackage{AMSbsy}``。
+→ 不写不错位，texlive 真件兜 ``\\usepackage{AMSbsy}``。
 """
 
 from pathlib import Path
@@ -32,10 +32,10 @@ def _extract(wdir: Path) -> tuple[bool, str]:
 
 # ------------------------------------------------------------ 同名成员 → 槽位
 def test_same_name_member_lands_at_expected(tmp_path: Path) -> None:
-    """核心回归: tar ``x.cls`` 含成员 ``x.cls`` → 补写 ``x.cls``。
+    """核心回归：tar ``x.cls`` 含成员 ``x.cls`` → 补写 ``x.cls``。
 
-    旧序: 成员 dest==blob 本体 ``exists()`` → 跳过; 改名后 ``x.cls``
-    彻底缺席。新序先改名让位, 成员自然落地即槽位。
+    旧序：成员 dest==blob 本体 ``exists()`` → 跳过; 改名后 ``x.cls``
+    彻底缺席。新序先改名让位，成员自然落地即槽位。
     """
     payload = b"\\ProvidesClass{x}\n"
     _write_tar(tmp_path / "x.cls", {"./x.cls": payload, "./x-fig.eps": b"%!PS\n"})
@@ -59,11 +59,11 @@ def test_subdir_basename_member_writes_expected(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------- .sty 兄弟 → .cls
 def test_sty_sibling_fills_cls_slot(tmp_path: Path) -> None:
-    """aipproc 实案: tar ``aipproc.cls`` 无同名成员, 含 ``aipproc.sty``
+    """aipproc 实案：tar ``aipproc.cls`` 无同名成员，含 ``aipproc.sty``
     → stem 兄弟补写 ``aipproc.cls`` (2.09 本体即 .sty 发行)。
 
     盘上已有真 ``aipproc.sty`` (语料常自带全部成员): 自然落地 no-clobber
-    不碰, 槽位补写取 **成员字节** (自洽不依赖盘件内容)。
+    不碰，槽位补写取 **成员字节** (自洽不依赖盘件内容)。
     """
     member = b"% real aipproc impl (member)\n"
     (tmp_path / "aipproc.sty").write_bytes(b"% preexisting real file\n")
@@ -93,8 +93,8 @@ def test_exact_member_beats_sty_sibling(tmp_path: Path) -> None:
 
 # --------------------------------------------------------------- 安全/闸侧
 def test_no_matching_member_expected_absent(tmp_path: Path) -> None:
-    """0707.0382 反毒化: tar ``AMSbsy.sty`` 无 ``AMSbsy.*`` 成员 →
-    槽位留空给 texlive 真件, 绝不拿错名成员 (``AMSfonts.sty``) 冒写。"""
+    """0707.0382 反毒化：tar ``AMSbsy.sty`` 无 ``AMSbsy.*`` 成员 →
+    槽位留空给 texlive 真件，绝不拿错名成员 (``AMSfonts.sty``) 冒写。"""
     _write_tar(
         tmp_path / "AMSbsy.sty",
         {
@@ -111,7 +111,7 @@ def test_no_matching_member_expected_absent(tmp_path: Path) -> None:
 
 
 def test_cls_member_not_written_to_sty_slot(tmp_path: Path) -> None:
-    """反向不开: tar ``foo.sty`` 含 ``foo.cls`` → ``foo.cls`` 自然落地,
+    """反向不开：tar ``foo.sty`` 含 ``foo.cls`` → ``foo.cls`` 自然落地，
     不冒写 ``foo.sty`` (class 件不是 package 实现)。"""
     _write_tar(tmp_path / "foo.sty", {"./foo.cls": b"\\ProvidesClass{foo}\n"})
     ok, note = _extract(tmp_path)
@@ -135,7 +135,7 @@ def test_traversal_member_rejected_sibling_still_fills(tmp_path: Path) -> None:
 
 
 def test_displaced_magic_variant_writes_expected(tmp_path: Path) -> None:
-    """前置注入变异件同补: prologue 推位 tar 的同名/stem 成员仍落槽位。"""
+    """前置注入变异件同补：prologue 推位 tar 的同名/stem 成员仍落槽位。"""
     member = b"% aipproc impl\n"
     prologue = b"\\PassOptionsToPackage{no-math}{fontspec}\n% injected\n"
     (tmp_path / "aipproc.cls").write_bytes(
@@ -167,7 +167,7 @@ def test_ustar_macro_name_not_renamed(tmp_path: Path) -> None:
 
 
 def test_ustar_magic_field_bad_checksum_not_renamed(tmp_path: Path) -> None:
-    """校验和层独测: 文本内嵌 POSIX 魔数+版本全形 ``ustar\\0`` + ``00``
+    """校验和层独测：文本内嵌 POSIX 魔数 + 版本全形 ``ustar\\0`` + ``00``
     且 chksum 位恰呈八进制形 (``012345␣␣``)——值不等于头余字节和仍拒。"""
     body = (
         b"% "

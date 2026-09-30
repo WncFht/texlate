@@ -168,7 +168,7 @@ def _cell_list(
     ).fetchall()
     copies = _splice_copy_index(variant, arm)
     # id 形归一：index 键为 canon 形（cat/id），ledger idc 混存 safe 形
-    # （cat--id）——双侧 canon 后 join（0928：794 格假 no_splice 实证）
+    # （cat--id）——双侧 canon 后 join（0928:794 格假 no_splice 实证）
     copies_canon = {}
     for k, v in copies.items():
         copies_canon.setdefault(k, v)
@@ -195,7 +195,7 @@ def _cell_list(
 def _derive_main_rel(splice: Path) -> str | None:
     """main_rel 账外兜底——封件内 \\documentclass 承载 tex 与产物 pdf 同 stem
     者优先（stem 配对=编译链自证），次选最浅 documentclass 件。旧胞 ledger
-    未落 main_rel 时回收测量面（0928：803 格账外封件实证）。"""
+    未落 main_rel 时回收测量面（0928:803 格账外封件实证）。"""
     texs = sorted(p for p in splice.rglob("*") if p.suffix.lower() == ".tex")
     if not texs:
         return None

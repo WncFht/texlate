@@ -1,13 +1,13 @@
 """F1/F2 工单 (2026-09-16 批量强化 §9) —— 退役包 shim 扩表 + cs_table 合并残骸修复。
 
-n100-postcutover 逐签名归因产物:
+n100-postcutover 逐签名归因产物：
 - F1: shim_map 新增 ~38 条 (elsart 家族→elsarticle, sig-alternate→acmart,
   aastex6x→emulateapj, prl/apl→revtex4-2, siamltex/osa/JHEP 家族→article+polyfill
   等), 实证见 bench/results/fixloop-tickets-F1F2-2026-09-16.md。
-- F2: cs_targeted_fix cs_table 新增 31 条 splice/join 合并残骸 (cs+后 token
-  粘连, 如 \\itemFSU ← \\item + 首词 FSU), 全部 cs_map 拆回原形。
-单测打 transform 层: stub 落盘 / needs→install 调用 / cs_map 改写及词边界。
-真编译冒烟: shimtest 车道 (xelatex 36/36 PASS)。
+- F2: cs_targeted_fix cs_table 新增 31 条 splice/join 合并残骸 (cs+ 后 token
+  粘连，如 \\itemFSU ← \\item + 首词 FSU), 全部 cs_map 拆回原形。
+单测打 transform 层：stub 落盘 / needs→install 调用 / cs_map 改写及词边界。
+真编译冒烟：shimtest 车道 (xelatex 36/36 PASS)。
 """
 
 import re
@@ -79,7 +79,7 @@ def test_shim_map_every_entry_fires(tmp_path: Path) -> None:
 
 def test_shim_map_loads_entries_are_cls_and_delegate(tmp_path: Path) -> None:
     """loads 模板只对 .cls 有效 (引擎模板发 \\LoadClassWithOptions) ——
-    声明不变量: 所有 loads 条目必须是 .cls payload, 且 stub 委托到目标类。"""
+    声明不变量：所有 loads 条目必须是 .cls payload, 且 stub 委托到目标类。"""
     for payload, spec in _shim_map().items():
         if "loads" not in spec:
             continue
@@ -119,7 +119,7 @@ def test_shim_map_evolved_class_targets(tmp_path: Path, payload: str) -> None:
     ["elsart1p.cls", "elsart3p.cls", "elsart5p.cls", "elsevier.cls"],
 )
 def test_shim_map_elsart_siblings_body_form(tmp_path: Path, payload: str) -> None:
-    """elsart 兄弟系共享 *elsart_body (loads 裸桥无公开宏面, corauth 实证)。"""
+    """elsart 兄弟系共享 *elsart_body (loads 裸桥无公开宏面，corauth 实证)。"""
     spec = _shim_map()[payload]
     assert "loads" not in spec
     assert "\\LoadClassWithOptions{elsarticle}" in spec["body"]
@@ -152,7 +152,7 @@ def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("payload", "needs"),
     [
-        # routeclean 2026-09-20: aa/aipproc/iopart*/iopams 槽删→vendored 实件,
+        # routeclean 2026-09-20: aa/aipproc/iopart*/iopams 槽删→vendored 实件，
         # vendored 面无 needs 元数据 (install 依赖由 stub 内联自给)
         ("aastex61.cls", ["emulateapj.cls", "epsf.sty"]),
         ("aastex63.cls", ["emulateapj.cls", "epsf.sty"]),
@@ -193,12 +193,12 @@ def test_shim_map_body_invariants() -> None:
         # expl3 不存在的 \int_pow:nn
         assert "\\int_pow" not in body, payload
     # revtex4-2 系 (prl/apl/revtex4): frontmatter 机器推迟到 \begin{document}
-    # 才武装, revtex3 老稿导言区 \author 会炸 \collaboration@sw/\CO@grp
+    # 才武装，revtex3 老稿导言区 \author 会炸 \collaboration@sw/\CO@grp
     # —— shim 提前武装 + 冻结防 begin-doc 重跑清数据
     for payload in ("prl.cls", "apl.cls", "revtex4.cls"):
         body = _shim_map()[payload]["body"]
         assert "\\frontmatter@init" in body, payload
-    # binhex.tex 兜底: newtxtext 需可展开 \nhex{w}{n} 高位补零大写 hex
+    # binhex.tex 兜底：newtxtext 需可展开 \nhex{w}{n} 高位补零大写 hex
     assert "\\int_to_Base:nn" in _shim_map()["binhex.tex"]["body"]
 
 
@@ -218,7 +218,7 @@ def test_filemap_overrides_binhex() -> None:
 
 # ---------------------------------------------------------------- F2: cs_table
 
-# _CS_CASES 行序: payload · 粘连前文 · 期望改写后
+# _CS_CASES 行序：payload · 粘连前文 · 期望改写后
 _CS_CASES = [
     ("itemFSU", "\\itemFSU Foo", "\\item FSU Foo"),
     ("itemNGA", "\\itemNGA Bar", "\\item NGA Bar"),
@@ -258,7 +258,7 @@ _CS_CASES = [
 def test_cs_table_merge_artifact_rewrite(
     tmp_path: Path, payload: str, src: str, want: str
 ) -> None:
-    """cs_table 每条: \\old → \\new 拆回原形 (n100 splice/join 合并残骸)。"""
+    """cs_table 每条：\\old → \\new 拆回原形 (n100 splice/join 合并残骸)。"""
     assert payload in _cs_table(), f"{payload} 不在 cs_table"
     (tmp_path / "main.tex").write_text(
         f"\\documentclass{{article}}\n\\begin{{document}}\n{src}\n\\end{{document}}\n"
@@ -270,7 +270,7 @@ def test_cs_table_merge_artifact_rewrite(
 
 
 def test_cs_table_word_boundary_protects_longer_cs(tmp_path: Path) -> None:
-    """\\old\\b 词边界: \\itemFSUx / \\parindent 等更长 cs 不得被误改。"""
+    """\\old\\b 词边界：\\itemFSUx / \\parindent 等更长 cs 不得被误改。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
         "\\itemFSUbar keep\n\\parindent=10pt\n\\paria safe\n\\end{document}\n"
@@ -373,7 +373,7 @@ def test_cs_split_fallback_rejects(tmp_path: Path, payload: str) -> None:
 
 
 def test_cs_split_exact_table_precedence(tmp_path: Path) -> None:
-    """显式条目优先于拆分: citep 走 usepackage 而非 cite+p 拆。"""
+    """显式条目优先于拆分：citep 走 usepackage 而非 cite+p 拆。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
     )

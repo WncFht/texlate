@@ -1,7 +1,7 @@
 """worker 编译段加固验收：L2 回灌编排（先于 fixloop）/ env_judge /
 .compile-done 哨兵 resume / interrupted done 事件 / .splice-done 序。
 
-e2e 侧语义对齐 ``pipe_condition``：非 clean → L2（归因重译+resplice+重编）
+e2e 侧语义对齐 ``pipe_condition``：非 clean → L2（归因重译+resplice+ 重编）
 → 仍非 clean → fixloop。worker 侧多担一层：resplice 改的是 ``build-zh``，
 成品树 ``zh/`` 与 chunks 表由 worker 自己回写。
 """
@@ -137,14 +137,14 @@ def _chunks(client: TestClient, tid: str) -> list[dict]:
 
 
 class TestL2Repair:
-    """L2 回灌编排：非 clean → L2（重译+resplice+重编）→ fixloop。"""
+    """L2 回灌编排：非 clean → L2（重译+resplice+ 重编）→ fixloop。"""
 
     def test_l2_repair_skips_fixloop(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """首编可归因失败 → L2 重译+重编转绿 → fixloop 不跑 → done。"""
+        """首编可归因失败 → L2 重译 + 重编转绿 → fixloop 不跑 → done。"""
         eng = L2FlakyEngine(n_fail=1)
         translator = MockTranslator()
         with TestClient(_live_app(tmp_path, translator=translator, engine=eng)) as c:
@@ -225,7 +225,7 @@ class TestL2Repair:
             assert "fallback_unverified" not in l2_data["report"]
             # 首编 + 重译态重编 + 回落态裸编 = build-zh 同 wdir 共 3 次
             n_work = sum(1 for call in eng.calls if "build-zh" in call["wdir"])
-            assert n_work == 3  # noqa: PLR2004 -- 首编+重译重编+回落裸编
+            assert n_work == 3  # noqa: PLR2004 -- 首编 + 重译重编 + 回落裸编
             rows = _chunks(c, tid)
             assert any(
                 r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"
@@ -499,8 +499,8 @@ class TestCompileHoles:
             assert err_evs[0]["data"]["stage"] == "compiling"
 
     def test_dispatch_stop_no_deadlock(self, tmp_path: Path) -> None:
-        """stop() cancel dispatcher 时,``await task`` 的 CancelledError 不得吞——
-        否则循环回 ``queue.get()`` 死等,``await dispatcher`` 永久挂起。"""
+        """stop() cancel dispatcher 时，``await task`` 的 CancelledError 不得吞——
+        否则循环回 ``queue.get()`` 死等，``await dispatcher`` 永久挂起。"""
 
         class _HangWorker:
             """run() 永久挂起——dispatcher ``await task`` 处吃双 cancel。"""
@@ -521,7 +521,7 @@ class TestCompileHoles:
             mk_task_row(store, task_id=tid, kind="upload_tex")
             runner.enqueue(tid)
             deadline = time.time() + 5
-            while runner._current is None and time.time() < deadline:  # noqa: SLF001, ASYNC110 -- 轮询 pickup,无事件可挂
+            while runner._current is None and time.time() < deadline:  # noqa: SLF001, ASYNC110 -- 轮询 pickup，无事件可挂
                 await asyncio.sleep(0.02)
             assert runner._current is not None, "dispatcher 未接单"  # noqa: SLF001
             await asyncio.wait_for(runner.stop(), timeout=5)

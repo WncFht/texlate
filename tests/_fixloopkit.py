@@ -100,7 +100,7 @@ XELATEX = shutil.which("xelatex")
 
 #: 包内 vendor 根 + 三层路径常量——逐文件 ``__file__`` 推导归此一处。
 VENDOR = Path(actions.__file__).resolve().parent / "vendor"
-#: ``VENDOR`` 别名: 部分车道 (stubaudit 等 ~20 件) 按 root 名义引用。
+#: ``VENDOR`` 别名：部分车道 (stubaudit 等 ~20 件) 按 root 名义引用。
 VENDOR_ROOT = VENDOR
 STUBS = VENDOR / "stubs"
 #: ``.cls`` 替身 stub 归位层 (F2)。
@@ -131,7 +131,7 @@ class EngStub:
         return False
 
     def rebuild_fontmaps(self) -> None:
-        """updmap noop。"""
+        """updmap noop."""
 
 
 class EngInstall(EngStub):
@@ -436,7 +436,7 @@ ISOLATE_PARAMS = {"exts": (".sty", ".cls"), "suffix": ".fixloop-iso"}
 
 #: 上游 mnras.cls v3.2 病件指纹全形 (mnrasretire canonical): 头注 +
 #: ``\\newif`` + ``\\ds@usegraphicx`` 行内联 ``\\usepackage`` +
-#: ``\\ProcessOptions`` 收尾。只要头注+病行两行的车道用
+#: ``\\ProcessOptions`` 收尾。只要头注 + 病行两行的车道用
 #: ``mnras_buggy_cls()`` (sitehoist 形)。
 MNRAS_BUGGY_CLS = (
     "% mnras.cls v3.2 (upstream)\n"
@@ -493,7 +493,7 @@ def code_lines(body: str) -> str:
 
 
 def which_only(*names: str) -> Callable[[str], str | None]:
-    """``shutil.which`` 假件工厂: 名单内名 → ``/usr/bin/<name>``, 否则 ``None``。"""
+    """``shutil.which`` 假件工厂：名单内名 → ``/usr/bin/<name>``, 否则 ``None``。"""
     return lambda n: f"/usr/bin/{n}" if n in names else None
 
 
@@ -526,7 +526,7 @@ def biber_ok(argv: list[str], _timeout: int, wdir: Path) -> tuple:
 def proj_texmf(tmp_path: Path) -> tuple[Path, Path]:
     """``proj/`` + ``texmf/`` 兄弟目录对——遮蔽道 wdir/系统面分居。
 
-    probe 命中 wdir 内件会被判工程自件, 故系统副本必须落 wdir 外的
+    probe 命中 wdir 内件会被判工程自件，故系统副本必须落 wdir 外的
     ``texmf/`` 兄弟目录 (pstshadow._proj_texmf 同体)。
     """
     proj = tmp_path / "proj"
@@ -537,7 +537,7 @@ def proj_texmf(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def proj_pair(tmp_path: Path, name: str, local: str, sys: str) -> Path:
-    """``proj_texmf`` + 落件形: ``local`` 进 ``proj/<name>``, ``sys`` 进 ``texmf/<name>``, 返回 proj。"""
+    """``proj_texmf`` + 落件形：``local`` 进 ``proj/<name>``, ``sys`` 进 ``texmf/<name>``, 返回 proj。"""
     proj, texmf = proj_texmf(tmp_path)
     (proj / name).write_text(local, encoding="utf-8")
     (texmf / name).write_text(sys, encoding="utf-8")
@@ -551,7 +551,7 @@ def mk_ctx_files(
     main: str | None = None,
     engine: str = "xelatex",
 ) -> LoopCtx:
-    """files-dict ctx 厂: 各 ``{rel: text}`` 落 ``tmp_path`` 下 → ``LoopCtx``。
+    """files-dict ctx 厂：各 ``{rel: text}`` 落 ``tmp_path`` 下 → ``LoopCtx``。
 
     ``main`` 缺省取 ``files`` 首键 (``next(iter(files))``——l1_verify 口径);
     epsplaceholder/haltsweep/gfxinclude 的 ``_ctx`` 双胞胎归此。
@@ -586,10 +586,10 @@ def shim_map() -> dict[str, dict]:
 
 
 def vendor_file(name: str) -> Path | None:
-    """vendor 三层查件: ``files`` → ``stubs`` → ``shims`` 真实 emit 序。
+    """vendor 三层查件：``files`` → ``stubs`` → ``shims`` 真实 emit 序。
 
     序与 ``_vendored_source`` (``builtins.vendored``) 同口径——stubaudit
-    的就地版曾按 (SHIMS, STUBS, VENDOR_FILES) 反序扫, 归此一处正之。
+    的就地版曾按 (SHIMS, STUBS, VENDOR_FILES) 反序扫，归此一处正之。
     """
     for layer in (VENDOR_FILES, STUBS, SHIMS):
         vend = layer / name
@@ -682,9 +682,9 @@ class MockRes:
 class MockEngine:
     """script 逐轮吐 spec; 耗尽后重放末条。
 
-    构造 kwarg 折各车道变体: ``installable``/``available`` 集合、
+    构造 kwarg 折各车道变体：``installable``/``available`` 集合、
     ``caps`` 实例覆盖 (缺省承类面 ``{kpsewhich,tlmgr,updmap}``——传
-    ``None`` 不冲掉子类类属性钉版, 如 draftsty)、``probe_cwd=False``
+    ``None`` 不冲掉子类类属性钉版，如 draftsty)、``probe_cwd=False``
     关 cwd 先查 (nataux 形 probe→None 保真)。
     """
 
@@ -777,7 +777,7 @@ def mini_rs(
     )
 
 
-# ---- test_fixloop_loop 迁出件: 合成 ruleset 语料 + 引擎变体 ----
+# ---- test_fixloop_loop 迁出件：合成 ruleset 语料 + 引擎变体 ----
 
 #: 恒炸 taxonomy——``boom`` taxon 每轮命中 (stuck/dedup/max_rounds 机械钉)。
 BOOM_TAXONOMY = [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
@@ -809,7 +809,7 @@ class MockTectonic(MockEngine):
 
 
 class SalvageMockEngine(MockEngine):
-    """best_effort 感知: 兜底轮 (best_effort=True) 放残页 pdf 出来。"""
+    """best_effort 感知：兜底轮 (best_effort=True) 放残页 pdf 出来。"""
 
     def compile(
         self,
@@ -831,7 +831,7 @@ class SalvageMockEngine(MockEngine):
         return super().compile(wdir, main, passes=1, **_kw)
 
 
-# ---- 同体别名: 各 finding 的历代命名全归 MockRes/MockEngine canonical 对 ----
+# ---- 同体别名：各 finding 的历代命名全归 MockRes/MockEngine canonical 对 ----
 # ``ScriptedEngine`` 与 tests/xlat/test_e2e_wiring.py:84 的 callable-script 类
 # 同名不同形 (swap-trap, idx-176 已记)——新车道请用 ``ScriptEngine``/
 # ``MockEngine``；此别名仅为 idx-131 adopters 的名字解析兜底。

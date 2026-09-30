@@ -1,6 +1,6 @@
 """SEC-1..7 入站闸回归（server-security-fix）：
 
-share 解压两闸 / server 匿名写 401+读面独立桶 / mutating 跨站与 Content-Type /
+share 解压两闸 / server 匿名写 401+ 读面独立桶 / mutating 跨站与 Content-Type /
 settings/test 跨槽 / upload 点文件名 / local Host 白名单 / model 控制字符。
 """
 

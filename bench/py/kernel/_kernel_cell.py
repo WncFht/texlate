@@ -1,6 +1,6 @@
-"""kernel._kernel_cell — cell 临界段叶 (kernel.kernel 拆分叶, §2.1/§3.6/§3.10.6).
+"""kernel._kernel_cell — cell 临界段叶 (kernel.kernel 拆分叶，§2.1/§3.6/§3.10.6).
 
-``_run_cell`` 永不抛的单格临界段, cell_lock 内序:
+``_run_cell`` 永不抛的单格临界段，cell_lock 内序：
 
     this-run terminal recheck -> cross-run done -> paid oracle
     (unsealed->error/index_unsealed | claimed->claimed | verified->dedup
@@ -97,9 +97,9 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
     quick-terminals harvest too: an inherited verdict says this stage's
     own work is done, but upstream stages may have run for real THIS run
     and their products sit in the work tree uncommitted — the dedup row
-    is the last custody point before they are swept (2609.20519 实证:
+    is the last custody point before they are swept (2609.20519 实证：
     xlat/compile 真跑产出 zh/splice, layoutqc 撞上陈旧 declined-verdict
-    dedup, 字节随 remove_cell_tree 清零, v1 键域自此永久饥饿)."""
+    dedup, 字节随 remove_cell_tree 清零，v1 键域自此永久饥饿)."""
     spec = env.spec
     if stage_name != spec.last_mutating_stage() or status not in events.STATUS_DONE | {
         "dedup"
@@ -201,10 +201,10 @@ def _run_cell(env, cell: dict) -> dict:
             and (not stage_paid or eval_paid_nobytes)
             and last["status"] in events.STATUS_DONE | {"dedup"}
         ):
-            # mutates 格的 verdict-dedup 还须字节在押: DONE 行只证跑过,
+            # mutates 格的 verdict-dedup 还须字节在押：DONE 行只证跑过，
             # 不证产物入 vault —— dedup 终态历史上不收 harvest, 字节
             # 也可能被 sweep/清理核销。oracle 证 ABSENT/MISSING(无在押
-            # 副本, 含登记丢失) → 放行 fn 重跑自愈: 免费格 regen 零成本,
+            # 副本，含登记丢失) → 放行 fn 重跑自愈：免费格 regen 零成本，
             # regen 闸护的是花费不是免费重算; verified/claimed/unsealed
             # 维持 dedup —— 在押字节、他跑竞态、未封缄不确定态不翻案。
             mut = frozenset(stage.mutates) if stage is not None else ()

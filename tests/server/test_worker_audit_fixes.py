@@ -1,5 +1,5 @@
 """worker.py 审计修复批（task #52）逐条钉样：ph 武装 / glossary 五层 /
-cancel 孤儿 / 旁路 usage+术语 / _build_dual 出 loop / queued 重放 /
+cancel 孤儿 / 旁路 usage+ 术语 / _build_dual 出 loop / queued 重放 /
 _stage 终态守卫 / zip 前缀冲突 / IndirectObject 字体 / _spawn pty fd 清理。
 
 题域切出：fixloop → test_worker_fixloop.py；share → test_worker_share.py；
@@ -1207,7 +1207,7 @@ class TestSpliceSentinelInvalidation:
         sent = ctx.zh_dir / ".splice-done"
         sent.write_text("", encoding="utf-8")
         pre = self._pre_rows(store, ctx.task_id)
-        # 模拟本段翻译落盘：首块 pending→ok+译文
+        # 模拟本段翻译落盘：首块 pending→ok+ 译文
         cid = str(store.all_chunks(ctx.task_id)[0]["chunk_id"])
         store.update_chunk(
             ctx.task_id,
@@ -1577,7 +1577,7 @@ class TestResidAuditGlossary:
 
 
 class TestSetOption:
-    """review2 worker#11：``set_option``/``update_options``——options 读-改-写
+    """review2 worker#11：``set_option``/``update_options``——options 读 - 改 - 写
     + row 快照同步的单点封装（落库键 ``options_json`` 由调用点回写）。"""
 
     def test_set_and_update_sync_row(self, tmp_path: Path) -> None:

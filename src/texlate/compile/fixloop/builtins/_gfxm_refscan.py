@@ -44,7 +44,7 @@ __all__ = [
 
 
 #: ``\epsfig{file=X.eps, scale=..}`` / ``\psfig{figure=X}`` / ``\epsfbox{X}``
-#: kv/裸参引用点 —— ``_INCLUDE_GFX_RE`` 吃不到 kv 形, 独立一柄。
+#: kv/裸参引用点 —— ``_INCLUDE_GFX_RE`` 吃不到 kv 形，独立一柄。
 _EPS_KV_RE = re.compile(r"\\(?:epsfig|psfig|epsffile|epsfbox)\s*\{([^}]*)\}")
 #: kv 形大括号串内的 ``file=``/``figure=`` 值。
 
@@ -57,9 +57,9 @@ _KV_FILE_RE = re.compile(r"(?:file|figure)\s*=\s*([^,\s}]+)")
 
 # ═══ 宏间接引用 (w13 B3, 2505.06480): 包装宏内 #N 形参回填 ═══
 #: ``\newcommand{\fig}[6]{..\includegraphics{..#4..}..}`` 族 def 站 —
-#: 字面 ``\includegraphics`` 引用点为空, 引用真身躲在 ``\fig{..}{01-abstract}``
-#: 调用位 #N 实参。g1=name, g2=arity, g3=可选首参 default 位, g4=body
-#: (两层内层花括; ``\fbox{\includegraphics{#2}}`` 级嵌套可收, 更深截断
+#: 字面 ``\includegraphics`` 引用点为空，引用真身躲在 ``\fig{..}{01-abstract}``
+#: 调用位 #N 实参。g1=name, g2=arity, g3=可选首参 default 位，g4=body
+#: (两层内层花括; ``\fbox{\includegraphics{#2}}`` 级嵌套可收，更深截断
 #: —— 保守)。
 _GFX_DEF_NC_RE = re.compile(
     r"\\(?:newcommand|renewcommand|providecommand|DeclareRobustCommand)\*?"

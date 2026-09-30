@@ -73,7 +73,7 @@ def load_frame_lookup(path: Path) -> dict[str, dict]:
 
 
 def frame_filter(pool_ids: set[str], path: Path) -> dict[str, dict]:
-    """frame_lookup 只留 pool 内 id 的行（全量 3.16M 行驻留太大, 过滤装载）."""
+    """frame_lookup 只留 pool 内 id 的行（全量 3.16M 行驻留太大，过滤装载）."""
     lut: dict[str, dict] = {}
     with gzip.open(path, "rt") as f:
         for line in f:
@@ -135,7 +135,7 @@ def cluster2band(frame_dir: Path = FRAME) -> dict[str, str]:
 
 
 def band_cat_share(frame_dir: Path = FRAME) -> dict[str, dict[str, float]]:
-    """cluster-cat-mix → {band: {cat: share}}（带内聚合, 估算 item 产出用）."""
+    """cluster-cat-mix → {band: {cat: share}}（带内聚合，估算 item 产出用）."""
     agg: dict[str, Counter] = defaultdict(Counter)
     with (Path(frame_dir) / "cluster-cat-mix.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):

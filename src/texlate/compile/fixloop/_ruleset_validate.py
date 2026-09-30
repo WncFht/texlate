@@ -4,7 +4,7 @@
 ``_dup_id_problems``/``_taxonomy_problems``/``_warnings_problems`` +
 值形原语 (``_str_list``/``_rx_problems``/``_re_compilable``/
 ``_rewrite_flag_bit``) + ``_producible_categories``——与
-``_actions_*`` 叶/engine 实读面逐键对齐, 未知键 fail-closed、词表
+``_actions_*`` 叶/engine 实读面逐键对齐，未知键 fail-closed、词表
 白名单拦 typo fail-open 面。
 """
 
@@ -34,15 +34,15 @@ from texlate.compile.fixloop._ruleset_vocab import (
 
 
 def _str_list(v: Any) -> bool:  # noqa: ANN401  # yaml 值天然 Any
-    """值形判据: ``list[str]`` (exts/engine_in/fileset 各键共用)。"""
+    """值形判据：``list[str]`` (exts/engine_in/fileset 各键共用)。"""
     return isinstance(v, list) and all(isinstance(x, str) for x in v)
 
 
 def _rx_problems(pat: Any, label: str) -> list[str]:  # noqa: ANN401  # 同上
-    """正则值校验: str 且 ``regex`` 可编译。
+    """正则值校验：str 且 ``regex`` 可编译。
 
     ``_cond_ok``/``_compile_rewrites``/``_scan_names`` 的 compile/search
-    都在 try 外——病 pattern 装载期拦, 不再穿透点火面炸整格。
+    都在 try 外——病 pattern 装载期拦，不再穿透点火面炸整格。
     """
     if not isinstance(pat, str):
         return [f"{label} 必须是 str"]
@@ -61,12 +61,12 @@ def _when_item_problems(
 ) -> list[str]:
     """单个 when 候选 (顶层 map 或 ``any[]`` 子项) 的值形校验。
 
-    与 ``_when_ok`` 逐键消费形对齐: ``category`` 仅 str——评估侧
-    ``c["category"] != cat`` 是标量比对, list 形永不等即静默
+    与 ``_when_ok`` 逐键消费形对齐：``category`` 仅 str——评估侧
+    ``c["category"] != cat`` 是标量比对，list 形永不等即静默
     fail-dead, OR 语义走 ``when.any`` 子项; ``payload_required``
     真值 (bool), ``main_head_contains`` ``in`` 子串 (str——非 str
-    触发 TypeError, _when_ok 在 try 外, 装载期拦)。``cats`` 非空时
-    校验 ``category`` 值域 (可产出类集合, ``_producible_categories``)
+    触发 TypeError, _when_ok 在 try 外，装载期拦)。``cats`` 非空时
+    校验 ``category`` 值域 (可产出类集合，``_producible_categories``)
     ——域外值永不命中即死规则。
     """
     probs: list[str] = []
@@ -90,7 +90,7 @@ def _when_problems(
     tag: str,
     cats: frozenset[str] | None = None,
 ) -> list[str]:
-    """``when`` 段校验: 键白名单 + 值形 (typo 键在旧 _when_ok 下是 fail-open 面)。
+    """``when`` 段校验：键白名单 + 值形 (typo 键在旧 _when_ok 下是 fail-open 面)。
 
     ``cats`` = ``_producible_categories`` 结果; ``None`` 时跳过
     ``category`` 值域检查 (兼容不带 taxonomy 语境的直接调用)。
@@ -122,7 +122,7 @@ def _when_problems(
     return probs
 
 
-def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0911, PLR0912  # yaml 值天然 Any; 与 _cond_ok 分派同形, 每键一处
+def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0911, PLR0912  # yaml 值天然 Any; 与 _cond_ok 分派同形，每键一处
     """``condition`` 单键值形校验——与 ``_cond_ok`` 分派表的消费形逐键对齐。
 
     旗标键 (vendored_shadow/err_outside_fileset/shim_known) 的值不被
@@ -164,7 +164,7 @@ def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: AN
             if k in _FILESET_KEYS and not _str_list(v)
         )
         # 三键消费侧全与 ``Path.suffix`` 比对 (``e in {p.suffix}``/
-        # ``p.suffix.lower() in pool``)——suffix 恒带 ``.`` 前缀, 缺
+        # ``p.suffix.lower() in pool``)——suffix 恒带 ``.`` 前缀，缺
         # 点的值是永不命中的死配置 (``has_ext: [ins]`` 型 typo)。
         probs.extend(
             f"rule {tag}: condition.fileset.{k} 扩展名须带 '.' 前缀: {e!r}"
@@ -191,7 +191,7 @@ def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: AN
 
 
 def _cond_problems(cond: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
-    """``condition`` 段校验: 键白名单 + 逐键值形 (``any`` 子表递归); 与 _cond_ok 分派同源。"""
+    """``condition`` 段校验：键白名单 + 逐键值形 (``any`` 子表递归); 与 _cond_ok 分派同源。"""
     if cond is None:
         return []
     if not isinstance(cond, dict):
@@ -227,8 +227,8 @@ def _scan_pattern_problems(sp: Any, label: str, tag: str) -> list[str]:  # noqa:
             else:
                 # ``_scan_names`` 无条件 ``m.group(1)``——无捕获组的 pattern
                 # 首命中即 IndexError (per-rule 兜底记 'rule crashed')。
-                # 注: 可选组不参与时 ``m.group(1)=None`` → ``nm.strip()``
-                # AttributeError 属同族崩面, 但非静态可查。
+                # 注：可选组不参与时 ``m.group(1)=None`` → ``nm.strip()``
+                # AttributeError 属同族崩面，但非静态可查。
                 if rx.groups < 1:
                     probs.append(
                         f"rule {tag}: {label}.regex 需含捕获组 "
@@ -256,7 +256,7 @@ def _rewrite_item_problems(rw: Any, j: int, tag: str) -> list[str]:  # noqa: ANN
     """``rewrites[]`` 单条校验——``_compile_rewrites`` 实读面。
 
     ``pattern`` 无条件下标取 (rw["pattern"]) → 必填 str 且按解析后
-    flags 可编译; ``function`` 在 REWRITE_FNS 注册 (与 ``repl`` 互斥,
+    flags 可编译; ``function`` 在 REWRITE_FNS 注册 (与 ``repl`` 互斥，
     并存时 function 胜出、repl 是死配置); ``repl`` 喂 ``m.expand``
     须 str; ``flags`` 逐名可解析。
     """
@@ -304,13 +304,13 @@ def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list
     """``action.params`` 按 kind 校验——键词表 + 必填项 + 值形。
 
     词表 = ``actions`` 叶实读名 ∪ 出厂注解键 (``verify``/``batch``/
-    ``once_per_payload``/``hint``/``context`` 是不消费的文档性键,
+    ``once_per_payload``/``hint``/``context`` 是不消费的文档性键，
     仍收录)。``builtin_transform`` 的 params 词表随 TRANSFORM_FNS
     逐函数定义 (各 ``builtins/`` 叶自查), 此处不限键名不检值。
     """
     probs: list[str] = []
     # kind 非 str (如 list) 不可哈希——``.get`` 直接 TypeError; 该形已由
-    # rule 级 ``action.kind 非法`` 条目记名, 此处按未知 kind 放行跳过。
+    # rule 级 ``action.kind 非法`` 条目记名，此处按未知 kind 放行跳过。
     vocab = _ACTION_PARAM_KEYS.get(kind) if isinstance(kind, str) else None
     if vocab is not None:
         probs.extend(
@@ -350,11 +350,11 @@ def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list
             if k in params and not _str_list(params[k])
         )
         # try_exts 逐元素直拼 ``params["file"]`` 成候选名 (actions 叶
-        # ``file + e``)——无 ``.`` 的值拼出无扩展名文件, 属 ``[ldf]`` 型
-        # typo 死配置; ``b.ldf`` 复合后缀 ({lang}b.ldf) 是出厂合法形,
+        # ``file + e``)——无 ``.`` 的值拼出无扩展名文件，属 ``[ldf]`` 型
+        # typo 死配置; ``b.ldf`` 复合后缀 ({lang}b.ldf) 是出厂合法形，
         # 故只查含点不查前缀。font_related_exts 消费面是 ``str.endswith``
         # 且出厂值全为裸名 ([tfm, pfb, vf, fd, map, enc])——点前缀检查
-        # 会拦死出厂规则集, 刻意不查。
+        # 会拦死出厂规则集，刻意不查。
         probs.extend(
             f"rule {tag}: params.try_exts 扩展名须含 '.': {e!r}"
             for e in params.get("try_exts") or []
@@ -418,7 +418,7 @@ def _dup_id_problems(rules: list[Any]) -> list[str]:  # yaml 值天然 Any
 
     rules/ 目录装载经 ``_yamlish._merge_into`` list 段 extend 不去重——两片
     同 ``id`` 曾静默拼成双规则 (``applied`` 键 ``{id}:{payload}`` 亦互相
-    遮蔽)。``(phase, order)`` 撞位不拦: 同序位合法——出厂 order:9 族七条
+    遮蔽)。``(phase, order)`` 撞位不拦：同序位合法——出厂 order:9 族七条
     loop 规则同挂 (fileset_relocate/rungen_stub/nonctan_input_stub/
     docstrip_generate/tikz_library_install/pgf_library_install/svg_prepare,
     触发面互斥、稳定序按分片文件名序)。

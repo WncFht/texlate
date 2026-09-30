@@ -61,7 +61,7 @@ def _slot_spans(
 
 
 def _by_kind(hits: list[tuple[str, int, int]]) -> dict[str, list[tuple[int, int]]]:
-    """命中按 kind 归桶, 桶内保文档序 (表行序→finditer 序)。"""
+    """命中按 kind 归桶，桶内保文档序 (表行序→finditer 序)。"""
     d: dict[str, list[tuple[int, int]]] = {}
     for kind, s, e in hits:
         d.setdefault(kind, []).append((s, e))
@@ -71,9 +71,9 @@ def _by_kind(hits: list[tuple[str, int, int]]) -> dict[str, list[tuple[int, int]
 def _broadcast_value(kind: str, ss: list[tuple[int, int]], src: str) -> str | None:
     """unique-src 广播值 → 唯一 gap 值 或 None。
 
-    ``_BROADCAST_KINDS`` 内 kind 计数分歧时调用: src 侧全部命中值唯一
+    ``_BROADCAST_KINDS`` 内 kind 计数分歧时调用：src 侧全部命中值唯一
     ∧ 过 ``_is_ident`` → 返回该值供 zh 侧 CJK gap 广播; 多值/空集/非
-    机料 → None (维持整跳, 错位 revert 比不复原更糟)。
+    机料 → None (维持整跳，错位 revert 比不复原更糟)。
     """
     if kind not in _BROADCAST_KINDS or not ss:
         return None
@@ -134,8 +134,8 @@ def _revert_file(
 
 
 def _full_rxs() -> tuple[tuple[str, re.Pattern[str]], ...]:
-    """机位全表: judge ``_MACHINE_SLOT_RXS`` + cite 族 + 本叶扩展行。"""
-    from texlate.compile.judge import (  # noqa: PLC0415  # 延迟: fixloop 链重
+    """机位全表：judge ``_MACHINE_SLOT_RXS`` + cite 族 + 本叶扩展行。"""
+    from texlate.compile.judge import (  # noqa: PLC0415  # 延迟：fixloop 链重
         _MACHINE_SLOT_RXS,
     )
 
@@ -145,7 +145,7 @@ def _full_rxs() -> tuple[tuple[str, re.Pattern[str]], ...]:
 def _revert_tree(
     ctx: LoopCtx, base_root: Path, rxs: tuple[tuple[str, re.Pattern[str]], ...]
 ) -> tuple[list[str], list[str], list[str], int]:
-    """逐 ``*.tex`` 与 baseline 同名件配对 revert → (件条目, 分歧项, 广播项, 改数)。"""
+    """逐 ``*.tex`` 与 baseline 同名件配对 revert → (件条目，分歧项，广播项，改数)。"""
     reverted: list[str] = []
     skipped: list[str] = []
     broadcast: list[str] = []

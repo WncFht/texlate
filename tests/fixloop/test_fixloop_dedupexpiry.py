@@ -27,7 +27,7 @@ from texlate.compile.fixloop.engine import _landing_sync
 
 
 def test_recode_is_authored_preserves_dedup(tmp_path: Path) -> None:
-    """cp1252 源转码 = 自产编辑: 落件同步零外部件, 基线前烧键全存活。
+    """cp1252 源转码 = 自产编辑：落件同步零外部件，基线前烧键全存活。
 
     旧态裸 ``write_text`` → 指纹 diff 判外部落件 → ``applied`` 全过期 +
     ``_texts`` 失效; 修复后 ``ctx.write`` 记账 → 键面不动且缓存同步新文。
@@ -35,7 +35,7 @@ def test_recode_is_authored_preserves_dedup(tmp_path: Path) -> None:
     src = tmp_path / "main.tex"
     src.write_bytes("\\documentclass{article}\n\\title{café}\n".encode("latin-1"))
     ctx = mk_ctx(tmp_path)
-    ctx.io.written.clear()  # 派发窗开始: 自产写从零计账 (与三处 wrap 点同约)
+    ctx.io.written.clear()  # 派发窗开始：自产写从零计账 (与三处 wrap 点同约)
     ctx.ledger.applied.update({"ruleA:x", "ruleB:y"})
     before = _wdir_fingerprint(tmp_path)
     pre = set(ctx.ledger.applied)
@@ -48,10 +48,10 @@ def test_recode_is_authored_preserves_dedup(tmp_path: Path) -> None:
 
 
 def test_purge_is_authored_preserves_dedup(tmp_path: Path) -> None:
-    """截断 aux 删除 = 自产编辑: 落件同步零外部件, 基线前烧键全存活。
+    """截断 aux 删除 = 自产编辑：落件同步零外部件，基线前烧键全存活。
 
     旧态裸 ``unlink`` → 指纹 diff 判外部落件 → ``applied`` 全过期; 修复后
-    删路径入 ``io.written`` authored 账 → 键面不动, ``_texts`` 条目仍失效
+    删路径入 ``io.written`` authored 账 → 键面不动，``_texts`` 条目仍失效
     (purge 自带 invalidate, 不靠落件同步补)。
     """
     (tmp_path / "main.tex").write_text(
@@ -74,8 +74,8 @@ def test_purge_is_authored_preserves_dedup(tmp_path: Path) -> None:
 
 
 def test_external_landing_still_expires(tmp_path: Path) -> None:
-    """对照钉: 同窗真外部落件 (install/vendor/run_tool 裸写同形) 依旧全量
-    过期基线前烧键 —— authored 账只收编自产编辑, 不放水真落件。"""
+    """对照钉：同窗真外部落件 (install/vendor/run_tool 裸写同形) 依旧全量
+    过期基线前烧键 —— authored 账只收编自产编辑，不放水真落件。"""
     ctx = mk_ctx(tmp_path)
     ctx.io.written.clear()
     ctx.ledger.applied.update({"ruleA:x", "ruleB:y"})

@@ -121,7 +121,7 @@ class TestEndToEnd:
         assert "[[MATH_1]]" in out[0].translation
         assert "[[CITE_2]]" in out[1].translation
         # 批调用 1 次 + 每成员单翻至少 1 次
-        assert len(t.calls) >= 3  # noqa: PLR2004 -- 批1+单翻2
+        assert len(t.calls) >= 3  # noqa: PLR2004 -- 批 1+ 单翻 2
 
     def test_batch_auth_error_skips_all(self) -> None:
         chunks = [mk_chunk("A", "a"), mk_chunk("B", "b")]

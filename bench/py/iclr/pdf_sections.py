@@ -61,7 +61,7 @@ RUNNING_HEAD_RX = re.compile(
 PAGE_NUM_RX = re.compile(r"^\s*\d{1,4}\s*$")
 DEHYPHEN_RX = re.compile(r"([A-Za-z])-\n([a-z])")
 
-# 编号标题: "1 Introduction" / "2.1 Setup" / "A.2 Proof" / "B Details"
+# 编号标题："1 Introduction" / "2.1 Setup" / "A.2 Proof" / "B Details"
 NUM_HEAD_RX = re.compile(
     r"^\s*(\d+(?:\.\d+){0,2}|[A-Z](?:\.\d+){0,2})[\s.]+([^\n]{1,90}?)\s*$"
 )
@@ -75,8 +75,8 @@ UNNUMBERED_HEADS = re.compile(
 )
 BAD_TAIL_RX = re.compile(r"[.,;:]$")
 TOC_RX = re.compile(r"\.{3,}|\s\d{1,3}$")  # 目录点线/尾随页码
-LETTER_SPACE_RX = re.compile(r"\b([A-Z]) (?=[A-Z]{2,})")  # 字距大写: I NTRODUCTION
-# 拼回判别集: tag 单字母 + 字距标题 = 完整白名单词（A+BSTRACT→ABSTRACT）
+LETTER_SPACE_RX = re.compile(r"\b([A-Z]) (?=[A-Z]{2,})")  # 字距大写：I NTRODUCTION
+# 拼回判别集：tag 单字母 + 字距标题 = 完整白名单词（A+BSTRACT→ABSTRACT）
 JOINED_UNNUMBERED = {
     "ABSTRACT",
     "REFERENCES",
@@ -110,9 +110,9 @@ def titlecase_ratio(title: str) -> float:
 
 
 def detect_headings(lines: list[str]) -> list[tuple[int, int, str, str]]:
-    """行级标题检测 → [(行号, level, raw标题, number_tag|'')].
+    """行级标题检测 → [(行号，level, raw 标题，number_tag|'')].
 
-    闸门: 结尾无句读、无目录点线、词数 ≤12、Title-Case ≥0.4；
+    闸门：结尾无句读、无目录点线、词数 ≤12、Title-Case ≥0.4；
     编号单调——数字顶级只能持平/+1（不许回跳到新号），字母顶级
     （附录）从 A 起递增。无编号白名单恒接受。
     """

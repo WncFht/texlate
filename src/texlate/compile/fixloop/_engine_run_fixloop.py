@@ -56,9 +56,9 @@ def fixloop(  # noqa: PLR0913 -- 注入面穿透
     unfixable:<cat> / stuck / max_rounds / reject:<rid> /
     no_errors_no_pdf / no_main_tex[:<sub>]（``classify_no_main`` 细分）
 
-    装配面: setup (ruleset/引擎名/cfg/ctx/cell) → 主档解析与 no_main 早退
+    装配面：setup (ruleset/引擎名/cfg/ctx/cell) → 主档解析与 no_main 早退
     → ``_FixRun`` 相机 (_floor_snapshot → precheck 早退 → rounds 主循环
-    → tail 尾段)。相内状态机分支各归其方法, 经验调谐注释逐块随迁。
+    → tail 尾段)。相内状态机分支各归其方法，经验调谐注释逐块随迁。
 
     ``main_rel`` 缺省时 ``find_main_tex`` 双档推导；调用方持有正确主档
     时显式传入（译后 splice 树的语种重排会让 ``language_rank`` 把
@@ -83,7 +83,7 @@ def fixloop(  # noqa: PLR0913 -- 注入面穿透
     clean_err_max = int(cfg.get("clean_err_max", 3))
     passes = int(cfg.get("compile_passes", 2))
     stuck_n = int(cfg.get("stuck_sig_repeat", 3))
-    # 重编超时: 参数 > meta.loop.timeout_sec > 引擎缺省 (None = 不透传)
+    # 重编超时：参数 > meta.loop.timeout_sec > 引擎缺省 (None = 不透传)
     if compile_timeout is not None:
         timeout = float(compile_timeout)
     elif cfg.get("timeout_sec") is not None:
@@ -102,9 +102,9 @@ def fixloop(  # noqa: PLR0913 -- 注入面穿透
         "rounds": [],
         "actions": [],
         "verdict": None,
-        # reject 决策名单: gate/loop 相 REJECT 不经 actions 列 (precheck 相
-        # append 在先判 REJECT 在后, 双栖) —— 单列物化, 不混 rules_fired
-        # 的修复语义, verdict ``reject:<rid>`` 的结构化面。
+        # reject 决策名单：gate/loop 相 REJECT 不经 actions 列 (precheck 相
+        # append 在先判 REJECT 在后，双栖) —— 单列物化，不混 rules_fired
+        # 的修复语义，verdict ``reject:<rid>`` 的结构化面。
         "gate_fired": [],
         "floor_restored": False,
         # 调用方指定主档缺件/树外时的回退留痕——None = 无回退发生

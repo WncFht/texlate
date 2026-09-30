@@ -55,10 +55,10 @@ def test_phase_ordering() -> None:
     ]
     # v2: eps_route 挪 loop 层 (log 确证后兜底拒); pstricks 独立成 precheck 项
     assert [r.id for r in _rs().phase("precheck")] == [
-        # \input <pkg>.sty → \RequirePackage 2.09 臂最前: 产出两臂皆合法,
+        # \input <pkg>.sty → \RequirePackage 2.09 臂最前：产出两臂皆合法，
         # 病态双中头 (真 \documentstyle + 注释行 \documentclass) 恒走安全臂
         "input_sty_209_requirepkg",
-        # \input <pkg>.sty → \usepackage 2e 臂: 转换形供路由门/缺件扫描同收
+        # \input <pkg>.sty → \usepackage 2e 臂：转换形供路由门/缺件扫描同收
         "input_sty_to_usepackage",
         "pstricks_route",
         # C5 (W31): svg 包 tectonic 硬墙 → 路由 xelatex
@@ -69,7 +69,7 @@ def test_phase_ordering() -> None:
         "psfrag_route",
         "caption_skip_clamp",
         "psfrag_strip_xelatex",
-        # qc-impl-2026-09-28 续批: section afterskip 垫底 (与上条 -6.5 同
+        # qc-impl-2026-09-28 续批：section afterskip 垫底 (与上条 -6.5 同
         # order 稳定序按分片文件名拼接)
         "cjk_section_skip_floor",
         # qc99 rules-batch: suppl 浮体冲页 / ACM uchead -12pt 校准 /
@@ -82,15 +82,15 @@ def test_phase_ordering() -> None:
         "ref_double_brace_strip",
         # W164 (stybegindoc 车道): e-print 内嵌 tar 冒名 .sty/.cls → 解包
         "tar_blob_extract",
-        # failmine3 (#164b): docclass 自带子档剥至 body —— 解包后收, 预检前清死导言
+        # failmine3 (#164b): docclass 自带子档剥至 body —— 解包后收，预检前清死导言
         "subfile_docclass_strip",
-        # m1k base 21 格实证: 主档 \documentstyle → upgrade_209 升 2e,
+        # m1k base 21 格实证：主档 \documentstyle → upgrade_209 升 2e,
         # 拆出 \usepackage 供 static_precheck 同轮装包; 不可转落 REJECT
         "latex209_upgrade",
         # shipclscen: 随源 .cls/.sty 内裸 \input X.sty → exact-restore @ 包裹
         "shipped_sty_input_wrap",
         # qc-impl: textheight/baselineskip 冻结在 slotrevert 前 (还原文
-        # 本几何前先钉死版心, 防 209-era \textheight 漂移喂错 baseline)
+        # 本几何前先钉死版心，防 209-era \textheight 漂移喂错 baseline)
         "textheight_baselineskip_freeze",
         # slotrevert (#188): zh 化机位实参按 baseline 配对还原 —— 还原的
         # \usepackage{真名} 供 static_precheck 装包扫描收
@@ -103,11 +103,11 @@ def test_phase_ordering() -> None:
         "build_directive_harvest",
     ]
     loop = [r.id for r in _rs().phase("loop")]
-    # biber_biblatex_skew_route (order:8) 殿前: 工具链硬墙先路由, 不陪跑
-    # 可修类; wrapromote (order:8.5): fragment 误判主档先归位, 一切按
+    # biber_biblatex_skew_route (order:8) 殿前：工具链硬墙先路由，不陪跑
+    # 可修类; wrapromote (order:8.5): fragment 误判主档先归位，一切按
     # main 干的修复在其后; eps_converted_alias (order:8.6): conv 件随稿家
     # 一轮全愈先于 fileset 逐轮搬迁 (2403.05444 实证 13 图搬 8 轮饿死),
-    # cache_dir_glob 限定随稿家, 家外 decline 透传; C5: order:9 自产件
+    # cache_dir_glob 限定随稿家，家外 decline 透传; C5: order:9 自产件
     # 窄谓词四件先于 install_file(10) —— rungen(W79)/overlay(W18)/docstrip(W102)
     # 在 40-install, svg_prepare(W31) 在 45-graphics, 同 order 稳定序按分片
     # 文件名序拼接; covgap-B: fileset_relocate 居 order:9 族首 —— 位错
@@ -145,8 +145,8 @@ def test_every_rule_has_provenance() -> None:
 def test_regex_rewrite_repl_no_literal_backref() -> None:
     # fixer-alreadydef 实证缺陷类 (b66a554): 单引号 yaml 'a\\g<0>' → 值含
     # \\g<0> → re.sub 把 \\ 解成字面 \, g<0> 沦为纯文本 → 匹配行被吞成
-    # 字面 \g<0>。判定: g<N> 前紧邻的反斜杠串长为偶数 → 是字面非回引
-    # (奇数 = ...\\ + \g<N> 合法: 转义反斜杠 + 真回引)。
+    # 字面 \g<0>。判定：g<N> 前紧邻的反斜杠串长为偶数 → 是字面非回引
+    # (奇数 = ...\\ + \g<N> 合法：转义反斜杠 + 真回引)。
     bad: list[str] = []
     for r in _rs().rules:
         act = r.raw.get("action") or {}
@@ -162,7 +162,7 @@ def test_regex_rewrite_repl_no_literal_backref() -> None:
 
 
 def test_version_guard_policy_present() -> None:
-    # 对账第 25 条: 非 rules 条目, 是 filemap 段的 ctan_fetch 前置检查策略
+    # 对账第 25 条：非 rules 条目，是 filemap 段的 ctan_fetch 前置检查策略
     vg = _rs().filemap_cfg["version_guard"]
     assert vg["enabled"] is True
     assert vg["texlive_format_epoch"] == "2022-07-14"
@@ -458,7 +458,7 @@ def test_strip_inputenc_inline_solo_keeps_tail(tmp_path: Path) -> None:
     ok, _ = TRANSFORM_FNS["strip_inputenc"](ctx, eng, None, {})
     assert ok
     t = (tmp_path / "main.tex").read_text()
-    assert "\\usepackage{amsmath}" in t  # 行内嵌入置空, 不吃行尾
+    assert "\\usepackage{amsmath}" in t  # 行内嵌入置空，不吃行尾
 
 
 def test_cs_targeted_fix_strips_breakurl(tmp_path: Path) -> None:
@@ -491,7 +491,7 @@ def test_cs_targeted_fix_mathbbm_per_engine(tmp_path: Path) -> None:
     assert "\\mathbbm" not in t
     assert "dsfont.sty" in eng.install_calls
 
-    # xelatex: bbm 已在源码 → 不重复注入, 只确保 bbm.sty 可用
+    # xelatex: bbm 已在源码 → 不重复注入，只确保 bbm.sty 可用
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{bbm}\n"
         "\\begin{document}\n$\\mathbbm{1}$\n\\end{document}\n"

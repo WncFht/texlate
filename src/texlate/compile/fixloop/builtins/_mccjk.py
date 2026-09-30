@@ -80,7 +80,7 @@ _HANGUL_BANDS: tuple[tuple[int, int], ...] = (
 )
 
 #: 已覆盖 hangul 的缺字字体名排除模式 —— 与 yaml hangul_font_fallback.font_not
-#: 同步维护: 谚文落其上 = 真缺字形, 路由臂不认领。
+#: 同步维护：谚文落其上 = 真缺字形，路由臂不认领。
 _KO_FONT_NOT = (
     r"noto.*(cjk|kr|korean)|source.?han|sarasa|hanazono|nanum|malgun|kopub|"
     r"plex.*kr|apple|batang|dotum|gulim|gungsuh|myeongjo|dinaru|"
@@ -106,9 +106,9 @@ _KO_FONT_CANDS: tuple[Any, ...] = (
 #: (kaist-ucs.cls 封面文字在钩内走)。
 
 
-#: cjk_warmup 注入的绑定预热盒: 每 ``{尺寸/系列 中}`` 组把
-#: ``xeCJK/<fam>/<ser>/<sh>/<size>`` 在干净上下文先绑到真 CJK 字体,
-#: 之后 \no@harm 测量盒再遇同型直接复用既有绑定, 不再污染。
+#: cjk_warmup 注入的绑定预热盒：每 ``{尺寸/系列 中}`` 组把
+#: ``xeCJK/<fam>/<ser>/<sh>/<size>`` 在干净上下文先绑到真 CJK 字体，
+#: 之后 \no@harm 测量盒再遇同型直接复用既有绑定，不再污染。
 _MC_WARMUP_SIZES = (
     "\\normalsize 中",
     "\\small 中",
@@ -248,8 +248,8 @@ def _mc_apply_hangul_route(
     snippet = _ko_route_snippet(font)
     main = ctx.main_path()
     if main is not None and snippet in (ctx.read(main) or ""):
-        # 路由件已在场而缺字持续: 码位同样认领出表 —— 自注 snippet 的
-        # \xeCJKsetup/\setCJK*font 字样会让 _CJK_MECH_RE 自我命中,
+        # 路由件已在场而缺字持续：码位同样认领出表 —— 自注 snippet 的
+        # \xeCJKsetup/\setCJK*font 字样会让 _CJK_MECH_RE 自我命中，
         # 留表会让暖盒假阳性空烧一轮 (kotex-only 工程本无 xeCJK 可暖)。
         return False, "hangul route already present but drops persist", cps
     if _inject_before_begindoc(ctx, snippet):

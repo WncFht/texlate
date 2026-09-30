@@ -1,15 +1,15 @@
 """index 回放 mixin —— sealed 段摄入 / hot-tail byte watermark / 全量 rebuild。
 
 - ``_sealed_done_set``/``sealed_done``/``_sealed_covered`` — 已重放段名集
-  (meta ``sealed_done`` JSON) 与全覆盖判 (未摄段 = 投影盲区, 封闸依据)。
-- ``_ingest_sealed_segments`` — hot tail 整段旋走后仍可见的唯一通道:
+  (meta ``sealed_done`` JSON) 与全覆盖判 (未摄段 = 投影盲区，封闸依据)。
+- ``_ingest_sealed_segments`` — hot tail 整段旋走后仍可见的唯一通道：
   raw ``.jsonl`` 优先于 ``.zst`` (后者须 ledger.zst_verified 才信);
-  每段摄入+标记同事务, 读不出/验不过则留 pending 让封闸保持关闭。
+  每段摄入 + 标记同事务，读不出/验不过则留 pending 让封闸保持关闭。
 - ``tail_ingest`` — 水位 = 末次吞入 ``\\n`` 之后一字节; inode tag 变
   (旋走重建) 或文件缩水则归零重放 (dedupe-by-sha 保证幂等)。
 - ``_iter_all_events``/``_ledger_watermark`` — ledger 权威序回放 (sealed
   + hot 全覆盖) 与 fsync 尾偏移; ``_norm_iter_item`` 归一 dict/tuple 项。
-- ``rebuild`` — kernel 活性闸后单事务全量重放: durable 游标先快照
+- ``rebuild`` — kernel 活性闸后单事务全量重放：durable 游标先快照
   (回放期间新增行留给下次 tail_ingest), sealed_gen+1, .index-dirty
   提交成功后才清 (中途崩溃回滚到旧一致投影)。
 

@@ -47,14 +47,14 @@ __all__ = [
 
 
 # ════════════════════════════════════════════════════════════════
-# nfss_enc 三臂: xelatex TU 下 legacy NFSS enc 声明族 (nfsstu 车道)
+# nfss_enc 三臂：xelatex TU 下 legacy NFSS enc 声明族 (nfsstu 车道)
 # ════════════════════════════════════════════════════════════════
 
 #: ``Command \X unavailable in encoding E`` —— 实报 enc 从 err_head 提取
-#: (缺省 TU)。payload 只载 cs 名, enc 在签名尾段。
+#: (缺省 TU)。payload 只载 cs 名，enc 在签名尾段。
 _NFSS_UNAVAIL_RE = re.compile(r"unavailable in encoding ([A-Za-z0-9]+)")
 
-#: Arm A TU 体表: cs 名 → ``\DeclareTextCommand`` 声明体。``\ensuremath``
+#: Arm A TU 体表：cs 名 → ``\DeclareTextCommand`` 声明体。``\ensuremath``
 #: 件两模态通用且不依赖字体覆盖面 —— ``\DeclareTextSymbol`` 字面槽在无
 #: fontspec 的 cm 字体会 missing-char 软丢字 (f1c repro 实证), ``\ensuremath{'}``
 #: 恰是稿自带 ``\providecommand*{\textprime}{\('}`` 的本义 (f1d 净)。
@@ -87,7 +87,7 @@ def nfss_cmd_enc_polyfill(
     return False, f"\\{cs} {enc} declaration already present"
 
 
-#: Arm B 站点探针: ``\usefont{E}``/``\fontencoding{E}`` (E 大小写不敏,
+#: Arm B 站点探针：``\usefont{E}``/``\fontencoding{E}`` (E 大小写不敏，
 #: NFSS enc 名规范化前字面匹配)。
 def _nfss_enc_site_re(enc: str) -> re.Pattern[str]:
     return re.compile(
@@ -97,9 +97,9 @@ def _nfss_enc_site_re(enc: str) -> re.Pattern[str]:
 
 
 #: T2A Cyrillic 字形 cs → Unicode 字符 (t2aenc.dfu
-#: ``\DeclareUnicodeCharacter`` 逆推: 仅裸 cs 映射项 ——
+#: ``\DeclareUnicodeCharacter`` 逆推：仅裸 cs 映射项 ——
 #: ``\@tabacckludge``/``\U``/``\H`` 复合重音项无对应 cs)。大写 cs 名
-#: 列字面, 小写形由名/字双 ``.lower()`` 推导 (``CYRZH``→``cyrzh``/Ж→ж)。
+#: 列字面，小写形由名/字双 ``.lower()`` 推导 (``CYRZH``→``cyrzh``/Ж→ж)。
 _CYR_PAIRS: tuple[tuple[str, str], ...] = (
     ("CYRYO", "Ё"),
     ("CYRDJE", "Ђ"),
@@ -183,7 +183,7 @@ def _nfss_glyph_re(table: dict[str, str]) -> re.Pattern[str]:
 
 
 def _rewrite_enc_sites(t: str, rx: re.Pattern[str]) -> tuple[str, int]:
-    """``{E}`` 段改 ``{TU}`` → (新文本, 改写数); 遮盖区命中跳过。"""
+    """``{E}`` 段改 ``{TU}`` → (新文本，改写数); 遮盖区命中跳过。"""
     masked = mask_tex(t)
     edits = [
         (m.start(0) + len(m[1]), m.end(0), "{TU}")
@@ -207,7 +207,7 @@ def _scan_sites(
     site_re: re.Pattern[str],
     glyph_re: re.Pattern[str] | None,
 ) -> tuple[int, int, set[str]]:
-    """逐文件站点改写 + 字形 cs 使用扫描 → (改写数, 触文件数, 命中 cs 集)。"""
+    """逐文件站点改写 + 字形 cs 使用扫描 → (改写数，触文件数，命中 cs 集)。"""
     n_sites, n_files = 0, 0
     used: set[str] = set()
     for f in ctx.tex_files(exts):

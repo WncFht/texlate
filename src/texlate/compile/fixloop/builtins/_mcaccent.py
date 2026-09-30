@@ -43,8 +43,8 @@ __all__ = [
 
 #: 组合附加符码位 → 产生它的重音 cs (scout-misschar-coverage 2026-09-17
 #: 0327 群 ~62 pids: ``\c{t}`` 类在无预组字形基字符上产 base+combining
-#: 节点, ambient 字体无 U+0300-036F → Missing character; 附加符由 accent
-#: 机制生成非输入字符, ``\newunicodechar`` 的 active-char 绑定拦不到)。
+#: 节点，ambient 字体无 U+0300-036F → Missing character; 附加符由 accent
+#: 机制生成非输入字符，``\newunicodechar`` 的 active-char 绑定拦不到)。
 _ACCENT_CS: dict[int, str] = {
     0x0327: "c",
     0x0301: "'",

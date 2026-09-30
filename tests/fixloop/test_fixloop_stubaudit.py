@@ -1,9 +1,9 @@
-"""vendor stub 保真审计钉 (stubaudit 车道, 2026-09-18):
+"""vendor stub 保真审计钉 (stubaudit 车道，2026-09-18):
 
 - ``mn2e.cls``/``mn.cls``: ``\\LoadClass{mnras}`` 裸调用把 option list 视空 —
   ``usenatbib``/``useAMS``/``referee`` 全丢 (loop2 实证 0707.4614
   citealt×142 / 1206.0597 citealt×57 / 1206.5819 citet×134)。改
-  ``\\LoadClassWithOptions`` 按 scrub 后 ``\\@classoptionslist`` 转发,
+  ``\\LoadClassWithOptions`` 按 scrub 后 ``\\@classoptionslist`` 转发，
   mnras 老 ``\\ds@`` 系 option 照常点火。
 - ``aaspp4.sty``/``aasms4.sty``: ``\\markcite``/``\\reference`` 真身均单参
   ``{key}`` (9910310 ``\\markcite{Na_95}``/``\\reference{Al_96}`` 实证),
@@ -15,7 +15,7 @@
 - ``svjour3.cls``: 真件 ``natbib`` 类选项 → AtEndOfClass 装 natbib;
   stub 星号转发把 ``natbib`` 当未知 option 丢给 article 静默吞。
 - ``aipproc.cls``: 真件装载面 calc/ifthen/graphicx[final]/url;
-  ``\author`` 双签名 (新 keyval 双参 | 老 REVTeX3 单参+散调 ``\address``,
+  ``\author`` 双签名 (新 keyval 双参 | 老 REVTeX3 单参 + 散调 ``\address``,
   2 参硬吃后随 cs 炸 \\csname/keyval) + ``references`` env
   (astro-ph/0104007 env_undefined→\\@listctr×12 级联)。
 - ``tcilatex.tex``: ``\\QQQ`` 真件 2 参元数据机 (全部存本一致;
@@ -26,7 +26,7 @@
   实证面 + \\BoxedEPSF→\\includegraphics (cond-mat/0408520 ×16)。
 - ``svglov3.clo``: catcode 免疫改写 (1608.06693 实证)——旧 stub 尾置
   ``\\makeatother``, svjour3.cls class-load 语境 ``\\input`` 返回后 @ 失
-  字母位, cls:159 ``15\\p@`` 断读 → 全 cls 级联。现全件零 @-cs,
+  字母位，cls:159 ``15\\p@`` 断读 → 全 cls 级联。现全件零 @-cs,
   ``\\PackageWarningNoLine`` 两语境皆可解析。
 - shim_map body 升级 (round-2, 随稿签名挖掘): cimento ``\from/\\inst/
   \\instlist/\\PACSes/\\PACSit`` (0905.4620), pasj00 ``\\DeclareAbbreviation``
@@ -35,7 +35,7 @@
   \\speaker/\\email`` + 命令形 ``\abstract`` (1306.5919), imsart += ``\arxiv/
   \thanksref`` (1003.1513), aa501 ``{loads:"aa", needs:["aa.cls"]}`` 桥
   (0104346 实证面), flushrt ``\\AtBeginDocument{\raggedleft}`` (9910310:
-  升级稿 ``\\usepackage{aaspp4,flushrt}`` 合行, 2.09 option→pkg 链)。
+  升级稿 ``\\usepackage{aaspp4,flushrt}`` 合行，2.09 option→pkg 链)。
 - shim_map geom.sty body 深件 (round-3, 0806.0904/0806.2953 实证 +
   CTAN latex209/contrib/geomsty 取件核实): ``\\ifstarredcontents`` 补
   ``\newif`` (稿 ``\\@ssect`` 直读未声明 → ``\\section*`` ``\\@tempb``
@@ -44,7 +44,7 @@
   基座 + ``\\provedbox``/``\\captionskip``/``\\@caption*`` 寄存器;
   ``\\prooftag`` 0 参; @-cs 段 ``\\catcode 64`` save/restore 免疫。
 
-实证基线: bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl,
+实证基线：bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl,
 stagerun-tarrecheck/, stagerun-flipcheck/ 同名 records。
 """
 
@@ -107,7 +107,7 @@ def test_iface_requires_present() -> None:
 
 
 def test_svjour3_natbib_option_declared() -> None:
-    """svjour3 natbib 类选项 pin：真件 AtEndOfClass 装 natbib+版式参数。"""
+    """svjour3 natbib 类选项 pin：真件 AtEndOfClass 装 natbib+ 版式参数。"""
     body = (SHIMS / "svjour3.cls").read_text(encoding="utf-8")
     assert "\\DeclareOption{natbib}" in body
     assert "\\AtEndOfClass{\\RequirePackage{natbib}" in body
@@ -211,7 +211,7 @@ text \citet{key}
 @requires_xelatex
 @pytest.mark.parametrize("sty", ["aaspp4", "aasms4"])
 def test_aas4_markcite_reference_consume_key(tmp_path: Path, sty: str) -> None:
-    """\\markcite{Na_95}/\\reference{Al_96}: {key} 不泄正文, 无 Missing $。"""
+    """\\markcite{Na_95}/\\reference{Al_96}: {key} 不泄正文，无 Missing $。"""
     shutil.copy(STUBS / f"{sty}.sty", tmp_path / f"{sty}.sty")
     log = run_xelatex(
         tmp_path,
@@ -269,7 +269,7 @@ text \citep{key}
 @pytest.mark.integration
 @requires_xelatex
 def test_aipproc_provides_graphicx_url(tmp_path: Path) -> None:
-    """aipproc stub 镜像真件装载面: graphicx/url 由类提供。"""
+    """aipproc stub 镜像真件装载面：graphicx/url 由类提供。"""
     shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
     log = run_xelatex(
         tmp_path,
@@ -503,7 +503,7 @@ def test_imsart_arxiv_thanksref() -> None:
     ):
         assert frag in body, f"imsart 缺 {frag}"
     # \address 单参实证 (1003.1513 :29)——裸 2 必参形吞后随 token 回潮禁;
-    # vendored 件取 [2][] opt+mand 形 (真件签名, 单参调用兼容)。
+    # vendored 件取 [2][] opt+mand 形 (真件签名，单参调用兼容)。
     assert "\\providecommand{\\address}[2]{" not in body
 
 

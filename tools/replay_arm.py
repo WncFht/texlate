@@ -120,7 +120,7 @@ _META_LINE = re.compile(r"^(keep|values)\s*:")
 def strip_meta(part):
     """剥掉译文开头误回显的元数据行；返回 ``(clean, stripped_n)``。
 
-    全臂统一剥+计 echo（v6 源件口径）——v4/v5 臂 echo>0 即模型回显了
+    全臂统一剥 + 计 echo（v6 源件口径）——v4/v5 臂 echo>0 即模型回显了
     manifest/协议行，本身是审计信号；中文译文行首以字面 ``keep:``/``values:``
     起头的概率可忽略，误食风险为零。
     """

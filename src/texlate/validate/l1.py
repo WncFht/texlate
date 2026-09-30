@@ -315,7 +315,7 @@ class TsValidator:
 
         ``_require_available`` 不闸 deps——``available()`` 才是三件套可用性
         门，spawn 路径放行让 worker 自己崩；本件把"非零退出/EOF"归因成
-        可行动的 ``npm deps 缺失: <node_path>`` 诊断。
+        可行动的 ``npm deps 缺失：<node_path>`` 诊断。
         """
         return "" if self._deps_present() else f"（npm deps 缺失: {self._node_path}）"
 

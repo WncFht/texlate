@@ -84,7 +84,7 @@ def test_report_of_surfaces_driver_fatal(tmp_path: Path) -> None:
     assert rep.n_bang == 1
     assert "pdf_link_obj" in (rep.first or "")
     cat, _pay = load_ruleset().taxonomy.classify(rep, timed_out=False)
-    assert cat == "other"  # 签名无专属类目 → other 兜底, 规则 when 面
+    assert cat == "other"  # 签名无专属类目 → other 兜底，规则 when 面
 
 
 def test_report_of_plain_stdout_keeps_log_report(tmp_path: Path) -> None:
@@ -100,7 +100,7 @@ def test_report_of_plain_stdout_keeps_log_report(tmp_path: Path) -> None:
 
 
 def test_report_of_log_errors_win_over_fatal(tmp_path: Path) -> None:
-    """.log 有 '!' 错 → 不查 stdout_tail (先修 TeX 错, fatal 下轮再见)。"""
+    """.log 有 '!' 错 → 不查 stdout_tail (先修 TeX 错，fatal 下轮再见)。"""
     res = _res(
         tmp_path,
         "! Undefined control sequence.\nl.5 \\foo\n",
@@ -162,7 +162,7 @@ def test_pdfsanitize_cond_declines_no_gs(
 def test_pdfsanitize_rewrites_pdf_assets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """内嵌 .pdf 全量重写: 内容替换 + 原件留 .fixloop-rd 备份。"""
+    """内嵌 .pdf 全量重写：内容替换 + 原件留 .fixloop-rd 备份。"""
     monkeypatch.setattr(shutil, "which", which_only("gs"))
     (tmp_path / "img").mkdir()
     (tmp_path / "img/bad.pdf").write_bytes(b"%PDF-1.4 malformed-no-endobj")
@@ -224,7 +224,7 @@ def test_pdfsanitize_no_pdf_assets(
 def test_pdfsanitize_gs_failure_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """gs 全败 → False 不谎报, 原件不动 (失败残留清掉)。"""
+    """gs 全败 → False 不谎报，原件不动 (失败残留清掉)。"""
     monkeypatch.setattr(shutil, "which", which_only("gs"))
     src = tmp_path / "fig.pdf"
     src.write_bytes(b"%PDF figure")
@@ -248,7 +248,7 @@ def test_pdfsanitize_no_gs_builtin_false(
 
 @pytest.mark.skipif(shutil.which("gs") is None, reason="gs not on PATH")
 def test_pdfsanitize_real_gs_repairs_malformed(tmp_path: Path) -> None:
-    """真 gs 端到端: 剥 endobj 的残缺 pdf → 重序列化非空产出 + 原件备份。"""
+    """真 gs 端到端：剥 endobj 的残缺 pdf → 重序列化非空产出 + 原件备份。"""
     good = (
         b"%PDF-1.4\n"
         b"1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n"

@@ -232,7 +232,7 @@ async def retention_loop(
             log.warning("retention sweep failed: %s", e)
 
 
-def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
+def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平铺
     *,
     data_dir: Path | None = None,
     start_worker: bool = True,

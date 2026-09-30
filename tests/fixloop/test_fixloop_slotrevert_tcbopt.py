@@ -71,7 +71,7 @@ def test_tcbopt_opt_head_reverted(tmp_path: Path) -> None:
 
 def test_tcbopt_def_tail_reverted(tmp_path: Path) -> None:
     """``\\newtcblisting{name}[n]{kv}``/``\\newtcolorbox`` def 尾选项
-    组 zh 化 → 整组还原 (``#n`` 形参位同域, 2609.19556 def 站实证)。"""
+    组 zh 化 → 整组还原 (``#n`` 形参位同域，2609.19556 def 站实证)。"""
     work, base = _trees(tmp_path)
     src = (
         "\\newtcblisting{promptbox}[2]{\n"
@@ -99,7 +99,7 @@ def test_tcbopt_def_tail_reverted(tmp_path: Path) -> None:
 
 def test_tcbopt_flat_arg_dedup(tmp_path: Path) -> None:
     """tcb env 单行平参 —— envarg 严格 ident 与 tcbopt kvnl 双面同位
-    重扫去重, 行为不变 (``listing only`` 裸键 + ``,`` kv 形)。"""
+    重扫去重，行为不变 (``listing only`` 裸键 + ``,`` kv 形)。"""
     work, base = _trees(tmp_path)
     src = "\\begin{tcblisting}{listing only, breakable}\nx\n\\end{tcblisting}\n"
     zh = "\\begin{tcblisting}{这是译文这是译文}\nx\n\\end{tcblisting}\n"
@@ -109,7 +109,7 @@ def test_tcbopt_flat_arg_dedup(tmp_path: Path) -> None:
     assert (work / "main.tex").read_text(encoding="utf-8") == src
 
 
-# ------------------------------------- 负向: 散文组/裸键/非 tcb 面
+# ------------------------------------- 负向：散文组/裸键/非 tcb 面
 
 
 def test_tcbopt_prose_group_not_reverted(tmp_path: Path) -> None:

@@ -70,7 +70,7 @@ def test_floatopt_rule_registered() -> None:
 
 
 def test_floatopt_fires_injects_before_begindoc(tmp_path: Path) -> None:
-    """cond-mat/0408234 形: [H] 无 float → \\usepackage{float} 落 preamble。"""
+    """cond-mat/0408234 形：[H] 无 float → \\usepackage{float} 落 preamble。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[12pt]{iopart}\n"
         "\\usepackage{graphicx}\n"
@@ -125,7 +125,7 @@ def test_floatopt_cond_declines_when_float_loaded(tmp_path: Path) -> None:
 
 
 def test_floatopt_cond_lookalike_pkgs_not_float(tmp_path: Path) -> None:
-    """subfloat/floatrow/floatflt 非 float 本体 → 不算已载, 闸放行。"""
+    """subfloat/floatrow/floatflt 非 float 本体 → 不算已载，闸放行。"""
     for load in ("subfloat", "floatrow", "floatflt"):
         (tmp_path / "main.tex").write_text(
             "\\documentclass{article}\n"
@@ -148,7 +148,7 @@ def test_floatopt_cond_declines_no_h_usage(tmp_path: Path) -> None:
 
 
 def test_floatopt_cond_declines_comma_payload(tmp_path: Path) -> None:
-    """float_opt|, (0806.2574 逗号形) 归 comma_strip——ctx_suggests 钉 H 拒。"""
+    """float_opt|，(0806.2574 逗号形) 归 comma_strip——ctx_suggests 钉 H 拒。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{figure}[t,b]\nx\\end{figure}\n",
         encoding="utf-8",
@@ -168,7 +168,7 @@ def test_floatopt_cond_declines_209_documentstyle(tmp_path: Path) -> None:
 
 
 def test_floatopt_idempotent_second_round(tmp_path: Path) -> None:
-    """注入后 LOAD 断言自锁: 下一轮 condition 拒 → 不重复注入。"""
+    """注入后 LOAD 断言自锁：下一轮 condition 拒 → 不重复注入。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\begin{document}\n\\begin{figure}[H]\nx\\end{figure}\n\\end{document}\n",
@@ -181,7 +181,7 @@ def test_floatopt_idempotent_second_round(tmp_path: Path) -> None:
 
 
 def test_floatopt_commented_begindoc_masked(tmp_path: Path) -> None:
-    """masked 面: 注释掉的 \\begin{document} 不命中 → applied=False。"""
+    """masked 面：注释掉的 \\begin{document} 不命中 → applied=False。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "% \\begin{document}\n\\begin{figure}[H]\nx\\end{figure}\n",

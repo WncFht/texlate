@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 # ---------------------------------------------------------------- 网络/下载
 def open_url(url: str, headers: dict | None = None, timeout: int = TIMEOUT):
-    req = urllib.request.Request(  # noqa: S310 — bench 下载脚本, URL 全是固定 https 端点
+    req = urllib.request.Request(  # noqa: S310 — bench 下载脚本，URL 全是固定 https 端点
         url, headers={**UA, **(headers or {})}
     )
     return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — 同上
@@ -61,7 +61,7 @@ def remote_size(it: dict, meta_dir: Path) -> int:
 
 
 def _verify_content(path: Path, it: dict) -> None:
-    """尺寸之外的内容校验: ia→meta sha1, tiger→lfs oid16(sha256 前缀). 单遍流式."""
+    """尺寸之外的内容校验：ia→meta sha1, tiger→lfs oid16(sha256 前缀). 单遍流式."""
     want_sha1 = it.get("sha1")
     want_oid = it.get("oid16")
     if not want_sha1 and not want_oid:
@@ -81,13 +81,13 @@ def _verify_content(path: Path, it: dict) -> None:
 
 
 def download_item(it: dict, dest_dir: Path, meta_dir: Path) -> Path:
-    """item tar → dest_dir/{item}.tar（.part+Range 续传, 尺寸+内容校验）."""
+    """item tar → dest_dir/{item}.tar（.part+Range 续传，尺寸 + 内容校验）."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     part = dest_dir / f"{it['item']}.tar.part"
     final = dest_dir / f"{it['item']}.tar"
     want = remote_size(it, meta_dir)
     if final.exists() and final.stat().st_size == want:
-        # 尺寸对≠内容对: 腐 final 曾让本函数静默返回坏 tar(探针实证)——
+        # 尺寸对≠内容对：腐 final 曾让本函数静默返回坏 tar(探针实证)——
         # 验不过就删掉落回下载循环重抓
         try:
             _verify_content(final, it)

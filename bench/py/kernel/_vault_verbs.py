@@ -1,9 +1,9 @@
 """kernel._vault_verbs — zone/verdict 簿记动词 (kernel.vault 拆分叶).
 
 ``promote``: pending→primary|quar|alt (与 quar→primary|alt 回搬)。
-primary/alt 是纯元数据 zone (meta 重写 + manifest 行, 零字节 I/O);
-quar 有物理根, 跨界 rename 逐 kind 搬目录。锁落后发 state='verified'
-asset 事件, index vault_meta 投影学到新判词。
+primary/alt 是纯元数据 zone (meta 重写 + manifest 行，零字节 I/O);
+quar 有物理根，跨界 rename 逐 kind 搬目录。锁落后发 state='verified'
+asset 事件，index vault_meta 投影学到新判词。
 
 ``tombstone``: 字节已失登记——manifest tombstone 行 (锁内) + 一等
 tombstone 事件 (§3.1 墓碑是事件不是文件), 并给声明该 kind 的每个副本

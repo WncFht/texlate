@@ -30,7 +30,7 @@ __all__ = [
 #: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
 #: 消息正则 (``_MISSCHAR_MSG_RX``)、U+000A 折行拼回 (``_MISSCHAR_WRAP_RX``)
 #: 与码位解析 (``_misschar_cp``) 单源在更深的 ``texlate.texlog`` ——
-#: fixloop→texlog 边既存 (engine/actions 同向), 本叶直引同口径件,
+#: fixloop→texlog 边既存 (engine/actions 同向), 本叶直引同口径件，
 #: 不再同形双写。spec 字体 ``(U+XXXX)`` / tfm 字体 ``("XXXX)`` 十六进制 /
 #: pdftex 8-bit 裸字符 / ``^^xx``/``^^X`` 记法的判定细则见彼层。
 
@@ -43,19 +43,19 @@ _CJK_FONT_RE = re.compile(
 )
 
 
-#: missing_char 修复默认表 (seeded 自 n100 缺字签名, 2026-09-16;
+#: missing_char 修复默认表 (seeded 自 n100 缺字签名，2026-09-16;
 #: ``params.char_table`` 同形条目按 id 覆盖/扩列 —— 首匹配生效)。
-#: 每条目: ``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
-#: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作:
-#: ``action: cjk_warmup`` (预热 xeCJK 字体绑定) 或 ``replace: "<TeX串>"``。
+#: 每条目：``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
+#: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作：
+#: ``action: cjk_warmup`` (预热 xeCJK 字体绑定) 或 ``replace: "<TeX 串>"``。
 _MC_TABLE: list[dict[str, Any]] = [
     {
         "id": "cjk_glyph",
-        # CJK 统一表意+假名+谚文+兼容/全角区 —— 落在非 CJK 字体 = xeCJK
-        # (本表是 textutil.CJK_RANGES 的语义超集: 缺字判定要罩住假名/谚文/
-        # 彝文/全角, 勿向 CJK_RANGES 单源回退)
+        # CJK 统一表意 + 假名 + 谚文 + 兼容/全角区 —— 落在非 CJK 字体 = xeCJK
+        # (本表是 textutil.CJK_RANGES 的语义超集：缺字判定要罩住假名/谚文/
+        # 彝文/全角，勿向 CJK_RANGES 单源回退)
         # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
-        # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
+        # \fontfamily/\selectfont 失效，首用把 xeCJK/<fam>/<ser>/<sh>/<size>
         # 全局绑到 lmroman —— 探针实证), 预热即可。
         "ranges": [
             [0x2E80, 0x303F],
@@ -74,7 +74,7 @@ _MC_TABLE: list[dict[str, Any]] = [
         "font_not": _CJK_FONT_RE.pattern,
         # 仅 spec 字体 ([lmroman10]:mapping=tex-text 形) 缺 CJK 才预热——
         # tfm 字体 (cmr10/ec-lmss12) 缺 CJK 大头是数学模式 (xeCJK
-        # interchartoks 水平列机制不进数学, warmup 白烧到 stuck;
+        # interchartoks 水平列机制不进数学，warmup 白烧到 stuck;
         # scout-misschar 2026-09-16 实证), 数学面已由 inject 侧
         # \Umathcode 符号字体兜底 (CJK_MATH_FALLBACK) 治。
         "font": r"[\[:]",
@@ -102,7 +102,7 @@ def _mc_table(params: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
-    """码位+字体 vs 条目匹配面 (cps/ranges 与 font/font_not 正则)。"""
+    """码位 + 字体 vs 条目匹配面 (cps/ranges 与 font/font_not 正则)。"""
     if (fno := entry.get("font_not")) and re.search(fno, font, re.IGNORECASE):
         return False
     if (fyes := entry.get("font")) and not re.search(fyes, font, re.IGNORECASE):
@@ -115,7 +115,7 @@ def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
 def _mc_plan(
     seen: dict[int, tuple[str, str]], table: dict[str, dict[str, Any]]
 ) -> tuple[bool, dict[str, str], int]:
-    """逐缺字码位查表 → (是否需 CJK 预热, 字面替换映射, 未匹配数)。"""
+    """逐缺字码位查表 → (是否需 CJK 预热，字面替换映射，未匹配数)。"""
     warm = False
     repl: dict[str, str] = {}
     unmatched = 0
@@ -165,9 +165,9 @@ def _fb_font_body(fam: str, ch: str) -> str:
     return rf"\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi"
 
 
-#: 无参字母/符号 cs —— 文本域字形产出者, 在数学域无重音义 (\' \^ \~ 等
+#: 无参字母/符号 cs —— 文本域字形产出者，在数学域无重音义 (\' \^ \~ 等
 #: 有数学义 = \acute \hat \tilde, 刻意不收)。cs 名 → 产出字符码位
-#: (scout-misschar math_font_chars 桶: ``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。
+#: (scout-misschar math_font_chars 桶：``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。
 _MATH_SHIM_CS: dict[str, int] = {
     "i": 0x0131,
     "j": 0x0237,

@@ -1,25 +1,25 @@
-"""ctan — ``ctan_fetch`` 原语: tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽 (compile 层共享件, F2 归位)。
+"""ctan — ``ctan_fetch`` 原语：tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽 (compile 层共享件，F2 归位)。
 
 原 ``fixloop/ctan.py``——CTAN 拉包/索引是 compile 层共享件
 (``probe``/``engine._xelatex``/``pipecore``/``worker`` 同层消费), 上提后
-fixloop 向下消费 (旧 ``fixloop.ctan`` 路径 2026-09-20 退场,
+fixloop 向下消费 (旧 ``fixloop.ctan`` 路径 2026-09-20 退场，
 全仓直引本模块)。
 
 实证基础 ``docs/research/latex/ctanfetch-probe.md``:
   - tlpdb 正确路径 ``tlpkg/texlive.tlpdb.xz`` (~2.8MB xz → 20.7MB),
-    解析出 8148 包 / 138K basename 索引, 构建 0.14s, filemap.json ~5.5MB
+    解析出 8148 包 / 138K basename 索引，构建 0.14s, filemap.json ~5.5MB
   - ``archive/<pkg>.tar.xz`` 单包 2-136KB 秒级; tar 顶层前缀不统一
-    (``texmf-dist/`` 或裸 ``tex/``), 落地两策略: 平铺 basename /
+    (``texmf-dist/`` 或裸 ``tex/``), 落地两策略：平铺 basename /
     保留 ``tex/`` 树配 ``-Z search-path``
   - cwd 平铺遮蔽 bundle 实测成立 (ctex 2.5.10 遮蔽 2.5.8 → 0 错)
   - **仅限 TeX 输入层文件** (.sty/.cls/.tfm/…); 物理字体 (.pfb/.pk/.vf)
     与 xdvipdfmx 层不在射程 —— 走改写规则兜底
-  - tlnet 只发最新版 → version_guard 比对 expl3/LaTeX2e 要求,
+  - tlnet 只发最新版 → version_guard 比对 expl3/LaTeX2e 要求，
     新版过新则跳过 (ctex 2.6.5 vs bundle expl3 2022/07/14 实证)
 
-缓存约定: ``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR``
+缓存约定：``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR``
 > ``~/.texlate``) 下 ``texlive.tlpdb`` 原件 + ``filemap.json`` 索引
-(远端仓库知识, 与环境冷热无关)。
+(远端仓库知识，与环境冷热无关)。
 """
 
 from __future__ import annotations
@@ -52,12 +52,12 @@ __all__ = [
 ]
 
 MIRROR = "https://mirror.ctan.org/systems/texlive/tlnet"
-TLPDB_RELPATH = "tlpkg/texlive.tlpdb.xz"  # 探针纠错: 非 tlnet/texlive.tlpdb.gz (404)
+TLPDB_RELPATH = "tlpkg/texlive.tlpdb.xz"  # 探针纠错：非 tlnet/texlive.tlpdb.gz (404)
 
 # 索引收录扩展名 (探针 §2: 在任务白名单上加 .clo/.vf/.ofm/.ovp ——
-# ctex 有 .clo 字号文件, 不索引则无法从缺 .clo 反查包)。
-# .tex/.rtx 仅索引不平铺: binhex.tex/epsf.tex/tikzlibrary*.code.tex
-# 类缺名可反查真包, 但修复须走 usertree/tlmgr 安装 —— basename 平铺
+# ctex 有 .clo 字号文件，不索引则无法从缺 .clo 反查包)。
+# .tex/.rtx 仅索引不平铺：binhex.tex/epsf.tex/tikzlibrary*.code.tex
+# 类缺名可反查真包，但修复须走 usertree/tlmgr 安装 —— basename 平铺
 # 会撞名遮蔽工程自身 .tex。
 INDEX_EXTS = {
     ".sty",
@@ -76,21 +76,21 @@ INDEX_EXTS = {
     ".tex",
     ".rtx",
 }
-#: 只从 tlpdb ``runfiles`` 段收录的扩展名: docfiles/srcfiles 的同名
-#: .tex 量大 (示例/文档源) 且 kpsewhich 本就跑不到, 收录只喂噪声候选。
+#: 只从 tlpdb ``runfiles`` 段收录的扩展名：docfiles/srcfiles 的同名
+#: .tex 量大 (示例/文档源) 且 kpsewhich 本就跑不到，收录只喂噪声候选。
 _RUNFILES_ONLY_EXTS = {".tex", ".rtx"}
 # 允许平铺进 cwd 的扩展名 = TeX 输入层; .pfb/.pk 物理字体对
 # tectonic xdvipdfmx 是死路 (探针 §3.4) 不投; .tex/.rtx 只索引不平铺
 # (basename 平铺即撞名遮蔽工程源文件)。
 OVERLAY_EXTS = INDEX_EXTS - {".pfb", ".tex", ".rtx"}
-# tar 内已知顶层前缀 (探针 §2 踩坑: 前缀不统一)
+# tar 内已知顶层前缀 (探针 §2 踩坑：前缀不统一)
 _TAR_PREFIXES = ("texmf-dist/", "texmf/", "tex/")
 _TLPDB_FILE_SECTIONS = {"runfiles", "docfiles", "srcfiles"}
 #: 单参 date 族 —— 日期即紧跟实参 (``{date}``/``[date]``):
 #: ``\NeedsTeXFormat{LaTeX2e}[date]``; ``\IfFormatAtLeastTF|T|F{date}``
-#: (nicematrix v7.11c ``\IfFormatAtLeastTF{2026-06-01}`` abort 实证,
+#: (nicematrix v7.11c ``\IfFormatAtLeastTF{2026-06-01}`` abort 实证，
 #: v7.11a 写 ``{ 2025-06-01 }`` 带空白 —— 允许内部空白);
-#: ``\IfExplAtLeastTF|T|F{date}`` (expl3 loader 日期闸, latex.ltx:1177);
+#: ``\IfExplAtLeastTF|T|F{date}`` (expl3 loader 日期闸，latex.ltx:1177);
 #: ``\@ifl@t@r\<cs>{date}`` 原语直用 (texmf 实证 \fmtversion 66 件/
 #: \ExplLoaderFileDate 11 件/``\csname ver@<file>\endcsname`` 形)。
 _NEEDFMT_RE = re.compile(
@@ -108,7 +108,7 @@ _NEEDFMT_RE = re.compile(
 #: texmf 实证 gate 目标非 expl3 系占多数 (hyperref/csquotes/graphics…),
 #: 名槽开 ``[^}]*``; ``\@ifl@ter\@pkgextension|\@clsextension`` 原语形;
 #: ``\RequirePackage``/``\usepackage``/``\LoadClass``/``\documentclass``
-#: /``*WithOptions`` ``[opts]{names}[date]`` (texmf 实证 408 件,
+#: /``*WithOptions`` ``[opts]{names}[date]`` (texmf 实证 408 件，
 #: bracket 须日期开头 —— ``[=v2]``/``[\KOMAScriptVersion]`` 兼容钉不命中)。
 #: 注意 ``\ProvidesX{name}[date]``/``\ProvidesExplX{name}{date}`` 是包自署
 #: 日期非 floor 声明 (expl3 件多走 ``{\ExplFileDate}``/``\GetIdInfo`` 间址),
@@ -133,8 +133,8 @@ class CtanFetchError(Exception):
 
 
 #: 远端拉取/解压安全上限（audit-2026-09-16 H3: tlnet 包按不可信输入处理）。
-#: 实证基线: tlpdb.xz ~2.8MB→20.7MB, 单包 tar.xz 2-136KB —— 下列默认值
-#: 对合法负载有数量级富余, 只拦失陷镜像的炸弹/穿越。
+#: 实证基线：tlpdb.xz ~2.8MB→20.7MB, 单包 tar.xz 2-136KB —— 下列默认值
+#: 对合法负载有数量级富余，只拦失陷镜像的炸弹/穿越。
 DEFAULT_DOWNLOAD_CAP: Final = 128 * 1024 * 1024
 DEFAULT_INFLATED_CAP: Final = 512 * 1024 * 1024
 DEFAULT_MEMBER_CAP: Final = 64 * 1024 * 1024
@@ -158,14 +158,14 @@ DEFAULT_CAPS: Final = FetchCaps()
 
 
 def default_cache_dir() -> Path:
-    """``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR`` > ``~/.texlate``)。"""
+    """``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR`` > ``~/.texlate``)."""
     raw = env_raw(ENV_CACHE)
     return Path(raw).expanduser() if raw else data_root() / "cache"
 
 
 def _http_get(url: str, *, cap: int = DEFAULT_DOWNLOAD_CAP) -> bytes:
     """流式 GET + 下载体上限；超 cap 抛 CtanFetchError（防失陷镜像炸弹）。"""
-    import httpx  # noqa: PLC0415  # 延迟加载: 纯索引路径不依赖网络栈
+    import httpx  # noqa: PLC0415  # 延迟加载：纯索引路径不依赖网络栈
 
     from texlate.compile.toolchain import _read_capped  # noqa: PLC0415  # 同上网段惰载
 
@@ -237,7 +237,7 @@ class TlpdbIndex:
     def from_tlpdb(cls, path: Path) -> TlpdbIndex:
         """解析 texlive.tlpdb 文本建索引 (tlpdb_index.py 探针移植)。
 
-        块格式: ``name <pkg>`` + ``runfiles/docfiles/srcfiles`` 缩进清单,
+        块格式：``name <pkg>`` + ``runfiles/docfiles/srcfiles`` 缩进清单，
         剥 ``RELOC/`` 前缀取 basename。
         """
         table: dict[str, list[str]] = {}
@@ -288,7 +288,7 @@ class TlpdbIndex:
         p = d / "filemap.json"
         tmp = p.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(self.table, ensure_ascii=False, sort_keys=True))
-        tmp.replace(p)  # 原子换名: 并发读只能见到完整的一代
+        tmp.replace(p)  # 原子换名：并发读只能见到完整的一代
         return p
 
     @classmethod
@@ -318,19 +318,19 @@ class TlpdbIndex:
             return [v] if isinstance(v, str) else []
         hits = self.table.get(basename, [])
         stem = basename.rsplit(".", 1)[0]
-        # 消歧启发: 包名==stem 的排最前 (hyperxmp.sty→hyperxmp);
+        # 消歧启发：包名==stem 的排最前 (hyperxmp.sty→hyperxmp);
         # 406 个多包 basename (探针 §2) 其余保持 tlpdb 序
         return sorted(hits, key=lambda p: (p != stem, p))
 
     def suggest(self, stem: str, limit: int = 5) -> list[str]:
-        """索引查不到时的 advisory 候选: 包名前缀匹配。"""
+        """索引查不到时的 advisory 候选：包名前缀匹配。"""
         all_pkgs = {x for pkgs in self.table.values() for x in pkgs}
         return sorted(p for p in all_pkgs if p.startswith(stem))[:limit]
 
 
 @dataclass(slots=True)
 class FetchResult:
-    """ctan_fetch 返回: ok / 落盘文件 / advisory (索引未命中或版本过新)。"""
+    """ctan_fetch 返回：ok / 落盘文件 / advisory (索引未命中或版本过新)。"""
 
     ok: bool
     fname: str
@@ -349,7 +349,7 @@ def fetch_tlpdb(
 ) -> Path:
     """``tlpkg/texlive.tlpdb.xz`` → 解压 ``texlive.tlpdb`` 落 dest_dir。
 
-    tmp→os.replace 原子落盘: 并发 ``ensure`` 的 ``from_tlpdb`` 流式读
+    tmp→os.replace 原子落盘：并发 ``ensure`` 的 ``from_tlpdb`` 流式读
     只能见到完整的一代 (fixloop-bench 冷启动实测撞过半写文件 →
     索引缺条目 → 假 "no package provides")。
     """
@@ -512,8 +512,8 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面�
     """``file→包索引→tlnet 拉取→cwd 平铺遮蔽`` 全链 (docs/spec/compile.md §6.5)。
 
     - 索引查不到 → advisory 附候选包名 (suggest)
-    - epoch 给定且新版要求过新 → 撤回已投文件, 试下一候选包
-    - 仅限平铺层: 后缀不在 OVERLAY_EXTS 的文件不会落盘
+    - epoch 给定且新版要求过新 → 撤回已投文件，试下一候选包
+    - 仅限平铺层：后缀不在 OVERLAY_EXTS 的文件不会落盘
       (.tex/.rtx 可索引反查但不可平铺 —— basename 撞名遮蔽工程源)
     """
     stem = fname.rsplit(".", 1)[0]
@@ -536,7 +536,7 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面�
             last_note = f"fetch {pkg}: {type(e).__name__}: {e}"
             continue
         if overlay == "flat" and fname not in landed:
-            # 包里没有目标文件 (索引按 basename 命中但整包未含?) —— 撤回
+            # 包里没有目标文件 (索引按 basename 命中但整包未含？) —— 撤回
             for rel in landed:
                 with contextlib.suppress(OSError):
                     (wdir / rel).unlink()
@@ -563,11 +563,11 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面�
 
 
 class CtanFetcher:
-    """``TectonicEngine(ctan_fetch=...)`` 注入适配器: ``(fname) -> 落点路径 | None``。
+    """``TectonicEngine(ctan_fetch=...)`` 注入适配器：``(fname) -> 落点路径 | None``。
 
     tlpdb 索引惰性构建 —— 首个真缺文件的 ctan_fetch 调用才拉 ~2.8MB
     texlive.tlpdb (clean 工程零网络开销)。``overrides``/``epoch`` 来自
-    rules/ ``filemap:`` 段, 由 fixloop 启动时接线。
+    rules/ ``filemap:`` 段，由 fixloop 启动时接线。
     """
 
     def __init__(  # noqa: PLR0913  # 注入面即签名 (index/cache/overrides/epoch/mirror/fetcher/caps)
@@ -590,13 +590,13 @@ class CtanFetcher:
         self.mirror = mirror
         self.fetcher = fetcher
         self.caps = caps or FetchCaps()
-        # overrides 合并收敛到注入时点一次: 注入索引可能是跨 fetcher 共享
+        # overrides 合并收敛到注入时点一次：注入索引可能是跨 fetcher 共享
         # 对象 (fixloop_bench 单例), 原地 update 会让后写污染前写。
         self._index = self._merged(index) if index is not None else None
         self.last_note: str = ""
 
     def _merged(self, idx: TlpdbIndex) -> TlpdbIndex:
-        """``idx`` + self.overrides 的合成视图 —— table 共享, overrides 并入新对象。"""
+        """``idx`` + self.overrides 的合成视图 —— table 共享，overrides 并入新对象。"""
         if not self.overrides:
             return idx
         return TlpdbIndex(idx.table, {**idx.overrides, **self.overrides})
@@ -606,8 +606,8 @@ class CtanFetcher:
         """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。
 
         注入的 ``index=`` 同样套 ``overrides`` —— 调用方 (fixloop_bench)
-        常注入共享索引, overrides 只走惰性建分支会被静默丢掉。合并发生
-        在注入/ensure 时点一次, 本属性与 peek_index 只读不改。
+        常注入共享索引，overrides 只走惰性建分支会被静默丢掉。合并发生
+        在注入/ensure 时点一次，本属性与 peek_index 只读不改。
         """
         if self._index is None:
             self._index = self._merged(
@@ -621,7 +621,7 @@ class CtanFetcher:
         return self._index
 
     def peek_index(self) -> TlpdbIndex | None:
-        """已构建才返回索引, 不触发拉取 (advisory 提示用, 见 actions._apply_install_file)。"""
+        """已构建才返回索引，不触发拉取 (advisory 提示用，见 actions._apply_install_file)。"""
         return self._index
 
     def __call__(self, fname: str) -> str | None:

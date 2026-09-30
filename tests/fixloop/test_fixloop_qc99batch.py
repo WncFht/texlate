@@ -1,6 +1,6 @@
 """qc99 (2026-09-28) fixloop-rules-batch 钉测试——a–h 项逐臂直驱。
 
-覆盖: (a) DeclareUnicodeCharacter polyfill_pre / (b) babelfont 四臂 /
+覆盖：(a) DeclareUnicodeCharacter polyfill_pre / (b) babelfont 四臂 /
 (c) typein_neutralize \\read-1 臂 + \\def 转义修复 / (d) pkg_alias_rewrite /
 (e) maketitle_suppl_float_flush / (f) uchead_vskip_relax / (h) rotfig_caption_pad。
 (g) bbl fmt<3.0 结构性错配判 accept-as-is, 无规则面不钉。
@@ -63,7 +63,7 @@ x
 
 
 def test_babelfont_arabic_allfontkey_bracket_drop(tmp_path: Path) -> None:
-    """2609.20684 实证形: arabic 臂整括号丢弃 → Naskh 家族自解析字重。"""
+    """2609.20684 实证形：arabic 臂整括号丢弃 → Naskh 家族自解析字重。"""
     ctx = mk_ctx_files(tmp_path, {"main.tex": ARABIC_CELL})
     ok, note = apply("font_name_substitute", ctx, "Amiri-Regular")
     assert ok, note
@@ -73,7 +73,7 @@ def test_babelfont_arabic_allfontkey_bracket_drop(tmp_path: Path) -> None:
 
 
 def test_babelfont_arabic_mixed_bracket_kept(tmp_path: Path) -> None:
-    """features 括号含非 *Font 键 → 括号保留, 仅主参换 Naskh。"""
+    """features 括号含非 *Font 键 → 括号保留，仅主参换 Naskh。"""
     tex = (
         "\\babelfont[arabic]{rm}[Language=Arabic,BoldFont=X-Bold.ttf]"
         "{Amiri-Regular.ttf}\n"
@@ -106,7 +106,7 @@ def test_babelfont_generic_no_bracket(tmp_path: Path) -> None:
 
 # ── (c) typein_neutralize \\read-1 臂 + \\def 转义修复 ──
 def test_read_neg1_terminal_stub(tmp_path: Path) -> None:
-    """hep-th/9412166 实证形: \\read-1 to\\yesno → \\def\\yesno{}。"""
+    """hep-th/9412166 实证形：\\read-1 to\\yesno → \\def\\yesno{}。"""
     tex = (
         "\\read-1 to\\yesno\n"
         "\\ifx\\yesno\\y\\textheight 23cm\\else\\textheight 21cm\\fi\n"
@@ -178,7 +178,7 @@ ICCV_STY = "\\def\\maketitlesupplementary{ \\newpage \\twocolumn[\\iccvtitle] }\
 
 
 def test_maketitle_suppl_flush(tmp_path: Path) -> None:
-    """2504.07951 iccv.sty:479 实证形: \\newpage→\\clearpage + \\floatpagefraction 注入。"""
+    """2504.07951 iccv.sty:479 实证形：\\newpage→\\clearpage + \\floatpagefraction 注入。"""
     ctx = mk_ctx_files(tmp_path, {"iccv.sty": ICCV_STY}, main="iccv.sty")
     ok, note = apply("maketitle_suppl_float_flush", ctx, None)
     assert ok, note
@@ -211,7 +211,7 @@ ACM_CLS = (
 
 
 def test_uchead_vskip_relax(tmp_path: Path) -> None:
-    """ACM uchead 簇: -12pt→-2pt; 旁生 -9pt 不动。"""
+    """ACM uchead 簇：-12pt→-2pt; 旁生 -9pt 不动。"""
     ctx = mk_ctx_files(tmp_path, {"sig.cls": ACM_CLS}, main="sig.cls")
     ok, note = apply("uchead_vskip_relax", ctx, None)
     assert ok, note
@@ -239,7 +239,7 @@ ROTATE_CELL = """\\begin{figure}
 
 
 def test_rotfig_caption_pad_rotatebox(tmp_path: Path) -> None:
-    """0812.0424 实证形: \\rotatebox + \\caption → env 头注 pad。"""
+    """0812.0424 实证形：\\rotatebox + \\caption → env 头注 pad。"""
     ctx = mk_ctx_files(tmp_path, {"main.tex": ROTATE_CELL})
     ok, note = TRANSFORM_FNS["rotatebox_caption_pad"](ctx, None, None, {})
     assert ok, note
@@ -250,7 +250,7 @@ def test_rotfig_caption_pad_rotatebox(tmp_path: Path) -> None:
 
 
 def test_rotfig_caption_pad_angle_optarg(tmp_path: Path) -> None:
-    """0707.3761 实证形: angle=270 + [hb] placement——锚点须越过可选参。"""
+    """0707.3761 实证形：angle=270 + [hb] placement——锚点须越过可选参。"""
     tex = (
         "\\begin{figure}[hb]\n"
         "\\includegraphics [width=6.0cm,angle=270]{f.eps}\n"

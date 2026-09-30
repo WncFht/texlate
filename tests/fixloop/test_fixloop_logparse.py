@@ -1,6 +1,6 @@
 """logparse — ErrReport 提取 + Taxonomy 分类单测 (合成 log)。
 
-双错误格式: `^!` (原型原义) + `file:line:` (impl xelatex -file-line-error);
+双错误格式：`^!` (原型原义) + `file:line:` (impl xelatex -file-line-error);
 tail/warnings scope 与 undefined_cs→pdftex_prim subclassify 逐条覆盖。
 """
 
@@ -56,7 +56,7 @@ def test_file_line_error_format_counts() -> None:
 
 
 def test_file_line_warning_not_error() -> None:
-    # 同格式的 Warning 行不算错误, 否则 clean 门 (n_bang==0) 永不通过
+    # 同格式的 Warning 行不算错误，否则 clean 门 (n_bang==0) 永不通过
     rep = parse_text(
         "./main.tex:5: LaTeX Warning: Reference `x' undefined\n./main.tex:9: Package foo Warning: bar\n",
         _warn(),
@@ -127,7 +127,7 @@ def test_warn_patterns_scanned() -> None:
             "missing_tfm",
             "phvb",
         ),
-        # (\S+) 连句号一起吃进 payload —— 原型原样语义, 不修剪
+        # (\S+) 连句号一起吃进 payload —— 原型原样语义，不修剪
         ("! Cannot use XeTeXglyph with ptmr8c.", "xetexglyph_tfm", "ptmr8c."),
         (
             '! xdvipdfmx:fatal: Cannot proceed without .vf or "physical" font',
@@ -173,7 +173,7 @@ def test_warn_patterns_scanned() -> None:
             "already_def",
             "plain",
         ),
-        # 负闸: `` `\X' `` 在邻接签名内不得误归 —— Control sequence 签
+        # 负闸：`` `\X' `` 在邻接签名内不得误归 —— Control sequence 签
         # 留给 ctlseq/fontspec_double_merge 车道 (other, 无 payload);
         # "already defined" 短语锚不放的 (was never defined) 与
         # `` `X' `` 在无关报文内 均不落 already_def。
@@ -200,7 +200,7 @@ def test_warn_patterns_scanned() -> None:
         # 无宏展开时顶行即 l.N 行 (payload-scout-2026-09-17)
         ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", "foo"),
         # 2026-09-19: \renewcommand 对未定义 cs 的内核签归 undefined_cs
-        # (natbib \renewcommand\newblock 面, failmine2 ~13 cells)
+        # (natbib \renewcommand\newblock 面，failmine2 ~13 cells)
         (
             "! LaTeX Error: Command \\newblock undefined.",
             "undefined_cs",
@@ -251,14 +251,14 @@ def test_warn_patterns_scanned() -> None:
             "undefined_color",
             "White",
         ),
-        # 直引形兼容收 (ledger 未见真实发射, 防回归)
+        # 直引形兼容收 (ledger 未见真实发射，防回归)
         (
             "! Package xcolor Error: Undefined color 'red'.",
             "undefined_color",
             "red",
         ),
         # "Undefined color model `X'" taxrow 并收 undefined_color (模型名
-        # 非色名, 消费侧自行分辨) —— undefined_color_fallback 的
+        # 非色名，消费侧自行分辨) —— undefined_color_fallback 的
         # ctx_suggests `Undefined color [`']` 闸把 model 形挡在投递外。
         (
             "! Package xcolor Error: Undefined color model `cmyk7'.",
@@ -272,11 +272,11 @@ def test_warn_patterns_scanned() -> None:
         ),
         # ── 2026-09-20 extless 车道 (failmine4 9-cell): graphicx \Gin@i
         # 对无扩展名 \includegraphics{X} 落 `File `X' not found.` (裸
-        # basename——前列 missing_file 臂要 \.ext 够不着, 原落 other)。
+        # basename——前列 missing_file 臂要 \.ext 够不着，原落 other)。
         # 定证 = errhelp "I could not locate ... extensions:" 恒居错误行
         # +8, 恰出 ctx8 → use_post 扩展窗。下行实录自 2501.01277
-        # (file-line 头 + l.N 回显折行, `...hics` 截断无完整 cs ——
-        # cs 旁证够不着, errhelp 是唯一定证; payload 带路径原样)。
+        # (file-line 头 + l.N 回显折行，`...hics` 截断无完整 cs ——
+        # cs 旁证够不着，errhelp 是唯一定证; payload 带路径原样)。
         (
             (
                 "./introduction.tex:42: LaTeX Error: File `Figures/scope' not found.\n"
@@ -329,7 +329,7 @@ def test_warn_patterns_scanned() -> None:
             "missing_graphic",
             "PoSlogo",
         ),
-        # 参数折行截断形态 (2505.06480 实录): l.N 回显停在宏参数中段,
+        # 参数折行截断形态 (2505.06480 实录): l.N 回显停在宏参数中段，
         # 无 cs —— `fig:pipeline_abstract` 的 `:` 不触发 file:line 闸。
         (
             (
@@ -380,9 +380,9 @@ def test_warn_patterns_scanned() -> None:
             "missing_file",
             "snippet",
         ),
-        # tempered 前瞻闸: chunk1 (非图形 producer 短块) 不得跨后续错
+        # tempered 前瞻闸：chunk1 (非图形 producer 短块) 不得跨后续错
         # 误起点 (`:9: ` file:line 前缀/`Error:`/`File ` 三重闸) 借
-        # fig2 的证据 —— fig2 自有签名在位重命中, payload 归 fig2
+        # fig2 的证据 —— fig2 自有签名在位重命中，payload 归 fig2
         # 而非 chunk1 即闸生效。
         (
             (
@@ -492,7 +492,7 @@ def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:
 
 
 def test_already_def_backtick_reaches_renew_rule(tmp_path: Path) -> None:
-    """姊妹闸: ``already_def_newcmd_renew`` (75-syntax:111) 同样可接。"""
+    """姊妹闸：``already_def_newcmd_renew`` (75-syntax:111) 同样可接。"""
     log = "! LaTeX Error: Command `\\Bbbk' already defined."
     cat, pay = classify(log)
     r = rule("already_def_newcmd_renew")
@@ -506,7 +506,7 @@ def test_undefined_cs_subclassifies_pdftex_prim() -> None:
 
 
 def test_undefined_cs_blank_lineno_variant() -> None:
-    """1909.05039 实证: l.N 行空白时取展开上下文尾行的末位 cs。"""
+    """1909.05039 实证：l.N 行空白时取展开上下文尾行的末位 cs。"""
     log = (
         "! Undefined control sequence.\n"
         "\\__hook shipout/firstpage ...geHook \\headerps@out \n"
@@ -530,7 +530,7 @@ def test_undefined_cs_no_subclassify_when_absent() -> None:
 
 
 def test_first_error_wins_order() -> None:
-    # 两个 '!' 行: 只有首个进 head —— 第二个错误不影响分类
+    # 两个 '!' 行：只有首个进 head —— 第二个错误不影响分类
     cat, _ = classify("! Illegal unit of measure.\n! Package soul Error: x\n")
     assert cat == "illegal_unit"
 
@@ -624,7 +624,7 @@ def test_warn_utf8_when_no_bang() -> None:
 
 
 def test_warn_utf8_not_reached_when_bang() -> None:
-    # 有 '!' 行 → head 命中优先, warning 不升级
+    # 有 '!' 行 → head 命中优先，warning 不升级
     cat, _ = classify(
         "! Package soul Error: x\nMissing character: There is no (U+FFFD) in font\n"
     )
@@ -633,11 +633,11 @@ def test_warn_utf8_not_reached_when_bang() -> None:
 
 # ---------------------------------------------------------------- warnings 归因
 def test_warn_utf8_sys_file_not_project() -> None:
-    """sys 件 invalid_utf8 (texmf 绝对路径栈顶) → ``warnings_sys`` 观察项,
+    """sys 件 invalid_utf8 (texmf 绝对路径栈顶) → ``warnings_sys`` 观察项，
 
     不进 ``rep.warnings`` → ``warn_utf8`` 伪类别不点火 (stagerun-loop3
-    1907.00067 实证: ``_texmf`` 树 misccorr.sty 坏字节曾使 final_cat
-    =warn_utf8 每轮再生, judge 侧早已归 sys_warn note)。"""
+    1907.00067 实证：``_texmf`` 树 misccorr.sty 坏字节曾使 final_cat
+    =warn_utf8 每轮再生，judge 侧早已归 sys_warn note)。"""
     log = (
         "(./main.tex\n"
         "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
@@ -677,7 +677,7 @@ def test_warn_utf8_project_file_still_fires() -> None:
 
 
 def test_warn_utf8_mixed_sys_and_project() -> None:
-    """sys + 工程混合命中: sys 件降 ``warnings_sys``, 工程命中照驱 warn_utf8。"""
+    """sys + 工程混合命中：sys 件降 ``warnings_sys``, 工程命中照驱 warn_utf8。"""
     log = (
         "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
         "Invalid UTF-8 byte or sequence at line 29 replaced by U+FFFD.\n"
@@ -715,7 +715,7 @@ def test_warn_utf8_unattributable_keeps_redline(tmp_path: Path) -> None:
 def test_missing_char_not_attributed() -> None:
     """``missing_char`` 输出侧警告不归因——sys 帧顶命中仍进 ``warnings``。
 
-    栈顶是排版执行位而非字源, 缺字照样落 PDF——刻意不套
+    栈顶是排版执行位而非字源，缺字照样落 PDF——刻意不套
     ``_FILE_ATTRIBUTED_WARNS`` 过滤。"""
     log = (
         "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
@@ -739,7 +739,7 @@ def test_clean_log() -> None:
 
 
 def test_undefined_cs_expansion_stack_root() -> None:
-    """2410.00012 实证: 宏内炸 —— 冒犯 cs 在展开栈区域末位 (\\pdfobj),
+    """2410.00012 实证：宏内炸 —— 冒犯 cs 在展开栈区域末位 (\\pdfobj),
 
     l.N 行末只剩表面宏 (\\SpotSpace)。subclassify 须认栈末位。"""
     log = (
@@ -763,11 +763,11 @@ def test_undefined_cs_stack_tail_not_pdf_stays() -> None:
 
 # ---------------------------------------------------------------- ctx head 位
 def test_ctx_tail_css_argument_head() -> None:
-    """1801.06287 实证: ``<argument>`` 头行末位 cs 是冒犯候选。
+    """1801.06287 实证：``<argument>`` 头行末位 cs 是冒犯候选。
 
     头行续行 (该层剩余输入 ``>0 \\edef \\Gin@extensions``) 携带的 cs 曾把
     区域末位带偏到 post-offending 噪声——头位显式抽取取回
-    ``\\pdfshellescape`` (join 候选集, 区域/l.N 两位语义不动)。
+    ``\\pdfshellescape`` (join 候选集，区域/l.N 两位语义不动)。
     """
     ctx = (
         "! Undefined control sequence.\n"
@@ -782,7 +782,7 @@ def test_ctx_tail_css_argument_head() -> None:
 
 
 def test_ctx_tail_css_recently_read_head() -> None:
-    """1412.6980 实证: ``<recently read>`` 头行 cs 入候选集。"""
+    """1412.6980 实证：``<recently read>`` 头行 cs 入候选集。"""
     ctx = (
         "! Undefined control sequence.\n"
         "<recently read> \\pdfoutput \n"
@@ -804,7 +804,7 @@ def test_ctx_tail_css_head_after_lineno_ignored() -> None:
 
 
 def test_ctx_tail_css_argument_elided_or() -> None:
-    """1811.03624 实证: ``...`` 省略前缀下末位 cs 才是冒犯 token (``\\or``),
+    """1811.03624 实证：``...`` 省略前缀下末位 cs 才是冒犯 token (``\\or``),
 
     非紧跟字面量的 ``\\ifcase``。"""
     ctx = (
@@ -819,9 +819,9 @@ def test_ctx_tail_css_argument_elided_or() -> None:
 
 
 def test_ctx_tail_css_head_cs_trailing_nonletter() -> None:
-    """astro-ph/0501080 实证: 头行末位字母 cs 后跟非字母 cs (``\\ ``/``\\^^M``)
+    """astro-ph/0501080 实证：头行末位字母 cs 后跟非字母 cs (``\\ ``/``\\^^M``)
 
-    → 主 pattern 行1 抓取锚失败 (pay=None), 头位仍取回 ``\\copyright``。"""
+    → 主 pattern 行 1 抓取锚失败 (pay=None), 头位仍取回 ``\\copyright``。"""
     ctx = (
         "! Use of \\affilmark doesn't match its definition.\n"
         "<argument> ...ce {-1.3cm}\\copyright \\, 2005 \\ \\^^M\n"
@@ -834,7 +834,7 @@ def test_ctx_tail_css_head_cs_trailing_nonletter() -> None:
 
 
 def test_undefined_cs_argument_head_still_pdftex() -> None:
-    """classify 级钉: ``<argument>`` 头行形态路由保持 pdftex_prim。"""
+    """classify 级钉：``<argument>`` 头行形态路由保持 pdftex_prim。"""
     log = (
         "! Undefined control sequence.\n"
         "<argument> \\ifnum \\pdfshellescape \n"

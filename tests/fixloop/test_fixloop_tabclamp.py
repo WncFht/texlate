@@ -68,7 +68,7 @@ _CLAMP_BLOCK = r"""% texlate-fixloop: table width clamp v1
 
 
 def test_legacy_clamp_purge_strips_both_blocks(tmp_path: Path) -> None:
-    """双块并存席稿整剥: 钩行/env 定义清零, 文档本体不动。"""
+    """双块并存席稿整剥：钩行/env 定义清零，文档本体不动。"""
     doc = (
         "\\documentclass{article}\n"
         + _FIT_BLOCK
@@ -89,7 +89,7 @@ def test_legacy_clamp_purge_strips_both_blocks(tmp_path: Path) -> None:
 
 
 def test_legacy_clamp_purge_stray_hook_lines(tmp_path: Path) -> None:
-    """块边界失配形态: marker 块已截, 散 ``\\AddToHook`` 行兜底单剥。"""
+    """块边界失配形态：marker 块已截，散 ``\\AddToHook`` 行兜底单剥。"""
     doc = (
         "\\documentclass{article}\n"
         "\\AddToHook{env/tabular/before}{\\begin{TeXlateFitTable}}%\n"
@@ -113,7 +113,7 @@ def test_legacy_clamp_purge_negative(tmp_path: Path) -> None:
 
 
 def test_tabular_fit_wraps_box_and_strips_legacy(tmp_path: Path) -> None:
-    """v2 主路径: legacy 块整剥 + 外层 tabular 文本级 adjustbox 包。"""
+    """v2 主路径：legacy 块整剥 + 外层 tabular 文本级 adjustbox 包。"""
     doc = (
         "\\documentclass{article}\n" + _FIT_BLOCK + "\\begin{document}\n"
         "\\begin{tabular}{ll}\na&b\\\\\n\\end{tabular}\n"

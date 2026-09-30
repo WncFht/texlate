@@ -315,7 +315,7 @@ def _body_mass(
     return mass
 
 
-def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选过滤+排序启发式平铺即算法本体
+def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选过滤 + 排序启发式平铺即算法本体
     r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
 
     候选门槛：`\documentclass`/`\documentstyle` 必须在文件本体（遮盖视图），

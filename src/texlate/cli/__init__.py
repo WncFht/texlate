@@ -200,7 +200,7 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
     "texlate.textutil": ("data_root", "env_flag", "env_raw", "env_str"),
 }
 
-#: 平名 → (源模块, 源属性)；属性 None = 取模块本体（``toolchain`` 旧语义
+#: 平名 → (源模块，源属性)；属性 None = 取模块本体（``toolchain`` 旧语义
 #: ``from texlate.compile import toolchain`` 绑的是模块对象）。
 _LAZY: dict[str, tuple[str, str | None]] = {
     name: (mod, name) for mod, names in _SUBMODULE_EXPORTS.items() for name in names

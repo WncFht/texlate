@@ -1,6 +1,6 @@
 """specs._validbench_cases — 语料底材叶 (validbench 拆分叶).
 
-root pick → 30s 子进程隔离解析 (SIGALRM 在 worker 线程禁用, 内核 process
+root pick → 30s 子进程隔离解析 (SIGALRM 在 worker 线程禁用，内核 process
 executor 不可 pickle —— G8) → chunk 窗过滤 → per-paper seed shuffle →
 ph/raw × clean+c01–c10 case 生成 (``_gen_paper_cases``)。
 """
@@ -41,7 +41,7 @@ def _pick_root(src: Path) -> Path | None:
 
 
 class _ParseFail(Exception):
-    """子进程解析失败（超时/崩溃/输出缺）——旧 _ParseTimeout+异常同桶."""
+    """子进程解析失败（超时/崩溃/输出缺）——旧 _ParseTimeout+ 异常同桶."""
 
 
 _CHILD_SRC = r"""

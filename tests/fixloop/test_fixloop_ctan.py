@@ -1,6 +1,6 @@
 """ctan — tlpdb 索引 / fetch_package 解包 / version_guard / ctan_fetch 全链单测。
 
-全部离线: fetcher 注入返回内存构造的 tar.xz / tlpdb.xz; 不触网。
+全部离线：fetcher 注入返回内存构造的 tar.xz / tlpdb.xz; 不触网。
 """
 
 import lzma

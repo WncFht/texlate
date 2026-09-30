@@ -330,7 +330,7 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
         body = soup.find("body") or soup
         _separate_brs(body)
 
-        # 一趟文档序扫描：每个文本节点的 (跳过理由, 归属 block)
+        # 一趟文档序扫描：每个文本节点的 (跳过理由，归属 block)
         owned_by: dict[int, set[int]] = {}
         owner_order: list[Tag] = []
         for node in body.descendants:

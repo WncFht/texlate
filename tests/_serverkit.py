@@ -253,7 +253,7 @@ class L2FlakyEngine:
         return []
 
     def rebuild_fontmaps(self) -> None:
-        """Protocol：noop。"""
+        """Protocol: noop."""
         return
 
     def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名，kwarg 名是接口

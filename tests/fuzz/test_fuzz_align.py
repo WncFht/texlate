@@ -32,7 +32,7 @@
   形状不齐（web 端 ``heights?.[side]`` 可选链容忍）。
 - ``_reader_landmarks`` 的 ``named_destinations`` 抛错时连已算出的
   heights 一并丢——build_alignment 只能按整侧死回退（PLAUSIBLE，见
-  tmp/fuzz-texlog/findings.md P3）。
+  tmp/fuzz-texlog/findings.md P3).
 - writer 全收敌意 dest 名（NUL/空/5k 长/Unicode）并原样回环进
   ``pairs[].id`` → JSON 合法转义、前端容忍。
 """

@@ -1,7 +1,7 @@
-"""pdfprim 车道单测: `pdf@` 别名族 polyfill + \\pdfoutput=0 初值 + 门塌陷。
+"""pdfprim 车道单测：`pdf@` 别名族 polyfill + \\pdfoutput=0 初值 + 门塌陷。
 
 arm-A (pdftex-prim-under-xetex, 真缺口 = `pdf@` 族): breakurl/pdfmark/
-pdftexcmds 系包体在 pdftex 下自导原语绑定, xelatex 全缺; 报错站点在
+pdftexcmds 系包体在 pdftex 下自导原语绑定，xelatex 全缺; 报错站点在
 包体宏展开帧 (file_stack 归 doc → err_outside_fileset 不中), fileset
 源无字面 (source_contains 不中) → ``payload_pattern:"@"`` 臂直放行
 polyfill。@-名注入文本裹 ``_AT_LETTER_PRE/POST`` exact-restore @=11
@@ -12,7 +12,7 @@ polyfill。@-名注入文本裹 ``_AT_LETTER_PRE/POST`` exact-restore @=11
 arm-B (pdftex-gated-codepath): ``\\if<letters>pdf`` 开关族与
 ``\\ifx\\pdfoutput\\undefined`` 存在探针把能力段锁进死臂 →
 ``pdftex_gate_collapse``(52) 塌 ``\\iftrue`` (pdf 臂 = 能力臂 / undefined
-真臂 = xetex 诚实臂, 门消解后对 polyfill 注入的 ``\\pdfoutput`` 定义
+真臂 = xetex 诚实臂，门消解后对 polyfill 注入的 ``\\pdfoutput`` 定义
 免疫 —— 0712.1016 自产缺陷根修); ``\\pdfoutput`` 初值 ``=0`` 保持
 ``\\ifnum`` 值探针诚实假。dedup 收窄到 ``\\@ifdefinable`` 闸系定义位
 (``\\newX``/``\\newcommand`` 族): 头注再 ``\\newcount`` 会撞稿自带
@@ -92,7 +92,7 @@ def test_polyfill_condition_carries_payload_pattern_arm() -> None:
 
 
 def test_cond_payload_pattern_dispatch(tmp_path: Path) -> None:
-    """payload_pattern 键: `@` 中 `pdf@box`, 不中 `pdfoutput`。"""
+    """payload_pattern 键：`@` 中 `pdf@box`, 不中 `pdfoutput`。"""
     ctx = _ctx(tmp_path)
     rule = _rule("pdftex_prim_polyfill")
     ok, why = actions._cond_ok(  # noqa: SLF001
@@ -130,7 +130,7 @@ def test_arm_pdfatbox_newbox_wrapped(tmp_path: Path) -> None:
 
 
 def test_arm_at_family_arm_dispatch(tmp_path: Path) -> None:
-    """@-族分派: box/toks/count/argful/条件五形各落本臂。"""
+    """@-族分派：box/toks/count/argful/条件五形各落本臂。"""
     cases = {
         "pdf@box": "\\newbox\\pdf@box",
         "pdf@toks": "\\newtoks\\pdf@toks",
@@ -189,7 +189,7 @@ def test_arm_countish_default_init_one(tmp_path: Path) -> None:
 def test_arm_pdftexversion_init_140(tmp_path: Path) -> None:
     """``\\pdftexversion`` 初值 ``=140`` —— TL2025 pdftex 1.40.x 对齐。
 
-    缺省 ``=1`` 把 ``\\ifnum\\pdftexversion<120`` 版本探针翻成真臂:
+    缺省 ``=1`` 把 ``\\ifnum\\pdftexversion<120`` 版本探针翻成真臂：
     microtype 系版本闸静默退役 (0812.1138 docsty 实证受害)。
     """
     ctx = _ctx(tmp_path)
@@ -356,7 +356,7 @@ def test_collapse_ifx_pdfoutput_probe(tmp_path: Path) -> None:
 
 
 def test_collapse_def_sites_protected(tmp_path: Path) -> None:
-    """定义位豁免: ``\\newif``/``\\def``/``\\let``/``\\newcommand`` 目标不塌。"""
+    """定义位豁免：``\\newif``/``\\def``/``\\let``/``\\newcommand`` 目标不塌。"""
     src = (
         "\\documentclass{article}\n"
         "\\newif\\ifpdf\n\\def\\ifpdf{x}\n\\let\\ifpdf\\iftrue\n"
@@ -379,7 +379,7 @@ def test_collapse_def_sites_protected(tmp_path: Path) -> None:
 
 
 def test_collapse_operand_positions_protected(tmp_path: Path) -> None:
-    """操作数位豁免: ``\\ifx\\ifpdf``/``\\ifcat\\ifpdf``/``\\ifdefined\\ifpdf`` 不塌。"""
+    """操作数位豁免：``\\ifx\\ifpdf``/``\\ifcat\\ifpdf``/``\\ifdefined\\ifpdf`` 不塌。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n"
@@ -481,7 +481,7 @@ def test_collapse_own_injection_immune(tmp_path: Path) -> None:
 
 
 def test_collapse_idempotent(tmp_path: Path) -> None:
-    """塌后无 \\if*pdf 活体 → 条件臂失配弃守, 幂等。"""
+    """塌后无 \\if*pdf 活体 → 条件臂失配弃守，幂等。"""
     ctx = _ctx(tmp_path, _GATE)
     ok, _ = _apply_collapse(ctx)
     assert ok

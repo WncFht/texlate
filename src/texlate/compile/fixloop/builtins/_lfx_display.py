@@ -31,7 +31,7 @@ __all__ = [
 ]
 
 #: 编号对齐族 env/before 收缩面——数学字号随环境外文本字号走 (钩在
-#: ``before`` 即数学模式开启前注入, 组内设定 env 末自还原), 编号保留。
+#: ``before`` 即数学模式开启前注入，组内设定 env 末自还原), 编号保留。
 #: ``bea``/``displaymath`` 同收 (revtex/旧式简写族同名环境钩面)。
 _DISP_SHRINK_ENVS = (
     "equation",
@@ -78,7 +78,7 @@ def _display_snippet(size: str) -> str:
 
 
 #: 无编号 display 面包钳——``$$...$$`` 与 ``\[...\]`` 双形态。
-#: ``[\s\S]*?`` 非贪配对 (``$$A$$ B $$C$$`` 逐对), 组1=body。
+#: ``[\s\S]*?`` 非贪配对 (``$$A$$ B $$C$$`` 逐对), 组 1=body。
 _DD_DOLLAR_RX = re.compile(r"\$\$([\s\S]*?)\$\$")
 _DD_BRACKET_RX = re.compile(r"\\\[([\s\S]*?)\\\]")
 

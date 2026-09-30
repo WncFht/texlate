@@ -132,7 +132,7 @@ async def translate_tree_async(
         try:
             fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
         except ValueError:
-            # 畸形 chunk_id（translator 违约）——记 fault+名，不让整篇崩
+            # 畸形 chunk_id（translator 违约）——记 fault+ 名，不让整篇崩
             stats["fault"] += 1
             warn_kinds["bad_chunk_id"] = warn_kinds.get("bad_chunk_id", 0) + 1
             continue

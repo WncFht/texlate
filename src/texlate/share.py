@@ -156,7 +156,7 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     内容，非空时作为组分插在 ``pipeline_ver`` 前；空串省略成分，
     与前置全盖过的历史包同键（旧包重算口径不变）。前六组分含 ``|``
     会破坏分隔 → ShareError；``pipeline_ver`` 是末位组分，自身允许含
-    ``|``（``PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"``
+    ``|``(``PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"``
     本就如此，末位含分隔符无解析歧义）。各组分 strip 归一——与
     ``_key_parts`` 的 manifest 侧归一同口径，边缘空白不进键（域内无意义）。
     """
@@ -381,7 +381,7 @@ def share_manifest(  # noqa: PLR0913 -- 键材料组与 manifest 同面，参数
 def _pack_member(
     zf: zipfile.ZipFile, name: str, src: Path
 ) -> tuple[dict[str, object], int]:
-    """单产物 1MB 块流式进 zip，边写边算 sha256 → ``(manifest artifacts 条目, 字节数)``。
+    """单产物 1MB 块流式进 zip，边写边算 sha256 → ``(manifest artifacts 条目，字节数)``。
 
     实时字节计数超 ``_MEMBER_MAX`` → ShareError（stat 预检后文件增长的兜底）。
     单读同时完成写入与哈希——manifest 记的是真实入包字节流的指纹。
@@ -790,7 +790,7 @@ _INDEX_CACHE: dict[Path, tuple[int, int, dict[str, dict[str, Any]]]] = {}
 
 
 def _index_rows(text: str) -> tuple[dict[str, dict[str, Any]], list[int]]:
-    """index.jsonl 文本 → ``({share_key: row} last-wins 表, 坏行行号)``。
+    """index.jsonl 文本 → ``({share_key: row} last-wins 表，坏行行号)``。
 
     空行跳过；malformed 行（JSON 解析失败或非 object）跳过记行号——单行
     坏数据不毒死全索引。行内非 str ``share_key`` 字段不收录（str 查询

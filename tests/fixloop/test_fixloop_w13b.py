@@ -64,7 +64,7 @@ def _ctx(tmp_path: Path, files: dict[str, str]) -> LoopCtx:
 
 
 def test_ruleset_loads_with_w13b_rules() -> None:
-    """新臂在册且位次钉死 (共仓兄弟车道并发加规则, 只钉下界)。"""
+    """新臂在册且位次钉死 (共仓兄弟车道并发加规则，只钉下界)。"""
     assert len(_RS.rules) >= 200  # noqa: PLR2004 - 落地时已逾 200
     assert _OPTCOND.order == 204  # noqa: PLR2004 - cite_natbib_clash_retire(203) 后
     assert _OPTCOND.action["kind"] == "regex_rewrite"
@@ -73,7 +73,7 @@ def test_ruleset_loads_with_w13b_rules() -> None:
 
 
 def test_b1_whenany_taxrow() -> None:
-    """B1 门: 两臂 when.any 各收新 taxrow 类目 (原类目全留)。"""
+    """B1 门：两臂 when.any 各收新 taxrow 类目 (原类目全留)。"""
     cats = {w["category"] for w in _BXC.when["any"]}
     assert {"other", "early_eof", "syntax", "pkg_engine", "unknown_option"} <= cats
     cats = {w["category"] for w in _XY.when["any"]}
@@ -82,14 +82,14 @@ def test_b1_whenany_taxrow() -> None:
 
 
 def test_b2_microtype_expansion_when_widened() -> None:
-    """B2 门: expansion_off when 收成 microtype_lig_off 同式兼容对。"""
+    """B2 门：expansion_off when 收成 microtype_lig_off 同式兼容对。"""
     cats = {w["category"] for w in _MTEXP.when["any"]}
     assert cats == {"other", "microtype_pdftex"}
     assert _MTEXP.condition["ctx_suggests"] == "expansion does not work"
 
 
 def test_b4_arm_gate() -> None:
-    """B4 门: 雪崩面类目 + ctx 多签 + 括号内 \\if 源签 (括号外 \\if 不开闸)。"""
+    """B4 门：雪崩面类目 + ctx 多签 + 括号内 \\if 源签 (括号外 \\if 不开闸)。"""
     cats = {w["category"] for w in _OPTCOND.when["any"]}
     assert {
         "syntax",
@@ -118,7 +118,7 @@ def test_b4_arm_gate() -> None:
 
 
 def test_b4_hoist_two_blocks() -> None:
-    """B4 改写: 两块括号内 \\if 全外提为守卫 PassOptions 行, 重开括号留静态残件。"""
+    """B4 改写：两块括号内 \\if 全外提为守卫 PassOptions 行，重开括号留静态残件。"""
     src = (
         "\\RequirePackage[\n"
         "  \\ifnum\\pdfoutput=\\z@\n"
@@ -147,7 +147,7 @@ def test_b4_hoist_two_blocks() -> None:
 
 
 def test_b4_declines() -> None:
-    """B4 拒解面: 条件与 then 部同行 / 括号外 \\if / then 部内嵌套 \\if。"""
+    """B4 拒解面：条件与 then 部同行 / 括号外 \\if / then 部内嵌套 \\if。"""
     same_line = "\\usepackage[\n  \\ifnum\\pdfoutput=\\z@ dvips,\\fi\n]{hyperref}"
     assert _sub_all(_OPTCOND, same_line) == same_line
     out_of = "\\ifnum\\pdfoutput=\\z@\n\\RequirePackage[hyphenbreaks]{breakurl}\n\\fi"
@@ -157,7 +157,7 @@ def test_b4_declines() -> None:
 
 
 def test_b4_masked_comment_block() -> None:
-    """B4 masked 面: 注释内 \\if 块不可见 —— 无可剥块即不动。"""
+    """B4 masked 面：注释内 \\if 块不可见 —— 无可剥块即不动。"""
     src = "\\usepackage[a,\n% \\ifx\\b\\c\n% d,\n% \\fi\nb]{p}"
     assert _sub_all(_OPTCOND, src) == src
 
@@ -201,7 +201,7 @@ def test_b3_macro_indirect_prim_and_masked(tmp_path: Path) -> None:
 
 
 def test_b3_literal_still_first(tmp_path: Path) -> None:
-    """B3 退化: 字面 \\includegraphics 引用点照常 (间接臂纯增量)。"""
+    """B3 退化：字面 \\includegraphics 引用点照常 (间接臂纯增量)。"""
     ctx = _ctx(tmp_path, {"main.tex": "\\includegraphics{direct}\n"})
     assert _has_live_graphic_ref(ctx, "direct")
 
@@ -222,7 +222,7 @@ def test_b7_svjour_clo_pacs_surface() -> None:
 
 
 def test_ichep_shim_body_residual() -> None:
-    """ichep 残留: shim_map 内联体补 \\fl/\\Table/\\mpl/\\Bibliography/leqnarray。"""
+    """ichep 残留：shim_map 内联体补 \\fl/\\Table/\\mpl/\\Bibliography/leqnarray。"""
     body = _SHIM.action["params"]["shim_map"]["ichep.cls"]["body"]
     for frag in (
         "\\providecommand{\\fl}{}",

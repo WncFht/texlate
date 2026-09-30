@@ -28,7 +28,7 @@ _BODY = (
 def _localize(
     tmp_path: Path, log: str
 ) -> tuple[dict[str, dict[str, object]], int, list[int]]:
-    """单文件工程 + 假 CompRes → （归因表， 错误总数， 全部 chunk.id）。"""
+    """单文件工程 + 假 CompRes → （归因表，错误总数，全部 chunk.id）。"""
     return _localize_doc(tmp_path, file_text=DOC % _BODY, scan_body=_BODY, log=log)
 
 
@@ -328,4 +328,4 @@ def test_baseline_sigs_filter_en_carried(tmp_path: Path) -> None:
         baseline_sigs=sig,
     )
     assert hits == {}
-    assert n_err == 2  # noqa: PLR2004 -- 两条 infra 错（分段+段尾）
+    assert n_err == 2  # noqa: PLR2004 -- 两条 infra 错（分段 + 段尾）

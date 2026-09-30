@@ -100,7 +100,7 @@ _TASK_SENTENCE: dict[str, str] = {
 _RULES_LEAD = "Follow these rules when translating:"
 
 #: Placeholders 条款体（锚名 ``Placeholders`` 条款；具名常量续存——facade
-#: 导出与 fuzz 钉面不断）。措辞逐字 = v4 C9：5/8 裸 token 枚举是勘误
+#: 导出与 fuzz 钉面不断）。措辞逐字 = v4 C9:5/8 裸 token 枚举是勘误
 #: 刻意划分（``test_fuzz_newline_codec`` 钉；MEDSP/THICKSP/NEGSP 按设计
 #: 不进措辞），MATH/CITE/REF movable 授权在尾。写死 Chinese 而非 {TGT}
 #: ——本管线只服务 zh，且保条款体"无 _fill 逐字串"不变量。
@@ -133,7 +133,7 @@ _BATCH_CLAUSE = (
     "instead."
 )
 
-#: (锚名, 条款体) —— 编号渲染时生成；锚名是 spec/测试的语义引用柄
+#: (锚名，条款体) —— 编号渲染时生成；锚名是 spec/测试的语义引用柄
 #: （替代旧 C*/K*/B* 数字坐标），定格为 API 面：禁重命名/重排/删序。
 #: 措辞逐字保留 v4 条款，仅单行化 + 锚名前缀。
 _COMMON_RULES: tuple[tuple[str, str], ...] = (
@@ -266,7 +266,7 @@ def _rules_block(kind: str, *, batch: bool, src_lang: str, tgt_lang: str) -> str
     """规则区渲染：lead-in + `i. **锚名.** 条款`——每条规则一个物理行。
 
     条款序：Scope 簇（1-4）→ kind 条款槽 → Output/Punctuation/CS-boundary/
-    Quality/Untrusted/Placeholders → Person names（para/abstract）→
+    Quality/Untrusted/Placeholders → Person names (para/abstract)→
     Batch protocol（batch，恒末条）。编号随 kind/batch 漂移是刻意的——
     数字只做位置柄，语义引用走锚名。
     """
@@ -296,7 +296,7 @@ def render_glossary_block(
 ) -> str:
     """`doc_glossary` → `- en: zh` 行表尾块（system prompt 最末段）。
 
-    `placeholder_manifest`（``placeholders.render_placeholder_manifest``
+    `placeholder_manifest`(``placeholders.render_placeholder_manifest``
     产物的单行点名册）非空时压末行——v5 占位符点名唯一注入点。
     """
     lines = [f"- {en}: {zh}" for en, zh in terms.items()]

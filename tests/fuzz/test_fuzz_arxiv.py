@@ -169,7 +169,7 @@ _TINY_TGZ = make_targz({"main.tex": _TINY_TEX})
 
 # ---------------------------------------------------------------- normalize
 
-#: 随机汤 token 池——unicode 十进制数字（²٣９ 等）定向覆盖在
+#: 随机汤 token 池——unicode 十进制数字（²٣9 等）定向覆盖在
 #: test_normalize_unicode_digit_id_rejected；其余脏字符（unicode 非数字、
 #: 控制符、括号、URL 碎片）照常放。
 _ID_TOKENS = (
@@ -261,7 +261,7 @@ def test_fuzz_normalize_two_step_fixed_point() -> None:
     """normalize(base) 至多再产出一次 URL 前缀残留——两次应用后 base 是不动点。
 
     断言形式：B = normalize(normalize(s)[0])；B 的 base 再 normalize 必得
-    (自身, None)。若 B 还带 ver 或 base 仍可被改写，说明前缀剥离可无限推进
+    (自身，None)。若 B 还带 ver 或 base 仍可被改写，说明前缀剥离可无限推进
     或钉版判断不自洽。
     """
     rng = fuzz_rng(_SEED + 1)
@@ -294,7 +294,7 @@ def test_normalize_valid_roundtrip() -> None:
 
 
 def test_normalize_unicode_digit_id_rejected() -> None:
-    """全角/阿拉伯-印度数字 id 不应通过合法性校验（fetch.py:148-149 ``\\d``）。"""
+    """全角/阿拉伯 - 印度数字 id 不应通过合法性校验（fetch.py:148-149 ``\\d``）。"""
     for s in ["２００１.００００１", "٢٠٠١.٠٠٠٠١", "１２３４.５６７８"]:
         base, _ver = normalize_arxiv_id(s)
         assert not valid_id(base), s
@@ -475,7 +475,7 @@ def test_fuzz_wrapper_invariants() -> None:
 
 
 def test_wrapper_directed() -> None:
-    """定向：includepdf+章节不判 wrapper；空正文判 stub。"""
+    """定向：includepdf+ 章节不判 wrapper；空正文判 stub。"""
     v = check_pdf_wrapper(
         "\\documentclass{article}\n\\begin{document}\n"
         "\\includepdf{paper.pdf}\n\\section{S}\n\\end{document}\n"
@@ -863,7 +863,7 @@ def test_head_cl_unicode_digit() -> None:
 
     真 wire 上 h11 对 CL 有帧校验会先拒；MockTransport/自定义 client（Fetcher
     公开注入点）可达。修法规整：``int()`` 包 try 或改 ``cl.isascii() and
-    cl.isdigit()``。
+    cl.isdigit()``.
     """
     resp = httpx.Response(200, headers=[(b"content-length", b"\xb2")])
     head = _parse_head(resp, "https://arxiv.org/src/x", None)
@@ -1747,7 +1747,7 @@ def test_e2e_multi_main_resolution(tmp_path: Path) -> None:
     meta = json.loads((res.entry.dir / "meta.json").read_text("utf-8"))
     loc = meta["locate"]
     assert loc["multi_doc"] is True
-    assert loc["main"] == "main.tex"  # prior+深度平 → 路径序最小
+    assert loc["main"] == "main.tex"  # prior+ 深度平 → 路径序最小
     assert set(loc["candidates"]) == {"main.tex", "paper.tex"}
 
 

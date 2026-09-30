@@ -197,7 +197,7 @@ class TestRetryOptions:
         assert opts["concurrency"] == 2  # noqa: PLR2004
 
     def test_explicit_source_overrides(self, client: TestClient) -> None:
-        """body 真实出现的 ``source`` 仍校验+回写——白名单外值 400。"""
+        """body 真实出现的 ``source`` 仍校验 + 回写——白名单外值 400。"""
         tid = mk_api_task(client, ARXIV, options={"source": "html"})
         force_status(client, tid, "fault")
         r = client.post(

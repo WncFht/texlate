@@ -15,7 +15,7 @@
   （观察钉是普通断言，pin 当前行为防误读）。
 - findings 台账：``write_findings`` 统一写出 ``tmp/*-fuzz/findings.txt``
   的既有格式（lane/id/severity/repro/file:line 口径）。
-- zip/jsonl 构造件：``zip_bytes``（``(成员名, 字节)`` 对写 zip——
+- zip/jsonl 构造件：``zip_bytes``（``(成员名，字节)`` 对写 zip——
   ``dict.items()`` 直喂、重复名可表达）、``write_jsonl_rows``（父目录先建
   + 逐行 str 原样/``json.dumps(ensure_ascii=False)`` 写 JSONL）。
 - pipeline 伪件：``RecordingTranslator``——录制型 translator（入参入账、
@@ -177,7 +177,7 @@ def write_findings(  # noqa: PLR0913 -- 台账每 kwarg 即一节，拆 dataclas
 
 
 def zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
-    """``(成员名, 字节)`` 序列写 zip——``dict.items()`` 直喂, 重复名亦可表达。"""
+    """``(成员名，字节)`` 序列写 zip——``dict.items()`` 直喂，重复名亦可表达。"""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for name, blob in members:
@@ -188,8 +188,8 @@ def zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
 def write_jsonl_rows(path: Path, rows: Iterable[object]) -> None:
     """``rows`` 逐行写 JSONL——str 原样、其余 ``json.dumps(ensure_ascii=False)``；父目录先建。
 
-    与 ``benchlib.write_jsonl(fh, rec)`` 不同型——那边是句柄+单条记录，
-    本件是 path+整表（mkdir 超集）。
+    与 ``benchlib.write_jsonl(fh, rec)`` 不同型——那边是句柄 + 单条记录，
+    本件是 path+ 整表（mkdir 超集）。
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:

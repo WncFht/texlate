@@ -58,7 +58,7 @@ restore. Meta reads are lock-free (atomic_write means readers only ever
 see complete files). Ledger events are emitted AFTER the lock is dropped
 so the vault critical section never blocks on the ledger's own lock.
 
-拆分: 实现体按子域拆进同包私有叶 —— ``_vault_cred`` (凭证代数: 词汇常量/
+拆分：实现体按子域拆进同包私有叶 —— ``_vault_cred`` (凭证代数：词汇常量/
 四异常/五维命名与径定位), ``_vault_io`` (sentinel/fsync/fuse/文件迭代/
 meta+manifest 读写), ``_vault_intact`` (完好与产物在场判定+pdf 封口闸),
 ``_vault_commit`` (harvest 两相提交+adopt 孤儿收编), ``_vault_query``
@@ -67,9 +67,9 @@ meta+manifest 读写), ``_vault_intact`` (完好与产物在场判定+pdf 封口
 slim_splice/孤儿扫描), ``_vault_restore`` (最优副本选取+work 物化),
 ``_vault_rekey`` (variant 跨纪元采用); 本文件是 PEP 562 惰性门面
 (同 ``kernel.importer``/``fixloop/builtins`` 形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``vault.X`` 公共面/私有读面与 ``from kernel import vault`` 用法不变;
-kernel 子模块名 (``vault.fsutil`` 等) 与 stdlib 名同样惰性解析, 故
+kernel 子模块名 (``vault.fsutil`` 等) 与 stdlib 名同样惰性解析，故
 ``monkeypatch.setattr(vault.fsutil, ...)`` 一类跨模块 patch 缝照旧生效。
 叶子间互引走全路径直跨 (``kernel._vault_*``), 不经本门面。
 """
@@ -81,8 +81,8 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     from kernel._vault_commit import adopt, harvest
     from kernel._vault_cred import (
         DEDUP_VERDICTS,
@@ -224,9 +224,9 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# HEAD 单件期模块属性面——kernel 依赖子模块与 stdlib 名也按名惰性解析,
+# HEAD 单件期模块属性面——kernel 依赖子模块与 stdlib 名也按名惰性解析，
 # ``vault.fsutil``/``vault.paths``/``vault.os`` 等读面 (含 setattr 型
-# monkeypatch 缝, patch 落在共享 module 对象上) 与拆分前逐名等价。
+# monkeypatch 缝，patch 落在共享 module 对象上) 与拆分前逐名等价。
 _KERNEL_MODS = ("cas", "events", "fsutil", "idnorm", "ledger", "locks", "paths")
 _STDLIB_MODS = (
     "glob",
@@ -318,10 +318,10 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = []

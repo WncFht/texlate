@@ -45,7 +45,7 @@ def _items() -> list[dict]:
             "stage": "vb_run",
             "variant": f"run@{EPOCH}",
             # cell.layer 须标量（compile_checks 的 EVAL_LAYERS 隶属判定）；
-            # 全量 layers 另键携带供 select 多属过滤.
+            # 全量 layers 另键携带供 select 多属过滤。
             "layer": (row.get("layers") or [""])[0] or "",
             "layers": sorted(row.get("layers") or []),
         }

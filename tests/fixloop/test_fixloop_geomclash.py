@@ -52,7 +52,7 @@ def test_geom_rule_registered() -> None:
 
 
 def test_geomclash_rewrite_real_shape(tmp_path: Path) -> None:
-    """1206.0291 形: 括号选项整组挪载点后 \\geometry{} (裸载恒静默)。"""
+    """1206.0291 形：括号选项整组挪载点后 \\geometry{} (裸载恒静默)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[usenatbib,usegraphicx]{mn2e}\n"
         "\\usepackage{times}\n"
@@ -70,7 +70,7 @@ def test_geomclash_rewrite_real_shape(tmp_path: Path) -> None:
 
 
 def test_geomclash_requirepackage_kept(tmp_path: Path) -> None:
-    """cls/sty 内 \\RequirePackage[opts]{geometry} 同改写, 命令名保留。"""
+    """cls/sty 内 \\RequirePackage[opts]{geometry} 同改写，命令名保留。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     (tmp_path / "pkg.sty").write_text(
         "\\RequirePackage[a4paper,twoside]{geometry}\n", encoding="utf-8"
@@ -96,7 +96,7 @@ def test_geomclash_unbracketed_and_other_pkg_untouched(tmp_path: Path) -> None:
 
 
 def test_geomclash_commented_load_untouched(tmp_path: Path) -> None:
-    """masked 面: 注释内假括号载点不改写, 活面载点照改。"""
+    """masked 面：注释内假括号载点不改写，活面载点照改。"""
     (tmp_path / "main.tex").write_text(
         "% \\usepackage[a4paper]{geometry}\n\\usepackage[margin=1in]{geometry}\n",
         encoding="utf-8",
@@ -112,7 +112,7 @@ def test_geomclash_commented_load_untouched(tmp_path: Path) -> None:
 
 
 def test_geomclash_group_load_hoists_to_geometry_only(tmp_path: Path) -> None:
-    """组载 {geometry,graphicx}: 组保留裸载, 共享选项收窄到 \\geometry (known_gap 钉档)。"""
+    """组载 {geometry,graphicx}: 组保留裸载，共享选项收窄到 \\geometry (known_gap 钉档)。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[dvips,a4paper]{geometry,graphicx}\n", encoding="utf-8"
     )
@@ -140,7 +140,7 @@ def test_geomclash_multiple_files_all_hoisted(tmp_path: Path) -> None:
 
 
 def test_geomclash_condition_geometry_binding(tmp_path: Path) -> None:
-    """ctx+source 双闸: 错面须 geometry 撞名, 源面须有括号 geometry 载点。"""
+    """ctx+source 双闸：错面须 geometry 撞名，源面须有括号 geometry 载点。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[a4paper]{geometry}\n", encoding="utf-8"
     )
@@ -167,7 +167,7 @@ def test_geomclash_commented_gate_passes_masked_skips(tmp_path: Path) -> None:
 
 
 def test_geomclash_condition_no_load_declines(tmp_path: Path) -> None:
-    """工程完全无 geometry 载点 → source_contains 拒, 不空转。"""
+    """工程完全无 geometry 载点 → source_contains 拒，不空转。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     ok, why = _cond(tmp_path, _GEOM_ERR, "geometry")
     assert not ok, why

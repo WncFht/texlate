@@ -28,7 +28,7 @@ from pathlib import Path
 from verbs import _vocab
 from verbs import triage as _triage
 
-#: 单侧格的矩阵伪状态——只进矩阵轴, 不进 improved/degraded 判定。
+#: 单侧格的矩阵伪状态——只进矩阵轴，不进 improved/degraded 判定。
 ABSENT = "(absent)"
 MAX_LIST = 100
 
@@ -65,7 +65,7 @@ def _sig(rec):
 
 def _taxo(rec):
     """records 物化 taxonomy——compile 在 metrics.taxonomy, fixloop post 在
-    metrics.post.taxonomy; → {slot: "cat:pay"} (只收 dict 形, 缺席不出键)。"""
+    metrics.post.taxonomy; → {slot: "cat:pay"} (只收 dict 形，缺席不出键)。"""
     m = rec.get("metrics") or {}
     if not isinstance(m, dict):
         return {}
@@ -95,7 +95,7 @@ def _dur(rec):
 def _churn(ra, rb):
     """same-status 格的四维实质变化 → {facet: (a, b)}; 全同 → {}。
 
-    dur_s 仅 |Δ|≥10s 且 ≥2× 才记——重跑恒有时序抖动, 量级变化才是信号。
+    dur_s 仅 |Δ|≥10s 且 ≥2× 才记——重跑恒有时序抖动，量级变化才是信号。
     """
     out = {}
     if _sig(ra) != _sig(rb):
@@ -135,7 +135,7 @@ def diff_stage(cells_a, cells_b, deep=False):
 
     matrix 含 (absent) 轴单侧格; improved/degraded 只在共有键上按 rank 判。
     degraded 条目带 sig_b (退化原因侧), improved 带 sig_a (修复前缺陷侧)。
-    deep=True 时对 same-status 格跑 _churn 四维面, 有变的进 churn 清单
+    deep=True 时对 same-status 格跑 _churn 四维面，有变的进 churn 清单
     (条目仍在 same 计数内——churn 是 same 的注解子集)。
     """
     matrix = Counter()
@@ -210,7 +210,7 @@ def _md_list(lines, title, entries, fmt):
 
 
 def _churn_fmt(e):
-    """churn 条目的四维渲染: `sig a→b; taxonomy x:y→p:q; n_errors 110→5`。"""
+    """churn 条目的四维渲染：`sig a→b; taxonomy x:y→p:q; n_errors 110→5`。"""
     parts = []
     c = e["churn"]
     if "sig" in c:

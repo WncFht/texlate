@@ -1,19 +1,19 @@
 """docabsent 车道双臂单测 —— doc 引用但 e-print 未带的 .tex 片段末位兜底。
 
-实证背景 (m1kcensus2 衍生, covgap-C #205 候选逐格复核):
+实证背景 (m1kcensus2 衍生，covgap-C #205 候选逐格复核):
 
 A) ``doc_absent_stub`` builtin (order 12.95 —— install/vendored/shim/
    relocate 全真件臂均 decline 后的末位兜底):
    - 版本缀漂移 sibling 唯一命中搬真件 (2210.03294: doc 活引用
      ``4Num_Example/12step_dynamics_new.tex``, e-print 只带同目录
      ``12step_dynamics.tex`` 改名件) —— 真内容优于 stub;
-   - 无 sibling → ``_resolve_site`` 空 stub 占位, 丢该 ``\\input`` 段
-     保其余, 优于整格 unfixable。
-   闸: 非 .tex 扩展名让位 (.cls/.sty 走 install/shim 域); 瞬态件拒
+   - 无 sibling → ``_resolve_site`` 空 stub 占位，丢该 ``\\input`` 段
+     保其余，优于整格 unfixable。
+   闸：非 .tex 扩展名让位 (.cls/.sty 走 install/shim 域); 瞬态件拒
    (.aux/.bbl 缺位 = 上游病灶信号 —— 2609.20323 main.aux 裁决沿);
    fileset 内有同名件 → relocate 域; 外来同名件指纹闸不覆写。
 
-B) ``fileset_relocate`` 批量树镜像: payload 顶层目录在 wdir 根成树
+B) ``fileset_relocate`` 批量树镜像：payload 顶层目录在 wdir 根成树
    (``Content/a.tex`` 逐轮一件缺档烧轮次 —— 2609.20640 单件/轮 ×8
    实证), 首个 payload 归位后整树镜像 ``wdir/<top>/`` →
    ``<main_dir>/<top>/``; 瞬态件/dot 段/已存在目标/已处镜像树内
@@ -34,7 +34,7 @@ _RULE_RELOC = "fileset_relocate"
 def _stub(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
     """``doc_absent_stub`` 直驱 —— 经 ruleset 实载 params (同 ``_stub_wired``)。
 
-    旧版 ``{}`` 空参: builtin 退回 ``exts=('.tex',)`` 内兜, yaml 接线的
+    旧版 ``{}`` 空参：builtin 退回 ``exts=('.tex',)`` 内兜，yaml 接线的
     7-扩展名表被旁路 —— 委托 ``_stub_wired`` 保真。"""
     return _stub_wired(ctx, payload)
 
@@ -53,7 +53,7 @@ def _mkfile(p: Path, body: str = "x\n") -> Path:
 
 
 def test_rule_stub_order_after_real_content_arms() -> None:
-    """序自洽: relocate(9) < install(10) < vendored(11.5) < shim(12.9) < stub —
+    """序自洽：relocate(9) < install(10) < vendored(11.5) < shim(12.9) < stub —
     .tex payload 可以是真 CTAN 件 (pst-tools.tex 实证), stub 必须末位。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["fileset_relocate"] < orders["install_file"]
@@ -75,7 +75,7 @@ def test_stub_rename_rescue_strips_new_suffix(tmp_path: Path) -> None:
 
 
 def test_stub_rename_rescue_adds_suffix(tmp_path: Path) -> None:
-    """反向漂移: payload ``x.tex`` 缺席 + 同目录 ``x_new.tex`` → 搬真件。"""
+    """反向漂移：payload ``x.tex`` 缺席 + 同目录 ``x_new.tex`` → 搬真件。"""
     _mkfile(tmp_path / "main.tex")
     real = _mkfile(tmp_path / "x_new.tex", "real content\n")
     ctx = mk_ctx(tmp_path)
@@ -86,7 +86,7 @@ def test_stub_rename_rescue_adds_suffix(tmp_path: Path) -> None:
 
 
 def test_stub_ambiguous_siblings_fall_to_empty(tmp_path: Path) -> None:
-    """多异名版本缀命中 = 版本族并存 → 不择一猜, 空 stub 兜底。"""
+    """多异名版本缀命中 = 版本族并存 → 不择一猜，空 stub 兜底。"""
     _mkfile(tmp_path / "main.tex")
     _mkfile(tmp_path / "x_new.tex")
     _mkfile(tmp_path / "x_old.tex")
@@ -109,7 +109,7 @@ def test_stub_empty_fallback_writes_resolve_site(tmp_path: Path) -> None:
 
 
 def test_stub_ext_gate_declines_cls_sty(tmp_path: Path) -> None:
-    """非 .tex 让位 —— .cls/.sty 走 install/shim 域, 不该轮到本臂。"""
+    """非 .tex 让位 —— .cls/.sty 走 install/shim 域，不该轮到本臂。"""
     _mkfile(tmp_path / "main.tex")
     ctx = mk_ctx(tmp_path)
     ok, _ = _stub(ctx, "foo.cls")
@@ -128,7 +128,7 @@ def test_stub_transient_gate_declines(tmp_path: Path) -> None:
 
 
 def test_stub_fileset_presence_declines(tmp_path: Path) -> None:
-    """fileset 内有同名件 → relocate 域 (防御性复核, dispatch 序漂移安全)。"""
+    """fileset 内有同名件 → relocate 域 (防御性复核，dispatch 序漂移安全)。"""
     _mkfile(tmp_path / "main.tex")
     _mkfile(tmp_path / "elsewhere" / "deep" / "frag.tex")
     ctx = mk_ctx(tmp_path)
@@ -138,7 +138,7 @@ def test_stub_fileset_presence_declines(tmp_path: Path) -> None:
 
 
 def test_stub_foreign_at_site_not_overwritten(tmp_path: Path) -> None:
-    """解析位已有外来件 → 指纹闸拒覆写, decline 交后续规则。"""
+    """解析位已有外来件 → 指纹闸拒覆写，decline 交后续规则。"""
     _mkfile(tmp_path / "main.tex")
     site = _mkfile(tmp_path / "frag.tex", "author's own file\n")
     ctx = mk_ctx(tmp_path)
@@ -157,7 +157,7 @@ def test_stub_unsafe_names_decline(tmp_path: Path) -> None:
 
 
 def test_stub_rescue_unique_among_noise(tmp_path: Path) -> None:
-    """同目录噪声文件不扰: 唯一版本缀命中仍搬 (stem 集合精确匹配)。"""
+    """同目录噪声文件不扰：唯一版本缀命中仍搬 (stem 集合精确匹配)。"""
     _mkfile(tmp_path / "sub" / "main.tex")
     _mkfile(tmp_path / "sub" / "12step_dynamics.tex", "real\n")
     _mkfile(tmp_path / "sub" / "other.tex")
@@ -203,7 +203,7 @@ def test_relocate_batch_skips_transient_and_dot(tmp_path: Path) -> None:
 
 
 def test_relocate_batch_no_recursive_nesting(tmp_path: Path) -> None:
-    """再触发不递归: 镜像树内源件跳过 —— 无 ``top/top/top`` 逐轮嵌套。"""
+    """再触发不递归：镜像树内源件跳过 —— 无 ``top/top/top`` 逐轮嵌套。"""
     _mkfile(tmp_path / "4Num" / "main.tex")
     _mkfile(tmp_path / "4Num" / "a.tex")
     _mkfile(tmp_path / "4Num" / "b.tex")
@@ -211,7 +211,7 @@ def test_relocate_batch_no_recursive_nesting(tmp_path: Path) -> None:
     ok, _ = _reloc(ctx, "4Num/a.tex")
     assert ok
     assert (tmp_path / "4Num" / "4Num" / "b.tex").is_file()  # 首轮已镜像
-    # 第二轮 payload 变体 —— src 在镜像树内命中须跳过, 不得再生一层
+    # 第二轮 payload 变体 —— src 在镜像树内命中须跳过，不得再生一层
     ok2, _ = _reloc(ctx, "4Num/c.tex")
     assert not ok2  # c.tex 全树缺席 → decline (doc_absent_stub 域)
     assert not (tmp_path / "4Num" / "4Num" / "4Num").exists()
@@ -242,7 +242,7 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
 # \input{X.pdf_tex} 双缺席形 (无 pdf_tex 且无 pdf/eps sibling ——
 # 2508.03897/2606.18450/2508.04813/2503.10148 普查 4 格) 与 doc-absent
 # .tikzstyles (2606.19622) 同归空 stub 诚实降级; exts 表外名仍让位。
-# 同日 eraimpl 批 (failmine7 普查, eracls2 车道 candidates)
+# 同日 eraimpl 批 (failmine7 普查，eracls2 车道 candidates)
 # 再扩 .pgf (2506.05065 figures/legendre.pgf 子目录位) / .tikz
 # (2603.07778 vanilla.tikz) / .latex (chao-dyn/9412002 scheme2.latex)
 # / .cfg (2604.03663 econsocart.cls :67 \input{econsocart.cfg} 伴生缺档)。

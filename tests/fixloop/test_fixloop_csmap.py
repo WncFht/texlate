@@ -4,14 +4,14 @@
 ``\\citealt``/``\\kwd`` 的 undefined_cs payload 命中 cs_targeted_fix 但
 cs_table 无键 → 落 undefined_cs_guess 未修。本批补 natbib 全家族
 (citet/citealt/citealp/citeauthor/citeyearpar/citetext/citenum) 的
-``{usepackage: natbib}`` 同式条 (citet×7格 citealt×4格实证) + ``\\kwd``
-noop polyfill (imsart 类在而 ``\\kwd`` 缺位面: 1012.2012/1206.1960/
-1811.10292, 与 startlocaldefs/endlocaldefs 同格)。均为表内键值条目,
+``{usepackage: natbib}`` 同式条 (citet×7 格 citealt×4 格实证) + ``\\kwd``
+noop polyfill (imsart 类在而 ``\\kwd`` 缺位面：1012.2012/1206.1960/
+1811.10292, 与 startlocaldefs/endlocaldefs 同格)。均为表内键值条目，
 非新规则 —— ruleset 规则数不变。
 
 newblockpf (failmine2): ``LaTeX Error: Command \\newblock undefined.``
 是 ``\\renewcommand`` 对未定义 cs 的内核签 (natbib.sty:1070 重定义
-thebibliography 内 ``\\renewcommand\\newblock`` 要宿主先定义, 老类/shim
+thebibliography 内 ``\\renewcommand\\newblock`` 要宿主先定义，老类/shim
 缺位面 ~13 cells)。taxonomy 新签归 ``undefined_cs:newblock`` →
 canonical hskip 形 ``\\providecommand`` polyfill。
 """
@@ -74,7 +74,7 @@ def test_ruleset_rule_count_floor() -> None:
     """条目是 cs_table 表内键值非新规则 —— 总数守住 ≥112 地板线。
 
     (``>=`` 只证「不缩水」证不了「不增量」——dup id 由 ruleset 装载期
-    ``_dup_id_problems`` 硬拒, 不在本钉射程。)"""
+    ``_dup_id_problems`` 硬拒，不在本钉射程。)"""
     assert len(load_ruleset().rules) >= 112  # noqa: PLR2004 - schema 断言值
 
 
@@ -109,7 +109,7 @@ def test_when_rejects_no_payload(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 动作直驱
 @pytest.mark.parametrize("cs", NATBIB_CS)
 def test_builtin_natbib_cs_injects_usepackage(tmp_path: Path, cs: str) -> None:
-    """每个 natbib 键: payload → docclass 后注 ``\\RequirePackage{natbib}``。"""
+    """每个 natbib 键：payload → docclass 后注 ``\\RequirePackage{natbib}``。"""
     _proj(
         tmp_path,
         "\\documentclass{article}\n\\begin{document}\n"
@@ -214,7 +214,7 @@ def test_builtin_newblock_polyfill_injected(tmp_path: Path) -> None:
 
 
 def test_builtin_newblock_refire_idempotent(tmp_path: Path) -> None:
-    """二次点火: snippet 已在 → applied nothing, 不重复注入。"""
+    """二次点火：snippet 已在 → applied nothing, 不重复注入。"""
     _proj(
         tmp_path,
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",

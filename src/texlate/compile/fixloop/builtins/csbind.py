@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 #: AMS 上古字体 cs 名 ``<size><fam>`` 全词锚 —— ``\\fivmi``/``\\tenmib``
-#: 族 (hep-th/9703214: ``\\doit{0}`` 死块内 ``\\font`` 定义不执行, 活
+#: 族 (hep-th/9703214: ``\\doit{0}`` 死块内 ``\\font`` 定义不执行，活
 #: ``\\skewchar\\fivmi`` 全链 undefined_cs ×83)。缩拼 + 全拼双写
 #: (``\\fivemib`` 同稿实证)。``i`` 尾收 plain ``\\teni`` (cmmi10 惯名)。
 #: 匹配模式由 ``_AMS_FONT_SIZE`` × ``_AMS_FONT_FAM`` 键合成 (params 可扩)。
@@ -56,7 +56,7 @@ _AMS_FONT_SIZE: dict[str, float] = {
     "eleven": 10.95,
     "twelve": 12,
 }
-#: 族尾 → CM/AMS 字体 base (10pt 设计尺寸恒在, ``at <sz>pt`` 兜底)。
+#: 族尾 → CM/AMS 字体 base (10pt 设计尺寸恒在，``at <sz>pt`` 兜底)。
 _AMS_FONT_FAM: dict[str, str] = {
     "mi": "cmmi",
     "i": "cmmi",
@@ -174,7 +174,7 @@ def font_cs_shim(
     return True, f"font-cs shim: {', '.join(fresh)}"
 
 
-# ═══ missing_char 第三子路: produced-by-cs 缺字 → cs 重绑回退字体 ═══
+# ═══ missing_char 第三子路：produced-by-cs 缺字 → cs 重绑回退字体 ═══
 
 
 def _producer_map(params: dict[str, Any]) -> dict[int, str]:
@@ -264,13 +264,13 @@ def cs_rebind(
 #: ``\mathcode`` 旧式操作数扫描对 >0xFF 字符 (xeCJK CJK 字/扩展 mathcode)
 #: 必炸 "Extended mathchar used as mathchar" (hep-ph/0605174 GLUON.tex:464
 #: 四值循环 83922905=0x05008FD9=这 / 83912239=是 / 83921873=译 /
-#: 83912071=文; mathchar 探针实证 ``\count@=\mathcode`这`` 文本
+#: 83912071=文; mathchar 探针实证 ``\count@=\mathcode` 这`` 文本
 #: 态同炸、``\the\mathcode`` 读取不炸; t1-t6 实证裸 ``$这$``/``{\rm 这}``/
 #: ``\tilde``/上下标全不炸 —— 修复面只锁 ``\bm`` 族)。
 #: ``\bm#1 → \TeXlateBM{{#1}}`` 双花括号把实参改走 bm 自带 ``\bm@gr@@p``→
 #: ``\boldmath`` 组路径 (遍历被跳过且粗体语义保留; fix3/fix4 全形零错)。
 #: ``\b``/``\unit`` 等 ``\newcommand`` 别名调用点重展开 ``\bm`` 自动受益;
-#: ``\boldsymbol``/``\heavysymbol`` 是 bm.sty 末行 ``\let`` 别名,
+#: ``\boldsymbol``/``\heavysymbol`` 是 bm.sty 末行 ``\let`` 别名，
 #: ``\ifx`` 等义复核后才重绑新 ``\bm``/``\hm`` (amsbsy 自带 ``\boldsymbol``
 #: 非 bm 别名不误伤)。``\ifdefined\TeXlateBM`` 幂等防自捕环 (若 ``\let``
 #: 重捕到新 ``\bm``, ``\TeXlateBM{{#1}}`` 无穷递归)。

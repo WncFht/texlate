@@ -267,7 +267,7 @@ class _Core:
                         return t
                     self.steps += 1
                     # 界标夹心：lead marker 盖 [trig, 选支首)（\ifX + 前置死支
-                    # + 分案符），fi: 尾 marker 随选支 unread 盖 [选支末, \fi 末)
+                    # + 分案符），fi: 尾 marker 随选支 unread 盖 [选支末，\fi 末)
                     end = self.process_if(
                         self.ifflags.get(r.flag, False),
                         trig=t,

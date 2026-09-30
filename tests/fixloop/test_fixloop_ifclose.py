@@ -1,18 +1,18 @@
 """未闭合 \\if* → 文件尾 \\fi 注入双臂单测 (failmine item 4, 16 格)。
 
-实证背景: ``! Incomplete \\iffalse; all text was ignored after line N``
+实证背景：``! Incomplete \\iffalse; all text was ignored after line N``
 (taxonomy 无专属条目 → ``^.`` 兜底归 other, ctx_suggests 可及) 与
 ``(\\end occurred when \\ifx on line N was incomplete)`` + ``No pages of
 output`` (无 ``!`` 行 → err_head 空 → ctx_suggests 不可及 → early_eof 独立
 臂走 source_contains 门 + payload_required 滤 generic no-pages)。
 
-修复面: python3 扫描器对 doc 源件 (.tex/.sty/.cls, mask_tex 剥注释/verb)
-做 \\if*/\\fi 栈平衡: 只对"活区"(def 体外) 亏格件在 \\end{document}/
+修复面：python3 扫描器对 doc 源件 (.tex/.sty/.cls, mask_tex 剥注释/verb)
+做 \\if*/\\fi 栈平衡：只对"活区"(def 体外) 亏格件在 \\end{document}/
 \\endinput/EOF 前注入 \\fi×亏格数。def 体 open 是冻结 token (file-end
 \\fi 够不到 → 注入反造 Extra \\fi), 只计不注; \\repeat/\\newif/\\let 等
 非 open 语义位与 etoolbox/ifthen \\if* 宏系 denylist 剥离; 跨文件借用对
 (\\if 开 A 件 \\fi 闭 B 件) 由全局 opens>closes 闸兜住 —— 扫描器即
-draftsty-phantom (展开态 \\iffalse 源件字面平衡) 判别器, 平衡即 noop。
+draftsty-phantom (展开态 \\iffalse 源件字面平衡) 判别器，平衡即 noop。
 ``texlate-fixloop-injected`` 指纹幂等防重复注入。
 """
 
@@ -26,12 +26,12 @@ from texlate.compile.fixloop.engine import LoopCtx, Rule
 _RULE_ID = "unclosed_if_close"
 _RULE_ID_EOF = "unclosed_if_close_eof"
 
-# 实证签名: 1706.00240 同款 `!` 形 (taxonomy 落 other, pay=None)。
+# 实证签名：1706.00240 同款 `!` 形 (taxonomy 落 other, pay=None)。
 _ERR_IFFALSE = (
     "! Incomplete \\iffalse; all text was ignored after line 5.\n"
     "<inserted text>\n                \\fi\n<*> main.tex"
 )
-# loop1 格同款: 无 `!` 行, tail 签名 → early_eof pay=\ifx。
+# loop1 格同款：无 `!` 行，tail 签名 → early_eof pay=\ifx。
 _ERR_IFX_EOF = (
     "This is XeTeX\n(\\end occurred when \\ifx on line 9 was incomplete)\n"
     "No pages of output.\n"
@@ -56,14 +56,14 @@ def _apply(r: Rule | str, wdir: Path) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_incomplete_iffalse_is_incomplete_if() -> None:
-    """`! Incomplete \\iffalse` → incomplete_if (taxrow 专属行, pay=条件 cs)。"""
+    """`! Incomplete \\iffalse` → incomplete_if (taxrow 专属行，pay=条件 cs)。"""
     cat, pay = _classify(_ERR_IFFALSE)
     assert cat == "incomplete_if"
     assert pay == "\\iffalse"
 
 
 def test_taxonomy_end_occurred_ifx_is_early_eof() -> None:
-    """`\\end occurred when \\ifx incomplete` + no-pages → early_eof pay=\\ifx。"""
+    """`\\end occurred when \\ifx incomplete` + no-pages → early_eof pay=\\ifx."""
     cat, pay = _classify(_ERR_IFX_EOF)
     assert cat == "early_eof"
     assert pay == "\\ifx"
@@ -71,7 +71,7 @@ def test_taxonomy_end_occurred_ifx_is_early_eof() -> None:
 
 # ---------------------------------------------------------------- 规则接线
 def test_rule_other_arm_wired() -> None:
-    """other 臂: when=other, ctx_suggests Incomplete \\if + python3, run_tool。"""
+    """other 臂：when=other, ctx_suggests Incomplete \\if + python3, run_tool。"""
     r = rule(_RULE_ID)
     assert r.order == 196  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in r.when["any"]}
@@ -89,7 +89,7 @@ def test_rule_other_arm_wired() -> None:
 
 
 def test_rule_eof_arm_wired() -> None:
-    """early_eof 臂: payload_required 滤 generic no-pages, source_contains 门。"""
+    """early_eof 臂：payload_required 滤 generic no-pages, source_contains 门。"""
     r = rule(_RULE_ID_EOF)
     assert r.order == 196.5  # noqa: PLR2004 - schema 断言值
     assert r.when == {"category": "early_eof", "payload_required": True}
@@ -99,12 +99,12 @@ def test_rule_eof_arm_wired() -> None:
 
 
 def test_rule_order_after_pdfstring_before_sentinel() -> None:
-    """order 排序自洽: pdfstring_cs_disarm(193) < 本双臂 < undefined_cs_guess(900)。"""
+    """order 排序自洽：pdfstring_cs_disarm(193) < 本双臂 < undefined_cs_guess(900)。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["pdfstring_cs_disarm"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders[_RULE_ID_EOF]
     assert orders[_RULE_ID_EOF] < orders["undefined_cs_guess"]
-    # draftsty 补丁 (11.95) 先行: phantom 格真修先拿, 本臂兜真亏格
+    # draftsty 补丁 (11.95) 先行：phantom 格真修先拿，本臂兜真亏格
     assert orders["abstract_edef_capture_neutralize"] < orders[_RULE_ID]
 
 
@@ -211,7 +211,7 @@ def test_apply_comment_line_if_skipped(tmp_path: Path) -> None:
 
 
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
-    """指纹闸: 二次 _apply 不再注入。"""
+    """指纹闸：二次 _apply 不再注入。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\iffalse\nhidden\n"
         "\\end{document}\n",
@@ -277,7 +277,7 @@ def test_apply_def_body_open_no_inject(tmp_path: Path) -> None:
 
 
 def test_apply_crossfile_borrow_noop(tmp_path: Path) -> None:
-    """借用对: \\if 开 main 件 \\fi 闭 input 件 → 全局平衡 noop。"""
+    """借用对：\\if 开 main 件 \\fi 闭 input 件 → 全局平衡 noop。"""
     main = (
         "\\documentclass{article}\n\\begin{document}\n\\iffalse\n"
         "\\input{part.tex}\n\\end{document}\n"
@@ -292,7 +292,7 @@ def test_apply_crossfile_borrow_noop(tmp_path: Path) -> None:
 
 
 def test_apply_draftsty_phantom_no_misfire(tmp_path: Path) -> None:
-    """draftsty phantom 型: hack 件在场但源件字面平衡 → 全线不动。"""
+    """draftsty phantom 型：hack 件在场但源件字面平衡 → 全线不动。"""
     main = (
         "\\documentclass[twocolumn]{article}\n\\usepackage{draft}\n"
         "\\begin{document}\n\\begin{abstract}\nx\n\\end{abstract}\n"
@@ -331,7 +331,7 @@ def test_apply_newif_and_loop_repeat_balanced(tmp_path: Path) -> None:
 
 
 def test_apply_eof_arm_same_scanner(tmp_path: Path) -> None:
-    """early_eof 臂共用扫描器: 亏格件同样获注入。"""
+    """early_eof 臂共用扫描器：亏格件同样获注入。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\ifx\\a\\b hidden\n"
         "\\end{document}\n",
@@ -354,7 +354,7 @@ def _proj(tmp_path: Path, body: str) -> Path:
 
 
 def test_e2e_iffalse_injected_then_clean(tmp_path: Path) -> None:
-    """整链: Incomplete \\iffalse 首错 → \\fi 注入 → 下轮 clean。"""
+    """整链：Incomplete \\iffalse 首错 → \\fi 注入 → 下轮 clean。"""
     _proj(tmp_path, "hello\n\\iffalse\nhidden\n")
     eng = MockEngine(
         [
@@ -371,7 +371,7 @@ def test_e2e_iffalse_injected_then_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_eof_arm_injected_then_clean(tmp_path: Path) -> None:
-    """整链: \\end-occurred-\\ifx early_eof → eof 臂注入 → 下轮 clean。"""
+    """整链：\\end-occurred-\\ifx early_eof → eof 臂注入 → 下轮 clean。"""
     _proj(tmp_path, "hello\n\\ifx\\a\\b hidden\n")
     eng = MockEngine(
         [

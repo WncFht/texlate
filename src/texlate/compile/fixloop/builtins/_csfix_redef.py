@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 
-#: log 内 Command-形 already_def 撞名全扫 —— 三引号形同收:
+#: log 内 Command-形 already_def 撞名全扫 —— 三引号形同收：
 #: ``Command \X already defined`` / ``Command `\X' already defined``
 #: (老 ``\@ifdefinable`` 报错) / ``Command '\X' already defined`` (ltcmd)。
 _ALREADY_DEF_CS_RE = re.compile(
@@ -53,7 +53,7 @@ _ALREADY_DEF_CS_RE = re.compile(
 )
 
 
-def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门, 分派即归因
+def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门，分派即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``already_def`` → ``\let\X\@undefined`` 让位 (批量化 + 站点前置版)。

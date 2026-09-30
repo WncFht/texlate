@@ -1,12 +1,12 @@
-"""L10 (b3 工单汇流, 2026-09-18): 注入件指纹闸 + nonletter-cs payload 钉。
+"""L10 (b3 工单汇流，2026-09-18): 注入件指纹闸 + nonletter-cs payload 钉。
 
-- b3a 工单: 注入件无版本/hash 闸, precheck 见件跳重投 → 旧代 stub 留存
-  无辨 (hep-ph/0408075 stale espcrc2 实证: stub 缺 ``\\readRCS`` 而
-  undefined_cs ×106 全 decline)。修: ``builtins.common`` 指纹三件套
+- b3a 工单：注入件无版本/hash 闸，precheck 见件跳重投 → 旧代 stub 留存
+  无辨 (hep-ph/0408075 stale espcrc2 实证：stub 缺 ``\\readRCS`` 而
+  undefined_cs ×106 全 decline)。修：``builtins.common`` 指纹三件套
   (``_fingerprint``/``_mark_injected``/``_injected_state``) + 写面
-  ``_inject_write`` —— 四分判 foreign(稿自带/真包, advisory+不覆写) /
-  current(本代已注入, 跳) / stale(旧代注入件, 覆写刷新) / absent(写)。
-- 注入点统一收口: vendored_fetch / legacy_pkg_shim /
+  ``_inject_write`` —— 四分判 foreign(稿自带/真包，advisory+ 不覆写) /
+  current(本代已注入，跳) / stale(旧代注入件，覆写刷新) / absent(写)。
+- 注入点统一收口：vendored_fetch / legacy_pkg_shim /
   bundled_class_shadow / svjour_clo_stub / generated_stub。
 - nonletter cs taxonomy: ``\\+``/``\\~`` 等单字符 cs 从 ``[a-zA-Z@]+``
   抓不到 → payload=None; 10-taxonomy.yaml undefined_cs 签扩交替
@@ -75,7 +75,7 @@ def test_mark_injected_format() -> None:
     assert marked.endswith("body\n")
 
 
-# ------------------------------------------------------- _inject_write 闸+写
+# ------------------------------------------------------- _inject_write 闸 + 写
 
 
 def test_inject_write_marks_and_caches(tmp_path: Path) -> None:
@@ -146,7 +146,7 @@ def test_vendored_fetch_absent_then_current(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_legacy_stub_refreshed(tmp_path: Path) -> None:
-    """旧代落盘 stub (无指纹行头认亲) → 覆写刷新, hep-ph/0408075 情景。"""
+    """旧代落盘 stub (无指纹行头认亲) → 覆写刷新，hep-ph/0408075 情景。"""
     root = mk_vendor(tmp_path)
     (root / "stubs" / "espcrc2.sty").write_text("% new stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
@@ -210,7 +210,7 @@ def test_legacy_shim_rerun_current(tmp_path: Path) -> None:
 
 
 def test_generated_stub_current_declines(tmp_path: Path) -> None:
-    """overlay 面: 本代 stub 已在盘 → False 交后续规则 (不占位语义)。"""
+    """overlay 面：本代 stub 已在盘 → False 交后续规则 (不占位语义)。"""
     ctx = _ctx(tmp_path)
     ok, _ = generated_stub(ctx, _Eng(), "fig.pstex_t", {})
     assert ok

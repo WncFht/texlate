@@ -29,8 +29,8 @@ __all__ = [
 ]
 
 #: 注入件指纹行——本引擎写出的 stub/shim 件携 sha1(body) 指纹; 盘上同名
-#: 片三分判: 指纹匹配=本代已注入(跳), 失配/旧代标记=旧注入件(覆写刷新),
-#: 全无名分=外来件(稿自带/真包——不覆写, advisory)。
+#: 片三分判：指纹匹配=本代已注入 (跳), 失配/旧代标记=旧注入件 (覆写刷新),
+#: 全无名分=外来件 (稿自带/真包——不覆写，advisory)。
 _FINGERPRINT_RE = re.compile(
     r"^% texlate-fixloop-injected: ([0-9a-f]{12})$", re.MULTILINE
 )
@@ -47,7 +47,7 @@ def _mark_injected(body: str) -> str:
 
 
 def _injected_state(target: Path, body: str) -> str:
-    """同名片四分判: ``absent``/``current``/``stale``/``foreign``。"""
+    """同名片四分判：``absent``/``current``/``stale``/``foreign``。"""
     try:
         old = target.read_text(encoding="utf-8", errors="replace")
     except OSError:

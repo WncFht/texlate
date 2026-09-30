@@ -11,7 +11,7 @@ item 2 ``\\AtBeginDocument`` 迟延定义者 (1706.00033): 用户 ``\\def\\sh`` 
     babel russianb.ldf ``\\AtBeginDocument`` 钩内 ``\\DeclareMathOperator{\\sh}``
     —— 钩执行期错误的 file:line 归因恒为 ``\\begin{document}`` 所在行;
     一切立即 ``\\let`` (docclass 块/装载点前) 恒错序 → 声明点前注
-    ``\\AtBeginDocument{<csname-let 清位串>}`` 占首钩位, 钩 FIFO 先清位,
+    ``\\AtBeginDocument{<csname-let 清位串>}`` 占首钩位，钩 FIFO 先清位，
     迟延定义者再定义赢。
 item 3 ``\\newfont`` 站点命令 (astro-ph/0307459): ``\\newfont{\\Bbb}{msbm10
     scaled 1200}`` 产 Command 签 already_def —— ``_SITE_DEF_CMDS`` 收录后
@@ -36,7 +36,7 @@ _BBL_LOG = (
     "See the LaTeX manual or LaTeX Companion for explanation.\n"
 )
 
-#: 1706.00033 同型 —— 钩执行期错误, 归因行 = \begin{document} 所在行 (main.tex:5)。
+#: 1706.00033 同型 —— 钩执行期错误，归因行 = \begin{document} 所在行 (main.tex:5)。
 _SH_LOG = (
     "./main.tex:5: LaTeX Error: Command `\\sh' already defined.\n"
     "See the LaTeX manual or LaTeX Companion for explanation.\n"
@@ -58,7 +58,7 @@ _SH_TEX = (
 
 
 class _EngStub:
-    """引擎面替身 —— probe 恒命中, install 恒成。"""
+    """引擎面替身 —— probe 恒命中，install 恒成。"""
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:
         del cwd
@@ -156,7 +156,7 @@ def test_bbl_refire_no_double_prepend(tmp_path: Path) -> None:
 
 
 def test_bbl_dead_site_masked(tmp_path: Path) -> None:
-    """bbl 内注释掉的 ``\\newcommand`` 是死站 —— 不锚不数, docclass 块兜底。"""
+    """bbl 内注释掉的 ``\\newcommand`` 是死站 —— 不锚不数，docclass 块兜底。"""
     _proj(
         tmp_path,
         {
@@ -183,7 +183,7 @@ def test_bbl_dead_site_masked(tmp_path: Path) -> None:
 
 
 def test_abd_hook_injected_pre_docclass(tmp_path: Path) -> None:
-    """归因行 ``\\begin{document}`` → 声明点前注首钩位清位, docclass 块不发。"""
+    """归因行 ``\\begin{document}`` → 声明点前注首钩位清位，docclass 块不发。"""
     _proj(tmp_path, {"main.tex": _SH_TEX, "main.log": _SH_LOG})
     ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "sh", {})
     assert ok, note
@@ -192,14 +192,14 @@ def test_abd_hook_injected_pre_docclass(tmp_path: Path) -> None:
     assert (
         "\\AtBeginDocument{\\expandafter\\let\\csname sh\\endcsname\\TeXlateUndefCs}"
     ) in text
-    # 钩注册位必须先于 \documentclass —— FIFO 首钩, 抢在 babel 钩注册前。
+    # 钩注册位必须先于 \documentclass —— FIFO 首钩，抢在 babel 钩注册前。
     assert text.index("\\AtBeginDocument{\\expandafter") < text.index("\\documentclass")
     # 迟延定义者不被立即 \let 覆盖 → docclass 块不重发。
     assert "% fixloop: batch undefine" not in text
 
 
 def test_abd_line_not_begindoc_falls_to_docclass(tmp_path: Path) -> None:
-    """归因行非 ``\\begin{document}`` → 钩臂不接管, docclass 块走老路。"""
+    """归因行非 ``\\begin{document}`` → 钩臂不接管，docclass 块走老路。"""
     _proj(
         tmp_path,
         {
@@ -222,7 +222,7 @@ def test_abd_line_not_begindoc_falls_to_docclass(tmp_path: Path) -> None:
 
 
 def test_abd_no_docclass_declines_to_block(tmp_path: Path) -> None:
-    """无声明点 (残缺稿) → 钩臂不接管, docclass 块文件头兜底。"""
+    """无声明点 (残缺稿) → 钩臂不接管，docclass 块文件头兜底。"""
     _proj(
         tmp_path,
         {

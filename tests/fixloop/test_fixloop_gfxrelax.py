@@ -1,10 +1,10 @@
 """graphic_ext_relax — sibling_exts stem 域闸 + masked 改写面 (gfxrelax #229).
 
-firedunfixed 普查: 旧 ``has_ext`` global-any 闸在工程内随便一张 .pdf 即
-放行, 真缺件 (tar 未随图) 也剥名白烧一轮才轮到 order 17.6 占位臂。
+firedunfixed 普查：旧 ``has_ext`` global-any 闸在工程内随便一张 .pdf 即
+放行，真缺件 (tar 未随图) 也剥名白烧一轮才轮到 order 17.6 占位臂。
 新闸 ``fileset.sibling_exts``: payload 剥扩展名后的 basename stem 在
 工程内存图形族交替件才点火 —— same-basename-anywhere 语义
-(kpathsea TEXINPUTS 近似, 宁宽勿严)。
+(kpathsea TEXINPUTS 近似，宁宽勿严)。
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def test_stem_with_pdf_sibling_passes(tmp_path: Path) -> None:
 
 
 def test_stem_without_sibling_abstains(tmp_path: Path) -> None:
-    # 工程内有无关 stem 的 .pdf —— global-any 时代会误放行, stem 域闸拒
+    # 工程内有无关 stem 的 .pdf —— global-any 时代会误放行，stem 域闸拒
     ctx = _ctx(
         tmp_path,
         {
@@ -108,8 +108,8 @@ def test_stem_without_sibling_abstains(tmp_path: Path) -> None:
 
 
 def test_basename_anywhere_counts(tmp_path: Path) -> None:
-    # same-basename-anywhere (文档化宽语义): payload 带 figs/ 前缀,
-    # sibling 在 other/ —— 仍算 (kpathsea 同名位近似, 宁宽勿严)
+    # same-basename-anywhere (文档化宽语义): payload 带 figs/ 前缀，
+    # sibling 在 other/ —— 仍算 (kpathsea 同名位近似，宁宽勿严)
     ctx = _ctx(
         tmp_path,
         {
@@ -154,7 +154,7 @@ def test_hidden_and_engine_dirs_not_counted(tmp_path: Path) -> None:
 
 def test_eps_converted_to_sibling_counts(tmp_path: Path) -> None:
     # epstopdf ``-eps-converted-to.pdf`` 转换件归一 <stem> 算 sibling —
-    # 2308.04278 实证: system-model.eps 缺件但该命名件在盘时剥名是真解,
+    # 2308.04278 实证：system-model.eps 缺件但该命名件在盘时剥名是真解，
     # stem 严格相等会把 epstopdf 工程格饿死 (clean→partial 回归)
     ctx = _ctx(
         tmp_path,
@@ -168,7 +168,7 @@ def test_eps_converted_to_sibling_counts(tmp_path: Path) -> None:
 
 
 def test_sibling_eps_family_counts(tmp_path: Path) -> None:
-    # sibling 候选含 PS 族: a.ps 在盘 → 剥名后 graphicx 扩展表可达
+    # sibling 候选含 PS 族：a.ps 在盘 → 剥名后 graphicx 扩展表可达
     ctx = _ctx(
         tmp_path,
         {
@@ -215,7 +215,7 @@ def test_dispatch_falls_through_to_placeholder(tmp_path: Path) -> None:
 
 
 def test_commented_site_not_rewritten(tmp_path: Path) -> None:
-    # masked 面: 注释内引用点不改写不计命中 —— 活引用照剥, 死引用原样
+    # masked 面：注释内引用点不改写不计命中 —— 活引用照剥，死引用原样
     main = (
         "\\documentclass{article}\n\\usepackage{graphicx}\n"
         "\\begin{document}\n% \\includegraphics{a.eps}\n"
@@ -246,7 +246,7 @@ def test_commented_only_site_declines_rewrite(tmp_path: Path) -> None:
 
 
 def test_multi_ref_mixed(tmp_path: Path) -> None:
-    # 双引用混合: payload a.eps 有 sibling → 只剥 a; other.eps 无 sibling
+    # 双引用混合：payload a.eps 有 sibling → 只剥 a; other.eps 无 sibling
     # 原样保留 (payload 锚定不误吃), 其轮再由占位臂兜底
     main = (
         "\\documentclass{article}\n\\usepackage{graphicx}\n"
@@ -260,7 +260,7 @@ def test_multi_ref_mixed(tmp_path: Path) -> None:
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\includegraphics{a}" in text
     assert "\\includegraphics{other.eps}" in text  # 非 payload 引用不动
-    # 次轮: other.eps 无 sibling → ext_relax 拒 → 占位臂收
+    # 次轮：other.eps 无 sibling → ext_relax 拒 → 占位臂收
     ctx2 = _ctx(tmp_path, {}, pay="other.eps")
     rule2, _note2 = _dispatch(ctx2, "other.eps")
     assert rule2 is not None

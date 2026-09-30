@@ -163,7 +163,7 @@ def test_sniff_and_dispatch(tmp_path: Path) -> None:
     assert report.dst == dst
     assert dst.exists()
     doc = Document(str(dst))
-    assert len(doc.paragraphs) == 2  # noqa: PLR2004 -- 原段+译文段
+    assert len(doc.paragraphs) == 2  # noqa: PLR2004 -- 原段 + 译文段
 
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -213,7 +213,7 @@ def test_hyperlink_text_extracted(tmp_path: Path) -> None:
     assert report.units == 1
     assert report.translated == 1
     out = Document(str(dst))
-    assert len(out.paragraphs) == 2  # noqa: PLR2004 -- 原段+译文段
+    assert len(out.paragraphs) == 2  # noqa: PLR2004 -- 原段 + 译文段
     assert "这是译文" in out.paragraphs[1].text
 
 
@@ -259,10 +259,10 @@ def test_table_cell_translated(tmp_path: Path) -> None:
     doc.save(str(src))
     dst = tmp_path / "out.docx"
     report = translate_docx(src, dst, MockTranslator())
-    assert report.translated == 2  # noqa: PLR2004 -- 表前段+单元格段
+    assert report.translated == 2  # noqa: PLR2004 -- 表前段 + 单元格段
     out = Document(str(dst))
     cell_paras = out.tables[0].cell(0, 0).paragraphs
-    assert len(cell_paras) == 2  # noqa: PLR2004 -- 原段+译文段
+    assert len(cell_paras) == 2  # noqa: PLR2004 -- 原段 + 译文段
     assert "这是译文" in cell_paras[1].text
 
 
@@ -277,7 +277,7 @@ def test_header_part_translated(tmp_path: Path) -> None:
     doc.save(str(src))
     dst = tmp_path / "out.docx"
     report = translate_docx(src, dst, MockTranslator())
-    assert report.translated == 2  # noqa: PLR2004 -- 正文+页眉
+    assert report.translated == 2  # noqa: PLR2004 -- 正文 + 页眉
     with zipfile.ZipFile(dst) as z:
         header_names = [n for n in z.namelist() if re.match(r"word/header\d*\.xml", n)]
         assert header_names

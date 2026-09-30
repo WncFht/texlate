@@ -1,4 +1,4 @@
-"""kernel._kernel_run — run/plan 编排叶 (kernel.kernel 拆分叶, §2.1 管线本体).
+"""kernel._kernel_run — run/plan 编排叶 (kernel.kernel 拆分叶，§2.1 管线本体).
 
 - ``run``/``plan``       — 管线入口与 dry-run 报价
 - ``RunError``           — run 级拒绝/崩溃 (管线前或出管线)
@@ -11,7 +11,7 @@
 - ``_tally``/``_reconcile_pending``/``_verdict_for`` — 收尾对账与
                            run 末 pending vault meta 裁决 (§3.5)
 
-执行件 (``_run_cell``/needs/emit/lookahead/规划面) 各归其叶, 本叶只
+执行件 (``_run_cell``/needs/emit/lookahead/规划面) 各归其叶，本叶只
 编排。门面回引名单见 ``kernel.kernel._LEAF_EXPORTS``; monkeypatch 锚
 点归本叶。
 """

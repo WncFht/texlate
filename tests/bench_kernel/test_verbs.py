@@ -384,7 +384,7 @@ def test_gate_scan_rows_and_tally() -> None:
     ]
     comp, st, si = gate.scan_rows(rows, "compile", arm="zh", upstream="-")
     assert st["rows"] == 5  # noqa: PLR2004 -- 断言字面量（compile 行数）
-    assert st["accepted"] == 2  # noqa: PLR2004 -- 断言字面量（末条胜+基线臂）
+    assert st["accepted"] == 2  # noqa: PLR2004 -- 断言字面量（末条胜 + 基线臂）
     assert st["unique"] == 1
     assert st["superseded"] == 1
     assert st["arm_filtered"] == 1

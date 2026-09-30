@@ -77,15 +77,15 @@ _DEF_EXTS = (".tex", ".sty", ".cls", ".def", ".clo", ".cfg")
 #: 词素单源 = ``textutil.BEGIN_DOC_RX`` (直引)。
 
 #: 装载期件后缀 —— .sty/.cls/.def/.clo/.cfg 经 ``\usepackage``/``\documentclass``
-#: 读入, 其内 ``\X`` 调用在执行序上恒属 preamble (无所谓件内 ``\begin{document}``
+#: 读入，其内 ``\X`` 调用在执行序上恒属 preamble (无所谓件内 ``\begin{document}``
 #: 位置 —— 装载期件根本不会有活的)。
 _LOAD_EXTS = (".sty", ".cls", ".def", ".clo", ".cfg")
 
 #: ``\X`` 紧邻前缀的「定义者」尾缀判 —— ``\def\X``/``\let\X``/``\newcommand\X``
-#: 类是**定义点**不是调用点, 不能当 seam 锚。``{\X}``/``{name}`` 形 brace
-#: 深度 >0 已被 ``iter_depth0`` 排除, 此表只兜 depth-0 无括号形; ``*def``/
+#: 类是**定义点**不是调用点，不能当 seam 锚。``{\X}``/``{name}`` 形 brace
+#: 深度 >0 已被 ``iter_depth0`` 排除，此表只兜 depth-0 无括号形; ``*def``/
 #: ``*let`` 尾缀顺带覆盖 ``\gdef``/``\edef``/``\chardef``/``\futurelet`` 族。
-#: ``\Z`` 锚 (非 ``$``) —— 须贴死匹配起点, ``\def\n\author`` 不许误判。
+#: ``\Z`` 锚 (非 ``$``) —— 须贴死匹配起点，``\def\n\author`` 不许误判。
 _DEF_TAIL_RX = re.compile(
     r"(?:\\(?:long|outer|global|protected)[ \t]*)*"
     r"\\(?:[A-Za-z@]*def|[A-Za-z@]*let|newcommand|renewcommand"
@@ -93,10 +93,10 @@ _DEF_TAIL_RX = re.compile(
     r"[ \t]*(?:\*[ \t]*)?(?:\[[0-9]+\][ \t]*)?\{?[ \t]*\Z"
 )
 
-#: wrap 签名表: cs 名 (无反斜杠) → (wrapper 捕获签名, 终级转发模板)。
-#: def_sig 逐字作 wrapper 形参 (定界符原样: ``[#1]``/``#1>``/``#1\\``);
+#: wrap 签名表：cs 名 (无反斜杠) → (wrapper 捕获签名，终级转发模板)。
+#: def_sig 逐字作 wrapper 形参 (定界符原样：``[#1]``/``#1>``/``#1\\``);
 #: fwd_sig 是终级 stage 体内 ``\ALIAS`` 后的转发文本 —— 各级剥好的
-#: ``{s_n}`` 按序就位, ``#n`` 引用即第 n 个剥净参数, 定界参的花括号
+#: ``{s_n}`` 按序就位，``#n`` 引用即第 n 个剥净参数，定界参的花括号
 #: 剥壳由下一级无界捕获自动完成 (``{#1}[#2]`` → ``\ALIAS{s1}[s2]``;
 #: ``#1>`` → ``\ALIAS s1>``)。签名逐条对上游实档核过 (para-census
 #: definer-site map; nameref.sty:201 / latex.ltx:17351 / natbib.sty:507 /
@@ -158,11 +158,11 @@ _WRAP_TABLE: dict[str, tuple[str, str]] = {
     ),  # pgffor.code.tex:75
     "caption@prepareanchor": ("#1#2", "{#1}{#2}"),  # caption*.sty:319 \newcommand*[2]
     # pictex 非 \long \put (现行档 pictexwd.tex:2310 已 \long, 老档非; 签名
-    # 含字面 " at " 与空格定界 —— 定界参裸转发, 尾空格是 #4 定界符不可省)。
+    # 含字面 " at " 与空格定界 —— 定界参裸转发，尾空格是 #4 定界符不可省)。
     "put": ("#1#2 at #3 #4 ", "{#1}#2 at #3 #4 "),
 }
 
-#: 暂存/级联宏拒收名单 —— 定义随用随覆写或属上游错级联, wrap 无意义。
+#: 暂存/级联宏拒收名单 —— 定义随用随覆写或属上游错级联，wrap 无意义。
 _DENY_NAMES: frozenset[str] = frozenset(
     {
         "@tempa",
@@ -188,7 +188,7 @@ _DENY_NAMES: frozenset[str] = frozenset(
     }
 )
 
-#: 拒收前缀族 —— babel kv 暂存 (babel_opt 级联), kernel 寄存器暂存,
+#: 拒收前缀族 —— babel kv 暂存 (babel_opt 级联), kernel 寄存器暂存，
 #: LaTeX 迭代暂存。
 _DENY_PREFIXES = ("bbl@temp", "reserved@", "iter@", "@ene@r", "t@exp@")
 
@@ -411,12 +411,12 @@ def _apply_wraps(
 
 #: ``\par``-strip 共享原语 —— 每 wrap 块注入一次。
 #: ``\TL@pl@strip{raw}\CONT`` → ``\CONT{raw-sans-toplevel-\par}``:
-#: ``\par``-定界递归逐段重拼, ``\ifx`` 哨兵判停 (``\TL@pl@nil`` 自指
-#: 宏义独一, 空 #4 时双哨兵相撞即真); ``\long`` 全程 —— 递归级与
+#: ``\par``-定界递归逐段重拼，``\ifx`` 哨兵判停 (``\TL@pl@nil`` 自指
+#: 宏义独一，空 #4 时双哨兵相撞即真); ``\long`` 全程 —— 递归级与
 #: strip 入口都吃含 ``\par`` 料。哨兵绝不展开 (只作定界符/ifx 操作数)。
 #: ``\expandafter\TL@pl@first/\else\TL@pl@second\fi`` 是硬约束 ——
 #: CONT 链若含吃无界实参的宏 (``\@citex`` 的 #3 等), 在 ``\ifx`` 真
-#: 分支里执行会把挂起的 ``\else`` 当实参吞掉, 残留 else 支二次执行
+#: 分支里执行会把挂起的 ``\else`` 当实参吞掉，残留 else 支二次执行
 #: 连锁炸下游 (实测 ``\@fortmp`` runaway); 必须先 ``\expandafter``
 #: 出 ``\fi`` 再交控制权。
 _STRIP_HELPERS: tuple[str, ...] = (
@@ -465,7 +465,7 @@ def _wrap_block(
             lines += _STRIP_HELPERS
             helpers = True
         stage = "TL@pl@" + name + "@s"
-        # stage 序号走罗马数字 —— cs 名只收字母, 数字会断名成 \…@s+"1"
+        # stage 序号走罗马数字 —— cs 名只收字母，数字会断名成 \…@s+"1"
         rom = ("i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x")
         cont = (
             "\\"

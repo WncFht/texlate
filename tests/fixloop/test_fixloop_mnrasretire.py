@@ -4,19 +4,19 @@
 mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
 --usermode install mnras`` → 上游 v3.2 病件落 usertree
 ``_texmf/home/tex/latex/mnras/`` —— ``\\def\\ds@usegraphicx{\\@usegraphicxtrue
-\\usepackage{graphicx}}`` 把 ``\\usepackage`` 写进 ``\\ds@`` 选项声明体,
+\\usepackage{graphicx}}`` 把 ``\\usepackage`` 写进 ``\\ds@`` 选项声明体，
 ``\\ProcessOptions`` 执行 usegraphicx 选项 → ``mnras.cls:114: LaTeX Error:
 \\RequirePackage or \\LoadClass in Options Section`` 硬错 (cat=other)。
 宿主 ``~/texmf`` 常驻副本同病 (TEXMFHOME 链尾保持可见 → 同样可达)。
-设计: stateless DROP —— 退役→missing→vendored_fetch(11.5) 名义链不可达
+设计：stateless DROP —— 退役→missing→vendored_fetch(11.5) 名义链不可达
 (``install_file``(10) 先截 missing_file: 宿主探得 already-present / tlmgr
 重装同病上游件 → 复毒死环), 且 mv usertree/宿主件是树外突变 —— 故指纹
 确证任一可达病形件 (``{main_dir}`` 解析位 / ``find . ../_texmf/home`` 双式
 usertree / kpsewhich 宿主面) → vendor 补丁件平铺 ``{main_dir}`` 解析位
-(平铺稿 = wdir 根, 嵌套 main 落 main.tex 所在目录 —— 嵌套臂钉见
+(平铺稿 = wdir 根，嵌套 main 落 main.tex 所在目录 —— 嵌套臂钉见
 test_fixloop_sitehoist.py), kpathsea 编译 cwd 序压过一切 texmf 树件;
 ``texlate patch`` / ``texlate-fixloop-injected`` 双标跳过防自拆; 解析位
-稿自带病件先 mv ``.fixloop-iso`` 让位 (wdir 内退役, pstadd 同型先例)。
+稿自带病件先 mv ``.fixloop-iso`` 让位 (wdir 内退役，pstadd 同型先例)。
 """
 
 import os
@@ -50,11 +50,11 @@ def _vendor_bytes() -> str:
 
 _RULE_ID = "mnras_texmf_shadow_drop"
 #: mn2e_usegraphicx_defer (order 11.905) 指纹同签且文件盲 —— wdir 内病件
-#: (含 _texmf/host-texmf 子树) 被它先原位补丁, 本规则只盖 wdir 外病件。
+#: (含 _texmf/host-texmf 子树) 被它先原位补丁，本规则只盖 wdir 外病件。
 _MN2E_RULE = "mn2e_usegraphicx_defer"
 _KPSEWHICH = shutil.which("kpsewhich") is not None
 
-# 1206.0291 geomreverify 实证首错 (file-line-error 形态, cat=other pay=null)
+# 1206.0291 geomreverify 实证首错 (file-line-error 形态，cat=other pay=null)
 _ERR_OPTIONS = (
     "/work/1206.0291/_texmf/home/tex/latex/mnras/mnras.cls:114: "
     "LaTeX Error: \\RequirePackage or \\LoadClass in Options Section."
@@ -64,9 +64,9 @@ _ERR_OPTIONS_CTX = (
     "Type  H <return>  for immediate help.\n"
     "l.114 \\ProcessOptions"
 )
-# '!' 形态同款: rep.first 无文件名, "Options Section" 字面同闸收
+# '!' 形态同款：rep.first 无文件名，"Options Section" 字面同闸收
 _BANG_ERR = "! LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
-# 签名散格变体: 同文件其他错 (syntax / undefined_cs) —— mnras.cls 点名在
+# 签名散格变体：同文件其他错 (syntax / undefined_cs) —— mnras.cls 点名在
 _ERR_MISSINGNUM = (
     "/work/1206.0291/_texmf/home/tex/latex/mnras/mnras.cls:114: "
     "Missing number, treated as zero."
@@ -82,17 +82,17 @@ _SAFE_CLS = (
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue}\n"
     "\\if@usegraphicx\n  \\usepackage{graphicx}\n\\fi\n"
 )
-# 补丁标件: marker 在 → 首闸跳过 (即便行面像病件)
+# 补丁标件：marker 在 → 首闸跳过 (即便行面像病件)
 _PATCHED_CLS = (
     "% texlate patch: \\usepackage deferred past \\ProcessOptions\n"
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue}\n"
 )
-# 本引擎注入件: 指纹标在 → 首闸跳过
+# 本引擎注入件：指纹标在 → 首闸跳过
 _INJECTED_CLS = (
     "% texlate-fixloop-injected: 0123456789ab\n"
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}\n"
 )
-# 注释载件: 病形只在注释行 → 剥注释后指纹阴性 → 不动
+# 注释载件：病形只在注释行 → 剥注释后指纹阴性 → 不动
 _COMMENTED_CLS = (
     "% \\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}\n"
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue}\n"
@@ -115,8 +115,8 @@ def _classify(head_text: str) -> tuple[str | None, str | None]:
 @pytest.fixture(autouse=True)
 def _path_python_carries_texlate(monkeypatch: pytest.MonkeyPatch) -> None:
     """run_tool 脚本 ``python -c 'import texlate…'`` vendor 平铺桥走 PATH——
-    pytest 解释器 bin 目录前置, 子进程 ``python``/``python3`` 落同 env 才能
-    import texlate; 否则桥尾 ``|| true`` 静默不投件, 平铺断言报
+    pytest 解释器 bin 目录前置，子进程 ``python``/``python3`` 落同 env 才能
+    import texlate; 否则桥尾 ``|| true`` 静默不投件，平铺断言报
     FileNotFoundError 而非桥因 (test_fixloop_sitehoist mnras 臂同暴露未钉)。"""
     monkeypatch.setenv(
         "PATH",
@@ -125,7 +125,7 @@ def _path_python_carries_texlate(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _plant_cls(wdir: Path, body: str = MNRAS_BUGGY_CLS) -> Path:
-    """usertree 生产内嵌布局落件: ``wdir/_texmf/home/tex/latex/mnras/mnras.cls``。"""
+    """usertree 生产内嵌布局落件：``wdir/_texmf/home/tex/latex/mnras/mnras.cls``。"""
     f = wdir / "_texmf/home/tex/latex/mnras/mnras.cls"
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(body, encoding="utf-8")
@@ -148,7 +148,7 @@ def _fake_host(tmp_path: Path, body: str, monkeypatch: pytest.MonkeyPatch) -> Pa
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_options_section_pin() -> None:
-    """实证签名: Options Section LaTeX Error → taxrow 归 options_section。"""
+    """实证签名：Options Section LaTeX Error → taxrow 归 options_section。"""
     cat, _ = _classify(_ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX)
     assert cat == "options_section"
 
@@ -167,13 +167,13 @@ def test_taxonomy_undef_is_undefined_cs() -> None:
 
 # ---------------------------------------------------------------- 钉版面
 def test_vendored_mnras_pinned_patch() -> None:
-    """vendor/files/mnras.cls 钉版: 补丁标 + ds@usegraphicx 行净 + 推迟载入块。"""
+    """vendor/files/mnras.cls 钉版：补丁标 + ds@usegraphicx 行净 + 推迟载入块。"""
     text = _vendor_bytes()
     assert "% texlate patch" in text
     assert "\\def\\ds@usegraphicx{\\@usegraphicxtrue}" in text
     assert "\\if@usegraphicx" in text
     assert "\\ProcessOptions\\relax" in text
-    # 指纹阴性自洽: 剥注释后无 ds@usegraphicx 行载 \usepackage/\RequirePackage
+    # 指纹阴性自洽：剥注释后无 ds@usegraphicx 行载 \usepackage/\RequirePackage
     for line in text.splitlines():
         if line.lstrip().startswith("%") or "ds@usegraphicx" not in line:
             continue
@@ -201,13 +201,13 @@ def test_rule_wired_loop_phase() -> None:
     assert "fixloop-iso" in argv[2]  # 根稿自带病件退役让位
     assert "ds@usegraphicx" in argv[2]
     assert "kpsewhich" in argv[2]  # 宿主 ~/texmf/TEXMFDIST 面探址
-    assert "texlate patch" in argv[2]  # 补丁标闸: 不判 vendor 件病
-    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸: 不判本引擎注入件病
-    assert "_vendor_root" in argv[2]  # 平铺臂: 补丁件自给 (vendored_fetch 链不可达)
+    assert "texlate patch" in argv[2]  # 补丁标闸：不判 vendor 件病
+    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸：不判本引擎注入件病
+    assert "_vendor_root" in argv[2]  # 平铺臂：补丁件自给 (vendored_fetch 链不可达)
 
 
 def test_rule_order_neighbors() -> None:
-    """order 排序自洽: pstricks(11.9) < 本规则 < abstract_edef(11.95) < legacy_pkg_shim(12)。"""
+    """order 排序自洽：pstricks(11.9) < 本规则 < abstract_edef(11.95) < legacy_pkg_shim(12)。"""
     orders = {r.id: r.order for r in _rs().phase("loop")}
     assert orders["pstricks_add_pair_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["abstract_edef_capture_neutralize"]
@@ -225,7 +225,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
 
 
 def test_cond_pass_wdir_cls(tmp_path: Path) -> None:
-    """生产内嵌布局: wdir/_texmf/home 下病件在场 + 实证签名 → 闸过。"""
+    """生产内嵌布局：wdir/_texmf/home 下病件在场 + 实证签名 → 闸过。"""
     _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
@@ -234,7 +234,7 @@ def test_cond_pass_wdir_cls(tmp_path: Path) -> None:
 
 
 def test_cond_pass_sibling_usertree(tmp_path: Path) -> None:
-    """stagerun 兄弟式: wdir=splice, 病件在 ../_texmf/home → ../ 闸过。"""
+    """stagerun 兄弟式：wdir=splice, 病件在 ../_texmf/home → ../ 闸过。"""
     splice = tmp_path / "splice"
     splice.mkdir()
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
@@ -247,7 +247,7 @@ def test_cond_pass_sibling_usertree(tmp_path: Path) -> None:
 
 
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
-    """'!' 形态: 文件名缺席但 "Options Section" 字面在 rep.first → 同闸收。"""
+    """'!' 形态：文件名缺席但 "Options Section" 字面在 rep.first → 同闸收。"""
     _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _BANG_ERR + _ERR_OPTIONS_CTX
@@ -268,7 +268,7 @@ def test_cond_pass_kpsewhich_arm_host_only(tmp_path: Path) -> None:
 def test_cond_skip_when_nothing_resolvable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """零在场证: 无本地件 + PATH 清空 (kpsewhich/sh 俱隐) → 全臂拒。"""
+    """零在场证：无本地件 + PATH 清空 (kpsewhich/sh 俱隐) → 全臂拒。"""
     monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
@@ -289,7 +289,7 @@ def test_apply_drops_when_usertree_buggy(tmp_path: Path) -> None:
 
 
 def test_apply_drops_sibling_usertree(tmp_path: Path) -> None:
-    """stagerun 兄弟式: ../_texmf/home 病件证病 → 平铺落 wdir (splice), 兄弟件不动。"""
+    """stagerun 兄弟式：../_texmf/home 病件证病 → 平铺落 wdir (splice), 兄弟件不动。"""
     splice = tmp_path / "splice"
     splice.mkdir()
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
@@ -329,7 +329,7 @@ def test_apply_no_drop_when_patched_only(
 def test_apply_no_drop_when_safe_foreign(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """指纹阴性外来件 (ds@ 行净, 无标) → 不判病 → 不平铺。"""
+    """指纹阴性外来件 (ds@ 行净，无标) → 不判病 → 不平铺。"""
     cls = _plant_cls(tmp_path, _SAFE_CLS)
     _fake_host(tmp_path, _SAFE_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
@@ -366,7 +366,7 @@ def test_apply_no_drop_when_injected(
 
 
 def test_apply_no_clobber_safe_root(tmp_path: Path) -> None:
-    """./mnras.cls 被安全件占 (cwd 已胜者) → 不退役不覆写, 树内病件也不动。"""
+    """./mnras.cls 被安全件占 (cwd 已胜者) → 不退役不覆写，树内病件也不动。"""
     cls = _plant_cls(tmp_path)
     (tmp_path / "mnras.cls").write_text(_SAFE_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
@@ -382,7 +382,7 @@ def test_apply_no_clobber_safe_root(tmp_path: Path) -> None:
 def test_apply_drops_when_only_host_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """病件只在宿主 TEXMFHOME (wdir/兄弟面零件) → kpsewhich 证病 → 平铺, 宿主件不动。"""
+    """病件只在宿主 TEXMFHOME (wdir/兄弟面零件) → kpsewhich 证病 → 平铺，宿主件不动。"""
     host = _fake_host(tmp_path, MNRAS_BUGGY_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -393,7 +393,7 @@ def test_apply_drops_when_only_host_buggy(
 
 
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
-    """二跑幂等: 平铺件带 patch 标 → 不判病不覆写不退役。"""
+    """二跑幂等：平铺件带 patch 标 → 不判病不覆写不退役。"""
     _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok1, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -406,7 +406,7 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- e2e
 def _proj(tmp_path: Path) -> Path:
-    """生产内嵌布局: wdir 根 + wdir/_texmf/home usertree 病件。"""
+    """生产内嵌布局：wdir 根 + wdir/_texmf/home usertree 病件。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{mn2e}\n\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
@@ -416,7 +416,7 @@ def _proj(tmp_path: Path) -> Path:
 
 
 def _proj_sibling(tmp_path: Path) -> Path:
-    """stagerun 兄弟式: proj=splice, usertree 在 ../_texmf/home。"""
+    """stagerun 兄弟式：proj=splice, usertree 在 ../_texmf/home。"""
     splice = tmp_path / "splice"
     splice.mkdir()
     (splice / "main.tex").write_text(
@@ -492,7 +492,7 @@ def test_e2e_mn2e_superset_patches_host_tree_buggy(
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非 mnras 签名: 别包错 → 本规则不动件不平铺。"""
+    """非 mnras 签名：别包错 → 本规则不动件不平铺。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",

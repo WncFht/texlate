@@ -75,7 +75,7 @@ def _src_items() -> list[dict]:
     """资格 records 末条胜投影 → 单 stage 路由 item。
 
     全域枚举（不分 run——「credential 的当前最好状态」即测量对象；
-    ``run`` selector 按 src_run 收窄）。逐格指纹 = 源行身份+状态+fp，
+    ``run`` selector 按 src_run 收窄）。逐格指纹 = 源行身份 + 状态+fp，
     上游重测/状态翻转即新测量代际。
     """
     db = paths.index_path()
@@ -171,7 +171,7 @@ def _gate(status: str, code: str, cat: str, payload) -> dict:
 
 
 def _qxlat(ctx):
-    """state.{arm}[@{src_variant}]/state.json → translate.{leak_*,term_*}。"""
+    """state.{arm}[@{src_variant}]/state.json → translate.{leak_*,term_*}."""
     src_variant = str(ctx.params.get("src_variant") or "-")
     rec = _last_done(ctx, _XLAT_STAGE, src_variant)
     if rec is None or rec["status"] not in _XLAT_ELIGIBLE:
@@ -278,7 +278,7 @@ def _splice_cred(ctx, src_variant: str) -> tuple[str, str] | None:
 
 def _main_rel(ctx, rec: dict, dest: Path, cred: tuple[str, str]) -> str | None:
     """main_rel 三段式：compile 账 metrics → 恢复树 zh 层 parse.json →
-    build_dir find_main_tex。"""
+    build_dir find_main_tex."""
     m = (rec.get("metrics") or {}).get("main_rel")
     if isinstance(m, str) and m:
         return m

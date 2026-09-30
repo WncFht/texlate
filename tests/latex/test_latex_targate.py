@@ -89,7 +89,7 @@ def test_flatten_inputs_real_still_inlines(tmp_path: Path) -> None:
 
 
 def test_ustar_text_no_false_positive(tmp_path: Path) -> None:
-    """正文含 ``ustar`` 字样（恰落魔数偏移 257）：魔数+版本域 8B 校验挡假阳——
+    """正文含 ``ustar`` 字样（恰落魔数偏移 257）：魔数 + 版本域 8B 校验挡假阳——
     ``ustar\\n`` 不是合法 ``ustar\\0``+``00``/``ustar  \\0`` 域，chksum 层未达。"""
     head = b"\\documentclass{article}\n"
     blob = head + b"x" * (257 - len(head)) + b"ustar\n" + _PROSE.encode()
@@ -102,15 +102,15 @@ def test_ustar_text_no_false_positive(tmp_path: Path) -> None:
 
 
 def test_ustar_magic_field_bad_checksum_still_text(tmp_path: Path) -> None:
-    """POSIX 魔数+版本域全真 (``ustar\\0``+``00``) 且 chksum 位恰呈八进制形
+    """POSIX 魔数 + 版本域全真 (``ustar\\0``+``00``) 且 chksum 位恰呈八进制形
     (``012345␣␣``)——值不等于头余字节和仍按纯文本过闸
-    (镜像 test_fixloop_tarmember.py 的校验和层独测, 走 latex 闸面)。"""
+    (镜像 test_fixloop_tarmember.py 的校验和层独测，走 latex 闸面)。"""
     blob = (
         b"% "
         + b"y" * 190
         + b"012345  "  # 恰落 hdr+148: 八进制形态正确但值 != 头校验和
         + b"y" * 101
-        + b"ustar\x0000"  # hdr+257: 魔数+版本域全真
+        + b"ustar\x0000"  # hdr+257: 魔数 + 版本域全真
         + b"z" * 400
     )
     (tmp_path / "main.tex").write_bytes(blob)

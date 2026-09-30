@@ -67,7 +67,7 @@ def _emit_then_sleep(payload: str, sleep_s: int = 60) -> list[str]:
 
 # ---------------------------------------------------------------- 哨件单元：良性形
 def test_1003_shape_no_trip() -> None:
-    """pin a-1003.2165：46 签名/46 页标 1:1——旧闸第 30 签名即杀，新语义放行。"""
+    """pin a-1003.2165:46 签名/46 页标 1:1——旧闸第 30 签名即杀，新语义放行。"""
     s = _RunawaySentry()
     assert s.feed(_per_page_blob(46)) is False
     assert s.reason is None
@@ -113,7 +113,7 @@ def test_vbox_density_margin() -> None:
 
 
 def test_grqc_shape_page_flood() -> None:
-    """pin b-gr-qc：签名+页标 1:1 同速推进至 10K 页 → page_flood 截杀。"""
+    """pin b-gr-qc：签名 + 页标 1:1 同速推进至 10K 页 → page_flood 截杀。"""
     s = _RunawaySentry()
     blob = b"".join(_VBOX_B + b"\n[%d]\n" % i for i in range(11_000))
     assert s.feed(blob) is True
@@ -332,7 +332,7 @@ def test_roundcat_killed_signal_unchanged() -> None:
 
 # ---------------------------------------------------------------- 兜底：无字段文本重扫
 def test_fallback_benign_shape_timeout() -> None:
-    """pin d-良性形：无字段 + 46签名/46页标 tail → 泛 timeout（旧判据误判 runaway）。"""
+    """pin d-良性形：无字段 + 46 签名/46 页标 tail → 泛 timeout（旧判据误判 runaway）。"""
     benign_tail = "".join(f"{_VBOX}\n[{i}]\n" for i in range(46))
     res = CompRes(
         engine="xelatex",
@@ -451,7 +451,7 @@ def test_run_process_wallclock_still_bool(tmp_path: Path) -> None:
 @pytest.mark.integration
 @requires_posix
 def test_run_process_deadcycle_shape_killed(tmp_path: Path) -> None:
-    """pin e 端到端：「25签名+[N]」死循环页块流 + 挂死 → vbox_flood 收树。"""
+    """pin e 端到端：「25 签名+[N]」死循环页块流 + 挂死 → vbox_flood 收树。"""
     payload = "".join((_VBOX + "\n") * 25 + f"[{i}]\n" for i in range(4))
     rc, _out, sec, to = run_process(
         _emit_then_sleep(payload),

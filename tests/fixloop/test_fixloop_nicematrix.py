@@ -3,8 +3,8 @@
 实证背景 (e2ereal 2308.12712): tlmgr --usermode 装进的 nicematrix v7.11c
 要求 ``\\IfFormatAtLeastTF{2026-06-01}``, runtime LaTeX2e 2025-11-01 →
 ``nicematrix.sty:39: Critical Package nicematrix Error: Your LaTeX release
-is too old`` → 包拒载, 下游 NiceTabular/NiceMatrix undefined 级联。
-修复面: vendor/files/nicematrix.sty 钉 v7.11a (floor format 2025-06-01,
+is too old`` → 包拒载，下游 NiceTabular/NiceMatrix undefined 级联。
+修复面：vendor/files/nicematrix.sty 钉 v7.11a (floor format 2025-06-01,
 array 2025/09/25 —— 本机 toolchain 恰好全过), 新 taxonomy 签名抓 file-line
 basename → vendored_fetch 平铺 wdir 遮蔽 texmfhome 过新件。
 """
@@ -21,7 +21,7 @@ _VENDOR_STY = (
     / "src/texlate/compile/fixloop/vendor/files/nicematrix.sty"
 )
 
-# 2308.12712 main.log 实证首错行 (file-line-error 形态, expl3 msg_critical)
+# 2308.12712 main.log 实证首错行 (file-line-error 形态，expl3 msg_critical)
 _CRIT_LINE = (
     "/home/texmf/home/tex/latex/nicematrix/nicematrix.sty:39: "
     "Critical Package nicematrix Error: Your LaTeX release is too old."
@@ -47,7 +47,7 @@ def _classify(head_text: str) -> tuple[str | None, str | None]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_real_critical_line() -> None:
-    """实证签名: file-line Critical Error + too old → pkg_version_skew + basename。"""
+    """实证签名：file-line Critical Error + too old → pkg_version_skew + basename。"""
     cat, pay = _classify(_CRIT_LINE + "\n" + _CRIT_CTX)
     assert cat == "pkg_version_skew"
     assert pay == "nicematrix.sty"

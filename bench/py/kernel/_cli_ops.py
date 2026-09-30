@@ -9,7 +9,7 @@
                         meta/manifest + lake durable + run keep-tier;
                         vault payload 字节与工作树刻意不入)
 
-剪枝机件: ``_PRUNE_KEEP``/``_PRUNE_ALWAYS``/``_PAID_TREE_PREFIXES``/
+剪枝机件：``_PRUNE_KEEP``/``_PRUNE_ALWAYS``/``_PAID_TREE_PREFIXES``/
 ``_CHECKPOINT_DIRS``/``_cell_has_paid_bytes``/``_cell_shrinkable``。
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

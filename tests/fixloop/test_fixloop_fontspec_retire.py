@@ -1,11 +1,11 @@
 """fontspec_kernel_shadow_retire 内建 —— 稿自带 fontspec 套件内核 skew 退役。
 
-实证根因 (scale50 批, 2026-09-25, t_c32920e49e7f1f70 / DQI-Kit):
+实证根因 (scale50 批，2026-09-25, t_c32920e49e7f1f70 / DQI-Kit):
 稿自带 fontspec v2.9h (2026/08/11) 套件喂 LaTeX2e 2021-11-15 核 →
-``\\SetKeys``/``__fontspec`` 原语 undefined 连锁爆, fontspec 初始化全灭
+``\\SetKeys``/``__fontspec`` 原语 undefined 连锁爆，fontspec 初始化全灭
 → CJK 字体永不配 → zh.pdf 文本层 U+FFFF 死层 (exit 0 + status=ok 假绿)。
-``vendored_shadow_isolate`` 的 ld<sd 只收旧向遮蔽, 新向 skew 是盲区;
-fontspec 是内核耦合件, 双向跨版本 vendor 均无安全面 → 签名复核 +
+``vendored_shadow_isolate`` 的 ld<sd 只收旧向遮蔽，新向 skew 是盲区;
+fontspec 是内核耦合件，双向跨版本 vendor 均无安全面 → 签名复核 +
 系统/bundle 递补自证后整族 ``.fixloop-iso`` 退役。
 """
 

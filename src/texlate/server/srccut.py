@@ -421,7 +421,7 @@ class _Cutter:
         self._texts: dict[str, tuple[str | None, str]] = {}
 
     def resolve(self, src_file: str) -> tuple[str | None, str]:
-        """``src_file`` → ``(decode_tex 文本, arm)``；``arm ∈ {base,tar,""}``。"""
+        """``src_file`` → ``(decode_tex 文本，arm)``；``arm ∈ {base,tar,""}``。"""
         if src_file in self._texts:
             return self._texts[src_file]
         out: tuple[str | None, str] = (None, "")
@@ -441,7 +441,7 @@ class _Cutter:
         return out
 
     def slice(self, row: dict[str, Any]) -> _Piece | None:
-        """单块三级回落：base 直切 → tar+校验头 → dual approx → ``None``。"""
+        """单块三级回落：base 直切 → tar+ 校验头 → dual approx → ``None``。"""
         seq = int(row["seq"])
         src_file = str(row["src_file"])
         s, e = int(row["byte_start"]), int(row["byte_end"])

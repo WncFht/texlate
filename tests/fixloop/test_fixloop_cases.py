@@ -86,7 +86,7 @@ def test_gate_reject_records_gate_fired(tmp_path: Path) -> None:
     assert "latex209_reject" not in fired
     case = load_cases(tmp_path / "cases.jsonl")[0]
     assert case["gate_fired"] == ["latex209_reject"]
-    # 非拒绝格: gate_fired 恒在、为空
+    # 非拒绝格：gate_fired 恒在、为空
     sink2 = CaseSink(tmp_path / "c2.jsonl")
     sink2.record(_cell("clean"))
     assert load_cases(tmp_path / "c2.jsonl")[0]["gate_fired"] == []
@@ -163,7 +163,7 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
     assert all(not r.regressed for r in results)
     assert results[1].gate1_rescued is True
 
-    # 曾 clean 的格被改坏 → regressed (底板兜回入口 pdf 也算: 树死了)
+    # 曾 clean 的格被改坏 → regressed (底板兜回入口 pdf 也算：树死了)
     results = replay_all(
         [clean_case],
         resolve_proj=lambda _c: tmp_path,
@@ -206,7 +206,7 @@ def test_stats_backfill_counts_and_promotes() -> None:
     ]
     out = stats_backfill(raw, cells)
     rules = {r["id"]: r for r in out["rules"]}
-    assert rules["install_file"]["stats"]["fires"] == 3  # noqa: PLR2004 - 两格共3次
+    assert rules["install_file"]["stats"]["fires"] == 3  # noqa: PLR2004 - 两格共 3 次
     assert rules["install_file"]["stats"]["rescued_cells"] == 1
     assert rules["install_file"]["stats"]["status_suggested"] == "active"
     assert rules["dead_rule"]["stats"]["fires"] == 0
@@ -238,7 +238,7 @@ def test_fixloop_case_records_rules_declined(tmp_path: Path) -> None:
 
     ``rules_fired`` (actions 列) 的互补面：install_file 装不上 +
     vendored_fetch 查无件 → 两轮重复 decline 去重后各一条；
-    已应用规则 (legacy_pkg_shim) 经 applied 闸在前, 不进拒修面。
+    已应用规则 (legacy_pkg_shim) 经 applied 闸在前，不进拒修面。
     """
     make_proj(tmp_path)
     path = tmp_path / "out" / "cases.jsonl"

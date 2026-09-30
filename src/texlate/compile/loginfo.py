@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class LogInfo:
-    """`parse_log` 产物：错误计数、首错+上下文、tail、文件栈。"""
+    """`parse_log` 产物：错误计数、首错 + 上下文、tail、文件栈。"""
 
     n_errors: int = 0
     first_error: str | None = None
@@ -85,7 +85,7 @@ def _scan_error_lines(
 ) -> tuple[int, bool]:
     """数 `^!`+`file:line:` 错误、记首错位置——物化事件流 ``ParsedLog`` 投影。
 
-    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐事件把 ``ev.inner``
+    返回 ``(首错行号，工程源 invalid_utf8 命中)``：逐事件把 ``ev.inner``
     （栈顶最内具名帧）交 ``producer_tag`` 三支判定（logparse/l2 同口径）
     ——系统件源名收进 ``info.warnings_sys``（``invalid_utf8@<file>``，DOS
     魔数 EPS 件带 ``(dos-eps)`` 尾标），工程源命中由 ``parse_log`` 收口
@@ -201,7 +201,7 @@ def _taxonomy() -> Taxonomy | None:
     ``Ruleset.load``：rules 段校验失败（规则 schema 面）不应击穿分类。
     """
     try:
-        from texlate.compile.fixloop.ruleset import (  # noqa: PLC0415  # 延迟: fixloop builtins 链重+平台门
+        from texlate.compile.fixloop.ruleset import (  # noqa: PLC0415  # 延迟：fixloop builtins 链重 + 平台门
             RULES_PATH,
         )
 
@@ -211,7 +211,7 @@ def _taxonomy() -> Taxonomy | None:
             log.warning("rules/ taxonomy 段缺失/空或 version!=1: %s", RULES_PATH)
             return None
         return Taxonomy(entries)
-    except Exception:  # 装载失败 = 分类降级, 不阻断引擎层
+    except Exception:  # 装载失败 = 分类降级，不阻断引擎层
         log.warning(
             "rules/ taxonomy 装载失败, 错误分类降级为 other/clean",
             exc_info=True,

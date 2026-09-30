@@ -9,7 +9,7 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   回引保 ``repair.log_text_of`` 旧锚钉点面
 - ``ResProxy``：``Engine`` 透传代理，记末次 ``CompRes``（fixloop
   轮内重编的终判原料）
-- ``fixloop_cell_parts``：fixloop cell → ``(逐轮摘要, setup 动作)``——
+- ``fixloop_cell_parts``：fixloop cell → ``(逐轮摘要，setup 动作)``——
   ``rounds`` 与 ``actions`` 按 round 归并的共享机械
 - ``run_fixloop`` / ``cross_engine_retry`` / ``VERDICT_RANK``：
   fixloop 调用包装与 dropped ``engine_flags`` 的 tectonic→xelatex
@@ -144,13 +144,13 @@ class ResProxy:
 def fixloop_cell_parts(
     cell: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fixloop cell → ``(rounds 摘要行, setup 前置动作)``。
+    """Fixloop cell → ``(rounds 摘要行，setup 前置动作)``。
 
     ``actions`` 按 ``str(round)`` 归并（一轮可多条），取首条的
     rule/detail 作该轮代表；``round=0/-1`` 是 precheck/gate 动作单列
     ``setup``；salvage 轮的 action 键为 ``"salvage"``，须按
     ``r["salvage"]`` 标记对齐。action 的 round 词表：轮号 int |
-    ``0``/``-1``（precheck/gate）| ``"salvage"`` | ``"post"``
+    ``0``/``-1``(precheck/gate)| ``"salvage"`` | ``"post"``
     （warn-preempt 退出点补位）——无轮条目认领的杂键（``"post"`` 等）
     一并落 ``setup``，不落黑洞。
     """

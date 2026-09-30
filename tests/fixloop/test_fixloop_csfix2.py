@@ -1,7 +1,7 @@
 """csfix2 批 (task #119) —— 四件直改单测。
 
 item 1 ``undefine_for_redef`` 包装载点臂 (bbkresid 4 格): file:line 形
-already_def 抽肇事包 sty 茎, ``\\let\\X\\@undefined`` 前置到其每个 live
+already_def 抽肇事包 sty 茎，``\\let\\X\\@undefined`` 前置到其每个 live
 用户件 ``\\usepackage``/``\\RequirePackage`` 装载点 —— 报错包恒为后定义者
 → 序恒正确; docclass 块鞭长莫及的 preamble 包先定义互撞由此收
 (newtxmath→amssymb ``\\Bbbk`` 同型)。无用户件装载点 (cls 内传递装载) →
@@ -9,19 +9,19 @@ docclass 块兜底; 死站 (注释/verbatim) 遮盖复核剔除。
 
 item 2 ``\\reserveinserts`` (shipclscen 2308.04212/2403.00111): WileyNJD-v2
 cls:248 调已移除内核 cs → ``polyfill_pre`` 落 ``\\documentclass`` 行前
-(cls 执行期调用面, 缝后注入够不到)。
+(cls 执行期调用面，缝后注入够不到)。
 
 item 3 ``premature_cs_guard`` (shipclscen 2009.11053): 随源 mystyle.sty:33
 装载期 ``\\numberwithin`` 先于 amsmath 装载 → Missing ``\\begin{document}``
 级联。供方 ``\\usepackage`` 前置到肇事 sty 的每个 live 消费方装载点 (真
 def 就位非 gobble); .tex 肇事件退 docclass 缝顶; .cls/.def/.clo 传递装载
-无锚点 abstain。已注册 TRANSFORM_FNS —— 测试经 ``_PREMATURE`` 句柄路由,
+无锚点 abstain。已注册 TRANSFORM_FNS —— 测试经 ``_PREMATURE`` 句柄路由，
 ``is`` pin 保注册面。
 
 item 4 扫描器双守 (aastex61if census): ``unclosed_if_close`` 内嵌扫描器
 假开两族 —— ``\\@boole@def`` caller-supplies-\\fi 习语 (aastex 5.2 ×5,
 def 组冻结计) 与 ``\\let\\sep=,`` 字符赋值 CONSUME=2 吞真 ``\\fi``
-(elsarticle/IEEEtran); 196/196.5 双拷贝同改, 真亏格注入面不退。
+(elsarticle/IEEEtran); 196/196.5 双拷贝同改，真亏格注入面不退。
 """
 
 from pathlib import Path
@@ -47,7 +47,7 @@ _BBBK_LOG = (
     "See the LaTeX manual or LaTeX Companion for explanation.\n"
 )
 
-#: 2009.11053 同型: 肇事 sty file:line + l.N 行尾肇事 cs。
+#: 2009.11053 同型：肇事 sty file:line + l.N 行尾肇事 cs。
 _MBD_STY_LOG = (
     "./mystyle.sty:33: LaTeX Error: Missing \\begin{document}.\n"
     "See the LaTeX manual or LaTeX Companion for explanation.\n"
@@ -56,7 +56,7 @@ _MBD_STY_LOG = (
 
 
 class _EngStub:
-    """引擎面替身 —— probe 恒命中, install 恒成 (可用支路)。"""
+    """引擎面替身 —— probe 恒命中，install 恒成 (可用支路)。"""
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:
         del cwd
@@ -119,7 +119,7 @@ def test_pkgloadsite_basic_prepend_before_usepackage(tmp_path: Path) -> None:
     # 装载点清位已覆盖 → docclass 块不再重发 (全件恰一处清位)。
     assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 1
     assert "% fixloop: batch undefine" not in text
-    # 序: newtxmath (先定义者) < 清位 < amssymb (后定义者)。
+    # 序：newtxmath (先定义者) < 清位 < amssymb (后定义者)。
     assert text.index("\\usepackage{newtxmath}") < text.index(ins)
 
 
@@ -168,7 +168,7 @@ def test_pkgloadsite_requirepackage_and_dup_sites(tmp_path: Path) -> None:
 
 
 def test_pkgloadsite_dead_site_falls_back_docclass(tmp_path: Path) -> None:
-    """唯一装载点被注释 → 死站不锚, docclass 块兜底 (仍是清位非 no-op)。"""
+    """唯一装载点被注释 → 死站不锚，docclass 块兜底 (仍是清位非 no-op)。"""
     _proj(
         tmp_path,
         {
@@ -213,7 +213,7 @@ def test_pkgloadsite_no_user_site_docclass_fallback(tmp_path: Path) -> None:
     text = _read(tmp_path, "main.tex")
     assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 1
     # 不往无关 \usepackage 前塞裸 no-op 清位 —— 唯一清位行在
-    # % fixloop: batch undefine 块内 (docclass 块兜底臂, 非 pkg-load-site 臂)。
+    # % fixloop: batch undefine 块内 (docclass 块兜底臂，非 pkg-load-site 臂)。
     assert "% fixloop: batch undefine" in text
     clear_ln = next(ln for ln in text.splitlines() if "\\csname Bbbk\\endcsname" in ln)
     assert "% fixloop: batch undefine" in text.split(clear_ln)[0].splitlines()[-1]
@@ -273,7 +273,7 @@ def test_pkgloadsite_endstar_name_excluded(tmp_path: Path) -> None:
 
 
 def test_pkgloadsite_refire_idempotent(tmp_path: Path) -> None:
-    """二轮: 前缀窗见 csname 清位串 → 跳过, docclass 块亦不重发。"""
+    """二轮：前缀窗见 csname 清位串 → 跳过，docclass 块亦不重发。"""
     _proj(
         tmp_path,
         {
@@ -299,7 +299,7 @@ def test_pkgloadsite_refire_idempotent(tmp_path: Path) -> None:
 
 
 def test_pkgloadsite_min_batch_gate(tmp_path: Path) -> None:
-    """``min_batch=2`` (110.5 批规则口径): 单撞名让位, 双撞名同站合清。"""
+    """``min_batch=2`` (110.5 批规则口径): 单撞名让位，双撞名同站合清。"""
     tex = (
         "\\documentclass{article}\n"
         "\\usepackage{amssymb}\n"
@@ -411,8 +411,8 @@ def _premature(
 
 
 def test_premature_sty_consumer_site_prepend(tmp_path: Path) -> None:
-    """2009.11053 同型: mystyle 站前补 ``\\usepackage{amsmath}`` —— 供方虽
-    在更后逗号列已装, 消费方装载期仍缺位 → 前置到消费方装载点才保时序。"""
+    """2009.11053 同型：mystyle 站前补 ``\\usepackage{amsmath}`` —— 供方虽
+    在更后逗号列已装，消费方装载期仍缺位 → 前置到消费方装载点才保时序。"""
     _proj(
         tmp_path,
         {
@@ -465,7 +465,7 @@ def test_premature_sty_opts_comma_consumer(tmp_path: Path) -> None:
 
 
 def test_premature_sty_provider_already_first_noop(tmp_path: Path) -> None:
-    """供方已先于消费方装载 → seen 集跳过, 诚实 decline 不烧轮次。"""
+    """供方已先于消费方装载 → seen 集跳过，诚实 decline 不烧轮次。"""
     _proj(
         tmp_path,
         {
@@ -512,7 +512,7 @@ def test_premature_tex_stem_docclass_seam(tmp_path: Path) -> None:
 
 
 def test_premature_cls_stem_abstain(tmp_path: Path) -> None:
-    """肇事 .cls/.def/.clo 系 cls 内传递装载 → 无用户件锚点, abstain。"""
+    """肇事 .cls/.def/.clo 系 cls 内传递装载 → 无用户件锚点，abstain。"""
     _proj(
         tmp_path,
         {
@@ -533,7 +533,7 @@ def test_premature_cls_stem_abstain(tmp_path: Path) -> None:
 
 
 def test_premature_unknown_cs_decline(tmp_path: Path) -> None:
-    """l.N 行尾肇事 cs 不在供方表 → 供方不可考, decline。"""
+    """l.N 行尾肇事 cs 不在供方表 → 供方不可考，decline。"""
     _proj(
         tmp_path,
         {
@@ -555,7 +555,7 @@ def test_premature_unknown_cs_decline(tmp_path: Path) -> None:
 
 
 def test_premature_refire_idempotent(tmp_path: Path) -> None:
-    """二轮: 自注 ``\\usepackage{amsmath}`` 行即成先装站 → seen 集免重复。"""
+    """二轮：自注 ``\\usepackage{amsmath}`` 行即成先装站 → seen 集免重复。"""
     _proj(
         tmp_path,
         {
@@ -637,7 +637,7 @@ def test_scanner_both_copies_carry_guards() -> None:
 
 
 def test_scanner_booledef_idiom_no_false_open(tmp_path: Path) -> None:
-    """caller-supplies-\\fi 习语: def 组冻结计 → 不注 ``\\fi`` (aastex 5.2 ×N)。"""
+    """caller-supplies-\\fi 习语：def 组冻结计 → 不注 ``\\fi`` (aastex 5.2 ×N)。"""
     tex = (
         "\\documentclass{article}\n"
         "\\@boole@def\\@ifx#1{\\ifx#1}\n"
@@ -653,7 +653,7 @@ def test_scanner_booledef_idiom_no_false_open(tmp_path: Path) -> None:
 
 
 def test_scanner_let_char_value_close_stays_live(tmp_path: Path) -> None:
-    """``\\let\\sep=,`` 字符赋值: 其 ``\\fi`` 是 live close 非名位 → 不吞。"""
+    """``\\let\\sep=,`` 字符赋值：其 ``\\fi`` 是 live close 非名位 → 不吞。"""
     tex = (
         "\\documentclass{article}\n"
         "\\newif\\iffoo\n"

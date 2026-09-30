@@ -166,7 +166,7 @@ class TaskCtx:
         return row_json(self.row, "config_json")
 
     def update_options(self, fn: Callable[[dict[str, Any]], None]) -> str:
-        """options「读-改-序列化-同步 row 快照」单点；返回新 options_json。
+        """options「读 - 改 - 序列化 - 同步 row 快照」单点；返回新 options_json。
 
         ``fn`` 拿到反序列化 dict 原地改键。**写库留给调用点**——多站点
         捎带 ``main_tex`` 等合并字段一笔 ``update_fields``，收口进这里

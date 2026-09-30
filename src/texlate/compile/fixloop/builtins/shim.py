@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 def _shim_spec(
     shim_map: dict[str, Any], payload: str | None
 ) -> tuple[str, dict[str, Any] | None]:
-    """``payload`` → ``(归一文件名, spec)``。裸名 payload 补 ``.tex`` 再查。"""
+    """``payload`` → ``(归一文件名，spec)``。裸名 payload 补 ``.tex`` 再查。"""
     fname = payload or ""
     spec = shim_map.get(fname)
     if spec is None and not Path(fname).suffix:
@@ -116,7 +116,7 @@ def legacy_pkg_shim(
         stem = fname.rsplit(".", 1)[0]
         stub = (
             "\\NeedsTeXFormat{LaTeX2e}\n"
-            # 版本串必须以 YYYY/MM/DD 日期开头: \\documentclass 装载时
+            # 版本串必须以 YYYY/MM/DD 日期开头：\\documentclass 装载时
             # \\@ifl@t@r 会解析 ver@*.cls, 裸文字 "fixloop ..." 让
             # \\@parse@version@ 读出 `f' → "Missing = inserted for \\ifnum"
             # (1806.06690 实证; 无 halt-on-error 时可恢复故有 pdf 假象)。
@@ -127,7 +127,7 @@ def legacy_pkg_shim(
     if not stub:
         return False, f"shim spec for {payload} has neither body nor loads"
     missing = _install_needs(ctx, eng, spec.get("needs"))
-    # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
+    # 指纹闸：稿自带同名件不覆写; 旧代注入件覆写刷新。
     ok, note = _inject_named(
         ctx,
         PurePosixPath(fname),
@@ -140,14 +140,14 @@ def legacy_pkg_shim(
     return ok, note
 
 
-#: ``svjour_clo_stub`` 写入体: 真 .clo 内嵌 size10.clo 复刻本
-#: (corpus/1107.0209 svepj.clo:46-72 抄值, ``dd`` 归一为 ``pt``)。
-#: 纯 ``\endinput`` noop 遮蔽真件 → size-family 永不播种,
+#: ``svjour_clo_stub`` 写入体：真 .clo 内嵌 size10.clo 复刻本
+#: (corpus/1107.0209 svepj.clo:46-72 抄值，``dd`` 归一为 ``pt``)。
+#: 纯 ``\endinput`` noop 遮蔽真件 → size-family 永不播种，
 #: ``\normalsize`` 停在 kernel error-stub (latex.ltx ``\@latex@error``)
 #: → fontspec-xetex:443 / ctex:715 "font size command \normalsize is
 #: not defined" (2505.06598 实证)。``\renewcommand`` 必要——kernel 预置
-#: error-stub 视为已定义, ``\providecommand`` 不覆盖; 兄弟尺寸宏 kernel
-#: 未预置, ``\providecommand`` 播了不撞稿自带真件序。
+#: error-stub 视为已定义，``\providecommand`` 不覆盖; 兄弟尺寸宏 kernel
+#: 未预置，``\providecommand`` 播了不撞稿自带真件序。
 _SVJOUR_CLO_BODY = (
     "% fixloop: svjour option stub — noop + size-family seed\n"
     "\\renewcommand\\normalsize{%\n"
@@ -166,7 +166,7 @@ _SVJOUR_CLO_BODY = (
     "\\providecommand\\LARGE{\\@setfontsize\\LARGE\\@xviipt{18pt}}\n"
     "\\providecommand\\huge{\\@setfontsize\\huge\\@xxpt{25pt}}\n"
     "\\providecommand\\Huge{\\@setfontsize\\Huge\\@xxvpt{30pt}}\n"
-    # PACS 面: svepj.clo:224-225/254-256 抄值 (嵌套位 ## 归一为顶层 #);
+    # PACS 面：svepj.clo:224-225/254-256 抄值 (嵌套位 ## 归一为顶层 #);
     # 稿面 \PACS{...} + \@@PACS 放出链缺件即 undefined_cs (2505.06598 实证)。
     "\\def\\pacsstart#1#2{#1\\hskip5pt plus2ptminus2pt#2}%\n"
     "\\def\\and#1#2{\\unskip\\ -- #1\\hskip5pt plus2ptminus2pt#2}%\n"
@@ -214,7 +214,7 @@ def svjour_clo_stub(
         target = _resolve_site(ctx, PurePosixPath(f"sv{opt}.clo"))
         if target is None:
             continue  # main_rel 怪径逃出 wdir —— 不落件也不炸
-        # 指纹闸: 外来 .clo (稿自带) 永不覆写; 旧代注入件覆写刷新。
+        # 指纹闸：外来 .clo (稿自带) 永不覆写; 旧代注入件覆写刷新。
         done, _state = _inject_write(ctx, target, body, target.name)
         if done is not None:
             continue
@@ -225,9 +225,9 @@ def svjour_clo_stub(
 
 
 #: AAS 期刊缩写宏表 —— emulateapj.cls L1201-1256 ``\ref@jnl`` 全表抄录
-#: (去壳成纯文本展开)。实证锚点: tectonic bundle 内置 aastex 5.0rc3.1 (1999)
-#: 没有这批宏, 老 aastex 文档 \bibitem 里的 ``\actaa`` 族全成 undefined_cs
-#: (1806.06690 tectonic 臂)。\providecommand 语义: 类里已有定义时不覆盖。
+#: (去壳成纯文本展开)。实证锚点：tectonic bundle 内置 aastex 5.0rc3.1 (1999)
+#: 没有这批宏，老 aastex 文档 \bibitem 里的 ``\actaa`` 族全成 undefined_cs
+#: (1806.06690 tectonic 臂)。\providecommand 语义：类里已有定义时不覆盖。
 _JOURNAL_MACROS: dict[str, str] = {
     "aj": "AJ",
     "araa": "ARA\\&A",
@@ -338,7 +338,7 @@ def bundled_class_shadow(
     if not cs or cs not in cs_set:
         return False, f"{payload} not in bundle-shadow set"
     missing = _install_needs(ctx, eng, params.get("needs"))
-    # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
+    # 指纹闸：稿自带同名件不覆写; 旧代注入件覆写刷新。
     ok, note = _inject_named(
         ctx,
         PurePosixPath(str(target)),
@@ -374,7 +374,7 @@ def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
 # ═══ 209→revtex4-2 升级稿面 polyfill (revtex209_surface/revtex_pacs 13 格) ═══
 
 #: latex209 ``upgrade_209`` 落盘的 COMPAT_SHIM 首行面包屑——该串唯一出处
-#: 即 latex209.py 兼容垫块, 字面在 = 209 升级跑过。它本身是注释行 (遮盖
+#: 即 latex209.py 兼容垫块，字面在 = 209 升级跑过。它本身是注释行 (遮盖
 #: 视图遮没), 只能在原文判。
 _209_SHIM_MARK = "% texlate: LaTeX 2.09 compatibility shim"
 
@@ -386,16 +386,16 @@ _REVTEX42_DOCCLASS_RE = re.compile(
 )
 
 #: 注入面——与 ``vendor/shims/revtex.cls`` 替身 stub 面同义
-#: (90-shim-legacy.yaml ``shim_map.revtex.cls`` 槽已删: vendored 先中),
+#: (90-shim-legacy.yaml ``shim_map.revtex.cls`` 槽已删：vendored 先中),
 #: 剥去 cls 装载件 (``\LoadClassWithOptions`` 已由升级稿 docclass 行完成),
 #: 补 exact-restore @=11 包装 (``_AT_LETTER_*``: ``\edef`` 存现值→=11 读
-#: →复元; @=letter 宿主恒等, 裸 ``\makeatletter`` 对会把 letter 宿主
+#: →复元; @=letter 宿主恒等，裸 ``\makeatletter`` 对会把 letter 宿主
 #: 尾段强翻回 12 —— 1803.02902 csfix 串实证)。
 #: ``\AtBeginDocument`` 参数内用单 ``#1``——hook 逐字存 token、
 #: ``\begin{document}`` 时才执行内层 ``\def``; ``##`` 只用于 def 嵌 def
-#: 的替换文本, 此处的 ``\def\pacs`` 不嵌在任何 def 里, 双写会字面留下
+#: 的替换文本，此处的 ``\def\pacs`` 不嵌在任何 def 里，双写会字面留下
 #: ``##`` 炸 "Parameters must be numbered consecutively" (guardsmoke
-#: 两格实证, 2026-09-18)。
+#: 两格实证，2026-09-18)。
 _REVTEX209_POLYFILL = (
     "% fixloop: revtex 2.09 surface polyfill (upgraded doc on revtex4-2)\n"
     + _AT_LETTER_PRE

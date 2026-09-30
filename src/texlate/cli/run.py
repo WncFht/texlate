@@ -190,7 +190,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
     if src_dir is None:
         raise typer.Exit(1)
 
-    # --work-dir 保护由 _populate_work_dir 收口；整个填充+管线都在 try 内，
+    # --work-dir 保护由 _populate_work_dir 收口；整个填充 + 管线都在 try 内，
     # 保证 mkdtemp 临时目录在 copytree 失败时也清掉（原先泄漏）。
     work = (
         work_dir.expanduser()

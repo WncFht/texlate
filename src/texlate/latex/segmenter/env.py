@@ -225,7 +225,7 @@ class _Env:
         self.env_stack.append(env)
         src.scope_push()
 
-    def _unclosed_env(  # noqa: PLR0913, PLR0917 — 尾参四件+区间+发射开关随调用臂平铺
+    def _unclosed_env(  # noqa: PLR0913, PLR0917 — 尾参四件 + 区间 + 发射开关随调用臂平铺
         self: Segmenter,
         src: TokenSource,
         fid: int,

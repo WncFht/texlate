@@ -26,7 +26,7 @@ _VENDOR_FILES = (
 )
 _LAMS = [f"lams{i}.{ext}" for i in range(1, 6) for ext in ("tfm", "mf")]
 
-# 0806.3683 实证首错 (file-line-error 形, 系统件站点)
+# 0806.3683 实证首错 (file-line-error 形，系统件站点)
 _ERR_LINE = (
     "/usr/share/texmf-dist/tex/latex/pb-diagram/lamsarrow.sty:89: "
     "Font \\lamsfont@i=lams1 not loadable: Metric (TFM) file or "
@@ -60,7 +60,7 @@ def _params() -> dict:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_signature_missing_tfm() -> None:
-    """设计尺寸 font 加载错: taxonomy 臂后扩——`Font \\X=lamsN not loadable`
+    """设计尺寸 font 加载错：taxonomy 臂后扩——`Font \\X=lamsN not loadable`
     今归 missing_tfm (payload=lams1), 规则 when.any 双收 {other, missing_tfm}。"""
     rep = parse_text(_ERR_LINE + "\n" + _ERR_CTX)
     cat, _ = _rs().taxonomy.classify(rep)
@@ -96,7 +96,7 @@ def test_rule_wired() -> None:
 
 
 def test_rule_order_after_retire_family() -> None:
-    """order 自洽: amsmath_saveprimitive_retire < 本规则 < legacy_pkg_shim。"""
+    """order 自洽：amsmath_saveprimitive_retire < 本规则 < legacy_pkg_shim。"""
     orders = {r.id: r.order for r in _rs().phase("loop")}
     assert orders["amsmath_saveprimitive_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]

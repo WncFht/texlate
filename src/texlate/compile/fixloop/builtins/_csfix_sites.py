@@ -44,18 +44,18 @@ __all__ = [
 
 
 #: 再定义命令站点面 (site-prepend 清位目标) —— 只收"名必须未定义"族
-#: (撞名才产 already_def): renewcommand/RenewDocumentCommand 要名已定义,
-#: 前置 ``\let\@undefined`` 反使其炸; providecommand 族撞名静默不报错,
+#: (撞名才产 already_def): renewcommand/RenewDocumentCommand 要名已定义，
+#: 前置 ``\let\@undefined`` 反使其炸; providecommand 族撞名静默不报错，
 #: 清位反夺 cls 既有定义 —— 均不入列; ``\def``/``\newtheorem`` 系亦
 #: 不产 Command 签。DeclareMath{Symbol,Delimiter,Accent,Radical} 四件
 #: 与 DeclareMathAlphabet 同走 ``\ifx\csname X\endcsname\relax`` 自有
 #: 守卫 (latex.ltx:13462/13511/13594/13696 ``Command `\X' already
 #: defined``, 非 ``\@ifdefinable``) —— ``\let\X\@undefined`` 清位有效。
-#: DeclareSymbolFontAlphabet 不收: 其守卫查的是 space-后缀伴生名
+#: DeclareSymbolFontAlphabet 不收：其守卫查的是 space-后缀伴生名
 #: ``\X␣`` (latex.ltx:13753-13763), 清 ``\X`` 本体是徒劳。
-#: ``\newfont{\X}{spec}`` (2.09/AMS 字体绑名, ``\@ifdefinable`` 恒拒
+#: ``\newfont{\X}{spec}`` (2.09/AMS 字体绑名，``\@ifdefinable`` 恒拒
 #: 产 Command 签; astro-ph/0307459 ``\Bbb`` 实证) 亦收 —— 裸形
-#: ``\newfont\X`` 仍由 ``_ALLOC_CS_RE`` 分配名护栏剔出, 只花括号形入站点面。
+#: ``\newfont\X`` 仍由 ``_ALLOC_CS_RE`` 分配名护栏剔出，只花括号形入站点面。
 _SITE_DEF_CMDS: tuple[str, ...] = (
     "newcommand",
     "DeclareRobustCommand",
@@ -71,7 +71,7 @@ _SITE_DEF_CMDS: tuple[str, ...] = (
     "DeclareMathOperator",
     "newfont",
 )
-#: ``\providecommand`` 族只收 end* 名站点: 非恒拒名撞名静默不产
+#: ``\providecommand`` 族只收 end* 名站点：非恒拒名撞名静默不产
 #: already_def (前置清位反夺 cls 先定义 —— 不入 _SITE_DEF_CMDS 之理);
 #: 但 undefined 态对 end* 名必走 ``\new@command`` → ``\@ifdefinable``
 #: 恒炸 already_def (W151 ``\providecommand{\endproof}`` r1→r2 死循环
@@ -80,15 +80,15 @@ _SITE_DEF_CMDS: tuple[str, ...] = (
 
 _PROVIDE_SITE_CMDS: tuple[str, ...] = ("providecommand",)
 #: ``\@ifdefinable`` 路由命令 —— end* 名站点前置换 ``\let\@ifdefinable
-#: \@rc@ifdefinable`` 单发旁路 (kernel 内建同款, latex.ltx:1294
+#: \@rc@ifdefinable`` 单发旁路 (kernel 内建同款，latex.ltx:1294
 #: ``\renew@command`` / :1402 ``\declare@robustcommand@auxii``: rc@ 被
 #: 消费时先还原 ``\@@ifdefinable`` 再续定义体 —— 恰放行紧邻一次
-#: ``\@ifdefinable`` 调用后自愈, defined/undefined 两态皆过, 不泄检查面)。
+#: ``\@ifdefinable`` 调用后自愈，defined/undefined 两态皆过，不泄检查面)。
 #: ltcmd ``\NewDocumentCommand``/``\DeclareDocumentCommand`` 走
 #: ``\cs_if_exist`` 无 end 守卫 (``\__cmd_check_end`` 只服务 env copy/show);
 #: ``\DeclareMathAlphabet`` 族走自有 ``\ifx\csname X\endcsname\relax``
 #: (``\csname`` 把 undefined 名冻结成 ``\relax`` → ``\let\X\@undefined``
-#: 对其本就有效, fixprobe 实证) —— DeclareMath{Symbol,Delimiter,Accent,
+#: 对其本就有效，fixprobe 实证) —— DeclareMath{Symbol,Delimiter,Accent,
 #: Radical} 同此守卫 (latex.ltx:13505/13585/13455/13652 ``\expandafter
 #: \ifx\csname\@gobble\string#1\endcsname\relax`` 形), 且 end* 名无
 #: ``\@qend`` 拒径 (非 ``\@ifdefinable`` → 不查 ``\@qend``) —— 均不食
@@ -105,8 +105,8 @@ _IFN_ROUTED_CMDS: frozenset[str] = frozenset(
     }
 )
 #: ``\@ifdefinable`` 双恒拒名形之二 (latex.ltx:1301 ``\@qrelax`` 全名形):
-#: ``\relax`` 是 primitive —— ``\let\relax\@undefined`` 注毁其义, rc@ 旁路
-#: 真把它重定义掉, 皆全局灾难 → 无安全清位路径, 与寄存器分配名同列弃修。
+#: ``\relax`` 是 primitive —— ``\let\relax\@undefined`` 注毁其义，rc@ 旁路
+#: 真把它重定义掉，皆全局灾难 → 无安全清位路径，与寄存器分配名同列弃修。
 
 
 _RESERVED_UNDEFINABLE: frozenset[str] = frozenset({"relax"})
@@ -148,7 +148,7 @@ def _redef_site_map(
     cls 先定义)。
     """
     out: dict[Any, set[str]] = {}
-    # .bbl 亦收: 用户件 shipped .bbl 内的 \newcommand 站是同款"名必须
+    # .bbl 亦收：用户件 shipped .bbl 内的 \newcommand 站是同款"名必须
     # undefined"面 —— revtex4-1 rtx@thebibliography env-end \auto@bib@innerbib
     # 把 \jobname.bbl 二次 input, bbl 自体双 input 撞名 (1907.10621 \enquote
     # 实证); 锚在 \bibliography/\input 外侧的清位够不到 bbl 内互撞。

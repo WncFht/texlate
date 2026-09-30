@@ -169,7 +169,7 @@ def test_math_switch_def_body_untouched() -> None:
 
 
 def _fake_tar(payload: bytes) -> bytes:
-    """造 tar 伪装件：合法 512B POSIX 头（``ustar\\x0000`` 全宽魔数+版本域 +
+    """造 tar 伪装件：合法 512B POSIX 头（``ustar\\x0000`` 全宽魔数 + 版本域 +
     真校验和字段 + 非空 name）+ payload 成员块——``_tar_disguised`` 双校验
     （魔数域 + chksum）全真过。"""
     head = bytearray(512)

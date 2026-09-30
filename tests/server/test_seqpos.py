@@ -93,7 +93,7 @@ class TestNorm:
         s = M._tex_strip(  # noqa: SLF001 -- 白盒钉前端 port 语义
             r"See \cite{a} $x^2$ [[EQ_3]] \textbf{hi} \% done \\"
         )
-        # cite 命令+数学+掩码+textbf 壳全剥，\% 留字面 %，\\ 变空格
+        # cite 命令 + 数学 + 掩码+textbf 壳全剥，\% 留字面 %，\\ 变空格
         n = M._norm_chars(s)  # noqa: SLF001 -- 同上
         assert "cite" not in n
         assert "x" not in n
@@ -291,7 +291,7 @@ class TestReadingOrder:
         assert "".join(p[1] for p in title[1]) == "TITLEWIDET2"
 
     def test_phantom_gutter_rejected(self) -> None:
-        """单栏 ragged 页+右浮动行的假缝不成立——浮动行不沉底重排。"""
+        """单栏 ragged 页 + 右浮动行的假缝不成立——浮动行不沉底重排。"""
         # 12 条左对齐正文（x 50..280）+ 2 条右浮动落款（420..520）：
         # 280..420 零穿线撑出假缝；无闸时 sig 被划右栏排页尾
         lines = [[720 - i * 40, [(50, f"T{i}", 230)], 50, 280, 10] for i in range(6)]
@@ -640,7 +640,7 @@ class TestEndToEnd:
         assert sp is not None
         assert sp["0"]["t"]["page"] == 1
         assert (tmp_path / "seqpos.json").is_file()
-        # 二调走缓存（同结果即可——mtime 闸语义在文件存在+版本钉）
+        # 二调走缓存（同结果即可——mtime 闸语义在文件存在 + 版本钉）
         sp2 = M.seqpos_for_task(tmp_path, dual)
         assert sp2 == sp
 

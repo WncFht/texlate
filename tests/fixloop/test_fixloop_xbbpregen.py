@@ -63,7 +63,7 @@ def _extractbb_ok(argv: list[str], _timeout: int, wdir: Path) -> tuple:
 
 
 def _extractbb_fail(argv: list[str], _timeout: int, wdir: Path) -> tuple:
-    """假 extractbb 败形: 写真 extractbb 同款空 .xbb 毒件, rc=1。"""
+    """假 extractbb 败形：写真 extractbb 同款空 .xbb 毒件，rc=1。"""
     (wdir / argv[-1]).with_suffix(".xbb").write_bytes(b"")
     return 1, "reading image failed", 0.05, False
 
@@ -148,11 +148,11 @@ def test_xbbpregen_generates_xbb_for_all_graphics(
 def test_xbbpregen_skips_texmf_and_hidden_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """glob 排除面钉: ``_texmf``/``_tect_out``/点部件内图形不产 .xbb。
+    """glob 排除面钉：``_texmf``/``_tect_out``/点部件内图形不产 .xbb。
 
     ``_xbb_targets`` 走 ``_iter_project_files`` 单源排除面 —— 与
-    ``_pdf_asset_targets``/sanitize 各扫描臂同口径: 引擎封装树与
-    dot-隐藏面非文档源件, ``.xbb`` 旁件只贴真实工程图形。排除面
+    ``_pdf_asset_targets``/sanitize 各扫描臂同口径：引擎封装树与
+    dot-隐藏面非文档源件，``.xbb`` 旁件只贴真实工程图形。排除面
     外正常图形照转 (排除非全灭)。若收敛全量口径须同步本钉。
     """
     monkeypatch.setattr(shutil, "which", _which_extractbb)
@@ -175,7 +175,7 @@ def test_xbbpregen_skips_texmf_and_hidden_dirs(
 def test_xbbpregen_err_head_stem_respects_exclusion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """err_head 裸 stem 回映同守排除面: ``_texmf``/点段 stem 不探件。"""
+    """err_head 裸 stem 回映同守排除面：``_texmf``/点段 stem 不探件。"""
     monkeypatch.setattr(shutil, "which", _which_extractbb)
     (tmp_path / "_texmf").mkdir()
     (tmp_path / "_texmf" / "figA.pdf").write_bytes(b"%fake")
@@ -193,7 +193,7 @@ def test_xbbpregen_err_head_stem_respects_exclusion(
 def test_xbbpregen_idempotent_second_fire(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """二次触火: .xbb 非空且不旧于源 → 全 fresh → False 让位。"""
+    """二次触火：.xbb 非空且不旧于源 → 全 fresh → False 让位。"""
     monkeypatch.setattr(shutil, "which", _which_extractbb)
     (tmp_path / "fig1.pdf").write_bytes(b"%fake")
     ctx = _ctx(tmp_path, runner=_extractbb_ok)
@@ -254,7 +254,7 @@ def test_xbbpregen_no_graphics_in_project(
 def test_xbbpregen_err_head_stem_resolves_graphic(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """err_head 裸 stem 回映: ``fig1.xbb`` → ``fig1.pdf`` (扩展名枚举兜底)。"""
+    """err_head 裸 stem 回映：``fig1.xbb`` → ``fig1.pdf`` (扩展名枚举兜底)。"""
     monkeypatch.setattr(shutil, "which", _which_extractbb)
     # 扩展名不在 _XBB_EXTS 面外回映 —— stem 探件臂仍能补目标
     (tmp_path / "fig1.pdf").write_bytes(b"%fake")

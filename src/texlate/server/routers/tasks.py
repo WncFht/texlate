@@ -341,7 +341,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             opts["no_seg_cache"] = 1
         if body.get("main"):
             opts["main"] = str(body["main"])
-        # 合并结果重跑帽闸——_clean_task_options 只闸 body 增量，存量+增量
+        # 合并结果重跑帽闸——_clean_task_options 只闸 body 增量，存量 + 增量
         # 可越 _OPTIONS_JSON_CAP（与 share 导入臂 post-merge 重闸同口径）。
         # 必须先于 transition——超帽 400 拒在抢 queued 前，任务行不动
         options_json = _options_json_checked(opts)

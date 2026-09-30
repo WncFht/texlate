@@ -1,6 +1,6 @@
 """fixloop llm_hook — escalate_llm 契约层单测 (FakeTranslator, 不触网)。
 
-测面: JSON 契约 (裸/fence/单对象/畸形) + patch 应用闸 (精确一次/路径/
+测面：JSON 契约 (裸/fence/单对象/畸形) + patch 应用闸 (精确一次/路径/
 扩展名/banned 构造/no-op) + 调用面 (Translator 异常/超时放弃/空错误短路)
 + engine 集成 (undefined_cs → escalate → patch → clean)。
 """
@@ -32,7 +32,7 @@ PATCH = {"file": "main.tex", "old": "\\mycs", "new": "\\emph{mycs}"}
 
 
 class FakeTranslator:
-    """MockTranslator 式假后端: 逐次吐编排好的回复 (str) 或抛错 (异常实例)。"""
+    """MockTranslator 式假后端：逐次吐编排好的回复 (str) 或抛错 (异常实例)。"""
 
     def __init__(self, replies: list, *, delay: float = 0.0) -> None:
         self.replies = list(replies)
@@ -72,11 +72,11 @@ def _ctx(
 
 def _rep(log: str = UNDEF_CS_LOG) -> ErrReport:
     rep = parse_text(log)
-    assert rep.first  # 测试前置: 得有错才有 escalate 语义
+    assert rep.first  # 测试前置：得有错才有 escalate 语义
     return rep
 
 
-# ---------------------------------------------------------------- 契约: 应用
+# ---------------------------------------------------------------- 契约：应用
 
 
 def test_hook_applies_patch_direct_call(tmp_path: Path) -> None:
@@ -121,7 +121,7 @@ def test_hook_multi_patch_multi_file(tmp_path: Path) -> None:
     assert "\\def\\a{y}" in (tmp_path / "macros.sty").read_text()
 
 
-# ---------------------------------------------------------------- 契约: 拒收
+# ---------------------------------------------------------------- 契约：拒收
 
 
 def test_hook_old_not_exactly_once(tmp_path: Path) -> None:
@@ -227,8 +227,8 @@ def test_hook_abandoned_on_timeout(
     tr = FakeTranslator(['{"patches":[]}'], delay=5.0)
     hook = make_llm_hook(translator=tr, timeout_s=0.05)
     applied, note = hook(_ctx(tmp_path), _rep())
-    # 事件驱动: 返回时翻译协程仍在 5s 睡眠里 = 确证"放弃"而非"等满"——
-    # 若放弃失效钩子会阻塞至协程跑完, done 置位即败。
+    # 事件驱动：返回时翻译协程仍在 5s 睡眠里 = 确证"放弃"而非"等满"——
+    # 若放弃失效钩子会阻塞至协程跑完，done 置位即败。
     assert not tr.done.is_set()
     assert applied is False
     assert "exceeded" in note
@@ -243,7 +243,7 @@ def test_hook_no_error_shortcircuit(tmp_path: Path) -> None:
 
 
 def test_hook_warn_only_rep_not_blocked(tmp_path: Path) -> None:
-    # warn_* 伪类别轮: 无 '!' 行但 tail 有诊断 —— 早退闸不得误杀
+    # warn_* 伪类别轮：无 '!' 行但 tail 有诊断 —— 早退闸不得误杀
     rep = parse_text("Missing character: There is no x in font cmr10!\n")
     tr = FakeTranslator([json.dumps({"patches": [PATCH]})])
     applied, _ = make_llm_hook(translator=tr)(_ctx(tmp_path), rep)
@@ -295,7 +295,7 @@ def test_fixloop_escalate_llm_all_rejected_continues(tmp_path: Path) -> None:
     cell = fixloop(
         make_proj(tmp_path, MAIN_TEX), eng, llm_hook=make_llm_hook(translator=tr)
     )
-    assert cell["verdict"] == "unfixable:undefined_cs"  # 未修复, 循环按原语义收束
+    assert cell["verdict"] == "unfixable:undefined_cs"  # 未修复，循环按原语义收束
     assert tr.calls  # 但 hook 确实被调过
 
 

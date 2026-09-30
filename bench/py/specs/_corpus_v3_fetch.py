@@ -162,13 +162,13 @@ def _plan(ctx):
 
 
 def fetch_one(c: dict) -> dict:
-    """下载单 chunk 到 .part → 校验 → rename .tar. 可重入: .part 按 Range 续传,
-    已下载足量的直接进校验. 返回更新后的 c."""
+    """下载单 chunk 到 .part → 校验 → rename .tar. 可重入：.part 按 Range 续传，
+    已下载足量的直接进校验。返回更新后的 c."""
     t0 = time.time()
     part = TARS / f"{c['item']}.tar.part"
     final = TARS / f"{c['item']}.tar"
     try:
-        # 快路: .tar 已在盘上且尺寸对 → 直接进校验 (状态文件被并发写乱时的自愈)
+        # 快路：.tar 已在盘上且尺寸对 → 直接进校验 (状态文件被并发写乱时的自愈)
         if part.exists():
             have = part.stat().st_size
             src = part
@@ -176,7 +176,7 @@ def fetch_one(c: dict) -> dict:
             if final.stat().st_size == c["size"]:
                 have, src = c["size"], final
             else:
-                # final 只经 verify 后 rename 而来——尺寸不对即腐文件, 重抓
+                # final 只经 verify 后 rename 而来——尺寸不对即腐文件，重抓
                 final.unlink()
                 have, src = 0, part
         else:
@@ -191,8 +191,8 @@ def fetch_one(c: dict) -> dict:
         try:
             full_sha = verify_chunk(src, c)
         except Exception:
-            # 验不过的文件必删——final 验过才 rename 而来(如今腐=盘上字节变),
-            # part 验不过=内容错(尺寸已齐), 留着下轮只是重复验同一坏字节
+            # 验不过的文件必删——final 验过才 rename 而来 (如今腐=盘上字节变),
+            # part 验不过=内容错 (尺寸已齐), 留着下轮只是重复验同一坏字节
             (final if src == final else part).unlink(missing_ok=True)
             raise
         if src == part:
@@ -224,7 +224,7 @@ def stream_download(c: dict, part: Path, have: int) -> None:
 
 
 def verify_chunk(src: Path, c: dict) -> str:
-    """完整性校验: 全量 sha256 + IA sha1 (metadata) / TIGER lfs_oid16 前缀.
+    """完整性校验：全量 sha256 + IA sha1 (metadata) / TIGER lfs_oid16 前缀。
     返回文件 sha256."""
     # 单遍流式双 hash——read_bytes() 两次会把 GB 级 tar 整个吃进内存
     h256 = hashlib.sha256()
@@ -269,7 +269,7 @@ def _fetch(ctx):
         + (f" (channel={channel})" if channel else "")
     )
     done_bytes = 0
-    for round_no in range(1, 5):  # 瞬断重试: .part 保留进度, Range 续传
+    for round_no in range(1, 5):  # 瞬断重试：.part 保留进度，Range 续传
         todo = [c for c in todo if c["state"] != "done"]
         if not todo:
             break

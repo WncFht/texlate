@@ -6,7 +6,7 @@
   注册表（key 绝不入库）；心跳 ticker 维护 ``updated_at``。
 - ``PipelineWorker``：驱动产品公共 API 跑真实管线——
   ``acquire_source → route_project → normalize_project → parse_file →
-  XlatPipeline → reconstruct → prepare_chinese → engine.compile → judge``。
+  XlatPipeline → reconstruct → prepare_chinese → engine.compile → judge``.
   阻塞段一律 ``asyncio.to_thread``，DB 写只发生在 loop 线程。
 - 断点恢复三级：stage 级磁盘哨兵（``.fetch-done``/``.base-done``/
   ``.splice-done`` + chunks 行）、chunk 级 chunks 表 ``status='pending'``

@@ -50,7 +50,7 @@ def test_rule_wired() -> None:
 
 
 def test_rule_order_before_repair() -> None:
-    """序自洽: placeholder(17.6) < raster_pdf_rename < graphic_repair(18)。"""
+    """序自洽：placeholder(17.6) < raster_pdf_rename < graphic_repair(18)。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["graphic_missing_placeholder"] < orders[_RULE]
     assert orders[_RULE] < orders["graphic_repair"]
@@ -60,7 +60,7 @@ def test_rule_order_before_repair() -> None:
 
 
 def test_png_explicit_arg_renamed_and_rewritten(tmp_path: Path) -> None:
-    """2504.15280 形: PNG 字节 .pdf + 显式 .pdf arg → 改名 .png + arg 改写。"""
+    """2504.15280 形：PNG 字节 .pdf + 显式 .pdf arg → 改名 .png + arg 改写。"""
     (tmp_path / "figure").mkdir()
     (tmp_path / "figure" / "icon.pdf").write_bytes(_PNG)
     (tmp_path / "main.tex").write_text(
@@ -79,7 +79,7 @@ def test_png_explicit_arg_renamed_and_rewritten(tmp_path: Path) -> None:
 
 
 def test_jpeg_subdir_arg_renamed_jpg(tmp_path: Path) -> None:
-    """2310.01082 形: JPEG 字节 .pdf 子目录件 → 改名 .jpg + arg 后缀换。"""
+    """2310.01082 形：JPEG 字节 .pdf 子目录件 → 改名 .jpg + arg 后缀换。"""
     (tmp_path / "plots").mkdir()
     (tmp_path / "plots" / "mlp_noise.pdf").write_bytes(_JPEG)
     (tmp_path / "main.tex").write_text(
@@ -97,7 +97,7 @@ def test_jpeg_subdir_arg_renamed_jpg(tmp_path: Path) -> None:
 
 
 def test_extless_arg_self_heals_untouched(tmp_path: Path) -> None:
-    """1607.00405 形: 无扩展名 arg {fig5} → 只改名不改 arg (ext 表自解)。"""
+    """1607.00405 形：无扩展名 arg {fig5} → 只改名不改 arg (ext 表自解)。"""
     (tmp_path / "fig5.pdf").write_bytes(_PNG)
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
@@ -137,7 +137,7 @@ def test_sweep_covers_unreferenced_and_multi(tmp_path: Path) -> None:
 
 
 def test_commented_ref_not_rewritten(tmp_path: Path) -> None:
-    """遮盖面: 注释内 \\includegraphics arg 不算存活引用位。"""
+    """遮盖面：注释内 \\includegraphics arg 不算存活引用位。"""
     (tmp_path / "x.pdf").write_bytes(_PNG)
     (tmp_path / "main.tex").write_text(
         "% \\includegraphics{x.pdf}\n\\includegraphics{x}\n",

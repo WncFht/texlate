@@ -64,7 +64,7 @@ _FRAG_CTX_LINES = 25  # l.N 前后各取行数; 无行号时取文件头 80 行
 _FRAG_HEAD_LINES = 80
 _HISTORY_MAX = 12  # 已尝试动作历史条数上限
 
-#: _drive 放弃等待后给协程的收尾宽限 (httpx 超时已在协程内兜底, 这是双保险)
+#: _drive 放弃等待后给协程的收尾宽限 (httpx 超时已在协程内兜底，这是双保险)
 _ABANDON_GRACE_S = 10.0
 
 #: swe-2-medium 网关并发硬闸 4 —— 跨线程共享; hook 内部请求天然串行 (单次调用)
@@ -78,7 +78,7 @@ _PATH_MACRO = (
     r"lstinputlisting|verbatiminput|openin|openout|read|writefile)\b"
 )
 
-#: ``new`` 文本的 banned 构造表 (任务约定三类: write18 / shell 逃逸 / 路径穿越)
+#: ``new`` 文本的 banned 构造表 (任务约定三类：write18 / shell 逃逸 / 路径穿越)
 _BANNED_NEW: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\\write\s*18\b"), "shell-escape \\write18"),
     (re.compile(r"\\pdfsystem\b"), "\\pdfsystem shell escape"),
@@ -88,7 +88,7 @@ _BANNED_NEW: list[tuple[re.Pattern[str], str]] = [
 
 #: 文件装载宏的调用面 —— ``arg``/``arg2`` 实参捕获供 ``_path_arg_escape``
 #: 逐组件判。可选流号/目标 cs 站位 (``\openout\w=``/``\read\w to\x``) 先吃
-#: 掉, 否则流号 cs 的 ``\`` 落进路径判定 —— 旧拼 ``[/\\]`` 尾哨兵把
+#: 掉，否则流号 cs 的 ``\`` 落进路径判定 —— 旧拼 ``[/\\]`` 尾哨兵把
 #: ``\openout\w=x`` 误当绝对路径拒。``arg2`` 收 ``\import{dir}{file}`` 双参形。
 _PATH_ARG_RX = re.compile(
     _PATH_MACRO + r"(?:[^\S\n]*\\[a-zA-Z@*]+[^\S\n]*"
@@ -141,7 +141,7 @@ typo, add a \\usepackage. Do not rewrite whole files.
 class Patch:
     """一条通过形状校验的补丁 (尚未过文件侧检查)。"""
 
-    file: str  # wdir 相对路径 (LLM 原样, 应用前再过路径闸)
+    file: str  # wdir 相对路径 (LLM 原样，应用前再过路径闸)
     old: str
     new: str
 
@@ -152,7 +152,7 @@ def _drive(coro_fn: Callable[[], Coroutine[Any, Any, str]], wait_s: float) -> st
     调用方线程可能已持运行中 loop (server worker ``asyncio.to_thread`` 里
     能跑 ``asyncio.run``, 但裸 async 调用方不能), 故统一放新线程。
 
-    协程对象在线程内工厂构造: ``ChatClient``/``AsyncClient`` 绑到新建 loop,
+    协程对象在线程内工厂构造：``ChatClient``/``AsyncClient`` 绑到新建 loop,
     避免跨 loop 复用 httpx 池的 "attached to a different loop"。
     """
     box: dict[str, Any] = {}
@@ -175,7 +175,7 @@ def _drive(coro_fn: Callable[[], Coroutine[Any, Any, str]], wait_s: float) -> st
 
 
 def _log_excerpt(rep: ErrReport) -> str:
-    """首错 + ctx + tail 拼 ~4KB 摘要 (tail 偏置: 错误细节常在尾部)。"""
+    """首错 + ctx + tail 拼 ~4KB 摘要 (tail 偏置：错误细节常在尾部)。"""
     blob = "\n".join(x for x in (rep.first, rep.ctx, "[log tail]", rep.tail) if x)
     if len(blob) > _LOG_BUDGET:
         blob = "…" + blob[-_LOG_BUDGET:]
@@ -183,7 +183,7 @@ def _log_excerpt(rep: ErrReport) -> str:
 
 
 def _err_tok_path(ctx: LoopCtx, tok: str) -> Path | None:
-    """file_stack/popped_files 单 token → 可落盘路径 (工程内优先, 系统侧作上下文)。"""
+    """file_stack/popped_files 单 token → 可落盘路径 (工程内优先，系统侧作上下文)。"""
     cand = Path(tok)
     if not cand.is_absolute():
         w = ctx.wdir / tok
@@ -201,7 +201,7 @@ def _resolve_err_file(ctx: LoopCtx, rep: ErrReport) -> Path | None:
 
     栈全不命中并入 ``reversed(popped_files)`` 递补——
     ``File ended while scanning`` 类 runaway 错报位在最近关闭帧
-    (``popped_files[-1]`` = 肇事候选, #78)。帧序单源
+    (``popped_files[-1]`` = 肇事候选，#78)。帧序单源
     ``ErrReport.site_frames``。
     """
     for tok in rep.site_frames():
@@ -212,7 +212,7 @@ def _resolve_err_file(ctx: LoopCtx, rep: ErrReport) -> Path | None:
 
 
 def _fragment(ctx: LoopCtx, f: Path | None, line_no: int | None) -> str:
-    """出错文件片段: ``l.N`` ±25 行带行号; 无行号取头 80 行。不可读 → 占位。"""
+    """出错文件片段：``l.N`` ±25 行带行号; 无行号取头 80 行。不可读 → 占位。"""
     if f is None:
         return "(no file identified)"
     text = ctx.read(f)
@@ -238,7 +238,7 @@ def _history(ctx: LoopCtx) -> str:
 
 
 def _rel_label(ctx: LoopCtx, f: Path | None) -> str:
-    """工程内文件给相对路径, 工程外给绝对串。"""
+    """工程内文件给相对路径，工程外给绝对串。"""
     if f is None:
         return "?"
     try:
@@ -254,7 +254,7 @@ def _strip_fence(raw: str) -> str:
 
 
 def _extract_json(raw: str) -> dict[str, Any] | None:
-    """严格 JSON 抽取: 剥皮 → loads → 首个 ``{`` 到末个 ``}`` 兜底。"""
+    """严格 JSON 抽取：剥皮 → loads → 首个 ``{`` 到末个 ``}`` 兜底。"""
     text = _strip_fence(raw.strip())
     try:
         # RecursionError: 模型输出可构造超深嵌套 ([~50000 撞解释器上限)
@@ -288,7 +288,7 @@ def _one_patch(it: Any) -> Patch | str:  # noqa: ANN401  # json 元素天然 Any
 
 
 def _parse_patches(raw: str, max_patches: int) -> tuple[list[Patch], list[str]]:
-    """模型输出 → (形状合格的 Patch 列表, 弃用理由列表)。"""
+    """模型输出 → (形状合格的 Patch 列表，弃用理由列表)。"""
     data = _extract_json(raw)
     if data is None:
         return [], ["unparseable JSON"]
@@ -360,7 +360,7 @@ def _apply_patches(ctx: LoopCtx, patches: list[Patch]) -> tuple[list[str], list[
 
 
 class LlmFixer:
-    """``escalate_llm`` 的 LlmHook 实现: 上下文装配 → Translator → 补丁契约。
+    """``escalate_llm`` 的 LlmHook 实现：上下文装配 → Translator → 补丁契约。
 
     ``translator`` 满足 :class:`~texlate.xlat.pipeline.Translator` 协议
     (MockTranslator 即测件); None 走默认网关路 —— 每次调用在驱动线程的
@@ -383,7 +383,7 @@ class LlmFixer:
         max_patches: int = DEFAULT_MAX_PATCHES,
     ) -> None:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
-        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引: compile 层 module-top 不引 xlat 栈
+        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引：compile 层 module-top 不引 xlat 栈
             DEFAULT_BASE_URL,
             DEFAULT_MODEL,
             env_key_for_url,
@@ -411,7 +411,7 @@ class LlmFixer:
                 max_tokens=self.max_tokens,
                 response_format={"type": "json_object"},
             )
-        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引: 仅网关路解析
+        from texlate.xlat.client import (  # noqa: PLC0415 -- 层级倒置迟引：仅网关路解析
             ChatClient,
             ChatOptions,
         )
@@ -455,7 +455,7 @@ class LlmFixer:
         return _SYSTEM, user
 
     def __call__(self, ctx: LoopCtx, rep: ErrReport) -> tuple[bool, str]:
-        """LlmHook 入口: ``(applied, note)`` —— note 以 ``llm_hook`` 打头供追溯。"""
+        """LlmHook 入口：``(applied, note)`` —— note 以 ``llm_hook`` 打头供追溯。"""
         # 全空 rep (precheck 的 dummy) 才不烧 token; warn_* 伪类别轮有 tail
         # 可喂 —— missing_char 类 escalate 不该被这道闸误杀。
         if not (rep.first or rep.ctx or rep.tail.strip()):
@@ -467,7 +467,7 @@ class LlmFixer:
                     lambda: self._ask(system, user),
                     self.timeout_s + _ABANDON_GRACE_S,
                 )
-        except Exception as e:  # noqa: BLE001  # 调用失败=未修复, 主循环继续
+        except Exception as e:  # noqa: BLE001  # 调用失败=未修复，主循环继续
             return False, f"llm_hook: call failed {type(e).__name__}: {e}"
         patches, rejects = _parse_patches(raw, self.max_patches)
         if not patches:

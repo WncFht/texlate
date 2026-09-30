@@ -47,7 +47,7 @@ def test_colspec_env_arg_reverted(tmp_path: Path) -> None:
 
 def test_colspec_two_arg_env(tmp_path: Path) -> None:
     """``\\begin{tabularx}{dimen}{spec}`` 双参全机位 —— dimen 参含
-    反斜杠 (``\\textwidth``) 严格 ident 拒收, colspec 收。"""
+    反斜杠 (``\\textwidth``) 严格 ident 拒收，colspec 收。"""
     work, base = _trees(tmp_path)
     src = "\\begin{tabularx}{\\textwidth}{|X|X|}\na&b\\\\\n\\end{tabularx}\n"
     zh = "\\begin{tabularx}{这是译文}{这是译文}\na&b\\\\\n\\end{tabularx}\n"
@@ -58,7 +58,7 @@ def test_colspec_two_arg_env(tmp_path: Path) -> None:
 
 
 def test_colspec_multicolumn(tmp_path: Path) -> None:
-    """``\\multicolumn{n}{spec}{text}`` n+spec 还原, text 散文不碰。"""
+    """``\\multicolumn{n}{spec}{text}`` n+spec 还原，text 散文不碰。"""
     work, base = _trees(tmp_path)
     src = "\\multicolumn{8}{c|}{Head}\n"
     zh = "\\multicolumn{这是译文}{这是译文}{标题译文}\n"
@@ -70,8 +70,8 @@ def test_colspec_multicolumn(tmp_path: Path) -> None:
 
 
 def test_colspec_holder_betb(tmp_path: Path) -> None:
-    """1502.01845 实证锚点: ``\\betb`` = ``\\begin{center}\\begin{tabular}``
-    doc 自定义 spec-holder → def 体尾部 spec-env ``\\begin`` 断言发现,
+    """1502.01845 实证锚点：``\\betb`` = ``\\begin{center}\\begin{tabular}``
+    doc 自定义 spec-holder → def 体尾部 spec-env ``\\begin`` 断言发现，
     调用站 zh 化 spec 还原; 纯字母 spec 双侧一致不动。"""
     work, base = _trees(tmp_path)
     src = (

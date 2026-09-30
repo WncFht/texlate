@@ -1,9 +1,9 @@
-"""graphics_include_strip — ``\\include/\\input{*.<gfx>}`` 笔误剥除.
+"""graphics_include_strip — ``\\include/\\input{*.<gfx>}`` 笔误剥除。
 
 docclsstack 车道 (math/0501227): preamble 期 ``\\include{triangle_dots.eps}``
 把 EPS 头按 TeX 源展开 → Missing \\begin{document} + Missing-$ 爆流
 (411 syntax 错)。单参 input 族命令只可能吸 TeX 源——花括号目标落图形
-扩展名 (.eps/.pdf/.png 系) 时该行必错, 剥除零语义损失。
+扩展名 (.eps/.pdf/.png 系) 时该行必错，剥除零语义损失。
 """
 
 from __future__ import annotations

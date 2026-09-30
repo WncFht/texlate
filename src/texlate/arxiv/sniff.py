@@ -155,7 +155,7 @@ class WrapperVerdict:
 # \includepdf / \includepdfmerge / \includepdfset（pdfpages 宏包）
 _INCLUDEPDF_RE: Final = re.compile(r"\\includepdf\w*")
 #: 可选 ``[short]`` 实参须放行——``\section[s]{l}`` 漏计曾低估 n_sections
-#: 致 includepdf+可选参 section 的真文档成 is_stub/is_wrapper 假阳。
+#: 致 includepdf+ 可选参 section 的真文档成 is_stub/is_wrapper 假阳。
 _SECTION_RE: Final = re.compile(
     r"\\(?:part|chapter|section|subsection|subsubsection|paragraph|subparagraph)"
     r"\*?\s*(?:\[[^\]]*\])?\s*\{"

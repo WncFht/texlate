@@ -127,7 +127,7 @@ class _CompileL2:
         ``zh/`` 而非 work），仅重编走过（v2 非 None）才回写。``_recompile``
         内保留 compile→judge 间中止点（repair 侧 ``checkpoint`` 在
         retranslate 前后/recompile 后另补三拍，合原作粒度超集）。
-        返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编）。
+        返回 (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编）。
         """
         run, db_of = self._l2_run_state(ctx, work)
         clients = _translator_clients(run.pipe.translator)

@@ -1,9 +1,9 @@
 """ruleset._ruleset_core — Rule/Ruleset 校验装载 + phase 查询 (C5 拆叶)。
 
-``Rule`` dataclass + ``Ruleset`` (tolerant/严格双模装载, phase 索引)
+``Rule`` dataclass + ``Ruleset`` (tolerant/严格双模装载，phase 索引)
 + ``load_ruleset`` 函数式入口 + ``_RULESET_CACHE`` 分片指纹缓存 +
-``RulesetError``。装载链: ``load_yaml`` → ``_expand_family_tokens``
-→ 文件级+规则级校验 (``_ruleset_validate`` 全簇) → phase 分桶。
+``RulesetError``。装载链：``load_yaml`` → ``_expand_family_tokens``
+→ 文件级 + 规则级校验 (``_ruleset_validate`` 全簇) → phase 分桶。
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class Rule:
 
     @property
     def phase(self) -> str:
-        """Gate | precheck | loop。"""
+        """Gate | precheck | loop."""
         return self.raw["phase"]
 
     @property
@@ -102,8 +102,8 @@ class Rule:
         return self.engines.get(engine_name) or {"mode": "native"}
 
 
-#: ``Ruleset.load`` 进程内缓存 —— ``{str(path): (分片指纹, 展开后纯数据)}``。
-#: 指纹 = load_yaml 选片口径下每件分片的 ``(name, mtime_ns, size)`` 元组,
+#: ``Ruleset.load`` 进程内缓存 —— ``{str(path): (分片指纹，展开后纯数据)}``。
+#: 指纹 = load_yaml 选片口径下每件分片的 ``(name, mtime_ns, size)`` 元组，
 #: 任一分片增删改即漂移重载 (B14 fix#8: 每格 ~300ms yaml 装载 → ~3ms
 #: deepcopy)。缓存的是展开后 *数据* 而非 Ruleset, 返回一律 deepcopy:
 #: ``repair.ruleset_with_baseline`` 会原地改写 ``rule.raw`` 注 baseline_dir,
@@ -113,11 +113,11 @@ _RULESET_CACHE_MAX = 16
 
 
 def _ruleset_fingerprint(p: Path) -> tuple[tuple[str, int, int], ...] | None:
-    """``load_yaml`` 实际会读到的分片集快照; ``None`` = 不确定, 别缓存。
+    """``load_yaml`` 实际会读到的分片集快照; ``None`` = 不确定，别缓存。
 
-    选片口径与 ``load_yaml`` 严格对齐 (目录: 排序 *.yaml/*.yml 普通文件;
+    选片口径与 ``load_yaml`` 严格对齐 (目录：排序 *.yaml/*.yml 普通文件;
     否则自身单文件)。stat/iterdir OSError、目录无分片 (load_yaml 会抛错)
-    都返回 ``None`` —— 错误态走原路径照常抛, 不进缓存。
+    都返回 ``None`` —— 错误态走原路径照常抛，不进缓存。
     """
     try:
         if p.is_dir():
@@ -134,7 +134,7 @@ def _ruleset_fingerprint(p: Path) -> tuple[tuple[str, int, int], ...] | None:
 
 
 class Ruleset:
-    """``rules/`` 规则库装载结果: meta + taxonomy + rules + filemap/capabilities。"""
+    """``rules/`` 规则库装载结果：meta + taxonomy + rules + filemap/capabilities。"""
 
     def __init__(
         self, data: dict[str, Any], path: Path | None = None, *, tolerant: bool = False
@@ -195,7 +195,7 @@ class Ruleset:
         顶层段异形原逃逸为裸异常 (``rules: 5`` 崩 ``_dup_id_problems``
         自身、``meta: [1]`` 崩 ``__init__``、taxonomy/warnings 异形条目
         崩 ``Taxonomy.__init__``/逐次 ``re.search``)——段形先拦再进
-        条目级校验, ``data.get(...) or {}`` 的 falsy 容错口径保持
+        条目级校验，``data.get(...) or {}`` 的 falsy 容错口径保持
         (``None`` 视作缺席不拦)。
         """
         if not isinstance(data, dict):
@@ -254,7 +254,7 @@ class Ruleset:
         """单条规则的校验项——tolerant 模式下命中即整条弃用。
 
         spec 子语言 schema: ``when``/``condition``/``action``(含 params)/
-        ``engines`` 各段的键白名单 + 值形 + 互需字段, 全与
+        ``engines`` 各段的键白名单 + 值形 + 互需字段，全与
         actions/engine 叶实读面对齐 (详各 helper 注)。非 map 段先拦
         再按 ``{}`` 续扫——``.get``/``.items`` 旧崩面 (AttributeError/
         TypeError 穿透装载) 不再发生。
@@ -361,7 +361,7 @@ class Ruleset:
     def load(cls, path: Path | None = None, *, tolerant: bool = False) -> Ruleset:
         """装载规则库 (默认本包附带 ``rules/`` 目录; 也接受单文件路径)。
 
-        进程内按 ``(路径, 分片指纹)`` 缓存展开后纯数据, 命中 deepcopy 返回
+        进程内按 ``(路径，分片指纹)`` 缓存展开后纯数据，命中 deepcopy 返回
         (见 ``_RULESET_CACHE`` 注 —— 调用方原地改写不外溢); 指纹漂移
         (分片增/删/改) 或不可 stat 时重走全量装载。
         ``tolerant=True`` 是运行时面 (fixloop/precheck 两臂): rule 级

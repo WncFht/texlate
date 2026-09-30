@@ -28,7 +28,7 @@ _ctx = mk_ctx
 
 
 class _EngStub:
-    """引擎面替身 —— probe 恒命中, install 恒成。"""
+    """引擎面替身 —— probe 恒命中，install 恒成。"""
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:
         del cwd
@@ -129,13 +129,13 @@ def test_guard_injects_after_docclass(tmp_path: Path) -> None:
         "\\expandafter\\providecommand\\expandafter{\\csname backref\\endcsname}[1]{}"
     )
     assert seed in text
-    # 序: docclass < seed < renew 站
+    # 序：docclass < seed < renew 站
     assert text.index("\\documentclass") < text.index(seed)
     assert text.index(seed) < text.index("\\renewcommand*\\backref")
 
 
 def test_guard_pre_injects_before_docclass(tmp_path: Path) -> None:
-    """``guard_pre`` → docclass 行前预置 (cls 执行期 renew 站, iopart \\PF 形)。"""
+    """``guard_pre`` → docclass 行前预置 (cls 执行期 renew 站，iopart \\PF 形)。"""
     _proj(
         tmp_path,
         {
@@ -159,7 +159,7 @@ def test_guard_pre_injects_before_docclass(tmp_path: Path) -> None:
 
 
 def test_guard_at_name_payload(tmp_path: Path) -> None:
-    """@-payload 直达: ``Command \\foo@bar undefined`` 表键命中即预置。"""
+    """@-payload 直达：``Command \\foo@bar undefined`` 表键命中即预置。"""
     _proj(
         tmp_path,
         {
@@ -201,9 +201,9 @@ def test_guard_idempotent_refire(tmp_path: Path) -> None:
 def test_guard_coexists_polyfill_order(tmp_path: Path) -> None:
     """guard 分派先于 polyfill (note 序), 双臂同发。
 
-    物理文件序相反: 两键同走 ``_inject_after_docclass`` eol+1 缝, 后注入者
+    物理文件序相反：两键同走 ``_inject_after_docclass`` eol+1 缝，后注入者
     压栈在前 —— 缝位堆栈是注入器既有性质 (双 polyfill 同形), 与 spec
-    应用序无关; 两枚 ``\\providecommand`` 种子相互独立, 序无语义。
+    应用序无关; 两枚 ``\\providecommand`` 种子相互独立，序无语义。
     """
     _proj(
         tmp_path,
@@ -262,7 +262,7 @@ def test_e2e_renew_after_guard_compiles(tmp_path: Path) -> None:
         "\\renewcommand*\\backref[1]{#1}\n"
         "\\begin{document}\nx\n\\end{document}\n"
     )
-    # 预检: 无 guard 时即 "Command \backref undefined" 死形
+    # 预检：无 guard 时即 "Command \backref undefined" 死形
     log0 = run_xelatex(tmp_path, tex)
     assert "Command \\backref undefined" in log0 or "Undefined control sequence" in log0
 
@@ -309,8 +309,8 @@ def test_e2e_at_name_renew_via_makeatletter(tmp_path: Path) -> None:
 
 @requires_xelatex
 def test_e2e_naive_at_name_form_dies(tmp_path: Path) -> None:
-    """对照死形: 裸 ``\\providecommand\\foo@bar`` 字面注入静默错义 —
-    ``\\foo`` 被定义、``@bar`` 成裸文, 目标名恒 ``\\relax``。"""
+    """对照死形：裸 ``\\providecommand\\foo@bar`` 字面注入静默错义 —
+    ``\\foo`` 被定义、``@bar`` 成裸文，目标名恒 ``\\relax``。"""
     _proj(
         tmp_path,
         {
@@ -325,13 +325,13 @@ def test_e2e_naive_at_name_form_dies(tmp_path: Path) -> None:
         },
     )
     log = run_xelatex(tmp_path, _read(tmp_path, "main.tex"))
-    # 裸形 = 断名错义: ``foo@bar`` 仍未定义 —— guard csname emission 存在性旁证
+    # 裸形 = 断名错义：``foo@bar`` 仍未定义 —— guard csname emission 存在性旁证
     assert "RGVERDICT=DEAD" in log
 
 
 @requires_xelatex
 def test_e2e_csname_form_seeds_at_name(tmp_path: Path) -> None:
-    """正面对照: guard emission 形手工复写 → ``foo@bar`` 真被预置。"""
+    """正面对照：guard emission 形手工复写 → ``foo@bar`` 真被预置。"""
     _proj(
         tmp_path,
         {

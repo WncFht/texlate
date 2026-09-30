@@ -3,12 +3,12 @@
 入库 fixture（干净 clone 也跑）:
   - fixtures/logs/manifest.json 全行 fixloop 锚点（n_bang/category/payload 由
     extractor 实算生成）——本表直接派生自 manifest，不另手写漂移
-  - fixtures/ 顶级两件（不在 logs/ 内, 保持手写）:
+  - fixtures/ 顶级两件（不在 logs/ 内，保持手写）:
     xelatex-missing-file.log → missing_file:setstack.sty
     xelatex-fileline-syntax.log → syntax
-work_* 是 gitignored 重产物, 缺席时仅跳过 work 扫描用例; 在本地实证:
+work_* 是 gitignored 重产物，缺席时仅跳过 work 扫描用例; 在本地实证：
   - 全量主 log 可解析不崩 (ErrReport 字段健全)
-  - 两个已知识别锚点: 2005.11401/zh → soul_err (soul 残留错),
+  - 两个已知识别锚点：2005.11401/zh → soul_err (soul 残留错),
     2106.09685/ctex → missing_tfm:phvb (metric TFM 缺)
 """
 
@@ -39,7 +39,7 @@ NEED_WORK = pytest.mark.skipif(
 
 @lru_cache(maxsize=1)
 def _fixture_cats() -> dict[Path, tuple[int, str, str | None]]:
-    """入库真 log 锚点: 路径 → (n_bang, taxonomy 类, payload)——首用时读
+    """入库真 log 锚点：路径 → (n_bang, taxonomy 类，payload)——首用时读
     manifest (收集期不 IO, 同 ``_rs`` 口径; manifest 缺席只炸消费用例)。
 
     fixtures/logs/ 行派生自 manifest.json fixloop 字段；顶级两件为 manifest
@@ -59,7 +59,7 @@ def _fixture_cats() -> dict[Path, tuple[int, str, str | None]]:
 
 
 def _main_logs() -> list[Path]:
-    """``work_fixloop/<corpus>/<cond>/*.log`` —— 排除 missfont 侧log 与 _texmf 家务目录。"""
+    """``work_fixloop/<corpus>/<cond>/*.log`` —— 排除 missfont 侧 log 与 _texmf 家务目录。"""
     out = []
     for p in sorted(WORK.rglob("*.log")):
         if p.name == "missfont.log" or any(
@@ -71,7 +71,7 @@ def _main_logs() -> list[Path]:
 
 
 def test_fixture_logs_classify() -> None:
-    """入库真 log 走 taxonomy —— manifest 全行 + 顶级两件, 干净 clone 常跑。"""
+    """入库真 log 走 taxonomy —— manifest 全行 + 顶级两件，干净 clone 常跑。"""
     for path, (n_bang, cat, pay) in _fixture_cats().items():
         rep = parse_log(path, _rs().warn_patterns)
         assert rep.n_bang == n_bang
@@ -85,7 +85,7 @@ def test_fixture_logs_classify() -> None:
 @NEED_WORK
 def test_all_main_logs_parseable() -> None:
     logs = _main_logs()
-    assert len(logs) >= 16  # noqa: PLR2004 - 原型 22 格, 至少 16 篇的量
+    assert len(logs) >= 16  # noqa: PLR2004 - 原型 22 格，至少 16 篇的量
     cats: dict[str, list[Path]] = {}
     for p in logs:
         rep = parse_log(p, _rs().warn_patterns)

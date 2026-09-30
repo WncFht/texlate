@@ -1,9 +1,9 @@
 """kernel._vault_rekey — variant 跨纪元采用 (kernel.vault 拆分叶).
 
-variant 是 dedup 键第四维: 换纪元后旧纪元字节物理健在但新键域查无,
+variant 是 dedup 键第四维：换纪元后旧纪元字节物理健在但新键域查无，
 ledger-verdict dedup 又让上游格跳跑不再产出 → 消费端 restore 饿死
 (e2e_real 09-24 qc_no_input 99 格实证)。``rekey`` 逐 (idc,arm) 把
-src-variant 完好 kind 经 ``harvest`` 提交进 dst —— 同字节新凭证,
+src-variant 完好 kind 经 ``harvest`` 提交进 dst —— 同字节新凭证，
 manifest op='rekey' 记源出处; 源副本不动 (hardlink 共 inode, 零字节
 复制)。
 """
@@ -22,9 +22,9 @@ from kernel._vault_cred import (
 from kernel._vault_intact import _kind_intact
 from kernel._vault_io import _iter_metas, _require_sentinel
 
-#: rekey 默认只搬付费侧产物: zh/state 是花钱产物, 失即须 regen; splice/
-#: layoutqc 是免费再生品, 且 slim 过的 splice 进 dst 会把消费端字节闸喂成
-#: verified, 永远锁死重生成 (2609.20519 实证——slim 留 3 件, .txlm 已丢)。
+#: rekey 默认只搬付费侧产物：zh/state 是花钱产物，失即须 regen; splice/
+#: layoutqc 是免费再生品，且 slim 过的 splice 进 dst 会把消费端字节闸喂成
+#: verified, 永远锁死重生成 (2609.20519 实证——slim 留 3 件，.txlm 已丢)。
 REKEY_KINDS = frozenset({"zh", "state"})
 
 #: rekey 源副本资格——quar 嫌疑件不进新纪元; pending/tombstone 判词不背书。
@@ -44,13 +44,13 @@ def rekey(
 ) -> list[dict]:
     """完好 src-variant 副本的付费产物收进 dst-variant 键域 (§3.10.4)。
 
-    variant 是 dedup 键第四维: 换纪元后旧纪元字节物理健在但新键域查无,
+    variant 是 dedup 键第四维：换纪元后旧纪元字节物理健在但新键域查无，
     ledger-verdict dedup 又让上游格跳跑不再产出 → 消费端 restore 饿死
     (e2e_real 09-24 qc_no_input 99 格实证)。rekey 逐 (idc,arm) 把
-    src 完好 kind 经 harvest 提交进 dst —— 同字节新凭证, manifest
+    src 完好 kind 经 harvest 提交进 dst —— 同字节新凭证，manifest
     op='rekey' 记源出处; 源副本不动 (hardlink 共 inode, 零字节复制)。
 
-    粒度按 kind: dst 已有完好副本的 kind 跳过, 一格多 src 副本时按
+    粒度按 kind: dst 已有完好副本的 kind 跳过，一格多 src 副本时按
     (zone_rank, altseq) 取最优。quar 源不搬 (嫌疑不入新纪元)。
     返回逐格结果行 (dry 时只预演不落地)。
     """
@@ -148,7 +148,7 @@ def rekey(
                 _op="rekey",
             )
             row["meta"] = str(mpath)
-        except Exception as exc:  # 逐格隔离, 一格失败不拖全批
+        except Exception as exc:  # 逐格隔离，一格失败不拖全批
             row["error"] = f"{type(exc).__name__}: {exc}"
         out.append(row)
     return out

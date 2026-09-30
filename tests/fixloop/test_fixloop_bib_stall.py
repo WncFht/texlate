@@ -1,17 +1,17 @@
 """tectonic_bib_stall_route 内建 —— tectonic bib 管线双盲区路由。
 
-实证根因 (scale50 批, 2026-09-25):
+实证根因 (scale50 批，2026-09-25):
 
 - **bibtex 挂死臂** (t_0c9a/2609.20470, t_dce88/2609.19713): tectonic 0.15
   内嵌 Rust bibtex 特定输入死循环——tex pass 出 xdv 后
   ``note: Running BibTeX on main.aux`` 即无输出烧满 240s 墙钟落
-  ``timeout``; 系统 bibtex 同 .aux 秒过, 病根只在 tectonic 内嵌件。
-- **bbl 在席缺 .bib 臂** (t_a4ae/2510.22418): tectonic 不看 ``.bbl`` 在席,
+  ``timeout``; 系统 bibtex 同 .aux 秒过，病根只在 tectonic 内嵌件。
+- **bbl 在席缺 .bib 臂** (t_a4ae/2510.22418): tectonic 不看 ``.bbl`` 在席，
   aux 有 citation 即跑 biber → ``! can't open path `references.bib'``
   落 ``other`` 硬毙; xelatex ``_bib_pass`` 文件态触发、bbl 在席跳过。
 
-builtin 不改源只发 ``REJECT: route=xelatex`` 令牌, repair 跨引擎臂换编。
-签名复核两级: ``err_head`` 快径 → ``_fixloop_log`` 全文兜底 (挂死锚看
+builtin 不改源只发 ``REJECT: route=xelatex`` 令牌，repair 跨引擎臂换编。
+签名复核两级：``err_head`` 快径 → ``_fixloop_log`` 全文兜底 (挂死锚看
 末 4KB 尾窗——kill 前末位管线 note 即死因位置)。
 """
 

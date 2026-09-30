@@ -134,7 +134,7 @@ def test_tu_nfss_series_variant_payload() -> None:
 
 
 def test_errs_full_cell_shape_dedup() -> None:
-    # 2609.19944 全错误面: 裸头 + Mincho/Gothic TU/ 伴随错 ——
+    # 2609.19944 全错误面：裸头 + Mincho/Gothic TU/ 伴随错 ——
     # 旧构成 {other:13, missing_tfm|OT:12}, 新全归 fontspec_missing 按
     # payload 去重保错误序
     log = (
@@ -155,7 +155,7 @@ def test_errs_full_cell_shape_dedup() -> None:
     ]
 
 
-# ── pdfex+gapmine 衍生: missing_file 扩展名类补 ``_`` (10-taxonomy 三位同补) ──
+# ── pdfex+gapmine 衍生：missing_file 扩展名类补 ``_`` (10-taxonomy 三位同补) ──
 
 
 def test_missing_file_pdf_tex_ext_underscore_head() -> None:
@@ -170,15 +170,15 @@ def test_missing_file_pdf_tex_ext_underscore_head() -> None:
 
 
 def test_missing_file_pdf_tex_tail_arm_payload() -> None:
-    # 交互缺档形走 tail ``File`` 同款臂: guard ``Enter file name`` 在场时
+    # 交互缺档形走 tail ``File`` 同款臂：guard ``Enter file name`` 在场时
     # 旧够不着 ``File`` 臂只能命中 payload_group:null 的 ``Enter file name``
-    # 臂 → missing_file|None; +_ 后 ``File`` 臂先签, payload 保真。
+    # 臂 → missing_file|None; +_ 后 ``File`` 臂先签，payload 保真。
     log = "File `figure2a.pdf_tex' not found.\nEnter file name: \n"
     assert classify(log) == ("missing_file", "figure2a.pdf_tex")
 
 
 def test_missing_file_cannot_find_pdf_tex() -> None:
-    # ``Cannot find the file`` 臂同洞: 旧签捕获截成 ``figure2a.pdf``。
+    # ``Cannot find the file`` 臂同洞：旧签捕获截成 ``figure2a.pdf``。
     log = "./x.sty:39: Package x Error: Cannot find the file figure2a.pdf_tex.\n"
     assert classify(log) == ("missing_file", "figure2a.pdf_tex")
 

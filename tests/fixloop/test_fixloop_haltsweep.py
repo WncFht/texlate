@@ -1,10 +1,10 @@
-"""graphic_missing_placeholder 源侧枚举 —— halt_on_error 多缺件一轮补齐.
+"""graphic_missing_placeholder 源侧枚举 —— halt_on_error 多缺件一轮补齐。
 
-haltsweep 普查 (8 格: 1206.0213/1404.6041/2501.01329/2501.01402/
+haltsweep 普查 (8 格：1206.0213/1404.6041/2501.01329/2501.01402/
 2501.01425/2509.14901/2603.08153/2604.03907): fixloop 编译 halt_on_error
-下每轮 log 只曝首个缺图件, ``_LOG_MISS_GFX_RE`` 扫臂实际逐轮单补
+下每轮 log 只曝首个缺图件，``_LOG_MISS_GFX_RE`` 扫臂实际逐轮单补
 (2501.01425 烧 8 轮 max_rounds, 余 3 件 log 从未触及)。``_enum_missing_graphics``
-对全工程活 ``\\includegraphics``/epsfig 族字面 arg 做静态解析, 一轮尽列缺件。
+对全工程活 ``\\includegraphics``/epsfig 族字面 arg 做静态解析，一轮尽列缺件。
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ def test_filedir_and_graphicspath_resolution_skip(tmp_path: Path) -> None:
 
 
 def test_macro_arg_skipped_stays_log_driven(tmp_path: Path) -> None:
-    """``\\imgdir/x.pdf`` 宏拼名静态不可判 —— 枚举不收, 不落怪名占位."""
+    """``\\imgdir/x.pdf`` 宏拼名静态不可判 —— 枚举不收，不落怪名占位."""
     ctx = mk_ctx_files(
         tmp_path,
         {

@@ -1,8 +1,8 @@
 """eracls 车道 (2026-09-20): ``vendor/stubs/aaai23.sty`` 钉测试。
 
-census era-cls-absent-vendor 唯一真空件: aaai23.sty off-CTAN/TL
-(``tlmgr search --file`` 零命中, install 路够不到) —— vendored_fetch
-(11.5, missing_file 全payload basename) 是服务径。stub 面照稿自带
+census era-cls-absent-vendor 唯一真空件：aaai23.sty off-CTAN/TL
+(``tlmgr search --file`` 零命中，install 路够不到) —— vendored_fetch
+(11.5, missing_file 全 payload basename) 是服务径。stub 面照稿自带
 aaai2026.sty 实件抄 (``\\affiliations``/``\\equalcontrib``/copyright 族/
 ``\\pubnote``/``\\keywords`` + submission/draft 选项吞), 版式不强制
 (espcrc2 先例)。
@@ -22,7 +22,7 @@ STUBS = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"
 
 
 def test_aaai23_vendored_resolution() -> None:
-    """包内 vendor 根 basename 查件: aaai23.sty → stubs 层命中。"""
+    """包内 vendor 根 basename 查件：aaai23.sty → stubs 层命中。"""
     src = _vendored_source(STUBS.parent, "aaai23.sty")
     assert src is not None
     assert src.parent.name == "stubs"
@@ -40,7 +40,7 @@ def test_aaai23_fetch_drops(tmp_path: Path) -> None:
 @pytest.mark.integration
 @requires_xelatex
 def test_aaai23_stub_surface_compiles(tmp_path: Path) -> None:
-    """stub 宏面真编译钉: [submission] 选项吞 + \\affiliations 附 \\@author
+    """stub 宏面真编译钉：[submission] 选项吞 + \\affiliations 附 \\@author
     + \\equalcontrib→\\thanks + copyright/keywords/pubnote 族 —— 全零 ``!`` 错。
 
     实证基线 2303.16206/supp.tex: \\usepackage[submission]{aaai23} +

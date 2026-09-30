@@ -1,14 +1,14 @@
-"""cases — ``cases.jsonl`` 沉淀: 失败案例结构化落盘 → triage → 回放三门验证。
+"""cases — ``cases.jsonl`` 沉淀：失败案例结构化落盘 → triage → 回放三门验证。
 
 docs/spec/compile.md 的沉淀机制::
 
     每格跑完 → cases.jsonl {corpus, cond, engine, rounds[cat/pay/rule/result],
                             verdict, log_excerpt}
     verdict ∈ {unfixable, stuck, dirty_pdf} → triage queue
-        → 三类补丁: a) taxonomy 新行  b) rules 新条目  c) filemap.overrides
+        → 三类补丁：a) taxonomy 新行  b) rules 新条目  c) filemap.overrides
     回放验证 (入库门槛):
-      ① 本格重跑: 新规则必须把 fail 修到 pdf
-      ② 全语料回归: 不得把任何 clean 格改脏 (no-regression gate)
+      ① 本格重跑：新规则必须把 fail 修到 pdf
+      ② 全语料回归：不得把任何 clean 格改脏 (no-regression gate)
       ③ status: proposed → active; fires/rescues 计数回填 stats
 """
 
@@ -66,7 +66,7 @@ class CaseSink:
         cond: str | None = None,
         engine: str | None = None,
     ) -> dict[str, Any]:
-        """Cell → 结构化 case 记录并落盘 (jsonl 追加, utf-8)。"""
+        """Cell → 结构化 case 记录并落盘 (jsonl 追加，utf-8)。"""
         rec = {
             "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
             "corpus": corpus_id or cell.get("project"),
@@ -97,11 +97,11 @@ class CaseSink:
                 for a in cell.get("actions") or []
             ],
             "installed": cell.get("installed") or [],
-            # 「看见/拒修」面: actions/rules_fired 的互补——when 命中但
+            # 「看见/拒修」面：actions/rules_fired 的互补——when 命中但
             # cond/applied 败阵的规则 (loop 相; precheck 败阵本就在 actions)。
             "rules_declined": cell.get("rules_declined") or [],
-            # REJECT 决策面: gate/loop 相 REJECT 不进 actions 列——verdict
-            # ``reject:<rid>`` 的结构化名单, 与 rules_fired 分工不重叠。
+            # REJECT 决策面：gate/loop 相 REJECT 不进 actions 列——verdict
+            # ``reject:<rid>`` 的结构化名单，与 rules_fired 分工不重叠。
             "gate_fired": cell.get("gate_fired") or [],
             "decline_notes": cell.get("decline_notes") or [],
             "advisories": cell.get("advisories") or [],
@@ -148,7 +148,7 @@ class ReplayResult:
     verdict_before: str | None
     verdict_after: str | None
     final_pdf: bool
-    gate1_rescued: bool  # ① 本格重跑: started_fail 且终出 pdf
+    gate1_rescued: bool  # ① 本格重跑：started_fail 且终出 pdf
     floor_restored: bool = False  # 底板兜回过 = 树被打死只剩入口产物
     regressed: bool = False  # ② 曾 clean 的格被改脏 (batch 层回填)
 
@@ -169,9 +169,9 @@ def replay_case(  # noqa: PLR0913 -- 驱动面穿透 (fixloop 开关面同构)
     inject: Callable[[Path, str | None], None] | None = None,
     driver: Callable[[dict[str, Any], Path], dict[str, Any]] | None = None,
 ) -> ReplayResult:
-    """门①: 用当前规则库重跑该 case 的工程, fail 格须被修到出 pdf。
+    """门①: 用当前规则库重跑该 case 的工程，fail 格须被修到出 pdf。
 
-    驱动面与 ``stage_fixloop`` 接线同构: ``runner``/``case_sink``/
+    驱动面与 ``stage_fixloop`` 接线同构：``runner``/``case_sink``/
     ``compile_timeout``/``llm_hook`` 直透 ``fixloop()``; ``engine_name``/
     ``main_rel`` 缺省各回落 case 记录的 engine/main——回放复现记账
     口径而非重新探测。``engine_wrap`` 是引擎包装钩 (ResProxy/NoSandbox
@@ -226,7 +226,7 @@ def replay_all(
     ruleset: Ruleset | None = None,
     *,
     driver: Callable[[dict[str, Any], Path], dict[str, Any]] | None = None,
-    **fixloop_kw: Any,  # noqa: ANN401 -- replay_case 旋钮透传, 键集由其签名定
+    **fixloop_kw: Any,  # noqa: ANN401 -- replay_case 旋钮透传，键集由其签名定
 ) -> list[ReplayResult]:
     """批量回放 + 门②: 任何「曾 clean」的格不得被改脏。
 
@@ -266,7 +266,7 @@ def stats_backfill(raw: dict[str, Any], cells: list[dict[str, Any]]) -> dict[str
 
     输入是 ``load_yaml()`` 出来的 rules dict (纯数据), 返回更新后的同构
     dict —— 不写盘 (子集解析器只读; 落 yaml 由人工/工具链完成)。
-    规则: fires>0 且所在格有 rescued → status proposed → active。
+    规则：fires>0 且所在格有 rescued → status proposed → active。
     """
     fires: dict[str, int] = {}
     rescued: dict[str, set[tuple[str, str]]] = {}
@@ -289,7 +289,7 @@ def stats_backfill(raw: dict[str, Any], cells: list[dict[str, Any]]) -> dict[str
         st["fires"] = fires.get(rid, 0)
         st["rescued_cells"] = len(rescued.get(rid, ()))
         if st.get("status") == "proposed" and st["fires"] and st["rescued_cells"]:
-            st["status_suggested"] = "active"  # 人工确认后才转正, 不自动改 status
+            st["status_suggested"] = "active"  # 人工确认后才转正，不自动改 status
     return raw
 
 
@@ -302,8 +302,8 @@ def proj_resolver(root: Path | str) -> Callable[[dict[str, Any]], Path | None]:
     """Canonical ``resolve_proj``: ``case → <root>/<corpus>`` 工程目录。
 
     corpus id 混存 raw (``cat/id``)/canon/单层 safe (``cat--id``) 诸形——
-    verbatim 先行, 两种替换形各探一次, 首个存在的目录胜出; 诸形皆无 →
-    返回 verbatim 形 (缺席格由 ``replay_all`` 的 exists() 闸跳过, 语义不变)。
+    verbatim 先行，两种替换形各探一次，首个存在的目录胜出; 诸形皆无 →
+    返回 verbatim 形 (缺席格由 ``replay_all`` 的 exists() 闸跳过，语义不变)。
     """
     root_path = Path(root)
 
@@ -332,11 +332,11 @@ def xelatex_factory(
 
     ``texmf_root`` 给定时逐格独占 ``<texmf_root>/<safe corpus>`` usertree
     (并行回放 tlmgr install 不互踩); None → 引擎缺省树。binary/sandbox/
-    filemap 等其余旋钮走 ``XelatexEngine`` 自身面, 不在此展开。
+    filemap 等其余旋钮走 ``XelatexEngine`` 自身面，不在此展开。
     """
 
     def _make(case: dict[str, Any]) -> Engine:
-        from texlate.compile.engine import (  # noqa: PLC0415  # 引擎边界: 用到才付引擎栈导入
+        from texlate.compile.engine import (  # noqa: PLC0415  # 引擎边界：用到才付引擎栈导入
             XelatexEngine,
         )
 

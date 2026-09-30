@@ -745,7 +745,7 @@ class TestSweepRetention:
 
 
 class TestSlimTaskDir:
-    """``slim_task_dir``：白名单=登记路径，其余字节+空目录全清（幂等纯 FS）。"""
+    """``slim_task_dir``：白名单=登记路径，其余字节 + 空目录全清（幂等纯 FS）。"""
 
     def test_keep_registered_and_prune(self, tmp_path: Path) -> None:
         root = tmp_path / "t1"

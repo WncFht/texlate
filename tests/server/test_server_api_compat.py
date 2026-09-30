@@ -465,7 +465,7 @@ class TestRetranslate:
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
 
     def test_active_409(self, client: TestClient) -> None:
-        """translating（ACTIVE）→ 409 invalid_state。"""
+        """translating (ACTIVE)→ 409 invalid_state."""
         tid = self._seed(client, status="translating")
         r = client.post(f"/api/task/{tid}/chunk/0/retranslate")
         assert r.status_code == HTTPStatus.CONFLICT

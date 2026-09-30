@@ -1,6 +1,6 @@
-"""kernel._kernel_needs — needs 域求值叶 (kernel.kernel 拆分叶, §3.6).
+"""kernel._kernel_needs — needs 域求值叶 (kernel.kernel 拆分叶，§3.6).
 
-cell 临界段第 4 步的 upstream 裁决机件:
+cell 临界段第 4 步的 upstream 裁决机件：
 
 - ``_last_outcome`` — 跨 run 的末条 T_CELL records 行 (dedup 指针与
   ``declined:*`` gate reject 皆透明 — 无裁决语义的行不遮蔽真终态)
@@ -9,7 +9,7 @@ cell 临界段第 4 步的 upstream 裁决机件:
 - ``_product_ok``   — mutating upstream 的"产物可解析"per-kind 证据
                       (vault 在押 + 本 run work 树; tombstone 否决
                       不被 vault 字节翻案)
-- ``_needs_eval``   — needs 边求值: domain = this run ∪ spec.foreign_runs,
+- ``_needs_eval``   — needs 边求值：domain = this run ∪ spec.foreign_runs,
                       末条 domain 行管判 (dedup 穿掩到末条 DONE)
 
 门面回引名单见 ``kernel.kernel._LEAF_EXPORTS``; monkeypatch 锚点归本叶。

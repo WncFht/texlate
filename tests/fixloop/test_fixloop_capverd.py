@@ -82,7 +82,7 @@ def test_non_input_stack_tag_unaffected() -> None:
 
 
 def test_verdict_unfixable_input_stack(tmp_path: Path) -> None:
-    """端到端: quark 帧格 → ``unfixable:input_stack``, 不烧修复轮。"""
+    """端到端：quark 帧格 → ``unfixable:input_stack``, 不烧修复轮。"""
     cell = fixloop(make_proj(tmp_path), MockEngine([{"log": _QUARK_LOG}]))
     assert cell["verdict"] == "unfixable:input_stack"
     assert cell["rounds"][0]["category"] == "input_stack"
@@ -90,7 +90,7 @@ def test_verdict_unfixable_input_stack(tmp_path: Path) -> None:
 
 
 def test_verdict_resetstack_stays_repair_dispatch(tmp_path: Path) -> None:
-    """端到端: ``\\cref@resetstack`` 格仍走修复派发——非 article 源上
+    """端到端：``\\cref@resetstack`` 格仍走修复派发——非 article 源上
     revtex4 规则 cond-skip 后落 ``unfixable:capacity``, 不进 verdict-only 簇。"""
     cell = fixloop(make_proj(tmp_path), MockEngine([{"log": _RESETSTACK_LOG}]))
     assert cell["verdict"] == "unfixable:capacity"

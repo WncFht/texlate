@@ -21,8 +21,8 @@ __all__ = [
     "re",
 ]
 
-#: 装载命令规范骨架 (命名组): ``head``=名单外全部前缀, ``cmd``=命令名,
-#: ``opts``=整 ``[..]`` 段 (含括号), ``opts_inner``=选项本体,
+#: 装载命令规范骨架 (命名组): ``head``=名单外全部前缀，``cmd``=命令名，
+#: ``opts``=整 ``[..]`` 段 (含括号), ``opts_inner``=选项本体，
 #: ``names``=花括号名单。opts 字符集 ``[^\]]`` 允跨行 —— TeX 选项表
 #: 换行合法 (旧 ``[^\]\n]`` 各拼形的严格超集)。
 _PKG_LOAD_HEAD_SRC = (
@@ -46,10 +46,10 @@ def _pkg_list_re(pkg: str) -> re.Pattern[str]:
     )
 
 
-#: ``_PKG_LOAD_SRC`` + ``^(\s*)`` 行首锚变体 —— 锚必须留:
+#: ``_PKG_LOAD_SRC`` + ``^(\s*)`` 行首锚变体 —— 锚必须留：
 #: option_clash_merge 靠它防行内装载点误并 (``\if..\RequirePackage``
 #: 同行形态不收)。组面 = 命名组 (head/cmd/opts/opts_inner/names) +
-#: 组1 行首空白。
+#: 组 1 行首空白。
 _USE_RE = re.compile(rf"^(\s*){_PKG_LOAD_SRC}", re.MULTILINE)
 
 
@@ -86,8 +86,8 @@ def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
 
 
 #: ``\usepackage``/``\RequirePackage`` 装载点 —— group(1)=花括内逗号列
-#: 元素串 (``[opts]`` 跳过)。无行首锚: ``\if..\RequirePackage..\fi``
-#: 单行条件形也收, 前置在 token 前序位恒正确。
+#: 元素串 (``[opts]`` 跳过)。无行首锚：``\if..\RequirePackage..\fi``
+#: 单行条件形也收，前置在 token 前序位恒正确。
 _LOAD_SITE_RE = re.compile(
     r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]\n]*\])?\s*\{([^}]*)\}"
 )

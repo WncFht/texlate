@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 _CHUNK_ID_LEN = 24  # sha256[:24]
 
 #: 假翻译应答的拉丁→中文映射——typed ``[[X_n]]`` 占位符与裸 ``[[SL]]``/``[[PL]]``
-#: 族标记一律原样保留（裸标记被sinicize会撞占位符对账、整chunk跳过），其余
+#: 族标记一律原样保留（裸标记被 sinicize 会撞占位符对账、整 chunk 跳过），其余
 #: 拉丁词变「文」（residual_en 网下合法的纯中文应答形）。
 _SINICIZE_RX = re.compile(r"(\[\[[A-Z][A-Z0-9_]*\]\])|([A-Za-z]+)")
 
@@ -238,7 +238,7 @@ class TestFaultPaths:
         """T4：ChatClient.usage_sink → task_usage 行 + snapshot.usage 出账。"""
 
         def handler(req: httpx.Request) -> httpx.Response:
-            # user 内容拉丁词→文、占位符原样——中文前缀+英文回显的旧形会撞
+            # user 内容拉丁词→文、占位符原样——中文前缀 + 英文回显的旧形会撞
             # residual_en 网（E24 same_source 门槛的姊妹闸）；slots JSON 逐槽
             # 同形，批量/单翻两侧校验都过
             body = json.loads(req.content)

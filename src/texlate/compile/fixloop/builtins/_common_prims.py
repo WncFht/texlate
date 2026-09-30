@@ -10,7 +10,7 @@ __all__ = [
     "PDFTEX_PRIMS",
 ]
 
-# pdfTeX 原语清单 (原型 + 2410.00012 实证扩: 文档面对象/注释/资源族)
+# pdfTeX 原语清单 (原型 + 2410.00012 实证扩：文档面对象/注释/资源族)
 PDFTEX_PRIMS = (
     "pdfoutput",
     "pdfminorversion",
@@ -93,12 +93,12 @@ PDFTEX_PRIMS = (
     "pdftexversion",
     "pdftexrevision",
     "pdfinclusionerrorlevel",
-    "pdfinclusioncopyfonts",  # 2403.15085: 稿面 \prim=1 写形, guard 包裹位
+    "pdfinclusioncopyfonts",  # 2403.15085: 稿面 \prim=1 写形，guard 包裹位
     "pdfsuppresswarningpagegroup",
     # `pdf@` 包内别名族 (breakurl/pdfmark.def/pdftexcmds 系包体在 pdftex
-    # 下自导原语绑定, xelatex 下全族裸缺) —— @-名只能存在于 @=11 包体
-    # 语境, pdftex_prim|<@名> 报错定义上即包内宏展开帧 (file_stack 归
-    # doc 侧, err_outside_fileset 不见), 主文件头补定义是唯一治法。
+    # 下自导原语绑定，xelatex 下全族裸缺) —— @-名只能存在于 @=11 包体
+    # 语境，pdftex_prim|<@名> 报错定义上即包内宏展开帧 (file_stack 归
+    # doc 侧，err_outside_fileset 不见), 主文件头补定义是唯一治法。
     "pdf@box",  # breakurl.sty \sbox\pdf@box scratch box (2502.03387 colm)
     "pdf@toks",
     "pdf@defaulttoks",

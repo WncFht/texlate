@@ -223,7 +223,7 @@ def _neg_space_edits(vis: str, lo: int, hi: int) -> list[tuple[int, int, str]]:
 
 
 def _demote_pair(rec: dict) -> tuple[str, str]:
-    """单环境降级串对：``(begin 替换, end 替换)``（星号/宽度/minipage 决策点）。"""
+    """单环境降级串对：``(begin 替换，end 替换)``（星号/宽度/minipage 决策点）。"""
     star = "*" if rec["name"].endswith("*") else ""
     captype = rec["captype"] or _WRAP_CAPTYPE.get(rec["name"].rstrip("*"), "figure")
     env = captype + star

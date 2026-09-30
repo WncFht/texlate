@@ -68,7 +68,7 @@ _AUX_CITE_RX: Final = re.compile(
 #: bbl 键面——``\bibitem[..]{key}`` (classic) 与 ``\entry{key}{..}``
 #: (biblatex) 同收; 覆盖度复核的"已供键"面。
 _BBL_KEY_RX: Final = re.compile(r"\\(?:bibitem(?:\[[^\]]*\])?|entry)\{([^}]*)\}")
-#: ``\bibdata{name[,name2]}``——bibdata 可解性判 (无 .bib → bibtex 必败,
+#: ``\bibdata{name[,name2]}``——bibdata 可解性判 (无 .bib → bibtex 必败，
 #: 让位异名收编臂)。
 _BIBDATA_RX: Final = re.compile(r"\\bibdata\{([^}]*)\}")
 
@@ -145,7 +145,7 @@ def _bbl_version_skewed(bbl: Path, probe: Callable[[str], str | None]) -> bool:
 
 
 def _bcf_intact(bcf: Path) -> bool:
-    """``.bcf`` 完整性判: 尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
+    """``.bcf`` 完整性判：尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
     try:
         data = bcf.read_bytes()
     except OSError:
@@ -303,7 +303,7 @@ class _XelatexBib:
             return bak
 
         def _restore(bak: Path | None, bbl: Path) -> bool:
-            """新产不完整且旧件还在备份 → 回滚 (删本趟残件, 还原旧件)。"""
+            """新产不完整且旧件还在备份 → 回滚 (删本趟残件，还原旧件)。"""
             if bak is None or not bak.is_file():
                 return False
             try:
@@ -314,7 +314,7 @@ class _XelatexBib:
             return True
 
         def _rollback(bak: Path | None, bbl: Path) -> None:
-            """Adopt 失败清算: 有备份回滚, 无备份删本趟残件免毒下趟。"""
+            """Adopt 失败清算：有备份回滚，无备份删本趟残件免毒下趟。"""
             if _restore(bak, bbl):
                 return
             if bak is not None:
@@ -350,9 +350,9 @@ class _XelatexBib:
                         len(missing),
                     )
             if not need and _bbl_version_skewed(bbl_main, self.probe_file):
-                # 在席 bbl 版本复核: 随稿件由旧 biber 产 → biblatex 期待版
+                # 在席 bbl 版本复核：随稿件由旧 biber 产 → biblatex 期待版
                 # 不符 → \datalist 失配原文直排 (name-hash 满页 dump,
-                # 2312.00752 实证)。同陈旧件处理: 备份后重跑 biber。
+                # 2312.00752 实证)。同陈旧件处理：备份后重跑 biber。
                 need = True
                 bak = _backup(bbl_main)
                 log.debug("bbl format skew for %s — rerunning biber", stem)
@@ -384,12 +384,12 @@ class _XelatexBib:
             bbl = aux.with_suffix(".bbl")
             cite_keys = _aux_cite_keys(text)
             if _has_bbl(bbl):
-                # 覆盖度复核: 缺键 → 备份重跑 (fp bibtex_pass_coverage 臂2)
+                # 覆盖度复核：缺键 → 备份重跑 (fp bibtex_pass_coverage 臂 2)
                 missing = cite_keys - _bbl_keys(bbl)
                 if not missing or not cite_keys:
                     continue
                 if not _bibdata_resolvable(text, wdir, out):
-                    continue  # 无 .bib 可再生——缺键是空跑, 在席件不碰
+                    continue  # 无 .bib 可再生——缺键是空跑，在席件不碰
                 bak = _backup(bbl)
                 rel = str(aux.relative_to(out).with_suffix(""))
                 rc, out_s, _sec, to = _run([tool, rel])
@@ -407,7 +407,7 @@ class _XelatexBib:
                         out_s,
                     )
                 continue
-            # bbl 缺席: \bibdata 可解 → bibtex; 不可解 → 异名收编兜底
+            # bbl 缺席：\bibdata 可解 → bibtex; 不可解 → 异名收编兜底
             if not _bibdata_resolvable(text, wdir, out):
                 strays = [
                     p
@@ -431,7 +431,7 @@ class _XelatexBib:
             if _bbl_complete(bbl):
                 missed = len(cite_keys - _bbl_keys(bbl)) if cite_keys else 0
                 # "I didn't find a database entry" = 覆盖度缺口非错误——
-                # 完整产物照采纳, 缺口键数落 note 供账本。
+                # 完整产物照采纳，缺口键数落 note 供账本。
                 ran.append(f"bibtex:{rel}" + (f"(missing:{missed})" if missed else ""))
             else:
                 bbl.unlink(missing_ok=True)  # 截断/空 bbl——删除免毒下趟

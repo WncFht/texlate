@@ -2,8 +2,8 @@
 
 ``_DISPATCH`` 是平顶动词表 (init/run/plan/status/derive/sweep/prune/
 backup/doctor/fsck) + ``verbs.REGISTRY`` 自注册动词统一映
-``_cmd_verb``; ``main`` 先解 argparse 树, vault/ledger/lake/cache/spec
-五组嵌套子命令各查自己的子表, 其余落 ``_DISPATCH[cmd]``。
+``_cmd_verb``; ``main`` 先解 argparse 树，vault/ledger/lake/cache/spec
+五组嵌套子命令各查自己的子表，其余落 ``_DISPATCH[cmd]``。
 
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

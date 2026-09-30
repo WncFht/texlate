@@ -22,7 +22,7 @@ __all__ = [
 
 #: doc 自定义 spec-holder 宏探测 —— def 体以 spec-env ``\begin`` 收尾
 #: 即 ``\X{spec}`` 等价 ``\begin{ENV}{spec}`` (1502.01845 ``\betb``
-#: = ``\begin{center}\begin{tabular}`` 实证, 参被译 → kernel "Illegal
+#: = ``\begin{center}\begin{tabular}`` 实证，参被译 → kernel "Illegal
 #: character in array arg.")。[n] 形参表宏不收 (带参宏 {} 实参被 #n
 #: 消费不进 token 流); ``\newcommand{\cs}``/``\newcommand\cs`` 双形 +
 #: def/edef/gdef/xdef 族同盖。体一层花括号嵌套封顶 (``{center}``/
@@ -36,7 +36,7 @@ _HOLDER_DEF_RX = re.compile(
 #: def 体尾部 spec-env ``\begin`` 断言 (可带 ``[pos]`` 尾巴); env 表
 #: 与 colspec 双臂同步 (2026-09-20 zhleakimpl 补 xtabular/tabu/tblr
 #: 系/nicematrix/xltabular —— 双参 env 结尾的 holder 调用站只收首
-#: 参, 参位仍全机位故收之无害)。
+#: 参，参位仍全机位故收之无害)。
 _HOLDER_TAIL_RX = re.compile(
     r"\\begin\s*\{(?:tabular|array|deluxetable|smalldeluxetable|"
     r"sidewaysdeluxetable|sidewaystable|supertabular|mpsupertabular|"

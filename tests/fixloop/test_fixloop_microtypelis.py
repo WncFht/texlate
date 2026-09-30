@@ -44,7 +44,7 @@ _ERR_HEAD = (
 )
 
 
-# ──────────────────────────── 类目: file-line 形归 other ────────────────────────
+# ──────────────────────────── 类目：file-line 形归 other ────────────────────────
 def test_taxonomy_signature_falls_to_other() -> None:
     """真实 file-line 错行 taxrow 归 microtype_pdftex, payload=None。"""
     cat, pay = _classify(
@@ -57,7 +57,7 @@ def test_taxonomy_signature_falls_to_other() -> None:
 
 
 def test_rule_registered() -> None:
-    """规则面: other+microtype_pdftex 双臂 + ctx_suggests, loop order 71, cls 在 exts。"""
+    """规则面：other+microtype_pdftex 双臂 + ctx_suggests, loop order 71, cls 在 exts。"""
     rule = _rule("microtype_lig_off")
     assert rule.order == 71  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
@@ -67,7 +67,7 @@ def test_rule_registered() -> None:
 
 
 def test_condition_gate_needs_signature(tmp_path: Path) -> None:
-    """ctx_suggests 闸: err_head 无签名 → condition 拒 (other 桶不盲点火)。"""
+    """ctx_suggests 闸：err_head 无签名 → condition 拒 (other 桶不盲点火)。"""
     rule = _rule("microtype_lig_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
         rule.condition, rule, _ctx(tmp_path, "! some other error"), EngStub(), None
@@ -84,9 +84,9 @@ def test_condition_gate_accepts_signature(tmp_path: Path) -> None:
     assert ok, why
 
 
-# ──────────────────────────── 动作: 行注释中和 ────────────────────────────
+# ──────────────────────────── 动作：行注释中和 ────────────────────────────
 def test_disable_ligatures_commented_in_cls(tmp_path: Path) -> None:
-    """ICLR-2027 系 cls 实形: \\DisableLigatures[f]{family=sf*} → 行注释。"""
+    """ICLR-2027 系 cls 实形：\\DisableLigatures[f]{family=sf*} → 行注释。"""
     cls = tmp_path / "applemlr.cls"
     cls.write_text(
         "\\RequirePackage[expansion=false]{microtype}\n"
@@ -123,7 +123,7 @@ def test_disable_ligatures_bare_and_multi(tmp_path: Path) -> None:
 
 
 def test_already_commented_no_refire(tmp_path: Path) -> None:
-    """masked 面: 已注释 \\DisableLigatures 行不可见 → applied=False 不再叠 %。"""
+    """masked 面：已注释 \\DisableLigatures 行不可见 → applied=False 不再叠 %。"""
     src = "% \\DisableLigatures[f]{family=sf*}\n\\RequirePackage{microtype}\n"
     (tmp_path / "x.cls").write_text(src, encoding="utf-8")
     ok, _ = _apply(_rule("microtype_lig_off"), tmp_path, "")
@@ -132,10 +132,10 @@ def test_already_commented_no_refire(tmp_path: Path) -> None:
 
 
 def test_nested_cls_copies_all_rewritten(tmp_path: Path) -> None:
-    """2609.19664 实形: wrapper-promote 残留的双层嵌套 fairmeta.cls 副本同愈。
+    """2609.19664 实形：wrapper-promote 残留的双层嵌套 fairmeta.cls 副本同愈。
 
     ``templates/arxiv/fairmeta.cls`` 与 ``templates/arxiv/templates/arxiv/
-    fairmeta.cls`` 各携同签行 —— exts glob 按 rglob 全深度收集, 两处皆注释。
+    fairmeta.cls`` 各携同签行 —— exts glob 按 rglob 全深度收集，两处皆注释。
     """
     for sub in ["templates/arxiv", "templates/arxiv/templates/arxiv"]:
         d = tmp_path / sub
@@ -151,7 +151,7 @@ def test_nested_cls_copies_all_rewritten(tmp_path: Path) -> None:
 
 
 def test_unrelated_cs_untouched(tmp_path: Path) -> None:
-    """\\b 词界: \\DisableLigaturesX 等非目标 cs 不命中; 无命中 → applied=False。"""
+    """\\b 词界：\\DisableLigaturesX 等非目标 cs 不命中; 无命中 → applied=False。"""
     src = "\\newcommand{\\DisableLigaturesX}{}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, _ = _apply(_rule("microtype_lig_off"), tmp_path, "")
@@ -160,7 +160,7 @@ def test_unrelated_cs_untouched(tmp_path: Path) -> None:
 
 
 def test_match_apply_routes(tmp_path: Path) -> None:
-    """整链: 真实派发猫 microtype_pdftex + other 兼容臂同钉 —— 双臂皆点火本臂。"""
+    """整链：真实派发猫 microtype_pdftex + other 兼容臂同钉 —— 双臂皆点火本臂。"""
     for cat in ("microtype_pdftex", "other"):
         sub = tmp_path / cat
         sub.mkdir()
@@ -180,7 +180,7 @@ def test_match_apply_routes(tmp_path: Path) -> None:
 
 
 def test_xetexglyph_arm_unaffected(tmp_path: Path) -> None:
-    """microtype_off 主场不回退: xetexglyph_tfm 签名不命中本臂 ctx 闸。"""
+    """microtype_off 主场不回退：xetexglyph_tfm 签名不命中本臂 ctx 闸。"""
     rule = _rule("microtype_lig_off")
     ok, _why = actions._cond_ok(  # noqa: SLF001
         rule.condition,

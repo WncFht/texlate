@@ -14,8 +14,8 @@ from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
 
-#: 升级稿形态: 注释态 \documentstyle 残留 (mhc raw 子串命中) + COMPAT_SHIM
-#: 面包屑 (condition 第二选命中) —— 源码不引用 aas2pp4, 让缺件只由 log 报,
+#: 升级稿形态：注释态 \documentstyle 残留 (mhc raw 子串命中) + COMPAT_SHIM
+#: 面包屑 (condition 第二选命中) —— 源码不引用 aas2pp4, 让缺件只由 log 报，
 #: static_precheck 扫不到 → 放行后由 loop install 臂实证可达。
 POST_UPGRADE_TEX = (
     "%\\documentstyle[aaspp4]{article}\n"
@@ -32,7 +32,7 @@ L209_LOG = "! LaTeX2e command \\usepackage in LaTeX 2.09 document.\n"
 
 
 def test_missing_file_payload_passes_gate(tmp_path: Path) -> None:
-    """升级稿 missing_file 载荷不再被 gate 吞 —— install 臂可达, 装上即 clean。"""
+    """升级稿 missing_file 载荷不再被 gate 吞 —— install 臂可达，装上即 clean。"""
     eng = MockEngine(
         [{"log": MISSING_AAS2PP4_LOG}, {"log": CLEAN_LOG, "pdf": True}],
         installable={"aas2pp4.sty"},

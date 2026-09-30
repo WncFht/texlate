@@ -71,7 +71,7 @@ def test_meter_record_spent_estimate_next() -> None:
     est = m.estimate_next()
     assert est == pytest.approx(0.15 + 2 * 0.0707106781)
     m.record(usd=0.10)
-    assert m.requests() == 3  # noqa: PLR2004 -- 断言字面量(已录三笔请求)
+    assert m.requests() == 3  # noqa: PLR2004 -- 断言字面量 (已录三笔请求)
 
 
 def test_meter_check_fuses_before_crossing() -> None:
@@ -138,7 +138,7 @@ def test_usage_of_shapes() -> None:
 # --- GatewayFactory / session gates --------------------------------------------------------
 
 
-def test_factory_lazy_client_and_meter(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_factory_lazy_client_and_meter(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     built = []
 
     def mk(_ctx: object | None = None) -> object:
@@ -152,7 +152,7 @@ def test_factory_lazy_client_and_meter(broot: Path) -> None:  # noqa: ARG001 -- 
     assert built == [1]  # built exactly once
 
 
-def test_session_request_full_gate_path(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_request_full_gate_path(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     calls = []
 
     class Client:
@@ -172,7 +172,7 @@ def test_session_request_full_gate_path(broot: Path) -> None:  # noqa: ARG001 --
     assert not claims.ClaimLease("2401.00001").held_by_other()
 
 
-def test_session_reuses_ctx_lease_no_deadlock(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_reuses_ctx_lease_no_deadlock(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     """The kernel-held claim lease must be REUSED, not double-flocked."""
     held = claims.ClaimLease("2401.00001")
     held.acquire()
@@ -190,7 +190,7 @@ def test_session_reuses_ctx_lease_no_deadlock(broot: Path) -> None:  # noqa: ARG
     held.release()
 
 
-def test_session_pause_blocks_before_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_pause_blocks_before_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     calls = []
     _f, s = _session(type("C", (), {"chat": lambda _self: calls.append(1)}))
     paths.pause_path().touch()
@@ -199,7 +199,7 @@ def test_session_pause_blocks_before_request(broot: Path) -> None:  # noqa: ARG0
     assert calls == []
 
 
-def test_session_auth_dead_blocks_and_aborts(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_auth_dead_blocks_and_aborts(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     locks.trip_auth_dead("test")
     f, s = _session()
     with pytest.raises(paid.PaidAbortRun):
@@ -207,14 +207,14 @@ def test_session_auth_dead_blocks_and_aborts(broot: Path) -> None:  # noqa: ARG0
     assert f.aborted() is True
 
 
-def test_probe_model_checks_auth_dead_first(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_probe_model_checks_auth_dead_first(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     _f, s = _session()
     locks.trip_auth_dead("x")
     with pytest.raises(paid.PaidAbortRun):
         s.probe_model()
 
 
-def test_session_budget_fuse_before_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_budget_fuse_before_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     calls = []
     f, s = _session(
         type("C", (), {"chat": lambda _self: calls.append(1)}), max_cost=0.0
@@ -225,7 +225,7 @@ def test_session_budget_fuse_before_request(broot: Path) -> None:  # noqa: ARG00
     assert calls == []
 
 
-def test_session_401_counting_then_cell_abort(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_401_counting_then_cell_abort(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     class Client:
         def chat(self) -> NoReturn:
             exc = Exception("nope")
@@ -254,7 +254,7 @@ def test_session_401_counting_then_cell_abort(broot: Path) -> None:  # noqa: ARG
     assert not claims.ClaimLease("2401.00001").held_by_other()
 
 
-def test_session_second_paper_failure_trips_run(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_second_paper_failure_trips_run(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     class Client:
         def chat(self) -> NoReturn:
             exc = Exception("nope")
@@ -273,7 +273,7 @@ def test_session_second_paper_failure_trips_run(broot: Path) -> None:  # noqa: A
     assert paths.auth_dead_path().exists()
 
 
-def test_session_claim_actually_held_during_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_session_claim_actually_held_during_request(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     seen = {}
 
     class Client:

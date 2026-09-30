@@ -56,7 +56,7 @@ _ISOLATE_PARAMS = {"exts": (".sty", ".cls"), "suffix": ".fixloop-iso"}
 
 
 def _proj_pair(tmp_path: Path, name: str, local: str, sys: str) -> Path:
-    """wdir 放 local 旧件, texmf 放 sys 新件 → 返回 wdir。"""
+    """wdir 放 local 旧件，texmf 放 sys 新件 → 返回 wdir。"""
     wdir = tmp_path / "proj"
     wdir.mkdir()
     texmf = tmp_path / "texmf"
@@ -106,7 +106,7 @@ def test_braced_date_slot_must_be_date() -> None:
 
 
 def test_plain_provides_braced_second_arg_not_taken() -> None:
-    """``\\ProvidesPackage{n}{date}`` texmf 0 实证 —— 不抽, 保守 None。"""
+    """``\\ProvidesPackage{n}{date}`` texmf 0 实证 —— 不抽，保守 None。"""
     assert _provides_date("\\ProvidesPackage{a}{2020-01-01}\n") is None
 
 
@@ -150,7 +150,7 @@ def test_braced_indirect_tl_assignment() -> None:
 
 
 def test_braced_indirect_newcommand_def() -> None:
-    """``\\*command`` LaTeX2e 赋值面 (pgfmath-xfp 实证, texmf 11 处)。"""
+    """``\\*command`` LaTeX2e 赋值面 (pgfmath-xfp 实证，texmf 11 处)。"""
     for assign in (
         "\\newcommand*\\pgfmxfpDate",  # 实证形
         "\\newcommand\\pgfmxfpDate",
@@ -200,7 +200,7 @@ def test_getidinfo_slash_date_field() -> None:
 
 
 def test_getidinfo_minus1_version_not_taken() -> None:
-    """ver==-1 → expl3 置 ``0000/00/00`` 伪日期 —— 不取, None。"""
+    """ver==-1 → expl3 置 ``0000/00/00`` 伪日期 —— 不取，None。"""
     t = (
         "\\GetIdInfo$Id: x.dtx -1 2024-01-01 00:00:00 +0000 x$\n"
         "\\ProvidesExplPackage{x}{\\ExplFileDate}{v}{d}\n"
@@ -209,7 +209,7 @@ def test_getidinfo_minus1_version_not_taken() -> None:
 
 
 def test_explfiledate_direct_def() -> None:
-    """ltxlab 面: ``\\def\\ExplFileDate`` 字面赋值先于 GetIdInfo 解出。"""
+    """ltxlab 面：``\\def\\ExplFileDate`` 字面赋值先于 GetIdInfo 解出。"""
     t = (
         "\\def\\ExplFileDate{2026-02-18}%\n"
         "\\ProvidesExplFile{l3debug.def}{\\ExplFileDate}{1.0}\n"
@@ -256,7 +256,7 @@ def test_bracketed_forms_unchanged() -> None:
 
 
 def test_providesfile_literal_and_indirect() -> None:
-    """``\\ProvidesFile`` 纳入: 字面 1853 / ``[\\filedate]`` 间址 212 实证。"""
+    """``\\ProvidesFile`` 纳入：字面 1853 / ``[\\filedate]`` 间址 212 实证。"""
     assert _provides_date("\\ProvidesFile{core.tex}[2006/12/22 v1.15]\n") == (
         2006,
         12,
@@ -267,7 +267,7 @@ def test_providesfile_literal_and_indirect() -> None:
 
 
 def test_bracket_comment_continuation_indirect() -> None:
-    """``[%`` 注释续行形: expl3.sty ``[%\\n \\ExplFileDate`` —— texmf 61 处。"""
+    """``[%`` 注释续行形：expl3.sty ``[%\\n \\ExplFileDate`` —— texmf 61 处。"""
     t = (
         "\\def\\ExplFileDate{2026-01-19}%\n"
         "\\let\\ExplLoaderFileDate\\ExplFileDate\n"
@@ -281,7 +281,7 @@ def test_bracket_comment_continuation_indirect() -> None:
 
 
 def test_literal_beats_later_indirect() -> None:
-    """口径保持: 字面日期面 (任一字面命中) 先于间址兜底解出。"""
+    """口径保持：字面日期面 (任一字面命中) 先于间址兜底解出。"""
     t = (
         "\\def\\cs@date{1999-01-01}\n"
         "\\ProvidesPackage{a}[\\cs@date\\space v]\n"
@@ -291,7 +291,7 @@ def test_literal_beats_later_indirect() -> None:
 
 
 def test_dual_indirect_first_in_text_wins() -> None:
-    """bracket/brace 两间址形同文: 谁文本在前解谁——首间址无解即 ``None``,
+    """bracket/brace 两间址形同文：谁文本在前解谁——首间址无解即 ``None``,
     不回退到后出现的可解间址。"""
     t = (
         "\\GetIdInfo$Id: b.dtx 1.0 2022-07-14 00:00:00 +0000 x$\n"
@@ -306,7 +306,7 @@ def test_dual_indirect_first_in_text_wins() -> None:
         "\\ProvidesExplPackage{b}{\\neverdefined}{v}{d}\n"
     )
     assert _provides_date(t2) == (2021, 3, 4)
-    # 反序同口径——brace 间址在前且无解时, 后出现的可解 bracket 间址不兜底
+    # 反序同口径——brace 间址在前且无解时，后出现的可解 bracket 间址不兜底
     t3 = (
         "\\def\\cs@date{2021-03-04}\n"
         "\\ProvidesExplPackage{b}{\\neverdefined}{v}{d}\n"
@@ -319,7 +319,7 @@ def test_dual_indirect_first_in_text_wins() -> None:
 
 
 def test_e2e_braced_expl3_shadow_compare(tmp_path: Path) -> None:
-    """csvsimple 饿门实证面: brace 日期面现在喂得进 ld<sd 闸 → 确证隔离。"""
+    """csvsimple 饿门实证面：brace 日期面现在喂得进 ld<sd 闸 → 确证隔离。"""
     wdir = _proj_pair(
         tmp_path,
         "csvsimple-l3.sty",
@@ -336,7 +336,7 @@ def test_e2e_braced_expl3_shadow_compare(tmp_path: Path) -> None:
 
 
 def test_e2e_getidinfo_shadow_compare(tmp_path: Path) -> None:
-    """ctex 形: ``{\\ExplFileDate}`` 间址经 ``\\GetIdInfo`` 解出 → 确证隔离。"""
+    """ctex 形：``{\\ExplFileDate}`` 间址经 ``\\GetIdInfo`` 解出 → 确证隔离。"""
     local = (
         "\\GetIdInfo$Id: ctex.dtx aaaaaaa 2020-01-01 00:00:00 +0000 x$\n"
         "\\ProvidesExplPackage{\\ExplFileName}{\\ExplFileDate}{2.4.0}{d}\n"
@@ -354,7 +354,7 @@ def test_e2e_getidinfo_shadow_compare(tmp_path: Path) -> None:
 
 
 def test_e2e_braced_local_newer_stays(tmp_path: Path) -> None:
-    """本地 brace 日期面更新 → ld<sd 不成立, 保留 (不降级)。"""
+    """本地 brace 日期面更新 → ld<sd 不成立，保留 (不降级)。"""
     wdir = _proj_pair(
         tmp_path,
         "csvsimple-l3.sty",

@@ -412,11 +412,11 @@ def test_fuzz_from_tokens_roundtrip() -> None:
         assert [_sig(t) for t in back] == [_sig(t) for t in toks]
 
 
-# ---------------------------------------------------------------- catcode 中stream 改写
+# ---------------------------------------------------------------- catcode 中 stream 改写
 
 
 def test_fuzz_catcode_mutation_midstream() -> None:
-    """``cats.set`` 中stream 生效：已产 token 快照不动；新读按新 code 归类。
+    """``cats.set`` 中 stream 生效：已产 token 快照不动；新读按新 code 归类。
 
     头 k 枚与 baseline（默认表全程）逐字段等——改写不回溯；k 之后每枚
     ``text == ch`` 的直产 kind token 必须等于 ``_EXPECTED_KIND[code]``

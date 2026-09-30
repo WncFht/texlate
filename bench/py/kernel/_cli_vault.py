@@ -1,6 +1,6 @@
 """kernel._cli_vault — vault 子动词叶 (kernel.cli 拆分叶).
 
-``bench vault`` 的七个写/读动词: verify (三层校验, clean 才刷新
+``bench vault`` 的七个写/读动词：verify (三层校验，clean 才刷新
 首火闸 freshness stamp)、restore、adopt、tombstone、seed (Phase-2
 zh-store 字节普查入 vault)、slim (P3 splice 留存)、cas-link
 (≥256KiB 硬链 retroverb)、rekey (variant 键域收养)。写动词一律先

@@ -167,7 +167,7 @@ def _o_nonerr(msg: str) -> bool:
 
 
 def _o_errs(lines: list[str]) -> list[tuple[int, str | None, int | None]]:
-    """独立错误行扫描：``(行idx, tex_file, tex_line直取)``——bang 行 tex 位 None。"""
+    """独立错误行扫描：``(行 idx, tex_file, tex_line 直取)``——bang 行 tex 位 None。"""
     out: list[tuple[int, str | None, int | None]] = []
     for i, ln in enumerate(lines):
         if ln.startswith("!"):
@@ -470,7 +470,7 @@ def _load_fixture_logs() -> list[tuple[str, str]]:
 def _mutate_lines(  # noqa: PLR0911 -- 算子派发即早退表
     rng: random.Random, lines: list[str]
 ) -> tuple[list[str], str]:
-    """log 行级变异算子；返回 ``(新行表, 算子名)``。"""
+    """log 行级变异算子；返回 ``(新行表，算子名)``。"""
     op = soup_pick(
         rng, ["trunc", "drop", "bang+1", "fl+1", "warn+1", "dup", "shuffle", "inject"]
     )

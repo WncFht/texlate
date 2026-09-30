@@ -97,9 +97,9 @@ _TOKENS = [
 
 
 def _oracle(lines: list[str]) -> tuple[int, int]:
-    """裸括弧记账 oracle → ``(深度, 有效闭括弧数)``。
+    """裸括弧记账 oracle → ``(深度，有效闭括弧数)``。
 
-    豁免：missing-char 字形位（ lookahead ``[ (]|$`` ）不参与配对；
+    豁免：missing-char 字形位（lookahead ``[ (]|$``）不参与配对；
     无括弧行整体短路——与实现同一条文义规则、独立代码路径。
     """
     depth = pops = 0

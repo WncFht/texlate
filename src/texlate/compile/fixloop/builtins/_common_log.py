@@ -28,7 +28,7 @@ __all__ = [
 
 
 def _iter_log_candidates(ctx: LoopCtx) -> Iterable[Path]:
-    """本轮编译 log 候选枚举: ``{stem}.log`` → ``_tect_out/{stem}.log`` → 全树 ``*.log`` (名序)。
+    """本轮编译 log 候选枚举：``{stem}.log`` → ``_tect_out/{stem}.log`` → 全树 ``*.log`` (名序)。
 
     ``_fixloop_log``/``_compile_log_text`` 共用的定位序 —— 两侧仅内容
     门不同 (无门 vs ``Missing character`` 门), 枚举单源消漂移。
@@ -43,7 +43,7 @@ def _iter_log_candidates(ctx: LoopCtx) -> Iterable[Path]:
 
 
 def _fixloop_log(ctx: LoopCtx) -> str:
-    """本轮编译 log 定位 (通用版, 无内容过滤)。
+    """本轮编译 log 定位 (通用版，无内容过滤)。
 
     首个非空候选即返 —— 候选序见 ``_iter_log_candidates``
     (``{stem}.log`` → ``_tect_out/{stem}.log`` → 兜底 ``*.log``)。
@@ -67,11 +67,11 @@ def _compile_log_text(ctx: LoopCtx) -> str:
 
 
 def _mc_seen(ctx: LoopCtx) -> dict[int, tuple[str, str]] | None:
-    """含缺字的编译 log → 解析码位表; 无 log → ``None`` (表可空: 全 nullfont 滤除)。
+    """含缺字的编译 log → 解析码位表; 无 log → ``None`` (表可空：全 nullfont 滤除)。
 
     ``_compile_log_text`` (内容门) + ``_mc_parse_log`` 的读侧短路 ——
     misschar 叶与 shim 叶 log-gate 同用 (后者 ``_fixloop_log`` + 子串门
-    无 rglob 兜底, 弱于本口径)。
+    无 rglob 兜底，弱于本口径)。
     """
     log = _compile_log_text(ctx)
     return _mc_parse_log(log) if log else None

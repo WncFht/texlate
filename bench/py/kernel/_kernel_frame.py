@@ -1,17 +1,17 @@
 """kernel._kernel_frame — 规划面机件叶 (kernel.kernel 拆分叶).
 
-run/plan 两管线共享的预编排机件:
+run/plan 两管线共享的预编排机件：
 
 - ``_resolve_spec``   — Spec|path -> spec + compile_checks 编译闸
-- ``_coerce_params``  — stringly 参数闸: defaults <- supplied 经 Param
-                        类型规整, unknown/missing required 在副作用前拒
+- ``_coerce_params``  — stringly 参数闸：defaults <- supplied 经 Param
+                        类型规整，unknown/missing required 在副作用前拒
 - ``_spec_env``       — env probe 记名不记值 (只记 tool 身份/路径)
 - ``_enumerate_cells``— items × stages -> plan cells + canon drop 问题表
-                        (eval spec 免 registry 闸, G1 select 先裁后 canon)
+                        (eval spec 免 registry 闸，G1 select 先裁后 canon)
 - ``_sel_hit``        --sel 选择子 (逗号 k=v 谓词 / 裸 id|idc / '*')
 
 无状态纯函数; 门面回引名单见 ``kernel.kernel._LEAF_EXPORTS``。
-monkeypatch 锚点: setattr patch 须指本叶, 指门面无效。
+monkeypatch 锚点：setattr patch 须指本叶，指门面无效。
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def _coerce_params(spec: Spec, params) -> dict:
 
 
 def _spec_env(spec: Spec) -> dict:
-    """Probe-name -> resolution. 记名不记值: only tool identities/paths,
+    """Probe-name -> resolution. 记名不记值：only tool identities/paths,
     never secrets."""
     env = {"python": sys.version.split()[0]}
     for probe in spec.env_probes:

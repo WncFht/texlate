@@ -155,7 +155,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 return unpack_share(bundle, tdir / "share")
 
             try:
-                # 逐成员 sha256+解压跑满 CPU 秒级——卸出事件循环（share_pack 同口径）
+                # 逐成员 sha256+ 解压跑满 CPU 秒级——卸出事件循环（share_pack 同口径）
                 mf = await asyncio.to_thread(_stage)
                 parts = mf.key_parts
                 base, ver_s, model, lang, ver = _share_parts_checked(parts)

@@ -104,14 +104,14 @@ def test_touch_and_heartbeat_age(broot: Path) -> None:
 # --- kernel-active / pause / auth_dead ---------------------------------------
 
 
-def test_kernel_active_hold_and_idle(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_kernel_active_hold_and_idle(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     assert locks.kernel_idle()
     with locks.kernel_active_hold():
         assert not locks.kernel_idle()
     assert locks.kernel_idle()
 
 
-def test_kernel_active_two_runners(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_kernel_active_two_runners(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with locks.kernel_active_hold():
         with locks.kernel_active_hold():  # second SH hold coexists
             assert not locks.kernel_idle()
@@ -119,13 +119,13 @@ def test_kernel_active_two_runners(broot: Path) -> None:  # noqa: ARG001 -- fixt
     assert locks.kernel_idle()
 
 
-def test_pause_engaged(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_pause_engaged(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     assert not locks.pause_engaged()
     paths.pause_path().touch()
     assert locks.pause_engaged()
 
 
-def test_auth_dead_sentinel_cycle(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_auth_dead_sentinel_cycle(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     assert not locks.auth_dead()
     p = locks.trip_auth_dead("first 401")
     assert locks.auth_dead()
@@ -138,24 +138,24 @@ def test_auth_dead_sentinel_cycle(broot: Path) -> None:  # noqa: ARG001 -- fixtu
 # --- paid_slot -----------------------------------------------------------------
 
 
-def test_paid_slot_yields_index_and_releases(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_paid_slot_yields_index_and_releases(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with locks.paid_slot() as i:
         assert i == 0
         assert not locks.lock_free(paths.slots_dir() / "slot0.lock")
     assert locks.lock_free(paths.slots_dir() / "slot0.lock")
 
 
-def test_paid_slot_first_free(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_paid_slot_first_free(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with locks.paid_slot() as a:
         with locks.paid_slot() as b:
             assert (a, b) == (0, 1)
             with locks.paid_slot() as c:
-                assert c == 2  # noqa: PLR2004 -- 断言字面量(第三个槽序号)
+                assert c == 2  # noqa: PLR2004 -- 断言字面量 (第三个槽序号)
         with locks.paid_slot() as d:
             assert d == 1  # freed slot reused
 
 
-def test_paid_slot_cap_nonblocking(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_paid_slot_cap_nonblocking(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with ExitStack() as st:
         got = [st.enter_context(locks.paid_slot(nslots=4)) for _ in range(4)]
         assert sorted(got) == [0, 1, 2, 3]
@@ -163,7 +163,7 @@ def test_paid_slot_cap_nonblocking(broot: Path) -> None:  # noqa: ARG001 -- fixt
             pass
 
 
-def test_paid_slot_blocking_timeout(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_paid_slot_blocking_timeout(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with ExitStack() as st:
         for _ in range(2):
             st.enter_context(locks.paid_slot(nslots=2))
@@ -174,7 +174,7 @@ def test_paid_slot_blocking_timeout(broot: Path) -> None:  # noqa: ARG001 -- fix
             pass
 
 
-def test_paid_slot_blocking_waits_for_release(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_paid_slot_blocking_waits_for_release(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     holder = locks.flock(paths.slots_dir() / "slot0.lock")
     holder.__enter__()
     released = threading.Event()

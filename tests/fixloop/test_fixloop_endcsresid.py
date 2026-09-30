@@ -43,7 +43,7 @@ from _fixloopkit import code_lines, n_err, requires_xelatex, run_xelatex
 STUBS = Path(__file__).resolve().parents[2] / "src/texlate/compile/fixloop/vendor/stubs"
 SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
 
-# (stub 文件名, 命名空间前缀) —— aa.cls 用 aa@, aas4 系共享 aas@ (双载守卫互斥)
+# (stub 文件名，命名空间前缀) —— aa.cls 用 aa@, aas4 系共享 aas@ (双载守卫互斥)
 _AMP_STUBS = [
     ("aa.cls", "aa@"),
     ("aaspp4.sty", "aas@"),
@@ -136,7 +136,7 @@ Section \ref{sec:A&A} here.
     aux = (tmp_path / "main.aux").read_text(encoding="utf-8")
     # key 内 active-& 烤成字面 \& —— 读侧消洗臂的回读对象
     assert r"\bibcite{Rieke\&Lebofsky}" in aux
-    # r@ 路同罩: \label 带 & 的 sec:A&A 回读不炸
+    # r@ 路同罩：\label 带 & 的 sec:A&A 回读不炸
     assert r"\newlabel{sec:A&A}" in aux
 
 

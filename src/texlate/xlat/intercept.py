@@ -75,9 +75,9 @@ class _InterceptNet[H]:
 
     - ``name``：网 id——账本调用名 ``f"{name} intercept"``、warn 前缀、
       包装函名 ``_intercept_{name}`` 同一词根；
-    - ``detect``：``(src, zh) → 命中载荷``（falsy=未中）——``_interceptable``
+    - ``detect``：``(src, zh) → 命中载荷 ``（falsy=未中）——``_interceptable``
       缓存否决 bool 形直迭代本字段；
-    - ``fmt``：``命中载荷 → (warn, reason)``——``_intercept_apply`` 两件簿记；
+    - ``fmt``：`` 命中载荷 → (warn, reason)``——``_intercept_apply`` 两件簿记；
     - ``l0_rule``：镜像的 l0 规则 id——缓存命中/续跑装载旁路 ``validate_pair``
       时本网是该签名的唯一闸；成员集钉 ``l0.CACHE_VETO_RULES``。
     """

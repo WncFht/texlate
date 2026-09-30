@@ -5,7 +5,7 @@ independent, every failure is reported (never silently fixed), and the
 only write verbs ``fix=True`` allows are the safe ones — reaping
 lock-free stale claims and catching the derived index up via tail_ingest.
 Nothing here ever deletes bytes: stray dirs are REPORTED with an adopt
-offer (§3.10.9 "报告+收编 绝不删除"), meta-less vault dirs are reported
+offer (§3.10.9 "报告 + 收编 绝不删除"), meta-less vault dirs are reported
 per the hardened predicate (§3.10.4).
 
 Checks:

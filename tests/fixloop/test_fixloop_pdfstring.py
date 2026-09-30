@@ -57,7 +57,7 @@ def test_fires_injects_guarded_disarm(tmp_path: Path) -> None:
         in t
     )
     assert "\\fi" in t
-    # 注入位: docclass 之后, \begin{document} 之前
+    # 注入位：docclass 之后，\begin{document} 之前
     assert (
         t.index("\\documentclass")
         < t.index("\\ifdefined")
@@ -91,7 +91,7 @@ def test_multi_offenders_single_pass(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二入幂等: 首注 True, 再调 False 且文本不变。"""
+    """二入幂等：首注 True, 再调 False 且文本不变。"""
     _main(tmp_path)
     ctx = _ctx(tmp_path, _ERR_TIMES)
     ok, _note = pdfstring_cs_disarm(ctx, None, None, {})
@@ -124,7 +124,7 @@ def test_reject_single_char_cs(tmp_path: Path) -> None:
 
 
 def test_registration_and_rule() -> None:
-    """注册钉: TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
+    """注册钉：TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
     assert builtins.TRANSFORM_FNS["pdfstring_cs_disarm"] is pdfstring_cs_disarm
     rules = {r.id: r for r in load_ruleset().rules}
     rule = rules["pdfstring_cs_disarm"]

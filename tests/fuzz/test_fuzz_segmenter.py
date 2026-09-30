@@ -253,7 +253,7 @@ class TestAtLetterSpace:
 
     @pytest.mark.parametrize("body", _S1_SAFE)
     def test_at_boundary_identity(self, body: str) -> None:
-        """排除面钉：非字母跟随/双@/makeatletter 内/def体/数学区恒不破。"""
+        """排除面钉：非字母跟随/双@/makeatletter 内/def 体/数学区恒不破。"""
         tex = DOC % body
         res = parse_tex(tex)
         check_invariants(res, tex)
@@ -267,7 +267,7 @@ class TestAtLetterSpace:
         assert "\\@ foo" not in out
 
     def test_control_symbols_other_than_at_safe(self) -> None:
-        """对照组：``@`` 以外全部控制符号+字母跟随——identity 不破。"""
+        """对照组：``@`` 以外全部控制符号 + 字母跟随——identity 不破。"""
         for cs in (
             "\\-",
             "\\_",

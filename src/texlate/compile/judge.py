@@ -62,7 +62,7 @@ DIRTY_FIRST_CATEGORIES = {
 #: CJK 渲染下限：译文 PDF 至少这么多 CJK 字符才算"中文真的渲染了"。
 CJK_MIN_CHARS = 20
 
-#: CJK 计数面单源在 ``texlate.textutil.CJK_RX``（扩A+基本+兼容+〇+扩B~F）。
+#: CJK 计数面单源在 ``texlate.textutil.CJK_RX``（扩 A+ 基本 + 兼容 + 〇 + 扩 B~F）。
 _CJK_RE = CJK_RX
 
 
@@ -77,7 +77,7 @@ class Verdict:
     category: str | None = None
     payload: str | None = None
     #: 逐错误行 cat 构成（``res.log.errors`` 全量分类计数）——首错 cat
-    #: 遮 bulk 的纠偏原料（quant-ph/9703040：110 错中 108 syntax
+    #: 遮 bulk 的纠偏原料（quant-ph/9703040:110 错中 108 syntax
     #: 而 category=illegal_unit）；签名聚合取众数用。
     error_cats: dict[str, int] = field(default_factory=dict)
     #: cat → 首见 payload（``error_cats`` 同键子集，仅非空 payload 收录）。
@@ -89,7 +89,7 @@ class Verdict:
 
 
 def pdf_text_stats(pdf: Path, *, timeout: float = 60) -> tuple[int, int] | None:
-    """``pdftotext`` 抽全文一趟出 ``(CJK 字符数, U+FFFD 死字形数)``；缺席/失败 → None。
+    """``pdftotext`` 抽全文一趟出 ``(CJK 字符数，U+FFFD 死字形数)``；缺席/失败 → None。
 
     死文本层信号（c32920 实证：fontspec 套件内核 skew → CJK 字体永不配 →
     抽取层 12741 个 U+FFFD / 0 个真 CJK）：pdftotext 把 notdef/无
@@ -207,7 +207,7 @@ _MACHINE_SLOT_MAX = 20
 
 
 def _gate_and_sweep(log_text: str) -> tuple[int, int]:
-    """缺字门控命中数与 C0 扫掠豁免量一趟出 → ``(净缺字, 扫掠)``。
+    """缺字门控命中数与 C0 扫掠豁免量一趟出 → ``(净缺字，扫掠)``。
 
     扫掠 ⊆ 门控域（nullfont 窗口语义在 ``redlines._MISSCHAR_WINDOW``
     单源，``misschar_sweep_hits`` 跳过同窗口的 nullfont 行）——零门控
@@ -431,7 +431,7 @@ def _post_embed_text_stats(pdf: Path) -> tuple[int, int] | None:
 
 
 def _cjk_render_check(v: Verdict, res: CompRes) -> None:
-    """中文渲染检查（expect_cjk 时）：pdftotext 一趟出 CJK+死字形，缺席降级 log 判据。"""
+    """中文渲染检查（expect_cjk 时）：pdftotext 一趟出 CJK+ 死字形，缺席降级 log 判据。"""
     st = pdf_text_stats(res.pdf) if res.pdf else None
     cjk = -1 if st is None else st[0]
     dead = -1 if st is None else st[1]
@@ -512,7 +512,7 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
         v.category = "runaway_output"
         if res.log.errors:
             # 洪前已分类错误构成落 error_cats/error_pay——runaway_output
-            # 不再遮蔽底层可修机理（killsem2：2311.04163 洪是上游
+            # 不再遮蔽底层可修机理（killsem2:2311.04163 洪是上游
             # undefined_cs 的下游症状，机理只在 error_* 字段可见）。
             fcat, fpay = classify_error(
                 res.log.first_error,
@@ -524,7 +524,7 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
         return v
     # 超时编译细分 category（taxonomy 单源）：\output 期 Overfull \vbox
     # 刷屏 → runaway_output（输出例程暴走），否则泛 timeout——triage/
-    # 账本据 category 分流（gr-qc/0104075：73,595 页暴走烧满预算）。
+    # 账本据 category 分流（gr-qc/0104075:73,595 页暴走烧满预算）。
     cat, _pay = classify_error(
         res.log.first_error,
         res.log.error_ctx,
@@ -606,11 +606,11 @@ def judge(  # noqa: C901, PLR0912 — 判定树逐支平铺（tofu 否决为末�
     if res.log.n_errors > CLEAN_ERR_MAX:
         v.reasons.append(f"errors>{CLEAN_ERR_MAX} ({res.log.n_errors})")
     # Guard A (adjudication #10): halt_on_error 截断 log——n_errors 是下界
-    # 非测量值, 证不了 errors≤CLEAN_ERR_MAX; 测量缺陷非内容缺陷但同否 clean。
+    # 非测量值，证不了 errors≤CLEAN_ERR_MAX; 测量缺陷非内容缺陷但同否 clean。
     if getattr(res, "log_truncated", False):
         v.reasons.append("log_truncated")
-    # 出货闸 (qc-impl 批二, 2026-09-28): 输入未吃活到 \end{document}——残尾/顶层
-    # \endinput 截停的 pdf 腰斩出货, best_effort 下无 error 可计。
+    # 出货闸 (qc-impl 批二，2026-09-28): 输入未吃活到 \end{document}——残尾/顶层
+    # \endinput 截停的 pdf 腰斩出货，best_effort 下无 error 可计。
     if getattr(res, "input_truncated", False):
         v.reasons.append("input_truncated")
     # Guard B: 供了 baseline 时终产物腰斩 <50% 记内容回归——0 错编译同样

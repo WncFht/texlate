@@ -26,7 +26,7 @@ def _ctx(wdir: Path) -> LoopCtx:
 
 
 def _trees(root: Path) -> tuple[Path, Path]:
-    """wdir + baseline 双子树 —— baseline 必须在 wdir 外, 否则被当工作件扫。"""
+    """wdir + baseline 双子树 —— baseline 必须在 wdir 外，否则被当工作件扫。"""
     work, base = root / "work", root / "baseline"
     work.mkdir()
     base.mkdir()
@@ -76,7 +76,7 @@ def test_content_file_not_restored(tmp_path: Path) -> None:
 
 
 def test_identical_bytes_skipped(tmp_path: Path) -> None:
-    """工作件与 baseline 字节一致 → 不动, False。"""
+    """工作件与 baseline 字节一致 → 不动，False。"""
     work, base = _trees(tmp_path)
     (base / "pssupport.tex").write_text(_MACH, encoding="utf-8")
     (work / "pssupport.tex").write_text(_MACH, encoding="utf-8")
@@ -86,7 +86,7 @@ def test_identical_bytes_skipped(tmp_path: Path) -> None:
 
 
 def test_ascii_only_divergence_skipped(tmp_path: Path) -> None:
-    """字节有偏但零 CJK 增量 → 非翻译污染, 不回滚。"""
+    """字节有偏但零 CJK 增量 → 非翻译污染，不回滚。"""
     work, base = _trees(tmp_path)
     (base / "pssupport.tex").write_text(_MACH, encoding="utf-8")
     diverged = _MACH + "\\psset{unit=2cm}\n"
@@ -97,7 +97,7 @@ def test_ascii_only_divergence_skipped(tmp_path: Path) -> None:
 
 
 def test_own_markers_not_restored(tmp_path: Path) -> None:
-    """``% texlate``/``% fixloop`` 自有标记件 → 有意改写, 带 CJK 也不回滚。"""
+    """``% texlate``/``% fixloop`` 自有标记件 → 有意改写，带 CJK 也不回滚。"""
     work, base = _trees(tmp_path)
     (base / "a.tex").write_text(_MACH, encoding="utf-8")
     (base / "b.tex").write_text(_MACH, encoding="utf-8")
@@ -145,7 +145,7 @@ def test_code_tex_name_gate_restored(tmp_path: Path) -> None:
 
 
 def test_baseline_with_legit_cjk(tmp_path: Path) -> None:
-    """baseline 自带 CJK 按计数差判 —— 增量仍恢复, 同量不恢复。"""
+    """baseline 自带 CJK 按计数差判 —— 增量仍恢复，同量不恢复。"""
     work, base = _trees(tmp_path)
     (base / "a.tex").write_text("% 中文注\n" + _MACH, encoding="utf-8")
     (work / "a.tex").write_text(
@@ -162,7 +162,7 @@ def test_baseline_with_legit_cjk(tmp_path: Path) -> None:
 
 
 def test_no_baseline_counterpart_skipped(tmp_path: Path) -> None:
-    """baseline 无同名件 → 无可对照, 不动。"""
+    """baseline 无同名件 → 无可对照，不动。"""
     work, base = _trees(tmp_path)
     (work / "orphan.tex").write_text(_MACH + "中文\n", encoding="utf-8")
     ok, _note = _run(work, base)

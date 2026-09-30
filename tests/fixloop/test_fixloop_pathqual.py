@@ -60,7 +60,7 @@ def _mk_dirs(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _sty_cell(tmp_path: Path, loads: str) -> tuple[Path, Path, str, str]:
-    """1803.03185 形: sub/ 下旧 sty + texmf 新件 + 主稿装载行。"""
+    """1803.03185 形：sub/ 下旧 sty + texmf 新件 + 主稿装载行。"""
     wdir, texmf = _mk_dirs(tmp_path)
     (texmf / "optidef.sty").write_text(_NEW_STY, encoding="utf-8")
     sub = wdir / "style"
@@ -77,7 +77,7 @@ def _sty_cell(tmp_path: Path, loads: str) -> tuple[Path, Path, str, str]:
 
 
 def test_pathqual_dot_slash_usepackage_shimmed(tmp_path: Path) -> None:
-    """1803.03185 复现形: ``\\usepackage{./style/optidef}`` → 隔离 + 原径 shim。"""
+    """1803.03185 复现形：``\\usepackage{./style/optidef}`` → 隔离 + 原径 shim。"""
     wdir, texmf, ok, note = _sty_cell(
         tmp_path,
         "\\documentclass{article}\n\\usepackage{./style/optidef}\n",
@@ -101,7 +101,7 @@ def test_pathqual_nodot_rel_shimmed(tmp_path: Path) -> None:
 
 
 def test_pathqual_bare_load_no_shim(tmp_path: Path) -> None:
-    """对照: 裸名 ``\\usepackage{optidef}`` 走 texmf 序递补 → 不写 shim。"""
+    """对照：裸名 ``\\usepackage{optidef}`` 走 texmf 序递补 → 不写 shim。"""
     wdir, _, ok, note = _sty_cell(tmp_path, "\\usepackage{optidef}\n")
     assert ok, note
     assert (wdir / "style" / "optidef.sty.fixloop-iso").is_file()
@@ -123,7 +123,7 @@ def test_pathqual_input_with_ext_shimmed(tmp_path: Path) -> None:
 
 
 def test_pathqual_requirepackage_opts_shimmed(tmp_path: Path) -> None:
-    """``\\RequirePackage[opts]{./style/optidef}`` → shim。"""
+    """``\\RequirePackage[opts]{./style/optidef}`` → shim."""
     wdir, _, ok, note = _sty_cell(
         tmp_path, "\\RequirePackage[short]{./style/optidef}\n"
     )
@@ -154,7 +154,7 @@ def test_pathqual_backslash_sep_shimmed(tmp_path: Path) -> None:
 
 
 def test_pathqual_documentclass_shimmed(tmp_path: Path) -> None:
-    """``\\documentclass{./cls/foo}`` → ``\\ProvidesClass`` shim。"""
+    """``\\documentclass{./cls/foo}`` → ``\\ProvidesClass`` shim."""
     wdir, texmf = _mk_dirs(tmp_path)
     (texmf / "foo.cls").write_text(
         "\\ProvidesClass{foo}[2020/01/01 v2 system]\n", encoding="utf-8"
@@ -174,7 +174,7 @@ def test_pathqual_documentclass_shimmed(tmp_path: Path) -> None:
 
 
 def test_pathqual_commented_site_no_shim(tmp_path: Path) -> None:
-    """遮盖面: 注释内 ``% \\usepackage{./style/optidef}`` 不算装载点。"""
+    """遮盖面：注释内 ``% \\usepackage{./style/optidef}`` 不算装载点。"""
     wdir, _, ok, note = _sty_cell(
         tmp_path,
         "% \\usepackage{./style/optidef}\n\\usepackage{amsmath}\n",
@@ -213,7 +213,7 @@ def test_paired_core_pathqual_input_shimmed(tmp_path: Path) -> None:
 
 
 def test_shim_not_reflagged_second_round(tmp_path: Path) -> None:
-    """幂等: shim ``\\ProvidesPackage`` 署 2026 新期 → 下轮非遮蔽候选, 不再动。"""
+    """幂等：shim ``\\ProvidesPackage`` 署 2026 新期 → 下轮非遮蔽候选，不再动。"""
     wdir, texmf, ok, _ = _sty_cell(tmp_path, "\\usepackage{./style/optidef}\n")
     assert ok
     first = (wdir / "style" / "optidef.sty").read_text()

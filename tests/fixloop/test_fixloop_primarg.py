@@ -1,14 +1,14 @@
 """取参型 pdfTeX 原语吞参 noop 臂单测 (primarg 车道)。
 
-实证背景: spotcolor.sty (1907.10410/2410.00012 ieeeaccess 族 e-print
+实证背景：spotcolor.sty (1907.10410/2410.00012 ieeeaccess 族 e-print
 伴船件) :34-62 连用 ``\\pdfobj{dict}`` / ``\\pdfrefobj\\thecolorprofile`` /
 ``\\pdfliteral{op}`` —— ``\\pdfrefobj\\<reg>`` 无花括号形 guard 两
-pattern (``\\prim=`` / ``\\prim{``) 都包不到, fileset 内站点
+pattern (``\\prim=`` / ``\\prim{``) 都包不到，fileset 内站点
 ``err_outside_fileset`` 又不中 → polyfill 以 ``\\protected\\def`` 吞参
-noop 兜底 (primarg 探针 argful 真 xelatex 实测: 实参消费、零排版
+noop 兜底 (primarg 探针 argful 真 xelatex 实测：实参消费、零排版
 残留; ``\\pdfifprimitive`` 绑 ``\\iffalse`` 正确走 else 臂)。
 
-臂形分派: ``_PRIM_COUNTISH``→``\\newcount`` /
+臂形分派：``_PRIM_COUNTISH``→``\\newcount`` /
 ``_PRIM_TOKSISH``→``\\newtoks`` / ``_PRIM_DIMENISH``→``\\newdimen`` /
 ``_PRIM_ARGFUL``→``\\protected\\def<sig>`` (``@iffalse`` 哨兵→
 ``\\let→\\iffalse``) / 余项→``\\chardef`` 旧形。
@@ -26,8 +26,8 @@ from texlate.compile.fixloop.builtins import pdfprim
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
-#: 合成 file_stack 帧 token —— texmf 系统件径形字符串道具, 只供
-#: err_outside_fileset 的 texmf 正则归类, 从不读盘 (非宿主机路径依赖)。
+#: 合成 file_stack 帧 token —— texmf 系统件径形字符串道具，只供
+#: err_outside_fileset 的 texmf 正则归类，从不读盘 (非宿主机路径依赖)。
 _SYS_STY_FRAME = "/usr/share/texmf-dist/tex/latex/axessibility/axessibility.sty"
 
 _MAIN = (
@@ -133,7 +133,7 @@ def test_route_unbraced_arg_site_to_argful_noop(tmp_path: Path) -> None:
     assert (
         "\\ifdefined\\pdfrefobj\\else\\protected\\long\\def\\pdfrefobj#1{}\\fi" in out
     )
-    # 恒头注入: cls/sty 内使用发生在装载期间, docclass 行后太晚
+    # 恒头注入：cls/sty 内使用发生在装载期间，docclass 行后太晚
     assert out.index("\\ifdefined\\pdfrefobj") < out.index("\\documentclass")
     assert any(d.startswith("pdftex_prim_guard:") for d in ctx.declined)
 
@@ -150,11 +150,11 @@ def test_route_argprim_outside_fileset(tmp_path: Path) -> None:
 
 
 def test_route_braced_arg_site_guard_first(tmp_path: Path) -> None:
-    """回归: fileset 内 ``\\pdfobj{dict}`` 花括号形 → guard(50) 仍先修。
+    """回归：fileset 内 ``\\pdfobj{dict}`` 花括号形 → guard(50) 仍先修。
 
     站点取 spotcolor.sty:34 真形 —— 实参 ``}`` 是本行末枚 ``}``
-    (guard ``[^\\n]*\\}`` 贪婪锚, 单行嵌套 ``\\def\\f{\\pdfobj{..}}``
-    会把 ``\\fi`` 落出宏体外, 系 guard 侧先存缺陷不在本臂面)。
+    (guard ``[^\\n]*\\}`` 贪婪锚，单行嵌套 ``\\def\\f{\\pdfobj{..}}``
+    会把 ``\\fi`` 落出宏体外，系 guard 侧先存缺陷不在本臂面)。
     """
     ctx = _ctx(
         tmp_path,
@@ -170,7 +170,7 @@ def test_route_braced_arg_site_guard_first(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 臂直驱
 def test_arm_argful_signature_table(tmp_path: Path) -> None:
-    """臂分派: 单参/双参/零参/条件四形 + 寄存器两臂 + chardef 兜底。"""
+    """臂分派：单参/双参/零参/条件四形 + 寄存器两臂 + chardef 兜底。"""
     cases = {
         "pdfobj": "\\protected\\long\\def\\pdfobj#1{}",
         "pdfrefobj": "\\protected\\long\\def\\pdfrefobj#1{}",
@@ -204,7 +204,7 @@ def test_arm_argful_signature_table(tmp_path: Path) -> None:
 
 
 def test_arm_argful_idempotent(tmp_path: Path) -> None:
-    """``\\ifdefined\\<prim>`` 幂等闸: 同 prim 二轮注入拒 (already guarded)。"""
+    """``\\ifdefined\\<prim>`` 幂等闸：同 prim 二轮注入拒 (already guarded)。"""
     ctx = _ctx(tmp_path)
     ok, _ = builtins.pdftex_prim_polyfill(ctx, None, "pdfobj", {})
     assert ok

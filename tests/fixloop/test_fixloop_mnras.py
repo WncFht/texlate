@@ -3,15 +3,15 @@
 实证背景 (cell 1206.0291): ``\\documentclass[usenatbib,usegraphicx]{mn2e}``
 → 老类名经 stub 桥到 mnras 面; mnras.cls v3.2 (2023/07/20, 上游 verbatim)
 :79 ``\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}``
-—— ``\\ds@`` 处理器在 ``\\ProcessOptions`` 内执行, kernel 对 Options
+—— ``\\ds@`` 处理器在 ``\\ProcessOptions`` 内执行，kernel 对 Options
 Section 内 ``\\usepackage``/``\\RequirePackage``/``\\LoadClass`` 直接炸
 "LaTeX Error: \\RequirePackage or \\LoadClass in Options Section"。
 上游同文件 :1335 usenatbib 已是「\\ds@ 只置 if → ProcessOptions 后
-\\usepackage」正例, graphicx 系孤例漏改。补丁沿该文件自身惯用体例:
+\\usepackage」正例，graphicx 系孤例漏改。补丁沿该文件自身惯用体例：
 \\ds@usegraphicx 只置 ``\\@usegraphicxtrue``, ``\\ProcessOptions`` 后
-``\\if@usegraphicx\\usepackage{graphicx}\\fi`` 补装, 语义等价零绕行。
+``\\if@usegraphicx\\usepackage{graphicx}\\fi`` 补装，语义等价零绕行。
 
-旁证: vendor/shims/mn.cls + mn2e.cls (mn2e/mn → mnras 桥) 早已各自把
+旁证：vendor/shims/mn.cls + mn2e.cls (mn2e/mn → mnras 桥) 早已各自把
 usegraphicx 从 ``\\@classoptionslist`` 剔除 —— 本钉位补丁让真件路径
 (直书 ``\\documentclass[usegraphicx]{mnras}`` / stub 剔除面外) 同样免疫。
 """

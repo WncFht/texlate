@@ -11,7 +11,7 @@ texglot-patterns §5），服务 ``uv tool install`` 一键可用语义：
 - sha256 是**唯一信任锚**（无 PGP/sigstore）——不匹配即整体拒绝，先校验
   后落盘，绝不执行未过校验的产物。
 - 归档只提 ``tectonic`` 单文件（成员 basename 匹配且恰好一个）；先写
-  ``<tools>/tectonic.<pid唯一>.download`` staging → ``chmod 0o755`` →
+  ``<tools>/tectonic.<pid 唯一>.download`` staging → ``chmod 0o755`` →
   ``replace()`` 原子落位（唯一 staging 名免并发 install 互踩）。
 - 托管根 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（单源 ``textutil.data_root``——
   compile 层不反向依赖 server）。
@@ -52,7 +52,7 @@ log = logging.getLogger(__name__)
 
 TECTONIC_VERSION = "0.17.0"
 
-#: ``(system, machine)`` → ``(asset 文件名后缀, sha256)``——texglot 钉值，
+#: ``(system, machine)`` → ``(asset 文件名后缀，sha256)``——texglot 钉值，
 #: 已对上游 release 实下载复核（见模块 docstring）。
 ASSETS: dict[tuple[str, str], tuple[str, str]] = {
     ("Windows", "x86_64"): (

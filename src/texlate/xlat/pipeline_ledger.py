@@ -1,4 +1,4 @@
-"""pipeline 结果账本域（自 ``pipeline`` 出叶）：skip/直通落形 + 拦截网/auth闸/emit 双档收账。
+"""pipeline 结果账本域（自 ``pipeline`` 出叶）：skip/直通落形 + 拦截网/auth 闸/emit 双档收账。
 
 ``_XlatLedger`` 是 ``XlatPipeline`` 的账本臂 mixin——每个 ChunkResult 走
 「拦截网序列 → auth 闸入账 → state/on_result emit」的统一点列，普通

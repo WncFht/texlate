@@ -45,15 +45,15 @@ __all__ = [
 #: ``Control sequence \X already defined`` —— expl3 ``\cs_new`` 系
 #: ``\cs_if_exist`` 检查的 already-defined 签名 (Command 形 ``\@ifdefinable``
 #: 报的姊妹签; taxonomy 只收 Command → 本签落 other 无 payload)。名字面
-#: 纯字母类即闸: ``\c__fontspec_*``/``\ctex@*`` 内码名中 ``_``/``@`` 与
-#: 紧跟的 `` already defined`` 邻接要求互斥, 天然排除 —— ``fontspec_
+#: 纯字母类即闸：``\c__fontspec_*``/``\ctex@*`` 内码名中 ``_``/``@`` 与
+#: 紧跟的 `` already defined`` 邻接要求互斥，天然排除 —— ``fontspec_
 #: double_merge`` 的 ``\c__fontspec_shape_*`` 面与包内私有名都不进此格。
 _CTLSEQ_DEF_RE = re.compile(r"Control sequence \\([A-Za-z]+) already defined")
 
 
 #: file-line-error 行首 ``path/file.ext:NNN:`` 前缀 —— 第二定义者文件定位
-#: (无此前缀的非 file-line-error log 不定界, 该名跳过)。``.cls`` 不收:
-#: 类文件在 ``\documentclass`` 内执行, 其错必在缝前, 缝顶 ``\let`` 鞭长莫及。
+#: (无此前缀的非 file-line-error log 不定界，该名跳过)。``.cls`` 不收：
+#: 类文件在 ``\documentclass`` 内执行，其错必在缝前，缝顶 ``\let`` 鞭长莫及。
 _CTLSEQ_ERRFILE_RE = re.compile(
     r"^[ \t]*(\S+?\.(?:sty|def|cfg|clo|ltx)):[0-9]+:", re.IGNORECASE
 )
@@ -84,8 +84,8 @@ _CJK_SEAM_MARKS = ("% [texlate injected]", "% texlate: CJK via xeCJK")
 
 
 #: 清位禁区名表 —— ``Control sequence`` 签下 ``end*`` 形名义上可清
-#: (``\cs_if_exist`` 无 ``\@qend`` 名拒, 与 ``\@ifdefinable`` 不同),
-#: 但原语/内核命令被 ``\let\@undefined`` 即全局灾难, 与寄存器护栏并施。
+#: (``\cs_if_exist`` 无 ``\@qend`` 名拒，与 ``\@ifdefinable`` 不同),
+#: 但原语/内核命令被 ``\let\@undefined`` 即全局灾难，与寄存器护栏并施。
 _CTLSEQ_RESERVED = frozenset(
     {
         "relax",
@@ -207,7 +207,7 @@ def ctlseq_undefine(  # noqa: PLR0911 - 逐门 decline 注释即归因
     if not any(m in main_t for m in _CJK_SEAM_MARKS):
         return False, "no texlate CJK block at docclass seam"
     if not find_docclass_ends(main_t):
-        return False, "no docclass seam"  # 退文件头 = cls 前清位, 错序
+        return False, "no docclass seam"  # 退文件头 = cls 前清位，错序
     fresh = [
         n
         for n in sorted(names)

@@ -192,7 +192,7 @@ def test_regions_matched_figure(tmp_path: Path) -> None:
         rc = reg[side]
         assert rc["page"] == 2  # noqa: PLR2004 -- 钉的是字面页号
         assert rc["start"] == pytest.approx(0.1162, abs=1e-3)
-        # 下缘 = max(图形底, caption+pad) = 0.3939+0.025
+        # 下缘 = max(图形底，caption+pad) = 0.3939+0.025
         assert rc["end"] == pytest.approx(0.4189, abs=1e-3)
         assert 0 <= rc["start"] < rc["end"] <= 1
 

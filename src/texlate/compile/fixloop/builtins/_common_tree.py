@@ -52,7 +52,7 @@ def _fp_diff(
     *,
     exclude: Iterable[Path] = (),
 ) -> list[Path]:
-    """指纹 diff 核: 基线间变值路径集 (``exclude`` 自产写件除外)。
+    """指纹 diff 核：基线间变值路径集 (``exclude`` 自产写件除外)。
 
     ``_landing_sync`` 的外部落件判据与 ``builtins.misc._invalidate_changed``
     的通用补同核——后者免 exclude (全量失效)。
@@ -66,7 +66,7 @@ def _fp_diff(
 
 
 #: 工程件遍历的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
-#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非稿自带件。
+#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件，非稿自带件。
 #: (canonical 自 builtins.graphics 归位 —— 彼侧副本删后回引本件。)
 _PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
 
@@ -85,8 +85,8 @@ def _wdir_project_files(ctx: LoopCtx) -> Iterator[tuple[Path, tuple[str, ...]]]:
 
     dot 段路径 (``.git``/``.fixloop-*`` 类) 与任一段命中
     ``_PDF_SANITIZE_SKIP_DIRS`` (``_texmf`` wired texmfhome / ``_tect_out``
-    tectonic 产物树) 的件都不算工程档——引擎封装件非稿自带, 归位/hoist
-    不得把它们当搬运源 (``parts[0]`` 判会漏嵌套位, 须 any-part)。
+    tectonic 产物树) 的件都不算工程档——引擎封装件非稿自带，归位/hoist
+    不得把它们当搬运源 (``parts[0]`` 判会漏嵌套位，须 any-part)。
     """
     for p in ctx.wdir.rglob("*"):
         if not safe_is_file(p):

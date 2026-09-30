@@ -1,8 +1,8 @@
 """specs._validbench_corrupt — c01–c10 破坏算子叶 (validbench 拆分叶).
 
-(gen_cases.py c01–c10 照搬; rv.PH_RX/KEY_CMD_RX → l0.PH_ANY_LIKE_RX/KEY_CMD_RX 同口径.
+(gen_cases.py c01–c10 照搬; rv.PH_RX/KEY_CMD_RX → l0.PH_ANY_LIKE_RX/KEY_CMD_RX 同口径。
  产品化修订 (全部有实测漏检出典): 候选一律限注释区外 (l0 规则经 mask_comments
- 豁免注释, 注释内破坏是语义 no-op); c06 修 `]` 补回合法 token 的自愈路径与
+ 豁免注释，注释内破坏是语义 no-op); c06 修 `]` 补回合法 token 的自愈路径与
  裸标记无数字回退; c07 用 _lex bs token 选真定界符 (\\\\[5pt] 的 \\[ 不算);
  c09 跳过空 key 匹配如 \\bibitem[]{}; c08/c10 插入位按"前一字符在注释内即死".)
 """
@@ -39,8 +39,8 @@ def _in_comment(spans: list[int], pos: int) -> bool:
 
 
 def _live_insert_positions(s: str, spans: list[int]) -> list[int]:
-    """可插入位: 落在 ``pos`` 的文本拼进 ``s[pos-1]`` 所在词法区 ——
-    ``pos-1`` 在注释内即注释内插入 (含注释行尾 ``\\n`` 前位, 实测漏检来源)."""
+    """可插入位：落在 ``pos`` 的文本拼进 ``s[pos-1]`` 所在词法区 ——
+    ``pos-1`` 在注释内即注释内插入 (含注释行尾 ``\\n`` 前位，实测漏检来源)."""
     return [p for p in range(len(s) + 1) if p == 0 or not _in_comment(spans, p - 1)]
 
 
@@ -114,9 +114,9 @@ def c06_typo_ph(zh: str, rng: random.Random) -> str | None:
         return None
     tok = m.group(0)
     inner = tok[2:-2]
-    # 变体菜单; 某些变体在特定上下文是语义 no-op 要避开:
+    # 变体菜单; 某些变体在特定上下文是语义 no-op 要避开：
     #   v1 掉 ] —— 若 match 后紧跟 ] (如 [[REF_1]]] 外层括号), 截断后与残余 ]
-    #       重新拼成合法 token → 自愈, 校验器正确地无报 → 该上下文禁选 v1
+    #       重新拼成合法 token → 自愈，校验器正确地无报 → 该上下文禁选 v1
     #   v2 改数字 index —— 裸标记 ([[SL]] 无 \d+) 无 index 可改 → 回退 v0
     variants = []
     inner2 = inner[:-1] + ("Z" if inner[-1] != "Z" else "Y")
@@ -134,8 +134,8 @@ def c06_typo_ph(zh: str, rng: random.Random) -> str | None:
 
 def c07_unpair_lbrack(zh: str, rng: random.Random) -> str | None:
     # 候选取 l0._lex 的 bs token —— 正则 \\\] 会把 \\[5pt] 的 \[ (linebreak
-    # 可选参, 非 display 定界符) 算进来, 删了不在 math 词表 = 语义 no-op
-    # (实测漏检来源); bs token 自带注释/转义豁免.
+    # 可选参，非 display 定界符) 算进来，删了不在 math 词表 = 语义 no-op
+    # (实测漏检来源); bs token 自带注释/转义豁免。
     rb = [pos for kind, text, pos in l0._lex(zh) if kind == "bs" and text == "\\]"]
     if rb:
         p = rb[rng.randrange(len(rb))]

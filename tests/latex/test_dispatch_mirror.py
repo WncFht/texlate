@@ -212,7 +212,7 @@ def test_fam_bind_identity() -> None:
 
 
 def test_name_family_mirror() -> None:
-    """全集逐名：``_resolve`` 出的 (A族, B族, pend族) 必须等于裁定对。"""
+    """全集逐名：``_resolve`` 出的 (A 族，B 族，pend 族) 必须等于裁定对。"""
     bad: dict[str, tuple[str, str, str]] = {}
     for name in sorted(_UNIVERSE):
         a = _resolve(_DISPATCH_FAMS, name)
@@ -421,7 +421,7 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("vskip", "=3pt"): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     ("vspace", ""): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     # ---- 等价：chunk-arg 族 ``{zzq}``——主流 ``\section[opt]{`` 前缀出字面
-    # piece + 参进独立 chunk；组内名+头参进 ``[[CMD]]``、``{arg}`` 组
+    # piece + 参进独立 chunk；组内名 + 头参进 ``[[CMD]]``、``{arg}`` 组
     # token 留 surface 续扫（B 臂无独立 chunk piece——参留主流即同可见） ----
     ("abst", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("caption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),

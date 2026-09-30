@@ -853,7 +853,7 @@ def test_fuzz_rebase_violations_oracle(tmp_path: Path) -> None:
         "../a~b.tex",
         "uni码.tex",
     ]
-    # (形态模板, 花括号参?, rebase 覆盖?)——rebase 正则只有 input/include
+    # (形态模板，花括号参？, rebase 覆盖？)——rebase 正则只有 input/include
     forms = [
         ("\\input{%s}\n", True, True),
         ("\\input %s\n", False, True),
@@ -871,7 +871,7 @@ def test_fuzz_rebase_violations_oracle(tmp_path: Path) -> None:
         (root / "shared/x.tex").write_bytes(b"% s\n")
         (root / "deep").mkdir()
         (root / "deep/y.tex").write_bytes(b"% d\n")
-        # planted: (捕获名, 该形态是否 rebase 覆盖, 是否遮盖)
+        # planted: (捕获名，该形态是否 rebase 覆盖，是否遮盖)
         planted: list[tuple[str, bool, bool]] = []
         body = ["\\documentclass{article}\n\\begin{document}\n"]
         for _ in range(rng.randint(1, 6)):

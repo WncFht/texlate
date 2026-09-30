@@ -78,7 +78,7 @@ def test_svg_tex_pdf_intermediate_not_graphic() -> None:
 
 
 def test_svg_demote_dispatch_apply(tmp_path: Path) -> None:
-    """\\includesvg[opts]{X.svg} → \\includegraphics[opts]{X.pdf}。"""
+    """\\includesvg[opts]{X.svg} → \\includegraphics[opts]{X.pdf}."""
     head = parse_text(_SVG_LOG).first or ""
     _write(
         tmp_path,
@@ -125,7 +125,7 @@ def test_svg_demote_idempotent(tmp_path: Path) -> None:
 def test_svg_demoted_ref_next_round_reaches_placeholder(tmp_path: Path) -> None:
     """降级后次轮 xetex ``Unable to load picture or PDF file 'X.pdf'`` →
     missing_graphic|X.pdf → graphic_missing_placeholder when+cond 均过
-    (源侧枚举补桩链路就位, 同格缺 png 一并收)。"""
+    (源侧枚举补桩链路就位，同格缺 png 一并收)。"""
     rep = parse_text(
         "main.tex:10: Unable to load picture or PDF file 'modified-recoverability.pdf'\n"
         "l.10 x\n"
@@ -178,8 +178,8 @@ def test_mncite_retire_declines_other_missing(tmp_path: Path) -> None:
 def test_mncite_retire_masked_idempotent(tmp_path: Path) -> None:
     """已注释装载行 masked 面不可见 → apply decline 原文不动 (天然幂等)。
 
-    source_contains 非遮盖面仍见 ``mncite`` 字面 → cond 过, 权威在
-    masked apply。
+    source_contains 非遮盖面仍见 ``mncite`` 字面 → cond 过，权威在
+    masked apply.
     """
     src = (
         "\\documentclass{mn2e}\n%\\usepackage{mncite}\n"
@@ -317,7 +317,7 @@ def test_noalign_idempotent(tmp_path: Path) -> None:
 
 
 # ════════════════════════════════════════════════════════════════
-# 2505.08102: zh 全角 （） 泄入 \big 族定界符操作位 → ASCII
+# 2505.08102: zh 全角（）泄入 \big 族定界符操作位 → ASCII
 # ════════════════════════════════════════════════════════════════
 
 _DELIM_HEAD = "main.tex:359: Missing delimiter (. inserted).\nl.359 $x$"
@@ -330,7 +330,7 @@ def test_fullwidth_delim_classifies_syntax() -> None:
 
 
 def test_fullwidth_delim_dispatch_apply(tmp_path: Path) -> None:
-    """\\big（/\\big）/\\left（/\\right） 全收。"""
+    """\\big（/\\big）/\\left（/\\right）全收。"""
     _write(
         tmp_path,
         "\\begin{document}\n$\\big（x+y\\big）$ and $\\left（z\\right）$\n\\end{document}\n",
@@ -356,7 +356,7 @@ def test_fullwidth_delim_declines_ascii(tmp_path: Path) -> None:
 
 
 def test_fullwidth_delim_non_big_adjacent_untouched(tmp_path: Path) -> None:
-    """裸 （） 非 \\big 邻位不动 (missing_char 域, 非本臂)。"""
+    """裸（）非 \\big 邻位不动 (missing_char 域，非本臂)。"""
     _write(tmp_path, "（x）\n")
     ok, _ = _apply("big_fullwidth_delim_fix", tmp_path)
     assert not ok
@@ -422,7 +422,7 @@ def test_redactcite_classifies_runaway_payload() -> None:
 
 
 def test_redactcite_brace_close_dispatch_apply(tmp_path: Path) -> None:
-    """\\redactcite{\\cite{key}。 → \\redactcite{\\cite{key}}。"""
+    """\\redactcite{\\cite{key}. → \\redactcite{\\cite{key}}."""
     _write(tmp_path, "正文 \\redactcite{\\cite{thompson_ssl_cv_dataset_2026}。 下段\n")
     assert when_cond_ok(
         "redactcite_brace_close",
@@ -454,7 +454,7 @@ def test_redactcite_declines_healthy(tmp_path: Path) -> None:
 
 
 def test_aux_purge_redactcite_arm_dispatches(tmp_path: Path) -> None:
-    """指派表侧: aux_purge_regen (b) 臂 ctx_suggests 已含 redactcite —
+    """指派表侧：aux_purge_regen (b) 臂 ctx_suggests 已含 redactcite —
     runaway_scan|\\redactcite when+cond 均过 (65-encoding:92 表列名)。"""
     assert when_cond_ok(
         "aux_purge_regen", "runaway_scan", "\\redactcite", _REDACT_HEAD, tmp_path
@@ -464,7 +464,7 @@ def test_aux_purge_redactcite_arm_dispatches(tmp_path: Path) -> None:
 def test_aux_purge_redactcite_declines_healthy_aux(tmp_path: Path) -> None:
     """该格实机非 aux 回读 (main.aux 0 redactcite 写件) —— 健康 aux 上
     aux_purge_regen 全链 (kind 派发→params→purge_corrupt_intermediates)
-    decline 钉死: 指派表臂语义一致族表列名补全, 真修归
+    decline 钉死：指派表臂语义一致族表列名补全，真修归
     redactcite_brace_close doc 级臂。"""
     (tmp_path / "main.aux").write_bytes(b"\\relax\n\\newlabel{a}{{1}{1}{ok}}\n")
     ok, _ = _apply("aux_purge_regen", tmp_path, "\\redactcite")

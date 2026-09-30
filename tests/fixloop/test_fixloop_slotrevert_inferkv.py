@@ -73,7 +73,7 @@ def test_inferkv_no_opt_sites_not_slots(tmp_path: Path) -> None:
     ok, _note = _run(work, base)
     assert ok
     out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\infer{文}{B}" in out  # mand 参非机位, zh 保留
+    assert "\\infer{文}{B}" in out  # mand 参非机位，zh 保留
     assert "\\inferrule*[l=x]{P}{C}" in out  # 双侧一致 opt 未动
     assert "\\label{s}" in out
 

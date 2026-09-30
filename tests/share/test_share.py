@@ -141,7 +141,7 @@ def test_pack_artifact_single_read(
     calls: list[str] = []
 
     class _MutateAtEof:
-        """``zh.pdf`` 读流 EOF 时改源文件——模拟读-写间隙 TOCTOU。"""
+        """``zh.pdf`` 读流 EOF 时改源文件——模拟读 - 写间隙 TOCTOU。"""
 
         def __init__(self, fh: BinaryIO, path: Path) -> None:
             self._fh = fh

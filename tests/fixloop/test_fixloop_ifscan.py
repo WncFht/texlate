@@ -22,7 +22,7 @@ from texlate.textutil import scan_ifs
 
 _RULE_ID = "unclosed_if_close"
 
-# loop4 批一 事故门核心形: 分支内 \let + 分支外裸用 alias。
+# loop4 批一 事故门核心形：分支内 \let + 分支外裸用 alias。
 _POISON_GATE = (
     "\\documentclass{article}\n"
     "\\ifdefined\\XeTeXversion\n"

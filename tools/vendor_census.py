@@ -103,7 +103,7 @@ for tier in ("files", "shims", "stubs"):
         data = p.read_bytes()
         name, ver = provides(p)
         if name:
-            # docstrip 续行注释面: `{%\nltxutil%\n.sty%` → ltxutil.sty
+            # docstrip 续行注释面：`{%\nltxutil%\n.sty%` → ltxutil.sty
             name = re.sub(r"%|\s", "", name) or None
         entries.append(
             {

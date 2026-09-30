@@ -880,7 +880,7 @@ class _Oracle209(NamedTuple):
 def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
     tex: str, *, sty_stems: set[str], sty_paths: dict[str, str], ds_at: set[str]
 ) -> _Oracle209:
-    """独立重述 ``upgrade_209``——含输出全文重建（残token改名倒序回填）。"""
+    """独立重述 ``upgrade_209``——含输出全文重建（残 token 改名倒序回填）。"""
     vis = visible_tex(tex)
     m = _oracle_primary(vis)
     if m is None:

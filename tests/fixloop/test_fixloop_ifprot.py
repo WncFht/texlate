@@ -138,7 +138,7 @@ def test_decline_no_docclass_seam(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二入幂等: snippet 指纹在件即跳, 文本不变。"""
+    """二入幂等：snippet 指纹在件即跳，文本不变。"""
     _main(tmp_path)
     ctx = _ctx(tmp_path, [_NOOP_ENTRY])
     ok, _note = if_phantom_protect(ctx, None, None, {})
@@ -163,7 +163,7 @@ def test_params_cs_override(tmp_path: Path) -> None:
 
 
 def test_registration_and_rule() -> None:
-    """注册钉: TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线/序位一致。"""
+    """注册钉：TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线/序位一致。"""
     assert builtins.TRANSFORM_FNS["if_phantom_protect"] is if_phantom_protect
     rules = {r.id: r for r in load_ruleset().rules}
     rule = rules["if_phantom_protect"]

@@ -47,13 +47,13 @@ __all__ = [
 
 # ════════════════════════════════════════════════════════════════
 # missing_graphic: 缺图 ci 改名 + 坏图分级修复
-# (signature-mining 2026-09-16 top5#2: 2403.15102/2211.04457 大小写不符,
+# (signature-mining 2026-09-16 top5#2: 2403.15102/2211.04457 大小写不符，
 #  1502.06541/1012.5273 在盘拒载)
 # ════════════════════════════════════════════════════════════════
 
 
 #: graphicx 可装载图形扩展名面 —— 无扩展名 ``\includegraphics{x}`` 的
-#: ci 补全候选域 (与 _EPS_EXTS 分工: 那边管 PS 族转换, 这边管全图形族匹配)。
+#: ci 补全候选域 (与 _EPS_EXTS 分工：那边管 PS 族转换，这边管全图形族匹配)。
 _GRAPHIC_EXTS = (
     ".pdf",
     ".png",
@@ -67,7 +67,7 @@ _GRAPHIC_EXTS = (
 )
 
 
-#: ``\includegraphics`` 引用点: g1=可选 opts, g2=图像参数 (星号变体同收)。
+#: ``\includegraphics`` 引用点：g1=可选 opts, g2=图像参数 (星号变体同收)。
 #: arg 捕获面收一层内层花括 (``dir/{stem}.ext``/``{file.png}`` 两形) ——
 #: ``[^}]*`` 在内层 ``}`` 处截断会漏 braced 实参 (1710.09412 micro2 实证)。
 _INCLUDE_GFX_RE = re.compile(
@@ -75,9 +75,9 @@ _INCLUDE_GFX_RE = re.compile(
 )
 
 
-#: ``\includepdf[opts]{file}`` (pdfpages) 引用点 —— W66 孤儿裁决面:
+#: ``\includepdf[opts]{file}`` (pdfpages) 引用点 —— W66 孤儿裁决面：
 #: 与 ``_INCLUDE_GFX_RE`` 分正则而非并表 —— graphic_repair 的 ``\fbox``
-#: stub 语义只适用图像件, includepdf 缺件占位是 ``\clearpage\null``。
+#: stub 语义只适用图像件，includepdf 缺件占位是 ``\clearpage\null``。
 _INCLUDE_PDF_RE = re.compile(
     r"\\includepdf(?![a-zA-Z])\s*(?:\[([^\]\n]*)\])?\s*\{((?:[^{}]|\{[^{}]*\})*)\}"
 )
@@ -229,7 +229,7 @@ def graphic_case_link(
         return False, f"{want} resolves verbatim — not a case mismatch"
     # 1710.09412 (micro2 普查): ``dir/{stem}.ext`` 部分花括名 —— xetex 不剥
     # 内层分组符按字面名寻档 (micro2 车道实证), 盘上真身是去括名。
-    # braced payload 即文档惯用法证据 → 全量扫; 去括名不在盘的不动, 让位
+    # braced payload 即文档惯用法证据 → 全量扫; 去括名不在盘的不动，让位
     # ci-glob/占位域。先于 ci-glob —— 精确路径级命中不该轮到占位件遮真图。
     if "{" in want or "}" in want:
         mp = ctx.main_path()

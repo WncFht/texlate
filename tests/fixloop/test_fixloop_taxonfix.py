@@ -21,7 +21,7 @@ from _fixloopkit import CLEAN_LOG, MockEngine, classify, make_proj, rs
 
 from texlate.compile.fixloop import fixloop
 
-# ── 2105.03751 形: GenericError ctx + l.N 行末 \footnote ──
+# ── 2105.03751 形：GenericError ctx + l.N 行末 \footnote ──
 _UNDEF_FOOTNOTE_LOG = (
     "./gftphantomcosmology.tex:913: Undefined control sequence.\n"
     "\\GenericError  ...                                \n"
@@ -32,7 +32,7 @@ _UNDEF_FOOTNOTE_LOG = (
     "of your error message was never \\def'ed. If you have\n"
 )
 
-# ── 0712.1016 形: GenericError ctx + l.N 行中段 \diagchar (nonletter 噪声夹带) ──
+# ── 0712.1016 形：GenericError ctx + l.N 行中段 \diagchar (nonletter 噪声夹带) ──
 _UNDEF_DIAGCHAR_LOG = (
     "./snc.tex:625: Undefined control sequence.\n"
     "\\GenericError  ...                                \n"
@@ -43,7 +43,7 @@ _UNDEF_DIAGCHAR_LOG = (
     "of your error message was never \\def'ed. If you have\n"
 )
 
-# ── 0712.1016 第四错形: 中间层末位 \endgroup 渲染机残片, l.N 行仍须胜 ──
+# ── 0712.1016 第四错形：中间层末位 \endgroup 渲染机残片，l.N 行仍须胜 ──
 _UNDEF_DIAGCHAR_ENDGROUP_LOG = (
     "./snc.tex:625: Undefined control sequence.\n"
     "\\GenericError  ...                                \n"
@@ -121,7 +121,7 @@ def test_tikz_library_missing_file_taxonomy() -> None:
 
 
 def test_tikz_library_install_arms_shape() -> None:
-    """两臂形态钉: order 居 install_file 前, ctx_suggests 签名闸, 命名约定 file。"""
+    """两臂形态钉：order 居 install_file 前，ctx_suggests 签名闸，命名约定 file。"""
     arms = {
         r.id: r
         for r in rs().rules

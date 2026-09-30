@@ -244,7 +244,7 @@ class TestLadderInvariants:
 
     def test_lines_stage_requests_every_line_and_cancels(self) -> None:
         """observed: 行级不早退——逐行全发，坏行照样进 ``fixed`` 候选；
-        行间失败可在整段对账互消（行1 丢 MATH_1、行2 多 MATH_1
+        行间失败可在整段对账互消（行 1 丢 MATH_1、行 2 多 MATH_1
         净零 → 救回），``bad_lines`` 计数进 warning。"""
         calls: list[str] = []
 
@@ -253,8 +253,8 @@ class TestLadderInvariants:
             if "MATH_1" in text and "CITE_2" in text:
                 return "整段两占位符全丢"  # whole 阶段必败
             if "MATH_1" in text:
-                return "甲"  # 行1：丢 MATH_1
-            return "乙 [[MATH_1]] [[CITE_2]]"  # 行2：多 MATH_1
+                return "甲"  # 行 1：丢 MATH_1
+            return "乙 [[MATH_1]] [[CITE_2]]"  # 行 2：多 MATH_1
 
         res = asyncio.run(
             rt.translate_with_ladder(

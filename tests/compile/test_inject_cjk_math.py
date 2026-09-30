@@ -100,7 +100,7 @@ def test_first_use_warmup_engine_guard() -> None:
 
 
 def test_math_fallback_covers_unified_ranges() -> None:
-    """兜底码位覆盖 CJK 统一表意文字主段 + ext-A + 部首补充(2E80-2FDF)
+    """兜底码位覆盖 CJK 统一表意文字主段 + ext-A + 部首补充 (2E80-2FDF)
     + 兼容/标点/假名/全角 + astral ext-B(20000-2A6DF) 与 ext-C..F 段
     (2A700-2EBEF)——``\\TeXlate@mathmap\\symtexlatecjk`` 九段全钉。"""
     for rng in (

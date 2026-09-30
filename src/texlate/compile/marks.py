@@ -85,7 +85,7 @@ _INNER_ENVS: Final = frozenset(
 )
 
 #: 注入块——``\@for`` 逐环境注册 ``env/<name>/begin|end`` 钩子。
-#: uid = ``<env>-<per-env序>-<b|e>``，per-env 计数器
+#: uid = ``<env>-<per-env 序>-<b|e>``，per-env 计数器
 #: ``\csname txlm@c@<env>\endcsname`` 惰性 ``\newcount``，
 #: ``\global\advance`` 抗浮体组作用域；begin 才 bump，end 复用同值成对。
 #: begin 钩子 ``\@currenvir`` 自取环境名（此时恒为当前 env）；
@@ -171,7 +171,7 @@ def inject_layout_marks(root: Path) -> int:
 
 
 def parse_txlm(path: Path) -> dict:
-    """``<stem>.txlm`` → ``{marks: {uid: {x,y,p}}, geom: {kw: pt}, lines: n}``。"""
+    """``<stem>.txlm`` → ``{marks: {uid: {x,y,p}}, geom: {kw: pt}, lines: n}``."""
     marks: dict[str, dict] = {}
     geom: dict[str, float] = {}
     lines = 0
@@ -217,7 +217,7 @@ def env_inventory(root: Path) -> dict[str, int]:
 
 
 def env_sequence(root: Path, envs: frozenset = _FLOAT_ENVS) -> list[str]:
-    """源序浮体 uid 清单 ``<env>-<per-env序>``——声明锚真值。
+    """源序浮体 uid 清单 ``<env>-<per-env 序>``——声明锚真值。
 
     跨臂元素匹配的**主键**（不用 b-mark：探针实证 b whatsit 独占末页
     galley 时不触发 page builder，浮体孤页会丢 b-mark；源扫出的声明序
@@ -364,7 +364,7 @@ def _e_map(marks: dict) -> dict[str, dict]:
 
 
 def _offpage_findings(zh: dict, offpage_pt: float) -> list[dict]:
-    """单侧出页检查：savepos 坐标超出纸张+容差即报。
+    """单侧出页检查：savepos 坐标超出纸张 + 容差即报。
 
     内层 env（tabular/minipage/textblock…）常居变换容器内（tikz
     rotate 节点/rotatebox/sidewaystable），savepos 报变换前布局坐标

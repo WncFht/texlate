@@ -1,4 +1,4 @@
-"""graphic_missing_placeholder — missing_file 的 PS 族图档真缺件 → EPS 占位落盘.
+"""graphic_missing_placeholder — missing_file 的 PS 族图档真缺件 → EPS 占位落盘。
 
 failmine3 #164a (8 格): graphic_ext_relax 剥扩展名后图档仍不在 tar —
 修复不是改源而是补档 (xbb_pregen 旁件同形)。占位文件统一可解
@@ -90,7 +90,7 @@ def test_epsfig_kv_form_counts_as_live_ref(tmp_path: Path) -> None:
 
 
 def test_commented_ref_does_not_count(tmp_path: Path) -> None:
-    # mask_tex 遮盖视图: 注释内 \includegraphics 不作存活证据
+    # mask_tex 遮盖视图：注释内 \includegraphics 不作存活证据
     ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "% \\includegraphics{ghost}\nx\n"},

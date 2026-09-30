@@ -182,7 +182,7 @@ _TAILNOTE_RE: Final = re.compile(r"\s*\[[^\]]{1,20}\]\s*$", re.ASCII)
 #: 自由文本 arXiv id 抽取器单源（``findall`` 友好：唯一捕获组 = 裸 id
 #: base，钉版 ``vN`` 匹配但不入组）。形状 = ``_OLD_ID_RE`` 的 classful
 #: 容忍形（``math.QA/0309136`` 也中）∪ 新形 ``YYMM.NNNNN``——与 canon
-#: 的「剥离+校验」分工不同：本件只管在自由文本里捞出候选串，上下文
+#: 的「剥离 + 校验」分工不同：本件只管在自由文本里捞出候选串，上下文
 #: 前缀闸归消费方（``bibexport.extract_ids`` 的 arxiv.org/arXiv: 臂）。
 #: 其余已知消费点 bench/py booster/iclr.map/corpus_hot/_layoutqc 待接线。
 ARXIV_ID_FIND_RX: Final = re.compile(
@@ -312,7 +312,7 @@ def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
     """``1412.6980``/``1412.6980v3``/``arXiv:hep-th/9901001``/abs URL → (id, ver)。
 
     薄壳转发 ``canon``：成功 → ``(canon.base, canon.version)``；拒收 →
-    ``(剥离剩件, None)``——旧契约「任意输入不抛」保留，剩件恒过不了
+    ``(剥离剩件，None)``——旧契约「任意输入不抛」保留，剩件恒过不了
     ``valid_id``/下游闸（``canon`` 已拒的串再 canon 必仍拒）。
     """
     try:

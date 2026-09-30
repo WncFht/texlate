@@ -82,7 +82,7 @@ def quantiles(xs: list[float]) -> dict:
 
 
 def paper_level_stats(rec: dict) -> dict:
-    """归一到单篇粒度：body/appendix/refs/abstract + bucket→words 聚合.
+    """归一到单篇粒度：body/appendix/refs/abstract + bucket→words 聚合。
 
     同 bucket 多节合并（paper 级分布）；frac_of_body 用合并值。
     """
@@ -157,7 +157,7 @@ def main() -> None:
             }
         )
 
-    # ---- 每篇选臂: LaTeX 优先（词数更准），无则 PDF 臂 ----
+    # ---- 每篇选臂：LaTeX 优先（词数更准），无则 PDF 臂 ----
     best: dict[str, dict] = {}
     for r in rows:
         cur = best.get(r["orid"])

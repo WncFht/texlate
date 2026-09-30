@@ -155,7 +155,7 @@ def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> Non
 
 
 def test_delivered_requires_nonempty_translation() -> None:
-    """ok+空译文不交付——worker ``_build_zh`` 同口径。
+    """ok+ 空译文不交付——worker ``_build_zh`` 同口径。
 
     ``status=="ok" and r["translation"]``（``texlate.pipecore.delivered`` /
     ``delivered_db``；``e2e._delivered`` 是其兼容别名）：空串进 splice
@@ -313,7 +313,7 @@ def test_base_condition(
     tmp_path: Path,
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- fixture 副作用
 ) -> None:
-    """base：不动源码编译+判定（expect_cjk=False → 无 CJK 检查）。"""
+    """base：不动源码编译 + 判定（expect_cjk=False → 无 CJK 检查）。"""
     work = make_project(tmp_path / "p")
     rec = e2e.base_condition(work, "tectonic", "main.tex", timeout=45.0)
 

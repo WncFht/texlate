@@ -4,7 +4,7 @@
 replay 剔出/needle SM 覆盖/针头验收/孤儿 snap/实标兜底）→ zh/en
 双侧 ``_match_side`` 补缺 → 死区 seq 针配后滤 → ``_pos_at``/
 ``_row_extent`` 流 offset 投影 Pos → zh_dead 时 ``_interp_t``
-alignment.pairs 插值兜底。``seqpos_for_task`` 懒算+缓存
+alignment.pairs 插值兜底。``seqpos_for_task`` 懒算 + 缓存
 ``task_dir/seqpos.json``，输入件 mtime 更新即重算；dual.json 本体
 不动（``?version=sha256`` 不可变）。
 """
@@ -129,7 +129,7 @@ def _row_extent(
     frac: float,
     x: float | None,
 ) -> tuple[float, float] | None:
-    """(page,frac) 最近行界 → (行左缘x0, 行右缘x1)——mark 锚补行幅面。
+    """(page,frac) 最近行界 → (行左缘 x0, 行右缘 x1)——mark 锚补行幅面。
 
     锚行须同页且 |Δfrac|≤半行级容差；mark 自带 x 时还要求 x 落回该行
     ``[x0,x1]`` 内（防把标记 snap 到同 frac 的异行）。
@@ -396,7 +396,7 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     # 双侧零标字形 = 死区候选（\iftoggle 吞参/弃置盒/声明点不渲染）：
     # 空壳标已剥出 marks，不在双侧标记层者进针配后滤——命中别家
     # trusted 标幅面 = 近重复孪生段误锚（t_f748 seq161/162→163/165
-    # 实证）剥；命中无标自渲区（\maketitle 类收集-迟发文本，t_32fc
+    # 实证）剥；命中无标自渲区（\maketitle 类收集 - 迟发文本，t_32fc
     # seq1 署名单实证）保留。整文档无标（遗产任务）不启用。
     if en_marks or zh_marks:
         dead_seqs = {
@@ -529,7 +529,7 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
 
 
 def seqpos_for_task(task_dir: Path, dual: dict[str, Any]) -> dict[str, Any] | None:
-    """懒算+缓存 ``task_dir/seqpos.json``。
+    """懒算 + 缓存 ``task_dir/seqpos.json``。
 
     输入件（dual/en.pdf/zh.pdf）任一更新即重算；不可算（缺 PDF/无
     chunks）→ None，调用方降级。

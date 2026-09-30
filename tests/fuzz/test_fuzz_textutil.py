@@ -6,7 +6,7 @@
   （``%`` 前奇数连续 ``\\`` = 转义存活，偶数 = 注释起点）全等；
 - ``mask_tex``：等长、逐字符「原样或空格」、换行保留、三种 flag 组合下
   均幂等；无 ``\\``+字母 的受限 alphabet 上与 ``mask_comments`` 全等；
-- ``lev_capped``：== min(无上限 DP 真距离, cap+1)，对称，自身距离 0；
+- ``lev_capped``：== min(无上限 DP 真距离，cap+1)，对称，自身距离 0；
 - ``decode_tex``/``sniff_tex_encoding``：任意字节不抛、确定性、产物无
   ``\\r``、verdict basis 在登记集内；合法 UTF-8 文本 round-trip 还原
   （``\\x00`` 与文首 U+FEFF 属编码内禀歧义面，发生器回避）；
@@ -209,7 +209,7 @@ def _lev_full(a: str, b: str) -> int:
 
 
 def test_fuzz_lev_capped_matches_full_oracle() -> None:
-    """小 alphabet 随机串 × 随机 cap：``lev_capped == min(真距离, cap+1)``，
+    """小 alphabet 随机串 × 随机 cap：``lev_capped == min(真距离，cap+1)``，
     对称、自身距离 0、返回值恒 ``≤ cap+1``。"""
     rng = fuzz_rng(20260920)
     alpha = "abc中"

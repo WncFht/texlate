@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 # ════════════════════════════════════════════════════════════════
-# xdvipdfmx .pfa 硬墙: ASCII Type1 → usertree .pfb + map 遮蔽 (1907.03923)
+# xdvipdfmx .pfa 硬墙：ASCII Type1 → usertree .pfb + map 遮蔽 (1907.03923)
 # ════════════════════════════════════════════════════════════════
 
 #: eexec 段起始锚 —— ASCII 头/密文边界。
@@ -50,9 +50,9 @@ _EEXEC_MARK_RX = re.compile(rb"currentfile eexec[ \t]*\r?\n")
 #: 免 stem 后缀误吃 (``<pen.pfa`` 不会中 ``<pigpen.pfa``); 扩展名大小写兼收。
 _MAP_PFA_RX = re.compile(r"<<?([^\s\"'<>]+\.pfa)\b", re.IGNORECASE)
 
-#: pdftex.map 分块源注释 ``% <pkg>.map`` —— updmap 合并逐块标源, 反查
+#: pdftex.map 分块源注释 ``% <pkg>.map`` —— updmap 合并逐块标源，反查
 #: 字体条目所属 dvips map 名 (供 usertree 同位遮蔽)。头部 ``% /path/....map:``
-#: 注释带冒号尾/路径, ``\S+\.map`` 尾锚同排。
+#: 注释带冒号尾/路径，``\S+\.map`` 尾锚同排。
 _MAP_SRC_RX = re.compile(r"^%[ \t]+(\S+\.map)[ \t]*$")
 
 
@@ -87,14 +87,14 @@ def _pfa_to_pfb_bytes(data: bytes) -> bytes | None:
 
 
 def _safe_map_name(name: str) -> PurePosixPath | None:
-    """Map token 名卫: 拒绝对路径/``..``/空名/含 NUL —— 只信 basename 级引用。"""
+    """Map token 名卫：拒绝对路径/``..``/空名/含 NUL —— 只信 basename 级引用。"""
     return _safe_rel(name)
 
 
 def _convert_map_pfas(
     ctx: LoopCtx, probe: Callable[..., str | None], texmf: Path, names: list[str]
 ) -> list[str]:
-    """Map 引用的 .pfa 逐个 probe+转换 → usertree ``home/fonts/type1/`` 落 .pfb。
+    """Map 引用的 .pfa 逐个 probe+ 转换 → usertree ``home/fonts/type1/`` 落 .pfb。
 
     返回转换成功的 token 名表 (保序); probe 不到/读不了/非 eexec 形跳过。
     """
@@ -248,7 +248,7 @@ _UNABLE_LOAD_RX = re.compile(r"Unable to load picture or PDF file '([^']+)'")
 _IMG_FAIL_RX = re.compile(r'image inclusion failed for "([^"]+)"')
 
 #: kv 形里允许剥名的宿主命令 —— epsfig/psfig 走 graphicx 补全机制;
-#: epsffile/epsfbox 是裸 PS 装载点, ``{X}`` 无扩展名不解析, 不剥。
+#: epsffile/epsfbox 是裸 PS 装载点，``{X}`` 无扩展名不解析，不剥。
 _EPS_KV_STRIP_CMDS = frozenset({"epsfig", "psfig"})
 
 #: 别名受理的显式扩展名 —— eps 族 + ``.pdf`` (conv 件本来就是

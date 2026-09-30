@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 def _probe(eng: Engine, fname: str, cwd: Path | None = None) -> str | None:
-    """``probe_file`` 兼容调用: 支持可选 ``cwd`` kwarg 的 impl 直传; 裸 Protocol 实现退无参。"""
+    """``probe_file`` 兼容调用：支持可选 ``cwd`` kwarg 的 impl 直传; 裸 Protocol 实现退无参。"""
     if cwd is not None:
         try:
             return eng.probe_file(fname, cwd=cwd)
@@ -134,8 +134,8 @@ def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
 
 
 #: 包文件行首依赖声明 —— 注释掉的 ``% \RequirePackage`` 不命中。
-#: ``textutil.LOADER_CMDS`` 真子集: ``PassOptionsToPackage``/``PassOptionsToClass``
-#: 首 ``{}`` 实参是选项表, group(1) 抓错名会产噪音安装件; ``LoadClassWithOptions``
+#: ``textutil.LOADER_CMDS`` 真子集：``PassOptionsToPackage``/``PassOptionsToClass``
+#: 首 ``{}`` 实参是选项表，group(1) 抓错名会产噪音安装件; ``LoadClassWithOptions``
 #: 首参虽为类名可收但原面不含 (差异留档非漏收)。
 _DEP_DECL_RE = re.compile(
     r"^[ \t]*\\(?:RequirePackage|RequirePackageWithOptions|LoadClass|usepackage)"
@@ -143,12 +143,12 @@ _DEP_DECL_RE = re.compile(
     re.MULTILINE,
 )
 
-#: ``\input stem``/``\input{stem}`` 裸名依赖——行内允许 (pst-* generic 实证:
+#: ``\input stem``/``\input{stem}`` 裸名依赖——行内允许 (pst-* generic 实证：
 #: pstricks-add.tex l.27-32 ``\ifx\PSTnodesLoaded\endinput\else \input pst-node \fi``
-#: 顺序链, 条件不管照装——probe/install 门控天然无害)。花括号形吃 ``\s*``
+#: 顺序链，条件不管照装——probe/install 门控天然无害)。花括号形吃 ``\s*``
 #: (``\input{x}`` 零空白是 LaTeX 主导形态; arxiv/locate.py:53 同口径),
 #: 裸名仍要求 ``\s+``——否则 ``\inputfoo``/``\inputlineno`` 被前缀误吃成
-#: ``foo``/``lineno`` 伪依赖 (lineno.sty 真实存在, 会真装)。
+#: ``foo``/``lineno`` 伪依赖 (lineno.sty 真实存在，会真装)。
 _DEP_INPUT_RE = re.compile(r"\\input(?:\s*\{([^}\n]*)\}|\s+([^\s{}%\\]+))")
 
 #: 行内注释切尾 —— ``\%`` 转义不算注释起点。
@@ -289,14 +289,14 @@ def _fd_case_variants(file: str) -> list[str]:
     return [lower, file] if lower != file else [file]
 
 
-def _relink_misplaced(  # noqa: C901  # 目录/文件链分派决策树, 拆则形合实离
+def _relink_misplaced(  # noqa: C901  # 目录/文件链分派决策树，拆则形合实离
     ctx: LoopCtx, fname: str, present: str
 ) -> Path | None:
     """工程内错位件 → 链进 TeX 解析位; 非工程件/已在解析位 → None。
 
-    编译 cwd = main 所在目录: 带目录 payload 只走 ``main_dir/fname`` 字面
+    编译 cwd = main 所在目录：带目录 payload 只走 ``main_dir/fname`` 字面
     解析 (kpathsea 对 dir 分量无裸名递补), 裸名走 ``main_dir`` + TEXINPUTS
-    —— 两形态下工程内错位件都够不到, 而 already-present 探测以 ``wdir``
+    —— 两形态下工程内错位件都够不到，而 already-present 探测以 ``wdir``
     为基会误报 (soak-2026-09-18 fairmeta/acronyms1: install_file 报
     already-present 但 TeX 照旧 missing_file)。
     """
@@ -308,7 +308,7 @@ def _relink_misplaced(  # noqa: C901  # 目录/文件链分派决策树, 拆则�
     try:
         hit_abs.resolve().relative_to(wdir.resolve())
     except (OSError, ValueError):
-        return None  # texmf 命中/归属判不出 —— TEXINPUTS 可达, 无 relink 面
+        return None  # texmf 命中/归属判不出 —— TEXINPUTS 可达，无 relink 面
     parts = PurePosixPath(fname).parts
     if len(parts) > 1:
         # 目录形 payload: wdir/<首段> 是目录且非 main_dir 祖先 → 目录级
@@ -363,7 +363,7 @@ def _apply_install_file(  # noqa: C901, PLR0912  # 候选序×font_related×复�
     font_exts = tuple(params.get("font_related_exts") or ())
     # file_aliases: 查询名≠实档名桥 —— babel ini 按 \BabelDefinitionFile{0}{X}
     # 指名实档 (选项 ukrainian → ukraineb.ldf 型), try_exts 拼不出来的异形名
-    # 走显式别名表先试 (序=别名先, 本名扩展后)。
+    # 走显式别名表先试 (序=别名先，本名扩展后)。
     candidates = list((params.get("file_aliases") or {}).get(params["file"], []))
     if params.get("try_exts"):
         candidates += [params["file"] + e for e in params["try_exts"]]
@@ -371,8 +371,8 @@ def _apply_install_file(  # noqa: C901, PLR0912  # 候选序×font_related×复�
         candidates += _fd_case_variants(params["file"])
         if not Path(candidates[-1]).suffix:
             # `I can't find file `X'` 裸 payload (\input/openin 系报错) ——
-            # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证:
-            # filemap/shim_map 键全带扩展名, 裸名恒 miss)。
+            # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证：
+            # filemap/shim_map 键全带扩展名，裸名恒 miss)。
             candidates.append(params["file"] + ".tex")
     missed: list[str] = []
     for fname in candidates:

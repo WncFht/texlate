@@ -46,7 +46,7 @@ def _alarm(signum, frame):
 
 
 def percentile(sorted_vals: list[int], q: float) -> int | None:
-    """最近秩分位: idx=ceil(q*n)-1."""
+    """最近秩分位：idx=ceil(q*n)-1."""
     if not sorted_vals:
         return None
     return sorted_vals[max(0, math.ceil(q * len(sorted_vals)) - 1)]
@@ -74,7 +74,7 @@ def ph_tail_risk(res) -> int:
     return n
 
 
-# ---------------------------------------------------------------- 判定 (docs/spec/corpus.md 口径, 产品 API 版)
+# ---------------------------------------------------------------- 判定 (docs/spec/corpus.md 口径，产品 API 版)
 
 
 def parse_one(path: Path, timeout_s: int) -> dict:
@@ -159,7 +159,7 @@ def classify_recon(orig: str, recon: str) -> tuple[str, float, int]:
 
 
 def fake_translation(chunk, idx: int) -> str:
-    """占位译文: 保留全部内嵌占位符 (契约面), 正文替换为全角标记."""
+    """占位译文：保留全部内嵌占位符 (契约面), 正文替换为全角标记."""
     keep = re.findall(r"\[\[[A-Z_]+_\d+\]\]", chunk.content)
     return f"【假译文{idx}】" + "".join(keep)
 
@@ -220,7 +220,7 @@ def file_metrics(
         entry["chunk_chars_median"] = statistics.median(lens) if lens else None
         entry["chunk_chars_p90"] = percentile(lens, 0.9)
         entry["chunk_chars_max"] = lens[-1] if lens else None
-        entry["_lens"] = lens  # 聚合用, 随行落盘（derive 重组分位保真）
+        entry["_lens"] = lens  # 聚合用，随行落盘（derive 重组分位保真）
 
         # scan/validate warnings 分类计数 (泄漏类 bug 第一手线索)
         wk: dict[str, int] = {}
@@ -229,7 +229,7 @@ def file_metrics(
         for w in validate_result(res):
             wk[w.kind] = wk.get(w.kind, 0) + 1
         entry["warn_kinds"] = wk
-        # res.inputs 混合语义: resolved 记 realpath, 漏网记原始名——isabs 过滤
+        # res.inputs 混合语义：resolved 记 realpath, 漏网记原始名——isabs 过滤
         entry["unresolved_inputs"] = [
             name for _pos, name in res.inputs if not os.path.isabs(name)
         ]
@@ -257,7 +257,7 @@ def file_metrics(
             "quick_ratio": ratio,
             "first_diff_at": first_diff,
         }
-        # 展开足迹: vtex vs 展平源 (strict = 展开机对本文件无净改动)
+        # 展开足迹：vtex vs 展平源 (strict = 展开机对本文件无净改动)
         entry["vtex_vs_src"] = classify_recon(r["flat"], res.vtex)[0]
         entry["fake"] = {
             "residue_chunk_ph": rb["residue_chunk_ph"],

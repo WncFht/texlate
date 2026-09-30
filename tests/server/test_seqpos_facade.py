@@ -26,7 +26,7 @@ def test_export_drift_clean() -> None:
 
 
 def _type_checking_map() -> dict[str, tuple[str, ...]]:
-    """seqpos/__init__.py ``TYPE_CHECKING`` 块 → {叶模块名: import 名集（排序）}。"""
+    """seqpos/__init__.py ``TYPE_CHECKING`` 块 → {叶模块名：import 名集（排序）}。"""
     src = Path(seqpos.__file__).read_text(encoding="utf-8")
     tree = ast.parse(src)
     out: dict[str, tuple[str, ...]] = {}

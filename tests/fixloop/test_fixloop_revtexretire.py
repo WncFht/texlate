@@ -23,27 +23,27 @@ from texlate.compile.logparse import parse_text
 
 _RULE_ID = "revtex_era_retire"
 
-# 0806.4149 实证首错: \Citeauthor→\NAT@UP→\@uclcnotmath→\reserved@a (syntax)
+# 0806.4149 实证首错：\Citeauthor→\NAT@UP→\@uclcnotmath→\reserved@a (syntax)
 _ERR_RESERVED = (
     "/work/ms.tex:929: Illegal parameter number in definition of "
     "\\reserved@a.\n<to be read again>\n                   }\n"
     "l.929 ...\\Citeauthor{Osaki85}"
 )
-# 1003.0910 实证: thebibliography mark 机 → \@citex 失配 (other)
+# 1003.0910 实证：thebibliography mark 机 → \@citex 失配 (other)
 _ERR_CITEX = (
     "/work/x.tex:594: Use of \\@citex doesn't match its definition.\n"
     "\\@uclcnotmath ...s@ {\\noexpand \\cite ##1}\\@citex }\n"
     "l.594 \\begin{thebibliography}{10}"
 )
 
-# v4.0a 指纹体: \ProvidesClass{revtex4} 本名 + 内嵌 \@uclcnotmath
+# v4.0a 指纹体：\ProvidesClass{revtex4} 本名 + 内嵌 \@uclcnotmath
 # (改名拷贝体内自署不变 —— 文件改名不改 \ProvidesClass 声明)
 _STALE_REVTEX4 = (
     "\\ProvidesClass{revtex4}[2020/09/30 v4.0a APS]\n"
     "\\def\\@uclcnotmath#1{\\protected@edef\\reserved@a{#1}}\n"
     "\\let\\MakeUppercase=\\MakeTextUppercase\n"
 )
-# 现代件反例: (a) revtex4-2 自署别名, 纵有同名机亦非指纹对象
+# 现代件反例：(a) revtex4-2 自署别名，纵有同名机亦非指纹对象
 _NEW_42 = "\\ProvidesClass{revtex4-2}[2024/01/01 v4.2f APS]\n\\def\\@uclcnotmath#1{}\n"
 # (b) 现代 textcase.sty: \@uclcnotmath 在场但无 {revtex4} 自署 → 单锚不算
 _MODERN_TEXTCASE = (
@@ -57,7 +57,7 @@ def _fn() -> Callable[..., tuple[bool, str]]:
 
 
 def _42(texmf: Path) -> None:
-    """递补源: texmf 放 revtex4-2.cls (vendor files/ 另有兜底, 双源皆可)。"""
+    """递补源：texmf 放 revtex4-2.cls (vendor files/ 另有兜底，双源皆可)。"""
     (texmf / "revtex4-2.cls").write_text(_NEW_42, encoding="utf-8")
 
 
@@ -89,7 +89,7 @@ def test_rule_wired() -> None:
 
 
 def test_rule_order_in_retire_family() -> None:
-    """order 自洽: lamsarrow(11.97) < 本规则 < legacy_pkg_shim(12)。"""
+    """order 自洽：lamsarrow(11.97) < 本规则 < legacy_pkg_shim(12)。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["lamsarrow_lams_fonts_drop"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
@@ -172,7 +172,7 @@ def test_renamed_copy_gets_stem_delegate(tmp_path: Path) -> None:
 
 
 def test_modern_revtex42_untouched(tmp_path: Path) -> None:
-    """\\ProvidesClass{revtex4-2} 纵含同名机 → 名锚不中, 不动。"""
+    """\\ProvidesClass{revtex4-2} 纵含同名机 → 名锚不中，不动。"""
     wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4-2.cls").write_text(_NEW_42, encoding="utf-8")
@@ -191,7 +191,7 @@ def test_modern_textcase_untouched(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二轮直驱: delegate 无 uclc 锚 + 指纹行 → False 幂等。"""
+    """二轮直驱：delegate 无 uclc 锚 + 指纹行 → False 幂等。"""
     wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
@@ -205,7 +205,7 @@ def test_idempotent_second_call(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- pass 2 树外遮蔽
 def test_texmf_shadow_dropped_not_moved(tmp_path: Path) -> None:
-    """~/texmf v4.0a 遮蔽 → 根 delegate 落盘, texmf 原件只读不动。"""
+    """~/texmf v4.0a 遮蔽 → 根 delegate 落盘，texmf 原件只读不动。"""
     wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     # ShadowEng 直查 texmf/<fname> —— 放 texmf/revtex4.cls 让 probe 命中
@@ -221,7 +221,7 @@ def test_texmf_shadow_dropped_not_moved(tmp_path: Path) -> None:
 
 
 def test_texmf_modern_no_delegate(tmp_path: Path) -> None:
-    """probe 命中系统 revtex4-2/modern → 指纹不中, 不落 delegate。"""
+    """probe 命中系统 revtex4-2/modern → 指纹不中，不落 delegate。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "revtex4.cls").write_text(_NEW_42, encoding="utf-8")
     _42(texmf)

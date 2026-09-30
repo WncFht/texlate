@@ -1,14 +1,14 @@
 """index 类型投影 mixin —— events 镜像 → 各类型投影表。
 
 - ``_project`` — REQUIRED-keys 闸 (缺键事件只进镜像不进类型表) + 类型
-  路由; papers 别名表是尾钩 (任何同载 id/idc 的事件都登记, §3.2)。
+  路由; papers 别名表是尾钩 (任何同载 id/idc 的事件都登记，§3.2)。
 - ``_proj_cell`` — cells (idc,arm,up,variant,stage) LWW upsert;
   cell_queued 同步落 cases 排队单; cell 终态落 records, eval 域
   (eval_stages ∪ eval=1 标记) 复写 eval_records。
-- ``_proj_claim`` — claims 追加 + paid_slots 镜像流: reap 清整键,
+- ``_proj_claim`` — claims 追加 + paid_slots 镜像流：reap 清整键，
   acquire 占位 upsert, release 删槽。
 - ``_proj_asset``/``_upsert_vault_meta`` — assets 追加; vault 管理类
-  kind 同步 upsert vault_meta 凭证面 (verdict 显式优先, 否则 state 映射)。
+  kind 同步 upsert vault_meta 凭证面 (verdict 显式优先，否则 state 映射)。
 
 只被 ``_index_core.Index`` 继承; 不 import 兄弟叶 (常量走 ``_index_common``)。
 """

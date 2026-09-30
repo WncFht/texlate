@@ -92,7 +92,7 @@ def _note_route(note: str) -> str | None:
 
 
 def _commit_reject(cell: dict[str, Any], rule: Rule, note: str) -> None:
-    """REJECT 裁决落账: ``reject:<rid>`` verdict + route 令牌 (有则)。
+    """REJECT 裁决落账：``reject:<rid>`` verdict + route 令牌 (有则)。
 
     主轮/gate/次级 warn 臂/post warn-preempt 各决策点的同一写点——
     route 令牌即取即落 ``cell["reject_route"]``, 供跨引擎臂消费。
@@ -103,7 +103,7 @@ def _commit_reject(cell: dict[str, Any], rule: Rule, note: str) -> None:
 
 
 def _rule_needs_pass(rule: Rule) -> bool:
-    """规则 yaml 解析趟请求: ``action.params.needs_pass: true`` → True。
+    """规则 yaml 解析趟请求：``action.params.needs_pass: true`` → True。
 
     ``builtin_transform`` 的 params 面不受 ``_ACTION_PARAM_KEYS`` 白名单
     约束 (_ruleset_validate 未列该 kind)——yaml 作者对动了 aux/cite
@@ -166,7 +166,7 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
 
     route 令牌在持有 note 的决策点即取即返 (``_precheck_phase`` 同一返回
     通道)——不再经 ``ctx.round`` 过桥 (旧 ``reject_route`` 字段是
-    verdict-only 返回值时代的影子通道, 已删)。
+    verdict-only 返回值时代的影子通道，已删)。
     """
     for rule in rs.phase("gate"):
         key = f"{rule.id}:{pay}"
@@ -195,13 +195,13 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
 def _warn_family_due(
     rs: Ruleset, ctx: LoopCtx, cat: str | None, pay: str | None
 ) -> bool:
-    """接受裁决前的缺字族勤勉检: 本轮残存 missing-char 码位有臂未见。
+    """接受裁决前的缺字族勤勉检：本轮残存 missing-char 码位有臂未见。
 
     「未见」双判缺一不可——``when`` 不匹配本轮 cat 的臂本轮根本没被
-    评估 (error-cat 轮全族皆然, ``invalid_in_math`` 轮只
+    评估 (error-cat 轮全族皆然，``invalid_in_math`` 轮只
     macro_glyph_fix 评估过); 残存码位落在臂 ``mc_seen`` 消费账外
     (never-fired ⇒ 账空 ⇒ 全集皆增量)。两条件同假的臂重扫同一
-    rep 必同判, 不算 due。``(cat, pay)`` 取调用方快照——派发窗内
+    rep 必同判，不算 due。``(cat, pay)`` 取调用方快照——派发窗内
     ``ctx.round`` 已被强指 ``warn_missing_char``, 原 cat 须外传入。
     """
     cps = ctx.round.mc_cps
@@ -223,11 +223,11 @@ def _warn_preempt(
     """Warn 家族补发一轮派发 (error-cat 轮裁决点/loop 退出点两 site 共用)。
 
     ``ctx.round`` 暂指 ``warn_missing_char`` 让族臂 ``when`` 命中——与
-    次级错误派发的 twin 重指同机制, 返回后复元。``(None, "")`` =
+    次级错误派发的 twin 重指同机制，返回后复元。``(None, "")`` =
     残存缺字各臂均见过 (或本无缺字), 直走原裁决; REJECT note 经
     ``note`` 原样冒泡由调用方落 ``reject:<rid>``。码位面 = 轮记
     ``mc_cps`` ∪ 派发 rep 实解——次级探针编译后盘上 .log 是探针全
-    错误面, 族臂 apply 读的是它, 勤勉判据须同面 (``mc_seen`` 起火
+    错误面，族臂 apply 读的是它，勤勉判据须同面 (``mc_seen`` 起火
     记账亦落此并集)。
     """
     eff = ctx.round.mc_cps | frozenset(_mc_parse_log(rep.raw or ""))

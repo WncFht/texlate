@@ -1,7 +1,7 @@
 """specs._validbench_pseudo — 构造性伪译文叶 (validbench 拆分叶).
 
 (rule-validator 原型 gen_cases.py 原样移植; PH_RX 换产品 l0.PH_ANY_LIKE_RX —
-产品版额外认 [[SL]]/[[PL]] 无数字后缀形态, 是原型正则的超集.)
+产品版额外认 [[SL]]/[[PL]] 无数字后缀形态，是原型正则的超集.)
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ _bootstrap.ensure()
 
 from texlate.validate import l0
 
-VOCAB = (  # noqa: SIM905 — 紧凑词表, 200 元素 list 字面量反而难读
+VOCAB = (  # noqa: SIM905 — 紧凑词表，200 元素 list 字面量反而难读
     "研究 方法 结果 模型 数据 分析 实验 表明 本文 提出 算法 网络 训练 参数 "
     "函数 定理 证明 引理 误差 分布 样本 优化 梯度 矩阵 向量 概率 随机 变量 "
     "近似 收敛 序列 空间 映射 算子 方程 维数 拓扑 流形 极限 连续 微分 积分 "
@@ -26,7 +26,7 @@ VOCAB = (  # noqa: SIM905 — 紧凑词表, 200 元素 list 字面量反而难�
     "背景 动机 章节 图表 公式 段落 估计 观测 信号 频谱 信道 编码 译码"
 ).split()
 
-# 参数必须原样保留的命令 (key/env名/文件路径 — 翻掉即机械错误)
+# 参数必须原样保留的命令 (key/env 名/文件路径 — 翻掉即机械错误)
 KEEP_ARG_RX = re.compile(
     r"^(cite[a-zA-Z]*|[a-zA-Z@]*ref|crefrange|label|bibitem|nocite"
     r"|begin|end|documentclass|documentstyle|usepackage|RequirePackage"
@@ -60,7 +60,7 @@ def _find_env_end(s: str, i: int, env: str) -> int | None:
 
 
 def pseudo_translate(src: str) -> str:
-    """构造性伪译文: 拉丁词->确定性汉字, 其余机械要素原样保留."""
+    """构造性伪译文：拉丁词->确定性汉字，其余机械要素原样保留."""
     out: list[str] = []
     i, n = 0, len(src)
     while i < n:

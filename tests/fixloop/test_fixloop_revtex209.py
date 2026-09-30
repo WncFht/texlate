@@ -37,7 +37,7 @@ def _main(tmp_path: Path, text: str) -> None:
 
 
 def _upgraded(tmp_path: Path) -> None:
-    """仿真 upgrade_209 产物: live revtex4-2 docclass + COMPAT_SHIM 面包屑。"""
+    """仿真 upgrade_209 产物：live revtex4-2 docclass + COMPAT_SHIM 面包屑。"""
     _main(
         tmp_path,
         _DOCCLASS + "\n" + _SHIM + "\n\\usepackage{latexsym}\n" + _PREAMBLE_AND_BODY,
@@ -52,7 +52,7 @@ def test_hit_injects_after_docclass(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     mark = "% fixloop: revtex 2.09 surface polyfill"
     assert mark in t
-    # 注入位: docclass 行之后、\author 之前 (frontmatter 机须先于序言调用武装)
+    # 注入位：docclass 行之后、\author 之前 (frontmatter 机须先于序言调用武装)
     assert t.index(_DOCCLASS) < t.index(mark) < t.index("\\author")
     assert "\\frontmatter@init" in t
     assert "\\providecommand{\\twocolumn}[1][]{#1}" in t
@@ -114,7 +114,7 @@ def test_reject_commented_docclass_deadzone(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二入幂等: 首注 True, 再调 False 且文本不变。"""
+    """二入幂等：首注 True, 再调 False 且文本不变。"""
     _upgraded(tmp_path)
     ctx = _ctx(tmp_path)
     ok, _note = revtex209_surface_polyfill(ctx, None, None, {})
@@ -127,7 +127,7 @@ def test_idempotent_second_call(tmp_path: Path) -> None:
 
 
 def test_registration_and_rule() -> None:
-    """注册钉: TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
+    """注册钉：TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
     assert (
         builtins.TRANSFORM_FNS["revtex209_surface_polyfill"]
         is revtex209_surface_polyfill

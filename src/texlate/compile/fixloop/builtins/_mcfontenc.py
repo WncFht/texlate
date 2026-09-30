@@ -58,7 +58,7 @@ def _enc_use_res(enc: str) -> list[re.Pattern[str]]:
 
 
 def _strip_enc_opts(t: str, enc: str) -> tuple[str, int]:
-    """``fontenc`` 选项表摘除 ``enc`` → (新文本, 摘除数); 表空则连方括号一起去。"""
+    """``fontenc`` 选项表摘除 ``enc`` → (新文本，摘除数); 表空则连方括号一起去。"""
     masked = mask_tex(t)
     edits: list[tuple[int, int, str]] = []
     want = enc.casefold()

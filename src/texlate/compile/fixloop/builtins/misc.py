@@ -166,7 +166,7 @@ def purge_corrupt_intermediates(
             continue
         f.unlink()
         ctx.invalidate(f)
-        ctx.io.written.add(f)  # 自产删除入 authored 账 —— 非外部落件, 不稀释 dedup
+        ctx.io.written.add(f)  # 自产删除入 authored 账 —— 非外部落件，不稀释 dedup
         (purged if corrupt else skewed).append(str(f.relative_to(ctx.wdir)))
     note = []
     if purged:
@@ -238,11 +238,11 @@ def aux_seed_undefined_refs(
 
 
 # ════════════════════════════════════════════════════════════════
-# support 文件腐蚀兜底: 偏离 pristine baseline 且被注入 CJK → 逐字节复原
+# support 文件腐蚀兜底：偏离 pristine baseline 且被注入 CJK → 逐字节复原
 # ════════════════════════════════════════════════════════════════
 
 #: 自有写入标记 —— ``% texlate`` (inject/normalize/latex209 注入头) 与
-#: ``% fixloop`` (本表各 transform 就地改写注记)。带标记的偏离是有意修复,
+#: ``% fixloop`` (本表各 transform 就地改写注记)。带标记的偏离是有意修复，
 #: 回滚会撤销 deliberate fix。
 _OWN_MARKERS = ("% texlate", "% fixloop")
 
@@ -258,7 +258,7 @@ def _is_support_baseline(path: Path) -> bool:
         return True
     try:
         res = parse_file(path, flatten=False)
-    except Exception:  # noqa: BLE001 — 无法分类即按内容件处理, 绝不回滚
+    except Exception:  # noqa: BLE001 — 无法分类即按内容件处理，绝不回滚
         return False
     return not file_has_prose(res.chunks)
 
@@ -266,7 +266,7 @@ def _is_support_baseline(path: Path) -> bool:
 def _corrupted_by_xlat(f: Path, base: Path) -> bytes | None:
     """单件判定 → 命中返回 baseline 字节 (供 verbatim 复原), 否则 None。
 
-    条件序: 字节有偏 ∧ 无自有标记 ∧ CJK 计数超 baseline ∧ baseline 判
+    条件序：字节有偏 ∧ 无自有标记 ∧ CJK 计数超 baseline ∧ baseline 判
     support (``parse_file`` 最贵殿后)。
     """
     try:
@@ -321,9 +321,9 @@ def restore_support_from_src(
 # 格式/构建指令信号面 (W37/W68/W58/W102 孤儿裁决 mechmap-2026-09-17)
 # ════════════════════════════════════════════════════════════════
 
-#: plain/amsTeX 签名池 —— 遮盖视图上评估, 活 ``\documentclass``/
+#: plain/amsTeX 签名池 —— 遮盖视图上评估，活 ``\documentclass``/
 #: ``\documentstyle`` 在场即整体短路 (LaTeX2.09 归 latex209_reject 收)。
-#: 签名沿 inject._PLAIN_TEX_RE 口径: 装载原语 ``^\magnification`` /
+#: 签名沿 inject._PLAIN_TEX_RE 口径：装载原语 ``^\magnification`` /
 #: ``\font\cs=cm*`` 族字模 / 终止符 ``^\bye$`` / 裸行 ``^\end$`` /
 #: ``\input amstex`` 系宏包。
 _PLAIN_SIGS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -405,7 +405,7 @@ def latex209_upgrade(
     return False, f"upgrade_209: {status or 'no-docstyle'}"
 
 
-#: 注释内构建指令锚 —— 与全局注释遮盖惯例相反: 本族注释本体即信号。
+#: 注释内构建指令锚 —— 与全局注释遮盖惯例相反：本族注释本体即信号。
 _ARARA_LINE_RE = re.compile(r"(?im)^[ \t]*%+\s*arara:\s*([^\n]+)")
 _TEX_PROGRAM_RE = re.compile(
     r"(?im)^[ \t]*%+\s*!\s*TEX\s+(?:TS-)?program\s*=\s*([^\s%]+)"
@@ -413,7 +413,7 @@ _TEX_PROGRAM_RE = re.compile(
 _TEX_OPTIONS_RE = re.compile(
     r"(?im)^[ \t]*%+\s*!\s*TEX\s+(?:TS-)?options?\s*=\s*([^\n]+)"
 )
-#: shell 逃逸诉求: arara ``{shell: on|yes|true}`` 或直书 ``--shell-escape``
+#: shell 逃逸诉求：arara ``{shell: on|yes|true}`` 或直书 ``--shell-escape``
 #: /``-enable-write18`` (miktex 名同收)。
 _SHELL_HINT_RE = re.compile(
     r"(?i)(?:shell\s*:\s*(?:on|yes|true)|--?shell-escape|--?enable-write18)"
@@ -472,17 +472,17 @@ def harvest_build_directives(
     return True, "harvested " + "; ".join(actions)
 
 
-#: docstrip 驱动器序 —— ``latex`` 为规范名, 缺则退 pdftex 系/裸 tex。
+#: docstrip 驱动器序 —— ``latex`` 为规范名，缺则退 pdftex 系/裸 tex。
 _DOCSTRIP_DRIVERS = ("latex", "pdflatex", "xelatex", "tex")
 
 
 def _invalidate_changed(ctx: LoopCtx, before: dict[Path, tuple[int, int]]) -> int:
     """快照后新增/改写/删除路径全 invalidate → 失效数。
 
-    docstrip 类 ``run_tool`` 一次写多件的通用补: 请求件之外的兄弟产出
-    同步失效 ``_texts``——pre-run 读过缺件会缓存 miss→None 毒化条目,
+    docstrip 类 ``run_tool`` 一次写多件的通用补：请求件之外的兄弟产出
+    同步失效 ``_texts``——pre-run 读过缺件会缓存 miss→None 毒化条目，
     产出落地后缓存仍答 None, 下游规则当缺件 (同 logcache 病族)。
-    不触 ``_texts`` 私有面, 指纹 diff 即全覆盖 (真写必换指纹)。
+    不触 ``_texts`` 私有面，指纹 diff 即全覆盖 (真写必换指纹)。
     """
     after = _wdir_fingerprint(ctx.wdir)
     changed = _fp_diff(before, after)

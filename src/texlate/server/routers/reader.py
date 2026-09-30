@@ -27,7 +27,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
     async def reader_get(  # noqa: C901 -- 序列化装配阶梯平铺
         request: Request, task_id: str
     ) -> Response:
-        """``{documents, alignment, reading, view}``（§2.5/§5.4）。"""
+        """``{documents, alignment, reading, view}``(§2.5/§5.4)."""
         row = deps.get_task(request, task_id)
         # files 表一次取——file_record 每次全量 SELECT，本端点要查 4 个
         # kind（dual_json/zh_html/md_zip/zh_pdf），串发即 mini-N+1
@@ -46,7 +46,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             return cast("dict[str, Any]", data)
 
         try:
-            # 数 MB 级读+解析——卸出事件循环
+            # 数 MB 级读 + 解析——卸出事件循环
             dual = await asyncio.to_thread(_load)
         except FileNotFoundError:
             return _json_error(404, "dual.json 未产出", "not_found")

@@ -1,7 +1,7 @@
-"""blx_dlist_polyfill 单测 (blxdlist 车道, task #239)。
+"""blx_dlist_polyfill 单测 (blxdlist 车道，task #239)。
 
-机理 (1502.02341 实证, blxbbl 车道普查): 稿捆绑 biblatex
-v2.3 时代 .bbl —— ``\\entry`` 记录裸排顶层, 无 ``\\datalist`` 包裹;
+机理 (1502.02341 实证，blxbbl 车道普查): 稿捆绑 biblatex
+v2.3 时代 .bbl —— ``\\entry`` 记录裸排顶层，无 ``\\datalist`` 包裹;
 backend=bibtex → 不产 .bcf → bbl_regen(158) 的 has_ext:.bcf 门恒拒。
 TL biblatex 3.21 中 ``\\blx@dlist@type``/``\\blx@dlist@name`` 的唯一
 定义者是 ``\\datalist``→``\\blx@bbl@dlist`` (biblatex.sty:9280-83);
@@ -9,12 +9,12 @@ TL biblatex 3.21 中 ``\\blx@dlist@type``/``\\blx@dlist@name`` 的唯一
 ``\\blx@bbl@endentry`` 双 ``\\ifstrequal`` (:8707/:8720) 全踩未定义名
 → 164 错 (54×dlist@name + 108×dlist@type + ``\\lossort``/``\\endlossort``
 v2.3 排序尾标对)。本臂以 begindocument/before 钩 ifx-guarded 补名
-(``\\blx@dlist@name`` 懒展开落真 refcontext 串, ``\\printbibliography``
+(``\\blx@dlist@name`` 懒展开落真 refcontext 串，``\\printbibliography``
 按 ``blx@dlist@entry@<sec>@<ctx>`` 读表同名命中) + lossort 对 no-op。
 
 ``\\endlossort`` 不走 ``\\providecommand`` —— ``\\@ifdefinable``
 (latex.ltx:1296 ``\\@carcube`` 前三字符比 ``\\qend``) 拒一切 ``end*``
-名, "Or name \\end... illegal" 实炸, 只能 ifx-guarded csname ``\\def``
+名，"Or name \\end... illegal" 实炸，只能 ifx-guarded csname ``\\def``
 (xelatex 本地 repro 实证)。
 """
 
@@ -96,7 +96,7 @@ def _match(
 
 # ----------------------------------------------------------------- 表形
 def test_table_keys_exact_four() -> None:
-    """cs_table 恰四键, 锚点共享同一 polyfill 体。"""
+    """cs_table 恰四键，锚点共享同一 polyfill 体。"""
     table = _params()["cs_table"]
     assert set(table) == {
         "blx@dlist@name",
@@ -105,29 +105,29 @@ def test_table_keys_exact_four() -> None:
         "endlossort",
     }
     bodies = {table[k].get("polyfill") for k in table}
-    assert len(bodies) == 1  # yaml 锚点: 四键同块, 任一键先中整块落
+    assert len(bodies) == 1  # yaml 锚点：四键同块，任一键先中整块落
 
 
 def test_polyfill_guard_forms() -> None:
-    """polyfill 体: 三处 ifx-csname 守卫 + lossort provide; end* 不走 provide。"""
+    """polyfill 体：三处 ifx-csname 守卫 + lossort provide; end* 不走 provide。"""
     bodies = {v["polyfill"] for v in _params()["cs_table"].values()}
-    assert len(bodies) == 1  # yaml 锚点: 四键同块
+    assert len(bodies) == 1  # yaml 锚点：四键同块
     body = bodies.pop()
     assert "\\AddToHook{begindocument/before}" in body
     for cs in ("blx@dlist@type", "blx@dlist@name", "endlossort"):
         assert f"\\expandafter\\ifx\\csname {cs}\\endcsname\\relax" in body, cs
         assert f"\\expandafter\\def\\csname {cs}\\endcsname" in body, cs
     assert "\\providecommand\\lossort{}" in body
-    # \@ifdefinable 恒拒 end* 名 —— provide 形实炸, 禁形钉死。
+    # \@ifdefinable 恒拒 end* 名 —— provide 形实炸，禁形钉死。
     assert "\\providecommand\\endlossort" not in body
     assert "\\providecommand{\\endlossort}" not in body
-    # 懒展开 refcontext: edef 期落真串, 与 printbibliography 读表同名。
+    # 懒展开 refcontext: edef 期落真串，与 printbibliography 读表同名。
     assert "\\csname blx@refcontext@context\\endcsname" in body
 
 
 # ----------------------------------------------------------------- 路由层
 def test_fires_on_dlist_name_payload(tmp_path: Path) -> None:
-    """undefined_cs|blx@dlist@name → 本臂中, polyfill 落 docclass 行后。"""
+    """undefined_cs|blx@dlist@name → 本臂中，polyfill 落 docclass 行后。"""
     ctx = _ctx(tmp_path)
     rule, note = _match(ctx, "blx@dlist@name")
     assert rule is not None
@@ -136,7 +136,7 @@ def test_fires_on_dlist_name_payload(tmp_path: Path) -> None:
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\AddToHook{begindocument/before}" in out
     assert out.index("\\AddToHook") > out.index("\\documentclass")
-    # .bcf 缺席 → bbl_regen(158) 先评先拒, 顺位证据。
+    # .bcf 缺席 → bbl_regen(158) 先评先拒，顺位证据。
     assert any(d.startswith("bbl_regen: cond skip") for d in ctx.declined)
 
 
@@ -152,7 +152,7 @@ def test_fires_on_all_four_payloads(tmp_path: Path) -> None:
 
 
 def test_abstains_on_b3_payload(tmp_path: Path) -> None:
-    """B3 族单发 (blx@citeargs@iii 等) 无表键 → builtin 自拒, 不越界。"""
+    """B3 族单发 (blx@citeargs@iii 等) 无表键 → builtin 自拒，不越界。"""
     ctx = _ctx(tmp_path)
     fix = TRANSFORM_FNS["cs_targeted_fix"]
     for pay in ("blx@citeargs@iii", "blx@lbx", "blx@bbxfile"):
@@ -164,7 +164,7 @@ def test_abstains_on_b3_payload(tmp_path: Path) -> None:
 
 
 def test_abstains_wrong_category(tmp_path: Path) -> None:
-    """非 undefined_cs 类 payload → when 闸拒, 不吃别类饭。"""
+    """非 undefined_cs 类 payload → when 闸拒，不吃别类饭。"""
     ctx = _ctx(tmp_path)
     rule, _note = _match(ctx, "blx@dlist@name", cat="already_def")
     assert rule is None or rule.id != _RULE_ID
@@ -194,7 +194,7 @@ def test_refire_idempotent(tmp_path: Path) -> None:
 
 # ----------------------------------------------------------------- 排序闸
 def test_order_after_bbl_regen() -> None:
-    """order 序位: bbl_regen(158) < 本臂(166.5), loop 相内同序。"""
+    """order 序位：bbl_regen(158) < 本臂 (166.5), loop 相内同序。"""
     loop = _RS.phase("loop")
     by_id = {r.id: r for r in loop}
     regen, mine = by_id["bbl_regen"], by_id[_RULE_ID]
@@ -205,7 +205,7 @@ def test_order_after_bbl_regen() -> None:
 
 @pytest.mark.skipif(shutil.which("biber") is None, reason="biber not installed")
 def test_bbl_regen_wins_when_bcf_present(tmp_path: Path) -> None:
-    """.bcf 在场 (biber 通路) → bbl_regen 先中, polyfill 不抢 —— 1502.06277 形。
+    """.bcf 在场 (biber 通路) → bbl_regen 先中，polyfill 不抢 —— 1502.06277 形。
 
     注入 rc=0 biber runner (真 biber 对伪 .bcf 会截空 .bbl 致 fmt 检
     None → failed —— 该形已在 test_fixloop_bbl_regen 覆盖; 本钉只证
@@ -253,9 +253,9 @@ def _xelatex(tmp_path: Path) -> None:
 @pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
 @pytest.mark.skipif(not _HAVE_BIBLATEX, reason="biblatex.sty not in texmf")
 def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
-    """全真链钉: 裸 \\entry .bbl 未修 → Undefined \\blx@dlist@name; 注入后零错。
+    """全真链钉：裸 \\entry .bbl 未修 → Undefined \\blx@dlist@name; 注入后零错。
 
-    blxdlist 车道实证: 修复稿 cites 解、书目排; 三参
+    blxdlist 车道实证：修复稿 cites 解、书目排; 三参
     \\entry ×四参 \\blx@bbl@entry 的 #4 吞域杂字是登记 known_gap。
     """
     _ctx(tmp_path, bbl=True)
@@ -280,10 +280,10 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
 @pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
 @pytest.mark.skipif(not _HAVE_BIBLATEX, reason="biblatex.sty not in texmf")
 def test_real_xelatex_ifx_guard_sentinel(tmp_path: Path) -> None:
-    """ifx 守卫实证: cs 预定义 → polyfill 不重 def —— 混合格/已定义格零副作用。
+    """ifx 守卫实证：cs 预定义 → polyfill 不重 def —— 混合格/已定义格零副作用。
 
     preamble 预置 ``\\blx@dlist@type``=SENTINEL + ``\\endlossort``=ENDSENT;
-    钩内 ``\\ifx\\relax`` 判假 → 守卫块跳过, typeout 见证哨兵存活。
+    钩内 ``\\ifx\\relax`` 判假 → 守卫块跳过，typeout 见证哨兵存活。
     """
     main = (
         "\\documentclass{article}\n"

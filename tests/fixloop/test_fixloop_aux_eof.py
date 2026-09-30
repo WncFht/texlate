@@ -90,7 +90,7 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
     """截断 aux 由 round 前 _sweep_bad_aux 预清扫移除 —— 首轮编译即不吃毒件。
 
     126683d 起每轮 compile 前引擎先扫 aux 族 (无尾换行/花括号不闭) —— 比
-    aux_scan_eof 签名+规则路径更早一层; 规则仍兜底「行界完整但带非法
+    aux_scan_eof 签名 + 规则路径更早一层; 规则仍兜底「行界完整但带非法
     UTF-8」的中间件 (见下一个测试)。
     """
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
@@ -98,11 +98,11 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
     eng = MockEngine([{"log": XETEX_CLEAN_LOG, "pdf": True}], probe_cwd=False)
     cell = fixloop(tmp_path, eng, ruleset=rs())
     assert cell["verdict"] == "clean"
-    assert not (tmp_path / "main.aux").exists()  # 损坏件已删, 下遍引擎重生成
+    assert not (tmp_path / "main.aux").exists()  # 损坏件已删，下遍引擎重生成
 
 
 def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
-    """行界完整 + 花括号闭合但含非法 UTF-8 的 aux —— 预清扫放行, aux_scan_eof
+    """行界完整 + 花括号闭合但含非法 UTF-8 的 aux —— 预清扫放行，aux_scan_eof
     签名命中后 aux_purge_regen 规则仍是最后一道。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(
@@ -133,7 +133,7 @@ def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
 # scaneof 扩臂 (2026-09-20, m1k aux-malformed 簇 11 singles):
 # 同根三签名面 —— (b) runaway_scan 读端落 aux 书写族 cs;
 # (c) undefined_cs 站点直落 *.aux:N (良好字节形写端错配 →
-# payload 锚定内容删, 损坏谓词整类放行这种件)。
+# payload 锚定内容删，损坏谓词整类放行这种件)。
 # ════════════════════════════════════════════════════════════════
 
 _RUNAWAY_ABX_LOG = (
@@ -146,7 +146,7 @@ _UNDEF_AUX_LOG = (
 
 
 def _params() -> dict:
-    """shipped ``aux_purge_regen`` params 直取——yaml 改值即测新面, 不养陈旧拷贝。"""
+    """shipped ``aux_purge_regen`` params 直取——yaml 改值即测新面，不养陈旧拷贝。"""
     return dict(params("aux_purge_regen"))
 
 
@@ -242,7 +242,7 @@ def test_purge_corrupt_still_works_with_params(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 端到端
 def test_fixloop_runaway_bibcite_corrupt_roundtrip(tmp_path: Path) -> None:
     """(b) runaway|\\bibcite + utf-8 劈断 aux (行界完整括号闭合 →
-    预清扫放行) → aux_purge_regen 兜底删, 下遍重生成。"""
+    预清扫放行) → aux_purge_regen 兜底删，下遍重生成。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(
         b"\\bibcite{k}{{\xe4\xb8}}\n\\newlabel{a}{{1}{1}{ok}}\n"

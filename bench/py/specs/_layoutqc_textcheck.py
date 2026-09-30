@@ -103,7 +103,7 @@ def _refs_cut(lines: list[str]) -> int:
     if anchored:
         ok = _bib_cluster_cut(lines, cluster)
         # numdrop 截断的簇可能把 cut 落在 bib 中段（双栏交错编号回跳
-        # >2 顶破截断但幸存尾段仍严格递增+稠密——0928 实证两格漏切
+        # >2 顶破截断但幸存尾段仍严格递增 + 稠密——0928 实证两格漏切
         # 870/1387 起 bib 只切到 1114/1796）。改用纯行距回连扩簇，
         # 扩展簇仍过判据则取更深的 cut。
         if ok is not None and trunc_by_drop:
@@ -302,9 +302,9 @@ def _plain_scan(
         default=0,
     )
     top_rep_all = max(ngrams.values(), default=0)
-    # verso/分隔白页豁免三臂：页自带 folio 偶数/frontmatter+标记
+    # verso/分隔白页豁免三臂：页自带 folio 偶数/frontmatter+ 标记
     # （_verso_blank）；空页的下一非空页首行命中结构性标题
-    # （Chapter/第N章/参考文献…）即章前隔页——openright/frontmatter
+    # （Chapter/第 N 章/参考文献…）即章前隔页——openright/frontmatter
     # 常态排版非缺陷。
     empty_idx = [i for i, p in enumerate(pages) if len(p.strip()) < EMPTY_PAGE_CHARS]
 

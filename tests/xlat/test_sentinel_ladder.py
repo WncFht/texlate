@@ -169,7 +169,7 @@ class TestLevelMonotonicity:
 
     @pytest.mark.parametrize("tag", _TAGS)
     def test_max_level_shifts_by_one(self, tag: str) -> None:
-        """混合在册集的各级恰各升一档（后缀 = level-1：3/5/8 级 → "2"/"4"/"7"）。"""
+        """混合在册集的各级恰各升一档（后缀 = level-1:3/5/8 级 → "2"/"4"/"7"）。"""
         text = f"{_s(tag, 2)}{_s(tag, 4)}{_s(tag, 7)}"
         out = _esc(text, tag)
         assert _ds(out, tag) == ["2", "4", "7"]

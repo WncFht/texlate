@@ -112,8 +112,8 @@ _SPLIT_REST_MAX = 4
 def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str | None:
     """``cs`` = 已知粘连头 + 残余 → ``"head rest"``; 不可拆返回 None。
 
-    残余门: 大写起首或 ≤_SPLIT_REST_MAX 字符; ``@`` 含名是包内私有 cs
-    (版本偏斜类), 非粘连残骸, 不拆。
+    残余门：大写起首或 ≤_SPLIT_REST_MAX 字符; ``@`` 含名是包内私有 cs
+    (版本偏斜类), 非粘连残骸，不拆。
     """
     if "@" in cs or cs in guard:
         return None
@@ -128,14 +128,14 @@ def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str 
 
 #: cs_targeted_fix ``guard``/``guard_pre`` 值形归一 —— ``true`` → 零参空体;
 #: ``"[1]"`` 串 → argspec (空 body); dict ``{args, body}`` → 全形。
-#: emission 恒走 ``\csname`` 包裹: 裸 ``\providecommand\foo@bar`` 在 @=other
+#: emission 恒走 ``\csname`` 包裹：裸 ``\providecommand\foo@bar`` 在 @=other
 #: 读面把名断成 ``\foo``+stray 字母 (静默错义 + ``Missing \begin{document}``
 #: 级联), ``\providecommand\csname`` 直写又把 ``\csname`` 当已定义名而
-#: 静默 no-op —— 双死形, ``\expandafter`` 先行展开是唯一通解
+#: 静默 no-op —— 双死形，``\expandafter`` 先行展开是唯一通解
 #: (renewguard 车道 forms/forms3.tex 全形实证)。``Command \X undefined``
 #: (renew-on-undefined 内核签) 与 ``\csname`` 派发/@-名 cs_table 条目
-#: 的本键一并收 —— provide 预置, doc 侧 ``\renewcommand`` 合法接管;
-#: body 即未 renew 时的 use-site 兜底, 语义同 polyfill 但名自表键出。
+#: 的本键一并收 —— provide 预置，doc 侧 ``\renewcommand`` 合法接管;
+#: body 即未 renew 时的 use-site 兜底，语义同 polyfill 但名自表键出。
 def _guard_snippet(cs: str, guard: object) -> str | None:
     r"""``guard`` spec → csname 形 ``\providecommand`` 预置 snippet; 不合法返回 None。"""
     if guard is True:
@@ -154,7 +154,7 @@ def _guard_snippet(cs: str, guard: object) -> str | None:
     )
 
 
-def cs_targeted_fix(  # noqa: C901, PLR0912 - spec 键序分派表, 每键一处
+def cs_targeted_fix(  # noqa: C901, PLR0912 - spec 键序分派表，每键一处
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""undefined_cs 按 cs 修复表打靶 (handoff §2.2 cs→包表项)。

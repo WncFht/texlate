@@ -1,11 +1,11 @@
 """kernel._cli_common — bench CLI 共享机件叶 (kernel.cli 拆分叶).
 
-所有动词组共用的底座:
+所有动词组共用的底座：
 
 - ``EXIT_OK``/``EXIT_FAIL``/``EXIT_REFUSED`` — 退出码词表
   (0 ok · 1 命令跑但报败 · 2 refused/unavailable/未实现)
 - ``_err``/``_lazy`` — stderr 行 + kernel 兄弟模块惰性 import
-  (import 失败报出来, 不隐藏)
+  (import 失败报出来，不隐藏)
 - ``_specs_dir``/``_shim_path``/``_resolve_spec`` — spec 文件解析
 - ``_collect_params``/``_parse_size`` — argv k=v 与 K/M/G/T 尺寸规整
 - ``_pause_refused``/``_spec_paidness`` — PAUSE 付费闸 (paid=None

@@ -36,7 +36,7 @@ def test_defs_split_from_tail_compat() -> None:
 
 
 def test_bd_hidden_in_input_child() -> None:
-    """复现 2609.19376：docclass+中段调用、bd 藏 ``\\input`` 子件——定义先于调用。"""
+    """复现 2609.19376：docclass+ 中段调用、bd 藏 ``\\input`` 子件——定义先于调用。"""
     doc = (
         "\\documentclass{article}\n"
         "\\usepackage{amsmath}\n"

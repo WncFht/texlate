@@ -83,7 +83,7 @@ def _key(**over: str) -> str:
 # --- SegCache semantics ---------------------------------------------------------
 
 
-def test_seg_cache_probe_counters(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_seg_cache_probe_counters(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     sc = cachemod.SegCache(_key(), {"k1": "v1"})
     assert ("k1" in sc) is True
     assert ("k2" in sc) is False
@@ -97,7 +97,7 @@ def test_seg_cache_probe_counters(broot: Path) -> None:  # noqa: ARG001 -- fixtu
     assert (sc.stores, sc.evictions, sc.dirty) == (1, 1, True)
 
 
-def test_seg_cache_readonly_bypass(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_seg_cache_readonly_bypass(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     sc = cachemod.SegCache(_key(), {"k1": "v1"}, writable=False)
     assert sc["k1"] == "v1"  # reads still work (uncounted getitem)
     sc["k2"] = "v2"  # store drops on the floor
@@ -110,7 +110,7 @@ def test_seg_cache_readonly_bypass(broot: Path) -> None:  # noqa: ARG001 -- fixt
     assert sc.flush() == 0  # nothing to write
 
 
-def test_bucket_roundtrip_and_shard_layout(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_bucket_roundtrip_and_shard_layout(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     fk = _key()
     bp = cachemod.bucket_path(fk)
     assert bp.name == f"{fk}.json"
@@ -125,7 +125,7 @@ def test_bucket_roundtrip_and_shard_layout(broot: Path) -> None:  # noqa: ARG001
     assert sc2["seg-1"] == "译文"
 
 
-def test_bad_bucket_key_refused(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_bad_bucket_key_refused(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     with pytest.raises(ValueError, match="bad bucket key"):
         cachemod.bucket_path("../escape")
 
@@ -133,7 +133,7 @@ def test_bad_bucket_key_refused(broot: Path) -> None:  # noqa: ARG001 -- fixture
 # --- kernel flush hook ------------------------------------------------------------
 
 
-def test_stores_flush_only_on_ok_terminal(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_stores_flush_only_on_ok_terminal(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     """The poison rule: buffered stores land iff the cell ends
     flush-worthy; a failed cell's segments never reach the bucket."""
     fk = _key()
@@ -169,7 +169,7 @@ def test_stores_flush_only_on_ok_terminal(broot: Path) -> None:  # noqa: ARG001 
     assert json.loads(bp.read_text()) == {"seg-a": "甲"}
 
 
-def test_cache_metrics_ride_terminal_row(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_cache_metrics_ride_terminal_row(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     def fn(ctx: Ctx) -> str:
         sc = ctx.seg_cache(**DIMS)
         sc["seg-a"] = "甲"
@@ -186,7 +186,7 @@ def test_cache_metrics_ride_terminal_row(broot: Path) -> None:  # noqa: ARG001 -
     assert (cm["hits"], cm["misses"]) == (1, 1)
 
 
-def test_cache_hit_across_runs(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_cache_hit_across_runs(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     """The payoff: a second cell over the same bucket reads a hit."""
     fk = _key()
     bp = cachemod.bucket_path(fk)
@@ -208,7 +208,7 @@ def test_cache_hit_across_runs(broot: Path) -> None:  # noqa: ARG001 -- fixture 
 # --- eviction + status --------------------------------------------------------------
 
 
-def test_status_and_evict(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_status_and_evict(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     fk1, fk2 = _key(model="m1"), _key(model="m2")
     for fk, payload in ((fk1, {"a": "x" * 100}), (fk2, {"b": "y" * 10})):
         bp = cachemod.bucket_path(fk)
@@ -224,7 +224,7 @@ def test_status_and_evict(broot: Path) -> None:  # noqa: ARG001 -- fixture 副�
     assert cachemod.bucket_path(fk2).exists()
 
 
-def test_status_flags_malformed(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_status_flags_malformed(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     root = paths.lake_cache_dir()
     (root / "junk").mkdir(parents=True, exist_ok=True)
     (root / "junk" / "nothexname.json").write_text("{}")
@@ -242,7 +242,7 @@ def _write_state_cell(sid: str, key: str, results: list[dict]) -> Path:
     return d
 
 
-def test_rebuild_from_vault(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_rebuild_from_vault(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     from texlate.xlat import (  # noqa: PLC0415 -- 随 kernel 侧惰载口径：texlate.xlat 重依赖不进模块顶层
         placeholders,
     )

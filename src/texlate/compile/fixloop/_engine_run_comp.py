@@ -34,7 +34,7 @@ __all__ = [
 
 
 #: 出货前解析趟判据——编译 log 里仍存活的 rerun/undefined-ref/cite 请
-#: 求面。xelatex ``_RERUN_HINT_RX`` 的超集: 加 ``(citation|reference)..
+#: 求面。xelatex ``_RERUN_HINT_RX`` 的超集：加 ``(citation|reference)..
 #: undefined`` (0806.3788 型 Rerun 尾标被 bib brace 错吞后 citation
 #: undefined 是唯一存活签名) 与 ``Please (re)run`` (biber/bibtex 请求行)。
 _UNRESOLVED_MARKS_RX = re.compile(
@@ -53,7 +53,7 @@ class _RunComp:
         """``eng.compile`` + 编译后惯例两件套 (失效挥发性缓存 + 丢旗记账)。
 
         ``_VOLATILE_EXTS`` 头注的「循环内每个 ``eng.compile`` 后必失效此集」
-        不变量收敛为结构——走本方法即不可能漏失效 (含探针与兜底臂, 幂等)。
+        不变量收敛为结构——走本方法即不可能漏失效 (含探针与兜底臂，幂等)。
         ``passes=None`` 透传引擎自适应遍数门。
         """
         ctx = self.ctx
@@ -136,9 +136,9 @@ class _RunComp:
         ctx, rs, rnd = self.ctx, self.rs, self.rnd
         if ctx.ledger.needs_pass:
             # 上轮 apply 请求解析趟 (yaml ``action.params.needs_pass`` 或
-            # builtin 直写——bbl 再生/citekey 改写类动了 aux/cite 记录面,
-            # 单趟 log 分类不足以吸收) → 本轮分类编译直接走引擎自适应遍数,
-            # ``\newlabel``/``\bibcite`` 同轮解齐。一次性闸, 消费即清。
+            # builtin 直写——bbl 再生/citekey 改写类动了 aux/cite 记录面，
+            # 单趟 log 分类不足以吸收) → 本轮分类编译直接走引擎自适应遍数，
+            # ``\newlabel``/``\bibcite`` 同轮解齐。一次性闸，消费即清。
             ctx.ledger.needs_pass = False
             res = self._compile(passes=None)
             ctx.ledger.events.append(f"r{rnd} resolve-pass (needs_pass requested)")
@@ -147,13 +147,13 @@ class _RunComp:
         rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)
         cat, pay = _round_cat(rs, rep, res)
         round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
-        if (  # pass-1 判收敛 → 同轮全遍终编定稿: rungen_stub 类机制靠
-            # 第二遍 \write 填实成品; 复编重分类回流下方同一决策面,
+        if (  # pass-1 判收敛 → 同轮全遍终编定稿：rungen_stub 类机制靠
+            # 第二遍 \write 填实成品; 复编重分类回流下方同一决策面，
             # pass-2-emergent 错照常进 gate/修复路径。tectonic 自定遍数
             # (impl del passes)、死编译轮不升遍——超时重跑大概率再超时;
             # 信号死 (xdvipdfmx SIGPIPE 截杀等) 产出未证且 aux 可正被截
-            # 在半行, 同轮重编即吃毒件造 aux_scan_eof 幻影 (2403.05523
-            # 实证, 与 ``_round_verdict`` clean 门同一 _res_died 否决语义)。
+            # 在半行，同轮重编即吃毒件造 aux_scan_eof 幻影 (2403.05523
+            # 实证，与 ``_round_verdict`` clean 门同一 _res_died 否决语义)。
             self.passes > 1
             and self.ctx.deps.engine_name != "tectonic"
             and not _res_died(res)
@@ -162,10 +162,10 @@ class _RunComp:
             and cat not in rs.taxonomy.warn_cats
         ):
             res = self._compile(
-                # yaml ``compile_passes`` 权威依旧: >1 才进本臂; 值 ≤2 时传
-                # ``None`` 走引擎自适应门 (rerun-hint 才升遍, 起步
+                # yaml ``compile_passes`` 权威依旧：>1 才进本臂; 值 ≤2 时传
+                # ``None`` 走引擎自适应门 (rerun-hint 才升遍，起步
                 # MAX_PASSES=2, 提示仍在自延至 _ADAPTIVE_PASS_CAP),
-                # >2 是钉死趟数诉求, 原样透传无条件执行。
+                # >2 是钉死趟数诉求，原样透传无条件执行。
                 passes=None if self.passes <= 2 else self.passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应起步
             )
             rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)

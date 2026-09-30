@@ -40,7 +40,7 @@ CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
 # ── rep 层两形 (_report_of stdout_tail 归一后的 ! 行) ──
 _XELATEX_TFM_ERR = '! xdvipdfmx:fatal: Unable to find TFM file "optimistic".\n'
 _TECTONIC_TFM_ERR = '! Unable to find TFM file "optimistic".\n'
-# ── 真实 stdout_tail 原形 (xelatex SIGPIPE 截杀面, .log 干净) ──
+# ── 真实 stdout_tail 原形 (xelatex SIGPIPE 截杀面，.log 干净) ──
 _XDVIPDFMX_TAIL = 'xdvipdfmx:fatal: Unable to find TFM file "optimistic".\n'
 
 
@@ -66,19 +66,19 @@ def test_missing_tfm_taxonomy_nvidia_name() -> None:
 
 
 def test_driver_tfm_hoist_rule_shape() -> None:
-    """臂形态钉: loop 相 order>install_tfm, payload_required, builtin_transform。"""
+    """臂形态钉：loop 相 order>install_tfm, payload_required, builtin_transform。"""
     rules = {r.id: r for r in _rs().rules}
     install = rules["install_tfm"]
     arm = rules["driver_tfm_hoist"]
     assert arm.phase == "loop"
-    assert arm.order > install.order  # CTAN 真装先尝, 私有名 decline 同轮接住
+    assert arm.order > install.order  # CTAN 真装先尝，私有名 decline 同轮接住
     assert arm.when == {"category": "missing_tfm", "payload_required": True}
     assert arm.action["kind"] == "builtin_transform"
     assert arm.action["function"] == "driver_tfm_hoist"
 
 
 def test_driver_tfm_hoist_e2e(tmp_path: Path) -> None:
-    """install_tfm decline → 同轮 hoist 接住: 子目录 ``*.tfm`` 全量提扁平位。"""
+    """install_tfm decline → 同轮 hoist 接住：子目录 ``*.tfm`` 全量提扁平位。"""
     assets = tmp_path / "assets"
     assets.mkdir()
     (assets / "optimistic.tfm").write_bytes(b"tfm-a")
@@ -138,7 +138,7 @@ def test_driver_tfm_hoist_no_payload_decline(tmp_path: Path) -> None:
 
 
 def test_driver_tfm_hoist_no_fileset_decline(tmp_path: Path) -> None:
-    """fileset 无同名 .tfm → decline (缺件另有真因, 不造空件)。"""
+    """fileset 无同名 .tfm → decline (缺件另有真因，不造空件)。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
     ok, note = builtins.driver_tfm_hoist(ctx, None, "ghostfont", {})

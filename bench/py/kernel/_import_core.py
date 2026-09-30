@@ -1,6 +1,6 @@
 """kernel._import_core — 导入管线共享机件 (kernel.importer 拆分叶).
 
-所有源域共用的导入骨架: tunables/词表、密钥子串识别与 ``redact`` 深脱
+所有源域共用的导入骨架：tunables/词表、密钥子串识别与 ``redact`` 深脱
 敏 (R1 — secrets never reach the ledger)、quarantine.jsonl sha 去重追加、
 status/canon 闸 (§3.10.7)、import run 注册 (``_ensure_import_run`` +
 ``.lock`` R21)、行规整 (``_norm_db_record``/``_norm_db_raw``/
@@ -9,8 +9,8 @@ status/canon 闸 (§3.10.7)、import run 注册 (``_ensure_import_run`` +
 ``emit_batch`` 分块幂等落账 (``_commit``)。
 
 源域叶 ``_import_records``/``_import_zhstore``/``_import_lake`` 只含各自
-源的驱动逻辑, 机件一律从本叶取。门面回引名单见 ``importer._LEAF_EXPORTS``;
-未回引的私名请直引本模块 (monkeypatch 锚亦归本叶, setattr 门面无效)。
+源的驱动逻辑，机件一律从本叶取。门面回引名单见 ``importer._LEAF_EXPORTS``;
+未回引的私名请直引本模块 (monkeypatch 锚亦归本叶，setattr 门面无效)。
 """
 
 from __future__ import annotations

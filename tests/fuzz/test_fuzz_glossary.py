@@ -65,7 +65,7 @@
 - ``gpath="."``/``""`` 遇**文件型**根返回根本身（生产不可达：settings
   校验 ``glossary_dir`` 必须是目录、``base_dir`` 恒为目录）。
 - ``~`` 在 ``gpath`` 侧不展开（字面名受困）；``glossary_dir`` 相对形态
-  resolve 到进程 CWD（生产不可达——settings 强制绝对+现存目录）。
+  resolve 到进程 CWD（生产不可达——settings 强制绝对 + 现存目录）。
 - ``doc_filter`` 多行术语（csv 引号字段/yaml 键内嵌 ``\\n``）可命中
   ``\\n``-join 接缝——无单 chunk 含它却被注入（phantom 注入位浪费）。
 - 用户术语 en 与占位符同形（``[[MATH_1]]``）时按真术语走——corpus
@@ -404,7 +404,7 @@ def test_glossary_path_missing_and_relative_roots(
 ) -> None:
     """缺/空根优雅 None；相对 ``glossary_dir`` resolve 到进程 CWD（观察钉：
 
-    生产不可达——``settings._check_glossary_dir`` 强制绝对+现存目录；
+    生产不可达——``settings._check_glossary_dir`` 强制绝对 + 现存目录；
     纯函数层面 CWD 相关性如实钉住）。``monkeypatch.chdir`` 把 CWD 钉进
     per-test ``tmp_path``——探针目录不落 worktree 根。
     """
@@ -763,7 +763,7 @@ def test_load_yaml_pins(tmp_path: Path) -> None:
 def test_load_table_dispatch(tmp_path: Path) -> None:
     """后缀分发钉：.csv/.yaml/.yml 通；大小写敏感（PLAUSIBLE papercut——
     ``X.CSV`` 同格式被拒）；缺文件 ``FileNotFoundError``；目录后缀巧名
-    ``IsADirectoryError``。"""
+    ``IsADirectoryError``."""
     for name in ("a.csv", "a.yaml", "a.yml"):
         p = tmp_path / name
         p.write_text("a: 1\n" if name != "a.csv" else "a,1\n", encoding=_MODE)

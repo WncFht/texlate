@@ -50,10 +50,10 @@ from texlate.compile.ctan import CtanFetcher, TlpdbIndex
 from texlate.compile.engine import TECTONIC_BUNDLE_PIN
 from texlate.compile.fixloop import load_ruleset
 
-#: RS 惰性装载: 旧 stagerun/e2e_real 顶层 ``import fixloop_bench`` 只为取配方
+#: RS 惰性装载：旧 stagerun/e2e_real 顶层 ``import fixloop_bench`` 只为取配方
 #: (_NoSandbox/_init_usertree/_index/TUNA_TLNET), import-time 读 rules.yaml
 #: 会撞上半途编辑的规则文件 → 顶层 import 直接崩。模块内走 ``_rs()``, 外部
-#: ``flb.RS`` 经 PEP 562 __getattr__ 兼容, 都是首次访问才加载; 线程池并发
+#: ``flb.RS`` 经 PEP 562 __getattr__ 兼容，都是首次访问才加载; 线程池并发
 #: 首访经锁串行 (与 _index 同型)。
 _rs_cache = None
 _rs_lock = threading.Lock()
@@ -75,7 +75,7 @@ def __getattr__(name: str):
     raise AttributeError(msg)
 
 
-#: tlnet 镜像钉选: 引擎子进程 (child_env) 不透传 *_PROXY → 直连; 本机直连实测
+#: tlnet 镜像钉选：引擎子进程 (child_env) 不透传 *_PROXY → 直连; 本机直连实测
 #: tuna/aliyun/sjtug 通、mirror.ctan.org round-robin 不通 (2026-09-15)。
 #: usertree `option repository` 逐篇钉住 → tlmgr install 不再吃镜像抖动。
 #: 单源在 benchlib（e2e_real 经 `_fl.TUNA_TLNET` 继续从此名取）。
@@ -107,7 +107,7 @@ class _NoSandbox:
 # file→pkg oracle: 不用 `tlmgr search --global` (逐查询远端 tlpdb, 镜像 round-robin
 # 实测会挂 → 假 "no package provides") —— 换 texlive.tlpdb 离线索引 (ctan.py 同款
 # oracle, 一次性 ~2.8MB 下载后 ~/.texlate/cache/filemap.json 常驻)。同一份远端
-# 仓库知识, 与环境冷热无关, 不引入测量偏差。
+# 仓库知识，与环境冷热无关，不引入测量偏差。
 _index_lock = threading.Lock()
 _index_cache: TlpdbIndex | None = None
 
@@ -142,7 +142,7 @@ def _texmf_env(texmf: Path) -> dict[str, str]:
 
 
 def _init_usertree(texmf: Path) -> None:
-    """冷 usertree 预置: init-usertree + 钉 tuna 镜像 (写到本篇 usertree tlpdb).
+    """冷 usertree 预置：init-usertree + 钉 tuna 镜像 (写到本篇 usertree tlpdb).
 
     引擎 install_file 见到 tlpdb 已存在会跳过自建; 先钉镜像保证后续
     ``tlmgr --usermode install`` 不吃 mirror.ctan.org 的 round-robin 抖动。
@@ -184,7 +184,7 @@ def _texmf_runner(texmf: Path):
         )
         t0 = time.time()
         try:
-            p = subprocess.run(  # fixloop 动作原语, argv 无 shell
+            p = subprocess.run(  # fixloop 动作原语，argv 无 shell
                 argv,
                 cwd=str(wdir),
                 env=env,
@@ -217,7 +217,7 @@ def _make_engine(name: str, texmf: Path, wdir: Path) -> _NoSandbox:
             eng.filemap = idx.query
     else:
         eng = TectonicEngine(bundle=TECTONIC_BUNDLE_PIN)
-        # 预注入 ctan_fetch (同 _wire_engine 配方, 但 mirror 钉 tuna);
+        # 预注入 ctan_fetch (同 _wire_engine 配方，但 mirror 钉 tuna);
         # fixloop 见到非 None 即跳过自带注入
         rs = _rs()
         vg = rs.filemap_cfg.get("version_guard") or {}

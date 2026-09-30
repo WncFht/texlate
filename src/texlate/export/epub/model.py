@@ -26,7 +26,7 @@ class EpubBook:
 class Unit:
     """一个翻译单元（doc-formats.md §2 Unit 契约的 DOM 版）。
 
-    ``markers``: ``token → 源元素``；``run_nodes`` 是该 run 的已拥有文本节点
+    ``markers``: ``token → 源元素 ``；``run_nodes`` 是该 run 的已拥有文本节点
     （锚定插译的落点）；``is_multi_run`` = owner 还持有别的 run（克隆 owner
     会把别的 run 的原文也复制进去，此时必须锚定）。
     """

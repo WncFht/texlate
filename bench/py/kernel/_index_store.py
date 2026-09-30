@@ -1,7 +1,7 @@
 """index 存储底座 mixin —— sqlite 句柄/schema 建表与迁移/meta 计数器/写事务。
 
 - ``__init__`` — WAL + NORMAL + busy_timeout=30000 的连接契约 (宽限给
-  批量写者: 14k-event emit_batch sink 磨满单写者槽时 5s 超时曾失守)。
+  批量写者：14k-event emit_batch sink 磨满单写者槽时 5s 超时曾失守)。
 - ``_schema_current``/``_init_schema``/``_drop_all`` — 稳态零写只读探针 +
   create-missing 先行 + additive ALTER/INDEX 免版本号迁移。
 - ``_meta_*`` — meta kv 读写与计数器。

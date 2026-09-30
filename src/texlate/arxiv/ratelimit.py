@@ -122,7 +122,7 @@ class _Bucket:
 
 
 class RateLimiter:
-    """限速+断路器+日预算。状态 JSON 落盘可恢复。"""
+    """限速 + 断路器 + 日预算。状态 JSON 落盘可恢复。"""
 
     def __init__(
         self,

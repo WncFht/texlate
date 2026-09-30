@@ -2,7 +2,7 @@
 
 ``_CS_FIX_TABLE`` 默认表新增五键 + 85-shim.yaml 新规则
 ``provides_date_daypad`` (1511.06717, triage 前提证伪后的真实机理)。
-钉死的机制要点:
+钉死的机制要点：
 
 - ``cref@section`` (2211.04538): crossreftools 1.0 字段层 splitter
   ``\\crt@cref@splitter@<field>#1#2`` 按 cleveref ≤0.21 双组
@@ -11,7 +11,7 @@
   undefined_cs|cref@section, ``\\def\\cref@section`` 无用 —— orphan 名
   带 ``{}{}{}`` 后缀)。根修 = begindocument/before 钩内把五字段 splitter
   改 ``#1#2#3\\fi`` 定界吞尾组再回吐 ``\\fi`` —— 包装载期 ``\\let``
-  快照链 ``firstarg→counter`` 已完成, 必须覆写字段名本体。
+  快照链 ``firstarg→counter`` 已完成，必须覆写字段名本体。
 - ``bar`` (1206.1993): 95-targeted.yaml cs_table 有 ``Bar`` 键但 payload
   是小写 ``bar`` —— 精确大小写查表落空。eulervm ``\\let\\bar\\undefined``
   → AtBeginDocument 复查点 ``\\providecommand`` 补 ``\\overline`` 替身
@@ -21,12 +21,12 @@
 - ``red`` (2009.11007): doc 自有 ``{\\red 这是译文}`` 色切宏无定义 →
   xcolor 装载 + 组内色切替身。
 - ``+`` (cond-mat/0111246): 2.09 代 tabbing 重音 ``\\+'e`` 裸调
-  (tabbing env 外顶层 ``\\+`` 未定义, 实证) → 零参 gobble 留 'e 文本。
+  (tabbing env 外顶层 ``\\+`` 未定义，实证) → 零参 gobble 留 'e 文本。
 - ``provides_date_daypad`` (1511.06717): aa.cls ``\\def\\filedate{2014/12/1}``
-  单数字日段让 kernel ``\\@parse@version@dash`` 错位, ``\\@nil`` 漏进
+  单数字日段让 kernel ``\\@parse@version@dash`` 错位，``\\@nil`` 漏进
   ``\\ifnum`` → ``\\@ifl@ter``/``\\usepackage`` 全链 undefined_cs|@nil。
   双臂 regex_rewrite 把 YYYY/M/D 单数字月日段补零 (月臂先跑日臂后跑
-  任一序皆收敛, 双位数/三位数段不动)。
+  任一序皆收敛，双位数/三位数段不动)。
 """
 
 from pathlib import Path
@@ -44,7 +44,7 @@ from texlate.compile.fixloop.builtins.csfix import _CS_FIX_TABLE
 
 
 def test_table_entries_present() -> None:
-    """五键在默认表, spec 键面与机理相符。"""
+    """五键在默认表，spec 键面与机理相符。"""
     for cs in ("cref@section", "bar", "inputencoding", "red", "+"):
         assert cs in _CS_FIX_TABLE, cs
     assert set(_CS_FIX_TABLE["cref@section"]) == {"polyfill"}
@@ -55,7 +55,7 @@ def test_table_entries_present() -> None:
 
 
 def test_cref_section_splitter_patch(tmp_path: Path) -> None:
-    """crossreftools 字段层 splitter 补丁: #3\\fi 定界 + begindocument/before 钩。"""
+    """crossreftools 字段层 splitter 补丁：#3\\fi 定界 + begindocument/before 钩。"""
     _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "cref@section")
     assert ok, note
@@ -116,14 +116,14 @@ def test_plus_tabbing_accent_gobble(tmp_path: Path) -> None:
 
 
 def test_refire_applied_nothing(tmp_path: Path) -> None:
-    """二轮重火: snippet 已在文 → applied nothing, 不重复注入。"""
+    """二轮重火：snippet 已在文 → applied nothing, 不重复注入。"""
     check_refire_idempotent(
         tmp_path, "inputencoding", "\\providecommand\\inputencoding[1]{}"
     )
 
 
 def test_unknown_cs_still_declines(tmp_path: Path) -> None:
-    """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
+    """非表键 payload → 拆分臂亦不中，诚实 decline 落 guess 链。"""
     check_unknown_cs_decline(tmp_path)
 
 
@@ -147,7 +147,7 @@ def _apply_rewrites(text: str) -> str:
 
 
 def test_daypad_rule_shape() -> None:
-    """undefined_cs+payload 门, 双 condition 门, regex_rewrite 双臂。"""
+    """undefined_cs+payload 门，双 condition 门，regex_rewrite 双臂。"""
     rule = _daypad_rule()
     assert rule.when == {"category": "undefined_cs", "payload_required": True}
     assert set(rule.condition) == {"payload_pattern", "source_contains"}
@@ -178,12 +178,12 @@ def test_daypad_source_gate() -> None:
 
 
 def test_daypad_rewrite_arms() -> None:
-    """日段/月段补零: 单数字段补 0, 双位数与三位数段原样。"""
+    """日段/月段补零：单数字段补 0, 双位数与三位数段原样。"""
     assert _apply_rewrites("\\def\\filedate{2014/12/1}") == (
         "\\def\\filedate{2014/12/01}"
     )
     assert _apply_rewrites("2014/1/12") == "2014/01/12"
-    # 双单数字段: 日臂先 2014/1/01 → 月臂 2014/01/01 —— 序无关收敛。
+    # 双单数字段：日臂先 2014/1/01 → 月臂 2014/01/01 —— 序无关收敛。
     assert _apply_rewrites("2014/1/1") == "2014/01/01"
     # 已规范/非日期形不动。
     assert _apply_rewrites("2014/12/01") == "2014/12/01"

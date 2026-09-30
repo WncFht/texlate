@@ -4,7 +4,7 @@ Pin truth is the ``{cell}/PINNED`` marker file; the catalog ``pinned``
 field is its ledger-replayable projection (lake_cell events carry it, so a
 catalog rebuild loses nothing). Every byte-deleting verb — lake.evict's
 three tiers, shrink_shell, runs.remove_cell_tree — consults the marker;
-``state=='pinned'`` stays read-compat for存量 rows. ``bench sweep``'s full
+``state=='pinned'`` stays read-compat for 存量 rows. ``bench sweep``'s full
 pass tail-drives ``cas.gc_sweep`` (24h grace) and reports ``cas_swept``.
 
 Every test runs against an isolated $TEXLATE_BENCH_ROOT via `broot`.
@@ -139,7 +139,7 @@ def test_pin_preserves_row_source() -> None:
 
 def test_pin_survives_mark_used_and_state_transitions() -> None:
     """The durability arm: pinned is a FIELD — mark_used/set() merge it
-    forward, never clear it (原型: state=='pinned' would silently un-pin
+    forward, never clear it (原型：state=='pinned' would silently un-pin
     on the next set; the field does not)."""
     _mk_cell(IDC, {"a.tex": b"aa"}, meta={"n_files": 1})
     cat = lake.LakeCatalog.load()

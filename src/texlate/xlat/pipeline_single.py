@@ -119,7 +119,7 @@ class _XlatSingle:
         ) -> dict[str, str]:
             user_obj = _slots_user_obj(c, slots_map, failures_json, cfg=self.cfg)
             # response_format 在 3003 网关被静默忽略（B4a 实测三变体同输出）——
-            # 只是 prompt 增强；真正约束在阶梯侧的槽位合法性校验+失败重问。
+            # 只是 prompt 增强；真正约束在阶梯侧的槽位合法性校验 + 失败重问。
             raw = await self.translator.translate(
                 system=self._system_prompt(c.kind, paper_ctx=False),
                 user=json.dumps(user_obj, ensure_ascii=False),

@@ -13,7 +13,7 @@ from _seqpos_lib import _norm_chars
 
 
 def char_pos_pages(doc) -> list[tuple[int, str, list[float]]]:
-    """pymupdf rawdict → [(page1, 归一字符流, 逐字 frac)]。
+    """pymupdf rawdict → [(page1, 归一字符流，逐字 frac)]。
 
     frac = 字形 bbox 顶/页高，clamp [0, 0.999]——与 seqpos fraction
     顶向下契约同口径（mark_bias 原拷贝未 clamp，两侧 frac 都只做
@@ -40,7 +40,7 @@ def char_pos_pages(doc) -> list[tuple[int, str, list[float]]]:
 
 
 def char_pos_stream(doc) -> tuple[str, list[tuple[int, float]]]:
-    """全档平铺版——("".join 各页字符流, [(page1, frac)] 逐字）。
+    """全档平铺版——("".join 各页字符流，[(page1, frac)] 逐字）。
 
     seqpos_verify_mask.locate_off 契约：``stream.find(probe)`` 的
     offset 直接索引位表拿 (page1, frac)。跨页缝处的假命中与旧拷贝

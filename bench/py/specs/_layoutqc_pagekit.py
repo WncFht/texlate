@@ -28,7 +28,7 @@ def _struct_head(head: str, doc_title: str | None = None) -> bool:
     ``doc_title``=splice tex ``\\title`` 参数 squash 串——标题页
     首行即论文标题本身（``Universitá`` 式机构行之外的另一族无
     关键字页首，1503.00131 实证）：head squash 与 title 互为前缀
-    即中（截断抽取/题+副题单行都盖）。"""
+    即中（截断抽取/题 + 副题单行都盖）。"""
     if _STRUCT_HEAD_RX.match(head):
         return True
     hk = re.sub(r"\s+", "", head)

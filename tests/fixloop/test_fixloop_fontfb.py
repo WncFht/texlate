@@ -65,7 +65,7 @@ _GRE_CLONES = {
 
 
 def test_font_stem_normalization() -> None:
-    """payload 与站点名归一到同茎: 文件扩展名 + ``-<weight>`` 尾 + 空白。"""
+    """payload 与站点名归一到同茎：文件扩展名 + ``-<weight>`` 尾 + 空白。"""
     assert _font_stem("Tinos-Regular") == "tinos"
     assert _font_stem("Nimbus Roman") == "nimbus roman"
     assert _font_stem("Nimbus Mono PS") == "nimbus mono ps"
@@ -80,7 +80,7 @@ def test_clone_table_pins() -> None:
     assert _CLONE_TABLE["nimbus mono ps"] == "texgyrecursor-regular.otf"
     assert _CLONE_TABLE["tinos"] == "Tinos-Regular.ttf"
     assert _CLONE_TABLE["notoserif"] == "NotoSerif-Regular.ttf"
-    # Amiri 不收 —— TL 内外皆无度量克隆, 强替发错字体声明 (unfixable 裁决)
+    # Amiri 不收 —— TL 内外皆无度量克隆，强替发错字体声明 (unfixable 裁决)
     assert "amiri" not in _CLONE_TABLE
     # 全表值皆文件形 (kpathsea 可探测); 家族名不可写入站点
     for v in _CLONE_TABLE.values():
@@ -91,7 +91,7 @@ def test_clone_table_pins() -> None:
 
 
 def test_clone_sub_nimbus_trio(tmp_path: Path) -> None:
-    """2609.19582 形: Nimbus 三站点同轮收敛 → TeX Gyre 文件形克隆。"""
+    """2609.19582 形：Nimbus 三站点同轮收敛 → TeX Gyre 文件形克隆。"""
     (tmp_path / "main.tex").write_text(_NIMBUS_SRC, encoding="utf-8")
     ok, note = fontspec_clone_sub(
         mk_ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
@@ -104,7 +104,7 @@ def test_clone_sub_nimbus_trio(tmp_path: Path) -> None:
 
 
 def test_clone_sub_tinos_path_bind_strip(tmp_path: Path) -> None:
-    """2609.20064 anthology-ch.cls 形: post-opts 全 filebind 组剥净。"""
+    """2609.20064 anthology-ch.cls 形：post-opts 全 filebind 组剥净。"""
     src = (
         "\\setmainfont{Tinos}[\n"
         "  Path=fonts/Tinos/,Extension=.ttf,UprightFont=*-Regular,\n"
@@ -121,7 +121,7 @@ def test_clone_sub_tinos_path_bind_strip(tmp_path: Path) -> None:
 
 
 def test_clone_sub_fam_form_mid_opts(tmp_path: Path) -> None:
-    """2609.20064 \\newfontfamily 族名形: mid 选项组同剥。"""
+    """2609.20064 \\newfontfamily 族名形：mid 选项组同剥。"""
     src = (
         "\\newfontfamily\\scfallbackfont{NotoSerif}[\n"
         "  Path=fonts/Noto_Serif/static/,Extension=.ttf,\n"
@@ -153,7 +153,7 @@ def test_clone_sub_preopts_and_keeps_render_opts(tmp_path: Path) -> None:
 
 
 def test_clone_sub_amiri_declines_unfixable(tmp_path: Path) -> None:
-    """2609.20684 形: Amiri 无克隆表项 → 不动站点, 诚实 unfixable。"""
+    """2609.20684 形：Amiri 无克隆表项 → 不动站点，诚实 unfixable。"""
     src = "\\babelfont[arabic]{rm}{Amiri-Regular.ttf}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontspec_clone_sub(
@@ -186,7 +186,7 @@ def test_clone_sub_masked_comment_untouched(tmp_path: Path) -> None:
 
 
 def test_clone_sub_no_matching_site_declines(tmp_path: Path) -> None:
-    """payload 在表且克隆可达, 但 fileset 无该名字体站点 → decline。"""
+    """payload 在表且克隆可达，但 fileset 无该名字体站点 → decline。"""
     (tmp_path / "main.tex").write_text(
         "\\setmainfont{Latin Modern Roman}\n", encoding="utf-8"
     )
@@ -201,7 +201,7 @@ def test_clone_sub_no_matching_site_declines(tmp_path: Path) -> None:
 
 
 def test_enc_strip_unused_t2a_whole_optlist(tmp_path: Path) -> None:
-    """2211.13021 形: ``[T2A]`` 只载不用 → 方括号连摘 → 裸 fontenc 装载。"""
+    """2211.13021 形：``[T2A]`` 只载不用 → 方括号连摘 → 裸 fontenc 装载。"""
     src = "\\documentclass{article}\n\\usepackage[T2A]{fontenc}\n\\begin{document}\nx\\end{document}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
@@ -240,7 +240,7 @@ def test_enc_decl_commented_with_opt(tmp_path: Path) -> None:
 
 
 def test_enc_in_use_declines(tmp_path: Path) -> None:
-    """1312.0514 形: ``\\fontencoding{LGR}``/``\\DeclareText*`` 在用 → decline。"""
+    """1312.0514 形：``\\fontencoding{LGR}``/``\\DeclareText*`` 在用 → decline。"""
     src = "\\usepackage[LGR,T1]{fontenc}\n{\\fontencoding{LGR}\\selectfont α}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
@@ -296,7 +296,7 @@ def test_enc_transitive_no_load_site_declines(tmp_path: Path) -> None:
 
 
 def test_clone_sub_rule_registered() -> None:
-    """order 30.5 —— install(30) 后 LM 兜底(31) 前; 仅 fontspec_missing 点火。"""
+    """order 30.5 —— install(30) 后 LM 兜底 (31) 前; 仅 fontspec_missing 点火。"""
     r = rule("fontspec_clone_sub")
     assert r.order == 30.5  # noqa: PLR2004 - schema 断言值
     assert r.when["category"] == "fontspec_missing"

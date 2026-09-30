@@ -1,8 +1,8 @@
 """kernel._cli_verbs — 分析动词注册/分派叶 (kernel.cli 拆分叶).
 
-§5.2 分析动词自注册机制: ``verbs.REGISTRY`` 是纯数据表 (verb 名 →
-(叶名, help)), parser 与 ``_DISPATCH`` 读同一表——新动词文件落地即
-上线, cli 本体零改。``_lazy_verb`` 惰性 ``importlib.import_module(
+§5.2 分析动词自注册机制：``verbs.REGISTRY`` 是纯数据表 (verb 名 →
+(叶名，help)), parser 与 ``_DISPATCH`` 读同一表——新动词文件落地即
+上线，cli 本体零改。``_lazy_verb`` 惰性 ``importlib.import_module(
 "verbs.<leaf>")`` (连字符动词共享模块叶); 未安装动词统一
 ``_cmd_verb`` 报 "verb not installed" (exit 2)。
 

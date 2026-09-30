@@ -1,6 +1,6 @@
 """specs._layoutqc_logcheck — 编译日志信号叶 (_layoutqc 拆分叶).
 
-overfull 去重计数+峰值+分层 (titlepage/\\output 例程)、Float-Fit
+overfull 去重计数 + 峰值 + 分层 (titlepage/\\output 例程)、Float-Fit
 typeout、浮体丢失/超高、未解引用键集——日志正则通道全检。
 """
 
@@ -54,7 +54,7 @@ def _frontmatter_lines(tex_files: list[Path]) -> set[int]:
 def _logscan(
     log_text: str, title_lines: set[int] | None = None
 ) -> tuple[list[dict], dict]:
-    """编译日志信号：overfull 去重计数+峰值、Float-Fit typeout、浮体
+    """编译日志信号：overfull 去重计数 + 峰值、Float-Fit typeout、浮体
     丢失（浮体臂）、未解引用键集（喂 xlat_broken_refs 证据面）。
 
     overfull 判定三层先收口：(1) ``(kind, round(pt,1))`` 去重——逐页
@@ -126,7 +126,7 @@ def _logscan(
     if ov_out:
         # \\output 例程溢出（页眉页脚家具/超高 vbox）——源稿本就溢出或
         # 模板属性，accept_as_is：发 INFO sig 记账不进 dirty（overfull
-        # 簇 0928 裁定；headfoot 7 格+超高 vbox 6 格实证）。同格正文域
+        # 簇 0928 裁定；headfoot 7 格 + 超高 vbox 6 格实证）。同格正文域
         # 溢出仍走 layout:overfull（1306.0005 figure 段实证分层）。
         findings.append(
             {

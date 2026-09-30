@@ -35,7 +35,7 @@ def materialize_into_stage(
     meta dict（lake.hydrate fetch_fn 的返回值——lake 自写 meta.json）。
 
     layer/cluster_prefix/reason 分层注入：expand 传 ("expand","EXP",
-    "expand_quota")；layers 传层名+簇前缀, pick_reason=f"{reason}:{_cell}".
+    "expand_quota")；layers 传层名 + 簇前缀，pick_reason=f"{reason}:{_cell}".
     """
     stage = Path(stage)
     pid = rec["id"]
@@ -80,7 +80,7 @@ def materialize_into_stage(
         "bytes": len(blob),
         "uncompressed_bytes": rec.get("uncompressed_bytes"),
         "main_tex_sha256": main_sha,
-        # 特征以 extracted 树重算为准(expand scan 记录仍是旧合并口径——
+        # 特征以 extracted 树重算为准 (expand scan 记录仍是旧合并口径——
         # 无 staging 无法回填; extracted_features 与 blob_features 同一生成码)
         "features": extracted_features(stage / "extracted"),
         "pick_reason": f"{reason}:{rec['_cell']}",

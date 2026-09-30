@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Final
 from texlate.textutil import env_flag, filtered_env
 from texlate.textutil.osutil import ENV_NO_BWRAP, ENV_TEX_BUNDLE
 
-from .proc import (  # noqa: F401  # 再出口: ``sandbox.X`` 旧路径仍在消费的名
+from .proc import (  # noqa: F401  # 再出口：``sandbox.X`` 旧路径仍在消费的名
     _SENTRY_KEEP,
     _cap_rlimit,
     _RunawaySentry,
@@ -194,7 +194,7 @@ def sandbox_wrap(  # noqa: PLR0913 -- 沙箱决策参数面
         + json.dumps(str(home), ensure_ascii=False)
         + "))\n(deny file-write*)\n"
         + ("(deny network*)\n" if not allow_net else "")
-        # deny 的是**内容读**；metadata(stat/目录遍历)放行——否则白名单
+        # deny 的是**内容读**；metadata(stat/目录遍历) 放行——否则白名单
         # 子路径内的 shell ``cd``/getcwd 要 stat 祖先目录全被截获，
         # mktexpk 装 pk 字体的 cd 链必死（2211.13013 SIGPIPE 根因）。
         # 密钥/配置内容仍不可读，代价仅是 $HOME 下文件名可枚举。

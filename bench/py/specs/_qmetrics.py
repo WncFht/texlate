@@ -221,7 +221,7 @@ def _term_base(cat_group: str) -> Glossary:
     """cat_group → 非 local 层基底 Glossary（user 禁层 + category + default）。
 
     index.yaml/category csv/default.csv 在同 cat_group 下恒定——原逐篇
-    ``Glossary.load`` 全量重读是纯磁盘+解析重复；每组缓存一份，逐篇只剩
+    ``Glossary.load`` 全量重读是纯磁盘 + 解析重复；每组缓存一份，逐篇只剩
     local 层叠加 + doc_filter。thread executor 下进程内共享正确。
     """
     return Glossary.load(

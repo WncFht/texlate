@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
-#: (相对 ``FIXTURES`` 的 posix 名, 路径)——名随路径派生，改名不会与
+#: (相对 ``FIXTURES`` 的 posix 名，路径)——名随路径派生，改名不会与
 #: ``_FIXTURE_TOPDIR``/``_PARSED`` 键失同步。
 FIXTURE_FILES = [
     (p.relative_to(FIXTURES).as_posix(), p)

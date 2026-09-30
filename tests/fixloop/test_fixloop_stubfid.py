@@ -110,7 +110,7 @@ def test_all_sty_shim_bodies_option_tolerant() -> None:
 
 
 def test_xetex_inputenc_option_tolerance() -> None:
-    """2609.19431 本体钉: xetex-inputenc 吞 [utf8] 等任意选项。"""
+    """2609.19431 本体钉：xetex-inputenc 吞 [utf8] 等任意选项。"""
     code = _code_lines(_shim_body("xetex-inputenc.sty"))
     assert "\\DeclareOption*{}" in code
     assert "\\ProcessOptions" in code
@@ -138,7 +138,7 @@ def test_siamltex_theorem_machinery() -> None:
 
 
 def test_siamart_stays_plain_bridge() -> None:
-    """拆分护栏: siamart 真身走 amsthm + 稿自定义 \\newtheorem——共享体
+    """拆分护栏：siamart 真身走 amsthm + 稿自定义 \\newtheorem——共享体
     预定义定理 env 必炸 already-defined，siamart 体保持纯桥。"""
     code = _code_lines(_shim_body("siamart.cls"))
     assert "\\ProvidesClass{siamart}" in code
@@ -168,7 +168,7 @@ def test_jhep_vendor_shim_fidelity(fname: str) -> None:
 
 @pytest.mark.parametrize("key", ["jhep.cls", "jcap.cls"])
 def test_jhep_shim_map_body_fidelity(key: str) -> None:
-    """sissa_body 活键同步钉: shim_map jhep.cls/jcap.cls 与 vendor 件同面。"""
+    """sissa_body 活键同步钉：shim_map jhep.cls/jcap.cls 与 vendor 件同面。"""
     code = _code_lines(_shim_body(key))
     for frag in _JHEP_FRAGS:
         assert frag in code, f"shim_map {key} 缺 {frag}"
@@ -199,7 +199,7 @@ def test_svjour_clo_stub_seeds_size_family() -> None:
 
 
 def test_svjour_clo_stub_writes_seeded_body(tmp_path: Path) -> None:
-    """端到端写件钉: ``svjour_clo_stub`` 按 docclass 选项落 sv<opt>.clo,
+    """端到端写件钉：``svjour_clo_stub`` 按 docclass 选项落 sv<opt>.clo,
     落件体含 size-family 播种（指纹闸 sha 变 → 旧 noop 自动刷新）。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[epj]{svjour}\n\\begin{document}\nx\n\\end{document}\n",
@@ -216,7 +216,7 @@ def test_svjour_clo_stub_writes_seeded_body(tmp_path: Path) -> None:
 @_COMPILE
 @pytest.mark.integration
 def test_compile_xetex_inputenc_utf8(tmp_path: Path) -> None:
-    """2609.19431 端到端: stub 在场时 [utf8] 选项不再炸 Unknown option。"""
+    """2609.19431 端到端：stub 在场时 [utf8] 选项不再炸 Unknown option。"""
     log = _run(
         tmp_path,
         "\\documentclass{article}\n\\usepackage[utf8]{xetex-inputenc}\n"
@@ -229,7 +229,7 @@ def test_compile_xetex_inputenc_utf8(tmp_path: Path) -> None:
 @_COMPILE
 @pytest.mark.integration
 def test_compile_siamltex_theorems(tmp_path: Path) -> None:
-    """0807.5094 端到端: siamltex stub 下 theorem/proof env 直接可用。"""
+    """0807.5094 端到端：siamltex stub 下 theorem/proof env 直接可用。"""
     log = _run(
         tmp_path,
         "\\documentclass{siamltex}\n\\begin{document}\n"

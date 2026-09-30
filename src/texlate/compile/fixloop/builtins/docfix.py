@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 #: ``Improper alphabetic constant`` 行后紧随的 ``<to be read again>``
 #: 展示行给出肇事 token——pdfstring/书签域 `` `\cs `` 字母常量扫描只炸
-#: 多字符 cs (`` `\x `` 单字符是合法字母常量形, TeX 不报)。
+#: 多字符 cs (`` `\x `` 单字符是合法字母常量形，TeX 不报)。
 _ALPHA_BAD_CS_RE = re.compile(
     r"Improper alphabetic constant\.\s*\n<to be read again>\s*\n? *(\\[A-Za-z@]+)"
 )
@@ -67,7 +67,7 @@ def pdfstring_cs_disarm(
         {
             n
             for n in _ALPHA_BAD_CS_RE.findall(blob)
-            if len(n) > 2  # noqa: PLR2004 - 2 = 反斜杠+单字符合法形 (\x) 滤界
+            if len(n) > 2  # noqa: PLR2004 - 2 = 反斜杠 + 单字符合法形 (\x) 滤界
         }
     )
     if not names:
@@ -92,12 +92,12 @@ def pdfstring_cs_disarm(
 
 # ═══ phantom Incomplete \if — 脆弱前稿 cs 族 eTeX \protected 重定义 (B05 姊妹臂) ═══
 
-#: 展开态 phantom 链的宿主面: frontmatter/moving-arg 里常被 ``\edef``/
+#: 展开态 phantom 链的宿主面：frontmatter/moving-arg 里常被 ``\edef``/
 #: ``\xdef``/``\MakeUppercase``/``\pdfstringdef`` 展开的 cs——``\footnote``/
 #: ``\thanks`` (amsproc ``\shortauthors`` → ``\markboth`` edef 实证) +
 #: 2.09 字体声明 ``\bf\it\rm\sf\tt\sc\sl`` (myectaart ``\xdef\@argi{#1}``
 #: 实证)。保护后其 ``\newif``-setter 替换体里的 ``\if@X\iffalse`` 不再被
-#: 执行——未定义名经 ``\ifdefined`` 闸跳过, 不造新坏定义。
+#: 执行——未定义名经 ``\ifdefined`` 闸跳过，不造新坏定义。
 _IFPROT_FAMILY: tuple[str, ...] = (
     "footnote",
     "thanks",
@@ -110,10 +110,10 @@ _IFPROT_FAMILY: tuple[str, ...] = (
     "sl",
 )
 
-#: 字面扫描器已跑过的凭据: ``unclosed_if_close`` (order 196) 的 run_tool
+#: 字面扫描器已跑过的凭据：``unclosed_if_close`` (order 196) 的 run_tool
 #: note 固定带 ``ifclose:`` 判词 (``noop``/``injected`` 皆证"本轮已查字面
 #: 平衡")。该凭据缺席 = 扫描器 cond-skip (python3 缺位) 或 order 未达——
-#: 字面亏格可能悬着, 本规则的 ``\protected`` 域不含它, 保守不收。
+#: 字面亏格可能悬着，本规则的 ``\protected`` 域不含它，保守不收。
 _IFPROT_SCANNER_RULE = "unclosed_if_close"
 
 
@@ -148,7 +148,7 @@ def if_phantom_protect(  # noqa: PLR0911 - 逐门 decline 即归因
     m = re.search(r"phantom=(\d+)", seen)
     if m is not None and int(m.group(1)) > 0:
         # 跳读形嫌疑在场 (\let operand/名位/def 参位内 \if-token + 活条件
-        # 帧) —— \protected 域不含此机制, 注了修不到 → abstain。
+        # 帧) —— \protected 域不含此机制，注了修不到 → abstain。
         return (
             False,
             f"skip-phantom suspects on ledger (phantom={m.group(1)}) — abstain",
@@ -156,7 +156,7 @@ def if_phantom_protect(  # noqa: PLR0911 - 逐门 decline 即归因
     main = ctx.main_path()
     if main is None:
         return False, "no main file"
-    # 退文件头 = cls 加载前, \AtBeginDocument 未定义 → 必须有 docclass 缝
+    # 退文件头 = cls 加载前，\AtBeginDocument 未定义 → 必须有 docclass 缝
     if not find_docclass_ends(ctx.read(main) or ""):
         return False, "no docclass seam"
     lines = "".join(
@@ -182,15 +182,15 @@ _MBD_ERR_RE = re.compile(
     r"\s*LaTeX Error:\s*Missing \\begin\{document\}",
     re.MULTILINE,
 )
-#: ``l.N`` 上下文行 —— TeX 行内截到炸点, 最后一个 cs 即肇事者。
+#: ``l.N`` 上下文行 —— TeX 行内截到炸点，最后一个 cs 即肇事者。
 _L_CTX_LINE_RE = re.compile(r"(?m)^l\.\d+[^\n]*")
 _L_CTX_CS_RE = re.compile(r"\\([A-Za-z@]+)")
 
 #: 肇事 cs → 供方包 (``params.cs_pkg`` 可扩) —— 供方先装载即真 def
-#: 就位; gobble/空 polyfill 会静默吞掉计数器重编号语义, 只收真实供方。
+#: 就位; gobble/空 polyfill 会静默吞掉计数器重编号语义，只收真实供方。
 _PREMATURE_CS_PKG: dict[str, str] = {
     # 2009.11053: mystyle.sty:33 \numberwithin —— amsmath 在 ms.tex:48
-    # 逗号列才装, 供方晚于消费方 → 前置到 \usepackage{mystyle} 前。
+    # 逗号列才装，供方晚于消费方 → 前置到 \usepackage{mystyle} 前。
     "numberwithin": "amsmath",
 }
 
@@ -216,7 +216,7 @@ def _mbd_pairs(blob: str) -> list[tuple[str, str, str]]:
 def _tex_offender(ctx: LoopCtx, stem: str) -> Path | None:
     """肇事件 ``<stem>.tex`` 定位 —— file:line 错误头的 stem 只带文件名。
 
-    ``name`` 精确优先, ``stem`` 大小写兜底 (``sub/Foo.tex`` 的 stem 与
+    ``name`` 精确优先，``stem`` 大小写兜底 (``sub/Foo.tex`` 的 stem 与
     错误头 ``Foo.tex`` 同名位)。
     """
     low = f"{stem}.tex".lower()
@@ -280,7 +280,7 @@ def _seam_prov_covered(
     return False
 
 
-def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂等, 逐门 decline 即归因
+def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂等，逐门 decline 即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``Missing \begin{document}`` @件装载 → 供方包前置到消费方装载点。
@@ -308,7 +308,7 @@ def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂�
     for stem, ext, cs in _mbd_pairs(blob):
         prov = table.get(cs)
         if prov is None:
-            continue  # 表外肇事 cs —— 供方不可考, 不收
+            continue  # 表外肇事 cs —— 供方不可考，不收
         if ext == "tex":
             seam_provs.add(prov)
             seam_pairs.add((stem, cs, prov))
@@ -386,19 +386,19 @@ def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂�
     return True, "; ".join(done)
 
 
-# ═══ doc-latent @-def 站 exact-restore 包裹格 (spacefactor 车道, 1206.0445) ═══
+# ═══ doc-latent @-def 站 exact-restore 包裹格 (spacefactor 车道，1206.0445) ═══
 
 #: ``@``=catcode-12 宿主下 ``\@cs`` 断名成 ``\@``+裸字母 —— ``\@`` 即
-#: ``\spacefactor\@m`` 间距宏, 展开点执行 → ``You can't use '\spacefactor'
+#: ``\spacefactor\@m`` 间距宏，展开点执行 → ``You can't use '\spacefactor'
 #: in vertical mode`` / ``in math mode`` / ``Improper \spacefactor`` /
 #: ``Package calc Error: '\spacefactor' invalid`` 四头 (全落 other 类)。
 #: def 域内 ``\\[A-Za-z]*@[A-Za-z]`` 即肇事形 (``\l@section``/``\@secpenalty``
-#: /``\hb@xt@``/``\c@footnote``); 裸 ``\@ `` (句读间距宏) 不带后继字母, 不中。
+#: /``\hb@xt@``/``\c@footnote``); 裸 ``\@ `` (句读间距宏) 不带后继字母，不中。
 _AT_TOKEN_RE = re.compile(r"\\[A-Za-z]*@[A-Za-z]")
 
 #: ambient @ 事件 —— ``\makeatletter``/``\makeatother``/``\catcode`@=N``/
 #: ``\catcode 64=N``/``\catcode"40=N``/``\catcode'100=N``; 本族 restore cs
-#: (``_AT_LETTER_*`` 与 pkgload ``_SHIP_WRAP_*`` 的复元符) 只裹非 letter 站,
+#: (``_AT_LETTER_*`` 与 pkgload ``_SHIP_WRAP_*`` 的复元符) 只裹非 letter 站，
 #: 复元值恒为 other —— 走查直接建模。
 _ATDEF_EVENT_RE = re.compile(
     r"\\makeat(letter|other)(?![A-Za-z])"
@@ -406,10 +406,10 @@ _ATDEF_EVENT_RE = re.compile(
     r"|\\TeXlate(?:At|StyIn)Restore(?![A-Za-z])"
 )
 
-#: def 命令面 —— 名+参+体跨域收 ``\@`` 站: ``\renewcommand*\l@section`` 名断
+#: def 命令面 —— 名 + 参 + 体跨域收 ``\@`` 站：``\renewcommand*\l@section`` 名断
 #: (体随文执行) 与 ``\newcommand\foo{...\@x...}`` 体断同修; ``\def`` 族
 #: (``\long``/``\outer``/``\global``/``\protected`` 前缀任序) 走参数文本
-#: 扫描, 其余走 ``[opt]``/``{grp}`` 贪婪组列。``\let``/``\newif`` 无体
+#: 扫描，其余走 ``[opt]``/``{grp}`` 贪婪组列。``\let``/``\newif`` 无体
 #: def 不收 (断名产裸字母非 ``\@``)。
 _ATDEF_CMD_RE = re.compile(
     r"\\(?:newcommand|renewcommand|providecommand|DeclareRobustCommand"
@@ -422,7 +422,7 @@ _ATDEF_CMD_RE = re.compile(
     r"\\(?:gdef|edef|xdef|def)(?![A-Za-z])"
 )
 
-#: ``\def`` 参数文本窗上限 —— 无 ``{`` 体 (残缺稿) 按名末截域, 不吞全文。
+#: ``\def`` 参数文本窗上限 —— 无 ``{`` 体 (残缺稿) 按名末截域，不吞全文。
 _DEF_PARAM_MAX = 64
 
 #: ``\csname`` 形 def 名的随尾 ``\endcsname`` —— ``_def_extent`` 名位专用。
@@ -439,7 +439,7 @@ def _cs_end(vis: str, pos: int) -> int:
     return j + 1
 
 
-def _def_extent(vis: str, pos: int, is_def: bool) -> int:  # noqa: C901, PLR0912, FBT001 - def/非 def 两臂域界分派, 每门即归因
+def _def_extent(vis: str, pos: int, is_def: bool) -> int:  # noqa: C901, PLR0912, FBT001 - def/非 def 两臂域界分派，每门即归因
     r"""\def 域末 offset: 可选 ``*`` → 名 (``{grp}``/``\cs``) → 参/体组列。
 
     ``\def`` 族: 参数文本跑到首个 ``{`` (``\{`` 转义不算) 再收一组即停
@@ -508,7 +508,7 @@ def _atdef_sites(vis: str) -> list[tuple[int, int, bool]]:
                     at_letter = ev.group(1) == "letter"
                 elif ev.group(2) is not None:
                     at_letter = ev.group(2) == "11"
-                else:  # 本族 restore cs —— 只裹非 letter 站, 复元恒 other
+                else:  # 本族 restore cs —— 只裹非 letter 站，复元恒 other
                     at_letter = False
                 pos = ev.end()
                 continue
@@ -593,17 +593,17 @@ def spacefactor_atdef_wrap(
     return (bool(changed)), f"@def exact-restore wrap in {', '.join(changed)}"
 
 
-# ═══ \def\X<lit> 字面尾译文蚀除 → 逐站补回 (csdelim 车道, 5 格) ═══
+# ═══ \def\X<lit> 字面尾译文蚀除 → 逐站补回 (csdelim 车道，5 格) ═══
 
 #: TeX 错误头 ``Use of \X doesn't match its definition.`` —— X 是 def 时
-#: 带字面参数文本的 cs。``\S+?`` 懒惰: 词型 (``\ch``) 收满字母段,
+#: 带字面参数文本的 cs。``\S+?`` 懒惰：词型 (``\ch``) 收满字母段，
 #: 符型 (``\0``/``\~``) 收单字符。
 _MISMATCH_ERR_RE = re.compile(r"Use of \\(\S+?) doesn't match its definition")
 
 #: ``\def`` 族的 cs 名 + 字面参数尾 —— 前缀 ``\long``/``\outer``/
-#: ``\protected``/``\global`` 可叠, 本体 ``[egx]def``。尾 = ``{``/换行前的
-#: 原文: ``\def\c3h2{`` → ``3h2``; ``\def\b {`` → 空 (裸参宏); ``\def\a#1{``
-#: → ``#1`` 含 ``#`` 即真参宏, 不收。``\``/``{``/``}`` 入尾同理不收。
+#: ``\protected``/``\global`` 可叠，本体 ``[egx]def``。尾 = ``{``/换行前的
+#: 原文：``\def\c3h2{`` → ``3h2``; ``\def\b {`` → 空 (裸参宏); ``\def\a#1{``
+#: → ``#1`` 含 ``#`` 即真参宏，不收。``\``/``{``/``}`` 入尾同理不收。
 _DEF_TAIL_RE = re.compile(
     r"(?:\\(?:long|outer|protected|global)\s*)*"
     r"\\[egx]?def\s*"
@@ -615,7 +615,7 @@ _DEF_TAIL_RE = re.compile(
 #: (``\n`` 亦按一 space 计); 符型 cs 不吸收 (``\0 `` 的空格进正文)。
 _DELIM_SKIP_RE = re.compile(r"[ \t]*(?:\n[ \t]*)?")
 
-#: 字面尾不可含的字符 —— ``#`` 真参 / ``\`` cs / ``{}`` 定界, 皆出机制面。
+#: 字面尾不可含的字符 —— ``#`` 真参 / ``\`` cs / ``{}`` 定界，皆出机制面。
 _TAIL_BAD_RE = re.compile(r"[#\\{}]")
 
 
@@ -656,7 +656,7 @@ def _tail_align(vis: str, pos: int, rest: str) -> tuple[int, int, int]:
     return i, last, junk
 
 
-def _delim_sites(  # noqa: C901 - 逐站证据分派, 每门即归因
+def _delim_sites(  # noqa: C901 - 逐站证据分派，每门即归因
     vis: str,
     site_rx: re.Pattern[str],
     tail_pos: list[tuple[int, str | None]],
@@ -671,7 +671,7 @@ def _delim_sites(  # noqa: C901 - 逐站证据分派, 每门即归因
     沿用更早定义 (上游本就不同的语义) → 不收; 全局多尾歧义 → 不收。
     全对齐 → REPLACE 损毁域为尾 (junk 夹在两枚幸存尾字间 = 必为蚀除);
     部分对齐/零对齐 + 蚀除证据 (junk>0 或已消费>0) → 已配前缀后 INSERT
-    残余尾 (零内容损失); 无证据 → 上游本就断裂, 不动。
+    残余尾 (零内容损失); 无证据 → 上游本就断裂，不动。
     """
     edits: list[tuple[int, int, str]] = []
     n = len(vis)
@@ -708,7 +708,7 @@ def _delim_sites(  # noqa: C901 - 逐站证据分派, 每门即归因
     return edits
 
 
-def cs_delim_tail_fix(  # noqa: C901, PLR0912 - def 扫面 × 逐 cs 分派, 每门即归因
+def cs_delim_tail_fix(  # noqa: C901, PLR0912 - def 扫面 × 逐 cs 分派，每门即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``Use of \X doesn't match its definition`` → ``\def\X<lit>`` 字面尾补回。

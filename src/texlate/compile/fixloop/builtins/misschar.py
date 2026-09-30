@@ -1,23 +1,23 @@
 """builtins.misschar — missing_char F4 族修复原语 (C3 拆分)。
 
-log「Missing character」行 → 码位分级 → 按类修复: 表驱动字面替换
+log「Missing character」行 → 码位分级 → 按类修复：表驱动字面替换
 (``missing_char_fix``) / 组合附加符 accent cs 站点改写 (``accent_mark_fix``) /
 ``newunicodechar`` 逐字回退 + 数学域双模修 (``font_fallback``)。
 
 读侧/规划侧机制 (``_mc_parse_log``/``_mc_table``/``_mc_hit``/``_mc_plan``
 + ``_MC_TABLE``/``_FB_FONT``/``_MATH_SHIM_CS`` 常量) 归位
-``builtins.common`` —— shim 叶同消费, 本叶只留修复动作本体。
+``builtins.common`` —— shim 叶同消费，本叶只留修复动作本体。
 
-C5 拆叶: 实现体按修复域拆进九个 ``_mc*`` 私有兄弟叶, 本文件化纯
+C5 拆叶：实现体按修复域拆进九个 ``_mc*`` 私有兄弟叶，本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``misschar.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
-monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``misschar.name``
-读到的恒是叶子对象, 但 ``setattr(misschar, ...)`` 只遮蔽门面不改
+monkeypatch 锚点注意：patch 叶子不 patch 门面 —— ``misschar.name``
+读到的恒是叶子对象，但 ``setattr(misschar, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
 (``texlate.compile.fixloop.builtins._mc<叶>``), 不经本门面。
 
-叶谱: ``_mccjk`` missing_char_fix 主体+hangul 路由+warmup /
+叶谱：``_mccjk`` missing_char_fix 主体+hangul 路由+warmup /
 ``_mcfallback`` font_fallback 基座 (fb 表/数学域/字体解析) /
 ``_mcaccent`` accent 站点改写 / ``_mcglyph`` 宏字形/OT1 槽 /
 ``_mccaret`` ``^^XX`` 字节记法 / ``_mcfontspec`` fontspec 克隆名替 /
@@ -284,7 +284,7 @@ _LAZY: dict[str, str] = {
     name: leaf for leaf, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "MATH_ENVS",
@@ -412,15 +412,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -433,7 +433,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

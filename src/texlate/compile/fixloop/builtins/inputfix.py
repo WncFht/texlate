@@ -42,7 +42,7 @@ _INPUT_EXEC1_RX = re.compile(
     r"\\(?:input|include|subfile|subfileinclude|includestandalone"
     r"|InputIfFileExists)(?:\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
 )
-#: 双参 import 族 —— 第一参目录前缀, 第二参文件名。
+#: 双参 import 族 —— 第一参目录前缀，第二参文件名。
 _INPUT_EXEC2_RX = re.compile(
     r"\\(?:import|subimport|includefrom|subincludefrom|inputfrom)"
     r"\s*\{([^}]*)\}\s*\{([^}]*)\}"
@@ -78,7 +78,7 @@ def _exec_referenced_paths(ctx: LoopCtx) -> set[Path]:
         for m in _INPUT_EXEC2_RX.finditer(masked):
             d = m.group(1).strip().strip('"')
             if any(c in d for c in "{}\\"):
-                continue  # 目录参含宏/构造 —— 不可静态解析, 弃
+                continue  # 目录参含宏/构造 —— 不可静态解析，弃
             for cand in _input_targets(m.group(2)):
                 refs.add((src.parent / d / cand).resolve())
         for m in INPUT_BARE_RX.finditer(masked):
@@ -128,10 +128,10 @@ def subfile_docclass_strip(
             continue
         masked = mask_tex(t)
         if not DOCCLASS_RX.search(masked):
-            continue  # 无存活 docclass —— 普通被 input 件, 不动
+            continue  # 无存活 docclass —— 普通被 input 件，不动
         mb = _BEGIN_DOC_RE.search(masked)
         if mb is None:
-            continue  # 无 body 区 —— 非输入式子文档, 不动
+            continue  # 无 body 区 —— 非输入式子文档，不动
         cands.append((f, t, mb, _END_DOC_RE.search(masked, mb.end())))
     if not cands:
         return False, "no docclass-bearing non-main .tex"
@@ -139,7 +139,7 @@ def subfile_docclass_strip(
     changed = 0
     for f, t, mb, me in cands:
         if f.resolve() not in referenced:
-            continue  # 无存活引用 —— 独立第二文档/误判主档, 剥了也进不了编译流
+            continue  # 无存活引用 —— 独立第二文档/误判主档，剥了也进不了编译流
         body = t[mb.end() : me.start() if me is not None else len(t)]
         ctx.write(
             f,
@@ -252,7 +252,7 @@ def main_wrapper_promote(
 #: ``\include``↔``\includegraphics`` 类笔误 (math/0501227 preamble 期
 #: ``\include{triangle_dots.eps}`` 把 EPS 头按 TeX 展开 → Missing
 #: ``\begin{document}`` 爆流; 同位 ``\includegraphics{triangle_dots}``
-#: 在 body 另有正解, 剥除零语义损失)。
+#: 在 body 另有正解，剥除零语义损失)。
 _GFX_INPUT_EXTS = frozenset(
     {
         ".eps",

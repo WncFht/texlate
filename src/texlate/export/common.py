@@ -157,7 +157,7 @@ def apply_translations[U: _ApplyUnit](
     insert: Callable[[U, ChunkResult, str], str | None],
     counts_unchanged: Callable[[U], bool] = _all_units,
 ) -> ApplyCounts:
-    """``_apply`` 公共骨架——EPUB/DOCX 两臂的回放-预判-插译-计数全同构。
+    """``_apply`` 公共骨架——EPUB/DOCX 两臂的回放 - 预判 - 插译 - 计数全同构。
 
     差异三点经参数面注入：
 
@@ -223,7 +223,7 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
     ``apply_fn`` 把结果表插进文档模型返回计数；``save_fn`` 按插译成功数出包。
     Ctrl-C/异常按 ``store`` 已落盘译文回放 apply+save 后再抛（bbm
     ``_save_temp_book`` 语义——半成品双语件总比没有强）。返回
-    ``(结果表, 计数)`` 供调用方组 ``ExportReport``。
+    ``(结果表，计数)`` 供调用方组 ``ExportReport``。
     """
     g = coerce_glossary(glossary)
     pipe = XlatPipeline(

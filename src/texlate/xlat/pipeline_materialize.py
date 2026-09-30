@@ -87,7 +87,7 @@ class _XlatMaterialize:
         )
         # 文档级占位符点名册（v5 恒等注入替代件）——与 doc_filter 同口径
         # 全量集（含已完成块，续跑逐字节一致）。单行压 <Glossary> 块末行，
-        # 占位符多的文档也只是 O(类型+连续段) 而非 O(占位符) 重发。
+        # 占位符多的文档也只是 O(类型 + 连续段) 而非 O(占位符) 重发。
         self._ph_manifest = placeholders.render_placeholder_manifest(
             placeholders.collect_doc_placeholders(c.content for c in chunks)
         )

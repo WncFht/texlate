@@ -35,7 +35,7 @@ __all__ = [
 
 
 #: 驱动 fatal 行的缺图名捕获 —— ``Image inclusion failed. Could not
-#: find file: X`` 名字恒占行尾 (xdvipdfmx fatal 单行不折行, probe4
+#: find file: X`` 名字恒占行尾 (xdvipdfmx fatal 单行不折行，probe4
 #: 实证 120+col 路径仍整行)。
 _DRV_IMG_MISS_RE = re.compile(
     r"Image inclusion failed\.\s*Could not find file:\s*([^\n]+)"

@@ -104,7 +104,7 @@ def test_builtin_hangul_route_fandol_cls_mech(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_no_mech_declines(tmp_path: Path) -> None:
-    """无 xeCJK/kotex 机制 → 路由臂不占先, 谚文留表走 status-quo 链。
+    """无 xeCJK/kotex 机制 → 路由臂不占先，谚文留表走 status-quo 链。
 
     无 kotex 的工程里 ``\\newunicodechar`` 逐字回退本来就是活路
     (hangul_font_fallback 末位臂接管), 路由臂 decline 不谎报。
@@ -122,7 +122,7 @@ def test_builtin_hangul_route_no_mech_declines(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_ko_font_not_claimed(tmp_path: Path) -> None:
-    """ko-capable 字体上的谚文缺字不认领 —— 真缺字形面, 留表交 unmatched。
+    """ko-capable 字体上的谚文缺字不认领 —— 真缺字形面，留表交 unmatched。
 
     ``_KO_FONT_NOT`` 命中 → 码位不进 ``cps``: 同 log 里 lmroman 那条照
     认领 (``1 cp(s)``), NotoSansCJKkr 那条出路由臂视野。
@@ -142,7 +142,7 @@ def test_builtin_hangul_route_ko_font_not_claimed(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_fonts_dead_declines(tmp_path: Path) -> None:
-    """ko 候选全灭 → decline 诚实交回 —— 路由件不注, 末位臂照常。"""
+    """ko 候选全灭 → decline 诚实交回 —— 路由件不注，末位臂照常。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{kotex}\n"
         "\\begin{document}\n박\n\\end{document}\n",
@@ -231,7 +231,7 @@ def test_builtin_hangul_route_ko_fonts_param_override(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_claims_only_hangul(tmp_path: Path) -> None:
-    """混合缺字: 谚文归路由臂, 非谚文 CJK 仍走 cjk_warmup —— 认领外科手术。"""
+    """混合缺字：谚文归路由臂，非谚文 CJK 仍走 cjk_warmup —— 认领外科手术。"""
     (tmp_path / "main.tex").write_text(KOTEX_MAIN, encoding="utf-8")
     (tmp_path / "main.log").write_text(
         "Missing character: There is no 박 (U+BC15) in font "

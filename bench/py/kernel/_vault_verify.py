@@ -1,12 +1,12 @@
 """kernel._vault_verify — 三档校验 + 单文件自愈 (kernel.vault 拆分叶).
 
-``verify``: stat (meta 可解析+声明件在+size 合) / sample (+抽样 sha256
+``verify``: stat (meta 可解析 + 声明件在+size 合) / sample (+抽样 sha256
 复算) / full (全 inode 复算), SH 锁下进行。inode 聚合判定——共享 inode
-只查一次, 一个坏 inode 连坐全部别名 (位腐连坐是有意反向)。
+只查一次，一个坏 inode 连坐全部别名 (位腐连坐是有意反向)。
 
 ``heal``: 坏别名重链到携带声明 sha 的唯一好 donor inode (§3.10.4 单文件
 自愈)——同 inode 的全部别名一起重链 (单径 rename-replace 会把兄弟别名
-留腐); 恰好一个好 donor 才动手, 0→skip, >1→AmbiguousDonor。
+留腐); 恰好一个好 donor 才动手，0→skip, >1→AmbiguousDonor。
 """
 
 from __future__ import annotations

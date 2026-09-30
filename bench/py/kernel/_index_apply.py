@@ -1,14 +1,14 @@
 """index 事件应用 mixin —— ledger event → events 镜像 + dedupe + quarantine。
 
 - ``apply_event``/``apply_events`` — 单条/批量应用入口 (各自一条 _txn)。
-- ``_key_of`` — (run_seq,seq) 去重键决议: run 事件先查 runs 表; run-less
+- ``_key_of`` — (run_seq,seq) 去重键决议：run 事件先查 runs 表; run-less
   事件 run_seq=-1 + assigned seq 走深负段 (-(1<<40)-n), 永不撞 kernel
   seq 的 -1..-N 带。
-- ``_apply_one`` — payload_sha 全表 dedupe 先行 → events PK 冲突分流:
+- ``_apply_one`` — payload_sha 全表 dedupe 先行 → events PK 冲突分流：
   同 sha = replay (dedup_skip++), 异 sha = ledger 损坏 → quarantine
   不抛出 (毒 payload 同步入 dedupe 防重放再隔离)。
 - ``_quarantine`` — 单发 O_APPEND os.write 落 ledger/quarantine.jsonl;
-  index 永不取 ledger/.lock (可能在 emit 临界段内被调, 取锁即死锁)。
+  index 永不取 ledger/.lock (可能在 emit 临界段内被调，取锁即死锁)。
 
 只被 ``_index_core.Index`` 继承; 不 import 兄弟叶。
 """

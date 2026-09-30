@@ -1,12 +1,12 @@
 """kernel._vault_commit — 两相提交径 (kernel.vault 拆分叶).
 
-``harvest`` 是唯一入库闸: stage→hardlink 零拷 (EXDEV→copyfile)→
+``harvest`` 是唯一入库闸：stage→hardlink 零拷 (EXDEV→copyfile)→
 .files.jsonl→chmod -R a-w (fuse 串到工作侧 inode)→fsync→同卷 rename 逐
 kind 落位→meta/*.json LAST (atomic commit marker)→manifest 锁内追加→
 锁落后发 asset 事件。``adopt`` 是孤儿字节进 quar 的同构提交 (verdict=
 'quar', state='adopted') + note 事件。
 
-Refusals 全响亮, handled error 绝不半截入库; 封口闸把 pdf_corrupt 类的
+Refusals 全响亮，handled error 绝不半截入库; 封口闸把 pdf_corrupt 类的
 坏成品 pdf 逐 kind 剔除 (seal_refused 记 meta/manifest), 全 kind 拒则抛。
 """
 

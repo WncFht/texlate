@@ -560,7 +560,7 @@ class SettingsStore:
         values = dict(updates)
         values.pop("has_api_key", None)
         clear_key = bool(values.pop("clear_api_key", False))
-        # 白名单收口：API 层已滤+回显 ignored，此处再闸直调面——未知键
+        # 白名单收口：API 层已滤 + 回显 ignored，此处再闸直调面——未知键
         # 永不进 settings.json。
         values = {k: v for k, v in values.items() if k in self.FIELDS}
         _normalize_updates(values)
@@ -615,7 +615,7 @@ class SettingsStore:
         return merged
 
     def connections(self) -> dict[str, dict[str, str]]:
-        """``connections.json`` → ``{base_url: {api_key, model, dialect}}``。"""
+        """``connections.json`` → ``{base_url: {api_key, model, dialect}}``."""
         if not self.connections_path.exists():
             return {}
         try:
@@ -653,7 +653,7 @@ class SettingsStore:
 
 # ---------------------------------------------------------------- 探活编排
 
-#: ``base_url → (monotonic 时间戳, 清单或 None)`` 探活缓存；进程级共享——
+#: ``base_url → (monotonic 时间戳，清单或 None)`` 探活缓存；进程级共享——
 #: 清单是 endpoint 形态不是 store 形态。base_url 是用户输入键，不封顶
 #: 会被 PUT 喷雾灌成进程期增长——FIFO 逐出最旧条。
 _MODELS_CACHE_CAP: Final = 64

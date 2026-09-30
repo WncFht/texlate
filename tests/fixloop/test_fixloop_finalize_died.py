@@ -35,7 +35,7 @@ def _run(tmp_path: Path, script: list) -> tuple[dict, MockEngine]:
 
 
 def test_finalize_arm_fires_on_clean_pass1(tmp_path: Path) -> None:
-    """正控: 健康 pass-1 收敛 → 同轮终编照常补遍 (rungen_stub 通道不塌)。"""
+    """正控：健康 pass-1 收敛 → 同轮终编照常补遍 (rungen_stub 通道不塌)。"""
     cell, eng = _run(tmp_path, [{"log": CLEAN_LOG, "pdf": True}] * 2)
     assert any("finalize" in e for e in cell["log"])
     assert eng.rounds >= _CLEAN_PLUS_FINAL
@@ -43,7 +43,7 @@ def test_finalize_arm_fires_on_clean_pass1(tmp_path: Path) -> None:
 
 
 def test_finalize_arm_skips_killed_signal(tmp_path: Path) -> None:
-    """SIGPIPE 截杀轮: pdf + n_bang=0 俱全仍不终编 —— 产出未证, 且
+    """SIGPIPE 截杀轮：pdf + n_bang=0 俱全仍不终编 —— 产出未证，且
     同轮重编会读上刚截断的 aux (2403.05523 幻影链)。"""
     cell, _eng = _run(
         tmp_path,
@@ -58,7 +58,7 @@ def test_finalize_arm_skips_killed_signal(tmp_path: Path) -> None:
 
 
 def test_finalize_arm_skips_timed_out(tmp_path: Path) -> None:
-    """超时轮回归: timed_out=True 同样不终编 (_res_died 子集语义不变)。"""
+    """超时轮回归：timed_out=True 同样不终编 (_res_died 子集语义不变)。"""
     cell, _eng = _run(
         tmp_path,
         [

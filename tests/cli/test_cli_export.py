@@ -151,7 +151,7 @@ class TestExport:
         assert not (tmp_path / "book_bilingual.epub").exists()
 
     def test_fixed_layout_exit_1(self, tmp_path: Path) -> None:
-        """``rendition:layout=pre-paginated`` → FixedLayoutError → exit 1。"""
+        """``rendition:layout=pre-paginated`` → FixedLayoutError → exit 1."""
         src = _write_epub(tmp_path, _epub(_CH1, ncx=False, fixed=True))
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 

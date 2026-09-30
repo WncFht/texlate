@@ -15,7 +15,7 @@ FIX B (1107.0009): ``mn2e_usegraphicx_defer`` —— 稿自带 mn2e.cls v2.2
 fontenc 载入归名 fontenc.sty:115, cat=options_section)。
 ``mnras_texmf_shadow_drop`` (11.91) ctx 同签但文件闸只认 mnras.cls →
 本格 fired-unfixed。vendor/ 无 mn2e 补丁件可投 → 走原位补丁 (mnras #51
-姊妹病同族, engine_guard_strip/abstract_edef 同形): regex_rewrite 把
+姊妹病同族，engine_guard_strip/abstract_edef 同形): regex_rewrite 把
 ``@usegraphicxtrue`` 后紧邻的内联 ``\\usepackage[...]{graphicx}`` 裹进
 ``\\AtEndOfClass{...}`` 推迟出类选项段 —— ds@ 体仍只置 flag, 包装载
 出选项段后执行 (mn2e.cls 自身 ``\\if@usenatbib``→natbib :1201 同款
@@ -41,7 +41,7 @@ from texlate.compile.normalize import use_bundled_bibliography
 
 _RULE_ID = "mn2e_usegraphicx_defer"
 
-#: 修复形钉版: 名扫段 @ 全 ``\string@`` —— doc 激活 @ (1107.0063 ``\MakeShortVerb{\@}``)
+#: 修复形钉版：名扫段 @ 全 ``\string@`` —— doc 激活 @ (1107.0063 ``\MakeShortVerb{\@}``)
 #: 下裸 ``auto@bib`` 旧形在 ``\ifcsname`` 名扫里炸 ``Missing \endcsname``。
 _DISARM_EXPECT = (
     r"\ifcsname auto\string@bib\endcsname"
@@ -49,7 +49,7 @@ _DISARM_EXPECT = (
     r"\csname \string@empty\endcsname\fi"
 )
 
-# 1107.0009 实证首错 (file-line-error 形态, cat=options_section):
+# 1107.0009 实证首错 (file-line-error 形态，cat=options_section):
 # 嵌套 fontenc 载入归名 fontenc.sty —— 错件仍是稿自带 mn2e.cls:52。
 _ERR_FONTENC = (
     "/work/1107.0009/splice/fontenc.sty:115: LaTeX Error: \\RequirePackage or "
@@ -60,18 +60,18 @@ _ERR_FONTENC_CTX = (
     "Type  H <return>  for immediate help.\n"
     "l.72 \\ProcessOptions\n"
 )
-# '!' 形态同款: rep.first 无文件名, "Options Section" 字面同闸收
+# '!' 形态同款：rep.first 无文件名，"Options Section" 字面同闸收
 _BANG_ERR = "! LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
 # mn2e.cls 点名归名变体 (ctx_suggests 第二备选 mn2e\.cls 亦收)
 _ERR_MN2E_ATTR = (
     "./mn2e.cls:52: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
 )
-# 签名散格变体: 同文件 Missing number (syntax) —— 错面同闸收
+# 签名散格变体：同文件 Missing number (syntax) —— 错面同闸收
 _ERR_MISSINGNUM = "./mn2e.cls:114: Missing number, treated as zero.\n"
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
-# 稿自带 mn2e.cls v2.2 (2001/02/06) 实证病形: :52 ds@usegraphicx 行内联
+# 稿自带 mn2e.cls v2.2 (2001/02/06) 实证病形：:52 ds@usegraphicx 行内联
 # \usepackage[xetex]{graphicx} —— \ProcessOptions 执行 → Options Section。
 _MN2E_BUGGY = (
     "% mn2e.cls v2.2 excerpt (1107.0009 shipped)\n"
@@ -79,7 +79,7 @@ _MN2E_BUGGY = (
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage[xetex]{graphicx}}\n"
     "\\ProcessOptions\n"
 )
-# 补丁后期望行: 内联 \usepackage 裹进 \AtEndOfClass, 驱动选项原样保留, 尾挂注入标
+# 补丁后期望行：内联 \usepackage 裹进 \AtEndOfClass, 驱动选项原样保留，尾挂注入标
 _MN2E_PATCHED_LINE = (
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\AtEndOfClass{"
     "\\usepackage[xetex]{graphicx}}} % texlate-fixloop-injected: "
@@ -90,7 +90,7 @@ _MN2E_BUGGY_NOOPT = "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphi
 _MN2E_BUGGY_REQPKG = (
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\RequirePackage{graphicx}}\n"
 )
-# vendor shim mn2e.cls 形: \\mn@graphicx 旗 —— 无 \\@usegraphicxtrue → 指纹阴性
+# vendor shim mn2e.cls 形：\\mn@graphicx 旗 —— 无 \\@usegraphicxtrue → 指纹阴性
 _MN2E_SHIM = (
     "% texlate mn2e shim bridge\n"
     "\\newif\\ifmn@graphicx\n"
@@ -98,7 +98,7 @@ _MN2E_SHIM = (
     "\\ProcessOptions\n"
     "\\ifmn@graphicx\\RequirePackage{graphicx}\\fi\n"
 )
-# 补丁 mnras.cls 形: ds@ 行净 (\\@usegraphicxtrue 后紧邻 }) → 指纹阴性
+# 补丁 mnras.cls 形：ds@ 行净 (\\@usegraphicxtrue 后紧邻 }) → 指纹阴性
 _MNRAS_PATCHED = (
     "% texlate patch: \\usepackage deferred past \\ProcessOptions\n"
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue}\n"
@@ -133,7 +133,7 @@ def _bbl(tmp_path: Path, stem: str = "main") -> None:
 
 
 def _plant_mn2e(wdir: Path, body: str = _MN2E_BUGGY) -> Path:
-    """稿自带布局落件: ``wdir/mn2e.cls`` (cwd 序现胜者)。"""
+    """稿自带布局落件：``wdir/mn2e.cls`` (cwd 序现胜者)。"""
     f = wdir / "mn2e.cls"
     f.write_text(body, encoding="utf-8")
     return f
@@ -153,7 +153,7 @@ def test_disarm_sites_byte_identical() -> None:
 
 
 def test_disarm_pinned_string_escape_literal() -> None:
-    """钉版修复形全文: 三处名扫 @ 皆 ``\\string@`` 转义, 其余字节不动。"""
+    """钉版修复形全文：三处名扫 @ 皆 ``\\string@`` 转义，其余字节不动。"""
     assert _DISARM_NORM == _DISARM_EXPECT
 
 
@@ -166,7 +166,7 @@ def test_disarm_no_bare_at_in_name_scans() -> None:
 
 
 def test_use_bundled_bibliography_emits_string_guard(tmp_path: Path) -> None:
-    """normalize 臂: ``\\bibliography`` 改写 → disarm 行紧贴 ``\\input`` 之前。"""
+    """normalize 臂：``\\bibliography`` 改写 → disarm 行紧贴 ``\\input`` 之前。"""
     main = tmp_path / "main.tex"
     main.write_text(_doc("revtex4-1"))
     _bbl(tmp_path)
@@ -177,7 +177,7 @@ def test_use_bundled_bibliography_emits_string_guard(tmp_path: Path) -> None:
 
 
 def test_bbl_stub_rewrite_emits_string_guard(tmp_path: Path) -> None:
-    """fixloop 臂: ``bbl_stub_rewrite`` 改写补同款 ``\\string@`` disarm。"""
+    """fixloop 臂：``bbl_stub_rewrite`` 改写补同款 ``\\string@`` disarm。"""
     (tmp_path / "main.tex").write_text(_doc())
     _bbl(tmp_path)
     ctx = _ctx(tmp_path, main_rel="main.tex")
@@ -190,7 +190,7 @@ def test_bbl_stub_rewrite_emits_string_guard(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_fontenc_attr_is_options_section() -> None:
-    """实证签名: fontenc.sty:115 归名 Options Section → options_section。"""
+    """实证签名：fontenc.sty:115 归名 Options Section → options_section。"""
     cat, _ = _classify(_ERR_FONTENC + _ERR_FONTENC_CTX)
     assert cat == "options_section"
 
@@ -230,9 +230,9 @@ def test_rule_wired_loop_phase() -> None:
 
 
 def test_rule_order_neighbors() -> None:
-    """order 排序自洽: pstricks(11.9) < 本规则 < mnras(11.91) < abstract_edef(11.95)。
+    """order 排序自洽：pstricks(11.9) < 本规则 < mnras(11.91) < abstract_edef(11.95)。
 
-    mn2e-shipped 格先修真病件, 不白烧 mnras 投递轮; 无 mn2e.cls 格 glob
+    mn2e-shipped 格先修真病件，不白烧 mnras 投递轮; 无 mn2e.cls 格 glob
     cond-skip 同轮落 mnras 面零成本。
     """
     orders = {r.id: r.order for r in _rs().phase("loop")}
@@ -245,7 +245,7 @@ def test_rule_order_neighbors() -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_pass_shipped_buggy_fontenc_err(tmp_path: Path) -> None:
-    """实证形: 稿自带病件在场 + fontenc 归名 Options Section 签名 → 闸过。"""
+    """实证形：稿自带病件在场 + fontenc 归名 Options Section 签名 → 闸过。"""
     _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -253,7 +253,7 @@ def test_cond_pass_shipped_buggy_fontenc_err(tmp_path: Path) -> None:
 
 
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
-    """'!' 形态: 文件名缺席但 "Options Section" 字面在 rep.first → 同闸收。"""
+    """'!' 形态：文件名缺席但 "Options Section" 字面在 rep.first → 同闸收。"""
     _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path, err_head=_BANG_ERR + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -286,7 +286,7 @@ def test_cond_skip_when_mn2e_absent(tmp_path: Path) -> None:
 
 
 def test_cond_skip_when_shim_shape(tmp_path: Path) -> None:
-    """vendor shim mn2e.cls (\\mn@graphicx 旗, 无 \\@usegraphicxtrue) → 指纹阴性拒。"""
+    """vendor shim mn2e.cls (\\mn@graphicx 旗，无 \\@usegraphicxtrue) → 指纹阴性拒。"""
     _plant_mn2e(tmp_path, _MN2E_SHIM)
     ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -303,7 +303,7 @@ def test_cond_skip_when_mnras_patched_shape(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 动作直驱
 def test_apply_patches_buggy_in_place(tmp_path: Path) -> None:
-    """病件原位补丁: 内联 \\usepackage 裹 \\AtEndOfClass + 注入标, 其余字节不动。"""
+    """病件原位补丁：内联 \\usepackage 裹 \\AtEndOfClass + 注入标，其余字节不动。"""
     cls = _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path)
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -347,7 +347,7 @@ def test_apply_declines_shim_shape(tmp_path: Path) -> None:
 
 
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
-    """二跑幂等: 补丁后紧邻指纹消失 → decline, 文件不再变。"""
+    """二跑幂等：补丁后紧邻指纹消失 → decline, 文件不再变。"""
     cls = _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path)
     ok1, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -359,7 +359,7 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
 
 
 def test_apply_cls_scope_only(tmp_path: Path) -> None:
-    """exts=[.cls] 域闸: 病形在 .tex 里不改写 (mn2e.cls shim 占位供 glob)。"""
+    """exts=[.cls] 域闸：病形在 .tex 里不改写 (mn2e.cls shim 占位供 glob)。"""
     tex = tmp_path / "main.tex"
     tex.write_text(_MN2E_BUGGY, encoding="utf-8")
     _plant_mn2e(tmp_path, _MN2E_SHIM)
@@ -371,7 +371,7 @@ def test_apply_cls_scope_only(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- e2e
 def _proj(tmp_path: Path, body: str = _MN2E_BUGGY) -> Path:
-    """1107.0009 稿自带布局: wdir 根 main.tex + 病件 mn2e.cls。"""
+    """1107.0009 稿自带布局：wdir 根 main.tex + 病件 mn2e.cls。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[useAMS,usenatbib,usegraphicx]{mn2e}\n"
         "\\begin{document}\nx\n\\end{document}\n",
@@ -390,7 +390,7 @@ def _null_runner(
 
 
 def test_e2e_patch_flips_cell_clean(tmp_path: Path) -> None:
-    """整链: Options Section → 原位补丁 → clean; 病件带注入标, 驱动选项存。"""
+    """整链：Options Section → 原位补丁 → clean; 病件带注入标，驱动选项存。"""
     eng = MockEngine(
         [
             {"log": _ERR_FONTENC + _ERR_FONTENC_CTX + "\n"},
@@ -406,7 +406,7 @@ def test_e2e_patch_flips_cell_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非本签名: 别包错 → 本规则不动件 (mn2e.cls 原样)。"""
+    """非本签名：别包错 → 本规则不动件 (mn2e.cls 原样)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -424,7 +424,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 
 def test_e2e_shim_mn2e_untouched(tmp_path: Path) -> None:
-    """shim 形 mn2e.cls + Options Section 签名: 指纹阴性 → 零改写, 格照走。"""
+    """shim 形 mn2e.cls + Options Section 签名：指纹阴性 → 零改写，格照走。"""
     eng = MockEngine(
         [
             {"log": _ERR_FONTENC + _ERR_FONTENC_CTX + "\n"},

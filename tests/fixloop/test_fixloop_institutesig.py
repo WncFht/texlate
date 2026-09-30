@@ -38,7 +38,7 @@ def _xelatex(wdir: Path) -> subprocess.CompletedProcess[str]:
 
 
 def test_wrap_table_institutesig() -> None:
-    """表钉: 13 新行签名与上游实档逐字一致 (改 sig 须先重核定义点)。"""
+    """表钉：13 新行签名与上游实档逐字一致 (改 sig 须先重核定义点)。"""
     expected = {
         "abstract": ("#1", "{#1}"),
         "@titleone": ("#1", "{#1}"),

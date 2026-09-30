@@ -43,7 +43,7 @@ def test_expl3strip_rule_registered() -> None:
 
 
 def test_expl3strip_when_gate_declines_other_categories(tmp_path: Path) -> None:
-    """签名缺席: category != expl3_backend → when 闸拒 (本规则无 condition)。"""
+    """签名缺席：category != expl3_backend → when 闸拒 (本规则无 condition)。"""
     r = rule(_RID)
     ctx = mk_ctx(tmp_path)
     assert actions._when_ok(r.when, "expl3_backend", None, ctx)  # noqa: SLF001
@@ -52,7 +52,7 @@ def test_expl3strip_when_gate_declines_other_categories(tmp_path: Path) -> None:
 
 
 def test_expl3strip_declines_no_driver_options(tmp_path: Path) -> None:
-    """源面无驱动选项 → 0 文件改写, applied=False (不烧 applied 配额)。"""
+    """源面无驱动选项 → 0 文件改写，applied=False (不烧 applied 配额)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[final,reqno,a4paper,12pt]{myectaart}\n"
         "\\begin{document}\nx\n\\end{document}\n",
@@ -88,7 +88,7 @@ def test_expl3strip_target_cells_docclass(tmp_path: Path) -> None:
 
 
 def test_expl3strip_head_mid_tail_solo(tmp_path: Path) -> None:
-    """位置三态 + 独占括号: 无粘连, 无孤儿逗号/空括号。"""
+    """位置三态 + 独占括号：无粘连，无孤儿逗号/空括号。"""
     cases = {
         "\\documentclass[pdftex,12pt]{article}": "\\documentclass[12pt]{article}",
         "\\documentclass[12pt,pdftex,a4paper]{article}": (
@@ -116,7 +116,7 @@ def test_expl3strip_multiple_drivers_all_stripped(tmp_path: Path) -> None:
 
 
 def test_expl3strip_corpus_shapes(tmp_path: Path) -> None:
-    """corpus 普查实证形: sn-* / lineno / 长尾中段 / 名单尾位。"""
+    """corpus 普查实证形：sn-* / lineno / 长尾中段 / 名单尾位。"""
     cases = {
         "\\documentclass[pdflatex,sn-basic]{svjour3}": "\\documentclass[sn-basic]{svjour3}",
         "\\documentclass[lineno,pdflatex,sn-basic]{svjour3}": (

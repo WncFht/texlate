@@ -1,10 +1,10 @@
-"""logparse — .log 解析 + taxonomy 分类 (compile 层共享地基, C3 归位)。
+"""logparse — .log 解析 + taxonomy 分类 (compile 层共享地基，C3 归位)。
 
 原 ``fixloop/logparse.py``——log 解析/taxonomy 是 compile 层共享件
 (``loginfo``/``judge``/``proc`` 同层消费), 上提后 fixloop 向下消费
-(旧 ``fixloop.logparse`` 路径 2026-09-20 退场, 全仓直引本模块;
+(旧 ``fixloop.logparse`` 路径 2026-09-20 退场，全仓直引本模块;
 ``_WARN_FILELINE_RE``/``_FATAL_TRAILER_RE``/``_attribute_warns``
-三死件随事件流重构退场, 薄 delegate ``_is_err_line`` 同清——其
+三死件随事件流重构退场，薄 delegate ``_is_err_line`` 同清——其
 yaml 注释面改指 ``texlog.iter_log_events``/``match_error_line``)。
 
 移植自原型 fixloop (`first_error`/`classify`), 增强两点
@@ -13,12 +13,12 @@ yaml 注释面改指 ``texlog.iter_log_events``/``match_error_line``)。
   - ``(`` 开括号文件栈追踪 → ``ErrReport.file_stack`` (定位出错 .tex/.sty)
 
 另加 rules/ ``warnings:`` 段扫描 (docs/spec/compile.md 红线) → ``warnings`` 字段;
-``invalid_utf8`` 命中在无 '!' 错时升级为 ``warn_utf8`` 伪类别 (v1.1 扩展,
+``invalid_utf8`` 命中在无 '!' 错时升级为 ``warn_utf8`` 伪类别 (v1.1 扩展，
 驱动 non_utf8_source 修复轮)。``_FILE_ATTRIBUTED_WARNS`` 的输入侧警告按
 警告行文件栈顶归因——系统 texmf/bundle 件与 DOS 魔数 EPS 源降
-``warnings_sys`` 观察项, 不再驱动 ``warn_*`` (loginfo ``warnings_hit``/
+``warnings_sys`` 观察项，不再驱动 ``warn_*`` (loginfo ``warnings_hit``/
 ``warnings_sys`` 裂口在本侧的镜像; utf8census 实证 sys 件坏字节曾使
-``warn_utf8`` 每轮空转再生, 污染 census)。
+``warn_utf8`` 每轮空转再生，污染 census)。
 
 C8 单遍事件流 (architecture-review-2026-09-19 §8): 文件栈走查/错误行
 判定单源 = ``texlog.iter_log_events``——``parse_text`` 在事件流上同
@@ -123,9 +123,9 @@ def _is_runaway_output(text: str) -> bool:
 #: strip 后严格行首形)。非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
 #: 不误中。
 _LINE_NO_RE = re.compile(r"(?m)^[ \t]*" + L_NUM_SRC)
-#: subclassify 收窄的冒犯 cs 判定域: ctx 首个 ``l.N`` 行 + cs 名抽取。
+#: subclassify 收窄的冒犯 cs 判定域：ctx 首个 ``l.N`` 行 + cs 名抽取。
 #: 行词素单源 = ``texlog.L_NUM_ROW_SRC`` (本侧刻意不加空白宽容——
-#: 与上面 blob 检索的宽容形是有意分歧, 行判定走严格 ``^l.``)。
+#: 与上面 blob 检索的宽容形是有意分歧，行判定走严格 ``^l.``)。
 _LN_ROW_RE = re.compile(r"(?m)^" + L_NUM_ROW_SRC + r"[^\n]*")
 _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 #: ctx 头行 ``<name>`` —— TeX 错误上下文对伪输入层 (``<recently read>``
@@ -133,17 +133,17 @@ _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 #: 顶行止于该层冒犯 token, 故行内末位 cs 是冒犯候选; ``...`` 省略前缀
 #: 使"紧跟字面量"不可靠 (1811.03624 ``<argument> ...\@classz \or``)。
 #: 语料面 (15k logs, 2026-09-18): 带 cs 的同错头行 = recently read 209 /
-#: argument 87 / write 3 文件, 恒居 ctx 行1 (最深层); ``<inserted text>``
-#: /``<to be read again>`` 的 token 在续行, 头行本身不携 cs。
+#: argument 87 / write 3 文件，恒居 ctx 行 1 (最深层); ``<inserted text>``
+#: /``<to be read again>`` 的 token 在续行，头行本身不携 cs。
 _CTX_HEAD_RE = re.compile(r"^[ \t]*<[a-zA-Z ]+>")
 # ── capacity payload 提取 (taxonomy ``payload_scan: capacity``) ──
 #: ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 名归一 +
-#: ctx 首层 pending cs → pay 形 ``<tag>|<cs>`` (triage 路由键:
-#: input_stack=递归, main_memory=暴走, save_size=组泄漏;
+#: ctx 首层 pending cs → pay 形 ``<tag>|<cs>`` (triage 路由键：
+#: input_stack=递归，main_memory=暴走，save_size=组泄漏;
 #: capacity-scout-2026-09-17 4/4 格皆 input_stack)。bracket 距 exceeded
 #: 恒在 ~30 字符内 (file-line 形态 sorry 词可折行到 ctx[1]), 上限 40
-#: 防截断 log 误衔下游 ``[x]``; 名段限字母+空格+40 字符上限 (真名
-#: ≤22) 且钉 ``=<n>`` —— TeX 容量名固定句式, ``[1]``/``[fig]`` 不误中。
+#: 防截断 log 误衔下游 ``[x]``; 名段限字母 + 空格 +40 字符上限 (真名
+#: ≤22) 且钉 ``=<n>`` —— TeX 容量名固定句式，``[1]``/``[fig]`` 不误中。
 _CAP_BRACKET_RX = re.compile(
     r"TeX capacity exceeded[^\[\]]{0,40}?\[\s*([a-zA-Z][a-zA-Z ]{0,40}?)\s*=\s*\d+\s*\]"
 )
@@ -171,7 +171,7 @@ _CAP_BRACKET_TAG = {
     "pdf memory size": "pdf_mem",
 }
 #: cs 词素——expl3 时代 ``_``/``:`` 计字母 (``\l__xeCJK_tmp_int``);
-#: nonletter cs 恰一字符 (与 undefined_cs 签同口径)。字母串截 64 字符:
+#: nonletter cs 恰一字符 (与 undefined_cs 签同口径)。字母串截 64 字符：
 #: max_print_line=10000 病态行可产近万字符 cs 名撑爆 records。
 _CAP_CS_RX = re.compile(r"\\([a-zA-Z@_:]{1,64}|[^\s\\{}])")
 #: ctx 层头三形 (皆顶格): 宏展开层 ``\name<params>->`` / 伪输入层
@@ -181,13 +181,13 @@ _CAP_MACRO_RX = re.compile(r"^\\([a-zA-Z@_:]{1,64}|[^\s\\{}])")
 _CAP_HEAD_RX = re.compile(r"^<[a-zA-Z ]+>")
 _CAP_LN_ROW_RX = re.compile(r"^l\.\d+")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
-# impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
-# Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
+# impl-compile 的 xelatex 命令行带此旗标，只数 '!' 会漏全部错误。
+# Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误，须排除，
 # 否则 `n_bang==0 → clean` 门永远不通。
 #: 判定单源 = ``texlog.match_error_line``——本侧原 ``_WARN_FILELINE_RE``/
 #: ``_FATAL_TRAILER_RE`` 双腿 (``: `` 单空格严形态) 与 texlog 消息面锚定
-#: 形在 ``file:line:`` 闸内等价 (ROW 捕获组已钉 ``: \S`` 界, 闸内两形同
-#: 集)——1504 log 语料零分歧, 词素并单源。
+#: 形在 ``file:line:`` 闸内等价 (ROW 捕获组已钉 ``: \S`` 界，闸内两形同
+#: 集)——1504 log 语料零分歧，词素并单源。
 
 
 @dataclass(slots=True)
@@ -196,10 +196,10 @@ class ParsedLog:
 
     事件级原料 (``ev.err``/``ev.stack``/``ev.popped``/``ev.inner``) 一份即够
     各消费面自行投影——排他/含行首错快照、``errs`` 截顶、warn 归因全是
-    投影侧形状差, 底件不预制口径 (l2 需全 ``ev.stack`` 元组, 故存事件而
+    投影侧形状差，底件不预制口径 (l2 需全 ``ev.stack`` 元组，故存事件而
     非仅最内帧)。目标载体 = ``CompRes`` 与 ``res.log_text`` 并列 stash
-    (B14 fix#10 缝先例)——引擎编译期建一份, loginfo/logparse/l2 三个
-    投影共用, 同一 log 不再逐消费面各走一遍事件流; 本层暂为归宿, 随
+    (B14 fix#10 缝先例)——引擎编译期建一份，loginfo/logparse/l2 三个
+    投影共用，同一 log 不再逐消费面各走一遍事件流; 本层暂为归宿，随
     stash 落地迁 ``texlog`` 叶子层。
     """
 
@@ -214,7 +214,7 @@ def parse_events(text: str) -> ParsedLog:
 
 
 #: ``ErrReport.errs`` 收集上限——全错误面逐条 (err_line, ctx blob) 供次级
-#: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千, 截尾保内存。
+#: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千，截尾保内存。
 _ERRS_MAX = 32
 
 #: 首错行**之前**纳入 ``ErrReport.pre`` 的行数——``No file X.fd.`` 型签名
@@ -222,25 +222,25 @@ _ERRS_MAX = 32
 #: ~2 行), 前向 ctx8 窗天然够不着。仅 ``use_pre: true`` 的 taxonomy 条目
 #: 在 ``pre + head`` 拼接 blob 上检索 (``classify_head`` 实现), 其余条目
 #: 保持 head-only——pre 行内宽词 (``Missing``/``Illegal`` 等) 不扰既有
-#: 评估序, 不被 syntax 族抢签。
+#: 评估序，不被 syntax 族抢签。
 _PRE_LINES = 4
 
 #: 首错 ctx8 窗**之后**纳入 ``ErrReport.post`` 的行数——错误块的滞后
-#: 落盘签名: graphicx ``File `X' not found`` 的 ``I could not locate the
+#: 落盘签名：graphicx ``File `X' not found`` 的 ``I could not locate the
 #: file with any of these extensions:`` errhelp 恒居错误行 +8, 恰出 ctx8
 #: 右缘 (extless 车道 failmine4 9-cell 实录); ``l.N`` 回显行折行时 errhelp
-#: 可再后移 1-2 行, 6 行余量覆盖。仅 ``use_post: true`` 的 taxonomy
+#: 可再后移 1-2 行，6 行余量覆盖。仅 ``use_post: true`` 的 taxonomy
 #: 条目在 ``head + post`` 拼接 blob 上检索 (``classify_head`` 实现)——
-#: per-err ctx blob 不带 post (``err_candidates`` 面同 ``use_pre`` 先例:
+#: per-err ctx blob 不带 post (``err_candidates`` 面同 ``use_pre`` 先例：
 #: 扩展窗特征仅首错 ``classify()`` 可达)。
 _POST_LINES = 6
 
-#: 输入侧 byte-level 警告 id——警告行文件栈顶即肇事文件, 按产生者归因
-#: (``invalid_utf8`` 是读入字节告警; ``loginfo._scan_error_lines`` 同口径,
+#: 输入侧 byte-level 警告 id——警告行文件栈顶即肇事文件，按产生者归因
+#: (``invalid_utf8`` 是读入字节告警; ``loginfo._scan_error_lines`` 同口径，
 #: 两侧共用 texlog 归因原语)。输出侧警告 (``missing_char`` 缺字形——栈顶
-#: 是排版执行位而非字源, 且缺字照样落 PDF) 与其余 warn id 刻意不归因,
-#: 走全文扫描原语义。归因按**行**进行: 收进本集的 id 其 pattern 须是行内
-#: 匹配形 (跨行 pattern 在本面不命中, 与全文 ``re.search`` 有语义差)。
+#: 是排版执行位而非字源，且缺字照样落 PDF) 与其余 warn id 刻意不归因，
+#: 走全文扫描原语义。归因按**行**进行：收进本集的 id 其 pattern 须是行内
+#: 匹配形 (跨行 pattern 在本面不命中，与全文 ``re.search`` 有语义差)。
 _FILE_ATTRIBUTED_WARNS = frozenset({"invalid_utf8"})
 
 
@@ -251,7 +251,7 @@ class _AttrWarns:
     ``parse_text`` 事件遍内逐行喂 ``feed``: 事件 ``inner`` (栈顶最内具名
     帧) 即产生者候选——DOS 魔数 EPS (``(dos-eps)`` 尾标) 与系统
     texmf/bundle 件降 ``sys`` 观察项; 空栈/判不出归属保守归工程
-    (``loginfo`` 同口径, 共用 texlog 归因原语)。原 ``_attribute_warns``
+    (``loginfo`` 同口径，共用 texlog 归因原语)。原 ``_attribute_warns``
     第二遍栈走查已并进 ``parse_text`` 主遍。
     """
 
@@ -279,7 +279,7 @@ class ErrReport:
     first: str | None = None  # 首个 '!' 行 (strip 后)
     ctx: str | None = None  # 首错行起 ≤8 行
     #: 首错行**之前** ≤``_PRE_LINES`` 行 (log 原序)——``No file X.fd.`` 型
-    #: 签名先于错误行落盘, 前向 ctx 窗够不着; taxonomy ``use_pre: true``
+    #: 签名先于错误行落盘，前向 ctx 窗够不着; taxonomy ``use_pre: true``
     #: 条目在 ``pre + head`` blob 上检索 (``classify_head(pre=...)``)。
     pre: str = ""
     #: 首错 ctx8 窗**之后** ≤``_POST_LINES`` 行 (log 原序)——错误块滞后
@@ -298,14 +298,14 @@ class ErrReport:
     #: 肇事候选（#78）。无错误/无弹栈 → 空。
     popped_files: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # 命中的 warning id
-    #: 系统源命中的输入侧警告 (``<warn_id>@<file>`` 形, loginfo
+    #: 系统源命中的输入侧警告 (``<warn_id>@<file>`` 形，loginfo
     #: ``warnings_sys`` 同形同义)——``_FILE_ATTRIBUTED_WARNS`` 按警告行
-    #: 文件栈顶归因, 系统 texmf/bundle 件与 DOS 魔数 EPS 源 (``(dos-eps)``
-    #: 尾标) 降此观察项, 不进 ``warnings`` 故不驱动 ``warn_*`` 伪类别。
+    #: 文件栈顶归因，系统 texmf/bundle 件与 DOS 魔数 EPS 源 (``(dos-eps)``
+    #: 尾标) 降此观察项，不进 ``warnings`` 故不驱动 ``warn_*`` 伪类别。
     warnings_sys: list[str] = field(default_factory=list)
     raw: str = ""  # log 全文 (供 escalate_llm context / cases log_excerpt)
     #: 每条错误行 (strip 后 err_line, 其起 ≤CTX_LINES 行 ctx blob), 上限
-    #: ``_ERRS_MAX``——次级错误派发 (twinhead) 的全错误面: 首错遮蔽可修
+    #: ``_ERRS_MAX``——次级错误派发 (twinhead) 的全错误面：首错遮蔽可修
     #: 孪生时 ``classify_errs``/``err_candidates`` 在此表上逐条分类。
     #: 首条恒 = ``(first, ctx)``。
     errs: list[tuple[str, str]] = field(default_factory=list)
@@ -352,14 +352,14 @@ def parse_text(
 ) -> ErrReport:
     """Log 文本 → ErrReport (tectonic stdout_tail 兜底也走这里)。
 
-    错误行双格式: `^!` (原型语义) + `file:line:` (-file-line-error,
+    错误行双格式：`^!` (原型语义) + `file:line:` (-file-line-error,
     impl-compile xelatex 命令行旗标; Warning 行不计入)。
 
-    C8 单遍事件流: ``iter_log_events`` 一遍内同做错误面投影与
+    C8 单遍事件流：``iter_log_events`` 一遍内同做错误面投影与
     ``_FILE_ATTRIBUTED_WARNS`` 归因投影——``file_stack``/``popped_files``
-    沿用旧 ``file_stack_at`` **排他**口径 (首错行自身不入栈/不计弹栈,
-    事件遍里以 ``prev_stack``/``popped_hist`` 前置快照守恒, 与
-    l2/loginfo 含行快照是有意分歧, 不并)。
+    沿用旧 ``file_stack_at`` **排他**口径 (首错行自身不入栈/不计弹栈，
+    事件遍里以 ``prev_stack``/``popped_hist`` 前置快照守恒，与
+    l2/loginfo 含行快照是有意分歧，不并)。
 
     ``parsed`` = 调用方已物化的 ``ParsedLog`` (CompRes stash 缝)——
     缺席时本侧自建; 传入者须是 ``text`` 同一文本的事件流 (``raw``/全文
@@ -384,8 +384,8 @@ def parse_text(
     first_i: int | None = None
     #: 排他口径前置快照——``prev_stack`` = 上一事件的后栈 (即旧
     #: ``file_stack_at(lines, first_i)`` 回放终态), ``popped_hist`` =
-    #: 首错行之前的弹栈史 (``)`` 先于错误行打印, runaway 报位在父文件
-    #: 续行, 真肇事件靠它找回 #78); 首错捕获点即冻结。
+    #: 首错行之前的弹栈史 (``)`` 先于错误行打印，runaway 报位在父文件
+    #: 续行，真肇事件靠它找回 #78); 首错捕获点即冻结。
     prev_stack: tuple[str | None, ...] = ()
     popped_hist: list[str | None] = []
     for ev in pl.events:
@@ -427,7 +427,7 @@ def _collect_warnings(
     """warn_patterns → ``rep.warnings``/``rep.warnings_sys`` (序 = 表序)。
 
     ``_FILE_ATTRIBUTED_WARNS`` 成员只收工程源命中 (sys 件命中落
-    ``warnings_sys`` 观察项, 不驱 ``warn_*``)——归因投影由 ``parse_text``
+    ``warnings_sys`` 观察项，不驱 ``warn_*``)——归因投影由 ``parse_text``
     事件遍产出的 ``attr`` 给出; 其余 id 走全文扫描原语义。
     """
     for w in warn_patterns or []:
@@ -443,7 +443,7 @@ def _collect_warnings(
 
 
 def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
-    """Payload 取值: payload_group 指定组, 否则首个非空组。"""
+    """Payload 取值：payload_group 指定组，否则首个非空组。"""
     if not m.re.groups:
         return None
     grp = entry.get("payload_group")
@@ -482,7 +482,7 @@ def _ctx_tail_css(ctx: str | None) -> set[str]:
 
 
 def _cap_bracket_tag(raw: str) -> str:
-    """Bracket 原名 → 短 tag (常见名查表, 未收名 snake 兜底保确定性)。"""
+    """Bracket 原名 → 短 tag (常见名查表，未收名 snake 兜底保确定性)。"""
     name = " ".join(raw.split()).lower()
     if name in _CAP_BRACKET_TAG:
         return _CAP_BRACKET_TAG[name]
@@ -535,14 +535,14 @@ def _capacity_payload(first: str | None, ctx: str | None) -> str | None:
     return f"{tag}|{tok}" if tok else tag
 
 
-#: ``input_stack|<cs>`` pending cs 显式名单 → ``input_stack`` 类别重路由:
+#: ``input_stack|<cs>`` pending cs 显式名单 → ``input_stack`` 类别重路由：
 #: 命中者全是上游 TeX-exec 宏递归帧 (内核 ``\@nomath`` 守卫帧 / expl3
 #: quark 扫描哨兵族), 非 ``\input`` 循环——无任何源改写可修
 #: (ifdiag 车道 2026-09-19: ``@nomath``@1404.0037 与
-#: ``__quark_if_recursion_tail:w``@1706.00076 base 臂同炸, paper-authentic)。
+#: ``__quark_if_recursion_tail:w``@1706.00076 base 臂同炸，paper-authentic)。
 #: verdict ``unfixable:{cat}`` 直挂 cat——独立 cat 让真递归帧不再混进
 #: ``unfixable:capacity`` 的可修假簇; texlate 可修面 (``cref@resetstack``
-#: restatable 族, restatdiag) 刻意不收, 留 ``capacity`` 走修复派发。
+#: restatable 族，restatdiag) 刻意不收，留 ``capacity`` 走修复派发。
 _CAP_UPSTREAM_RECURSION_CS = frozenset(
     {
         "@nomath",
@@ -566,11 +566,11 @@ def _cap_verdict_cat(entry_id: str, pay: str | None) -> str:
 
 # ── undefined_cs payload 提取 (taxonomy ``payload_scan: undefined_cs``) ──
 _UNDEF_MARK = "Undefined control sequence"
-#: 顶行末位 cs 的字母串|单字符 nonletter 两支——与 taxonomy 条目 regex
+#: 顶行末位 cs 的字母串 | 单字符 nonletter 两支——与 taxonomy 条目 regex
 #: 同词素 (``[a-zA-Z@]+`` | ``[^\s\\{}]``)。
 _UNDEF_ANY_CS_RX = re.compile(r"\\([a-zA-Z@]+|[^\s\\{}])")
-#: ``\GenericError``-led 语境的内核错误渲染宏族: 真冒犯 cs 被吞进 ``#N``
-#: 参槽, ctx 顶行末位只印渲染机 token——抓来即 ``undefined_cs|GenericError``
+#: ``\GenericError``-led 语境的内核错误渲染宏族：真冒犯 cs 被吞进 ``#N``
+#: 参槽，ctx 顶行末位只印渲染机 token——抓来即 ``undefined_cs|GenericError``
 #: 死 payload (0712.1016 ``\diagchar`` / 2105.03751 ``\footnote`` 实证)。
 #: 处方集 {GenericError errhelp err@ MessageBreak @err@ @empty @ehc @ehd}
 #: + 同族渲染层头 (PackageError/ClassError/latexerr 系 \@latex@error 链
@@ -632,9 +632,9 @@ def _undefined_cs_payload(first: str | None, ctx: str | None) -> str | None:
     return None
 
 
-#: taxonomy ``payload_scan:`` 键的 python 提取器注册表 (head-scope 专用,
+#: taxonomy ``payload_scan:`` 键的 python 提取器注册表 (head-scope 专用，
 #: 签名 ``(first, ctx) -> pay``)。未收名静默回退 regex payload_group 取值
-#: —— taxonomy 段无键白名单校验, 与未知可选键同口径。
+#: —— taxonomy 段无键白名单校验，与未知可选键同口径。
 _PAYLOAD_SCANS: dict[str, Callable[[str | None, str | None], str | None]] = {
     "capacity": _capacity_payload,
     "undefined_cs": _undefined_cs_payload,
@@ -642,7 +642,7 @@ _PAYLOAD_SCANS: dict[str, Callable[[str | None, str | None], str | None]] = {
 
 
 class Taxonomy:
-    """rules/ taxonomy 段的编译态: scope 三段评估序照原型。"""
+    """rules/ taxonomy 段的编译态：scope 三段评估序照原型。"""
 
     def __init__(self, entries: list[dict[str, Any]]) -> None:
         """编译 taxonomy 条目 → head/tail/warnings 三个有序评估表。"""
@@ -659,7 +659,7 @@ class Taxonomy:
                 self.warn.append(e)
         self.warn_cats = {e["id"] for e in self.warn}
 
-    def classify(  # scope 三段+抢占评估序即分支
+    def classify(  # scope 三段 + 抢占评估序即分支
         self, rep: ErrReport, *, timed_out: bool = False
     ) -> tuple[str | None, str | None]:
         """→ (category, payload)。payload 供规则定位 (文件名/字体名/cs 名)。"""
@@ -673,13 +673,13 @@ class Taxonomy:
         head_hit = self.classify_head(rep.first, rep.ctx, pre=rep.pre, post=rep.post)
         if head_hit is not None:
             return self._tail_preempt(head_hit, rep)
-        # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
+        # —— 无 '!' 行：tail 段回溯 (交互式缺文件/Emergency) ——
         blob = rep.tail
         for entry, pat in self.tail:
             m = pat.search(blob)
             if m and (not entry.get("guard") or re.search(entry["guard"], blob)):
                 return entry["id"], _payload(entry, m)
-        # —— 仍不中: warning 驱动的伪类别 (v1.1, docs/spec/compile.md) ——
+        # —— 仍不中：warning 驱动的伪类别 (v1.1, docs/spec/compile.md) ——
         for entry in self.warn:
             if entry.get("warn_id") in rep.warnings:
                 return entry["id"], None
@@ -697,7 +697,7 @@ class Taxonomy:
 
         ``classify`` 首错分类块原样抽出 (评估序/subclassify 收窄不变)——
         ``classify_errs``/``err_candidates`` 对 ``rep.errs`` 每条错误行
-        独立分类时无 tail/warn 回溯面, 调用方决定落空兜底。
+        独立分类时无 tail/warn 回溯面，调用方决定落空兜底。
 
         ``pre`` = 错误行之前的上下文 (``ErrReport.pre``): 仅 ``use_pre:
         true`` 的条目在 ``pre + head`` 拼接 blob 上检索——签名先于错误
@@ -708,7 +708,7 @@ class Taxonomy:
         true`` 的条目在 ``head + post`` 拼接 blob 上检索——错误块的滞后
         落盘签名 (graphicx ``File `X' not found`` 的 ``I could not locate
         the file with any of these extensions:`` errhelp 恒居错误行 +8,
-        恰出 ctx8 右缘) 由此可达; 与 ``use_pre`` 同例, per-err 分类面
+        恰出 ctx8 右缘) 由此可达; 与 ``use_pre`` 同例，per-err 分类面
         (``err_candidates``) 不带 post, 扩展窗特征仅首错 ``classify()``
         可达。
         """
@@ -751,7 +751,7 @@ class Taxonomy:
     ) -> list[tuple[str | None, str | None, str, str]]:
         """``rep.errs`` 逐条 head 分类 → (cat, pay, err_line, ctx_blob) 去重保错误序。
 
-        次级错误派发 (twinhead) 的候选面: 携源位供 ``ctx.round`` 重指与
+        次级错误派发 (twinhead) 的候选面：携源位供 ``ctx.round`` 重指与
         dispatch ErrReport 构造。无 head 命中的真实错误行归
         ``("other", None)``——它确实出现在编译 log, 只是 taxonomy 未收录。
         """
@@ -776,10 +776,10 @@ class Taxonomy:
     def _tail_preempt(
         self, head_hit: tuple[str | None, str | None], rep: ErrReport
     ) -> tuple[str | None, str | None]:
-        """致命 tail 抢占: ``preempts`` 弱类别表内的 head 命中可被尾错夺路由。
+        """致命 tail 抢占：``preempts`` 弱类别表内的 head 命中可被尾错夺路由。
 
         regress4-2410.00012——log 尾的 Emergency stop/File-not-found 是更
-        可行动的真杀手, 不该被先报的非致命头错 (如上游包内
+        可行动的真杀手，不该被先报的非致命头错 (如上游包内
         undefined_cs) 抢走路由。
         """
         for entry, pat in self.tail:

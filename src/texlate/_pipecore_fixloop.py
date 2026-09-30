@@ -168,7 +168,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     engine_fn: Callable[..., Engine] | None = None,
     sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, dict | None, CompRes]:
-    """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)——原 e2e ``_run_fixloop``。
+    """跑 fixloop + 消费 engine_flags → (报告，新尾段或 None, 最新 CompRes)——原 e2e ``_run_fixloop``。
 
     引擎新造不带 e2e 的 best-effort 旋钮——xelatex 默认 halt_on_error=True
     （fixloop 首错分类语义）。flags 经 ``compile(flags=…)`` seam 落 CLI：

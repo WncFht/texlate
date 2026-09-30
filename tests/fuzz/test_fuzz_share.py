@@ -205,7 +205,7 @@ def _oracle_key(norm: Mapping[str, str]) -> str | None:
 def _expect_pack_ok(
     parts: Mapping[str, object],
 ) -> tuple[dict[str, str] | None, str | None]:
-    """pack 成功期望 → ``(归一组分, key)``；应拒 → ``(None, None)``。"""
+    """pack 成功期望 → ``(归一组分，key)``；应拒 → ``(None, None)``。"""
     norm = _norm_parts_pack(parts)
     if norm is None:
         return None, None

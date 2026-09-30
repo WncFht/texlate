@@ -492,7 +492,7 @@ def blob_features(name: str, blob: bytes) -> dict:
         if Path(p).suffix.lower() == ".tex" or rec["format"] == "gz":
             tex_texts[p] = s
     rec["non_utf8"] = non_utf8
-    rec["_texts"] = texts  # staging 用, 不落 jsonl
+    rec["_texts"] = texts  # staging 用，不落 jsonl
     rec.update(_texts_features(tex_texts, texts))
     return rec
 
@@ -501,7 +501,7 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
     """tex_texts(剥注释前 tex 文本)+texts(全部文本件)→ 形态特征字段。
 
     blob_features(scan_tar) 与 fetch-ids extracted 树共用同一计算——特征口径
-    单点维护, 避免两通道漂移。
+    单点维护，避免两通道漂移。
     """
     rec: dict = {}
     tex_raw = "\n".join(tex_texts.values())
@@ -537,11 +537,11 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
     roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
     rec["tex_roots"] = sorted(roots)
     rec["input_depth"] = input_depth(tex_texts, roots)
-    # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把
-    # 宏包自带形态(如样式文件内嵌 pstricks 钩)误记为论文自身 flag
+    # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产，合并扫描会把
+    # 宏包自带形态 (如样式文件内嵌 pstricks 钩) 误记为论文自身 flag
     rec["flags"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(blob_txt))
     rec["flags_vendored"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(sty_txt))
-    # W109: hunter rg 命中剥注释复核——只活在注释里的命中单列(raw 有 stripped 无)
+    # W109: hunter rg 命中剥注释复核——只活在注释里的命中单列 (raw 有 stripped 无)
     raw_scan = tex_raw + "\n" + sty_raw
     stripped_hits = set(rec["flags"]) | set(rec["flags_vendored"])
     rec["flags_commented"] = sorted(

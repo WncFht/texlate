@@ -83,7 +83,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:
         file = _require_file_part(form)
         try:
             filename = file.filename or "upload.bin"
-            # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+读盘
+            # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+ 读盘
             # 秒级，卸出事件循环；临时 bytes 不出本函数域
             route = await asyncio.to_thread(_sniff_upload_path, file.path, filename)
             _check_upload_route(route, deps.babeldoc or find_tool("babeldoc"), filename)
@@ -96,7 +96,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:
                 raise _api_error(
                     400, f"unsafe filename: {filename!r}", "invalid_request"
                 )
-            # 先落 blob（建行前），再建行+入队——task_id 两侧共用
+            # 先落 blob（建行前），再建行 + 入队——task_id 两侧共用
             task_id = new_task_id()
             updir = deps.task_dir(task_id) / "upload"
 

@@ -40,7 +40,7 @@ Statuses: done() treats DONE ∪ KERNEL as terminal — a cell marked
 dedup/claimed/lost/unpaid_gate must never re-enter a run set (fail-closed
 direction for paid cells).
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_index_common`` (schema 常量/
+拆分：实现体按子域下沉同包私有叶 —— ``_index_common`` (schema 常量/
 DDL 全文/``_j``/inode tag/sealed 段名集/kernel 活性探针)、
 ``_index_store`` (``_StoreMixin``: sqlite 句柄/schema 建表与 additive
 迁移/meta 计数器/_txn 单写者事务/close)、``_index_apply``
@@ -53,10 +53,10 @@ paid_pool/active_claims 等读面 + dirty 旗)、``_index_core``
 (``Index`` 五 mixin 装配 + ``rebuild_index``/``open_index``/
 ``ingest_runless`` 入口)。本文件是 PEP 562 惰性门面 (同
 ``importer``/``kernel.kernel``/``cli`` 门面形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``kernel.index.Index`` / ``from kernel.index import ingest_runless``
 等公私名面不变 (``Index.__module__`` 已钉回本模块)。
-monkeypatch 锚点注意: 测试 setattr patch 到门面名上只对「经
+monkeypatch 锚点注意：测试 setattr patch 到门面名上只对「经
 ``index.X`` 属性读的消费方」生效 (setattr 写真全局遮蔽 ``__getattr__``);
 Index 方法的 patch 须指到叶子 mixin (如
 ``kernel._index_apply._ApplyMixin._apply_one``) 或 ``Index`` 本体
@@ -122,7 +122,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "INDEX_SCHEMA_V",
@@ -164,15 +164,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -185,7 +185,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

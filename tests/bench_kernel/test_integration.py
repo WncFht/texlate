@@ -764,7 +764,7 @@ def test_s06_index_unsealed_no_spend(broot: Path) -> None:  # noqa: ARG001 -- fi
 
 
 def test_s06b_first_fire_gate_stamp(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用
-    """§6 Phase-3 首火闸: no fresh vault-verify stamp -> the paid spec
+    """§6 Phase-3 首火闸：no fresh vault-verify stamp -> the paid spec
     refuses at the gate (coverage.json keeps the evidence, zero spend);
     a fresh stamp -> the refused run resumes and pays."""
     client = _FakeClient()

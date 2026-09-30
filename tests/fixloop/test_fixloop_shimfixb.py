@@ -1,20 +1,20 @@
 """shimfix-b — Missing-} shim-polyfill 修复族 (shimdiag #171 cluster-B, task #181)。
 
-三格同构缺陷: shim/polyfill 把稿面可含 ``\\\\`` 的参数 #1 囚进花括组,
+三格同构缺陷：shim/polyfill 把稿面可含 ``\\\\`` 的参数 #1 囚进花括组，
 组落进对齐格 (IEEEtran ``\\@IEEEauthorhalign`` / article ``\\@maketitle``
 ``tabular{c}``) → 内核 "Missing } inserted ... current column of the
-current alignment" 级联:
+current alignment" 级联：
 
 - 0905.1990 / 1404.0346 (IEEEtran[conference]): ``\\authorblockA`` polyfill
   ``\\\\[1ex]{\\small #1}`` —— #1 自带 \\\\ (多行机构) 囚进 ``{\\small ...}``。
-  修形: ``\\ifdefined\\IEEEauthorblockN/A\\let`` 直通真件 V1.8a 机制
+  修形：``\\ifdefined\\IEEEauthorblockN/A\\let`` 直通真件 V1.8a 机制
   (类源 :6310-6311 注释掉的 legacy 别名即此桥); 缺席 fallback 内层
   ``tabular`` 兜住 #1 内 \\\\。
 - astro-ph/9901364 (crckapb shim): ``\\institute`` def
   ``\\\\ {\\normalsize\\itshape #1}`` 同型 → 内层 tabular 修形。
 - vendor/shims/aipproc.cls ``\\fixaip@addr`` 同形潜在面同修。
 
-不变式: 发射体中 #1 (稿面可携 \\\\) 若在花括组内, 必须在
+不变式：发射体中 #1 (稿面可携 \\\\) 若在花括组内，必须在
 ``\\begin{tabular}..\\end{tabular}`` 跨距内 —— \\\\ 归内层对齐行。
 """
 
@@ -164,9 +164,9 @@ _IEEE_DOC = (
 @pytest.mark.skipif(shutil.which("kpsewhich") is None, reason="kpsewhich not installed")
 def test_authorblock_ieeetran_e2e(tmp_path: Path) -> None:
     """payload authorblockA → polyfill 注 docclass 缝 → IEEEtran \\\\-bearing
-    \\authorblockA 零 ``!`` 错 (0905.1990/1404.0346 格形, \\let 桥臂)。"""
+    \\authorblockA 零 ``!`` 错 (0905.1990/1404.0346 格形，\\let 桥臂)。"""
     kpsewhich = shutil.which("kpsewhich")
-    assert kpsewhich is not None  # skipif 已守卫, 此取绝对路径喂 S607
+    assert kpsewhich is not None  # skipif 已守卫，此取绝对路径喂 S607
     if subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
         [kpsewhich, "IEEEtran.cls"], capture_output=True, check=False
     ).returncode:

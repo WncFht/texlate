@@ -160,7 +160,7 @@ class _CompileFixloop:
         expect_cjk: bool,
         probe_flags: Iterable[str],
     ) -> tuple[CompRes, dict[str, Any] | None, bool]:
-        """Fixloop 救援循环共享核 → ``(末次 CompRes, 摘要|None=崩溃, 救回标记)``。
+        """Fixloop 救援循环共享核 → ``(末次 CompRes, 摘要|None=崩溃，救回标记)``。
 
         zh/en 两臂同一引擎/实况面/cases 沉淀；``cond`` 只标 cases 来源，
         ``expect_cjk`` 供 flags_tail 跨引擎复判（en 恒 False——原文编译

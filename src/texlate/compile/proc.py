@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 _RLIMIT_AS_BYTES = 4 * 1024**3
 #: 文件描述符软帽——kpathsea 正常并发 fd 峰值远低于 1024。
 _RLIMIT_NOFILE = 1024
-#: CPU 秒软帽下限：cap = max(2×墙钟, 本下限)——timeout/killpg 仍是主杀器，
+#: CPU 秒软帽下限：cap = max(2×墙钟，本下限)——timeout/killpg 仍是主杀器，
 #: CPU 帽兜「100% 自旋但墙钟面失守」的逃逸（SIGXCPU → engine 信号归因
 #: 照常吃）；短 timeout 探针调用也拿 600s 地板，永不误杀。
 _RLIMIT_CPU_FLOOR = 600
@@ -228,7 +228,7 @@ def _drain_nonblocking(fd: int, chunks: list[bytes]) -> None:
 def _pump_once(
     sel: selectors.BaseSelector, fd: int, wait_s: float
 ) -> tuple[bytes, bool]:
-    """一轮 select+read：返回 ``(本轮数据, 是否 EOF)``；EOF 顺手 unregister。"""
+    """一轮 select+read：返回 ``(本轮数据，是否 EOF)``；EOF 顺手 unregister。"""
     buf = bytearray()
     eof = False
     for _key, _mask in sel.select(wait_s):

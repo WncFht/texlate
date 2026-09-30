@@ -148,7 +148,7 @@ class TestSlotsRoundAdversarial:
         async def fn(group: dict[str, str], _fb: str) -> dict[str, str]:
             seen.append(sorted(group))
             if "⟪S0000⟫" in group:
-                return {"⟪S0008⟫": "early"}  # 组0 只回组1 的键
+                return {"⟪S0008⟫": "early"}  # 组 0 只回组 1 的键
             return dict.fromkeys(group, "zh")
 
         ctx = _SlotCtx(fn)
@@ -159,7 +159,7 @@ class TestSlotsRoundAdversarial:
         assert len(seen) == 2  # noqa: PLR2004 -- 8+2 两组
         # "early" 应答被丢——S0008 靠本组应答落地
         assert translated == {"⟪S0008⟫": "zh", "⟪S0009⟫": "zh"}
-        # 组0 全留 pending；failures 记 "empty/..."（键缺席走 get→None→
+        # 组 0 全留 pending；failures 记 "empty/..."（键缺席走 get→None→
         # invalid 分支），不是 exception 路径的 "no answer"
         assert set(pending) == {f"⟪S{i:04d}⟫" for i in range(8)}
         assert all("empty" in failures[sid] for sid in pending)
@@ -271,7 +271,7 @@ class TestSlotsRoundAdversarial:
 
         async def fn(group: dict[str, str], _fb: str) -> dict[str, str]:
             seen.append(sorted(group))
-            if len(seen) == 2:  # noqa: PLR2004 -- 组2 即抛
+            if len(seen) == 2:  # noqa: PLR2004 -- 组 2 即抛
                 msg = "401"
                 raise AuthError(msg, status=401)
             return dict.fromkeys(group, "zh")
@@ -280,4 +280,4 @@ class TestSlotsRoundAdversarial:
         pending = {f"⟪S{i:04d}⟫": f"p{i}" for i in range(20)}
         with pytest.raises(AuthError):
             asyncio.run(_slots_round(ctx, pending, {}, {}))
-        assert len(seen) == 2  # noqa: PLR2004 -- 组2 即抛，组3 未发
+        assert len(seen) == 2  # noqa: PLR2004 -- 组 2 即抛，组 3 未发

@@ -36,7 +36,7 @@ def _at_begin_doc_args(body: str) -> list[str]:
         if i < 0:
             return args
         e = match_brace(body, i + len(tag) - 1)
-        if e is None:  # 括号未闭合 → 无顶层可言, 停扫
+        if e is None:  # 括号未闭合 → 无顶层可言，停扫
             return args
         args.append(body[i + len(tag) : e - 1])
         idx = e

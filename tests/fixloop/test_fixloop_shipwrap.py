@@ -38,7 +38,7 @@ def test_shipwrap_rule_registered() -> None:
 
 
 def test_wrap_braced_site() -> None:
-    """aipproc.cls:10 形: 顶层 ``\\input{X.sty}`` 补存复对。"""
+    """aipproc.cls:10 形：顶层 ``\\input{X.sty}`` 补存复对。"""
     src = "\\ProvidesClass{foo}\n\\input{macros.sty}\n\\def\\x@y{1}\n"
     out, n = _wrap_shipped_sty_inputs(src)
     assert n == 1
@@ -50,7 +50,7 @@ def test_wrap_braced_site() -> None:
 
 
 def test_wrap_bare_site() -> None:
-    """裸 ``\\input foo.sty`` (无花括号) 同裹, post 前导空格断文件名。"""
+    """裸 ``\\input foo.sty`` (无花括号) 同裹，post 前导空格断文件名。"""
     src = "\\input apjfonts.sty\n\\relax\n"
     out, n = _wrap_shipped_sty_inputs(src)
     assert n == 1
@@ -92,9 +92,9 @@ def test_no_site_returns_unchanged() -> None:
 
 
 def test_209_option_file_shape() -> None:
-    """thp.sty:54 形: ``\\@ifundefined`` 守卫旁的 ``\\input{theorem.sty}`` 站。
+    """thp.sty:54 形：``\\@ifundefined`` 守卫旁的 ``\\input{theorem.sty}`` 站。
 
-    守卫 cs 本身在 ``{}`` 组内不算顶层站, 但 2.09-era option 件常是
+    守卫 cs 本身在 ``{}`` 组内不算顶层站，但 2.09-era option 件常是
     深度 0 裸 ``\\input`` —— 裹上后载入件 @-cs 不再断名。
     """
     src = (
@@ -108,7 +108,7 @@ def test_209_option_file_shape() -> None:
 
 
 def test_builtin_wraps_shipped_cls(tmp_path: Path) -> None:
-    """actions._apply 全链: 随源 .cls 内站点落盘改写。"""
+    """actions._apply 全链：随源 .cls 内站点落盘改写。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{aipproc}\n\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
@@ -158,7 +158,7 @@ def test_builtin_no_site_false(tmp_path: Path) -> None:
 
 
 def test_sites_walker_param() -> None:
-    """``_sty_input_sites`` 通用形: 任意 ``.sty`` 目标站尽收。"""
+    """``_sty_input_sites`` 通用形：任意 ``.sty`` 目标站尽收。"""
     src = "\\input{a.sty}\n\\input{b.sty}\n"
     sites = _sty_input_sites(src, _SHIP_STY_INPUT_RE)
     assert len(sites) == 2  # noqa: PLR2004 - 两站断言值

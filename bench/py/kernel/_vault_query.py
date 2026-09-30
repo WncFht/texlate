@@ -1,7 +1,7 @@
 """kernel._vault_query — dedup 判词与副本列举 (kernel.vault 拆分叶).
 
 ``bytes_ok`` 是物理判据 (meta 可解析 + 声明件全部在场非空——目录存在
-永不作数, pending 也算真字节); ``dedup_hit`` 是 §3.8 政策判据 (完好
+永不作数，pending 也算真字节); ``dedup_hit`` 是 §3.8 政策判据 (完好
 且 verdict ∈ DEDUP_VERDICTS, pending/tombstone 不抵)。``query``/
 ``pending_metas`` 是逐格 meta 行列举 (sweep 的 promote 队列源头)。
 """

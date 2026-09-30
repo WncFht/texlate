@@ -38,7 +38,7 @@ def _safe_rel(name: str) -> PurePosixPath | None:
 
     各注入/归位 builtin 统一的 payload 拒收口——非相对安全名一律 decline,
     绝不把 ``../x``/``/etc/x`` 写进 wdir。词法单源
-    ``texlate.textutil.osutil.safe_rel`` (自 builtins.shim 归位: misc/
+    ``texlate.textutil.osutil.safe_rel`` (自 builtins.shim 归位：misc/
     filefix/assetfix/tarblob 多叶共用以一收)。
     """
     return safe_rel(name)

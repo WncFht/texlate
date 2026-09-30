@@ -46,7 +46,7 @@ def test_tar_blob_extracts_members_and_retires(tmp_path: Path) -> None:
     assert (tmp_path / "iaus.cls").read_bytes() == b"\\ProvidesClass{iaus}\n"
     assert (tmp_path / "figs" / "f1.eps").is_file()
     assert not (tmp_path / "AMSbsy.sty").exists()
-    assert (tmp_path / "AMSbsy.sty.tarblob").is_file()  # 退役留证, 移出解析路径
+    assert (tmp_path / "AMSbsy.sty.tarblob").is_file()  # 退役留证，移出解析路径
 
 
 def test_tar_blob_no_clobber_keeps_real_files(tmp_path: Path) -> None:
@@ -86,10 +86,10 @@ def test_tar_blob_ignores_real_files(tmp_path: Path) -> None:
 
 
 def test_tar_blob_retires_when_all_members_exist(tmp_path: Path) -> None:
-    """0707.0382 实案: 语料已带全部成员 → 0 新成员, blob 仍须退役。
+    """0707.0382 实案：语料已带全部成员 → 0 新成员，blob 仍须退役。
 
     tar 归档在 ``.sty``/``.cls`` 名下绝不是合法 TeX——退役判据是
-    tar 魔数本身, 与补缺落地数解耦 (旧逻辑 0 成员原样放回 → blob
+    tar 魔数本身，与补缺落地数解耦 (旧逻辑 0 成员原样放回 → blob
     残留毒化编译)。
     """
     (tmp_path / "iaus.cls").write_bytes(b"\\ProvidesClass{iaus}\n")
@@ -103,11 +103,11 @@ def test_tar_blob_retires_when_all_members_exist(tmp_path: Path) -> None:
 
 
 def test_tar_blob_detects_prologue_displaced_magic(tmp_path: Path) -> None:
-    """0707.0382 实案二阶: 我方 prologue 前置注入把魔数推离 257 → 扫窗检测。
+    """0707.0382 实案二阶：我方 prologue 前置注入把魔数推离 257 → 扫窗检测。
 
     splice/zh 构建对 ``.sty`` 一律前置 ``\\PassOptionsToPackage`` 注入块
-    (~600B), ``ustar`` 落 ~偏移 870——定点 257 探测漏检, blob 原地毒化。
-    扫窗检出后从头起点切片抽取, 成员照常补缺, blob 退役。
+    (~600B), ``ustar`` 落 ~偏移 870——定点 257 探测漏检，blob 原地毒化。
+    扫窗检出后从头起点切片抽取，成员照常补缺，blob 退役。
     """
     payload = b"\\ProvidesPackage{missing}\n"
     prologue = b"\\PassOptionsToPackage{no-math}{fontspec}\n% injected\n"

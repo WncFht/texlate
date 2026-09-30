@@ -51,7 +51,7 @@ def _ink_frac(img) -> float:
 
 
 def _cc_scan(img) -> tuple[float, int]:
-    """深色连通块一次 BFS 出两口径：(最大深色块占比, tofu 空心框数)。
+    """深色连通块一次 BFS 出两口径：(最大深色块占比，tofu 空心框数)。
 
     tofu = .notdef 缺字框（边框有墨内部全白的小矩形）——字形尺寸
     bbox（缩图栅格 4–40px、纵横比 0.4–2.5）、**四条边沿墨率各
@@ -155,8 +155,8 @@ def _rules(img) -> int:
 
 
 def _void_frac(img) -> tuple[float, float, float]:
-    """textblock 近似区内白区三口径。返 (最大白矩形占比, 最大内部
-    白连通块占比, 块内墨率)——内部白块要求连通块不贴测量区任何边
+    """textblock 近似区内白区三口径。返 (最大白矩形占比，最大内部
+    白连通块占比，块内墨率)——内部白块要求连通块不贴测量区任何边
     （真「掉图窟窿」语义：洞四周皆有墨；目录收尾/末页留白必贴底边，
     天然不报警；页底背景是一个贴边巨连通块，不进内部口径）。
     块内墨率 = 最大内部白 CC 的包围盒内墨像素占比——tcolorbox/
@@ -176,7 +176,7 @@ def _void_frac(img) -> tuple[float, float, float]:
     nc, nr = len(cols), len(rows)
     white = [[px[x, y] >= 240 for x in cols] for y in rows]
     # 口径一：最大白矩形（histogram maximal-rectangle）——栈存
-    # (左界, 高) 对：弹出高度须随左界回传，存索引会读到原位
+    # (左界，高) 对：弹出高度须随左界回传，存索引会读到原位
     # 陈旧 heights 致整页虚报 1.0（2403.05234 实证）。
     heights = [0] * nc
     best = 0
@@ -308,7 +308,7 @@ def main() -> int:
     scratch = pdf.parent if os.access(pdf.parent, os.W_OK) else None
     if keep_dir is not None and keep_pages:
         # 收割专道：只渲标记页（连续段 -f/-l 批），不算度量、不需
-        # pillow——二遍调用不重复全篇渲染+扫描的钱。
+        # pillow——二遍调用不重复全篇渲染 + 扫描的钱。
         keep_dir.mkdir(parents=True, exist_ok=True)
         kept: list[str] = []
         with tempfile.TemporaryDirectory(dir=scratch) as td:

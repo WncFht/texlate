@@ -4,7 +4,7 @@
 基线口径（research/methods/agent-pipeline-baseline-2026-09-28）：texlate 臂
 ``api=openai-chat`` 按 server ``task_usage`` 键 + 提交/终态窗切；agent 臂
 ``api=openai-responses`` 按 codex `_status.log` START→次 START 窗切。
-两臂同 key 面时窗口不复用——网关 ``logs`` 行无任务 id，隔离全靠 api+key+时间窗。
+两臂同 key 面时窗口不复用——网关 ``logs`` 行无任务 id，隔离全靠 api+key+ 时间窗。
 
 用法::
 

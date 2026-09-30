@@ -1,6 +1,6 @@
 """builtins — fixloop 命名函数注册表 (rules.yaml `function:` 的实现侧)。
 
-两类签名:
+两类签名：
   - REWRITE_FNS: ``(re.Match) -> str`` —— regex_rewrite 条目的逐 match 改写
     (原型 `px_to_bp`/`keep_latin_tokens`, 算术/集合变换非纯模板)
   - TRANSFORM_FNS: ``(ctx, eng, payload, params) -> (applied, note)`` ——
@@ -9,15 +9,15 @@
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
 
-C3 拆分: 实现体按域拆进 ``builtins/`` 子包 22 叶 (facade=__init__), 本
+C3 拆分：实现体按域拆进 ``builtins/`` 子包 22 叶 (facade=__init__), 本
 文件是 PEP 562 惰性门面 (同 ``fixloop/__init__`` 形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``builtins.X`` 公共面与 ``from ... import X`` 测试面不变。叶子私名
-默认不回引, 缺名字的断链面请从叶子模块直取而非恢复批发回引。
-monkeypatch 锚点注意: 图形/PS 域已出叶 ``builtins.graphics``——
-``_run_convert`` 的 patch 面随调用链迁走, 测试须 patch
+默认不回引，缺名字的断链面请从叶子模块直取而非恢复批发回引。
+monkeypatch 锚点注意：图形/PS 域已出叶 ``builtins.graphics``——
+``_run_convert`` 的 patch 面随调用链迁走，测试须 patch
 ``builtins.graphics._run_convert`` 而非本门面同名回引 (惰性解析下
-``builtins._run_convert`` 仍可读, 但 setattr 只遮蔽门面不改叶子)。
+``builtins._run_convert`` 仍可读，但 setattr 只遮蔽门面不改叶子)。
 TRANSFORM_FNS 首次访问时按 ``_TRANSFORM_KEYS`` 构建并缓存成真 dict——
 ``monkeypatch.setitem`` 消费面语义不变。
 """
@@ -393,7 +393,7 @@ _LAZY: dict[str, str] = {
 }
 
 #: ``builtin_transform`` 词表——键序即原 TRANSFORM_FNS 字面序 (注册表消费
-#: 面不依赖序, 保序只为 diff 可读); 值经 ``_LAZY`` 逐名惰性解析。
+#: 面不依赖序，保序只为 diff 可读); 值经 ``_LAZY`` 逐名惰性解析。
 _TRANSFORM_KEYS: tuple[str, ...] = (
     "option_clash_merge",
     "pdftex_prim_polyfill",
@@ -492,7 +492,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
-# 本地注册表名, 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
+# 本地注册表名，新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "PDFTEX_PRIMS",
     "REWRITE_FNS",
@@ -661,16 +661,16 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键与 ``_TRANSFORM_KEYS`` 全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类 + 注册表 dict) 全进 ``__all__``
       —— ``graphics_kv_strip_obsolete`` 漏列即此类漂移。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -688,7 +688,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name
@@ -731,7 +731,7 @@ def keep_latin_tokens(m: re.Match[str]) -> str:
 
 
 #: 时代 graphicx key——``type=``/``ext=``/``read=`` 现代走 ``\csname Gin@rule@..``
-#: 链 (``Missing \endcsname`` + 名字毒化 missing_graphic 级联, 0812.0324/365 实证)。
+#: 链 (``Missing \endcsname`` + 名字毒化 missing_graphic 级联，0812.0324/365 实证)。
 _GIN_OBSOLETE_KEYS = frozenset({"type", "ext", "read"})
 
 
@@ -743,7 +743,7 @@ def graphics_kv_strip_obsolete(m: re.Match[str]) -> str:
     顶层逗号切分单源 = ``builtins.misschar._split_kv``。
     """
     from texlate.compile.fixloop.builtins.misschar import (  # noqa: PLC0415
-        _split_kv,  # 延迟: 本门面不 eager 拉叶链, 调用点已到运行期
+        _split_kv,  # 延迟：本门面不 eager 拉叶链，调用点已到运行期
     )
 
     keep = [

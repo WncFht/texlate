@@ -119,7 +119,7 @@ class _Select:
 
 # ---------------------------------------------------------------- 格函数
 def _metric_view(out: dict) -> dict:
-    """record → metrics 投影：标量+小列表，errors/raw/judge2 细节留给 case。"""
+    """record → metrics 投影：标量 + 小列表，errors/raw/judge2 细节留给 case。"""
     m = {k: v for k, v in out.items() if k not in ("errors", "raw", "judge2")}
     j2 = out.get("judge2")
     if isinstance(j2, dict):

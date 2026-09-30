@@ -3,10 +3,10 @@
 实证背景 (failmine4 soak-2026-09-18 census):
 
 A) ``Unable to load picture or PDF file 'x.png'`` 是 xetex/xdvipdfmx 图形
-   域缺件措辞 → missing_graphic 类目 (6 格: 2501.01402/2501.01329/
-   2509.14901/2501.01425/2603.08153/2604.03907)。``graphic_missing_placeholder``
+   域缺件措辞 → missing_graphic 类目 (6 格：2501.01402/2501.01329/
+   2509.14901/2501.01425/2603.08153/2604.03907).``graphic_missing_placeholder``
    原 ``when: missing_file`` 单臂永不 dispatch; 扩为 missing_file +
-   missing_graphic 双臂, condition 加 xetex 措辞臂, builtin 按后缀分发
+   missing_graphic 双臂，condition 加 xetex 措辞臂，builtin 按后缀分发
    真格式占位 (PNG/JPEG/PDF 二进制 + EPS 文本), 落盘基址改
    ``main_path().parent`` (TeX cwd 解析位 —— 子目录 main 时 wdir 根位
    不可见)。
@@ -14,17 +14,17 @@ A) ``Unable to load picture or PDF file 'x.png'`` 是 xetex/xdvipdfmx 图形
 B) ``ifacconf.cls``/``jmlr2e.sty``/``fairmeta.cls``/``acronyms1.tex`` 是
    e-print 自带件在 wdir 但不在 TeX 解析位 (compile cwd = main_dir,
    子目录 main 对根部位件不可见) —— install_file 探测 cwd=wdir 假命中
-   → fired-unfixed (4 格: 2609.17927/2609.19170/2609.19664/2609.20640)。
+   → fired-unfixed (4 格：2609.17927/2609.19170/2609.19664/2609.20640)。
    ``fileset_relocate`` builtin 逐字节拷贝 ``<main_dir>/<payload>``,
    order:9 族首 —— 真件归位优于 stub/generate/install; 瞬态扩展名
    (.aux/.bbl/.toc…) 不搬 (2609.20323 main.aux = unclosed \\if 下游
-   产物, 搬陈件遮蔽真因)。
+   产物，搬陈件遮蔽真因)。
 
 C) preamble 内开的 ``\\if`` 若任 file-end ``\\fi`` 裹住整 body, false 臂
    把 ``\\document`` (``\\@mainaux`` open) 一并吞掉 →
    ``I can't find file 'main.aux'`` emergency (2609.20323 实证)。
-   ``unclosed_if_close``/``unclosed_if_close_eof`` 脚本分两段:
-   ``\\begin{document}`` 前开的 ``\\if`` 注在 begdoc 行头, body 内开的
+   ``unclosed_if_close``/``unclosed_if_close_eof`` 脚本分两段：
+   ``\\begin{document}`` 前开的 ``\\if`` 注在 begdoc 行头，body 内开的
    仍注 boundary。
 """
 
@@ -87,7 +87,7 @@ def test_taxonomy_unable_to_load_is_missing_graphic() -> None:
 
 
 def test_rule_gfx_when_covers_both_categories() -> None:
-    """when 扩为双臂: missing_file + missing_graphic 均 payload_required。"""
+    """when 扩为双臂：missing_file + missing_graphic 均 payload_required。"""
     rule = _rule(_RULE_GFX)
     ctx = LoopCtx(wdir=Path("/nonexistent"), engine_name="xelatex")
     assert actions._when_ok(rule.when, "missing_file", "x.eps", ctx)  # noqa: SLF001
@@ -110,7 +110,7 @@ def test_rule_gfx_cond_xetex_phrasing(tmp_path: Path) -> None:
 
 
 def test_rule_gfx_order_before_repair() -> None:
-    """序自洽: includepdf_stub(17.5) < placeholder < graphic_repair(18)。"""
+    """序自洽：includepdf_stub(17.5) < placeholder < graphic_repair(18)。"""
     orders = {r.id: r.order for r in load_ruleset().phase("loop")}
     assert orders["includepdf_missing_stub"] < orders[_RULE_GFX]
     assert orders[_RULE_GFX] < orders["graphic_repair"]
@@ -207,7 +207,7 @@ def test_gfx_extless_no_ref_declines(tmp_path: Path) -> None:
 
 
 def test_rule_reloc_wired() -> None:
-    """order:9 族首, missing_file+missing_graphic 双臂, builtin_transform。"""
+    """order:9 族首，missing_file+missing_graphic 双臂，builtin_transform。"""
     rule = _rule(_RULE_RELOC)
     assert rule.order == 9  # noqa: PLR2004 - schema 断言值
     assert rule.action["kind"] == "builtin_transform"
@@ -219,14 +219,14 @@ def test_rule_reloc_wired() -> None:
 
 
 def test_rule_reloc_dispatch_before_install_family() -> None:
-    """调度序: relocate 先于 rungen_stub/docstrip/install_file —— 真件优先。"""
+    """调度序：relocate 先于 rungen_stub/docstrip/install_file —— 真件优先。"""
     ids = [r.id for r in load_ruleset().phase("loop")]
     assert ids.index(_RULE_RELOC) < ids.index("rungen_stub")
     assert ids.index(_RULE_RELOC) < ids.index("install_file")
 
 
 def test_reloc_root_src_to_subdir_main(tmp_path: Path) -> None:
-    """2609.17927 形: wdir 根 ifacconf.cls + main@Artigo/ → Artigo/ifacconf.cls。"""
+    """2609.17927 形：wdir 根 ifacconf.cls + main@Artigo/ → Artigo/ifacconf.cls。"""
     (tmp_path / "Artigo").mkdir()
     (tmp_path / "Artigo" / "sbaconf.tex").write_text(
         "\\documentclass{ifacconf}\n", encoding="utf-8"
@@ -240,7 +240,7 @@ def test_reloc_root_src_to_subdir_main(tmp_path: Path) -> None:
 
 
 def test_reloc_rglob_basename_fallback(tmp_path: Path) -> None:
-    """2609.19170 形: main@sections/ + jmlr2e.sty 在旁枝 → basename 兜底命中。"""
+    """2609.19170 形：main@sections/ + jmlr2e.sty 在旁枝 → basename 兜底命中。"""
     (tmp_path / "sections").mkdir()
     (tmp_path / "sections" / "00_preamble.tex").write_text(
         "\\documentclass{article}\n", encoding="utf-8"
@@ -254,7 +254,7 @@ def test_reloc_rglob_basename_fallback(tmp_path: Path) -> None:
 
 
 def test_reloc_nested_payload_dir(tmp_path: Path) -> None:
-    """2609.19664 形: \\documentclass{templates/arxiv/fairmeta} → 嵌套拷贝位。"""
+    """2609.19664 形：\\documentclass{templates/arxiv/fairmeta} → 嵌套拷贝位。"""
     deep = tmp_path / "templates" / "arxiv"
     deep.mkdir(parents=True)
     (deep / "main.tex").write_text(
@@ -270,7 +270,7 @@ def test_reloc_nested_payload_dir(tmp_path: Path) -> None:
 
 
 def test_reloc_input_file_subdir(tmp_path: Path) -> None:
-    """2609.20640 形: \\input{acronyms1} main@IEEEtran/ → IEEEtran/acronyms1.tex。"""
+    """2609.20640 形：\\input{acronyms1} main@IEEEtran/ → IEEEtran/acronyms1.tex。"""
     (tmp_path / "IEEEtran").mkdir()
     (tmp_path / "IEEEtran" / "main.tex").write_text(
         "\\documentclass{article}\n", encoding="utf-8"
@@ -283,7 +283,7 @@ def test_reloc_input_file_subdir(tmp_path: Path) -> None:
 
 
 def test_reloc_decline_target_exists(tmp_path: Path) -> None:
-    """解析位已有档 → False (payload 可达, 缺件另有真因不遮蔽)。"""
+    """解析位已有档 → False (payload 可达，缺件另有真因不遮蔽)。"""
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "main.tex").write_text("x\n", encoding="utf-8")
     (tmp_path / "sub" / "ifacconf.cls").write_bytes(b"at site\n")
@@ -295,7 +295,7 @@ def test_reloc_decline_target_exists(tmp_path: Path) -> None:
 
 
 def test_reloc_decline_transient_ext(tmp_path: Path) -> None:
-    """2609.20323 形: main.aux 是 unclosed \\if 下游产物 —— 瞬态件不搬。"""
+    """2609.20323 形：main.aux 是 unclosed \\if 下游产物 —— 瞬态件不搬。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"stale\n")
     for pay in ("main.aux", "main.bbl", "main.toc", "main.run.xml"):
@@ -343,7 +343,7 @@ def test_reloc_dotdir_src_skipped(tmp_path: Path) -> None:
 
 
 def test_ifclose_preamble_open_injects_before_begdoc(tmp_path: Path) -> None:
-    """2609.20323 机理: preamble 内开的 \\if → \\fi 注在 \\begin{document} 行头
+    """2609.20323 机理：preamble 内开的 \\if → \\fi 注在 \\begin{document} 行头
     (守卫域限 preamble) —— 不再裹住整 body。"""
     main = (
         "\\documentclass{IEEEtran}\n"
@@ -366,7 +366,7 @@ def test_ifclose_preamble_open_injects_before_begdoc(tmp_path: Path) -> None:
 
 
 def test_ifclose_mixed_pre_post_two_sites(tmp_path: Path) -> None:
-    """preamble + body 双亏格 → 两位各注 (pre 注 begdoc 行头, post 注 boundary)。"""
+    """preamble + body 双亏格 → 两位各注 (pre 注 begdoc 行头，post 注 boundary)。"""
     main = (
         "\\documentclass{article}\n"
         "\\ifodd1\n"

@@ -51,7 +51,7 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     ``report`` 载全量 rep（worker 侧经 ``_repair_event`` scrub）。
     ``baseline_sigs`` 透传 ``l2_repair_round``——en 基线签名命中判源生
     不进归因面。``seq_marks`` 同路透传（None → env 决议）。返回
-    (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep, last_res, v = l2_repair_round(
         run,
@@ -88,7 +88,7 @@ def l2_repair_job(  # noqa: PLR0913 -- 注入面穿透（编译件/上限/sink �
     engine_fn: Callable[..., Engine] | None = None,
     sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, CompRes, dict | None]:
-    """L2 回灌一轮（e2e 口径）→ (l2 报告, 最新 CompRes, 新尾段或 None)——原 e2e ``_l2_repair``。
+    """L2 回灌一轮（e2e 口径）→ (l2 报告，最新 CompRes, 新尾段或 None)——原 e2e ``_l2_repair``。
 
     注入 e2e 编译件（``_compile_judge_job``，``engine_fn`` 保
     ``e2e.engine_for`` monkeypatch 缝）并把末态 Verdict 换回 tail dict

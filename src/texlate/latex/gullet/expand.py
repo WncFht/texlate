@@ -218,7 +218,7 @@ class _Expand:
         defined = self._is_defined(name)
         sel = f_arg if defined else t_arg
         # 界标夹心（``_branch_markers`` 共用实现，同 process_if）：lead
-        # marker 盖到选支首 token，尾 marker 随选支 unread 盖 [选支末,
+        # marker 盖到选支首 token，尾 marker 随选支 unread 盖 [选支末，
         # 调用末)——否则整调用 literal 后选支 surface 再进 chunk →
         # 译文面 literal 原文 + chunk 译文双发。
         lead_end, tail = _branch_markers(

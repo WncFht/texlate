@@ -7,7 +7,7 @@ cell 化，按 manifest 行可达通道分车道（车道在 spec 加载时定�
 - ``chunk``  — 行带 ``item``+``member``（channel=ia|tiger）且同 item
   待水合成员 ≥ ``CHUNK_MIN``：整 tar ``.part``+Range 续传一次、成员偏移
   索引一次（``meta/{item}.members.json``），各 cell 在 per-chunk flock
-  外 seek+读+sha256 复核 + ``cc.materialize_into_stage`` 物化——
+  外 seek+ 读+sha256 复核 + ``cc.materialize_into_stage`` 物化——
   corpus_v3/corpus_expand 同一套下载/物化机制。成员全 settled
   （complete|empty|failed）才删 tar——峰值磁盘 ≈ 在飞 tar 数（≤jobs），
   不是全量 ~53GiB；残留 tar 下次 run 免费续用。
@@ -22,18 +22,18 @@ cell 化，按 manifest 行可达通道分车道（车道在 spec 加载时定�
   meta.channel=arxiv_eprint、blob 与 manifest blob_sha256 语义分叉
   （重打包 sha vs 原始源 sha，meta 里记 warnings 标注）。
 
-磁盘闸（补丁B kernel 侧 ``TEXLATE_BENCH_MIN_FREE_GB`` 的 spec 面显式归
+磁盘闸（补丁 B kernel 侧 ``TEXLATE_BENCH_MIN_FREE_GB`` 的 spec 面显式归
 类，双保险）：
 
 - chunk 道下载前 ``lake.admit(tar_size)`` 预闸 + ``lake.hydrate`` 内
-  ``DiskPressureError`` 头room 闸 + ENOSPC OSError → 一律归
+  ``DiskPressureError`` 头 room 闸 + ENOSPC OSError → 一律归
   ``error``（retriable）+ ``errors[].cat="disk_gate"``，绝不 fault；
 - tar 删除只发生在「全员 settled」的 chunk 锁内——cat.set 是 hydrate
   末步，settled ⇒ 该成员的 read 早已结束，prune 窗不伤在飞读件。
 
 用法::
 
-    bench plan corpus_hydrate                    # 枚举+报价（不跑 fn）
+    bench plan corpus_hydrate                    # 枚举 + 报价（不跑 fn）
     bench run corpus_hydrate --param dry=1       # 只跑 plan 格 → plan.json
     bench run corpus_hydrate --param n=64        # 头部 chunk 试跑
     bench run corpus_hydrate --param lane=eprint
@@ -120,7 +120,7 @@ def _rowmap(corpus: Path) -> dict[str, dict]:
 
 
 def _item_meta() -> dict[str, dict]:
-    """frame 索引 → {f"{channel}:{item}": {channel,size,url,sha1?|oid16?}}——
+    """frame 索引 → {f"{channel}:{item}": {channel,size,url,sha1？|oid16?}}——
     ia 走 item-index.csv + IA_DL，tiger 走 tiger-files.csv + TIGER_DL。
     键带 channel 前缀：tiger 清单是全集（arXiv_src_* 同名全覆盖），裸 item
     键会让 tiger 行静默盖掉 ia 行——channel=ia 的 chunk 会拿着 tiger 的
@@ -358,7 +358,7 @@ def _chunk_settled(ch: dict, cat: lake.LakeCatalog) -> bool:
 
 def _ensure_tar(ch: dict, work: Path) -> Path:
     """chunk 锁内调用：缺→admit 预闸；在/缺都过 download_item（在=尺寸+
-    内容复核直通，缺=.part 续传+校验）。"""
+    内容复核直通，缺=.part 续传 + 校验）。"""
     tar = _tar_path(work, ch["item"])
     # spec 侧预闸：kernel 闸在 lake.hydrate 内才触发，tar 下载发生在
     # fetch_fn 之前、闸覆盖不到——这里先挡（admit 是 fs floor+lake cap
@@ -754,7 +754,7 @@ def _hydrate(ctx) -> dict:
     if lake.is_complete(idc):
         return {"status": "ok", "metrics": {"outcome": "already"}}
     # 免费本地臂：raw/ 残件在 → fetch_fn=None 重投影，零网络（lake 内建
-    # raw_only→hydrated 路，且不吃 DiskPressureError 头room 闸）。
+    # raw_only→hydrated 路，且不吃 DiskPressureError 头 room 闸）。
     if (lake.cell_dir(idc) / "raw").is_dir():
         lake.hydrate(
             idc,

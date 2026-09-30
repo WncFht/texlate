@@ -9,7 +9,7 @@
 - ``_j`` — metrics/errors JSON 列编码; ``_file_tag`` — events.jsonl
   inode 身份 (byte watermark 只对原 inode 有意义); ``_sealed_segment_names``
   — sealed/ 段名集; ``_kernel_idle`` — .kernel-active NB-flock 活性探针。
-  消费方横跨 store/replay/query 三叶, 落公共叶免环; 本叶不 import 兄弟叶。
+  消费方横跨 store/replay/query 三叶，落公共叶免环; 本叶不 import 兄弟叶。
 """
 
 from __future__ import annotations

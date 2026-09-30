@@ -384,7 +384,7 @@ def _transcode_one(
     ledgers: dict[str, list[str]],
     root: Path,
 ) -> None:
-    """单件解码判定+写回；INTERMEDIATE 截尾整形，其余全件转码落台账。
+    """单件解码判定 + 写回；INTERMEDIATE 截尾整形，其余全件转码落台账。
 
     读写任一步 OSError（只读件/只读目录）按「未触动」处理——不落台账、
     不中断整树扫描（同 ``_neutralize_junk_files`` 的守卫口径）。

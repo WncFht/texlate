@@ -1,6 +1,6 @@
 """kernel._cli_lake — lake 子动词叶 (kernel.cli 拆分叶).
 
-``bench lake`` 的七个动词: status (catalog + 容量 + CAS 对象账)、
+``bench lake`` 的七个动词：status (catalog + 容量 + CAS 对象账)、
 pin/unpin (PINNED marker + catalog pinned 字段)、evict (LRU 向目标
 字节)、evict-done (已入 vault 的 paid zh 格淘汰——e2e_real 期与
 soak 期双代凭据)、register (manifest 骨架行)、absorb (旧语料树

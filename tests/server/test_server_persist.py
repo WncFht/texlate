@@ -180,7 +180,7 @@ class TestSpliceInvalidationArtifacts:
             store.insert_chunks(ctx.task_id, [_chunk(0)])
             self._seed_artifacts(ctx, store)
             pre = self._pre_rows(store, ctx.task_id)
-            # 本段翻译落盘：c0 pending→ok+译文
+            # 本段翻译落盘：c0 pending→ok+ 译文
             store.update_chunk(
                 ctx.task_id,
                 "c0",

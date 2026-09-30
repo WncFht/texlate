@@ -1,13 +1,13 @@
-"""runguard verdict 钉 —— 死编译(超时/信号杀)否决 clean/acceptable_pdf。
+"""runguard verdict 钉 —— 死编译 (超时/信号杀) 否决 clean/acceptable_pdf。
 
 gr-qc/0104075 residdiag 实证
 (``git show 5ebc9797^:docs/research/overseer-selfimp.md`` :300):
 240s SIGKILL 编译解析 0 错误 → fixloop_verdict=clean → post-verdict 再烧
 240s;同档 ``\\end{document}`` 期 ``\\clearpage`` 死循环刷屏 73,595 行
 ``Overfull \\vbox while \\output is active`` → ``runaway_output`` 与普通
-超时分流 (重跑必再暴走, salvage 排除)。
+超时分流 (重跑必再暴走，salvage 排除)。
 
-钉:
+钉：
   a) timed_out/killed + 0 错 + pdf → 不 clean 也不 acceptable_pdf;
   b) overfull-vbox-output 刷屏 log → runaway_output (阈值 30 成串才判);
   c) 正常干净编译仍 clean (回归)。
@@ -52,7 +52,7 @@ def test_runaway_output_pdf_not_clean(tmp_path: Path) -> None:
 
 
 def test_runaway_output_no_pdf_no_salvage(tmp_path: Path) -> None:
-    """runaway_output 进 salvage 排除臂——重跑必再暴走, 不烧兜底轮。"""
+    """runaway_output 进 salvage 排除臂——重跑必再暴走，不烧兜底轮。"""
     eng = MockEngine([{"log": RUNAWAY_LOG, "timed_out": True}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "unfixable:runaway_output"
@@ -71,11 +71,11 @@ CAP_STACK_LOG = (
 
 
 def test_input_stack_no_pdf_no_salvage(tmp_path: Path) -> None:
-    """unfixable:input_stack 进 salvage 排除臂——上游递归帧定败, 不烧兜底轮。
+    """unfixable:input_stack 进 salvage 排除臂——上游递归帧定败，不烧兜底轮。
 
     cat ``input_stack`` 只由 capacity ``input_stack|<cs>`` 重路由产出
-    (``_CAP_UPSTREAM_RECURSION_CS`` 名单, ``\\@nomath`` 内核守卫帧在
-    列), 全属 TeX-exec 宏递归——同输入同炸, nonstopmode 救不回。
+    (``_CAP_UPSTREAM_RECURSION_CS`` 名单，``\\@nomath`` 内核守卫帧在
+    列), 全属 TeX-exec 宏递归——同输入同炸，nonstopmode 救不回。
     """
     eng = MockEngine([{"log": CAP_STACK_LOG}])
     cell = fixloop(make_proj(tmp_path), eng)
@@ -85,7 +85,7 @@ def test_input_stack_no_pdf_no_salvage(tmp_path: Path) -> None:
 
 
 def test_killed_signal_pdf_not_clean(tmp_path: Path) -> None:
-    """信号杀(非超时) + pdf + 0 错 → dirty_pdf, cat=killed。"""
+    """信号杀 (非超时) + pdf + 0 错 → dirty_pdf, cat=killed。"""
     eng = MockEngine([{"log": CLEAN_LOG, "pdf": True, "killed_signal": 9}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "dirty_pdf"
@@ -105,7 +105,7 @@ def test_killed_signal_runaway_log(tmp_path: Path) -> None:
 
 
 def test_killed_signal_no_pdf_salvage_fires(tmp_path: Path) -> None:
-    """unfixable:killed 不进排除臂——信号死可非定败, salvage 通道保留。"""
+    """unfixable:killed 不进排除臂——信号死可非定败，salvage 通道保留。"""
     eng = MockEngine([{"log": "partial\n", "killed_signal": 9}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "unfixable:killed"
@@ -141,7 +141,7 @@ XFATAL_TAIL = (
 
 
 def test_driver_fatal_pdf_not_clean(tmp_path: Path) -> None:
-    """1907.00277 形: rc=1 非信号退出 + 残 pdf + fatal 只走 stdout_tail。
+    """1907.00277 形：rc=1 非信号退出 + 残 pdf + fatal 只走 stdout_tail。
 
     xdvipdfmx fatal 不进 .log——``_report_of`` 把 ``*: fatal:`` 归一成
     ``!`` 行使签名对 dispatch 可见 (category 押 ``other`` 是
@@ -170,7 +170,7 @@ def test_driver_fatal_no_pdf_unfixable(tmp_path: Path) -> None:
 
 
 def test_driver_fatal_rc0_noise_acceptable(tmp_path: Path) -> None:
-    """阴性钉: rc=0 出 pdf 的 ``fatal:`` 字面行——非驱动死, died 不置位。
+    """阴性钉：rc=0 出 pdf 的 ``fatal:`` 字面行——非驱动死，died 不置位。
 
     bang 化 (_report_of 归一) 保守压 clean → dirty_pdf, 但 died=False
     使 acceptable_pdf 升级不封——孙件噪声不伪报驱动死。
@@ -192,7 +192,7 @@ def test_driver_warning_not_fatal_still_clean(tmp_path: Path) -> None:
 
 
 def test_judge_driver_fatal_pdf_partial(tmp_path: Path) -> None:
-    """judge 面: rc=1 + fatal tail + 残 pdf → partial (非 clean), cat 归因。"""
+    """judge 面：rc=1 + fatal tail + 残 pdf → partial (非 clean), cat 归因。"""
     pdf = tmp_path / "main.pdf"
     pdf.write_bytes(b"%PDF-partial")
     res = CompRes(
@@ -210,7 +210,7 @@ def test_judge_driver_fatal_pdf_partial(tmp_path: Path) -> None:
 
 
 def test_judge_driver_fatal_no_pdf() -> None:
-    """judge 面: fatal + 无 pdf → fail, driver_fatal 为近因类别。"""
+    """judge 面：fatal + 无 pdf → fail, driver_fatal 为近因类别。"""
     res = CompRes(engine="xelatex", rc=1, log=LogInfo(), stdout_tail=XFATAL_TAIL)
     v = judge(res)
     assert v.status == "fail"
@@ -219,7 +219,7 @@ def test_judge_driver_fatal_no_pdf() -> None:
 
 
 def test_judge_driver_fatal_rc0_clean(tmp_path: Path) -> None:
-    """judge 阴性钉: rc=0 + pdf + fatal 字面行 → clean (孙件噪声不采)。"""
+    """judge 阴性钉：rc=0 + pdf + fatal 字面行 → clean (孙件噪声不采)。"""
     pdf = tmp_path / "main.pdf"
     pdf.write_bytes(b"%PDF-ok")
     res = CompRes(
@@ -235,14 +235,14 @@ def test_judge_driver_fatal_rc0_clean(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 单元面
 def test_is_runaway_output_threshold() -> None:
-    """阈值 30: 健康档偶发告警不判, 病态刷屏成串即判。"""
+    """阈值 30: 健康档偶发告警不判，病态刷屏成串即判。"""
     assert not _is_runaway_output("\n".join([_VBOX] * 29))
     assert _is_runaway_output("\n".join([_VBOX] * 30))
     assert not _is_runaway_output(CLEAN_LOG)
 
 
 def test_taxonomy_timed_out_split() -> None:
-    """Taxonomy.classify timed_out 短路: 刷屏 → runaway_output, 否则 timeout。"""
+    """Taxonomy.classify timed_out 短路：刷屏 → runaway_output, 否则 timeout。"""
     tax = Taxonomy([])
     run = ErrReport(raw=RUNAWAY_LOG)
     assert tax.classify(run, timed_out=True) == ("runaway_output", None)
@@ -254,7 +254,7 @@ def test_taxonomy_timed_out_split() -> None:
 
 
 def test_classify_error_timed_out() -> None:
-    """loginfo 适配: 真 ruleset 装载下 timed_out 细分同源。"""
+    """loginfo 适配：真 ruleset 装载下 timed_out 细分同源。"""
     cat, _ = classify_error(None, None, "\n".join([_VBOX] * 35), timed_out=True)
     assert cat == "runaway_output"
     cat, _ = classify_error(None, None, "partial\n", timed_out=True)
@@ -262,7 +262,7 @@ def test_classify_error_timed_out() -> None:
 
 
 def test_judge_timeout_categories() -> None:
-    """judge() 超时早退: fail + runaway_output/timeout 细分写 category。"""
+    """judge() 超时早退：fail + runaway_output/timeout 细分写 category。"""
     res = CompRes(
         engine="xelatex",
         timed_out=True,
@@ -274,7 +274,7 @@ def test_judge_timeout_categories() -> None:
 
 
 def test_judge_livekill_stdout_tail_fallback() -> None:
-    """活哨早杀形: .log 截在签名刷屏前, stdout_tail 携签名 → 仍 runaway_output。"""
+    """活哨早杀形：.log 截在签名刷屏前，stdout_tail 携签名 → 仍 runaway_output。"""
     res = CompRes(
         engine="xelatex",
         timed_out=True,

@@ -60,10 +60,10 @@ def delivered_db(status: object, translation: object) -> bool:
 
 
 class CompileRunner(Protocol):
-    """``() -> (CompRes, Verdict)``——编译+判定回环件（``l2_repair`` 的 ``recompile`` 契约）。"""
+    """``() -> (CompRes, Verdict)``——编译 + 判定回环件（``l2_repair`` 的 ``recompile`` 契约）。"""
 
     def __call__(self) -> tuple[CompRes, Verdict]:
-        """跑一次编译+判定回环 → ``(CompRes, Verdict)``。"""
+        """跑一次编译 + 判定回环 → ``(CompRes, Verdict)``。"""
         ...
 
 

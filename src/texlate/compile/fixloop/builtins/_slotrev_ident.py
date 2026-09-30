@@ -32,25 +32,25 @@ _IDENT_LOOSE_RX = re.compile(r"[A-Za-z0-9@._/:+*!,=~ '()&-]+")
 _IDENT_LOOSE_KINDS = frozenset({"font"})
 #: spec ident —— 列 spec/dimen/数据表参的字符域: 可打印 ASCII +
 #: ``\t\n\r`` (| 空格 @ < > ! * 反斜杠换行全收; {} 由 ``_ARGB``
-#: 平衡组结构上承载)。spec 位自带机位断言, 不复用严格白名单
-#: (1502.01845 实证: 真 spec 恒被它拒); 空白容忍为跨行 spec
+#: 平衡组结构上承载)。spec 位自带机位断言，不复用严格白名单
+#: (1502.01845 实证：真 spec 恒被它拒); 空白容忍为跨行 spec
 #: (2609.20179 xltabular ``>{...}`` 嵌组多行参) 与 pgf 内联数
 #: 值表 (2609.19828) 所需 —— ``_ARGB`` 捕获可含 ``\n\t``。
 _IDENT_SPEC_RX = re.compile(r"[\t\n\r -~]+")
 #: spec 系 kind 前缀 —— colspec/colspec_mc/colspec_nt/colspec_holder:*。
 _IDENT_SPEC_PREFIX = "colspec"
-#: spec 同域 (可打印 ASCII+空白) 的散 kind —— inferkv: opt kv 值含 cs 调用
-#: (``\rlabel{Rec}``) 与空格, 严格/宽松 ident 均拒; 该位恒为
-#: mathpartir kv 键表机位, CJK 即译污。primgap: 原语 pre-``{`` gap
+#: spec 同域 (可打印 ASCII+ 空白) 的散 kind —— inferkv: opt kv 值含 cs 调用
+#: (``\rlabel{Rec}``) 与空格，严格/宽松 ident 均拒; 该位恒为
+#: mathpartir kv 键表机位，CJK 即译污。primgap: 原语 pre-``{`` gap
 #: 含空格/反斜杠 (``to .55em``/``\hbox to .55em``/``spread 2pt``)。
-#: pgtable: pgfplots 数据参位 (内联表/csname/文件名/kv 全机器引用,
-#: CJK 即译污) —— 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收,
-#: 故用无门控 spec 域 (2609.19828 实证, 勿并入 _IDENT_KVNL_KINDS)。
+#: pgtable: pgfplots 数据参位 (内联表/csname/文件名/kv 全机器引用，
+#: CJK 即译污) —— 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收，
+#: 故用无门控 spec 域 (2609.19828 实证，勿并入 _IDENT_KVNL_KINDS)。
 _IDENT_SPEC_KINDS = frozenset({"inferkv", "primgap", "pgtable"})
-#: kvnl ident —— tcb kv 选项组字符域: 可打印 ASCII + ``\t\n\r`` (跨行
-#: kv 串含嵌组/``#n`` 形参); 须同时含 ``=``/``,``/``#`` kv 形, 防
+#: kvnl ident —— tcb kv 选项组字符域：可打印 ASCII + ``\t\n\r`` (跨行
+#: kv 串含嵌组/``#n`` 形参); 须同时含 ``=``/``,``/``#`` kv 形，防
 #: ``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 组误收 —
-#: kvnl 白名单放得太宽, 纯散文 ASCII 组也能 fullmatch, 靠 kv 形断言
+#: kvnl 白名单放得太宽，纯散文 ASCII 组也能 fullmatch, 靠 kv 形断言
 #: 兜底 (错位 revert 比不复原更糟; ``{listing only}`` 裸键站宁可漏)。
 _IDENT_KVNL_RX = re.compile(r"[\t\n\r -~]+")
 _KVNL_SHAPE_RX = re.compile(r"[=,#]")
@@ -58,7 +58,7 @@ _IDENT_KVNL_KINDS = frozenset({"tcbopt"})
 
 #: unique-src 广播适用 kind —— 计数分歧时若 src 侧该 kind 全部 gap 值
 #: 唯一且过 ident, 广播至 zh 侧全部含 CJK gap 站 (宏展开把单一 def 站
-#: 机位倍增到调用站: 2609.20633 ``\tocdots`` def 1 站 ``\hbox to .55em``
+#: 机位倍增到调用站：2609.20633 ``\tocdots`` def 1 站 ``\hbox to .55em``
 #: vs zh ``\leaders\hbox`` 字面量调用站 ×14 实证)。仅 gap 恒为 TeX
 #: keyword/dimen 机料的 primgap 启用 —— 其余 kind 计数分歧仍整跳
 #: (错位 revert 比不复原更糟); src 多值/空集 → 同样整跳。

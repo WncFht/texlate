@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-#: 远端臂总 deadline（实测 p50 2.2s / max 20.3s——总闸+并发+兜底是硬需求）
+#: 远端臂总 deadline（实测 p50 2.2s / max 20.3s——总闸 + 并发 + 兜底是硬需求）
 REMOTE_DEADLINE_S = 20.0
 REMOTE_CONCURRENCY = 4
 #: Crossref bibliographic 末臂的 title token 重叠门（实测拐点，钉死防毒）
@@ -70,7 +70,7 @@ _ARXIV_CTX_RX = re.compile(
 
 
 def parse_bib(src: str) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
-    """粗 .bib 解析：``{key: (type, 原文段)}`` + ``{@string 名(lower): 原文}``。
+    """粗 .bib 解析：``{key: (type, 原文段)}`` + ``{@string 名 (lower): 原文}``。
 
     brace-balanced 扫描 ``@type{key, …}``——entry 自身的开分隔符定计数
     （``{`` 开只数 ``{}``，``(`` 开只数 ``()``）；同 key 首现胜
@@ -121,7 +121,7 @@ def entry_uses_strings(raw: str, string_names: set[str]) -> set[str]:
 
 
 def _iter_member_texts(blob: bytes, hint: str) -> Iterator[tuple[str, str]]:
-    """Src blob → ``(member名, utf-8 文本)``：tar 各族 → zip → 裸文本回退。
+    """Src blob → ``(member 名，utf-8 文本)``：tar 各族 → zip → 裸文本回退。
 
     ``hint`` = blob 原文件名（裸 ``.tex``/``.bib`` 上传时决定回退臂的
     解析口径）；成员 decode 失败逐件跳过，整包不炸。
@@ -307,7 +307,7 @@ def bibtex_title(bib: str) -> str:
 
 
 def token_overlap(a: str, b: str) -> float:
-    """Token 集交叠 ``|∩|/min(|a|,|b|)``——Crossref 末臂质检门。"""
+    """Token 集交叠 ``|∩|/min(|a|，|b|)``——Crossref 末臂质检门。"""
     ta = set(re.findall(r"[a-z]{3,}", a.lower()))
     tb = set(re.findall(r"[a-z]{3,}", b.lower()))
     return len(ta & tb) / max(1, min(len(ta), len(tb)))

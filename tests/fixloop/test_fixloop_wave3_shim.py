@@ -3,14 +3,14 @@ CJK 缺字路由钉。
 
 - astro-ph/0307062·0501187·0501259: 旧 aa.dem 单参 ``\\abstract{...}``
   (内含 ``\\keywords``) 撞上 shim 原 ``[5]`` 形 → ``\\par/\\maketitle/
-  \\section`` 被吞成参数, ``\\@sect`` 组内 ``\\@@par`` 落进 expl3 hook 名
-  csname → ``Missing \\endcsname`` ×100 风暴。修: ``[1]`` + ``\\aa@absorb``
+  \\section`` 被吞成参数，``\\@sect`` 组内 ``\\@@par`` 落进 expl3 hook 名
+  csname → ``Missing \\endcsname`` ×100 风暴。修：``[1]`` + ``\\aa@absorb``
   peek 续组并入 (新五段形仍全收)。
 - nucl-ex/0408018: ``\\input{graphicx}`` 命中 TL ``tex/plain/graphics/``
   的 miniltx 包装 ``graphicx.tex`` → xelatex 下 ``\\zap@space`` 递归爆
-  input stack。修: ``filemap.overrides`` 钉 ``null`` 断 install 通路 +
+  input stack。修：``filemap.overrides`` 钉 ``null`` 断 install 通路 +
   ``shim_map`` 桥 ``\\RequirePackage{graphicx}``。
-- F-font 路由钉: CJK 码位落 spec 字体 (``[lmroman*]:mapping=`` 形) →
+- F-font 路由钉：CJK 码位落 spec 字体 (``[lmroman*]:mapping=`` 形) →
   ``cjk_glyph`` → ``cjk_warmup`` (绑定预热通路); char_table 无 install
   动作 —— 缺字族不走装包。
 """
@@ -80,7 +80,7 @@ def test_aa_shim_abstract_single_arg_with_absorb() -> None:
 
 
 def test_aa_shim_stub_writes(tmp_path: Path) -> None:
-    """vendored_fetch 落盘面: 替身 stub 经真动作物化 wdir + absorb 机制随件。"""
+    """vendored_fetch 落盘面：替身 stub 经真动作物化 wdir + absorb 机制随件。"""
     root = tmp_path / "vendor"
     (root / "stubs").mkdir(parents=True)
     (root / "stubs" / "aa.cls").write_text(
@@ -99,7 +99,7 @@ def test_aa_shim_stub_writes(tmp_path: Path) -> None:
 
 
 def test_graphicx_tex_override_null_and_shim() -> None:
-    """install 通路被 overrides null 断开, shim_map 有桥 stub。"""
+    """install 通路被 overrides null 断开，shim_map 有桥 stub。"""
     overrides = _rs().filemap_cfg["overrides"]
     assert "graphicx.tex" in overrides
     assert overrides["graphicx.tex"] is None
@@ -173,14 +173,14 @@ def test_cjk_spec_font_routes_to_warmup() -> None:
 
 def test_cjk_tfm_and_cjkfont_not_warmup() -> None:
     """tfm 字体缺 CJK = 数学面 (inject \\Umathcode 兜底) —— warmup 不接;
-    已是 CJK 字体名 → font_not 拒 (绑定已正确, 缺字另有因)。"""
+    已是 CJK 字体名 → font_not 拒 (绑定已正确，缺字另有因)。"""
     cjk = next(e for e in _MC_TABLE if e["id"] == "cjk_glyph")
     assert not _mc_hit(cjk, 0x8FD9, "cmr10")
     assert not _mc_hit(cjk, 0x8FD9, "[FandolSong-Regular.otf]")
 
 
 def test_mc_plan_cjk_warm_no_install() -> None:
-    """plan 层: spec 字体 CJK → warm=True; char_table 全表无 install 动作。"""
+    """plan 层：spec 字体 CJK → warm=True; char_table 全表无 install 动作。"""
     warm, repl, unmatched = _mc_plan(
         {0x8FD9: ("这", _SPEC_FONT)},
         {e["id"]: e for e in _MC_TABLE},

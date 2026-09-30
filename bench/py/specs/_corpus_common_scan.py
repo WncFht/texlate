@@ -19,10 +19,10 @@ if TYPE_CHECKING:
 
 # ---------------------------------------------------------------- TarDirs / 扫描
 class TarDirs(NamedTuple):
-    """IA tar 管线的层工作区——下载/扫描各目录一束.
+    """IA tar 管线的层工作区——下载/扫描各目录一束。
 
     每层注入 ``corpus-build/{layer}/`` 下同构目录——同一套 .part 续传/
-    成员级断点机器, 只是落点不同.
+    成员级断点机器，只是落点不同。
     """
 
     workdir: Path  # scan_log 等层记录落点
@@ -33,7 +33,7 @@ class TarDirs(NamedTuple):
 
     @classmethod
     def from_workdir(cls, workdir: Path) -> TarDirs:
-        """标准布局: {features,members,tars,meta} 全在 workdir 下."""
+        """标准布局：{features,members,tars,meta} 全在 workdir 下."""
         return cls(
             workdir,
             workdir / "features",
@@ -64,7 +64,7 @@ def member_yymm(member: str) -> str:
 
 
 def scan_item(it: dict, dirs: TarDirs) -> str:
-    """单 item: 下载→流扫(成员级断点)→.done→删 tar."""
+    """单 item: 下载→流扫 (成员级断点)→.done→删 tar."""
     item = it["item"]
     done_f = dirs.features / f"{item}.done"
     if done_f.exists():
@@ -156,7 +156,7 @@ def offsets_for(
     tag_of_item: dict[str, str] | None = None,
     fallback_members_dir: Path | None = None,
 ) -> dict[str, tuple[int, int]]:
-    """item → {member: (offset, size)}; members_dir 下 {item}.jsonl 直读,
+    """item → {member: (offset, size)}; members_dir 下 {item}.jsonl 直读，
     缺档且给了 tag/fallback 时回退旧池 {fallback_members_dir}/{tag}.jsonl."""
     out = {}
     p = members_dir / f"{item}.jsonl"
@@ -193,7 +193,7 @@ def fetch_blob(rec: dict, old_tars: dict[str, Path], offs: dict[str, dict]) -> b
                 timeout=120,
             )
             try:
-                # size+1 封顶: 服务端不理会 Range 时不至于把整 tar 读进内存
+                # size+1 封顶：服务端不理会 Range 时不至于把整 tar 读进内存
                 data = r.read(size + 1)
             finally:
                 r.close()

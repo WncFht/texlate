@@ -61,7 +61,7 @@ staticfiles.py / ``__main__`` / cmap 资源：
 - ``__main__._port``：1-65535 闸；``int()`` 怪癖形（空白/``+``/下划线/
   全角数字）收敛为合法端口；``main()`` 未知参数 ``SystemExit(2)``；
 - ``compile/cmaps/Adobe-GB1-UCS2``：注入层共享资源存在且 CMap 结构完整
-  （ ``begincmap``/``endcmap`` + bf 段）。
+  （``begincmap``/``endcmap`` + bf 段）。
 """
 
 from __future__ import annotations
@@ -1055,7 +1055,7 @@ class TestJudgeAndClassify:
 
 
 class TestHarvestAndConfig:
-    """``harvest_outputs``/``write_config``/``build_argv``/glossary/cjk。"""
+    """``harvest_outputs``/``write_config``/``build_argv``/glossary/cjk."""
 
     def test_harvest_glob_semantics(self, tmp_path: Path) -> None:
         """glob 元字符 stem 字面命中不误配；``.no_watermark.`` 优先。"""

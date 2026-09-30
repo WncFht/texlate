@@ -117,7 +117,7 @@ def test_builtin_cjk_glyph_in_cjk_font_unmatched(tmp_path: Path) -> None:
 
 
 def test_builtin_char_table_extensible(tmp_path: Path) -> None:
-    """params.char_table 扩列: 自定义码位 → replace 生效 (数据驱动验证)。"""
+    """params.char_table 扩列：自定义码位 → replace 生效 (数据驱动验证)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nℵx\n\\end{document}\n",
         encoding="utf-8",
@@ -349,7 +349,7 @@ def test_font_fallback_outside_bands(tmp_path: Path) -> None:
 
 
 def test_font_fallback_pkg_unavailable(tmp_path: Path) -> None:
-    """newunicodechar.sty 探测+安装双败 → 不谎报 applied。"""
+    """newunicodechar.sty 探测 + 安装双败 → 不谎报 applied。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nЖ\n\\end{document}\n",
         encoding="utf-8",

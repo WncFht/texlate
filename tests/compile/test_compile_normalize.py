@@ -270,7 +270,7 @@ def test_driver_option_unrelated_untouched() -> None:
 
 
 def test_driver_option_multipkg_to_xetex() -> None:
-    """多包并列面: [drv]{a,b} 表内含驱动敏感包 → token 改写 (pasj00/aa.cls 形)。"""
+    """多包并列面：[drv]{a,b} 表内含驱动敏感包 → token 改写 (pasj00/aa.cls 形)。"""
     tex = (
         "\\usepackage[dvips]{graphicx,color}\n"
         "\\usepackage[pdftex]{epsfig,graphicx}\n"
@@ -283,7 +283,7 @@ def test_driver_option_multipkg_to_xetex() -> None:
 
 
 def test_driver_option_multipkg_no_sensitive_untouched() -> None:
-    """多包面保守侧: 表内无驱动敏感包 → 原样 (\\b 挡 colortbl 子串伪命中)。"""
+    """多包面保守侧：表内无驱动敏感包 → 原样 (\\b 挡 colortbl 子串伪命中)。"""
     tex = "\\usepackage[dvips]{amsmath,amssymb}\n\\usepackage[pdftex]{colortbl}"
     assert normalize_pdf_primitives(tex) == tex
 

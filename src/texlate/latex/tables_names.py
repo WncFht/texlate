@@ -139,7 +139,7 @@ CHUNK_ARG_NAMES = {
     "keywords",
 }
 
-# chunk-arg 命令的参数形状：name → (argspec 串, 可译参数下标)。
+# chunk-arg 命令的参数形状：name → (argspec 串，可译参数下标)。
 # 未登记默认 ("om", 1) = [opt]?{arg}（原型行为）。
 CHUNK_ARG_SPEC: dict[str, tuple[str, int]] = {
     "captionof": ("mom", 2),  # \captionof{type}[lof]{text}

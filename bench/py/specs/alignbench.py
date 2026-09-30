@@ -84,7 +84,7 @@ PAGE_ANCHOR_RX = re.compile(r"^page\.\d+$")
 
 #: 旧 --a-dir/--b-dir 树配对的正身=manifest 行（调用方自配路径）；
 #: 旧 --selftest 的正身=manifest 喂合成对子（spec 不自产 fixture——
-#: 评测器冒烟由 manifest 道承担， lanes 常量化便于 select）。
+#: 评测器冒烟由 manifest 道承担，lanes 常量化便于 select）。
 LANES = ("vault", "manifest")
 
 
@@ -167,7 +167,7 @@ def order_key(d: dict) -> tuple[float, float]:
 
 
 def max_weight_chain(commons: list[tuple[str, dict, dict]]) -> dict:
-    """按 A 序排序, 找 B key 非降的最大权子序列. O(n²) DP."""
+    """按 A 序排序，找 B key 非降的最大权子序列。O(n²) DP."""
     items = sorted(commons, key=lambda t: order_key(t[1]))
     n = len(items)
     bkeys = [order_key(it[2]) for it in items]
@@ -705,7 +705,7 @@ spec = Spec(
     eval=True,  # manifest 任意 id 免 canon 闸；e2e id 本来即 canon
     env_probes=["xelatex", "tlmgr"],
     code_deps=[
-        # 被测/测具面进 fp：en 编译链（引擎+judge+入口探测）+本 spec 自身
+        # 被测/测具面进 fp：en 编译链（引擎+judge+ 入口探测）+ 本 spec 自身
         # 自动计；pypdf 属 site-packages 无法钉仓内路径——版本随行进 metrics。
         "src/texlate/compile/engine",
         "src/texlate/compile/judge.py",

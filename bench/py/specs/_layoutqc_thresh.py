@@ -1,8 +1,8 @@
 """specs._layoutqc_thresh — 阈值/检测模式常量叶 (_layoutqc 拆分叶).
 
 校准集出来前全是先验值——一切 ``Final`` 阈、编译/文本/几何/raster 的
-检测 regex 与门档 sig 集集中本叶, sig 即分桶键, 阈值漂移只改一处。
-叶子/门面直引本叶常量, 不经 specs._layoutqc 门面回环。
+检测 regex 与门档 sig 集集中本叶，sig 即分桶键，阈值漂移只改一处。
+叶子/门面直引本叶常量，不经 specs._layoutqc 门面回环。
 """
 
 from __future__ import annotations
@@ -172,7 +172,7 @@ HEADER_LOST_FRAC: Final = 0.2  # zh 页眉覆盖率低于此 → sig
 
 POPPLER_TIMEOUT: Final = 60.0
 
-RASTER_TIMEOUT: Final = 420.0  # 全篇渲染+逐页度量随页数线性（176p 实证）
+RASTER_TIMEOUT: Final = 420.0  # 全篇渲染 + 逐页度量随页数线性（176p 实证）
 
 KEEP_TIMEOUT: Final = 240.0  # 收割专道只渲标记页
 
@@ -332,13 +332,13 @@ _CJK_RX: Final = re.compile(r"[一-鿿぀-ヿ가-힯]")
 
 _MATH_RX: Final = re.compile("[̃-ͯͰ-Ͽˆ˜′-‷∀-⋿⌈-⌋⟀-⟿⤀-⥿⨀-⫿±×÷𝐀-𝟿]")
 #: BMP noncharacter 面——U+FDD0–FDEF/FFFE/FFFF，坏 cmap 抽出件常带
-#: （``푥￿``/``푦￿`` 族，0928 text_overlap 图内伪 zh 对实证）。
+#: （``푥￿``/`` 푦￿`` 族，0928 text_overlap 图内伪 zh 对实证）。
 
 _NONCHAR_RX: Final = re.compile("[﷐-﷯￾￿]")
 
 #: 结构性首页行——分隔白页豁免：空页下一非空页首行命中即
 #: verso/章前隔页（openright/twoside/frontmatter 常态）。
-#: ``\d+(?:\.\d+)*\.?\s``=无关键字编号头（``2. 预备知识``/``3.2 X``
+#: ``\d+(?:\.\d+)*\.?\s``=无关键字编号头（``2. 预备知识 ``/``3.2 X``
 #: 页首）与 ``isbn``（版权/colophon 页）——1503.00131 实证缺口。
 _STRUCT_HEAD_RX: Final = re.compile(
     r"^\s*(?:chapter|part|appendix|section|abstract|references|"
@@ -421,7 +421,7 @@ _NEWLABEL_RX: Final = re.compile(r"\\[nN]ewlabel\s*\{([^}]+)\}")
 
 #: 全角标点占位符——glyph bbox 按全 em 计、墨迹只占一半，行末标点
 #: 会让 xMax 虚超 textblock ~0.5em（2608.25736 实证 2.8–6.4pt 伪越界
-#: 全挂在 ，。：（ 尾上）。真溢出按真实 box 计不受影响。
+#: 全挂在，。：（尾上）。真溢出按真实 box 计不受影响。
 _CJK_PUNCT_R: Final = "，。、；：？！）】」』》〉”’…—·"
 
 _CJK_PUNCT_L: Final = "（【「『《〈“‘"

@@ -29,13 +29,13 @@ log = logging.getLogger("texlate.compile.normalize")
 ## env_mismatch）。`\input` 改写同时补上等价解除；`\@ifundefined` 使
 ## 非 revtex 工程为零操作。
 ## csname 形零字面 `@` —— `\bibliography` 站可落在已 tokenize 的 def
-## 体内 (2105.11398 `\newcommand{\showbib}` 实证: 旧 `\makeatletter`
+## 体内 (2105.11398 `\newcommand{\showbib}` 实证：旧 `\makeatletter`
 ## `\@ifundefined` 形在 @=12 预读体里成 `\@`+裸字母 → 调用点 vmode
 ## spacefactor 炸), csname 任意 catcode 同读 (同 builtins.bib)。
 ## 名扫段内每个 `@` 都写 `\string@`: doc 激活 @ (`\MakeShortVerb{\@}`
 ## → @=13) 时裸 @ token 在 \ifcsname/\csname 名扫里被当 active cs
 ## 展开 → Missing \endcsname (1107.0063 实证); \string 直接取记号
-## 产 catcode-12 字面 @ 字符, @=11/12/13 三态同名同读。
+## 产 catcode-12 字面 @ 字符，@=11/12/13 三态同名同读。
 _AUTOBIB_DISARM = (
     r"\ifcsname auto\string@bib\endcsname"
     r"\expandafter\let\csname auto\string@bib\expandafter\endcsname"

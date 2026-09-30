@@ -38,8 +38,8 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     import json
     import re
     import statistics
@@ -255,9 +255,9 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# HEAD 单件期模块属性面——stdlib 模块名与 texlate 顶层绑定也按名惰性解析,
+# HEAD 单件期模块属性面——stdlib 模块名与 texlate 顶层绑定也按名惰性解析，
 # ``_layoutqc.re``/``_layoutqc.parse_txlm`` 等读面 (含 setattr 型 monkeypatch
-# 缝, patch 落在共享 module 对象上) 与拆分前逐名等价。
+# 缝，patch 落在共享 module 对象上) 与拆分前逐名等价。
 _STDLIB_MODS = ("json", "re", "statistics", "subprocess")
 _EXTRA_BINDINGS = {
     "Counter": "collections",
@@ -384,10 +384,10 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = []

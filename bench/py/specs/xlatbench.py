@@ -11,7 +11,7 @@ E22 硬契约判定，逐格落 metrics。旧驱动的 report/rejudge/samples �
   非 holdout 切片 union（行记 _slice、canon 去重；holdout=留出评测层
   不进回归烧录面）× WHERE 等值过滤 → 湖格 eligible 预过滤（is_complete
   ∨ raw 层在——旧世界 "manifest ∩ 已物化 corpus 目录" 的湖版等价；
-  skeleton 永不产样，不占轮转槽）→ 切片:簇轮转取 DOCS 篇（SEED 定簇
+  skeleton 永不产样，不占轮转槽）→ 切片：簇轮转取 DOCS 篇（SEED 定簇
   内序；m1k 切片无簇字段时 cat_group 兜底分层）→ lake.hydrate
   (fetch_fn=None：hydrated 直用、raw_only 免费重抽——湖外抓取归
   corpus builder，非 spec 职责)
@@ -222,7 +222,7 @@ def _pick_docs(docs: list[dict], n: int, seed: int) -> list[dict]:
     pools: list[list[dict]] = []
     by_cluster: dict[str, list[dict]] = {}
     for d in docs:
-        # 轮转键 = 切片:簇/层格/类目组——m1k 切片无簇字段时 cat_group 仍给
+        # 轮转键 = 切片：簇/层格/类目组——m1k 切片无簇字段时 cat_group 仍给
         # 主题分层；_slice 前缀防止跨切片同名键（'?'、HOT 等）并池。
         key = (
             f"{d.get('_slice', '?')}:"

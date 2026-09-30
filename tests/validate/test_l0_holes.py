@@ -147,8 +147,8 @@ def test_body_placeholder_moved_into_comment_still_missing() -> None:
 def test_comment_placeholder_real_escape_1012_5411() -> None:
     """mock-sabotage recount 实际逃逸件原样回放。
 
-    bench/results/mock-sabotage-v3-2026-09-16/v3/recount.jsonl：
-    1012.5411 rngeo4.tex chunk 7:1，fabricate_ph ``[[MATH_966]]``@46——
+    bench/results/mock-sabotage-v3-2026-09-16/v3/recount.jsonl:
+    1012.5411 rngeo4.tex chunk 7:1, fabricate_ph ``[[MATH_966]]``@46——
     src 段几乎全为 ``%`` 注释（含 CRLF），zh 在 ``%`` 行内注入占位符。
     """
     src = (

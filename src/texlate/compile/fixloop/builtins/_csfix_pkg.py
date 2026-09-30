@@ -33,10 +33,10 @@ __all__ = [
 #: file:line 形 already_def 错误的肇事包定位 —— ``path/<pkg>.sty:N:
 #: LaTeX Error: Command `\X' already defined`` 同时给出肇事包茎与撞名。
 #: 报错包在执行序上恒为后定义者 (先定义者无论在哪都已跑完), 故其
-#: 每个用户件装载点前清位序恒正确 —— 与 docclass 块互补: 缝位在
+#: 每个用户件装载点前清位序恒正确 —— 与 docclass 块互补：缝位在
 #: preamble 先定义者 (``\usepackage{newtxmath}`` 类) 尚未执行时
 #: ``\let`` 是纯 no-op (bbkresid 4 格同型实证), 装载点前清位才
-#: 落在先/后定义者之间。``.cls`` 不收: 类文件无 usepackage 装载点
+#: 落在先/后定义者之间。``.cls`` 不收：类文件无 usepackage 装载点
 #: 可锚 (其内互撞归站点臂/abstain)。
 _PKG_ERR_FILE_RE = re.compile(
     r"^[ \t]*\S*?([\w.+-]+)\.sty:\d+:\s*LaTeX Error:"

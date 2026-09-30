@@ -95,7 +95,7 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
     policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
     fl, l2 = policy.fixloop, policy.l2
 
-    # —— 第 0 招: precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
+    # —— 第 0 招：precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
     # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
     # 收割到 engine_flags 才重编 (空转省一发编译)；clean 即收工。
     # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。

@@ -95,7 +95,7 @@ def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
         save_epub(dst, book)
 
     def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
-        # preview 与 insert_translation 同口径（调和+净化）；ncx 单元无条件
+        # preview 与 insert_translation 同口径（调和 + 净化）；ncx 单元无条件
         # 写回故不参与 unchanged 预判（见 common.apply_translations）
         return apply_translations(
             units,

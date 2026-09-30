@@ -1,16 +1,16 @@
 """kernel._import_zhstore — zh-store 域导入 (kernel.importer 拆分叶).
 
-zh-store 字节树的两段导入:
+zh-store 字节树的两段导入：
 
 - ``import_zhstore`` (Phase 1) — manifest.jsonl 行 → asset/tombstone 事件
   (declared bytes 存在 → verified asset, 缺失 → tombstone); 字节普查
   (盘上 dir 无 manifest 行) 只报 orphan, 收编是 Phase 2 的事;
-- ``seed_vault_zhstore`` (Phase 2, §3.10.9) — 实况字节普查: 盘上行走
-  zh/splice/state 子树三面 reconcile manifest, ``vault.harvest`` 进库,
+- ``seed_vault_zhstore`` (Phase 2, §3.10.9) — 实况字节普查：盘上行走
+  zh/splice/state 子树三面 reconcile manifest, ``vault.harvest`` 进库，
   物理容器 (_quarantine/) 压过行内 zone 宣言; noncanon 字节只报不收。
 
 两函数共享 ``_QUAR_CONTAINERS``/``_zh_dir_candidates``/``_ZONE_VERDICT``
-字节定位件, 故同城一叶。
+字节定位件，故同城一叶。
 """
 
 from __future__ import annotations
@@ -296,7 +296,7 @@ def import_zhstore(
             stats["events"] += 1
 
     # Byte census: payload dirs present without a manifest row. Report
-    # only — Phase 2's adopt owns them (design: report+收编, never delete).
+    # only — Phase 2's adopt owns them (design: report+ 收编，never delete).
     census = []
     for container in [bytes_root] + [bytes_root / c for c in _QUAR_CONTAINERS]:
         if not container.is_dir():

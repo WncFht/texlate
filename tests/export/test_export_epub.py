@@ -161,7 +161,7 @@ def test_literal_marker_no_collision(tmp_path: Path) -> None:
     assert "[[IMG_1]]" in zh.get_text()  # 字面 token 原样保留
     assert "[[IMG_2]]" not in zh.get_text()  # marker 不落字面
     assert zh.find("img") is not None  # marker 落点 = <img> 克隆
-    assert len(soup.find_all("img")) == 2  # noqa: PLR2004 -- 原文+译文克隆各一
+    assert len(soup.find_all("img")) == 2  # noqa: PLR2004 -- 原文 + 译文克隆各一
 
 
 def test_img_marker_restored(tmp_path: Path) -> None:
@@ -179,7 +179,7 @@ def test_img_marker_restored(tmp_path: Path) -> None:
     with zipfile.ZipFile(dst) as z:
         soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
     imgs = soup.find_all("img")
-    assert len(imgs) == 2  # noqa: PLR2004 -- 源图+译文图
+    assert len(imgs) == 2  # noqa: PLR2004 -- 源图 + 译文图
     zh = soup.select_one(".texlate-zh")
     assert zh.find("img") is not None
     assert "[[" not in zh.get_text()
@@ -249,7 +249,7 @@ def test_marker_roundtrip(tmp_path: Path) -> None:
     with zipfile.ZipFile(dst) as z:
         ch1 = z.read("OEBPS/ch1.xhtml").decode("utf-8")
     # 原文 <code> 一份 + 译文里 marker 落点克隆一份
-    assert ch1.count("<code>") == 2  # noqa: PLR2004 -- 原文一份+译文克隆一份
+    assert ch1.count("<code>") == 2  # noqa: PLR2004 -- 原文一份 + 译文克隆一份
     assert "这是译文" in ch1
 
 

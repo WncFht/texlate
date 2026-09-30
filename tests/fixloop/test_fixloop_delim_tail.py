@@ -45,7 +45,7 @@ def test_def_tail_re() -> None:
 
 
 def test_replace_full_align(tmp_path: Path) -> None:
-    """1404.0519 / astro-ph-0408509 形: ``\\c3这是译文2`` → ``\\c3h2``。"""
+    """1404.0519 / astro-ph-0408509 形：``\\c3 这是译文 2`` → ``\\c3h2``。"""
     (tmp_path / "main.tex").write_text(
         "\\def\\c3h2{\\mbox{C$_3$H$_2$}}\n"
         "l-\\c3这是译文2\\ and c-\\c3这是译文2\\ ok.\n",
@@ -59,7 +59,7 @@ def test_replace_full_align(tmp_path: Path) -> None:
 
 
 def test_insert_partial_align(tmp_path: Path) -> None:
-    """``\\b0这是译文`` → ``\\b0bmode这是译文`` (零内容损失插缺)。"""
+    """``\\b0 这是译文`` → ``\\b0bmode 这是译文`` (零内容损失插缺)。"""
     (tmp_path / "main.tex").write_text(
         "\\def\\b{\\ensuremath{b}\\xspace}\n"
         "\\def\\b0bmode{$\\bar{B}^0/B^0$}\n"
@@ -73,7 +73,7 @@ def test_insert_partial_align(tmp_path: Path) -> None:
 
 
 def test_symbol_cs_insert(tmp_path: Path) -> None:
-    """``\\0`` 符型 cs: ``\\0这是译文`` → ``\\0cc这是译文`` (不吸空白)。"""
+    """``\\0`` 符型 cs: ``\\0这是译文`` → ``\\0cc 这是译文`` (不吸空白)。"""
     (tmp_path / "main.tex").write_text(
         "\\def\\0cc{$\\Lambda = 0$}\n\\section{between \\0这是译文\\ and other}\n",
         encoding="utf-8",
@@ -85,7 +85,7 @@ def test_symbol_cs_insert(tmp_path: Path) -> None:
 
 
 def test_cross_file_sty_fallback(tmp_path: Path) -> None:
-    """astro-ph/0408446 形: def 在 .sty, 蚀除站在 .tex → 全局唯一尾回落。"""
+    """astro-ph/0408446 形：def 在 .sty, 蚀除站在 .tex → 全局唯一尾回落。"""
     (tmp_path / "0343.sty").write_text("\\def\\ch3oh{CH$_3$OH}\n", encoding="utf-8")
     (tmp_path / "main.tex").write_text(
         "masers \\ch3这是译文这是译文这是译文这是译文这是译文. end\n",
@@ -113,7 +113,7 @@ def test_nearest_preceding_def(tmp_path: Path) -> None:
 
 
 def test_no_evidence_skip(tmp_path: Path) -> None:
-    """``\\c{o}``/``\\c3x`` 无蚀除证据 → 上游断裂原样, 不动。"""
+    """``\\c{o}``/``\\c3x`` 无蚀除证据 → 上游断裂原样，不动。"""
     (tmp_path / "main.tex").write_text(
         "\\def\\c3h2{x}\naccent \\c{o} and broken \\c3x end.\n",
         encoding="utf-8",
@@ -143,7 +143,7 @@ def test_intact_site_untouched(tmp_path: Path) -> None:
 
 
 def test_comment_site_masked(tmp_path: Path) -> None:
-    """注释内 ``\\c3这是译文`` 被 mask → 不动。"""
+    """注释内 ``\\c3 这是译文`` 被 mask → 不动。"""
     (tmp_path / "main.tex").write_text(
         "\\def\\c3h2{x}\n% \\c3这是译文2 commented\nlive \\c3这是译文2.\n",
         encoding="utf-8",

@@ -82,7 +82,7 @@ def _est_w(text: str, size: float) -> float:
 def _cluster_lines(
     runs: list[tuple[float, float, float, str, float | None]],
 ) -> list[Any]:
-    """(y,x,size,text,实测宽|None) → [y, parts[(x,text,w)], x0, x1, max_sz]。
+    """(y,x,size,text，实测宽|None) → [y, parts[(x,text,w)], x0, x1, max_sz]。
 
     pymupdf 路喂真实 span 宽——_est_w 估宽过冲会把同基线左右栏聚行
     的虚幅面推过中缝，跨缝拆分闸失效、bound x1 胀到 0.89 抢对栏点
@@ -108,7 +108,7 @@ def _cluster_lines(
 def _reading_order(  # noqa: C901, PLR0912 -- 中缝扫描/左右归类/跨栏行重排为同一排版启发式阶梯，拆散反失上下文
     lines: list[Any], width: float
 ) -> tuple[list[Any], tuple[float, float] | None]:
-    """双栏检测 → (重排行, 中缝带 (gl,gr) | None)。
+    """双栏检测 → (重排行，中缝带 (gl,gr) | None)。
 
     页宽中段 28%~72% 扫最少穿线的竖带作中缝——穿线按 part 覆盖计：
     同基线左右栏被聚成一行时其 bbox 横贯整带，按行 bbox 计数会把所有
@@ -236,7 +236,7 @@ def _char_stream(
 ) -> tuple[
     str, list[tuple[int, int, float, float, float]], dict[int, list[dict[str, Any]]]
 ]:
-    """PDF → (归一字符流, 行界 [(char_off,page,frac,x,x1)], marks)。
+    """PDF → (归一字符流，行界 [(char_off,page,frac,x,x1)], marks)。
 
     双遍架构（pymupdf 可用时）——文本面与标记面各取最强解码器：
 
@@ -264,7 +264,7 @@ def _char_stream(
       1~2 字形沉底、正文被推走。
 
     - occurrence 的 ``text`` 不由 pypdf 供给（zh 乱码会废掉
-      ``_text_cov`` 校验）——收尾按标内 run 的 (页,frac 带,x 幅面)
+      ``_text_cov`` 校验）——收尾按标内 run 的 (页，frac 带，x 幅面)
       在归一流里取行界切片几何回填：行界落在标 y 带内且 x 交叠即
       认作标裹行。pymupdf 真文本下 zh mark 校验复活；回收为空时
       occurrence 校验自然不通过、落 needle 路（语义诚实降级）。
@@ -290,7 +290,7 @@ def _char_stream(
     return _char_stream_pypdf(path, collect_marks=collect_marks)
 
 
-def _char_stream_pypdf(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽取语义本体
+def _char_stream_pypdf(  # noqa: C901, PLR0915 -- 页循环 + 双 visitor 平铺是抽取语义本体
     path: Path, *, collect_marks: bool = False
 ) -> tuple[
     str, list[tuple[int, int, float, float, float]], dict[int, list[dict[str, Any]]]
@@ -411,10 +411,10 @@ def _char_stream_pypdf(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺�
     return "".join(chars), bounds, marks
 
 
-def _text_layer(  # noqa: C901 -- 页循环+行界发射是同一段语义平铺
+def _text_layer(  # noqa: C901 -- 页循环 + 行界发射是同一段语义平铺
     path: Path,
 ) -> tuple[str, list[tuple[int, int, float, float, float]], list[tuple[float, float]]]:
-    """Pymupdf ``dict`` 抽取 → (流, 行界, 各页 (w,h))——真 unicode 文本面。
+    """Pymupdf ``dict`` 抽取 → (流，行界，各页 (w,h))——真 unicode 文本面。
 
     span ``origin`` 是顶向下基线起点——y_bu=h-origin.y 与旧 pypdf
     tm·cm 复合口径同义；x 取 span bbox 左缘。行聚类/阅读序件全复用。
@@ -475,7 +475,7 @@ def _text_layer(  # noqa: C901 -- 页循环+行界发射是同一段语义平铺
     return "".join(chars), bounds, dims
 
 
-def _marks_layer(  # noqa: C901 -- 双 visitor 闭包+栈平铺是标记语义本体
+def _marks_layer(  # noqa: C901 -- 双 visitor 闭包 + 栈平铺是标记语义本体
     path: Path, dims: list[tuple[float, float]]
 ) -> dict[int, list[dict[str, Any]]]:
     """Pypdf ``visitor_operand_before`` 只读 BDC/EMC 栈 → seq→occurrence。
@@ -580,11 +580,11 @@ def _mark_text_geom(
     bounds: list[tuple[int, int, float, float, float]],
     dims: list[tuple[float, float]],
 ) -> None:
-    """标内文本几何回填——occurrence run 的 (页,frac 带,x 幅面) 取行界流切片。
+    """标内文本几何回填——occurrence run 的 (页，frac 带，x 幅面) 取行界流切片。
 
     pypdf 侧 zh 标内文本是错码点垃圾——真实 unicode 只能从 pymupdf
-    文本面取。标的 y 覆盖带 = run 行顶带 [1-(y+asc·sz)/h 最小,
-    1-(y-desc·sz)/h 最大]；x 覆盖带 = [min run x, max run x+估宽]。
+    文本面取。标的 y 覆盖带 = run 行顶带 [1-(y+asc·sz)/h 最小，
+    1-(y-desc·sz)/h 最大]；x 覆盖带 = [min run x, max run x+ 估宽]。
     行界 frac 落带内且 [x0,x1] 与标 x 带交叠 → 该行流切片计入标内
     文本。错栏防串：标 x 带在左栏时右栏行 x0 超出 xmax 自然排出。
     """

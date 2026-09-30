@@ -44,9 +44,9 @@ def test_hit_injects_before_begindoc(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     mark = "% fixloop: bm-family atom-walk"
     assert mark in t
-    # 注入位: \begin{document} 之前 (全部 \usepackage 装载已毕, \bm 已定义)
+    # 注入位：\begin{document} 之前 (全部 \usepackage 装载已毕，\bm 已定义)
     assert t.index("\\usepackage{bm}") < t.index(mark) < t.index("\\begin{document}")
-    # 守卫式重定义块: \bm + \hm 双臂, \ifdefined\TeXlateBM 幂等防自捕环
+    # 守卫式重定义块：\bm + \hm 双臂，\ifdefined\TeXlateBM 幂等防自捕环
     assert "\\ifdefined\\bm" in t
     assert "\\let\\TeXlateBM\\bm" in t
     assert "\\protected\\def\\bm#1{\\TeXlateBM{{#1}}}" in t
@@ -113,7 +113,7 @@ def test_reject_masked_bm_deadzone(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二入幂等: 首注 True, 再调 False 且文本不变。"""
+    """二入幂等：首注 True, 再调 False 且文本不变。"""
     _main(tmp_path, _DOC)
     ctx = _ctx(tmp_path)
     ok, _note = bm_mathchar_wrap(ctx, None, None, {})
@@ -136,7 +136,7 @@ def test_wrap_block_self_idempotent() -> None:
 
 
 def test_registration_and_rule() -> None:
-    """注册钉: TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
+    """注册钉：TRANSFORM_FNS 直连 + rules/ 装载含同名规则且接线一致。"""
     assert builtins.TRANSFORM_FNS["bm_mathchar_wrap"] is bm_mathchar_wrap
     rules = {r.id: r for r in load_ruleset().rules}
     rule = rules["bm_extended_mathchar_wrap"]

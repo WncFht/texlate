@@ -117,8 +117,8 @@ _NEW_GFX = "\\ProvidesPackage{graphics}[2024/08/06 v1.4g]\n\\def\\x{}\n"
 
 
 class _CwdHonestEng:
-    """probe_file 按真实引擎语义: ``safe_is_file(cwd|Path.cwd()/fname)`` 直查
-    先行, miss 再 texmf 树——cwd=wdir 时 vendored 自件即 self-hit。"""
+    """probe_file 按真实引擎语义：``safe_is_file(cwd|Path.cwd()/fname)`` 直查
+    先行，miss 再 texmf 树——cwd=wdir 时 vendored 自件即 self-hit。"""
 
     name = "xelatex"
 
@@ -161,7 +161,7 @@ def test_find_vendored_shadows_inside_wdir_cwd(
 def test_probe_tree_excludes_process_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """真实引擎: ``_probe_tree`` 的 kpsewhich ``.`` 元素不再毒化树解。"""
+    """真实引擎：``_probe_tree`` 的 kpsewhich ``.`` 元素不再毒化树解。"""
     (tmp_path / "graphics.sty").write_text(_OLD_GFX)
     monkeypatch.chdir(tmp_path)  # 进程 cwd==wdir (旧代码此处 self-hit)
     eng = XelatexEngine()

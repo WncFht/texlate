@@ -34,7 +34,7 @@ def test_escaped_brace_does_not_corrupt_def_close() -> None:
 
 def test_escaped_rbrace_not_close() -> None:
     r"""``\}`` 字面符非闭组——``{\}}`` 内层 ``\}`` 不抢收外层 ``{`` 组。"""
-    # {\}}x\iffoo: 真 { 开组, \} 字面符, } 收组; \iffoo 活开亏格。
+    # {\}}x\iffoo: 真 { 开组，\} 字面符，} 收组; \iffoo 活开亏格。
     r = scan_ifs("{\\}}x\\iffoo\n\\begin{document}x\\end{document}\n")
     assert [o[0] for o in r.unclosed_live] == ["iffoo"]
 

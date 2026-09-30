@@ -3,12 +3,12 @@
 ``Index`` 的方法面 = ``_StoreMixin`` (conn/schema/meta/txn) +
 ``_ApplyMixin`` (事件应用/dedupe/quarantine) + ``_ProjMixin`` (类型投影)
 + ``_ReplayMixin`` (sealed/tail/rebuild) + ``_QueryMixin`` (oracle/dedup
-域/dirty), 全部经实例 MRO 互调, 叶间零互引。``Index.__module__`` 钉回
+域/dirty), 全部经实例 MRO 互调，叶间零互引。``Index.__module__`` 钉回
 ``kernel.index`` 保持 repr/pickle 引用路径不变。
 
-入口函数: ``rebuild_index`` (force_schema 容忍版本漂移 + 全量重放)、
-``open_index`` (读侧标准入口 — tail_ingest 失败只警告照返陈旧投影,
-读面永不因撕裂尾失败)、``ingest_runless`` (run-less 事件写入,
+入口函数：``rebuild_index`` (force_schema 容忍版本漂移 + 全量重放)、
+``open_index`` (读侧标准入口 — tail_ingest 失败只警告照返陈旧投影，
+读面永不因撕裂尾失败)、``ingest_runless`` (run-less 事件写入，
 dedupe 仍按原样 payload_sha)。
 """
 

@@ -67,7 +67,7 @@ def _claim_acquire(run: str, seq: int, idc: str) -> dict:
 
 
 def test_doctor_clean_root_all_green(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -98,7 +98,7 @@ def test_doctor_clean_root_all_green(
 
 
 def test_doctor_missing_sentinel_fails_layout(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -111,7 +111,7 @@ def test_doctor_missing_sentinel_fails_layout(
 
 
 def test_doctor_seqfile_divergence_fails(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -125,7 +125,7 @@ def test_doctor_seqfile_divergence_fails(
 
 
 def test_doctor_unparseable_ledger_line_fails(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -139,7 +139,7 @@ def test_doctor_unparseable_ledger_line_fails(
 
 
 def test_doctor_dirty_index_fails_index_and_paid(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -155,7 +155,7 @@ def test_doctor_dirty_index_fails_index_and_paid(
 
 
 def test_doctor_index_lag_warns_but_passes(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -172,7 +172,7 @@ def test_doctor_index_lag_warns_but_passes(
 
 
 def test_doctor_run_lock_unlinked_fails(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -186,7 +186,7 @@ def test_doctor_run_lock_unlinked_fails(
 
 
 def test_doctor_stale_claim_flagged_then_fix_reaps(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -214,7 +214,7 @@ def test_doctor_stale_claim_flagged_then_fix_reaps(
 
 
 def test_doctor_stray_dir_detected_never_deleted(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -228,7 +228,7 @@ def test_doctor_stray_dir_detected_never_deleted(
 
 
 def test_doctor_stray_unknown_dir_reviewed_not_failed(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -244,7 +244,7 @@ def test_doctor_stray_unknown_dir_reviewed_not_failed(
 
 
 def test_doctor_paid_ok_cell_without_bytes_fails(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -258,7 +258,7 @@ def test_doctor_paid_ok_cell_without_bytes_fails(
 
 
 def test_doctor_paid_reconciles_after_harvest(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -275,7 +275,7 @@ def test_doctor_paid_reconciles_after_harvest(
 
 
 def test_doctor_paid_unpaid_bytes_is_bypass_alarm(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -295,7 +295,7 @@ def test_doctor_paid_unpaid_bytes_is_bypass_alarm(
 
 
 def test_doctor_switch_ok_blocked_while_kernel_held(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -310,7 +310,7 @@ def test_doctor_switch_ok_blocked_while_kernel_held(
 
 
 def test_doctor_switch_ok_clear_when_idle(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -324,7 +324,7 @@ def test_doctor_switch_ok_clear_when_idle(
 
 
 def test_doctor_switch_ok_blocked_by_active_run(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -340,7 +340,7 @@ def test_doctor_switch_ok_blocked_by_active_run(
 
 
 def test_doctor_switch_ok_blocked_by_live_lane(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -356,7 +356,7 @@ def test_doctor_switch_ok_blocked_by_live_lane(
 
 
 def test_doctor_switch_ok_blocked_by_pause(
-    broot: Path,  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+    broot: Path,  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -372,7 +372,7 @@ def test_doctor_switch_ok_blocked_by_pause(
 # --- fsck ----------------------------------------------------------------------------
 
 
-def test_fsck_clean_root(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_fsck_clean_root(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     rep = doctor.fsck()
     assert rep["ok"] is True, rep["checks"]
     assert "vault_stat" in _names(rep)
@@ -381,7 +381,7 @@ def test_fsck_clean_root(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作
     assert "from_run_edges" in _names(rep)
 
 
-def test_fsck_meta_less_dir_warns_not_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_fsck_meta_less_dir_warns_not_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     leaf = paths.vault_dir() / "zh" / "2401.00024" / "zh"
     leaf.mkdir(parents=True)
     (leaf / "b.bin").write_bytes(b"orphan")
@@ -391,7 +391,7 @@ def test_fsck_meta_less_dir_warns_not_fails(broot: Path) -> None:  # noqa: ARG00
     assert "meta-less" in c["detail"]
 
 
-def test_fsck_dirless_catalog_row_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_fsck_dirless_catalog_row_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     cat = lake.LakeCatalog.load()
     cat.set("2401.00025", "hydrated", source="arxiv")
     rep = doctor.fsck()
@@ -401,7 +401,7 @@ def test_fsck_dirless_catalog_row_fails(broot: Path) -> None:  # noqa: ARG001 --
     assert rep["ok"] is False
 
 
-def test_fsck_dangling_from_run_edge_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_fsck_dangling_from_run_edge_fails(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     rd = runs.create_run("soak", slug="edge", date="2026-09-21")
     runs.freeze_plan(
         rd,
@@ -429,7 +429,7 @@ def test_fsck_dangling_from_run_edge_fails(broot: Path) -> None:  # noqa: ARG001
     assert "from_run_edges" not in _names(rep2)
 
 
-def test_fsck_stale_claim_fails_claims_locks(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用(隔离 bench root)
+def test_fsck_stale_claim_fails_claims_locks(broot: Path) -> None:  # noqa: ARG001 -- fixture 副作用 (隔离 bench root)
     idx = index.Index()
     idx.apply_event(_claim_acquire("r/2026-09-20/gone", 1, "2401.00028"))
     idx.close()

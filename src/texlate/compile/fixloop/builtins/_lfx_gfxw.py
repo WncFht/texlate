@@ -41,7 +41,7 @@ __all__ = [
 _GFX_CALL_RX = re.compile(r"\\includegraphics\*?(?P<opts>\[[^\]\n]*\])?\s*\{[^}\n]*\}")
 
 #: ``width=<f>\linewidth`` 族——f>1 即字面超宽 (pgfplots ``width=1.3
-#: \linewidth`` 同收, 不只 \includegraphics 域)。
+#: \linewidth`` 同收，不只 \includegraphics 域)。
 _RELWIDE_RX = re.compile(
     r"width\s*=\s*(\d+(?:\.\d+)?)\s*\\(linewidth|textwidth|columnwidth)"
 )
@@ -53,7 +53,7 @@ _GFX_GLUE_RX = re.compile(
 
 #: 并图组收窄阈——相邻图声明宽和 ≥0.98 才等比缩 (indent/glue 吃残量)。
 _GFX_PAIR_SUM = 0.98
-#: 组链下限——单图本就走 ``max width`` 单臂, 链臂只对 ≥2 成员生效。
+#: 组链下限——单图本就走 ``max width`` 单臂，链臂只对 ≥2 成员生效。
 _GFX_PAIR_MIN = 2
 
 

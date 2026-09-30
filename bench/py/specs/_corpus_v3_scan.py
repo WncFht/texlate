@@ -39,7 +39,7 @@ def _scan_chunk(c: dict) -> None:
     zp = WORK / "zipsum" / f"{c['item']}_zipsum.tsv"
     if zp.exists():
         for line in zp.read_text().splitlines():
-            cols = line.split()  # 空格分隔: sha1 sha256 md5 size name
+            cols = line.split()  # 空格分隔：sha1 sha256 md5 size name
             if len(cols) >= 5:
                 zsum[cols[-1]] = cols[1]  # member name -> sha256
     n = n_mismatch = 0

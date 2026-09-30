@@ -83,7 +83,7 @@ def real_logs() -> list[Path]:
 
 
 def _three(text: str) -> tuple[int, int, int]:
-    """(engine n_errors, l2 n_errors, fixloop n_bang)。"""
+    """(engine n_errors, l2 n_errors, fixloop n_bang)."""
     return (
         eng_parse_log(text).n_errors,
         parse_log_text(text).n_errors,
@@ -141,7 +141,7 @@ def test_misschar_no_cross_contamination() -> None:
     ]
     for t in cases:
         assert count_missing_chars(t) == 1, t
-    # 混合日志: judge 与 l2 同口径
+    # 混合日志：judge 与 l2 同口径
     mixed = _mc("nullfont") + "\n" + _mc("cmmi10", "̧", "(U+0327)")
     bc = parse_log_text(mixed).warnings.by_class
     assert bc.get("missing_glyph_nullfont") == 1
@@ -309,7 +309,7 @@ def test_fuzz_mutated_real_log_agreement(real_logs: list[Path]) -> None:
 
 
 def test_fuzz_l2_structural_invariants() -> None:
-    """``first_error==errors[0]``、errors≤200、ctx≤8、tail=末30、栈全具名。"""
+    """``first_error==errors[0]``、errors≤200、ctx≤8、tail=末 30、栈全具名。"""
     rng = fuzz_rng(20260922)
     for _ in range(1200):
         text, _ = _gen_log(rng)

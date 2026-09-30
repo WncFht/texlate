@@ -76,7 +76,7 @@ class CompResLike(Protocol):
 class Engine(Protocol):
     """编译引擎适配层 —— xelatex/tectonic 各一实现 (impl-compile 侧)。
 
-    与 impl ``Engine`` Protocol (compile/engine.py:183) 的调用面兼容:
+    与 impl ``Engine`` Protocol (compile/engine.py:183) 的调用面兼容：
     本模块只用 ``compile(wdir, main, passes=...)`` / ``probe_file(fname[, cwd])``
     / ``install_file(fname, font_related=...)`` / ``rebuild_fontmaps()`` /
     ``filemap(fname)`` 五个方法 + ``caps``。
@@ -107,7 +107,7 @@ class Engine(Protocol):
         ...
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
-        """Kpsewhich | 本地+bundle 探测; 命中返路径, 缺返 None。
+        """Kpsewhich | 本地+bundle 探测; 命中返路径，缺返 None。
 
         ``cwd`` 可选 (impl 签名 ``probe_file(fname, *, cwd=None)``): 传 wdir
         时把"工程目录内已存在"也算命中 —— ctan_fetch 平铺落盘的复核靠它。
@@ -115,7 +115,7 @@ class Engine(Protocol):
         ...
 
     def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        """装提供 ``fname`` 的包: tlmgr --usermode | ctan_fetch 降级。"""
+        """装提供 ``fname`` 的包：tlmgr --usermode | ctan_fetch 降级。"""
         ...
 
     def rebuild_fontmaps(self) -> bool | None:
@@ -123,7 +123,7 @@ class Engine(Protocol):
         ...
 
     def filemap(self, fname: str) -> list[str]:
-        """file→TL 包索引: tlmgr search --file | tlpdb 表 → 候选包名。"""
+        """file→TL 包索引：tlmgr search --file | tlpdb 表 → 候选包名。"""
         ...
 
 
@@ -135,7 +135,7 @@ LlmHook = Callable[["LoopCtx", "ErrReport"], tuple[bool, str]]
 
 
 def _res_has_pdf(res: CompResLike | CompRes) -> bool:
-    """Pdf 产出判定: impl ``has_pdf`` (非空文件) 优先, 否则 pdf 字段真值。"""
+    """Pdf 产出判定：impl ``has_pdf`` (非空文件) 优先，否则 pdf 字段真值。"""
     hp = getattr(res, "has_pdf", None)
     # 鸭子实现若把 has_pdf 写成方法而非 property，bound method 恒真——调用之
     if hp is not None:
@@ -203,7 +203,7 @@ def _round_cat(
         pay = f"sentry:{sentry_reason}"
         if rep.first:
             # 洪前首错类追加 payload——runaway_output 标签不遮蔽底层可修
-            # 机理（killsem2：2311.04163 洪上游是 fixable undefined_cs）。
+            # 机理（killsem2:2311.04163 洪上游是 fixable undefined_cs）。
             head = rs.taxonomy.classify_head(
                 rep.first, rep.ctx, pre=rep.pre, post=rep.post
             )
@@ -246,7 +246,7 @@ def _report_of(
     tectonic 有时不写 .log (impl engine.py:1083-1090、:1146-1150 同策略); stderr 的
     ``error: msg`` 行归一成 ``! msg`` 喂同一套 taxonomy。下游驱动
     ``<tool>:fatal:`` 行 (xdvipdfmx 等) 同归一 —— 与 judge 侧
-    ``_salvage_driver_fatal`` 同词素双臂: xelatex 被驱动 fatal 的 SIGPIPE
+    ``_salvage_driver_fatal`` 同词素双臂：xelatex 被驱动 fatal 的 SIGPIPE
     带走时签名只存于 stdout_tail (.log 干净), 不捞则 ``pdf_link_obj`` 类
     签名对整个条件面不可见 (2403.05523 实证)。
 

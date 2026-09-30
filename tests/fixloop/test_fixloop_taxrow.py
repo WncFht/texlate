@@ -47,7 +47,7 @@ def _log(head: str) -> str:
     return f"! {head}\nl.1 x\n"
 
 
-# ── 全新类 id (44 类 / 71 签行, clusters_raw verbatim heads) ──
+# ── 全新类 id (44 类 / 71 签行，clusters_raw verbatim heads) ──
 _HEAD_PINS: list[tuple[str, str, str | None]] = [
     # (head, cat, payload) — 每行一条 verbatim 实证签
     (
@@ -145,7 +145,7 @@ _HEAD_PINS: list[tuple[str, str, str | None]] = [
         "rheight",
     ),
     (
-        # zh-leak 槽: keyval 槽名译文污染同签归桶
+        # zh-leak 槽：keyval 槽名译文污染同签归桶
         "Package keyval Error: 这是译文 undefined.",
         "keyval_undef",
         "这是译文",
@@ -339,7 +339,7 @@ _HEAD_PINS: list[tuple[str, str, str | None]] = [
         "\\b",
     ),
     (
-        # `\<space>` 空格 cs 双空格实证形 —— 提案 `\\\S` 漏此支, 补 `\\ `
+        # `\<space>` 空格 cs 双空格实证形 —— 提案 `\\\S` 漏此支，补 `\\ `
         "Use of \\  doesn't match its definition.",
         "cs_mismatch",
         "\\ ",
@@ -404,12 +404,12 @@ def test_new_row_head(head: str, cat: str, pay: str | None) -> None:
     assert classify(_log(head)) == (cat, pay)
 
 
-# ── 近失扩写: 既有行新措辞/新参形 ──
+# ── 近失扩写：既有行新措辞/新参形 ──
 
 
 def test_missing_tfm_no_spec_arm() -> None:
     # `Font \cs=name not loadable` 无 `at Npt|scaled N` 规格段 → 新臂;
-    # 规格臂在前先签, 本臂只见无规格残形
+    # 规格臂在前先签，本臂只见无规格残形
     assert classify(
         _log(
             "Font \\NOTEN=musix13 not loadable: Metric (TFM) file or "
@@ -472,14 +472,14 @@ def test_undefined_color_plain_regression() -> None:
 
 
 def test_key_unknown_l3keys_regression() -> None:
-    # payload_group 拆除后组1 仍先签 (首非空组语义)
+    # payload_group 拆除后组 1 仍先签 (首非空组语义)
     assert classify(
         _log("The key 'acro/这是译文' is unknown and is being ignored.")
     ) == ("key_unknown", "acro/这是译文")
 
 
 def test_key_unknown_pgfkeys_variant() -> None:
-    # pgfkeys `I do not know the key 'X'` —— 键路径带空格 `[^']+` 全捕 (组2)
+    # pgfkeys `I do not know the key 'X'` —— 键路径带空格 `[^']+` 全捕 (组 2)
     assert classify(
         _log(
             "Package pgfkeys Error: I do not know the key '/msc/top head dist', "
@@ -489,7 +489,7 @@ def test_key_unknown_pgfkeys_variant() -> None:
 
 
 def test_key_unknown_xkeyval_variant() -> None:
-    # xkeyval `` `X' undefined in families `Y' `` (组3)
+    # xkeyval `` `X' undefined in families `Y' `` (组 3)
     assert classify(
         _log("Package xkeyval Error: `这是译文' undefined in families `Grot'.")
     ) == ("key_unknown", "这是译文")
@@ -533,7 +533,7 @@ def test_pkg_obsolete_option_level() -> None:
 
 def test_fontspec_bare_fallback() -> None:
     # 裸 `Package fontspec Error:` head 无 font-X-cannot-be-found 签 →
-    # fontspec_missing|None 兜底 (排折行臂后, fix 层自行 decline)
+    # fontspec_missing|None 兜底 (排折行臂后，fix 层自行 decline)
     assert classify(_log("Package fontspec Error:")) == (
         "fontspec_missing",
         None,
@@ -541,7 +541,7 @@ def test_fontspec_bare_fallback() -> None:
 
 
 def test_fontspec_tu_nfss_routes_fontspec() -> None:
-    # TU/ NFSS 伴随错归 fontspec_missing (taxcen 普查时点未中, 现已签)
+    # TU/ NFSS 伴随错归 fontspec_missing (taxcen 普查时点未中，现已签)
     log = (
         "./main.tex:591: Font TU/fontawesomepro/solid/n/10="
         "FontAwesome5Pro-Solid:script=latn; at 10.0pt not loadable: "
@@ -550,7 +550,7 @@ def test_fontspec_tu_nfss_routes_fontspec() -> None:
     assert classify(log) == ("fontspec_missing", "fontawesomepro")
 
 
-# ── 序约束: use_post / use_pre / 裸名兜底 ──
+# ── 序约束：use_post / use_pre / 裸名兜底 ──
 
 
 def test_missing_file_extless_bare_stem() -> None:
@@ -599,14 +599,14 @@ def test_nfss_setup_with_fd_probe_routes_missing_file() -> None:
     assert classify(log) == ("missing_file", "lgrcmr.fd")
 
 
-# ── 全错误面: classify_errs 多签去重 ──
+# ── 全错误面：classify_errs 多签去重 ──
 
 
 def test_errs_multi_sig_dedup() -> None:
-    # 2509.14454 同构: microtype + standalone + preamble_only + 2×裸名
-    # File —— 首错遮蔽面逐错派发, (cat,pay) 去重保错误序。错误间垫 >ctx8
-    # 行距防后续错头漏进本错 blob 抢签 (err ctx 无 pre/post 窗, 但 ctx8
-    # 向右覆盖——新行全在 missing_file 后, 裸名头漏进前错 ctx 会被先签)。
+    # 2509.14454 同构：microtype + standalone + preamble_only + 2×裸名
+    # File —— 首错遮蔽面逐错派发，(cat,pay) 去重保错误序。错误间垫 >ctx8
+    # 行距防后续错头漏进本错 blob 抢签 (err ctx 无 pre/post 窗，但 ctx8
+    # 向右覆盖——新行全在 missing_file 后，裸名头漏进前错 ctx 会被先签)。
     pad = "\n".join(f"ctx filler {i}" for i in range(9)) + "\n"
     log = (
         "! Package microtype Error: Font expansion does not work with xetex.\n"

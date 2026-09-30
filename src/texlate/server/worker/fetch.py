@@ -87,7 +87,7 @@ class _Fetch:
         self._check_cancelled(ctx)
 
     def _fetch_arxiv(self, ctx: TaskCtx) -> None:
-        """``acquire_source`` → extracted → ``src/``；raw blob → ``src.tar``。"""
+        """``acquire_source`` → extracted → ``src/``. raw blob → ``src.tar``."""
         self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
         with self._borrow_fetcher() as (fetcher, cache):

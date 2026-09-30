@@ -13,7 +13,7 @@
   绝不抛（含 NaN/Infinity/超深嵌套/bool/负值/超限——bool 与越界一律拒）。
 - ``_sse_events``：非 ``data:`` 行与坏 JSON 一律 ``([], False)``；``[DONE]``
   （strip 后）是唯一 done 触发；well-formed chunk 的事件序保序且
-  kind ∈ {reasoning, content, done}。
+  kind ∈ {reasoning, content, done}.
 - ``_parse_openai``/``_parse_anthropic``：产出 ``ChatResult`` 时
   ``content.strip()`` 非空、``finish_reason`` 非截断标记、usage 字段为
   int、``latency_s == round(x, 3)``；不静默造 content。

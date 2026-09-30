@@ -257,23 +257,23 @@ def _split_arg_head(body: str) -> tuple[str, str]:
     return body[:end], body[end:]
 
 
-#: 宏参型签表——``\\cs`` 尾端参未填齐时下一个 token 会被当参吞走:
+#: 宏参型签表——``\\cs`` 尾端参未填齐时下一个 token 会被当参吞走：
 #: whatsit 落 ``\href{u}|{t}`` 间界 = \href 吞 ``\special`` 作 arg2,
 #: ``{pdf:code ...}`` 成孤儿组 → ``Missing { inserted`` 级联
-#: (t_e547 bibitem 劈点实证, fixloop_exhausted 硬毙)。
-#: 值 = 参序列型签: ``opt`` = ``[..]`` 可选参(未现即跳), ``text`` = 可容
-#: whatsit 的正文参(BDC 可挪进其 ``{`` 内保锚), ``nontext`` = 结构参
-#: (key/url/长度/颜色名——whatsit 进参即破), ``math`` = 数学参(whatsit
-#: 节点虽合法但不取此险)。表外 cs 按 0 参 → 非参区(未知用户宏残余登记)。
+#: (t_e547 bibitem 劈点实证，fixloop_exhausted 硬毙)。
+#: 值 = 参序列型签：``opt`` = ``[..]`` 可选参 (未现即跳), ``text`` = 可容
+#: whatsit 的正文参 (BDC 可挪进其 ``{`` 内保锚), ``nontext`` = 结构参
+#: (key/url/长度/颜色名——whatsit 进参即破), ``math`` = 数学参 (whatsit
+#: 节点虽合法但不取此险)。表外 cs 按 0 参 → 非参区 (未知用户宏残余登记)。
 #:
 #: 与 ``data/argspec.json`` 的刻意分歧（非副本、勿投影合并）: argspec 是
-#: segmenter 的未知-cs **吞参**签名(逐包采录, ``arg_roles`` 判保护/可译);
+#: segmenter 的未知-cs **吞参**签名 (逐包采录，``arg_roles`` 判保护/可译);
 #: 本表是 reconstruct 的 **whatsit 落点**判定——``text`` 指 "BDC 可挪入锚"
 #: 而非 "可译正文"(``\makebox``/``\parbox`` 尾参 argspec 记 ``skip``, 锚侧
-#: 仍按 text 容锚)。覆盖互不齐: argspec 不收 ``\begin``/``\end``(parser
-#: primitive)与 math-literal 族(``\dfrac``/``\binom``/``\bm``/``\substack``
-#: 空签名)及 ``\glossary``/``\requirepackage``/``\addvspace``/``\h``;
-#: 可选参元数两侧口径亦不同(``\href``/``\includegraphics``/``\includepdf``
+#: 仍按 text 容锚)。覆盖互不齐：argspec 不收 ``\begin``/``\end``(parser
+#: primitive) 与 math-literal 族 (``\dfrac``/``\binom``/``\bm``/``\substack``
+#: 空签名) 及 ``\glossary``/``\requirepackage``/``\addvspace``/``\h``;
+#: 可选参元数两侧口径亦不同 (``\href``/``\includegraphics``/``\includepdf``
 #: 等)。``math`` 型签 argspec 无对应 role(消费上视同 ``nontext``, 仅留
 #: 描述区分)。
 _MARK_ARG_CS: dict[str, tuple[str, ...]] = {

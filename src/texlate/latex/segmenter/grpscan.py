@@ -416,7 +416,7 @@ class _GrpScan:
                 i = j
                 continue
             if name == "href":
-                # \href{url}{text}：命令名+间隙留 surface，{url} 组 →
+                # \href{url}{text}：命令名 + 间隙留 surface，{url} 组 →
                 # [[HREF]]；{text} 组 token 留 surface 续扫（主版 _handle_href
                 # 同形——花括号随文本进 surface）
                 k = i + 1

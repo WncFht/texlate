@@ -1,17 +1,17 @@
 """shimfix-a 批 (task #180, #171 cluster-A 实装) —— cs_table 三臂 + aastex6x 补面。
 
 臂 1 ``sortlist`` (×5: 1907.03923/1706.00220/1706.00324/1706.02744/
-1803.03145): ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式, TL
+1803.03145): ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式，TL
 biblatex 3.21 不载旧读者 → ``.bbl`` 顶层 ``\\sortlist`` ``undefined_cs``。
 ``_CS_FIX_TABLE`` 收 ``_SORTLIST_BBL_POLYFILL`` —— svjour cls bbl 臂
-的零裸 ``@`` 移植: ``begindocument/before`` 钩 defer (preamble provide
-会抢占 biblatex 装载期 ``\\newcommand`` 名, 1706.00221 already_def
-级联实证; 普通 ``\\AtBeginDocument`` top-level 标被 lthooks 排钩尾,
+的零裸 ``@`` 移植：``begindocument/before`` 钩 defer (preamble provide
+会抢占 biblatex 装载期 ``\\newcommand`` 名，1706.00221 already_def
+级联实证; 普通 ``\\AtBeginDocument`` top-level 标被 lthooks 排钩尾，
 biblatex 标块先读 .bbl → live 实证必须先注册到 before 钩),
-``tlsv*`` 纯字母内名, ``\\csname`` 形 ``define@key``/``endsortlist``,
+``tlsv*`` 纯字母内名，``\\csname`` 形 ``define@key``/``endsortlist``,
 ``\\verb{fld}``+``\\verb 内容\\endverb`` verbatim 域对 ``\\futurelet``
 分流 gobble, ``\\ifx\\csname`` 守卫一律 ``\\expandafter`` 先行
-(``\\ifx`` 不展开操作数, 裸写恒假=死码)。
+(``\\ifx`` 不展开操作数，裸写恒假=死码)。
 
 臂 2 ``current@color`` (×6: 1306.6219/1803.00132/1803.08873/1907.00279/
 2111.00020 .tex 面 + 2308.04222 .bbl 内): PoS.cls ``begindocument`` 钩序
@@ -24,7 +24,7 @@ params 过 builtin, 顺带校验 yaml 键形。
 臂 3 ``url``/``nolinkurl`` (×3+1: 1306.0187/1404.6110/0806.0347 +
 2104.00028): ``url`` → 真包装位 (hyperref 被稿注释/类不提供 ``\\url``);
 ``nolinkurl`` 是 hyperref-only (url.sty 亦无) → ``detokenize``+``\\texttt``
-同形兜底, 不装真 url.sty (aastex shim 面下会夺回 detokenize 版 ``\\url``
+同形兜底，不装真 url.sty (aastex shim 面下会夺回 detokenize 版 ``\\url``
 致参内冻结 catcode 炸面回归); ``aastex6x_body`` 补 ``\\nolinkurl`` 委托行。
 """
 
@@ -40,7 +40,7 @@ _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 
 _MAIN = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 #: 注入件零裸 ``@`` 门 —— ``\\X@`` 形 cs 在 doc 面 @=12 下必炸;
-#: ``\\csname X@Y\\endcsname`` 内 ``@`` 是字符非 cs 成分, 天然豁免。
+#: ``\\csname X@Y\\endcsname`` 内 ``@`` 是字符非 cs 成分，天然豁免。
 _RAW_AT_RE = re.compile(r"\\[A-Za-z]+@")
 
 
@@ -81,7 +81,7 @@ def _params(rid: str) -> dict:
 
 def test_sortlist_polyfill_lands_after_docclass(tmp_path: Path) -> None:
     """``begindocument/before`` 钩块注入 docclass 缝后 —— 须先于 biblatex
-    的 biblatex-标 begindocument 块 (lthooks 把 top-level 标排钩尾,
+    的 biblatex-标 begindocument 块 (lthooks 把 top-level 标排钩尾，
     live 实证 ``\\AtBeginDocument`` 跑在 ``\\blx@bblinput`` 之后)。"""
     ctx = _ctx(tmp_path)
     ok, note = _TARGETED(ctx, _Eng(), "sortlist", {})
@@ -104,7 +104,7 @@ def test_sortlist_polyfill_zero_raw_at(tmp_path: Path) -> None:
 
 
 def test_sortlist_polyfill_bbl_surface(tmp_path: Path) -> None:
-    """bbl-2.8 面全收: sortlist/entry/name/list/field/strng/endentry/
+    """bbl-2.8 面全收：sortlist/entry/name/list/field/strng/endentry/
     verb/endverb/endsortlist + keyval 名解族 + blx@bbl@data scratch 指针
     (真 ``\\entry`` 不设时 ``\\true``/``\\false`` ``\\csgappto`` 写经)。"""
     ctx = _ctx(tmp_path)

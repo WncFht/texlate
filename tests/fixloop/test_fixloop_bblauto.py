@@ -41,7 +41,7 @@ def _bbl(tmp_path: Path, stem: str = "main") -> None:
 
 
 def test_disarm_emitted_before_input_revtex(tmp_path: Path) -> None:
-    """revtex 形: ``\\bibliography`` 改写 → disarm 行紧贴 ``\\input`` 之前。"""
+    """revtex 形：``\\bibliography`` 改写 → disarm 行紧贴 ``\\input`` 之前。"""
     main = tmp_path / "main.tex"
     main.write_text(_doc("revtex4-1"))
     _bbl(tmp_path)
@@ -60,7 +60,7 @@ def test_disarm_emitted_non_revtex_same_text(tmp_path: Path) -> None:
 
 
 def test_disarm_idempotent_second_pass(tmp_path: Path) -> None:
-    """二跑幂等: 已含 ``\\input{main.bbl}`` → 整体不再改, disarm 不重复落。"""
+    """二跑幂等：已含 ``\\input{main.bbl}`` → 整体不再改，disarm 不重复落。"""
     main = tmp_path / "main.tex"
     main.write_text(_doc())
     _bbl(tmp_path)

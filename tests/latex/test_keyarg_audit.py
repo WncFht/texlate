@@ -18,7 +18,7 @@ PROSE = " and the paragraph continues with enough plain prose to form a chunk."
 
 def scan(body: str) -> ScanResult:
     res = scan_doc(body)
-    check_invariants(res, DOC % body)  # 每个用例都过 identity+validate+平铺
+    check_invariants(res, DOC % body)  # 每个用例都过 identity+validate+ 平铺
     return res
 
 

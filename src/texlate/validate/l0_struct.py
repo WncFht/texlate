@@ -53,7 +53,7 @@ _ENV_CHECK_TAIL_LIMIT: Final = 50  # end 名偏多 warn 的报告条数上限
 def _brace_profile_toks(
     toks: list[tuple[str, str, int]],
 ) -> tuple[int, int, int, int, int]:
-    """``(open数, close数, 净深度, 最小前缀深度, 首个负深度pos)``——``_lex`` token 流入参。"""
+    """``(open 数，close 数，净深度，最小前缀深度，首个负深度 pos)``——``_lex`` token 流入参。"""
     depth = opens = closes = minpref = 0
     first_neg = -1
     for kind, ch, pos in toks:
@@ -111,14 +111,14 @@ def _check_brace(ctx: _Ctx) -> None:
 
 
 def _env_tokens(snc: str) -> list[tuple[str, str, int]]:
-    """``(begin|end, 环境名, pos)`` 事件流——入参须为 ``mask_comments`` 遮盖视图。"""
+    """``(begin|end, 环境名，pos)`` 事件流——入参须为 ``mask_comments`` 遮盖视图。"""
     return [(m.group(1), m.group(2).strip(), m.start()) for m in ENV_RX.finditer(snc)]
 
 
 def _env_signature_masked(
     snc: str,
 ) -> tuple[int, int, Counter[str], Counter[str], Counter[str]]:
-    """``(多余end数, 不匹配数, 未闭合begin名, begin名, end名)`` 栈签名——遮盖视图入参。"""
+    """``(多余 end 数，不匹配数，未闭合 begin 名，begin 名，end 名)`` 栈签名——遮盖视图入参。"""
     stack: list[tuple[str, int]] = []
     n_orphan_end = n_mismatch = 0
     toks = _env_tokens(snc)

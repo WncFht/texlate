@@ -97,7 +97,7 @@ class L0Report:
         return "\n".join(i.message for i in self.issues if i.severity is Severity.ERROR)
 
     def __str__(self) -> str:
-        """PASS/FAIL 头 + 逐条 ``[级别] 规则: 描述``。"""
+        """PASS/FAIL 头 + 逐条 ``[级别] 规则：描述``。"""
         head = (
             f"{'PASS' if self.ok else 'FAIL'} (err={self.n_error} warn={self.n_warn})"
         )

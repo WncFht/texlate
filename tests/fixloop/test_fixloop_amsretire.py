@@ -115,7 +115,7 @@ def test_rule_wired() -> None:
 
 
 def test_rule_order_in_retire_family() -> None:
-    """order 自洽: abstract_edef_capture_neutralize < 本规则 < legacy_pkg_shim。"""
+    """order 自洽：abstract_edef_capture_neutralize < 本规则 < legacy_pkg_shim。"""
     orders = {r.id: r.order for r in _rs().phase("loop")}
     assert orders["abstract_edef_capture_neutralize"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
@@ -170,7 +170,7 @@ def test_renamed_copy_gets_delegate(tmp_path: Path) -> None:
     assert "\\ProvidesPackage{amsmath2}" in body
     assert "\\RequirePackage{amsmath}" in body
     assert "\\DeclareOption*" in body
-    # iopart 类 equation* 预占清位 (\\csname 形, 裸 \\let\\X* 会把 RHS 当 *)
+    # iopart 类 equation* 预占清位 (\\csname 形，裸 \\let\\X* 会把 RHS 当 *)
     assert "\\csname equation*\\endcsname" in body
     assert "\\csname endequation*\\endcsname" in body
 
@@ -185,7 +185,7 @@ def test_modern_amsmath_untouched(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
-    """二轮直驱: delegate 无指纹 + 伴船已退役 → False 幂等。"""
+    """二轮直驱：delegate 无指纹 + 伴船已退役 → False 幂等。"""
     wdir, texmf = _proj_texmf(tmp_path)
     (wdir / "amsmath2.sty").write_text(_STALE_AMSMATH2, encoding="utf-8")
     ctx = _ctx(wdir)
@@ -198,7 +198,7 @@ def test_idempotent_second_call(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- pass 2 伴船退役
 def test_ams_cohort_retired_ld_lt_sd(tmp_path: Path) -> None:
-    """amsgen.sty 伴船: 稿自带 2000 < 系统 2024 → 同道退役。"""
+    """amsgen.sty 伴船：稿自带 2000 < 系统 2024 → 同道退役。"""
     wdir, texmf = _proj_texmf(tmp_path)
     (texmf / "amsgen.sty").write_text(_NEW_AMSGEN, encoding="utf-8")
     (wdir / "amsmath.sty").write_text(_STALE_AMSMATH, encoding="utf-8")

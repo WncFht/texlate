@@ -517,7 +517,7 @@ def find_resid_spans(text: str) -> list[tuple[int, int, str]]:
     if len(base) != len(text):  # mask_tex 等长契约违约——坐标系不可用，整文弃扫
         return []
     # mask_tex 遮区（注释/verbatim 族/``\verb``/死环境）逐位转哨兵——span
-    # 回写按原文坐标进行，遮区一旦跨进 run，替换会把 ``% 注释``/``\verb|x|``
+    # 回写按原文坐标进行，遮区一旦跨进 run，替换会把 ``% 注释 ``/``\verb|x|``
     # 的原始文本一并吃掉（``\verb`` 内可见文本丢失是成品级损毁）。
     masked = _mask_zones(text, base)
 

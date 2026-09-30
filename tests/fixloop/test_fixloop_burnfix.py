@@ -47,7 +47,7 @@ _HIDDEN_DOCCLASS = (
     "\\begin{document}\nx\n\\end{document}\n"
 )
 
-#: docclass 只在宏体内 —— 仍非真声明点, 零缝 → ``_inject_after_docclass``
+#: docclass 只在宏体内 —— 仍非真声明点，零缝 → ``_inject_after_docclass``
 #: 走头注路径。
 _DEF_BODY_DOCCLASS = (
     "\\newcommand{\\fakecls}{\\documentclass{mycls}}\n"
@@ -67,7 +67,7 @@ def test_fb_snippet_head_uses_requirepackage() -> None:
 
 
 def test_hidden_docclass_head_prepend_safe(tmp_path: Path) -> None:
-    """docclass 藏 ``\\IfFileExists`` 内 → 缝落构造尾, 注入块在其后仍是
+    """docclass 藏 ``\\IfFileExists`` 内 → 缝落构造尾，注入块在其后仍是
     ``\\RequirePackage`` (docclass 前 ``\\usepackage`` 即自投毒 —— 本钉防回归)。"""
     _write(tmp_path, "main.tex", _HIDDEN_DOCCLASS)
     _write(
@@ -141,7 +141,7 @@ def test_premature_seam_emits_requirepackage(tmp_path: Path) -> None:
 
 
 def test_inject_after_docclass_head_prepend_path(tmp_path: Path) -> None:
-    """机制钉: 零 docclass 缝时 ``_inject_after_docclass`` 确走头注。"""
+    """机制钉：零 docclass 缝时 ``_inject_after_docclass`` 确走头注。"""
     _write(tmp_path, "main.tex", _DEF_BODY_DOCCLASS)
     ctx = mk_ctx(tmp_path)
     assert _inject_after_docclass(ctx, "SNIP")
@@ -182,7 +182,7 @@ def test_para_longize_cap_covers_ten(tmp_path: Path) -> None:
 
 def test_para_longize_truncation_noted(tmp_path: Path) -> None:
     """70 肇事宏 > cap 64 —— 前 64 收 ``\\long``, notes 记截断残量
-    (dedup 键已烧, 滞留宏靠已知残面留痕, 非静默)。"""
+    (dedup 键已烧，滞留宏靠已知残面留痕，非静默)。"""
     names = [f"mac{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(70)]
     main = _para_proj(tmp_path, names)
     ctx = mk_ctx(tmp_path, err_head=_para_head(names))

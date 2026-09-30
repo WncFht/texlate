@@ -72,7 +72,7 @@ def _rs() -> Ruleset:
 
 
 def test_engine_slice_matches_consumption() -> None:
-    """loginfo.WARNING_RED_LINES == registry engine 切片（序+名+pattern）。"""
+    """loginfo.WARNING_RED_LINES == registry engine 切片（序 + 名+pattern）。"""
     assert list(ENGINE_RED_LINES) == loginfo.WARNING_RED_LINES
     assert [n for n, _ in loginfo.WARNING_RED_LINES] == _ENGINE_EMIT
 
@@ -84,7 +84,7 @@ def test_rules_yaml_warnings_mirror() -> None:
 
 
 def test_l2_surfaces_match_registry() -> None:
-    """l2 红线集 == registry l2 切片；_WARNING_RULES 类序+托管 pattern 冻结。"""
+    """l2 红线集 == registry l2 切片；_WARNING_RULES 类序 + 托管 pattern 冻结。"""
     assert _REDLINE_CLASSES == L2_REDLINE_CLASSES
     assert frozenset(_L2_RED) == L2_REDLINE_CLASSES
     assert [name for name, _ in _WARNING_RULES] == _L2_ALL_CLASSES

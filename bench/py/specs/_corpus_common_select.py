@@ -151,8 +151,8 @@ def resolve_rates(
 
 
 def order_items(cands: list[dict], cluster_months: set[str]) -> list[dict]:
-    """候选项排序: 跨月 round-robin——每轮每月取 1 块, 先把月份摊满再回到
-    同月下一块; 簇月在前, 非簇月种子 shuffle 避免挤在年带一端."""
+    """候选项排序：跨月 round-robin——每轮每月取 1 块，先把月份摊满再回到
+    同月下一块; 簇月在前，非簇月种子 shuffle 避免挤在年带一端."""
     by_month: dict[str, list[dict]] = defaultdict(list)
     for it in cands:
         by_month[it["yymm"]].append(it)
@@ -279,8 +279,8 @@ def extract_selected(
     """
     manifest = d["manifest"]
     done = {canon_id(str(r["id"])) for r in read_jsonl(manifest) if r.get("id")}
-    # 回补: lake cell 完整而 manifest 缺行（截尾场景）→ 从 cell meta 补行；
-    # meta 不可解析则不标 done，走重抓自愈（hydrate 重写 meta+行）
+    # 回补：lake cell 完整而 manifest 缺行（截尾场景）→ 从 cell meta 补行；
+    # meta 不可解析则不标 done，走重抓自愈（hydrate 重写 meta+ 行）
     n_backfill = 0
     for rec in sel:
         pid = canon_id(str(rec["id"]))

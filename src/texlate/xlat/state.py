@@ -207,7 +207,7 @@ class StateStore:
 
     - `record(rec)`：completed+results 追加并原子重写 state.json（逐块落盘）。
     - `save_maps(chunks_map, placeholders_map, glossary)`：物化期一次写三表。
-    - `load()`：续跑读 state → (completed 集合, results 表)。
+    - `load()`：续跑读 state → (completed 集合，results 表)。
     - 缓存：`cache_path(file_key)` → `load_cache`/`save_cache`。
     """
 
@@ -246,7 +246,7 @@ class StateStore:
         return self.outdir / self.STATE_FILE
 
     def load(self) -> tuple[set[str], dict[str, ChunkRecord]]:
-        """续跑加载 → (completed 集合, chunk_id→ChunkRecord)。文件损坏从头来。"""
+        """续跑加载 → (completed 集合，chunk_id→ChunkRecord)。文件损坏从头来。"""
         path = self.state_path()
         if not path.exists():
             return set(), {}
@@ -367,7 +367,7 @@ class StateStore:
     # ------------------------------------------------------------ 段级缓存
 
     def cache_path(self, file_key: str) -> Path:
-        """`cache-{file_key16}.json`。"""
+        """`cache-{file_key16}.json`."""
         return self.outdir / f"cache-{file_key}.json"
 
     def load_cache(self, file_key: str) -> dict[str, str]:

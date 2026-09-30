@@ -16,7 +16,7 @@ yymm_id 有序——footer 统计圈出近期行组，列投影 range-GET 免整
 - ``report``    manifest 聚合 → metrics
 
 湖格契约（不变式，下游编译 spec 的消费谓词）：channel=hf_scholarweave,
-item=分片名, member=id, raw/raw.tar.gz=重打包文本树, meta
+item=分片名，member=id, raw/raw.tar.gz=重打包文本树, meta
 figures_stripped:true（无二进制图——编译臂走 \\includegraphics stub 而非
 missing_file 膨胀）+ catalog row regen_cost=network（raw 是重打包树，
 驱逐永不先逐它）。
@@ -301,15 +301,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -322,7 +322,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

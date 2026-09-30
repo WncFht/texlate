@@ -1,10 +1,10 @@
-"""subfile_docclass_strip — 非主 .tex 自带 \\documentclass → 剥至 body 区.
+"""subfile_docclass_strip — 非主 .tex 自带 \\documentclass → 剥至 body 区。
 
 failmine3 #164b (3 格): standalone/subfiles 子文档被 \\input/\\subimport
 进正文时 preamble-only cs 在 body 执行 → "Can be used only in preamble"。
 剥至 \\begin..\\end{document} 内文是 \\subfile/\\includestandalone 包
-skip 机制的恒等语义, 也是裸 \\input 唯一可编译形。与 #168 subfilegate
-(normalize 注入侧门) 互补: 一侧挡新毒, 一侧清自带毒。
+skip 机制的恒等语义，也是裸 \\input 唯一可编译形。与 #168 subfilegate
+(normalize 注入侧门) 互补：一侧挡新毒，一侧清自带毒。
 
 引用门 (2409.00265): 只剥被存活 input 族命令 (\\input/\\include/
 \\subfile/\\import 族/\\InputIfFileExists) 引用的文件 —— 无引用的
@@ -137,7 +137,7 @@ def test_subimport_twoarg_reference(tmp_path: Path) -> None:
 
 def test_unreferenced_docclass_doc_untouched(tmp_path: Path) -> None:
     # 2409.00265: 无存活 input 族引用的 docclass 持件 (独立第二文档/
-    # 误判主档下的真主档) 永不进编译流 —— 剥它是纯害, 门后跳过
+    # 误判主档下的真主档) 永不进编译流 —— 剥它是纯害，门后跳过
     ctx = _ctx(
         tmp_path,
         {
@@ -173,7 +173,7 @@ def test_rule_sits_between_tar_extract_and_precheck() -> None:
 
 def test_includestandalone_opts_form_counts_as_reference(tmp_path: Path) -> None:
     # B5b: \includestandalone[width=..]{sub} — [opts] 曾使 _INPUT_EXEC1_RX
-    # 失配, referenced 集为空 → 子文档 preamble 毒面存活 (0812.0615 族).
+    # 失配，referenced 集为空 → 子文档 preamble 毒面存活 (0812.0615 族).
     main = (
         "\\documentclass{article}\n\\usepackage{standalone}\n"
         "\\begin{document}\n"

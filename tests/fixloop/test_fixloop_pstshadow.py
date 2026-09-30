@@ -45,13 +45,13 @@ def _isolate_params() -> dict:
 
 
 def test_provides_date_filedate_fallback() -> None:
-    """pst-* 核约定: 无 \\ProvidesX 时 ``\\def\\filedate`` 取日期面。"""
+    """pst-* 核约定：无 \\ProvidesX 时 ``\\def\\filedate`` 取日期面。"""
     assert _provides_date(_OLD_CORE) == (2006, 12, 22)
     assert _provides_date(_NEW_CORE) == (2025, 12, 13)
 
 
 def test_provides_date_literal_wins_over_filedate() -> None:
-    """\\ProvidesPackage 字面日期优先, filedate 只兜底不抢先。"""
+    """\\ProvidesPackage 字面日期优先，filedate 只兜底不抢先。"""
     t = _NEW_STY + _OLD_CORE
     assert _provides_date(t) == (2024, 2, 2)
 
@@ -64,7 +64,7 @@ def test_provides_date_no_face_still_none() -> None:
 
 
 def test_paired_tex_core_retired_with_wrapper(tmp_path: Path) -> None:
-    """0707.4206 形: 旧 sty+旧 tex 同退役 —— wrapper/core 一体不混栈。"""
+    """0707.4206 形：旧 sty+ 旧 tex 同退役 —— wrapper/core 一体不混栈。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
@@ -95,7 +95,7 @@ def test_paired_core_no_system_replacement_stays(tmp_path: Path) -> None:
 
 
 def test_paired_core_probe_inside_wdir_not_shadow(tmp_path: Path) -> None:
-    """probe 命中 wdir 内副本 (kpsewhich cwd 毒化) → 非遮蔽证据, 保留。"""
+    """probe 命中 wdir 内副本 (kpsewhich cwd 毒化) → 非遮蔽证据，保留。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
@@ -107,7 +107,7 @@ def test_paired_core_probe_inside_wdir_not_shadow(tmp_path: Path) -> None:
 
 
 def test_paired_core_no_date_face_stays(tmp_path: Path) -> None:
-    """vendored 核无日期面 → 新旧无证, 盲删必死, 保留。"""
+    """vendored 核无日期面 → 新旧无证，盲删必死，保留。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
@@ -124,7 +124,7 @@ def test_paired_core_no_date_face_stays(tmp_path: Path) -> None:
 
 
 def test_paired_core_vendored_newer_stays(tmp_path: Path) -> None:
-    """vendored 核比系统新 (奇异混栈) → 不降级, 保留。"""
+    """vendored 核比系统新 (奇异混栈) → 不降级，保留。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_OLD_CORE, encoding="utf-8")
@@ -139,7 +139,7 @@ def test_paired_core_vendored_newer_stays(tmp_path: Path) -> None:
 
 
 def test_paired_core_injected_file_stays(tmp_path: Path) -> None:
-    """同名核是本引擎注入件 (指纹认亲) → 退役即自拆台, 保留。"""
+    """同名核是本引擎注入件 (指纹认亲) → 退役即自拆台，保留。"""
     wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
@@ -192,7 +192,7 @@ def _apply_pstcol(tmp_path: Path) -> tuple[bool, str]:
 
 
 def test_pstcol_rewrite_group_forms(tmp_path: Path) -> None:
-    """1003.2152 形: 组内枚名换 pstricks; 选项/混排/RequirePackage 全覆盖。"""
+    """1003.2152 形：组内枚名换 pstricks; 选项/混排/RequirePackage 全覆盖。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\usepackage{pstcol,pst-plot,pst-3d}\n"
@@ -212,7 +212,7 @@ def test_pstcol_rewrite_group_forms(tmp_path: Path) -> None:
 
 
 def test_pstcol_rewrite_masked_comment_untouched(tmp_path: Path) -> None:
-    """masked 面: 注释内假装载不改写 (match_surface: masked opt-in)。"""
+    """masked 面：注释内假装载不改写 (match_surface: masked opt-in)。"""
     (tmp_path / "main.tex").write_text(
         "% \\usepackage{pstcol}\n\\usepackage{pstcol}\n", encoding="utf-8"
     )

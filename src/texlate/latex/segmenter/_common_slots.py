@@ -140,11 +140,11 @@ class _WalkRes(NamedTuple):
     end: int  # 实消费后界
     cand: list[
         tuple[int, int, int]
-    ]  # (实参序, ``{``/``[`` 位, 闭后位)——``opt``/``marg``/``bsbs`` 组参
+    ]  # (实参序，``{``/``[`` 位，闭后位)——``opt``/``marg``/``bsbs`` 组参
     rem: int | None  # toks 走尽/真跨界时未完元下标；``None`` = 走完或失配终止
     cont: (
         tuple | None
-    )  # 跨界续扫态 ``("grp",族,残深)``/``("delim",尾列)``/``("e-arg",)``
+    )  # 跨界续扫态 ``("grp",族，残深)``/``("delim",尾列)``/``("e-arg",)``
     e_rest: tuple[str, ...] | None  # ``embell`` 走尽残符列（``_PendRem`` ``e`` 残件料）
 
 

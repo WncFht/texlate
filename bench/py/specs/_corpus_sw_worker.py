@@ -161,7 +161,7 @@ def _w_rgrows(shard: int, rg: int, want_file: Path, out: Path) -> int:
 def _worker_cli(argv: list) -> int:
     """``--worker footer <shard> <out>`` /
     ``--worker pool <shard> <rg> <min_yymm> <out>`` /
-    ``--worker rgrows <shard> <rg> <want_file> <out>``。"""
+    ``--worker rgrows <shard> <rg> <want_file> <out>``."""
     if len(argv) < 2 or argv[1] != "--worker":
         sys.stderr.write(
             "usage: corpus_sw.py --worker footer <shard> <out> | "

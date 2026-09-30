@@ -20,7 +20,7 @@ FNF_LINES = 3  # file_not_found 变体合成条数
 
 
 def test_file_line_warning_lines_exempt() -> None:
-    """scout#1　``file:line:`` 前缀 Warning 豁免——生产 ``-file-line-error``
+    """scout#1 ``file:line:`` 前缀 Warning 豁免——生产 ``-file-line-error``
     log 海量存在此形态；``NONERR_MSG_RE``（texlog 单源、fixloop 层同词素）
     锚定消息起点，豁免行照走 warning 归类、不计错。"""
     text = (
@@ -41,7 +41,7 @@ def test_file_line_warning_lines_exempt() -> None:
 
 
 def test_file_not_found_redline_positive() -> None:
-    """scout#2　``file_not_found`` 红线类首个正向钉——``File `x' not found``
+    """scout#2 ``file_not_found`` 红线类首个正向钉——``File `x' not found``
     warning 形态（非 ``!`` 错）归本类且每条入 redlines。"""
     text = (
         "Package pdftex.def Warning: File `fig.pdf' not found on input line 9.\n"
@@ -55,7 +55,7 @@ def test_file_not_found_redline_positive() -> None:
 
 
 def test_file_not_found_straight_quote_falls_generic() -> None:
-    """scout#2 补　直引号 ``File 'x.png' not found`` 不中模式——TeX 消息系统
+    """scout#2 补 直引号 ``File 'x.png' not found`` 不中模式——TeX 消息系统
     固定 `` `x' `` 反引号开引；pattern 与 engine ``missing_graphic``/rules
     同口径只收反引号形，直引号形落 generic（钉实际严格度）。"""
     v = parse_log_text("LaTeX Warning: File 'x.png' not found on input line 5.\n")
@@ -64,7 +64,7 @@ def test_file_not_found_straight_quote_falls_generic() -> None:
 
 
 def test_file_not_found_variants() -> None:
-    """scout#3　``cannot open``/``Could not locate`` 备选同归 file_not_found；
+    """scout#3 ``cannot open``/``Could not locate`` 备选同归 file_not_found；
     ``cannot find|open`` 是 markerless 硬 warning 形，裸行也归类。"""
     text = (
         "LaTeX Warning: cannot open file `data.dat' for reading.\n"
@@ -79,7 +79,7 @@ def test_file_not_found_variants() -> None:
 
 
 def test_could_not_locate_bare_not_markerless() -> None:
-    """scout#3 补　``Could not locate`` 在归类 pattern 内但**不在**
+    """scout#3 补 ``Could not locate`` 在归类 pattern 内但**不在**
     ``_MARKERLESS_WARN_RX`` 预筛——裸行（无 ``Warning:`` 标）整行跳过
     不计；与 ``cannot open`` 的 markerless 收录不对称，钉实际行为。"""
     v = parse_log_text("Could not locate file `x.out'.\n")
@@ -87,7 +87,7 @@ def test_could_not_locate_bare_not_markerless() -> None:
 
 
 def test_rerun_positive_not_redline() -> None:
-    """scout#4　``rerun`` 类首个正向钉——``may have changed``/``Rerun``
+    """scout#4 ``rerun`` 类首个正向钉——``may have changed``/``Rerun``
     触发；非红线类（不入 redlines，勿与 reference 前缀规则混淆）。"""
     v = parse_log_text(
         "LaTeX Warning: Label(s) may have changed. "
@@ -99,7 +99,7 @@ def test_rerun_positive_not_redline() -> None:
 
 
 def test_error_ctx_help_text_not_warning() -> None:
-    """scout#5　error ctx 帮助文本豁免——``type `I\\font<same font id>…'``
+    """scout#5 error ctx 帮助文本豁免——``type `I\\font<same font id>…'``
     这类无 ``Warning:`` 标行曾被 font_subst 误吃；预筛先于规则：rule 形
     （``Some font shapes``）但无 warning 形的行同被挡。"""
     text = (
@@ -133,7 +133,7 @@ def _eof_log(gap: int) -> str:
 
 
 def test_eof_culprit_within_window() -> None:
-    """scout#6a　弹出后 ≤``_EOF_POP_WINDOW``（含端点，行距 16）的
+    """scout#6a 弹出后 ≤``_EOF_POP_WINDOW``（含端点，行距 16）的
     ``File ended while scanning`` 错归因最近弹出文件。"""
     v = parse_log_text(_eof_log(EOF_POP_WINDOW - 1))
     assert v.n_errors == 1
@@ -143,7 +143,7 @@ def test_eof_culprit_within_window() -> None:
 
 
 def test_eof_culprit_beyond_window() -> None:
-    """scout#6b　弹出 >16 行才出 ``File ended`` → 不归因（防过归因）。"""
+    """scout#6b 弹出 >16 行才出 ``File ended`` → 不归因（防过归因）。"""
     v = parse_log_text(_eof_log(EOF_POP_WINDOW))
     assert v.n_errors == 1
     fe = v.first_error
@@ -152,7 +152,7 @@ def test_eof_culprit_beyond_window() -> None:
 
 
 def test_eof_no_attribution_for_non_eof_error() -> None:
-    """scout#6c　相邻弹出 + 普通错 → 无 eof 归因——头判
+    """scout#6c 相邻弹出 + 普通错 → 无 eof 归因——头判
     ``File ended while scanning``，不是"刚弹出就补"。"""
     text = "(./main.tex\n(./sub.tex\n)\n! Undefined control sequence.\nl.5 \\x\n"
     v = parse_log_text(text)
@@ -163,7 +163,7 @@ def test_eof_no_attribution_for_non_eof_error() -> None:
 
 
 def test_underfull_and_bare_warning_generic() -> None:
-    """scout#7　Underfull 正向（markerless 硬 warning 形收 ``Over|Underfull
+    """scout#7 Underfull 正向（markerless 硬 warning 形收 ``Over|Underfull
     \\[hv]box``）+ 裸 ``Xxx Warning:`` 行无规则命中落 generic。"""
     text = "Underfull \\vbox (badness 10000) detected at line 7\nFoo Warning: bar\n"
     v = parse_log_text(text)
@@ -174,7 +174,7 @@ def test_underfull_and_bare_warning_generic() -> None:
 
 
 def test_warn_samples_capped_at_five() -> None:
-    """scout#8　``samples`` 每类 ≤5——计数（by_class/total）精确不受留存
+    """scout#8 ``samples`` 每类 ≤5——计数（by_class/total）精确不受留存
     上限影响。"""
     text = "\n".join(
         f"LaTeX Warning: Citation `ref{n}' on page 1 undefined on input line {n}."
@@ -187,7 +187,7 @@ def test_warn_samples_capped_at_five() -> None:
 
 
 def test_sys_hits_dedup_same_file() -> None:
-    """scout#9a　同系统件 invalid_utf8 重复命中 → ``sys_hits`` 单条
+    """scout#9a 同系统件 invalid_utf8 重复命中 → ``sys_hits`` 单条
     （``{cls}@{file}`` 去重），by_class/total 仍精确。"""
     text = (
         "(/usr/share/texmf-dist/tex/latex/foo/foo.sty\n"
@@ -202,7 +202,7 @@ def test_sys_hits_dedup_same_file() -> None:
 
 
 def test_redlines_dedup_identical_lines() -> None:
-    """scout#9b　``redlines`` 按 ``{cls}: {line}`` 串去重——完全相同的
+    """scout#9b ``redlines`` 按 ``{cls}: {line}`` 串去重——完全相同的
     缺字形行 ×2 只留一条，by_class 仍计 2。"""
     line = 'Missing character: There is no ; ("3B) in font cmr10!\n'
     v = parse_log_text(line * 2)
@@ -211,7 +211,7 @@ def test_redlines_dedup_identical_lines() -> None:
 
 
 def test_parse_log_directory_is_log_missing(tmp_path: Path) -> None:
-    """scout#10　``parse_log`` 遇目录（``read_text`` → IsADirectoryError
+    """scout#10 ``parse_log`` 遇目录（``read_text`` → IsADirectoryError
     ⊂ OSError）→ ``log_missing`` verdict，不抛。"""
     v = parse_log(tmp_path)
     assert v.log_missing
@@ -219,7 +219,7 @@ def test_parse_log_directory_is_log_missing(tmp_path: Path) -> None:
 
 
 def test_malformed_codepoint_stays_missing_glyph() -> None:
-    """scout#11　``("12)``/``("123)`` 短 hex 不中 ``("HEX)`` 4–6 位形 →
+    """scout#11 ``("12)``/``("123)`` 短 hex 不中 ``("HEX)`` 4–6 位形 →
     码点不可解不触发 CJK/FFFD 细分，仍 ``missing_glyph`` 红线。"""
     text = (
         'Missing character: There is no X ("12) in font cmr10!\n'

@@ -169,7 +169,7 @@ def test_rawopts_rule_registered() -> None:
 
 
 def test_rawopts_seed_before_requirepackage(tmp_path: Path) -> None:
-    """0806.3242 形: 播种落在 \\RequirePackage[british]{babel} 行头, 原行保留。"""
+    """0806.3242 形：播种落在 \\RequirePackage[british]{babel} 行头，原行保留。"""
     (tmp_path / "main.tex").write_text(
         "\\RequirePackage[british]{babel}\n"
         "\\documentclass{amsart}\n"
@@ -203,7 +203,7 @@ def test_rawopts_seed_bare_and_group_forms(tmp_path: Path) -> None:
 
 
 def test_rawopts_postclass_requirepackage_declines(tmp_path: Path) -> None:
-    """\\documentclass 之后才 \\RequirePackage{babel} → 非本机制, applied=False。"""
+    """\\documentclass 之后才 \\RequirePackage{babel} → 非本机制，applied=False。"""
     src = (
         "\\documentclass{article}\n"
         "\\RequirePackage{babel}\n"
@@ -216,7 +216,7 @@ def test_rawopts_postclass_requirepackage_declines(tmp_path: Path) -> None:
 
 
 def test_rawopts_commented_load_declines(tmp_path: Path) -> None:
-    """masked 面: 注释掉的预载 babel 不锚 (假阳性面零改写)。"""
+    """masked 面：注释掉的预载 babel 不锚 (假阳性面零改写)。"""
     src = (
         "% \\RequirePackage[british]{babel}\n"
         "\\documentclass{amsart}\n"
@@ -229,7 +229,7 @@ def test_rawopts_commented_load_declines(tmp_path: Path) -> None:
 
 
 def test_rawopts_no_documentclass_declines(tmp_path: Path) -> None:
-    """残缺稿无 \\documentclass → lookahead 失败, applied=False (保守不收)。"""
+    """残缺稿无 \\documentclass → lookahead 失败，applied=False (保守不收)。"""
     src = "\\RequirePackage[british]{babel}\nx\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, _ = _apply(_rule("babel_preclass_rawopts_seed"), tmp_path, _BABEL_ENDCS_ERR)
@@ -238,7 +238,7 @@ def test_rawopts_no_documentclass_declines(tmp_path: Path) -> None:
 
 
 def test_rawopts_condition_ctx_gate(tmp_path: Path) -> None:
-    """ctx_suggests 闸: err_head 无 Missing endcsname → condition 拒。"""
+    """ctx_suggests 闸：err_head 无 Missing endcsname → condition 拒。"""
     rule = _rule("babel_preclass_rawopts_seed")
     (tmp_path / "main.tex").write_text(
         "\\RequirePackage[british]{babel}\n\\documentclass{amsart}\n"
@@ -251,7 +251,7 @@ def test_rawopts_condition_ctx_gate(tmp_path: Path) -> None:
 
 
 def test_rawopts_condition_source_gate(tmp_path: Path) -> None:
-    """source_contains 闸: 源无预载 babel 形 (仅 post-class usepackage) → 拒。"""
+    """source_contains 闸：源无预载 babel 形 (仅 post-class usepackage) → 拒。"""
     rule = _rule("babel_preclass_rawopts_seed")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage[british]{babel}\n"
@@ -264,7 +264,7 @@ def test_rawopts_condition_source_gate(tmp_path: Path) -> None:
 
 
 def test_rawopts_condition_positive(tmp_path: Path) -> None:
-    """双闸同过: endcsname 错 + 预载 babel 形 → condition 放行。"""
+    """双闸同过：endcsname 错 + 预载 babel 形 → condition 放行。"""
     rule = _rule("babel_preclass_rawopts_seed")
     (tmp_path / "main.tex").write_text(
         "\\RequirePackage[british]{babel}\n\\documentclass{amsart}\n"
@@ -277,7 +277,7 @@ def test_rawopts_condition_positive(tmp_path: Path) -> None:
 
 
 def test_rawopts_match_apply_routes(tmp_path: Path) -> None:
-    """整链: syntax 类 + endcsname err + 预载 babel 源 → 本规则点火播种。"""
+    """整链：syntax 类 + endcsname err + 预载 babel 源 → 本规则点火播种。"""
     (tmp_path / "main.tex").write_text(
         "\\RequirePackage[british]{babel}\n"
         "\\documentclass{amsart}\n"

@@ -1,11 +1,11 @@
 """early_eof 分类语义钉 —— W126 根修 (10-taxonomy.yaml `other` 兜底 `^!`→`^.`)。
 
-缺陷: file-line-error 形 (`f.tex:N: msg`) 首错无 head 签命中时,
+缺陷：file-line-error 形 (`f.tex:N: msg`) 首错无 head 签命中时，
 `other` 兜底 `^!` 锚不住 → 裸评估落 tail 段被 "No pages of output"
 吞成 early_eof, 真签名类规则收不到 (0806.2594 TUletters /
-astro-ph/0408240 natbib-aux 实证, \begin{document} 期 aux 读/字体声明错)。
+astro-ph/0408240 natbib-aux 实证，\begin{document} 期 aux 读/字体声明错)。
 
-钉:
+钉：
   - file-line 形签名错 + 零页尾 → other (非 early_eof)
   - 真零错误行早夭 (无 '!'/file-line 行) → 仍 early_eof
   - tail 抢占面 (missing_file/latex209) 对签名错日志依旧可达
@@ -33,7 +33,7 @@ _NATBIB_AUX_LOG = (
 
 
 def _classify_log(text: str) -> tuple[str | None, str | None]:
-    """全链: 真 log 文本 → parse_text → ruleset taxonomy.classify。"""
+    """全链：真 log 文本 → parse_text → ruleset taxonomy.classify。"""
     rs = Ruleset.load()
     return rs.taxonomy.classify(parse_text(text, rs.warn_patterns))
 
@@ -46,7 +46,7 @@ def test_fileline_signed_error_not_early_eof() -> None:
 
 
 def test_fileline_signed_error_via_classify_error() -> None:
-    """薄包装同语义: file-line err + No-pages tail → symbol_font。"""
+    """薄包装同语义：file-line err + No-pages tail → symbol_font。"""
     err = "./main.tex:63: LaTeX Error: Symbol font `TUletters' is not defined."
     tail = "l.63 \\begin{document}\nNo pages of output.\n"
     cat, _ = classify_error(err, None, tail, timed_out=False)
@@ -54,7 +54,7 @@ def test_fileline_signed_error_via_classify_error() -> None:
 
 
 def test_bang_signed_error_still_other() -> None:
-    """'!' 形无签错行为不变: `other` 兜底 (原有 `^!` 语义的 `^.` 延拓)。"""
+    """'!' 形无签错行为不变：`other` 兜底 (原有 `^!` 语义的 `^.` 延拓)。"""
     cat, _ = classify_error(
         "! Weird unclassified failure.",
         None,
@@ -142,7 +142,7 @@ def test_tail_latex209_preempts_other() -> None:
 
 
 def test_tail_latex209_real_signature_not_stolen() -> None:
-    """preempts:[other] 只夺未分类错: 真 head 签 (missing_file) 不被抢。"""
+    """preempts:[other] 只夺未分类错：真 head 签 (missing_file) 不被抢。"""
     cat, pay = _classify_log(
         "! LaTeX Error: File `revtex4.cls' not found.\nl.3 \\usepackage\n"
         "Entering LaTeX 2.09 COMPATIBILITY MODE\n"

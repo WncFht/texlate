@@ -1,10 +1,10 @@
 """kernel._cli_parser — argparse 树构建叶 (kernel.cli 拆分叶).
 
-``_build_parser`` 是全 CLI 唯一的参数树: init/run/plan/status 顶动词 +
+``_build_parser`` 是全 CLI 唯一的参数树：init/run/plan/status 顶动词 +
 vault/ledger/lake/cache/spec 五个嵌套子动词组 + derive/sweep/prune/
 backup/doctor/fsck + ``verbs.REGISTRY`` 自注册分析动词 (有 ``add_args``
 的动词自挂参数)。``_add_runlike_flags`` 是 run/plan 共享旗标组
-(with_exec 分野: run 多 --resume/--jobs/--detach)。
+(with_exec 分野：run 多 --resume/--jobs/--detach)。
 
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

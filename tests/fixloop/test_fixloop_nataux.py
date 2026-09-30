@@ -31,7 +31,7 @@ def _rule() -> Rule:
     return next(r for r in _rs().rules if r.id == "natbib_aux_force_purge")
 
 
-# natbib.sty:967-968 \AtEndDocument 真实写面: provide+invoke 同一行。
+# natbib.sty:967-968 \AtEndDocument 真实写面：provide+invoke 同一行。
 _AUX_MARKED = (
     "\\relax\n"
     "\\newlabel{a}{{1}{1}{ok}}\n"
@@ -97,7 +97,7 @@ def test_rule_shape() -> None:
 
 # ---------------------------------------------------------------- rewrite 单测
 def test_rewrite_strips_marker_real_shape() -> None:
-    """真实写面行整删, 其余 aux 行逐字节不动。"""
+    """真实写面行整删，其余 aux 行逐字节不动。"""
     out = _sub(_AUX_MARKED)
     assert "\\NAT@force@numbers" not in out
     assert out == "\\relax\n\\newlabel{a}{{1}{1}{ok}}\n\\bibcite{x}{{1}{}{a}{b}}\n"
@@ -129,14 +129,14 @@ def test_rewrite_no_marker_noop() -> None:
 
 
 def test_rewrite_idempotent() -> None:
-    """二入幂等: 剥后再 sub 文本不变。"""
+    """二入幂等：剥后再 sub 文本不变。"""
     once = _sub(_AUX_MARKED)
     assert _sub(once) == once
 
 
 # ---------------------------------------------------------------- _apply 直驱
 def test_apply_fires_and_strips_only_marker(tmp_path: Path) -> None:
-    """点火: marker 行剥除, 其余 aux 字节不动, .tex 零改动。"""
+    """点火：marker 行剥除，其余 aux 字节不动，.tex 零改动。"""
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     ok, note = _apply(tmp_path)
@@ -217,7 +217,7 @@ def test_cond_passes_on_signature_plus_aux(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 端到端
 def test_fixloop_e2e_stale_aux_purged(tmp_path: Path) -> None:
-    """同签接力: numbers_pass(r1) 注入防再写 → 本规则(r2) 剥陈旧标记 → r3 净。"""
+    """同签接力：numbers_pass(r1) 注入防再写 → 本规则 (r2) 剥陈旧标记 → r3 净。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     eng = ScriptEng(
@@ -231,15 +231,15 @@ def test_fixloop_e2e_stale_aux_purged(tmp_path: Path) -> None:
     cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert cell["verdict"] == "clean"
     fired = [a["rule"] for a in cell["actions"]]
-    assert "natbib_numbers_pass" in fired  # r1 先收: 挡 FUTURE aux 写
-    assert "natbib_aux_force_purge" in fired  # r2 接力: 剥存量标记
+    assert "natbib_numbers_pass" in fired  # r1 先收：挡 FUTURE aux 写
+    assert "natbib_aux_force_purge" in fired  # r2 接力：剥存量标记
     assert "\\NAT@force@numbers" not in (tmp_path / "main.aux").read_text(
         encoding="utf-8"
     )
 
 
 def test_fixloop_e2e_no_marker_falls_through(tmp_path: Path) -> None:
-    """签名命中但 aux 无标记 → 本规则不点火, 不误伤健康 aux。"""
+    """签名命中但 aux 无标记 → 本规则不点火，不误伤健康 aux。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_text(
         "\\relax\n\\newlabel{a}{{1}{1}{ok}}\n", encoding="utf-8"

@@ -26,25 +26,25 @@ from ._base import _checked_main
 
 #: ``\\endinput`` 执行豁免形——``\\let\\cs\\endinput``/``\\def\\cs{..}``
 #: 把它存进宏体不执行 (pstricks ``\\let\\PSTricksLoaded\\endinput`` 实证);
-#: 行头查赋值系 cs 即足, 真截停的 ``\\endinput`` 行内无赋值前件。
+#: 行头查赋值系 cs 即足，真截停的 ``\\endinput`` 行内无赋值前件。
 _ENDINPUT_DEF_RX: Final = re.compile(
     r"\\(?:let|def|gdef|edef|xdef|newcommand|renewcommand|providecommand)\b"
 )
 
-#: 出货闸输入覆盖 (qc-impl 批二, 2026-09-28): masked 视图深度0扫描——首个
+#: 出货闸输入覆盖 (qc-impl 批二，2026-09-28): masked 视图深度 0 扫描——首个
 #: ``\end{document}`` = 输入吃活到收束；先到的顶层 ``\endinput`` = 输入
-#: 被截停 (其后全部死代码——``\end{document}`` 在尾也吃不到, 0906.4725
-#: 型文献表腰斩件)。``\end{document}`` 之后的 live 尾巴不算伤: TeX
-#: 本就忽视, 作者草稿尾注常见。
+#: 被截停 (其后全部死代码——``\end{document}`` 在尾也吃不到，0906.4725
+#: 型文献表腰斩件)。``\end{document}`` 之后的 live 尾巴不算伤：TeX
+#: 本就忽视，作者草稿尾注常见。
 _ENDDOC_RX: Final = re.compile(r"\\end\s*\{\s*document\s*\}")
 _ENDINPUT_RX: Final = re.compile(r"\\endinput(?![a-zA-Z@])")
-#: ``\input{name}``/``\include{name}`` 两形态: 花括号与裸名 (plain 风)。
+#: ``\input{name}``/``\include{name}`` 两形态：花括号与裸名 (plain 风)。
 #: 花括号形先匹配 (``\input{sub/a}`` 与 ``\input sub/a`` 同收)。
 _INCLUDE_SRC_RX: Final = re.compile(
     r"\\(?:input|include)(?![a-zA-Z@])\s*(?:\{([^}]+)\}|([^\s{}\\]+))"
 )
 #: ``\input`` 链跟进深度顶——main_wrapper_promote 的 wrapper→真身一跳
-#: 足够, 再深即病态链。
+#: 足够，再深即病态链。
 _ENDDOC_MAX_DEPTH: Final = 2
 
 
@@ -161,7 +161,7 @@ def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数�
     res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
     res.workdir = wdir
     res.deps = compiled_dependencies(wdir, main, out, res.engine)
-    # 出货闸 (qc-impl 批二, 2026-09-28): 编译输入须吃活到 ``\end{document}``——
+    # 出货闸 (qc-impl 批二，2026-09-28): 编译输入须吃活到 ``\end{document}``——
     # ``log_truncated`` 只盖 halt_on_error 趟中截死; 输入件残 (无收尾
     # token) 与顶层 ``\endinput`` 截停在 best_effort 下静默出残 pdf。
     # 两引擎同闸 (tectonic 拼写即 ``wdir/main``, _checked_main 上游已过)。

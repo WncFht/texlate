@@ -31,7 +31,7 @@ from texlate.compile.fixloop import actions
 
 
 def test_driver_newcommand_assignment(tmp_path: Path) -> None:
-    """webofc.cls:154 实形: \\newcommand\\woc@driver{dvips} → {xetex}。"""
+    """webofc.cls:154 实形：\\newcommand\\woc@driver{dvips} → {xetex}。"""
     cls = tmp_path / "webofc.cls"
     cls.write_text(
         "\\ifnum\\pdfoutput=\\z@\n"
@@ -67,7 +67,7 @@ def test_driver_newcommand_braced_cs(tmp_path: Path) -> None:
 
 
 def test_driver_inline_ifnum_conditional(tmp_path: Path) -> None:
-    """webofc.cls:177 实形: 括号内 \\ifnum 双支裸驱动词 → xetex, 邻键全留。"""
+    """webofc.cls:177 实形：括号内 \\ifnum 双支裸驱动词 → xetex, 邻键全留。"""
     cls = tmp_path / "webofc.cls"
     cls.write_text(
         "\\RequirePackage[%\n"
@@ -122,7 +122,7 @@ def test_driver_conditional_outside_bracket_untouched(tmp_path: Path) -> None:
 
 
 def test_driver_condition_gate_newcommand_form(tmp_path: Path) -> None:
-    """source_contains 新支: 仅 newcommand 指派 + cs 引用括号即放行。"""
+    """source_contains 新支：仅 newcommand 指派 + cs 引用括号即放行。"""
     (tmp_path / "main.tex").write_text(
         "\\newcommand\\woc@driver{dvips}\n\\RequirePackage[\\woc@driver]{hyperref}\n",
         encoding="utf-8",
@@ -156,7 +156,7 @@ _MT_ERR = (
 
 
 def test_microtype_expansion_multiline_flip(tmp_path: Path) -> None:
-    """2310.02541 实形: 多行括号 expansion=true → false, 邻键全留。"""
+    """2310.02541 实形：多行括号 expansion=true → false, 邻键全留。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage{hyperref}\n"
         "%\\usepackage[protrusion=false,expansion=true]{microtype}\n"
@@ -174,7 +174,7 @@ def test_microtype_expansion_multiline_flip(tmp_path: Path) -> None:
     assert "expansion=false," in t
     assert "protrusion=true" in t
     assert "babel\n]{microtype}" in t
-    # masked 面: 注释内候选配置不动
+    # masked 面：注释内候选配置不动
     assert "%\\usepackage[protrusion=false,expansion=true]{microtype}" in t
     assert "%\\usepackage[activate={true,nocompatibility},final]{microtype}" in t
 
@@ -223,7 +223,7 @@ def test_microtype_other_pkg_bracket_untouched(tmp_path: Path) -> None:
 
 
 def test_microtype_condition_gate(tmp_path: Path) -> None:
-    """ctx_suggests 闸: err_head 无 'expansion does not work' → 拒。"""
+    """ctx_suggests 闸：err_head 无 'expansion does not work' → 拒。"""
     r = rule("microtype_expansion_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
         r.condition, r, mk_ctx(tmp_path, err_head="! some other error"), EngStub(), None
@@ -245,7 +245,7 @@ _XY_ERR = (
 
 
 def test_xy_rule_registered() -> None:
-    """规则面: builtin_transform xy_option_load, other+syntax 双臂。"""
+    """规则面：builtin_transform xy_option_load, other+syntax 双臂。"""
     r = rule("xy_option_load")
     assert r.action["kind"] == "builtin_transform"
     assert r.action["function"] == "xy_option_load"
@@ -255,7 +255,7 @@ def test_xy_rule_registered() -> None:
 
 
 def test_xy_group_load_inject(tmp_path: Path) -> None:
-    """2607.14648 实形: 群载 {..,xypic} 后插 \\xyoption{curve}。"""
+    """2607.14648 实形：群载 {..,xypic} 后插 \\xyoption{curve}。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage{amsmath, amsfonts, amscd, amssymb, amsthm, enumerate, xypic}\n"
         "\\begin{document}\\xymatrix{A \\ar@/_1pc/[r] & B}\\end{document}\n",
@@ -326,7 +326,7 @@ def test_xy_no_error_noop(tmp_path: Path) -> None:
 
 
 def test_xy_commented_load_untouched(tmp_path: Path) -> None:
-    """masked 面: 注释内假装载点不挂 —— 唯一 xypic 站是死站 → applied=False。"""
+    """masked 面：注释内假装载点不挂 —— 唯一 xypic 站是死站 → applied=False。"""
     src = "% \\usepackage{xypic}\n\\usepackage{amsmath}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
@@ -338,7 +338,7 @@ def test_xy_commented_load_untouched(tmp_path: Path) -> None:
 
 
 def test_hyperxmp_relocate_covers_let_sandwich(tmp_path: Path) -> None:
-    """2105.00033 覆盖钉: acmart.cls hyperxmp→\\let 三明治→hyperref 序对下沉。"""
+    """2105.00033 覆盖钉：acmart.cls hyperxmp→\\let 三明治→hyperref 序对下沉。"""
     (tmp_path / "acmart.cls").write_text(
         "\\RequirePackage{hyperxmp}\n"
         "\\let\\ACM@lr@list\\@empty\n"

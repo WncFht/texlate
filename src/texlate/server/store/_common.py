@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS kept_refs (
 """
 
 #: 列级迁移（CREATE IF NOT EXISTS 盖不住的老库加列）：
-#: ``(table, column, ALTER 片段, 补列后回填 SQL|None)``——
+#: ``(table, column, ALTER 片段，补列后回填 SQL|None)``——
 #: table_info 探测缺失才执行 ALTER + 回填。
 _COLUMN_MIGRATIONS: tuple[tuple[str, str, str, str | None], ...] = (
     ("chunks", "warnings", "ALTER TABLE chunks ADD COLUMN warnings TEXT", None),

@@ -126,7 +126,7 @@ PARAS
 \end{document}
 """
 
-#: fixture 名 → (table 浮体位, 绕排后段落体, 期望 verdict)。分母子口径——
+#: fixture 名 → (table 浮体位，绕排后段落体，期望 verdict)。分母子口径——
 #: 三格期望分布 = 旧 cases 矩阵的 [collision, collision, clean]。
 _SYNTH = {
     "tableB_short": ("b", _SHORT * 4, "collision"),

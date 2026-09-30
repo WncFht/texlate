@@ -70,7 +70,7 @@ def test_pream_rule_registered() -> None:
     assert rule.when["payload_required"] is True
     assert rule.action["kind"] == "regex_rewrite"
     rws = rule.action["params"]["rewrites"]
-    assert len(rws) == 4  # noqa: PLR2004 - def烘焙/call展开/3-let/2-let
+    assert len(rws) == 4  # noqa: PLR2004 - def 烘焙/call 展开/3-let/2-let
     assert set(rule.action["params"]["exts"]) == {".tex", ".sty", ".cls"}
 
 
@@ -96,9 +96,9 @@ def test_pream_taxonomy_cjk_falls_to_syntax() -> None:
     assert pay is None
 
 
-# ---------------------------------------------------------------- 臂2: call-站
+# ---------------------------------------------------------------- 臂 2: call-站
 def test_delspec_callsite_expandafter(tmp_path: Path) -> None:
-    """aaspp4 ``\\tablehead`` 实形: ``\\tabular{\\@delspec}`` → 双侧 ``\\expandafter``。"""
+    """aaspp4 ``\\tablehead`` 实形：``\\tabular{\\@delspec}`` → 双侧 ``\\expandafter``。"""
     sty = (
         "\\def\\tablehead#1{\\tabular{\\@delspec}#1\\\\\\hline}\n\\def\\tabletail#1{}\n"
     )
@@ -113,7 +113,7 @@ def test_delspec_callsite_expandafter(tmp_path: Path) -> None:
 
 
 def test_ptformat_three_arm(tmp_path: Path) -> None:
-    """emulateapj 实形 (767-769/786/801 行字面): def烘焙 + call展开 + let链中和。"""
+    """emulateapj 实形 (767-769/786/801 行字面): def 烘焙 + call 展开 + let 链中和。"""
     sty = (
         "\\def\\pt@tabular{\\hbox \\bgroup \\pt@fontsize $\\let\\@acol\\@ptabacol \n"
         "   \\let\\@classz\\@tabclassz\n"
@@ -146,7 +146,7 @@ def test_ptformat_three_arm(tmp_path: Path) -> None:
 
 
 def test_ptformat_already_expanded_callsite(tmp_path: Path) -> None:
-    """aastex.cls 实形: call-站已 ``\\expandafter`` → 只发 def-站臂, 不二重展开。"""
+    """aastex.cls 实形：call-站已 ``\\expandafter`` → 只发 def-站臂，不二重展开。"""
     cls = (
         "\\newenvironment{deluxetable}[1]{%\n"
         " \\maketitle\n"
@@ -163,7 +163,7 @@ def test_ptformat_already_expanded_callsite(tmp_path: Path) -> None:
 
 
 def test_ptformat_def_only_still_fires(tmp_path: Path) -> None:
-    """aastex.cls 未修形: ``\\def\\pt@format`` 在 + 已展开 call-站 → 只烘焙。"""
+    """aastex.cls 未修形：``\\def\\pt@format`` 在 + 已展开 call-站 → 只烘焙。"""
     cls = (
         " \\def\\pt@format{\\string#1}%\n"
         "\\def\\pt@head{\\expandafter\\@tabular\\expandafter{\\pt@format}}\n"
@@ -226,15 +226,15 @@ def test_pream_payload_isolation(tmp_path: Path) -> None:
 
 
 def test_pream_when_gating() -> None:
-    """when 断言: 非 pream_token 类 / 缺 payload 皆不进入匹配面。"""
+    """when 断言：非 pream_token 类 / 缺 payload 皆不进入匹配面。"""
     rule = _rule()
     assert rule.when["category"] == "pream_token"
-    # payload_required 语义: pay=None 时 _match_apply 跳过本规则
+    # payload_required 语义：pay=None 时 _match_apply 跳过本规则
     assert rule.when.get("payload_required") is True
 
 
 def test_let_chain_variant_two_let(tmp_path: Path) -> None:
-    """缺 ``\\@acol`` 链节的变种 → 臂4 (2-let) 兜底。"""
+    """缺 ``\\@acol`` 链节的变种 → 臂 4 (2-let) 兜底。"""
     sty = (
         "\\def\\pt@tabular{\\hbox \\bgroup $\\let\\@classz\\@tabclassz\n"
         "   \\let\\@classiv\\@tabclassiv \\let\\\\\\@tabularcr\\@tabarray}\n"

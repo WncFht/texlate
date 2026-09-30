@@ -1,22 +1,22 @@
 """三臂实测图组：agent / texlate v4 / texlate v5（2026-09-28 基线 + v5 夜跑）。
 
 语义台账：
-- 图1 arms-input-tokens.png: 柱=逐篇新输入 token（网关 input_tokens 窗Σ）。
+- 图 1 arms-input-tokens.png: 柱=逐篇新输入 token（网关 input_tokens 窗Σ）。
   三臂同模型同网关同时段；v5 窗=server key 268cd（与 task_usage 逐字节核平）。
-- 图2 arms-request-ekg.png: 19506 逐调用「心电图」——x=调用序，y=单次 in(log)；
+- 图 2 arms-request-ekg.png: 19506 逐调用「心电图」——x=调用序，y=单次 in(log)；
   v4 条带按 miss(vcoral)/hit(vteal) 分色，agent=vorange、v5=vteal 单臂色。
   语义：一次 API 调用的全价新输入；v4 的 122k 尖刺=ph 恒等表全价重发。
-- 图3 arms-v5-validation.png: v5 推算柱(//hatch) vs 实测柱 逐篇对照；
+- 图 3 arms-v5-validation.png: v5 推算柱 (//hatch) vs 实测柱 逐篇对照；
   验证「载荷+miss×S_v5」记账模型（推算常数见 make_arms_v5_projection_fig 注释源）。
-- 图4 arms-quality.png: 残英 eff 行 + ngram 退化分两面板；x 轴带终态标。
+- 图 4 arms-quality.png: 残英 eff 行 + ngram 退化分两面板；x 轴带终态标。
 色相：agent=vorange, v4=vcoral, v5=vteal（全图组一致）。
 
 数据源（同目录归档件优先；缺件且给 --gw-db 时回退现场查询）：
   baseline-tokens.json                agent/v4 逐篇聚合（input/output/calls）
   v5-ledger.json + v5-arm-wins.json   v5 逐篇聚合 + 窗口（epoch 起止 + status/secs）
-  arms-ekg-rows.json                  图2 三臂逐调用行（2609.19506，[in,cr,out]）
-  qc-results-v5.json                  图4 v5 质量闸指标（残英 eff / ngram 退化）
-  qc-results-v4-agent.json            图4 v4/agent 质量闸指标（键 2609.xxxxx/arm）
+  arms-ekg-rows.json                  图 2 三臂逐调用行（2609.19506，[in,cr,out]）
+  qc-results-v5.json                  图 4 v5 质量闸指标（残英 eff / ngram 退化）
+  qc-results-v4-agent.json            图 4 v4/agent 质量闸指标（键 2609.xxxxx/arm）
   --gw-db PATH                        内部 OpenAI 兼容网关 logs 表（sqlite 只读）
                                       回退路：v5 聚合走窗Σ、ekg 走原窗查询；
                                       v4/v5 臂须各给 --v4-key-hash/--v5-key-hash
@@ -227,7 +227,7 @@ def main(argv=None) -> None:
     x = np.arange(len(PAPERS))
     w = 0.27
 
-    # ================= 图1 三臂新输入 =================
+    # ================= 图 1 三臂新输入 =================
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.6, 3.8))
     a1.bar(x - w, a_in, w, color=C_AGENT, label="agent")
     a1.bar(x, v4_in, w, color=C_V4, label="texlate v4")
@@ -306,7 +306,7 @@ def main(argv=None) -> None:
     plt.close(fig)
     wrote.append("arms-input-tokens.png")
 
-    # ================= 图2 19506 逐调用 EKG =================
+    # ================= 图 2 19506 逐调用 EKG =================
     # 归档 rows 优先；缺件且给 --gw-db 时按原口径现场查；皆无则跳过本图。
     pid = "2609.19506"
     ekg = load_arch("arms-ekg-rows.json")
@@ -372,7 +372,7 @@ def main(argv=None) -> None:
         plt.close(fig)
         wrote.append("arms-request-ekg.png")
 
-    # ================= 图3 推算 vs 实测 =================
+    # ================= 图 3 推算 vs 实测 =================
     fig, ax = plt.subplots(figsize=(7.6, 3.6))
     proj = [V5_PROJ[s] for s in PAPERS]
     meas = v5_in
@@ -427,7 +427,7 @@ def main(argv=None) -> None:
     plt.close(fig)
     wrote.append("arms-v5-validation.png")
 
-    # ================= 图4 三臂质量闸 =================
+    # ================= 图 4 三臂质量闸 =================
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.6, 3.8))
 
     def qcent(src, p, arm="texlate"):

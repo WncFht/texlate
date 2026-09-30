@@ -39,7 +39,7 @@ def scan(body: str) -> ScanResult:
     return res
 
 
-# ------------------------------------------------------------- 类1 维度操作数
+# ------------------------------------------------------------- 类 1 维度操作数
 
 
 def test_slot_dimen_bare_operand() -> None:
@@ -144,7 +144,7 @@ def test_slot_dimen_in_arg() -> None:
     assert res.ph_map["[[CMD_1]]"] == "\\vskip3pt"
 
 
-# ------------------------------------------------------------- 类2 cs+latin 黏连（bug-B）
+# ------------------------------------------------------------- 类 2 cs+latin 黏连（bug-B）
 
 
 def test_bugb_item_no_leading_space() -> None:
@@ -165,7 +165,7 @@ def test_bugb_par_comment_gap() -> None:
     ]
 
 
-# ------------------------------------------------------------- 类3 名字槽位
+# ------------------------------------------------------------- 类 3 名字槽位
 
 
 def test_slot_textcolor_head() -> None:
@@ -199,7 +199,7 @@ def test_slot_counter_probe() -> None:
     assert "section}" not in blob(res)
 
 
-# ------------------------------------------------------------- 类5 env preamble
+# ------------------------------------------------------------- 类 5 env preamble
 
 
 def test_slot_deluxetable_preamble() -> None:
@@ -378,7 +378,7 @@ def test_pend_spec_reg_gate() -> None:
     assert "bb2" not in blob(res)
 
 
-# ------------------------------------------------------------- 类6 混排数学闭符
+# ------------------------------------------------------------- 类 6 混排数学闭符
 
 
 def test_math_mixed_paren_closer() -> None:
@@ -411,7 +411,7 @@ def test_math_paren_text_arg_not_closed() -> None:
     assert "tail words" in blob(res)
 
 
-# ------------------------------------------------------------- 类7 accent 参
+# ------------------------------------------------------------- 类 7 accent 参
 
 
 def test_accent_braced_arg() -> None:

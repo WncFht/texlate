@@ -182,7 +182,7 @@ def test_compare_drift_and_lost_by_index() -> None:
         if f["sig"] == "layout:float_drift"
     )
     assert drift["zh_uid"] == "figure-1"
-    assert drift["dp"] == 3  # noqa: PLR2004 -- 实测p5-基准p2
+    assert drift["dp"] == 3  # noqa: PLR2004 -- 实测 p5-基准 p2
 
 
 def test_compare_drift_median_trend() -> None:
@@ -216,7 +216,7 @@ def test_compare_drift_median_trend() -> None:
     drifts = [f for f in out if f["sig"] == "layout:float_drift"]
     # 斜率=1 平移趋势下 fig4 期望 p8 实测 p2，dev=-6 报警
     assert [f["zh_uid"] for f in drifts] == ["figure-4"]
-    assert drifts[0]["expect_p"] == 8  # noqa: PLR2004 -- 斜率1平移趋势期望页
+    assert drifts[0]["expect_p"] == 8  # noqa: PLR2004 -- 斜率 1 平移趋势期望页
     # 比例压缩面：zh_p = round(0.7 * base_p)，整体趋势合法 → 零报警
     zh2 = _mk_marks(
         [
@@ -337,8 +337,8 @@ def test_plain_residual_en_and_degenerate() -> None:
 
 def test_plain_residual_en_noise_floor() -> None:
     """少量合法英文行（作者块/术语/语料例句）不触发——2512.01407 实证
-    13 行标题页英文全是 frontmatter+algorithm+表头，阈值提到
-    ≥25行且≥2%（或绝对质量 ≥60 行）后不再报警。"""
+    13 行标题页英文全是 frontmatter+algorithm+ 表头，阈值提到
+    ≥25 行且≥2%（或绝对质量 ≥60 行）后不再报警。"""
     # en 行互异——同一行复现 ≥4 次会被 furniture 剔除计不到 13
     en_block = "\n".join(
         f"Author {i} Sac-Morane, Katerina Ioannidou, Some University" for i in range(13)
@@ -768,7 +768,7 @@ def test_raster_ink_blob_suppressed_on_image_pages() -> None:
 
 def test_raster_child_void_frac_maxrect() -> None:
     """_void_frac 直方图最大矩形：旧栈存索引、弹出高度不回传，
-    有墨页也虚报 1.0（2403.05234 实证）。(左界,高) 对栈修复验证。"""
+    有墨页也虚报 1.0（2403.05234 实证）。(左界，高) 对栈修复验证。"""
 
     class _FakeImg:
         def __init__(self, white: list[list[bool]]) -> None:
@@ -832,13 +832,13 @@ def test_qc_paper_contract_no_pdf(tmp_path: Path) -> None:
     assert "marks" in qc["metrics"]
 
 
-# ------------------------------------------------------------- 批次2豁免/降级
+# ------------------------------------------------------------- 批次 2 豁免/降级
 
 
 def test_logscan_output_routine_accept() -> None:
     """\\output 例程内溢出（页眉页脚家具 hbox + 超高 vbox）→
     layout:overfull_output INFO 记账不抬档（overfull 簇 0928
-    accept_as_is：0905.0081/2602.19447 headfoot、2212.00138/
+    accept_as_is: 0905.0081/2602.19447 headfoot, 2212.00138/
     2609.19695 超高 vbox 实证）；同格正文域溢出仍走
     layout:overfull（1306.0005 figure 段分层实证）。"""
     log = (
@@ -903,7 +903,7 @@ def test_raster_void_bitmap_page_exempt() -> None:
 
 def test_verso_struct_head_numbered_isbn() -> None:
     """编号章头/colophon 页首（_STRUCT_HEAD_RX 0928 扩展：1503.00131
-    的 ``2. 预备知识``/``ISBN …`` 五族）→ 空页豁免；普通页首不免。"""
+    的 ``2. 预备知识 ``/``ISBN …`` 五族）→ 空页豁免；普通页首不免。"""
     body = "正文内容足够长的一页文字。\n"  # 须 ≥EMPTY_PAGE_CHARS 免入空页计
     text = "\fISBN 978-88-95767-78-9\n版权信息页若干说明文字。\f" + body
     _f, m = _plain_scan(text)

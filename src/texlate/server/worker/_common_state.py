@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 
 def chunk_db_id(src_file: str, byte_start: int, byte_end: int) -> str:
-    """``sha256(src_file+byte_start+byte_end)[:24]``（§3.2 chunks.chunk_id）。"""
+    """``sha256(src_file+byte_start+byte_end)[:24]``(§3.2 chunks.chunk_id)."""
     h = hashlib.sha256(f"{src_file}:{byte_start}:{byte_end}".encode())
     return h.hexdigest()[:24]
 

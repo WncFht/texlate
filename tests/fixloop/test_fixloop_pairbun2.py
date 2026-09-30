@@ -1,8 +1,8 @@
 """pairbun2 钉 —— failmine7 pair-bundle 四捆落地 (2026-09-20)。
 
 B1 ``msym_tfm_rename`` (95-targeted.yaml order 19, 2 cells): missing_tfm
-|msymN CTAN 死名 → 源内引用改 msbmN (amsfonts 槽位兼容, tftopl 对账);
-臂先 install_tfm(20) 评估, 死名在装包面前完成改名。
+|msymN CTAN 死名 → 源内引用改 msbmN (amsfonts 槽位兼容，tftopl 对账);
+臂先 install_tfm(20) 评估，死名在装包面前完成改名。
 B2 ``and:`` cs_table 键 + cs_targeted_fix when.any 扩 cls_unsupported
 (95-targeted.yaml, 2 cells): revtex4-2 ``\\let\\and\\frontmatter@and``
 类载抢占 → 守卫形全跳过 → 无条件 ``\\def\\and{\\par}`` 覆盖。
@@ -41,7 +41,7 @@ def _sub(rule: Rule, text: str) -> str | None:
 
 
 def test_ruleset_loads_with_pairbun2_rules() -> None:
-    """三新臂在册且位次钉死 (共仓兄弟车道并发加规则, 只钉下界)。"""
+    """三新臂在册且位次钉死 (共仓兄弟车道并发加规则，只钉下界)。"""
     assert len(_RS.rules) >= 200  # noqa: PLR2004 - 落地时 197+3
     assert _MSYM.order == 19  # noqa: PLR2004 - install_tfm(20) 前
     assert _MATHBF.order == 25.95  # noqa: PLR2004 - caret(25.9) 后 font_fallback(26) 前
@@ -51,7 +51,7 @@ def test_ruleset_loads_with_pairbun2_rules() -> None:
 
 
 def test_msym_arm_gate() -> None:
-    """B1 门: missing_tfm + payload_required + payload 精确 msym<N>。"""
+    """B1 门：missing_tfm + payload_required + payload 精确 msym<N>。"""
     assert _MSYM.when == {"category": "missing_tfm", "payload_required": True}
     pat = _MSYM.condition["payload_pattern"]
     assert re.search(pat, "msym10")
@@ -61,7 +61,7 @@ def test_msym_arm_gate() -> None:
 
 
 def test_msym_rewrite() -> None:
-    """B1 改写: msym10→msbm10, cmsym/msym10x 不动。"""
+    """B1 改写：msym10→msbm10, cmsym/msym10x 不动。"""
     out = _sub(_MSYM, "\\font\\x=msym10 at 14pt \\font\\y=cmsym10")
     assert out == "\\font\\x=msbm10 at 14pt \\font\\y=cmsym10"
     assert _sub(_MSYM, "\\font\\z=msym10x") == "\\font\\z=msym10x"
@@ -81,7 +81,7 @@ def test_cs_table_and_entry_and_when_widened() -> None:
 
 
 def test_mathbf_arm_gate() -> None:
-    """B3 门: warn_missing_char (misschar 派发族) + 行首 ams/bm 装载。"""
+    """B3 门：warn_missing_char (misschar 派发族) + 行首 ams/bm 装载。"""
     cats = {w["category"] for w in _MATHBF.when["any"]}
     assert "warn_missing_char" in cats
     assert actions._is_misschar_rule(_MATHBF)  # noqa: SLF001
@@ -102,7 +102,7 @@ def test_mathbf_arm_gate() -> None:
 
 
 def test_mathbf_rewrite() -> None:
-    """B3 改写: 花括形/松散形并收, 多 token 参与前缀 cs 不动。"""
+    """B3 改写：花括形/松散形并收，多 token 参与前缀 cs 不动。"""
     cases = {
         "$\\mathbf{\\Lambda} x$": "$\\ensuremath{\\boldsymbol{\\Lambda}} x$",
         "{\\mathbf \\Lambda}": "{\\ensuremath{\\boldsymbol{\\Lambda}}}",
@@ -115,7 +115,7 @@ def test_mathbf_rewrite() -> None:
 
 
 def test_hanja_arm_gate() -> None:
-    """B4 门: warn_missing_char 族 + 行首 kotex/xetexko 装载。"""
+    """B4 门：warn_missing_char 族 + 行首 kotex/xetexko 装载。"""
     assert actions._is_misschar_rule(_HANJA)  # noqa: SLF001
     pat = _HANJA.condition["source_contains"]
     assert regex.search(pat, "\\usepackage{kotex}\n")
@@ -126,7 +126,7 @@ def test_hanja_arm_gate() -> None:
 
 
 def test_hanja_inject_idempotent() -> None:
-    """B4 注入: 活 \\begin{document} 前插入路由件; 注释锚不吃; 复火幂等。"""
+    """B4 注入：活 \\begin{document} 前插入路由件; 注释锚不吃; 复火幂等。"""
     src = (
         "\\documentclass{article}\n"
         "\\usepackage{kotex}\n"
@@ -144,7 +144,7 @@ def test_hanja_inject_idempotent() -> None:
 
 
 def test_hanja_masked_surface_skips_verbatim() -> None:
-    """B4 masked 面: verbatim 内 \\begin{document} 锚不可见不改写。"""
+    """B4 masked 面：verbatim 内 \\begin{document} 锚不可见不改写。"""
     src = (
         "\\documentclass{article}\n"
         "\\usepackage{kotex}\n"

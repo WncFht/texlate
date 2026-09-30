@@ -1,8 +1,8 @@
 """kernel._cli_status — status 动词叶 (kernel.cli 拆分叶).
 
-``bench status`` 的三条读径: --tail 直读 ledger 事件 (真源不过
+``bench status`` 的三条读径：--tail 直读 ledger 事件 (真源不过
 index)、--id 查 cell 状态 + vault 副本、--run 查单 run 格表;
-默认面列全 run + 活动标记。读侧件, 无写径。
+默认面列全 run + 活动标记。读侧件，无写径。
 
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

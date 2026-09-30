@@ -50,8 +50,8 @@ def test_rule_registered() -> None:
 
 
 def test_wrap_renewcommand_lsection() -> None:
-    """1206.0445 形: ``\\renewcommand*\\l@section[2]{...\\@secpenalty...}``
-    整域包裹, 域内 ``\\@`` 与 ``\\hb@xt@`` 一并罩住。"""
+    """1206.0445 形：``\\renewcommand*\\l@section[2]{...\\@secpenalty...}``
+    整域包裹，域内 ``\\@`` 与 ``\\hb@xt@`` 一并罩住。"""
     src = (
         "\\documentclass{article}\n"
         "\\renewcommand*\\l@section[2]{%\n"
@@ -65,13 +65,13 @@ def test_wrap_renewcommand_lsection() -> None:
     assert src[s : s + 14] == "\\renewcommand*"
     assert "\\hb@xt@1.4em" in src[s:e]
     out = src[:s] + _AT_LETTER_PRE + src[s:e] + _AT_LETTER_POST + src[e:]
-    # 复跑幂等: 包裹内站点被自注 \\catcode 64=11 事件标 at_letter → 不重裹
+    # 复跑幂等：包裹内站点被自注 \\catcode 64=11 事件标 at_letter → 不重裹
     assert _flagged(out) == []
 
 
 def test_wrap_newcommand_nested_def() -> None:
-    """0905.0664 形: 嵌套 ``\\renewcommand\\thefootnote{\\@fnsymbol\\c@footnote}``
-    躺在外层 def 体内 —— 体在读侧惰性, 外站一裹全罩。"""
+    """0905.0664 形：嵌套 ``\\renewcommand\\thefootnote{\\@fnsymbol\\c@footnote}``
+    躺在外层 def 体内 —— 体在读侧惰性，外站一裹全罩。"""
     src = (
         "\\newcommand\\makepapertitle{%\n"
         "  \\renewcommand\\thefootnote{\\@fnsymbol\\c@footnote}%\n"
@@ -104,7 +104,7 @@ def test_skip_catcode_region() -> None:
 
 
 def test_group_local_letter() -> None:
-    """bare 组内 ``\\makeatletter`` 事件组末回 —— 组内站不裹, 组外站裹。"""
+    """bare 组内 ``\\makeatletter`` 事件组末回 —— 组内站不裹，组外站裹。"""
     src = "{\\makeatletter \\renewcommand\\a@b{x}}\n\\def\\c@d{y}\n"
     sites = _flagged(src)
     assert len(sites) == 1
@@ -112,7 +112,7 @@ def test_group_local_letter() -> None:
 
 
 def test_def_family_param_body() -> None:
-    """``\\def`` 族: 参数文本 + 单组体收域。"""
+    """``\\def`` 族：参数文本 + 单组体收域。"""
     src = "\\def\\widebar#1{o\\@m#1p}\nx\n"
     sites = _flagged(src)
     assert len(sites) == 1
@@ -147,7 +147,7 @@ def test_csname_name_extent() -> None:
 
 
 def test_end_to_end_apply(tmp_path: Path) -> None:
-    """actions._apply 全链: 主文件 def 站落盘包裹。"""
+    """actions._apply 全链：主文件 def 站落盘包裹。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\renewcommand*\\l@section[2]{\\addpenalty\\@secpenalty#1#2}\n"

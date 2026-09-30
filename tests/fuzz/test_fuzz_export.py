@@ -305,7 +305,7 @@ def _xhtml(
 
 
 def zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
-    """``(成员名, 字节)`` 序列写 zip——``dict.items()`` 直喂, 重复名亦可表达。"""
+    """``(成员名，字节)`` 序列写 zip——``dict.items()`` 直喂，重复名亦可表达。"""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for name, blob in members:
@@ -531,7 +531,7 @@ def _bk_container(rng: random.Random, depth: int) -> str:
         ]
     )
     inner = "".join(_gen_block(rng, depth + 1) for _ in range(rng.randint(0, 3)))
-    if rng.random() < _P_MIXED:  # block+裸文本混排 → multi-run owner
+    if rng.random() < _P_MIXED:  # block+ 裸文本混排 → multi-run owner
         inner = rng.choice(_PROSE_POOL) + inner + rng.choice(_PROSE_POOL)
     return f"<{tag}{_gen_attrs(rng)}>{inner}</{tag}>"
 
@@ -1041,7 +1041,7 @@ def test_fuzz_reconcile_markers() -> None:  # noqa: C901 -- 对抗回复生成�
         reply = " ".join(parts)
         out = reconcile_markers(sent, reply, issued=issued)
         for tok in issued:
-            assert out.count(tok) == 1  # 签发 token 恰一次（重复剥+丢补尾）
+            assert out.count(tok) == 1  # 签发 token 恰一次（重复剥 + 丢补尾）
         for tok in sent_literal:
             assert out.count(tok) == reply.count(tok)  # 字面逐处保留
         for m in MARKER_RE.finditer(reply):

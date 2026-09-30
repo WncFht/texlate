@@ -221,7 +221,7 @@ def _resolve(
     *,
     force_tex: bool = False,
 ) -> tuple[str | None, str | None]:
-    """按基准序+扩展名补全解析。返回 (relpath|None, basis|None)。"""
+    """按基准序 + 扩展名补全解析。返回 (relpath|None, basis|None)。"""
     rel = _norm_arg(arg)
     if rel is None:
         return None, None

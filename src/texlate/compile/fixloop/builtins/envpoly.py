@@ -41,7 +41,7 @@ _ENV_USE_RE = re.compile(r"\\(?:begin|end)\s*\{\s*([A-Za-z@*]+)\s*\}")
 
 #: in-doc 环境定义证据 —— ``\newenvironment``/``\newtheorem``/xparse 族 +
 #: ``\def\e``/``\def\ende``/``\let\e`` 裸绑。命中即不扩 (可能是活定义;
-#: 死块证据最多迟一轮, 由 log-proven 路径接回)。
+#: 死块证据最多迟一轮，由 log-proven 路径接回)。
 _ENV_DEF_RE = re.compile(
     r"\\(?:new|renew)environment\*?\s*\{\s*([A-Za-z@*]+)\s*\}"
     r"|\\(?:newtheorem|declaretheorem)\*?\s*\{\s*([A-Za-z@*]+)\s*\}"
@@ -49,7 +49,7 @@ _ENV_DEF_RE = re.compile(
     r"|\\def\\(?:end)?([A-Za-z@*]+)\b|\\let\\(?:end)?([A-Za-z@*]+)\b"
 )
 
-#: 内核/近全类通用环境 —— 批扩 cosmetic 降噪表 (守卫行本就语义无操作,
+#: 内核/近全类通用环境 —— 批扩 cosmetic 降噪表 (守卫行本就语义无操作，
 #: 漏列只多一行守卫不坏事; 真缺时 log-proven 路径照样兜回)。amsmath
 #: 数学环境故意不收 —— 缺 amsmath 正是要 ``\[..\]`` 壳救的面。
 _KERNEL_ENVS: frozenset[str] = frozenset(
@@ -104,9 +104,9 @@ def _env_noop_line(env: str) -> str:
 
 #: env polyfill 对偶件表 —— env 名 → (源内使用证据 rx, 同补 stub 行)。
 #: 缺 proof env 的稿多伴 ``\QED`` 收尾标记 (amsthm 对偶件; 0707.1588
-#: IEEEtran 实证: proof noop 后 ``undefined_cs:QED`` 即浮面) —— polyfill
+#: IEEEtran 实证：proof noop 后 ``undefined_cs:QED`` 即浮面) —— polyfill
 #: proof 同轮补 ``\providecommand{\QED}`` 省一轮。stub 形 = amsthm
-#: ``\qedsymbol`` 纯原语开口盒, 不依赖 amssymb ``\square``。
+#: ``\qedsymbol`` 纯原语开口盒，不依赖 amssymb ``\square``。
 _ENV_COMPANIONS: dict[str, tuple[str, str]] = {
     "proof": (
         r"\\QED\b",
@@ -120,8 +120,8 @@ _ENV_COMPANIONS: dict[str, tuple[str, str]] = {
 
 #: renew 族环境再定义站点 —— ``\renewenvironment{X}`` 对未定义 env 报同一
 #: ``Environment X undefined`` 签 (0806.0904/0806.2953 ``\renewenvironment{proof}``
-#: 于 preamble :743 实证, pre-begindoc 注入 :1069 晚 325 行救不到);
-#: 须在站点行首前置守卫 noop 让 renew 的 ``\@ifundefined`` 闸通过, renew 随
+#: 于 preamble :743 实证，pre-begindoc 注入 :1069 晚 325 行救不到);
+#: 须在站点行首前置守卫 noop 让 renew 的 ``\@ifundefined`` 闸通过，renew 随
 #: 即以稿自带定义覆盖 noop —— 比批扩位多保住 renew 语义。xparse
 #: ``\RenewDocumentEnvironment`` 未定义时报 ``cmd Error`` 异签 (不产本类
 #: payload), 同名站点同面顺手覆盖。
@@ -170,7 +170,7 @@ def _prepend_env_renew_sites(
         if not sites:
             continue
         nt = t
-        # 降序插 —— 先动高偏移站点, nt[:pos] 对已处理插入免疫
+        # 降序插 —— 先动高偏移站点，nt[:pos] 对已处理插入免疫
         for name, pos in sorted(sites.items(), key=lambda kv: -kv[1]):
             ins = _env_noop_line(name)
             if ins in nt[:pos]:
@@ -192,7 +192,7 @@ def _serve_env_pkg_map(
     proven: set[str],
     pkg_map: dict[str, Any],
 ) -> tuple[set[str], list[str]]:
-    """env→pkg 臂: 表内 proven env 装真包/注 polyfill → (served, notes)。"""
+    """env→pkg 臂：表内 proven env 装真包/注 polyfill → (served, notes)。"""
     notes: list[str] = []
     served: set[str] = set()
     for e in sorted(proven & set(pkg_map)):
@@ -265,7 +265,7 @@ def undefined_env_polyfill(  # noqa: C901  # pkg_map/站点/对偶件/批扩多�
         if e in _ENV_COMPANIONS and re.search(_ENV_COMPANIONS[e][0], blob)
     }
     # renew 站点前置先行 —— preamble ``\renewenvironment{X}`` 的报错点在
-    # pre-begindoc 注入位之前, 批扩永远够不到 (0806.0904/0806.2953);
+    # pre-begindoc 注入位之前，批扩永远够不到 (0806.0904/0806.2953);
     # 站点消费点注入后 renew 以稿自带定义覆盖 noop, 语义优于批扩 noop。
     site_envs = _prepend_env_renew_sites(ctx, proven, companions)
     used = set(_ENV_USE_RE.findall(blob)) - deny

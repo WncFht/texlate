@@ -102,7 +102,7 @@ class TestNet:
         assert residual_en_net(src, zh) == []
 
     def test_tech_payload_brace_chain_no_hit(self) -> None:
-        # {rotate, QRcode}（+37） 族动作链 —— Tier-B 路径同样被豁免盖住
+        # {rotate, QRcode}（+37）族动作链 —— Tier-B 路径同样被豁免盖住
         zh = (
             "动作链为 {rotate, QRcode}（+37）、{move, playingcard, away}"
             "（+21）、{move, pillbottle, pad}（+22）、{place, shoe}（+26）。"

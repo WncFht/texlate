@@ -73,7 +73,7 @@ def _sample(ctx):
             # 只有 frame 命中的成员进核心池 (事后分层权重需要 cat_group)
             if fr is not None and cc.eligible(f):
                 pool.append(f)
-            # ---- booster 候选预筛 (不中选也可入池, extract 阶段只挑最终提名) ----
+            # ---- booster 候选预筛 (不中选也可入池，extract 阶段只挑最终提名) ----
             whys: dict[str, list[str]] = {}
             if f.get("docstyle"):
                 whys["B01"] = ["documentstyle"]

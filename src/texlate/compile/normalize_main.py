@@ -59,7 +59,7 @@ log = logging.getLogger("texlate.compile.normalize")
 
 # ---------------------------------------------------------------- 主编排
 #: 文档源后缀——``\pdfinfo``/``\pdfoutput``/输出设置等文档级手术只适用
-#: 文档源；``.def/.sty/.clo`` 支持件里同名原语是条件装载的驱动实现,
+#: 文档源；``.def/.sty/.clo`` 支持件里同名原语是条件装载的驱动实现，
 #: 删除即腐蚀 bundled 件 (1306.0294 hpdftex.def)。
 _DOC_SOURCE_SUFFIXES = frozenset({".tex", ".ltx"})
 

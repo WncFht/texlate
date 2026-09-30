@@ -86,8 +86,8 @@ MANIFESTS = ("manifest.jsonl",)
 #: raw_only 经 hydrate() 本地重解包零网络。
 _HYDRATABLE = frozenset({"hydrated", "pinned", "raw_only"})
 
-PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限(s)，docs/spec/compile.md
-XELATEX_TIMEOUT = PASS_TIMEOUT * 2  # 产品 compile timeout=总预算(2 pass)
+PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限 (s)，docs/spec/compile.md
+XELATEX_TIMEOUT = PASS_TIMEOUT * 2  # 产品 compile timeout=总预算 (2 pass)
 TECTONIC_TIMEOUT = PASS_TIMEOUT
 MAX_PASSES = 2
 

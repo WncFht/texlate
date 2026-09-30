@@ -89,7 +89,7 @@ _DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 
 
 def test_table_entries_present() -> None:
-    """八名全挂 usepackage+自足 polyfill —— 真包臂, 非吞参 noop。"""
+    """八名全挂 usepackage+ 自足 polyfill —— 真包臂，非吞参 noop。"""
     for cs in _TIKZ_CS:
         assert _CSTABLE.get(cs) == _TIKZ_SPEC, cs
 

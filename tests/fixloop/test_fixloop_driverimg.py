@@ -90,11 +90,11 @@ def test_report_of_surfaces_missing_image_fatal(tmp_path: Path) -> None:
     assert rep.n_bang == 1
     assert "Image inclusion failed" in (rep.first or "")
     cat, _pay = load_ruleset().taxonomy.classify(rep, timed_out=False)
-    assert cat == "other"  # 签名无专属类目 → other 兜底, 规则 when 面
+    assert cat == "other"  # 签名无专属类目 → other 兜底，规则 when 面
 
 
 def test_report_of_log_errors_win_over_fatal(tmp_path: Path) -> None:
-    """.log 有 '!' 错 → stdout_tail 不查 (missing_graphic 臂先行, fatal 残轮再见)。"""
+    """.log 有 '!' 错 → stdout_tail 不查 (missing_graphic 臂先行，fatal 残轮再见)。"""
     res = _res(
         tmp_path,
         "! Unable to load picture or PDF file 'a.png'.\nl.5 \\includegraphics{a.png}\n",
@@ -131,13 +131,13 @@ def test_driverimg_when_matches_other_and_driver_fatal(tmp_path: Path) -> None:
 
 
 def test_driverimg_cond_fires_on_err_head(tmp_path: Path) -> None:
-    """other 面: 归一 '!' fatal 行进 err_head → ctx_suggests 放行。"""
+    """other 面：归一 '!' fatal 行进 err_head → ctx_suggests 放行。"""
     ok, why = _cond(tmp_path)
     assert ok, why
 
 
 def test_driverimg_cond_fires_on_payload(tmp_path: Path) -> None:
-    """driver_fatal 面: err_head 空 + payload=原始 fatal 行 → payload_pattern 放行。"""
+    """driver_fatal 面：err_head 空 + payload=原始 fatal 行 → payload_pattern 放行。"""
     ok, why = _cond(tmp_path, err_head="", pay=_FATAL_PNG)
     assert ok, why
 
@@ -162,7 +162,7 @@ def test_err_head_png_drops_binary_placeholder(tmp_path: Path) -> None:
 
 
 def test_payload_eps_drops_text_placeholder(tmp_path: Path) -> None:
-    """driver_fatal 面: payload=原始 fatal 行 (err_head 空) → EPS 占位。"""
+    """driver_fatal 面：payload=原始 fatal 行 (err_head 空) → EPS 占位。"""
     ctx = _ctx(tmp_path, err_head="")
     ok, note = driver_missing_image_stub(
         ctx,
@@ -191,7 +191,7 @@ def test_main_in_subdir_bases_at_main_dir(tmp_path: Path) -> None:
 
 
 def test_second_fire_is_noop(tmp_path: Path) -> None:
-    """幂等: 占位已在盘 → resolved meanwhile decline, 内容不被覆写。"""
+    """幂等：占位已在盘 → resolved meanwhile decline, 内容不被覆写。"""
     ctx = _ctx(tmp_path)
     ok, _note = driver_missing_image_stub(ctx, _Eng(), None, {})
     assert ok
@@ -258,7 +258,7 @@ def test_payload_err_head_dedupes_same_name(tmp_path: Path) -> None:
 
 
 def test_sweep_arm_covers_second_missing(tmp_path: Path) -> None:
-    """多缺件格 (2501.01611 双缺面): err_head 只曝首件, 源枚举臂补
+    """多缺件格 (2501.01611 双缺面): err_head 只曝首件，源枚举臂补
     ``\\includegraphics`` 第二缺件 —— 单补即 ``{rid}:None`` 封派发会卡 stuck,
     sweep 一轮尽列双落占位。"""
     ctx = _ctx(

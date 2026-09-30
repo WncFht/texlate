@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 
 def _md_zip_members(data_root: Path, tid: str) -> dict[str, str]:
-    """tasks/{id}/md.zip → {member: text}。"""
+    """tasks/{id}/md.zip → {member: text}."""
     zpath = data_root / "tasks" / tid / "md.zip"
     assert zpath.is_file()
     out: dict[str, str] = {}

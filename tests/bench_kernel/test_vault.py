@@ -554,7 +554,7 @@ def test_concurrent_harvests_serialize(tmp_path: Path) -> None:
 
 @pytest.mark.usefixtures("broot")
 def test_rekey_moves_paid_kinds_into_dst_variant(tmp_path: Path) -> None:
-    """完好 '-' 副本 → v1 键域: 同字节新凭证, 源副本不动。"""
+    """完好 '-' 副本 → v1 键域：同字节新凭证，源副本不动。"""
     zh = _tree(tmp_path / "w/zh.real", {"main.md": b"# zh", "f/p.pdf": b"%PDF"})
     st = _tree(tmp_path / "w/state.real", {"ledger.json": b"{}"})
     vault.harvest(
@@ -605,7 +605,7 @@ def test_rekey_skips_free_kinds_and_existing_dst(tmp_path: Path) -> None:
     assert rows[0]["kinds"] == ["zh"]  # splice 不搬
     meta_v1 = json.loads(vault.meta_path(IDC, "real", "v1").read_text(encoding="utf-8"))
     assert set(meta_v1["files"]) == {"zh"}
-    # 二轮: dst zh 已押 → 整格跳过
+    # 二轮：dst zh 已押 → 整格跳过
     assert vault.rekey("-", "v1") == []
     # kinds 白名单可显式放宽 (仍跳过 dst 已有)
     rows = vault.rekey("-", "v1", kinds=["splice"])

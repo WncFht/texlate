@@ -28,9 +28,9 @@ __all__ = [
     "re",
 ]
 
-#: 扩展机位表 —— judge ``_MACHINE_SLOT_RXS`` 不盖的机位头族, 逐
-#: ``(kind, rx)``; rx 捕获组全为机位实参候选, 同一文件 src/zh 双侧
-#: 命中数必须相等否则整 kind 跳。不改 judge 表: verdict 面
+#: 扩展机位表 —— judge ``_MACHINE_SLOT_RXS`` 不盖的机位头族，逐
+#: ``(kind, rx)``; rx 捕获组全为机位实参候选，同一文件 src/zh 双侧
+#: 命中数必须相等否则整 kind 跳。不改 judge 表：verdict 面
 #: (``paired_slot_diff``/``machine_slot_audit``) 行为字节级不变。
 _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # \begin{env}[opt]{mand}×≤4 —— 未注册 env 尾随机参
@@ -38,7 +38,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # 尾随 mand 参全收。末臂 ``|_OPTC`` 收 opt-only 站
     # (\begin{tikzpicture}[kv] 类)。mand 参用 ``_ARGNL`` 跨行容忍 —
     # 参内字面换行合法 (2609.19556 ``{General\ninstructions}``: src
-    # 站捕不进 → envarg 26≠28 整跳, 7 站 zh 参全漏)。
+    # 站捕不进 → envarg 26≠28 整跳，7 站 zh 参全漏)。
     (
         "envarg",
         re.compile(
@@ -78,7 +78,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # \colorbox[model]?{color}{text} —— 参0 (text 是散文不碰)
+    # \colorbox[model]?{color}{text} —— 参 0 (text 是散文不碰)
     (
         "colorbox",
         re.compile(r"\\colorbox" + CMD_BOUNDARY + r"\s*(?:" + _OPT + r"\s*)?" + _ARG),
@@ -128,7 +128,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # 计数器名参0: \setcounter/\addtocounter/\refstepcounter/\stepcounter/
+    # 计数器名参 0: \setcounter/\addtocounter/\refstepcounter/\stepcounter/
     # \value/\arabic/\roman/\Roman/\alph/\Alph/\fnsymbol/\usecounter
     (
         "counter",
@@ -169,12 +169,12 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # \iftoggle{name}{t}{f} —— 参0 (分支是散文不碰)
+    # \iftoggle{name}{t}{f} —— 参 0 (分支是散文不碰)
     (
         "iftoggle",
         re.compile(r"\\iftoggle" + CMD_BOUNDARY + r"\s*" + _ARG),
     ),
-    # \setkeys/\kvsetkeys [opt]?{fam}{list} —— fam 参0 (list 太宽不收)
+    # \setkeys/\kvsetkeys [opt]?{fam}{list} —— fam 参 0 (list 太宽不收)
     (
         "setkeys",
         re.compile(
@@ -218,7 +218,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # mathpartir/bussproofs \inferrule/\infer [*] [kv-opt] —— opt 位整
     # kv 串即机位 (left/right/lab/vfraction 键表; 值可含 cs 调用
     # ``left = \rlabel{Rec}`` 与空格 → spec 同域可打印 ASCII, 严格
-    # ident 拒)。kv 行不盖: premise/conclusion mand 参多层花括号跨行
+    # ident 拒)。kv 行不盖：premise/conclusion mand 参多层花括号跨行
     # ``_ARG`` 吃不进致 opt 亦漏捕; 故 opt-only 行独立于 kv 表。
     # 1708.07366 ``\inferrule*[这是译文 = \rlabel{Rec}]`` 实证锚点。
     (
@@ -234,7 +234,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     # \usepackage/\RequirePackage*/\documentclass/\documentstyle/
-    # \LoadClass* [opt]?{name} —— opt+名两参 (还原实名供 static_precheck
+    # \LoadClass* [opt]?{name} —— opt+ 名两参 (还原实名供 static_precheck
     # 装包扫描收)
     (
         "pkg",
@@ -262,7 +262,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     # \newenvironment/\renewenvironment/\provideenvironment/\newtheorem/
     # \newcolumntype/\NewEnviron/\RenewEnviron/\DeclareFloatingEnvironment
-    # —— 声明名参0 (后随 [n]/{before}/{after}/{Text} 散文位不碰)
+    # —— 声明名参 0 (后随 [n]/{before}/{after}/{Text} 散文位不碰)
     (
         "envdecl",
         re.compile(
@@ -271,7 +271,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"DeclareFloatingEnvironment)" + CMD_BOUNDARY + r"\*?\s*" + _ARG
         ),
     ),
-    # \newglossaryentry/\newacronym/\lstdefinelanguage —— 键/名参0
+    # \newglossaryentry/\newacronym/\lstdefinelanguage —— 键/名参 0
     (
         "decl",
         re.compile(
@@ -283,9 +283,9 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # babel/polyglossia 语言名: \selectlanguage/\setdefaultlanguage/
+    # babel/polyglossia 语言名：\selectlanguage/\setdefaultlanguage/
     # \setmainlanguage/\setotherlanguage/\setotherlanguages/
-    # \foreignlanguage [opt]?{lang} —— foreignlanguage 参1 散文不碰
+    # \foreignlanguage [opt]?{lang} —— foreignlanguage 参 1 散文不碰
     (
         "lang",
         re.compile(
@@ -330,7 +330,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # 单参机名族: \pagenumbering/\pagestyle/\thispagestyle/\theoremstyle/
+    # 单参机名族：\pagenumbering/\pagestyle/\thispagestyle/\theoremstyle/
     # \mathversion/\citestyle + beamer \use*theme 族
     (
         "name",
@@ -345,7 +345,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # 文件路径单参族: \InputIfFileExists/\IfFileExists/\ProvidesFile/
+    # 文件路径单参族：\InputIfFileExists/\IfFileExists/\ProvidesFile/
     # \ProvidesPackage/\ProvidesClass/\ProvidesExplPackage/
     # \lstinputlisting/\verbatiminput/\VerbatimInput/\includeverbatim/
     # \includepdf/\includesvg/\includeonly/\includestandalone/
@@ -388,7 +388,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # \url/\href/\nolinkurl/\email/\doi/\orcidlink 参0 (href 参1 散文不碰)
+    # \url/\href/\nolinkurl/\email/\doi/\orcidlink 参 0 (href 参 1 散文不碰)
     (
         "url",
         re.compile(
@@ -405,7 +405,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     # 交叉引用扩展族 (judge ref 行只盖 label/ref/eqref/pageref/autoref):
     # \cref/\Cref/\crefrange/\cpageref/\vref/\vpageref/\nameref/\refeq/
-    # \subref/\itemref/\footref/\thmref —— 键参0
+    # \subref/\itemref/\footref/\thmref —— 键参 0
     (
         "refx",
         re.compile(
@@ -418,7 +418,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
-    # glossaries/acronym 引用族 —— 键参0 (\glssee 参1 也是键表但随行)
+    # glossaries/acronym 引用族 —— 键参 0 (\glssee 参 1 也是键表但随行)
     (
         "gls",
         re.compile(
@@ -451,24 +451,24 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\\newfloat" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARG + r"\s*" + _ARG
         ),
     ),
-    # ── 2026-09-19 arrayresid 车道: 列 spec 机位 ──
+    # ── 2026-09-19 arrayresid 车道：列 spec 机位 ──
     # envarg 同位收 spec 参但严格 ident 拒收真实 spec (|/空格/\@/</>/!/*
     # 全不在白名单; \textwidth 含反斜杠同理) —— 1502.01845 ``\betb``
-    # 实证外, env-arg 位 zh 化 spec 是本族结构性盲区。spec-env 的参位
-    # 即机位断言 (该位恒为机参, 内核拒 CJK → 参含 CJK 必为译污),
-    # ident 放宽到可打印 ASCII+空白 (``_IDENT_SPEC_RX``)。
+    # 实证外，env-arg 位 zh 化 spec 是本族结构性盲区。spec-env 的参位
+    # 即机位断言 (该位恒为机参，内核拒 CJK → 参含 CJK 必为译污),
+    # ident 放宽到可打印 ASCII+ 空白 (``_IDENT_SPEC_RX``)。
     # ``\begin{tabular}`` 系首参 spec; tabularx/tabulary/xltabular/
     # NiceTabularX 系 ``{dimen}{spec}`` 双参全机位 (dimen 被译同样炸)。
     # 2026-09-20 zhleakimpl: spec 参 ``_ARG``→``_ARGB`` —— ``>{...}``/
     # ``!{...}`` 嵌组与跨行 spec (2609.20179 xltabular 多行 ``>{...}
-    # p{0.13\textwidth}...X`` 实证) ``_ARG`` 结构上捕不进, 本族第二
-    # 盲区; env 表同步补: xtabular 回单参臂 (xtab.sty
-    # ``\@supertabular[#1]#2`` 实测单 mand 参, 原双参臂名单位置错)、
-    # tabu/longtabu (``to``/``spread`` 形天然不匹配, 裸 ``{spec}``
+    # p{0.13\textwidth}...X`` 实证) ``_ARG`` 结构上捕不进，本族第二
+    # 盲区; env 表同步补：xtabular 回单参臂 (xtab.sty
+    # ``\@supertabular[#1]#2`` 实测单 mand 参，原双参臂名单位置错)、
+    # tabu/longtabu (``to``/``spread`` 形天然不匹配，裸 ``{spec}``
     # 形同盖)、tabularray ``tblr/longtblr/talltblr/booktabs/
     # longtabs/talltabs`` (``O{} m`` 签名)、nicematrix ``NiceArray``
     # 系/``NiceTabular`` (``O{} m``; ``NiceMatrix`` 系签名 ``!O{}``
-    # 无显式 spec 参位, ``{...}`` 可能为首格散文 → 不收, 错位
+    # 无显式 spec 参位，``{...}`` 可能为首格散文 → 不收，错位
     # revert 比不复原更糟)。
     (
         "colspec",
@@ -506,7 +506,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     # \multicolumn{n}{spec}{text} —— n+spec 双机位 (text 散文不碰);
-    # spec 位 ``>{...}``/``!{...}`` 嵌组同盲区, ``_ARGB`` 收。
+    # spec 位 ``>{...}``/``!{...}`` 嵌组同盲区，``_ARGB`` 收。
     (
         "colspec_mc",
         re.compile(r"\\multicolumn\*?" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARGB),
@@ -525,13 +525,13 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     # ── 2026-09-20 primgap: 原语 cs 与 ``{``-组之间 gap 机位 ──
     # 捕获面与全表其他 kind 正交 —— 既有行捕获组全在 ``{}``/``[]``/
-    # ``\csname`` 体内, 此 kind 收 ``\vadjust 这是译文{\vskip 1pt}``
+    # ``\csname`` 体内，此 kind 收 ``\vadjust 这是译文{\vskip 1pt}``
     # (2609.19815) / ``\leaders\hbox 这是译文{...}`` (2609.20633 ×12)
-    # 形: 译面把原语 keyword/dimen 尾巴 (``pre``/``to .55em``/
+    # 形：译面把原语 keyword/dimen 尾巴 (``pre``/``to .55em``/
     # ``spread 2pt``/``16``/``12``) 落上 chunk → 写在 cs 与 ``{``
     # 之间 (slotleak 车道裁决)。域 = 必需下接 ``{`` 的
     # 原语族; gap 域 spec ident (可打印 ASCII, 含空格/反斜杠)。
-    # ``\leaders\hbox to .55em{`` 复合站 finditer 不重叠 → 单命中,
+    # ``\leaders\hbox to .55em{`` 复合站 finditer 不重叠 → 单命中，
     # gap 值即 ``\hbox to .55em`` 整串。空 gap (``\hbox{``) 双侧
     # 同形无害; zh 侧宏展开倍增调用站致计数分歧 → unique-src 广播
     # (``_BROADCAST_KINDS``)。
@@ -548,13 +548,13 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     # ── 2026-09-20 slotfix: tcb 族 kv 选项组机位 ──
     # ``\begin{tcblisting}{enhanced,\n breakable,\n listing options={...}}``
-    # 形 (2609.20423 实证: 跨行+嵌套 ``{}`` 选项组整组 zh 化 →
-    # ``/tcb/这是译文`` pgfkeys 错) —— ``_ARG`` 吃不进换行与嵌组,
+    # 形 (2609.20423 实证：跨行 + 嵌套 ``{}`` 选项组整组 zh 化 →
+    # ``/tcb/这是译文`` pgfkeys 错) —— ``_ARG`` 吃不进换行与嵌组，
     # 严格/宽松 ident 均拒带空白 kv → 独立 kind: ``_ARGB``/``_OPTB``
-    # 平衡组捕获 (≤2/≤1 层嵌套, 空行截断) + kvnl ident (可打印
+    # 平衡组捕获 (≤2/≤1 层嵌套，空行截断) + kvnl ident (可打印
     # ASCII+``\t\n\r``, 且须含 ``=``/``,``/``#`` kv 形 —— 防
     # ``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 误收)。
-    # ``{}``/``[]`` 双头形同盖 (tcblisting ``{opts}`` 必填形, tcolorbox
+    # ``{}``/``[]`` 双头形同盖 (tcblisting ``{opts}`` 必填形，tcolorbox
     # ``[opts]`` 常形); envarg 对单行平参同位重扫 → 同位改写去重无害。
     (
         "tcbopt",
@@ -572,7 +572,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # ``\newtcblisting``/``\newtcolorbox``/``\newtcbox`` (new/renew/
     # provide + xparse ``\NewTCBListing``/``\NewTCBox``/``\NewTColorBox``
     # 系) def 尾选项组 —— ``{name}[n]{opts}``/``{name}{spec}{opts}``
-    # 的末组即 kv 机位 (``#n`` 形参位同域, 2609.19556
+    # 的末组即 kv 机位 (``#n`` 形参位同域，2609.19556
     # ``\newtcblisting{promptbox}[2]{...#1...#2}`` 实证锚点); 名参与
     # 中置 ``[n]``/``[default]``/``{spec}`` 组只吃不捕。
     (
@@ -591,12 +591,12 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     # ── 2026-09-20 zhleakimpl: pgfplots 数据表机位 ──
-    # ``\pgfplotstableread{内联数值表}\cs`` 整参 zh 化 (2609.19828 实证:
+    # ``\pgfplotstableread{内联数值表}\cs`` 整参 zh 化 (2609.19828 实证：
     # 头行 ``gpus cells dofs ...`` ×9 + ``7.045e-03`` 的 ``e`` →
     # ``这是译文``, 下游 pgfplots "too many columns" → 100-error
     # abort)。数据参位恒为机位 (内联表/csname/文件名/kv 皆机器引用 →
     # 含 CJK 必译污): ``_ARGB`` 平衡组收跨行数据 + spec 域 ident —
-    # 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收, 故不加 kv 门控
+    # 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收，故不加 kv 门控
     # (勿并入 ``_IDENT_KVNL_KINDS``)。``[]`` 头 (``[col sep=...]``)
     # 同机位 ``_OPTB`` 捕。
     (
@@ -616,7 +616,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     # ``\addplot[opts] table[opts]{data}`` 系 —— 数据源 keyword
     # (table/file/coordinates/expression/function/gnuplot/shell/
-    # graphics) 可缺省: pgfplots 语法上 ``\addplot`` 后 ``{...}``
+    # graphics) 可缺省：pgfplots 语法上 ``\addplot`` 后 ``{...}``
     # 只能是数据/表达式 plot spec (非散文位), 裸 ``{expr}`` 同盖
     # (2609.19828 roofline ``\addplot[opt]{3.6*x}`` 实证); keyword
     # 门控仍防 ``\addplot[opt] 散文{...}`` 误收。``\addplot3``/

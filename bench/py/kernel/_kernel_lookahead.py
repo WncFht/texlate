@@ -1,12 +1,12 @@
-"""kernel._kernel_lookahead — lake 预取双机制叶 (kernel.kernel 拆分叶, §3.10.3).
+"""kernel._kernel_lookahead — lake 预取双机制叶 (kernel.kernel 拆分叶，§3.10.3).
 
 ``_Lookahead`` 守护线程沿 plan 序走 distinct idc, 经 spec.fetch_fn 逐
 格 hydrate, 窗口上界 ``LOOKAHEAD_CELLS`` 格或 ``LOOKAHEAD_BYTES`` 字
-节; 启动空窗的 ≤32 格即时 burst 即 plan-time 批量预热, 持续运行即
+节; 启动空窗的 ≤32 格即时 burst 即 plan-time 批量预热，持续运行即
 run-internal lookahead——两个具名机制是一条线程。
 
-monkeypatch 锚点: 窗口常量 ``LOOKAHEAD_CELLS``/``LOOKAHEAD_BYTES`` 是
-本叶模块全局——测试 patch 须指 ``kernel._kernel_lookahead`` 本叶,
+monkeypatch 锚点：窗口常量 ``LOOKAHEAD_CELLS``/``LOOKAHEAD_BYTES`` 是
+本叶模块全局——测试 patch 须指 ``kernel._kernel_lookahead`` 本叶，
 setattr 到 ``kernel.kernel`` 门面无效 (test_kernel 实证)。
 门面回引名单见 ``kernel.kernel._LEAF_EXPORTS``。
 """

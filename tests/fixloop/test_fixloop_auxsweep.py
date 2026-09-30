@@ -26,7 +26,7 @@ def test_aux_sweep_entry_poison(tmp_path: Path) -> None:
 
 
 def test_aux_sweep_midloop(tmp_path: Path) -> None:
-    """round1 崩留截断 aux → round2 编译前清, 不毒化后续轮。"""
+    """round1 崩留截断 aux → round2 编译前清，不毒化后续轮。"""
     proj = make_proj(tmp_path)
     eng = MockEngine(
         [
@@ -72,7 +72,7 @@ def test_aux_sweep_toc_family(tmp_path: Path) -> None:
 
 
 def test_aux_sweep_final_round_leftover(tmp_path: Path) -> None:
-    """末轮被杀留截断 aux → return 前清场, 格后 post 复判不吃毒。"""
+    """末轮被杀留截断 aux → return 前清场，格后 post 复判不吃毒。"""
     proj = make_proj(tmp_path)
     eng = MockEngine([{"log": "partial\n", "timed_out": True, "aux": "\\citation{"}])
     cell = fixloop(proj, eng)

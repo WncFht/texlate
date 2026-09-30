@@ -39,18 +39,18 @@ Known simplifications (flagged, not hidden):
 - records rows with NULL status map to 'fault' (conservative terminal);
   case-type rows default to 'ok' (the row's existence IS the record).
 
-C5 拆分: 实现体按源域拆进同包私有叶 —— ``_import_core`` (共享机件:
+C5 拆分：实现体按源域拆进同包私有叶 —— ``_import_core`` (共享机件：
 密钥面/脱敏/隔离/闸/run 注册/行规整/事件转换/落账)、
 ``_import_records`` (bench.db + worktree jsonl 源)、
 ``_import_zhstore`` (zh-store manifest + Phase 2 vault 播种)、
 ``_import_lake`` (lake manifest 注册 + corpus 吸收); 本文件是 PEP 562
 惰性门面 (同 ``fixloop/builtins/__init__`` 形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``importer.X`` 公共面与 ``from ... import X`` 测试面不变。
-monkeypatch 锚点注意: 测试若做 setattr patch 须指到叶子模块
-(惰性解析下 ``importer._x`` 可读, 但 setattr 只遮蔽门面不改叶子)。
-``import_all`` 是各源组合根而非源实现, 留驻本门面 (调用点已到运行期
-才惰性拉叶, 同 builtins 门面 ``graphics_kv_strip_obsolete`` 先例)。
+monkeypatch 锚点注意：测试若做 setattr patch 须指到叶子模块
+(惰性解析下 ``importer._x`` 可读，但 setattr 只遮蔽门面不改叶子)。
+``import_all`` 是各源组合根而非源实现，留驻本门面 (调用点已到运行期
+才惰性拉叶，同 builtins 门面 ``graphics_kv_strip_obsolete`` 先例)。
 """
 
 from __future__ import annotations
@@ -140,15 +140,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -161,7 +161,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

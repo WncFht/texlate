@@ -7,9 +7,9 @@ w / w73 / wenc / dollar / mask）。
 形态要点（调研底稿裁决）:
 
 - **import 即测量**——``specs._fixture_matrix`` 在 spec load 时（主线程）
-  完成全部 9 fixture 的 parse+双重建（SIGALRM 护栏只在主线程合法，
+  完成全部 9 fixture 的 parse+ 双重建（SIGALRM 护栏只在主线程合法，
   thread-executor worker 内 ``signal.signal`` 必炸）。stage fn 只做
-  断言分派+聚合+emit，零 signal 调用。代价：任何 spec load（含
+  断言分派 + 聚合+emit，零 signal 调用。代价：任何 spec load（含
   ``bench plan``/``spec list``）都跑产品解析器——ms 级，fail-loud 可接受。
 - **spec.eval=True 硬要求**——'tricky.tex' 类 id 过不了 canon 闸
   （invalid:shape），非 eval 会整批 drop 成空 plan；eval 同时把终态行
@@ -86,7 +86,7 @@ def _fixture_sha(name: str, path: Path) -> str:
     """item fp_input：fixture 顶层子树字节 sha（dir fixture 整树排序哈希）。
 
     文件 fixture 哈希自身字节；目录 fixture（tricky-multi/、tricky-w73/）
-    哈希 ``FIXTURES/<top>/`` 下全部成员（rel 路径+字节，序确定）。
+    哈希 ``FIXTURES/<top>/`` 下全部成员（rel 路径 + 字节，序确定）。
     """
     top = FIXTURES / name.split("/", 1)[0]
     h = hashlib.sha256()
@@ -125,7 +125,7 @@ def _select(item: dict, rp: dict) -> bool:
 
 
 def _fx_assert(ctx) -> dict:
-    """断言分派+聚合（测量包已在 spec load 时主线程完成，此处零 signal）。"""
+    """断言分派 + 聚合（测量包已在 spec load 时主线程完成，此处零 signal）。"""
     name = ctx.id
     p = fm._PARSED[name]
 

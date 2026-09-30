@@ -218,7 +218,7 @@ class TestFinalizeLedger:
         assert led["escaped_ids"] == ["0:2"]
 
     def test_b_partial_corrupt_is_escaped_not_caught(self) -> None:
-        """交付谓词钉：partial+译文进 splice（``pipecore.delivered``——
+        """交付谓词钉：partial+ 译文进 splice（``pipecore.delivered``——
         _translators 经 ``_delivered`` 别名消费 pipecore.py:132 单源），
         残留破坏必须记 escaped——严卡 ok 会把脏 partial 吞成 caught 绕过门槛。"""
         tr = self._b_tr_with_event()
@@ -270,7 +270,7 @@ class TestEndToEnd:
 
     def test_pipeline_l0_catches_sabotage(self) -> None:
         """真 L0 校验器下破坏块三振回退 → caught 不 escaped（产品链自证）。"""
-        from texlate.validate.l0 import (  # noqa: PLC0415 -- 延迟到用点: 重链
+        from texlate.validate.l0 import (  # noqa: PLC0415 -- 延迟到用点：重链
             validate_pair,
         )
 

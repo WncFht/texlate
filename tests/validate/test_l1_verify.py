@@ -131,7 +131,7 @@ def test_w37_w68_route_rule_mechanisms() -> None:
 
 
 def test_w58_arara_shell_on(tmp_path: Path) -> None:
-    """``% arara: pdflatex: { shell: on }`` → engine_flags + advisory。"""
+    """``% arara: pdflatex: { shell: on }`` → engine_flags + advisory."""
     ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "% arara: pdflatex: { shell: on }\n\\documentclass{a}\n"},

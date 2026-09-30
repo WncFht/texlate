@@ -1,16 +1,16 @@
 """kernel._import_lake — lake 域导入 (kernel.importer 拆分叶).
 
-lake 面两条 Phase 3 (§3.10) 驱动:
+lake 面两条 Phase 3 (§3.10) 驱动：
 
 - ``register_lake_manifests`` — corpus manifest 行 → lake catalog 播种
   (全行死路 → ``failed``/``regen_cost='network'``, 否则 ``skeleton``);
   catalog 行 + lake_cell 事件经 ``_BatchSink`` 一次 ``set_bulk`` 落账;
 - ``absorb_corpus`` — 旧 corpus 字节树 CAS 化进 ``lake/corpus/{source}/``,
-  ``lake/tmp/rebuild/`` 整树构建 + first-wins rename 发布, catalog
+  ``lake/tmp/rebuild/`` 整树构建 + first-wins rename 发布，catalog
   ``hydrated``/``raw_only`` 终判。
 
 共享 ``_BatchSink`` (批量 sink 适配——ledger 锁内不逐事件 fsync) 与
-``_manifest_files`` 展开件, 故同城一叶。
+``_manifest_files`` 展开件，故同城一叶。
 """
 
 from __future__ import annotations

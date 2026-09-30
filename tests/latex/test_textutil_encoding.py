@@ -186,7 +186,7 @@ def test_is_cjk_cp_boundaries() -> None:
 
 def test_char_class_boundaries() -> None:
     """``_CLASS_RANGES`` 全边界逐点钉名——含相邻区间接界与双覆盖点
-    （0x3007 同时在 cjk 类区与 ``CJK_RANGES``；0x3400 由扩A 归 cjk）。"""
+    （0x3007 同时在 cjk 类区与 ``CJK_RANGES``；0x3400 由扩 A 归 cjk）。"""
     cases = {
         # latin_ext
         0x9F: "other",

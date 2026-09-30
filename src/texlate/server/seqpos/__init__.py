@@ -13,10 +13,10 @@ pypdf ``visitor_operand_before`` 直读精确点锚；en.pdf（base 编译链无
 
 god-split: 实现体按域拆进 ``seqpos/`` 子包 4 叶 (facade=__init__), 本文
 件是 PEP 562 惰性门面 (同 ``fixloop/builtins/__init__`` 形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``seqpos.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
-monkeypatch 锚点注意: patch 叶子不 patch 门面 (docs/dev/seams.md §1)
-——``facade.name`` 读到的恒是叶子对象, 但 ``setattr(facade, ...)`` 只
+monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
+——``facade.name`` 读到的恒是叶子对象，但 ``setattr(facade, ...)`` 只
 遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 (``texlate.server.seqpos.<叶>``), 不经本门面。
 """
@@ -199,7 +199,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "_ASC",
@@ -295,15 +295,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -316,7 +316,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

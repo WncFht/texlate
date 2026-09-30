@@ -52,7 +52,7 @@ from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _d
     demote_wrapfloats,
     inject_float_sizing,
 )
-from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
+from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共 + 私名钉点面守恒
     _MAIN_TEX_SUFFIXES,
     _resolve_input,
     _walk_inputs,
@@ -256,7 +256,7 @@ CJK_MATH_FALLBACK = r"""
 #: 段落级溢出缓解：CJK 散文里夹长 inline math/不可断串（hash、URL）时,
 #: 前两遍断行失败 → emergencystretch 给第三遍虚拟伸缩量换断点。只救本来
 #: 就要炸的段，不动能排好的段（实证 16 重灾篇 overfull −24%）。
-#: \AtBeginDocument 包裹——类若在 begin-document 钩子里自设此值, 我们后到赢。
+#: \AtBeginDocument 包裹——类若在 begin-document 钩子里自设此值，我们后到赢。
 OVERFLOW_MITIGATION = r"""
 % texlate: emergencystretch for unbreakable zh+math paragraphs
 \AtBeginDocument{\emergencystretch=1.5em\relax}%
@@ -291,16 +291,16 @@ TIE_ACCENT_FIX = r"""
 """
 
 #: lmroman 8-bit 覆盖缺口 (A6, ~49 格): 西里尔/希腊/拉丁扩展字符落进
-#: ec-lmr/aer10/futr8t 族 8-bit TFM 文本字体 → 整族丢字, font_fallback
+#: ec-lmr/aer10/futr8t 族 8-bit TFM 文本字体 → 整族丢字，font_fallback
 #: 逐字 ``\newunicodechar`` 只盖 in-band。本块给这些码位单开
 #: ``\XeTeXintercharclass`` → CMU Serif (cm-unicode otf, 全谱覆盖),
 #: ``\XeTeXinterchartoks`` 进出边沿换族。全带并入同一 class——带内相邻
-#: 字符不触发过渡, 字体稳持; 不碰 CJK 码位 (xeCJK 的 class 分配不受影响,
+#: 字符不触发过渡，字体稳持; 不碰 CJK 码位 (xeCJK 的 class 分配不受影响，
 #: 且本块不接 ucharclasses——它给 CJKUnified 也派 class, 会盖掉 xeCJK)。
-#: 0..31 类对全接线: xeCJK 类 → CMU 类相邻 (人名汉字混排) 也要换族。
+#: 0..31 类对全接线：xeCJK 类 → CMU 类相邻 (人名汉字混排) 也要换族。
 #: ``\TeXlate@clsmap`` 的 ``"``-hex 与 CJK_MATH_FALLBACK 同机理——缝位在
 #: ``\documentclass`` 后（正常 ``"``=12），类文件若自身投毒 ``"`` 仍中招；
-#: 同款守护: ``\TeXlate@dqcat`` 存值 → ``\catcode`\"=12`` → 尾端还原。
+#: 同款守护：``\TeXlate@dqcat`` 存值 → ``\catcode`\"=12`` → 尾端还原。
 TEXT_8BIT_FALLBACK = r"""
 % texlate: CMU Serif fallback for 8-bit TFM coverage gaps (xetex only)
 \ifdefined\XeTeXversion
@@ -423,7 +423,7 @@ def _sentinel_wrap(block: str, sentinel: str, *, what: str) -> str:
     )
 
 
-def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平铺
+def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派 + 幂等校验平铺
     tex: str,
     *,
     mode: str = "ctex",

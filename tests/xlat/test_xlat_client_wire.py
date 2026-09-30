@@ -441,7 +441,7 @@ class TestResponsesDialect:
             asyncio.run(c.chat("m1", _MSGS))
 
     def test_stream_events(self) -> None:
-        """SSE：output_text.delta→content、reasoning_summary→reasoning、completed→done。"""
+        """SSE: output_text.delta→content, reasoning_summary→reasoning, completed→done."""
         sse = (
             b'data: {"type":"response.output_text.delta","delta":"x"}\n\n'
             b'data: {"type":"response.reasoning_summary_text.delta",'

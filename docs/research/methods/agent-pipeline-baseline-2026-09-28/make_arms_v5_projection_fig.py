@@ -3,13 +3,13 @@
 语义台账：
 - 柱 = 一篇论文一臂的「新输入 token」(gateway logs input_tokens)。
   agent/v4 = 实测；v5̂ = 推算 = 同 user 源文 + 同 miss 调用数 × S_v5
-  （S_v5 = 非ph头部 + manifest tok，manifest 由真函数 collect_doc_placeholders
+  （S_v5 = 非 ph 头部 + manifest tok，manifest 由真函数 collect_doc_placeholders
   + render_placeholder_manifest 在任务 chunks 上算得；miss 谱按 v4 观测照搬）。
 - panel B 柱 = 每篇 system prompt 常数规模：v4 取 cr_max（19330/20610 无命中
-  不可观测，用 ph表+~1.5k 头估，x 轴打 *）；v5̂ 同上。
+  不可观测，用 ph 表+~1.5k 头估，x 轴打 *）；v5̂ 同上。
 - 色相：agent=vorange、v4=vcoral、v5=vteal；v5 一律 // hatch 标「推算」。
 
-本件是 make_arms_figs.py 图3 V5_PROJ 常数的推导源；产物
+本件是 make_arms_figs.py 图 3 V5_PROJ 常数的推导源；产物
 arms-v5-projection.png 不在已提交图组（推导过程稿，未随 README 引用）。
 数据全部内联——agent/v4 实测值与 miss 谱见本目录 README §2/§4。
 
@@ -87,13 +87,13 @@ HEAD_EST = [
     818,
     600,
     600,
-]  # 非ph头部(未观测两篇给 1.5k)
+]  # 非 ph 头部 (未观测两篇给 1.5k)
 
 MANIFEST_TOK = [c * 0.5 for c in MANIFEST_CHARS]
 S_V5 = [h + m for h, m in zip(HEAD_EST, MANIFEST_TOK)]
 V5_IN = [u + n * s for u, n, s in zip(USER, N_MISS, S_V5)]
 
-# v4 system 常数（观测不到的两篇：ph表 + ~1.5k 头估）
+# v4 system 常数（观测不到的两篇：ph 表 + ~1.5k 头估）
 S_V4 = [c if c > 0 else d * 14 + 1500 for c, d in zip(CR_MAX, DOC_PH)]
 S_V4[0] = DOC_PH[0] * 14 + 1500  # 19330 仅 272 前言命中，非完整 S
 UNOBSERVED = {0, 4}  # x 轴打 * 的篇

@@ -128,7 +128,7 @@ def share_pack_publish(
     scratch 目录随验随清）。
 
     纯 FS 面——不触 store/bus，可在 ``asyncio.to_thread`` 工作线程跑。
-    返回 ``(包路径, 校验后 manifest)``。
+    返回 ``(包路径，校验后 manifest)``。
     """
     bundle = pack_share(work_dir, manifest, out_dir=out_dir)
     # mkdtemp 唯一 scratch——并发同任务双发不会互删对方的校验现场

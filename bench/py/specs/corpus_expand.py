@@ -3,7 +3,7 @@
 build_corpus_expand.py 的 spec 重写（trizone-ledger v2，无旧兼容）：
 core manifest 的 stratum_cell 分布 × 故障率偏置 → largest_remainder 配额 →
 新 item 扫描（成员级断点）→ 全局选样 → lake.hydrate 物化 →
-bench/corpus/manifest_expand.jsonl（tracked append）。
+bench/corpus/manifest_expand.jsonl (tracked append).
 
     bench run bench/py/specs/corpus_expand.py
     bench run corpus_expand --param rates_source=e2e_real/2026-09-22/<slug>
@@ -141,7 +141,7 @@ def _plan(ctx):
                 fr_band.get(band, fr_all) / fr_all + fr_cat.get(cat, fr_all) / fr_all
             )
         else:
-            rel = 1.0  # 无 bad 样本 → 无故障信号可加偏, 配额退化纯比例
+            rel = 1.0  # 无 bad 样本 → 无故障信号可加偏，配额退化纯比例
         weights[cell] = n * (1 + bias * (rel - 1))
     target = int(ctx.params["target"])
     quotas = cc.largest_remainder(weights, target)
@@ -244,7 +244,7 @@ def _scan(ctx):
 
 
 def _select_members(ctx, d: dict) -> list[dict] | None:
-    """全局选样: cell 配额 → old/new 池分摊 → 选单 [{id,member,item,…}]."""
+    """全局选样：cell 配额 → old/new 池分摊 → 选单 [{id,member,item,…}]."""
     plan = cc.load_plan(d["plan"])
     if plan is None:
         return None
@@ -260,7 +260,7 @@ def _select_members(ctx, d: dict) -> list[dict] | None:
     for fp in old_files + new_files:
         for f in cc.iter_jsonl(fp):
             if cc.eligible(f) and cc.canon_id(f["id"]) not in excl:
-                cand[cc.canon_id(f["id"])] = f  # id 去重: 同 id 后记录覆盖
+                cand[cc.canon_id(f["id"])] = f  # id 去重：同 id 后记录覆盖
     try:
         lookup = cc.ensure_frame_lookup(d["frame"], d["build_root"])
     except Exception as e:

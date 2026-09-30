@@ -1,7 +1,7 @@
 """kernel._cli_doctor — doctor/fsck 体检动词叶 (kernel.cli 拆分叶).
 
-``bench doctor`` (kernel 健康检查, --fix 修可修项, --switch-ok 换机闸)
-与 ``bench fsck`` (更深层一致性检查, --defer-edges 挂边检查可跳)。
+``bench doctor`` (kernel 健康检查，--fix 修可修项，--switch-ok 换机闸)
+与 ``bench fsck`` (更深层一致性检查，--defer-edges 挂边检查可跳)。
 两动词都走 ``_lazy("doctor")`` 惰性拉 kernel.doctor——拉不到报
 "unavailable" (exit 1) 而非崩溃。
 

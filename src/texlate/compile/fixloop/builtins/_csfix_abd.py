@@ -33,7 +33,7 @@ __all__ = [
 
 #: file:line 形 already_def 的归因行 —— ``path/<file>.<ext>:N:`` + Command 签。
 #: group(1)=基名茎 group(2)=扩展 group(3)=行号 group(4)=撞名。判 ``\AtBeginDocument``
-#: 钩内 deferred 定义者用: 钩体在 ``\begin{document}`` 执行期才跑, 其内定义撞名
+#: 钩内 deferred 定义者用：钩体在 ``\begin{document}`` 执行期才跑，其内定义撞名
 #: 的 file:line 归因恒落在 ``\begin{document}`` 所在行 (1706.00033 russianb.ldf
 #: ``\DeclareMathOperator{\sh}`` vs 用户 ``\def\sh`` 实证)。
 _ABD_ERR_FILE_RE = re.compile(

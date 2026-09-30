@@ -1,7 +1,7 @@
 """misscharA1 钉 —— failmine8 census A1 桶 char_table 字面补表 (2026-09-20)。
 
 14 cps / 12 cells 分四类经 ``missing_char_fix`` 真臂路径 (落地 ruleset
-params) 验替换:
+params) 验替换：
 
 - 双线大写+∂ 落 lmmono8/9 → ``\\ensuremath{\\mathbb{X}}``/``\\partial``
   (2608.09867/2609.19352/2609.20805; ``\\mathbb`` 依赖 amssymb 同 dblz 先例);
@@ -140,7 +140,7 @@ def test_armenian_and_boxdraw(tmp_path: Path) -> None:
 
 
 def test_boxdraw_verbatim_masked_untouched(tmp_path: Path) -> None:
-    """遮盖面守卫: ─│ 在 verbatim 体内不被替换 (2408.07394 Verbatim 签名)。"""
+    """遮盖面守卫：─│ 在 verbatim 体内不被替换 (2408.07394 Verbatim 签名)。"""
     main = (
         "\\documentclass{article}\n\\begin{document}\n"
         "\\begin{verbatim}\n───│││\n\\end{verbatim}\n"
@@ -153,6 +153,6 @@ def test_boxdraw_verbatim_masked_untouched(tmp_path: Path) -> None:
         "[lmroman7-regular]:mapping=tex-text;!\n"
     )
     ok, _note = _fix(tmp_path, main, log)
-    assert ok is False  # 命中全在遮盖域 → applied=False 落穿, 不谎报
+    assert ok is False  # 命中全在遮盖域 → applied=False 落穿，不谎报
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "───│││" in t  # verbatim 体原样

@@ -15,7 +15,7 @@ Task board convention: agents report progress via
     python3 bench/py/ops/task_ping.py <name> --status running --done N --total M
 (board lives at $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d)
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_status_panel_env`` (REPO/账根
+拆分：实现体按子域下沉同包私有叶 —— ``_status_panel_env`` (REPO/账根
 解析/kernel 桥/常量面)、``_status_panel_util`` (ttl 缓存/run_cmd/pid/
 时长/转义小件)、``_status_panel_frag`` (chip/hbar/stacked/badge/table/
 minibar html 片段)、``_status_panel_collect`` (scorecard/rate/n200/gw/
@@ -23,10 +23,10 @@ milestones/tasks/kernel index 采集)、``_status_panel_sections``
 (sec_* 各节渲染 + SECTIONS 目录)、``_status_panel_page`` (PAGE 模板)、
 ``_status_panel_serve`` (render/Handler/pidfile 生命周期)。本文件是
 PEP 562 惰性门面 (同 ``kernel.kernel``/``kernel.cli``/``verbs.dossier``
-门面形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__``
-首访解析并缓存, 公私名面不变。脚本直跑 (``python3 status_panel.py``)
-路径: 下行 ``sys.path.insert`` 立起 bench/py 后 ``ops._status_panel_*``
-叶可导, ``__package__`` 缺省回退 ``ops``。
+门面形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__``
+首访解析并缓存，公私名面不变。脚本直跑 (``python3 status_panel.py``)
+路径：下行 ``sys.path.insert`` 立起 bench/py 后 ``ops._status_panel_*``
+叶可导，``__package__`` 缺省回退 ``ops``。
 """
 
 from __future__ import annotations
@@ -370,15 +370,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -391,7 +391,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

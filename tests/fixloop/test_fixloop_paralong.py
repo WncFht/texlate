@@ -222,7 +222,7 @@ def test_no_sig_declines(tmp_path: Path) -> None:
 
 
 def test_wrap_table_fwd_braces() -> None:
-    """表钉: 无界参转发必须补花括号 —— 裸 ``#n`` 会把实参重切成单 token。"""
+    """表钉：无界参转发必须补花括号 —— 裸 ``#n`` 会把实参重切成单 token。"""
     for name in (
         "NR@gettitle",
         "addcontentsline",
@@ -240,7 +240,7 @@ def test_wrap_table_fwd_braces() -> None:
 
 
 def test_commented_def_not_touched() -> None:
-    """遮盖面钉: 注释内 ``%\\def\\dead`` 不改写 (死代码)。"""
+    """遮盖面钉：注释内 ``%\\def\\dead`` 不改写 (死代码)。"""
     t = "%\\def\\dead#1{x}\n\\def\\dead#1{y}\n"
     nt, n = _longize_defs(t, "dead")
     assert n == 1
@@ -287,7 +287,7 @@ def test_preamble_callsite_seam(tmp_path: Path) -> None:
 
 
 def test_body_only_call_keeps_begindoc_seam(tmp_path: Path) -> None:
-    """调用点只在 body → preamble 缝不启用, 仍落 ``\\begin{document}`` 前。"""
+    """调用点只在 body → preamble 缝不启用，仍落 ``\\begin{document}`` 前。"""
     main = write_file(
         tmp_path,
         "main.tex",
@@ -305,7 +305,7 @@ def test_body_only_call_keeps_begindoc_seam(tmp_path: Path) -> None:
 
 def test_def_site_not_a_callsite(tmp_path: Path) -> None:
     """``\\def\\author`` 是定义点不是调用点 —— def-site 臂补 \\long,
-    wrap 不被它诱到 preamble 缝, 仍落 begindoc。"""
+    wrap 不被它诱到 preamble 缝，仍落 begindoc。"""
     main = write_file(
         tmp_path,
         "main.tex",
@@ -366,9 +366,9 @@ def test_209_no_begindoc_callsite(tmp_path: Path) -> None:
 
 @requires_xelatex
 def test_xelatex_preamble_author_e2e(tmp_path: Path) -> None:
-    """真 xelatex preamble 缝: 内核非 \\long ``\\author`` (latex.ltx
+    """真 xelatex preamble 缝：内核非 \\long ``\\author`` (latex.ltx
     ``\\def\\author#1{\\gdef\\@author{#1}}``) preamble 多段调用 →
-    begindoc 缝鞭长莫及, preamble 调用点缝 wrapper 吃掉 \\par。"""
+    begindoc 缝鞭长莫及，preamble 调用点缝 wrapper 吃掉 \\par。"""
     src = (
         "\\documentclass{article}\n\\title{T}\n"
         "\\author{Alice\n\n\\and\n\nBob}\n"
@@ -415,7 +415,7 @@ def test_xelatex_defsite_e2e(tmp_path: Path) -> None:
 
 @requires_xelatex
 def test_xelatex_wrap_e2e(tmp_path: Path) -> None:
-    """真 xelatex wrap 径: 内核非 \\long ``\\setlength`` (latex.ltx ``\\def
+    """真 xelatex wrap 径：内核非 \\long ``\\setlength`` (latex.ltx ``\\def
     \\setlength#1#2{#1 #2\\relax}``, fileset 外 → def-site 臂收不到) +
     参内空行 → wrap 注入后 wrapper 吃掉 \\par。"""
     src = (

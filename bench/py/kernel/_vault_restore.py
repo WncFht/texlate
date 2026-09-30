@@ -1,9 +1,9 @@
 """kernel._vault_restore — vault→work 物化 (kernel.vault 拆分叶).
 
 ``restore`` 按 (coverage desc, product-bad asc, zone_rank, altseq) 选最
-优完好副本, 逐声明 kind 物化到 ``dest/{kind}.{arm}[@{variant}]/``:
+优完好副本，逐声明 kind 物化到 ``dest/{kind}.{arm}[@{variant}]/``:
 mode='copy' 出主可写新字节 (mutating 消费方安全项), mode='link' 共押
-0444 inode 零拷 (只读消费方契约——写入即响亮 EACCES, 绝不沉默毒库,
+0444 inode 零拷 (只读消费方契约——写入即响亮 EACCES, 绝不沉默毒库，
 §3.10.4)。墓碑 kind 不物化。无完好副本只抛不哑补。
 """
 

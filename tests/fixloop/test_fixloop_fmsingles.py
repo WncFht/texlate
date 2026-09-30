@@ -10,19 +10,19 @@
 - 2105.00106/2203.00045 (stagerun-loop3): doc ``\\ifpdf``/``\\ifCLASSINFOpdf``
   else 支 ``\\DeclareGraphicsExtensions{.eps}`` →
   ``paper.tex:N: LaTeX Error: File `X' not found.`` 归 ``other|None`` 死路
-  (taxonomy ``missing_file`` 要求 ``\\.\\w+`` 扩展名锚, 裸名够不着)。
+  (taxonomy ``missing_file`` 要求 ``\\.\\w+`` 扩展名锚，裸名够不着)。
 
-孤儿改动 = ``ctx_suggests`` 单臂 ``could not locate ...`` 扩为 ``any:`` 双臂,
+孤儿改动 = ``ctx_suggests`` 单臂 ``could not locate ...`` 扩为 ``any:`` 双臂，
 新增 ``File `[^'.]+' not found``: file:line issuer 形的签名在 ``rep.first``;
-``rep.ctx`` = 首错行起 ``CTX_LINES=8`` 行止于 ``l.N`` 回显, ``I could not
+``rep.ctx`` = 首错行起 ``CTX_LINES=8`` 行止于 ``l.N`` 回显，``I could not
 locate ...`` 帮助行在其后永不入 ``err_head`` (2203.00045 paper.log:2124-2133
 实证帮助行在 i+8 出窗)。
 
-scoping 论证: ``[^'.]+`` 拒带点名 —— ``File `foo.sty' not found`` 归
+scoping 论证：``[^'.]+`` 拒带点名 —— ``File `foo.sty' not found`` 归
 install_file/shim 域不抢; 无扩展名缺件在非 graphics 语境罕见
-(\\input/\\usepackage/\\documentclass 报错名恒带扩展, 唯 graphicx
+(\\input/\\usepackage/\\documentclass 报错名恒带扩展，唯 graphicx
 stem-resolution 报裸名)。AND 闸 ``source_contains`` PS-only decl +
-``engine_in`` unicode 引擎兜残余: 改写只向表前置原生可读扩展名,
+``engine_in`` unicode 引擎兜残余：改写只向表前置原生可读扩展名，
 自限一轮 (补后含 .pdf → ``(?![^}]*\\.pdf)`` 拒再火)。
 """
 
@@ -47,9 +47,9 @@ _HEAD_EXTLESS = (
     "l.1205 ...s[width=3in]{fig2_direct_indirect_small}\n"
     "                                                  "
 )
-# PoS.cls issuer 形: 帮助行入 ctx 窗的签 (旧臂兜此面)。名取带点形
-# ``PoSlogo.eps`` 是刻意的——新臂 ``[^'.]+`` 拒带点名, 本钉独过旧臂;
-# 裸名形两臂同中, 删旧臂无任何钉失败 (裸名面已由 _HEAD_EXTLESS 独守新臂)。
+# PoS.cls issuer 形：帮助行入 ctx 窗的签 (旧臂兜此面)。名取带点形
+# ``PoSlogo.eps`` 是刻意的——新臂 ``[^'.]+`` 拒带点名，本钉独过旧臂;
+# 裸名形两臂同中，删旧臂无任何钉失败 (裸名面已由 _HEAD_EXTLESS 独守新臂)。
 _HEAD_HELPLINE = (
     "PoS.cls:205: LaTeX Error: File `PoSlogo.eps' not found.\n"
     "l.205 ...\\includegraphics{PoSlogo.eps}\n"
@@ -100,8 +100,8 @@ def test_rule_wired() -> None:
 
 
 def test_order_before_placeholder() -> None:
-    """序自洽: includepdf_stub(17.5) < 本规 < placeholder(17.6) —
-    盘上有真件时补扩展表先解, 占位是缺件兜底。"""
+    """序自洽：includepdf_stub(17.5) < 本规 < placeholder(17.6) —
+    盘上有真件时补扩展表先解，占位是缺件兜底。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["includepdf_missing_stub"] < orders[_RULE]
     assert orders[_RULE] < orders["graphic_missing_placeholder"]
@@ -111,7 +111,7 @@ def test_order_before_placeholder() -> None:
 
 
 def test_cond_extless_file_not_found_arm(tmp_path: Path) -> None:
-    """新臂: ``File `X' not found`` 裸名 (file:line 形, rep.first 签名)。
+    """新臂：``File `X' not found`` 裸名 (file:line 形，rep.first 签名)。
 
     ctx 窗不含 ``could not locate`` 帮助行也过闸 —— 2105.00106/
     2203.00045 死路签的直达路径。"""
@@ -122,9 +122,9 @@ def test_cond_extless_file_not_found_arm(tmp_path: Path) -> None:
 
 
 def test_cond_could_not_locate_arm(tmp_path: Path) -> None:
-    """旧臂: ``I could not locate ... extensions`` 帮助行入 ctx 窗的 issuer
+    """旧臂：``I could not locate ... extensions`` 帮助行入 ctx 窗的 issuer
     形仍过闸 (1012.1365 PoS.cls 面)。带点名 ``PoSlogo.eps`` 使新臂
-    ``[^'.]+`` 不中——本钉独守旧臂, 删旧臂即败。"""
+    ``[^'.]+`` 不中——本钉独守旧臂，删旧臂即败。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = _HEAD_HELPLINE
     ok, why = _cond(ctx)
@@ -132,8 +132,8 @@ def test_cond_could_not_locate_arm(tmp_path: Path) -> None:
 
 
 def test_cond_decline_dotted_filename(tmp_path: Path) -> None:
-    """``File `foo.sty' not found`` 带点名 → ``[^'.]+`` 不中:
-    缺包件归 install_file/shim 域, 本规不抢。"""
+    """``File `foo.sty' not found`` 带点名 → ``[^'.]+`` 不中：
+    缺包件归 install_file/shim 域，本规不抢。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = (
         "/work/paper.tex:42: LaTeX Error: File `foo.sty' not found.\n"
@@ -145,7 +145,7 @@ def test_cond_decline_dotted_filename(tmp_path: Path) -> None:
 
 
 def test_cond_decline_dotted_graphic(tmp_path: Path) -> None:
-    """``File `x.eps' not found`` 带扩展图形名 → 不中:
+    """``File `x.eps' not found`` 带扩展图形名 → 不中：
     归 ext_relax/eps_to_pdf/placeholder 族域。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = "/work/main.tex:9: LaTeX Error: File `x.eps' not found."
@@ -220,7 +220,7 @@ def test_apply_prepends_native_exts(tmp_path: Path) -> None:
 
 
 def test_apply_covers_cls_files(tmp_path: Path) -> None:
-    """1012.1365 面: decl 在随稿 .cls 内 → exts 含 .cls 同改。"""
+    """1012.1365 面：decl 在随稿 .cls 内 → exts 含 .cls 同改。"""
     (tmp_path / "PoS.cls").write_text(
         "%% PoS class\n"
         "\\ifpdf\n"
@@ -256,8 +256,8 @@ def test_apply_commented_decl_untouched(tmp_path: Path) -> None:
 
 
 def test_apply_self_limiting_second_fire(tmp_path: Path) -> None:
-    """自限性: 补后表含 .pdf → ``(?!...)`` 拒再中 —— 二次触火空转
-    (false-accept 至多烧一轮, 不成环)。"""
+    """自限性：补后表含 .pdf → ``(?!...)`` 拒再中 —— 二次触火空转
+    (false-accept 至多烧一轮，不成环)。"""
     ctx = _ctx(tmp_path)
     ok1, _n1 = apply(_RULE, ctx, None)
     ok2, _n2 = apply(_RULE, ctx, None)

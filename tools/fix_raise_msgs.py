@@ -5,8 +5,8 @@
 多行字面量加括号续行；单行 `if c: raise` 拒绝并打 SKIP。默认 dry-run 只报不改，
 --write 才落盘；目标默认 src/（目录递归 *.py，也可传单文件）。
 
-用法: .venv/bin/python tools/fix_raise_msgs.py [PATH ...] [--write]
-退出码: 0 全净/写完；1 dry-run 有待改；2 有文件读/解析/产出复检错误。
+用法：.venv/bin/python tools/fix_raise_msgs.py [PATH ...] [--write]
+退出码：0 全净/写完；1 dry-run 有待改；2 有文件读/解析/产出复检错误。
 """
 
 import argparse
@@ -32,7 +32,7 @@ def offset_of(lines: list[str], starts: list[int], lineno: int, col: int) -> int
 
 
 def transform_src(src: str, path: Path) -> tuple[str, int] | None:
-    """对 src 跑外提变换；返回 (新源码, 外提数)，无改动返回 None。"""
+    """对 src 跑外提变换；返回 (新源码，外提数)，无改动返回 None。"""
     tree = ast.parse(src)
     lines = src.splitlines()
     starts = line_starts(src)
@@ -111,7 +111,7 @@ def iter_paths(paths):
 
 
 def process(path: Path, write: bool) -> int:
-    """单文件处理：变换+产出 ast.parse 复检，write=True 才落盘；返回外提数，-1=错误。"""
+    """单文件处理：变换 + 产出 ast.parse 复检，write=True 才落盘；返回外提数，-1=错误。"""
     try:
         src = path.read_text(encoding="utf-8")
     except OSError as e:

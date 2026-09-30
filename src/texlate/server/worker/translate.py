@@ -24,8 +24,8 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     import asyncio
     import contextlib
     import hashlib
@@ -267,10 +267,10 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = []
@@ -279,7 +279,7 @@ def _export_drift() -> list[str]:
     for name in _LAZY:
         try:
             getattr(mod, name)
-        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移，非首错即死
             drift.append(f"_LEAF_EXPORTS entry {name} does not resolve: {exc}")
     for name in __all__:
         if name in _LAZY:

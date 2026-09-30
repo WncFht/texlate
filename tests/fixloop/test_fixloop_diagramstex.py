@@ -1,8 +1,8 @@
 """diagrams.tex vendored serving (envdiag fix 1, task #140):
 
-``\\input{diagrams}`` → ``diagrams.tex`` 缺件: repo ``vendor/stubs/diagrams.tex``
+``\\input{diagrams}`` → ``diagrams.tex`` 缺件：repo ``vendor/stubs/diagrams.tex``
 真 stub (与 ``vendor/stubs/diagrams.sty`` 同源宏面剥包壳) 经
-static_precheck ``_scan_vendored`` round-0 平铺, ``missing_file`` 不再
+static_precheck ``_scan_vendored`` round-0 平铺，``missing_file`` 不再
 发火 → ``legacy_pkg_shim`` 空 stub 与 ``undefined_env_polyfill``
 noop-env 链整段失效 (math/0104250 / math/0408052 实证链)。
 """
@@ -58,7 +58,7 @@ def test_scan_install_drops_real_diagrams_tex(tmp_path: Path) -> None:
     assert "\\def\\newarrow" in body
     # \input 装入件 @ 非字母 → makeatletter 包裹必须在场
     assert "\\makeatletter" in body
-    # 包壳全剥: 无 \usepackage 期专属命令
+    # 包壳全剥：无 \usepackage 期专属命令
     assert "\\ProvidesPackage" not in body
     assert "\\NeedsTeXFormat" not in body
     assert "\\ProcessOptions" not in body
@@ -77,7 +77,7 @@ def test_vendored_fetch_diagrams_tex(tmp_path: Path) -> None:
 @pytest.mark.integration
 @requires_xelatex
 def test_diagrams_tex_input_compiles(tmp_path: Path) -> None:
-    """``\\input{diagrams}`` preamble 装入真编译钉: {diagram} env /
+    """``\\input{diagrams}`` preamble 装入真编译钉：{diagram} env /
     plain 式 / \\newarrow 自定义族全零 ``!`` 错 (math/0104250 形)。
     """
     shutil.copy(VENDOR / "stubs" / "diagrams.tex", tmp_path / "diagrams.tex")

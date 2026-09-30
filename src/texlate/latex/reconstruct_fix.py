@@ -244,7 +244,7 @@ PAR_RUN_RX = re.compile(r"\n(?:[ \t\r]*\n)+")
 
 #: 译文侧的占位符切分（typed ``[[X_n]]`` + 裸 ``[[NAME]]`` 都算——模型可能
 #: 把 [[SL]] 等编码 token 原样回显，其内部不许进 unicode→math 替换）。
-#: 捕获组保留分隔符——``re.split`` 产出 [文本, token, 文本, ...] 交错序列。
+#: 捕获组保留分隔符——``re.split`` 产出 [文本，token, 文本，...] 交错序列。
 _TRANS_PH_RX = re.compile(rf"((?:{PH_RX.pattern})|(?:\[\[[A-Z][A-Z_]*\]\]))")
 
 

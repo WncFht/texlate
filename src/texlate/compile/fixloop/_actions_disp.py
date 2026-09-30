@@ -5,7 +5,7 @@
 when+condition+mode 匹配 (原型 ``pick_and_apply``), 缺字族判据
 ``_is_misschar_rule``/``_mc_delta``, 与派发窗落件同步
 ``_apply_window``/``_landing_sync``/``_apply_landed``
-(loop/gate/precheck 三相共用, C2 自 engine 归位; ``engine`` 门面回引
+(loop/gate/precheck 三相共用，C2 自 engine 归位; ``engine`` 门面回引
 保 ``engine.X`` import 面)。
 """
 
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 _REJECT_PREFIX = "REJECT:"
 
 
-def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
+def _apply(  # noqa: C901, PLR0911  # action.kind 分派表，每种一处
     rule: Rule, ctx: LoopCtx, eng: Engine, pay: str | None, rep: ErrReport
 ) -> tuple[bool, str]:
     """按 action.kind 分派执行一条规则 → (applied, note)。"""
@@ -125,7 +125,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # 原型 pi
     """Order 序找第一条 when+condition 过、mode 可行且应用成功的规则。
 
     ``unsupported`` + ``fallback: escalate_llm`` 不就地烧 LLM——记下首个
-    待 escalate 规则继续扫描, 同 category 的廉价规则全耗尽后才调 hook
+    待 escalate 规则继续扫描，同 category 的廉价规则全耗尽后才调 hook
     (missing_pfb_updmap 原位评估会把后置的 font_sub_shim 饿死在 LLM 后面)。
 
     ``only`` 可选族过滤器 (warn-preempt 的缺字族专场): 非 None 时只评
@@ -159,12 +159,12 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # 原型 pi
             continue
         try:
             applied, note = _apply(rule, ctx, eng, pay, rep)
-        except Exception as e:  # noqa: BLE001  # 规则崩溃=放弃该条, 试下一条 (原型口径)
+        except Exception as e:  # noqa: BLE001  # 规则崩溃=放弃该条，试下一条 (原型口径)
             applied, note = False, f"rule crashed: {type(e).__name__}: {e}"
         if applied:
             ctx.applied.add(key)
             if _is_misschar_rule(rule):
-                # 起火轮看见的码位集记消费账——后浪新码位不在账内,
+                # 起火轮看见的码位集记消费账——后浪新码位不在账内，
                 # _mc_delta 增量豁免据此放行再派发 (missdisp #189)。
                 ctx.mc_seen.setdefault(rule.id, set()).update(ctx.mc_cps)
             return rule, note
@@ -202,27 +202,27 @@ def _landing_sync(
     before: dict[Path, tuple[int, int]],
     pre_applied: set[str],
 ) -> int:
-    """动作落件同步: 外部落件指纹 diff → ``_texts`` 失效 + 落件前烧键过期。
+    """动作落件同步：外部落件指纹 diff → ``_texts`` 失效 + 落件前烧键过期。
 
     规则动作可改写盘面 (``scan_install``/``install_file``/vendored 落件、
     ``run_tool``/docstrip 产物、builtin 直写)。``written`` 在派发窗开始
-    时清空, 窗内经 ``ctx.write`` 落账的写件即本窗自产编辑; ``before``
-    基线后的变化件分两档:
+    时清空，窗内经 ``ctx.write`` 落账的写件即本窗自产编辑; ``before``
+    基线后的变化件分两档：
 
       - **规则自改** —— ``written`` 在账的 ``ctx.write`` 改写/新建
-        (regex_rewrite/站点前置/shim 新建件): 写件已在 ``_texts`` 同步,
-        键面不动——派发链的自产编辑不该稀释 dedup (stucksem 实证: 无
-        差别过期会让先火规则非幂等重派, 抢走凭据门后位规则的派发窗)。
+        (regex_rewrite/站点前置/shim 新建件): 写件已在 ``_texts`` 同步，
+        键面不动——派发链的自产编辑不该稀释 dedup (stucksem 实证：无
+        差别过期会让先火规则非幂等重派，抢走凭据门后位规则的派发窗)。
       - **外部落件** —— 绕 ``ctx.write`` 的新件/改写/删除 (install/
         vendor/run_tool 裸写): 全 invalidate (覆盖写与 miss→None 毒化
-        条目同 logcache 病族, 下轮 ``ctx.read``/site-map 读新文), 并把
+        条目同 logcache 病族，下轮 ``ctx.read``/site-map 读新文), 并把
         ``pre_applied`` 基线前烧录的 ``{rule}:{pay}`` dedup 键整体过
-        期——落件把新站点引进 fileset 后, 同签轮应允许同规则重派
-        (defcensus E-route 病族: mid-loop install 后 already_def 臂
-        按旧烧键跳过, 残签滞留)。基线后新烧键 (``applied - pre_applied``)
+        期——落件把新站点引进 fileset 后，同签轮应允许同规则重派
+        (defcensus E-route 病族：mid-loop install 后 already_def 臂
+        按旧烧键跳过，残签滞留)。基线后新烧键 (``applied - pre_applied``)
         保留——刚派发的规则不因自身落件立刻重派。
 
-    返回外部落件数 (0 = 无外部落件, 键面不动)。
+    返回外部落件数 (0 = 无外部落件，键面不动)。
     """
     after = _wdir_fingerprint(ctx.io.wdir)
     external = _fp_diff(before, after, exclude=ctx.io.written)
@@ -240,10 +240,10 @@ def _landing_sync(
 
 @contextlib.contextmanager
 def _apply_window(ctx: LoopCtx) -> Iterator[None]:
-    """派发窗: 指纹基线 + applied 快照 + ``written`` 清零 → 退出 ``_landing_sync``。
+    """派发窗：指纹基线 + applied 快照 + ``written`` 清零 → 退出 ``_landing_sync``。
 
     loop/gate/precheck 三相派发共用同一落件同步不变量——窗内经
-    ``ctx.write`` 的写按自产编辑计账, 窗外裸写按外部落件失效 +
+    ``ctx.write`` 的写按自产编辑计账，窗外裸写按外部落件失效 +
     烧键过期 (口径见 ``_landing_sync``)。
     """
     before = _wdir_fingerprint(ctx.io.wdir)
@@ -264,7 +264,7 @@ def _apply_landed(  # noqa: PLR0913  # 与 _apply/_match_apply 同签名面
     *,
     label: str,
 ) -> tuple[bool, str]:
-    """单规则落件派发: ``_apply_window`` 内 guarded ``_apply``。
+    """单规则落件派发：``_apply_window`` 内 guarded ``_apply``。
 
     crash note 统一 ``{label} crashed: <type>: <e>`` —— gate/precheck
     相逐条评估共用 (loop 相的逐条 crash 兜底在 ``_match_apply`` 内部)。

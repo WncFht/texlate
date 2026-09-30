@@ -700,7 +700,7 @@ class _MainLoop:
                 else:
                     # eol_par 中止，或 _ListSource 子扫耗尽——后者 unread
                     # 同队回插保序、无弹栈合成源问题，恒走回放（否则子扫
-                    # 的 EOF 会把 [cons,文件尾) 整段 LITERAL 抢走主扫字节）。
+                    # 的 EOF 会把 [cons，文件尾) 整段 LITERAL 抢走主扫字节）。
                     src.unread(body)
             return
         eb = end_tok.pos[2]

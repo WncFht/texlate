@@ -2,7 +2,7 @@
 
 ``TeX capacity exceeded, sorry [<name>=<n>]`` → ``<tag>|<cs>`` 供 triage
 路由 (input_stack=递归 / main_memory=暴走 / save_size=组泄漏)。合成 log
-覆盖: bang/file-line 双错误格式、sorry 折行、宏/伪层/l.N 三层头取位、
+覆盖：bang/file-line 双错误格式、sorry 折行、宏/伪层/l.N 三层头取位、
 ``<to be read again>`` 续行 token、截断缺 bracket、未收名兜底。
 """
 
@@ -12,7 +12,7 @@ from texlate.compile.logparse import parse_text
 
 
 def test_input_stack_bang_macro() -> None:
-    """input stack + 宏展开层: pay=input_stack|<行首在扩宏>。"""
+    """input stack + 宏展开层：pay=input_stack|<行首在扩宏>。"""
     log = (
         "! TeX capacity exceeded, sorry [input stack size=10000].\n"
         "\\@restorepar ->\\def \\par \n"
@@ -37,7 +37,7 @@ def test_main_memory_fileline_macro() -> None:
 
 
 def test_save_size_wrapped_bracket_argument() -> None:
-    """sorry 折行 + <argument> 伪层: bracket 跨行仍抓, token 取头行末 cs。"""
+    """sorry 折行 + <argument> 伪层：bracket 跨行仍抓，token 取头行末 cs。"""
     log = (
         "./xeCJK.sty:643: TeX capacity exceeded, s\n"
         "orry [save size=200000].\n"
@@ -104,7 +104,7 @@ def test_unlisted_bracket_snake_fallback() -> None:
 
 
 def test_indented_continuation_not_layer_head() -> None:
-    """缩进续行不冒充层头: 首层仍取 \\mac 行首名。"""
+    """缩进续行不冒充层头：首层仍取 \\mac 行首名。"""
     log = (
         "! TeX capacity exceeded, sorry [input stack size=10000].\n"
         "\\@bsphack ->\\relax \\ifhmode \\@savsk \\lastskip \n"

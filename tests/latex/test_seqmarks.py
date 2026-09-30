@@ -322,7 +322,7 @@ def test_pending_emc_after_emitted_mark_seen() -> None:
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: r"前块 \href{u}", 1: "{t} 后块"})
     out = ex.expand_body("[[CHUNK_0]][[CHUNK_1]]")
-    # 块0 EMC 截 \href 前; 块1 BDC 挪 {t} 内——两臂合成全链合法
+    # 块 0 EMC 截 \href 前; 块 1 BDC 挪 {t} 内——两臂合成全链合法
     assert _MARK_CLOSE + r"\href{u}{" + _mark_open(1) in out
     assert seq_mark_issues(out) == []
 

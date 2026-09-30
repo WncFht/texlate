@@ -93,7 +93,7 @@ def _plan(ctx):
                     + fr_cat.get(cat, fr_all) / fr_all
                 )
             else:
-                rel = 1.0  # 无 bad 样本 → 无故障信号可加偏, 配额退化纯比例
+                rel = 1.0  # 无 bad 样本 → 无故障信号可加偏，配额退化纯比例
             weights[cell] = n * (1 + bias * (rel - 1))
         quotas = cc.largest_remainder(weights, target)
     else:  # flat——core cell 配比直扩

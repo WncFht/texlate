@@ -91,10 +91,10 @@ NONCOND: Final = {
     "ifnextchar",
 }
 #: cs whose next N cs-tokens are name/arg positions (not live opens)
-#: —— "let" 不在此列: 第二 token 是否为名取决于赋值对象形,
+#: —— "let" 不在此列：第二 token 是否为名取决于赋值对象形，
 #: 由 _let_operands lookahead 特判 (\\let\\sep=, 形第二 cs 是 live)。
 #: 预算按 token 计——operand 位花括号 (``\let\X{``/``\let\X}``) 亦抵一枚
-#: 且不开闭组; ``\let{`` 名位花括号例外, 仍开组不占预算。
+#: 且不开闭组; ``\let{`` 名位花括号例外，仍开组不占预算。
 CONSUME: Final = {
     "newif": 1,
     "futurelet": 3,
@@ -126,9 +126,9 @@ DEFCMD: Final = {
     "gdef",
     "edef",
     "xdef",
-    # aastex.cls 5.2 caller-supplies-\fi 习语: \@boole@def\@ifx#1{\ifx#1}
+    # aastex.cls 5.2 caller-supplies-\fi 习语：\@boole@def\@ifx#1{\ifx#1}
     # —— 内层 \ifx 在 def-参组内展开期平衡 (caller 供 \fi), 非 live open;
-    # 走 def_params→def 组即按冻结计, 消 5 连假开 (aastex61if census)
+    # 走 def_params→def 组即按冻结计，消 5 连假开 (aastex61if census)
     "@boole@def",
     "everypar",
     "everymath",
@@ -192,7 +192,7 @@ COND_OPS: Final = {
 }
 #: 控制符号 (``\\``/``\{``/``\%`` …) 整枚成 token——转义花括号非组
 #: 开闭; group(1)/group(2) 皆 None, 由 dispatch 早跳 (operand 位仍占
-#: 一枚 token 预算: ``\ifx\{x`` 的 ``\{`` 是被比较 token)。
+#: 一枚 token 预算：``\ifx\{x`` 的 ``\{`` 是被比较 token)。
 TOKEN: Final = re.compile(r"\\([a-zA-Z@]+)|\\.|([{}])")
 #: 注入缝边界——``\end{document}`` 段与 decls.END_DOC_RX 同案源 (组
 #: 合式拼接待 ``DECL_TAIL`` 族)。
@@ -201,9 +201,9 @@ STOP: Final = re.compile(
 )
 _WS1: Final = re.compile(r"[ \t]*\n?[ \t]*")
 _WS_EQ: Final = re.compile(r"[ \t]*\n?[ \t]*=?[ \t]*\n?[ \t]*")
-#: operand 位的字面字符 token —— 条件 operand 按"下 N 个 token"计, gap
+#: operand 位的字面字符 token —— 条件 operand 按"下 N 个 token"计，gap
 #: 内每个非空白字符占一枚 operand (``\ifx a\b`` 的 ``a``; ``\ifnum 1=1``
-#: 字面量直接占满预算, 防 ``\fi`` 被当 operand 吃掉造假亏格)。
+#: 字面量直接占满预算，防 ``\fi`` 被当 operand 吃掉造假亏格)。
 _NON_WS: Final = re.compile(r"\S")
 
 
@@ -230,7 +230,7 @@ def _let_operands(  # noqa: C901, PLR0911 -- <name>/<equals>/<tok> 形态枚举�
         return (0, None, None, False)
     gap = vis[pos : nm.start()]
     if not _WS1.fullmatch(gap):
-        # 非纯空白 gap → 首非空字符为名, 余部须 ws+可选 ``=`` 才合 <equals>;
+        # 非纯空白 gap → 首非空字符为名，余部须 ws+ 可选 ``=`` 才合 <equals>;
         # operand 是 nm 本身 (cs/花括号 token 均占 operand 位吃 1)。
         rest = gap.lstrip()[1:]
         if _WS_EQ.fullmatch(rest):
@@ -250,7 +250,7 @@ def _let_operands(  # noqa: C901, PLR0911 -- <name>/<equals>/<tok> 形态枚举�
                 return (2, nm.group(1), None, False)
         return (1, nm.group(1), None, False)
     if nm.group(2) == "{":
-        # ``{`` 即名 (begin-group 是合法 \let 名); { 由主循环开组,
+        # ``{`` 即名 (begin-group 是合法 \let 名); { 由主循环开组，
         # operand 是组内首个 cs —— ``\let{\iftrue`` 的 \iftrue 被吃。
         nm2 = TOKEN.search(vis, nm.end())
         if (
@@ -305,7 +305,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     skip_n = 0  # groups 内 "skip" 组现数 —— 逐 token 线性扫组的 O(1) 替代
     live_open_now = 0  # opens 内 r==0 现数 —— live_cond O(1) 口径
     let_brace_name = (
-        False  # \let{ 名位形: 紧邻下枚 ``{`` 是名 —— 仍开组不占 operand 预算
+        False  # \let{ 名位形：紧邻下枚 ``{`` 是名 —— 仍开组不占 operand 预算
     )
     live_opens = live_closes = def_unclosed = 0
     consume = 0
@@ -315,10 +315,10 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     def_params = False
     stops: list[tuple[int, int]] = []  # (pos, live opens depth)
     phantoms: list[tuple[str, int, str]] = []
-    # \let 别名表: \let<cs><if族> → cs 得 if_test cmd, 裸用 = 开臂
-    # (loop4 批一 事故形: \let\TeXlateCMUok\iftrue 后 \TeXlateCMUok 裸开
-    # —— 名不带 "if" 前缀, 字面规则漏计)。值 = 该 if 的 operand 预算
-    # (\let\X\ifnum → \X 也吃 1 operand)。登记限 def 体外, 但活条件内
+    # \let 别名表：\let<cs><if 族> → cs 得 if_test cmd, 裸用 = 开臂
+    # (loop4 批一 事故形：\let\TeXlateCMUok\iftrue 后 \TeXlateCMUok 裸开
+    # —— 名不带 "if" 前缀，字面规则漏计)。值 = 该 if 的 operand 预算
+    # (\let\X\ifnum → \X 也吃 1 operand)。登记限 def 体外，但活条件内
     # 的 \let 也登记 (incident 形正是分支内 \let + 分支外裸用); operand
     # 消费完后经 pending_alias 补登 —— 名位/operand 自身须按"前 \let 态"
     # 判 phantom。
@@ -358,8 +358,8 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             skip_n -= 1
 
     def push_group() -> None:
-        # ``{``/``\bgroup`` 共用开组分派: pending 列队优先, 次 def_params
-        # 体组, 余皆普通组。
+        # ``{``/``\bgroup`` 共用开组分派：pending 列队优先，次 def_params
+        # 体组，余皆普通组。
         nonlocal def_params, skip_n
         kind = "grp"
         if pending:
@@ -378,10 +378,10 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     for tm in TOKEN.finditer(vis):
         cs, brace = tm.group(1), tm.group(2)
         if cond_ops:
-            # operand 预算按"下 N 个 token"计: gap 内字面字符逐枚抵
+            # operand 预算按"下 N 个 token"计：gap 内字面字符逐枚抵
             # operand (\ifx a\b 的 a 占一位; \ifnum 1=1 字面量占满)——
             # 耗尽则本 token 回常规 dispatch; 未耗尽则本 token 是
-            # operand: cs 静默+phantom 判, brace operand 亦不参与结构
+            # operand: cs 静默+phantom 判，brace operand 亦不参与结构
             # (\ifx{ 的 { 是被比较 token 非开组)。
             ngap = len(_NON_WS.findall(vis[prev_end : tm.start()]))
             if ngap >= cond_ops:
@@ -402,11 +402,11 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
         if brace == "{":
             if let_brace_name:
                 # ``\let{`` 名位花括号 (紧邻 \let 的下枚 token, 由
-                # _let_operands 报位)——不占 operand 预算, 仍按开组。
+                # _let_operands 报位)——不占 operand 预算，仍按开组。
                 let_brace_name = False
             elif consume:
                 # operand 位 ``{`` (``\let\X{`` 等) 是被赋 value token——
-                # 抵预算一枚, 不开组 (cond_ops 同款口径)。
+                # 抵预算一枚，不开组 (cond_ops 同款口径)。
                 consume -= 1
                 continue
             push_group()
@@ -504,9 +504,9 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
                 # 此处仅上报 —— 不重复计 live/def 合计)。append 的是
                 # def 区 open (r>0), 不影响 live_cond 读数。
                 phantoms.append((cs, line_at(tm.start()), "def-open"))
-            # operand 预算: \ifx/\ifnum/\ifdefined 等其后 N cs 是 operand
-            # 位 —— 走 cond_ops 位静默 + phantom 判, 不计开 (跳读扫描按
-            # token 计, 与 operand 位语义一致地落在 phantom 域)。
+            # operand 预算：\ifx/\ifnum/\ifdefined 等其后 N cs 是 operand
+            # 位 —— 走 cond_ops 位静默 + phantom 判，不计开 (跳读扫描按
+            # token 计，与 operand 位语义一致地落在 phantom 域)。
             cond_ops = COND_OPS.get(cs) or if_alias_ops.get(cs, 0)
         elif cs in CLOSE or cs in close_aliases:
             if d > 0:

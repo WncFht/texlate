@@ -60,7 +60,7 @@ def _mk(tmp_path: Path, main_rel: str) -> tuple[Path, Path, LoopCtx]:
 
 
 def test_relink_bare_file_at_root(tmp_path: Path) -> None:
-    """acronyms1 形: 根置 .tex + 主档在子目录 → 文件级链进 main_dir。"""
+    """acronyms1 形：根置 .tex + 主档在子目录 → 文件级链进 main_dir。"""
     wdir, texmf, ctx = _mk(tmp_path, "IEEEtran/main.tex")
     (wdir / "acronyms1.tex").write_text("% acronyms\n", encoding="utf-8")
     eng = _ProbeEng(texmf)
@@ -73,7 +73,7 @@ def test_relink_bare_file_at_root(tmp_path: Path) -> None:
 
 
 def test_relink_dir_payload_main_inside_top(tmp_path: Path) -> None:
-    """fairmeta 形: payload 首段恰是 main_dir 祖先 → 不目录链 (防环), 落文件级链。"""
+    """fairmeta 形：payload 首段恰是 main_dir 祖先 → 不目录链 (防环), 落文件级链。"""
     wdir, _texmf, ctx = _mk(tmp_path, "templates/arxiv/main.tex")
     real = wdir / "templates" / "arxiv" / "fairmeta.cls"
     real.write_text("\\ProvidesClass{fairmeta}\n", encoding="utf-8")
@@ -90,7 +90,7 @@ def test_relink_dir_payload_main_inside_top(tmp_path: Path) -> None:
 
 
 def test_relink_dir_payload_sibling_tree(tmp_path: Path) -> None:
-    """Content 形: payload 首段是 main_dir 的兄弟树 → 目录级链罩整枝,
+    """Content 形：payload 首段是 main_dir 的兄弟树 → 目录级链罩整枝，
     同枝后续缺件经活链判 already-present (不再重复链接)。"""
     wdir, texmf, ctx = _mk(tmp_path, "IEEEtran/main.tex")
     (wdir / "Content").mkdir()
@@ -103,13 +103,13 @@ def test_relink_dir_payload_sibling_tree(tmp_path: Path) -> None:
     assert link == dlink
     assert dlink.is_symlink()
     assert dlink.is_dir()
-    # 同枝第二件: 经目录链可达 → None → install_file 走 already-present
+    # 同枝第二件：经目录链可达 → None → install_file 走 already-present
     present2 = eng.probe_file("Content/other.tex", cwd=wdir)
     assert _relink_misplaced(ctx, "Content/other.tex", present2) is None
 
 
 def test_relink_texmf_hit_returns_none(tmp_path: Path) -> None:
-    """texmf 系统件命中 → None (TEXINPUTS 本可达, 无 relink 面)。"""
+    """texmf 系统件命中 → None (TEXINPUTS 本可达，无 relink 面)。"""
     _wdir, texmf, ctx = _mk(tmp_path, "sub/main.tex")
     (texmf / "foo.sty").write_text("% sys\n", encoding="utf-8")
     assert _relink_misplaced(ctx, "foo.sty", str(texmf / "foo.sty")) is None
@@ -145,7 +145,7 @@ def test_relink_dead_symlink_replaced(tmp_path: Path) -> None:
 
 
 def test_install_file_relinks_misplaced(tmp_path: Path) -> None:
-    """集成面: ``_apply_install_file`` present 分支先 relink, note 记链位。"""
+    """集成面：``_apply_install_file`` present 分支先 relink, note 记链位。"""
     wdir, texmf, ctx = _mk(tmp_path, "IEEEtran/main.tex")
     (wdir / "acronyms1.tex").write_text("% acronyms\n", encoding="utf-8")
     ok, note = _apply_install_file(
@@ -157,7 +157,7 @@ def test_install_file_relinks_misplaced(tmp_path: Path) -> None:
 
 
 def test_install_file_true_already_present(tmp_path: Path) -> None:
-    """对照: 件已在 ``main_dir`` 解析位 → relink 不动, 走 already-present。"""
+    """对照：件已在 ``main_dir`` 解析位 → relink 不动，走 already-present。"""
     wdir, texmf, ctx = _mk(tmp_path, "main.tex")
     (wdir / "helper.tex").write_text("% h\n", encoding="utf-8")
     ok, note = _apply_install_file(

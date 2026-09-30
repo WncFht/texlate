@@ -1,14 +1,14 @@
 """B6 写后复验钉 —— 末次编译后 apply 落件 → 常参 pass-1 复编刷末态证据。
 
 w13spec B6 memo (2503.10148/2606.19622): 末轮 stub 写在末编 0.6-0.7s
-后, loop 烧尽 → verdict assembly 消费写前轮 entry——``max_rounds``
+后，loop 烧尽 → verdict assembly 消费写前轮 entry——``max_rounds``
 +pdf 格 dirty→acceptable_pdf 升档与 Guard-A/B 判据全吃残证 (修复
-成功的格被压成 dirty)。复验槽在 warn-preempt 与 salvage 之间:
+成功的格被压成 dirty)。复验槽在 warn-preempt 与 salvage 之间：
 ``ledger.actions`` 账顶相对末次迭代编译前增长 (轮内 apply/gate/
-post warn-preempt 统一入账点) 即补一发非 best_effort 编译, entry
+post warn-preempt 统一入账点) 即补一发非 best_effort 编译，entry
 按轮形落 (``reverify: True`` 标记) 让下游公式零改消费。
 
-钉:
+钉：
   a) 末轮 apply + 复验 clean → last=复验 entry, max_rounds→clean 升档;
   b) clean 出路 (含 apply 后 clean 收敛) → 零复编;
   c) 无 post-final 写 (末轮派发枯竭收场) → 不复验;
@@ -75,7 +75,7 @@ def _runner(_a: object, _t: object, _w: object) -> tuple[int, str, float, bool]:
 def test_final_round_write_reverify_promotes(tmp_path: Path) -> None:
     """pin a: 末轮 apply 落件 → 复验编译取证 → 修好的格 max_rounds→clean。
 
-    无复验时 ``rounds[-1]`` 是写前 BOOM 证据, verdict 压 dirty/acceptable;
+    无复验时 ``rounds[-1]`` 是写前 BOOM 证据，verdict 压 dirty/acceptable;
     复验 entry 的 0 错新证让既有公式自然落成 clean。
     """
     rs = _rs(run_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
@@ -92,13 +92,13 @@ def test_final_round_write_reverify_promotes(tmp_path: Path) -> None:
     assert last["n_errors"] == 0
     assert cell["final_errors"] == 0
     assert cell["verdict"] == "clean"
-    assert eng.rounds == 3  # noqa: PLR2004 - r1+r2+复验
+    assert eng.rounds == 3  # noqa: PLR2004 - r1+r2+ 复验
 
 
 def test_reverify_residual_error_stays_dirty(tmp_path: Path) -> None:
-    """a 的对照: 复验仍有 1 错 (非 halt 不截) → dirty→acceptable_pdf 照升。
+    """a 的对照：复验仍有 1 错 (非 halt 不截) → dirty→acceptable_pdf 照升。
 
-    复验不捏造修复——写后残错如实记账, 升档走既有 acceptable 公式。
+    复验不捏造修复——写后残错如实记账，升档走既有 acceptable 公式。
     """
     rs = _rs(run_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
     eng = MockEngine([{"log": BOOM_LOG, "pdf": True}])
@@ -111,7 +111,7 @@ def test_reverify_residual_error_stays_dirty(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- b) clean 零开销
 def test_clean_exit_zero_extra_compile(tmp_path: Path) -> None:
-    """pin b-1: 首轮收敛 → 无派发无写 → 复验门构造性不燃, 零复编。"""
+    """pin b-1: 首轮收敛 → 无派发无写 → 复验门构造性不燃，零复编。"""
     rs = _rs(run_tool_rules(1), {"compile_passes": 1})
     eng = MockEngine([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
@@ -141,7 +141,7 @@ def test_clean_after_apply_no_reverify(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- c) 无写不复验
 def test_no_post_final_write_no_reverify(tmp_path: Path) -> None:
-    """pin c: 末轮派发枯竭 (dedup miss) 收场 → 树自末编未变, 不复验。"""
+    """pin c: 末轮派发枯竭 (dedup miss) 收场 → 树自末编未变，不复验。"""
     rs = _rs(run_tool_rules(1), {"compile_passes": 1})
     eng = MockEngine([{"log": BOOM_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
@@ -236,4 +236,4 @@ def test_reverify_warn_cat_stays_acceptable(tmp_path: Path) -> None:
     assert last["n_errors"] == 0
     assert last["category"] == "warn_missing_char"
     assert cell["verdict"] == "acceptable_pdf"
-    assert eng.rounds == 2  # noqa: PLR2004 - r1+复验
+    assert eng.rounds == 2  # noqa: PLR2004 - r1+ 复验

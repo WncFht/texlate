@@ -457,7 +457,7 @@ def test_fuzz_input_forms_hit_miss(tmp_path: Path) -> None:
             root / "tags.tex",
             f"pre %<*tg>TAG{i}%</tg> post %<*other>NO{i}%</other>",
         )
-        # (命中形, 缺件/缺签对照形, 命中 marker) 三元组——盲 replace 会伤命令名
+        # (命中形，缺件/缺签对照形，命中 marker) 三元组——盲 replace 会伤命令名
         cases = [
             ("\\input{hit}", "\\input{nosuch}", f"HIT{i}"),
             ("\\input hit ", "\\input nosuch ", f"HIT{i}"),  # 裸名形

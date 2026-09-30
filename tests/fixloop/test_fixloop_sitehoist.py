@@ -1,17 +1,17 @@
-"""sitehoist 落点口径单测: ``_resolve_site`` 单源化 + 残余 wdir-drop 位归位。
+"""sitehoist 落点口径单测：``_resolve_site`` 单源化 + 残余 wdir-drop 位归位。
 
-背景: 编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 凡往
+背景：编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 凡往
 "wdir 根" 平铺 stub/vendor/遮蔽件的落点, 对嵌套 main 稿
-(``templates/arxiv/main.tex``) 不可见 (2609.19664 fired-unfixed 实证,
-vendorcwd 车道盘点残余)。本文件钉:
+(``templates/arxiv/main.tex``) 不可见 (2609.19664 fired-unfixed 实证，
+vendorcwd 车道盘点残余)。本文件钉：
 
 - ``_resolve_site`` 落点 = ``main_dir/<rel>``; main 未知退 wdir 根
   (flat-main DECLINE 兜底); ``main_rel`` 怪径逃出 wdir → None;
 - 各落点消费位 (``_scan_vendored`` / ``legacy_pkg_shim`` /
   ``svjour_clo_stub`` / ``bundled_class_shadow`` / ``generated_stub``)
   嵌套稿落 main_dir, 平铺稿仍落 wdir 根;
-- dep 在场判同口径: 只在 wdir 根的 dep 对嵌套 main 不可见 → 不算
-  在场 (假在场会跳过 install 链, 件永远缺);
+- dep 在场判同口径：只在 wdir 根的 dep 对嵌套 main 不可见 → 不算
+  在场 (假在场会跳过 install 链，件永远缺);
 - run_tool ``{main_dir}`` 占位 (``mnras_texmf_shadow_drop``): 嵌套稿
   解析位病件退役 + vendor 补丁件平铺都落 main_dir; 怪径退 ``.``。
 """
@@ -35,9 +35,9 @@ from texlate.compile.logparse import ErrReport
 
 
 def _nested(wdir: Path) -> Path:
-    """嵌套 main 布局: ``wdir/templates/arxiv/main.tex`` → 返回 main_dir。
+    """嵌套 main 布局：``wdir/templates/arxiv/main.tex`` → 返回 main_dir。
 
-    幂等: main.tex 已在 (调用方先写定制内容) 不覆写。
+    幂等：main.tex 已在 (调用方先写定制内容) 不覆写。
     """
     d = wdir / "templates" / "arxiv"
     d.mkdir(parents=True, exist_ok=True)
@@ -115,7 +115,7 @@ def _scan_params(root: Path) -> dict:
 
 
 def test_scan_vendored_nested_drops_main_dir(tmp_path: Path) -> None:
-    """嵌套稿: vendored 兜底件落 main_dir, 不落 wdir 根。"""
+    """嵌套稿：vendored 兜底件落 main_dir, 不落 wdir 根。"""
     main_dir = _nested(tmp_path)
     (main_dir / "main.tex").write_text("\\usepackage{eqsecnum}\n", encoding="utf-8")
     root = mk_vendor(tmp_path)
@@ -128,7 +128,7 @@ def test_scan_vendored_nested_drops_main_dir(tmp_path: Path) -> None:
 
 
 def test_scan_vendored_flat_drops_wdir(tmp_path: Path) -> None:
-    """平铺稿回归: 落点仍 = wdir 根。"""
+    """平铺稿回归：落点仍 = wdir 根。"""
     (tmp_path / "main.tex").write_text("\\usepackage{eqsecnum}\n", encoding="utf-8")
     root = mk_vendor(tmp_path)
     (root / "stubs" / "eqsecnum.sty").write_text("x", encoding="utf-8")
@@ -145,7 +145,7 @@ _SHIM_PARAMS = {
 
 
 def test_legacy_pkg_shim_nested_lands_main_dir(tmp_path: Path) -> None:
-    """嵌套稿: stub 落 main_dir; 解析位已有 dep → 不走 install 链。"""
+    """嵌套稿：stub 落 main_dir; 解析位已有 dep → 不走 install 链。"""
     main_dir = _nested(tmp_path)
     (main_dir / "revtex4-1.cls").write_text("% real\n", encoding="utf-8")
     ctx, eng = _nested_ctx(tmp_path), _EngNoInstall()
@@ -157,7 +157,7 @@ def test_legacy_pkg_shim_nested_lands_main_dir(tmp_path: Path) -> None:
 
 
 def test_legacy_pkg_shim_wdir_dep_invisible_nested(tmp_path: Path) -> None:
-    """dep 只在 wdir 根 → 嵌套稿不可见 → 不算在场, 回 install 链。"""
+    """dep 只在 wdir 根 → 嵌套稿不可见 → 不算在场，回 install 链。"""
     _nested(tmp_path)
     (tmp_path / "revtex4-1.cls").write_text("% real\n", encoding="utf-8")
     ctx, eng = _nested_ctx(tmp_path), _EngNoInstall()
@@ -168,7 +168,7 @@ def test_legacy_pkg_shim_wdir_dep_invisible_nested(tmp_path: Path) -> None:
 
 
 def test_legacy_pkg_shim_flat_dep_present_skips_install(tmp_path: Path) -> None:
-    """平铺稿回归: dep 在 wdir 根 = 解析位在场 → 不走 install 链。"""
+    """平铺稿回归：dep 在 wdir 根 = 解析位在场 → 不走 install 链。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     (tmp_path / "revtex4-1.cls").write_text("% real\n", encoding="utf-8")
     ctx, eng = mk_ctx(tmp_path), _EngNoInstall()
@@ -180,7 +180,7 @@ def test_legacy_pkg_shim_flat_dep_present_skips_install(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- svjour_clo_stub
 def test_svjour_clo_stub_nested_lands_main_dir(tmp_path: Path) -> None:
-    """嵌套稿: ``sv<opt>.clo`` noop stub 落 main_dir。"""
+    """嵌套稿：``sv<opt>.clo`` noop stub 落 main_dir。"""
     main_dir = _nested(tmp_path)
     (main_dir / "main.tex").write_text(
         "\\documentclass[smallextended]{svjour}\n", encoding="utf-8"
@@ -193,7 +193,7 @@ def test_svjour_clo_stub_nested_lands_main_dir(tmp_path: Path) -> None:
 
 
 def test_svjour_clo_stub_flat_lands_wdir(tmp_path: Path) -> None:
-    """平铺稿回归: ``sv<opt>.clo`` 落 wdir 根。"""
+    """平铺稿回归：``sv<opt>.clo`` 落 wdir 根。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[smallextended]{svjour}\n", encoding="utf-8"
     )
@@ -213,7 +213,7 @@ _SHADOW_PARAMS = {
 
 
 def test_bundled_class_shadow_nested_lands_main_dir(tmp_path: Path) -> None:
-    """嵌套稿: 遮蔽 stub 落 main_dir; wdir 无 dep → 依赖回 install 链。"""
+    """嵌套稿：遮蔽 stub 落 main_dir; wdir 无 dep → 依赖回 install 链。"""
     main_dir = _nested(tmp_path)
     ctx, eng = _nested_ctx(tmp_path), _EngNoInstall()
     ok, note = TRANSFORM_FNS["bundled_class_shadow"](
@@ -226,7 +226,7 @@ def test_bundled_class_shadow_nested_lands_main_dir(tmp_path: Path) -> None:
 
 
 def test_bundled_class_shadow_wdir_dep_invisible_nested(tmp_path: Path) -> None:
-    """dep 只埋 wdir 根: 嵌套稿下不算在场 (与 legacy_pkg_shim 同口径)。"""
+    """dep 只埋 wdir 根：嵌套稿下不算在场 (与 legacy_pkg_shim 同口径)。"""
     _nested(tmp_path)
     (tmp_path / "emulateapj.cls").write_text("% real\n", encoding="utf-8")
     ctx, eng = _nested_ctx(tmp_path), _EngNoInstall()
@@ -237,7 +237,7 @@ def test_bundled_class_shadow_wdir_dep_invisible_nested(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- generated_stub
 def test_generated_stub_nested_lands_main_dir(tmp_path: Path) -> None:
-    """嵌套稿: 覆盖层占位 stub 落 main_dir。"""
+    """嵌套稿：覆盖层占位 stub 落 main_dir。"""
     main_dir = _nested(tmp_path)
     ctx = _nested_ctx(tmp_path)
     ok, note = TRANSFORM_FNS["generated_stub"](ctx, None, "fig.pstex_t", {})
@@ -247,7 +247,7 @@ def test_generated_stub_nested_lands_main_dir(tmp_path: Path) -> None:
 
 
 def test_generated_stub_escapes_wdir_declines(tmp_path: Path) -> None:
-    """main_rel 怪径逃出 wdir → DECLINE (不落件不炸, 交后续规则)。"""
+    """main_rel 怪径逃出 wdir → DECLINE (不落件不炸，交后续规则)。"""
     ctx = mk_ctx(tmp_path, "../outside/main.tex")
     ok, note = TRANSFORM_FNS["generated_stub"](ctx, None, "fig.pstex_t", {})
     assert not ok
@@ -256,14 +256,14 @@ def test_generated_stub_escapes_wdir_declines(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- {main_dir} 占位
 def test_substitute_main_dir_nested(tmp_path: Path) -> None:
-    """嵌套稿: ``{main_dir}`` → main_dir 相对 wdir 的 posix 径。"""
+    """嵌套稿：``{main_dir}`` → main_dir 相对 wdir 的 posix 径。"""
     ctx = _nested_ctx(tmp_path)
     out = actions._substitute('md="{main_dir}"', None, ctx)  # noqa: SLF001
     assert out == 'md="templates/arxiv"'
 
 
 def test_substitute_main_dir_fallbacks(tmp_path: Path) -> None:
-    """平铺/main 未知/怪径逃出/无 ctx → ``.`` (wdir 根兜底, DECLINE 口径)。"""
+    """平铺/main 未知/怪径逃出/无 ctx → ``.`` (wdir 根兜底，DECLINE 口径)。"""
     assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path)) == "."  # noqa: SLF001
     assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path, None)) == "."  # noqa: SLF001
     assert actions._substitute("{main_dir}", None, mk_ctx(tmp_path, "../x.tex")) == "."  # noqa: SLF001
@@ -282,7 +282,7 @@ _MNRAS_RULE_ID = "mnras_texmf_shadow_drop"
 
 
 def test_mnras_drop_nested_lands_main_dir(tmp_path: Path) -> None:
-    """``{main_dir}`` 占位: 嵌套稿解析位病件退役 + vendor 补丁件同位递补。"""
+    """``{main_dir}`` 占位：嵌套稿解析位病件退役 + vendor 补丁件同位递补。"""
     main_dir = _nested(tmp_path)
     (main_dir / "mnras.cls").write_text(mnras_buggy_cls(), encoding="utf-8")
     ctx = LoopCtx(
@@ -304,7 +304,7 @@ def test_mnras_drop_nested_lands_main_dir(tmp_path: Path) -> None:
 
 
 def test_mnras_drop_flat_lands_wdir(tmp_path: Path) -> None:
-    """平铺稿回归: ``md='.'`` → 退役+平铺仍落 wdir 根。"""
+    """平铺稿回归：``md='.'`` → 退役 + 平铺仍落 wdir 根。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     (tmp_path / "mnras.cls").write_text(mnras_buggy_cls(), encoding="utf-8")
     ctx = LoopCtx(

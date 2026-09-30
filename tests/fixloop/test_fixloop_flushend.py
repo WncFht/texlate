@@ -48,7 +48,7 @@ def test_flushend_rule_registered() -> None:
 
 
 def test_flushend_solo_bracket_stripped(tmp_path: Path) -> None:
-    """五格实读形: \\usepackage[keeplastbox]{flushend} → 整括号摘除。"""
+    """五格实读形：\\usepackage[keeplastbox]{flushend} → 整括号摘除。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{IEEEtran}\n"
         "\\usepackage{amsmath}\n"
@@ -64,7 +64,7 @@ def test_flushend_solo_bracket_stripped(tmp_path: Path) -> None:
 
 
 def test_flushend_bracket_positions(tmp_path: Path) -> None:
-    """括号三位置: 头 [keeplastbox,spread] / 中 [a,keeplastbox,b] / 末 [a,keeplastbox]。"""
+    """括号三位置：头 [keeplastbox,spread] / 中 [a,keeplastbox,b] / 末 [a,keeplastbox]。"""
     cases = (
         ("[keeplastbox,spread]", "[spread]"),
         ("[spread,keeplastbox,debug]", "[spread,debug]"),
@@ -82,7 +82,7 @@ def test_flushend_bracket_positions(tmp_path: Path) -> None:
 
 
 def test_flushend_requirepackage_sites(tmp_path: Path) -> None:
-    """\\RequirePackage[keeplastbox]{flushend} 三载面同剥: .tex/.sty/.cls (exts+命令面)。"""
+    """\\RequirePackage[keeplastbox]{flushend} 三载面同剥：.tex/.sty/.cls (exts+ 命令面)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{foo}\n"
         "\\RequirePackage[keeplastbox]{flushend}\n",
@@ -133,7 +133,7 @@ def test_flushend_group_load_bracket_stripped(tmp_path: Path) -> None:
 
 
 def test_flushend_near_names_untouched(tmp_path: Path) -> None:
-    """成员级匹配: xkeeplastbox/keeplastboxfoo/嵌套值 {a={x,keeplastbox}} 不剥。"""
+    """成员级匹配：xkeeplastbox/keeplastboxfoo/嵌套值 {a={x,keeplastbox}} 不剥。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[keeplastbox]{flushend}\n"
         "\\usepackage[xkeeplastbox]{foo}\n"
@@ -156,7 +156,7 @@ def test_flushend_near_names_untouched(tmp_path: Path) -> None:
 
 
 def test_flushend_nested_member_prefix_known_gap(tmp_path: Path) -> None:
-    """known_gap 钉死: PassOptions 首参 ``{a={x,y},keeplastbox}`` 的内层 ``}``
+    """known_gap 钉死：PassOptions 首参 ``{a={x,y},keeplastbox}`` 的内层 ``}``
     挡 ``[^}]`` → 顶层 keeplastbox 漏剥 (70-pkgopt.yaml 宣告罕形) —— 不剥不冤。"""
     (tmp_path / "main.tex").write_text(
         "\\PassOptionsToPackage{a={x,y},keeplastbox}{flushend}\n"
@@ -199,12 +199,12 @@ def test_flushend_cond_declines_no_source(tmp_path: Path) -> None:
 
 
 def test_flushend_commented_load_masked(tmp_path: Path) -> None:
-    """masked 面: 注释掉的 \\usepackage 不动 → 活面无改 applied=False。"""
+    """masked 面：注释掉的 \\usepackage 不动 → 活面无改 applied=False。"""
     (tmp_path / "main.tex").write_text(
         "% \\usepackage[keeplastbox]{flushend}\n\\usepackage{flushend}\n",
         encoding="utf-8",
     )
-    # wart 钉: cond 的 source_contains 走原文面不剥注释 → 纯注释载件闸仍绿,
+    # wart 钉：cond 的 source_contains 走原文面不剥注释 → 纯注释载件闸仍绿，
     # 由 apply 的 masked 面兜住不冤改 (cond 绿灯与 applied=False 并存是现行语义)。
     ok, _ = _cond(tmp_path)
     assert ok
@@ -215,7 +215,7 @@ def test_flushend_commented_load_masked(tmp_path: Path) -> None:
 
 
 def test_flushend_idempotent_second_round(tmp_path: Path) -> None:
-    """剥除后 source_contains 自锁: 下一轮 condition 拒 → 幂等。"""
+    """剥除后 source_contains 自锁：下一轮 condition 拒 → 幂等。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[keeplastbox]{flushend}\n", encoding="utf-8"
     )

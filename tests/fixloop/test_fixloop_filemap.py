@@ -6,9 +6,9 @@ INDEX_EXTS↔OVERLAY_EXTS 解耦 / cs glue-残骸前缀拆分 fallback。
   xelatex ``install_file`` 内部 ``self.filemap`` 调用与 fixloop advisory
   同口生效; bench 现场既有 ``eng.filemap = idx.query`` 遮蔽也照包。
 - ``CtanFetcher(index=注入索引)`` 同样应用 ``overrides=`` (原只在惰性建
-  索引分支套入, 注入共享索引时静默丢失)。
+  索引分支套入，注入共享索引时静默丢失)。
 - ``.tex``/``.rtx`` 进 tlpdb 索引 (runfiles 段限定) 但不进 OVERLAY_EXTS:
-  缺名可反查真包走 usertree 安装, 不做 basename 平铺遮蔽工程源。
+  缺名可反查真包走 usertree 安装，不做 basename 平铺遮蔽工程源。
 - ``cs_targeted_fix`` 表外 fallback: glue 残骸 ``\\itemFSU`` 型自动拆
   ``head rest``; ``@`` 私有 cs / split_guard 真宏名不拆。
 """
@@ -36,9 +36,9 @@ def _rs_with_overrides(overrides: dict) -> Ruleset:
     return Ruleset({"version": 1, "filemap": {"overrides": overrides}})
 
 
-# ---------------------------------------------------------------- 任务1: overrides 全引擎
+# ---------------------------------------------------------------- 任务 1: overrides 全引擎
 def test_wire_engine_wraps_xelatex_filemap(tmp_path: Path) -> None:
-    """xelatex 引擎: filemap 遮蔽后 overrides 先答, 未中委派原查询。"""
+    """xelatex 引擎：filemap 遮蔽后 overrides 先答，未中委派原查询。"""
     eng = MockEngine([])
     eng.filemap_tbl["real.sty"] = ["realpkg"]
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
@@ -49,7 +49,7 @@ def test_wire_engine_wraps_xelatex_filemap(tmp_path: Path) -> None:
         ctx,
     )
     assert eng.filemap("binhex.tex") == ["kastrup"]
-    assert eng.filemap("noise.tex") == []  # 显式 null → 短路, 不查原表
+    assert eng.filemap("noise.tex") == []  # 显式 null → 短路，不查原表
     assert eng.filemap("real.sty") == ["realpkg"]  # 未中 → 委派原 filemap
     assert eng.filemap("absent.sty") == []
     assert any("filemap overrides" in e for e in ctx.events)
@@ -88,7 +88,7 @@ def test_ctan_fetcher_applies_overrides_to_injected_index(tmp_path: Path) -> Non
     assert cf.index.query("foo.sty") == ["foopkg"]
 
 
-# ---------------------------------------------------------------- 任务2: 索引/平铺解耦
+# ---------------------------------------------------------------- 任务 2: 索引/平铺解耦
 def test_tex_indexed_runfiles_only(tmp_path: Path) -> None:
     """.tex/.rtx 只从 runfiles 段收录; docfiles/srcfiles 同名不收。"""
     tlpdb = tmp_path / "texlive.tlpdb"
@@ -116,7 +116,7 @@ runfiles
 
 
 def test_tex_not_in_overlay(tmp_path: Path) -> None:
-    """.tex 可索引不可平铺: fetch_package flat 不落 .tex/.pfb 成员。"""
+    """.tex 可索引不可平铺：fetch_package flat 不落 .tex/.pfb 成员。"""
     for ext in (".tex", ".rtx"):
         assert ext in INDEX_EXTS
         assert ext not in OVERLAY_EXTS

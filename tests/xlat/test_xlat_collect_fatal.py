@@ -75,7 +75,7 @@ def _raiser(exc: BaseException) -> Callable[..., None]:
 def _tag_recorder(
     calls: list[tuple[str, str]], tag: str, exc: BaseException | None = None
 ) -> Callable[[pl.ChunkResult], None]:
-    """``(tag, chunk_id)`` 记账闭包；``exc`` 非空时记完即抛（记账+点火合一）。"""
+    """``(tag, chunk_id)`` 记账闭包；``exc`` 非空时记完即抛（记账 + 点火合一）。"""
 
     def _f(r: pl.ChunkResult) -> None:
         calls.append((tag, r.chunk_id))

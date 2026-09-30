@@ -21,37 +21,37 @@ __all__ = [
 
 
 #: biblatex bbl-2.8 ``\sortlist`` 读者 polyfill —— svjour cls shim bbl 臂
-#: (90-shim-legacy.yaml svjour_body) 的 cs_table 泛化移植, 零裸 ``@`` 化。
-#: ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式, TL biblatex 3.21
+#: (90-shim-legacy.yaml svjour_body) 的 cs_table 泛化移植，零裸 ``@`` 化。
+#: ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式，TL biblatex 3.21
 #: 不再定义 ``\sortlist`` → ``.bbl:19`` 起 ``undefined_cs`` (1907.03923/
-#: 1706.00220/1706.00324/1706.02744/1803.03145 ×5)。defer 必需: preamble
+#: 1706.00220/1706.00324/1706.02744/1803.03145 ×5)。defer 必需：preamble
 #: ``\providecommand`` 会抢占 biblatex 装载期 ``\newcommand`` 名
 #: (bibinitdelim/bibnamedelim*/bibrangedash/revsdnamepunct already_def
-#: 级联, 1706.00221 实证)。但普通 ``\AtBeginDocument`` (= begindocument
-#: 钩 top-level 标) 不可用: lthooks 把 top-level 块排在钩尾, biblatex
+#: 级联，1706.00221 实证)。但普通 ``\AtBeginDocument`` (= begindocument
+#: 钩 top-level 标) 不可用：lthooks 把 top-level 块排在钩尾，biblatex
 #: 的 biblatex-标块先跑 ``\blx@bblinput`` 读 .bbl → 读者仍未定义
-#: (本机 live 实证, top-level 块在 "Trying to load bibliographic data"
-#: 之后才执行)。``begindocument/before`` 钩先于一切 begindocument 块,
+#: (本机 live 实证，top-level 块在 "Trying to load bibliographic data"
+#: 之后才执行)。``begindocument/before`` 钩先于一切 begindocument 块，
 #: 又在整段 preamble 之后 → biblatex 已就位 provide 自动 no-op, 未装时
-#: polyfill 兜底, 正文 ``\input``/``\printbibliography`` 两种读法通吃。
+#: polyfill 兜底，正文 ``\input``/``\printbibliography`` 两种读法通吃。
 #: doc 面 ``@``=12 → ``define@key``/``endsortlist``/``current@color`` 全走
-#: ``\csname``/``\ifcsname`` 形, 内部名纯字母 ``tlsv*``。
+#: ``\csname``/``\ifcsname`` 形，内部名纯字母 ``tlsv*``。
 #: ``\list``/``\verb`` 是内核基底宏 —— 只在 ``\sortlist`` ``\begingroup``
-#: 组内重定义, 不外泄。``\verb{fld}`` + ``\verb 内容\endverb`` 是
+#: 组内重定义，不外泄。``\verb{fld}`` + ``\verb 内容\endverb`` 是
 #: bbl-2.8 verbatim 域对 (eprint/url/file): ``\futurelet`` 分流 ——
-#: 带花参形吞域名, 裸形吞到 ``\endverb`` 止 (域内容 verbatim-catcode
-#: 敏感, gobble 保编译不渲染)。``\keyw`` 同理须组内 gobble: biblatex
+#: 带花参形吞域名，裸形吞到 ``\endverb`` 止 (域内容 verbatim-catcode
+#: 敏感，gobble 保编译不渲染)。``\keyw`` 同理须组内 gobble: biblatex
 #: ``\blx@bblstart`` 绑的 ``\keyw`` 展开 ``\abx@field@entrykey``, 该内部
 #: 名只在真 ``\entry`` 处理器下设 (live 实证 undefined_cs 级联)。
-#: ``\true``/``\false`` 同族但 gobble 不适用: ``\blx@bblstart`` 把它们
+#: ``\true``/``\false`` 同族但 gobble 不适用：``\blx@bblstart`` 把它们
 #: ``\let`` 到 ``\blx@bbl@booltrue/false`` (biblatex.sty:9018-19),
 #: 其 ``\csgappto`` 写经 ``\blx@bbl@data`` —— 该 csname 指针宏由真
 #: ``\blx@bbl@entry`` 在自己组内 ``\edef`` (:8687), 我们的 gobble
-#: ``\entry`` 不设 → 组内补一个 scratch 指针 + 预建空目标宏,
-#: ``\csgappto`` 写入即被吸收, 对一切写经此指针的 handler 通吃
+#: ``\entry`` 不设 → 组内补一个 scratch 指针 + 预建空目标宏，
+#: ``\csgappto`` 写入即被吸收，对一切写经此指针的 handler 通吃
 #: (1706.02744 ``\true{moreauthor}`` 实证)。
 #: ``\ifx\csname`` 须 ``\expandafter`` 先展开 ``\csname`` —— ``\ifx``
-#: 不展开操作数, 裸写恒假 (守卫死码)。
+#: 不展开操作数，裸写恒假 (守卫死码)。
 _SORTLIST_BBL_POLYFILL = r"""
 \AddToHook{begindocument/before}{%
 \providecommand{\bibinitperiod}{.}%
@@ -145,11 +145,11 @@ _SORTLIST_BBL_POLYFILL = r"""
 #: ``\csname cref@<type>{}{}{}@name`` 构造 → 组内 csname-relax 化
 #: orphan token 存进 ``\@currentlabelname``/toc whatsit → 写期
 #: ``undefined_cs|cref@section`` (preamble ``\def`` 该名无用 —— orphan
-#: 名带 ``{}{}{}`` 后缀且 relax 绑定随组蒸发, r2-r9 实证)。根修 =
+#: 名带 ``{}{}{}`` 后缀且 relax 绑定随组蒸发，r2-r9 实证)。根修 =
 #: splitter 第三参 ``#3\fi`` 定界吞尾组再回吐 ``\fi`` —— 双组/五组
-#: 两形通吃, 字段层名 (``@counter/@number/@result/@reference/@page``)
-#: 直改: 包装载期 ``\let`` 快照链 ``firstarg→counter`` 在钩点已
-#: 完成, 改 arg 层够不到字段层 → 须覆写字段名本体。``#`` 参数用
+#: 两形通吃，字段层名 (``@counter/@number/@result/@reference/@page``)
+#: 直改：包装载期 ``\let`` 快照链 ``firstarg→counter`` 在钩点已
+#: 完成，改 arg 层够不到字段层 → 须覆写字段名本体。``#`` 参数用
 #: 单 ``#`` 形 —— lthooks 存钩码不折叠 ``##`` (kernel≥2020 实证)。
 _CRT_CREF_SPLITTER_FIX = r"""
 \makeatletter
@@ -164,14 +164,14 @@ _CRT_CREF_SPLITTER_FIX = r"""
 """
 
 
-#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/
-#: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
+#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表，rules/
+#: params.cs_table 可扩)。spec 键：strip_pkg / usepackage / cs_map /
 #: guard / guard_pre / polyfill / polyfill_pre / engines{eng: 覆盖 spec}
 #: —— 组合语义见 cs_targeted_fix。
 _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     # 1909.05039: breakurl 的 shipout 钩调 \headerps@out —— 该宏只在
-    # hyperref dvips/ps2pdf 驱动下有定义, xetex/tectonic 走 hdvipdfm →
-    # 未定义即炸。breakurl 对 pdf 直出引擎本就无意义, 剥装载点是根修。
+    # hyperref dvips/ps2pdf 驱动下有定义，xetex/tectonic 走 hdvipdfm →
+    # 未定义即炸。breakurl 对 pdf 直出引擎本就无意义，剥装载点是根修。
     "headerps@out": {"strip_pkg": "breakurl"},
     # 2301.01267: \mathbbm ← bbm。xelatex/TL2026 装 bbm-macros 即可;
     # tectonic 侧 bbm 是 MF-only 死路 (font_sub_shim 同族) → 换 dsfont\mathds。
@@ -187,10 +187,10 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     },
     # 2308.04212/2403.00111: WileyNJD-v2.cls:248 \reserveinserts{28} ——
     # LaTeX2e<2015 kernel 原语 (旧式 insert 寄存器预留); etex.sty 在新
-    # 内核下整段跳过 → 名未定义。cls 在 \documentclass 内执行, 缝后
+    # 内核下整段跳过 → 名未定义。cls 在 \documentclass 内执行，缝后
     # 注入鞭长莫及 → polyfill_pre 落 docclass 行前。新内核分配器本就
     # 免预留 → providecommand 一参 gobble 语义无损 (\@gobble 形需
-    # @-letter 语境, providecommand 形在 .tex 顶零依赖)。
+    # @-letter 语境，providecommand 形在 .tex 顶零依赖)。
     "reserveinserts": {"polyfill_pre": r"\providecommand\reserveinserts[1]{}"},
     # biblatex backend=bibtex 稿的 bundled .bbl 是 2.8/2.9 格式 (1907.03923/
     # 1706.00220/1706.00324/1706.02744/1803.03145, shimdiag #171 cluster-A):
@@ -204,25 +204,25 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     # 私有 \z@ (0pt 寄存器) 零宽竖线; \ificlr\else 臂恒活 → \z 裸缺
     # + @ 字符残留触发 Missing number/Illegal unit 级联。@-分隔
     # \def\z@{0pt} 让 \z 吞掉跟随的 @ 字面吐 0pt —— 与 kernel \z@
-    # 语义逐字符一致, 非 @ 场景永不触发 (裸 \z 调用形不存在)。
-    # \ifdefined 护: cls 已备 \z 时不抢名。
+    # 语义逐字符一致，非 @ 场景永不触发 (裸 \z 调用形不存在)。
+    # \ifdefined 护：cls 已备 \z 时不抢名。
     "z": {"polyfill": r"\ifdefined\z\else\def\z@{0pt}\fi"},
     # 1503.00273 rjparticle.cls:316-317 \let\oldcr\\ 于 \affil 组内 +
     # {\def\\{\oldcr \ignorespaces}\xdef\AB@temp{#2}} —— 2013 稿照抄
-    # authblk 97 年代形: 旧内核 \\ 是可展宏, \let 冻结含义进 xdef 安全;
-    # 现代内核 \\ 是 \protected → xdef 内不可展, \oldcr 字面嵌入
+    # authblk 97 年代形：旧内核 \\ 是可展宏，\let 冻结含义进 xdef 安全;
+    # 现代内核 \\ 是 \protected → xdef 内不可展，\oldcr 字面嵌入
     # \AB@affillist, \endgroup 后局部 let 蒸发 → \@author 排版期
     # undefined (sinaia.log:564 l.561 \maketitle 实证)。全局 \newline
-    # 替身: 语义 = let 点想冻结的文本 \\ ({\centering\@author} 块内
+    # 替身：语义 = let 点想冻结的文本 \\ ({\centering\@author} 块内
     # 换行); 不取 \\ 本体 —— 若同族稿 \def\\{\oldcr…} 重绑后 xdef
-    # 无 let 冻结, \oldcr→\\→\oldcr 自指死循环, \newline 恒免疫。
+    # 无 let 冻结，\oldcr→\\→\oldcr 自指死循环，\newline 恒免疫。
     "oldcr": {"polyfill": r"\providecommand\oldcr{\newline}"},
     # astro-ph/9612039 (fix_residuals): vendored aaspp4.sty:96-98
     # \def\references{...\bgroup...\def\refpar{\par\hangindent=3em
     # \hangafter=1}} —— \refpar 作用域锁死在 references env 组内
     # (上游 aaspp4/aasms4 原构), 而稿在 thebibliography 裸调
     # \reference{key}→\refpar (:133), env 外无定义 → undefined_cs
-    # (pfsd96_pp.tex:475 实证)。provide 同体全局替身: env 内局部
+    # (pfsd96_pp.tex:475 实证)。provide 同体全局替身：env 内局部
     # \def 仍遮罩 (同体零语义差), env 外调用有兜底。
     "refpar": {"polyfill": r"\providecommand\refpar{\par\hangindent=3em\hangafter=1}"},
     # 2211.04538 (csfix8): crossreftools 1.0 splitter × cleveref ≥0.21.1
@@ -231,15 +231,15 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     "cref@section": {"polyfill": _CRT_CREF_SPLITTER_FIX},
     # 1206.1993 (csfix8): 95-targeted.yaml cs_table 已有 ``Bar`` 键但
     # payload 是小写 ``bar`` —— 精确大小写查表落空。eulervm 稿 ``\Bar``
-    # 展开 ``\bar``, eulervm 版不设 ``\bar`` 数学重音 → 裸缺。defer 必需:
+    # 展开 ``\bar``, eulervm 版不设 ``\bar`` 数学重音 → 裸缺。defer 必需：
     # preamble ``\providecommand`` 会抢 eulervm ``\DeclareMathAccent``
-    # 名 → AtBeginDocument 复查点先让位, 已定义则不覆。
+    # 名 → AtBeginDocument 复查点先让位，已定义则不覆。
     "bar": {
         "polyfill": r"\AtBeginDocument{\providecommand\bar[1]{\overline{#1}}}",
     },
     # 2504.01669 (csfix8): doc 体直调 ``\inputencoding{latin1}`` —
     # xelatex 下 inputenc 不载 (inputenc_strip 臂只应 inputenc_unicode
-    # 类, 此格是裸 undefined_cs) → 一参 gobble。
+    # 类，此格是裸 undefined_cs) → 一参 gobble。
     "inputencoding": {"polyfill": r"\providecommand\inputencoding[1]{}"},
     # 2009.11007 (csfix8): doc 自有 ``{\red 这是译文}`` 色切宏无定义
     # → xcolor 装载 + 组内色切替身。
@@ -249,6 +249,6 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     },
     # cond-mat/0111246 (csfix8): 2.09 代 tabbing 重音 ``\+'e`` 裸调
     # (tabbing env 外无定义) → 零参 gobble 脱壳留 'e 文本;
-    # tabbing env 内 ``\+`` 由 env 自重绑, providecommand 不干扰。
+    # tabbing env 内 ``\+`` 由 env 自重绑，providecommand 不干扰。
     "+": {"polyfill": r"\providecommand{\+}{}"},
 }

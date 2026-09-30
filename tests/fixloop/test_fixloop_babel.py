@@ -30,7 +30,7 @@ def _apply(
 
 # ──────────────────────────── taxonomy: babel_undef ────────────────────────────
 def test_taxonomy_babel_undef_signature() -> None:
-    """'You haven't defined the language X' → babel_undef, payload=X。"""
+    """'You haven't defined the language X' → babel_undef, payload=X."""
     cat, pay = classify(
         "! Package babel Error: You haven't defined the language `ngerman' yet.\n"
         "l.740 \\iflanguage{ngerman}\n"
@@ -50,7 +50,7 @@ def test_taxonomy_babel_opt_not_shadowed() -> None:
 
 # ───────────────────── babel_lang_ldf_install: file_aliases ────────────────────
 def test_ldf_install_aliases_registered() -> None:
-    """file_aliases 表装载: ukrainian→ukraineb + 抽查全表项。"""
+    """file_aliases 表装载：ukrainian→ukraineb + 抽查全表项。"""
     r = rule("babel_lang_ldf_install")
     assert r.order == 11  # noqa: PLR2004 - schema 断言值
     assert r.when["category"] == "babel_opt"
@@ -58,7 +58,7 @@ def test_ldf_install_aliases_registered() -> None:
     assert aliases["ukrainian"] == ["ukraineb.ldf"]
     assert aliases["hungarian"] == ["magyar.ldf"]
     assert aliases["ukenglish"] == ["UKenglish.ldf"]
-    # greek 系不入表 —— XeTeX 下 ldf 硬拒, polutoniko 走 ini 改写
+    # greek 系不入表 —— XeTeX 下 ldf 硬拒，polutoniko 走 ini 改写
     assert "polutonikogreek" not in aliases
     assert "monotonicgreek" not in aliases
 
@@ -110,7 +110,7 @@ def test_ldf_install_russian_b_ext(tmp_path: Path) -> None:
 
 
 def test_ldf_install_no_alias_no_match_declines(tmp_path: Path) -> None:
-    """francais (弃名, TL 无档): 全候选失败 → applied=False 落改写规则。"""
+    """francais (弃名，TL 无档): 全候选失败 → applied=False 落改写规则。"""
     eng = EngInstall(tmp_path / "texmf", set())
     ok, _note = _apply("babel_lang_ldf_install", tmp_path, "francais", eng)
     assert not ok
@@ -127,7 +127,7 @@ def test_francais_rule_registered() -> None:
 
 
 def test_francais_option_brackets_renamed(tmp_path: Path) -> None:
-    """1206.0213 形: usepackage + docclass 选项表内 francais→french。"""
+    """1206.0213 形：usepackage + docclass 选项表内 francais→french。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[a4paper,francais]{article}\n"
         "\\usepackage[english,francais]{babel}\n",
@@ -160,7 +160,7 @@ def test_francais_body_selectors_renamed(tmp_path: Path) -> None:
 
 
 def test_francais_word_boundary_respected(tmp_path: Path) -> None:
-    """\\b 词界: francais2/xfrancais 非弃名不命中; 无 francais → applied=False。"""
+    """\\b 词界：francais2/xfrancais 非弃名不命中; 无 francais → applied=False。"""
     src = "\\usepackage[franc]{babel}\n\\selectlanguage{xfrancais}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, _ = _apply("babel_opt_francais_rewrite", tmp_path, "francais")
@@ -169,7 +169,7 @@ def test_francais_word_boundary_respected(tmp_path: Path) -> None:
 
 
 def test_francais_condition_gate(tmp_path: Path) -> None:
-    """source_contains 闸: 工程无 francais 字样 → condition 拒, 不空转。"""
+    """source_contains 闸：工程无 francais 字样 → condition 拒，不空转。"""
     r = rule("babel_opt_francais_rewrite")
     (tmp_path / "main.tex").write_text("\\usepackage[french]{babel}\n")
     ok, why = actions._cond_ok(  # noqa: SLF001
@@ -179,7 +179,7 @@ def test_francais_condition_gate(tmp_path: Path) -> None:
 
 
 def test_francais_match_apply_fallthrough(tmp_path: Path) -> None:
-    """整链: babel_opt/francais → install 候选全败 decline → 同轮改写规则接住。"""
+    """整链：babel_opt/francais → install 候选全败 decline → 同轮改写规则接住。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english,francais]{babel}\n", encoding="utf-8"
     )
@@ -212,7 +212,7 @@ def test_undeclared_usepackage_head_insert(tmp_path: Path) -> None:
 
 
 def test_undeclared_main_position_preserved(tmp_path: Path) -> None:
-    """多语言表头插不夺主位: [english,german] → [ngerman,english,german]。"""
+    """多语言表头插不夺主位：[english,german] → [ngerman,english,german]。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english,german]{babel}\n", encoding="utf-8"
     )
@@ -274,7 +274,7 @@ def test_undeclared_no_surface_declines(tmp_path: Path) -> None:
 
 
 def test_undeclared_payload_substituted(tmp_path: Path) -> None:
-    """{payload} 占位替换实证: pay=french 注入 french 而非字面串。"""
+    """{payload} 占位替换实证：pay=french 注入 french 而非字面串。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english]{babel}\n", encoding="utf-8"
     )
@@ -284,7 +284,7 @@ def test_undeclared_payload_substituted(tmp_path: Path) -> None:
 
 
 def test_undeclared_match_apply_routes(tmp_path: Path) -> None:
-    """整链: babel_undef/ngerman → 规则点火注入 (0707.1325 残签的消费路径)。"""
+    """整链：babel_undef/ngerman → 规则点火注入 (0707.1325 残签的消费路径)。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[german]{babel}\n", encoding="utf-8"
     )
@@ -322,12 +322,12 @@ def test_census_pins_registered() -> None:
         "afrikaans.ldf": "babel-dutch",  # 实档在 babel-dutch 包
     }.items():
         assert overrides.get(fname) == pkg, fname
-    # tlpdb 无档 → 显式 null 已知噪声, 不落 install 往返
+    # tlpdb 无档 → 显式 null 已知噪声，不落 install 往返
     assert overrides["german-traditional.ldf"] is None
 
 
 def test_census_pins_wire_filemap(tmp_path: Path) -> None:
-    """overrides 接线后 eng.filemap 先答钉表: 钉中 → [pkg], null → []。"""
+    """overrides 接线后 eng.filemap 先答钉表：钉中 → [pkg], null → []。"""
     eng = EngStub()
     _wire_filemap_overrides(eng, rs().filemap_cfg["overrides"], mk_ctx(tmp_path))
     assert eng.filemap("bulgarian.ldf") == ["babel-bulgarian"]
@@ -356,7 +356,7 @@ def test_ldf_install_unpinned_declines(tmp_path: Path) -> None:
 
 # ─────────────── babel_opt_polutoniko_rewrite: polytonicgreek 源 ───────────────
 def test_taxonomy_polytonicgreek_payload() -> None:
-    """Unknown option 'polytonicgreek' → babel_opt, payload=polytonicgreek。"""
+    """Unknown option 'polytonicgreek' → babel_opt, payload=polytonicgreek."""
     cat, pay = classify(
         "! Package babel Error: Unknown option 'polytonicgreek'.\nl.3 \\ProcessOptions"
     )
@@ -374,7 +374,7 @@ def test_polytonicgreek_condition_gate(tmp_path: Path) -> None:
 
 
 def test_polytonicgreek_option_brackets_rewritten(tmp_path: Path) -> None:
-    """babelinv live repro 形: 选项表内 polytonicgreek → greek.polytonic。"""
+    """babelinv live repro 形：选项表内 polytonicgreek → greek.polytonic。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass[polytonicgreek]{article}\n"
         "\\usepackage[english,polytonicgreek]{babel}\n",

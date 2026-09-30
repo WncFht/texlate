@@ -4,11 +4,11 @@
 ``epstopdfDeclareGraphicsRule`` 扩行; ``pdfinclusioncopyfonts`` 进
 PDFTEX_PRIMS + _PRIM_COUNTISH 双表; diagrams 双子 stub 补 Onto/Into
 垂直对角 16 箭头。``\\@nil`` (1706.00225, vendored aa.cls 选项机件内部件)
-判 stub-fidelity 道主, 本表拒收 —— 裸 ``\\def\\@nil{}`` 会腐 list 哨兵。
+判 stub-fidelity 道主，本表拒收 —— 裸 ``\\def\\@nil{}`` 会腐 list 哨兵。
 
-钉死的机制要点:
+钉死的机制要点：
 
-- ``endproof`` 必走 ``\\ifdefined\\X\\else\\def\\X{..}\\fi`` 守卫形:
+- ``endproof`` 必走 ``\\ifdefined\\X\\else\\def\\X{..}\\fi`` 守卫形：
   ``\\@ifdefinable`` 恒拒 ``end*`` 名 (``\\@carcube`` 首 3 字符=end),
   ``\\providecommand{\\endproof}`` 产 already_def r1→r2 死循环 (W151 实证)。
 - ``Z`` 行 cs_map ``Zö→Z`` (xelatex 下 ö 是 letter, ``\\Zö`` 是整 cs) +
@@ -16,7 +16,7 @@ PDFTEX_PRIMS + _PRIM_COUNTISH 双表; diagrams 双子 stub 补 Onto/Into
   ``\\newcommand{\\Z}`` 站点顶成 already_def。
 - ``Bbb`` cs_map 词边界下 ``\\Bbbk`` 不误伤。
 - ``epstopdf``/``transparent`` 真包在 xelatex 加载即 abort →
-  usepackage 臂独力不治, polyfill 兜底才是真修。
+  usepackage 臂独力不治，polyfill 兜底才是真修。
 """
 
 from pathlib import Path
@@ -55,7 +55,7 @@ def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
     return _TARGETED(mk_ctx(tmp_path), _EngStub(), cs, _PARAMS)
 
 
-#: 本批落表的 cs → 期望 spec 键 (epstopdf 为扩行, 非新行)。
+#: 本批落表的 cs → 期望 spec 键 (epstopdf 为扩行，非新行)。
 _EXPECTED_SPECS = {
     "endproof": {"polyfill"},
     "tikzset": {"usepackage", "polyfill"},
@@ -84,7 +84,7 @@ def test_shipped_table_entries_present() -> None:
 
 
 def test_atnil_not_tabled() -> None:
-    """``\\@nil`` 延期 (aa.cls 内部件) —— 盲 polyfill 腐哨兵, 表内拒收。"""
+    """``\\@nil`` 延期 (aa.cls 内部件) —— 盲 polyfill 腐哨兵，表内拒收。"""
     assert "@nil" not in _CSTABLE
 
 
@@ -98,7 +98,7 @@ def test_polyfill_bodies_carry_nl_prefix() -> None:
 
 
 def test_endproof_guard_form_not_providecommand(tmp_path: Path) -> None:
-    """W151: ``end*`` 名走 ``\\ifdefined..\\else\\def`` 守卫, 非 providecommand。"""
+    """W151: ``end*`` 名走 ``\\ifdefined..\\else\\def`` 守卫，非 providecommand。"""
     _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "endproof")
     assert ok, note
@@ -122,12 +122,12 @@ def test_z_csmap_typo_plus_deferred_provide(tmp_path: Path) -> None:
     assert "$\\Z$" in text
     assert "\\RequirePackage{amssymb}" in text
     assert "\\AtBeginDocument{\\providecommand{\\Z}" in text
-    # 稿自 \newcommand{\Z} 原样存活 (provide 延迟, 站点不 already_def)。
+    # 稿自 \newcommand{\Z} 原样存活 (provide 延迟，站点不 already_def)。
     assert "\\newcommand{\\Z}{\\mathbb{Z}}" in text
 
 
 def test_msg_expl3_csmap(tmp_path: Path) -> None:
-    """``\\msg_term:n`` → ``\\iow_term:n``: ``:n`` 属 cs 名, 词界在 m 后。"""
+    """``\\msg_term:n`` → ``\\iow_term:n``: ``:n`` 属 cs 名，词界在 m 后。"""
     tex = DOC.replace("x", "\\ExplSyntaxOn\n\\msg_term:n{hi}\n\\ExplSyntaxOff")
     _proj(tmp_path, tex)
     ok, _ = _fix(tmp_path, "msg")
@@ -150,7 +150,7 @@ def test_bbb_csmap_spares_bbbk(tmp_path: Path) -> None:
 
 
 def test_line_usepackage_pict2e(tmp_path: Path) -> None:
-    """axodraw ``\\Line`` → pict2e 原生同签名宏, 装真包臂。"""
+    """axodraw ``\\Line`` → pict2e 原生同签名宏，装真包臂。"""
     _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "Line")
     assert ok
@@ -201,7 +201,7 @@ def test_hangcaption_dual_form(tmp_path: Path) -> None:
 
 
 def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
-    """latex2html 宏 → ``\\href`` 在场真链, 缺席落锚文本。"""
+    """latex2html 宏 → ``\\href`` 在场真链，缺席落锚文本。"""
     _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "htmladdnormallink")
     assert ok
@@ -211,9 +211,9 @@ def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
 
 
 def test_refire_idempotent(tmp_path: Path) -> None:
-    """二轮重火: usepackage 判重 + polyfill snippet 判重 → 文件幂等;
+    """二轮重火：usepackage 判重 + polyfill snippet 判重 → 文件幂等;
     臂 probe 注记保 done 非空 → 返回 True 不落 guess (pgffix 升级后
-    ``tikzset`` 挂 ``usepackage: tikz`` 臂, 与 letltxmacro 同语义)。"""
+    ``tikzset`` 挂 ``usepackage: tikz`` 臂，与 letltxmacro 同语义)。"""
     _proj(tmp_path, DOC)
     ok1, _ = _fix(tmp_path, "tikzset")
     assert ok1
@@ -225,13 +225,13 @@ def test_refire_idempotent(tmp_path: Path) -> None:
 
 
 def test_pdfinclusioncopyfonts_both_tables() -> None:
-    """2403.15085 ``\\prim=1`` 写形+读形 → 原语表与 countish 表双收。"""
+    """2403.15085 ``\\prim=1`` 写形 + 读形 → 原语表与 countish 表双收。"""
     assert "pdfinclusioncopyfonts" in PDFTEX_PRIMS
     assert "pdfinclusioncopyfonts" in _PRIM_COUNTISH
 
 
 def test_diagrams_stub_twins_onto_into_family() -> None:
-    """Onto/Into 垂直+对角 16 cs 双子点镜像 (math/9901064)。"""
+    """Onto/Into 垂直 + 对角 16 cs 双子点镜像 (math/9901064)。"""
     names = [
         f"{d}{k}"
         for d in ("u", "d", "v", "ru", "rd", "lu", "ld")

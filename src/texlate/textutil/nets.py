@@ -40,14 +40,14 @@ PH_RX: Final = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 
 #: 模糊占位符候选（zh 侧变体）：完整 ``[[..]]`` / 缺右括号 / 单层 ``[X_n]``
 #: / 全角 ``【..】``。各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/
-#: 纯 CJK 的 ``【1】`` ``【图1】`` ``[[图]]`` 是中文正文的自然全角括号用法，
+#: 纯 CJK 的 ``【1】`` ``【图 1】`` ``[[图]]`` 是中文正文的自然全角括号用法，
 #: 非占位符变体。L0 ``_check_placeholder`` 与 xlat ``placeholders.diff``
 #: 共用本口径（validate 不能 import xlat，单源落本模块）。
 PH_FUZZY_RX: Final = re.compile(
     r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
     r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
     r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
-    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
+    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】CJK 括号
 )
 
 
@@ -379,7 +379,7 @@ def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
 #: 原 l0 私有件下沉单源，placeholders.py 头注的「两处口径同步」所指即此）。
 PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
-#: 控制序列/控制符号剥皮——``\cs名[*]`` 与 ``\`` 后随单字符（``\%``/``\,`` 族）。
+#: 控制序列/控制符号剥皮——``\cs 名 [*]`` 与 ``\`` 后随单字符（``\%``/``\,`` 族）。
 CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\[\s\S]")
 
 
@@ -402,7 +402,7 @@ def est_tokens(s: str) -> float:
 
 
 #: 残英 run 门槛（``residual_en_net``）——回显 Tier-A 的 est 下限沿用
-#: ``_MIN_PROSE_TOKENS`` 口径（纯占位符/短残段不判）；Tier-B 按词数+字符
+#: ``_MIN_PROSE_TOKENS`` 口径（纯占位符/短残段不判）；Tier-B 按词数 + 字符
 #: 双闸防短语/inline 术语误伤。
 _RESID_EN_MIN_EST: Final = 10
 _RESID_EN_MIN_WORDS: Final = 8
@@ -549,7 +549,7 @@ def name_list_prose(s: str) -> bool:
     """整段 prose 是否人名/专名/地址列签名（``_keep_verbatim_run`` 同口径段级化）。
 
     作者/贡献者名单、consortium 块、地址栏——``residual_en`` 的 run 级豁免
-    升为段级判定。此类 src 的 verbatim 回显（名单留拉丁原名）与音译+原文
+    升为段级判定。此类 src 的 verbatim 回显（名单留拉丁原名）与音译 + 原文
     括号注释（长度 ~2.6-3.4x 合法膨胀）都是正确译文态；L0 ``same_source``
     与 ``length`` 上界各消费本判据豁免（web t_25e3f4d1 seq-67..77 +
     t_4000988e seq-234 实证：名单块阶梯尽、回退原文，用户面失译）。

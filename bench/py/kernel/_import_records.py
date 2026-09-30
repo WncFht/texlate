@@ -1,6 +1,6 @@
 """kernel._import_records — bench.db / worktree jsonl 源导入 (kernel.importer 拆分叶).
 
-records 面两源驱动:
+records 面两源驱动：
 
 - ``import_benchdb`` — bench.db 五表 (records/eval_records/cases/cells)
   按 (table,run) 切 import run, run_seq 依 §3.3 (created_at -> path mtime

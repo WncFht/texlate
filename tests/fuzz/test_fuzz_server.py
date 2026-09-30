@@ -7,7 +7,7 @@ HTTP 闸后解析面。本文件打**跨层接缝**：store↔API 契约错位�
 
 已修 CONFIRMED（原 xfail-strict 钉，修复后转断言钉留档）：
 
-- D1 ``task_retry`` 合并臂绕 ``_OPTIONS_JSON_CAP``——存量+增量合并后
+- D1 ``task_retry`` 合并臂绕 ``_OPTIONS_JSON_CAP``——存量 + 增量合并后
   重跑帽闸（与 share 导入臂 post-merge 校验同口径），超帽 400。
 - D2 ``/api/task/{id}/chunks`` ``limit`` 上限对齐 ``CHUNKS_PAGE_MAX``——
   超帽值 Query 校验拒（此前声明 1000 vs 钳 500 静默丢尾页）。
@@ -35,7 +35,7 @@ OBSERVED（断言钉当前行为/爆炸半径，非缺陷判词）：
   过闸但原值落库），与 ``source`` 规范化回写不对称。
 
 正向不变量（绿）：snapshot options 摘内部审计键 + glossary 回显；
-publish 已删任务返 0 不扇出；snapshot.warnings 回放 cap+序；
+publish 已删任务返 0 不扇出；snapshot.warnings 回放 cap+ 序；
 ``queued_rows`` 排除 header 源；``chunks_page`` 双侧钳位；
 ``opt_bool`` env 回落；``_clean_task_options`` 白名单/钳位矩阵。
 """

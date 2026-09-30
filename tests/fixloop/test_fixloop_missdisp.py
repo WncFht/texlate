@@ -1,6 +1,6 @@
 """missdisp #189 — 缺字族再派发 (per-round cp delta + warn-preempt 勤勉闸)。
 
-misschar3 车道普查双缺陷对账:
+misschar3 车道普查双缺陷对账：
 
 - family_not_dispatched (77 cells, 60/77 臂覆盖): error cat 把轮
   次烧完、裁决落 acceptable_pdf/best_effort_pdf 时 warn 族从未拿到
@@ -8,7 +8,7 @@ misschar3 车道普查双缺陷对账:
   (site b) 补发一轮 ``warn_missing_char`` 派发。
 - fired_late_surface (34 cells): 缺字臂起火**之后**才浮面的新码位
   (``\\bibitem`` 细空格/.bbl 字形/cs_rebind 重音) 被 ``applied`` 键
-  死挡 → 起火轮码位记 ``mc_seen`` 消费账, 后浪码位经 ``_mc_delta``
+  死挡 → 起火轮码位记 ``mc_seen`` 消费账，后浪码位经 ``_mc_delta``
   增量豁免 dedup 再派发; 增量空 → 照常 dedup (终止性)。
 
 全部走实装 ruleset (test_fixloop_missing_char.py 同型)。
@@ -50,7 +50,7 @@ def test_warn_preempt_error_cat_exhaustion(tmp_path: Path) -> None:
 
 
 def test_warn_preempt_declines_uncoverable(tmp_path: Path) -> None:
-    """残存码位全族不可修 (U+0016 控制符) → preempt 空转留痕, 原裁决照走。"""
+    """残存码位全族不可修 (U+0016 控制符) → preempt 空转留痕，原裁决照走。"""
     log = (
         UNDEF_LOG
         + "Missing character: There is no ^^V (U+0016) in font cmr10!\n"
@@ -64,7 +64,7 @@ def test_warn_preempt_declines_uncoverable(tmp_path: Path) -> None:
 
 
 def test_warn_preempt_no_missing_chars_noop(tmp_path: Path) -> None:
-    """无缺字轮的 error 耗尽路径 —— 闸不启动, 无 warn-preempt 事件。"""
+    """无缺字轮的 error 耗尽路径 —— 闸不启动，无 warn-preempt 事件。"""
     eng = MockEngine([{"log": UNDEF_LOG}])
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "unfixable:undefined_cs"
@@ -72,7 +72,7 @@ def test_warn_preempt_no_missing_chars_noop(tmp_path: Path) -> None:
 
 
 def test_warn_preempt_before_salvage(tmp_path: Path) -> None:
-    """无 pdf 定败格: preempt 先于 salvage 兜底给族一轮, 修复落源。"""
+    """无 pdf 定败格：preempt 先于 salvage 兜底给族一轮，修复落源。"""
     log = UNDEF_LOG + MC_NEQ
     eng = SalvageMockEngine([{"log": log}])
     cell = fixloop(make_proj(tmp_path, MAIN_NEQ), eng)
@@ -80,7 +80,7 @@ def test_warn_preempt_before_salvage(tmp_path: Path) -> None:
     mcf = _actions(cell, "missing_char_fix")
     assert len(mcf) == 1
     assert mcf[0]["via"] == "warn_preempt"
-    assert mcf[0]["round"] == 1  # 首个耗尽轮即补发, 不等退出点
+    assert mcf[0]["round"] == 1  # 首个耗尽轮即补发，不等退出点
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\ensuremath{\\neq}" in t
 

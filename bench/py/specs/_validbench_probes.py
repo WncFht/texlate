@@ -2,7 +2,7 @@
 
 docs/spec/benchmark.md §B6-2 清单 + test_validate_l0.py 防误报面; 每条断言
 ok/error-rules/warn-rules. suggest= 要求至少一条 issue 带 expected+found
-修复配对. ``_probe_eval`` 逐条断言 → rows (pass/fail + 详情)。
+修复配对。``_probe_eval`` 逐条断言 → rows (pass/fail + 详情)。
 """
 
 from __future__ import annotations

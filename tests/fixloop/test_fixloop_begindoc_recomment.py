@@ -21,7 +21,7 @@ from texlate.compile.fixloop import load_ruleset
 if TYPE_CHECKING:
     from texlate.compile.fixloop.ruleset import Rule
 
-# 仿真 natbib_numbers_pass 裂伤产物: 注释行内 \begin{document} 被 \n
+# 仿真 natbib_numbers_pass 裂伤产物：注释行内 \begin{document} 被 \n
 # 切出活行 ×2, 真 \begin{document} 在注入位之后单独成行。
 _DAMAGED = (
     "\\documentclass{aastex}\n"
@@ -117,7 +117,7 @@ def test_rewrite_commented_begin_untouched() -> None:
 
 
 def test_rewrite_idempotent() -> None:
-    """二入幂等: 修后再 sub 文本不变。"""
+    """二入幂等：修后再 sub 文本不变。"""
     once = _sub(_DAMAGED)
     assert _sub(once) == once
 

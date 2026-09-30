@@ -171,7 +171,7 @@ def normalize_pixel_dimensions(text: str) -> str:
 
 # ---------------------------------------------------------------- 手工断词还原
 #: 字母夹断词整词匹配——前导字母串不许 ``\``/字母前接：``\foo\-bar``
-#: 的 ``foo\-bar`` 是 cs 尾+断词，直接剥 ``\-`` 会把 ``bar`` 接进宏名
+#: 的 ``foo\-bar`` 是 cs 尾 + 断词，直接剥 ``\-`` 会把 ``bar`` 接进宏名
 #: 变 ``\foobar``（lookbehind 在 ``f`` 与第二个 ``o`` 位双双挡死）；
 #: ``(?<!\\-)`` 再挡断词串续段——``\foo\-bar\-baz`` 里 ``bar`` 前位是
 #: ``\-`` 尾符，放行会把 ``barbaz`` 接走最后一个断点。
@@ -286,7 +286,7 @@ _DRIVER_TOKEN_RX: Final = re.compile(
 _DRIVER_SCOPE_RX: Final = re.compile(
     # 多包并列形 \usepackage[drv]{a,b}: lookahead 要求花括号表内含至少一枚
     # 整词驱动敏感包 (\b 挡 colortbl/xcolorful 子串伪命中) —— 旧单名面漏此
-    # 形, 实测 12 格 dvips 驱动 token 漏网 (loop3 pasj00/ismdproc/aa.cls 系)
+    # 形，实测 12 格 dvips 驱动 token 漏网 (loop3 pasj00/ismdproc/aa.cls 系)
     r"\\(?:usepackage|RequirePackage)\s*\[([^]]+)\]"
     r"\s*\{(?=[^}]*\b(?:hyperref|graphicx|graphics|color|xcolor)\b)[^}]*\}"
     r"|\\documentclass\s*\[([^]]+)\]"

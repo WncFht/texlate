@@ -77,7 +77,7 @@ _MISSING_CHAR_RX: Final = re.compile(
 #: warning 分类规则（按序首中即归）。类别名即 by_class 键。
 #: 注意预筛：只对有 warning 形态的行归类——error ctx 内的帮助文本
 #: （``type `I\font<same font id>...'``）不打 Warning 标，曾被 font_subst 误吃。
-#: 红线相关类的 ``(类名, pattern)`` 单源在 ``texlate.redlines``（★2）——
+#: 红线相关类的 ``(类名，pattern)`` 单源在 ``texlate.redlines``（★2）——
 #: ``_rl`` 按 canonical id 取本层发射名与行级模式；citation/rerun 等
 #: 非红线观察类仍本层自持。
 def _rl(rid: str) -> tuple[str, re.Pattern[str]]:

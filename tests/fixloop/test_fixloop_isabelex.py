@@ -77,7 +77,7 @@ _CSFORM_DOC = (
 def test_isabelex_rule_registered() -> None:
     r = rule(_RID)
     assert r.phase == "loop"
-    assert r.order == 163.5  # noqa: PLR2004 - schema 断言值: detab(164) 前
+    assert r.order == 163.5  # noqa: PLR2004 - schema 断言值：detab(164) 前
     assert r.when["category"] == "runaway_scan"
     assert r.when["payload_required"] is True
     assert r.action["kind"] == "regex_rewrite"
@@ -88,7 +88,7 @@ def test_isabelex_rule_registered() -> None:
 
 
 def test_isabelex_before_detab() -> None:
-    """同 \\next 族内 cs 形先收——env 形+缩进残面才落 detab。"""
+    """同 \\next 族内 cs 形先收——env 形 + 缩进残面才落 detab。"""
     ids = [r.id for r in rs().phase("loop")]
     assert ids.index("comment_csform_isabelle_env") < ids.index("detab_end_scanlines")
 
@@ -132,7 +132,7 @@ def test_cond_skips_env_form_source(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 改写面
 def test_apply_csform_pairs_to_env(tmp_path: Path) -> None:
-    """isabelle 实形: delim/tag cs 对 → env 形, ``\\isafold`` 纯宏不动。"""
+    """isabelle 实形：delim/tag cs 对 → env 形，``\\isafold`` 纯宏不动。"""
     (tmp_path / "main.tex").write_text(_CSFORM_DOC, encoding="utf-8")
     ok, note = _apply(tmp_path)
     assert ok, note
@@ -260,7 +260,7 @@ def test_match_apply_prefers_isabelex_on_csform(tmp_path: Path) -> None:
 
 
 def test_match_apply_detab_on_envform_indented(tmp_path: Path) -> None:
-    """env 形+缩进 \\end → isabelex 让位, detab 接住同签名。"""
+    """env 形 + 缩进 \\end → isabelex 让位，detab 接住同签名。"""
     doc = "\\begin{CCSXML}\n<ccs/>\n\t\\end{CCSXML}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
     hit, _note = actions._match_apply(  # noqa: SLF001

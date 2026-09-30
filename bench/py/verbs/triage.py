@@ -245,7 +245,7 @@ def retired_names():
                     ((rule.get("action") or {}).get("params") or {}).get("shim_map")
                     or {}
                 )
-    except Exception as e:  # shim 表只是归类提示, 读不到不致命
+    except Exception as e:  # shim 表只是归类提示，读不到不致命
         print(f"  warn: rules/ shim_map 读取失败 ({e}); 用内置退役表", file=sys.stderr)
     return names
 
@@ -253,7 +253,7 @@ def retired_names():
 def classify(sig, rep):
     """(sig, 代表 record) → (fix_class, note)。
 
-    顺序: 具体 cat 先判 (unfixable:missing_file:elsart.cls 也是 shim_table 单 — F1),
+    顺序：具体 cat 先判 (unfixable:missing_file:elsart.cls 也是 shim_table 单 — F1),
     终态词兜底 core; 其余 rule 留人工。
     """
     cat, pay = parse_sig(sig)
@@ -291,14 +291,14 @@ def classify(sig, rep):
     if cat == "leftover_ph":
         return "core", "占位符字面泄漏进文档——splice/translate 层缺陷, 非规则可修"
     if cat == "latex209" or pay == "latex209":
-        # sig 形如 inject_reject:latex209 / inject:latex209 —— cat 是阶段桶,
+        # sig 形如 inject_reject:latex209 / inject:latex209 —— cat 是阶段桶，
         # 209 判定落在 payload 位
         return (
             "wontfix",
             "LaTeX2.09 路由层拒绝 (F3: verdict 语义 reject→partial, 非缺陷)",
         )
     # 终态词判在剥过 verdict 前缀的 cat 上——nosig:stuck / reject:max_rounds
-    # 这类带前缀 sig 的 raw 头词是前缀本身, 直切 sig 会漏判成 rule。
+    # 这类带前缀 sig 的 raw 头词是前缀本身，直切 sig 会漏判成 rule。
     if sig.startswith("unfixable:") or cat in TERMINAL_WORDS:
         return "core", "fixloop 终态 → 规则面外的引擎/taxonomy 缺口"
     return "rule", "待人工归因"
@@ -403,7 +403,7 @@ def _metrics(rec):
 
 
 def stage_rates(recs):
-    """records → {stage: {arm: {ok,total,rate,n_skip,by_status}}}。"""
+    """records → {stage: {arm: {ok,total,rate,n_skip,by_status}}}."""
     rates = {}
     for r in recs:
         stage = str(r.get("stage") or "?")
@@ -506,7 +506,7 @@ def compute_metrics(recs, run_id, date, wall_s, prev_line):
         ],
     }
 
-    # 回归: (a) compile zh 非 clean ∧ base clean = 管线引入; (b) 对上一行的 rate 跌
+    # 回归：(a) compile zh 非 clean ∧ base clean = 管线引入; (b) 对上一行的 rate 跌
     regs = []
     by_id = {}
     for r in recs:
@@ -528,7 +528,7 @@ def compute_metrics(recs, run_id, date, wall_s, prev_line):
     ]
     if len(pipe) > MAX_REG_IDS:
         regs.append({"kind": "pipeline_introduced_truncated", "total": len(pipe)})
-    # 跨段退化: fixloop 终态低于入口态 (loop1 实证 17 格, 本探测器盲区补网)。
+    # 跨段退化：fixloop 终态低于入口态 (loop1 实证 17 格，本探测器盲区补网)。
     # 注意基建杀伤会混入——真退化判定需直编复验
     # (见 docs/log/audit-2026-09-16/wave2-findings.md loop1 节)。
     # 只巡 attempted：skip 记录没真跑 fixloop，STATUS_RANK 表外 -1 会假阳退化。

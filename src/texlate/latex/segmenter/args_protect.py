@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from ._common import TokenSource, _Vtex
 
-# ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字-数字形即误植，
+# ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字 - 数字形即误植，
 # ``smith-2020``/``key-a`` 合法键不中。
 _CITE_RANGE_KEY_RX = re.compile(r"\s*\d+\s*-+\s*\d+\s*")
 

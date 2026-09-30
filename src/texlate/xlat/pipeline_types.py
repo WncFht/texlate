@@ -2,7 +2,7 @@
 
 ``chunk_to_in``/``ChunkResult``/``PipelineConfig`` 是编排三方（编排器、
 worker 侧消费方、export/repair_l2）的共同词汇；常量定案值见
-docs/spec/translate.md。
+docs/spec/translate.md.
 """
 
 from __future__ import annotations

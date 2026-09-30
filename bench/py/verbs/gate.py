@@ -11,7 +11,7 @@ pick_final/_tally/_report 逐字保留：fp 新鲜度/陈旧语义是 harvest.cl
 
 数据源迁移带来的换锚（语义等价改写点）:
 
-- run 解析: ``--run`` 精确名 → 前缀唯一匹配 → stem 展开。import 旧账把一
+- run 解析：``--run`` 精确名 → 前缀唯一匹配 → stem 展开。import 旧账把一
   个 records 目录拆成 ``*_records_<stage>`` 兄弟 run——stem=去尾部
   ``_<stage>`` 后并组；前缀跨多 stem → 歧义报错 exit 2。无 ``--run`` 取
   kind 过滤下含 compile 账的最新 run_seq run。
@@ -138,7 +138,7 @@ def _fetch_rows(idx, run_names: list[str]) -> list[dict]:
 def scan_rows(
     rows: list[dict], stage: str, arm: str | None, upstream: str | None
 ) -> tuple[dict[str, dict], Counter, dict]:
-    """records 行 → (idc 末条胜 dict, 行级去向账, 时戳面)。
+    """records 行 → (idc 末条胜 dict, 行级去向账，时戳面)。
 
     账键同旧 scan_records：rows/non_dict/arm_filtered/upstream_filtered/
     arm_mismatch/bad_id/accepted/unique/superseded（bad_lines 由读侧
@@ -368,7 +368,7 @@ def _tally(
     csb_check = Counter()  # fingerprint / legacy_status / none
     dropped_better = 0  # 被弃 fix 状态反优于 compile——stale 丢救面
     code_dist = Counter()  # "stage@stamp" —— rerun 波混写多版代码的嗅探面
-    floor_restored = 0  # fixloop 底板兜回(pdf 文件在盘)
+    floor_restored = 0  # fixloop 底板兜回 (pdf 文件在盘)
     floor_nopdf = 0  # 兜回但 post 仍判无 pdf——「有文件没 verdict」虚低面
     for pid, c in comp.items():
         f = fix.get(pid)
@@ -560,7 +560,7 @@ def _print_text(t: dict, rep: dict) -> None:
     if total == 0:
         print("cells=0  (no records)")
         return
-    # 首行锚点沿用旧格式(cells=/pdf=/clean=)——end-state 口径；
+    # 首行锚点沿用旧格式 (cells=/pdf=/clean=)——end-state 口径；
     # 真 union 口径另起行。``ops.status_panel`` 转 --json 前正则仍可读。
     print(
         f"cells={total}  pdf={e['pdf']} ({e['pdf_pct']:.2f}%)"

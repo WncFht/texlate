@@ -1,6 +1,6 @@
 """路由叶包：``register_routers`` 把各域 ``/api`` 端点挂上 app。
 
-原 ``create_app`` ~25 端点按真实域聚类成叶：``tasks``（建任务+生命周期+
+原 ``create_app`` ~25 端点按真实域聚类成叶：``tasks``（建任务 + 生命周期+
 SSE）、``compat``（hjfy 轮询协议面）、``files``、``upload``、``share``、
 ``meta``（health）、``reader``、``settings``、``discover``（alphaXiv
 公共面只读代理）。共享装配经 ``deps.AppDeps`` 注入；请求层纯件
@@ -35,7 +35,7 @@ __all__ = ["AppDeps", "register_routers"]
 def register_routers(app: FastAPI, deps: AppDeps) -> None:
     """按域注册全部 ``/api`` 端点。
 
-    各叶路由模式互不重叠（literal 前缀+段数互斥），注册顺序与匹配
+    各叶路由模式互不重叠（literal 前缀 + 段数互斥），注册顺序与匹配
     语义无关；排序沿用原 ``create_app`` 内端点出现序便于对读。
     """
     tasks.register(app, deps)

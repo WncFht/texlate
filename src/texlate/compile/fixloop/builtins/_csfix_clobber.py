@@ -30,7 +30,7 @@ __all__ = [
 #: 0103349 ``\def\mag{\hbox{$^{\rm m}$}}`` 双实证)。``\mag`` 是 xetex.def
 #: ``\Gin@setpagesize`` ``\ifnum\mag=\@m`` 的 begin-doc 读取位 → 读到宏
 #: 展开文本 "Missing number, treated as zero" (cat=syntax)。
-#: 修 = baseline 原件树内 def+用点同改 ``\<prefix><name>`` (单一边界正则
+#: 修 = baseline 原件树内 def+ 用点同改 ``\<prefix><name>`` (单一边界正则
 #: 通吃 def/let/newcommand 各种定义形与全部调用点), 原语名归位。
 _CLOBBER_DEF_KINDS: tuple[str, ...] = (
     "def",
@@ -45,7 +45,7 @@ _CLOBBER_DEF_KINDS: tuple[str, ...] = (
 )
 
 
-def primitive_clobber_rename(  # noqa: C901 - names 表 × 逐名分派, 每门 decline 即归因
+def primitive_clobber_rename(  # noqa: C901 - names 表 × 逐名分派，每门 decline 即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""用户档 ``\def\<primitive>`` 覆写原语 → 原件树内全站改名 ``\<prefix><name>``。
@@ -88,7 +88,7 @@ def primitive_clobber_rename(  # noqa: C901 - names 表 × 逐名分派, 每门 
             and re.search(rf"\\{re.escape(new_cs)}(?![a-zA-Z@])", mask_tex(t))
             for t in texts.values()
         ):
-            continue  # 改名目标名已占用 —— 套娃即双定义, 该名弃权
+            continue  # 改名目标名已占用 —— 套娃即双定义，该名弃权
         site_rx = re.compile(rf"\\{re.escape(name)}(?![a-zA-Z@])")
         n_sites = 0
         for f, t in texts.items():

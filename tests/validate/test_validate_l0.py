@@ -380,7 +380,7 @@ def test_same_source_correspondence_line_exempt() -> None:
 
 
 def test_same_source_url_with_prose_still_fires() -> None:
-    """URL+散文混排恒等仍是回显——豁免只吃「整段纯非语言」。"""
+    """URL+ 散文混排恒等仍是回显——豁免只吃「整段纯非语言」。"""
     src = "See https://huggingface.co/datasets/math-ai/aime24 for the full dataset."
     rep = validate_pair(src, src)
     assert _issues(rep, "same_source"), str(rep)
@@ -423,7 +423,7 @@ def test_same_source_name_leading_sentence_still_caught() -> None:
 
 
 def test_length_name_list_annotated_style_exempt() -> None:
-    """音译+原文括号注释 (~3.2x) 是名单块合法膨胀——web t_25e3f4d1 seq-69 实形。
+    """音译 + 原文括号注释 (~3.2x) 是名单块合法膨胀——web t_25e3f4d1 seq-69 实形。
 
     上界放宽至 ``TOKEN_RATIO_HI_NAMELIST``(4.0)；``residual_en`` 侧
     ``_keep_verbatim_run`` run 级豁免本就放行括号内原名，不级联。

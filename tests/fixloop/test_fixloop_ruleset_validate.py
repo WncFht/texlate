@@ -38,7 +38,7 @@ _RULE_BAD_BUILTIN = (
 
 
 def _shard(*rules: str) -> str:
-    """单片 yaml 文本: version + taxonomy 单行 + rules 列表 (元素为 flow-map 行)。
+    """单片 yaml 文本：version + taxonomy 单行 + rules 列表 (元素为 flow-map 行)。
 
     ``taxonomy`` 声明 ``missing_file``——``_producible_categories`` 值域
     校验要求 ``when.category`` 命中片内可产出类 (_GOOD/ok2 钉用),
@@ -70,7 +70,7 @@ def test_single_shard_dup_id_rejected(tmp_path: Path) -> None:
 
 
 def test_dup_id_message_names_both_origins(tmp_path: Path) -> None:
-    """重复出处钉: 三现报两次、各带首见序位 (排障能定位到合并表序位)。"""
+    """重复出处钉：三现报两次、各带首见序位 (排障能定位到合并表序位)。"""
     shard = tmp_path / "a.yaml"
     shard.write_text(_shard(_RULE_A, _RULE_B, _RULE_A, _RULE_A), encoding="utf-8")
     with pytest.raises(RulesetError, match=r"rules\[0\].*rules\[2\]") as exc:
@@ -180,7 +180,7 @@ def test_rules_yaml_load_hook_pattern_covers_shards() -> None:
 
 # ------------------------------------------------------------ Ruleset.load 缓存
 def test_load_cache_hit_returns_independent_object(tmp_path: Path) -> None:
-    """同路径二次 load 命中缓存: 内容一致但深拷贝隔离——非同一对象。"""
+    """同路径二次 load 命中缓存：内容一致但深拷贝隔离——非同一对象。"""
     shard = tmp_path / "a.yaml"
     shard.write_text(_shard(_RULE_A), encoding="utf-8")
     rs1 = Ruleset.load(shard)
@@ -201,7 +201,7 @@ def test_load_cache_mutation_isolation(tmp_path: Path) -> None:
 
 
 def test_load_cache_shard_edit_invalidates(tmp_path: Path) -> None:
-    """分片改动 (mtime/size 漂移) → 指纹失效重载: 改文本即见新内容。"""
+    """分片改动 (mtime/size 漂移) → 指纹失效重载：改文本即见新内容。"""
     shard = tmp_path / "a.yaml"
     shard.write_text(_shard(_RULE_A), encoding="utf-8")
     assert len(Ruleset.load(shard).rules) == 1
@@ -223,7 +223,7 @@ def test_shipped_rewrites_repl_escapes_valid() -> None:
     钉 fontspec_double_merge 崩规类缺陷：yaml 双引号串 ``\\\\X`` 解码成
     ``\\X`` 直接喂 ``pat.sub``，``\\A`` 类非法转义在点火时炸
     ``bad escape``——规则静默失效（stub-fill2 实证：4 IMS cell
-    already_def 清不掉）。全规则 repl 扫一遍编译+替换即可拦住。
+    already_def 清不掉）。全规则 repl 扫一遍编译 + 替换即可拦住。
 
     编译引擎镜像 actions._compile_rewrites 的 ``regex``（非 stdlib
     ``re``）——pdftex_prim_guard 平衡花括号臂用 ``(?&name)`` 递归子模式，
@@ -698,7 +698,7 @@ def test_schema_violation_rejected_strict(
 def test_schema_violation_dropped_tolerant(
     tmp_path: Path, rule_yaml: str, match: str
 ) -> None:
-    """同一批违规规则在 tolerant 面只弃肇事条——``skipped_rules`` 记违规点,
+    """同一批违规规则在 tolerant 面只弃肇事条——``skipped_rules`` 记违规点，
     合法规则照常进库 (rule 级问题不击穿整条修复臂)。"""
     shard = tmp_path / "a.yaml"
     shard.write_text(_shard(_GOOD, rule_yaml), encoding="utf-8")
@@ -734,10 +734,10 @@ def test_shipped_ruleset_passes_schema() -> None:
 
 
 def test_shipped_ruleset_scale_pin() -> None:
-    """出厂 rules/ 规模唯一权威钉: ``len(rules) >= 209`` (当前真实条数)。
+    """出厂 rules/ 规模唯一权威钉：``len(rules) >= 209`` (当前真实条数)。
 
     各车道测试文件里发散的 ``len(rules) >= N`` 下界钉 (112/113/114/196/
-    200/… 约 8 处) 以本钉为 canonical——车道落地只加新规则, 库规模
-    只增不减; 后续扩容抬升本钉即可, 车道文件不再各自钉数。
+    200/… 约 8 处) 以本钉为 canonical——车道落地只加新规则，库规模
+    只增不减; 后续扩容抬升本钉即可，车道文件不再各自钉数。
     """
     assert len(load_ruleset().rules) >= 209  # noqa: PLR2004 - 库规模权威钉

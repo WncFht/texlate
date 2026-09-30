@@ -56,32 +56,32 @@ _WEIGHT_TAIL_RE = re.compile(
 
 
 def _font_stem(name: str) -> str:
-    """``fontspec`` 引用名归一化: 剥文件扩展名 + ``-<weight>`` 尾 + 空白 → casefold 茎。"""
+    """``fontspec`` 引用名归一化：剥文件扩展名 + ``-<weight>`` 尾 + 空白 → casefold 茎。"""
     n = _FONT_FILE_RE.sub("", name.strip())
     n = _WEIGHT_TAIL_RE.sub("", n)
     return re.sub(r"\s+", " ", n).strip().casefold()
 
 
 #: 默认克隆表 (``params.clone_table`` 覆盖): 归一化茎 → **文件形**替换名。
-#: 家族名在 fixloop 面不可探测 (``run_tool`` 无 FONTCONFIG_FILE 注入,
+#: 家族名在 fixloop 面不可探测 (``run_tool`` 无 FONTCONFIG_FILE 注入，
 #: fc-list 对 texmf 字族恒盲), 文件形经 ``eng.probe_file`` kpathsea 同
 #: fontspec 文件查找同一通路; 字体名写入站点后 fontspec 对文件形名
 #: 自动同目录补全字重 (texgyretermes/Tinos/NotoSerif 实测 verbatim)。
-#: Amiri 不收 —— TL 内外皆无度量克隆, 强替发错字体声明 (车道裁决 unfixable)。
+#: Amiri 不收 —— TL 内外皆无度量克隆，强替发错字体声明 (车道裁决 unfixable)。
 _CLONE_TABLE: dict[str, str] = {
     # URW Nimbus 系与 TeX Gyre 同源度量克隆; nimbus 只发 TFM/pfb, fontspec 面无件。
     "nimbus roman": "texgyretermes-regular.otf",
     "nimbus sans": "texgyreheros-regular.otf",
     "nimbus mono ps": "texgyrecursor-regular.otf",
-    # 同件在 texmf truetype 树 —— 文件形引用绕 fontconfig 直中,
+    # 同件在 texmf truetype 树 —— 文件形引用绕 fontconfig 直中，
     # ``Path = fonts/...`` 捆绑键剥除后保作者字体 (2609.20064 anthology-ch.cls)。
     "tinos": "Tinos-Regular.ttf",
     "notoserif": "NotoSerif-Regular.ttf",
 }
 
-#: 文件名绑定 keyval —— 换字体名后仍指原档, 整键剥除 (``Path``/``Extension``
+#: 文件名绑定 keyval —— 换字体名后仍指原档，整键剥除 (``Path``/``Extension``
 #: 定位原档; ``*Font`` 把各字重绑到原档文件名)。其余键 (Scale/Ligatures/
-#: Numbers/FakeBold…) 为渲染语义, 换字体后仍成立 → 保留。
+#: Numbers/FakeBold…) 为渲染语义，换字体后仍成立 → 保留。
 _FONTSPEC_FILEBIND_KEYS = frozenset(
     {
         "path",
@@ -176,7 +176,7 @@ def _strip_filebind_opts(opt: str | None) -> str:
 
 
 def _clone_fix_text(t: str, resolve: Callable[[str], str | None]) -> tuple[str, int]:
-    """单文件 fontspec 站点逐替换 → (新文本, 改写站点数)。
+    """单文件 fontspec 站点逐替换 → (新文本，改写站点数)。
 
     遮盖视图命中且匹配体完整未遮 (``_live_matches`` 同判据); 茎 ∈ 表
     且 ``resolve(stem)`` 得可 kpathsea 命中的文件形名 → 名替换 +

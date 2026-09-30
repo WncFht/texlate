@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 #: zh 参与判定——CJK 命中且不含 U+FFFD 或 noncharacter（图内坏 cmap
-#: 字体抽出的 ``푣``/``푥￿`` 类 token 不算 zh 墨，2503.05281 实证）。
+#: 字体抽出的 ``푣 ``/`` 푥￿`` 类 token 不算 zh 墨，2503.05281 实证）。
 def _zh_tok(t: str) -> bool:
     return (
         _CJK_RX.search(t) is not None
@@ -272,8 +272,8 @@ def _math_tok(t: str) -> bool:
     """重叠判定的数学 token——_sym_tok 之外再收：含数学字符的 token
     （math-alnum 𝑖𝛼𝜃、letterlike ℝ𝔼ℏℓ、组合重音 Q̂/ˆ、算子 ∫∑∏√∂∇、
     希腊字母等）。pymupdf 把公式堆叠/上下标与 CJK 合 unionbox，含数学
-    字符的合并簇（``⟨n⟩为一个强C`` 形）整体豁免——同时覆盖
-    「CJK+数学字符」merged-cluster 臂。"""
+    字符的合并簇（``⟨n⟩为一个强 C`` 形）整体豁免——同时覆盖
+    「CJK+ 数学字符」merged-cluster 臂。"""
     return _sym_tok(t) or _MATH_RX.search(t) is not None
 
 
@@ -337,7 +337,7 @@ def _word_overlap_pairs(words: list[tuple], cjk_gate: bool = True) -> int:
 def _page_word_stats(
     pg: dict, geom: dict, ascii_run_exempt: bool = True, cjk_gate: bool = True
 ) -> tuple[int, int, int]:
-    """单页 (越界词数, 离页词数, 跨行重叠对数)——跨臂按页对拍的最小单位。
+    """单页 (越界词数，离页词数，跨行重叠对数)——跨臂按页对拍的最小单位。
     越界只数正文带内的词：running head / 页码等页眉页脚家具本就
     骑在 textblock 之外（2608.25736 p7 实证——页眉行触发全页
     breach），cy < t 或 cy > b+20 的词不算。``ascii_run_exempt``

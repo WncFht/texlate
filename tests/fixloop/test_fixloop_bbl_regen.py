@@ -37,7 +37,7 @@ def _biber_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
 
 
 def test_bbl_regen_ok(tmp_path: Path) -> None:
-    """2009.11064 形: ms.bcf 在场, ``biber ms`` rc=0 → True + .bbl 落地。"""
+    """2009.11064 形：ms.bcf 在场，``biber ms`` rc=0 → True + .bbl 落地。"""
     (tmp_path / "ms.bcf").write_text(_BCF, encoding="utf-8")
     (tmp_path / "ms.bib").write_text("@book{a}", encoding="utf-8")
     calls: list[list[str]] = []

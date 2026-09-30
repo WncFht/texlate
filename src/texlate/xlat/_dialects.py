@@ -247,7 +247,7 @@ def _anthropic_body(
 
 
 def _anthropic_blocks(payload: dict[str, Any]) -> tuple[str, str]:
-    """响应 content 块列 → (text 合, thinking 合)；形状不符一律 ``MalformedResponseError``。"""
+    """响应 content 块列 → (text 合，thinking 合)；形状不符一律 ``MalformedResponseError``。"""
     raw = payload.get("content") or []
     if not isinstance(raw, list):
         msg = "content field is not a list"
@@ -341,7 +341,7 @@ def _responses_body(
 ) -> dict[str, Any]:
     """Responses 请求体：system→``instructions``；会话角色→``input`` message items。
 
-    ``max_tokens``→``max_output_tokens``；``response_format``→``text.format``
+    ``max_tokens``→``max_output_tokens``.``response_format``→``text.format``
     原样透传（``{"type": "json_object"}`` 等形状两家同构）。
     """
     instructions = "\n".join(m["content"] for m in messages if m["role"] == "system")
@@ -416,7 +416,7 @@ def _responses_reasoning_blocks(item: dict[str, Any], thinks: list[str]) -> None
 
 
 def _responses_blocks(payload: dict[str, Any]) -> tuple[str, str, list[str]]:
-    """``output`` items → (text 合, reasoning summary 合, refusal 列)；形状不符一律 ``MalformedResponseError``。"""
+    """``output`` items → (text 合，reasoning summary 合，refusal 列)；形状不符一律 ``MalformedResponseError``。"""
     texts: list[str] = []
     thinks: list[str] = []
     refusals: list[str] = []

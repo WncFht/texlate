@@ -17,7 +17,7 @@ from typing import Final
 _TAR_SNIFF_WINDOW: Final = 65536
 _TAR_MAGIC_OFF: Final = 257
 _TAR_MAGIC: Final = b"ustar"
-#: offset-257 魔数+版本域全宽 8B：POSIX ``ustar\0`` + ``00``，GNU
+#: offset-257 魔数 + 版本域全宽 8B：POSIX ``ustar\0`` + ``00``，GNU
 #: ``ustar`` + 2 空格 + ``\0``。``ustar}``/``ustarh``/``ustar(`` 等文本
 #: 命中永不过此关（2410.17904 ``\mustar``/``\mustarh`` 宏名假阳实案——
 #: fixloop 侧真 ``paper.tex`` 曾被改名 .tarblob → missing_file）。
@@ -32,7 +32,7 @@ _TAR_HEADER_LEN: Final = 512
 
 
 def _tar_header_ok(head: bytes, start: int) -> bool:
-    """Tar 头校验：name 首字节非 NUL + 魔数+版本域全宽 + 512B 校验和。
+    """Tar 头校验：name 首字节非 NUL + 魔数 + 版本域全宽 + 512B 校验和。
 
     ``start`` 为调用方 ``ustar`` 命中回推 ``_TAR_MAGIC_OFF`` 的头起点
     （``0 <= start < len(head)``）；``head`` 须给到 ``start+512`` 才让

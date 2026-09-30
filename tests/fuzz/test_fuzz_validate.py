@@ -459,7 +459,7 @@ def _o_fuzzy_scan(s: str) -> list[str]:  # noqa: C901,PLR0912 -- 四臂逐位扫
     while i < n:
         tok: str | None = None
         if s.startswith("[[", i):
-            # 臂1/2：inner 为到首个 [] 或换行的 run，须含 ASCII 字母且 ≤48
+            # 臂 1/2：inner 为到首个 [] 或换行的 run，须含 ASCII 字母且 ≤48
             j = i + 2
             while j < n and s[j] not in "[]\n":
                 j += 1
@@ -470,7 +470,7 @@ def _o_fuzzy_scan(s: str) -> list[str]:  # noqa: C901,PLR0912 -- 四臂逐位扫
                 elif j < n and s[j] == "]" and s[j + 1 : j + 2] != "]":
                     tok = s[i : j + 1]
         elif s[i] == "[" and (i == 0 or s[i - 1] != "["):
-            # 臂3：[A-Za-z_]+ _? -? \d+ ]（后非 ]；_? 被 + 先行吃掉恒空转）
+            # 臂 3：[A-Za-z_]+ _? -? \d+ ]（后非 ]；_? 被 + 先行吃掉恒空转）
             k = i + 1
             while k < n and s[k] in _ASCII_ALPHA_US:
                 k += 1
@@ -752,7 +752,7 @@ def _o_cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
 
 
 def _o_grab_brace(t: str, i: int) -> tuple[str, int] | None:
-    """``{[^{}]*}`` 组取：``{`` 起、内部无花括号、``}`` 止 → ``(内容, 止后)``。"""
+    """``{[^{}]*}`` 组取：``{`` 起、内部无花括号、``}`` 止 → ``(内容，止后)``。"""
     if i >= len(t) or t[i] != "{":
         return None
     j = i + 1
@@ -921,7 +921,7 @@ def _o_strip_cs(s: str) -> str:
     """剥 ``\\[a-zA-Z@]+\\*?``/``\\<任意>`` token——impl ``_CS_OR_SYM_RX.sub``
     同序第二遍。
 
-    cs 名是 ASCII 集（非 ``isalpha``）——``\\和x`` 只剥 ``\\和`` 留下 ``x``
+    cs 名是 ASCII 集（非 ``isalpha``）——``\\和 x`` 只剥 ``\\和`` 留下 ``x``
     计入拉丁。``\\<换行>`` 亦按控制符号剥（``[\\s\\S]`` 口径）。
     """
     out: list[str] = []
@@ -1006,7 +1006,7 @@ def _o_same_source_hit(src: str, zh: str) -> bool:
 
 
 def _o_macro_sigs(src: str, zh: str) -> list[tuple[str, str]]:
-    """macro 规则签名 oracle：(类别, 名) 多重集。"""
+    """macro 规则签名 oracle：(类别，名) 多重集。"""
     sn, sf = _o_cs_names(src)
     zn, zf = _o_cs_names(zh)
     sigs: list[tuple[str, str]] = []
@@ -1152,7 +1152,7 @@ def test_fuzz_identity_pair_no_error() -> None:
 def test_fuzz_residual_en_existence() -> None:
     """residual_en 网与 l0 规则口径一致 fuzz：net 命中数 == issue 数。
 
-    钉档构造输入保证非 vacuous（ verbatim ⊆src Tier-A + 非 src 混血
+    钉档构造输入保证非 vacuous（verbatim ⊆src Tier-A + 非 src 混血
     Tier-B 各一）；soup fuzz 顺带压「命中即 ERROR、found 载 run」落形。
     """
     rng = fuzz_rng(20261023)
@@ -1292,7 +1292,7 @@ def test_fuzz_ph_extra_strict_multiset() -> None:
 
 
 def test_fuzz_ph_typo_variants_pair() -> None:
-    """同核心变体（小写/全角/缺括号/错号）lev≤2 配对成拼错而非缺失+多余。"""
+    """同核心变体（小写/全角/缺括号/错号）lev≤2 配对成拼错而非缺失 + 多余。"""
     rng = fuzz_rng(20261006)
     pairs = [
         ("[[MATH_1]]", "[[math_1]]"),

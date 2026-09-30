@@ -36,7 +36,7 @@ _TAX = [
 
 _HALT_LOG = "! Missing \\begin{document}.\nl.491 \\begin{document}\n"
 # 孪生间隔 >CTX_LINES(8)——err1 的 ctx blob 才不会吃进 err2 行
-# (1206.0291 实形: 两错 log_line 491/503 相距 12 行)。
+# (1206.0291 实形：两错 log_line 491/503 相距 12 行)。
 _TWIN_LOG = (
     "! Missing \\begin{document}.\nl.491 \\begin{document}\n"
     + "pad line\n" * 10
@@ -73,7 +73,7 @@ _FIX_CLASH = {
 
 
 class _HaltEngine(MockEngine):
-    """xelatex ``halt_on_error`` 替身: 普通轮吐 ``script``, best_effort
+    """xelatex ``halt_on_error`` 替身：普通轮吐 ``script``, best_effort
     探针/兜底轮吐 ``be_script`` (各自脚本耗尽后重放末条)。"""
 
     halt_on_error = True
@@ -104,7 +104,7 @@ class _HaltEngine(MockEngine):
 
 
 def _rs(rules: list[dict], **loop_over: int) -> Ruleset:
-    """合成 ruleset (compile_passes=1 → 每轮恰一编译, 探针/兜底另计)。"""
+    """合成 ruleset (compile_passes=1 → 每轮恰一编译，探针/兜底另计)。"""
     return mini_rs(
         rules=rules,
         taxonomy=_TAX,
@@ -191,7 +191,7 @@ def test_classify_errs_dedupe_preserves_order() -> None:
         + "pad\n" * 10
         + "! Missing \\begin{document}.\nl.1 x\n"
     )
-    # 输出序跟随错误序, 非 taxonomy 序
+    # 输出序跟随错误序，非 taxonomy 序
     assert tax.classify_errs(rep2) == [
         ("option_clash", "geometry"),
         ("syntax", None),
@@ -226,7 +226,7 @@ def test_real_taxonomy_12060291_twin_surface() -> None:
 
 # ------------------------------------------------------------- 引擎 miss 面
 def test_secondary_dispatch_free_candidates_no_probe(tmp_path: Path) -> None:
-    """nonstop log 自带孪生 (n_bang≥2): 免费候选直派, 零探针编译。"""
+    """nonstop log 自带孪生 (n_bang≥2): 免费候选直派，零探针编译。"""
     make_proj(tmp_path, _MAIN)
     eng = _HaltEngine([{"log": _TWIN_LOG}, {"log": _CLEAN_LOG, "pdf": True}])
     cell = fixloop(tmp_path, eng, ruleset=_rs([_FIX_CLASH]))
@@ -256,7 +256,7 @@ def test_secondary_dispatch_xelatex_probe(tmp_path: Path) -> None:
 def test_probe_result_reused_by_salvage(tmp_path: Path) -> None:
     """候选全灭 → 原裁决; 探针结果兜底复用——全程恰一发 best_effort 编译。"""
     make_proj(tmp_path, _MAIN)
-    # 条件要 xcolor 撞名——探针孪生是 geometry → 候选点火失败, 原裁决
+    # 条件要 xcolor 撞名——探针孪生是 geometry → 候选点火失败，原裁决
     rule = {
         **_FIX_CLASH,
         "id": "fix_xcolor",
@@ -275,7 +275,7 @@ def test_probe_result_reused_by_salvage(tmp_path: Path) -> None:
 
 
 def test_probe_budget_max_two(tmp_path: Path) -> None:
-    """探针预算 ≤2/格: 两轮次级修复后再 miss → 预算尽直落原裁决。"""
+    """探针预算 ≤2/格：两轮次级修复后再 miss → 预算尽直落原裁决。"""
     make_proj(tmp_path, _MAIN)
     rules = [
         _FIX_CLASH,
@@ -302,8 +302,8 @@ def test_probe_budget_max_two(tmp_path: Path) -> None:
         [{"log": _HALT_LOG}] * 3,
         be_script=[{"log": _TWIN_LOG}, {"log": twin2_log}],
     )
-    # stuck_sig_repeat 拉离: 同 sig 三连 miss 在 r3 先触 stuck 而够不到
-    # miss-path——本测试面是探针预算, 关掉 stuck 干扰。
+    # stuck_sig_repeat 拉离：同 sig 三连 miss 在 r3 先触 stuck 而够不到
+    # miss-path——本测试面是探针预算，关掉 stuck 干扰。
     cell = fixloop(tmp_path, eng, ruleset=_rs(rules, stuck_sig_repeat=99))
     assert cell["verdict"] == "unfixable:syntax"
     probes = [e for e in cell["log"] if "secondary probe" in e]
@@ -326,14 +326,14 @@ def test_probe_gated_on_no_pdf(tmp_path: Path) -> None:
     )
     cell = fixloop(tmp_path, eng, ruleset=_rs([_FIX_CLASH]))
     # halt 截断轮 (pdf+1 错): n_bang 是下界证不了 错≤max → Guard A
-    # (adjudication #10) 封 acceptable 升档, 留 dirty_pdf。
+    # (adjudication #10) 封 acceptable 升档，留 dirty_pdf。
     assert cell["verdict"] == "dirty_pdf"
     assert cell["rounds"][-1]["log_truncated"] is True
     assert not any(c["best_effort"] for c in eng.calls)
 
 
 def test_primary_hit_never_dispatches(tmp_path: Path) -> None:
-    """主错命中既有路径: 孪生在场也不派发——零探针, actions 无 via。"""
+    """主错命中既有路径：孪生在场也不派发——零探针，actions 无 via。"""
     make_proj(tmp_path, _MAIN)
     rule = {
         "id": "fix_syntax",

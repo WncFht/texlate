@@ -156,7 +156,7 @@ class ChunkRepo(_Repo):
         )
 
     def chunk_counts(self, task_id: str) -> dict[str, int]:
-        """Counters 聚合：total/done(已处理含失败)/failed(回退+失败)。
+        """Counters 聚合：total/done(已处理含失败)/failed(回退 + 失败)。
 
         缓存命中数不在 chunks 表粒度——真值见 ``tasks.cached_chunks``
         （``flush_chunk_batch`` 计数落列 → snapshot.counters.cached）。

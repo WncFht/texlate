@@ -44,7 +44,7 @@ def test_provides_date_no_face() -> None:
 
 
 def test_vendored_shadow_cohort_isolation(tmp_path: Path) -> None:
-    """1907.00257 形：vendored biblatex 半栈确证更旧 → sty+伴船整组隔离。"""
+    """1907.00257 形：vendored biblatex 半栈确证更旧 → sty+ 伴船整组隔离。"""
     wdir = tmp_path / "proj"
     wdir.mkdir()
     texmf = tmp_path / "texmf"  # 系统面必须在 wdir 外（否则正中 cwd 毒化闸）

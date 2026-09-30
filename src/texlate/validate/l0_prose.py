@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 #: 合法件双侧留 ~4x 余量，带外即退化坍缩/膨胀。
 TOKEN_RATIO_LO: Final = 0.30
 TOKEN_RATIO_HI: Final = 3.00
-#: 人名/专名列 src 的长度比上界——音译+原文括号注释风格（每名 →
+#: 人名/专名列 src 的长度比上界——音译 + 原文括号注释风格（每名 →
 #: 中文音译+``(拉丁原名)``）合法膨胀 ~2.6-3.4x，标准 3.0 上界误杀
 #: （web t_25e3f4d1 seq-67..77 实测 3.04-3.32）。下界不放宽——
 #: 名单译空/截断仍是退化。
@@ -53,7 +53,7 @@ _RESID_EN_SHOW: Final = 80
 
 
 def _cjk_latin_counts(s: str) -> tuple[int, int]:
-    """``(CJK 字符数, ASCII 拉丁字母数)``——same_source/length 的 CJK 占比判定共用口径。"""
+    """``(CJK 字符数，ASCII 拉丁字母数)``——same_source/length 的 CJK 占比判定共用口径。"""
     return len(CJK_RX.findall(s)), sum(1 for c in s if c.isascii() and c.isalpha())
 
 

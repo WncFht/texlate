@@ -58,7 +58,7 @@ from ._xelatex_runenv import _XelatexEnv
 
 MAX_PASSES = 2
 
-#: 自适应档续趟硬顶（qc-impl 批二, 2026-09-28）——``passes=None`` 起步 ``MAX_PASSES``
+#: 自适应档续趟硬顶（qc-impl 批二，2026-09-28）——``passes=None`` 起步 ``MAX_PASSES``
 #: 趟，趟末 rerun/undef 提示仍在即按剩余墙钟重劈预算自延一趟，至本顶停
 #: 补。bib 采纳 → ``\bibcite`` 落 aux → 文内 ``[n]`` 渲染要 3 趟（PoC
 #: 实证 2 趟仍 ``[?]``），cap=2 在末趟截死即 ``??`` 出货（broken_refs
@@ -71,7 +71,7 @@ _ADAPTIVE_PASS_CAP: Final = 4
 #: qc-impl 扩臂 (fp resolve-pass): ``(citation|reference)...undefined``
 #: 与 ``Please (re)run Biber/BibTeX`` 入面——0806.3788 型 bib 内 brace
 #: 错吞掉 Rerun 尾标时 citation undefined 是唯一存活签名; biber/bibtex
-#: 请求行同理要续趟吸收 (bib 趟由 ``_bib_pass`` 文件态承, 本行只管
+#: 请求行同理要续趟吸收 (bib 趟由 ``_bib_pass`` 文件态承，本行只管
 #: "再给一趟 tex" 的自适应信号)。
 _RERUN_HINT_RX: Final = re.compile(
     r"rerun to get|label\(s\) may have changed|there were undefined references"
@@ -150,8 +150,8 @@ class XelatexEngine(_XelatexEnv, _XelatexBib, _XelatexProbe, _XelatexInstall):
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。
 
         ``passes=None``（缺省）= 自适应门：趟输出出现 rerun 提示族
-        （``_RERUN_HINT_RX``）即续跑——起步 ``MAX_PASSES`` 趟, 趟末提示
-        仍在按剩余预算再延一趟, 硬顶 ``_ADAPTIVE_PASS_CAP``；显式 int =
+        （``_RERUN_HINT_RX``）即续跑——起步 ``MAX_PASSES`` 趟，趟末提示
+        仍在按剩余预算再延一趟，硬顶 ``_ADAPTIVE_PASS_CAP``；显式 int =
         无条件 ≤N 遍。停趟判据：超时/exec 失败（rc=None）/无 pdf 即停
         ——同输入重跑必同炸；错误退出（rc>0 非信号）仅自适应档被 rerun
         提示压过（提示即 LaTeX 自报 .aux 状态已变、pass-2 非同一输入），
@@ -227,7 +227,7 @@ class XelatexEngine(_XelatexEnv, _XelatexBib, _XelatexProbe, _XelatexInstall):
             # bib 中间趟（bibpass 车道）：趟间产物（.bcf/.aux）此刻最新。
             # qc-impl 扩闸 (fp bibtex_pass_coverage/bbl_backup): 旧 ``p <
             # eff_passes`` 闸把末趟封死——passes=1 的 sealed 格 (fixloop
-            # 分类趟/salvage) 永远轮不到 bib; 现放宽为任何趟后都评, 若在
+            # 分类趟/salvage) 永远轮不到 bib; 现放宽为任何趟后都评，若在
             # 末趟补成则 ``eff_passes = p+1`` 自延一趟让 tex 吸收新 .bbl
             # (钉死档 caller 钉了 N 也在 bib 采纳时破例延一趟——不延则
             # 新 bbl 无人消费)。本趟恒收的死相（超时/exec 败/无 pdf）与
@@ -251,12 +251,12 @@ class XelatexEngine(_XelatexEnv, _XelatexBib, _XelatexProbe, _XelatexInstall):
                 )
                 adopted = bool(res.bib_ran)
             hint = hint or adopted
-            # 延趟两臂同一预算口径 (末趟到顶才延, 各 +1): bib 本趟采纳
+            # 延趟两臂同一预算口径 (末趟到顶才延，各 +1): bib 本趟采纳
             # (钉死档亦延——新 bbl 须有人消费) 或自适应档提示仍在且未撞
-            # ``_ADAPTIVE_PASS_CAP`` (qc-impl 批二, 2026-09-28: bib 首趟采纳→
-            # \bibcite 落 aux→文内 [n] 要第 3 趟, cap=2 末趟截停即 ``??``
+            # ``_ADAPTIVE_PASS_CAP`` (qc-impl 批二，2026-09-28: bib 首趟采纳→
+            # \bibcite 落 aux→文内 [n] 要第 3 趟，cap=2 末趟截停即 ``??``
             # 出货; 死相趟不延——续趟必同死)。延趟后按剩余墙钟重劈
-            # per_pass——``timeout/eff_passes`` 本就是总墙钟约束: 不劈则
+            # per_pass——``timeout/eff_passes`` 本就是总墙钟约束：不劈则
             # timeout=240 的 2 趟起跑 (per_pass=120) 延成 3 趟可烧 360s,
             # 静默超预算。
             if p >= eff_passes and (
@@ -286,7 +286,7 @@ class XelatexEngine(_XelatexEnv, _XelatexBib, _XelatexProbe, _XelatexInstall):
         res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
         _salvage_driver_fatal(res.log, res)
         # Guard A (adjudication #10): halt_on_error 下 n_errors>0 ⇒ 编译截在
-        # 首错——计数是下界非测量值, log 证不了 errors≤阈值; best_effort
+        # 首错——计数是下界非测量值，log 证不了 errors≤阈值; best_effort
         # (nonstopmode) 跑全程不截。消费端 getattr 容错——tectonic/测试替身
         # 无此字段按不截断处理。
         res.log_truncated = (

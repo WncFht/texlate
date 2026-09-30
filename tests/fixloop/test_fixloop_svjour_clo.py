@@ -1,4 +1,4 @@
-"""svjour_clo_stub 内建 —— svjour.cls 零 .clo 伴船, noop stub 救 ClassError。
+"""svjour_clo_stub 内建 —— svjour.cls 零 .clo 伴船，noop stub 救 ClassError。
 
 实证根因 (0905.0193): e-print 捆绑 svjour.cls (2003, Springer) 但零 .clo
 伴船且 svjour 不在 TeX Live → ``\\documentclass[epj,nopacs]{svjour}`` 每选项

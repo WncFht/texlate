@@ -2,7 +2,7 @@
 
 ``qc_paper`` 驱动全通道 (log/marks/text/bbox/raster) 并把跨臂收口
 (broken_refs 加权净差/offpage 渲染佐证/geo 抑制窗), ``_tier_of``
-findings → clean|warn|hard 门档, 出 ``{findings, metrics, qc_tier,
+findings → clean|warn|hard 门档，出 ``{findings, metrics, qc_tier,
 sig_counts, flagged_pages}`` 契约 (§11.2)。
 """
 

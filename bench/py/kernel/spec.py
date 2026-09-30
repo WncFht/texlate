@@ -34,13 +34,13 @@ Rules baked here:
 - items may be dicts, tuples (id[,arm[,up[,variant[,stage]]]]) or bare ids;
   a callable/generator is materialized ONCE into spec.items at check time.
 
-拆分: 实现体按职责下沉同包私有叶 —— ``_spec_base`` (词表常量/SC_* 预设/
+拆分：实现体按职责下沉同包私有叶 —— ``_spec_base`` (词表常量/SC_* 预设/
 SpecError/Param/_norm_need/Stage/Spec/norm_item)、``_spec_checks``
 (topo_stages/compile_checks)、``_spec_hash`` (_iter_dep_files/code_sha/
 spec_hash/cell_fp —— §3.4 指纹面逐字保留)、``_spec_load`` (load_spec)。
 本文件是 PEP 562 惰性门面 (同 ``kernel.index``/``kernel.vault`` 门面
-形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访
-解析并缓存, ``from kernel.spec import Spec`` / ``specmod.code_sha``
+形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访
+解析并缓存，``from kernel.spec import Spec`` / ``specmod.code_sha``
 等公私名面不变 (``Spec``/``Stage``/``Param``/``SpecError`` 的
 ``__module__`` 已钉回本模块)。stdlib/kernel 顶层绑定名
 (``spec.hashlib``/``spec.events`` 等) 经
@@ -55,8 +55,8 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     from kernel._spec_base import (
         DEFAULT_STATUS_CLASS,
         EVAL_LAYERS,
@@ -120,7 +120,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# HEAD 单件期模块属性面——stdlib 模块名与 kernel 顶层绑定也按名惰性解析,
+# HEAD 单件期模块属性面——stdlib 模块名与 kernel 顶层绑定也按名惰性解析，
 # 读面与拆分前逐名等价。
 _STDLIB_MODS = ("hashlib", "importlib", "inspect", "re", "sys")
 _EXTRA_BINDINGS = {
@@ -197,10 +197,10 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = []

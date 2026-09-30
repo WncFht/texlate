@@ -66,7 +66,7 @@ class _XelatexInstall:
         )
         try:
             base.mkdir(parents=True, exist_ok=True)
-            import fcntl  # noqa: PLC0415  # 平台门: 无 fcntl 则退化为直通
+            import fcntl  # noqa: PLC0415  # 平台门：无 fcntl 则退化为直通
         except (OSError, ImportError):
             yield
             return
@@ -123,10 +123,10 @@ class _XelatexInstall:
     def _post_install_verify(
         self, fname: str, pkgs: list[str], home: str | None
     ) -> bool:
-        """装后复核: tlmgr rc=0 未落盘走 CTAN overlay → doc-only 搬迁两兜底。
+        """装后复核：tlmgr rc=0 未落盘走 CTAN overlay → doc-only 搬迁两兜底。
 
         postaction 类包在 usermode 整体拒装 ("package X is not relocatable",
-        axodraw2 实证) —— 文件本身可直放, 走 CTAN archive 按 tlpdb relpath
+        axodraw2 实证) —— 文件本身可直放，走 CTAN archive 按 tlpdb relpath
         铺进 usertree home。mn2e.cls 类连 overlay 都落在 TEXINPUTS 外的
         doc/ 树 (mnras → doc/latex/mnras/LEGACY/) —— basename 恰一命中才
         搬进 tex/latex/。
@@ -187,7 +187,7 @@ class _XelatexInstall:
                     mirror=self.repository or MIRROR,
                     overlay="tree",
                 )
-            except Exception as e:  # noqa: BLE001  # 候选包逐个试, 单包失败不致命
+            except Exception as e:  # noqa: BLE001  # 候选包逐个试，单包失败不致命
                 log.debug("usertree fetch %s skipped: %r", pkg, e)
             # fetch 可能已部分落件——树态变了，复核前清 memo
             self._probe_cache.clear()

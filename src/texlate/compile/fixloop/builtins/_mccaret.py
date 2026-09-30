@@ -37,7 +37,7 @@ __all__ = [
 # ════════════════════════════════════════════════════════════════
 
 #: bibtex-era ``^^XX`` 字节记法运行段 (相邻 ≥1 token; 逐 token 尝试
-#: UTF-8 多字节, 不合法字节回吐原 token —— 见 _caret_decode_run)。
+#: UTF-8 多字节，不合法字节回吐原 token —— 见 _caret_decode_run)。
 _CARET_RUN_RE = re.compile(r"(?:\^\^[0-9a-fA-F]{2})+")
 _CARET_TOK_RE = re.compile(r"\^\^([0-9a-fA-F]{2})")
 
@@ -45,8 +45,8 @@ _CARET_TOK_RE = re.compile(r"\^\^([0-9a-fA-F]{2})")
 #: 全部由 ``bytes.decode`` 严格校验兜底 —— 猜测宽只为取窗)。
 _LEAD2, _LEAD3, _LEAD4 = 0xC0, 0xE0, 0xF0
 
-#: ``^^XX`` mojibake 指纹带: C1 控制符缺字区间 —— 高位 UTF-8 字节
-#: (0x80-0x9F) 落此才报缺字, Latin-1 面字节静默错印。
+#: ``^^XX`` mojibake 指纹带：C1 控制符缺字区间 —— 高位 UTF-8 字节
+#: (0x80-0x9F) 落此才报缺字，Latin-1 面字节静默错印。
 _C1_LO, _C1_HI = 0x80, 0x9F
 
 

@@ -32,36 +32,36 @@ __all__ = [
 # macro_glyph_fix: 宏生成缺字 cs → 站点级源改写 (F4e)
 # ════════════════════════════════════════════════════════════════
 
-#: 无参符号 cs → (触发码位, 双模安全替换串): 字形由 cs 展开所产非输入
+#: 无参符号 cs → (触发码位，双模安全替换串): 字形由 cs 展开所产非输入
 #: 字符 —— char_table ``replace`` 字面替换与 ``\newunicodechar`` 活动字符
 #: 绑定都够不到 (utf8census rebucket-misschar-site-rewrite ×2 实证):
 #: ``\texttildelow`` 产 U+02F7 (2308.04265 ``\raisebox{0.5ex}{\texttildelow}``
-#: 文本域站点, lmroman10 无槽); ``\textlangle``/``\textrangle`` 产
-#: U+2329/232A (2403.00011 ``\qdist`` 宏体在文本域定义、数学域展开,
+#: 文本域站点，lmroman10 无槽); ``\textlangle``/``\textrangle`` 产
+#: U+2329/232A (2403.00011 ``\qdist`` 宏体在文本域定义、数学域展开，
 #: zptmcmr 无槽 + invalid-in-math warning)。替换串一律 ``\ensuremath``/
-#: ``\mbox`` 双模: 定义点与展开点可分居两域, 站点域判不准, 双模串两侧恒正。
+#: ``\mbox`` 双模：定义点与展开点可分居两域，站点域判不准，双模串两侧恒正。
 _MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
     "texttildelow": (0x02F7, "\\ensuremath{\\sim}"),
     "textlangle": (0x2329, "\\ensuremath{\\langle}"),
     "textrangle": (0x232A, "\\ensuremath{\\rangle}"),
     # misscharcen #162 (loop3 残余普查): \textendash 在数学态 ket 记号内
     # 产 U+2013 (0806.2407 ``$i_{13/2}\textendash\frac{3}{2}$``, cmr10
-    # 无槽 ×40) —— \mbox{--} 与 char_table endash 同形, TFM 连字双模安全。
+    # 无槽 ×40) —— \mbox{--} 与 char_table endash 同形，TFM 连字双模安全。
     "textendash": (0x2013, "\\mbox{--}"),
-    # hep-ph/0605319 ``\textgravedbl X\textacutedbl`` 作者 „...˝ 引号对:
+    # hep-ph/0605319 ``\textgravedbl X\textacutedbl`` 作者 „...˝ 引号对：
     # tuenc gravedbl→U+02F5 缺 ×12 (lmroman 无槽), acutedbl→U+02DD 有槽
     # 不缺字。gravedbl→\quotedblbase „ 保引号语义; acutedbl 键在伴生
     # 02F5 而非自产 02DD —— 引号对成对归一为 „..." (改半对留 „...˝
-    # 混搭); 音标域 02DD 真缺字场景不触发, '' 不误伤语义。
+    # 混搭); 音标域 02DD 真缺字场景不触发，'' 不误伤语义。
     "textgravedbl": (0x02F5, "\\mbox{\\quotedblbase}"),
     "textacutedbl": (0x02F5, "\\mbox{''}"),
     # ── 2026-09-20 erafam macro-glyph (failmine7 桶 → erafam 车道普查) ──
     # \checkmark 产 U+2713 落 LinLibertine_R 无槽 (2508.04740 表格域 /
-    # 2602.08678 / 2603.08225 tikz 节点 ×3) —— \surd 数学族恒有, 勾形近似。
+    # 2602.08678 / 2603.08225 tikz 节点 ×3) —— \surd 数学族恒有，勾形近似。
     "checkmark": (0x2713, "\\ensuremath{\\surd}"),
     # \blacktriangle 产 U+25B4 落 libertinusmath 无槽 (2502.00432
     # experiments.tex ``$\times 2.050 \ \blacktriangle$``) —— \vartriangle
-    # 是空心近似 (实→空有损, census 已标注), 数学族恒有兜底。
+    # 是空心近似 (实→空有损，census 已标注), 数学族恒有兜底。
     "blacktriangle": (0x25B4, "\\ensuremath{\\vartriangle}"),
     # \MakeUppercase 作用于 \ss 产 ẞ U+1E9E (2512.03885 作者名
     # ``Au\ss{}enhofer`` → AUSSENHOFER 大写 ẞ 落主字体无槽) —— 替换 "ss"
@@ -76,11 +76,11 @@ _MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
 #: U+000D 控制符缺字 (1404.0578 lmromancaps10 ``^^M`` ×41, 全格唯一
 #: 观测槽)。槽位表对 TFM 语境亦语义保持 (fl 字母重归槽位连字、
 #: ``\c`` 重归槽位 accent) —— 门控失误也零副作用。0-10 大写希腊走
-#: ``\ensuremath`` (数学族恒有; lmroman 虽有 391-3A9 槽, TFM 语境不
+#: ``\ensuremath`` (数学族恒有; lmroman 虽有 391-3A9 槽，TFM 语境不
 #: 普适); 11-15 f-连字写字母 (ambient 上下文自动成形 —— \textsc
-#: 内=小型大写连字); 16-17 无点 i/j (lmroman 0131/0237 有槽, TFM
+#: 内=小型大写连字); 16-17 无点 i/j (lmroman 0131/0237 有槽，TFM
 #: 下 cs 本义同槽); 18-23 重音符用数学裸 accent (修饰字母块超
-#: _FB_RANGES 回退带, 数学形恒可印); 24 走 ``\c{}`` (产 U+0327,
+#: _FB_RANGES 回退带，数学形恒可印); 24 走 ``\c{}`` (产 U+0327,
 #: lmroman 无槽但落 0300-036F 回退带两轮收敛); 25-31 拉丁字母 cs
 #: (Latin-1/Ext 双编码恒覆盖)。32+ ASCII 面不可缺字天然不收。
 _OT1_CHAR_SLOTS: dict[int, str] = {
@@ -118,7 +118,7 @@ _OT1_CHAR_SLOTS: dict[int, str] = {
     31: "\\O",
 }
 
-#: ``\char`` 数值实参站点: 十进制 ``\char13`` / 八进制 ``\char'15`` /
+#: ``\char`` 数值实参站点：十进制 ``\char13`` / 八进制 ``\char'15`` /
 #: 十六进制 ``\char"D`` (尾界防 ``\chardef``; 非数值形 ``\char`a``、
 #: ``\numexpr`` 实参不收)。
 _CHAR_NUM_RE = re.compile(

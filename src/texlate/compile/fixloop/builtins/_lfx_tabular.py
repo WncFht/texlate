@@ -68,8 +68,8 @@ __all__ = [
 # tabular_fit —— 表族盒宽钳 (fp wide_tabular + minipage_clamp 折叠臂)
 # ════════════════════════════════════════════════════════════════
 
-#: adjustbox 装箱面表族 —— 单页盒语义环境, 装箱不失跨页断行。
-#: spec E 列逐名 (``array`` 是数学盒不入钩面, display_math_shrink 分管);
+#: adjustbox 装箱面表族 —— 单页盒语义环境，装箱不失跨页断行。
+#: spec E 列逐名 (``array`` 是数学盒不入钩面，display_math_shrink 分管);
 #: ``threeparttable`` 同单页盒语义并入 (旧 TABLE_FITTING 钩面同款)。
 _TAB_BOX_ENVS = (
     "tabular",
@@ -101,10 +101,10 @@ _TAB_FLOW_ANY_RX = re.compile(
 
 
 #: 成对钩残块整剥式 (marker 行 → 首个 ``\endgroup``)——in-place 再跑
-#: fixloop 的稿面若带 v1 注块必须清掉, 否则成对钩继续毁编组。
+#: fixloop 的稿面若带 v1 注块必须清掉，否则成对钩继续毁编组。
 #: inject 侧 ``TABLE_FITTING`` (compile/layout.py 0930 拔除注入) 在席稿
 #: 同剥——``env/E/before+after`` 成对钩与文本跨度包并存即双压崩
-#: (0930 普查: ``TabClamp ended by \end{TeXlateFitTable}`` 系 1080 事件)。
+#: (0930 普查：``TabClamp ended by \end{TeXlateFitTable}`` 系 1080 事件)。
 _LEGACY_CLAMP_RX = re.compile(
     r"% texlate(?:-fixloop)?: (?:table width clamp v1"
     r"|fit complete measured table containers[^\n]*)\n[\s\S]*?\\endgroup\n?"
@@ -123,7 +123,7 @@ def _strip_legacy_clamp(t: str) -> str:
     return _LEGACY_HOOK_RX.sub("", _LEGACY_CLAMP_RX.sub("", t))
 
 
-#: 数学域 env 名单——``_env_spans`` 取跨。``array`` 仅数学内合法, 同收。
+#: 数学域 env 名单——``_env_spans`` 取跨。``array`` 仅数学内合法，同收。
 _MATH_ENVS = frozenset(
     {
         "math",
@@ -215,7 +215,7 @@ def _tabular_box_edits(t: str, state: dict[str, int]) -> tuple[str, int]:
         if _in_spans(math, lo):
             continue  # 数学域内不包
         # 回看窗 ≥ 自注行全长 (``\begin{adjustbox}{max width=..,max
-        # totalheight=..}\n`` ≈70B)——窗短于插入行会把 ``\begin`` 切断,
+        # totalheight=..}\n`` ≈70B)——窗短于插入行会把 ``\begin`` 切断，
         # 幂等闸失效即叠包 (二跑 ``box-env wrapped x1`` 实证)。
         pre = vis[max(0, lo - 128) : lo]
         if re.search(r"\\begin\{adjustbox\}\s*\{[^}\n]*\}\s*$", pre):
@@ -236,7 +236,7 @@ def _tabular_box_edits(t: str, state: dict[str, int]) -> tuple[str, int]:
 
 
 #: ``p{<dim>}`` 列声明里版心级宽度声明 —— ``\textwidth``/``\linewidth``/
-#: ``\columnwidth`` 裸名或带系数的相对宽。组1=系数 (缺省视作 1.0);
+#: ``\columnwidth`` 裸名或带系数的相对宽。组 1=系数 (缺省视作 1.0);
 #: ``p{0.8\linewidth}`` 这类本就合规的 (<0.95) 由系数门放行不动。
 _PCOL_SPEC_RX = re.compile(
     r"p\{\s*(?:(\d+(?:\.\d+)?)\s*)?\\(?:textwidth|linewidth|columnwidth)\s*\}"
@@ -246,12 +246,12 @@ _PCOL_KEEP_FACTOR = 0.95
 
 
 #: 表域内 ``\hspace{-<dim>}`` 收区 hack —— 排版期即盒溢出源 (1607.00323
-#: 实证), 剥成空组 (负值才剥, 正间距无害留)。
+#: 实证), 剥成空组 (负值才剥，正间距无害留)。
 _TAB_NEGHSPACE_RX = re.compile(
     r"\\hspace\*?\{-\s*\d+(?:\.\d+)?\s*(?:pt|pc|mm|cm|in|em|ex|bp|dd|cc|sp)\s*\}"
 )
 
-#: ``\begin{minipage}[opts]{<absdim>}`` —— 组1 数字组2 单位; 字体相对
+#: ``\begin{minipage}[opts]{<absdim>}`` —— 组 1 数字组 2 单位; 字体相对
 #: 单位 (em/ex) 与 ``\linewidth`` 族不收 (abs-dim 门专用)。
 _MINIPAGE_RX = re.compile(
     r"\\begin\s*\{minipage\}(?:\[[^\]\n]*\])*\s*\{\s*(\d+(?:\.\d+)?)\s*"
@@ -268,7 +268,7 @@ _MINIPAGE_UNIT_PT = {
     "dd": 1238.0 / 1157.0,
     "cc": 12.0 * 1238.0 / 1157.0,
 }
-#: minipage 钳门 = 160mm (~453.5pt)——单栏版心 ~470pt 上限, 两栏稿
+#: minipage 钳门 = 160mm (~453.5pt)——单栏版心 ~470pt 上限，两栏稿
 #: ~240pt; ≥160mm 的字面绝对宽盒任何栏形都溢出 (0905.1250 200mm→329pt
 #: 出血实证)。
 _MINIPAGE_CLAMP_PT = 160.0 * 72.27 / 25.4
@@ -303,7 +303,7 @@ def _tabular_text_edits(  # noqa: C901 -- 三臂顺序闸共一个 span/live 走
             if _in_spans(marks, m.start()) and _is_live(m, vis, t):
                 edits.append((m.start(), m.end(), "{}"))
                 n += 1
-    # —— minipage abs-dim 钳 (全局面, 非表域限定) ——
+    # —— minipage abs-dim 钳 (全局面，非表域限定) ——
     begins = [
         m
         for m in _MINIPAGE_RX.finditer(vis)

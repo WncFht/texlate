@@ -30,7 +30,7 @@ def _run(work: Path, base: Path) -> tuple[bool, str]:
 
 
 def test_primgap_vadjust_reverted(tmp_path: Path) -> None:
-    """2609.19815 实证: ``\\vadjust 这是译文{\\vskip 1pt}`` —— CJK 落在
+    """2609.19815 实证：``\\vadjust 这是译文{\\vskip 1pt}`` —— CJK 落在
     原语 cs 与 ``{``-组之间 (``pre`` keyword 被译), 3↔3 序号还原。"""
     work, base = _trees(tmp_path)
     src = (
@@ -50,10 +50,10 @@ def test_primgap_vadjust_reverted(tmp_path: Path) -> None:
 
 
 def test_primgap_leaders_broadcast(tmp_path: Path) -> None:
-    """2609.20633 实证: baseline ``\\leaders\\hbox to .55em{...}`` 只在
-    ``\\tocdots`` def 站 ×1, zh 展开把字面量倍增到调用站 → 计数分歧,
+    """2609.20633 实证：baseline ``\\leaders\\hbox to .55em{...}`` 只在
+    ``\\tocdots`` def 站 ×1, zh 展开把字面量倍增到调用站 → 计数分歧，
     unique-src ``\\hbox to .55em`` 广播到全部 CJK gap; def 站 zh 双侧
-    一致不动, 无关 ``\\hbox`` 站不碰。"""
+    一致不动，无关 ``\\hbox`` 站不碰。"""
     work, base = _trees(tmp_path)
     src = (
         "\\newcommand{\\tocdots}{\\leaders\\hbox to .55em{\\hfil.\\hfil}\\hfill}\n"
@@ -112,8 +112,8 @@ def test_primgap_non_cjk_gap_untouched(tmp_path: Path) -> None:
 
 
 def test_primgap_empty_src_gap_skip(tmp_path: Path) -> None:
-    """``\\hbox{`` → ``\\hbox 这是译文{`` 形: 空 gap 非 ident → 不还原
-    (strip 臂有意不做 —— 丢 ``to <dimen>`` 语义, 仅证不误伤)。"""
+    """``\\hbox{`` → ``\\hbox 这是译文{`` 形：空 gap 非 ident → 不还原
+    (strip 臂有意不做 —— 丢 ``to <dimen>`` 语义，仅证不误伤)。"""
     work, base = _trees(tmp_path)
     _pair(work, base, "main.tex", "\\hbox{x}\n", "\\hbox 这是译文{x}\n")
     ok, _note = _run(work, base)
@@ -122,7 +122,7 @@ def test_primgap_empty_src_gap_skip(tmp_path: Path) -> None:
 
 
 def test_primgap_idempotent(tmp_path: Path) -> None:
-    """改写后重跑 → gap 双侧一致, False 空转。"""
+    """改写后重跑 → gap 双侧一致，False 空转。"""
     work, base = _trees(tmp_path)
     _pair(
         work,

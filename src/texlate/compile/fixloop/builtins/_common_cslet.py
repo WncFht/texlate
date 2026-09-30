@@ -73,7 +73,7 @@ def _exact_restore_wrap(cs: str) -> tuple[str, str]:
 
 #: 多 @-cs 注入块的宿主不可知 @=11 包裹对 (svglov3.clo exact-restore
 #: idiom, 同 builtins.pkgload._SHIP_WRAP_*): ``\edef`` 存 ``\catcode 64``
-#: 现值 → ``=11`` 读块 → 复元; @=letter 宿主恒等变换, @=other 亦回原位。
+#: 现值 → ``=11`` 读块 → 复元; @=letter 宿主恒等变换，@=other 亦回原位。
 #: restore cs 名纯字母 —— 宿主正处 @=other 时名里带 ``@`` 自断签名。
 _AT_LETTER_SEG = _exact_restore_wrap("TeXlateAtRestore")
 _AT_LETTER_PRE = _AT_LETTER_SEG[0] + " "

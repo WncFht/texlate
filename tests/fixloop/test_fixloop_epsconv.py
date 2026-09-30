@@ -1,7 +1,7 @@
-"""eps_converted_alias — ``*-eps-converted-to.pdf`` 随稿件别名臂.
+"""eps_converted_alias — ``*-eps-converted-to.pdf`` 随稿件别名臂。
 
 firedunfixed 普查 item5 (2403.05444/2308.04278): e-print 随带上游
-epstopdf 产物 ``X-eps-converted-to.pdf`` 而 ``X.eps``/``X`` 不在盘,
+epstopdf 产物 ``X-eps-converted-to.pdf`` 而 ``X.eps``/``X`` 不在盘，
 稿面未载 epstopdf —— 显式 ``{X.eps}`` 归 missing_file|X.eps、裸 ``{X}``
 归 other|None。builtin 落 ``<stem>.pdf`` 别名 + eps 族引用剥名。
 """
@@ -92,7 +92,7 @@ def test_epsfig_kv_aliased_and_stripped(tmp_path: Path) -> None:
 
 
 def test_err_head_name_recovers_when_payload_none(tmp_path: Path) -> None:
-    # other|None 轮 —— payload 缺席, err_head 提名驱动 (裸名无 ext 签名)
+    # other|None 轮 —— payload 缺席，err_head 提名驱动 (裸名无 ext 签名)
     ctx = _ctx(
         tmp_path,
         {
@@ -109,7 +109,7 @@ def test_err_head_name_recovers_when_payload_none(tmp_path: Path) -> None:
 
 
 def test_conv_in_offpath_subdir_found(tmp_path: Path) -> None:
-    # 2403.05444 形态: conv 件在 cwd 根, .eps 在 arvix/ 旁置 ——
+    # 2403.05444 形态：conv 件在 cwd 根，.eps 在 arvix/ 旁置 ——
     # 反向 (conv 自身落子目录) 同由 rglob basename 兜底
     ctx = _ctx(
         tmp_path,

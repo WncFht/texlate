@@ -10,8 +10,8 @@ vbox 密度闸——``_RUNAWAY_VBOX_RX`` 命中 ≥ ``_RUNAWAY_VBOX_MIN``(30) �
 → ``run_process`` 既有 killpg 收树臂 → ``timed_out`` 槽回吐截杀臂名
 （``vbox_flood``/``page_flood`` str）+ SIGKILL——``_res_died``/
 ``runaway_output`` 归因凭记录臂名命中，病态编译不再烧满墙钟
-（gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）；逐页一条的慢性
-vbox 告警（1003.2165：46签名/46页）密度判据放行不杀。
+（gr-qc/0104075:96K+ 签名行 / ~97K 页烧 240s 实证）；逐页一条的慢性
+vbox 告警（1003.2165:46 签名/46 页）密度判据放行不杀。
 哨件只活在 POSIX 排干环——win32 分片 communicate 与无 stdout 替身
 （测试注入面）不装哨，runner 注入缝原样。
 """

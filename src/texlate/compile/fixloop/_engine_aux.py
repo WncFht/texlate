@@ -26,7 +26,7 @@ __all__ = [
 
 #: TeX 每轮重写的读回辅助件 —— 被杀/超时编译留下截断形 (``\citation{``
 #: 半行) 驻留 wdir 即毒化后续一切 compile ("File ended while scanning
-#: use of \citation"; 1511.06744 实证, 既有 aux_scan_eof 签名盖不住
+#: use of \citation"; 1511.06744 实证，既有 aux_scan_eof 签名盖不住
 #: \citation 形态)。删可再生件代价至多一遍重排; .bbl/.ind/.bcf 可为
 #: e-print 船货 (bbl_regen 靠它), 不在此表。
 _AUX_WRITE_EXTS = frozenset(
@@ -79,12 +79,12 @@ def _sweep_bad_aux(wdir: Path) -> list[str]:
     return dropped
 
 
-#: 进程内 ``_texts`` 缓存对 TeX 每轮重写/清场件不安全: compile 落盘
-#: 重写 ``{stem}.log``/``.aux`` 族、aux-sweep 删截断件, 缓存照供旧文,
-#: 扫 log/aux 的下游规则吃残影 (2403.00013 实证: r1 早读 ``{stem}.log``
+#: 进程内 ``_texts`` 缓存对 TeX 每轮重写/清场件不安全：compile 落盘
+#: 重写 ``{stem}.log``/``.aux`` 族、aux-sweep 删截断件，缓存照供旧文，
+#: 扫 log/aux 的下游规则吃残影 (2403.00013 实证：r1 早读 ``{stem}.log``
 #: 缓存 → r2 全部 misschar/font 规则在 pre-fix log 上判 "no Missing
 #: character" 拒修)。``.bbl``/``.bcf`` 可为 e-print 船货且不由 tex
-#: compile 重写, 不入此集——biber/docstrip 类 run_tool 产物由各调用
+#: compile 重写，不入此集——biber/docstrip 类 run_tool 产物由各调用
 #: 方自行 ``ctx.invalidate`` (bib_regen/docstrip 先例)。循环内每个
-#: ``eng.compile`` 后必失效此集 (含探针与兜底臂, 幂等)。
+#: ``eng.compile`` 后必失效此集 (含探针与兜底臂，幂等)。
 _VOLATILE_EXTS = _AUX_WRITE_EXTS | {".log"}

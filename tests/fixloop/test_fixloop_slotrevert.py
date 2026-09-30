@@ -119,7 +119,7 @@ def test_envarg_newline_arg_reverted(tmp_path: Path) -> None:
 
 
 def test_envarg_newline_divergence_healed(tmp_path: Path) -> None:
-    """计数分歧不再整跳后, 同文件无关 envarg 站 (``Mizar`` 尾参) 照
+    """计数分歧不再整跳后，同文件无关 envarg 站 (``Mizar`` 尾参) 照
     常还原 —— 跨行参站补齐后 28=28 对齐。"""
     work, base = _trees(tmp_path)
     src = (
@@ -245,7 +245,7 @@ def test_multi_file_note(tmp_path: Path) -> None:
     assert "2 files" in note
 
 
-# ------------------------------------------------- 负向: 文位/谓词/分歧/幂等/fail-safe
+# ------------------------------------------------- 负向：文位/谓词/分歧/幂等/fail-safe
 
 
 def test_prose_args_never_touched(tmp_path: Path) -> None:
@@ -283,7 +283,7 @@ def test_divergent_counts_skip_kind(tmp_path: Path) -> None:
 
 
 def test_ascii_divergence_no_cjk(tmp_path: Path) -> None:
-    """zh 参相异但零 CJK (ASCII 改动) → 非本族, 不动。"""
+    """zh 参相异但零 CJK (ASCII 改动) → 非本族，不动。"""
     work, base = _trees(tmp_path)
     _pair(work, base, "main.tex", "\\label{a}\n", "\\label{b}\n")
     ok, _note = _run(work, base)
@@ -311,7 +311,7 @@ def test_identical_files_fastpath(tmp_path: Path) -> None:
 
 
 def test_no_baseline_counterpart(tmp_path: Path) -> None:
-    """baseline 无同名件 → 无可对照, 不动。"""
+    """baseline 无同名件 → 无可对照，不动。"""
     work, base = _trees(tmp_path)
     (work / "orphan.tex").write_text("\\label{这是译文}\n", encoding="utf-8")
     ok, _note = _run(work, base)
@@ -336,7 +336,7 @@ def test_nonexistent_baseline_dir_failsafe(tmp_path: Path) -> None:
 
 
 def test_idempotent_second_run(tmp_path: Path) -> None:
-    """改写后重跑 → 参双侧一致, False 空转。"""
+    """改写后重跑 → 参双侧一致，False 空转。"""
     work, base = _trees(tmp_path)
     _pair(work, base, "main.tex", "\\label{a}\n", "\\label{文}\n")
     ok, _note = _run(work, base)

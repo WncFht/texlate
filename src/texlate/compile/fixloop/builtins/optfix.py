@@ -30,14 +30,14 @@ if TYPE_CHECKING:
 
 
 # ════════════════════════════════════════════════════════════════
-# runaway_output 修复面: 不可断盒 > \textheight → \output 空页死循环
-# (killsem census 单机理族: sentry:page_flood SIGKILL 前泛洪签名)
+# runaway_output 修复面：不可断盒 > \textheight → \output 空页死循环
+# (killsem census 单机理族：sentry:page_flood SIGKILL 前泛洪签名)
 # ════════════════════════════════════════════════════════════════
 
 
 #: ``{``/``[`` 配对扫描统一走 ``texlate.compile.mask.group_end`` —— 转义/嵌套
-#: 单源 (inject/layout/latex209/normalize 同口径); 本族在 raw 文本上跑, 其
-#: ``%`` 注释跳过是语义升级 (注释内 ``{``/``]`` 不再计入配对)。契约差两处:
+#: 单源 (inject/layout/latex209/normalize 同口径); 本族在 raw 文本上跑，其
+#: ``%`` 注释跳过是语义升级 (注释内 ``{``/``]`` 不再计入配对)。契约差两处：
 #: unpaired 归一 ``len(t)`` (调用侧 ``e >= len(t)`` 判失配), 返回 after-index
 #: (closer 位 = ``e - 1``)。
 
@@ -72,7 +72,7 @@ _TCB_LIB_RX = re.compile(r"\\tcbuselibrary\s*\{([^}]*)\}")
 _TCB_BREAKABLE_LIBS = frozenset({"breakable", "many", "most", "all"})
 #: 选项组内 breakable 键探测 (``unbreakable`` 前缀不沾——``\b`` 挡 ``n``)。
 _TCB_BREAKABLE_KEY_RX = re.compile(r"\bbreakable\b")
-#: 否定形键——``breakable=false``/``unbreakable`` 在泛洪格是肇事者, 翻正。
+#: 否定形键——``breakable=false``/``unbreakable`` 在泛洪格是肇事者，翻正。
 _TCB_NEG_KEY_RX = re.compile(r"\bbreakable\s*=\s*false\b|\bunbreakable\b")
 
 
@@ -163,7 +163,7 @@ def _tcb_edits(t: str) -> list[tuple[int, int, str]]:
 
 
 def _tcb_patch_text(t: str) -> tuple[str, int]:
-    """``_map_tex_files`` 适配: ``_tcb_edits`` 编辑表回放 → (新文本, 编辑数)。"""
+    """``_map_tex_files`` 适配：``_tcb_edits`` 编辑表回放 → (新文本，编辑数)。"""
     edits = _tcb_edits(t)
     return _splice(t, edits), len(edits)
 
@@ -217,7 +217,7 @@ _FLOAT_H_ENVS = (
     "algorithm*",
     "listing",
 )
-#: 合法浮体 placement 字符集——组内出现他字符即非纯 placement 表, 不动。
+#: 合法浮体 placement 字符集——组内出现他字符即非纯 placement 表，不动。
 _FLOAT_OPT_CHARS = frozenset("!htbpH")
 
 
@@ -292,7 +292,7 @@ def float_h_demote(
 #: (含 H: 展开后落 float_opt|H → float_opt_h_pkgload 已覆盖路径)。
 _FLOATOPT_SPEC_RE = re.compile(r"[!htbpH]+")
 
-#: 无参 cs 字面定义面: ``\def``/``\gdef``/``\edef``/``\xdef`` 与
+#: 无参 cs 字面定义面：``\def``/``\gdef``/``\edef``/``\xdef`` 与
 #: ``\new``/``\renew``/``\providecommand`` 裸形。带参宏 (``[n]`` 计数)
 #: 结构不含 {spec} 紧邻位 → 天然排除。
 _FLOATOPT_CS_DEF_RE = re.compile(
@@ -302,7 +302,7 @@ _FLOATOPT_CS_DEF_RE = re.compile(
 
 #: 浮体 opt 括号单 cs 站位三形——env 默认参 (``\newenvironment{env}[n][\cs]``)、
 #: ``\@float`` 族直调 (``\@float{env}[\cs]``/``\@dblfloat``/``\@rotfloat``/``\@xfloat``)、
-#: ``\begin{env}[\cs]`` 显式值。组1/3/5 = 站前缀, 组2/4/6 = cs。
+#: ``\begin{env}[\cs]`` 显式值。组 1/3/5 = 站前缀，组 2/4/6 = cs。
 _FLOATOPT_CS_SITE_RE = re.compile(
     r"(\\(?:new|renew)environment\*?\s*\{[A-Za-z@* ]+\}\s*\[\d+\]\s*)\[\s*\\([A-Za-z@]+)\s*\]"
     r"|(\\@(?:dbl|x|rot)?float\s*\{[A-Za-z*]+\}\s*)\[\s*\\([A-Za-z@]+)\s*\]"
@@ -360,10 +360,10 @@ def float_opt_cs_expand(
     return True, f"expanded cs float opts in {changed} file(s)"
 
 
-#: ``para_loosen`` 注入块——TeX 三遍排版真修复面: ``\tolerance`` 抬第
+#: ``para_loosen`` 注入块——TeX 三遍排版真修复面：``\tolerance`` 抬第
 #: 二遍坏度阈、``\emergencystretch>0`` 开第三遍以额外 stretch 重排
 #: 断不开的段落。不设 ``\hfuzz``——放宽 overfull 报告阈值是把
-#: qc 证据面吃掉而非修复 (埋/放行边界: 只动排版参数, 不动警告面)。
+#: qc 证据面吃掉而非修复 (埋/放行边界：只动排版参数，不动警告面)。
 _LOOSEN_SNIPPET = (
     "% texlate-fixloop: overfull-hbox mitigation\n"
     "\\emergencystretch=1.5em\\relax\n"

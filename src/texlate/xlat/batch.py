@@ -338,7 +338,7 @@ def _cs_arg_heads(text: str, cut: int, w: int) -> list[int]:
     if cut < len(text) and text[cut] in "{[":
         heads.append(cut)
     stack: list[tuple[str, int]] = []
-    last_closed: tuple[int, int] | None = None  # (头, 尾后)
+    last_closed: tuple[int, int] | None = None  # (头，尾后)
     i = w
     while i < cut:
         c = text[i]

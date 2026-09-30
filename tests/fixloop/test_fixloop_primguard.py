@@ -1,18 +1,18 @@
 """pdftex_prim_guard 单行 def 站点孤 \\fi 修复单测 (primguard 车道)。
 
-实证背景: guard(50) 两臂正则贪婪 —— 花括号臂 ``[^\\n]*\\}`` 取行内末枚
+实证背景：guard(50) 两臂正则贪婪 —— 花括号臂 ``[^\\n]*\\}`` 取行内末枚
 ``}``, 赋值臂 ``[^\\n%]*`` 吃到 EOL。单行 def 站点
 ``\\def\\f{\\pdfobj{<</N 1>>}}`` / ``\\def\\f{\\pdfoutput=1}`` 的外层 ``}``
 被吞 → ``\\fi`` 落出宏体外 → 孤 ``\\fi`` (Extra \\fi / Incomplete
-\\ifdefined 破坏级; primarg 85c99f4 期审计实证输出形态, spotcolor.sty:34
-真站点是多行 def 故幸存 —— 纯脆弱性, 任何单行 braced/赋值 def 内站点必炸)。
+\\ifdefined 破坏级; primarg 85c99f4 期审计实证输出形态，spotcolor.sty:34
+真站点是多行 def 故幸存 —— 纯脆弱性，任何单行 braced/赋值 def 内站点必炸)。
 
-修形: regex 引擎递归平衡花括号
+修形：regex 引擎递归平衡花括号
 ``(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})`` —— 转义
 ``\\{|\\}|\\%`` 与行注释内括号不计配对 (TeX 词法同构), 跨行实参收编
-(旧 ``[^\\n]`` 弃守面)。赋值臂 value = (escape|bal|非括号非注释|孤{)*,
+(旧 ``[^\\n]`` 弃守面)。赋值臂 value = (escape|bal|非括号非注释 | 孤{)*,
 裸 ``}`` 必停 —— 单层/多层 def、注释 ``}``、escape 全谱正确; 不可闭合
-``{`` 走孤 ``{`` 兜底, 维持旧形 "整行吞" (xetex 跳读面干净, 不把开口组
+``{`` 走孤 ``{`` 兜底，维持旧形 "整行吞" (xetex 跳读面干净，不把开口组
 漏回排版流)。
 """
 
@@ -52,9 +52,9 @@ def _out(ctx: LoopCtx) -> str:
     return (ctx.wdir / "main.tex").read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------- 缺陷类: 单行 def 站点
+# ---------------------------------------------------------------- 缺陷类：单行 def 站点
 def test_braced_arm_single_line_def_no_orphan(tmp_path: Path) -> None:
-    """``\\def\\f{\\pdfobj{<</N 1>>}}`` —— ``\\fi`` 落宏体内, 外层 ``}`` 不吞。"""
+    """``\\def\\f{\\pdfobj{<</N 1>>}}`` —— ``\\fi`` 落宏体内，外层 ``}`` 不吞。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\def\\f{\\pdfobj{<</N 1>>}}\n"
@@ -70,7 +70,7 @@ def test_braced_arm_single_line_def_no_orphan(tmp_path: Path) -> None:
 
 
 def test_assign_arm_single_line_def_no_orphan(tmp_path: Path) -> None:
-    """``\\def\\f{\\pdfoutput=1}`` —— 赋值臂同缺陷: ``}`` 不可进 value。"""
+    """``\\def\\f{\\pdfoutput=1}`` —— 赋值臂同缺陷：``}`` 不可进 value。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\def\\f{\\pdfoutput=1}\n"
@@ -96,7 +96,7 @@ def test_braced_arm_nested_def_no_orphan(tmp_path: Path) -> None:
 
 
 def test_braced_arm_trailing_tokens_in_def(tmp_path: Path) -> None:
-    """``\\def\\f{\\pdfobj{a}\\more}`` —— ``\\fi`` 落 ``\\more`` 前, def 闭合法。"""
+    """``\\def\\f{\\pdfobj{a}\\more}`` —— ``\\fi`` 落 ``\\more`` 前，def 闭合法。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\def\\f{\\pdfobj{a}\\more}\n"
@@ -119,7 +119,7 @@ def test_assign_arm_edef_site(tmp_path: Path) -> None:
     assert "\\edef\\x{\\ifdefined\\pdfoutput\\pdfoutput=1\\fi}" in _out(ctx)
 
 
-# ---------------------------------------------------------------- 回归: 常规/多行站点
+# ---------------------------------------------------------------- 回归：常规/多行站点
 def test_braced_arm_multi_line_def_still_wrapped(tmp_path: Path) -> None:
     """spotcolor.sty:34 真形 (多行 def, 实参独占行) —— 多行站点不回归。"""
     ctx = _ctx(
@@ -182,7 +182,7 @@ def test_braced_arm_multiline_arg_now_wrapped(tmp_path: Path) -> None:
 
 
 def test_braced_arm_nested_brace_arg(tmp_path: Path) -> None:
-    """嵌套花括号实参 ``\\pdfobj{<</X {a}>>}`` —— 真平衡, 不停内层 ``}``。"""
+    """嵌套花括号实参 ``\\pdfobj{<</X {a}>>}`` —— 真平衡，不停内层 ``}``。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\pdfobj{<</X {a}>>}\n"
@@ -209,7 +209,7 @@ def test_braced_arm_siblings_wrapped_separately(tmp_path: Path) -> None:
 
 
 def test_braced_arm_escaped_brace_in_arg(tmp_path: Path) -> None:
-    """``\\pdfobj{a\\}b}`` —— 转义 ``\\}`` 不当组闭, 实参取 TeX 真界。"""
+    """``\\pdfobj{a\\}b}`` —— 转义 ``\\}`` 不当组闭，实参取 TeX 真界。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\pdfobj{a\\}b}\n"
@@ -273,7 +273,7 @@ def test_assign_arm_value_stops_before_comment(tmp_path: Path) -> None:
 
 def test_assign_arm_unclosed_brace_fallback(tmp_path: Path) -> None:
     """``\\pdfpageresources={abc`` 孤 ``{`` —— 兜底吃字面量整行吞 (旧形
-    语义保持: xetex 跳读区含开口组亦干净, 不漏回排版流)。"""
+    语义保持：xetex 跳读区含开口组亦干净，不漏回排版流)。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\pdfpageresources={abc\n"
@@ -302,7 +302,7 @@ def test_guard_idempotent(tmp_path: Path) -> None:
 
 
 def test_route_single_line_def_guard_first(tmp_path: Path) -> None:
-    """路由层: 单行 def 站点仍由 guard(50) 先修, polyfill 不抢。"""
+    """路由层：单行 def 站点仍由 guard(50) 先修，polyfill 不抢。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\def\\f{\\pdfobj{<</N 1>>}}\n"
@@ -315,7 +315,7 @@ def test_route_single_line_def_guard_first(tmp_path: Path) -> None:
 
 
 def test_route_single_line_assign_def_guard_first(tmp_path: Path) -> None:
-    """路由层: 单行赋值 def 站点同由 guard 先修。"""
+    """路由层：单行赋值 def 站点同由 guard 先修。"""
     ctx = _ctx(
         tmp_path,
         "\\documentclass{article}\n\\def\\f{\\pdfoutput=1}\n"

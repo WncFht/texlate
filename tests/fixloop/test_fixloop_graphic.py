@@ -2,8 +2,8 @@
 
 signature-mining 2026-09-16 top5#2:
   - ``{sf_08_VX}`` vs 盘上 ``SF_08_VX`` 在 Linux 敏感 FS 挂 (2403.15102)
-    → graphic_case_link 大小写不敏感找真身, 改写 ``\\includegraphics`` 参数;
-  - figDY.pdf 在盘合法但引擎拒载 (1502.06541) → graphic_repair 分级:
+    → graphic_case_link 大小写不敏感找真身，改写 ``\\includegraphics`` 参数;
+  - figDY.pdf 在盘合法但引擎拒载 (1502.06541) → graphic_repair 分级：
     gs pdfwrite 重蒸馏 → 降级 ``\\fbox``/``\\rule`` 占位框;
   - metapost ``diag1.1`` (``.\\d+`` 扩展实为 EPS, 0806.4589 漏归 other)
     → eps_to_pdf 扫源面扩 ``.\\d+``, dst 叠 ``.pdf`` 防 ``diag1.1``/``diag1.2``
@@ -65,7 +65,7 @@ def _spy(calls: list[list[str]]) -> RunFn:
 
 
 def test_case_link_rewrites_to_real_relpath(tmp_path: Path) -> None:
-    """2403.15102 形: ``img/sf_08_VX.pdf`` vs ``img/SF_08_VX.pdf`` → 参数改真名。"""
+    """2403.15102 形：``img/sf_08_VX.pdf`` vs ``img/SF_08_VX.pdf`` → 参数改真名。"""
     (tmp_path / "img").mkdir()
     (tmp_path / "img" / "SF_08_VX.pdf").write_bytes(b"%PDF real")
     (tmp_path / "main.tex").write_text(MAIN, encoding="utf-8")
@@ -77,7 +77,7 @@ def test_case_link_rewrites_to_real_relpath(tmp_path: Path) -> None:
 
 
 def test_case_link_stemless_payload_via_basename(tmp_path: Path) -> None:
-    """payload 无扩展名 + 引用无目录 → stem ci 命中 → 改写真名(补全扩展名)。"""
+    """payload 无扩展名 + 引用无目录 → stem ci 命中 → 改写真名 (补全扩展名)。"""
     (tmp_path / "5X.pdf").write_bytes(b"%PDF real")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
@@ -119,7 +119,7 @@ def test_case_link_verbatim_resolves(tmp_path: Path) -> None:
 
 
 def test_case_link_idempotent_second_fire(tmp_path: Path) -> None:
-    """二次触火: 引用已指向可解析真身 → 守卫跳过 → False, 文本不变。"""
+    """二次触火：引用已指向可解析真身 → 守卫跳过 → False, 文本不变。"""
     (tmp_path / "img").mkdir()
     (tmp_path / "img" / "SF_08_VX.pdf").write_bytes(b"%PDF")
     (tmp_path / "main.tex").write_text(MAIN, encoding="utf-8")
@@ -134,7 +134,7 @@ def test_case_link_idempotent_second_fire(tmp_path: Path) -> None:
 
 
 def test_case_link_unrelated_resolving_ref_untouched(tmp_path: Path) -> None:
-    """同名其他目录引用本可解析 → 不是病灶, 不被改写。"""
+    """同名其他目录引用本可解析 → 不是病灶，不被改写。"""
     (tmp_path / "img").mkdir()
     (tmp_path / "img" / "SF_08_VX.pdf").write_bytes(b"%PDF")
     (tmp_path / "other").mkdir()
@@ -156,7 +156,7 @@ def test_case_link_unrelated_resolving_ref_untouched(tmp_path: Path) -> None:
 
 
 def test_repair_redistill_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """gs 在 → pdfwrite 重蒸馏就地覆盖, 原件留 .fixloop-rd 旁记。"""
+    """gs 在 → pdfwrite 重蒸馏就地覆盖，原件留 .fixloop-rd 旁记。"""
     monkeypatch.setattr(shutil, "which", which_only("gs"))
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-corrupt-ish")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
@@ -284,21 +284,21 @@ def test_repair_stub_idempotent(
 
 
 def _fake_convert(_tool: str, _src: Path, dst: Path) -> tuple:
-    """假转换器: 直接写 dst, 绕开真 epstopdf/gs 子进程。"""
+    """假转换器：直接写 dst, 绕开真 epstopdf/gs 子进程。"""
     dst.write_bytes(b"%PDF-fake")
     return 0, "", False
 
 
 @pytest.fixture
 def _convert_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """eps_to_pdf 转换面双钉: epstopdf/gs 在场 + ``_run_convert`` 假转换器。"""
+    """eps_to_pdf 转换面双钉：epstopdf/gs 在场 + ``_run_convert`` 假转换器。"""
     monkeypatch.setattr(shutil, "which", which_only("epstopdf", "gs"))
     monkeypatch.setattr(graphics, "_run_convert", _fake_convert)
 
 
 @pytest.mark.usefixtures("_convert_env")
 def test_eps_to_pdf_metapost_numeric_ext(tmp_path: Path) -> None:
-    """0806.4589 形: ``diag1.1``/``diag1.10`` 进转换面 → ``name+'.pdf'`` dst 防互塌。"""
+    """0806.4589 形：``diag1.1``/``diag1.10`` 进转换面 → ``name+'.pdf'`` dst 防互塌。"""
     (tmp_path / "diag1.1").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "diag1.10").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
@@ -318,7 +318,7 @@ def test_eps_to_pdf_metapost_numeric_ext(tmp_path: Path) -> None:
 
 @pytest.mark.usefixtures("_convert_env")
 def test_eps_to_pdf_numeric_idempotent(tmp_path: Path) -> None:
-    """二次触火: dst 已存在复用, ``diag1.1.pdf`` 不被叠成 ``diag1.1.pdf.pdf``。"""
+    """二次触火：dst 已存在复用，``diag1.1.pdf`` 不被叠成 ``diag1.1.pdf.pdf``。"""
     (tmp_path / "diag1.1").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"

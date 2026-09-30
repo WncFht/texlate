@@ -228,7 +228,7 @@ _UPPER_ACCENTED: Final = frozenset(
 )
 
 
-#: 常用西里尔字母（俄语+乌克兰语扩展）。cp866/gb 字节被 cp1251 误吃时会
+#: 常用西里尔字母（俄语 + 乌克兰语扩展）。cp866/gb 字节被 cp1251 误吃时会
 #: 混出 Serbian ``j``/罕见 ``Ъ`` 等语言不可能共现的字母——罕见字扣分。
 _COMMON_CYRILLIC: Final = frozenset(
     "абвгдежзийклмнопрстуфхцчшщъыьэюяАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯёЁіІїЇєЄґҐ"
@@ -344,7 +344,7 @@ _CJK_CODECS: Final = ("gb18030", "big5", "shift_jis", "euc_jp")
 _CJK_DECLARED: Final = frozenset(
     (*_CJK_CODECS, "gbk", "cp936", "cp950", "cp932", "cp949")
 )
-#: 专属面区间：假名（0x3040-0x30FF）/谚文音节+字母。gb18030 误吃 SJIS
+#: 专属面区间：假名（0x3040-0x30FF）/谚文音节 + 字母。gb18030 误吃 SJIS
 #: 只产表意字——命中这些面即族铁证。
 _KANA_HANGUL_RANGES: Final = ((0x3040, 0x30FF), (0x1100, 0x11FF), (0xAC00, 0xD7AF))
 _KANA_MERGED: Final = _merge_ranges(_KANA_HANGUL_RANGES)
@@ -373,7 +373,7 @@ def _cjk_decode_score(text: str) -> float:
 
 
 def _decode_high_run(run: bytes) -> tuple[str, str]:  # noqa: C901 — 局部仲裁平铺
-    """高字节连续段的局部解码：成段 CJK 先试，否则 UTF-8 前缀步进+单字节评分。"""
+    """高字节连续段的局部解码：成段 CJK 先试，否则 UTF-8 前缀步进 + 单字节评分。"""
     if len(run) >= _CJK_RUN_MIN:
         best_enc, best_text, best_score = "", "", 0.0
         for enc in _CJK_CODECS:
@@ -417,7 +417,7 @@ def _decode_high_run(run: bytes) -> tuple[str, str]:  # noqa: C901 — 局部仲
 
 
 def _decode_mixed(blob: bytes) -> tuple[str, dict[int, str]]:
-    """UTF-8 分段 + 高字节 run 局部解码。返回 (文本, {offset: 区段 codec})。
+    """UTF-8 分段 + 高字节 run 局部解码。返回 (文本，{offset: 区段 codec})。
 
     判定面（``_sniff_arbitrate`` 评分）与解码面（``_decode_tex_with`` 按
     ``utf-8-mixed`` 定档重取同文）共用一份结果——memo 口径同
@@ -589,7 +589,7 @@ def _sniff_cjk_family(
     return None
 
 
-def _sniff_arbitrate(  # noqa: C901 — argmax+声明采纳链即规格序
+def _sniff_arbitrate(  # noqa: C901 — argmax+ 声明采纳链即规格序
     blob: bytes, declared_raw: str | None, declared: str | None
 ) -> EncodingVerdict:
     candidates: list[tuple[str, str, float]] = []  # (encoding, basis, score)

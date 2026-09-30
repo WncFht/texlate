@@ -65,7 +65,7 @@ _FB_RANGES: tuple[tuple[int, int], ...] = (
     (0x00C0, 0x017F),
 )
 
-#: ``fallback_fonts`` 候选名按扩展名分流探测: 字体文件名 (otf/ttf/ttc)
+#: ``fallback_fonts`` 候选名按扩展名分流探测：字体文件名 (otf/ttf/ttc)
 #: → kpathsea ``probe_file`` (fontspec 文件形解析同一通路); 家族名 →
 #: ``fc-list`` fontconfig 探测 (fontspec 家族名解析同一通路)。
 _FONT_FILE_RE = re.compile(r"\.(?:otf|ttf|ttc|pfb|dfont)$", re.IGNORECASE)
@@ -134,12 +134,12 @@ def _fb_font_resolve(
 ) -> tuple[str | None, str]:
     """``fallback_fonts`` 有序候选 → 首个可解析字体名; 全灭 → (None, 原因)。
 
-    条目为名字符串或 ``{name, install}`` 映射: 文件形名 (``_FONT_FILE_RE``
-    命中) 经 ``eng.probe_file`` 探测, ``install: true`` 时 miss 先
+    条目为名字符串或 ``{name, install}`` 映射：文件形名 (``_FONT_FILE_RE``
+    命中) 经 ``eng.probe_file`` 探测，``install: true`` 时 miss 先
     ``eng.install_file`` 再复核 (texmf 树外字体包如 unfonts-core 可补装);
     家族名经 ``fc-list <name> family`` 非空输出探测 (fc-list 缺席/查无此族
     → 下一候选)。未给 ``fallback_fonts`` 时走 ``fallback_font``/``_FB_FONT``
-    单值旧路——不探测, 保持既有臂行为不变。
+    单值旧路——不探测，保持既有臂行为不变。
     """
     cands = params.get("fallback_fonts")
     if not cands:
@@ -152,8 +152,8 @@ def _resolve_font_cands(
 ) -> tuple[str | None, str]:
     """有序字体候选 → 首个可解析字体名; 全灭 → (None, 原因)。
 
-    条目为名字符串或 ``{name, install}`` 映射: 文件形名 (``_FONT_FILE_RE``
-    命中) 经 ``eng.probe_file`` 探测, ``install: true`` 时 miss 先
+    条目为名字符串或 ``{name, install}`` 映射：文件形名 (``_FONT_FILE_RE``
+    命中) 经 ``eng.probe_file`` 探测，``install: true`` 时 miss 先
     ``eng.install_file`` 再复核; 家族名经 ``fc-list <name> family`` 非空
     输出探测 (fc-list 缺席/查无此族 → 下一候选)。
     """
@@ -179,7 +179,7 @@ def _resolve_font_cands(
     return None, f"no fallback font resolvable ({', '.join(tried)})"
 
 
-#: ``\begin{数学env}`` 起锚 —— ``$..$``/``\(\)`` 之外的数学体 (重音 cs 改写
+#: ``\begin{数学 env}`` 起锚 —— ``$..$``/``\(\)`` 之外的数学体 (重音 cs 改写
 #: 与 cs-shim 探测共用的数学域守卫)。tabbing 不是数学但 ``\=`` 在其内是
 #: 制表符命令非重音 —— 同列守卫。
 _MATH_GUARD_BEGIN_RE = re.compile(
@@ -209,7 +209,7 @@ def _in_spans(pos: int, spans: list[tuple[int, int]]) -> bool:
 #: accent cs)。值 = 该 cs 的全部预组产出码位 (触发门), shim 形为
 #: ``\def\<cs>#1{...\txlateold<cs>{#1}...}`` 实参重花括透传 (0806.3530
 #: ``$\r{A}$`` Å-in-cmmi9 实证)。无参字母 cs 归 _MATH_SHIM_CS;
-#: cs_rebind 的无参 emit 形消费不到本表 (按设计, 含参站点不在其管面)。
+#: cs_rebind 的无参 emit 形消费不到本表 (按设计，含参站点不在其管面)。
 _MATH_SHIM_ARG_CS: dict[str, tuple[int, ...]] = {
     "r": (0x00C5, 0x00E5, 0x016E, 0x016F),  # \r{AaUu} → ÅåŮů 全预组面
 }
@@ -308,7 +308,7 @@ def font_fallback(
     bands = params.get("fallback_ranges") or _FB_RANGES
     font_not = params.get(
         "font_not"
-    )  # 字体名正则: 命中即跳 (CJK cp 落 CJK 字体是真缺字形)
+    )  # 字体名正则：命中即跳 (CJK cp 落 CJK 字体是真缺字形)
     fb_cs = str(params.get("fallback_cs") or "txlatefallback")
     table = _mc_table(params)
     taken = {

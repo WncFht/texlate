@@ -78,7 +78,7 @@ from texlate.xlat.placeholders import encode_newlines  # noqa: E402
 
 
 def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]:
-    """零事件行的破坏计划确定性复算 → (是否靶向, moved 复算值)。
+    """零事件行的破坏计划确定性复算 → (是否靶向，moved 复算值)。
 
     续跑 StateStore 恢复行不走 ``translate`` → 本轮 ``events`` 零入账；
     blake2s 决策 = f(段内容) 使「应否被破坏」可从 ``r.source``（state
@@ -139,7 +139,7 @@ def _finalize(
             continue
         ledger["sabotaged"] += 1
         ledger["moved"] += n_moved
-        # 交付谓词与 splice/e2e 台账同口径：ok | partial+译文——partial（阶梯
+        # 交付谓词与 splice/e2e 台账同口径：ok | partial+ 译文——partial（阶梯
         # recovered）译文照进文档，严卡 ok 会把脏 partial 记 caught 漏 escaped。
         delivered = _delivered(r)
         if mode == "B":

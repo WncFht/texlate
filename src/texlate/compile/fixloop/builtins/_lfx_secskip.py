@@ -26,9 +26,9 @@ __all__ = [
 ]
 
 #: ``\\@startsection{name}{lvl}{indent}{beforeskip}{afterskip}{style}``
-#: 六参形 —— afterskip (第 5 参) 纯字面量捕获 (组 1 = 含花括整参,
-#: 组 2 = 数值, 组 3 = 单位)。glue 形 (``1.5ex plus .2ex``) 与 cs 形
-#: (``\\smallskipamount``) 不匹配本式, 天然不收。
+#: 六参形 —— afterskip (第 5 参) 纯字面量捕获 (组 1 = 含花括整参，
+#: 组 2 = 数值，组 3 = 单位)。glue 形 (``1.5ex plus .2ex``) 与 cs 形
+#: (``\\smallskipamount``) 不匹配本式，天然不收。
 _STARTSEC_RX = re.compile(
     r"\\@startsection\s*"
     r"\{[^{}]*\}\s*"  # name
@@ -38,7 +38,7 @@ _STARTSEC_RX = re.compile(
     r"(\{\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]{2})\s*\})"  # afterskip 字面量
 )
 
-#: 单位 → pt 折算 (「小正」门近似值即可——ex/em 按 10pt 标准体估,
+#: 单位 → pt 折算 (「小正」门近似值即可——ex/em 按 10pt 标准体估，
 #: 误判域仅限 1.0–1.4 档 afterskip, 垫到 1.5ex 仍是无害小垫高)。
 _DIMEN_PT: dict[str, float] = {
     "pt": 1.0,

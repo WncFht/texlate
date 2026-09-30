@@ -27,7 +27,7 @@ class _NullCache(SegmentCache):
     """段缓存全哑面（M1 防毒围栅）：读只认本 run 自写、``drain`` 恒空不落库。
 
     适用面在 ``_make_cache`` 判定——段缓存键指纹不含凭证，无 key/mock
-    形态写出的占位译文会跨凭证命中续毒（实测 fresh+真 key 重交同论文
+    形态写出的占位译文会跨凭证命中续毒（实测 fresh+ 真 key 重交同论文
     仍 67% 段命中 mock 缓存）；结构性短路比事后清洗可靠。
 
     ``_pending``/``_written`` 保留 run 内 dedup 语义（同文档重复段只译
@@ -89,7 +89,7 @@ class _TranslateCache:
         写不落库；run 内 dedup 语义保留）：
 
         - 无 ``api_key``：``file_cache_key`` 指纹不含凭证，无 key 形态
-          写出的条目跨凭证命中续毒（实测 fresh+真 key 仍 67% 命中 mock
+          写出的条目跨凭证命中续毒（实测 fresh+ 真 key 仍 67% 命中 mock
           残段）——缺 key 臂已被 ``_resolve_translator`` AuthError 拦死，
           本项兜 factory 注入/未来新入口的零 key 跑；
         - ``TEXLATE_TRANSLATOR=mock`` / 行 ``mock_run`` 标记：mock 产物

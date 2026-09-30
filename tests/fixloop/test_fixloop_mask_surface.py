@@ -1,7 +1,7 @@
 """``match_surface: masked`` —— rewrite 条目遮盖面匹配机制钉。
 
 机制 (actions._masked_sub): ``mask_tex`` 等长视图 finditer → span 回切
-原文右→左拼接。注释/逐字/失活区在视图中是等长空白, pattern 必要内容
+原文右→左拼接。注释/逐字/失活区在视图中是等长空白，pattern 必要内容
 无法锚在其中——natbib_numbers_pass 注释行 ``\\begin{document}`` 裂伤
 (astro-ph/0307344 ms.tex:172/198, begindoc_tail_recomment 收伤规则尚在)
 的类级根修。字段逐条 opt-in, 缺席走原文 ``sub`` 零行为差。
@@ -65,7 +65,7 @@ def test_raw_default_still_matches_in_comments(tmp_path: Path) -> None:
 
 
 def test_masked_skips_verbatim_and_dead_env(tmp_path: Path) -> None:
-    # 遮盖面不止注释: verbatim 体/comment.sty 失活环境体同样不命中
+    # 遮盖面不止注释：verbatim 体/comment.sty 失活环境体同样不命中
     (tmp_path / "main.tex").write_text(
         "\\begin{verbatim}\n\\begin{document}\n\\end{verbatim}\n"
         "\\begin{comment}\n\\begin{document}\n\\end{comment}\n"
@@ -84,7 +84,7 @@ def test_masked_skips_verbatim_and_dead_env(tmp_path: Path) -> None:
 
 
 def test_masked_multimatch_right_to_left_splice(tmp_path: Path) -> None:
-    # (c) 含 \n 的 replacement 多命中右→左拼接: 前位 span 不因变长漂移
+    # (c) 含 \n 的 replacement 多命中右→左拼接：前位 span 不因变长漂移
     (tmp_path / "main.tex").write_text(
         "\\begin{document}\na\n"
         "% \\begin{document} fake\n"
@@ -107,7 +107,7 @@ def test_masked_multimatch_right_to_left_splice(tmp_path: Path) -> None:
 
 
 def test_masked_repl_group_backrefs_expand(tmp_path: Path) -> None:
-    # 视图 group 展开: 活面命中区与原文逐字节一致, \\g<1> 取回原文 token
+    # 视图 group 展开：活面命中区与原文逐字节一致，\\g<1> 取回原文 token
     (tmp_path / "main.tex").write_text("x \\foo{bar} % \\foo{dead}\n")
     ok, _ = apply(
         _rewrite_rule(
@@ -174,7 +174,7 @@ def test_match_surface_invalid_value_rejected() -> None:
 
 
 def test_natbib_numbers_pass_opted_in() -> None:
-    # 真实规则库: natbib_numbers_pass 全部 rewrite 条目已 opt-in
+    # 真实规则库：natbib_numbers_pass 全部 rewrite 条目已 opt-in
     rs = load_ruleset()
     rule = next(r for r in rs.phase("loop") if r.id == "natbib_numbers_pass")
     rws = rule.action["params"]["rewrites"]

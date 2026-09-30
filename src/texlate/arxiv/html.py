@@ -417,7 +417,7 @@ def _fallback_title(art: Tag) -> Tag | None:
 def _enumerate_blocks(  # noqa: C901, PLR0915 -- 块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
     art: Tag, ctx: _InlineCtx
 ) -> Iterator[tuple[Tag, str, str, str, dict[str, str]]]:
-    """``article.ltx_document`` 内按文档序产 ``(元素, key, context, text, ph)``。
+    """``article.ltx_document`` 内按文档序产 ``(元素，key, context, text, ph)``。
 
     唯一枚举真源——``parse_arxiv_html`` 与 ``marked_html`` 共用：key 派生
     （元素 ``id`` 优先，缺失合成 ``b{n}``，撞号 ``#k``）与 footnote 排放

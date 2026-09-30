@@ -1,9 +1,9 @@
-"""scout-misschar-coverage 2026-09-17 三项修复的审计测试.
+"""scout-misschar-coverage 2026-09-17 三项修复的审计测试。
 
-- accent_mark_fix: accent cs 生成的组合符 (U+0300-036F) 非输入字符,
+- accent_mark_fix: accent cs 生成的组合符 (U+0300-036F) 非输入字符，
   newunicodechar 拦不到 → 源级 ``\\<cs>{x}`` 站点改写预组字/剥 accent.
 - math_font_chars: font_fallback ``\\ifmmode`` 模板 + 文本字母 cs 数学域 shim.
-- nullfont_noise: missing_char 签名排除 ``in font nullfont`` 测量盒噪音.
+- nullfont_noise: missing_char 签名排除 ``in font nullfont`` 测量盒噪音。
 """
 
 from collections.abc import Callable
@@ -280,7 +280,7 @@ def test_font_fallback_double_inject_no_clash(tmp_path: Path) -> None:
     rules = [a["rule"] for a in cell["actions"]]
     assert rules.index("accent_mark_fix") < rules.index("font_fallback")
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert t.count("\\newunicodechar{ţ}") == 1  # 逐字去重: 不重复声明
+    assert t.count("\\newunicodechar{ţ}") == 1  # 逐字去重：不重复声明
     assert "\\ifdefined\\txlatefallback" in t
 
 
@@ -434,7 +434,7 @@ def test_warn_signature_all_nullfont_silent() -> None:
 
 
 def test_mc_parse_log_skips_nullfont() -> None:
-    """``_mc_parse_log`` 层兜底: nullfont 码位不进 seen (wrap 漏网双保险)."""
+    """``_mc_parse_log`` 层兜底：nullfont 码位不进 seen (wrap 漏网双保险)."""
     seen = _mc_parse_log(
         'Missing character: There is no ; ("3B) in font nullfont!\n'
         "Missing character: There is no ≠ (U+2260) in font cmr7!\n"

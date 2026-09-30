@@ -22,7 +22,7 @@ from texlate.compile.fixloop.builtins.assetfix import _pfa_to_pfb_bytes
 
 
 class _PfaEng:
-    """pfa_to_pfb 路径引擎替身: texmfhome usertree + 具名 probe 表。"""
+    """pfa_to_pfb 路径引擎替身：texmfhome usertree + 具名 probe 表。"""
 
     name = "xelatex"
 
@@ -91,10 +91,10 @@ def _pfb_segments(pfb: bytes) -> list[tuple[int, bytes]]:
 
 
 def _pfa_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, Path]]:
-    """假系统树: wdir/sysroot/usertree 三兄弟 → (wdir, texmfhome, probe 表)。
+    """假系统树：wdir/sysroot/usertree 三兄弟 → (wdir, texmfhome, probe 表)。
 
-    sysroot 必须在 wdir 之外 —— 遮蔽臂靠 ``map 在工程内?`` 二分 (系统树件
-    落 TEXMFVAR 副本, 工程内件就地改写)。
+    sysroot 必须在 wdir 之外 —— 遮蔽臂靠 ``map 在工程内？`` 二分 (系统树件
+    落 TEXMFVAR 副本，工程内件就地改写)。
     """
     wdir = tmp_path / "wdir"
     wdir.mkdir()
@@ -172,7 +172,7 @@ def test_pfatopfb_cond_declines_unrelated(tmp_path: Path) -> None:
 
 
 def test_pfatopfb_writes_usertree(tmp_path: Path) -> None:
-    """三层遮蔽齐落: type1 .pfb / TEXMFVAR pdftex.map / dvips 源 .map; 宿主原件不动。"""
+    """三层遮蔽齐落：type1 .pfb / TEXMFVAR pdftex.map / dvips 源 .map; 宿主原件不动。"""
     wdir, texmf, files = _pfa_fixture(tmp_path)
     ok, note = pfa_to_pfb(mk_ctx(wdir), _PfaEng(texmf, files), None, {})
     assert ok, note
@@ -223,7 +223,7 @@ def test_pfatopfb_declines_non_eexec_pfa(tmp_path: Path) -> None:
 
 
 def test_pfatopfb_in_wdir_map_patched_in_place(tmp_path: Path) -> None:
-    """pdftex.map 在工程内 (cwd 首位遮蔽一切) → 就地改写, 不落 TEXMFVAR。"""
+    """pdftex.map 在工程内 (cwd 首位遮蔽一切) → 就地改写，不落 TEXMFVAR。"""
     wdir, texmf, files = _pfa_fixture(tmp_path)
     wmap = wdir / "pdftex.map"
     wmap.write_text(_PDFTEX_MAP, encoding="utf-8")

@@ -72,7 +72,7 @@ def _kpse_resolve(filename: str, progname: str, cwd: Path, kpse: str) -> Path | 
 def _kpse_resolve_many(
     filenames: list[str], progname: str, cwd: Path, kpse: str
 ) -> dict[str, Path | None]:
-    """``kpsewhich`` 单次多名解析 → ``{请求名: 命中路径|None}``，逐名语义同单名版。
+    """``kpsewhich`` 单次多名解析 → ``{请求名：命中路径|None}``，逐名语义同单名版。
 
     多名模式逐 argv 位次输出：命中行=路径、miss=空行、末尾连续 miss 整体
     截断（kpathsea 6.4.2 实证；returncode=miss 计数，不按失败判）——
@@ -115,7 +115,7 @@ def _kpse_resolve_many(
 
 
 def _collect_package_refs(text: str) -> tuple[set[str], set[str]]:
-    """可见视图上采集 ``(包名集, 类名集)``——逗号列表拆开逐项。"""
+    """可见视图上采集 ``(包名集，类名集)``——逗号列表拆开逐项。"""
     packages: set[str] = set()
     classes: set[str] = set()
     visible = visible_tex(text)
@@ -150,7 +150,7 @@ def _shadow_source(
     root: Path,
     resolve: Callable[[str], Path | None],
 ) -> tuple[Path, bytes] | None:
-    """遮蔽源定位+读取；逃逸名/工程内同名/root 内命中/不可读 → None。"""
+    """遮蔽源定位 + 读取；逃逸名/工程内同名/root 内命中/不可读 → None。"""
     req = name + suffix
     # 名字逃逸 + vendored 优先一并早退：工程树内任何位置已有同名件 →
     # 不遮蔽（kpathsea ``.`` 首位会让 main_dir 副本盖掉用户文件；同名件
@@ -178,7 +178,7 @@ def _try_shadow(
     main_dir: Path,
     resolve: Callable[[str], Path | None],
 ) -> tuple[dict[str, str] | None, set[tuple[str, str]]]:
-    """单包探测+遮蔽；返回 ``(台账条目, 遮蔽件内新引用 (名, 后缀) 对)``，不遮蔽时 ``(None, set())``。"""
+    """单包探测 + 遮蔽；返回 ``(台账条目，遮蔽件内新引用 (名，后缀) 对)``，不遮蔽时 ``(None, set())``。"""
     req = name + suffix
     src = _shadow_source(name, suffix, root, resolve)
     if src is None:

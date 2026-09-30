@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 # ════════════════════════════════════════════════════════════════
-# tar 伪装件解包: e-print 内嵌 tar 以 .sty/.cls 名落盘 → 抽成员补缺
+# tar 伪装件解包：e-print 内嵌 tar 以 .sty/.cls 名落盘 → 抽成员补缺
 # ════════════════════════════════════════════════════════════════
 
 #: POSIX ustar 魔数 ``ustar`` 驻留偏移 257 (tar header magic field)。
@@ -29,12 +29,12 @@ _TAR_MAGIC = b"ustar"
 
 #: 魔数探测窗——我方 splice/zh 对 ``.sty`` 一律前置 prologue 注入
 #: (``\PassOptionsToPackage``/``\providecommand`` 块), tar 魔数被推离 257
-#: (0707.0382 实案: 注入 ~600B 后 ``ustar`` 落 ~偏移 870, 定点探测漏检);
+#: (0707.0382 实案：注入 ~600B 后 ``ustar`` 落 ~偏移 870, 定点探测漏检);
 #: 前 64KB 扫描兼容原生与变异 blob。
 _TAR_SCAN_WINDOW = 65536
 
 #: 伪装判定扩展名集——tar blob 只在文本类名下才有害 (二进制件 .eps/.pdf
-#: 不查；``.tarblob`` 是本方改名件, 重扫须免再命中)。
+#: 不查；``.tarblob`` 是本方改名件，重扫须免再命中)。
 _TARBLOB_EXTS = frozenset(
     {
         ".tex",
@@ -79,7 +79,7 @@ def _tar_header_start(f: Path) -> int | None:
 
 
 def _safe_member_name(name: str) -> PurePosixPath | None:
-    """成员名卫: 剥 ``./`` 前缀后拒绝对路径/``..``/空名/含 NUL。"""
+    """成员名卫：剥 ``./`` 前缀后拒绝对路径/``..``/空名/含 NUL。"""
     n = name
     while n.startswith("./"):
         n = n[2:]
@@ -107,7 +107,7 @@ def _slot_hit(rel: PurePosixPath, expected: Path) -> int:
 def _slot_payload(f: Path, hdr_start: int, expected: Path) -> bytes | None:
     """二扫 tar 成员找期待槽位 ``expected`` 的补写字节 (basename 精确 > stem 兄弟)。
 
-    独立 BytesIO 重扫——成员字节已在盘内 tar 里, 扫序同一遍损坏边界,
+    独立 BytesIO 重扫——成员字节已在盘内 tar 里，扫序同一遍损坏边界，
     确定性等价。``hit > best_rank`` 让后到的精确件盖过先到的兄弟件。
     """
     import io  # noqa: PLC0415
@@ -148,7 +148,7 @@ def _extract_members(
     二扫补写——basename 命中或同 stem ``.sty`` 兄弟件, 让 class/``\\input``
     解析拿到 tar 内真实实现而非落入 missing_file→stub。
     """
-    import io  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
+    import io  # noqa: PLC0415 — 冷路径：命中伪装件才用，不污染常规启动
     import tarfile  # noqa: PLC0415
 
     extracted = 0

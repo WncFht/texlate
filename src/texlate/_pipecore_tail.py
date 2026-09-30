@@ -82,7 +82,7 @@ def compile_judge(  # noqa: PLR0913 -- 编译开关面穿透（worker should_can
     should_cancel: Callable[[], bool] | None = None,
     after_compile: Callable[[CompRes], None] | None = None,
 ) -> tuple[CompRes, Verdict]:
-    """``eng.compile`` → ``after_compile`` 插桩 → ``judge_res``：编译+判定单点对。
+    """``eng.compile`` → ``after_compile`` 插桩 → ``judge_res``：编译 + 判定单点对。
 
     ``after_compile`` 落在 compile 与 judge 之间——worker 的
     ``_abort_if_cancelled``/``_probe_diff`` 原位插桩（compile 原子段

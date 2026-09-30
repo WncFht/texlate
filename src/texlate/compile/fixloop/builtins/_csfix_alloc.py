@@ -45,7 +45,7 @@ def _inject_before_docclass(ctx: LoopCtx, snippet: str) -> bool:
 
 #: 寄存器/盒型分配的裸 cs 形 (plain/cls 内码常见): ``\newbox\splitbox``。
 #: ``\newif\ifX`` 伴生 ``\Xtrue``/``\Xfalse``; ``*def`` 系 primitive 同把名
-#: 绑进寄存器槽位——``\let\X\@undefined`` 后名被后载包抢占, 原 ``\setbox``/
+#: 绑进寄存器槽位——``\let\X\@undefined`` 后名被后载包抢占，原 ``\setbox``/
 #: ``\advance`` 点变 Missing number (2211.04482 aastex62 ``\splitbox`` 实证)。
 _ALLOC_CS_RE = re.compile(
     r"\\(?:newbox|newcount|newdimen|newskip|newmuskip|newtoks|newread"
@@ -53,7 +53,7 @@ _ALLOC_CS_RE = re.compile(
     r"|chardef|mathchardef|countdef|dimendef|skipdef|muskipdef"
     r"|toksdef|font)\s*\\([A-Za-z@]+)"
 )
-#: LaTeX 花括号形: ``\newlength{\x}``/``\newsavebox{\x}`` 直给寄存器名;
+#: LaTeX 花括号形：``\newlength{\x}``/``\newsavebox{\x}`` 直给寄存器名;
 #: ``\newcounter{c}`` 分配 ``\c@c``; ``\newboolean{b}`` 内部走 ``\newif\ifb``。
 
 

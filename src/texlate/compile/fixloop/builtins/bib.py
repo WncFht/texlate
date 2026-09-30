@@ -36,13 +36,13 @@ from texlate.compile.fixloop.builtins.common import (
 #: ``\test@bbl@sw`` 在 vbox 排印 cite key 必需组（_/&/$ → in-math 级联 +
 #: 三读重复书目）。``\ifcsname`` 守卫使非 revtex 工程零操作。
 #: csname 形零字面 ``@`` —— ``\bibliography`` 站可落在已 tokenize 的
-#: def 体内 (2105.11398 ``\newcommand{\showbib}`` 实证: 旧
+#: def 体内 (2105.11398 ``\newcommand{\showbib}`` 实证：旧
 #: ``\makeatletter\@ifundefined`` 形在 @=12 预读体里成 ``\@``+裸字母
 #: → ``\showbib`` 调用点 vmode spacefactor 炸), csname 任意 catcode 同读。
 #: 名扫段内每个 ``@`` 都写 ``\string@``: doc 激活 @ (``\MakeShortVerb{\@}``
 #: → @=13) 时裸 @ token 在 \ifcsname/\csname 名扫里被当 active cs 展开
 #: → Missing \endcsname (1107.0063 实证); \string 取记号产 catcode-12
-#: 字面 @ 字符, @=11/12/13 三态同名同读。
+#: 字面 @ 字符，@=11/12/13 三态同名同读。
 _AUTOBIB_DISARM = (
     r"\ifcsname auto\string@bib\endcsname"
     r"\expandafter\let\csname auto\string@bib\expandafter\endcsname"
@@ -115,7 +115,7 @@ def _bbl_format_version(bbl: Path) -> tuple[int, int] | None:
 
 
 #: ``.bcf`` 完整性门 —— 尾标 ``</bcf:controlfile>`` 缺席即截断件
-#: (kill 撞档残留, 1706.00240 实证: biber 对 truncated .bcf 会自删
+#: (kill 撞档残留，1706.00240 实证：biber 对 truncated .bcf 会自删
 #: 在席好 .bbl——截断 .bcf 下宁缺不跑)。
 _BCF_TAIL_RX = re.compile(rb"</bcf:controlfile\s*>")
 _BCF_TAIL_BYTES = 8192
@@ -123,7 +123,7 @@ _BCF_MIN_BYTES = 200
 
 
 def _bcf_intact(bcf: Path) -> bool:
-    """``.bcf`` 完整性判: 尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
+    """``.bcf`` 完整性判：尺寸下限 + 尾窗 ``</bcf:controlfile>`` 尾标。"""
     try:
         data = bcf.read_bytes()
     except OSError:
@@ -133,7 +133,7 @@ def _bcf_intact(bcf: Path) -> bool:
     return _BCF_TAIL_RX.search(data[-_BCF_TAIL_BYTES:]) is not None
 
 
-def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；臂间状态互锁难拆
+def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫 + 逐 bcf 顺序闸；臂间状态互锁难拆
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""Bundled 旧版 .bbl 撞新 biblatex → ``biber <stem>`` 就地重生成 (.bcf 在场)。
@@ -162,7 +162,7 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；
       biber 失手且 bbl 消失 → 回滚, fmt<3.0 不备份 (poison 不回滚)。
     """
     del eng, payload, params
-    # —— 前置: 全树陈旧 bbl 隔离 (与 .bcf 有无无关) ——
+    # —— 前置：全树陈旧 bbl 隔离 (与 .bcf 有无无关) ——
     quarantined: list[str] = []
     for bbl in sorted(ctx.wdir.rglob("*.bbl")):
         if bbl.name.endswith(".fixloop-stale") or not bbl.is_file():
@@ -209,7 +209,7 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；
             continue
         if had_bbl and not bbl.exists():
             if backup is not None:
-                # biber 自删了本可用的 bbl → 回滚 (非清场: fmt≥3.0 非 poison)
+                # biber 自删了本可用的 bbl → 回滚 (非清场：fmt≥3.0 非 poison)
                 try:
                     backup.rename(bbl)
                     ctx.invalidate(bbl)
@@ -217,7 +217,7 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；
                     continue
                 except OSError:
                     pass
-            # biber 自删 poison (陈旧格式拒载清场) —— 真实盘变, 计 progress
+            # biber 自删 poison (陈旧格式拒载清场) —— 真实盘变，计 progress
             ctx.invalidate(bbl)
             dropped.append(f"{bbl.name}(biber-rm)")
         else:
@@ -242,7 +242,7 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫+逐 bcf 顺序闸；
 
 
 #: log 签名 ``... expected version X.Y`` —— 期望档提取 (biblatex 逐档
-#: 硬校验, 期望版本以 log 宣判为准; 无签名兜底当前 TL 3.3)。
+#: 硬校验，期望版本以 log 宣判为准; 无签名兜底当前 TL 3.3)。
 _BBL_EXPECTED_RE = re.compile(r"expected (?:version )?(\d+)\.(\d+)")
 
 
@@ -380,9 +380,9 @@ def biber_biblatex_skew_route(
     实证根因 (task t_c9249919e8d7a13f, 2026-09-18): tectonic bundle 钉
     biblatex 3.17 (bcf 3.8) 但外部 biber 走系统 PATH (2.22 要 bcf 3.11)
     ——bundle 内无解；路由令牌由 repair 跨引擎臂换 xelatex (本地
-    TeXLive biber/biblatex 成对)。签名复核两级: 本轮 ``err_head`` 快径
+    TeXLive biber/biblatex 成对)。签名复核两级：本轮 ``err_head`` 快径
     → ``_fixloop_log`` 全文兜底 (外部工具 stdout dump 在 log 内位置
-    不钉死——taxonomy head 窗未必盖到, 落 ``other`` 时同规接住)。
+    不钉死——taxonomy head 窗未必盖到，落 ``other`` 时同规接住)。
     不中 → False 让位后续 ``other`` 规则。
     """
     del eng, payload
@@ -429,13 +429,13 @@ def cite_in_math_mbox(
 
 
 #: tectonic 内嵌 bibtex 挂死尾锚——``note: Running BibTeX on`` 是 kill 前
-#: 末位管线 note 即死在 bibtex 内部 (t_0c9a/t_dce88 实证: tex pass 出
+#: 末位管线 note 即死在 bibtex 内部 (t_0c9a/t_dce88 实证：tex pass 出
 #: xdv 后 bibtex 无输出烧满 240s 墙钟; 系统 bibtex 同 .aux 秒过——
-#: tectonic 0.15 Rust bibtex 特定输入死循环, timeout 类死因)。
+#: tectonic 0.15 Rust bibtex 特定输入死循环，timeout 类死因)。
 _BIBTEX_STALL_TAIL_RE = re.compile(r"note: Running BibTeX on [^\n]+\s*$")
 
 #: bbl 在席而 .bib 缺席的 biber 硬毙签名——tectonic 管线无 ``.bbl 在席
-#: 跳过`` 分支, aux 有 citation 即跑 biber (t_a4ae 实证: src 只发
+#: 跳过`` 分支，aux 有 citation 即跑 biber (t_a4ae 实证：src 只发
 #: main.bbl 未发 references.bib, ``! can't open path`` 落 other 硬毙;
 #: xelatex ``_bib_pass`` 同态 bbl 在席整臂跳过)。
 _BIB_CANT_OPEN_RE = re.compile(r"can't open path [`']([^`']+\.bib)")
@@ -446,7 +446,7 @@ def tectonic_bib_stall_route(
 ) -> tuple[bool, str]:
     """Tectonic bib 管线死面 → ``REJECT: route=<route>`` 路由令牌 (不改源)。
 
-    两臂复核 (``err_head`` 快径 → ``_fixloop_log`` 全文兜底, 同
+    两臂复核 (``err_head`` 快径 → ``_fixloop_log`` 全文兜底，同
     ``biber_biblatex_skew_route`` 两级序):
 
     - **bibtex 挂死**: 末位管线 note = ``Running BibTeX on`` 即死在

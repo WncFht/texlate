@@ -54,7 +54,7 @@ def test_ucs_rule_registered() -> None:
 
 
 def test_ucs_solo_bracket_stripped(tmp_path: Path) -> None:
-    """两格实读形: \\usepackage[mathletters]{ucs} → 整括号摘除。"""
+    """两格实读形：\\usepackage[mathletters]{ucs} → 整括号摘除。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\usepackage[mathletters]{ucs}\n"
@@ -71,7 +71,7 @@ def test_ucs_solo_bracket_stripped(tmp_path: Path) -> None:
 
 
 def test_ucs_bracket_positions(tmp_path: Path) -> None:
-    """括号三位置: 头 [mathletters,rest] / 中 [a,mathletters,b] / 末 [a,mathletters]。"""
+    """括号三位置：头 [mathletters,rest] / 中 [a,mathletters,b] / 末 [a,mathletters]。"""
     cases = (
         ("[mathletters,postscript]", "[postscript]"),
         ("[postscript,mathletters,autoload]", "[postscript,autoload]"),
@@ -133,7 +133,7 @@ def test_ucs_group_load_bracket_stripped(tmp_path: Path) -> None:
 
 
 def test_ucs_near_names_untouched(tmp_path: Path) -> None:
-    """成员级匹配: xmathletters/mathlettersx/嵌套值不剥。"""
+    """成员级匹配：xmathletters/mathlettersx/嵌套值不剥。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters]{ucs}\n"
         "\\usepackage[xmathletters]{foo}\n"
@@ -180,7 +180,7 @@ def test_ucs_cond_declines_no_source(tmp_path: Path) -> None:
 
 
 def test_ucs_commented_load_masked(tmp_path: Path) -> None:
-    """masked 面: 注释掉的 \\usepackage 不动 → 活面无改 applied=False。"""
+    """masked 面：注释掉的 \\usepackage 不动 → 活面无改 applied=False。"""
     (tmp_path / "main.tex").write_text(
         "% \\usepackage[mathletters]{ucs}\n\\usepackage{ucs}\n",
         encoding="utf-8",
@@ -192,7 +192,7 @@ def test_ucs_commented_load_masked(tmp_path: Path) -> None:
 
 
 def test_ucs_idempotent_second_round(tmp_path: Path) -> None:
-    """剥除后 source_contains 自锁: 下一轮 condition 拒 → 幂等。"""
+    """剥除后 source_contains 自锁：下一轮 condition 拒 → 幂等。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters]{ucs}\n", encoding="utf-8"
     )
@@ -222,7 +222,7 @@ def test_bxc_rule_registered() -> None:
 
 
 def test_bxc_usepackage_commented(tmp_path: Path) -> None:
-    """实格形: \\usepackage[whole]{bxcjkjatype} → 行首注释中和。"""
+    """实格形：\\usepackage[whole]{bxcjkjatype} → 行首注释中和。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\usepackage[whole]{bxcjkjatype}\n"
@@ -261,7 +261,7 @@ def test_bxc_requirepackage_in_sty(tmp_path: Path) -> None:
 
 
 def test_bxc_neighbors_untouched(tmp_path: Path) -> None:
-    """花括号精确匹配: bxcjkjatypex 近名与组载他员不动。"""
+    """花括号精确匹配：bxcjkjatypex 近名与组载他员不动。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[whole]{bxcjkjatype}\n"
         "\\usepackage{bxcjkjatypex}\n"
@@ -294,7 +294,7 @@ def test_bxc_cond_declines_no_source(tmp_path: Path) -> None:
 
 
 def test_bxc_commented_load_masked(tmp_path: Path) -> None:
-    """masked 面: 已注释装载行不重注释 → 活面无改 applied=False。"""
+    """masked 面：已注释装载行不重注释 → 活面无改 applied=False。"""
     (tmp_path / "main.tex").write_text(
         "% \\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )
@@ -306,7 +306,7 @@ def test_bxc_commented_load_masked(tmp_path: Path) -> None:
 
 
 def test_bxc_idempotent_second_round(tmp_path: Path) -> None:
-    """注释后装载行落 masked 盲区: 第二轮 applied=False → 幂等。"""
+    """注释后装载行落 masked 盲区：第二轮 applied=False → 幂等。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )

@@ -32,11 +32,11 @@ if TYPE_CHECKING:
 
 # ════════════════════════════════════════════════════════════════
 # 运行期生成件 stub (W79/W18 孤儿裁决 mechmap-2026-09-17): filemap
-# 索引外的自产件缺档, install_file 必 miss → order:9 自门谓词先截
+# 索引外的自产件缺档，install_file 必 miss → order:9 自门谓词先截
 # ════════════════════════════════════════════════════════════════
 
 #: ``\openout<stream>=<name>`` 目标抽取 —— stream 可为 ``\cs`` 或裸数字
-#: (plain ``\openout0=foo``), ``=`` 可省, 花括号/裸名两形; ``\immediate``
+#: (plain ``\openout0=foo``), ``=`` 可省，花括号/裸名两形; ``\immediate``
 #: 前缀无关 (match 落在 ``\openout`` 本体)。
 _OPENOUT_TARGET_RE = re.compile(
     r"\\openout\s*(?:\\[a-zA-Z@]+|\d+)\s*=?\s*(?:\{([^}]+)\}|([^\s{}\\=]+))"
@@ -94,10 +94,10 @@ def generated_stub(
     if target is None:
         return False, f"{fname}: escapes wdir"
     body = f"% fixloop: stub for runtime-generated {rel.name}\n"
-    # 指纹闸: 外来生成件/稿自带覆盖层永不覆写; 旧代注入 stub 覆写刷新。
+    # 指纹闸：外来生成件/稿自带覆盖层永不覆写; 旧代注入 stub 覆写刷新。
     done, _state = _inject_write(ctx, target, body, fname)
     if done is not None:
-        # current/foreign/写败 —— 盘上已有(或写不进)则不占位, 交后续规则
+        # current/foreign/写败 —— 盘上已有 (或写不进) 则不占位，交后续规则
         return False, done[1] if not done[0] else f"{fname} already on disk"
     return True, f"{hit}-stub {fname}"
 
@@ -110,7 +110,7 @@ def generated_stub(
 # ════════════════════════════════════════════════════════════════
 
 #: 编译自产瞬态件扩展名 —— 缺位是上游病灶信号 (2609.20323 main.aux =
-#: unclosed ``\if`` 下游产物实证), 搬陈件会遮蔽真因, 不属「源档位错」面。
+#: unclosed ``\if`` 下游产物实证), 搬陈件会遮蔽真因，不属「源档位错」面。
 _RELOCATE_TRANSIENT_EXTS = frozenset(
     {
         ".aux",
@@ -136,15 +136,15 @@ _RELOCATE_TRANSIENT_EXTS = frozenset(
         ".xdy",
     }
 )
-#: 复合尾缀 (``suffix`` 只取末段, 按件名 endswitch 判)。
+#: 复合尾缀 (``suffix`` 只取末段，按件名 endswitch 判)。
 _RELOCATE_TRANSIENT_NAME_EXTS = (".run.xml", ".synctex.gz", ".fdb_latexmk")
 
 
 def _is_transient_name(name: str, suffix: str) -> bool:
     """编译自产瞬态件判定 —— ``.aux``/``.bbl`` 族扩展名或复合尾缀命中即瞬态。
 
-    瞬态缺位是上游病灶信号非源档位错, 搬陈件/stub 都遮蔽真因
-    (``_RELOCATE_TRANSIENT_*`` 表注, 2609.20323 实证)。
+    瞬态缺位是上游病灶信号非源档位错，搬陈件/stub 都遮蔽真因
+    (``_RELOCATE_TRANSIENT_*`` 表注，2609.20323 实证)。
     """
     return suffix.lower() in _RELOCATE_TRANSIENT_EXTS or name.lower().endswith(
         _RELOCATE_TRANSIENT_NAME_EXTS
@@ -258,7 +258,7 @@ def _mirror_relocate_tree(
     doc 按 e-print 坐标引用同前缀整族件 (``Content/a.tex``/``Content/b.tex``
     轮轮各缺一件) —— 逐轮一件归位烧轮次 (2609.20640 单件/轮 ×8 实证)。
     首个 payload 归位成功后同树镜像一次铺全; ``main_dir`` 与 ``<top>``
-    同径时源恒在目标树下 → 全员跳过, 天然幂等。
+    同径时源恒在目标树下 → 全员跳过，天然幂等。
     """
     if not rel.parent.parts:
         return 0
@@ -354,13 +354,13 @@ def driver_tfm_hoist(
 
 
 # ════════════════════════════════════════════════════════════════
-# doc 引用但 e-print 未带的 .tex 片段 (m1kcensus2 衍生, covgap-C #205
-# 复核): fileset 真无件 + filemap/vendor 无供 → 版本缀 sibling 搬真件,
-# 否则解析位空 stub —— 丢该 \input 段保其余, 优于整格 unfixable。
+# doc 引用但 e-print 未带的 .tex 片段 (m1kcensus2 衍生，covgap-C #205
+# 复核): fileset 真无件 + filemap/vendor 无供 → 版本缀 sibling 搬真件，
+# 否则解析位空 stub —— 丢该 \input 段保其余，优于整格 unfixable。
 # ════════════════════════════════════════════════════════════════
 
 #: stem 尾部版本缀剥离形 —— ``12step_dynamics_new``→``12step_dynamics``
-#: (2210.03294: doc 活引用 ``_new`` 件, e-print 只带改名件)。
+#: (2210.03294: doc 活引用 ``_new`` 件，e-print 只带改名件)。
 _DOCABSENT_SUFFIX_RE = re.compile(
     r"^(?P<base>.+?)[_-](?:new|old|orig|final|draft|updated?|backup|bak|v\d+)$",
     re.IGNORECASE,
@@ -373,9 +373,9 @@ def _docabsent_sibling(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
     """Payload stem ± 版本缀的同目录唯一命中件 → 搬真件候选。
 
     搜索域 = ``wdir/<rel.parent>`` (e-print 坐标下同目录 —— sibling 语义
-    即「引用件应在的位置的旁枝」)。剥缀形与加缀形双向候选, 同名件按
-    文件名去重; 唯一文件名才返回 —— 多异名命中 = 版本族并存, 择一
-    搬运是猜, 让位空 stub。
+    即「引用件应在的位置的旁枝」)。剥缀形与加缀形双向候选，同名件按
+    文件名去重; 唯一文件名才返回 —— 多异名命中 = 版本族并存，择一
+    搬运是猜，让位空 stub。
     """
     stems = {rel.stem}
     if m := _DOCABSENT_SUFFIX_RE.match(rel.stem):
@@ -448,9 +448,9 @@ def doc_absent_stub(  # noqa: PLR0911 - 逐门 decline note 即归因
         d_rel = target.relative_to(ctx.wdir).as_posix()
         return True, f"rename-rescue {s_rel} → {d_rel}"
     body = f"% fixloop: doc-absent stub for {rel.name}\n"
-    # 指纹闸: 外来件/稿自带件永不覆写; 旧代注入 stub 覆写刷新。
+    # 指纹闸：外来件/稿自带件永不覆写; 旧代注入 stub 覆写刷新。
     done, _state = _inject_write(ctx, target, body, fname)
     if done is not None:
-        # current/foreign/写败 —— 盘上已有(或写不进)则不占位, 交后续规则
+        # current/foreign/写败 —— 盘上已有 (或写不进) 则不占位，交后续规则
         return False, done[1] if not done[0] else f"{fname} already on disk"
     return True, f"doc-absent stub {fname}"

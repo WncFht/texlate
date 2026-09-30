@@ -24,8 +24,8 @@ __all__ = [
     "is_cjk_cp",
 ]
 
-#: FFFD 连跑 (多字 mojibake 常连发, ``来��级``) —— 整跑按
-#: 双侧邻域一次替换, 不留 ``{}{}`` 串。
+#: FFFD 连跑 (多字 mojibake 常连发，``来��级``) —— 整跑按
+#: 双侧邻域一次替换，不留 ``{}{}`` 串。
 _FFFD_RUN_RX = re.compile("\\uFFFD+")
 
 
@@ -47,7 +47,7 @@ def _fffd_repl(before: str, after: str) -> str:
         if before.isdigit():
             return "--"
         if b_cjk or a_cjk:
-            # CJK-拉丁混夹 (``isalpha`` 对 CJK 为真, 须在拉丁臂前分流)
+            # CJK-拉丁混夹 (``isalpha`` 对 CJK 为真，须在拉丁臂前分流)
             return "{}"
         if before.isalpha() and after.isalpha():
             return "'" if after.isupper() else "\\'"

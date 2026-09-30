@@ -977,7 +977,7 @@ def test_kpse_resolve_many_line_overflow_falls_back(
 def test_shadow_round_resolves_in_one_kpsewhich_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """一轮 fresh 名单 = 一次 kpsewhich 子进程（B14 fix#4：88 次 → 每轮 1 次）。"""
+    """一轮 fresh 名单 = 一次 kpsewhich 子进程（B14 fix#4:88 次 → 每轮 1 次）。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{alpha,beta,gamma}\n"
         "\\begin{document}\nx\\end{document}\n",

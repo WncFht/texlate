@@ -99,7 +99,7 @@ def paper_tags(roots: list[dict], stripped_blob: str, non_utf8: list) -> list[st
 
 def is_tex(p: Path) -> bool:
     """大小写不敏感 .tex 判定——野语料存在 .TEX 古早文件
-    (corpus 实测: 0707.2108/pmeyerxi.TEX, 0806.0433/*.TEX)."""
+    (corpus 实测：0707.2108/pmeyerxi.TEX, 0806.0433/*.TEX)."""
     return p.is_file() and p.suffix.lower() == ".tex"
 
 

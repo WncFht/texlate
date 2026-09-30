@@ -1,15 +1,15 @@
 """pstricks-add 成对退役修复链单测 (稿自带过旧 .tex/.sty 对 → 退役换系统/vendor 新件)。
 
 实证背景 (corpus 0707.4206, stagerun flipcheck3 best_effort 残格):
-e-print 捆绑 pstricks-add.tex v2.32 (2005/01/16) + pstricks-add.sty 对,
+e-print 捆绑 pstricks-add.tex v2.32 (2005/01/16) + pstricks-add.sty 对，
 ``\\usepackage{pst-all}`` → texlive pst-all.sty ``\\RequirePackage{pstricks-add}``
 走 kpathsea cwd 序中稿自带对 → 12 错同根 (dx/dy 键自 pst-node v1.45 移除、
 ``\\define@key[psset]{}{trueAngle}`` 空族 vs ``\\define@boolkey``、
 ``\\psset@@tickstyle``/``\\psk@tickstyle`` 自现代核消失)。
 ``find_vendored_shadows`` 要系统 probe 证 ``ld<sd`` —— 本机 texlive 无
 pstricks-add → ``sd=None`` 盲区 (csvsimple_l3_kernel_retire 同型)。
-修复面: sh 循环 mv 成对 ``.fixloop-iso`` → 系统件或 missing_file →
-vendored_fetch 递 vendor/files v3.94 对 (指纹件跳过不自拆, 否则
+修复面：sh 循环 mv 成对 ``.fixloop-iso`` → 系统件或 missing_file →
+vendored_fetch 递 vendor/files v3.94 对 (指纹件跳过不自拆，否则
 v3.94 ``:742 \\colorlet`` 错会退役→重投→死循环)。
 """
 
@@ -40,7 +40,7 @@ _ERR_MISSINGNUM = (
     "/work/0707.4206/splice/pstricks-add.tex:1544: Missing number, treated as zero."
 )
 
-# '!' 形态同款: rep.first 无文件名, ctx 展开栈回显泄签名 cs
+# '!' 形态同款：rep.first 无文件名，ctx 展开栈回显泄签名 cs
 _BANG_ERR = "! Undefined control sequence.\n" + _ERR_UNDEF_CTX
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
@@ -48,7 +48,7 @@ CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_undef_signature() -> None:
-    """实证签名: file-line Undefined cs → undefined_cs。"""
+    """实证签名：file-line Undefined cs → undefined_cs。"""
     cat, _ = classify(_ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n")
     assert cat == "undefined_cs"
 
@@ -67,7 +67,7 @@ def test_taxonomy_xkeyval_pin() -> None:
 
 # ---------------------------------------------------------------- 钉版面
 def test_vendored_pstadd_pinned_pair() -> None:
-    """vendor/files 成对在场: .tex v3.94 (2023) + .sty v0.17 (2021) wrapper。"""
+    """vendor/files 成对在场：.tex v3.94 (2023) + .sty v0.17 (2021) wrapper。"""
     tex = (_VENDOR_DIR / "pstricks-add.tex").read_text(encoding="utf-8")
     sty = (_VENDOR_DIR / "pstricks-add.sty").read_text(encoding="utf-8")
     assert "\\def\\fileversion{3.94}" in tex
@@ -88,11 +88,11 @@ def test_rule_wired_loop_phase() -> None:
     assert argv[:2] == ["sh", "-c"]
     assert "pstricks-add.sty" in argv[2]
     assert "pstricks-add.tex" in argv[2]
-    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸: 不退役本引擎注入件
+    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸：不退役本引擎注入件
 
 
 def test_rule_order_before_legacy_shim() -> None:
-    """order 排序自洽: csvsimple_l3_kernel_retire(11.8) < 本规则 < legacy_pkg_shim(12)。"""
+    """order 排序自洽：csvsimple_l3_kernel_retire(11.8) < 本规则 < legacy_pkg_shim(12)。"""
     orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["csvsimple_l3_kernel_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
@@ -120,7 +120,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
 
 
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
-    """'!' 形态: 文件名缺席但签名 cs `\\psset@@tickstyle` 在 ctx 展开栈。"""
+    """'!' 形态：文件名缺席但签名 cs `\\psset@@tickstyle` 在 ctx 展开栈。"""
     (tmp_path / "pstricks-add.tex").write_text("% stub\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _BANG_ERR
@@ -132,7 +132,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 动作直驱 (真 sh)
 def test_apply_retires_both_files(tmp_path: Path) -> None:
-    """_apply 真跑 sh: 稿自带对 → 双双 .fixloop-iso (原内容保留, 非删)。"""
+    """_apply 真跑 sh: 稿自带对 → 双双 .fixloop-iso (原内容保留，非删)。"""
     old_tex = "% pstricks-add.tex v2.32 2005/01/16\n"
     old_sty = "% pstricks-add.sty v0.07 2004\n"
     (tmp_path / "pstricks-add.tex").write_text(old_tex, encoding="utf-8")
@@ -147,7 +147,7 @@ def test_apply_retires_both_files(tmp_path: Path) -> None:
 
 
 def test_apply_retires_tex_only_when_sty_absent(tmp_path: Path) -> None:
-    """单件残局: 只有 .tex 在场 → 只退它, 脚本不炸。"""
+    """单件残局：只有 .tex 在场 → 只退它，脚本不炸。"""
     (tmp_path / "pstricks-add.tex").write_text("% old\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(rule(_RULE_ID), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -214,7 +214,7 @@ def _sh_runner(
 ) -> tuple[int, str, float, bool]:
     """真跑 sh -c 的 runner (argv, timeout, wdir → rc,out,sec,to)。
 
-    不仿真脚本语义 —— subprocess 原样执行, 指纹闸/`[ -f ]` 判空都走真件。
+    不仿真脚本语义 —— subprocess 原样执行，指纹闸/`[ -f ]` 判空都走真件。
     """
     import subprocess  # noqa: PLC0415 - 测试替身局部用
 
@@ -230,7 +230,7 @@ def _sh_runner(
 
 
 def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
-    """整链: undefined_cs 签名 → 成对 mv 退役 → 下轮系统件载入 → clean。"""
+    """整链：undefined_cs 签名 → 成对 mv 退役 → 下轮系统件载入 → clean。"""
     eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
@@ -248,7 +248,7 @@ def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
 
 
 def test_e2e_retire_then_vendored_fallback(tmp_path: Path) -> None:
-    """系统缺件: 退役 → missing_file → vendored_fetch 递 v3.94 对 → clean。"""
+    """系统缺件：退役 → missing_file → vendored_fetch 递 v3.94 对 → clean。"""
     eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
@@ -277,7 +277,7 @@ def test_e2e_retire_then_vendored_fallback(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非 pstricks-add 签名: 别包 undefined_cs → 本规则不动 wdir 件。"""
+    """非 pstricks-add 签名：别包 undefined_cs → 本规则不动 wdir 件。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -297,7 +297,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 
 def test_e2e_injected_not_retired_breaks_loop(tmp_path: Path) -> None:
-    """vendor v3.94 注入后再报同名错: 指纹闸保件不退役 —— 无退役→重投环。"""
+    """vendor v3.94 注入后再报同名错：指纹闸保件不退役 —— 无退役→重投环。"""
     eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},

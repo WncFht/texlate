@@ -19,17 +19,17 @@ exit 2——不猜；查无此人（canon ok 但无账）另行报 exit 2。
 VENDORED_INV 面按 dossier 决议丢弃（老物随 results/ 死，新 run 无 vendored
 概念）。只读：不改任何 index/vault。
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_dossier_env`` (常量面/texlate
+拆分：实现体按子域下沉同包私有叶 —— ``_dossier_env`` (常量面/texlate
 taxonomy 桥/triage 桥/ruleset 懒装/venv 重入/registry 装载)、
 ``_dossier_fetch`` (run 账组解析/records+cases index 投影/阶段分组/末条
 胜/tickets+invocations 读取)、``_dossier_work`` (work/{safe}/ 现场盘点/
-texmf 落装/日志+文本 taxonomy 归类)、``_dossier_sections`` (案卷节
+texmf 落装/日志 + 文本 taxonomy 归类)、``_dossier_sections`` (案卷节
 identity/signature/evidence/history/rules/gap_flags + 共助)、
 ``_dossier_attrib`` (跨 run 出现史/断点归因/醒目行/end-state+diff)、
 ``_dossier_render`` (build_dossier 组卷 + render_md 出文)、
 ``_dossier_main`` (add_args + main 编排)。本文件是 PEP 562 惰性门面
 (同 ``kernel.kernel``/``kernel.cli`` 门面形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``dossier.main``/``dossier.work_inventory``/``dossier._fetch_records``
 等公私名面不变 (test_verbs/test_dossier_selftest 钉的私有名面全保)。
 ``verbs.REGISTRY`` 装载契约 (``main``/``add_args``) 经惰性解析不变。
@@ -323,15 +323,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -344,7 +344,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

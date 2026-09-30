@@ -1,4 +1,4 @@
-"""tests/bench_kernel/test_adversarial_fixes.py — D 批裁决回归.
+"""tests/bench_kernel/test_adversarial_fixes.py — D 批裁决回归。
 
 Each test pins one ids-import-review finding that was adjudicated REAL and
 fixed. Assertions encode the post-fix contract, not observed behavior.

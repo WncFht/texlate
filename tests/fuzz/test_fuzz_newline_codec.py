@@ -441,7 +441,7 @@ class TestPlaceholderClauseConsistency:
         assert unnamed == {"[[MEDSP]]", "[[THICKSP]]", "[[NEGSP]]"}
 
     def test_typed_examples_match_ph_grammar(self) -> None:
-        """条款 typed 样例全部命中 ``[[TYPE_n]]`` 语法（``TYPE`` 全大写+数字）。"""
+        """条款 typed 样例全部命中 ``[[TYPE_n]]`` 语法（``TYPE`` 全大写 + 数字）。"""
         typed = ph.TYPED_PH_RX.findall(prompts.PLACEHOLDER_CLAUSE)
         assert typed == [
             "[[MATH_12]]",

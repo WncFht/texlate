@@ -43,7 +43,7 @@ def pstricks_dvips_preflight(
     无论资源齐不齐都 REJECT (dvips 是唯一出路); 缺资源时 note 附
     advisory 让上层决策 (装 pst-tools / 放弃 pstricks 路)。
     """
-    del ctx, payload  # ctx 无需读文件: 预检只看系统侧资源
+    del ctx, payload  # ctx 无需读文件：预检只看系统侧资源
 
     missing = [fn for fn in params.get("require_files") or [] if not eng.probe_file(fn)]
     route = params.get("route", "latex+dvips")
@@ -53,7 +53,7 @@ def pstricks_dvips_preflight(
 
 
 _EPS_EXTS = tuple(sorted(PS_GRAPHIC_EXTS))  # 单源 texlog.PS_GRAPHIC_EXTS
-#: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证:
+#: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证：
 #: ps_image 只认 .eps/.ps 把它漏归 other), 与 _EPS_EXTS 并列进扫源面。
 _NUMERIC_EXT_RE = re.compile(r"^\.\d+$")
 _GS_FLAGS = [
@@ -64,9 +64,9 @@ _GS_FLAGS = [
     "-dEPSCrop",
     "-dEmbedAllFonts=true",
 ]
-#: 只走 PostScript specials 的 graphicx 驱动 —— tectonic (xdvipdfmx) 下必死,
+#: 只走 PostScript specials 的 graphicx 驱动 —— tectonic (xdvipdfmx) 下必死，
 #: 且 ``[dvips]{graphicx}`` 会把无扩展名引用的搜索序掰成 .eps 优先
-#: (1902.11112 实证: plykin.pdf 已生成仍请求 plykin.eps)。
+#: (1902.11112 实证：plykin.pdf 已生成仍请求 plykin.eps)。
 _PS_DRIVERS = frozenset(
     {
         "dvips",
@@ -88,9 +88,9 @@ _PS_DRIVERS = frozenset(
     }
 )
 #: 带选项的装载点; documentclass/documentstyle/LoadClass 是全局选项位。
-#: 词表对 ``textutil.LOADER_CMDS`` 不机械换指: 本正则只接 ``[opts]{name}``
+#: 词表对 ``textutil.LOADER_CMDS`` 不机械换指：本正则只接 ``[opts]{name}``
 #: 前位选项形——``*WithOptions`` 两枚是 ``{name}[opts]`` 后位形、
-#: ``PassOptionsTo*`` 是 ``{opts}{name}`` 花括号形, 结构上永不吃本正则;
+#: ``PassOptionsTo*`` 是 ``{opts}{name}`` 花括号形，结构上永不吃本正则;
 #: ``documentclass``/``documentstyle`` 属 ``DOCCLASS_NAMES`` 声明族不在
 #: LOADER 集。故本站词表 = LOADER∩[opts]{name}形 ∪ DOCCLASS_NAMES 手写投影。
 _LOAD_OPT_RE = re.compile(
@@ -100,17 +100,17 @@ _LOAD_OPT_RE = re.compile(
 _GRAPHICS_PKGS_RE = re.compile(r"(?i)\b(?:graphics|graphicx|color|epsfig|epsf)\b")
 
 #: 工程文件枚举的封装树排除面 —— ``_texmf`` (wired vendored texmfhome) 与
-#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非文档源件。
-#: actions.py / builtins/shim.py 同名复用, 改口径需三处同步。
+#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件，非文档源件。
+#: actions.py / builtins/shim.py 同名复用，改口径需三处同步。
 _PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
 
 
 def _iter_project_files(
     ctx: LoopCtx, exts: tuple[str, ...] | None = None
 ) -> list[Path]:
-    """``wdir`` 工程源件枚举 (排序) —— 排除面单源, 各扫描臂同口径。
+    """``wdir`` 工程源件枚举 (排序) —— 排除面单源，各扫描臂同口径。
 
-    排除: dot-前缀部件 (``.fixloop-*`` 底板快照等隐藏面)、``_texmf``/
+    排除：dot-前缀部件 (``.fixloop-*`` 底板快照等隐藏面)、``_texmf``/
     ``_tect_out`` 引擎封装树、主输出 ``<main>.pdf`` (重编译自生非源件)。
     ``exts=None`` 收全量 (ci 找图按名命中不受扩展名约束); 传入时按
     ``p.suffix.lower()`` 过滤。目录段判定先于 ``is_file`` —— 封装树
@@ -144,7 +144,7 @@ def _norm_graphic_name(name: str) -> str:
 
 
 def _strip_ps_driver_opts(t: str) -> tuple[str, int]:
-    """摘 PS 路由驱动选项 → (新文本, 摘除数)。
+    """摘 PS 路由驱动选项 → (新文本，摘除数)。
 
     usepackage/RequirePackage 只在参数表命中图形族包名时剥; 类装载点
     (全局选项会下传给 graphicx) 无条件剥。选项表剥空时连方括号一起去掉。
@@ -185,7 +185,7 @@ def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool
         else [tool, *_GS_FLAGS, "-o", str(dst), str(src)]
     )
     try:
-        p = subprocess.run(  # noqa: S603  # 转换工具调用, 非用户输入
+        p = subprocess.run(  # noqa: S603  # 转换工具调用，非用户输入
             argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -203,20 +203,20 @@ def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool
 
 
 def _gs_bin() -> str | None:
-    """GS 可执行名查找: ``gs`` → ``gswin64c`` → ``gswin32c``。"""
+    """GS 可执行名查找：``gs`` → ``gswin64c`` → ``gswin32c``。"""
     return shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
 
 
 def _produced(dst: Path, rc: int | None, *, to: bool | str) -> bool:
-    """转换工具后件断言: ``rc==0`` 且未超时且 dst 非空在盘; 判败残留就地清掉。"""
+    """转换工具后件断言：``rc==0`` 且未超时且 dst 非空在盘; 判败残留就地清掉。"""
     if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
         return True
-    dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
+    dst.unlink(missing_ok=True)  # 失败残留清掉，防半文件被当成产物
     return False
 
 
 def _convert_one(epstopdf: str | None, gs: str | None, src: Path, dst: Path) -> bool:
-    """单个 .eps/.ps → .pdf: epstopdf 优先, gs -dEPSCrop 兜底 (texglot 同配方)。"""
+    """单个 .eps/.ps → .pdf: epstopdf 优先，gs -dEPSCrop 兜底 (texglot 同配方)。"""
     for tool in (epstopdf, gs):
         if not tool:
             continue
@@ -316,7 +316,7 @@ def eps_to_pdf(
             else src.with_suffix(".pdf")
         )
         if dst.is_file() and dst.stat().st_size:
-            # 上轮已转: 复用, 免重转
+            # 上轮已转：复用，免重转
             converted[src.relative_to(ctx.wdir).as_posix()] = dst.relative_to(
                 ctx.wdir
             ).as_posix()
@@ -327,7 +327,7 @@ def eps_to_pdf(
             ).as_posix()
     if not converted:
         return False, f"0/{len(sources)} converted"
-    # 显式引用改写 + PS 驱动选项剥离: `x.eps`/`x.ps` 字面量改 `x.pdf`,
+    # 显式引用改写 + PS 驱动选项剥离：`x.eps`/`x.ps` 字面量改 `x.pdf`,
     # [dvips] 族驱动摘掉让无扩展名引用落到 .pdf 搜索序
     n_files, n_drivers = _rewrite_eps_refs(ctx, exts, converted)
     note = (
@@ -480,7 +480,7 @@ def _svg_convert_arm(ctx: LoopCtx) -> tuple[bool, str]:
     for src in svgs:
         dst = src.with_suffix(".pdf")
         if dst.is_file() and dst.stat().st_size:
-            converted[src.name] = dst.name  # 上轮已转: 复用
+            converted[src.name] = dst.name  # 上轮已转：复用
             continue
         why = _svg_convert_one(ctx, src, dst)
         if why is None:
@@ -537,7 +537,7 @@ def svg_prepare(
 _XBB_EXTS = (".pdf", ".ai", ".png", ".jpg", ".jpeg", ".jp2", ".jpf", ".bmp")
 
 #: err_head 内 ``graphic in <stem>.xbb (no BoundingBox)`` 抽取 —— 裸 stem
-#: 回映同 stem 图形件兜底 (glob 全量已覆盖, 防御非标准扩展名残留)。
+#: 回映同 stem 图形件兜底 (glob 全量已覆盖，防御非标准扩展名残留)。
 _XBB_ERR_RE = re.compile(r"graphic in (\S+?)\.xbb \(no BoundingBox\)")
 
 
@@ -690,11 +690,11 @@ def pdf_asset_sanitize(
 # rotatebox_caption_pad: figure env 内旋转图 caption 前垫 (qc99)
 # ════════════════════════════════════════════════════════════════
 
-#: figure/figure* env 块 (遮盖视图锚边界对, 注释/verbatim 不锚)。
+#: figure/figure* env 块 (遮盖视图锚边界对，注释/verbatim 不锚)。
 _FIG_ENV_RX = re.compile(r"\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}")
 
 #: 旋转签名 —— ``\\rotatebox`` 盒或 graphicx ``angle=`` 键 (90/180/270
-#: 族; 0°/小角不产生 bbox-ink 错位机制, 防爆半径只咬旋转面)。
+#: 族; 0°/小角不产生 bbox-ink 错位机制，防爆半径只咬旋转面)。
 _ROTATED_RX = re.compile(r"\\rotatebox\b|\bangle\s*=\s*-?(?:90|180|270)\b")
 
 _CAPTION_RX = re.compile(r"\\caption\b")
@@ -761,7 +761,7 @@ def rotatebox_caption_pad(
 
 #: 随迁 ``builtins.gfx_missing`` 的本叶历史名 —— ``builtins._LAZY``
 #: 门面表 / ``from builtins.graphics import X`` 测试面 /
-#: ``builtins.misc`` eager import 全不经改: 惰性解析直取新叶后缓存回
+#: ``builtins.misc`` eager import 全不经改：惰性解析直取新叶后缓存回
 #: 本模块 globals。monkeypatch 锚点随迁 —— 新叶内部调用链只认
 #: ``builtins.gfx_missing.X``, 在本模块 setattr 只遮蔽本模块属性。
 _GFX_MISSING_NAMES = frozenset(
@@ -818,7 +818,7 @@ _GFX_MISSING_NAMES = frozenset(
 
 
 def __getattr__(name: str) -> object:
-    """出叶名惰性回引 ``builtins.gfx_missing`` —— 兼容面, 新代码请直取新叶。"""
+    """出叶名惰性回引 ``builtins.gfx_missing`` —— 兼容面，新代码请直取新叶。"""
     if name in _GFX_MISSING_NAMES:
         mod = importlib.import_module(f"{__package__}.gfx_missing")
         value = getattr(mod, name)

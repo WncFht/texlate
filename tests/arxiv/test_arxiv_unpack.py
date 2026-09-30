@@ -510,7 +510,7 @@ def test_surrogate_linkname_rejected(tmp_path: Path) -> None:
         s.linkname = "tgt"  # 占位，下面替换成 raw 0xE9
         tf.addfile(s, io.BytesIO(b""))
     raw = bytearray(buf.getvalue())
-    # ln.tex 是第 2 个成员：ok 头(512)+数据(512)、ln 头在 offset 1024；
+    # ln.tex 是第 2 个成员：ok 头 (512)+数据 (512)、ln 头在 offset 1024；
     # ustar linkname 字段在头内 offset 157
     raw[1024 + 157 : 1024 + 160] = b"t\xe9t"
     _fix_ustar_checksum(raw, 1024)

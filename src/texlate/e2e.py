@@ -232,7 +232,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     except InjectRejectError as e:
         # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
         rec["status"] = "partial"
-        rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
+        rec["reject_at"] = "inject"  # inject_reject 类：与 route reject 分流
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
     job = PipeJob(
@@ -242,7 +242,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         timeout,
         probe_flags=_probe_flags_of(work, main_rel),
     )
-    # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
+    # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染，
     # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
     expect_cjk = stats.get("chunks") != 0
     sink.event("stage", {"stage": "compile", "engine": eng_name})
@@ -276,7 +276,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
 
 
 def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> dict:
-    """跑 base 条件：不动源码直接编译+判定（管线引入 vs 原生失败的归因对照）。"""
+    """跑 base 条件：不动源码直接编译 + 判定（管线引入 vs 原生失败的归因对照）。"""
     rec: dict[str, object] = {"engine": eng_name}
     job = PipeJob(
         work,

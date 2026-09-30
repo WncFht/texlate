@@ -59,7 +59,7 @@ class _Parse:
         self._check_cancelled(ctx)
 
     def _build_base(self, ctx: TaskCtx) -> None:
-        """``src → base``：route（reject → partial+``reject_at``，F3）→ normalize。"""
+        """``src → base``: route (reject → partial+``reject_at``, F3)→ normalize."""
         self._abort_if_cancelled(ctx)
         if ctx.base_dir.exists():
             shutil.rmtree(ctx.base_dir)
@@ -124,7 +124,7 @@ class _Parse:
     def _parse_all(
         self, ctx: TaskCtx
     ) -> tuple[list[dict[str, Any]], dict[str, ScanResult]]:
-        """逐文件半解析 → (chunk 行, scans)。单文件崩不拖全树。
+        """逐文件半解析 → (chunk 行，scans)。单文件崩不拖全树。
 
         四级分流单源 ``latex.api.scan_tex_tree``（e2e ``_scan_tree`` 同件）——
         ``on_file`` 挂逐文件取消轮询，fault 桶携异常记 log。

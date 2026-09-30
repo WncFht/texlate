@@ -52,14 +52,14 @@ __all__ = [
 #: (``File `X' not found`` 兼中 pdftex.def ": using draft setting" 前缀与
 #: LaTeX Warning/Error 两阶; ``Unable to load picture or PDF file 'X'`` 是
 #: xetex 图形域专属)。多缺件格逐轮单补烧穿轮次上限 (v3all
-#: 2501.01329/2501.01425 实证: 8 轮逐件补, 末件占位写于末次编译后 →
+#: 2501.01329/2501.01425 实证：8 轮逐件补，末件占位写于末次编译后 →
 #: 差一轮翻 clean) —— 一次点火同签全补。
 _LOG_MISS_GFX_RE = re.compile(
     r"Unable to load picture or PDF file '([^']+)'|File `([^']+)' not found"
 )
 
 
-# ═══ 源侧枚举 (haltsweep): halt_on_error 下 log 只曝首件, log 扫不够 ═══
+# ═══ 源侧枚举 (haltsweep): halt_on_error 下 log 只曝首件，log 扫不够 ═══
 
 
 #: ``\graphicspath{{d1/}{d2/}}`` 声明点 (遮盖视图; 多次声明取并集=保守超集)。
@@ -69,7 +69,7 @@ _GRAPHICSPATH_RE = re.compile(r"\\graphicspath\s*\{((?:[^{}]|\{[^{}]*\})*)\}")
 _GSPATH_DIR_RE = re.compile(r"\{([^{}]*)\}")
 
 
-#: 枚举只收字面 arg —— 宏拼名/特殊字符形 (``\imgdir/x``) 静态不可判,
+#: 枚举只收字面 arg —— 宏拼名/特殊字符形 (``\imgdir/x``) 静态不可判，
 #: 留在 log 驱动臂 (``_LOG_MISS_GFX_RE``) 的既有逐件路径。
 _ENUM_ARG_BAD_RE = re.compile(r"[\\%#~^&$'\"`\x00-\x1f]")
 
@@ -155,7 +155,7 @@ def _enum_missing_graphics(
             ):
                 continue
             if pp.suffix and eng is not None and eng.probe_file(a, cwd=base):
-                continue  # texmf 树可解 (mwe 族) —— 占位会遮蔽真件, 跳过
+                continue  # texmf 树可解 (mwe 族) —— 占位会遮蔽真件，跳过
             if a not in wants:
                 wants.append(a)
     return wants
@@ -165,8 +165,8 @@ class _ProjectScan:
     """单轮点火共享的工程文件快照 + 懒取宏模板缓存 —— 占位 sweep 免逐 want 重扫。
 
     ``files``/``disk`` 走 ``_iter_project_files`` 排除面 —— ``disk`` 为
-    wdir 相对 posix 名集, 供 ``_enum_missing_graphics`` 成员检免逐
-    arg×root×ext stat。sweep 落盘件经 ``add`` 入册, 后续 want 的
+    wdir 相对 posix 名集，供 ``_enum_missing_graphics`` 成员检免逐
+    arg×root×ext stat。sweep 落盘件经 ``add`` 入册，后续 want 的
     ci/去括救检立见 (与逐件 rglob 读到新件同语义)。``templates()``
     懒取 ``_gfx_macro_templates`` —— 只有无后缀 want 的活引用复核需要。
     """

@@ -67,7 +67,7 @@ class _XlatBatch:
     ) -> dict[int, ChunkResult]:
         """实发子集的批量往返：编号请求 → 解析失败整批退单翻（成员走完整阶梯）。
 
-        ``send`` = ``(members 内原序位, ChunkIn)`` 对；返回 ``{原序位: 结果}``。
+        ``send`` = ``(members 内原序位，ChunkIn)`` 对；返回 ``{原序位：结果}``。
         """
         members = [c for _i, c in send]
         system = self._system_prompt(members[0].kind, batch=True)

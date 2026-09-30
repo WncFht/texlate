@@ -6,7 +6,7 @@
 spidersweb:208，``<to be read again> \\let``——active ``"`` 在数字扫描中
 展开）、fundus-cyr 链置 catcode-11（1206.1631 gamma_d:186-194，
 ``<to be read again> "``）——``\\count@="4E00`` 全体 Missing number +
-Missing \\begin{document}（22 hits/2 cells）。
+Missing \\begin{document}(22 hits/2 cells).
 
 修复形状：守护区间——块首 ``\\chardef\\TeXlate@dqcat=\\the\\catcode`\\"``
 存值 + ``\\catcode`\\"=12``，块尾 ``\\catcode`\\"=\\TeXlate@dqcat`` 精确

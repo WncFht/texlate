@@ -1,8 +1,8 @@
 """kernel._cli_spec — spec 创作辅助叶 (kernel.cli 拆分叶).
 
 ``bench spec list`` — 列 ``bench/py/specs/*.py`` (跳 ``_`` 前缀私有件):
-每条给 kind (``kernel.spec.load_spec`` 可用时走真装载, 否则源码正则
-``kind = '...'`` 兜底) 与首行 docstring (ast 解析, 永不执行 spec 文件)。
+每条给 kind (``kernel.spec.load_spec`` 可用时走真装载，否则源码正则
+``kind = '...'`` 兜底) 与首行 docstring (ast 解析，永不执行 spec 文件)。
 
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

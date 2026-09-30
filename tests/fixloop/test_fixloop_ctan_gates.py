@@ -8,8 +8,8 @@
 - ``\\providecommand { \\IfFormatAtLeastTF } { \\@ifl@t@r \\fmtversion }``
   shim 定义行无日期 —— 不得误判。
 - ``\\ProvidesX{name}[date]`` 是包自署日期非 floor —— 明确不接线
-  (expl3 件走 ``{\\ExplFileDate}``/``\\GetIdInfo`` 间址, 字面也兜不住)。
-texmf 普查: ``\\RequirePackage{expl3}[date]`` loader 闸 408 件,
+  (expl3 件走 ``{\\ExplFileDate}``/``\\GetIdInfo`` 间址，字面也兜不住)。
+texmf 普查：``\\RequirePackage{expl3}[date]`` loader 闸 408 件，
 ``\\@ifpackagelater`` 目标非 expl3 系过半 (hyperref/csquotes/graphics)。
 """
 
@@ -130,7 +130,7 @@ def test_two_arg_gates_below_epoch_pass(tmp_path: Path, body: str) -> None:
 @pytest.mark.parametrize(
     "body",
     [
-        # v7.11a shim 定义行 —— 无日期实参, 不算 floor
+        # v7.11a shim 定义行 —— 无日期实参，不算 floor
         "\\providecommand { \\IfFormatAtLeastTF } { \\@ifl@t@r \\fmtversion }",
         "\\providecommand\\IfFormatAtLeastTF{\\@ifl@t@r\\fmtversion}",
         # \\ProvidesX 自署日期非 floor (expl3 间址形更兜不住) —— 不接线
@@ -176,7 +176,7 @@ def test_max_date_wins_across_files(tmp_path: Path) -> None:
 
 
 def test_feature_conditional_counts_as_floor(tmp_path: Path) -> None:
-    """``\\IfFormatAtLeastTF`` 带 fallback 分支也计 floor —— 有意保守:
+    """``\\IfFormatAtLeastTF`` 带 fallback 分支也计 floor —— 有意保守：
     正则不分辨 abort/降级意图, 宁可拒装不放进过新件 (v7.11a 自身
     ``{ 2026-04-01 }`` 特性闸同计; 该件本需 format>=2025-06-01, 结论一致)。"""
     body = "\\IfFormatAtLeastTF{2026-04-01}{\\NewThing}{\\OldFallback}"
@@ -199,7 +199,7 @@ def test_unreadable_and_datefree_files_skipped(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- ctan_fetch 端到端
 def test_ctan_fetch_rejects_ifformat_gate(tmp_path: Path) -> None:
-    """nicematrix 场景端到端: fetched 件含 ``\\IfFormatAtLeastTF{2026-06-01}``
+    """nicematrix 场景端到端：fetched 件含 ``\\IfFormatAtLeastTF{2026-06-01}``
     → version_guard 拒装 + 已落盘撤回 —— 修复前此形穿透守卫。"""
     idx = TlpdbIndex({"nicematrix.sty": ["nicematrix"]})
     body = make_tarxz(

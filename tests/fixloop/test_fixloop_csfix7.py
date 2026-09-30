@@ -2,21 +2,21 @@
 
 ``_CS_FIX_TABLE`` 默认表新增 ``z`` / ``oldcr`` / ``refpar`` 三行
 (``backref``/``C``/``url``/``text`` 已由 shimfix-a #180/renewguard #234
-收进 95-targeted.yaml cs_table, 本批不重覆)。钉死的机制要点:
+收进 95-targeted.yaml cs_table, 本批不重覆)。钉死的机制要点：
 
 - ``z`` (2105.12363): doc ``\\def\\And{...\\rule{\\z@}{24pt}}`` 在 @=other
   catcode 下分词成 cs ``\\z`` + 字符 ``@`` —— 作者本意 kernel 私有
   ``\\z@`` (0pt)。``\\def\\z@{0pt}`` @-分隔形让 ``\\z`` 吞 @ 吐 0pt;
-  ``\\providecommand`` 形表达不了分隔参数, 裸 ``\\def`` 加 ``\\ifdefined``
+  ``\\providecommand`` 形表达不了分隔参数，裸 ``\\def`` 加 ``\\ifdefined``
   护 cls 已备 ``\\z`` 格。
 - ``oldcr`` (1503.00273): rjparticle.cls ``\\let\\oldcr\\\\`` 于 ``\\affil``
   组内 —— 97 年代 authblk 形在现代内核下 ``\\\\`` 是 ``\\protected``,
   ``\\xdef`` 内不可展 → ``\\oldcr`` 字面嵌入 ``\\AB@affillist``,
   ``\\endgroup`` 后局部 let 蒸发 → ``\\@author`` 排版期 undefined。
   body 取 ``\\newline`` 不取 ``\\\\``: 同族稿 ``\\def\\\\{\\oldcr…}``
-  重绑后 xdef 若无 let 冻结, ``\\oldcr→\\\\→\\oldcr`` 自指死循环。
+  重绑后 xdef 若无 let 冻结，``\\oldcr→\\\\→\\oldcr`` 自指死循环。
 - ``refpar`` (astro-ph/9612039): vendored aaspp4 的 ``\\def\\refpar`` 锁
-  references env 组内, 稿在 thebibliography 裸调 ``\\reference→\\refpar``
+  references env 组内，稿在 thebibliography 裸调 ``\\reference→\\refpar``
   → verbatim 同体 provide 兜底 (env 内局部 def 仍遮罩)。
 """
 
@@ -50,7 +50,7 @@ def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
     return _TARGETED(mk_ctx(tmp_path), _EngStub(), cs, {})
 
 
-# ── csfix7/csfix8 共用断言助手 (cs_table 通用面, 逐文件逐字节同体) ──
+# ── csfix7/csfix8 共用断言助手 (cs_table 通用面，逐文件逐字节同体) ──
 
 
 def check_backslash_payload(tmp_path: Path, pay: str, needle: str) -> None:
@@ -62,7 +62,7 @@ def check_backslash_payload(tmp_path: Path, pay: str, needle: str) -> None:
 
 
 def check_refire_idempotent(tmp_path: Path, cs: str, needle: str) -> None:
-    """二轮重火: snippet 已在文 → applied nothing, 不重复注入。"""
+    """二轮重火：snippet 已在文 → applied nothing, 不重复注入。"""
     _proj(tmp_path, DOC)
     ok1, _ = _fix(tmp_path, cs)
     assert ok1
@@ -73,7 +73,7 @@ def check_refire_idempotent(tmp_path: Path, cs: str, needle: str) -> None:
 
 
 def check_unknown_cs_decline(tmp_path: Path) -> None:
-    """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
+    """非表键 payload → 拆分臂亦不中，诚实 decline 落 guess 链。"""
     _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "xyzzyqq")
     assert not ok
@@ -81,7 +81,7 @@ def check_unknown_cs_decline(tmp_path: Path) -> None:
 
 
 def test_table_entries_present() -> None:
-    """三键在默认表, 全走 ``polyfill`` spec (docclass 缝后注入)。"""
+    """三键在默认表，全走 ``polyfill`` spec (docclass 缝后注入)。"""
     for cs in ("z", "oldcr", "refpar"):
         assert cs in _CS_FIX_TABLE, cs
         assert set(_CS_FIX_TABLE[cs]) == {"polyfill"}, (cs, _CS_FIX_TABLE[cs])
@@ -95,7 +95,7 @@ def test_z_atdelim_polyfill_injected(tmp_path: Path) -> None:
     assert "polyfill injected" in note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\ifdefined\\z\\else\\def\\z@{0pt}\\fi" in text
-    # 缝后落位: docclass 行之后、begin{document} 之前。
+    # 缝后落位：docclass 行之后、begin{document} 之前。
     assert text.index("\\def\\z@") > text.index("\\documentclass")
     assert text.index("\\def\\z@") < text.index("\\begin{document}")
 
@@ -116,7 +116,7 @@ def test_oldcr_newline_body(tmp_path: Path) -> None:
 
 
 def test_refpar_verbatim_stub_body(tmp_path: Path) -> None:
-    """aaspp4 env 内定义同体: ``\\par\\hangindent=3em\\hangafter=1``。"""
+    """aaspp4 env 内定义同体：``\\par\\hangindent=3em\\hangafter=1``。"""
     _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "refpar")
     assert ok, note
@@ -125,12 +125,12 @@ def test_refpar_verbatim_stub_body(tmp_path: Path) -> None:
 
 
 def test_refire_applied_nothing(tmp_path: Path) -> None:
-    """二轮重火: snippet 已在文 → applied nothing, 文件不重复注入。"""
+    """二轮重火：snippet 已在文 → applied nothing, 文件不重复注入。"""
     check_refire_idempotent(tmp_path, "z", "\\def\\z@{0pt}")
 
 
 def test_unknown_cs_still_declines(tmp_path: Path) -> None:
-    """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
+    """非表键 payload → 拆分臂亦不中，诚实 decline 落 guess 链。"""
     check_unknown_cs_decline(tmp_path)
 
 

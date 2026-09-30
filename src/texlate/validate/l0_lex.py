@@ -77,7 +77,7 @@ class _Ctx:
 
     @cached_property
     def lex_zh(self) -> list[tuple[str, str, int]]:
-        """``_lex(zh)``。"""
+        """``_lex(zh)``."""
         return _lex(self.zh)
 
     @cached_property
@@ -97,15 +97,15 @@ class _Ctx:
 
     @cached_property
     def prose_zh(self) -> str:
-        """``prose_text(zh)``。"""
+        """``prose_text(zh)``."""
         return _prose(self.zh)
 
     @cached_property
     def est_src(self) -> float:
-        """``est_tokens(prose_src)``——大小写不变量（CJK 数+非空白数），``ss.lower()`` 视图同值。"""
+        """``est_tokens(prose_src)``——大小写不变量（CJK 数 + 非空白数），``ss.lower()`` 视图同值。"""
         return _est_tokens(self.prose_src)
 
     @cached_property
     def est_zh(self) -> float:
-        """``est_tokens(prose_zh)``。"""
+        """``est_tokens(prose_zh)``."""
         return _est_tokens(self.prose_zh)

@@ -24,7 +24,7 @@ def _write_main(tmp_path: Path, body: str) -> None:
 
 
 def test_env_polyfill_multi_env_batch(tmp_path: Path) -> None:
-    """1012.1059 形: 一轮 log 三 env 同缺 → 一次全清 (\\ifcsname 守卫 noop)。"""
+    """1012.1059 形：一轮 log 三 env 同缺 → 一次全清 (\\ifcsname 守卫 noop)。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n"
@@ -107,15 +107,15 @@ def test_env_polyfill_halt_expansion(tmp_path: Path) -> None:
     # corollary 有 \newtheorem 活定义 → 扩面剔除; figure 内核 env → 不注
     assert "\\ifcsname corollary\\endcsname" not in t
     assert "\\ifcsname figure\\endcsname" not in t
-    # 注入位在 \begin{document} 行首之前 (包装载已执行, 守卫才正确)
+    # 注入位在 \begin{document} 行首之前 (包装载已执行，守卫才正确)
     assert t.index("\\ifcsname example\\endcsname") < t.index("\\begin{document}")
-    # amsmath 在载 → gather 类包定义 env 若在用, 守卫行是死化无操作 ——
+    # amsmath 在载 → gather 类包定义 env 若在用，守卫行是死化无操作 ——
     # 本例未用 gather 故无其行
     assert "\\ifcsname gather\\endcsname" not in t
 
 
 def test_env_polyfill_idempotent(tmp_path: Path) -> None:
-    """二轮再点火: \\ifcsname 标记已见 → applied=False 不占轮次。"""
+    """二轮再点火：\\ifcsname 标记已见 → applied=False 不占轮次。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n\\begin{lemma}l\\end{lemma}\n\\end{document}\n",
@@ -148,8 +148,8 @@ def test_env_polyfill_deny_document(tmp_path: Path) -> None:
 
 
 def test_env_polyfill_preamble_renew_site(tmp_path: Path) -> None:
-    """0806.0904 形: ``\\renewenvironment{proof}`` 在序言报错 —— 守卫 noop
-    前置到站点行首 (pre-begindoc 注入位在站点之后, 批扩够不到);
+    """0806.0904 形：``\\renewenvironment{proof}`` 在序言报错 —— 守卫 noop
+    前置到站点行首 (pre-begindoc 注入位在站点之后，批扩够不到);
     renew 闸过后稿自带定义覆盖 noop, 站点行内容不动。"""
     _write_main(
         tmp_path,
@@ -170,7 +170,7 @@ def test_env_polyfill_preamble_renew_site(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text()
     guard = "\\ifcsname proof\\endcsname\\else\\newenvironment{proof}{}{}\\fi"
     assert guard in t
-    # 守卫落在 renew 站点行首之前, 而非 pre-begindoc 批块位
+    # 守卫落在 renew 站点行首之前，而非 pre-begindoc 批块位
     assert t.index(guard) < t.index("\\renewenvironment{proof}")
     # proof 已站点前置 → 不占 pre-begindoc 批块
     assert t.count(guard) == 1
@@ -227,7 +227,7 @@ def test_env_polyfill_renew_site_in_other_file(tmp_path: Path) -> None:
 
 
 def test_env_polyfill_renew_dead_zone_ignored(tmp_path: Path) -> None:
-    """注释掉的 ``%\\renewenvironment`` 不是站点 —— 不前置, 批块照常。"""
+    """注释掉的 ``%\\renewenvironment`` 不是站点 —— 不前置，批块照常。"""
     _write_main(
         tmp_path,
         "%\\renewenvironment{proof}{}{}\n"
@@ -243,7 +243,7 @@ def test_env_polyfill_renew_dead_zone_ignored(tmp_path: Path) -> None:
     )
     assert ok
     t = (tmp_path / "main.tex").read_text()
-    # 守卫只来自批块, 落在 \begin{document} 行首前, 而非注释行处
+    # 守卫只来自批块，落在 \begin{document} 行首前，而非注释行处
     assert t.index("\\ifcsname proof\\endcsname") < t.index("\\begin{document}")
     assert t.index("\\ifcsname proof\\endcsname") > t.index(
         "%\\renewenvironment{proof}"
@@ -251,7 +251,7 @@ def test_env_polyfill_renew_dead_zone_ignored(tmp_path: Path) -> None:
 
 
 def test_env_polyfill_renew_inside_atbegindocument(tmp_path: Path) -> None:
-    """站点裹在 ``\\AtBeginDocument{...}`` 实参里 —— 行首锚前置落活区,
+    """站点裹在 ``\\AtBeginDocument{...}`` 实参里 —— 行首锚前置落活区，
     hook 执行时 env 已定义。"""
     _write_main(
         tmp_path,
@@ -270,7 +270,7 @@ def test_env_polyfill_renew_inside_atbegindocument(tmp_path: Path) -> None:
 
 
 def test_env_polyfill_renew_site_no_double_prepend(tmp_path: Path) -> None:
-    """再点火幂等: 首轮站点前置+批扩已全覆盖 (lemma 在批扩面),
+    """再点火幂等：首轮站点前置 + 批扩已全覆盖 (lemma 在批扩面),
     二轮拒修且 proof 站点守卫不重复前置。"""
     _write_main(
         tmp_path,
@@ -302,7 +302,7 @@ def test_env_polyfill_renew_site_no_double_prepend(tmp_path: Path) -> None:
 
 def test_env_polyfill_proof_qed_companion_batch(tmp_path: Path) -> None:
     """proof 批扩 + 源内 ``\\QED`` 在用 → 同块补 ``\\providecommand{\\QED}``
-    (amsthm 对偶件, 省一轮 undefined_cs)。"""
+    (amsthm 对偶件，省一轮 undefined_cs)。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n\\begin{proof}body \\QED\\end{proof}\n\\end{document}\n",
@@ -342,7 +342,7 @@ def test_env_polyfill_renew_site_qed_companion(tmp_path: Path) -> None:
 
 
 def test_env_polyfill_no_qed_companion_without_use(tmp_path: Path) -> None:
-    """proof polyfill 但源无 ``\\QED`` → 不补 stub (证据门, 免死代码)。"""
+    """proof polyfill 但源无 ``\\QED`` → 不补 stub (证据门，免死代码)。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n\\begin{proof}b\\end{proof}\n\\end{document}\n",
@@ -393,7 +393,7 @@ def test_cs_targeted_fix_qed_polyfill(tmp_path: Path) -> None:
 
 def test_undefine_batch_journal_cluster(tmp_path: Path) -> None:
     """1206.0299 形 (halt_on_error 实证): log 只报首撞名 \\aj, 同文件
-    \\newcommand 站点簇扩 → 一轮全清 (站点前置, 不靠多行 log)。"""
+    \\newcommand 站点簇扩 → 一轮全清 (站点前置，不靠多行 log)。"""
     _write_main(
         tmp_path,
         "\\newcommand{\\aj}{AJ}\n"
@@ -442,7 +442,7 @@ def test_undefine_batch_multiline_log_still_batch(tmp_path: Path) -> None:
 
 
 def test_undefine_batch_single_collision_declines(tmp_path: Path) -> None:
-    """min_batch=2 门: 孤站单撞名格 (文件仅一处站点) 让位 renew(111)。"""
+    """min_batch=2 门：孤站单撞名格 (文件仅一处站点) 让位 renew(111)。"""
     _write_main(
         tmp_path,
         "\\newcommand{\\Ref}[1]{(\\ref{#1})}\n\\begin{document}\nx\n\\end{document}\n",
@@ -503,7 +503,7 @@ def test_undefine_backtick_other_signature(tmp_path: Path) -> None:
 
 
 def test_undefine_allocated_name_guard(tmp_path: Path) -> None:
-    """2211.04482 护栏: \\newbox\\splitbox 分配名 → 弃修 (Let 后名被抢占炸 Missing number)。"""
+    """2211.04482 护栏：\\newbox\\splitbox 分配名 → 弃修 (Let 后名被抢占炸 Missing number)。"""
     _write_main(
         tmp_path,
         "\\newbox\\splitbox\n\\begin{document}\nx\n\\end{document}\n",
@@ -565,7 +565,7 @@ def test_undefine_theorem_style_payload_dropped(tmp_path: Path) -> None:
 
 
 def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
-    """二轮: 站点已有 \\let 前置 + docclass 块已注 → applied=False。"""
+    """二轮：站点已有 \\let 前置 + docclass 块已注 → applied=False。"""
     _write_main(
         tmp_path,
         "\\newcommand{\\aj}{AJ}\n\\newcommand{\\mnras}{M}\n"
@@ -583,7 +583,7 @@ def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
     assert "already cleared" in note
 
 
-# ─── W151: end* 恒拒名形 (\@ifdefinable \@qend 前缀拒, 与定义态无关) ───
+# ─── W151: end* 恒拒名形 (\@ifdefinable \@qend 前缀拒，与定义态无关) ───
 
 
 def test_undefine_endstar_provide_site_rc_bypass(tmp_path: Path) -> None:
@@ -729,7 +729,7 @@ def test_undefine_endstar_provide_nonendstar_untouched(tmp_path: Path) -> None:
 
 
 def test_undefine_endstar_rc_prepend_idempotent(tmp_path: Path) -> None:
-    """二轮: rc@ 前置已见 (64 字窗幂等) → applied=False 不占轮次。"""
+    """二轮：rc@ 前置已见 (64 字窗幂等) → applied=False 不占轮次。"""
     _write_main(
         tmp_path,
         "\\providecommand{\\endproof}{P}\n\\begin{document}\nx\n\\end{document}\n",
@@ -771,7 +771,7 @@ def test_font_cs_shim_skewchar_chain(tmp_path: Path) -> None:
 
 
 def test_font_cs_shim_nonfont_payload_declines(tmp_path: Path) -> None:
-    """窄谓词: payload 不匹 <size><fam> 模式 → 落穿 cs_targeted_fix/guess。"""
+    """窄谓词：payload 不匹 <size><fam> 模式 → 落穿 cs_targeted_fix/guess。"""
     _write_main(tmp_path, "\\begin{document}\n\\textbf x\n\\end{document}\n")
     (tmp_path / "main.log").write_text(
         "main.tex:2: Undefined control sequence.\nl.2 \\textbf\n"
@@ -795,7 +795,7 @@ def test_font_cs_shim_def_evidence_excluded(tmp_path: Path) -> None:
 
 
 def test_font_cs_shim_idempotent(tmp_path: Path) -> None:
-    """二轮: \\font\\<cs>= 已在文本且该 cs 本轮未报错 → applied=False。"""
+    """二轮：\\font\\<cs>= 已在文本且该 cs 本轮未报错 → applied=False。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n\\skewchar\\ninmi=60 x\n\\end{document}\n",
@@ -835,7 +835,7 @@ def test_cs_rebind_section_sign(tmp_path: Path) -> None:
 
 
 def test_cs_rebind_literal_char_owns(tmp_path: Path) -> None:
-    """字面 § 在源 → literal 面 (missing_char_fix/font_fallback) 先修, 本规退。"""
+    """字面 § 在源 → literal 面 (missing_char_fix/font_fallback) 先修，本规退。"""
     _write_main(
         tmp_path,
         "\\begin{document}\nSee § 7 and \\S 9.\n\\end{document}\n",
@@ -860,7 +860,7 @@ def test_cs_rebind_no_producer_declines(tmp_path: Path) -> None:
 
 
 def test_cs_rebind_producers_param(tmp_path: Path) -> None:
-    """params.producers hex 键扩面: 0x2022(\\bullet 产出)→\\textbullet 式 cs。"""
+    """params.producers hex 键扩面：0x2022(\\bullet 产出)→\\textbullet 式 cs。"""
     _write_main(
         tmp_path,
         "\\begin{document}\n\\mydotsep item\n\\end{document}\n",
@@ -878,7 +878,7 @@ def test_cs_rebind_producers_param(tmp_path: Path) -> None:
 
 
 def test_cs_rebind_idempotent(tmp_path: Path) -> None:
-    """二轮: 注入块自带字面 ø → ``ch in blob`` 先行短路 → applied=False 不重注。"""
+    """二轮：注入块自带字面 ø → ``ch in blob`` 先行短路 → applied=False 不重注。"""
     _write_main(
         tmp_path,
         "\\begin{document}\nFr\\o{}berg\n\\end{document}\n",
@@ -921,7 +921,7 @@ def test_bcs_rule_ids_in_ruleset() -> None:
     for rid, fn in want.items():
         assert rid in by_id, rid
         assert (by_id[rid].raw.get("action") or {}).get("function") == fn
-    # 序位钉: 批清位在 renew(111) 前; cs_rebind 在 font_fallback(26) 前;
+    # 序位钉：批清位在 renew(111) 前; cs_rebind 在 font_fallback(26) 前;
     # font shim 在 cs_targeted_fix(165) 前; env polyfill 在 abstract(168) 后
     orders = {rid: r.order for rid, r in by_id.items()}
     assert orders["already_def_batch_undefine"] < orders["already_def_newcmd_renew"]

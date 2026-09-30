@@ -148,7 +148,7 @@ def test_dead_tail_input_not_scanned(tmp_path: Path) -> None:
 
 
 def test_main_outside_root_empty_report(tmp_path: Path) -> None:
-    """main_rel 越出 work_dir → 空报告 + 注记（此前静默空inputs无解释）。"""
+    """main_rel 越出 work_dir → 空报告 + 注记（此前静默空 inputs 无解释）。"""
     work = tmp_path / "work"
     work.mkdir()
     _write(work, "main.tex", "\\documentclass{article}\n")
@@ -253,7 +253,7 @@ def test_signal_bitmap_font_note_only(tmp_path: Path) -> None:
 
 
 def test_documentstyle_latex209_note(tmp_path: Path) -> None:
-    """\\documentstyle → latex209_suspect note。"""
+    """\\documentstyle → latex209_suspect note."""
     _write(tmp_path, "main.tex", "\\documentstyle{article}\nx\n")
     rep = target_probe(tmp_path, "main.tex", _INDEX)
     assert any("latex209_suspect" in n for n in rep.notes)

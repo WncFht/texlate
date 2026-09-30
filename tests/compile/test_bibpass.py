@@ -3,7 +3,7 @@
 设计（bibpass 车道文档）：上游 arXiv latexmk 在 latex 趟间跑
 bibtex/biber 再生 ``.bbl``，本引擎此前不跑 → ~30% clean 格 ``[?]`` 引用缺。
 
-钉:
+钉：
   a) aux 含 ``\\citation``+``\\bibdata`` 且同侪 .bbl 缺席 → bibtex 触发，
      自适应档延至 3 趟（bibcite→aux→[n]）;
   b) ``passes=1`` 永不触发（classify/probe 纯单趟契约）;
@@ -42,7 +42,7 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
 
     ``calls`` 收集 ``{"xelatex": n, "tools": [argv...]}``；``bbl=None``
     表示工具不落 .bbl（rc 失败形）；``extra_aux`` 追加 ``\\include`` 子件
-    aux（``{相对径: 内容}``，与 main.aux 同趟落盘）。产物落 argv 内
+    aux（``{相对径：内容}``，与 main.aux 同趟落盘）。产物落 argv 内
     ``-output-directory=`` 目标——``outdir`` 编译下 aux/bbl 面仍在 ``out``。
     """
 

@@ -8,8 +8,8 @@ product (qc no_pdf 普查 ~97 格根因). ``_copy_product_ok`` is the single
 source of truth; consumers gate/rank on it instead of trusting the verdict
 alone.
 
-四组判定: ``_copy_intact``/``_kind_intact`` (声明件 size 精确全在),
-``_copy_file_rels``/``_copy_product_*`` (zh=.tex 树, splice=编译成品 pdf),
+四组判定：``_copy_intact``/``_kind_intact`` (声明件 size 精确全在),
+``_copy_file_rels``/``_copy_product_*`` (zh=.tex 树，splice=编译成品 pdf),
 ``_pdf_intact``/``_product_pdf_rels``/``_corrupt_product_pdfs`` (收割封口
 闸——pdf_corrupt 类的截断/异物字节永不入库), ``_safe_rel`` (meta 声明径
 卫生——损 meta 不得把 verify/restore 引到叶外)。
@@ -231,7 +231,7 @@ def _copy_intact(meta: dict) -> bool:
 
 
 def _kind_intact(meta: dict, kind: str) -> bool:
-    """``_copy_intact`` 的单 kind 版——rekey 按 kind 子集搬, 只看目标 kind
+    """``_copy_intact`` 的单 kind 版——rekey 按 kind 子集搬，只看目标 kind
     的声明件是否全在且 size 精确。"""
     if kind in (meta.get("tombstoned_kinds") or ()):
         return False

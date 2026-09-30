@@ -108,7 +108,7 @@ def test_rule_registered_and_condition() -> None:
     ],
 )
 def test_frozencache_strip_variants(tmp_path: Path, opts: str, want: str) -> None:
-    """frozencache 剥除: 逗号邻位三式覆盖首/中/末位 + ``=true`` 值, 不串名。"""
+    """frozencache 剥除：逗号邻位三式覆盖首/中/末位 + ``=true`` 值，不串名。"""
     ctx = _write_main(tmp_path, opts)
     ok, note = _apply(_rule("minted_frozencache"), ctx)
     main = (tmp_path / "main.tex").read_text(encoding="utf-8")

@@ -77,7 +77,7 @@ _INTERACTIVE_RE = re.compile(r"\\typein\b|\\read\s*-1\b")
 #: 不渲染 psfile special，检出即图件必缺（无双引擎可行路径，纯注记）。
 _PSFILE_SPECIAL_RE = re.compile(r"\\special\s*\{\s*psfile\b")
 
-#: 声明包名 → (信号, 说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
+#: 声明包名 → (信号，说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
 #: ``shell_escape`` = 需 ``\write18``（xelatex flags 承载，tectonic
 #: ``--untrusted`` 拒放）；``tectonic_risky`` = bundle 位图字体高风险标记
 #: （失败后换引擎）。pstricks 家族与位图字体名集单源在 engine（
@@ -328,7 +328,7 @@ def _scan_docstyle_opts(ctx: _ScanCtx, rel: str, optspan: str | None) -> None:
 
 
 def _dep_signal(dep: DepProbe, blob: str) -> tuple[str, str] | None:
-    """单依赖 → (信号, note)；无已知映射 → None。"""
+    """单依赖 → (信号，note)；无已知映射 → None。"""
     base = dep.name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
     if dep.fname.lower().endswith(".eps"):
         return "xelatex", f"{dep.fname} → xelatex（tectonic xdvipdfmx 硬墙）"

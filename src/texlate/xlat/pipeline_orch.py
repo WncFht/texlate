@@ -117,7 +117,7 @@ class _XlatOrch:
     async def _process(self, item: WorkItem) -> list[ChunkResult]:
         """统一工作单元执行（warmup 与 worker 共用）。
 
-        item 形态：`WorkItem("batch", (序号, [ChunkIn]))` / `("single", ChunkIn)` /
+        item 形态：`WorkItem("batch", (序号，[ChunkIn]))` / `("single", ChunkIn)` /
         `("split", (父 ChunkIn, [片段...]))`——拆分块内部逐段走阶梯、译文合并
         后按父 id 记账（state/续跑只见父 id，不见片段 id）。
         """
@@ -180,7 +180,7 @@ class _XlatOrch:
     def _load_resumed(
         self, fatal: list[BaseException]
     ) -> tuple[set[str], dict[str, ChunkResult]]:
-        """续跑装载：state → (completed 集合, chunk_id→ChunkResult)。"""
+        """续跑装载：state → (completed 集合，chunk_id→ChunkResult)。"""
         if self.state is None:
             return set(), {}
         completed, recs = self.state.load()
@@ -265,7 +265,7 @@ class _XlatOrch:
         pending: list[ChunkIn],
         split_items: list[WorkItem],
     ) -> list[WorkItem]:
-        """全量装箱：`WorkItem("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
+        """全量装箱：`WorkItem("batch",(序号，[ChunkIn])) | ("single",ChunkIn) | split`。
 
         不分 short/long——产线对账批质量 ≥ 单发（per-placeholder 错率 0.32%
         vs 8.93%），全量入批只为削 ``n_req × ~2.9s`` 固定开销。batch 按 kind

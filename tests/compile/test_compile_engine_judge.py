@@ -248,7 +248,7 @@ def test_engine_taxonomy_ids_match_yaml() -> None:
 
 # ---------------------------------------------------------------- 路由表
 def test_route_documentstyle_suspect(tmp_path: Path) -> None:
-    """documentstyle 降级: 不再 reject, 打 latex209_suspect + 默认引擎序试编。"""
+    """documentstyle 降级：不再 reject, 打 latex209_suspect + 默认引擎序试编。"""
     (tmp_path / "main.tex").write_text(
         "\\documentstyle{ptptex}\n\\begin{document}\nx\\end{document}"
     )
@@ -390,7 +390,7 @@ def test_filemap_disk_cache_seed(
 
 
 def test_filemap_index_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """tlpdb 离线索引命中 → 不走 tlmgr; 索引自身即持久层, 不重复落盘。"""
+    """tlpdb 离线索引命中 → 不走 tlmgr; 索引自身即持久层，不重复落盘。"""
     cache_file = tmp_path / "c.json"
     monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
     eng = XelatexEngine()
@@ -407,7 +407,7 @@ def test_filemap_index_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 def test_filemap_tlmgr_fallback_persists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """索引缺席 → tlmgr 在线通路兜底, 新结果落盘缓存。"""
+    """索引缺席 → tlmgr 在线通路兜底，新结果落盘缓存。"""
     cache_file = tmp_path / "c.json"
     monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
     eng = XelatexEngine()
@@ -434,7 +434,7 @@ def test_filemap_negative_not_persisted(
 
     monkeypatch.setattr(eng, "_filemap_tlmgr", _tlmgr)
     assert eng.filemap("y.sty") == ["real-pkg"]  # 阳性落盘
-    assert eng.filemap("x.sty") == []  # 阴性: 进程内 memo
+    assert eng.filemap("x.sty") == []  # 阴性：进程内 memo
     assert eng.filemap("x.sty") == []
     assert calls["n"] == 2  # noqa: PLR2004 - 每文件一次 tlmgr
     assert json.loads(cache_file.read_text()) == {"/y.sty": ["real-pkg"]}

@@ -94,5 +94,5 @@ class _Sink:
         self._log_fn(msg)
 
     def event(self, etype: str, payload: dict[str, Any]) -> None:
-        """一帧修复实况 → ``_repair_event``（scrub+发布）。"""
+        """一帧修复实况 → ``_repair_event``（scrub+ 发布）。"""
         self._event_fn(etype, payload)

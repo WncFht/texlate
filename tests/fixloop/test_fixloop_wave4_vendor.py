@@ -49,7 +49,7 @@ def test_vendored_fetch_rule_registered() -> None:
 
 
 def test_vendored_fetch_sorts_between_install_and_shim() -> None:
-    """loop 序: install_file(10) < vendored_fetch(11.5) < legacy_pkg_shim(12)。"""
+    """loop 序：install_file(10) < vendored_fetch(11.5) < legacy_pkg_shim(12)。"""
     ids = [r.id for r in _rs().phase("loop")]
     assert ids.index("install_file") < ids.index("vendored_fetch")
     assert ids.index("vendored_fetch") < ids.index("legacy_pkg_shim")
@@ -72,7 +72,7 @@ def test_vendored_fetch_files_tier(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_stubs_fallback(tmp_path: Path) -> None:
-    """files/ 无件 → stubs/ 递补, note 标 [stubs]。"""
+    """files/ 无件 → stubs/ 递补，note 标 [stubs]。"""
     root = mk_vendor(tmp_path)
     (root / "stubs" / "slashbox.sty").write_text("% stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
@@ -96,7 +96,7 @@ def test_vendored_fetch_files_precedence(tmp_path: Path) -> None:
 
 
 def test_vendored_fetch_preserves_payload_relpath(tmp_path: Path) -> None:
-    """``\\input{sub/x}`` 期径: payload 相对径落 wdir/sub/x.sty。"""
+    """``\\input{sub/x}`` 期径：payload 相对径落 wdir/sub/x.sty。"""
     root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% x\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
@@ -139,7 +139,7 @@ def _eng_probe_hit() -> XelatexEngine:
 
 
 def test_relocate_doc_only_moves_unique_hit(tmp_path: Path) -> None:
-    """mn2e 形: doc/latex/mnras/LEGACY/mn2e.cls → tex/latex/mn2e.cls。"""
+    """mn2e 形：doc/latex/mnras/LEGACY/mn2e.cls → tex/latex/mn2e.cls。"""
     home = tmp_path / "texmf"
     legacy = home / "doc" / "latex" / "mnras" / "LEGACY"
     legacy.mkdir(parents=True)
@@ -159,7 +159,7 @@ def test_relocate_doc_only_no_doc_tree(tmp_path: Path) -> None:
 
 
 def test_relocate_doc_only_ambiguous_declines(tmp_path: Path) -> None:
-    """basename 多命中属歧义 —— 不猜, decline。"""
+    """basename 多命中属歧义 —— 不猜，decline。"""
     home = tmp_path / "texmf"
     for sub in ("doc/latex/a", "doc/latex/b"):
         d = home / sub
@@ -218,11 +218,11 @@ def _scan_params(root: Path, **kw: object) -> dict:
 
 
 def test_scan_install_vendored_fallback(tmp_path: Path) -> None:
-    """static_precheck vendored 臂: install 全链败 → basename 查件落解析位。
+    """static_precheck vendored 臂：install 全链败 → basename 查件落解析位。
 
-    round-0 预检落件不依赖 first-error 序位 (hep-ph/0104121 机制缝:
+    round-0 预检落件不依赖 first-error 序位 (hep-ph/0104121 机制缝：
     doc-local fixes.sty 的 undefined_cs 抢在 missing_file 前)。嵌套
-    main 稿的解析位 = main_dir (编译 cwd) —— 平铺 wdir 根不可见,
+    main 稿的解析位 = main_dir (编译 cwd) —— 平铺 wdir 根不可见，
     ``_resolve_site`` 口径 (2609.19664 fired-unfixed 实证)。
     """
     paper = tmp_path / "paper"
@@ -243,7 +243,7 @@ def test_scan_install_vendored_fallback(tmp_path: Path) -> None:
 
 
 def test_scan_install_vendored_flag_off(tmp_path: Path) -> None:
-    """params.vendored 缺省/False → 不落件, note 无 vendored 段。"""
+    """params.vendored 缺省/False → 不落件，note 无 vendored 段。"""
     (tmp_path / "main.tex").write_text("\\usepackage{eqsecnum}\n")
     root = mk_vendor(tmp_path)
     (root / "stubs" / "eqsecnum.sty").write_text("x")
@@ -256,7 +256,7 @@ def test_scan_install_vendored_flag_off(tmp_path: Path) -> None:
 
 
 def test_scan_install_vendored_traversal_guard(tmp_path: Path) -> None:
-    """扫出 ``../escape`` 构造名 → vendored 守卫拒落, 不泄出 wdir。"""
+    """扫出 ``../escape`` 构造名 → vendored 守卫拒落，不泄出 wdir。"""
     (tmp_path / "main.tex").write_text("\\usepackage{../escape}\n")
     root = mk_vendor(tmp_path)
     (root / "stubs" / "escape.sty").write_text("x")
@@ -268,7 +268,7 @@ def test_scan_install_vendored_traversal_guard(tmp_path: Path) -> None:
 
 
 def test_scan_install_vendored_dep_fanout(tmp_path: Path) -> None:
-    """vendored 落件依赖闭包预装: 落件内 \\RequirePackage → install 种子。"""
+    """vendored 落件依赖闭包预装：落件内 \\RequirePackage → install 种子。"""
     (tmp_path / "main.tex").write_text("\\usepackage{eqsecnum}\n")
     root = mk_vendor(tmp_path)
     (root / "stubs" / "eqsecnum.sty").write_text(

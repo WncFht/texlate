@@ -110,7 +110,7 @@ def test_polyfill_fires_on_upgraded_doc(tmp_path: Path) -> None:
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    # 注入位 = docclass 缝后, 先于 \begin{document} (序言 \author 要先见武装面)
+    # 注入位 = docclass 缝后，先于 \begin{document} (序言 \author 要先见武装面)
     assert t.index("\\frontmatter@init") < t.index("\\begin{document}")
     assert "\\providecommand{\\twocolumn}[1][]{#1}" in t
     assert "\\@ifundefined{@makecol}" in t
@@ -154,7 +154,7 @@ def test_polyfill_declines_commented_docclass(tmp_path: Path) -> None:
 
 
 def test_polyfill_idempotent(tmp_path: Path) -> None:
-    """snippet 幂等: 二轮重入不重复注入。"""
+    """snippet 幂等：二轮重入不重复注入。"""
     (tmp_path / "main.tex").write_text(_UPGRADED_DOC, encoding="utf-8")
     rule = _rule("revtex209_surface_polyfill")
     ok1, _ = actions._apply(rule, _ctx(tmp_path), _Eng(), "twocolumn", ErrReport())  # noqa: SLF001
@@ -176,7 +176,7 @@ def test_abstract_hoist_rule_registered() -> None:
 
 
 def test_abstract_hoist_paper_shape(tmp_path: Path) -> None:
-    """0408520 实形 → abstract 块+间隔段前移 \\maketitle 前。"""
+    """0408520 实形 → abstract 块 + 间隔段前移 \\maketitle 前。"""
     doc = (
         "\\documentclass[prb,aps]{revtex4-2}\n"
         "% texlate: LaTeX 2.09 compatibility shim\n"
@@ -208,7 +208,7 @@ def test_boxedeps_vendored_stub_surface() -> None:
     src = _vendored_source(_vendor_root({}), "BoxedEPS.tex")
     assert src is not None, "BoxedEPS.tex not vendored"
     body = src.read_text(encoding="utf-8")
-    # 0408520 实调面: \ForceWidth 存值 + \BoxedEPSF 退化 \includegraphics
+    # 0408520 实调面：\ForceWidth 存值 + \BoxedEPSF 退化 \includegraphics
     assert "\\def\\ForceWidth#1" in body
     assert "\\def\\BoxedEPSF#1" in body
     assert "\\includegraphics" in body

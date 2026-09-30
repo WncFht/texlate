@@ -122,7 +122,7 @@ def test_math_revert_rewrites_five_alphabets(tmp_path: Path) -> None:
 
 
 def test_math_revert_masked_comment_untouched(tmp_path: Path) -> None:
-    """masked 面: 注释内字面 \\mathit{ 不改写。"""
+    """masked 面：注释内字面 \\mathit{ 不改写。"""
     body = "% \\mathit{example}\n\\mathit{real}\n"
     _write(tmp_path, "main.tex", body)
     applied, _ = _apply("math_alphabet_209_revert", tmp_path)
@@ -201,7 +201,7 @@ def test_lead_junk_stripped_at_anchor() -> None:
 
 
 def test_lead_junk_stripped_at_fmt_anchor() -> None:
-    """``%&`` fmt 锚点臂: 含 NUL 垃圾前缀剥至 ``%&`` 行。"""
+    """``%&`` fmt 锚点臂：含 NUL 垃圾前缀剥至 ``%&`` 行。"""
     assert (
         _strip_lead_junk(b"\x00junk\x00\n%&latex\n\\documentclass{article}\n")
         == b"%&latex\n\\documentclass{article}\n"

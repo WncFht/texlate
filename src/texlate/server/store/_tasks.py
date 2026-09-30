@@ -346,7 +346,7 @@ class TaskRepo(_Repo):
         API 侧只允许 cancel（ACTIVE→cancelled）与 retry
         （RETRYABLE_FROM→queued）——其余迁移一律 TransitionError。
 
-        读-判-写（get → 守卫判定 → UPDATE）整体同步执行、无 await：
+        读 - 判 - 写（get → 守卫判定 → UPDATE）整体同步执行、无 await：
         单写者纪律下全部调用都在 loop 线程串行（worker 线程经
         ``_on_loop`` 回弹；``check_same_thread`` 缺省开——越线程直调
         当场 ``ProgrammingError`` 炸响而非静默竞写），判定与写之间无

@@ -22,11 +22,11 @@ __all__ = [
 # ════════════════════════════════════════════════════════════════
 
 
-#: 最小合法 EPS 占位: epsfig/graphics 两系 bbox 解析都吃 ``%%BoundingBox``,
+#: 最小合法 EPS 占位：epsfig/graphics 两系 bbox 解析都吃 ``%%BoundingBox``,
 #: xdvipdfmx 走内嵌 gs 蒸馏 (沙箱 ``-no-shell-escape`` 下仍通——epsprobe
 #: 实测 ``File: ph.eps Graphic file (type eps)`` 载入出 PDF); tectonic 侧
-#: .eps 是 ps_image 墙, 占位件是真 EPS 可由 eps_to_pdf(15) 的 gs 照常转换。
-#: 边框+对角线让读者可辨「图缺」占位而非空白; 200x150bp 近常见插图比例,
+#: .eps 是 ps_image 墙，占位件是真 EPS 可由 eps_to_pdf(15) 的 gs 照常转换。
+#: 边框 + 对角线让读者可辨「图缺」占位而非空白; 200x150bp 近常见插图比例，
 #: 调用点 ``width=``/``scale=`` 照常缩放。
 _EPS_PLACEHOLDER = (
     "%!PS-Adobe-3.0 EPSF-3.0\n"
@@ -43,12 +43,12 @@ _EPS_PLACEHOLDER = (
 
 # ════════════════════════════════════════════════════════════════
 # xetex 图形域二进制占位 (failmine4-covgap: "Unable to load picture or
-# PDF file" 臂 6 格) —— 扩展名决定 xetex image-sniff 路径, EPS 文本写进
-# .png/.jpg/.pdf 件名被格式探测拒载, 须真格式字节。三件同构 200x150
-# 灰底+边框+对角线 (EPS 占位的像素版), Title/COM 段同痕可辨「图缺」。
+# PDF file" 臂 6 格) —— 扩展名决定 xetex image-sniff 路径，EPS 文本写进
+# .png/.jpg/.pdf 件名被格式探测拒载，须真格式字节。三件同构 200x150
+# 灰底 + 边框 + 对角线 (EPS 占位的像素版), Title/COM 段同痕可辨「图缺」。
 # 字节产物经 identify/pdfinfo/gs 结构验证 + xetex \includegraphics
 # 真编译实证; 生成器曾存档 covgap 车道 (PNG zlib 程序化
-# 合成 / PDF 手写 xref / JPEG magick 生成+手注 COM 段)。
+# 合成 / PDF 手写 xref / JPEG magick 生成 + 手注 COM 段)。
 # ════════════════════════════════════════════════════════════════
 
 

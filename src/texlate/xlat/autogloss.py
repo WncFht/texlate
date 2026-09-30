@@ -1,6 +1,6 @@
 """自动术语抽取（auto-extract-glossary）：masked chunk 文列 → LLM 域名词表 → 多数表决 ``{en: zh}``。
 
-仿 BabelDOC ``automatic_term_extractor.py`` 的 prompt（≤5 词域名词短语+具名实体、
+仿 BabelDOC ``automatic_term_extractor.py`` 的 prompt（≤5 词域名词短语 + 具名实体、
 排数学项、JSON ``[{"src","tgt"}]`` 出）+ ``translation_config.
 finalize_auto_extracted_glossary`` 的逐 src ``Counter.most_common`` 多数表决。
 L1 探针（5 篇跨域 113 词 ~96% 正确）与 L2 A/B

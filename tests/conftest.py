@@ -56,7 +56,7 @@ _ENV_KEYS = (
     "FAKE_BABELDOC_MODE",
 )
 
-#: 最小可编 tex 工程（section+双段——单行 body 不产生翻译 chunk）
+#: 最小可编 tex 工程（section+ 双段——单行 body 不产生翻译 chunk）
 MINI_TEX = (
     "\\documentclass{article}\n"
     "\\begin{document}\n"
@@ -487,7 +487,7 @@ class RecordingEngine:
         return False
 
     def rebuild_fontmaps(self) -> bool:
-        """Protocol：noop False。"""
+        """Protocol: noop False."""
         return False
 
     def filemap(self, fname: str) -> list[str]:  # noqa: ARG002
