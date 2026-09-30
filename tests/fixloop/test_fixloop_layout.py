@@ -17,7 +17,7 @@ from pathlib import Path
 from _fixloopkit import CLEAN_LOG, MockEngine, make_proj, mk_ctx
 
 from texlate.compile.fixloop import fixloop
-from texlate.compile.fixloop.builtins.misc import para_loosen
+from texlate.compile.fixloop.builtins.optfix import para_loosen
 
 OVERFULL_LOG = (
     "This is XeTeX, Version 3\n"

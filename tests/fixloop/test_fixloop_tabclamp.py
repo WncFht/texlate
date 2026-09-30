@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tests._fixloopkit import mk_ctx_files, rule
+from _fixloopkit import mk_ctx_files, rule
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 
 if TYPE_CHECKING:

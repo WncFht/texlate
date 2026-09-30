@@ -22,7 +22,7 @@ from texlate.compile.fixloop import (
     builtins,
     load_ruleset,
 )
-from texlate.compile.fixloop.builtins import shim
+from texlate.compile.fixloop.builtins import pdfprim
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
@@ -67,14 +67,14 @@ def test_polyfill_condition_carries_arg_site_arm() -> None:
 
 def test_argful_tables_registered_and_disjoint() -> None:
     """argful/toksish/dimenish 三表全注册进 PDFTEX_PRIMS 且与 countish 互斥。"""
-    allnew = set(shim._PRIM_ARGFUL) | shim._PRIM_TOKSISH | shim._PRIM_DIMENISH  # noqa: SLF001
+    allnew = set(pdfprim._PRIM_ARGFUL) | pdfprim._PRIM_TOKSISH | pdfprim._PRIM_DIMENISH  # noqa: SLF001
     for prim in allnew:
         assert prim in builtins.PDFTEX_PRIMS, prim
-    assert not (set(shim._PRIM_ARGFUL) & shim._PRIM_COUNTISH)  # noqa: SLF001
-    assert not (shim._PRIM_TOKSISH & shim._PRIM_COUNTISH)  # noqa: SLF001
-    assert not (shim._PRIM_DIMENISH & shim._PRIM_COUNTISH)  # noqa: SLF001
+    assert not (set(pdfprim._PRIM_ARGFUL) & pdfprim._PRIM_COUNTISH)  # noqa: SLF001
+    assert not (pdfprim._PRIM_TOKSISH & pdfprim._PRIM_COUNTISH)  # noqa: SLF001
+    assert not (pdfprim._PRIM_DIMENISH & pdfprim._PRIM_COUNTISH)  # noqa: SLF001
     for prim in ("pdfobj", "pdfliteral", "pdfrefobj", "pdfcatalog", "pdfximage"):
-        assert shim._PRIM_ARGFUL[prim] == "#1", prim  # noqa: SLF001
+        assert pdfprim._PRIM_ARGFUL[prim] == "#1", prim  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- condition 闸

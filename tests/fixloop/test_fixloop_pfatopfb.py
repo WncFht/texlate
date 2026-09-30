@@ -18,7 +18,7 @@ from _fixloopkit import EngStub, mk_ctx, rule
 
 from texlate.compile.fixloop import actions, builtins
 from texlate.compile.fixloop.builtins import pfa_to_pfb
-from texlate.compile.fixloop.builtins.misc import _pfa_to_pfb_bytes
+from texlate.compile.fixloop.builtins.assetfix import _pfa_to_pfb_bytes
 
 
 class _PfaEng:

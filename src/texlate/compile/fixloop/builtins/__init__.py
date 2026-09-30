@@ -9,7 +9,7 @@
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
 
-C3 拆分: 实现体按域拆进 ``builtins/`` 子包 14 叶 (facade=__init__), 本
+C3 拆分: 实现体按域拆进 ``builtins/`` 子包 22 叶 (facade=__init__), 本
 文件是 PEP 562 惰性门面 (同 ``fixloop/__init__`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``builtins.X`` 公共面与 ``from ... import X`` 测试面不变。叶子私名
@@ -32,6 +32,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from texlate.compile.fixloop.builtins.assetfix import (
+        eps_converted_alias,
+        pfa_to_pfb,
+    )
     from texlate.compile.fixloop.builtins.bib import (
         bbl_format_version_rewrite,
         bbl_regen,
@@ -50,6 +54,12 @@ if TYPE_CHECKING:
         _mc_parse_log,
         _mc_plan,
         _resolve_site,
+        _safe_rel,
+    )
+    from texlate.compile.fixloop.builtins.csbind import (
+        bm_mathchar_wrap,
+        cs_rebind,
+        font_cs_shim,
     )
     from texlate.compile.fixloop.builtins.csfix import (
         _allocated_cs_names,
@@ -64,6 +74,15 @@ if TYPE_CHECKING:
         pdfstring_cs_disarm,
         premature_cs_guard,
         spacefactor_atdef_wrap,
+    )
+    from texlate.compile.fixloop.builtins.envpoly import (
+        undefined_env_polyfill,
+    )
+    from texlate.compile.fixloop.builtins.filefix import (
+        doc_absent_stub,
+        driver_tfm_hoist,
+        fileset_relocate,
+        generated_stub,
     )
     from texlate.compile.fixloop.builtins.gfx_missing import (
         _GRAPHIC_EXTS,
@@ -107,6 +126,11 @@ if TYPE_CHECKING:
         svg_prepare,
         xbb_pregen,
     )
+    from texlate.compile.fixloop.builtins.inputfix import (
+        graphics_include_strip,
+        main_wrapper_promote,
+        subfile_docclass_strip,
+    )
     from texlate.compile.fixloop.builtins.layoutfix import (
         display_math_shrink,
         fffd_context_fix,
@@ -120,22 +144,12 @@ if TYPE_CHECKING:
         aux_seed_undefined_refs,
         cjk_env_relax,
         docstrip_generate,
-        eps_converted_alias,
-        extract_tar_blobs,
-        float_h_demote,
-        float_opt_cs_expand,
-        graphics_include_strip,
         harvest_build_directives,
         latex209_upgrade,
-        main_wrapper_promote,
         non_utf8_recode,
-        para_loosen,
-        pfa_to_pfb,
         plain_format_detect,
         purge_corrupt_intermediates,
         restore_support_from_src,
-        subfile_docclass_strip,
-        tcolorbox_breakable_inject,
     )
     from texlate.compile.fixloop.builtins.misschar import (
         accent_mark_fix,
@@ -150,8 +164,17 @@ if TYPE_CHECKING:
         nfss_fam_declare,
         umath_doc_cs_restore,
     )
+    from texlate.compile.fixloop.builtins.optfix import (
+        float_h_demote,
+        float_opt_cs_expand,
+        para_loosen,
+        tcolorbox_breakable_inject,
+    )
     from texlate.compile.fixloop.builtins.paralong import (
         para_longize,
+    )
+    from texlate.compile.fixloop.builtins.pdfprim import (
+        pdftex_prim_polyfill,
     )
     from texlate.compile.fixloop.builtins.pkgload import (
         _detach_physics_loads,
@@ -164,24 +187,18 @@ if TYPE_CHECKING:
         xy_option_load,
     )
     from texlate.compile.fixloop.builtins.shim import (
-        bm_mathchar_wrap,
         bundled_class_shadow,
-        cs_rebind,
-        doc_absent_stub,
-        driver_tfm_hoist,
-        fileset_relocate,
-        font_cs_shim,
-        generated_stub,
         journal_cs_polyfill,
         legacy_pkg_shim,
-        pdftex_prim_polyfill,
         revtex209_surface_polyfill,
         shim_pkgs_in_use,
         svjour_clo_stub,
-        undefined_env_polyfill,
     )
     from texlate.compile.fixloop.builtins.slotrev import (
         slot_arg_revert,
+    )
+    from texlate.compile.fixloop.builtins.tarblob import (
+        extract_tar_blobs,
     )
     from texlate.compile.fixloop.builtins.vendored import (
         _provides_date,
@@ -199,6 +216,10 @@ if TYPE_CHECKING:
     TRANSFORM_FNS: dict[str, Callable[..., tuple[bool, str]]]
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
+    "assetfix": (
+        "eps_converted_alias",
+        "pfa_to_pfb",
+    ),
     "bib": (
         "bbl_format_version_rewrite",
         "bbl_regen",
@@ -217,6 +238,12 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_mc_parse_log",
         "_mc_plan",
         "_resolve_site",
+        "_safe_rel",
+    ),
+    "csbind": (
+        "bm_mathchar_wrap",
+        "cs_rebind",
+        "font_cs_shim",
     ),
     "csfix": (
         "_allocated_cs_names",
@@ -231,6 +258,15 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "pdfstring_cs_disarm",
         "premature_cs_guard",
         "spacefactor_atdef_wrap",
+    ),
+    "envpoly": (
+        "undefined_env_polyfill",
+    ),
+    "filefix": (
+        "doc_absent_stub",
+        "driver_tfm_hoist",
+        "fileset_relocate",
+        "generated_stub",
     ),
     "gfx_missing": (
         "_GRAPHIC_EXTS",
@@ -274,6 +310,11 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "svg_prepare",
         "xbb_pregen",
     ),
+    "inputfix": (
+        "graphics_include_strip",
+        "main_wrapper_promote",
+        "subfile_docclass_strip",
+    ),
     "layoutfix": (
         "display_math_shrink",
         "fffd_context_fix",
@@ -287,22 +328,12 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "aux_seed_undefined_refs",
         "cjk_env_relax",
         "docstrip_generate",
-        "eps_converted_alias",
-        "extract_tar_blobs",
-        "float_h_demote",
-        "float_opt_cs_expand",
-        "graphics_include_strip",
         "harvest_build_directives",
         "latex209_upgrade",
-        "main_wrapper_promote",
         "non_utf8_recode",
-        "para_loosen",
-        "pfa_to_pfb",
         "plain_format_detect",
         "purge_corrupt_intermediates",
         "restore_support_from_src",
-        "subfile_docclass_strip",
-        "tcolorbox_breakable_inject",
     ),
     "misschar": (
         "accent_mark_fix",
@@ -317,7 +348,14 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "nfss_fam_declare",
         "umath_doc_cs_restore",
     ),
+    "optfix": (
+        "float_h_demote",
+        "float_opt_cs_expand",
+        "para_loosen",
+        "tcolorbox_breakable_inject",
+    ),
     "paralong": ("para_longize",),
+    "pdfprim": ("pdftex_prim_polyfill",),
     "pkgload": (
         "_detach_physics_loads",
         "font_sub_shim",
@@ -329,23 +367,15 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "xy_option_load",
     ),
     "shim": (
-        "bm_mathchar_wrap",
         "bundled_class_shadow",
-        "cs_rebind",
-        "doc_absent_stub",
-        "driver_tfm_hoist",
-        "fileset_relocate",
-        "font_cs_shim",
-        "generated_stub",
         "journal_cs_polyfill",
         "legacy_pkg_shim",
-        "pdftex_prim_polyfill",
         "revtex209_surface_polyfill",
         "shim_pkgs_in_use",
         "svjour_clo_stub",
-        "undefined_env_polyfill",
     ),
     "slotrev": ("slot_arg_revert",),
+    "tarblob": ("extract_tar_blobs",),
     "vendored": (
         "_provides_date",
         "_vendor_root",
@@ -500,6 +530,7 @@ __all__ = [
     "_rewrite_eps_refs",
     "_rewrite_includesvg",
     "_run_convert",
+    "_safe_rel",
     "_strip_ps_driver_opts",
     "_stub_graphic_refs",
     "_svg_convert_arm",

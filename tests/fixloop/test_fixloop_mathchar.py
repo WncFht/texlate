@@ -13,7 +13,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import builtins, load_ruleset
 from texlate.compile.fixloop.builtins import bm_mathchar_wrap
-from texlate.compile.fixloop.builtins.shim import _BM_MATHCHAR_WRAP
+from texlate.compile.fixloop.builtins.csbind import _BM_MATHCHAR_WRAP
 from texlate.compile.fixloop.engine import LoopCtx
 
 _DOC = (

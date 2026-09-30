@@ -31,7 +31,7 @@ from texlate.compile.fixloop import (
     builtins,
     load_ruleset,
 )
-from texlate.compile.fixloop.builtins import shim
+from texlate.compile.fixloop.builtins import pdfprim
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
@@ -70,13 +70,13 @@ def test_at_family_tables_registered_disjoint() -> None:
     at_names = {p for p in builtins.PDFTEX_PRIMS if "@" in p}
     assert "pdf@box" in at_names
     assert "pdf@addtoksx" in at_names
-    assert frozenset({"pdf@box"}) == shim._PRIM_BOXISH  # noqa: SLF001
+    assert frozenset({"pdf@box"}) == pdfprim._PRIM_BOXISH  # noqa: SLF001
     buckets = [
-        shim._PRIM_COUNTISH,  # noqa: SLF001
-        shim._PRIM_TOKSISH,  # noqa: SLF001
-        shim._PRIM_DIMENISH,  # noqa: SLF001
-        shim._PRIM_BOXISH,  # noqa: SLF001
-        set(shim._PRIM_ARGFUL),  # noqa: SLF001
+        pdfprim._PRIM_COUNTISH,  # noqa: SLF001
+        pdfprim._PRIM_TOKSISH,  # noqa: SLF001
+        pdfprim._PRIM_DIMENISH,  # noqa: SLF001
+        pdfprim._PRIM_BOXISH,  # noqa: SLF001
+        set(pdfprim._PRIM_ARGFUL),  # noqa: SLF001
     ]
     for i, a in enumerate(buckets):
         for b in buckets[i + 1 :]:

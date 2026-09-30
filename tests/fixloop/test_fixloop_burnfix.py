@@ -26,6 +26,7 @@ from conftest import _write
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.builtins.bib import bbl_stub_rewrite
 from texlate.compile.fixloop.builtins.common import _inject_after_docclass
+from texlate.compile.fixloop.builtins.csbind import cs_rebind
 from texlate.compile.fixloop.builtins.csfix import _ensure_usepackage
 from texlate.compile.fixloop.builtins.docfix import premature_cs_guard
 from texlate.compile.fixloop.builtins.misschar import (
@@ -33,7 +34,6 @@ from texlate.compile.fixloop.builtins.misschar import (
     font_fallback,
 )
 from texlate.compile.fixloop.builtins.paralong import para_longize
-from texlate.compile.fixloop.builtins.shim import cs_rebind
 
 _PREMATURE = TRANSFORM_FNS["premature_cs_guard"]
 

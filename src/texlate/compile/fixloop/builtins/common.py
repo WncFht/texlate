@@ -14,7 +14,13 @@ from typing import TYPE_CHECKING, cast
 
 from texlate.compile._docseams import find_docclass_ends
 from texlate.texlog import _mc_parse_log
-from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex, safe_is_file
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    iter_depth0,
+    mask_tex,
+    safe_is_file,
+    safe_rel,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -314,6 +320,17 @@ def _inject_write(
     except OSError as e:
         return (False, f"{name} write failed: {e}"), state
     return None, state
+
+
+def _safe_rel(name: str) -> PurePosixPath | None:
+    """``payload`` 名 → ``PurePosixPath``; 空名/绝对路径/``..`` 段/NUL → ``None``。
+
+    各注入/归位 builtin 统一的 payload 拒收口——非相对安全名一律 decline,
+    绝不把 ``../x``/``/etc/x`` 写进 wdir。词法单源
+    ``texlate.textutil.osutil.safe_rel`` (自 builtins.shim 归位: misc/
+    filefix/assetfix/tarblob 多叶共用以一收)。
+    """
+    return safe_rel(name)
 
 
 def _resolve_site(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
@@ -813,7 +830,7 @@ def _fp_diff(
 
 
 # ════════════════════════════════════════════════════════════════
-# 工程件遍历 (自 builtins.shim 归位: misc ``_conv_sibling`` 同口径共用)
+# 工程件遍历 (自 builtins.shim 归位: assetfix ``_conv_sibling`` 同口径共用)
 # ════════════════════════════════════════════════════════════════
 
 #: 工程件遍历的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
@@ -885,7 +902,7 @@ def _advise(ctx: LoopCtx, adv: str) -> None:
 
 
 def _skip_ws(vis: str, pos: int) -> int:
-    r"""``" \t"`` 空白跳过 → 首个非空白位 (mask 后可视流词法; misc 叶另有含 ``\\n`` 变体)。"""
+    r"""``" \t"`` 空白跳过 → 首个非空白位 (mask 后可视流词法; optfix 叶另有含 ``\\n`` 变体)。"""
     while pos < len(vis) and vis[pos] in " \t":
         pos += 1
     return pos

@@ -26,7 +26,7 @@ from _fixloopkit import DOC, EngStub, mk_ctx, rule
 import texlate.compile.fixloop as _fixloop_mod
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.builtins.common import PDFTEX_PRIMS
-from texlate.compile.fixloop.builtins.shim import _PRIM_COUNTISH
+from texlate.compile.fixloop.builtins.pdfprim import _PRIM_COUNTISH
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 _PARAMS = rule("cs_targeted_fix").action["params"]

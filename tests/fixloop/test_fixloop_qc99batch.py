@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tests._fixloopkit import (
+from _fixloopkit import (
     apply,
     cond_ok,
     mk_ctx_files,

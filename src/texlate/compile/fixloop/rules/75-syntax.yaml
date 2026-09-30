@@ -1581,7 +1581,7 @@ rules:
           error: "triangle_dots.eps:31 Missing \\begin{document} ← \\include{triangle_dots.eps}@preamble",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-docclsstack/; builtins.misc.graphics_include_strip"
+    source_ref: "tmp/lane-docclsstack/; builtins.inputfix.graphics_include_strip"
 
   # phantom 臂: `Incomplete \if` 签名在同签下轮复发 = unclosed_if_close(196)
   # 字面扫描 noop 过——源件 \if*/\fi 平衡, 真凶是展开态 conditional:

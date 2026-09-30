@@ -482,7 +482,7 @@ _MATHRUN_SNIPPET = (
 #: 兜底); 已注走就地升级 (下方正则臂)。
 _MATHRUN_STRONG = "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
 
-#: ``para_loosen`` 注入块标记行 (builtins.misc._LOOSEN_SNIPPET 首行)——
+#: ``para_loosen`` 注入块标记行 (builtins.optfix._LOOSEN_SNIPPET 首行)——
 #: 已注检出即升级剂量而非重注 (同位赋值后注后胜, 不叠注语义靠升级臂)。
 _LOOSEN_MARK = "% texlate-fixloop: overfull-hbox mitigation"
 _LOOSEN_UP_RX = (

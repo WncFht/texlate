@@ -35,12 +35,12 @@ from texlate.arxiv._texutil import TEX_EXT
 from texlate.arxiv.locate import locate
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.builtins import includepdf_missing_stub, svg_prepare
+from texlate.compile.fixloop.builtins.filefix import generated_stub
 from texlate.compile.fixloop.builtins.misc import (
     docstrip_generate,
     harvest_build_directives,
     plain_format_detect,
 )
-from texlate.compile.fixloop.builtins.shim import generated_stub
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _cond_ok
 from texlate.latex.api import parse_tex
 from texlate.latex.flatten import flatten_inputs
