@@ -230,7 +230,7 @@ def state_dir() -> Path:
 
 
 def status_panel_dir() -> Path:
-    """status_panel.py / task_ping.py share this dir (pid, tasks.d, cache)."""
+    """ops/status_panel.py / ops/task_ping.py share this dir (pid, tasks.d, cache)."""
     return state_dir() / "status-panel"
 
 

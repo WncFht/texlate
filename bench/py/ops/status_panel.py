@@ -6,13 +6,13 @@ All data sources are files or read-only commands; collectors are
 independently fault-isolated and cached.
 
 Run detached:
-    setsid nohup python3 bench/py/status_panel.py \
+    setsid nohup python3 bench/py/ops/status_panel.py \
         >> "$TEXLATE_BENCH_ROOT/state/status-panel/run.log" 2>&1 </dev/null &
 Stop:
     kill "$(cat "$TEXLATE_BENCH_ROOT/state/status-panel/panel.pid")"
 
 Task board convention: agents report progress via
-    python3 bench/py/task_ping.py <name> --status running --done N --total M
+    python3 bench/py/ops/task_ping.py <name> --status running --done N --total M
 (board lives at $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d)
 """
 
@@ -29,13 +29,17 @@ import re
 import signal
 import sqlite3
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+REPO = Path(__file__).resolve().parents[3]
 try:
     from kernel import paths as _kpaths
 
@@ -690,7 +694,7 @@ def sec_milestones() -> str:
 def sec_tasks() -> str:
     ts = tasks()
     hint = (
-        "<div class='cap'>上报：<code>python3 bench/py/task_ping.py "
+        "<div class='cap'>上报：<code>python3 bench/py/ops/task_ping.py "
         "&lt;名&gt; --status running --done N --total M --note …"
         "</code> · 完结 <code>--finish</code> · 撤下 <code>--remove</code>"
         "（看板目录 $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d）</div>"
@@ -992,7 +996,7 @@ def sec_jobs() -> str:
         m = re.search(
             r"(e2e_real_bench\.py --tag \w+|texlate web.*port \d+|"
             r"status_panel\.py|stagerun[^ ]*|compilebench[^ ]*|"
-            r"bench/py/[\w.]+)",
+            r"bench/py/[\w./]+)",
             cmd,
         )
         short = m.group(0) if m else cmd[-60:]

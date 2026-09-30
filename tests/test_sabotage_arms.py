@@ -1,4 +1,4 @@
-r"""sabotage/perturb 臂注入与台账契约钉——``translators_bench`` + ``e2e_mock_bench``。
+r"""sabotage/perturb 臂注入与台账契约钉——``ops.translators_bench`` + ``e2e_mock_bench``。
 
 钉住的契约面（sabotage-audit 2026-09-17 实证）：
 
@@ -8,7 +8,7 @@ r"""sabotage/perturb 臂注入与台账契约钉——``translators_bench`` + ``
 - 注入决策确定性：``_plan_b``/``_apply_c`` = f(段内容哈希 blake2s)，同输入
   跨调用同决策；``_canon`` 把 encoded/corrector-raw 归一→阶梯各阶段同决策。
 - ``finalize`` 交付谓词 = ``pipecore.delivered``（ok | partial+译文，
-  pipecore.py:132——translators_bench/e2e_mock_bench 同引此单源），与
+  pipecore.py:132——ops.translators_bench/e2e_mock_bench 同引此单源），与
   splice/e2e 台账同构——partial（阶梯 recovered）译文照进 zh/，严卡 ok
   会把脏 partial 记 caught 漏 escaped（旧 e2e_mock ``_delivered`` 的
   stagerun 侧漂移收敛于此）。
@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-tb = pytest.importorskip("translators_bench")  # 重链 texlate.* + specs._sabotage
+tb = pytest.importorskip("ops.translators_bench")  # 重链 texlate.* + specs._sabotage
 emb = pytest.importorskip(
     "specs._sabotage"
 )  # e2e_mock_bench 死后正身（Mode B/C 唯一事实源）
@@ -219,7 +219,7 @@ class TestFinalizeLedger:
 
     def test_b_partial_corrupt_is_escaped_not_caught(self) -> None:
         """交付谓词钉：partial+译文进 splice（``pipecore.delivered``——
-        translators_bench 经 ``_delivered`` 别名消费 pipecore.py:132 单源），
+        ops.translators_bench 经 ``_delivered`` 别名消费 pipecore.py:132 单源），
         残留破坏必须记 escaped——严卡 ok 会把脏 partial 吞成 caught 绕过门槛。"""
         tr = self._b_tr_with_event()
         led = tr.finalize([_mk("0:0", _SRC, _CORRUPT_ZH, "partial")])

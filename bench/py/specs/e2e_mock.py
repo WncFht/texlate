@@ -13,7 +13,7 @@ r"""e2e_mock — mock 翻译全链 e2e（B5-A，M0 出口判据语料面）。
     pipeC-xel/tec  pipe + Mode C 位置扰动（~10% 占位符挪位，量化
                    splice 鲁棒性）
 
-Mode B/C 注入件唯一事实源 = ``specs/_sabotage.py``（translators_bench 与
+Mode B/C 注入件唯一事实源 = ``specs/_sabotage.py``（ops.translators_bench 与
 三测试文件同引）；本 spec 只消费其 ``SabotageTranslator/PerturbTranslator``
 + ``_seg_of/_dirty_hits`` 归因谓词。
 

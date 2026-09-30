@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""iclr_pdf.py — 无 arXiv 映射的 ICLR 论文 → OpenReview PDF 兜底下载.
+r"""iclr/pdf.py — 无 arXiv 映射的 ICLR 论文 → OpenReview PDF 兜底下载.
 
 map.jsonl 中无 arxiv_id 的行 → OpenReview /pdf?id={orid}。双代际：
 api2.openreview.net 服务 v2 论文（~ICLR 2024+），api.openreview.net
@@ -8,7 +8,7 @@ api2.openreview.net 服务 v2 论文（~ICLR 2024+），api.openreview.net
 
 落 bench/corpus_iclr_pdf/{orid}.pdf + fetch_pdf.jsonl 状态账。断点续跑。
 
-用法: uv run python bench/py/iclr_pdf.py [--limit N]
+用法: uv run python bench/py/iclr/pdf.py [--limit N]
 """
 
 from __future__ import annotations
@@ -20,10 +20,13 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import httpx
 from specs import _benchlite as benchlib
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 WORK = REPO / "bench" / "work_iclr"
 PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 MAP = WORK / "map.jsonl"
@@ -35,7 +38,7 @@ API2 = "https://api2.openreview.net"
 API1 = "https://api.openreview.net"
 
 
-#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr_* 系同源件）。
+#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr/ 包同源件）。
 log = benchlib.log
 load_env = benchlib.load_env
 ENV_FP = benchlib.ENV_FP
@@ -62,12 +65,13 @@ def main() -> int:
     a = ap.parse_args()
 
     year_of = {
-        r["orid"]: r.get("year", 0) for r in (json.loads(l) for l in ACCEPTED.open())
+        r["orid"]: r.get("year", 0)
+        for r in (json.loads(line) for line in ACCEPTED.open())
     }
     todo: dict[str, str] = {}  # orid -> match（map.jsonl 是 append 账：末行胜）
-    for l in MAP.open():
+    for line in MAP.open():
         try:
-            r = json.loads(l)
+            r = json.loads(line)
         except json.JSONDecodeError:
             continue
         orid = r.get("orid")
@@ -81,9 +85,9 @@ def main() -> int:
             todo[orid] = r.get("match", "?")
     done: set[str] = set()
     if STATUS.exists():
-        for l in STATUS.open():
+        for line in STATUS.open():
             try:
-                r = json.loads(l)
+                r = json.loads(line)
             except json.JSONDecodeError:
                 continue
             if r.get("status") in ("ok", "empty"):

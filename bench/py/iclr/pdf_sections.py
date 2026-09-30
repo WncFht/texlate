@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-r"""iclr_pdf_sections.py — OpenReview PDF → 章节级词数统计（无 arXiv 兜底臂）.
+r"""iclr/pdf_sections.py — OpenReview PDF → 章节级词数统计（无 arXiv 兜底臂）.
 
-与 iclr_sections.py 同口径输出：每篇一行 sections 明细 + 聚合计数，
+与 iclr/sections.py 同口径输出：每篇一行 sections 明细 + 聚合计数，
 bucket 规则直接复用 LaTeX 臂（canon_section/count_words），两臂可比。
 
 PDF 解析策略（ICLR 单栏版式前提）:
@@ -19,7 +19,7 @@ PDF 解析策略（ICLR 单栏版式前提）:
 输入: bench/corpus_iclr_pdf/{orid}.pdf
 输出: bench/work_iclr/sections_pdf.jsonl（断点续跑）
 
-用法: uv run python bench/py/iclr_pdf_sections.py [--limit N]
+用法: uv run python bench/py/iclr/pdf_sections.py [--limit N]
 """
 
 from __future__ import annotations
@@ -27,21 +27,26 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import unicodedata
 from collections import Counter
+from contextlib import suppress
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 OUT = REPO / "bench" / "work_iclr" / "sections_pdf.jsonl"
+PDFTOTEXT = shutil.which("pdftotext") or "pdftotext"
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from iclr_sections import canon_section, count_words
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/iclr 包
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from specs import _benchlite as benchlib
 
-#: stderr 时间戳日志——benchlib 单源（iclr_* 系同源件）。
+from iclr.sections import canon_section, count_words
+
+#: stderr 时间戳日志——benchlib 单源（iclr/ 包同源件）。
 log = benchlib.log
 
 # ---------------- 行级清洗 ----------------
@@ -165,7 +170,7 @@ def detect_headings(lines: list[str]) -> list[tuple[int, int, str, str]]:
 def pdftotext(pdf: Path) -> str | None:
     try:
         r = subprocess.run(
-            ["pdftotext", "-layout", "-enc", "UTF-8", str(pdf), "-"],
+            [PDFTOTEXT, "-layout", "-enc", "UTF-8", str(pdf), "-"],
             capture_output=True,
             timeout=60,
         )
@@ -275,11 +280,9 @@ def main() -> None:
     done_ids: set[str] = set()
     outp = Path(a.out)
     if outp.exists():
-        for l in outp.open():
-            try:
-                done_ids.add(json.loads(l)["orid"])
-            except json.JSONDecodeError:
-                pass
+        for line in outp.open():
+            with suppress(json.JSONDecodeError):
+                done_ids.add(json.loads(line)["orid"])
     todo = [p for p in pdfs if p.stem not in done_ids]
     if a.limit:
         todo = todo[: a.limit]

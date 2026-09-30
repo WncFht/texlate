@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""iclr_map.py — ICLR accepted 标题 → arXiv id 批量映射.
+r"""iclr/map.py — ICLR accepted 标题 → arXiv id 批量映射.
 
 三档匹配: (1) OpenReview 缓存自带 arxiv_id 直录；(2) OpenAlex
 ``works?search=<title>`` top-10 候选 → 归一化标题 exact / fuzzy≥0.87；
@@ -14,7 +14,7 @@ ArXiv externalId 则采用（S2 能把 OpenReview 版与改名后 arXiv 版连�
 限速: OA 并发 6 worker（API key 预算自管）；S2 单流 ~1rps。
 凭据: OPENALEX_API_KEY 读 paper-search skill .env。
 
-用法: uv run python bench/py/iclr_map.py [--phase oa|s2|all] [--limit N]
+用法: uv run python bench/py/iclr/map.py [--phase oa|s2|all] [--limit N]
 """
 
 from __future__ import annotations
@@ -23,15 +23,19 @@ import argparse
 import difflib
 import json
 import re
+import sys
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import httpx
 from specs import _benchlite as benchlib
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 WORK = REPO / "bench" / "work_iclr"
 ACCEPTED = WORK / "accepted.jsonl"
 MAP_OUT = WORK / "map.jsonl"
@@ -44,7 +48,7 @@ UA = {"User-Agent": "texlate-iclr-study/1.0 (research; mailto:bench@localhost)"}
 TERMINAL = {"cache", "oa_exact", "oa_fuzzy", "oa_miss", "s2"}
 
 
-#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr_* 系同源件）。
+#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr/ 包同源件）。
 log = benchlib.log
 load_env = benchlib.load_env
 
@@ -160,12 +164,12 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=6)
     a = ap.parse_args()
 
-    accepted = [json.loads(l) for l in ACCEPTED.open()]
+    accepted = [json.loads(line) for line in ACCEPTED.open()]
     done: dict[str, dict] = {}
     if MAP_OUT.exists():
-        for l in MAP_OUT.open():
+        for line in MAP_OUT.open():
             try:
-                r = json.loads(l)
+                r = json.loads(line)
                 done[r["orid"]] = r
             except json.JSONDecodeError:
                 pass

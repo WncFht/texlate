@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""iclr_sections.py — arXiv 源码 → 章节级词数/字符数统计（ICLR 章节长度研究）.
+r"""iclr/sections.py — arXiv 源码 → 章节级词数/字符数统计（ICLR 章节长度研究）.
 
 语料目录形态与 corpus 一致: ``{corpus}/{id}/extracted/`` (+ ``meta.json``)。
 对每篇: find_main_tex 定位主档 → ``\input``/``\include`` 流内展开 →
@@ -7,10 +7,10 @@ r"""iclr_sections.py — arXiv 源码 → 章节级词数/字符数统计（ICLR
 detex 计词数（数学/浮动体/引用剥离，caption 单列）→ 章节名归一 bucket。
 
 输出 sections.jsonl（每篇一行，sections 明细内嵌）+ 末尾打印覆盖对账。
-纯离线：只吃盘上语料，不发网络请求。uv run python bench/py/iclr_sections.py
+纯离线：只吃盘上语料，不发网络请求。uv run python bench/py/iclr/sections.py
 
 用法:
-  uv run python bench/py/iclr_sections.py --corpus bench/corpus \
+  uv run python bench/py/iclr/sections.py --corpus bench/corpus \
       --out bench/work_iclr/sections_corpusv3.jsonl [--ids file] [--limit N]
 """
 
@@ -20,9 +20,11 @@ import argparse
 import json
 import re
 import sys
+from contextlib import suppress
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from specs import _bootstrap
 
@@ -32,7 +34,7 @@ from specs import _benchlite as benchlib
 
 from texlate.compile.inject import find_main_tex
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 
 log = benchlib.log
 
@@ -448,10 +450,8 @@ def analyze_paper(pdir: Path) -> dict:
                 },
             )
         )
-    for m in APPENDIX_CMD_RX.finditer(body):
-        marks.append((m.start(), "appendix", {}))
-    for m in REFS_RX.finditer(body):
-        marks.append((m.start(), "refs", {}))
+    marks.extend((m.start(), "appendix", {}) for m in APPENDIX_CMD_RX.finditer(body))
+    marks.extend((m.start(), "refs", {}) for m in REFS_RX.finditer(body))
     marks.sort(key=lambda x: x[0])
 
     sections: list[dict] = []
@@ -520,10 +520,8 @@ def analyze_paper(pdir: Path) -> dict:
     n_bib = len(re.findall(r"\\bibitem", body))
     if n_bib == 0:
         for bib in ext.rglob("*.bib"):
-            try:
+            with suppress(OSError):
                 n_bib += len(re.findall(r"@\w+\s*\{", read_tex(bib)))
-            except OSError:
-                pass
     status = "ok" if n_sec >= 1 else "no_sections"
     return {
         "arxiv_id": pid,
@@ -572,7 +570,7 @@ def main() -> None:
     corpus = Path(a.corpus)
     ids = None
     if a.ids:
-        ids = {l.strip() for l in open(a.ids) if l.strip()}
+        ids = {line.strip() for line in open(a.ids) if line.strip()}
     dirs = paper_dirs(corpus, ids)
     if a.limit:
         dirs = dirs[: a.limit]

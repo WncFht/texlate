@@ -5,11 +5,11 @@ atomically; the panel at http://127.0.0.1:8766/ renders it in the
 任务看板 section. Any agent/script can call this — stdlib only.
 
 Examples:
-    python3 bench/py/task_ping.py realn200 --status running \
+    python3 bench/py/ops/task_ping.py realn200 --status running \
         --done 57 --total 200 --note "xlat arm" --owner texlate-e8
-    python3 bench/py/task_ping.py realn200 --finish --note "all pdf"
-    python3 bench/py/task_ping.py realn200 --remove
-    python3 bench/py/task_ping.py --list
+    python3 bench/py/ops/task_ping.py realn200 --finish --note "all pdf"
+    python3 bench/py/ops/task_ping.py realn200 --remove
+    python3 bench/py/ops/task_ping.py --list
 """
 
 from __future__ import annotations
@@ -22,6 +22,9 @@ import re
 import sys
 import time
 from pathlib import Path
+
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from kernel import paths as _kpaths

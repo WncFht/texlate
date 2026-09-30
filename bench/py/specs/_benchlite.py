@@ -385,14 +385,14 @@ def misschar_partial(status, verdict: dict) -> bool:
 
 
 # ---------------------------------------------------------------- 启动/抓取小件
-# （iclr_* defer 六件的 benchlib 存活面——与 benchlib 逐字同形）
+# （iclr/ 包 defer 六件的 benchlib 存活面——与 benchlib 逐字同形）
 def log(msg: str) -> None:
     """stderr 时间戳日志行——脱管批（setsid nohup + run.log）共用形。"""
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
 
 #: paper-search skill 的 ``.env``——OpenAlex/OpenReview 凭据读取口径
-#: （iclr_map/iclr_pdf 原各拷一份）。
+#: （iclr.map/iclr.pdf 原各拷一份）。
 ENV_FP = Path.home() / ".claude/skills/paper-search/.env"
 
 
@@ -406,7 +406,7 @@ def load_env(path: Path = ENV_FP) -> dict[str, str]:
 def rss_preflight(ua: dict[str, str], feed: str = "cs.CL") -> None:
     """rss.arxiv.org 健康探针——不通 ``sys.exit(3)`` 中止，不进 fetch 烧预算。
 
-    daily_arxiv.preflight / iclr_fetch.preflight 同型下沉：urllib 30s 一发 +
+    daily_arxiv.preflight / iclr.fetch.preflight 同型下沉：urllib 30s 一发 +
     ``<rss`` 魔数校验（代理截获会返非 RSS 登录页，净连但语义无货同拦）。
     """
     import urllib.error
@@ -427,9 +427,9 @@ def rss_preflight(ua: dict[str, str], feed: str = "cs.CL") -> None:
 def fetch_done(status_fp: Path, *, id_key: str = "id") -> dict[str, str]:
     """fetch 状态账 jsonl → ``{id: 末条 status}``（仅终态行）——续跑跳过单源。
 
-    daily_arxiv._fetch_done / iclr_fetch._fetch_done 同型下沉。终态集 =
+    daily_arxiv._fetch_done / iclr.fetch._fetch_done 同型下沉。终态集 =
     ``AcquireStatus`` 的成功/不可修类（error/budget/parked 留可重试）。
-    ``id_key`` 适配异名账键（iclr_fetch 账用 ``arxiv_id``）。
+    ``id_key`` 适配异名账键（iclr.fetch 账用 ``arxiv_id``）。
     """
     from texlate.arxiv.fetch import AcquireStatus  # 迟绑——模块级零 texlate 约束
 
@@ -454,7 +454,7 @@ def materialize_entry(entry_dir: Path, dst: Path) -> None:
     """fetch 缓存条目 → ``corpus/{id}``：rmtree 旧树 + copytree ``os.link``。
 
     硬链接而非拷贝——缓存条目即语料内容，双视图零额外空间；缓存清理后
-    语料仍持有数据（daily_arxiv._materialize 单源；iclr_fetch 复制时丢落
+    语料仍持有数据（daily_arxiv._materialize 单源；iclr.fetch 复制时丢落
     ``copy_function`` 属回归——此处复原同口径）。
     """
     if dst.exists():

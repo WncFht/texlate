@@ -184,7 +184,7 @@ _TAILNOTE_RE: Final = re.compile(r"\s*\[[^\]]{1,20}\]\s*$", re.ASCII)
 #: 容忍形（``math.QA/0309136`` 也中）∪ 新形 ``YYMM.NNNNN``——与 canon
 #: 的「剥离+校验」分工不同：本件只管在自由文本里捞出候选串，上下文
 #: 前缀闸归消费方（``bibexport.extract_ids`` 的 arxiv.org/arXiv: 臂）。
-#: 其余已知消费点 bench/py booster/iclr_map/corpus_hot/_layoutqc 待接线。
+#: 其余已知消费点 bench/py booster/iclr.map/corpus_hot/_layoutqc 待接线。
 ARXIV_ID_FIND_RX: Final = re.compile(
     r"\b([A-Za-z-]+(?:\.[A-Za-z][A-Za-z-]*)?/\d{7}|\d{4}\.\d{4,5})"
     r"(?:[vV]\d{1,3})?\b",

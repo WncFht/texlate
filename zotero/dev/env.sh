@@ -3,7 +3,7 @@
 #   source "$(dirname "$0")/env.sh"
 #
 # Why non-default ports: this box is crowded. 8765 = user's real texlate
-# instance, 8766 = bench/py/status_panel.py (long-lived). Dev tools must
+# instance, 8766 = bench/py/ops/status_panel.py (long-lived). Dev tools must
 # never squat on real services — every port below is chosen free at writing
 # time AND each tool asserts port-free before binding plus verifies server
 # identity after connect (health .data_dir for texlate; protocol handshake

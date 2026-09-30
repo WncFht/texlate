@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""iclr_stats.py — ICLR 章节长度统计汇总（双臂）.
+r"""iclr/stats.py — ICLR 章节长度统计汇总（双臂）.
 
 三表 join: sections.jsonl (arXiv 臂, arxiv_id 键) + sections_pdf.jsonl
 (PDF 臂, orid 键) + accepted.jsonl/map.jsonl (orid↔arxiv_id↔year/track)。
@@ -17,7 +17,7 @@ r"""iclr_stats.py — ICLR 章节长度统计汇总（双臂）.
 分布口径: median/p25/p75/mean/p10/p90（词数），外加 n。
 词数偏差已知项: PDF 臂数学符号残留 → 偏高；LaTeX 臂 caption 单列。
 
-用法: uv run python bench/py/iclr_stats.py [--md out.md]
+用法: uv run python bench/py/iclr/stats.py [--md out.md]
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from specs import _benchlite as benchlib
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 WORK = REPO / "bench" / "work_iclr"
 
 BUCKETS = [
@@ -230,9 +231,9 @@ def main() -> None:
     calib: dict[str, dict] = {}
     for b in ("body", "appendix", "refs", "abstract"):
         ratios = [
-            p[b] / max(l[b], 1)
-            for l, p in overlap
-            if l.get(b, 0) > 50 and p.get(b, 0) > 50
+            p[b] / max(lt[b], 1)
+            for lt, p in overlap
+            if lt.get(b, 0) > 50 and p.get(b, 0) > 50
         ]
         calib[b] = quantiles(ratios)
     calib["n_overlap"] = len(overlap)

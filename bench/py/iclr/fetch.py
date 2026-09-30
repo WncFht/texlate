@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""iclr_fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → bench/corpus 物化.
+r"""iclr/fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → bench/corpus 物化.
 
 镜像 daily_arxiv.py fetch 模式：acquire_source 钉版 HEAD+GET+unpack，
 corpus/{id}/{meta.json,raw.*,extracted/} 布局同 daily 层（合并根）。
@@ -8,9 +8,9 @@ corpus/{id}/{meta.json,raw.*,extracted/} 布局同 daily 层（合并根）。
 输入: bench/work_iclr/map.jsonl（match!=no_arxiv 且 arxiv_id 非空行）
 输出: bench/corpus/{id}/ + bench/work_iclr/fetch.jsonl 状态账（终态跳过重入）
 
-用法: setsid nohup uv run python bench/py/iclr_fetch.py \
+用法: setsid nohup uv run python bench/py/iclr/fetch.py \
       > bench/work_iclr/fetch.log 2>&1 &   # 脱管批
-      uv run python bench/py/iclr_fetch.py --limit 30   # 试跑
+      uv run python bench/py/iclr/fetch.py --limit 30   # 试跑
 """
 
 from __future__ import annotations
@@ -22,7 +22,10 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
+
+# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from specs import _bootstrap
 
@@ -64,9 +67,9 @@ def main() -> int:
     a = ap.parse_args()
 
     rows = {}
-    for l in MAP.open():
+    for line in MAP.open():
         try:
-            r = json.loads(l)
+            r = json.loads(line)
         except json.JSONDecodeError:
             continue
         if r.get("arxiv_id"):
