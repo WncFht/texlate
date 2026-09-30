@@ -445,7 +445,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性。"""
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
+        value = getattr(importlib.import_module(f"specs.{leaf}"), name)
         globals()[name] = value
         return value
     msg = f"module {__name__!r} has no attribute {name!r}"

@@ -262,10 +262,15 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """平名惰性解析 → 叶子属性。"""
+    """平名惰性解析 → 叶子属性。
+
+    叶名写死 ``specs.`` 前缀——spec 文件经 ``load_spec`` exec 装载时
+    ``__package__`` 为空串，``f"{__package__}.{leaf}"`` 拼出 ``.leaf``
+    触发 TypeError（相对导入缺包名）。
+    """
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
+        value = getattr(importlib.import_module(f"specs.{leaf}"), name)
         globals()[name] = value
         return value
     msg = f"module {__name__!r} has no attribute {name!r}"

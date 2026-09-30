@@ -349,7 +349,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性 / stdlib 绑定 / texlate 顶层名。"""
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
+        value = getattr(importlib.import_module(f"specs.{leaf}"), name)
         globals()[name] = value
         return value
     if name in _STDLIB_MODS:
