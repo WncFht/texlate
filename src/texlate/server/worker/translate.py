@@ -1,938 +1,308 @@
-"""``PipelineWorker._Translate``——translating 段 + 译器/词表/用量接线。"""
+"""``PipelineWorker._Translate``——translating 段 + 译器/词表/用量接线。
+
+god-split: 实现体按域拆进同包 6 叶——``translate_stage``（translating
+段编排 + ``_Translate`` 组合根）、``translate_cache``（``_NullCache``
+段缓存全哑面 + ``_make_cache`` 防毒围栅）、``translate_xlator``
+（Translator 构造决策链 + mock_run 审计键）、``translate_glossary``
+（术语表层解析/装配/自动抽取接线）、``translate_envjudge``（env_judge
+判定过滤）、``translate_usage``（usage 记账 + 旁路臂收尾）。本文件是
+PEP 562 惰性门面（同 ``compile``/``_common`` 形制）——平名经
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
+``translate.X`` 公共面与 ``from .translate import X`` 不变；拆分前
+单件期 import 期名面（stdlib 模块名/typing 绑定/``_common`` 转口/
+texlate 顶层名）同样逐名惰性解析。
+monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）。
+叶子间互引走全路径直跨（``texlate.server.worker.translate_<叶>``），
+不经本门面。
+"""
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import hashlib
-import json
+import importlib
 import logging
 import sys
-import time
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
-
-from texlate.pipecore import auto_glossary_fn
-from texlate.repair import resolve_glossary_path
-from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
-from texlate.server.settings import (
-    cache_scope,
-    validate_model,
-)
-from texlate.textutil import env_flag
-from texlate.textutil.osutil import translator_mode
-from texlate.validate.l0 import pair_feedback
-from texlate.xlat.client import DEFAULT_MODEL, AuthError, ChatClient, UsageRecord
-from texlate.xlat.glossary import (
-    LOCAL_GLOSSARY_NAME,
-    Glossary,
-)
-from texlate.xlat.pipeline import (
-    ChunkIn,
-    ChunkResult,
-    GatewayTranslator,
-    MockTranslator,
-    PipelineConfig,
-    Translator,
-    XlatPipeline,
-)
-from texlate.xlat.prompts import PROMPT_VERSION
-
-from ._common import (
-    _DB_TO_PIPE,
-    _FLUSH_MS,
-    _FLUSH_N,
-    _PIPE_TO_DB,
-    _SPLICE_STALE_KINDS,
-    FAILED_DB,
-    PROGRESS,
-    DBStateBridge,
-    SegmentCache,
-    TaskCtx,
-    _FallbackTranslator,
-    _glossary_option,
-    _new_usage_meter,
-    _PerCallTranslator,
-    _repend_puts,
-    _row_status_snap,
-    _tgt_lang,
-    _translate_progress,
-    _translator_clients,
-    chunk_db_id,
-    chunk_error_code,
-    opt_bool,
-)
-from .share import (
-    _share_sourced,
-)
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable, Mapping
+    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    import asyncio
+    import contextlib
+    import hashlib
+    import json
+    import time
+    from pathlib import Path
+    from typing import Any, TypeVar
 
-    from texlate.latex.model import Chunk
-
-from texlate.server.worker import seams
+    from texlate.pipecore import auto_glossary_fn
+    from texlate.repair import resolve_glossary_path
+    from texlate.repair_l2 import (
+        ENV_ENV_JUDGE,
+        env_judge_all,
+        unknown_env_of,
+    )
+    from texlate.server.settings import cache_scope, validate_model
+    from texlate.server.worker import seams
+    from texlate.server.worker._common import (
+        FAILED_DB,
+        PROGRESS,
+        DBStateBridge,
+        SegmentCache,
+        TaskCtx,
+        chunk_db_id,
+        chunk_error_code,
+        opt_bool,
+    )
+    from texlate.textutil import env_flag
+    from texlate.textutil.osutil import translator_mode
+    from texlate.validate.l0 import pair_feedback
+    from texlate.xlat.client import (
+        DEFAULT_MODEL,
+        AuthError,
+        ChatClient,
+        UsageRecord,
+    )
+    from texlate.xlat.glossary import (
+        LOCAL_GLOSSARY_NAME,
+        Glossary,
+    )
+    from texlate.xlat.pipeline import (
+        ChunkIn,
+        ChunkResult,
+        GatewayTranslator,
+        MockTranslator,
+        PipelineConfig,
+        Translator,
+        XlatPipeline,
+    )
+    from texlate.xlat.prompts import PROMPT_VERSION
 
 log = logging.getLogger(__name__)
 
-_T = TypeVar("_T")
+_LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
+    "translate_cache": (
+        "_NullCache",
+        "_TranslateCache",
+    ),
+    "translate_envjudge": ("_TranslateEnvJudge",),
+    "translate_glossary": ("_TranslateGlossary",),
+    "translate_stage": (
+        "_Translate",
+        "_TranslateStage",
+    ),
+    "translate_usage": ("_T", "_TranslateUsage"),
+    "translate_xlator": ("_TranslateXlator",),
+}
+
+_LAZY: dict[str, str] = {
+    name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
+}
+
+# 拆分前单件期模块属性面——stdlib 模块名、typing/pathlib 绑定、
+# ``._common``/``.share``/``seams`` 兄弟件转口与 texlate.* 顶层名全部按名
+# 惰性解析 (setattr 型 monkeypatch 落在共享 module 对象上照旧触达真身)。
+_STDLIB_MODS = (
+    "asyncio",
+    "contextlib",
+    "hashlib",
+    "json",
+    "logging",
+    "sys",
+    "time",
+)
+_EXTRA_BINDINGS = {
+    "Any": "typing",
+    "Path": "pathlib",
+    "TYPE_CHECKING": "typing",
+    "TypeVar": "typing",
+    "annotations": "__future__",
+}
+_MODULE_ATTRS = {
+    "seams": "texlate.server.worker.seams",
+}
+_TEXLATE_EXPORTS = {
+    "AuthError": "texlate.xlat.client",
+    "ChatClient": "texlate.xlat.client",
+    "ChunkIn": "texlate.xlat.pipeline",
+    "ChunkResult": "texlate.xlat.pipeline",
+    "DBStateBridge": "texlate.server.worker._common",
+    "DEFAULT_MODEL": "texlate.xlat.client",
+    "ENV_ENV_JUDGE": "texlate.repair_l2",
+    "FAILED_DB": "texlate.server.worker._common",
+    "GatewayTranslator": "texlate.xlat.pipeline",
+    "Glossary": "texlate.xlat.glossary",
+    "LOCAL_GLOSSARY_NAME": "texlate.xlat.glossary",
+    "MockTranslator": "texlate.xlat.pipeline",
+    "PROGRESS": "texlate.server.worker._common",
+    "PROMPT_VERSION": "texlate.xlat.prompts",
+    "PipelineConfig": "texlate.xlat.pipeline",
+    "SegmentCache": "texlate.server.worker._common",
+    "TaskCtx": "texlate.server.worker._common",
+    "Translator": "texlate.xlat.pipeline",
+    "UsageRecord": "texlate.xlat.client",
+    "XlatPipeline": "texlate.xlat.pipeline",
+    "_DB_TO_PIPE": "texlate.server.worker._common",
+    "_FLUSH_MS": "texlate.server.worker._common",
+    "_FLUSH_N": "texlate.server.worker._common",
+    "_FallbackTranslator": "texlate.server.worker._common",
+    "_PIPE_TO_DB": "texlate.server.worker._common",
+    "_PerCallTranslator": "texlate.server.worker._common",
+    "_SPLICE_STALE_KINDS": "texlate.server.worker._common",
+    "_glossary_option": "texlate.server.worker._common",
+    "_new_usage_meter": "texlate.server.worker._common",
+    "_repend_puts": "texlate.server.worker._common",
+    "_row_status_snap": "texlate.server.worker._common",
+    "_share_sourced": "texlate.server.worker.share",
+    "_tgt_lang": "texlate.server.worker._common",
+    "_translate_progress": "texlate.server.worker._common",
+    "_translator_clients": "texlate.server.worker._common",
+    "auto_glossary_fn": "texlate.pipecore",
+    "cache_scope": "texlate.server.settings",
+    "chunk_db_id": "texlate.server.worker._common",
+    "chunk_error_code": "texlate.server.worker._common",
+    "env_flag": "texlate.textutil",
+    "env_judge_all": "texlate.repair_l2",
+    "opt_bool": "texlate.server.worker._common",
+    "pair_feedback": "texlate.validate.l0",
+    "resolve_glossary_path": "texlate.repair",
+    "translator_mode": "texlate.textutil.osutil",
+    "unknown_env_of": "texlate.repair_l2",
+    "validate_model": "texlate.server.settings",
+}
+
+# 字面列表 = 拆分前 ``import *`` 面 (原件无 __all__, 非下划线全局名逐名
+# 保留); 私有名经 _LAZY/_TEXLATE_EXPORTS 进属性读面不进 __all__。
+__all__ = [
+    "DEFAULT_MODEL",
+    "ENV_ENV_JUDGE",
+    "FAILED_DB",
+    "LOCAL_GLOSSARY_NAME",
+    "PROGRESS",
+    "PROMPT_VERSION",
+    "TYPE_CHECKING",
+    "Any",
+    "AuthError",
+    "ChatClient",
+    "ChunkIn",
+    "ChunkResult",
+    "DBStateBridge",
+    "GatewayTranslator",
+    "Glossary",
+    "MockTranslator",
+    "Path",
+    "PipelineConfig",
+    "SegmentCache",
+    "TaskCtx",
+    "Translator",
+    "TypeVar",
+    "UsageRecord",
+    "XlatPipeline",
+    "annotations",
+    "asyncio",
+    "auto_glossary_fn",
+    "cache_scope",
+    "chunk_db_id",
+    "chunk_error_code",
+    "contextlib",
+    "env_flag",
+    "env_judge_all",
+    "hashlib",
+    "json",
+    "log",
+    "logging",
+    "opt_bool",
+    "pair_feedback",
+    "resolve_glossary_path",
+    "seams",
+    "sys",
+    "time",
+    "translator_mode",
+    "unknown_env_of",
+    "validate_model",
+]
 
 
-class _NullCache(SegmentCache):
-    """段缓存全哑面（M1 防毒围栅）：读只认本 run 自写、``drain`` 恒空不落库。
+def __getattr__(name: str) -> object:
+    """平名惰性解析 → 叶子属性 / stdlib 绑定 / 兄弟件·texlate 顶层名。"""
+    leaf = _LAZY.get(name)
+    if leaf is not None:
+        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
+        globals()[name] = value
+        return value
+    if name in _STDLIB_MODS:
+        value = importlib.import_module(name)
+        globals()[name] = value
+        return value
+    extra = _EXTRA_BINDINGS.get(name)
+    if extra is not None:
+        value = getattr(importlib.import_module(extra), name)
+        globals()[name] = value
+        return value
+    mod_path = _MODULE_ATTRS.get(name)
+    if mod_path is not None:
+        value = importlib.import_module(mod_path)
+        globals()[name] = value
+        return value
+    texmod = _TEXLATE_EXPORTS.get(name)
+    if texmod is not None:
+        value = getattr(importlib.import_module(texmod), name)
+        globals()[name] = value
+        return value
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
-    适用面在 ``_make_cache`` 判定——段缓存键指纹不含凭证，无 key/mock
-    形态写出的占位译文会跨凭证命中续毒（实测 fresh+真 key 重交同论文
-    仍 67% 段命中 mock 缓存）；结构性短路比事后清洗可靠。
 
-    ``_pending``/``_written`` 保留 run 内 dedup 语义（同文档重复段只译
-    一次——``no_seg_cache`` 的重跑臂不为每条重复句白烧 token）；落盘
-    面整层短路。继承只为 ``SegmentCache`` 注解位兼容（``_stage_translate``
-    /``_flush_translate``/``_repend_puts``），``__init__`` 不走父类——无
-    store/prefix 绑定，所有触库方法全部覆写。
+def __dir__() -> list[str]:
+    return sorted(
+        set(globals())
+        | set(__all__)
+        | set(_LAZY)
+        | set(_STDLIB_MODS)
+        | set(_MODULE_ATTRS)
+        | set(_EXTRA_BINDINGS)
+        | set(_TEXLATE_EXPORTS)
+    )
+
+
+def _export_drift() -> list[str]:
+    """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
+
+    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
+    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子, 只供测试调用, 装载期不自检。
     """
-
-    def __init__(self) -> None:
-        self.hits = 0
-        self._prefix = ""
-        self._pending: dict[str, str] = {}
-        self._written: dict[str, str] = {}
-
-    def prewarm(self, seg_keys: Iterable[str]) -> None:
-        """无持久面可预载——读面只有本 run 自写内存层。"""
-
-    def __contains__(self, seg_key: object) -> bool:
-        """存在性探测只看 run 内层（持久面恒 miss——防毒核心语义）。"""
-        return isinstance(seg_key, str) and (
-            seg_key in self._pending or seg_key in self._written
-        )
-
-    def __getitem__(self, seg_key: str) -> str:
-        """Run 内层命中记 hits（``_flush_translate`` 的 cached 计数口径不变）。"""
-        hit = self._pending.get(seg_key)
-        if hit is None:
-            hit = self._written.get(seg_key)
-        if hit is None:
-            raise KeyError(seg_key)
-        self.hits += 1
-        return hit
-
-    def __setitem__(self, seg_key: str, translation: str) -> None:
-        self._pending[seg_key] = translation
-
-    def __delitem__(self, seg_key: str) -> None:
-        self._pending.pop(seg_key, None)
-        self._written.pop(seg_key, None)
-
-    def __len__(self) -> int:
-        return len(self._pending)
-
-    def drain(self) -> list[tuple[str, str, str, str]]:
-        """吞掉待写：挪进 ``_written`` 保 run 内可读，返空不落 ``translation_cache``。"""
-        self._written.update(self._pending)
-        self._pending.clear()
-        return []
-
-
-class _Translate:
-    """translating 段 mixin + 译器/词表/用量接线。"""
-
-    # ------------------------------------------------------------ translating
-
-    async def _stage_translate(self, ctx: TaskCtx) -> None:
-        """translating：XlatPipeline 跑 chunks pending 集（批量 flush 落盘）。"""
-        rows = self._all_chunks(ctx)
-        if not rows:
-            self._stage(ctx, "translating", "无可译块", PROGRESS["translating"][1])
-            return
-        await self._ensure_scans(ctx)
-        self._stage(ctx, "translating", "翻译中", PROGRESS["translating"][0])
-
-        translator = self._make_translator(ctx)
-        clients = _translator_clients(translator)
-        # 段头纯计算簇（placeholders 全扫/glossary load/ph 映射/inputs
-        # 物化/seq·status·pre_rows 表）挪工作线程——5k 块量级在主 loop
-        # 上秒级堵 SSE/心跳/分发；DB 读按单写者纪律留 loop 线程
-        prep = await self._to_thread(ctx, self._translate_prep, rows)
-        cache: SegmentCache = prep["cache"]
-        state = DBStateBridge(
-            self.store,
-            ctx.task_id,
-            rows=rows,
-            state_dir=ctx.root / "export-state",
-        )
-        seq_map: dict[str, int] = prep["seq_map"]
-        status_map: dict[str, str] = prep["status_map"]
-        # 本段起跑前快照——retry/resume 重跑翻译若改行（pending→ok/
-        # 重译改译文），既有 .splice-done 即过期，须摘除逼编译段重
-        # splice（zh/ 被 _build_zh rmtree，.compile-done 随之同死）
-        pre_rows: dict[str, tuple[str, str]] = prep["pre_rows"]
-        sse_items: list[dict[str, Any]] = []
-        last_flush = time.monotonic()
-        # T4：每次成功 chat() 的真实 token/延迟记账（ChatClient 回调）
-        usage = self._meter_usage(clients)
-
-        def on_result(r: ChunkResult) -> None:
-            item: dict[str, Any] = {
-                "seq": seq_map.get(r.chunk_id, -1),
-                "status": _PIPE_TO_DB.get(r.status, "failed"),
-            }
-            code = chunk_error_code(r)
-            if code is not None:
-                item["error_code"] = code
-            sse_items.append(item)
-            ctx.tokens_est += (len(r.source) + len(r.translation)) // 4
-
-        pipe = XlatPipeline(
-            translator,
-            config=PipelineConfig(
-                concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 10, hi=16),
-                tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
-                auto_glossary_fn=self._auto_glossary_fn(ctx, clients),
-            ),
-            glossary=prep["glossary"],
-            state=state,  # type: ignore[arg-type] -- StateStore 鸭子型
-            validator=pair_feedback,
-            cache=cache,  # type: ignore[arg-type] -- MutableMapping 鸭子型
-            on_result=on_result,
-        )
-        inputs: list[ChunkIn] = prep["inputs"]
-        # 段缓存一次性预载（分批 SELECT IN）——prewarm 后 __contains__/
-        # __getitem__ 纯内存查，5k 逐键 SELECT 不再逐块占 loop 线程
-        cache.prewarm(pipe._seg_key(c) for c in inputs)  # noqa: SLF001 -- 缓存键只有管线会算
-
-        run_task: asyncio.Task[list[ChunkResult]] | None = None
+    mod = sys.modules[__name__]
+    drift = []
+    if len(__all__) != len(set(__all__)):
+        drift.append("__all__ has duplicate entries")
+    for name in _LAZY:
         try:
-            run_task = asyncio.create_task(pipe.run(inputs))
-            while not run_task.done():
-                # wait 代 sleep：任务完成即醒（无残 50ms 尾延），超时兜底
-                # 0.5s 维持 cancel/flush 轮询节奏
-                await asyncio.wait({run_task}, timeout=0.5)
-                self._check_cancelled(ctx)
-                if (
-                    len(state.buffer) >= _FLUSH_N
-                    or time.monotonic() - last_flush >= _FLUSH_MS
-                ):
-                    self._flush_translate(ctx, state, cache, status_map, sse_items)
-                    last_flush = time.monotonic()
-            await run_task  # 传播异常（AuthTrippedError → run() 归 provider_auth）
-            if prep["glossary"] is not None:
-                # term_dict 落盘（export-state/term_dict.json）——观测件不毁账：
-                # 写盘失败不把已完成的翻译段记成 fault（bench stage_xlat 同式）
-                with contextlib.suppress(Exception):
-                    state.save_maps(
-                        term_dict=pipe._doc_glossary  # noqa: SLF001 -- 管线内部观测表
-                    )
-        finally:
-            await self._teardown_translate(
-                ctx=ctx,
-                run_task=run_task,
-                state=state,
-                cache=cache,
-                status_map=status_map,
-                sse_items=sse_items,
-                usage=usage,
-                clients=clients,
-                pre_rows=pre_rows,
-            )
-        self._stage(ctx, "translating", "翻译完成", PROGRESS["translating"][1])
-        counts = self.store.chunk_counts(ctx.task_id)
-        if counts["failed"]:
-            self._warning(
-                ctx,
-                "chunks_failed",
-                f"{counts['failed']} 块回退原文（fallback_orig/failed）",
-            )
-        self._check_cancelled(ctx)
-
-    async def _teardown_translate(  # noqa: PLR0913 -- 收尾现场全员（run_task + flush 参数 + usage + clients）
-        self,
-        *,
-        ctx: TaskCtx,
-        run_task: asyncio.Task[list[ChunkResult]] | None,
-        state: DBStateBridge,
-        cache: SegmentCache,
-        status_map: dict[str, str],
-        sse_items: list[dict[str, Any]],
-        usage: dict[str, Any],
-        clients: list[ChatClient],
-        pre_rows: dict[str, tuple[str, str]],
-    ) -> None:
-        """收尾 translating 段（正常/fault/cancel 全走）：撤 run_task → usage 落账 → 残余 buffer flush → 过期 splice 哨兵摘除 → client 关闭。"""
-        if run_task is not None and not run_task.done():
-            # cancel 竞态：poll 循环被 _check_cancelled 抛出时 pipe.run
-            # 仍在跑——不撤它就是孤儿任务：剩余 item 全标 skipped、flush
-            # 后继续写 buffer/sse_items/done_map，且 clients 在任务脚下
-            # 被 aclose
-            run_task.cancel()
-            # asyncio.wait 不回传 run_task 的 CancelledError——await 直等
-            # 会把外层 worker 自身的二次 cancel 一并吞掉（同型异常不可分）
-            await asyncio.wait({run_task})
-        in_flight = sys.exc_info()[0] is not None
-        tail_exc: Exception | None = None
+            getattr(mod, name)
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+            drift.append(f"_LEAF_EXPORTS entry {name} does not resolve: {exc}")
+    for name in __all__:
+        if name in _LAZY:
+            continue  # 已解
         try:
-            # 有真账用真账——replace_est 把 tokens_est 从字符估算换成
-            # prompt+completion；buffer 空时下面 _flush_translate 早退，
-            # update_fields 不跑则 tasks.tokens 滞留估算值。本段在 loop
-            # 线程跑，_on_loop 直调即原内联写盘口径
-            self._persist_usage(ctx, usage, replace_est=True)
-        except Exception as e:  # noqa: BLE001 -- 记账失败不挡数据落盘与资源释放
-            tail_exc = e
-            log.warning("teardown usage persist failed: %s: %s", type(e).__name__, e)
-        # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）——
-        # flush 是同步体无悬置点：pending-cancel 不会投递进来截断写盘
-        try:
-            self._flush_translate(ctx, state, cache, status_map, sse_items)
-        except Exception as e:  # noqa: BLE001 -- flush 失败仍须 invalidate+aclose
-            if tail_exc is None:
-                tail_exc = e
-            log.warning("teardown flush failed: %s: %s", type(e).__name__, e)
-        self._invalidate_splice(ctx, pre_rows)
-        await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
-        # 无在飞异常才把收尾失败上浮——有则保原异常（AuthTripped 不得错标 internal）
-        if tail_exc is not None and not in_flight:
-            raise tail_exc
-
-    def _translate_prep(
-        self, ctx: TaskCtx, rows: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """段头纯计算簇（``_to_thread`` 里跑）：glossary/cache/frag 映射/inputs/对账表。
-
-        ``_ph_frag_map`` 逐块重建 ChunkIn、``Glossary.load`` 的文件读、
-        ``_make_cache`` 的术语层指纹哈希——5k 块量级秒级 CPU/IO，全在主
-        loop 上跑会堵死 SSE/心跳/分发。本簇零 DB 触（``_make_glossary``
-        的 ``_warning`` 经 ``_on_loop`` 回弹保持单写者）；``all_chunks``
-        与 ``cache.prewarm`` 的 SELECT 留 loop 线程。
-        """
-        # 主链 ChunkIn 必须带 ph_fragments——不给则 _repair_fn 恒 None，
-        # recover_copied_tokens 抄回修复臂整条死代码（_l2_run_state 同款
-        # chunk_to_in(ph_map=) 模式；DB chunk_id ↔ scans 按 byte span 对账）
-        frag_of = self._ph_frag_map(ctx)
-        return {
-            "glossary": self._make_glossary(ctx),
-            "cache": self._make_cache(ctx),
-            "frag_of": frag_of,
-            "inputs": [
-                ChunkIn(
-                    chunk_id=r["chunk_id"],
-                    content=r["src_text"],
-                    kind=r["kind"],
-                    ph_fragments=frag_of.get(r["chunk_id"]),
-                )
-                for r in rows
-            ],
-            "seq_map": {r["chunk_id"]: int(r["seq"]) for r in rows},
-            "status_map": {r["chunk_id"]: str(r["status"]) for r in rows},
-            "pre_rows": _row_status_snap(rows),
-        }
-
-    def _flush_translate(
-        self,
-        ctx: TaskCtx,
-        state: DBStateBridge,
-        cache: SegmentCache,
-        status_map: dict[str, str],
-        sse_items: list[dict[str, Any]],
-    ) -> None:
-        """批量事务 flush（§3.4.2）：record 缓冲 → chunks 行 + 段缓存 + 计数器 + chunk 事件。
-
-        本函数体必须保持纯同步（无 await）——``_teardown_translate`` 在
-        pending-cancel 下也要靠它把缓冲落盘：cancel 只投递在悬置点，同步
-        体原子跑完不会被吞。若日后要加真异步（如 to_thread 落库），调用
-        方的 cancel 语义面须整体重评。
-        """
-        if not state.buffer and not sse_items:
-            return
-        updates = []
-        for rec in state.buffer:
-            db_status = _PIPE_TO_DB.get(rec.status, "failed")
-            status_map[rec.chunk_id] = db_status
-            updates.append(
-                (
-                    rec.chunk_id,
-                    {
-                        "status": db_status,
-                        "translation": rec.translation,
-                        "error_code": chunk_error_code(rec),
-                        "warnings": (
-                            json.dumps(rec.warnings, ensure_ascii=False)
-                            if rec.warnings
-                            else None
-                        ),
-                        "attempts": rec.attempts,
-                    },
-                )
-            )
-        # done 集 = ``_DB_TO_PIPE`` 键（pipecore 状态图单源）；failed 子集 ``FAILED_DB``
-        n_done = sum(v in _DB_TO_PIPE for v in status_map.values())
-        n_failed = sum(v in FAILED_DB for v in status_map.values())
-        counts = {
-            "total": len(status_map),
-            "done": n_done,
-            "cached": cache.hits,
-            "failed": n_failed,
-            "tokens": ctx.tokens_est,
-            "progress": _translate_progress(n_done, len(status_map)),
-        }
-        puts = cache.drain()
-        try:
-            self.store.flush_chunk_batch(ctx.task_id, updates, puts, counts)
-        except Exception:
-            # 瞬逝 DB 错：drain 已取走的段缓存项回挂 pending——与下面
-            # ``state.buffer`` 滞留同口径，下轮 flush 重投不丢缓存项
-            _repend_puts(cache, puts)
-            raise
-        ctx.chunks_cache = None  # chunks 行已写——物化缓存失效
-        # 落盘成功才丢缓冲——瞬逝 DB 错时记录留 buffer 等下一轮 flush 重投
-        state.buffer = []
-        items_now = list(sse_items)
-        sse_items.clear()
-        self.bus.publish(
-            ctx.task_id,
-            "chunk",
-            {
-                "done": counts["done"],
-                "total": counts["total"],
-                "cached": counts["cached"],
-                "failed": counts["failed"],
-                "items": items_now,
-            },
-        )
-
-    def _invalidate_splice(
-        self, ctx: TaskCtx, pre_rows: dict[str, tuple[str, str]]
-    ) -> None:
-        """本段改了 chunks 行（status/translation 任一变化）→ 摘 ``.splice-done``。
-
-        retry/resume 重进翻译段时 zh/ 可能已 splice 甚至已编译——译文变
-        更若不摘哨兵，``_build_zh`` 见哨兵直跳，旧译文永留产物。哨兵一摘
-        ``_build_zh`` rmtree zh/ 重建（``.compile-done`` 随之同死重编）；
-        无变化不动哨兵，resume 才能直进编译臂。loop 线程直读 store。
-
-        哨兵摘除即旧产物作废：``_SPLICE_STALE_KINDS`` 的 files 行与磁盘件
-        并删——否则重编失败/resume 未到编译段就终态时，files/reader 端点
-        照发上一轮的旧译文产物（reader 直接读 dual.json 磁盘件，仅删行
-        不够）。
-        """
-        sent = ctx.zh_dir / ".splice-done"
-        if not sent.is_file():
-            return
-        post = _row_status_snap(self._all_chunks(ctx))
-        if post == pre_rows:
-            return
-        sent.unlink()
-        task_root = ctx.root.resolve()
-        for kind in _SPLICE_STALE_KINDS:
-            rel = self.store.delete_file(ctx.task_id, kind)
-            if rel is None:
-                continue
-            stale = (ctx.root / rel).resolve()
-            if stale.is_relative_to(task_root):
-                with contextlib.suppress(OSError):
-                    stale.unlink(missing_ok=True)
-        self._log(ctx, "译文变更：摘除 .splice-done，编译段将重 splice")
-
-    def _env_judge_enabled(self, ctx: TaskCtx) -> bool:
-        """env_judge 开关：``options.env_judge`` 显式优先，缺省读 ``TEXLATE_ENV_JUDGE``（默认关）。
-
-        共享译文任务（kind=share 导入 / arxiv 隐式命中）恒关——零 token
-        结构承诺，options/env 无权打开。
-        """
-        if _share_sourced(ctx):
-            return False
-        return opt_bool(
-            ctx.options(),
-            "env_judge",
-            lambda: env_flag(ENV_ENV_JUDGE, default=False),
-        )
-
-    def _env_judge_filter(  # 守卫/回退阶梯平铺即 spec 的跳过面
-        self,
-        ctx: TaskCtx,
-        trans: dict[str, str],
-        rows: list[dict[str, Any]],
-    ) -> dict[str, str]:
-        """静态表外 env 块问 LLM 可译性（e2e ``_env_judge_pass`` 同语义）。
-
-        判 false 的块移出 splice 映射（回写时保留原文）并落库
-        ``fallback_orig``/``env_judge``。
-        """
-        if not self._env_judge_enabled(ctx) or not trans:
-            return trans
-        targets: list[tuple[str, Chunk, str]] = []
-        for rel, res in ctx.scans.items():
-            for c in res.chunks:
-                env_name = unknown_env_of(c)
-                if env_name is None:
-                    continue
-                cid = chunk_db_id(rel, c.span.start, c.span.end)
-                if cid in trans:
-                    targets.append((cid, c, env_name))
-        if not targets:
-            return trans
-        translator = self._make_translator(ctx)
-        clients = _translator_clients(translator)
-        usage = self._meter_usage(clients)
-        pipe = XlatPipeline(
-            translator,
-            config=PipelineConfig(tgt_lang=_tgt_lang(str(ctx.row["target_lang"]))),
-            glossary=self._make_glossary(ctx),
-        )
-
-        try:
-            verdicts = self._run_ephemeral(
-                clients, lambda: env_judge_all(pipe, targets)
-            )
-        finally:
-            # judge 调用也烧 token——不入账就从 task_usage 里蒸发
-            self._teardown_bypass(ctx, usage, clients, label="env_judge")
-        reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
-        self._log(
-            ctx,
-            f"env_judge: {len(targets)} 块待判，{len(reverted)} 块回落原文",
-        )
-        if not reverted:
-            return trans
-        by_id = {r["chunk_id"]: r for r in rows}
-        updates = [
-            (
-                cid,
-                {
-                    "status": "fallback_orig",
-                    "translation": str(by_id[cid]["src_text"] or ""),
-                    "error_code": "env_judge",
-                },
-            )
-            for cid in reverted
-            if cid in by_id
-        ]
-        self._flush_chunk_updates(ctx, updates, [])
-        out = dict(trans)
-        for cid in reverted:
-            out.pop(cid, None)
-        return out
-
-    def _meter_usage(self, clients: list[ChatClient]) -> dict[str, Any]:
-        """给一组 client 挂 usage_sink 并返回累加 dict（``_new_usage_meter`` 的装配糖）。"""
-        usage, sink = _new_usage_meter()
-        for c in clients:
-            c.usage_sink = sink
-        return usage
-
-    def _persist_usage(
-        self, ctx: TaskCtx, usage: dict[str, Any], *, replace_est: bool = False
-    ) -> None:
-        """真实 usage 落账唯一实现——旁路臂**累加**、唯一记账臂**替换**。
-
-        旁路 meter 只数本臂调用——``tokens_est`` **累加**而非覆盖
-        （覆盖会把主链真账抹成旁路小计）。ExportError/crash 早退也把
-        已发调用的真账留下；``_on_loop`` 回弹使 worker 线程内的旁路臂
-        （env_judge/L2/llm_hook）也可直调，loop 线程上的
-        ``_teardown_translate`` 则直调直写。``replace_est=True`` 给唯一
-        记账臂（translating 段/doc 路——est 全程只是字符估算）用真账
-        **替换**估算。
-        """
-        if not usage["calls"]:
-            return
-        real = usage["prompt_tokens"] + usage["completion_tokens"]
-        ctx.tokens_est = real if replace_est else ctx.tokens_est + real
-        self._on_loop(self.store.update_fields, ctx.task_id, tokens=ctx.tokens_est)
-        self._on_loop(
-            self.store.record_usage,
-            ctx.task_id,
-            model=str(usage["model"]),
-            calls=int(usage["calls"]),
-            prompt_tokens=int(usage["prompt_tokens"]),
-            completion_tokens=int(usage["completion_tokens"]),
-            latency_s=float(usage["latency_s"]),
-        )
-
-    def _run_ephemeral(
-        self,
-        clients: list[ChatClient],
-        coro_fn: Callable[[], Awaitable[_T]],
-    ) -> _T:
-        """旁路臂 ephemeral-loop 消费壳：coro 与 client 关闭收进同一 ``asyncio.run``。
-
-        client 的用/关必须收进同一 ephemeral loop——拆两次 ``asyncio.run``
-        会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；关完
-        清空清单让外层 ``_teardown_bypass`` 不对已关 client 二次 aclose。
-        """
-
-        async def _arm() -> _T:
-            try:
-                return await coro_fn()
-            finally:
-                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
-                clients.clear()
-
-        return asyncio.run(_arm())
-
-    def _teardown_bypass(
-        self,
-        ctx: TaskCtx,
-        usage: dict[str, Any] | None,
-        clients: list[ChatClient],
-        *,
-        label: str,
-    ) -> None:
-        """旁路臂统一收尾（env_judge/L2/llm_hook 同构）：已发调用落账 + 未用 client 兜底关闭。
-
-        旁路烧的是 BYOK token——崩溃/早退也把已发调用落账（``usage`` 为
-        None 的臂只关 client）；``clients`` 非空 = 消费臂未跑到
-        （``_run_ephemeral`` 跑过的已自清清单）——未用 client 在新 loop
-        上关是平凡路径，兜底不敞口。
-        """
-        if usage is not None:
-            try:
-                self._persist_usage(ctx, usage)
-            except Exception:
-                log.debug("%s usage persist failed", label, exc_info=True)
-        if clients:
-            try:
-                asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
-            except Exception:
-                log.debug("%s client aclose failed", label, exc_info=True)
-
-    # ------------------------------------------------------------ translator
-
-    def _retry_model_of(self, ctx: TaskCtx, model: str) -> str:
-        """``options.retry_model`` → 备选模型名；缺省/同 primary/非法 → ``""``。
-
-        非法值记 ``retry_model`` warning 后按无备选处理——不挡主链翻译。
-        """
-        retry_model = str(ctx.options().get("retry_model") or "").strip()
-        if retry_model and retry_model != model:
-            try:
-                return validate_model(retry_model)
-            except ValueError:
-                self._warning(
-                    ctx,
-                    "retry_model",
-                    f"options.retry_model {retry_model!r} 非法，忽略",
-                )
-        return ""
-
-    def _flag_mock_run(self, ctx: TaskCtx, tr: Translator) -> None:
-        """``mock_run`` 审计键幂等写/清——resolve 出的真实形态是标记唯一真源。
-
-        ``isinstance(MockTranslator)`` 命中 → 置 ``1`` + 按任务去重发
-        ``mock_translator`` warning（建行臂的 env-mock 预标记幂等会合）；
-        非 mock resolve 而行上有陈旧标记（env flip / needs_auth 补 key
-        重跑成真）→ 摘除。``ctx.set_option`` 先同步 ``ctx.row`` 内存快照
-        （同 run 下游 ``_make_cache`` 即刻可见），库写经 ``_on_loop``
-        回弹——本方法在 loop（``_stage_translate``）与工作线程
-        （``_l2_run_state``/``_llm_hook_pack`` 的 to_thread 段）两侧都会
-        被调到，写面必须走单写者通道。
-        """
-        is_mock = isinstance(tr, MockTranslator)
-        if is_mock:
-            if ctx.task_id not in self._mock_warned:
-                self._mock_warned.add(ctx.task_id)
-                self._warning(
-                    ctx,
-                    "mock_translator",
-                    "本任务译文由 MockTranslator 产出——占位译文而非真实翻译",
-                )
-            if not ctx.options().get("mock_run"):
-                options_json = ctx.set_option("mock_run", 1)
-                self._on_loop(
-                    self.store.update_fields,
-                    ctx.task_id,
-                    options_json=options_json,
-                )
-        elif ctx.options().get("mock_run"):
-            options_json = ctx.update_options(lambda opts: opts.pop("mock_run", None))
-            self._on_loop(
-                self.store.update_fields,
-                ctx.task_id,
-                options_json=options_json,
-            )
-
-    def _resolve_translator(
-        self,
-        ctx: TaskCtx,
-        *,
-        sink: Callable[[UsageRecord], None] | None = None,
-        retry: bool = True,
-    ) -> Translator:
-        """统一 ``Translator`` 构造决策链（``_make/_doc/_llm_hook_pack`` 同源）。
-
-        序即优先级：``translator_factory`` 注入 → ``TEXLATE_TRANSLATOR=mock``
-        → 网关臂（``force=gateway`` 或有 ``api_key``）→ 无 key 硬失败。
-
-        网关臂两形态：``sink`` 给定 = ephemeral-loop 消费面（doc 路/llm_hook
-        的 ``asyncio.run`` 临时 loop——共享 client 跨 loop 复用会炸、aclose
-        回不去已关 loop）→ ``_PerCallTranslator`` 即开即关；``sink=None`` =
-        主链共享 client ``GatewayTranslator``，``retry_model`` 经
-        ``_FallbackTranslator`` 接备选。``retry=False`` 给不接
-        ``retry_model`` 的旁路臂（llm_hook——备选模型烧 token 的语义不擅自
-        加）用。
-
-        无 key 且未显式 mock/gateway 时静默假译文是生产事故面（M1）——
-        建行闸拦常规入口后本臂兜底 replay/直拉残留：留 ``mock_translator``
-        warning 痕后抛 ``AuthError``（``core.run`` 归 ``provider_auth``
-        fault，``retryable=False``）。Mock 自此只对显式 opt-in 可达。
-
-        每条成功返回路径先过 ``_flag_mock_run``——mock 形态落
-        ``options_json.mock_run`` 审计键（reuse/dedup 排除 + retry 放行
-        的消费面），非 mock resolve 顺带摘陈旧标记。
-        """
-        tr: Translator
-        if self._translator_factory is not None:
-            tr = self._translator_factory(ctx)
-        else:
-            force = translator_mode()
-            if force == "mock":
-                tr = MockTranslator()
-            elif force == "gateway" or ctx.secrets.api_key:
-                model = ctx.secrets.model or DEFAULT_MODEL
-                retry_model = self._retry_model_of(ctx, model) if retry else ""
-                if sink is not None:
-                    tr = _PerCallTranslator(
-                        ctx.secrets.base_url,
-                        ctx.secrets.api_key,
-                        model,
-                        sink,
-                        retry_model=retry_model,
-                        dialect=ctx.secrets.dialect,
-                    )
-                else:
-                    client = ChatClient(
-                        ctx.secrets.base_url,
-                        ctx.secrets.api_key,
-                        dialect=ctx.secrets.dialect,
-                    )
-                    primary = GatewayTranslator(client, model)
-                    tr = (
-                        _FallbackTranslator(
-                            primary, GatewayTranslator(client, retry_model)
-                        )
-                        if retry_model
-                        else primary
-                    )
-            else:
-                if ctx.task_id not in self._mock_warned:
-                    self._mock_warned.add(ctx.task_id)
-                    self._warning(
-                        ctx,
-                        "mock_translator",
-                        "未配置 API key——翻译中止（请配置 key 后重试）",
-                    )
-                msg = "未配置 API key——请在设置页或 X-Texlate-Key 头提供"
-                raise AuthError(msg)
-        self._flag_mock_run(ctx, tr)
-        return tr
-
-    def _make_translator(self, ctx: TaskCtx) -> Translator:
-        """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。
-
-        ``options.retry_model`` 仅在默认网关路径生效——备选模型与 primary
-        同 client（同 endpoint+key），``translator_factory``/Mock 注入路径
-        由调用方自担语义不包。决策链本体在 ``_resolve_translator``。
-        """
-        return self._resolve_translator(ctx)
-
-    def _doc_translator(
-        self, ctx: TaskCtx, sink: Callable[[UsageRecord], None]
-    ) -> Translator:
-        """``_run_doc`` 专用 translator——``_resolve_translator`` 的 per-call 臂。
-
-        ``export_document`` 内嵌管线在 to_thread 的 ephemeral ``asyncio.run``
-        loop 里消费 client——共享 client 的 aclose 回不去该 loop（已关），
-        跨 loop 关连接炸 RuntimeError 被吞成 FD 泄漏。``sink`` 给定即开
-        ``_PerCallTranslator``；``retry_model`` 经其内建备选臂保持 option
-        面等价。factory/Mock 注入路径原样（测试桩语义调用方担）。
-        """
-        return self._resolve_translator(ctx, sink=sink)
-
-    def _glossary_path(
-        self, ctx: TaskCtx, gpath: str, glossary_dir: str
-    ) -> Path | None:
-        """``glossary`` 选项 → confine 后的实际路径（None = 拒/无命中）。
-
-        防任意文件读（审计 M2：glossary 内容进 LLM prompt 是外泄通道）：
-        只收**相对路径**，逐个解析根——任务 ``base/`` 优先，然后
-        ``glossary_dir``（settings 指定、运维侧受信目录，经 config_json
-        透传）兜底；绝对路径与 ``..`` 形态即拒，resolve 后仍须
-        is_relative_to 根（symlink 逃逸同挡）。
-        """
-        rel = Path(gpath)
-        if rel.is_absolute() or ".." in rel.parts:
-            self._warning(ctx, "glossary_rejected", f"glossary 路径越界被拒: {gpath!r}")
-            return None
-        cand = resolve_glossary_path(gpath, glossary_dir, ctx.base_dir)
-        if cand is None:
-            self._warning(
-                ctx, "glossary_rejected", f"glossary 不在允许根内或不存在: {gpath!r}"
-            )
-        return cand
-
-    def _local_glossary(self, ctx: TaskCtx) -> Path | None:
-        """论文级 ``glossary.local.yaml`` 探测：任务 ``base/`` 根下同名文件。
-
-        三级表（user > local > category seed）的 local 层——随源树走的
-        项目内覆盖（upload_tex 压缩包/arxiv e-print 自带即生效）；docx/
-        epub/pdf 路无 ``base/`` 自然缺省。返回 None = 无该层。
-        """
-        cand = ctx.base_dir / LOCAL_GLOSSARY_NAME
-        return cand if cand.is_file() else None
-
-    def _glossary_layers(
-        self, ctx: TaskCtx, cfg: Mapping[str, Any], *, warn: bool
-    ) -> tuple[Path | None, Path | None]:
-        """生效术语层解析 → ``(confine 后 user 层|None, local 层|None)``——三面单源。
-
-        ``glossary`` 选项取 ``cfg.glossary > options.glossary``（``_glossary_option``）；
-        ``warn=True`` 经 ``_glossary_path`` confine——越界/无命中记
-        ``glossary_rejected`` warning（``_make_glossary``/share 对账面）；
-        ``warn=False`` 走静默 ``resolve_glossary_path``（``_make_cache``
-        指纹面不告警——告警由 load 路单发不双发）。``user_glossary_path``
-        缺省层回落不在内——各消费点按自身口径补（``Glossary.load`` 自带
-        缺省、cache 指纹须显式覆盖、share 哈希走 ``fallback_user`` 参数）。
-        """
-        gpath = _glossary_option(ctx, cfg)
-        local = self._local_glossary(ctx)
-        if not gpath:
-            return None, local
-        gdir = str(cfg.get("glossary_dir") or "")
-        user = (
-            self._glossary_path(ctx, gpath, gdir)
-            if warn
-            else resolve_glossary_path(gpath, gdir, ctx.base_dir)
-        )
-        return user, local
-
-    def _arxiv_categories(self, ctx: TaskCtx) -> list[str]:
-        """``options.arxiv_categories``（``_fetch_arxiv`` 持久化）→ category 层键。"""
-        raw = ctx.options().get("arxiv_categories")
-        if not isinstance(raw, list):
-            return []
-        return [c for c in raw if isinstance(c, str)]
-
-    def _make_glossary(self, ctx: TaskCtx) -> Glossary | None:
-        """术语表：config.glossary 路径优先（confine 后），缺省内置默认层。
-
-        四层序：user > local(``base/glossary.local.yaml``) > categories
-        （arXiv 声明分类 → ``terms/*.csv`` 经 index.yaml）> default。
-        占位符点名册不走本表——``pipeline._materialize`` 经
-        ``render_placeholder_manifest`` 单行压 ``<Glossary>`` 块末行。
-
-        每任务 2~4 调（主链/env_judge/L2/pdf 臂同形构造）——``ctx.memo``
-        按 ``"glossary"`` 备忘复用。
-        """
-        mkey = "glossary"
-        if mkey in ctx.memo:
-            return ctx.memo[mkey]
-        cfg = ctx.config()
-        cats = self._arxiv_categories(ctx)
-        try:
-            path, local = self._glossary_layers(ctx, cfg, warn=True)
-            if path is None:
-                g = Glossary.load(local_path=local, categories=cats)
-            else:
-                g = Glossary.load(
-                    user_path=path,
-                    local_path=local,
-                    categories=cats,
-                )
-        except Exception as e:  # noqa: BLE001 -- 术语表是增强件：load 面 TypeError/yaml.YAMLError 等非 OSError/ValueError 同降级无表
-            self._log(ctx, f"glossary load failed: {e}")
-            g = None
-        ctx.memo[mkey] = g
-        return g
-
-    def _auto_glossary_fn(
-        self, ctx: TaskCtx, clients: list[ChatClient]
-    ) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
-        """``auto_glossary`` option 开时接 ``autogloss.extract_terms``。
-
-        抽取臂与翻译同模（``ctx.secrets.model``——BYOK 端点名字网关私有，
-        硬编公网模型名会在非公网端点上 404）。ctx.memo 备忘防 resume
-        重抽——同一 task 的二次 ``pipe.run`` 复用首轮结果。
-        """
-        # ``auto_glossary`` 与 ``_make_cache`` 的 ag 指纹成分同读法——
-        # opt_bool 口径（"0"/"false" 字符串系判假），两站须同改
-        if not opt_bool(ctx.options(), "auto_glossary", lambda: False) or not clients:
-            return None
-        return auto_glossary_fn(
-            clients[0],
-            str(ctx.secrets.model or DEFAULT_MODEL),
-            ctx.memo,
-            "autogloss_terms",
-        )
-
-    def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
-        """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。
-
-        M1 防毒围栅——以下任一成立返 ``_NullCache``（持久面读恒 miss、
-        写不落库；run 内 dedup 语义保留）：
-
-        - 无 ``api_key``：``file_cache_key`` 指纹不含凭证，无 key 形态
-          写出的条目跨凭证命中续毒（实测 fresh+真 key 仍 67% 命中 mock
-          残段）——缺 key 臂已被 ``_resolve_translator`` AuthError 拦死，
-          本项兜 factory 注入/未来新入口的零 key 跑；
-        - ``TEXLATE_TRANSLATOR=mock`` / 行 ``mock_run`` 标记：mock 产物
-          永不进共享缓存；
-        - ``no_seg_cache`` 内部选项：retry 闸对 mock_run 行注入——绕开
-          mock 期写入的存量残毒（读面也断）。
-        """
-        opts = ctx.options()
-        if (
-            not ctx.secrets.api_key
-            or translator_mode() == "mock"
-            or opt_bool(opts, "no_seg_cache", lambda: False)
-            or opt_bool(opts, "mock_run", lambda: False)
-        ):
-            return _NullCache()
-        cfg_row = ctx.config()
-        # user/local 层解析与 ``_make_glossary`` 同源（``warn=False``
-        # 静默 confine——告警由 load 路 ``_glossary_path`` 单发不双发）
-        gfile, local = self._glossary_layers(ctx, cfg_row, warn=False)
-        local_sig = ""
-        if local is not None:
-            # local 层内容进指纹——同名文件换内容/有无该层都改变有效术语表；
-            # 读失败与 user_sig 同态按无层（术语层是增强件不毁段）
-            try:
-                local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
-            except OSError:
-                local_sig = ""
-        # user 层同按内容进指纹（``_share_glossary_hash`` 同口径）：
-        # 路径字符串当指纹会同名换内容串桶/异名同内容分桶；拒/缺席与
-        # ``_make_glossary`` 同态回落 ``user_glossary_path`` 缺省层
-        if gfile is None and seams.user_glossary_path().is_file():
-            gfile = seams.user_glossary_path()
-        user_sig = ""
-        if gfile is not None:
-            try:
-                user_sig = hashlib.sha256(gfile.read_bytes()).hexdigest()[:12]
-            except OSError:
-                user_sig = ""
-        # categories 进指纹：不同分类 → category 层术语不同 → 同源句的
-        # 翻译函数不同，跨论文共享必须按分类分桶。文档占位符点名册逐文档
-        # 漂移——进指纹会把缓存锁死成单文档桶，不进。
-        cats = ",".join(self._arxiv_categories(ctx))
-        # base_url 进指纹：同名 model 换后端（free 网关 vs BYOK 端点）产出
-        # 不同——缺此项段缓存跨 provider 混桶中毒（spec file_cache_key
-        # 公式含 base 同口径，spec-xlat #7）。
-        base = str(ctx.secrets.base_url or cfg_row.get("base_url") or "")
-        # auto_glossary 开关进指纹：开=auto 抽取层进 system prompt → 同源句
-        # 翻译函数变，须分桶防关态译文污染开态桶（术语内容本身非确定，
-        # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。读法与
-        # ``_auto_glossary_fn`` 同走 opt_bool——指纹须与实际行为同源
-        ag = "1" if opt_bool(ctx.options(), "auto_glossary", lambda: False) else "0"
-        cfg = hashlib.sha256(
-            f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}".encode()
-        ).hexdigest()[:16]
-        if cache_scope() == "per_key":
-            # 与 cache_key_for 同一 oracle 防护：段级 translation_cache
-            # 表同样可被跨租户探测命中，按 key 指纹分桶。
-            key_sha = hashlib.sha256(ctx.secrets.api_key.encode()).hexdigest()[:16]
-            cfg = f"k{key_sha}:{cfg}"
-        return SegmentCache(
-            self.store,
-            prefix=cfg,
-            model=str(ctx.row["model"]),
-            target_lang=str(ctx.row["target_lang"]),
-        )
+            getattr(mod, name)
+        except Exception as exc:  # noqa: BLE001 -- 同上
+            drift.append(f"__all__ entry {name} does not resolve: {exc}")
+    local_publics = {
+        name
+        for name, v in vars(mod).items()
+        if not name.startswith("_")
+        and name not in _LAZY
+        and name not in _STDLIB_MODS
+        and name not in _EXTRA_BINDINGS
+        and name not in _MODULE_ATTRS
+        and name not in _TEXLATE_EXPORTS
+        and callable(v)
+        and getattr(v, "__module__", None) == __name__
+    }
+    drift += [
+        f"{name} defined locally but missing from __all__"
+        for name in sorted(local_publics)
+        if name not in __all__
+    ]
+    return drift
