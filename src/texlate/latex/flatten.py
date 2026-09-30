@@ -142,7 +142,7 @@ def resolve_input(
 def _resolve(
     fname: str, file_dir: str, root_dir: str, *, top_dir: str | None = None
 ) -> str | None:
-    r"""``resolve_input`` 薄代理——tests/test_flatten_boundary.py 直引此名。"""
+    r"""``resolve_input`` 薄代理——tests/latex/test_flatten_boundary.py 直引此名。"""
     return resolve_input(fname, file_dir, root_dir, top_dir=top_dir)
 
 

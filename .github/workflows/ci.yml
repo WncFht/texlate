@@ -145,7 +145,7 @@ jobs:
       - name: pytest
         run: uv run pytest tests/ -q
 
-  # fuzz 冒烟：tests/test_fuzz_* 全文件面独立车道（~1800 用例，本地 ~1min）。
+  # fuzz 冒烟：tests/fuzz/ 全文件面独立车道（~1800 用例，本地 ~1min）。
   # _FUZZ_ITERS 各文件硬编码、无 env knob——冒烟边界靠 timeout-minutes 兜底
   # 而非缩迭代；glob 自动收编后续新增 fuzz 文件。不装 node/bench-ts——
   # 现有 fuzz 面无 tree-sitter 依赖（validate 只伪造 node_modules 目录）。
@@ -163,8 +163,8 @@ jobs:
       - name: uv sync
         run: uv sync --frozen --extra server
 
-      - name: fuzz smoke (tests/test_fuzz_*)
-        run: uv run pytest tests/test_fuzz_*.py -q -x
+      - name: fuzz smoke (tests/fuzz/)
+        run: uv run pytest tests/fuzz/ -q -x
 
   web:
     name: Web

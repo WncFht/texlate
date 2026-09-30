@@ -289,7 +289,7 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 ## 7. `bench/`
 
-两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）；`RETENTION.md` 已随 Wave-F（2026-09-23）删除——`results/` 产物目录清零后留存契约失效。fixtures 陷阱断言登记在 `tests/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
+两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）；`RETENTION.md` 已随 Wave-F（2026-09-23）删除——`results/` 产物目录清零后留存契约失效。fixtures 陷阱断言登记在 `tests/bench_kernel/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
 
 | 路径                    | 角色                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -314,7 +314,7 @@ lint/format 链：`ruff.toml` 是 `select=ALL` 严格集 + 逐条注明豁免（
 
 `web/` 独立工具链：`tsc --noEmit` + eslint + vitest + `vite build`，本地 pre-commit eslint glob 只盖 `js/mjs/cjs`（web 的 `.ts` 由 web toolchain/CI 把关，不假设 `web/node_modules` 在场）。`bench/ts/` 另有一套 CommonJS `package.json`。
 
-CI（`.github/workflows/ci.yml`）八 job 与本地同源：`format`（prettier check + markdownlint + eslint + actionlint + taplo）、`secrets`（gitleaks 全史扫）、`python`（ruff format --check + ruff check）、`shell`（shfmt + shellcheck，zsh 跳过）、`pytest`（uv sync --extra server + `npm ci --prefix bench/ts` 供 L1 tree-sitter 依赖）、`fuzz`（`tests/test_fuzz_*` 冒烟）、`web`（tsc+eslint+vitest+build）、`engine`（tectonic/xelatex 矩阵跑真编译 `texlate run` 冒烟，tectonic 二进制 sha256 钉死）。另有 `release.yml` 发版流。
+CI（`.github/workflows/ci.yml`）八 job 与本地同源：`format`（prettier check + markdownlint + eslint + actionlint + taplo）、`secrets`（gitleaks 全史扫）、`python`（ruff format --check + ruff check）、`shell`（shfmt + shellcheck，zsh 跳过）、`pytest`（uv sync --extra server + `npm ci --prefix bench/ts` 供 L1 tree-sitter 依赖）、`fuzz`（`tests/fuzz/` 冒烟）、`web`（tsc+eslint+vitest+build）、`engine`（tectonic/xelatex 矩阵跑真编译 `texlate run` 冒烟，tectonic 二进制 sha256 钉死）。另有 `release.yml` 发版流。
 
 `Dockerfile` 三阶段构建 server 形态：node 构建 SPA → 取 tectonic musl 静态二进制（sha256 钉死）→ `python:3.12-slim` + `uv sync --extra server` + fonts-noto-cjk + poppler-utils（judge 的 pdftotext 依赖）；`TEXLATE_MODE=server`、`TEXLATE_DATA_DIR=/data`、暴露 8765。BabelDOC 不随镜像分发（AGPL 进程边界 + 体积），PDF 上传通路需另行安装。TeXLive xelatex 变体（`texlate:full`）有注释段可追加 texlive-xetex/lang-chinese/latexmk。
 

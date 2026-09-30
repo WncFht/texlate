@@ -76,7 +76,7 @@ WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 #: 全靠这 +8 后随行可达（graphicx ``I could not locate ... extensions:``
 #: errhelp 恒居错误行 +8，恰出 ctx8 右缘——logparse ``_POST_LINES`` 同
 #: 签名域）；收窄到 CTX_LINES 会在 judge 路径丢该命中面。钉值同
-#: tests/test_fuzz_engine.py ``_CTX_N = 9``。
+#: tests/fuzz/test_fuzz_engine.py ``_CTX_N = 9``。
 _CTX_FOLLOW: Final = 8
 
 

@@ -12,7 +12,7 @@ r"""secret 形态表单源 —— 日志/错误面脱敏正则的跨层宿主叶
   ``***.尾`` 留残，单宽行无此坑）；``key-`` 宽松形为日志面独有。
 
 ``Bearer``/``AIza``/``api_key=`` 三行两表同形，字面只定义一次。
-覆盖不变量由 ``tests/test_secret_patterns.py`` 钉住（基表新形态无
+覆盖不变量由 ``tests/xlat/test_secret_patterns.py`` 钉住（基表新形态无
 日志表覆盖即红）。宿本叶而非任一消费层：logsetup 是日志底座不能
 反引 ``xlat``（拖 httpx/asyncio/ssl 全栈），``xlat._errors`` 同理
 不引 logsetup——textutil 底叶是双方可达的最低点。

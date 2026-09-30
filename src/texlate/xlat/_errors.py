@@ -284,7 +284,7 @@ def _raise_for_finish(finish: str, content: str, *, detail: str = "") -> None:
 
 #: 严档 secret 形态表——单源 ``textutil.secrets.SECRET_PATTERNS``，本模块
 #: 别名转口保 ``xlat._errors._SECRET_PATTERNS``（及 ``client`` 回引链）
-#: 钉点名不变；覆盖不变量 ``tests/test_secret_patterns.py`` 钉住。
+#: 钉点名不变；覆盖不变量 ``tests/xlat/test_secret_patterns.py`` 钉住。
 
 
 def redact(text: str, api_key: str = "") -> str:

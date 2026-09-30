@@ -73,7 +73,7 @@ _LOG_FILE_BACKUPS = 3
 #: 日志面 secret 形态表（宽档）——单源 ``textutil.secrets.SECRET_LOG_PATTERNS``
 #: 转口：``scrub``/``RedactFilter._scrub`` 共用同一份迭代面，server
 #: ``logredact._KEY_PATTERNS`` 名字面同源；覆盖不变量由
-#: ``tests/test_secret_patterns.py`` 钉住。
+#: ``tests/xlat/test_secret_patterns.py`` 钉住。
 
 
 def scrub(text: str, api_key: str = "") -> str:

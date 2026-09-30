@@ -195,7 +195,7 @@ def update_file_stack(
 #: engine/l2/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
 #: 补回栈顶真名。
 PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
-#: 旧私名钉点——tests/test_fuzz_texlog 经 ``texlog._PS_GRAPHIC_EXTS`` 消费。
+#: 旧私名钉点——tests/fuzz/test_fuzz_texlog 经 ``texlog._PS_GRAPHIC_EXTS`` 消费。
 _PS_GRAPHIC_EXTS = PS_GRAPHIC_EXTS
 
 

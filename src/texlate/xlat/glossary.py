@@ -127,7 +127,7 @@ def _term_hit(en: str, fc: str) -> bool:
 
     逐术语 ``re.search``（O(#terms × corpus 字节)——725 词 × 150KB 实测
     ~1.05s/篇）换成 corpus 一次 ``_afold`` + 首词 ``str.find`` 锚定 +
-    ``_seam_match`` 缝扫（~15×）。与 ``tests/test_fuzz_glossary.py`` 的
+    ``_seam_match`` 缝扫（~15×）。与 ``tests/fuzz/test_fuzz_glossary.py`` 的
     ``_oracle_term_hit`` 同算法——``test_fuzz_doc_filter_oracle`` 差分钉。
     空/纯缝 en 退化 ``_zero_width_hit``（旧零宽断言口径保持）。
     """

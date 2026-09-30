@@ -44,7 +44,7 @@ chunk 产出层自带两件校验器（`latex/reconstruct.py`），属上游解�
 | `_check_protocol_echo`                                                              | 协议回显守卫（`_ECHO_SIGS`：corrector 三段式节标 `[Original]`/`[Translation]`/`[Error]` + L0 反馈行话 `占位符缺失:`/`占位符疑似拼错`/`多余/未识别占位符:`/`结构占位符`/`注释区内臆造占位符` + 重试协议字面 `previous_validation_error`/`slot_validation_failures`/`[compile_error]`；`[n]`/`@@`/`placeholder_values` 批协议残渣由 `xlat/batch.py` 剥除，不经本查） | error                                                                                                                            |
 | `_check_comment_eof`                                                                | 注释/EOF 边界形态                                                                                                                                                                                                                                                                                                                                                  | error                                                                                                                            |
 
-`CACHE_VETO_RULES = {placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}`（`l0.py`）——缓存写入/命中否决面，与 `xlat/pipeline.py::_INTERCEPT_NETS` 五张升格拦截网镜像同源（`leftover_ph`/`ph_in_cs`/`bare_cs`/`residual_en`/`dangerous_cs`）；`placeholder` 网只镜像 zh−src 净多出臂，缺失/锚定臂归阶梯修复管辖。漂移由 `tests/test_redlines.py` 系 pin 拦截。实测 10 类破坏全检出、干净对零 error-FP、拼错高比例给出 lev≤2 修复建议[^l0-rules]。
+`CACHE_VETO_RULES = {placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}`（`l0.py`）——缓存写入/命中否决面，与 `xlat/pipeline.py::_INTERCEPT_NETS` 五张升格拦截网镜像同源（`leftover_ph`/`ph_in_cs`/`bare_cs`/`residual_en`/`dangerous_cs`）；`placeholder` 网只镜像 zh−src 净多出臂，缺失/锚定臂归阶梯修复管辖。漂移由 `tests/compile/test_redlines.py` 系 pin 拦截。实测 10 类破坏全检出、干净对零 error-FP、拼错高比例给出 lev≤2 修复建议[^l0-rules]。
 
 `pair_feedback(src, zh)` = `validate_pair(...).feedback()`——pipeline.validator 签名对齐版，e2e/pipecore/worker 四臂共用。
 
@@ -71,7 +71,7 @@ chunk 产出层自带两件校验器（`latex/reconstruct.py`），属上游解�
 
 ## 5. 红线概念注册表（`redlines.py`）
 
-同一红线概念在多层（engine warning 扫描 / fixloop `warnings:` 段 / l2 行级类 / judge 门控探针）**有真分歧**而非纯拼写问题——注册表按 concept 行登记各层 `(发射名, pattern)` 切片，消费者各取本层、分歧并列可见防再漂（`tests/test_redlines.py` pin 住 rules yaml 镜像）。导出切片：`ENGINE_RED_LINES`（登记序）、`RULES_WARNINGS`（镜像期望）、`L2_REDLINE_CLASSES`（红线集）、`L2_WARNING_RULES`（行级 pattern 托管）、`REDLINES_BY_ID`（归因面引 id）。
+同一红线概念在多层（engine warning 扫描 / fixloop `warnings:` 段 / l2 行级类 / judge 门控探针）**有真分歧**而非纯拼写问题——注册表按 concept 行登记各层 `(发射名, pattern)` 切片，消费者各取本层、分歧并列可见防再漂（`tests/compile/test_redlines.py` pin 住 rules yaml 镜像）。导出切片：`ENGINE_RED_LINES`（登记序）、`RULES_WARNINGS`（镜像期望）、`L2_REDLINE_CLASSES`（红线集）、`L2_WARNING_RULES`（行级 pattern 托管）、`REDLINES_BY_ID`（归因面引 id）。
 
 | concept id                   | engine            | rules(warnings:)                   | l2                                                    | judge                      | 备注                                                                                               |
 | ---------------------------- | ----------------- | ---------------------------------- | ----------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |

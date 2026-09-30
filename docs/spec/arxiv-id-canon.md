@@ -68,7 +68,7 @@ archive lowercase → 白名单校验（§3），不过 → CanonError
 - **锚定正则前缀剥，不 urlparse 任意 host**——`ftp://`/`javascript:` 等怪 scheme、`:8080` 端口、`//` 双斜杠结构性拒收（剥不掉前缀的剩件过不了 §3 形检）。
 - **子域点界**：arxiv.org 臂的子域组是 `(?:[\w.-]+\.)?`（显式 `.` 边界）——`notarxiv.org`、`arxiv.org.evil.com` 这类寄生/拼合域不得命中。镜像白名单臂（`ar5iv.org`/`alphaxiv.org`）**须带 http(s) scheme 且动词限 `abs|pdf|html`**——`/overview` 等未实证动词不收，裸域无 scheme 不收。
 
-必收形态实例（`tests/test_arxiv_canon.py` 30 形态表摘）：
+必收形态实例（`tests/arxiv/test_arxiv_canon.py` 30 形态表摘）：
 
 | 输入                                            | canon base         |
 | ----------------------------------------------- | ------------------ |

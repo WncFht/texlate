@@ -62,7 +62,7 @@ r"""``Segmenter`` 主循环/preamble/分派/math/verb。"""
 
 
 # ``_dispatch`` 行序投影——名→判据绑定单源 ``_common._FAM_BIND``，
-# 本表只携行序（``tests/test_dispatch_mirror.py`` 逐名裁决三面族序）。
+# 本表只携行序（``tests/latex/test_dispatch_mirror.py`` 逐名裁决三面族序）。
 # 行序即 ``_dispatch`` 分派序，改序须同步下方 ``_fams`` 名列表。
 _DISPATCH_FAMS: tuple[tuple[str, object], ...] = _fams(
     "verb",

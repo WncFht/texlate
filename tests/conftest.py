@@ -329,6 +329,9 @@ def tar_bytes(
     return buf.getvalue()
 
 
+MIRROR = "https://m.test/tlnet"
+
+
 def make_tarxz(
     members: dict[str, bytes] | Iterable[tuple[tarfile.TarInfo, bytes]],
 ) -> bytes:

@@ -832,7 +832,7 @@ class SalvageMockEngine(MockEngine):
 
 
 # ---- 同体别名: 各 finding 的历代命名全归 MockRes/MockEngine canonical 对 ----
-# ``ScriptedEngine`` 与 tests/test_e2e_wiring.py:84 的 callable-script 类
+# ``ScriptedEngine`` 与 tests/xlat/test_e2e_wiring.py:84 的 callable-script 类
 # 同名不同形 (swap-trap, idx-176 已记)——新车道请用 ``ScriptEngine``/
 # ``MockEngine``；此别名仅为 idx-131 adopters 的名字解析兜底。
 ScriptedRes = MockRes

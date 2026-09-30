@@ -194,3 +194,103 @@ def sse_frames(
             )
             out.append((fid, ln.removeprefix("event:").strip(), data))
     return out
+
+
+#: L2 可归因错误 log：``(./main.tex`` 文件栈 + ``l.N`` 行号 → main.tex chunk。
+#: 行号运行时取——ctex 注入往 preamble 塞了几十行，写死的行号会落在注入
+#: 锅炉板里（chunk 全部在其后，顺序读取不变量下不可归因——#78 修复后
+#: forward-fallback 不再把 preamble 错误错归给首个正文块）。
+def _attr_err_log(wdir: Path, stem: str) -> str:
+    """``l.N`` 指向 zh 树里首个译文块所在行（mock 标记 ``这是译文``）。"""
+    ln = 1
+    src = wdir / f"{stem}.tex"
+    if src.is_file():
+        for i, line in enumerate(
+            src.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+        ):
+            if "这是译文" in line:
+                ln = i
+                break
+    return f"(./main.tex\n! Undefined control sequence.\nl.{ln} \\badcs\n"
+
+
+class L2FlakyEngine:
+    """按 wdir 计数的假引擎：``build-zh`` 前 ``n_fail`` 次 compile 出可归因
+    L2 错误 log；``build-en`` 等其余目录恒净。
+
+    ``n_fail=1`` → L2 重编即绿（验证 L2 修好就跳过 fixloop）；
+    ``n_fail=2`` → L2 重编仍败 → 回落后**裸编验证**即绿；
+    ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 L2 之后兜底）。
+    en 侧必须恒净——worker 以 en 编译错误签名作 zh 归因的源生基线，
+    en 同签名失败会把 zh 错误判源携带豁免掉（过滤语义本身正确，
+    本 fixture 的前提是「en 干净、错由译文引入」）。
+    探测面对齐 fixloop 会触到的 Engine 鸭子型。
+    """
+
+    name = "l2flaky"
+    caps: frozenset[str] = frozenset()
+
+    def __init__(self, n_fail: int = 1) -> None:
+        """calls 记全部 compile（wdir/passes）供断言。"""
+        self.n_fail = n_fail
+        self.calls: list[dict[str, object]] = []
+
+    def probe_file(self, fname: str, cwd: Path | None = None) -> bool:  # noqa: ARG002
+        """Protocol：永远找不到。"""
+        return False
+
+    def install_file(
+        self,
+        fname: str,  # noqa: ARG002
+        *,
+        font_related: bool = False,  # noqa: ARG002
+    ) -> bool:
+        """Protocol：装不了。"""
+        return False
+
+    def filemap(self, fname: str) -> list[str]:  # noqa: ARG002
+        """Protocol：空。"""
+        return []
+
+    def rebuild_fontmaps(self) -> None:
+        """Protocol：noop。"""
+        return
+
+    def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名，kwarg 名是接口
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 1,
+        timeout: float | None = None,  # noqa: ARG002
+        outdir: Path | None = None,  # noqa: ARG002
+        sandbox: bool = True,  # noqa: ARG002
+        env_extra: dict[str, str] | None = None,  # noqa: ARG002
+        best_effort: bool = False,
+        flags: list[str] | None = None,  # noqa: ARG002
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
+    ) -> CompRes:
+        """build-zh 同 wdir 前 n_fail 次写出错 log 无 pdf，其后出假 pdf。"""
+        n = sum(1 for c in self.calls if c["wdir"] == str(wdir))
+        ok = n >= self.n_fail or "build-zh" not in str(wdir)
+        self.calls.append(
+            {"wdir": str(wdir), "passes": passes, "best_effort": best_effort}
+        )
+        stem = Path(main).stem
+        log_path = wdir / f"{stem}.log"
+        text = _CLEAN_LOG if ok else _attr_err_log(wdir, stem)
+        log_path.write_text(text, encoding="utf-8")
+        pdf = wdir / f"{stem}.pdf"
+        if ok:
+            pdf.write_bytes(b"%PDF-1.4\n% fake pdf\n")
+        return CompRes(
+            engine=self.name,
+            ok=ok,
+            pdf=pdf if ok else None,
+            pdf_bytes=pdf.stat().st_size if ok else 0,
+            log=parse_log(text),
+            log_path=log_path,
+            rc=0 if ok else 1,
+            passes=passes,
+            seconds=0.01,
+        )

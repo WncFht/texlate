@@ -92,8 +92,9 @@ exclude = [
 # norecursedirs 全量覆盖 pytest 默认值，需把默认集一并列回
 testpaths = ["tests"]
 # bench/py 纯 stdlib 脚本目——kernel/specs/verbs 供 tests/bench_kernel/ 直接
-# import（收口原各文件模块级 sys.path.insert 的全会话污染）
-pythonpath = ["bench/py"]
+# import（收口原各文件模块级 sys.path.insert 的全会话污染）；
+# tests 使桶内测试文件可解析根部 _*kit/conftest/_translators 共享件
+pythonpath = ["bench/py", "tests"]
 norecursedirs = [
   "tmp",
   "bench",

@@ -71,7 +71,7 @@ surface 引擎在 ``grpscan.py``，经 ``_Pending(_GrpScan)`` 并入同一 MRO�
 
 
 # ``_group_surface`` 行序投影——名→判据绑定单源 ``_common._FAM_BIND``
-# （``tests/test_dispatch_mirror.py`` 逐名裁决三面族序）；``None`` 动态行 =
+# （``tests/latex/test_dispatch_mirror.py`` 逐名裁决三面族序）；``None`` 动态行 =
 # env 宏/opaque 宏/argspec/探针。行序即 ``_group_surface`` 分派序。
 _GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = _fams(
     "verb",

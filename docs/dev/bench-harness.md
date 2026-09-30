@@ -41,7 +41,7 @@
 
 ### 2.2 陷阱断言（fixtures）
 
-逐条检查分类是否符合「段落级提取 + 保护 + 重建」管线的期望：`% @Tnn` 标记的每个构造都要么整体保护（数学/引用 key/verbatim/宏定义绝不进可译块）、要么内部文本可译（caption/footnote/item/长标题/强调文本）、要么展平（`\input`/`\include`，注释掉的不展开）、要么不崩（`\ifdraft`、`\bibliography`、`\makeatletter` 区）。断言矩阵随产品解析器演进，以 `tests/test_bench_regression.py` 与 `bench/py/specs/fixture_assert.py` 为准。
+逐条检查分类是否符合「段落级提取 + 保护 + 重建」管线的期望：`% @Tnn` 标记的每个构造都要么整体保护（数学/引用 key/verbatim/宏定义绝不进可译块）、要么内部文本可译（caption/footnote/item/长标题/强调文本）、要么展平（`\input`/`\include`，注释掉的不展开）、要么不崩（`\ifdraft`、`\bibliography`、`\makeatletter` 区）。断言矩阵随产品解析器演进，以 `tests/bench_kernel/test_bench_regression.py` 与 `bench/py/specs/fixture_assert.py` 为准。
 
 ### 2.3 Round-trip 保真（corpus 主文件）
 

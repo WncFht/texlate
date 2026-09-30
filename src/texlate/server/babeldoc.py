@@ -89,7 +89,7 @@ _CJK_MIN_RATIO = 0.10
 #: PATH/HOME/locale、代理族两形（httpx 拉 HF 字体/cmap/onnx 与 github 资产）、
 #: CA-bundle（corp-TLS）、``HF_ENDPOINT``（hf-mirror）、tmpdir、Windows
 #: MSVCRT 必需 SystemRoot/WINDIR。
-#: ``FAKE_BABELDOC_MODE`` 是 e2e 假 CLI 舵向 seam（tests/test_server_babeldoc.py
+#: ``FAKE_BABELDOC_MODE`` 是 e2e 假 CLI 舵向 seam（tests/server/test_server_babeldoc.py
 #: 经父进程 env 注入）——不入白名单则 ~6 个 e2e 的 mode 开关全灭。
 _ENV_PASS_EXACT = frozenset(
     {

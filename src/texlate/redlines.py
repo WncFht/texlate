@@ -15,7 +15,7 @@ nullfont 豁免三联改（36f926d/89b2784/0f5c1d6）靠人肉同步，已漂过
 - ``engine`` → ``compile/engine.py`` ``WARNING_RED_LINES``（全文检索 →
   ``LogInfo.warnings_hit`` → judge ``warn:*`` reasons）
 - ``rules``  → ``compile/fixloop/rules/`` ``warnings:`` 段——**镜像**，
-  fixloop loader 照旧读 yaml；一致性由 ``tests/test_redlines.py`` pin
+  fixloop loader 照旧读 yaml；一致性由 ``tests/compile/test_redlines.py`` pin
 - ``l2``     → ``validate/l2.py`` ``_WARNING_RULES`` 行级归类名/模式 +
   ``_REDLINE_CLASSES`` 红线集（``l2_redline`` 标记）
 - ``judge``  → ``compile/judge.py`` 门控/探针 regex；``name`` 即 reason
@@ -291,7 +291,7 @@ ENGINE_RED_LINES: Final[tuple[tuple[str, str], ...]] = tuple(
 )
 
 #: rules/ ``warnings:`` 段镜像期望 ``(id, pattern)`` 保持登记序——
-#: ``tests/test_redlines.py`` 用它 pin 住镜像（yaml 照旧由 fixloop loader 读）。
+#: ``tests/compile/test_redlines.py`` 用它 pin 住镜像（yaml 照旧由 fixloop loader 读）。
 RULES_WARNINGS: Final[tuple[tuple[str, str], ...]] = tuple(
     name_pattern(r.rules) for r in REDLINES if r.rules is not None
 )

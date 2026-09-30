@@ -192,7 +192,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 10. As-built 校准实录（2026-09-23 实跑标定）
 
-§4 表是**计划**；本节是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc.py`+`_raster_child.py`（检测侧）、`tests/test_layoutqc.py`（27 例）。
+§4 表是**计划**；本节是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc.py`+`_raster_child.py`（检测侧）、`tests/compile/test_layoutqc.py`（27 例）。
 
 ### 10.1 单位与坐标陷阱
 
@@ -236,7 +236,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 | 验证                                       | 规模                                                | 结果                                                   |
 | ------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------ |
-| `pytest tests/test_layoutqc.py`            | 27 例                                               | 全过（含 e2e 实编 marks 注入→.txlm）                   |
+| `pytest tests/compile/test_layoutqc.py`            | 27 例                                               | 全过（含 e2e 实编 marks 注入→.txlm）                   |
 | run_exp 双臂重编                           | 31 篇（e2e_real-2 39 id 中有 vault splice 者）      | inject→compile→txlm→compare 全链路通                   |
 | **no-op roundtrip 门**（zh=base=src 自比） | 31 篇                                               | **31/31 PASS**——跨臂信号自比全零，比对器自反无系统偏置 |
 | reqc 双臂复判（终版代码）                  | 31 篇                                               | 见 §10.5                                               |

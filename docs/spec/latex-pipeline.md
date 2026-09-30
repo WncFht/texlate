@@ -32,7 +32,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 旧规格的五条公理在 v2 全部成立，且全部落到具体机制上：
 
 1. **单遍正向、绝不抛异常**：参数不匹配是 `ArgMismatch` 控制流信号（`entries.py::ArgMismatch`），调用方 `unread(trace)` 回吐后把触发 token 本体交下游——任何解析失败都退化成字面/保护段，字节不丢。
-2. **分支序即语义**：分派表行序是规范本身——主流 `_DISPATCH_FAMS`（`mainloop.py`）、组内 `_GRP_SURFACE_FAMS`、跨界 `_PEND_SPEC_FAMS`（`pending.py`）三面共享名→判据绑定 `_common._FAM_BIND`，行序各面自排，`tests/test_dispatch_mirror.py` 逐名裁决三面族序。
+2. **分支序即语义**：分派表行序是规范本身——主流 `_DISPATCH_FAMS`（`mainloop.py`）、组内 `_GRP_SURFACE_FAMS`、跨界 `_PEND_SPEC_FAMS`（`pending.py`）三面共享名→判据绑定 `_common._FAM_BIND`，行序各面自排，`tests/latex/test_dispatch_mirror.py` 逐名裁决三面族序。
 3. **含 `%` 的构造先于 `%` 分支消费**：注释在 Mouth 层吞掉（永不成为 token），下游所有「`%` 分支」只处理渲染串里的字面 `%`（`_arg_comment_ph`）。
 4. **splice 只用调用点/原始字节 span**：`Tok.origin` 记最外层调用点坐标；展开组 identity 面收拢为 `[[EXPAND_n]]`，其体 = 调用点 vtex 切片——译文侧展开时落回原字节，绝不落展开产物。
 5. **一切降级 splice-safe**：所有 bail 路径（参不匹配、组未闭、跨界、超代数）都以「回吐 + 字面/保护」收尾，identity 不破是硬验收。
