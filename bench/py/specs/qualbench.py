@@ -70,6 +70,22 @@ DELIBERATE DELTAS（对旧驱动的刻意迁移，均已核对语义）：
 - record 落点：records.jsonl append → emit_case（cases 表 + cases.jsonl
   与终态批量原子落）；key={model}|{paper}|{chunk}|{judge}|{proto} 的
   五元组由 (idc,arm,variant) 三键承载（proto/epoch 在 variant 前段）。
+
+拆分（facade 化 god-split）：实现体按职域拆进同包私有叶——
+``_qualbench_const``（REPO/NOMINATIONS 钉点 + 判定面正则 + ESA/MQM
+词表阈值 + judge 协议串）、``_qualbench_judge``（Pair + pair_signals +
+ESA 解析/规范化/路由/contest/mock/shape 全纯逻辑面）、
+``_qualbench_paid``（_judge_call/_judge_pair 付费通道）、
+``_qualbench_main``（FRAMES→items/_Select/_judge 格函数/_factory/spec
+装配）。本文件是 PEP 562 惰性门面（同 ``specs/soak.py`` 形制）——平名
+经 ``_LEAF_EXPORTS`` 映射回叶子，``qualbench.X`` 与
+``from specs.qualbench import X`` 读面与拆分前逐名等价（
+``specs/_qualframe.py`` 的 ``from specs.qualbench import Pair,
+route_judge`` 走的就是这条面）；``spec`` 住 ``_qualbench_main`` 叶
+（``load_spec`` 首访惰性解析）。叶间直引 ``from specs._qualbench_X
+import Y`` 不绕本门面（避环）。spec 文件经 load_spec exec（非包内
+导入，``__package__`` 为空）——叶名走 ``_PKG = __package__ or
+"specs"`` 归一。
 """
 
 from __future__ import annotations
@@ -87,6 +103,10 @@ from specs import _bootstrap
 
 _bootstrap.ensure()
 
+import importlib
+import sys
+from typing import TYPE_CHECKING
+
 from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from specs._shared import (
     DEFAULT_BASE_URL,
@@ -94,820 +114,245 @@ from specs._shared import (
     GatewayChat,
 )
 
-REPO = Path(__file__).resolve().parents[3]
-NOMINATIONS = REPO / "bench" / "nominations"
+if TYPE_CHECKING:
+    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免。
+    from specs._qualbench_const import (
+        CATEGORY_TO_FLAG,
+        CRITICAL_CATS,
+        CS_RX,
+        DELTA_CONTEST,
+        EN_RESIDUE_CONTEST,
+        EN_WORD_RX,
+        EPOCH,
+        JSON_FENCE_RX,
+        JSON_OBJ_RX,
+        JUDGE_BANNED,
+        JUDGE_POOL,
+        JUDGE_RETRY_SUFFIX,
+        JUDGE_SYSTEM,
+        JUDGE_TIMEOUT,
+        KNOWN_CATEGORIES,
+        KNOWN_FLAGS,
+        MAX_ERRORS,
+        MAX_ERRORS_KEPT,
+        NOMINATIONS,
+        PH_TOKEN_RX,
+        PROTOCOL_V,
+        REPO,
+        REPORT_ONLY_CATS,
+        SEV_WEIGHT,
+        STATED_CONTEST,
+    )
+    from specs._qualbench_judge import (
+        Pair,
+        _norm_parsed,
+        contest_reasons,
+        derived100,
+        flags_of,
+        judge_user_prompt,
+        mock_judge,
+        pair_signals,
+        parse_esa_json,
+        route_judge,
+        shape_judged,
+        verify_spans,
+    )
+    from specs._qualbench_main import (
+        FRAMES,
+        _factory,
+        _items,
+        _iter_frame,
+        _judge,
+        _metric_view,
+        _Select,
+        spec,
+    )
+    from specs._qualbench_paid import _judge_call, _judge_pair
 
-# ---------------------------------------------------------------- 常量（逐行移植）
-
-#: 占位符 token 同 ANY_PH_RX 口径（独立实现——本 spec 不 import texlate.* 于判定面）
-PH_TOKEN_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]")
-#: zh 中残留英文散文词（≥4 字母，占位符/控制序列先剥掉）——漏翻确定性信号
-EN_WORD_RX = re.compile(r"[A-Za-z]{4,}")
-CS_RX = re.compile(r"\\[a-zA-Z@]+\*?")
-#: ```json 围栏剥皮（网关忽略 response_format，模型可能仍包 fence）
-JSON_FENCE_RX = re.compile(
-    r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
-)
-#: 首个平衡 JSON 对象兜底抽取（fence 剥不掉时扫 {...}）
-JSON_OBJ_RX = re.compile(r"\{.*\}", re.DOTALL)
-
-#: 协议版本——进 variant，协议切换不静默截留旧测量
-PROTOCOL_V = "esa2"
-#: spec 测具代次——spec 内部修复（非协议变化）挪 claim 空间用；
-#: 两者都进 variant 前段：``esa2@v1|…``
-EPOCH = "v1"
-
-#: ESA/MQM 化类目表（六 flag 的 MQM 化 + fluency-register report-only +
-#: accuracy-mistranslation 补「在译但错」收容位 + non-translation 整段未翻）
-KNOWN_CATEGORIES = (
-    "accuracy-omission",
-    "accuracy-mistranslation",
-    "accuracy-addition",
-    "non-translation",
-    "terminology",
-    "convention-do_not_translate",
-    "convention-placeholder",
-    "fluency-grammar",
-    "fluency-register",
-)
-
-#: report-only：不入 derived 罚分、不进 critical 触发
-REPORT_ONLY_CATS = frozenset({"fluency-register"})
-
-#: critical 收窄到枚举致命类目（整段未翻/占位符结构报废/增译翻转含义）——
-#: 越界 critical 解析侧钳回 major 并计 sev_clamped
-CRITICAL_CATS = frozenset(
-    {"non-translation", "convention-placeholder", "accuracy-addition"}
-)
-
-SEV_WEIGHT = {"minor": 1, "major": 5, "critical": 25}
-#: ESA/Freitag 惯例：每段最多记 5 错（derived 取权重最高 5 条）
-MAX_ERRORS = 5
-#: record 侧最多保留的错误条数（防 judge 超发撑爆 case 行）
-MAX_ERRORS_KEPT = 10
-
-#: MQM 类目 → flag 词表（下游 repair/M8 消费口径；保序去重）
-CATEGORY_TO_FLAG = {
-    "accuracy-omission": "untranslated_spans",
-    "non-translation": "untranslated_spans",
-    "accuracy-addition": "hallucinated_content",
-    "accuracy-mistranslation": "mistranslation",
-    "terminology": "term_inconsistency",
-    "convention-do_not_translate": "over_translation",
-    "convention-placeholder": "placeholder_broken",
-    "fluency-grammar": "grammar",
-    "fluency-register": "fluency_register",
+_LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
+    "_qualbench_const": (
+        "CATEGORY_TO_FLAG",
+        "CRITICAL_CATS",
+        "CS_RX",
+        "DELTA_CONTEST",
+        "EN_RESIDUE_CONTEST",
+        "EN_WORD_RX",
+        "EPOCH",
+        "JSON_FENCE_RX",
+        "JSON_OBJ_RX",
+        "JUDGE_BANNED",
+        "JUDGE_POOL",
+        "JUDGE_RETRY_SUFFIX",
+        "JUDGE_SYSTEM",
+        "JUDGE_TIMEOUT",
+        "KNOWN_CATEGORIES",
+        "KNOWN_FLAGS",
+        "MAX_ERRORS",
+        "MAX_ERRORS_KEPT",
+        "NOMINATIONS",
+        "PH_TOKEN_RX",
+        "PROTOCOL_V",
+        "REPORT_ONLY_CATS",
+        "REPO",
+        "SEV_WEIGHT",
+        "STATED_CONTEST",
+    ),
+    "_qualbench_judge": (
+        "Pair",
+        "contest_reasons",
+        "derived100",
+        "flags_of",
+        "judge_user_prompt",
+        "mock_judge",
+        "pair_signals",
+        "parse_esa_json",
+        "route_judge",
+        "shape_judged",
+        "verify_spans",
+        "_norm_parsed",
+    ),
+    "_qualbench_main": (
+        "FRAMES",
+        "_Select",
+        "_factory",
+        "_items",
+        "_iter_frame",
+        "_judge",
+        "_metric_view",
+        "spec",
+    ),
+    "_qualbench_paid": (
+        "_judge_call",
+        "_judge_pair",
+    ),
 }
 
-#: judge flag 全集（六 flag + mistranslation/fluency_register 派生值；
-#: 未知类目 verbatim 落 cats_extra 留痕）
-KNOWN_FLAGS = tuple(dict.fromkeys(CATEGORY_TO_FLAG.values()))
+_LAZY: dict[str, str] = {
+    name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
+}
 
-#: judge 池顺位（swe-2-medium 与被评同型自评病灶，永不任 judge）
-JUDGE_POOL = ("swe-2-max", "swe-2-high")
-JUDGE_BANNED = "swe-2-medium"
+_PKG = __package__ or "specs"  # load_spec exec 径下 __package__ 是 ""
 
-#: contested 触发阈值（xlat-quality-eval §7 冻结值）
-DELTA_CONTEST = 15
-STATED_CONTEST = 55
-EN_RESIDUE_CONTEST = 8
-
-#: judge 调用超时（烘焙进 factory——ChatOptions 无 timeout 字段，见头注 DELTA）
-JUDGE_TIMEOUT = 300.0
-
-JUDGE_SYSTEM = """\
-You are a meticulous bilingual (English to Chinese) translation-quality
-annotator for academic LaTeX texts, following the ESA error-annotation
-protocol. You will receive:
-- Kind: the fragment's role (para | caption | section_title | abstract |
-  table_text | env_text).
-- Source: the original English LaTeX fragment. [[TYPE_n]] tokens (e.g.
-  [[MATH_12]], [[CITE_3]], [[REF_7]], [[SL]], [[PL]]) are opaque placeholders
-  for protected LaTeX/math/citation fragments — they must appear verbatim in
-  the translation.
-- Translation: the Chinese translation produced by a machine translator.
-
-Step 1 — identify EVERY error span in the TRANSLATION (at most 5: report
-the 5 most severe). For each error report:
-- "span": the exact substring of the Translation where the error occurs
-  (copy it verbatim; for whole-segment errors repeat the full translation).
-- "category": exactly one of
-  "accuracy-omission" (source content dropped or left untranslated),
-  "accuracy-mistranslation" (meaning distorted vs the source),
-  "accuracy-addition" (content invented, absent from the source),
-  "non-translation" (the whole segment left untranslated),
-  "terminology" (technical term mistranslated or used inconsistently),
-  "convention-do_not_translate" (content that must stay unchanged was
-    translated: person names, citation/bibliography entries, math or LaTeX
-    commands),
-  "convention-placeholder" (a [[TYPE_n]] placeholder missing, invented,
-    renamed, or its immediate surroundings garbled),
-  "fluency-grammar" (ungrammatical or garbled Chinese),
-  "fluency-register" (register/style mismatch for academic prose, e.g.
-    machine-translation flavor — report only, does not affect the score).
-- "severity": "minor" (doesn't change meaning; slight awkwardness),
-  "major" (changes or obscures meaning, breaks readability, or violates a
-    hard convention such as a lost placeholder),
-  "critical" (ONLY for: non-translation of the whole segment; broken
-    placeholders leaving the text structurally unusable; added content
-    that inverts the source meaning).
-- "note": <=40 chars describing the error.
-
-Rules:
-- Judge ONLY translation quality (faithfulness + fluency), not LaTeX
-  compilability. Judge against the Kind's expectations (a section_title is
-  a concise heading, a caption a compact legend).
-- Do NOT mark an error for content correctly left in English (person
-  names, citation/bibliography entries, math placeholders).
-- A Source fragment containing [[BIB_n]] tokens is a bibliography
-  region the pipeline intentionally keeps in English: a Translation
-  identical to the Source there is CORRECT — do not flag
-  non-translation or any other error for it.
-- If the translation is fully correct, return an empty error list.
-
-Step 2 — after the error list, give "score": your overall 0-100 quality
-score for the translation (100 = perfect; use the full scale).
-
-Output STRICT JSON only — no markdown fence, no commentary:
-{"errors": [{"span": "...", "category": "...", "severity": "...", "note": "..."}], "score": <int 0-100>}"""
-
-JUDGE_RETRY_SUFFIX = (
-    "\n\nYour previous reply was not parseable JSON. Reply with ONLY the JSON "
-    'object: {"errors": [{"span": "...", "category": "...", "severity": '
-    '"...", "note": "..."}], "score": <int 0-100>}'
-)
+# 字面列表——拆分前顶层名面 (import/常量/函数/spec 全量) 逐名保留；新增导出
+# 两侧同步（``_export_drift`` 是三表同步闸）。
+__all__ = [
+    "CATEGORY_TO_FLAG",
+    "CRITICAL_CATS",
+    "CS_RX",
+    "DEFAULT_BASE_URL",
+    "DEFAULT_PRICES",
+    "DELTA_CONTEST",
+    "EN_RESIDUE_CONTEST",
+    "EN_WORD_RX",
+    "EPOCH",
+    "FRAMES",
+    "JSON_FENCE_RX",
+    "JSON_OBJ_RX",
+    "JUDGE_BANNED",
+    "JUDGE_POOL",
+    "JUDGE_RETRY_SUFFIX",
+    "JUDGE_SYSTEM",
+    "JUDGE_TIMEOUT",
+    "KNOWN_CATEGORIES",
+    "KNOWN_FLAGS",
+    "MAX_ERRORS",
+    "MAX_ERRORS_KEPT",
+    "NOMINATIONS",
+    "PH_TOKEN_RX",
+    "PROTOCOL_V",
+    "REPO",
+    "REPORT_ONLY_CATS",
+    "SC_OK_REJECT",
+    "SEV_WEIGHT",
+    "STATED_CONTEST",
+    "GatewayChat",
+    "Pair",
+    "Param",
+    "Path",
+    "Spec",
+    "Stage",
+    "_Select",
+    "_bootstrap",
+    "_factory",
+    "_items",
+    "_iter_frame",
+    "_judge",
+    "_judge_call",
+    "_judge_pair",
+    "_metric_view",
+    "_norm_parsed",
+    "_sel",
+    "contest_reasons",
+    "dataclass",
+    "derived100",
+    "flags_of",
+    "hashlib",
+    "json",
+    "judge_user_prompt",
+    "mock_judge",
+    "pair_signals",
+    "parse_esa_json",
+    "re",
+    "route_judge",
+    "shape_judged",
+    "spec",
+    "time",
+    "verify_spans",
+]
 
 
-# ---------------------------------------------------------------- chunk 对（逐行移植）
-@dataclass
-class Pair:
-    """一个待评 chunk 对。``model`` 是产出该译文的翻译模型。"""
-
-    paper: str
-    chunk_id: str
-    kind: str
-    model: str
-    src: str
-    zh: str
-    arm: str = ""
-    status: str = "ok"
-
-    @property
-    def key(self) -> str:
-        return f"{self.model}|{self.paper}|{self.chunk_id}"
+def __getattr__(name: str) -> object:
+    """平名惰性解析 → 叶子属性。"""
+    leaf = _LAZY.get(name)
+    if leaf is not None:
+        value = getattr(importlib.import_module(f"{_PKG}.{leaf}"), name)
+        globals()[name] = value
+        return value
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
 
-# ---------------------------------------------------------------- 确定性信号
-def pair_signals(src: str, zh: str) -> dict:
-    """每对都算的免费确定性特征——judge flag 的对照底账。"""
-    from collections import Counter
-
-    src_ph = Counter(PH_TOKEN_RX.findall(src))
-    zh_ph = Counter(PH_TOKEN_RX.findall(zh))
-    missing = src_ph - zh_ph
-    invented = zh_ph - src_ph
-    zh_clean = CS_RX.sub(" ", PH_TOKEN_RX.sub(" ", zh))
-    return {
-        "ph_missing": sum(missing.values()),
-        "ph_invented": sum(invented.values()),
-        "en_residue": len(EN_WORD_RX.findall(zh_clean)),
-        "src_bib": "[[BIB_" in src,
-        "src_chars": len(src),
-        "zh_chars": len(zh),
-    }
+def __dir__() -> list[str]:
+    return __all__
 
 
-# ---------------------------------------------------------------- judge（逐行移植）
-def _norm_parsed(errs_raw: object, score: int) -> dict:
-    """errors 列表规范化 + 衍生字段（parse_esa_json 与 mock 路径共用）。
+def _export_drift() -> list[str]:
+    """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    - 类目不在 KNOWN_CATEGORIES → verbatim 保留 + 计 cats_extra
-    - severity 不在三档 → 钳 minor 计 sev_clamped；critical 落在
-      CRITICAL_CATS 外 → 钳 major 计 sev_clamped
-    - derived100 = 100 − Σ 权重最高 MAX_ERRORS 条（report-only 类豁免）
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖:
+
+    - ``_LAZY`` 键全进 ``__all__``;
+    - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      ``AttributeError`` 唯一的提前闸;
+    - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
+
+    审计实载全部叶子, 只供测试调用, 装载期不自检。
     """
-    errors: list[dict] = []
-    cats_extra: list[str] = []
-    sev_clamped = 0
-    for e in (errs_raw if isinstance(errs_raw, list) else [])[:MAX_ERRORS_KEPT]:
-        if not isinstance(e, dict):
-            continue
-        cat = str(e.get("category") or "?")
-        sev = str(e.get("severity") or "minor").lower()
-        if sev not in SEV_WEIGHT:
-            sev = "minor"
-            sev_clamped += 1
-        elif sev == "critical" and cat not in CRITICAL_CATS:
-            sev = "major"
-            sev_clamped += 1
-        if cat not in KNOWN_CATEGORIES:
-            cats_extra.append(cat)
-        errors.append(
-            {
-                "span": str(e.get("span") or ""),
-                "category": cat,
-                "severity": sev,
-                "note": str(e.get("note") or "")[:80],
-            }
-        )
-    derived = derived100(errors)
-    return {
-        "errors": errors,
-        "stated100": score,
-        "derived100": derived,
-        "score_delta": score - derived,
-        "cats_extra": sorted(set(cats_extra)),
-        "sev_clamped": sev_clamped,
-    }
-
-
-def derived100(errors: list[dict]) -> int:
-    """规则聚合：100 − Σ severity 权重（权重最高 MAX_ERRORS 条，report-only 豁免）。"""
-    pen = sorted(
-        (
-            SEV_WEIGHT[e["severity"]]
-            for e in errors
-            if e["category"] not in REPORT_ONLY_CATS
-        ),
-        reverse=True,
-    )[:MAX_ERRORS]
-    return max(0, 100 - sum(pen))
-
-
-def flags_of(errors: list[dict]) -> list[str]:
-    """errors 类目 → flag 词表（下游消费口径；保序去重）。"""
-    out: list[str] = []
-    for e in errors:
-        f = CATEGORY_TO_FLAG.get(e["category"])
-        if f and f not in out:
-            out.append(f)
-    return out
-
-
-def verify_spans(errors: list[dict], zh: str) -> list[dict]:
-    """就地写 span_verified——span 须为译文逐字子串。"""
-    for e in errors:
-        e["span_verified"] = bool(e["span"]) and e["span"] in zh
-    return errors
-
-
-def contest_reasons(parsed: dict, sig: dict) -> list[str]:
-    """contested 触发：|Δ|>15 / stated≤55 / 任一 critical / L0 信号矛盾。"""
-    reasons: list[str] = []
-    if abs(parsed["score_delta"]) > DELTA_CONTEST:
-        reasons.append("delta_gt15")
-    if parsed["stated100"] <= STATED_CONTEST:
-        reasons.append("stated_le55")
-    if any(e["severity"] == "critical" for e in parsed["errors"]):
-        reasons.append("critical_present")
-    cats = {e["category"] for e in parsed["errors"]}
-    if (sig["ph_missing"] or sig["ph_invented"]) and (
-        "convention-placeholder" not in cats
-    ):
-        reasons.append("l0_ph_unreported")
-    if (
-        sig["en_residue"] >= EN_RESIDUE_CONTEST
-        and not ({"accuracy-omission", "non-translation"} & cats)
-        and not sig["src_bib"]
-    ):
-        reasons.append("l0_en_unreported")
-    return reasons
-
-
-def mock_judge(pair: Pair) -> dict:
-    """确定性 mock judge（ESA 形态）：按确定性信号出 errors+stated100。"""
-    sig = pair_signals(pair.src, pair.zh)
-    raw_errors: list[dict] = []
-    if sig["src_bib"]:
-        # bib 直通语境：zh≡src 是正确态——占位符守恒外零错误。
-        if sig["ph_missing"] or sig["ph_invented"]:
-            raw_errors.append(
-                {
-                    "span": "[[",
-                    "category": "convention-placeholder",
-                    "severity": "major",
-                    "note": "placeholder mismatch",
-                }
-            )
-            return _norm_parsed(raw_errors, 70)
-        return _norm_parsed(raw_errors, 95)
-    if pair.zh.strip() == pair.src.strip() or not pair.zh.strip():
-        raw_errors.append(
-            {
-                "span": pair.zh[:80] or " ",
-                "category": "non-translation",
-                "severity": "critical",
-                "note": "zh==src",
-            }
-        )
-        return _norm_parsed(raw_errors, 5)
-    if sig["ph_missing"] or sig["ph_invented"]:
-        raw_errors.append(
-            {
-                "span": "[[",
-                "category": "convention-placeholder",
-                "severity": "major",
-                "note": "placeholder mismatch",
-            }
-        )
-    if sig["en_residue"] >= 8:
-        w = EN_WORD_RX.search(CS_RX.sub(" ", PH_TOKEN_RX.sub(" ", pair.zh)))
-        raw_errors.append(
-            {
-                "span": w.group(0) if w else pair.zh[:40],
-                "category": "accuracy-omission",
-                "severity": "major",
-                "note": f"en_residue={sig['en_residue']}",
-            }
-        )
-    elif sig["en_residue"] >= 3:
-        raw_errors.append(
-            {
-                "span": pair.zh[:40],
-                "category": "accuracy-omission",
-                "severity": "minor",
-                "note": f"en_residue={sig['en_residue']}",
-            }
-        )
-    if not raw_errors:
-        # sha 奇偶给 90/97 的确定性分布——聚合面能被真实走到
-        stated = (
-            90
-            if int(hashlib.sha256(pair.key.encode()).hexdigest(), 16) % 3 == 0
-            else 97
-        )
-    else:
-        stated = (
-            100
-            - 10 * len(raw_errors)
-            - (15 if sig["ph_missing"] or sig["ph_invented"] else 0)
-        )
-    return _norm_parsed(raw_errors, max(0, stated))
-
-
-def parse_esa_json(raw: str) -> dict | None:
-    """judge ESA 输出 → parsed dict；fence 剥皮 + {...} 兜底；不合格 None。"""
-    m = JSON_FENCE_RX.match(raw)
-    body = m.group("body") if m else raw
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError:
-        m2 = JSON_OBJ_RX.search(body)
-        if not m2:
-            return None
-        try:
-            data = json.loads(m2.group(0))
-        except json.JSONDecodeError:
-            return None
-    if not isinstance(data, dict):
-        return None
-    if not isinstance(data.get("errors"), list):
-        return None
-    score = data.get("score")
-    if isinstance(score, float) and score.is_integer():
-        score = int(score)
-    if isinstance(score, str) and score.strip().isdigit():
-        score = int(score.strip())
-    if not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 100:
-        return None
-    return _norm_parsed(data["errors"], score)
-
-
-def route_judge(pair: Pair, preferred: str) -> str | None:
-    """judge 路由：preferred 非 banned（与被评同型/swe-2-medium）即用，否则池内顺位。"""
-    banned = {pair.model, JUDGE_BANNED}
-    if preferred and preferred not in banned:
-        return preferred
-    for m in JUDGE_POOL:
-        if m not in banned:
-            return m
-    return None
-
-
-def judge_user_prompt(pair: Pair) -> str:
-    """结构化 user 消息：Kind/Source/Translation 三段。"""
-    return f"[Kind]\n{pair.kind}\n\n[Source]\n{pair.src}\n\n[Translation]\n{pair.zh}"
-
-
-def shape_judged(parsed: dict, pair: Pair, sig: dict) -> dict:
-    """parsed ESA + pair/确定性信号 → record 判定字段块（span 校验 + contested）。"""
-    verify_spans(parsed["errors"], pair.zh)
-    reasons = contest_reasons(parsed, sig)
-    return {
-        "stated100": parsed["stated100"],
-        "score": parsed["stated100"],
-        "derived100": parsed["derived100"],
-        "score_delta": parsed["score_delta"],
-        "errors": parsed["errors"],
-        "n_errors": len(parsed["errors"]),
-        "n_span_unverified": sum(1 for e in parsed["errors"] if not e["span_verified"]),
-        "sev_counts": {
-            s: sum(1 for e in parsed["errors"] if e["severity"] == s)
-            for s in SEV_WEIGHT
-        },
-        "sev_clamped": parsed.get("sev_clamped", 0),
-        "cats_extra": parsed.get("cats_extra", []),
-        "flags": flags_of(parsed["errors"]),
-        "contested": bool(reasons),
-        "contest_reasons": reasons,
-    }
-
-
-# ---------------------------------------------------------------- paid 通道
-def _judge_call(
-    ctx,
-    pair: Pair,
-    model: str,
-    *,
-    max_tokens: int,
-    user_suffix: str = "",
-) -> dict:
-    """一次 judge 调用＝一发 ``session.request``（ChatClient 内层已是
-    retryable/max_tries/retry_after 的重试梯队——外层不套第二循环）。
-
-    **judge_fallback 闸**：ChatClient 对 loopback 网关开免费集降级臂
-    （swe-2-max 失败可静默换 swe-2-medium——被禁同型）。响应 model 与
-    请求不符 → judge_error 不记账。返回形态对齐旧 call_judge：
-    content/reasoning_chars/finish/seconds/tok_in/tok_out 或 {error}。"""
-    from texlate.xlat._dialects import ChatOptions
-    from texlate.xlat._errors import ChatError
-
-    messages = [
-        {"role": "system", "content": JUDGE_SYSTEM},
-        {"role": "user", "content": judge_user_prompt(pair) + user_suffix},
+    mod = sys.modules[__name__]
+    drift = [
+        f"{name} in _LEAF_EXPORTS but missing from __all__"
+        for name in _LAZY
+        if name not in __all__
     ]
-    temperature = float(ctx.params.get("judge_temperature") or 0.1)
-    t0 = time.monotonic()
-    try:
-        res = ctx.gateway().request(
-            "chat",
-            model,
-            messages,
-            options=ChatOptions(temperature=temperature, max_tokens=max_tokens),
-        )
-    except ChatError as e:
-        # 梯队已尽（retryable 内部翻身用过）→ judge_error 交格级重跑；
-        # 非 ChatError（含 kernel paid 例外族）不外接，直穿内核映射。
-        return {"error": f"{type(e).__name__}: {e}"[:300]}
-    dt = round(time.monotonic() - t0, 2)
-    if not isinstance(res, dict):
-        return {"error": f"bad_session_result:{type(res).__name__}", "seconds": dt}
-    actual = str(res.get("model") or "")
-    if actual and actual != model:
-        return {
-            "error": f"judge_fallback:{actual}!={model}",
-            "seconds": dt,
-        }
-    usage = res.get("usage") or {}
-    return {
-        "content": str(res.get("text") or ""),
-        "reasoning_chars": len(res.get("reasoning") or ""),
-        "finish": str(res.get("finish_reason") or ""),
-        "seconds": dt,
-        "tok_in": usage.get("in_tok"),
-        "tok_out": usage.get("out_tok"),
+    if len(__all__) != len(set(__all__)):
+        drift.append("__all__ has duplicate entries")
+    for name in __all__:
+        try:
+            getattr(mod, name)
+        except Exception as exc:  # 审计兜全漂移, 非首错即死
+            drift.append(f"__all__ entry {name} does not resolve: {exc}")
+    local_publics = {
+        name
+        for name, v in vars(mod).items()
+        if not name.startswith("_")
+        and name not in _LAZY
+        and callable(v)
+        and getattr(v, "__module__", None) == __name__
     }
-
-
-def _judge_pair(ctx, pair: Pair, sig: dict) -> dict:
-    """ESA 流程：主裁一发 → parse/verify/contest → 触规则二裁（逐行移植）。"""
-    p = ctx.params
-    max_tokens = int(p.get("judge_max_tokens") or 8192)
-    jm = route_judge(pair, str(p.get("judge") or ""))
-    if jm is None:
-        return {"judge_error": f"no_eligible_judge(translator={pair.model})"}
-    r = _judge_call(ctx, pair, jm, max_tokens=max_tokens)
-    if "content" not in r:
-        return {**r, "judge_model_used": jm}
-    parsed = parse_esa_json(r["content"])
-    if parsed is None:
-        # 补问一次：user 带严格 JSON 提醒后缀
-        r2 = _judge_call(
-            ctx,
-            pair,
-            jm,
-            max_tokens=max_tokens,
-            user_suffix=JUDGE_RETRY_SUFFIX,
-        )
-        if "content" in r2:
-            parsed = parse_esa_json(r2["content"])
-            r = {**r2, "reparsed": True, "raw_first": r["content"][:200]}
-    if parsed is None:
-        return {
-            **{k: v for k, v in r.items() if k != "content"},
-            "judge_model_used": jm,
-            "judge_error": "unparseable",
-            "raw": r.get("content", "")[:300],
-        }
-    out = {
-        "judge_model_used": jm,
-        **shape_judged(parsed, pair, sig),
-        "seconds": r.get("seconds"),
-        "tok_in": r.get("tok_in"),
-        "tok_out": r.get("tok_out"),
-        "reasoning_chars": r.get("reasoning_chars"),
-        "finish": r.get("finish"),
-        "reparsed": r.get("reparsed"),
-        "raw_first": r.get("raw_first"),
-        "raw": r.get("content", "")[:500],
-    }
-    # contested → 二裁（judge2 块落 record 备查，主分仍取主裁 stated）
-    if out["contested"] and not p.get("no_second"):
-        jm2 = route_judge(pair, str(p.get("second_model") or "swe-2-high"))
-        if jm2 is None or jm2 == jm:
-            out["judge2"] = {"judge2_error": "no_eligible_second"}
-        else:
-            r2nd = _judge_call(ctx, pair, jm2, max_tokens=max_tokens)
-            if "content" in r2nd:
-                p2 = parse_esa_json(r2nd["content"])
-                if p2 is not None:
-                    verify_spans(p2["errors"], pair.zh)
-                    out["judge2"] = {
-                        "judge_model": jm2,
-                        "stated100": p2["stated100"],
-                        "derived100": p2["derived100"],
-                        "score_delta": p2["score_delta"],
-                        "n_errors": len(p2["errors"]),
-                        "errors": p2["errors"],
-                        "flags": flags_of(p2["errors"]),
-                        "seconds": r2nd.get("seconds"),
-                        "tok_in": r2nd.get("tok_in"),
-                        "tok_out": r2nd.get("tok_out"),
-                    }
-                else:
-                    out["judge2"] = {
-                        "judge_model": jm2,
-                        "judge2_error": "unparseable",
-                    }
-            else:
-                out["judge2"] = {
-                    "judge_model": jm2,
-                    "judge2_error": r2nd.get("error", "call_failed"),
-                }
-    return out
-
-
-# ---------------------------------------------------------------- frame → items
-#: 选样层冻结产物——增删 lane = 改本元组 + 落新 jsonl（别原地改已冻结的）。
-FRAMES = (
-    "qualframe-mock-v1.jsonl",
-    "qualframe-live-v1.jsonl",
-)
-
-
-def _iter_frame(path: Path):
-    for ln, raw_ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw_ln.strip()
-        if line:
-            yield ln, json.loads(line)
-
-
-def _items() -> list[dict]:
-    """frame jsonl → 格枚举：一行一格。丢 frame 即炸（选样层完整性，
-    见头注）——别静默退化成「没东西可测」。"""
-    items: list[dict] = []
-    for name in FRAMES:
-        path = NOMINATIONS / name
-        if not path.is_file():
-            msg = (
-                f"qualbench frame missing: {path} — frames are tracked "
-                "selection artifacts; bake via specs/_qualframe.py or "
-                "trim FRAMES"
-            )
-            raise FileNotFoundError(msg)
-        stem = path.stem
-        for _ln, row in _iter_frame(path):
-            items.append(
-                {
-                    "id": row["paper"],
-                    "arm": row["model"],
-                    "up": row["up"],
-                    "variant": (
-                        f"{PROTOCOL_V}@{EPOCH}|{row['judge']}|{row['chunk_id']}"
-                    ),
-                    "lane": stem,
-                    "fp_input": str(row.get("sha") or ""),
-                    "params": {
-                        "src": row["src"],
-                        "zh": row["zh"],
-                        "kind": row["kind"],
-                        "src_status": row["src_status"],
-                        "chunk_id": row["chunk_id"],
-                        "judge": row["judge"],
-                    },
-                }
-            )
-    return items
-
-
-class _Select:
-    """frames/ids/judges 过滤后按 frame 序取前 n（烘焙序即 seeded 序）。
-
-    有态：``seen`` 只数通过过滤的格——spec 每进程加载一次，一次 plan
-    遍历一次，无跨 run 污染面。"""
-
-    def __init__(self) -> None:
-        self.seen = 0
-
-    def _dims(self, ctx: _sel.Ctx) -> bool:
-        frames = _sel.csv_set(ctx.rp.get("frames"))
-        if frames and str(ctx.item.get("lane") or "") not in frames:
-            return False
-        judges = _sel.csv_set(ctx.rp.get("judges"))
-        return (
-            not judges
-            or str((ctx.item.get("params") or {}).get("judge") or "") in judges
-        )
-
-    def _take(self, ctx: _sel.Ctx) -> bool:
-        if self.seen >= ctx.n:
-            return False
-        self.seen += 1
-        return True
-
-    def __call__(self, item: dict, rp: dict) -> bool:
-        return _sel.select(
-            item,
-            rp,
-            pre=self._dims,
-            ids="gate",
-            item_canon="safe",
-            sample=self._take,
-        )
-
-
-# ---------------------------------------------------------------- 格函数
-def _metric_view(out: dict) -> dict:
-    """record → metrics 投影：标量+小列表，errors/raw/judge2 细节留给 case。"""
-    m = {k: v for k, v in out.items() if k not in ("errors", "raw", "judge2")}
-    j2 = out.get("judge2")
-    if isinstance(j2, dict):
-        m["judge2_model"] = j2.get("judge_model")
-        m["judge2_stated100"] = j2.get("stated100")
-        m["judge2_n_errors"] = j2.get("n_errors")
-        if j2.get("judge2_error"):
-            m["judge2_error"] = j2["judge2_error"]
-    return m
-
-
-def _judge(ctx):
-    """一格：frame 行 → judge → ok/reject/error（状态映射见头注）。"""
-    p = ctx.params
-    pair = Pair(
-        paper=ctx.idc,
-        chunk_id=str(p.get("chunk_id") or ""),
-        kind=str(p.get("kind") or "para"),
-        model=ctx.arm,
-        src=str(p.get("src") or ""),
-        zh=str(p.get("zh") or ""),
-        status=str(p.get("src_status") or "ok"),
-    )
-    sig = pair_signals(pair.src, pair.zh)
-    lead = {  # 每种结局都带的分母键
-        "kind": pair.kind,
-        "chunk_id": pair.chunk_id,
-        "src_status": pair.status,
-        "sig": sig,
-    }
-    case = {
-        "paper": pair.paper,
-        "chunk_id": pair.chunk_id,
-        "kind": pair.kind,
-        "model": pair.model,
-        "judge_param": str(p.get("judge") or ""),
-        "src_status": pair.status,
-        "sig": sig,
-        "src": pair.src[:400],
-        "zh": pair.zh[:400],
-    }
-    if not pair.src.strip() or not pair.zh.strip():
-        case["verdict"] = "empty_pair"
-        ctx.emit_case(case)
-        return {
-            "status": "reject",
-            "errors": [{"cat": "empty_pair", "msg": "blank src/zh — nothing to judge"}],
-            "metrics": {"verdict": "empty_pair", **lead},
-        }
-    if str(p.get("judge") or "") == "mock-judge":
-        # 零网关自检臂——gateway() 懒构造即付费断言，mock 格永不触网。
-        parsed = mock_judge(pair)
-        out = {
-            "judge_model_used": "mock-judge",
-            **shape_judged(parsed, pair, sig),
-        }
-        case.update({"verdict": "judged", **out})
-        ctx.emit_case(case)
-        return {
-            "status": "ok",
-            "metrics": {"verdict": "judged", **_metric_view(out), **lead},
-        }
-    out = _judge_pair(ctx, pair, sig)
-    jerr = out.get("judge_error")
-    if jerr and str(jerr).startswith("no_eligible_judge"):
-        case.update({"verdict": "no_eligible_judge", **out})
-        ctx.emit_case(case)
-        return {
-            "status": "reject",
-            "errors": [{"cat": "no_eligible_judge", "msg": str(jerr)[:300]}],
-            "metrics": {"verdict": "no_eligible_judge", **lead},
-        }
-    if jerr or "stated100" not in out:
-        case.update({"verdict": "judge_error", **out})
-        ctx.emit_case(case)
-        return {
-            "status": "error",
-            "errors": [
-                {
-                    "cat": "judge_error",
-                    "msg": str(jerr or out.get("error") or "call_failed")[:300],
-                }
-            ],
-            "metrics": {
-                "verdict": "judge_error",
-                "judge_model_used": out.get("judge_model_used"),
-                "seconds": out.get("seconds"),
-                **lead,
-            },
-        }
-    case.update({"verdict": "judged", **out})
-    ctx.emit_case(case)
-    return {
-        "status": "ok",
-        "metrics": {"verdict": "judged", **_metric_view(out), **lead},
-    }
-
-
-# ---------------------------------------------------------------- spec
-def _factory():
-    """judge 道 paid factory：devin-2api + stream_fallback + 300s 超时。
-
-    ``stream_fallback=True``：2026-09-19 网关非流式全模型 502、stream 独活
-    的事故形态——judge 道必须能吃到流式臂（xlat 道同样理由）。模型参数
-    给的是 client 默认模；每发请求显式传 judge 模型，默认值形同虚设。
-    nslots=2 对齐旧 --concurrency 默认（网关 decode ~550 tok/s 自限）。"""
-    from kernel import paid as paidmod
-
-    from texlate.xlat.client import env_key_for_url
-
-    key = env_key_for_url(DEFAULT_BASE_URL)
-
-    def build(_ctx=None):
-        return GatewayChat(
-            DEFAULT_BASE_URL,
-            key,
-            "swe-2-max",
-            stream_fallback=True,
-            timeout=JUDGE_TIMEOUT,
-        )
-
-    return paidmod.GatewayFactory(build, prices=dict(DEFAULT_PRICES), nslots=2)
-
-
-spec = Spec(
-    kind="qualbench",
-    eval=True,  # eval 全格：id 免 canon 闸、终态进 eval_records 道
-    params={
-        # cell 参数（frame 行 → item.params；fp=True 让内容陈旧度进 cell_fp）
-        "src": Param(str, default=""),
-        "zh": Param(str, default=""),
-        "kind": Param(str, default="para"),
-        "src_status": Param(str, default="ok"),
-        # 已进 variant 的测量坐标——声明只为 schema 完整，fp=False 防双计
-        "chunk_id": Param(str, default="", fp=False),
-        "judge": Param(str, default="swe-2-max", fp=False),
-        # 测量语义旋钮（fp=True——改动=新测量空间，不原地覆盖）
-        "second_model": Param(str, default="swe-2-high"),
-        "no_second": Param(bool, default=False),
-        "judge_temperature": Param(float, default=0.1),
-        "judge_max_tokens": Param(int, default=8192),
-        # select 闸（fp=False；n 是 SELECTOR_PARAMS 自带排除）
-        "frames": Param(str, default="", fp=False),
-        "ids": Param(str, default="", fp=False),
-        "judges": Param(str, default="", fp=False),
-        "n": Param(int, default=0),
-    },
-    items=_items,
-    select=_Select(),
-    stages=[
-        Stage(
-            "judge",
-            _judge,
-            paid=True,
-            eval=True,
-            dedup_key=("idc", "arm", "variant"),
-            status_class=SC_OK_REJECT,
-        ),
-    ],
-    freeze_plan=True,
-    executor="thread",
-    same_id_serial=False,  # 格间零共享态（无 workspace/无 mutates）
-    lake=False,  # frame 内联 src/zh——格函数不触湖
-    code_deps=[
-        "src/texlate/xlat/client.py",
-        "src/texlate/xlat/_errors.py",
-        "src/texlate/xlat/_dialects.py",
-        "src/texlate/xlat/_discovery.py",
-        "bench/py/specs/_shared.py",
-    ],
-    gateway_factory=_factory(),
-)
+    drift += [
+        f"{name} defined locally but missing from __all__"
+        for name in sorted(local_publics)
+        if name not in __all__
+    ]
+    return drift
