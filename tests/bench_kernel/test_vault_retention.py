@@ -112,7 +112,9 @@ def test_cas_link_tree_dedup_hit_shares_one_inode(tmp_path: Path) -> None:
     assert obj.stat().st_nlink == 3  # noqa: PLR2004
 
 
-def test_cas_link_tree_sha_map_hit_skips_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cas_link_tree_sha_map_hit_skips_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     payload = _blob(BIG, b"m")
     sha = cas.store_bytes(payload, kind="file")  # object already live
     tree = _tree(tmp_path / "t", {"f.bin": payload})
@@ -365,16 +367,20 @@ def test_prune_paid_product_cell_stays_whole() -> None:
 # --- corpus_v3 TARS prune -------------------------------------------------------------
 
 
-def test_prune_tar_deletes_tar_and_part(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_prune_tar_deletes_tar_and_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # 惰载：corpus_v3 import 时模块级跑 _bootstrap.ensure() 改 sys.path，限污到本测试
-    from specs import corpus_v3  # noqa: PLC0415
+    from specs import _corpus_v3_extract, corpus_v3  # noqa: PLC0415
 
     tars = tmp_path / "tars"
     tars.mkdir()
     (tars / "2501_001.tar").write_bytes(b"TAR")
     (tars / "2501_001.tar.part").write_bytes(b"PART")
     (tars / "2501_002.tar").write_bytes(b"OTHER")
-    monkeypatch.setattr(corpus_v3, "TARS", tars)
+    # _prune_tar 住在 _corpus_v3_extract 叶——TARS patch 锚点随函数迁叶（facade
+    # setattr 只遮蔽门面不改叶子，同 builtins/kernel 拆叶先例）
+    monkeypatch.setattr(_corpus_v3_extract, "TARS", tars)
 
     freed = corpus_v3._prune_tar({"item": "2501_001"})  # noqa: SLF001 -- 测试目标即此私有面
     assert freed == len(b"TAR") + len(b"PART")

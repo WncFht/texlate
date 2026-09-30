@@ -900,6 +900,13 @@ spec = Spec(
     select=_select,
     code_deps=[
         "bench/py/specs/_corpus_common.py",
+        "bench/py/specs/_corpus_common_features.py",
+        "bench/py/specs/_corpus_common_frame.py",
+        "bench/py/specs/_corpus_common_io.py",
+        "bench/py/specs/_corpus_common_materialize.py",
+        "bench/py/specs/_corpus_common_net.py",
+        "bench/py/specs/_corpus_common_scan.py",
+        "bench/py/specs/_corpus_common_select.py",
         "src/texlate/arxiv",
     ],
 )

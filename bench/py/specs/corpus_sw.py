@@ -1024,7 +1024,16 @@ spec = Spec(
     lake=True,
     prefetch=False,  # builder 段内自管 hydrate——预取器对本 spec 无的放矢
     lake_source="arxiv",
-    code_deps=["bench/py/specs/_corpus_common.py"],
+    code_deps=[
+        "bench/py/specs/_corpus_common.py",
+        "bench/py/specs/_corpus_common_features.py",
+        "bench/py/specs/_corpus_common_frame.py",
+        "bench/py/specs/_corpus_common_io.py",
+        "bench/py/specs/_corpus_common_materialize.py",
+        "bench/py/specs/_corpus_common_net.py",
+        "bench/py/specs/_corpus_common_scan.py",
+        "bench/py/specs/_corpus_common_select.py",
+    ],
 )
 
 if __name__ == "__main__":
