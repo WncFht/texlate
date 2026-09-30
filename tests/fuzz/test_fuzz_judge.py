@@ -68,7 +68,7 @@ from pypdf.generic import (
     TextStringObject,
 )
 
-from texlate.compile import latex209
+from texlate.compile import latex209_main
 from texlate.compile.cjkmap import _GB1_UCS2_CMAP, embed_cjk_mappings
 from texlate.compile.engine import CompRes
 from texlate.compile.judge import (
@@ -1146,7 +1146,7 @@ class TestLatex209:
 
     def test_no_target_reject(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """盲升闸：改名目标双侧不可解析 → reject/latex209_no_target。"""
-        monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: False)
+        monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: False)
         out, info = upgrade_209("\\documentstyle{revtex}\nx\n")
         assert info == {
             "status": "reject",

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile import latex209
+from texlate.compile import latex209_main
 from texlate.compile.inject import (
     CTEX_LINE,
     InjectRejectError,
@@ -26,7 +26,7 @@ def _target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
 
     守卫本身的用例在本文件内对 ``_target_resolvable`` 或其缝另行打桩。
     """
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: True)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: True)
 
 
 def test_upgrade_simple_article() -> None:
@@ -262,7 +262,7 @@ def test_target_resolvable_shipped_cls(
 ) -> None:
     """工程树内 ``<target>.cls`` 命中 → True（不依赖 kpsewhich）。"""
     (tmp_path / "jpsj3.cls").write_text("% vendored\n")
-    monkeypatch.setattr(latex209.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(latex209_main.shutil, "which", lambda _n: None)
     assert _target_resolvable(tmp_path, "jpsj3") is True
 
 
@@ -270,8 +270,10 @@ def test_target_resolvable_kpse_hit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """工程树无命中但 kpsewhich 找到 → True。"""
-    monkeypatch.setattr(latex209.shutil, "which", lambda _n: "/usr/bin/kpsewhich")
-    monkeypatch.setattr(latex209.subprocess, "run", _fake_kpse(0, "/texmf/jpsj3.cls\n"))
+    monkeypatch.setattr(latex209_main.shutil, "which", lambda _n: "/usr/bin/kpsewhich")
+    monkeypatch.setattr(
+        latex209_main.subprocess, "run", _fake_kpse(0, "/texmf/jpsj3.cls\n")
+    )
     assert _target_resolvable(tmp_path, "jpsj3") is True
 
 
@@ -279,8 +281,8 @@ def test_target_resolvable_both_miss(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """双侧无命中 → False（触发 ``latex209_no_target`` 的条件）。"""
-    monkeypatch.setattr(latex209.shutil, "which", lambda _n: "/usr/bin/kpsewhich")
-    monkeypatch.setattr(latex209.subprocess, "run", _fake_kpse(1))
+    monkeypatch.setattr(latex209_main.shutil, "which", lambda _n: "/usr/bin/kpsewhich")
+    monkeypatch.setattr(latex209_main.subprocess, "run", _fake_kpse(1))
     assert _target_resolvable(tmp_path, "jpsj3") is False
 
 
@@ -288,14 +290,14 @@ def test_target_resolvable_no_kpse_fails_open(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """kpsewhich 缺席/探测失败 fail-open → True（缺工具不阻断）。"""
-    monkeypatch.setattr(latex209.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(latex209_main.shutil, "which", lambda _n: None)
     assert _target_resolvable(tmp_path, "jpsj3") is True
 
     def _raise_fnf(*_a: object, **_k: object) -> subprocess.CompletedProcess:
         raise FileNotFoundError
 
-    monkeypatch.setattr(latex209.subprocess, "run", _raise_fnf)
-    monkeypatch.setattr(latex209.shutil, "which", lambda _n: "/gone/kpsewhich")
+    monkeypatch.setattr(latex209_main.subprocess, "run", _raise_fnf)
+    monkeypatch.setattr(latex209_main.shutil, "which", lambda _n: "/gone/kpsewhich")
     assert _target_resolvable(tmp_path, "jpsj3") is True
 
 
@@ -303,7 +305,7 @@ def test_upgrade_rename_target_missing_rejects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """改名目标类双侧不可解析 → ``latex209_no_target`` 拒转（0111097 jpsj2 实证）。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: False)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: False)
     tex = "\\documentstyle[epsfig,seceq,twocolumn]{jpsj}\nx\n"
     out, info = upgrade_209(tex, root=tmp_path)
     assert out == tex  # 拒转不改写原文
@@ -320,7 +322,7 @@ def test_upgrade_target_guard_skips_unmapped(
     def _boom(*_a: object) -> bool:
         raise AssertionError
 
-    monkeypatch.setattr(latex209, "_target_resolvable", _boom)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", _boom)
     out, info = upgrade_209("\\documentstyle{aipproc}\nx\n", root=tmp_path)
     assert info["status"] == "converted"
     assert "\\documentclass{aipproc}" in out
@@ -333,7 +335,7 @@ def test_inject_cjk_no_target_reject_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """reject reason 透传 inject 层 → ``InjectRejectError.reason`` 裸码。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: False)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: False)
     with pytest.raises(InjectRejectError) as exc:
         inject_cjk("\\documentstyle{jpsj}\nx\n", root=tmp_path)
     assert exc.value.reason == "latex209_no_target"

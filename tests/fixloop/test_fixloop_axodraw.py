@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from _fixloopkit import STUBS, n_err, requires_xelatex, run_xelatex
 
-from texlate.compile import latex209
+from texlate.compile import latex209_main
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.latex209 import upgrade_209
@@ -42,7 +42,7 @@ _DOCSTYLE_0111339 = "\\documentstyle[preprint,aps,epsfig,axodraw]{revtex}\nx\n"
 @pytest.fixture(autouse=True)
 def _target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
     """revtex→revtex4-2 改名目标默认放行——升级结果不依赖测试机 texmf。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: True)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: True)
 
 
 def _code_lines(body: str) -> str:

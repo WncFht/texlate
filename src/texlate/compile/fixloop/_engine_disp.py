@@ -106,7 +106,7 @@ def _rule_needs_pass(rule: Rule) -> bool:
     """规则 yaml 解析趟请求: ``action.params.needs_pass: true`` → True。
 
     ``builtin_transform`` 的 params 面不受 ``_ACTION_PARAM_KEYS`` 白名单
-    约束 (ruleset.py:588-607 未列该 kind)——yaml 作者对动了 aux/cite
+    约束 (_ruleset_validate 未列该 kind)——yaml 作者对动了 aux/cite
     记录面的修复规标 ``needs_pass: true`` 即挂引擎能力; builtin 直写
     ``ctx.needs_pass`` 同义 (facade 转落 ``ctx.ledger.needs_pass``)。
     """

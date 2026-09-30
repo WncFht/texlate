@@ -18,14 +18,14 @@ from __future__ import annotations
 
 import pytest
 
-from texlate.compile import latex209
+from texlate.compile import latex209_main
 from texlate.compile.latex209 import upgrade_209
 
 
 @pytest.fixture(autouse=True)
 def target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
     """改名目标类默认放行——原各文件同体 autouse 钉桩归一处。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: True)
+    monkeypatch.setattr(latex209_main, "_target_resolvable", lambda *_a: True)
 
 
 def convert(body: str) -> tuple[str, dict]:
