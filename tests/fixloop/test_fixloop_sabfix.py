@@ -28,10 +28,10 @@ from pathlib import Path
 from _fixloopkit import MockEngine
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
-from texlate.compile.fixloop._builtins_bib import (
+from texlate.compile.fixloop.builtins.bib import (
     _AUTOBIB_DISARM as _DISARM_FIXLOOP,
 )
-from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
+from texlate.compile.fixloop.builtins.bib import bbl_stub_rewrite
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport, parse_text
 from texlate.compile.normalize import (

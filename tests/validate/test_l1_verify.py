@@ -34,13 +34,13 @@ from _fixloopkit import mk_ctx_files
 from texlate.arxiv._texutil import TEX_EXT
 from texlate.arxiv.locate import locate
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop._builtins_misc import (
+from texlate.compile.fixloop.builtins import includepdf_missing_stub, svg_prepare
+from texlate.compile.fixloop.builtins.misc import (
     docstrip_generate,
     harvest_build_directives,
     plain_format_detect,
 )
-from texlate.compile.fixloop._builtins_shim import generated_stub
-from texlate.compile.fixloop.builtins import includepdf_missing_stub, svg_prepare
+from texlate.compile.fixloop.builtins.shim import generated_stub
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _cond_ok
 from texlate.latex.api import parse_tex
 from texlate.latex.flatten import flatten_inputs
@@ -245,7 +245,7 @@ def test_w102_docstrip_generates_cls(tmp_path: Path) -> None:
         {"aipproc.ins": "% fake ins\n", "aipproc.dtx": "% fake dtx\n"},
     )
     ctx.runner = fake_runner
-    misc = "texlate.compile.fixloop._builtins_misc.shutil.which"
+    misc = "texlate.compile.fixloop.builtins.misc.shutil.which"
     with patch(misc, return_value="/usr/bin/latex"):
         applied, note = docstrip_generate(ctx, _Eng(), "aipproc.cls", {})
     assert applied
@@ -361,7 +361,7 @@ def test_w31_svg_prepare_flag_arm(tmp_path: Path) -> None:
         tmp_path,
         {"m.tex": "\\usepackage{svg}\n\\begin{document}\n\\includesvg{d}\n"},
     )
-    bi = "texlate.compile.fixloop._builtins_graphics.shutil.which"
+    bi = "texlate.compile.fixloop.builtins.graphics.shutil.which"
     with patch(bi, side_effect=lambda n: "/fake/inkscape" if n == "inkscape" else None):
         applied, _ = svg_prepare(ctx, _Eng(), None, {})
     assert applied
@@ -389,7 +389,7 @@ def test_w31_svg_prepare_convert_arm(tmp_path: Path) -> None:
         },
     )
     ctx.runner = fake_runner
-    bi = "texlate.compile.fixloop._builtins_graphics.shutil.which"
+    bi = "texlate.compile.fixloop.builtins.graphics.shutil.which"
 
     def fake_which(name: str) -> str | None:
         return "/fake/rsvg-convert" if name == "rsvg-convert" else None

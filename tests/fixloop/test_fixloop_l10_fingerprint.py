@@ -2,7 +2,7 @@
 
 - b3a 工单: 注入件无版本/hash 闸, precheck 见件跳重投 → 旧代 stub 留存
   无辨 (hep-ph/0408075 stale espcrc2 实证: stub 缺 ``\\readRCS`` 而
-  undefined_cs ×106 全 decline)。修: ``_builtins_common`` 指纹三件套
+  undefined_cs ×106 全 decline)。修: ``builtins.common`` 指纹三件套
   (``_fingerprint``/``_mark_injected``/``_injected_state``) + 写面
   ``_inject_write`` —— 四分判 foreign(稿自带/真包, advisory+不覆写) /
   current(本代已注入, 跳) / stale(旧代注入件, 覆写刷新) / absent(写)。
@@ -19,13 +19,13 @@ from pathlib import Path
 from _fixloopkit import mk_vendor, vendored_fetch
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins import TRANSFORM_FNS, generated_stub
+from texlate.compile.fixloop.builtins.common import (
     _FINGERPRINT_RE,
     _inject_write,
     _injected_state,
     _mark_injected,
 )
-from texlate.compile.fixloop.builtins import TRANSFORM_FNS, generated_stub
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.logparse import parse_text
 

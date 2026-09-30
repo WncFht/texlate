@@ -13,7 +13,7 @@ from pathlib import Path
 
 from _fixloopkit import apply, mk_ctx, rule
 
-from texlate.compile.fixloop._builtins_pkgload import (
+from texlate.compile.fixloop.builtins.pkgload import (
     _SHIP_STY_INPUT_RE,
     _SHIP_WRAP_POST,
     _SHIP_WRAP_PRE,

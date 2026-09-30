@@ -24,8 +24,8 @@ from pathlib import Path
 from _fixloopkit import mk_ctx
 from test_fixloop_csfix2 import _proj, _read
 
-from texlate.compile.fixloop._builtins_csfix import _site_clear_line
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.csfix import _site_clear_line
 
 _UNDEF = TRANSFORM_FNS["undefine_for_redef"]
 

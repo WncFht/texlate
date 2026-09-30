@@ -20,16 +20,16 @@ from pathlib import Path
 from _fixloopkit import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
-from texlate.compile.fixloop._builtins_misschar import (
-    caret_utf8_fix,
-    macro_glyph_fix,
-)
 from texlate.compile.fixloop.builtins import (
     _inject_after_docclass,
     _mc_parse_log,
     font_fallback,
     missing_char_fix,
     svjour_clo_stub,
+)
+from texlate.compile.fixloop.builtins.misschar import (
+    caret_utf8_fix,
+    macro_glyph_fix,
 )
 from texlate.compile.fixloop.engine import LoopCtx
 

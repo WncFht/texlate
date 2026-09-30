@@ -1,4 +1,4 @@
-r"""_builtins_csfix — undefined_cs/already_def 按 cs 名打靶修复原语 (C3 拆分)。
+r"""builtins.csfix — undefined_cs/already_def 按 cs 名打靶修复原语 (C3 拆分)。
 
 ``cs_targeted_fix``: cs→修复表 (strip_pkg/usepackage/cs_map/polyfill 组合序,
 ``engines.{eng}`` 子表覆盖) + glue-残骸前缀拆分兜底; ``undefine_for_redef``:
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from texlate.compile._docseams import find_docclass_ends
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _LOAD_SITE_RE,
     PDFTEX_PRIMS,
     _drop_pkg_loads,

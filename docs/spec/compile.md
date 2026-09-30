@@ -37,7 +37,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 | 非 UTF-8           | `decode_tex` 分档                                                                                                             | reasons                                       |
 | `\documentstyle`   | LaTeX 2.09 嫌疑                                                                                                               | `latex209_suspect` 标记 + reasons             |
 
-决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 签名即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `_builtins_bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
+决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 签名即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
 
 ### 1.3 XelatexEngine（`engine/_xelatex.py`）
 
@@ -219,25 +219,26 @@ for rnd in 1..max_rounds(8):
 
 `cap_available`/`tool_available` 即引擎 caps 门——tlmgr/kpsewhich/updmap 依赖规则在 tectonic 侧自动降级或汇到 `ctan_fetch`/`vendored_fetch` 臂[^ctanprobe]。
 
-### 6.6 builtins：facade + 13 叶
+### 6.6 builtins：facade + 14 叶
 
-`builtins.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**83**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims`/`@pstricks` 占位符 yaml 全树展开（`_FAMILY_TOKENS` 双支：`@pdftex_prims` 112 词表 + `@pstricks` 4 签名支——后者单源 `engine/_route.PSTRICKS_SIG_ALTS`，route 静态签名与规则条件同口径）。社区新规则多数只写 regex，新函数才需 PR 代码。
+`builtins/__init__.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**83**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims`/`@pstricks` 占位符 yaml 全树展开（`_FAMILY_TOKENS` 双支：`@pdftex_prims` 112 词表 + `@pstricks` 4 签名支——后者单源 `engine/_route.PSTRICKS_SIG_ALTS`，route 静态签名与规则条件同口径）。社区新规则多数只写 regex，新函数才需 PR 代码。
 
 | 叶 | 主题 | |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | |
-| `_builtins_common` | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads` | |
-| `_builtins_bib` | bbl stub 改写/bbl_regen/`biber_biblatex_skew_route`/`cite_in_math_mbox`/`citekey_sanitize` | |
-| `_builtins_csfix` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） | |
-| `_builtins_docfix` | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹） | |
-| `_builtins_graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/pdf_asset_sanitize/xbb_pregen + 共享原语（`_iter_project_files`/`_try_gs_redistill` 等单源） | |
-| `_builtins_gfx_missing` | missing_graphic 缺图域（graphics C3 再拆叶）：`graphic_case_link`/`graphic_repair`/`includepdf_missing_stub`/`graphic_missing_placeholder`/`raster_pdf_rename`/`driver_missing_image_stub` | |
-| `_builtins_misschar` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件） | |
-| `_builtins_misc` | non_utf8_recode/purge_corrupt_intermediates/restore_support_from_src/plain_format_detect/harvest_build_directives/docstrip_generate/extract_tar_blobs/latex209_upgrade/cjk_env_relax 等 | |
-| `_builtins_paralong` | para_longize——非 long 宏撞 `\par` | |
-| `_builtins_pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 | |
-| `_builtins_shim` | stub/遮蔽/polyfill 注入：legacy_pkg_shim/generated_stub/journal_cs_polyfill/pdftex_prim_polyfill/fileset_relocate/doc_absent_stub/driver_tfm_hoist 等 | |
-| `_builtins_slotrev` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
-| `_builtins_vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire | |
+| `builtins.common` | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads` | |
+| `builtins.bib` | bbl stub 改写/bbl_regen/`biber_biblatex_skew_route`/`cite_in_math_mbox`/`citekey_sanitize` | |
+| `builtins.csfix` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） | |
+| `builtins.docfix` | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹） | |
+| `builtins.graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/pdf_asset_sanitize/xbb_pregen + 共享原语（`_iter_project_files`/`_try_gs_redistill` 等单源） | |
+| `builtins.gfx_missing` | missing_graphic 缺图域（graphics C3 再拆叶）：`graphic_case_link`/`graphic_repair`/`includepdf_missing_stub`/`graphic_missing_placeholder`/`raster_pdf_rename`/`driver_missing_image_stub` | |
+| `builtins.layoutfix` | qc-wanted 版面/字符面：`tabular_fit`/`math_run_break`/`display_math_shrink`/`gfx_width_clamp`/`section_skip_floor`/`fffd_context_fix`/`legacy_clamp_purge` | |
+| `builtins.misschar` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件） | |
+| `builtins.misc` | non_utf8_recode/purge_corrupt_intermediates/restore_support_from_src/plain_format_detect/harvest_build_directives/docstrip_generate/extract_tar_blobs/latex209_upgrade/cjk_env_relax 等 | |
+| `builtins.paralong` | para_longize——非 long 宏撞 `\par` | |
+| `builtins.pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 | |
+| `builtins.shim` | stub/遮蔽/polyfill 注入：legacy_pkg_shim/generated_stub/journal_cs_polyfill/pdftex_prim_polyfill/fileset_relocate/doc_absent_stub/driver_tfm_hoist 等 | |
+| `builtins.slotrev` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
+| `builtins.vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire | |
 
 ### 6.7 `vendor/` 离线资产三层
 

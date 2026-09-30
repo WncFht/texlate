@@ -27,11 +27,11 @@ import pytest
 
 from texlate.compile.fixloop import (
     Ruleset,
-    _builtins_shim,
     actions,
     builtins,
     load_ruleset,
 )
+from texlate.compile.fixloop.builtins import shim
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
@@ -67,7 +67,6 @@ def _match(ctx: LoopCtx, cat: str, pay: str | None, rep: ErrReport) -> Rule | No
 # ---------------------------------------------------------------- 注册/接线
 def test_at_family_tables_registered_disjoint() -> None:
     """`pdf@` 族入 PDFTEX_PRIMS; box/toks/count/argful 四臂互斥。"""
-    shim = _builtins_shim
     at_names = {p for p in builtins.PDFTEX_PRIMS if "@" in p}
     assert "pdf@box" in at_names
     assert "pdf@addtoksx" in at_names

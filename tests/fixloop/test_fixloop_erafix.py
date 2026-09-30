@@ -14,7 +14,7 @@ B7: ``missing_char_fix`` params.char_table 四行
 import re
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop._builtins_misschar import _MACRO_GLYPH_CS
+from texlate.compile.fixloop.builtins.misschar import _MACRO_GLYPH_CS
 
 _RS = load_ruleset()
 _CS_PARAMS = next(r for r in _RS.rules if r.id == "cs_targeted_fix").action["params"]

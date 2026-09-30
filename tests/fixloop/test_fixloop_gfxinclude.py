@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from _fixloopkit import mk_ctx_files
 
-from texlate.compile.fixloop._builtins_misc import graphics_include_strip
+from texlate.compile.fixloop.builtins.misc import graphics_include_strip
 
 if TYPE_CHECKING:
     from pathlib import Path

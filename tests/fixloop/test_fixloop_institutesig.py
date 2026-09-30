@@ -19,7 +19,7 @@ from pathlib import Path
 
 from _fixloopkit import XELATEX, EngStub, mk_ctx, requires_xelatex, write_file
 
-from texlate.compile.fixloop._builtins_paralong import (
+from texlate.compile.fixloop.builtins.paralong import (
     _WRAP_TABLE,
     _wrap_block,
     para_longize,

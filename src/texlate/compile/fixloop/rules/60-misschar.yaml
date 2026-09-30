@@ -414,7 +414,7 @@ rules:
           error: "Missing character: 希腊字面 U+3A5-3F5 落无希腊字形字体",
         }
     stats: { fires: 83, rescued_cells: 57, status: active }
-    source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
+    source_ref: "fixer-cjkfont 交付 (builtins/__init__.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
 
   # ─── E(b) 残余安全网 (fixer-font-fallback-8bit 交付, 批七并入) ───
   # CJK 码位落类/fontenc 内置 8-bit tfm 文本字体 (ec-lmr12/t1xr/futr8t/
@@ -742,7 +742,7 @@ rules:
   # 不在表 → decline (Amiri TL 内外皆无度量克隆 = 车道裁决 unfixable,
   # 不发错字体声明; FontAwesome.otf 普查后 texlive 补装已自愈)。
   # 跨分片 note: 类目主场在 50-font.yaml, 臂随 font_fallback 族 builtin
-  # 叶 (_builtins_misschar) 归本shard。
+  # 叶 (builtins.misschar) 归本shard。
   - id: fontspec_clone_sub
     description: "fontspec 名查找缺字体 → 度量克隆/同件文件形名替换 + Path/Extension/*Font 捆绑键剥除"
     phase: loop
@@ -854,7 +854,7 @@ rules:
           error: "FFFD 字面无语境 '-' 盲换产 '许-多'/'C-orcoles' 错修; 邻域分派逐跑定语义",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py fffd_context_fix; tmp/qc_impl_spec/impl-rules.json"
+    source_ref: "builtins/layoutfix.py fffd_context_fix; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "嵌 PDF 轴标内 FFFD 非字面位不属本臂; 注释/verbatim 遮盖域不动"
 
   # lmsans 宿主 CJK 缺字专臂 (2212.00111): 标题槽 OT 字面落 lmsans17

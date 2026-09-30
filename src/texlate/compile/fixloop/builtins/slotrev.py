@@ -1,4 +1,4 @@
-r"""_builtins_slotrev — zh 机位实参 revert (slotrevert 车道, task#188)。
+r"""builtins.slotrev — zh 机位实参 revert (slotrevert 车道, task#188)。
 
 机制 (zhleak 车道普查): segmenter 把未注册机位实参 (csname 体 /
 未注册 env 尾随参等) 放上 chunk 翻译字面量面 → zh 化后 splice 写回

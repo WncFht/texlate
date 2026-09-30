@@ -21,7 +21,7 @@ from pathlib import Path
 from _fixloopkit import MockEngine, MockRes
 
 from texlate.compile.fixloop import fixloop, load_ruleset
-from texlate.compile.fixloop._builtins_common import _wdir_fingerprint
+from texlate.compile.fixloop.builtins.common import _wdir_fingerprint
 from texlate.compile.fixloop.engine import LoopCtx, _landing_sync
 
 _ALDEF_ZZ = (

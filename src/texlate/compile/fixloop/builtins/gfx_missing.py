@@ -1,6 +1,6 @@
-r"""_builtins_gfx_missing — missing_graphic 缺图域修复原语 (C3 再拆分叶子)。
+r"""builtins.gfx_missing — missing_graphic 缺图域修复原语 (C3 再拆分叶子)。
 
-``_builtins_graphics`` 同源分叶: 转换/驱动预检族 (eps→pdf 全量转换、
+``builtins.graphics`` 同源分叶: 转换/驱动预检族 (eps→pdf 全量转换、
 svg/xbb/pdf-asset、pstricks 预检) 留原叶, 本叶收「引用在盘但引擎喊缺 /
 真缺件占位」一族 —— ci 大小写改名 ``graphic_case_link`` / 在盘拒载分级
 修复 ``graphic_repair`` / ``\includepdf`` 缺件占位
@@ -11,15 +11,15 @@ svg/xbb/pdf-asset、pstricks 预检) 留原叶, 本叶收「引用在盘但引�
 
 共享原语 (``_iter_project_files`` 排除面扫描 / ``_norm_graphic_name`` /
 ``_EPS_EXTS`` / ``_NUMERIC_EXT_RE`` / ``_try_gs_redistill`` gs 重蒸馏 /
-``_pdf_asset_targets``) 仍留 ``_builtins_graphics`` 单源, 本叶顶行回引
+``_pdf_asset_targets``) 仍留 ``builtins.graphics`` 单源, 本叶顶行回引
 —— 依赖单向 (gfx_missing → graphics) 无环; 反向
-``_builtins_graphics.X`` 读面经彼侧 ``__getattr__`` 惰性回引本叶,
-``builtins`` 门面 ``_LAZY`` 表与 ``from _builtins_graphics import X``
+``builtins.graphics.X`` 读面经彼侧 ``__getattr__`` 惰性回引本叶,
+``builtins`` 门面 ``_LAZY`` 表与 ``from builtins.graphics import X``
 测试面不需改。
 
 monkeypatch 锚点迁移: patch 面随调用链落在本叶 —— 测试请
-``monkeypatch.setattr(_builtins_gfx_missing, "<name>", ...)``;
-``_builtins_graphics``/``builtins`` 同名回引只是再导出, patch 不生效。
+``monkeypatch.setattr(builtins.gfx_missing, "<name>", ...)``;
+``builtins.graphics``/``builtins`` 同名回引只是再导出, patch 不生效。
 """
 
 from __future__ import annotations
@@ -30,12 +30,12 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _fixloop_log,
     _live_matches,
     _map_tex_files,
 )
-from texlate.compile.fixloop._builtins_graphics import (
+from texlate.compile.fixloop.builtins.graphics import (
     _EPS_EXTS,
     _NUMERIC_EXT_RE,
     _iter_project_files,

@@ -1,4 +1,4 @@
-r"""_builtins_layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtins lane)。
+r"""builtins.layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtins lane)。
 
 ``warn_overfull`` 驱动的版面钳 builtin 族 (qc_replay 2026-09-27 普查):
 
@@ -16,7 +16,7 @@ r"""_builtins_layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtin
   ``--``/拉丁名断点 ``'``/``\'``/兜底 ``{}``) —— 替掉 char_table
   ``fffd_repl('-')`` 的无语境连字符 (``许-多``/``C-orcoles`` 错修实证)。
 
-注册表接线在 ``builtins.py`` 门面 (``_LEAF_EXPORTS``/``_TRANSFORM_KEYS``/
+注册表接线在 ``builtins/__init__.py`` 门面 (``_LEAF_EXPORTS``/``_TRANSFORM_KEYS``/
 ``__all__``/TYPE_CHECKING 四表) —— 本叶只供函数本体, 名表合同即注册键。
 """
 
@@ -26,7 +26,7 @@ import re
 from bisect import bisect_right
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _fixloop_log,
     _inject_before_begindoc,
     _is_live,
@@ -482,7 +482,7 @@ _MATHRUN_SNIPPET = (
 #: 兜底); 已注走就地升级 (下方正则臂)。
 _MATHRUN_STRONG = "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
 
-#: ``para_loosen`` 注入块标记行 (_builtins_misc._LOOSEN_SNIPPET 首行)——
+#: ``para_loosen`` 注入块标记行 (builtins.misc._LOOSEN_SNIPPET 首行)——
 #: 已注检出即升级剂量而非重注 (同位赋值后注后胜, 不叠注语义靠升级臂)。
 _LOOSEN_MARK = "% texlate-fixloop: overfull-hbox mitigation"
 _LOOSEN_UP_RX = (

@@ -292,7 +292,7 @@ def _iter_slot_groups(
     只产非 None 捕获组；match 锚在 ``live_tex`` 等长视图上——消费端按
     ``m.start(i)/m.end(i)`` 回切 ``src`` 取原文字节、按 ``m.group(i)``
     取遮盖面文本做判定。``_slot_scan``/``_slot_args``/
-    ``fixloop._builtins_slotrev._slot_spans`` 三路组迭代同形，只差
+    ``fixloop.builtins.slotrev._slot_spans`` 三路组迭代同形，只差
     yield 映射（非 ASCII 过滤 / 全组入列 / 保 offset）。
     """
     view = live_tex(src)

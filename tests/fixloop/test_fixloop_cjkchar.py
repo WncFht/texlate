@@ -14,8 +14,8 @@ from pathlib import Path
 import regex
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop._builtins_misc import cjk_env_relax
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.misc import cjk_env_relax
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.ruleset import Rule
 from texlate.compile.logparse import parse_text

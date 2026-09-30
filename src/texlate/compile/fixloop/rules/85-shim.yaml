@@ -73,7 +73,7 @@ rules:
           error: "support 件被注入 CJK → illegal_unit/undefined_cs 级联 (0707.4206 \\psunit 同族)",
         }
     stats: { fires: 9, rescued_cells: 6, status: active }
-    source_ref: "builtins.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
+    source_ref: "builtins/__init__.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
 
   # ── 2026-09-19 slotrevert 车道 (zhleak 车道普查 + task#188) ──
   # segmenter 把未注册机位实参 (csname 体/未注册 env 尾随参等) 放上
@@ -436,7 +436,7 @@ rules:
           error: "Class SVJour Error: No valid journal specified (sv*.clo 零伴船)",
         }
     stats: { fires: 8, rescued_cells: 1, status: active }
-    source_ref: "builtins.py svjour_clo_stub (3e292eb)"
+    source_ref: "builtins/__init__.py svjour_clo_stub (3e292eb)"
 
   # 2026-09-20 csfix8 (1511.06717): aa.cls \def\filedate{2014/12/1} —
   # 月/日段单数字让 kernel \@parse@version@dash 错位, \@nil 漏进 \ifnum →

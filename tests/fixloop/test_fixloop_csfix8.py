@@ -40,7 +40,7 @@ from test_fixloop_csfix7 import (
     check_unknown_cs_decline,
 )
 
-from texlate.compile.fixloop._builtins_csfix import _CS_FIX_TABLE
+from texlate.compile.fixloop.builtins.csfix import _CS_FIX_TABLE
 
 
 def test_table_entries_present() -> None:

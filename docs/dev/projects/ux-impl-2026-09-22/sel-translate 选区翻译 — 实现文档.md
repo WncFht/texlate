@@ -149,7 +149,7 @@ st-backcheck 产出 per-chunk 对齐图：`{seq, kind, en_sents[], zh_sents[], b
 
 ## 测试计划
 
-后端 pytest（`tests/test_app_endpoints.py` 模式，`TestClient(make_app(tmp_path))`，`client.portal.call` 触异步面）：
+后端 pytest（`tests/server/test_app_endpoints.py` 模式，`TestClient(make_app(tmp_path))`，`client.portal.call` 触异步面）：
 
 - 契约阶梯：200 正常 / 400（text 空、>4096c、mode 非法、lang 非法）/ 404 坏 task / 409 非 done|partial 任务。
 - 配额：灌满 peer req 闸 → 429 `scope=peer`+`retry_after_s`；灌 tok 闸同理；跨日重置；in_flight 并发第二发 429。

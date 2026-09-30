@@ -35,7 +35,7 @@ rules:
           error: "missing \\item @ \\end{thebibliography} (stub bbl 遮蔽 360 行真 bbl)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/spec/compile.md §6.3 (80-bib 分片行) / §6.6 (_builtins_bib: bbl stub 改写); ctanfetch-probe.md §3.2"
+    source_ref: "docs/spec/compile.md §6.3 (80-bib 分片行) / §6.6 (builtins.bib: bbl stub 改写); ctanfetch-probe.md §3.2"
 
   # 2026-09-17 批二 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
   # cite-key 裸 &/_ 在现代内核炸 Missing $/Misplaced alignment tab ——
@@ -91,7 +91,7 @@ rules:
           error: "Undefined control sequence \\sortlist / File 'ms.bbl' is wrong format version",
         }
     stats: { fires: 28, rescued_cells: 7, status: active }
-    source_ref: "builtins.py bbl_regen (a5ba9a7)"
+    source_ref: "builtins/__init__.py bbl_regen (a5ba9a7)"
 
   # 2026-09-17 fixer-apjbbx (1706.00240): bundled apj.bbx (2017,
   # biblatex≤3.7 期) 以 \bbx@patchmacro 补丁旧宏名; 3.8 改名
@@ -157,7 +157,7 @@ rules:
           error: "! the external tool exited / biber: Found biblatex control file version 3.8, expected version 3.11",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_bib.py biber_biblatex_skew_route; repair.py cross_engine_retry reject_route 臂"
+    source_ref: "builtins/bib.py biber_biblatex_skew_route; repair.py cross_engine_retry reject_route 臂"
 
   # 2026-09-25 scale50 批实证 (t_0c9a/2609.20470, t_dce88/2609.19713,
   # t_a4ae/2510.22418): tectonic bib 管线双盲区——
@@ -200,7 +200,7 @@ rules:
           error: "unfixable:other — ! can't open path `references.bib` (main.bbl 在席)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_bib.py tectonic_bib_stall_route; repair.py cross_engine_retry reject_route 臂"
+    source_ref: "builtins/bib.py tectonic_bib_stall_route; repair.py cross_engine_retry reject_route 臂"
 
   # 2026-09-18 natbib 车道 (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
   # (95-targeted order 186) 的 (\\begin\{document\}) 重写无注释遮盖——注释行
@@ -394,7 +394,7 @@ rules:
           error: "File 'x.bbl' is wrong format version - expected 3.3 + 无 .bib → \\sortlist/\\entry 裸排",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "80-bib.yaml:346 前置注记 (bbl_version_regen) + _builtins_bib.bbl_format_version_rewrite docstring"
+    source_ref: "80-bib.yaml:346 前置注记 (bbl_version_regen) + builtins.bib.bbl_format_version_rewrite docstring"
 
   # 'No file X.bbl'/'File x.bbl not found' 型 missing_file → bbl_regen:
   # .bcf 在场 = biblatex 稿, biber <stem> 直接生出缺失 .bbl; 比

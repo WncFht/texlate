@@ -112,7 +112,7 @@ _NEEDFMT_RE = re.compile(
 #: bracket 须日期开头 —— ``[=v2]``/``[\KOMAScriptVersion]`` 兼容钉不命中)。
 #: 注意 ``\ProvidesX{name}[date]``/``\ProvidesExplX{name}{date}`` 是包自署
 #: 日期非 floor 声明 (expl3 件多走 ``{\ExplFileDate}``/``\GetIdInfo`` 间址),
-#: 不入本族 —— 自署件抽取归 _builtins_vendored._provides_date 的遮蔽语义。
+#: 不入本族 —— 自署件抽取归 builtins.vendored._provides_date 的遮蔽语义。
 _PKGLATER_RE = re.compile(
     r"(?:\\@ifpackagelater|\\@ifclasslater"
     r"|\\IfPackageAtLeast(?:TF|T|F)"

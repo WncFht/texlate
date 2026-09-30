@@ -41,8 +41,8 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop._builtins_shim import _SVJOUR_CLO_BODY
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.shim import _SVJOUR_CLO_BODY
 from texlate.compile.fixloop.engine import LoopCtx
 
 SHIMS = (

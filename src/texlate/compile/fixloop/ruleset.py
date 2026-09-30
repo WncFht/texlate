@@ -331,7 +331,7 @@ def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list
     词表 = ``actions.py`` 实读名 ∪ 出厂注解键 (``verify``/``batch``/
     ``once_per_payload``/``hint``/``context`` 是不消费的文档性键,
     仍收录)。``builtin_transform`` 的 params 词表随 TRANSFORM_FNS
-    逐函数定义 (各 ``_builtins_*`` 叶自查), 此处不限键名不检值。
+    逐函数定义 (各 ``builtins/`` 叶自查), 此处不限键名不检值。
     """
     probs: list[str] = []
     # kind 非 str (如 list) 不可哈希——``.get`` 直接 TypeError; 该形已由
@@ -584,7 +584,7 @@ _ACTION_KEYS = frozenset({"kind", "function", "params"})
 #: 各 action.kind 的 ``params`` 合法键——``actions.py`` 实读名 ∪ 出厂
 #: 注解键 (verify/batch/once_per_payload/hint/context 不消费但收)。
 #: ``builtin_transform`` 缺席有意: 词表随 TRANSFORM_FNS 逐函数定义,
-#: 各 ``_builtins_*`` 叶自持, 此处不做总表白名单 (造约束)。
+#: 各 ``builtins/`` 叶自持, 此处不做总表白名单 (造约束)。
 _ACTION_PARAM_KEYS: dict[str, frozenset[str]] = {
     "scan_install": frozenset(
         {"scan_patterns", "noise_filter", "vendored", "dir", "batch", "verify"}

@@ -13,7 +13,7 @@ normalize ``use_bundled_bibliography`` 双侧统一 csname-let 形
 
 from pathlib import Path
 
-from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
+from texlate.compile.fixloop.builtins.bib import bbl_stub_rewrite
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.normalize import use_bundled_bibliography
 

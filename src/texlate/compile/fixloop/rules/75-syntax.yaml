@@ -155,7 +155,7 @@ rules:
           error: "\\begin{TeXlateTabClamp} ended by \\end{TeXlateFitTable} 系 1080 事件 + FitTable 单独 215——成对钩配对不候场毁编",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py legacy_clamp_purge/_strip_legacy_clamp; compile/layout.py TABLE_FITTING 0930 拔除"
+    source_ref: "builtins/layoutfix.py legacy_clamp_purge/_strip_legacy_clamp; compile/layout.py TABLE_FITTING 0930 拔除"
     known_gap: "稿面原生 env_mismatch (无 TeXlate 残块) 不归本臂——decline 留给后续 syntax 规则; 块边界失配形态靠散钩行兜底剥"
 
   - id: soul_cjk_mbox
@@ -1581,7 +1581,7 @@ rules:
           error: "triangle_dots.eps:31 Missing \\begin{document} ← \\include{triangle_dots.eps}@preamble",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-docclsstack/; _builtins_misc.graphics_include_strip"
+    source_ref: "tmp/lane-docclsstack/; builtins.misc.graphics_include_strip"
 
   # phantom 臂: `Incomplete \if` 签名在同签下轮复发 = unclosed_if_close(196)
   # 字面扫描 noop 过——源件 \if*/\fi 平衡, 真凶是展开态 conditional:

@@ -12,7 +12,7 @@ fontspec 是内核耦合件, 双向跨版本 vendor 均无安全面 → 签名�
 from pathlib import Path
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._builtins_vendored import (
+from texlate.compile.fixloop.builtins.vendored import (
     fontspec_kernel_shadow_retire,
 )
 from texlate.compile.fixloop.engine import LoopCtx

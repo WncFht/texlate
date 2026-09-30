@@ -21,13 +21,13 @@ from pathlib import Path
 
 from _fixloopkit import EngStub, mk_ctx, rule
 
-from texlate.compile.fixloop._builtins_misschar import (
-    _CLONE_TABLE,
-    _font_stem,
-)
 from texlate.compile.fixloop.builtins import (
     fontenc_enc_relax,
     fontspec_clone_sub,
+)
+from texlate.compile.fixloop.builtins.misschar import (
+    _CLONE_TABLE,
+    _font_stem,
 )
 
 

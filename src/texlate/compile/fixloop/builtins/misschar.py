@@ -1,4 +1,4 @@
-"""_builtins_misschar — missing_char F4 族修复原语 (C3 拆分)。
+"""builtins.misschar — missing_char F4 族修复原语 (C3 拆分)。
 
 log「Missing character」行 → 码位分级 → 按类修复: 表驱动字面替换
 (``missing_char_fix``) / 组合附加符 accent cs 站点改写 (``accent_mark_fix``) /
@@ -6,7 +6,7 @@ log「Missing character」行 → 码位分级 → 按类修复: 表驱动字面
 
 读侧/规划侧机制 (``_mc_parse_log``/``_mc_table``/``_mc_hit``/``_mc_plan``
 + ``_MC_TABLE``/``_FB_FONT``/``_MATH_SHIM_CS`` 常量) 归位
-``_builtins_common`` —— shim 叶同消费, 本叶只留修复动作本体。
+``builtins.common`` —— shim 叶同消费, 本叶只留修复动作本体。
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import unicodedata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _FB_FONT,
     _MATH_SHIM_CS,
     _brace_end,
@@ -92,7 +92,7 @@ _KO_FONT_CANDS: tuple[Any, ...] = (
 )
 
 #: ``\begin{document}`` 锚 —— 导言区末位注入点 (``_inject_before_begindoc``,
-#: ``_builtins_common`` 单源)。hangul 路由件须晚于一切包装载的
+#: ``builtins.common`` 单源)。hangul 路由件须晚于一切包装载的
 #: catcode/charclass 重声明 (xetexko 装载把 AC00-D7A3 catcode 重置
 #: 12 + 圈进自家 HG 类), 又早于 class ``\AtBeginDocument`` 钩内的排版
 #: (kaist-ucs.cls 封面文字在钩内走)。

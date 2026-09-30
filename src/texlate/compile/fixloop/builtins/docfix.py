@@ -1,4 +1,4 @@
-r"""_builtins_docfix — 文档结构/定义面打靶修复原语 (_builtins_csfix 再拆叶)。
+r"""builtins.docfix — 文档结构/定义面打靶修复原语 (builtins.csfix 再拆叶)。
 
 ``pdfstring_cs_disarm``: `` `\cs `` pdfstring 字母常量扫描炸 → 书签域空降格;
 ``if_phantom_protect``: phantom ``Incomplete \if`` → 前稿 cs 族 ``\protected``
@@ -14,7 +14,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile._docseams import find_docclass_ends
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _LOAD_SITE_RE,

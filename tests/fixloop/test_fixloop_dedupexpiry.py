@@ -18,7 +18,7 @@ from pathlib import Path
 
 from _fixloopkit import mk_ctx
 
-from texlate.compile.fixloop._builtins_misc import (
+from texlate.compile.fixloop.builtins.misc import (
     _wdir_fingerprint,
     non_utf8_recode,
     purge_corrupt_intermediates,

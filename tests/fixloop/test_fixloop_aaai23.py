@@ -14,8 +14,8 @@ import pytest
 from _fixloopkit import n_err, requires_xelatex, run_xelatex
 
 import texlate.compile.fixloop as _fixloop_mod
-from texlate.compile.fixloop._builtins_vendored import _vendored_source
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.vendored import _vendored_source
 from texlate.compile.fixloop.engine import LoopCtx
 
 STUBS = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"

@@ -10,7 +10,7 @@ repair 跨引擎臂换编。签名复核两级：``err_head`` 快径 → ``_fixl
 from pathlib import Path
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._builtins_bib import biber_biblatex_skew_route
+from texlate.compile.fixloop.builtins.bib import biber_biblatex_skew_route
 from texlate.compile.fixloop.engine import LoopCtx
 
 _SKEW = "Found biblatex control file version 3.8, expected version 3.11.\n"

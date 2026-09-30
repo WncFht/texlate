@@ -16,14 +16,14 @@ byte-copy / `dep:` vendored sibling loads it (`~name`=stem match,
 this file is authoritative. Generated 2026-09-30; full census +sha256:
 `tmp/vendor-census-20260930.jsonl` (ephemeral). Regenerate:
 `python3 tools/vendor_census.py` (census files, parse first
-`\ProvidesX{name}[ver]`/`{n}{date}{v}`, grep basenames in `fixloop/*.py`,
+`\ProvidesX{name}[ver]`/`{n}{date}{v}`, grep basenames in `fixloop/**/*.py`,
 `fixloop/rules/*.yaml`, `compile/**/*.py`, sibling files for inter-vendor
 loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 
 ## `files/`
 | path | bytes | \ProvidesX | cl | evidence |
 | --- | ---: | --- | --- | --- |
-| `IEEEconf.cls` | 6629 | IEEEconf@2009/04/05 v1.4 IEEE Co… | a | compile/fixloop/_builtins_vendored.py:476 |
+| `IEEEconf.cls` | 6629 | IEEEconf@2009/04/05 v1.4 IEEE Co… | a | compile/fixloop/builtins/vendored.py:476 |
 | `VCColor-names.def` | 3931 | — | b | dep:files/vaucanson-g.sty+1 |
 | `VCPref-beamer.tex` | 1374 | — | b | dep:files/VCPref-slides.tex~VCPref-beamer+2 |
 | `VCPref-default.tex` | 5984 | — | b | dep:files/vaucanson-g.sty+1 |
@@ -50,7 +50,7 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `chessfss.sty` | 25613 | chessfss@2006/06/14 v1.2a chess … | b | dep:files/skak.sty~chessfss |
 | `citehack.sty` | 3476 | citehack | b | lib |
 | `complexity.sty` | 26143 | complexity@09/16/17 \space v0.81a | b | dep:files/pst-tools.tex~complexity |
-| `csvsimple-l3.sty` | 47780 | csvsimple-l3@2024/09/27 | a | compile/fixloop/_builtins_vendored.py:45+7 |
+| `csvsimple-l3.sty` | 47780 | csvsimple-l3@2024/09/27 | a | compile/fixloop/builtins/vendored.py:45+7 |
 | `delimset.sty` | 17403 | delimset@2026-03-26 v2.3.1 conve… | b | lib |
 | `derivative.sty` | 58190 | derivative@2024/02/08 | b | dep:files/pstricks-add.tex~derivative |
 | `dhucs.sty` | 4770 | dhucs@2015/08/21 v5.4 typesettin… | b | lib |
@@ -61,8 +61,8 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `elsart.cls` | 54373 | \@shortjid@\esp@filedate, \esp@f… | a | compile/fixloop/rules/70-pkgopt.yaml:415+2 |
 | `emulateapj.sty` | 41056 | emulateapj | a | compile/fixloop/rules/90-shim-legacy.yaml:1049 |
 | `emulateapj5.sty` | 26119 | emulateapj5 | a | compile/fixloop/rules/85-shim.yaml:161+4 |
-| `epsf` | 27123 | — | a | compile/fixloop/_builtins_gfx_missing.py:66+95 |
-| `epsf.tex` | 27123 | — | a | compile/fixloop/_builtins_shim.py:345+5 |
+| `epsf` | 27123 | — | a | compile/fixloop/builtins/gfx_missing.py:66+95 |
+| `epsf.tex` | 27123 | — | a | compile/fixloop/builtins/shim.py:345+5 |
 | `epsfx.tex` | 16007 | — | b | lib |
 | `eqnarray.sty` | 4712 | eqnarray | b | dep:files/aastex.cls~eqnarray+11 |
 | `faktor.sty` | 1832 | — | b | lib |
@@ -73,9 +73,9 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `harmony.sty` | 12762 | harmony@2024/08/01 | a | compile/fixloop/rules/10-taxonomy.yaml:106 |
 | `hepunits.sty` | 4234 | hepunits@\filedate\space High-en… | b | lib |
 | `hxetex.def` | 44484 | hxetex.def@2026-01-29 v7.01p % H… | b | lib |
-| `inputenc.sty` | 964 | inputenc@2026/09/20 fixloop noop… | a | compile/fixloop/_builtins_pkgload.py:96+8 |
+| `inputenc.sty` | 964 | inputenc@2026/09/20 fixloop noop… | a | compile/fixloop/builtins/pkgload.py:96+8 |
 | `iopams.sty` | 3139 | iopams@1997/02/13 v1.0 | a | compile/fixloop/rules/90-shim-legacy.yaml:528+2 |
-| `iopart.cls` | 40451 | iopart@1996/06/10 v0.0 IOP Journ… | a | compile/fixloop/_builtins_vendored.py:595+5 |
+| `iopart.cls` | 40451 | iopart@1996/06/10 v0.0 IOP Journ… | a | compile/fixloop/builtins/vendored.py:595+5 |
 | `iopart10.clo` | 4700 | iopart10.clo@1997/01/13 v1.0 IOP… | a | compile/fixloop/rules/90-shim-legacy.yaml:528 |
 | `iopart12.clo` | 4698 | iopart12.clo@1997/01/15 v1.0 LaT… | a | compile/fixloop/rules/90-shim-legacy.yaml:528 |
 | `jabbrv-ltwa-all.ldf` | 49107 | — | b | dep:files/jabbrv.sty |
@@ -94,14 +94,14 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `lams4.tfm` | 676 | — | a | compile/fixloop/rules/40-install.yaml:942 |
 | `lams5.mf` | 16748 | — | a | compile/fixloop/rules/40-install.yaml:948 |
 | `lams5.tfm` | 692 | — | a | compile/fixloop/rules/40-install.yaml:943 |
-| `lgrenc.def` | 44064 | lgrenc.def@2023-09-12 2.5 LGR Gr… | a | compile/fixloop/_builtins_misschar.py:1178+3 |
+| `lgrenc.def` | 44064 | lgrenc.def@2023-09-12 2.5 LGR Gr… | a | compile/fixloop/builtins/misschar.py:1178+3 |
 | `listofitems.sty` | 195 | — | b | dep:files/listofitems.tex |
 | `listofitems.tex` | 29855 | — | b | dep:files/listofitems.sty |
 | `llncs.cls` | 43405 | llncs@2025/02/25 v2.26 ^^J LaTeX… | b | lib |
 | `ltxdocext.sty` | 9996 | ltxdocext.sty@2018/12/26 1.0a lt… | b | lib |
 | `ltxfront.sty` | 30263 | ltxfront.sty@2022/06/05 4.2f fro… | b | dep:files/revtex4-2.cls~ltxfront |
 | `ltxgrid.sty` | 74109 | ltxgrid.sty@2022/06/05 4.2f page… | b | dep:files/quantumarticle.cls~ltxgrid+1 |
-| `ltxutil.sty` | 54952 | ltxutil.sty@2022/06/05 4.2f util… | a | compile/fixloop/_builtins_paralong.py:143+1 |
+| `ltxutil.sty` | 54952 | ltxutil.sty@2022/06/05 4.2f util… | a | compile/fixloop/builtins/paralong.py:143+1 |
 | `mathcomp.sty` | 1664 | mathcomp@\filedate\space\filever… | b | lib |
 | `mathtext.sty` | 4742 | mathtext@2018/04/14 v1.0 transpa… | a | compile/fixloop/rules/95-targeted.yaml:1059+1 |
 | `misccorr.sty` | 10309 | — | b | lib |
@@ -158,14 +158,14 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `pst-poly.tex` | 9432 | — | b | lib |
 | `pst-text.sty` | 420 | pst-text@2018/12/28 package wrap… | b | dep:files/pst-all.sty~pst-text+1 |
 | `pst-text.tex` | 6745 | — | b | dep:files/pst-all.sty~pst-text+1 |
-| `pst-tools.tex` | 9677 | — | a | compile/fixloop/_builtins_shim.py:1038+2 |
+| `pst-tools.tex` | 9677 | — | a | compile/fixloop/builtins/shim.py:1038+2 |
 | `pst-tree.sty` | 272 | pst-tree@2009/01/25 package wrap… | b | dep:files/pst-all.sty~pst-tree+1 |
 | `pst-tree.tex` | 34225 | — | b | dep:files/pst-all.sty~pst-tree+1 |
 | `pst-xkey` | 2437 | pst-xkey.tex@2005/11/25 v1.6 PST… | a | compile/fixloop/rules/40-install.yaml:413 |
 | `pst-xkey.sty` | 1762 | pst-xkey@2005/11/25 v1.6 package… | b | dep:files/pst-3d~pst-xkey+18 |
 | `pst-xkey.tex` | 2437 | pst-xkey.tex@2005/11/25 v1.6 PST… | b | dep:files/pst-3d~pst-xkey+24 |
 | `pstcol.sty` | 899 | pstcol@2007/04/11 v1.3 LaTeX wra… | a | compile/fixloop/rules/70-pkgopt.yaml:422+1 |
-| `pstricks` | 70970 | — | a | compile/fixloop/_builtins_gfx_missing.py:4+108 |
+| `pstricks` | 70970 | — | a | compile/fixloop/builtins/gfx_missing.py:4+108 |
 | `pstricks-add.sty` | 639 | pstricks-add@2021/09/10 v. 0.17 … | a | compile/fixloop/rules/40-install.yaml:446 |
 | `pstricks-add.tex` | 91623 | — | a | compile/fixloop/actions.py:572+7 |
 | `pstricks-arrows` | 19134 | — | b | twin:pstricks-arrows.tex |
@@ -178,8 +178,8 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `pstricks-tex.def` | 3362 | — | b | dep:files/pstricks+2 |
 | `pstricks-xetex.def` | 1026 | — | b | dep:files/pstricks.sty |
 | `pstricks.con` | 15065 | — | b | dep:files/Vaucanson-G.tex~pstricks+44 |
-| `pstricks.sty` | 8163 | pstricks@2024/02/02 v0.75 LaTeX … | a | compile/fixloop/_builtins_vendored.py:209+3 |
-| `pstricks.tex` | 70970 | — | a | compile/fixloop/_builtins_vendored.py:79+3 |
+| `pstricks.sty` | 8163 | pstricks@2024/02/02 v0.75 LaTeX … | a | compile/fixloop/builtins/vendored.py:209+3 |
+| `pstricks.tex` | 70970 | — | a | compile/fixloop/builtins/vendored.py:79+3 |
 | `pstricks97.tex` | 70662 | — | b | dep:files/pst-node97.tex+1 |
 | `ptptex.cls` | 35434 | ptptex@2008/11/20 ver.0.91 LaTeX… | b | lib |
 | `puenc-greek.def` | 26371 | puenc-greek.def@2023-09-12 2.5 G… | b | lib |
@@ -187,7 +187,7 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `quantikz.sty` | 591 | quantikz@2023/05/24 typeset quan… | b | lib |
 | `quantumarticle.cls` | 58247 | quantumarticle | b | lib |
 | `revsymb4-2.sty` | 5569 | revsymb4-2@2022/06/05 4.2f (http… | b | dep:files/revtex4-2.cls~revsymb4-2 |
-| `revtex4-2.cls` | 202907 | revtex4-2@2022/06/05 4.2f (https… | a | compile/fixloop/_builtins_paralong.py:138+16 |
+| `revtex4-2.cls` | 202907 | revtex4-2@2022/06/05 4.2f (https… | a | compile/fixloop/builtins/paralong.py:138+16 |
 | `sgame.sty` | 15196 | — | b | lib |
 | `simplekv.tex` | 12655 | — | b | dep:files/systeme.sty~simplekv+1 |
 | `simplewick.sty` | 5472 | simplewick@\filedate\space\filev… | b | lib |
@@ -198,7 +198,7 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `spie.cls` | 13396 | spie@2007/04/14 v3.25 SPIE Proce… | b | lib |
 | `systeme.sty` | 1250 | — | b | dep:files/systeme.tex |
 | `systeme.tex` | 55120 | — | b | dep:files/systeme.sty |
-| `t2aenc.def` | 12179 | t2aenc.def@2023/11/07 v1.0k Cyri… | a | compile/fixloop/_builtins_misschar.py:1178+2 |
+| `t2aenc.def` | 12179 | t2aenc.def@2023/11/07 v1.0k Cyri… | a | compile/fixloop/builtins/misschar.py:1178+2 |
 | `tascmac.sty` | 11463 | tascmac@2020/01/15 v2.1 ascmac p… | b | dep:files/ascmac.sty |
 | `tensor.sty` | 5283 | tensor@2023/07/18 v2.2 tensor in… | b | dep:files/revsymb4-2.sty~tensor |
 | `turnstile.sty` | 9182 | turnstile@2007/06/23 v1.0 turnst… | b | lib |
@@ -213,27 +213,27 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `JHEP.cls` | 10845 | JHEP@2026/09/19 texlate stub — o… | a | compile/fixloop/rules/90-shim-legacy.yaml:710+1 |
 | `JHEP3.cls` | 11802 | JHEP3@2026/09/19 texlate stub — … | a | compile/fixloop/rules/90-shim-legacy.yaml:710+1 |
 | `aastex63.cls` | 4560 | aastex63@2026/09/28 texlate stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:447 |
-| `aipproc.cls` | 7345 | aipproc@2026/09/19 texlate stub … | a | compile/fixloop/_builtins_misc.py:518+8 |
+| `aipproc.cls` | 7345 | aipproc@2026/09/19 texlate stub … | a | compile/fixloop/builtins/misc.py:518+8 |
 | `appolb.cls` | 1317 | appolb@2026/09/28 texlate stub —… | a | compile/fixloop/rules/90-shim-legacy.yaml:1505+1 |
 | `conm-p-l.cls` | 1027 | conm-p-l@2026/09/28 texlate stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:1215+1 |
 | `epl2.cls` | 3159 | epl2@2026/09/28 texlate stub — o… | a | compile/fixloop/rules/90-shim-legacy.yaml:1097+3 |
 | `imsart.cls` | 4529 | imsart@2026/09/19 texlate stub —… | a | compile/fixloop/rules/90-shim-legacy.yaml:1212 |
 | `memo-l.cls` | 1800 | memo-l@2026/09/28 texlate stub —… | a | compile/fixloop/rules/90-shim-legacy.yaml:1316+1 |
 | `mn.cls` | 1237 | mn@2026/09/18 texlate stub -> mn… | b | dep:shims/mn2e.cls |
-| `mn2e.cls` | 1479 | mn2e@2026/09/19 texlate stub — o… | a | compile/fixloop/_builtins_paralong.py:137+14 |
-| `revtex.cls` | 3805 | revtex@2026/09/19 texlate stub —… | a | compile/fixloop/_builtins_shim.py:1614+10 |
+| `mn2e.cls` | 1479 | mn2e@2026/09/19 texlate stub — o… | a | compile/fixloop/builtins/paralong.py:137+14 |
+| `revtex.cls` | 3805 | revtex@2026/09/19 texlate stub —… | a | compile/fixloop/builtins/shim.py:1614+10 |
 | `siamltex.cls` | 3997 | siamltex@2026/09/28 texlate stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:609 |
-| `svjour.cls` | 8219 | svjour@2026/09/19 texlate stub —… | a | compile/fixloop/_builtins_shim.py:489+5 |
+| `svjour.cls` | 8219 | svjour@2026/09/19 texlate stub —… | a | compile/fixloop/builtins/shim.py:489+5 |
 | `svjour3.cls` | 8097 | svjour3@2026/09/19 texlate stub … | a | compile/fixloop/rules/90-shim-legacy.yaml:1054 |
 
 ## `stubs/`
 | path | bytes | \ProvidesX | cl | evidence |
 | --- | ---: | --- | --- | --- |
 | `BoxedEPS.tex` | 1673 | — | a | compile/fixloop/rules/90-shim-legacy.yaml:2045+1 |
-| `aa.cls` | 17317 | aa@2026/09/19 texlate stub — ori… | a | compile/fixloop/_builtins_paralong.py:136+23 |
+| `aa.cls` | 17317 | aa@2026/09/19 texlate stub — ori… | a | compile/fixloop/builtins/paralong.py:136+23 |
 | `aaai23.sty` | 2530 | aaai23@2026/09/20 texlate stub —… | b | lib |
 | `aasms4.sty` | 10223 | aasms4@2026/09/19 texlate stub —… | a | compile/fixloop/rules/90-shim-legacy.yaml:64+2 |
-| `aaspp4.sty` | 10467 | aaspp4@2026/09/19 texlate stub —… | a | compile/fixloop/_builtins_csfix.py:234+3 |
+| `aaspp4.sty` | 10467 | aaspp4@2026/09/19 texlate stub —… | a | compile/fixloop/builtins/csfix.py:234+3 |
 | `apjfonts.sty` | 487 | apjfonts@2026/09/19 texlate stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:918 |
 | `axodraw.sty` | 5417 | axodraw@2026/09/19 texlate stub … | a | compile/fixloop/rules/90-shim-legacy.yaml:1045 |
 | `bibmods.sty` | 587 | bibmods@2026/09/28 texlate stub … | b | lib |
@@ -257,7 +257,7 @@ loads incl. constructed `jabbrv-ltwa-\jabbrv@lang.ldf`).
 | `siam11.clo` | 594 | siam11.clo@2026/09/20 texlate st… | b | dep:stubs/siam10.clo~siam11 |
 | `siam12.clo` | 594 | siam12.clo@2026/09/20 texlate st… | b | dep:stubs/siam10.clo~siam12 |
 | `slashbox.sty` | 3256 | slashbox@2026/09/19 texlate stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:934 |
-| `svglov3.clo` | 2016 | svglov3.clo@2026/09/19 texlate s… | a | compile/fixloop/_builtins_common.py:248+7 |
+| `svglov3.clo` | 2016 | svglov3.clo@2026/09/19 texlate s… | a | compile/fixloop/builtins/common.py:248+7 |
 | `sw20lart.sty` | 2616 | sw20lart@2026/09/19 fixloop stub… | a | compile/fixloop/rules/90-shim-legacy.yaml:1647 |
-| `tcilatex.tex` | 5975 | — | a | compile/fixloop/_builtins_vendored.py:484+6 |
+| `tcilatex.tex` | 5975 | — | a | compile/fixloop/builtins/vendored.py:484+6 |
 | `texsort.sty` | 3689 | texsort@2026/09/19 texlate stub … | a | compile/fixloop/rules/90-shim-legacy.yaml:1738 |

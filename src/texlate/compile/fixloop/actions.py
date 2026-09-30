@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING, Any
 import regex
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _advise,
     _fp_diff,
     _index_candidates,
     _wdir_fingerprint,
 )
-from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
-from texlate.compile.fixloop._builtins_vendored import _vendored_drop
+from texlate.compile.fixloop.builtins.graphics import _PDF_SANITIZE_SKIP_DIRS
+from texlate.compile.fixloop.builtins.vendored import _vendored_drop
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
 from texlate.textutil import mask_tex, safe_is_file

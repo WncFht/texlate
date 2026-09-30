@@ -9,7 +9,7 @@ complete" (loop2/rt1/guardsmoke 7 格三连签实证, 错误行=调用后首个�
 当前钉面 (routeclean 2026-09-20 后, shim_map 的 revtex.cls 槽已删):
 vendored ``vendor/shims/revtex.cls`` stub 覆盖 ``\pacs`` 且全件 ``##``-free;
 全部 shim_map body 的 ``\AtBeginDocument`` 参数顶层扫 ``##`` (嵌套 def
-体内的 ``##`` 合法, 不计); 内建 emit ``_builtins_shim._REVTEX209_POLYFILL``
+体内的 ``##`` 合法, 不计); 内建 emit ``builtins.shim._REVTEX209_POLYFILL``
 单 ``#`` 形与 vendored 替身钉语义平 (两链机制已异构: def-in-hook vs
 外 def+内 let)。
 """
@@ -17,7 +17,7 @@ vendored ``vendor/shims/revtex.cls`` stub 覆盖 ``\pacs`` 且全件 ``##``-free
 from pathlib import Path
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop._builtins_shim import _REVTEX209_POLYFILL
+from texlate.compile.fixloop.builtins.shim import _REVTEX209_POLYFILL
 from texlate.latex.chars import match_brace
 
 

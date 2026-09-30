@@ -709,7 +709,7 @@ def test_detach_input_letter_wrap_per_host() -> None:
     ``\\catcode 64=11`` 读件后 ``\\TeXlateStyInRestore`` 复原。
     .sty/.cls 宿主 @ 本即 letter 走裸 ``\\input``。
     """
-    from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
+    from texlate.compile.fixloop.builtins.pkgload import (  # noqa: PLC0415
         _detach_physics_loads,
     )
 

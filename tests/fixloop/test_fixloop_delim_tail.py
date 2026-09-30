@@ -13,7 +13,7 @@ from pathlib import Path
 
 from _fixloopkit import EngStub, mk_ctx
 
-from texlate.compile.fixloop._builtins_docfix import (
+from texlate.compile.fixloop.builtins.docfix import (
     _DEF_TAIL_RE,
     cs_delim_tail_fix,
 )

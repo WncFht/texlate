@@ -518,7 +518,7 @@ def test_math_cs_shim_arg_cs_text_only_skipped(tmp_path: Path) -> None:
 def test_producer_map_th_thorn_registered() -> None:
     r"""``_MATH_SHIM_CS`` ``\th``/``\TH`` → 0xFE/0xDE 同入 cs_rebind
     ``_producer_map`` 产出表 —— produced_by 注册点 (共享表反转喂双臂)。"""
-    from texlate.compile.fixloop._builtins_shim import (  # noqa: PLC0415
+    from texlate.compile.fixloop.builtins.shim import (  # noqa: PLC0415
         _producer_map,
     )
 

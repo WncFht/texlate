@@ -25,7 +25,8 @@ from pathlib import Path
 
 from _fixloopkit import EngStub, match, mk_ctx, rule
 
-from texlate.compile.fixloop import _builtins_shim, actions, builtins
+from texlate.compile.fixloop import actions, builtins
+from texlate.compile.fixloop.builtins import shim
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.logparse import ErrReport
 
@@ -69,7 +70,7 @@ def test_new_prims_registered_countish() -> None:
     """
     for prim in ("pdfoptionpdfminorversion", "pdfobjcompresslevel"):
         assert prim in builtins.PDFTEX_PRIMS, prim
-        assert prim in _builtins_shim._PRIM_COUNTISH, prim  # noqa: SLF001
+        assert prim in shim._PRIM_COUNTISH, prim  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- condition 闸

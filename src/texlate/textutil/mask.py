@@ -294,7 +294,7 @@ _mask_comments_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_mask_comments)
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
 #: 其后的同形 token 非活 slot，扫它只会报假缺失/假命中。三处旧本地字面量
 #: （``compile.probe._DEAD_TAIL_RE``/``judge._DEAD_TAIL_RX``/
-#: ``fixloop._builtins_slotrev._DEAD_TAIL_RX``）归并本件。
+#: ``fixloop.builtins.slotrev._DEAD_TAIL_RX``）归并本件。
 DEAD_TAIL_RX: Final = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 
 
@@ -328,7 +328,7 @@ def iter_depth(rx: re.Pattern[str], vis: str) -> Iterator[tuple[re.Match[str], i
     ``rx`` 不得匹配含未配对 ``{``/``}`` 的文本——一枚失衡花括号会
     静默偏移其后全部命中的深度。现存消费方正则（``BEGIN_DOC_RX``/
     ``DOCCLASS_RX``/``SUBDOC_CHILD_RX``/``DOCSTYLE_DECL_RX`` 族）皆
-    花括号自平衡；``_builtins_common`` 类接受调用方 anchor 的入口
+    花括号自平衡；``builtins.common`` 类接受调用方 anchor 的入口
     须自行保证同契约。
     """
     depth = 0

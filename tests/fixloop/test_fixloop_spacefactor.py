@@ -13,13 +13,13 @@ from pathlib import Path
 
 from _fixloopkit import apply, mk_ctx, rule
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _let_cs,
     _undefine_cs,
 )
-from texlate.compile.fixloop._builtins_docfix import (
+from texlate.compile.fixloop.builtins.docfix import (
     _atdef_sites,
     _live_atdef_sites,
 )

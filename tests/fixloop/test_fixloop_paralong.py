@@ -21,7 +21,7 @@ from _fixloopkit import (
     write_file,
 )
 
-from texlate.compile.fixloop._builtins_paralong import (
+from texlate.compile.fixloop.builtins.paralong import (
     _WRAP_TABLE,
     _longize_defs,
     para_longize,

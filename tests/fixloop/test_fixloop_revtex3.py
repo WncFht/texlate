@@ -24,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop._builtins_vendored import (
+from texlate.compile.fixloop.builtins.vendored import (
     _vendor_root,
     _vendored_source,
     vendored_fetch,

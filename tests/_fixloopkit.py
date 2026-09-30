@@ -588,7 +588,7 @@ def shim_map() -> dict[str, dict]:
 def vendor_file(name: str) -> Path | None:
     """vendor 三层查件: ``files`` → ``stubs`` → ``shims`` 真实 emit 序。
 
-    序与 ``_vendored_source`` (``_builtins_vendored``) 同口径——stubaudit
+    序与 ``_vendored_source`` (``builtins.vendored``) 同口径——stubaudit
     的就地版曾按 (SHIMS, STUBS, VENDOR_FILES) 反序扫, 归此一处正之。
     """
     for layer in (VENDOR_FILES, STUBS, SHIMS):
@@ -613,7 +613,7 @@ def shim_body(name: str) -> str:
 def write_shim(wdir: Path, name: str) -> None:
     r"""把 shim_map body (或 ``loads`` 模板 / vendored 实件) 物化成 ``<wdir>/<name>``。
 
-    复刻 ``_builtins_shim`` 的 emit 面——编译钉直打真实生成物; 槽已删名
+    复刻 ``builtins.shim`` 的 emit 面——编译钉直打真实生成物; 槽已删名
     改物化 vendored_fetch 实件 (同服务物)。
     """
     spec = shim_map().get(name)

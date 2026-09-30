@@ -71,7 +71,7 @@ RTX_TEX_SUFFIX: Final = ".rtx.tex"
 #: ``.code.tex``（tikzlibrary 机制件）——散文门前置记 support，按原文保留。
 CODE_TEX_SUFFIX: Final = ".code.tex"
 #: 名闸并集——凭文件名即知非翻译内容件；``.tex`` 名闸知识属 latex 层
-#: 单源——fixloop ``_SUPPORT_SUFFIXES``（``_builtins_misc``）已并指本常量。
+#: 单源——fixloop ``_SUPPORT_SUFFIXES``（``builtins.misc``）已并指本常量。
 NAME_GATED_TEX_SUFFIXES: Final = (RTX_TEX_SUFFIX, CODE_TEX_SUFFIX)
 
 

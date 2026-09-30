@@ -21,8 +21,8 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.engine._xelatex import XelatexEngine
-from texlate.compile.fixloop._builtins_vendored import find_vendored_shadows
 from texlate.compile.fixloop.builtins import REWRITE_FNS, TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.vendored import find_vendored_shadows
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.ruleset import Ruleset
 

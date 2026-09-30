@@ -19,8 +19,8 @@ from pathlib import Path
 
 from _fixloopkit import mk_ctx, n_err, requires_xelatex, run_xelatex
 
-from texlate.compile.fixloop._builtins_csfix import _guard_snippet
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.csfix import _guard_snippet
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 

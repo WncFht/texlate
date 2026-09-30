@@ -16,11 +16,12 @@ from pathlib import Path
 import pytest
 from _fixloopkit import which_only
 
-from texlate.compile.fixloop import _builtins_graphics, builtins
+from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.builtins import (
     eps_to_pdf,
     graphic_case_link,
     graphic_repair,
+    graphics,
 )
 from texlate.compile.fixloop.engine import LoopCtx, RunFn
 
@@ -292,7 +293,7 @@ def _fake_convert(_tool: str, _src: Path, dst: Path) -> tuple:
 def _convert_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """eps_to_pdf 转换面双钉: epstopdf/gs 在场 + ``_run_convert`` 假转换器。"""
     monkeypatch.setattr(shutil, "which", which_only("epstopdf", "gs"))
-    monkeypatch.setattr(_builtins_graphics, "_run_convert", _fake_convert)
+    monkeypatch.setattr(graphics, "_run_convert", _fake_convert)
 
 
 @pytest.mark.usefixtures("_convert_env")

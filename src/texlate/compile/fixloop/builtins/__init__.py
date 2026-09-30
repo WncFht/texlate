@@ -9,14 +9,14 @@
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
 
-C3 拆分: 实现体按域拆进 ``_builtins_*`` 叶子模块, 本文件是 PEP 562 惰性
-门面 (同 ``fixloop/__init__`` 形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回
-叶子, ``__getattr__`` 首访解析并缓存, ``builtins.X`` 公共面与
-``from ... import X`` 测试面不变。叶子私名默认不回引, 缺名字的断链
-面请从叶子模块直取而非恢复批发回引。
-monkeypatch 锚点注意: 图形/PS 域已出叶 ``_builtins_graphics``——
+C3 拆分: 实现体按域拆进 ``builtins/`` 子包 14 叶 (facade=__init__), 本
+文件是 PEP 562 惰性门面 (同 ``fixloop/__init__`` 形制) —— 平名经
+``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``builtins.X`` 公共面与 ``from ... import X`` 测试面不变。叶子私名
+默认不回引, 缺名字的断链面请从叶子模块直取而非恢复批发回引。
+monkeypatch 锚点注意: 图形/PS 域已出叶 ``builtins.graphics``——
 ``_run_convert`` 的 patch 面随调用链迁走, 测试须 patch
-``_builtins_graphics._run_convert`` 而非本门面同名回引 (惰性解析下
+``builtins.graphics._run_convert`` 而非本门面同名回引 (惰性解析下
 ``builtins._run_convert`` 仍可读, 但 setattr 只遮蔽门面不改叶子)。
 TRANSFORM_FNS 首次访问时按 ``_TRANSFORM_KEYS`` 构建并缓存成真 dict——
 ``monkeypatch.setitem`` 消费面语义不变。
@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from texlate.compile.fixloop._builtins_bib import (
+    from texlate.compile.fixloop.builtins.bib import (
         bbl_format_version_rewrite,
         bbl_regen,
         bbl_stub_rewrite,
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
         citekey_sanitize,
         tectonic_bib_stall_route,
     )
-    from texlate.compile.fixloop._builtins_common import (
+    from texlate.compile.fixloop.builtins.common import (
         _MC_TABLE,
         PDFTEX_PRIMS,
         _inject_after_docclass,
@@ -51,21 +51,21 @@ if TYPE_CHECKING:
         _mc_plan,
         _resolve_site,
     )
-    from texlate.compile.fixloop._builtins_csfix import (
+    from texlate.compile.fixloop.builtins.csfix import (
         _allocated_cs_names,
         cs_targeted_fix,
         ctlseq_undefine,
         primitive_clobber_rename,
         undefine_for_redef,
     )
-    from texlate.compile.fixloop._builtins_docfix import (
+    from texlate.compile.fixloop.builtins.docfix import (
         cs_delim_tail_fix,
         if_phantom_protect,
         pdfstring_cs_disarm,
         premature_cs_guard,
         spacefactor_atdef_wrap,
     )
-    from texlate.compile.fixloop._builtins_gfx_missing import (
+    from texlate.compile.fixloop.builtins.gfx_missing import (
         _GRAPHIC_EXTS,
         _INCLUDE_GFX_RE,
         _INCLUDE_PDF_RE,
@@ -81,7 +81,7 @@ if TYPE_CHECKING:
         includepdf_missing_stub,
         raster_pdf_rename,
     )
-    from texlate.compile.fixloop._builtins_graphics import (
+    from texlate.compile.fixloop.builtins.graphics import (
         _EPS_EXTS,
         _GRAPHICS_PKGS_RE,
         _GS_FLAGS,
@@ -107,7 +107,7 @@ if TYPE_CHECKING:
         svg_prepare,
         xbb_pregen,
     )
-    from texlate.compile.fixloop._builtins_layoutfix import (
+    from texlate.compile.fixloop.builtins.layoutfix import (
         display_math_shrink,
         fffd_context_fix,
         gfx_width_clamp,
@@ -116,7 +116,7 @@ if TYPE_CHECKING:
         section_skip_floor,
         tabular_fit,
     )
-    from texlate.compile.fixloop._builtins_misc import (
+    from texlate.compile.fixloop.builtins.misc import (
         aux_seed_undefined_refs,
         cjk_env_relax,
         docstrip_generate,
@@ -137,7 +137,7 @@ if TYPE_CHECKING:
         subfile_docclass_strip,
         tcolorbox_breakable_inject,
     )
-    from texlate.compile.fixloop._builtins_misschar import (
+    from texlate.compile.fixloop.builtins.misschar import (
         accent_mark_fix,
         caret_utf8_fix,
         font_fallback,
@@ -150,10 +150,10 @@ if TYPE_CHECKING:
         nfss_fam_declare,
         umath_doc_cs_restore,
     )
-    from texlate.compile.fixloop._builtins_paralong import (
+    from texlate.compile.fixloop.builtins.paralong import (
         para_longize,
     )
-    from texlate.compile.fixloop._builtins_pkgload import (
+    from texlate.compile.fixloop.builtins.pkgload import (
         _detach_physics_loads,
         font_sub_shim,
         option_clash_merge,
@@ -163,7 +163,7 @@ if TYPE_CHECKING:
         strip_inputenc,
         xy_option_load,
     )
-    from texlate.compile.fixloop._builtins_shim import (
+    from texlate.compile.fixloop.builtins.shim import (
         bm_mathchar_wrap,
         bundled_class_shadow,
         cs_rebind,
@@ -180,10 +180,10 @@ if TYPE_CHECKING:
         svjour_clo_stub,
         undefined_env_polyfill,
     )
-    from texlate.compile.fixloop._builtins_slotrev import (
+    from texlate.compile.fixloop.builtins.slotrev import (
         slot_arg_revert,
     )
-    from texlate.compile.fixloop._builtins_vendored import (
+    from texlate.compile.fixloop.builtins.vendored import (
         _provides_date,
         _vendor_root,
         _vendored_source,
@@ -199,7 +199,7 @@ if TYPE_CHECKING:
     TRANSFORM_FNS: dict[str, Callable[..., tuple[bool, str]]]
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_builtins_bib": (
+    "bib": (
         "bbl_format_version_rewrite",
         "bbl_regen",
         "bbl_stub_rewrite",
@@ -208,7 +208,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "citekey_sanitize",
         "tectonic_bib_stall_route",
     ),
-    "_builtins_common": (
+    "common": (
         "_MC_TABLE",
         "PDFTEX_PRIMS",
         "_inject_after_docclass",
@@ -218,21 +218,21 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_mc_plan",
         "_resolve_site",
     ),
-    "_builtins_csfix": (
+    "csfix": (
         "_allocated_cs_names",
         "cs_targeted_fix",
         "ctlseq_undefine",
         "primitive_clobber_rename",
         "undefine_for_redef",
     ),
-    "_builtins_docfix": (
+    "docfix": (
         "cs_delim_tail_fix",
         "if_phantom_protect",
         "pdfstring_cs_disarm",
         "premature_cs_guard",
         "spacefactor_atdef_wrap",
     ),
-    "_builtins_gfx_missing": (
+    "gfx_missing": (
         "_GRAPHIC_EXTS",
         "_INCLUDE_GFX_RE",
         "_INCLUDE_PDF_RE",
@@ -248,7 +248,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "includepdf_missing_stub",
         "raster_pdf_rename",
     ),
-    "_builtins_graphics": (
+    "graphics": (
         "_EPS_EXTS",
         "_GRAPHICS_PKGS_RE",
         "_GS_FLAGS",
@@ -274,7 +274,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "svg_prepare",
         "xbb_pregen",
     ),
-    "_builtins_layoutfix": (
+    "layoutfix": (
         "display_math_shrink",
         "fffd_context_fix",
         "gfx_width_clamp",
@@ -283,7 +283,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "section_skip_floor",
         "tabular_fit",
     ),
-    "_builtins_misc": (
+    "misc": (
         "aux_seed_undefined_refs",
         "cjk_env_relax",
         "docstrip_generate",
@@ -304,7 +304,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "subfile_docclass_strip",
         "tcolorbox_breakable_inject",
     ),
-    "_builtins_misschar": (
+    "misschar": (
         "accent_mark_fix",
         "caret_utf8_fix",
         "font_fallback",
@@ -317,8 +317,8 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "nfss_fam_declare",
         "umath_doc_cs_restore",
     ),
-    "_builtins_paralong": ("para_longize",),
-    "_builtins_pkgload": (
+    "paralong": ("para_longize",),
+    "pkgload": (
         "_detach_physics_loads",
         "font_sub_shim",
         "option_clash_merge",
@@ -328,7 +328,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "strip_inputenc",
         "xy_option_load",
     ),
-    "_builtins_shim": (
+    "shim": (
         "bm_mathchar_wrap",
         "bundled_class_shadow",
         "cs_rebind",
@@ -345,8 +345,8 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "svjour_clo_stub",
         "undefined_env_polyfill",
     ),
-    "_builtins_slotrev": ("slot_arg_revert",),
-    "_builtins_vendored": (
+    "slotrev": ("slot_arg_revert",),
+    "vendored": (
         "_provides_date",
         "_vendor_root",
         "_vendored_source",
@@ -711,9 +711,9 @@ def graphics_kv_strip_obsolete(m: re.Match[str]) -> str:
 
     组1 = ``\includegraphics`` 头 (含 ``*``), 组2 = 括号 opt 表。成员级
     ``key=`` 比对 (``subtype``/``breadth`` 类前缀不沾); 剥空即整括号摘除。
-    顶层逗号切分单源 = ``_builtins_misschar._split_kv``。
+    顶层逗号切分单源 = ``builtins.misschar._split_kv``。
     """
-    from texlate.compile.fixloop._builtins_misschar import (  # noqa: PLC0415
+    from texlate.compile.fixloop.builtins.misschar import (  # noqa: PLC0415
         _split_kv,  # 延迟: 本门面不 eager 拉叶链, 调用点已到运行期
     )
 

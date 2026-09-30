@@ -223,7 +223,7 @@ def _has_bbl(bbl: Path) -> bool:
 
     在席即永不 clobber：bundled .bbl 是上游跑好的成品（cargo bbl 如
     ``foxtrot-full.bbl`` 无 .bib 可重生），且 biber 败北会自删同侪 bbl
-    （``_builtins_bib.bbl_regen`` 实证）——在场即整臂跳过才安全。
+    （``builtins.bib.bbl_regen`` 实证）——在场即整臂跳过才安全。
     """
     try:
         return bbl.is_file() and bbl.stat().st_size > 0

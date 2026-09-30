@@ -1,4 +1,4 @@
-r"""_builtins_pkgload — ``\\usepackage``/``\\documentclass`` 装载点改写原语 (C3 拆分)。
+r"""builtins.pkgload — ``\\usepackage``/``\\documentclass`` 装载点改写原语 (C3 拆分)。
 
 既有文件内 package 装载面外科: option clash 选项合并 / inputenc 整包剥离 /
 physics stub 脱注册续载 / MF-only 字体包换 Type1 近亲 shim。
@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _PKG_LOAD_RE,
     _USE_RE,
     _drop_pkg_loads,
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 # ════════════════════════════════════════════════════════════════
-# 装载命令骨架件已归位 ``_builtins_common`` (``_PKG_LOAD_*``/
+# 装载命令骨架件已归位 ``builtins.common`` (``_PKG_LOAD_*``/
 # ``_pkg_list_re``/``_exact_restore_wrap``; ``_USE_RE``/``_AT_LETTER_*``
 # 在彼侧同源 rebase) —— 本叶直引。
 # ════════════════════════════════════════════════════════════════

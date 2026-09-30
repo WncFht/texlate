@@ -47,7 +47,7 @@
 #
 # 语法约定: pattern/repl 均按 Python re 语义; repl 里 \g<N> 为分组引用;
 # action.function 表示该动作是命名内置函数 (算法型, 非纯 regex,
-# 注册表在 builtins.py —— 新函数才需要 PR 代码)。
+# 注册表在 builtins/__init__.py —— 新函数才需要 PR 代码)。
 # 书写约束: flow 集合 {..}/[..] 必须单行写完 (子集解析器不跨行)。
 #
 # 每条规则逐条带注释: 出处为原型行号 (fixloop.py Lxxx) 或 docs/spec/compile.md 行号。

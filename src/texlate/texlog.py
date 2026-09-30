@@ -187,9 +187,9 @@ def update_file_stack(
 
 
 #: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面——5 件集单源在本件：
-#: ``transcode.PS_GRAPHIC_SUFFIXES`` 与 fixloop ``_builtins_graphics._EPS_EXTS``
+#: ``transcode.PS_GRAPHIC_SUFFIXES`` 与 fixloop ``builtins.graphics._EPS_EXTS``
 #: 均为本件别名/转口。另注意 builtins ``_GRAPHIC_EXTS``
-#: （``_builtins_gfx_missing``）是**同名不同物**的 9 件全图形族
+#: （``builtins.gfx_missing``）是**同名不同物**的 9 件全图形族
 #: （含 pdf/png/jpg）——本件名加 ``_PS_`` 前缀即为消撞。形状判定拒收的
 #: graphic token（逗号/截断形，如 ``fig,1.eps``）入 ``None`` 配对帧；
 #: engine/l2/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
@@ -396,7 +396,7 @@ def normalize_stderr_errors(tail: str) -> str:
 #: ``Missing character: There is no <what> (U+XXXX|("XXXX))? in font <font>``
 #: 消息级解析——xetex/tectonic spec 字体带 ``(U+XXXX)``、tfm 字体带
 #: ``("XXXX)`` 十六进制、pdftex 8-bit 给裸字符或 ``^^xx`` 记法；
-#: fixloop ``_builtins_common`` 经 import 直引本件（无同形双写）。
+#: fixloop ``builtins.common`` 经 import 直引本件（无同形双写）。
 _MISSCHAR_MSG_RX: Final = re.compile(
     r"Missing character:\s*There is no (?P<what>.+?)"
     r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"

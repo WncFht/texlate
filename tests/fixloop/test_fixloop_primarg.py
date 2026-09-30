@@ -18,11 +18,11 @@ from pathlib import Path
 
 from texlate.compile.fixloop import (
     Ruleset,
-    _builtins_shim,
     actions,
     builtins,
     load_ruleset,
 )
+from texlate.compile.fixloop.builtins import shim
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
@@ -67,7 +67,6 @@ def test_polyfill_condition_carries_arg_site_arm() -> None:
 
 def test_argful_tables_registered_and_disjoint() -> None:
     """argful/toksish/dimenish 三表全注册进 PDFTEX_PRIMS 且与 countish 互斥。"""
-    shim = _builtins_shim
     allnew = set(shim._PRIM_ARGFUL) | shim._PRIM_TOKSISH | shim._PRIM_DIMENISH  # noqa: SLF001
     for prim in allnew:
         assert prim in builtins.PDFTEX_PRIMS, prim

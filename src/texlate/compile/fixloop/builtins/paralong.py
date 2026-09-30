@@ -1,4 +1,4 @@
-r"""_builtins_paralong — "Paragraph ended before \X was complete" 修复原语。
+r"""builtins.paralong — "Paragraph ended before \X was complete" 修复原语。
 
 签名面: 非 ``\long`` 宏的参数扫描在 arg 内部撞上 ``\par`` (空行) →
 扫描中止, 宏调用+已扫前缀整段丢弃 → 内容丢失+下游级联错。
@@ -49,7 +49,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _fixloop_log,

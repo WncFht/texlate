@@ -598,7 +598,7 @@ rules:
                 mv -f "$md/mnras.cls" "$md/mnras.cls.fixloop-iso"
               fi
               if [ ! -f "$md/mnras.cls" ]; then
-                "{python}" -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || true
+                "{python}" -c "import shutil; from texlate.compile.fixloop.builtins.vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || true
               fi
             fi
             exit 0
@@ -633,7 +633,7 @@ rules:
   # FileNotFoundError (vendored_shadow_isolate 无 moved 文件卫, 钉测实证)。
   # .tex 不入 exts 后同干核仍经 paired 道退役 —— spec pin "全四件
   # .fixloop-iso" 结果不变; 仅失无同干 wrapper 的孤 .tex 面 (era 包捆
-  # 全成对)。builtin 修补属 _builtins_vendored.py 权属外 → 报 leader。
+  # 全成对)。builtin 修补属 builtins/vendored.py 权属外 → 报 leader。
   - id: era_bundle_shadow_retire
     mechanisms: [B05]
     description: "稿自带 era 包捆 (.sty/.cls/.def/.cfg + 同干 .tex 核 paired 道) ld<sd 确证遮蔽 → .fixloop-iso 退役 (vendored_shadow 早位宽 when 版)"
@@ -702,7 +702,7 @@ rules:
           error: "vendored fontspec 2026 vs 内核 2021: \\SetKeys undefined → CJK 死文本层 (zh.pdf 全 U+FFFF)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_vendored.py fontspec_kernel_shadow_retire; tmp/seqpos-e2e.json t_c32920 行 (e2e 0.0 测量盲)"
+    source_ref: "builtins/vendored.py fontspec_kernel_shadow_retire; tmp/seqpos-e2e.json t_c32920 行 (e2e 0.0 测量盲)"
 
   # 2026-09-20 implunk26 车道 (unk26spec B6, 0812.1138): 稿自带 era
   # microtype 包捆 —— microtype.sty (\ProvidesPackage[2008/06/04 v2.3b])

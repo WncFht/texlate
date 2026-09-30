@@ -309,7 +309,7 @@ def test_wrap_phys_sty_inputs_unit() -> None:
     ``.tex``) 不动 / 无花括号裸名形与行内嵌入站也包 (只罩 ``\\input``
     命令本体)。restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断签名。
     """
-    from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
+    from texlate.compile.fixloop.builtins.pkgload import (  # noqa: PLC0415
         _SHIP_WRAP_POST,
         _SHIP_WRAP_PRE,
         _wrap_phys_sty_inputs,

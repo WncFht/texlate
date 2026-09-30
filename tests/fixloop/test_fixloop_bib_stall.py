@@ -18,7 +18,7 @@ builtin 不改源只发 ``REJECT: route=xelatex`` 令牌, repair 跨引擎臂换
 from pathlib import Path
 
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._builtins_bib import tectonic_bib_stall_route
+from texlate.compile.fixloop.builtins.bib import tectonic_bib_stall_route
 from texlate.compile.fixloop.engine import LoopCtx
 
 _STALL_TAIL = (

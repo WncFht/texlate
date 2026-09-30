@@ -293,7 +293,7 @@ rules:
   # 措辞走 missing_graphic 类目 —— 原 missing_file-only when 永不
   # dispatch; when 加 missing_graphic 臂 + condition 加 xetex 措辞,
   # builtin 同步按后缀分发真格式占位 (PNG/JPEG/PDF 二进制, 见
-  # _builtins_graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
+  # builtins.graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
   # cwd 解析位 —— 子目录 main 时 wdir 根位不可见)。
   # fmsingles 普查 (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
   # 时代 \\ifpdf 路由 —— else 支 ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
@@ -434,7 +434,7 @@ rules:
           error: "main.tex:579: Package svg Error: File `modified-recoverability.svg' is missing → \\includesvg[width=\\textwidth]{modified-recoverability.svg} (e-print 未船 .svg)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-failmine6/census.md syntax-residual singles; _builtins_graphics.py _stub_graphic_at 拒 .svg 后缀实录"
+    source_ref: "tmp/lane-failmine6/census.md syntax-residual singles; builtins/graphics.py _stub_graphic_at 拒 .svg 后缀实录"
 
   # singlesweep mislabeled-raster-as-pdf (6 格: 1607.00405/2310.01082/
   # 2504.15280): e-print 船货 X.pdf 实为 PNG/JPEG 字节 —— 引擎按后缀走
@@ -641,7 +641,7 @@ rules:
           error: "layout:overfull 图形簇 —— \\includegraphics 整盒超栏需钳幅非排版松化",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py gfx_width_clamp; tmp/qc_impl_spec/impl-rules.json"
+    source_ref: "builtins/layoutfix.py gfx_width_clamp; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "ps/eps 引用未转 graphicx 面不在 \\includegraphics 字面内 decline; width 已是 \\linewidth 内幂等"
 
   # psfrag 是 pdftex/dvips-era 包: \\psfrag{tag}{repl} 只改写 EPS 内

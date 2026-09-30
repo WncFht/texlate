@@ -24,8 +24,8 @@ from pathlib import Path
 import regex
 
 from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop._builtins_graphics import _has_live_graphic_ref
-from texlate.compile.fixloop._builtins_shim import _SVJOUR_CLO_BODY
+from texlate.compile.fixloop.builtins.graphics import _has_live_graphic_ref
+from texlate.compile.fixloop.builtins.shim import _SVJOUR_CLO_BODY
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.ruleset import Rule
 

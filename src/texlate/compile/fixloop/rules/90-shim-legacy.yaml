@@ -2054,7 +2054,7 @@ rules:
               % fixloop stub (hep-th/9703071: \input{FEYNMAN} pre-feynmf kit, not in TL)
               \endinput
           # kapjrnls.tex: KAP/crckapb 刊名缩写表 (astro-ph/9901364 实证
-          # \apj/\mnras/\apjs/\aj) —— 抄 _builtins_shim._JOURNAL_MACROS 全表值,
+          # \apj/\mnras/\apjs/\aj) —— 抄 builtins.shim._JOURNAL_MACROS 全表值,
           # providecommand 不抢宿主类已定义者。
           kapjrnls.tex:
             body: |

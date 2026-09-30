@@ -2,7 +2,7 @@
 """vendor/ 普查 + 可达性扫描 → jsonl——``vendor/MANIFEST.md`` 的生成数据源。
 
 走 ``src/texlate/compile/fixloop/vendor/{files,shims,stubs}``，解析每件首个
-\\ProvidesX 头，继而在 fixloop/*.py、fixloop/rules/*.yaml 与 compile/**/*.py
+\\ProvidesX 头，继而在 fixloop/**/*.py、fixloop/rules/*.yaml 与 compile/**/*.py
 grep basename 引用，并扫描 vendored 兄弟件内部互相装载（stem/basename 双形
 + 构造名补丁）。分类：a=代码/规则点名、b=basename 可达（lib 库存/twin 字节
 拷贝/dep 兄弟装载）、c=孤儿。

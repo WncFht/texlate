@@ -17,7 +17,7 @@ rules:
     when: { category: option_clash, payload_required: true }
     action:
       kind: builtin_transform # 非单条 regex: 找重复加载→合并选项→注释后者
-      function: option_clash_merge # params.pkg = payload; 详见 builtins.py 函数注册表
+      function: option_clash_merge # params.pkg = payload; 详见 builtins/__init__.py 函数注册表
       params: { pkg: "{payload}", exts: [.tex, .sty, .cls] }
     risk: medium # 合并选项可能改变语义
     engines:

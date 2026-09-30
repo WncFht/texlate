@@ -24,8 +24,8 @@ from pathlib import Path
 
 from _fixloopkit import DOC, mk_ctx, rule
 
-from texlate.compile.fixloop._builtins_csfix import _CS_FIX_TABLE
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.csfix import _CS_FIX_TABLE
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 

@@ -27,14 +27,9 @@ from _fixloopkit import (
     sh_runner,
 )
 
-from texlate.compile.fixloop import (
-    _builtins_common,
-    _builtins_vendored,
-    actions,
-    builtins,
-)
-from texlate.compile.fixloop._builtins_common import _resolve_site
-from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop import actions, builtins
+from texlate.compile.fixloop.builtins import TRANSFORM_FNS, common, vendored
+from texlate.compile.fixloop.builtins.common import _resolve_site
 from texlate.compile.fixloop.engine import LoopCtx, _apply_scan_install
 from texlate.compile.logparse import ErrReport
 
@@ -99,9 +94,9 @@ def test_resolve_site_escape_declines(tmp_path: Path) -> None:
 
 
 def test_resolve_site_single_source() -> None:
-    """门面回引与 vendored 叶同指 _builtins_common 单源。"""
-    assert builtins._resolve_site is _builtins_common._resolve_site  # noqa: SLF001
-    assert _builtins_vendored._resolve_site is _builtins_common._resolve_site  # noqa: SLF001
+    """门面回引与 vendored 叶同指 builtins.common 单源。"""
+    assert builtins._resolve_site is common._resolve_site  # noqa: SLF001
+    assert vendored._resolve_site is common._resolve_site  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- _scan_vendored 落点

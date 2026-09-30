@@ -1,6 +1,6 @@
 """fixloop builtins 惰性门面的导出面对拍。
 
-``builtins.py`` 三表：``__all__``（公共面）/ ``_LEAF_EXPORTS``（叶→名
+``builtins/__init__.py`` 三表：``__all__``（公共面）/ ``_LEAF_EXPORTS``（叶→名
 映射，``__getattr__`` 惰性解析的唯一路由表）/ TYPE_CHECKING 块（类型
 期同形 import——IDE/mypy 的影面）。``_export_drift`` 审计（见
 ``test_fixloop_export_drift.py``）盖运行时同步面；本文件补它不盖的
@@ -23,7 +23,7 @@ from texlate.compile.fixloop import builtins
 
 
 def _type_checking_map() -> dict[str, tuple[str, ...]]:
-    """builtins.py ``TYPE_CHECKING`` 块 → {叶模块名: import 名集（排序）}。"""
+    """builtins/__init__.py ``TYPE_CHECKING`` 块 → {叶模块名: import 名集（排序）}。"""
     src = Path(builtins.__file__).read_text(encoding="utf-8")
     tree = ast.parse(src)
     out: dict[str, tuple[str, ...]] = {}
@@ -37,9 +37,10 @@ def _type_checking_map() -> dict[str, tuple[str, ...]]:
         for stmt in node.body:
             if not isinstance(stmt, ast.ImportFrom):
                 continue
-            leaf = (stmt.module or "").rsplit(".", 1)[-1]
-            if not leaf.startswith("_builtins"):
+            mod = stmt.module or ""
+            if not mod.startswith("texlate.compile.fixloop.builtins."):
                 continue  # collections.abc.Callable 等非叶影件不比对
+            leaf = mod.rsplit(".", 1)[-1]
             out[leaf] = tuple(sorted(a.name for a in stmt.names))
     return out
 
@@ -63,7 +64,7 @@ def test_no_stale_leaf_names() -> None:
     """``_LEAF_EXPORTS`` 配名叶子真提供（叶断链在此曝）。"""
     stale = []
     for leaf, names in builtins._LEAF_EXPORTS.items():  # noqa: SLF001 -- 同上
-        mod = importlib.import_module(f"texlate.compile.fixloop.{leaf}")
+        mod = importlib.import_module(f"texlate.compile.fixloop.builtins.{leaf}")
         stale += [f"{leaf}.{n}" for n in names if not hasattr(mod, n)]
     assert stale == []
 

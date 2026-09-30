@@ -26,7 +26,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop._builtins_misschar import _fb_snippet_lines
+from texlate.compile.fixloop.builtins.misschar import _fb_snippet_lines
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport, parse_text
 

@@ -28,8 +28,8 @@ from pathlib import Path
 
 from _fixloopkit import apply, mk_ctx, rule
 
-from texlate.compile.fixloop._builtins_docfix import premature_cs_guard
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.docfix import premature_cs_guard
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.textutil import ifscan
 

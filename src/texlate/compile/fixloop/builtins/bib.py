@@ -1,4 +1,4 @@
-r"""_builtins_bib — .bbl/.bib 族修复原语 (C3 拆分)。
+r"""builtins.bib — .bbl/.bib 族修复原语 (C3 拆分)。
 
 tectonic stub bbl 断链改写 / 捆绑旧版 .bbl biber 重生成 /
 ADS 时代 cite-key 裸 ``&``/``_`` 双侧一致消毒 /
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _fixloop_log,
     _live_matches,
     _splice,

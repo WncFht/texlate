@@ -618,7 +618,7 @@ _MULTICOLS_SHIM = r"""% texlate: multicol incompatible with target class — env
 
 
 #: ``\twocolumn``/``\@makecol``/``\pacs`` 三行共享负载核——本模块
-#: ``_REVTEX209_SHIM`` 与 fixloop ``_REVTEX209_POLYFILL``（_builtins_shim.py）
+#: ``_REVTEX209_SHIM`` 与 fixloop ``_REVTEX209_POLYFILL``（builtins/shim.py）
 #: 的同义 TeX 件单源（fixloop 已同链 import ``wrap_math_cites``/
 #: ``upgrade_209``）。两站各自在核前后配自己的包装/守卫行：SHIM 加
 #: ``\makeatletter`` 对 + ``frontmatter@init`` 守护臂 + ``\wideabs``/
@@ -637,7 +637,7 @@ REVTEX209_CORE = (
 
 
 #: revtex 2.09 文稿面 polyfill——revtex4-2 刻意删掉的 209 面整块补回。
-#: 与 fixloop ``_REVTEX209_POLYFILL``（_builtins_shim.py）同义 + 三个
+#: 与 fixloop ``_REVTEX209_POLYFILL``（builtins/shim.py）同义 + 三个
 #: 实证扩件；共享负载行（``\twocolumn``/``\@makecol``/``\pacs``）单源在
 #: ``REVTEX209_CORE`` 随 init 臂后直接展开——``\AtBeginDocument`` 注册的
 #: ``\pacs`` 迟延至 ``\begin{document}``，核内行序无语义；partial 稿不进

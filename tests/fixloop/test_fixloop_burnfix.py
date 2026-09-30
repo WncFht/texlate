@@ -5,7 +5,7 @@ fix 1 ``\RequirePackage`` 化: ``_inject_after_docclass`` 在 docclass 藏进
 snippet 头注文件首行 (0812.0615 lang10.tex 实证) —— ``\usepackage`` 落
 ``\documentclass`` 前 = Missing ``\begin{document}`` 级联烧光轮次。
 ``\RequirePackage`` docclass 前后皆合法, 五个可达头注臂全换; 锚在 live
-装载点行前的 stem_provs 臂 (``_builtins_csfix`` premature 前半) 天生在
+装载点行前的 stem_provs 臂 (``builtins.csfix`` premature 前半) 天生在
 docclass 后, 保留 ``\usepackage``。
 
 fix 2 ``para_longize`` cap 8→64: dedup ``{rule}:None`` 全族共位,
@@ -23,17 +23,17 @@ from pathlib import Path
 from _fixloopkit import MockEngine, mk_ctx
 from conftest import _write
 
-from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
-from texlate.compile.fixloop._builtins_common import _inject_after_docclass
-from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
-from texlate.compile.fixloop._builtins_docfix import premature_cs_guard
-from texlate.compile.fixloop._builtins_misschar import (
+from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.bib import bbl_stub_rewrite
+from texlate.compile.fixloop.builtins.common import _inject_after_docclass
+from texlate.compile.fixloop.builtins.csfix import _ensure_usepackage
+from texlate.compile.fixloop.builtins.docfix import premature_cs_guard
+from texlate.compile.fixloop.builtins.misschar import (
     _fb_snippet_lines,
     font_fallback,
 )
-from texlate.compile.fixloop._builtins_paralong import para_longize
-from texlate.compile.fixloop._builtins_shim import cs_rebind
-from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+from texlate.compile.fixloop.builtins.paralong import para_longize
+from texlate.compile.fixloop.builtins.shim import cs_rebind
 
 _PREMATURE = TRANSFORM_FNS["premature_cs_guard"]
 

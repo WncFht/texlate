@@ -105,7 +105,7 @@ rules:
           error: "minipage 160mm 装子表超栏 —— minipage 臂必须进条件字面否则漏治",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py tabular_fit; tmp/qc_impl_spec/impl-rules.json"
+    source_ref: "builtins/layoutfix.py tabular_fit; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "无表族/minipage 字面的 overfull (纯文本/图形盒) builtin decline; 已 adjustbox 包裹面幂等"
 
   # math_run_break builtin: \relpenalty/\binoppenalty=0 放行行内数学
@@ -132,7 +132,7 @@ rules:
           error: "layout:overfull 长行内数学簇 —— relpenalty/binoppenalty 禁断致整串出血",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py math_run_break; tmp/qc_impl_spec/impl-rules.json"
+    source_ref: "builtins/layoutfix.py math_run_break; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "display 数学/env 内公式不走行内罚机制 (display_math_shrink 214 管); 数学字面 <24pt 阈值外 decline"
 
   # display_math_shrink builtin: 17 个 display env (equation/align/gather/
@@ -160,7 +160,7 @@ rules:
           error: "layout:overfull display 数学簇 —— 整陈列盒超栏需字号/列距收缩非行内断点",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "_builtins_layoutfix.py display_math_shrink; tmp/qc_impl_spec/impl-rules.json"
+    source_ref: "builtins/layoutfix.py display_math_shrink; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "env 名白名单外 display (自编环境) 不钩; 已收缩仍超的巨公式 adjustbox 也只到 \\linewidth"
 
   # ── 2026-09-28 qc-impl lane: qc_wanted 无签名面 precheck 兜底 ──

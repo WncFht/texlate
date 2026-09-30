@@ -32,7 +32,6 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from texlate.compile import ctan
 from texlate.compile.engine._base import CompRes, _driver_fatal
-from texlate.compile.fixloop._builtins_common import _mc_parse_log
 from texlate.compile.fixloop.actions import (
     _REJECT_PREFIX,
     _apply,
@@ -48,6 +47,7 @@ from texlate.compile.fixloop.actions import (
     _substitute,
     _when_ok,
 )
+from texlate.compile.fixloop.builtins.common import _mc_parse_log
 from texlate.compile.fixloop.ruleset import (
     RULES_PATH,
     Rule,

@@ -1,4 +1,4 @@
-r"""_builtins_common — fixloop builtins 跨域共享原语 (C3 builtins.py 拆分叶子)。
+r"""builtins.common — fixloop builtins 跨域共享原语 (C3 builtins/__init__.py 拆分叶子)。
 
 跨域 helper 单源: ``mask_tex`` 遮盖视图匹配 / 逐 tex 文件映射 / ``\\usepackage``
 剥载 / ``\\documentclass`` 缝后注入 / pdfTeX 原语清单 (engine._FAMILY_TOKENS
@@ -150,7 +150,7 @@ PDFTEX_PRIMS = (
 
 # ════════════════════════════════════════════════════════════════
 # ``\usepackage``/``\RequirePackage`` 装载命令骨架 (命名组单源,
-# 自 _builtins_pkgload 归位 —— 旧拼在同骨架上组位逐处漂移,
+# 自 builtins.pkgload 归位 —— 旧拼在同骨架上组位逐处漂移,
 # names 位 g5/g3/g2 不等; 命名组替数字位收口)
 # ════════════════════════════════════════════════════════════════
 
@@ -170,7 +170,7 @@ def _pkg_list_re(pkg: str) -> re.Pattern[str]:
     r"""名单内含 ``pkg`` 的装载点变体 —— ``names`` 拆 ``before``/``after`` 双组。
 
     ``\b<pkg>\b`` 界只挡字母续名 (``{physics-tools}`` 这类连字符兄弟名
-    的误中由调用方元素级判定滤掉)。``_builtins_pkgload._PHYS_LOAD_RE``
+    的误中由调用方元素级判定滤掉)。``builtins.pkgload._PHYS_LOAD_RE``
     等同形名单变体的单源。
     """
     return re.compile(
@@ -231,7 +231,7 @@ def _exact_restore_wrap(cs: str) -> tuple[str, str]:
     (``\edef`` 存 ``\catcode 64`` 现值 → ``=11`` 读本族 @-cs), ``post_seg``
     = ``\<cs>`` (复元恒回原位)。分隔符 (空格/换行) 归属调用方拼 —
     ``_SHIP_WRAP_*``/``_AT_LETTER_*`` 尾空/头空, ``_SIU_PEACE_*`` 换行。
-    (自 _builtins_pkgload 归位 —— 两侧包裹对字面量单源。)
+    (自 builtins.pkgload 归位 —— 两侧包裹对字面量单源。)
 
     隐式耦合: 传入 ``cs`` 必须已登记进 ambient-@ 事件表的 restore 交替
     组 (pkgload ``_AMBIENT_AT_RE``/docfix ``_ATDEF_EVENT_RE`` 均
@@ -246,7 +246,7 @@ def _exact_restore_wrap(cs: str) -> tuple[str, str]:
 
 
 #: 多 @-cs 注入块的宿主不可知 @=11 包裹对 (svglov3.clo exact-restore
-#: idiom, 同 _builtins_pkgload._SHIP_WRAP_*): ``\edef`` 存 ``\catcode 64``
+#: idiom, 同 builtins.pkgload._SHIP_WRAP_*): ``\edef`` 存 ``\catcode 64``
 #: 现值 → ``=11`` 读块 → 复元; @=letter 宿主恒等变换, @=other 亦回原位。
 #: restore cs 名纯字母 —— 宿主正处 @=other 时名里带 ``@`` 自断签名。
 _AT_LETTER_SEG = _exact_restore_wrap("TeXlateAtRestore")
@@ -602,7 +602,7 @@ def _mc_seen(ctx: LoopCtx) -> dict[int, tuple[str, str]] | None:
 # missing_char 读侧/规划侧机制 (C3 收尾归位: shim 叶同消费)
 # 「Missing character」行解析 → 码位 → 表匹配 → 修复规划;
 # 修复动作本体 (warmup/字面替换/逐字回退/accent 站点) 留在
-# _builtins_misschar。
+# builtins.misschar。
 # ════════════════════════════════════════════════════════════════
 
 #: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
@@ -724,7 +724,7 @@ _FB_FONT = "Libertinus Serif"  # TL libertinus-fonts, 三带全覆盖实证
 def _fb_preamble_lines(fam: str, font: str) -> list[str]:
     r"""回退字体族声明行 —— fontspec 守卫 + ``\newfontfamily`` 幂等声明。
 
-    ``_builtins_misschar._fb_snippet_lines`` 与 shim ``cs_rebind`` 共用
+    ``builtins.misschar._fb_snippet_lines`` 与 shim ``cs_rebind`` 共用
     骨架: ``\ifdefined\<fam>`` 守卫使同族二次注入不炸 ``\newfontfamily``
     重定义; ``fam`` 参数支持第二回退族 (``txlatecjkfb`` 等)。
     """
@@ -780,7 +780,7 @@ def _wdir_fingerprint(wdir: Path) -> dict[Path, tuple[int, int]]:
     """工作树文件 ``(mtime_ns, size)`` 指纹——``run_tool`` 改盘面快照 diff 用。
 
     通用树扫件而非规则实现——engine ``_landing_sync`` 的外部落件基线与
-    ``_builtins_misc._invalidate_changed``/docstrip 全量失效两侧消费。
+    ``builtins.misc._invalidate_changed``/docstrip 全量失效两侧消费。
     """
     fp: dict[Path, tuple[int, int]] = {}
     for p in wdir.rglob("*"):
@@ -801,7 +801,7 @@ def _fp_diff(
 ) -> list[Path]:
     """指纹 diff 核: 基线间变值路径集 (``exclude`` 自产写件除外)。
 
-    ``_landing_sync`` 的外部落件判据与 ``_builtins_misc._invalidate_changed``
+    ``_landing_sync`` 的外部落件判据与 ``builtins.misc._invalidate_changed``
     的通用补同核——后者免 exclude (全量失效)。
     """
     excl = set(exclude)
@@ -813,12 +813,12 @@ def _fp_diff(
 
 
 # ════════════════════════════════════════════════════════════════
-# 工程件遍历 (自 _builtins_shim 归位: misc ``_conv_sibling`` 同口径共用)
+# 工程件遍历 (自 builtins.shim 归位: misc ``_conv_sibling`` 同口径共用)
 # ════════════════════════════════════════════════════════════════
 
 #: 工程件遍历的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
 #: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非稿自带件。
-#: (canonical 自 _builtins_graphics 归位 —— 彼侧副本删后回引本件。)
+#: (canonical 自 builtins.graphics 归位 —— 彼侧副本删后回引本件。)
 _PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
 
 
@@ -851,12 +851,12 @@ def _wdir_project_files(ctx: LoopCtx) -> Iterator[tuple[Path, tuple[str, ...]]]:
 
 
 # ════════════════════════════════════════════════════════════════
-# 引擎索引查包 + advisory 记账 (自 actions.py/_builtins_vendored 归位)
+# 引擎索引查包 + advisory 记账 (自 actions.py/builtins.vendored 归位)
 # ════════════════════════════════════════════════════════════════
 
 
 def _index_candidates(eng: Engine, fname: str, *, suggest: bool = False) -> list[str]:
-    """``filemap`` + ``ctan_fetch.peek_index`` 索引查包链 (``_builtins_vendored._index_providers`` 同构)。
+    """``filemap`` + ``ctan_fetch.peek_index`` 索引查包链 (``builtins.vendored._index_providers`` 同构)。
 
     ``suggest=True`` 时 ``query`` 空集再退 ``suggest`` 前缀猜测——候选提示
     面可宽; 遮蔽佐证面 (``_index_providers``) 应保持默认 ``False`` 只收精确命中。
@@ -878,7 +878,7 @@ def _advise(ctx: LoopCtx, adv: str) -> None:
 
     ``ctx.advisories`` 经 ``LoopCtx.__getattr__`` 转发到 ``ctx.ledger.advisories``
     (engine.py forward 表 ``"advisories": "ledger"``), 两写形同列表 ——
-    actions.py 与 _builtins_vendored.py 两侧同构副本的单源。
+    actions.py 与 builtins/vendored.py 两侧同构副本的单源。
     """
     if adv not in ctx.advisories:
         ctx.advisories.append(adv)

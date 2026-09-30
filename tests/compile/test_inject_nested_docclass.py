@@ -18,7 +18,7 @@ from pathlib import Path
 from _fixloopkit import mk_ctx
 
 from texlate.compile._docseams import find_docclass_ends
-from texlate.compile.fixloop._builtins_common import _inject_after_docclass
+from texlate.compile.fixloop.builtins.common import _inject_after_docclass
 from texlate.compile.inject import inject_cjk
 
 _DOC = "\\begin{document}\nx\n\\end{document}\n"

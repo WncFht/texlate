@@ -1,16 +1,16 @@
-r"""_builtins_graphics — 图形转换/驱动预检域修复原语 (C3 拆分收尾叶子)。
+r"""builtins.graphics — 图形转换/驱动预检域修复原语 (C3 拆分收尾叶子)。
 
 pstricks/dvips 路由预检 / ``.eps``→``.pdf`` 全量转换 (epstopdf 优先, gs
 -dEPSCrop 兜底) / svg 包编译准备 (inkscape flag 臂或离线转换臂) /
 dvipdfmx ``.xbb`` bbox 缓存预生成 / 内嵌 ``.pdf`` gs 重序列化。
 missing_graphic 缺图族 (ci 改名/拒载分级/缺件占位/伪装改名/驱动期缺图)
-已再分叶 ``_builtins_gfx_missing`` —— 历史平名经本模块 ``__getattr__``
+已再分叶 ``builtins.gfx_missing`` —— 历史平名经本模块 ``__getattr__``
 惰性回引, ``builtins`` 门面与既有 import 面不变 (见文件尾)。
 
 monkeypatch 锚点迁移: ``_run_convert`` 的 patch 面随调用链落在本模块
-——测试请 ``monkeypatch.setattr(_builtins_graphics, "_run_convert", ...)``;
-builtins.py 门面的同名回引只是再导出, patch 它不生效。缺图族成员
-锚点同理随调用链落 ``_builtins_gfx_missing``。
+——测试请 ``monkeypatch.setattr(builtins.graphics, "_run_convert", ...)``;
+builtins/__init__.py 门面的同名回引只是再导出, patch 它不生效。缺图族成员
+锚点同理随调用链落 ``builtins.gfx_missing``。
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _live_matches,
     _map_tex_files,
     _splice,
@@ -101,7 +101,7 @@ _GRAPHICS_PKGS_RE = re.compile(r"(?i)\b(?:graphics|graphicx|color|epsfig|epsf)\b
 
 #: 工程文件枚举的封装树排除面 —— ``_texmf`` (wired vendored texmfhome) 与
 #: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非文档源件。
-#: actions.py / _builtins_shim.py 同名复用, 改口径需三处同步。
+#: actions.py / builtins/shim.py 同名复用, 改口径需三处同步。
 _PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
 
 
@@ -759,11 +759,11 @@ def rotatebox_caption_pad(
 # missing_graphic 族出叶惰性回引 (C3 再拆分)
 # ════════════════════════════════════════════════════════════════
 
-#: 随迁 ``_builtins_gfx_missing`` 的本叶历史名 —— ``builtins._LAZY``
-#: 门面表 / ``from _builtins_graphics import X`` 测试面 /
-#: ``_builtins_misc`` eager import 全不经改: 惰性解析直取新叶后缓存回
+#: 随迁 ``builtins.gfx_missing`` 的本叶历史名 —— ``builtins._LAZY``
+#: 门面表 / ``from builtins.graphics import X`` 测试面 /
+#: ``builtins.misc`` eager import 全不经改: 惰性解析直取新叶后缓存回
 #: 本模块 globals。monkeypatch 锚点随迁 —— 新叶内部调用链只认
-#: ``_builtins_gfx_missing.X``, 在本模块 setattr 只遮蔽本模块属性。
+#: ``builtins.gfx_missing.X``, 在本模块 setattr 只遮蔽本模块属性。
 _GFX_MISSING_NAMES = frozenset(
     {
         "_DRV_IMG_MISS_RE",
@@ -818,9 +818,9 @@ _GFX_MISSING_NAMES = frozenset(
 
 
 def __getattr__(name: str) -> object:
-    """出叶名惰性回引 ``_builtins_gfx_missing`` —— 兼容面, 新代码请直取新叶。"""
+    """出叶名惰性回引 ``builtins.gfx_missing`` —— 兼容面, 新代码请直取新叶。"""
     if name in _GFX_MISSING_NAMES:
-        mod = importlib.import_module(f"{__package__}._builtins_gfx_missing")
+        mod = importlib.import_module(f"{__package__}.gfx_missing")
         value = getattr(mod, name)
         globals()[name] = value
         return value

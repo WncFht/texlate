@@ -1,4 +1,4 @@
-r"""_builtins_vendored — 工程内遮蔽探测/隔离 + 随包 vendored 件取放 (C3 拆分)。
+r"""builtins.vendored — 工程内遮蔽探测/隔离 + 随包 vendored 件取放 (C3 拆分)。
 
 ``\\ProvidesX`` 日期面比对确证工程内 .sty/.cls 更旧遮蔽系统件;
 ``vendor/`` 随包件 (files/ 真件 + stubs/ 最小宏面 + shims/ .cls 替身)
@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.arxiv.locate import safe_rel
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
     _advise,
@@ -466,7 +466,7 @@ _VENDOR_SUBDIRS = ("files", "stubs", "shims")
 def _vendor_root(params: dict[str, Any]) -> Path:
     """Repo vendored 件根: ``params.dir`` 覆盖, 默认包内 ``vendor/``。"""
     d = params.get("dir")
-    return Path(d) if d else Path(__file__).resolve().parent / "vendor"
+    return Path(d) if d else Path(__file__).resolve().parent.parent / "vendor"
 
 
 def _vendored_source(root: Path, fname: str) -> Path | None:

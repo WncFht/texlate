@@ -1,4 +1,4 @@
-r"""_builtins_shim — stub/遮蔽/polyfill 注入原语 (C3 拆分)。
+r"""builtins.shim — stub/遮蔽/polyfill 注入原语 (C3 拆分)。
 
 往 wdir/主文件注入新件或 prologue, 或把位错稿自带件归位到解析位
 (fileset_relocate/driver_tfm_hoist): 退役包 cls/sty stub (legacy_pkg_shim) /
@@ -15,7 +15,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _FB_FONT,
@@ -36,7 +36,7 @@ from texlate.compile.fixloop._builtins_common import (
     _resolve_site,
     _wdir_project_files,
 )
-from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
+from texlate.compile.fixloop.builtins.csfix import _ensure_usepackage
 from texlate.compile.latex209 import REVTEX209_CORE
 from texlate.latex.tables import MATH_ENVS
 from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file, safe_rel

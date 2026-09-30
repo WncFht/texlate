@@ -1,4 +1,4 @@
-"""_builtins_misc — 编码转码 / 中间件清场 / support 文件腐蚀复原 / 格式门 (C3 拆分)。
+"""builtins.misc — 编码转码 / 中间件清场 / support 文件腐蚀复原 / 格式门 (C3 拆分)。
 
 ``non_utf8_recode`` 非 UTF-8 源就地转码; ``purge_corrupt_intermediates``
 删引擎自产的截断 aux 族; ``restore_support_from_src`` 把被翻译写脏的
@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path, PurePath, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
 
-from texlate.compile.fixloop._builtins_common import (
+from texlate.compile.fixloop.builtins.common import (
     _fixloop_log,
     _fp_diff,
     _in_wdir,
@@ -26,18 +26,18 @@ from texlate.compile.fixloop._builtins_common import (
     _wdir_fingerprint,
     _wdir_project_files,
 )
-from texlate.compile.fixloop._builtins_gfx_missing import (
+from texlate.compile.fixloop.builtins.gfx_missing import (
     _EPS_KV_RE,
     _GRAPHIC_EXTS,
     _INCLUDE_GFX_RE,
     _KV_FILE_RE,
 )
-from texlate.compile.fixloop._builtins_graphics import (
+from texlate.compile.fixloop.builtins.graphics import (
     _EPS_EXTS,
     _NUMERIC_EXT_RE,
     _norm_graphic_name,
 )
-from texlate.compile.fixloop._builtins_shim import _safe_rel
+from texlate.compile.fixloop.builtins.shim import _safe_rel
 from texlate.compile.inject import _walk_inputs
 from texlate.compile.latex209 import upgrade_209
 from texlate.compile.mask import group_end

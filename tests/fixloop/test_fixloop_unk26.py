@@ -33,13 +33,13 @@ import regex
 from _fixloopkit import EngStub, apply, mk_ctx, rs, rule
 
 from texlate.compile.fixloop import actions
-from texlate.compile.fixloop._builtins_common import (
-    _AT_LETTER_POST,
-    _AT_LETTER_PRE,
-)
 from texlate.compile.fixloop.builtins import (
     spacefactor_atdef_wrap,
     vendored_shadow_isolate,
+)
+from texlate.compile.fixloop.builtins.common import (
+    _AT_LETTER_POST,
+    _AT_LETTER_PRE,
 )
 
 # 规则 rid 常量——经 ``rule()``/``rs()`` 惰性取件（收集期不 IO 约定）。

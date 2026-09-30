@@ -24,13 +24,13 @@ from pathlib import Path
 from _fixloopkit import MockEngine, mk_ctx
 from conftest import _write
 
-from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
-from texlate.compile.fixloop._builtins_common import _drop_pkg_loads
-from texlate.compile.fixloop._builtins_docfix import (
+from texlate.compile.fixloop.builtins.bib import bbl_stub_rewrite
+from texlate.compile.fixloop.builtins.common import _drop_pkg_loads
+from texlate.compile.fixloop.builtins.docfix import (
     pdfstring_cs_disarm,
     premature_cs_guard,
 )
-from texlate.compile.fixloop._builtins_pkgload import font_sub_shim
+from texlate.compile.fixloop.builtins.pkgload import font_sub_shim
 from texlate.compile.fixloop.llm_hook import _banned
 
 # ═══════════ _drop_pkg_loads 元素级判 ═══════════

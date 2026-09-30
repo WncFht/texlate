@@ -285,7 +285,7 @@ rules:
         }
       - {
           corpus: "1706.00240 (同 lane 副修): physics_stub_detach \\input 裸载缺 @-catcode",
-          error: "Missing \\begin{document} at physics.sty:13 — \\@undefined 在 @=other 下碎裂 (见 _builtins_pkgload letter_wrap)",
+          error: "Missing \\begin{document} at physics.sty:13 — \\@undefined 在 @=other 下碎裂 (见 builtins.pkgload letter_wrap)",
         }
     stats: { fires: 3849, rescued_cells: 1812, status: active }
     source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
