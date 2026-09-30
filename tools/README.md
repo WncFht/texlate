@@ -43,10 +43,11 @@
 
 ## 文档与文本工具
 
-| 工具                | 作用                                                                                            | 用法                                                       |
-| ------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `docs_linkcheck.py` | docs/ 相对链接检查：markdown 链接/图片/行内路径引用的目标存在性校验（exit 1 列死链）            | `.venv/bin/python tools/docs_linkcheck.py [--root docs]`   |
-| `md_table_align.py` | MD060 aligned 表风格重排器：按显示宽度（CJK=2，wcwidth 口径）把表块各列重排到统一列位，原位改写 | `.venv/bin/python tools/md_table_align.py FILE [FILE ...]` |
+| 工具                | 作用                                                                                                        | 用法                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `docs_linkcheck.py` | docs/ 相对链接检查：markdown 链接/图片/行内路径引用的目标存在性校验（exit 1 列死链）                        | `.venv/bin/python tools/docs_linkcheck.py [--root docs]`                                 |
+| `md_table_align.py` | MD060 aligned 表风格重排器：按显示宽度（CJK=2，wcwidth 口径）把表块各列重排到统一列位，原位改写             | `.venv/bin/python tools/md_table_align.py FILE [FILE ...]`                               |
+| `vendor_census.py`  | fixloop `vendor/` 资产普查 + 可达性扫描：`vendor/MANIFEST.md` 的生成数据源（逐件 \ProvidesX 头 + 引用分类） | `.venv/bin/python tools/vendor_census.py [out.jsonl]` → `tmp/vendor-census-<日期>.jsonl` |
 
 ## lib 件与系统级巡检（非手跑入口）
 
@@ -54,6 +55,7 @@
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_env.py`         | tools/ 脚本环境自举（lib 件非入口）：import 即把仓根 `src/` 推上 `sys.path`，外露 `TEXLATE_ROOT`/`TASKS`/`DB` 常量                                      |
 | `_seqpos_lib.py`  | seqpos/alignment 仿真共用件（lib 件非入口）：mapper_audit/seqpos_e2e_sim/seqpos_clicksim 的 mapper、picker、lit 真值探针单一事实源                      |
+| `_alignsim.py`    | 逐字位流仿真共用件（lib 件非入口）：seqpos_verify_mask/mark_bias 的 pymupdf rawdict→逐字 offset→(page,frac) 反查单源                                    |
 | `bench_patrol.sh` | bench 巡检哨兵（系统级 cron/systemd timer 驱动的保底层，只量不判）：量 df/心跳/events 鲜度/records 进度/网关配额，越闸打 WARN 落 `tmp/bench-patrol.log` |
 
 ## 对照臂实验与网关对账
