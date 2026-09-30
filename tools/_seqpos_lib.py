@@ -22,12 +22,12 @@ import re
 from typing import NamedTuple
 
 import _env  # noqa: F401 -- src 登程须先于 texlate import
-from texlate.server.seqpos import (  # noqa: F401 -- 转口面：tools 侧唯一引口
+from texlate.server.seqpos import seqpos_for_task  # noqa: F401 -- 转口面：tools 侧唯一引口
+from texlate.server.seqpos.docorder import _doc_order  # noqa: F401
+from texlate.server.seqpos.stream import (  # noqa: F401
     _char_stream,
-    _doc_order,
     _norm_chars,
     _tex_strip,
-    seqpos_for_task,
 )
 
 COL_X = 0.45  # 栏判定 x 中点契约——与前端 colOf / seqpos._COL_SPLIT_X 同口径

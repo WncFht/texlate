@@ -1,4 +1,4 @@
-# seqpos 解码层契约（`src/texlate/server/seqpos.py`）
+# seqpos 解码层契约（`src/texlate/server/seqpos/` 包）
 
 > **定位**：`dev/projects/pdf-seq-anchors-impl-2026-09-23.md` 记的是生产侧（编译期 BDC/EMC 注锚）；
 > 本文记消费侧——把 marked PDF + dual.json 解码成「seq ↔ 双侧 PDF 位置」映射的

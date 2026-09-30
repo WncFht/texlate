@@ -65,7 +65,7 @@ exclude = [
   "src/texlate/server/routers/share.py",
   "src/texlate/server/routers/srccut.py",
   "src/texlate/server/routers/tasks.py",
-  "src/texlate/server/seqpos.py",
+  "src/texlate/server/seqpos",
   "src/texlate/server/settings.py",
   "src/texlate/server/srccut.py",
   "src/texlate/server/staticfiles.py",

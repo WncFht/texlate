@@ -19,7 +19,7 @@
 
 依赖关系：audit/clicksim/verify_mask/e2e_sim 读 `~/.texlate/tasks/*/seqpos.json`+`dual.json`+双 PDF；
 仿真共用件已收 `_seqpos_lib.py`（mapper/picker/真值探针单一事实源），并 import
-`texlate.server.seqpos` 内部件（`_char_stream`/`_tex_strip`）——签名漂移时同步改这里。
+`texlate.server.seqpos` 叶内私件（`seqpos.stream` 的 `_char_stream`/`_tex_strip` 等——私名经叶直引不经门面回引）——签名漂移时同步改这里。
 
 ## bench 质检重放
 
