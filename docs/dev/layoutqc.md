@@ -192,7 +192,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 10. As-built 校准实录（2026-09-23 实跑标定）
 
-§4 表是**计划**；本节是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc.py`+`_raster_child.py`（检测侧）、`tests/compile/test_layoutqc.py`（27 例）。
+§4 表是**计划**；本节是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc/__init__.py`+`_raster_child.py`（检测侧）、`tests/compile/test_layoutqc.py`（27 例）。
 
 ### 10.1 单位与坐标陷阱
 

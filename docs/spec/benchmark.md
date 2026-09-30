@@ -9,12 +9,12 @@
 
 | #   | 评测器       | 测哪段           | spec（`bench run <名>`）                           | 底材                                | 核心指标                                      |
 | --- | ------------ | ---------------- | -------------------------------------------------- | ----------------------------------- | --------------------------------------------- |
-| B1  | parsebench   | 解析段           | `specs/parsebench.py`                              | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗     |
+| B1  | parsebench   | 解析段           | `specs/parsebench/__init__.py`                              | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗     |
 | B2  | fixtures     | 解析段单元级     | `specs/fixture_assert.py` + `tests/` 断言矩阵      | `bench/fixtures/*.tex` 手造         | 陷阱断言通过率                                |
 | B3  | compilebench | 编译段 + fixloop | `specs/compilebench.py` + `specs/fixloop_bench.py` | corpus `raw.*` blob                 | clean/pdf~/FAIL、救回率、规则触发谱           |
-| B4  | xlatbench    | 翻译段           | `specs/xlatbench.py` + `specs/qualbench.py`        | corpus chunk 抽样                   | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
-| B5  | e2ebench     | 全链组合         | `specs/e2e_mock.py` + `specs/e2e_real.py`          | corpus 子集                         | 环节成功率漏斗 + 终态分布                     |
-| B6  | validbench   | 校验段           | `specs/validbench.py`                              | 语料 chunk 变异生成                 | 检出率 / error-FP / 延迟                      |
+| B4  | xlatbench    | 翻译段           | `specs/xlatbench.py` + `specs/qualbench/__init__.py`        | corpus chunk 抽样                   | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
+| B5  | e2ebench     | 全链组合         | `specs/e2e_mock.py` + `specs/e2e_real/__init__.py`          | corpus 子集                         | 环节成功率漏斗 + 终态分布                     |
+| B6  | validbench   | 校验段           | `specs/validbench/__init__.py`                              | 语料 chunk 变异生成                 | 检出率 / error-FP / 延迟                      |
 | B7  | alignbench   | 阅读体验锚点     | `specs/alignbench.py`                              | en/zh 编译产物对                    | named-dest 保留率 / 链权                      |
 
 依赖序：`corpus_* → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）[^suite]。
@@ -42,7 +42,7 @@
 
 ### 4.1 B1 · parsebench —— 解析段基准
 
-`specs/parsebench.py` 对湖格内每篇逐 .tex 测量：decode_tex + flatten_inputs + parse_file 走产品路径，parse ok/error/ms（30s 超时）、chunk 数与字符中位/p90/max、泄漏率（`$`/`\cite`/`\ref`/`\begin{`/`\if`/`\input` 六组正则 + 逐条 examples）、round-trip 三档（strict/normalized/diverged + first_diff + quick_ratio）、fake-translation splice 死占位符/孤儿 chunk、vtex_vs_src 展开足迹、bug1 ph_tail 探针、warn_kinds、unresolved_inputs[^parsebench]。
+`specs/parsebench/__init__.py` 对湖格内每篇逐 .tex 测量：decode_tex + flatten_inputs + parse_file 走产品路径，parse ok/error/ms（30s 超时）、chunk 数与字符中位/p90/max、泄漏率（`$`/`\cite`/`\ref`/`\begin{`/`\if`/`\input` 六组正则 + 逐条 examples）、round-trip 三档（strict/normalized/diverged + first_diff + quick_ratio）、fake-translation splice 死占位符/孤儿 chunk、vtex_vs_src 展开足迹、bug1 ph_tail 探针、warn_kinds、unresolved_inputs[^parsebench]。
 
 逐论文聚合：主文件定位（多根标 multi_doc）、class 名/选项、tex 数/总大小/非 UTF-8、**路由标签**（reject/xelatex/minted/non-utf8/no-hyperref——B3 的静态路由金标准）、孤儿 tex 清单、stratum_cell/cluster_id/事后分层权重。泄漏逐条人工归因写回 `mechanisms.jsonl` 台账（benchmark→语料反馈环）[^parsebench]。
 
@@ -80,7 +80,7 @@
 两子层[^suite]：
 
 - **B4a 硬契约层** `specs/xlatbench.py`：对内部 OpenAI 兼容网关模型集跑分层抽样 LaTeX 段落翻译，逐格过 L0 validator + E22 硬契约判定落 metrics；样例帧沉为 spec 常量（`--where/--docs/--per-kind/--seed/--models/--runs` 不再可达——改常量=改 bench 定义，code_sha/spec_hash 自动换版），非 holdout 切片 union、canon 去重、跨 cluster 轮转、chunk 按 context-kind 分桶等距取，尾部挂 S1–S4 合成压力（与 `xlat-traps.tex` @Xn 遮蔽输出逐字一致）。指标排序：硬契约率 → ord 软信号 → 延迟 p50/p95 → reasoning 开销 → token 经济；分析动词 `bench xlat-report`（模型榜）/`bench xlat-rejudge`（存 src/zh 本地重判，免网关）读 eval_records[^xlatbench]。
-- **B4b 质量层** `specs/qualbench.py`：LLM-judge 对 (src_en, zh) chunk 对打 ESA esa2 协议 errors[] + stated100/derived100 双分 + 派生六类 flag（漏译/错译/术语不一致/格式破坏/幻觉/语言混杂），contested 触发二裁；格模型 = 一 frame 行（paper, chunk_id, judge）一格，`variant=esa2@{EPOCH}|{judge}|{chunk_id}`，`dedup_key=(idc,arm,variant)`；judge 模型与被评模型解耦。分析动词 `bench qual-report`[^qualbench]。
+- **B4b 质量层** `specs/qualbench/__init__.py`：LLM-judge 对 (src_en, zh) chunk 对打 ESA esa2 协议 errors[] + stated100/derived100 双分 + 派生六类 flag（漏译/错译/术语不一致/格式破坏/幻觉/语言混杂），contested 触发二裁；格模型 = 一 frame 行（paper, chunk_id, judge）一格，`variant=esa2@{EPOCH}|{judge}|{chunk_id}`，`dedup_key=(idc,arm,variant)`；judge 模型与被评模型解耦。分析动词 `bench qual-report`[^qualbench]。
 
 门槛（M1 出口）：100 篇真实翻译端到端 ≥85%；硬契约率大样本不回退；L0 检出率不回退[^suite]。
 
@@ -89,7 +89,7 @@
 测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`/`pipecore`（CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + L0 校验器产品 API[^suite]。
 
 - `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→L2→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `tests/_translators.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
-- `specs/e2e_real.py`：Mode D 真实臂——route → xlat(paid) → compile → fixloop → base → layoutqc 六段链，翻译走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env）全产品链；run 参数 `ids/only/model/concurrency/timeout/oversize_cap/no_probe`；`fixloop` 臂位 = fail + misschar/error 级 partial（inject reject 不救），`base` 臂为归因对拍，`layoutqc` 为最后变异段（产物进 vault 触发 harvest）[^e2ereal]。
+- `specs/e2e_real/__init__.py`：Mode D 真实臂——route → xlat(paid) → compile → fixloop → base → layoutqc 六段链，翻译走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env）全产品链；run 参数 `ids/only/model/concurrency/timeout/oversize_cap/no_probe`；`fixloop` 臂位 = fail + misschar/error 级 partial（inject reject 不救），`base` 臂为归因对拍，`layoutqc` 为最后变异段（产物进 vault 触发 harvest）[^e2ereal]。
 
 产出**漏斗看板**：route/xlat/compile/fixloop/layoutqc 逐段终态分布 + reject_at 归因。门槛：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点[^suite]。
 
@@ -152,13 +152,13 @@
 
 [^tiers]: 仓内证据件 `bench/TIERS.md`（验证分层契约原文）。
 
-[^protocol]: `bench/PROTOCOL.md`（逐库评测协议原文）已于 2026-09-20 退役删除，原文见 git 历史；陷阱断言登记以 `bench/py/specs/_fixture_matrix.py` 的矩阵定义为准。
+[^protocol]: `bench/PROTOCOL.md`（逐库评测协议原文）已于 2026-09-20 退役删除，原文见 git 历史；陷阱断言登记以 `bench/py/specs/_fixture_matrix/__init__.py` 的矩阵定义为准。
 
 [^v3plan]: 仓内证据件 [v3-plan](../research/corpus/v3-plan.md) §7–8（指标口径与门槛论证）与 [parsebench-v1](../research/corpus/parsebench-v1.md)。
 
-[^parsebench]: 仓内证据件 `bench/py/specs/parsebench.py` 模块 docstring 与 [parse-metrics-literature](../research/methods/parse-metrics-literature.md)。
+[^parsebench]: 仓内证据件 `bench/py/specs/parsebench/__init__.py` 模块 docstring 与 [parse-metrics-literature](../research/methods/parse-metrics-literature.md)。
 
-[^fixtureassert]: 仓内证据件 `bench/py/specs/fixture_assert.py` 与 `bench/py/specs/_fixture_matrix.py`（断言矩阵单源）。
+[^fixtureassert]: 仓内证据件 `bench/py/specs/fixture_assert.py` 与 `bench/py/specs/_fixture_matrix/__init__.py`（断言矩阵单源）。
 
 [^compilebench]: 仓内证据件 `bench/py/specs/compilebench.py` docstring（格模型/冷 TEXMF 沙箱口径）。
 
@@ -166,13 +166,13 @@
 
 [^xlatbench]: 仓内证据件 `bench/py/specs/xlatbench.py` docstring 与 [model-selection](../research/model-selection.md)（338 调用方法实证）。
 
-[^qualbench]: 仓内证据件 `bench/py/specs/qualbench.py` docstring（ESA esa2 协议 + 六类 flag 口径）。
+[^qualbench]: 仓内证据件 `bench/py/specs/qualbench/__init__.py` docstring（ESA esa2 协议 + 六类 flag 口径）。
 
 [^e2emock]: 仓内证据件 `bench/py/specs/e2e_mock.py` docstring（四臂条件 + 破坏语义）与 [e2e-mock-pipeline](../research/product/2026-09-14-e2e-mock-pipeline.md)。
 
-[^e2ereal]: 仓内证据件 `bench/py/specs/e2e_real.py` docstring 与 [hardening-notes](../research/product/2026-09-16-hardening-notes.md)（§2 pipe-fix `onfail` 语义）。
+[^e2ereal]: 仓内证据件 `bench/py/specs/e2e_real/__init__.py` docstring 与 [hardening-notes](../research/product/2026-09-16-hardening-notes.md)（§2 pipe-fix `onfail` 语义）。
 
-[^validbench]: 仓内证据件 `bench/py/specs/validbench.py` docstring 与 [validator-rules](../research/latex/validator-rules.md)、[validator-ts](../research/latex/validator-ts.md)。
+[^validbench]: 仓内证据件 `bench/py/specs/validbench/__init__.py` docstring 与 [validator-rules](../research/latex/validator-rules.md)、[validator-ts](../research/latex/validator-ts.md)。
 
 [^alignbench]: 仓内证据件 `bench/py/specs/alignbench.py` docstring 与 [alignment-probe](../research/latex/alignment-probe.md)。
 

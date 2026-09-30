@@ -28,7 +28,7 @@ r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——原型 
 断言矩阵本体（``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
 / ``assert_w`` / ``assert_w73`` / ``assert_wenc`` / ``assert_dollar`` / ``assert_mask``
 与测量包 ``_PARSED``/``run_fixture``/``FixtureScan`` 等）单源在
-``bench/py/specs/_fixture_matrix.py``，与 bench 跑分器 ``bench/py/fixture_assert.py``
+``bench/py/specs/_fixture_matrix/__init__.py``，与 bench 跑分器 ``bench/py/fixture_assert.py``
 共享；本文件只留 pytest 驱动面。
 门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在原型里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。

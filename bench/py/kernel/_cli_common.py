@@ -60,11 +60,15 @@ def _shim_path() -> Path:
 
 
 def _resolve_spec(name: str) -> Path | None:
-    """SPEC arg -> path: literal file first, then specs/{name}[.py]."""
+    """SPEC arg -> path: literal file, then specs/{name}.py / {name}/__init__.py."""
     p = Path(name)
     if p.is_file():
         return p
-    for cand in (_specs_dir() / name, _specs_dir() / f"{name}.py"):
+    for cand in (
+        _specs_dir() / name,
+        _specs_dir() / f"{name}.py",
+        _specs_dir() / name / "__init__.py",
+    ):
         if cand.is_file():
             return cand
     _err(f"spec not found: {name!r} (tried literal path and {_specs_dir()})")

@@ -59,7 +59,7 @@ soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队�
 
 - `rules/*.yaml` 或 `_builtins_*.py` → 立即 `uv run python -c "from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()"`（毒规则拦全链，写完即验是铁律）
 - 代码改动 → `uv run pytest tests/test_<对应>.py`
-- **case 验收三门**（`spec/compile.md` 修复沉淀协议，`src/texlate/compile/fixloop/cases.py` 实装）：①`replay_case` 本格 fail→出 pdf；②`replay_all` 曾 clean 格零 regressed；③`stats_backfill` 回填转正。驱动写法照抄 `bench/py/specs/soak.py` 的 fixloop 段（`XelatexEngine` + `Ruleset.load()` + `fixloop()` + `_CaseBridge` case_sink 接线，约 L1009–1019；CaseSink → cases.jsonl 账道在 `bench/py/kernel/runs.py`）；`resolve_proj` 把 case 映到工程目录。
+- **case 验收三门**（`spec/compile.md` 修复沉淀协议，`src/texlate/compile/fixloop/cases.py` 实装）：①`replay_case` 本格 fail→出 pdf；②`replay_all` 曾 clean 格零 regressed；③`stats_backfill` 回填转正。驱动写法照抄 `bench/py/specs/soak/__init__.py` 的 fixloop 段（`XelatexEngine` + `Ruleset.load()` + `fixloop()` + `_CaseBridge` case_sink 接线，约 L1009–1019；CaseSink → cases.jsonl 账道在 `bench/py/kernel/runs.py`）；`resolve_proj` 把 case 映到工程目录。
 - **回放一律在副本上跑**：`cp -a` case 工程目录到 XDG state 根下 `texlate/replay-<date>/` 再 replay——soak work 树是 records 账的物化现场，可能被在跑批续跑引用，原树一个比特不动。`<数据目录>/tasks/` 更禁回放。
 - `git diff` 逐 hunk 自查无夹带。
 

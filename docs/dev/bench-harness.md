@@ -33,7 +33,7 @@
 
 ## 2. 评测协议：每个库/管线测什么
 
-这套四项评测最初用于外部 LaTeX 解析库选型（pylatexenc/TexSoup/plasTeX/latex-utensils/unified-latex/tree-sitter-latex 等，选型期已结案，横评脚本已随 Wave-F 删除、`bench/ts/` 保留）；同一框架现在是 `texlate.latex` 产品管线的正式评测口径，由 `bench/py/specs/parsebench.py` 承载。
+这套四项评测最初用于外部 LaTeX 解析库选型（pylatexenc/TexSoup/plasTeX/latex-utensils/unified-latex/tree-sitter-latex 等，选型期已结案，横评脚本已随 Wave-F 删除、`bench/ts/` 保留）；同一框架现在是 `texlate.latex` 产品管线的正式评测口径，由 `bench/py/specs/parsebench/__init__.py` 承载。
 
 ### 2.1 解析鲁棒性（corpus 全部 .tex）
 

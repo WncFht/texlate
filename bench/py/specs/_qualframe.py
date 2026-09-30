@@ -2,7 +2,7 @@
 
 A qualbench frame is a tracked jsonl under ``bench/nominations/`` — one
 PAIR row per line; every row becomes one judge cell at plan time (see
-``specs/qualbench.py`` for the row->item transform). Row schema — all
+``specs/qualbench/__init__.py`` for the row->item transform). Row schema — all
 keys required::
 
     {"paper":      <canon id>,            # cell idc

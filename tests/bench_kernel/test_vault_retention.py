@@ -371,7 +371,8 @@ def test_prune_tar_deletes_tar_and_part(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # 惰载：corpus_v3 import 时模块级跑 _bootstrap.ensure() 改 sys.path，限污到本测试
-    from specs import _corpus_v3_extract, corpus_v3  # noqa: PLC0415
+    from specs import corpus_v3  # noqa: PLC0415
+    from specs.corpus_v3 import extract as _corpus_v3_extract  # noqa: PLC0415
 
     tars = tmp_path / "tars"
     tars.mkdir()

@@ -49,7 +49,7 @@ lake/corpus/{source}/{sid}/
 
 ## 3. 分层 manifest 体系
 
-层 = 一个 `manifest_{layer}.jsonl` 清单 + 明确口径（抽样框/用途/治理）。层枚举由 `specs/_corpus_common.py::manifest_layers` 按 `bench/corpus/manifest_*.jsonl` 文件名发现——**manifest 文件名即层身份**。
+层 = 一个 `manifest_{layer}.jsonl` 清单 + 明确口径（抽样框/用途/治理）。层枚举由 `specs/_corpus_common/__init__.py::manifest_layers` 按 `bench/corpus/manifest_*.jsonl` 文件名发现——**manifest 文件名即层身份**。
 
 ### 3.1 主库层（bench/corpus/）
 
@@ -121,7 +121,7 @@ m1k 全流程最严测试集折为四个 `manifest_m1k-*.jsonl` 层（实到 997
 
 - **池化估计只用 core 层** + 事后分层权重（`w_cell = frame 宇宙 cell 数 / 样本 cell 数`，cell = year_band × cat_group）；其余层按 cell 报命中率，双口径（加权池化 + 宏平均）并列[^v3plan]。
 - **EVAL_ONLY 治理**：`kernel/spec.py::EVAL_LAYERS = {"holdout", "eval_only"}`——这些层的 item 只在 spec 声明 `eval=True` 时进帧；dev 侧 spec 枚举自动排除[^layers]。
-- **清单根切换**：`TEXLATE_CORPUS` 环境变量换 manifest 根（默认 `bench/corpus`；`specs/_corpus_common.py::CORPUS` 与 parsebench 等 spec 均走此口径）。
+- **清单根切换**：`TEXLATE_CORPUS` 环境变量换 manifest 根（默认 `bench/corpus`；`specs/_corpus_common/__init__.py::CORPUS` 与 parsebench 等 spec 均走此口径）。
 - **QC 门禁**（各层收线同口径）：id 唯一 / 跨层零撞 / meta 齐 / extracted 非空；`%auto-ignore` 占位 stub 最小尺寸 + 正文含量门槛[^layers]。
 - **覆盖簿记**：`bench/corpus/eval_coverage.json`（B04/B06 配额宇宙 × 语料实收覆盖，扫成员数与 cell 对账）。
 
@@ -159,13 +159,13 @@ vault/quar/{kind}/…                        # 隔离区（验坏/判毒叶）
 
 [^frame-alloc]: 仓内证据件 [frame-and-allocation](../research/corpus/frame-and-allocation.md) 与 [ia-pilot](../research/corpus/ia-pilot.md)（IA 管道实测）；再生 spec `bench/py/specs/frame_build.py` docstring。
 
-[^layers]: 仓内证据件 `bench/py/kernel/spec.py::EVAL_LAYERS` 与 `bench/py/specs/_corpus_common.py`（manifest 消费面）。
+[^layers]: 仓内证据件 `bench/py/kernel/spec.py::EVAL_LAYERS` 与 `bench/py/specs/_corpus_common/__init__.py`（manifest 消费面）。
 
 [^m1k]: 仓内证据件 `bench/corpus/MANIFEST_m1k.md`（四层构成与来源口径）。
 
 [^daily]: 仓内证据件 [daily-soak](../research/arxiv/2026-09-19-daily-soak.md)；退役提交 `f7a2f32c`（2026-09-21）。
 
-[^sw]: 仓内证据件 [bulk-channels](../research/arxiv/bulk-channels.md)（scholarweave 通道裁决）与 `bench/py/specs/corpus_sw.py` docstring。
+[^sw]: 仓内证据件 [bulk-channels](../research/arxiv/bulk-channels.md)（scholarweave 通道裁决）与 `bench/py/specs/corpus_sw/__init__.py` docstring。
 
 [^zhstore]: vault 布局/操作契约 `bench/py/kernel/vault.py` 模块 docstring 与 [bench-redesign-v2-trizone](../spec/bench-trizone.md) §3.10；旧 `bench/zh-store/README.md` 仅存 git 历史。
 

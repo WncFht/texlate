@@ -53,10 +53,18 @@ def _cmd_spec_list(_args) -> int:
     sdir = _specs_dir()
     rows = []
     if sdir.is_dir():
-        for f in sorted(sdir.glob("*.py")):
-            if f.name.startswith("_"):
-                continue
-            rows.append((f.name, _spec_kind(f), _spec_doc(f)))
+        # spec 两形——顶层 *.py 与收包子目录 <name>/__init__.py；_ 前缀私有件同跳。
+        cands = [f for f in sdir.glob("*.py") if not f.name.startswith("_")]
+        cands += [
+            d / "__init__.py"
+            for d in sdir.iterdir()
+            if d.is_dir()
+            and not d.name.startswith("_")
+            and (d / "__init__.py").is_file()
+        ]
+        for f in sorted(cands):
+            disp = f.parent.name + "/" if f.name == "__init__.py" else f.name
+            rows.append((disp, _spec_kind(f), _spec_doc(f)))
     print(f"specs: {sdir}")
     if not rows:
         print("  (none)")
