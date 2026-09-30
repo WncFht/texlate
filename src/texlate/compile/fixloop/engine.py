@@ -24,7 +24,8 @@ monkeypatch 锚点注意: patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 叶谱: ``_engine_proto`` 协议面+报告装配 / ``_engine_ctx`` LoopCtx /
 ``_engine_aux`` 清场挥发件 / ``_engine_disp`` 定位+gate/precheck+次级
 派发 / ``_engine_wire`` 引擎接线+装配头 / ``_engine_run`` _FixRun
-状态机+fixloop 入口。
+主循环核 (二级拆叶: 编译相 ``_engine_run_comp`` + 尾段 ``_engine_run_tail``
+两 mixin 叶 + 装配面 ``_engine_run_fixloop``)。
 """
 
 from __future__ import annotations
@@ -104,9 +105,11 @@ if TYPE_CHECKING:
     from texlate.compile.fixloop._engine_run import (
         _SEC_CAND_MAX,
         _SEC_PROBE_MAX,
-        _UNRESOLVED_MARKS_RX,
-        _classify_no_main,
         _FixRun,
+    )
+    from texlate.compile.fixloop._engine_run_comp import _UNRESOLVED_MARKS_RX
+    from texlate.compile.fixloop._engine_run_fixloop import (
+        _classify_no_main,
         _record_case,
         fixloop,
     )
@@ -194,7 +197,9 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_FixRun",
         "_SEC_CAND_MAX",
         "_SEC_PROBE_MAX",
-        "_UNRESOLVED_MARKS_RX",
+    ),
+    "_engine_run_comp": ("_UNRESOLVED_MARKS_RX",),
+    "_engine_run_fixloop": (
         "_classify_no_main",
         "_record_case",
         "fixloop",
