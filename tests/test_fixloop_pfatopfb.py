@@ -1,4 +1,4 @@
-r"""pfa lane (2026-09-19): ``pfa_to_pfb`` ASCII Type1 → usertree .pfb 规则钉。
+r"""pfa 车道 (2026-09-19): ``pfa_to_pfb`` ASCII Type1 → usertree .pfb 规则钉。
 
 (原居 ``test_fixloop_pdfsanitize.py`` 第二泳道——同为 xdvipdfmx stdout_tail
 fatal 族但修面无涉, 拆出独立成文。)

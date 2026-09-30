@@ -1,4 +1,4 @@
-r"""lane-nfsstu (2026-09-20): nfss_enc 类三臂 —— xelatex TU 下 legacy NFSS
+r"""nfsstu 车道 (2026-09-20): nfss_enc 类三臂 —— xelatex TU 下 legacy NFSS
 enc 声明族 (0712.1142 / 2609.20339 / 2609.20539 原归 other|None)。
 
 - ``nfss_cmd_enc_polyfill`` (Arm A): ``Command \X unavailable in encoding E``

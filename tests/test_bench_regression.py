@@ -1,4 +1,4 @@
-r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——spike ``miniscanner_test`` 断言矩阵移植到 ``texlate.latex``。
+r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——原型 ``miniscanner_test`` 断言矩阵移植到 ``texlate.latex``。
 
 底材 ``bench/fixtures/*.tex``（入库，逐字节即语义——永不格式化/润色）：
 
@@ -30,7 +30,7 @@ r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——spike `
 与测量包 ``_PARSED``/``run_fixture``/``FixtureScan`` 等）单源在
 ``bench/py/specs/_fixture_matrix.py``，与 bench 跑分器 ``bench/py/fixture_assert.py``
 共享；本文件只留 pytest 驱动面。
-门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在原型里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
 """
 

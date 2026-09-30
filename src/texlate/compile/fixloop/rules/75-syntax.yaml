@@ -60,7 +60,7 @@ rules:
   # \\mbox{\\quotedblbase} + \\textacutedbl→\\mbox{''} (hep-ph/0605319
   # 作者 „...˝ 引号对, gravedbl 产 U+02F5 缺 ×12, acutedbl 键伴生 02F5
   # 使引号对成对归一为 „...")。
-  # misscharcen #169 再扩 (wave-2): \\char<dec> OT1/cmc 槽位原语臂 —
+  # misscharcen #169 再扩 (批二): \\char<dec> OT1/cmc 槽位原语臂 —
   # Unicode 字体下 \\char13 产码位 13 而非 cmcsc 13 号 fl 连字
   # (1404.0578 \\textsc{\\char13} lmromancaps10 ^^M ×41)。产码位=
   # 实参值 → _OT1_CHAR_SLOTS 0-31 同闸改写; 槽位表对 TFM 语境亦
@@ -188,7 +188,7 @@ rules:
       }
     source_ref: "fixloop.py L429-445"
 
-  # ── 2026-09-20 mathbd lane (singles3 bundle A) ──
+  # ── 2026-09-20 mathbd 车道 (singles3 bundle A) ──
   # soul_cjk_mbox(100) 姊妹臂: soul 族实参为单个 cs (``\hl{\model}``) 时
   # 字面 CJK 闸不命中——CJK/组结构藏在 cs 定义体内 (``\model``=``\texttt{ReAct}``,
   # 展开出 ``\texttt{..}`` 组 → soul 判「可断材料包在组括号内」→ Reconstruction
@@ -259,7 +259,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-armgap4/census.md §1107.0598; soul_cs_mbox known_gap 多 token 形收口"
 
-  # ── 2026-09-19 citemath 匝道 (task #79; lane-citemath EVIDENCE) ──
+  # ── 2026-09-19 citemath 匝道 (task #79; citemath 车道实证) ──
   # natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒
   # 裸置 → 数学域内 ``\cite`` 展开炸 "Command \bfseries invalid in math
   # mode" (\not@math@alphabet); halt_on_error 死在 thebibliography 前 →
@@ -372,7 +372,7 @@ rules:
   # already defined")。修 = preamble 顶 (\documentclass 前) hook 对:
   # before 存 cls 值+复位 \sldefault{sl} 让 merge 表展开不撞, after 还原。
   # 错发在 preamble 期包加载 (注入 ctex→xeCJK→fontspec 链), hook 完全可达;
-  # fixprobe 实测 0 错 PDF 正常 (tmp/wontfix-scout/work/fixprobe.tex)。
+  # fixprobe 实测 0 错 PDF 正常 (wontfix-scout 探针 fixprobe.tex)。
   - id: fontspec_double_merge
     description: "cls 重定义 \\sldefault 撞 fontspec merge 常量表 → \\documentclass 前注 fontspec before/after hook 对暂存-复位-还原"
     phase: loop
@@ -438,7 +438,7 @@ rules:
     stats: { fires: 12, rescued_cells: 1, status: active }
     source_ref: "task #93; drvdef fixloop.jsonl 2403.00013 best_effort_pdf 残 n_errors=1"
 
-  # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
+  # 2026-09-16 批二: already_def 泛化 (1003.0344/cond-mat-0501638) ——
   # 稿自带 \newcommand{\Ref}[1]{(\ref{#1})} 撞包先定义 (varioref 系),
   # thm_sibling_strip 只剥 sibling= 够不到。作者意图是自家定义胜出 →
   # \newcommand→\renewcommand 字面换词 ([n]{body} 槽位原样保留)。
@@ -573,7 +573,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "peer1-residue-routes.md §3; AMS 命名 <size>mi/sy/ex/bf 谱 (amsfonts 2.x 上古档通用)"
 
-  # ── 2026-09-19 isabelex (lane-runawayscan census; 1206.0136 loop2 pay=\next) ──
+  # ── 2026-09-19 isabelex (runawayscan 车道普查; 1206.0136 loop2 pay=\next) ──
   # isabelle.sty \isakeeptag/\isadroptag/\isafoldtag 经 \includecomment/
   # \excludecomment 产 isadelim<tag>/isatag<tag> comment env 对 (tag=
   # theory/proof/ML/visible/invisible, isabelletags.sty 可扩)。Isabelle
@@ -741,7 +741,7 @@ rules:
     stats: { fires: 7, rescued_cells: 1, status: verified }
     source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
 
-  # 2026-09-17 wave-final 批七: legacy-rewrite 副产品 ×47 —— \documentstyle
+  # 2026-09-17 批七: legacy-rewrite 副产品 ×47 —— \documentstyle
   # {revtex}→revtex4-2 后, revtex4-2.cls:2685 把 abstract 环境仅 frontmatter
   # 期 let-bound (frontmatter@abstract, cls:3143 区域), \maketitle 后
   # \let\abstract\@undefined → 稿面老版式 maketitle→abstract 炸
@@ -800,7 +800,7 @@ rules:
     stats: { fires: 74, rescued_cells: 52, status: active }
     source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验; tmp/hepph-0104029/wiring.md 建议3"
 
-  # 2026-09-17 B4 wiring (tmp/hepph-0104029/wiring.md 建议2): 209 稿
+  # 2026-09-17 B4 wiring (hepph-0104029 探针 wiring.md 建议2): 209 稿
   # \table/\endtable 裸浮体对与现代 \begin{table}/\end{table} env 混写 ——
   # \table≡\begin{table} 本就合法, 双开套娃炸 "Not in outer par mode"。
   # 塌缩=去冗余内层开/闭; \table+tabular+\caption 无内 env 块的形态不命中。
@@ -944,7 +944,7 @@ rules:
         # noop 吞图体且体内 pgf cs (\node/\addplot) 连锁 undefined_cs
         # 白烧轮次; cs_table 无条目者 (axis/tikzcd) 更是唯一活路。
         # tikzpicture 的 polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO
-        # 下裸 \usetikzlibrary 会落在 arm 装载行之前 → 新
+        # 下裸 \usetikzlibrary 会落在臂装载行之前 → 新
         # undefined_cs (与 cs_table tikz 族同机理, 见 95-targeted 头注)。
         pkg_map:
           tikzpicture:
@@ -1018,7 +1018,7 @@ rules:
     stats: { fires: 19, rescued_cells: 13, status: active }
     source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
 
-  # 2026-09-16 wave-3: early_eof 交互档 (hep-ph/0111248 bundled
+  # 2026-09-16 批三: early_eof 交互档 (hep-ph/0111248 bundled
   # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读,
   # nonstop 模式必死。忠实 stub 而非注释: \typein{msg} → \typeout{msg}
   # (横幅照常打印, 跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
@@ -1066,7 +1066,7 @@ rules:
     stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
 
-  # ── 2026-09-20 mathbd lane (singles3 bundle A; q-alg/9703043 zh) ──
+  # ── 2026-09-20 mathbd 车道 (singles3 bundle A; q-alg/9703043 zh) ──
   # latex209 升级残留: zh 译文把 ``{\it``-组撑过 ``$$..$$`` 显示域 →
   # cs_events_spans $-parity 歪斜 + ``\bea`` 系宏包 env 字面不可见 →
   # 升级后文本域 ``{\it}/{\bf}`` 组 (affiliation/Proposition/bibliography
@@ -1106,7 +1106,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-mathbd/cells/q-alg-9703043: 23-site 回退 xelatex RC=0 19pg 实证"
 
-  # ── 2026-09-20 mathbd lane (singles3 bundle A; 2609.20524 zh) ──
+  # ── 2026-09-20 mathbd 车道 (singles3 bundle A; 2609.20524 zh) ──
   # acmart+amsmath+bm+xelatex+unicode-math: ``\bm``/``\boldsymbol`` 的
   # `` `\<cs>`` 字母常量扫描在 unicode-math 多字符 cs (``\mitxi``/``\mitomega``
   # 等, <to be read again> 行可见) 上炸 Improper alphabetic constant
@@ -1146,7 +1146,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-mathbd/cells/2609.20524: 双别名注入 0-Improper 29pg 实证"
 
-  # 2026-09-18 pdo-lane (2607.10569 loop2+rt1 双池 main.tex:291/302):
+  # 2026-09-18 pdo 车道 (2607.10569 loop2+rt1 双池 main.tex:291/302):
   # acmart+hyperref 下 moving-arg 内 $\times$ → \pdfstringdef 去 math
   # shift 后做 `\<cs> 字母常量扫描, 多字符 cs (`\times) 非法 → Improper
   # alphabetic constant + intcalc \InCa@Div 级联。通用面: 任意多字符
@@ -1529,7 +1529,7 @@ rules:
   # 对 preamble 期排版动作报 Missing \begin{document}。修 = 供方
   # \usepackage 前置到肇事 sty 的每个 live 消费方装载点; tex 肇事件
   # (main/\input) 无 usepackage 锚点 → docclass 缝顶补供方; cls/def/clo
-  # 系 cls 内传递装载, 缝位鞭长莫及 → abstain (csfix2 lane)。
+  # 系 cls 内传递装载, 缝位鞭长莫及 → abstain (csfix2 车道)。
   - id: premature_cs_guard
     description: "Missing \\begin{document} @件装载 → 肇事 cs 供方包前置到消费方 \\usepackage 装载点 (\\numberwithin→amsmath)"
     phase: loop
@@ -1621,7 +1621,7 @@ rules:
     stats: { fires: 160, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
 
-  # ── 2026-09-19 arraypream lane ──
+  # ── 2026-09-19 arraypream 车道 ──
   # array.sty \@mkpream 只改写 *-repeat 与 \NC@ 名, 其余 preamble 宏留字面
   # token → "Illegal pream-token (\X)" (kernel \@xexpast 全展开形原可吃,
   # 差异即 array 装载面)。aastex 时代 deluxetable 复合面两族:
@@ -1676,7 +1676,7 @@ rules:
     stats: { fires: 9, rescued_cells: 3, status: active }
     source_ref: "task #105; tmp/preamfix t2/t7/t8/t13 全链编译实证"
 
-  # ─── spacefactor lane (task #179, 2026-09-19): doc-latent @-def 包裹格 ───
+  # ─── spacefactor 车道 (task #179, 2026-09-19): doc-latent @-def 包裹格 ───
   # \@ = \spacefactor\@m 间距宏; @=12 下 \@cs 断名成 \@+裸字母 → 展开点
   # \@ 执行 → "You can't use `\spacefactor' in vertical mode" / "in math
   # mode" / "Improper \spacefactor" / "Package calc Error: `\spacefactor'
@@ -1714,7 +1714,7 @@ rules:
     stats: { fires: 3, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-spacefactor/notes.md M3; svglov3.clo exact-restore idiom; _SHIP_WRAP_* 同款"
 
-  # ─── endsfix lane (task #213, 2026-09-19): babel 预载 raw-opts 种子 ───
+  # ─── endsfix 车道 (task #213, 2026-09-19): babel 预载 raw-opts 种子 ───
   # 0806.3242 loop1→loop3 持续 Missing \endcsname: 稿首 \RequirePackage
   #   [british]{babel} 先于 \documentclass —— \@raw@classoptionslist 尚是
   #   kernel 初始 \relax (latex.ltx:18355; 首个 class 选项处理才 \gdef,
@@ -1754,7 +1754,7 @@ rules:
     stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-endcsdiag/report.md §2; latex.ltx:18355/18718; babel.sty:4230"
 
-  # ─── missmath lane (task #215, 2026-09-19): 4 条 Missing 族残件 ───
+  # ─── missmath 车道 (task #215, 2026-09-19): 4 条 Missing 族残件 ───
   # verdate_pad: \ProvidesX[..]/\filedate/请求日期的 YYYY/M/D 或 YYYY/MM/D
   #   单位段 → kernel \@parse@version 第4参吞 \@nil → 三联
   #   (Undefined cs \@nil → Missing = for \ifnum → Missing number), 报错行
@@ -2162,7 +2162,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-missmath/repro/ifnum.tex: \\ifnum \\typeout → 3 错, \\ifnum0=0 → 0 错同输出"
 
-  # ─── csdefmismatch lane (task #214, 2026-09-19): delimited-macro 尾蚀除 ───
+  # ─── csdefmismatch 车道 (task #214, 2026-09-19): delimited-macro 尾蚀除 ───
   # "Use of \X doesn't match its definition" —— \def\X<lit>{...} 伪多名宏
   #   (\c3h2/\b0bmode/\0cc/\ch3oh 化学物理速写): 译者把字面尾中字母段当正文
   #   吃掉 → 调用点不再带全尾 → TeX 参文本失配, 兜底 `^.` 归 other (无
@@ -2244,7 +2244,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-singtail/bundles.json cluster-6; imsart.sty:661 \\ims@href{\\ead@prefix\\saferef{...}}; hyperref.sty \\hyper@@normalise \\edef\\Hy@tempa"
 
-  # 2026-09-20 singbun lane (failmine6 syntax-residual astro-ph/0605352):
+  # 2026-09-20 singbun 车道 (failmine6 syntax-residual astro-ph/0605352):
   # LaTeX \\input = \\protect 包裹不可展, 对齐行间 (\\hline 后 \\cr 扫描
   # 位) 起新行 u-part 半截 → 后续 \\hline 的 \\noalign 落错位连环
   # (Misplaced \\noalign + Misplaced \\crcr)。原始缀 \\@@input 可展 —
@@ -2283,7 +2283,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-singbun/repro-noalign/{t,t2,t3,t4}.tex 实编译 (\\input 炸 vs @@input/csname 过)"
 
-  # 2026-09-20 singbun lane (failmine6 syntax-residual 2505.08102): zh 全
+  # 2026-09-20 singbun 车道 (failmine6 syntax-residual 2505.08102): zh 全
   # 角括号 U+FF08/FF09 泄入 \\big 族定界符操作位 —— 无 delcode 即炸
   # ``Missing delimiter (. inserted)``。修 = \\big族/\\left/\\right/
   # \\middle 后 （） → ASCII ()。定界语义恒等 (原稿即 \\big( 形, zh
@@ -2324,7 +2324,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md; bench/corpus/2505.08102/extracted/main.tex 原稿 \\big( 对照"
 
-  # 2026-09-20 singbun lane (failmine6 brace-cascade 0812.1022):
+  # 2026-09-20 singbun 车道 (failmine6 brace-cascade 0812.1022):
   # emulateapj.cls:1373 \\def\\LT@endpbox 陈旧本缺 \\color@endgroup —
   # LaTeX2e≥2021-06 内核对齐 p-cell 模板开 \\color@begingroup, 收尾须
   # \\color@endgroup 平色组再 \\egroup; 旧本直 \\egroup → 每 p-cell 炸
@@ -2362,7 +2362,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md brace-cascade; emulateapj.cls:1373-1379 实读; longtable 新本 \\LT@endpbox \\color@endgroup 同构位"
 
-  # 2026-09-20 singbun lane (failmine6 runaway_scan 2606.18573): zh 拼接
+  # 2026-09-20 singbun 车道 (failmine6 runaway_scan 2606.18573): zh 拼接
   # 吞 \\redactcite 外层闭括号 —— \\redactcite{\\cite{key}} 残为
   # \\redactcite{\\cite{key}。 → ``File ended while scanning use of
   # \\redactcite`` 吞到 EOF 无 PDF。aux 族健康 (0 redactcite 写件)
@@ -2440,7 +2440,7 @@ rules:
     source_ref: "tmp/qc_impl_spec/impl-rules.json strip_vmode_bsbs"
     known_gap: "`\\\\ \\\\` 后随非空行的段落中位形不收 (hmode 下该序列合法换行); 行尾带注释形不收"
 
-  # 2026-09-28 qc-impl lane: revtex4*/aastex/emulateapj 年代类 vs 现代
+  # 2026-09-28 qc-impl 车道: revtex4*/aastex/emulateapj 年代类 vs 现代
   # array.sty 列规错位 → 'Extra \or'/'Unrecognized array package'/
   # 'Incomplete \if' 风暴 (10 cells, 100-err cap 前 bibliography 不达)。
   # spec 原方 builtin array_preamble_shim 未落地——regex 近似臂:
@@ -2540,5 +2540,5 @@ rules:
       tectonic: { mode: same }
     provenance:
       - { corpus: "—", error: "Undefined control sequence (非 pdf 原语类)" }
-    stats: { fires: 0, status: stub } # spike L523-527 恒返回 False
+    stats: { fires: 0, status: stub } # 原型 L523-527 恒返回 False
     source_ref: "fixloop.py L523-527"

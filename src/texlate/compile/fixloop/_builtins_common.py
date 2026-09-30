@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-# pdfTeX 原语清单 (spike L284-298 + 2410.00012 实证扩: 文档面对象/注释/资源族)
+# pdfTeX 原语清单 (原型 + 2410.00012 实证扩: 文档面对象/注释/资源族)
 PDFTEX_PRIMS = (
     "pdfoutput",
     "pdfminorversion",
@@ -187,7 +187,7 @@ _USE_RE = re.compile(rf"^(\s*){_PKG_LOAD_SRC}", re.MULTILINE)
 
 
 # ════════════════════════════════════════════════════════════════
-# catcode-agnostic 注入形 (spacefactor lane, 2026-09-19)
+# catcode-agnostic 注入形 (spacefactor 车道, 2026-09-19)
 # ════════════════════════════════════════════════════════════════
 
 #: 永不定义的纯字母 cs —— ``\let\X\TeXlateUndefCs`` 的右操作数。
@@ -634,7 +634,7 @@ _MC_TABLE: list[dict[str, Any]] = [
         # 彝文/全角, 勿向 CJK_RANGES 单源回退)
         # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
         # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
-        # 全局绑到 lmroman —— /tmp/mc-repro 实证), 预热即可。
+        # 全局绑到 lmroman —— 探针实证), 预热即可。
         "ranges": [
             [0x2E80, 0x303F],
             [0x3040, 0x30FF],

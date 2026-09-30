@@ -1,6 +1,6 @@
 """``page_flood`` 单调包络语义钉——非序 ``[N]`` 噪声不误杀，真 shipout 洪仍截杀。
 
-killsem2 census 开放缺口（tmp/lane-killsem2/census.md）：
+killsem2 车道普查开放缺口：
 ``_RUNAWAY_PAGE_RX = r"\\[\\d+\\]"`` 旧纯计数——收敛文档打印 >10K 非
 shipout 方括数字（索引/引用/``\\typeout`` 阵列）会假触哨件 SIGKILL。
 真 shipout 序号只增不减（2609.19748 实测 9623 标记全序、2608.09867

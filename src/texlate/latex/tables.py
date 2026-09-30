@@ -1,6 +1,6 @@
 r"""命令族常量表（纯数据，零逻辑）。
 
-spike ``miniscanner.py`` 常量区的扶正搬迁（含 discard 修正后的终值），
+原型 ``miniscanner.py`` 常量区的扶正搬迁（含 discard 修正后的终值），
 外加重写新增表：``ARG_TRANSPARENT_ENVS`` / ``CHUNK_ARG_SPEC`` /
 ``\\if`` 两档分族 / 回压常数。
 """
@@ -143,7 +143,7 @@ CHUNK_ARG_NAMES = {
 }
 
 # chunk-arg 命令的参数形状：name → (argspec 串, 可译参数下标)。
-# 未登记默认 ("om", 1) = [opt]?{arg}（spike 原行为）。
+# 未登记默认 ("om", 1) = [opt]?{arg}（原型行为）。
 CHUNK_ARG_SPEC: dict[str, tuple[str, int]] = {
     "captionof": ("mom", 2),  # \captionof{type}[lof]{text}
     # title/subtitle/thanks/abst/keywords：``"m"`` 会把 ``[opt]`` 短标题

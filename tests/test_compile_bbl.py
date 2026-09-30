@@ -103,7 +103,7 @@ def test_bundled_bibliography_space_target_bare_input_not_filled(
     assert out2 == main.read_text()
 
 
-# ------------------------------------------- bundled .bbl 粒度与边界（wave3）
+# ------------------------------------------- bundled .bbl 粒度与边界（批三）
 
 
 def _mk_bbl(tmp_path: Path) -> Path:

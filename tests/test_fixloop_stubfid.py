@@ -1,4 +1,4 @@
-"""vendor-stub fidelity pins（task #323 stubfid lane，singtail census
+"""vendor-stub fidelity pins（task #323 stubfid 车道，singtail census
 "vendor-stub-fidelity" 簇 5 格）。
 
 实证驱动的五处 stub 升级：

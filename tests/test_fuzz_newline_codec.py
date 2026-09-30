@@ -432,7 +432,7 @@ class TestPlaceholderClauseConsistency:
             assert tok in all_tokens, f"clause names {tok} not in _ALL_FAM"
 
     def test_named_set_is_exactly_five_of_eight(self) -> None:
-        """条款实列恰 {SL,PL,SP,NBSP,THINSP}——docs/08:48 勘误：
+        """条款实列恰 {SL,PL,SP,NBSP,THINSP}——docs/spec/translate.md §1.2 勘误：
         MEDSP/THICKSP/NEGSP 三族按设计不进 prompt 措辞，此划分漂移须显见。"""
         named = set(ph.BARE_PH_RX.findall(prompts.PLACEHOLDER_CLAUSE))
         expected = {"[[SL]]", "[[PL]]", "[[SP]]", "[[NBSP]]", "[[THINSP]]"}

@@ -1,6 +1,6 @@
 """refs.bib 导出组装（M4）：Lane A .bib verbatim + Lane B 远端 bibtex + Lane C 合成兜底。
 
-三臂顺序（misc-pack 实现文档 §M4，spike: tmp/ux-research-20260922/exp/ms-bib-export/）：
+三臂顺序（misc-pack 实现文档 §M4，docs/dev/projects/ux-impl-2026-09-22/）：
 
 - **Lane A**：key 命中 src.tar/upload blob 内 ``*.bib`` → 原 entry verbatim
   直出 + 被引 ``@STRING`` defs 闭包置顶（33 条实证依赖宏，不带 defs 导出

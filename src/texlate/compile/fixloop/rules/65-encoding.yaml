@@ -68,7 +68,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-armgap4/census.md §1003.2165; vendor/files/inputenc.sty noop shadow"
 
-  # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
+  # 新增 (docs/spec/compile.md L272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
   - id: non_utf8_source
     mechanisms: [B02, W72, W13]
     description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"
@@ -161,7 +161,7 @@ rules:
   # 但 recode 臂对两格皆空转 —— 1607 是 GBK 源 (recode 只碰 cp1252/latin-1
   # 孤字节, GBK 整文件 decode-fail 不在其面), 2601 全 UTF-8 (env 内混排
   # 拉丁扩展字符触 CJK 包解码错, 无字节可转)。根修 = 旧 CJK/CJKutf8 包
-  # 换装 xeCJK (normalize_legacy_cjk 同径, zh arm 已实证): \begin{CJK*}
+  # 换装 xeCJK (normalize_legacy_cjk 同径, zh 臂已实证): \begin{CJK*}
   # 族改 {…} 组 + \setCJKmainfont Fandol。source_contains 门把 CJK 稿从
   # 纯字节损坏格分流 —— 无 CJK 标记的 invalid_char 仍落 97 recode。
   - id: cjk_env_relax
@@ -175,7 +175,7 @@ rules:
       kind: builtin_transform
       function: cjk_env_relax
       params: { exts: [.tex, .sty, .cls] }
-    risk: medium # 包级换装 (CJK→xeCJK+Fandol 字体替换); zh arm 同径已量产
+    risk: medium # 包级换装 (CJK→xeCJK+Fandol 字体替换); zh 臂同径已量产
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -216,7 +216,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/methods/2026-09-16-signature-mining.md §2.2"
 
-  # ── 2026-09-20 lane-nfsstu: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
+  # ── 2026-09-20 nfsstu 车道: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
   # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。
   # 同 cat 三臂各复述签名实形 ctx_suggests 分流 (aux_purge_regen 同构):
   # (a) ``Command \X unavailable in encoding E`` → 补 ``\DeclareTextCommand

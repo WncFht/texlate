@@ -1,6 +1,6 @@
-r"""_builtins_slotrev — zh 机位实参 revert (slotrevert lane, task#188)。
+r"""_builtins_slotrev — zh 机位实参 revert (slotrevert 车道, task#188)。
 
-机制 (tmp/lane-zhleak/notes.md): segmenter 把未注册机位实参 (csname 体 /
+机制 (zhleak 车道普查): segmenter 把未注册机位实参 (csname 体 /
 未注册 env 尾随参等) 放上 chunk 翻译字面量面 → zh 化后 splice 写回
 机位 → ``Undefined color '这是译文'``/``No counter``/``can't find file``
 族。本叶做决定性 revert: ``judge.py`` ``_MACHINE_SLOT_RXS`` + 本叶扩展
@@ -474,7 +474,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\\newfloat" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARG + r"\s*" + _ARG
         ),
     ),
-    # ── 2026-09-19 arrayresid lane: 列 spec 机位 ──
+    # ── 2026-09-19 arrayresid 车道: 列 spec 机位 ──
     # envarg 同位收 spec 参但严格 ident 拒收真实 spec (|/空格/\@/</>/!/*
     # 全不在白名单; \textwidth 含反斜杠同理) —— 1502.01845 ``\betb``
     # 实证外, env-arg 位 zh 化 spec 是本族结构性盲区。spec-env 的参位
@@ -552,7 +552,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # (2609.19815) / ``\leaders\hbox 这是译文{...}`` (2609.20633 ×12)
     # 形: 译面把原语 keyword/dimen 尾巴 (``pre``/``to .55em``/
     # ``spread 2pt``/``16``/``12``) 落上 chunk → 写在 cs 与 ``{``
-    # 之间 (tmp/lane-slotleak/verdict.md)。域 = 必需下接 ``{`` 的
+    # 之间 (slotleak 车道裁决)。域 = 必需下接 ``{`` 的
     # 原语族; gap 域 spec ident (可打印 ASCII, 含空格/反斜杠)。
     # ``\leaders\hbox to .55em{`` 复合站 finditer 不重叠 → 单命中,
     # gap 值即 ``\hbox to .55em`` 整串。空 gap (``\hbox{``) 双侧

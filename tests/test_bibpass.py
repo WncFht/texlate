@@ -1,6 +1,6 @@
-"""bib 中间趟钉 —— ``XelatexEngine._bib_pass`` 文件态触发（lane-bibpass）。
+"""bib 中间趟钉 —— ``XelatexEngine._bib_pass`` 文件态触发（bibpass 车道）。
 
-设计（tmp/lane-bibpass/design.md）：上游 arXiv latexmk 在 latex 趟间跑
+设计（bibpass 车道文档）：上游 arXiv latexmk 在 latex 趟间跑
 bibtex/biber 再生 ``.bbl``，本引擎此前不跑 → ~30% clean 格 ``[?]`` 引用缺。
 
 钉:

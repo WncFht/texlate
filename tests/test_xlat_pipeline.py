@@ -524,7 +524,7 @@ class TestCachePoisonGuard:
         pipe._cache_store(c, "译 \\fo[[MATH_1]]o")  # noqa: SLF001 -- ph_in_cs
         pipe._cache_store(c, "译 \\alpha 发射体")  # noqa: SLF001 -- bare_cs
         pipe._cache_store(c, "译文 \\input{main} 尾")  # noqa: SLF001 -- dangerous_cs
-        pipe._cache_store(  # noqa: SLF001 -- residual_en（tier-B 混血长句臂）
+        pipe._cache_store(  # noqa: SLF001 -- residual_en（B 级混血长句臂）
             c,
             "前文。The quick brown fox jumps over the lazy dog "
             "repeatedly near the barn. 后文。",

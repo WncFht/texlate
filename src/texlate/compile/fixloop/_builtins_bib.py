@@ -403,7 +403,7 @@ def cite_in_math_mbox(
 ) -> tuple[bool, str]:
     r"""数学域内裸 cite 族调用 → ``\mbox{\cite[..]{k}}`` 包裹 (kernel, 无 amsmath 依赖)。
 
-    实证根因 (lane-citemath EVIDENCE, gr-qc/9901082): natbib ``\@citex``
+    实证根因 (citemath 车道实证, gr-qc/9901082): natbib ``\@citex``
     未定义引用标记 ``{\reset@font\bfseries ?}`` 不带盒子, 数学域内展开
     撞 ``\not@math@alphabet`` → ``Command \bfseries invalid in math mode``
     硬错; halt_on_error 在 thebibliography 之前死掉 → ``\bibcite`` 永不

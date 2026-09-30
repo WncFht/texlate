@@ -37,7 +37,7 @@ rules:
     stats: { fires: 14, rescued_cells: 14 }
     source_ref: "fixloop.py L324-332"
 
-  # 2026-09-16 wave-3: install_sysfont 失败后的二级出路 —— 名查找的字体
+  # 2026-09-16 批三: install_sysfont 失败后的二级出路 —— 名查找的字体
   # (fontconfig 面) 根本不在 TL 包索引 (Noto Mono: 发行版只有 Noto Sans
   # Mono; 名字带空格亦进不了 filemap) → 把文档对 {payload} 的引用换成
   # LM 显示名。用显示名不用文件名: 全家族解析 (\textbf/\textit 自动
@@ -212,8 +212,8 @@ rules:
     stats: { fires: 4, rescued_cells: 4 }
     source_ref: "fixloop.py L378-393"
 
-  # 2026-09-20 microtypelis lane (soak-2026-09-18 普查 5 格同签 +
-  # wave-10 后续 3 格 fairmeta.cls 同签第二容器):
+  # 2026-09-20 microtypelis 车道 (soak-2026-09-18 普查 5 格同签 +
+  # 批十后续 3 格 fairmeta.cls 同签第二容器):
   # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report/
   # fairmeta) 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
   # pdfTeX≥1.30/LuaTeX 可达, XeTeX 族 (xelatex/tectonic) 下抛可恢复
@@ -262,7 +262,7 @@ rules:
     stats: { fires: 13, rescued_cells: 13, status: active }
     source_ref: "microtype.sty \\DisableLigatures pdfTeX/LuaTeX 引擎闸; tmp/lane-microtypelis/"
 
-  # 2026-09-20 optfix lane (singlesweep microtype-xetex 机理, 2310.02541
+  # 2026-09-20 optfix 车道 (singlesweep microtype-xetex 机理, 2310.02541
   # base): microtype ``expansion`` 族在 XeTeX 下恒不工作
   # (microtype-xetex.def:874 \\MT@error —— protrusion 支持, expansion
   # 不支持), ``\\usepackage[...,expansion=true,...]{microtype}`` (多行

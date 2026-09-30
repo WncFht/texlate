@@ -1,4 +1,4 @@
-r"""floatopt lane (2026-09-19): ``float_opt_h_pkgload`` 规则钉。
+r"""floatopt 车道 (2026-09-19): ``float_opt_h_pkgload`` 规则钉。
 
 stagerun-loop1-2026-09-16 failmine 五格 (0806.4088/1003.5014/1608.02624/
 astro-ph/0307059/cond-mat/0408234) 同形: ``\begin{figure|table}[H]`` 系

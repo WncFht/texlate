@@ -1,4 +1,4 @@
-r"""misplaced relink lane (2026-09-19): install_file already-present 误报修复。
+r"""misplaced relink 车道 (2026-09-19): install_file already-present 误报修复。
 
 soak-2026-09-18 实证: 编译 cwd = main 所在目录, 而 ``_probe`` 以 ``wdir``
 为基——工程内错位件 probe 报 already-present 但 TeX 字面解析照旧

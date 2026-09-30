@@ -1,4 +1,4 @@
-r"""tfmhoist lane —— 驱动层 ``Unable to find TFM file "X"`` 签名接线钉。
+r"""tfmhoist 车道 —— 驱动层 ``Unable to find TFM file "X"`` 签名接线钉。
 
 机理 (tfmcen 普查 2026-09-20, 13 格全中): e-print 自带私有 ``.tfm`` 驻
 子目录 (``assets/optimistic.tfm`` / ``NVIDIA-Sans-Font-TTF/NVIDIASans_It.tfm``

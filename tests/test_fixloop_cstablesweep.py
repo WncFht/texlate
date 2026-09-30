@@ -212,7 +212,7 @@ def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
 
 def test_refire_idempotent(tmp_path: Path) -> None:
     """二轮重火: usepackage 判重 + polyfill snippet 判重 → 文件幂等;
-    arm probe 注记保 done 非空 → 返回 True 不落 guess (pgffix 升级后
+    臂 probe 注记保 done 非空 → 返回 True 不落 guess (pgffix 升级后
     ``tikzset`` 挂 ``usepackage: tikz`` 臂, 与 letltxmacro 同语义)。"""
     _proj(tmp_path, DOC)
     ok1, _ = _fix(tmp_path, "tikzset")

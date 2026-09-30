@@ -66,7 +66,7 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                cell 同形：corrector 臂丢注释终结换行，splice 接缝把 ``}``
                吞进 ``%`` 行）；src 尾段同形豁免。
 
-实测基线（tmp/exp/rule-validator，cases.jsonl 1636 例）：10 类破坏 100% 检出、
+实测基线（1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
 """
 

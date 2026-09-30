@@ -1,4 +1,4 @@
-"""erafix 钉 —— erafam lane 七捆落地 (failmine7 桶 → lane-erafam census 2026-09-20)。
+"""erafix 钉 —— erafam 车道七捆落地 (failmine7 桶 → erafam 车道普查 2026-09-20)。
 
 B1-B4: ``cs_targeted_fix`` params.cs_table 定点族 40 键
 (95-targeted.yaml, 53 cells) —— era/209 刊面宏 polyfill/guard/cs_map。
@@ -29,7 +29,7 @@ _CHAR_IDS = {e["id"] for e in _CHAR_TABLE}
 
 def test_ruleset_loads_with_hani_rule() -> None:
     """规则库载入且 hani_font_fallback 在册 (落地时 195→196; 共仓兄弟
-    lane 并发加规则, 钉下界不钉绝对数)。"""
+    车道并发加规则, 钉下界不钉绝对数)。"""
     assert len(_RS.rules) >= 196  # noqa: PLR2004 - 落地时 195+1, 只钉下界
     assert _HANI.order == 29  # noqa: PLR2004 - hangul(28) 后位次钉死
     assert _HANI.action["kind"] == "builtin_transform"

@@ -1,7 +1,7 @@
 r"""FROZEN 快照——刻意冻结的 v4 prompt 套件供臂对照，勿与 src 同步。
 
 唯一活依赖：``texlate.chunk.normalize_kind``（kind 归一契约跨层宿主件，随 src
-漂移）。快照源 ``tmp/prompts_v4.py``，replay_arm v4 臂的唯一事实源。
+漂移）。快照自原型 ``prompts_v4.py``，replay_arm v4 臂的唯一事实源。
 
 六 kind system prompt 套件（规格 docs/spec/translate.md；成稿源 prompt-glossary-spec §3）。
 

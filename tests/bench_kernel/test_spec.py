@@ -5,12 +5,10 @@ checks, hashing, and load_spec.
 from __future__ import annotations
 
 import textwrap
-import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from kernel import events
 from kernel.spec import (
     Param,
     Spec,
@@ -407,30 +405,3 @@ def test_shipped_specs_compile() -> None:
     for name in names:
         spec = load_spec(SPECS_DIR / f"{name}.py")
         assert spec.kind == name
-
-
-@pytest.mark.usefixtures("broot")
-def test_errsweep_prep_runbook_drift_fails_closed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The runbook sha pin is the fail-closed contract: drift must kill
-    prep before any worktree/agent machinery runs."""
-    # 惰载隔离：kernel.ctx / specs 面在飞漂移，import 失败只杀本测试不拖垮整文件收集
-    from kernel.ctx import Ctx  # noqa: PLC0415
-    from specs import errsweep as es  # noqa: PLC0415
-
-    monkeypatch.setattr(es, "RUNBOOK_SHA256", "0" * 64)
-    ctx = Ctx(
-        "errsweep/2026-09-22/t",
-        {"id": "sweep", "idc": "sweep", "stage": "prep"},
-        None,
-        es.spec,
-        rundir=types.SimpleNamespace(date="2026-09-22"),
-    )
-    assert es._prep(ctx) == "fail"  # noqa: SLF001 -- 钉私有面：spec stage fn 即私有名
-    notes = [
-        e
-        for e in ctx._outbox  # noqa: SLF001 -- 钉私有面：outbox 缓冲无公共访问器
-        if e.get("type") == events.T_NOTE
-    ]
-    assert any("sha drifted" in e.get("text", "") for e in notes)

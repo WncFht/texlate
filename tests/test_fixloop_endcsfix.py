@@ -1,6 +1,6 @@
-r"""endsfix lane (task #213, 2026-09-19): Missing \endcsname 双修钉。
+r"""endsfix 车道 (task #213, 2026-09-19): Missing \endcsname 双修钉。
 
-格面 (endcsdiag 普查, tmp/lane-endcsdiag/report.md):
+格面 (endcsdiag 车道普查):
 
 1. misschar 回退块早于 xeCJK/ctex 装载活化字符 —— ``_fb_snippet_lines``
    发在 ``\documentclass`` 后的 ``\newunicodechar`` 逐字激活把 CJK 带

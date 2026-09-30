@@ -3,8 +3,8 @@ r"""citemath 匝道 (task #79): ``cite_in_math_mbox`` 规则 + ``invalid_in_math
 natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒裸置 →
 数学域内 ``\cite`` 展开撞 ``\not@math@alphabet`` →
 ``Command \bfseries invalid in math mode`` 硬错且自续 (halt_on_error 死在
-thebibliography 前, ``\bibcite`` 不落 .aux; gr-qc/9901082 实证,
-tmp/lane-citemath/EVIDENCE.md)。修复 = ``latex209.wrap_math_cites`` 把
+thebibliography 前, ``\bibcite`` 不落 .aux; gr-qc/9901082 实证)。
+修复 = ``latex209.wrap_math_cites`` 把
 数学域内裸 cite 族调用裹进 ``\mbox{}`` (kernel 原语, 无 amsmath 依赖)。
 同签名可由字面 ``{\bfseries X}`` 数学域误用触发——无 cite token 命中时
 transform 返回 applied=False 自然 decline。

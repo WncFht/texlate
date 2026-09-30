@@ -767,7 +767,7 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     ]
     # 裸名形仅当 target 自身不含终结符才可达——target 带空白/~/&/% 时
     # TeX 扫名提前收束读不到全名（``\input sub dir/x.bbl`` 只读 ``sub``），
-    # braced/quoted 形不受此限（wave6-review：空白 target 裸名曾误报已填充）
+    # braced/quoted 形不受此限（评审批六：空白 target 裸名曾误报已填充）
     if not re.search(r"[\s\\~&%]", target):
         alts.append(r"(?:\./)?" + t + r"(?![^\s\\~&%])")
     if re.search(

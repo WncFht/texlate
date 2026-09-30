@@ -1,4 +1,4 @@
-r"""unkopt lane (2026-09-20): ``ucs_mathletters_opt_strip`` 规则钉。
+r"""unkopt 车道 (2026-09-20): ``ucs_mathletters_opt_strip`` 规则钉。
 
 stagerun-overnite-2026-09-20 failmine5 两格 (2508.04292/2603.08693) 同形:
 ``\usepackage[mathletters]{ucs}`` —— ucs v2.4 utf8 引擎下自弃 (sty:19-23

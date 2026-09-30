@@ -1,4 +1,4 @@
-r"""driverdef lane (2026-09-19): ``hyperref_driver_neutralize`` def 间接指派臂。
+r"""driverdef 车道 (2026-09-19): ``hyperref_driver_neutralize`` def 间接指派臂。
 
 2403.00013 (kaist-ucs.cls) 形: cls 内部 ``\ifpdf``/``\if@dvips`` 条件选支
 ``\def\@drivername{pdftex|dvipdfmx|dvips}`` 后 ``\RequirePackage[\@drivername]

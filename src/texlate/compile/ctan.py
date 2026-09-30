@@ -19,7 +19,7 @@ fixloop 向下消费 (旧 ``fixloop.ctan`` 路径 2026-09-20 退场,
 
 缓存约定: ``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR``
 > ``~/.texlate``) 下 ``texlive.tlpdb`` 原件 + ``filemap.json`` 索引
-(远端仓库知识, 与环境冷热无关 —— spike L17-18 同款理由)。
+(远端仓库知识, 与环境冷热无关)。
 """
 
 from __future__ import annotations
@@ -455,7 +455,7 @@ def fetch_package(  # noqa: PLR0913  # mirror/overlay/fetcher/caps 注入面即�
 
 
 def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | None]:
-    r"""Tlnet 最新版对 bundle 快照的 expl3/LaTeX2e 要求是否过新 (docs/08:276)。
+    r"""Tlnet 最新版对 bundle 快照的 expl3/LaTeX2e 要求是否过新 (docs/spec/compile.md §6.5)。
 
     epoch 形如 ``"2022-07-14"`` (tectonic bundle 快照年代)。
     任一落盘文件声明的 format/包版本 floor —— ``\NeedsTeXFormat`` /
@@ -509,7 +509,7 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面�
     fetcher: Fetcher | None = None,
     caps: FetchCaps = DEFAULT_CAPS,
 ) -> FetchResult:
-    """``file→包索引→tlnet 拉取→cwd 平铺遮蔽`` 全链 (docs/08:283-288)。
+    """``file→包索引→tlnet 拉取→cwd 平铺遮蔽`` 全链 (docs/spec/compile.md §6.5)。
 
     - 索引查不到 → advisory 附候选包名 (suggest)
     - epoch 给定且新版要求过新 → 撤回已投文件, 试下一候选包

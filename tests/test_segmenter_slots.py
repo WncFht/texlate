@@ -405,7 +405,7 @@ def test_math_mixed_bracket_closer_display() -> None:
 def test_math_paren_text_arg_not_closed() -> None:
     r"""``\( .. \text{..)..} .. \)``：``\text`` 正文参体内 ``\)`` 不关外层
     数学——``_find_math_close_tok`` 同走 ``_math_skip_textarg`` 跳扫
-    （wave-2 残余洞：不收则内层 ``\)`` 截断、后半落散文被译）。"""
+    （批二残余洞：不收则内层 ``\)`` 截断、后半落散文被译）。"""
     res = scan("Para \\(a + \\text{ if ) b } + c\\) tail words here.")
     assert res.ph_map["[[MATH_1]]"] == "\\(a + \\text{ if ) b } + c\\)"
     assert "tail words" in blob(res)

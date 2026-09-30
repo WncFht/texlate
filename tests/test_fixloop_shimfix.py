@@ -1,9 +1,9 @@
 """shimfix-a 批 (task #180, #171 cluster-A 实装) —— cs_table 三臂 + aastex6x 补面。
 
-arm 1 ``sortlist`` (×5: 1907.03923/1706.00220/1706.00324/1706.02744/
+臂 1 ``sortlist`` (×5: 1907.03923/1706.00220/1706.00324/1706.02744/
 1803.03145): ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式, TL
 biblatex 3.21 不载旧读者 → ``.bbl`` 顶层 ``\\sortlist`` ``undefined_cs``。
-``_CS_FIX_TABLE`` 收 ``_SORTLIST_BBL_POLYFILL`` —— svjour cls bbl arm
+``_CS_FIX_TABLE`` 收 ``_SORTLIST_BBL_POLYFILL`` —— svjour cls bbl 臂
 的零裸 ``@`` 移植: ``begindocument/before`` 钩 defer (preamble provide
 会抢占 biblatex 装载期 ``\\newcommand`` 名, 1706.00221 already_def
 级联实证; 普通 ``\\AtBeginDocument`` top-level 标被 lthooks 排钩尾,
@@ -13,7 +13,7 @@ biblatex 标块先读 .bbl → live 实证必须先注册到 before 钩),
 分流 gobble, ``\\ifx\\csname`` 守卫一律 ``\\expandafter`` 先行
 (``\\ifx`` 不展开操作数, 裸写恒假=死码)。
 
-arm 2 ``current@color`` (×6: 1306.6219/1803.00132/1803.08873/1907.00279/
+臂 2 ``current@color`` (×6: 1306.6219/1803.00132/1803.08873/1907.00279/
 2111.00020 .tex 面 + 2308.04222 .bbl 内): PoS.cls ``begindocument`` 钩序
 bug —— PoS 块 ``\\auto@maketitle`` → output routine ``\\normalcolor`` →
 ``\\let\\current@color\\default@color`` 先于 color 块快照 → 毒化。
@@ -21,7 +21,7 @@ bug —— PoS 块 ``\\auto@maketitle`` → output routine ``\\normalcolor`` →
 ``gray 0``。yaml cs_table 条目 —— 测试经 ``load_ruleset()`` 取真
 params 过 builtin, 顺带校验 yaml 键形。
 
-arm 3 ``url``/``nolinkurl`` (×3+1: 1306.0187/1404.6110/0806.0347 +
+臂 3 ``url``/``nolinkurl`` (×3+1: 1306.0187/1404.6110/0806.0347 +
 2104.00028): ``url`` → 真包装位 (hyperref 被稿注释/类不提供 ``\\url``);
 ``nolinkurl`` 是 hyperref-only (url.sty 亦无) → ``detokenize``+``\\texttt``
 同形兜底, 不装真 url.sty (aastex shim 面下会夺回 detokenize 版 ``\\url``
@@ -76,7 +76,7 @@ def _params(rid: str) -> dict:
     return rule(rid).action["params"]
 
 
-# ═══════════════════════ arm 1: sortlist bbl-2.8 读者 ═══════════════════════
+# ═══════════════════════ 臂 1: sortlist bbl-2.8 读者 ═══════════════════════
 
 
 def test_sortlist_polyfill_lands_after_docclass(tmp_path: Path) -> None:
@@ -148,7 +148,7 @@ def test_sortlist_no_split_fallback(tmp_path: Path) -> None:
     assert "polyfill" in note
 
 
-# ═══════════════ arm 2: current@color begindocument/before 守卫 ═══════════════
+# ═══════════════ 臂 2: current@color begindocument/before 守卫 ═══════════════
 
 
 def test_currentcolor_guard_early_hook(tmp_path: Path) -> None:
@@ -171,7 +171,7 @@ def test_currentcolor_idempotent(tmp_path: Path) -> None:
     assert not ok
 
 
-# ═══════════════════════ arm 3: url / nolinkurl ═══════════════════════
+# ═══════════════════════ 臂 3: url / nolinkurl ═══════════════════════
 
 
 def test_url_usepackage_and_probe(tmp_path: Path) -> None:

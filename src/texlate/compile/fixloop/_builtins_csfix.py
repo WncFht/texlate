@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
-#: biblatex bbl-2.8 ``\sortlist`` 读者 polyfill —— svjour cls shim bbl arm
+#: biblatex bbl-2.8 ``\sortlist`` 读者 polyfill —— svjour cls shim bbl 臂
 #: (90-shim-legacy.yaml svjour_body) 的 cs_table 泛化移植, 零裸 ``@`` 化。
 #: ``backend=bibtex`` 稿的 bundled .bbl 是 2.8/2.9 格式, TL biblatex 3.21
 #: 不再定义 ``\sortlist`` → ``.bbl:19`` 起 ``undefined_cs`` (1907.03923/
@@ -364,7 +364,7 @@ def _inject_before_docclass(ctx: LoopCtx, snippet: str) -> bool:
 #: 读面把名断成 ``\foo``+stray 字母 (静默错义 + ``Missing \begin{document}``
 #: 级联), ``\providecommand\csname`` 直写又把 ``\csname`` 当已定义名而
 #: 静默 no-op —— 双死形, ``\expandafter`` 先行展开是唯一通解
-#: (lane-renewguard forms/forms3.tex 全形实证)。``Command \X undefined``
+#: (renewguard 车道 forms/forms3.tex 全形实证)。``Command \X undefined``
 #: (renew-on-undefined 内核签) 与 ``\csname`` 派发/@-名 cs_table 条目
 #: 的本键一并收 —— provide 预置, doc 侧 ``\renewcommand`` 合法接管;
 #: body 即未 renew 时的 use-site 兜底, 语义同 polyfill 但名自表键出。

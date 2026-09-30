@@ -1,4 +1,4 @@
-"""pinlabel_pdfximage_emulate 单测 (undef13 lane, task #219)。
+"""pinlabel_pdfximage_emulate 单测 (undef13 车道, task #219)。
 
 机理 (1907.10349 holomorphic.tex:426 / 2403.00097 l.657 实证):
 pinlabel.sty ``\\scan@header`` 的 .pdf 分支调 ``\\pdfximage cropbox{file}``
@@ -8,11 +8,11 @@ pinlabel.sty ``\\scan@header`` 的 .pdf 分支调 ``\\pdfximage cropbox{file}``
 prim_read_form/source_contains 皆不见 → guard(50)/polyfill(51) 条件
 够不到, 是 pdftex_prim 链上唯一盲区。
 
-arm: cs_targeted_fix ``polyfill_pre`` 在 docclass 行前注 ``\\ifdefined``
+臂: cs_targeted_fix ``polyfill_pre`` 在 docclass 行前注 ``\\ifdefined``
 守卫块 —— ``\\pdfximage`` 用 ``\\XeTeXpdffile`` 盒量真实 PDF 自然尺寸,
 ``\\pdfximagebbox`` 回 0bp/0bp/\\wd/\\ht (cropbox 原点近似, pinlabel
 只取差值算缩放故全真)。真 xelatex 复现+翻正实证:
-tmp/lane-undef13/repro-1907/emulate5.tex (4 枚 \\pinlabel 全落位)。
+undef13 车道 repro-1907/emulate5 (4 枚 \\pinlabel 全落位)。
 """
 
 import re
@@ -65,7 +65,7 @@ def _match(
 
 # ----------------------------------------------------------------- 路由层
 def test_route_pinlabel_cell_to_emulate_arm(tmp_path: Path) -> None:
-    """pinlabel 装载稿 + pdftex_prim|pdfximage → 本 arm 中, docclass 行前排块。"""
+    """pinlabel 装载稿 + pdftex_prim|pdfximage → 本臂中, docclass 行前排块。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
     rule, _note = _match(ctx, "pdfximage", rep)
@@ -87,7 +87,7 @@ def test_route_non_pinlabel_pdfprim_not_stolen(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
     rep = ErrReport(file_stack=["./main.tex"])
-    # pdfximage payload 但源无 pinlabel 证据: 本 arm 闸拒 → 常链亦无可
+    # pdfximage payload 但源无 pinlabel 证据: 本臂闸拒 → 常链亦无可
     # 接站点 (guard 无 fileset 内字面 prim/polyfill 三臂皆拒) → None。
     rule, _note = _match(ctx, "pdfximage", rep)
     assert rule is None or rule.id != _RULE_ID
@@ -98,13 +98,13 @@ def test_route_other_payload_passes_through(tmp_path: Path) -> None:
     """pinlabel 稿上非 pdfximage payload → builtin 表不中单格, 不吃别人饭。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
-    # pdfcatalog: _CS_FIX_TABLE/overlay 无键 → 本 arm applied=False 让位。
+    # pdfcatalog: _CS_FIX_TABLE/overlay 无键 → 本臂 applied=False 让位。
     rule, _note = _match(ctx, "pdfcatalog", rep)
     assert rule is None or rule.id != _RULE_ID
 
 
 def test_refire_idempotent(tmp_path: Path) -> None:
-    """二次派发同签 → snippet 已在文, 本 arm applied=False 不再中。"""
+    """二次派发同签 → snippet 已在文, 本臂 applied=False 不再中。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
     rule1, _ = _match(ctx, "pdfximage", rep)

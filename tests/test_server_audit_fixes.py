@@ -1,9 +1,9 @@
 """审查修复钉板两轮合订（server store/settings/events 层契约）。
 
-wave 1：``list_tasks_page``/``delete_task_guard`` 契约、``load`` 磁盘缓存、
+批一：``list_tasks_page``/``delete_task_guard`` 契约、``load`` 磁盘缓存、
 ``resolve_auth`` 跨槽闸、``recover_startup`` 终态清理、cache 命中聚合、
 stale done 重放、``ERROR_CODES`` 名录。
-wave 2：``task_ids``/``queued_rows``/``delete_chunks`` 裸 conn 收口、
+批二：``task_ids``/``queued_rows``/``delete_chunks`` 裸 conn 收口、
 ``chunks_page`` 窄列分页 + limit 钳位、``append_event`` 对已删任务行静默
 丢弃、retention 两段 GC、``EventBus.stream`` resync 缺口提示帧、
 ``SettingsStore.save`` 标量类型闸、``load()`` 深拷贝防污染、retention
@@ -87,7 +87,7 @@ def _seed_cache_row(conn: sqlite3.Connection, key: str = "k") -> None:
     conn.commit()
 
 
-# ------------------------------------------------------------------ wave 1
+# ------------------------------------------------------------------ 批一
 
 #: tasks_list 序列化实际消费的列——list_tasks_page 必须全覆盖
 _LIST_COLS = (
@@ -473,7 +473,7 @@ class TestErrorCodesNew:
         assert {"no_html_source", "translate"} <= ERROR_CODES
 
 
-# ------------------------------------------------------------------ wave 2
+# ------------------------------------------------------------------ 批二
 
 _N_CHUNKS = 10
 _CLAMP_N = 505

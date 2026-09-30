@@ -1,4 +1,4 @@
-"""arm 对照组共用件（lib 件非入口）：driver 写 +0800 当日 ``%H:%M:%S`` 窗、usage 同口径解回 epoch ms。
+"""臂对照组共用件（lib 件非入口）：driver 写 +0800 当日 ``%H:%M:%S`` 窗、usage 同口径解回 epoch ms。
 
 TZ 契约是 driver/usage 两文件间唯一强耦合点——各写各的时区会静默错窗
 （网关 ``logs.time`` 是毫秒 epoch，窗偏一小时整段账全歪）。跨零点

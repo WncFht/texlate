@@ -1,6 +1,6 @@
 """Tests for kernel/cli.py — the bench command surface (§2.1).
 
-Wave-C sibling modules (kernel.kernel / kernel.spec / kernel.sweep /
+C 批兄弟模块 (kernel.kernel / kernel.spec / kernel.sweep /
 kernel.doctor) are faked through sys.modules for dispatch tests; tests
 that need the real implementation are guarded by find_spec and activate
 automatically once those modules land.
@@ -405,8 +405,8 @@ def test_doctor_switch_ok_reports_verdict(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
 ) -> None:
-    # drain verdict depends on live repo state (lane writers, errsweep
-    # worktrees, kernel-active) — the CLI must faithfully report whichever
+    # drain verdict depends on live repo state (lane writers,
+    # kernel-active) — the CLI must faithfully report whichever
     # verdict the gate returns; both spellings are correct plumbing
     empty_bench = tmp_path / "repo-bench"
     empty_bench.mkdir()
@@ -730,7 +730,7 @@ def test_bench_shim_executable(tmp_path: Path) -> None:
     assert (other / "ledger").is_dir()
 
 
-# --- conditional end-to-end (activates when wave-C siblings land) --------------------------
+# --- conditional end-to-end (activates when C 批 siblings land) --------------------------
 
 
 @pytest.mark.skipif(

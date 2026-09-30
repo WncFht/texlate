@@ -1,4 +1,4 @@
-r"""chineseclear lane (task #93): ``ctlseq_already_def_undefine`` 规则 +
+r"""chineseclear 车道 (task #93): ``ctlseq_already_def_undefine`` 规则 +
 ``ctlseq_undefine`` builtin。
 
 2403.00013 (kaist-ucs.cls) 形: ``\documentclass`` 内 cls 链

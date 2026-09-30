@@ -9,7 +9,7 @@ r"""fontfb (2026-09-20): fontspec_missing 克隆替换 + enc.def 摘除两臂 (t
   (run_tool 无 FONTCONFIG_FILE → fc-list 对 texmf 字族恒盲), 文件形经
   ``eng.probe_file`` kpathsea 与 fontspec 文件查找同通路; fontspec 对
   文件形名自动同目录补全字重 (实测 verbatim)。Amiri 不收表 —— TL 内外
-  无度量克隆 → decline = lane 裁决 unfixable, 不发错字体声明。
+  无度量克隆 → decline = 车道裁决 unfixable, 不发错字体声明。
 - ``fontenc_enc_relax`` (fontfb-B): ``missing_file|<enc>enc.def`` 全真件
   臂 (install filemap / vendored_fetch) 后的末位改写臂 —— 全文无
   ``\fontencoding{ENC}``/``\DeclareText*{..}{ENC}`` 使用时 fontenc 选项

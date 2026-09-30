@@ -1,4 +1,4 @@
-r"""pathqual lane (2026-09-19): vendored_sty_shadow 路径限定装载点回填 shim。
+r"""pathqual 车道 (2026-09-19): vendored_sty_shadow 路径限定装载点回填 shim。
 
 1803.03185 实证回退: ``\usepackage{./style/optidef}`` 只对字面相对径
 解析, texmf 裸名递补够不到 ``./`` 前缀——``style/optidef.sty`` 被

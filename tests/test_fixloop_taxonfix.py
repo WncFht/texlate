@@ -1,4 +1,4 @@
-r"""taxonfix 双项 —— ``\GenericError`` 顶行毒化 payload 排除 + tikz 库缺档 arm。
+r"""taxonfix 双项 —— ``\GenericError`` 顶行毒化 payload 排除 + tikz 库缺档臂。
 
 项A (undefined_cs payload_scan): ``\GenericError``-led ctx 的顶行末位是内
 核错误渲染宏 (真冒犯 cs 吞进 ``#N`` 参槽), 旧顶行抓取产出

@@ -129,7 +129,7 @@ _WRAP_TABLE: dict[str, tuple[str, str]] = {
     "mathbfit": ("#1", "{#1}"),
     "mathbfss": ("#1", "{#1}"),
     "org@markboth": ("#1#2", "{#1}{#2}"),
-    # ── institutesig wave-7 普查 (117 cells/31 cs → 19 表外格) —— 逐条上游实档核签 ──
+    # ── institutesig 批七普查 (117 格/31 cs → 19 表外格) —— 逐条上游实档核签 ──
     "abstract": (
         "#1",
         "{#1}",

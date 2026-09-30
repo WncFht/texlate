@@ -1,4 +1,4 @@
-"""tar 伪装件成员补写期待文件名槽位回归 (tarmember lane, shipclscen census)。
+"""tar 伪装件成员补写期待文件名槽位回归 (tarmember 车道, shipclscen 普查)。
 
 bug 机制: 旧序先 ``_extract_members`` 后 ``rename``——tar blob 全程占着
 自己的文件名, 与槽位同名的成员被 no-clobber ``dest.exists()`` 永远跳过,

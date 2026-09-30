@@ -1,4 +1,4 @@
-"""eracls lane (2026-09-20): ``vendor/stubs/aaai23.sty`` 钉测试。
+"""eracls 车道 (2026-09-20): ``vendor/stubs/aaai23.sty`` 钉测试。
 
 census era-cls-absent-vendor 唯一真空件: aaai23.sty off-CTAN/TL
 (``tlmgr search --file`` 零命中, install 路够不到) —— vendored_fetch

@@ -1,4 +1,4 @@
-"""wave-3 (fbucket-scout F-stub/F-font, 2026-09-17): 救援物自身缺陷两钩 +
+"""批三 (fbucket-scout F-stub/F-font, 2026-09-17): 救援物自身缺陷两钩 +
 CJK 缺字路由钉。
 
 - astro-ph/0307062·0501187·0501259: 旧 aa.dem 单参 ``\\abstract{...}``

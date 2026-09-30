@@ -1,4 +1,4 @@
-r"""flushend lane (2026-09-19): ``flushend_keeplastbox_opt_strip`` 规则钉。
+r"""flushend 车道 (2026-09-19): ``flushend_keeplastbox_opt_strip`` 规则钉。
 
 stagerun-loop2-2026-09-18 failmine2 五格 (1706.02725/1803.09012/2105.00097/
 2105.03814/2111.00082, zh+base 双臂) 同形: ``\usepackage[keeplastbox]{flushend}``

@@ -151,7 +151,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus/mechanisms.jsonl W102 verdict suggested_rules"
 
-  # 2026-09-20 taxonfix lane: tikz 库缺档两臂——"I did not find the tikz
+  # 2026-09-20 taxonfix 车道: tikz 库缺档两臂——"I did not find the tikz
   # library 'X'" 报的是**库名**非文件名, 裸 payload 走 install_file 必
   # miss (filemap 无 quantikz 键); 按内核查找约定拼
   # tikzlibrary{lib}.code.tex (现代名, ~192 条索引) 先探, miss 时
@@ -249,12 +249,12 @@ rules:
     stats: { fires: 138, rescued_cells: 47, status: active }
     source_ref: "fixloop.py L301-311, L264-276"
 
-  # 2026-09-16 wave-2: babel_opt 类目原无消费规则 (纯死端)。机理=稿传
+  # 2026-09-16 批二: babel_opt 类目原无消费规则 (纯死端)。机理=稿传
   # [german]/[russian] 等老语言选项 → babel 找不到对应 ldf (babel-<lang>
   # 包未装; Arch 侧 tlpdb 注册装了但 runfiles 缺席 → 系统树假在场)。
   # payload=语言名 → try_exts 拼 {lang}.ldf / {lang}b.ldf 双候选
   # (russian→russianb.ldf 实证命名) → filemap → babel-<lang> 真包。
-  # 2026-09-19 babel-lane: 选项名≠实档名桥 file_aliases 落地 —— ini 按
+  # 2026-09-19 babel 车道: 选项名≠实档名桥 file_aliases 落地 —— ini 按
   # \BabelDefinitionFile{0}{X} 指名实档 (locale/*/babel-*.tex 全量扫出
   # flag-0 异形名表), ukrainian→ukraineb 型 try_exts 拼不出的走显式别名。
   # greek 系 (monotonic/polytonic/polutonikogreek→greek.ldf) 不入表 ——
@@ -311,7 +311,7 @@ rules:
     stats: { fires: 121, rescued_cells: 46, status: active }
     source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
 
-  # 2026-09-17 wave-4: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
+  # 2026-09-17 批四: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
   # install_file(10) 查无真包 → 本规则 basename 查 vendor/{files,stubs,shims}
   # (files=真件平移, stubs=实测救援 stub, shims=.cls 替身 stub) → 命中平铺
   # 进 wdir; 查无 → decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸 builtin, 无需新
@@ -338,7 +338,7 @@ rules:
     stats: { fires: 161, rescued_cells: 77, status: active }
     source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
 
-  # 2026-09-18 nicematrix-lane: 装上件自检版本闸炸 (expl3 msg_critical
+  # 2026-09-18 nicematrix 车道: 装上件自检版本闸炸 (expl3 msg_critical
   # file-line 形) —— tlmgr/tlnet 只有最新版, 对运行期 format/L3 过新
   # (2308.12712: _texmf/home/.../nicematrix v7.11c 要 format ≥2026-06-01,
   #  runtime LaTeX2e 2025-11-01; xelatex tlmgr 通路无 version_guard)。
@@ -366,7 +366,7 @@ rules:
     stats: { fires: 35, rescued_cells: 22, status: active }
     source_ref: "nicematrix-lane 2026-09-18: vendor/files/nicematrix.sty v7.11c→v7.11a 钉档"
 
-  # 2026-09-19 csvsub-lane: 反向版本错位 —— 稿自带过旧 csvsimple-l3.sty
+  # 2026-09-19 csvsub 车道: 反向版本错位 —— 稿自带过旧 csvsimple-l3.sty
   # v2.2.0 (2021) 撞新 kernel expl3 收紧: `\bool_const:Nn { 1 }` 裸数字
   # 字面量不再被收 (2112.00045: csvsimple-l3.sty:36 Missing number,
   # treated as zero → Missing \begin{document} 级联)。两个既有机制都
@@ -407,7 +407,7 @@ rules:
     stats: { fires: 4, rescued_cells: 1, status: active }
     source_ref: "csvsub-lane 2026-09-19: tmp/lane-csvsub 三臂实证 (orig 炸 / patch 过 / 2.7.0 过)"
 
-  # 2026-09-19 pstadd-lane: 稿自带 pstricks-add 过旧对 (v2.32/2005-01-16)
+  # 2026-09-19 pstadd 车道: 稿自带 pstricks-add 过旧对 (v2.32/2005-01-16)
   # 撞现代 pst-* 核 —— dx/dy 键自 pst-node v1.45 移除 (:51-52 xkeyval
   # `dx' undefined in families), \define@key[psset]{}{trueAngle} 空族 vs
   # pst-xkey v1.6 × xkeyval v2.10 的 \define@boolkey (:1170 → Missing
@@ -456,7 +456,7 @@ rules:
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
 
-  # 2026-09-20 sabfix lane (sabdeg census, 1107.0009): 稿自带 mn2e.cls
+  # 2026-09-20 sabfix 车道 (sabdeg 普查, 1107.0009): 稿自带 mn2e.cls
   # v2.2 (2001/02/06) 与 mnras 同族 \ds@usegraphicx 病 —— :52 `\def\
   # ds@usegraphicx{\@usegraphicxtrue\usepackage[xetex]{graphicx}}` 把
   # \usepackage 写进 \ds@ 选项声明体, \ProcessOptions 执行 usegraphicx
@@ -517,7 +517,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-sabdeg/census.md (1107.0009); mnras-optpatch #51 同族姊妹病"
 
-  # 2026-09-19 mnras-retire lane (1206.0291, geomreverify #57 实证): 病件
+  # 2026-09-19 mnras-retire 车道 (1206.0291, geomreverify #57 实证): 病件
   # 是上游 mnras v3.2 本体 —— `\def\ds@usegraphicx{\@usegraphicxtrue
   # \usepackage{graphicx}}` 把 inline \usepackage 写进 \ds@ 选项声明体,
   # kernel 在 \ProcessOptions 执行该选项 → `\RequirePackage or \LoadClass
@@ -527,7 +527,7 @@ rules:
   # stagerun 兄弟式在 wdir 邻树); 宿主 ~/texmf 常驻副本同病 —— TEXMFHOME
   # 链尾保持可见故同样可达 (mn2e+usegraphicx 稿 ~25 格同露: stub 选项剥
   # 离被 \@loadwithoptions 裸拷贝绕过, geomverify repro 实证死代码)。
-  # 设计经 census 改裁定 stateless DROP 优于 retire-mv: (a) 退役→missing
+  # 设计经普查改裁定 stateless DROP 优于 retire-mv: (a) 退役→missing
   # →vendored_fetch(11.5) 名义链不可达 —— missing_file 先被 install_file
   # (10) 截 (宿主探得 already-present 或 tlmgr 重装同病上游件 → 复毒;
   # retire 又被 rule:pay dedup → 死环); (b) mv _texmf/宿主件是树外突变
@@ -616,7 +616,7 @@ rules:
     stats: { fires: 27, rescued_cells: 13, status: active }
     source_ref: "tmp/lane-geomverify/report.md + fixloop.jsonl r1 实读; drop 化裁定 = census 改设 (leader); 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
 
-  # 2026-09-20 implunk26 lane (unk26spec B1, cond-mat/0103307+0103262):
+  # 2026-09-20 implunk26 车道 (unk26spec B1, cond-mat/0103307+0103262):
   # 稿自带 era pst-* 包捆遮蔽系统件 —— 0103307 era pst-feyn.sty/.tex +
   # pst-key.sty/.tex (era pst-key.tex 喂现代 ~/texmf pstricks.tex →
   # \ifpst@useCalc undefined + keyval skew); 0103262 ~30 era pst-*.sty/.tex
@@ -704,7 +704,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "_builtins_vendored.py fontspec_kernel_shadow_retire; tmp/seqpos-e2e.json t_c32920 行 (e2e 0.0 测量盲)"
 
-  # 2026-09-20 implunk26 lane (unk26spec B6, 0812.1138): 稿自带 era
+  # 2026-09-20 implunk26 车道 (unk26spec B6, 0812.1138): 稿自带 era
   # microtype 包捆 —— microtype.sty (\ProvidesPackage[2008/06/04 v2.3b])
   # + microtype.cfg + 19 mt-*.cfg + letterspace.sty。era cfg 的
   # \DeclareMicrotypeSet 对现代 microtype → Missing number ×40。
@@ -749,7 +749,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-unk26spec/bundles.json B6 + tmp/lane-unk26/census.md"
 
-  # 2026-09-20 implunk26 lane (unk26spec B3, cond-mat/9612213): doc 导言
+  # 2026-09-20 implunk26 车道 (unk26spec B3, cond-mat/9612213): doc 导言
   # 区引擎护栏 \ifx<cs>\undefined..\errmessage{..}\fi —— longbb.tex:53-55
   # verbatim `\ifx\href\undefined \else\errmessage{Don't use hypertex} \fi`,
   # 注入 hyperref 定义 \href → \errmessage abort (splice:421, cat=other)。
@@ -794,7 +794,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-unk26spec/bundles.json B3 + tmp/lane-unk26/census.md"
 
-  # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
+  # 2026-09-19 draftsty-patch 车道: 稿自带 .sty 内 abstract 体捕获花括号
   # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
   # \ifnum 当字符码操作数吞掉 (125≠0 假值整段空), 使 edef 的 `{` 失去配对
   # `}` 永不闭合 → abstract 体 + \endabstract + 文末全部流入 edef 扫描,
@@ -871,7 +871,7 @@ rules:
     stats: { fires: 9, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-iffalse/report.md (bt7.tex 复现链) + tmp/lane-draftsty 补丁实证 (xelatex repro2 题名+abstract 渲染全保)"
 
-  # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.0246/0806.4130/1306.0294):
+  # 2026-09-19 asset 车道 (failmine3 普查, 3 格: 0806.0246/0806.4130/1306.0294):
   # e-print 捆绑 pre-2019 amsmath*.sty (v2.13/2000) —— `\@saveprimitive\leqno\
   # @@leqno` (:2573) 要求 \leqno 仍是 primitive, 2019-10 kernel 起 \leqno/\eqno
   # 改为 \protected 宏 → "LaTeX Error: Unable to properly define \@@leqno;
@@ -909,7 +909,7 @@ rules:
     stats: { fires: 9, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-assetlane/probe3 三臂实证 (amsmath-only/ams-cohort/full-snapshot → cohort 最优)"
 
-  # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
+  # 2026-09-19 asset 车道 (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
   # pb-diagram/lamsarrow.sty:89-93 `\font\lamsfont@i=lams1`…`@v=lams5` ——
   # LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字体),
   # 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式全不中,
@@ -958,7 +958,7 @@ rules:
     stats: { fires: 6, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-assetlane/probe2 端到端实证 (tfm+mf → 真箭头 PDF); CTAN pb-diagram tfm/mf 件源"
 
-  # 2026-09-19 revtexlane (census 3 格同机: 0806.4149/1003.0910/1907.00131):
+  # 2026-09-19 revtex 车道 (普查 3 格同机: 0806.4149/1003.0910/1907.00131):
   # e-print/user-texmf 自带 revtex4.cls v4.0a (2020/09/30) 内嵌 textcase
   # v0.06 —— \MakeUppercase 绑死 \MakeTextUppercase→\@uclcnotmath
   # (revtex4.cls:3737-3750), 内嵌 \protected@edef\reserved@a 现代 kernel
@@ -1007,7 +1007,7 @@ rules:
     stats: { fires: 13, rescued_cells: 10, status: active }
     source_ref: "tmp/lane-revtex/repro/mini5.tex 端到端实证 (emulateapj+Citeauthor 二遍死); census tmp/lane-revtex/"
 
-  # 2026-09-19 aaaiguard lane (failmine4 普查, 15 格全 fresh soak-09-18
+  # 2026-09-19 aaaiguard 车道 (failmine4 普查, 15 格全 fresh soak-09-18
   # 2609.*): 稿自带 aaai2027.sty (4 md5 变体) 内置引擎闸 ——
   # \RequirePackage{iftex} 后 `\RequirePDFTeX` 独占行 (:14/:43/:59/:62
   # 变体位); xelatex 下 iftex 横幅 "pdfTeX is required to compile this
@@ -1064,7 +1064,7 @@ rules:
     stats: { fires: 36, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine4/report.md (fresh 15 格同质桶) + tmp/lane-aaaiguard/"
 
-  # 2026-09-20 docabsent lane (m1kcensus2 衍生, covgap-C #205 候选逐格复核):
+  # 2026-09-20 docabsent 车道 (m1kcensus2 衍生, covgap-C #205 候选逐格复核):
   # doc \input/\include 引用但 e-print 未带的 .tex 片段 —— fileset 真无件
   # (relocate 够不到), filemap/vendor/shim 面亦无供 (非 CTAN 件)。两臂:
   # (a) 版本缀漂移 sibling 唯一命中搬真件 (12step_dynamics_new↔
@@ -1181,7 +1181,7 @@ rules:
     stats: { fires: 10, rescued_cells: 2, status: active }
     source_ref: "scout-fail59 fixloop 杂项; babel_lang_ldf_install 残留格"
 
-  # 2026-09-19 babel-lane (1206.0213): francais/frenchb 是 babel-french
+  # 2026-09-19 babel 车道 (1206.0213): francais/frenchb 是 babel-french
   # 弃名 —— 现行 ini/ldf 双侧皆无名 (babel-francais.tex/francais.ldf/
   # frenchb.ldf 皆不在 TL, tlpdb 逐名核实), install 路必 decline; 正名
   # french 才是真档 (ini babel-french.tex → \BabelDefinitionFile{0}{french}
@@ -1233,7 +1233,7 @@ rules:
     stats: { fires: 23, rescued_cells: 8, status: active }
     source_ref: "tmp/lane-babel/ 2026-09-19: babel-francais.tex/francais.ldf 皆 NOT-IN-TL (tlpdb 核实)"
 
-  # 2026-09-19 babel-lane: babel_undef (语言本体未声明) 消费规则 —— 稿面
+  # 2026-09-19 babel 车道: babel_undef (语言本体未声明) 消费规则 —— 稿面
   # \selectlanguage/\iflanguage 引用选项表外语言, 或 ldf 自带 AtBeginDocument
   # 钩引姊妹名 (babel-german.def:739 \iflanguage{ngerman} —— Arch xelatex
   # 格式零非英 \l@* → [german] 装好 ldf 后仍炸此签)。修法=把 payload 语言
@@ -1313,7 +1313,7 @@ rules:
     stats: { fires: 13, rescued_cells: 13, status: active }
     source_ref: "fixloop.py L314-321"
 
-  # 2026-09-20 tfmhoist lane (tfmcen 普查 13 格全中机理): e-print 自带私有
+  # 2026-09-20 tfmhoist 车道 (tfmcen 普查 13 格全中机理): e-print 自带私有
   # .tfm 驻子目录 (assets/optimistic.tfm / NVIDIA-Sans-Font-TTF/*.tfm /
   # seed/bytesans.tfm / template/assets/tfss.tfm) —— TeX 侧经路径限定名可解,
   # xdvipdfmx 按 \pdfmapline 裸名走 TFMFONTS 只认 compile cwd 扁平位 →

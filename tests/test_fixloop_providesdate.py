@@ -1,4 +1,4 @@
-r"""providesdate lane (2026-09-19): ``_provides_date`` expl3 日期面补齐。
+r"""providesdate 车道 (2026-09-19): ``_provides_date`` expl3 日期面补齐。
 
 texmf 实测面 (/usr/share/texmf-dist):
 

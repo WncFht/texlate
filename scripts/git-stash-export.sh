@@ -6,7 +6,7 @@
 # （只写工作区）或 `git checkout stash@{N} -- paths`（会写索引，慎用——
 # 曾把队友暂存的 hunk 卷进自己的 commit）。绝不整 `git stash pop`。
 # 产出：outdir/{tracked,untracked}/ + MANIFEST.txt + 前缀校验提示。
-# 出处：2026-09-16 stash -u/pop 并发事故手工取证固化（tmp/transcript-mining/484a9c38.md A1）。
+# 出处：2026-09-16 stash -u/pop 并发事故手工取证固化（transcript-mining 取证记录 484a9c38 §A1）。
 set -eu
 # 与兄弟脚本同规钉仓根：stash 操作对象是本仓，默认 outdir 落在 gitignored tmp/
 cd "$(dirname "$0")/.."

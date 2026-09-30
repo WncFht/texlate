@@ -1,6 +1,6 @@
-"""axodraw 替身 stub + ``_PKG_OPTS`` 提升链单测 (axodraw lane, 2026-09-19)。
+"""axodraw 替身 stub + ``_PKG_OPTS`` 提升链单测 (axodraw 车道, 2026-09-19)。
 
-实证背景 (corpus hep-ph/0111339, stagerun-loop2/loop3/lane-loop4
+实证背景 (corpus hep-ph/0111339, stagerun-loop2/loop3/loop4 车道
 fixloop.jsonl 三源): ``\\documentstyle[preprint,aps,epsfig,axodraw]{revtex}``
 ——``axodraw`` 不在 ``_PKG_OPTS`` → ``_route_opts`` 落类选项位 → revtex4-2
 不认识、静默不加载 → 正文 ``\\Line``×5/``\\LongArrow``×1 undefined_cs 残面。
@@ -15,8 +15,8 @@ stub 保真面 (真件 v1898, corpus hep-ph/0307200 extracted 签名源):
 - ``\\SetOffset/\\SetScaledOffset`` 真件是 ``(x,y)`` 括号形非 ``{x,y}``。
 - ``\\Text(x,y)[pos]{label}`` 保 label 丢位置参；``[pos]`` 可缺省
   (``\\@ifnextchar`` 容错臂)。
-- 色面 (o2-axodraw-color lane): ``\\SetColor/\\Color/\\IfColor`` + dvips
-  68 色名单参保文字臂——本文件不回测色面，只钉 axodraw-lane 新增面。
+- 色面 (o2-axodraw-color 车道): ``\\SetColor/\\Color/\\IfColor`` + dvips
+  68 色名单参保文字臂——本文件不回测色面，只钉 axodraw 车道新增面。
 """
 
 import shutil

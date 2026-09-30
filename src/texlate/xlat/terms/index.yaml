@@ -1,4 +1,4 @@
-# arXiv category → 术语表文件映射（种子表来自 LaTeXTrans，MIT，tmp/refs/LaTeXTrans/terms/）
+# arXiv category → 术语表文件映射（种子表来自 LaTeXTrans，MIT）
 # 未列出的 category 直接落到 default.csv；多 category 由 glossary 层并集合并。
 cs.LG: cs.LG.csv
 cs.RO: cs.RO.csv

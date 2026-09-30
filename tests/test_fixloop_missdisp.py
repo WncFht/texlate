@@ -1,8 +1,8 @@
 """missdisp #189 — 缺字族再派发 (per-round cp delta + warn-preempt 勤勉闸)。
 
-misschar3 census (tmp/lane-misschar3) 双缺陷对账:
+misschar3 车道普查双缺陷对账:
 
-- family_not_dispatched (77 cells, 60/77 arm-covered): error cat 把轮
+- family_not_dispatched (77 cells, 60/77 臂覆盖): error cat 把轮
   次烧完、裁决落 acceptable_pdf/best_effort_pdf 时 warn 族从未拿到
   派发轮 → ``_warn_preempt`` 在派发耗尽点 (site a) 与 loop 退出点
   (site b) 补发一轮 ``warn_missing_char`` 派发。

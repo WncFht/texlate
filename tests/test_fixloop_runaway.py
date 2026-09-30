@@ -1,4 +1,4 @@
-r"""killsem lane (2026-09-20): runaway_output 修复面双臂钉。
+r"""killsem 车道 (2026-09-20): runaway_output 修复面双臂钉。
 
 ``sentry:page_flood`` 谱 (unbreakable box > ``\textheight`` → ``\output``
 永空页 SIGKILL) 的 ``tcolorbox_breakable_inject``/``float_h_demote`` 两规

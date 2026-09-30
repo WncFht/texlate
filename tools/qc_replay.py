@@ -402,7 +402,7 @@ def main() -> int:
         "--marks-era",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="pipeline produced marked txlm (e2e_real); --no-marks-era for soak waves",
+        help="pipeline produced marked txlm (e2e_real); --no-marks-era for soak 批",
     )
     args = ap.parse_args()
 

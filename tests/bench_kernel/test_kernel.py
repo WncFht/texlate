@@ -827,7 +827,7 @@ def test_auth_dead_sentinel_refuses_paid_cell(
     assert row["cat"] == "auth_dead"
 
 
-# --- Wave-A0 kernel gaps ------------------------------------------------------------
+# --- A0 批 kernel gaps ------------------------------------------------------------
 
 
 def test_select_filters_plan_by_params(

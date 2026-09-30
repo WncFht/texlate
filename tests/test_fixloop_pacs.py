@@ -1,6 +1,6 @@
 r"""``\pacs`` polyfill —— ``\AtBeginDocument`` 参数内 ``#`` 单写约定钉。
 
-实证 (lane-pacsdiag, 2026-09-18): ``\AtBeginDocument{\def\pacs##1{...}}`` 在
+实证 (pacsdiag 车道, 2026-09-18): ``\AtBeginDocument{\def\pacs##1{...}}`` 在
 现代内核 (toks 存储链) 逐字留下 ``##`` —— hook 执行时 ``\def\pacs##`` 炸
 "Parameters must be numbered consecutively" ×2, 残留 ``\pacs`` 成 ``#1``-
 定界宏, 调用点扫参越过花括号撞 \par → "Paragraph ended before \pacs was

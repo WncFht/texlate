@@ -1,6 +1,6 @@
 """logparse — ErrReport 提取 + Taxonomy 分类单测 (合成 log)。
 
-双错误格式: `^!` (spike 原义) + `file:line:` (impl xelatex -file-line-error);
+双错误格式: `^!` (原型原义) + `file:line:` (impl xelatex -file-line-error);
 tail/warnings scope 与 undefined_cs→pdftex_prim subclassify 逐条覆盖。
 """
 
@@ -127,7 +127,7 @@ def test_warn_patterns_scanned() -> None:
             "missing_tfm",
             "phvb",
         ),
-        # (\S+) 连句号一起吃进 payload —— spike 原样语义, 不修剪
+        # (\S+) 连句号一起吃进 payload —— 原型原样语义, 不修剪
         ("! Cannot use XeTeXglyph with ptmr8c.", "xetexglyph_tfm", "ptmr8c."),
         (
             '! xdvipdfmx:fatal: Cannot proceed without .vf or "physical" font',
@@ -270,7 +270,7 @@ def test_warn_patterns_scanned() -> None:
             "undefined_color",
             "这是译文",
         ),
-        # ── 2026-09-20 extless lane (failmine4 9-cell): graphicx \Gin@i
+        # ── 2026-09-20 extless 车道 (failmine4 9-cell): graphicx \Gin@i
         # 对无扩展名 \includegraphics{X} 落 `File `X' not found.` (裸
         # basename——前列 missing_file 臂要 \.ext 够不着, 原落 other)。
         # 定证 = errhelp "I could not locate ... extensions:" 恒居错误行

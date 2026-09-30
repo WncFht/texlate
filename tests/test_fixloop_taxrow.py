@@ -8,7 +8,7 @@ runaway_scan ``_:`` cs 名、invalid_in_math 花括号参、undefined_color
 model 变体、key_unknown pgfkeys/xkeyval 两措辞、missing_graphic noBB/
 open-fail、missing_file 裸名兜底、pkg_version_skew need-version 族、
 pkg_obsolete 选项级、fontspec 裸头兜底)。每行至少一钉, 签名一律取
-``tmp/lane-taxcen/clusters_raw.json`` verbatim 实证头 (非模板改写)。
+taxcen 车道普查 verbatim 实证头 (非模板改写)。
 
 序约束钉三处: use_post missing_graphic (errhelp 出 ctx8 右缘) vs 同形
 无证据 → missing_file 裸名臂; use_pre missing_file (``^No file X.fd``

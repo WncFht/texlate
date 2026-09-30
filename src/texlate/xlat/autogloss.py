@@ -3,8 +3,8 @@
 仿 BabelDOC ``automatic_term_extractor.py`` 的 prompt（≤5 词域名词短语+具名实体、
 排数学项、JSON ``[{"src","tgt"}]`` 出）+ ``translation_config.
 finalize_auto_extracted_glossary`` 的逐 src ``Counter.most_common`` 多数表决。
-L1 探针（``tmp/lane-autoglossary``，5 篇跨域 113 词 ~96% 正确）与 L2 A/B
-（``tmp/lane-autoglossary-ab``，term_inconsistency 100%→43%）定案后产品化。
+L1 探针（5 篇跨域 113 词 ~96% 正确）与 L2 A/B
+（term_inconsistency 100%→43%）定案后产品化。
 
 调用约定（抽取臂、非 judge 面）：默认模型 ``swe-2-medium``、temperature 0.1、
 max_tokens 8192（reasoning 预算下限）；传输错误 ``call_with_backoff`` 3 试，

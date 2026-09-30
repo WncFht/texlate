@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 #: ``\ifnum\prim`` 读初值 1 与旧 ``\chardef=1`` 同义。集合外原语分
 #: 三路: 取参族 ``\pdfobj`` 系走 ``_PRIM_ARGFUL`` 吞参 noop, toks/
 #: dimen 寄存器各走 ``\newtoks``/``\newdimen`` (下两表), 余项
-#: (``\pdfstrcmp`` 展开族等) 留 ``\chardef`` 旧形。lane-primofw 实证:
+#: (``\pdfstrcmp`` 展开族等) 留 ``\chardef`` 旧形。primofw 车道实证:
 #: ``\chardef\pdfcompresslevel`` + axessibility.sty:349 裸写
 #: ``\pdfcompresslevel=0`` → chardef cs 变排版字符 + ``=0`` 文本,
 #: Missing \begin{document} 转嫁错类; ``\newcount`` 同点合法过编译。
@@ -273,7 +273,7 @@ def _prim_guard_text(prim: str) -> str:
     elif sig == "@iffalse":  # 条件原语: 绑 \iffalse 走 else 臂
         # csname 双写裸 \let 不可用: \ifdefined 真臂时 else 臂被跳过,
         # 跳扫把裸 \prim(已定义为 if 类)/\iffalse 计入嵌套 → \fi 被吃成
-        # Incomplete \ifdefined (tmp/primarg/skip1.tex 实测); csname 形
+        # Incomplete \ifdefined (primarg 探针 skip1 实测); csname 形
         # 跳扫面全是非条件 token, 执行面 \expandafter 链正确绑
         # (skip2/skip3 双路实测: 定义路径过扫, 未定义路径绑 iff→else)。
         body = (
@@ -294,8 +294,8 @@ def pdftex_prim_polyfill(
 
     guard 规则只管 ``\\pdfX=val``/``\\pdfX{..}`` 赋值型且在 fileset 内;
     ``\\ifnum\\pdfoutput`` 读取型、``\\pdfrefobj\\<reg>`` 无花括号取参型
-    与 fileset 外 (系统 texmf sty/cls) 站点都要原语已定义 (docs/08:268
-    + verifymiss axessibility.sty:349 实证)。arm 按原语签名分派:
+    与 fileset 外 (系统 texmf sty/cls) 站点都要原语已定义 (docs/spec/compile.md
+    + verifymiss axessibility.sty:349 实证)。臂按原语签名分派:
     整数值原语 (``_PRIM_COUNTISH``) 走 ``\\newcount`` —— 赋值型站点
     ``\\prim=val`` 全真接管, 初值查 ``_PRIM_INIT`` (``pdfoutput=0``:
     值探针 ``\\ifnum\\pdfoutput>0`` 诚实假, 存在探针定义即翻的坑由
@@ -1304,7 +1304,7 @@ def undefined_env_polyfill(  # noqa: C901  # pkg_map/站点/对偶件/批扩多�
     cs_targeted_fix 键形: ``usepackage`` 走 ``_ensure_usepackage``
     (注入+装文件); ``polyfill`` 注 docclass 缝后且须自足
     ``\usepackage{pkg}`` 前缀 —— 注缝 LIFO 下裸 ``\usetikzlibrary``
-    会落在 arm usepackage 行之前 → 新 undefined_cs (95-targeted
+    会落在臂注入 usepackage 行之前 → 新 undefined_cs (95-targeted
     cs_table tikz 族头注同机理)。命中 env 出 noop/站点/批扩全池:
     真包就位后 ``\ifcsname`` 守卫自然死化, 双份注入无谓。
 
@@ -1683,7 +1683,7 @@ def revtex209_surface_polyfill(
 #: ``\mathcode`` 旧式操作数扫描对 >0xFF 字符 (xeCJK CJK 字/扩展 mathcode)
 #: 必炸 "Extended mathchar used as mathchar" (hep-ph/0605174 GLUON.tex:464
 #: 四值循环 83922905=0x05008FD9=这 / 83912239=是 / 83921873=译 /
-#: 83912071=文; tmp/mathchar/probe4.tex 实证 ``\count@=\mathcode`这`` 文本
+#: 83912071=文; mathchar 探针实证 ``\count@=\mathcode`这`` 文本
 #: 态同炸、``\the\mathcode`` 读取不炸; t1-t6 实证裸 ``$这$``/``{\rm 这}``/
 #: ``\tilde``/上下标全不炸 —— 修复面只锁 ``\bm`` 族)。
 #: ``\bm#1 → \TeXlateBM{{#1}}`` 双花括号把实参改走 bm 自带 ``\bm@gr@@p``→

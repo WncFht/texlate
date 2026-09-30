@@ -30,7 +30,7 @@ rules:
           #  死配置。aastex→emulateapj/psfig→epsfig 旧论证与 revtex.cls 的
           #  2.09 残面语义见 git 考古; revtex 系残面现由 vendor/shims/
           #  revtex.cls + 文件尾 revtex209_surface_polyfill 承担)
-          # \input psfig / \input{psfig.tex} 裸装载形 (批七 wave-final ×1):
+          # \input psfig / \input{psfig.tex} 裸装载形 (批七 ×1):
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
           # 再议 (未观测)。裸 payload `psfig` 由 legacy_pkg_shim L722-726
@@ -1231,7 +1231,7 @@ rules:
           # (jinstpub/jheppub/espcrc1 槽已删: vendor/stubs/*.sty 真 stub 在,
           #  scan_install vendored 预检先于 missing_file 分类落件, shim_map
           #  永远轮不到此名 —— 死配置; 旧 espcrc1 body 无 \readRCS 复活即回归)
-          # ── 2026-09-16 wave-2 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
+          # ── 2026-09-16 批二 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
           # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
           # amsart2000 (vintage amsart), nature2 (老 Nature 名) —— 同
           # sig-alternate 先例。
@@ -1708,7 +1708,7 @@ rules:
             body: |
               % fixloop stub (math/0104250: \input diagrams — P.Taylor 件 license 不入 TL)
               \endinput
-          # wave-2 二圈残余 (shim 落地后露出的二级缺档): tocstyle (KOMA
+          # 批二 二圈残余 (shim 落地后露出的二级缺档): tocstyle (KOMA
           # 系已撤出 TL), procps (kapproc 伴生件), amscd2000 → amscd 桥
           # (amsmath 包内真身, API 同源)。
           tocstyle.sty:
@@ -2116,10 +2116,10 @@ rules:
               \providecommand{\rmxaa}{Rev.~Mexicana Astron.~Astrofis.}
               \endinput
           # ── eracls2/failmine7 批 (stagerun-overnite-2026-09-20 zh 臂
-          # missing_file 普查, tmp/lane-eracls2/census.md) ──
+          # missing_file 普查, eracls2 车道) ──
           # l-aa.cls: A&A Letters 变体名 ×4 格 (astro-ph/9612038/9612050/
           # 9612150 \documentstyle{l-aa}; 9612158 另被 latex209_reject
-          # 门拦属 gatenarrow lane) —— 稿面纯 A&A frontmatter
+          # 门拦属 gatenarrow 车道) —— 稿面纯 A&A frontmatter
           # (\title/\author/\institute/\keywords/\thesaurus/\offprints/
           # \maketitle), vendored stubs/aa.cls 替身全覆盖 → aa 桥
           # (aa501.cls 先例)。
@@ -2394,7 +2394,7 @@ rules:
   # 定义, compat 下照常走 ``\@fileswithoptions`` 全机器 (@=11 读件 /
   # \@filelist 注册 / 选项处理)。故同纹改写、异枚替换子: 2e 臂 →
   # ``\usepackage``, 2.09 臂 → ``\RequirePackage``。
-  # 弃选两臂 (tmp/lane-inputsty209/ d0-d3 xelatex 实证):
+  # 弃选两臂 (inputsty209 车道 d0-d3 xelatex 实证):
   #   (a) 并进 ``\documentstyle[opts]`` —— latex209.def ``\@documentclasshook``
   #       确以 ``\RequirePackage\@unusedoptionlist`` 装载选项 sty, 但装载点
   #       被推迟到 document 钩、丢了 \input 行原位序, 且需解析/合并可选

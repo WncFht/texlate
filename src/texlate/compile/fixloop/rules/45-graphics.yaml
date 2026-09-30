@@ -93,7 +93,7 @@ rules:
         }
     stats: { fires: 43, rescued_cells: 15, status: active }
 
-  # 2026-09-20 pairbun lane (singtail bundles rank-7): 时代 graphicx key
+  # 2026-09-20 pairbun 车道 (singtail bundles rank-7): 时代 graphicx key
   # type=/ext=/read= 走 \csname Gin@rule@.. 链 —— 现代 graphicx 下炸
   # Missing \endcsname (syntax|None) 并把图名毒化成 missing_graphic 级联
   # (0812.0324: syntax×32+missing_graphic×12, 盘上 rmt_*.pdf 在场实证;
@@ -278,7 +278,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus/mechanisms.jsonl W66 verdict suggested_rules"
 
-  # failmine3 lane (8 格: 1206.0213/1404.6041/1511.06706/1706.02532/
+  # failmine3 车道 (8 格: 1206.0213/1404.6041/1511.06706/1706.02532/
   # 1803.00128/1803.00130/1907.00032/2003.10664): graphic_ext_relax(14)
   # 点火剥扩展名或 fileset 闸放行后, .eps 真缺件仍在 —— tar 内图档本就
   # 未随稿 (arXiv 源缺图常态)。本规则在解析位落最小合法占位件
@@ -295,7 +295,7 @@ rules:
   # builtin 同步按后缀分发真格式占位 (PNG/JPEG/PDF 二进制, 见
   # _builtins_graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
   # cwd 解析位 —— 子目录 main 时 wdir 根位不可见)。
-  # fmsingles census (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
+  # fmsingles 普查 (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
   # 时代 \\ifpdf 路由 —— else 支 ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
   # 在 xelatex 下整表不可解 (normalize 的 \\ifpdf→\\iftrue 补丁只罩 breakurl
   # 装载段, 裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
@@ -396,7 +396,7 @@ rules:
     stats: { fires: 19, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
-  # 2026-09-20 singbun lane (failmine6 syntax-residual 2512.05247): svg 包
+  # 2026-09-20 singbun 车道 (failmine6 syntax-residual 2512.05247): svg 包
   # 源图真缺 (.svg 不在树) → ``Package svg Error: File `X.svg' is missing``
   # 归 missing_graphic (10-taxonomy 行)。svg_prepare 两臂都救不了:
   # inkscape 在请 flag 治不了缺件, 转换臂无 .svg 可转 decline。修 =
@@ -493,7 +493,7 @@ rules:
     stats: { fires: 10, rescued_cells: 6, status: active }
     source_ref: "docs/research/methods/2026-09-16-signature-mining.md §2.2"
 
-  # xlinkobj lane 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/
+  # xlinkobj 车道 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/
   # 2412.19437): 工程船货 .pdf 对象结构残缺 (cairo shading obj 缺 endobj /
   # bare-CR EOL / token-per-line 挤烂 / ObjStm 压坏) → xdvipdfmx
   # ``pdf:image`` import ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)``
@@ -573,7 +573,7 @@ rules:
     stats: { fires: 130, rescued_cells: 51, status: active }
     source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
 
-  # firedunfixed 普查 item5 (2403.05444/2308.04278, epsconv lane):
+  # firedunfixed 普查 item5 (2403.05444/2308.04278, epsconv 车道):
   # e-print 随带 X-eps-converted-to.pdf (上游 epstopdf 产物) 而 X.eps 不随稿,
   # 稿面未载 epstopdf —— 显式 {X.eps} 归 missing_file|X.eps (graphic_ext_relax
   # sibling 闸收进 stem 域后 conv 件 X-eps-converted-to ≠ X 不再放行剥名),
@@ -616,7 +616,7 @@ rules:
     stats: { fires: 5, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-firedunfixed/report.md item5; tmp/lane-epsconv/"
 
-  # ── 2026-09-28 qc-impl lane: vault QC replay layout:overfull 图形臂 ──
+  # ── 2026-09-28 qc-impl 车道: vault QC replay layout:overfull 图形臂 ──
   # gfx_width_clamp builtin (layoutfix 叶): adjustbox[export] + 每
   # \includegraphics max width=\linewidth, 对 pair-sum≥0.98 并排图收缩,
   # width=N\linewidth N>1 → \linewidth。图形整盒超宽非词间 glue 病因,

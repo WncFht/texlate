@@ -1,4 +1,4 @@
-r"""institutesig wave-7 (#253): para_longize 表外残面收编钉。
+r"""institutesig 批七 (#253): para_longize 表外残面收编钉。
 
 117 cells/31 cs 普查 → 19 表外格/15 cs。逐条上游实档核签后收编:
 ``\abstract`` (aa.cls ``\let\abstract=\aaabstract`` 别名 —— 无
@@ -37,7 +37,7 @@ def _xelatex(wdir: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_wrap_table_institutesig_wave7() -> None:
+def test_wrap_table_institutesig() -> None:
     """表钉: 13 新行签名与上游实档逐字一致 (改 sig 须先重核定义点)。"""
     expected = {
         "abstract": ("#1", "{#1}"),

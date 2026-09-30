@@ -1,4 +1,4 @@
-r"""implunk26 钉 —— unk26spec 七捆落地 (2026-09-20, tmp/lane-unk26spec/bundles.json)。
+r"""implunk26 钉 —— unk26spec 七捆落地 (2026-09-20, unk26spec 车道普查)。
 
 B1 ``era_bundle_shadow_retire`` (40-install.yaml order 11.92, cond-mat/
 0103307+0103262): era pst-* 包捆 ld<sd 确证遮蔽 → vendored_shadow_isolate
@@ -106,7 +106,7 @@ def _sub(rid: str, text: str) -> str | None:
 
 
 def test_ruleset_registers_unk26_rules() -> None:
-    """五新臂在册且位次钉死 (共仓兄弟 lane 并发加规则, 只钉下界)。"""
+    """五新臂在册且位次钉死 (共仓兄弟车道并发加规则, 只钉下界)。"""
     assert len(rs().rules) >= 200  # noqa: PLR2004 - 落地时 200+5
     assert rule(_ERA_ID).order == 11.92  # noqa: PLR2004
     assert rule(_MICRO_ID).order == 11.93  # noqa: PLR2004

@@ -1,4 +1,4 @@
-r"""xbbpregen lane (2026-09-19): ``xbb_pregen`` extractbb .xbb 缓存预生成规则。
+r"""xbbpregen 车道 (2026-09-19): ``xbb_pregen`` extractbb .xbb 缓存预生成规则。
 
 2105.00151 (IEICE 模板 ``\usepackage[dvipdfmx]{graphicx,xcolor}``) 形: doc
 强指 dvipdfmx 驱动 → dvipdfmx.def ``\Gread@extractbb@aux`` 对 pdf/png 族

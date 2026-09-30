@@ -1,4 +1,4 @@
-r"""lamsarrow lamsN TFM vendored-drop 规则单测 (assetlane #165, failmine3 3 格)。
+r"""lamsarrow lamsN TFM vendored-drop 规则单测 (asset 车道 #165, failmine3 3 格)。
 
 实证背景 (0806.3683/1511.06948/1706.00345, stagerun-loop3):
 pb-diagram/lamsarrow.sty:89-93 ``\font\lamsfont@i=lams1``…``@v=lams5``

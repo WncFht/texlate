@@ -431,7 +431,7 @@ class TestLadder:
 
 
 def test_make_slots_bisects_long_prose() -> None:
-    """超 ``SLOT_MAX_CHARS`` 散文段按句界拆连续槽位——docs/08:113 spec 参数实装。"""
+    """超 ``SLOT_MAX_CHARS`` 散文段按句界拆连续槽位——docs/spec/translate.md §1.6 spec 参数实装。"""
     sentence = "This is a fairly long sentence chunk with words. "
     seg = sentence * (rt.SLOT_MAX_CHARS // len(sentence) + 2)
     encoded = seg + "[[MATH_1]]tail words"

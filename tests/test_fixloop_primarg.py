@@ -1,14 +1,14 @@
-"""取参型 pdfTeX 原语吞参 noop arm 单测 (lane-primarg)。
+"""取参型 pdfTeX 原语吞参 noop 臂单测 (primarg 车道)。
 
 实证背景: spotcolor.sty (1907.10410/2410.00012 ieeeaccess 族 e-print
 伴船件) :34-62 连用 ``\\pdfobj{dict}`` / ``\\pdfrefobj\\thecolorprofile`` /
 ``\\pdfliteral{op}`` —— ``\\pdfrefobj\\<reg>`` 无花括号形 guard 两
 pattern (``\\prim=`` / ``\\prim{``) 都包不到, fileset 内站点
 ``err_outside_fileset`` 又不中 → polyfill 以 ``\\protected\\def`` 吞参
-noop 兜底 (tmp/primarg/argful.tex 真 xelatex 实测: 实参消费、零排版
+noop 兜底 (primarg 探针 argful 真 xelatex 实测: 实参消费、零排版
 残留; ``\\pdfifprimitive`` 绑 ``\\iffalse`` 正确走 else 臂)。
 
-arm 形分派: ``_PRIM_COUNTISH``→``\\newcount`` /
+臂形分派: ``_PRIM_COUNTISH``→``\\newcount`` /
 ``_PRIM_TOKSISH``→``\\newtoks`` / ``_PRIM_DIMENISH``→``\\newdimen`` /
 ``_PRIM_ARGFUL``→``\\protected\\def<sig>`` (``@iffalse`` 哨兵→
 ``\\let→\\iffalse``) / 余项→``\\chardef`` 旧形。
@@ -155,7 +155,7 @@ def test_route_braced_arg_site_guard_first(tmp_path: Path) -> None:
 
     站点取 spotcolor.sty:34 真形 —— 实参 ``}`` 是本行末枚 ``}``
     (guard ``[^\\n]*\\}`` 贪婪锚, 单行嵌套 ``\\def\\f{\\pdfobj{..}}``
-    会把 ``\\fi`` 落出宏体外, 系 guard 侧先存缺陷不在本 arm 面)。
+    会把 ``\\fi`` 落出宏体外, 系 guard 侧先存缺陷不在本臂面)。
     """
     ctx = _ctx(
         tmp_path,
@@ -169,9 +169,9 @@ def test_route_braced_arg_site_guard_first(tmp_path: Path) -> None:
     assert "\\ifdefined\\pdfobj\\pdfobj{<</N 1>>}\\fi" in out
 
 
-# ---------------------------------------------------------------- arm 直驱
+# ---------------------------------------------------------------- 臂直驱
 def test_arm_argful_signature_table(tmp_path: Path) -> None:
-    """arm 分派: 单参/双参/零参/条件四形 + 寄存器两臂 + chardef 兜底。"""
+    """臂分派: 单参/双参/零参/条件四形 + 寄存器两臂 + chardef 兜底。"""
     cases = {
         "pdfobj": "\\protected\\long\\def\\pdfobj#1{}",
         "pdfrefobj": "\\protected\\long\\def\\pdfrefobj#1{}",

@@ -1,4 +1,4 @@
-"""real-arm regen 副本钉扎复测 (e2e_real/2026-09-28/e2e_real)。"""
+"""real 臂 regen 副本钉扎复测 (e2e_real/2026-09-28/e2e_real)。"""
 
 import json, sys, tempfile
 from concurrent.futures import ProcessPoolExecutor

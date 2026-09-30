@@ -1,4 +1,4 @@
-"""vendor stub 保真审计钉 (stubaudit lane, 2026-09-18):
+"""vendor stub 保真审计钉 (stubaudit 车道, 2026-09-18):
 
 - ``mn2e.cls``/``mn.cls``: ``\\LoadClass{mnras}`` 裸调用把 option list 视空 —
   ``usenatbib``/``useAMS``/``referee`` 全丢 (loop2 实证 0707.4614
@@ -786,7 +786,7 @@ $\Bbb R^2$ \prooftag {\raggedcenter x}
 def test_vendor_stubs_provides_optional_arg_dated() -> None:
     r"""vendor/stubs + vendor/shims 全件 ``\Provides{Package,Class,File,ExplPackage}{n}[o]``
     可选参必须 ``YYYY/MM/DD`` 前缀——裸文本经 ``\@parse@version@`` 把版本串
-    漏进排版流 → ``Missing \begin{document}``（slashlane 实证, slashbox
+    漏进排版流 → ``Missing \begin{document}``（slashbox 车道实证, slashbox
     de1ba13 同工钉）。"""
     rx = re.compile(
         r"\\Provides(?:Package|Class|File|ExplPackage)\{[^}]*\}\s*\[([^\]]*)\]"

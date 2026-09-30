@@ -1,7 +1,7 @@
 """占位符方案（docs/spec/latex-pipeline.md）。
 
 格式 ``[[TYPE_n]]``；``n`` 由单一 :class:`PlaceholderIssuer` 全局单调递增
-（跨子扫描器共享——spike ``_ctr`` list-hack 的扶正）。
+（跨子扫描器共享——原型 ``_ctr`` list-hack 的扶正）。
 
 两个命名空间：``[[CHUNK_n]]``（可译，``chunks[]`` 索引）与 ``[[TYPE_n]]``
 （保护，``ph_map``）——同语法不同表，reconstruct 统一按 DAG 展开。

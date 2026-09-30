@@ -1,6 +1,6 @@
-r"""optfix lane (2026-09-20): singlesweep 选项/驱动松弛三臂钉。
+r"""optfix 车道 (2026-09-20): singlesweep 选项/驱动松弛三臂钉。
 
-格面 (tmp/lane-singlesweep/mech_buckets.json, stagerun-m1k-2026-09-19):
+格面 (singlesweep 车道普查, stagerun-m1k-2026-09-19):
 
 - ``hyperref_driver_neutralize`` 扩臂 —— 2609.20135 webofc.cls 两未盖形:
   ``\newcommand\woc@driver{dvips}`` (newcommand 族间接指派, 旧 ``\def`` 单族

@@ -1,4 +1,4 @@
-r"""pstlane (2026-09-19): pstricks 族两缺陷——wrapper+core 一体件与 pstcol noxcolor。
+r"""pst 车道 (2026-09-19): pstricks 族两缺陷——wrapper+core 一体件与 pstcol noxcolor。
 
 - ``vendored_shadow_isolate`` 同名 .tex 核伴船退役 (defect-A): X.sty 确证
   更旧退役后, 同目录稿自带 X.tex (wrapper ``\input{X}`` 的 core) 若系统

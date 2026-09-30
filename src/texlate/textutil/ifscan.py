@@ -8,7 +8,7 @@ operand/名位 (冻结 token 非活开)。def 体 open 只计不注 (file-end ``
 够不到冻结 token, 注入反造 Extra ``\\fi``); 跨文件借用对由调用方全局
 opens>closes 闸兜住。
 
-phantom 判例 (loop4-wave1 152 格实证): TeX 条件跳读扫描**按 token 计**
+phantom 判例 (loop4 批一 152 格实证): TeX 条件跳读扫描**按 token 计**
 ``\\if`` 族——``\\let`` 不执行 ⇒ ``\\let\\X\\iftrue`` 的第二 operand 在被跳
 分支里仍是裸 ``\\if`` token → 假开臂吞 ``\\fi`` → ``Incomplete \\ifdefined``。
 字面扫描对 operand 位恒按"非开"计, 与执行态一致但与跳读态分歧——凡
@@ -22,7 +22,7 @@ verdict 带 ``phantom=N`` 供 ``if_phantom_protect`` 判别臂区分跳读形
 旧版只认紧邻 cs 名, ``\\let a=\\iftrue`` 形漏吃 operand → ``\\iftrue``
 误计活开 → 假亏格误注。
 
-if-alias 追踪 (loop4-wave1 事故形): ``\\let<cs><if族>`` 使 cs 得
+if-alias 追踪 (loop4 批一 事故形): ``\\let<cs><if族>`` 使 cs 得
 if_test cmd —— ``\\let\\TeXlateCMUok\\iftrue`` 后 ``\\TeXlateCMUok`` 裸用
 即开臂, 名不带 ``if`` 前缀旧版漏计。登记限 def 体外 (def 体内 ``\\let``
 只在调用时执行, alias 存在性不可静态判), 经 ``pending_alias`` 在
@@ -219,7 +219,7 @@ def _let_operands(  # noqa: C901, PLR0911 -- <name>/<equals>/<tok> 形态枚举�
     假开实证); ``\let ab\iftrue`` 名 ``a`` 字符 operand ``b``, 远端 cs live。
 
     名 cs/operand cs 供调用方做 if-alias 登记 (``\let\ok\iftrue`` → ``\ok``
-    得 if_test cmd, 裸用即开臂 —— loop4-wave1 事故形); 字符名/``{`` 名
+    得 if_test cmd, 裸用即开臂 —— loop4 批一 事故形); 字符名/``{`` 名
     返回 None (非 cs token, 无 alias 可言)。operand 是花括号 token 时计
     入消费数 (``\let\X{``/``\let\X}`` → 2)——主循环按 operand 位静默吃掉
     不开闭组; 名位本身是 ``{`` 时 flag=True, 该 ``{`` 仍走主循环开组
@@ -316,7 +316,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     stops: list[tuple[int, int]] = []  # (pos, live opens depth)
     phantoms: list[tuple[str, int, str]] = []
     # \let 别名表: \let<cs><if族> → cs 得 if_test cmd, 裸用 = 开臂
-    # (loop4-wave1 事故形: \let\TeXlateCMUok\iftrue 后 \TeXlateCMUok 裸开
+    # (loop4 批一 事故形: \let\TeXlateCMUok\iftrue 后 \TeXlateCMUok 裸开
     # —— 名不带 "if" 前缀, 字面规则漏计)。值 = 该 if 的 operand 预算
     # (\let\X\ifnum → \X 也吃 1 operand)。登记限 def 体外, 但活条件内
     # 的 \let 也登记 (incident 形正是分支内 \let + 分支外裸用); operand

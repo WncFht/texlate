@@ -6,7 +6,7 @@ r"""重试：HTTP 指数退避 + 四段语义阶梯（docs/spec/translate.md 定
    `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值；`retryable=False`
    的错误（401/403/402/404/余 4xx）立即抛出。
 
-2. `translate_with_ladder` —— 语义阶梯（照抄 docs/08:113）：
+2. `translate_with_ladder` —— 语义阶梯（docs/spec/translate.md §1.6）：
    整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→
    slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、
    失败槽只重问失败批）→ 三振 `fallback_orig` + warning → `partial` 终态。
@@ -73,7 +73,7 @@ _SLOT_ECHO_RX = re.compile(
     r"|[⟦⟨｟《「［【]\s*[Ss]\d{4,}"
     r"|[Ss]\d{4,}\s*[⟧⟩｠》」］】]"
 )
-#: 每批槽位数（docs/08:113）
+#: 每批槽位数（docs/spec/translate.md §1.6）
 SLOTS_PER_BATCH = 8
 #: slots 模式单槽最大字符（过长槽按 batch.split_long_chunk 句界二分）
 SLOT_MAX_CHARS = 1500
@@ -93,7 +93,7 @@ class RetryPolicy:
     rate_limit_floor: float = 5.0
     timeout_floor: float = 10.0
     # 单次睡眠硬顶：3^attempt/2^attempt 无盖时风暴期高 attempt 会睡数小时
-    # （W1-soak 实证：429 风暴后 12 格全沉 ~160min、上游恢复仍不出井）。
+    # （2026-09-24 soak 实证：429 风暴后 12 格全沉 ~160min、上游恢复仍不出井）。
     # 拉满的是试次持久性，不是单次睡眠长度。
     max_delay: float = 180.0
 

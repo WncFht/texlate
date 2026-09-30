@@ -1,4 +1,4 @@
-"""tofu 否决 + 一跳 ``\\input`` docclass 探测 pin 测试（lane tofuveto）。
+"""tofu 否决 + 一跳 ``\\input`` docclass 探测 pin 测试（tofuveto 车道）。
 
 - judge：``expect_cjk`` + 出 pdf + ``cjk_chars=0`` → ``fail``——豆腐 pdf
   不计 partial 交付面，bench onfail ``_want_fix`` 只接 fail；

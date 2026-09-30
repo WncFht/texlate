@@ -329,7 +329,7 @@ rules:
           # 未定义 (acmart 自动计数, 老类手动设) —— 元数据提示宏, no-op 无损
           numberofauthors:
             { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
-          # pkg_obsolete 面 (批七, wave-final ×6): TL amstex.sty 本身即
+          # pkg_obsolete 面 (批七 ×6): TL amstex.sty 本身即
           # 废弃 stub 自报 "Package `amstex' is obsolete" → 剥装载点 +
           # amsmath 补位 (amstex 功能是 amsmath 子集)。_drop_pkg_loads
           # 覆盖 list/solo 两形。
@@ -569,7 +569,7 @@ rules:
             {
               polyfill: "\n\\AddToHook{begindocument/before}{\\expandafter\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\expandafter\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
             }
-          # ── 2026-09-19 cstablesweep lane (task #227, firedunfixed 19-cell
+          # ── 2026-09-19 cstablesweep 车道 (task #227, firedunfixed 19-cell
           #    undefined_cs singles) —— 全表 polyfill 带 \n 前缀逃 docclass
           #    行尾 % 注释缝 (1404.0346 实证) ──
           # siamltex shim 后 proof 收尾 QED 标记 (1206.0593): end* 名恒拒
@@ -653,12 +653,12 @@ rules:
           # 双定义只存活后者, 此槽删除防分叉
           # axodraw 时代 \Line(x,y)(x,y) (hep-ph/0111339): pict2e 原生
           # \Line(#1,#2)(#3,#4) 全签名兼容 → 装真包实绘 (gobble stub 的
-          # 替代品; 同体 \LongArrow 属下一层 payload 见 lane 报告)
+          # 替代品; 同体 \LongArrow 属下一层 payload 见车道报告)
           Line: { usepackage: pict2e }
           # amstex 时代 \Bbb (q-alg/9703046, pkg_obsolete strip+amsmath 后
           # 残面): 老黑板粗体名 = \mathbb —— cs_map 词界下 \Bbbk 不误伤
           Bbb: { usepackage: amssymb, cs_map: { Bbb: "mathbb" } }
-          # 2403.15085 (letltxmacro lane): atlasdoc 系稿 preamble 裸调
+          # 2403.15085 (letltxmacro 车道): atlasdoc 系稿 preamble 裸调
           # \LetLtxMacro{\oldcite}{\cite} —— atlasdoc/atlasphysics 链不传递
           # 载 letltxmacro (osajnl/socg-lipics 等 cls 均自 \RequirePackage,
           # 故 cls 内调用面从未炸)。\cite 在 biblatex 下是 robust cs
@@ -669,18 +669,18 @@ rules:
           # \LetLtxMacroOpt 不存在 —— 不收)。
           LetLtxMacro: { usepackage: letltxmacro }
           GlobalLetLtxMacro: { usepackage: letltxmacro }
-          # pgf/tikz 缺载面 (1306.0281, pgffix lane): main.tex `%\usepackage{tikz}`
+          # pgf/tikz 缺载面 (1306.0281, pgffix 车道): main.tex `%\usepackage{tikz}`
           # 被作者注释, undefined_env_polyfill 吐空 tikzpicture 壳后 \node/\draw
           # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号+坐标尾,
           # cs_map/gobble 无一能吞 —— 装真包是唯一正解 (tikz.sty 供 \node/\draw/
           # \path/\coordinate/\fill/\filldraw/\matrix/\tikzset/tikzpicture;
           # arrows+positioning+shapes 三库兜 `>=latex'`/`above right=of`/`mynode`
           # 系常见库键)。polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO 语义下
-          # 裸 \usetikzlibrary 会落在 arm 的装载行**之前** → 新
+          # 裸 \usetikzlibrary 会落在臂的装载行**之前** → 新
           # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫,
           # preamble 库键 \tikzset 调用面亦安全。dup `\RequirePackage{tikz}` 行
-          # (arm 注入 + polyfill 内联) 是 benign no-op —— LaTeX 重载同包零选项
-          # 静默跳过; arm 的 install_file/probe + refire done 非空语义照留。
+          # (臂注入 + polyfill 内联) 是 benign no-op —— LaTeX 重载同包零选项
+          # 静默跳过; 臂的 install_file/probe + refire done 非空语义照留。
           # (\RequirePackage 形: docclass 藏 depth>0 时本块经头注落 docclass
           # 前, \usepackage 彼处即 Missing \begin{document} 自投毒。)
           node:
@@ -719,7 +719,7 @@ rules:
               polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           # ── 2026-09-20 erafam era/209-surface 定点族 (failmine7 桶 →
-          # lane-erafam census, tmp/lane-erafam/bundles.json) ──
+          # erafam 车道普查) ──
           # B1 era-cstable 39 cells: era cls/期刊面宏缺位 (209batch #127 同形)。
           # providecommand 写不进的形 (\end 名 —— \@ifdefinable 拒; dimen
           # 寄存器; 定界参; env 对; \newif 开关; \let 布尔) 一律
@@ -894,7 +894,7 @@ rules:
             {
               polyfill: "\n\\ifdefined\\rm\\else\\DeclareOldFontCommand{\\rm}{\\normalfont\\rmfamily}{\\mathrm}\\fi\\ifdefined\\sf\\else\\DeclareOldFontCommand{\\sf}{\\normalfont\\sffamily}{\\mathsf}\\fi\\ifdefined\\tt\\else\\DeclareOldFontCommand{\\tt}{\\normalfont\\ttfamily}{\\mathtt}\\fi\\ifdefined\\bf\\else\\DeclareOldFontCommand{\\bf}{\\normalfont\\bfseries}{\\mathbf}\\fi\\ifdefined\\it\\else\\DeclareOldFontCommand{\\it}{\\normalfont\\itshape}{\\mathit}\\fi\\ifdefined\\sl\\else\\DeclareOldFontCommand{\\sl}{\\normalfont\\slshape}{\\mathsl}\\fi\\ifdefined\\sc\\else\\DeclareOldFontCommand{\\sc}{\\normalfont\\scshape}{\\mathsc}\\fi",
             }
-          # ── 2026-09-28 qc-impl lane (vault QC replay targeted 补表) ──
+          # ── 2026-09-28 qc-impl 车道 (vault QC replay targeted 补表) ──
           # 0712.1200/0712.1491: thebibliography 展开链 `...ent \z@
           # \bibpreamble \bibfont` —— 首炸 payload=\bibpreamble (bibfont
           # 条已在上游但顺位在后); noop 接上让链续走到已覆盖的 bibfont
@@ -1016,8 +1016,8 @@ rules:
     stats: { fires: 224, rescued_cells: 86, status: validated }
     source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
 
-  # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 wave,
-  # tmp/c-bucket-residual/routing.md §2/§6 P2) —— order 184-190 填
+  # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 批,
+  # c-bucket-residual 探针 routing.md §2/§6 P2) —— order 184-190 填
   # docclass_post_option_normalize(183) 与 undefined_cs_guess(900) 间空档 ═══
 
   # 0806.2574: 老稿 float 选项逗号分隔 \begin{figure}[t,b] →

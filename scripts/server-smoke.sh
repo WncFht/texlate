@@ -4,7 +4,7 @@
 # 起服(后台) → /api/health 就绪 → SPA 落地 → openapi 路由表 → upload 建任务
 # → SSE 抓流 → artifact 逐个 sha256 → 收尾只杀自己 PID。
 # 用法: scripts/server-smoke.sh 8899 /tmp/tw   (省略则 port=8899 data-dir=${TMPDIR:-/tmp}/tw-<port>)
-# 出处：tmp/transcript-mining/484a9c38.md A9（多 agent 重抄的序列固化）。
+# 出处：transcript-mining 取证记录 484a9c38 §A9（多 agent 重抄的序列固化）。
 set -u
 # uv run 依赖仓根 pyproject——与兄弟脚本同规，先钉回仓根再干活
 cd "$(dirname "$0")/.." || exit 1

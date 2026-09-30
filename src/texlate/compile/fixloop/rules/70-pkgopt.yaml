@@ -28,7 +28,7 @@ rules:
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "fixloop.py L459-494"
 
-  # 2026-09-16 wave-2: option_clash 跨文件形态 (cls 先载 vs doc 后载) ——
+  # 2026-09-16 批二: option_clash 跨文件形态 (cls 先载 vs doc 后载) ——
   # option_clash_merge 只合单文件双载; 0905.0081 elsart 先载 graphicx[] +
   # doc \usepackage[dvips]{graphicx} 够不到。驱动选项在 xelatex 下纯属错向
   # → doc 侧含驱动词的整括号剥除, 类端配置全量胜出。先于 passopts 规则:
@@ -204,7 +204,7 @@ rules:
     stats: { fires: 15, rescued_cells: 9, status: active }
     source_ref: "fixloop.py L497-505"
 
-  # 新增 (docs/08:270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
+  # 新增 (docs/spec/compile.md L270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
   # → 改挂 minted2 (v2 API 包)。注意改写只打包装载点: minted2 的 env 名仍是
   # {minted}, \begin{minted} 绝不能动 (盲改 {minted}→{minted2} 会毁 env)。
   - id: minted_v3_rewrite
@@ -418,7 +418,7 @@ rules:
     stats: { fires: 8, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; splice pstricks.sty:47 实读"
 
-  # 2026-09-19 pstlane (stagerun-loop2 1003.2152 实读): pstcol 是 deprecated
+  # 2026-09-19 pst 车道 (stagerun-loop2 1003.2152 实读): pstcol 是 deprecated
   # 兼容壳——pstcol.sty 体内 \\PassOptionsToPackage{noxcolor}{pstricks} 硬
   # 压 color 路径 (自警告 "use pstricks directly"), 现代 pst-* 核
   # (pstricks-add.tex v3.94 :742 \\colorlet) 需 xcolor 必炸 undefined_cs。
@@ -457,7 +457,7 @@ rules:
     stats: { fires: 2, rescued_cells: 1, status: active }
     source_ref: "pstlane defect-B; pstcol.sty:22 noxcolor 实读 + splice main.log:605"
 
-  # 2026-09-19 geomlane (stagerun-loop2 1206.0291 实读): option_clash 三规
+  # 2026-09-19 geom 车道 (stagerun-loop2 1206.0291 实读): option_clash 三规
   # (merge 120 / loadopt_strip 121 / passopts 122) 够不到的残留面 ——
   # vendored mn2e stub \LoadClassWithOptions{mnras} → mnras.cls:117
   # \usepackage[a4paper]{geometry} 先载, doc 要 [total={17.8cm,24.0cm},
@@ -499,7 +499,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "geomlane; vendor/files/mnras.cls:117 + fixloop.jsonl error_pay option_clash=geometry 实读"
 
-  # 2026-09-19 floatopt lane (failmine 提名, stagerun-loop1-2026-09-16 五格
+  # 2026-09-19 floatopt 车道 (failmine 提名, stagerun-loop1-2026-09-16 五格
   # 实读): float_opt|H —— 稿用 float 宏包专属锚 H (kernel \@xfloat 只认
   # h/t/b/p/!) 而 preamble 未载 float → "Unknown float option `H'"。五格
   # 形态: cond-mat/0408234 [H]; 0806.4088 [!Ht]; 1608.02624 [Hb]/[H!];
@@ -546,7 +546,7 @@ rules:
     stats: { fires: 15, rescued_cells: 3, status: active }
     source_ref: "failmine float_opt|H lane; corpus 五格源实读混排形"
 
-  # 2026-09-20 pairbun lane (singtail bundles rank-5 pair-2):
+  # 2026-09-20 pairbun 车道 (singtail bundles rank-5 pair-2):
   # cls 级 cs 值浮体 opt —— cimento.cls \newenvironment{table}[1][\fps@table]
   # (\def\fps@table{tb}) 经 \@xfloat \@onelevel@sanitize 展开成 cs 名字符
   # → \ /f/s/@/a/l/e 每字一报 Unknown float option (0712.0315 单格 21 错,
@@ -577,7 +577,7 @@ rules:
     stats: { fires: 0, rescued_cells: 0, status: active }
     source_ref: "pairbun rank-5 pair-2; cimento.cls:1330-1335 实读"
 
-  # 2026-09-19 flushend lane (failmine2, stagerun-loop2-2026-09-18 五格实读):
+  # 2026-09-19 flushend 车道 (failmine2, stagerun-loop2-2026-09-18 五格实读):
   # sttools 3.x flushend.sty 删 keeplastbox 选项 (1.x 时代 \lastbox 冲刷保留
   # 开关; 本机 /usr/share/texmf-dist/tex/latex/sttools/flushend.sty 全量
   # \DeclareOption 名单无此项) —— 老稿 \usepackage[keeplastbox]{flushend}
@@ -654,7 +654,7 @@ rules:
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "failmine2 flushend lane; corpus 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"
 
-  # 2026-09-20 optfix lane (singlesweep xypic-curve-ext 机理, 2607.14648
+  # 2026-09-20 optfix 车道 (singlesweep xypic-curve-ext 机理, 2607.14648
   # zh+base 双格): Xy-pic ``<ext> extension/feature not loaded`` ——
   # 稿群载 ``\\usepackage{amsmath,...,xypic}`` 未开扩展, ``\\ar@/_1pc/[rr]``
   # 等钩形炸 "only available when curve extension loaded" (file-line 归
@@ -696,7 +696,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-singlesweep/mech_buckets.json xypic-curve-ext; xyarrow.tex:527/xygraph.tex:163-186 句式实读"
 
-  # 2026-09-20 unkopt lane (failmine5, stagerun-overnite-2026-09-20 两格实读):
+  # 2026-09-20 unkopt 车道 (failmine5, stagerun-overnite-2026-09-20 两格实读):
   # ucs v2.4 utf8 引擎下自弃 (sty:19-23 ``\ifx\Umathchar\undefined\else ...
   # \expandafter\endinput`` —— \DeclareOption*/\ProcessOptions* @sty:183 永远
   # 到不了, 任何选项都报 unknown; mathletters 是 ucs 专属 unicode-option,
@@ -772,7 +772,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine5/buckets.json other|None 簇; ucs.sty:19-23 utf8-bail + :180-183 DeclareOption 实读"
 
-  # 2026-09-20 unkopt lane (failmine5, soak-2026-09-18 2609.20764 实读):
+  # 2026-09-20 unkopt 车道 (failmine5, soak-2026-09-18 2609.20764 实读):
   # bxcjkjatype (BX CJK jatype, texlive-langjapanese 有真件 —— install_file
   # 先装上, vendored_fetch/legacy_pkg_shim 的 missing_file 通道永远够不到)
   # 是 pdfTeX-only 包: sty:45 ``\bxjy@error{The engine in use is not
@@ -825,7 +825,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine5/buckets.json; bxcjkjatype.sty:45 引擎自爆 + 实格 MarkovPerco.log 连环错实读"
 
-  # 2026-09-20 singbun lane (gapmine cluster-3, 0712.0823): mncite.sty 全
+  # 2026-09-20 singbun 车道 (gapmine cluster-3, 0712.0823): mncite.sty 全
   # 位缺席 (CTAN/texlive 皆无, install_file/filemap 永 miss) —— MNRAS 期
   # 作者随稿宏包。该格 \documentclass[useAMS,usenatbib]{mn2e} → mn2e 存根
   # 转 mnras.cls:1342 \usepackage[authoryear]{natbib}, 全稿仅 \citep×38/
@@ -862,7 +862,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-gapmine/census.md cluster-3; mnras.cls:1342 usenatbib→natbib; RiceText.tex:30 docclass opts 实读"
 
-  # 2026-09-20 singbun lane (failmine6 brace-cascade, 2602.09664): cite.sty
+  # 2026-09-20 singbun 车道 (failmine6 brace-cascade, 2602.09664): cite.sty
   # 与 natbib 并载恒炸 —— cite 的 \\cite 调 \\@citex[#1]#2 二参形, natbib
   # \\NAT@set@cites (AtBeginDocument) 把 \\@citex 复为 \\NAT@citexnum
   # [#1][#2]#3 三参 → 扫第二 [] 遇 {keys} 炸 ``Argument of \\@citex has
@@ -907,7 +907,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md brace-cascade; natbib.sty \\NAT@set@cites \\let\\@citex\\NAT@citexnum 3-参 vs cite.sty \\@citex[#1]#2 2-参 arity 冲突实读"
 
-  # 2026-09-20 w13impl lane (w13spec B4, 2609.20135): webofc.cls ``\RequirePackage``
+  # 2026-09-20 w13impl 车道 (w13spec B4, 2609.20135): webofc.cls ``\RequirePackage``
   # 选项括号内嵌 ``\if..\else..\fi`` 条件块 (:178-201 四块) —— LaTeX 选项
   # 名单只认逗号切分, ``\if``/``\else``/``\fi`` 行被吃成畸形选项名 →
   # hyperref "Wrong DVI mode driver option `dvips'" 首错 + ``Extra \fi``

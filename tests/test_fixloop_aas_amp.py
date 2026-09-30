@@ -1,6 +1,6 @@
-r"""AAS 系 stub 书目区裸 `&` 宽容面回归钉 (aaspatch lane, 2026-09-19)。
+r"""AAS 系 stub 书目区裸 `&` 宽容面回归钉 (aaspatch 车道, 2026-09-19)。
 
-实证背景 (envdiag 普查 tmp/lane-envdiag/report-diagrams.md 路由):
+实证背景 (envdiag 普查路由):
 期稿 ``thebibliography``/``references`` 书目区存在裸 ``&`` 惯例 ——
 ``\bibitem[.. & ..]`` label 内未转义 ``&`` 是 catcode-4 alignment tab,
 水平模式下炸 ``Misplaced alignment tab character &``:

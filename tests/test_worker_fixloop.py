@@ -131,7 +131,7 @@ class TestFixloopFix:
         retry 是 fixloop 结束后的交付路径终末重编——与主编译/salvage
         同属 best-effort 族，nonstopmode 续跑才能把 incumbent=fail 的树
         救成 partial；``-halt-on-error`` 首错即停会让唯一 rescue 窗失效
-        （tmp/b8-e2e/halt-on-error-ruling.md）。无 ``engine_factory``
+        （b8-e2e 裁决）。无 ``engine_factory``
         时经 ``engine_for`` 真路径构造，钉住旋钮方向。
         """
         built: list[dict[str, object]] = []

@@ -35,7 +35,7 @@ class RouteDecision:
 
 
 #: pstricks/位图字体信号的名集单源——route_project 的文本签名与 probe 的
-#: 声明依赖名查表共用（audit wave2 双表合一：probe.py 导入此处常量）。
+#: 声明依赖名查表共用（审计批二双表合一：probe.py 导入此处常量）。
 #: pstricks 家族语义 = 精确名 ``pstricks`` + 前缀 ``pstricks-``/``pst-``
 #: （pst-node/pst-plot/… 与 pstricks-add 全覆盖——probe 侧旧实现漏
 #: pstricks-add，切名集后补齐）。

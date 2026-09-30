@@ -1,4 +1,4 @@
-"""fileset 外报错站点 → pdftex_prim/glyphtounicode condition 拓宽单测 (lane-primofw)。
+"""fileset 外报错站点 → pdftex_prim/glyphtounicode condition 拓宽单测 (primofw 车道)。
 
 实证背景: axessibility.sty:349-352 四连块 (``\\pdfcompresslevel=0`` /
 ``\\pdfoptionpdfminorversion=6`` / ``\\input{glyphtounicode}`` /
@@ -9,14 +9,14 @@
 
 拓宽面: 新 condition 原语 ``err_outside_fileset`` —— ``rep.file_stack[-1]``
 内层帧 (runaway 空栈回退 ``popped_files[-1]``) 经 ``is_project_file`` 判
-工程外即过。只挂在 arm 不需缺失证据处: guard 仍正确弃守 (patch 不了
+工程外即过。只挂在臂不需缺失证据处: guard 仍正确弃守 (patch 不了
 看不见的件), polyfill (主文件头注入) 与 glyphtounicode_shadow (wdir 落
 stub, TeX 文件解析序 cwd 先截获) 皆 fileset 无关。
 
-arm 形修正 (偏离原 spec, 实证驱动): 整数值原语 (``_PRIM_COUNTISH``)
+臂形修正 (偏离原 spec, 实证驱动): 整数值原语 (``_PRIM_COUNTISH``)
 polyfill 走 ``\\newcount\\<prim>\\<prim>=1`` —— ``\\chardef`` 形对写型站点
 ``\\prim=val`` 变排版字符 + ``=val`` 文本 → Missing ``\\begin{document}``
-转嫁错类 (tmp/lane-primofw/t3.tex 真 xelatex 实证); ``\\newcount`` 同点
+转嫁错类 (primofw 车道 t3 真 xelatex 实证); ``\\newcount`` 同点
 全真接管 (t4.tex 过到下一错误)。读型 ``\\ifnum\\<prim>`` 读寄存器初值 1
 与旧 ``\\chardef=1`` 同义, 无回归。
 """
@@ -201,7 +201,7 @@ def test_route_shadow_still_prefers_source_evidence(tmp_path: Path) -> None:
     assert (tmp_path / "glyphtounicode.tex").is_file()
 
 
-# ---------------------------------------------------------------- arm 直驱
+# ---------------------------------------------------------------- 臂直驱
 def test_guard_arm_declines_out_of_fileset(tmp_path: Path) -> None:
     """guard 对 fileset 外站点 0-edit 弃守 (patch 面只有 ctx.tex_files)。"""
     ctx = _ctx(tmp_path)
@@ -214,7 +214,7 @@ def test_guard_arm_declines_out_of_fileset(tmp_path: Path) -> None:
 
 
 def test_polyfill_arm_countish_newcount_else_chardef(tmp_path: Path) -> None:
-    """arm 形分派: 整型 → ``\\newcount`` 全真接管; 非整型 → ``\\chardef`` 旧形。"""
+    """臂形分派: 整型 → ``\\newcount`` 全真接管; 非整型 → ``\\chardef`` 旧形。"""
     ctx = _ctx(tmp_path)
     ok, _ = builtins.pdftex_prim_polyfill(ctx, None, "pdfcompresslevel", {})
     assert ok

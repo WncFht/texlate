@@ -229,7 +229,7 @@ def graphic_case_link(
     if safe_is_file(ctx.wdir / want):
         return False, f"{want} resolves verbatim — not a case mismatch"
     # 1710.09412 (micro2 普查): ``dir/{stem}.ext`` 部分花括名 —— xetex 不剥
-    # 内层分组符按字面名寻档 (tmp/lane-micro2/repro2 实证), 盘上真身是去括名。
+    # 内层分组符按字面名寻档 (micro2 车道实证), 盘上真身是去括名。
     # braced payload 即文档惯用法证据 → 全量扫; 去括名不在盘的不动, 让位
     # ci-glob/占位域。先于 ci-glob —— 精确路径级命中不该轮到占位件遮真图。
     if "{" in want or "}" in want:
@@ -421,7 +421,7 @@ _EPS_PLACEHOLDER = (
 # .png/.jpg/.pdf 件名被格式探测拒载, 须真格式字节。三件同构 200x150
 # 灰底+边框+对角线 (EPS 占位的像素版), Title/COM 段同痕可辨「图缺」。
 # 字节产物经 identify/pdfinfo/gs 结构验证 + xetex \includegraphics
-# 真编译实证; 生成器存档 tmp/lane-covgap/gen_ph.py (PNG zlib 程序化
+# 真编译实证; 生成器曾存档 covgap 车道 (PNG zlib 程序化
 # 合成 / PDF 手写 xref / JPEG magick 生成+手注 COM 段)。
 # ════════════════════════════════════════════════════════════════
 
@@ -1052,7 +1052,7 @@ def raster_pdf_rename(
     return True, note
 
 
-# ═══ xdvipdfmx 驱动期缺图域 (failmine4 drvstage lane 2026-09-20) ═══
+# ═══ xdvipdfmx 驱动期缺图域 (failmine4 drvstage 车道 2026-09-20) ═══
 
 #: 驱动 fatal 行的缺图名捕获 —— ``Image inclusion failed. Could not
 #: find file: X`` 名字恒占行尾 (xdvipdfmx fatal 单行不折行, probe4

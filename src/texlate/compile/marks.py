@@ -3,7 +3,7 @@ r"""发射侧版面真值（LAYOUT_MARKS）：让 LaTeX 自己吐出元素坐标
 机制：preamble 注入 ``\pdfsavepos`` whatsit + 专用 ``\write`` 流，shipout
 时把 ``MARK <uid> x=… y=… p=…`` 落进 ``<stem>.txlm``（x/y 单位 sp，
 原点左下、y 向上；p=1-based 绝对页码）。检测侧从「pdftohtml 猜像素」
-升级为「解析真值文件」。tmp/savepos-probe 探针实证：
+升级为「解析真值文件」。探针实证：
 
 - ``env/<name>/begin`` 钩子的 mark 落外层流 = 浮体**声明锚点**；
   ``env/<name>/end`` 钩子的 mark 乘 ``\@currbox`` 随盒发排 = **实发位置**。

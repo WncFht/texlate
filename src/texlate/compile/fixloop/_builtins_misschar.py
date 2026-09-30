@@ -701,7 +701,7 @@ _MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
     # 混搭); 音标域 02DD 真缺字场景不触发, '' 不误伤语义。
     "textgravedbl": (0x02F5, "\\mbox{\\quotedblbase}"),
     "textacutedbl": (0x02F5, "\\mbox{''}"),
-    # ── 2026-09-20 erafam macro-glyph (failmine7 桶 → lane-erafam census) ──
+    # ── 2026-09-20 erafam macro-glyph (failmine7 桶 → erafam 车道普查) ──
     # \checkmark 产 U+2713 落 LinLibertine_R 无槽 (2508.04740 表格域 /
     # 2602.08678 / 2603.08225 tikz 节点 ×3) —— \surd 数学族恒有, 勾形近似。
     "checkmark": (0x2713, "\\ensuremath{\\surd}"),
@@ -987,7 +987,7 @@ def _font_stem(name: str) -> str:
 #: fc-list 对 texmf 字族恒盲), 文件形经 ``eng.probe_file`` kpathsea 同
 #: fontspec 文件查找同一通路; 字体名写入站点后 fontspec 对文件形名
 #: 自动同目录补全字重 (texgyretermes/Tinos/NotoSerif 实测 verbatim)。
-#: Amiri 不收 —— TL 内外皆无度量克隆, 强替发错字体声明 (lane 裁决 unfixable)。
+#: Amiri 不收 —— TL 内外皆无度量克隆, 强替发错字体声明 (车道裁决 unfixable)。
 _CLONE_TABLE: dict[str, str] = {
     # URW Nimbus 系与 TeX Gyre 同源度量克隆; nimbus 只发 TFM/pfb, fontspec 面无件。
     "nimbus roman": "texgyretermes-regular.otf",
@@ -1136,7 +1136,7 @@ def fontspec_clone_sub(
     Tinos/NotoSerif → texmf truetype 同件文件形名 (``Path = fonts/…``
     捆绑键剥除后保作者字体)。克隆件经 ``eng.probe_file`` 实证可达才
     动笔, 全灭 → decline 落回 31 号 LM 臂; payload 茎不在表 → decline
-    (Amiri 无克隆不收 = lane 裁决 unfixable, 不发错字体声明)。
+    (Amiri 无克隆不收 = 车道裁决 unfixable, 不发错字体声明)。
     """
     table = {
         _font_stem(str(k)): str(v)
@@ -1282,7 +1282,7 @@ def fontenc_enc_relax(
 
 
 # ════════════════════════════════════════════════════════════════
-# nfss_enc 三臂: xelatex TU 下 legacy NFSS enc 声明族 (lane-nfsstu)
+# nfss_enc 三臂: xelatex TU 下 legacy NFSS enc 声明族 (nfsstu 车道)
 # ════════════════════════════════════════════════════════════════
 
 #: ``Command \X unavailable in encoding E`` —— 实报 enc 从 err_head 提取

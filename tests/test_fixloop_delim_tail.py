@@ -1,11 +1,11 @@
-r"""csdelim lane (2026-09-19): ``cs_delim_tail_fix`` 走查单元。
+r"""csdelim 车道 (2026-09-19): ``cs_delim_tail_fix`` 走查单元。
 
 ``\def\X<lit>{...}`` —— TeX 解为 cs + 字面参数文本 (``\c3h2``/``\b0bmode``/
 ``\0cc``/``\ch3oh`` 伪多名宏, 化学/物理速写)。译者把尾中字母段当正文
 吃掉 → 调用点不再带全尾 → "Use of \X doesn't match its definition"
 (落 other 类)。修 = def 扫面 + 逐站补回: 乱序对齐全命中 REPLACE 损毁域,
 部分证据 INSERT 残余尾, 零证据不动。规则钉随
-``tmp/lane-csdefmismatch/delim-tail-rule.patch`` 落 (yaml + builtins 注册
+csdefmismatch 车道补丁落 (yaml + builtins 注册
 原子应用, TRANSFORM_FNS 手工表无自动注册)。
 """
 

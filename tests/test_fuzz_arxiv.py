@@ -1424,7 +1424,7 @@ def test_locate_missing_and_file_root(tmp_path: Path) -> None:
     assert res2.kind is DocKind.NONE
 
 
-# ==================================================================== wave o2-b9
+# ==================================================================== 批 o2-b9
 # e-print e2e 敌意包 / Fetcher 传输纪律 / ratelimit 细分 / locate 补面 /
 # degrade 回退 / html.py 降级链（此前零 fuzz 覆盖）
 

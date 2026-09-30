@@ -409,7 +409,7 @@ def _isolate_cohort_sib(ctx: LoopCtx, eng: Engine, sib: Path, suffix: str) -> li
 def vendored_shadow_isolate(  # 保守闸逐条一处, 缺一不碰
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
+    r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/spec/compile.md §6.6)。
 
     ``sd=None`` 的 tectonic 索引候选是 advisory 级 —— 无日期面确证新旧,
     不 rename, 记 ``bundle provides <pkg>`` advisory (幂等去重)。

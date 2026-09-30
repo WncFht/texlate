@@ -1,4 +1,4 @@
-r"""drvstage lane (2026-09-20): ``driver_missing_image_stub`` 驱动期缺图占位规则。
+r"""drvstage 车道 (2026-09-20): ``driver_missing_image_stub`` 驱动期缺图占位规则。
 
 failmine4 普查 4 格 (2501.01611/2502.00335/2504.06306/2505.07205): tex 趟净
 (.xbb 旁件供 bbox / ``\special{psfile}`` 裸递 / nonstop 先错已修的残轮) 但

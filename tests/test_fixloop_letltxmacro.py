@@ -1,4 +1,4 @@
-r"""letltxmacro lane (task #243) —— ``\LetLtxMacro`` undefined_cs 修复钉。
+r"""letltxmacro 车道 (task #243) —— ``\LetLtxMacro`` undefined_cs 修复钉。
 
 2403.15085 (atlasdoc 系): preamble 裸调 ``\LetLtxMacro{\oldcite}{\cite}``
 后 ``\renewcommand{\cite}[1]{\mbox{\oldcite{#1}}}`` —— atlasdoc/

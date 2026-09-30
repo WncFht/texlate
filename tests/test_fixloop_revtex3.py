@@ -1,4 +1,4 @@
-r"""revtex34-lane (2026-09-19): cond-mat/0408520 REVTeX-3 (``\documentstyle``) 面钉。
+r"""revtex34 车道 (2026-09-19): cond-mat/0408520 REVTeX-3 (``\documentstyle``) 面钉。
 
 格面: ``\documentstyle[prb,aps]{revtex}`` 209 稿 (ISO-8859 编码)。
 实测链 (stagerun-flipcheck2 记录 + 本车道全链 replay, xelatex 3 轮

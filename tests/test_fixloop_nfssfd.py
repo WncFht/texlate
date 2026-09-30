@@ -1,4 +1,4 @@
-r"""nfssfd-lane (2026-09-19): NFSS ``.fd`` 缺档硬错 taxonomy + install 通路钉。
+r"""nfssfd 车道 (2026-09-19): NFSS ``.fd`` 缺档硬错 taxonomy + install 通路钉。
 
 格面: stagerun-loop2 普查 8 cells (7× ``No file LGRcmr.fd.`` + 1×
 ``No file OT2lmr.fd.``)——``babel_lang_ldf_install`` 落 ``lgrenc.def``

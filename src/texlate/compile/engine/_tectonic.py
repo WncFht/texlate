@@ -297,7 +297,7 @@ class TectonicEngine:
         )
         # 冷 bundle 首拉可能超时：缓存热身后重试一次（compile_bench 惯例）。
         # 重试趟预算封顶 `_TECTONIC_RETRY_TIMEOUT`——首趟超时已烧满 timeout，
-        # 满预算重试会把真超时翻倍（audit wave2）。
+        # 满预算重试会把真超时翻倍（审计批二）。
         outputs = []
         for budget in (timeout, min(timeout, _TECTONIC_RETRY_TIMEOUT))[
             :_TECTONIC_ATTEMPTS

@@ -1,4 +1,4 @@
-r"""isabelex lane (lane-runawayscan census 2026-09-19): ``comment_csform_isabelle_env``
+r"""isabelex 车道 (runawayscan 车道普查 2026-09-19): ``comment_csform_isabelle_env``
 规则 + ``detab_end_scanlines`` 签名闸。
 
 1206.0136 (loop2, payload ``\next``): isabelle.sty ``\isakeeptag``/``\isadroptag``

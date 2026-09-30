@@ -1,4 +1,4 @@
-r"""wave-2 (apj-bib-scout §S2/S3/S4): vendored_sty_shadow 两缺口 + citekey_sanitize。
+r"""批二 (apj-bib-scout §S2/S3/S4): vendored_sty_shadow 两缺口 + citekey_sanitize。
 
 - ``_provides_date`` 宏间址兜底：``\ProvidesPackage{x}[\abx@date ...]`` 形
   回读同文件 ``\def\abx@date{YYYY/MM/DD}``（biblatex v3.12 实证面）。

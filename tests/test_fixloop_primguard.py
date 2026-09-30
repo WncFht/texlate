@@ -1,4 +1,4 @@
-"""pdftex_prim_guard 单行 def 站点孤 \\fi 修复单测 (lane-primguard)。
+"""pdftex_prim_guard 单行 def 站点孤 \\fi 修复单测 (primguard 车道)。
 
 实证背景: guard(50) 两臂正则贪婪 —— 花括号臂 ``[^\\n]*\\}`` 取行内末枚
 ``}``, 赋值臂 ``[^\\n%]*`` 吃到 EOL。单行 def 站点

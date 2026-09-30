@@ -1,4 +1,4 @@
-"""wave-4 (cbucket-vendored-inventory + mn2e doc-only, 2026-09-17):
+"""批四 (cbucket-vendored-inventory + mn2e doc-only, 2026-09-17):
 
 - ``vendored_fetch`` builtin: off-CTAN 缺件 basename 查 ``vendor/{files,stubs}``
   (files 真件优先于 stubs), payload 相对径落 wdir; ``..``/绝对/NUL 闸;

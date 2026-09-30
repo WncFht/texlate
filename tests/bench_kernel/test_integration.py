@@ -1,4 +1,4 @@
-"""End-to-end integration proof — the ten-scenario contract (Wave D).
+"""End-to-end integration proof — the ten-scenario contract (D 批).
 
 Runs the SHIPPED specs (bench/py/specs/smoke.py, paid_stub.py) through the
 kernel plus the ``bench`` CLI subprocess surface. Assertions encode the

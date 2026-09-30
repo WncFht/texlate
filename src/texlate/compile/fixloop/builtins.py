@@ -2,9 +2,9 @@
 
 两类签名:
   - REWRITE_FNS: ``(re.Match) -> str`` —— regex_rewrite 条目的逐 match 改写
-    (spike 里 `px_to_bp`/`keep_latin_tokens`, 算术/集合变换非纯模板)
+    (原型 `px_to_bp`/`keep_latin_tokens`, 算术/集合变换非纯模板)
   - TRANSFORM_FNS: ``(ctx, eng, payload, params) -> (applied, note)`` ——
-    builtin_transform 条目的文件级算法改写 (spike 里 `option_clash_merge`,
+    builtin_transform 条目的文件级算法改写 (原型 `option_clash_merge`,
     新增 6 条按 docs/spec/compile.md 实现)
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
@@ -696,7 +696,7 @@ def px_to_bp(m: re.Match[str]) -> str:
 
 
 def keep_latin_tokens(m: re.Match[str]) -> str:
-    r"""``\\hyphenation{...}`` 参数只留 ``[a-zA-Z][a-zA-Z-]*`` token (spike L418-420)。"""
+    r"""``\\hyphenation{...}`` 参数只留 ``[a-zA-Z][a-zA-Z-]*`` token (原型)。"""
     toks = re.findall(r"[a-zA-Z][a-zA-Z-]*", m.group(1))
     return "\\hyphenation{" + " ".join(toks) + "}"
 

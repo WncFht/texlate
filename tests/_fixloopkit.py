@@ -1,7 +1,7 @@
 """fixloop 规则钉测试公共骨架——``EngStub``/``mk_ctx``/``rs``/``rule``/``classify``/``apply`` + 真 xelatex 臂。
 
 ``test_fixloop_*`` 簇逐文件复刻的同构脚手架归此一处（沿用
-``_workerkit``/``_fuzzkit`` 抽取先例——首批只抽不写回，此后各 lane
+``_workerkit``/``_fuzzkit`` 抽取先例——首批只抽不写回，此后各车道
 陆续回嫁 import；新批次规则钉文件只需 payloads + assertions）：
 
 - ``EngStub``：builtin_transform/condition 直驱路径的最小引擎替身
@@ -49,13 +49,13 @@
   ``vendored_fetch``（wdir 内 vendor 树 + TRANSFORM_FNS 直驱）。
 - 脚本化 e2e 臂：``CLEAN_LOG``/``XETEX_CLEAN_LOG``/``MAIN_TEX`` 语料 +
   ``MockRes``/``MockEngine``（逐轮吐 spec 的脚本引擎；``caps``/
-  ``available``/``installable``/``probe_cwd`` kwarg 折各 lane 变体）+
+  ``available``/``installable``/``probe_cwd`` kwarg 折各车道变体）+
   ``make_proj``/``mini_rs`` 工厂——与 ``test_fixloop_loop`` 同形
   canonical 副本，新测试文件从这里取件，不再 import 测试模块。
   ``ScriptEng``/``ScriptedEng``/``ScriptedRes``/``SpecRes``/
   ``ScriptedEngine``/``ScriptEngine``/``LoopEngine`` 为历代命名别名
   （``ScriptedEngine`` 与 test_e2e_wiring.py:84 的 callable-script 类
-  同名不同形——同名阱已记，新 lane 请用 ``ScriptEngine``/
+  同名不同形——同名阱已记，新车道请用 ``ScriptEngine``/
   ``MockEngine``）。``mini_rs`` 增 ``warnings`` kwarg 供 warn 域
   合成 ruleset（缺省与原形等价）。
 """
@@ -97,7 +97,7 @@ XELATEX = shutil.which("xelatex")
 
 #: 包内 vendor 根 + 三层路径常量——逐文件 ``__file__`` 推导归此一处。
 VENDOR = Path(actions.__file__).resolve().parent / "vendor"
-#: ``VENDOR`` 别名: 部分 lane (stubaudit 等 ~20 件) 按 root 名义引用。
+#: ``VENDOR`` 别名: 部分车道 (stubaudit 等 ~20 件) 按 root 名义引用。
 VENDOR_ROOT = VENDOR
 STUBS = VENDOR / "stubs"
 #: ``.cls`` 替身 stub 归位层 (F2)。
@@ -232,7 +232,7 @@ def rs() -> Ruleset:
 
     ``load_ruleset`` 每调深拷 + 重校验一份 Ruleset；~64 文件批量查件的
     回归面归此一发。返回共享实例——调用方不得就地改 rules/params，
-    改前先 ``dict(...)``/深拷；需重载的 lane 用 ``rs.cache_clear()``。
+    改前先 ``dict(...)``/深拷；需重载的车道用 ``rs.cache_clear()``。
     """
     return load_ruleset()
 
@@ -428,12 +428,12 @@ def n_err(log: str) -> int:
 # ---------------------------------------------------------------- 杂项替身/工厂
 
 #: ``vendored_shadow_isolate`` 系 transform params 公共底 (exts+suffix)——
-#: 调用方须 ``dict(ISOLATE_PARAMS)`` 拷贝 (部分 lane 就地改 params)。
+#: 调用方须 ``dict(ISOLATE_PARAMS)`` 拷贝 (部分车道就地改 params)。
 ISOLATE_PARAMS = {"exts": (".sty", ".cls"), "suffix": ".fixloop-iso"}
 
 #: 上游 mnras.cls v3.2 病件指纹全形 (mnrasretire canonical): 头注 +
 #: ``\\newif`` + ``\\ds@usegraphicx`` 行内联 ``\\usepackage`` +
-#: ``\\ProcessOptions`` 收尾。只要头注+病行两行的 lane 用
+#: ``\\ProcessOptions`` 收尾。只要头注+病行两行的车道用
 #: ``mnras_buggy_cls()`` (sitehoist 形)。
 MNRAS_BUGGY_CLS = (
     "% mnras.cls v3.2 (upstream)\n"
@@ -465,7 +465,7 @@ def write_file(wdir: Path, name: str, text: str) -> Path:
 
     institutesig/paralong/burnfix 的 ``_write`` 逐字节同体归此；与
     singbun/runaway/mathbd 的 ``_write(tmp, body, name="main.tex")``
-    异签名形不兼容——那些 lane 不迁。
+    异签名形不兼容——那些车道不迁。
     """
     p = wdir / name
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -679,7 +679,7 @@ class MockRes:
 class MockEngine:
     """script 逐轮吐 spec; 耗尽后重放末条。
 
-    构造 kwarg 折各 lane 变体: ``installable``/``available`` 集合、
+    构造 kwarg 折各车道变体: ``installable``/``available`` 集合、
     ``caps`` 实例覆盖 (缺省承类面 ``{kpsewhich,tlmgr,updmap}``——传
     ``None`` 不冲掉子类类属性钉版, 如 draftsty)、``probe_cwd=False``
     关 cwd 先查 (nataux 形 probe→None 保真)。
@@ -776,7 +776,7 @@ def mini_rs(
 
 # ---- 同体别名: 各 finding 的历代命名全归 MockRes/MockEngine canonical 对 ----
 # ``ScriptedEngine`` 与 tests/test_e2e_wiring.py:84 的 callable-script 类
-# 同名不同形 (swap-trap, idx-176 已记)——新 lane 请用 ``ScriptEngine``/
+# 同名不同形 (swap-trap, idx-176 已记)——新车道请用 ``ScriptEngine``/
 # ``MockEngine``；此别名仅为 idx-131 adopters 的名字解析兜底。
 ScriptedRes = MockRes
 SpecRes = MockRes

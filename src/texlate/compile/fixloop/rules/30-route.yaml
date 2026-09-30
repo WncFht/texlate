@@ -10,7 +10,7 @@ version: 1
 
 rules:
   # ─── gate: 路由拒绝先于一切修复尝试 ───
-  # spike 语义: 主循环 L748-755 在 pick_and_apply 之前短路,
+  # 原型语义: 主循环 L748-755 在 pick_and_apply 之前短路,
   # 等效于最高优先级 → 用 phase:gate 显式建模。
   - id: latex209_reject
     mechanisms: [B01, W80, W88]
@@ -259,7 +259,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX32 (builtin epsfbox_fit 未注册 → regex_rewrite 同义)"
 
-  # W164 孤儿裁决 (stybegindoc-lane 2026-09-18): e-print 偶发把整包源码
+  # W164 孤儿裁决 (stybegindoc 车道 2026-09-18): e-print 偶发把整包源码
   # 以嵌套 tar 随投稿, 外层解包后 tar 以 .sty/.cls 名落进工作树 ——
   # TeX \input 读 tar 头成排版文本 → Missing \begin{document} 于伪装件
   # 第 N 行 (l.30 `A MSfonts.sty^^@^^@` NUL 填充实证)。必须在
@@ -290,7 +290,7 @@ rules:
     stats: { fires: 3849, rescued_cells: 1812, status: active }
     source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
 
-  # failmine3 lane (3 格: 2410.00111/2003.03508/2310.16788): 非主 .tex
+  # failmine3 车道 (3 格: 2410.00111/2003.03508/2310.16788): 非主 .tex
   # 自带 \documentclass (standalone/subfiles 子文档或整篇子稿) 被
   # \input/\subimport 进正文 —— preamble-only cs 在 doc body 执行 →
   # "Can be used only in preamble" @子文件:1。normalize #168 门只挡

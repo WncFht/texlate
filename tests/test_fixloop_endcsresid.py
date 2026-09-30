@@ -1,6 +1,6 @@
 r"""endcsresid 普查 (task #230) 双修钉: vendor stub 自毒 Missing \endcsname。
 
-格面 (tmp/lane-endcsresid/ 普查):
+格面 (endcsresid 车道普查):
 
 F1. active-& 书目 shim 毒 cite-key csname —— aa.cls / aaspp4.sty /
     aasms4.sty 三件套 (aaspatch 宽容面, test_fixloop_aas_amp 钉) 把

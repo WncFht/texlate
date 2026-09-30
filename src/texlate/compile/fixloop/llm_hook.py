@@ -2,7 +2,7 @@ r"""llm_hook — ``escalate_llm`` 动作的统一出口 (LLM 修编译错误的�
 
 rules/ ``action.kind: escalate_llm`` / ``engines.*.fallback: escalate_llm``
 命中时 engine 调 ``ctx.llm_hook(ctx, rep)`` (engine.py LlmHook 协议既有通路,
-spike L523-527 恒 False stub 的实装位)。本模块只含机制本体::
+原型恒 False stub 的实装位)。本模块只含机制本体::
 
     hook = make_llm_hook()                       # 网关默认路 (env 解析)
     hook = make_llm_hook(translator=translator)  # 注入缝: MockTranslator 等

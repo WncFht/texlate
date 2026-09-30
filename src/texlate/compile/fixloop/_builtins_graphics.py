@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 def pstricks_dvips_preflight(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    """latex+dvips 路由前的 .pro 资源预检 (docs/08:273)。
+    """latex+dvips 路由前的 .pro 资源预检 (docs/spec/compile.md §6.6)。
 
     无论资源齐不齐都 REJECT (dvips 是唯一出路); 缺资源时 note 附
     advisory 让上层决策 (装 pst-tools / 放弃 pstricks 路)。
@@ -637,7 +637,7 @@ def xbb_pregen(
     return True, note
 
 
-# ═══ xdvipdfmx pdf_link_obj 域 (xlinkobj lane 2026-09-19): 内嵌 pdf 重序列化 ═══
+# ═══ xdvipdfmx pdf_link_obj 域 (xlinkobj 车道 2026-09-19): 内嵌 pdf 重序列化 ═══
 
 
 def _pdf_asset_targets(ctx: LoopCtx) -> list[Path]:
@@ -650,7 +650,7 @@ def pdf_asset_sanitize(
 ) -> tuple[bool, str]:
     r"""``pdf_link_obj(): passed invalid object`` fatal → 全量内嵌 .pdf gs 重序列化。
 
-    机制 (xlinkobj lane 5 格普查): 工程船货 .pdf 对象结构残缺 (缺 ``endobj``
+    机制 (xlinkobj 车道 5 格普查): 工程船货 .pdf 对象结构残缺 (缺 ``endobj``
     / bare-CR EOL / token-per-line 挤烂) → ``pdf:image`` import
     ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)`` fatal → xelatex
     SIGPIPE。签名只走 stderr→stdout_tail, ``.log`` 干净 —— ``_report_of``

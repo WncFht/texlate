@@ -9,7 +9,7 @@
 version: 1
 
 rules:
-  # 2026-09-16 wave-2: expl3_backend×4 (0905.4874/1306.0364/hep-ph0501170/
+  # 2026-09-16 批二: expl3_backend×4 (0905.4874/1306.0364/hep-ph0501170/
   # 9910403) —— 全局驱动选项 (dvips/pdftex) 经 documentclass 传给 expl3
   # 后端探测 → "Backend request inconsistent with engine: using 'xetex'"
   # 于 ctex→expl3 装载点炸。xelatex 自决 xdvipdfmx, 驱动选项纯属死重 →
@@ -81,7 +81,7 @@ rules:
         - { source_contains: "glyphtounicode" } # 源/cls 确有 \input 引用链才落 stub
         ## REVIEW 拓宽: 报错站点在 fileset 外 (axessibility.sty 型系统
         ## texmf 件 \input{glyphtounicode}) —— stub 落 wdir 由 TeX 文件
-        ## 解析序 (cwd 先) 截获, 与站点文件归属无关, arm 不需源证据。
+        ## 解析序 (cwd 先) 截获, 与站点文件归属无关, 臂不需源证据。
         - { err_outside_fileset: true }
     action:
       kind: builtin_transform
@@ -106,7 +106,7 @@ rules:
     source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
-  # 2026-09-19 drvopt-ext lane (soak-2026-09-18 aaai2027 ×15): doc 伴船
+  # 2026-09-19 drvopt-ext 车道 (soak-2026-09-18 aaai2027 ×15): doc 伴船
   # aaai2027.sty:58-59 `\RequirePackage{iftex}` + `\RequirePDFTeX` —— iftex
   # 引擎守卫在非目标引擎 \IFTEX@Require 拉 \read → nonstop 即 Emergency
   # stop, file-line 错落 emergency 零规则可接 (unfixable:emergency ×15)。
@@ -157,7 +157,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "drvopt-ext lane: \\RequirePDFTeX emergency 15 同质格 (iftex.sty \\IFTEX@Require \\read 机制)"
 
-  # 2026-09-19 errsweep lane (soak-2026-09-18 2609.19664 fairmeta):
+  # 2026-09-19 errsweep 车道 (soak-2026-09-18 2609.19664 fairmeta):
   # fairmeta.cls:25 `\DisableLigatures[f]{family=sf*}` 无引擎守卫 ——
   # microtype 该 cs 是 pdftex≥1.30/luatex 限定件, xelatex 下定义为
   # 报错+忽略 (file-line `Package microtype Error: Disabling ligatures
@@ -201,7 +201,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "errsweep-2026-09-19: missing_file relink 通路验证中揭示的下游签名"
 
-  # 2026-09-19 driver-option strip lane (loop3-1206.0240/1706.07495/1306.0294):
+  # 2026-09-19 driver-option strip 车道 (loop3-1206.0240/1706.07495/1306.0294):
   # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
   # 等原语 undefined → 错误恢复把 chardef 残值排进字流 (^^@×179/^^A×20
   # missing_char 族)。normalize 括号面只认单包 {graphicx} 形, 多包
@@ -349,7 +349,7 @@ rules:
     stats: { fires: 36, rescued_cells: 18, status: active }
     source_ref: "fixloop.py L344-361, L284-298"
 
-  # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
+  # 新增 (docs/spec/compile.md L268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
   - id: pdftex_prim_polyfill
     description: "pdfTeX 原语补定义 (读取型/取参型/fileset 外站点) → 前导注入 \\ifdefined..\\else<寄存器|吞参noop|chardef>\\fi"
     phase: loop
@@ -360,7 +360,7 @@ rules:
         - { prim_read_form: "{payload}" } # 源码确有 \\if*\\<prim> 读取语境才注入
         ## REVIEW 拓宽: fileset 外站点 (axessibility.sty:349 型系统 texmf
         ## 写型/读型原语) —— 主文件头注入与源证据无关; guard(50) 仍正确
-        ## 弃守 (patch 不了看不见的件), polyfill 接住。写型站点由 arm
+        ## 弃守 (patch 不了看不见的件), polyfill 接住。写型站点由臂
         ## 内 \newcount 形全真接管 (见 _PRIM_COUNTISH)。
         - { err_outside_fileset: true }
         ## primarg 拓宽: fileset 内但 guard 包不到的取参站点 —— guard 两
@@ -369,7 +369,7 @@ rules:
         ## \ifdefined 幂等无害 (braced/赋值站点已被 guard 包过的不会回来
         ## 报错; 回来即确有未包站点)。
         - { source_contains: "\\\\{payload}(?![a-zA-Z@])" }
-        ## pdfprim 车道 arm-A: `pdf@` 别名族 (breakurl/pdfmark/pdftexcmds
+        ## pdfprim 车道臂 A: `pdf@` 别名族 (breakurl/pdfmark/pdftexcmds
         ## 系包体自导原语绑定) —— @-名定义上即 @=11 包内宏, 报错站点必在
         ## 包体宏展开帧 (file_stack 归 doc .tex → err_outside_fileset 不中;
         ## 2502.03387 colm 实证 breakurl.sty:149 \sbox\pdf@box 报在 doc 侧)。
@@ -392,7 +392,7 @@ rules:
     stats: { fires: 60, rescued_cells: 30, status: active }
     source_ref: "docs/spec/compile.md L268"
 
-  # 2026-09-20 singlesweep pdfprim 车道 arm-B (pdftex-gated-codepath ×4):
+  # 2026-09-20 singlesweep pdfprim 车道臂 B (pdftex-gated-codepath ×4):
   # pdf 模式门把能装代码段锁进死臂 —— \ifCLASSINFOpdf (1706.07613: 真臂
   # 装 graphicx[pdftex]+\graphicspath+\DeclareGraphicsExtensions, else 臂
   # 全注释 → \includegraphics undef), \ifpdf (2609.20238 dtrt.sty:226/237

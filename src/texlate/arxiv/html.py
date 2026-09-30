@@ -1,4 +1,4 @@
-r"""arXiv 原生 HTML 降级链 phase 1（latexml-spike 裁决 arxiv-html-first）。
+r"""arXiv 原生 HTML 降级链 phase 1（latexml 探针裁决 arxiv-html-first）。
 
 ``GET /html/{id}[vN]`` → ``article.ltx_document`` DOM 分块 → ``ChunkIn``：
 

@@ -1,6 +1,6 @@
-r"""expl3fix lane (2026-09-19): ``expl3_driver_opt_strip`` 逗号粘连修复钉。
+r"""expl3fix 车道 (2026-09-19): ``expl3_driver_opt_strip`` 逗号粘连修复钉。
 
-wave-2 四格 (0905.4874/1306.0364/hep-ph/0501170/hep-ph/9910403) 同形:
+批二四格 (0905.4874/1306.0364/hep-ph/0501170/hep-ph/9910403) 同形:
 documentclass 全局驱动选项 (dvips/pdftex 系) 灌进 expl3 后端探测 →
 "Backend request inconsistent with engine: using 'xetex'"。旧单正则
 ``,?driver,?`` 双吃两侧逗号, 中段剥除把邻项粘成幻影选项

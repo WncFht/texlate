@@ -1,4 +1,4 @@
-"""ctan version_guard — format/包版本 floor 闸覆盖族单测 (wave-6 ctanre)。
+"""ctan version_guard — format/包版本 floor 闸覆盖族单测 (批六 ctanre)。
 
 实证锚点 (e2ereal 2308.12712 + vendor/files/nicematrix.sty v7.11a):
 - ``\\IfFormatAtLeastTF{2026-06-01}`` 是 v7.11c abort 的真闸形 ——

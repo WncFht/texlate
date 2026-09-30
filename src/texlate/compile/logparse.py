@@ -7,7 +7,7 @@
 三死件随事件流重构退场, 薄 delegate ``_is_err_line`` 同清——其
 yaml 注释面改指 ``texlog.iter_log_events``/``match_error_line``)。
 
-移植自 bench/py/fixloop.py L48-125 (`first_error`/`classify`), 增强两点
+移植自原型 fixloop (`first_error`/`classify`), 增强两点
 (docs/research/latex/fixloop-rules.md §5 spec):
   - ctx 内 ``l.<N>`` 行号 → ``ErrReport.line_no``
   - ``(`` 开括号文件栈追踪 → ``ErrReport.file_stack`` (定位出错 .tex/.sty)
@@ -228,7 +228,7 @@ _PRE_LINES = 4
 #: 首错 ctx8 窗**之后**纳入 ``ErrReport.post`` 的行数——错误块的滞后
 #: 落盘签名: graphicx ``File `X' not found`` 的 ``I could not locate the
 #: file with any of these extensions:`` errhelp 恒居错误行 +8, 恰出 ctx8
-#: 右缘 (extless lane failmine4 9-cell 实录); ``l.N`` 回显行折行时 errhelp
+#: 右缘 (extless 车道 failmine4 9-cell 实录); ``l.N`` 回显行折行时 errhelp
 #: 可再后移 1-2 行, 6 行余量覆盖。仅 ``use_post: true`` 的 taxonomy
 #: 条目在 ``head + post`` 拼接 blob 上检索 (``classify_head`` 实现)——
 #: per-err ctx blob 不带 post (``err_candidates`` 面同 ``use_pre`` 先例:
@@ -316,7 +316,7 @@ class ErrReport:
         「内层帧 else 最近关闭帧」序的单源——runaway 类错报位在父文件续行
         (肇事帧先被弹栈, #78 ``\\@iiiparbox``/``\\next`` 扫描族), 空栈时
         ``popped_files[-1]`` = 肇事候选。fixloop ``_err_site_outside`` 首帧
-        直取、``_requester_paths`` tier-2 弹栈段过滤、llm_hook
+        直取、``_requester_paths`` 二级弹栈段过滤、llm_hook
         ``_resolve_err_file`` 三消费面同口径。
         """
         yield from reversed(self.file_stack)
@@ -329,7 +329,7 @@ def parse_log(
     *,
     project_root: Path | None = None,
 ) -> ErrReport:
-    """读 .log → ErrReport。log 不存在/不可读 → 全空 report (spike L50-55)。
+    """读 .log → ErrReport。log 不存在/不可读 → 全空 report。
 
     ``project_root`` 透传 ``parse_text``——``_FILE_ATTRIBUTED_WARNS`` 的
     警告归因根 (编译工作根 ``wdir``)。
@@ -352,7 +352,7 @@ def parse_text(
 ) -> ErrReport:
     """Log 文本 → ErrReport (tectonic stdout_tail 兜底也走这里)。
 
-    错误行双格式: `^!` (spike 原语义) + `file:line:` (-file-line-error,
+    错误行双格式: `^!` (原型语义) + `file:line:` (-file-line-error,
     impl-compile xelatex 命令行旗标; Warning 行不计入)。
 
     C8 单遍事件流: ``iter_log_events`` 一遍内同做错误面投影与
@@ -443,7 +443,7 @@ def _collect_warnings(
 
 
 def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
-    """Payload 取值: payload_group 指定组, 否则首个非空组 (spike L109)。"""
+    """Payload 取值: payload_group 指定组, 否则首个非空组。"""
     if not m.re.groups:
         return None
     grp = entry.get("payload_group")
@@ -457,7 +457,7 @@ def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
 def _ctx_tail_css(ctx: str | None) -> set[str]:
     r"""上下文中冒犯 cs 的三个候选位: ``<head>`` 行末位、展开栈区域末位、``l.N`` 行末。
 
-    ctx 以错误行起 (parse_text L101)——顶层错误时冒犯 cs 落在 ``l.N``
+    ctx 以错误行起 (``parse_text``)——顶层错误时冒犯 cs 落在 ``l.N``
     行内, 宏展开错误时 ``l.N`` 行末只剩表面宏, 真冒犯 cs 是错误行与
     ``l.N`` 行之间展开栈区域的末位 (loop1-2410.00012: ``\\pdfobj`` 藏
     ``\\AddSpotColor`` 体内, l.N 行末 ``\\SpotSpace`` 只是调用点)。
@@ -538,7 +538,7 @@ def _capacity_payload(first: str | None, ctx: str | None) -> str | None:
 #: ``input_stack|<cs>`` pending cs 显式名单 → ``input_stack`` 类别重路由:
 #: 命中者全是上游 TeX-exec 宏递归帧 (内核 ``\@nomath`` 守卫帧 / expl3
 #: quark 扫描哨兵族), 非 ``\input`` 循环——无任何源改写可修
-#: (ifdiag-lane 2026-09-19: ``@nomath``@1404.0037 与
+#: (ifdiag 车道 2026-09-19: ``@nomath``@1404.0037 与
 #: ``__quark_if_recursion_tail:w``@1706.00076 base 臂同炸, paper-authentic)。
 #: verdict ``unfixable:{cat}`` 直挂 cat——独立 cat 让真递归帧不再混进
 #: ``unfixable:capacity`` 的可修假簇; texlate 可修面 (``cref@resetstack``
@@ -642,7 +642,7 @@ _PAYLOAD_SCANS: dict[str, Callable[[str | None, str | None], str | None]] = {
 
 
 class Taxonomy:
-    """rules/ taxonomy 段的编译态: scope 三段评估序照 spike L67-125。"""
+    """rules/ taxonomy 段的编译态: scope 三段评估序照原型。"""
 
     def __init__(self, entries: list[dict[str, Any]]) -> None:
         """编译 taxonomy 条目 → head/tail/warnings 三个有序评估表。"""

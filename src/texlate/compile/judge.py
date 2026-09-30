@@ -141,7 +141,7 @@ _MISSCHAR_SWEEP = cast(
 #: thm-restate ``restatable`` 观察探针（``restatable_loss`` 行，单源
 #: ``texlate.redlines``）：包加载痕迹 → notes。env-name 参被译 → 存体
 #: ``\csname #2\endcsname`` 打未定义 env 名 → ``\csname`` 自动 \relax
-#: **零消息**（lane-silentthm 实证 ``{定理}{main}``：0 个 ``!`` 行、定理头
+#: **零消息**（silentthm 车道实证 ``{定理}{main}``：0 个 ``!`` 行、定理头
 #: 静默丢、body 照排）——log 面无事件可挂，presence 是 log 侧最大诚实信号。
 _THM_RESTATE = name_pattern(REDLINES_BY_ID["restatable_loss"].judge)
 _THM_RESTATE_RX = re.compile(_THM_RESTATE[1])
@@ -252,7 +252,7 @@ def _thm_restate_probe(v: Verdict, full_log: str) -> None:
 
 
 #: 引擎 ``\end`` 前致命中止签名（10-taxonomy ``emergency`` 同词素）——
-#: 截断残件 pdf 照样印 ``Output written``（lane-deadgate 截断 repro 实
+#: 截断残件 pdf 照样印 ``Output written``（deadgate 车道截断 repro 实
 #: 测：``\input`` 缺件 → Emergency stop → ``Output written (1 page)``），
 #: 「出完/出半截」唯一可靠分界是这个签名本体。``makes \d+ errors`` =
 #: errorlimit 硬顶中止（web2c 缺省 100 错强停，e116 实证：error 级联
@@ -611,7 +611,7 @@ def judge(  # noqa: C901, PLR0912 — 判定树逐支平铺（tofu 否决为末�
     # 非测量值, 证不了 errors≤CLEAN_ERR_MAX; 测量缺陷非内容缺陷但同否 clean。
     if getattr(res, "log_truncated", False):
         v.reasons.append("log_truncated")
-    # 出货闸 (qc-impl wave-2): 输入未吃活到 \end{document}——残尾/顶层
+    # 出货闸 (qc-impl 批二, 2026-09-28): 输入未吃活到 \end{document}——残尾/顶层
     # \endinput 截停的 pdf 腰斩出货, best_effort 下无 error 可计。
     if getattr(res, "input_truncated", False):
         v.reasons.append("input_truncated")

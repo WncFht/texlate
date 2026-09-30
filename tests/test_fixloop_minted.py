@@ -1,4 +1,4 @@
-r"""mintedstyle lane (2026-09-19): minted v3×v2 缓存错配钉。
+r"""mintedstyle 车道 (2026-09-19): minted v3×v2 缓存错配钉。
 
 chronic347 普查 5 格 (1803.00188/2111.00110/2112.00004/2112.00114 style
 ``default``, 2105.11390 ``emacs``): doc 全挂 ``frozencache`` 且自带 v2

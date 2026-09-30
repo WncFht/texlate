@@ -3,7 +3,7 @@ r"""capacity input_stack verdict 路由 —— 上游递归帧 → ``unfixable:i
 ``input_stack|<cs>`` pay 的 pending cs 属上游宏递归帧 (内核 ``\@nomath``
 守卫 / expl3 quark 扫描哨兵) 时, ``classify_head`` 把 cat 重路由成
 ``input_stack`` —— verdict ``unfixable:{cat}`` 直挂 cat, 真递归帧不再
-混进 ``unfixable:capacity`` 的可修假簇 (ifdiag-lane 2026-09-19 三格 census:
+混进 ``unfixable:capacity`` 的可修假簇 (ifdiag 车道 2026-09-19 三格普查:
 ``@nomath``/``__quark_if_recursion_tail:w`` 皆 paper-authentic;
 ``cref@resetstack`` 是 texlate 可修面, 留 capacity 走修复派发)。
 """

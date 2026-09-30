@@ -1,4 +1,4 @@
-r"""cjkchar lane —— ``Package CJK Error: Invalid character code`` 归 invalid_char。
+r"""cjkchar 车道 —— ``Package CJK Error: Invalid character code`` 归 invalid_char。
 
 singlesweep cjk-pkg-invalid-char 2 格 (1607.00157/2601.07372, base 臂;
 1206.0266 tectonic 同句 ``! `` 形): CJKutf8/CJK 包解码面自报非 UTF-8

@@ -1,4 +1,4 @@
-"""fixer-bblwall 2026-09-17 wave 审计测试.
+"""fixer-bblwall 2026-09-17 批审计测试.
 
 - W2 bbl_regen stale-drop: biber rc≠0 后 (a) bbl 被自删 → invalidate 计
   progress; (b) 头标 ``bbl format version X.Y`` <3.0 → unlink+invalidate

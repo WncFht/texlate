@@ -3,7 +3,7 @@
 背景: 编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 凡往
 "wdir 根" 平铺 stub/vendor/遮蔽件的落点, 对嵌套 main 稿
 (``templates/arxiv/main.tex``) 不可见 (2609.19664 fired-unfixed 实证,
-vendorcwd lane 盘点残余)。本文件钉:
+vendorcwd 车道盘点残余)。本文件钉:
 
 - ``_resolve_site`` 落点 = ``main_dir/<rel>``; main 未知退 wdir 根
   (flat-main DECLINE 兜底); ``main_rel`` 怪径逃出 wdir → None;

@@ -37,7 +37,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/spec/compile.md §6.3 (80-bib 分片行) / §6.6 (_builtins_bib: bbl stub 改写); ctanfetch-probe.md §3.2"
 
-  # 2026-09-17 wave-2 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
+  # 2026-09-17 批二 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
   # cite-key 裸 &/_ 在现代内核炸 Missing $/Misplaced alignment tab ——
   # \bibitem 定义点与 \cite 引用点必须双侧一致重写 (&→A、_→-), .aux
   # 残留 \bibcite/\citation 陈旧键同源处理。
@@ -202,7 +202,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "_builtins_bib.py tectonic_bib_stall_route; repair.py cross_engine_retry reject_route 臂"
 
-  # 2026-09-18 natbib-lane (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
+  # 2026-09-18 natbib 车道 (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
   # (95-targeted order 186) 的 (\\begin\{document\}) 重写无注释遮盖——注释行
   # 提到 \begin{document} 的被 \n 尾巴切成两半, "command."/"." 尾脱注释成
   # 行首活 \begin{document} (ms.tex:172/198), 首个活行在 \NAT@numberstrue

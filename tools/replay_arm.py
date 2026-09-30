@@ -1,6 +1,6 @@
 r"""prompt 臂离线重放：extract 树 → kind 装箱 → 臂注册表 system/user → 网关 → parse+member 审计链。
 
-tmp/replay_{ab,batch,batch2,v6}.py 四驱动合并毕业；replay_batch 的 sqlite
+原型 replay_* 四驱动合并毕业；replay_batch 的 sqlite
 直读形态不毕业（batch2 判例：extract 重扫恢复 ph_fragments 才全保真，
 chunks 表无此列）。
 

@@ -1021,7 +1021,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     cell_verdict = str(cell.get("verdict") or "")
     if reject_verdict(cell_verdict):
         # reject:<rid> = 策略拒绝 (走降级链) → 终态合成 partial, 理由串
-        # 保留 reject 令牌供下游分流审计 (docs/08:185, spec §9 F3)。
+        # 保留 reject 令牌供下游分流审计 (docs/spec/compile.md 判词口径)。
         tail = tail_dict(last_res, Verdict(status="partial", reasons=[cell_verdict]))
         tail["reject_at"] = "fixloop"
     else:

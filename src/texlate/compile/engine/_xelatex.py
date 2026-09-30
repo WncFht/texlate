@@ -64,7 +64,7 @@ log = logging.getLogger(__name__)
 
 MAX_PASSES = 2
 
-#: 自适应档续趟硬顶（qc-impl wave-2）——``passes=None`` 起步 ``MAX_PASSES``
+#: 自适应档续趟硬顶（qc-impl 批二, 2026-09-28）——``passes=None`` 起步 ``MAX_PASSES``
 #: 趟，趟末 rerun/undef 提示仍在即按剩余墙钟重劈预算自延一趟，至本顶停
 #: 补。bib 采纳 → ``\bibcite`` 落 aux → 文内 ``[n]`` 渲染要 3 趟（PoC
 #: 实证 2 趟仍 ``[?]``），cap=2 在末趟截死即 ``??`` 出货（broken_refs
@@ -134,7 +134,7 @@ _BBL_KEY_RX: Final = re.compile(r"\\(?:bibitem(?:\[[^\]]*\])?|entry)\{([^}]*)\}"
 #: 让位异名收编臂)。
 _BIBDATA_RX: Final = re.compile(r"\\bibdata\{([^}]*)\}")
 
-#: 出货闸输入覆盖 (qc-impl wave-2): masked 视图深度0扫描——首个
+#: 出货闸输入覆盖 (qc-impl 批二, 2026-09-28): masked 视图深度0扫描——首个
 #: ``\end{document}`` = 输入吃活到收束；先到的顶层 ``\endinput`` = 输入
 #: 被截停 (其后全部死代码——``\end{document}`` 在尾也吃不到, 0906.4725
 #: 型文献表腰斩件)。``\end{document}`` 之后的 live 尾巴不算伤: TeX
@@ -413,7 +413,7 @@ def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数�
     res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
     res.workdir = wdir
     res.deps = compiled_dependencies(wdir, main, out, res.engine)
-    # 出货闸 (qc-impl wave-2): 编译输入须吃活到 ``\end{document}``——
+    # 出货闸 (qc-impl 批二, 2026-09-28): 编译输入须吃活到 ``\end{document}``——
     # ``log_truncated`` 只盖 halt_on_error 趟中截死; 输入件残 (无收尾
     # token) 与顶层 ``\endinput`` 截停在 best_effort 下静默出残 pdf。
     # 两引擎同闸 (tectonic 拼写即 ``wdir/main``, _checked_main 上游已过)。
@@ -718,7 +718,7 @@ class XelatexEngine:
             # 重跑；提示缺席照旧即收。钉死档（passes=N）rc!=0 恒停、不吃提示。
             # 信号死（负 rc / 包裹层 128+N）是外部截杀非定败，留续趟通道。
             hint = _RERUN_HINT_RX.search(out_s) is not None
-            # bib 中间趟（lane-bibpass）：趟间产物（.bcf/.aux）此刻最新。
+            # bib 中间趟（bibpass 车道）：趟间产物（.bcf/.aux）此刻最新。
             # qc-impl 扩闸 (fp bibtex_pass_coverage/bbl_backup): 旧 ``p <
             # eff_passes`` 闸把末趟封死——passes=1 的 sealed 格 (fixloop
             # 分类趟/salvage) 永远轮不到 bib; 现放宽为任何趟后都评, 若在
@@ -747,7 +747,7 @@ class XelatexEngine:
             hint = hint or adopted
             # 延趟两臂同一预算口径 (末趟到顶才延, 各 +1): bib 本趟采纳
             # (钉死档亦延——新 bbl 须有人消费) 或自适应档提示仍在且未撞
-            # ``_ADAPTIVE_PASS_CAP`` (qc-impl wave-2: bib 首趟采纳→
+            # ``_ADAPTIVE_PASS_CAP`` (qc-impl 批二, 2026-09-28: bib 首趟采纳→
             # \bibcite 落 aux→文内 [n] 要第 3 趟, cap=2 末趟截停即 ``??``
             # 出货; 死相趟不延——续趟必同死)。延趟后按剩余墙钟重劈
             # per_pass——``timeout/eff_passes`` 本就是总墙钟约束: 不劈则
@@ -800,7 +800,7 @@ class XelatexEngine:
         per_pass: float,
         should_cancel: Callable[[], bool] | None = None,
     ) -> list[str]:
-        r"""文件态触发的 bibtex/biber 趟间补跑（lane-bibpass 设计）。
+        r"""文件态触发的 bibtex/biber 趟间补跑（bibpass 车道设计）。
 
         上游 arXiv latexmk 在 latex 趟间跑 bib 工具再生 ``.bbl``——本引擎
         此前从不跑，~30% clean 格因此出 ``[?]`` 引用缺。两路择一（互斥由
@@ -1173,7 +1173,7 @@ class XelatexEngine:
                 and not (Path(home) / "tlpkg" / "texlive.tlpdb").exists()
             ):
                 # 冷 TEXMFHOME：先建 usertree tlpdb，否则 --usermode 报
-                # "Cannot determine type of tlpdb"（fixloop.py 实测坑）。
+                # "Cannot determine type of tlpdb"（原型实测坑）。
                 rc_i, _, _, to_i = _eng.run_process(
                     [tool, "--usermode", "init-usertree"],
                     cwd=Path.cwd(),

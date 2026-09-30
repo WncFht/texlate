@@ -1,4 +1,4 @@
-r"""pgffix lane (task #249) —— ``\node``/``\draw`` 族 tikz 缺载修复钉。
+r"""pgffix 车道 (task #249) —— ``\node``/``\draw`` 族 tikz 缺载修复钉。
 
 1306.0281 (acm_proc_article-sp shim 稿): 作者注释 ``%\usepackage{tikz}``
 后 ``\tikzset``/``\node``/``\draw`` 连锁 undefined_cs; undefined_env_polyfill
@@ -9,11 +9,11 @@ r"""pgffix lane (task #249) —— ``\node``/``\draw`` 族 tikz 缺载修复钉�
 
 秩序钉 (本表独有): polyfill 须自足 ``\RequirePackage{tikz}`` 前缀 ——
 ``_inject_after_docclass`` 注缝 LIFO 语义下, 同臂 ``usepackage`` 先注
-``polyfill`` 后注, 裸 ``\usetikzlibrary`` 会落在 arm 装载行
-**之前** → 新 undefined_cs + Missing-begindoc 级联 (tmp/lane-pgffix
+``polyfill`` 后注, 裸 ``\usetikzlibrary`` 会落在臂装载行
+**之前** → 新 undefined_cs + Missing-begindoc 级联 (pgffix 车道
 实测 ``! Undefined control sequence l.3 \usetikzlibrary``); 自足块对
 注释载/死臂载/稿后载/preamble 库键 ``\tikzset`` 全免疫, dup
-``\RequirePackage{tikz}`` 行 (arm 注入 + polyfill 内联) 是 benign no-op。
+``\RequirePackage{tikz}`` 行 (臂注入 + polyfill 内联) 是 benign no-op。
 
 env→pkg 臂 (undefined_env_polyfill ``pkg_map``): tikzpicture/axis/tikzcd
 装真包替代 noop —— noop 吞图体且 axis/tikzcd 在 cs_table 无对应 cs 臂。
@@ -145,7 +145,7 @@ def test_commented_usepackage_still_injects(tmp_path: Path) -> None:
 
 
 def test_already_loaded_no_double_arm_inject(tmp_path: Path) -> None:
-    r"""稿已 ``\usepackage{tikz}`` → arm 不再注入 (masked 面判重);
+    r"""稿已 ``\usepackage{tikz}`` → 臂不再注入 (masked 面判重);
     polyfill 块仍注 (内含自足 RequirePackage+usetikzlibrary)。"""
     doc = (
         "\\documentclass{article}\n"
@@ -162,7 +162,7 @@ def test_already_loaded_no_double_arm_inject(tmp_path: Path) -> None:
 
 def test_refire_no_duplicate_polyfill(tmp_path: Path) -> None:
     r"""二轮重火: usepackage 判重 + polyfill snippet 判重 → 幂等, 返回仍
-    True (arm probe 注记保 done 非空, 不落 guess)。"""
+    True (臂 probe 注记保 done 非空, 不落 guess)。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ok1, _ = _fix(tmp_path, "node")
     assert ok1
@@ -222,7 +222,7 @@ def test_env_nonmap_still_noop(tmp_path: Path) -> None:
 
 
 def test_env_refire_idempotent(tmp_path: Path) -> None:
-    r"""env 臂重火: arm probe 注记保 True, 不重复注入。"""
+    r"""env 臂重火: 臂 probe 注记保 True, 不重复注入。"""
     doc = _DOC.replace("x", "\\begin{tikzpicture}\\node (a) {x};\\end{tikzpicture}")
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
     ok1, _ = _envfix(tmp_path, "tikzpicture")

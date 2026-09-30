@@ -1,4 +1,4 @@
-"""spike 回放验证 —— tests/fixtures/ 入库真 log 常跑 + bench/work_fixloop/ 终态 .log 走 taxonomy 分类。
+"""原型回放验证 —— tests/fixtures/ 入库真 log 常跑 + bench/work_fixloop/ 终态 .log 走 taxonomy 分类。
 
 入库 fixture（干净 clone 也跑）:
   - fixtures/logs/manifest.json 全行 fixloop 锚点（n_bang/category/payload 由
@@ -85,7 +85,7 @@ def test_fixture_logs_classify() -> None:
 @NEED_WORK
 def test_all_main_logs_parseable() -> None:
     logs = _main_logs()
-    assert len(logs) >= 16  # noqa: PLR2004 - spike 22 格, 至少 16 篇的量
+    assert len(logs) >= 16  # noqa: PLR2004 - 原型 22 格, 至少 16 篇的量
     cats: dict[str, list[Path]] = {}
     for p in logs:
         rep = parse_log(p, _rs().warn_patterns)
@@ -93,7 +93,7 @@ def test_all_main_logs_parseable() -> None:
         assert rep.tail is not None
         cat, _pay = _rs().taxonomy.classify(rep)
         cats.setdefault(cat, []).append(p)
-    # 多数格救回后终态 clean (spike 口径 21/22 clean + 1 dirty_pdf)
+    # 多数格救回后终态 clean (原型口径 21/22 clean + 1 dirty_pdf)
     assert len(cats.get("clean", [])) >= 15  # noqa: PLR2004
 
 
@@ -105,7 +105,7 @@ def test_known_residual_categories() -> None:
         pytest.skip("bench/work_fixloop 存在但两个残错锚点均缺席 (部分清理/重建)")
     if soul.exists():
         cat, _ = _rs().taxonomy.classify(parse_log(soul, _rs().warn_patterns))
-        assert cat == "soul_err"  # spike 唯一未救回残错
+        assert cat == "soul_err"  # 原型唯一未救回残错
     if tfm.exists():
         cat, pay = _rs().taxonomy.classify(parse_log(tfm, _rs().warn_patterns))
         assert cat == "missing_tfm"

@@ -1,4 +1,4 @@
-"""docabsent lane 双臂单测 —— doc 引用但 e-print 未带的 .tex 片段末位兜底。
+"""docabsent 车道双臂单测 —— doc 引用但 e-print 未带的 .tex 片段末位兜底。
 
 实证背景 (m1kcensus2 衍生, covgap-C #205 候选逐格复核):
 
@@ -242,7 +242,7 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
 # \input{X.pdf_tex} 双缺席形 (无 pdf_tex 且无 pdf/eps sibling ——
 # 2508.03897/2606.18450/2508.04813/2503.10148 普查 4 格) 与 doc-absent
 # .tikzstyles (2606.19622) 同归空 stub 诚实降级; exts 表外名仍让位。
-# 同日 eraimpl 批 (failmine7 普查 tmp/lane-eracls2/candidates.json)
+# 同日 eraimpl 批 (failmine7 普查, eracls2 车道 candidates)
 # 再扩 .pgf (2506.05065 figures/legendre.pgf 子目录位) / .tikz
 # (2603.07778 vanilla.tikz) / .latex (chao-dyn/9412002 scheme2.latex)
 # / .cfg (2604.03663 econsocart.cls :67 \input{econsocart.cfg} 伴生缺档)。

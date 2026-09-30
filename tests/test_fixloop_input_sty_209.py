@@ -10,7 +10,7 @@ LaTeX2e compat 模式 (``\documentstyle``) 下 ``\usepackage`` 恒不定义
 选项处理)。pstricks/svg 路由门行锚与 probe._PKG_RE 缺件扫描均
 ``(?:usepackage|RequirePackage)`` 同收, 改写形下游零适配。
 
-弃选两臂 (tmp/lane-inputsty209/ d0-d3 xelatex 实证): 并进
+弃选两臂 (inputsty209 车道 d0-d3 xelatex 实证): 并进
 ``\documentstyle[opts]`` 丢 \input 行原位序且需合并括号; ``\makeatletter``
 包裹不进 \@filelist、不走选项机器, 是 \RequirePackage 严格下位。
 

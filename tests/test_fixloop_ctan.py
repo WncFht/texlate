@@ -230,7 +230,7 @@ def test_ctan_fetcher_epoch_wired(tmp_path: Path) -> None:
 def test_default_cache_dir_env_precedence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """TEXLATE_CACHE > TEXLATE_DATA_DIR/cache > ~/.texlate/cache (wave-5c 归并)。"""
+    """TEXLATE_CACHE > TEXLATE_DATA_DIR/cache > ~/.texlate/cache (5c 批归并)。"""
     monkeypatch.delenv("TEXLATE_CACHE", raising=False)
     monkeypatch.delenv("TEXLATE_DATA_DIR", raising=False)
     assert default_cache_dir() == Path.home() / ".texlate" / "cache"

@@ -1,4 +1,4 @@
-r"""microtypelis lane (2026-09-20): microtype ``\DisableLigatures`` 修复钉。
+r"""microtypelis 车道 (2026-09-20): microtype ``\DisableLigatures`` 修复钉。
 
 格面: soak-2026-09-18 五格 (2609.19356/19911/20511/20581/20804) ICLR-2027 系
 doc-shipped cls 模板段 ``\DisableLigatures[f]{family=sf*}`` —— 该 cs 仅

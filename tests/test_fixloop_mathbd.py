@@ -1,4 +1,4 @@
-r"""mathbd lane (2026-09-20): singles3 bundle A+B 钉。
+r"""mathbd 车道 (2026-09-20): singles3 bundle A+B 钉。
 
 Bundle A —— zh 数学-文本边界三臂 (75-syntax.yaml):
 - ``soul_cs_mbox`` (order 102): soul 族 ``\hl{\model}`` 单-cs 实参 →

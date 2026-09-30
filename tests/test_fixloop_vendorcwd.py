@@ -1,4 +1,4 @@
-"""vendorcwd lane (2609.19664 autopsy, 2026-09-19):
+"""vendorcwd 车道 (2609.19664 autopsy, 2026-09-19):
 
 - 落点修复: vendored 件落 kpathsea 解析位 ``main_dir/<payload>`` 而非
   wdir 根 —— 编译 cwd = ``main_path().parent`` (engine/_xelatex),

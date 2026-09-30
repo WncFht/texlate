@@ -101,7 +101,7 @@ class _Env:
                 return
         else:
             env, close_t = m.target_env, t
-        # env 非 None ⟹ close_t 非 None（_env_name 不变式；宏端点 arm 取 t）
+        # env 非 None ⟹ close_t 非 None（_env_name 不变式；宏端点臂取 t）
         close_t = cast("Tok", close_t)
         if env == "document":
             self._doc_opened = True  # 防中段 \documentclass 重入 preamble 档

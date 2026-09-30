@@ -52,7 +52,7 @@ def pdfstring_cs_disarm(
     触发面: ``$\\times$``/``$\\pdo$`` 类数学进 ``\title``/``\section``/
     ``\author`` 等 moving-arg——hyperref ``\pdfstringdef`` 展开书签时
     `` `\cs `` 扫描撞多字符 cs + intcalc 级联 (acmart+hyperref+xelatex
-    上游脆面, 与类无关; tmp/lane-pdo 最小复现 ``$\times$`` in ``\title``)。
+    上游脆面, 与类无关; 最小复现 ``$\times$`` in ``\title``)。
     上游文档化逃生舱 ``\pdfstringdefDisableCommands`` 只动书签域——
     正文排版零接触, 比 ``\texorpdfstring`` 逐处包源干净一个量级;
     空降格顺带消掉 "removing `\cs'" 警告 (cs 在展开期已消失)。
@@ -386,7 +386,7 @@ def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂�
     return True, "; ".join(done)
 
 
-# ═══ doc-latent @-def 站 exact-restore 包裹格 (spacefactor lane, 1206.0445) ═══
+# ═══ doc-latent @-def 站 exact-restore 包裹格 (spacefactor 车道, 1206.0445) ═══
 
 #: ``@``=catcode-12 宿主下 ``\@cs`` 断名成 ``\@``+裸字母 —— ``\@`` 即
 #: ``\spacefactor\@m`` 间距宏, 展开点执行 → ``You can't use '\spacefactor'
@@ -593,7 +593,7 @@ def spacefactor_atdef_wrap(
     return (bool(changed)), f"@def exact-restore wrap in {', '.join(changed)}"
 
 
-# ═══ \def\X<lit> 字面尾译文蚀除 → 逐站补回 (csdelim lane, 5 cells) ═══
+# ═══ \def\X<lit> 字面尾译文蚀除 → 逐站补回 (csdelim 车道, 5 格) ═══
 
 #: TeX 错误头 ``Use of \X doesn't match its definition.`` —— X 是 def 时
 #: 带字面参数文本的 cs。``\S+?`` 懒惰: 词型 (``\ch``) 收满字母段,

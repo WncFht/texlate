@@ -1,4 +1,4 @@
-r"""singbun lane (2026-09-20): failmine6+gapmine 八格 singles bundle 修复面钉。
+r"""singbun 车道 (2026-09-20): failmine6+gapmine 八格 singles bundle 修复面钉。
 
 每格 diagnose 自 verbatim 签名, 钉 classify → when+condition 派发 →
 apply → decline/幂等 四层 (aux_eof 同口径)。格↔臂映射:

@@ -1,4 +1,4 @@
-r"""armgap4 三臂钉 (lane-armgap4 census): soul_multi_mbox / inputenc_noop_shadow /
+r"""armgap4 三臂钉 (armgap4 车道普查): soul_multi_mbox / inputenc_noop_shadow /
 bib_backend_biber_swap —— covered_preexisting 臂面缺口的第三批 soul/编码/文献臂。
 
 - 1107.0598 soul_err gate_miss: ``\so{\MakeTextUppercase{#1}}`` cs+花括号组

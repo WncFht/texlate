@@ -1,6 +1,6 @@
-r"""pdfsanitize lane (2026-09-19): ``pdf_asset_sanitize`` 内嵌 pdf 重序列化规则。
+r"""pdfsanitize 车道 (2026-09-19): ``pdf_asset_sanitize`` 内嵌 pdf 重序列化规则。
 
-xlinkobj lane 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437):
+xlinkobj 车道 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437):
 工程船货 .pdf 对象结构残缺 → xdvipdfmx ``pdf:image`` import 回 NULL →
 ``xdvipdfmx:fatal: pdf_link_obj(): passed invalid object`` → xelatex SIGPIPE。
 签名只走 stderr→stdout_tail (.log 干净) —— ``_report_of`` 把 ``\w+:fatal:``

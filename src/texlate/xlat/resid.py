@@ -114,7 +114,7 @@ _KEYLIST_MIN_SEGS: Final = 2
 _DIGIT_IN_RX: Final = re.compile(r"\d")
 
 #: 键值型命令参数整体排除——``\cite{...}``/``\ref``/``\label``/``\url``/
-#: ``\path``/``\input`` 族的括号内容是键名不是散文，tier-2 降阈后 4+ 键
+#: ``\path``/``\input`` 族的括号内容是键名不是散文，二级降阈后 4+ 键
 #: 串会够线被误译断引用；整段预置哨兵比分切后猜形稳。嵌套花括号的
 #: ``\tikzset`` 族另走 ``_BRACE_ARG_CS_RX`` 配对扫描。
 _KEY_ARG_RX: Final = re.compile(

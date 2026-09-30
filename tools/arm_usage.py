@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""逐臂逐篇网关账本对账（本件取代 arms_tokens.py——其在飞处置由别 lane 裁决；本件自包含不 import 它）。
+"""逐臂逐篇网关账本对账（本件取代 arms_tokens.py——其在飞处置由别车道裁决；本件自包含不 import 它）。
 
 口径：devin-2api.db ``logs.time`` 是毫秒 epoch，窗切按 api+key_hash+ms
 三元隔离（``logs`` 无任务 id，同 key 面窗口不复用是铁律）；``task_usage``

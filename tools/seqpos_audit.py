@@ -11,7 +11,7 @@ unmarked。absent=1-len(sp)/len(chunks) 单列——seqpos.json 缺整条=双向
 跳不了，不进 miss 分母但是真实失败面。
 
 用法：.venv/bin/python tools/seqpos_audit.py [task_id ...]
-输出：tmp/seqpos-audit.json（2026-09-24 修复前基线在 tmp/seqpos-audit2-BEFORE.json）
+输出：tmp/seqpos-audit.json（2026-09-24 修复前基线快照已退役，git 历史可查）
 """
 
 import json

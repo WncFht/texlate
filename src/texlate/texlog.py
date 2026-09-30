@@ -500,7 +500,7 @@ def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
 L_NUM_SRC = r"l\.(\d+)"
 L_NUM_ROW_SRC = r"l\.\d+"
 L_NUM_RE = re.compile(r"^" + L_NUM_SRC)
-#: 首错上下文窗 / 尾部留存行数（spike L62/L63 规格——l2 与 logparse 同一
+#: 首错上下文窗 / 尾部留存行数（l2 与 logparse 同一
 #: knob，独改一侧即分歧）。
 CTX_LINES: Final = 8
 TAIL_LINES: Final = 30

@@ -1,4 +1,4 @@
-r"""spacefactor lane (2026-09-19): ``spacefactor_atdef_wrap`` 规则钉 + 走查单元。
+r"""spacefactor 车道 (2026-09-19): ``spacefactor_atdef_wrap`` 规则钉 + 走查单元。
 
 ``\@`` = ``\spacefactor\@m`` 间距宏; ``@``=catcode-12 下 ``\@cs`` 断名成
 ``\@``+裸字母 → 展开点 ``\@`` 执行 → "You can't use `\spacefactor' in

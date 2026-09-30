@@ -2,7 +2,7 @@ r"""slot_arg_revert 内建 —— zh 化机位实参按 baseline 配对还原 (t
 
 segmenter 把未注册机位实参放上翻译字面量面 → zh 化写回机位 →
 ``Undefined color '这是译文'``/``No counter``/``can't find file`` 族
-(tmp/lane-zhleak)。builtin 在 ``mask_tex`` 等长视图上用 judge
+(zhleak 车道)。builtin 在 ``mask_tex`` 等长视图上用 judge
 ``_MACHINE_SLOT_RXS`` + 扩展表定位实参, 与 baseline 同名件 per-kind
 序号对齐: baseline 参纯 ASCII ident ∧ zh 参含 CJK ∧ 相异 → zh 参位
 换回 baseline 字节。文位 (``\section{标题}``) 结构上不在机位表内

@@ -835,8 +835,7 @@ class _Compile:
             expect_cjk=expect_cjk,
             # halt_on_error=False：与主编译/salvage 同口径 best-effort——
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
-            # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
-            # tmp/b8-e2e/halt-on-error-ruling.md）
+            # 续跑才能把 incumbent=fail 的树救成 partial。
             make_engine=lambda: self._new_engine(ctx, "xelatex", halt_on_error=False),
             should_cancel=ctx.cancel_flag.is_set,
         )

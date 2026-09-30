@@ -1,6 +1,6 @@
 r"""条件栈字面扫描器 (textutil.ifscan) + 跳读 phantom 判例单测。
 
-实证背景 (loop4-wave1 152 格): TeX 条件跳读扫描按 token 计 ``\if`` 族
+实证背景 (loop4 批一 152 格): TeX 条件跳读扫描按 token 计 ``\if`` 族
 ——被跳分支里 ``\let`` 不执行, ``\let\Xok\iftrue`` 第二 operand 仍是裸
 ``\if`` token → 假开臂吞 ``\fi`` → ``Incomplete \ifdefined``。字面
 (执行态) 扫描对 operand/名位/def 参位恒按"非开"计, 与跳读态分歧:
@@ -22,7 +22,7 @@ from texlate.textutil import scan_ifs
 
 _RULE_ID = "unclosed_if_close"
 
-# loop4-wave1 事故门核心形: 分支内 \let + 分支外裸用 alias。
+# loop4 批一 事故门核心形: 分支内 \let + 分支外裸用 alias。
 _POISON_GATE = (
     "\\documentclass{article}\n"
     "\\ifdefined\\XeTeXversion\n"

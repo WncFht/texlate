@@ -1,5 +1,5 @@
-"""vendor-stub fidelity pins wave-2（task #342-#347 impl lane，clsfidcen 普查
-``tmp/lane-clsfidcen/candidates.json`` 58 条目，签名按随稿真件抄值核对）。
+"""vendor-stub fidelity pins 批二（task #342-#347 impl 车道，clsfidcen 普查
+58 条目，签名按随稿真件抄值核对）。
 
 六组补丁：
 

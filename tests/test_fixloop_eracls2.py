@@ -1,5 +1,5 @@
-"""eraimpl lane pins — eracls2 后续批 (task #350, failmine7 普查
-``tmp/lane-eracls2/candidates.json`` 出处逐条注 yaml 注释)。
+"""eraimpl 车道钉 — eracls2 后续批 (task #350, failmine7 普查,
+eracls2 车道 candidates 出处逐条注 yaml 注释)。
 
 四组件：
 

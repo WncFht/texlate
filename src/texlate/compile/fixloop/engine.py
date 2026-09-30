@@ -1,14 +1,14 @@
-"""Engine — fixloop 规则引擎主循环 (docs/spec/compile.md, bench/py/fixloop.py 移植)。
+"""Engine — fixloop 规则引擎主循环 (docs/spec/compile.md, 原型移植)。
 
 管线: ``eng.compile → parse_log → taxonomy.classify → gate → match → apply →
 重编``, ≤``meta.loop.max_rounds`` 轮 (默认 8)。
 
-与 ``compile/engine.py`` 的边界: 本模块只依赖 :class:`Engine` Protocol
-(docs/08:198-225 签名), 不实现引擎 —— xelatex/tectonic 引擎由
-impl-compile 并行开发, 结构上满足本 Protocol 即可对接。
+与 ``compile/engine/`` 的边界: 本模块只依赖 :class:`Engine` Protocol
+(docs/spec/compile.md §1.1 Engine 签名), 不实现引擎 —— xelatex/tectonic
+引擎实现满足本 Protocol 即可对接。
 
 phase 语义 (rules/ 分片注释复制):
-  ``gate``     每轮分类后最先评估 (spike 里 latex209 硬编码短路, L748-755)
+  ``gate``     每轮分类后最先评估 (原型 latex209 硬编码短路)
   ``precheck`` 编译前一次性 (静态路由 + 装包预检)
   ``loop``     每轮错误驱动; 同 phase 按 order 升序, 每轮至多一条成功应用
 
@@ -96,16 +96,16 @@ __all__ = [
 
 
 # ════════════════════════════════════════════════════════════════
-# Engine 协议 (docs/08:198-225 逐字签名; impl-compile 的实现对接此处)
+# Engine 协议 (docs/spec/compile.md §1.1 签名; 引擎实现对接此处)
 # ════════════════════════════════════════════════════════════════
 
 
 class CompResLike(Protocol):
     """``Engine.compile`` 返回的结构化结果 (属性级 duck-typing)。
 
-    对接 impl-compile ``compile/engine.py`` 的 ``CompRes`` (L139-178):
+    对接 ``compile/engine/_base.py`` 的 ``CompRes``:
     ``pdf: Path|None`` + ``has_pdf`` + ``pdf_bytes`` + ``seconds`` +
-    ``stdout_tail`` (tectonic 无 .log 兜底)。spike 时代字段名 ``sec``
+    ``stdout_tail`` (tectonic 无 .log 兜底)。原型时代字段名 ``sec``
     经 getattr 链兼容。
     """
 
@@ -434,7 +434,7 @@ def _report_of(
 
 
 # ════════════════════════════════════════════════════════════════
-# LoopCtx —— 每格运行上下文 (spike Ctx, L133-143)
+# LoopCtx —— 每格运行上下文 (原型 ``Ctx``)
 #
 # C4 分组: 平铺 grab-bag 拆为四个子 dataclass —— ``io`` 工程 io 面 /
 # ``deps`` 注入依赖 / ``round`` 本轮分类态 / ``ledger`` 跨轮账簿。
@@ -692,7 +692,7 @@ class LoopCtx:
         return self.io.wdir / self.io.main_rel if self.io.main_rel else None
 
     def main_head(self, n: int = 3000) -> str:
-        r"""主文件前 n 字符 (spike L515 用 3000 判 \documentstyle)。"""
+        r"""主文件前 n 字符 (原型用 3000 判 \documentstyle)。"""
         main = self.main_path()
         if main is None:
             return ""
@@ -731,7 +731,7 @@ class LoopCtx:
 
 
 # ════════════════════════════════════════════════════════════════
-# 主循环 (spike run_cell L691-792 + docs/08:295-310 伪码)
+# 主循环 (原型 ``run_cell`` + docs/spec/compile.md §6.4 伪码)
 # ════════════════════════════════════════════════════════════════
 
 #: 次级错误派发 (twinhead) 每格 best_effort 探针编译上限——xelatex
@@ -747,7 +747,7 @@ def find_main_tex(proj: Path) -> Path | None:
 
     严格档 = ``inject.find_main_tex``（注释遮盖 + 语种排序）；无命中退
     宽松档——``\documentclass|style`` 在即可（fixloop 的职责是修坏论文，
-    ``\begin{document}`` 缺失正是要修的对象；spike L575-587 口径保留）。
+    ``\begin{document}`` 缺失正是要修的对象；原型口径保留）。
     """
     strict = _inject_find_main_tex(proj)
     if strict is not None:
@@ -1423,7 +1423,7 @@ class _FixRun:
         *,
         pdf: bool,
     ) -> bool:
-        """终止判据 (spike L742-761 + docs/08:312) → True 表本轮定局。"""
+        """终止判据 (原型 + docs/spec/compile.md §6.4) → True 表本轮定局。"""
         cell, rs, eng = self.cell, self.rs, self.eng
         if (
             pdf
@@ -1431,7 +1431,7 @@ class _FixRun:
             and cat not in rs.taxonomy.warn_cats
             and not _res_died(res)  # 被杀/超时编译产 pdf 也不证 clean
         ):
-            # spike 首门 `pdf and nerr==0 → clean`; v1.1 放行 warn_* 伪类别
+            # 原型首门 `pdf and nerr==0 → clean`; v1.1 放行 warn_* 伪类别
             # 让 warning 驱动的修复轮有机会跑 (non_utf8_source)
             cell["verdict"] = "clean"
             return True
@@ -1716,7 +1716,7 @@ class _FixRun:
             cell["verdict"] = "best_effort_pdf"
 
     def _finalize(self) -> None:
-        """汇总最终态 (spike L776-791)。
+        """汇总最终态 (原型)。
 
         floor 兜回 → final 字段 → verdict 公式 (Guard A/B) → acceptable
         升档 → 末态清场 → gate_fired。
@@ -1758,7 +1758,7 @@ class _FixRun:
         cell["log"] = ctx.ledger.events
         if (
             self.last_rep is not None
-        ):  # triage 原料: 终态错误上下文 (docs/08:318 log_excerpt)
+        ):  # triage 原料: 终态错误上下文 (docs/spec/compile.md §6.8 log_excerpt)
             head = "\n".join(x for x in (self.last_rep.first, self.last_rep.ctx) if x)
             cell["log_excerpt"] = (head or self.last_rep.tail)[:2000]
         cell["started_fail"] = not (cell["rounds"] and cell["rounds"][0]["pdf"])
@@ -1837,7 +1837,7 @@ def fixloop(  # noqa: PLR0913 -- 注入面穿透
     should_cancel: Callable[[], bool] | None = None,
     on_round: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    """跑一格修复循环 → cell dict (字段与 spike fixloop-results.json 兼容)。
+    """跑一格修复循环 → cell dict (字段与原型 fixloop-results.json 兼容)。
 
     verdict ∈ clean / acceptable_pdf / dirty_pdf / best_effort_pdf /
     unfixable:<cat> / stuck / max_rounds / reject:<rid> /

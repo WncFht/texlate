@@ -1,4 +1,4 @@
-r"""shipwrap lane (2026-09-19): ``shipped_sty_input_wrap`` 规则钉。
+r"""shipwrap 车道 (2026-09-19): ``shipped_sty_input_wrap`` 规则钉。
 
 shipclscen census: 随源 ``.cls``/``.sty`` 内部裸 ``\input X.sty`` 站 ——
 ``\input`` 以宿主当前 @ catcode 读件, 宿主经裸 ``\input``/2.09 option

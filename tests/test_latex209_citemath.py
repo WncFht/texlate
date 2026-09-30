@@ -3,8 +3,8 @@
 revtex4-2+natbib 链路下数学域裸 ``\\cite`` 的未定义引用标记
 ``{\\reset@font\\bfseries ?}`` 无盒直排 → ``\\bfseries`` 触发
 ``\\not@math@alphabet`` 硬报 ``Command \\bfseries invalid in math mode``
-（gr-qc/9901082 ``$\\phi^i_{\\pm}=0 \\cite{HawMos}.$`` 实证，
-tmp/lane-citemath/EVIDENCE.md）；fixloop halt_on_error 让编译死在
+（gr-qc/9901082 ``$\\phi^i_{\\pm}=0 \\cite{HawMos}.$``，
+citemath 车道实证）；fixloop halt_on_error 让编译死在
 thebibliography 之前、``\\bibcite`` 永不写回 aux → 同错自续。
 ``\\mbox{\\cite{..}}`` 把标记放回文本域（min6 实证首遍净过）。
 """

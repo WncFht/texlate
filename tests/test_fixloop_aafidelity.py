@@ -1,4 +1,4 @@
-"""aa.cls stub 选项机面 pin（task #250 aafidelity lane）。
+"""aa.cls stub 选项机面 pin（task #250 aafidelity 车道）。
 
 真身 aa.cls v6.1–v9.2 默认 {a4paper,twoside,twocolumn,fleqn,final,10pt,
 runningheads}；原 \\LoadClassWithOptions 裸转发 → 裸 \\documentclass{aa}

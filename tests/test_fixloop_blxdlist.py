@@ -1,6 +1,6 @@
-"""blx_dlist_polyfill 单测 (blxdlist lane, task #239)。
+"""blx_dlist_polyfill 单测 (blxdlist 车道, task #239)。
 
-机理 (1502.02341 实证, census tmp/lane-blxbbl/): 稿捆绑 biblatex
+机理 (1502.02341 实证, blxbbl 车道普查): 稿捆绑 biblatex
 v2.3 时代 .bbl —— ``\\entry`` 记录裸排顶层, 无 ``\\datalist`` 包裹;
 backend=bibtex → 不产 .bcf → bbl_regen(158) 的 has_ext:.bcf 门恒拒。
 TL biblatex 3.21 中 ``\\blx@dlist@type``/``\\blx@dlist@name`` 的唯一
@@ -8,7 +8,7 @@ TL biblatex 3.21 中 ``\\blx@dlist@type``/``\\blx@dlist@name`` 的唯一
 ``\\blx@bbl@entry`` 的 ``\\edef\\blx@bbl@data`` (:8687) 与
 ``\\blx@bbl@endentry`` 双 ``\\ifstrequal`` (:8707/:8720) 全踩未定义名
 → 164 错 (54×dlist@name + 108×dlist@type + ``\\lossort``/``\\endlossort``
-v2.3 排序尾标对)。本 arm 以 begindocument/before 钩 ifx-guarded 补名
+v2.3 排序尾标对)。本臂以 begindocument/before 钩 ifx-guarded 补名
 (``\\blx@dlist@name`` 懒展开落真 refcontext 串, ``\\printbibliography``
 按 ``blx@dlist@entry@<sec>@<ctx>`` 读表同名命中) + lossort 对 no-op。
 
@@ -127,7 +127,7 @@ def test_polyfill_guard_forms() -> None:
 
 # ----------------------------------------------------------------- 路由层
 def test_fires_on_dlist_name_payload(tmp_path: Path) -> None:
-    """undefined_cs|blx@dlist@name → 本 arm 中, polyfill 落 docclass 行后。"""
+    """undefined_cs|blx@dlist@name → 本臂中, polyfill 落 docclass 行后。"""
     ctx = _ctx(tmp_path)
     rule, note = _match(ctx, "blx@dlist@name")
     assert rule is not None
@@ -141,7 +141,7 @@ def test_fires_on_dlist_name_payload(tmp_path: Path) -> None:
 
 
 def test_fires_on_all_four_payloads(tmp_path: Path) -> None:
-    """@name/@type/lossort/endlossort 四个独立 payload 各自派本 arm。"""
+    """@name/@type/lossort/endlossort 四个独立 payload 各自派本臂。"""
     for pay in ("blx@dlist@name", "blx@dlist@type", "lossort", "endlossort"):
         sub = tmp_path / pay.replace("@", "_")
         sub.mkdir()
@@ -194,7 +194,7 @@ def test_refire_idempotent(tmp_path: Path) -> None:
 
 # ----------------------------------------------------------------- 排序闸
 def test_order_after_bbl_regen() -> None:
-    """order 序位: bbl_regen(158) < 本 arm(166.5), loop 相内同序。"""
+    """order 序位: bbl_regen(158) < 本臂(166.5), loop 相内同序。"""
     loop = _RS.phase("loop")
     by_id = {r.id: r for r in loop}
     regen, mine = by_id["bbl_regen"], by_id[_RULE_ID]
@@ -255,7 +255,7 @@ def _xelatex(tmp_path: Path) -> None:
 def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     """全真链钉: 裸 \\entry .bbl 未修 → Undefined \\blx@dlist@name; 注入后零错。
 
-    tmp/lane-blxdlist/repro/ 实证: 修复稿 cites 解、书目排; 三参
+    blxdlist 车道实证: 修复稿 cites 解、书目排; 三参
     \\entry ×四参 \\blx@bbl@entry 的 #4 吞域杂字是登记 known_gap。
     """
     _ctx(tmp_path, bbl=True)

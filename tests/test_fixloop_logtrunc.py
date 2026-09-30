@@ -1,6 +1,6 @@
 """logtrunc Guard A+B 钉 —— halt 截断 log 与内容腰斩否决 acceptable_pdf/clean。
 
-Adjudication #10 (tmp/lane-pgdrop/gate-design.md):
+Adjudication #10 (pgdrop 车道裁决):
 
   Guard A — halt_on_error 下 ``n_bang>0`` ⇒ log 截在首错, 计数是下界非
     测量值, 证不了 errors≤clean_err_max: 轮 entry 记 ``log_truncated``,

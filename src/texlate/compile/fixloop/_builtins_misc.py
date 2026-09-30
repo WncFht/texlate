@@ -66,7 +66,7 @@ if TYPE_CHECKING:
 def non_utf8_recode(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""非 UTF-8 源文件就地转码 UTF-8 (docs/08:272; iconv 等价物, stdlib 版)。
+    r"""非 UTF-8 源文件就地转码 UTF-8 (docs/spec/compile.md §6.6; iconv 等价物, stdlib 版)。
 
     只对 utf-8 解码真失败的文件动刀; cp1252 是 latin-1 超集, 兼容
     西文 smart quote。能 utf-8 解码的文件绝不重写。
@@ -153,7 +153,7 @@ def purge_corrupt_intermediates(
     外链 aux 一律保留; shipped 侧归 normalize 转码兜底, 本函数只管
     引擎自产件的运行时截断。
 
-    payload 锚定臂 (scaneof lane, m1k aux-malformed 簇): runaway_scan/
+    payload 锚定臂 (scaneof 车道, m1k aux-malformed 簇): runaway_scan/
     undefined_cs 时 payload 是 TeX 回读卡住的 cs —— 行界齐整、括号
     闭合、utf-8 合法的 .aux 仍可为毒件 (旧宏包写端遗迹的版本错配:
     aux 里 ``\abx@aux@cite{0}{key}`` 两实参对不上新版 biblatex 一元
@@ -210,7 +210,7 @@ def aux_seed_undefined_refs(
 ) -> tuple[bool, str]:
     r"""未定义 ``\r@`` 引用 → ``\newlabel`` 空桩落 .aux, 斩 edef 炸弹。
 
-    实证根因 (pairbun lane, 1107.0312/1106.5915): imsart 系 ``\printead``
+    实证根因 (pairbun 车道, 1107.0312/1106.5915): imsart 系 ``\printead``
     把 ``\saferef`` 输出喂进 ``\href`` URL 参 —— hyperref
     ``\hyper@@normalise`` 的 ``\edef\Hy@tempa`` 全展开 URL; 未定义引用走
     ``\@setref`` ``??`` 臂 ``\nfss@text{\reset@font\bfseries ??}`` → 现代

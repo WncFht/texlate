@@ -1,7 +1,7 @@
 r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由。
 
 数据资产 ``src/texlate/latex/data/argspec.json``（CTAN 签名合成，
-``tmp/exp/ctan/build_argspec.py`` 生成）。装载走
+生成脚本已退役）。装载走
 ``tables.argspec_tables()``（``importlib.resources`` + ``@cache``）；
 查表 ``argspec_lookup``/``argspec_lookup_env`` 均不门控——名出现
 本身即工程级加载证据（per-file pkgs 会漏跨文件导言包），用户

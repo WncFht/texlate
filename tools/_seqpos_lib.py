@@ -309,7 +309,7 @@ def lit_probes(txt: str, short_ok: bool = False) -> list[str]:
 def lit_probe(txt: str, want: int = 24) -> str | None:
     """audit 单针口径——_tex_strip 已把占位符剥成空格（PH.split 恒单段），
     语义 = 剥后文本最长相干段的前 want 字。保留 seqpos_audit 既有真值口径
-    （tmp/seqpos-audit2-BEFORE.json 基线可比性）。"""
+    （修复前基线快照可比性）。"""
     s = re.sub(r"\s+", " ", _tex_strip(txt or "").strip())
     if len(re.sub(r"[^0-9A-Za-z一-鿿]", "", s)) < 4:
         return None

@@ -14,7 +14,7 @@ yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target
 渲染单行点名册压 ``<Glossary>`` 块末行（pipeline._materialize 接线），
 替代旧⑤层 ph→ph 恒等注入（O(文档占位符)×O(调用) 重发事故根因）。
 
-种子表 `terms/*.csv` 搬运自 LaTeXTrans（MIT，tmp/refs/LaTeXTrans/terms/），
+种子表 `terms/*.csv` 搬运自 LaTeXTrans（MIT），
 category→file 映射 `terms/index.yaml`——加领域不改代码。
 """
 

@@ -544,7 +544,7 @@ def test_builtin_macro_glyph_cs_sites_absent(tmp_path: Path) -> None:
 
 
 # ════════════════════════════════════════════════════════════════
-# misscharcen #162 (2026-09-19, loop3 残余普查 tmp/lane-misscharcen):
+# misscharcen #162 (2026-09-19, loop3 残余普查 misscharcen 车道):
 # char_table 补 14 条 (·²´¼½º≤⋅∼ℤ thinsp ʼ ╨ PUA —— 17 cells/35 lines)
 # + _MACRO_GLYPH_CS 扩 \\textendash/\\textgravedbl/\\textacutedbl
 # ════════════════════════════════════════════════════════════════
@@ -724,7 +724,7 @@ def test_builtin_macro_glyph_acutedbl_own_cp_not_keyed(tmp_path: Path) -> None:
 
 
 # ════════════════════════════════════════════════════════════════
-# misscharcen #169 (2026-09-19, misschar wave-2): macro_glyph_fix
+# misscharcen #169 (2026-09-19, misschar 批二): macro_glyph_fix
 # +``\char<dec>`` OT1 槽位臂 (1404.0578) + caret_utf8_fix 新臂
 # (2104.00026 .bbl ``^^XX`` UTF-8 字节记法)
 # ════════════════════════════════════════════════════════════════
@@ -931,7 +931,7 @@ def test_loop_caret_utf8_end_to_end(tmp_path: Path) -> None:
 
 
 # ════════════════════════════════════════════════════════════════
-# misschars4 #190 (2026-09-19, loop3 残余普查 tmp/lane-misschar3):
+# misschars4 #190 (2026-09-19, loop3 残余普查 misschar3 车道):
 # char_table 补 21 条 (tab ‰ € ✓ ¯ ├ ǎ ﬁ ˆ ₁₂ ∀∃∈∘∧∨∪ ⟨⟩ ˵)
 # ════════════════════════════════════════════════════════════════
 

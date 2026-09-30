@@ -3,7 +3,7 @@ r"""slot_arg_revert colspec 机位 —— arrayresid (2026-09-19) + zhleakimpl _
 列 spec 参 (``\begin{tabular}{|c|}``/``\multicolumn{n}{spec}{text}``/doc
 自定义 spec-holder ``\betb``) zh 化 → 可打印 ASCII ident 配对还原;
 ``_ARGB`` 平衡组把跨行/嵌组 spec (``xltabular``/``tblr``/``xtabular``)
-一并收入。envarg 严格 ident 够不着的 ``|``/空格/嵌套面归本 lane。
+一并收入。envarg 严格 ident 够不着的 ``|``/空格/嵌套面归本车道。
 """
 
 from pathlib import Path

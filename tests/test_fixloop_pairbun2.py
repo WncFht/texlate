@@ -41,7 +41,7 @@ def _sub(rule: Rule, text: str) -> str | None:
 
 
 def test_ruleset_loads_with_pairbun2_rules() -> None:
-    """三新臂在册且位次钉死 (共仓兄弟 lane 并发加规则, 只钉下界)。"""
+    """三新臂在册且位次钉死 (共仓兄弟车道并发加规则, 只钉下界)。"""
     assert len(_RS.rules) >= 200  # noqa: PLR2004 - 落地时 197+3
     assert _MSYM.order == 19  # noqa: PLR2004 - install_tfm(20) 前
     assert _MATHBF.order == 25.95  # noqa: PLR2004 - caret(25.9) 后 font_fallback(26) 前

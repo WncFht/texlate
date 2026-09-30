@@ -1,7 +1,7 @@
 r"""LaTeX 2.09 ``\documentstyle`` → LaTeX2e ``\documentclass`` 受限升级器。
 
-compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同签名全灭，
-``tmp/latex209-probe/RESULTS.md``）——2.09 文档唯一的 CJK 注入通路是先升级成
+compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同签名全灭）——
+2.09 文档唯一的 CJK 注入通路是先升级成
 2e 形态。本模块只做有界转换：
 
 - 首个非注释 ``\documentstyle[o]{c}`` 改写为 ``\documentclass`` + ``\usepackage``
@@ -215,7 +215,7 @@ _PKG_OPTS = frozenset(
         "rotate",
         # axodraw 是真包（Vermaseren 非商用许可 → off-CTAN，vendor/stubs 有
         # 替身）——209 选项位即装载语义，留类选项位则静默不加载，
-        # hep-ph/0111339 \LongArrow/\Line undefined_cs 实证（axodraw-lane）。
+        # hep-ph/0111339 \LongArrow/\Line undefined_cs 实证（axodraw 车道）。
         "axodraw",
         # AMS 族
         "amsmath",
@@ -294,7 +294,7 @@ _DS_AT_CLASSES = frozenset({"ias", "jaa", "julie"})
 #: ltxgrid 输出例程以类载入时的 topskip 为分页网格基准，声明后任何改写都
 #: 让页盒丈量失同步——``\topskip 0mm`` 实证 ``\end{document}`` ``\clearpage``
 #: 死循环（每页 6.66pt overfull 残量重排不尽，7 万页 SIGKILL）；正值不循环
-#: 但整页被吞 "No pages of output"（tmp/lane-revtexloop 双侧实证）。只删
+#: 但整页被吞 "No pages of output"（双侧实证）。只删
 #: 语句首位的活赋值（行首/``}``/``;`` 之后），``\ifdim\topskip``、
 #: ``\dimen=\topskip`` 这类读用形态不动；花括号内局部赋值作用域自动回滚，
 #: ``iter_depth0`` 口径天然豁免。
@@ -351,7 +351,7 @@ _MATH_SWITCH_RE: Final = re.compile(
 #: ``{\reset@font\bfseries ?}`` **无盒**直排（natbib.sty:385/518；alias 路径
 #: :607 同形 ``(alias?)``），``\bfseries`` 在数学域触发 ``\not@math@alphabet``
 #: 硬报 ``Command \bfseries invalid in math mode``（gr-qc/9901082
-#: ``$\phi^i_{\pm}=0 \cite{HawMos}.$`` 实证，tmp/lane-citemath/EVIDENCE.md）。
+#: ``$\phi^i_{\pm}=0 \cite{HawMos}.$`` 实证）。
 #: fixloop halt_on_error 让编译死在 thebibliography 之前、``\bibcite`` 永不
 #: 写回 aux → 引用每轮保持未定义 → 同错自续；``\mbox{\cite{..}}`` 把标记
 #: 放回文本域（min6 实证首遍净过），已定义引用盒内外渲染一致（min7）——

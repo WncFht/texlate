@@ -1,4 +1,4 @@
-"""slashbox stub 保真钉 (slashlane, 2026-09-19):
+"""slashbox stub 保真钉 (slash 车道, 2026-09-19):
 
 - ``vendor/stubs/slashbox.sty``: 原件 (K. Yasuoka 1993) 无许可 TL2020 除名,
   stub 按公开界面同义重写 —— ``\\slashbox``/``\\backslashbox``
@@ -9,7 +9,7 @@
   ``\\makebox`` 形在 tabular 受限横态炸 Missing/Extra } (95-targeted
   ``slashbox_arg_newline`` 规则仍作 syntax 相兜底)。
 - ``\\ProvidesPackage`` 版本串必须 YYYY/MM/DD 日期开头 —— 裸文字版串经
-  ``\\@parse@version@`` 漏进排版流 → Missing\\begin{document} (本 lane
+  ``\\@parse@version@`` 漏进排版流 → Missing\\begin{document} (本车道
   探针实证)。
 
 实证面 (fixloop records 6 格): 1109.5364 / 1206.5785 / 1404.0561 /

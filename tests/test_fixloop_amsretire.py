@@ -1,4 +1,4 @@
-r"""amsmath \\@@leqno ship-retire 规则单测 (assetlane #165, failmine3 3 格)。
+r"""amsmath \\@@leqno ship-retire 规则单测 (asset 车道 #165, failmine3 3 格)。
 
 实证背景 (0806.0246/0806.4130/1306.0294, stagerun-loop3): e-print 捆绑
 pre-2019 amsmath*.sty v2.13 (2000/07/18) —— ``\@saveprimitive\leqno\

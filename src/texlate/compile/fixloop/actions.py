@@ -1,7 +1,7 @@
 """actions —— fixloop 动作解释器簇 (C2 自 engine.py 拆出).
 
 ``when``/``condition`` 评估 + 7 种 ``action.kind`` 分派 + 依赖闭包安装
-+ ``_match_apply`` 规则匹配 (spike pick_and_apply)。类型面 ``LoopCtx``/
++ ``_match_apply`` 规则匹配 (原型 ``pick_and_apply``)。类型面 ``LoopCtx``/
 ``Engine``/``Rule``/``Ruleset``/``ErrReport`` 一律 TYPE_CHECKING 反引
 断运行时环; ``_REJECT_PREFIX`` (reject_route 产出、主循环判读) 与
 ``_probe`` (``probe_file`` cwd 兼容调用, 消费点全在本簇) 移驻本叶,
@@ -154,7 +154,7 @@ def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
     ``_requester_paths`` 同——帧序单源 ``ErrReport.site_frames``)。
     ``is_project_file`` 与红线归因同口径——相对帧/``root`` 内 = 工程
     (fileset 可 patch), texmf/bundle 帧 = 工程外 (fileset 够不到,
-    仅 wdir 无关 arm 可治)。无栈帧证据 (``rep=None`` 的直驱/旧调用面)
+    仅 wdir 无关臂可治)。无栈帧证据 (``rep=None`` 的直驱/旧调用面)
     → False (fail-closed)。
     """
     if rep is None:
@@ -361,7 +361,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
 
 
 # ════════════════════════════════════════════════════════════════
-# 动作分派 —— 7 种 action.kind (docs/08:260)
+# 动作分派 —— 7 种 action.kind (docs/spec/compile.md §6.5)
 # ════════════════════════════════════════════════════════════════
 
 
@@ -423,7 +423,7 @@ def _patch_files(
     subs: list[tuple[regex.Pattern[str], Any, bool]],
     rule_id: str = "",
 ) -> int:
-    """对全部匹配文件做 ``pattern→repl|function`` 替换; 返回改动文件数 (spike L245-261)。"""
+    """对全部匹配文件做 ``pattern→repl|function`` 替换; 返回改动文件数 (原型)。"""
     n = 0
     for f in ctx.tex_files(exts):
         t = ctx.read(f)
@@ -488,7 +488,7 @@ def _scan_names(code: str, sp: dict[str, Any]) -> Iterator[str]:
 def _apply_scan_install(
     ctx: LoopCtx, eng: Engine, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""静态扫 ``\usepackage``/``\documentclass`` → 探测缺失 → 批量装 (spike L594-618)。"""
+    r"""静态扫 ``\usepackage``/``\documentclass`` → 探测缺失 → 批量装 (原型)。"""
     need: set[str] = set()
     noise = (
         regex.compile(params["noise_filter"]) if params.get("noise_filter") else None
@@ -704,7 +704,7 @@ def _fd_case_variants(file: str) -> list[str]:
 
     filemap/kpsewhich 大小写敏感——``LGRcmr.fd`` 实档键是 ``lgrcmr.fd``
     (cbfonts-fd), 混档 ``OT1Tempora-TLF.fd``→tempora 则原名才中; 双形
-    互补全收 (nfssfd-lane, ``No file X.fd.`` 签 payload=原名)。
+    互补全收 (nfssfd 车道, ``No file X.fd.`` 签 payload=原名)。
     非 ``.fd`` / 已小写名 → 原名单候选。
     """
     p = Path(file)
@@ -777,7 +777,7 @@ def _relink_misplaced(  # noqa: C901  # 目录/文件链分派决策树, 拆则�
 def _apply_install_file(  # noqa: C901, PLR0912  # 候选序×font_related×复核×relink 分支即参数面
     ctx: LoopCtx, eng: Engine, params: dict[str, Any], rep: ErrReport
 ) -> tuple[bool, str]:
-    """缺文件 → probe → install_file → 复核; font_related → rebuild_fontmaps (spike L264-276)。"""
+    """缺文件 → probe → install_file → 复核; font_related → rebuild_fontmaps (原型)。"""
     fanout_seeds = _requester_paths(ctx, eng, rep)
     if fanout_seeds:
         before = len(ctx.installed)
@@ -875,7 +875,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
 
 
 # ════════════════════════════════════════════════════════════════
-# 规则匹配 (spike pick_and_apply L549-565 + mode/condition/fallback)
+# 规则匹配 (原型 pick_and_apply + mode/condition/fallback)
 # ════════════════════════════════════════════════════════════════
 
 
@@ -906,7 +906,7 @@ def _mc_delta(rule: Rule, ctx: LoopCtx) -> bool:
     return bool(ctx.mc_cps - ctx.mc_seen.get(rule.id, frozenset()))
 
 
-def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pick_and_apply 签名面
+def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # 原型 pick_and_apply 签名面
     rs: Ruleset,
     ctx: LoopCtx,
     eng: Engine,
@@ -952,7 +952,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
             continue
         try:
             applied, note = _apply(rule, ctx, eng, pay, rep)
-        except Exception as e:  # noqa: BLE001  # 规则崩溃=放弃该条, 试下一条 (spike L557-559)
+        except Exception as e:  # noqa: BLE001  # 规则崩溃=放弃该条, 试下一条 (原型口径)
             applied, note = False, f"rule crashed: {type(e).__name__}: {e}"
         if applied:
             ctx.applied.add(key)

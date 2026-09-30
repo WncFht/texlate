@@ -1,4 +1,4 @@
-r"""arraypream lane (task #105): ``pream_token_cs_expand`` 规则 + ``pream_token`` 分类钉。
+r"""arraypream 车道 (task #105): ``pream_token_cs_expand`` 规则 + ``pream_token`` 分类钉。
 
 array.sty ``\@mkpream`` 只改写 ``*``-repeat 与 ``\NC@`` 名, 其余 preamble
 宏留字面 token → ``Illegal pream-token (\X): `c' used.`` (kernel
@@ -13,7 +13,7 @@ array.sty ``\@mkpream`` 只改写 ``*``-repeat 与 ``\NC@`` 名, 其余 preamble
 (``\string`` 在 edef 内执行产字面 token) + emulateapj ``\pt@tabular``
 死绑 let 链中和 (array 把 ``\@tabclassz/\@tabclassiv`` 存名中和成
 ``\relax`` → 重绑即炸 "Missing # inserted in alignment preamble")。
-tmp/preamfix t2/t7/t8/t13 全链编译实证。
+preamfix 探针 t2/t7/t8/t13 全链编译实证。
 """
 
 from functools import lru_cache

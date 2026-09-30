@@ -1,6 +1,6 @@
 """cases — ``cases.jsonl`` 沉淀: 失败案例结构化落盘 → triage → 回放三门验证。
 
-docs/spec/compile.md (L312-330) 的沉淀机制::
+docs/spec/compile.md 的沉淀机制::
 
     每格跑完 → cases.jsonl {corpus, cond, engine, rounds[cat/pay/rule/result],
                             verdict, log_excerpt}
@@ -40,7 +40,7 @@ __all__ = [
     "xelatex_factory",
 ]
 
-# 进 triage 队列的 verdict (docs/08:319); max_rounds/no_errors_no_pdf 同为未救回
+# 进 triage 队列的 verdict (docs/spec/compile.md §6.8); max_rounds/no_errors_no_pdf 同为未救回
 _TRIAGE_VERDICTS = (
     "unfixable:",
     "stuck",
@@ -135,7 +135,7 @@ def triage(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # ════════════════════════════════════════════════════════════════
-# 回放验证三门 (docs/08:324-327)
+# 回放验证三门 (docs/spec/compile.md §6.8)
 # ════════════════════════════════════════════════════════════════
 
 

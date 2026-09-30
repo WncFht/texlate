@@ -49,7 +49,7 @@ class CompRes:
     #: （nonstopmode）跑全程不截。tectonic 与测试替身不盖此章，消费端
     #: getattr 容错按不截断处理（judge.py:462）。
     log_truncated: bool = False
-    #: 出货闸（qc-impl wave-2）——编译输入未覆盖 ``\end{document}``：主件
+    #: 出货闸（qc-impl 批二, 2026-09-28）——编译输入未覆盖 ``\end{document}``：主件
     #: 顶层无收尾 token 且 ``\input`` 链（≤2 层）亦无, 或主件先被顶层
     #: ``\endinput`` 截停。``log_truncated`` 盖 halt_on_error 趟中截死;
     #: 本闸收 best_effort 静默吃活不足与输入件残 (0906.4725 型文献表
@@ -69,7 +69,7 @@ class CompRes:
     killed_signal: int | None = None
     #: 趟间补跑的参考文献工具采纳记录（``bibtex:<aux-rel-stem>`` /
     #: ``biber:<stem>``）——非空即本编译跑过 bib 中间趟（``_bib_pass``
-    #: 文件态触发，design tmp/lane-bibpass）；空表 = 未跑或未采纳。
+    #: 文件态触发）；空表 = 未跑或未采纳。
     bib_ran: list[str] = field(default_factory=list)
     stdout_tail: str = ""
     deps: list[str] | None = None  # compiled_dependencies（.fls/.mk 权威输入集）

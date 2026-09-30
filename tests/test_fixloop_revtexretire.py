@@ -1,4 +1,4 @@
-r"""revtex4 v4.0a era-retire 规则单测 (revtexlane, census 3 格同机)。
+r"""revtex4 v4.0a era-retire 规则单测 (revtex 车道, 普查 3 格同机)。
 
 实证背景 (0806.4149/1003.0910/1907.00131, stagerun-loop3+loop1):
 e-print/user-texmf 自带 revtex4.cls v4.0a 内嵌 textcase v0.06 ——

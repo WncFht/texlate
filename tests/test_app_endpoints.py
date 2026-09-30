@@ -351,7 +351,7 @@ class TestFileGet:
         文档内脚本全灭的同源兜底闸）；非 html 产物不带头。
 
         ``URL_KIND`` 的 ``en.html``/``zh.html`` 反查项由 worker 侧
-        ``KIND_URL`` 注册（并行 lane）——setitem 同键值 shim，落地后等价。
+        ``KIND_URL`` 注册（并行车道）——setitem 同键值 shim，落地后等价。
         """
         monkeypatch.setitem(app_mod.URL_KIND, "zh.html", "zh_html")
         tid = _mk_kind_task(client, "arxiv_html")

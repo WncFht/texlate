@@ -80,7 +80,7 @@ def test_phase_ordering() -> None:
         "epsfbox_fit",
         "lscape_revtex_guard",
         "ref_double_brace_strip",
-        # W164 (stybegindoc lane): e-print 内嵌 tar 冒名 .sty/.cls → 解包
+        # W164 (stybegindoc 车道): e-print 内嵌 tar 冒名 .sty/.cls → 解包
         "tar_blob_extract",
         # failmine3 (#164b): docclass 自带子档剥至 body —— 解包后收, 预检前清死导言
         "subfile_docclass_strip",
@@ -263,7 +263,7 @@ def test_warn_driven_fixes_toggle() -> None:
 
 
 def test_mechanisms_field_optional_validated() -> None:
-    """``mechanisms:`` 可选声明字段 (wave-5b): [BTW]\\d+ 列表合法且经
+    """``mechanisms:`` 可选声明字段 (5b 批): [BTW]\\d+ 列表合法且经
     ``rule.mechanisms`` 读出; 异形 (非列表/坏 id) 被 _validate 拒。"""
     good = {
         "id": "x",

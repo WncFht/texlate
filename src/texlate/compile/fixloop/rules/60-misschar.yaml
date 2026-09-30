@@ -13,7 +13,7 @@ rules:
   # 两条互斥子路径都在 missing_char_fix 内 (码位×字体 查表):
   #   CJK 落非 CJK 字体 = xeCJK 字体绑定被污染 (elsart \no@harm → \protect
   #   重定义 → \selectfont 失效 → 首用把 xeCJK/<fam>/<ser>/<sh>/<size> 绑死
-  #   lmroman; cond-mat/0307508 实跑 4379 缺字根因, /tmp/mc-repro 复现)
+  #   lmroman; cond-mat/0307508 实跑 4379 缺字根因, mc-repro 探针复现)
   #   → \AtBeginDocument 预热盒在干净上下文先绑常用 size;
   #   符号/拉丁缺字 (≠ U+2260 / − U+2212 / § U+A7 / ø U+F8 / è U+E8)
   #   → char→命令字面替换, 表条目见 builtins._MC_TABLE, params.char_table 可扩。
@@ -131,7 +131,7 @@ rules:
           - { id: boxdraw_2568, cps: [0x2568], replace: "-" }
           # PUA 私用区残留 (0905.1031) —— 同 pua_f047 剥除
           - { id: pua_f07a, cps: [0xF07A], replace: "{}" }
-          # ── misschars4 #190 补表 (loop3 残余普查 tmp/lane-misschar3, ~20 cells) ──
+          # ── misschars4 #190 补表 (loop3 残余普查 misschar3 车道, ~20 cells) ──
           # tab → 空格; ├/boxdraw → 剥除; ﬁ 复拼 religate; ˵ → 双引号。
           # 重音/修饰符走 accent 机制形 (无字体槽位依赖): ¯→\={} ǎ→\v{a}
           # ˆ→\^{}; ‰/€ 落文本字体 (lmroman 有槽) → \textperthousand/\texteuro;
@@ -166,7 +166,7 @@ rules:
               replace: "\\ensuremath{\\rangle}",
             }
           - { id: dblgrave, cps: [0x02F5], replace: "\\mbox{''}" }
-          # ── 2026-09-20 erafam char-table (failmine7 桶 → lane-erafam census) ──
+          # ── 2026-09-20 erafam char-table (failmine7 桶 → erafam 车道普查) ──
           # ‒ figuredash .bbl 字面落 lmroman12 (2603.07352) —— U+2012 在
           #   全部 _FB_RANGES 带外, fb 永不绑; "--" 是 canonical 近似
           - { id: figuredash, cps: [0x2012], replace: "--" }
@@ -174,13 +174,13 @@ rules:
           #   已在树 (newunicodechar 行在), 但 \name preamble 期 token 化
           #   catcode-11 字面逃出 AtBeginDocument 活化窗 → 落 cmunbx 缺字。
           #   字面替换在源级灭字, 与捕获时序无关。注: 已改树上会碰 fb
-          #   行内同字面 —— fresh-run 路径干净 (census 已注)。
+          #   行内同字面 —— fresh-run 路径干净 (普查已注)。
           - { id: lcomma, cps: [0x13C], replace: "\\mbox{\\c{l}}" }
           - { id: ncomma, cps: [0x146], replace: "\\mbox{\\c{n}}" }
           # । danda 在 \texttt{\detokenize{...}} regex 展示行内
           #   (2511.15886) —— detokenize 双挡 active-char 绑定与 cs 注入,
           #   且无已装字体覆盖 U+0964 (fb 也救不了) → 剥除唯一可达;
-          #   有损 (regex 字类少一员) census 已注。
+          #   有损 (regex 字类少一员) 普查已注。
           - { id: danda, cps: [0x964], replace: "{}" }
           # ── failmine8 A1 补表 (2026-09-20, OTF/T1 缺字尾, 14 cps/12 cells) ──
           # ℝℚℂ 双线大写 + ∂ 落 lmmono8/9 (2608.09867/2609.19352/2609.20805,
@@ -400,7 +400,7 @@ rules:
       params:
         # 显式重述 _FB_RANGES 三带 + 希腊块 (scout-misschar outband:
         # 0x3A5-0x3F5 观测; Libertinus Serif 全希腊覆盖)。数学模式内
-        # 字面量仍待 \ifmmode 模板 (builtins, 1d lane)。
+        # 字面量仍待 \ifmmode 模板 (builtins, 1d 车道)。
         fallback_ranges:
           [[0x400, 0x4FF], [0x300, 0x36F], [0xC0, 0x17F], [0x370, 0x3FF]]
     risk: low
@@ -421,7 +421,7 @@ rules:
   # mdbchr8t/aer*/cmr*…) —— 缺字字体名无 [/: 前缀, cjk_glyph 条目的
   # spec-font gate 不接; font_fallback 默认带只盖西里尔/组合/拉丁扩展,
   # CJK 段带外 → 第三路兜底。inject f7822a8 (ctex+fandol 路由) 已根治
-  # wave-561368d 全部 42 个 E(b) 证据格 (CJK-in-tfm 残例=0) —— 本规则是
+  # 561368d 批全部 42 个 E(b) 证据格 (CJK-in-tfm 残例=0) —— 本规则是
   # 复发安全网, 非活跃修面。builtin 侧 fallback_cs/font_not params 已由
   # fixer-misschar A2 批落地 (827674d): \ifdefined 守卫防撞名 + 逐字
   # \newunicodechar 去重幂等。
@@ -477,7 +477,7 @@ rules:
     stats: { fires: 29, rescued_cells: 10, status: active }
     source_ref: "fixer-font-fallback-8bit-2026-09-17 fragment; builtin params=A2 (827674d fixer-misschar 迟交付)"
 
-  # ─── hangul 缺字专臂 (hangulfont lane 2026-09-19) ───
+  # ─── hangul 缺字专臂 (hangulfont 车道 2026-09-19) ───
   # 谚文码位落在无 hangul 块的字体: KAIST 韩文论文 2403.00013 ×1341
   # (FandolSong/Hei script=hani —— ctex 路由只认 CJK 家族, Fandol 本无
   # hangul) + 2410.18001 ×545 (lmroman)。cjk_font_fallback 旧带表含
@@ -537,7 +537,7 @@ rules:
     stats: { fires: 15, rescued_cells: 3, status: active }
     source_ref: "hangulfont lane census 2026-09-19 (tmp/hangulfont/census.json): 2 cells ×4 run-records"
 
-  # ─── hani 二档回退臂 (erafam lane 2026-09-20, 11 cells) ───
+  # ─── hani 二档回退臂 (erafam 车道 2026-09-20, 11 cells) ───
   # 汉字码位落在**主 CJK 字体**上: FandolSong/FandolKai script=hani 真缺
   # 字形 —— zh 译文引入的生僻字 (埼 U+57FC/祇 U+7947/蒭/凈/為/啰/甦/昇
   # 全是源内字面, 非机制产出)。cjk_font_fallback(27) font_not 含 fandol
@@ -739,7 +739,7 @@ rules:
   # —— fixloop run_tool 面无 FONTCONFIG_FILE 注入, fc-list 对 texmf
   # 字族恒盲, 唯 eng.probe_file (kpathsea) 与 fontspec 文件查找同路;
   # probe 实证可达才动笔, 全灭 decline 落回 31 号 LM 臂。payload 茎
-  # 不在表 → decline (Amiri TL 内外皆无度量克隆 = lane 裁决 unfixable,
+  # 不在表 → decline (Amiri TL 内外皆无度量克隆 = 车道裁决 unfixable,
   # 不发错字体声明; FontAwesome.otf 普查后 texlive 补装已自愈)。
   # 跨分片 note: 类目主场在 50-font.yaml, 臂随 font_fallback 族 builtin
   # 叶 (_builtins_misschar) 归本shard。
@@ -822,7 +822,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "task #293 fontfb lane; tmp/lane-singlesweep/mech_buckets.json fontenc-def-absent"
 
-  # ─── 2026-09-28 qc-impl lane (vault QC replay vis_degenerate 桶) ───
+  # ─── 2026-09-28 qc-impl 车道 (vault QC replay vis_degenerate 桶) ───
   # FFFD 字面邻域分派 —— 替已撤 char_table fffd_repl('-') 盲换 (无语境
   # 连字符产 '许-多'/'C-orcoles' 错修实证)。builtin 按跑双侧邻域分派:
   # CJK 间→{} (0812.1323/1206.0210/1206.5329); 数字/页码→-- (1107.0677/

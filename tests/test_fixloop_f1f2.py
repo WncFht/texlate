@@ -7,7 +7,7 @@ n100-postcutover 逐签名归因产物:
 - F2: cs_targeted_fix cs_table 新增 31 条 splice/join 合并残骸 (cs+后 token
   粘连, 如 \\itemFSU ← \\item + 首词 FSU), 全部 cs_map 拆回原形。
 单测打 transform 层: stub 落盘 / needs→install 调用 / cs_map 改写及词边界。
-真编译冒烟: tmp/shimtest/ (xelatex 36/36 PASS, 见证据文件)。
+真编译冒烟: shimtest 车道 (xelatex 36/36 PASS)。
 """
 
 import re

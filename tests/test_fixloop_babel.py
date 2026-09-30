@@ -1,4 +1,4 @@
-r"""babel-lane (2026-09-19): babel 语言选项系修复钉。
+r"""babel 车道 (2026-09-19): babel 语言选项系修复钉。
 
 格面: corpus 0707.1325/1003.2165 ([german] → ldf 装好后炸
 ``\iflanguage{ngerman}`` AtBeginDocument 钩, Arch 格式零非英 \l@*)、
@@ -305,7 +305,7 @@ def test_undeclared_match_apply_routes(tmp_path: Path) -> None:
     assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()
 
 
-# ─────────────── babelinv 普查钉组 (tmp/lane-babelinv/ldf_pins.yaml) ───────────
+# ─────────────── babelinv 普查钉组 (babelinv 车道 ldf_pins 台账) ───────────
 def test_census_pins_registered() -> None:
     """51 钉全量入 overrides —— 抽查代表项 + 包名异形格 (samin/turkmen)。"""
     overrides = rs().filemap_cfg["overrides"]

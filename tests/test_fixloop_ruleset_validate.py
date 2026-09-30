@@ -736,8 +736,8 @@ def test_shipped_ruleset_passes_schema() -> None:
 def test_shipped_ruleset_scale_pin() -> None:
     """出厂 rules/ 规模唯一权威钉: ``len(rules) >= 209`` (当前真实条数)。
 
-    各 lane 测试文件里发散的 ``len(rules) >= N`` 下界钉 (112/113/114/196/
-    200/… 约 8 处) 以本钉为 canonical——lane 落地只加新规则, 库规模
-    只增不减; 后续扩容抬升本钉即可, lane 文件不再各自钉数。
+    各车道测试文件里发散的 ``len(rules) >= N`` 下界钉 (112/113/114/196/
+    200/… 约 8 处) 以本钉为 canonical——车道落地只加新规则, 库规模
+    只增不减; 后续扩容抬升本钉即可, 车道文件不再各自钉数。
     """
     assert len(load_ruleset().rules) >= 209  # noqa: PLR2004 - 库规模权威钉

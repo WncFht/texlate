@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 def option_clash_merge(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""Option clash: 同包两次 ``\\usepackage`` → 合并选项到首处, 注释后处 (spike L459-494)。"""
+    r"""Option clash: 同包两次 ``\\usepackage`` → 合并选项到首处, 注释后处 (原型)。"""
     del eng  # 签名面统一; 本变换不触引擎
     if not payload:
         return False, "no pkg payload"
@@ -64,7 +64,7 @@ def option_clash_merge(
         m0 = first.group(0)
         if first["opts"]:
             first_new = m0.replace(first["opts"], f"[{merged}]", 1)
-        else:  # 首个加载无 [opts] → 在花括号前插 [merged]; spike L486
+        else:  # 首个加载无 [opts] → 在花括号前插 [merged]; 原型同点
             # `str.replace("", ...)` 会逐位插入, 此处修掉该潜伏 bug
             brace = m0.rfind("{")
             first_new = m0[:brace] + f"[{merged}]" + m0[brace:]
@@ -503,7 +503,7 @@ def _siunitx_load_sites(t: str) -> list[tuple[int, int, bool]]:
     ``_scoped_sites`` 走查 (遮盖视图 + 深度 0 + ambient @ 栈), 宏体/组内
     ``\\usepackage`` 不算 (延迟执行语境, 注入文本会在定义点断 ``\\@`` 签名)。
     ``end`` 即 match 本体尾 (``_match_end``) —— 名单 ``[^}]*`` 不含 ``}``,
-    命令括号已自闭。``at_letter`` 本 lane 不消费, 随统一三元组带回。
+    命令括号已自闭。``at_letter`` 本车道不消费, 随统一三元组带回。
     """
     out: list[tuple[int, int, bool]] = []
     for m, end, at_letter in _scoped_sites(t, _SIU_LIST_RE, end_fn=_match_end):
@@ -575,7 +575,7 @@ def shipped_sty_input_wrap(
 def font_sub_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""MF-only 字体包 → Type1 近亲 shim (docs/08:275, ctanfetch-probe §3.4)。
+    r"""MF-only 字体包 → Type1 近亲 shim (docs/spec/compile.md §6.6)。
 
     ``\\usepackage{bbm}`` → ``\\usepackage{dsfont}`` + cs 族改写
     (``\\mathbbm``→``\\mathds`` 等)。物理字体投放对 tectonic xdvipdfmx

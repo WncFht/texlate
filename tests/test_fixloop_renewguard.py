@@ -7,7 +7,7 @@ r"""renewguard (task #234) —— cs_targeted_fix ``guard``/``guard_pre`` 键单
 级联); ``\\providecommand\\csname`` 直写把 ``\\csname`` 当已定义名静默
 no-op。``guard`` emission 恒走 ``\\expandafter\\providecommand\\expandafter
 {\\csname <cs>\\endcsname}<args>{<body>}`` —— @-名/裸名/含 ``.`` ``*``
-名通吃 (lane-renewguard forms*.tex 全形实证)。
+名通吃 (renewguard 车道 forms*.tex 全形实证)。
 
 语料: 2609.20238 ``\\renewcommand*\\backref[1]`` (hyperref 未开 backref
 选项), math/0408290 ``\\renewcommand{\\U}{\\Upsilon}``, 1306.0124

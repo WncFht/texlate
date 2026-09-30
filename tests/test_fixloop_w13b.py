@@ -64,7 +64,7 @@ def _ctx(tmp_path: Path, files: dict[str, str]) -> LoopCtx:
 
 
 def test_ruleset_loads_with_w13b_rules() -> None:
-    """新臂在册且位次钉死 (共仓兄弟 lane 并发加规则, 只钉下界)。"""
+    """新臂在册且位次钉死 (共仓兄弟车道并发加规则, 只钉下界)。"""
     assert len(_RS.rules) >= 200  # noqa: PLR2004 - 落地时已逾 200
     assert _OPTCOND.order == 204  # noqa: PLR2004 - cite_natbib_clash_retire(203) 后
     assert _OPTCOND.action["kind"] == "regex_rewrite"
