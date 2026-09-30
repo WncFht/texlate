@@ -14,29 +14,11 @@ import sys
 
 import pymupdf
 
+from _alignsim import char_pos_stream
 from _env import TASKS
-from texlate.server.seqpos import _doc_order, _norm_chars, _tex_strip
+from _seqpos_lib import _doc_order, _norm_chars, _tex_strip
 
 PROBE_N = 30
-
-
-def pdf_streams(doc):
-    chars, pos = [], []
-    for pno in range(doc.page_count):
-        page = doc[pno]
-        h = page.rect.height or 1
-        rd = page.get_text("rawdict")
-        for blk in rd.get("blocks", []):
-            for ln in blk.get("lines", []):
-                for sp in ln.get("spans", []):
-                    for ch in sp.get("chars", []):
-                        n = _norm_chars(ch.get("c", ""))
-                        if not n:
-                            continue
-                        chars.extend(n)
-                        frac = max(0.0, min(0.999, ch["bbox"][1] / h))
-                        pos.extend([(pno + 1, frac)] * len(n))
-    return "".join(chars), pos
 
 
 def probe_windows(nd):
@@ -78,8 +60,8 @@ def audit_task(tid):
 
     en_doc = pymupdf.open(tdir / "en.pdf")
     zh_doc = pymupdf.open(tdir / "zh.pdf")
-    en_stream, en_pos = pdf_streams(en_doc)
-    zh_stream, zh_pos = pdf_streams(zh_doc)
+    en_stream, en_pos = char_pos_stream(en_doc)
+    zh_stream, zh_pos = char_pos_stream(zh_doc)
 
     results = {}
     for side, stream, pos, fld in (

@@ -15,8 +15,7 @@ zh 侧只测 unmarked seq（marked 点击精确命中 span 不走 picker）。
 import json
 
 from _env import TASKS
-from _seqpos_lib import key_of, lin_of, nearest
-from texlate.server.seqpos import _char_stream
+from _seqpos_lib import _char_stream, key_of, lin_of, nearest
 
 SAMPLES = (0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9)
 

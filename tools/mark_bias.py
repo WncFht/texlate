@@ -16,8 +16,10 @@ from pathlib import Path
 import pymupdf
 from pypdf import PdfReader
 
+from _alignsim import char_pos_pages
 from _env import TASKS
-from texlate.server.seqpos import _norm_chars, _tex_strip
+from _seqpos_lib import _norm_chars, _tex_strip
+
 BDC_RX = re.compile(r"\\special\{pdf:code /TLXC <</MCID (\d+)>> BDC\}")
 ARG_RX = re.compile(r"\\([a-zA-Z@]+\*?)\s*\{\s*$")
 SECT_CS = {
@@ -66,27 +68,6 @@ def marks_with_tm(path: Path):
     return marks
 
 
-def page_charpos(doc: pymupdf.Document):
-    """每页 (归一字符流，[frac]) —— 逐字 bbox 顶向下。"""
-    out = []
-    for pno in range(doc.page_count):
-        page = doc[pno]
-        h = page.rect.height or 1
-        rd = page.get_text("rawdict")
-        chars, pos = [], []
-        for blk in rd.get("blocks", []):
-            for ln in blk.get("lines", []):
-                for sp in ln.get("spans", []):
-                    for ch in sp.get("chars", []):
-                        n = _norm_chars(ch.get("c", ""))
-                        if not n:
-                            continue
-                        chars.extend(n)
-                        pos.extend([ch["bbox"][1] / h] * len(n))
-        out.append(("".join(chars), pos))
-    return out
-
-
 def main():
     rows = []
     for tdir in sorted(TASKS.iterdir()):
@@ -122,7 +103,7 @@ def main():
             print(f"{tdir.name} pypdf fail: {e}")
             continue
         doc = pymupdf.open(zhpdf)
-        pages = page_charpos(doc)
+        pages = char_pos_pages(doc)
         for seq, cs in sorted(in_arg.items()):
             if seq not in marks:
                 continue
@@ -132,7 +113,7 @@ def main():
             if len(probe) < 2:
                 continue
             mpg, mfr = marks[seq]
-            stream, pos = pages[mpg - 1]
+            _pn, stream, pos = pages[mpg - 1]
             # 同页全部命中 → 最近者
             hits = []
             start = 0

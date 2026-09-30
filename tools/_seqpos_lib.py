@@ -8,6 +8,9 @@
   与旧基线 picker。
 - ``lit_probes/lit_probe/scan_pages/truth_rects``：search_for 真值探针
   两口径（e2e 多针组 / audit 单针）。
+- ``_char_stream``/``_norm_chars``/``_tex_strip``/``_doc_order``/
+  ``seqpos_for_task``：``texlate.server.seqpos`` 转口面——tools 消费
+  seqpos 一律经本件，私名跨包直连禁（源改名/收口只动本文件）。
 
 生产改版先改源、回头同步本件——脚本里不再长副本。
 """
@@ -19,7 +22,13 @@ import re
 from typing import NamedTuple
 
 import _env  # noqa: F401 -- src 登程须先于 texlate import
-from texlate.server.seqpos import _tex_strip
+from texlate.server.seqpos import (  # noqa: F401 -- 转口面：tools 侧唯一引口
+    _char_stream,
+    _doc_order,
+    _norm_chars,
+    _tex_strip,
+    seqpos_for_task,
+)
 
 COL_X = 0.45  # 栏判定 x 中点契约——与前端 colOf / seqpos._COL_SPLIT_X 同口径
 

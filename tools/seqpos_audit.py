@@ -22,22 +22,19 @@ from pathlib import Path
 import pymupdf
 
 from _env import TASKS
-from _seqpos_lib import lit_probe
-from texlate.server.seqpos import _char_stream
+from _seqpos_lib import _char_stream, lit_probe, scan_pages
 
 MISS_FRAC = 0.08
 
 
 def truth(doc: pymupdf.Document, phrase: str | None):
+    """全页 search_for → [(page1, y0-frac)]——_seqpos_lib.scan_pages 投影。"""
     if not phrase:
         return []
-    out = []
-    for pno in range(doc.page_count):
-        pg = doc[pno]
-        h = pg.rect.height or 1
-        for r in pg.search_for(phrase):
-            out.append((pno + 1, r.y0 / h))
-    return out
+    return [
+        (p, r.y0 / (h or 1))
+        for p, r, _w, h in scan_pages(doc, phrase, range(doc.page_count))
+    ]
 
 
 def audit(tid: str) -> dict:

@@ -26,6 +26,7 @@ import pymupdf
 from _env import TASKS
 from _seqpos_lib import (
     COL_X,
+    _char_stream,
     col_of,
     create_position_mapper,
     degrade,
@@ -36,7 +37,6 @@ from _seqpos_lib import (
     ro_lin,
     truth_rects,
 )
-from texlate.server.seqpos import _char_stream
 
 _SIDE = {"o": "original", "t": "translated"}
 

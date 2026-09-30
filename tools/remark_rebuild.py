@@ -24,6 +24,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from _env import DB, TASKS
+from _seqpos_lib import _char_stream
 from texlate.align import build_alignment
 from texlate.compile.engine._route import engine_for
 from texlate.compile.inject import prepare_chinese
@@ -39,7 +40,6 @@ from texlate.pipecore import (
     probe_report,
     ran_front_matter,
 )
-from texlate.server.seqpos import _char_stream
 from texlate.server.upload import pdf_pages
 from texlate.server.worker._common import chunk_db_id
 

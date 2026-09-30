@@ -10,7 +10,7 @@ import time
 import traceback
 
 from _env import TASKS
-from texlate.server.seqpos import seqpos_for_task
+from _seqpos_lib import seqpos_for_task
 
 for tdir in sorted(TASKS.iterdir()):
     dual_p = tdir / "dual.json"
