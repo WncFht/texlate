@@ -7,7 +7,7 @@ r"""_builtins_layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtin
   (inject 侧 ``TABLE_FITTING`` 成对钩法 0930 拔除后本 builtin 是表族
   钳宽唯一面) + 可断页表族 (longtable 系) env/begin 局部收缩
   + 列声明 ``p{\textwidth}``/表域负 ``\hspace``/绝对宽 minipage 文本臂。
-- ``math_run_break``: 行内数学断点 penalty 清零 + para_loosen tier2 剂量。
+- ``math_run_break``: 行内数学断点 penalty 清零 + para_loosen 强剂量。
 - ``display_math_shrink``: 编号对齐族 env/before 字号+muskip 收缩 +
   ``$$``/``\[`` 无编号 display ``\adjustbox`` 包。
 - ``gfx_width_clamp``: ``\includegraphics`` ``max width`` 钳 (adjustbox
@@ -466,7 +466,7 @@ def legacy_clamp_purge(
 
 
 # ════════════════════════════════════════════════════════════════
-# math_run_break —— 行内数学断点 penalty + tier2 剂量 (fp unbreakable_para_run)
+# math_run_break —— 行内数学断点 penalty + 强剂量 (fp unbreakable_para_run)
 # ════════════════════════════════════════════════════════════════
 
 #: 断点清零注入块——``\relpenalty``/``\binoppenalty`` 归零使行内数学在
@@ -478,9 +478,9 @@ _MATHRUN_SNIPPET = (
     "\\binoppenalty=0\\relax"
 )
 
-#: tier2 剂量——para_loosen 未注时随本块同注 (断不开的段落仍需三遍排版
+#: 强剂量——para_loosen 未注时随本块同注 (断不开的段落仍需三遍排版
 #: 兜底); 已注走就地升级 (下方正则臂)。
-_MATHRUN_TIER2 = "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
+_MATHRUN_STRONG = "\n\\emergencystretch=3em\\relax\n\\tolerance=9999\\relax"
 
 #: ``para_loosen`` 注入块标记行 (_builtins_misc._LOOSEN_SNIPPET 首行)——
 #: 已注检出即升级剂量而非重注 (同位赋值后注后胜, 不叠注语义靠升级臂)。
@@ -494,12 +494,12 @@ _LOOSEN_UP_RX = (
 def math_run_break(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""warn_overfull 行内数学臂: penalty 清零 + tier2 排版剂量。
+    r"""warn_overfull 行内数学臂: penalty 清零 + 强排版剂量。
 
     实证面 (qc unbreakable_para_run 桶, 24 格): ``$...$`` 长 run
     (set-builder/braket/pmatrix/tuple/CJK 混排) 无合法断点把词间 glue
     拉竭——``\relpenalty=0 \binoppenalty=0`` 放开关系/二元符后断点;
-    ``\emergencystretch=3em \tolerance=9999`` tier2 剂量对 para_loosen
+    ``\emergencystretch=3em \tolerance=9999`` 强剂量对 para_loosen
     已注格就地升级 (标记行检出), 未注格随本块同注——两条目同
     warn_overfull 驱动面不互抢 (同签共存稿各臂按序收)。
 
@@ -516,7 +516,7 @@ def math_run_break(
         return False, "main unreadable"
     parts: list[str] = []
     nt = t
-    if _LOOSEN_MARK in nt:  # para_loosen 已注 → 就地升级 tier2 剂量
+    if _LOOSEN_MARK in nt:  # para_loosen 已注 → 就地升级强剂量
         for rx, rep_s in _LOOSEN_UP_RX:
             nt = rx.sub(rep_s, nt)
         if nt != t:
@@ -524,7 +524,7 @@ def math_run_break(
             parts.append("loosen dose upgraded to tier2 (3em/9999)")
             t = nt
     if _MATHRUN_SNIPPET.split("\n", 1)[0] not in t:
-        snippet = _MATHRUN_SNIPPET + ("" if _LOOSEN_MARK in t else _MATHRUN_TIER2)
+        snippet = _MATHRUN_SNIPPET + ("" if _LOOSEN_MARK in t else _MATHRUN_STRONG)
         if _inject_before_begindoc(ctx, snippet, fallback="head"):
             parts.append(
                 "injected \\relpenalty/\\binoppenalty=0"

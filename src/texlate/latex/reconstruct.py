@@ -521,7 +521,7 @@ def _in_align_preamble(tail: str) -> bool:
 _MARK_ENV_ARG_RX = re.compile(r"(?:\s|\*|\[[^\]]*\]|\{[^{}]*\})*")
 
 
-def _env_arg_zone(tail: str) -> bool:
+def in_env_args(tail: str) -> bool:
     r"""引用点在 ``\\begin{env}`` 头参扫描区——env 参未扫完，锚须挪参串尾。
 
     尾段末次 ``\\begin{…}`` 之后仅 ``[opt]``/``{arg}``/``*``/空白即区内
@@ -1065,7 +1065,7 @@ class _Expander:
         seq = self.mark.get(idx)
         if seq is None:
             return None
-        return seq, (not in_align) and _env_arg_zone(tail)
+        return seq, (not in_align) and in_env_args(tail)
 
     def _unroll_edge(self, body: str, *, head: bool) -> str:
         r"""展开体头/尾的 ph token 原地代一层。

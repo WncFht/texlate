@@ -109,7 +109,7 @@ rules:
     known_gap: "无表族/minipage 字面的 overfull (纯文本/图形盒) builtin decline; 已 adjustbox 包裹面幂等"
 
   # math_run_break builtin: \relpenalty/\binoppenalty=0 放行行内数学
-  # 断点 + tier2 (emergencystretch=3em/tolerance=9999) 升级。长行内数学
+  # 断点 + 强剂量 (emergencystretch=3em/tolerance=9999) 升级。长行内数学
   # $...$ 是 overfull 头号内联不可断物 (qc replay 实测多格)——TeX 默认
   # 关系/二元符后罚 10000 禁断, 归零即让行内公式在运算符处断行。
   - id: math_inline_break
