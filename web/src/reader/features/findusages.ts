@@ -1,4 +1,4 @@
-// features/findusages —— find-usages lane 交互层（fu-popover-spike
+// features/findusages —— find-usages lane 交互层（预研版
 // FigPane 委托/时序的产品化移植，pane 无关）。
 //
 //   registerFindUsages(reg, opts) —— 右键菜单 cite.usages 命令
@@ -157,7 +157,7 @@ export function attachUsages(
         cardOpen = false;
         deps.close();
         // Esc 关卡通路：焦点还给触发元素——preventScroll 防还焦点滚动
-        // 复活 hover 路径（spike 缺陷 2：focus() 默认 scrollIntoView 把
+        // 复活 hover 路径（预研实测缺陷：focus() 默认 scrollIntoView 把
         // 内容移位到静止指针下 → pointerover 重命中 → 关卡被复活）。
         if (
             refocus &&
@@ -172,7 +172,7 @@ export function attachUsages(
 
     /** 卡锚 rect：figcaption 优先（巨型 figure 包围盒底部常出视口）。
         夹入视口——1900px 浮动体滚动中段时两头都不在屏内，不夹则卡渲
-        0 可见像素（spike 缺陷 1 修复）。 */
+        0 可见像素（预研实测缺陷修复）。 */
     const anchorRect = (host: HTMLElement) => {
         const cap = host.querySelector("figcaption");
         const r = (cap ?? host).getBoundingClientRect();
@@ -189,10 +189,10 @@ export function attachUsages(
         via: UsagesOpen["via"],
     ) => {
         deps.onWillOpen?.();
-        // 滞留的 armClose 必须在显式开前清算——否则序列为「焦点迁出旧
-        // 触发元(armClose 排程)→mousedown 新目标→click 开卡」时，旧定时
+        // 滞留的 scheduleClose 必须在显式开前清算——否则序列为「焦点迁出旧
+        // 触发元(scheduleClose 排程)→mousedown 新目标→click 开卡」时，旧定时
         // 器到点把刚开的卡杀掉（⌘-Inspect 实测：Esc 还焦的 cite 触发元
-        // focusout→armClose，350ms 后吞掉 inspect 开的 usages 卡）
+        // focusout→scheduleClose，350ms 后吞掉 inspect 开的 usages 卡）
         window.clearTimeout(closeTimer);
         closeTimer = 0;
         curHost = entry.target.el ?? null;
@@ -207,14 +207,14 @@ export function attachUsages(
     const entryOf = (t: EventTarget | null): UsageEntry | undefined =>
         deps.source()?.forEl(t as Element | null);
 
-    const armOpen = (fn: () => void) => {
+    const scheduleOpen = (fn: () => void) => {
         window.clearTimeout(openTimer);
         openTimer = window.setTimeout(() => {
-            openTimer = 0; // 发后即清零——同锚复悬才能再武装
+            openTimer = 0; // 发后即清零——同锚复悬才能再排程
             fn();
         }, OPEN_DELAY);
     };
-    const armClose = () => {
+    const scheduleClose = () => {
         window.clearTimeout(closeTimer); // 重入必须撤旧定时器
         closeTimer = window.setTimeout(() => doClose(), CLOSE_DELAY);
     };
@@ -234,7 +234,7 @@ export function attachUsages(
             // 同目标复悬只续不关；卡未开且定时器已逝要补武装
             window.clearTimeout(closeTimer);
             if (!cardOpen && !openTimer)
-                armOpen(() => {
+                scheduleOpen(() => {
                     if (!entry.target.el?.isConnected) return;
                     fire(
                         entry,
@@ -247,7 +247,7 @@ export function attachUsages(
         }
         clearCardTimers();
         curHost = host;
-        armOpen(() => {
+        scheduleOpen(() => {
             if (!host.isConnected) return;
             fire(entry, host, anchorRect(host), "hover");
         });
@@ -261,7 +261,7 @@ export function attachUsages(
         if (from && from === to) return;
         if (from || cardOpen) {
             window.clearTimeout(openTimer);
-            armClose();
+            scheduleClose();
         }
     };
     const onClick = (e: MouseEvent) => {
@@ -314,7 +314,7 @@ export function attachUsages(
         const rel = e.relatedTarget as Element | null;
         if (rel?.closest?.(".usage-card")) return;
         if (!entryOf(e.target) && !cardOpen) return;
-        armClose();
+        scheduleClose();
     };
     // 卡 DOM 序远离触发元——触发元上 Tab 直接把焦点送进卡内首项
     const onKeyDown = (e: KeyboardEvent) => {

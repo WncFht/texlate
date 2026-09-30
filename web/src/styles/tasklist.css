@@ -80,7 +80,7 @@
 }
 
 /* 两击确认 armed 态：✕ 图标钮撑成文字药丸，整钮转警示色 */
-.task-del.arm {
+.task-del.armed {
     width: auto;
     padding: 0 8px;
     font-size: 11px;

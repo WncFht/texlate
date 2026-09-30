@@ -1,5 +1,5 @@
-// ContextMenu —— 自定义右键菜单（exp/ss-ctxmenu/ContextMenu.tsx 移植落地）。
-// 行为锁定项（spike 实证矩阵，逐行对应）：
+// ContextMenu —— 自定义右键菜单（ctxmenu 预研版移植落地）。
+// 行为锁定项（预研实证矩阵，逐行对应）：
 //  * contextmenu 拦截 + 选区快照 → Portal→body fixed（pane 内 transform/
 //    overflow 不咬 fixed）→ placeMenu/placeSubmenu 视口钳位翻边。
 //  * 子菜单 hover-intent 150ms 开 / 300ms 斜移宽限关；DOM 嵌在父项 li 内
@@ -13,7 +13,7 @@
 //        keydown 沿 DOM 上冒会再过一遍祖先 ul 委托；
 //    (b) 垂直换轨（ArrowUp/Down/Home/End）同步 setSubIdx(-1)——键盘移到
 //        兄弟项=本层子菜单失焦，不留 stale-open + aria-expanded 残影。
-// 落地增量（spike 之上）：
+// 落地增量（预研版之上）：
 //  * CtxOpen 扩展 hit?/cmd? —— 宿主在 snapshot() 里挂 hitctx/cmdctx 快照；
 //  * opts.bypass —— Shift+右键放出原生菜单；
 //  * opts.onOpen/onClose —— FloatBar 互斥闸 + Esc 栈记账；

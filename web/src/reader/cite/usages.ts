@@ -1,5 +1,5 @@
 // usages —— find-usages 反向索引：可引用目标 → 全部正文引用处。
-// figIndex.ts（fu-popover-spike）泛化移植：figure-only → bib/figure/table/
+// figIndex 预研实现泛化移植：figure-only → bib/figure/table/
 // equation/theorem/section 六类。三数据源：
 //   ① DOM 锚（dom 视图主源）：a[href^="#id"] 扫 pane DOM——0 dangling 实证；
 //      TOC/nav chrome 必滤（sec 类 70% 入链在 TOC，不滤虚高 3.4×）；
@@ -565,7 +565,7 @@ export interface CardPlacement {
 }
 
 /** 锚 rect → 卡几何：锚下方优先，不足且上方更宽则翻上；左右夹视口。
-    与 CiteCard 同口径（CARD_W=380, GAP=6, 边距 8）——spike 纯函数直搬。 */
+    与 CiteCard 同口径（CARD_W=380, GAP=6, 边距 8）——预研版纯函数直搬。 */
 export function cardPlacement(
     rect: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
     cardH: number,

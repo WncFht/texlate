@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // selCoveredChunks —— makeChunkResolver 对拍 range.intersectsNode 全扫
-// （bench6 同款口径：600 随机文本端点 + 200 随机元素端点 + directed）。
+// （预研对拍同款口径：600 随机文本端点 + 200 随机元素端点 + directed）。
 // directed：跨三块 / 反向拖拽 / 嵌套锚（footnote）/ 无锚区端点收拢 /
 // 终点恰落下一锚首文本 offset0（白字相交计入）/ select-all。
 

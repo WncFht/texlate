@@ -1,13 +1,13 @@
 // uscontext —— 引用语境句抽取（find-usages lane 的句库内核）。
 // 三条供给路，输出同型 {text,start,end}：
 //   DOM 路  sentenceAround(block, anchor)——dom 视图 pane DOM 干净文本句切
-//           （fu-popover-spike figIndex.ts 逐字移植）；
+//           （预研版 figIndex 逐字移植）；
 //   掩码路  maskedSentenceAt(text, ph, s, e)——dual.json 源文路
 //           （texlate.xlat.batch.sentence_ends 忠实移植：{}depth 跟踪 +
 //           \\ 转义双跳 + depth==0 的 .!? 后随空白/[[SL]]/[[PL]] 才切 +
 //           abbrev_cut 缩写位豁免；[[PL]] 与空行是硬界）；
 //   zh 路   zhTokenSentence(zhText, ph, tokName)——同名 [[CITE_n]] token
-//           在 zh 文本存活（fu-bib-reverse 777/777）→ 同法扩 zh 句界
+//           在 zh 文本存活（预研 777/777 全中实证）→ 同法扩 zh 句界
 //           （CJK 。！？无空白亦界）。
 // 可读化 = markdown.ts 的 phText + RESIDUE_RULES 纯字符串复用。
 
@@ -279,7 +279,7 @@ export function maskedSentenceAt(
 // ================================================================ zh 路
 
 /** zh 文本中同名 ``[[CITE_n]]`` token 位 → zh 语境句（token 存活即句界
-    对称——fu-bib-reverse 777/777；token 缺失返回 null，卡面隐 zh 行）。 */
+    对称——预研 777/777 实证；token 缺失返回 null，卡面隐 zh 行）。 */
 export function zhTokenSentence(
     zhText: string | undefined,
     ph: Record<string, string> | undefined,

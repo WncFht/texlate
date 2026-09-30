@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// selSentseg —— DOM 内句边界哨兵（exp/ss-a11y/sentseg.js 移植对拍）。
+// selSentseg —— DOM 内句边界哨兵（sentseg 预研版移植对拍）。
 // 断言面：missed_cuts=0（句界不遗漏）、chunkIdx 单调、id 带侧名防撞车、
 // SKIP_TAGS 整树跳、缩写豁免、空白闸、sentenceRange/Text 复原原句。
 
@@ -46,8 +46,8 @@ describe("segmentBlock en", () => {
         ]);
     });
     it("abbrev exemption applies to !? too (≤3-letter tail word)", () => {
-        // spike 语义：'Second one!' 尾词 'one' ≤3 → 不切（!? 非恒切——
-        // 注释写「?.! 恒切」但代码对全部 stop 跑 abbrevCut，忠实移植）
+        // 预研版语义：'Second one!' 尾词 'one' ≤3 → 不切（!? 非恒切——
+        // 其注释写「?.! 恒切」但代码对全部 stop 跑 abbrevCut，忠实移植）
         const b = pane(
             "original",
             `<div data-chunk="S1">First sentence. Second one! Third? Tail end.</div>`,

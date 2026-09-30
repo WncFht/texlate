@@ -1,6 +1,6 @@
-// escstack —— Esc 层栈（sel-system Wave B）。
+// escstack —— Esc 层栈（sel-system lane）。
 // 层序固定优先级 editor > cite > find > menu > info > help > sel——
-// 「最内层先塌」而非「最后开先塌」（ss-hotkeys 12 层栈剧本实证序）。
+// 「最内层先塌」而非「最后开先塌」（预研 12 层栈剧本实证序）。
 // Esc 一次恰好塌一层：
 //   - 普通层：关标记 + 调 close → consumed=true（调用方
 //     stopImmediatePropagation——document bubble 截停后 window 级

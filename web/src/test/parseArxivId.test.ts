@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 // parseArxivId —— canon spec §2 剥离序管线全量回归：
-//   A. 30 形表（tmp/ux-research-20260922/exp/ms-urlnorm/results.tsv，
+//   A. 30 形表（2026-09-22 urlnorm 预研结果表，
 //      LANL 行按 spec §2 不收清单裁为 REJECT）；
 //   B. spec §2 追加形（class 剥壳/oai/safe_id 回流/尾注/扩展名循环）；
-//   C. 对抗探针（adversarial_out.txt 的 ext-only 收/拒按 spec 裁决——
+//   C. 对抗探针（预研对抗集的 ext-only 收/拒按 spec 裁决——
 //      怪 scheme/LANL/端口/双斜杠/overview 动词全拒；裸 .pdf 尾/首尾
 //      斜杠/arXiv 空格冒号/大写 V 等容错收）；
 //   D. era 闸（新形 YYMM∈[0704,当月]；旧形 9107..9912∪0000..0703）。

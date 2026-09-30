@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 // toastStore 契约回归 —— push / key 去重 / TTL / 栈上限 / action
-// （spike 14 探针的落地版 + probe2 抓到的 dedupe-换新-action 死角）。
+// （预研 14 探针的落地版 + 后补实测抓到的 dedupe-换新-action 死角）。
 // store 依赖 window.setTimeout——必须 jsdom 环境（node 下 push 抛
-// ReferenceError，spike 已实证）；计时断言走 vi.useFakeTimers。
+// ReferenceError——已实测）；计时断言走 vi.useFakeTimers。
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { toast } from "../stores/toastStore";
@@ -73,7 +73,7 @@ describe("toast store", () => {
         expect(toast.toasts()[0].action?.href).toBe("#/reader/t1");
     });
 
-    it("key 去重时显式传入的新 action 整体换新（spike probe2 死角）", () => {
+    it("key 去重时显式传入的新 action 整体换新（预研后补实测死角）", () => {
         vi.useFakeTimers();
         let which = 0;
         toast.push({

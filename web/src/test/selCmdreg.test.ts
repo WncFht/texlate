@@ -1,5 +1,5 @@
 // selCmdreg —— cmdreg 谓词求值器 + Registry + commands 表审计。
-// 对拍 exp/ss-cmdreg 同款语义：真值表/坏语法/缓存/whenKeys 静态审计；
+// 对拍 cmdreg 预研版同款语义：真值表/坏语法/缓存/whenKeys 静态审计；
 // 落地扩展：enableWhen（disabled 不 hidden）、unregister 幂等、
 // registerCommands 18 项全集 ⊆ CTX_KEYS（拼写漂移审计）。
 

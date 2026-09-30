@@ -1,5 +1,5 @@
-// cmdreg —— 命令注册表内核（sel-system Wave B 基座）。
-// 移植 exp/ss-cmdreg/cmdreg.ts，按落地规格扩展：
+// cmdreg —— 命令注册表内核（sel-system 基座）。
+// 预研版移植，按落地规格扩展：
 //   Command = {id,title,when,enableWhen,keys,sec,bar,run(ctx)}
 //   - when       : VS Code 风字符串谓词——数据非闭包，可序列化/可静态审计；
 //                  注册即编译，坏语法在注册期爆而非用户右键时爆。
@@ -230,7 +230,7 @@ export class Registry<C extends Ctx = Ctx> {
         for (const c of cmds) this.register(c);
         return this;
     }
-    /** 摘命令（Wave C lane 动态挂载/卸载用）。返回是否曾有此 id。 */
+    /** 摘命令（功能 lane 动态挂载/卸载用）。返回是否曾有此 id。 */
     unregister(id: string): boolean {
         const c = this.byId.get(id);
         if (!c) return false;

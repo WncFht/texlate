@@ -1,4 +1,4 @@
-// features/copylatex —— copy-latex lane 的命令注册面（Wave C 挂载契约）。
+// features/copylatex —— copy-latex lane 的命令注册面（ux-impl-2026-09-22 挂载契约）。
 // registerCopyLatex(reg, opts) 注册三项 + 挂 document 级 math 点击委托：
 //   math.copyTex   when=math.tex||math.mathml —— 三级提取（alttext →
 //                  katex annotation → mathml-to-latex 懒载 approx）+ 复制 +

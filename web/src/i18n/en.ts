@@ -450,7 +450,7 @@ export const t = {
             "Show a quick-action bar on text selection (copy / en+zh pair / find)",
         cursorHint:
             "Press v in the reader for the sentence cursor: j/k moves, Enter selects, t shows the other side, c copies",
-        // === sent-align / notifications (Wave C lanes) ===
+        // === sent-align / notifications ===
         sentAlign: "Sentence alignment",
         sentAlignHint:
             "Hover highlights the bilingual counterpart sentence; click jumps to it",

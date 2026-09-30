@@ -1,4 +1,4 @@
-// selEscstack —— Esc 层栈单塌语义（ss-hotkeys 12 层栈剧本的纯逻辑面）。
+// selEscstack —— Esc 层栈单塌语义（预研 12 层栈剧本的纯逻辑面）。
 // 契约：优先级序固定（editor>cite>find>menu>info>help>sel）——「最内层
 // 先塌」而非「最后开先塌」；一次 collapseTop 恰好塌一层；passive 层
 // （editor）只记账不消费——不 close、不动标记，事件穿透给 pdf.js。
@@ -49,28 +49,28 @@ describe("EscStack single-collapse", () => {
         expect(closed).toEqual(["cite"]);
         expect(stack.top()).toBe("help");
     });
-    it("ss-hotkeys STACKS 剧本：cite+help → [[cite],[help]]", () => {
+    it("STACKS 剧本：cite+help → [[cite],[help]]", () => {
         const { stack, openQuery } = mk();
         openQuery("cite");
         openQuery("help");
         const seq = [stack.collapseTop()?.layer, stack.collapseTop()?.layer];
         expect(seq).toEqual(["cite", "help"]);
     });
-    it("ss-hotkeys STACKS 剧本：menu+help → [[menu],[help]]（legacy 双塌修复）", () => {
+    it("STACKS 剧本：menu+help → [[menu],[help]]（legacy 双塌修复）", () => {
         const { stack, openQuery } = mk();
         openQuery("menu");
         openQuery("help");
         const seq = [stack.collapseTop()?.layer, stack.collapseTop()?.layer];
         expect(seq).toEqual(["menu", "help"]);
     });
-    it("ss-hotkeys STACKS 剧本：info+menu → [[menu],[info]]", () => {
+    it("STACKS 剧本：info+menu → [[menu],[info]]", () => {
         const { stack, openQuery } = mk();
         openQuery("info");
         openQuery("menu");
         const seq = [stack.collapseTop()?.layer, stack.collapseTop()?.layer];
         expect(seq).toEqual(["menu", "info"]);
     });
-    it("ss-hotkeys STACKS 剧本：cite+find → [[cite],[find]]", () => {
+    it("STACKS 剧本：cite+find → [[cite],[find]]", () => {
         const { stack, openQuery } = mk();
         openQuery("cite");
         openQuery("find");
@@ -95,7 +95,7 @@ describe("EscStack single-collapse", () => {
         selected = false;
         expect(stack.collapseTop()).toEqual({ layer: "cite", consumed: true });
     });
-    it("ss-hotkeys STACKS 剧本：editor+cite → [[editor],[cite]]", () => {
+    it("STACKS 剧本：editor+cite → [[editor],[cite]]", () => {
         const { stack, openQuery } = mk();
         let selected = true;
         stack.bind("editor", { isOpen: () => selected, passive: true });

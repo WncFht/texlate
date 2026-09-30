@@ -501,14 +501,14 @@ export default function DomPane(props: Props) {
     // 触屏 tap=卡（卡内「跳到文献表」走同一 jumpToEl）。focusin/out 与
     // Tab 重导挂 scrollEl——卡在 bodyEl 外，焦点三段路要全程可见。
     onMount(() => {
-        const armOpen = (fn: () => void) => {
+        const scheduleOpen = (fn: () => void) => {
             window.clearTimeout(openTimer);
             openTimer = window.setTimeout(() => {
-                openTimer = 0; // 发后即清零——同锚复悬才能再武装
+                openTimer = 0; // 发后即清零——同锚复悬才能再排程
                 fn();
             }, OPEN_DELAY);
         };
-        const armClose = () => {
+        const scheduleClose = () => {
             window.clearTimeout(closeTimer); // 重入必须撤旧定时器
             closeTimer = window.setTimeout(closeCard, CLOSE_DELAY);
         };
@@ -546,12 +546,12 @@ export default function DomPane(props: Props) {
                 // 同锚复悬只续不关；卡未开且定时器已逝要补武装
                 window.clearTimeout(closeTimer);
                 if (!card() && !openTimer)
-                    armOpen(() => openDomCard(a, hit.id, bibEl));
+                    scheduleOpen(() => openDomCard(a, hit.id, bibEl));
                 return;
             }
             clearCardTimers();
             curAnchor = a;
-            armOpen(() => openDomCard(a, hit.id, bibEl));
+            scheduleOpen(() => openDomCard(a, hit.id, bibEl));
         };
         const onOut = (e: PointerEvent) => {
             const rel = e.relatedTarget as Element | null;
@@ -559,7 +559,7 @@ export default function DomPane(props: Props) {
             if (rel === curAnchor) return;
             if (anchorOf(e.target) || card()) {
                 window.clearTimeout(openTimer);
-                armClose();
+                scheduleClose();
             }
         };
         const onFocusIn = (e: FocusEvent) => {
@@ -578,7 +578,7 @@ export default function DomPane(props: Props) {
             const rel = e.relatedTarget as Element | null;
             if (rel?.closest?.(".cite-card")) return;
             if (!anchorOf(e.target) && !card()) return;
-            armClose();
+            scheduleClose();
         };
         // 卡 DOM 序远离锚——锚上 Tab 直接把焦点送进卡内首个可焦点件
         const onKeyDown = (e: KeyboardEvent) => {

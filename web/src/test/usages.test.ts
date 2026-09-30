@@ -76,9 +76,9 @@ describe("buildUsageIndex — 真实论文全类索引", () => {
             bib: 40,
         });
     });
-    it("站点数对拍 spike 已知值 + 标签", () => {
+    it("站点数对拍预研已知值 + 标签", () => {
         const sites = (id: string) => idx.forId(id)?.sites.length;
-        // 浮动体（spike buildFigIndex 同数）
+        // 浮动体（预研 buildFigIndex 同数）
         expect(sites("S3.F1")).toBe(1);
         expect(sites("S3.F2")).toBe(3);
         expect(sites("S4.T1")).toBe(1);
@@ -153,7 +153,7 @@ describe("buildUsageIndex — 合成边界", () => {
         const e = idx.forId("F9")!;
         expect(e.sites).toHaveLength(1);
         expect(idx.forId("F9.a")).toBe(e); // 面板 id 映到宿主条目
-        // 嵌套 <figure> 自身即宿主（spike 同口径：matches 优先于 closest）
+        // 嵌套 <figure> 自身即宿主（matches 优先于 closest）
         const root2 = mini(`
             <figure id="G1" class="ltx_figure"><figure class="ltx_subfloat" id="G1.a"></figure></figure>
             <p>x <a href="#G1.a">a</a>.</p>

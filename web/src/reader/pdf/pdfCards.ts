@@ -329,19 +329,19 @@ export const usePdfCards = (deps: PdfCardsDeps): PdfCards => {
             return USAGE_HOVER.has(kind) ? "usage" : null;
         };
 
-        const armOpen = (a: Element) => {
+        const scheduleOpen = (a: Element) => {
             const lane = destLane(a);
             const dest = destOf(a);
             if (!lane || !dest) return;
             window.clearTimeout(openTimer);
             openTimer = window.setTimeout(() => {
-                openTimer = 0; // 发后即清零——同锚复悬才能再武装
+                openTimer = 0; // 发后即清零——同锚复悬才能再排程
                 if (!a.isConnected) return;
                 if (lane === "bib") openCard(a);
                 else openUsagesFor(dest, a);
             }, OPEN_DELAY);
         };
-        const armClose = () => {
+        const scheduleClose = () => {
             window.clearTimeout(closeTimer); // 重入必须撤旧定时器
             closeTimer = window.setTimeout(closeAll, CLOSE_DELAY);
         };
@@ -350,18 +350,18 @@ export const usePdfCards = (deps: PdfCardsDeps): PdfCards => {
             if (e.pointerType === "touch") return; // tap=卡走 click 路
             const a = citeAnchorOf(e.target);
             if (!a) return;
-            // 非卡面锚不进门——否则 curAnchor 被非卡锚占住，卡武装受阻
+            // 非卡面锚不进门——否则 curAnchor 被非卡锚占住，卡开排程受阻
             if (!destLane(a)) return;
             if (a === curAnchor) {
                 // 同锚复悬/跨行 rect 间走——只续不关（isUserDwelling 同款）；
-                // 卡未开且定时器已逝（openCard 早退路径）要补武装
+                // 卡未开且定时器已逝（openCard 早退路径）要补排程
                 window.clearTimeout(closeTimer);
-                if (!card() && !ucard() && !openTimer) armOpen(a);
+                if (!card() && !ucard() && !openTimer) scheduleOpen(a);
                 return;
             }
             clearCardTimers();
             curAnchor = a;
-            armOpen(a);
+            scheduleOpen(a);
         };
         const onOut = (e: PointerEvent) => {
             const rel = e.relatedTarget as Element | null;
@@ -370,15 +370,15 @@ export const usePdfCards = (deps: PdfCardsDeps): PdfCards => {
             const a = citeAnchorOf(e.target);
             if (a) {
                 window.clearTimeout(openTimer);
-                armClose();
+                scheduleClose();
                 return;
             }
-            // 卡开着时「任意 pointerout→arm」会被 DOM 更迭噪声打死：右键
+            // 卡开着时「任意 pointerout→scheduleClose」会被 DOM 更迭噪声打死：右键
             // 本体开卡瞬间 pdf.js 的 selectionRendering 重排 textLayer 节点，
             // 指针原地不动也吐 pointerout（rel=非卡元素）——开卡宽限窗内
             // 只认真锚离开，噪声窗后恢复正常宽限关
             if ((card() || ucard()) && performance.now() >= scrollGraceUntil)
-                armClose();
+                scheduleClose();
         };
         const onFocusIn = (e: FocusEvent) => {
             const a = citeAnchorOf(e.target);
@@ -402,7 +402,7 @@ export const usePdfCards = (deps: PdfCardsDeps): PdfCards => {
             // 开卡宽限窗内焦点迁移多半是平台噪声（右键/菜单焦点让渡），
             // 与 onOut 同闸
             if (performance.now() < scrollGraceUntil) return;
-            armClose();
+            scheduleClose();
         };
         const onPointerDown = (e: PointerEvent) => {
             lastTouch = e.pointerType === "touch";

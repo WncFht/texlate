@@ -1,6 +1,6 @@
-// keymap —— reader 单 document keydown 分发器（exp/ss-hotkeys/keymap.js
-// installProposed 移植；legacy 形态退役不进仓）。
-// 顺序（每格都是可测策略点，与 spike 逐行对应）：
+// keymap —— reader 单 document keydown 分发器（2026-09-22 键位预研的
+// installProposed 形态移植；legacy 形态退役不进仓）。
+// 顺序（每格都是可测策略点，与 selKeymap 测试逐行对应）：
 //   1. Ctrl/Cmd+F → ui:find（先于 inInput——findbar 输入框里再按 Ctrl+F
 //      也要能重新聚焦）
 //   2. findbar 内任意控件上的 Esc → esc:find（含 checkbox/按钮——修 legacy
@@ -28,7 +28,7 @@
 // 内部建栈并把 7 层绑到 hooks（editor→pdfjs().selected passive；
 // sel→hasSelection+collapseSelection；其余→isOpen/close）。
 // 日志协议：hooks.act?.("dispatch", {key, ctx, action, ms})——测试据此
-// 对拍 spike CELLS/STACKS 矩阵。
+// 对拍 CELLS/STACKS 矩阵。
 
 import { EscStack } from "../sel/escstack";
 import { collapseSelection, hasLiveSelection } from "../sel/selection";

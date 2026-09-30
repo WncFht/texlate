@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// selCursor —— 句游标模态（exp/ss-a11y cursor.js e2e 剧本的 jsdom 对拍）。
+// selCursor —— 句游标模态（cursor e2e 剧本的 jsdom 对拍）。
 // 14 断言面：v 进入 / j·k 移动 / ]·[ 块跳 / Home·End 端点不环绕 /
 // Enter 真 Selection / c 复制 = sentenceRange 文本 / t 对侧同 sid /
 // Esc·Tab 退出 / 重入记忆 / 零新增 tab 停点 / 模态按键不透全局。

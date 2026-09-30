@@ -1,4 +1,4 @@
-// cursor —— 键盘-only「选句→翻译→复制」句游标模态（exp/ss-a11y/cursor.js
+// cursor —— 键盘-only「选句→翻译→复制」句游标模态（cursor 预研版
 // 移植，roving 为主形态；ad=aria-activedescendant 备选保留）。
 //
 // 契约（两形态共享同一键面，差异只在焦点载体）：

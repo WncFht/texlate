@@ -1,7 +1,7 @@
 // 全局 toast store —— 落地形态对齐 settings.ts/tasks.ts：
 // 模块级 createSignal 承载、导出纯对象门面；文案由调用方给 t.* 成品串。
-// 移植自 tmp/ux-research-20260922/exp/ct-toast/（14/14 探针过），落地期按
-// 契约收敛 API：push 改对象入参，action 支持 href 直跳；并修掉 probe2
+// 原型经 14 探针验证（2026-09-22 toast 预研），落地期按
+// 契约收敛 API：push 改对象入参，action 支持 href 直跳；并修掉实测
 // 抓到的死角（key 刷新时显式传入的新 action 现在会整体换新）。
 //
 // 与 HtmlPane 既有 .pane-toast 的关系：那是窗格内单槽 sticky 条（只覆盖
@@ -54,7 +54,7 @@ const [toasts, setToasts] = createSignal<Toast[]>([]);
 const timers = new Map<number, number>();
 let nextId = 1;
 
-const arm = (id: number, ttl: number): void => {
+const scheduleDismiss = (id: number, ttl: number): void => {
     if (!(ttl > 0) || !Number.isFinite(ttl)) return;
     timers.set(
         id,
@@ -68,7 +68,7 @@ export const toast = {
 
     /**
      * 入栈；同 key 已在栈=刷新文案+计时器，返回原 id。
-     * 刷新时 ttl/action 缺省=保留旧面（与 spike 的 ttl ?? cur.ttl 同口径），
+     * 刷新时 ttl/action 缺省=保留旧面，
      * 显式传入则整体换新——新 push 的 action 不会被旧条吞掉。
      */
     push(input: ToastInput): number {
@@ -93,7 +93,7 @@ export const toast = {
                             : x,
                     ),
                 );
-                arm(cur.id, ttl);
+                scheduleDismiss(cur.id, ttl);
                 return cur.id;
             }
         }
@@ -112,7 +112,7 @@ export const toast = {
                 action: input.action,
             },
         ]);
-        arm(id, ttl);
+        scheduleDismiss(id, ttl);
         // 超帽逐最旧（shift 端）——新条必落，避免丢最新错误
         while (toasts().length > MAX_TOASTS) toast.dismiss(toasts()[0].id);
         return id;

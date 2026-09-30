@@ -1,4 +1,4 @@
-// hitctx —— 命中语境快照（sel-system Wave B）。
+// hitctx —— 命中语境快照（sel-system lane）。
 // 从 (selection, target, pane kind) 同步构造一份 HitCtx：菜单/键位/浮条
 // 三入口共用同一快照时刻，谓词键由 flattenCtx 产出一一对应可查。
 //

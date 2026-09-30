@@ -1,7 +1,7 @@
-// commands —— sel-system 命令表（Wave B 内核落地）。
-// 事实源 = exp/ss-menu-content/menu-spec.json 21 项；本表注册 **18 项**——
-//   不注册（Wave C 各 lane 自行 register，注册表本为此设计）：
-//     sel.explain    —— 需 assist 后端端点（caps.assist 恒 false，本Wave无面）
+// commands —— sel-system 命令表（内核落地层）。
+// 事实源 = menu-spec 21 项（ux-impl-2026-09-22 规格）；本表注册 **18 项**——
+//   不注册（各功能 lane 自行 register，注册表本为此设计）：
+//     sel.explain    —— 需 assist 后端端点（caps.assist 恒 false，本期无面）
 //     sel.xlat       —— sel-translate lane（不在 menu-spec，键位 t 预留）
 //     math.copyTex   —— copy-latex lane（ph 反代近似源属其管线）
 //     chunk.copyTex  —— 同上
@@ -10,7 +10,7 @@
 //     chunk.copyLink —— 需 caps.linkScheme（路由 ?seq=N 未落地）
 //     chunk.retx     —— caps.retx 供给；seq∈pending 时 enableWhen 落禁用
 //
-// Command.title = i18n key（"menu.<id>"——Wave D 挂 zh.ts/en.ts 键面）；
+// Command.title = i18n key（"menu.<id>"——整合期挂 zh.ts/en.ts 键面）；
 // menu-spec 的双语串镜像在 MENU_LABELS。
 
 import type { Command, Ctx, Registry } from "./cmdreg";

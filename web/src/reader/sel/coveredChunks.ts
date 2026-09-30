@@ -1,5 +1,4 @@
-// coveredChunks —— [data-chunk] 选区命中（exp/ss-dom-sel/coveredChunks.mjs
-// 移植，bench6 对拍验证版语义保持）。
+// coveredChunks —— [data-chunk] 选区命中（预研版移植，对拍验证语义保持）。
 // 与 range.intersectsNode 全扫一致（800+ fuzz + directed 全等），复杂度
 // O(命中锚数) 而非 O(总锚数)：jsdom 实测 ~25µs vs ~43ms（163 锚）。
 //

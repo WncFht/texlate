@@ -1,7 +1,7 @@
 // FloatBar —— selectionchange→getBoundingClientRect→浮动工具条
-// （exp/ss-floatbar/floatbar.mjs 移植落地，TS + Solid 包装）。
+// （floatbar 预研版移植落地，TS + Solid 包装）。
 //
-// 行为锁定项（spike 实证面，逐行对应）：
+// 行为锁定项（预研实证面，逐行对应）：
 //  * selectionchange → rAF 合帧 → 单次 getBoundingClientRect → fixed 定位；
 //  * 拖拽期压制：pointerDown 时 selectionchange 只记 pending，pointerup 才
 //    排程（'release' 默认）；非拖拽走 40ms 静默 debounce（键盘选区）；

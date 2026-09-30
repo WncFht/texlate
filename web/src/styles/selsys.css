@@ -54,7 +54,7 @@
 }
 
 /* ------------------------------------------------------------- ContextMenu
-   exp/ss-ctxmenu/ctxmenu.css 移植（行为锁定；token 原样）。 */
+   ctxmenu 预研版移植（行为锁定；token 原样）。 */
 .ctx-menu {
     position: fixed;
     z-index: 40;

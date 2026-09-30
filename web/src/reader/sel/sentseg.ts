@@ -1,4 +1,4 @@
-// sentseg —— DOM 内句边界标定（exp/ss-a11y/sentseg.js 移植）。
+// sentseg —— DOM 内句边界标定（sentseg 预研版移植）。
 // sentence_ends（xlat/batch.py:327）语义的 DOM 移植：
 //   产出不是包裹 span，而是零宽 <i class="sb"> 哨兵元素钉在句首——句界可
 //   跨内联 <a>/<math>/<b>，任何「包元素」方案都会在跨界句上折断；哨兵点
@@ -40,7 +40,7 @@ function abbrevCut(text: string, i: number): boolean {
 const CJK_STOP = /[。！？；]/;
 
 // SKIP_SEL：SKIP_TAGS 的选择器形——sentenceText 的 cloneContents 剥离用
-// （Range.toString 会带上 math/script 子树文本——spike 同款 latent bug）
+// （Range.toString 会带上 math/script 子树文本——预研期已踩过的 latent bug）
 const SKIP_SEL = [...SKIP_TAGS].join(",").toLowerCase();
 
 export type SegSide = "en" | "zh";

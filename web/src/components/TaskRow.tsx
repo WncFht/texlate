@@ -38,7 +38,7 @@ export const RETRYABLE = new Set([
 /**
  * 单行任务卡——<For> 行体抽出：↻ 菜单 wrap/trigger ref 收成行内局部量
  * 随行生灭（旧父级 Map 按 task_id 登记 + 行卸载 delete 的账本省掉）；
- * 父级只下传谓词信号（arm/busy/menu-open 判定）与动作回调。
+ * 父级只下传谓词信号（armedId/busy/menu-open 判定）与动作回调。
  */
 export default function TaskRow(props: {
     task: TaskSnapshot;
@@ -46,7 +46,7 @@ export default function TaskRow(props: {
     acting(): string | null;
     deleting(): string | null;
     cleaning(): boolean;
-    arm(): string | null;
+    armedId(): string | null;
     retryMenu(): string | null;
     setRetryMenu: Setter<string | null>;
     onOpen(taskId: string): void;
@@ -225,7 +225,7 @@ export default function TaskRow(props: {
                 class="task-del"
                 classList={{
                     busy: props.deleting() === props.task.task_id,
-                    arm: props.arm() === props.task.task_id,
+                    armed: props.armedId() === props.task.task_id,
                 }}
                 disabled={
                     !isTerminal(props.task.status) ||
@@ -234,7 +234,7 @@ export default function TaskRow(props: {
                     props.cleaning()
                 }
                 title={
-                    props.arm() === props.task.task_id
+                    props.armedId() === props.task.task_id
                         ? t.home.delConfirm
                         : !isTerminal(props.task.status)
                           ? t.home.delBusy
@@ -245,7 +245,7 @@ export default function TaskRow(props: {
                 aria-label={t.home.del}
                 onClick={() => void props.onDelete(props.task)}
             >
-                {props.arm() === props.task.task_id ? t.home.delArm : "✕"}
+                {props.armedId() === props.task.task_id ? t.home.delArm : "✕"}
             </button>
         </div>
     );

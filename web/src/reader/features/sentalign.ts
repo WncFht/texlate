@@ -1,5 +1,5 @@
-// features/sentalign —— sent-align lane 的挂载面（Wave C 落地契约，
-// 实施文档 docs/dev/projects/ux-impl-2026-09-22/sent-align…实施文档.md）。
+// features/sentalign —— sent-align lane 的挂载面（落地契约+实施文档见
+// docs/dev/projects/ux-impl-2026-09-22/sent-align…实施文档.md）。
 //
 // attachSentAlign(opts) —— 持有 SentAlignSession，按 opts.panes() 现扫
 //   把各 DOM 窗格挂成一侧：bodyEl 变化才重挂（pane 重渲零成本），

@@ -247,7 +247,7 @@ export default function ResultBody(props: Props) {
                         </p>
                     )}
                 </Show>
-                {/* retryError 已内联 retryHintAuth（L72-75）时不再重复——
+                {/* retryError 已内联 retryHintAuth（上方 retryError 块）时不再重复——
                     仅首访/非 auth 错误时补操作提示 */}
                 <Show
                     when={

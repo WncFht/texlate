@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // sentalign —— 句级双语对位内核对拍（zhseg.py / align.py / wrap_sid.mjs
-// 三 spike 移植语义）。
+// 三路预研移植语义）。
 // 断言面：zh 正则臂切句表（Latin 缩写过切回归头案）、en Intl 扁平臂、
 // bead 贪心对位（1:1/1:2/2:1/MAXG/降级残并）、注入幂等+textContent 恒等、
 // sid 集合契约、悬停类名、点击跳+守卫、MO 增量重注、DOM→PDF 分位路径。

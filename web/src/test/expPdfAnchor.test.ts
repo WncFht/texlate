@@ -1,11 +1,19 @@
 // @vitest-environment node
-// Exp-C：真实 zh.pdf/en.pdf 的 pdf.js textLayer 抽取 × pdfSeqsForText 命中率实测。
+// 真实 zh.pdf/en.pdf 的 pdf.js textLayer 抽取 × pdfSeqsForText 命中率实测
+// （2026-09-23 pdf-anchoring 批）。
 // 流程：dual.json chunk.zh → 清洗(去 [[PH]]/\\) → 在抽取全文里定位(ground truth)
 //       → 取真实抽取子串当"用户选区"喂产线 pdfSeqsForText → 看是否命中正确 seq。
 // 跑法：cd web && npx vitest run src/test/expPdfAnchor.test.ts
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { pdfSeqsForText } from "../reader/cite/copylatex";
@@ -227,8 +235,7 @@ it("pdf textLayer 抽取 × pdfSeqsForText 命中率", async () => {
     agg.missed.slice(0, 15).forEach((s) => emit(s));
     emit("\n--- 命中但过宽样例(至多10) ---");
     agg.loose.slice(0, 10).forEach((s) => emit(s));
-    writeFileSync(
-        "/home/fanghaotian/src/texlate/tmp/pdf-anchoring-20260923/exp/expC-report.txt",
-        out.join("\n"),
-    );
+    const reportDir = fileURLToPath(new URL("../../../tmp/", import.meta.url));
+    mkdirSync(reportDir, { recursive: true });
+    writeFileSync(join(reportDir, "exp-pdf-anchor-report.txt"), out.join("\n"));
 }, 1_800_000);

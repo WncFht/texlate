@@ -112,12 +112,12 @@ describe("删除互斥", () => {
             document.body.querySelectorAll<HTMLButtonElement>(".task-del");
         expect(dels.length).toBe(2);
 
-        // 两击确认：第一击 arm（文字变「确认删除？」），第二击才执行
+        // 两击确认：第一击进 armed 态（文字变「确认删除？」），第二击才执行
         dels[0].click();
         await flush();
         const armed =
             document.body.querySelectorAll<HTMLButtonElement>(".task-del");
-        expect(armed[0].classList.contains("arm")).toBe(true);
+        expect(armed[0].classList.contains("armed")).toBe(true);
         expect(mocks.deleteTask).not.toHaveBeenCalled();
 
         armed[0].click();

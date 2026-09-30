@@ -1,4 +1,4 @@
-// selection —— 原生 Selection 工具层（sel-system Wave B）。
+// selection —— 原生 Selection 工具层（sel-system lane）。
 // 规格锚点（实现文档「选区语义」节）：
 //   - 复制文本源 = range.toString() / cloneContents().textContent（不折叠
 //     换行、不丢结构）；不用 sel.toString()（折叠换行，少 4 字符实证）。

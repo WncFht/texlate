@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// selKeymap —— attachReaderKeys 对拍 ss-hotkeys/probe.mjs CELLS(proposed 列)
+// selKeymap —— attachReaderKeys 对拍 2026-09-22 键位预研 CELLS(proposed 列)
 // + STACKS 层叠剧本。pdf.js UIManager 的 window 级监听用 mimic 复刻：
 //   - Esc 无 checker：选中态 Esc 即 unselect（输入框里也一样——其自身契约）
 //   - Backspace/Delete 选中态删 editor（armed+editorExists 就记账，eff 区分）
@@ -229,7 +229,7 @@ interface Cell {
     pdfjs?: string | null;
 }
 
-// probe.mjs CELLS 的 proposed 列（input 插入/clicks 面 jsdom 无默认动作，
+// 键位预研 CELLS 的 proposed 列（input 插入/clicks 面 jsdom 无默认动作，
 // 略；全 66 格动作面保留）
 const CELLS: Cell[] = [
     { ctx: "body", key: "t", P: "noop:sel" },

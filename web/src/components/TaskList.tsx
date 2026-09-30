@@ -34,17 +34,17 @@ export default function TaskList(props: Props) {
     const [query, setQuery] = createSignal("");
     const [acting, setActing] = createSignal<string | null>(null);
     const [cleaning, setCleaning] = createSignal(false);
-    // 删除两击确认：第一击 arm ~3.2s（超时自动复位），第二击才执行
-    const [arm, setArm] = createSignal<string | null>(null);
-    let armTimer = 0;
-    const armOnce = (key: string) => {
-        setArm(key);
-        window.clearTimeout(armTimer);
-        armTimer = window.setTimeout(() => setArm(null), 3200);
+    // 删除两击确认：第一击进 armed 态 ~3.2s（超时自动复位），第二击才执行
+    const [armedId, setArmedId] = createSignal<string | null>(null);
+    let disarmTimer = 0;
+    const armConfirm = (key: string) => {
+        setArmedId(key);
+        window.clearTimeout(disarmTimer);
+        disarmTimer = window.setTimeout(() => setArmedId(null), 3200);
     };
     const disarm = () => {
-        window.clearTimeout(armTimer);
-        setArm(null);
+        window.clearTimeout(disarmTimer);
+        setArmedId(null);
     };
     // ↻ 重试迷你菜单：打开的 task_id（null=全收）；wrap/trigger ref
     // 随 TaskRow 收进行内局部量（Escape 回焦/外点判定契约不变）
@@ -77,7 +77,7 @@ export default function TaskList(props: Props) {
     const tick = setInterval(() => setNow(Date.now()), 60_000);
     onCleanup(() => {
         clearInterval(tick);
-        window.clearTimeout(armTimer);
+        window.clearTimeout(disarmTimer);
     });
 
     const FILTERS: { value: Filter; label: string }[] = [
@@ -137,8 +137,8 @@ export default function TaskList(props: Props) {
         if (!isTerminal(task.status) || busy()) {
             return;
         }
-        if (arm() !== task.task_id) {
-            armOnce(task.task_id);
+        if (armedId() !== task.task_id) {
+            armConfirm(task.task_id);
             return;
         }
         disarm();
@@ -365,7 +365,7 @@ export default function TaskList(props: Props) {
                         acting={acting}
                         deleting={deleting}
                         cleaning={cleaning}
-                        arm={arm}
+                        armedId={armedId}
                         retryMenu={retryMenu}
                         setRetryMenu={setRetryMenu}
                         onOpen={props.onOpen}
