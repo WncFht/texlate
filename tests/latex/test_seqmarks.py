@@ -20,15 +20,14 @@ import pytest
 from conftest import DOC, scan_doc
 
 from texlate.latex.reconstruct import (
-    _MARK_CLOSE,
     SEQ_MARK_RX,
-    _Expander,
-    _mark_open,
     reconstruct,
     seq_mark_issues,
     strip_seq_marks,
     translation_tokens,
 )
+from texlate.latex.reconstruct_core import _Expander
+from texlate.latex.reconstruct_mark import _MARK_CLOSE, _mark_open
 from texlate.repair_l2 import L2Attr, TreeRun, _resplice
 
 if TYPE_CHECKING:
