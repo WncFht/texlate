@@ -1,4 +1,4 @@
-r"""compile.normalize_text — 单文件文本域手术叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.text — 单文件文本域手术叶 (compile.normalize 域缝叶)。
 
 ``docs/spec/compile.md`` 清单的文件内手术段：comment 环境行尾、float
 位置参数、pdfTeX 特性降级、px 像素单位、手工断词还原、inputenc/fontenc
@@ -11,9 +11,8 @@ from __future__ import annotations
 import re
 from typing import Final
 
+from texlate.compile.mask import apply_edits, group_end, visible_tex
 from texlate.textutil import BEGIN_DOC_RX
-
-from .mask import apply_edits, group_end, visible_tex
 
 
 # ---------------------------------------------------------------- 1. comment 环境行尾

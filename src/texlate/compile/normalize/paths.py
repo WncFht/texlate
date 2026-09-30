@@ -1,4 +1,4 @@
-r"""compile.normalize_paths — 越界路径 rebase 与审计叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.paths — 越界路径 rebase 与审计叶 (compile.normalize 域缝叶)。
 
 ``rebase_project_paths``：``\input/../foo.tex`` 越界引用重写为包内正确
 相对路径（只修剥掉 ``../`` 后能在包内找到同名文件的情形）；
@@ -15,15 +15,14 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from texlate.textutil import safe_is_file, safe_resolve
-
-from .mask import TEX_SOURCE_SUFFIXES, visible_tex
-from .transcode import (
+from texlate.compile.mask import TEX_SOURCE_SUFFIXES, visible_tex
+from texlate.compile.transcode import (
     AUX_BIB_SUFFIXES,
     _iter_files,
     _read_tex,
     _read_tex_path,  # noqa: F401  # 转口再导出（与本件 ``_iter_files`` 同款先例）
 )
+from texlate.textutil import safe_is_file, safe_resolve
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

@@ -1,4 +1,4 @@
-r"""compile.normalize_guard — 字节面前置守卫叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.guard — 字节面前置守卫叶 (compile.normalize 域缝叶)。
 
 支持件兼容前导块注入闸（``_prologue_ok``：strict-UTF-8 且探测窗无 NUL）
 与 Mac Finder-info/资源叉前缀剥除（``_strip_lead_junk``：首个行首锚点前

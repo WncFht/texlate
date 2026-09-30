@@ -68,7 +68,6 @@ from pypdf.generic import (
     TextStringObject,
 )
 
-from texlate.compile import latex209_main
 from texlate.compile.cjkmap import _GB1_UCS2_CMAP, embed_cjk_mappings
 from texlate.compile.engine import CompRes
 from texlate.compile.judge import (
@@ -97,6 +96,7 @@ from texlate.compile.latex209 import (
     _uses_ds_at,
     upgrade_209,
 )
+from texlate.compile.latex209 import main as latex209_main
 from texlate.compile.loginfo import classify_error, parse_log
 from texlate.compile.mask import visible_tex
 from texlate.redlines import (

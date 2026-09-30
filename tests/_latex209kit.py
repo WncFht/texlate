@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from texlate.compile import latex209_main
+from texlate.compile.latex209 import main as latex209_main
 from texlate.compile.latex209 import upgrade_209
 
 

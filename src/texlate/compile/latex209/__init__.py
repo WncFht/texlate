@@ -33,21 +33,21 @@ compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同
   ``kpsewhich`` 双侧均无命中 → 升上去必 missing_file（jpsj3 不在 CTAN），
   按 ``latex209_no_target`` 拒；kpsewhich 缺席/探测失败 fail-open 不阻断。
 
-god-split: 实现体按域拆进同包 5 叶——``latex209_tables``（选项路由
+god-split: 实现体按域拆进同包 5 叶——``latex209.tables``（选项路由
 静态表：内核/标准类/宏包白名单 + 类映射 + ds@/topskip 正则）、
-``latex209_math``（数学域模态走查 + switch 组/cite 包裹两族转写 +
-``wrap_math_cites`` 独立出口）、``latex209_shim``（COMPAT_SHIM/
+``latex209.math``（数学域模态走查 + switch 组/cite 包裹两族转写 +
+``wrap_math_cites`` 独立出口）、``latex209.shim``（COMPAT_SHIM/
 _PRE_CLASS_SHIM/_MULTICOLS_SHIM/REVTEX209_CORE/_REVTEX209_SHIM 垫块
-文本）、``latex209_route``（选项三路分派 + 随源 ``<cls>.sty`` 检出 +
-ds@ 桥体）、``latex209_main``（``upgrade_209`` 编排 + ``_target_resolvable``
+文本）、``latex209.route``（选项三路分派 + 随源 ``<cls>.sty`` 检出 +
+ds@ 桥体）、``latex209.main``（``upgrade_209`` 编排 + ``_target_resolvable``
 盲升闸 + ``_drop_topskip_assigns`` + ``_primary_docstyle``）。本文件是
 PEP 562 惰性门面（同 ``validate/l0`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存，``latex209.X`` 公共面与
-``from ... import X``/``latex209._x`` 属性读面不变。monkeypatch 锚点
+``from  import X``/``latex209._x`` 属性读面不变。monkeypatch 锚点
 注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）——
-``_target_resolvable`` 桩点已迁 ``latex209_main``（调用方 ``upgrade_209``
+``_target_resolvable`` 桩点已迁 ``latex209.main``（调用方 ``upgrade_209``
 同叶命名空间直读）；``latex209.shutil``/``latex209.subprocess`` 经门面
-解析到的仍是真 stdlib 模块对象（``latex209_main`` 运行期 import），
+解析到的仍是真 stdlib 模块对象（``latex209.main`` 运行期 import），
 对其 setattr 全局生效不变。叶子间互引走全路径直跨
 （``texlate.compile.latex209_<叶>``），不经本门面。
 """
@@ -59,7 +59,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.compile.latex209_main import (
+    from texlate.compile.latex209.main import (
         DOCSTYLE_DECL_RX,
         DOCSTYLE_RX,
         _drop_topskip_assigns,
@@ -70,7 +70,7 @@ if TYPE_CHECKING:
         subprocess,
         upgrade_209,
     )
-    from texlate.compile.latex209_math import (
+    from texlate.compile.latex209.math import (
         _BOXREG_CS_209,
         _BOXREG_RE,
         _BOXSPEC_CS_209,
@@ -99,7 +99,7 @@ if TYPE_CHECKING:
         wrap_math_cites,
         ws_skip,
     )
-    from texlate.compile.latex209_route import (
+    from texlate.compile.latex209.route import (
         _ds_at_bridge,
         _route_opts,
         _ships_style,
@@ -109,14 +109,14 @@ if TYPE_CHECKING:
         _uses_ds_at,
         decode_tex,
     )
-    from texlate.compile.latex209_shim import (
+    from texlate.compile.latex209.shim import (
         _MULTICOLS_SHIM,
         _PRE_CLASS_SHIM,
         _REVTEX209_SHIM,
         COMPAT_SHIM,
         REVTEX209_CORE,
     )
-    from texlate.compile.latex209_tables import (
+    from texlate.compile.latex209.tables import (
         _CLASS_MAP,
         _DS_AT_CLASSES,
         _DS_AT_RE,
@@ -133,7 +133,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "latex209_main": (
+    "main": (
         "DOCSTYLE_DECL_RX",
         "DOCSTYLE_RX",
         "_drop_topskip_assigns",
@@ -144,7 +144,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "subprocess",
         "upgrade_209",
     ),
-    "latex209_math": (
+    "math": (
         "Final",
         "_BOXREG_CS_209",
         "_BOXREG_RE",
@@ -173,7 +173,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "wrap_math_cites",
         "ws_skip",
     ),
-    "latex209_route": (
+    "route": (
         "_ds_at_bridge",
         "_route_opts",
         "_ships_style",
@@ -183,14 +183,14 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_uses_ds_at",
         "decode_tex",
     ),
-    "latex209_shim": (
+    "shim": (
         "COMPAT_SHIM",
         "REVTEX209_CORE",
         "_MULTICOLS_SHIM",
         "_PRE_CLASS_SHIM",
         "_REVTEX209_SHIM",
     ),
-    "latex209_tables": (
+    "tables": (
         "CMD_BOUNDARY",
         "NamedTuple",
         "TYPE_CHECKING",

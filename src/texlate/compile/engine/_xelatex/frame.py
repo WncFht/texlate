@@ -17,12 +17,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import Final
 
-    from ._base import CompRes
+    from texlate.compile.engine._base import CompRes
 
 from texlate.compile.deps import compiled_dependencies
+from texlate.compile.engine._base import _checked_main
 from texlate.compile.mask import visible_tex
-
-from ._base import _checked_main
 
 #: ``\\endinput`` 执行豁免形——``\\let\\cs\\endinput``/``\\def\\cs{..}``
 #: 把它存进宏体不执行 (pstricks ``\\let\\PSTricksLoaded\\endinput`` 实证);

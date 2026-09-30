@@ -38,23 +38,22 @@ if TYPE_CHECKING:
 else:
     import texlate.compile.engine as _eng
 
-from texlate.compile.loginfo import parse_log
-from texlate.compile.sandbox import _apply_sandbox, _rc_to_signal
-from texlate.texlog import log_text_of
-from texlate.textutil import env_raw
-from texlate.textutil.osutil import ENV_TLNET
-
-from ._base import (
+from texlate.compile.engine._base import (
     DEFAULT_TIMEOUT,
     CompRes,
     _collect_compile_outputs,
     _salvage_driver_fatal,
 )
-from ._xelatex_bib import _XelatexBib
-from ._xelatex_frame import _harvest, _prepare_main
-from ._xelatex_install import _XelatexInstall
-from ._xelatex_probe import _XelatexProbe
-from ._xelatex_runenv import _XelatexEnv
+from texlate.compile.engine._xelatex.bib import _XelatexBib
+from texlate.compile.engine._xelatex.frame import _harvest, _prepare_main
+from texlate.compile.engine._xelatex.install import _XelatexInstall
+from texlate.compile.engine._xelatex.probe import _XelatexProbe
+from texlate.compile.engine._xelatex.runenv import _XelatexEnv
+from texlate.compile.loginfo import parse_log
+from texlate.compile.sandbox import _apply_sandbox, _rc_to_signal
+from texlate.texlog import log_text_of
+from texlate.textutil import env_raw
+from texlate.textutil.osutil import ENV_TLNET
 
 MAX_PASSES = 2
 

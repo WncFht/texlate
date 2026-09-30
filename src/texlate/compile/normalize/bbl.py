@@ -1,4 +1,4 @@
-r"""compile.normalize_bbl — bundled .bbl 书目替换叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.bbl — bundled .bbl 书目替换叶 (compile.normalize 域缝叶)。
 
 工程附现成 .bbl 而 .bib 缺失时 ``\bibliography{x}`` → ``\input{x.bbl}``；
 revtex 系 ``\auto@bib`` end-doc 探测用 ``_AUTOBIB_DISARM`` csname 形
@@ -12,9 +12,8 @@ import os
 import re
 from pathlib import Path
 
+from texlate.compile.mask import visible_tex
 from texlate.textutil import CMD_BOUNDARY, decode_tex, safe_is_file
-
-from .mask import visible_tex
 
 # logger 名钉死拆分前模块名——消息面 (record.name) 不变。
 log = logging.getLogger("texlate.compile.normalize")

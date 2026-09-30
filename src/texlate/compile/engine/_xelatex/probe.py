@@ -35,9 +35,8 @@ if TYPE_CHECKING:
 else:
     import texlate.compile.engine as _eng
 
+from texlate.compile.engine._cache import load_search_cache, save_search_cache
 from texlate.textutil import env_raw, safe_is_file
-
-from ._cache import load_search_cache, save_search_cache
 
 #: ``probe_file`` texmf 树探测 memo 条数上限（B14 fix#3）：fixloop 格均
 #: ~10–40 名、跨 cell 名集高重叠，容量远超格均即全覆盖；撞顶整表清——

@@ -1,4 +1,4 @@
-r"""compile.latex209_math — 数学域模态走查与两族受限转写叶 (compile.latex209 域缝叶)。
+r"""compile.latex209.math — 数学域模态走查与两族受限转写叶 (compile.latex209 域缝叶)。
 
 模态域判定单源：``$`` 系定界 + 数学环境体为数学域、``_TEXTARG_CS_209``
 命令实参为文本域，嵌套域按 ``_innermost`` 最内层判。两族转写：
@@ -12,10 +12,9 @@ from __future__ import annotations
 import re
 from typing import Final
 
+from texlate.compile.mask import apply_edits, group_end, visible_tex
 from texlate.latex.model import ws_skip
 from texlate.textutil import CMD_BOUNDARY, cs_events_spans
-
-from .mask import apply_edits, group_end, visible_tex
 
 #: 数学域 209 字体开关组 ``{\em/\it/\bf X}`` → 2e 数学字母命令映射。
 #: 209 时代 ``\em``/``\it``/``\bf`` 是 switch（组内余生全换体）；2e 下

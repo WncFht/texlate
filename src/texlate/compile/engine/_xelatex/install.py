@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 else:
     import texlate.compile.engine as _eng
 
-from ._cache import tlmgr_search_cache_path
+from texlate.compile.engine._cache import tlmgr_search_cache_path
 
 log = logging.getLogger("texlate.compile.engine._xelatex")
 

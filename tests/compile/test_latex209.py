@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile import latex209_main
 from texlate.compile.inject import (
     CTEX_LINE,
     InjectRejectError,
@@ -18,6 +17,7 @@ from texlate.compile.latex209 import (
     _target_resolvable,
     upgrade_209,
 )
+from texlate.compile.latex209 import main as latex209_main
 
 
 @pytest.fixture(autouse=True)

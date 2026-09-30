@@ -1,4 +1,4 @@
-r"""compile.latex209_route — 选项分派与随源 ds@ 桥叶 (compile.latex209 域缝叶)。
+r"""compile.latex209.route — 选项分派与随源 ds@ 桥叶 (compile.latex209 域缝叶)。
 
 ``upgrade_209`` 的工程树判定臂：选项段拆解、随源 ``<opt>.sty``/``<cls>.sty``
 检出、``ds@`` 分发探测、随源 documentstyle 桥体（``\input`` + ``\@options``
@@ -10,21 +10,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from texlate.textutil import _tar_disguised, decode_tex
-
-from .latex209_tables import (
+from texlate.compile.latex209.tables import (
     _DS_AT_RE,
     _GLOB_SAFE_RE,
     _INCOMPAT_PKGS,
     _KERNEL_OPTS,
     _PKG_OPTS,
 )
-from .mask import visible_tex
+from texlate.compile.mask import visible_tex
+from texlate.textutil import _tar_disguised, decode_tex
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .latex209_tables import _ClassSpec
+    from texlate.compile.latex209.tables import _ClassSpec
 
 
 def _split_opts(optspan: str | None) -> list[str]:

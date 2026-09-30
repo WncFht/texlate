@@ -26,9 +26,9 @@ from pathlib import Path
 import pytest
 from _fixloopkit import STUBS, n_err, requires_xelatex, run_xelatex
 
-from texlate.compile import latex209_main
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.latex209 import main as latex209_main
 from texlate.compile.latex209 import upgrade_209
 
 _STUB = STUBS / "axodraw.sty"

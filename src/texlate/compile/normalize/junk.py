@@ -1,4 +1,4 @@
-r"""compile.normalize_junk — bundled 垃圾件 stub 叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.junk — bundled 垃圾件 stub 叶 (compile.normalize 域缝叶)。
 
 ``JUNK_FILE_STUBS`` 名单件逐名覆写为 stub（``\input`` 目标须保持存在故
 覆写不删）；``JUNK_FILE_MARKERS`` 垃圾签名护栏——同名无签名按撞名真件
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Final
 
-from .transcode import _iter_files
+from texlate.compile.transcode import _iter_files
 
 if TYPE_CHECKING:
     from pathlib import Path

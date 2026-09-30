@@ -1,4 +1,4 @@
-r"""compile.normalize_blocks — 兼容前导块与早期定义注入叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.blocks — 兼容前导块与早期定义注入叶 (compile.normalize 域缝叶)。
 
 文件顶前置的 XeTeX/tectonic 兼容块（PIXEL/XETEX/TECTONIC_FONT）+
 ``\documentclass`` 缝后注入的 preamble 消费仿真定义（``XETEX_EARLY_DEFS``
@@ -7,10 +7,9 @@ r"""compile.normalize_blocks — 兼容前导块与早期定义注入叶 (compil
 
 from __future__ import annotations
 
+from texlate.compile._docseams import _splice_after_seams, find_docclass_ends
+from texlate.compile.mask import visible_tex
 from texlate.textutil import SUBDOC_CHILD_RX, iter_depth0
-
-from ._docseams import _splice_after_seams, find_docclass_ends
-from .mask import visible_tex
 
 # ---------------------------------------------------------------- 兼容前导块
 # 注入缝三档（docs/spec/compile.md）：包钩/类选项/字体 shim → 文件顶前置

@@ -1,4 +1,4 @@
-r"""compile.normalize_latin — 显式 Type1 拉丁字体 → Unicode 等价物叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.latin — 显式 Type1 拉丁字体 → Unicode 等价物叶 (compile.normalize 域缝叶)。
 
 ``\usefont{OT1|T1|LY1}{ptm}`` → ``{TU}{texlate-ptm}``、``\fontfamily{ptm}``
 前补 ``\fontencoding{TU}`` 并加前缀；``_latin_family_block`` 生成 TeX Gyre
@@ -11,10 +11,14 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from texlate.compile.mask import (
+    TEX_SOURCE_SUFFIXES,
+    apply_edits,
+    group_end,
+    visible_tex,
+)
+from texlate.compile.transcode import _iter_files, _read_tex
 from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_OPTS_RX
-
-from .mask import TEX_SOURCE_SUFFIXES, apply_edits, group_end, visible_tex
-from .transcode import _iter_files, _read_tex
 
 if TYPE_CHECKING:
     from pathlib import Path

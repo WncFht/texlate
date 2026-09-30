@@ -1,4 +1,4 @@
-r"""compile.latex209_tables — 选项路由静态表叶 (compile.latex209 域缝叶)。
+r"""compile.latex209.tables — 选项路由静态表叶 (compile.latex209 域缝叶)。
 
 选项名/类名安全字符集、内核/标准类/宏包白名单、209→2e 类名映射
 （``_ClassSpec``/``_CLASS_MAP``）、目标类硬不兼容表、``ds@`` 探测与

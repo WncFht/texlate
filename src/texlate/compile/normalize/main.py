@@ -1,4 +1,4 @@
-r"""compile.normalize_main — 归一化主编排叶 (compile.normalize 域缝叶)。
+r"""compile.normalize.main — 归一化主编排叶 (compile.normalize 域缝叶)。
 
 ``normalize_engine`` 单文件无条件手术编排（清单 1–10 文件内部分 +
 兼容前导块注入闸）；``_normalize_tex_files`` 逐 tex 件主手术
@@ -11,27 +11,19 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from texlate.textutil import (
-    BEGIN_DOC_RX,
-    SUBDOC_CHILD_RX,
-    _tar_disguised,
-    decode_tex_with,
-    iter_depth0,
-)
-
-from .mask import TEX_SOURCE_SUFFIXES, visible_tex
-from .normalize_bbl import use_bundled_bibliography
-from .normalize_blocks import (
+from texlate.compile.mask import TEX_SOURCE_SUFFIXES, visible_tex
+from texlate.compile.normalize.bbl import use_bundled_bibliography
+from texlate.compile.normalize.blocks import (
     PIXEL_COMPATIBILITY,
     TECTONIC_FONT_COMPATIBILITY,
     XETEX_COMPATIBILITY,
     _splice_early_defs,
 )
-from .normalize_guard import _prologue_ok, _strip_lead_junk
-from .normalize_junk import _neutralize_junk_files
-from .normalize_latin import prepare_legacy_latin_fonts
-from .normalize_paths import rebase_project_paths
-from .normalize_text import (
+from texlate.compile.normalize.guard import _prologue_ok, _strip_lead_junk
+from texlate.compile.normalize.junk import _neutralize_junk_files
+from texlate.compile.normalize.latin import prepare_legacy_latin_fonts
+from texlate.compile.normalize.paths import rebase_project_paths
+from texlate.compile.normalize.text import (
     normalize_comment_terminators,
     normalize_float_positions,
     normalize_legacy_cjk,
@@ -41,12 +33,19 @@ from .normalize_text import (
     normalize_pixel_dimensions,
     strip_input_encodings,
 )
-from .shadow import _shadow_broken_system_packages
-from .transcode import (
+from texlate.compile.shadow import _shadow_broken_system_packages
+from texlate.compile.transcode import (
     _hidden_path,
     _iter_files,
     _record_verdict,
     _transcode_support_files,
+)
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    SUBDOC_CHILD_RX,
+    _tar_disguised,
+    decode_tex_with,
+    iter_depth0,
 )
 
 if TYPE_CHECKING:

@@ -19,7 +19,10 @@ from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 
 _VENDOR_STY = (
-    Path(actions.__file__).resolve().parents[1] / "vendor" / "files" / "csvsimple-l3.sty"
+    Path(actions.__file__).resolve().parents[1]
+    / "vendor"
+    / "files"
+    / "csvsimple-l3.sty"
 )
 _RULE_ID = "csvsimple_l3_kernel_retire"
 

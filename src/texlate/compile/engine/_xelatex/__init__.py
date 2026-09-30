@@ -3,17 +3,17 @@ r"""xelatex 引擎 —— TeX Live 系全工具链通路（``engine.py`` 拆分�
 ``run_process``/``find_tool`` 走 ``_eng.`` 运行期回查——测试 patch
 缝钉在 ``texlate.compile.engine.X`` 模块名上（worker ``_w.`` 同款）。
 
-god-split: 实现体按域拆进同包 6 孙叶——``_xelatex_frame``（compile()
+god-split: 实现体按域拆进同包 6 孙叶——``_xelatex.frame``（compile()
 头尾段共享件 ``_prepare_main``/``_harvest`` + ``\end{document}`` 输入覆盖
-出货闸）、``_xelatex_bib``（``.bbl``/``.bcf``/aux 文件态判件 +
-``_XelatexBib`` 趟间补跑 mixin）、``_xelatex_probe``（``_XelatexProbe``
-kpsewhich/tlpdb/tlmgr 探测 mixin）、``_xelatex_install``
-（``_XelatexInstall`` tlmgr usermode 装件 mixin）、``_xelatex_runenv``
-（``_XelatexEnv`` env 构造/argv plumbing mixin）、``_xelatex_main``
+出货闸）、``_xelatex.bib``（``.bbl``/``.bcf``/aux 文件态判件 +
+``_XelatexBib`` 趟间补跑 mixin）、``_xelatex.probe``（``_XelatexProbe``
+kpsewhich/tlpdb/tlmgr 探测 mixin）、``_xelatex.install``
+（``_XelatexInstall`` tlmgr usermode 装件 mixin）、``_xelatex.runenv``
+（``_XelatexEnv`` env 构造/argv plumbing mixin）、``_xelatex.main``
 （``XelatexEngine`` 组合根 + pass 环闸常量）。本文件是 PEP 562 惰性门面
 （同 ``latex209``/``pipeline`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
 孙叶，``__getattr__`` 首访解析并缓存，``_xelatex.X`` 公共面与
-``from ... import X`` 属性读面不变（``_tectonic`` 的
+``from texlate import X`` 属性读面不变（``_tectonic`` 的
 ``_harvest``/``_prepare_main`` 回取不受影响）。孙叶间互引走全路径直跨
 （``._xelatex_<叶>``），不经本门面；mixin 宿主属性/方法契约经叶内
 ``TYPE_CHECKING`` 声明钉静态面（segmenter ``args_handlers`` 同式）。
@@ -27,7 +27,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ._xelatex_bib import (
+    from texlate.compile.engine._xelatex.bib import (
         _AUX_CITE_RX,
         _BBL_HEAD_BYTES,
         _BBL_KEY_RX,
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
         _XelatexBib,
         contextlib,
     )
-    from ._xelatex_frame import (
+    from texlate.compile.engine._xelatex.frame import (
         _ENDDOC_MAX_DEPTH,
         _ENDDOC_RX,
         _ENDINPUT_DEF_RX,
@@ -71,12 +71,12 @@ if TYPE_CHECKING:
         re,
         visible_tex,
     )
-    from ._xelatex_install import (
+    from texlate.compile.engine._xelatex.install import (
         _XelatexInstall,
         shutil,
         tlmgr_search_cache_path,
     )
-    from ._xelatex_main import (
+    from texlate.compile.engine._xelatex.main import (
         _ADAPTIVE_PASS_CAP,
         _RERUN_HINT_RX,
         _SHELL_ESCAPE_FLAGS,
@@ -93,14 +93,14 @@ if TYPE_CHECKING:
         log_text_of,
         parse_log,
     )
-    from ._xelatex_probe import (
+    from texlate.compile.engine._xelatex.probe import (
         _PROBE_MEMO_MAX,
         _XelatexProbe,
         load_search_cache,
         safe_is_file,
         save_search_cache,
     )
-    from ._xelatex_runenv import (
+    from texlate.compile.engine._xelatex.runenv import (
         _OUTPUT_REKEY_PREFIXES,
         _texmfdist,
         _XelatexEnv,
@@ -108,7 +108,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_xelatex_bib": (
+    "bib": (
         "_AUX_CITE_RX",
         "_BBL_HEAD_BYTES",
         "_BBL_KEY_RX",
@@ -135,7 +135,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_has_bbl",
         "contextlib",
     ),
-    "_xelatex_frame": (
+    "frame": (
         "_ENDDOC_MAX_DEPTH",
         "_ENDDOC_RX",
         "_ENDINPUT_DEF_RX",
@@ -152,12 +152,12 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "re",
         "visible_tex",
     ),
-    "_xelatex_install": (
+    "install": (
         "_XelatexInstall",
         "shutil",
         "tlmgr_search_cache_path",
     ),
-    "_xelatex_main": (
+    "main": (
         "CompRes",
         "DEFAULT_TIMEOUT",
         "ENV_TLNET",
@@ -174,14 +174,14 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "log_text_of",
         "parse_log",
     ),
-    "_xelatex_probe": (
+    "probe": (
         "_PROBE_MEMO_MAX",
         "_XelatexProbe",
         "load_search_cache",
         "safe_is_file",
         "save_search_cache",
     ),
-    "_xelatex_runenv": (
+    "runenv": (
         "_OUTPUT_REKEY_PREFIXES",
         "_XelatexEnv",
         "_texmfdist",

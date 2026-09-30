@@ -1,8 +1,8 @@
-r"""compile.latex209_main — 升级编排主入口叶 (compile.latex209 域缝叶)。
+r"""compile.latex209.main — 升级编排主入口叶 (compile.latex209 域缝叶)。
 
 ``upgrade_209`` 主编排 + 其私有臂：改名目标类可解析性守卫
 ``_target_resolvable``（本叶命名空间即 monkeypatch 锚点——patch
-``latex209_main._target_resolvable`` 才改 ``upgrade_209`` 的调用解析）、
+``latex209.main._target_resolvable`` 才改 ``upgrade_209`` 的调用解析）、
 revtex4-2 ``\topskip`` 活赋值删除、首个深度 0 ``\documentstyle`` 定位。
 """
 
@@ -12,23 +12,21 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
-from texlate.textutil import DOCSTYLE_DECL_RX, DOCSTYLE_RX, iter_depth0
-
-from .latex209_math import _fix_math_209
-from .latex209_route import (
+from texlate.compile.latex209.math import _fix_math_209
+from texlate.compile.latex209.route import (
     _ds_at_bridge,
     _route_opts,
     _split_opts,
     _style209_path,
     _uses_ds_at,
 )
-from .latex209_shim import (
+from texlate.compile.latex209.shim import (
     _MULTICOLS_SHIM,
     _PRE_CLASS_SHIM,
     _REVTEX209_SHIM,
     COMPAT_SHIM,
 )
-from .latex209_tables import (
+from texlate.compile.latex209.tables import (
     _CLASS_MAP,
     _DS_AT_CLASSES,
     _GLOB_SAFE_RE,
@@ -36,7 +34,8 @@ from .latex209_tables import (
     _STD_CLASSES,
     _TOPSKIP_ASSIGN_RE,
 )
-from .mask import visible_tex
+from texlate.compile.mask import visible_tex
+from texlate.textutil import DOCSTYLE_DECL_RX, DOCSTYLE_RX, iter_depth0
 
 if TYPE_CHECKING:
     import re

@@ -1,4 +1,4 @@
-r"""compile.latex209_shim — compat 垫块字符串叶 (compile.latex209 域缝叶)。
+r"""compile.latex209.shim — compat 垫块字符串叶 (compile.latex209 域缝叶)。
 
 转换产物注入的 TeX 垫块文本：``COMPAT_SHIM`` 通用 209 残留补位、
 ``_PRE_CLASS_SHIM`` 内核浮体寄存器（``\documentclass`` 之前执行）、
