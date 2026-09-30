@@ -64,10 +64,11 @@ ingest→parse→xlat→compile→fixloop 的资产流，本 spec 是旧 B5 驱�
 ``e2e_real.route``（route 段）、``e2e_real.xlat``（翻译段）、
 ``e2e_real.compile``（compile 段）、``e2e_real.fixloop``（修复+qc
 wanted 闸）、``e2e_real.base``（base 归因臂）、``e2e_real.layoutqc``
-（T0 质检段）、``e2e_real.spec``（spec 组合根）。本文件是 PEP 562
+（T0 质检段）、``e2e_real._spec``（spec 组合根——叶干 ``_`` 前缀脱
+导出名 ``spec`` 碰撞）。本文件是 PEP 562
 惰性门面（同 ``specs/corpus_v3/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``e2e_real.X`` 与 ``from  import X`` 面不变；``spec``
-住 ``e2e_real.spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
+住 ``e2e_real._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._e2e_real_X import Y`` 不绕本门面（避环）。monkeypatch
 锚点注意：tests 钉在本门面的 ``fixloop``/``XelatexEngine`` 由
 ``e2e_real.fixloop`` 叶内 ``_er.`` 属性读面晚绑定回取（xlat/pipeline
@@ -140,6 +141,7 @@ from texlate.xlat.pipeline import (
 )
 
 if TYPE_CHECKING:
+    from specs.e2e_real._spec import spec
     from specs.e2e_real.base import _base
     from specs.e2e_real.compile import _compile
     from specs.e2e_real.fixloop import (
@@ -160,7 +162,6 @@ if TYPE_CHECKING:
     )
     from specs.e2e_real.layoutqc import _layoutqc
     from specs.e2e_real.route import _route
-    from specs.e2e_real.spec import spec
     from specs.e2e_real.xlat import _xlat
 
 
@@ -186,7 +187,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     ),
     "base": ("_base",),
     "layoutqc": ("_layoutqc",),
-    "spec": ("spec",),
+    "_spec": ("spec",),
 }
 
 _LAZY: dict[str, str] = {
@@ -310,6 +311,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)

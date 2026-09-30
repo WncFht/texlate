@@ -1,4 +1,7 @@
-"""soak spec 组合根——Spec(...) 构建 + 其直接依赖闭包（stage fn 全走叶直引）。"""
+"""soak._spec 组合根——Spec(...) 构建 + 其直接依赖闭包（stage fn 全走叶直引）。
+
+叶干名 ``_spec`` 非 ``spec``：stem 撞导出名 ``spec`` 时叶件 import 会把
+子模块绑上门面遮蔽惰性属性（verbs.dossier._main 同例）。"""
 
 from __future__ import annotations
 
@@ -56,7 +59,7 @@ spec = Spec(
         "bench/py/specs/soak/ingest.py",
         "bench/py/specs/soak/items.py",
         "bench/py/specs/soak/parse.py",
-        "bench/py/specs/soak/spec.py",
+        "bench/py/specs/soak/_spec.py",
         "bench/py/specs/soak/xlat.py",
         "src/texlate/compile",
         "src/texlate/latex",

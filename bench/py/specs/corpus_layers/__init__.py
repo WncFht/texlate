@@ -43,11 +43,12 @@ plan→scan→extract→qc，recent 正交臂（needs=[]，ids_file 闸）声明
 _dirs 路径解析）、``corpus_layers.plan``（plan 段）、
 ``corpus_layers.scan``（scan 段）、``corpus_layers.extract``（池装载 +
 配额/旗标选样 + extract 段）、``corpus_layers.recent``（eprint 正交臂）、
-``corpus_layers.qc``（qc 段）、``corpus_layers.spec``（_select + spec
-组合根）。本文件是 PEP 562 惰性门面（同 ``specs/soak/__init__.py`` 形制）——平名
+``corpus_layers.qc``（qc 段）、``corpus_layers._spec``（_select + spec
+组合根——叶干 ``_`` 前缀脱导出名 ``spec`` 碰撞）。本文件是 PEP 562
+惰性门面（同 ``specs/soak/__init__.py`` 形制）——平名
 经 ``_LEAF_EXPORTS`` 映射回叶子，``corpus_layers.X`` 与
 ``from specs.corpus_layers import X`` 读面与拆分前逐名等价；``spec``
-住 ``corpus_layers.spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
+住 ``corpus_layers._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._corpus_layers_X import Y`` 不绕本门面（避环）。spec 文件
 经 load_spec exec（非包内导入，``__package__`` 为空）——叶名走
 ``_PKG = "specs.corpus_layers"`` 归一。
@@ -77,6 +78,7 @@ from specs import _corpus_common as cc
 
 if TYPE_CHECKING:
     # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免。
+    from specs.corpus_layers._spec import _select, spec
     from specs.corpus_layers.base import (
         _FAILMINE_FILL_CAP,
         _FLAG_BAND_FRAC,
@@ -106,7 +108,6 @@ if TYPE_CHECKING:
         _recent,
     )
     from specs.corpus_layers.scan import _scan
-    from specs.corpus_layers.spec import _select, spec
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     "base": (
@@ -141,7 +142,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_recent",
     ),
     "scan": ("_scan",),
-    "spec": (
+    "_spec": (
         "_select",
         "spec",
     ),
@@ -235,6 +236,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)

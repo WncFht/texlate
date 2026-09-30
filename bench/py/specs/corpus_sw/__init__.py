@@ -51,10 +51,11 @@ manifest_dev_recent ids ∪ 其他 manifest ids ∪ 已 complete 湖格，逐 rg
 ``__file__`` 自指，worker 子进程跑的是该叶本体）、
 ``corpus_sw.manifest``（canon id 集/行装配）、``corpus_sw.plan``
 （footers/pool/assign 段）、``corpus_sw.rehydrate``（rgrows 落格 +
-manifest 追加 + report 段）、``corpus_sw.spec``（spec 组合根）。本
+manifest 追加 + report 段）、``corpus_sw._spec``（spec 组合根——叶干
+``_`` 前缀脱导出名 ``spec`` 碰撞）。本
 文件是 PEP 562 惰性门面（同 ``specs/corpus_v3/__init__.py`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``corpus_sw.X`` 与 ``from  import X``
-面不变；``spec`` 住 ``corpus_sw.spec`` 叶。叶间直引
+面不变；``spec`` 住 ``corpus_sw._spec`` 叶。叶间直引
 ``from specs._corpus_sw_X import Y`` 不绕本门面（避环）。
 ``python specs/corpus_sw --worker ...``（dir→``__main__.py``）旧调用
 形保持——入口已搬同包 ``__main__.py``。
@@ -97,6 +98,7 @@ from typing import TYPE_CHECKING
 from specs import _corpus_common as cc
 
 if TYPE_CHECKING:
+    from specs.corpus_sw._spec import spec
     from specs.corpus_sw.base import (
         _CAT_GROUP,
         _GROUPS,
@@ -138,7 +140,6 @@ if TYPE_CHECKING:
         _rehydrate,
         _report,
     )
-    from specs.corpus_sw.spec import spec
     from specs.corpus_sw.worker import (
         _hf_argv,
         _hf_env,
@@ -201,7 +202,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_rehydrate",
         "_report",
     ),
-    "spec": ("spec",),
+    "_spec": ("spec",),
 }
 
 _LAZY: dict[str, str] = {
@@ -319,6 +320,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)

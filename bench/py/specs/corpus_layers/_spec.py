@@ -1,4 +1,7 @@
-"""specs.corpus_layers.spec — corpus_layers spec 组合根（_select + Spec 装配）。
+"""specs.corpus_layers._spec — corpus_layers spec 组合根（_select + Spec 装配）。
+
+叶干名 ``_spec`` 非 ``spec``：stem 撞导出名 ``spec`` 时叶件 import 会把
+子模块绑上门面遮蔽惰性属性（verbs.dossier._main 同例）。
 
 bulk 链 plan→scan→extract→qc + recent 正交臂（needs=[]）声明在 qc 前；
 code_deps 保留 ``_corpus_common*`` 8 条原 dep + 本 spec 全部叶。
@@ -119,7 +122,7 @@ spec = Spec(
         "bench/py/specs/corpus_layers/qc.py",
         "bench/py/specs/corpus_layers/recent.py",
         "bench/py/specs/corpus_layers/scan.py",
-        "bench/py/specs/corpus_layers/spec.py",
+        "bench/py/specs/corpus_layers/_spec.py",
         "src/texlate/arxiv",
     ],
 )

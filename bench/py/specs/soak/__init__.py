@@ -38,10 +38,11 @@ pickle）。xlat 的 async 编排由 fn 内 ``asyncio.run`` 自持。
 ROOT/CORPUS/EPOCH/_HYDRATABLE 常量）、``soak.ingest``（src 物化段）、
 ``soak.parse``（route→normalize→scan 段）、``soak.xlat``（翻译段）、
 ``soak.compile``（splice 重建小件 + compile 段）、``soak.fixloop``
-（修复段）、``soak.spec``（spec 组合根）。本文件是 PEP 562 惰性门面
+（修复段）、``soak._spec``（spec 组合根——叶干 ``_`` 前缀脱导出名
+``spec`` 碰撞）。本文件是 PEP 562 惰性门面
 （同 ``specs/corpus_v3/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
 叶子，``soak.X`` 与 ``from  import X`` 面不变；``spec`` 住
-``soak.spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
+``soak._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._soak_X import Y`` 不绕本门面（避环）。monkeypatch 锚点
 注意：实现名住叶子模块——setattr patch 须指到叶子，门面 setattr
 只遮蔽门面不改叶子（同 corpus_v3 先例）。
@@ -116,6 +117,7 @@ from texlate.xlat.pipeline import (
 from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
+    from specs.soak._spec import spec
     from specs.soak.compile import (
         _compile,
         _engine,
@@ -148,7 +150,6 @@ if TYPE_CHECKING:
         _select,
     )
     from specs.soak.parse import _parse
-    from specs.soak.spec import spec
     from specs.soak.xlat import _xlat
 
 
@@ -186,7 +187,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_ON_PRED",
         "_fixloop",
     ),
-    "spec": ("spec",),
+    "_spec": ("spec",),
 }
 
 _LAZY: dict[str, str] = {
@@ -325,6 +326,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)
