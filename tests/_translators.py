@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-r"""translators_bench.py — 原 stagerun ``xlat --arm`` 的 translator 适配层
-（stagerun 宿主已退役；回归测试仍钉本契约面）。
+r"""_translators.py — 原 stagerun ``xlat --arm`` 的 translator 适配层
+（stagerun 宿主已退役；回归测试仍钉本契约面——由 ``bench/py/ops/`` 折入
+tests/，唯一消费方 = ``test_sabotage_arms``）。
 
 臂名 → translator 工厂（``make_translator``）+ 破坏台账面（``.ledger`` /
 ``.finalize(results)``）。Sabotage/Perturb 的 **注入实现继承自**
@@ -44,7 +45,7 @@ ledger schema（``sabotaged`` = 命中事件的块数；``moved`` = C 模式挪�
     sabotage-b 另含: caught / recovered / escaped / escaped_ids
     sabotage-c·perturb 另含: spliced / dropped
 
-``uv run python bench/py/ops/translators_bench.py`` 自检：60 段合成 tex 走
+``uv run python tests/_translators.py`` 自检：60 段合成 tex 走
 parse → XlatPipeline(sabotage-b) → finalize，断言台账记到注入事件
 （模块级 import texlate.xlat.pipeline → httpx，需 uv venv）。
 """
@@ -54,27 +55,26 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-# 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# __main__ 自检直跑时 bench/py 不在 sys.path——先立起再引 specs/kernel
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bench" / "py"))
 
 from specs import _bootstrap
 
 _bootstrap.ensure()
 
-import specs._sabotage as _sab  # Mode B/C 注入实现唯一事实源
+import specs._sabotage as _sab  # noqa: E402 - Mode B/C 注入实现唯一事实源
 
-from texlate.latex.placeholder import PH_RX
-from texlate.pipecore import delivered as _delivered
-from texlate.xlat.batch import split_long_chunk
-from texlate.xlat.pipeline import (
+from texlate.latex.placeholder import PH_RX  # noqa: E402
+from texlate.pipecore import delivered as _delivered  # noqa: E402
+from texlate.xlat.batch import split_long_chunk  # noqa: E402
+from texlate.xlat.pipeline import (  # noqa: E402
     MOCK_ZH,
     ChunkResult,
     MockTranslator,
     Translator,
     _mock_translate_text,
 )
-from texlate.xlat.placeholders import encode_newlines
+from texlate.xlat.placeholders import encode_newlines  # noqa: E402
 
 
 def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]:
@@ -98,10 +98,11 @@ def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]
         enc = encode_newlines(piece)[0]
         if mode == "B":
             targeted = targeted or (
-                _sab._plan_b(enc) is not None or _sab._plan_b(piece) is not None
+                _sab._plan_b(enc) is not None  # noqa: SLF001
+                or _sab._plan_b(piece) is not None  # noqa: SLF001
             )
         else:
-            _, mv = _sab._apply_c(_mock_translate_text(enc, zh), enc)
+            _, mv = _sab._apply_c(_mock_translate_text(enc, zh), enc)  # noqa: SLF001
             moved += mv
     if mode == "C":
         targeted = moved > 0
@@ -128,7 +129,7 @@ def _finalize(
     else:
         ledger.update(spliced=0, dropped=0)
     for r in results:
-        evs = [e for e in events if _sab._seg_of(r.source, e["seg"])]
+        evs = [e for e in events if _sab._seg_of(r.source, e["seg"])]  # noqa: SLF001
         if evs:
             targeted = True
             n_moved = sum(e.get("moved", 0) for e in evs)
@@ -225,12 +226,12 @@ def make_translator(arm: str, **kw: object) -> Translator:
 
 def _selfcheck() -> None:
     """冒烟：合成 60 段 tex → parse → XlatPipeline(sabotage-b) → finalize 台账断言。"""
-    import asyncio
-    import tempfile
+    import asyncio  # noqa: PLC0415 - 自检专用延迟到用点
+    import tempfile  # noqa: PLC0415
 
-    from texlate.latex.api import parse_file
-    from texlate.validate.l0 import validate_pair
-    from texlate.xlat.pipeline import XlatPipeline, chunk_to_in
+    from texlate.latex.api import parse_file  # noqa: PLC0415
+    from texlate.validate.l0 import validate_pair  # noqa: PLC0415
+    from texlate.xlat.pipeline import XlatPipeline, chunk_to_in  # noqa: PLC0415
 
     # 破坏决策 = f(段内容哈希) 确定性——60 段 ~30% 命中，无随机源
     paras = "\n\n".join(
@@ -251,8 +252,8 @@ def _selfcheck() -> None:
         results = asyncio.run(pipe.run(chunks))
         ledger = tr.finalize(results)
     head = {k: v for k, v in ledger.items() if k != "events"}
-    print(f"chunks={len(chunks)} ledger={head}")
-    print(f"first events: {ledger['events'][:3]}")
+    print(f"chunks={len(chunks)} ledger={head}")  # noqa: T201 - 自检输出即职责
+    print(f"first events: {ledger['events'][:3]}")  # noqa: T201
     assert ledger["n_events"] > 0, "no sabotage events injected"
     assert ledger["n_events"] == len(tr.events)
     assert ledger["sabotaged"] > 0
@@ -262,9 +263,11 @@ def _selfcheck() -> None:
     pipe_c = XlatPipeline(tr_c, validator=lambda s, z: validate_pair(s, z).feedback())
     results_c = asyncio.run(pipe_c.run(chunks))
     ledger_c = tr_c.finalize(results_c)
-    print(f"perturb ledger={ {k: v for k, v in ledger_c.items() if k != 'events'} }")
+    print(  # noqa: T201
+        f"perturb ledger={ {k: v for k, v in ledger_c.items() if k != 'events'} }"
+    )
     assert ledger_c["spliced"] + ledger_c["dropped"] == ledger_c["sabotaged"]
-    print("selfcheck ok")
+    print("selfcheck ok")  # noqa: T201
 
 
 if __name__ == "__main__":

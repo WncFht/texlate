@@ -64,7 +64,7 @@ from .intercept import (
 
 # 转口——``from texlate.xlat.pipeline import MockTranslator/MOCK_ZH`` 钉点
 # （src/tests/bench ~40 处）在 MockTranslator 出叶 ``.mock`` 后口径不变；
-# 私名 ``_mock_translate_text`` 同钉（ops.translators_bench/test_sabotage_arms）。
+# 私名 ``_mock_translate_text`` 同钉（tests/_translators/test_sabotage_arms）。
 from .mock import MOCK_ZH, MockTranslator, _mock_translate_text  # noqa: F401
 from .retry import (
     RetryPolicy,

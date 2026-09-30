@@ -6,7 +6,7 @@ Mode C 位置扰动 mock (随机挪 ~10% 占位符 → 量化 splice 鲁棒性)�
 
 共享件落点：本层自旧驱动 e2e_mock_bench.py 抽出——e2e_mock 经
 re-export 保持 ``emb.X`` 面（fuzz spy 钉 ``emb._scan_tree``、
-test_sabotage_arms 钉 ``emb._plan_b/_apply_*``），ops.translators_bench
+test_sabotage_arms 钉 ``emb._plan_b/_apply_*``），tests/_translators
 台账臂直引本模块。
 """
 

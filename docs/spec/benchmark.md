@@ -88,7 +88,7 @@
 
 测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`/`pipecore`（CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + L0 校验器产品 API[^suite]。
 
-- `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→L2→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `translators_bench.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
+- `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→L2→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `tests/_translators.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
 - `specs/e2e_real.py`：Mode D 真实臂——route → xlat(paid) → compile → fixloop → base → layoutqc 六段链，翻译走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env）全产品链；run 参数 `ids/only/model/concurrency/timeout/oversize_cap/no_probe`；`fixloop` 臂位 = fail + misschar/error 级 partial（inject reject 不救），`base` 臂为归因对拍，`layoutqc` 为最后变异段（产物进 vault 触发 harvest）[^e2ereal]。
 
 产出**漏斗看板**：route/xlat/compile/fixloop/layoutqc 逐段终态分布 + reject_at 归因。门槛：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点[^suite]。
@@ -111,7 +111,7 @@
 
 配套面：`bench plan <spec>` 格数/估时预报 + dedup 覆盖报价；`bench doctor` 环境/工具链/网关批前闸（旧 preflight_batch 职责）；`bench status` 账本直读面板；分析动词族 `bench triage`/`rundiff`/`gate`/`dossier`/`xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select`（`bench/py/verbs/`，逐件职责见 `dev/tools-runbook.md` §3.2）[^trizone]。
 
-付费纪律：付费 spec 强制 `--max-cost`；`$ROOT/PAUSE` 存在时 `run`/`plan` 拒跑；`ctx.gateway()` 惰性构造即付费断言（claim + paid slot + PAUSE/AUTH_DEAD 前置全检）。翻译臂工厂 `translators_bench.py` 保留（mock/sabotage-b/sabotage-c/perturb + 破坏台账面，被 `specs/_sabotage.py` 与 `e2e_mock` 引用）[^translators]。
+付费纪律：付费 spec 强制 `--max-cost`；`$ROOT/PAUSE` 存在时 `run`/`plan` 拒跑；`ctx.gateway()` 惰性构造即付费断言（claim + paid slot + PAUSE/AUTH_DEAD 前置全检）。翻译臂工厂 `tests/_translators.py` 保留（mock/sabotage-b/sabotage-c/perturb + 破坏台账面，被 `specs/_sabotage.py` 与 `e2e_mock` 引用）[^translators]。
 
 专题件：`gullet`（展开机抽干流实测门）、`wrapfloat`（wrapfig 绕排碰撞 + 降级修复验证，poppler bbox 交集信号）、`iclr_*.py`（ICLR 语料映射/取源/章节管线，`corpus` iclr 层支撑件）。
 
@@ -178,6 +178,6 @@
 
 [^trizone]: 仓内证据件 [bench-redesign-v2-trizone](../spec/bench-trizone.md)（四区/事件/预言机/付费门设计）与 `bench/py/kernel/` 模块 docstrings。
 
-[^translators]: 仓内证据件 `bench/py/translators_bench.py` docstring（臂工厂与台账 schema）。
+[^translators]: 仓内证据件 `tests/_translators.py` docstring（臂工厂与台账 schema）。
 
 [^retention]: 仓内证据件 `bench/py/kernel/vault.py`（`slim_splice`/`cas_link_*`/`CAS_LINK_FLOOR`）、`kernel/cli.py::_cell_shrinkable`、`kernel/lake.py::shrink_shell` 与 [2026-09-24 磁盘策略落地](../log/2026-09-24-磁盘策略落地与探针批指标.md)。
