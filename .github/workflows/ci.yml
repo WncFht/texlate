@@ -11,7 +11,13 @@ permissions:
 
 # 与 pre-commit 同源：本地不过 CI 必挂。format 门控（prettier check +
 # markdownlint + eslint + actionlint）、python（ruff）、shell（shfmt +
-# shellcheck）。工具版本：npm 锁 package.json，brew 随源浮动。
+# shellcheck）。工具版本：npm 锁 package.json，brew 随源浮动——
+# actionlint/taplo/gitleaks/ruff/shfmt/shellcheck 在 homebrew-core 均无
+# name@version 版本化 formula（@ 面只覆盖 python/node/go 类运行时），
+# 钉版只能走下方 tectonic 式 release 二进制+sha256，为纯 lint 闸背
+# 每件一份下载脚本不值；诊断漂移真正咬人的面已另钉（ty→uvx 钉小版，
+# gitleaks 版本事实源在 .pre-commit-config.yaml rev——brew 侧浮动是
+# 已知差口，规则在 .gitleaks.toml 版本宽容，咬了再换二进制钉版）。
 jobs:
   format:
     name: Format & Lint

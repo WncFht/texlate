@@ -184,20 +184,20 @@ REDLINES: Final[tuple[RedLine, ...]] = (
     ),
     RedLine(
         id="overfull_hbox",
-        # fixloop 专用行: ``Overfull \hbox`` 是版面缺陷 (qc layout:overfull
-        # /geo_margin_breach 部分同源) 的 log 面签名, 无 '!' 错时经
+        # fixloop 专用行：``Overfull \hbox`` 是版面缺陷 (qc layout:overfull
+        # /geo_margin_breach 部分同源) 的 log 面签名，无 '!' 错时经
         # warn_overfull 伪类别驱动 para_loosen 修复轮。只挂 rules 切片
         # ——engine 层命中会作为 ``warn:*`` reason 污 verdict (overfull
-        # 是版面质量问题非编译健康问题, 判红面不收); l2 已有独立观察类
-        # ``overfull`` (行级归类, 非本表托管——pattern 分歧并列原则下
+        # 是版面质量问题非编译健康问题，判红面不收); l2 已有独立观察类
+        # ``overfull`` (行级归类，非本表托管——pattern 分歧并列原则下
         # 不抢其所有权); judge 同理不挂。
         rules=LayerSpec("overfull_hbox", r"Overfull \\hbox"),
     ),
     RedLine(
         id="float_too_large",
-        # fixloop 专用行: ``LaTeX Warning: Float too large for page`` 是
+        # fixloop 专用行：``LaTeX Warning: Float too large for page`` 是
         # 浮体超高 (qc layout:float_lost/float_fit 部分同源) 的 log 面
-        # 签名——[H] 钉死的超高非浮体盒会被页缘截杀, warn_float_big
+        # 签名——[H] 钉死的超高非浮体盒会被页缘截杀，warn_float_big
         # 伪类别驱动 float_h_demote 降级翻回真浮体。rules-only 同
         # overfull_hbox 行注 (版面信号不进判红面)。
         rules=LayerSpec("float_too_large", r"Float too large for page"),
@@ -285,7 +285,7 @@ def name_pattern(spec: LayerSpec | None) -> tuple[str, str]:
     return spec.name, spec.pattern
 
 
-#: ``engine.WARNING_RED_LINES`` 切片：``(发射名, 全文 pattern)`` 保持登记序。
+#: ``engine.WARNING_RED_LINES`` 切片：``(发射名，全文 pattern)`` 保持登记序。
 ENGINE_RED_LINES: Final[tuple[tuple[str, str], ...]] = tuple(
     name_pattern(r.engine) for r in REDLINES if r.engine is not None
 )
@@ -301,7 +301,7 @@ L2_REDLINE_CLASSES: Final[frozenset[str]] = frozenset(
     r.l2.name for r in REDLINES if r.l2 is not None and r.l2_redline
 )
 
-#: ``l2._WARNING_RULES`` 中本表托管的 ``canonical id → (发射名, 行级
+#: ``l2._WARNING_RULES`` 中本表托管的 ``canonical id → (发射名，行级
 #: pattern)``（派生类无 pattern 不在内；非红线 warning 类仍由 l2 本层持有）。
 L2_WARNING_RULES: Final[dict[str, tuple[str, str]]] = {
     r.id: name_pattern(r.l2)

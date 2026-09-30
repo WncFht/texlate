@@ -246,7 +246,7 @@ class TreeRun:
 
 
 def split_cid(chunk_id: str) -> tuple[int, int]:
-    """``"fidx:cid"`` → (fidx, cid)。"""
+    """``"fidx:cid"`` → (fidx, cid)."""
     a, _, b = chunk_id.partition(":")
     return int(a), int(b)
 
@@ -475,7 +475,7 @@ class L2Attr:
         # undefined_cs 源内 cs 豁免：肇事 cs 是源携带的（块外 verbatim 区
         # 出现/块源文本含之/展开生成件）——未定义根因是装载期（包未载/
         # 选项丢失，xcolor[table] clash 丢 \rowcolor 实证），重译造不出
-        # 定义，归块只会白烧额度+回退原文（2505.17508 表格 5 块实证）。
+        # 定义，归块只会白烧额度 + 回退原文（2505.17508 表格 5 块实证）。
         if _UNDEF_CS_HEAD_RX.search(err.head):
             cs = _undef_cs_culprit(err)
             if cs is not None and self._cs_source_carried(fidx, cs, sres):
@@ -691,7 +691,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
     命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
     同口径过滤。``seq_marks`` 透传 ``_resplice_and_diffs``（None → env
-    决议）。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    决议）。返回 (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep: dict[str, Any] = {"enabled": True, "cap": cap}
     hits, n_err = _l2_localize(work, run, res, baseline_sigs=baseline_sigs)
