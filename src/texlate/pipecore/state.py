@@ -1,4 +1,4 @@
-"""``texlate._pipecore_state`` — 状态空间映射 + 注入协议契约叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.state`` — 状态空间映射 + 注入协议契约叶（``pipecore`` 拆分叶）。
 
 pipe 空间（``ok/partial/skipped/fault``）↔ DB 空间
 （``ok/fallback_orig/failed``）双向映射 + 两空间 delivered 谓词；编译

@@ -1,9 +1,9 @@
-"""``texlate._pipecore_translate`` — 全树翻译写回脊叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.translate`` — 全树翻译写回脊叶（``pipecore`` 拆分叶）。
 
 ``translate_tree_run``：``scan_fn``（缺省本叶 ``scan_tree`` 全局——patch
 锚随件迁指本叶）→ ``XlatPipeline`` 逐块翻译 → env 可译性判
 （``_env_judge_pass``）→ splice 写回 + seq 注锚 + slot/emit 哨兵对账。
-``_auto_glossary_fn`` 是 ``_pipecore_scan.auto_glossary_fn`` 的
+``_auto_glossary_fn`` 是 ``pipecore.scan.auto_glossary_fn`` 的
 translator 取件糖。注入面（scan/validator/translator/sink）保住各臂
 模块全局 monkeypatch 缝——e2e 别名绑定、worker ``seams.*`` 直传。
 
@@ -17,9 +17,6 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from texlate._pipecore_policy import _opt_switch
-from texlate._pipecore_scan import auto_glossary_fn, scan_tree
-from texlate._pipecore_state import NULL_SINK, delivered
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
     reconstruct,
@@ -27,6 +24,9 @@ from texlate.latex.reconstruct import (
     splice_emit_issues,
     strip_seq_marks,
 )
+from texlate.pipecore.policy import _opt_switch
+from texlate.pipecore.scan import auto_glossary_fn, scan_tree
+from texlate.pipecore.state import NULL_SINK, delivered
 from texlate.repair_l2 import (
     TreeRun,
     env_judge_all,
@@ -48,9 +48,9 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from pathlib import Path
 
-    from texlate._pipecore_state import ReportSink
     from texlate.chunk import ChunkIn
     from texlate.latex.model import Chunk, ScanResult
+    from texlate.pipecore.state import ReportSink
     from texlate.xlat.pipeline import ChunkResult, Translator
 
 log = logging.getLogger(__name__)

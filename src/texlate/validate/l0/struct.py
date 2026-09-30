@@ -1,4 +1,4 @@
-r"""validate.l0_struct — 结构配对规则域叶 (validate.l0 域缝叶)。
+r"""validate.l0.struct — 结构配对规则域叶 (validate.l0 域缝叶)。
 
 四族 src↔zh 结构相对判定：``{}`` 平衡（``_check_brace``）、
 ``\\begin/\\end`` 栈配对 + 环境名 multiset 签名（``_check_env``）、
@@ -16,11 +16,11 @@ from collections import Counter
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import mask_comments
-from texlate.validate.l0_lex import _lex
-from texlate.validate.l0_report import Issue, Severity
+from texlate.validate.l0.lex import _lex
+from texlate.validate.l0.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0_lex import _Ctx
+    from texlate.validate.l0.lex import _Ctx
 
 #: key 承载命令：*cite* 族（cite/Cite/paracite/footcite/nocite/mcite……
 #: 前后缀皆收、首字母大小写皆收）/ *cites 多 key 参族（整段 {..}{..}

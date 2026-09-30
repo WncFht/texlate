@@ -11,15 +11,14 @@ import re
 from typing import Protocol
 
 from texlate.textutil import JSON_FENCE_RX
-
-from .client import (
+from texlate.xlat.client import (
     ChatClient,
     ChatError,
     ChatOptions,
     LengthTruncatedError,
 )
-from .pipeline_types import LENGTH_RETRY_MAX_TOKENS
-from .retry import RetryPolicy, call_with_backoff
+from texlate.xlat.pipeline.types import LENGTH_RETRY_MAX_TOKENS
+from texlate.xlat.retry import RetryPolicy, call_with_backoff
 
 # ---------------------------------------------------------------- Translator 协议
 

@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .intercept import _INTERCEPT_NETS
-from .pipeline import _net_apply_fn
-from .pipeline_types import ChunkResult
+from texlate.xlat.intercept import _INTERCEPT_NETS
+from texlate.xlat.pipeline import _net_apply_fn
+from texlate.xlat.pipeline.types import ChunkResult
 
 if TYPE_CHECKING:
     from collections.abc import Callable

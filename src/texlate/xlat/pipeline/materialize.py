@@ -10,10 +10,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from . import placeholders, prompts
-from .intercept import _interceptable
-from .pipeline_types import PAPER_CTX_MAX_CHARS, ChunkResult
-from .state import segment_key
+from texlate.xlat import placeholders, prompts
+from texlate.xlat.intercept import _interceptable
+from texlate.xlat.pipeline.types import PAPER_CTX_MAX_CHARS, ChunkResult
+from texlate.xlat.state import segment_key
 
 if TYPE_CHECKING:
     from texlate.chunk import ChunkIn

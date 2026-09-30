@@ -1,4 +1,4 @@
-r"""validate.l0_guard — 交付守卫规则域叶 (validate.l0 域缝叶)。
+r"""validate.l0.guard — 交付守卫规则域叶 (validate.l0 域缝叶)。
 
 两族交付面守卫：``_check_protocol_echo`` 协议字面回显（corrector
 三段式节标/L0 反馈消息/``slot_validation_failures``/``[compile_error]``
@@ -12,11 +12,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from texlate.validate.l0_ph import COMMENT_PH_RX
-from texlate.validate.l0_report import Issue, Severity
+from texlate.validate.l0.ph import COMMENT_PH_RX
+from texlate.validate.l0.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0_lex import _Ctx
+    from texlate.validate.l0.lex import _Ctx
 
 #: 协议回显签名（repro-2410b §4b 交付守卫）：L0 反馈消息实际 emit 串 +
 #: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/

@@ -13,12 +13,12 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from . import placeholders, prompts
-from .intercept import _INTERCEPT_NETS
-from .pipeline import _net_apply_fn
-from .pipeline_translator import _strip_json_fence
-from .pipeline_types import ChunkResult
-from .retry import (
+from texlate.xlat import placeholders, prompts
+from texlate.xlat.intercept import _INTERCEPT_NETS
+from texlate.xlat.pipeline import _net_apply_fn
+from texlate.xlat.pipeline.translator import _strip_json_fence
+from texlate.xlat.pipeline.types import ChunkResult
+from texlate.xlat.retry import (
     assess_answer,
     bare_token_audit,
     translate_with_ladder,
@@ -29,8 +29,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from texlate.chunk import ChunkIn
-
-    from .pipeline_types import PipelineConfig
+    from texlate.xlat.pipeline.types import PipelineConfig
 
 log = logging.getLogger(__name__)
 

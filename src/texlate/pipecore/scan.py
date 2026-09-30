@@ -1,4 +1,4 @@
-"""``texlate._pipecore_scan`` — front_matter 域 + 树扫描/术语注入叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.scan`` — front_matter 域 + 树扫描/术语注入叶（``pipecore`` 拆分叶）。
 
 preamble 前置发射键面（``FRONT_MATTER_NAMES``/``ENV_FRONT_MATTER``
 同名回引）与缺省/意图/实跑三解析（``default_front_matter``/

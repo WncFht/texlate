@@ -1,4 +1,4 @@
-"""validate.l0_main — L0 主入口叶 (validate.l0 域缝叶)。
+"""validate.l0.main — L0 主入口叶 (validate.l0 域缝叶)。
 
 ``_CHECKERS`` 全量检查表（序即执行序——新增/移除检查只动本表一条目，
 调用点迭代驱动自动并入）+ ``CACHE_VETO_RULES`` 缓存否决级规则集
@@ -11,26 +11,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from texlate.validate.l0_cs import (
+from texlate.validate.l0.cs import (
     _check_bare_cs,
     _check_dangerous_cs,
     _check_item_glue,
     _check_macro,
     _check_ph_in_cs,
 )
-from texlate.validate.l0_guard import (
+from texlate.validate.l0.guard import (
     _check_comment_eof,
     _check_protocol_echo,
 )
-from texlate.validate.l0_lex import _Ctx
-from texlate.validate.l0_ph import _check_placeholder
-from texlate.validate.l0_prose import (
+from texlate.validate.l0.lex import _Ctx
+from texlate.validate.l0.ph import _check_placeholder
+from texlate.validate.l0.prose import (
     _check_length,
     _check_residual_en,
     _check_same_source,
 )
-from texlate.validate.l0_report import L0Report
-from texlate.validate.l0_struct import (
+from texlate.validate.l0.report import L0Report
+from texlate.validate.l0.struct import (
     _check_brace,
     _check_env,
     _check_key,

@@ -1,4 +1,4 @@
-"""``texlate._pipecore_l2`` — L2 回灌执行件叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.l2`` — L2 回灌执行件叶（``pipecore`` 拆分叶）。
 
 ``l2_repair``：阶梯骨架 ``repair_l2.l2_repair_round`` 的注入类型化壳
 （``recompile`` 归 ``CompileRunner`` 协议）+ done 实况帧出口；
@@ -14,18 +14,18 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from texlate._pipecore_state import NULL_SINK
-from texlate._pipecore_tail import _compile_judge_job, tail_dict
+from texlate.pipecore.state import NULL_SINK
+from texlate.pipecore.tail import _compile_judge_job, tail_dict
 from texlate.repair_l2 import l2_repair_round, retranslate_hits
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from texlate._pipecore_state import CompileRunner, ReportSink
-    from texlate._pipecore_tail import PipeJob
     from texlate.compile.engine import CompRes, Engine
     from texlate.compile.judge import Verdict
+    from texlate.pipecore.state import CompileRunner, ReportSink
+    from texlate.pipecore.tail import PipeJob
     from texlate.repair_l2 import TreeRun
 
 

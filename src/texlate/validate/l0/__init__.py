@@ -69,17 +69,17 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
 实测基线（1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
 
-god-split: 实现体按域拆进同包 8 叶——``l0_report``（Severity/Issue/
-L0Report verdict 类型）、``l0_lex``（``_lex`` 词法扫描 + ``_Ctx``
-共享预处理视图）、``l0_ph``（占位符全域：multiset/lev 配对/行锚定/
-注释区专项）、``l0_struct``（brace/env/key/math 结构配对）、
-``l0_prose``（same_source/length/residual_en 散文质量）、``l0_cs``
+god-split: 实现体按域拆进同包 8 叶——``l0.report``（Severity/Issue/
+L0Report verdict 类型）、``l0.lex``（``_lex`` 词法扫描 + ``_Ctx``
+共享预处理视图）、``l0.ph``（占位符全域：multiset/lev 配对/行锚定/
+注释区专项）、``l0.struct``（brace/env/key/math 结构配对）、
+``l0.prose``（same_source/length/residual_en 散文质量）、``l0.cs``
 （macro/item_glue/ph_in_cs/bare_cs/dangerous_cs 控制序列安全）、
-``l0_guard``（protocol_echo/comment_eof 交付守卫）、``l0_main``
+``l0.guard``（protocol_echo/comment_eof 交付守卫）、``l0.main``
 （``_CHECKERS`` 全表 + ``CACHE_VETO_RULES`` + 对外入口）。本文件是
 PEP 562 惰性门面（同 ``seqpos/__init__``/``worker/compile`` 形制）
 ——平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析
-并缓存，``l0.X`` 公共面与 ``from ... import X``/``l0._x`` 属性读面
+并缓存，``l0.X`` 公共面与 ``from  import X``/``l0._x`` 属性读面
 不变。monkeypatch 锚点注意：patch 叶子不 patch 门面
 （docs/dev/seams.md §1）——``facade.name`` 读到的恒是叶子对象，但
 ``setattr(facade, ...)`` 只遮蔽门面不改叶子内部互引。叶子间互引走
@@ -93,7 +93,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.validate.l0_cs import (
+    from texlate.validate.l0.cs import (
         _NONASCII_RX,
         FRAGILE_BS,
         FRAGILE_CHARS,
@@ -111,13 +111,13 @@ if TYPE_CHECKING:
         dangerous_cs_net,
         ph_in_cs_net,
     )
-    from texlate.validate.l0_guard import (
+    from texlate.validate.l0.guard import (
         _ECHO_SIGS,
         _check_comment_eof,
         _check_protocol_echo,
         _tail_unterminated_comment,
     )
-    from texlate.validate.l0_lex import (
+    from texlate.validate.l0.lex import (
         _Ctx,
         _est_tokens,
         _lex,
@@ -126,13 +126,13 @@ if TYPE_CHECKING:
         mask_comments,
         re,
     )
-    from texlate.validate.l0_main import (
+    from texlate.validate.l0.main import (
         _CHECKERS,
         CACHE_VETO_RULES,
         pair_feedback,
         validate_pair,
     )
-    from texlate.validate.l0_ph import (
+    from texlate.validate.l0.ph import (
         _COMMENT_LINE_RX,
         _COMMENT_TAIL_RX,
         _LEV_CAP,
@@ -152,7 +152,7 @@ if TYPE_CHECKING:
         _ph_typo_adjacency,
         lev_capped,
     )
-    from texlate.validate.l0_prose import (
+    from texlate.validate.l0.prose import (
         _MIN_LATIN_FOR_CJK_CHECK,
         _MIN_PROSE_TOKENS,
         _NONLING_RX,
@@ -169,7 +169,7 @@ if TYPE_CHECKING:
         name_list_prose,
         residual_en_net,
     )
-    from texlate.validate.l0_report import (
+    from texlate.validate.l0.report import (
         Issue,
         L0Report,
         Severity,
@@ -178,7 +178,7 @@ if TYPE_CHECKING:
         dataclass,
         field,
     )
-    from texlate.validate.l0_struct import (
+    from texlate.validate.l0.struct import (
         _BRACE_SEQ_RX,
         _ENV_CHECK_TAIL_LIMIT,
         ENV_RX,
@@ -200,7 +200,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "l0_cs": (
+    "cs": (
         "FRAGILE_BS",
         "FRAGILE_CHARS",
         "MATH_CS",
@@ -218,13 +218,13 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "dangerous_cs_net",
         "ph_in_cs_net",
     ),
-    "l0_guard": (
+    "guard": (
         "_ECHO_SIGS",
         "_check_comment_eof",
         "_check_protocol_echo",
         "_tail_unterminated_comment",
     ),
-    "l0_lex": (
+    "lex": (
         "TYPE_CHECKING",
         "_Ctx",
         "_est_tokens",
@@ -234,13 +234,13 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "mask_comments",
         "re",
     ),
-    "l0_main": (
+    "main": (
         "CACHE_VETO_RULES",
         "_CHECKERS",
         "pair_feedback",
         "validate_pair",
     ),
-    "l0_ph": (
+    "ph": (
         "COMMENT_PH_RX",
         "Counter",
         "PH_ANY_LIKE_RX",
@@ -260,7 +260,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_ph_typo_adjacency",
         "lev_capped",
     ),
-    "l0_prose": (
+    "prose": (
         "CJK_RX",
         "CJK_SHARE_MIN",
         "TOKEN_RATIO_HI",
@@ -277,7 +277,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "name_list_prose",
         "residual_en_net",
     ),
-    "l0_report": (
+    "report": (
         "Issue",
         "L0Report",
         "Severity",
@@ -286,7 +286,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "dataclass",
         "field",
     ),
-    "l0_struct": (
+    "struct": (
         "ENV_RX",
         "Final",
         "KEY_CMD_RX",

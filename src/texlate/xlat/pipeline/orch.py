@@ -12,23 +12,22 @@ import logging
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from texlate.chunk import ChunkIn
-
-from . import placeholders
-from .authgate import AuthGate, AuthTrippedError, _kind_of
-from .batch import batch_member_overhead, pack_batches, split_long_chunk
-from .client import HTTP_UNAUTHORIZED
-from .pipeline_batch import _XlatBatch
-from .pipeline_ledger import _XlatLedger
-from .pipeline_materialize import _XlatMaterialize
-from .pipeline_single import _XlatSingle
-from .pipeline_types import ChunkResult, PipelineConfig
+from texlate.xlat import placeholders
+from texlate.xlat.authgate import AuthGate, AuthTrippedError, _kind_of
+from texlate.xlat.batch import batch_member_overhead, pack_batches, split_long_chunk
+from texlate.xlat.client import HTTP_UNAUTHORIZED
+from texlate.xlat.pipeline.batch import _XlatBatch
+from texlate.xlat.pipeline.ledger import _XlatLedger
+from texlate.xlat.pipeline.materialize import _XlatMaterialize
+from texlate.xlat.pipeline.single import _XlatSingle
+from texlate.xlat.pipeline.types import ChunkResult, PipelineConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .glossary import Glossary
-    from .pipeline_translator import Translator
-    from .state import StateStore
+    from texlate.xlat.glossary import Glossary
+    from texlate.xlat.pipeline.translator import Translator
+    from texlate.xlat.state import StateStore
 
 log = logging.getLogger(__name__)
 

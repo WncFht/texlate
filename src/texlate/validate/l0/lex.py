@@ -1,4 +1,4 @@
-"""validate.l0_lex — L0 词法层 + 共享视图叶 (validate.l0 域缝叶)。
+"""validate.l0.lex — L0 词法层 + 共享视图叶 (validate.l0 域缝叶)。
 
 ``_lex`` 逐字符 ``(kind, text, pos)`` 三元组扫描：``cs`` 控制字 /
 ``bs`` 控制符号 / ``cmt`` 注释 / ``ch`` 其余字符——只做转义/注释豁免，
@@ -18,7 +18,7 @@ from texlate.textutil import mask_comments
 from texlate.textutil import prose_text as _prose
 
 if TYPE_CHECKING:
-    from texlate.validate.l0_report import Issue
+    from texlate.validate.l0.report import Issue
 
 
 def _lex(s: str) -> list[tuple[str, str, int]]:

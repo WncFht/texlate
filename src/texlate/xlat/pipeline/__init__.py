@@ -13,13 +13,13 @@
 `Translator` 是协议：真路径 = `GatewayTranslator`（ChatClient + prompts），
 mock 路径 = `MockTranslator`（占位译文供 E2E/bench，不触网、确定性）。
 
-拆分：实现体按子域下沉同包六叶——``pipeline_types``（常量/ChunkResult/
-PipelineConfig/chunk_to_in 数据契约）、``pipeline_translator``（Translator
-协议/GatewayTranslator 适配/输出清洗）、``pipeline_materialize``
+拆分：实现体按子域下沉同包六叶——``pipeline.types``（常量/ChunkResult/
+PipelineConfig/chunk_to_in 数据契约）、``pipeline.translator``（Translator
+协议/GatewayTranslator 适配/输出清洗）、``pipeline.materialize``
 （_XlatMaterialize：system prompt memo + 术语/锚定/点名册 + 段级缓存）、
-``pipeline_single``（_XlatSingle：阶梯调用点 + L2 回灌）、``pipeline_batch``
-（_XlatBatch：编号批协议 + 退单翻）、``pipeline_ledger``（_XlatLedger：
-skip/直通落形 + 拦截网/auth 闸/emit 账本）、``pipeline_orch``（WorkItem +
+``pipeline.single``（_XlatSingle：阶梯调用点 + L2 回灌）、``pipeline.batch``
+（_XlatBatch：编号批协议 + 退单翻）、``pipeline.ledger``（_XlatLedger：
+skip/直通落形 + 拦截网/auth 闸/emit 账本）、``pipeline.orch``（WorkItem +
 _XlatOrch 主编排 + ``XlatPipeline`` 组合根）。本文件是 PEP 562 惰性门面
 （同 ``kernel.kernel``/``worker.compile`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存。
@@ -44,12 +44,11 @@ from typing import TYPE_CHECKING
 # ``ChunkIn`` 契约下沉 ``texlate.chunk``（arxiv 降级链同消费——底层不能
 # 向上 import 本包）；转口保持 ``from texlate.xlat.pipeline import ChunkIn``
 # 钉点面守恒（repair_l2/e2e/worker/tests）。``JSON_FENCE_RX`` 同——
-# ``_strip_json_fence`` 出叶 ``pipeline_translator`` 后名仍挂本面。
+# ``_strip_json_fence`` 出叶 ``pipeline.translator`` 后名仍挂本面。
 from texlate.chunk import ChunkIn
 from texlate.textutil import JSON_FENCE_RX
-
-from . import placeholders, prompts
-from .intercept import (
+from texlate.xlat import placeholders, prompts
+from texlate.xlat.intercept import (
     _INTERCEPT_NETS,
     # 包装函钉点面——``_net_apply_fn`` 经 ``globals()`` 晚绑定取件，
     # tests ``monkeypatch.setattr(pl, "_intercept_*")`` 缝在本模块命名空间；
@@ -65,8 +64,8 @@ from .intercept import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .authgate import AuthGate, AuthTrippedError, _kind_of
-    from .batch import (
+    from texlate.xlat.authgate import AuthGate, AuthTrippedError, _kind_of
+    from texlate.xlat.batch import (
         BATCH_MAX_CHARS,
         BATCH_MAX_ITEMS,
         BATCH_MIN_CHARS,
@@ -77,7 +76,7 @@ if TYPE_CHECKING:
         parse_batch_response,
         split_long_chunk,
     )
-    from .client import (
+    from texlate.xlat.client import (
         HTTP_UNAUTHORIZED,
         REASONING_MIN_MAX_TOKENS,
         ChatClient,
@@ -85,20 +84,20 @@ if TYPE_CHECKING:
         ChatOptions,
         LengthTruncatedError,
     )
-    from .intercept import _InterceptNet
-    from .mock import MOCK_ZH, MockTranslator, _mock_translate_text
-    from .pipeline_batch import _merged_value_frags, _XlatBatch
-    from .pipeline_ledger import _XlatLedger
-    from .pipeline_materialize import _XlatMaterialize
-    from .pipeline_orch import WorkItem, XlatPipeline, _XlatOrch
-    from .pipeline_single import _slots_user_obj, _XlatSingle
-    from .pipeline_translator import (
+    from texlate.xlat.intercept import _InterceptNet
+    from texlate.xlat.mock import MOCK_ZH, MockTranslator, _mock_translate_text
+    from texlate.xlat.pipeline.batch import _merged_value_frags, _XlatBatch
+    from texlate.xlat.pipeline.ledger import _XlatLedger
+    from texlate.xlat.pipeline.materialize import _XlatMaterialize
+    from texlate.xlat.pipeline.orch import WorkItem, XlatPipeline, _XlatOrch
+    from texlate.xlat.pipeline.single import _slots_user_obj, _XlatSingle
+    from texlate.xlat.pipeline.translator import (
         _C0_RX,
         GatewayTranslator,
         Translator,
         _strip_json_fence,
     )
-    from .pipeline_types import (
+    from texlate.xlat.pipeline.types import (
         DEFAULT_CONCURRENCY,
         LENGTH_RETRY_MAX_TOKENS,
         PAPER_CTX_MAX_CHARS,
@@ -108,19 +107,19 @@ if TYPE_CHECKING:
         PipelineConfig,
         chunk_to_in,
     )
-    from .retry import (
+    from texlate.xlat.retry import (
         RetryPolicy,
         assess_answer,
         bare_token_audit,
         call_with_backoff,
         translate_with_ladder,
     )
-    from .state import ChunkRecord, StateStore, segment_key
+    from texlate.xlat.state import ChunkRecord, StateStore, segment_key
 
 log = logging.getLogger(__name__)
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "pipeline_types": (
+    "types": (
         "DEFAULT_CONCURRENCY",
         "LENGTH_RETRY_MAX_TOKENS",
         "PAPER_CTX_MAX_CHARS",
@@ -130,35 +129,36 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "PipelineConfig",
         "chunk_to_in",
     ),
-    "pipeline_translator": (
+    "translator": (
         "GatewayTranslator",
         "Translator",
         "_C0_RX",
         "_strip_json_fence",
     ),
-    "pipeline_materialize": ("_XlatMaterialize",),
-    "pipeline_single": (
+    "materialize": ("_XlatMaterialize",),
+    "single": (
         "_XlatSingle",
         "_slots_user_obj",
     ),
-    "pipeline_batch": (
+    "batch": (
         "_XlatBatch",
         "_merged_value_frags",
     ),
-    "pipeline_ledger": ("_XlatLedger",),
-    "pipeline_orch": (
+    "ledger": ("_XlatLedger",),
+    "orch": (
         "WorkItem",
         "XlatPipeline",
         "_XlatOrch",
     ),
-    # 原样转口——拆叶前就在本模块命名空间的 import 名（``from .pipeline import``
-    # 钉点面），惰性映射回属主模块逐名解析。
-    "authgate": (
+    # 原样转口——拆叶前就在本模块命名空间的 import 名（``from texlate.xlat.pipeline import``
+    # 钉点面），惰性映射回属主模块逐名解析。键为绝对路径：门面已收包
+    # (``pipeline/``)，``__package__`` 下没有这些顶层 sibling。
+    "texlate.xlat.authgate": (
         "AuthGate",
         "AuthTrippedError",
         "_kind_of",
     ),
-    "batch": (
+    "texlate.xlat.batch": (
         "BATCH_MAX_CHARS",
         "BATCH_MAX_ITEMS",
         "BATCH_MIN_CHARS",
@@ -169,7 +169,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "parse_batch_response",
         "split_long_chunk",
     ),
-    "client": (
+    "texlate.xlat.client": (
         "HTTP_UNAUTHORIZED",
         "REASONING_MIN_MAX_TOKENS",
         "ChatClient",
@@ -177,19 +177,19 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "ChatOptions",
         "LengthTruncatedError",
     ),
-    "mock": (
+    "texlate.xlat.mock": (
         "MOCK_ZH",
         "MockTranslator",
         "_mock_translate_text",
     ),
-    "retry": (
+    "texlate.xlat.retry": (
         "RetryPolicy",
         "assess_answer",
         "bare_token_audit",
         "call_with_backoff",
         "translate_with_ladder",
     ),
-    "state": (
+    "texlate.xlat.state": (
         "ChunkRecord",
         "StateStore",
         "segment_key",
@@ -275,7 +275,7 @@ def _net_apply_fn(net: _InterceptNet) -> Callable[[ChunkResult], None]:
     改模块属性后账本形/裸形两消费点仍拿到补丁件（fault 注入钉点面守恒，
     早绑定会把注入静默旁路）。注册表与包装函本体已出叶 ``.intercept``——
     本件留本模块正是因为 ``globals()`` 钉的是本命名空间；拆叶后两消费点
-    （``pipeline_ledger._ledger_intercepts``/``pipeline_single.
+    （``pipeline.ledger._ledger_intercepts``/``pipeline.single.
     retranslate_chunk``）仍回本门面取件。
     """
     return globals()[f"_intercept_{net.name}"]
@@ -285,7 +285,8 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性。"""
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"{__package__}.{leaf}"), name)
+        mod = leaf if leaf.startswith("texlate.") else f"{__package__}.{leaf}"
+        value = getattr(importlib.import_module(mod), name)
         globals()[name] = value
         return value
     msg = f"module {__name__!r} has no attribute {name!r}"

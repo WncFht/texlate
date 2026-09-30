@@ -1,4 +1,4 @@
-"""``texlate._pipecore_policy`` — 修复链开关决议 + ``reject:<rid>`` 判词叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.policy`` — 修复链开关决议 + ``reject:<rid>`` 判词叶（``pipecore`` 拆分叶）。
 
 ``_opt_switch`` 三层链（显式 > options > ``TEXLATE_NO_*`` env 缺省皆开）
 薄壳 + ``RepairPolicy`` 双闸决议快照 + ``reject:<rid>`` 判词

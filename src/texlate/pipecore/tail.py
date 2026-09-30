@@ -1,4 +1,4 @@
-"""``texlate._pipecore_tail`` — 编译尾段叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.tail`` — 编译尾段叶（``pipecore`` 拆分叶）。
 
 ``PipeJob`` 单工程编译上下文 + ``probe_report`` best-effort 探针壳 +
 ``judge_res``/``compile_judge`` 编译判定单点对 + ``tail_dict`` 报告

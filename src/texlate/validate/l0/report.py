@@ -1,9 +1,9 @@
-"""validate.l0_report — L0 校验 verdict 类型叶 (validate.l0 域缝叶)。
+"""validate.l0.report — L0 校验 verdict 类型叶 (validate.l0 域缝叶)。
 
 ``Severity``/``Issue``/``L0Report``：一对 (src, zh) 校验发现的结构化
 verdict——``Issue`` 单条发现（``pos`` zh 侧字符偏移/``expected``/``found``
 修复配对），``L0Report`` 聚合（``ok``/``n_error``/``n_warn``/``by_rule``/
-``to_dict``/``feedback``）。零依赖叶子，全部 checker 叶与 ``l0_main``
+``to_dict``/``feedback``）。零依赖叶子，全部 checker 叶与 ``l0.main``
 入口共用。
 """
 

@@ -24,22 +24,22 @@ r"""管线核心契约层——e2e / worker / bench 三臂共享的 policy 脊�
 与重构前一致）；worker 臂经 ``_Sink`` 绑 ``_log``/``_repair_event``——
 同一份实况键集。
 
-拆分：实现体按子域下沉同目录私有叶——``_pipecore_state``（状态映射 +
-注入协议）、``_pipecore_policy``（开关决议 + reject 判词）、
-``_pipecore_scan``（front_matter 域 + scan_tree + 术语装配）、
-``_pipecore_translate``（translate_tree_run 全树写回脊）、
-``_pipecore_tail``（编译尾段 + PipeJob + precheck_job）、
-``_pipecore_l2``（L2 回灌执行件）、``_pipecore_fixloop``（fixloop
-执行件）、``_pipecore_chain``（baseline_snapshot + repair_chain
+拆分：实现体按子域下沉同目录私有叶——``pipecore.state``（状态映射 +
+注入协议）、``pipecore.policy``（开关决议 + reject 判词）、
+``pipecore.scan``（front_matter 域 + scan_tree + 术语装配）、
+``pipecore.translate``（translate_tree_run 全树写回脊）、
+``pipecore.tail``（编译尾段 + PipeJob + precheck_job）、
+``pipecore.l2``（L2 回灌执行件）、``pipecore.fixloop``（fixloop
+执行件）、``pipecore.chain``（baseline_snapshot + repair_chain
 编排）。本文件是 PEP 562 惰性门面（同 ``kernel.kernel``/
 ``latex.reconstruct`` 门面形制）——平名经 ``_LEAF_EXPORTS`` 映射回
 叶子，``__getattr__`` 首访解析并缓存，``pipecore.X`` 公共面与
-``from ... import X`` 消费面不变；叶子私名（``_opt_switch``/
+``from  import X`` 消费面不变；叶子私名（``_opt_switch``/
 ``_texmf_eng`` 等原门面名面）同经映射回引，新代码请直引叶子模块。
 monkeypatch 锚点注意：setattr 只遮蔽门面不改叶子——patch 须指向叶子
-模块同名（如 ``texlate._pipecore_scan.scan_tree``/
-``texlate._pipecore_tail.engine_for``/``texlate._pipecore_tail.target_probe``/
-``texlate._pipecore_fixloop.engine_for``）。
+模块同名（如 ``texlate.pipecore.scan.scan_tree``/
+``texlate.pipecore.tail.engine_for``/``texlate.pipecore.tail.target_probe``/
+``texlate.pipecore.fixloop.engine_for``）。
 """
 
 from __future__ import annotations
@@ -50,21 +50,21 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate._pipecore_chain import baseline_snapshot, repair_chain
-    from texlate._pipecore_fixloop import (
+    from texlate.pipecore.chain import baseline_snapshot, repair_chain
+    from texlate.pipecore.fixloop import (
         _slim_cell,
         fixloop_flags_tail,
         fixloop_job,
         fixloop_round,
     )
-    from texlate._pipecore_l2 import l2_repair, l2_repair_job
-    from texlate._pipecore_policy import (
+    from texlate.pipecore.l2 import l2_repair, l2_repair_job
+    from texlate.pipecore.policy import (
         RepairPolicy,
         _opt_switch,
         precheck_reject,
         reject_verdict,
     )
-    from texlate._pipecore_scan import (
+    from texlate.pipecore.scan import (
         _FRONT_MATTER_DEFAULT,
         ENV_FRONT_MATTER,
         FRONT_MATTER_NAMES,
@@ -74,7 +74,7 @@ if TYPE_CHECKING:
         ran_front_matter,
         scan_tree,
     )
-    from texlate._pipecore_state import (
+    from texlate.pipecore.state import (
         DB_TO_PIPE,
         NULL_SINK,
         PIPE_TO_DB,
@@ -84,7 +84,7 @@ if TYPE_CHECKING:
         delivered,
         delivered_db,
     )
-    from texlate._pipecore_tail import (
+    from texlate.pipecore.tail import (
         PipeJob,
         _compile_judge_job,
         _texmf_eng,
@@ -96,7 +96,7 @@ if TYPE_CHECKING:
         probe_report,
         tail_dict,
     )
-    from texlate._pipecore_translate import (
+    from texlate.pipecore.translate import (
         PH_RX,
         _auto_glossary_fn,
         _env_judge_pass,
@@ -104,7 +104,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_pipecore_state": (
+    "state": (
         "DB_TO_PIPE",
         "NULL_SINK",
         "PIPE_TO_DB",
@@ -114,13 +114,13 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "delivered",
         "delivered_db",
     ),
-    "_pipecore_policy": (
+    "policy": (
         "RepairPolicy",
         "_opt_switch",
         "precheck_reject",
         "reject_verdict",
     ),
-    "_pipecore_scan": (
+    "scan": (
         "ENV_FRONT_MATTER",
         "FRONT_MATTER_NAMES",
         "_FRONT_MATTER_DEFAULT",
@@ -130,13 +130,13 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "ran_front_matter",
         "scan_tree",
     ),
-    "_pipecore_translate": (
+    "translate": (
         "PH_RX",
         "_auto_glossary_fn",
         "_env_judge_pass",
         "translate_tree_run",
     ),
-    "_pipecore_tail": (
+    "tail": (
         "PipeJob",
         "_compile_judge_job",
         "_texmf_eng",
@@ -148,17 +148,17 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "probe_report",
         "tail_dict",
     ),
-    "_pipecore_l2": (
+    "l2": (
         "l2_repair",
         "l2_repair_job",
     ),
-    "_pipecore_fixloop": (
+    "fixloop": (
         "_slim_cell",
         "fixloop_flags_tail",
         "fixloop_job",
         "fixloop_round",
     ),
-    "_pipecore_chain": (
+    "chain": (
         "baseline_snapshot",
         "repair_chain",
     ),

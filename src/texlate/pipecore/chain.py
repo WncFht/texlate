@@ -1,4 +1,4 @@
-"""``texlate._pipecore_chain`` — 修复链编排叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.chain`` — 修复链编排叶（``pipecore`` 拆分叶）。
 
 ``baseline_snapshot``：翻前 pristine 树快照 → fixloop ``baseline_dir``
 注入件；``repair_chain``：precheck 预检 → L2 回灌 → fixloop 三级直铺
@@ -18,20 +18,20 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from texlate._pipecore_fixloop import fixloop_job
-from texlate._pipecore_l2 import l2_repair_job
-from texlate._pipecore_policy import RepairPolicy, precheck_reject
-from texlate._pipecore_state import NULL_SINK
-from texlate._pipecore_tail import compile_judge_tail, precheck_job
+from texlate.pipecore.fixloop import fixloop_job
+from texlate.pipecore.l2 import l2_repair_job
+from texlate.pipecore.policy import RepairPolicy, precheck_reject
+from texlate.pipecore.state import NULL_SINK
+from texlate.pipecore.tail import compile_judge_tail, precheck_job
 from texlate.repair import ENV_NO_FIXLOOP
 from texlate.repair_l2 import ENV_NO_L2
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from texlate._pipecore_state import ReportSink
-    from texlate._pipecore_tail import PipeJob
     from texlate.compile.engine import CompRes, Engine
+    from texlate.pipecore.state import ReportSink
+    from texlate.pipecore.tail import PipeJob
     from texlate.repair_l2 import TreeRun
 
 log = logging.getLogger(__name__)

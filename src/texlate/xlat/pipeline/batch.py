@@ -10,12 +10,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from . import placeholders, prompts
-from .authgate import _kind_of
-from .batch import encode_batch_members, parse_batch_response
-from .client import ChatError
-from .pipeline_types import ChunkResult
-from .retry import assess_answer, bare_token_audit
+from texlate.xlat import placeholders, prompts
+from texlate.xlat.authgate import _kind_of
+from texlate.xlat.batch import encode_batch_members, parse_batch_response
+from texlate.xlat.client import ChatError
+from texlate.xlat.pipeline.types import ChunkResult
+from texlate.xlat.retry import assess_answer, bare_token_audit
 
 if TYPE_CHECKING:
     from texlate.chunk import ChunkIn

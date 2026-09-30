@@ -1,4 +1,4 @@
-"""``texlate._pipecore_fixloop`` — fixloop 执行件叶（``pipecore`` 拆分叶）。
+"""``texlate.pipecore.fixloop`` — fixloop 执行件叶（``pipecore`` 拆分叶）。
 
 ``fixloop_round``：``run_fixloop`` + baseline ruleset 注入 + round/done/
 log 三实况出口；``fixloop_flags_tail``：``engine_flags``/``reject_route``
@@ -14,11 +14,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from texlate._pipecore_policy import reject_verdict
-from texlate._pipecore_state import NULL_SINK
-from texlate._pipecore_tail import _texmf_eng, judge_res, tail_dict
 from texlate.compile.engine import engine_for
 from texlate.compile.judge import Verdict
+from texlate.pipecore.policy import reject_verdict
+from texlate.pipecore.state import NULL_SINK
+from texlate.pipecore.tail import _texmf_eng, judge_res, tail_dict
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
     consume_engine_flags,
@@ -32,10 +32,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from pathlib import Path
 
-    from texlate._pipecore_state import ReportSink
-    from texlate._pipecore_tail import PipeJob
     from texlate.compile.engine import CompRes, Engine
     from texlate.compile.fixloop.engine import LlmHook
+    from texlate.pipecore.state import ReportSink
+    from texlate.pipecore.tail import PipeJob
     from texlate.repair import CrossRetry
 
 

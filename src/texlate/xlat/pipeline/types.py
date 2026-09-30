@@ -11,16 +11,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from texlate.chunk import ChunkIn
-
-from . import placeholders, prompts
-from .batch import (
+from texlate.xlat import placeholders, prompts
+from texlate.xlat.batch import (
     BATCH_MAX_CHARS,
     BATCH_MAX_ITEMS,
     BATCH_MIN_CHARS,
     CHUNK_HARD_LIMIT,
 )
-from .client import REASONING_MIN_MAX_TOKENS
-from .state import ChunkRecord
+from texlate.xlat.client import REASONING_MIN_MAX_TOKENS
+from texlate.xlat.state import ChunkRecord
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
