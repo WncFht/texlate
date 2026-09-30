@@ -19,15 +19,17 @@ exit 2——不猜；查无此人（canon ok 但无账）另行报 exit 2。
 VENDORED_INV 面按 dossier 决议丢弃（老物随 results/ 死，新 run 无 vendored
 概念）。只读：不改任何 index/vault。
 
-拆分：实现体按子域下沉同包私有叶 —— ``_dossier_env`` (常量面/texlate
+拆分：实现体按子域下沉同包私有叶 —— ``dossier.env`` (常量面/texlate
 taxonomy 桥/triage 桥/ruleset 懒装/venv 重入/registry 装载)、
-``_dossier_fetch`` (run 账组解析/records+cases index 投影/阶段分组/末条
-胜/tickets+invocations 读取)、``_dossier_work`` (work/{safe}/ 现场盘点/
-texmf 落装/日志 + 文本 taxonomy 归类)、``_dossier_sections`` (案卷节
+``dossier.fetch`` (run 账组解析/records+cases index 投影/阶段分组/末条
+胜/tickets+invocations 读取)、``dossier.work`` (work/{safe}/ 现场盘点/
+texmf 落装/日志 + 文本 taxonomy 归类)、``dossier.sections`` (案卷节
 identity/signature/evidence/history/rules/gap_flags + 共助)、
-``_dossier_attrib`` (跨 run 出现史/断点归因/醒目行/end-state+diff)、
-``_dossier_render`` (build_dossier 组卷 + render_md 出文)、
-``_dossier_main`` (add_args + main 编排)。本文件是 PEP 562 惰性门面
+``dossier.attrib`` (跨 run 出现史/断点归因/醒目行/end-state+diff)、
+``dossier.render`` (build_dossier 组卷 + render_md 出文)、
+``dossier._main`` (add_args + main 编排——叶干取 ``_`` 前缀脱导出名
+碰撞，否则叶件 import 把子模块绑上门面遮蔽同名惰性属性)。本文件是
+PEP 562 惰性门面
 (同 ``kernel.kernel``/``kernel.cli`` 门面形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``dossier.main``/``dossier.work_inventory``/``dossier._fetch_records``
@@ -42,7 +44,16 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from verbs._dossier_attrib import (
+    from verbs.dossier._main import (
+        _open_index,
+        _rundir,
+        _stem_of,
+        add_args,
+        main,
+        paths,
+        vault,
+    )
+    from verbs.dossier.attrib import (
         _attribution,
         _cross_run,
         _diff,
@@ -50,7 +61,7 @@ if TYPE_CHECKING:
         _rundir_for_name,
         _salient,
     )
-    from verbs._dossier_env import (
+    from verbs.dossier.env import (
         _EXCERPT_HEAD,
         _FAIL_WORDS,
         _RULESET,
@@ -75,7 +86,7 @@ if TYPE_CHECKING:
         parse_log,
         parse_text,
     )
-    from verbs._dossier_fetch import (
+    from verbs.dossier.fetch import (
         _all_runs,
         _fetch_cases,
         _fetch_records,
@@ -92,17 +103,8 @@ if TYPE_CHECKING:
         json,
         load_tickets,
     )
-    from verbs._dossier_main import (
-        _open_index,
-        _rundir,
-        _stem_of,
-        add_args,
-        main,
-        paths,
-        vault,
-    )
-    from verbs._dossier_render import build_dossier, render_md
-    from verbs._dossier_sections import (
+    from verbs.dossier.render import build_dossier, render_md
+    from verbs.dossier.sections import (
         _candidate_rules,
         _err0,
         _evidence,
@@ -117,7 +119,7 @@ if TYPE_CHECKING:
         _rules_section,
         _signature,
     )
-    from verbs._dossier_work import (
+    from verbs.dossier.work import (
         _classify_log,
         _classify_text,
         _rec_taxo,
@@ -128,7 +130,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_dossier_env": (
+    "env": (
         "BENCH",
         "CORPUS",
         "REPO",
@@ -153,7 +155,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "parse_text",
         "Path",
     ),
-    "_dossier_fetch": (
+    "fetch": (
         "_fetch_cases",
         "_fetch_records",
         "_group_stages",
@@ -170,7 +172,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "json",
         "load_tickets",
     ),
-    "_dossier_work": (
+    "work": (
         "_classify_log",
         "_classify_text",
         "_rec_taxo",
@@ -179,7 +181,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_xlat_chunk_stats",
         "work_inventory",
     ),
-    "_dossier_sections": (
+    "sections": (
         "_candidate_rules",
         "_err0",
         "_evidence",
@@ -194,7 +196,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_rules_section",
         "_signature",
     ),
-    "_dossier_attrib": (
+    "attrib": (
         "_attribution",
         "_cross_run",
         "_diff",
@@ -202,11 +204,11 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_rundir_for_name",
         "_salient",
     ),
-    "_dossier_render": (
+    "render": (
         "build_dossier",
         "render_md",
     ),
-    "_dossier_main": (
+    "_main": (
         "_open_index",
         "_rundir",
         "_stem_of",
@@ -308,7 +310,7 @@ def __getattr__(name: str) -> object:
     leaf = _LAZY.get(name)
     if leaf is not None:
         value = getattr(
-            importlib.import_module(f"{__package__ or 'verbs'}.{leaf}"), name
+            importlib.import_module(f"{__package__ or 'verbs.dossier'}.{leaf}"), name
         )
         globals()[name] = value
         return value
@@ -341,6 +343,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)

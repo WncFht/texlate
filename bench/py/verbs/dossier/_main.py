@@ -1,4 +1,4 @@
-"""verbs.dossier cli 叶 —— add_args 参数面 + main 编排（dossier.py 拆分叶）。
+"""verbs.dossier._main cli 叶 —— add_args 参数面 + main 编排（dossier.py 拆分叶）。
 
 门面回引名单见 ``verbs.dossier._LEAF_EXPORTS``。
 """
@@ -13,9 +13,9 @@ from pathlib import Path
 from kernel import idnorm, paths, vault
 
 from verbs._common import _open_index, _rundir, _stem_of
-from verbs._dossier_attrib import _cross_run, _end_state
-from verbs._dossier_env import _load_registry, _maybe_reexec_venv
-from verbs._dossier_fetch import (
+from verbs.dossier.attrib import _cross_run, _end_state
+from verbs.dossier.env import _load_registry, _maybe_reexec_venv
+from verbs.dossier.fetch import (
     _fetch_cases,
     _fetch_records,
     _group_stages,
@@ -23,8 +23,8 @@ from verbs._dossier_fetch import (
     _resolve_run_group,
     load_tickets,
 )
-from verbs._dossier_render import build_dossier, render_md
-from verbs._dossier_work import work_inventory
+from verbs.dossier.render import build_dossier, render_md
+from verbs.dossier.work import work_inventory
 
 # ---------------------------------------------------------------- cli
 

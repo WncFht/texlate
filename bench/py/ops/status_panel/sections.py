@@ -16,7 +16,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from ops._status_panel_collect import (
+from ops.status_panel.collect import (
     _kernel_index,
     gw_status,
     milestones,
@@ -24,7 +24,7 @@ from ops._status_panel_collect import (
     scorecard_data,
     tasks,
 )
-from ops._status_panel_env import (
+from ops.status_panel.env import (
     BENCH_ROOT,
     C_CLEAN,
     C_FAIL,
@@ -42,7 +42,7 @@ from ops._status_panel_env import (
     TASK_STATUS_COLOR,
     TASK_STATUS_ZH,
 )
-from ops._status_panel_frag import (
+from ops.status_panel.frag import (
     badge,
     chip,
     hbar,
@@ -50,7 +50,7 @@ from ops._status_panel_frag import (
     stacked,
     table,
 )
-from ops._status_panel_util import (
+from ops.status_panel.util import (
     cached,
     esc,
     fmt_age,

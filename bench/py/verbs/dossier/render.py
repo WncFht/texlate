@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from verbs._dossier_attrib import _attribution, _diff
-from verbs._dossier_env import _ruleset
-from verbs._dossier_fetch import _latest
-from verbs._dossier_sections import (
+from verbs.dossier.attrib import _attribution, _diff
+from verbs.dossier.env import _ruleset
+from verbs.dossier.fetch import _latest
+from verbs.dossier.sections import (
     _evidence,
     _gap_flags,
     _history,

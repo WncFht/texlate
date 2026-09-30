@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 
 from kernel import paths
 
-from verbs._dossier_env import STAGES
-from verbs._dossier_fetch import _latest, _rec_key
-from verbs._dossier_sections import (
+from verbs.dossier.env import STAGES
+from verbs.dossier.fetch import _latest, _rec_key
+from verbs.dossier.sections import (
     _err0,
     _is_fail,
     _latest_of,

@@ -1,7 +1,7 @@
 """verbs.dossier work 树侧叶 —— work/{safe_id}/ 现场盘点 + texmf 落装面 +
 编译日志/文本 taxonomy 归类（dossier.py 拆分叶）。
 
-``parse_log``/``parse_text`` 借 ``_dossier_env`` 的 texlate 桥（缺席绑
+``parse_log``/``parse_text`` 借 ``dossier.env`` 的 texlate 桥（缺席绑
 None，``_ruleset()`` 先闸——调用面不可达）。
 门面回引名单见 ``verbs.dossier._LEAF_EXPORTS``。
 """
@@ -13,7 +13,7 @@ import json
 from typing import TYPE_CHECKING
 
 from verbs._common import _iter_jsonl
-from verbs._dossier_env import _ruleset, parse_log, parse_text
+from verbs.dossier.env import _ruleset, parse_log, parse_text
 
 if TYPE_CHECKING:
     from pathlib import Path

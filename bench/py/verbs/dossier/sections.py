@@ -11,7 +11,7 @@ import contextlib
 from pathlib import Path
 
 from verbs._common import _iter_jsonl
-from verbs._dossier_env import (
+from verbs.dossier.env import (
     _EXCERPT_HEAD,
     _FAIL_WORDS,
     _SUBCLASS_SIGS,
@@ -21,8 +21,8 @@ from verbs._dossier_env import (
     _ruleset,
     _triage_fn,
 )
-from verbs._dossier_fetch import _latest
-from verbs._dossier_work import _classify_text, _rec_taxo
+from verbs.dossier.fetch import _latest
+from verbs.dossier.work import _classify_text, _rec_taxo
 
 # ---------------------------------------------------------------- schema 面
 

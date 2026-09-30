@@ -17,7 +17,7 @@ from kernel import idnorm
 
 from verbs._common import _STAGE_SUFFIXES
 
-BENCH = Path(__file__).resolve().parents[2]
+BENCH = Path(__file__).resolve().parents[3]
 REPO = BENCH.parent
 CORPUS = BENCH / "corpus"
 

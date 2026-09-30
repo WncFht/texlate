@@ -101,7 +101,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 | 件                      | 用途                                                                                                                                                                                                           |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ops/status_panel.py`   | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index                                                                                                                |
+| `ops/status_panel/`   | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index                                                                                                                |
 | `ops/task_ping.py`      | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度                                                                                                                                               |
 | `tests/_translators.py` | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用                                                                                                   |
 | `specs/_*.py`           | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |

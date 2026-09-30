@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from ops._status_panel_util import esc
+from ops.status_panel.util import esc
 
 
 def chip(label: str, value: str, sub: str = "", cls: str = "") -> str:

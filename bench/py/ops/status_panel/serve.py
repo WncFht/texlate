@@ -11,7 +11,7 @@ import os
 import signal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from ops._status_panel_env import (
+from ops.status_panel.env import (
     C_CLEAN,
     C_FAIL,
     C_INFO,
@@ -22,9 +22,9 @@ from ops._status_panel_env import (
     PORT,
     REFRESH_SECONDS,
 )
-from ops._status_panel_page import PAGE
-from ops._status_panel_sections import SECTIONS, sec_chips
-from ops._status_panel_util import esc
+from ops.status_panel.page import PAGE
+from ops.status_panel.sections import SECTIONS, sec_chips
+from ops.status_panel.util import esc
 
 
 def render() -> str:

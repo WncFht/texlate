@@ -6,7 +6,7 @@ All data sources are files or read-only commands; collectors are
 independently fault-isolated and cached.
 
 Run detached:
-    setsid nohup python3 bench/py/ops/status_panel.py \
+    setsid nohup python3 bench/py/ops/status_panel \
         >> "$TEXLATE_BENCH_ROOT/state/status-panel/run.log" 2>&1 </dev/null &
 Stop:
     kill "$(cat "$TEXLATE_BENCH_ROOT/state/status-panel/panel.pid")"
@@ -15,13 +15,13 @@ Task board convention: agents report progress via
     python3 bench/py/ops/task_ping.py <name> --status running --done N --total M
 (board lives at $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d)
 
-拆分：实现体按子域下沉同包私有叶 —— ``_status_panel_env`` (REPO/账根
-解析/kernel 桥/常量面)、``_status_panel_util`` (ttl 缓存/run_cmd/pid/
-时长/转义小件)、``_status_panel_frag`` (chip/hbar/stacked/badge/table/
-minibar html 片段)、``_status_panel_collect`` (scorecard/rate/n200/gw/
-milestones/tasks/kernel index 采集)、``_status_panel_sections``
-(sec_* 各节渲染 + SECTIONS 目录)、``_status_panel_page`` (PAGE 模板)、
-``_status_panel_serve`` (render/Handler/pidfile 生命周期)。本文件是
+拆分：实现体按子域下沉同包私有叶 —— ``status_panel.env`` (REPO/账根
+解析/kernel 桥/常量面)、``status_panel.util`` (ttl 缓存/run_cmd/pid/
+时长/转义小件)、``status_panel.frag`` (chip/hbar/stacked/badge/table/
+minibar html 片段)、``status_panel.collect`` (scorecard/rate/n200/gw/
+milestones/tasks/kernel index 采集)、``status_panel.sections``
+(sec_* 各节渲染 + SECTIONS 目录)、``status_panel.page`` (PAGE 模板)、
+``status_panel.serve`` (render/Handler/pidfile 生命周期)。本文件是
 PEP 562 惰性门面 (同 ``kernel.kernel``/``kernel.cli``/``verbs.dossier``
 门面形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__``
 首访解析并缓存，公私名面不变。脚本直跑 (``python3 status_panel.py``)
@@ -37,10 +37,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 # 包内脚本直跑时 bench/py 不在 sys.path——先立起再引 kernel/ops 叶
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 if TYPE_CHECKING:
-    from ops._status_panel_collect import (
+    from ops.status_panel.collect import (
         _BLOB_SHA_RE,
         _N200_KINDS,
         _N200_STAGES,
@@ -70,7 +70,7 @@ if TYPE_CHECKING:
         tasks,
         urllib,
     )
-    from ops._status_panel_env import (
+    from ops.status_panel.env import (
         BENCH_ROOT,
         C_CLEAN,
         C_FAIL,
@@ -98,7 +98,7 @@ if TYPE_CHECKING:
         _kpaths,
         os,
     )
-    from ops._status_panel_frag import (
+    from ops.status_panel.frag import (
         badge,
         chip,
         hbar,
@@ -106,8 +106,8 @@ if TYPE_CHECKING:
         stacked,
         table,
     )
-    from ops._status_panel_page import PAGE
-    from ops._status_panel_sections import (
+    from ops.status_panel.page import PAGE
+    from ops.status_panel.sections import (
         SECTIONS,
         sec_chips,
         sec_jobs,
@@ -121,7 +121,7 @@ if TYPE_CHECKING:
         sec_sessions,
         sec_tasks,
     )
-    from ops._status_panel_serve import (
+    from ops.status_panel.serve import (
         BaseHTTPRequestHandler,
         Handler,
         ThreadingHTTPServer,
@@ -130,7 +130,7 @@ if TYPE_CHECKING:
         render,
         signal,
     )
-    from ops._status_panel_util import (
+    from ops.status_panel.util import (
         _cache,
         cached,
         esc,
@@ -144,7 +144,7 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "_status_panel_env": (
+    "env": (
         "BENCH_ROOT",
         "C_CLEAN",
         "C_FAIL",
@@ -172,7 +172,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_kpaths",
         "os",
     ),
-    "_status_panel_util": (
+    "util": (
         "_cache",
         "cached",
         "esc",
@@ -184,7 +184,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "subprocess",
         "time",
     ),
-    "_status_panel_frag": (
+    "frag": (
         "badge",
         "chip",
         "hbar",
@@ -192,7 +192,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "stacked",
         "table",
     ),
-    "_status_panel_collect": (
+    "collect": (
         "RATE_KEEP_S",
         "RATE_MIN_SPAN_S",
         "RATE_STATE",
@@ -222,7 +222,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "tasks",
         "urllib",
     ),
-    "_status_panel_sections": (
+    "sections": (
         "SECTIONS",
         "sec_chips",
         "sec_jobs",
@@ -236,8 +236,8 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "sec_sessions",
         "sec_tasks",
     ),
-    "_status_panel_page": ("PAGE",),
-    "_status_panel_serve": (
+    "page": ("PAGE",),
+    "serve": (
         "BaseHTTPRequestHandler",
         "Handler",
         "ThreadingHTTPServer",
@@ -356,7 +356,7 @@ def __getattr__(name: str) -> object:
     """平名惰性解析 → 叶子属性。"""
     leaf = _LAZY.get(name)
     if leaf is not None:
-        value = getattr(importlib.import_module(f"{__package__ or 'ops'}.{leaf}"), name)
+        value = getattr(importlib.import_module(f"{__package__ or 'ops.status_panel'}.{leaf}"), name)
         globals()[name] = value
         return value
     msg = f"module {__name__!r} has no attribute {name!r}"
@@ -388,6 +388,11 @@ def _export_drift() -> list[str]:
     ]
     if len(__all__) != len(set(__all__)):
         drift.append("__all__ has duplicate entries")
+    drift += [
+        f"leaf stem {stem!r} shadows an exported name (rename the leaf)"
+        for stem in _LEAF_EXPORTS
+        if stem in _LAZY
+    ]
     for name in __all__:
         try:
             getattr(mod, name)
@@ -407,9 +412,3 @@ def _export_drift() -> list[str]:
         if name not in __all__
     ]
     return drift
-
-
-if __name__ == "__main__":
-    from ops._status_panel_serve import main
-
-    main()

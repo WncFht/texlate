@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from ops._status_panel_env import (
+from ops.status_panel.env import (
     BENCH_ROOT,
     PANEL_DIR,
     REPO,
@@ -27,7 +27,7 @@ from ops._status_panel_env import (
     VENV_PY,
     _kevents,
 )
-from ops._status_panel_util import cached, run_cmd
+from ops.status_panel.util import cached, run_cmd
 
 # ---------- data collectors
 

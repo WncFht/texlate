@@ -11,7 +11,7 @@ import os
 import subprocess
 import time
 
-from ops._status_panel_env import REPO
+from ops.status_panel.env import REPO
 
 _cache: dict[str, tuple[float, object]] = {}
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[4]
 try:
     from kernel import events as _kevents
     from kernel import paths as _kpaths
