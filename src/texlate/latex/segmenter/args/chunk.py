@@ -196,7 +196,7 @@ class _ArgsChunk(_ArgsProse, _ArgsProtect):
 
     @staticmethod
     def _split_rendered(core: str) -> list[str]:
-        """渲染串二次切分——v1 ``_split_core`` 原样（``[[X_n]]`` 边界优先）。
+        """渲染串二次切分——旧 ``_split_core`` 原样（``[[X_n]]`` 边界优先）。
 
         切点优先级链本体在 ``_pick_cut``（与 ``_split_bounds`` 共用）。
         """

@@ -73,7 +73,7 @@ async def translate_tree_async(
       （segmenter ``MINED_ONLY`` 口径），胞格散文/浮体说明永远留英，
       rexlat 结构性救不回；清扫在 root 全 ``.tex`` 面扫而非仅触块文件，
       覆盖零 chunk 的纯表 appendix。metrics 落 ``stats_d["resid_sweep"]``。
-      复用同一 ``cache`` 桶（``resid_v1`` role 入键——span 缓存与
+      复用同一 ``cache`` 桶（``resid`` role 入键——span 缓存与
       chunk 缓存同桶不同名域），付费口径随调用方。
     """
     scans, chunks, fault_files, support_files = (scan_fn or _scan_tree)(root)

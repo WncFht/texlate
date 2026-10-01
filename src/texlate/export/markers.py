@@ -9,7 +9,7 @@
 
 - 碰撞回避：token 若在被送文本里已逐字出现则重新编号，保证恰好出现一次。
 - 宽容调和：回复里没发过的 marker 形 token 一律剥掉；发了的丢了在句尾按
-  源序补回——绝不因 marker 重试。配对 marker 划出范围（v1 不做）。
+  源序补回——绝不因 marker 重试。配对 marker 划出范围（不做）。
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """DOCX 双语插译管线（doc-formats.md §3——python-docx deepcopy ``w:p`` + ``addnext``）。
 
-遍历面（doc-formats.md §3 遍历矩阵的 v1 落地）：
+遍历面（doc-formats.md §3 遍历矩阵落地）：
 
 - 正文段落 + 表格 + 文本框 + ``w:sdt`` 内容控件：``body.iter(w:p)`` 一次全
   覆盖——``w:p`` 不可能嵌套，descendant iter 按文档序命中全部（含表格
@@ -78,7 +78,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_PIPELINE_VERSION = "export-docx-1"
+_PIPELINE_VERSION = "export-docx-2026-10"
 
 #: ``w:p`` 段落内保护子树——其 ``w:t`` 不拼进送模型文本。``w:p`` 自身在内：
 #: 外层段落的 descendant iter 会摸到文本框/``w:sdt`` 内嵌套 ``w:p`` 的
@@ -343,7 +343,7 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
         run._r.insert(0, deepcopy(src_rpr))  # noqa: SLF001 -- oxml 内部面即接口
     rpr = run._r.get_or_add_rPr()  # noqa: SLF001
     rpr.get_or_add_rFonts().set(qn("w:eastAsia"), "SimSun")
-    rpr.get_or_add_color().val = RGBColor(0x55, 0x55, 0x55)  # 双语区分色（v1 钉值）
+    rpr.get_or_add_color().val = RGBColor(0x55, 0x55, 0x55)  # 双语区分色
     if language:
         lang = rpr.find(qn("w:lang"))
         if lang is None:

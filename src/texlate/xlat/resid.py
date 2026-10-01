@@ -36,9 +36,9 @@ r"""resid — zh 树残英清扫：未进 chunk 表的英文 run → 就地翻�
   2609.20069 实证），``\item``/``\caption`` 散文括号豁免；
 - 遮盖区是硬边界——``mask_tex`` 遮区逐位转 ``\x00`` 哨兵、env/math
   遮区两端置哨兵：span 按原文坐标回写，遮区跨进 run 会把 ``% 注释``/
-  ``\verb``/``$..$`` 原始文本一并吃掉（v1 桥接形实测吞数学对，zh 树
+  ``\verb``/``$..$`` 原始文本一并吃掉（旧桥接形实测吞数学对，zh 树
   ``$`` 计数差为普查口径）；
-- span 去重逐条翻译，``resid_v1`` role 复用段级缓存桶——续跑不
+- span 去重逐条翻译，``resid`` role 复用段级缓存桶——续跑不
   重烧；
 - 清理闸：回译含结构符（``\{}&$%#^_~``/``[[``）或零 CJK → 弃置留
   英文——宁留原文不出结构污染；
@@ -79,7 +79,7 @@ __all__ = ["DEFAULT_OPTS", "SweepOpts", "find_resid_spans", "sweep_tree"]
 #: 兵、env/math 遮区两端各置一个；否则遮盖区跨进 run 变成内部空白，
 #: 回写时把坐标内原始 ``$..$``/``\verb``/注释文本一并吃掉（1906.00256
 #: 实测胞格 ``Low-amplitude $\sim 0.05$ mag in $VRI$`` 类混排重灾区，
-#: v1 桥接形 zh 树 ``$`` 计数亏 28 实证）。
+#: 旧桥接形 zh 树 ``$`` 计数亏 28 实证）。
 _SPAN_DELIM_RX: Final = re.compile(r"[\\{}&$%#^_~|\x00]")
 _PARA_BOUND_RX: Final = re.compile(r"\n[ \t]*\n")
 #: 回译清理闸：span 嵌在 ``&``/``{}``/cs 邻域，回译带任一类结构符即弃。
@@ -356,7 +356,7 @@ _SYS_PROMPT: Final = (
     "translation."
 )
 #: role 里压版本——改 prompt/口径直接 bump，旧桶条目自然失效免逐桶清。
-_CACHE_ROLE: Final = "resid_v1"
+_CACHE_ROLE: Final = "resid"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -608,7 +608,7 @@ async def sweep_tree(
 
     ``translator`` 复用 ``XlatPipeline`` 同款 ``.translate(system=, user=,
     temperature=, max_tokens=)`` 面；``cache`` 传段级缓存桶（span 以
-    ``resid_env_v1`` role 入键，与 chunk 键同桶不同名域）。文件 IO 全
+    ``resid_env`` role 入键，与 chunk 键同桶不同名域）。文件 IO 全
     走 ``to_thread``——async 体不落阻塞 pathlib（ASYNC240）。
     """
     jobs, uniq = await asyncio.to_thread(_collect_jobs, root)

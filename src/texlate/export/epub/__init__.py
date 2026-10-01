@@ -1,6 +1,6 @@
 """EPUB 双语插译管线（doc-formats.md §2——bbm 蓝图 stdlib 自拆，不碰 EbookLib/AGPL）。
 
-七步照抄 ``bilingual_book_maker`` 加固 fork 的语义、剪成 v1 面：
+七步照抄 ``bilingual_book_maker`` 加固 fork 的语义、剪成最小面：
 
 1. 拆包读入（``load``）：stdlib zipfile + DRM 预检（``rights.check_epub``）
    + fixed-layout 拒翻。
@@ -26,7 +26,7 @@
 ``units`` 单元枚举 → ``insert`` 插译 → ``sanitize`` DOM 净化 →
 ``serialize`` 写回 → ``driver`` 全链驱动；本 ``__init__`` 是唯一对外面。
 
-v1 明确不做（doc-formats.md §5 边界一览）：单译模式、配对 marker、CSS 级联 display 解析
+明确不做（doc-formats.md §5 边界一览）：单译模式、配对 marker、CSS 级联 display 解析
 （只查内联 ``display:none``+``hidden`` 属性）、披露页、epubcheck 全量对账、
 only/exclude_filelist。
 """

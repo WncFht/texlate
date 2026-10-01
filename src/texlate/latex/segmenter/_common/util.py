@@ -18,8 +18,8 @@ if TYPE_CHECKING:
     from texlate.latex.model import ArgSpec
 
 # ---------------------------------------------------------------- 表常量
-# 原 ``segmenter/tables.py``（scanner v1/segmenter v2 双臂单源）——v1 退役后
-# 收回本模块直接定义；args/core/env/group/mainloop/pending 仍经本模块取。
+# 原 ``segmenter/tables.py``——收回本模块直接定义；
+# args/core/env/group/mainloop/pending 仍经本模块取。
 
 _CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
 _CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
@@ -65,7 +65,7 @@ def _pick_cut(s: str, i: int, hard: int) -> int:  # noqa: C901 — 切点优先�
 
     返回相对 ``i`` 的切长。硬切兜底：找横跨 ``hard`` 的占位符切到它尾后
     （scanner-audit F7——ph 不腰斩）。``_split_bounds``/``_split_rendered``
-    共用（v1 ``_split_core`` 是同源字节版）。
+    共用（旧 ``_split_core`` 是同源字节版）。
     """
     window = s[i:hard]
     cut = -1

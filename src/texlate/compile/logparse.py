@@ -679,7 +679,7 @@ class Taxonomy:
             m = pat.search(blob)
             if m and (not entry.get("guard") or re.search(entry["guard"], blob)):
                 return entry["id"], _payload(entry, m)
-        # —— 仍不中：warning 驱动的伪类别 (v1.1, docs/spec/compile.md) ——
+        # —— 仍不中：warning 驱动的伪类别 (docs/spec/compile.md) ——
         for entry in self.warn:
             if entry.get("warn_id") in rep.warnings:
                 return entry["id"], None

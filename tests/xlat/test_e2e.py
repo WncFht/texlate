@@ -24,6 +24,7 @@ from conftest import MINI_TEX, RecordingEngine, failing_engine, make_project
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
 from texlate.latex import api as latex_api
+from texlate.pipecore import delivered
 from texlate.xlat.pipeline import MOCK_ZH, ChunkResult, MockTranslator
 
 if TYPE_CHECKING:
@@ -158,7 +159,7 @@ def test_delivered_requires_nonempty_translation() -> None:
     """ok+ 空译文不交付——worker ``_build_zh`` 同口径。
 
     ``status=="ok" and r["translation"]``（``texlate.pipecore.delivered`` /
-    ``delivered_db``；``e2e._delivered`` 是其兼容别名）：空串进 splice
+    ``delivered_db``）：空串进 splice
     会把该块内容从 zh 树静默擦除，与失败块同回落原文。
     """
 
@@ -167,12 +168,12 @@ def test_delivered_requires_nonempty_translation() -> None:
             chunk_id="0:0", source="src", translation=zh, kind="para", status=status
         )
 
-    assert e2e._delivered(mk("ok", "译"))  # noqa: SLF001
-    assert not e2e._delivered(mk("ok", ""))  # noqa: SLF001
-    assert e2e._delivered(mk("partial", "译"))  # noqa: SLF001
-    assert not e2e._delivered(mk("partial", ""))  # noqa: SLF001
-    assert not e2e._delivered(mk("fault", "src"))  # noqa: SLF001
-    assert not e2e._delivered(mk("skipped", "src"))  # noqa: SLF001
+    assert delivered(mk("ok", "译"))
+    assert not delivered(mk("ok", ""))
+    assert delivered(mk("partial", "译"))
+    assert not delivered(mk("partial", ""))
+    assert not delivered(mk("fault", "src"))
+    assert not delivered(mk("skipped", "src"))
 
 
 # ---------------------------------------------------------------- pipeline_run

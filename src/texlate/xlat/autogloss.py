@@ -3,7 +3,7 @@
 仿 BabelDOC ``automatic_term_extractor.py`` 的 prompt（≤5 词域名词短语 + 具名实体、
 排数学项、JSON ``[{"src","tgt"}]`` 出）+ ``translation_config.
 finalize_auto_extracted_glossary`` 的逐 src ``Counter.most_common`` 多数表决。
-L1 探针（5 篇跨域 113 词 ~96% 正确）与 L2 A/B
+小样本探针（5 篇跨域 113 词 ~96% 正确）与扩样 A/B
 （term_inconsistency 100%→43%）定案后产品化。
 
 调用约定（抽取臂、非 judge 面）：默认模型 ``swe-2-medium``、temperature 0.1、
@@ -13,7 +13,7 @@ read timeout 沿用 ``ChatClient`` 默认 300s。网关地址/密钥不进本模
 
 失败降级：单批坏 JSON（``TermParseError``）或重试尽败（``ChatError``）只丢
 该批，不炸整篇；零命中返 ``{}``；``max_batches`` 封顶防巨篇烧量（超量时按
-等距抽样保整篇广度，照 L2 探针的 strided subset）。返回键保留 src 原文形——
+等距抽样保整篇广度，照扩样探针的 strided subset）。返回键保留 src 原文形——
 ``Glossary.doc_filter`` 的词边界匹配要吃文中实形；大小写/复数/空白差异只
 在表决归一键（``_norm_key``）里折合。
 """
@@ -40,9 +40,9 @@ log = logging.getLogger(__name__)
 #: 抽取臂默认模型——非 judge 面（judge 用 swe-2-max）；引 ``DEFAULT_MODEL``
 #: 钉在免费集池首，防 preference 轮换后字面量漂移（client.py 常量注同约定）
 EXTRACT_MODEL = DEFAULT_MODEL
-#: 一批打包上限（字）。L1 探针 2400 / L2 4000 两档实测均净，产品取保守档
+#: 一批打包上限（字）。小样本 2400 / 扩样 4000 两档实测均净，产品取保守档
 EXTRACT_BATCH_CHARS = 2400
-#: 单篇抽取调用封顶——巨篇防烧量（L2 实测 ~6 calls/paper）
+#: 单篇抽取调用封顶——巨篇防烧量（扩样实测 ~6 calls/paper）
 EXTRACT_MAX_BATCHES = 6
 #: 枚举任务低温即可（探针定案值）
 EXTRACT_TEMPERATURE = 0.1
@@ -61,7 +61,7 @@ _PLURAL_SAFE_TAILS = ("ss", "us", "is")
 #: prompt 占位符条款的约定关键词——钉测与 prompt 引同一常量，防条款漂移
 MASK_CLAUSE_KEYWORD = "opaque"
 
-#: 抽取 prompt——L1 探针定案原文（zh 目标、无参照表、含 [[X_n]] 掩码条款）。
+#: 抽取 prompt——探针定案原文（zh 目标、无参照表、含 [[X_n]] 掩码条款）。
 #: 组装走 ``.replace("{text_to_process}", …)``——模板内含 JSON 花括号，
 #: 不能用 ``.format``。
 PROMPT_TEMPLATE = """
@@ -190,7 +190,7 @@ def _norm_key(src: str) -> str:
 
 
 def _pick_corpus(texts: list[str], cap: int) -> list[str]:
-    """全篇等距抽 chunk 到 ~cap 字符——保整篇广度（胜于顺序头截断，L2 探针同款）。
+    """全篇等距抽 chunk 到 ~cap 字符——保整篇广度（胜于顺序头截断，扩样探针同款）。
 
     首条等距候选恒进料（``picked`` 空时不查 cap）——``_pack_batches`` 的
     oversized-singleton 同合同：整篇只有一号超大块也产一批，不把全篇

@@ -7,17 +7,12 @@ r"""六 kind system prompt 套件（规格 docs/spec/translate.md；成稿源 pr
                         + RULES_BLOCK          # `i. **锚名.** 条款` 每条一物理行
                         + GLOSSARY_BLOCK       # 最末（术语行 + 占位符点名册行）
 
-RULES_BLOCK 条款序（v5 扁平编号；锚名是 spec/测试的引用柄，定格 API 面）：
+RULES_BLOCK 条款序（扁平编号；锚名是 spec/测试的引用柄，定格 API 面）：
 
     Scope → Protected LaTeX → Escaped characters → Style commands
     → [kind 条款槽] → Output → Punctuation and spacing →
     Control-sequence boundary → Quality → Untrusted content → Placeholders
     → Person names（仅 para/abstract）→ Batch protocol（仅 batch，恒末条）
-
-v4→v5 考古映射：C1→Scope / C2→Protected LaTeX / C3→Escaped characters /
-C4→Style commands / C5→Punctuation and spacing（+全角句）/ C6+C8→Output /
-C7→Quality / C8a→Control-sequence boundary / C8b→Untrusted content /
-C9→Placeholders / C10→Person names / K2–K5→kind 槽锚名条款 / B1→Batch protocol。
 
 语种参数 `{SRC}`/`{TGT}` 用 `str.replace` 填充——不用 `.format`：模板里遍布
 LaTeX 字面 `{}`（`\\label{}`、`{l c r p{...}}`），format 会误食。
@@ -34,15 +29,13 @@ from texlate.chunk import normalize_kind
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-#: prompt 语义版本——任何措辞改动 bump 此值，否则段级缓存会命中旧 prompt 产物
-#: v2: +C8a 反熔合条款（B4a 实测 `\ `+CJK 熔合是跨模型通病）
-#: v4: +C8b untrusted 条款 / C9 movable-token 授权 / user 侧 placeholder_values
-#: 块 / paper_context abstract 锚定块（texglot llm.py 同族机制打包实装）
-#: v5: 删⑤层 ph→ph 恒等注入（O(占位符)×O(调用) 重发事故根因）→ <Glossary>
-#: 末行单行占位符点名册；规则区扁平 1..N + **锚名.** + 一条款一物理行
-#: v6: 批成员序号行挂 `keep:` 名单点名该成员占位符集（ph 密集成员梯级重试
-#: 风暴的结构对症；段内 values 行经 QE 实测零质效且 +100% 字节故不落）
-PROMPT_VERSION = "xlat-prompt-v6"
+#: prompt 语义纪元——任何措辞改动 bump 此日期戳，否则段级缓存会命中旧
+#: prompt 产物。
+#: 设计注记：user 侧不携带 ph→ph 恒等注入（O(占位符)×O(调用) 重发事故
+#: 根因），改由 <Glossary> 末行单行占位符点名册承担；批成员序号行挂
+#: `keep:` 名单点名该成员占位符集（ph 密集成员梯级重试风暴的结构对症；
+#: 段内 values 行经 QE 实测零质效且 +100% 字节故不落）。
+PROMPT_VERSION = "xlat-prompt-2026-0928"
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
 
@@ -91,12 +84,12 @@ _TASK_SENTENCE: dict[str, str] = {
     ),
 }
 
-# ---------------------------------------------------------------- 规则区（v5 扁平编号 + 锚名）
+# ---------------------------------------------------------------- 规则区（扁平编号 + 锚名）
 
 _RULES_LEAD = "Follow these rules when translating:"
 
 #: Placeholders 条款体（锚名 ``Placeholders`` 条款；具名常量续存——facade
-#: 导出与 fuzz 钉面不断）。措辞逐字 = v4 C9:5/8 裸 token 枚举是勘误
+#: 导出与 fuzz 钉面不断）。措辞逐字 = 裸 token 枚举是勘误
 #: 刻意划分（``test_fuzz_newline_codec`` 钉；MEDSP/THICKSP/NEGSP 按设计
 #: 不进措辞），MATH/CITE/REF movable 授权在尾。写死 Chinese 而非 {TGT}
 #: ——本管线只服务 zh，且保条款体"无 _fill 逐字串"不变量。
@@ -131,9 +124,9 @@ _BATCH_CLAUSE = (
     "the translations with @@ on its own line instead."
 )
 
-#: (锚名，条款体) —— 编号渲染时生成；锚名是 spec/测试的语义引用柄
-#: （替代旧 C*/K*/B* 数字坐标），定格为 API 面：禁重命名/重排/删序。
-#: 措辞逐字保留 v4 条款，仅单行化 + 锚名前缀。
+#: (锚名，条款体) —— 编号渲染时生成；锚名是 spec/测试的语义引用柄，
+#: 定格为 API 面：禁重命名/重排/删序。
+#: 措辞逐字保留条款文案，仅单行化 + 锚名前缀。
 _COMMON_RULES: tuple[tuple[str, str], ...] = (
     (
         "Scope",
@@ -295,7 +288,7 @@ def render_glossary_block(
     """`doc_glossary` → `- en: zh` 行表尾块（system prompt 最末段）。
 
     `placeholder_manifest`(``placeholders.render_placeholder_manifest``
-    产物的单行点名册）非空时压末行——v5 占位符点名唯一注入点。
+    产物的单行点名册）非空时压末行——占位符点名唯一注入点。
     """
     lines = [f"- {en}: {zh}" for en, zh in terms.items()]
     if placeholder_manifest:

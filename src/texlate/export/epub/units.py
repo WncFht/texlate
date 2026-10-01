@@ -1,6 +1,6 @@
 """EPUB 翻译单元枚举：block owner 判定 + run 切分 + NCX navLabel 单元。
 
-bbm plan 模式的 v1 裁剪——文本节点归最近 block 祖先，嵌套 block 与非
+bbm plan 模式裁剪——文本节点归最近 block 祖先，嵌套 block 与非
 ``<pre>`` ``<br>`` 切 run；跳过判据（NON_CONTENT/ruby/exclude/pagebreak/
 hidden）与行内 marker 候选判定全在本叶。
 """
@@ -305,7 +305,7 @@ def iter_units(
     *,
     exclude_tags: Iterable[str] = DEFAULT_EXCLUDE_TAGS,
 ) -> Iterator[Unit]:
-    """枚举全部翻译单元（bbm plan 模式的 v1 裁剪：block owner + run 切分）。
+    """枚举全部翻译单元（bbm plan 模式裁剪：block owner + run 切分）。
 
     超深嵌套 DOM 上 bs4 的递归遍历（``descendants``/``find_all``）撞
     ``RecursionError``——折进 ``MalformedEpubError``，裸内置异常不许逃逸

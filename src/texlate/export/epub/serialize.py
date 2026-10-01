@@ -176,5 +176,5 @@ def save_epub(dst: Path | str, book: EpubBook) -> None:
             out.writestr(name, book.members[name], compress_type=zipfile.ZIP_DEFLATED)
             written.add(name)
         for name, blob in book.members.items():
-            if name not in written:  # 防御：枚举后新增的成员（v1 不应出现）
+            if name not in written:  # 防御：枚举后新增的成员（设计上不出现）
                 out.writestr(name, blob, compress_type=zipfile.ZIP_DEFLATED)

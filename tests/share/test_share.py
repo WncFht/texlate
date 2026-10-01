@@ -37,10 +37,10 @@ _PARTS: dict[str, object] = {
     "arxiv_id": "1706.03762",
     "version": "v5",
     "model": "deepseek-chat",
-    "prompt_ver": "xlat-prompt-v3",
+    "prompt_ver": "xlat-prompt-2025-0101",
     "target_lang": "zh-CN",
     "glossary_hash": "",
-    "pipeline_ver": "texlate-0.1.0|xlat-prompt-v3",
+    "pipeline_ver": "texlate-0.1.0|xlat-prompt-2025-0101",
 }
 _PDF_BYTES = b"%PDF-1.4 fake pdf"
 _ZH_TEX = "\\documentclass{article}\\begin{document}正文\\end{document}"

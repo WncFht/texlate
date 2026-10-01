@@ -435,7 +435,7 @@ def collect_doc_placeholders(contents: Iterable[str]) -> list[str]:
 
 # ---------------------------------------------------------------- 点名册 manifest
 
-#: manifest 行头——压 ``<Glossary>`` 块末行的文档级占位符点名册（v5 恒等表
+#: manifest 行头——压 ``<Glossary>`` 块末行的文档级占位符点名册（恒等表
 #: 替代件；实测字节形见 docs/spec/translate.md §1.9）。``- `` 前缀使其合法
 #: 混入 ``- en: zh`` 行表。
 PH_MANIFEST_HEADER = "- placeholders used in this document (preserve each verbatim): "

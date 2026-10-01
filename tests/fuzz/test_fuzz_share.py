@@ -82,10 +82,10 @@ _VALID_POOL: dict[str, list[object]] = {
     "arxiv_id": ["1706.03762", "2401.00001", "cs/0601001"],
     "version": ["v1", "v3", 3, "5", None, ""],
     "model": ["deepseek-chat", "qwen-plus", "gpt-5"],
-    "prompt_ver": ["xlat-prompt-v3", "p1"],
+    "prompt_ver": ["xlat-prompt-2025-0101", "p1"],
     "target_lang": ["zh-CN", "en", "ja"],
     "glossary_hash": ["", "ab12cd34", "g"],
-    "pipeline_ver": ["texlate-0.1.0|xlat-prompt-v3", "texlate-9|p9"],
+    "pipeline_ver": ["texlate-0.1.0|xlat-prompt-2025-0101", "texlate-9|p9"],
 }
 _MUT_POOL: list[object] = [
     None,
@@ -141,10 +141,10 @@ _BASE_PARTS: dict[str, object] = dict(
             "1706.03762",
             "v5",
             "deepseek-chat",
-            "xlat-prompt-v3",
+            "xlat-prompt-2025-0101",
             "zh-CN",
             "",
-            "texlate-0.1.0|xlat-prompt-v3",
+            "texlate-0.1.0|xlat-prompt-2025-0101",
         ],
         strict=True,
     )

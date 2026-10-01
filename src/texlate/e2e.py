@@ -45,10 +45,8 @@ from texlate.pipecore import (
     baseline_snapshot,
     compile_judge_tail,
     default_front_matter,
-    delivered,
     probe_report,
     repair_chain,
-    tail_dict,
     translate_tree_run,
 )
 from texlate.pipecore import scan_tree as _scan_tree
@@ -67,11 +65,6 @@ log = logging.getLogger(__name__)
 #: 逐篇 LLM 术语抽取臂开关（``TEXLATE_AUTO_GLOSSARY``，默认关——frozen-300
 #: 回归裁决⑦未定前不开产线；开时抽取臂与翻译同模）——名本体注册在
 #: ``textutil.osutil``，同名回引
-
-# 兼容绑定：测试钉住的本模块私有名（pipecore 单源实体的别名——``_delivered``
-# 由 test_e2e 直调、``_tail_dict`` 是 test_bench_harness 的 judge_dict 键集对拍面）
-_delivered = delivered
-_tail_dict = tail_dict
 
 
 def engine_for(name: str, **kw: object) -> Engine:

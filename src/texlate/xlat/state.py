@@ -375,5 +375,5 @@ class StateStore:
         return load_cache(self.cache_path(file_key))
 
     def save_cache(self, file_key: str, cache: dict[str, str]) -> None:
-        """写段级缓存（全表原子重写——texglot 的 O(n²) 写放大已知，v0 保正确性）。"""
+        """写段级缓存（全表原子重写——texglot 的 O(n²) 写放大已知）。"""
         atomic_json(self.cache_path(file_key), cache)

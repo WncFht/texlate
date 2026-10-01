@@ -196,9 +196,8 @@ class _FixRun(_RunComp, _RunTail):
         """物化一条 rounds entry: 字段装配 → ``cell["rounds"]`` 落账 → ``on_round``。
 
         主轮/reverify/salvage 三 site 的 entry 骨架单源——``pdf_bytes`` 缺载
-        时的 ``Path(pdf).stat()`` 兜底与 ``sec`` 旧名 (``res.sec``) 兼容读法
-        都收在此 (旧三抄里 salvage 臂两处皆漂：stat 兜底缺 + ``sec`` legacy
-        名丢)。``sec=None`` 时按 res 取秒 (reverify/salvage 单编译轮); 主轮
+        时的 ``Path(pdf).stat()`` 兜底都收在此。``sec=None`` 时按
+        ``res.seconds`` 取秒 (reverify/salvage 单编译轮); 主轮
         传两轮累计 ``round_sec``。``marker`` = 轮次标记位
         (``{"reverify": True}``/``{"salvage": True}``), 落 ``round`` 键后。
         """
@@ -212,7 +211,7 @@ class _FixRun(_RunComp, _RunTail):
             except (OSError, TypeError):
                 pdf_bytes = 0
         if sec is None:
-            sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
+            sec = float(getattr(res, "seconds", 0.0))
         entry = {
             "round": rnd,
             **(marker or {}),
