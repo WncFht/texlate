@@ -39,14 +39,26 @@ repos:
         entry: ruff format
         language: system
         types: [markdown]
-      - id: prettier-md
-        name: autocorrect + prettier (staged content)
-        entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
+      # prettier 不进 md 链：它按字符宽给表格补白，与本仓表格显示宽度
+      # （CJK=2，tools/md_table_align.py + MD060）约定互斥——同一张 CJK 表
+      # 两件工具来回补白即乒乓。md 面 = markdownlint --fix → md-table-align
+      # → ruff format（python 栅栏）→ autocorrect。
+      - id: autocorrect-md
+        name: autocorrect (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin"
         language: system
         types: [markdown]
       - id: prettier-yaml
         name: prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
+        language: system
+        types: [yaml]
+      # yaml 散文注释 ≤80 显示列（CJK 按 2 列计——yamllint 只数字符所以
+      # 自写）。check 类、失败才拦；断点该落标点/从句边界是语义判断，
+      # 机检只管宽度，断点靠人工（机械重排用编辑器 reflow）。
+      - id: yaml-comment-width
+        name: yaml comment width (display cols)
+        entry: python3 scripts/check-yaml-comments.py
         language: system
         types: [yaml]
       - id: prettier-js

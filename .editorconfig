@@ -34,3 +34,5 @@ trim_trailing_whitespace = false
 [*.{yml,yaml}]
 indent_style = space
 indent_size = 2
+# 散文注释 ≤80 显示列（CJK=2）由 scripts/check-yaml-comments.py 机检
+max_line_length = 80

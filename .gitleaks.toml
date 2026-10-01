@@ -22,6 +22,11 @@ regexes = [
   # vendored huashu-design 文档里的豆包 TTS 示例配置——voice_id 是公开
   # 音色预设名不是凭据（.agents/skills/huashu-design/references/voiceover-pipeline.md）
   '''DOUBAO_TTS_VOICE_ID=zh_female_xiaohe_uranus_bigtts''',
+  # tests/ 合成夹具 sk-* 假值：真实 provider key 永不带 test/secret/fuzz/
+  # canary 等自明标记词，纯重复串（sk-xxxxxxxx）与序数假值单列豁免
+  '''sk-[A-Za-z0-9_-]*(test|secret|fuzz|canary|scrubbed|abcdef|8675309|NEVERLEAK|xxxx)[A-Za-z0-9_-]*''',
+  '''sk-(abcdefghij[0-9]*|ant-api03-[a-z0-9]+|rt-[0-9]+|live-[a-z0-9]+|should-be-[a-z-]+)''',
+  '''Bearer abc\.def-ghi''',
 ]
 
 # 自有凭据格式：真实值在任意已入库文件都拦，占位符放行。

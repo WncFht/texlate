@@ -41,6 +41,9 @@ jobs:
       - name: Lint
         run: npm run lint:md
 
+      - name: YAML comment width
+        run: python3 scripts/check-yaml-comments.py
+
       - name: ESLint
         run: npm run lint:js
 

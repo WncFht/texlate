@@ -41,8 +41,8 @@
 - `*.sh`：`shfmt -i 2`（gfs）+ `shellcheck -S warning`。zsh 脚本不在链内——两者都不支持 zsh，`scripts/fmt-shell.sh` 对 zsh shebang 原样透传。
 - `*.py`：`ruff format`（gfs）+ `ruff check`（`ruff.toml` 是 `select=ALL` + 逐条注明豁免）。autocorrect **不入 py 链**——它对 py 按平文处理会连字符串字面量一起改写（测试夹具/协议字面量字节即语义）；docstring/注释的 CJK 标点只做周期人工 sweep（`--fix` 后须按 token 回植非 docstring 字符串）。另注意 autocorrect 尊重 .gitignore——`tmp/` 下探针会被静默跳过。
 - `*.js`/`*.json`：`prettier`（gfs）+ `eslint`（flat config，根目录是 CommonJS bench 脚本无 tsc；`web/` 是 TypeScript，走 `web/` 自己的 toolchain + CI web job——pre-commit eslint glob 只盖 `js/mjs/cjs`，web `.ts` 本地零 eslint 门是有意取舍：不假设 `web/node_modules` 在场，lint 由 web toolchain/CI 把关）。
-- `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ md 内 python 栅栏 `ruff format`（文件名模式原位改写，同属 fail 一次 re-add 语义；gfs stdin 拿不到文件名识别不了栅栏）→ `autocorrect --stdin | prettier`（gfs）。裸跑 `markdownlint-cli2` 无参扫 0 文件——默认 globs 在 `.markdownlint-cli2.jsonc`，或显式传 `"**/*.md"`。
-- `*.yaml`/`*.yml`：`prettier`（gfs）。缩进规则：yaml 2 空格、md 4 空格，见 `.prettierrc` overrides。
+- `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ `tools/md_table_align.py` 表格显示宽度重排（MD060 按显示宽度对齐，CJK=2；同为 fail-re-add 语义）→ md 内 python 栅栏 `ruff format`（文件名模式原位改写，同属 fail 一次 re-add 语义；gfs stdin 拿不到文件名识别不了栅栏）→ `autocorrect --stdin`（gfs）。**prettier 不入 md 链**——它按字符宽给表格补白，与显示宽度约定互斥，同一张 CJK 表会来回乒乓；`package.json` format 面与 `.vscode` formatOnSave 同步划出。裸跑 `markdownlint-cli2` 无参扫 0 文件——默认 globs 在 `.markdownlint-cli2.jsonc`，或显式传 `"**/*.md"`。
+- `*.yaml`/`*.yml`：`prettier`（gfs）+ `scripts/check-yaml-comments.py` 散文注释宽度 check（≤80 显示列，CJK=2；块标量/多行引号标量内行首 `#` 是内容不查）。缩进规则：yaml 2 空格、md 4 空格，见 `.prettierrc` overrides。
 - `*.toml`：`taplo`（gfs）。
 - `.github/workflows/*`：`actionlint`（check）。
 - `*.tex`：**不进链**——`bench/fixtures/` 是陷阱输入，字节即语义。

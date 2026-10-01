@@ -134,7 +134,7 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 
 ## 11. 工具链与提交纪律
 
-- `docs/` 内 `*.md` 走主仓格式化链：markdownlint-cli2 原地改写 → md 内 python 栅栏 `ruff format` → autocorrect → prettier（git-format-staged 语义：改写暂存内容并同步工作区；改写类 hook 会 fail 一次，重新 `git add` 再提交）。细则见根 `AGENTS.md` 格式化工具链节。
+- `docs/` 内 `*.md` 走主仓格式化链：markdownlint-cli2 原地改写 → `tools/md_table_align.py` 表格显示宽度重排 → md 内 python 栅栏 `ruff format` → autocorrect（git-format-staged 语义：改写暂存内容并同步工作区；改写类 hook 会 fail 一次，重新 `git add` 再提交）。**prettier 不进 md 链**——它按字符宽给表格补白，与本仓 MD060 显示宽度约定互斥，同一张 CJK 表会来回乒乓；编辑器 formatOnSave 也已划出。细则见根 `AGENTS.md` 格式化工具链节。
 - `npx markdownlint-cli2` **忽略文件参数**、按 config globs 全仓扫——验证 docs/ 时过滤其输出的 docs/ 行；表格对齐先用 `tools/md_table_align.py` 再 lint。
 - 链接验证：改完跑 `python tools/docs_linkcheck.py`（跳过代码栅栏与行内 code，URL-unquote，exit 1 列死链）——只查 `[x](y)` 形，裸名引用按 §9(c) 手查。
 - **`--no-verify`/私有 index 提交绕过 pre-commit** = lint 债确定源头（多会话共仓的既定提交法即此道）——绕过提交前必须手动跑一遍 markdownlint 与 linkcheck，不让债进库。

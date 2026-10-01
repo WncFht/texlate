@@ -19,8 +19,11 @@
     "markdown-preview-enhanced.mermaidTheme": "dark",
     "markdown-preview-enhanced.frontMatterRenderingOption": "code block",
     "[markdown]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.formatOnSave": true,
+        // md 不走 prettier：它按字符宽给表格补白，与本仓表格显示宽度约定
+        // （CJK=2，MD060 + tools/md_table_align.py）互斥——同一张 CJK 表会
+        // 被两边来回补白。保存时只跑 markdownlint fixAll；表格对齐靠
+        // tools/md_table_align.py（pre-commit 的 md-table-align 钩兜底）
+        "editor.formatOnSave": false,
         "editor.codeActionsOnSave": {
             "source.fixAll.markdownlint": "always"
         }

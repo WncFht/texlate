@@ -61,6 +61,9 @@ ignore = [
 ]
 # pytest 断言 + 免 docstring + 无 __init__.py 惯例
 "tests/**/*.py" = ["D", "S101", "INP001"]
+# scripts/ 是 shell 为主的脚本目录，.py 件同 tools/ 口径——CI/预检类
+# 单行脚本：免类型标注/docstring/print/subprocess 半路径/open()
+"scripts/**/*.py" = ["D", "ANN", "T201", "PTH", "S"]
 # tools/ 与 bench/ 同类——诊断脚本无发布 API；命名/闭包/print 皆脚本语义
 "tools/**/*.py" = [
   "D",
