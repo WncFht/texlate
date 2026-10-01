@@ -35,7 +35,7 @@ uv run texlate run 1706.03762     # mock 端到端：真实编译，但译文是
 真翻译（任意 OpenAI 兼容端点 / Anthropic messages 方言均可）：BYOK 配在运行中的 `texlate web` server 上——三 env（另可选 `TEXLATE_DIALECT`）或在 Web Settings 页配置均可：
 
 ```bash
-export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或 http://127.0.0.1:3033 本地网关
+export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或自建的本地网关地址
 export TEXLATE_API_KEY="sk-..."
 export TEXLATE_MODEL="your-model"
 uv run texlate web                                  # http://127.0.0.1:8765
@@ -93,23 +93,18 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 
 ## 实测指标
 
-六天开发历程与 2026-09-19 全量画像（口径与全部原始数据：[metrics 报告](docs/research/methods/metrics-2026-09-19/report.pdf)，自包含 `data/` + `refs/`）：
+评测设施与产品同仓维护：判分器、对照组驱动、分层语料全部收在 `bench/`，下列读数可复算。口径与原始数据见 [metrics 报告](docs/research/methods/metrics-2026-09-19/report.pdf) 与 [三臂对照基线](docs/research/methods/agent-pipeline-baseline-2026-09-28/README.md)。
 
-**编译健康度**：联合口径出 PDF 89.17→98.75%（M2 门 ≥90% 过线），真实臂 96.7% 与模拟臂打平；注意裸编译基线自身 +19pt——离线宏包与工具链同步成熟。
+- **端到端产出**：真实 LLM 翻译 200 篇验收，98.5% 产出双语 PDF；语料级全链回归 5,135 单元出 PDF 97.3%。
+- **翻译质量**：ESA 两步评审——评审模型逐段标注错误位置后打 0–100 分，且与翻译模型不同款；1,200 段基线均分 92.9（95% CI [92.4, 93.3]）。
+- **解析保真**：28,904 个 .tex 源文件解析成功率 100%，分块往返逐字节一致率 99.99%，占位符泄漏率 0.004%。
+- **校验有效**：L0 校验器对 1,503 对注入破坏全部检出、零误报。
+- **token 成本**：同模型、同网关、同 10 篇三臂对照——管线新输入 1.29M token，为通用 agent 整篇直翻（4.75M）的 27%；毛输入（含缓存读）仅其 2.4%；占位符存活 10/10 篇全 100%。
+- **修复与底座**：262 条编译修复规则、121 类错误分类；语料 13,266 篇八层钉版（46GB）；pytest 10,493 项，干净 clone 全绿。
 
-![六天编译健康度时间线：计分卡联合出 PDF 与纯净率上行，真实臂三角点与模拟臂打平，裸编译基线方块同步抬升，M2 90% 门过线](shots/bench-timeline.png)
-
-**解析壁垒**：D0 八库横评定案自研——宏展开陷阱 T01（`\be→\begin{equation}`）八库全灭，唯自研全过；pylatexenc 式「无错误信号的静默截断」比崩溃更危险，校验器因此独立成臂。
+解析层自研是横评定案：八家第三方 LaTeX 解析库无一通过全部断言（最高 24/26，四家因机制性失败无法计分），`\be` 经宏表展开为 `\begin{equation}` 一类陷阱是分水岭；静默截断不报错，比崩溃更难兜底，校验器因此独立成层。
 
 ![八库解析横评：自研 32/32 断言全过，最好第三方 24/26，四库机制性失败无法计分](shots/bench-parse-libs.png)
-
-**中文链反而更纯净**：规范化顺带修复源级缺陷，中文臂 xelatex 纯净率 +16.1pt；裸编双引擎联合口径 90.4%。
-
-![管线 vs 裸编译 dumbbell：中文链纯净率两引擎全面高于裸编（xelatex +16.1pt、tectonic +7.1pt），出 PDF 率 xelatex +5.1pt、tectonic -2.6pt](shots/bench-pipeline-vs-bare.png)
-
-![六天评测资产增长：pytest 798→6450、修复规则 31→143、源码文件 72→425、语料 39→13266](shots/bench-assets.png)
-
-其余底数：corpus 全量 28,904 文件解析成功率 100%、逐字节一致率 99.99%、占位符泄漏 0.004%（76/1,845,338）；validbench 1,503 对破坏 100% 检出零误报；翻译硬契约 93.7%、LLM 评审均分 94.0；纯净率 88.75% 距 M2 纯净门差 1.25pt。
 
 ## 仓库布局
 
