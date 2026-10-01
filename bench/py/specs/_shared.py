@@ -428,7 +428,7 @@ def _last_done(ctx, stage: str, variant: str | None = None) -> dict | None:
 # ------------------------------------------------------------ spec 管线小件
 #
 # soak→e2e_real 逐字复用簇（_gate/_swap_in/_ensure_kind/_xlat_marker/
-# _compile_judge）+ CaseSink→emit_case 桥——原散于 soak.py/e2e_real.py/
+# _compile_judge）+ CaseSink→emit_case 桥——原散于 soak/、e2e_real/、
 # fixloop_bench.py 的同形副本收此（soak 改一处 e2e_real 不跟的漂移面）。
 # 函数级惰性 import（engine_for/CaseSink/benchlib）保本模块顶层无
 # texlate/specs 依赖——qualbench/xlatbench 不 _bootstrap.ensure() 也照载。

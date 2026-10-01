@@ -10,7 +10,7 @@
 
 | stage   | status 证明                                                                                                                | 盲区                                           |
 | ------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| xlat    | 网关调用完成、译文非空（e2e_real.py:343+）                                                                                 | 译文质量（qualbench 另管）                     |
+| xlat    | 网关调用完成、译文非空（`e2e_real/xlat.py::_xlat`，delivered 谓词在 `pipecore/state.py`）                                  | 译文质量（qualbench 另管）                     |
 | compile | judge.py:96-122 四件套：pdf 存在 ∧ `!`≤3 且首错非 DIRTY_FIRST ∧ 红线 warning 零命中 ∧ CJK≥20 字符 + pdf_bytes≥50% baseline | **全部版面几何**：overfull、浮体漂移、表格重合 |
 | fixloop | 救火尝试，终态继承 compile 判定                                                                                            | 修后版面零测量                                 |
 | base    | en 基线对照编译                                                                                                            | —                                              |
@@ -22,7 +22,7 @@
 
 ## 2. splice 机制决定的五类盲区（splice fork 确认）
 
-splice = **reflow 重编译**（译文写回 .tex 整树重编，pipecore.py:~390），非 BabelDOC 式 overlay。zh 树注入两件版面手术（compile/layout.py）：FLOAT_SIZING（超高浮体 \resizebox*，并发 `TeXlate-Float-Fit` typeout——**发射了没人消费**）、demote_wrapfloats（wrapfig→普通浮体，嵌套/条件内的逃过）；TABLE_FITTING 0930 拔除（成对钩 ended-by 毁编 ~1200 事件，钳宽归 fixloop `tabular_fit` 源级跨度包）。
+splice = **reflow 重编译**（译文写回 .tex 整树重编，`pipecore/translate.py::translate_tree_run`），非 BabelDOC 式 overlay。zh 树注入两件版面手术（compile/layout.py）：FLOAT_SIZING（超高浮体 \resizebox*，并发 `TeXlate-Float-Fit` typeout——**发射了没人消费**）、demote_wrapfloats（wrapfig→普通浮体，嵌套/条件内的逃过）；TABLE_FITTING 0930 拔除（成对钩 ended-by 毁编 ~1200 事件，钳宽归 fixloop `tabular_fit` 源级跨度包）。
 
 | 缺陷类   | 机制                                                  | 现状                         |
 | -------- | ----------------------------------------------------- | ---------------------------- |
@@ -55,13 +55,13 @@ splice = **reflow 重编译**（译文写回 .tex 整树重编，pipecore.py:~39
 
 ### 3.4 度量准则 lane（OmniDocBench 家谱 → 配对场景适配）
 
-| 准则     | 抓什么               | 我们的适配                                                                                                                              |
-| -------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| NED      | 文本丢失/乱序/tofu   | **YES 核心**：zh-PDF pdftotext vs zh-src 分段逐段比（比准则原版更强——我们有精确期望串）；en-PDF vs en-src 定抽取噪声底                  |
-| TEDS     | 表格 cell 合并/塌列  | **源侧 YES**：`latex/tables.py` 已解析 tabular → TEDS(src-tree, zh-tree) 查 LLM/fixloop 是否改了表结构；渲染侧不建 parser，用 bbox 代理 |
-| IoU/mIoU | 版面漂移/越界/丢浮体 | **YES 核心**：`pdftotext -bbox`/`pdftohtml -xml`（poppler 子进程，既定边界）——zh bbox vs 页框 + vs en bbox                              |
-| ARD      | 阅读序/浮体位移      | 元素清单序 vs zh-PDF 抽取序；reflow 后浮体合法漂移 → warn 级不进门                                                                      |
-| CDM/BLEU | 公式渲染/n-gram      | **SKIP**：math placeholder 已做字节级 identity（L0 multiset），比 CDM 强；精确串使 BLEU 严格弱于 NED                                    |
+| 准则     | 抓什么               | 我们的适配                                                                                                                            |
+| -------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| NED      | 文本丢失/乱序/tofu   | **YES 核心**：zh-PDF pdftotext vs zh-src 分段逐段比（比准则原版更强——我们有精确期望串）；en-PDF vs en-src 定抽取噪声底                |
+| TEDS     | 表格 cell 合并/塌列  | **源侧 YES**：`latex/tables/` 已解析 tabular → TEDS(src-tree, zh-tree) 查 LLM/fixloop 是否改了表结构；渲染侧不建 parser，用 bbox 代理 |
+| IoU/mIoU | 版面漂移/越界/丢浮体 | **YES 核心**：`pdftotext -bbox`/`pdftohtml -xml`（poppler 子进程，既定边界）——zh bbox vs 页框 + vs en bbox                            |
+| ARD      | 阅读序/浮体位移      | 元素清单序 vs zh-PDF 抽取序；reflow 后浮体合法漂移 → warn 级不进门                                                                    |
+| CDM/BLEU | 公式渲染/n-gram      | **SKIP**：math placeholder 已做字节级 identity（L0 multiset），比 CDM 强；精确串使 BLEU 严格弱于 NED                                  |
 
 **最强偷法——SyncTeX = 我们的 page-program**：WeVisDoc 的 DOM 双编译（render + targets），我们手里有更好的 DOM——.tex 树本身。zh 编译加 `-synctex`（tectonic 支持）→ 每个 PDF glyph/box 映射回 zh 源行 → 映射到 segment → **元素↔bbox 真值表，零 OCR**。此后「渲染对了没」全是查表：presence（NED）、position（IoU vs en 侧 bbox）、order（ARD）、extent（bbox 在页框内）。OmniDocBench 值得再偷：component 分制 + per-page/per-attribute 拆分 + per-stage timeout。
 
@@ -79,7 +79,7 @@ splice = **reflow 重编译**（译文写回 .tex 整树重编，pipecore.py:~39
 - **UID 必须冻结**：deferred `\write` 在 shipout 才展开——`\thefigure` 读到的是发排值，须 `\edef`+`\expandafter` 冻结（探针实证）。
 - **BOX dims**：`\AddToHook{cmd/@endfloatbox/after}{\immediate\write…}` 取 `wd/ht+dp \@currbox` → 每个浮体真值矩形；`GEOM` 行给页框/textblock。
 - **免费信号**：source 有 env 但无 MARK 落盘 = `lost_element`（measure-then-discard 试排盒天然无 mark，零误报）。
-- 落点：clone `inject_float_sizing` 写法（layout.py:89-118 的 file-walk+sentinel 缝），`LAYOUT_MARKS` 块接 `prepare_chinese`(inject.py:670-714) 与 `base_condition`(e2e.py:289-301) → 双臂真值；`.txlm` 落在 compile cwd=main dir（_xelatex.py:375-516）；开销 <1%。
+- 落点：clone `inject_float_sizing` 写法（layout.py:89-118 的 file-walk+sentinel 缝），`LAYOUT_MARKS` 块接 `prepare_chinese`(inject.py:670-714) 与 `base_condition`(e2e.py:289-301) → 双臂真值；`.txlm` 落在 compile cwd=main dir（`engine/_xelatex/main.py`）；开销 <1%。
 - 风险已列：`\def` 伪 env 无 hook（覆盖率审计本身是信号）；`\@endfloatbox` 被 class 重定义→`\ifdefined` 守卫；moving-arg 内禁放 mark；tectonic 下 `.txlm` 落 out dir 需验路径。
 
 ## 4. 升级后检测栈：三层电池
@@ -140,8 +140,8 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 5. 挂载设计
 
-- 新 stage `layoutqc`：e2e_real.py:921 末段插入（compile/fixloop 之后、mutates 收割之前），`mutates=[]` 只读，读 workdir splice pdf + log + en base pdf。
-- 记账：verdict 作 sig 挂终态格（gate.pick_final 的 compile/fixloop 末格，gate.py:189+）→ triage 自动聚类出票。
+- 新 stage `layoutqc`：`e2e_real/__init__.py` stage 表注册（compile/fixloop 之后、mutates 收割之前），实现在 `e2e_real/layoutqc.py::_layoutqc`；`mutates=[]` 只读，读 workdir splice pdf + log + en base pdf。
+- 记账：verdict 作 sig 挂终态格（`verbs/gate.py::pick_final` 的 compile/fixloop 末格）→ triage 自动聚类出票。
 - 备选形态：独立后验 spec 走 vault.restore 读回（wrapfloat corpus 族已是此形态）——适合对存量 ~284 splice 篇回填检测出基线率。
 - 检测器本体已存在：wrapfloat.py 的 `pdftohtml -xml` bbox 碰撞链（wrapfig fixture 实证检出能力）——泛化到全浮体/表格；bbox 阈值须按 zh 文本密度校准（行/块级而非词级，裸词级误报高）；marks 在位时 L2 退为兜底。
 - marks 注入挂在 `prepare_chinese`/`base_condition`（双臂）；`.txlm` 随 workdir 收割进 vault（加进 mutates 白名单或直接读 workdir）。

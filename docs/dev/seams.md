@@ -6,7 +6,7 @@
 
 `compile/fixloop/builtins/`（facade=`__init__.py`）、`compile/fixloop/__init__.py`、`textutil` 是 PEP 562 门面：平名经 `_LEAF_EXPORTS`/`_LAZY` 映射在 `__getattr__` 首访时 `importlib.import_module` 解析并缓存进 `globals()`。读 `facade.name` 总能拿到叶子对象，但叶子内部互引用的是叶子自己的模块命名空间——`monkeypatch.setattr(facade, "name", fake)` 只写进门面 `globals()`，叶子内部那条调用链仍走原实现。
 
-规则：patch 点 = 绑定所有者模块。要替换 `builtins.graphics._run_convert`，patch `texlate.compile.fixloop.builtins.graphics._run_convert`；engine 已拆 `_engine_*` 叶——patch `texlate.compile.fixloop._engine_<叶>.X` 而非 `engine.X`（facade setattr 不反传叶内 `from` 绑定）。断言「函数被调用/被换」时 patch 调用方所在模块的那个名字（`from x import y` 的 patch 点是消费方命名空间的 `y`，这是 Python 通用规则，门面只是让它更不直观）。
+规则：patch 点 = 绑定所有者模块。要替换 `builtins.graphics._run_convert`，patch `texlate.compile.fixloop.builtins.graphics._run_convert`；engine 已拆 `engine/` 子包——patch `texlate.compile.fixloop.engine.<叶>.X` 而非 `engine.X`（facade setattr 不反传叶内 `from` 绑定）。断言「函数被调用/被换」时 patch 调用方所在模块的那个名字（`from x import y` 的 patch 点是消费方命名空间的 `y`，这是 Python 通用规则，门面只是让它更不直观）。
 
 新增导出三处同步：`_LEAF_EXPORTS` 值表、字面 `__all__`（ruff F401 re-export 判定要静态列表）、`TYPE_CHECKING` import 块（静态分析器面）。`TRANSFORM_FNS`/`REWRITE_FNS` 这类注册表键集变化时同步对应键表常量。
 
@@ -28,6 +28,6 @@
 
 - `texlate.compile.fixloop.builtins.graphics._run_convert` — 图形/PS 转换子进程缝（case/EPS/SVG 转换测试注入点）。
 - `texlate.compile.fixloop.builtins.TRANSFORM_FNS` — `builtin_transform` 注册表，setitem 缝。
-- `texlate.compile.fixloop._engine_run` 内 `_match_apply_landing`/`_gate_eval`/`_warn_preempt` — engine 拆叶后这些名实体在 `_engine_disp`，`_FixRun`（`_engine_run`）经 `from _engine_disp import` 绑定进自己命名空间，patch 点 = 消费方 `_engine_run.<name>`（patch facade `engine.X` 或属主 `_engine_disp.X` 都拦不到 `_FixRun` 内调用）。`_engine_run` 二级拆叶后 `_warn_preempt` 劈成两消费点：轮内 `_secondary` 的调用仍走 `_engine_run._warn_preempt`，退出点 `_post_warn_preempt` 的调用走 `_engine_run_tail._warn_preempt`——patch 哪个拦哪段。
+- `texlate.compile.fixloop.engine.run` 内 `_match_apply_landing`/`_gate_eval`/`_warn_preempt` — 实体在 `engine/disp.py`，`_FixRun`（`engine/run/__init__.py`）经 `from engine.disp import` 绑定进自己命名空间，patch 点 = 消费方 `engine.run.<name>`（patch 门面 `engine.X` 或属主 `engine.disp.X` 都拦不到 `_FixRun` 内调用）。`engine/run/` 二级拆叶后 `_warn_preempt` 劈成两消费点：轮内 `_secondary` 的调用仍走 `engine.run._warn_preempt`，退出点 `_post_warn_preempt` 的调用走 `engine.run.tail._warn_preempt`——patch 哪个拦哪段。
 - `LoopCtx` 平铺字段全集 — `_CTX_FIELD_GROUP` 收录名。
-- `xlat/pipeline.py` 对 `_intercept_*`/`AuthGate` 的 patch 点 —— `_intercept_*` 包装函与注册表实体已出叶 `intercept.py`/`authgate.py`，门面经 `from .intercept import _intercept_*` 回绑进本模块 globals；账本/裸形两消费点（`pipeline_ledger._ledger_intercepts`、`pipeline_single.retranslate_chunk`）经驻留门面的 `_net_apply_fn` 以 `globals()` 晚绑定取件——`setattr(pl, "_intercept_bare_cs", ...)`/`pl.AuthGate.record` 照旧触达真调用。新增一网只动 `_INTERCEPT_NETS` 条目 + intercept.py 同名包装函。
+- `xlat/pipeline/` 对 `_intercept_*`/`AuthGate` 的 patch 点 —— `_intercept_*` 包装函与注册表实体在 `xlat/intercept.py`/`xlat/authgate.py`，门面 `pipeline/__init__.py` 经 `from texlate.xlat.intercept import _intercept_*` eager 回绑进本包 globals；账本/裸形两消费点（`pipeline/ledger.py::_ledger_intercepts`、`pipeline/single.py::retranslate_chunk`）经驻留门面的 `_net_apply_fn` 以 `globals()` 晚绑定取件——`setattr(pl, "_intercept_bare_cs", ...)`/`pl.AuthGate.record` 照旧触达真调用。新增一网只动 `_INTERCEPT_NETS` 条目 + intercept.py 同名包装函。

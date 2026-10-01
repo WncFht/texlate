@@ -167,7 +167,7 @@ vault/quar/{kind}/…                        # 隔离区（验坏/判毒叶）
 
 [^sw]: 仓内证据件 [bulk-channels](../research/arxiv/bulk-channels.md)（scholarweave 通道裁决）与 `bench/py/specs/corpus_sw/__init__.py` docstring。
 
-[^zhstore]: vault 布局/操作契约 `bench/py/kernel/vault.py` 模块 docstring 与 [bench-redesign-v2-trizone](../spec/bench-trizone.md) §3.10；旧 `bench/zh-store/README.md` 仅存 git 历史。
+[^zhstore]: vault 布局/操作契约 `bench/py/kernel/vault/` 包 docstring 与 [bench-redesign-v2-trizone](../spec/bench-trizone.md) §3.10；旧 `bench/zh-store/README.md` 仅存 git 历史。
 
 [^mixed]: 仓内证据件 `bench/py/kernel/idnorm.py::canon_id` docstring（loop1 双拼写并存事故归因）。
 

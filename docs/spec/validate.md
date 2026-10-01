@@ -15,14 +15,14 @@
 
 ## 1. scan 层内建校验（指针）
 
-chunk 产出层自带两件校验器（`latex/reconstruct.py`），属上游解析域、完整语义见 `latex-pipeline.md` §9：
+chunk 产出层自带两件校验器（`latex/reconstruct/validate.py`），属上游解析域、完整语义见 `latex-pipeline.md` §9：
 
 - `validate_result(res)`——结构校验：pieces 无缝平铺（`pieces_gap`）、protected_tex→ph/chunk 递归可达性（`dangling_ph`/`dangling_chunk_ref`/`orphan_chunk`/`dead_ph`），`ph_reserved` 字面豁免。
 - `validate_translation(chunk, text)`——译文契约：`chunk.placeholders` 多重集逐枚在译文出现（`missing`/`extra` 差集）。
 
 下游消费：pipeline `_INTERCEPT_NETS` 的 `leftover_ph` 网与 L0 `placeholder` 规则是同概念在不同层的复判（§2 的 `CACHE_VETO_RULES` 镜像面）。
 
-## 2. L0 规则层（`validate/l0.py`，stdlib always-on）
+## 2. L0 规则层（`validate/l0/`，stdlib always-on）
 
 `validate_pair(src, zh) -> L0Report` 跑 **15 项顶层 `_check_*`**（`_check_ph_anchor` 内嵌于 `_check_placeholder` 调用，合计 16 个定义；函数 docstring「13 组」已滞后）。`report.ok` 为 True 即可送 L1/拼回；False 时 `feedback()` 文本直接进 corrector `previous_validation_error` 字段。
 
@@ -44,7 +44,7 @@ chunk 产出层自带两件校验器（`latex/reconstruct.py`），属上游解�
 | `_check_protocol_echo`                                                              | 协议回显守卫（`_ECHO_SIGS`：corrector 三段式节标 `[Original]`/`[Translation]`/`[Error]` + L0 反馈行话 `占位符缺失:`/`占位符疑似拼错`/`多余/未识别占位符:`/`结构占位符`/`注释区内臆造占位符` + 重试协议字面 `previous_validation_error`/`slot_validation_failures`/`[compile_error]`；`[n]`/`@@`/`placeholder_values` 批协议残渣由 `xlat/batch.py` 剥除，不经本查） | error                                                                                                                            |
 | `_check_comment_eof`                                                                | 注释/EOF 边界形态                                                                                                                                                                                                                                                                                                                                                  | error                                                                                                                            |
 
-`CACHE_VETO_RULES = {placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}`（`l0.py`）——缓存写入/命中否决面，与 `xlat/pipeline.py::_INTERCEPT_NETS` 五张升格拦截网镜像同源（`leftover_ph`/`ph_in_cs`/`bare_cs`/`residual_en`/`dangerous_cs`）；`placeholder` 网只镜像 zh−src 净多出臂，缺失/锚定臂归阶梯修复管辖。漂移由 `tests/compile/test_redlines.py` 系 pin 拦截。实测 10 类破坏全检出、干净对零 error-FP、拼错高比例给出 lev≤2 修复建议[^l0-rules]。
+`CACHE_VETO_RULES = {placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}`（`l0/main.py`）——缓存写入/命中否决面，与 `xlat/intercept.py::_INTERCEPT_NETS` 五张升格拦截网镜像同源（`leftover_ph`/`ph_in_cs`/`bare_cs`/`residual_en`/`dangerous_cs`）；`placeholder` 网只镜像 zh−src 净多出臂，缺失/锚定臂归阶梯修复管辖。漂移由 `tests/compile/test_redlines.py` 系 pin 拦截。实测 10 类破坏全检出、干净对零 error-FP、拼错高比例给出 lev≤2 修复建议[^l0-rules]。
 
 `pair_feedback(src, zh)` = `validate_pair(...).feedback()`——pipeline.validator 签名对齐版，e2e/pipecore/worker 四臂共用。
 
@@ -92,7 +92,7 @@ chunk 产出层自带两件校验器（`latex/reconstruct.py`），属上游解�
 
 编译不过时把 log 错误定位回 chunk 点名重译：`L2Attr.attribute`（tex_line→offset→chunk）、`_l2_localize`→hits、`retranslate_hits`（每块限 1 次：ok→adopt，否则 revert→原文）、`_resplice` 重建 + `prepare_chinese` 再注入。
 
-归因豁免与窗口：`L2_MAX_CHUNKS=10`、`_L2_ATTR_WINDOW=4000`、`_L2_MAX_ERRORS=50`（宏展开现经共享 `_Expander`（`latex/reconstruct.py`）token 入口，memo + `active` 环检取代旧 `_EXPAND_MAX_DEPTH` 深度保险丝）；`_INFRA_ERR_RX` 永不归因（基建错不归罪译文）、`_STRUCT_ERR_RX` 严格 in-span、`_FILELEVEL_ERR_RX` 文件级兜底白名单、`_UNDEF_CS_*` culprit 提取 + `_cs_source_carried` 豁免（src 自带错不罚 zh）、`err_signature` en-baseline 豁免。
+归因豁免与窗口：`L2_MAX_CHUNKS=10`、`_L2_ATTR_WINDOW=4000`、`_L2_MAX_ERRORS=50`（宏展开现经共享 `_Expander`（`latex/reconstruct/core.py`）token 入口，memo + `active` 环检取代旧 `_EXPAND_MAX_DEPTH` 深度保险丝）；`_INFRA_ERR_RX` 永不归因（基建错不归罪译文）、`_STRUCT_ERR_RX` 严格 in-span、`_FILELEVEL_ERR_RX` 文件级兜底白名单、`_UNDEF_CS_*` culprit 提取 + `_cs_source_carried` 豁免（src 自带错不罚 zh）、`err_signature` en-baseline 豁免。
 
 回退后**补一次裸编**：L2 回落原文并重 splice 后双臂对回落交付树再编译判定，`rep["fallback_verdict"]` 记三态 verdict（clean/partial/fail）——回落态即交付树，不再有代验兜底。env：`TEXLATE_NO_L2`（回灌总闸）、`TEXLATE_ENV_JUDGE`。
 
@@ -116,14 +116,14 @@ e2e 与 server worker 双编排器共享的低层件；链序 = **precheck → L
 
 `report.py::ValidationReport`：`ok`=所有在场层过（缺层不罚；`l2.log_missing` 豁免）；`feedback()`/`hard_failures()`/`summary()` 供 pipeline validator 与修复链消费。
 
-| 域       | 字段                             | 取值                                                                        | 产出                 |
-| -------- | -------------------------------- | --------------------------------------------------------------------------- | -------------------- |
-| L0       | `L0Report.ok` / Issue `severity` | `error` / `warn`（§2 表逐条定级）                                           | `validate/l0.py`     |
-| L1       | `ok_relative`                    | 四项计数 ≤ baseline ∧ 无 placeholder_bad                                    | `validate/l1.py`     |
-| L2       | `L2Verdict.ok`                   | `n_errors==0`；`log_missing` 单列                                           | `validate/l2.py`     |
-| 聚合     | `ValidationReport.ok`            | 所有在场层过                                                                | `validate/report.py` |
-| 回灌     | `fallback_verdict`               | `clean` / `partial` / `fail`                                                | `repair_l2.py`       |
-| 编译判决 | `Verdict.status`                 | `clean` / `partial` / `fail`（拒绝统一 partial+`reject_at`，见 compile.md） | `compile/judge.py`   |
+| 域       | 字段                             | 取值                                                                        | 产出                    |
+| -------- | -------------------------------- | --------------------------------------------------------------------------- | ----------------------- |
+| L0       | `L0Report.ok` / Issue `severity` | `error` / `warn`（§2 表逐条定级）                                           | `validate/l0/report.py` |
+| L1       | `ok_relative`                    | 四项计数 ≤ baseline ∧ 无 placeholder_bad                                    | `validate/l1.py`        |
+| L2       | `L2Verdict.ok`                   | `n_errors==0`；`log_missing` 单列                                           | `validate/l2.py`        |
+| 聚合     | `ValidationReport.ok`            | 所有在场层过                                                                | `validate/report.py`    |
+| 回灌     | `fallback_verdict`               | `clean` / `partial` / `fail`                                                | `repair_l2.py`          |
+| 编译判决 | `Verdict.status`                 | `clean` / `partial` / `fail`（拒绝统一 partial+`reject_at`，见 compile.md） | `compile/judge.py`      |
 
 ### 参考文献
 

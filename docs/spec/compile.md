@@ -1,6 +1,6 @@
 # spec · 编译引擎与 fixloop
 
-> 范围：`compile/` 全目录——引擎路由与双引擎、沙箱/进程、注入、判定/探测、LaTeX 2.09 升级、fixloop 修复引擎。归一化层（`compile/normalize.py`）归 `translate.md`；翻译编排归 `translate.md`；解析归 `latex-pipeline.md`。
+> 范围：`compile/` 全目录——引擎路由与双引擎、沙箱/进程、注入、判定/探测、LaTeX 2.09 升级、fixloop 修复引擎。归一化层（`compile/normalize/`）归 `translate.md`；翻译编排归 `translate.md`；解析归 `latex-pipeline.md`。
 > 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据引 `research/` 档。
 
 ## 0. 总览
@@ -112,7 +112,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `mainfile.py::find_main_tex`：depth-0 docclass + bd 在自身或 input 闭包（filecontents 虚拟成员）；排序 aux 降权 → basename main/paper/ms → 语言秩 → tpl → 深度 → body mass → size。`classify_no_main`→latex209/plain_tex/garbage/None。
 
-`latex209.py::upgrade_209(tex, *, root)` 受限升级器（`\documentstyle`→`\documentclass`）：status∈converted/reject/no-docstyle；reject 三因 `latex209_no_decl`/`latex209_ds_at`(ds@ 类)/`latex209_no_target`（映射目标工程 rglob+kpsewhich 双路不可解，kpsewhich 缺席 fail-open）。`_CLASS_MAP`：revtex→revtex4-2（选项 rename）、mn→mnras、jpsj→jpsj3、elsart→elsarticle、aipproc→aipproc、amsart→amsart；`_route_opts` 序：rename→`_INCOMPAT_PKGS` 剥→`_KERNEL_OPTS`/类内建→`_PKG_OPTS` 或 shipped `<opt>.sty`→usepackage，余归类 opts。输出=`_PRE_CLASS_SHIM`+`\documentclass`+COMPAT_SHIM(latexsym/vruleheight/nfss ifs/DeclareOldFontCommand/plain 字体族/theorem-body/plain-TeX 残渣/multicol)+`_REVTEX209_SHIM`+`_MULTICOLS_SHIM`+`\usepackage{pkg_opts}`；`_fix_math_209`：math/text 模态，`{<switch> X}` 组→`\mathit/\mathbf` 参数形；`_MATH_CITE_CS_209` 17 名 cite 族数学内裸调→`\mbox{}` 包（独立出口 `wrap_math_cites`，fixloop `cite_in_math_mbox` 消费）。调用点：`inject.inject_cjk`（自动升级）+ fixloop precheck `latex209_upgrade`（order -0.5）；`latex209_reject` gate（order 1）兜底拒不可转形态[^fixloop-rules]。
+`latex209/main.py::upgrade_209(tex, *, root)` 受限升级器（`\documentstyle`→`\documentclass`）：status∈converted/reject/no-docstyle；reject 三因 `latex209_no_decl`/`latex209_ds_at`(ds@ 类)/`latex209_no_target`（映射目标工程 rglob+kpsewhich 双路不可解，kpsewhich 缺席 fail-open）。`_CLASS_MAP`：revtex→revtex4-2（选项 rename）、mn→mnras、jpsj→jpsj3、elsart→elsarticle、aipproc→aipproc、amsart→amsart；`_route_opts` 序：rename→`_INCOMPAT_PKGS` 剥→`_KERNEL_OPTS`/类内建→`_PKG_OPTS` 或 shipped `<opt>.sty`→usepackage，余归类 opts。输出=`_PRE_CLASS_SHIM`+`\documentclass`+COMPAT_SHIM(latexsym/vruleheight/nfss ifs/DeclareOldFontCommand/plain 字体族/theorem-body/plain-TeX 残渣/multicol)+`_REVTEX209_SHIM`+`_MULTICOLS_SHIM`+`\usepackage{pkg_opts}`；`_fix_math_209`：math/text 模态，`{<switch> X}` 组→`\mathit/\mathbf` 参数形；`_MATH_CITE_CS_209` 17 名 cite 族数学内裸调→`\mbox{}` 包（独立出口 `wrap_math_cites`，fixloop `cite_in_math_mbox` 消费）。调用点：`inject.inject_cjk`（自动升级）+ fixloop precheck `latex209_upgrade`（order -0.5）；`latex209_reject` gate（order 1）兜底拒不可转形态[^fixloop-rules]。
 
 ## 5. 支撑件
 
@@ -135,10 +135,10 @@ yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹
 
 ### 6.1 架构三件套与共享地基
 
-- `engine.py`：主循环 + `LoopCtx`（io/deps/round/ledger 四组 dataclass + `_CTX_FIELD_GROUP` facade）+ `_wire_engine`（filemap overrides 实例遮蔽 `eng.filemap`；texmfhome 缺省 → `wdir/_texmf` 隔离；tectonic 注入 `CtanFetcher`）。
-- `actions.py`：`when`/`condition` 评估 + 7 种 action 分派。
-- `ruleset.py`：`Ruleset.load(tolerant=True)`——`rules/` 目录按文件名序逐件 safe_load、顶层段合并（list 段按文件序 extend、map 段递归、标量异值即 `YamlishError` 冲突）；rule 级问题弃条记 `skipped_rules`、file 级 raise；`_RULESET_CACHE` 按分片 `(name,mtime_ns,size)` 指纹缓存、返回 deepcopy。
-- **共享地基**：`compile/logparse.py`/`compile/ctan.py`/`compile/_yamlish.py` 是 compile 层共享件（log 解析/taxonomy、CTAN 拉包、yaml 装载——C3/F2 归位自 fixloop，fixloop 向下消费）；`fixloop/__init__.py` 是 PEP 562 惰性门面（17 平名映射回两叶 cases/engine）。
+- `engine/`：主循环（`engine/run/`）+ `LoopCtx`（`engine/ctx.py`：io/deps/round/ledger 四组 dataclass + `_CTX_FIELD_GROUP` facade）+ `_wire_engine`（`engine/wire.py`：filemap overrides 实例遮蔽 `eng.filemap`；texmfhome 缺省 → `wdir/_texmf` 隔离；tectonic 注入 `CtanFetcher`）。
+- `actions/`：`when`/`condition` 评估 + 7 种 action 分派（`actions/disp.py::_apply`）。
+- `ruleset/`：`Ruleset.load(tolerant=True)`（`ruleset/core.py`）——`rules/` 目录按文件名序逐件 safe_load、顶层段合并（list 段按文件序 extend、map 段递归、标量异值即 `YamlishError` 冲突）；rule 级问题弃条记 `skipped_rules`、file 级 raise；`_RULESET_CACHE` 按分片 `(name,mtime_ns,size)` 指纹缓存、返回 deepcopy。
+- **共享地基**：`compile/logparse.py`/`compile/ctan.py`/`compile/_yamlish.py` 是 compile 层共享件（log 解析/taxonomy、CTAN 拉包、yaml 装载——C3/F2 归位自 fixloop，fixloop 向下消费）；`fixloop/__init__.py` 是 PEP 562 惰性门面（平名映射回 `cases`/`llm_hook` 平铺叶与 `actions`/`engine`/`ruleset`/`builtins` 子包叶）。
 
 ### 6.2 规则 schema
 
@@ -175,7 +175,7 @@ yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹
 
 合计 **213 条规则**（gate 3 / precheck 11 / loop 199）；action 分布 builtin_transform 101 / regex_rewrite 86 / run_tool 13 / install_file 7 / reject_route 4 / scan_install 1 / escalate_llm 1。`00-base` 的 `meta.loop` 全键：`max_rounds=8, one_rule_per_round, dedup_key, stuck_sig_repeat=3, clean_err_max=3, compile_passes=2, timeout_sec=120, warn_demote=false, warn_driven_fixes=true`；`filemap.overrides`=105 钉（babel .ldf 大表 + 噪声 null 项）；`version_guard` epoch 2022-07-14；`capabilities` 段为审计文档不参与 dispatch。
 
-### 6.4 主循环（`engine.fixloop`）
+### 6.4 主循环（`engine/run/fixloop.py`）
 
 ```
 precheck 一次性（_precheck_phase，无编译，REJECT → reject:<rid>+reject_route）
@@ -205,7 +205,7 @@ for rnd in 1..max_rounds(8):
 
 顺序不变量：gate 先于一切（`pstricks_dvips_preflight` 0 / `latex209_reject` 1 / `plain_format_route` 2；`missing_file`+`\documentstyle` 必须先拦否则给 2.09 白装包）；装件臂居 loop order 低位（biber_biblatex_skew_route 8.0 → install_file 10 → … → 900 兜底），前有 relocate/shadow/stub 臂；同 trigger 保守→激进 + `(rule_id,payload)` dedup；rewrite 幂等逐条审过。
 
-### 6.5 action 原语（`actions._apply` 分派）
+### 6.5 action 原语（`actions/disp.py::_apply` 分派）
 
 | kind                | 语义                                                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -219,32 +219,32 @@ for rnd in 1..max_rounds(8):
 
 `cap_available`/`tool_available` 即引擎 caps 门——tlmgr/kpsewhich/updmap 依赖规则在 tectonic 侧自动降级或汇到 `ctan_fetch`/`vendored_fetch` 臂[^ctanprobe]。
 
-### 6.6 builtins：facade + 22 叶
+### 6.6 builtins：facade + 16 顶层叶 + 6 内嵌子包
 
 `builtins/__init__.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**83**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims`/`@pstricks` 占位符 yaml 全树展开（`_FAMILY_TOKENS` 双支：`@pdftex_prims` 112 词表 + `@pstricks` 4 签名支——后者单源 `engine/_route.PSTRICKS_SIG_ALTS`，route 静态签名与规则条件同口径）。社区新规则多数只写 regex，新函数才需 PR 代码。
 
 | 叶 | 主题 | |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | |
-| `builtins.common` | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_safe_rel` payload 名卫/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads` | |
+| `builtins.common/` | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_safe_rel` payload 名卫/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads` | |
 | `builtins.assetfix` | 随稿资产改形补缺（misc C3 再拆叶）：`pfa_to_pfb`（pdftex.map `.pfa`→usertree `.pfb`+map 同位遮蔽）/`eps_converted_alias`（`X-eps-converted-to.pdf`→`<stem>.pdf` 别名+eps 引用剥名） | |
 | `builtins.bib` | bbl stub 改写/bbl_regen/`biber_biblatex_skew_route`/`cite_in_math_mbox`/`citekey_sanitize` | |
 | `builtins.csbind` | 上古/产出 cs 守卫重绑（shim C3 再拆叶）：`font_cs_shim`（AMS 上古字体 cs→`\font` 绑 CM）/`cs_rebind`（TFM 缺字→回退字体）/`bm_mathchar_wrap`（`\bm` 撞 XeTeX 15-bit mathchar 墙） | |
-| `builtins.csfix` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） | |
+| `builtins.csfix/` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） | |
 | `builtins.docfix` | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹） | |
 | `builtins.envpoly` | `undefined_env_polyfill`（shim C3 再拆叶）：`Environment X undefined` proven+ 批扩面 `\ifcsname` 守卫 noop（pkg_map 命中装真包/`\renewenvironment` 站点守卫/ companion 对偶） | |
 | `builtins.filefix` | payload 文件归位/占位（shim C3 再拆叶）：`fileset_relocate`（+顶层目录整树镜像）/`driver_tfm_hoist`/`generated_stub`/`doc_absent_stub` | |
 | `builtins.graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/pdf_asset_sanitize/xbb_pregen + 共享原语（`_iter_project_files`/`_try_gs_redistill` 等单源） | |
-| `builtins.gfx_missing` | missing_graphic 缺图域（graphics C3 再拆叶）：`graphic_case_link`/`graphic_repair`/`includepdf_missing_stub`/`graphic_missing_placeholder`/`raster_pdf_rename`/`driver_missing_image_stub` | |
+| `builtins.gfx_missing/` | missing_graphic 缺图域（graphics C3 再拆叶）：`graphic_case_link`/`graphic_repair`/`includepdf_missing_stub`/`graphic_missing_placeholder`/`raster_pdf_rename`/`driver_missing_image_stub` | |
 | `builtins.inputfix` | input 族引用图外科（misc C3 再拆叶）：`subfile_docclass_strip`/`main_wrapper_promote`/`graphics_include_strip` + `_input_targets`/`_closure_scan` 引用闭包原语 | |
-| `builtins.layoutfix` | qc-wanted 版面/字符面：`tabular_fit`/`math_run_break`/`display_math_shrink`/`gfx_width_clamp`/`section_skip_floor`/`fffd_context_fix`/`legacy_clamp_purge` | |
-| `builtins.misschar` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件） | |
+| `builtins.layoutfix/` | qc-wanted 版面/字符面：`tabular_fit`/`math_run_break`/`display_math_shrink`/`gfx_width_clamp`/`section_skip_floor`/`fffd_context_fix`/`legacy_clamp_purge` | |
+| `builtins.misschar/` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件） | |
 | `builtins.misc` | 编码转码/中间件清场/support 复原/格式门：`non_utf8_recode`/`cjk_env_relax`/`purge_corrupt_intermediates`/`aux_seed_undefined_refs`/`restore_support_from_src`/`plain_format_detect`/`latex209_upgrade`/`harvest_build_directives`/`docstrip_generate` | |
 | `builtins.optfix` | env 选项组与排版参数外科（misc C3 再拆叶）：`tcolorbox_breakable_inject`/`float_h_demote`/`float_opt_cs_expand`/`para_loosen`（前二者是 runaway_output 修复臂） | |
 | `builtins.paralong` | para_longize——非 long 宏撞 `\par` | |
 | `builtins.pdfprim` | `pdftex_prim_polyfill`（shim C3 再拆叶）：xelatex 下 pdfTeX 原语按签名分臂（寄存器族/取参族/余项 chardef）`\ifdefined` 守卫注入 | |
 | `builtins.pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 | |
 | `builtins.shim` | shim_map stub/遮蔽注入：legacy_pkg_shim/svjour_clo_stub/journal_cs_polyfill/bundled_class_shadow/shim_pkgs_in_use/revtex209_surface_polyfill | |
-| `builtins.slotrev` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
+| `builtins.slotrev/` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
 | `builtins.tarblob` | `extract_tar_blobs`（misc C3 再拆叶）：tar 伪装件检测（ustar 窗 + 头校验）/regular-file 成员补缺/blob 改名 `*.tarblob` 退役 | |
 | `builtins.vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire | |
 
@@ -274,13 +274,13 @@ for rnd in 1..max_rounds(8):
 
 ## 7. 状态词表（编译侧）
 
-| 域           | 字段             | 取值                                                                                                                                                                    | 产出                                    |
-| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 编译判决     | `Verdict.status` | `clean` / `partial` / `fail`（无 reject——三处拒绝统一 partial + `reject_at`）                                                                                           | `compile/judge.py`                      |
-| 注入态       | inject `status`  | `injected` / `already` / `no-docline`                                                                                                                                   | `compile/inject.py`                     |
-| fixloop 判决 | cases `verdict`  | `clean` / `acceptable_pdf` / `best_effort_pdf` / `dirty_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]` | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态       | `stats.status`   | `active` / `proposed` / `validated` / `verified` / `proven` / `stub`（审计元数据非门控）                                                                                | `fixloop/rules/`                        |
-| 跨臂退化     | `VERDICT_RANK`   | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游                                                                                                             | `repair.py`                             |
+| 域           | 字段             | 取值                                                                                                                                                                    | 产出                                  |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| 编译判决     | `Verdict.status` | `clean` / `partial` / `fail`（无 reject——三处拒绝统一 partial + `reject_at`）                                                                                           | `compile/judge.py`                    |
+| 注入态       | inject `status`  | `injected` / `already` / `no-docline`                                                                                                                                   | `compile/inject.py`                   |
+| fixloop 判决 | cases `verdict`  | `clean` / `acceptable_pdf` / `best_effort_pdf` / `dirty_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]` | `fixloop/engine/`、`fixloop/cases.py` |
+| 规则态       | `stats.status`   | `active` / `proposed` / `validated` / `verified` / `proven` / `stub`（审计元数据非门控）                                                                                | `fixloop/rules/`                      |
+| 跨臂退化     | `VERDICT_RANK`   | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游                                                                                                             | `repair.py`                           |
 
 ### 参考文献
 

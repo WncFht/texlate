@@ -1,6 +1,6 @@
 # spec · 翻译编排与校验链
 
-> 范围：`xlat/`（翻译编排）+ `validate/`（L0/L1/L2 校验）+ `repair.py`/`repair_l2.py`（L2 回灌修复）+ `compile/normalize.py`（译文后源码归一化）。编译引擎、注入与 fixloop 见 `compile.md`；chunk 产出与占位符上游见 `latex-pipeline.md`。
+> 范围：`xlat/`（翻译编排）+ `validate/`（L0/L1/L2 校验）+ `repair.py`/`repair_l2.py`（L2 回灌修复）+ `compile/normalize/`（译文后源码归一化）。编译引擎、注入与 fixloop 见 `compile.md`；chunk 产出与占位符上游见 `latex-pipeline.md`。
 > 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据引 `research/` 档，不复述实验过程。
 
 ## 0. 总览
@@ -20,9 +20,9 @@ chunks[] ──► 术语表物化（四层 + doc 级过滤）+ ph 名单行
 
 ### 1.1 入口与管线骨架
 
-`pipecore.py::translate_tree_run` 是 e2e / server worker / bench 三臂共享入口：`latex.api.scan_tex_tree` 做文件级四级分流（parsed 翻译集 / fault / support 不译），chunk_id 形如 `{file_idx}:{chunk.id}`；随后装配 `XlatPipeline`（translator、validator、`Glossary.load()`、cache dict）并 `asyncio.run(pipe.run)`，收尾 `reconstruct` splice 回写。占位符点名册不进 `Glossary`——`_materialize` 里 `render_placeholder_manifest(collect_doc_placeholders(...))` 单独成串。
+`pipecore/translate.py::translate_tree_run` 是 e2e / server worker / bench 三臂共享入口：`latex.api.scan_tex_tree` 做文件级四级分流（parsed 翻译集 / fault / support 不译），chunk_id 形如 `{file_idx}:{chunk.id}`；随后装配 `XlatPipeline`（translator、validator、`Glossary.load()`、cache dict）并 `asyncio.run(pipe.run)`，收尾 `reconstruct` splice 回写。占位符点名册不进 `Glossary`——`_materialize` 里 `render_placeholder_manifest(collect_doc_placeholders(...))` 单独成串。
 
-`pipeline.py::XlatPipeline.run` 内部阶段：`_load_resumed` 载入断点（仅 ok/partial 计入已完成；source 漂移触发重译）→ `_route_chunks` 分流 → `_materialize`（doc glossary 过滤 + paper_ctx：取首个 abstract chunk 截 `PAPER_CTX_MAX_CHARS=6000`）→ `_build_work_items`（kind 分组 → `pack_batches` → batch/single/split 三类 work item）→ `_drain` 消费。
+`pipeline/orch.py::XlatPipeline.run` 内部阶段：`_load_resumed` 载入断点（仅 ok/partial 计入已完成；source 漂移触发重译）→ `_route_chunks` 分流 → `_materialize`（doc glossary 过滤 + paper_ctx：取首个 abstract chunk 截 `PAPER_CTX_MAX_CHARS=6000`）→ `_build_work_items`（kind 分组 → `pack_batches` → batch/single/split 三类 work item）→ `_drain` 消费。
 
 `_route_chunks` 三条短路径：`placeholder_only` 整块纯占位符不发请求、`[[BIB_` 前缀 chunk 原文直通并记 `bib_passthrough` warning、超 `CHUNK_HARD_LIMIT=6000` 的长块经 `split_long_chunk` 按句界二分（`_ATOMIC_CUT_RX`/`abbrev_cut`/`_safe_cut`）拆成 `(parent, subs)`。
 
@@ -46,7 +46,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 
 带错重翻（corrector）：专用 `_CORRECTOR_SYSTEM`（不共享公共块）+ user 三段式 `[Original]/[Translation]/[Error]`；在阶梯第二试经 `corrector_fn` 注入使用（§1.6）。
 
-`prompts.py::PROMPT_VERSION="xlat-prompt-v6"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
+`prompts.py::PROMPT_VERSION="xlat-prompt-v6"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate/cache.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common/segcache.py`）——bump 实际三层缓存键全轮换[^texglot]。
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
@@ -92,7 +92,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 
 ### 1.7 拦截网与缓存口径
 
-`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline.py` 回引）注册五张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`、`dangerous_cs`——与 `l0.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
+`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline/` 回引）注册五张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`、`dangerous_cs`——与 `l0/main.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
 
 缓存三层口径[^texglot]：
 
@@ -100,7 +100,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | 段级   | `state.segment_key` = `sha256(role␀source␀失效tag…␀masked␀快照)`；`masked_snapshot` 是占位符布局摘要（`repr(ph_types)`），token 布局变则 key 变 | `xlat` 本地：`cache-{file16}.json` 内条目；server：`translation_cache` 表，键 = `{cfg_hash}:{seg_key}` |
 | 文件级 | `state.file_cache_key` = `sha256(prompt_version\|base_url\|model\|lang\|glossary\|context)[:16]`                                                | `cache-{16hex}.json` 文件名                                                                            |
-| 任务级 | `worker/_common.py::cache_key_for` = `sha256(arxiv_id@ver\|model\|PIPELINE_VERSION\|lang[\|src:channel][\|fm:集][\|k:key指纹])`                 | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach）                                                   |
+| 任务级 | `worker/_common/segcache.py::cache_key_for` = `sha256(arxiv_id@ver\|model\|PIPELINE_VERSION\|lang[\|src:channel][\|fm:集][\|k:key指纹])`        | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach）                                                   |
 
 server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|base_url|u:user_glossary_sig|l:local_sig|c:categories|ag:auto_glossary)[:16]`——base_url 进指纹防跨 provider 混桶中毒，categories/auto_glossary 开关进指纹同理；文档级 placeholders 不进（会把缓存锁成单文档桶）。`TEXLATE_CACHE_SCOPE=per_key` 时任务级与段级键均拼入 `sha256(api_key)[:16]` 指纹按凭证分桶，消除跨租户缓存存在性 oracle；默认 `shared`（公开论文确定性函数跨租户复用是既定特性）。`SegmentCache` 读面 = `_pending ∪ _written ∪ _pre`（prewarm 批量预载，`drain` 随 chunk flush 事务落盘）。
 
@@ -137,7 +137,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ### 1.11 mock 臂与 translator 决议
 
-`mock.py::MockTranslator`：确定性无网络；`_MOCK_TOKEN_RX` 保占位符/cs/花括号/`~$&|`；散文片段→`MOCK_ZH` 按 `max(1,len//8)` 重复；回显 `[n]` 批号、剥 `[placeholder_values]` 尾、`json_object` 时回 `{sid: mock_zh}`；记 `self.calls`。worker 侧 `server/worker/translate.py::_resolve_translator` 决议序：注入 `translator_factory` → `TEXLATE_TRANSLATOR=mock` → 网关臂（`force=="gateway"` 或有 api_key，`retry_model` 包 `_FallbackTranslator`）→ 无 key 回落 `MockTranslator` + 去重 `mock_translator` warning；`sink` 在场给 `_PerCallTranslator` 惰性 ChatClient。单块重译（`worker/retranslate.py`）无 api_key 时直接跳过——不以 mock 覆盖真译文。
+`mock.py::MockTranslator`：确定性无网络；`_MOCK_TOKEN_RX` 保占位符/cs/花括号/`~$&|`；散文片段→`MOCK_ZH` 按 `max(1,len//8)` 重复；回显 `[n]` 批号、剥 `[placeholder_values]` 尾、`json_object` 时回 `{sid: mock_zh}`；记 `self.calls`。worker 侧 `server/worker/translate/xlator.py::_resolve_translator` 决议序：注入 `translator_factory` → `TEXLATE_TRANSLATOR=mock` → 网关臂（`force=="gateway"` 或有 api_key，`retry_model` 包 `_FallbackTranslator`）→ 无 key 回落 `MockTranslator` + 去重 `mock_translator` warning；`sink` 在场给 `_PerCallTranslator` 惰性 ChatClient。单块重译（`worker/retranslate.py`）无 api_key 时直接跳过——不以 mock 覆盖真译文。
 
 ## 2. 校验链（`validate/`）
 
@@ -147,7 +147,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 修复链序（precheck → L2 回灌 → fixloop）、L2 归因 - 重译簇、env judge 与 `repair.py` 共享低层件的完整规范见 `spec/validate.md` §6–§7。编排侧须知两点：链序理由 = fixloop 的 regex_rewrite 会被 L2 resplice 冲掉；回退后补一次裸编、回落态即交付树。env 开关 `TEXLATE_NO_L2`/`TEXLATE_ENV_JUDGE`/`TEXLATE_NO_FIXLOOP`/`TEXLATE_FIXLOOP_LLM` 同节登记。
 
-### 3.1 归一化层（`compile/normalize.py`）
+### 3.1 归一化层（`compile/normalize/`）
 
 译文 splice 回写后、注入前的**无条件手术**层（条件性手术归 fixloop，两边不得重复改同一处）。
 
@@ -181,14 +181,14 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ## 4. 状态词表（翻译侧）
 
-| 域       | 字段                     | 取值                                                                                                                               | 产出               |
-| -------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| 块态     | `ChunkResult.status`     | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；fallback_orig 亦落 fault + `fell_back`）/ `skipped`（门控跳过）         | `xlat/pipeline.py` |
-| 阶梯态   | `LadderResult.status`    | `ok` / `recovered` / `fallback_orig`                                                                                               | `xlat/retry.py`    |
-| 错误型   | `ChunkResult.error_kind` | `""` / `auth` / `provider` / `crash` / `validate`                                                                                  | `xlat/pipeline.py` |
-| L2 判决  | `L2Verdict.ok`           | `n_errors==0`；`log_missing` 单列                                                                                                  | `validate/l2.py`   |
-| 编译判决 | `Verdict.status`         | `clean` / `partial` / `fail`（无 reject——拒绝统一 partial + `reject_at` 审计字段，见 compile.md）                                  | `compile/judge.py` |
-| 任务态   | job `status`             | 活跃 `queued`/`fetching`/`parsing`/`translating`/`compiling`；终态 `done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store/`    |
+| 域       | 字段                     | 取值                                                                                                                               | 产出                     |
+| -------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 块态     | `ChunkResult.status`     | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；fallback_orig 亦落 fault + `fell_back`）/ `skipped`（门控跳过）         | `xlat/pipeline/types.py` |
+| 阶梯态   | `LadderResult.status`    | `ok` / `recovered` / `fallback_orig`                                                                                               | `xlat/retry.py`          |
+| 错误型   | `ChunkResult.error_kind` | `""` / `auth` / `provider` / `crash` / `validate`                                                                                  | `xlat/pipeline/types.py` |
+| L2 判决  | `L2Verdict.ok`           | `n_errors==0`；`log_missing` 单列                                                                                                  | `validate/l2.py`         |
+| 编译判决 | `Verdict.status`         | `clean` / `partial` / `fail`（无 reject——拒绝统一 partial + `reject_at` 审计字段，见 compile.md）                                  | `compile/judge.py`       |
+| 任务态   | job `status`             | 活跃 `queued`/`fetching`/`parsing`/`translating`/`compiling`；终态 `done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store/`          |
 
 ### 参考文献
 

@@ -126,7 +126,7 @@
     - `runs/` —— `runs/<spec>/<date>/<slug>/work/{idc}/` 逐格工作树 + run_meta；格间中间产物经 workdir 传递。
     - `vault/` —— 不可再生产物保险库：`vault/{kind}/{sid}/{arm,variant,altseq}/` 物理叶（kind ∈ zh/splice/state/layoutqc）+ `meta/` 描述文件 + `manifest.jsonl` + `quar/` 隔离区；付费译文与成品树的唯一归并处（继任旧 `bench/zh-store/`）。
     - `lake/` —— 可重建语料湖：`corpus/{source}/{sid}/` cell（extracted/raw/meta）+ `objects/` CAS 存储 + `catalog.jsonl` 状态机 + `durable/` 构建中间件。
-2. **保留策略**（P3，`kernel/vault.py`/`cli.py`/`lake.py`）：splice 叶 slim 即焚（留主干同名 pdf+arm+log）；≥`CAS_LINK_FLOOR`(256KiB) 叶文件 CAS 硬链去重；prune 遇含付费资产的 blocked cell 按 `_SHELL_KEEP_GLOB` 收壳而非整格保留；corpus TARS 下载件即焚。动词：`bench vault slim|cas-link|verify|restore|adopt|tombstone|seed`、`bench prune`、`bench lake {status,evict,…}`[^retention]。
+2. **保留策略**（P3，`kernel/vault/`/`cli/`/`lake/`）：splice 叶 slim 即焚（留主干同名 pdf+arm+log）；≥`CAS_LINK_FLOOR`(256KiB) 叶文件 CAS 硬链去重；prune 遇含付费资产的 blocked cell 按 `_SHELL_KEEP_GLOB` 收壳而非整格保留；corpus TARS 下载件即焚。动词：`bench vault slim|cas-link|verify|restore|adopt|tombstone|seed`、`bench prune`、`bench lake {status,evict,…}`[^retention]。
 3. `runs/`、`vault/`、`lake/`、`ledger/` 全量在 format/lint 链外；fresh clone 不存在属预期——规范只引用其"结论已摘要进正文"的口径，不作依赖链接。
 4. 留痕/保留谓词：付费产物（vault zh/splice/state 叶）不可再生不删；lake cell 可经 CAS + catalog 重建，evict 分 tier（orphan → extracted 投影 → raw）；账本 `sealed/` 段封存后不再重写。
 5. 统计报告：核心层加权池化 + 宏平均双口径并列；CI = Wilson + 月簇稳健 bootstrap（簇重抽样敏感性）[^v3plan]。
@@ -180,4 +180,4 @@
 
 [^translators]: 仓内证据件 `tests/_translators.py` docstring（臂工厂与台账 schema）。
 
-[^retention]: 仓内证据件 `bench/py/kernel/vault.py`（`slim_splice`/`cas_link_*`/`CAS_LINK_FLOOR`）、`kernel/cli.py::_cell_shrinkable`、`kernel/lake.py::shrink_shell` 与 [2026-09-24 磁盘策略落地](../log/2026-09-24-磁盘策略落地与探针批指标.md)。
+[^retention]: 仓内证据件 `bench/py/kernel/vault/retention.py`（`slim_splice`/`cas_link_*`/`CAS_LINK_FLOOR`）、`kernel/cli/ops.py::_cell_shrinkable`、`kernel/lake/shell.py::shrink_shell` 与 [2026-09-24 磁盘策略落地](../log/2026-09-24-磁盘策略落地与探针批指标.md)。

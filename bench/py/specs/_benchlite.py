@@ -227,8 +227,8 @@ def compile_fp(c: dict) -> str:
 # ---------------------------------------------------------------- 编译判决
 def judge_dict(res, *, expect_cjk: bool) -> dict:
     """CompileResult → {compile, verdict, status, l2_attr, taxonomy}——
-    ``texlate.e2e._compile_judge`` 同形状（bench 侧复刻点收敛：
-    e2e_real/e2e_mock 共用）。
+    ``texlate.pipecore.tail.compile_judge_tail`` 同形状（bench 侧复刻点
+    收敛：e2e_real/e2e_mock 共用）。
 
     ``l2_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
     单源：逐条 ``{kind,file,line,head,log_line}`` hits + ``warn_by_class``），

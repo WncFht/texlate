@@ -10,7 +10,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 - **输入**：单文件文本（`parse_tex`）或磁盘文件树（`parse_file`/`scan_tex_tree`）。
 - **输出**：`ScanResult`（`model.py`）——`protected_tex`（占位符化文本）、`chunks`（可译段）、`ph_map`（占位符→原文段）、`pieces`（平铺段列）、`inputs`（`\input` 事件）、`warnings`、`vtex`（坐标系文本）、`ph_reserved`（源文自带占位符形字面）、`macros`（scope 宏表终态）。
-- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct.py::reconstruct` 按 pieces + 占位符 DAG splice 回完整文档；`validate/` 层做 src↔zh 相对校验（L0 契约见 §9）。
+- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct/core.py::reconstruct` 按 pieces + 占位符 DAG splice 回完整文档；`validate/` 层做 src↔zh 相对校验（L0 契约见 §9）。
 - **明确不做**：排版、数学求值、完整 TeX 语义（`\the`/计数器寄存器/`kpathsea` 库查找等）。一切未覆盖构造退化到保守保护路径，首要不变式是 splice-safe——字节全保、identity 重建逐字节等于原文。
 
 唯一解析路径是 **v2 token 流**（`gullet/` + `segmenter/` 包），`api.py` 顶部即声明；v1 字节扫描器已删除，`flatten.py::flatten_inputs` 仅存为独立字节级展平 API（bench/外部调用），不在解析主链上。
@@ -104,7 +104,7 @@ token 种类：`cs`（控制序列，text 为去 `\` 的名字）、`lbrace`/`rb
 
 `_exec_prim` 表（`core.py`）：定义族见 §4.3；`\begingroup` 族见 §4.4；`\input` 族见 §4.7；`\expandafter`/`\csname`/`\endcsname`（`expand.py`）；`\noexpand` → 下一 token 打 `xprotect`；`\ifundefined`/含 `@` 变体（界标夹心同 `\if`）；`\romannumeral`（≤3999，超界回吐本体）；`\uppercase`/`\lowercase`；`\par` → `eol_par` token；`if*` → `_do_if`；`\else`/`\or`/`\fi` 散件与 `endcsname` → 直交分段器作界标。
 
-`\noexpand`、`\expandafter` 等读的是「下一个 raw token」——`read()`/`unread()` 的 trace 账本（`args.py` 读取器把已消费 token 记 `_trace`，`ArgMismatch` 时整体回放）保证控制流可回滚。
+`\noexpand`、`\expandafter` 等读的是「下一个 raw token」——`read()`/`unread()` 的 trace 账本（`gullet/input.py` 读取器把已消费 token 记 `_trace`，`ArgMismatch` 时整体回放）保证控制流可回滚。
 
 ### 4.6 consumed 界标
 
@@ -141,7 +141,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 5.2 分派表
 
-`_dispatch` 按 `_DISPATCH_FAMS` 22 行序判（`mainloop.py`，绑定单源 `_FAM_BIND`；各族名集常量单源 `tables.py`——`CITE_NAMES`/`PROTECT_NAMES`/`CHUNK_ARG_NAMES`/`VERBATIM_ENVS` 等）：
+`_dispatch` 按 `_DISPATCH_FAMS` 22 行序判（`mainloop.py`，绑定单源 `_FAM_BIND`；各族名集常量单源 `tables/names.py`——`CITE_NAMES`/`PROTECT_NAMES`/`CHUNK_ARG_NAMES`/`VERBATIM_ENVS` 等）：
 
 | 序    | 族               | 行为                                                                                                                     |
 | ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -179,7 +179,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 5.5 chunk-arg 与子扫描
 
-`_handle_chunk_arg`（`args.py`）：`*`? + `CHUNK_ARG_SPEC` 位序头参经 `_args_tok` 拉出，可译位（`tidx` 指定槽）内容 token 喂 `_ListSource` 子扫（`spawn(in_arg=True)`）得渲染串 `_subscan_render`——`_split_rendered` 二次切分（`_pick_cut` 优先级：占位符尾 > `\n\n` > 句读 > 硬切），逐段 `_new_chunk` + `CHUNK_REF` piece。`in_arg` 内嵌套 chunk-arg 内联化并入父 run。可译槽缺席/空参/单 token 参/`gen` 触底 → 全参回放 + 名逐字（`_preamble_chunk_arg` 同判但 bail 一律 `_cover_to`，preamble 档永不中途冲刷）。
+`_handle_chunk_arg`（`segmenter/args/chunk.py`）：`*`? + `CHUNK_ARG_SPEC` 位序头参经 `_args_tok` 拉出，可译位（`tidx` 指定槽）内容 token 喂 `_ListSource` 子扫（`spawn(in_arg=True)`）得渲染串 `_subscan_render`——`_split_rendered` 二次切分（`_pick_cut` 优先级：占位符尾 > `\n\n` > 句读 > 硬切），逐段 `_new_chunk` + `CHUNK_REF` piece。`in_arg` 内嵌套 chunk-arg 内联化并入父 run。可译槽缺席/空参/单 token 参/`gen` 触底 → 全参回放 + 名逐字（`_preamble_chunk_arg` 同判但 bail 一律 `_cover_to`，preamble 档永不中途冲刷）。
 
 `_emit_argspec_chunks` 是其多参推广：argspec `chunk-arg` policy 命令按参序交替发「字面段 → 子扫 chunk」，单 token 文本参起截停回吐；无文本参但有消费 → 整调用 `[[CMD]]`。
 
@@ -210,7 +210,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 5.9 未知命令链与 argspec
 
-`_handle_unknown_cs`（`args.py`）五段链：
+`_handle_unknown_cs`（`segmenter/args/handlers.py`）五段链：
 
 1. **尾参扫**：`DIMEN_TAIL_KIND`/通用 `=ATOM` 赋值扫（`_tail_scan_end`）命中 → `[[CMD]]` 整调用（裸 `3pt`/`to\hsize` 操作数不落译文面）。
 2. **keyarg**：宏表命中未展开（xprotect/gen-cap/bail）时 `_keyarg_tail` 解宏体尾 cs（`\def\r{\ref}` 形，别名链深 ≤4）→ 命中 cite/ref/PROTECT 族按该族 protect 调用；参缺席 → cs-only 保护 + `keyarg_unbound`。
@@ -264,13 +264,13 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ## 8. splice 重建与译文修正
 
-`reconstruct.py::reconstruct(res, translations=None)`：`None` → identity（逐字节 = 原文，硬验收）；否则 `{chunk_id: 译文}` 预处理（`_restore_linestarts` 行首 `\cs` 归位 → `unicode_math_fix` 游离数学字符包 `$..$` → `LATIN_ITEM_RX` `\item大写` 融合保险丝）后经 `expand`/`expand_body` DAG 递归展开：token 优先级 `trans → ph_map → chunks[content]`，memo 化 O(总规模)，活动集防译文侧自指环；查无实体且非 `ph_reserved` → 留字面记 dangling。短参 chunk（`context` 非 `para`/`item`）展开后 `\n\n` 压单 `\n`（`PAR_RUN_RX`——`\caption` 等非 `\long` 参内 runaway 防线）。`seg_join` 接缝守卫（`\cs` 尾 + 字母头插空格）在段级与总段级两级生效，仅译文路径启用。译文存在时再跑 `cjk_glue_fix`（`\cmd这是` → 插空格）与 `cjk_punct_close_guard`（CJK 标点后贴 `\end{`/`\)`/`\]` → 插 `{}` 断 xeCJK CheckFullRight 前瞻链），均取 `mask_tex` 视图命中、逆序回放。
+`reconstruct/core.py::reconstruct(res, translations=None)`：`None` → identity（逐字节 = 原文，硬验收）；否则 `{chunk_id: 译文}` 预处理（`_restore_linestarts` 行首 `\cs` 归位 → `unicode_math_fix` 游离数学字符包 `$..$` → `LATIN_ITEM_RX` `\item大写` 融合保险丝）后经 `expand`/`expand_body` DAG 递归展开：token 优先级 `trans → ph_map → chunks[content]`，memo 化 O(总规模)，活动集防译文侧自指环；查无实体且非 `ph_reserved` → 留字面记 dangling。短参 chunk（`context` 非 `para`/`item`）展开后 `\n\n` 压单 `\n`（`PAR_RUN_RX`——`\caption` 等非 `\long` 参内 runaway 防线）。`seg_join` 接缝守卫（`\cs` 尾 + 字母头插空格）在段级与总段级两级生效，仅译文路径启用。译文存在时再跑 `cjk_glue_fix`（`\cmd这是` → 插空格）与 `cjk_punct_close_guard`（CJK 标点后贴 `\end{`/`\)`/`\]` → 插 `{}` 断 xeCJK CheckFullRight 前瞻链），均取 `mask_tex` 视图命中、逆序回放。
 
 ## 9. 校验
 
-层内两件（`reconstruct.py`）：`validate_result(res)` 结构校验——pieces 平铺（`pieces_gap`）、protected_tex→ph/chunk 递归可达性（`dangling_ph`/`dangling_chunk_ref`/`orphan_chunk`/`dead_ph`，`ph_reserved` 字面豁免）；`validate_translation(chunk, text)` 译文契约——`chunk.placeholders` 多重集逐枚在译文出现（`missing`/`extra` 差集）。
+层内两件（`reconstruct/validate.py`）：`validate_result(res)` 结构校验——pieces 平铺（`pieces_gap`）、protected_tex→ph/chunk 递归可达性（`dangling_ph`/`dangling_chunk_ref`/`orphan_chunk`/`dead_ph`，`ph_reserved` 字面豁免）；`validate_translation(chunk, text)` 译文契约——`chunk.placeholders` 多重集逐枚在译文出现（`missing`/`extra` 差集）。
 
-层外契约：L0 规则校验 `validate/l0.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^validator]；完整规则表见 `spec/validate.md`。
+层外契约：L0 规则校验 `validate/l0/main.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^validator]；完整规则表见 `spec/validate.md`。
 
 ## 10. 限制清单
 

@@ -126,7 +126,7 @@ bytes[0:4] == "%PDF"            → PDF 直投（无源码 → 降级链 L3）
 ```
 source_tier  = arxiv_id @ resolved_version                      # 本层产物，跨请求/跨语言共享
 product_tier = sha256(arxiv_id@ver | model | pipeline_version |
-                      target_lang [| src=…] [| fm=…] [| k=…])   # server/worker/_common.py::cache_key_for
+                      target_lang [| src=…] [| fm=…] [| k=…])   # server/worker/_common/segcache.py::cache_key_for
 ```
 
 - product tier 由服务端 `cache_key_for` 生成：`pipeline_version` 含包版本与 prompt 模板版本；可选段区分取源渠道（eprint/html）、front-matter 实跑集与 BYOK 分桶。段级复用另有 `SegmentCache`（`translation_cache` 表，`{cfg_hash}:{seg_key}` 键——cfg_hash 含模型/方言/prompt 配置，seg_key 含 src_text+kind+masked 快照）。

@@ -4,7 +4,7 @@ TeXlate 把 arXiv LaTeX 源码经 LLM 段落级翻译重编译为中文 PDF，�
 
 ## 1. 端到端管线
 
-一条管线脊椎（`pipecore.py`）承载三种部署形态（§4）；worker 与 e2e 两臂消费同一组 `*_job`/`*_run` 函数，无双份实现。
+一条管线脊椎（`pipecore/`）承载三种部署形态（§4）；worker 与 e2e 两臂消费同一组 `*_job`/`*_run` 函数，无双份实现。
 
 ```
 取源                    解析                        翻译                 编译出件
@@ -29,19 +29,19 @@ acquire_source ──► route_project(引擎路由) ──► XlatPipeline     
 
 ### 2.2 路由与规范化（`compile/`）
 
-`route_project`（`compile/engine/_route.py`）在编译前静态决策引擎序[^engine-matrix]：EPS/pstricks 硬墙 → xelatex 优先；minted frozencache → tectonic 优先；`\documentstyle` 降 `latex209_suspect` 标记（试编不定死，fixloop gate 兜底）；产物 `RouteDecision(engines, reasons, non_utf8, latex209_suspect)`。`find_main_tex`/`classify_no_main`（`compile/mainfile.py`、`compile/inject.py`）定位主文件；`normalize_project`（`compile/normalize.py`）做引擎前工程规整（aux/bib 转码、宏件归位等）。
+`route_project`（`compile/engine/_route.py`）在编译前静态决策引擎序[^engine-matrix]：EPS/pstricks 硬墙 → xelatex 优先；minted frozencache → tectonic 优先；`\documentstyle` 降 `latex209_suspect` 标记（试编不定死，fixloop gate 兜底）；产物 `RouteDecision(engines, reasons, non_utf8, latex209_suspect)`。`find_main_tex`/`classify_no_main`（`compile/mainfile.py`、`compile/inject.py`）定位主文件；`normalize_project`（`compile/normalize/main.py`）做引擎前工程规整（aux/bib 转码、宏件归位等）。
 
 ### 2.3 半解析（`latex/`）
 
-唯一解析路径 = v2 token 流：`gullet/`（宏展开嘴）+ `segmenter/`（块切分），入口 `latex/api.py::parse_tex`/`parse_file`/`scan_tex_tree`[^seg-integration]。产出 `ScanResult`：`chunks[]`（可译块，byte span + content + context）、`ph_map`（占位符↔原片段）、`inputs[]`（`\input` 解析记录）。`scan_tex_tree` 四级分流：dotfile 跳过 → `.rtx.tex` 跳过 → `.code.tex` 记 support → 解析崩记 fault → 无散文记 support → 余者 parsed——单文件崩不拖全树。`\input` 展平由 gullet 在 `flatten=True` 时内联；占位符件 `placeholder.py` 管 `[[TYPE_n]]` 令牌。回写面 `reconstruct.py`：identity 校验 + splice + `cjk_glue_fix`/`cjk_punct_close_guard`/`unicode_math_fix` 等译后修整。
+唯一解析路径 = v2 token 流：`gullet/`（宏展开嘴）+ `segmenter/`（块切分），入口 `latex/api.py::parse_tex`/`parse_file`/`scan_tex_tree`[^seg-integration]。产出 `ScanResult`：`chunks[]`（可译块，byte span + content + context）、`ph_map`（占位符↔原片段）、`inputs[]`（`\input` 解析记录）。`scan_tex_tree` 四级分流：dotfile 跳过 → `.rtx.tex` 跳过 → `.code.tex` 记 support → 解析崩记 fault → 无散文记 support → 余者 parsed——单文件崩不拖全树。`\input` 展平由 gullet 在 `flatten=True` 时内联；占位符件 `placeholder.py` 管 `[[TYPE_n]]` 令牌。回写面 `reconstruct/`：identity 校验 + splice + `cjk_glue_fix`/`cjk_punct_close_guard`/`unicode_math_fix` 等译后修整。
 
 ### 2.4 翻译（`xlat/`）
 
-`XlatPipeline`（`xlat/pipeline.py`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 四层术语（user > paper-local > category > default；ph 名单行随 `<Glossary>` 末行另注）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/l0.py` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
+`XlatPipeline`（`xlat/pipeline/`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 四层术语（user > paper-local > category > default；ph 名单行随 `<Glossary>` 末行另注）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/l0/` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
 
 ### 2.5 编译与判定（`compile/`）
 
-splice（`latex/reconstruct.py`）把译文写回 `zh/` 树 → `prepare_chinese`（`compile/inject.py`：`CTEX_LINE`/`XECJK_BLOCK` 注入，拒则 `InjectRejectError` → `partial`+`reject_at=inject`，zh-src.zip 先行落盘）→ `engine.compile`（`compile/engine/`：`Engine` 协议 + xelatex/tectonic 两实现，`engine_for` 构造；caps/sandbox/proc 圈资源界）→ `judge`（`compile/judge.py`：`Verdict` clean/partial/fail，`expect_cjk` 门=chunks≠0 要求 CJK 字形）。产物对账 `target_probe`/`deps_diff`（`compile/probe.py`），编译日志解析 `texlog.py`/`compile/logparse.py`/`loginfo.py`。
+splice（`latex/reconstruct/`）把译文写回 `zh/` 树 → `prepare_chinese`（`compile/inject.py`：`CTEX_LINE`/`XECJK_BLOCK` 注入，拒则 `InjectRejectError` → `partial`+`reject_at=inject`，zh-src.zip 先行落盘）→ `engine.compile`（`compile/engine/`：`Engine` 协议 + xelatex/tectonic 两实现，`engine_for` 构造；caps/sandbox/proc 圈资源界）→ `judge`（`compile/judge.py`：`Verdict` clean/partial/fail，`expect_cjk` 门=chunks≠0 要求 CJK 字形）。产物对账 `target_probe`/`deps_diff`（`compile/probe.py`），编译日志解析 `texlog.py`/`compile/logparse.py`/`loginfo.py`。
 
 ### 2.6 修复链（`pipecore` + `repair*.py` + `compile/fixloop/`）
 
@@ -49,7 +49,7 @@ splice（`latex/reconstruct.py`）把译文写回 `zh/` 树 → `prepare_chinese
 
 1. **precheck**（`precheck_job`/`repair.py`）：编译前环境级修复（缺包探测补装、209 预处理等）。
 2. **L2 修复**（`l2_repair_job`/`repair_l2.py`）：日志归因到 chunk/环境 → 回灌译文重 splice 重编（归因簇 + env judge）。
-3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine.py`/`actions.py`/`ruleset.py` 三件套 + `builtins` 十二叶 facade + `cases`/`ctan`/`logparse`/`_yamlish` 支撑 + `llm_hook`），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
+3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine/`/`actions/`/`ruleset/` 三子包 + `builtins/` 16 顶层叶与六内嵌子包 + `cases`/`llm_hook` 支撑；`ctan`/`logparse`/`_yamlish` 已上提 `compile/` 层），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
 
 修复走尽仍 fail → `fault`/`fixloop_exhausted`；成功出 PDF 后经 `repair.py::embed_tounicode_quiet` + `compile/cjkmap.py`（GB1 cmap 资产 `compile/cmaps/`）嵌 ToUnicode 层，保证复制/搜索可用。
 
@@ -62,21 +62,21 @@ splice（`latex/reconstruct.py`）把译文写回 `zh/` 树 → `prepare_chinese
 ```
 texlate/
   arxiv/      获取层：fetch/ratelimit/sniff/unpack/cache/locate/meta/html（spec/arxiv-source.md）
-  latex/      半解析：api/model/reconstruct/placeholder/prose/tables/flatten/macro_table
-              + gullet/ 展开机 + segmenter/ 块切分（唯一解析路径）
-  xlat/       翻译编排：pipeline/client/batch/prompts/glossary/autogloss/state/retry/
+  latex/      半解析：api/model/placeholder/prose/flatten/macro_table/chars
+              + reconstruct/ 回写 + tables/ 表格 + gullet/ 展开机 + segmenter/ 块切分（唯一解析路径）
+  xlat/       翻译编排：pipeline/ client/batch/prompts/glossary/autogloss/state/retry/
               placeholders/mock + terms/ 术语表资产
-  validate/   校验三层：l0 规则 / l1 tree-sitter / l2 日志 + report.aggregate
-  compile/    编译面：engine/(route+xelatex+tectonic) inject normalize probe judge
+  validate/   校验三层：l0/ 规则 / l1 tree-sitter / l2 日志 + report.aggregate
+  compile/    编译面：engine/(_route+_tectonic+_xelatex/) inject normalize/ probe judge
               fixloop/ cjkmap mask toolchain sandbox deps ctan loginfo logparse
-              latex209 layout mainfile proc seams shadow transcode + cmaps/ 资产
+              latex209/ layout mainfile proc seams shadow transcode + cmaps/ 资产
   server/     Web 后端：app/settings/auth/store/events/upload/babeldoc/staticfiles/
               providers/http/logredact + routers/ + worker/（管线执行器）
   cli/        typer 命令面：fetch/parse/run/web/export/share/tools/version/doctor
   export/     EPUB/DOCX 双语出件
   textutil/   编码/文本/正则/env 单源件（cjk/decls/encoding/mask/cite/ifscan/nets/osutil）
   chunk.py    ChunkIn 数据契约（顶层——arxiv 层不许上向 import，契约只能居根）
-  pipecore.py 管线政策脊椎：状态映射/扫描/翻译/编译判定/修复三段/RepairPolicy/ReportSink
+  pipecore/   管线政策脊椎：状态映射/扫描/翻译/编译判定/修复三段/RepairPolicy/ReportSink
   e2e.py      本地编排：pipeline_run/pipe_condition/base_condition（CLI run 与 bench 共用）
   align.py    双语锚点对齐     share.py   分享包构建/消费     redlines.py 红线注册表
   repair.py   修复低层件      repair_l2.py L2 归因簇         texlog.py  日志 file-stack
@@ -84,7 +84,7 @@ texlate/
 web/          SolidJS+Vite+pdfslick 阅读器前端（独立 toolchain）
 ```
 
-边界纪律：`arxiv/` 不 import 上层（`ChunkIn` 因此居 `chunk.py` 顶层）；`pipecore.py` 是 e2e 与 worker 的公共脊椎，管线语义改动先落这里；`server/worker/seams.py` 是 worker 唯一 monkeypatch 面；`textutil/` 承载跨层正则与 `TEXLATE_*` env 名单源；babeldoc 只经子进程边界调用（AGPL 隔离，`server/babeldoc.py`）。
+边界纪律：`arxiv/` 不 import 上层（`ChunkIn` 因此居 `chunk.py` 顶层）；`pipecore/` 是 e2e 与 worker 的公共脊椎，管线语义改动先落这里；`server/worker/seams.py` 是 worker 唯一 monkeypatch 面；`textutil/` 承载跨层正则与 `TEXLATE_*` env 名单源；babeldoc 只经子进程边界调用（AGPL 隔离，`server/babeldoc.py`）。
 
 ## 4. 部署形态
 
@@ -108,12 +108,12 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 - **source tier**：`SourceCache` `{id}v{ver}` 钉版目录（`spec/arxiv-source.md` §4）。
 - **task tier**：`cache_key_for(arxiv_id@ver|model|pipeline_version|lang[|src=][|fm=][|k=])` 任务级 dedup——只复用 `done` 行产物（partial 不克隆，防毒传播）；latest-alias 任务定版后 `_post_resolve_reuse` 补查钉版键并 re-key。idempotency_key 单列唯一索引防重复入队。
 - **segment tier**：`SegmentCache` 读写 `translation_cache` 表 `{cfg_hash}:{seg_key}`——跨任务/跨文献段级复用[^shared-cache]。
-- **哨兵幂等**：`.fetch-done`/`.base-done`/`.splice-done`/`.compile-done` 四个盘哨兵实现段级幂等与 resume 快进；译文变更摘 `.splice-done` 逼重 splice（`worker/translate.py::_invalidate_splice`）。
+- **哨兵幂等**：`.fetch-done`/`.base-done`/`.splice-done`/`.compile-done` 四个盘哨兵实现段级幂等与 resume 快进；译文变更摘 `.splice-done` 逼重 splice（`worker/translate/stage.py::_invalidate_splice`）。
 - **xlat 断点**：`xlat/state.py` 原子 `state.json` 记批级进度，重跑跳过已交付块。
 
 ### 5.3 产物面与事件
 
-`files` 表登记任务产物，`KIND_URL`（`worker/_common.py`）映射下载 URL：`src.tar/en.pdf/zh.pdf/dual.pdf/dual.json/zh-src.zip/compile.log/md/zh.docx/zh.epub/src.html/en.html/zh.html/share.zip`。`task_events` 承载 stage/progress/chunk 实况与 done 终帧（warnings 截 200 条）；`snapshot` 供迟到客户端一次性还原。`PROGRESS` 表（`worker/_common.py`）是各段进度百分比的单源。
+`files` 表登记任务产物，`KIND_URL`（`worker/_common/const.py`）映射下载 URL：`src.tar/en.pdf/zh.pdf/dual.pdf/dual.json/zh-src.zip/compile.log/md/zh.docx/zh.epub/src.html/en.html/zh.html/share.zip`。`task_events` 承载 stage/progress/chunk 实况与 done 终帧（warnings 截 200 条）；`snapshot` 供迟到客户端一次性还原。`PROGRESS` 表（`worker/_common/const.py`）是各段进度百分比的单源。
 
 ## 6. 横切面
 
