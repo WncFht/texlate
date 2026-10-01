@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from texlate.compile.fixloop.ruleset import RulesetError, load_ruleset
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
@@ -66,106 +67,146 @@ L2_MAX_CHUNKS = 10
 _L2_ATTR_WINDOW = 4000
 #: L2 单次回灌最多消费的 log 错误条数
 _L2_MAX_ERRORS = 50
-#: 基建类错误签名——head+ctx 窗匹配（fixloop taxonomy ``scope:head``
-#: 同口径；签名内空格一律 ``\s+``——79 列折行能把短语切进 ctx 行）。
-#: 收录判据「译文内容是否可能造成该类错」：肇事者是环境/装载期
-#: 机关/工具链/收束签名（缺 .sty/字体/图片、引擎能力墙、包版本与
-#: 装载序机关、aux 回读劈断、Emergency 收束）而非译文内容——重译
-#: 造不出文件/选项/字体，归因只会白烧重译额度并把无辜块回退成原文
-#: （algpseudocodex 未装实证：main.tex 4 块 file 级兜底全灭 →
-#: partial）。``Fatal error`` 收紧为 ``Fatal error occurred``——
-#: head+ctx 窗比 fixloop 首错行宽，裸签会误中正文复述行
-#: （"a fatal error in their proof" 类）。与 ``rules/10-taxonomy.yaml``
-#: 的 missing_file/missing_tfm/missing_pfb/xetexglyph_tfm/
-#: fontspec_missing/missing_graphic/ps_image/inputenc_unicode/latex209/
-#: pkg_obsolete/option_clash/babel_opt/babel_undef/hyperref_driver/
-#: float_opt/pkg_order/key_unknown/cannot_patch_macro/toolchain_skew/
-#: pkg_version_skew/expl3_backend/aux_scan_eof/emergency/minted_froz/
-#: hyphenation/illegal_unit/pream_token/invalid_in_math/pdftex_prim
-#: 各段同源——两侧改动须对照同步。不收：undefined_cs（主战场，
-#: already_def/env_* 见 ``_STRUCT_ERR_RX``）/runaway_scan/capacity/
-#: soul_err/undefined_color/invalid_char/syntax/other——译文可直接
-#: 造成（幻觉 \cs、括号失衡、soul 内容敏感、色名参槽污染、控制
-#: 字符）；early_eof/``No pages of output`` 是尾段收束行，会混进
-#: 其他错误的 ctx 窗，豁免反误伤真错，不收。
-_INFRA_ERR_RX = re.compile(
-    # —— 文件缺失（含 cls/sty 求档 plea 与交互缺件提示）——
-    r"File\s+`[^']+\.[a-zA-Z0-9]+'\s+not\s+found"
-    r"|I\s+can't\s+find\s+file\s+`[^']+'"
-    r"|Cannot\s+find\s+the\s+file\s+[\w@.+-]+\.[a-zA-Z0-9]+"
-    r"|Enter\s+file\s+name"
+#: 归因桶成员类别——桶归属由 ``rules/10-taxonomy.yaml`` 的类别 id 单源
+#: 裁决：桶 regex = 成员类别全部 head-scope arm 的 pattern 并集 + 扁平
+#: 语义补遗 ``_*_EXTRA``。taxonomy arm 增删自动汇流进桶——消灭旧
+#: python 侧手抄签名表的「两侧对照同步」契约。收录判据「译文内容能否
+#: 造成该类错」：
+#:
+#: - infra = 基建/资源缺——译文修不了，永不归块（重译造不出文件/选项/
+#:   字体，归因只会白烧重译额度并把无辜块回退成原文——algpseudocodex
+#:   未装实证 main.tex 4 块 file 级兜底全灭 → partial）。不收
+#:   runaway_scan/soul_err/undefined_color/invalid_char/syntax/other
+#:   ——译文可直接造成（幻觉 \cs、括号失衡、soul 内容敏感、色名污染、
+#:   控制字符）；early_eof 是尾段收束行，混进他错 ctx 窗时豁免反误伤
+#:   真错。旧侧 ``Fatal error occurred`` 收窄随单源化撤除——yaml
+#:   ``Fatal error`` 裸臂在 fixloop ``classify_head`` 同 head+ctx 窗
+#:   评估，归因口径与之对齐。
+#: - struct = 结构位签名——报错行恒在块外结构位（env 标签/定义点），
+#:   但译文可向块内注入字面 ``\begin{X}``/``\end{X}``/``\newcommand``
+#:   幻觉：只认报错行严格含块内，nearest/文件级兜底都禁（revtex4-2
+#:   abstract 仅 frontmatter 期 let-bound——兜底只会把错贴给邻近
+#:   无辜块）。
+#: - filelevel = 无行号错误的全块兜底白名单——只在「块内容确能致错」
+#:   的签名上开火（undefined_cs 幻觉 \cs 无定位行、capacity 爆栈可由
+#:   内容暴走）。其余无行号错误位置信息为零，全块归因只是扫射烧块
+#:   ——不归因，留 fixloop。
+_INFRA_CATS: frozenset[str] = frozenset(
+    {
+        "missing_file",
+        "fontspec_missing",
+        "missing_tfm",
+        "missing_pfb",
+        "xetexglyph_tfm",
+        "ps_image",
+        "missing_graphic",
+        "inputenc_unicode",
+        "latex209",
+        "pkg_obsolete",
+        "option_clash",
+        "babel_opt",
+        "babel_undef",
+        "hyperref_driver",
+        "float_opt",
+        "pkg_order",
+        "key_unknown",
+        "cannot_patch_macro",
+        "hyphenation",
+        "illegal_unit",
+        "pream_token",
+        "invalid_in_math",
+        "minted_froz",
+        "toolchain_skew",
+        "pkg_version_skew",
+        "expl3_backend",
+        "aux_scan_eof",
+        "emergency",
+    }
+)
+_STRUCT_CATS: frozenset[str] = frozenset(
+    {"env_undefined", "env_mismatch", "already_def"}
+)
+_FILELEVEL_CATS: frozenset[str] = frozenset({"undefined_cs", "capacity"})
+
+#: infra 扁平补遗——head-arm 并集覆盖不到的签名：tail-scope 措辞的扁平
+#: 借用（``Enter file name``/求档 plea/``please update`` 在分类器里挂
+#: ``guard``/``preempts`` 机关，归因闸只要「译文修不了」的平匹配）；
+#: 折行 ``not\nfound``（yaml 臂字面空格不吃换行——路径串把签名顶过
+#: 79 列是常态）；版本闸裸形（``Critical Package X Error: Your LaTeX
+#: release is too old`` 两窄臂各要 file-line 前缀/版本措辞皆不沾）；
+#: ``Illegal pream-token`` 无括号残形；ucs 头邻接 ``\pdf*`` 原语
+#: （subclassify 的 payload 等值闸比归因豁免严——桶侧保守宽收）。
+_INFRA_EXTRA = (
+    r"Enter\s+file\s+name"
     r"|please\s+update\s+your\s+system"
     r"|(?:download|install|get|need)\s+\S+\.(?:cls|sty|clo|tex|def|fd|map|cfg)"
-    # —— 字体/图片资源缺失 + 引擎能力墙 ——
-    r"|Font\s+\\?\S*?=?\s*[\w-]+\s+at\s+[0-9.]+pt\s+not\s+loadable"
-    r"|Metric\s+\(TFM\)\s+file"
-    r"|Cannot\s+proceed\s+without\s+\.vf|physical\s+font"
-    r"|Cannot\s+use\s+XeTeXglyph\s+with\s+\S+"
-    r"|font\s+[“\"][^”\"]+[”\"]\s+cannot\s+be\s+found"
-    r"|Unable\s+to\s+load\s+picture\s+or\s+PDF\s+file"
-    r"|image\s+inclusion\s+failed\s+for"
-    r"|PostScript\s+images\s+are\s+not\s+supported"
-    # —— 装载期/preamble 机关：选项表、装载序、源代际、包自检 ——
-    # （babel AtBeginDocument 钩/hyperref 驱动处理等常无 l.N 行号，
-    # 是文件级兜底误伤重灾区）
-    r"|inputenc\s+is\s+not\s+designed\s+for"
-    r"|\\documentstyle\b|LaTeX\s+2\.09\s+COMPATIBILITY\s+MODE"
-    r"|LaTeX2e\s+command[^\n]*\bin\s+LaTeX\s+2\.09|LaTeX\s+Version\s+2\.09"
-    r"|(?m:^[ \t]*Compatibility\s+mode)"
-    r"|Package\s+[`'][\w-]+'\s+is\s+obsolete"
-    r"|Option\s+clash\s+for\s+package"
-    r"|Package\s+babel\s+Error:\s+Unknown\s+(?:option|language)"
-    r"|You\s+haven't\s+defined\s+the\s+language"
-    r"|Wrong\s+(?:hyperref\s+driver|(?:DVI\s+mode\s+)?driver\s+option)"
-    r"|Unknown\s+float\s+option"
-    r"|Package\s+\w+\s+Error:\s+\w+\s+must\s+be\s+loaded\s+(?:before|after)"
-    r"|The\s+key\s+'[\w@./-]+'\s+is\s+unknown\s+and\s+is\s+being\s+ignored"
-    r"|Cannot\s+patch\s+(?:bibliography|citation)\s+macro"
-    r"|Not\s+a\s+letter"
-    r"|Illegal\s+unit\s+of\s+measure"
-    r"|Illegal\s+pream-token"
-    r"|frozencache|Cannot\s+highlight\s+code"
-    # —— 工具链/版本错配 + 后端请求 ——
-    r"|biblatex\s+control\s+file\s+version\s+[\d.]+,\s+expected\s+version\s+[\d.]+"
+    r"|File\s+`[^']+\.[a-zA-Z0-9_]+'\s+not\s+found"
     r"|(?:Package|Class)\s+[\w@*+-]+\s+Error[\s\S]{0,600}?too\s+old"
-    r"|Backend\s+request\s+inconsistent\s+with\s+engine"
-    # —— 源级正文机关：报错行可落块内但重译修不了 ——
-    # invalid_in_math 实证=natbib \@citex 未定义引用标记（gr-qc/9901082），
-    # 报错位在 thebibliography 正文块内——块内可归位的典型陷阱；
-    # pdftex_prim=undefined_cs 的 pdftex 原语子类（xelatex 能力墙）。
-    r"|LaTeX\s+Error:\s+Command\s+\\[a-zA-Z@]+\s+invalid\s+in\s+math\s+mode"
+    r"|Illegal\s+pream-token"
     r"|Undefined\s+control\s+sequence[^\n]*\n[^\n]*\\pdf[a-zA-Z@]+"
-    # —— aux 回读劈断（CJK 8192B 写缓冲实证——译文邻接但重译产同文
-    # 再劈，本质不可由重译修）+ 收束签名 ——
-    r"|File\s+ended\s+while\s+scanning\s+use\s+of\s+\\?@?(?:newl@?bel|writefile|contentsline)"
-    r"|Emergency\s+stop|cannot\s+\\read|Fatal\s+error\s+occurred|job\s+aborted"
 )
-#: 结构位签名——报错行恒在块外结构位（env 标签/定义点），但译文
-#: 可向块内注入字面 ``\begin{X}``/``\end{X}``/``\newcommand`` 幻觉。
-#: 此类只认「报错行严格落在某块内」的含位归因（nearest-fallback 与
-#: 文件级兜底都不许）：源级 cls/装载机关（revtex4-2 abstract 仅
-#: frontmatter 期 let-bound 实证）走兜底只会把错贴给邻近无辜块；
-#: 幻觉注入的报错行在块内，照常归因重译。与 taxonomy 的
-#: env_undefined/env_mismatch/already_def 同源——两侧改动须对照
-#: 同步。
-_STRUCT_ERR_RX = re.compile(
+#: struct 补遗 = 桶契约自留的宽空白/折行容差形（严格含位判的白名单，
+#: yaml 臂同签名但字面空格口径——桶侧保留原判容差）。
+_STRUCT_EXTRA = (
     r"Environment\s+[A-Za-z@*]+\s+undefined"
     r"|begin\{[^}]*\}[^\n]*ended\s+by|Extra\s+\\end"
     r"|Command\s+[`']?\\?[\w@]+'?\s+already\s+defined"
     r"|Theorem\s+style\s+[\w@]+\s+already\s+defined"
 )
-#: 无行号错误的文件级兜底白名单——全块归因只在「块内容确能致错」
-#: 的签名上开火：undefined_cs（译文幻觉 \cs 无定位行）、capacity
-#: （爆栈可由内容暴走）、runaway/scanning 族（译文括号失衡/字面
-#: \par）。其余无行号错误位置信息为零，全块归因只是扫射烧块
-#: （algpseudocodex 同型毒化面）——不归因，留 fixloop 处理。
-_FILELEVEL_ERR_RX = re.compile(
+#: filelevel 补遗 = runaway 族类目重映射（``Runaway argument``/
+#: ``Paragraph ended``/``Forbidden control sequence`` 在 yaml 归 syntax
+#: 词族，桶语义是「块内容能致错」白名单）+ 宽空白容差形。
+_FILELEVEL_EXTRA = (
     r"Undefined\s+control\s+sequence"
     r"|Command\s+[`']?\\[\w@]+'?\s+undefined"
     r"|TeX\s+capacity\s+exceeded"
     r"|Runaway\s+argument|Paragraph\s+ended\s+before"
     r"|Forbidden\s+control\s+sequence"
 )
+
+_BUCKETS: dict[str, tuple[frozenset[str], str]] = {
+    "infra": (_INFRA_CATS, _INFRA_EXTRA),
+    "struct": (_STRUCT_CATS, _STRUCT_EXTRA),
+    "filelevel": (_FILELEVEL_CATS, _FILELEVEL_EXTRA),
+}
+_BUCKET_RX_CACHE: dict[str, re.Pattern[str]] = {}
+#: arm pattern 行首裸全局旗（``(?m)`` 形）——并集内须收编成作用域组
+#: （``(?m:...)``），裸旗在 pattern 中位是 3.11+ 语法错，全局生效还会
+#: 改并集里其他臂的 ``^`` 语义。
+_ARM_FLAG_RX = re.compile(r"^\(\?([aiLmsux]+)\)")
+
+
+def _bucket_rx(name: str) -> re.Pattern[str]:
+    """桶 regex 惰性构建——ruleset 装载推迟到首个归因请求（import 期零 IO）。
+
+    桶 = 成员类别全部 head-scope arm 的 pattern 并集（``use_pre``/
+    ``use_post`` 臂的检索窗条件已编进 pattern 本体，扁平并集天然自门；
+    行首裸旗逐臂收编成作用域组）+ 扁平语义补遗 ``_*_EXTRA``。成员类别
+    在 taxonomy 缺席（改名/删除）即炸——单源契约的机器闸，不许静默
+    脱钩。
+    """
+    if name in _BUCKET_RX_CACHE:
+        return _BUCKET_RX_CACHE[name]
+    cats, extra = _BUCKETS[name]
+    tax = load_ruleset(tolerant=True).taxonomy
+    missing = cats - {e.get("id") for e, _ in tax.head}
+    if missing:
+        msg = f"L2 归因桶成员类别在 taxonomy 缺席: {sorted(missing)}"
+        raise RulesetError(msg)
+    scoped = [
+        f"(?{m.group(1)}:{p[m.end() :]})" if (m := _ARM_FLAG_RX.match(p)) else p
+        for e, _ in tax.head
+        if e.get("id") in cats
+        for p in (e["pattern"],)
+    ]
+    rx = re.compile(
+        "|".join(scoped) + f"|{extra}",
+        re.IGNORECASE,  # taxonomy head 臂同口径装载旗
+    )
+    _BUCKET_RX_CACHE[name] = rx
+    return rx
+
+
 #: ``Undefined control sequence`` 头签名——罪魁 cs 在 ctx 窗
 #: （``<recently read> \cs`` 优先，``l.N \cs`` 行首回退）。
 _UNDEF_CS_HEAD_RX = re.compile(r"Undefined control sequence")
@@ -416,7 +457,7 @@ class L2Attr:
         错误行行尾之后的块不可能是肇事者（repro-2501：preamble 错被
         forward-fallback 错归给首个正文块）。runaway/EOF 类报的父文件
         续行位由 ``attr_error`` 的 ``eof_file`` 改派兜住，不经此路。
-        ``nearest=False``（``_STRUCT_ERR_RX`` 签名类）关掉最近块兜底——
+        ``nearest=False``（struct 桶签名类）关掉最近块兜底——
         结构签名报错行恒在块外，兜底只会把错贴给邻近无辜块。
         """
         offs = self.line_off[fidx]
@@ -478,10 +519,10 @@ class L2Attr:
         blob = err.head + "\n" + "\n".join(err.ctx)
         # 基建/资源缺失错永不归译文块——修归 fixloop install/filemap/
         # toolchain 面；重译造不出 .sty/字体/图片，归了只会白烧块。
-        if _INFRA_ERR_RX.search(blob):
+        if _bucket_rx("infra").search(blob):
             return None
         # 结构位签名：只认报错行严格含于某块的归因——兜底会误伤邻近块
-        strict = _STRUCT_ERR_RX.search(blob) is not None
+        strict = _bucket_rx("struct").search(blob) is not None
         # runaway/EOF 错（eof_file 非 None）：报位是父文件 ``\input`` 续行，
         # 真肇事文件是 ``)`` 刚弹出的那个——行号属父文件须丢弃，归肇事
         # 文件整体（块多时任归 EOF 侧末块——runaway 的参数起点在文件尾）
@@ -515,7 +556,7 @@ class L2Attr:
             return (fidx, [sres.chunks[-1].id])
         # 无行号文件级错误：白名单签名才允许全块兜底——其余类位置
         # 信息为零，全块归因是扫射烧块，不归因留 fixloop。
-        if len(sres.chunks) <= L2_MAX_CHUNKS and _FILELEVEL_ERR_RX.search(blob):
+        if len(sres.chunks) <= L2_MAX_CHUNKS and _bucket_rx("filelevel").search(blob):
             return (fidx, [c.id for c in sres.chunks])
         return (fidx, [])
 
@@ -535,10 +576,10 @@ def _l2_localize(
     ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
     → 所在 chunk；不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``，且起点
     越过错误行行尾的块被顺序读取不变量排除）。豁免先于归因：
-    ``baseline_sigs`` 命中的 en 基线签名判源生不归块；``_INFRA_ERR_RX``
+    ``baseline_sigs`` 命中的 en 基线签名判源生不归块；infra 桶
     基建签名永不归块；undefined_cs 肇事 cs 在源 chunk 文本中同理豁免；
-    ``_STRUCT_ERR_RX`` 结构签名只认报错行严格含于块内（无最近块兜底/
-    文件级兜底）；无行号错误走 ``_FILELEVEL_ERR_RX`` 白名单才允许文件级
+    struct 桶结构签名只认报错行严格含于块内（无最近块兜底/
+    文件级兜底）；无行号错误走 filelevel 桶白名单才允许文件级
     全块归因（且 chunk 数 ≤ ``L2_MAX_CHUNKS``）。
     """
     verdict = _l2_parse(res)
