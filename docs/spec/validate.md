@@ -1,6 +1,6 @@
 # spec · 校验层
 
-> 范围：`validate/`（L0 规则 / L1 tree-sitter / L2 log 回灌 / 聚合报告）+ `redlines.py`（红线概念注册表）+ `repair_l2.py`（L2 归因 - 重译簇 / env judge）+ `repair.py`（修复衔接低层）+ scan 层内建校验指针。翻译编排归 `translate.md`；编译引擎与 fixloop 归 `compile.md`；chunk 产出与层内校验规则语义归 `latex-pipeline.md`。
+> 范围：`validate/`（L0 规则 / L1 tree-sitter / L2 log 回灌 / 聚合报告）+ `redlines.py`（红线概念注册表）+ `repair_l2/`（L2 归因 - 重译簇 / env judge）+ `repair.py`（修复衔接低层）+ scan 层内建校验指针。翻译编排归 `translate.md`；编译引擎与 fixloop 归 `compile.md`；chunk 产出与层内校验规则语义归 `latex-pipeline.md`。
 > 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据引 `research/` 档。
 
 ## 0. 总则
@@ -88,7 +88,7 @@ chunk 产出层自带两件校验器（`latex/reconstruct/validate.py`），属�
 | `perpage_fnsymbol_firstpass` | —                 | —                                  | —                                                     | —                          | concept_only 锚点：perpage+fnsymbol 首遍计数器溢出（warm aux 次遍自愈），判据在 .aux 新鲜度        |
 | `latex209_class_absent`      | —                 | —                                  | —                                                     | —                          | concept_only 锚点：`\documentstyle` 类缺席类表属能力边界正确 reject，判据在类表核对                |
 
-## 6. L2 归因 - 重译簇（`repair_l2.py`）
+## 6. L2 归因 - 重译簇（`repair_l2/`）
 
 编译不过时把 log 错误定位回 chunk 点名重译：`L2Attr.attribute`（tex_line→offset→chunk）、`_l2_localize`→hits、`retranslate_hits`（每块限 1 次：ok→adopt，否则 revert→原文）、`_resplice` 重建 + `prepare_chinese` 再注入。
 

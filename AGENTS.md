@@ -14,7 +14,7 @@
     - `compile/fixloop/` — yaml 修复引擎：`engine/`（五叶 + `run/` 孙包三叶）/`actions/`/`ruleset/` 子包（各四叶）+ cases + llm_hook；规则库 = `rules/` 17 分片 + `builtins/` 子包（顶层 16 叶 + misschar/csfix/gfx_missing 各九叶、common/layoutfix/slotrev 十/七/五叶）+ `vendor/` 离线宏包资产
     - `server/` — FastAPI+SSE+SQLite+BYOK + babeldoc sidecar + SPA staticfiles + upload 安全解包：`routers/`/`store/`/`worker/` 三包（worker 内 `compile/`/`translate/`/`_common/` 三子包七/六/八叶）+ `seqpos/` PDF 锚位子包四叶 + app/settings/auth/providers/srccut/validate/http/logredact/upload/events/staticfiles/babeldoc/bibexport/`_common`/`_ttlcache`/`__main__` 域件
     - `export/` — EPUB/DOCX 双语插译（`epub/` 子包八叶 + docx/common/filters/markers/rights 平铺件）
-    - `pipecore/` — e2e/worker/bench 三臂共享管线 policy 脊（子包八叶）+ `repair.py`/`repair_l2.py`（修复机械低层件 + L2 回灌/env judge 归因簇）
+    - `pipecore/` — e2e/worker/bench 三臂共享管线 policy 脊（子包八叶）+ `repair.py`/`repair_l2/`（修复机械低层件 + L2 回灌/env judge 归因子包四叶）
     - 其余 — `cli/`（typer 包：命令叶 fetch/parse/run/web/export/share/tools/version/doctor + `thin` 瘦客户端 + `_common`/`_output` 底座）、`textutil/`（编码/文本工具子包十叶：cite/cjk/decls/encoding/ifscan/jsonl/mask/nets/osutil/targate，`TEXLATE_*` env/正则词表单源）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`chunk.py`（xlat 输入契约共享位）、`redlines.py`（红线注册表）、`texlog.py`（编译日志 file stack）、`logsetup.py`（日志装配单源：RichHandler stderr + RedactFilter 脱敏 + 轮转文件；`TEXLATE_LOG`/`TEXLATE_LOG_FILE` env）、`share.py`（共享包 + `cache_key_for`/`cache_scope`/`PIPELINE_VERSION` dedup 键单源）
 - `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest/build）
 - `zotero/` — Zotero 7 插件（TypeScript 瘦客户端：条目右键 → 远端 texlate 翻译 → `zh.pdf` 回挂附件；独立 package.json/tsconfig/eslint.config.mjs）

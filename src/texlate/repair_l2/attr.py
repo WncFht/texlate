@@ -1,65 +1,41 @@
-"""L2 回灌 / env judge 簇——自 ``repair`` 拆出的编译失败归因修复机械。
+"""repair_l2.attr — L2 错误归因叶 (repair_l2 拆分叶).
 
-C4 拆分（reaudit-2026-09-18）：``repair.py`` 收敛为 fixloop 包装/跨引擎
-重试/glossary confine 纯低层件，本模块承载 L2 阶梯全实现——
-``TreeRun``/``split_cid`` 运行态、env judge 可译性判定
-（``_env_judge_one``/``env_judge_all`` + 目标谓词 ``unknown_env_of``）、
-L2 回灌机械（``_l2_parse``/``chunk_spans``/``_resolve_fidx``/``L2Attr``/
-``_l2_localize``/``retranslate_hits``/``_resplice_and_diffs``/
-``l2_repair_round``）与配套开关/上限常量。
+错误签名簇（``err_signature``/``err_signatures``/``err_signatures_text`` +
+``_sig_*``/``_undef_cs_culprit`` 内部件）、log 解析入口 ``_l2_parse``、
+chunk 落盘区间 ``chunk_spans``、文件名 token 解算 ``_resolve_fidx``、
+归因底账 ``L2Attr``（逐文件 文本/行偏移/chunk 区间三表 + ``attr_error``
+归因阶梯）与顶面 ``_l2_localize``。
 
-``repair`` 门面按全仓实测消费回引公共名——私名消费请从本模块直取
-（B12 口径，不批发回引）。
+归因桶（infra/struct/filelevel）成员类别由 ``rules/10-taxonomy.yaml``
+的类别 id 单源裁决——``_bucket_rx`` 惰性构建 arm pattern 并集 + 扁平
+语义补遗 ``_*_EXTRA``。
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
-from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING
 
 from texlate.compile.fixloop.ruleset import RulesetError, load_ruleset
-from texlate.compile.inject import InjectRejectError, prepare_chinese
-from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
     SEQ_MARK_RX,
     _Expander,
-    reconstruct,
-    seq_mark_issues,
-    strip_seq_marks,
     translation_tokens,
 )
-from texlate.latex.tables import (
-    ARG_TRANSPARENT_ENVS,
-    MATH_ENVS,
-    PROTECTED_ENVS,
-    VERBATIM_ENVS,
-)
 from texlate.texlog import log_text_of
-from texlate.textutil import env_flag
-from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
-    ENV_ENV_JUDGE,
-    ENV_NO_L2,
-    ENV_NO_SEQ_MARKS,
-)
 from texlate.validate import l2 as l2_mod
-from texlate.xlat import prompts as xlat_prompts
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from typing import Any
 
     from texlate.compile.engine import CompRes
-    from texlate.compile.judge import Verdict
-    from texlate.latex.model import Chunk, ScanResult
-    from texlate.xlat.pipeline import ChunkIn, XlatPipeline
+    from texlate.latex.model import ScanResult
+    from texlate.repair_l2.runstate import TreeRun
 
 log = logging.getLogger(__name__)
-
-_T = TypeVar("_T")
 
 #: L2 回灌默认每文档重译上限（spec ≤10，参数化入口 ``l2_max_chunks``）
 L2_MAX_CHUNKS = 10
@@ -266,99 +242,6 @@ def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> s
     if not log_text:
         return set()
     return _sig_set(l2_mod.parse_log_text(log_text, project_root=project_root))
-
-
-#: env judge 输入截断（长 env 体只喂前 N 字符）
-_ENV_JUDGE_MAX_CHARS = 2000
-#: 环境开关名（``ENV_NO_L2``/``ENV_ENV_JUDGE``）本体注册在
-#: ``textutil.osutil``——本模块同名回引保 ``repair_l2.ENV_*`` 钉点面
-
-#: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
-_KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
-
-# ---------------------------------------------------------------- 运行态/env judge
-
-
-@dataclass
-class TreeRun:
-    """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。
-
-    ``loop`` = 翻译期 ephemeral loop：``pipe`` 的 httpx client 池钉死在
-    首个消费 loop 上，拆多次 ``asyncio.run`` 会让 env_judge/L2 重译臂
-    在死 loop 绑定的连接上跑（foreign-loop RuntimeError）。生命周期
-    令牌与 ``baseline_snapshot`` td 同款——调用方持有到修复链收敛，
-    收尾 ``close_loop()``；手工构造/worker 旁路臂留 ``None``，
-    ``drive`` 退回逐次 ``asyncio.run``。
-    """
-
-    scans: list[tuple[Path, ScanResult]]
-    trans: dict[int, dict[int, str]]  # fidx → {chunk.id: 译文}
-    chunk_ins: dict[str, ChunkIn]  # "fidx:cid" → ChunkIn（带 ph_fragments）
-    pipe: XlatPipeline
-    loop: asyncio.AbstractEventLoop | None = field(default=None, repr=False)
-
-    def drive(self, coro: Coroutine[Any, Any, _T]) -> _T:
-        """在翻译期 loop 上跑协程——缺席（手工构造 run）退回 ``asyncio.run``。"""
-        if self.loop is None:
-            return asyncio.run(coro)
-        return self.loop.run_until_complete(coro)
-
-    def close_loop(self) -> None:
-        """关翻译期 loop——pipe 条件收尾调用（幂等）。"""
-        if self.loop is not None:
-            self.loop.close()
-            self.loop = None
-
-
-def split_cid(chunk_id: str) -> tuple[int, int]:
-    """``"fidx:cid"`` → (fidx, cid)."""
-    a, _, b = chunk_id.partition(":")
-    return int(a), int(b)
-
-
-def unknown_env_of(chunk: Chunk) -> str | None:
-    """静态表外 env 名——体可译性未定的 env 返名，已知/无 env 返 None。
-
-    ``env_judge_all`` 目标选择谓词（e2e ``_env_judge_pass`` 与 worker
-    ``_env_judge_filter`` 同一闸）。
-    """
-    env_name = (chunk.env or "").strip()
-    return env_name if env_name and env_name not in _KNOWN_ENVS else None
-
-
-async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> bool:
-    """单 env 可译性判定（docs/spec/translate.md）：0 温/16 tok/3 试/解析失败 fail-open。"""
-    system = xlat_prompts.env_judge_system_prompt(pipe.cfg.src_lang, pipe.cfg.tgt_lang)
-    user = (
-        f"\\begin{{{env_name}}}\n"
-        f"{chunk.content[:_ENV_JUDGE_MAX_CHARS]}\n\\end{{{env_name}}}"
-    )
-    for _ in range(xlat_prompts.ENV_JUDGE_RETRIES):
-        try:
-            raw = await pipe.translator.translate(
-                system=system,
-                user=user,
-                temperature=xlat_prompts.ENV_JUDGE_TEMPERATURE,
-                max_tokens=xlat_prompts.ENV_JUDGE_MAX_TOKENS,
-            )
-            return xlat_prompts.parse_env_judge_answer(raw)
-        except Exception as e:  # noqa: BLE001 -- judge 是旁路臂，异常→宁翻勿漏
-            log.debug("env judge call failed (%s) → retry", e)
-            continue
-    return True
-
-
-async def env_judge_all(
-    pipe: XlatPipeline, targets: list[tuple[str, Chunk, str]]
-) -> dict[str, bool]:
-    """逐条判定未知 env 块（顺序跑——mock/单文件路径，量小）。"""
-    out: dict[str, bool] = {}
-    for cid, chunk, env_name in targets:
-        out[cid] = await _env_judge_one(pipe, chunk, env_name)
-    return out
-
-
-# ---------------------------------------------------------------- L2 回灌
 
 
 def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
@@ -601,217 +484,3 @@ def _l2_localize(
                 rel = run.scans[fidx][0].relative_to(work).as_posix()
                 hits[key] = {"file": rel, "line": err.tex_line, "head": err.head}
     return hits, verdict.n_errors
-
-
-async def retranslate_hits(
-    run: TreeRun, hits: dict[str, dict[str, Any]], cap: int
-) -> dict[str, Any]:
-    """逐块重译（单发）+ 结果入账；返回报告 dict（``_`` 前缀内部键）。"""
-    rep: dict[str, Any] = {
-        "retranslated": [],
-        "reverted_l0": [],
-        "kept_transport_err": [],
-        "over_cap": [],
-    }
-    changed: set[str] = rep.setdefault("_changed", set())
-    adopted: set[str] = rep.setdefault("_adopted", set())
-    tried = 0
-    for cid, info in hits.items():
-        if tried >= cap:
-            rep["over_cap"].append(cid)
-            continue
-        ci = run.chunk_ins.get(cid)
-        if ci is None:
-            continue
-        tried += 1
-        fidx, ccid = split_cid(cid)
-        loc = f"{info['file']}:{info['line']}" if info["line"] else info["file"]
-        r = await run.pipe.retranslate_chunk(ci, f"{info['head']}\n(at {loc})")
-        if r is None:
-            rep["kept_transport_err"].append(cid)
-            continue
-        if r.status == "ok":
-            run.trans.setdefault(fidx, {})[ccid] = r.translation
-            rep["retranslated"].append(cid)
-            adopted.add(cid)
-        else:
-            # 重译产物仍不过 L0 → 回落原文（spec: 再不过 → fallback 原文）
-            run.trans.get(fidx, {}).pop(ccid, None)
-            rep["reverted_l0"].append(cid)
-        changed.add(cid)
-    return rep
-
-
-def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚三臂缝）
-    run: TreeRun,
-    work: Path,
-    main_rel: str,
-    fidxs: set[int],
-    *,
-    diffs: bool = True,
-    seq_marks: bool | None = None,
-) -> tuple[list[str], dict[str, list[str]]]:
-    """受影响文件 reconstruct 重写 + 写入即 ``paired_slot_diff`` 对账（单遍）。
-
-    diff 取**注入前**在手 ``zh``——``res.vtex`` 对重建体的干净口径
-    （``pipecore.translate_tree_run`` 同形）：主文件的 ``prepare_chinese``
-    注入不污染 notes（旧盘后重读会把 demote/inject 改写面记成机位差）。
-    ``prepare_chinese`` 重跑补 ctex 在全量写+diff 之后；注入后树级审计
-    由 ``machine_slot_audit``（judge）覆盖。``diffs=False`` 跳过对账
-    （``_resplice`` 写盘臂——调用方另走 ``_slot_diffs`` 盘后真值口径，
-    在手 diff 算了也丢）。``seq_marks`` 三态：None → ``TEXLATE_NO_SEQ_MARKS``
-    env 决议（缺省开）；重烘焙产物与 ``_build_zh`` 同 seq 口径
-    （``sum(len(chunks) for j < fidx)`` 基址）自动补锚，失衡即剥降级。
-    """
-    marks_on = (
-        not env_flag(ENV_NO_SEQ_MARKS, default=False)
-        if seq_marks is None
-        else seq_marks
-    )
-    main_path = work / main_rel
-    rewritten: list[str] = []
-    diff_map: dict[str, list[str]] = {}
-    touched_main = False
-    for fidx in sorted(fidxs):
-        f, res = run.scans[fidx]
-        seq0 = sum(len(run.scans[j][1].chunks) for j in range(fidx))
-        zh = reconstruct(
-            res,
-            run.trans.get(fidx) or {},
-            mark_seq0=seq0 if marks_on else None,
-            mark_moving=marks_on,
-        )
-        if marks_on and (issues := seq_mark_issues(zh)):
-            log.warning(
-                "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
-            )
-            zh = strip_seq_marks(zh)
-        f.write_text(zh, encoding="utf-8")
-        rel = f.relative_to(work).as_posix()
-        rewritten.append(rel)
-        if diffs and (notes := paired_slot_diff(res.vtex, zh, rel)):
-            diff_map[rel] = notes
-        touched_main = touched_main or f == main_path
-    if touched_main:
-        # 首注已过——同文件重注不会再触发 \documentstyle 拒绝
-        with suppress(InjectRejectError):
-            prepare_chinese(work, main_rel)
-    return rewritten, diff_map
-
-
-def _resplice(
-    run: TreeRun,
-    work: Path,
-    main_rel: str,
-    fidxs: set[int],
-    *,
-    seq_marks: bool | None = None,
-) -> list[str]:
-    """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。
-
-    ``_resplice_and_diffs`` 的写盘臂（worker ``_retr_resplice`` 旧签名档——
-    其 ``_slot_diffs`` 盘后读回保留注入后磁盘真值口径，在手 diff 臂
-    ``diffs=False`` 跳过不算）。
-    """
-    return _resplice_and_diffs(
-        run, work, main_rel, fidxs, diffs=False, seq_marks=seq_marks
-    )[0]
-
-
-def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str]]:
-    """``_resplice`` 落盘 zh 对 ``res.vtex`` 的机位配对 diff——重写后逐文件对账。
-
-    盘后读回 = 注入后磁盘真值口径（worker ``_retr_resplice`` 消费位）；
-    ``l2_repair_round`` 内面走 ``_resplice_and_diffs`` 的注入前在手 zh 口径。
-    """
-    out: dict[str, list[str]] = {}
-    for fidx in sorted(fidxs):
-        f, res = run.scans[fidx]
-        rel = f.relative_to(work).as_posix()
-        if notes := paired_slot_diff(res.vtex, f.read_text(encoding="utf-8"), rel):
-            out[rel] = notes
-    return out
-
-
-def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两臂同一契约
-    run: TreeRun,
-    work: Path,
-    main_rel: str,
-    res: CompRes,
-    cap: int,
-    *,
-    retranslate: Callable[[TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]],
-    recompile: Callable[[], tuple[CompRes, Verdict]],
-    checkpoint: Callable[[], None] | None = None,
-    baseline_sigs: set[str] | None = None,
-    seq_marks: bool | None = None,
-) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-    """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
-
-    ``retranslate``/``recompile`` 两臂注入——e2e 包 ``run.drive(
-    retranslate_hits)``（翻译期 loop 复用，见 ``TreeRun.loop``）+
-    ``_compile_judge``（tail dict 臂侧合成）；
-    worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
-    ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
-    同位三处：重译前/后、首编后），缺省无操作。
-    ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
-    命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
-    同口径过滤。``seq_marks`` 透传 ``_resplice_and_diffs``（None → env
-    决议）。返回 (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
-    """
-    rep: dict[str, Any] = {"enabled": True, "cap": cap}
-    hits, n_err = _l2_localize(work, run, res, baseline_sigs=baseline_sigs)
-    rep["errors"] = n_err
-    rep["hits"] = hits
-    last_res = res
-    if not hits:
-        rep["note"] = "no chunk-level attribution"
-        return rep, last_res, None
-    if checkpoint is not None:
-        checkpoint()
-    retr = retranslate(run, hits, cap)
-    if checkpoint is not None:
-        checkpoint()
-    changed: set[str] = retr.pop("_changed")
-    adopted: set[str] = retr.pop("_adopted")
-    rep.update(retr)
-    if not changed:
-        rep["note"] = "no chunk changed"
-        return rep, last_res, None
-
-    fidxs = {split_cid(c)[0] for c in changed}
-    rep["rewritten"], diffs = _resplice_and_diffs(
-        run, work, main_rel, fidxs, seq_marks=seq_marks
-    )
-    if diffs:
-        rep["slot_diffs"] = diffs
-    res2, v2 = recompile()
-    if checkpoint is not None:
-        checkpoint()
-    last_res = res2
-    rep["recompiled"] = v2.status
-    if v2.status == "clean":
-        return rep, last_res, v2
-
-    # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
-    # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
-    hits2, _ = _l2_localize(work, run, res2, baseline_sigs=baseline_sigs)
-    still_bad = sorted(set(hits2) & adopted)
-    rep["fallback_src"] = still_bad
-    rep["unresolved"] = sorted(set(hits2) - adopted)
-    if still_bad:
-        for cid in still_bad:
-            fidx, ccid = split_cid(cid)
-            run.trans.get(fidx, {}).pop(ccid, None)
-        fb_fidxs = {split_cid(c)[0] for c in still_bad}
-        rep["fallback_rewritten"], fb_diffs = _resplice_and_diffs(
-            run, work, main_rel, fb_fidxs, seq_marks=seq_marks
-        )
-        if fb_diffs:
-            rep["fallback_slot_diffs"] = fb_diffs
-        # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
-        # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
-        res3, v3 = recompile()
-        rep["fallback_verdict"] = v3.status
-        last_res, v2 = res3, v3
-    return rep, last_res, v2

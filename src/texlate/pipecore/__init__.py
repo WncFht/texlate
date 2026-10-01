@@ -1,6 +1,6 @@
 r"""管线核心契约层——e2e / worker / bench 三臂共享的 policy 脊。
 
-``repair.py``/``repair_l2.py`` 已把修复机械单源化（``run_fixloop``/
+``repair.py``/``repair_l2/`` 已把修复机械单源化（``run_fixloop``/
 ``consume_engine_flags``/``l2_repair_round``/``embed_tounicode_quiet``…）；
 本层收编两臂仍各自复写的**策略脊**，让 4× 接线的管线契约只剩一个事实源：
 

@@ -30,7 +30,7 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   ``merge_flags``（``probe_flags``+``flags`` 去重合并——pipecore/
   worker/本件三面归一）
 - C4 批（2026-09-18，reaudit 拆分）：env judge 可译性判定 + L2 回灌
-  机械 + ``TreeRun``/``split_cid`` 运行态整簇迁 ``repair_l2.py``——
+  机械 + ``TreeRun``/``split_cid`` 运行态整簇迁 ``repair_l2/``——
   消费面直取叶子模块，本文件不回引
 """
 
