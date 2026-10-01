@@ -16,7 +16,7 @@
 - **版本语义用功能 slug**：名字自说明用途（`patchseams`/`in_env_args`/`armedId`），不靠代数后缀（`v5`/`l2`/`tier3` 承载语义即埋雷）。数字只在即协议号处合法（HTTP/2、LaTeX2e、Python 3.12 这类外部定名）。
 - **同名新规**：跨包/跨域同名文件必须 (a) 两侧 docstring 互辨、(b) 登记 `spec/glossary.md` §3——2026-09 普查已存三缝组（`patchseams`/`worker/seams`/`_docseams`）与 `decls.py` 双件等实例。
 - **域词不挪用**：`arm`/`格`/`波`/`缝`/`zone`/`tier`/`clean` 等已有约定义项的词（`glossary.md` §2）不另起新义；新语义起新名。
-- **facade+叶一律收子包**：PEP-562 门面 `X.py` + `_X_*` 兄弟叶的平铺形态已全仓清零（2026-10-01）——形态为 `X/` 子包（门面 → `X/__init__.py`，叶 → `X/<stem>.py`）。新增/挪动叶时叶干名不得撞任一导出名：叶件 import 会把子模块绑上门面 `__dict__[stem]`，此后 `facade.<stem>` 恒 dict-hit 返回 module、`__getattr__` 永不触发——撞名叶取 `_` 前缀脱名（`cli/_main.py`、`lake/_evict.py`、`specs/*/_spec.py` 先例），导出面不变；各门面 `_export_drift` 已内置 stem∈exports 撞名闸。
+- **facade+ 叶一律收子包**：PEP-562 门面 `X.py` + `_X_*` 兄弟叶的平铺形态已全仓清零（2026-10-01）——形态为 `X/` 子包（门面 → `X/__init__.py`，叶 → `X/<stem>.py`）。新增/挪动叶时叶干名不得撞任一导出名：叶件 import 会把子模块绑上门面 `__dict__[stem]`，此后 `facade.<stem>` 恒 dict-hit 返回 module、`__getattr__` 永不触发——撞名叶取 `_` 前缀脱名（`cli/_main.py`、`lake/_evict.py`、`specs/*/_spec.py` 先例），导出面不变；各门面 `_export_drift` 已内置 stem∈exports 撞名闸。
 
 ## 3. 冻结面
 

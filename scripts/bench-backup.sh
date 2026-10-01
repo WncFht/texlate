@@ -3,7 +3,7 @@
 # ledger + vault meta/manifest + lake durable/catalog + run keep-tier.
 # Vault payload bytes are deliberately excluded — restic owns those.
 set -uo pipefail
-cd /home/fanghaotian/src/texlate
+cd /home/fanghaotian/src/texlate || exit
 export PYTHONPATH=bench/py
 python3 -m kernel backup || exit $?
 

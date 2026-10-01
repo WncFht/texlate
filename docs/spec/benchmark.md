@@ -7,15 +7,15 @@
 
 每个评测器对准管线一段 + 组合层。底材 = corpus 各层（`spec/corpus.md`），合成破坏案例各自生成[^suite]。
 
-| #   | 评测器       | 测哪段           | spec（`bench run <名>`）                           | 底材                                | 核心指标                                      |
-| --- | ------------ | ---------------- | -------------------------------------------------- | ----------------------------------- | --------------------------------------------- |
-| B1  | parsebench   | 解析段           | `specs/parsebench/__init__.py`                              | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗     |
-| B2  | fixtures     | 解析段单元级     | `specs/fixture_assert.py` + `tests/` 断言矩阵      | `bench/fixtures/*.tex` 手造         | 陷阱断言通过率                                |
-| B3  | compilebench | 编译段 + fixloop | `specs/compilebench.py` + `specs/fixloop_bench.py` | corpus `raw.*` blob                 | clean/pdf~/FAIL、救回率、规则触发谱           |
-| B4  | xlatbench    | 翻译段           | `specs/xlatbench.py` + `specs/qualbench/__init__.py`        | corpus chunk 抽样                   | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
-| B5  | e2ebench     | 全链组合         | `specs/e2e_mock.py` + `specs/e2e_real/__init__.py`          | corpus 子集                         | 环节成功率漏斗 + 终态分布                     |
-| B6  | validbench   | 校验段           | `specs/validbench/__init__.py`                              | 语料 chunk 变异生成                 | 检出率 / error-FP / 延迟                      |
-| B7  | alignbench   | 阅读体验锚点     | `specs/alignbench.py`                              | en/zh 编译产物对                    | named-dest 保留率 / 链权                      |
+| #   | 评测器       | 测哪段           | spec（`bench run <名>`）                             | 底材                                | 核心指标                                      |
+| --- | ------------ | ---------------- | ---------------------------------------------------- | ----------------------------------- | --------------------------------------------- |
+| B1  | parsebench   | 解析段           | `specs/parsebench/__init__.py`                       | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗     |
+| B2  | fixtures     | 解析段单元级     | `specs/fixture_assert.py` + `tests/` 断言矩阵        | `bench/fixtures/*.tex` 手造         | 陷阱断言通过率                                |
+| B3  | compilebench | 编译段 + fixloop | `specs/compilebench.py` + `specs/fixloop_bench.py`   | corpus `raw.*` blob                 | clean/pdf~/FAIL、救回率、规则触发谱           |
+| B4  | xlatbench    | 翻译段           | `specs/xlatbench.py` + `specs/qualbench/__init__.py` | corpus chunk 抽样                   | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
+| B5  | e2ebench     | 全链组合         | `specs/e2e_mock.py` + `specs/e2e_real/__init__.py`   | corpus 子集                         | 环节成功率漏斗 + 终态分布                     |
+| B6  | validbench   | 校验段           | `specs/validbench/__init__.py`                       | 语料 chunk 变异生成                 | 检出率 / error-FP / 延迟                      |
+| B7  | alignbench   | 阅读体验锚点     | `specs/alignbench.py`                                | en/zh 编译产物对                    | named-dest 保留率 / 链权                      |
 
 依赖序：`corpus_* → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）[^suite]。
 
