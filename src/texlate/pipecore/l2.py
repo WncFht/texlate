@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from texlate.compile.engine import CompRes, Engine
+    from texlate.compile.engine import CompRes
     from texlate.compile.judge import Verdict
     from texlate.pipecore.state import CompileRunner, ReportSink
     from texlate.pipecore.tail import PipeJob
@@ -79,20 +79,17 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     return rep, last_res, v
 
 
-def l2_repair_job(  # noqa: PLR0913 -- 注入面穿透（编译件/上限/sink 同契）
+def l2_repair_job(
     job: PipeJob,
     run: TreeRun,
     res: CompRes,
     cap: int,
-    *,
-    engine_fn: Callable[..., Engine] | None = None,
-    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, CompRes, dict | None]:
     """L2 回灌一轮（e2e 口径）→ (l2 报告，最新 CompRes, 新尾段或 None)——原 e2e ``_l2_repair``。
 
-    注入 e2e 编译件（``_compile_judge_job``，``engine_fn`` 保
+    注入 e2e 编译件（``_compile_judge_job``——``PipeJob.engine_fn`` 保
     ``e2e.engine_for`` monkeypatch 缝）并把末态 Verdict 换回 tail dict
-    报告形。``sink`` 透传 ``l2_repair``——CLI 臂收 done 实况帧。
+    报告形。``job.sink`` 透传 ``l2_repair``——CLI 臂收 done 实况帧。
     错误契约与 ``precheck_job``/``fixloop_job`` 同件：崩不传播，
     落 ``({'enabled': True, 'error': ...}, 入参 res, None)``——
     修复臂崩不毁主报告，调用方不必再包 try。
@@ -105,10 +102,8 @@ def l2_repair_job(  # noqa: PLR0913 -- 注入面穿透（编译件/上限/sink �
             res,
             cap,
             retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
-            recompile=lambda: _compile_judge_job(
-                job, expect_cjk=True, engine_fn=engine_fn
-            ),
-            sink=sink,
+            recompile=lambda: _compile_judge_job(job, expect_cjk=True),
+            sink=job.sink,
         )
     except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
         return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, res, None)

@@ -241,18 +241,23 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         eng_name,
         timeout,
         probe_flags=_probe_flags_of(work, main_rel),
+        route_engines=route_engines,
+        baseline_dir=baseline_dir,
+        # 构造时查名透传自家 ``e2e.engine_for`` 全局——保
+        # ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
+        engine_fn=engine_for,
+        sink=sink,
     )
     # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染，
     # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
     expect_cjk = stats.get("chunks") != 0
     sink.event("stage", {"stage": "compile", "engine": eng_name})
-    tail, res = compile_judge_tail(job, expect_cjk=expect_cjk, engine_fn=engine_for)
+    tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
     rec.update(tail)
 
     if rec["status"] != "clean":
         # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
-        # 与 bench 同一条链）；``engine_fn=engine_for`` 调用时查名保
-        # ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
+        # 与 bench 同一条链）；引擎缝/路由/基线/sink 全在 job 上。
         res = repair_chain(
             rec,
             job,
@@ -262,10 +267,6 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
             l2_on=l2_on,
             fixloop_on=fl,
             l2_max_chunks=l2_max_chunks,
-            route_engines=route_engines,
-            baseline_dir=baseline_dir,
-            engine_fn=engine_for,
-            sink=sink,
         )
     # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
     # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
@@ -284,8 +285,9 @@ def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> 
         eng_name,
         timeout,
         probe_flags=_probe_flags_of(work, main_rel),
+        engine_fn=engine_for,
     )
-    tail, _res = compile_judge_tail(job, expect_cjk=False, engine_fn=engine_for)
+    tail, _res = compile_judge_tail(job, expect_cjk=False)
     rec.update(tail)
     return rec
 

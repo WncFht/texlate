@@ -21,16 +21,12 @@ from typing import TYPE_CHECKING
 from texlate.pipecore.fixloop import fixloop_job
 from texlate.pipecore.l2 import l2_repair_job
 from texlate.pipecore.policy import RepairPolicy, precheck_reject
-from texlate.pipecore.state import NULL_SINK
 from texlate.pipecore.tail import compile_judge_tail, precheck_job
 from texlate.repair import ENV_NO_FIXLOOP
 from texlate.repair_l2 import ENV_NO_L2
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from texlate.compile.engine import CompRes, Engine
-    from texlate.pipecore.state import ReportSink
+    from texlate.compile.engine import CompRes
     from texlate.pipecore.tail import PipeJob
     from texlate.repair_l2 import TreeRun
 
@@ -75,10 +71,6 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
     l2_on: bool | None,
     fixloop_on: bool | None,
     l2_max_chunks: int,
-    route_engines: list[str] | None,
-    baseline_dir: Path | None = None,
-    engine_fn: Callable[..., Engine] | None = None,
-    sink: ReportSink = NULL_SINK,
 ) -> CompRes:
     """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
 
@@ -88,12 +80,13 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
     fixloop——fixloop 的 regex_rewrite 会被 L2 resplice 冲掉。
     三个 ``*_job`` 件各自吞崩成 error dict——修复臂崩不毁主报告。
     fixloop 只在仍非 clean 时跑。返回最新 ``CompRes`` 供 ToUnicode
-    注入判产物。``engine_fn`` 缺省本模块 ``engine_for`` 全局——
-    e2e 显式透传自家全局名保 ``e2e.engine_for`` monkeypatch 缝
-    （conftest RecordingEngine）。
+    注入判产物。``engine_fn``/``route_engines``/``baseline_dir``/``sink``
+    全收进 ``job``——e2e 构造时透传自家 ``e2e.engine_for`` 全局名保
+    monkeypatch 缝（conftest RecordingEngine）。
     """
     policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
     fl, l2 = policy.fixloop, policy.l2
+    sink = job.sink
 
     # —— 第 0 招：precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
     # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
@@ -102,7 +95,7 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
     pre_reject = False
     if fl:
         sink.event("stage", {"stage": "precheck"})
-        pre = precheck_job(job, engine_fn=engine_fn)
+        pre = precheck_job(job)
         rec["precheck"] = pre
         pre_reject = precheck_reject(pre)
         pre_flags = [str(f) for f in pre.get("engine_flags") or []]
@@ -111,7 +104,6 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
                 job,
                 expect_cjk=expect_cjk,
                 flags=pre_flags or None,
-                engine_fn=engine_fn,
             )
             rec.update(tail0)
             if rec["status"] == "clean":
@@ -119,9 +111,7 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
 
     if l2 and not pre_reject:
         sink.event("stage", {"stage": "l2"})
-        l2_rep, res, tail2 = l2_repair_job(
-            job, run, res, l2_max_chunks, engine_fn=engine_fn, sink=sink
-        )
+        l2_rep, res, tail2 = l2_repair_job(job, run, res, l2_max_chunks)
         rec["l2"] = l2_rep
         if tail2 is not None:
             rec.update(tail2)
@@ -134,13 +124,9 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
         sink.event("stage", {"stage": "fixloop"})
         fl_rep, tail3, res = fixloop_job(
             job,
-            route_engines or [job.eng_name],
             res,
             timeout=job.timeout,
             expect_cjk=expect_cjk,
-            baseline_dir=baseline_dir,
-            engine_fn=engine_fn,
-            sink=sink,
         )
         rec["fixloop"] = fl_rep
         if tail3 is not None:

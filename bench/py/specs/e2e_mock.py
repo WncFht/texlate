@@ -375,6 +375,8 @@ def _pipe_mode(
         eng_name,
         timeout,
         probe_flags=_probe_flags_of(work, main_rel),
+        route_engines=route_engines,
+        baseline_dir=baseline_dir,
     )
     # 0-chunk 主文档不期待 CJK（与 pipe_condition 同口径，F 桶假阳修）
     expect_cjk = stats.get("chunks") != 0
@@ -383,7 +385,7 @@ def _pipe_mode(
 
     if rec["status"] != "clean":
         # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 →
-        # fixloop，与 pipe_condition 同一条链）
+        # fixloop，与 pipe_condition 同一条链）；路由/基线在 job 上。
         res = repair_chain(
             rec,
             job,
@@ -393,8 +395,6 @@ def _pipe_mode(
             l2_on=l2_on,
             fixloop_on=fl,
             l2_max_chunks=l2_max_chunks,
-            route_engines=route_engines,
-            baseline_dir=baseline_dir,
         )
     # ToUnicode 注入在修复链收敛之后（pipe_condition 同位）
     if res.has_pdf and res.pdf is not None:

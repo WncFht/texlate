@@ -8,8 +8,8 @@
 
 门面回引名单见 ``texlate.pipecore._LEAF_EXPORTS``。
 monkeypatch 锚点：setattr patch 须指本叶，指门面无效——
-``engine_fn`` 缺省读本叶 ``engine_for`` 全局、``probe_fn`` 缺省读
-本叶 ``target_probe`` 全局。
+``PipeJob.engine_fn=None`` 时读本叶 ``engine_for`` 全局、``probe_fn``
+缺省读本叶 ``target_probe`` 全局。
 """
 
 from __future__ import annotations
@@ -20,28 +20,42 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.engine import engine_for
 from texlate.compile.judge import judge
 from texlate.compile.probe import target_probe
+from texlate.pipecore.state import NULL_SINK
 from texlate.repair import merge_flags, run_precheck
 from texlate.texlog import log_text_of
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from texlate.compile.ctan import TlpdbIndex
     from texlate.compile.engine import CompRes, Engine
     from texlate.compile.judge import Verdict
     from texlate.compile.probe import ProbeReport
+    from texlate.pipecore.state import ReportSink
 
 
 @dataclass(frozen=True)
 class PipeJob:
-    """单工程编译上下文——work/main/引擎/超时 + 声明侧旗标全程同捆（原 e2e ``_Job``）。"""
+    """单工程编译上下文——work/main/引擎/超时 + 旗标/路由/基线/注入缝全程同捆（原 e2e ``_Job``）。
+
+    收编原 ``repair_chain``/``*_job`` 散参穿透：``engine_fn=None`` → 各
+    消费叶读本叶 ``engine_for`` 全局（monkeypatch 缝——e2e 在构造时
+    透传自家 ``e2e.engine_for`` 全局名）；``route_engines=None`` →
+    消费点按 ``[eng_name]`` 收窄；``baseline_dir`` = 翻前 pristine 快照
+    根（fixloop ``ruleset_with_baseline`` 注入件）；``sink`` 缺省
+    ``NULL_SINK`` 零事件面。
+    """
 
     work: Path
     main_rel: str
     eng_name: str
     timeout: float
     probe_flags: tuple[str, ...] = ()
+    route_engines: Iterable[str] | None = None
+    baseline_dir: Path | None = None
+    engine_fn: Callable[..., Engine] | None = None
+    sink: ReportSink = NULL_SINK
 
 
 def probe_report(
@@ -161,10 +175,9 @@ def _compile_judge_job(
     *,
     expect_cjk: bool,
     flags: list[str] | None = None,
-    engine_fn: Callable[..., Engine] | None = None,
 ) -> tuple[CompRes, Verdict]:
     """e2e 口径 job 编译：xelatex ``halt_on_error=False`` best-effort + probe/extra flags 合并。"""
-    eng_fn = engine_for if engine_fn is None else engine_fn
+    eng_fn = engine_for if job.engine_fn is None else job.engine_fn
     kw: dict[str, object] = (
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
@@ -184,7 +197,6 @@ def compile_judge_tail(
     *,
     expect_cjk: bool,
     flags: list[str] | None = None,
-    engine_fn: Callable[..., Engine] | None = None,
 ) -> tuple[dict, CompRes]:
     """编译 + 判定公共尾段 → (报告 dict, CompRes)——原 e2e ``_compile_judge``。
 
@@ -192,17 +204,11 @@ def compile_judge_tail(
     tectonic 无此旋钮——恒 ``-Z continue-on-errors``。``flags`` 透传
     fixloop engine_flags（跨引擎臂用——tectonic 丢的 flag 由 xelatex 接）。
     """
-    res, v = _compile_judge_job(
-        job, expect_cjk=expect_cjk, flags=flags, engine_fn=engine_fn
-    )
+    res, v = _compile_judge_job(job, expect_cjk=expect_cjk, flags=flags)
     return tail_dict(res, v), res
 
 
-def precheck_job(
-    job: PipeJob,
-    *,
-    engine_fn: Callable[..., Engine] | None = None,
-) -> dict[str, Any]:
+def precheck_job(job: PipeJob) -> dict[str, Any]:
     """L2/编译链前的静态预检（第 0 招）→ 摘要 dict。
 
     fixloop precheck 相独立跑一轮：``scan_install`` 装缺件 /
@@ -214,7 +220,7 @@ def precheck_job(
     复现 + ``fixloop_flags_tail`` 跨引擎消费。引擎不带编译旋钮——
     precheck 相无编译。
     """
-    eng_fn = engine_for if engine_fn is None else engine_fn
+    eng_fn = engine_for if job.engine_fn is None else job.engine_fn
     try:
         pre = run_precheck(
             job.work,

@@ -156,17 +156,13 @@ def fixloop_flags_tail(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     return xr, note
 
 
-def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
+def fixloop_job(
     job: PipeJob,
-    route_engines: list[str],
     prev_res: CompRes,
     *,
     timeout: float | None = None,
     llm_hook: LlmHook | None = None,
     expect_cjk: bool = True,
-    baseline_dir: Path | None = None,
-    engine_fn: Callable[..., Engine] | None = None,
-    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, dict | None, CompRes]:
     """跑 fixloop + 消费 engine_flags → (报告，新尾段或 None, 最新 CompRes)——原 e2e ``_run_fixloop``。
 
@@ -178,10 +174,12 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     ``timeout`` 覆盖 rules/ ``meta.loop.timeout_sec`` 的重编预算
     （None=用 yaml 值）。``llm_hook`` 未传时 ``TEXLATE_FIXLOOP_LLM=1``
     可经 env 启用 escalate_llm 钩（网关走 TEXLATE_* 三件套）。
-    ``engine_fn`` 缺省本模块 ``engine_for`` 全局——e2e 显式透传自家
-    全局名保 ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
+    ``job.engine_fn`` 缺省读本模块 ``engine_for`` 全局——e2e 构造 job
+    时透传自家全局名保 ``e2e.engine_for`` monkeypatch 缝（conftest
+    RecordingEngine）。``baseline_dir``/``route_engines``/``sink`` 同
+    从 job 取。
     """
-    eng_fn = engine_for if engine_fn is None else engine_fn
+    eng_fn = engine_for if job.engine_fn is None else job.engine_fn
     if llm_hook is None and env_flag(ENV_FIXLOOP_LLM, default=False):
         from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
 
@@ -191,11 +189,11 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
             job.work,
             eng_fn(job.eng_name),
             engine_name=job.eng_name,
-            baseline_dir=baseline_dir,
+            baseline_dir=job.baseline_dir,
             main_rel=job.main_rel,
             llm_hook=llm_hook,
             compile_timeout=timeout,
-            sink=sink,
+            sink=job.sink,
         )
     except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
         return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, None, prev_res)
@@ -214,7 +212,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
         rep,
         cell,
         engine_name=job.eng_name,
-        route_engines=route_engines,
+        route_engines=job.route_engines or [job.eng_name],
         status_of=lambda: tail["status"],
         work=job.work,
         main_rel=job.main_rel,

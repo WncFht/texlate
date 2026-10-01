@@ -321,8 +321,8 @@ class _CompileFixloop:
                 main_rel=ctx.main_rel,
                 eng_name=ctx.engine_name,
                 timeout=self._compile_timeout,
+                engine_fn=lambda _name: self._fixloop_engine(ctx, eng),
             ),
-            engine_fn=lambda _name: self._fixloop_engine(ctx, eng),
         )
         if "error" in pre:  # 预检崩不拖垮编译段——precheck_job 兜底形
             self._log(ctx, f"precheck crashed: {pre['error']}")

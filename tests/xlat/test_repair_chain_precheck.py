@@ -134,12 +134,12 @@ def test_compile_judge_engine_texmf_wired(
 def test_precheck_job_crash_returns_error_dict(tmp_path: Path) -> None:
     """precheck 崩 → ``{"enabled": True, "error": ...}``——不毁主报告。"""
     work = make_project(tmp_path / "p")
-    job = PipeJob(work, "main.tex", "tectonic", 10.0)
 
     def boom(name: str, **kw: object) -> RecordingEngine:  # noqa: ARG001
         msg = "engine factory boom"
         raise RuntimeError(msg)
 
-    rep = precheck_job(job, engine_fn=boom)
+    job = PipeJob(work, "main.tex", "tectonic", 10.0, engine_fn=boom)
+    rep = precheck_job(job)
     assert rep["enabled"] is True
     assert "RuntimeError" in rep["error"]
