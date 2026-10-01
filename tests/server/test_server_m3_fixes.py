@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 import texlate.server.app as app_mod
+import texlate.server.http as http_mod
 import texlate.server.settings as settings_mod
 from texlate.server import babeldoc as bd
 from texlate.server.settings import SettingsStore
@@ -362,7 +363,7 @@ class TestB3HealthBuildStamp:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """无 git/非仓路径 → ``""``（源码树外安装不炸）。"""
-        monkeypatch.setattr(app_mod.shutil, "which", lambda _n: None)
+        monkeypatch.setattr(http_mod.shutil, "which", lambda _n: None)
         assert app_mod._probe_git_commit() == ""  # noqa: SLF001
 
     def test_server_mode_health_minimal(self, server_client: TestClient) -> None:
