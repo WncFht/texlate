@@ -20,6 +20,7 @@ from texlate.xlat.pipeline import GatewayTranslator, MockTranslator
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import UsageRecord
     from texlate.xlat.pipeline import Translator
@@ -27,6 +28,11 @@ if TYPE_CHECKING:
 
 class _TranslateXlator:
     """译器构造/审计 mixin（``_resolve``/``_make``/``_doc``/``_retry``/``_flag``）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
+        _translator_factory: Callable[[TaskCtx], Translator] | None
 
     def _retry_model_of(self, ctx: TaskCtx, model: str) -> str:
         """``options.retry_model`` → 备选模型名；缺省/同 primary/非法 → ``""``。

@@ -42,7 +42,7 @@ from texlate.textutil.osutil import translator_mode
 from texlate.xlat.client import DEFAULT_MODEL
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from texlate.compile.engine import (
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from texlate.compile.judge import Verdict
     from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
+    from texlate.xlat.pipeline import Translator
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
@@ -78,6 +79,12 @@ def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
 
 class _CompileFixloop:
     """fixloop/precheck 救援链 mixin：规则引擎循环 + LLM 旁路接线。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        data_dir: Path
+        _compile_timeout: float
+        _translator_factory: Callable[[TaskCtx], Translator] | None
 
     def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
         """Fixloop 开关：``options.fixloop`` 显式 > ``TEXLATE_NO_FIXLOOP``（默认开）。

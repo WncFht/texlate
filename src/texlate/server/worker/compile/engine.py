@@ -27,13 +27,16 @@ from texlate.server.worker._common import (
 from texlate.texlog import log_text_of
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
+    from texlate.compile.ctan import TlpdbIndex
     from texlate.compile.engine import (
         CompRes,
         Engine,
     )
     from texlate.compile.probe import ProbeReport
+    from texlate.server.events import EventBus
     from texlate.server.worker._common import TaskCtx
 
 log = logging.getLogger(__name__)
@@ -41,6 +44,12 @@ log = logging.getLogger(__name__)
 
 class _CompileEngine:
     """编译基建 mixin：引擎构造/任务 texmf 树/探针播报/修复实况帧。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        bus: EventBus
+        _deps_index: TlpdbIndex | None
+        _engine_factory: Callable[[str], Engine] | None
 
     def _task_texmf(self, ctx: TaskCtx, eng: Engine) -> Engine:
         """任务级 ``ctx.root/_texmf`` 装件树接管（None-only 预设语义）。

@@ -51,6 +51,8 @@ from texlate.xlat.pipeline import (
 )
 
 if TYPE_CHECKING:
+    from texlate.server.events import EventBus
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
     from texlate.xlat.pipeline import ChunkResult
@@ -60,6 +62,11 @@ log = logging.getLogger(__name__)
 
 class _TranslateStage:
     """translating 段 mixin（编排/收尾/段头计算簇/flush/splice 哨兵）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        bus: EventBus
+        store: Store
 
     # ------------------------------------------------------------ translating
 

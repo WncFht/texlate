@@ -34,6 +34,7 @@ from ._common import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from texlate.server.store import Store
     from texlate.share import ShareManifest
 
 from texlate.server.worker import seams
@@ -148,6 +149,11 @@ def share_pack_publish(
 
 class _Share:
     """共享包对账/摘标/打包发布 mixin。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        data_dir: Path
+        store: Store
 
     async def _stage_share_apply(self, ctx: TaskCtx) -> None:
         """translating（共享臂）：包内 chunks 对账本地 chunks → 译文落库。"""

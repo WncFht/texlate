@@ -36,6 +36,10 @@ if TYPE_CHECKING:
 class _CompileEn:
     """en.pdf 臂 mixin：原文编译 + 注锚 + 残件闸 + 错误签名基线。"""
 
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        _compile_timeout: float
+
     def _compile_en(self, ctx: TaskCtx) -> None:
         """en.pdf：base/ 拷贝编译 + fixloop 基建救援；失败只记 warning（不阻塞译文链）。
 

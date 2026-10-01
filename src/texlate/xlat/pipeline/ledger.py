@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from texlate.chunk import ChunkIn
+    from texlate.xlat.authgate import AuthGate
+    from texlate.xlat.state import StateStore
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +64,12 @@ class _FatalLedger:
 
 class _XlatLedger:
     """结果入账/拦截网/auth 闸 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``.orch.XlatPipeline.__init__`` 注入的共享态契约
+        state: StateStore | None
+        on_result: Callable[[ChunkResult], None] | None
+        auth_gate: AuthGate
 
     # ------------------------------------------------------------ 账本
 

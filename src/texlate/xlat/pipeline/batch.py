@@ -18,7 +18,11 @@ from texlate.xlat.pipeline.types import ChunkResult
 from texlate.xlat.retry import assess_answer, bare_token_audit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.chunk import ChunkIn
+    from texlate.xlat.pipeline.translator import Translator
+    from texlate.xlat.pipeline.types import PipelineConfig
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +42,12 @@ def _merged_value_frags(members: list[ChunkIn]) -> dict[str, str]:
 
 class _XlatBatch:
     """编号批量协议 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``.orch.XlatPipeline.__init__`` 注入的共享态契约
+        cfg: PipelineConfig
+        translator: Translator
+        validator: Callable[[str, str], str]
 
     # ------------------------------------------------------------ 批量路径
 

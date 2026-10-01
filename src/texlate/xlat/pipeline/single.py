@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from texlate.chunk import ChunkIn
+    from texlate.xlat.pipeline.translator import Translator
     from texlate.xlat.pipeline.types import PipelineConfig
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,12 @@ def _slots_user_obj(
 
 class _XlatSingle:
     """单块阶梯 + L2 回灌 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``.orch.XlatPipeline.__init__`` 注入的共享态契约
+        cfg: PipelineConfig
+        translator: Translator
+        validator: Callable[[str, str], str]
 
     # ------------------------------------------------------------ 单块路径
 

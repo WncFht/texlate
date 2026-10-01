@@ -34,10 +34,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.compile.engine import CompRes
     from texlate.compile.judge import Verdict
     from texlate.repair_l2 import TreeRun
-    from texlate.xlat.pipeline import ChunkResult
+    from texlate.server.events import EventBus
+    from texlate.server.store import Store
+    from texlate.xlat.pipeline import ChunkResult, Translator
 
 from texlate.server.worker import seams
 
@@ -53,6 +57,14 @@ _RETR_FEEDBACK = (
 
 class _Retranslate:
     """单块重译 job mixin：LLM 重译 → resplice → 重编 zh.pdf → 产物刷新。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        bus: EventBus
+        store: Store
+        _compile_timeout: float
+        _loop_tid: int
+        _translator_factory: Callable[[TaskCtx], Translator] | None
 
     # ------------------------------------------------------------ job 入口
 

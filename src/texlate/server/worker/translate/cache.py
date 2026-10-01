@@ -19,6 +19,7 @@ from texlate.xlat.prompts import PROMPT_VERSION
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
 
 
@@ -80,6 +81,10 @@ class _NullCache(SegmentCache):
 
 class _TranslateCache:
     """段缓存构造 mixin（``_make_cache``）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。

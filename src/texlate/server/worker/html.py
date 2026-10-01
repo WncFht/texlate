@@ -18,6 +18,8 @@ from bs4 import BeautifulSoup
 if TYPE_CHECKING:
     from bs4.element import Tag
 
+    from texlate.server.store import Store
+
 from texlate.arxiv.fetch import req_base_ver
 from texlate.arxiv.html import (
     HtmlDoc,
@@ -120,6 +122,10 @@ def _dual_chunk_row(r: dict[str, Any]) -> dict[str, Any]:
 
 class _Html:
     """arxiv_html 链 mixin：fetch/parse/emit 三臂 + resume/scans 桥接。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
 
     # ------------------------------------------------------------ fetching 臂
 

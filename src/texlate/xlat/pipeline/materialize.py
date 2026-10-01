@@ -17,12 +17,24 @@ from texlate.xlat.state import segment_key
 
 if TYPE_CHECKING:
     from texlate.chunk import ChunkIn
+    from texlate.xlat.glossary import Glossary
+    from texlate.xlat.pipeline.types import PipelineConfig
 
 log = logging.getLogger(__name__)
 
 
 class _XlatMaterialize:
     """文档级物化 + 段级缓存 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``.orch.XlatPipeline.__init__`` 注入的共享态契约
+        cfg: PipelineConfig
+        cache: dict[str, str] | None
+        glossary: Glossary | None
+        _doc_glossary: dict[str, str]
+        _paper_ctx: str
+        _ph_manifest: str
+        _prompts: dict[tuple[str, bool, bool], str]
 
     # ------------------------------------------------------------ 物化
 

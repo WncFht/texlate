@@ -37,10 +37,18 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from texlate.arxiv.fetch import Fetcher
+    from texlate.server.store import Store
 
 
 class _Fetch:
     """fetching 段 mixin：arxiv 获取/upload 物化/复用命中。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        data_dir: Path
+        store: Store
+        _fetcher: Fetcher | None
+        _src_cache: SourceCache | None
 
     async def _stage_fetch(self, ctx: TaskCtx) -> None:
         """fetching：源树就绪 + src.tar 登记（哨兵 .fetch-done 幂等）。"""

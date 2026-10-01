@@ -29,11 +29,16 @@ from texlate.xlat.state import atomic_json
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
 
 
 class _CompileArtifacts:
     """交付产物 mixin：dual.json/md.zip 落盘登记 + ToUnicode 补嵌。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
 
     def _embed_tounicode(self, ctx: TaskCtx, pdf: Path) -> None:
         """``repair.embed_tounicode_quiet`` 委托——失败经 ``on_error`` 落任务日志。"""

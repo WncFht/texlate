@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from texlate.compile.engine import (
         CompRes,
     )
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
 
 
@@ -62,6 +63,11 @@ def _repair_detail(ctx: TaskCtx, *, include_share: bool = False) -> dict[str, An
 
 class _CompileStage:
     """compiling 段编排 mixin：终态阶梯 + zh 编译修复链驱动。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
+        _compile_timeout: float
 
     # ------------------------------------------------------------ compiling
 

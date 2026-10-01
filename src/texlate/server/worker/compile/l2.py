@@ -58,11 +58,17 @@ if TYPE_CHECKING:
         Engine,
     )
     from texlate.compile.judge import Verdict
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
 
 
 class _CompileL2:
     """L2 回灌 mixin：译文归因重译 + resplice 重编 + chunks 表回写事务。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
+        _compile_timeout: float
 
     def _l2_enabled(self, ctx: TaskCtx) -> bool:
         """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。

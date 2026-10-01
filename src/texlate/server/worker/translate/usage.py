@@ -19,6 +19,7 @@ from texlate.server.worker._common import _new_usage_meter
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
     from texlate.xlat.client import ChatClient
 
@@ -29,6 +30,10 @@ _T = TypeVar("_T")
 
 class _TranslateUsage:
     """usage 记账/旁路臂收尾 mixin。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
 
     def _meter_usage(self, clients: list[ChatClient]) -> dict[str, Any]:
         """给一组 client 挂 usage_sink 并返回累加 dict（``_new_usage_meter`` 的装配糖）。"""

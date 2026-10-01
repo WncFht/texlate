@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from texlate.export.common import ExportReport
+    from texlate.server.events import EventBus
+    from texlate.server.store import Store
     from texlate.xlat.pipeline import (
         ChunkResult,
     )
@@ -54,6 +56,12 @@ _PROGRESS_MIN_S = 0.2
 
 class _Pdf:
     """upload_pdf/docx/epub 产物臂 mixin（babeldoc/export）。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        bus: EventBus
+        store: Store
+        _babeldoc: str | None
 
     # ------------------------------------------------------------ pdf 管线
 

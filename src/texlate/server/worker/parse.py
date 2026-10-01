@@ -25,12 +25,17 @@ from ._common import (
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanResult
+    from texlate.server.store import Store
 
 from texlate.server.worker import seams
 
 
 class _Parse:
     """parsing 段 mixin：base 树 + 解析 + ph 快照。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        store: Store
 
     # ------------------------------------------------------------ parsing
 

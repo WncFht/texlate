@@ -24,6 +24,9 @@ if TYPE_CHECKING:
         Mapping,
     )
 
+    from texlate.server.events import EventBus
+    from texlate.server.store import Store
+
 _T = TypeVar("_T")
 
 log = logging.getLogger(__name__)
@@ -58,6 +61,12 @@ def _wait_events(evs: list[threading.Event], deadline: float) -> None:
 
 class _Events:
     """loop 回弹/事件/log/终态/stats/产物登记 mixin。"""
+
+    if TYPE_CHECKING:
+        # 组合根 ``worker._Core.__init__`` 注入的共享态契约
+        bus: EventBus
+        store: Store
+        _loop_tid: int
 
     # ------------------------------------------------------------ 事件辅助
 
