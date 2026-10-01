@@ -463,7 +463,12 @@ class TestSplitPieces:
             "para",
             ph_fragments=frags,
         )
-        pending, split_items = pipe._route_chunks([c], set(), {}, [])  # noqa: SLF001
+        pending, split_items = pipe._route_chunks(  # noqa: SLF001
+            [c],
+            set(),
+            {},
+            pl._FatalLedger(),  # noqa: SLF001
+        )
         assert not pending
         assert len(split_items) == 1
         _parent, subs = split_items[0][1]

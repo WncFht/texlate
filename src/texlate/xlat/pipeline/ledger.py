@@ -2,8 +2,8 @@
 
 ``_XlatLedger`` 是 ``XlatPipeline`` 的账本臂 mixin——每个 ChunkResult 走
 「拦截网序列 → auth 闸入账 → state/on_result emit」的统一点列，普通
-``Exception`` 记 log 续走、``BaseException`` 收 ``fatal`` 由 ``_drain``/
-``run()`` 序章尾重抛（worker 不死 → ``queue.join()`` 不锁，E3）。
+``Exception`` 记 log 续走、``BaseException`` 收 ``_FatalLedger`` 由
+``_drain``/``run()`` 序章尾重抛（worker 不死 → ``queue.join()`` 不锁，E3）。
 
 ``_net_apply_fn`` 经 ``.pipeline`` 门面回取——其 ``globals()`` 晚绑定钉在
 门面命名空间，tests ``setattr(pl, _intercept_*)`` 补丁照常触达账本调用点
@@ -20,11 +20,44 @@ from texlate.xlat.pipeline import _net_apply_fn
 from texlate.xlat.pipeline.types import ChunkResult
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
     from texlate.chunk import ChunkIn
 
 log = logging.getLogger(__name__)
+
+
+class _FatalLedger:
+    """``BaseException`` 收账本——双档网的致命档归集位（替代裸 ``list`` 穿透）。
+
+    普通 ``Exception`` 逐点 log 续走；``BaseException``（KI/SE/GE）收进本账
+    绝不外泄——逃逸即杀 worker → ``queue.join()`` 死锁（E3）。消费约定：
+    ``bool(fatal)`` 为「已挂」判据（worker 排空臂只摘不做），``raise_first``
+    在 ``_drain`` 收敛后 / ``run()`` 序章尾统一重抛首笔。
+    """
+
+    __slots__ = ("_items",)
+
+    def __init__(self) -> None:
+        self._items: list[BaseException] = []
+
+    def append(self, exc: BaseException) -> None:
+        """收一笔致命异常（账本语义等价于旧裸 ``list.append``）。"""
+        self._items.append(exc)
+
+    def raise_first(self) -> None:
+        """重抛首笔——收敛位唯一出口；空账无操作。"""
+        if self._items:
+            raise self._items[0]
+
+    def __bool__(self) -> bool:
+        return bool(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self) -> Iterator[BaseException]:
+        return iter(self._items)
 
 
 class _XlatLedger:
@@ -73,7 +106,7 @@ class _XlatLedger:
 
     @staticmethod
     def _ledger_call(
-        fatal: list[BaseException],
+        fatal: _FatalLedger,
         r: ChunkResult,
         name: str,
         fn: Callable[[ChunkResult], None],
@@ -92,12 +125,12 @@ class _XlatLedger:
             log.exception("%s crashed fatally for %s", name, r.chunk_id)
             fatal.append(e)
 
-    def _ledger_intercepts(self, fatal: list[BaseException], r: ChunkResult) -> None:
+    def _ledger_intercepts(self, fatal: _FatalLedger, r: ChunkResult) -> None:
         """升格拦截网注册表的统一账本序列（``_load_resumed`` 与 ``_ledger_outcome`` 共用）。"""
         for net in _INTERCEPT_NETS:
             self._ledger_call(fatal, r, f"{net.name} intercept", _net_apply_fn(net))
 
-    def _ledger_outcome(self, fatal: list[BaseException], r: ChunkResult) -> None:
+    def _ledger_outcome(self, fatal: _FatalLedger, r: ChunkResult) -> None:
         """拦截网 + auth 闸 + emit 的账本序列（``_route_chunks`` 与 ``_collect`` 共用；点数随 ``_INTERCEPT_NETS`` 注册表走）。"""
         self._ledger_intercepts(fatal, r)
         self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
@@ -107,7 +140,7 @@ class _XlatLedger:
         self,
         results: list[ChunkResult],
         done_map: dict[str, ChunkResult],
-        fatal: list[BaseException],
+        fatal: _FatalLedger,
     ) -> None:
         """结果入账 + 落盘（worker 与 warmup 共用）。
 

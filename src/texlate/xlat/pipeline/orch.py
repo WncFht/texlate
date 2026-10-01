@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from texlate.chunk import ChunkIn
 from texlate.xlat import placeholders
@@ -17,7 +17,7 @@ from texlate.xlat.authgate import AuthGate, AuthTrippedError, _kind_of
 from texlate.xlat.batch import batch_member_overhead, pack_batches, split_long_chunk
 from texlate.xlat.client import HTTP_UNAUTHORIZED
 from texlate.xlat.pipeline.batch import _XlatBatch
-from texlate.xlat.pipeline.ledger import _XlatLedger
+from texlate.xlat.pipeline.ledger import _FatalLedger, _XlatLedger
 from texlate.xlat.pipeline.materialize import _XlatMaterialize
 from texlate.xlat.pipeline.single import _XlatSingle
 from texlate.xlat.pipeline.types import ChunkResult, PipelineConfig
@@ -30,6 +30,10 @@ if TYPE_CHECKING:
     from texlate.xlat.state import StateStore
 
 log = logging.getLogger(__name__)
+
+#: ``WorkItem.payload`` 的 kind↔形态 union——``single`` 载荷即 ``ChunkIn``；
+#: ``batch`` 是 ``(批序号, members)``；``split`` 是 ``(父块, pieces)``。
+WorkPayload = ChunkIn | tuple[int, list[ChunkIn]] | tuple[ChunkIn, list[ChunkIn]]
 
 
 class WorkItem(NamedTuple):
@@ -46,32 +50,32 @@ class WorkItem(NamedTuple):
     """
 
     kind: str  # "batch" | "split" | "single"
-    payload: Any  # tagged union 载荷形态随 kind 变，命名 accessor 给出类型
+    payload: WorkPayload  # tagged union 载荷形态随 kind 变，accessor 各自收窄
 
     @property
     def seq(self) -> int:
         """``batch`` 批序号。"""
-        return int(self.payload[0])
+        return cast("tuple[int, list[ChunkIn]]", self.payload)[0]
 
     @property
     def members(self) -> list[ChunkIn]:
         """``batch`` 成员列表。"""
-        return list(self.payload[1])
+        return list(cast("tuple[int, list[ChunkIn]]", self.payload)[1])
 
     @property
     def parent(self) -> ChunkIn:
         """``split`` 父块（记账 id 属主）。"""
-        return self.payload[0]  # type: ignore[no-any-return]
+        return cast("tuple[ChunkIn, list[ChunkIn]]", self.payload)[0]
 
     @property
     def pieces(self) -> list[ChunkIn]:
         """``split`` 片段序列。"""
-        return list(self.payload[1])
+        return list(cast("tuple[ChunkIn, list[ChunkIn]]", self.payload)[1])
 
     @property
     def chunk(self) -> ChunkIn:
         """``single`` 载荷块。"""
-        return self.payload  # type: ignore[no-any-return]
+        return cast("ChunkIn", self.payload)
 
     def affected(self) -> list[ChunkIn]:
         """本单元覆盖的 ChunkIn（auth 闸/worker crash 兜底记账用）。"""
@@ -177,7 +181,7 @@ class _XlatOrch:
             return [self._skip(c, f"chunk crash: {e}", kind=_kind_of(e))]
 
     def _load_resumed(
-        self, fatal: list[BaseException]
+        self, fatal: _FatalLedger
     ) -> tuple[set[str], dict[str, ChunkResult]]:
         """续跑装载：state → (completed 集合，chunk_id→ChunkResult)。"""
         if self.state is None:
@@ -206,7 +210,7 @@ class _XlatOrch:
         chunks: list[ChunkIn],
         completed: set[str],
         done_map: dict[str, ChunkResult],
-        fatal: list[BaseException],
+        fatal: _FatalLedger,
     ) -> tuple[list[ChunkIn], list[WorkItem]]:
         """路由输入块 → (pending, split_items)。
 
@@ -302,7 +306,7 @@ class _XlatOrch:
         self,
         queue: asyncio.Queue[WorkItem | None],
         done_map: dict[str, ChunkResult],
-        fatal: list[BaseException],
+        fatal: _FatalLedger,
     ) -> None:
         """消费循环：哨兵退出；item 级 crash 兜底成 skipped。
 
@@ -351,7 +355,7 @@ class _XlatOrch:
 
     async def _drain(
         self,
-        work_items: list[WorkItem | tuple[str, Any]],
+        work_items: list[WorkItem | tuple[str, WorkPayload]],
         done_map: dict[str, ChunkResult],
     ) -> None:
         """首发单飞暖前缀缓存 → N worker 消费 queue（哨兵收尾）。
@@ -366,7 +370,7 @@ class _XlatOrch:
             queue.put_nowait(item if isinstance(item, WorkItem) else WorkItem(*item))
 
         # 首发单飞暖前缀缓存，再并发其余（docs/spec/translate.md warmup 模式）
-        fatal: list[BaseException] = []
+        fatal = _FatalLedger()
         first = await queue.get()
         if first is not None:
             try:
@@ -396,8 +400,7 @@ class _XlatOrch:
                 if not w.done():
                     w.cancel()
             await asyncio.gather(*workers, return_exceptions=True)
-        if fatal:
-            raise fatal[0]
+        fatal.raise_first()
 
     async def run(self, chunks: list[ChunkIn]) -> list[ChunkResult]:
         """跑完整篇。返回与输入同序的结果表。
@@ -410,11 +413,10 @@ class _XlatOrch:
         # 序章账本：_load_resumed/_route_chunks 的 interceptor/auth_gate/_emit
         # 调用点与 _collect 同款收账——BaseException 在此统一重抛，先于
         # state.start()/队列编排，免得上半段收账下半段无人抛。
-        fatal: list[BaseException] = []
+        fatal = _FatalLedger()
         completed, done_map = self._load_resumed(fatal)
         pending, split_items = self._route_chunks(chunks, completed, done_map, fatal)
-        if fatal:
-            raise fatal[0]
+        fatal.raise_first()
 
         if self.state is not None:
             self.state.start(len(chunks))

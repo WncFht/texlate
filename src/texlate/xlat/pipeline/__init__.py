@@ -87,7 +87,7 @@ if TYPE_CHECKING:
     from texlate.xlat.intercept import _InterceptNet
     from texlate.xlat.mock import MOCK_ZH, MockTranslator, _mock_translate_text
     from texlate.xlat.pipeline.batch import _merged_value_frags, _XlatBatch
-    from texlate.xlat.pipeline.ledger import _XlatLedger
+    from texlate.xlat.pipeline.ledger import _FatalLedger, _XlatLedger
     from texlate.xlat.pipeline.materialize import _XlatMaterialize
     from texlate.xlat.pipeline.orch import WorkItem, XlatPipeline, _XlatOrch
     from texlate.xlat.pipeline.single import _slots_user_obj, _XlatSingle
@@ -144,7 +144,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_XlatBatch",
         "_merged_value_frags",
     ),
-    "ledger": ("_XlatLedger",),
+    "ledger": ("_FatalLedger", "_XlatLedger"),
     "orch": (
         "WorkItem",
         "XlatPipeline",
@@ -235,6 +235,7 @@ __all__ = [
     "Translator",
     "WorkItem",
     "XlatPipeline",
+    "_FatalLedger",
     "_XlatBatch",
     "_XlatLedger",
     "_XlatMaterialize",

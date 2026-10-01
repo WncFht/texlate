@@ -106,12 +106,12 @@ class TestCollectLedgerUnit:
         monkeypatch.setattr(pl, "_intercept_ph_in_cs", _tag_recorder(calls, "ph_in_cs"))
         monkeypatch.setattr(pl, "_intercept_bare_cs", _tag_recorder(calls, "bare_cs"))
 
-        fatal: list[BaseException] = []
+        fatal = pl._FatalLedger()  # noqa: SLF001
         done_map: dict[str, pl.ChunkResult] = {}
         # 契约：不抛——致命异常收账本而非外泄杀 worker
         p._collect([_result("a"), _result("b")], done_map, fatal)  # noqa: SLF001
 
-        assert fatal == [boom, boom]  # 逐调用点独立收账：两 r 各记一笔
+        assert list(fatal) == [boom, boom]  # 逐调用点独立收账：两 r 各记一笔
         assert set(done_map) == {"a", "b"}  # 结果入账先于账本调用，两 r 都在
         assert calls == [  # 调用点序与 r 循环双双不中断
             ("leftover_ph", "a"),
@@ -272,12 +272,12 @@ class TestPrologueFatalLedger:
         monkeypatch.setattr(pl, "_intercept_ph_in_cs", _tag_recorder(calls, "ph_in_cs"))
         monkeypatch.setattr(pl, "_intercept_bare_cs", _tag_recorder(calls, "bare_cs"))
 
-        fatal: list[BaseException] = []
+        fatal = pl._FatalLedger()  # noqa: SLF001
         done_map: dict[str, pl.ChunkResult] = {}
         pending, split_items = p._route_chunks(  # noqa: SLF001
             [pl.ChunkIn("p1", "[[X_1]]", "para")], set(), done_map, fatal
         )
-        assert fatal == [boom]
+        assert list(fatal) == [boom]
         assert set(done_map) == {"p1"}
         assert not pending
         assert not split_items
@@ -310,9 +310,9 @@ class TestPrologueFatalLedger:
             raise boom
 
         monkeypatch.setattr(pl, "_intercept_ph_in_cs", _boom)
-        fatal: list[BaseException] = []
+        fatal = pl._FatalLedger()  # noqa: SLF001
         _completed, done_map = p._load_resumed(fatal)  # noqa: SLF001
-        assert fatal == [boom, boom]  # 两记录各记一笔，循环不中断
+        assert list(fatal) == [boom, boom]  # 两记录各记一笔，循环不中断
         assert set(done_map) == {"a", "b"}
         assert sorted(calls) == ["a", "b"]
 
