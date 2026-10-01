@@ -1,4 +1,4 @@
-r"""``latex/segmenter.args_read`` — 参数读取（``args`` god-file 机械拆分叶）。
+r"""``latex/segmenter.args.read`` — 参数读取（``args`` god-file 机械拆分叶）。
 
 ``_args`` 的 token 版拉取/回放契约：``pulled``/``committed``/
 ``all_toks`` 账本 + 逐参 ``_ArgTok`` 记录。``_peek_nonspace``/
@@ -14,9 +14,8 @@ from typing import TYPE_CHECKING
 
 from texlate.latex.gullet import _tok_eq
 from texlate.latex.model import ArgSpec
+from texlate.latex.segmenter._common import TokenSource, _ArgTok
 from texlate.latex.tables import FILENAME_CHARS
-
-from ._common import TokenSource, _ArgTok
 
 if TYPE_CHECKING:
     from texlate.latex.mouth import Tok

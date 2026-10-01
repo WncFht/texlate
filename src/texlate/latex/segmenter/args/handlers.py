@@ -1,4 +1,4 @@
-r"""``latex/segmenter.args_handlers`` — 各行 handler（``args`` god-file 机械拆分叶）。
+r"""``latex/segmenter.args.handlers`` — 各行 handler（``args`` god-file 机械拆分叶）。
 
 ``\href``/``\input`` 族漏网/protect-block/边界命令（``BOUNDARY_TAIL``/
 dimen 尾参/``\item`` 置 ``force_chunk``）/``\textcolor`` 透明头/
@@ -14,15 +14,7 @@ from typing import TYPE_CHECKING, cast
 import texlate.latex.tables as _tables
 from texlate.latex.gullet import MacroDef
 from texlate.latex.model import ArgSpec, PhType, ScanWarning, match_brace
-from texlate.latex.tables import (
-    BOUNDARY_TAIL,
-    DIMEN_TAIL_KIND,
-    FILENAME_CHARS,
-    TRANSPARENT_HEAD_SPEC,
-    strip_fname_quotes,
-)
-
-from ._common import (
+from texlate.latex.segmenter._common import (
     _BSBS_OPT_RX,
     _COND_GROUP_ARGS,
     _DEAD_ARG_NAMES,
@@ -36,15 +28,21 @@ from ._common import (
     _pend_call_slots,
     _verb_delim_tok,
 )
-from .args_chunk import _ArgsChunk
-from .args_prose import _PROSE_BLOCK_NAMES
-from .grpscan import _IMPORT2
+from texlate.latex.segmenter.args.chunk import _ArgsChunk
+from texlate.latex.segmenter.args.prose import _PROSE_BLOCK_NAMES
+from texlate.latex.segmenter.grpscan import _IMPORT2
+from texlate.latex.tables import (
+    BOUNDARY_TAIL,
+    DIMEN_TAIL_KIND,
+    FILENAME_CHARS,
+    TRANSPARENT_HEAD_SPEC,
+    strip_fname_quotes,
+)
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanState, Span
     from texlate.latex.mouth import Tok
-
-    from ._common import _Vtex
+    from texlate.latex.segmenter._common import _Vtex
 
 
 class _ArgsHandlers(_ArgsChunk):

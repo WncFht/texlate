@@ -1,4 +1,4 @@
-r"""``latex/segmenter.args_protect`` — 保护调用（``args`` god-file 机械拆分叶）。
+r"""``latex/segmenter.args.protect`` — 保护调用（``args`` god-file 机械拆分叶）。
 
 ``_protect_cs``：命令 + ``*?`` + ``[opt]*`` + ``{args}*`` 整段 →
 ``[[typ_n]]`` 进 run（``mand`` = ``{...}`` 组上限，verbatim 走字节级
@@ -13,15 +13,13 @@ import re
 from typing import TYPE_CHECKING
 
 from texlate.latex.model import PhType, ScanWarning, match_brace
-
-from ._common import _kv_list_shaped, _verb_delim_tok
-from .args_read import _ArgsRead
+from texlate.latex.segmenter._common import _kv_list_shaped, _verb_delim_tok
+from texlate.latex.segmenter.args.read import _ArgsRead
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanState, Span
     from texlate.latex.mouth import Tok
-
-    from ._common import TokenSource, _Vtex
+    from texlate.latex.segmenter._common import TokenSource, _Vtex
 
 # ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字 - 数字形即误植，
 # ``smith-2020``/``key-a`` 合法键不中。

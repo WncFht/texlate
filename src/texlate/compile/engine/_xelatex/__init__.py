@@ -16,7 +16,7 @@ kpsewhich/tlpdb/tlmgr 探测 mixin）、``_xelatex.install``
 ``from texlate import X`` 属性读面不变（``_tectonic`` 的
 ``_harvest``/``_prepare_main`` 回取不受影响）。孙叶间互引走全路径直跨
 （``._xelatex_<叶>``），不经本门面；mixin 宿主属性/方法契约经叶内
-``TYPE_CHECKING`` 声明钉静态面（segmenter ``args_handlers`` 同式）。
+``TYPE_CHECKING`` 声明钉静态面（segmenter ``args/handlers`` 同式）。
 """
 
 from __future__ import annotations

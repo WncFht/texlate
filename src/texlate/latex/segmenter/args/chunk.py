@@ -1,4 +1,4 @@
-r"""``latex/segmenter.args_chunk`` — chunk-arg 族 + argspec 表分派（``args`` god-file 机械拆分叶）。
+r"""``latex/segmenter.args.chunk`` — chunk-arg 族 + argspec 表分派（``args`` god-file 机械拆分叶）。
 
 ``_chunk_target_args``（``\section`` 族公共头：``*`` + spec 读参 +
 可译位挑取）→ ``_handle_chunk_arg``/``_preamble_chunk_arg`` 双档
@@ -13,17 +13,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from texlate.latex.model import PhType, Piece, PieceKind, ScanWarning, Span
+from texlate.latex.segmenter._common import _chunk_spec_cached, _pick_cut
+from texlate.latex.segmenter.args.prose import _ArgsProse
+from texlate.latex.segmenter.args.protect import _ArgsProtect
 from texlate.latex.tables import CHUNK_ARG_SPEC, CHUNK_MAX, MAX_GEN
-
-from ._common import _chunk_spec_cached, _pick_cut
-from .args_prose import _ArgsProse
-from .args_protect import _ArgsProtect
 
 if TYPE_CHECKING:
     from texlate.latex.model import ArgspecEntry, ScanState
     from texlate.latex.mouth import Tok
-
-    from ._common import TokenSource, _ArgTok, _Vtex
+    from texlate.latex.segmenter._common import TokenSource, _ArgTok, _Vtex
 
 
 class _ArgsChunk(_ArgsProse, _ArgsProtect):

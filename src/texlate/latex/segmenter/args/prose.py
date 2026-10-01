@@ -1,4 +1,4 @@
-r"""``latex/segmenter.args_prose`` — 散文参挖掘 + 子扫渲染（``args`` god-file 机械拆分叶）。
+r"""``latex/segmenter.args.prose`` — 散文参挖掘 + 子扫渲染（``args`` god-file 机械拆分叶）。
 
 散文门三臂共用判定面：``_opaque_arg_prose`` 调用点逐参判据（组参
 剔注释+cs 后 ≥4 连词即散文）→ ``_prose_args_of`` 调用点名闸 →
@@ -15,9 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from texlate.latex.model import PhType, ScanWarning, Span
-from texlate.latex.tables import MAX_GEN
-
-from ._common import (
+from texlate.latex.segmenter._common import (
     _ARG_COMMENT_RX,
     _DEAD_ARG_NAMES,
     _DEAD_TAIL_NAMES,
@@ -27,14 +25,14 @@ from ._common import (
     _ListSource,
     _prose_text_hit,
 )
-from .args_read import _ArgsRead
+from texlate.latex.segmenter.args.read import _ArgsRead
+from texlate.latex.tables import MAX_GEN
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanState
     from texlate.latex.mouth import Tok
     from texlate.latex.segmenter import Segmenter
-
-    from ._common import _Vtex
+    from texlate.latex.segmenter._common import _Vtex
 
 #: protect-block 散文白名单：``\markright``/``\markboth`` 运行头与
 #: ``\address``/``\institute``/``\affiliation`` 机构隶属段装的是真散文
