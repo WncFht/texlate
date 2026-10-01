@@ -30,7 +30,7 @@
 
 回归钉（首轮 fuzz 钉住的 4 族缺陷已全部修复，以下转常设回归用例）：
 
-- ``placeholders.diff`` 补上了 L0 ``_check_placeholder`` 的 ``src_literal``
+- ``placeholders.diff`` 补上了 rules ``_check_placeholder`` 的 ``src_literal``
   净差豁免（src 自带 ``[RS80]``/``[a_1]`` 形 verbatim 字面不再计 ``extra``；
   此前缺省 validator 路径下逐字正确译文必判 invalid → 阶梯三振 →
   恒 fallback_orig）——``test_diff_src_literal_fuzzy_exempt``；
@@ -64,7 +64,7 @@ from _fuzzkit import (
 )
 
 from texlate.textutil import residual_en_net
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat import batch as xb
 from texlate.xlat import placeholders as ph
 from texlate.xlat.client import AuthError, ChatClient, ChatError, redact
@@ -358,9 +358,9 @@ def test_fuzz_diff_detects_drop_and_inject() -> None:
 
 
 def test_diff_src_literal_fuzzy_exempt() -> None:
-    """回归钉：``[Xn]`` 形字面 verbatim 复制判 ok（与 L0 豁免同口径）。"""
+    """回归钉：``[Xn]`` 形字面 verbatim 复制判 ok（与 rules 豁免同口径）。"""
     src = "see [RS80] and [a_1] in the references"
-    assert validate_pair(src, src).ok  # L0 有豁免——对照组必须过
+    assert validate_pair(src, src).ok  # rules 有豁免——对照组必须过
     assert ph.diff(src, src).ok  # xlat diff 同口径净差豁免
 
 

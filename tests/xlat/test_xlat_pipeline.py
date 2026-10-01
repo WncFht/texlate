@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from conftest import big_para, mk_chunk, pass_validate, run_pipeline
 
-from texlate.validate.l0 import CACHE_VETO_RULES, Severity, validate_pair
+from texlate.validate.rules import CACHE_VETO_RULES, Severity, validate_pair
 from texlate.xlat import pipeline as pl
 from texlate.xlat import prompts
 from texlate.xlat.client import AuthError
@@ -540,7 +540,7 @@ class TestCachePoisonGuard:
 
 
 class TestInterceptRegistry:
-    """升格拦截网注册表钉：唯一枚举面 + 三消费形同表 + l0 否决规则双向钉。"""
+    """升格拦截网注册表钉：唯一枚举面 + 三消费形同表 + rules 否决规则双向钉。"""
 
     def test_registry_membership_pinned(self) -> None:
         """注册表成员集钉——加网/除网必过本钉，防静默漂移。"""
@@ -552,9 +552,9 @@ class TestInterceptRegistry:
             "dangerous_cs",
         }
 
-    def test_l0_rule_set_matches_cache_veto(self) -> None:
-        """``l0_rule`` 集 ≡ l0 ``CACHE_VETO_RULES``——加网改镜像任一侧漏更即红。"""
-        assert {n.l0_rule for n in pl._INTERCEPT_NETS} == CACHE_VETO_RULES  # noqa: SLF001
+    def test_mirror_rule_set_matches_cache_veto(self) -> None:
+        """``mirror_rule`` 集 ≡ rules ``CACHE_VETO_RULES``——加网改镜像任一侧漏更即红。"""
+        assert {n.mirror_rule for n in pl._INTERCEPT_NETS} == CACHE_VETO_RULES  # noqa: SLF001
 
     def test_every_net_has_apply_wrapper(self) -> None:
         """``_intercept_<name>`` 包装函存在钉——消费形经词根晚绑定取件，
@@ -582,14 +582,14 @@ class TestInterceptRegistry:
             ),
         ],
     )
-    def test_net_detect_mirrors_l0_rule(self, net_name: str, src: str, zh: str) -> None:
+    def test_net_detect_mirrors_rule(self, net_name: str, src: str, zh: str) -> None:
         """每网一对实证料：``net.detect`` 命中 ⇒ ``validate_pair`` 必报
-        ``net.l0_rule`` error——镜像关系语义钉而非仅名钉。"""
+        ``net.mirror_rule`` error——镜像关系语义钉而非仅名钉。"""
         net = next(n for n in pl._INTERCEPT_NETS if n.name == net_name)  # noqa: SLF001
         assert net.detect(src, zh)
         rep = validate_pair(src, zh)
         assert any(
-            i.rule == net.l0_rule and i.severity is Severity.ERROR for i in rep.issues
+            i.rule == net.mirror_rule and i.severity is Severity.ERROR for i in rep.issues
         )
 
     def test_retranslate_consumes_registry_late_binding(
@@ -679,7 +679,7 @@ class TestValueContextInjection:
         assert batch_user.index("[2]") < batch_user.index(prompts.VALUE_CONTEXT_HEADER)
 
     def test_retranslate_block_before_error_tag(self) -> None:
-        """L2 回灌 user：content → value 块 → [compile_error]。"""
+        """logfix 回灌 user：content → value 块 → [compile_error]。"""
         t = pl.MockTranslator()
         pipe = pl.XlatPipeline(translator=t)
         c = pl.ChunkIn(

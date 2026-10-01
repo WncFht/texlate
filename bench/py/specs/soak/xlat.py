@@ -29,7 +29,7 @@ from specs._shared import (
 from specs._xlat_async import translate_tree_async
 from texlate.pipecore import delivered
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
 from texlate.xlat.pipeline import (
     AuthTrippedError,

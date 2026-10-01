@@ -22,7 +22,7 @@ from texlate.share import (
     unpack_share,
 )
 from texlate.textutil import CJK_RX
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 
 from ._common import (
     PROGRESS,
@@ -178,7 +178,7 @@ class _Share:
         同键包内条目（重复原文段按序各得一份）。``_share_pool`` 只收真
         译文载荷（zh 空/非 str、``zh==en`` 无 CJK 的原文回写条目不进池），
         被滤条目视同无条目。命中译文先过 ``validate_pair``（与 LLM 产出
-        同款 L0 判据）：过 → ``ok``；不过 → ``fallback_orig`` +
+        同款 rules 判据）：过 → ``ok``；不过 → ``fallback_orig`` +
         ``validate``。本地无包条目的块 → ``fallback_orig`` +
         ``share_miss``（v1 不回退自译——导入保持零 token）；包内多余
         条目只记 ``extra`` 忽略。零命中即包与本源不对应 →

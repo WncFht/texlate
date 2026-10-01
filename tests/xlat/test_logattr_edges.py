@@ -1,4 +1,4 @@
-"""L2 warning 分类侧合成边界钉 —— l2edges-scout-2026-09-17 可补清单 11 项。
+"""logattr warning 分类侧合成边界钉 —— l2edges-scout-2026-09-17 可补清单 11 项。
 
 全部经 ``parse_log_text`` 内联合成（无需真 log）：``NONERR_MSG_RE``
 豁免（生产引擎按 docs/spec/compile.md 带 ``-file-line-error``，``./x.tex:N:
@@ -11,7 +11,7 @@ sys_hits/redlines 去重、``parse_log`` OSError→log_missing、畸形码点
 
 from pathlib import Path
 
-from texlate.validate.l2 import parse_log, parse_log_text
+from texlate.validate.logattr import parse_log, parse_log_text
 
 WARN_SAMPLE_CAP = 5  # _MAX_WARN_SAMPLES 同值：每类 warning 样例留存上限
 N_CITATION_WARNS = 7  # 超上限的同类 warning 条数

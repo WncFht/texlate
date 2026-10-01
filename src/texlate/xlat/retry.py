@@ -183,7 +183,7 @@ class LadderResult:
 
 
 def _validate(src: str, zh: str) -> str:
-    """默认校验 = 占位符对账（L0 全量规则由 pipeline 的 validator 参数接入）。"""
+    """默认校验 = 占位符对账（rules 全量规则由 pipeline 的 validator 参数接入）。"""
     return diff(src, zh).describe()
 
 

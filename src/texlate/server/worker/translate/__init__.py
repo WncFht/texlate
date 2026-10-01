@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     )
     from texlate.textutil import env_flag
     from texlate.textutil.osutil import translator_mode
-    from texlate.validate.l0 import pair_feedback
+    from texlate.validate.rules import pair_feedback
     from texlate.xlat.client import (
         DEFAULT_MODEL,
         AuthError,
@@ -163,7 +163,7 @@ _TEXLATE_EXPORTS = {
     "env_flag": "texlate.textutil",
     "env_judge_all": "texlate.repair",
     "opt_bool": "texlate.server.worker._common",
-    "pair_feedback": "texlate.validate.l0",
+    "pair_feedback": "texlate.validate.rules",
     "resolve_glossary_path": "texlate.repair",
     "translator_mode": "texlate.textutil.osutil",
     "unknown_env_of": "texlate.repair",

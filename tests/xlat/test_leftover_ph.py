@@ -228,7 +228,7 @@ class TestCacheAndResume:
 
 
 class TestDownstreamContract:
-    """拦截结果与 splice / L2 回灌 / auth 闸的契约面。"""
+    """拦截结果与 splice / logfix 回灌 / auth 闸的契约面。"""
 
     def test_splice_never_sees_polluted_zh(self) -> None:
         """真 splice 验证：fault 块不进 trans → reconstruct 回原文、零字面残留。"""
@@ -253,7 +253,7 @@ class TestDownstreamContract:
         assert not ANY_PH_RX.search(spliced)
 
     def test_retranslate_leftover_falls_back(self) -> None:
-        """L2 回灌同受拦截——重译产物带残留 → fault，调用方回落原文。"""
+        """logfix 回灌同受拦截——重译产物带残留 → fault，调用方回落原文。"""
         pipe = pl.XlatPipeline(translator=_Hallucinator(), validator=pass_validate)
         c = big_para("c1")
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))

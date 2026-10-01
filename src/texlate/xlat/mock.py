@@ -3,7 +3,7 @@ r"""占位译文 Translator（mock 臂）：E2E/bench/干跑路径专用，不�
 ``MockTranslator`` 实现 ``pipeline.Translator`` 协议：占位符/控制字/括号
 原位保留，非空散文段 → 按比例固定中文串——占位符契约天然成立，且批输入
 （每行 ``[n]`` 开头）回显编号，保证批量解析路径被真实走到。护栏口径与
-L0/cs-boundary 对齐：只替换行内字母 run，标点/空白/换行原样，防 ``\cs``+CJK
+rules/cs-boundary 对齐：只替换行内字母 run，标点/空白/换行原样，防 ``\cs``+CJK
 熔合成未定义控制序列。
 """
 
@@ -18,8 +18,8 @@ from . import prompts
 #: mock 译文固定串（e2e mock_a 同款：散文段 → 固定中文，token 原位不动）
 MOCK_ZH = "这是译文"
 
-#: token 集 = 占位符 + 控制序列 + 括号 + L0 脆弱字符（``~`` 活动字符、``$``/``&``
-#: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 L0 同口径才构成有效 E2E）
+#: token 集 = 占位符 + 控制序列 + 括号 + rules 脆弱字符（``~`` 活动字符、``$``/``&``
+#: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 rules 同口径才构成有效 E2E）
 _MOCK_TOKEN_RX = re.compile(
     r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\(?!\[\[).|[][(){}|~$&]"
 )
@@ -54,7 +54,7 @@ def _mock_zh(text: str, zh: str) -> str:
 def _mock_translate_text(text: str, zh: str) -> str:
     r"""e2e mock_a 同款：token 原位保留，字母散文 run → 按比例中文串。
 
-    护栏对齐 L0/cs-boundary 口径：只替换行内字母 run（``\eg, Caffe`` →
+    护栏对齐 rules/cs-boundary 口径：只替换行内字母 run（``\eg, Caffe`` →
     ``\eg, 这是译文``），标点/空白/换行原样——否则 ``\cs``+CJK 熔合成
     未定义控制序列（macro 融合 cs/cs_dropped 是 error 级判据）。
     """

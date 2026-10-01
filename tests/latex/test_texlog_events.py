@@ -4,7 +4,7 @@ r"""texlog 单遍事件流钉点。
   逐行手工重放 oracle（``update_file_stack``+``patch_graphic_top``）。
 - ``match_error_line``：三消费面同词素表（``^!``/``file:line:`` 双格式、
   Warning/``==>`` 复述排除、捕获面）。
-- 栈口径守恒：l2/loginfo 含行快照 vs logparse ``file_stack_at`` 排他
+- 栈口径守恒：logattr/loginfo 含行快照 vs logparse ``file_stack_at`` 排他
   口径——有意分歧逐面钉死。
 """
 
@@ -18,7 +18,7 @@ from texlate.texlog import (
     patch_graphic_top,
     update_file_stack,
 )
-from texlate.validate.l2 import _match_error_line, parse_log_text
+from texlate.validate.logattr import _match_error_line, parse_log_text
 
 
 def _oracle(lines: list[str]) -> list[tuple]:
@@ -102,7 +102,7 @@ _LATE_OPEN_LOG = "(./main.tex\n! err (./late.tex\n"
 
 
 def test_stack_snapshot_semantics_pinned() -> None:
-    """错误行自携 ``(`` 开帧：含行快照（l2/loginfo）vs 排他栈（logparse）。"""
+    """错误行自携 ``(`` 开帧：含行快照（logattr/loginfo）vs 排他栈（logparse）。"""
     v = parse_log_text(_LATE_OPEN_LOG)
     assert v.first_error is not None
     assert v.first_error.file_stack == ("./main.tex", "./late.tex")
@@ -126,7 +126,7 @@ def test_logparse_popped_files_runaway() -> None:
     assert v.first_error.eof_file == "./bad.tex"
 
 
-def test_l2_match_error_line_delegate() -> None:
+def test_logattr_match_error_line_delegate() -> None:
     """bench ``extract_logfix_fixture`` 钉点签名守恒——``(head, tex_file)``。"""
     assert _match_error_line("! e") == ("! e", None)
     assert _match_error_line("./a.tex:9: m") == ("./a.tex:9: m", "./a.tex")

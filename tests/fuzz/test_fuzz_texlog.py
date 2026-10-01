@@ -16,11 +16,11 @@
 - D1 ``is_project_file`` 裸名分支 ``(root/token).is_file()`` 漏
   OSError——单段 >255 字节 token ENAMETOOLONG 逃逸（绝对路径分支显式
   catch OSError/ValueError，裸名支不对称）；docstring「判不出归属保守
-  归工程」契约破，l2.py:353/loginfo.py:102 逐帧调用一遇即整轮死。
+  归工程」契约破，logattr.py:353/loginfo.py:102 逐帧调用一遇即整轮死。
   **已修**（裸名支 ``try (OSError, ValueError)`` → True），钉转回归断言。
 - D2 ``is_dos_eps`` NUL token 漏 ValueError（"embedded null byte" 非
   OSError 子类）——NUL 具名帧真实可达：``(a\x00b.tex`` 行推 ``.tex``
-  白名单帧；消费端 loginfo.py:97/l2.py:348 的 ``is_dos_eps`` 先于
+  白名单帧；消费端 loginfo.py:97/logattr.py:348 的 ``is_dos_eps`` 先于
   ``is_project_file`` 的 NUL 豁免执行，invalid_utf8 命中即炸整轮归因。
   **已修**（先 ``is_file`` 正规文件闸 + ``except (OSError, ValueError)``
   ——fifo 开口阻塞 P2 面同消），钉转回归断言。
@@ -248,7 +248,7 @@ def test_file_stack_at_bounds() -> None:
 
 
 # ---------------------------------------------------------------- patch 回放臂
-# 消费端正典是逐行 ``update``+``patch``（l2.py:473/loginfo.py:93）——上面的
+# 消费端正典是逐行 ``update``+``patch``（logattr.py:473/loginfo.py:93）——上面的
 # oracle 重放只吃 update；patch 不改栈深但会把栈顶 None 补成 graphic 名，
 # 故本节独立钉 patch 回放面的不变量。
 
@@ -531,7 +531,7 @@ class TestDosEps:
         """D2 可达性钉：``(a\\x00b.tex`` 行推 NUL 具名帧（``.tex`` 白名单）。
 
         消费端 ``is_dos_eps(inner, ...)`` 先于 ``is_project_file`` 的 NUL
-        豁免执行（loginfo.py:97/l2.py:348）——D2 不是死路径。
+        豁免执行（loginfo.py:97/logattr.py:348）——D2 不是死路径。
         """
         st: list[str | None] = []
         update_file_stack("(a\x00b.tex", st)

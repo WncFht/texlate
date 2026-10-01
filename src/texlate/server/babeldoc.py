@@ -84,7 +84,7 @@ _CJK_MIN_RATIO = 0.10
 #: 子进程 env 白名单（**非黑名单**）：``dict(os.environ)`` 全量继承会把
 #: ``TEXLATE_API_KEY``/``OPENAI_API_KEY`` 等 secret 灌进第三方子进程及其
 #: multiprocessing 孙链（``/proc/<pid>/environ``、崩溃转储均可见）——与
-#: ``validate/l1._ENV_PASS_*``/``compile/sandbox._ENV_PASS_*`` 同一惯例。
+#: ``validate/cst._ENV_PASS_*``/``compile/sandbox._ENV_PASS_*`` 同一惯例。
 #: babeldoc 凭证走 ``write_config`` 的 0600 TOML，env 面只放行运行必需项：
 #: PATH/HOME/locale、代理族两形（httpx 拉 HF 字体/cmap/onnx 与 github 资产）、
 #: CA-bundle（corp-TLS）、``HF_ENDPOINT``（hf-mirror）、tmpdir、Windows
@@ -662,7 +662,7 @@ def _child_env() -> dict[str, str]:
 
     ``dict(os.environ)`` 全量继承会把 ``TEXLATE_API_KEY``/``OPENAI_API_KEY``
     等 secret 灌进第三方子进程及其 multiprocessing 孙链——白名单表见
-    ``_ENV_PASS_*``（``validate/l1``/``compile/sandbox`` 同一惯例；过滤
+    ``_ENV_PASS_*``（``validate/cst``/``compile/sandbox`` 同一惯例；过滤
     骨架共用 ``textutil.filtered_env``）。凭证不走 env——
     ``write_config`` 的 0600 TOML 单通道。
     """

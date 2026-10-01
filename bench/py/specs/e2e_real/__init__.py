@@ -132,7 +132,7 @@ from texlate.compile.marks import inject_layout_marks
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,

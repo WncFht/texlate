@@ -1,11 +1,11 @@
-"""residual_en：段内残英句检测网 + L0 规则 + pipeline 第四拦截（不触网）。"""
+"""residual_en：段内残英句检测网 + rules 规则 + pipeline 第四拦截（不触网）。"""
 
 from __future__ import annotations
 
 from conftest import mk_chunk, run_pipeline
 
 from texlate.textutil import residual_en_net
-from texlate.validate.l0 import Severity, validate_pair
+from texlate.validate.rules import Severity, validate_pair
 from texlate.xlat import pipeline as pl
 
 _SRC = (
@@ -16,7 +16,7 @@ _ZH_ECHO = (
     "甲介绍句。The quick brown fox jumps over the lazy dog repeatedly "
     "near the barn. 尾部到此。"
 )
-#: 干净 zh 对照件——net/L0/intercept 三臂共享同一夹具串。
+#: 干净 zh 对照件——net/rules/intercept 三臂共享同一夹具串。
 _CLEAN_ZH = "甲介绍句。敏捷棕狐反复跳过谷仓旁的懒狗。尾部到此。"
 
 
@@ -235,7 +235,7 @@ class TestNet:
         assert residual_en_net(_SRC, zh) == []
 
 
-class TestL0Rule:
+class TestRulesRule:
     def test_residual_en_error(self) -> None:
         rep = validate_pair(_SRC, _ZH_ECHO)
         hits = [i for i in rep.issues if i.rule == "residual_en"]

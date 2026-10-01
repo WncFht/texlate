@@ -18,7 +18,7 @@ from _env import DB, TASKS, TEXLATE_ROOT
 from texlate.chunk import ChunkIn
 from texlate.pipecore import PIPE_TO_DB, delivered_db
 from texlate.server.worker._common import chunk_error_code
-from texlate.validate.l0 import pair_feedback
+from texlate.validate.rules import pair_feedback
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
     GatewayTranslator,

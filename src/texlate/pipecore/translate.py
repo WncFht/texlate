@@ -35,7 +35,7 @@ from texlate.repair import (
 )
 from texlate.textutil import PH_RX
 from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
-from texlate.validate.l0 import pair_feedback
+from texlate.validate.rules import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
@@ -157,7 +157,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     False 的块回落原文不进 splice。``auto_glossary=True`` 时开逐篇
     LLM 术语抽取臂（仅对带 ``client`` 的真网关 translator 生效）。
     ``scan_fn`` 缺省走本模块 ``scan_tree`` 全局（patch 点随件迁）；
-    ``validator`` 缺省 L0 ``validate_pair`` 全量规则——e2e/bench 显式
+    ``validator`` 缺省 rules ``validate_pair`` 全量规则——e2e/bench 显式
     透传自家模块全局，保 ``e2e.validate_pair`` 等 monkeypatch 缝。
     ``front_matter`` = preamble 前置发射白名单（缺省 scan 臂生效）。
     ``sink`` 收 ``translate`` 实况帧：scan 后 ``start``（载 total/files，

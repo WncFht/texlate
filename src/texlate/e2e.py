@@ -1,7 +1,7 @@
 """mock E2E 驱动（docs/spec/benchmark.md B5 Mode A 的产品化扶正）。
 
 全链走产品 API：``route_project → normalize_project → XlatPipeline(MockTranslator)
-+ L0 校验 → splice 写回 → prepare_chinese → engine.compile → judge``。
++ rules 校验 → splice 写回 → prepare_chinese → engine.compile → judge``。
 bench harness（e2e_mock_bench）与 CLI ``texlate run`` 共用同一实现——
 评测条件矩阵在 bench 侧，单工程驱动在这里。扫描/翻译/编译/修复的
 policy 脊单源在 ``texlate.pipecore``（worker/bench 共享），本模块只留
@@ -54,7 +54,7 @@ from texlate.pipecore import (
 from texlate.pipecore import scan_tree as _scan_tree
 from texlate.repair import ENV_ENV_JUDGE, LOGFIX_MAX_CHUNKS, embed_tounicode_quiet
 from texlate.textutil.osutil import ENV_AUTO_GLOSSARY, env_switch
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 
 if TYPE_CHECKING:
     from texlate.compile.engine import Engine
@@ -130,7 +130,7 @@ def translate_tree(  # noqa: PLR0913 -- 同上：注入面穿透到 _translate_t
     """目录树内全部 .tex 走 XlatPipeline → splice 写回。
 
     单 pipeline 跨文件编排（chunk_id = ``{file_idx}:{chunk.id}``），
-    校验器注入 L0 ``validate_pair``。返回 per-tree 汇总统计。
+    校验器注入 rules ``validate_pair``。返回 per-tree 汇总统计。
     ``translator`` 缺省 ``MockTranslator``（链路自检臂），可注入真网关
     Translator；``env_judge`` 缺省读 ``TEXLATE_ENV_JUDGE``（默认关——
     静态表外 env 的可译性 LLM 判定）；``auto_glossary`` 缺省读

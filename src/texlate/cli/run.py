@@ -128,7 +128,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
 ) -> None:
     """端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
-    翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器（驱动在 ``texlate.e2e``）
+    翻译走 ``XlatPipeline(MockTranslator)`` + rules 校验器（驱动在 ``texlate.e2e``）
     ——全链产品 API，不触网（arxiv id 源走缓存/在线取源除外）。
 
     ``--offline``/``TEXLATE_OFFLINE=1``：取源零网络——本地目录源无

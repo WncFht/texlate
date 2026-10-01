@@ -1,8 +1,8 @@
-"""L0 规则正反例 + 已知误报陷阱用例（B6 变异器防误报面）。"""
+"""rules 规则正反例 + 已知误报陷阱用例（B6 变异器防误报面）。"""
 
 from conftest import _issues, l0_sev
 
-from texlate.validate.l0 import Severity, validate_pair
+from texlate.validate.rules import Severity, validate_pair
 
 # ---------------------------------------------------------------- 干净对
 

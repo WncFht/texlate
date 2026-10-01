@@ -142,7 +142,7 @@ _KIND_CLAUSES: dict[str, tuple[str, ...]] = {
 
 #: C8a 反熔合条款（公共块的扩展，放 kind 条款前——C1..C8 逐字共享与 C9 压轴
 #: 两条 spec 不变量都不动）。`\ `+CJK 熔合成未知控制序列是跨模型通病
-#: （B4a：glm-5-2/swe-2-medium/swe-2-max 全中）；L0 cs_dropped 与
+#: （B4a：glm-5-2/swe-2-medium/swe-2-max 全中）；rules cs_dropped 与
 #: reconstruct cjk_glue_fix 是下游兜底，本条款在生成端先降发生率。
 _FUSION_CLAUSE = (
     "C8a. Keep an explicit boundary (a space or a brace pair) between a "

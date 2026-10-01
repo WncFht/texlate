@@ -78,14 +78,14 @@ class _InterceptNet[H]:
     - ``detect``：``(src, zh) → 命中载荷 ``（falsy=未中）——``_interceptable``
       缓存否决 bool 形直迭代本字段；
     - ``fmt``：`` 命中载荷 → (warn, reason)``——``_intercept_apply`` 两件簿记；
-    - ``l0_rule``：镜像的 l0 规则 id——缓存命中/续跑装载旁路 ``validate_pair``
-      时本网是该签名的唯一闸；成员集钉 ``l0.CACHE_VETO_RULES``。
+    - ``mirror_rule``：镜像的 rules 规则 id——缓存命中/续跑装载旁路 ``validate_pair``
+      时本网是该签名的唯一闸；成员集钉 ``rules.CACHE_VETO_RULES``。
     """
 
     name: str
     detect: Callable[[str, str], H]
     fmt: Callable[[H], tuple[str, str]]
-    l0_rule: str
+    mirror_rule: str
 
 
 def _fmt_leftover_ph(hits: list[str]) -> tuple[str, str]:
@@ -136,31 +136,31 @@ _INTERCEPT_NETS: tuple[_InterceptNet, ...] = (
         name="leftover_ph",
         detect=_leftover_ph_tokens,
         fmt=_fmt_leftover_ph,
-        l0_rule="placeholder",
+        mirror_rule="placeholder",
     ),
     _InterceptNet(
         name="ph_in_cs",
         detect=ph_in_cs_net,
         fmt=_fmt_ph_in_cs,
-        l0_rule="ph_in_cs",
+        mirror_rule="ph_in_cs",
     ),
     _InterceptNet(
         name="bare_cs",
         detect=bare_cs_net,
         fmt=_fmt_bare_cs,
-        l0_rule="bare_cs",
+        mirror_rule="bare_cs",
     ),
     _InterceptNet(
         name="residual_en",
         detect=residual_en_net,
         fmt=_fmt_residual_en,
-        l0_rule="residual_en",
+        mirror_rule="residual_en",
     ),
     _InterceptNet(
         name="dangerous_cs",
         detect=dangerous_cs_net,
         fmt=_fmt_dangerous_cs,
-        l0_rule="dangerous_cs",
+        mirror_rule="dangerous_cs",
     ),
 )
 
@@ -208,7 +208,7 @@ def _intercept_ph_in_cs(r: ChunkResult) -> None:
     r"""``ph_in_cs`` 升格拦截：zh 把占位符嵌进 cs 名中段 → fault + 回退原文。
 
     ``_intercept_leftover_ph`` 同构副层——续跑 state/段级缓存命中旁路
-    validator，此层是拦 stale 脏译的唯一闸（l0 ``_check_ph_in_cs`` 的
+    validator，此层是拦 stale 脏译的唯一闸（rules ``_check_ph_in_cs`` 的
     缓存旁路姊妹，判定口径 = ``textutil.ph_in_cs_net`` 逐字节一致）。
     splice ``expand`` 逐字节替换后 ``\\fo[[PH]]o`` → ``\\fo<payload>o``
     断名成未定义 cs 且载荷不可复原（scout-spliceguard 14/14 实证）。
@@ -220,7 +220,7 @@ def _intercept_bare_cs(r: ChunkResult) -> None:
     r"""``bare_cs`` 升格拦截：zh 文本域新增裸 cs → fault + 回退原文。
 
     ``_intercept_ph_in_cs`` 同构副层——判定口径 = ``textutil.bare_cs_net``
-    （与 l0 ``_check_bare_cs`` 逐字节一致），缓存/续跑旁路 validator
+    （与 rules ``_check_bare_cs`` 逐字节一致），缓存/续跑旁路 validator
     时此层是唯一闸。两类编译炸弹：数学域外 ``MATH_CS`` 表名
     （``\alpha 发射体`` → ``Missing $``，realpostfix2 0905.4907 实证）
     与粘合 cs（``\itemOC``/``\csnamebibitemNoStop`` → undefined cs）。
@@ -232,7 +232,7 @@ def _intercept_residual_en(r: ChunkResult) -> None:
     r"""``residual_en`` 升格拦截：zh 段内夹未翻译英文 run → fault + 回退原文。
 
     ``_intercept_bare_cs`` 同构副层——判定口径 = ``textutil.residual_en_net``
-    （与 l0 ``_check_residual_en`` 逐字节一致）。seq-49/51 实证：行级修复
+    （与 rules ``_check_residual_en`` 逐字节一致）。seq-49/51 实证：行级修复
     把 audit 失败的行按 ``src_l`` 原文装回，装配 candidate 过 validator
     时 same_source 只拦整段回显、CJK 占比 warn 不闸——``recovered`` 落
     DB ``ok`` 静默出货。缓存命中/续跑旁路 validator 时本层是唯一闸。
@@ -244,7 +244,7 @@ def _intercept_dangerous_cs(r: ChunkResult) -> None:
     r"""``dangerous_cs`` 升格拦截：zh 新增 ``DANGEROUS_CS`` 表名 → fault + 回退原文。
 
     ``_intercept_bare_cs`` 同构副层——判定口径 = ``textutil.dangerous_cs_net``
-    （与 l0 ``_check_dangerous_cs`` 逐字节一致），缓存/续跑旁路 validator
+    （与 rules ``_check_dangerous_cs`` 逐字节一致），缓存/续跑旁路 validator
     时此层是唯一闸。面覆盖 ``bare_cs`` 未管的良形非数学危险 cs：
     ``\input{/etc/passwd}``/``\write18``（词法 ``write``+``18``）/
     ``\def``/``\catcode``/``\csname`` 逃逸族——数学域不豁免

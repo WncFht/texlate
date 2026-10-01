@@ -69,7 +69,7 @@ async def retranslate_hits(
             rep["retranslated"].append(cid)
             adopted.add(cid)
         else:
-            # 重译产物仍不过 L0 → 回落原文（spec: 再不过 → fallback 原文）
+            # 重译产物仍不过 rules → 回落原文（spec: 再不过 → fallback 原文）
             run.trans.get(fidx, {}).pop(ccid, None)
             rep["reverted_rules"].append(cid)
         changed.add(cid)

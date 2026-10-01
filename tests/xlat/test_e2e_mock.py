@@ -1,11 +1,11 @@
-r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+L0) → reconstruct`` 全链。
+r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+rules) → reconstruct`` 全链。
 
 覆盖的层间契约（每层一处断言）：
 
 - ``latex.Chunk`` → ``xlat.ChunkIn`` 映射：``id``(int)→``chunk_id``(str)、
   ``context``→``normalize_kind``→``kind``；
-- L0 校验器按 ``validator(src, zh) -> str`` 协议注入阶梯（空串=通过，
-  ``L0Report.feedback()`` 即此形态）；
+- rules 校验器按 ``validator(src, zh) -> str`` 协议注入阶梯（空串=通过，
+  ``RulesReport.feedback()`` 即此形态）；
 - ``r.fell_back`` 结果**回退原文**进 splice——``fallback_orig`` 的
   ``translation`` 字段即原文（best_zh 残译文折进 warnings 留诊断）；
 - reconstruct 后零占位符泄漏；``translations=None`` identity 逐字节还原。
@@ -29,7 +29,7 @@ from texlate.latex import (
 )
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.model import ScanResult
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat.pipeline import (
     ChunkIn,
     ChunkResult,
@@ -79,8 +79,8 @@ A second sentence ends here.
 """
 
 
-def _l0_feedback(src: str, zh: str) -> str:
-    """L0 全量规则 → pipeline ``validator`` 协议（error 文案串，空=通过）。"""
+def _rules_feedback(src: str, zh: str) -> str:
+    """rules 全量规则 → pipeline ``validator`` 协议（error 文案串，空=通过）。"""
     return validate_pair(src, zh).feedback()
 
 
@@ -97,8 +97,8 @@ def _inputs(res: ScanResult) -> list[ChunkIn]:
 
 
 def _run_mock(res: ScanResult, **kw: object) -> list[ChunkResult]:
-    """Mock 管线跑完整篇（默认把 L0 接进 validator 位——生产同款接线）。"""
-    kw.setdefault("validator", _l0_feedback)
+    """Mock 管线跑完整篇（默认把 rules 接进 validator 位——生产同款接线）。"""
+    kw.setdefault("validator", _rules_feedback)
     return run_pipeline(
         _inputs(res),
         translator=MockTranslator(),
@@ -128,14 +128,14 @@ def _ws_fold(s: str) -> str:
 
 
 def _assert_mock_chain(res: ScanResult, flat: str) -> str:
-    """良性 mock 全链断言：全 ok → L0 复核 → 占位符契约 → splice 成品。"""
+    """良性 mock 全链断言：全 ok → rules 复核 → 占位符契约 → splice 成品。"""
     results = _run_mock(res)
 
     # 1) 全块 ok：Mock 是守规矩模型，fault/skipped/partial 出现即接缝信号
     assert [r.status for r in results] == ["ok"] * len(res.chunks)
     assert not any(r.fell_back for r in results)
 
-    # 2) L0 复核存下来的 (src, zh) 对（post-decode 形态，双侧注释豁免在内）
+    # 2) rules 复核存下来的 (src, zh) 对（post-decode 形态，双侧注释豁免在内）
     bad = [r.chunk_id for r in results if not validate_pair(r.source, r.translation).ok]
     assert bad == []
 
@@ -234,7 +234,7 @@ def test_kind_mapping_covers_six() -> None:
 @needs_corpus
 @pytest.mark.parametrize(("paper", "main"), _CORPUS_PAPERS)
 def test_corpus_paper_full_chain(paper: str, main: str) -> None:
-    """真实论文全链：identity → mock 翻译（L0 校验）→ splice 无泄漏。"""
+    """真实论文全链：identity → mock 翻译（rules 校验）→ splice 无泄漏。"""
     path = CORPUS / paper / main
     if not path.is_file():
         path = CORPUS / paper / "extracted" / main  # v3 标准布局

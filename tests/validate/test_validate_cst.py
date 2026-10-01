@@ -1,4 +1,4 @@
-"""L1 tree-sitter 层测试 —— node/deps 不在场时整体 skip（可选组件语义本身）。
+"""cst tree-sitter 层测试 —— node/deps 不在场时整体 skip（可选组件语义本身）。
 
 开发态依赖解析：bench/ts/node_modules 有 tree-sitter + @pfoerster/tree-sitter-latex，
 用 TEXLATE_TS_NODE_PATH 指过去即可，不复制不重装。
@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from texlate.validate.l1 import L1Error, TsBaseline, TsResult, TsValidator
+from texlate.validate.cst import CstError, TsBaseline, TsResult, TsValidator
 from texlate.validate.report import aggregate
 
 REPO = Path(__file__).resolve().parents[2]
@@ -21,7 +21,7 @@ BENCH_NM = REPO / "bench" / "ts" / "node_modules"
 
 # 收集期只查 PATH/纯路径——可用性终判（含 worker.js）放模块 fixture，
 # 收集阶段不构造校验器
-need_l1 = pytest.mark.skipif(
+need_cst = pytest.mark.skipif(
     shutil.which("node") is None or not (BENCH_NM / "tree-sitter").is_dir(),
     reason="node 或 tree-sitter 依赖不在场（可选组件；bench/ts 跑 npm ci 即恢复）",
 )
@@ -31,7 +31,7 @@ need_l1 = pytest.mark.skipif(
 def v() -> TsValidator:
     val = TsValidator(node_path=BENCH_NM)
     if not val.available():
-        pytest.skip("L1 依赖不可用（可选组件）")
+        pytest.skip("cst 依赖不可用（可选组件）")
     return val
 
 
@@ -41,7 +41,7 @@ ZH_BROKEN = "我们提出 于 \\begin{equation}\nE=mc^2\n\\end{equationx}。\n" 
 
 
 @pytest.mark.integration
-@need_l1
+@need_cst
 def test_batch_clean_and_broken(v: TsValidator) -> None:
     res = v.validate_batch(
         [
@@ -59,7 +59,7 @@ def test_batch_clean_and_broken(v: TsValidator) -> None:
 
 
 @pytest.mark.integration
-@need_l1
+@need_cst
 def test_baseline_relative_mode(v: TsValidator) -> None:
     """相对判定：baseline 带 ERROR 的源签名不拖累译文判定。"""
     src_with_gap = "\\inferrule{A}{B} 文本。"  # grammar 空隙命令产生 baseline ERROR
@@ -70,7 +70,7 @@ def test_baseline_relative_mode(v: TsValidator) -> None:
 
 
 @pytest.mark.integration
-@need_l1
+@need_cst
 def test_resident_mode() -> None:
     with TsValidator(node_path=BENCH_NM) as daemon:
         base = daemon.sign(SRC)
@@ -81,7 +81,7 @@ def test_resident_mode() -> None:
 
 
 @pytest.mark.integration
-@need_l1
+@need_cst
 def test_sign_returns_baseline(v: TsValidator) -> None:
     base = v.sign(SRC)
     assert isinstance(base, TsBaseline)
@@ -103,7 +103,7 @@ def test_baseline_roundtrip() -> None:
 
 def test_available_requires_both_npm_deps(tmp_path: Path) -> None:
     """只有 ``tree-sitter`` 无 ``@pfoerster/tree-sitter-latex`` 文法时
-    不得报可用——node 侧 require 会炸，应判不可用降级 L0。"""
+    不得报可用——node 侧 require 会炸，应判不可用降级 rules。"""
     (tmp_path / "tree-sitter").mkdir()
     val = TsValidator(node_path=tmp_path)
     assert not val._deps_present()  # noqa: SLF001 - 依赖面判定的最小单元
@@ -160,13 +160,13 @@ def test_one_pairs_response_by_id() -> None:
 
 
 def test_one_eof_sentinel_fails_fast() -> None:
-    """worker 死 → 泵线程投 None 哨兵 → ``_one`` 立即 L1Error 而非
+    """worker 死 → 泵线程投 None 哨兵 → ``_one`` 立即 CstError 而非
     白挂整个 timeout。"""
     v = TsValidator(timeout=30.0)
     v._proc = _FakeProc(  # noqa: SLF001 - 注入假常驻通道
         v, [None]
     )  # type: ignore[assignment]
-    with pytest.raises(L1Error, match="EOF"):
+    with pytest.raises(CstError, match="EOF"):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001 - 同上
     assert v._proc is None  # noqa: SLF001 - 断言通道已关闭  # EOF 后通道已关闭，下一调用走批处理降级
 
@@ -196,16 +196,16 @@ def _batch_stub(tmp_path: Path) -> TsValidator:
 
 
 def test_require_available_no_node(monkeypatch: pytest.MonkeyPatch) -> None:
-    """node 三路全缺（参数/env/PATH）→ 批处理与常驻入口同抛 L1Error。"""
+    """node 三路全缺（参数/env/PATH）→ 批处理与常驻入口同抛 CstError。"""
     monkeypatch.delenv("TEXLATE_NODE", raising=False)
     monkeypatch.delenv("TEXLATE_TS_WORKER", raising=False)
     monkeypatch.delenv("TEXLATE_TS_NODE_PATH", raising=False)
     monkeypatch.setattr(shutil, "which", lambda *_a, **_k: None)
     v = TsValidator()
     assert not v.available()
-    with pytest.raises(L1Error, match="node 不在 PATH"):
+    with pytest.raises(CstError, match="node 不在 PATH"):
         v.validate_batch([{"id": "a", "tex": "x"}])
-    with pytest.raises(L1Error, match="node 不在 PATH"):
+    with pytest.raises(CstError, match="node 不在 PATH"):
         v.open()
 
 
@@ -213,14 +213,14 @@ def test_require_available_missing_worker(tmp_path: Path) -> None:
     """node 在但 worker.js 缺席 → 两入口抛 'worker 缺失'。"""
     v = TsValidator(node="/bin/true", worker_dir=tmp_path)
     assert not v.available()
-    with pytest.raises(L1Error, match="worker 缺失"):
+    with pytest.raises(CstError, match="worker 缺失"):
         v.validate_batch([{"id": "a", "tex": "x"}])
-    with pytest.raises(L1Error, match="worker 缺失"):
+    with pytest.raises(CstError, match="worker 缺失"):
         v.open()
 
 
 def test_open_popen_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """常驻 worker Popen OSError → '启动失败' L1Error（不泄内建异常）。"""
+    """常驻 worker Popen OSError → '启动失败' CstError（不泄内建异常）。"""
     v = _batch_stub(tmp_path)
 
     def boom(*_a: object, **_k: object) -> None:
@@ -228,7 +228,7 @@ def test_open_popen_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         raise OSError(msg)
 
     monkeypatch.setattr(subprocess, "Popen", boom)
-    with pytest.raises(L1Error, match="启动失败"):
+    with pytest.raises(CstError, match="启动失败"):
         v.open()
     assert v._proc is None  # noqa: SLF001 - 启动失败不留半开通道
 
@@ -297,18 +297,18 @@ def test_close_kills_proc_on_teardown_failure() -> None:
 
 
 def test_one_stdin_broken_raises() -> None:
-    """常驻通道 stdin.write OSError → 'stdin 已断' L1Error。"""
+    """常驻通道 stdin.write OSError → 'stdin 已断' CstError。"""
     v = TsValidator(timeout=5)
     v._proc = _KillableProc(_DeadStdin())  # noqa: SLF001  # type: ignore[assignment]
-    with pytest.raises(L1Error, match="stdin 已断"):
+    with pytest.raises(CstError, match="stdin 已断"):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
 
 
 def test_one_response_timeout() -> None:
-    """配对行迟迟不到 → queue.Empty 转 '响应超时' L1Error（不死等）。"""
+    """配对行迟迟不到 → queue.Empty 转 '响应超时' CstError（不死等）。"""
     v = TsValidator(timeout=0.05)
     v._proc = _FakeProc(v, [])  # noqa: SLF001  # type: ignore[assignment]
-    with pytest.raises(L1Error, match="超时"):
+    with pytest.raises(CstError, match="超时"):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
 
 
@@ -322,7 +322,7 @@ def test_batch_nonzero_exit_empty_stderr(
         "run",
         lambda *_a, **_k: SimpleNamespace(returncode=2, stdout="", stderr="  \n"),
     )
-    with pytest.raises(L1Error, match="stderr 空"):
+    with pytest.raises(CstError, match="stderr 空"):
         v.validate_batch([{"id": "a", "tex": "x"}])
 
 
@@ -403,25 +403,25 @@ def test_result_to_dict_roundtrip() -> None:
     assert TsResult.from_dict(d) == res
 
 
-def test_report_l1_uses_to_dict() -> None:
-    """report.to_dict 的 l1 节与 ``TsResult.to_dict`` 同形——字段表不再手抄。"""
-    l1 = TsResult(id="x", ok=True, parse_ms=0.5)
-    rep = aggregate("c", l1=l1)
-    assert rep.to_dict()["l1"] == l1.to_dict()
+def test_report_cst_uses_to_dict() -> None:
+    """report.to_dict 的 cst 节与 ``TsResult.to_dict`` 同形——字段表不再手抄。"""
+    cst = TsResult(id="x", ok=True, parse_ms=0.5)
+    rep = aggregate("c", cst=cst)
+    assert rep.to_dict()["cst"] == cst.to_dict()
 
 
 def test_ts_result_from_dict_inf_fields() -> None:
-    """worker 输出 ``1e999``（JSON→inf float）→ int() OverflowError 归 L1Error。"""
-    with pytest.raises(L1Error):
+    """worker 输出 ``1e999``（JSON→inf float）→ int() OverflowError 归 CstError。"""
+    with pytest.raises(CstError):
         TsResult.from_dict({"unclosed_math": 1e999})
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         TsResult.from_dict({"brace_balance": float("-inf")})
 
 
 def test_ts_baseline_from_dict_inf_fields() -> None:
-    """baseline 反序列化同契约硬化：inf/类型违例 → L1Error。"""
-    with pytest.raises(L1Error):
+    """baseline 反序列化同契约硬化：inf/类型违例 → CstError。"""
+    with pytest.raises(CstError):
         TsBaseline.from_dict({"parse_errors": 1e999})
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         TsBaseline.from_dict({"env_mismatches": "abc"})
     assert TsBaseline.from_dict({}) == TsBaseline()  # 正常路径不受影响

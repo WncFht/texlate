@@ -145,7 +145,7 @@ def verify_spans(errors: list[dict], zh: str) -> list[dict]:
 
 
 def contest_reasons(parsed: dict, sig: dict) -> list[str]:
-    """contested 触发：|Δ|>15 / stated≤55 / 任一 critical / L0 信号矛盾。"""
+    """contested 触发：|Δ|>15 / stated≤55 / 任一 critical / rules 信号矛盾。"""
     reasons: list[str] = []
     if abs(parsed["score_delta"]) > DELTA_CONTEST:
         reasons.append("delta_gt15")

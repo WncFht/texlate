@@ -125,7 +125,7 @@ def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
 #: 门控缺字形计数：排除 `in font nullfont`——试排/测量盒吞字是良性
 #: （37 纯 nullfont 格零 CJK 实证见 bench/results/nullfont-scout-2026-09-17/）。
 #: 两 pattern + reason 词干单源在 ``texlate.redlines``（★2，与 engine
-#: missing_chars/rules missing_char/l2 missing_glyph 同概念行）。
+#: missing_chars/rules missing_char/logattr missing_glyph 同概念行）。
 _MISSCHAR_GATE = name_pattern(REDLINES_BY_ID["missing_char"].judge)
 _MISSCHAR_NULLFONT = name_pattern(REDLINES_BY_ID["missing_char_nullfont"].judge)
 _MISSCHAR_GATE_RX = re.compile(_MISSCHAR_GATE[1])

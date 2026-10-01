@@ -527,7 +527,7 @@ def test_attribute_through_bdc_line_head(tmp_path: Path) -> None:
     """行首 BDC 前缀把 span 起点推出行首 off——attribute 须视同含行首。
 
     回归钉：标记态 file:line 归因曾 forward-fallback 错贴前块（e2e
-    ``test_l2_retranslate_then_recompile`` 实证 hits '0:1' 而非 '0:2'）。
+    ``test_logfix_retranslate_then_recompile`` 实证 hits '0:1' 而非 '0:2'）。
     """
     work, run = _mk_run(tmp_path, {"main.tex": (_BODY2, dict(_ZH2))})
     _resplice(run, work, "main.tex", {0}, seq_marks=True)

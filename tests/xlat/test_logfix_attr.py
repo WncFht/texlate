@@ -14,7 +14,7 @@ from conftest import DOC, scan_doc
 
 from texlate.compile.engine import CompRes
 from texlate.repair import TreeRun, _attr_localize, err_signature, err_signatures
-from texlate.validate.l2 import LogError
+from texlate.validate.logattr import LogError
 
 if TYPE_CHECKING:
     from pathlib import Path

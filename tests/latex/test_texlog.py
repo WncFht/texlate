@@ -1,4 +1,4 @@
-"""texlog 文件栈原语单测——消费方（l2/engine/logparse）之外的边界直测。"""
+"""texlog 文件栈原语单测——消费方（logattr/engine/logparse）之外的边界直测。"""
 
 from __future__ import annotations
 

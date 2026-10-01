@@ -3,7 +3,7 @@
 scout-spliceguard 归因：LLM 挪位把 ``[[PH]]`` 嵌进命令名
 （``\\te[[MATH_1]]xtbf``/``\\noind[[REF_2]]ent``），splice ``expand`` 逐字节
 替换后断 cs 成未定义命令、载荷不可复原——不进 fixloop。validator 主层
-（l0 ``_check_ph_in_cs``）之外，本层拦续跑 state/段级缓存旁路的 stale
+（rules ``_check_ph_in_cs``）之外，本层拦续跑 state/段级缓存旁路的 stale
 脏译。判定 = ``textutil.ph_in_cs_net`` 双侧夹持净差：``\\cs[[PH]]`` 尾邻
 合法高频形（``\\protect[[REF_n]]`` 系）不误伤、src 自带同形按多重集差
 豁免、注释区屏蔽。
@@ -174,7 +174,7 @@ class TestCacheAndResume:
 
 
 class TestDownstreamContract:
-    """拦截结果与 splice / L2 回灌 / auth 闸的契约面。"""
+    """拦截结果与 splice / logfix 回灌 / auth 闸的契约面。"""
 
     def test_splice_never_sees_fused_zh(self) -> None:
         """真 splice 验证：fault 块不进 trans → reconstruct 回原文、零断名。"""
@@ -199,7 +199,7 @@ class TestDownstreamContract:
         assert "xtbf" not in spliced.replace("\\textbf", "")
 
     def test_retranslate_fused_falls_back(self) -> None:
-        """L2 回灌同受拦截——重译产物带融合 → fault，调用方回落原文。"""
+        """logfix 回灌同受拦截——重译产物带融合 → fault，调用方回落原文。"""
         pipe = pl.XlatPipeline(translator=_Fuser(), validator=pass_validate)
         c = mk_chunk(_FUSED_SRC, "c1")
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))

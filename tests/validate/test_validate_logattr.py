@@ -1,11 +1,11 @@
-"""L2 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例独例 + 合成 file:line: 格式。"""
+"""logattr 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例独例 + 合成 file:line: 格式。"""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from texlate.validate.l2 import parse_log, parse_log_text
+from texlate.validate.logattr import parse_log, parse_log_text
 
 WORK = Path(__file__).resolve().parents[2] / "bench" / "work_compile"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"

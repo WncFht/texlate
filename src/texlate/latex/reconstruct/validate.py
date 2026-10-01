@@ -32,7 +32,7 @@ def validate_translation(chunk: Chunk, text: str) -> TranslationVerdict:
     """译文侧契约校验：``chunk.placeholders`` 多重集必须逐枚出现在 text 里。
 
     multiset 语义——``[[MATH_1]]``×2 被译文吃掉一个也算 missing
-    （list-membership 版会漏，与 L0 ``Counter`` 口径对齐）。
+    （list-membership 版会漏，与 rules ``Counter`` 口径对齐）。
     """
     want = Counter(chunk.placeholders or PH_RX.findall(chunk.content))
     got = Counter(PH_RX.findall(text))

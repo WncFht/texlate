@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from texlate.textutil import residual_en_net
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat import retry as rt
 from texlate.xlat.client import (
     AuthError,

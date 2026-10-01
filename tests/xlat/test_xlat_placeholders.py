@@ -172,7 +172,7 @@ class TestDiff:
         assert d.misspelled == [("[MATH_1]", "[[MATH_1]]")]
 
     def test_cjk_bracket_variant_is_extra(self) -> None:
-        """【MATH_1】 全角化 lev=4 超阈值——不报拼错，报多余（L0 同口径）。"""
+        """【MATH_1】 全角化 lev=4 超阈值——不报拼错，报多余（rules 同口径）。"""
         d = ph.diff("x [[MATH_1]] y", "x 【MATH_1】 y")
         assert d.missing == ["[[MATH_1]]"]
         assert d.extra == ["【MATH_1】"]
@@ -186,7 +186,7 @@ class TestDiff:
         assert d.missing == ["[[SL]]"]
 
     def test_comment_masked(self) -> None:
-        """zh 注释里的占位符不计入（与 L0 豁免口径一致）。"""
+        """zh 注释里的占位符不计入（与 rules 豁免口径一致）。"""
         d = ph.diff("a [[MATH_1]]", "a % [[MATH_1]] in comment")
         assert d.missing == ["[[MATH_1]]"]
 
@@ -368,7 +368,7 @@ class TestSentinelClosedLoop:
 
 
 class TestFuzzyRxCjkBrackets:
-    """PH_FUZZY_RX lookahead 口径（单源在 ``textutil``，l0 同用）。"""
+    """PH_FUZZY_RX lookahead 口径（单源在 ``textutil``，rules 同用）。"""
 
     def test_natural_cjk_brackets_not_candidates(self) -> None:
         """【1】/[[图]]/【图1】 是中文正文自然括号——不标 fuzzy 候选。"""

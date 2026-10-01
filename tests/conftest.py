@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from texlate.latex.mouth import Tok
     from texlate.server.store import Store
     from texlate.server.worker import TaskCtx
-    from texlate.validate.l0 import L0Report
+    from texlate.validate.rules import RulesReport
     from texlate.xlat.pipeline import ChunkIn, ChunkResult
 
 #: BYOK/行为相关 env——测试必须拿到确定性无凭证环境。
@@ -971,11 +971,11 @@ def pass_validate(_src: str, _zh: str) -> str:
     return ""
 
 
-def _issues(rep: L0Report, rule: str) -> list:
+def _issues(rep: RulesReport, rule: str) -> list:
     return [i for i in rep.issues if i.rule == rule]
 
 
-def l0_sev(rep: L0Report, rule: str) -> list:
+def l0_sev(rep: RulesReport, rule: str) -> list:
     """``rep.issues`` 按 ``rule`` 过滤取 severity 列。"""
     return [i.severity for i in rep.issues if i.rule == rule]
 

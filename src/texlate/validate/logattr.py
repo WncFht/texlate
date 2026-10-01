@@ -1,4 +1,4 @@
-"""L2 编译 log 回灌层 —— xelatex/tectonic ``.log`` 结构化解析（规格 docs/spec/validate.md）。
+"""logattr 编译 log 回灌层 —— xelatex/tectonic ``.log`` 结构化解析（规格 docs/spec/validate.md）。
 
 职责边界：本层只做"读"——错误计数、warning 分类、首个错误定位、出错文件栈；
 不判 clean/dirty（``!``≤3、首错类别门槛等策略属 compile/fixloop 侧，
@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from texlate.redlines import LOGFIX_REDLINE_CLASSES, LOGFIX_WARNING_RULES
+from texlate.redlines import LOGATTR_REDLINE_CLASSES, LOGATTR_WARNING_RULES
 from texlate.texlog import (
     CTX_LINES,
     L_NUM_RE,
@@ -38,8 +38,8 @@ from texlate.texlog import (
 from texlate.textutil import is_cjk_cp
 
 __all__ = [
-    "L2Verdict",
     "LogError",
+    "LogVerdict",
     "WarningSummary",
     "parse_log",
     "parse_log_text",
@@ -81,7 +81,7 @@ _MISSING_CHAR_RX: Final = re.compile(
 #: ``_rl`` 按 canonical id 取本层发射名与行级模式；citation/rerun 等
 #: 非红线观察类仍本层自持。
 def _rl(rid: str) -> tuple[str, re.Pattern[str]]:
-    name, pat = LOGFIX_WARNING_RULES[rid]
+    name, pat = LOGATTR_WARNING_RULES[rid]
     return name, re.compile(pat, re.IGNORECASE)
 
 
@@ -131,15 +131,15 @@ _EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
 _EOF_POP_WINDOW: Final = 16
 
 #: docs/spec/compile.md 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
-#: ——集合单源 ``texlate.redlines.LOGFIX_REDLINE_CLASSES``（★2）。``fffd_glyph``
+#: ——集合单源 ``texlate.redlines.LOGATTR_REDLINE_CLASSES``（★2）。``fffd_glyph``
 #: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——loginfo 侧
-#: ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。``missing_glyph``
+#: ``WARNING_RED_LINES`` 同名红线的 logattr 对应类）。``missing_glyph``
 #: （非 CJK/非 FFFD/码点不可解）同入红线——judge 的 ``missing_chars``
 #: 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
 #: ``missing_glyph_nullfont``（试排/测量盒良性吞字）**不入**红线——
 #: 计数留 by_class/samples 观察面，redlines 保净（judge 门控同口径
 #: 排除，裁决证据 bench/results/nullfont-scout-2026-09-17/）。
-_REDLINE_CLASSES: Final = LOGFIX_REDLINE_CLASSES
+_REDLINE_CLASSES: Final = LOGATTR_REDLINE_CLASSES
 
 
 # ---------------------------------------------------------------- 数据
@@ -215,7 +215,7 @@ class WarningSummary:
 
 
 @dataclass(slots=True)
-class L2Verdict:
+class LogVerdict:
     """编译 log 解析结果。
 
     ``ok`` = 零错误（双格式计数）。``log_missing`` 为真时其余字段为空——
@@ -294,7 +294,7 @@ class L2Verdict:
     def __str__(self) -> str:
         """PASS/FAIL 头 + 首错定位。"""
         if self.log_missing:
-            return "L2 ? (log missing)"
+            return "logattr ? (log missing)"
         head = (
             f"{'PASS' if self.ok else 'FAIL'} "
             f"(err={self.n_errors} warn={self.warnings.total} "
@@ -344,7 +344,7 @@ def _mark_redline(
     ``(dos-eps)`` 标（loginfo.py ``_scan_error_lines`` 同口径）；其余类
     全量进 ``redlines``（missing_glyph/file_not_found 按内容论不按产生
     文件论）。三支判定单源 = ``texlog.producer_tag``——本件只消费
-    tag，``cls@`` 前缀与 ``sys_hits``/``redlines`` 归集桶是 l2 侧语义。
+    tag，``cls@`` 前缀与 ``sys_hits``/``redlines`` 归集桶是 logattr 侧语义。
     """
     ws = scan.ws
     if cls == "invalid_utf8":
@@ -490,15 +490,15 @@ def _misschar_next_ln(lines: list[str], i: int) -> str:
 # ---------------------------------------------------------------- 主入口
 
 
-def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
-    """解析 log 文本为 ``L2Verdict``（单遍事件流投影——``texlog.iter_log_events``）。
+def parse_log_text(text: str, *, project_root: Path | None = None) -> LogVerdict:
+    """解析 log 文本为 ``LogVerdict``（单遍事件流投影——``texlog.iter_log_events``）。
 
     ``project_root`` = 编译工作根：invalid_utf8 红线按产生文件归因，
     系统 texmf/bundle 源与 DOS 魔数 EPS（normalize ``dos_eps_skipped``
     原样保留件）降 ``warnings.sys_hits``；缺席时裸名保守归工程
     （不掉红线），绝对路径按 texmf 标记启发式。
     """
-    v = L2Verdict()
+    v = LogVerdict()
     lines = text.splitlines()
     if lines:
         m = _ENGINE_RX.match(lines[0])
@@ -548,7 +548,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
     return v
 
 
-def parse_log(path: str | Path, *, project_root: Path | None = None) -> L2Verdict:
+def parse_log(path: str | Path, *, project_root: Path | None = None) -> LogVerdict:
     """从路径读 ``.log`` 解析；非正规文件同归 ``log_missing=True``（不抛异常）。
 
     缺席/目录/fifo/NUL 路径全归 ``log_missing``——``is_file`` 闸先于
@@ -561,9 +561,9 @@ def parse_log(path: str | Path, *, project_root: Path | None = None) -> L2Verdic
     # is_file 闸：fifo/目录/缺席/坏路径（含 NUL）同归 log_missing——
     # exists() 对 fifo 为真，read_text 会阻塞至有 writer。
     if not p.is_file():
-        return L2Verdict(log_missing=True)
+        return LogVerdict(log_missing=True)
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return L2Verdict(log_missing=True)
+        return LogVerdict(log_missing=True)
     return parse_log_text(text, project_root=project_root)

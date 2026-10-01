@@ -1,6 +1,6 @@
 """specs.validbench.pseudo — 构造性伪译文叶 (validbench 拆分叶).
 
-(rule-validator 原型 gen_cases.py 原样移植; PH_RX 换产品 l0.PH_ANY_LIKE_RX —
+(rule-validator 原型 gen_cases.py 原样移植; PH_RX 换产品 rules.PH_ANY_LIKE_RX —
 产品版额外认 [[SL]]/[[PL]] 无数字后缀形态，是原型正则的超集.)
 """
 
@@ -13,7 +13,7 @@ from specs import _bootstrap
 
 _bootstrap.ensure()
 
-from texlate.validate import l0
+from texlate.validate import rules
 
 VOCAB = (  # noqa: SIM905 — 紧凑词表，200 元素 list 字面量反而难读
     "研究 方法 结果 模型 数据 分析 实验 表明 本文 提出 算法 网络 训练 参数 "
@@ -64,7 +64,7 @@ def pseudo_translate(src: str) -> str:
     out: list[str] = []
     i, n = 0, len(src)
     while i < n:
-        m = l0.PH_ANY_LIKE_RX.match(src, i)
+        m = rules.PH_ANY_LIKE_RX.match(src, i)
         if m:
             out.append(m.group(0))
             i = m.end()
@@ -93,7 +93,7 @@ def pseudo_translate(src: str) -> str:
                     for _ in range(4):
                         p = i
                         # TeX 控制字吞后续空白含换行 (\cite\n{k} ≡ \cite{k}),
-                        # 与 l0.KEY_CMD_RX 的 \s*\{ 同口径 —— 不吃 \n 会把
+                        # 与 rules.KEY_CMD_RX 的 \s*\{ 同口径 —— 不吃 \n 会把
                         # {key} 留给拉丁词翻译路径翻掉 (实测 key 误报来源)
                         while p < n and src[p] in " \t\n":
                             p += 1

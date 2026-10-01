@@ -23,7 +23,7 @@ god-split: 实现体按域拆进同包 8 叶——``normalize.text``（清单 1�
 ``normalize.junk``（bundled 垃圾件 stub 覆写）、``normalize.main``
 （``normalize_engine``/``_normalize_tex_files``/``normalize_project``
 主编排 + ``_DOC_SOURCE_SUFFIXES`` + ``log``）。本文件是 PEP 562 惰性门面
-（同 ``l0``/``seqpos/__init__`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
+（同 ``rules``/``seqpos/__init__`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
 叶子，``__getattr__`` 首访解析并缓存，``normalize.X`` 公共面与
 ``from ... import X``/``normalize._x`` 属性读面不变。各叶 ``log`` 钉死
 ``texlate.compile.normalize``——消息面（``record.name``）不变。叶子间

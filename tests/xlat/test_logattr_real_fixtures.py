@@ -1,4 +1,4 @@
-"""L2 真 log fixture 回归 —— tests/fixtures/logs/ 入库件 + manifest.json 逐行断言。
+"""logattr 真 log fixture 回归 —— tests/fixtures/logs/ 入库件 + manifest.json 逐行断言。
 
 fixture 由 ``bench/py/report/extract_logfix_fixture.py`` 从 gitignored work 目录抽取
 （strip 私路径前缀 → 无括弧行裁切 → 重放栈对拍），干净 clone 必跑、不得加
@@ -18,7 +18,7 @@ import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.logparse import parse_log as fl_parse_log
-from texlate.validate.l2 import parse_log
+from texlate.validate.logattr import parse_log
 
 LOGS = Path(__file__).resolve().parents[1] / "fixtures" / "logs"
 REPO = Path(__file__).resolve().parents[2]

@@ -19,7 +19,7 @@ _bootstrap.ensure()
 
 from specs import _select as _sel  # run 期收窄单源（ids/only/n 管道）
 from specs.validbench.cases import _gen_paper_cases, _ParseFail
-from specs.validbench.judge import _l0_one, _l1_here, _l1_one
+from specs.validbench.judge import _cst_here, _cst_one, _rules_one
 from specs.validbench.probes import _probe_eval
 
 #: Measurement generation marker — folded into every cell's variant.
@@ -107,7 +107,7 @@ def _items_full() -> list[dict]:
 
 
 def _vb_run(ctx) -> dict | str:
-    """单篇：投影子进程解析 → case 生成 → L0(+L1) 逐判 → emit_case."""
+    """单篇：投影子进程解析 → case 生成 → rules(+cst) 逐判 → emit_case."""
     src = ctx.src_path()
     if src is None:
         ctx.emit({"metrics": {"reason": "lake_absent"}})
@@ -132,14 +132,14 @@ def _vb_run(ctx) -> dict | str:
         ctx.emit({"metrics": {**stats, "n_cases": 0}})
         return "clean"
 
-    no_l1 = bool(ctx.params.get("no_l1"))
-    daemon, l1_note = (None, "--no-l1") if no_l1 else _l1_here()
+    no_cst = bool(ctx.params.get("no_cst"))
+    daemon, cst_note = (None, "--no-cst") if no_cst else _cst_here()
     baselines: dict = {}
-    l0_wall_s = 0.0
+    rules_wall_s = 0.0
     det = ncorr = clean_fp = warn_only = 0
     missed: list[str] = []
     fp_ids: list[str] = []
-    l1_n = l1_det_rel = l1_det_abs = l1_clean_fp_rel = 0
+    cst_n = cst_det_rel = cst_det_abs = cst_clean_fp_rel = 0
     full_path = (
         ctx.rundir.derived() / "validbench-cases" / f"{ctx.safe}.jsonl"
         if ctx.rundir is not None
@@ -149,15 +149,15 @@ def _vb_run(ctx) -> dict | str:
 
     for cs in cases:
         t0 = time.perf_counter_ns()
-        verdict = _l0_one(cs)
-        l0_wall_s += (time.perf_counter_ns() - t0) / 1e9
+        verdict = _rules_one(cs)
+        rules_wall_s += (time.perf_counter_ns() - t0) / 1e9
         if daemon is not None:
-            cs["l1"] = _l1_one(daemon, cs, baselines)
-            l1_n += 1
-            l1_det_rel += int(cs["l1"]["detected"])
-            l1_det_abs += int(not cs["l1"]["ok"])
-            if cs["kind"] == "clean" and cs["l1"]["detected"]:
-                l1_clean_fp_rel += 1
+            cs["cst"] = _cst_one(daemon, cs, baselines)
+            cst_n += 1
+            cst_det_rel += int(cs["cst"]["detected"])
+            cst_det_abs += int(not cs["cst"]["ok"])
+            if cs["kind"] == "clean" and cs["cst"]["detected"]:
+                cst_clean_fp_rel += 1
         # 紧凑判定行进 cases 表（分母守恒的逐 case 键面）
         ctx.emit_case(
             {
@@ -166,11 +166,11 @@ def _vb_run(ctx) -> dict | str:
                 "chunk": cs["chunk"],
                 "level": cs["level"],
                 "kind": cs["kind"],
-                "l0": verdict,
-                **({"l1": cs["l1"]} if "l1" in cs else {}),
+                "rules": verdict,
+                **({"cst": cs["cst"]} if "cst" in cs else {}),
             }
         )
-        full_rows.append(json.dumps({**cs, "l0": verdict}, ensure_ascii=False))
+        full_rows.append(json.dumps({**cs, "rules": verdict}, ensure_ascii=False))
         if cs["kind"] == "clean":
             if not verdict["ok"]:
                 clean_fp += 1
@@ -198,18 +198,18 @@ def _vb_run(ctx) -> dict | str:
         "clean_error_fp": clean_fp,
         "clean_fp_ids": fp_ids[:50],
         "clean_warn_only": warn_only,
-        "l0_wall_s": round(l0_wall_s, 3),
-        "l0_wall_per_pair_ms": round(l0_wall_s * 1000 / len(cases), 4),
+        "rules_wall_s": round(rules_wall_s, 3),
+        "rules_wall_per_pair_ms": round(rules_wall_s * 1000 / len(cases), 4),
         "cases_file": str(full_path) if full_path else None,
     }
     if daemon is None:
-        metrics["l1_note"] = l1_note or "unavailable"
+        metrics["cst_note"] = cst_note or "unavailable"
     else:
-        metrics["l1"] = {
-            "n": l1_n,
-            "det_rel": l1_det_rel,
-            "det_abs": l1_det_abs,
-            "clean_fp_rel": l1_clean_fp_rel,
+        metrics["cst"] = {
+            "n": cst_n,
+            "det_rel": cst_det_rel,
+            "det_abs": cst_det_abs,
+            "clean_fp_rel": cst_clean_fp_rel,
         }
     errors = []
     if missed:
@@ -269,7 +269,7 @@ spec = Spec(
         "min_len": Param(type=int, default=MIN_LEN),
         "max_len": Param(type=int, default=MAX_LEN),
         "gen_seed": Param(type=int, default=SEED),
-        "no_l1": Param(type=bool, default=False),
+        "no_cst": Param(type=bool, default=False),
     },
     items=_items_full,
     select=_select,

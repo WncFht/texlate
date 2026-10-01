@@ -4,7 +4,7 @@ r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/
 单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；产生者三支判定
 ``producer_tag`` 同归 texlog，事件流物化件 ``ParsedLog``/``parse_events``
 归 ``compile.logparse``（CompRes stash 缝就绪后迁 texlog——同一 log
-引擎侧建一份即供本层/logparse/l2 三面投影）。本模块持语义产物
+引擎侧建一份即供本层/logparse/logattr 三面投影）。本模块持语义产物
 （错误计数/首错上下文/红线命中 ``warnings_hit`` 与 ``warnings_sys``
 归因）与 ``classify_error`` 薄适配——匹配语义（head/tail 有序评估、
 payload_group、``subclassify`` 收窄、tail ``guard`` 复核）全部归
@@ -64,7 +64,7 @@ class LogInfo:
 #: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
 #: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
 #: 红线表单源 = ``texlate.redlines``（★2 收敛——本层发射名/pattern 即
-#: registry ``engine`` 切片；``rules/`` ``warnings:``/judge/l2 同表别层）。
+#: registry ``engine`` 切片；``rules/`` ``warnings:``/judge/logattr 同表别层）。
 _UTF8_WARN_RE = re.compile(
     name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1], re.IGNORECASE
 )
@@ -86,7 +86,7 @@ def _scan_error_lines(
     """数 `^!`+`file:line:` 错误、记首错位置——物化事件流 ``ParsedLog`` 投影。
 
     返回 ``(首错行号，工程源 invalid_utf8 命中)``：逐事件把 ``ev.inner``
-    （栈顶最内具名帧）交 ``producer_tag`` 三支判定（logparse/l2 同口径）
+    （栈顶最内具名帧）交 ``producer_tag`` 三支判定（logparse/logattr 同口径）
     ——系统件源名收进 ``info.warnings_sys``（``invalid_utf8@<file>``，DOS
     魔数 EPS 件带 ``(dos-eps)`` 尾标），工程源命中由 ``parse_log`` 收口
     进 ``warnings_hit``。

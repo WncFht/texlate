@@ -9,7 +9,7 @@ Cells (two disjoint item families pinned by ``item["stage"]``):
   pick → subprocess parse (30s isolation — SIGALRM is banned in worker
   threads and kernel's process executor is unpicklable, G8) → chunk
   window [min_len,max_len] → per (chunk, level∈{ph,raw}) clean + c01–c10
-  corruption cases → per-case L0 ``validate_pair`` (+L1 TsValidator when
+  corruption cases → per-case rules ``validate_pair`` (+cst TsValidator when
   node/tree-sitter present) → compact verdict rows via ctx.emit_case.
 - ``vb_probes`` — single synthetic cell (``__probes__``): the 14
   adversarial PROBES assertions vs validate_pair.
@@ -17,7 +17,7 @@ Cells (two disjoint item families pinned by ``item["stage"]``):
 Epoch / re-measurement: cross-run dedup is forever — a DONE cell key
 never re-measures. ``EPOCH`` rides every variant (``run@<EPOCH>`` /
 ``p@<EPOCH>``); bump it to open a new measurement generation. Content
-knobs (max_per_paper/min_len/max_len/gen_seed/no_l1) are fp=True params —
+knobs (max_per_paper/min_len/max_len/gen_seed/no_cst) are fp=True params —
 they mark same-key cells stale on change but cannot themselves trigger
 re-measurement (items() is zero-arg; variant is fixed at enumeration).
 
@@ -31,7 +31,7 @@ same (chunk,level,kind) produces the same corruption under any layout.
 Aggregation/gates do NOT live here (analysis verbs) — the cell emits every
 field needed to rebuild by_kind_level + clean-FP + the four gates:
 n_cases, per (kind,level) n/detected/missed ids, clean error_fp ids,
-l0_wall_s, l1 coverage. error(retriable) cells are UNEVALUATED — any
+rules_wall_s, cst coverage. error(retriable) cells are UNEVALUATED — any
 downstream gate must count them as undetected (fail-closed), never drop
 them from the denominator.
 
@@ -41,7 +41,7 @@ Full src/zh case text is written to ``rundir.derived()/validbench-cases/
 拆分：实现体按职域拆进同包私有叶 —— ``validbench.pseudo`` (VOCAB 词表 +
 构造性伪译文/rehydrate), ``validbench.corrupt`` (c01–c10 破坏算子 +
 CORRUPTIONS), ``validbench.cases`` (root pick + 30s 子进程解析 +
-_gen_paper_cases), ``validbench.judge`` (_l0_one + L1 常驻 daemon 三件套),
+_gen_paper_cases), ``validbench.judge`` (_rules_one + cst 常驻 daemon 三件套),
 ``validbench.probes`` (PROBES + _probe_eval), ``validbench.main``
 (items/select/_vb_run/_vb_probes/spec 装配)。本文件是 PEP 562 惰性门面
 (同 ``kernel.vault``/``kernel.importer`` 形制) —— 平名经 ``_LEAF_EXPORTS``
@@ -105,8 +105,8 @@ if TYPE_CHECKING:
         pseudo_translate,
         rehydrate,
     )
-    from texlate.validate import l0
-    from texlate.validate.l0 import Severity, validate_pair
+    from texlate.validate import rules
+    from texlate.validate.rules import Severity, validate_pair
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     "cases": (
@@ -139,12 +139,12 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     "judge": (
         "BENCH_TS_NM",
         "REPO",
-        "_L1_LOCAL",
+        "_CST_LOCAL",
         "_expect_names",
-        "_l0_one",
-        "_l1_daemon",
-        "_l1_here",
-        "_l1_one",
+        "_rules_one",
+        "_cst_daemon",
+        "_cst_here",
+        "_cst_one",
     ),
     "main": (
         "EPOCH",
@@ -180,7 +180,7 @@ _LAZY: dict[str, str] = {
 }
 
 # HEAD 单件期模块属性面——stdlib 模块名与 kernel/texlate 顶层绑定也按名
-# 惰性解析，``validbench.l0``/``validbench.fsutil`` 等读面 (含 setattr 型
+# 惰性解析，``validbench.rules``/``validbench.fsutil`` 等读面 (含 setattr 型
 # monkeypatch 缝，patch 落在共享 module 对象上) 与拆分前逐名等价。
 _STDLIB_MODS = (
     "bisect",
@@ -197,18 +197,18 @@ _MODULE_ATTRS = {
     "_bootstrap": "specs._bootstrap",
     "_sel": "specs._select",
     "fsutil": "kernel.fsutil",
-    "l0": "texlate.validate.l0",
+    "rules": "texlate.validate.rules",
     "lake": "kernel.lake",
 }
 _EXTRA_BINDINGS = {
     "Counter": "collections",
     "Param": "kernel.spec",
     "Path": "pathlib",
-    "Severity": "texlate.validate.l0",
+    "Severity": "texlate.validate.rules",
     "SimpleNamespace": "types",
     "Spec": "kernel.spec",
     "Stage": "kernel.spec",
-    "validate_pair": "texlate.validate.l0",
+    "validate_pair": "texlate.validate.rules",
 }
 
 # 字面列表——拆分前 ``import *`` 面 (无 __all__ 期全量非下划线名) 逐名保留;
@@ -247,12 +247,12 @@ __all__ = [
     "c10_extra_ph",
     "fsutil",
     "json",
-    "l0",
     "lake",
     "pseudo_translate",
     "random",
     "re",
     "rehydrate",
+    "rules",
     "spec",
     "subprocess",
     "sys",

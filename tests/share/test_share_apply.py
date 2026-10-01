@@ -8,7 +8,7 @@
 - 导入产物经 ``cache_key`` 钉版公式对后来的 ``id@vN`` 请求真命中；
 - 篡改产物/篡改 manifest/坏 zip/缺字段 → 4xx ``share_invalid``；
 - 对账零命中与本地重编失败 → ``partial`` + ``reject_at=share_verify``；
-- 命中但 L0 校验不过的 zh → 块级 ``fallback_orig``（``validate``），
+- 命中但 rules 校验不过的 zh → 块级 ``fallback_orig``（``validate``），
   本地无包块 → ``share_miss``——导入全程零 token。
 """
 
@@ -212,7 +212,7 @@ class TestShareImport:
     def test_import_validate_fail_falls_back(
         self, pair: tuple[TestClient, TestClient, Path], tmp_path: Path
     ) -> None:
-        """命中但 zh 过不过 L0（brace 失衡）→ fallback_orig + partial。"""
+        """命中但 zh 过不过 rules（brace 失衡）→ fallback_orig + partial。"""
         pa, pb, ddir = pair
         blob, _ = _produce_pack(pa, ddir)
 

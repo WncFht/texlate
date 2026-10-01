@@ -43,7 +43,7 @@ from texlate.server.worker.translate.envjudge import _TranslateEnvJudge
 from texlate.server.worker.translate.glossary import _TranslateGlossary
 from texlate.server.worker.translate.usage import _TranslateUsage
 from texlate.server.worker.translate.xlator import _TranslateXlator
-from texlate.validate.l0 import pair_feedback
+from texlate.validate.rules import pair_feedback
 from texlate.xlat.pipeline import (
     ChunkIn,
     PipelineConfig,

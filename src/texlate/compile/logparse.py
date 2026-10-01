@@ -26,7 +26,7 @@ C8 单遍事件流 (architecture-review-2026-09-19 §8): 文件栈走查/错误�
 与归因警告投影 (``_AttrWarns.feed``), 不再自维护栈、不再 ``file_stack_at``
 回放、不再私有错误行判定 (三消费面同词素三写已并)。事件流物化件
 ``ParsedLog`` (``parse_events``) 是 CompRes stash 缝的投影底件——引擎
-编译期一份即可供 ``loginfo``/本层/l2 三面各自投影 (产生者三支判定
+编译期一份即可供 ``loginfo``/本层/logattr 三面各自投影 (产生者三支判定
 ``producer_tag`` 单源 ``texlog``, 本层 import 消费)。
 """
 
@@ -192,13 +192,13 @@ _CAP_LN_ROW_RX = re.compile(r"^l\.\d+")
 
 @dataclass(slots=True)
 class ParsedLog:
-    """``iter_log_events`` 物化事件流——``ErrReport``/``LogInfo``(/l2) 共享投影底件。
+    """``iter_log_events`` 物化事件流——``ErrReport``/``LogInfo``(/logattr) 共享投影底件。
 
     事件级原料 (``ev.err``/``ev.stack``/``ev.popped``/``ev.inner``) 一份即够
     各消费面自行投影——排他/含行首错快照、``errs`` 截顶、warn 归因全是
-    投影侧形状差，底件不预制口径 (l2 需全 ``ev.stack`` 元组，故存事件而
+    投影侧形状差，底件不预制口径 (logattr 需全 ``ev.stack`` 元组，故存事件而
     非仅最内帧)。目标载体 = ``CompRes`` 与 ``res.log_text`` 并列 stash
-    (B14 fix#10 缝先例)——引擎编译期建一份，loginfo/logparse/l2 三个
+    (B14 fix#10 缝先例)——引擎编译期建一份，loginfo/logparse/logattr 三个
     投影共用，同一 log 不再逐消费面各走一遍事件流; 本层暂为归宿，随
     stash 落地迁 ``texlog`` 叶子层。
     """
@@ -359,7 +359,7 @@ def parse_text(
     ``_FILE_ATTRIBUTED_WARNS`` 归因投影——``file_stack``/``popped_files``
     沿用旧 ``file_stack_at`` **排他**口径 (首错行自身不入栈/不计弹栈，
     事件遍里以 ``prev_stack``/``popped_hist`` 前置快照守恒，与
-    l2/loginfo 含行快照是有意分歧，不并)。
+    logattr/loginfo 含行快照是有意分歧，不并)。
 
     ``parsed`` = 调用方已物化的 ``ParsedLog`` (CompRes stash 缝)——
     缺席时本侧自建; 传入者须是 ``text`` 同一文本的事件流 (``raw``/全文

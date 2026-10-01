@@ -1,5 +1,5 @@
 r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse_log`` /
-``l2.parse_log_text`` / ``logparse.parse_text`` → ``judge`` 门控。
+``logattr.parse_log_text`` / ``logparse.parse_text`` → ``judge`` 门控。
 
 四层各自独立实现同一套 log 语义，本文件只测**跨层协议不变量**：
 
@@ -9,10 +9,10 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse
   loginfo ``WARNING_RED_LINES[missing_chars]`` 是同源第三/第四副本。
 - 折行/交错对抗：nullfont 行的 ``in font nullfont`` 落续行仍豁免；真字体
   行紧邻 nullfont 行不被误豁免（tempered 窗限界到下一条 misschar）。
-- l2 ``by_class`` 缺字四分类（missing_glyph / missing_glyph_cjk /
+- logattr ``by_class`` 缺字四分类（missing_glyph / missing_glyph_cjk /
   fffd_glyph / missing_glyph_nullfont）与逐行 census 一致；
   ``sys_hits`` 只允许 ``invalid_utf8@`` 形态（设计内唯一降级类）。
-- 错误计数三层一致：``n_errors``(engine) == ``n_errors``(l2) ==
+- 错误计数三层一致：``n_errors``(engine) == ``n_errors``(logattr) ==
   ``n_bang``(fixloop)，首错文本与出错文件栈同口径。
 - judge 面：``warnings_hit`` → ``warn:*`` reasons；``warnings_sys`` 只进
   ``sys_warn:`` notes；nullfont 命中只进 notes 不进 reasons。
@@ -45,7 +45,7 @@ from texlate.compile.judge import (
 from texlate.compile.loginfo import parse_log as eng_parse_log
 from texlate.compile.logparse import parse_text as fx_parse_text
 from texlate.texlog import update_file_stack
-from texlate.validate.l2 import _REDLINE_CLASSES, parse_log_text
+from texlate.validate.logattr import _REDLINE_CLASSES, parse_log_text
 
 if TYPE_CHECKING:
     import random
@@ -83,7 +83,7 @@ def real_logs() -> list[Path]:
 
 
 def _three(text: str) -> tuple[int, int, int]:
-    """(engine n_errors, l2 n_errors, fixloop n_bang)."""
+    """(engine n_errors, logattr n_errors, fixloop n_bang)."""
     return (
         eng_parse_log(text).n_errors,
         parse_log_text(text).n_errors,
@@ -141,7 +141,7 @@ def test_misschar_no_cross_contamination() -> None:
     ]
     for t in cases:
         assert count_missing_chars(t) == 1, t
-    # 混合日志：judge 与 l2 同口径
+    # 混合日志：judge 与 logattr 同口径
     mixed = _mc("nullfont") + "\n" + _mc("cmmi10", "̧", "(U+0327)")
     bc = parse_log_text(mixed).warnings.by_class
     assert bc.get("missing_glyph_nullfont") == 1
@@ -156,7 +156,7 @@ def test_misschar_window_bound_at_90() -> None:
         assert gate == (0 if pad <= 90 else 1), (pad, gate)  # noqa: PLR2004
 
 
-# ---------------------------------------------------------------- l2 census 一致
+# ---------------------------------------------------------------- logattr census 一致
 
 
 def _gen_log(rng: random.Random) -> tuple[str, dict[str, int]]:
@@ -202,8 +202,8 @@ def _gen_log(rng: random.Random) -> tuple[str, dict[str, int]]:
     return "\n".join(lines) + "\n", exp
 
 
-def test_fuzz_l2_misschar_census_agrees() -> None:
-    """l2 by_class 缺字四类 == 逐行 census；judge 门控数 == 非 nullfont 行数。"""
+def test_fuzz_logattr_misschar_census_agrees() -> None:
+    """logattr by_class 缺字四类 == 逐行 census；judge 门控数 == 非 nullfont 行数。"""
     rng = fuzz_rng(20260918)
     for _ in range(2500):
         text, exp = _gen_log(rng)
@@ -264,7 +264,7 @@ def test_real_logs_three_layer_error_count(real_logs: list[Path]) -> None:
         v = parse_log_text(text)
         f = fx_parse_text(text)
         assert e.n_errors == v.n_errors == f.n_bang, (
-            f"{p}: eng={e.n_errors} l2={v.n_errors} fx={f.n_bang}"
+            f"{p}: eng={e.n_errors} logattr={v.n_errors} fx={f.n_bang}"
         )
         heads = {e.first_error, v.first_error.head if v.first_error else None, f.first}
         if e.first_error is not None:
@@ -305,10 +305,10 @@ def test_fuzz_mutated_real_log_agreement(real_logs: list[Path]) -> None:
             assert parse_log_text("\n".join(lines[1:])).engine is None
 
 
-# ---------------------------------------------------------------- l2 结构不变量
+# ---------------------------------------------------------------- logattr 结构不变量
 
 
-def test_fuzz_l2_structural_invariants() -> None:
+def test_fuzz_logattr_structural_invariants() -> None:
     """``first_error==errors[0]``、errors≤200、ctx≤8、tail=末 30、栈全具名。"""
     rng = fuzz_rng(20260922)
     for _ in range(1200):
@@ -326,7 +326,7 @@ def test_fuzz_l2_structural_invariants() -> None:
         assert v.engine == "XeTeX"
 
 
-def test_l2_error_cap_boundary() -> None:
+def test_logattr_error_cap_boundary() -> None:
     """``_MAX_STORED_ERRORS=200``：n_errors 精确计数、存储截断。"""
     text = "".join(f"! err{i}\n" for i in range(250))
     v = parse_log_text(text)
@@ -430,7 +430,7 @@ def test_misschar_window_no_swallow_real() -> None:
     assert "missing_chars" in eng_parse_log(text).warnings_hit
 
 
-#: 三层错误行口径一致集——l2/logparse 的错误行与 Warning 排除词法现
+#: 三层错误行口径一致集——logattr/logparse 的错误行与 Warning 排除词法现
 #: 全量单源于 texlog（ERR_FILELINE_ROW_RE/NONERR_MSG_RE/WARN_MSG_SRC
 #: /FATAL_TRAILER_SRC，logparse Warning 腿锁 ``: `` 严侧变体）；
 #: 真实语料 1504 log 零分歧——分叉全是畸形形。
@@ -448,7 +448,7 @@ _ERRLINES_AGREED = [
 def test_error_line_three_layer_agree(line: str) -> None:
     text = line + "\nrest\n"
     e, lv, f = _three(text)
-    assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
+    assert e == lv == f, f"{line!r}: eng={e} logattr={lv} fx={f}"
 
 
 #: 文件名面三层已对齐严侧（原 strict-xfail——engine `ERR_FNAME` 单源化后
@@ -464,7 +464,7 @@ _ERRLINES_BAD_FNAME = [
 def test_error_line_filename_width(line: str) -> None:
     text = line + "\nrest\n"
     e, lv, f = _three(text)
-    assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
+    assert e == lv == f, f"{line!r}: eng={e} logattr={lv} fx={f}"
 
 
 def test_misschar_requires_colon() -> None:
@@ -483,11 +483,11 @@ def test_misschar_requires_colon() -> None:
     ],
 )
 def test_utf8_variant_cross_layer(line: str) -> None:
-    """invalid_utf8 变体跨层同命中——loginfo._UTF8_WARN_RE 已对齐 l2
+    """invalid_utf8 变体跨层同命中——loginfo._UTF8_WARN_RE 已对齐 logattr
     （IGNORECASE + ``replaced by U+FFFD``，原 strict-xfail）。"""
     text = "(./main.tex\n" + line + "\n)\n"
     v = parse_log_text(text)
-    assert v.warnings.by_class.get("invalid_utf8") == 1  # l2 已认
+    assert v.warnings.by_class.get("invalid_utf8") == 1  # logattr 已认
     assert "invalid_utf8" in eng_parse_log(text).warnings_hit  # engine 已认
 
 

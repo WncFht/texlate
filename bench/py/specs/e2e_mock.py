@@ -89,7 +89,7 @@ from texlate.pipecore import (
 )
 from texlate.repair import embed_tounicode_quiet
 from texlate.textutil import env_flag
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 
 if TYPE_CHECKING:
     from texlate.xlat.pipeline import MockTranslator
@@ -222,7 +222,7 @@ def _translate_tree(root: Path, translator: MockTranslator, *, env_judge: bool =
     """``pipecore.translate_tree_run`` 薄壳 + 带出逐块 results（归因账本用）。
 
     scan_fn 透传 ``pipecore.scan_tree``（文件名四门单源）；validator 同产品
-    臂 L0 ``validate_pair`` 全量规则。
+    臂 rules ``validate_pair`` 全量规则。
     """
     return translate_tree_run(
         root,

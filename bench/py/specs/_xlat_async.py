@@ -20,7 +20,7 @@ from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.pipecore import delivered
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import pair_feedback
+from texlate.validate.rules import pair_feedback
 from texlate.xlat.pipeline import PipelineConfig, XlatPipeline
 from texlate.xlat.resid import SweepOpts
 from texlate.xlat.resid import sweep_tree as _resid_sweep_tree
@@ -61,7 +61,7 @@ async def translate_tree_async(
       （``scan_fn=_scan_tree``、``validator=lambda s,z: validate_pair(s,z)
       .feedback()``）——test_fuzz_scan_tree 的 ``_scan_spy`` monkeypatch
       缝靠 from-import 属性查找保活（同 e2e._translate_tree 注入格局）；
-      缺省回退 ``_scan_tree``/``pair_feedback``（L0→str 适配单源）。
+      缺省回退 ``_scan_tree``/``pair_feedback``（rules→str 适配单源）。
     - 交付谓词 ``pipecore.delivered``：``ok``+空译不回填 splice（旧式
       ``status=="ok" or (partial and zh)`` 会把块内容从 zh 树静默擦除），
       与产品臂 ``translate_tree_run`` 同口径。

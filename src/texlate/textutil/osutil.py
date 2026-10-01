@@ -307,7 +307,7 @@ def filtered_env(
 
     ``dict(os.environ)`` 全量继承会把 ``TEXLATE_API_KEY`` 等 secret 灌进
     子进程及其孙链——``server.babeldoc``/``compile.sandbox``/
-    ``validate.l1`` 三份同构白名单透传的单源骨架（``_ENV_PASS_*`` 表仍归
+    ``validate.cst`` 三份同构白名单透传的单源骨架（``_ENV_PASS_*`` 表仍归
     各消费方自持，本件只承载过滤+覆盖机制）。
     """
     env = {k: v for k, v in os.environ.items() if k in exact or k.startswith(prefixes)}

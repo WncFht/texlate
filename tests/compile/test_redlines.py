@@ -2,7 +2,7 @@
 
 ★2 收敛（同概念四层三拼写 missing_chars/missing_char/missing_glyph）的
 零行为变契约：本文件钉死各层**对外可观测面**——发射名、pattern、
-序位、l2 红线集、judge 门控/探针行为、rules.yaml ``warnings:`` 镜像。
+序位、logattr 红线集、judge 门控/探针行为、rules.yaml ``warnings:`` 镜像。
 改 registry 引致任何一层对外面漂移即红。
 """
 
@@ -18,13 +18,13 @@ from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.judge import _MISSCHAR_GATE_RX, _MISSCHAR_NULLFONT_RX
 from texlate.redlines import (
     ENGINE_RED_LINES,
-    LOGFIX_REDLINE_CLASSES,
+    LOGATTR_REDLINE_CLASSES,
     REDLINES_BY_ID,
     RULES_WARNINGS,
     name_pattern,
 )
-from texlate.validate import l2
-from texlate.validate.l2 import _REDLINE_CLASSES, _WARNING_RULES
+from texlate.validate import logattr
+from texlate.validate.logattr import _REDLINE_CLASSES, _WARNING_RULES
 
 #: engine 层发射名序（→ ``LogInfo.warnings_hit`` → judge ``warn:*`` reasons）。
 _ENGINE_EMIT = [
@@ -46,8 +46,8 @@ _RULES_EMIT = [
     "bbl_version",
     "overfull_vbox",
 ]
-#: l2 ``_WARNING_RULES`` 全类序（含非红线观察类——序变即归类优先级变）。
-_L2_ALL_CLASSES = [
+#: logattr ``_WARNING_RULES`` 全类序（含非红线观察类——序变即归类优先级变）。
+_LOGATTR_ALL_CLASSES = [
     "invalid_utf8",
     "missing_glyph_nullfont",
     "missing_glyph",
@@ -58,8 +58,8 @@ _L2_ALL_CLASSES = [
     "file_not_found",
     "overfull",
 ]
-#: l2 红线类集（→ ``WarningSummary.redlines``）。
-_L2_RED = {
+#: logattr 红线类集（→ ``WarningSummary.redlines``）。
+_LOGATTR_RED = {
     "invalid_utf8",
     "missing_glyph",
     "missing_glyph_cjk",
@@ -86,12 +86,12 @@ def test_rules_yaml_warnings_mirror() -> None:
     assert [n for n, _ in RULES_WARNINGS] == _RULES_EMIT
 
 
-def test_l2_surfaces_match_registry() -> None:
-    """l2 红线集 == registry l2 切片；_WARNING_RULES 类序 + 托管 pattern 冻结。"""
-    assert _REDLINE_CLASSES == LOGFIX_REDLINE_CLASSES
-    assert frozenset(_L2_RED) == LOGFIX_REDLINE_CLASSES
-    assert [name for name, _ in _WARNING_RULES] == _L2_ALL_CLASSES
-    managed = {r.l2.name: r.l2.pattern for r in REDLINES_BY_ID.values() if r.l2}
+def test_logattr_surfaces_match_registry() -> None:
+    """logattr 红线集 == registry logattr 切片；_WARNING_RULES 类序 + 托管 pattern 冻结。"""
+    assert _REDLINE_CLASSES == LOGATTR_REDLINE_CLASSES
+    assert frozenset(_LOGATTR_RED) == LOGATTR_REDLINE_CLASSES
+    assert [name for name, _ in _WARNING_RULES] == _LOGATTR_ALL_CLASSES
+    managed = {r.logattr.name: r.logattr.pattern for r in REDLINES_BY_ID.values() if r.logattr}
     for name, rx in _WARNING_RULES:
         if managed.get(name) is not None:
             assert rx.pattern == managed[name]
@@ -145,9 +145,9 @@ def test_engine_scan_end_to_end() -> None:
     assert "degraded_file" in loginfo.parse_log(bang).warnings_hit
 
 
-def test_l2_classify_end_to_end() -> None:
-    """l2 行级归类抽查：nullfont 行归观察类、CJK 真字体行归红线派生类。"""
-    v = l2.parse_log_text(
+def test_logattr_classify_end_to_end() -> None:
+    """logattr 行级归类抽查：nullfont 行归观察类、CJK 真字体行归红线派生类。"""
+    v = logattr.parse_log_text(
         "This is XeTeX\n"
         "Missing character: There is no 中 (U+4E2D) in font nullfont\n"
         "Missing character: There is no 中 (U+4E2D) in font cmr10\n"
@@ -159,19 +159,19 @@ def test_l2_classify_end_to_end() -> None:
 
 
 def test_restatable_watch_shape() -> None:
-    """``restatable_loss`` 行形冻结：judge 探针独生，脏层/l2 切片零泄漏。"""
+    """``restatable_loss`` 行形冻结：judge 探针独生，脏层/logattr 切片零泄漏。"""
     r = REDLINES_BY_ID["restatable_loss"]
     assert r.engine is None
     assert r.rules is None
-    assert r.l2 is None
-    assert r.logfix_redline is False
+    assert r.logattr is None
+    assert r.logattr_redline is False
     assert r.judge is not None
     assert name_pattern(r.judge)[0] == "thm_restate_loaded"
-    # presence 概念不进任何判红/镜像切片（warn:* 会污 verdict、l2 预筛
+    # presence 概念不进任何判红/镜像切片（warn:* 会污 verdict、logattr 预筛
     # 只吃 Warning 形态行——四层出口名单同时钉死本行无外溢）。
     flat = [n for n, _ in ENGINE_RED_LINES] + [n for n, _ in RULES_WARNINGS]
     assert "thm_restate_loaded" not in flat
-    assert "restatable_loss" not in LOGFIX_REDLINE_CLASSES
+    assert "restatable_loss" not in LOGATTR_REDLINE_CLASSES
 
 
 def test_restatable_probe_behavior() -> None:
@@ -210,7 +210,7 @@ def test_no_orphan_misschar_literal() -> None:
     files += [
         src / "compile" / "loginfo.py",
         src / "compile" / "judge.py",
-        src / "validate" / "l2.py",
+        src / "validate" / "logattr.py",
         src / "texlog.py",
     ]
     offenders = [

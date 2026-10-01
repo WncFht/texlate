@@ -1,7 +1,7 @@
-r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的单源实现。
+r"""TeX ``.log`` 词法原语 —— engine/logattr/fixloop 三处文件栈收敛的单源实现。
 
 错误行/warning/``l.N`` 词素（``ERR_*``/``NONERR_*``/``WARN_*``/
-``FATAL_*``/``L_NUM_*``/``*_LINES``）亦居此层——l2/``compile/loginfo``/
+``FATAL_*``/``L_NUM_*``/``*_LINES``）亦居此层——logattr/``compile/loginfo``/
 ``compile/logparse`` 三消费面的共同单源（``logparse`` 由 ``*_SRC``
 片段自拼 ctx 变体），叶子层定位使 fixloop→compile 模块级环边不再存在。
 
@@ -73,7 +73,7 @@ __all__ = [
     "update_file_stack",
 ]
 
-#: tex 系扩展名（三版并集：engine 编译面 + l2 观测面 + logparse 判定面）。
+#: tex 系扩展名（三版并集：engine 编译面 + logattr 观测面 + logparse 判定面）。
 TEX_FILE_EXTS: Final = frozenset(
     {
         "tex",
@@ -192,7 +192,7 @@ def update_file_stack(
 #: （``builtins.gfx_missing``）是**同名不同物**的 9 件全图形族
 #: （含 pdf/png/jpg）——本件名加 ``_PS_`` 前缀即为消撞。形状判定拒收的
 #: graphic token（逗号/截断形，如 ``fig,1.eps``）入 ``None`` 配对帧；
-#: engine/l2/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
+#: engine/logattr/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
 #: 补回栈顶真名。
 PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
 #: 旧私名钉点——tests/fuzz/test_fuzz_texlog 经 ``texlog._PS_GRAPHIC_EXTS`` 消费。
@@ -200,7 +200,7 @@ _PS_GRAPHIC_EXTS = PS_GRAPHIC_EXTS
 
 
 def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
-    """栈顶 ``None`` 配对帧是 graphic 打开时补真名（engine/l2 同款补丁）。
+    """栈顶 ``None`` 配对帧是 graphic 打开时补真名（engine/logattr 同款补丁）。
 
     只补行尾最后一个未配对 ``(`` 后的 graphic token——已被 ``)`` 闭合或
     栈顶为具名帧时不动作；``None`` 占位语义其余位置不受影响。
@@ -225,7 +225,7 @@ def file_stack_at(
     消费端职责）；``popped[-1]`` 即 stop 行前最近关闭的文件，
     ``File ended while scanning`` 类 runaway 错报位在父文件续行时
     找回真肇事文件用（#78）。重放逐行套用 ``patch_graphic_top``——
-    形状拒收的 ``(fig,1.eps`` 类帧与 engine/l2 同口径补真名。
+    形状拒收的 ``(fig,1.eps`` 类帧与 engine/logattr 同口径补真名。
     """
     stack: list[str | None] = []
     for ln in lines[:stop]:
@@ -285,7 +285,7 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
 
 #: DOS 二进制 EPS 魔数：带绝对偏移头的 legacy 格式，normalize 只能字节原样
 #: 保留进 ``dos_eps_skipped`` 台账——其 invalid_utf8 警告是必然残余而非可
-#: 修复缺陷，消费端（engine/l2）按栈顶文件 token 判定后降级 ``sys_hits``。
+#: 修复缺陷，消费端（engine/logattr）按栈顶文件 token 判定后降级 ``sys_hits``。
 DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
 
 
@@ -326,7 +326,7 @@ def producer_tag(
     texmf/bundle 件给裸文件名；工程件与 ``None``/不可判 token
     （``is_project_file`` 保守归工程）返回 ``None``。dos-eps 判**先于**
     工程判——skipped 件就在工程树内，先 ``is_project_file`` 会错归工程。
-    logparse ``_AttrWarns``/loginfo ``_scan_error_lines``/l2
+    logparse ``_AttrWarns``/loginfo ``_scan_error_lines``/logattr
     ``_mark_redline`` 三消费面同口径（各把三态映到自家记录形）。
     """
     if is_dos_eps(inner, root, cache):
@@ -337,18 +337,18 @@ def producer_tag(
 
 
 # ================================================================ 错误行词法
-#: 日志行级词法单源——l2/loginfo/logparse 三消费面的共同低层件。锚定/分组
+#: 日志行级词法单源——logattr/loginfo/logparse 三消费面的共同低层件。锚定/分组
 #: 变体按消费面并列登记；有真分歧的形态（logparse Warning 腿锁 ``: `` 字面
 #: 单空格 vs 本层 ``:\s*`` 宽松前导）经 ``*_SRC`` 片段各取所需，不强行统一。
 #: ``file:line:`` 文件名面：``name.ext`` 必带扩展名、禁 ``()``/空白/``:``
 #: 内嵌——``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:`` 畸形形齐拒；
-#: 扩展名不限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，l2 侧 7814
+#: 扩展名不限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，logattr 侧 7814
 #: log 实证）。
 ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
 ERR_FILELINE_RE = re.compile(
     r"^" + ERR_FNAME + r":\d+: \S"
 )  # -file-line-error 引擎级错误（detection 面）
-#: 分组整行变体——l2 需捕获 ``(file, line, msg)`` 三元组；detection 语义与
+#: 分组整行变体——logattr 需捕获 ``(file, line, msg)`` 三元组；detection 语义与
 #: 上行同口（``: `` 单空格后须非空白消息头，空消息/``: !`` 畸形不收）。
 ERR_FILELINE_ROW_RE = re.compile(r"^(" + ERR_FNAME + r"):(\d+): (\S[^\n]*)$")
 #: ``file:line:`` 形态的非错误行两条腿：Warning 行也带 file:line: 前缀
@@ -357,7 +357,7 @@ ERR_FILELINE_ROW_RE = re.compile(r"^(" + ERR_FNAME + r"):(\d+): (\S[^\n]*)$")
 WARN_MSG_SRC = r"(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
 FATAL_TRAILER_SRC = r"==>"
 _NONERR_MSG_SRC = r"(?:" + WARN_MSG_SRC + r"|" + FATAL_TRAILER_SRC + r")"
-#: 消息面锚定形——作用于已取出的 file:line: 消息段（l2 对组 3 判定）。
+#: 消息面锚定形——作用于已取出的 file:line: 消息段（logattr 对组 3 判定）。
 NONERR_MSG_RE = re.compile(r"^" + _NONERR_MSG_SRC)
 #: 整行锚定形（loginfo 整行判定）。
 NONERR_FILELINE_RE = re.compile(r"^" + ERR_FNAME + r":\d+:\s*" + _NONERR_MSG_SRC)
@@ -500,7 +500,7 @@ def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
 L_NUM_SRC = r"l\.(\d+)"
 L_NUM_ROW_SRC = r"l\.\d+"
 L_NUM_RE = re.compile(r"^" + L_NUM_SRC)
-#: 首错上下文窗 / 尾部留存行数（l2 与 logparse 同一
+#: 首错上下文窗 / 尾部留存行数（logattr 与 logparse 同一
 #: knob，独改一侧即分歧）。
 CTX_LINES: Final = 8
 TAIL_LINES: Final = 30
@@ -564,7 +564,7 @@ def iter_log_events(lines: Iterable[str]) -> Iterator[LogEvent]:
     每行先 ``update_file_stack`` 增量维护 + 收集本行弹栈，再
     ``patch_graphic_top`` 补 graphic 帧真名，最后快照/判定——顺序与三
     消费面原各遍走查逐位一致。消费端注意口径：事件 ``stack`` 是本行
-    **处理后**的含行栈（l2/loginfo 原含行快照同此）；logparse 原
+    **处理后**的含行栈（logattr/loginfo 原含行快照同此）；logparse 原
     ``file_stack_at`` 回放是不含错误行自身的**排他**栈，投影时自维护
     ``prev_stack`` 变量。
     """

@@ -2,7 +2,7 @@
     "name": "texlate-ts-validator",
     "version": "0.1.0",
     "private": true,
-    "description": "L1 CST validator worker deps (docs/spec/validate.md); npm i --prefix 一次性安装",
+    "description": "cst validator worker deps (docs/spec/validate.md); npm i --prefix 一次性安装",
     "dependencies": {
         "@pfoerster/tree-sitter-latex": "^0.6.0",
         "tree-sitter": "^0.25.1"

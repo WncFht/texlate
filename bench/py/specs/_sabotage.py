@@ -20,7 +20,7 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from texlate.latex.placeholder import PH_RX
-from texlate.validate.l0 import _ECHO_SIGS
+from texlate.validate.rules import _ECHO_SIGS
 from texlate.xlat.pipeline import MockTranslator
 from texlate.xlat.placeholders import decode_newlines, is_placeholder_only
 
@@ -29,12 +29,12 @@ MODE_C_RATE = 10  # 每占位符 ~10% 挪位
 _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 
 #: Mode-B 内容通道签名（repro-2410b）：交付 zh 命中任一 → dirty。
-#: L0 反馈行字面 = ``Issue.message`` 原文（``L0Report.feedback`` 直拼进
+#: rules 反馈行字面 = ``Issue.message`` 原文（``RulesReport.feedback`` 直拼进
 #: corrector ``[Error]`` 段 / 阶梯 ``[previous_validation_error]`` 尾拼，mock
 #: 臂 CJK 非散文 run 原样残留进交付）；节标/字段名 = 重试协议字面（mock 会
 #: 翻成 ``[这是译文]`` 不命中，真模型 parrot prompt furniture 同款通道兜底）。
 #: ``[这是译文]`` 独行**不**作签名——源 ``[word]`` 合法产出同款。
-#: 词表即 ``l0._ECHO_SIGS`` 本体（同源 import 同一对象，非复抄——复抄面曾
+#: 词表即 ``rules._ECHO_SIGS`` 本体（同源 import 同一对象，非复抄——复抄面曾
 #: 静默漂移成全角冒号脱离 emit 串）；src 自带签名的 delivered 块 echo 与
 #: 忠实译文裸包含不可区分 → armed（结构性盲区，记账只观测不进门槛）。
 DIRTY_SIGS: tuple[str, ...] = _ECHO_SIGS
@@ -101,7 +101,7 @@ def _apply_b(out: str, seg: str, kind: str) -> tuple[str, str]:
 
 
 def _apply_c(out: str, seg: str) -> tuple[str, int]:
-    """Mode C: 每占位符 ~10% 概率挪到段内随机字符位 (multiset 不变 → L0 静默).
+    """Mode C: 每占位符 ~10% 概率挪到段内随机字符位 (multiset 不变 → rules 静默).
 
     按 token 值定位 (chunk 内占位符名唯一); 插入点 = 不在任何占位符 span 内
     的随机字符边界——可落词中，模拟真实幻觉错位。落回原位不计 moved。
@@ -173,7 +173,7 @@ class SabotageTranslator(MockTranslator):
 
 
 class PerturbTranslator(MockTranslator):
-    """Mode C: mock 译文上叠加占位符挪位 (multiset 保持 → 过 L0 后 splice 错位)."""
+    """Mode C: mock 译文上叠加占位符挪位 (multiset 保持 → 过 rules 后 splice 错位)."""
 
     def __init__(self, **kw: object) -> None:
         super().__init__(**kw)

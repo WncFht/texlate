@@ -208,7 +208,7 @@ class TestLadderInvariants:
     def test_identity_echo_passes_default_validator(self) -> None:
         """observed 盲点（文档化契约非缺陷）：默认 ``validate_fn`` 只做
         占位符对账——逐字 echo 原文即 ``ok``；真「翻了没」判定由
-        pipeline 注入的 L0 validator 负责。"""
+        pipeline 注入的 rules validator 负责。"""
 
         async def echo(text: str, _f: str) -> str:
             return text

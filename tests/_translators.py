@@ -90,7 +90,7 @@ def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]
     哈希可分歧，并集宁宽勿漏。Mode C moved 按规范首调形态
     ``_apply_c(mock(enc))`` 复算——重试/corrector 形 ``out`` 位置不
     保证，确定性近似（raw 形 canon 的 flagged 不展开：挪位保
-    multiset 过 L0，注入块几乎走不到 corrector）。
+    multiset 过 rules，注入块几乎走不到 corrector）。
     """
     targeted = False
     moved = 0
@@ -189,7 +189,7 @@ class SabotageTranslator(_Ledgered, _sab.SabotageTranslator):
 
 
 class PerturbTranslator(_Ledgered, _sab.PerturbTranslator):
-    """Mode C 占位符挪位臂（multiset 保持 → 过 L0 后 splice 错位）+ 台账。"""
+    """Mode C 占位符挪位臂（multiset 保持 → 过 rules 后 splice 错位）+ 台账。"""
 
     _MODE = "C"
 
@@ -230,7 +230,7 @@ def _selfcheck() -> None:
     import tempfile  # noqa: PLC0415
 
     from texlate.latex.api import parse_file  # noqa: PLC0415
-    from texlate.validate.l0 import validate_pair  # noqa: PLC0415
+    from texlate.validate.rules import validate_pair  # noqa: PLC0415
     from texlate.xlat.pipeline import XlatPipeline, chunk_to_in  # noqa: PLC0415
 
     # 破坏决策 = f(段内容哈希) 确定性——60 段 ~30% 命中，无随机源
@@ -258,7 +258,7 @@ def _selfcheck() -> None:
     assert ledger["n_events"] == len(tr.events)
     assert ledger["sabotaged"] > 0
     assert ledger["escaped"] == 0, "Mode B 逃逸——校验链洞"
-    # C 臂同面自检（挪位天然过 L0：spliced+dropped == sabotaged）
+    # C 臂同面自检（挪位天然过 rules：spliced+dropped == sabotaged）
     tr_c = make_translator("perturb")
     pipe_c = XlatPipeline(tr_c, validator=lambda s, z: validate_pair(s, z).feedback())
     results_c = asyncio.run(pipe_c.run(chunks))

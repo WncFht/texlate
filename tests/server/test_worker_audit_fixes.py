@@ -636,12 +636,12 @@ _ATTR_BLOB_TEX = (
 )
 
 
-class TestL2EofAttribution:
+class TestLogattrEofAttribution:
     """#78：runaway/EOF 错报父文件续行位——``)`` 弹出的文件才是真肇事者。"""
 
     def test_eof_file_recorded(self) -> None:
         """``parse_log_text``：File-ended 错回填最近弹出的文件 token。"""
-        from texlate.validate.l2 import parse_log_text  # noqa: PLC0415
+        from texlate.validate.logattr import parse_log_text  # noqa: PLC0415
 
         v = parse_log_text(_EOF_LOG)
         assert v.n_errors == 2  # noqa: PLR2004 -- fixture 形态断言
@@ -654,7 +654,7 @@ class TestL2EofAttribution:
         """``LogAttr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
         from texlate.repair import LogAttr, TreeRun  # noqa: PLC0415
-        from texlate.validate.l2 import LogError  # noqa: PLC0415
+        from texlate.validate.logattr import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
         (work / "lib").mkdir(parents=True)
@@ -692,7 +692,7 @@ class TestL2EofAttribution:
         """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
         from texlate.repair import LogAttr, TreeRun  # noqa: PLC0415
-        from texlate.validate.l2 import LogError  # noqa: PLC0415
+        from texlate.validate.logattr import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
         work.mkdir(parents=True)
@@ -735,7 +735,7 @@ class TestChunkSpansMirror:
     """``chunk_spans`` 镜像 ``reconstruct`` 落盘字节：译文侧变换逐项复刻。
 
     ``LATIN_ITEM_RX`` 保险丝与 ``seg_join`` 接缝守卫缺一则 ``find`` 失配、
-    块归 ``None``，L2 归因静默丢块（``4ce255e`` short_arg 同款漂移）。
+    块归 ``None``，logattr 归因静默丢块（``4ce255e`` short_arg 同款漂移）。
     """
 
     def test_translated_transforms_mirrored(self) -> None:

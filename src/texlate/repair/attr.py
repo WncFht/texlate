@@ -26,7 +26,7 @@ from texlate.latex.reconstruct import (
     translation_tokens,
 )
 from texlate.texlog import log_text_of
-from texlate.validate import l2 as logattr_mod
+from texlate.validate import logattr
 
 if TYPE_CHECKING:
     from typing import Any
@@ -192,7 +192,7 @@ _UNDEF_CS_CULPRIT_RXS: tuple[re.Pattern[str], ...] = (
 )
 
 
-def _undef_cs_culprit(err: logattr_mod.LogError) -> str | None:
+def _undef_cs_culprit(err: logattr.LogError) -> str | None:
     r"""``Undefined control sequence`` 的肇事 cs 名（``\\rowcolor`` 形）。"""
     blob = "\n".join(err.ctx)
     for rx in _UNDEF_CS_CULPRIT_RXS:
@@ -207,7 +207,7 @@ def _sig_head(head: str) -> str:
     return re.sub(r"\d+", "#", h)
 
 
-def err_signature(err: logattr_mod.LogError) -> str:
+def err_signature(err: logattr.LogError) -> str:
     r"""错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
 
     ``Undefined control sequence`` 头恒定、罪魁全在 ctx——签名键必须是
@@ -221,8 +221,8 @@ def err_signature(err: logattr_mod.LogError) -> str:
     return f"{_sig_head(err.head)}|{culprit}"
 
 
-def _sig_set(verdict: logattr_mod.L2Verdict) -> set[str]:
-    """L2Verdict → 错误签名集（``log_missing``/无错 → 空集）。"""
+def _sig_set(verdict: logattr.LogVerdict) -> set[str]:
+    """LogVerdict → 错误签名集（``log_missing``/无错 → 空集）。"""
     if verdict.log_missing or not verdict.errors:
         return set()
     return {err_signature(e) for e in verdict.errors}
@@ -241,11 +241,11 @@ def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> s
     """Log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
     if not log_text:
         return set()
-    return _sig_set(logattr_mod.parse_log_text(log_text, project_root=project_root))
+    return _sig_set(logattr.parse_log_text(log_text, project_root=project_root))
 
 
-def _log_parse(res: CompRes) -> logattr_mod.L2Verdict:
-    """CompRes → L2Verdict：``texlog.log_text_of`` 全文 → ``parse_log_text``。
+def _log_parse(res: CompRes) -> logattr.LogVerdict:
+    """CompRes → LogVerdict：``texlog.log_text_of`` 全文 → ``parse_log_text``。
 
     被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 logfix 臂
     静默空转（``log_text_of`` 单源同口径：``.log`` 非空优先、缺席/
@@ -253,8 +253,8 @@ def _log_parse(res: CompRes) -> logattr_mod.L2Verdict:
     """
     text = log_text_of(res)
     if text:
-        return logattr_mod.parse_log_text(text, project_root=res.workdir)
-    return logattr_mod.L2Verdict(log_missing=True)
+        return logattr.parse_log_text(text, project_root=res.workdir)
+    return logattr.LogVerdict(log_missing=True)
 
 
 def chunk_spans(
@@ -396,7 +396,7 @@ class LogAttr:
         )
 
     def attr_error(  # noqa: PLR0911 -- 归因阶梯：豁免→结构→eof→白名单逐档直铺
-        self, err: logattr_mod.LogError
+        self, err: logattr.LogError
     ) -> tuple[int, list[int]] | None:
         """单条 log 错误 → (fidx, chunk.id 列表)；不可归因 → None。"""
         blob = err.head + "\n" + "\n".join(err.ctx)

@@ -1,4 +1,4 @@
-"""xlat.placeholders.diff 注释区占位符洞补丁测试（与 L0 l0.py 同口径）。
+"""xlat.placeholders.diff 注释区占位符洞补丁测试（与 rules 校验层同口径）。
 
 masked 主比对看不见 ``%`` 行内容——zh 注释内臆造 ``[[MATH_966]]`` 逃逸 →
 splice 字面残留（mock-sabotage 实测 1012.5411）。补丁口径：zh 注释区净多出

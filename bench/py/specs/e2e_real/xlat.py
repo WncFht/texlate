@@ -28,7 +28,7 @@ from specs._xlat_async import translate_tree_async
 from texlate.compile.inject import classify_no_main, find_main_tex
 from texlate.compile.normalize import normalize_project
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import validate_pair
+from texlate.validate.rules import validate_pair
 from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,

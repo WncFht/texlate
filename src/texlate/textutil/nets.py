@@ -41,7 +41,7 @@ PH_RX: Final = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 #: 模糊占位符候选（zh 侧变体）：完整 ``[[..]]`` / 缺右括号 / 单层 ``[X_n]``
 #: / 全角 ``【..】``。各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/
 #: 纯 CJK 的 ``【1】`` ``【图 1】`` ``[[图]]`` 是中文正文的自然全角括号用法，
-#: 非占位符变体。L0 ``_check_placeholder`` 与 xlat ``placeholders.diff``
+#: 非占位符变体。rules ``_check_placeholder`` 与 xlat ``placeholders.diff``
 #: 共用本口径（validate 不能 import xlat，单源落本模块）。
 PH_FUZZY_RX: Final = re.compile(
     r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
@@ -94,7 +94,7 @@ def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
     cs 成未定义命令——挪位缺陷签名（scout-spliceguard 实证）。双侧字母夹持
     必需：``\cs[[PH]]`` 尾邻是合法高频形（corpus 271 处 ``\protect[[REF_n]]``
     系）；``+`` 排除 ``\[[PH]]`` display-math 与 ``\\[[PH]]`` 控制符号。
-    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。L0
+    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。rules
     ``_check_ph_in_cs`` 与 pipeline ``_intercept_ph_in_cs`` 共用本口径。
     """
     return Counter(_PH_IN_CS_RX.findall(mask_comments(zh))) - Counter(
@@ -104,7 +104,7 @@ def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
 
 #: 数学模式专用命令（文本域出现即 ``Missing $`` 编译炸弹——realpostfix2
 #: 0905.4907 ``\alpha 发射体`` 实证签名）。收录内核 + amsmath/amssymb
-#: 高频名；表外新名退化走 L0 ``macro`` 泛 warn 兜底，不静默。
+#: 高频名；表外新名退化走 rules ``macro`` 泛 warn 兜底，不静默。
 #: 刻意不收双模式名（``\ldots``/``\quad``/``\phantom``/``\ensuremath``
 #: 文本域合法）与文本族名（``\dag``/``\S``/``\pounds``/``\eqref``）。
 MATH_CS: Final = frozenset(
@@ -185,7 +185,7 @@ def _math_spans(evs: list[tuple[str, int]]) -> list[tuple[int, int]]:
     display、否则开 inline；inline 态单 ``$`` 即闭；display 态只认相邻
     ``$$``（内部单 ``$`` 是字面字符）；``\(``/``\[`` 各认 ``\)``/``\]``，
     异种定界符与裸 ``\)``/``\]`` 不接管。未闭合定界符其后全部按文本域
-    处理（配对不齐由 L0 ``math`` 规则另行承接）。
+    处理（配对不齐由 rules ``math`` 规则另行承接）。
     """
     closer = {"\\(": "\\)", "\\[": "\\]"}
     spans: list[tuple[int, int]] = []
@@ -246,7 +246,7 @@ def bare_cs_net(src: str, zh: str) -> Counter[str]:
       间隔空格、后随词首字母粘上）→ 未定义 cs 炸弹。后缀须含大写：
       ``\citep``/``\refname``/``\textbf`` 类全小写延申是真实 cs 不炸。
 
-    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。L0
+    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。rules
     ``_check_bare_cs`` 与 pipeline ``_intercept_bare_cs`` 共用本口径；
     拆分子类判 ``nme in MATH_CS``（两族不交——粘合类跳过表内名）。
     """
@@ -364,7 +364,7 @@ def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
     （``\input{/etc/passwd}``/``\write18``/``\def\x``/``\catcode`` 逃逸族）。
     数学域**不豁免**——``$\input$`` 照样执行；注释区 ``mask_comments``
     屏蔽；src 自带同形按多重集差豁免（src 行文引用命令名时 zh 保留
-    不冤）。L0 ``_check_dangerous_cs`` 与 pipeline
+    不冤）。rules ``_check_dangerous_cs`` 与 pipeline
     ``_intercept_dangerous_cs`` 共用本口径。
     """
     s_ev, _ = cs_events_spans(mask_comments(src))
@@ -376,7 +376,7 @@ def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
 #: 带号/无号占位符剥皮——``[[TYPE_n]]`` 与 ``[[TYPE]]`` 整 token 形
 #: （``xlat.placeholders.ANY_PH_RX`` 的宽口径姊妹：那边按签发面逐型收口，
 #: 校验域只须"占位符样 token 全剥"一件——prose 口径/注释占位符共用本件；
-#: 原 l0 私有件下沉单源，placeholders.py 头注的「两处口径同步」所指即此）。
+#: 原 rules 私有件下沉单源，placeholders.py 头注的「两处口径同步」所指即此）。
 PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
 #: 控制序列/控制符号剥皮——``\cs 名 [*]`` 与 ``\`` 后随单字符（``\%``/``\,`` 族）。
@@ -550,7 +550,7 @@ def name_list_prose(s: str) -> bool:
 
     作者/贡献者名单、consortium 块、地址栏——``residual_en`` 的 run 级豁免
     升为段级判定。此类 src 的 verbatim 回显（名单留拉丁原名）与音译 + 原文
-    括号注释（长度 ~2.6-3.4x 合法膨胀）都是正确译文态；L0 ``same_source``
+    括号注释（长度 ~2.6-3.4x 合法膨胀）都是正确译文态；rules ``same_source``
     与 ``length`` 上界各消费本判据豁免（web t_25e3f4d1 seq-67..77 +
     t_4000988e seq-234 实证：名单块阶梯尽、回退原文，用户面失译）。
     """
@@ -583,7 +583,7 @@ def residual_en_net(src: str, zh: str) -> list[str]:
     门槛：``src`` 含 ``[[BIB_`` → ``[]``（文献直通留英合法，同
     ``same_source`` 豁免口径）；zh prose 零 CJK → ``[]``（全英译文归
     ``same_source``/``length`` 管辖，本网只收"中文里夹英文"）。
-    命中返回 run 列表（剥后形），L0 ``_check_residual_en`` 与 pipeline
+    命中返回 run 列表（剥后形），rules ``_check_residual_en`` 与 pipeline
     ``_intercept_residual_en`` 共用本口径。
     """
     if "[[BIB_" in src:

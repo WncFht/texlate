@@ -1,6 +1,6 @@
 """specs.validbench.probes — 对抗探针叶 (validbench 拆分叶).
 
-docs/spec/benchmark.md §B6-2 清单 + test_validate_l0.py 防误报面; 每条断言
+docs/spec/benchmark.md §B6-2 清单 + test_validate_rules.py 防误报面; 每条断言
 ok/error-rules/warn-rules. suggest= 要求至少一条 issue 带 expected+found
 修复配对。``_probe_eval`` 逐条断言 → rows (pass/fail + 详情)。
 """
@@ -11,7 +11,7 @@ from specs import _bootstrap
 
 _bootstrap.ensure()
 
-from texlate.validate.l0 import Severity, validate_pair
+from texlate.validate.rules import Severity, validate_pair
 
 PROBES: list[dict] = [
     {

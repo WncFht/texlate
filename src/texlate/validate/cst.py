@@ -1,4 +1,4 @@
-"""L1 tree-sitter CST 校验层 —— node 子进程 JSONL 批处理（可选组件，规格 docs/spec/validate.md）。
+"""cst tree-sitter CST 校验层 —— node 子进程 JSONL 批处理（可选组件，规格 docs/spec/validate.md）。
 
 技术路线结论（2026-09 调研）：
 
@@ -12,7 +12,7 @@
        手写 glue，工程量大于收益 → 排除；
     e. **node 子进程 JSONL（docs/spec/validate.md 定案）** —— chunk 级 0.7–2ms、
        常驻/批处理摊薄 <1ms/块；``shutil.which("node")`` 探测，
-       无 node 优雅降级 L0。
+       无 node 优雅降级 rules。
 - 分发：``validate/ts/`` 内 validator.js + package.json（两 npm 依赖均有
   prebuilt）随包作 data；node_modules 缺席时 ``npm i --prefix`` 补装（~5s）；
   开发态可用 ``TEXLATE_TS_NODE_PATH`` 指到现成 node_modules（如 bench/ts）。
@@ -52,7 +52,7 @@ from texlate.textutil import env_raw, filtered_env
 from texlate.textutil.osutil import ENV_NODE, ENV_TS_NODE_PATH, ENV_TS_WORKER
 
 __all__ = [
-    "L1Error",
+    "CstError",
     "TsBaseline",
     "TsResult",
     "TsValidator",
@@ -86,8 +86,8 @@ _ENV_PASS_EXACT = frozenset(
 _ENV_PASS_PREFIX = ("LC_",)
 
 
-class L1Error(RuntimeError):
-    """L1 层不可用/协议错误的统一异常。"""
+class CstError(RuntimeError):
+    """cst 层不可用/协议错误的统一异常。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +110,7 @@ class TsBaseline:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> TsBaseline:
-        """从协议字段反序列化；schema 违例 → ``L1Error``（同 TsResult 契约）。"""
+        """从协议字段反序列化；schema 违例 → ``CstError``（同 TsResult 契约）。"""
         try:
             return cls(
                 parse_errors=int(d.get("parse_errors", 0)),
@@ -119,13 +119,13 @@ class TsBaseline:
                 brace_balance=int(d.get("brace_balance", 0)),
             )
         except (TypeError, ValueError, AttributeError, OverflowError) as e:
-            msg = f"L1 baseline schema 违例: {e}"
-            raise L1Error(msg) from e
+            msg = f"cst baseline schema 违例: {e}"
+            raise CstError(msg) from e
 
 
 @dataclass(slots=True)
 class TsResult:
-    """L1 单块校验结果（worker JSON 行的 python 形态）。
+    """cst 单块校验结果（worker JSON 行的 python 形态）。
 
     ``ok`` 为绝对判定；带 baseline 时 ``ok_relative`` 为生产判定。
     ``parse_errors``/``env_mismatches`` 保留 node 级定位明细（dict 列表）。
@@ -149,9 +149,9 @@ class TsResult:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> TsResult:
-        """从 worker JSON 行反序列化；schema 违例 → ``L1Error``。
+        """从 worker JSON 行反序列化；schema 违例 → ``CstError``。
 
-        worker 输出违协议即协议错误，统一归 ``L1Error``
+        worker 输出违协议即协议错误，统一归 ``CstError``
         （``_one``/``validate_batch`` 只另兜 ``JSONDecodeError``），不让
         ``TypeError``/``ValueError``/``AttributeError`` 泄出通道契约。
         三段值域显式校验（静默收编会把违例推迟到消费侧炸成下游异常）：
@@ -183,34 +183,34 @@ class TsResult:
                 error=d.get("error"),
             )
         except (TypeError, ValueError, AttributeError, OverflowError) as e:
-            msg = f"L1 worker 响应 schema 违例: {e}"
-            raise L1Error(msg) from e
+            msg = f"cst worker 响应 schema 违例: {e}"
+            raise CstError(msg) from e
         if res.ok_relative is not None and not isinstance(res.ok_relative, bool):
             msg = (
-                f"L1 worker 响应 schema 违例: ok_relative 非 bool: {res.ok_relative!r}"
+                f"cst worker 响应 schema 违例: ok_relative 非 bool: {res.ok_relative!r}"
             )
-            raise L1Error(msg)
+            raise CstError(msg)
         for fname, items in (
             ("parse_errors", res.parse_errors),
             ("env_mismatches", res.env_mismatches),
         ):
             if not all(isinstance(x, dict) for x in items):
-                msg = f"L1 worker 响应 schema 违例: {fname} 项非 dict"
-                raise L1Error(msg)
+                msg = f"cst worker 响应 schema 违例: {fname} 项非 dict"
+                raise CstError(msg)
         ph = res.placeholders
         for key in ("missing", "unexpected", "typos"):
             if key in ph and not isinstance(ph[key], list):
-                msg = f"L1 worker 响应 schema 违例: placeholders.{key} 非 list"
-                raise L1Error(msg)
+                msg = f"cst worker 响应 schema 违例: placeholders.{key} 非 list"
+                raise CstError(msg)
         if not all(isinstance(t, dict) for t in ph.get("typos", [])):
-            msg = "L1 worker 响应 schema 违例: placeholders.typos 项非 dict"
-            raise L1Error(msg)
+            msg = "cst worker 响应 schema 违例: placeholders.typos 项非 dict"
+            raise CstError(msg)
         ok_raw = d.get("ok")
         if not isinstance(ok_raw, bool):
             # ``ok`` 是唯一宽容字段——``bool()`` 收编契约被 fuzz oracle 钉死，
             # 非 bool 不判违例但打 warning，让 worker 协议漂移可观测。
             log.warning(
-                "L1 worker 响应 ok 非 bool，按 %s 收编: %r", bool(ok_raw), ok_raw
+                "cst worker 响应 ok 非 bool，按 %s 收编: %r", bool(ok_raw), ok_raw
             )
         return res
 
@@ -251,7 +251,7 @@ def _default_worker_dir() -> Path:
 
 
 class TsValidator:
-    """L1 校验器客户端：node 子进程 JSONL 批处理/常驻。
+    """cst 校验器客户端：node 子进程 JSONL 批处理/常驻。
 
     用法::
 
@@ -320,7 +320,7 @@ class TsValidator:
         return "" if self._deps_present() else f"（npm deps 缺失: {self._node_path}）"
 
     def available(self) -> bool:
-        """Node + worker.js + npm 依赖三者齐备才可用，否则降级 L0。"""
+        """Node + worker.js + npm 依赖三者齐备才可用，否则降级 rules。"""
         return bool(self._node and self.worker_js.is_file() and self._deps_present())
 
     # ---------------- 传输 ----------------
@@ -340,21 +340,21 @@ class TsValidator:
 
     def _require_available(self) -> str:
         if not self._node:
-            msg = "node 不在 PATH（L1 不可用，调用方应降级 L0）"
-            raise L1Error(msg)
+            msg = "node 不在 PATH（cst 不可用，调用方应降级 rules）"
+            raise CstError(msg)
         if not self.worker_js.is_file():
             msg = f"worker 缺失: {self.worker_js}"
-            raise L1Error(msg)
+            raise CstError(msg)
         return self._node
 
     def validate_batch(self, records: list[dict[str, Any]]) -> list[TsResult]:
         """spawn-per-batch：一次 spawn 校验整批（37ms 摊薄 <1ms/块）。
 
-        worker 非零退出或行数与请求数不符 → ``L1Error``（带 stderr 尾巴）——
+        worker 非零退出或行数与请求数不符 → ``CstError``（带 stderr 尾巴）——
         空 stdout 若放任返回 ``[]``，调用方 ``[0]`` 取值会泄出 IndexError。
         """
         # 空批不 spawn：worker 对空 stdin 按裸 .tex 兜底会回一条结果行，
-        # 撞上 ``len(results) != len(records)`` 计数闸误报 L1Error。
+        # 撞上 ``len(results) != len(records)`` 计数闸误报 CstError。
         if not records:
             return []
         node = self._require_available()
@@ -370,15 +370,15 @@ class TsValidator:
                 env=self._env(),
             )
         except (OSError, subprocess.SubprocessError) as e:
-            msg = f"L1 worker spawn 失败: {e}"
-            raise L1Error(msg) from e
+            msg = f"cst worker spawn 失败: {e}"
+            raise CstError(msg) from e
         if proc.returncode != 0:
             msg = (
-                f"L1 worker 退出码 {proc.returncode}: "
+                f"cst worker 退出码 {proc.returncode}: "
                 f"{proc.stderr.strip()[-300:] or '(stderr 空)'}"
                 f"{self._deps_hint()}"
             )
-            raise L1Error(msg)
+            raise CstError(msg)
         try:
             results = [
                 TsResult.from_dict(json.loads(line))
@@ -386,11 +386,11 @@ class TsValidator:
                 if line.strip()
             ]
         except json.JSONDecodeError as e:
-            msg = f"L1 worker 输出非 JSON: {e}"
-            raise L1Error(msg) from e
+            msg = f"cst worker 输出非 JSON: {e}"
+            raise CstError(msg) from e
         if len(results) != len(records):
-            msg = f"L1 worker 响应数 {len(results)} != 请求数 {len(records)}"
-            raise L1Error(msg)
+            msg = f"cst worker 响应数 {len(results)} != 请求数 {len(records)}"
+            raise CstError(msg)
         return results
 
     # ---------------- 常驻模式（--repl 行协议） ----------------
@@ -409,8 +409,8 @@ class TsValidator:
                 env=self._env(),
             )
         except OSError as e:
-            msg = f"L1 常驻 worker 启动失败: {e}"
-            raise L1Error(msg) from e
+            msg = f"cst 常驻 worker 启动失败: {e}"
+            raise CstError(msg) from e
         # 泵线程把 stdout 行喂进队列——``_one`` 不能直接 ``readline()``，
         # 那是无超时阻塞调用，worker 挂起会把整个 pipeline 永久卡死。
         threading.Thread(
@@ -504,8 +504,8 @@ class TsValidator:
             self._proc.stdin.write(json.dumps(rec, ensure_ascii=False) + "\n")
             self._proc.stdin.flush()
         except OSError as e:
-            msg = "L1 常驻 worker stdin 已断（进程已退出？）"
-            raise L1Error(msg) from e
+            msg = "cst 常驻 worker stdin 已断（进程已退出？）"
+            raise CstError(msg) from e
         deadline = time.monotonic() + self._timeout
         while True:
             try:
@@ -516,19 +516,19 @@ class TsValidator:
                 # 拆通道（下一调用走批处理降级重起）仍是最干净的兜底，
                 # id 配对只负责丢弃错序/多出的异 id 行。
                 self.close()
-                msg = f"L1 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
-                raise L1Error(msg) from e
+                msg = f"cst 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
+                raise CstError(msg) from e
             if line is None:
                 self.close()
                 msg = (
-                    f"L1 常驻 worker EOF（进程已退出，响应通道关闭）{self._deps_hint()}"
+                    f"cst 常驻 worker EOF（进程已退出，响应通道关闭）{self._deps_hint()}"
                 )
-                raise L1Error(msg)
+                raise CstError(msg)
             try:
                 res = TsResult.from_dict(json.loads(line))
             except json.JSONDecodeError as e:
-                msg = f"L1 常驻 worker 输出非 JSON: {line[:200]!r}"
-                raise L1Error(msg) from e
+                msg = f"cst 常驻 worker 输出非 JSON: {line[:200]!r}"
+                raise CstError(msg) from e
             if res.id == want_id:
                 res.id = orig_id  # 关联戳是线协议内件——对外仍报调用方 doc_id
                 return res
@@ -538,8 +538,8 @@ class TsValidator:
         """对译前源文本取签名（相对判定基线）。"""
         res = self._one({"id": doc_id or "baseline", "tex": tex})
         if res.error:
-            msg = f"L1 sign 失败: {res.error}"
-            raise L1Error(msg)
+            msg = f"cst sign 失败: {res.error}"
+            raise CstError(msg)
         return res.baseline_signature()
 
     def validate(

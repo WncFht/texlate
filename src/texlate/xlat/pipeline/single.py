@@ -185,8 +185,8 @@ class _XlatSingle:
         每 chunk 只此一发的配额由调用方（e2e logfix 回灌）记账。返回值：
 
         - ``None`` —— 传输层异常：保留原译，调用方按"未变"处理；
-        - ``status="ok"`` —— L0 过：新译可入 splice（并写段级缓存）；
-        - ``status="fault"`` + ``translation=source`` —— L0 仍败：
+        - ``status="ok"`` —— rules 过：新译可入 splice（并写段级缓存）；
+        - ``status="fault"`` + ``translation=source`` —— rules 仍败：
           调用方应回落原文（spec：再不过 → fallback 原文）。
         """
         system = self._system_prompt(c.kind)

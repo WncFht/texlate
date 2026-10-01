@@ -1,4 +1,4 @@
-"""validate.l0.prose — 散文质量规则域叶 (validate.l0 域缝叶)。
+"""validate.rules.prose — 散文质量规则域叶 (validate.rules 域缝叶)。
 
 剥占位符/cs 后散文本体的三族判定：``_check_same_source`` 整段原文
 回显（规范化等值 + 拉丁主导，BIB 直通/短残段/纯非语言成分/人名专名列
@@ -14,10 +14,10 @@ import re
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import CJK_RX, name_list_prose, residual_en_net
-from texlate.validate.l0.report import Issue, Severity
+from texlate.validate.rules.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0.lex import _Ctx
+    from texlate.validate.rules.lex import _Ctx
 
 #: 长度比带（E24 token 代理口径）：剥占位符/cs 后 est_token 比出带 →
 #: error。char 级旧带 [0.25,2.5] 因 CJK 密度 241 假离群弃用；本带经

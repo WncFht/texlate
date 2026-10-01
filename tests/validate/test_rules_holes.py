@@ -1,4 +1,4 @@
-"""L0 校验洞补丁测试：item_glue 粘合签名 + 注释区占位符逃逸 + 注释尾段。
+"""rules 校验洞补丁测试：item_glue 粘合签名 + 注释区占位符逃逸 + 注释尾段。
 
 实证背景：
 - item_glue：译文把 ``\\item`` 与后随词粘成 ``\\itemFSU``/``\\itemNGA``/
@@ -18,10 +18,10 @@
 import pytest
 from conftest import _issues
 
-from texlate.validate.l0 import L0Report, Severity, validate_pair
+from texlate.validate.rules import RulesReport, Severity, validate_pair
 
 
-def _comment_ph_issues(rep: L0Report) -> list:
+def _comment_ph_issues(rep: RulesReport) -> list:
     """注释区臆造占位符命中集（``注释`` 字样 message 的 placeholder 子集）。"""
     return [i for i in _issues(rep, "placeholder") if "注释" in i.message]
 

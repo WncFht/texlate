@@ -1,6 +1,6 @@
-"""L1 verify-flip 钉测：15 条「规则/修复已落地」机制的活性核验。
+"""cst verify-flip 钉测：15 条「规则/修复已落地」机制的活性核验。
 
-车道 L1（c1-scout 车道普查 §L1）：verdict=rule/covered
+车道 cst（c1-scout 车道普查 §cst）：verdict=rule/covered
 机制逐一最小复现 —— 活则钉死，防回退。语料无关（corpus 数据
 gitignored），全部 tmp_path 合成源，干净 clone 全绿。
 

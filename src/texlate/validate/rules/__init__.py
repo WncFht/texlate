@@ -1,4 +1,4 @@
-r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 docs/spec/validate.md）。
+r"""rules 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 docs/spec/validate.md）。
 
 定位：校验链第一层，LLM 每返回一个 chunk 立即校验（实测 0.57ms/对）。
 独立于任何 LaTeX 解析器（pylatexenc 静默截断的教训——校验器必须异构），
@@ -56,7 +56,7 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                编译即炸的位置签名——命中名在 macro 泛 error 报表同现
                一条（有意分层双报：泛条目不带文本域/粘合前缀定位）。
   protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
-               三段式节标/L0 反馈消息/``slot_validation_failures``/
+               三段式节标/rules 反馈消息/``slot_validation_failures``/
                ``[compile_error]`` 被当正文回显——multiset 可吻合而载荷脏，
                回显行里 ``[[COMMENT_n]]`` splice 出 ``%`` 吞掉同行结构 ``}``
                实测 early_eof）。词表与 bench ``DIRTY_SIGS`` 同款同序；
@@ -69,21 +69,21 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
 实测基线（1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
 
-god-split: 实现体按域拆进同包 8 叶——``l0.report``（Severity/Issue/
-L0Report verdict 类型）、``l0.lex``（``_lex`` 词法扫描 + ``_Ctx``
-共享预处理视图）、``l0.ph``（占位符全域：multiset/lev 配对/行锚定/
-注释区专项）、``l0.struct``（brace/env/key/math 结构配对）、
-``l0.prose``（same_source/length/residual_en 散文质量）、``l0.cs``
+god-split: 实现体按域拆进同包 8 叶——``rules.report``（Severity/Issue/
+RulesReport verdict 类型）、``rules.lex``（``_lex`` 词法扫描 + ``_Ctx``
+共享预处理视图）、``rules.ph``（占位符全域：multiset/lev 配对/行锚定/
+注释区专项）、``rules.struct``（brace/env/key/math 结构配对）、
+``rules.prose``（same_source/length/residual_en 散文质量）、``rules.cs``
 （macro/item_glue/ph_in_cs/bare_cs/dangerous_cs 控制序列安全）、
-``l0.guard``（protocol_echo/comment_eof 交付守卫）、``l0.main``
+``rules.guard``（protocol_echo/comment_eof 交付守卫）、``rules.main``
 （``_CHECKERS`` 全表 + ``CACHE_VETO_RULES`` + 对外入口）。本文件是
 PEP 562 惰性门面（同 ``seqpos/__init__``/``worker/compile`` 形制）
 ——平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析
-并缓存，``l0.X`` 公共面与 ``from  import X``/``l0._x`` 属性读面
+并缓存，``rules.X`` 公共面与 ``from  import X``/``rules._x`` 属性读面
 不变。monkeypatch 锚点注意：patch 叶子不 patch 门面
 （docs/dev/seams.md §1）——``facade.name`` 读到的恒是叶子对象，但
 ``setattr(facade, ...)`` 只遮蔽门面不改叶子内部互引。叶子间互引走
-全路径直跨（``texlate.validate.l0_<叶>``），不经本门面。
+全路径直跨（``texlate.validate.rules.<叶>``），不经本门面。
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.validate.l0.cs import (
+    from texlate.validate.rules.cs import (
         _NONASCII_RX,
         FRAGILE_BS,
         FRAGILE_CHARS,
@@ -111,13 +111,13 @@ if TYPE_CHECKING:
         dangerous_cs_net,
         ph_in_cs_net,
     )
-    from texlate.validate.l0.guard import (
+    from texlate.validate.rules.guard import (
         _ECHO_SIGS,
         _check_comment_eof,
         _check_protocol_echo,
         _tail_unterminated_comment,
     )
-    from texlate.validate.l0.lex import (
+    from texlate.validate.rules.lex import (
         _Ctx,
         _est_tokens,
         _lex,
@@ -126,13 +126,13 @@ if TYPE_CHECKING:
         mask_comments,
         re,
     )
-    from texlate.validate.l0.main import (
+    from texlate.validate.rules.main import (
         _CHECKERS,
         CACHE_VETO_RULES,
         pair_feedback,
         validate_pair,
     )
-    from texlate.validate.l0.ph import (
+    from texlate.validate.rules.ph import (
         _COMMENT_LINE_RX,
         _COMMENT_TAIL_RX,
         _LEV_CAP,
@@ -152,7 +152,7 @@ if TYPE_CHECKING:
         _ph_typo_adjacency,
         lev_capped,
     )
-    from texlate.validate.l0.prose import (
+    from texlate.validate.rules.prose import (
         _MIN_LATIN_FOR_CJK_CHECK,
         _MIN_PROSE_TOKENS,
         _NONLING_RX,
@@ -169,16 +169,16 @@ if TYPE_CHECKING:
         name_list_prose,
         residual_en_net,
     )
-    from texlate.validate.l0.report import (
+    from texlate.validate.rules.report import (
         Issue,
-        L0Report,
+        RulesReport,
         Severity,
         StrEnum,
         annotations,
         dataclass,
         field,
     )
-    from texlate.validate.l0.struct import (
+    from texlate.validate.rules.struct import (
         _BRACE_SEQ_RX,
         _ENV_CHECK_TAIL_LIMIT,
         ENV_RX,
@@ -279,7 +279,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     ),
     "report": (
         "Issue",
-        "L0Report",
+        "RulesReport",
         "Severity",
         "StrEnum",
         "annotations",
@@ -348,7 +348,7 @@ __all__ = [
     "Counter",
     "Final",
     "Issue",
-    "L0Report",
+    "RulesReport",
     "Severity",
     "StrEnum",
     "_Ctx",

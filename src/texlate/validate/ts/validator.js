@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// TeXlate L1 译文结构校验 worker —— tree-sitter-latex CST + 占位符契约 diff。
+// TeXlate cst 译文结构校验 worker —— tree-sitter-latex CST + 占位符契约 diff。
 // 随 wheel 作 package data 分发（texlate.validate/ts/）。
 //
 // 协议（stdin/stdout JSONL，每行一 record）：

@@ -4,8 +4,8 @@ r"""排序不相交区间的 bisect 判定件 + CJK 码点面单源。
 单候选命中——``encoding`` 的字符粗分类与 CJK 码点面共用的低层件（叶间单向
 引用，不回引 facade）。
 
-``CJK_RANGES``/``CJK_RX``/``is_cjk_cp``：CJK 统一表意码点面——judge/l0/l2
-三处计数曾各自漂移（judge 缺 〇、l0 只有三区、l2 扩F 截断在 2EBEF），
+``CJK_RANGES``/``CJK_RX``/``is_cjk_cp``：CJK 统一表意码点面——judge/rules/logattr
+三处计数曾各自漂移（judge 缺 〇、rules 只有三区、logattr 扩F 截断在 2EBEF），
 单源化后口径唯一。
 """
 
@@ -43,8 +43,8 @@ def _in_ranges(
 # ---------------------------------------------------------------- CJK 码点面
 
 #: CJK 统一表意码点面：扩 A + 基本区 + 兼容区 + 〇（U+3007，日期用字）
-#: + 扩 B~F（U+20000–2FA1F）。judge/l0/l2 三处计数曾各自漂移（judge 缺
-#: 〇、l0 只有三区、l2 扩 F 截断在 2EBEF）——单源化后口径唯一。
+#: + 扩 B~F（U+20000–2FA1F）。judge/rules/logattr 三处计数曾各自漂移（judge 缺
+#: 〇、rules 只有三区、logattr 扩 F 截断在 2EBEF）——单源化后口径唯一。
 CJK_RANGES: Final = (
     (0x3400, 0x4DBF),
     (0x4E00, 0x9FFF),
@@ -61,7 +61,7 @@ CJK_RX: Final = re.compile(
 )
 
 
-#: ``CJK_RANGES`` 的排序不相交面 + lo 列——``_char_class``/l2 逐字调用
+#: ``CJK_RANGES`` 的排序不相交面 + lo 列——``_char_class``/logattr 逐字调用
 #: （breview ``_score_text`` 全文体 ~5.9M 次），线性 any() 改 bisect。
 _CJK_MERGED: Final = _merge_ranges(CJK_RANGES)
 _CJK_LOS: Final = tuple(lo for lo, _ in _CJK_MERGED)

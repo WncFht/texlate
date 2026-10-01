@@ -1,4 +1,4 @@
-r"""占位符编解码与 src↔zh 对账（规格 docs/spec/translate.md，口径对齐 L0 校验层）。
+r"""占位符编解码与 src↔zh 对账（规格 docs/spec/translate.md，口径对齐 rules 校验层）。
 
 契约边界：
 - `[[TYPE_n]]` 带号占位符——`ph_map` 侧受保护片段；PhType 全枚举（含
@@ -35,7 +35,7 @@ TYPED_PH_RX = PH_RX
 #: 起头对 ANY_PH_RX/PH_ANY_LIKE_RX 均不可见——src/zh 对称不可见故保留即干净，
 #: 但源字面即哨兵形时模型丢弃哨兵无信号（静默丢字面）。触发条件=源 .tex 字面
 #: 含哨兵语法（真实语料≈0，自指/对抗文档才命中）；单级转义 `[[SL_RAW]]` 已在
-#: 管辖内。若要收口须同步扩 ANY_PH_RX 与 l0.PH_ANY_LIKE_RX 两处口径。
+#: 管辖内。若要收口须同步扩 ANY_PH_RX 与 rules.PH_ANY_LIKE_RX 两处口径。
 BARE_PH_RX = re.compile(r"\[\[[A-Z][A-Z_]*\]\]")
 #: 任一占位符形态
 ANY_PH_RX = re.compile(rf"(?:{TYPED_PH_RX.pattern})|(?:{BARE_PH_RX.pattern})")
@@ -59,7 +59,7 @@ SOFT_NEWLINE_RAW = "[[SL_RAW]]"
 PARA_NEWLINE_RAW = "[[PL_RAW]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
 #: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 Placeholders 条款保护契约；
-#: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
+#: decode 回 `\ ` 后才进校验，rules 计数口径不变。同族扩列 (2026-09-17,
 #: realpostfix2 E22 实证：2203.13012 `~` 丢、2403.15096 `\,`/`\;` 丢) ——
 #: `~`/`\,`/`\:`/`\;`/`\!` 各占一 token 保 decode 无损; 裸标记语法
 #: [A-Z_]+ 不吃数字，命名不带参数位。
@@ -334,22 +334,22 @@ def _ph_in_comments(s: str, masked: str) -> Counter[str]:
 
 
 def diff(src: str, zh: str) -> PhDiff:
-    """占位符多重集差分 + lev≤2 模糊配对（与 L0 `check_placeholder` 同口径）。
+    """占位符多重集差分 + lev≤2 模糊配对（与 rules `check_placeholder` 同口径）。
 
     xlat 语境下 src 内注释多已被 scanner 折叠为 `[[COMMENT]]`，但 zh 可能裸带 `%`。
     注释豁免只盖内容差异——主比对仍对双侧 masked 文本做：正文占位符被挪进注释
     按 missing 抓、注释内容改写/整条丢弃不追责；另加注释区专项，zh 注释内净多出
-    的占位符是 splice 字面残留（sabotage 实测逃逸），计 extra，与 L0 补丁同口径。
+    的占位符是 splice 字面残留（sabotage 实测逃逸），计 extra，与 rules 补丁同口径。
     """
     snc, znc = mask_comments(src), mask_comments(zh)
     scnt = Counter(ANY_PH_RX.findall(snc))
     zcnt = Counter(ANY_PH_RX.findall(znc))
     missing = sorted((scnt - zcnt).elements())
-    # 模糊候选 = zh 侧多余完整 token + 拼变体；扫未遮盖 zh 与 L0 同口径
+    # 模糊候选 = zh 侧多余完整 token + 拼变体；扫未遮盖 zh 与 rules 同口径
     # （注释里的候选一样喂 lev 配对——错了顶多多一条 misspelled 提示）
     cands = list((zcnt - scnt).elements())
     # src 里 verbatim 存在的同形 token（如引用标号 [RS80]）是原文内容而非
-    # 臆造占位符——按净差计数豁免，与 L0 _check_placeholder 同口径
+    # 臆造占位符——按净差计数豁免，与 rules _check_placeholder 同口径
     src_literal = Counter(
         m.group(0)
         for m in PH_FUZZY_RX.finditer(src)

@@ -1,7 +1,7 @@
-r"""validate.l0.guard — 交付守卫规则域叶 (validate.l0 域缝叶)。
+r"""validate.rules.guard — 交付守卫规则域叶 (validate.rules 域缝叶)。
 
 两族交付面守卫：``_check_protocol_echo`` 协议字面回显（corrector
-三段式节标/L0 反馈消息/``slot_validation_failures``/``[compile_error]``
+三段式节标/rules 反馈消息/``slot_validation_failures``/``[compile_error]``
 被当正文交付——multiset 可吻合而载荷脏；词表 ``_ECHO_SIGS`` 单源，
 bench ``DIRTY_SIGS`` 同源 import）、``_check_comment_eof`` 尾段未终结
 注释（``[[COMMENT_n]]``/字面 ``%`` 到 EOF 无 ``\\n``，splice 接缝吞
@@ -12,15 +12,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from texlate.validate.l0.ph import COMMENT_PH_RX
-from texlate.validate.l0.report import Issue, Severity
+from texlate.validate.rules.ph import COMMENT_PH_RX
+from texlate.validate.rules.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0.lex import _Ctx
+    from texlate.validate.rules.lex import _Ctx
 
-#: 协议回显签名（repro-2410b §4b 交付守卫）：L0 反馈消息实际 emit 串 +
+#: 协议回显签名（repro-2410b §4b 交付守卫）：rules 反馈消息实际 emit 串 +
 #: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/
-#: ``slot_validation_failures`` 字段/``[compile_error]`` L2 回灌标）。
+#: ``slot_validation_failures`` 字段/``[compile_error]`` logfix 回灌标）。
 #: 本表为唯一词表单源——bench ``DIRTY_SIGS``（``specs/_sabotage.py``）
 #: 经 import 同源，勿再复抄副本（复抄面曾静默漂移：词表项的全角冒号
 #: 改写脱离了 emit 串）。交付 zh 出现即 prompt/反馈被当正文回显；
@@ -36,7 +36,7 @@ _ECHO_SIGS: Final = (
     "[Error]",  # prompts.corrector_user
     "previous_validation_error",  # pipeline 阶梯重试尾拼
     "slot_validation_failures",  # pipeline 批模式失败槽字段
-    "[compile_error]",  # pipeline L2 回灌重译
+    "[compile_error]",  # pipeline logfix 回灌重译
 )
 
 
@@ -92,7 +92,7 @@ def _check_comment_eof(ctx: _Ctx) -> None:
 
 
 def _check_protocol_echo(ctx: _Ctx) -> None:
-    r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
+    r"""协议回显守卫：zh 净多出 corrector/rules 协议字面 → error。
 
     repro-2410b §4b：Mode-B mock 把三段式 prompt 当正文翻，交付块带
     节标 + ``占位符缺失:`` 反馈行 + body 重复——占位符 multiset 可吻合

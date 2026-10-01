@@ -1,4 +1,4 @@
-"""validate.l0.ph — 占位符规则域叶 (validate.l0 域缝叶)。
+"""validate.rules.ph — 占位符规则域叶 (validate.rules 域缝叶)。
 
 ``_check_placeholder`` 全族：``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset
 diff + lev≤2 二分最大匹配修复配对（``_ph_typo_adjacency``/``_ph_max_pairs``/
@@ -15,10 +15,10 @@ from collections import Counter
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import PH_ANY_LIKE_RX, PH_FUZZY_RX, lev_capped
-from texlate.validate.l0.report import Issue, Severity
+from texlate.validate.rules.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0.lex import _Ctx
+    from texlate.validate.rules.lex import _Ctx
 
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
 _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")

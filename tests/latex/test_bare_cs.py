@@ -3,7 +3,7 @@ r"""bare_cs 升格拦截：zh 文本域新增裸 cs → fault + 回退原文。
 realpostfix2 归因：LLM 译文把数学 cs 写在 ``$`` 域外（0905.4907
 ``\alpha 发射体`` → ``Missing $`` 炸弹）或把 cs 与后随词粘合
 （``\itemOC``/``\csnamebibitemNoStop`` → 未定义 cs）。validator 主层
-（l0 ``_check_bare_cs``）之外，本层拦续跑 state/段级缓存旁路的 stale
+（rules ``_check_bare_cs``）之外，本层拦续跑 state/段级缓存旁路的 stale
 脏译。判定 = ``textutil.bare_cs_net`` 双侧夹持净差：zh 自带 ``$..$``
 内的数学 cs（合法修正方向）、src 自带同形、注释区、全小写延申
 （``\citep`` 类真 cs）均不误伤。
@@ -247,7 +247,7 @@ class TestCacheAndResume:
 
 
 class TestDownstreamContract:
-    """拦截结果与 splice / L2 回灌 / auth 闸的契约面。"""
+    """拦截结果与 splice / logfix 回灌 / auth 闸的契约面。"""
 
     def test_splice_never_sees_fused_zh(self) -> None:
         """真 splice 验证：fault 块不进 trans → reconstruct 回原文、零粘名。"""
@@ -272,7 +272,7 @@ class TestDownstreamContract:
         assert "textbfXY" not in spliced
 
     def test_retranslate_bare_falls_back(self) -> None:
-        """L2 回灌同受拦截——重译产物带裸 cs → fault，调用方回落原文。"""
+        """logfix 回灌同受拦截——重译产物带裸 cs → fault，调用方回落原文。"""
         pipe = pl.XlatPipeline(
             translator=_Injector("\\alpha 发射体"), validator=pass_validate
         )

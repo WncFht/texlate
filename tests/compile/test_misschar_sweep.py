@@ -183,14 +183,14 @@ def test_registry_row_shape() -> None:
     """``missing_char_sweep`` 注册行形冻结：judge 独生、pattern=None（算法判定）。
 
     行无检索切片——豁免在两路消费点内联调用 ``misschar_sweep_hits``；
-    钉死 judge 词干名与 ``engine``/``rules``/``l2`` 零泄漏（warn:* 镜像
+    钉死 judge 词干名与 ``engine``/``rules``/``logattr`` 零泄漏（warn:* 镜像
     若泄漏会把扫掠噪音经 rules 派发白烧轮次）。
     """
     r = REDLINES_BY_ID["missing_char_sweep"]
     assert r.engine is None
     assert r.rules is None
-    assert r.l2 is None
-    assert r.logfix_redline is False
+    assert r.logattr is None
+    assert r.logattr_redline is False
     assert r.judge is not None
     assert r.judge.name == "missing_character_sweep"
     assert r.judge.pattern is None

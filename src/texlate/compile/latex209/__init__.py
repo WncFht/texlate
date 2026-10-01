@@ -41,7 +41,7 @@ _PRE_CLASS_SHIM/_MULTICOLS_SHIM/REVTEX209_CORE/_REVTEX209_SHIM 垫块
 文本）、``latex209.route``（选项三路分派 + 随源 ``<cls>.sty`` 检出 +
 ds@ 桥体）、``latex209.main``（``upgrade_209`` 编排 + ``_target_resolvable``
 盲升闸 + ``_drop_topskip_assigns`` + ``_primary_docstyle``）。本文件是
-PEP 562 惰性门面（同 ``validate/l0`` 形制）——平名经 ``_LEAF_EXPORTS``
+PEP 562 惰性门面（同 ``validate/rules`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存，``latex209.X`` 公共面与
 ``from  import X``/``latex209._x`` 属性读面不变。monkeypatch 锚点
 注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）——

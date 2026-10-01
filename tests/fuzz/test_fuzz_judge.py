@@ -25,14 +25,14 @@ oracle 方法：判定树/窗口语义/选项路由按 docstring 承诺**独立�
   ``_font_needs_gb1_cmap``，资源级异常把整篇注入拖死（worker/e2e
   best-effort 壳吞成一行 log，静默不注入）。**已修**：资源级
   try/isinstance 闸与 per-ref 容错同粒度，畸形段各自坍弃。
-- J4 l2 ``missing_glyph_nullfont`` 行内 ``.*`` 与 gate 限界窗双向分歧
+- J4 logattr ``missing_glyph_nullfont`` 行内 ``.*`` 与 gate 限界窗双向分歧
   （redlines.py ``Missing character:.*in font nullfont``）：
   (a) 79 列折行把 ``in font nullfont`` 推进续行 → engine/judge 窗内
-  豁免、l2 漏吃归 ``missing_glyph_cjk`` 判红——违「无一层判红」；
+  豁免、logattr 漏吃归 ``missing_glyph_cjk`` 判红——违「无一层判红」；
   (b) 已声明真字体后行尾挂 ``in font nullfont`` 字样 → engine 窗判红、
-  l2 误豁免——违「已声明字体的消息不被后行误豁免」（logpipe pin#2）。
-  **已修**：l2 pattern 换共享 ``_MISSCHAR_NULLFONT_PROBE``（窗口语义
-  单源，J4b）+ ``l2.py`` misschar 行无 ``in font `` 时把续行拼进
+  logattr 误豁免——违「已声明字体的消息不被后行误豁免」（logpipe pin#2）。
+  **已修**：logattr pattern 换共享 ``_MISSCHAR_NULLFONT_PROBE``（窗口语义
+  单源，J4b）+ ``logattr.py`` misschar 行无 ``in font `` 时把续行拼进
   规则检索面（``next_ln``，记录面仍物理行，J4a）。
 
 观测语义钉（非缺陷——当前行为即取舍，改动前先读这段）：
@@ -100,14 +100,14 @@ from texlate.compile.latex209 import main as latex209_main
 from texlate.compile.loginfo import classify_error, parse_log
 from texlate.compile.mask import visible_tex
 from texlate.redlines import (
-    LOGFIX_REDLINE_CLASSES,
+    LOGATTR_REDLINE_CLASSES,
     REDLINES,
     REDLINES_BY_ID,
     LayerSpec,
     name_pattern,
 )
 from texlate.textutil import DOCSTYLE_DECL_RX, DOCSTYLE_RX
-from texlate.validate import l2
+from texlate.validate import logattr
 
 if TYPE_CHECKING:
     import random
@@ -491,16 +491,16 @@ class TestRedlines:
         ids = [r.id for r in REDLINES]
         assert len(ids) == len(set(ids))
         for r in REDLINES:
-            layers = [r.engine, r.rules, r.l2, r.judge]
+            layers = [r.engine, r.rules, r.logattr, r.judge]
             assert any(spec is not None for spec in layers) or r.concept_only, r.id
             for spec in layers:
                 if spec is not None and spec.pattern is not None:
                     re.compile(spec.pattern)
-        # 派生类（无 pattern 的 l2 spec）必须在 logfix_redline 语义里出现名
+        # 派生类（无 pattern 的 logattr spec）必须在 logattr_redline 语义里出现名
         derived = [
-            r.l2.name for r in REDLINES if r.l2 is not None and r.l2.pattern is None
+            r.logattr.name for r in REDLINES if r.logattr is not None and r.logattr.pattern is None
         ]
-        assert set(derived) <= LOGFIX_REDLINE_CLASSES
+        assert set(derived) <= LOGATTR_REDLINE_CLASSES
 
     def test_name_pattern_valueerror(self) -> None:
         """``pattern=None``/``spec=None`` 属登记错误——ValueError 不静默。"""
@@ -553,12 +553,12 @@ class TestRedlines:
             assert count_missing_chars(text) == 0
             info = parse_log(text)
             assert "missing_chars" not in info.warnings_hit
-            v = l2.parse_log_text(text)
+            v = logattr.parse_log_text(text)
             assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
             assert v.warnings.redlines == []
 
-    def test_l2_wrapped_nullfont_should_not_redline(self) -> None:
-        """J4a：``in font nullfont`` 落续行 → l2 应仍归观察类不判红。"""
+    def test_logattr_wrapped_nullfont_should_not_redline(self) -> None:
+        """J4a：``in font nullfont`` 落续行 → logattr 应仍归观察类不判红。"""
         text = (
             "Missing character: There is no 中 (U+4E2D) "
             + "p" * 40
@@ -567,19 +567,19 @@ class TestRedlines:
         # 对照面（成立）：engine gate 豁免、judge 不计
         assert count_missing_chars(text) == 0
         assert "missing_chars" not in parse_log(text).warnings_hit
-        # 期望契约：l2 同样豁免
-        v = l2.parse_log_text(text)
+        # 期望契约：logattr 同样豁免
+        v = logattr.parse_log_text(text)
         assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
         assert v.warnings.redlines == []
 
-    def test_l2_trailing_nullfont_after_real_font_should_redline(self) -> None:
+    def test_logattr_trailing_nullfont_after_real_font_should_redline(self) -> None:
         """J4b：``in font cmr10 in font nullfont`` → 真字体先行 → 应判红。"""
         text = "Missing character: There is no 中 (U+4E2D) in font cmr10 in font nullfont\n"
         # 对照面（成立）：engine gate 命中、judge 计数
         assert count_missing_chars(text) == 1
         assert "missing_chars" in parse_log(text).warnings_hit
-        # 期望契约：l2 不得豁免——落 missing_glyph_cjk 红线
-        v = l2.parse_log_text(text)
+        # 期望契约：logattr 不得豁免——落 missing_glyph_cjk 红线
+        v = logattr.parse_log_text(text)
         assert v.warnings.by_class.get("missing_glyph_cjk") == 1
         assert any("missing_glyph_cjk" in r for r in v.warnings.redlines)
 

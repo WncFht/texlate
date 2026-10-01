@@ -1,4 +1,4 @@
-"""L0 交付守卫：protocol_echo 协议回显 + COMMENT 占位符行锚定。
+"""rules 交付守卫：protocol_echo 协议回显 + COMMENT 占位符行锚定。
 
 实证背景（bench/results/repro-2410b-2026-09-16/report.md §4b/§4c）：
 
@@ -14,7 +14,7 @@
 import pytest
 from conftest import _issues
 
-from texlate.validate.l0 import _ECHO_SIGS, Severity, validate_pair
+from texlate.validate.rules import _ECHO_SIGS, Severity, validate_pair
 
 # ---------------------------------------------------------------- protocol_echo
 
@@ -119,8 +119,8 @@ def test_echo_bare_duoyu_no_fp() -> None:
     assert not _issues(rep, "protocol_echo"), str(rep)
 
 
-def test_echo_other_l0_stems_out_of_vocab() -> None:
-    """``未闭合`` 等其余 L0 error 词干不在词表（留扩展位，暂不命中）。"""
+def test_echo_other_rules_stems_out_of_vocab() -> None:
+    """``未闭合`` 等其余 rules error 词干不在词表（留扩展位，暂不命中）。"""
     src = "环境见 [[MATH_1]]。"
     zh = "环境见 [[MATH_1]]。\n未闭合 ×2"
     rep = validate_pair(src, zh)

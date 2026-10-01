@@ -1,6 +1,6 @@
 """xlatbench — B4a 翻译硬契约回归 (kernel spec port, eval-paid lane).
 
-对 devin-2api 网关模型集跑分层抽样 LaTeX 段中译，格内过 l0 validator +
+对 devin-2api 网关模型集跑分层抽样 LaTeX 段中译，格内过 rules validator +
 E22 硬契约判定，逐格落 metrics。旧驱动的 report/rejudge/samples 三子命令
 是读 eval_records 的分析动词，不在本 spec。
 
@@ -65,7 +65,7 @@ from specs._shared import devin_factory
 from texlate.arxiv.locate import locate
 from texlate.latex import parse_file
 from texlate.latex.placeholder import PH_RX
-from texlate.validate.l0 import (
+from texlate.validate.rules import (
     FRAGILE_BS,
     FRAGILE_CHARS,
     Severity,
@@ -116,7 +116,7 @@ SYSTEM = (
 )
 PROMPT_SHA = hashlib.sha256(SYSTEM.encode()).hexdigest()[:12]
 
-# 脆弱命令字符级投影——判定同源 l0.FRAGILE_BS|FRAGILE_CHARS；逐 token 丢失
+# 脆弱命令字符级投影——判定同源 rules.FRAGILE_BS|FRAGILE_CHARS；逐 token 丢失
 # 以 rep.issues 为准（judge），本计数仅展示旁证（\<newline>/\<tab> 归一差）。
 FRAGILE_CS_RX = re.compile(
     "|".join(re.escape(t) for t in sorted(FRAGILE_BS | FRAGILE_CHARS))
@@ -354,7 +354,7 @@ def _judge(src: str, zh: str) -> dict:
     ph_order = ph_src == ph_zh  # 序守恒——软信号，不计硬失败
     fragile_src = len(FRAGILE_CS_RX.findall(src))
     fragile_zh = len(FRAGILE_CS_RX.findall(zh))
-    # 判定与 validator 同源——逐 token 丢失是 L0 error (message 带 cs_dropped
+    # 判定与 validator 同源——逐 token 丢失是 rules error (message 带 cs_dropped
     # 标记)；上面总量计数只是近似旁证，不与 validator_issues 相矛盾。
     cs_dropped = any(
         i.severity == Severity.ERROR and "cs_dropped" in i.message for i in rep.issues

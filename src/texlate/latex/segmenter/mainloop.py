@@ -564,7 +564,7 @@ class _MainLoop:
             elif not any(it.surface.strip() for it in self._run):
                 # 孤立 } 落在 run 头——配对 { 已被冲刷成字面/消费
                 # （{\let\gl\relax}Body 族）：盖字面不进 run。否则 chunk
-                # 头孤 } 被 LLM 丢改 → 下游花括失衡（L0 只管 [[ph]]
+                # 头孤 } 被 LLM 丢改 → 下游花括失衡（rules 只管 [[ph]]
                 # 不管裸括号，F11）。run 中段孤 }（配对 { 在先前
                 # piece/chunk，eol_par 跨组切分等）留 run 保分段——
                 # 两侧不平衡是跨 piece 配对的既有面

@@ -447,7 +447,7 @@ class XlatPipeline(
 ):
     """asyncio.Queue 编排：分桶 → 装箱 → N worker → 阶梯 → 对账 → 落盘。
 
-    `validator(src, zh) -> str` 可注入 L0 全量规则（返回空串=通过）；
+    `validator(src, zh) -> str` 可注入 rules 全量规则（返回空串=通过）；
     缺省 = 占位符对账。`state` 给了就断点续跑 + 逐块落盘；`cache` 是
     段级缓存 dict（调用方负责 file_cache_key 维度的装载/落盘）。
     """

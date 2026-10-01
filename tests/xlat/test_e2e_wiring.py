@@ -249,7 +249,7 @@ def test_logfix_retranslate_then_recompile(
 def test_logfix_fallback_to_source(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
-    """重译产物仍不过 L0 → 该块回落原文（spec：再不过 → fallback 原文）。"""
+    """重译产物仍不过 rules → 该块回落原文（spec：再不过 → fallback 原文）。"""
 
     class BadFix(MockTranslator):
         async def translate(
@@ -262,7 +262,7 @@ def test_logfix_fallback_to_source(
             response_format: dict[str, str] | None = None,
         ) -> str:
             if "[compile_error]" in user:
-                return "结果 [[MATH_999]] 残留"  # 多出幻觉 token → L0 必挂
+                return "结果 [[MATH_999]] 残留"  # 多出幻觉 token → rules 必挂
             return await super().translate(
                 system=system,
                 user=user,
@@ -276,7 +276,7 @@ def test_logfix_fallback_to_source(
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
 
     logfix = report["logfix"]
-    assert logfix["reverted_rules"], "L0 仍败的块应回落原文"
+    assert logfix["reverted_rules"], "rules 仍败的块应回落原文"
     assert logfix["retranslated"] == []
     assert report["status"] == "clean"
     out = (work / "main.tex").read_text(encoding="utf-8")

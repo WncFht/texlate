@@ -230,7 +230,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
     ``texlate.pipecore.tail.compile_judge_tail`` 同形状（bench 侧复刻点
     收敛：e2e_real/e2e_mock 共用）。
 
-    ``logfix_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
+    ``logfix_attr`` = logfix log 归因载荷（canonical 键——``LogVerdict.attribution_dict``
     单源：逐条 ``{kind,file,line,head,log_line}`` hits + ``warn_by_class``），
     落 ``metrics.logfix_attr`` / fixloop post 落 ``metrics.post.logfix_attr``，
     供 records 离线按类聚类 warning/error。

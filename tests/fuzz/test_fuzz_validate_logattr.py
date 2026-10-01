@@ -1,11 +1,11 @@
-"""validate l2 ``parse_log*``/``report.aggregate`` 对抗性性质 fuzz。
+"""validate logattr ``parse_log*``/``report.aggregate`` 对抗性性质 fuzz。
 
-首波（``test_fuzz_validate.py``）打 l0 规则 + l1 传输层；本文件（原文件
-波 2 切块）补 ``l2.parse_log_text``/``parse_log`` 与 ``report.aggregate``
-面 + l1 schema 契约残余（``from_dict`` 只兜 coercion 异常、深层类型违例
-静默穿透）+ l0 残余钉。对拍 oracle 全部独立实现：fileline 用
+首波（``test_fuzz_validate.py``）打 rules 规则 + cst 传输层；本文件（原文件
+波 2 切块）补 ``logattr.parse_log_text``/``parse_log`` 与 ``report.aggregate``
+面 + cst schema 契约残余（``from_dict`` 只兜 coercion 异常、深层类型违例
+静默穿透）+ rules 残余钉。对拍 oracle 全部独立实现：fileline 用
 ``split(":")``、warning 归类用子串/字符步进、nullfont 限界窗手写状态机
-——不抄 l2/redlines 的 regex。
+——不抄 logattr/redlines 的 regex。
 
 ``_SOUP`` 通用汤表与首波共用——从 ``test_fuzz_validate`` 单向导入。
 """
@@ -31,12 +31,12 @@ from _fuzzkit import (
 )
 from test_fuzz_validate import _SOUP
 
-from texlate.redlines import LOGFIX_REDLINE_CLASSES
+from texlate.redlines import LOGATTR_REDLINE_CLASSES
 from texlate.textutil import is_cjk_cp
-from texlate.validate.l0 import Issue, Severity, validate_pair
-from texlate.validate.l1 import L1Error, TsResult
-from texlate.validate.l2 import L2Verdict, parse_log, parse_log_text
+from texlate.validate.cst import CstError, TsResult
+from texlate.validate.logattr import LogVerdict, parse_log, parse_log_text
 from texlate.validate.report import aggregate
+from texlate.validate.rules import Issue, Severity, validate_pair
 
 _LOGS_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "logs"
 
@@ -383,8 +383,8 @@ def _o_warn_counts(
     return total, by_class, cjk
 
 
-def _check_l2(text: str) -> L2Verdict:
-    """l2 全量对拍：oracle 等值 + 结构不变量 + 序列化/确定性。"""
+def _check_l2(text: str) -> LogVerdict:
+    """logattr 全量对拍：oracle 等值 + 结构不变量 + 序列化/确定性。"""
     assert_deterministic(lambda: parse_log_text(text).to_dict())
     v = parse_log_text(text)
     lines = text.splitlines()
@@ -434,7 +434,7 @@ def _check_l2(text: str) -> L2Verdict:
     for r in ws.redlines:
         cls, sep, head = r.partition(": ")
         assert sep
-        assert cls in LOGFIX_REDLINE_CLASSES
+        assert cls in LOGATTR_REDLINE_CLASSES
         assert len(head) <= 120  # noqa: PLR2004 -- 截断上限
     assert all(s.startswith("invalid_utf8@") for s in ws.sys_hits)
     assert len(ws.sys_hits) == len(set(ws.sys_hits))
@@ -452,7 +452,7 @@ def _check_l2(text: str) -> L2Verdict:
     return v
 
 
-def test_l2_soup_oracle() -> None:
+def test_logattr_soup_oracle() -> None:
     """soup log 全量对拍：错误计数/归类/码点细分/归一化全部独立预测。"""
     rng = fuzz_rng(20261101)
     for _ in range(800):
@@ -508,7 +508,7 @@ def _mutate_lines(  # noqa: PLR0911 -- 算子派发即早退表
     return [*lines[:i], soup_pick(rng, _LOG_SOUP), *lines[i:]], "inject"
 
 
-def test_l2_fixture_mutation() -> None:
+def test_logattr_fixture_mutation() -> None:
     """真 fixture log 变异 fuzz：每次变异后全量 oracle + 算子级变质断言。"""
     rng = fuzz_rng(20261102)
     fixtures = _load_fixture_logs()
@@ -529,7 +529,7 @@ def test_l2_fixture_mutation() -> None:
                 ), name
 
 
-def test_l2_fixture_splice_additivity() -> None:
+def test_logattr_fixture_splice_additivity() -> None:
     """两 log 拼接：错误数/warning 总数可加；engine/first_error 随前半。"""
     rng = fuzz_rng(20261103)
     fixtures = _load_fixture_logs()
@@ -549,7 +549,7 @@ def test_l2_fixture_splice_additivity() -> None:
             assert vc.first_error.line_no == vb.first_error.line_no + off
 
 
-def test_l2_parse_log_path(tmp_path: Path) -> None:
+def test_logattr_parse_log_path(tmp_path: Path) -> None:
     """路径入口一致性 + 缺席/目录/坏字节降级为 log_missing 或 replace 解码。"""
     rng = fuzz_rng(20261104)
     text = soup_join(rng, _LOG_SOUP, 5, 40, "\n")
@@ -571,7 +571,7 @@ def test_p3_parse_log_fifo_is_missing(tmp_path: Path) -> None:
     assert parse_log(fifo).log_missing is True
 
 
-def test_l2_eof_attribution() -> None:
+def test_logattr_eof_attribution() -> None:
     """eof_file 归因：``)`` 弹出后 ≤16 行内的 File-ended 错回填弹出件。"""
     v = parse_log_text("(./a.tex\n)\n! File ended while scanning use of \\x.\n")
     assert v.errors[0].eof_file == "./a.tex"
@@ -584,7 +584,7 @@ def test_l2_eof_attribution() -> None:
     assert v.errors[0].eof_file is None  # 非 File-ended 错不套用
 
 
-def test_l2_warn_oracle_directed() -> None:
+def test_logattr_warn_oracle_directed() -> None:
     """归类 oracle 定向锚——oracle 自身的正确性证据（失配即实现 bug 非 oracle bug）。"""
     cases = {
         "Invalid UTF-8 byte or sequence": "invalid_utf8",
@@ -612,13 +612,13 @@ def test_l2_warn_oracle_directed() -> None:
         assert got == want, (ln, v.warnings.by_class)
 
 
-# ---------------------------------------------------------------- l1 schema 残余
+# ---------------------------------------------------------------- cst schema 残余
 
 
 def test_d1_ok_relative_must_be_bool() -> None:
-    """D1 回归：``ok_relative`` 非 bool/None → ``L1Error``（真值串 ``"no"``
+    """D1 回归：``ok_relative`` 非 bool/None → ``CstError``（真值串 ``"no"``
     曾穿透进 ``verdict_ok`` 使聚合 fail-open）。"""
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         TsResult.from_dict({"ok": False, "ok_relative": "no"})
 
 
@@ -631,9 +631,9 @@ def test_d1_ok_relative_must_be_bool() -> None:
     ],
 )
 def test_d2_detail_items_must_be_dicts(payload: dict[str, Any]) -> None:
-    """D2 回归：明细列表项非 dict → ``L1Error``（曾在 ``report.feedback``
+    """D2 回归：明细列表项非 dict → ``CstError``（曾在 ``report.feedback``
     消费侧泄 ``AttributeError``）。"""
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         TsResult.from_dict(payload)
 
 
@@ -647,9 +647,9 @@ def test_d2_detail_items_must_be_dicts(payload: dict[str, Any]) -> None:
     ],
 )
 def test_d3_placeholder_values_must_be_lists(ph: dict[str, Any]) -> None:
-    """D3 回归：``placeholders`` 三键值非 list → ``L1Error``（``missing=None``
+    """D3 回归：``placeholders`` 三键值非 list → ``CstError``（``missing=None``
     曾炸 ``len(None)``、``missing=str`` 曾产逐字符垃圾反馈）。"""
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         TsResult.from_dict({"ok": False, "placeholders": ph})
 
 
@@ -683,8 +683,8 @@ def test_d5_bang_ctx_borrows_next_error_lnum() -> None:
     assert v.errors[1].tex_line == 9  # noqa: PLR2004 -- 字面行号即输入语料
 
 
-def test_l1_schema_positive_shapes() -> None:
-    """反向钉：合法形态不得被误收 L1Error——防修 D1-D3 时过度收紧。"""
+def test_cst_schema_positive_shapes() -> None:
+    """反向钉：合法形态不得被误收 CstError——防修 D1-D3 时过度收紧。"""
     r = TsResult.from_dict(
         {
             "id": "c1",
@@ -743,47 +743,47 @@ def test_report_aggregate_fuzz() -> None:
     summary 全 oracle；to_dict JSON 可落盘。"""
     rng = fuzz_rng(20261105)
     for _ in range(400):
-        l0 = (
+        rules = (
             validate_pair(soup_join(rng, _SOUP, 0, 12), soup_join(rng, _SOUP, 0, 12))
             if rng.random() < 0.7  # noqa: PLR2004 -- 在场层概率阈值
             else None
         )
-        l1 = _rand_ts(rng) if rng.random() < 0.7 else None  # noqa: PLR2004
-        l2 = (
+        cst = _rand_ts(rng) if rng.random() < 0.7 else None  # noqa: PLR2004
+        logattr = (
             parse_log_text(soup_join(rng, _LOG_SOUP, 0, 40, "\n"))
             if rng.random() < 0.5  # noqa: PLR2004
             else (
-                L2Verdict(log_missing=True) if rng.random() < 0.3 else None  # noqa: PLR2004
+                LogVerdict(log_missing=True) if rng.random() < 0.3 else None  # noqa: PLR2004
             )
         )
-        rep = aggregate(chunk_id=f"c{rng.randint(0, 9)}", l0=l0, l1=l1, l2=l2)
+        rep = aggregate(chunk_id=f"c{rng.randint(0, 9)}", rules=rules, cst=cst, logattr=logattr)
 
         exp_ok = (
-            (l0 is None or l0.ok)
-            and (l1 is None or bool(l1.verdict_ok))
-            and (l2 is None or l2.log_missing or l2.ok)
+            (rules is None or rules.ok)
+            and (cst is None or bool(cst.verdict_ok))
+            and (logattr is None or logattr.log_missing or logattr.ok)
         )
         assert rep.ok == exp_ok
         exp_err = (
-            (l0.n_error if l0 else 0)
-            + (0 if l1 is None or l1.verdict_ok else 1)
-            + (0 if l2 is None or l2.log_missing else l2.n_errors)
+            (rules.n_error if rules else 0)
+            + (0 if cst is None or cst.verdict_ok else 1)
+            + (0 if logattr is None or logattr.log_missing else logattr.n_errors)
         )
         assert rep.n_error == exp_err
         assert rep.ok == (rep.n_error == 0)
-        exp_warn = (l0.n_warn if l0 else 0) + (
-            0 if l2 is None or l2.log_missing else l2.warnings.total
+        exp_warn = (rules.n_warn if rules else 0) + (
+            0 if logattr is None or logattr.log_missing else logattr.warnings.total
         )
         assert rep.n_warn == exp_warn
 
         hf = rep.hard_failures()
         exp_hf = (
-            (l0.n_error if l0 else 0)
-            + (0 if l1 is None or l1.verdict_ok else 1)
-            + (0 if l2 is None or l2.log_missing or l2.ok else 1)
+            (rules.n_error if rules else 0)
+            + (0 if cst is None or cst.verdict_ok else 1)
+            + (0 if logattr is None or logattr.log_missing or logattr.ok else 1)
         )
         assert len(hf) == exp_hf
-        assert all(h.startswith(("l0:", "l1:", "l2:")) for h in hf)
+        assert all(h.startswith(("rules:", "cst:", "logattr:")) for h in hf)
         fb = rep.feedback()  # 合法形态恒不抛
         if rep.ok:
             assert fb == ""
@@ -792,11 +792,11 @@ def test_report_aggregate_fuzz() -> None:
         s = rep.summary()
         parts = s.rsplit(" ", 5)
         exp_marks = [
-            "L0-" if l0 is None else ("L0✓" if l0.ok else "L0✗"),
-            "L1-" if l1 is None else ("L1✓" if l1.verdict_ok else "L1✗"),
-            "L2-"
-            if l2 is None
-            else ("L2?" if l2.log_missing else ("L2✓" if l2.ok else "L2✗")),
+            "rules-" if rules is None else ("rules✓" if rules.ok else "rules✗"),
+            "cst-" if cst is None else ("cst✓" if cst.verdict_ok else "cst✗"),
+            "logattr-"
+            if logattr is None
+            else ("logattr?" if logattr.log_missing else ("logattr✓" if logattr.ok else "logattr✗")),
         ]
         assert parts[-5:-2] == exp_marks, short(s)
         assert parts[-2] == f"err={rep.n_error}"
@@ -807,7 +807,7 @@ def test_report_aggregate_fuzz() -> None:
 def test_obs_log_missing_overrides_nerrors() -> None:
     """OBSERVED 钉：手造 ``log_missing=True, n_errors=3`` 的不一致 verdict，
     aggregate 只信 log_missing——pin 当前行为防静默改语义。"""
-    rep = aggregate(l2=L2Verdict(log_missing=True, n_errors=3))
+    rep = aggregate(logattr=LogVerdict(log_missing=True, n_errors=3))
     assert rep.ok is True
     assert rep.n_error == 0
 
@@ -815,15 +815,15 @@ def test_obs_log_missing_overrides_nerrors() -> None:
 def test_obs_tsresult_error_field_unread() -> None:
     """OBSERVED 钉：``error`` 字段只被 sign() 读——validate/aggregate 不看，
     ``ok=True, error='boom'`` 照常过。"""
-    rep = aggregate(l1=TsResult(ok=True, error="boom"))
+    rep = aggregate(cst=TsResult(ok=True, error="boom"))
     assert rep.ok is True
     assert rep.n_error == 0
 
 
-# ---------------------------------------------------------------- l0 残余钉
+# ---------------------------------------------------------------- rules 残余钉
 
 
-def test_l0_env_tail_cap() -> None:
+def test_rules_env_tail_cap() -> None:
     """``_ENV_CHECK_TAIL_LIMIT=50``：60 个互异多余 ``\\end{X}`` → 1 error + 50 warn。"""
     zh = "".join(f"\\end{{env{i}}}" for i in range(60))
     rep = validate_pair("", zh)
@@ -834,7 +834,7 @@ def test_l0_env_tail_cap() -> None:
     assert any(i.severity is Severity.ERROR and "多余" in i.message for i in envs)
 
 
-def test_l0_issue_to_dict_pos_edge() -> None:
+def test_rules_issue_to_dict_pos_edge() -> None:
     """``Issue.to_dict`` pos=-1 省略键、pos≥0 写入——边界 pin。"""
     assert "pos" not in Issue("env", Severity.ERROR, "m").to_dict()
     assert Issue("env", Severity.ERROR, "m", pos=0).to_dict()["pos"] == 0

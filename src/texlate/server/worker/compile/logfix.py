@@ -41,7 +41,7 @@ from texlate.server.worker.compile.splice import (
 from texlate.server.worker.share import (
     _share_sourced,
 )
-from texlate.validate.l0 import pair_feedback
+from texlate.validate.rules import pair_feedback
 from texlate.xlat.pipeline import (
     ChunkIn,
     PipelineConfig,

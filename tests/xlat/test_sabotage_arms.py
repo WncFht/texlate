@@ -12,7 +12,7 @@ r"""sabotage/perturb 臂注入与台账契约钉——``_translators`` + ``e2e_m
   splice/e2e 台账同构——partial（阶梯 recovered）译文照进 zh/，严卡 ok
   会把脏 partial 记 caught 漏 escaped（旧 e2e_mock ``_delivered`` 的
   stagerun 侧漂移收敛于此）。
-- Mode C 挪位保持占位符 multiset（过 L0 的设计前提）。
+- Mode C 挪位保持占位符 multiset（过 rules 的设计前提）。
 """
 
 from __future__ import annotations
@@ -268,9 +268,9 @@ class TestEndToEnd:
         assert led["escaped"] == 1
         assert led["escaped_ids"] == ["0:0"]
 
-    def test_pipeline_l0_catches_sabotage(self) -> None:
-        """真 L0 校验器下破坏块三振回退 → caught 不 escaped（产品链自证）。"""
-        from texlate.validate.l0 import (  # noqa: PLC0415 -- 延迟到用点：重链
+    def test_pipeline_rules_catches_sabotage(self) -> None:
+        """真 rules 校验器下破坏块三振回退 → caught 不 escaped（产品链自证）。"""
+        from texlate.validate.rules import (  # noqa: PLC0415 -- 延迟到用点：重链
             validate_pair,
         )
 

@@ -556,7 +556,7 @@ class TestEmptyChunk:
 
 
 class TestRetranslateShape:
-    """``retranslate_chunk`` L2 回灌面——observed 钉 + 拦截网沿用。"""
+    """``retranslate_chunk`` logfix 回灌面——observed 钉 + 拦截网沿用。"""
 
     def test_transport_crash_returns_none(self) -> None:
         """observed：传输层异常 → ``None``（保留原译，不算有效修复发）。"""
@@ -575,7 +575,7 @@ class TestRetranslateShape:
         assert out is None
 
     def test_still_invalid_fault_shape(self) -> None:
-        """observed：L0 仍败 → fault + translation=source + error_kind=validate，
+        """observed：rules 仍败 → fault + translation=source + error_kind=validate，
         但 ``skipped=False``（与 ladder fallback_orig 的 ``skipped=True`` 异形——
         下游 ``chunk_error_code`` 殊途同归 ``validate``，簿记形不一致留档）。"""
         p = xp.XlatPipeline(

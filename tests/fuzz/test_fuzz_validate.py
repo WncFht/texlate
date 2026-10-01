@@ -1,8 +1,8 @@
-"""validate/l0+l1 对抗性性质 fuzz。
+"""validate/rules+cst 对抗性性质 fuzz。
 
-l0 ``validate_pair`` 侧（oracle 全部独立代码路径）：
+rules ``validate_pair`` 侧（oracle 全部独立代码路径）：
 
-- 通用不变量：任意 src/zh 对恒不抛；``L0Report`` 字段形态合法（rule 注册
+- 通用不变量：任意 src/zh 对恒不抛；``RulesReport`` 字段形态合法（rule 注册
   表、severity、pos 界、to_dict JSON 可序列化、by_rule 划分、feedback 恰为
   error 消息拼接、双跑确定性）；
 - 恒等对 ``(x, x)`` 不产 error——「译文不得比原文更坏」的零基线，warn 只许
@@ -17,18 +17,18 @@ l0 ``validate_pair`` 侧（oracle 全部独立代码路径）：
 - key/brace/math/env/cs_names/item_glue/macro/echo/length 逐规则独立
   oracle 交叉验证；bare_cs/ph_in_cs/dangerous_cs 存在性谓词。
 
-l1 ``TsValidator`` 侧（全离线——fake proc + monkeypatch 传输层，不依赖 node）：
+cst ``TsValidator`` 侧（全离线——fake proc + monkeypatch 传输层，不依赖 node）：
 
 - ``TsBaseline``/``TsResult`` dict round-trip 与 ``verdict_ok`` 契约；
-- ``_one`` 按 id 配对丢弃迟到/错序/重复行，EOF 哨兵即死，非 JSON → L1Error；
-- ``validate_batch`` 非零退出/行数不符/非 JSON/spawn 失败 → L1Error；
+- ``_one`` 按 id 配对丢弃迟到/错序/重复行，EOF 哨兵即死，非 JSON → CstError；
+- ``validate_batch`` 非零退出/行数不符/非 JSON/spawn 失败 → CstError；
 - ``available()`` = node + worker.js + 双 npm 依赖的三因子合取；
 - ``_pump`` 恒投 ``None`` 哨兵；``open``/``close`` 幂等；``_drain_lines``
   清滞留；``sign``/``validate`` 请求记录成形正确；
 - env 覆盖优先级：参数 > ``TEXLATE_*`` env > 默认/PATH。
 
-l2 ``parse_log*``/``report.aggregate`` 面 + l1 schema 残余钉 + l0 残余钉
-已切块至同族 ``test_fuzz_validate_l2.py``（共用 ``_SOUP`` 汤表，单向导入）。
+logattr ``parse_log*``/``report.aggregate`` 面 + cst schema 残余钉 + rules 残余钉
+已切块至同族 ``test_fuzz_validate_logattr.py``（共用 ``_SOUP`` 汤表，单向导入）。
 """
 
 from __future__ import annotations
@@ -58,7 +58,8 @@ from texlate.textutil import (
     ph_in_cs_net,
     residual_en_net,
 )
-from texlate.validate.l0 import (
+from texlate.validate.cst import CstError, TsBaseline, TsResult, TsValidator
+from texlate.validate.rules import (
     STRUCT_CMDS,
     Issue,
     Severity,
@@ -70,7 +71,6 @@ from texlate.validate.l0 import (
     _math_profile,
     validate_pair,
 )
-from texlate.validate.l1 import L1Error, TsBaseline, TsResult, TsValidator
 
 _RULES = {
     "placeholder",
@@ -961,7 +961,7 @@ _LEN_CJK_SHARE = 0.30
 
 
 def _o_est_tokens(s: str) -> float:
-    """token 代理 oracle（l0 ``_est_tokens`` 同款）：CJK 1 + 其余可见/4。"""
+    """token 代理 oracle（rules ``_est_tokens`` 同款）：CJK 1 + 其余可见/4。"""
     cjk = len(_CJK_RX.findall(s))
     nonws = sum(1 for ch in s if not ch.isspace())
     return cjk + (nonws - cjk) / 4
@@ -1050,7 +1050,7 @@ def _impl_macro_sigs(issues: list[Issue]) -> list[tuple[str, str]]:
     return out
 
 
-# ================================================================== l0 通用
+# ================================================================== rules 通用
 
 
 def test_fuzz_lex_invariants() -> None:
@@ -1150,7 +1150,7 @@ def test_fuzz_identity_pair_no_error() -> None:
 
 
 def test_fuzz_residual_en_existence() -> None:
-    """residual_en 网与 l0 规则口径一致 fuzz：net 命中数 == issue 数。
+    """residual_en 网与 rules 规则口径一致 fuzz：net 命中数 == issue 数。
 
     钉档构造输入保证非 vacuous（verbatim ⊆src Tier-A + 非 src 混血
     Tier-B 各一）；soup fuzz 顺带压「命中即 ERROR、found 载 run」落形。
@@ -1190,7 +1190,7 @@ def test_fuzz_residual_en_existence() -> None:
 
 
 def test_fuzz_dangerous_cs_existence() -> None:
-    """dangerous_cs 网与 l0 规则口径一致 fuzz：net 命中 ⇔ 恰一条聚合 issue。
+    """dangerous_cs 网与 rules 规则口径一致 fuzz：net 命中 ⇔ 恰一条聚合 issue。
 
     钉档构造输入保证非 vacuous（zh 净增 ``\\input``/``\\def``）；soup 含
     ``\\documentclass``/``\\newcommand`` 随机命中顺带压「命中即 ERROR」落形。
@@ -1614,7 +1614,7 @@ def test_ph_pairing_maximum_matching() -> None:
     assert all("拼错" in i.message for i in iss), str(rep)
 
 
-# ================================================================== l1 通道
+# ================================================================== cst 通道
 
 
 def test_fuzz_ts_baseline_roundtrip() -> None:
@@ -1724,19 +1724,19 @@ def test_fuzz_one_id_pairing() -> None:
 
 
 def test_one_eof_before_match_fails() -> None:
-    """EOF 哨兵先于配对行到达 → L1Error 且通道关闭。"""
+    """EOF 哨兵先于配对行到达 → CstError 且通道关闭。"""
     v = TsValidator(timeout=5)
     _inject(v, ['{"id":"o","ok":true}\n', None, '{"id":"x","ok":true}\n'])
-    with pytest.raises(L1Error, match="EOF"):
+    with pytest.raises(CstError, match="EOF"):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
     assert v._proc is None  # noqa: SLF001
 
 
 def test_one_non_json_line_fails() -> None:
-    """配对前遇非 JSON 行 → L1Error（不跳过）。"""
+    """配对前遇非 JSON 行 → CstError（不跳过）。"""
     v = TsValidator(timeout=5)
     _inject(v, ["not json\n", '{"id":"x","ok":true}\n'])
-    with pytest.raises(L1Error, match="非 JSON"):
+    with pytest.raises(CstError, match="非 JSON"):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
 
 
@@ -1751,10 +1751,10 @@ def test_one_non_json_line_fails() -> None:
     ids=["int-field", "str-int-field", "toplevel-list", "toplevel-str"],
 )
 def test_one_schema_violation_l1error(line: str) -> None:
-    """通道 schema 违例 → ``L1Error``（协议错误统一异常契约，不泄内建异常）。"""
+    """通道 schema 违例 → ``CstError``（协议错误统一异常契约，不泄内建异常）。"""
     v = TsValidator(timeout=5)
     _inject(v, [line + "\n"])
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
 
 
@@ -1766,7 +1766,7 @@ def _batch_validator(tmp_path: Path) -> TsValidator:
 def test_validate_batch_channel_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """批处理通道故障面：非零退出/行数不符/非 JSON/spawn 异常 → L1Error。"""
+    """批处理通道故障面：非零退出/行数不符/非 JSON/spawn 异常 → CstError。"""
     v = _batch_validator(tmp_path)
     recs = [{"id": "a", "tex": "x"}, {"id": "b", "tex": "y"}]
     good = "".join(f'{{"id":"{r["id"]}","ok":true}}\n' for r in recs)
@@ -1783,15 +1783,15 @@ def test_validate_batch_channel_failures(
     assert all(r.ok for r in res)
 
     monkeypatch.setattr(subprocess, "run", fake_run(3, ""))
-    with pytest.raises(L1Error, match="退出码"):
+    with pytest.raises(CstError, match="退出码"):
         v.validate_batch(recs)
 
     monkeypatch.setattr(subprocess, "run", fake_run(0, '{"id":"a"}\n'))
-    with pytest.raises(L1Error, match="响应数"):
+    with pytest.raises(CstError, match="响应数"):
         v.validate_batch(recs)
 
     monkeypatch.setattr(subprocess, "run", fake_run(0, "garbage\nmore\n"))
-    with pytest.raises(L1Error, match="非 JSON"):
+    with pytest.raises(CstError, match="非 JSON"):
         v.validate_batch(recs)
 
     def boom(*_a: object, **_k: object) -> None:
@@ -1799,21 +1799,21 @@ def test_validate_batch_channel_failures(
         raise OSError(msg)
 
     monkeypatch.setattr(subprocess, "run", boom)
-    with pytest.raises(L1Error, match="spawn"):
+    with pytest.raises(CstError, match="spawn"):
         v.validate_batch(recs)
 
     def hang(*_a: object, **_k: object) -> None:
         raise subprocess.TimeoutExpired(cmd="node", timeout=1)
 
     monkeypatch.setattr(subprocess, "run", hang)
-    with pytest.raises(L1Error, match="spawn"):
+    with pytest.raises(CstError, match="spawn"):
         v.validate_batch(recs)
 
 
 def test_batch_schema_violation_l1error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """批处理通道 schema 违例 → ``L1Error``（同 _one 通道契约）。"""
+    """批处理通道 schema 违例 → ``CstError``（同 _one 通道契约）。"""
     v = _batch_validator(tmp_path)
     monkeypatch.setattr(
         subprocess,
@@ -1822,7 +1822,7 @@ def test_batch_schema_violation_l1error(
             returncode=0, stdout='{"id":"x","parse_errors":5}\n', stderr=""
         ),
     )
-    with pytest.raises(L1Error):
+    with pytest.raises(CstError):
         v.validate_batch([{"id": "x", "tex": "t"}])
 
 
@@ -1959,5 +1959,5 @@ def test_sign_and_validate_record_shaping() -> None:
 def test_sign_error_raises() -> None:
     v = TsValidator()
     v._one = lambda _rec: TsResult(error="sign boom")  # noqa: SLF001
-    with pytest.raises(L1Error, match="sign"):
+    with pytest.raises(CstError, match="sign"):
         v.sign("x")

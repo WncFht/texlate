@@ -1,4 +1,4 @@
-r"""validate.l0.cs — 控制序列安全规则域叶 (validate.l0 域缝叶)。
+r"""validate.rules.cs — 控制序列安全规则域叶 (validate.rules 域缝叶)。
 
 五族 cs 级注入/丢失判定：``_check_macro`` 双向 diff（zh 新增全档
 error——结构族/非 ASCII 融合 cs 同档；src 丢失方向脆弱间距命令
@@ -23,11 +23,11 @@ from texlate.textutil import (
     dangerous_cs_net,
     ph_in_cs_net,
 )
-from texlate.validate.l0.lex import _lex
-from texlate.validate.l0.report import Issue, Severity
+from texlate.validate.rules.lex import _lex
+from texlate.validate.rules.report import Issue, Severity
 
 if TYPE_CHECKING:
-    from texlate.validate.l0.lex import _Ctx
+    from texlate.validate.rules.lex import _Ctx
 
 #: 非 ASCII 控制序列名 = 融合产物（`\ `+中文 → `\和`，未定义 cs 编译炸弹）。
 _NONASCII_RX: Final = re.compile(r"[^\x00-\x7f]")
