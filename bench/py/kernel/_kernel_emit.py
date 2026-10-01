@@ -1,13 +1,13 @@
 """kernel._kernel_emit — 事件落账叶 (kernel.kernel 拆分叶).
 
-cell 临界段与 run 管线共享的最小 emit 面:
+cell 临界段与 run 管线共享的最小 emit 面：
 
 - ``_CELL_MERGE_KEYS``/``_CELL_RESERVED`` — outbox 归并白名单与
   framework 保留键 (emit() 不得改写身份/状态)
 - ``_merge_outbox`` — 作者 emit() 行折叠进终态事件 + verbatim 事件
 - ``_synth_sig``    — errors[0] -> ``cat:pay`` 默认 sig
 - ``_terminal_ev``  — T_CELL 终态戳构造 (eval 标记/cat/dur_s/fp/sig 合成)
-- ``_note``         — kernel note 行 (负 seq 命名空间, best-effort)
+- ``_note``         — kernel note 行 (负 seq 命名空间，best-effort)
 - ``_emit``/``_emit_batch`` — ledger.emit(_batch) + index sink 绑定
 
 门面回引名单见 ``kernel.kernel._LEAF_EXPORTS``; monkeypatch 锚点归本叶。

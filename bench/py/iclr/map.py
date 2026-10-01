@@ -174,7 +174,7 @@ def main() -> None:
             except json.JSONDecodeError:
                 pass
 
-    # cache 直录: 有 arxiv_id 的先落账（幂等）
+    # cache 直录：有 arxiv_id 的先落账（幂等）
     with MAP_OUT.open("a") as f:
         n_new = 0
         for rec in accepted:
@@ -246,7 +246,7 @@ def main() -> None:
             log(f"oa done: hit={n_ok} miss={n_miss} err={n_err}")
 
     # ---- phase S2: 仲裁（单流 ~1rps）----
-    # 覆盖: 无 arxiv_id 且非 S2 终态（no_arxiv/s2_nomatch）的行 + 从未尝试的行。
+    # 覆盖：无 arxiv_id 且非 S2 终态（no_arxiv/s2_nomatch）的行 + 从未尝试的行。
     # OA 全挂时可 --phase s2 直接全量仲裁。
     if a.phase in ("s2", "all"):
         pending = [
@@ -255,7 +255,7 @@ def main() -> None:
             if not ((row := done.get(rec["orid"])) and row.get("arxiv_id"))
             and (row is None or row.get("match") not in ("no_arxiv", "s2_nomatch"))
         ]
-        log(f"s2 仲裁: {len(pending)} 篇")
+        log(f"s2 仲裁：{len(pending)} 篇")
         n_arxiv = n_noarxiv = n_other = 0
         with httpx.Client(timeout=30, headers=UA) as client, MAP_OUT.open("a") as f:
             for i, rec in enumerate(pending, 1):
@@ -282,7 +282,7 @@ def main() -> None:
         log(f"s2 done: arxiv={n_arxiv} no_arxiv={n_noarxiv} other={n_other}")
 
     n_final = sum(1 for v in done.values() if v.get("arxiv_id"))
-    log(f"map 终态: {n_final}/{len(accepted)} 有 arxiv_id")
+    log(f"map 终态：{n_final}/{len(accepted)} 有 arxiv_id")
 
 
 if __name__ == "__main__":

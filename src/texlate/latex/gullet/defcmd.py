@@ -113,7 +113,7 @@ class _DefCmd:
         if spec is None:
             return self._def_fail(trig, trace, "param text illegal")
         if self._has_double_hash(ptext):
-            # `##` 在**参数文本**（非体）出现 → 该 def 写深了一层，ptext+体同折
+            # `##` 在**参数文本**（非体）出现 → 该 def 写深了一层，ptext+ 体同折
             # （Primitives.py:146-160 的判定域是 args；体里的 ## 归 expand_def 管）
             ptext = self._fold_hashes(ptext)
             body = self._fold_hashes(body)

@@ -41,20 +41,20 @@ Lock order honored: run.lock -> cell.lock -> claim.lock -> leaf {slot,
 ledger, index, vault}. Everything under cell.lock that isn't a leaf is
 NB-only.
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_kernel_frame`` (规划面: spec
+拆分：实现体按子域下沉同包私有叶 —— ``_kernel_frame`` (规划面：spec
 解析/参数规整/item 枚举/canon 闸/选择子)、``_kernel_needs`` (needs 域
 求值)、``_kernel_emit`` (outbox 折叠/终态戳/note/emit 批量写)、
 ``_kernel_lookahead`` (lake 预取窗口 + _Lookahead 守护线程)、
 ``_kernel_cell`` (cell 临界段 _run_cell/§3.5 收割/线程本 Index)、
 ``_kernel_run`` (run/plan 编排 + RunError + 首火闸 + _RunEnv + 收尾
 对账)。本文件是 PEP 562 惰性门面 (同 ``importer``/vault 门面形制) ——
-平名经 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``kernel.kernel.run`` / ``from kernel.kernel import _run_cell`` 等公私
 名面不变。``sys.modules["kernel.kernel"]`` fake 缝 (test_kernel_cli)
-落在模块位, 不受影响。
-monkeypatch 锚点注意: 测试 setattr patch 须指到叶子模块 (如
+落在模块位，不受影响。
+monkeypatch 锚点注意：测试 setattr patch 须指到叶子模块 (如
 ``kernel._kernel_lookahead.LOOKAHEAD_CELLS``); setattr 门面只遮蔽
-门面自身命名空间, 叶子代码仍读叶内绑定。
+门面自身命名空间，叶子代码仍读叶内绑定。
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集,
+# 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集，
 # 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "LOOKAHEAD_BYTES",
@@ -231,15 +231,15 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+    空表 = 同步，测试断言 ``== []`` 即可。三向覆盖：
 
     - ``_LAZY`` 键全进 ``__all__``;
     - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
-      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝，是首访
       ``AttributeError`` 唯一的提前闸;
     - 本地公共名 (本模块定义的函数/类) 全进 ``__all__``。
 
-    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    审计实载全部叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = [
@@ -252,7 +252,7 @@ def _export_drift() -> list[str]:
     for name in __all__:
         try:
             getattr(mod, name)
-        except Exception as exc:  # 审计兜全漂移, 非首错即死
+        except Exception as exc:  # 审计兜全漂移，非首错即死
             drift.append(f"__all__ entry {name} does not resolve: {exc}")
     local_publics = {
         name

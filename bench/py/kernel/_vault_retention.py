@@ -1,14 +1,14 @@
 """kernel._vault_retention — CAS 投影 + splice slim + 孤儿扫描 (kernel.vault 拆分叶).
 
-- ``cas_link_tree`` — 收割钩内/P3 retroverb 共用: ≥CAS_LINK_FLOOR 的叶件
-  经 CAS 折成共享 inode 硬链 (extracted↔vault↔workdir 三方去重,
+- ``cas_link_tree`` — 收割钩内/P3 retroverb 共用：≥CAS_LINK_FLOOR 的叶件
+  经 CAS 折成共享 inode 硬链 (extracted↔vault↔workdir 三方去重，
   sty/cls 跨件资源受益)。
-- ``slim_splice``/``_splice_keep`` — P3 留存: splice 叶瘦到成品面
+- ``slim_splice``/``_splice_keep`` — P3 留存：splice 叶瘦到成品面
   (final pdf + arm json + log), figs/anc/中间件死, meta.files 收缩并记
   op='slim' manifest 行。
 - ``find_meta_less_dirs``/``_scan_meta_less_dirs`` — R4 崩溃窗孤儿目录
   枚举 (只报不删; 硬删除谓词归 sweep)。
-- ``_iter_committed_leaves`` — 全物理根 (main+quar) 叶迭代器, 本叶
+- ``_iter_committed_leaves`` — 全物理根 (main+quar) 叶迭代器，本叶
   retroverb 与 verify 共用。
 """
 

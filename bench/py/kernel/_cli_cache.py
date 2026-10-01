@@ -1,8 +1,8 @@
-"""kernel._cli_cache — cache 子动词叶 (kernel.cli 拆分叶, §3.9).
+"""kernel._cli_cache — cache 子动词叶 (kernel.cli 拆分叶，§3.9).
 
-``bench cache`` 的三动词: status (桶数/字节/上限 + malformed)、
+``bench cache`` 的三动词：status (桶数/字节/上限 + malformed)、
 evict (LRU 向目标字节或 TEXLATE_CACHE_CAP_GB 上限)、rebuild
-(vault/state -> 桶: 重放 xlat-state 结果过 segment_key)。
+(vault/state -> 桶：重放 xlat-state 结果过 segment_key)。
 
 门面回引名单见 ``kernel.cli._LEAF_EXPORTS``; monkeypatch 锚点归本叶。
 """

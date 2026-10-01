@@ -2,12 +2,12 @@
 
 - ``sealed_state``/``check_sealed`` — 付费闸 fail-closed oracle (§3.10.6):
   gen 匹配 + 无 dirty + sealed 段全摄 + watermark 覆盖调用方 fsync 偏移;
-  ``min_tag`` 不同 = 热尾已旋走, 字节覆盖改由 sealed 全覆盖证明。
+  ``min_tag`` 不同 = 热尾已旋走，字节覆盖改由 sealed 全覆盖证明。
 - ``done``/``last_cell`` — cells 终态读 (DONE ∪ KERNEL 终向截流) 与整行。
-- ``paid_pool``/``vault_bytes_ok``/``active_claims`` — dedup 域集:
+- ``paid_pool``/``vault_bytes_ok``/``active_claims`` — dedup 域集：
   付费池按 spec 付费 stages 截 (免费 stage 的 ok 不铸付费证据);
   claims 表里 slot IS NULL 才是生命周期行 (带 slot 的是 paid_slots
-  镜像流, 同表另一信道)。
+  镜像流，同表另一信道)。
 - ``dedup_skip_count``/``quarantine_count`` — 计数读面。
 - ``note_dirty``/``dirty`` — emit 败写后标记 .index-dirty (oracle 即拒)。
 

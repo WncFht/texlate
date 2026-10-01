@@ -39,7 +39,7 @@ Concurrency: hydrate takes ``.locks/{safe_id}.lock`` LOCK_EX (blocking) and
 re-checks completeness inside the lock — two concurrent hydrations of the
 same cell degrade to one-fetch-one-wait ("同格两 run 同拉退化为一拉一等").
 
-拆分: 实现体按子域下沉同包私有叶 —— ``_lake_cell`` (PIN_MARKER/_BOOKKEEP/
+拆分：实现体按子域下沉同包私有叶 —— ``_lake_cell`` (PIN_MARKER/_BOOKKEEP/
 cell_dir/cell_pinned/_read_meta/_payload_count/is_complete/lake_lock)、
 ``_lake_catalog`` (catalog append 助手/_lake_event/_latest_row/
 LakeCatalog/register_skeleton/pin/unpin 模块动词)、``_lake_gate``
@@ -48,13 +48,13 @@ LakeCatalog/register_skeleton/pin/unpin 模块动词)、``_lake_gate``
 ``_lake_evict`` (_pinned/_freeable_size/evict/evict_cell)、
 ``_lake_shell`` (_SHELL_KEEP_*/shrink_shell)。本文件是 PEP 562 惰性门面
 (同 ``kernel.index``/``kernel.vault`` 门面形制) —— 平名经
-``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
+``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``from kernel import lake`` / ``lake._pinned`` 等公私名面不变
 (``LakeCatalog``/``DiskPressureError`` 的 ``__module__`` 已钉回本模块)。
 stdlib/kernel 顶层绑定名 (``lake.shutil``/``lake.paths`` 等) 经
 ``_STDLIB_MODS``/``_EXTRA_BINDINGS``/``_MODULE_ATTRS``/``_KERNEL_EXPORTS``
-惰性映射, 读面与拆分前逐名等价。叶间互引走全路径直跨
-(``kernel._lake_cell`` 等), 不经本门面。monkeypatch 锚点注意: 测试
+惰性映射，读面与拆分前逐名等价。叶间互引走全路径直跨
+(``kernel._lake_cell`` 等), 不经本门面。monkeypatch 锚点注意：测试
 ``setattr(shutil, "disk_usage", ...)`` 打在共享模块对象上照常生效;
 ``setattr`` 写真门面名只对「经 ``lake.X`` 属性读的消费方」生效。
 """
@@ -66,8 +66,8 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # __all__ 名单静态落地——F822 要名可解, F401 以 __all__ re-export 豁免;
-    # 私有惰性名不在此列 (不在 __all__, 无 F822 需, 导入反吃 F401)。
+    # __all__ 名单静态落地——F822 要名可解，F401 以 __all__ re-export 豁免;
+    # 私有惰性名不在此列 (不在 __all__, 无 F822 需，导入反吃 F401)。
     from kernel._lake_catalog import LakeCatalog, pin, register_skeleton, unpin
     from kernel._lake_cell import (
         PIN_MARKER,
@@ -133,8 +133,8 @@ _LAZY: dict[str, str] = {
     name: mod for mod, names in _LEAF_EXPORTS.items() for name in names
 }
 
-# HEAD 单件期模块属性面——stdlib 模块名与 kernel 顶层绑定也按名惰性解析,
-# 读面 (含 setattr 型 monkeypatch 缝, patch 落在共享 module 对象上) 与拆分
+# HEAD 单件期模块属性面——stdlib 模块名与 kernel 顶层绑定也按名惰性解析，
+# 读面 (含 setattr 型 monkeypatch 缝，patch 落在共享 module 对象上) 与拆分
 # 前逐名等价。
 _STDLIB_MODS = ("gzip", "json", "os", "shutil", "tarfile", "time")
 _EXTRA_BINDINGS = {
@@ -224,10 +224,10 @@ def __dir__() -> list[str]:
 def _export_drift() -> list[str]:
     """``_LAZY``/``__all__``/叶子实体三表同步审计 → 漂移描述表。
 
-    空表 = 同步, 测试断言 ``== []`` 即可。逐名 ``getattr`` 实解: 叶子断链
+    空表 = 同步，测试断言 ``== []`` 即可。逐名 ``getattr`` 实解：叶子断链
     (``_LEAF_EXPORTS`` 配名叶子不提供) 与幽灵条 (解析不到任何叶子或绑
-    定) 在此曝, 是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
-    叶子, 只供测试调用, 装载期不自检。
+    定) 在此曝，是首访 ``AttributeError`` 唯一的提前闸。审计实载全部
+    叶子，只供测试调用，装载期不自检。
     """
     mod = sys.modules[__name__]
     drift = []

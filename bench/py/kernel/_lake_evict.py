@@ -26,7 +26,7 @@ def _pinned(row: dict) -> bool:
 
     - ``pinned`` field — the projected truth (survives mark_used/state
       transitions through the row merge);
-    - ``state=='pinned'`` — read-compat for存量 rows written before pin
+    - ``state=='pinned'`` — read-compat for 存量 rows written before pin
       became a field;
     - the ``PINNED`` marker file in the cell dir — the on-disk truth that
       outlives a catalog rebuild that lost the field.

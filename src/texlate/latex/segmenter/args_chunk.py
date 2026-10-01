@@ -130,7 +130,7 @@ class _ArgsChunk(_ArgsProse, _ArgsProtect):
         vce = len(self.vt)
         vclose = self._cover_to(fid, target.fe)
         if self.in_arg:
-            # 嵌套 chunk-arg 内联化：前缀+渲染+闭括号并入父 run
+            # 嵌套 chunk-arg 内联化：前缀 + 渲染 + 闭括号并入父 run
             text = (
                 self.vt.slice(vpre.start, vpre.end)
                 + rendered
@@ -177,7 +177,7 @@ class _ArgsChunk(_ArgsProse, _ArgsProtect):
             self._unread_args(src, args)
             self._cover_to(fid, b)
             return True
-        # 覆盖 gap+命令头一步 cover：`_cover_gap` 的 run 项在 preamble 档
+        # 覆盖 gap+ 命令头一步 cover：`_cover_gap` 的 run 项在 preamble 档
         # 永不中途冲刷（EOF flush 会在已盖字面区乱序发 piece）——preamble
         # 内 emit 一律随覆盖即时发 literal 保持平铺。
         vpre = self._cover_to(fid, target.cs)
