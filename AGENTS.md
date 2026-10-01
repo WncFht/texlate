@@ -9,7 +9,7 @@
 - `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest/build）
 - `zotero/` — Zotero 7 插件（TypeScript 瘦客户端：条目右键 → 远端 texlate 翻译 → `zh.pdf` 回挂附件；独立 package.json/tsconfig/eslint.config.mjs）
 - `tests/` — pytest（约 1.03 万用例；corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿；`bench_kernel/`=bench 内核套件，经 pyproject `pythonpath=["bench/py"]` 直 import）
-- `docs/` — 六分区文档库（`README.md` 总索引）：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源，与代码冲突以代码为准改文档）、`decisions/` ADR 决策史、`dev/` 贡献者文档（仓布局/工具手册/评测协议/errsweep runbook）、`research/` 调研档案（arxiv/latex/corpus/methods/product/errsweep 域 + `model-selection.md`/`bibliography.md` 单件）、`log/` 工程日志（编年时间线 + 审计快照）；**写/改任何文档先读维护规则 `docs/MAINTENANCE.md`**（分区生命周期、格式契约、公开发布敏感政策、索引登记）
+- `docs/` — 六分区文档库（`README.md` 总索引）：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源，与代码冲突以代码为准改文档）、`decisions/` ADR 决策史、`dev/` 贡献者文档（仓布局/工具手册/评测协议/版面质检契约）、`research/` 调研档案（arxiv/latex/corpus/methods/product/errsweep 域 + `model-selection.md`/`bibliography.md` 单件）、`log/` 工程日志（编年时间线 + 审计快照）；**写/改任何文档先读维护规则 `docs/MAINTENANCE.md`**（分区生命周期、格式契约、公开发布敏感政策、索引登记）
 - `bench/` — 评测 harness 现场。**trizone-ledger v2 已切换**（终态设计 `docs/spec/bench-trizone.md`；评测器规格 `docs/spec/benchmark.md`；分层契约 `bench/TIERS.md` L0–L3）：代码仓只留机制与清单，数据四区在 `$TEXLATE_BENCH_ROOT`（缺省 `~/.local/share/texlate-bench`，git checkout 之外，各区可经 `TEXLATE_{LEDGER,RUNS,VAULT,LAKE}_ROOT` 分卷）——`ledger/` 追加账 + `runs/` 执行档案 + `vault/` 付费字节（zh/splice 译文真身，不可再生）+ `lake/` 免费载荷（corpus 载荷/cache/durable/tmp）
     - `bench/py/` — trizone 内核与评测件：`kernel/`（七子包 + 18 平铺件：`cli/`（全动词入口十三叶 + `__main__.py`）、`kernel/`（run/plan 编排六叶）、`lake/`（六叶，`DiskPressureError` 闸驻 gate 叶）、`vault/`（付费字节区十叶）、`index/`（七叶，含 store/apply/proj/query 四 mixin 底座）、`importer/`（四叶）、`spec/`（base/checks/hash/load 四叶）+ 平铺 idnorm/locks/fsutil/cas/events/ledger/runs/ctx/executors/dedup/claims/paid/sweep/doctor/paths/report/cache + `__main__`）、`specs/`（评测 spec：八子包门面 `soak/`(7)/`corpus_v3/`(6)/`corpus_sw/`(6)/`corpus_layers/`(7)/`e2e_real/`(8)/`parsebench/`(5)/`qualbench/`(4)/`validbench/`(6) + 私有辅助包 `_corpus_common/`(7)/`_fixture_matrix/`(5，eval 叶 eager 装载保 SIGALRM 主线程语义)/`_layoutqc/`(8，T0 版面质检电池) + 28 平铺 spec 件与 `_bootstrap`/`_shared`/`_sabotage`/`_benchlite`/`_qmetrics`/`_select`/`_xlat_async` 等辅助件）、`verbs/`（triage/gate/`dossier/` 子包七叶/xlat/qual/booster/rundiff 分析动词）、`iclr/`（ICLR 章节长度研究件六叶，暂停至 10 月）、`ops/`（`status_panel/` 子包七叶 + `__main__.py`（只读状态面板）；task_ping 看板心跳）；统一入口 `bench/py/bench`（可执行 shim → `kernel.cli`，动词面 `init|run|plan|status|vault|ledger|lake|derive|sweep|prune|backup|doctor|fsck|spec|triage|gate|dossier`）。断言矩阵在 `tests/bench_kernel/test_bench_regression.py` + `tests/bench_kernel/`
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored；现 absent，按需重建）
@@ -20,7 +20,7 @@
     - `bench/nominations/` — 评测提名层 jsonl（e2e_real/qualframe/wrapfloat 等 id 集）
     - `bench/results/`、`bench/work_*/`、`bench/zh-store/`、`bench/corpus_iclr_pdf/`、`bench/archive-*/` — 旧式产出/工作区/资产目录：现 absent（产出走 `runs/` 区、付费字节走 `vault/`、免费载荷走 `lake/`），对应 ignore/exclude 划出条款仍留在各 formatter/lint 配置里防复生
 - `tools/` — tracked 可复用诊断/度量脚本（seqpos 对位度量组、qc_replay、docs_linkcheck、`_env.py`/`_seqpos_lib.py` 共享件等；逐件登记 `tools/README.md`；一次性探针不写这里，去 `tmp/`）
-- `scripts/` — 仓级 shell 工具（agent-links/build-web/fmt-shell/errsweep/systemd 单元等）
+- `scripts/` — 仓级 shell 工具（agent-links/build-web/fmt-shell/bench-backup/systemd 单元等）
 - `shots/` — README/文档配图 PNG
 - `tmp/` — scratch 实验区（整目录 gitignored）
 

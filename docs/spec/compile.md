@@ -39,7 +39,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 签名即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
 
-### 1.3 XelatexEngine（`engine/_xelatex.py`）
+### 1.3 XelatexEngine（`engine/_xelatex/main.py`）
 
 - 命令：`xelatex -no-shell-escape -interaction=nonstopmode -file-line-error -recorder -output-directory=out`；`halt_on_error ∧ ¬best_effort` 时插 `-halt-on-error`（ctor 旋钮；e2e/repair best-effort 口径置 False 对齐产出，fixloop 内部引擎用默认 True）；fixloop `flags` 经 `_split_flags` 过滤——`-output-directory/-aux-directory/-jobname` 等 output-rekey 前缀丢 `flags_dropped`，sandbox_mode=="env" 时剥 `-shell-escape` 系。
 - pass 循环：`MAX_PASSES=2`；`per_pass=max(10, timeout/eff_passes)`；停则：超时/执行失败/无 pdf 恒停；rc>0 非信号停，**除非 `passes=None` 且有 rerun hint**（`_RERUN_HINT_RX`：rerun to get|labels may have changed|undefined references|table widths changed；裸 rerun 与 biber 请求排除）——rerun hint 可覆盖 rc≠0 续跑；负 rc（信号死）保续跑通道。

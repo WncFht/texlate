@@ -41,7 +41,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 `pieces` 无缝平铺 `[0, len(vtex))`（`Piece.span` 首尾相接）是头号不变式，`validate_result` 的 `pieces_gap` 规则专门校验。
 
-`vtex` = 叙事序虚拟文本（`segmenter/_common.py::_Vtex`）：一切 span/piece/chunk 坐标都在 vtex 系。`Segmenter._cover_to(fid, end)` 把 `file_texts[fid][cons:end]` 追加映射进 vtex——token 之间的间隙字节（注释残骸、折叠空白）随覆盖自动进 vtex，这是 Mouth 吞注释后 identity 不破的机制。多文件 `\input` 内联后 vtex 即展平文本的同构面。
+`vtex` = 叙事序虚拟文本（`segmenter/_common/rec.py::_Vtex`）：一切 span/piece/chunk 坐标都在 vtex 系。`Segmenter._cover_to(fid, end)` 把 `file_texts[fid][cons:end]` 追加映射进 vtex——token 之间的间隙字节（注释残骸、折叠空白）随覆盖自动进 vtex，这是 Mouth 吞注释后 identity 不破的机制。多文件 `\input` 内联后 vtex 即展平文本的同构面。
 
 ### 2.4 run 双轨与展开组
 
@@ -131,7 +131,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 4.9 TokenSource 契约
 
-`segmenter/_common.py::TokenSource` Protocol 是分段器对源的全部要求：`macros`/`pop_seq`/`push_seq`/`unmatched_open`/`eof_pops`/`read`/`unread`/`skip_past`/`scope_push`/`scope_pop`/`live_inputs`/`env_sig`/`input_expand`/`text_run_end`。`Gullet` 是生产实现；`_ListSource`（deque 回放源，`eof_pops=False`、`unmatched_open` 持真集）供参数/组内子扫描重放 token 列。
+`segmenter/_common/tok.py::TokenSource` Protocol 是分段器对源的全部要求：`macros`/`pop_seq`/`push_seq`/`unmatched_open`/`eof_pops`/`read`/`unread`/`skip_past`/`scope_push`/`scope_pop`/`live_inputs`/`env_sig`/`input_expand`/`text_run_end`。`Gullet` 是生产实现；`_ListSource`（deque 回放源，`eof_pops=False`、`unmatched_open` 持真集）供参数/组内子扫描重放 token 列。
 
 ## 5. Segmenter：展开流 → pieces/chunks
 
