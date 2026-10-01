@@ -80,6 +80,14 @@ class _TranslateUsage:
         client 的用/关必须收进同一 ephemeral loop——拆两次 ``asyncio.run``
         会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；关完
         清空清单让外层 ``_teardown_bypass`` 不对已关 client 二次 aclose。
+
+        契约：一份 ``clients`` 只过一遭本壳。二次进壳时清单已空——
+        关闭不重复，但 coro 内部若仍持同批 ``ChatClient`` 句柄（如
+        ``run.pipe.translator.client``）会拿到**已关 client** 打新 loop
+        → ``RuntimeError``。现消费面全部单发（``l2_repair_round`` 内
+        ``retranslate`` 恰一调）；worker 臂不共享 ``TreeRun.loop`` 是
+        刻意——旁路 client 是 per-arm BYOK 资源，长寿 loop 会把连接池
+        持过任务边界（FD/凭证串味）。
         """
 
         async def _arm() -> _T:
