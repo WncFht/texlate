@@ -50,6 +50,8 @@ class TaskRunner:
 
     所有 DB 交互都在 loop 线程。``secrets`` 只挂内存——重启后
     ``auth_source='header'`` 的任务因凭证丢失走 ``needs_auth``。
+    并发天花板恒为 1：``_dispatch_loop`` 单消费者即串行槽——吞吐扩容
+    要动调度域（多 dispatcher/并发槽位），加深队列不改变串行事实。
     """
 
     def __init__(
@@ -206,14 +208,22 @@ class TaskRunner:
         只扫不摘，loop 单写者下无并发改形。
         """
         ids: set[str] = set()
-        sources: list[str | _RetranslateJob] = list(self._pending_enqueue)
-        if self._queue is not None:
-            sources.extend(self._queue._queue)  # noqa: SLF001 -- 无公开快照面
-        for item in sources:
+        for item in self._queued_items():
             ids.add(item.task_id if isinstance(item, _RetranslateJob) else item)
         if self._current is not None:
             ids.add(self._current[0])
         return ids
+
+    def _queued_items(self) -> list[str | _RetranslateJob]:
+        """在队项快照：``_pending_enqueue`` 暂存 + 内存队列现存项。
+
+        ``asyncio.Queue`` 无公开快照面——读内部 deque 只扫不摘（loop
+        单写者下无并发改形），私读收此单点，消费者勿再直探。
+        """
+        items: list[str | _RetranslateJob] = list(self._pending_enqueue)
+        if self._queue is not None:
+            items.extend(self._queue._queue)  # noqa: SLF001 -- 无公开快照面
+        return items
 
     # ------------------------------------------------------------ 内部
 
