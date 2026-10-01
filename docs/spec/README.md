@@ -10,7 +10,7 @@
 | `latex-pipeline.md` | LaTeX 半解析 + 展开机：v2 Gullet+Segmenter 唯一解析路径、占位符族、回写与树扫描分流                                                                         |
 | `translate.md`      | 翻译编排：xlat 调度/批量/重试阶梯/缓存口径/术语表/网关客户端、校验链消费点、归一化层                                                                        |
 | `validate.md`       | 校验层：L0 规则表/L1 tree-sitter baseline 协议/L2 log 回灌、红线注册表、L2 归因 - 重译簇与 env judge、修复衔接                                              |
-| `compile.md`        | 编译引擎与 fixloop：双引擎路由、沙箱/注入/判定、LaTeX 2.09 升级、yaml 修复引擎三件套与 16 分片规则库、vendor 资产、沉淀机制                                 |
+| `compile.md`        | 编译引擎与 fixloop：双引擎路由、沙箱/注入/判定、LaTeX 2.09 升级、yaml 修复引擎三件套与 17 分片规则库、vendor 资产、沉淀机制                                 |
 | `corpus.md`         | 语料规范：评测底材各层口径、构建管线与治理（bench 侧磁盘现状对齐）                                                                                          |
 | `benchmark.md`      | 评测套件规范：B1–B7 评测器矩阵与分层契约                                                                                                                    |
 | `bench-trizone.md`  | bench 内核终态设计：trizone 三区账本（事件账唯一事实源 + 字节按再生成本分区 + fail-closed 付费裁决）；架构图 `assets/trizone-arch.svg`                      |
