@@ -2,7 +2,7 @@ r"""comment 族（``DEAD_ENVS``）行锚终结——``_env_stop`` dead 臂的 sc
 
 comment.sty 排除环境按**行**吞体：``\end{env}`` 须列 0 起、行内独占
 （``}`` 后仅空格到行尾/EOF）才终结。mask 视图已按此判死；本文件钉住
-两个 scan 视图同判——v2 segmenter（raw find + token 级 ``_find_env_end``/
+两个 scan 视图同判——segmenter（raw find + token 级 ``_find_env_end``/
 ``_skip_verbatim_env_toks``）、``flatten_inputs``：
 
 - 行中 ``x\end{comment}`` 不终结（列非 0）；
@@ -21,7 +21,7 @@ from texlate.latex.model import ScanResult
 from texlate.textutil import dead_end_anchored, dead_env_end
 
 
-def scan_v2(body: str) -> ScanResult:
+def scan_checked(body: str) -> ScanResult:
     res = scan_doc(body)
     check_invariants(res, DOC % body)
     return res
@@ -59,7 +59,7 @@ def test_dead_end_anchored_span_check() -> None:
 # ---------------------------------------------------------------- v2 主路径
 
 
-def test_v2_midline_end_does_not_terminate() -> None:
+def test_midline_end_does_not_terminate() -> None:
     r"""行中 ``x\end{comment}`` 不终结——mask 视图判死区不再泄译文。"""
     body = (
         "Alpha words here.\n"
@@ -68,7 +68,7 @@ def test_v2_midline_end_does_not_terminate() -> None:
         "\\end{comment}\n"
         "Beta live words here."
     )
-    res = scan_v2(body)
+    res = scan_checked(body)
     chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead words" not in chunked
@@ -79,14 +79,14 @@ def test_v2_midline_end_does_not_terminate() -> None:
     )
 
 
-def test_v2_midline_end_only_unclosed() -> None:
+def test_midline_end_only_unclosed() -> None:
     r"""全图无行锚 ``\end{comment}`` → ``unclosed_env`` + 体走漏网（salvage
     口径与 verbatim 未闭合同规——体不整体判死，防 typo 端点吞全文）。"""
-    res = scan_v2("Alpha words.\n\\begin{comment}\ndead x\\end{comment} tail words.")
+    res = scan_checked("Alpha words.\n\\begin{comment}\ndead x\\end{comment} tail words.")
     assert any(w.kind == "unclosed_env" for w in res.warnings)
 
 
-def test_v2_broken_sequence_end() -> None:
+def test_broken_sequence_end() -> None:
     r"""``\end {comment}``（断序列）不终结——``_env_name`` 容空白但行锚不认。"""
     body = (
         "Alpha words here.\n"
@@ -97,13 +97,13 @@ def test_v2_broken_sequence_end() -> None:
         "\\end{comment}\n"
         "Beta live words here."
     )
-    res = scan_v2(body)
+    res = scan_checked(body)
     chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "more dead words" not in chunked
 
 
-def test_v2_star_cross_end() -> None:
+def test_star_cross_end() -> None:
     r"""``\\end{comment*}`` 不终结 ``\\begin{comment}``——异名交叉不配对。"""
     body = (
         "Alpha words here.\n"
@@ -113,13 +113,13 @@ def test_v2_star_cross_end() -> None:
         "\\end{comment}\n"
         "Beta live words here."
     )
-    res = scan_v2(body)
+    res = scan_checked(body)
     chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead words" not in chunked
 
 
-def test_v2_no_nesting_begin_inside() -> None:
+def test_no_nesting_begin_inside() -> None:
     r"""``\\begin{comment}`` 体内 ``\\begin{comment}`` 不嵌套——首个行锚
     ``\\end{comment}`` 即终（comment.sty 逐行吞体无栈）。"""
     body = (
@@ -130,7 +130,7 @@ def test_v2_no_nesting_begin_inside() -> None:
         "\\end{comment}\n"
         "Beta live words here."
     )
-    res = scan_v2(body)
+    res = scan_checked(body)
     chunked = blob(res)
     assert "Beta live words here." in chunked
 

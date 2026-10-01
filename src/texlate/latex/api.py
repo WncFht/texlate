@@ -1,6 +1,6 @@
 r"""入口装配：``parse_tex`` / ``parse_file``（docs/spec/latex-pipeline.md）。
 
-v2 token 流（``Gullet``+``Segmenter``）是唯一解析路径。
+token 流（``Gullet``+``Segmenter``）是唯一解析路径。
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ if TYPE_CHECKING:
 
 from texlate.latex.gullet import Gullet
 from texlate.latex.prose import file_has_prose
-from texlate.latex.segmenter import parse_tex_v2, scan_v2
+from texlate.latex.segmenter import parse_tex as _parse_tex
+from texlate.latex.segmenter import scan_tex
 from texlate.textutil import _tar_disguised, decode_tex
 
 
 def parse_tex(tex: str, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
-    """主入口：单文件文本 → ``ScanResult``（v2 token 流）。"""
-    return parse_tex_v2(tex, front_matter=front_matter)
+    """主入口：单文件文本 → ``ScanResult``（token 流）。"""
+    return _parse_tex(tex, front_matter=front_matter)
 
 
 def parse_file(
@@ -34,7 +35,7 @@ def parse_file(
     top_dir: str | os.PathLike[str] | None = None,
     front_matter: frozenset[str] = frozenset(),
 ) -> ScanResult:
-    r"""文件入口：读盘 → v2 ``Gullet`` 路径。
+    r"""文件入口：读盘 → ``Gullet`` 路径。
 
     ``flatten=True``：``\\input`` 族由 gullet 按 文件目录→root_dir→top_dir
     解析内联进 vtex（``res.inputs`` 记 (vpos, 绝对路径)）——``top_dir`` 给
@@ -61,7 +62,7 @@ def parse_file(
     else:
         g = Gullet()
         g.push_source(tex)
-    return scan_v2(g, front_matter=front_matter)
+    return scan_tex(g, front_matter=front_matter)
 
 
 # ------------------------------------------------------------------ 树扫描段

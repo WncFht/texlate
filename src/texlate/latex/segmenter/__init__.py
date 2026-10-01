@@ -18,7 +18,7 @@ r"""Segmenter——``next_expanded()`` token 流的消费者（M1 接线，S1 �
 
 S1 骨架：主循环 + 覆盖账本 + run 双轨 + math/env/verbatim/verb/cite-ref
 保护子集 + scope 回报。
-S2 分派移植：v1 ``_dispatch_cmd`` 19 行逐行 token 化——``_args_tok``
+S2 分派移植：旧 ``_dispatch_cmd`` 19 行逐行 token 化——``_args_tok``
 （argspec s/o/d/m/e 全字母 + 单 token/零宽缺省）、chunk-arg 子扫、
 ``\\href`` 拆分、PROTECT_BLOCK/``\\item``/BOUNDARY_TAIL/未知命令保护、
 ``\\[``/``\\(`` 定界数学、``\\end{document}`` 截停、in_arg 环境路径、
@@ -48,15 +48,15 @@ from .group import _Group
 from .mainloop import _MainLoop
 from .pending import _Pending
 
-__all__ = ["Segmenter", "parse_tex_v2", "scan_v2"]
+__all__ = ["Segmenter", "parse_tex", "scan_tex"]
 
 
 class Segmenter(_Core, _Group, _Pending, _MainLoop, _Env, _Args):
     r"""token 流 → pieces/chunks。单遍正向、绝不抛异常（铁律 1）。"""
 
 
-def scan_v2(g: Gullet, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
-    r"""v2 产品核：消费 ``g`` 的展开流 → ``ScanResult``。
+def scan_tex(g: Gullet, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
+    r"""产品核：消费 ``g`` 的展开流 → ``ScanResult``。
 
     ``res.macros`` = gullet scope 链（平表 MacroTable 退役）；
     ``res.inputs`` = (vpos, path) 输入事件流（解析成功 = 绝对路径，
@@ -76,7 +76,7 @@ def scan_v2(g: Gullet, *, front_matter: frozenset[str] = frozenset()) -> ScanRes
         warnings=[],
         front_matter=front_matter,
     )
-    # 源文自带 [[X_n]] 形字面 → 签发避让（v1 parse_tex 同检）：采样在
+    # 源文自带 [[X_n]] 形字面 → 签发避让：采样在
     # ``Segmenter.scan`` 主循环按 file_texts 懒增长增量进行——fid-0 与
     # ``\input`` 后进栈的子文件同规（先签发后加载的碰撞只剩告警）。
     seg = Segmenter(state)
@@ -99,10 +99,10 @@ def scan_v2(g: Gullet, *, front_matter: frozenset[str] = frozenset()) -> ScanRes
     )
 
 
-def parse_tex_v2(tex: str, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
-    r"""``parse_tex`` 的 token 流版：内存源 Gullet。
+def parse_tex(tex: str, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
+    r"""``tex`` 文本 → ``ScanResult``：内存源 Gullet。
 
     无路径无 root——``\\input`` 恒不解析。产品文件入口是
     ``api.parse_file``。
     """
-    return scan_v2(Gullet(tex), front_matter=front_matter)
+    return scan_tex(Gullet(tex), front_matter=front_matter)

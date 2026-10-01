@@ -1,9 +1,9 @@
 r"""segmenter 面包 fuzz——「绝不抛异常」铁规 + identity + validate 零告警。
 
-不变量清单（v2 Gullet+Segmenter 产品路径，``scan_v2``/``parse_tex_v2``/
+不变量清单（Gullet+Segmenter 产品路径，``scan_tex``/``parse_tex``/
 ``parse_tex``/``parse_file``/``reconstruct``/``validate_result``）：
 
-- 铁规：任意 ``str`` 入参 ``parse_tex``/``scan_v2`` 绝不抛异常——含
+- 铁规：任意 ``str`` 入参 ``parse_tex``/``scan_tex`` 绝不抛异常——含
   敌意 soup 拼装、突变文档、嵌套/未闭 group/env、展开炸弹
   （``MAX_GEN=32``/``BUDGET`` 兜死）、``\input`` 无根解析。
 - identity：``reconstruct(res) == tex`` 逐字节还原（展开组以调用点
@@ -24,12 +24,12 @@ r"""segmenter 面包 fuzz——「绝不抛异常」铁规 + identity + validate
   触发，插入 ``" "``。``\@foo``→``\@ foo``、``\alpha\@beta``→
   ``\alpha\@ beta``。修法落地：``\\[a-zA-Z@]*[a-zA-Z]\Z``（尾字符
   必须真字母，``@`` 只许中位）——``_common.py``/``scanner.py``
-  （v1 letters_cut 同源）/``reconstruct.py _CS_TAIL_RX``（译文接缝
+  （``letters_cut`` 同源）/``reconstruct.py _CS_TAIL_RX``（译文接缝
   同族）三处同改。``\@`` 是控制符号不吞后继空格；``\ds@list`` 族
   中位 ``@`` 不受影响。
 - [FIXED] S2（minor）：``ph_collision`` 声明字面量 →
   ``validate_result`` 误报 ``dangling_ph``。修法落地：``ScanResult``
-  增 ``ph_reserved`` 字段（``scan_v2``/v1 ``Scanner.scan`` 双源透传），
+  增 ``ph_reserved`` 字段（``scan_tex``/``Segmenter.scan`` 双源透传），
   ``validate_result`` 对 ``res.ph_reserved`` 内 token 豁免
   ``dangling_ph`` 与 ``dangling_chunk_ref``（oob ``[[CHUNK_n]]`` 字面
   同族——可 resolve 的 ``[[CHUNK_0]]`` 仍按真 ref 走，钉保留）；
@@ -63,7 +63,8 @@ from conftest import DOC, check_invariants, scan_doc
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.gullet import Gullet
 from texlate.latex.reconstruct import validate_result
-from texlate.latex.segmenter import parse_tex_v2, scan_v2
+from texlate.latex.segmenter import parse_tex as _seg_parse_tex
+from texlate.latex.segmenter import scan_tex
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanResult
@@ -455,10 +456,10 @@ class TestEntryEdges:
         with pytest.raises(TypeError):
             parse_tex(bad)  # type: ignore[arg-type]
 
-    def test_scan_v2_empty_gullet(self) -> None:
+    def test_scan_tex_empty_gullet(self) -> None:
         """空 Gullet 三形态 → 空 ``ScanResult``。"""
         for g in (Gullet(), Gullet(""), self._push_empty()):
-            res = scan_v2(g)
+            res = scan_tex(g)
             assert res.pieces == []
             assert res.vtex == ""
 
@@ -468,10 +469,10 @@ class TestEntryEdges:
         g.push_source("")
         return g
 
-    def test_parse_tex_v2_entry_same(self) -> None:
-        """``parse_tex_v2``/``parse_tex`` 同路径（NO_EXPAND 缺席时）。"""
+    def test_parse_tex_entry_same(self) -> None:
+        """``segmenter.parse_tex``/``api.parse_tex`` 同路径（NO_EXPAND 缺席时）。"""
         tex = DOC % "same entry path words here"
-        assert reconstruct(parse_tex_v2(tex)) == reconstruct(parse_tex(tex))
+        assert reconstruct(_seg_parse_tex(tex)) == reconstruct(parse_tex(tex))
 
 
 class TestReconstructTranslations:
