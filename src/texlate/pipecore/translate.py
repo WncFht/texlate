@@ -70,13 +70,11 @@ def _auto_glossary_fn(
     )
 
 
-def _env_judge_pass(
-    pipe: XlatPipeline,
+def _env_judge_targets(
     scans: list[tuple[Path, ScanResult]],
     results: list[ChunkResult],
-    by_file: dict[int, dict[int, str]],
-) -> dict[str, Any]:
-    """未知 env 块 → LLM 可译性判定；判 False 的块从 ``by_file`` 摘除（回落原文）。"""
+) -> list[tuple[str, Chunk, str]]:
+    """未知 env 块 → judge 目标清单 ``(chunk_id, chunk, env_name)``（同步选择相）。"""
     targets: list[tuple[str, Chunk, str]] = []
     for r in results:
         if not delivered(r):
@@ -86,12 +84,55 @@ def _env_judge_pass(
         env_name = unknown_env_of(chunk)
         if env_name is not None:
             targets.append((r.chunk_id, chunk, env_name))
-    verdicts = asyncio.run(env_judge_all(pipe, targets))
-    reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
-    for cid in reverted:
-        fidx, ccid = split_cid(cid)
-        by_file.get(fidx, {}).pop(ccid, None)
-    return {"enabled": True, "asked": len(targets), "reverted": reverted}
+    return targets
+
+
+def _splice_writeback(
+    scans: list[tuple[Path, ScanResult]],
+    by_file: dict[int, dict[int, str]],
+    root: Path,
+    *,
+    marks_on: bool,
+) -> tuple[int, int, dict[str, list[str]]]:
+    """逐文件 reconstruct + 写回 + slot/emit 哨兵对账 → ``(n_files, n_leftover, slot_diffs)``。
+
+    ``marks_on`` 时 ``[[CHUNK_n]]`` 按 seq（scans 序累计）注 marked-content
+    锚，失衡文件剥锚降级；slot 对账（``paired_slot_diff``）与 emit 哨兵
+    （``splice_emit_issues``）同并入 ``slot_diffs`` 通道，只报不拦。
+    """
+    n_files = 0
+    n_leftover = 0
+    slot_diffs: dict[str, list[str]] = {}
+    seq0 = 0
+    for idx, (f, res) in enumerate(scans):
+        cur0 = seq0
+        seq0 += len(res.chunks)  # 无条件累计——跳译文件 seq 仍占位
+        trans = by_file.get(idx)
+        if not trans:
+            continue
+        zh = reconstruct(
+            res,
+            trans,
+            mark_seq0=cur0 if marks_on else None,
+            mark_moving=marks_on,
+        )
+        if marks_on and (issues := seq_mark_issues(zh)):
+            log.warning(
+                "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
+            )
+            zh = strip_seq_marks(zh)
+        f.write_text(zh, encoding="utf-8")
+        rel = f.relative_to(root).as_posix()
+        if notes := paired_slot_diff(res.vtex, zh, rel):
+            slot_diffs[rel] = notes
+        # emit 哨兵（splice_emit_verifier 项）：花括净深背离/环境配对崩坏/
+        # 交付译文 <90% 逐字在场/U+FFFD+C1 mojibake——只报不拦。
+        if emit_notes := splice_emit_issues(res.vtex, zh, trans, rel):
+            slot_diffs.setdefault(rel, []).extend(emit_notes)
+            log.warning("emit splice issues in %s: %s", rel, "; ".join(emit_notes[:8]))
+        n_files += 1
+        n_leftover += len(PH_RX.findall(zh))
+    return n_files, n_leftover, slot_diffs
 
 
 def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sink 各臂缝）
@@ -163,7 +204,27 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         cache={},
         on_result=_on_result,
     )
-    results = asyncio.run(pipe.run(chunks))
+    # 整条翻译相（run + env_judge）收进同一 ephemeral loop——pipe 的
+    # httpx client 池钉死在首个消费 loop 上，拆多次 asyncio.run 会让
+    # env_judge/修复臂在死 loop 绑定的连接上跑（foreign-loop）。loop
+    # 随 TreeRun 交还调用方——修复链 L2 重译臂 ``run.drive`` 复用后由
+    # 调用方 ``run.close_loop()`` 收（baseline_snapshot td 同款令牌）。
+    loop = asyncio.new_event_loop()
+
+    async def _drive() -> tuple[
+        list[ChunkResult], list[tuple[str, Chunk, str]], dict[str, bool]
+    ]:
+        results = await pipe.run(chunks)
+        targets = _env_judge_targets(scans, results) if env_judge else []
+        verdicts = await env_judge_all(pipe, targets) if targets else {}
+        return results, targets, verdicts
+
+    try:
+        results, ej_targets, ej_verdicts = loop.run_until_complete(_drive())
+    except BaseException:
+        loop.close()
+        raise
+
     by_file: dict[int, dict[int, str]] = {}
     n_fault = 0
     n_partial = 0
@@ -176,46 +237,23 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         else:
             n_fault += 1
 
-    env_stats: dict[str, Any] = (
-        _env_judge_pass(pipe, scans, results, by_file)
-        if env_judge
-        else {"enabled": False}
-    )
+    env_stats: dict[str, Any] = {"enabled": False}
+    if env_judge:
+        # 判 False 的块从 by_file 摘除（回落原文不进 splice）
+        reverted = sorted(cid for cid, keep in ej_verdicts.items() if not keep)
+        for cid in reverted:
+            fidx, ccid = split_cid(cid)
+            by_file.get(fidx, {}).pop(ccid, None)
+        env_stats = {
+            "enabled": True,
+            "asked": len(ej_targets),
+            "reverted": reverted,
+        }
 
-    n_files = 0
-    n_leftover = 0
-    slot_diffs: dict[str, list[str]] = {}
     marks_on = _opt_switch(None, "seq_marks", ENV_NO_SEQ_MARKS, explicit=seq_marks)
-    seq0 = 0
-    for idx, (f, res) in enumerate(scans):
-        cur0 = seq0
-        seq0 += len(res.chunks)  # 无条件累计——跳译文件 seq 仍占位
-        trans = by_file.get(idx)
-        if not trans:
-            continue
-        zh = reconstruct(
-            res,
-            trans,
-            mark_seq0=cur0 if marks_on else None,
-            mark_moving=marks_on,
-        )
-        if marks_on and (issues := seq_mark_issues(zh)):
-            log.warning(
-                "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
-            )
-            zh = strip_seq_marks(zh)
-        f.write_text(zh, encoding="utf-8")
-        rel = f.relative_to(root).as_posix()
-        if notes := paired_slot_diff(res.vtex, zh, rel):
-            slot_diffs[rel] = notes
-        # emit 哨兵（splice_emit_verifier 项）：花括净深背离/环境配对崩坏/
-        # 交付译文 <90% 逐字在场/U+FFFD+C1 mojibake——note 并入 slot_diffs
-        # 对账通道，只报不拦。
-        if emit_notes := splice_emit_issues(res.vtex, zh, trans, rel):
-            slot_diffs.setdefault(rel, []).extend(emit_notes)
-            log.warning("emit splice issues in %s: %s", rel, "; ".join(emit_notes[:8]))
-        n_files += 1
-        n_leftover += len(PH_RX.findall(zh))
+    n_files, n_leftover, slot_diffs = _splice_writeback(
+        scans, by_file, root, marks_on=marks_on
+    )
     stats = {
         "files": n_files,
         "chunks": len(chunks),
@@ -233,6 +271,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         trans=by_file,
         chunk_ins={c.chunk_id: c for c in chunks},
         pipe=pipe,
+        loop=loop,
     )
     sink.event("translate", {"phase": "done", "stats": stats})
     return stats, run, results

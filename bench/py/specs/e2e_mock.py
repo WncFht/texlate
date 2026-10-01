@@ -368,6 +368,7 @@ def _pipe_mode(
         rec["status"] = "partial"
         rec["reject_at"] = "inject"
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
+        run.close_loop()  # 翻译期 ephemeral loop 令牌回收
         return rec
     job = PipeJob(
         work,
@@ -399,6 +400,7 @@ def _pipe_mode(
     # ToUnicode 注入在修复链收敛之后（pipe_condition 同位）
     if res.has_pdf and res.pdf is not None:
         rec["tounicode_fonts"] = embed_tounicode_quiet(res.pdf)
+    run.close_loop()  # 翻译期 ephemeral loop 令牌——修复链收敛即收
     return rec
 
 

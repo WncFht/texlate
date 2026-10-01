@@ -14,12 +14,13 @@ L2 回灌机械（``_l2_parse``/``chunk_spans``/``_resolve_fidx``/``L2Attr``/
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
@@ -48,7 +49,7 @@ from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Coroutine
 
     from texlate.compile.engine import CompRes
     from texlate.compile.judge import Verdict
@@ -56,6 +57,8 @@ if TYPE_CHECKING:
     from texlate.xlat.pipeline import ChunkIn, XlatPipeline
 
 log = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 #: L2 回灌默认每文档重译上限（spec ≤10，参数化入口 ``l2_max_chunks``）
 L2_MAX_CHUNKS = 10
@@ -237,12 +240,33 @@ _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
 
 @dataclass
 class TreeRun:
-    """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。"""
+    """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。
+
+    ``loop`` = 翻译期 ephemeral loop：``pipe`` 的 httpx client 池钉死在
+    首个消费 loop 上，拆多次 ``asyncio.run`` 会让 env_judge/L2 重译臂
+    在死 loop 绑定的连接上跑（foreign-loop RuntimeError）。生命周期
+    令牌与 ``baseline_snapshot`` td 同款——调用方持有到修复链收敛，
+    收尾 ``close_loop()``；手工构造/worker 旁路臂留 ``None``，
+    ``drive`` 退回逐次 ``asyncio.run``。
+    """
 
     scans: list[tuple[Path, ScanResult]]
     trans: dict[int, dict[int, str]]  # fidx → {chunk.id: 译文}
     chunk_ins: dict[str, ChunkIn]  # "fidx:cid" → ChunkIn（带 ph_fragments）
     pipe: XlatPipeline
+    loop: asyncio.AbstractEventLoop | None = field(default=None, repr=False)
+
+    def drive(self, coro: Coroutine[Any, Any, _T]) -> _T:
+        """在翻译期 loop 上跑协程——缺席（手工构造 run）退回 ``asyncio.run``。"""
+        if self.loop is None:
+            return asyncio.run(coro)
+        return self.loop.run_until_complete(coro)
+
+    def close_loop(self) -> None:
+        """关翻译期 loop——pipe 条件收尾调用（幂等）。"""
+        if self.loop is not None:
+            self.loop.close()
+            self.loop = None
 
 
 def split_cid(chunk_id: str) -> tuple[int, int]:
@@ -683,8 +707,9 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
     """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
 
-    ``retranslate``/``recompile`` 两臂注入——e2e 包 ``asyncio.run(
-    retranslate_hits)`` + ``_compile_judge``（tail dict 臂侧合成）；
+    ``retranslate``/``recompile`` 两臂注入——e2e 包 ``run.drive(
+    retranslate_hits)``（翻译期 loop 复用，见 ``TreeRun.loop``）+
+    ``_compile_judge``（tail dict 臂侧合成）；
     worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
     ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
     同位三处：重译前/后、首编后），缺省无操作。

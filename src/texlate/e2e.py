@@ -148,6 +148,7 @@ def translate_tree(  # noqa: PLR0913 -- 同上：注入面穿透到 _translate_t
         front_matter=front_matter,
         sink=sink,
     )
+    _run.close_loop()  # 翻译期 ephemeral loop 令牌回收（本臂无修复链复用）
     return stats
 
 
@@ -226,54 +227,57 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         sink=sink,
     )
     rec["translate"] = stats
-    sink.event("stage", {"stage": "inject"})
     try:
-        rec["inject"] = prepare_chinese(work, main_rel)
-    except InjectRejectError as e:
-        # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
-        rec["status"] = "partial"
-        rec["reject_at"] = "inject"  # inject_reject 类：与 route reject 分流
-        rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
-        return rec
-    job = PipeJob(
-        work,
-        main_rel,
-        eng_name,
-        timeout,
-        probe_flags=_probe_flags_of(work, main_rel),
-        route_engines=route_engines,
-        baseline_dir=baseline_dir,
-        # 构造时查名透传自家 ``e2e.engine_for`` 全局——保
-        # ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
-        engine_fn=engine_for,
-        sink=sink,
-    )
-    # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染，
-    # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
-    expect_cjk = stats.get("chunks") != 0
-    sink.event("stage", {"stage": "compile", "engine": eng_name})
-    tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
-    rec.update(tail)
-
-    if rec["status"] != "clean":
-        # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
-        # 与 bench 同一条链）；引擎缝/路由/基线/sink 全在 job 上。
-        res = repair_chain(
-            rec,
-            job,
-            run,
-            res,
-            expect_cjk=expect_cjk,
-            l2_on=l2_on,
-            fixloop_on=fl,
-            l2_max_chunks=l2_max_chunks,
+        sink.event("stage", {"stage": "inject"})
+        try:
+            rec["inject"] = prepare_chinese(work, main_rel)
+        except InjectRejectError as e:
+            # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
+            rec["status"] = "partial"
+            rec["reject_at"] = "inject"  # inject_reject 类：与 route reject 分流
+            rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
+            return rec
+        job = PipeJob(
+            work,
+            main_rel,
+            eng_name,
+            timeout,
+            probe_flags=_probe_flags_of(work, main_rel),
+            route_engines=route_engines,
+            baseline_dir=baseline_dir,
+            # 构造时查名透传自家 ``e2e.engine_for`` 全局——保
+            # ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
+            engine_fn=engine_for,
+            sink=sink,
         )
-    # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
-    # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
-    if res.has_pdf and res.pdf is not None:
-        sink.event("stage", {"stage": "tounicode"})
-        rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
-    return rec
+        # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染，
+        # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
+        expect_cjk = stats.get("chunks") != 0
+        sink.event("stage", {"stage": "compile", "engine": eng_name})
+        tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
+        rec.update(tail)
+
+        if rec["status"] != "clean":
+            # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
+            # 与 bench 同一条链）；引擎缝/路由/基线/sink 全在 job 上。
+            res = repair_chain(
+                rec,
+                job,
+                run,
+                res,
+                expect_cjk=expect_cjk,
+                l2_on=l2_on,
+                fixloop_on=fl,
+                l2_max_chunks=l2_max_chunks,
+            )
+        # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
+        # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
+        if res.has_pdf and res.pdf is not None:
+            sink.event("stage", {"stage": "tounicode"})
+            rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
+        return rec
+    finally:
+        run.close_loop()  # 翻译期 ephemeral loop 令牌——修复链收敛即收
 
 
 def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> dict:

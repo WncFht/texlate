@@ -11,7 +11,6 @@ monkeypatch 锚点：setattr patch 须指本叶，指门面无效。
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from texlate.pipecore.state import NULL_SINK
@@ -89,10 +88,11 @@ def l2_repair_job(
 
     注入 e2e 编译件（``_compile_judge_job``——``PipeJob.engine_fn`` 保
     ``e2e.engine_for`` monkeypatch 缝）并把末态 Verdict 换回 tail dict
-    报告形。``job.sink`` 透传 ``l2_repair``——CLI 臂收 done 实况帧。
-    错误契约与 ``precheck_job``/``fixloop_job`` 同件：崩不传播，
-    落 ``({'enabled': True, 'error': ...}, 入参 res, None)``——
-    修复臂崩不毁主报告，调用方不必再包 try。
+    报告形。重译走 ``run.drive``——翻译期 loop 复用（``TreeRun.loop``
+    令牌，client 池不跨 loop）。``job.sink`` 透传 ``l2_repair``——
+    CLI 臂收 done 实况帧。错误契约与 ``precheck_job``/``fixloop_job``
+    同件：崩不传播，落 ``({'enabled': True, 'error': ...}, 入参 res,
+    None)``——修复臂崩不毁主报告，调用方不必再包 try。
     """
     try:
         rep, last_res, v = l2_repair(
@@ -101,7 +101,7 @@ def l2_repair_job(
             job.main_rel,
             res,
             cap,
-            retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
+            retranslate=lambda r, h, c: run.drive(retranslate_hits(r, h, c)),
             recompile=lambda: _compile_judge_job(job, expect_cjk=True),
             sink=job.sink,
         )
