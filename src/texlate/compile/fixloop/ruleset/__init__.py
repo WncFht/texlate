@@ -4,16 +4,16 @@
 装载期校验助手 (``_when_problems``/``_cond_problems``/``_dup_id_problems``)
 + when/condition/action 词表常量簇 + ``_FAMILY_TOKENS`` 展开 +
 ``_RULESET_CACHE`` 分片指纹缓存。不依赖 engine——动作解释器在
-``actions.py``, 主循环在 ``engine.py`` (两侧均门面回引本叶公共名)。
+``actions/``, 主循环在 ``engine/`` (两侧均门面回引本包公共名)。
 
-C5 拆叶：实现体按域拆进四个 ``_ruleset_*`` 私有兄弟叶，本文件化纯
+C5 拆叶：实现体按域拆进同包四叶，本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``ruleset.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 ——``ruleset.name`` 读到的恒是叶子对象，但 ``setattr(ruleset, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop._ruleset_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.ruleset.<叶>``), 不经本门面。
 
 叶谱：``ruleset.vocab`` 词表常量簇+RULES_PATH (纯数据，无 builtins
 链) / ``ruleset.family`` _FAMILY_TOKENS 占位展开 /

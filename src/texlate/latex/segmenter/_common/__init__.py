@@ -14,7 +14,7 @@ helper 三件 + ``_verb_delim_tok``/``_doc_begin_of``）、``_common.util``
 本文件是 PEP 562 惰性门面（同 ``server.worker._common`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``from texlate.latex.segmenter._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
-直跨（``texlate.latex.segmenter._common_*``），不经本门面。
+直跨（``texlate.latex.segmenter._common.<叶>``），不经本门面。
 """
 
 from __future__ import annotations

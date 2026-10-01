@@ -24,7 +24,7 @@ poppler 子进程包/folio/结构头/verso 豁免), ``_layoutqc.logcheck``
 映射回叶子, ``__getattr__`` 首访解析并缓存, ``from specs._layoutqc
 import X`` 与属性读面与拆分前逐名等价; HEAD 期模块属性面 (stdlib
 模块名/texlate 顶层绑定) 同样惰性解析。叶子间互引走全路径直跨
-(``specs._layoutqc_*``), 不经本门面。
+(``specs._layoutqc.<叶>``), 不经本门面。
 """
 
 from __future__ import annotations

@@ -12,14 +12,14 @@ phase 语义 (rules/ 分片注释复制):
   ``precheck`` 编译前一次性 (静态路由 + 装包预检)
   ``loop``     每轮错误驱动; 同 phase 按 order 升序，每轮至多一条成功应用
 
-C5 拆叶：实现体按域拆进六个 ``_engine_*`` 私有兄弟叶，本文件化纯
+C5 拆叶：实现体按域拆进同包五叶 + ``run/`` 孙包三叶，本文件化纯
 PEP 562 惰性门面 (同 ``seqpos/__init__`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``engine.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 ——``engine.name`` 读到的恒是叶子对象，但 ``setattr(engine, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop._engine_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.engine.<叶>``), 不经本门面。
 
 叶谱：``engine.proto`` 协议面 + 报告装配 / ``engine.ctx`` LoopCtx /
 ``engine.aux`` 清场挥发件 / ``engine.disp`` 定位+gate/precheck+ 次级

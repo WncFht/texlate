@@ -16,14 +16,14 @@ ident → 写进 zh 全部 CJK gap 站 (宏展开把 def 站机位倍增到调�
 ``baseline_dir`` 缺席/非目录 → False 空转 (standalone precheck 挂点
 不注入 baseline)。
 
-w8 拆叶: 实现体按件域拆进五个 ``_slotrev_*`` 私有兄弟叶, 本文件化纯
+w8 拆叶: 实现体按件域拆进同包五叶, 本文件化纯
 PEP 562 惰性门面 (同 ``csfix``/``gfx_missing`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``slotrev.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``slotrev.name``
 读到的恒是叶子对象, 但 ``setattr(slotrev, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._slotrev_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.builtins.slotrev.<叶>``), 不经本门面。
 
 叶谱: ``slotrev.lex`` 实参词法件 (``_ARG``/``_OPT*``/``_GAP``/
 ``_ARGB`` 系正则片段) / ``slotrev.table`` ``_SLOTREV_EXTRA_RXS``

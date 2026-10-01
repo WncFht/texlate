@@ -4,14 +4,14 @@ r"""builtins.common — fixloop builtins 跨域共享原语 (C3 builtins/__init_
 剥载 / ``\\documentclass`` 缝后注入 / pdfTeX 原语清单 (ruleset._FAMILY_TOKENS
 与 pdftex_prim_polyfill 双侧消费)。只做 helper/常量, 不含注册表条目本体。
 
-w8 拆叶: 实现体按域拆进十个 ``_common_*`` 私有兄弟叶, 本文件化纯
+w8 拆叶: 实现体按域拆进同包十叶, 本文件化纯
 PEP 562 惰性门面 (同 ``csfix``/``gfx_missing`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``common.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``common.name``
 读到的恒是叶子对象, 但 ``setattr(common, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._common_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.builtins.common.<叶>``), 不经本门面。
 
 叶谱: ``common.prims`` pdfTeX 原语清单 / ``common.pkgload``
 ``\\usepackage`` 剥载 / ``common.cslet`` ``\\let`` 清位件 /

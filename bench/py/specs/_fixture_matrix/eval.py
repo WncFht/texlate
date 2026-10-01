@@ -2,7 +2,7 @@ r"""specs._fixture_matrix.eval — 模块级测量叶 (_fixture_matrix 拆分叶
 
 装载即跑完 9 个 fixture 的 parse+双重建 (``_PARSED``) 并实算全部断言
 表——``run_fixture`` 的 SIGALRM 护栏只在**主线程**合法，故本叶由门面
-``_fixture_matrix.py`` 顶层 eager 装载（「import 即测量」的 HEAD 单件
+``_fixture_matrix/__init__.py`` 顶层 eager 装载（「import 即测量」的 HEAD 单件
 同语义）；若被惰性首访拖到 thread-executor worker 内才导入，
 ``signal.signal`` 会抛 ValueError。
 """

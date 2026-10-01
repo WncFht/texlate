@@ -19,14 +19,14 @@ r"""builtins.layoutfix — qc-wanted 版面/字符面修复原语 (impl-builtins
 注册表接线在 ``builtins/__init__.py`` 门面 (``_LEAF_EXPORTS``/``_TRANSFORM_KEYS``/
 ``__all__``/TYPE_CHECKING 四表) —— 本叶只供函数本体, 名表合同即注册键。
 
-w8 拆叶: 实现体按修复域拆进七个 ``_lfx_*`` 私有兄弟叶, 本文件化纯
+w8 拆叶: 实现体按修复域拆进同包七叶, 本文件化纯
 PEP 562 惰性门面 (同 ``csfix``/``gfx_missing`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``layoutfix.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``layoutfix.name``
 读到的恒是叶子对象, 但 ``setattr(layoutfix, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._lfx_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.builtins.layoutfix.<叶>``), 不经本门面。
 
 叶谱: ``layoutfix.core`` env 跨度/overfull 幅度/编辑回放通用件 /
 ``layoutfix.tabular`` ``tabular_fit``+``legacy_clamp_purge`` 主臂 /

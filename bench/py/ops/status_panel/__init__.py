@@ -25,7 +25,7 @@ milestones/tasks/kernel index 采集)、``status_panel.sections``
 PEP 562 惰性门面 (同 ``kernel.kernel``/``kernel.cli``/``verbs.dossier``
 门面形制) —— 平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__``
 首访解析并缓存，公私名面不变。脚本直跑 (``python3 status_panel.py``)
-路径：下行 ``sys.path.insert`` 立起 bench/py 后 ``ops._status_panel_*``
+路径：下行 ``sys.path.insert`` 立起 bench/py 后 ``ops.status_panel.<叶>``
 叶可导，``__package__`` 缺省回退 ``ops``。
 """
 

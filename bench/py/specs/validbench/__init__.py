@@ -48,7 +48,7 @@ _gen_paper_cases), ``validbench.judge`` (_l0_one + L1 常驻 daemon 三件套),
 映射回叶子，``__getattr__`` 首访解析并缓存，``getattr(module, "spec")`` 与
 ``from specs.validbench import X`` 读面与拆分前逐名等价; HEAD 期模块属性
 面 (stdlib 模块名/kernel/texlate 顶层绑定) 同样惰性解析。叶子间互引走全
-路径直跨 (``specs._validbench_*``), 不经本门面。spec 文件经 load_spec
+路径直跨 (``specs.validbench.<叶>``), 不经本门面。spec 文件经 load_spec
 exec (非包内导入，``__package__`` 为空) —— 叶名一律写死 ``specs.`` 前缀，
 不靠 ``__package__``。
 """

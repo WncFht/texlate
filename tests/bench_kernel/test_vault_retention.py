@@ -379,7 +379,7 @@ def test_prune_tar_deletes_tar_and_part(
     (tars / "2501_001.tar").write_bytes(b"TAR")
     (tars / "2501_001.tar.part").write_bytes(b"PART")
     (tars / "2501_002.tar").write_bytes(b"OTHER")
-    # _prune_tar 住在 _corpus_v3_extract 叶——TARS patch 锚点随函数迁叶（facade
+    # _prune_tar 住在 corpus_v3/extract 叶——TARS patch 锚点随函数迁叶（facade
     # setattr 只遮蔽门面不改叶子，同 builtins/kernel 拆叶先例）
     monkeypatch.setattr(_corpus_v3_extract, "TARS", tars)
 

@@ -2,8 +2,8 @@ r"""specs.parsebench.worker — 子进程测量体叶 (parsebench 拆分叶).
 
 ``_worker_run``：paper.json 先行（拓扑件在 kill 下幸存），files.jsonl
 逐行 flush（被杀后残留行仍是真账）；``_worker_cli`` =
-``--worker <srcdir> <workdir> <paper_id> <timeout_s>`` 入口，由门面
-``parsebench.py`` 的 ``__main__`` 尾块经 ``__getattr__`` 惰性解到这里。
+``--worker <srcdir> <workdir> <paper_id> <timeout_s>`` 入口，由
+``parsebench/__main__.py``（单件期 ``__main__`` 尾块随迁）直 import 解到这里。
 """
 
 from __future__ import annotations

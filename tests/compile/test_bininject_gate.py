@@ -1,4 +1,4 @@
-r"""伪装二进制/非 UTF-8 支持件的注入闸（``normalize.py`` 字节面判定）。
+r"""伪装二进制/非 UTF-8 支持件的注入闸（``normalize/guard.py`` 字节面判定）。
 
 0707.0382 实案：``AMSbsy.sty`` 实为 1MB tar blob——``decode_tex`` 永不抛
 （latin-1 兜底），成员文本里的 ``\begin{document}`` 让 ``has_document``

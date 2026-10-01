@@ -8,14 +8,14 @@ log「Missing character」行 → 码位分级 → 按类修复：表驱动字�
 + ``_MC_TABLE``/``_FB_FONT``/``_MATH_SHIM_CS`` 常量) 归位
 ``builtins.common`` —— shim 叶同消费，本叶只留修复动作本体。
 
-C5 拆叶：实现体按修复域拆进九个 ``_mc*`` 私有兄弟叶，本文件化纯
+C5 拆叶：实现体按修复域拆进同包九叶，本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``misschar.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意：patch 叶子不 patch 门面 —— ``misschar.name``
 读到的恒是叶子对象，但 ``setattr(misschar, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._mc<叶>``), 不经本门面。
+(``texlate.compile.fixloop.builtins.misschar.<叶>``), 不经本门面。
 
 叶谱：``misschar.cjk`` missing_char_fix 主体+hangul 路由+warmup /
 ``misschar.fallback`` font_fallback 基座 (fb 表/数学域/字体解析) /

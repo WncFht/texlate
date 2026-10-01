@@ -14,7 +14,7 @@ probe·fixloop 常量表 + ``_row_status_snap`` 行快照）、``_common.util``
 PEP 562 惰性门面（同 ``xlat.pipeline``/``kernel.index`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``from texlate.server.worker._common import X`` 读面与拆分前逐名等价。叶子间互引走全路径
-直跨（``texlate.server.worker._common_*``），不经本门面。
+直跨（``texlate.server.worker._common.<叶>``），不经本门面。
 """
 
 from __future__ import annotations

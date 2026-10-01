@@ -66,7 +66,7 @@ sample/select), ``parsebench.eval`` (pb_probe/pb_eval 双 stage + spec
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``getattr(module, "spec")`` 与 ``from specs.parsebench import X`` 读面与
 拆分前逐名等价; HEAD 期模块属性面 (stdlib 模块名/kernel·texlate 顶层
-绑定) 同样惰性解析。叶子间互引走全路径直跨 (``specs._parsebench_*``),
+绑定) 同样惰性解析。叶子间互引走全路径直跨 (``specs.parsebench.<叶>``),
 不经本门面。spec 文件经 load_spec exec (非包内导入, ``__package__``
 为空) —— 叶名一律写死 ``specs.`` 前缀, 不靠 ``__package__``。
 

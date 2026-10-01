@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 #: 协议回显签名（repro-2410b §4b 交付守卫）：L0 反馈消息实际 emit 串 +
 #: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/
 #: ``slot_validation_failures`` 字段/``[compile_error]`` L2 回灌标）。
-#: 本表为唯一词表单源——bench ``DIRTY_SIGS``（``e2e_mock_bench.py``）
+#: 本表为唯一词表单源——bench ``DIRTY_SIGS``（``specs/_sabotage.py``）
 #: 经 import 同源，勿再复抄副本（复抄面曾静默漂移：词表项的全角冒号
 #: 改写脱离了 emit 串）。交付 zh 出现即 prompt/反馈被当正文回显；
 #: ``[这是译文]``/``[word]`` 行内合法产出不在表内不误伤。

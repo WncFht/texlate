@@ -17,14 +17,14 @@ svg/xbb/pdf-asset、pstricks 预检) 留原叶, 本叶收「引用在盘但引�
 ``builtins`` 门面 ``_LAZY`` 表与 ``from builtins.graphics import X``
 测试面不需改。
 
-C5 拆叶: 实现体按修复臂拆进九个 ``_gfxm_*`` 私有兄弟叶, 本文件化纯
+C5 拆叶: 实现体按修复臂拆进同包九叶, 本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``gfx_missing.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``gfx_missing.name``
 读到的恒是叶子对象, 但 ``setattr(gfx_missing, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._gfxm_<叶>``), 不经本门面;
+(``texlate.compile.fixloop.builtins.gfx_missing.<叶>``), 不经本门面;
 测试若 patch ``builtins.gfx_missing.<name>`` 面, 同此规则落对应叶子。
 
 叶谱: ``gfx_missing.assets`` 占位字节资产 (EPS/PNG/PDF/JPEG) /

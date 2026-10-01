@@ -3,14 +3,14 @@
 ``when``/``condition`` 评估 + 7 种 ``action.kind`` 分派 + 依赖闭包安装
 + ``_match_apply`` 规则匹配 (原型 ``pick_and_apply``)。
 
-C5 拆叶：实现体按域拆进四个 ``_actions_*`` 私有兄弟叶，本文件化纯
+C5 拆叶：实现体按域拆进同包四叶，本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``actions.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 ——``actions.name`` 读到的恒是叶子对象，但 ``setattr(actions, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop._actions_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.actions.<叶>``), 不经本门面。
 
 叶谱：``actions.cond`` when/condition 评估+cond 快照簇 /
 ``actions.rewrite`` regex_rewrite 时限替换机制 /

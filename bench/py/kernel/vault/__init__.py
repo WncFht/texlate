@@ -71,7 +71,7 @@ slim_splice/孤儿扫描), ``vault._restore`` (最优副本选取+work 物化),
 ``vault.X`` 公共面/私有读面与 ``from kernel import vault`` 用法不变;
 kernel 子模块名 (``vault.fsutil`` 等) 与 stdlib 名同样惰性解析，故
 ``monkeypatch.setattr(vault.fsutil, ...)`` 一类跨模块 patch 缝照旧生效。
-叶子间互引走全路径直跨 (``kernel._vault_*``), 不经本门面。
+叶子间互引走全路径直跨 (``kernel.vault.<叶>``), 不经本门面。
 """
 
 from __future__ import annotations

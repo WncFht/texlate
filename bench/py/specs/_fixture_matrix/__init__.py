@@ -42,7 +42,7 @@ pytest 侧与跑分器 ``bench/py/specs/fixture_assert.py``
 本文件是 PEP 562 惰性门面 (同 ``kernel.vault``/``kernel.importer`` 形制) ——
 平名经 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``from specs._fixture_matrix import X`` 读面与拆分前逐名等价。叶子间互
-引走全路径直跨 (``specs._fixture_matrix_*``), 不经本门面。
+引走全路径直跨 (``specs._fixture_matrix.<叶>``), 不经本门面。
 
 测量时机例外 —— 「import 即测量」语义不可惰性化: ``_fixture_matrix.eval``
 在下方顶层 **eager 装载** (``run_fixture`` 的 SIGALRM 护栏只在主线程合

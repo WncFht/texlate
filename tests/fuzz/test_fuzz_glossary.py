@@ -27,7 +27,7 @@
   内 ``lstat`` 抛 ``ValueError`` 逃逸（只兜住了 ``..``/绝对形态，没兜
   FS 层异常）。请求面 ``options.glossary="a\\x00b"`` 无校验直达：
   ``_make_glossary`` 的 broad except 兜住 → 术语表静默丢；但
-  ``_make_cache``（``translate.py``）与 ``_share_glossary_hash``
+  ``_make_cache``（``worker/translate/cache.py``）与 ``_share_glossary_hash``
   （``share.py``）无兜网 → translating 段 fault / share pack 崩。
 - CONFIRMED D2：组件 >255B → ``OSError`` ENAMETOOLONG 同面逃逸
   （255B 界内优雅返 None——realpath lstat 不吞 ENAMETOOLONG）。

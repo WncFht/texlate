@@ -6,7 +6,7 @@ catch-all 全树转码（``BINARY_SUFFIXES`` 豁免 + NUL 闸兜底）——实�
 见各函数 docstring。另收跨模块共享的树遍历/读件低层件：``_iter_files``
 （软链豁免树遍历单源）、``_hidden_path``（隐藏路径豁免口径单源）、
 ``_read_tex_path``/``_read_tex``（读件 + tar 伪装闸 + 解码单源）与
-``_record_verdict``（编码判定台账），``normalize.py``/``shadow.py``/
+``_record_verdict``（编码判定台账），``normalize/``/``shadow.py``/
 ``layout.py``/``mainfile.py`` 等回引。
 """
 

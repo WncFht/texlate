@@ -1,4 +1,4 @@
-r"""inject.py 的 tar 伪装 .tex 闸（``_tar_disguised`` 复用 ``normalize.py`` 字节面判定）。
+r"""inject.py 的 tar 伪装 .tex 闸（``_tar_disguised`` 复用 ``textutil/targate.py`` 字节面判定）。
 
 ``test_bininject_gate.py`` 的下游姊妹闸：normalize 侧挡支持件手术，inject 侧
 挡「tar 被当文本 tex 消费」——``decode_tex`` 永不抛（latin-1 兜底），tar

@@ -4,14 +4,14 @@ r"""builtins.csfix — undefined_cs/already_def 按 cs 名打靶修复原语 (C3
 ``engines.{eng}`` 子表覆盖) + glue-残骸前缀拆分兜底; ``undefine_for_redef``:
 already_def ``\\let\\X\\@undefined`` 让位注入 (寄存器/盒型分配名护栏)。
 
-C5 拆叶: 实现体按修复域拆进九个 ``_csfix_*`` 私有兄弟叶, 本文件化纯
+C5 拆叶: 实现体按修复域拆进同包九叶, 本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,
 ``csfix.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 monkeypatch 锚点注意: patch 叶子不 patch 门面 —— ``csfix.name``
 读到的恒是叶子对象, 但 ``setattr(csfix, ...)`` 只遮蔽门面不改
 叶子内部互引。叶子间互引走全路径直跨
-(``texlate.compile.fixloop.builtins._csfix_<叶>``), 不经本门面。
+(``texlate.compile.fixloop.builtins.csfix.<叶>``), 不经本门面。
 
 叶谱: ``csfix.table`` cs→修复表数据 (sortlist/cref polyfill 串) /
 ``csfix.alloc`` 分配名护栏 + docclass 锚位 / ``csfix.target``
