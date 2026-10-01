@@ -498,7 +498,9 @@ class TestRedlines:
                     re.compile(spec.pattern)
         # 派生类（无 pattern 的 logattr spec）必须在 logattr_redline 语义里出现名
         derived = [
-            r.logattr.name for r in REDLINES if r.logattr is not None and r.logattr.pattern is None
+            r.logattr.name
+            for r in REDLINES
+            if r.logattr is not None and r.logattr.pattern is None
         ]
         assert set(derived) <= LOGATTR_REDLINE_CLASSES
 

@@ -589,7 +589,8 @@ class TestInterceptRegistry:
         assert net.detect(src, zh)
         rep = validate_pair(src, zh)
         assert any(
-            i.rule == net.mirror_rule and i.severity is Severity.ERROR for i in rep.issues
+            i.rule == net.mirror_rule and i.severity is Severity.ERROR
+            for i in rep.issues
         )
 
     def test_retranslate_consumes_registry_late_binding(

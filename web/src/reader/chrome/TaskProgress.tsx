@@ -410,8 +410,9 @@ export default function TaskProgress(props: Props) {
                                     }
                                 >
                                     <p class="fx-note muted">
-                                        {t.progress.logfixErrors} {l().errors ?? 0}{" "}
-                                        · {t.progress.logfixRetranslated}{" "}
+                                        {t.progress.logfixErrors}{" "}
+                                        {l().errors ?? 0} ·{" "}
+                                        {t.progress.logfixRetranslated}{" "}
                                         {l().retranslated ?? 0} ·{" "}
                                         {t.progress.logfixFallback}{" "}
                                         {l().fallback ?? 0}

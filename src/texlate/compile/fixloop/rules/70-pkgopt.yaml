@@ -1,4 +1,5 @@
-# rules/70-pkgopt.yaml — fixloop 规则库分片：包选项 —— option_clash/pkg_order/minted/hyperref 驱动与类选项
+# rules/70-pkgopt.yaml — fixloop 规则库分片：包选项 ——
+# option_clash/pkg_order/minted/hyperref 驱动与类选项
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -204,7 +205,8 @@ rules:
     stats: { fires: 15, rescued_cells: 9, status: active }
     source_ref: "fixloop.py L497-505"
 
-  # 新增 (docs/spec/compile.md L270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
+  # 新增 (docs/spec/compile.md L270): xelatex 侧 minted v3 装包 × 工程自带 v2
+  # frozencache
   # → 改挂 minted2 (v2 API 包)。注意改写只打包装载点: minted2 的 env 名仍是
   # {minted}, \begin{minted} 绝不能动 (盲改 {minted}→{minted2} 会毁 env)。
   - id: minted_v3_rewrite
@@ -345,21 +347,24 @@ rules:
         - { category: undefined_cs }
     condition:
       # 孤儿选项行: segmenter 把 src 同行 `\documentclass{X}[opts]` 的
-      # [opts] 段拆成独立块，splice 落 preamble 孤行 → Missing \begin{document}。
+      # [opts] 段拆成独立块，splice 落 preamble 孤行 → Missing
+      # \begin{document}。
       source_contains: "(?m)^[ \\t]*\\[[0-9a-zA-Z,=.\\- ]+\\][ \\t]*$"
     action:
       kind: regex_rewrite
       params:
         exts: [.tex]
         rewrites:
-          # 既有选项 → 尾部合并: \documentclass[a]{X}…^[o]$ → \documentclass[a,o]{X}
+          # 既有选项 → 尾部合并: \documentclass[a]{X}…^[o]$ →
+          # \documentclass[a,o]{X}
           # 中间段以 \begin{document} 回火——正文内孤立 [x] 行不越界吞。
           - {
               pattern: "(\\\\documentclass[ \\t]*\\[[^\\]\\n]*)\\]([ \\t]*\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
               repl: "\\g<1>,\\g<4>]\\g<2>\\g<3>",
               flags: [MULTILINE],
             }
-          # 无既有选项 → 新建选项组: \documentclass{X}…^[o]$ → \documentclass[o]{X}
+          # 无既有选项 → 新建选项组: \documentclass{X}…^[o]$ →
+          # \documentclass[o]{X}
           - {
               pattern: "(\\\\documentclass[ \\t]*)(\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
               repl: "\\g<1>[\\g<4>]\\g<2>\\g<3>",
@@ -907,7 +912,8 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md brace-cascade; natbib.sty \\NAT@set@cites \\let\\@citex\\NAT@citexnum 3-参 vs cite.sty \\@citex[#1]#2 2-参 arity 冲突实读"
 
-  # 2026-09-20 w13impl 车道 (w13spec B4, 2609.20135): webofc.cls ``\RequirePackage``
+  # 2026-09-20 w13impl 车道 (w13spec B4, 2609.20135): webofc.cls
+  # ``\RequirePackage``
   # 选项括号内嵌 ``\if..\else..\fi`` 条件块 (:178-201 四块) —— LaTeX 选项
   # 名单只认逗号切分，``\if``/``\else``/``\fi`` 行被吃成畸形选项名 →
   # hyperref "Wrong DVI mode driver option `dvips'" 首错 + ``Extra \fi``

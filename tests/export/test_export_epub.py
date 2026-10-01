@@ -327,7 +327,9 @@ def test_resume_from_state(tmp_path: Path) -> None:
     soups = {p: BeautifulSoup(book.members[p], "html.parser") for p in book.doc_paths}
     units = list(iter_units(book, soups))
     assert len(units) == 3  # noqa: PLR2004 -- 三段正文
-    store = StateStore(state_dir, model="export", pipeline_version="export-epub-2026-10")
+    store = StateStore(
+        state_dir, model="export", pipeline_version="export-epub-2026-10"
+    )
     store.start(len(units))
     for u in units[:-1]:
         store.record(

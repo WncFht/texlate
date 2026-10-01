@@ -756,7 +756,9 @@ def test_report_aggregate_fuzz() -> None:
                 LogVerdict(log_missing=True) if rng.random() < 0.3 else None  # noqa: PLR2004
             )
         )
-        rep = aggregate(chunk_id=f"c{rng.randint(0, 9)}", rules=rules, cst=cst, logattr=logattr)
+        rep = aggregate(
+            chunk_id=f"c{rng.randint(0, 9)}", rules=rules, cst=cst, logattr=logattr
+        )
 
         exp_ok = (
             (rules is None or rules.ok)
@@ -796,7 +798,11 @@ def test_report_aggregate_fuzz() -> None:
             "cst-" if cst is None else ("cst✓" if cst.verdict_ok else "cst✗"),
             "logattr-"
             if logattr is None
-            else ("logattr?" if logattr.log_missing else ("logattr✓" if logattr.ok else "logattr✗")),
+            else (
+                "logattr?"
+                if logattr.log_missing
+                else ("logattr✓" if logattr.ok else "logattr✗")
+            ),
         ]
         assert parts[-5:-2] == exp_marks, short(s)
         assert parts[-2] == f"err={rep.n_error}"

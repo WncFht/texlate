@@ -177,7 +177,9 @@ export default function ResultBody(props: Props) {
                     <p class="stage-secs muted">
                         <span class="ss-label">{t.reader.statsLogfix}</span>
                         <Show when={l().enabled === false}>
-                            <span class="ss-item">{t.reader.statsLogfixOff}</span>
+                            <span class="ss-item">
+                                {t.reader.statsLogfixOff}
+                            </span>
                         </Show>
                         <Show when={l().enabled !== false}>
                             <span class="ss-item">

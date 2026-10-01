@@ -899,7 +899,8 @@ taxonomy:
       scope: head,
       pattern: "Xy-pic error|A <box> was supposed to be here",
     }
-  # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
+  # 2026-09-16 扩 syntax 族: Extra
+  # }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
   # Extra \\end 已由 env_mismatch 先行接住，不重复列)。

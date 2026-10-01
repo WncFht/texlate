@@ -128,7 +128,7 @@
 | `llm.py:221-224`                | `redact` 只抹 `sk-*` 和自己的 key                            | 别家 key 形态照样进日志；texlate `logredact.py` 做 provider 无关脱敏                  |
 | `compiler.py:1431`              | env 过滤按子串 KEY/TOKEN/SECRET/PASSWORD                     | 误伤 `MONKEY`/`KEYSTONE` 等；正向做法是白名单 env                                     |
 | `main.py:53-60`                 | 本地 API 无鉴权，只靠 Origin/Sec-Fetch-Site + TrustedHost    | 本机任意进程可 curl `/api/jobs`；texlate server 模式另有 401 鉴权（`server/auth.py`） |
-| `main.py:69-93`                 | i18n 中间件对每个 `/api` JSON 响应读全 body 重序列化查表翻译 | 英文 UI 依赖后端中文原文不漂移——耦合脆弱；应返回 error code 由前端翻                    |
+| `main.py:69-93`                 | i18n 中间件对每个 `/api` JSON 响应读全 body 重序列化查表翻译 | 英文 UI 依赖后端中文原文不漂移——耦合脆弱；应返回 error code 由前端翻                  |
 | `desktop/package.json`          | mac ad-hoc 签名 + `hardenedRuntime:false`                    | dmg 下载者要绕 Gatekeeper；公发必须正签 + 公证                                        |
 | `llm.py:336-347`                | 每段请求都带 ~400 词 system prompt                           | 无 prompt caching 意识；texlate glossary/prompt 设计考虑了前缀缓存命中                |
 | `jobs.py:528-541`               | cache 文件按 config hash 命名但永不清理                      | `cache-*.json` 无限累积；texlate 需 GC 策略（当前同样遗留）                           |

@@ -520,9 +520,7 @@ class TsValidator:
                 raise CstError(msg) from e
             if line is None:
                 self.close()
-                msg = (
-                    f"cst 常驻 worker EOF（进程已退出，响应通道关闭）{self._deps_hint()}"
-                )
+                msg = f"cst 常驻 worker EOF（进程已退出，响应通道关闭）{self._deps_hint()}"
                 raise CstError(msg)
             try:
                 res = TsResult.from_dict(json.loads(line))

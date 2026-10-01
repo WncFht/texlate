@@ -525,7 +525,9 @@ def _run(ctx):
         "env_judge": p.get("env_judge"),
         "logfix_on": p.get("logfix_on"),
         "fixloop_on": p.get("fixloop_on"),
-        "logfix_max_chunks": int(p.get("logfix_max_chunks") or repair_mod.LOGFIX_MAX_CHUNKS),
+        "logfix_max_chunks": int(
+            p.get("logfix_max_chunks") or repair_mod.LOGFIX_MAX_CHUNKS
+        ),
         "route_engines": _route_engines(p),
     }
     if cond.startswith("pipeB-"):

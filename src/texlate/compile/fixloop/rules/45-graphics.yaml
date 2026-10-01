@@ -1,4 +1,5 @@
-# rules/45-graphics.yaml — fixloop 规则库分片：图形 —— ps_image/missing_graphic 的 eps 链与图档修复
+# rules/45-graphics.yaml — fixloop 规则库分片：图形 —— ps_image/missing_graphic
+# 的 eps 链与图档修复
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -136,7 +137,8 @@ rules:
   # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
   # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
   # xdvipdfmx 路径) 与撞墙的 ("image inclusion failed for X.eps")。
-  # epstopdf/gs 全量转换 + 显式引用改写可救后者 (0903.0543/1406.1994 手测出 pdf)。
+  # epstopdf/gs 全量转换 + 显式引用改写可救后者
+  # (0903.0543/1406.1994 手测出 pdf)。
   - id: eps_to_pdf
     description: "xdvipdfmx 'image inclusion failed for X.eps' → 全量 eps→pdf 转换 + .tex/.sty 显式引用改写"
     phase: loop
@@ -158,7 +160,8 @@ rules:
     stats: { fires: 11, rescued_cells: 11, status: validated } # fixloop-v2-rules-2026-09-15 实测
     source_ref: "fixloop-v2 整改; texglot app/graphics.py 同思路"
 
-  # 2105.00151 (pipecensus; IEICE 模板 ``\usepackage[dvipdfmx]{graphicx,xcolor}``
+  # 2105.00151
+  # (pipecensus; IEICE 模板 ``\usepackage[dvipdfmx]{graphicx,xcolor}``
   # 字面方括号驱动) 实证: doc 强指 dvipdfmx → dvipdfmx.def
   # ``\Gread@extractbb@aux`` 对 pdf/png 族先 ``\openin <stem>.xbb``, miss 退
   # ``"|extractbb -O <file>"`` pipe → 沙箱 ``shell_escape=f`` (受限白名单
@@ -296,10 +299,12 @@ rules:
   # builtins.graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
   # cwd 解析位 —— 子目录 main 时 wdir 根位不可见)。
   # fmsingles 普查 (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
-  # 时代 \\ifpdf 路由 —— else 支 ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
+  # 时代 \\ifpdf 路由 —— else 支
+  # ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
   # 在 xelatex 下整表不可解 (normalize 的 \\ifpdf→\\iftrue 补丁只罩 breakurl
   # 装载段，裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
-  # + "I could not locate the file with any of these extensions: .ps,.eps,.pstex"
+  # + "I could not locate the file with any of these
+  # extensions: .ps,.eps,.pstex"
   # (PoSlogo + plots/*5 全部 .pdf 在盘)。签名归 other —— 无扩展名够不着
   # missing_file 的 \\.ext 锚。修法 = PS-only 扩展表前置 .pdf/.png/.jpg/.jpeg
   # (unicode 引擎原生可读格), 含 .pdf 的表不动。序在 placeholder(17.6) 前:
@@ -545,7 +550,8 @@ rules:
     when: { always: true }
     condition:
       source_contains: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})"
-      # 2.09 (\documentstyle) 无 \usepackage——改写即非法 (0806.0904/0806.2953 回归)
+      # 2.09 (\documentstyle) 无 \usepackage——改写即非法
+      # (0806.0904/0806.2953 回归)
       main_head_contains: "\\documentclass"
     action:
       kind: regex_rewrite

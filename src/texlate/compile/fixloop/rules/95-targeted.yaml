@@ -1,4 +1,5 @@
-# rules/95-targeted.yaml — fixloop 规则库分片：cs_targeted_fix —— undefined_cs → 定点修复表（单条独占）
+# rules/95-targeted.yaml — fixloop 规则库分片：cs_targeted_fix —— undefined_cs
+# → 定点修复表（单条独占）
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -10,7 +11,8 @@ version: 1
 
 rules:
   # 新增 (2026-09-16): undefined_cs 无包映射项的 cs→修复表 —— spec 支持
-  # strip_pkg/usepackage+装文件/cs_map/polyfill 组合 (builtins.cs_targeted_fix)。
+  # strip_pkg/usepackage+装文件/cs_map/polyfill 组合
+  # (builtins.cs_targeted_fix)。
   # 首版表: headerps@out→剥 breakurl (dvips 钩子在 Unicode 引擎无定义),
   # mathbbm→xelatex 装 bbm / tectonic 换 dsfont\mathds。
   - id: cs_targeted_fix
@@ -60,7 +62,8 @@ rules:
           hlineCd: { cs_map: { hlineCd: "hline Cd" } }
           # \linebreak+GF: math--0605301 bibitem "quotient ring GF(2)"
           linebreakGF: { cs_map: { linebreakGF: "linebreak GF" } }
-          # 1511.02908 ×13: 自定义 \def\dd{\operatorname{d}} 被粘 (\ddr=d/dr 等);
+          # 1511.02908 ×13: 自定义 \def\dd{\operatorname{d}} 被粘
+          # (\ddr=d/dr 等);
           # \frac/\bf/\Delta/\nabla/\in 同型合并
           ddr: { cs_map: { ddr: "dd r" } }
           ddf: { cs_map: { ddf: "dd f" } }
@@ -304,7 +307,8 @@ rules:
           # v2.11 在 xelatex "Drivers other than pdftex/luatex not
           # supported" 装载即中止，用户宏面零定义 → 装包臂保留 (无包稿面
           # 仍装) + 全签名 gobble 补位。实参四参形:
-          # \epstopdfDeclareGraphicsRule{.tif}{png}{.png}{convert #1 \OutputFile}
+          # \epstopdfDeclareGraphicsRule{.tif}{png}{.png}{convert #1
+          # \OutputFile}
           # + \AppendGraphicsExtensions{.tif} 姊妹宏同站 (xelatex 读不了
           # .tif, 剥扩展名即避 unknown-extension 次生错)
           epstopdfDeclareGraphicsRule:
@@ -325,7 +329,8 @@ rules:
           # \endcsname 本就在场，展开的 \bibitemNoStop 未定义自动 \relax
           csnamebibitemNoStop:
             { cs_map: { csnamebibitemNoStop: "csname bibitemNoStop" } }
-          # 1306.0281: acm_proc_article-sp→acmart shim 后老稿 \numberofauthors{N}
+          # 1306.0281: acm_proc_article-sp→acmart shim 后老稿
+          # \numberofauthors{N}
           # 未定义 (acmart 自动计数，老类手动设) —— 元数据提示宏，no-op 无损
           numberofauthors:
             { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
@@ -583,7 +588,8 @@ rules:
           # acm_proc_article-sp→acmart shim 后 {tikzpicture} env 已 polyfill
           # 但 \tikzset{...} 裸调缺位 (1306.0281) —— 旧 noop 吞参会静默丢全篇
           # style 定义 (mynode/myarrow 式), 升级装真包: 与下方 \node/\draw 族
-          # 同形 (自足 \RequirePackage{tikz}+\usetikzlibrary 块，机理见该块头注)。
+          # 同形 (自足 \RequirePackage{tikz}+\usetikzlibrary 块，
+          # 机理见该块头注)。
           tikzset:
             {
               usepackage: tikz,
@@ -669,13 +675,17 @@ rules:
           # \LetLtxMacroOpt 不存在 —— 不收)。
           LetLtxMacro: { usepackage: letltxmacro }
           GlobalLetLtxMacro: { usepackage: letltxmacro }
-          # pgf/tikz 缺载面 (1306.0281, pgffix 车道): main.tex `%\usepackage{tikz}`
+          # pgf/tikz 缺载面 (1306.0281, pgffix 车道): main.tex
+          # `%\usepackage{tikz}`
           # 被作者注释，undefined_env_polyfill 吐空 tikzpicture 壳后 \node/\draw
-          # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号 + 坐标尾，
+          # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号 +
+          # 坐标尾，
           # cs_map/gobble 无一能吞 —— 装真包是唯一正解 (tikz.sty 供 \node/\draw/
           # \path/\coordinate/\fill/\filldraw/\matrix/\tikzset/tikzpicture;
-          # arrows+positioning+shapes 三库兜 `>=latex'`/`above right=of`/`mynode`
-          # 系常见库键)。polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO 语义下
+          # arrows+positioning+shapes 三库兜 `>=latex'`/`above
+          # right=of`/`mynode`
+          # 系常见库键)。polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO
+          # 语义下
           # 裸 \usetikzlibrary 会落在臂的装载行**之前** → 新
           # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫，
           # preamble 库键 \tikzset 调用面亦安全。dup `\RequirePackage{tikz}` 行
@@ -738,7 +748,8 @@ rules:
           bibfont: { polyfill: "\n\\providecommand\\bibfont{}" }
           # running-head 元数据 → gobble (0712.1200/0712.1491)
           runtitle: { polyfill: "\n\\providecommand\\runtitle[1]{}" }
-          # \thankstext{label}{text} → \thanks{text} (0812.0291 + hep-th/9412018)
+          # \thankstext{label}{text} → \thanks{text}
+          # (0812.0291 + hep-th/9412018)
           thankstext:
             { polyfill: "\n\\providecommand\\thankstext[2]{\\thanks{#2}}" }
           # \end{appendix} env end-cs 未定义 (0812.0291 + 0812.0411) ——

@@ -82,7 +82,9 @@ def test_midline_end_does_not_terminate() -> None:
 def test_midline_end_only_unclosed() -> None:
     r"""全图无行锚 ``\end{comment}`` → ``unclosed_env`` + 体走漏网（salvage
     口径与 verbatim 未闭合同规——体不整体判死，防 typo 端点吞全文）。"""
-    res = scan_checked("Alpha words.\n\\begin{comment}\ndead x\\end{comment} tail words.")
+    res = scan_checked(
+        "Alpha words.\n\\begin{comment}\ndead x\\end{comment} tail words."
+    )
     assert any(w.kind == "unclosed_env" for w in res.warnings)
 
 

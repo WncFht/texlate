@@ -84,7 +84,11 @@ def check_index(root: str):
             continue
         own = readme_text(dirpath)
         parent = readme_text(os.path.dirname(dirpath))
-        if own is None and parent is None and os.path.basename(dirpath) not in PAYLOAD_LEAF:
+        if (
+            own is None
+            and parent is None
+            and os.path.basename(dirpath) not in PAYLOAD_LEAF
+        ):
             bad.append((dirpath, "含 .md 但自身与父层均无 README 索引"))
             continue
         for n in mds:

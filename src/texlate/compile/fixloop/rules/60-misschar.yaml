@@ -1,4 +1,5 @@
-# rules/60-misschar.yaml — fixloop 规则库分片：缺字分诊 —— warn_missing_char/warn_utf8 驱动的缺字修复族
+# rules/60-misschar.yaml — fixloop 规则库分片：缺字分诊 ——
+# warn_missing_char/warn_utf8 驱动的缺字修复族
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -131,7 +132,7 @@ rules:
           - { id: boxdraw_2568, cps: [0x2568], replace: "-" }
           # PUA 私用区残留 (0905.1031) —— 同 pua_f047 剥除
           - { id: pua_f07a, cps: [0xF07A], replace: "{}" }
-          # ── misschars4 #190 补表 (loop3 残余普查 misschar3 车道，~20 cells) ──
+          # misschars4 #190 补表 (loop3 残余普查 misschar3 车道，~20 cells)
           # tab → 空格; ├/boxdraw → 剥除; ﬁ 复拼 religate; ˵ → 双引号。
           # 重音/修饰符走 accent 机制形 (无字体槽位依赖): ¯→\={} ǎ→\v{a}
           # ˆ→\^{}; ‰/€ 落文本字体 (lmroman 有槽) → \textperthousand/\texteuro;
@@ -521,7 +522,8 @@ rules:
       kind: builtin_transform
       function: font_fallback
       params:
-        # 与 _MC_TABLE cjk_glyph 同款 CJK 段表 (语义超集，勿回退 textutil.CJK_RANGES)
+        # 与 _MC_TABLE cjk_glyph 同款 CJK 段表
+        # (语义超集，勿回退 textutil.CJK_RANGES)
         # 谚文段 [0xAC00,0xD7AF] 已剔出——FandolSong 无 hangul 块，绑了
         # 仍缺字 (2403.00013×1341/2410.18001×545 实证); hangul 归
         # hangul_font_fallback(28) 专臂绑 ko 字体。

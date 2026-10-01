@@ -91,7 +91,9 @@ def test_logattr_surfaces_match_registry() -> None:
     assert _REDLINE_CLASSES == LOGATTR_REDLINE_CLASSES
     assert frozenset(_LOGATTR_RED) == LOGATTR_REDLINE_CLASSES
     assert [name for name, _ in _WARNING_RULES] == _LOGATTR_ALL_CLASSES
-    managed = {r.logattr.name: r.logattr.pattern for r in REDLINES_BY_ID.values() if r.logattr}
+    managed = {
+        r.logattr.name: r.logattr.pattern for r in REDLINES_BY_ID.values() if r.logattr
+    }
     for name, rx in _WARNING_RULES:
         if managed.get(name) is not None:
             assert rx.pattern == managed[name]

@@ -1,4 +1,5 @@
-# rules/90-shim-legacy.yaml — fixloop 规则库分片：legacy_pkg_shim —— 退役包/类 shim_map 大表（单条独占）
+# rules/90-shim-legacy.yaml — fixloop 规则库分片：legacy_pkg_shim —— 退役包/类
+# shim_map 大表（单条独占）
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -328,7 +329,8 @@ rules:
           elsart1.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           autart.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           personal.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
-          # sig-alternate (ACM ≤2015 版式) → acmart 官方继任; naturemag → nature。
+          # sig-alternate (ACM ≤2015 版式) → acmart 官方继任; naturemag →
+          # nature。
           sig-alternate.cls:
             needs: ["acmart.cls"]
             body: &sigalt_body |
@@ -360,10 +362,13 @@ rules:
           sig-alternate-05-2015.cls:
             { needs: ["acmart.cls"], body: *sigalt_body }
           naturemag.cls: { loads: "nature", needs: ["nature.cls"] }
-          # AASTeX v6.x 全退役 (TL 无 aastex6x) → emulateapj + 6x 宏面 polyfill。
-          # emulateapj 自带 deluxetable*/\tablehead/\affiliation/\keywords/\dataset
+          # AASTeX v6.x 全退役 (TL 无 aastex6x) → emulateapj + 6x 宏面
+          # polyfill。
+          # emulateapj 自带
+          # deluxetable*/\tablehead/\affiliation/\keywords/\dataset
           # 等 aastex5 面; 6x 新增元数据宏在 body 里补 (2105.03750 实证面:
-          # \received/\email/\correspondingauthor/\startlongtable/\facilities 等)。
+          # \received/\email/\correspondingauthor/\startlongtable/\facilities
+          # 等)。
           aastex61.cls:
             needs: ["emulateapj.cls", "epsf.sty"]
             body: &aastex6x_body |
@@ -567,7 +572,8 @@ rules:
           #  scan_install vendored 预检先于 missing_file 分类落件 —— 死配置。
           #  旧 body 无 \readRCS 五参解析，复活即回归 hep-ph/0408075;
           #  Elsevier CRC 面见 vendor stub)
-          # KOMA 旧接口 scrpage/scrpage2 → scrlayer-scrpage (官方继任，同名宏兼容)。
+          # KOMA 旧接口 scrpage/scrpage2 → scrlayer-scrpage
+          # (官方继任，同名宏兼容)。
           scrpage.sty:
             needs: ["scrlayer-scrpage.sty"]
             body: |
@@ -1643,7 +1649,8 @@ rules:
           # xetex-inputenc (luainputenc 链内引用，xelatex 原生 UTF-8 免),
           # umlaut/isolatin1 (化石编码件), llncsdoc (llncs 文档样式)。
           # 一律 \DeclareOption*{}\ProcessOptions 吞任意选项 (noop 本无选项
-          # 语义，拒收即炸 —— 2609.19431 luainputenc→[utf8]xetex-inputenc 实证)。
+          # 语义，拒收即炸 —— 2609.19431 luainputenc→[utf8]xetex-inputenc
+          # 实证)。
           # (sw20lart.sty 槽已删: vendor/stubs 同名 stub 在 —— vendored 先中)
           numcompress.sty:
             body: |

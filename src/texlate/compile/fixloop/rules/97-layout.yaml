@@ -345,10 +345,10 @@ rules:
     source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item h"
     known_gap: "figure env 外旋转图 (table/散排) 不收; bleed >pad 量时叠印残留 (bb 外墨迹无界，垫高是工程近似)"
 
-  # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin (vbox_geometry_clamp/ (vbox_geometry_clamp/
-  #   url_run_break/bib_sloppy/verbatim_listing_shrink) 未在 builtins
-  #   TRANSFORM_FNS 注册 —— 本簇全部落 regex_rewrite 等价臂，不可达子臂
-  #   逐条记 known_gap。
+  # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin
+  #   (vbox_geometry_clamp/url_run_break/bib_sloppy/
+  #   verbatim_listing_shrink) 未在 builtins TRANSFORM_FNS 注册 ——
+  #   本簇全部落 regex_rewrite 等价臂，不可达子臂逐条记 known_gap。
   # vbox_geometry_clamp spec 三臂中只 (a) 静态臂 regex 可达: 负/零
   # \headheight 页高 hack 钳回 0pt (0806.1975 '\headheight -.75 in'
   # 正例)。vbox 签走 overfull_vbox→warn_overfull 别名路进 (D1 已落

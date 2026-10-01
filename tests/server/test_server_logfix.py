@@ -153,7 +153,9 @@ class TestLogfixRepair:
             assert snap["status"] == "done", snap
             evs = task_events(c, tid)
             logfix_evs = [e for e in evs if e["type"] == "logfix"]
-            logfix_done = [e["data"] for e in logfix_evs if e["data"].get("phase") == "done"]
+            logfix_done = [
+                e["data"] for e in logfix_evs if e["data"].get("phase") == "done"
+            ]
             assert len(logfix_done) == 1
             assert logfix_done[0]["retranslated"]
             assert logfix_done[0]["report"]["recompiled"] == "clean"
@@ -177,7 +179,9 @@ class TestLogfixRepair:
             assert snap["status"] == "partial", snap
             evs = task_events(c, tid)
             seqs = {
-                e["type"]: int(e["seq"]) for e in evs if e["type"] in ("logfix", "fixloop")
+                e["type"]: int(e["seq"])
+                for e in evs
+                if e["type"] in ("logfix", "fixloop")
             }
             assert "logfix" in seqs
             assert "fixloop" in seqs

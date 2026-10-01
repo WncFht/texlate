@@ -1,4 +1,5 @@
-# rules/40-install.yaml — fixloop 规则库分片：缺档装包 —— missing_file/missing_tfm → install/fetch + babel 选项
+# rules/40-install.yaml — fixloop 规则库分片：缺档装包 ——
+# missing_file/missing_tfm → install/fetch + babel 选项
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -314,7 +315,8 @@ rules:
   # 2026-09-17 批四: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
   # install_file(10) 查无真包 → 本规则 basename 查 vendor/{files,stubs,shims}
   # (files=真件平移，stubs=实测救援 stub, shims=.cls 替身 stub) → 命中平铺
-  # 进 wdir; 查无 → decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸 builtin, 无需新
+  # 进 wdir; 查无 → decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸
+  # builtin, 无需新
   # condition 原语。同名 payload 相对路径落位 (a/b.sty → wdir/a/b.sty),
   # ../绝对/NUL 闸在 builtin 内。
   - id: vendored_fetch
@@ -909,7 +911,8 @@ rules:
     stats: { fires: 9, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-assetlane/probe3 三臂实证 (amsmath-only/ams-cohort/full-snapshot → cohort 最优)"
 
-  # 2026-09-19 asset 车道 (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
+  # 2026-09-19 asset 车道
+  # (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
   # pb-diagram/lamsarrow.sty:89-93 `\font\lamsfont@i=lams1`…`@v=lams5` ——
   # LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字体),
   # 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式全不中，
@@ -1251,7 +1254,8 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
-          # \usepackage/\RequirePackage 带表 → 表头插 (lookahead 锚 ]{..babel..})
+          # \usepackage/\RequirePackage 带表 → 表头插
+          # (lookahead 锚 ]{..babel..})
           - {
               pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)(?=[^\\]]*\\]\\s*\\{[^}]*\\bbabel\\b[^}]*\\})",
               repl: "\\g<1>{payload},",

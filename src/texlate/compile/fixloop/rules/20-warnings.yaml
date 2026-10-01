@@ -1,5 +1,6 @@
 # rules/20-warnings.yaml — log 红线 warning 扫描表（redlines.py 注册表
-# ``rules`` 切片的镜像面，逐条 (id, pattern) 序由 tests/compile/test_redlines.py pin）
+# ``rules`` 切片的镜像面，逐条 (id, pattern) 序由
+# tests/compile/test_redlines.py pin）
 version: 1
 
 # ────────────────────────────────────────────────────────────────

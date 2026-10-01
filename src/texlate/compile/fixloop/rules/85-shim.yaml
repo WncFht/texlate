@@ -1,4 +1,5 @@
-# rules/85-shim.yaml — fixloop 规则库分片：shim/shadow/polyfill —— vendored 隔离与 bundle 遮蔽族
+# rules/85-shim.yaml — fixloop 规则库分片：shim/shadow/polyfill —— vendored
+# 隔离与 bundle 遮蔽族
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件

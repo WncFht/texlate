@@ -1,4 +1,5 @@
-# rules/75-syntax.yaml — fixloop 规则库分片：语法与宏面改写 —— syntax/already_def/散件杂项 + 兜底 escalate
+# rules/75-syntax.yaml — fixloop 规则库分片：语法与宏面改写 ——
+# syntax/already_def/散件杂项 + 兜底 escalate
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -190,7 +191,8 @@ rules:
 
   # ── 2026-09-20 mathbd 车道 (singles3 bundle A) ──
   # soul_cjk_mbox(100) 姊妹臂: soul 族实参为单个 cs (``\hl{\model}``) 时
-  # 字面 CJK 闸不命中——CJK/组结构藏在 cs 定义体内 (``\model``=``\texttt{ReAct}``,
+  # 字面 CJK 闸不命中——CJK/组结构藏在 cs 定义体内
+  # (``\model``=``\texttt{ReAct}``,
   # 展开出 ``\texttt{..}`` 组 → soul 判「可断材料包在组括号内」→ Reconstruction
   # failed; TU 编码 xelatex 下无 inputenc/fontenc 包裹层)。修 = cs 裹 \mbox
   # 成原子盒，soul 直接透传。pattern 只收单-cs 实参形 (多 token 不命中);
@@ -315,7 +317,7 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "fixloop.py L448-456"
 
-  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): already_def 批量清位 ──
+  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): already_def 批量清位
   # journal_abbrev 族: mnras.cls 预定义 \aj/\mnras 系，稿内 \newcommand
   # 6-11 名连环撞 —— renew(111) payload-bound 逐轮一名，10+ 撞名烧尽轮次。
   # halt_on_error 下每轮 log 只见首撞名 → 本规按"撞名 ∪ 撞名站点所在
@@ -1187,7 +1189,8 @@ rules:
     action:
       kind: builtin_transform
       function: para_longize
-      # params.wrap_table / deny / max_macros(默认 64) 可扩 —— 未收内核名走 wrap_table 同形补
+      # params.wrap_table / deny / max_macros(默认 64) 可扩 —— 未收内核名走
+      # wrap_table 同形补
     risk: medium # wrap 重定义内核/包宏 (\let 快照 + 签名转发，零 body 拷贝免版本漂移); \par-strip 丢顶层段断 = 语义合意但非逐字; 嵌套组内 \par 剥不到是已知残面
     known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮; 单轮肇事宏 >max_macros(64) 截断时尾部滞留 —— applied=True 已烧 dedup 键，残宏同签不重派 (return-False-after-writes 在引擎语义下是终局结算，不可作续尾信号)"
     engines:

@@ -1,4 +1,5 @@
-# rules/55-prim.yaml — fixloop 规则库分片：引擎原语 —— pdftex_prim/expl3 后端与 glyphtounicode 遮蔽
+# rules/55-prim.yaml — fixloop 规则库分片：引擎原语 —— pdftex_prim/expl3 后端与
+# glyphtounicode 遮蔽
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -324,10 +325,12 @@ rules:
           # bal = regex 递归平衡花括号: \{ (转义\{|\}|\% | 行注释 | 嵌套 bal |
           # 非括号)* \} —— TeX 词法同构 (注释/转义内括号不计配对), 跨行实参
           # 全真接管 (旧 [^\n] 弃守面收编)。赋值臂 value = (escape|bal|非括号
-          # 非注释字符|孤{)* —— 裸 } 必停: 单行 \def\f{\prim=1} / \def\f{\prim{a}}
+          # 非注释字符|孤{)* —— 裸 } 必停: 单行 \def\f{\prim=1} /
+          # \def\f{\prim{a}}
           # 外层 } 不可吞，旧贪婪 [^\n%]*/[^\n]*} 吞外层 } 把 \fi 落出宏体外
           # → Extra/Incomplete \fi 破坏级缺陷 (primarg 期审计实证，primguard
-          # 修)。孤 { 兜底吃字面量: 不可闭合 { 维持旧"整行吞", xetex 跳过面干净。
+          # 修)。孤 { 兜底吃字面量: 不可闭合 { 维持旧"整行吞", xetex
+          # 跳过面干净。
           - {
               pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(?![a-zA-Z@])(\\s*=\\s*(?:\\\\[{}%]|(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})|[^{}\\n%]|\\{)*)",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
@@ -349,7 +352,8 @@ rules:
     stats: { fires: 36, rescued_cells: 18, status: active }
     source_ref: "fixloop.py L344-361, L284-298"
 
-  # 新增 (docs/spec/compile.md L268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
+  # 新增 (docs/spec/compile.md L268): guard 只管赋值型; 读取型 \ifnum\pdfoutput
+  # 要补定义
   - id: pdftex_prim_polyfill
     description: "pdfTeX 原语补定义 (读取型/取参型/fileset 外站点) → 前导注入 \\ifdefined..\\else<寄存器 | 吞参 noop|chardef>\\fi"
     phase: loop

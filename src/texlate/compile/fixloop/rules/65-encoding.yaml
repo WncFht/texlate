@@ -1,4 +1,5 @@
-# rules/65-encoding.yaml — fixloop 规则库分片：编码 —— inputenc/非 UTF-8 源/aux 中间件腐蚀
+# rules/65-encoding.yaml — fixloop 规则库分片：编码 —— inputenc/非 UTF-8 源/aux
+# 中间件腐蚀
 #
 # 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
 # _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
@@ -32,8 +33,10 @@ rules:
           error: "Package inputenc Error: inputenc is not designed for xetex or luatex",
         }
     # 2026-09-16 fixloop-rules 实跑 (5 篇 xelatex 格): fires=5 → clean×3
-    # (1012.1124/1206.5832/1608.02354) + best_effort_pdf×2 (1206.5628/2308.04174);
-    # tectonic 格全部死于 tlextras-2022 pin bundle os error 2 (环境), 与本规则无关
+    # (1012.1124/1206.5832/1608.02354) + best_effort_pdf×2
+    # (1206.5628/2308.04174);
+    # tectonic 格全部死于 tlextras-2022 pin bundle os error 2 (环境),
+    # 与本规则无关
     stats: { fires: 7, rescued_cells: 5, status: validated }
     source_ref: "handoff-2026-09-15 §2.2; compilebench-v3 失败构成"
 
@@ -68,7 +71,8 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-armgap4/census.md §1003.2165; vendor/files/inputenc.sty noop shadow"
 
-  # 新增 (docs/spec/compile.md L272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
+  # 新增 (docs/spec/compile.md L272): xelatex 对非 UTF-8 源静默出 U+FFFD ——
+  # warning 驱动轮
   - id: non_utf8_source
     mechanisms: [B02, W72, W13]
     description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"

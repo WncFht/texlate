@@ -70,7 +70,7 @@ MinerU[^mineru] 3.4.5，Apache-2.0 + 附加条款（在线服务需署名、超�
 | 翻译编排   | 走 texlate 编排（术语/缓存/校验复用） | BabelDOC 内部闭环（网关层复用）    |
 | 进度       | 状态轮询（粗）                        | stage 事件流（细，SSE 直转）       |
 | 部署       | torch + GB 级模型；vlm 要 GPU         | ~50MB ONNX + 字体，纯 CPU          |
-| 扫描件/OCR | `parse_method=ocr` 可处理               | `ScannedPDFError` 拒收             |
+| 扫描件/OCR | `parse_method=ocr` 可处理             | `ScannedPDFError` 拒收             |
 | 单篇成本   | 解析本地免费 + LLM 编排成本           | LLM ~$0.02–0.05 + 本地 ONNX        |
 | 假成功检测 | 自有校验器可控                        | translate_tracking.json（已解）    |
 
