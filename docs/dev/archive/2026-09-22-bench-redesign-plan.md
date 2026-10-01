@@ -91,7 +91,7 @@ def main():
 
 **步骤 1|死面清理 + 两个实证真 bug（最高 ROI,-~4400 LOC)**:
 
-- 删 report/ **6** 个实证死件（v2_diff/texsoup_diverge/bench_pylatexenc/plastex_bench/texsoup_bench/ieeA_bench);**l2_attr_probe 保留**——docs/dev/archive/benches-2026-09-20.md:50 标 active 且目标在 archive，只把 RESULTS_JSON 重指 archive-2026-09-20(1 行）;export_realbook 存疑则留原位打 dormant 注。删 tests/_benchkit.py(0 importer)。同 commit 同步 docs/dev/archive/benches-2026-09-20.md/tools-runbook.md 普查行。
+- 删 report/ **6** 个实证死件（v2_diff/texsoup_diverge/bench_pylatexenc/plastex_bench/texsoup_bench/ieeA_bench);**l2_attr_probe 保留**——docs/dev/archive/2026-09-20-benches.md:50 标 active 且目标在 archive，只把 RESULTS_JSON 重指 archive-2026-09-20(1 行）;export_realbook 存疑则留原位打 dormant 注。删 tests/_benchkit.py(0 importer)。同 commit 同步 docs/dev/archive/2026-09-20-benches.md/tools-runbook.md 普查行。
 - 修 compilebench_v3:**传缺引擎子集 + engines 合并而非覆盖**——`papers_agg[pid].setdefault("engines",{}).update(paper["engines"])`(:876 整条覆盖会把旧引擎从 cells.json 抹掉，fixloop_bench 经 BASE_CELLS:411 读 engines{} 会静默失基线）;cells.json 逐 future 重写（:882）换 atomic_write_text（真竞态）;fixloop 的 cases 读者加 (pid,engine) 去重（重复行会向下游传播）。回归测试：--engines xelatex 后续跑 --engines xelatex,tectonic→cases 无重复行且 cells 双引擎俱全。
 - 修 xlatbench cmd_report 聚合前末条胜去重（消重试行双计）。
 - benchlib 删 cond_status/RETRIABLE_STATUS;quantile 只接**实证 ceil-rank 三站**(alignbench._pct_vals.q:679、validbench._pct.q:784、parsebench.percentile:172+CI 点）——xlatbench._med/_p95(median 插值/floor+clamp :501-509)、gullet pct(floor-index :199)、alignbench:264(round-over-(n-1))**就地保留**(benchlib:822 docstring 明写勿互套；换接=n=偶数时 p50 静默漂移）。

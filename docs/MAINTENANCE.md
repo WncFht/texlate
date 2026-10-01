@@ -37,6 +37,7 @@
 - **research/ 是证据层不是工单层**：活执行计划、在跑工单不放 `research/`（冻结语义冲突）——归 `dev/projects/`。
 - **`log/` 只进收官/里程碑实录**：在执行过程账与 append-only 台账放各自工作件（如 `dev/bench-massrun-plan.md` 自身即台账），收官时才向 `log/` 归档。
 - **在飞账房豁免**：`dev/bench-massrun-plan.md` 是多会话滚动改写的在飞台账（bench 重建波次的唯一账本），特许留置 `dev/` 顶层——豁免「`-plan` 后缀闸」「在执行件进 `dev/projects/`」两条约束；其内过程数字与状态随批次滚动过期属台账本色，文档巡检与时效性审计不得对该件提整改——收官时才按上条归档 `log/`。
+- **仓布局双面**：`dev/repository.md` 是全图事实源、根 `AGENTS.md` 仓库布局节是一屏摘要；两侧漂移冲突时以 `repository.md` 为准改 `AGENTS.md`。
 
 ## 3. 变更归层：写什么放哪
 
@@ -120,7 +121,7 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 
 ## 9. 索引登记与引用改写义务
 
-- 每层/每域 `README.md` 是该层索引：新件入库必须登记一行（文件 → 一句话内容）；删件同步删行。带数据/档案子目录（无 README 的裸目录不入库）首行写目录身份 + 指向父索引。
+- 每层/每域 `README.md` 是该层索引：新件入库必须登记一行（文件 → 一句话内容）；删件同步删行。带数据/档案子目录首行写目录身份 + 指向父索引——免写 README 的仅限纯载荷叶子目录（`assets/`、`data/`、`refs/`、`charts/`、`inputs/` 这类只放被引用资产的目录），由所属件 README 的登记行覆盖；其余裸目录不入库。
 - `research/` 索引按主题域分表，新域先建域 `README.md` 再登总索引；`decisions/README.md` 是全部 ADR 的索引（含状态列）；`log/README.md` 是编年时间线。
 - **引用改写义务**：移动/改名任何文档时，必须同步改写 (a) 全仓 `[x](path)` markdown 链接，(b) 代码注释中的路径串（`grep -rn 'docs/' src/ web/src/ bench/ tests/ scripts/`）——注释检索面与链接面同等硬。(c) 裸名 backtick 引用（`` `file.md` `` 不带路径）需 `grep -rn` 双查，`docs_linkcheck` 查不到它们。
 - **引用优先级**：代码注释、跨层引用优先指 `spec/` 路径——`dev/` 面会流动（projects/archive 迁移是常态），spec 名不带日期天然稳定。
@@ -138,7 +139,7 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 - 链接验证：改完跑 `python tools/docs_linkcheck.py`（跳过代码栅栏与行内 code，URL-unquote，exit 1 列死链）——只查 `[x](y)` 形，裸名引用按 §9(c) 手查。
 - **`--no-verify`/私有 index 提交绕过 pre-commit** = lint 债确定源头（多会话共仓的既定提交法即此道）——绕过提交前必须手动跑一遍 markdownlint 与 linkcheck，不让债进库。
 - `research/` 下数据文件（csv/jsonl/svg/tex/pdf）按各域 README 口径入库；大二进制与第三方文献原件不入库。
-- 多会话共仓纪律：提交只加显式文件路径，不用 `git add -A` 全仓扫；他 lane 在飞 staged 工作不卷入本 lane commit（必要时用 `GIT_INDEX_FILE` 私有 index 提交）；不 `git stash`（别家在飞工作会被整树收走）。
+- 多会话共仓纪律：提交只加显式文件路径，不用 `git add -A` 全仓扫；他 lane 在飞 staged 工作不卷入本 lane commit；不 `git stash`（别家在飞工作会被整树收走）。私有 `GIT_INDEX_FILE` 提交协议 2026-10-01 起禁用——共享 index + 显式路径即可隔离。
 
 ## 12. 历史路径约定
 

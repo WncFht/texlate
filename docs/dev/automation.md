@@ -8,7 +8,7 @@
 
 ## 1. arXiv 日更 soak（已退役 2026-09-21）
 
-退役记录：RSS 枚举（cs+math 公告日批，~1200 篇/日）→ `acquire_source` 串行限速取源 → stagerun 五 stage 批跑 → `corpus_daily/` 滚动语料 + `bench/results/soak-<date>/` 产物（errsweep 主矿）。退役原因：语料/bench 扩展方向转向钉版重建（见 `projects/2026-09-23-rebuild-plan-v4.md`），日更滚动面不再维护。管线细节与回填通道（pastweek 分页 / OAI-PMH 日窗）设计存 git 历史（删前 HEAD `git show` 可检），arXiv 端点行为结论保留在 `../research/arxiv/` 各件。
+退役记录：RSS 枚举（cs+math 公告日批，~1200 篇/日）→ `acquire_source` 串行限速取源 → stagerun 五 stage 批跑 → `corpus_daily/` 滚动语料 + `bench/results/soak-<date>/` 产物（errsweep 主矿）。退役原因：语料/bench 扩展方向转向钉版重建（见 `projects/2026-09-23-corpus-rebuild-plan.md`），日更滚动面不再维护。管线细节与回填通道（pastweek 分页 / OAI-PMH 日窗）设计存 git 历史（删前 HEAD `git show` 可检），arXiv 端点行为结论保留在 `../research/arxiv/` 各件。
 
 ## 2. errsweep 错误清扫（已退役 2026-09-29）
 

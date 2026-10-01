@@ -39,4 +39,4 @@
 
 ## 迁出件
 
-- `2026-09-23-rebuild-plan-v4.md` → `dev/projects/2026-09-23-rebuild-plan-v4.md`（2026-09-26 迁居）：corpus 重建执行工单是在执行活工单，不属证据层；归 `dev/projects/` 工作包区。
+- `2026-09-23-rebuild-plan-v4.md` → `dev/projects/2026-09-23-corpus-rebuild-plan.md`（2026-09-26 迁居、2026-10-01 改名去 vN 后缀）：corpus 重建执行工单是在执行活工单，不属证据层；归 `dev/projects/` 工作包区。

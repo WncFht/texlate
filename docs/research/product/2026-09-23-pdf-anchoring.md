@@ -2,7 +2,7 @@
 
 > **结论**：给 PDF 做这些功能**难度不大**。选区/右键/浮条/键位四入口早已穿透 textLayer（PdfPane 是「半接线」不是盲区），唯一真缺口是「PDF 位置 → chunk seq」一条映射。三条路按 ROI 排：**C 模糊锚**（已在产线跑 copy-latex pdf 臂，升级 ~0.5-1 天，存量任务零重编全亮）→ **A SyncTeX**（~1 周，新编译任务确定性 chunk 级锚，两引擎 flag 通路现成）→ **B marked-content 编译期注锚**（3-5 天，唯一确定性句级方案，双引擎+pdf.js 已端到端实证）。**否决**：ActualText 零前端复制（pdf.js 6.3.289 抽取不消费，PR#20014 仍 open）、tagpdf 全标签（xelatex 不推荐 + 编译 2-7× 膨胀）、改产品形态做页内覆盖翻译（业界天花板实证 Moonlight 双 viewer 只有页级滚动同步，无段级协议可抄也不必抄）。
 >
-> **状态**：**已落地**——B 路 marked-content 注锚为主锚已实装（`823107dc`+`f95b47a6`，含 L2 归因闸修复），C 模糊锚升级随 UX 落地波已实装；A SyncTeX 未做（按原裁决优先级排后）。调研本体：13-agent 工作流 wf_55ea5568-3cf（3 内勘 + 5 外研 + 综合矩阵 + 4 条高风险论断对抗核验全数 confirmed）。实施细节见 `../../dev/projects/pdf-seq-anchors-impl-2026-09-23.md`
+> **状态**：**已落地**——B 路 marked-content 注锚为主锚已实装（`823107dc`+`f95b47a6`，含 L2 归因闸修复），C 模糊锚升级随 UX 落地波已实装；A SyncTeX 未做（按原裁决优先级排后）。调研本体：13-agent 工作流 wf_55ea5568-3cf（3 内勘 + 5 外研 + 综合矩阵 + 4 条高风险论断对抗核验全数 confirmed）。实施细节见 `../../dev/projects/2026-09-23-pdf-seq-anchors-impl.md`
 > **日期**：2026-09-23
 > **原始产物**：`tmp/pdf-anchoring-20260923/full-result.json`（全量结构化输出）、scratch 实证件同目录
 

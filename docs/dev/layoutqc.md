@@ -160,7 +160,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 | compile fail   | + extracted + workdir 诊断面                                                      | ~20+       |
 | fetch/前置失败 | 仅 catalog 行                                                                     | ~0         |
 
-含义：现行「全 clean 也全留」(~26MB/篇) → 条件保留后 clean 篇 ~8MB，**且版面缺陷篇自动获得完整诊断料**——这正是 rebuild-plan-v4 §2.3 P3 政策能成立的前提（13k≈104G 贴顶需此项）。
+含义：现行「全 clean 也全留」(~26MB/篇) → 条件保留后 clean 篇 ~8MB，**且版面缺陷篇自动获得完整诊断料**——这正是 `projects/2026-09-23-corpus-rebuild-plan.md` §2.3 P3 政策能成立的前提（13k≈104G 贴顶需此项）。
 
 副作用坦白：上 layoutqc 后 clean 率会**下降**（e2e_real-2 的 30 clean 里会翻出 layout sig）——缺陷一直在，现在开始量。这正是目的。
 

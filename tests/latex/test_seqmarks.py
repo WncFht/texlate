@@ -1,6 +1,6 @@
 r"""seq 注锚（B 路 marked-content）——reconstruct 五闸 + resplice 偏移/自愈 + xelatex 实证。
 
-规格锚点 = docs/dev/projects/pdf-seq-anchors-impl-2026-09-23.md §2/§5：
+规格锚点 = docs/dev/projects/2026-09-23-pdf-seq-anchors-impl.md §2/§5：
 ``[[CHUNK_n]]`` 引用点按谓词包 ``\special{pdf:code /TLXC <</MCID 50000+seq>>
 BDC}…\special{pdf:code EMC}``——xdvipdfmx 落内容流、pdf.js ``includeMarkedContent``
 透出 ``span.markedContent[id$="_mc<N>"]``。五闸（skip ctx → 对齐 env → soul 栈 →

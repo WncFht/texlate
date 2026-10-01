@@ -139,7 +139,7 @@ class _Expander:
     ) -> tuple[int, bool] | None:
         r"""引用点注锚判定——(seq, arg_zone) 或 None（保守方向：判不出=不注，丢锚不丢编译）。
 
-        谓词全貌见 docs/dev/projects/pdf-seq-anchors-impl-2026-09-23.md §2.2：
+        谓词全貌见 docs/dev/projects/2026-09-23-pdf-seq-anchors-impl.md §2.2：
         soul 栈/对齐 env/skip context/moving-arg/行间界五闸。
         ``site_cs``/``tail``/``head`` 由 ``push_ph`` 逐层解析——嵌套体
         空缘已回落 ``_ctx_chain`` 外层邻居文本，嵌套引用点同样可判。

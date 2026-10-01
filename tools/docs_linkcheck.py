@@ -60,6 +60,44 @@ def check_file(path: str, root_dir: str):
     return dead
 
 
+PAYLOAD_LEAF = {"assets", "data", "refs", "charts", "inputs"}
+
+
+def check_index(root: str):
+    """索引登记检查（MAINTENANCE §9）：每个含 .md 的目录须为索引层或有索引
+    祖先；每件 .md 的文件名须出现在本层 README 或父层 README 中。
+    返回 [(path, reason)]。"""
+    bad = []
+    readme_cache: dict[str, str | None] = {}
+
+    def readme_text(d: str) -> str | None:
+        if d not in readme_cache:
+            p = os.path.join(d, "README.md")
+            readme_cache[d] = (
+                open(p, encoding="utf-8").read() if os.path.isfile(p) else None
+            )
+        return readme_cache[d]
+
+    for dirpath, _dirs, names in os.walk(root):
+        mds = [n for n in names if n.endswith(".md")]
+        if not mds:
+            continue
+        own = readme_text(dirpath)
+        parent = readme_text(os.path.dirname(dirpath))
+        if own is None and parent is None and os.path.basename(dirpath) not in PAYLOAD_LEAF:
+            bad.append((dirpath, "含 .md 但自身与父层均无 README 索引"))
+            continue
+        for n in mds:
+            if n == "README.md":
+                continue
+            if (own and n in own) or (parent and n in parent):
+                continue
+            bad.append(
+                (os.path.join(dirpath, n), "未登记：本层与父层 README 均未提及该文件名")
+            )
+    return bad
+
+
 def main():
     root = "docs"
     args = sys.argv[1:]
@@ -70,10 +108,14 @@ def main():
         dead_total.extend((f, *d) for d in check_file(f, root))
     for f, ln, target, resolved in dead_total:
         print(f"{f}:{ln} 死链 -> {target}  （解到 {resolved}）")
+    unregistered = check_index(root)
+    for path, reason in unregistered:
+        print(f"{path}: {reason}")
     print(
-        f"\n{len(dead_total)} dead link(s) across {sum(1 for _ in iter_md(root))} files"
+        f"\n{len(dead_total)} dead link(s), {len(unregistered)} unregistered file(s)"
+        f" across {sum(1 for _ in iter_md(root))} files"
     )
-    return 1 if dead_total else 0
+    return 1 if dead_total or unregistered else 0
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # 评测套件规范 —— 评测器矩阵与分层契约
 
 > spec/ 层唯一事实源：与 `bench/`、`tests/` 代码现状对齐。语料底材（各层口径/构建管线/治理）见 `spec/corpus.md`；单点调研证据以 `research/` 档案为准。
-> **Wave-F 口径（2026-09-23 起）**：旧 `bench/py/*.py` 驱动脚本全数退役，评测器一律改写为 kernel spec（`bench/py/specs/<名>.py`），统一入口 `uv run python bench/py/bench run <spec> [k=v …]`；产出契约由 `bench/results/` 目录改为 trizone 四区（§7）。逐件映射见 `dev/archive/benches-2026-09-20.md` Wave-F 注记与 `dev/tools-runbook.md` §3.5。
+> **Wave-F 口径（2026-09-23 起）**：旧 `bench/py/*.py` 驱动脚本全数退役，评测器一律改写为 kernel spec（`bench/py/specs/<名>.py`），统一入口 `uv run python bench/py/bench run <spec> [k=v …]`；产出契约由 `bench/results/` 目录改为 trizone 四区（§7）。逐件映射见 `dev/archive/2026-09-20-benches.md` Wave-F 注记与 `dev/tools-runbook.md` §3.5。
 
 ## 1. 总览：B1–B7 评测器
 

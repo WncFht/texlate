@@ -23,17 +23,17 @@
 | 条目                                          | 内容                                                                                                                                                                                                                                                                                        | 状态   |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | `projects/ux-impl-2026-09-22/`                | 阅读器 UX 功能实现包（README=总路线图）：选区内核（cmdreg/HitCtx/Esc 栈/FloatBar/ContextMenu/句游标）、find-usages、copy-latex、sent-align、cite-translate、misc-pack、⌘-inspect 检视层；每 lane 一份实现文档，README §8 为落地终态（2026-09-23 验收绿；09-26 增补 v1.6–v1.8 与 ⌘-inspect） | 已收口 |
-| `projects/pdf-seq-anchors-impl-2026-09-23.md` | PDF seq 锚定实施计划与落地实录：B 路 marked-content 注锚为主锚、C 路 textLayer 模糊锚兜底；§7 落地验证表 + L2 归因闸回归注记                                                                                                                                                                | 已收口 |
+| `projects/2026-09-23-pdf-seq-anchors-impl.md` | PDF seq 锚定实施计划与落地实录：B 路 marked-content 注锚为主锚、C 路 textLayer 模糊锚兜底；§7 落地验证表 + L2 归因闸回归注记                                                                                                                                                                | 已收口 |
 | `projects/2026-09-23-phase4-plan.md`          | Phase-4 spec 全覆盖与清场实施计划（43-agent 普查底稿 + G 序裁决）：全部执行完毕、Wave-F 收口                                                                                                                                                                                                | 已收口 |
-| `projects/2026-09-23-rebuild-plan-v4.md`      | corpus 重建执行工单 v4（自 `research/corpus/` 迁入——活工单不属证据层）：Step 0–5 执行序、容量/磁盘审计、管线缺口清单                                                                                                                                                                        | 在执行 |
+| `projects/2026-09-23-corpus-rebuild-plan.md`  | corpus 重建执行工单终案（自 `research/corpus/` 迁入——活工单不属证据层）：Step 0–5 执行序、容量/磁盘审计、管线缺口清单                                                                                                                                                                       | 在执行 |
 
 ## `archive/` — 封存件
 
 被取代的方案与固化普查：不删（裁决史与取证价值），但移出活文档面。
 
-| 条目                             | 内容                                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `archive/bench-redesign-plan.md` | bench 重做 v1 方案（thin-runner + 薄门面）：未实施即被 trizone-ledger v2 取代（`spec/bench-trizone.md`），留档作评审史    |
-| `archive/benches-2026-09-20.md`  | bench/ 全量普查表（2026-09-20 时点）：每个 bench 是什么/怎么跑/成本/状态 + Wave-F 删除终态注记——Wave-F 前后对照的唯一底账 |
+| 条目                                        | 内容                                                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `archive/2026-09-22-bench-redesign-plan.md` | bench 重做 v1 方案（thin-runner + 薄门面）：未实施即被 trizone-ledger v2 取代（`spec/bench-trizone.md`），留档作评审史    |
+| `archive/2026-09-20-benches.md`             | bench/ 全量普查表（2026-09-20 时点）：每个 bench 是什么/怎么跑/成本/状态 + Wave-F 删除终态注记——Wave-F 前后对照的唯一底账 |
 
 上手序：建仓环境（`uv sync` + 格式化工具链，见 `repository.md`）→ 文档维护规则 `../MAINTENANCE.md` → 改动对应层跑对应级验证（`bench-harness.md` §1）。

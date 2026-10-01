@@ -2,7 +2,7 @@ r"""``latex.reconstruct.mark`` — zh.pdf seq 注锚机械（``reconstruct`` god
 
 ``/TLXC <</MCID 50000+seq>> BDC … EMC`` marked-content 锚的 token
 工厂 + 五闸谓词面（soul 栈/对齐 env/skip context/moving-arg/行间界，
-全貌 docs/dev/projects/pdf-seq-anchors-impl-2026-09-23.md §2.2）：
+全貌 docs/dev/projects/2026-09-23-pdf-seq-anchors-impl.md §2.2）：
 ``_mark_open``/``_MARK_CLOSE`` 造 token，``_pending_arg``/``_in_align_preamble``/
 ``in_env_args``/``_open_cs``/``_piece_site_map`` 供 ``_Expander._mark_seq``
 判闸，``_wrap_seq_mark`` 宏参扫描区三臂处置，``seq_mark_issues``/
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from texlate.latex.model import ScanResult
 
 # ---------------------------------------------------------------- seq 锚标记
-#: zh.pdf seq 注锚（docs/dev/projects/pdf-seq-anchors-impl-2026-09-23.md）：xdvipdfmx
+#: zh.pdf seq 注锚（docs/dev/projects/2026-09-23-pdf-seq-anchors-impl.md）：xdvipdfmx
 #: 血统引擎（xelatex/tectonic）把 ``\special{pdf:code ...}`` 原样落内容流；
 #: pdf.js ``includeMarkedContent`` 透出 ``{tag,id}`` → textLayer 产
 #: ``span.markedContent[id$="_mc<N>"]``——``N - SEQ_MARK_BASE`` 即 chunk

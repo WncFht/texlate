@@ -285,7 +285,7 @@ IA 通道密度分派：item 内 wanted≥12 走整 tar `.part` 下载 + 单遍�
 - **付费字节进场 = 字节普查非 manifest 导入**：扫一切字节承载目录三态对账——有字节无账→quarantine 导入算 sha；有账无字节→tombstone 事件；有目录缺资产→按 meta 声明逐件核。普查窗内的在飞写以 delta-pass 收尾（先冻结快照，再收普查后落盘的行）。
 - **跨卷只许 reflink/copy+verify**:EXDEV 下 hardlink 必败，「跨卷 hardlink 农场」不存在。
 - **纵深防御**:.gitignore/formatter/lint 对旧数据面路径的排除行永久保留，防意外回潮入库。
-- **测试零兼容**：合成 fixture 直接造 events/runs/ledger 树，不造旧式投影适配器；docs/dev/archive/benches-2026-09-20.md 名册由 spec docstring + `bench spec list` 生成表取代。
+- **测试零兼容**：合成 fixture 直接造 events/runs/ledger 树，不造旧式投影适配器；docs/dev/archive/2026-09-20-benches.md 名册由 spec docstring + `bench spec list` 生成表取代。
 
 #### 3.10.10 开放问题
 
@@ -449,7 +449,7 @@ spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分
 | R16 | torn tail/胶水行丢账                          | emit() 唯一写径 + 开档尾检截换行 + 水位=末换行 offset+ 读侧容错+compact 原地 truncate 禁 replace                                  |
 | R17 | xlat-state 丢=resume 变全量重烧               | work/ 必备层+prune 豁免+lake/cache 全局段缓存                                                                                     |
 | R18 | 全局缓存新毒源                                | file_cache_key 全维 + 只复用 done+ 写前 verify;partial 毒前科注释固化                                                             |
-| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证，十年容量无虞                                                       |
+| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证，十年容量无虞                                                   |
 | R20 | errors[0].cat='upstream' 语义漂移             | schema 注释固化三用面；needs accept 用上游自声明口径                                                                              |
 | R21 | **锁 inode 脚枪**（删目重建=新 inode=双写者） | locks 永不 unlink；生命周期操作锁内做；LOCK_NB fail-fast(errsweep 先例）                                                          |
 | R22 | **detach 丢锁**(Popen close_fds 放掉父锁）    | detach 协议：child 先 flock 再向 parent 管道回执；契约测试"连发两次第二次必须拒"                                                  |
