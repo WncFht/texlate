@@ -20,8 +20,10 @@ LIMIT = 80
 
 # 块标量 (|/>) 与多行引号标量内部，行首 # 是字面内容而非注释——如
 # description 里嵌的 python 片段。只统计结构性行上的注释。
-BLOCK_OPEN = re.compile(r"(?:^|[\s\-])[^\s#][^:]*:\s*[|>][+-]?\d?\s*(?:#.*)?$")
-LIST_BLOCK = re.compile(r"^\s*-\s*[|>][+-]?\d?\s*(?:#.*)?$")
+# BLOCK_OPEN 须兼容任意缩进的 key 与 `- key: |` 列映射形态（re.match
+# 锚行首，键前的空白得在模式里吃掉）；裸 `- |` 归 LIST_BLOCK。
+BLOCK_OPEN = re.compile(r"^\s*(?:-\s+)?[^\s#][^:]*:\s*[|>][+\-\d]{0,2}\s*(?:#.*)?$")
+LIST_BLOCK = re.compile(r"^\s*-\s*[|>][+\-\d]{0,2}\s*(?:#.*)?$")
 QUOTE_VAL = re.compile(r"[^\s#][^:]*:\s*([\"'])(.*)$")
 
 
