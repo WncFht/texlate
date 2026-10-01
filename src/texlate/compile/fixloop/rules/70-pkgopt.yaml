@@ -11,7 +11,7 @@ version: 1
 rules:
   - id: option_clash_merge
     mechanisms: [W48]
-    description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
+    description: "Option clash: 同包两次 \\usepackage → 合并选项到首处，注释后处"
     phase: loop
     order: 120
     when: { category: option_clash, payload_required: true }
@@ -35,7 +35,7 @@ rules:
   # 驱动词在场时绝不向上游传 (passopts 会把 dvips 注进 cls 装载)。
   - id: option_clash_loadopt_strip
     mechanisms: [W48]
-    description: "option_clash 且 doc 侧选项含驱动词 (dvips 系) → 剥整括号, 类端配置胜出"
+    description: "option_clash 且 doc 侧选项含驱动词 (dvips 系) → 剥整括号，类端配置胜出"
     phase: loop
     order: 121
     when: { category: option_clash, payload_required: true }
@@ -63,12 +63,12 @@ rules:
 
   # 非驱动选项形态: doc 要 [authoryear] 但 cls shim 先载 natbib[]
   # (astro-ph/0501556, aa.cls shim 内置 \RequirePackage{natbib}) ——
-  # 把 doc 选项经 \PassOptionsToPackage 挂到 documentclass 之前, 让首次
-  # 装载 (无论发生在哪个文件) 就带上 doc 意图, doc 侧括号剥除 → 裸请求
-  # ⊆ 实载选项 → 静默收敛, 意图零损失。
+  # 把 doc 选项经 \PassOptionsToPackage 挂到 documentclass 之前，让首次
+  # 装载 (无论发生在哪个文件) 就带上 doc 意图，doc 侧括号剥除 → 裸请求
+  # ⊆ 实载选项 → 静默收敛，意图零损失。
   - id: option_clash_passopts
     mechanisms: [W48]
-    description: "option_clash 非驱动选项 → \\PassOptionsToPackage 挂 documentclass 前, doc 括号剥除"
+    description: "option_clash 非驱动选项 → \\PassOptionsToPackage 挂 documentclass 前，doc 括号剥除"
     phase: loop
     order: 122
     when: { category: option_clash, payload_required: true }
@@ -97,7 +97,7 @@ rules:
   # pkg_order 首规则 (2308.12712): bundled 老 acmart.cls
   # \RequirePackage{hyperxmp} 先于 hyperref, 新 hyperxmp v5+ 硬检
   # \@ifpackageloaded 报错。两装载行夹 \\let 三明治 (存 pre-hyperref
-  # 脚注记号) —— 不能互换位置, 只能把 hyperxmp 整行下沉到 hyperref 之后。
+  # 脚注记号) —— 不能互换位置，只能把 hyperxmp 整行下沉到 hyperref 之后。
   - id: pkg_order_hyperxmp_relocate
     description: "hyperxmp 先于 hyperref 装载 → hyperxmp 整行下沉到 hyperref 载点后"
     phase: loop
@@ -112,7 +112,7 @@ rules:
               pattern: "(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperxmp\\})([\\s\\S]*?)(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperref\\})",
               repl: '\g<2>\g<3>\n\g<1>',
             }
-    risk: low # 纯重排, 中间行 (\\let 三明治) 原位保留仍在 hyperref 之前
+    risk: low # 纯重排，中间行 (\\let 三明治) 原位保留仍在 hyperref 之前
     known_gap: "仅 hyperxmp↔hyperref 序对; hyperref 装载不在同文件/从未装载 → applied=False"
     engines:
       xelatex: { mode: native }
@@ -130,11 +130,11 @@ rules:
   # 1907.00204/2112.00142): breakurl v1.40 在 \ifpdf=false 支
   # \@ifpackageloaded{hyperref} 硬检 —— 稿把 breakurl 排在 hyperref 前
   # (usenix.sty:41<:44) 或根本不载 hyperref → PackageError+\endinput;
-  # xelatex \ifpdf 恒 false 必踩。断臂裁决 = ifpdf 钩, 非 strip 亦非
+  # xelatex \ifpdf 恒 false 必踩。断臂裁决 = ifpdf 钩，非 strip 亦非
   # hyperref 前移: 剥装载点 orphan \burl/\burlalt 须另配 polyfill;
   # hyperref 前移则激活 DVI 支 \headerps@out shipout 钩 (1909.05039
-  # 另一已知 breakurl 病理, cs_table headerps@out→strip_pkg 正为修它)
-  # —— 唯 \ifpdf→\iftrue 使走内建 pdf 降级支 (\burl≡\url 同义,
+  # 另一已知 breakurl 病理，cs_table headerps@out→strip_pkg 正为修它)
+  # —— 唯 \ifpdf→\iftrue 使走内建 pdf 降级支 (\burl≡\url 同义，
   # \endinput 在依赖检之前) 双病俱免。snippet 与
   # normalize.XETEX_COMPATIBILITY:98-103 逐字同源 (fix 臂注入面实证),
   # 本规则补 prologue=False/未注入边缘面。
@@ -155,7 +155,7 @@ rules:
               flags: [M],
               repl: '\\AddToHook{package/breakurl/before}{\\RequirePackage{xkeyval,ifpdf}\\let\\TeXlateSavedIfpdf\\ifpdf\\let\\ifpdf\\iftrue}\n\\AddToHook{package/breakurl/after}{\\let\\ifpdf\\TeXlateSavedIfpdf} % fixloop: breakurl ifpdf guard\n\g<0>',
             }
-    risk: low # hook 仅罩 breakurl 装载段: before 存真 \ifpdf→\iftrue, after 还原; breakurl 不载则 hook 空挂
+    risk: low # hook 仅罩 breakurl 装载段：before 存真 \ifpdf→\iftrue, after 还原; breakurl 不载则 hook 空挂
     known_gap: "无 \\documentclass 锚的碎片档 → applied=False; cls 在 \\documentclass 内 \\RequirePackage{breakurl} 仍可达 (hook 先于类载入注册)"
     engines:
       xelatex: { mode: native }
@@ -174,7 +174,7 @@ rules:
     phase: loop
     order: 130
     when: { category: minted_froz }
-    # v3 styledef/highlight 再生走 latexminted 可执行体, v2 走 pygmentize——
+    # v3 styledef/highlight 再生走 latexminted 可执行体，v2 走 pygmentize——
     # 任一在场即可放 rewrite+flag (缺另一工具时再生失败也不劣化: 错同族复发)。
     condition:
       any:
@@ -211,7 +211,7 @@ rules:
     mechanisms: [W40, B05]
     description: "minted v3 装包 × 工程 v2 frozencache → \\usepackage{minted}→{minted2} 装载点改写"
     phase: loop
-    order: 135 # frozencache 剥选项(130)先试; 它放弃/复发才轮到
+    order: 135 # frozencache 剥选项 (130) 先试; 它放弃/复发才轮到
     when: { category: minted_froz }
     condition:
       engine_in: [xelatex]
@@ -233,7 +233,7 @@ rules:
     risk: medium
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: skip } # tectonic 侧 minted 版本由 bundle 管, 无此错配
+      tectonic: { mode: skip } # tectonic 侧 minted 版本由 bundle 管，无此错配
     provenance:
       - {
           corpus: "—",
@@ -243,13 +243,13 @@ rules:
     source_ref: "docs/spec/compile.md L257, L270"
 
   # fixable-data 裁定 (2211.13028/2308.12612, 1d 已批): doc 强指 dvi/pdf
-  # 驱动给 hyperref 家族, xelatex 下必炸 "Wrong driver option"/
+  # 驱动给 hyperref 家族，xelatex 下必炸 "Wrong driver option"/
   # "Wrong hyperref driver"。剥除一切选项括号内的驱动词让 hyperref/
   # graphicx 自侦 hxetex —— docclass 全局选项同样覆盖 (剥离对 xetex
   # 恒正确: 这些驱动在 XeTeX 下本来就走不通)。hypdvips 整包换 hyperref
   # (它只为 dvips 路由存在; doc 若另载 hyperref, 二次加载无害)。
   - id: hyperref_driver_neutralize
-    description: "hyperref 家族驱动选项 (pdftex/dvips/…) + hypdvips → 剥词/换包, 交自侦"
+    description: "hyperref 家族驱动选项 (pdftex/dvips/…) + hypdvips → 剥词/换包，交自侦"
     phase: loop
     order: 181 # typein_neutralize(180) 之后; early_eof/hyperref_driver 双签兜底
     when:
@@ -266,7 +266,7 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
-          # hypdvips → hyperref (选项面保留, 多为 hyp* 公共键)
+          # hypdvips → hyperref (选项面保留，多为 hyp* 公共键)
           - {
               pattern: "(\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?)\\{hypdvips\\}",
               repl: "\\g<1>{hyperref}",
@@ -301,13 +301,13 @@ rules:
             }
           # \\def/\\newcommand 族 \\<cs>driver<cs>{<drv>} 间接指派 → xetex
           # (kaist-ucs.cls \\def 形 + webofc.cls:154 \\newcommand 形;
-          # \\ifpdf/\\if@dvips 条件选支, 括号面零驱动词故旧闸够不着;
+          # \\ifpdf/\\if@dvips 条件选支，括号面零驱动词故旧闸够不着;
           # 全支同覆写——xetex 家族下任一支命中都须是 xetex)
           - {
               pattern: "(\\\\(?:[gex]?def|(?:(?:new|renew|provide)command|DeclareRobustCommand)\\*?)\\s*\\{?\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\}?\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
               repl: "\\g<1>xetex}",
             }
-          # 选项括号内 \\if* 双支裸驱动词条件 → xetex, (webofc.cls:178 形:
+          # 选项括号内 \\if* 双支裸驱动词条件 → xetex, (webofc.cls:178 形：
           # [\\ifnum\\pdfoutput=\\z@ dvips,\\else pdftex,\\fi unicode,...] —
           # 驱动词无逗号前驱故括号三套够不着; `[^\\]]` 锚未闭合 [ 段使
           # bracket 外同形排版条件够不着; 支为非驱动键 (bookmarks/colorlinks/
@@ -338,14 +338,14 @@ rules:
     mechanisms: [W67]
     description: "\\documentclass{X}[opts] 后置选项畸形 → 孤儿 [opts] 行归位 \\documentclass[opts]{X}"
     phase: loop
-    order: 183 # revtex4_legacy_class_rewrite(182) 之后, undefined_cs_guess(900) 之前
+    order: 183 # revtex4_legacy_class_rewrite(182) 之后，undefined_cs_guess(900) 之前
     when:
       any:
         - { category: syntax }
         - { category: undefined_cs }
     condition:
       # 孤儿选项行: segmenter 把 src 同行 `\documentclass{X}[opts]` 的
-      # [opts] 段拆成独立块, splice 落 preamble 孤行 → Missing \begin{document}。
+      # [opts] 段拆成独立块，splice 落 preamble 孤行 → Missing \begin{document}。
       source_contains: "(?m)^[ \\t]*\\[[0-9a-zA-Z,=.\\- ]+\\][ \\t]*$"
     action:
       kind: regex_rewrite
@@ -365,7 +365,7 @@ rules:
               repl: "\\g<1>[\\g<4>]\\g<2>\\g<3>",
               flags: [MULTILINE],
             }
-    risk: low # 选项归位是源作者本意; 仅 preamble 内孤行, 正文 [x] 行不达
+    risk: low # 选项归位是源作者本意; 仅 preamble 内孤行，正文 [x] 行不达
     known_gap: "多孤儿行只归位最近一条 (per-docclass 单匹配); 选项序改变 (o 尾插) 与源序不同但语义同"
     engines:
       xelatex: { mode: native }
@@ -378,7 +378,7 @@ rules:
     stats: { fires: 4, rescued_cells: 3, status: active }
     source_ref: "1206.2111 zh l.41 孤儿 [12pt] 在 inject 块后 preamble 内; src 原形 \\documentclass{article}[12pt] 同行后置"
 
-  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): 老 pstricks.sty (稿自带,
+  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): 老 pstricks.sty (稿自带，
   # elsart 时代捆绑) \PassOptionsToPackage{override}{xcolor} —— 'override'
   # 选项现代 xcolor 已删 (2004 起并入 dvipsnames 语义: dvips 色名覆盖
   # 标准集)。err 落 early_eof 桶 (0707.4206 实读: xcolor.sty:265
@@ -412,7 +412,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "loop1-dedup 0707.4206 (elsart.cls 工程, vendored_fetch 后残面)",
+          corpus: "loop1-dedup 0707.4206 (elsart.cls 工程，vendored_fetch 后残面)",
           error: "xcolor.sty:265 LaTeX Error: Unknown option 'override' for package xcolor",
         }
     stats: { fires: 8, rescued_cells: 1, status: active }
@@ -425,7 +425,7 @@ rules:
   # 枚名换等价现代件: usepackage/RequirePackage 组内 pstcol→pstricks,
   # pstricks 默认 \\RequirePackage{xcolor} 且 \\DeclareOption* 把选项续传
   # xcolor——pstcol 时代传 color 的选项 (usenames/dvipsnames) 恰是 xcolor
-  # 原生面, 语义严格不缩。masked 面只改活码 (注释内假装载不动)。
+  # 原生面，语义严格不缩。masked 面只改活码 (注释内假装载不动)。
   - id: pstcol_pstricks_rewrite
     description: "pstcol 强压 noxcolor/color 路径 → 组内 pstcol 枚名换 pstricks (xcolor 自动续载)"
     phase: loop
@@ -460,12 +460,12 @@ rules:
   # 2026-09-19 geom 车道 (stagerun-loop2 1206.0291 实读): option_clash 三规
   # (merge 120 / loadopt_strip 121 / passopts 122) 够不到的残留面 ——
   # vendored mn2e stub \LoadClassWithOptions{mnras} → mnras.cls:117
-  # \usepackage[a4paper]{geometry} 先载, doc 要 [total={17.8cm,24.0cm},
-  # centering] 撞。passopts 需 \n\documentclass 锚点把 doc 选项注进首载,
+  # \usepackage[a4paper]{geometry} 先载，doc 要 [total={17.8cm,24.0cm},
+  # centering] 撞。passopts 需 \n\documentclass 锚点把 doc 选项注进首载，
   # 本篇 documentclass 居文件 0 字节 (其 known_gap 自承) 且 cls 链不经
   # doc 侧文本 —— \geometry{} 是 geometry 自带运行时 keyval 面 (与装载
-  # 选项同表), 括号整组挪到载点后: 裸载 ⊆ 实载选项恒静默收敛, 意图经
-  # \geometry 零损失送达; 不依赖 documentclass 位置/存在, \input 拆分
+  # 选项同表), 括号整组挪到载点后: 裸载 ⊆ 实载选项恒静默收敛，意图经
+  # \geometry 零损失送达; 不依赖 documentclass 位置/存在，\input 拆分
   # preamble、cls/sty 内载点同覆盖。masked 面只改活码。
   - id: option_clash_geometry_hoist
     mechanisms: [W48]
@@ -486,25 +486,25 @@ rules:
               repl: '\g<1>\g<3>\n\\geometry{\g<2>}',
               match_surface: "masked",
             }
-    risk: low # \geometry 是 geometry 自带运行时设置面; 裸载 ⊆ 实载恒静默, 选项意图续传
-    known_gap: "组载 {geometry,other} 共享选项改挂 \\geometry{} 后只达 geometry——他包原受这份选项的意图收窄 (罕形); driver/truedimen/mag 等 load-only 键在 \\geometry 内无效 (warning 级, xetex 下本就错向)"
+    risk: low # \geometry 是 geometry 自带运行时设置面; 裸载 ⊆ 实载恒静默，选项意图续传
+    known_gap: "组载 {geometry,other} 共享选项改挂 \\geometry{} 后只达 geometry——他包原受这份选项的意图收窄 (罕形); driver/truedimen/mag 等 load-only 键在 \\geometry 内无效 (warning 级，xetex 下本就错向)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "1206.0291 (stagerun-loop2-2026-09-18)",
-          error: "LaTeX Error: Option clash for package geometry (mnras.cls:117 [a4paper] 先载, doc [total={17.8cm,24.0cm},centering] 撞)",
+          error: "LaTeX Error: Option clash for package geometry (mnras.cls:117 [a4paper] 先载，doc [total={17.8cm,24.0cm},centering] 撞)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "geomlane; vendor/files/mnras.cls:117 + fixloop.jsonl error_pay option_clash=geometry 实读"
 
-  # 2026-09-19 floatopt 车道 (failmine 提名, stagerun-loop1-2026-09-16 五格
+  # 2026-09-19 floatopt 车道 (failmine 提名，stagerun-loop1-2026-09-16 五格
   # 实读): float_opt|H —— 稿用 float 宏包专属锚 H (kernel \@xfloat 只认
   # h/t/b/p/!) 而 preamble 未载 float → "Unknown float option `H'"。五格
   # 形态: cond-mat/0408234 [H]; 0806.4088 [!Ht]; 1608.02624 [Hb]/[H!];
-  # astro-ph/0307059 [H!tbp]; 1003.5014 [H] —— H 与 !/小写混排同炸,
-  # 括号内 H 字符任意位都算使用证。根修即补包 (语义零改写, 非 [H]→[htbp]
+  # astro-ph/0307059 [H!tbp]; 1003.5014 [H] —— H 与 !/小写混排同炸，
+  # 括号内 H 字符任意位都算使用证。根修即补包 (语义零改写，非 [H]→[htbp]
   # 降级)。source_contains 单 regex 组合双断言: \A(?!.*LOAD) 全程无 float
   # 装载点 (usepackage/RequirePackage 名单元素级 \bfloat\b + \input
   # float.sty 裸载形), (?=.*USAGE) 存在含 H 的浮体选项括号——ctx+source
@@ -518,7 +518,7 @@ rules:
     condition:
       ctx_suggests: "Unknown float option [`']H'"
       # 2.09 (\documentstyle) 无 \\usepackage——注入即非法; docclass 断言并入
-      # source_contains (main_head 仅 3k 窗, 0408234 注释堆 70 行 docclass@3280
+      # source_contains (main_head 仅 3k 窗，0408234 注释堆 70 行 docclass@3280
       # 漏窗实证——fixloop6 replay 未点火)。USAGE 双臂: 字面括号 H 或
       # cls 级 \def\fps@<env>{...H} 默认 spec (1107.0117 PoS.cls:806 实证——
       # no-opt 路由 \csname fps@env\endcsname 展开得 Htbp 字串同样炸 H)
@@ -534,7 +534,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # float 只补锚定义; 已载稿被 LOAD 闸挡; 真双载 LaTeX 静默收敛
-    known_gap: "LOAD 断言走 raw 源面: 注释内/verbatim 假装载点视作已载 → 保守不点火 (漏救非误改); .def/.clo/.ins 等 tex_files 扩展名外的装载不可见 → 误注无害双载; [H] 纯宏展开生成 (源面无字面括号 H) → USAGE 断言拒 (病理形)"
+    known_gap: "LOAD 断言走 raw 源面：注释内/verbatim 假装载点视作已载 → 保守不点火 (漏救非误改); .def/.clo/.ins 等 tex_files 扩展名外的装载不可见 → 误注无害双载; [H] 纯宏展开生成 (源面无字面括号 H) → USAGE 断言拒 (病理形)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -549,15 +549,15 @@ rules:
   # 2026-09-20 pairbun 车道 (singtail bundles rank-5 pair-2):
   # cls 级 cs 值浮体 opt —— cimento.cls \newenvironment{table}[1][\fps@table]
   # (\def\fps@table{tb}) 经 \@xfloat \@onelevel@sanitize 展开成 cs 名字符
-  # → \ /f/s/@/a/l/e 每字一报 Unknown float option (0712.0315 单格 21 错,
+  # → \ /f/s/@/a/l/e 每字一报 Unknown float option (0712.0315 单格 21 错，
   # float_opt|\ + f/s/@/a/l/e 七签同族)。USAGE 站三形: env 默认参 /
   # \@float 族直调 / \begin{env}[\cs] 显式 —— [\cs] 与可解 \def\cs{spec}
   # (纯 !htbpH 字符) 共存才动; builtin 多重定义/非 spec 值/cs 不可解保守
-  # 拒改, 剥离后 spec 含 H 自然落 float_opt_h_pkgload(187) 下游。
+  # 拒改，剥离后 spec 含 H 自然落 float_opt_h_pkgload(187) 下游。
   - id: float_opt_cs_expand
     description: "float_opt cs-值 opt → \\def 字面 spec 内联 (sanitize cs 名逐字炸)"
     phase: loop
-    order: 187.5 # float_opt_h_pkgload(187) 同簇后位——cs 先内联, H 残留给它收
+    order: 187.5 # float_opt_h_pkgload(187) 同簇后位——cs 先内联，H 残留给它收
     when: { category: float_opt, payload_required: true }
     condition:
       source_contains: "\\[\\s*\\\\[A-Za-z@]+\\s*\\]" # [\\cs] opt 站位在场
@@ -587,7 +587,7 @@ rules:
   # 双炸: 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。选项只调
   # 末页栏平衡美学 (保 lastbox 参与 flush), 剥除即上游删项本意、语义零损失。
   # ctx+source 双闸 AND 限定此机理才动; 括号/PassOptions 首参逗号成员级匹配
-  # (xkeeplastbox/keeplastboxfoo 不沾, {a={x,keeplastbox}} 嵌套值不剥)。
+  # (xkeeplastbox/keeplastboxfoo 不沾，{a={x,keeplastbox}} 嵌套值不剥)。
   - id: flushend_keeplastbox_opt_strip
     description: "flushend 已删选项 keeplastbox → usepackage/PassOptions 成员级剥除"
     phase: loop
@@ -641,8 +641,8 @@ rules:
               repl: "\\g<1>}\\g<2>",
               match_surface: "masked",
             }
-    risk: low # 死选项剥除; 选项本就只调栏平衡美学, 剥后行为即上游删项本意
-    known_gap: "组载 {flushend,other} 共享括号内 keeplastbox 同剥——他包若有同名合法键意图收窄 (flushend 专属名, 无实读例); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参内嵌套 brace 值 (如 {a={x,y},keeplastbox}) [^}] 越不过内层 → 漏剥 (罕形); verbatim 内假装载 masked 面不沾"
+    risk: low # 死选项剥除; 选项本就只调栏平衡美学，剥后行为即上游删项本意
+    known_gap: "组载 {flushend,other} 共享括号内 keeplastbox 同剥——他包若有同名合法键意图收窄 (flushend 专属名，无实读例); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参内嵌套 brace 值 (如 {a={x,y},keeplastbox}) [^}] 越不过内层 → 漏剥 (罕形); verbatim 内假装载 masked 面不沾"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -654,15 +654,15 @@ rules:
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "failmine2 flushend lane; corpus 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"
 
-  # 2026-09-20 optfix 车道 (singlesweep xypic-curve-ext 机理, 2607.14648
+  # 2026-09-20 optfix 车道 (singlesweep xypic-curve-ext 机理，2607.14648
   # zh+base 双格): Xy-pic ``<ext> extension/feature not loaded`` ——
-  # 稿群载 ``\\usepackage{amsmath,...,xypic}`` 未开扩展, ``\\ar@/_1pc/[rr]``
+  # 稿群载 ``\\usepackage{amsmath,...,xypic}`` 未开扩展，``\\ar@/_1pc/[rr]``
   # 等钩形炸 "only available when curve extension loaded" (file-line 归
   # other)。``[curve]{xypic}`` 选项形加不上: 群载选项全包共享、元素不可
   # 拆出独载 (per-pkg 选项在 LaTeX 名单语法下无解)。``\\xyoption{<ext>}``
   # 是 xy.tex:1944 原生扩展请求宏 (``\\xyinputorelse@{xy<ext>}`` →
   # ``\\input{xy<ext>.tex}``) —— xy.sty ``\\DeclareOption*`` catch-all
-  # 落的也是同一通路, 装载点后插调用即官方选项语义等效。builtin 从
+  # 落的也是同一通路，装载点后插调用即官方选项语义等效。builtin 从
   # err_head∪log 抽扩展名 (curve/arrow + matrix/poly/arc 双句式),
   # 首个 live ``{..,xy|xypic,..}`` 装载点后插 ``\\xyoption{<ext>}``,
   # live 同名调用幂等。
@@ -683,7 +683,7 @@ rules:
       function: xy_option_load
       params:
         exts: [.tex, .sty, .cls]
-    risk: low # \\xyoption 是原生扩展请求宏, 与官方 [curve] 选项同通路
+    risk: low # \\xyoption 是原生扩展请求宏，与官方 [curve] 选项同通路
     known_gap: "裸 \\input{xy.sty}/\\xypic 直载面未覆盖 (无名单装载点可挂); '<driver> not loaded' (\\xybug@ 驱动面) 句式未抽; 扩展名不在 err/log 抽出集 → applied=False"
     engines:
       xelatex: { mode: native }
@@ -699,12 +699,12 @@ rules:
   # 2026-09-20 unkopt 车道 (failmine5, stagerun-overnite-2026-09-20 两格实读):
   # ucs v2.4 utf8 引擎下自弃 (sty:19-23 ``\ifx\Umathchar\undefined\else ...
   # \expandafter\endinput`` —— \DeclareOption*/\ProcessOptions* @sty:183 永远
-  # 到不了, 任何选项都报 unknown; mathletters 是 ucs 专属 unicode-option,
-  # pdftex 语义=数学段 Unicode 字母映射, xelatex 下整包弃权故剥除零语义差)。
+  # 到不了，任何选项都报 unknown; mathletters 是 ucs 专属 unicode-option,
+  # pdftex 语义=数学段 Unicode 字母映射，xelatex 下整包弃权故剥除零语义差)。
   # 两格 zh 炸 main.tex 行内 ``Unknown option `mathletters' for package `ucs'``,
   # err 落 other 桶 (2508.04292 19err errors>3 / 2603.08693 driver_fatal 三桶
   # 同挂同 keeplastbox 先例)。ctx+source 双闸 AND; 成员级匹配 (mathlettersx/
-  # xmathletters 不沾); ucs 组外同名键不剥 (mathletters 为 ucs 专属名,
+  # xmathletters 不沾); ucs 组外同名键不剥 (mathletters 为 ucs 专属名，
   # 他包无此键; AAS mathletters 环境同名不同位——那是环境不是选项)。
   - id: ucs_mathletters_opt_strip
     description: "ucs utf8 引擎自弃包使 mathletters 选项无消费 → usepackage/PassOptions 成员级剥除"
@@ -759,8 +759,8 @@ rules:
               repl: "\\g<1>}\\g<2>",
               match_surface: "masked",
             }
-    risk: low # 死选项剥除; ucs 在 utf8 引擎整体自弃, 选项本就不可达
-    known_gap: "ucs 其余选项 (postscript/autoload/hyperref 等) 同机理未列 —— 每选项独立臂是库内惯例, 新签再现时扩; 组载 {ucs,other} 共享括号内 mathletters 同剥 (他包无此专属键, 语义零损); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参嵌套 brace 值罕形漏剥; verbatim 内假装载 masked 面不沾"
+    risk: low # 死选项剥除; ucs 在 utf8 引擎整体自弃，选项本就不可达
+    known_gap: "ucs 其余选项 (postscript/autoload/hyperref 等) 同机理未列 —— 每选项独立臂是库内惯例，新签再现时扩; 组载 {ucs,other} 共享括号内 mathletters 同剥 (他包无此专属键，语义零损); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参嵌套 brace 值罕形漏剥; verbatim 内假装载 masked 面不沾"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -774,13 +774,13 @@ rules:
 
   # 2026-09-20 unkopt 车道 (failmine5, soak-2026-09-18 2609.20764 实读):
   # bxcjkjatype (BX CJK jatype, texlive-langjapanese 有真件 —— install_file
-  # 先装上, vendored_fetch/legacy_pkg_shim 的 missing_file 通道永远够不到)
+  # 先装上，vendored_fetch/legacy_pkg_shim 的 missing_file 通道永远够不到)
   # 是 pdfTeX-only 包: sty:45 ``\bxjy@error{The engine in use is not
   # supported}{Only pdfTeX engine is supported.}\Package loading is aborted``
   # 在 \ProcessOptions 前抛 → ``Unknown option `whole' for package
-  # `bxcjkjatype'`` 连环。包唯一职能是 pdfLaTeX 下无 CJK 包排日文, xelatex
+  # `bxcjkjatype'`` 连环。包唯一职能是 pdfLaTeX 下无 CJK 包排日文，xelatex
   # 下恒死; 该格 doc 已有 inject 注入的 xeCJK (``% texlate: adapted legacy
-  # CJK``), 正文裸 CJK 字符 xeCJK 直接排版, 无任何 bxcjkjatype 专属 cs 调用。
+  # CJK``), 正文裸 CJK 字符 xeCJK 直接排版，无任何 bxcjkjatype 专属 cs 调用。
   # 修 = 装载行注释中和 (microtype_lig_off 同式): 引擎不可达包注释即其
   # 自身语义; masked 面挡 verbatim/已注释行。PassOptionsToPackage 指向
   # 未载包是惰性 no-op 故不动; documentclass 全局位不在 per-pkg 面。
@@ -813,7 +813,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # pdfTeX-only 包在 xelatex 恒自爆; CJK 排版 xeCJK/原生 Unicode 担
-    known_gap: "组载 {bxcjkjatype,other} 形未收 (花括号内成员级剥会留死包引用, 需另一条形未见实证); doc 若调 \\Ja 系专属 cs 会前进 undefined_cs → cs_targeted_fix (该格无调用实读); PassOptionsToPackage{whole}{bxcjkjatype} 惰性残存 (不报错); [whole] 经 \\PassOptionsToPackage 与 \\usepackage{bxcjkjatype} 两文件分工形 —— 装载行注释后 PassOptions 成 no-op, 覆盖"
+    known_gap: "组载 {bxcjkjatype,other} 形未收 (花括号内成员级剥会留死包引用，需另一条形未见实证); doc 若调 \\Ja 系专属 cs 会前进 undefined_cs → cs_targeted_fix (该格无调用实读); PassOptionsToPackage{whole}{bxcjkjatype} 惰性残存 (不报错); [whole] 经 \\PassOptionsToPackage 与 \\usepackage{bxcjkjatype} 两文件分工形 —— 装载行注释后 PassOptions 成 no-op, 覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -826,7 +826,7 @@ rules:
     source_ref: "tmp/lane-failmine5/buckets.json; bxcjkjatype.sty:45 引擎自爆 + 实格 MarkovPerco.log 连环错实读"
 
   # 2026-09-20 singbun 车道 (gapmine cluster-3, 0712.0823): mncite.sty 全
-  # 位缺席 (CTAN/texlive 皆无, install_file/filemap 永 miss) —— MNRAS 期
+  # 位缺席 (CTAN/texlive 皆无，install_file/filemap 永 miss) —— MNRAS 期
   # 作者随稿宏包。该格 \documentclass[useAMS,usenatbib]{mn2e} → mn2e 存根
   # 转 mnras.cls:1342 \usepackage[authoryear]{natbib}, 全稿仅 \citep×38/
   # \citet×2 皆 natbib 原生。修 = 装载行注释中和 (bxcjkjatype_engine_retire
@@ -863,11 +863,11 @@ rules:
     source_ref: "tmp/lane-gapmine/census.md cluster-3; mnras.cls:1342 usenatbib→natbib; RiceText.tex:30 docclass opts 实读"
 
   # 2026-09-20 singbun 车道 (failmine6 brace-cascade, 2602.09664): cite.sty
-  # 与 natbib 并载恒炸 —— cite 的 \\cite 调 \\@citex[#1]#2 二参形, natbib
+  # 与 natbib 并载恒炸 —— cite 的 \\cite 调 \\@citex[#1]#2 二参形，natbib
   # \\NAT@set@cites (AtBeginDocument) 把 \\@citex 复为 \\NAT@citexnum
   # [#1][#2]#3 三参 → 扫第二 [] 遇 {keys} 炸 ``Argument of \\@citex has
   # an extra }`` 连环 (该格 \\usepackage{cite} 在 \\ifx\\pdfoutput
-  # \\undefined 死支内, xelatex 下 \\pdfoutput 未定义 → 真载)。修 =
+  # \\undefined 死支内，xelatex 下 \\pdfoutput 未定义 → 真载)。修 =
   # cite 装载行注释中和: natbib 已担全部 \\cite 语义 (sort&compress
   # 原生覆盖 cite 职能); masked 面挡已注释行 (该格 :162 旧注释残件)。
   - id: cite_natbib_clash_retire
@@ -909,15 +909,15 @@ rules:
 
   # 2026-09-20 w13impl 车道 (w13spec B4, 2609.20135): webofc.cls ``\RequirePackage``
   # 选项括号内嵌 ``\if..\else..\fi`` 条件块 (:178-201 四块) —— LaTeX 选项
-  # 名单只认逗号切分, ``\if``/``\else``/``\fi`` 行被吃成畸形选项名 →
+  # 名单只认逗号切分，``\if``/``\else``/``\fi`` 行被吃成畸形选项名 →
   # hyperref "Wrong DVI mode driver option `dvips'" 首错 + ``Extra \fi``
   # syntax 雪崩 + undefined_cs 连环 (kvoptions 逗号切分同理死)。
   # 修 = PassOptionsToPackage 提升 (spec 荐 hoist-faithful 非常量折叠):
-  # 括号内每个 ``\if`` 块外提为守卫的 ``\PassOptionsToPackage{支}{pkg}`` 行,
-  # 装载行重开括号续静态残件 —— 守卫留活, 静态假设错也不致错折。
+  # 括号内每个 ``\if`` 块外提为守卫的 ``\PassOptionsToPackage{支}{pkg}`` 行，
+  # 装载行重开括号续静态残件 —— 守卫留活，静态假设错也不致错折。
   # 一条 rewrite 一趟 finditer 只剥各 bracket 首个 ``\if`` 块 (剥完重开
   # 的括号继续含残块), 故同形条目 yaml 别名重复 6 次串行剥 ≤6 块/趟;
-  # dedup {rule}:{payload} 阻跨轮复火, >6 块残留为已知缺口。
+  # dedup {rule}:{payload} 阻跨轮复火，>6 块残留为已知缺口。
   - id: optlist_cond_hoist
     description: "选项括号内嵌 \\if..\\fi 条件块 → \\PassOptionsToPackage 外提 + 装载行重开括号"
     phase: loop

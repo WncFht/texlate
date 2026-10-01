@@ -17,16 +17,16 @@ rules:
     mechanisms: [W17, W96, B01, W112, W113, W114, W122, W125]
     description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
     phase: loop
-    order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
+    order: 165 # journal_cs_polyfill(160) 之后，undefined_cs_guess(900) 之前
     when:
       any:
         - { category: undefined_cs, payload_required: true }
-        # 批七扩类: pkg_obsolete payload=废弃包名, 同表 strip_pkg+usepackage
+        # 批七扩类: pkg_obsolete payload=废弃包名，同表 strip_pkg+usepackage
         # 语义 (amstex→amsmath)。builtin 不验 category, 表查询与来源无关。
         - { category: pkg_obsolete, payload_required: true }
         # pairbun2 (failmine7): cls_unsupported payload=类拒 cs 名
         # (taxonomy payload_group=2, `\X is not supported`) —— 同表
-        # polyfill 语义, revtex-era \and → \par 退化收此道。
+        # polyfill 语义，revtex-era \and → \par 退化收此道。
         - { category: cls_unsupported, payload_required: true }
         # implunk26 (unk26spec B7, 0712.1692): oldfont_cmd payload=类拒
         # 2.09 字体开关 cs 名 (taxonomy payload_group=1, `\bf' 形) ——
@@ -39,8 +39,8 @@ rules:
       params:
         # 默认表 = builtins.csfix._CS_FIX_TABLE; 此 cs_table 叠加在其上。
         # n100 undefined_cs 逐签名归因: 全部 24 个 payload 均为 splice/join
-        # 合并残骸 (cs+后 token 粘连), 非缺包 —— cs_map 拆回原形
-        # (\\old\b 词边界定, 不碰更长 cs)。笔误类 llm_hook 候选本批为零。
+        # 合并残骸 (cs+ 后 token 粘连), 非缺包 —— cs_map 拆回原形
+        # (\\old\b 词边界定，不碰更长 cs)。笔误类 llm_hook 候选本批为零。
         cs_table:
           # \item+X: 1012.1321/2003.10959/2009.11013/2105.03900/2410.06025/
           # math--0307301 —— itemize 内 \item 与首词粘连
@@ -75,7 +75,7 @@ rules:
           bfv: { cs_map: { bfv: "bf v" } }
           bfk: { cs_map: { bfk: "bf k" } }
           inV: { cs_map: { inV: "in V" } }
-          # {\it/\rm+首词} 粘连 —— 2401.17274 (aa.cls 缺类后级联面) +
+          # {\it/\rm+ 首词} 粘连 —— 2401.17274 (aa.cls 缺类后级联面) +
           # hep-ph/9910403: {\it Uhuru}/{\rm and} 同型
           itUhuru: { cs_map: { itUhuru: "it Uhuru" } }
           itEinstein: { cs_map: { itEinstein: "it Einstein" } }
@@ -99,11 +99,11 @@ rules:
           citenum: { usepackage: natbib }
           # ── 2026-09-26 aaspp4/aj_pt4 AAS v4 面 (astro-ph/0003115) ──
           # 2.09 稿 \documentstyle[aj_pt4] 升 2e 成 \documentclass[aj_pt4]
-          # {article} —— 选项不炸静默蒸发, AAS v4 宏面全缺成逐宏救火场。
+          # {article} —— 选项不炸静默蒸发，AAS v4 宏面全缺成逐宏救火场。
           # usepackage:aaspp4 桥 vendor/stubs/aaspp4.sty (deluxetable env+
           # 声明族+frontmatter 全表): install_file 落空→下轮 missing_file→
           # vendored_fetch 落件 (ptlandscape 另有 journal_cs_polyfill noop
-          # 在前置 160 先中, 本表不列免双写)。
+          # 在前置 160 先中，本表不列免双写)。
           tablewidth: { usepackage: aaspp4 }
           tablecolumns: { usepackage: aaspp4 }
           tablenum: { usepackage: aaspp4 }
@@ -146,7 +146,7 @@ rules:
           altaffiltext: { usepackage: aaspp4 }
           # natbib thebibliography 侧对偶 (failmine2 ~13 cells: 1109.6007/
           # 1306.0551/astro-ph/0501240): natbib.sty:1070 重定义 env 内
-          # \renewcommand\newblock 要宿主先定义, 老类/shim 缺位面炸内核签
+          # \renewcommand\newblock 要宿主先定义，老类/shim 缺位面炸内核签
           # "Command \newblock undefined" (taxonomy 归 undefined_cs:newblock)。
           # canonical hskip 形 (natbib/elsart/quantumarticle/ptptex 同值);
           # providecommand 先于 renewcommand 落位 → renew 合法接管。
@@ -160,13 +160,13 @@ rules:
           # 本条目兜底绕开 normalize 的编译路径。
           # REPAIR (qc-impl 2026-09-28, 1812.00318): 旧 lccode/\lowercase
           # 惯用法在注入路径上坏 —— '~' 若已 active 则 `\~` 读成重音符
-          # 非字符码, 十六进制参 ("0394 等) 被排版成 1096pt overfull 显示
+          # 非字符码，十六进制参 ("0394 等) 被排版成 1096pt overfull 显示
           # 串。换 csname 自证形: \csname u8:\number"#1\endcsname ——
           # \number" 把十六进制实参转十进 ucs 键 (ucs.def 键面即
           # u8:<decimal>), \csname 不吃 catcode 不设 ~ 名。
           # REPAIR (qc99 2026-09-28, copernicus.cls:1169+): cls 在
           # \documentclass 执行期即调 \DeclareUnicodeCharacter ——
-          # halt_on_error 下 post-docclass polyfill 永远落不到, 改
+          # halt_on_error 下 post-docclass polyfill 永远落不到，改
           # polyfill_pre 缝到 docclass 前 (无需 \n 前缀: 注入点在行首)。
           DeclareUnicodeCharacter:
             {
@@ -174,8 +174,8 @@ rules:
             }
           # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
           # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass
-          # 行尾缝注入, 行尾 % 注释会整吞无前缀 snippet (1404.0346 %!PN
-          # 实证, applied=True 死注入); \n 逃出注释落下一行。
+          # 行尾缝注入，行尾 % 注释会整吞无前缀 snippet (1404.0346 %!PN
+          # 实证，applied=True 死注入); \n 逃出注释落下一行。
           # elsarticle \corauth[label]{注} → 批八升级: 桥 elsarticle
           # \cortext (与 elsart.cls shim body 同式); 无 cortext 时静默
           corauth:
@@ -202,14 +202,14 @@ rules:
           #   amsart+xelatex 下 \U 缺位 (稿内 $\U$ 高频); 同形预置
           # 2026-09-19 renewguard: guard 键替手写 \providecommand 字面形
           # (csname 包裹 emission, @-名/裸名通吃 —— 裸 \providecommand\foo@bar
-          # @=other 断名静默错义, \providecommand\csname 静默 no-op 双死)。
+          # @=other 断名静默错义，\providecommand\csname 静默 no-op 双死)。
           backref: { guard: "[1]" }
           U: { guard: "[1]" }
           # 1306.0124 arxiv-DCDSA-May2013.tex:58 \renewcommand{\C}{{\mathbb C}}
           # —— \C 恒缺 (稿载 amssymb, renew 后 \mathbb 就位); 同族预置
           C: { guard: true }
           # 0806.3016: babel-russian v1.3m (2021) ldf 已不定义 \No (№ 号);
-          # \textnumero 内核文本符号零依赖 (No 是 yaml bool 词, 不引号会
+          # \textnumero 内核文本符号零依赖 (No 是 yaml bool 词，不引号会
           # 解析成 False 键永不命中 —— 2026-09-20 erafam 批顺手修)
           "No": { polyfill: "\n\\providecommand{\\No}{\\textnumero}" }
           # 1003.4727: OSA 版式宏 \ocis 被稿挪进 article 类 (osajnl 类
@@ -236,9 +236,9 @@ rules:
           email: { polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}" }
           # REPLACE (fixer-polyfill-journal 2026-09-17): 原裸 \maketitle 兜底
           # 在类已定义时 no-op 不治病根 —— ~25 格 maketitle payload 全是
-          # l.N 行末抢签, 真炸点 \email/\authorblockN/A 藏 \@author 展开体。
+          # l.N 行末抢签，真炸点 \email/\authorblockN/A 藏 \@author 展开体。
           # 全家桶幂等注入; \n 前缀逃 docclass 行尾 % 注释吞注入
-          # (1404.0346 %!PN 实证; _inject_after_docclass eol 缝点缺陷,
+          # (1404.0346 %!PN 实证; _inject_after_docclass eol 缝点缺陷，
           # builtin 根治归 1d)。实证: 0905.0440/1003.0851 clean, 1404.0346 愈。
           # REPAIR (shimfix-b 2026-09-19): 旧形 \\[1ex]{\small #1} 把稿面
           # \authorblockA{#1} 自带 \\ 囚进对齐格内花括组 → Missing}
@@ -246,7 +246,7 @@ rules:
           # 真件 IEEEtran V1.8a 自带 \IEEEauthorblockN/A (类源 :6310-6311
           # 注释掉的 legacy 别名即此桥) —— 在场则 \let 直通真件机制
           # (strut/interlinespace 全保真); 缺席 fallback 内层 tabular 兜住
-          # #1 内 \\ (内层行分组不触外层对齐, \small 随 ambient 覆全部行)。
+          # #1 内 \\ (内层行分组不触外层对齐，\small 随 ambient 覆全部行)。
           maketitle:
             {
               polyfill: "\n\\providecommand{\\maketitle}{}\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\ifdefined\\IEEEauthorblockN\\let\\authorblockN\\IEEEauthorblockN\\else\\providecommand{\\authorblockN}[1]{#1}\\fi\n\\ifdefined\\IEEEauthorblockA\\let\\authorblockA\\IEEEauthorblockA\\else\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small\\begin{tabular}[t]{@{}c@{}}#1\\end{tabular}}}\\fi\n\\providecommand{\\authorrunning}[1]{}\n\\providecommand{\\titlerunning}[1]{}\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}\n\\providecommand{\\institute}[1]{}",
@@ -269,7 +269,7 @@ rules:
             { polyfill: "\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}" }
           affil: { polyfill: "\n\\providecommand{\\affil}[1]{#1}" } # aaspp4
           # \csname bibitemStop\endcsname 融合残留 —— NoStop 条目对偶
-          # (10-11 格)。拆回 → \bibitemStop 在场则调, 未定义也安全 (\relax)
+          # (10-11 格)。拆回 → \bibitemStop 在场则调，未定义也安全 (\relax)
           csnamebibitemStop:
             { cs_map: { csnamebibitemStop: "csname bibitemStop" } }
           # recmath 系 wide-abstract \wideabs{...} —— cond-mat/0104373
@@ -302,7 +302,7 @@ rules:
             { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
           # epstopdf 包宏 (2104.00126) —— 稿已 \usepackage{epstopdf} 但
           # v2.11 在 xelatex "Drivers other than pdftex/luatex not
-          # supported" 装载即中止, 用户宏面零定义 → 装包臂保留 (无包稿面
+          # supported" 装载即中止，用户宏面零定义 → 装包臂保留 (无包稿面
           # 仍装) + 全签名 gobble 补位。实参四参形:
           # \epstopdfDeclareGraphicsRule{.tif}{png}{.png}{convert #1 \OutputFile}
           # + \AppendGraphicsExtensions{.tif} 姊妹宏同站 (xelatex 读不了
@@ -321,12 +321,12 @@ rules:
           # \hboxto 作者笔误 (0707.4206 等 ~15 格): \hboxto5cm → \hbox to5cm
           hboxto: { cs_map: { hboxto: "hbox to" } }
           # \csname bibitemNoStop\endcsname 融合残留 (revtex \BibitemShut
-          # 展开件, 45 格) —— 补回空格即复原 \csname..\endcsname 完整形,
-          # \endcsname 本就在场, 展开的 \bibitemNoStop 未定义自动 \relax
+          # 展开件，45 格) —— 补回空格即复原 \csname..\endcsname 完整形，
+          # \endcsname 本就在场，展开的 \bibitemNoStop 未定义自动 \relax
           csnamebibitemNoStop:
             { cs_map: { csnamebibitemNoStop: "csname bibitemNoStop" } }
           # 1306.0281: acm_proc_article-sp→acmart shim 后老稿 \numberofauthors{N}
-          # 未定义 (acmart 自动计数, 老类手动设) —— 元数据提示宏, no-op 无损
+          # 未定义 (acmart 自动计数，老类手动设) —— 元数据提示宏，no-op 无损
           numberofauthors:
             { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
           # pkg_obsolete 面 (批七 ×6): TL amstex.sty 本身即
@@ -418,7 +418,7 @@ rules:
           # ── tci-math-kit (C-bucket 残面 §3, 7 格 stubs=[] 无 shim 可挂) ──
           # SW/SWP 转储裸调 {d,t}{int,sum,prod} 尺寸算子 + \stackunder/
           # \TEXTsymbol/\text —— 各键互挂同一幂等块 (vendor/stubs/
-          # tcilatex.tex 抄值, \def→\providecommand 幂等化; amsmath 后载对
+          # tcilatex.tex 抄值，\def→\providecommand 幂等化; amsmath 后载对
           # \text 静默接管)。实证: dprod=1003.0732 dint=1306.0259
           # tsum=1803.03154 tint=1907.00292 text=2105.11405
           # TEXTsymbol=cond-mat/0307193 stackunder=quant-ph/0408002
@@ -455,7 +455,7 @@ rules:
               polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
             }
           # \text: SW 稿假定 amsmath 恒在 (2105.11405 缺载实证) —— 装真包为
-          # 主修, 块内 providecommand 兜底 (amsmath 后到静默接管)
+          # 主修，块内 providecommand 兜底 (amsmath 后到静默接管)
           text:
             {
               usepackage: "amsmath",
@@ -508,13 +508,13 @@ rules:
             {
               polyfill: "\n\\providecommand{\\address}[1]{\\par{\\footnotesize #1\\par}}",
             }
-          # IEEEtran 版式越权开关 —— 真身即版式宏, 保编译 noop
+          # IEEEtran 版式越权开关 —— 真身即版式宏，保编译 noop
           overrideIEEEmargins:
             { polyfill: "\n\\providecommand{\\overrideIEEEmargins}{}" }
-          # siamltex \\diag (算子) + \\Bar (上划线, 物理均值记法) —— \\Bar
+          # siamltex \\diag (算子) + \\Bar (上划线，物理均值记法) —— \\Bar
           # 须 AtBeginDocument 强制定义: docclass 缝的 providecommand 会被
-          # 后载 amsmath \\def\\Bar{\\bar} 覆写, 而 eulervm/TU 下 \\bar 死
-          # (1206.1993 fired-but-noop 实证); 仅当格曾因 \\Bar 裸调点火,
+          # 后载 amsmath \\def\\Bar{\\bar} 覆写，而 eulervm/TU 下 \\bar 死
+          # (1206.1993 fired-but-noop 实证); 仅当格曾因 \\Bar 裸调点火，
           # 覆写无害且修复死别名。
           diag:
             { polyfill: "\n\\providecommand{\\diag}{\\mathop{\\mathrm{diag}}}" }
@@ -524,15 +524,15 @@ rules:
           # 2112.00025: jheppub 系稿 \subsection 内裸调 hyperref 双参宏
           texorpdfstring: { usepackage: hyperref }
           # ── C-bucket 残面通用件 (routing §3 四类净增量) ──
-          # \cal: 2.09 字体开关 (elsart 系稿自义 \def\CX{{\cal X}} 族,
-          # 0707.4465) —— DeclareOldFontCommand 声明式复原, 词边界下
+          # \cal: 2.09 字体开关 (elsart 系稿自义 \def\CX{{\cal X}} 族，
+          # 0707.4465) —— DeclareOldFontCommand 声明式复原，词边界下
           # calX 粘连仍走 split_heads 通道不冲突
           cal:
             {
               polyfill: "\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\rmfamily}{\\mathcal}\\fi",
             }
           # \underset (1206.0026: iopams+setstack 系但无 amsmath) —— 不能
-          # 装真包: 该类预定义 equation* 环境, amsmath 载入即撞
+          # 装真包: 该类预定义 equation* 环境，amsmath 载入即撞
           # "Command \equation* already defined" (amsmath.sty:2949 实证)
           underset:
             {
@@ -548,7 +548,7 @@ rules:
           # \nolinkurl 是 hyperref-only (url.sty 亦无): aastex shim 语境下
           # 装真 url.sty 会夺回 shim 的 detokenize 版 \url → 参内冻结
           # catcode 炸面回归 (2104.00028 旁证) → 就地 detokenize+texttt
-          # 同形兜底 (与 90-shim-legacy aastex6x_body 同式, provide 让位
+          # 同形兜底 (与 90-shim-legacy aastex6x_body 同式，provide 让位
           # 真 hyperref)。
           nolinkurl:
             {
@@ -562,7 +562,7 @@ rules:
           # undefined → \set@color/\@outputpage 级联。begindocument/before
           # 钩先于一切 begindocument 块 → 双名兜底 gray 0 (kernel
           # normalcolor 缺省值)。守卫须 \expandafter\ifx\csname —
-          # \ifx 不展开操作数, 裸 \ifx\csname X\endcsname\relax 拿
+          # \ifx 不展开操作数，裸 \ifx\csname X\endcsname\relax 拿
           # \csname 当名比恒假 (死码); expandafter 先产 \X 才 =
           # \@ifundefined 零@同义 (undefined 与 \relax 两态都兜底)。
           current@color:
@@ -583,7 +583,7 @@ rules:
           # acm_proc_article-sp→acmart shim 后 {tikzpicture} env 已 polyfill
           # 但 \tikzset{...} 裸调缺位 (1306.0281) —— 旧 noop 吞参会静默丢全篇
           # style 定义 (mynode/myarrow 式), 升级装真包: 与下方 \node/\draw 族
-          # 同形 (自足 \RequirePackage{tikz}+\usetikzlibrary 块, 机理见该块头注)。
+          # 同形 (自足 \RequirePackage{tikz}+\usetikzlibrary 块，机理见该块头注)。
           tikzset:
             {
               usepackage: tikz,
@@ -595,18 +595,18 @@ rules:
             {
               polyfill: "\n\\providecommand{\\PACS}[1]{\\par\\noindent\\textbf{PACS:} #1\\par}",
             }
-          # aastexN deluxetable 声明句 (2104.00028): 小数点对齐开关, 无参
+          # aastexN deluxetable 声明句 (2104.00028): 小数点对齐开关，无参
           # 声明 → noop
           decimalcolnumbers:
             { polyfill: "\n\\providecommand{\\decimalcolnumbers}{}" }
           # aastexN 附录计数重置宏 (2105.03750) —— emulate 计数面清零
-          # (真件另重定义 \the* 带附录字母, shim \the* 已含 section 文)
+          # (真件另重定义 \the* 带附录字母，shim \the* 已含 section 文)
           restartappendixnumbering:
             {
               polyfill: "\n\\providecommand{\\restartappendixnumbering}{\\setcounter{section}{0}\\setcounter{subsection}{0}\\setcounter{equation}{0}\\setcounter{figure}{0}\\setcounter{table}{0}}",
             }
           # aastexN \gridline{\fig{f}{w}{(a)}...} 排图对 (2403.00061) ——
-          # gridline 直通内容并排; \fig = includegraphics+面板字母近似,
+          # gridline 直通内容并排; \fig = includegraphics+ 面板字母近似，
           # graphicx 装包臂兜未载面
           gridline:
             {
@@ -616,7 +616,7 @@ rules:
           # kapproc.cls shim 缺版式开关 (astro-ph/0408466) —— 大小写声明句 noop
           upperandlowercase:
             { polyfill: "\n\\providecommand{\\upperandlowercase}{}" }
-          # thmsupp.tex shim 后 amsmath 缺载 (hep-th/9703079) —— 装真包为主,
+          # thmsupp.tex shim 后 amsmath 缺载 (hep-th/9703079) —— 装真包为主，
           # textstyle\frac 兜底 (与 text 行 usepackage+polyfill 双臂同构)
           tfrac:
             {
@@ -635,22 +635,22 @@ rules:
               polyfill: "\n\\AtBeginDocument{\\providecommand{\\Z}{\\ensuremath{\\mathbb{Z}}}}",
             }
           # cas-common.sty expl3 调试宏 (1907.00144): 老 \msg_term:n 在现行
-          # l3msg 无单参形 → 重写 \iow_term:n (终端输出同义, ExplSyntaxOn
+          # l3msg 无单参形 → 重写 \iow_term:n (终端输出同义，ExplSyntaxOn
           # 域内 :n 为 cs 名一部分; cs_map 覆盖 .tex/.sty 面)
           msg: { cs_map: { msg_term: "iow_term" } }
           # transparent.sty v1.6 xelatex 下 "Loading aborted" 静默中止后
-          # \transparent{0.5} 缺位 (2410.17904) —— 透明度语义不可达, 吞参
-          # noop 保编译 (装包臂无用: 载入即中止, 用户面零定义)
+          # \transparent{0.5} 缺位 (2410.17904) —— 透明度语义不可达，吞参
+          # noop 保编译 (装包臂无用: 载入即中止，用户面零定义)
           transparent: { polyfill: "\n\\providecommand{\\transparent}[1]{}" }
           # hangcaption.sty 系悬挂缩进 caption (1404.5912, stub 落件但公共
-          # 面无此 cs) —— [short]{long} 两形兼收, hangindent emulate
+          # 面无此 cs) —— [short]{long} 两形兼收，hangindent emulate
           hangcaption:
             {
               polyfill: "\n\\providecommand{\\hangcaption}[2][]{\\par\\smallskip\\noindent\\hangafter=1\\hangindent=1.5em #2\\par\\smallskip}",
             }
           # latex2html html.sty 链接宏 (1511.02851): 键位下移合并至
-          # qc-impl 追加条 (L915 附近, \\else\\url{#2} 更富退路) —— 同键
-          # 双定义只存活后者, 此槽删除防分叉
+          # qc-impl 追加条 (L915 附近，\\else\\url{#2} 更富退路) —— 同键
+          # 双定义只存活后者，此槽删除防分叉
           # axodraw 时代 \Line(x,y)(x,y) (hep-ph/0111339): pict2e 原生
           # \Line(#1,#2)(#3,#4) 全签名兼容 → 装真包实绘 (gobble stub 的
           # 替代品; 同体 \LongArrow 属下一层 payload 见车道报告)
@@ -663,26 +663,26 @@ rules:
           # 载 letltxmacro (osajnl/socg-lipics 等 cls 均自 \RequirePackage,
           # 故 cls 内调用面从未炸)。\cite 在 biblatex 下是 robust cs
           # (\protected + \@protected@testopt 可选参壳) —— 朴素 \let 丢壳
-          # 即错义修, cs_map/gobble 一律拒收; 装真包 (Heiko letltxmacro,
+          # 即错义修，cs_map/gobble 一律拒收; 装真包 (Heiko letltxmacro,
           # TL 全集 + tectonic bundle/ctan_fetch 三路可达) 是唯一正解。
-          # \GlobalLetLtxMacro 同包同件 (v1.6 公共面仅此二名,
+          # \GlobalLetLtxMacro 同包同件 (v1.6 公共面仅此二名，
           # \LetLtxMacroOpt 不存在 —— 不收)。
           LetLtxMacro: { usepackage: letltxmacro }
           GlobalLetLtxMacro: { usepackage: letltxmacro }
           # pgf/tikz 缺载面 (1306.0281, pgffix 车道): main.tex `%\usepackage{tikz}`
-          # 被作者注释, undefined_env_polyfill 吐空 tikzpicture 壳后 \node/\draw
-          # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号+坐标尾,
+          # 被作者注释，undefined_env_polyfill 吐空 tikzpicture 壳后 \node/\draw
+          # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号 + 坐标尾，
           # cs_map/gobble 无一能吞 —— 装真包是唯一正解 (tikz.sty 供 \node/\draw/
           # \path/\coordinate/\fill/\filldraw/\matrix/\tikzset/tikzpicture;
           # arrows+positioning+shapes 三库兜 `>=latex'`/`above right=of`/`mynode`
           # 系常见库键)。polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO 语义下
           # 裸 \usetikzlibrary 会落在臂的装载行**之前** → 新
-          # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫,
+          # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫，
           # preamble 库键 \tikzset 调用面亦安全。dup `\RequirePackage{tikz}` 行
           # (臂注入 + polyfill 内联) 是 benign no-op —— LaTeX 重载同包零选项
           # 静默跳过; 臂的 install_file/probe + refire done 非空语义照留。
           # (\RequirePackage 形: docclass 藏 depth>0 时本块经头注落 docclass
-          # 前, \usepackage 彼处即 Missing \begin{document} 自投毒。)
+          # 前，\usepackage 彼处即 Missing \begin{document} 自投毒。)
           node:
             {
               usepackage: tikz,
@@ -742,7 +742,7 @@ rules:
           thankstext:
             { polyfill: "\n\\providecommand\\thankstext[2]{\\thanks{#2}}" }
           # \end{appendix} env end-cs 未定义 (0812.0291 + 0812.0411) ——
-          # \@ifdefinable 拒 end* 名, 守卫 \def 形 (endproof 同构)
+          # \@ifdefinable 拒 end* 名，守卫 \def 形 (endproof 同构)
           endappendix:
             {
               polyfill: "\n\\ifdefined\\endappendix\\else\\def\\endappendix{}\\fi",
@@ -799,7 +799,7 @@ rules:
           # missing-bb fatal 路径 noop 吞 (yaml bool 词须引号)
           "no": { polyfill: "\n\\providecommand\\no{}" }
           # \epsfile{file=x.eps,width=70mm} 即 epsfig.sty 语法
-          # (cond-mat/0103342) —— 真包导出 + 改名, 非 polyfill
+          # (cond-mat/0103342) —— 真包导出 + 改名，非 polyfill
           epsfile: { usepackage: epsfig, cs_map: { epsfile: "epsfig" } }
           # \Pacs{05}{70.Ce}{desc} PACS 行 (cond-mat/0103592:413)
           Pacs: { polyfill: "\n\\providecommand\\Pacs[3]{#1.\\,#2:\\ #3}" }
@@ -823,7 +823,7 @@ rules:
           # Error: \and is not supported" (cls_unsupported|and; hep-ph/
           # 9703272 + hep-th/9612173, failmine7 pairbun2)。providecommand/
           # \ifdefined 守卫见 \and 已 \let 定义 → 全跳过 → 须无条件 \def
-          # 覆盖 (polyfill 注 docclass 行后, 晚于类载 \let 故胜出)。
+          # 覆盖 (polyfill 注 docclass 行后，晚于类载 \let 故胜出)。
           and: { polyfill: "\n\\def\\and{\\par}" }
           # ── B2 atcs-cstable 6 cells: @-面 cs, csname 安全形 ──
           # \if@smallext 作 \if 开关 (1503.00409/1503.00408 l.190) ——
@@ -847,7 +847,7 @@ rules:
             {
               polyfill: "\n\\expandafter\\let\\csname collaboration@sw\\endcsname\\csname @secondoftwo\\endcsname",
             }
-          # ── B3 pkg-load 5 cells: 真包导出, preamble 确证未载 ──
+          # ── B3 pkg-load 5 cells: 真包导出，preamble 确证未载 ──
           # \overset{\rightarrow}{k} (1107.0650; 载 iopams/setstack/babel)
           overset: { usepackage: amsmath }
           # \setstretch{1..} (hep-ex/9412009) / \onehalfspace (hep-ph/9412247)
@@ -863,7 +863,7 @@ rules:
           I: { polyfill: "\n\\providecommand{\\I}{I}" }
           # ── implunk26 (unk26spec B7, 0712.1692): KOMA/无老字体声明类
           # 缺 \rm\sf\tt\bf\it\sl\sc 2.09 开关 —— oldfont_cmd payload 任中
-          # 一键全家族同修 (kernel latex.ltx \DeclareOldFontCommand 表逐字,
+          # 一键全家族同修 (kernel latex.ltx \DeclareOldFontCommand 表逐字，
           # 每枚 \ifdefined-守卫 → 已定义类 (article/report 全族) 上注入
           # 整块 no-op)。\n 前缀守 eol-注释缝约。
           rm:
@@ -920,7 +920,7 @@ rules:
               polyfill: "\n\\providecommand\\htmladdnormallink[2]{\\ifdefined\\href\\href{#2}{#1}\\else\\url{#2}\\fi}",
             }
           # 2212.00138: payload=\set@color 而病根是 \current@color 毒化
-          # (PoS.cls 钩序, 见上 current@color 条) —— 别名键指同一 polyfill
+          # (PoS.cls 钩序，见上 current@color 条) —— 别名键指同一 polyfill
           set@color:
             {
               polyfill: "\n\\AddToHook{begindocument/before}{\\expandafter\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\expandafter\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
@@ -952,14 +952,14 @@ rules:
               polyfill: "\n\\expandafter\\let\\csname ifpst@useCalc\\endcsname\\iffalse",
             }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
-        # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
-        # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
+        # cs_table 时，若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
+        # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头，
         # 逐条收表追不上)。split_guard 挡与头同前缀的真宏名 (part/parbox/
         # ddot/fraction…); 含 @ 的包内私有 cs 不拆 (版本偏斜非粘连)。
-        # in 头不收: int/indent/input/index/infty 前缀面太热, inV 留显式条目。
+        # in 头不收: int/indent/input/index/infty 前缀面太热，inV 留显式条目。
         # 2026-09-17 +字体开关头族 (1e partial-taxonomy §C ≥100 格):
         # \emPhys \itJHK \scpin \bfB \rmeff \emcf 全是 reconstruct 丢 \em/\it
-        # 保护块尾随空格的熔合残骸 → head+大写残余自动拆回。em/sc/sf/sl/tt/cal
+        # 保护块尾随空格的熔合残骸 → head+ 大写残余自动拆回。em/sc/sf/sl/tt/cal
         # 补位; emph/texttt/sfcode/sloppy/slash 等同前缀真宏进 guard。
         split_heads:
           [
@@ -1016,13 +1016,13 @@ rules:
     stats: { fires: 224, rescued_cells: 86, status: validated }
     source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
 
-  # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 批,
+  # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 批，
   # c-bucket-residual 探针 routing.md §2/§6 P2) —— order 184-190 填
   # docclass_post_option_normalize(183) 与 undefined_cs_guess(900) 间空档 ═══
 
   # 0806.2574: 老稿 float 选项逗号分隔 \begin{figure}[t,b] →
   # "Unknown float option `,'" (kernel 要连排 [tb])。贪心 [^\]] 段每次
-  # sub 剥末位逗号, 列两遍兜 [t,b,p] 双逗号形。
+  # sub 剥末位逗号，列两遍兜 [t,b,p] 双逗号形。
   - id: float_opt_comma_strip
     mechanisms: [W115]
     description: "float env 选项表逗号分隔形 [t,b] → 剥逗号并合"
@@ -1058,7 +1058,7 @@ rules:
 
   # 0806.2594: mathtext.sty 补丁 \DeclareFontEncoding → 附带
   # \DeclareSymbolFont{<enc>letters}{<enc>}\rmdefault\mddefault\updefault
-  # (sty:103), 但 TU 编码经内核/字体层先于补丁声明 → TUletters 缺面,
+  # (sty:103), 但 TU 编码经内核/字体层先于补丁声明 → TUletters 缺面，
   # "Symbol font `TUletters' is not defined"。\begin{document} 前同式
   # 预声明 (preamble-only cs), symTUletters 存在性守卫防重复点火重炸。
   - id: symbolfont_tuletters
@@ -1066,7 +1066,7 @@ rules:
     description: "mathtext TU 编码漏补丁 → \\DeclareSymbolFont{TUletters} 预声明"
     phase: loop
     order: 185
-    when: # W126 根修: taxrow 前归 other —— symbol_font 专属行 + other 兼容, early_eof 臂撤
+    when: # W126 根修：taxrow 前归 other —— symbol_font 专属行 + other 兼容，early_eof 臂撤
       any:
         - { category: other }
         - { category: symbol_font }
@@ -1098,13 +1098,13 @@ rules:
   # 次遍 aux 读期炸 "Bibliography not compatible with author-year
   # citations"。\PassOptionsToPackage{numbers} 会被 aastex 类内
   # \@citestyle{aas}→\bibpunct 的 \NAT@numbersfalse 复位吞掉 →
-  # preamble 末直接翻 \NAT@numberstrue (ifdefined 守卫, 无 natbib 稿空转)。
+  # preamble 末直接翻 \NAT@numberstrue (ifdefined 守卫，无 natbib 稿空转)。
   - id: natbib_numbers_pass
     mechanisms: [W117, W126]
-    description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻, \\NAT@force@numbers 空转"
+    description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻，\\NAT@force@numbers 空转"
     phase: loop
     order: 186
-    when: # W126 根修: file-line 签名 taxrow 归 bib_compat; other 保兼容, early_eof 臂撤
+    when: # W126 根修：file-line 签名 taxrow 归 bib_compat; other 保兼容，early_eof 臂撤
       any:
         - { category: other }
         - { category: bib_compat }
@@ -1169,13 +1169,13 @@ rules:
     source_ref: "tmp/c-bucket-residual/routing.md §2 syntax_singles"
 
   # hep-ph/0111062 (+dup hep-ph--0111062 同 workdir 同错): "Illegal unit
-  # of measure" —— \vspace*{0.035truein} 无空格粘连形 (格今编译自愈,
+  # of measure" —— \vspace*{0.035truein} 无空格粘连形 (格今编译自愈，
   # wave 期 log 被复跑覆写无法逐字归因; 规则按签名防御性覆盖)。px_to_bp
-  # (60) 先签 px 失配自降, 本条接数字+true+单位粘连归一化; true 只合法
+  # (60) 先签 px 失配自降，本条接数字+true+ 单位粘连归一化; true 只合法
   # 修饰物理单位 (pt/pc/in/bp/cm/mm/dd/cc/sp), 不收 em/ex/mu。
   - id: dimen_true_unit_space
     mechanisms: [W119]
-    description: "数字+true+物理单位粘连 (0.035truein) → 双侧补空格归一化"
+    description: "数字+true+ 物理单位粘连 (0.035truein) → 双侧补空格归一化"
     phase: loop
     order: 188
     when: { category: illegal_unit }
@@ -1203,9 +1203,9 @@ rules:
     source_ref: "tmp/c-bucket-residual/routing.md §2 dimen_true_unit"
 
   # 1206.5304: citekey_sanitize(141) 的 BIBITEM_KEY_RE opt-arg 段
-  # [^\]\n]* 跨不了折行 —— 本 bbl 每条 \bibitem[折行 opt]{Name_NN} 全漏,
+  # [^\]\n]* 跨不了折行 —— 本 bbl 每条 \bibitem[折行 opt]{Name_NN} 全漏，
   # .tex 侧已被 builtin 改写而 .bbl 侧仍裸 _ → Missing $ 残留 + 引用
-  # 断链。同签 mop-up: 条目在 _patch_files 一遍内顺序执行, 列两遍兜
+  # 断链。同签 mop-up: 条目在 _patch_files 一遍内顺序执行，列两遍兜
   # 多 _ 键 (本格 55 键全单 _); \\cite 族同步补 builtin 同款漏面。
   - id: citekey_wrap_sanitize
     mechanisms: [W120]
@@ -1251,9 +1251,9 @@ rules:
 
   # 1109.5364: slashbox stub \(back)slashbox=\makebox{#2 #3} 退化形 ——
   # 参内 \\ 在 tabular 受限横态变行尾 → Missing }/Extra }。源面把参内
-  # \\ 抹成空格 (stub 渲染本就是退化文本形, 参内换行无语义损失)。贪心
-  # [^}] 段每条目剥末位 \\: 参1 列三条、参2 列两条。stub 侧参净化归
-  # c6 车道, 本条按签名兜底。
+  # \\ 抹成空格 (stub 渲染本就是退化文本形，参内换行无语义损失)。贪心
+  # [^}] 段每条目剥末位 \\: 参 1 列三条、参 2 列两条。stub 侧参净化归
+  # c6 车道，本条按签名兜底。
   - id: slashbox_arg_newline
     mechanisms: [W121]
     description: "\\(back)slashbox 参内 \\\\ 断行符 → 空格 (tabular 内变行尾炸)"
@@ -1303,7 +1303,7 @@ rules:
   # 1003.0067 残面: unicode-math 下重音命令裸 cs 参数 (\bar \calA 形)
   # 炸 "Missing { inserted" (<to be read again> \__um_group_begin:)。
   # um 重音要求 {} 组参; 给参数套花括号语义恒等 (\bar\foo ≡ \bar{\foo}),
-  # 全局重写安全。条件双签: err ctx Missing{ + 源码含裸重音形, 缺一空转。
+  # 全局重写安全。条件双签: err ctx Missing{ + 源码含裸重音形，缺一空转。
   - id: um_accent_brace_wrap
     mechanisms: [W123]
     description: "um 重音命令裸 cs 参 \\bar\\calX → \\bar{\\calX} (语义恒等)"
@@ -1339,12 +1339,12 @@ rules:
   # \\__um_group_begin: 非 { → ``Missing { inserted``。um_accent_brace_
   # wrap (191) 的 accent-cs source_contains 闸够不到 ^\mathcal 形故未
   # 发。修 = [\^_]\mathalpha{...} → [\^{\mathalpha{...}}] (花括号组
-  # field 语义恒等, um 要的组参补上); (?<!\\) 拒 \^/\_ 转义 accent/
-  # 字面符, masked 挡 verbatim/注释。
+  # field 语义恒等，um 要的组参补上); (?<!\\) 拒 \^/\_ 转义 accent/
+  # 字面符，masked 挡 verbatim/注释。
   - id: um_script_alphabet_brace
     description: "um 下 ^\\mathcal{P}/_\\mathcal{C} 裸 field → ^{\\mathcal{P}}/_{\\mathcal{C}} 组化 (语义恒等)"
     phase: loop
-    order: 191.6 # um_accent_brace_wrap(191) 姊妹臂 —— accent-cs 面其收, script-alphabet 面本收, 互斥
+    order: 191.6 # um_accent_brace_wrap(191) 姊妹臂 —— accent-cs 面其收，script-alphabet 面本收，互斥
     when: { category: syntax }
     condition:
       ctx_suggests: "Missing \\{ inserted|__um_group_begin"
@@ -1359,7 +1359,7 @@ rules:
               repl: "\\g<1>{\\g<2>}",
               match_surface: "masked",
             }
-    risk: low # ^{\\mathcal{P}} ≡ ^\\mathcal{P} 语义; 仅 um 加载稿现该签 (非 um 稿 ^\\mathcal 合法不会报错, ctx 闸不开)
+    risk: low # ^{\\mathcal{P}} ≡ ^\\mathcal{P} 语义; 仅 um 加载稿现该签 (非 um 稿 ^\\mathcal 合法不会报错，ctx 闸不开)
     known_gap: "^\\text{}/^\\operatorname 等他参 cs 形未收 (实证仅 mathalphabet 族); \\\\^ 双反杠后脚本位保守拒中 (lookbehind 单字)"
     engines:
       xelatex: { mode: native }
@@ -1367,7 +1367,7 @@ rules:
     provenance:
       - {
           corpus: "2609.19872 (soak-2026-09-18, failmine6)",
-          error: "method.tex:7: Missing { inserted. <to be read again> \\__um_group_begin: @ $f^\\mathcal{P}$ — acmart/xelatex unicode-math 下 ^ 裸 \\mathcal field (6 站: ^\\mathcal{P}×3/_\\mathcal{P}×1/^\\mathcal{C}×1/_\\mathcal{C}×1)",
+          error: "method.tex:7: Missing { inserted. <to be read again> \\__um_group_begin: @ $f^\\mathcal{P}$ — acmart/xelatex unicode-math 下 ^ 裸 \\mathcal field (6 站：^\\mathcal{P}×3/_\\mathcal{P}×1/^\\mathcal{C}×1/_\\mathcal{C}×1)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md Missing-{ row; tmp/lane-singbun/repro19872/t.tex caret-mathcal 实编译"
@@ -1376,7 +1376,7 @@ rules:
   # \ACM@origbaselinestretch 快照 (:3627), AtEndDocument \ifx 比对
   # 不一致即 ClassError。触发点在包链/钩子内 (稿面无字面量) —— 在
   # \begin{document} 后立刻重拍快照 (post begin-doc hooks), 使比对恒真。
-  # makeatletter 包裹 @ 名; 仅 acmart 签名命中, 非 acmart 稿空转。
+  # makeatletter 包裹 @ 名; 仅 acmart 签名命中，非 acmart 稿空转。
   - id: acmart_baselinestretch_resnap
     mechanisms: [W124]
     description: "acmart \\baselinestretch 守卫 → begin-doc 后重拍 \\ACM@origbaselinestretch"
@@ -1409,11 +1409,11 @@ rules:
   # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): undefined_cs 残留签名
   # 第二表 —— 复用 cs_targeted_fix builtin, params.cs_table 叠加在
   # builtins.csfix._CS_FIX_TABLE 之上 (builtin 内 dict.update 合并);
-  # 主表(165)已收条目主表先中, 本表只收新增 payload, id/order 不撞。
+  # 主表 (165) 已收条目主表先中，本表只收新增 payload, id/order 不撞。
   - id: cs_targeted_fix_c3
-    description: "undefined_cs 新批: variorefoptionifavailable (AIP 模板自造cs) / firstfigfalse+firsttabfalse (\\newif 对未建)"
+    description: "undefined_cs 新批：variorefoptionifavailable (AIP 模板自造 cs) / firstfigfalse+firsttabfalse (\\newif 对未建)"
     phase: loop
-    order: 166 # cs_targeted_fix(165) 后, undefined_cs_guess(900) 前
+    order: 166 # cs_targeted_fix(165) 后，undefined_cs_guess(900) 前
     when: { category: undefined_cs, payload_required: true }
     action:
       kind: builtin_transform
@@ -1433,7 +1433,7 @@ rules:
             { polyfill: "\n\\newif\\iffirstfig\\newif\\iffirsttab" }
     ## REVIEW(c3): firstfig/firsttab 若宿主类后载 \newif 会转 already_def
     ## (already_def_newcmd_renew/already_def_undefine 规则链接住);
-    ## \providecommand/\newif 注于 \documentclass 后, 先于 \usepackage{fixes}。
+    ## \providecommand/\newif 注于 \documentclass 后，先于 \usepackage{fixes}。
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1451,23 +1451,23 @@ rules:
 
   # 2026-09-19 undef13 lane (1907.10349 + 2403.00097): pinlabel.sty
   # \scan@header 的 .pdf 分支用 \pdfximage cropbox{file} 量 bbox
-  # (texmf 系统件, fileset 外) —— file-line 错误却归 splice 内
+  # (texmf 系统件，fileset 外) —— file-line 错误却归 splice 内
   # \includegraphics 行 (fileset 内), err_outside_fileset=false; doc 源
   # 无字面 \pdfximage, prim_read_form/source_contains 皆不见 → 既有
-  # guard(50)/polyfill(51) 条件够不到本站点, 是链上唯一盲区。且
+  # guard(50)/polyfill(51) 条件够不到本站点，是链上唯一盲区。且
   # polyfill 的 _PRIM_ARGFUL["pdfximage"]="#1" 单参吞对 cropbox 关键字
   # 形本就错误 (吞关键字残花括号组排字 + \pdfximagebbox 仍缺)。
   # 本 arm 用 \XeTeXpdffile 量真实 PDF 自然尺寸进 \wd/\ht,
   # \pdfximagebbox 按 pinlabel 四调用点 (1=llx/2=lly/3=urx/4=ury)
   # 回 0bp/0bp/\wd/\ht —— cropbox 原点近似 (known_gap: 真 cropbox
-  # ll 非恒原点, pinlabel 只拿差值 \@bbw/\@bbh 算缩放, 差值全真)。
+  # ll 非恒原点，pinlabel 只拿差值 \@bbw/\@bbh 算缩放，差值全真)。
   # payload 闸收窄: when 限 pdftex_prim + builtin 表查询只中本 overlay
   # (_CS_FIX_TABLE 无 pdf* 键), cs_targeted_fix(165) 既有覆盖面零扰动。
   - id: pinlabel_pdfximage_emulate
     mechanisms: [W104]
     description: "pinlabel \\scan@header pdf 分支 \\pdfximage cropbox 量 bbox → \\XeTeXpdffile 盒量仿真接管 (texmf 站点盲区)"
     phase: loop
-    order: 50.5 # pdftex_prim_guard(50) 与 polyfill(51) 之间 —— pinlabel 格必须先中, generic 吞参形对 cropbox 关键字有害
+    order: 50.5 # pdftex_prim_guard(50) 与 polyfill(51) 之间 —— pinlabel 格必须先中，generic 吞参形对 cropbox 关键字有害
     when: { category: pdftex_prim, payload_required: true }
     condition:
       # 源证据 = doc 装载 pinlabel; 无 pinlabel 的 \\pdfximage 裸调用格
@@ -1491,10 +1491,10 @@ rules:
               \def\pdfximagebbox#1#2{\ifcase#2 0bp\or 0bp\or 0bp\or \the\wd\texlatepdfximagebox\or \the\ht\texlatepdfximagebox\fi}
               \fi
     risk: low # \ifdefined 幂等; 原语定义者存在时整块跳过零副作用
-    known_gap: "cropbox ll 原点近似 (llx=lly=0): pinlabel 只用差值算缩放故全真; 他包若依赖绝对原点会偏 —— 无实证; \\pdfximage 无花括号裸调用 (#1# 抓不到 { 时吞文) 无实证, pinlabel 唯一调用形是 cropbox{file}"
+    known_gap: "cropbox ll 原点近似 (llx=lly=0): pinlabel 只用差值算缩放故全真; 他包若依赖绝对原点会偏 —— 无实证; \\pdfximage 无花括号裸调用 (#1# 抓不到 { 时吞文) 无实证，pinlabel 唯一调用形是 cropbox{file}"
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语, \XeTeXpdffile 同可用
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语，\XeTeXpdffile 同可用
     provenance:
       - {
           corpus: "undef13 1907.10349 (holomorphic.tex:426 \\includegraphics[height=3.5cm]{noint})",
@@ -1505,36 +1505,36 @@ rules:
           error: "Undefined control sequence \\pdfximage",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-undef13/repro-1907/ — emulate5.tex 全真复现+翻正 (4 pinlabel 全落位)"
+    source_ref: "tmp/lane-undef13/repro-1907/ — emulate5.tex 全真复现 + 翻正 (4 pinlabel 全落位)"
 
   # 2026-09-19 blxdlist lane (task #239, census tmp/lane-blxbbl/):
-  # 1502.02341 捆绑 biblatex v2.3 时代 .bbl —— 裸 \entry 记录顶层排,
+  # 1502.02341 捆绑 biblatex v2.3 时代 .bbl —— 裸 \entry 记录顶层排，
   # 无 \datalist 包裹; backend=bibtex → 不产 .bcf → bbl_regen(158) 的
   # has_ext:.bcf 门恒拒。TL biblatex 3.21 中 \blx@dlist@type/@name 唯一
   # 定义者是 \datalist→\blx@bbl@dlist (biblatex.sty:9280-83); 而
   # \blx@bbl@entry 的 \edef\blx@bbl@data (:8687) 与 \blx@bbl@endentry
   # 双 \ifstrequal (:8707/:8720) 全踩未定义名 → 实测 164 错 =
   # 54×dlist@name + 108×dlist@type + \lossort/\endlossort 对 (v2.3
-  # 排序尾标, 3.21 亦无定义)。polyfill 同 sortlist 时序 ——
+  # 排序尾标，3.21 亦无定义)。polyfill 同 sortlist 时序 ——
   # begindocument/before 钩先于 biblatex 标块的 \blx@bblinput
   # (biblatex.sty:16617 \AtBeginDocument), 又在整段 preamble 后 →
-  # biblatex 装载面已就位, \blx@refcontext@context 已有值。
+  # biblatex 装载面已就位，\blx@refcontext@context 已有值。
   # \blx@dlist@name→\csname blx@refcontext@context\endcsname 懒展开:
-  # edef 期落真 refcontext 串, \printbibliography 按
+  # edef 期落真 refcontext 串，\printbibliography 按
   # blx@dlist@entry@<sec>@<ctx> (:9895) 读表同名命中 —— 恢复真书目
   # 输出而非纯压错; refcontext 缺席时 \csname 退化 \relax 字面仍零错。
   # \ifx 守卫使真 \datalist 执行时自带组内 \def 覆盖 —— 混合格/已定义
   # 格零副作用; B3 族 payload (blx@citeargs@iii/blx@lbx/blx@*file 等)
   # 无表键 builtin 自拒, 不越界。四键同一 polyfill 块 (yaml 锚点):
-  # 错误分解同格并发, 任一 payload 先派发整块落, snippet-in-text
+  # 错误分解同格并发，任一 payload 先派发整块落，snippet-in-text
   # 幂等使后续键让位。\endlossort 不走 \providecommand —— \@ifdefinable
   # 拒一切 end* 前缀名 (latex.ltx:1296 \@carcube 取前三字符比 \@qend),
-  # "Command \endlossort already defined. Or name \end... illegal" 实炸,
+  # "Command \endlossort already defined. Or name \end... illegal" 实炸，
   # 只能 ifx-guarded \def (xelatex 本地 repro 实证)。
   - id: blx_dlist_polyfill
     description: "pre-dlist 裸 \\entry .bbl × biblatex 3.21 → \\blx@dlist@name/@type ifx-guarded 补 + \\lossort 对 no-op (backend=bibtex 无 .bcf 臂)"
     phase: loop
-    order: 166.5 # cs_targeted_fix_c3(166) 后, acro_v3_key_rename(167) 前; bbl_regen(158) .bcf 门天然先行 —— biber 格 regen 恒先中
+    order: 166.5 # cs_targeted_fix_c3(166) 后，acro_v3_key_rename(167) 前; bbl_regen(158) .bcf 门天然先行 —— biber 格 regen 恒先中
     when: { category: undefined_cs, payload_required: true }
     action:
       kind: builtin_transform
@@ -1557,7 +1557,7 @@ rules:
           lossort: { polyfill: *blx_dlist_polyfill }
           endlossort: { polyfill: *blx_dlist_polyfill }
     risk: low # \ifx/providecommand 守卫幂等; biblatex 自定义在场时整块让位
-    known_gap: "v2.3/v1.7 \\entry{key}{type}{} 三参形 vs 3.21 \\blx@bbl@entry 四参 (#4=citecount 丢弃位): #4 会吞掉条目体首个域宏 (\\name/\\list), 残余 {key}{n}{}{...} 域值裸排 —— 零错但书目首页前留杂字, content-loss 待 replay 判定"
+    known_gap: "v2.3/v1.7 \\entry{key}{type}{} 三参形 vs 3.21 \\blx@bbl@entry 四参 (#4=citecount 丢弃位): #4 会吞掉条目体首个域宏 (\\name/\\list), 残余 {key}{n}{}{...} 域值裸排 —— 零错但书目首页前留杂字，content-loss 待 replay 判定"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # TL biblatex 3.21 同不载旧读者; 钩/csname 皆内核件
@@ -1567,29 +1567,29 @@ rules:
           error: "Undefined control sequence \\blx@dlist@name / \\blx@dlist@type / \\lossort ×164 (54+108+2)",
         }
       - {
-          corpus: "stagerun-loop3 1502.06277 (bbl v1.7 同机理, biber → bbl_regen 已覆盖, 本表仅在 regen 让位时兜底)",
+          corpus: "stagerun-loop3 1502.06277 (bbl v1.7 同机理，biber → bbl_regen 已覆盖，本表仅在 regen 让位时兜底)",
           error: "Undefined control sequence \\blx@dlist@name",
         }
     stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-blxbbl/census.md — biblatex.sty:8687/8707-8722/9280-9283/16617"
 
   # ── runaway_output 修复面 (killsem census 单机理族) ────────────────
-  # sentry:page_flood 谱: 不可断盒 > \textheight 进 page builder → \output
-  # 永空页。sentry-killed 轮 err_head 为空 → ctx_suggests 不可用, 门全走
+  # sentry:page_flood 谱：不可断盒 > \textheight 进 page builder → \output
+  # 永空页。sentry-killed 轮 err_head 为空 → ctx_suggests 不可用，门全走
   # source_contains 粗筛 + builtin 内 masked 扫描实判。runaway_output 类目
   # 由 _round_cat 产出 (sentry_reason/timeout+killed 三路), 到正常 rule
   # 分派; payload=sentry:<reason> 或 None → 不设 payload_required。
   - id: tcolorbox_breakable_inject
     description: "runaway_output + tcolorbox env/def → 选项组补 breakable (库缺席时先补 \\tcbuselibrary{breakable})"
     phase: loop
-    order: 199.7 # cs_delim_tail_fix(199.6) 后, undefined_cs_guess(900) 前; runaway_output 类目独占无竞争
+    order: 199.7 # cs_delim_tail_fix(199.6) 后，undefined_cs_guess(900) 前; runaway_output 类目独占无竞争
     when: { category: runaway_output }
     condition:
       source_contains: "\\\\begin\\s*\\{tcolorbox\\}|\\\\newtcolorbox\\b"
     action:
       kind: builtin_transform
       function: tcolorbox_breakable_inject
-    risk: low # per-env 键与实证 diff 一致; 库缺席且无装载点时整体让位, 不产 unknown-key 新错
+    risk: low # per-env 键与实证 diff 一致; 库缺席且无装载点时整体让位，不产 unknown-key 新错
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # 源码改写引擎无关; bundled tcolorbox 同键语义
@@ -1616,7 +1616,7 @@ rules:
     action:
       kind: builtin_transform
       function: float_h_demote
-    risk: low # placement 表白名单外不动; 降级恢复真浮体语义, 超高盒落 float page 而非死循环
+    risk: low # placement 表白名单外不动; 降级恢复真浮体语义，超高盒落 float page 而非死循环
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1627,7 +1627,7 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-killsem/census.md"
-    known_gap: "与 float_opt_h_pkgload(70-pkgopt) 零重叠——彼规在 float_opt|H unknown-option 签名补 missing \\usepackage{float}; 本格 float 已载, 失败模态是 [H] 钉死超高非浮体盒。ThreePartTable 包 longtable (2609.19748) 属同族但需 construct-specific 手术, 不在本面"
+    known_gap: "与 float_opt_h_pkgload(70-pkgopt) 零重叠——彼规在 float_opt|H unknown-option 签名补 missing \\usepackage{float}; 本格 float 已载，失败模态是 [H] 钉死超高非浮体盒。ThreePartTable 包 longtable (2609.19748) 属同族但需 construct-specific 手术，不在本面"
 
   # ─── implunk26 lane (2026-09-20, unk26spec B4, hep-ex/9412001) ───
   # \special{psfile=/home/enomoto/kekm.ps hscale=0.7 …} —— 作者机绝对
@@ -1639,7 +1639,7 @@ rules:
     mechanisms: [B05]
     description: "\\special{psfile=/abs/…/x.ps} 作者机绝对径 → 剥 basename (wdir 已带档形可 flip clean)"
     phase: loop
-    order: 18.55 # pdf_asset_sanitize(18.5) 后, driver_missing_image_stub(18.6) 前 —— 真档先中占位后兜
+    order: 18.55 # pdf_asset_sanitize(18.5) 后，driver_missing_image_stub(18.6) 前 —— 真档先中占位后兜
     when:
       any:
         - { category: driver_fatal }
@@ -1657,14 +1657,14 @@ rules:
               repl: "\\g<1>\\g<2>",
             }
     risk: low # 前导 /|\ 闸只动绝对径; 真档缺席时改写无害 —— 18.6 占位次轮接住
-    known_gap: "~/tilde 与盘符 (C:\\…) 绝对形不收 (前导符闸); \\special{ps:file=} 变体不收; 真档未随稿 → 重写无害, 下轮落占位"
+    known_gap: "~/tilde 与盘符 (C:\\…) 绝对形不收 (前导符闸); \\special{ps:file=} 变体不收; 真档未随稿 → 重写无害，下轮落占位"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "hep-ex/9412001 (unk26 failmine7)",
-          error: "\\special{psfile=/home/enomoto/kekm.ps hscale=0.7 vscale=0.7 …} — kekm.ps 在 wdir 根, 绝对径逃逸 → xdvipdfmx Image inclusion failed",
+          error: "\\special{psfile=/home/enomoto/kekm.ps hscale=0.7 vscale=0.7 …} — kekm.ps 在 wdir 根，绝对径逃逸 → xdvipdfmx Image inclusion failed",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-unk26spec/bundles.json B4 + tmp/lane-unk26/census.md"
@@ -1679,7 +1679,7 @@ rules:
   # (45-graphics 17~18 区) 全够不到 —— 它们只吃 ``!`` 型签名。
   # builtin 从 err_head/payload 抽名落占位 (与
   # graphic_missing_placeholder 同 ``_stub_graphic_at`` 核)。序:
-  # pdf_asset_sanitize(18.5) 后 —— 同 driver-fatal other 派发面,
+  # pdf_asset_sanitize(18.5) 后 —— 同 driver-fatal other 派发面，
   # 签名互斥无竞争。
   - id: driver_missing_image_stub
     description: "xdvipdfmx Image-inclusion 缺图 fatal → 驱动解析位落格式占位 (EPS/PNG/JPEG/PDF 按后缀)"
@@ -1688,7 +1688,7 @@ rules:
     when:
       any:
         - { category: other }
-        - { category: driver_fatal } # _round_cat 兜底臂残形: payload=原始 fatal 行
+        - { category: driver_fatal } # _round_cat 兜底臂残形：payload=原始 fatal 行
     condition:
       any:
         - ctx_suggests: "Image inclusion failed\\. Could not find file"
@@ -1708,25 +1708,25 @@ rules:
         }
       - {
           corpus: "2502.00335 + 2504.06306 + 2505.07205 (failmine4 drvstage)",
-          error: "同签名: vInfComp.eps / figures/methodology.png — 上游 e-print 未带图档",
+          error: "同签名：vInfComp.eps / figures/methodology.png — 上游 e-print 未带图档",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-drvstage/ — probe4 .xbb 旁件复现链 + cell1-3 stdout 实证"
-    known_gap: "驱动期 ci-变体 (盘存 vinfcomp.eps 要 vInfComp.eps) rescue_check 让位 —— tex 侧 case_link 派发面够不到驱动名, 真出此形需专用 copy-variant 臂; \\special{psfile=X} 无扩展名形无活图形引用作证亦让位"
+    known_gap: "驱动期 ci-变体 (盘存 vinfcomp.eps 要 vInfComp.eps) rescue_check 让位 —— tex 侧 case_link 派发面够不到驱动名，真出此形需专用 copy-variant 臂; \\special{psfile=X} 无扩展名形无活图形引用作证亦让位"
 
-  # ─── pairbun2 msym10 (failmine7 普查, missing_tfm|msym10 ×2 cells) ───
+  # ─── pairbun2 msym10 (failmine7 普查，missing_tfm|msym10 ×2 cells) ───
   # msym10 = 旧 amsfonts msym 族 TFM 名 —— tlnet tlpdb 与 CTAN 双缺席
   # (musix13 filemap 先例无路可走: install_tfm(20) 的 install/filemap
-  # 两通道皆 dead-end)。msbm10 = 同族现行名, amsfonts 在档 —— msym/
+  # 两通道皆 dead-end)。msbm10 = 同族现行名，amsfonts 在档 —— msym/
   # msbm 字符位逐槽一致 (tftopl 对账: 黑体/开花体同槽面), ``\font\x=
   # msymN`` 直改 ``msbmN`` 语义等价。臂先 install_tfm 评估 —— 死名
-  # payload 在装包臂前完成改名, 真名永不到 install 面; 若改名后
+  # payload 在装包臂前完成改名，真名永不到 install 面; 若改名后
   # msbmN 同缺 (非标配尺寸) install_tfm 收真名 filemap 可解。
   - id: msym_tfm_rename
     mechanisms: [W95]
     description: "missing_tfm|msymN (CTAN 死名) → 源内 msymN 引用改 msbmN (amsfonts 槽位兼容)"
     phase: loop
-    order: 19 # driver_missing_image_stub(18.6) 后, install_tfm(20) 前 —— 死名先改写
+    order: 19 # driver_missing_image_stub(18.6) 后，install_tfm(20) 前 —— 死名先改写
     when: { category: missing_tfm, payload_required: true }
     condition:
       payload_pattern: "^msym\\d+$"
@@ -1741,14 +1741,14 @@ rules:
               match_surface: masked,
             }
     risk: low # 字符位逐槽一致 (tftopl); masked 面不改注释/verbatim 内名字
-    known_gap: "msymN 的非常规尺寸 (msbm 族无同号 TFM) → 改后 missing_tfm|msbmN 走 install_tfm 真名面, 仍缺则诚实 unfixable; \\font 以外语境 (map 行/驱动件) 不收"
+    known_gap: "msymN 的非常规尺寸 (msbm 族无同号 TFM) → 改后 missing_tfm|msbmN 走 install_tfm 真名面，仍缺则诚实 unfixable; \\font 以外语境 (map 行/驱动件) 不收"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "hep-ph/9703272 + hep-th/9612173 (failmine7 census pairbun2 桶)",
-          error: "missing_tfm|msym10 ×2 — msym 族 tlnet/CTAN 双缺席, install 面死路",
+          error: "missing_tfm|msym10 ×2 — msym 族 tlnet/CTAN 双缺席，install 面死路",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-pairbun2/ — msym10 死名对账 + msbm10 槽位兼容验证 (tftopl)"
@@ -1757,16 +1757,16 @@ rules:
   # spacefactor_atdef_wrap(198.5) 的无签名门版: @-token def 站
   # (\newtheorem{@#1}{#2}[section] / \newenvironment{clm}{..\edef
   # \@currentlabel..} / \def\the@clm 族) 在 doc scope @=12 下 tokenize →
-  # "Use of \@ doesn't match" mismatch 洪泛 + Missing-number (146 错,
+  # "Use of \@ doesn't match" mismatch 洪泛 + Missing-number (146 错，
   # syntax/other/illegal_unit/undefined_cs 散格)。builtin 同款
   # exact-restore \catcode64 包裹, gate_terms:[] 关签名门 —— 原臂
   # spacefactor 门经默认参数保持不变。规则居本分片因 75-syntax.yaml 在
-  # lane 权属外 (dispatch 按 phase+order 全局排序, 分片归置纯组织义)。
+  # lane 权属外 (dispatch 按 phase+order 全局排序，分片归置纯组织义)。
   - id: atdef_cat_wrap
     mechanisms: [W125]
-    description: "@-token def 站 (\\newtheorem/\\newenvironment/\\def 族) → exact-restore @=11 包裹 (无签名门版, spacefactor_atdef_wrap 姊妹臂)"
+    description: "@-token def 站 (\\newtheorem/\\newenvironment/\\def 族) → exact-restore @=11 包裹 (无签名门版，spacefactor_atdef_wrap 姊妹臂)"
     phase: loop
-    order: 198.6 # spacefactor_atdef_wrap(198.5) 之后, undefined_cs_guess(900) 之前
+    order: 198.6 # spacefactor_atdef_wrap(198.5) 之后，undefined_cs_guess(900) 之前
     when:
       any: # mismatch 洪泛散格面 (cs_mismatch 收 `\@ doesn't match` 措辞)
         - { category: syntax }
@@ -1781,7 +1781,7 @@ rules:
       function: spacefactor_atdef_wrap
       params: { gate_terms: [] }
     risk: low # exact-restore 在 @=letter 宿主恒等变换; 已裹站幂等跳过; def 域外零扰动
-    known_gap: "体文内裸 @-cs (def 域外, 如 \\begin{@x} 调用站) 不裹 —— 本格 @-use 全在 def 体内收敛; \\let/\\newif 无体 def 不收同原臂"
+    known_gap: "体文内裸 @-cs (def 域外，如 \\begin{@x} 调用站) 不裹 —— 本格 @-use 全在 def 体内收敛; \\let/\\newif 无体 def 不收同原臂"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1817,7 +1817,7 @@ rules:
               repl: "\\\\setmainfont\\g<1>{\\g<2>}",
               match_surface: masked,
             }
-    risk: medium # 字体语义改变 (sf/tt 回默认, 数学面交还既有 mathmap); ctx 强签名限臂
+    risk: medium # 字体语义改变 (sf/tt 回默认，数学面交还既有 mathmap); ctx 强签名限臂
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1832,7 +1832,7 @@ rules:
 
   # 1107.0304: infix-RPN.tex:477 \\let\\@nil\\relax 毒化内核 sentinel
   # (@nil 本 undefined, 变 \\relax 后 \\@for/分隔符扫描全坏 → undefined_cs
-  # 级联)。装载行后插 csname 形恢复 (装载点 @=12 域, \\csname @nil
+  # 级联)。装载行后插 csname 形恢复 (装载点 @=12 域，\\csname @nil
   # \\endcsname 免 catcode 断名); lookahead 挡重复注入幂等。
   - id: infix_rpn_nil_restore
     description: "infix-RPN/infixplot 装载毒化 \\@nil sentinel → 载行后注 \\csname 形 \\let 恢复"
@@ -1912,10 +1912,10 @@ rules:
     known_gap: "非 imsart 系 saferef 撞不收 ( ctx 签名是 imsart 专属); 类非三名的 imsart 衍生不收"
 
   # 0806.2759: TL amstex.sty v1.2f 不自报错 (obsolete 行注释态) →
-  # pkg_obsolete 签名永不点火, cs_table amstex 条够不到。装载即毁
+  # pkg_obsolete 签名永不点火，cs_table amstex 条够不到。装载即毁
   # kernel 参机制 → amsthm proof 定义 runaway → Missing \\begin{document}
   # → p1 排 '1.'。源级改 \\usepackage 行 amstex→amsmath (cs_table
-  # strip_pkg+usepackage 同语义, 无签名面走 regex 直达)。
+  # strip_pkg+usepackage 同语义，无签名面走 regex 直达)。
   - id: amstex_conflict_strip
     description: "\\usepackage{amstex} (TL 兼容尸位毁 kernel 参机制) → 改写 amsmath 装载"
     phase: loop
@@ -1992,7 +1992,7 @@ rules:
     known_gap: "\\SI{1.5e-2} 已带尾数正常形不沾; \\SIrange/\\numrange 双参区间形 e-负值不收 (未观测)"
 
   # illegal_unit payload 无组 (taxonomy 裸签) —— px 闸落 ctx/source
-  # 双侧: err ctx 显 px 字样 + 源带 数字px 字面才点火。
+  # 双侧: err ctx 显 px 字样 + 源带 数字 px 字面才点火。
   # `<num>px` → `<num>pt` (印刷单位直替; [0-9] 捕获保小数前缀完整:
   # "12.5px" 匹配 "5px" 位 → "12.5pt")。
   - id: unit_px_rewrite
@@ -2055,7 +2055,7 @@ rules:
     provenance:
       - {
           corpus: "1607.00450 (vault QC replay geo_margin_breach, qc-impl-2026-09-28)",
-          error: "revtex4-1 + pdfpages → lscape \\LS@rot 裹 \\@outputbox 每页旋转, 词盒 10pt 宽",
+          error: "revtex4-1 + pdfpages → lscape \\LS@rot 裹 \\@outputbox 每页旋转，词盒 10pt 宽",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json lscape_revtex_guard"
@@ -2131,7 +2131,7 @@ rules:
 
   # misc_singles (a): babel_opt|spanish —— babel_lang_ldf_install 的
   # ldf 映射面无 spanish.ldf (TL2025+ babel 不再单体 ldf 制), install
-  # 臂恒 miss → 剥 babel 选项表里的 spanish 词位保编译 (语种回默认,
+  # 臂恒 miss → 剥 babel 选项表里的 spanish 词位保编译 (语种回默认，
   # 断词/连字规则退化优于全灭)。payload_pattern 钉 spanish 防其他
   # babel_opt 格误中; 三臂覆盖 表内中尾位/表首位/独位 全形。
   - id: babel_opt_drop_uninstallable
@@ -2164,26 +2164,26 @@ rules:
               repl: "\\g<1>\\g<2>",
               match_surface: masked,
             }
-    risk: medium # 语种选项剥除 → babel 回默认断词/连字规则; 不剥则 babel_opt 恒炸全灭, 退化优于死
+    risk: medium # 语种选项剥除 → babel 回默认断词/连字规则; 不剥则 babel_opt 恒炸全灭，退化优于死
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "vault QC replay misc_singles (qc-impl-2026-09-28)",
-          error: "Package babel Error: Unknown option `spanish' —— ldf 不在 install 映射面, 恒炸",
+          error: "Package babel Error: Unknown option `spanish' —— ldf 不在 install 映射面，恒炸",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json item50(a) babel_opt_drop_uninstallable"
-    known_gap: "\\documentclass[..spanish..] 全局选项形态不收 (该行无法判 babel 装载面, 剥除易误伤他包选项); babel_undef (语言本体未声明) 签异不归本臂"
+    known_gap: "\\documentclass[..spanish..] 全局选项形态不收 (该行无法判 babel 装载面，剥除易误伤他包选项); babel_undef (语言本体未声明) 签异不归本臂"
 
   # item24(a) spec builtin imsart_printead_shim 未注册 —— regex 等价:
   # imsart 系类 \\printead 走 \\@@printead[#1]#2{\\ead@size #2} 内部
-  # 签名, hyperref/saferef 级联下定义位丢失 → 'Illegal parameter
+  # 签名，hyperref/saferef 级联下定义位丢失 → 'Illegal parameter
   # number'/\\ead 级联 0 页。导言 \\providecommand 补位 (类内真定义
   # 在场则 noop 不覆盖); \\makeatletter 段包裹保 @ 字面 catcode
   # (注入位 preamble @=12 域)。与 imsart_nohyperref(195) 姊妹臂
-  # 互补: 彼关 hyperref 拉载, 此补定义缺位。
+  # 互补: 彼关 hyperref 拉载，此补定义缺位。
   - id: imsart_printead_restore
     description: "imsart 系 \\printead/\\ead 撞 → 导言补 \\@@printead 签名定义 (providecommand 守卫形)"
     phase: loop
@@ -2213,4 +2213,4 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json item24(a) imsart_printead_shim"
-    known_gap: "\\ead@size 亦缺席时守卫内调用仍 ucs (交下游 cs 面续修); myectaart_frontmatter (item24c) 需 docfix builtin 剥 2.09 字体命令, 不归本臂"
+    known_gap: "\\ead@size 亦缺席时守卫内调用仍 ucs (交下游 cs 面续修); myectaart_frontmatter (item24c) 需 docfix builtin 剥 2.09 字体命令，不归本臂"

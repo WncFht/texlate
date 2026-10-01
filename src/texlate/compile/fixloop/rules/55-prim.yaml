@@ -13,7 +13,7 @@ rules:
   # 9910403) —— 全局驱动选项 (dvips/pdftex) 经 documentclass 传给 expl3
   # 后端探测 → "Backend request inconsistent with engine: using 'xetex'"
   # 于 ctex→expl3 装载点炸。xelatex 自决 xdvipdfmx, 驱动选项纯属死重 →
-  # 从 \documentclass[..] 剥除。旧单正则 `,?driver,?` 双吃两侧逗号,
+  # 从 \documentclass[..] 剥除。旧单正则 `,?driver,?` 双吃两侧逗号，
   # 中段剥除把邻项粘成幻影选项 (finalreqno) —— 拆 表首/表内/表尾
   # 三态 (同 hyperref_driver_neutralize 形)。corpus 普查: 驱动词
   # 恒单枚出现 (多枚形无实证); \b 词界挡 dvipsnames 伪命中。
@@ -42,17 +42,17 @@ rules:
               pattern: "(\\\\documentclass\\s*\\[[^\\]]*?)(?:,\\s*\\b(?:dvips|dvipdfmx?|pdftex|pdflatex|xdvi|oztex|textures|vtex)\\b\\s*)+(?=,|\\])",
               repl: "\\g<1>",
             }
-          # 剥除残留的 ",]" 洞: [a,dvips,]→[a]
+          # 剥除残留的 ",]" 洞：[a,dvips,]→[a]
           - {
               pattern: "(\\\\documentclass\\s*\\[[^\\]]*?),\\s*\\]",
               repl: "\\g<1>]",
             }
-    risk: low # 剥错向: dvipdfmx 名义上与 xetex 自决同路, 剥了不亏
-    known_gap: "同一括号内非连排多驱动词 (a,D,b,D2) 只剥首个连排段——锚消费形单遍限制, 与 hyperref_driver_neutralize 同; corpus 无多驱动词实证"
+    risk: low # 剥错向：dvipdfmx 名义上与 xetex 自决同路，剥了不亏
+    known_gap: "同一括号内非连排多驱动词 (a,D,b,D2) 只剥首个连排段——锚消费形单遍限制，与 hyperref_driver_neutralize 同; corpus 无多驱动词实证"
     engines:
       xelatex: { mode: native }
       tectonic:
-        mode: same # tectonic 后端固定, 同理由剥除
+        mode: same # tectonic 后端固定，同理由剥除
     provenance:
       - {
           corpus: "loop2-delta expl3_backend×4",
@@ -63,10 +63,10 @@ rules:
 
   # 2026-09-17 fixer-bblwall A3 (2105.03753): lipics-v2021.cls:510
   # `\IfFileExists{glyphtounicode.tex}{\input glyphtounicode}` —— texmf-dist
-  # 里真文件在故守卫开火, 体首 \pdfglyphtounicode/\pdfgentounicode 是
+  # 里真文件在故守卫开火，体首 \pdfglyphtounicode/\pdfgentounicode 是
   # pdfTeX 原语 → xelatex 下 undefined_cs→pdftex_prim 细分。order 必须
   # 先于 guard(50)/polyfill(51) 截走 payload——守卫/polyfill 治不了
-  # "文件存在但原语缺" 的形态, 空 stub 让 \input 路径整个短路。
+  # "文件存在但原语缺" 的形态，空 stub 让 \input 路径整个短路。
   - id: glyphtounicode_shadow
     mechanisms: [W104]
     description: "cls \\IfFileExists 守卫触发真 glyphtounicode.tex (pdfTeX 原语件) → wdir 注空 stub 遮蔽"
@@ -81,7 +81,7 @@ rules:
         - { source_contains: "glyphtounicode" } # 源/cls 确有 \input 引用链才落 stub
         ## REVIEW 拓宽: 报错站点在 fileset 外 (axessibility.sty 型系统
         ## texmf 件 \input{glyphtounicode}) —— stub 落 wdir 由 TeX 文件
-        ## 解析序 (cwd 先) 截获, 与站点文件归属无关, 臂不需源证据。
+        ## 解析序 (cwd 先) 截获，与站点文件归属无关，臂不需源证据。
         - { err_outside_fileset: true }
     action:
       kind: builtin_transform
@@ -111,11 +111,11 @@ rules:
   # 引擎守卫在非目标引擎 \IFTEX@Require 拉 \read → nonstop 即 Emergency
   # stop, file-line 错落 emergency 零规则可接 (unfixable:emergency ×15)。
   # xelatex 下 \Require<X>TeX 守卫两向都安全: 通过形 (XeTeX/TUTeX/eTeX) 与
-  # \relax 同语义, 拉闸形 (PDFTeX/LuaTeX/pTeX/VTeX/AlephTeX/...) 中和即拆弹
+  # \relax 同语义，拉闸形 (PDFTeX/LuaTeX/pTeX/VTeX/AlephTeX/...) 中和即拆弹
   # —— 族级词形 \Require[A-Za-z]*TeX 一律换 \relax。
   # 2026-09-19 aaai-guard 加固: def-target 位 (\def\RequirePDFTeX/
   # \newcommand{\RequirePDFTeX}/\let 直跟形) 不换 —— 置换会成 \def\relax
-  # 重定义灾; lookbehind 变宽形 (regex 引擎支持) 豁免 def 族直跟站,
+  # 重定义灾; lookbehind 变宽形 (regex 引擎支持) 豁免 def 族直跟站，
   # use 站与宏体内裹站仍中和。族名补 pTeXng/HINT/Prote 非 TeX 尾闸。
   - id: iftex_engine_guard_neutralize
     description: "doc 伴船件内 iftex \\Require<X>TeX 引擎守卫 → xelatex 下 \\read Emergency stop → 中和 \\relax"
@@ -138,7 +138,7 @@ rules:
         rewrites:
           # def-target lookbehind: \def/\let/newcommand 族直跟的 \Require*TeX
           # 是被定义位不是调用 —— 换 \relax 会成 \def\relax 灾 (regex 引擎
-          # 支持变宽 lookbehind); 定义残留为空转, use 站照常中和。
+          # 支持变宽 lookbehind); 定义残留为空转，use 站照常中和。
           - {
               pattern: "(?<!\\\\(?:[gex]?def|let|newcommand|renewcommand|providecommand|DeclareRobustCommand|newrobustcmd|renewrobustcmd|providerobustcmd|DeclareTextCommand)\\s*\\*?\\s*\\{?\\s*)\\\\Require(?:[A-Za-z]*TeX|pTeXng|HINT|Prote)\\b",
               repl: "\\\\relax",
@@ -152,17 +152,17 @@ rules:
     provenance:
       - {
           corpus: "soak-2026-09-18 aaai2027.sty ×15 (2609.19149/2609.19164/2609.17927/2609.19158/2609.19170/2609.19559 等)",
-          error: "aaai2027.sty:59 Emergency stop. (\\RequirePDFTeX iftex 守卫, unfixable:emergency, rounds=2 零相关规则)",
+          error: "aaai2027.sty:59 Emergency stop. (\\RequirePDFTeX iftex 守卫，unfixable:emergency, rounds=2 零相关规则)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "drvopt-ext lane: \\RequirePDFTeX emergency 15 同质格 (iftex.sty \\IFTEX@Require \\read 机制)"
 
   # 2026-09-19 errsweep 车道 (soak-2026-09-18 2609.19664 fairmeta):
   # fairmeta.cls:25 `\DisableLigatures[f]{family=sf*}` 无引擎守卫 ——
-  # microtype 该 cs 是 pdftex≥1.30/luatex 限定件, xelatex 下定义为
+  # microtype 该 cs 是 pdftex≥1.30/luatex 限定件，xelatex 下定义为
   # 报错+忽略 (file-line `Package microtype Error: Disabling ligatures
-  # ... only possible` → halt-on-error 每轮必停, 'other' 签 stuck)。
-  # 中和即语义恒等: xelatex 下 microtype 本就忽略此调用, 连可选参
+  # ... only possible` → halt-on-error 每轮必停，'other' 签 stuck)。
+  # 中和即语义恒等: xelatex 下 microtype 本就忽略此调用，连可选参
   # ([<lig>]) 与字体参 ({<spec>}) 一并吃掉换 \relax —— 换 bare
   # cs 名会留 [f]{family=sf*} 残字排进正文。
   - id: microtype_disableligatures_neutralize
@@ -188,15 +188,15 @@ rules:
               repl: "\\\\relax ",
               match_surface: masked,
             }
-    risk: low # xelatex 下该 cs 唯一行为是报错+忽略; 移除调用不改变任何输出
-    known_gap: "\\SetProtrusion/\\SetExpansion/\\SetTracking 等同族 pdftex 限定声明未盖 (soak 未见, 见再扩); \\DisableLigatures 跨行参 ([\\n]/{\\n}) 不吃"
+    risk: low # xelatex 下该 cs 唯一行为是报错 + 忽略; 移除调用不改变任何输出
+    known_gap: "\\SetProtrusion/\\SetExpansion/\\SetTracking 等同族 pdftex 限定声明未盖 (soak 未见，见再扩); \\DisableLigatures 跨行参 ([\\n]/{\\n}) 不吃"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同错
     provenance:
       - {
           corpus: "soak-2026-09-18 2609.19664 fairmeta (relink 后露出的二级签)",
-          error: "fairmeta.cls:25 Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer ('other' 签, 4 轮 stuck)",
+          error: "fairmeta.cls:25 Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer ('other' 签，4 轮 stuck)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "errsweep-2026-09-19: missing_file relink 通路验证中揭示的下游签名"
@@ -204,28 +204,28 @@ rules:
   # 2026-09-19 driver-option strip 车道 (loop3-1206.0240/1706.07495/1306.0294):
   # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
   # 等原语 undefined → 错误恢复把 chardef 残值排进字流 (^^@×179/^^A×20
-  # missing_char 族)。normalize 括号面只认单包 {graphicx} 形, 多包
+  # missing_char 族)。normalize 括号面只认单包 {graphicx} 形，多包
   # {graphicx,color}/{color,graphicx} 与 vendored cfg \ExecuteOptions{pdftex}
   # 漏网 (1306.0294 vendored color.cfg/graphics.cfg + 2007 pdftex.def 实案:
   # .eps 成 Unknown graphics extension → \includegraphics 错 → \subfloat 恢复
-  # 级联)。guard(50)/polyfill(51) 只守卫/补定义——pdftex.def 仍载, chardef
+  # 级联)。guard(50)/polyfill(51) 只守卫/补定义——pdftex.def 仍载，chardef
   # token 照样排字 (polyfill 的 "pdfcolorstack":"#1" 臂回声同 token, 治不了
   # 泄漏) —— 剥选项必须排在它们之前。改写组与 hyperref_driver_neutralize
-  # (70-pkgopt) 同构: 括号/PassOptions/def-driver 三套剥词 + 空括号清扫,
-  # 另加 ExecuteOptions 驱动词换 xetex 臂 (cfg 驱动选支形, 剥空会丢同括号
+  # (70-pkgopt) 同构: 括号/PassOptions/def-driver 三套剥词 + 空括号清扫，
+  # 另加 ExecuteOptions 驱动词换 xetex 臂 (cfg 驱动选支形，剥空会丢同括号
   # 兄弟选项故取显式换写)。
   - id: pdftex_driver_opt_strip
     description: "[pdftex] 驱动选项残存 (多包括号/vendored cfg 漏网面) → 驱动词剥除/ExecuteOptions 换 xetex, pdftex.def 不载"
     phase: loop
-    order: 48 # guard(50)/polyfill(51) 之前 —— 根修先于症状补丁; polyfill 落地后 pdftex_prim 签名消失, 再没机会
+    order: 48 # guard(50)/polyfill(51) 之前 —— 根修先于症状补丁; polyfill 落地后 pdftex_prim 签名消失，再没机会
     when:
       any:
         - { category: pdftex_prim, payload_required: false }
         # file-line 错归 other 的失守面 (hyperref_driver_neutralize 同构);
-        # 无站点 applied=False 当场让位下条, 不耗轮
+        # 无站点 applied=False 当场让位下条，不耗轮
         - { category: other, payload_required: false }
     condition:
-      # source_blob 仅 .tex/.sty/.cls —— 词级闸与改写臂词表同域 (剥谁放谁,
+      # source_blob 仅 .tex/.sty/.cls —— 词级闸与改写臂词表同域 (剥谁放谁，
       # \b 挡 dvipsnames 伪命中); vendored cfg 格靠 .sty 内 pdftex 字样
       # (geometry.sty \Gm@pdftex) 放行; hypertex/dvips 独占格 (xcolor.sty
       # \GinDriver{hypertex} / aa.cls \aa@driver{dvips} 支无 pdftex 字样)
@@ -279,14 +279,14 @@ rules:
             }
           # \\newcommand 族同形指派 (aa.cls \\aa@driver / webofc.cls
           # \\woc@driver / \\renewcommand{\mydriver}{pdftex} 条件选支;
-          # cs 名可裸可 {..} 包, 容忍 [n][default] 参槽)
+          # cs 名可裸可 {..} 包，容忍 [n][default] 参槽)
           - {
               pattern: "(\\\\(?:newcommand|renewcommand|providecommand)\\s*\\{?\\s*\\\\[\\w@]*[Dd]river[\\w@]*\\s*\\}?\\s*(?:\\[\\d+\\]\\s*(?:\\[[^\\]]*\\]\\s*)?)?\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
               repl: "\\g<1>xetex}",
               match_surface: masked,
             }
           # \\ExecuteOptions{...drv...} 驱动词 → xetex (变宽 lookbehind 逐词;
-          # vendored color.cfg/graphics.cfg 驱动选支形, 剥空丢兄弟选项故换写)
+          # vendored color.cfg/graphics.cfg 驱动选支形，剥空丢兄弟选项故换写)
           - {
               pattern: "(?<=\\\\ExecuteOptions\\s*\\{[^{}]*)\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b",
               repl: "xetex",
@@ -298,8 +298,8 @@ rules:
               repl: "\\g<1>",
               match_surface: masked,
             }
-    risk: low # xetex 下这些驱动本就失效; masked 面只改写活代码, 注释/逐字不动
-    known_gap: "vendored pdftex.def/dvips.def 实体件仍留 wdir (选支换 xetex 后不再被载, 残留无害; 遮蔽退役属 vendored_shadow 面未覆盖 .cfg/.def —— backlog); .def/.clo 内驱动站点未盖 (无实证); \\let 形指派与 \\hypersetup 驱动键未盖 (同 neutralize)"
+    risk: low # xetex 下这些驱动本就失效; masked 面只改写活代码，注释/逐字不动
+    known_gap: "vendored pdftex.def/dvips.def 实体件仍留 wdir (选支换 xetex 后不再被载，残留无害; 遮蔽退役属 vendored_shadow 面未覆盖 .cfg/.def —— backlog); .def/.clo 内驱动站点未盖 (无实证); \\let 形指派与 \\hypersetup 驱动键未盖 (同 neutralize)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同驱动面
@@ -312,7 +312,7 @@ rules:
     source_ref: "c0diag C0-ctrl census; normalize.py _DRIVER_SCOPE_RX 单包括号面外漏网"
 
   - id: pdftex_prim_guard
-    description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫, xelatex 下静默跳过"
+    description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫，xelatex 下静默跳过"
     phase: loop
     order: 50
     when: { category: pdftex_prim }
@@ -321,12 +321,12 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
-          # bal = regex 递归平衡花括号: \{ (转义\{|\}|\% | 行注释 | 嵌套bal |
+          # bal = regex 递归平衡花括号: \{ (转义\{|\}|\% | 行注释 | 嵌套 bal |
           # 非括号)* \} —— TeX 词法同构 (注释/转义内括号不计配对), 跨行实参
           # 全真接管 (旧 [^\n] 弃守面收编)。赋值臂 value = (escape|bal|非括号
           # 非注释字符|孤{)* —— 裸 } 必停: 单行 \def\f{\prim=1} / \def\f{\prim{a}}
-          # 外层 } 不可吞, 旧贪婪 [^\n%]*/[^\n]*} 吞外层 } 把 \fi 落出宏体外
-          # → Extra/Incomplete \fi 破坏级缺陷 (primarg 期审计实证, primguard
+          # 外层 } 不可吞，旧贪婪 [^\n%]*/[^\n]*} 吞外层 } 把 \fi 落出宏体外
+          # → Extra/Incomplete \fi 破坏级缺陷 (primarg 期审计实证，primguard
           # 修)。孤 { 兜底吃字面量: 不可闭合 { 维持旧"整行吞", xetex 跳过面干净。
           - {
               pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(?![a-zA-Z@])(\\s*=\\s*(?:\\\\[{}%]|(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})|[^{}\\n%]|\\{)*)",
@@ -337,10 +337,10 @@ rules:
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
     risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
-    known_gap: "实参内裸 \\fi/\\else/\\or token 在 xetex 跳读语义下仍被认作条件闭 (跳读不计花括号层) —— 包装形固有面, 与站点正则无关, pdfdict 实参无实证; catcode 变更面 (verbatim/活动字符) 的括号/注释不识字面 —— raw 面匹配无 catcode 信息, 全 regex_rewrite 共同限制"
+    known_gap: "实参内裸 \\fi/\\else/\\or token 在 xetex 跳读语义下仍被认作条件闭 (跳读不计花括号层) —— 包装形固有面，与站点正则无关，pdfdict 实参无实证; catcode 变更面 (verbatim/活动字符) 的括号/注释不识字面 —— raw 面匹配无 catcode 信息，全 regex_rewrite 共同限制"
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # XeTeX 内核, 守卫语义一致
+      tectonic: { mode: same } # XeTeX 内核，守卫语义一致
     provenance:
       - {
           corpus: "1412.6980/*",
@@ -351,7 +351,7 @@ rules:
 
   # 新增 (docs/spec/compile.md L268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
   - id: pdftex_prim_polyfill
-    description: "pdfTeX 原语补定义 (读取型/取参型/fileset 外站点) → 前导注入 \\ifdefined..\\else<寄存器|吞参noop|chardef>\\fi"
+    description: "pdfTeX 原语补定义 (读取型/取参型/fileset 外站点) → 前导注入 \\ifdefined..\\else<寄存器 | 吞参 noop|chardef>\\fi"
     phase: loop
     order: 51 # 与 guard 同 trigger; dedup 后第二轮轮到它
     when: { category: pdftex_prim, payload_required: true }
@@ -365,12 +365,12 @@ rules:
         - { err_outside_fileset: true }
         ## primarg 拓宽: fileset 内但 guard 包不到的取参站点 —— guard 两
         ## 形只要 \prim= / \prim{, \pdfrefobj\thecolor 型 (prim+cs token,
-        ## spotcolor.sty:40 实证) 漏网; 源内见 \prim 即补定义, 吞参 noop
+        ## spotcolor.sty:40 实证) 漏网; 源内见 \prim 即补定义，吞参 noop
         ## \ifdefined 幂等无害 (braced/赋值站点已被 guard 包过的不会回来
         ## 报错; 回来即确有未包站点)。
         - { source_contains: "\\\\{payload}(?![a-zA-Z@])" }
         ## pdfprim 车道臂 A: `pdf@` 别名族 (breakurl/pdfmark/pdftexcmds
-        ## 系包体自导原语绑定) —— @-名定义上即 @=11 包内宏, 报错站点必在
+        ## 系包体自导原语绑定) —— @-名定义上即 @=11 包内宏，报错站点必在
         ## 包体宏展开帧 (file_stack 归 doc .tex → err_outside_fileset 不中;
         ## 2502.03387 colm 实证 breakurl.sty:149 \sbox\pdf@box 报在 doc 侧)。
         ## fileset .sty 内字面站点已由 source_contains 臂覆盖; 本臂直放行 —
@@ -399,19 +399,19 @@ rules:
   # 门 hyperref[pagebackref]+\dtbookmark → \backref undef, base+zh 双臂),
   # \ifx\pdfoutput\undefined (0712.1016 自产缺陷实证: snc.tex:25
   # `\ifhepph\else\ifx\pdfoutput\undefined\else<\pdfcompresslevel=9 +
-  # hyperref[pdftex]>\fi\fi` —— polyfill 定义 \pdfoutput 后探针翻 else 臂,
+  # hyperref[pdftex]>\fi\fi` —— polyfill 定义 \pdfoutput 后探针翻 else 臂，
   # hyperref[pdftex] 在 xetex 下 GenericError)。塌陷到编译期恒定臂:
-  # \if<letters>pdf 族 → \iftrue (pdf 臂 = 能力臂, 残存 [pdftex] 驱动词
+  # \if<letters>pdf 族 → \iftrue (pdf 臂 = 能力臂，残存 [pdftex] 驱动词
   # 归 pdftex_driver_opt_strip(48) 收); \ifx 存在探针 → \iftrue (undefined
-  # 真臂 = 非 pdftex = xetex 诚实臂, 门消解后对 polyfill 注入的 \pdfoutput
+  # 真臂 = 非 pdftex = xetex 诚实臂，门消解后对 polyfill 注入的 \pdfoutput
   # 定义免疫 —— 自产缺陷根修)。\ifdefined/\ifcsname/\ifnum 值探针不改写:
   # 存在探针在 polyfill 落地后自然翻真、值探针经 _PRIM_INIT pdfoutput=0
-  # 保持诚实假, 塌与不塌同义 —— 且躲开 guard/polyfill 自注入的
+  # 保持诚实假，塌与不塌同义 —— 且躲开 guard/polyfill 自注入的
   # \ifdefined\<prim>\else 惯形 (塌它会把刚注的定义变死)。
   - id: pdftex_gate_collapse
     description: "pdf 模式条件门 (\\if*pdf 族 + \\ifx\\pdfoutput 存在探针) 塌陷编译期恒定臂 → 死臂能力段复活"
     phase: loop
-    order: 52 # polyfill(51) 后: guard/polyfill 先落自注入 \ifdefined 惯形不互踩; 门致 undefined_cs/other 格本规则先接
+    order: 52 # polyfill(51) 后：guard/polyfill 先落自注入 \ifdefined 惯形不互踩; 门致 undefined_cs/other 格本规则先接
     when:
       any:
         - { category: undefined_cs, payload_required: false }
@@ -420,7 +420,7 @@ rules:
         - { category: other, payload_required: false }
     condition:
       # fileset 源确有可塌门才动 —— 门不在则零改写弃守不耗轮;
-      # \if<letters>pdf 词尾 pdf 收 \ifpdf/\ifCLASSINFOpdf/\if@pdf 族,
+      # \if<letters>pdf 词尾 pdf 收 \ifpdf/\ifCLASSINFOpdf/\if@pdf 族，
       # 天然排除 \ifpdftrue/\ifpdffalse (词尾非 pdf) 与 \ifpdftex/
       # \ifpdfoutput/\ifpdfmode (pdf 后接字母被 (?![a-zA-Z@]) 挡)
       source_contains: "\\\\if[a-zA-Z@]*[pP][dD][fF](?![a-zA-Z@])|\\\\ifx\\s*\\\\pdfoutput\\s*\\\\(?:undefined|@undefined|relax)(?![a-zA-Z@])|\\\\ifx\\s*\\\\(?:undefined|@undefined|relax)\\s*\\\\pdfoutput(?![a-zA-Z@])"
@@ -432,7 +432,7 @@ rules:
           # \if<letters>pdf 开关门 → \iftrue。def-target/操作数位 lookbehind:
           # \newif\ifpdf/\def\ifpdf/\let\ifpdf/\newcommand{\ifpdf} 是被定义位
           # 不是求值 —— 改写会成重定义灾; \ifx\ifpdf/\ifcat\ifpdf/
-          # \ifdefined\ifpdf 操作数位 (探针右操作数) 语义随门存废, 不同塌。
+          # \ifdefined\ifpdf 操作数位 (探针右操作数) 语义随门存废，不同塌。
           # (?:\\[a-zA-Z@]+\s*)? 段护 \let\x\<门> RHS 与注入的
           # \let\ifpdf\iftrue 钩文本; \def\f{\ifpdf..} 门在宏体照常塌 (body
           # 非定义位 —— lookbehind 只消费一枚中间 cs 后遇 { 即失配放行)。
@@ -455,11 +455,11 @@ rules:
               repl: "\\\\iftrue",
               match_surface: masked,
             }
-    risk: low # 两臂皆编译期恒定真 —— 消门不消结构, \else/\fi 配对完整; 塌错向: pdf 臂在 xetex 下露出的 pdftex 残留归 prim guard/polyfill/driver-strip 链收
-    known_gap: "texmf 内门不可改写未盖 (值探针由 _PRIM_INIT pdfoutput=0 保持非 pdf 臂); \\ifpdf\\ifpdf 嵌套内层按操作数位豁免不塌 (罕见惯形, 外层塌后内层动态探针若 \\ifpdf 未定义下轮 undefined_cs 接); \\unless\\ifx 形与 \\ifnum\\pdfoutput 值探针不改写 (后者经 =0 初值保持诚实假); csname 构造门 (\\csname ifpdf\\endcsname) 无字面不中; \\ifx 探针 lookbehind 不设 —— \\let\\f\\ifx\\pdfoutput\\undefined 原文在 xetex 下本就裸奔 \\pdfoutput 报错, 改写不劣化"
+    risk: low # 两臂皆编译期恒定真 —— 消门不消结构，\else/\fi 配对完整; 塌错向：pdf 臂在 xetex 下露出的 pdftex 残留归 prim guard/polyfill/driver-strip 链收
+    known_gap: "texmf 内门不可改写未盖 (值探针由 _PRIM_INIT pdfoutput=0 保持非 pdf 臂); \\ifpdf\\ifpdf 嵌套内层按操作数位豁免不塌 (罕见惯形，外层塌后内层动态探针若 \\ifpdf 未定义下轮 undefined_cs 接); \\unless\\ifx 形与 \\ifnum\\pdfoutput 值探针不改写 (后者经 =0 初值保持诚实假); csname 构造门 (\\csname ifpdf\\endcsname) 无字面不中; \\ifx 探针 lookbehind 不设 —— \\let\\f\\ifx\\pdfoutput\\undefined 原文在 xetex 下本就裸奔 \\pdfoutput 报错，改写不劣化"
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语, 门语义一致
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语，门语义一致
     provenance:
       - {
           corpus: "singlesweep pdftex-gated-codepath ×4 (1706.07613 \\ifCLASSINFOpdf→graphicx[pdftex]→\\includegraphics; 2609.20238 dtrt.sty \\ifpdf→hyperref[pagebackref]→\\backref; 0712.1016 \\ifx\\pdfoutput 自产缺陷 GenericError)",

@@ -10,11 +10,11 @@ version: 1
 
 rules:
   # ─── gate: 路由拒绝先于一切修复尝试 ───
-  # 原型语义: 主循环 L748-755 在 pick_and_apply 之前短路,
+  # 原型语义: 主循环 L748-755 在 pick_and_apply 之前短路，
   # 等效于最高优先级 → 用 phase:gate 显式建模。
   - id: latex209_reject
     mechanisms: [B01, W80, W88]
-    description: "LaTeX 2.09 文档 (\\documentstyle/化石 cls) → 路由拒绝, 转 latex+dvips 通道"
+    description: "LaTeX 2.09 文档 (\\documentstyle/化石 cls) → 路由拒绝，转 latex+dvips 通道"
     phase: gate
     order: 1
     # v4 收窄 (eracls2 普查/gatenarrow 2026-09-20): 删 missing_file 支 ——
@@ -30,7 +30,7 @@ rules:
         # v3 补面 (latex209_upgrade 落地后): 升级稿已无 \documentstyle,
         # 但 post-upgrade 仍出 209 类错误 (compat-mode 残留) 时本文档
         # 方言归属不变——COMPAT_SHIM 面包屑行 (latex209.py 唯一出处)
-        # 同判 209 籍, 路由拒绝语义保全而非 unfixable 白烧轮。
+        # 同判 209 籍，路由拒绝语义保全而非 unfixable 白烧轮。
         source_contains: "(?m)^[ \\t]*\\\\documentstyle|% texlate: LaTeX 2\\.09 compatibility shim",
       }
     action:
@@ -38,19 +38,19 @@ rules:
       params: { route: "latex+dvips", reason: "LaTeX 2.09 document" }
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # 路由层策略, 与引擎无关
+      tectonic: { mode: same } # 路由层策略，与引擎无关
     provenance:
       - {
           corpus: "hep-th 类语料 (hjfy 经验移植)",
           error: "LaTeX2e command in LaTeX 2.09 document",
         }
-    stats: { fires: 0, status: proposed } # 本轮语料未触发, 为 2.09 论文预留
+    stats: { fires: 0, status: proposed } # 本轮语料未触发，为 2.09 论文预留
     source_ref: "fixloop.py L508-520, L748-755"
 
   # 新增 (docs/08:273): pstricks 文档走 dvips 路由前的 .pro 前置检查
   - id: pstricks_dvips_preflight
     mechanisms: [B05]
-    description: "pstricks 文档被路由 latex+dvips 前, 预检 pst-tools.pro 等 dvips 资源存在"
+    description: "pstricks 文档被路由 latex+dvips 前，预检 pst-tools.pro 等 dvips 资源存在"
     phase: gate
     order: 0 # 先于 latex209_reject(1): pstricks 时先记 .pro 预检信息再路由
     when:
@@ -58,10 +58,10 @@ rules:
         - { category: latex209 }
         - { category: missing_file, main_head_contains: "\\documentstyle" }
     condition: {
-        # v2 修正: documentstyle 行锚定 (注释不命中) AND pstricks 依赖,
+        # v2 修正: documentstyle 行锚定 (注释不命中) AND pstricks 依赖，
         # 单 pattern 内顺序表达: \documentstyle 恒在文档头部先于包引用。
         # 2026-09-16 再修: 后半 pstricks 组同病注释误中 (source_contains 跑
-        # raw 源, % 注释行会命中) —— 内组加同款行锚, 口径同 pstricks_route
+        # raw 源，% 注释行会命中) —— 内组加同款行锚，口径同 pstricks_route
         # (@pstricks token 展开 = engine/_route.py PSTRICKS_SIG_ALTS 单源)。
         source_contains: "(?ms)^[ \\t]*\\\\documentstyle[\\s\\S]*?^[ \\t]*@pstricks",
       }
@@ -81,13 +81,13 @@ rules:
   # (缺 plain.fmt 通道) → gate 显式拒 tex-plain, 诚实上报优于烧满轮次。
   # 可达场景: find_main_tex 宽松档扫 raw 头 60KB 被注释伪装行
   # (%\documentstyle) 骗入主 —— 纯 plain 零主档案已由 classify_no_main
-  # 归 no_main_tex:plain_tex 不经此处。builtin 内遮盖视图复核是权威:
+  # 归 no_main_tex:plain_tex 不经此处。builtin 内遮盖视图复核是权威：
   # 活 \documentclass/\documentstyle 在场或零签名即 False 让位 loop。
   - id: plain_format_route
     mechanisms: [W37, W68]
     description: "纯 plain/amsTeX 稿 (无活 documentclass ∧ 行锚签名) → 拒 tex-plain 诚实上报"
     phase: gate
-    order: 2 # latex209_reject(1) 后: 209 先归 dvips 通道, 此处只收真 plain
+    order: 2 # latex209_reject(1) 后：209 先归 dvips 通道，此处只收真 plain
     when:
       any:
         - { category: undefined_cs }
@@ -114,15 +114,15 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus/mechanisms.jsonl W37+W68 verdict suggested_rules"
 
-  # ─── precheck: 静态路由 + 第 0 招装包, 不进循环 ───
-  # 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程,
+  # ─── precheck: 静态路由 + 第 0 招装包，不进循环 ───
+  # 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程，
   # 实证误杀 —— tectonic 对部分 eps 工程能出 pdf~ (0812.4521/nucl-th/0104042
   # baseline 即 pdf~), 且 epstopdf 转换可整格救回 (0903.0543/1406.1994 手测
   # 出 pdf)。.eps 文件 → 循环内 log 确证的 ps_image 规则处理 (见 loop);
   # 此处只留代码级 PS 依赖 (pstricks/pspicture) 的预检路由 —— 无转换路径。
   - id: pstricks_route
     mechanisms: [B05]
-    description: "pstricks/pspicture/\\psset 源码依赖 → tectonic 无可行路径, 预检路由 xelatex"
+    description: "pstricks/pspicture/\\psset 源码依赖 → tectonic 无可行路径，预检路由 xelatex"
     phase: precheck
     order: -10 # 路由决策先于装包预检
     when: { always: true }
@@ -130,10 +130,10 @@ rules:
       engine_in: [tectonic]
       # 2026-09-16 注释-FP 收紧 (1803.08846 实证: %\usepackage{pstricks}
       # 注释行误杀 baseline-clean 稿): source_contains 跑 raw 源 → 各备选项
-      # 行锚 (?m)^[ \t]* (:369 latex209 gate 先例, % 注释行不命中)。交替支
+      # 行锚 (?m)^[ \t]* (:369 latex209 gate 先例，% 注释行不命中)。交替支
       # 单源 @pstricks = compile/engine/_route.py PSTRICKS_SIG_ALTS
       # (_PSTRICKS_RE 同源): pstricks(?:-\w+)?|pst-\w+ 元素边界 (防
-      # {notpstricks} 子串), RequirePackage 同收, {amsmath,pstricks}
+      # {notpstricks} 子串), RequirePackage 同收，{amsmath,pstricks}
       # 非首元素命中; pspicture 收 \begin{pspicture*?}/\pspicture cs 两形态。
       source_contains: "(?m)^[ \\t]*@pstricks"
     action:
@@ -156,13 +156,13 @@ rules:
     source_ref: "docs/spec/compile.md L218, L271; fixloop-v2 整改"
 
   # W31 孤儿裁决 (mechmap-2026-09-17): svg 包 = inkscape + shell-escape
-  # 外部链, tectonic 无可行路径 → precheck 直拒路由 xelatex; xelatex 臂
+  # 外部链，tectonic 无可行路径 → precheck 直拒路由 xelatex; xelatex 臂
   # 由 loop 侧 svg_prepare 接管 (flag/预转换两臂)。行锚口径同 pstricks_route。
   - id: svg_route
     mechanisms: [W31, B05]
-    description: "\\usepackage{svg}/\\includesvg 依赖 → tectonic 无 inkscape 链, 预检路由 xelatex"
+    description: "\\usepackage{svg}/\\includesvg 依赖 → tectonic 无 inkscape 链，预检路由 xelatex"
     phase: precheck
-    order: -9 # pstricks_route(-10) 后, static_precheck(0) 前
+    order: -9 # pstricks_route(-10) 后，static_precheck(0) 前
     when: { always: true }
     condition:
       engine_in: [tectonic]
@@ -186,17 +186,17 @@ rules:
     source_ref: "bench/corpus/mechanisms.jsonl W31 verdict suggested_rules"
 
   # ── 2026-09-28 qc-impl (vault QC replay 诊断蒸馏 impl-rules.json IDX61) ──
-  # 1003.0510: psfrag 是 dvips-special 链包, xdvipdfmx (xelatex/tectonic
-  #   共同后端) 无 PS 解释器 —— \psfrag 替换静默不落, EPS 原始标签层浮在
+  # 1003.0510: psfrag 是 dvips-special 链包，xdvipdfmx (xelatex/tectonic
+  #   共同后端) 无 PS 解释器 —— \psfrag 替换静默不落，EPS 原始标签层浮在
   #   正文上 (compile clean, 无 log 签名 → 只能预检源码面截)。路由
   #   latex+dvips 让替换链原生生效——比 45-graphics psfrag_strip_xelatex
   #   (-6.5) 兜底注释更优; 行锚口径同 pstricks_route(-10) 防注释 FP,
   #   mid-line \psfrag 等未中形态仍落条带臂。
   - id: psfrag_route
     mechanisms: [B05]
-    description: "\\usepackage{psfrag}/\\psfrag 源码依赖 → xdvipdfmx 无双解释器, 双引擎预检路由 latex+dvips"
+    description: "\\usepackage{psfrag}/\\psfrag 源码依赖 → xdvipdfmx 无双解释器，双引擎预检路由 latex+dvips"
     phase: precheck
-    order: -8 # svg_route(-9) 后, psfrag_strip_xelatex(-6.5) 前: 路由是真修, 条带是兜底
+    order: -8 # svg_route(-9) 后，psfrag_strip_xelatex(-6.5) 前：路由是真修，条带是兜底
     when: { always: true }
     condition:
       source_contains: "(?m)^[ \\t]*\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*?\\bpsfrag\\b|^[ \\t]*\\\\psfrag\\b"
@@ -206,7 +206,7 @@ rules:
         { route: "latex+dvips", reason: "psfrag needs dvips special chain" }
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # tectonic 同走 xdvipdfmx 输出链, 同一面硬墙
+      tectonic: { mode: same } # tectonic 同走 xdvipdfmx 输出链，同一面硬墙
     provenance:
       - {
           corpus: "1003.0510 (qc geo_text_overlap)",
@@ -225,11 +225,11 @@ rules:
   - id: epsfbox_fit
     description: "\\epsfbox 未缩放图 → \\includegraphics[max width/max height,keepaspectratio] + adjustbox[export] 注入"
     phase: precheck
-    order: -6 # psfrag_route(-8)/psfrag_strip(-6.5) 后, tar_blob_extract(-1) 前
+    order: -6 # psfrag_route(-8)/psfrag_strip(-6.5) 后，tar_blob_extract(-1) 前
     when: { always: true }
     condition:
       # \A 锚定全 blob 三闸同位判: adjustbox 字面无 (防 option-clash 双载
-      # —— 稿已装 adjustbox 则已有 export 语义讨论空间, 保守不碰) ∧
+      # —— 稿已装 adjustbox 则已有 export 语义讨论空间，保守不碰) ∧
       # \documentclass 存在 (注入锚) ∧ \epsfbox 存活。
       source_contains: "(?s)\\A(?!.*adjustbox)(?=[\\s\\S]*\\\\documentclass)[\\s\\S]*?\\\\epsfbox"
     action:
@@ -260,7 +260,7 @@ rules:
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX32 (builtin epsfbox_fit 未注册 → regex_rewrite 同义)"
 
   # W164 孤儿裁决 (stybegindoc 车道 2026-09-18): e-print 偶发把整包源码
-  # 以嵌套 tar 随投稿, 外层解包后 tar 以 .sty/.cls 名落进工作树 ——
+  # 以嵌套 tar 随投稿，外层解包后 tar 以 .sty/.cls 名落进工作树 ——
   # TeX \input 读 tar 头成排版文本 → Missing \begin{document} 于伪装件
   # 第 N 行 (l.30 `A MSfonts.sty^^@^^@` NUL 填充实证)。必须在
   # static_precheck(0) 前抽成员——tar 内含真 .sty/.cls/主档, 成员落地
@@ -269,7 +269,7 @@ rules:
     mechanisms: [W164]
     description: "e-print 内嵌 tar 伪装 .sty/.cls → 成员补缺解包 + blob 改名退役"
     phase: precheck
-    order: -1 # svg_route(-9) 后, static_precheck(0) 前: 成员先落地缺件扫描才收
+    order: -1 # svg_route(-9) 后，static_precheck(0) 前：成员先落地缺件扫描才收
     when: { always: true }
     action:
       kind: builtin_transform
@@ -296,21 +296,21 @@ rules:
   # "Can be used only in preamble" @子文件:1。normalize #168 门只挡
   # 注入侧 prepend (subfiles 类), 文件自带导言行仍是毒: 剥至
   # \begin..\end{document} 内文是 \subfile/\includestandalone 包
-  # skip 机制的恒等语义, 也是 \subimport/裸 \input 唯一可编译形。
+  # skip 机制的恒等语义，也是 \subimport/裸 \input 唯一可编译形。
   # builtin 内遮盖视图复核 (注释/verbatim 内 docclass 不算位) +
   # ctx.main_path() 排除主档; 无 \begin{document} 异形制不动。
   # 2409.00265 引用门: 只剥被存活 input 族 (\input/\include/\subfile/
   # \import 族/\InputIfFileExists) 引用的文件 —— 无引用 docclass 持件
-  # (独立第二文档, 或 precheck main 误判下的真主档) 永不进编译流,
+  # (独立第二文档，或 precheck main 误判下的真主档) 永不进编译流，
   # 剥它是纯害 (2409.00265: 真主档被剥成 body → env_undefined|
   # frontmatter + 1326 错级联)。
   # 序在 tar_blob_extract(-1) 后: 解包落地的子档同收; static_precheck(0)
   # 前剥掉子档导言免得死 \usepackage 触发无效装包。与 #168
-  # subfilegate (normalize 注入侧) 互补: 一侧挡新毒, 一侧清自带毒。
+  # subfilegate (normalize 注入侧) 互补: 一侧挡新毒，一侧清自带毒。
   - id: subfile_docclass_strip
     description: "被 input 族引用的非主 .tex 含存活 \\documentclass → 剥至 \\begin..\\end{document} 内文"
     phase: precheck
-    order: -0.7 # tar_blob_extract(-1) 后, static_precheck(0) 前
+    order: -0.7 # tar_blob_extract(-1) 后，static_precheck(0) 前
     when: { always: true }
     action:
       kind: builtin_transform
@@ -329,22 +329,22 @@ rules:
     source_ref: "tmp/lane-failmine3/ (#164b); 与 #168 subfilegate 注入侧互补"
 
   # m1k base 臂实证 (fixloop_209.py): latex209_reject gate 拒收的 21 格
-  # 2.09 档, 主档 upgrade_209 转换后 21/21 converted → 20 clean + 1
+  # 2.09 档，主档 upgrade_209 转换后 21/21 converted → 20 clean + 1
   # partial。gate 一刀切拒收过时——升级是确定性变换, 放 precheck 前置:
   # 拆出的 \usepackage 缺件正好被 static_precheck(0) 同轮装包接住;
   # 不可转形态 (ds@ 选项机类/盲升守卫) builtin 内携细分 reason REJECT,
-  # 与 gate 同路由语义但归因更准。zh 臂 splice 树 inject 已转,
-  # \documentstyle 缺席 → 条件天然不触发, 双臂零回归面。
+  # 与 gate 同路由语义但归因更准。zh 臂 splice 树 inject 已转，
+  # \documentstyle 缺席 → 条件天然不触发，双臂零回归面。
   - id: latex209_upgrade
     mechanisms: [B01, W80, W88]
     description: "主档 \\documentstyle → upgrade_209 升 2e (docclass+usepackage 拆分+compat shim); 不可转落 REJECT 兜 gate"
     phase: precheck
-    order: -0.5 # subfile_docclass_strip(-0.7) 后, static_precheck(0) 前
+    order: -0.5 # subfile_docclass_strip(-0.7) 后，static_precheck(0) 前
     when: { always: true }
     condition: {
-        # 行锚粗筛 (注释行不命中, 同 gate 口径); builtin 内 upgrade_209
+        # 行锚粗筛 (注释行不命中，同 gate 口径); builtin 内 upgrade_209
         # 遮盖视图复核主档是权威 —— 条件命中子件而主档无 docstyle 时
-        # no-docstyle False 让位, 不耗轮。
+        # no-docstyle False 让位，不耗轮。
         source_contains: "(?m)^[ \\t]*\\\\documentstyle",
       }
     action:
@@ -352,7 +352,7 @@ rules:
       function: latex209_upgrade
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # 源级确定性变换, 与引擎无关
+      tectonic: { mode: same } # 源级确定性变换，与引擎无关
     provenance:
       - {
           corpus: "m1k base 臂 21 格 latex209_reject (astro/cond-mat/hep/gr-qc/nlin 96-01 老档)",
@@ -365,19 +365,19 @@ rules:
   # 2211.00031 + a4/a4wide 族 (0806.2250/0812.0267/1003.0230/1107.0598/
   #   1206.0240/1206.0756/1312.0413): ctex 注入 \linespread{1.3} 使
   #   \baselineskip 胀 → \textheight=N\baselineskip 赋值在胀值上求值
-  #   (探针 th=803.7pt = 42×18.85bp) → 文本块超纸面, geo_margin_breach。
+  #   (探针 th=803.7pt = 42×18.85bp) → 文本块超纸面，geo_margin_breach。
   #   a4.sty 族包体内同款 \baselineskip 单位赋值。无 log 签名 (几何量
   #   不产 overfull) → precheck 源码签名门。spec 草 builtin
   #   textheight_baseline_clamp 未注册 → 同义 regex_rewrite: 导言区注
   #   \AtBeginDocument \ifdim 钳到纸高安全值 (paperheight - 1in 偏置 -
   #   topmargin/headheight/headsep/footskip - 12pt 垫), \global 防钩内
-  #   分组回收, 全串零 @ 字符免 catcode 议。fp-诊断两格
+  #   分组回收，全串零 @ 字符免 catcode 议。fp-诊断两格
   #   (1907.00049/2105.11409 a4wide 忠实稿) 钳后与 en 侧 pdflatex
   #   版面同源——修复非分歧。fixloop-thclamp 标记幂等。
   - id: textheight_baselineskip_freeze
     description: "a4/a4wide/\\textheight=N\\baselineskip 撞 ctex \\linespread 胀值 → \\AtBeginDocument \\ifdim 几何钳"
     phase: precheck
-    order: -0.45 # latex209_upgrade(-0.5)/shipped_sty_input_wrap(-0.5) 后: 209 升档落定后再钳 (a4wide 是 209 时代包)
+    order: -0.45 # latex209_upgrade(-0.5)/shipped_sty_input_wrap(-0.5) 后：209 升档落定后再钳 (a4wide 是 209 时代包)
     when: { always: true }
     condition:
       # \A 锚定单判三闸: 幂等标记缺席 ∧ (a4 族包装载 ∨ \textheight 直赋
@@ -393,10 +393,10 @@ rules:
               repl: "\\g<0>\n% fixloop-thclamp: textheight guard under ctex linespread inflation\n\\\\AtBeginDocument{\\\\ifdim\\\\textheight>\\\\dimexpr\\\\paperheight-1in-\\\\topmargin-\\\\headheight-\\\\headsep-\\\\footskip-12pt\\\\relax\\\\global\\\\textheight=\\\\dimexpr\\\\paperheight-1in-\\\\topmargin-\\\\headheight-\\\\headsep-\\\\footskip-12pt\\\\relax\\\\fi}",
               match_surface: "masked",
             }
-    risk: low # 只钳超界 \textheight 不放大; 标记幂等 + \ifdim 自门, 健康稿零改
+    risk: low # 只钳超界 \textheight 不放大; 标记幂等 + \ifdim 自门，健康稿零改
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # 源级守卫, 引擎无关
+      tectonic: { mode: same } # 源级守卫，引擎无关
     provenance:
       - {
           corpus: "2211.00031 + a4 族 7 格 (qc geo_margin_breach)",
@@ -407,7 +407,7 @@ rules:
 
   - id: static_precheck
     mechanisms: [W11, W47, W61, B05, W80]
-    description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
+    description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好，省 N 轮循环)"
     phase: precheck
     order: 0
     when: { always: true }
@@ -441,8 +441,8 @@ rules:
       xelatex: { mode: native }
       tectonic:
         mode: degrade
-        degrade: skip # bundle 按需拉包, 预检基本多余
-        fallback: ctan_fetch # 增强位: 仅做本地存在性检查, 缺则 ctan_fetch
+        degrade: skip # bundle 按需拉包，预检基本多余
+        fallback: ctan_fetch # 增强位：仅做本地存在性检查，缺则 ctan_fetch
         note: "bundle 没有的包 (自定义 sty) 仍值得预检 → 保留轻量版"
     provenance:
       - { corpus: "*", error: "冷 TEXMFHOME 下高频 missing_file" }
@@ -454,15 +454,15 @@ rules:
   #   的 xdvipdfmx 不解释 PS special, 图静默丢或报错 (compile clean 的
   #   空页/缺图面)。latex+dvips 通道已立 (latex209_reject 同令牌),
   #   dvips 原生接这类稿。序位 3: tar_blob_extract(-1)/subfile_strip
-  #   (-0.7) 解包落定后源码签名才可见, static_precheck(0) 已先跑装包
-  #   ——路由格浪费一次装包工, 换签名视野 (纯 \epsfbox 格先被
+  #   (-0.7) 解包落定后源码签名才可见，static_precheck(0) 已先跑装包
+  #   ——路由格浪费一次装包工，换签名视野 (纯 \epsfbox 格先被
   #   epsfbox_fit(-6) 改写不再命中本签; psfig/epsffile/\special ps
   #   残签仍改道)。行锚口径同 pstricks_route。
   - id: ps_graphics_dvips_route
     mechanisms: [B05]
     description: "psfig/epsffile/\\special ps PS 时代图形 → xdvipdfmx 不接 PS special, 预检路由 latex+dvips"
     phase: precheck
-    order: 3 # static_precheck(0) 后, build_directive_harvest(5) 前
+    order: 3 # static_precheck(0) 后，build_directive_harvest(5) 前
     when: { always: true }
     condition:
       source_contains: "(?m)^[ \\t]*\\\\(psfig\\s*\\{|epsfbox|epsffile|special\\s*\\{?\\s*ps:)"
@@ -494,7 +494,7 @@ rules:
     mechanisms: [W58]
     description: "% arara:/!TEX 构建指令收割 → engine_flags/advisories 建议 (不改源)"
     phase: precheck
-    order: 5 # static_precheck(0) 后殿后: 收割面只进账本, 不抢装包序
+    order: 5 # static_precheck(0) 后殿后：收割面只进账本，不抢装包序
     when: { always: true }
     condition: { source_contains: "(?im)^[ \\t]*%+\\s*(arara:|!\\s*TEX)" }
     action:

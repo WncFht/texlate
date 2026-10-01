@@ -17,8 +17,8 @@ rules:
   # 43 findings/23 篇 compile clean 无修复出口 (qc_wanted 开闸后
   # warn_overfull 类别才有驱动面)。Overfull \hbox 多出自不可断内联物
   # (长行内数学/URL/CJK-拉丁混排) 拉竭词间 glue——TeX 三遍排版兜底:
-  # \tolerance 抬第二遍坏度阈, \emergencystretch>0 开第三遍追加
-  # stretch 重排, 是真排版修复不设 \hfuzz 阈值遮掩 (qc 证据面保留)。
+  # \tolerance 抬第二遍坏度阈，\emergencystretch>0 开第三遍追加
+  # stretch 重排，是真排版修复不设 \hfuzz 阈值遮掩 (qc 证据面保留)。
   - id: para_loosen_overfull
     description: "warn_overfull (Overfull \\hbox 残留) → preamble 尾注 \\emergencystretch+\\tolerance"
     phase: loop
@@ -34,11 +34,11 @@ rules:
     provenance:
       - {
           corpus: "e2e_real 260-cell 探针批 (qc_replay 2026-09-24)",
-          error: "layout:overfull 43 findings/23 papers — compile clean 但版面出血, qc_wanted 补票格原无规则可驱",
+          error: "layout:overfull 43 findings/23 papers — compile clean 但版面出血，qc_wanted 补票格原无规则可驱",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "bench/py/specs/e2e_real.py _QC_WANTED_MIN; tmp/qc_replay/summary.json"
-    known_gap: "盒级 overfull (超宽 \\includegraphics/tabular 整盒) 非词间 glue 病因, 松化无解——几何面缺陷仍落 qc 账; Overfull \\vbox 走 warn_float_big 面"
+    known_gap: "盒级 overfull (超宽 \\includegraphics/tabular 整盒) 非词间 glue 病因，松化无解——几何面缺陷仍落 qc 账; Overfull \\vbox 走 warn_float_big 面"
 
   # 同 lane: Float too large for page 的 [H] 钉死臂——float_h_demote
   # builtin 复用 (runaway_output 臂原规, 同机理不同驱动面): [H] 把
@@ -67,7 +67,7 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "rules/95-targeted.yaml float_h_demote 原规; tmp/qc_replay/summary.json"
-    known_gap: "非 [H] 形 float_lost (env 丢名/multicols 内浮体等) 无 [H] 站可降级, builtin decline 让位; 真超高浮体降级后仍 overfull vbox 但内容可见——float_lost→float_fit 降级即修复语义"
+    known_gap: "非 [H] 形 float_lost (env 丢名/multicols 内浮体等) 无 [H] 站可降级，builtin decline 让位; 真超高浮体降级后仍 overfull vbox 但内容可见——float_lost→float_fit 降级即修复语义"
 
   # ── 2026-09-28 qc-impl lane: vault QC replay layout:overfull 簇 ──
   # tabular_fit builtin (layoutfix 叶, v2): 盒表 env 源级跨度
@@ -76,11 +76,11 @@ rules:
   # /threeparttable, 最外层跨度/数学域跳过/v1 注块+TABLE_FITTING 残块
   # 整剥), 流 env (longtable/supertabular/mpsupertabular/deluxetable)
   # env/begin 钩 shrink, p{\textwidth}→p{0.85\linewidth}, 负 \hspace
-  # 剥除, minipage ≥160mm→adjustbox 裹。0930 v1 成对钩法拔除——
+  # 剥除，minipage ≥160mm→adjustbox 裹。0930 v1 成对钩法拔除——
   # env/before+after 钩在配对不候场形毁编 (~1200 事件), 见
   # legacy_clamp_purge (75-syntax order95)。
   # source_contains 条件必须含 minipage —— 0905.1250 格唯一超宽面是
-  # minipage 160mm 装子表, 无 tabular 字面即 decline 漏治。
+  # minipage 160mm 装子表，无 tabular 字面即 decline 漏治。
   - id: tabular_overfull_fit
     description: "warn_overfull + 表族/minipage 字面 → tabular_fit 跨度 adjustbox 收缩 (v2)"
     phase: loop
@@ -98,7 +98,7 @@ rules:
     provenance:
       - {
           corpus: "vault QC replay (qc-impl-2026-09-28)",
-          error: "layout:overfull 表族簇 —— 整盒超宽非词间 glue 病因, para_loosen 无解需盒级收缩",
+          error: "layout:overfull 表族簇 —— 整盒超宽非词间 glue 病因，para_loosen 无解需盒级收缩",
         }
       - {
           corpus: "qc_inspect 0905.1250",
@@ -111,7 +111,7 @@ rules:
   # math_run_break builtin: \relpenalty/\binoppenalty=0 放行行内数学
   # 断点 + 强剂量 (emergencystretch=3em/tolerance=9999) 升级。长行内数学
   # $...$ 是 overfull 头号内联不可断物 (qc replay 实测多格)——TeX 默认
-  # 关系/二元符后罚 10000 禁断, 归零即让行内公式在运算符处断行。
+  # 关系/二元符后罚 10000 禁断，归零即让行内公式在运算符处断行。
   - id: math_inline_break
     description: "warn_overfull + 长行内数学 → math_run_break 罚归零放断点"
     phase: loop
@@ -137,9 +137,9 @@ rules:
 
   # display_math_shrink builtin: 17 个 display env (equation/align/gather/
   # multline/flalign/eqnarray/IEEEeqnarray/dmath/displaymath/bea 等) env
-  # hook 注 \footnotesize+\arraycolsep1.5pt+\jot2pt+muskip 收紧, $$ 与
-  # \[ 裸面 adjustbox 裹。陈列数学超宽是 overfull 次大簇——字号+列距
-  # 收缩比松化直接, adjustbox 兜底真巨盒。
+  # hook 注 \footnotesize+\arraycolsep1.5pt+\jot2pt+muskip 收紧，$$ 与
+  # \[ 裸面 adjustbox 裹。陈列数学超宽是 overfull 次大簇——字号 + 列距
+  # 收缩比松化直接，adjustbox 兜底真巨盒。
   - id: display_math_shrink
     description: "warn_overfull + display 数学 env → display_math_shrink 字号/列距收缩+adjustbox 兜底"
     phase: loop
@@ -166,7 +166,7 @@ rules:
   # ── 2026-09-28 qc-impl lane: qc_wanted 无签名面 precheck 兜底 ──
   # 2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 把下一浮体吸上
   # 来与 fig caption 叠印 (geo_text_overlap 源) —— 编译 clean/ok 无 '!'
-  # 错可分类, log 面无签名, 进 fixloop 后只有 precheck always 面可达
+  # 错可分类，log 面无签名，进 fixloop 后只有 precheck always 面可达
   # (本片头注: warn_* 伪类不覆盖此族)。负 belowskip 是合法省空间手
   # 法但 qc 判定叠印即缺陷——钳零仅 spacing 变松不丢内容。两形:
   # captionsetup 键值 belowskip=-N + \\setlength{\\belowcaptionskip}{-N}。
@@ -235,10 +235,10 @@ rules:
     known_gap: "glue 形 (plus/minus 连尾) 与 cs/dimen 形 afterskip 不收——只动纯字面量; cls 私有包装宏/\\section 直定义面不收"
 
   # 2504.07951 (qc99, iccv.sty:479): \def\maketitlesupplementary{ \newpage
-  #   \twocolumn[...] } —— \newpage 不冲积压浮体, suppl 段首 twocolumn
+  #   \twocolumn[...] } —— \newpage 不冲积压浮体，suppl 段首 twocolumn
   #   盒与滞留 float 页挤压 → 浮体堆 (geo_text_overlap/叠印桶)。
   #   修 = \clearpage 换 \newpage (先 flush 滞留浮体再开 twocolumn) +
-  #   def 首行注 \floatpagefraction=0.15 (松浮页成页门槛, 滞留浮体
+  #   def 首行注 \floatpagefraction=0.15 (松浮页成页门槛，滞留浮体
   #   更早成页不再压到文末)。lookahead 闸 idempotence: 已含
   #   floatpagefraction 的 def 不再注入。
   - id: maketitle_suppl_float_flush
@@ -280,10 +280,10 @@ rules:
   #   www2010-accepted/vldb/sig-alternate-2013 六件同纹行): \@sect
   #   display 分支内 ``\vskip -12pt  %gkmt, 11 aug 99 and GM July 2000
   #   (was -14) - numbered section head spacing`` —— pdflatex 度量下
-  #   题→正净差 14.98pt, xelatex 下塌成 4.35pt (EN build-base 同塌,
+  #   题→正净差 14.98pt, xelatex 下塌成 4.35pt (EN build-base 同塌，
   #   引擎级非 CJK 特异) → geo_text_overlap 标题贴正文。
   #   校准: -12pt→-2pt 复 ~14.35pt ≈ 原件。旁生 ``\vskip -9pt`` 行
-  #   (ssect/更紧排语境) 不动; 闸用 @uchead 族标, 非 ACM 簇 -12pt 不收。
+  #   (ssect/更紧排语境) 不动; 闸用 @uchead 族标，非 ACM 簇 -12pt 不收。
   - id: uchead_vskip_relax
     description: "ACM \\@uchead 簇 cls `\\vskip -12pt` gkmt 补偿 → -2pt —— xelatex 下标题贴正文塌距"
     phase: precheck
@@ -311,16 +311,16 @@ rules:
           error: "\\@sect display 分支 \\vskip -12pt gkmt hack → xelatex 标题贴正文 (iy≈3.3-3.4 叠印)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item f; 校准: pdflatex 净差 14.98pt / 塌后 4.35pt → -2pt 复 14.35pt"
+    source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item f; 校准：pdflatex 净差 14.98pt / 塌后 4.35pt → -2pt 复 14.35pt"
     known_gap: "\\vskip -9pt 旁生行 (ssect/tighter 语境) 不收; 非 @uchead 族标的 -12pt 不收"
 
   # qc99 (2026-09-28): 旋转图 ink-bleed 族 —— eps BoundingBox 外轴标
   #   墨迹旋到盒下 (matplotlib 族标签挂出 bb 通病), caption 撞进 bleed
   #   带: 0812.0424 \rotatebox{-90}{\includegraphics{fig5a.eps}} 与
   #   0707.3761 angle=270 includegraphics 形 (0812.1253 同族推定)。
-  #   EN base 同 bleed 但 1 行 caption 擦过, zh 2 行撞进 →
+  #   EN base 同 bleed 但 1 行 caption 擦过，zh 2 行撞进 →
   #   geo_text_overlap。编译 clean 无 log 签名 → precheck always 面;
-  #   builtin 逐 env 块判 (旋转签+caption+未垫) 注 abovecaptionskip。
+  #   builtin 逐 env 块判 (旋转签+caption+ 未垫) 注 abovecaptionskip。
   - id: rotfig_caption_pad
     description: "figure env 含旋转图 (\\rotatebox/angle=90|180|270) + \\caption → env 头注 \\abovecaptionskip 垫高 —— eps bb 外墨迹 bleed 叠 caption"
     phase: precheck
@@ -343,11 +343,11 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc99/wf_reports/adj_*.txt — fixloop-rules-batch item h"
-    known_gap: "figure env 外旋转图 (table/散排) 不收; bleed >pad 量时叠印残留 (bb 外墨迹无界, 垫高是工程近似)"
+    known_gap: "figure env 外旋转图 (table/散排) 不收; bleed >pad 量时叠印残留 (bb 外墨迹无界，垫高是工程近似)"
 
   # ── 2026-09-28 qc-impl lane 续: 三枚 spec builtin (vbox_geometry_clamp/ (vbox_geometry_clamp/
   #   url_run_break/bib_sloppy/verbatim_listing_shrink) 未在 builtins
-  #   TRANSFORM_FNS 注册 —— 本簇全部落 regex_rewrite 等价臂, 不可达子臂
+  #   TRANSFORM_FNS 注册 —— 本簇全部落 regex_rewrite 等价臂，不可达子臂
   #   逐条记 known_gap。
   # vbox_geometry_clamp spec 三臂中只 (a) 静态臂 regex 可达: 负/零
   # \headheight 页高 hack 钳回 0pt (0806.1975 '\headheight -.75 in'
@@ -379,7 +379,7 @@ rules:
               repl: "\\g<1>0pt\\g<2>",
               match_surface: masked,
             }
-    risk: low # 负 headheight 恒为压缩 hack 位, 钳回 0pt = 版心几何复原非掩饰
+    risk: low # 负 headheight 恒为压缩 hack 位，钳回 0pt = 版心几何复原非掩饰
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -390,7 +390,7 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json item5 vbox_geometry_clamp"
-    known_gap: "builtin 缺席砍掉两臂: (b) log 读 'Overfull \\vbox (Npt too high' 众数 → \\addtolength\\textheight{Npt} 收均匀每页溢出 (1312.0469/2609.20593) 需读上轮 log 不可达; (c) \\floatpagefraction/\\@fpsep 兜底臂同缺"
+    known_gap: "builtin 缺席砍掉两臂：(b) log 读 'Overfull \\vbox (Npt too high' 众数 → \\addtolength\\textheight{Npt} 收均匀每页溢出 (1312.0469/2609.20593) 需读上轮 log 不可达; (c) \\floatpagefraction/\\@fpsep 兜底臂同缺"
 
   # url_run_break spec 的 regex 等价: (a) preamble 注 xurl/url +
   # \UrlBreaks 保守断点集 (url.sty:32 原生形 \\do\\<char>); (b) masked
@@ -409,7 +409,7 @@ rules:
         exts: [.tex, .bbl]
         rewrites:
           # (a) preamble 注 xurl (任意字符可断) / url 兜底 + 保守断点集;
-          #   \begin{document} 前插入, marker \txlateurlbrk 前瞻幂等
+          #   \begin{document} 前插入，marker \txlateurlbrk 前瞻幂等
           - {
               pattern: "(?<!\\\\def\\\\txlateurlbrk\\{\\}\n)(\\\\begin\\s*\\{document\\})",
               repl: "\\IfFileExists{xurl.sty}{\\usepackage{xurl}}{\\usepackage{url}}\n\\urlstyle{same}\n\\def\\UrlBreaks{\\do\\/\\do\\-\\do\\_\\do\\.\\do\\=\\do\\?}\n\\def\\txlateurlbrk{}\n\\g<1>",
@@ -433,10 +433,10 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json item6 url_run_break"
-    known_gap: "(c) \\texttt{≥24 长串}→\\path 与 (d) {\\tt ..} 组臂未采——\\path verbatim 读法下源内 #/%/\\ 字面转义分歧, regex 层判不出安全面, 保守拒改; \\path 参内花括号残稿先天不收"
+    known_gap: "(c) \\texttt{≥24 长串}→\\path 与 (d) {\\tt ..} 组臂未采——\\path verbatim 读法下源内 #/%/\\ 字面转义分歧，regex 层判不出安全面，保守拒改; \\path 参内花括号残稿先天不收"
 
   # bib_sloppy spec 的 regex 等价: preamble 注 env 钩 —— 钩码在
-  # thebibliography 环境组内执行, \sloppy 作用域天然限 bib 区。
+  # thebibliography 环境组内执行，\sloppy 作用域天然限 bib 区。
   - id: bib_para_loosen
     description: "warn_overfull + thebibliography → env 钩 \\sloppy+\\emergencystretch=2em (bib_sloppy regex 等价)"
     phase: loop
@@ -489,7 +489,7 @@ rules:
               repl: "\\AddToHook{env/verbatim/begin}{\\footnotesize}\n\\AddToHook{env/alltt/begin}{\\footnotesize}\n\\AddToHook{env/lstlisting/begin}{\\footnotesize}\n\\AtBeginDocument{\\IfPackageLoadedTF{listings}{\\lstset{basicstyle=\\footnotesize\\ttfamily,breaklines=true,breakanywhere=true}}{}\\IfPackageLoadedTF{tcolorbox}{\\tcbset{listing options={breakanywhere=true}}}{}}\n\\def\\txlatevblist{}\n\\g<1>",
               match_surface: masked,
             }
-    risk: low # 字号收缩+断行开关不改字面内容; 包缺席时 IfPackageLoadedTF 空臂
+    risk: low # 字号收缩 + 断行开关不改字面内容; 包缺席时 IfPackageLoadedTF 空臂
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

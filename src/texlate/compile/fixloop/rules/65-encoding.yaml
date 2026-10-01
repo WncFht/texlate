@@ -11,7 +11,7 @@ version: 1
 rules:
   # 新增 (2026-09-16, compilebench-v3 失败构成): inputenc 对 Unicode 引擎
   # 整包拒载 → 剥装载点 + \inputencoding 调用。源真为非 UTF-8 时下一轮
-  # 由 non_utf8_source(95) 接续转码 —— 两轮分工, 本轮只动声明。
+  # 由 non_utf8_source(95) 接续转码 —— 两轮分工，本轮只动声明。
   - id: inputenc_strip
     mechanisms: [B02, W10, W13]
     description: "inputenc 拒绝 xetex/luatex → 剥 \\usepackage{inputenc} 装载点与 \\inputencoding 调用"
@@ -40,10 +40,10 @@ rules:
   # 2026-09-20 armgap4 (1003.2165 fired_ineffective): inputenc_strip(94)
   # 只够得到 ctx.tex_files 内装载点 —— 肇事 `\RequirePackage[utf8]{inputenc}`
   # 躺在系统 cc.cls:196 (texmf-dist, fileset 外), strip 改的是稿内死
-  # filecontents* 体, 每轮复炸。修 = vendor noop inputenc.sty 投 compile
+  # filecontents* 体，每轮复炸。修 = vendor noop inputenc.sty 投 compile
   # cwd (vendored_fetch_multi → _resolve_site main_dir): kpathsea `.` 先
   # TEXMFDIST → 系统 cls 装载链也解析到 noop, 任意选项吞 (\DeclareOption*
-  # 通吃, xetex-inputenc stub 同构 #327)。noop \ProvidesPackage 日期
+  # 通吃，xetex-inputenc stub 同构 #327)。noop \ProvidesPackage 日期
   # 2026/09/20 > 系统真件 → vendored_sty_shadow 不反退 (ld<sd 判据);
   # 稿自带 inputenc.sty 时 dst 在场跳过 decline (保守不覆写)。
   - id: inputenc_noop_shadow
@@ -93,15 +93,15 @@ rules:
     source_ref: "docs/spec/compile.md L221, L272"
 
   # 2026-09-16 compile-hard 新增 (2211.13013 闭环·引擎自产臂): aux_scan_eof
-  # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件, 下遍
+  # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件，下遍
   # 引擎重生成; shipped 件归 normalize.INTERMEDIATE_SUFFIXES 转码兜底。
   # 2026-09-20 scaneof 扩臂 (m1k aux-malformed 簇 11 singles): 同根
   # (截断/错配 aux) 三签名面 —— (a) aux_scan_eof 原面; (b) runaway_scan
-  # 读端 cs 落 aux 书写族 (aux 被截/旧 arity 错配, TeX 回读扫到尾行宏);
+  # 读端 cs 落 aux 书写族 (aux 被截/旧 arity 错配，TeX 回读扫到尾行宏);
   # (c) undefined_cs 站点直落 *.aux:N (行界齐整但写端遗迹错配 ——
-  # 损坏谓词放行的健康字节形, 由 payload 锚定内容删补)。condition.any
-  # 三臂各复述签名实形, (a) 臂与 taxonomy 读端 pattern 同串 → 对
-  # aux_scan_eof 恒真, 原覆盖面零回归。
+  # 损坏谓词放行的健康字节形，由 payload 锚定内容删补)。condition.any
+  # 三臂各复述签名实形，(a) 臂与 taxonomy 读端 pattern 同串 → 对
+  # aux_scan_eof 恒真，原覆盖面零回归。
   - id: aux_purge_regen
     description: "aux 族回读 EOF/读端 cs 崩 (中间件被劈断或写端错配) → 删除损坏可再生件后重跑"
     phase: loop
@@ -120,7 +120,7 @@ rules:
         # (b) runaway_scan 读端 = aux 书写族 cs (含 \\@writefile 直引)
         # 2026-09-20 singbun: +redactcite (2606.18573 指派; 该格实为 doc 级
         # 未闭合 \\redactcite{ 非 aux 回读 —— 健康 aux 上 builtin decline,
-        # 表列名补全语义一致族, 真修见 75-syntax redactcite_brace_close)
+        # 表列名补全语义一致族，真修见 75-syntax redactcite_brace_close)
         - {
             ctx_suggests: "scanning use of \\\\((abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*|bibcite|citation|bibdata|bibstyle|newlabel|@writefile|@input|pgfsyspdfmark|redactcite)",
           }
@@ -132,7 +132,7 @@ rules:
       params: {
           exts: [.aux, .out, .toc, .lof, .lot, .nav, .snm, .vrb, .ent],
           # payload 锚定臂: 良好字节形但含错配写端 cs 的 .aux —— 仅机械族
-          # cs 放行 (bibcite/newlabel 类通用件不入, 防误删健康/xr 外链 aux)
+          # cs 放行 (bibcite/newlabel 类通用件不入，防误删健康/xr 外链 aux)
           payload_purge_cs: "^(abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*$",
           payload_purge_exts: [.aux],
         }
@@ -159,15 +159,15 @@ rules:
   # 2026-09-20 watchimpl cjk-pkg-invalid-char (1607.00157/2601.07372 base 格):
   # taxonomy 把 "Package CJK Error: Invalid character code" 归 invalid_char,
   # 但 recode 臂对两格皆空转 —— 1607 是 GBK 源 (recode 只碰 cp1252/latin-1
-  # 孤字节, GBK 整文件 decode-fail 不在其面), 2601 全 UTF-8 (env 内混排
-  # 拉丁扩展字符触 CJK 包解码错, 无字节可转)。根修 = 旧 CJK/CJKutf8 包
+  # 孤字节，GBK 整文件 decode-fail 不在其面), 2601 全 UTF-8 (env 内混排
+  # 拉丁扩展字符触 CJK 包解码错，无字节可转)。根修 = 旧 CJK/CJKutf8 包
   # 换装 xeCJK (normalize_legacy_cjk 同径, zh 臂已实证): \begin{CJK*}
   # 族改 {…} 组 + \setCJKmainfont Fandol。source_contains 门把 CJK 稿从
   # 纯字节损坏格分流 —— 无 CJK 标记的 invalid_char 仍落 97 recode。
   - id: cjk_env_relax
     description: "invalid_char 且源载 CJK/CJKutf8 环境 → 旧 CJK 包换装 xeCJK + 环境改组"
     phase: loop
-    order: 96.5 # invalid_char_recode(97) 前 —— CJK 稿先走包换装, 纯字节损坏才转码
+    order: 96.5 # invalid_char_recode(97) 前 —— CJK 稿先走包换装，纯字节损坏才转码
     when: { category: invalid_char }
     condition:
       source_contains: "\\\\begin\\s*\\{CJK|\\\\usepackage\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*CJK"
@@ -181,11 +181,11 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "1607.00157 (singlesweep base 格, GBK 源)",
+          corpus: "1607.00157 (singlesweep base 格，GBK 源)",
           error: "Package CJK Error: Invalid character code (\\begin{CJK*}{GB}{gbsn})",
         }
       - {
-          corpus: "2601.07372 (singlesweep base 格, UTF-8 源)",
+          corpus: "2601.07372 (singlesweep base 格，UTF-8 源)",
           error: "Package CJK Error: Invalid character code (CJK env 内拉丁扩展字符)",
         }
     stats: { fires: 0, status: proposed }
@@ -193,7 +193,7 @@ rules:
 
   # 2026-09-16 signature-mining: head 段 "Text line contains an invalid
   # character" (二进制垃圾/非 UTF-8 字节) 与 warn_utf8 同病理 → 复用
-  # non_utf8_recode 动作 (cond-mat/0307744 实证, tectonic 格)。
+  # non_utf8_recode 动作 (cond-mat/0307744 实证，tectonic 格)。
   - id: invalid_char_recode
     mechanisms: [B02, W72]
     description: "invalid_char (源码非法字节) → 就地转码 UTF-8"
@@ -220,12 +220,12 @@ rules:
   # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。
   # 同 cat 三臂各复述签名实形 ctx_suggests 分流 (aux_purge_regen 同构):
   # (a) ``Command \X unavailable in encoding E`` → 补 ``\DeclareTextCommand
-  #     {\X}{E}{body}`` (体表内置, \ensuremath 件两模态通用; 空
+  #     {\X}{E}{body}`` (体表内置，\ensuremath 件两模态通用; 空
   #     \DeclareFontEncoding 实证产 "Corrupted NFSS tables" 不可用);
   # (b) ``Encoding scheme `E' unknown`` → 活 ``\usefont/\fontencoding{E}``
   #     站点改 TU + enc 字形 cs 表 \providecommand polyfill;
   # (c) ``Font family `E+F' unknown`` → ``\DeclareFontFamily{E}{F}{}``
-  #     (空 family 合法, fd 文件同款; 与空 enc 声明不同机制)。
+  #     (空 family 合法，fd 文件同款; 与空 enc 声明不同机制)。
   - id: nfss_cmd_enc_polyfill
     description: "Command \\X unavailable in encoding E → docclass 后补 \\DeclareTextCommand{\\X}{E}{body}"
     phase: loop

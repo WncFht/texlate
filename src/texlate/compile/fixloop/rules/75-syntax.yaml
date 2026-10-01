@@ -10,9 +10,9 @@ version: 1
 
 rules:
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): 缺字第三子路 ───
-  # §/ø 类缺字由 \S/\o 等 cs 在 TFM 字体下产出 —— 源内无字面字符,
+  # §/ø 类缺字由 \S/\o 等 cs 在 TFM 字体下产出 —— 源内无字面字符，
   # missing_char_fix(25) 字面替换与 font_fallback(26) newunicodechar 都
-  # 够不到。order 25.7 抢在 26 前: 0xF8 落 font_fallback 拉丁扩展带,
+  # 够不到。order 25.7 抢在 26 前: 0xF8 落 font_fallback 拉丁扩展带，
   # 慢一拍会被无回效的 \newunicodechar{ø} 白烧该格 (applied 键占位)。
   # 居本分片因 60-misschar.yaml 归他线名下 (文件级互斥) —— order
   # 全局排序与文件位次无关。
@@ -20,7 +20,7 @@ rules:
     mechanisms: [W42, W43]
     description: "缺字码位有产出 cs (\\S→§/\\o→ø) 且源无字面 → \\protected\\def 重绑回退字体"
     phase: loop
-    order: 25.7 # missing_char_fix(25)/accent_mark_fix(25.5) 后, font_fallback(26) 前 —— 抢收 cs 产出面防字面回退白烧
+    order: 25.7 # missing_char_fix(25)/accent_mark_fix(25.5) 后，font_fallback(26) 前 —— 抢收 cs 产出面防字面回退白烧
     when:
       any:
         - { category: warn_missing_char }
@@ -34,7 +34,7 @@ rules:
         # 共享 \ifdefined 守卫 (\newfontfamily 不互踩)。
         fallback_cs: txlatefallback
     risk: low # \protected\def 只绑已缺字 cs; \ifmmode 双域模板; moving-arg 实证 (\markboth/\cite[\S 7])
-    known_gap: "cs 兼产多码位/参数化产出 (\\char\\NN) 未覆盖; 字面与产出并存时字面路先修, 本规下轮接手"
+    known_gap: "cs 兼产多码位/参数化产出 (\\char\\NN) 未覆盖; 字面与产出并存时字面路先修，本规下轮接手"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -50,7 +50,7 @@ rules:
     stats: { fires: 98, rescued_cells: 84, status: active }
     source_ref: "peer1-residue-routes.md §2 簇; produced_by 键 = char_table 扩口; \\protected\\def 超 spec \\renewcommand 建议 (moving-arg 安全)"
 
-  # 姊妹臂 (misscharext #154 stage-B): cs_rebind 重绑回退字体保 cs 形,
+  # 姊妹臂 (misscharext #154 stage-B): cs_rebind 重绑回退字体保 cs 形，
   # 本臂把"宏名产字"站点直接换成 \\ensuremath 等价 (\\texttildelow→
   # \\sim/\\textlangle→\\langle/\\textrangle→\\rangle) —— 这些 cs 的语义
   # 本体就是数学符, 换字体绑不回正确形。双闸: 缺字码位∈日志 ∧ 肇事 cs
@@ -58,7 +58,7 @@ rules:
   # misscharcen #162 扩表 (loop3 残余普查): \\textendash→\\mbox{--}
   # (0806.2407 数学态 ket 记号内产 U+2013, cmr10 ×40); \\textgravedbl→
   # \\mbox{\\quotedblbase} + \\textacutedbl→\\mbox{''} (hep-ph/0605319
-  # 作者 „...˝ 引号对, gravedbl 产 U+02F5 缺 ×12, acutedbl 键伴生 02F5
+  # 作者 „...˝ 引号对，gravedbl 产 U+02F5 缺 ×12, acutedbl 键伴生 02F5
   # 使引号对成对归一为 „...")。
   # misscharcen #169 再扩 (批二): \\char<dec> OT1/cmc 槽位原语臂 —
   # Unicode 字体下 \\char13 产码位 13 而非 cmcsc 13 号 fl 连字
@@ -69,7 +69,7 @@ rules:
     mechanisms: [W42, W43]
     description: "宏名/原语产缺字 (\\texttildelow 族 6 cs + \\char<dec> OT1 槽位表) → 站点改写双模安全等价"
     phase: loop
-    order: 25.8 # cs_rebind(25.7) 后, font_fallback(26) 前 —— 同闸同域, 换形臂
+    order: 25.8 # cs_rebind(25.7) 后，font_fallback(26) 前 —— 同闸同域，换形臂
     when:
       any:
         - { category: warn_missing_char }
@@ -98,14 +98,14 @@ rules:
           error: "Missing character: no ^^M (U+000D) — \\textsc{\\char13} OT1/cmcsc 槽位 13=fl 连字被读作码位",
         }
     stats: { fires: 29, rescued_cells: 9, status: active }
-    source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学); #162/#169 扩表 tmp/lane-misscharcen/cells.json"
+    source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达，\\qdist def 站是文本态序言而展开在数学); #162/#169 扩表 tmp/lane-misscharcen/cells.json"
 
   - id: hyphenation_sane
-    description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"
+    description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离，只留 [a-zA-Z-]"
     phase: loop
     order: 90
     when: { category: hyphenation }
-    condition: { ctx_suggests: "\\hyphenation" } # "Not a letter" 也可能来自别处, 有 ctx 复核更稳
+    condition: { ctx_suggests: "\\hyphenation" } # "Not a letter" 也可能来自别处，有 ctx 复核更稳
     action:
       kind: regex_rewrite
       params:
@@ -130,13 +130,13 @@ rules:
     source_ref: "fixloop.py L409-426"
 
   # 0930 拔除注入的成对钩自伤中和臂: inject TABLE_FITTING (layout.py
-  # 旧块) 与 fixloop v1 TeXlateTabClamp 注块并存时钩序错位, 单挂亦在
+  # 旧块) 与 fixloop v1 TeXlateTabClamp 注块并存时钩序错位，单挂亦在
   # cs 形收尾/\end{document} 早退下失衡 → "ended by" 毁编 (vault 普查
   # ~1200 事件: TabClamp×FitTable 对撞 1080 + FitTable 单独 ~215)。
-  # env_mismatch 是毁编签, 残块剥掉后由后续轮真错真修; 钩面警戒只认
+  # env_mismatch 是毁编签，残块剥掉后由后续轮真错真修; 钩面警戒只认
   # 自家注入名 (TeXlate 前缀), 稿面原生 env_mismatch 不吃本臂。
   - id: legacy_clamp_purge
-    description: "env_mismatch + TeXlate 成对钩残块在席 → 整剥注块+散钩行"
+    description: "env_mismatch + TeXlate 成对钩残块在席 → 整剥注块 + 散钩行"
     phase: loop
     order: 95 # hyphenation_sane(90) 与 soul_cjk_mbox(100) 之间——毁编先中和再轮真修
     when: { category: env_mismatch }
@@ -145,7 +145,7 @@ rules:
     action:
       kind: builtin_transform
       function: legacy_clamp_purge
-    risk: low # 只剥 texlate 自注块/散钩行, 不碰稿面文本
+    risk: low # 只剥 texlate 自注块/散钩行，不碰稿面文本
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -173,7 +173,7 @@ rules:
               repl: '\\\g<1>{\\mbox{\g<2>}}',
             }
     risk: low
-    known_gap: "2005.11401/zh 触发 soul_err 但 regex 0 文件命中 → skip → dirty_pdf; 实际 soul 错因不在此 pattern 覆盖范围, 沉淀队列头号 case"
+    known_gap: "2005.11401/zh 触发 soul_err 但 regex 0 文件命中 → skip → dirty_pdf; 实际 soul 错因不在此 pattern 覆盖范围，沉淀队列头号 case"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -193,8 +193,8 @@ rules:
   # 字面 CJK 闸不命中——CJK/组结构藏在 cs 定义体内 (``\model``=``\texttt{ReAct}``,
   # 展开出 ``\texttt{..}`` 组 → soul 判「可断材料包在组括号内」→ Reconstruction
   # failed; TU 编码 xelatex 下无 inputenc/fontenc 包裹层)。修 = cs 裹 \mbox
-  # 成原子盒, soul 直接透传。pattern 只收单-cs 实参形 (多 token 不命中);
-  # \mbox 是 kernel 原语, 对任意 cs 实参包裹皆安全。
+  # 成原子盒，soul 直接透传。pattern 只收单-cs 实参形 (多 token 不命中);
+  # \mbox 是 kernel 原语，对任意 cs 实参包裹皆安全。
   - id: soul_cs_mbox
     description: "soul 族 (\\hl\\ul\\st\\so\\caps) 实参为单个 cs → \\mbox 包裹 (cs 展开体内组/CJK 触发逐字重构失败)"
     phase: loop
@@ -225,12 +225,12 @@ rules:
 
   # ── 2026-09-20 armgap4 (1107.0598 gate_miss) ──
   # soul_cs_mbox(102) 只收单-cs 实参; 1107.0598 def-站 `\so{\MakeTextUppercase
-  # {#1}}`/`\caps{\MakeTextLowercase{#1}}` (master.tex:43-44) 是 cs+花括号组
-  # 多 token 形 —— 字面 CJK 闸(100)与单-cs 闸(102)全 decline, soul_err 无
+  # {#1}}`/`\caps{\MakeTextLowercase{#1}}` (master.tex:43-44) 是 cs+ 花括号组
+  # 多 token 形 —— 字面 CJK 闸 (100) 与单-cs 闸 (102) 全 decline, soul_err 无
   # 下家 (gate_miss, 原 soul_cs_mbox known_gap 记档面)。本臂收"实参内含任意
-  # cs 的多 token"形 → 同 \mbox 包裹成原子盒。(?!\s*\\mbox\b) 闸: 已裹站点
+  # cs 的多 token"形 → 同 \mbox 包裹成原子盒。(?!\s*\\mbox\b) 闸：已裹站点
   # (本臂/102 产出) 实参首 cs=\mbox → 不再命中 (幂等); 无 cs 纯文本实参
-  # 不收 (不同机理, 防误裹)。
+  # 不收 (不同机理，防误裹)。
   - id: soul_multi_mbox
     description: "soul 族 (\\hl\\ul\\st\\so\\caps) 实参为多 token 含 cs (\\so{\\MakeTextUppercase{#1}}) → \\mbox 包裹"
     phase: loop
@@ -247,7 +247,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # \mbox kernel 原语零依赖; lookahead 拦已裹站点 (幂等); 无 cs 实参不收
-    known_gap: "两层以上花括号嵌套实参不收; 无 cs 纯文本实参不收——soul_err 复发后无后续规则接, 残面同 soul_cjk_mbox 已知缺口"
+    known_gap: "两层以上花括号嵌套实参不收; 无 cs 纯文本实参不收——soul_err 复发后无后续规则接，残面同 soul_cjk_mbox 已知缺口"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -264,7 +264,7 @@ rules:
   # 裸置 → 数学域内 ``\cite`` 展开炸 "Command \bfseries invalid in math
   # mode" (\not@math@alphabet); halt_on_error 死在 thebibliography 前 →
   # ``\bibcite`` 不落 .aux → 每轮同错自续。修 = latex209.wrap_math_cites
-  # 走查面 ($ 系定界 + 数学 env 域, \mbox/\text 文本实参除外), 数学域内
+  # 走查面 ($ 系定界 + 数学 env 域，\mbox/\text 文本实参除外), 数学域内
   # 裸 cite 族调用裹 ``\mbox{..}`` 把标记带回文本域。同签可由字面
   # ``{\bfseries X}`` 数学域误用触发——无 cite token 命中即 decline
   # (applied=False), 不烧轮次。
@@ -289,10 +289,10 @@ rules:
           error: "Command \\bfseries invalid in math mode — revtex4-2 \\rtx@citex→natbib \\@citex {\\reset@font\\bfseries ?} 无盒标记",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-citemath/EVIDENCE.md; latex209.wrap_math_cites (209 cite 臂独立出口, _MATH_CITE_CS_209 17 命令清单)"
+    source_ref: "tmp/lane-citemath/EVIDENCE.md; latex209.wrap_math_cites (209 cite 臂独立出口，_MATH_CITE_CS_209 17 命令清单)"
 
   - id: thm_sibling_strip
-    description: "thmtools sibling= 定理计数器冲突 (already defined) → 剥 sibling 选项, 各定理独立编号"
+    description: "thmtools sibling= 定理计数器冲突 (already defined) → 剥 sibling 选项，各定理独立编号"
     phase: loop
     order: 110
     when: { category: already_def }
@@ -316,12 +316,12 @@ rules:
     source_ref: "fixloop.py L448-456"
 
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): already_def 批量清位 ──
-  # journal_abbrev 族: mnras.cls 预定义 \aj/\mnras 系, 稿内 \newcommand
-  # 6-11 名连环撞 —— renew(111) payload-bound 逐轮一名, 10+ 撞名烧尽轮次。
+  # journal_abbrev 族: mnras.cls 预定义 \aj/\mnras 系，稿内 \newcommand
+  # 6-11 名连环撞 —— renew(111) payload-bound 逐轮一名，10+ 撞名烧尽轮次。
   # halt_on_error 下每轮 log 只见首撞名 → 本规按"撞名 ∪ 撞名站点所在
   # 文件的全部 \newcommand 族站点"计数 ≥min_batch, 一轮把 guilty 文件
   # 内全部"名必须未定义"族站点前置 \let\@undefined (未撞名站点前置是
-  # 语义无操作: undefine+define≡define; 1206.0299 实证 12 名单轮清,
+  # 语义无操作: undefine+define≡define; 1206.0299 实证 12 名单轮清，
   # verdict 由 best_effort 升 clean) + 证实撞名 docclass 块双修。孤站
   # 单撞名格仍让位 renew(111)/undefine(113) 已验证路径。other 臂兜底
   # Command 前缀缺位的 already defined 签 (taxonomy 无下家 —— builtin
@@ -331,7 +331,7 @@ rules:
     mechanisms: [W45, W49]
     description: "already_def 撞名∪同文件站点簇 ≥2 (或反引号 other 签) → 一轮批清 \\let\\X\\@undefined (站点前置+docclass 块双修)"
     phase: loop
-    order: 110.5 # thm_sibling_strip(110) 后, renew(111) 前 —— 批量先收, 单撞名落 111/113
+    order: 110.5 # thm_sibling_strip(110) 后，renew(111) 前 —— 批量先收，单撞名落 111/113
     when:
       any:
         - { category: already_def, payload_required: true }
@@ -369,12 +369,12 @@ rules:
   # arxstspdf:181) → fontspec 2.9g \__fontspec_merge_default_shapes 的
   # \tl_const:cn 展开产 4 组重名 (it_sc/sc_it/scit_it/scit_n)。签名落
   # other (无 Command 关键字 —— "Control sequence \c__fontspec_shape_*_tl
-  # already defined")。修 = preamble 顶 (\documentclass 前) hook 对:
-  # before 存 cls 值+复位 \sldefault{sl} 让 merge 表展开不撞, after 还原。
+  # already defined")。修 = preamble 顶 (\documentclass 前) hook 对：
+  # before 存 cls 值 + 复位 \sldefault{sl} 让 merge 表展开不撞，after 还原。
   # 错发在 preamble 期包加载 (注入 ctex→xeCJK→fontspec 链), hook 完全可达;
   # fixprobe 实测 0 错 PDF 正常 (wontfix-scout 探针 fixprobe.tex)。
   - id: fontspec_double_merge
-    description: "cls 重定义 \\sldefault 撞 fontspec merge 常量表 → \\documentclass 前注 fontspec before/after hook 对暂存-复位-还原"
+    description: "cls 重定义 \\sldefault 撞 fontspec merge 常量表 → \\documentclass 前注 fontspec before/after hook 对暂存 - 复位 - 还原"
     phase: loop
     order: 110.7 # batch_undefine(110.5) 同面 —— 该签名无 Command 形 cs, 上家自 decline 后落此
     when: { category: other } # "Control sequence" 签不落 already_def taxonomy
@@ -390,8 +390,8 @@ rules:
               flags: [M],
               repl: '\\AddToHook{package/fontspec/before}{\\let\\TeXlateSldefault\\sldefault \\def\\sldefault{sl}}\n\\AddToHook{package/fontspec/after}{\\let\\sldefault\\TeXlateSldefault} % fixloop: fontspec shape-merge guard\n\g<0>',
             }
-    risk: low # hook 对为纯守卫: \sldefault 未被 cls 动过时存-复位-还原同值, 等同 no-op
-    known_gap: "cls 自体在 \\documentclass 内加载 fontspec 的极端序仍盖 (hook 先于类载入); 多 docclass \\if 分支各臂同注, hook 幂等"
+    risk: low # hook 对为纯守卫：\sldefault 未被 cls 动过时存 - 复位 - 还原同值，等同 no-op
+    known_gap: "cls 自体在 \\documentclass 内加载 fontspec 的极端序仍盖 (hook 先于类载入); 多 docclass \\if 分支各臂同注，hook 幂等"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -401,7 +401,7 @@ rules:
           error: "fontspec-xetex.sty:4166 Control sequence \\c__fontspec_shape_{it_sc,sc_it,scit_it,scit_n}_tl already defined ×4",
         }
     stats: { fires: 16, rescued_cells: 6, status: proven }
-    source_ref: "tmp/wontfix-scout/verdict.md 裁决1 + work/fixprobe.tex 实测 0 错"
+    source_ref: "tmp/wontfix-scout/verdict.md 裁决 1 + work/fixprobe.tex 实测 0 错"
 
   # ─── chineseclear (2403.00013 residual): expl3 ``Control sequence \X
   # already defined`` 签名 —— kaist-ucs.cls:71 \RequirePackage[nonfrench]
@@ -418,7 +418,7 @@ rules:
     mechanisms: [W49]
     description: "cls 链预定义名撞注入 CJK 块 expl3 \\cs_new → docclass 缝顶 \\let\\X\\@undefined 清位 (ctex 行前)"
     phase: loop
-    order: 110.8 # fontspec_double_merge(110.7) 姊妹签名面 —— 其 \c__* 名天然不过本格文件门+字母名闸
+    order: 110.8 # fontspec_double_merge(110.7) 姊妹签名面 —— 其 \c__* 名天然不过本格文件门 + 字母名闸
     when: { category: other } # "Control sequence" 签不落 already_def taxonomy, payload=None
     condition:
       ctx_suggests: "Control sequence \\\\[A-Za-z]+ already defined"
@@ -458,7 +458,7 @@ rules:
               repl: '\\renewcommand\g<1>{\\{payload}}',
             }
     risk: low # renew 保留作者定义; 对自重复定义场景同样收敛
-    known_gap: "newenvironment/DeclareRobustCommand/\\def 形撞名未覆盖 → applied=False; 稿内双 \\newcommand{同X} 时首个也被换成 renew (renew 未定义 cs 会新炸, 罕见)"
+    known_gap: "newenvironment/DeclareRobustCommand/\\def 形撞名未覆盖 → applied=False; 稿内双 \\newcommand{同 X} 时首个也被换成 renew (renew 未定义 cs 会新炸，罕见)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -469,7 +469,7 @@ rules:
         }
       - {
           corpus: "thehalgo census 2026-09-19 (already_def|theHalgorithm ×4)",
-          error: "kernel ≥2024-11 \\@definecounter 自产 \\theH<ctr> (latex.ltx:10145) 撞 ICML 模板 \\newcommand{\\theHalgorithm} 搭车 shim——本规则全家覆盖, 3/4 新档实证",
+          error: "kernel ≥2024-11 \\@definecounter 自产 \\theH<ctr> (latex.ltx:10145) 撞 ICML 模板 \\newcommand{\\theHalgorithm} 搭车 shim——本规则全家覆盖，3/4 新档实证",
         }
     stats: { fires: 5, rescued_cells: 4, status: active }
     source_ref: "wave-2: already_def 类目首个泛化消费规则"
@@ -479,12 +479,12 @@ rules:
   # \NewDocumentCommand 严格化) 与 ntheorem "Theorem style X already defined"
   # 都不被 renew 规则覆盖: 重定义方在包内 (非作者书写面)。清位语义 = 让
   # 后加载包赢——\let\<cs>\@undefined 同时骗过两代检查 (\ifcsname 假阴性
-  # 走 undefined 分支, \ifdefined 见 undefined 义; \relax 形只够前者)。
+  # 走 undefined 分支，\ifdefined 见 undefined 义; \relax 形只够前者)。
   - id: ntheorem_style_undefine
     mechanisms: [W49]
     description: "amsthm 预定义 th@<style> 撞 ntheorem 自检 → \\usepackage{ntheorem} 前清 th@X 位"
     phase: loop
-    order: 112 # renew(111) 之后: doc 侧 \newcommand 撞名仍先走 renew
+    order: 112 # renew(111) 之后：doc 侧 \newcommand 撞名仍先走 renew
     when: { category: already_def, payload_required: true }
     condition: { ctx_suggests: "Theorem style" }
     action:
@@ -508,34 +508,34 @@ rules:
         }
       - {
           corpus: "1306.0281 复跑 (fixer-alreadydef-2026-09-17)",
-          error: "修复前 repl 吞 usepackage 行 → undefined_cs:g 103 错; 修复后 already_def 清除, 残 undefined_cs:numberofauthors",
+          error: "修复前 repl 吞 usepackage 行 → undefined_cs:g 103 错; 修复后 already_def 清除，残 undefined_cs:numberofauthors",
         }
     stats: { fires: 9, rescued_cells: 1, status: verified }
     source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
 
   - id: already_def_undefine
     mechanisms: [W49]
-    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (寄存器/盒型分配名护栏, 后加载者赢)"
+    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (寄存器/盒型分配名护栏，后加载者赢)"
     phase: loop
     order: 113 # ntheorem_style_undefine(112) 之后 —— 只接 Command 形签名
     when: { category: already_def, payload_required: true }
     condition: { ctx_suggests: "Command" }
     action:
-      kind: builtin_transform # regex→builtin 升级: 规则层做不了寄存器护栏
+      kind: builtin_transform # regex→builtin 升级：规则层做不了寄存器护栏
       function: undefine_for_redef # \newbox/\newcount/\newif 族分配名 abstain
     risk: medium # 清掉包/类侧先定义让后载包重定义 —— doc 侧 \newcommand 撞名已由 renew 先行
-    known_gap: "寄存器/盒型分配名 (\\newbox\\splitbox 族 + \\newif 伴生 \\Xtrue) 弃权交 LLM; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
+    known_gap: "寄存器/盒型分配名 (\\newbox\\splitbox 族 + \\newif 伴生 \\Xtrue) 弃权交 LLM; usepackage 链内后定义者 (A 先 B 后，非 docclass 位) 清位时机过早无效"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "1706.07911 (partial-taxonomy)",
-          error: "fontspec-xetex.sty:672 Command '\\liningnums' already defined (bundled acmart v1.39→libertine 先定义, inject ctex→fontspec 后撞)",
+          error: "fontspec-xetex.sty:672 Command '\\liningnums' already defined (bundled acmart v1.39→libertine 先定义，inject ctex→fontspec 后撞)",
         }
       - {
           corpus: "1706.07911 复跑 (fixer-alreadydef-2026-09-17)",
-          error: "修复前 repl 吞 documentclass 行 → 508 错 best_effort_pdf; 修复后 liningnums 清除, 残 missing_file:binhex.tex",
+          error: "修复前 repl 吞 documentclass 行 → 508 错 best_effort_pdf; 修复后 liningnums 清除，残 missing_file:binhex.tex",
         }
       - {
           corpus: "2211.04482 (fixer-bblwall-2026-09-17 A5)",
@@ -547,10 +547,10 @@ rules:
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §3): AMS 上古字体 cs ──
   # hep-th/9703214: AMS 时代稿用 \<size><fam> 缩名 (\fivmi/\tensy 族),
   # \font 定义躺在 \doit{0} 死宏参块 → 活 \skewchar\fivmi/\textfont9=\tenex
-  # 全链 undefined_cs ×83 (非 missing_tfm —— 无 \font 装载动作,
+  # 全链 undefined_cs ×83 (非 missing_tfm —— 无 \font 装载动作，
   # install_tfm 接不到)。shim = docclass 后 \font\<cs>=<cm 等价>
-  # (fivmi→cmmi5, elvrm→cmr10 at 10.95pt): 先绑定后定义赢序, 稿内
-  # 后到的活 \font/\def 仍覆盖, 只对真缺定义位生效。
+  # (fivmi→cmmi5, elvrm→cmr10 at 10.95pt): 先绑定后定义赢序，稿内
+  # 后到的活 \font/\def 仍覆盖，只对真缺定义位生效。
   - id: ams_font_cs_shim
     mechanisms: [W96]
     description: "AMS 上古字体缩名 cs (\\<size><fam>: \\fivmi/\\tenmib 族) 用而未定义 → \\font\\<cs>=CM 等价注入"
@@ -568,7 +568,7 @@ rules:
     provenance:
       - {
           corpus: "hep-th/9703214 (m1b-residue-routes-2026-09-17 §3, 83 errs)",
-          error: "l.201 \\skewchar\\fivmi → Undefined control sequence (fivmi..twfvmi mi+sy 族, \\doit{0} 死块内 \\font 定义不执行)",
+          error: "l.201 \\skewchar\\fivmi → Undefined control sequence (fivmi..twfvmi mi+sy 族，\\doit{0} 死块内 \\font 定义不执行)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "peer1-residue-routes.md §3; AMS 命名 <size>mi/sy/ex/bf 谱 (amsfonts 2.x 上古档通用)"
@@ -578,10 +578,10 @@ rules:
   # \excludecomment 产 isadelim<tag>/isatag<tag> comment env 对 (tag=
   # theory/proof/ML/visible/invisible, isabelletags.sty 可扩)。Isabelle
   # 生成稿以 cs 形调用 \isadelimtheory…\endisadelimtheory —— comment.sty
-  # v3.8 行扫描器逐行等值比字面 \end{<env>} 哨兵 (plain 分支已删,
+  # v3.8 行扫描器逐行等值比字面 \end{<env>} 哨兵 (plain 分支已删，
   # isabelle.sty \fmtname=plain hack 成死代码), cs 形终结行恒不中 →
   # 扫描吞到 EOF "File ended while scanning use of \next"。cs 形另有
-  # 次伤: comment 系 begin 宏首步 \endgroup 是抵 \begin 开的组, 裸调用
+  # 次伤: comment 系 begin 宏首步 \endgroup 是抵 \begin 开的组，裸调用
   # 吃掉 isabellebody 的组。修 = cs 形 → env 形 (end 侧恰产扫描器要的
   # 字面哨兵; \begin 把 \endgroup 的组配对还上)。\isafold<tag> 是纯
   # 宏非 env 不收; 已 env 形稿零命中天然幂等。
@@ -635,7 +635,7 @@ rules:
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
   # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
   # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
-  # 会被去缩进 (显示位移, 可接受) —— 不修则整篇无 PDF。
+  # 会被去缩进 (显示位移，可接受) —— 不修则整篇无 PDF。
   # 2026-09-19 签名闸 (isabelex 同期): 原 when 裸 category 对全
   # runaway payload 盲发 —— 1206.0136 (\next) 去缩进 \end{boxedminipage}/
   # eq 行白烧一轮; 2009.11130 (\GetTitle)/1109.5754 (\@xdblarg) 同列。
@@ -668,16 +668,16 @@ rules:
 
   # repro-2501 缺陷B 规则侧兜底: 色名参被段切漏保 (TRANSPARENT_NAMES 遮蔽
   # argspec → {blue} 翻成中文) → xcolor Undefined color。真修在 segmenter/
-  # tables; 此规则把未知色名注册成黑保住编译链, 逐色名 dedup 各注一行。
+  # tables; 此规则把未知色名注册成黑保住编译链，逐色名 dedup 各注一行。
   # 2026-09-19 fmsingles 实证 (0905.2120): repl 写 {payload} 会被 _substitute
   # 连花括号吞 → 曾产出 \definecolormygray{rgb}… 非法 cs; {{payload}} 才是
   # 欲发的 \definecolor{X} 形 ({\name} 双花括号外侧留一层)。
   - id: undefined_color_fallback
     description: "(x)color Undefined color 'X' → 主文件 docclass 后注 \\definecolor{X}{rgb}{0,0,0} 兜底黑"
     phase: loop
-    order: 166 # cs_targeted_fix(165) 之后, undefined_cs_guess(900) 之前
+    order: 166 # cs_targeted_fix(165) 之后，undefined_cs_guess(900) 之前
     when: { category: undefined_color, payload_required: true }
-    condition: # 色名形才收: `Undefined color model `X'` (模型名非色名) 注册色名修不了 —— 投递侧 decline
+    condition: # 色名形才收：`Undefined color model `X'` (模型名非色名) 注册色名修不了 —— 投递侧 decline
       ctx_suggests: "Undefined color [`']"
     action:
       kind: regex_rewrite
@@ -698,20 +698,20 @@ rules:
           error: "Package xcolor Error: Undefined color `这是译文' ×4",
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
-    source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
+    source_ref: "repro-2501-2026-09-16/README.md 缺陷 B; 1e cross-session handoff"
 
   # ── 2026-09-17 partial-taxonomy 散件: acro v2→v3 键改名 ──
   # bundled/旧稿 \acsetup{X-format=...} 在 acro v3.8 下键已废 (旧键兼容表
-  # 存在于源但实测不注册, "acro/short-format unknown" 实证); v3 原名
-  # format/X。定点只改 \acsetup{...} 花括号内, 不动他处 -format 字样。
+  # 存在于源但实测不注册，"acro/short-format unknown" 实证); v3 原名
+  # format/X。定点只改 \acsetup{...} 花括号内，不动他处 -format 字样。
   - id: acro_v3_key_rename
     description: "acro v2 旧键 (short|long|extra|foreign|first-long)-format → v3 format/X"
     phase: loop
-    order: 167 # undefined_color_fallback(166) 之后, revtex4_array_swap_guard(170) 之前
+    order: 167 # undefined_color_fallback(166) 之后，revtex4_array_swap_guard(170) 之前
     when:
       any:
         - { category: key_unknown } # 1706.00240: l3keys 错行原无 head 签 → 落 early_eof 误判
-        - { category: early_eof } # belt: acro 错非首错时仍落 tail 早终签, ctx_suggests 照判
+        - { category: early_eof } # belt: acro 错非首错时仍落 tail 早终签，ctx_suggests 照判
         - { category: other }
         - { category: emergency }
     condition: { ctx_suggests: "key 'acro/[\\w-]+' is unknown" }
@@ -736,7 +736,7 @@ rules:
         }
       - {
           corpus: "1706.00240 复跑 (fixer-acro-v3-2026-09-17)",
-          error: "规则原 when=other|emergency 永不可达 (错落 early_eof); key_unknown 签+when 扩类后点火, \\acsetup{short-format=}→{format/short=} 逐字节核对",
+          error: "规则原 when=other|emergency 永不可达 (错落 early_eof); key_unknown 签+when 扩类后点火，\\acsetup{short-format=}→{format/short=} 逐字节核对",
         }
     stats: { fires: 7, rescued_cells: 1, status: verified }
     source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
@@ -750,16 +750,16 @@ rules:
   # \begin{abstract}…\end{abstract} 连同与 \maketitle 间的间隔段
   # (\pacs/\keywords 等 frontmatter 散件) 整体前移至 \maketitle 前
   # —— revtex 系 canonical frontmatter 序。47/47 格核验均为
-  # maketitle-then-abstract。ctx_suggests 限定仅 abstract payload 点火,
+  # maketitle-then-abstract。ctx_suggests 限定仅 abstract payload 点火，
   # 其他 env_undefined (如 document/frontmatter) 不误排。
   - id: abstract_frontmatter_hoist
-    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块+间隔段前移 \\maketitle 前; 209 裸 \\abstract..\\endabstract 对先 env 化再同链前移"
+    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块 + 间隔段前移 \\maketitle 前; 209 裸 \\abstract..\\endabstract 对先 env 化再同链前移"
     phase: loop
     order: 168 # acro_v3_key_rename(167) 与 revtex4_array_swap_guard(170) 之间
     when:
       any:
-        - { category: env_undefined } # env 形: Environment abstract undefined
-        - { category: undefined_cs } # 209 裸 \abstract/\endabstract 对: payload=abstract
+        - { category: env_undefined } # env 形：Environment abstract undefined
+        - { category: undefined_cs } # 209 裸 \abstract/\endabstract 对：payload=abstract
     condition:
       any:
         - { ctx_suggests: "Environment abstract" } # env_undefined 签
@@ -769,7 +769,7 @@ rules:
       params:
         exts: [.tex]
         rewrites:
-          # env 化先行: 同 pass 内裸对转 env 后, 下两条 hoist 立即接住 →
+          # env 化先行: 同 pass 内裸对转 env 后，下两条 hoist 立即接住 →
           # 内联裸对一轮收敛; \endabstract 内 abstract 前无 \ 不误伤。
           - { pattern: "\\\\abstract\\b", repl: '\\begin{abstract}' }
           - { pattern: "\\\\endabstract\\b", repl: '\\end{abstract}' }
@@ -777,14 +777,14 @@ rules:
               pattern: "(?s)\\\\maketitle(.*?)\\\\begin\\{abstract\\}(.*?)\\\\end\\{abstract\\}",
               repl: '\\begin{abstract}\g<2>\\end{abstract}\g<1>\\maketitle',
             }
-          # 跨文件变体: 摘要在 \input{abstract} 件内 —— gap 限空白+注释行,
+          # 跨文件变体: 摘要在 \input{abstract} 件内 —— gap 限空白 + 注释行，
           # input 行整体移到 \maketitle 前 (hep-ph/0104029 实证形态)。
           - {
               pattern: "(?s)\\\\maketitle((?:\\s|%[^\\n]*)*?)\\\\input\\{\\s*abstract\\s*\\}",
               repl: '\\input{abstract}\g<1>\\maketitle',
             }
-    risk: medium # 摘要块物理前移改文档结构; gap 段 (\pacs 等) 随块落 frontmatter 区, revtex 系正解
-    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害; 裸对→env 转换链自收敛: 一轮内 env 化+前移同落, 漏网形态由下轮 env_undefined 兜住"
+    risk: medium # 摘要块物理前移改文档结构; gap 段 (\pacs 等) 随块落 frontmatter 区，revtex 系正解
+    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害; 裸对→env 转换链自收敛：一轮内 env 化 + 前移同落，漏网形态由下轮 env_undefined 兜住"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -794,15 +794,15 @@ rules:
           error: "LaTeX Error: Environment abstract undefined (revtex4-2.cls:2685 \\let\\abstract\\@undefined post-frontmatter)",
         }
       - {
-          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
+          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20 页)",
           error: "Undefined control sequence \\abstract (209 裸对 + \\input{abstract} 跨文件后置)",
         }
     stats: { fires: 74, rescued_cells: 52, status: active }
-    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验; tmp/hepph-0104029/wiring.md 建议3"
+    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验; tmp/hepph-0104029/wiring.md 建议 3"
 
   # 2026-09-17 B4 wiring (hepph-0104029 探针 wiring.md 建议2): 209 稿
   # \table/\endtable 裸浮体对与现代 \begin{table}/\end{table} env 混写 ——
-  # \table≡\begin{table} 本就合法, 双开套娃炸 "Not in outer par mode"。
+  # \table≡\begin{table} 本就合法，双开套娃炸 "Not in outer par mode"。
   # 塌缩=去冗余内层开/闭; \table+tabular+\caption 无内 env 块的形态不命中。
   - id: latex209_table_pair
     description: "209 裸 \\table 浮体开再遇 \\begin{table} → 塌缩双开双闭 (env-cs 等价下嵌套浮体)"
@@ -826,17 +826,17 @@ rules:
               repl: '\\end{table}\g<1>',
             }
     risk: low # \table≡\begin{table} 等价塌缩只去冗余嵌套; 裸 \table 无内 env 块形态不命中
-    known_gap: "闭侧独立点火: 无 \\table 前置的 \\end{table}\\endtable 紧邻对塌缩仍正确 (\\endtable 本是悬空 \\@float 闭); 无配对裸 \\endtable 残留由 Extra \\end 另议"
+    known_gap: "闭侧独立点火：无 \\table 前置的 \\end{table}\\endtable 紧邻对塌缩仍正确 (\\endtable 本是悬空 \\@float 闭); 无配对裸 \\endtable 残留由 Extra \\end 另议"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
+          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20 页)",
           error: "LaTeX Error: Not in outer par mode (开对 56,57/196,197、闭对 83,84/352,353)",
         }
     stats: { fires: 4, rescued_cells: 1, status: active }
-    source_ref: "tmp/hepph-0104029/wiring.md 建议2; \\table≡\\begin{table} 209 内建等价"
+    source_ref: "tmp/hepph-0104029/wiring.md 建议 2; \\table≡\\begin{table} 209 内建等价"
 
   # 2026-09-17 B4 wiring §遗留 (nlin/0104012): revtex4-2 的 \pacs/\keywords/
   # \begin{abstract} 被 \aftermaketitle@chk 门 (cls:3086) —— \maketitle 后
@@ -851,7 +851,7 @@ rules:
     order: 169.5 # latex209_table_pair(169) 与 revtex4_array_swap_guard(170) 之间
     when:
       any:
-        - { category: other } # 非 file-line 形: '! Class X Error:' 行落 head 兜底
+        - { category: other } # 非 file-line 形：'! Class X Error:' 行落 head 兜底
         # file-line-error 形 (halt_on_error 0 页): head 无命中 → tail
         # "No pages of output" 抢签 early_eof, ctx_suggests 仍见 err 行照判
         - { category: early_eof }
@@ -870,7 +870,7 @@ rules:
               repl: '\\\g<2>\g<3>\g<1>\\maketitle',
             }
     risk: medium # frontmatter 元数据物理前移 —— revtex 系 canonical frontmatter 序正解
-    known_gap: "跨文件残面: \\maketitle 与 \\pacs 分居两文件 (\\input 拆分) 单文件 sub 不达 → applied=False; \\begin{abstract} 同签名抽象面交 env_undefined 链; 参数体两层以上花括号嵌套超出 [^{}] 窗"
+    known_gap: "跨文件残面：\\maketitle 与 \\pacs 分居两文件 (\\input 拆分) 单文件 sub 不达 → applied=False; \\begin{abstract} 同签名抽象面交 env_undefined 链; 参数体两层以上花括号嵌套超出 [^{}] 窗"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -889,9 +889,9 @@ rules:
   # 前存真值 + AtBeginDocument 恢复 (排在 revtex inithook 后)。
   # 坑: 只恢复 \@mkpream 会 HANG——mkpream+insert@column 必须成对。
   - id: revtex4_array_swap_guard
-    description: "revtex4-1 'Unrecognized array package' 指纹 (校验失败仍换旧协议 \\\\@mkpream/\\\\insert@column) → \\\\begin{document} 前注守卫: 存真值 + AtBeginDocument 恢复"
+    description: "revtex4-1 'Unrecognized array package' 指纹 (校验失败仍换旧协议 \\\\@mkpream/\\\\insert@column) → \\\\begin{document} 前注守卫：存真值 + AtBeginDocument 恢复"
     phase: loop
-    order: 170 # undefined_color_fallback(166) 之后, undefined_cs_guess(900) 之前
+    order: 170 # undefined_color_fallback(166) 之后，undefined_cs_guess(900) 之前
     when: { category: syntax }
     condition:
       # missmath (loop3): 闸扩至 LoadClass revtex4-1 的包装类 —— aastex63
@@ -899,7 +899,7 @@ rules:
       # revtex4-1 → 同款 Extra \or 但 docclass 字面无 revtex4, 原闸 3 格
       # rules_declined。aastex6 前缀盖 6.x 全族 (6.x 起 base=revtex4-1);
       # aas\b 精确老 aastex 命名 (aasms4/aastex 不误中; 非 revtex 基的
-      # 包装类上守卫为幂等 no-op)。revtex4-2 无此病, 误中同 no-op。
+      # 包装类上守卫为幂等 no-op)。revtex4-2 无此病，误中同 no-op。
       source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{(revtex4|aastex6|aas\\b)"
       ctx_suggests: "Extra \\\\or"
     action:
@@ -911,7 +911,7 @@ rules:
               pattern: "\\\\begin\\s*\\{document\\}",
               repl: '\\expandafter\\let\\csname TEXLATE@sv@mkpream\\expandafter\\endcsname\\csname @mkpream\\endcsname\n\\expandafter\\let\\csname TEXLATE@sv@insertcol\\expandafter\\endcsname\\csname insert@column\\endcsname\n\\AtBeginDocument{%\n\\expandafter\\let\\csname @mkpream\\expandafter\\endcsname\\csname TEXLATE@sv@mkpream\\endcsname\n\\expandafter\\let\\csname insert@column\\expandafter\\endcsname\\csname TEXLATE@sv@insertcol\\endcsname}%\n\g<0>',
             }
-    risk: low # 守卫幂等 no-op: array 未载/校验已通过时, 存回的就是当前值
+    risk: low # 守卫幂等 no-op: array 未载/校验已通过时，存回的就是当前值
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # bundle 内核旧 → 校验或已通过; 守卫仍为 no-op
@@ -921,15 +921,15 @@ rules:
           error: "Extra \\or. l.150 \\begin{tabular}{>{\\centering\\arraybackslash}m{1.25in}...} — revtex4-1+dcolumn(array v2.6n) 签名失配",
         }
     stats: { fires: 22, rescued_cells: 14, status: active }
-    source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
+    source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7 页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
 
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): env_undefined
   # 泛化 noop polyfill ── abstract_frontmatter_hoist(168) 只接 abstract
-  # 专名; 老类 (svjour/siamltex/aasms4) 不产现内核定理环, 或定义躺在
+  # 专名; 老类 (svjour/siamltex/aasms4) 不产现内核定理环，或定义躺在
   # \ifnfssone/\doit{0} 死块 (math/0104275 tcilatex 族) → Environment
   # example/definition/theorem undefined 多 env 同轮齐缺。修形 =
   # docclass 后 \ifcsname 守卫 \newenvironment{X}{}{} noop (数学 env 给
-  # \[..\] 壳) —— cls 其实有定义的残余格幂等, 一轮清全部缺名。
+  # \[..\] 壳) —— cls 其实有定义的残余格幂等，一轮清全部缺名。
   - id: undefined_env_polyfill
     description: "Environment X undefined → docclass 后 \\ifcsname 守卫 \\newenvironment noop (数学 env 给 \\[..\\] 壳), 一轮批清"
     phase: loop
@@ -945,7 +945,7 @@ rules:
         # 白烧轮次; cs_table 无条目者 (axis/tikzcd) 更是唯一活路。
         # tikzpicture 的 polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO
         # 下裸 \usetikzlibrary 会落在臂装载行之前 → 新
-        # undefined_cs (与 cs_table tikz 族同机理, 见 95-targeted 头注)。
+        # undefined_cs (与 cs_table tikz 族同机理，见 95-targeted 头注)。
         pkg_map:
           tikzpicture:
             {
@@ -979,12 +979,12 @@ rules:
   # \@uclcnotmath 路径上 \NoCaseChange{##} 塌缩成裸 # → \protected@edef
   # \reserved@a 撞 Illegal parameter number (traced, zh/en 同炸 —— 类文件
   # 本体过时非译文问题); revtex4b4 直接 missing_file。revtex4-2 是现行
-  # TL 兼容实现, docclass 改写 6 格实测全出 pdf (slac_one/slac_two .rtx
+  # TL 兼容实现，docclass 改写 6 格实测全出 pdf (slac_one/slac_two .rtx
   # 期刊子式在 4-2 下仅 unknown-option warning)。
   - id: revtex4_legacy_class_rewrite
     description: "\\documentclass{revtex4{,b*}} (v4.0rc 上古系) → revtex4-2"
     phase: loop
-    order: 182 # hyperref_driver_neutralize(181) 之后, undefined_cs_guess(900) 之前
+    order: 182 # hyperref_driver_neutralize(181) 之后，undefined_cs_guess(900) 之前
     when:
       any:
         - { category: syntax }
@@ -1016,16 +1016,16 @@ rules:
           error: "Illegal parameter number in definition of \\reserved@a / File `revtex4b4.cls' not found / TeX capacity exceeded",
         }
     stats: { fires: 19, rescued_cells: 13, status: active }
-    source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
+    source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要，纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
 
   # 2026-09-16 批三: early_eof 交互档 (hep-ph/0111248 bundled
-  # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读,
+  # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读，
   # nonstop 模式必死。忠实 stub 而非注释: \typein{msg} → \typeout{msg}
-  # (横幅照常打印, 跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
+  # (横幅照常打印，跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
   # 空输入即作者默许的默认 → \typeout{msg}\def\cs{}。
   # qc99 (2026-09-28, hep-th/9412166): 同族裸原语 ``\read-1 to\yesno``
   # (终端流号 -1; ``\read\myread`` 文件流不受影响——模式钉 ``-\d``)
-  # → ``\def\yesno{}`` 空读默认, ``\ifx`` 定走 else 分支。
+  # → ``\def\yesno{}`` 空读默认，``\ifx`` 定走 else 分支。
   - id: typein_neutralize
     mechanisms: [W78]
     description: "\\typein/\\read-1 交互读 → \\typeout 打印 / \\def\\cs{} 空读默认"
@@ -1054,7 +1054,7 @@ rules:
               repl: '\\def\g<1>{}',
             }
     risk: low # nonstop 下交互本就不可能; msg 保留在 transcript
-    known_gap: "msg 内嵌套 {} 时两参形不命中 ({[^{}]*} 边界) → 落单参形也不中 (后跟 [) → applied=False; \\read 后无 to/寄存器变形 (\\read-1to\\cs 无空格可中, \\read-1 \\cs 裸存式) 未覆盖"
+    known_gap: "msg 内嵌套 {} 时两参形不命中 ({[^{}]*} 边界) → 落单参形也不中 (后跟 [) → applied=False; \\read 后无 to/寄存器变形 (\\read-1to\\cs 无空格可中，\\read-1 \\cs 裸存式) 未覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1109,7 +1109,7 @@ rules:
   # ── 2026-09-20 mathbd 车道 (singles3 bundle A; 2609.20524 zh) ──
   # acmart+amsmath+bm+xelatex+unicode-math: ``\bm``/``\boldsymbol`` 的
   # `` `\<cs>`` 字母常量扫描在 unicode-math 多字符 cs (``\mitxi``/``\mitomega``
-  # 等, <to be read again> 行可见) 上炸 Improper alphabetic constant
+  # 等，<to be read again> 行可见) 上炸 Improper alphabetic constant
   # (29 站, file-line 形)。与 pdfstring_cs_disarm(193) 同签但机理不同:
   # 肇事帧在正文排版域非 \pdfstringdef —— \mit<cs> 门把两族分开
   # (\times 类 pdfstring offender 无 \mit 前缀 → decline 交 193)。
@@ -1118,7 +1118,7 @@ rules:
   - id: bm_symbfit_alias
     description: "Improper alphabetic constant (bm ``\\<cs>`` 扫描遇 unicode-math \\mit<cs>) → \\begin{document} 前注 \\bm/\\boldsymbol→\\symbfit/\\symbf 别名"
     phase: loop
-    order: 191 # pdfstring_cs_disarm(193) 之前: \mit<cs> offender 是 unicode-math 专签, 本臂先收; dedup 后 193 兜底真 pdfstring 形
+    order: 191 # pdfstring_cs_disarm(193) 之前：\mit<cs> offender 是 unicode-math 专签，本臂先收; dedup 后 193 兜底真 pdfstring 形
     when: { category: syntax }
     condition:
       ctx_suggests: "Improper alphabetic constant[\\s\\S]{0,400}\\\\mit[a-zA-Z]"
@@ -1133,7 +1133,7 @@ rules:
               repl: "% fixloop: bm -> unicode-math symbf alias (Improper alphabetic constant)\n\\\\ifdefined\\\\symbfit\n  \\\\let\\\\bm\\\\symbfit \\\\let\\\\boldsymbol\\\\symbfit\n\\\\else\n  \\\\ifdefined\\\\symbf\n    \\\\let\\\\bm\\\\symbf \\\\let\\\\boldsymbol\\\\symbf\n  \\\\fi\n\\\\fi\n\\g<1>",
               match_surface: "masked",
             }
-    risk: low # \ifdefined 双守卫: 无 unicode-math 稿整件死文本; \let 别名对 \bm{\mu_i} 多 token 实参同构
+    risk: low # \ifdefined 双守卫：无 unicode-math 稿整件死文本; \let 别名对 \bm{\mu_i} 多 token 实参同构
     known_gap: "unicode-math 缺席且无 \\symbf* 时注入件整件死文本 → 同签复发后 dedup 让位 pdfstring_cs_disarm; \\bm x 无括号裸形 usages 闸可见但本臂不修 site-形"
     engines:
       xelatex: { mode: native }
@@ -1148,11 +1148,11 @@ rules:
 
   # 2026-09-18 pdo 车道 (2607.10569 loop2+rt1 双池 main.tex:291/302):
   # acmart+hyperref 下 moving-arg 内 $\times$ → \pdfstringdef 去 math
-  # shift 后做 `\<cs> 字母常量扫描, 多字符 cs (`\times) 非法 → Improper
+  # shift 后做 `\<cs> 字母常量扫描，多字符 cs (`\times) 非法 → Improper
   # alphabetic constant + intcalc \InCa@Div 级联。通用面: 任意多字符
   # cs 皆可犯 (不只 \times)。解 = hyperref 文档化逃生舱
-  # \pdfstringdefDisableCommands{\def\<cs>{}} —— 排版侧零接触, cs 只在
-  # 书签/pdfstring 域消失; 肇事 cs 名从日志 <to be read again> 行取,
+  # \pdfstringdefDisableCommands{\def\<cs>{}} —— 排版侧零接触，cs 只在
+  # 书签/pdfstring 域消失; 肇事 cs 名从日志 <to be read again> 行取，
   # len>2 滤单字符合法形 (`\x 是合法字母常量 TeX 不报)。
   - id: pdfstring_cs_disarm
     mechanisms: [W165]
@@ -1165,14 +1165,14 @@ rules:
     action:
       kind: builtin_transform
       function: pdfstring_cs_disarm
-    risk: low # \ifdefined 守卫: 无 hyperref 稿整件死文本不炸; \def\cs{} 只清 pdfstring 域定义, 排版侧原义不动
-    known_gap: "cs 名仅取 <to be read again> 行; 单字符 cs len>2 滤除不收; 多 offender 每轮换名全注, 已注者幂等跳过"
+    risk: low # \ifdefined 守卫：无 hyperref 稿整件死文本不炸; \def\cs{} 只清 pdfstring 域定义，排版侧原义不动
+    known_gap: "cs 名仅取 <to be read again> 行; 单字符 cs len>2 滤除不收; 多 offender 每轮换名全注，已注者幂等跳过"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "2607.10569 (loop2+rt1 双池, tmp/lane-pdo/t1-t5 复现)",
+          corpus: "2607.10569 (loop2+rt1 双池，tmp/lane-pdo/t1-t5 复现)",
           error: "Improper alphabetic constant. <to be read again> \\times @ \\maketitle (acmart+hyperref \\pdfstringdef)",
         }
     stats: { fires: 9, rescued_cells: 4, status: active }
@@ -1187,9 +1187,9 @@ rules:
     action:
       kind: builtin_transform
       function: para_longize
-      # params.wrap_table / deny / max_macros(默认64) 可扩 —— 未收内核名走 wrap_table 同形补
-    risk: medium # wrap 重定义内核/包宏 (\let 快照+签名转发, 零 body 拷贝免版本漂移); \par-strip 丢顶层段断 = 语义合意但非逐字; 嵌套组内 \par 剥不到是已知残面
-    known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮; 单轮肇事宏 >max_macros(64) 截断时尾部滞留 —— applied=True 已烧 dedup 键, 残宏同签不重派 (return-False-after-writes 在引擎语义下是终局结算, 不可作续尾信号)"
+      # params.wrap_table / deny / max_macros(默认 64) 可扩 —— 未收内核名走 wrap_table 同形补
+    risk: medium # wrap 重定义内核/包宏 (\let 快照 + 签名转发，零 body 拷贝免版本漂移); \par-strip 丢顶层段断 = 语义合意但非逐字; 嵌套组内 \par 剥不到是已知残面
+    known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮; 单轮肇事宏 >max_macros(64) 截断时尾部滞留 —— applied=True 已烧 dedup 键，残宏同签不重派 (return-False-after-writes 在引擎语义下是终局结算，不可作续尾信号)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1204,21 +1204,21 @@ rules:
   # 未闭合 \if* → 文件尾 \fi 注入双臂 (failmine item 4, 16 格)。
   # other 臂: `! Incomplete \iffalse/\ifnum` 首错 (taxonomy 无专属条目 →
   # `^.` 兜底归 other, ctx_suggests 可及)。脚本对 doc 源件做注释剥离后的
-  # \if*/\fi 栈平衡扫描, 只对"活区"亏格文件在 \end{document}/\endinput/EOF
-  # 前补 \fi —— def 体内 open 是冻结 token (file-end \fi 够不到, 注入反而
+  # \if*/\fi 栈平衡扫描，只对"活区"亏格文件在 \end{document}/\endinput/EOF
+  # 前补 \fi —— def 体内 open 是冻结 token (file-end \fi 够不到，注入反而
   # 造 Extra \fi), 只计不注; 跨文件借用对 (\if 开 A 件 \fi 闭 B 件) 由全局
   # opens>closes 闸兜住不注。扫描器即 phantom 判别器: draftsty 类展开态
   # \iffalse (包内 edef 吞文件) 源件字面平衡 → 纯 noop 不误伤。
   # 2026-09-19 covgap-C 扩域 (2609.20323 实证): preamble 内开的 \if 若任
   # file-end \fi 裹住整 body, false 臂把 \document (\@mainaux open) 一并
-  # 吞掉 → `I can't find file 'main.aux'` emergency 下游产物。脚本分两段:
+  # 吞掉 → `I can't find file 'main.aux'` emergency 下游产物。脚本分两段：
   # \begin{document} 前开的 \if 注在 begdoc 行头 (守卫域限 preamble);
   # body 内开的仍注 boundary。坐标全部按原 text 计算后位先注。
   - id: unclosed_if_close
     mechanisms: [B05]
-    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (other 臂: Incomplete \\if 首错)"
+    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (other 臂：Incomplete \\if 首错)"
     phase: loop
-    order: 196 # pdfstring_cs_disarm(193)/80-bib(195) 之后, undefined_cs_guess(900) 之前; draftsty 补丁(11.95) 先拿 phantom
+    order: 196 # pdfstring_cs_disarm(193)/80-bib(195) 之后，undefined_cs_guess(900) 之前; draftsty 补丁 (11.95) 先拿 phantom
     when:
       any:
         - { category: other }
@@ -1244,8 +1244,8 @@ rules:
             if scan_ifs is None:
                 # PATH python3 ≠ texlate 宿主解释器的补救: fixloop 父进程所在
                 # venv/conda 前缀随子进程 env 继承 (VIRTUAL_ENV/CONDA_PREFIX),
-                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂,
-                # editable .pth (纯路径与 import-hook 形) 一并执行, texlate
+                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂，
+                # editable .pth (纯路径与 import-hook 形) 一并执行，texlate
                 # src 根借此可见; 纯 python 包跨 minor 版本可 import;
                 # 借不到照旧走下方降级判词。
                 import glob
@@ -1277,7 +1277,7 @@ rules:
 
             if scan_ifs is None:
                 # 判词故意不带 "ifclose:" 前缀 —— if_phantom_protect 的账本
-                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成,
+                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成，
                 # 前缀在账会骗闸放行 \protected 改写。
                 print("ifclose-scan: unavailable (texlate mask unavailable)")
                 raise SystemExit(0)
@@ -1365,18 +1365,18 @@ rules:
           error: "Incomplete \\iffalse; all text was ignored after line N (首错 `!` 形 → other); \\end occurred when \\ifx on line N was incomplete → early_eof",
         }
     stats: { fires: 172, rescued_cells: 2, status: active }
-    source_ref: "tmp/lane-failmine/rule_targets.txt item4; 12 格抽样全字面平衡 (phantom 主导) —— 扫描器即判别器, 修复面兜底真亏格稿"
+    source_ref: "tmp/lane-failmine/rule_targets.txt item4; 12 格抽样全字面平衡 (phantom 主导) —— 扫描器即判别器，修复面兜底真亏格稿"
 
   # early_eof 臂: `\end occurred when \ifx on line N was incomplete` + `No
   # pages of output` → early_eof (pay=\ifx) —— 该签名无 `!` 行 → err_head
-  # 空 → ctx_suggests 不可及, 故独立规则走 source_contains 门 +
+  # 空 → ctx_suggests 不可及，故独立规则走 source_contains 门 +
   # payload_required (滤掉 generic no-pages 与 inside-a-group 变体)。
   # 同 196 臂共享 covgap-C 两段注入: preamble 内开的 \if 注 \begin{document}
-  # 行头 (2609.20323 实证, false 臂吞 \document → main.aux 缺件 emergency),
+  # 行头 (2609.20323 实证，false 臂吞 \document → main.aux 缺件 emergency),
   # body 内开的仍注 boundary。
   - id: unclosed_if_close_eof
     mechanisms: [B05]
-    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (early_eof 臂: \\end occurred when \\ifX incomplete)"
+    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (early_eof 臂：\\end occurred when \\ifX incomplete)"
     phase: loop
     order: 196.5 # unclosed_if_close(196) 同族姊妹臂; typein_neutralize(180) 抢早期 eof 首因先走
     when: { category: early_eof, payload_required: true }
@@ -1401,8 +1401,8 @@ rules:
             if scan_ifs is None:
                 # PATH python3 ≠ texlate 宿主解释器的补救: fixloop 父进程所在
                 # venv/conda 前缀随子进程 env 继承 (VIRTUAL_ENV/CONDA_PREFIX),
-                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂,
-                # editable .pth (纯路径与 import-hook 形) 一并执行, texlate
+                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂，
+                # editable .pth (纯路径与 import-hook 形) 一并执行，texlate
                 # src 根借此可见; 纯 python 包跨 minor 版本可 import;
                 # 借不到照旧走下方降级判词。
                 import glob
@@ -1434,7 +1434,7 @@ rules:
 
             if scan_ifs is None:
                 # 判词故意不带 "ifclose:" 前缀 —— if_phantom_protect 的账本
-                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成,
+                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成，
                 # 前缀在账会骗闸放行 \protected 改写。
                 print("ifclose-scan: unavailable (texlate mask unavailable)")
                 raise SystemExit(0)
@@ -1511,14 +1511,14 @@ rules:
                         f"pre={len(pre)} post={len(post)} phantom={tot_phantom}"
                     )
         timeout: 30
-    risk: low # 同 unclosed_if_close: 活区亏格件才注, 全局平衡/def体/借用对 noop, 指纹幂等; early_eof 臂额外有 payload_required 闸
-    known_gap: "同 unclosed_if_close (def 体中段注入缺位); 另: 裸 no-pages early_eof (pay=None) 与 inside-a-group 变体 (pay=None) 被 payload_required 滤掉 —— 未闭合 \\if 致 no-pages 但无 \\end-occurred 行的形态漏收"
+    risk: low # 同 unclosed_if_close: 活区亏格件才注，全局平衡/def 体/借用对 noop, 指纹幂等; early_eof 臂额外有 payload_required 闸
+    known_gap: "同 unclosed_if_close (def 体中段注入缺位); 另：裸 no-pages early_eof (pay=None) 与 inside-a-group 变体 (pay=None) 被 payload_required 滤掉 —— 未闭合 \\if 致 no-pages 但无 \\end-occurred 行的形态漏收"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus failmine-4 loop1 格 (0905.0193/1706.00175/1803.00054/1907.00128 等, taxonomy pay=\\ifx)",
+          corpus: "corpus failmine-4 loop1 格 (0905.0193/1706.00175/1803.00054/1907.00128 等，taxonomy pay=\\ifx)",
           error: "(\\end occurred when \\ifx on line N was incomplete) + No pages of output → early_eof",
         }
     stats: { fires: 0, status: proposed }
@@ -1529,7 +1529,7 @@ rules:
   # 对 preamble 期排版动作报 Missing \begin{document}。修 = 供方
   # \usepackage 前置到肇事 sty 的每个 live 消费方装载点; tex 肇事件
   # (main/\input) 无 usepackage 锚点 → docclass 缝顶补供方; cls/def/clo
-  # 系 cls 内传递装载, 缝位鞭长莫及 → abstain (csfix2 车道)。
+  # 系 cls 内传递装载，缝位鞭长莫及 → abstain (csfix2 车道)。
   - id: premature_cs_guard
     description: "Missing \\begin{document} @件装载 → 肇事 cs 供方包前置到消费方 \\usepackage 装载点 (\\numberwithin→amsmath)"
     phase: loop
@@ -1540,7 +1540,7 @@ rules:
     action:
       kind: builtin_transform
       function: premature_cs_guard
-    risk: low # 供方 usepackage 前置语义保持 (kernel 幂等去重, 同文件先装站跳过); 无锚点 abstain
+    risk: low # 供方 usepackage 前置语义保持 (kernel 幂等去重，同文件先装站跳过); 无锚点 abstain
     known_gap: "cls/def/clo 肇事件无 usepackage 锚点 → abstain; \\input 装载消费件不收; cs_pkg 表外 cs decline; 非 file-line-error log 不定界不收"
     engines:
       xelatex: { mode: native }
@@ -1555,7 +1555,7 @@ rules:
 
   # \\include/\\input{*.<gfx>} 笔误臂: input 族单参命令把目标当 TeX 源吸进
   # 编译流——花括号目标落图形扩展名 (.eps/.pdf/.png 系) 时必为
-  # \\include↔\\includegraphics 类笔误, 读进来的二进制/PS 头按 TeX 展开 →
+  # \\include↔\\includegraphics 类笔误，读进来的二进制/PS 头按 TeX 展开 →
   # Missing \\begin{document} + Missing-$ 爆流 (math/0501227 preamble
   # \\include{triangle_dots.eps} → 411 syntax 错; 同文档 body 另有
   # \\includegraphics{triangle_dots} 正解)。修 = 剥掉整命令 span, 保行内
@@ -1564,14 +1564,14 @@ rules:
   - id: graphics_include_strip
     description: "\\include/\\input{*.<gfx 扩展名>} 笔误 → 剥除命令 span (input 族吸图形件必错)"
     phase: loop
-    order: 196.8 # premature_cs_guard(196.7) 同 Missing-begindoc 签先跑, abstain 后落本规
+    order: 196.8 # premature_cs_guard(196.7) 同 Missing-begindoc 签先跑，abstain 后落本规
     when: { category: syntax }
     condition:
       ctx_suggests: "Missing \\\\begin\\{document\\}"
     action:
       kind: builtin_transform
       function: graphics_include_strip
-    risk: low # 图形扩展名目标经 input 族载入在任何稿中都非法, 剥除零语义损失
+    risk: low # 图形扩展名目标经 input 族载入在任何稿中都非法，剥除零语义损失
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1588,17 +1588,17 @@ rules:
   # \newif-setter 替换体 `\let\if@X\iffalse` 在 \edef/\xdef 扫描内 \let 惰性
   # 但 \if@X 执行 → 假 open 吞到 EOF (amsproc \@nmbrlistfalse / myectaart
   # \@forced@seriesfalse, 1206.0701/1306.0364 原文英文稿即炸 —— 上游
-  # cls/TL 偏斜非 texlate 注入)。file-end \fi 修不了 (edef 参不闭, 还会
+  # cls/TL 偏斜非 texlate 注入)。file-end \fi 修不了 (edef 参不闭，还会
   # 造 Extra \fi)。修 = 脆弱前稿 cs 族 \protected let-wrap 重定义: eTeX
-  # \protected 属性钉在 cs 本体, 不被 \let\protect\relax 剥除 → edef 扫描
-  # 内整体带过, setter 链走不到。\AtBeginDocument 注入 (包重定义先跑完),
+  # \protected 属性钉在 cs 本体，不被 \let\protect\relax 剥除 → edef 扫描
+  # 内整体带过，setter 链走不到。\AtBeginDocument 注入 (包重定义先跑完),
   # 逐 cs \ifdefined 闸。transform 内置凭据闸: ledger 无 196 的 ifclose:
-  # 判词 (python3 缺位 cond-skip) → 字面亏格未排, 保守不收。
+  # 判词 (python3 缺位 cond-skip) → 字面亏格未排，保守不收。
   - id: if_phantom_protect
     mechanisms: [B05]
     description: "phantom Incomplete \\if (字面平衡复发) → \\footnote/\\thanks+\\bf\\it\\rm\\sf\\tt\\sc\\sl eTeX \\protected 重定义 (@\\begin{document} 钩)"
     phase: loop
-    order: 197.5 # unclosed_if_close(196)+eof 臂(196.5) 字面扫描先烧 dedup 位, 同签复发才轮到本规则 = phantom 判别
+    order: 197.5 # unclosed_if_close(196)+eof 臂 (196.5) 字面扫描先烧 dedup 位，同签复发才轮到本规则 = phantom 判别
     when:
       any:
         - { category: other }
@@ -1609,21 +1609,21 @@ rules:
       kind: builtin_transform
       function: if_phantom_protect
     risk: low # let-wrap 保原义 (wrapper 无参直通原 cs 参扫); \ifdefined 闸不收未定义名; \AtBeginDocument 包后序位; 注入幂等 (snippet 指纹在件即跳)
-    known_gap: "被护 \\footnote token 仍会进 running-head 流 (\\markboth 标记语境展开)——phantom 错消但眉行可能多一个 footnote mark/次序怪; 扫描器 verdict 缺席即不收 (与 196 强序耦合: 规则被禁/重排则本规则永不发); 字面+phantom 混合稿在 196 注入 \fi 后复发才收"
+    known_gap: "被护 \\footnote token 仍会进 running-head 流 (\\markboth 标记语境展开)——phantom 错消但眉行可能多一个 footnote mark/次序怪; 扫描器 verdict 缺席即不收 (与 196 强序耦合：规则被禁/重排则本规则永不发); 字面+phantom 混合稿在 196 注入 \fi 后复发才收"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "corpus flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
-          error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡, unclosed_if_close 纯 noop)",
+          error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡，unclosed_if_close 纯 noop)",
         }
     stats: { fires: 160, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
 
   # ── 2026-09-19 arraypream 车道 ──
-  # array.sty \@mkpream 只改写 *-repeat 与 \NC@ 名, 其余 preamble 宏留字面
-  # token → "Illegal pream-token (\X)" (kernel \@xexpast 全展开形原可吃,
+  # array.sty \@mkpream 只改写 *-repeat 与 \NC@ 名，其余 preamble 宏留字面
+  # token → "Illegal pream-token (\X)" (kernel \@xexpast 全展开形原可吃，
   # 差异即 array 装载面)。aastex 时代 deluxetable 复合面两族:
   #   \@delspec 系 (aaspp4/aasms4 \tablehead → \tabular{\@delspec})
   #   \pt@format 系 (aastex.cls/emulateapj \def\pt@format{\string#1}
@@ -1633,7 +1633,7 @@ rules:
   #   \string 字面 → 仍 illegal, 两臂缺一不可)。
   # emulateapj \pt@tabular 另绑 array 中和掉的 kernel 存名
   #   (\let\@classz\@tabclassz / \let\@classiv\@tabclassiv → "Missing #"),
-  #   臂3/4 整链删除 (连 \@acol 绑位一并——\@ptabacol 变种可能无定义,
+  #   臂 3/4 整链删除 (连 \@acol 绑位一并——\@ptabacol 变种可能无定义，
   #   留绑反生 Undefined cs; array 默认 \@acol 兜底)。\s* 收行间空白防
   #   \par token 混入宏体。
   - id: pream_token_cs_expand
@@ -1664,7 +1664,7 @@ rules:
               repl: " ",
             }
     risk: low # 字面 spec 展开只益 preamble; \edef 烘焙幂等; 死绑 let 在 array 面恒为 \relax 删之无损失
-    known_gap: "CJK 字面 token (这/是/译/文 系 ~54 实例——译文漏 preamble 另一机制) 不落本类; 非 aastex 族 preamble 宏覆盖外; let 链序异/缺节变种 → 臂3 落空靠臂4, 皆空则 decline; \\gdef/\\xdef 形 def-站未覆盖"
+    known_gap: "CJK 字面 token (这/是/译/文 系 ~54 实例——译文漏 preamble 另一机制) 不落本类; 非 aastex 族 preamble 宏覆盖外; let 链序异/缺节变种 → 臂 3 落空靠臂 4, 皆空则 decline; \\gdef/\\xdef 形 def-站未覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1680,7 +1680,7 @@ rules:
   # \@ = \spacefactor\@m 间距宏; @=12 下 \@cs 断名成 \@+裸字母 → 展开点
   # \@ 执行 → "You can't use `\spacefactor' in vertical mode" / "in math
   # mode" / "Improper \spacefactor" / "Package calc Error: `\spacefactor'
-  # invalid" 四头 (皆落 other 类)。M3 机制: 2.09-era 稿把 cls 内码抄进
+  # invalid" 四头 (皆落 other 类)。M3 机制：2.09-era 稿把 cls 内码抄进
   # preamble def 体而无 \makeatletter (1206.0445 \renewcommand*\l@section
   # :399-412 / 0905.0664 \newcommand\makepapertitle 族) —— 修 = def 站
   # exact-restore 包裹 (svglov3 idiom: \edef 存 catcode 64 → =11 读域 →
@@ -1691,7 +1691,7 @@ rules:
   - id: spacefactor_atdef_wrap
     description: "doc-latent @-def 站 (\\renewcommand\\l@section 族) → exact-restore @=11 包裹 (宿主 @ catcode 双免)"
     phase: loop
-    order: 198.5 # pream_token_cs_expand(198) 之后, undefined_cs_guess(900) 之前
+    order: 198.5 # pream_token_cs_expand(198) 之后，undefined_cs_guess(900) 之前
     when: { category: other }
     condition: { ctx_suggests: "spacefactor" }
     action:
@@ -1726,7 +1726,7 @@ rules:
   - id: babel_preclass_rawopts_seed
     description: "\\documentclass 前 \\RequirePackage{babel} → \\@raw@classoptionslist 预置空 clist (\\relax 被 babel 当全局选项迭代 → csname 吞入)"
     phase: loop
-    order: 199 # spacefactor_atdef_wrap(198.5) 之后, undefined_cs_guess(900) 之前
+    order: 199 # spacefactor_atdef_wrap(198.5) 之后，undefined_cs_guess(900) 之前
     when: { category: syntax }
     condition:
       ctx_suggests: "Missing .?endcsname"
@@ -1756,16 +1756,16 @@ rules:
 
   # ─── missmath 车道 (task #215, 2026-09-19): 4 条 Missing 族残件 ───
   # verdate_pad: \ProvidesX[..]/\filedate/请求日期的 YYYY/M/D 或 YYYY/MM/D
-  #   单位段 → kernel \@parse@version 第4参吞 \@nil → 三联
+  #   单位段 → kernel \@parse@version 第 4 参吞 \@nil → 三联
   #   (Undefined cs \@nil → Missing = for \ifnum → Missing number), 报错行
   #   一律落到 docclass 后第一 token (class 尾 \ifl@ter 比较跨界读流)。
   #   aa.cls \def\filedate{2014/12/1} 两格实证 (1511.06717/1706.00225);
   #   virgin xelatex 对 \documentclass{aa} 后任意 token 复现。修 = 三处
-  #   ver 消费位段补齐两位 (幂等, 良形不动)。
+  #   ver 消费位段补齐两位 (幂等，良形不动)。
   - id: verdate_pad
     description: "\\ProvidesX/\\filedate/请求日期 YYYY/M/D 单位段 → \\@parse@version 吞 \\@nil 三联 → 段补两位"
     phase: loop
-    order: 199.2 # babel_preclass_rawopts_seed(199) 之后, cs_delim_tail_fix(199.6) 之前
+    order: 199.2 # babel_preclass_rawopts_seed(199) 之后，cs_delim_tail_fix(199.6) 之前
     when:
       any: [{ category: undefined_cs }, { category: syntax }]
     condition:
@@ -1820,7 +1820,7 @@ rules:
                         fixed.append(p.name)
             print("verdate-pad:", ", ".join(fixed) if fixed else "noop")
     risk: low # 段补齐幂等; 只碰 ver 消费位 (Provides/filedate/请求尾括); 良形日期 int→02d 自同
-    known_gap: "日字段文字面跨行/含宏 (\\filedate 间接引用已收, \\year\\month 算式不收); 月单位段不误报但静默错比对 (本规一并补齐); 注释内日期不改写"
+    known_gap: "日字段文字面跨行/含宏 (\\filedate 间接引用已收，\\year\\month 算式不收); 月单位段不误报但静默错比对 (本规一并补齐); 注释内日期不改写"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1897,9 +1897,9 @@ rules:
     source_ref: "tmp/lane-missmath/census: verbatim.sty comment env 逐字行规约"
 
   # missingdollar_blankline: 数学区 (eqnarray/matrix/array/\[) 内空白行
-  #   → \par → Missing$, file:NNN 报错行即空白行本身 (4 格实证:
+  #   → \par → Missing$, file:NNN 报错行即空白行本身 (4 格实证：
   #   1306.0006/math-0408122/hep-th-0104212/1404.0082)。修 = 报错行整段
-  #   连续空白注 %; 报错行非空白 (机制不符, 如 1803.00136 黏尾) 即 noop。
+  #   连续空白注 %; 报错行非空白 (机制不符，如 1803.00136 黏尾) 即 noop。
   - id: missingdollar_blankline
     description: "数学区内空白行 → \\par → Missing$ (file:NNN=空白行) → 连续空白段注 %"
     phase: loop
@@ -1981,15 +1981,15 @@ rules:
 
   # missingdollar_underscore: 文本域裸 _ → Missing$ (file:NNN 报错行即含 _ 行)
   #   —— zh 臂 LLM 把 \doi{10.x/y_z} 改写成字面 doi: 10.x/y_z, 下划线裸露在
-  #   水平模式 (2305.11278/2609.19853 实证, base 臂原文 \doi{} 包裹零错)。
-  #   修 = file:NNN 站点只收簇首 (同文件行距 >2 才开新簇; 级联站随主站清除,
+  #   水平模式 (2305.11278/2609.19853 实证，base 臂原文 \doi{} 包裹零错)。
+  #   修 = file:NNN 站点只收簇首 (同文件行距 >2 才开新簇; 级联站随主站清除，
   #   数学区 \partial_a 类 cs 下标免于误伤), 簇首行在 thebibliography 内或
   #   含 doi/pmid/isbn/arxiv/url 关键词 → 行内裸 _ 改写 \_ ($..$/verb/\url
   #   族/注释域及 \cs 下标形不动)。两站转义后 xelatex 零 Missing$。
   - id: missingdollar_underscore
     description: "文本域裸 _ → Missing$ (file:NNN=含 _ 行) → 簇首站 bib/doi 域内 _ 转 \\_"
     phase: loop
-    order: 199.45 # missingdollar_blankline(199.4) 之后, ifnum_typeout_banner(199.5) 之前; 级联站与数学下标由簇首+cs 门控 noop
+    order: 199.45 # missingdollar_blankline(199.4) 之后，ifnum_typeout_banner(199.5) 之前; 级联站与数学下标由簇首+cs 门控 noop
     when: { category: syntax }
     condition:
       ctx_suggests: "Missing \\$ inserted"
@@ -2036,7 +2036,7 @@ rules:
                         break
 
             # 簇首过滤: Missing$ 级联站 (recovery 失同步衍生的下游错) 随主站
-            # 清除, 只在簇首动刀 —— 同文件行距 <=2 视为同簇。
+            # 清除，只在簇首动刀 —— 同文件行距 <=2 视为同簇。
             prev, heads = {}, []
             for real, ln in sites:
                 key = str(real)
@@ -2057,7 +2057,7 @@ rules:
                         out.append(ch)
                         i += 1
                         continue
-                    if ch == "%":  # 注释域: 其后 _ 不报错也不动
+                    if ch == "%":  # 注释域：其后 _ 不报错也不动
                         out.append(s[i:])
                         break
                     if ch == "\\":  # 控制序列/已转义对整吞 (\_ 原样)
@@ -2073,7 +2073,7 @@ rules:
                         j = i - 1
                         while j >= 0 and s[j].isalpha():
                             j -= 1
-                        if j >= 0 and s[j] == "\\":  # \partial_a 形: cs 下标不动
+                        if j >= 0 and s[j] == "\\":  # \partial_a 形：cs 下标不动
                             out.append(ch)
                             i += 1
                             continue
@@ -2116,7 +2116,7 @@ rules:
                 "underscore:",
                 ", ".join(fixed) if fixed else "noop (no text-mode _ at cluster heads)",
             )
-    risk: low # 簇首 + bib/doi 关键词双门控: 数学区级联站 (\partial_a/空白行) 不进场; 行内再限裸 _ 文本域
+    risk: low # 簇首 + bib/doi 关键词双门控：数学区级联站 (\partial_a/空白行) 不进场; 行内再限裸 _ 文本域
     known_gap: "裸 ^/数学域外行级联 >2 行距的 _ 站不收; thebibliography 外无 doi/url 关键词的裸 _ 行不收; \\verb 定界符为字母形不收"
     engines:
       xelatex: { mode: native }
@@ -2133,9 +2133,9 @@ rules:
   #   两格: 0905.0664/1206.0445) —— \ifnum 遇不可展开 \typeout → 三错
   #   恢复等价 \ifnum0=0 恒真横幅。修 = 字面预置 0=0, 三错清零输出不变。
   - id: ifnum_typeout_banner
-    description: "\\ifnum \\typeout{} 横幅 hack → \\ifnum0=0 预置 (error-recovery 语义同形, 三联错清零)"
+    description: "\\ifnum \\typeout{} 横幅 hack → \\ifnum0=0 预置 (error-recovery 语义同形，三联错清零)"
     phase: loop
-    order: 199.5 # missingdollar_blankline(199.4) 之后, cs_delim_tail_fix(199.6) 之前
+    order: 199.5 # missingdollar_blankline(199.4) 之后，cs_delim_tail_fix(199.6) 之前
     when: { category: syntax }
     condition:
       ctx_suggests: "Missing number"
@@ -2160,12 +2160,12 @@ rules:
           error: "Missing number, treated as zero (\\ifnum \\typeout{} — virgin xelatex 三联错复现)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-missmath/repro/ifnum.tex: \\ifnum \\typeout → 3 错, \\ifnum0=0 → 0 错同输出"
+    source_ref: "tmp/lane-missmath/repro/ifnum.tex: \\ifnum \\typeout → 3 错，\\ifnum0=0 → 0 错同输出"
 
   # ─── csdefmismatch 车道 (task #214, 2026-09-19): delimited-macro 尾蚀除 ───
   # "Use of \X doesn't match its definition" —— \def\X<lit>{...} 伪多名宏
   #   (\c3h2/\b0bmode/\0cc/\ch3oh 化学物理速写): 译者把字面尾中字母段当正文
-  #   吃掉 → 调用点不再带全尾 → TeX 参文本失配, 兜底 `^.` 归 other (无
+  #   吃掉 → 调用点不再带全尾 → TeX 参文本失配，兜底 `^.` 归 other (无
   #   payload)。修 = cs_delim_tail_fix builtin: 全工程扫 \def\X<tail>
   #   (前缀 \long/\outer/\protected/\global + [egx]def; 尾拒空/#/\/{ }),
   #   逐站 fuzzy 对齐 —— 全命中 REPLACE 蚀除域 (乱序段锚定证明在尾内),
@@ -2174,7 +2174,7 @@ rules:
   - id: cs_delim_tail_fix
     description: "Use of \\X doesn't match its definition → \\def\\X<lit> 字面尾译文蚀除站补回 (全对齐 REPLACE / 部分证据 INSERT)"
     phase: loop
-    order: 199.6 # babel_preclass_rawopts_seed(199) 之后, undefined_cs_guess(900) 之前; other 类签名稀疏无竞争
+    order: 199.6 # babel_preclass_rawopts_seed(199) 之后，undefined_cs_guess(900) 之前; other 类签名稀疏无竞争
     when: { category: other }
     condition:
       ctx_suggests: "doesn't match its definition"
@@ -2189,7 +2189,7 @@ rules:
     provenance:
       - {
           corpus: "1404.0519 (csdefmismatch census, loop3 residual)",
-          error: "Use of \\c doesn't match its definition. (\\def\\c3h2; \\c3这是译文 ×14)",
+          error: "Use of \\c doesn't match its definition. (\\def\\c3h2; \\c3 这是译文 ×14)",
         }
       - {
           corpus: "astro-ph/0408509",
@@ -2197,7 +2197,7 @@ rules:
         }
       - {
           corpus: "hep-ex/0408083",
-          error: "Use of \\b doesn't match its definition. (\\def\\b0bmode; \\b0这是译文 ×4)",
+          error: "Use of \\b doesn't match its definition. (\\def\\b0bmode; \\b0 这是译文 ×4)",
         }
       - {
           corpus: "hep-th/0408133",
@@ -2205,7 +2205,7 @@ rules:
         }
       - {
           corpus: "astro-ph/0408446",
-          error: "Use of \\ch doesn't match its definition. (0343.sty \\def\\ch3oh → .tex \\ch3这是译文 ×43)",
+          error: "Use of \\ch doesn't match its definition. (0343.sty \\def\\ch3oh → .tex \\ch3 这是译文 ×43)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-csdefmismatch/report.md; tests/test_fixloop_delim_tail.py 10 测; 5-cell splice replay 实证 (1404.0519 xelatex → 13p PDF)"
@@ -2219,16 +2219,16 @@ rules:
   # 同根: \@ifundefined{r@...} 全 YES → \ead@text/\ead@type/\ead@prefix
   # 不置 → undefined_cs 级联。修 = log 内 "Reference `X' undefined" 键表
   # → \newlabel{X} 空桩落 .aux: \@setref 走 else 臂 + \@ifundefined 走
-  # 定义臂, 一根双斩; aux 可再生, 下遍引擎重写后 \label 正经写入接管。
+  # 定义臂，一根双斩; aux 可再生，下遍引擎重写后 \label 正经写入接管。
   - id: hytempa_hash_auxseed
     mechanisms: [W126]
     description: "fresh-aux 未定义 \\r@ 引用 → \\newlabel 空桩落 .aux (hyperref \\edef\\Hy@tempa ??-炸弹 + \\@ifundefined 级联一根双斩)"
     phase: loop
-    order: 199.7 # cs_delim_tail_fix(199.6) 之后, undefined_cs_guess(900) 之前; aux 族 aux_purge_regen(96) 同构反向臂 (彼删坏件, 此补桩)
+    order: 199.7 # cs_delim_tail_fix(199.6) 之后，undefined_cs_guess(900) 之前; aux 族 aux_purge_regen(96) 同构反向臂 (彼删坏件，此补桩)
     when: { category: syntax }
     condition:
       ctx_suggests: "Illegal parameter number in definition of \\\\Hy@tempa" # hyperref normalise 专属签 —— 其他 Illegal 族不落本规
-      fileset: { has_ext: [.aux] } # 桩有落点才点火 (无 aux 多半 \\begin{document} 前死, 非本族)
+      fileset: { has_ext: [.aux] } # 桩有落点才点火 (无 aux 多半 \\begin{document} 前死，非本族)
     action:
       kind: builtin_transform
       function: aux_seed_undefined_refs # params.exts 可扩; 0 未定义键/键面不安全自然 noop
@@ -2245,17 +2245,17 @@ rules:
     source_ref: "tmp/lane-singtail/bundles.json cluster-6; imsart.sty:661 \\ims@href{\\ead@prefix\\saferef{...}}; hyperref.sty \\hyper@@normalise \\edef\\Hy@tempa"
 
   # 2026-09-20 singbun 车道 (failmine6 syntax-residual astro-ph/0605352):
-  # LaTeX \\input = \\protect 包裹不可展, 对齐行间 (\\hline 后 \\cr 扫描
+  # LaTeX \\input = \\protect 包裹不可展，对齐行间 (\\hline 后 \\cr 扫描
   # 位) 起新行 u-part 半截 → 后续 \\hline 的 \\noalign 落错位连环
   # (Misplaced \\noalign + Misplaced \\crcr)。原始缀 \\@@input 可展 —
-  # 行间扫描时整件注入, 其内 \\ 行分隔照常, 后续 \\noalign 合法。
+  # 行间扫描时整件注入，其内 \\ 行分隔照常，后续 \\noalign 合法。
   # 修 = 紧邻 \\hline 族的 \\input{X} → \\csname @@input\\endcsname{X}
   # (csname 可展桥, 文本域 \\input 语义同)。t.tex repro 实证: \\input
-  # 炸, @@input/\\csname 形编译通过。
+  # 炸，@@input/\\csname 形编译通过。
   - id: input_noalign_primitive
     description: "对齐行间 \\protect 化 \\input{X} 毒化 \\noalign 扫描 → \\csname @@input\\endcsname{X} 可展化"
     phase: loop
-    order: 199.75 # hytempa_hash_auxseed(199.7) 后, undefined_cs_guess(900) 前; Misplaced \\noalign 签专属无竞争
+    order: 199.75 # hytempa_hash_auxseed(199.7) 后，undefined_cs_guess(900) 前; Misplaced \\noalign 签专属无竞争
     when: { category: syntax }
     condition:
       ctx_suggests: "Misplaced \\\\noalign"
@@ -2271,7 +2271,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # \\csname @@input\\endcsname{X} ≡ 原始缀 \\@@input{X} (\\input 去壳), 行间/文本两域语义同
-    known_gap: "前驱非 \\hline 族的行间 \\input (裸 \\\\ 行终止符后) 未收 —— 单格实证仅 \\hline 邻位; \\@@input 与 \\input 差异仅在 \\@filef@und 文件栈追踪, 可忽略"
+    known_gap: "前驱非 \\hline 族的行间 \\input (裸 \\\\ 行终止符后) 未收 —— 单格实证仅 \\hline 邻位; \\@@input 与 \\input 差异仅在 \\@filef@und 文件栈追踪，可忽略"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2285,11 +2285,11 @@ rules:
 
   # 2026-09-20 singbun 车道 (failmine6 syntax-residual 2505.08102): zh 全
   # 角括号 U+FF08/FF09 泄入 \\big 族定界符操作位 —— 无 delcode 即炸
-  # ``Missing delimiter (. inserted)``。修 = \\big族/\\left/\\right/
-  # \\middle 后 （） → ASCII ()。定界语义恒等 (原稿即 \\big( 形, zh
+  # ``Missing delimiter (. inserted)``。修 = \\big 族/\\left/\\right/
+  # \\middle 后（） → ASCII ()。定界语义恒等 (原稿即 \\big( 形，zh
   # 管全角化误改); masked 面挡 verbatim/注释。
   - id: big_fullwidth_delim_fix
-    description: "\\big 族定界符操作位全角 （） → ASCII () (无 delcode 缺炸修)"
+    description: "\\big 族定界符操作位全角（） → ASCII () (无 delcode 缺炸修)"
     phase: loop
     order: 199.76 # input_noalign_primitive(199.75) 后; Missing delimiter 签专属无竞争
     when: { category: syntax }
@@ -2312,7 +2312,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # 全角括号无 delcode 恒不合法; ASCII 回原稿语义
-    known_gap: "［］｛｝全角方/花括号同病未收 (实证仅 （）); 裸 （） 非 \\big 邻位的数学模式字符缺失属 missing_char 域"
+    known_gap: "［］｛｝全角方/花括号同病未收 (实证仅（）); 裸（）非 \\big 邻位的数学模式字符缺失属 missing_char 域"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2407,7 +2407,7 @@ rules:
   # 段首连排 `\\ \\` 裸换行 (xlat 产物/源生缺陷) 在 vertical mode 下
   # 炸 "There's no line here to end" (归 syntax, taxonomy L908) ——
   # l.733 截死在 \input{bbl} 前 → 107 引用键全 ?。删整行序列 (vmode
-  # 下 \\ 本就非法, 删优于 \\medskip 近似); masked 面跳过注释/
+  # 下 \\ 本就非法，删优于 \\medskip 近似); masked 面跳过注释/
   # verbatim 内字面。
   - id: strip_vmode_bsbs
     description: "vmode 段首 `\\\\ \\\\` 连排裸换行行 → 整行剥除 (There's no line here to end 修)"
@@ -2445,7 +2445,7 @@ rules:
   # 'Incomplete \if' 风暴 (10 cells, 100-err cap 前 bibliography 不达)。
   # spec 原方 builtin array_preamble_shim 未落地——regex 近似臂:
   # \\documentclass 行后前置 \\RequirePackage{array}。array 全 texlive
-  # 标配、已载则 \\RequirePackage 幂等, 年代类未预载 array 是其 p{}/m{}
+  # 标配、已载则 \\RequirePackage 幂等，年代类未预载 array 是其 p{}/m{}
   # 列规炸 Extra \or 的经典根因——前置装载即修 missing_p_colspec +
   # revtex41_newarray_incompat 子集。前瞻防 loop 轮重复注入。
   - id: revtex_array_clash
@@ -2466,7 +2466,7 @@ rules:
               repl: "\\g<1>\n\\\\RequirePackage{array} % texlate: array preload (era-class colspec clash)",
               match_surface: "masked",
             }
-    risk: low # array 幂等装载无副作用; 仅 \\documentclass 行后插一行, 不碰列规字面
+    risk: low # array 幂等装载无副作用; 仅 \\documentclass 行后插一行，不碰列规字面
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2485,15 +2485,15 @@ rules:
   #     Missing number (cat=syntax);
   #   \def\mathrm{\rm} 覆写数学字母内核命令 → \@fontswitch{\rm}{\mathrm}
   #     展开 \mathrm 回到 {\rm} 自指 → input stack 爆 (cat=capacity)。
-  # 修 = baseline 原件树内 def+全部调用点同改 \<prefix><name>
+  # 修 = baseline 原件树内 def+ 全部调用点同改 \<prefix><name>
   # (builtin 单一边界正则通吃 def/let/newcommand 各定义形), 内核名
   # 归位; 装入件不动 (包件内同名是合法读)。错签随内核读位而异
   # (Missing number/stack/他形) → 不带 ctx_suggests, def 在 baseline
-  # 树即 builtin 自证, 不在即落穿。
+  # 树即 builtin 自证，不在即落穿。
   - id: prim_clobber_rename
     description: "用户档 \\def\\<kernel/prim> 覆写原语或内核命令 (\\mag/\\mathrm 族) → baseline 树内全站改名 \\texlateuser<name>"
     phase: loop
-    order: 199.79 # redactcite_brace_close(199.78) 之后, undefined_cs_guess(900) 之前; clobber-def 源签专属
+    order: 199.79 # redactcite_brace_close(199.78) 之后，undefined_cs_guess(900) 之前; clobber-def 源签专属
     when:
       any:
         - { category: syntax }
@@ -2503,8 +2503,8 @@ rules:
       function: primitive_clobber_rename # def 不在 baseline 树即落穿; names 表只收实证名
       params:
         names: [mag, mathrm]
-    risk: low # masked-guard 认 def 形 + baseline 树限界 (装入件/包件原语读不沾); 撞名弃权; 改名是双侧同改, 用户宏语义原样保留
-    known_gap: "\\csname<name>\\endcsname 构名/\\magnification 级 plain 族未收; 用户件内以 \\ifnum\\mag 读原语意图者改名后同破 (覆写前已破, 非新增); names 表外新 clobber 名须实证补录"
+    risk: low # masked-guard 认 def 形 + baseline 树限界 (装入件/包件原语读不沾); 撞名弃权; 改名是双侧同改，用户宏语义原样保留
+    known_gap: "\\csname<name>\\endcsname 构名/\\magnification 级 plain 族未收; 用户件内以 \\ifnum\\mag 读原语意图者改名后同破 (覆写前已破，非新增); names 表外新 clobber 名须实证补录"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2515,7 +2515,7 @@ rules:
         }
       - {
           corpus: "astro-ph/0103349 (stagerun-overnite-2026-09-20 errsweep)",
-          error: "cmastars.tex \\def\\mag{\\hbox{$^{\\rm m}$}} 同款覆写, begin-doc Missing number",
+          error: "cmastars.tex \\def\\mag{\\hbox{$^{\\rm m}$}} 同款覆写，begin-doc Missing number",
         }
       - {
           corpus: "hep-ph/9612367 (stagerun-overnite-2026-09-20 errsweep)",
@@ -2533,7 +2533,7 @@ rules:
     action:
       kind: escalate_llm
       params:
-        hint: "cs 名→sty 长射未实现; 交 LLM 判: 缺宏定义/缺包/拼写错误"
+        hint: "cs 名→sty 长射未实现; 交 LLM 判：缺宏定义/缺包/拼写错误"
         context: [first_bang, ctx8, file_stack, line_no]
     engines:
       xelatex: { mode: native }

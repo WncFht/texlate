@@ -11,7 +11,7 @@ version: 1
 rules:
   # 新增 (docs/spec/compile.md L269): 工程自带旧 .sty/.cls 遮蔽已装新版 ——
   # 错误触发型 (undefined_cs/already_def 反复出现时才怀疑遮蔽),
-  # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
+  # 按 \\ProvidesPackage 日期比较，盲删必死 (同目录 cls 可能是唯一来源)
   - id: vendored_sty_shadow
     mechanisms: [W100, B05]
     description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso); 路径限定装载点 (./x/y 形) 命中 → 原径回填 \\input 系统副本 shim"
@@ -21,14 +21,14 @@ rules:
       any:
         - { category: undefined_cs }
         - { category: already_def }
-    condition: { vendored_shadow: true } # builtin 探测: 本地副本日期 < 系统副本日期
+    condition: { vendored_shadow: true } # builtin 探测：本地副本日期 < 系统副本日期
     action:
       kind: builtin_transform
       function: vendored_shadow_isolate
       params:
         exts: [.sty, .cls]
         suffix: ".fixloop-iso"
-        # 同包伴船整组隔离（批二, apj-bib-scout §S2/S3）：只隔 biblatex.sty
+        # 同包伴船整组隔离（批二，apj-bib-scout §S2/S3）：只隔 biblatex.sty
         # 会留 vendored .def/.bbx/.cbx/.lbx 继续遮蔽系统件 → 新旧混栈。
         cohort_map:
           biblatex.sty:
@@ -44,7 +44,7 @@ rules:
     risk: medium # rename 会改变工程布局; 只在确证更旧时动
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # tectonic 同理: cwd 旧版遮蔽 bundle 新版
+      tectonic: { mode: same } # tectonic 同理：cwd 旧版遮蔽 bundle 新版
     provenance:
       - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
     stats: { fires: 61, rescued_cells: 17, status: active }
@@ -54,11 +54,11 @@ rules:
   # builtin 五条件全 conjunctive 自判 (baseline 同名件在 ∧ 字节异 ∧ 无
   # % texlate/% fixloop 自有标记 ∧ 工作件 CJK 计数超 baseline ∧ baseline
   # 判 support); baseline_dir 由 worker/stagerun 按 transform 名运行时
-  # 注入, 缺席即 False 空转 —— when 放宽 always 每轮便宜扫一遍。
+  # 注入，缺席即 False 空转 —— when 放宽 always 每轮便宜扫一遍。
   - id: restore_support_from_src
     description: "被翻译写脏的 support 件 → 从 baseline 树逐字节复原"
     phase: loop
-    order: 154 # vendored_sty_shadow(150) 后, shadow/bbl_regen 族(155-159) 前
+    order: 154 # vendored_sty_shadow(150) 后，shadow/bbl_regen 族 (155-159) 前
     when: { always: true }
     action:
       kind: builtin_transform
@@ -90,7 +90,7 @@ rules:
   - id: slot_arg_revert
     description: "zh 化机位实参 (csname/env 参/色名/计数名/kv/文件名等) → 按 baseline 配对还原 ASCII 标识符"
     phase: precheck
-    order: -0.4 # shipped_sty_input_wrap(-0.5) 后, static_precheck(0) 前
+    order: -0.4 # shipped_sty_input_wrap(-0.5) 后，static_precheck(0) 前
     when: { always: true }
     condition:
       # 零 CJK 树 (en 臂/未翻工程) 一条 raw 粗筛即空转省电; builtin 内
@@ -112,14 +112,14 @@ rules:
     source_ref: "tmp/lane-zhleak/notes.md; judge.py _MACHINE_SLOT_RXS/_slot_args 配对机位面"
 
   # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
-  # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族, missing_file 打不到
+  # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族，missing_file 打不到
   # (bundle 能解析), 只能 undefined_cs 确证后往 wdir 注 stub 遮蔽换 emulateapj
-  # (全 API 面一次补齐, 含 \rotate no-op; emulateapj 经 ctan_fetch 拉进 wdir)。
+  # (全 API 面一次补齐，含 \rotate no-op; emulateapj 经 ctan_fetch 拉进 wdir)。
   - id: aastex_bundle_shadow
     mechanisms: [W86, W96]
     description: "tectonic 内置 aastex 5.0rc3 缺新宏 → wdir 注 aastex.cls stub 遮蔽 (→emulateapj)"
     phase: loop
-    order: 155 # journal_cs_polyfill(160) 之前: 遮蔽换类比逐宏补表更彻底
+    order: 155 # journal_cs_polyfill(160) 之前：遮蔽换类比逐宏补表更彻底
     when: { category: undefined_cs, payload_required: true }
     condition:
       engine_in: [tectonic] # bundle 内建类问题只存在于 tectonic
@@ -184,7 +184,7 @@ rules:
           \providecommand{\texttwelveudash}{\textemdash}
           \endinput
     engines:
-      xelatex: { mode: native } # 实际不可达: engine_in 门只放行 tectonic
+      xelatex: { mode: native } # 实际不可达：engine_in 门只放行 tectonic
       tectonic: { mode: same }
     provenance:
       - {
@@ -204,7 +204,7 @@ rules:
   - id: spotcolor_xetex_shadow
     description: "spotcolor (pdfTeX-only) → wdir 注 spotcolor.sty stub (xcolor cmyk 仿真)"
     phase: loop
-    order: 156 # aastex_bundle_shadow(155) 同档: 遮蔽先于逐宏补
+    order: 156 # aastex_bundle_shadow(155) 同档：遮蔽先于逐宏补
     when:
       any: # 67debb6 起 subclassify 把宏体内 pdf 原语改判 pdftex_prim:pdfobj
         - { category: undefined_cs, payload_required: true }
@@ -237,7 +237,7 @@ rules:
         # (桥接件救不了包外原语)。改纯 xcolor 仿真: AddSpotColor 4 参
         # (space/name/disp/"c m y k") 空隔分词 cmyk 解析落
         # \definecolor{name}{cmyk}{c,m,y,k}; \definecolor 包装拦截
-        # {spotcolor}{name,tint} 模型 → {named}{name} (取首元, tint
+        # {spotcolor}{name,tint} 模型 → {named}{name} (取首元，tint
         # 舍近似); NewSpotColorSpace/SetPageColorSpace/
         # SetPageColorResource/SpotSpace 全 noop。
         body: |
@@ -300,7 +300,7 @@ rules:
     stats: { fires: 7, rescued_cells: 2, status: active }
     source_ref: "loop1 rerun residual; xespotcolor.sty v2.1 API 核对"
 
-  # 新增 (loop2-delta 残格): axessibility 是 pdfTeX-only 可访问性标注包,
+  # 新增 (loop2-delta 残格): axessibility 是 pdfTeX-only 可访问性标注包，
   # TL 有真包 (missing_file 打不到), 其体内 \pdfcompresslevel/
   # \pdfoptionpdfminorversion/\pdfglyphtounicode 在 xelatex/tectonic 下
   # undefined_cs→pdftex_prim。包面无用户命令 (只补丁 \document/\section
@@ -308,7 +308,7 @@ rules:
   - id: axessibility_xetex_shadow
     description: "axessibility (pdfTeX-only) → wdir 注 axessibility.sty 空 stub 吞选项"
     phase: loop
-    order: 157 # spotcolor_xetex_shadow(156) 同档: 遮蔽先于逐宏补
+    order: 157 # spotcolor_xetex_shadow(156) 同档：遮蔽先于逐宏补
     when:
       any:
         - { category: undefined_cs, payload_required: true }
@@ -357,7 +357,7 @@ rules:
   - id: accsupp_xetex_shadow
     description: "accsupp (pdfTeX-era ActualText 标注) → wdir 注 accsupp.sty noop stub (包夹文本保留)"
     phase: loop
-    order: 157.5 # axessibility_xetex_shadow(157) 同档姊妹臂: 遮蔽先于逐宏补
+    order: 157.5 # axessibility_xetex_shadow(157) 同档姊妹臂：遮蔽先于逐宏补
     when:
       any:
         - { category: warn_missing_char } # 缺字面亦可浮出 (族臂判据认 when 含此)
@@ -403,20 +403,20 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json accsupp_xetex_shadow; axessibility_xetex_shadow(157) 同构"
-    known_gap: "ActualText 标注义丢失 (无视觉差异, 仅可访问性元数据); 包内非 API 原语调用面已由 stub 整体遮蔽不触"
+    known_gap: "ActualText 标注义丢失 (无视觉差异，仅可访问性元数据); 包内非 API 原语调用面已由 stub 整体遮蔽不触"
   # → \DeclareOption* 里 \InputIfFileExists{sv\CurrentOption.clo} 逐选项
-  # 落空, \journalopt 停 \@empty → "Class SVJour Error: No valid journal
+  # 落空，\journalopt 停 \@empty → "Class SVJour Error: No valid journal
   # specified" + \stop。builtin 按 \documentclass 选项写 sv<opt>.clo noop
   # stub (\endinput), InputIfFileExists 走真臂置 \journalopt 即过; 盘上
   # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢签时
   # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
-  # 与 vendored svjour.cls 不冲突 (shim_map 槽已删): vendored_fetch 管缺类,
+  # 与 vendored svjour.cls 不冲突 (shim_map 槽已删): vendored_fetch 管缺类，
   # 这条管有类缺 clo。
   - id: svjour_clo_stub
     mechanisms: [B05]
     description: "svjour.cls 在场但零 .clo 伴船 → 按 docclass 选项写 sv<opt>.clo noop stub"
     phase: loop
-    order: 159 # shadow/bbl_regen 族(155-158)同档: wdir 注件先于逐宏补
+    order: 159 # shadow/bbl_regen 族 (155-158) 同档：wdir 注件先于逐宏补
     when:
       any:
         - { category: other }
@@ -439,7 +439,7 @@ rules:
     source_ref: "builtins/__init__.py svjour_clo_stub (3e292eb)"
 
   # 2026-09-20 csfix8 (1511.06717): aa.cls \def\filedate{2014/12/1} —
-  # 月/日段单数字让 kernel \@parse@version@dash 错位, \@nil 漏进 \ifnum →
+  # 月/日段单数字让 kernel \@parse@version@dash 错位，\@nil 漏进 \ifnum →
   # 每次 \@ifl@ter/\usepackage 处 undefined_cs|@nil 级联。根修 = 源级把
   # YYYY/M/D 单数字月日段补零 (双臂: 日段 / 月段), 双位数日期不动。
   # masked 面匹配防注释行误改; 条件双门 (payload=@nil + 源有短日期形)
@@ -448,7 +448,7 @@ rules:
     mechanisms: [B05]
     description: "随源 cls/sty/tex 版本日期月日段单数字 → \\@parse@version 错位 \\@nil 入 \\ifnum → 月日段补零"
     phase: loop
-    order: 159.5 # svjour_clo_stub(159) 与 journal_cs_polyfill(160) 之间: cls 源级补丁先于逐宏补
+    order: 159.5 # svjour_clo_stub(159) 与 journal_cs_polyfill(160) 之间：cls 源级补丁先于逐宏补
     when: { category: undefined_cs, payload_required: true }
     condition:
       payload_pattern: "^\\\\?@nil$"
@@ -488,7 +488,7 @@ rules:
     mechanisms: [W96]
     description: "AAS 期刊缩写宏缺失 (老 aastex/内置类太旧) → 注入期刊宏表 providecommand"
     phase: loop
-    order: 160 # vendored_sty_shadow(150) 之后, undefined_cs_guess(900) 之前
+    order: 160 # vendored_sty_shadow(150) 之后，undefined_cs_guess(900) 之前
     when: { category: undefined_cs, payload_required: true }
     action:
       kind: builtin_transform
@@ -496,7 +496,7 @@ rules:
       params:
         # fixable-data (astro-ph/0605222): aastex 族天文缩写宏 —— 稿写
         # [O~{\sciii}] 形 (O 字面), 故 sciii 展开为 {\sc iii} 而非 AAS 的
-        # [O\,{\sc iii}] 全形; hb/ha 巴尔末线, arcsec 角秒。
+        # [O\,{\sc iii}] 全形; hb/ha 巴尔末线，arcsec 角秒。
         macros:
           sciii: '{\sc iii}'
           scii: '{\sc ii}'
@@ -509,13 +509,13 @@ rules:
           # aa.cls 系裸 \acknowledgements 章头 —— 0806.3705/astro-ph/0408064/
           # astro-ph/0501615; env 形 \begin{acknowledgements} 别签名不进此表
           acknowledgements: '\section*{Acknowledgements}'
-          # aj_pt4/aaspp4 横排表页声明宏 —— deluxetable 前哨标记, 无独立
-          # 输出, 版面旋转由 deluxetable 侧自理; astro-ph/0003115
+          # aj_pt4/aaspp4 横排表页声明宏 —— deluxetable 前哨标记，无独立
+          # 输出，版面旋转由 deluxetable 侧自理; astro-ph/0003115
           # (documentstyle[aj_pt4], 编译走到 l.356 仅炸本宏) 实证
           ptlandscape: ""
           # 1907.10408 (qc-impl 2026-09-28): aastex-era \texttwelveudash
           # 十二连破折 → \textemdash 近似 (aastex_bundle_shadow body
-          # 同位条目, emulateapj shim 体同式)
+          # 同位条目，emulateapj shim 体同式)
           texttwelveudash: "\\textemdash"
     engines:
       xelatex: { mode: native }
@@ -531,7 +531,7 @@ rules:
   # 2026-09-17 fixer-bblwall W3 (1706.00240 wall-3, fixer-apjbbx spec):
   # e-print 捆绑 2012 手写 physics.sty stub (\dbar\ord\bra\ket 族) 撞
   # siunitx v3 \AtBeginDocument 的 \@ifpackageloaded{physics} 硬报错 →
-  # \begin{document} 处 undefined_cs:begin。三步: usepackage 名单剥
+  # \begin{document} 处 undefined_cs:begin。三步：usepackage 名单剥
   # physics 原位 \input{physics.sty} 续载 (\input 不进 ver@ 注册) +
   # stub \ProvidesPackage{physics} 中和 physics-stub + 双载守卫;
   # 真 CTAN physics (xparse \DeclareDocumentCommand 形) 弃权归 LLM。
@@ -569,7 +569,7 @@ rules:
   # 该格三签名同机理: incompatible×2 (other) + \unit already_def +
   # \close@column@grid 级联。修法 = 装载点前置 ver@X.sty=\relax 注销全部
   # 不兼容名 (physics_stub_detach 同机理) + 存/摘 \unit 让 siunitx 落定义
-  # + 载后复元 units 语义 (\unit[38]{mW} units 语法实证, fmsingles 车道)。
+  # + 载后复元 units 语义 (\unit[38]{mW} units 语法实证，fmsingles 车道)。
   - id: siunitx_incompat_peace
     mechanisms: [W100]
     description: "siunitx v3 不兼容名单 (units/SIunits 等) \\@ifpackageloaded 硬报错 → ver@ 注销续载 + \\unit 存复"
@@ -615,7 +615,7 @@ rules:
   # shipclscen 普查 (begindoccen 残件): 随源 .cls/.sty 内部裸 \input X.sty
   # 站 —— \input 以宿主当前 @ catcode 读件; 宿主自身经裸 \input/2.09 option
   # 链载入 (@=other) 时载入件内全部 @-cs 断名 → Missing \begin{document}
-  # 级联 (aipproc.cls:10 \input{aipproc.sty} 型, 语料 ~20 随源件带此站)。
+  # 级联 (aipproc.cls:10 \input{aipproc.sty} 型，语料 ~20 随源件带此站)。
   # input_sty_to_usepackage(-11)/input_sty_209_requirepkg(-12) 两臂只管
   # doc 侧 .tex 导言区 (\begin{document} 前瞻闸 + \documentclass/style 门),
   # 随源件内部站点与 fragment .tex 够不着 —— 本规则补位: \edef 存
@@ -625,7 +625,7 @@ rules:
   - id: shipped_sty_input_wrap
     description: "随源 .cls/.sty/.tex 件内裸 \\input X.sty (@=other 载入 → @-cs 全裂) → exact-restore @ 包裹"
     phase: precheck
-    order: -0.5 # input_sty 两臂 (-12/-11) 与 tar_blob_extract(-1) 之后, static_precheck(0) 前 —— doc 侧改写+冒名件解包落地后收网余下 live 站
+    order: -0.5 # input_sty 两臂 (-12/-11) 与 tar_blob_extract(-1) 之后，static_precheck(0) 前 —— doc 侧改写 + 冒名件解包落地后收网余下 live 站
     when: { always: true }
     condition:
       # raw 粗筛 —— builtin 内 mask_tex 遮盖视图复核是权威
@@ -633,7 +633,7 @@ rules:
     action:
       kind: builtin_transform
       function: shipped_sty_input_wrap
-    risk: low # 存复形包裹语义保持; 只罩 \input 命令本体, 遮盖视图确认 live 站
+    risk: low # 存复形包裹语义保持; 只罩 \input 命令本体，遮盖视图确认 live 站
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # 源码改写天然可移植
@@ -645,12 +645,12 @@ rules:
     stats: { fires: 126, rescued_cells: 54, status: active }
     source_ref: "tmp/lane-shipclscen/mbd_hits.json; vendor/stubs/svglov3.clo exact-restore idiom"
 
-  # mathchar 普查 (failmine3, ~6 格): 译稿把 CJK 放进 \bm{...} 实参,
+  # mathchar 普查 (failmine3, ~6 格): 译稿把 CJK 放进 \bm{...} 实参，
   # xelatex/tectonic 下炸 "Extended mathchar used as mathchar (<0x05xxxxxx>)"
   # —— bm.sty \bm@test@token 原子遍历对实参内每个 catcode-11/12 token 做
   # \count@\mathcode`#1, XeTeX 的 \mathcode 旧式 15-bit 操作数扫描对 >0xFF
   # 字符 (xeCJK CJK 字/扩展 mathcode) 必炸 (mathchar 探针实证: \mathcode`这
-  # operand scan 即炸, \mathcode`Ω 同炸非 CJK 专属; 裸 $这$/{\rm}/\tilde/
+  # operand scan 即炸，\mathcode`Ω 同炸非 CJK 专属; 裸 $这$/{\rm}/\tilde/
   # 上下标全不炸 —— 触发面只锁 \bm 族实参)。taxonomy 无专类归 other,
   # ctx_suggests 锁错误签名。修法 = 序言守卫式重定义: \bm#1 → \TeXlateBM{{#1}}
   # 双花括号走 bm 自带 group 路径 (\bm@gr@@p→\boldmath), 遍历被跳过且粗体
@@ -659,7 +659,7 @@ rules:
   - id: bm_extended_mathchar_wrap
     description: "\\bm{<CJK>} 撞 Extended mathchar 墙 → 守卫式 \\bm 族重定义走 group 路径"
     phase: loop
-    order: 162 # biblatex_bbx_rename(161) 与 physics_stub_detach(163) 之间: 源级补丁同档
+    order: 162 # biblatex_bbx_rename(161) 与 physics_stub_detach(163) 之间：源级补丁同档
     when: # taxrow 落地前归 other —— mathchar_ext 专属行 + other 兼容
       any:
         - { category: other }
@@ -676,7 +676,7 @@ rules:
     provenance:
       - {
           corpus: "hep-ph/0605174 GLUON.tex:464 + 1206.0485 + 2112.00003 (loop1 stagerun)",
-          error: "Extended mathchar used as mathchar (83922905=0x05008FD9=这 等 4 值循环, \\bm{这是译文} 原子遍历)",
+          error: "Extended mathchar used as mathchar (83922905=0x05008FD9=这 等 4 值循环，\\bm{这是译文} 原子遍历)",
         }
     stats: { fires: 5, rescued_cells: 2, status: active }
     source_ref: "tmp/mathchar/ repro (t1-t6/probe4-5/fix4); bm.sty \\bm@test@token \\count@\\mathcode`#1 walk"

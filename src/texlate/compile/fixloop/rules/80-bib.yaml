@@ -17,7 +17,7 @@ rules:
     description: "有 .bbl 无 .bib → \\bibliography{x} 改写 \\input{main.bbl}, 阻断 tectonic 自动 bibtex stub 遮蔽"
     phase: loop
     order: 140
-    when: { category: syntax } # 表现形态: Something's wrong--perhaps a missing \item
+    when: { category: syntax } # 表现形态：Something's wrong--perhaps a missing \item
     condition:
       engine_in: [tectonic]
       fileset: { has_ext: [.bbl], lacks_ext: [.bib] }
@@ -45,13 +45,13 @@ rules:
     mechanisms: [W23]
     description: "旧 .bbl cite-key 裸 &/_ → \\bibitem/\\cite/aux 三侧一致重写"
     phase: loop
-    order: 141 # bbl_stub_shadow(140) 之后, vendored_sty_shadow(150) 之前
+    order: 141 # bbl_stub_shadow(140) 之后，vendored_sty_shadow(150) 之前
     when: { category: syntax }
     condition:
       fileset: { has_ext: [.bbl] }
       # 两种 log 形态同盖: file-line-error 形 `ms.bbl:4: Missing $...` 与
       # '!' 形 `! Missing $ inserted.`（'!' 形文件名入 file_stack 不在
-      # err_head——靠 builtin 自验 unsafe key 存在性兜底, 误签至多白扫一遍）。
+      # err_head——靠 builtin 自验 unsafe key 存在性兜底，误签至多白扫一遍）。
       ctx_suggests: "Missing \\$ inserted|Misplaced alignment tab"
     action:
       kind: builtin_transform
@@ -74,10 +74,10 @@ rules:
   - id: bbl_regen
     description: "bundled 旧版 .bbl 撞新 biblatex → biber <stem> 就地重生成 (.bcf 在场)"
     phase: loop
-    order: 158 # shadow 族(155-157)同档: 结构性处置先于逐宏补
+    order: 158 # shadow 族 (155-157) 同档：结构性处置先于逐宏补
     when: { category: undefined_cs, payload_required: true }
     condition:
-      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在, 天然限定 biblatex 稿
+      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在，天然限定 biblatex 稿
       tool_available: biber
     action:
       kind: builtin_transform
@@ -100,7 +100,7 @@ rules:
   # 体不含 patch find-text)。源级更名双侧对齐——不引 shim。
   # 尾险 (fragment §risk): 文件自带 *正向* shim
   #   \providebibmacro*{date+extradate}{\usebibmacro{date+extrayear}}
-  # 且自身新名 patch 先失败时, 改写会成自指 → capacity 兜住,
+  # 且自身新名 patch 先失败时，改写会成自指 → capacity 兜住，
   # 属换墙非静默腐蚀; 今零 acmauthoryear 格发 Cannot-patch。
   - id: biblatex_bbx_rename
     mechanisms: [B05]
@@ -132,14 +132,14 @@ rules:
   # "! the external tool exited ..." 后 biber stdout dump 含
   # "Found biblatex control file version 3.8, expected version 3.11." —
   # head 窗盖到则类 toolchain_skew, 盖不到落 other; builtin 两级复核
-  # (err_head 快径 → _fixloop_log 全文) 同收, 不中 False 让位后续 other
+  # (err_head 快径 → _fixloop_log 全文) 同收，不中 False 让位后续 other
   # 规则。REJECT route=xelatex 令牌由 repair 跨引擎臂换编 (本地 TeXLive
-  # biber/biblatex 成对)。order 8 殿前: 硬墙先路由, 不陪跑可修类。
+  # biber/biblatex 成对)。order 8 殿前: 硬墙先路由，不陪跑可修类。
   - id: biber_biblatex_skew_route
     mechanisms: [B05]
     description: "tectonic bundle biblatex ↔ 系统 biber bcf 版本错配 → REJECT route=xelatex 换引擎 (不改源)"
     phase: loop
-    order: 8 # toolchain_skew/other 族首评: 硬墙先路由
+    order: 8 # toolchain_skew/other 族首评：硬墙先路由
     when: { any: [{ category: toolchain_skew }, { category: other }] }
     condition:
       engine_in: [tectonic]
@@ -172,9 +172,9 @@ rules:
   # 后: 同族硬墙先路由。
   - id: tectonic_bib_stall_route
     mechanisms: [B05]
-    description: "tectonic bibtex 挂死/bbl在席缺.bib 强跑 biber 毙 → REJECT route=xelatex 换引擎 (不改源)"
+    description: "tectonic bibtex 挂死/bbl 在席缺.bib 强跑 biber 毙 → REJECT route=xelatex 换引擎 (不改源)"
     phase: loop
-    order: 8.1 # skew_route(8) 后: 工具链硬墙族先路由
+    order: 8.1 # skew_route(8) 后：工具链硬墙族先路由
     when: { any: [{ category: timeout }, { category: other }] }
     condition:
       engine_in: [tectonic]
@@ -185,7 +185,7 @@ rules:
     risk: low # 不改源只发路由令牌; 签名自验不中即 False
     engines:
       tectonic: { mode: native }
-      xelatex: { mode: skip } # xelatex 侧 bib 工具链全由系统件承担, 无此盲区
+      xelatex: { mode: skip } # xelatex 侧 bib 工具链全由系统件承担，无此盲区
     provenance:
       - {
           corpus: "scale50 批 t_0c9a3e4159db8ffb (arXiv 2609.20470v1, 2026-09-25)",
@@ -204,7 +204,7 @@ rules:
 
   # 2026-09-18 natbib 车道 (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
   # (95-targeted order 186) 的 (\\begin\{document\}) 重写无注释遮盖——注释行
-  # 提到 \begin{document} 的被 \n 尾巴切成两半, "command."/"." 尾脱注释成
+  # 提到 \begin{document} 的被 \n 尾巴切成两半，"command."/"." 尾脱注释成
   # 行首活 \begin{document} (ms.tex:172/198), 首个活行在 \NAT@numberstrue
   # 注入位 (:285) 之前触发 aux 读 → compat 炸 (ms.aux:32) + preamble-only
   # 级联 (103 err)。aux purge 无用——裂伤在 tex 层。本规则收伤: 行首
@@ -214,7 +214,7 @@ rules:
     mechanisms: [W117, W126]
     description: "注入式 rewrite 注释切分裂伤 → 带尾文的行首孤立 \\begin{document} 重注释 (后起行首 \\begin{document} 门)"
     phase: loop
-    order: 194 # natbib_numbers_pass(186) 裂伤兜底, 同签下轮收
+    order: 194 # natbib_numbers_pass(186) 裂伤兜底，同签下轮收
     when: # 两臂签名分归 bib_compat/preamble_only (taxrow 行) —— other 保兼容
       any:
         - { category: other }
@@ -251,13 +251,13 @@ rules:
   # .aux 已含 "\\providecommand\\NAT@force@numbers{}\\NAT@force@numbers"
   # 行 (natbib.sty:967-968 写面), 次遍 \\begin{document} 期 aux 读仍炸
   # "Bibliography not compatible with author-year citations"——同签复炸
-  # 而 numbers_pass 已 applied 不再点火。整行剥除: aux 族可再生,
-  # numbers_pass 在位即无再写源, 剥一次即净。
+  # 而 numbers_pass 已 applied 不再点火。整行剥除: aux 族可再生，
+  # numbers_pass 在位即无再写源，剥一次即净。
   - id: natbib_aux_force_purge
     mechanisms: [W117, W126]
     description: "陈旧 .aux 残留 \\NAT@force@numbers 强制行 → 整行剥除 (numbers_pass 已挡再写)"
     phase: loop
-    order: 195 # begindoc_tail_recomment(194) 同签族殿后: tex 层裂伤先收, aux 残毒后剥
+    order: 195 # begindoc_tail_recomment(194) 同签族殿后：tex 层裂伤先收，aux 残毒后剥
     when: # .aux:NN file-line 签名 taxrow 归 bib_compat; other 保兼容
       any:
         - { category: other }
@@ -289,15 +289,15 @@ rules:
     source_ref: "tmp/lane-failmine/rule_targets.txt item 2; natbib.sty:967-968 \\AtEndDocument aux 写面"
 
   # ── 2026-09-20 armgap4 (2605.29672 fired_ineffective) ──
-  # biblatex backend=bibtex: bibtex 是 8-bit 工具, 行包 (~2000B) 劈断
+  # biblatex backend=bibtex: bibtex 是 8-bit 工具，行包 (~2000B) 劈断
   # multibyte UTF-8 → 产出 .bbl 带非法序列 → warnings invalid_utf8 升级
   # warn_utf8 轮 (纯 warn-only fail)。毒件是引擎每遍重生成的 .bbl ——
-  # non_utf8_source(95) 的 recode exts 不含 .bbl 且下遍再腐, 永不收敛。
+  # non_utf8_source(95) 的 recode exts 不含 .bbl 且下遍再腐，永不收敛。
   # 修 = biblatex 装载行 backend=bibtex → biber: biber 全 UTF-8, 下遍
-  # .bcf→biber 通道产净 .bbl。三闸: .bcf 在场 (biblatex 稿天然限定,
+  # .bcf→biber 通道产净 .bbl。三闸: .bcf 在场 (biblatex 稿天然限定，
   # bbl_regen 同口径) + 源有 backend=bibtex + biber 可执行。order 置
-  # warn_utf8 消费族尾: misschar 臂(25.x)/non_utf8_source(95) 先评 —
-  # latin1 .bib 先转码, 本臂只兜 bibtex-8bit 生成面腐 (同签共存稿各臂
+  # warn_utf8 消费族尾: misschar 臂 (25.x)/non_utf8_source(95) 先评 —
+  # latin1 .bib 先转码，本臂只兜 bibtex-8bit 生成面腐 (同签共存稿各臂
   # 按序收不互抢)。
   - id: bib_backend_biber_swap
     description: "biblatex backend=bibtex (8-bit 劈 UTF-8 腐 .bbl) → backend=biber (全 UTF-8 通道)"
@@ -305,7 +305,7 @@ rules:
     order: 195.5 # non_utf8_source(95) 先转码源件; 本臂兜 bibtex 生成面腐
     when: { category: warn_utf8 }
     condition:
-      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在, 天然限定 biblatex 稿
+      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在，天然限定 biblatex 稿
       source_contains: "backend\\s*=\\s*bibtex\\b"
       tool_available: biber
     action:
@@ -318,7 +318,7 @@ rules:
               repl: "\\g<1>backend=biber",
               match_surface: "masked",
             }
-    risk: medium # 后端切换改参考文献产出路径; biber 本是 biblatex 默认通路, 其余选项原样保留
+    risk: medium # 后端切换改参考文献产出路径; biber 本是 biblatex 默认通路，其余选项原样保留
     known_gap: "backend=bibtex8 (同 8-bit 腐) 词界不收——实证格后再扩; 默认 backend (无显式键) 不改写; 已腐 .bbl 靠下遍重生成自愈"
     engines:
       xelatex: { mode: native }
@@ -326,7 +326,7 @@ rules:
     provenance:
       - {
           corpus: "2605.29672 (armgap4 census; stagerun-overnite-2026-09-20)",
-          error: "invalid_utf8 ×4 @ splice/*.bbl — bibtex 8-bit 行包劈断 UTF-8 (.bib 本体净, recode 0 命中)",
+          error: "invalid_utf8 ×4 @ splice/*.bbl — bibtex 8-bit 行包劈断 UTF-8 (.bib 本体净，recode 0 命中)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-armgap4/census.md §2605.29672; engine _bib_pass .bcf→biber 通道"
@@ -338,7 +338,7 @@ rules:
   #   已注册名 (bbl_regen/purge_corrupt_intermediates)。
   # ════════════════════════════════════════════════════════════════
 
-  # warn_bbl_version → bbl_regen (IDX 0/28/49 合流, warn_id 统一
+  # warn_bbl_version → bbl_regen (IDX 0/28/49 合流，warn_id 统一
   # bbl_version): biblatex 'wrong format version' 警告稿无 '!' 行, 原
   # bbl_regen(:74) 的 undefined_cs+payload_required 门永不点火。本规把
   # warn 面格送进同一 builtin: fmt<3.0 隔离臂无需 .bcf, fmt 3.x+.bcf
@@ -368,12 +368,12 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX0/IDX28/IDX49"
 
-  # bbl_version_regen 无路面兜底 (qc-impl unfixable_bbl_ver 桶, 前置注记
-  # 已预告): fmt 3.x 旧 .bbl 且**全树无 .bib** → biber 再生无路, 唯一挽手
-  # 是头标版本改写到期望档 (builtin 内 .bib 复检 + fmt∈[3.0,期望) 闸 +
+  # bbl_version_regen 无路面兜底 (qc-impl unfixable_bbl_ver 桶，前置注记
+  # 已预告): fmt 3.x 旧 .bbl 且**全树无 .bib** → biber 再生无路，唯一挽手
+  # 是头标版本改写到期望档 (builtin 内 .bib 复检 + fmt∈[3.0，期望) 闸 +
   # 期望档 log 签名提取)。排 bbl_version_regen(158.5) 后: 有 .bcf 稿先让
   # biber 试跑, 失败落到本臂——双臂条件互补不互抢 (本臂 lacks_ext:[.bib]
-  # 时 regen 臂 biber 至多白跑一次, .bcf 不完整/失手有 builtin 备份兜)。
+  # 时 regen 臂 biber 至多白跑一次，.bcf 不完整/失手有 builtin 备份兜)。
   - id: bbl_version_nobib_rewrite
     description: "warn_bbl_version + 无 .bib 再生路 → fmt3.x 头标改写到期望档 (bbl_format_version_rewrite)"
     phase: loop
@@ -397,10 +397,10 @@ rules:
     source_ref: "80-bib.yaml:346 前置注记 (bbl_version_regen) + builtins.bib.bbl_format_version_rewrite docstring"
 
   # 'No file X.bbl'/'File x.bbl not found' 型 missing_file → bbl_regen:
-  # .bcf 在场 = biblatex 稿, biber <stem> 直接生出缺失 .bbl; 比
+  # .bcf 在场 = biblatex 稿，biber <stem> 直接生出缺失 .bbl; 比
   # install_file 语义对路 (.bbl 是生成件非可装包)。2601.09875 同签名
   # 的 warning-only 变体由 warn_undef_ref 面 bbl_cite_undef_regen 收
-  # (该格零 '!' 错, missing_file 类不到)。
+  # (该格零 '!' 错，missing_file 类不到)。
   - id: bbl_missing_regen
     description: "missing_file payload=*.bbl + .bcf 在场 → biber <stem> 就地再生成"
     phase: loop
@@ -428,11 +428,11 @@ rules:
   # warn_undef_ref → bbl_regen (IDX17b/49 合流): Citation-undefined 存留
   # + .bcf 在场 = 末遍 bib 趟缺跑/陈旧 .bbl; biber 重生成 + needs_pass
   # 续趟把新 .bbl 的 \\bibcite 面写回 .aux。消耗轮序在注入臂前:
-  # 根因格再生即解, 注入臂兜 cls/pagerange 类签名。
+  # 根因格再生即解，注入臂兜 cls/pagerange 类签名。
   - id: bbl_cite_undef_regen
     description: "warn_undef_ref + .bcf → bbl_regen 重跑 bib 趟 (stale/缺席 .bbl 的 cite-undef 根因臂)"
     phase: loop
-    order: 158.7 # warn_undef_ref 消费族首臂: bib 根因先于标签注入
+    order: 158.7 # warn_undef_ref 消费族首臂：bib 根因先于标签注入
     when: { category: warn_undef_ref }
     condition:
       fileset: { has_ext: [.bcf] }
@@ -452,12 +452,12 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX17(b)/IDX49 合流"
 
-  # ── pagerange/endlabel 注入族 (IDX36/54 合流, builtin
+  # ── pagerange/endlabel 注入族 (IDX36/54 合流，builtin
   #    pagerange_label_inject 未注册 → 逐键 lookahead 闸 + 字面注入的
   #    regex_rewrite 同义表达) ──
   # 机理: 类模板约定 \\pagerange{\\pageref{firstpage}--\\pageref{lastpage}}
   #   靠作者手放 \\label{firstpage}/\\label{lastpage}; 缺标签 → 'Reference
-  #   firstpage undefined'。注入点位字面: firstpage 紧随 \\begin{document}
+  #   firstpage undefined'。注入点位字面：firstpage 紧随 \\begin{document}
   #   (页 1), lastpage 紧贴 \\end{document} 前 (末页)。不走
   #   \\AtEndDocument——0707.3683 jpsj 自定义 \\enddocument 早关 aux,
   #   钩内 \\label 可能落 aux 关闭后; 字面注入先于关序。
@@ -491,7 +491,7 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX36/IDX54"
-    known_gap: "cls 内部引用键 (revtex LastBibItem/totpages TotPages) 源面无 ref-use 字面, 本规不盖——须 log 键提取 builtin (pagerange_label_inject 未注册)"
+    known_gap: "cls 内部引用键 (revtex LastBibItem/totpages TotPages) 源面无 ref-use 字面，本规不盖——须 log 键提取 builtin (pagerange_label_inject 未注册)"
 
   - id: pagerange_lastpage_inject
     description: "warn_undef_ref + ref 族用 lastpage 而 \\label{lastpage} 缺席 → \\end{document} 前注标签"
@@ -524,13 +524,13 @@ rules:
     known_gap: "末页尾随浮体 (\\end{document} 的 \\clearpage 批放) 落点晚于注入位 → lastpage 页码可能偏早一页; 语义近似优于 ?? 未解"
 
   # warn_undef_ref → purge_corrupt_intermediates (IDX17b 窄臂): 引用断链
-  # 且 .aux/.bbl/.blg 有真损坏件 (utf-8 劈断/末行截断) 时清场, 下遍
+  # 且 .aux/.bbl/.blg 有真损坏件 (utf-8 劈断/末行截断) 时清场，下遍
   # 引擎重写干净件即收。builtin 损坏谓词自门——健康陈旧 aux 不删
-  # (2212.00026 型陈旧键面由 bbl_cite_undef_regen+续趟覆盖)。
+  # (2212.00026 型陈旧键面由 bbl_cite_undef_regen+ 续趟覆盖)。
   - id: cite_undef_aux_purge
     description: "warn_undef_ref + 损坏中间件在席 → purge_corrupt_intermediates 清 aux/bbl/blg"
     phase: loop
-    order: 159.0 # 注入族后殿后: 断链且中间件损坏才清
+    order: 159.0 # 注入族后殿后：断链且中间件损坏才清
     when: { category: warn_undef_ref }
     condition:
       any:
@@ -584,14 +584,14 @@ rules:
     source_ref: "tmp/qc_impl_spec/impl-rules.json IDX45 (builtin bbl_ctrl_sanitize 未注册 → regex 同义)"
 
   # 1003.0045 (qc xlat_residual_en): 稿面 .bbl 残留 \\bibinfo{a}{v} 壳
-  #   —— revtex/aps 系标记宏, 宿主类不定义即裸 cs 断链。剥壳留值
+  #   —— revtex/aps 系标记宏，宿主类不定义即裸 cs 断链。剥壳留值
   #   \\bibinfo{a}{v} → {v} 语义恒等 (revtex 稿该宏本就排版为
   #   分组值)。precheck 一次性面: .bbl 不在 source_blob 扩展集
   #   (.tex/.sty/.cls) → fileset 门 + rewrite 零命中自 decline。
   - id: bibinfo_disarm
     description: ".bbl 内 \\bibinfo{a}{v} 壳 → {v} 剥除 (宿主类无定义时的断链预拆)"
     phase: precheck
-    order: 1 # static_precheck(0) 后: 装包落定再拆壳
+    order: 1 # static_precheck(0) 后：装包落定再拆壳
     when: { always: true }
     condition:
       fileset: { has_ext: [.bbl] }

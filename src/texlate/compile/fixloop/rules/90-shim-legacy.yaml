@@ -12,21 +12,21 @@ rules:
   # 新增 (fixloop-v2 整改): 退役/改名包 shim —— install_file 查无真包后的出路。
   # 实证: 1806.06690 缺 aastex.cls → emulateapj 顶替出 13 页全文档 pdf;
   # psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 figure=/file= (graphics pkg,
-  # TL 内装得上)。真 2.09 文档到不了这里 —— gate 先拒, 语义分层干净。
+  # TL 内装得上)。真 2.09 文档到不了这里 —— gate 先拒，语义分层干净。
   - id: legacy_pkg_shim
     mechanisms: [B05, W80]
-    description: "退役/改名包 (aas2pp4/elsart1p/jhep 等老名) → wdir 注入同名 stub + 装依赖 (vendored 名归 vendored_fetch 先中, 本表只存非 vendored 缺口)"
+    description: "退役/改名包 (aas2pp4/elsart1p/jhep 等老名) → wdir 注入同名 stub + 装依赖 (vendored 名归 vendored_fetch 先中，本表只存非 vendored 缺口)"
     phase: loop
-    order: 12 # install_file(10) 之后: 真包装得上先用真包, 查无才 shim
+    order: 12 # install_file(10) 之后：真包装得上先用真包，查无才 shim
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
       function: legacy_pkg_shim
       params:
         shim_map:
-          # \ProvidesClass 版本串必须日期开头, 否则 \@ifl@t@r 解析崩 \ifnum。
+          # \ProvidesClass 版本串必须日期开头，否则 \@ifl@t@r 解析崩 \ifnum。
           # (aastex.cls/revtex.cls/psfig.sty 槽已删: vendor/files·shims 有
-          #  真件/替身 stub —— vendored_fetch(11.5) 先于本规则(12)命中,
+          #  真件/替身 stub —— vendored_fetch(11.5) 先于本规则 (12) 命中，
           #  死配置。aastex→emulateapj/psfig→epsfig 旧论证与 revtex.cls 的
           #  2.09 残面语义见 git 考古; revtex 系残面现由 vendor/shims/
           #  revtex.cls + 文件尾 revtex209_surface_polyfill 承担)
@@ -34,7 +34,7 @@ rules:
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
           # 再议 (未观测)。裸 payload `psfig` 由 legacy_pkg_shim L722-726
-          # 归一到 psfig.tex 键, 同条覆盖 ×6 裸签格。
+          # 归一到 psfig.tex 键，同条覆盖 ×6 裸签格。
           psfig.tex:
             needs: ["epsfig.sty"]
             body: |
@@ -57,13 +57,13 @@ rules:
           # body = apjprepr 面 + preamble 安全化: \slugcomment 系 PRE 调用
           # → 存值 + \AtBeginDocument 吐页眉行 (旧体即时排版 →
           # no_begindoc 4 格实证); \title/\author/\affil BOD 调用 → 即时
-          # 排版 (doc2sty 范式, 16 格里 \maketitle 仅 1 现)。多名同 body
+          # 排版 (doc2sty 范式，16 格里 \maketitle 仅 1 现)。多名同 body
           # 双载防御: 首载置 \aasfour@done, 后载即 \endinput (ver@ 已注册
           # 无副作用) —— 0111197/9901091/9910131 等 7 格 aasms4+aaspp4
-          # 同载实证, \newenvironment/\newcounter 裸跑必撞。
+          # 同载实证，\newenvironment/\newcounter 裸跑必撞。
           # (aasms4.sty/aaspp4.sty 槽已删: vendor/stubs 同名 stub 在 ——
-          #  vendored_fetch(11.5) 先中, 死配置; aas4_body anchor 由
-          #  aas2pp4 持锚, 双载守卫同款内嵌)
+          #  vendored_fetch(11.5) 先中，死配置; aas4_body anchor 由
+          #  aas2pp4 持锚，双载守卫同款内嵌)
           aas2pp4.sty:
             needs: ["amssymb.sty", "epsf.sty"]
             body: &aas4_body |
@@ -113,7 +113,7 @@ rules:
               %   \startdata 纯 noop → 稿省 \tablehead 直书 \startdata 时整表
               %   塌成一段 (impl-builtins item 2 让渡条)。开张标记
               %   \aasfour@dtopen 用 \gdef —— \tablehead 尾端在 halign 格内
-              %   展开, \def 随格组消亡传到 \startdata 已丢; env 开头
+              %   展开，\def 随格组消亡传到 \startdata 已丢; env 开头
               %   \global\let 复位供同稿多表。\@delspec 缺席兜底 'l'。 ──
               \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
               \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}\global\let\aasfour@dtopen\@undefined}{\end{table}}
@@ -175,7 +175,7 @@ rules:
               \epsfxsize=.45\columnwidth\epsfbox{#1}\hfil
               \epsfxsize=.45\columnwidth\epsfbox{#2}\par\medskip}
               % \plotfiddle{file}{voff}{rot}{hsf}{vsf}{htrans}{vtrans} (aastex
-              % 7参变换形, 9901236 实证 28 调) → 降级吃 file+忽略变换
+              % 7参变换形，9901236 实证 28 调) → 降级吃 file+忽略变换
               \def\plotfiddle#1#2#3#4#5#6#7{\par\medskip\centering\leavevmode
               \epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
               % ── 物理记号/单位件 ──
@@ -263,18 +263,18 @@ rules:
               \let\applopt=\ao
               \endinput
           # (eqsecnum.sty 槽已删: vendor/stubs 同名 stub 在 —— vendored
-          #  先中, 死配置; cs_table eqnobysec 条仍管 docclass 后注入面,
+          #  先中，死配置; cs_table eqnobysec 条仍管 docclass 后注入面，
           #  分工照旧)
           # ── 2026-09-16 n100 F1 扩列 ──────────────────────────────────
-          # elsart 家族 → elsarticle: Elsevier 官方继任类, 明确兼容 elsart 稿
+          # elsart 家族 → elsarticle: Elsevier 官方继任类，明确兼容 elsart 稿
           # (\author[tag]/\address[tag]/abstract 环境同签名)。0707.4465 实证。
-          # (elsart.cls 槽已删: vendor/files 真件在 —— vendored 先中, 死配置;
+          # (elsart.cls 槽已删: vendor/files 真件在 —— vendored 先中，死配置;
           #  elsart_body anchor 由存活键 elsart1p 持锚)
           # body 形缘起 (hep-lat/0111059): 派生类 cpcauth
-          # \LoadClass{elsart} 后直接引用 elsart 私有面, elsarticle 不导出。
+          # \LoadClass{elsart} 后直接引用 elsart 私有面，elsarticle 不导出。
           # eqntopsep/eqnarraycolsep 被赋 \@plus/\@minus 胶 → 必须 \newskip;
           # \@bls 在因子位 (2\@bls) 用 → \newdimen。余为 elsart 私有 if/count/
-          # 版式宏; \@sharp 由内核 \mkpream 自绑, 无需补。纯增量对普通
+          # 版式宏; \@sharp 由内核 \mkpream 自绑，无需补。纯增量对普通
           # elsart 稿无副作用。
           elsart1p.cls:
             needs: ["elsarticle.cls"]
@@ -298,7 +298,7 @@ rules:
               \def\head@format#1#2{#1\space#2}
               \def\@secnumfont{\bfseries}
               \def\head@style{}
-              % 批八: elsart 公开面补 (corauth 30格实证) —— \corauth[label]{注}
+              % 批八: elsart 公开面补 (corauth 30 格实证) —— \corauth[label]{注}
               % 桥 elsarticle \cortext; \startlocaldefs/\endlocaldefs 是
               % elsart 导言区局部定义定界 (imsart 同构), noop 对吞界定符
               % 保留内部定义生效; \end 前缀名 \@ifdefinable 拒收用 ifdefined 守。
@@ -314,7 +314,7 @@ rules:
               \providecommand{\t@glob@notes}{}
               \endinput
           # 批八: elsart 全系兄弟共享同体 (ProvidesClass 名差仅 warning,
-          # siam_body 先例) —— loads 裸桥无公开宏面, elsart1p 实证 corauth 炸。
+          # siam_body 先例) —— loads 裸桥无公开宏面，elsart1p 实证 corauth 炸。
           elsart3p.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           elsart5p.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           elsevier.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
@@ -337,8 +337,8 @@ rules:
               \LoadClassWithOptions{acmart}
               % sig-alternate (ACM ≤2015 版式) → acmart 桥 (clsfidcen ~19 格;
               % 真件 1602.00244 抄签名): \alignauthor 列起始 → \par (acm_proc
-              % 先例), \numberofauthors acmart 自计, \category 3 参+尾可选
-              % 版本参吞, \conferenceinfo/\CopyrightYear/\crdata/\permission/
+              % 先例), \numberofauthors acmart 自计，\category 3 参+尾可选
+              % 版本参吞，\conferenceinfo/\CopyrightYear/\crdata/\permission/
               % \isbn/\doi/\toappear 存值件 noop —— 全 \ifdefined 守卫防
               % acmart 原生同名 (acm_proc_article-sp \protected\def 同例)
               \ifdefined\alignauthor\else\protected\def\alignauthor{\par}\fi
@@ -370,7 +370,7 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{aastex6x}[2026/09/16 fixloop legacy shim -> emulateapj]
               % emulateapj5 自指递归保险 —— ver@/opt@ 预注册 (85-shim aastex
-              % bundle-shadow 条同款; 原 aastex.cls 槽已删, vendored 先中)
+              % bundle-shadow 条同款; 原 aastex.cls 槽已删，vendored 先中)
               \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
               \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
               \LoadClassWithOptions{emulateapj}
@@ -416,7 +416,7 @@ rules:
               \providecommand{\allauthors}{}
               \providecommand{\setwatermarkfontsize}[1]{}
               % track-changes 族 (真件 \@ifnextchar 可选参形): \added[why]{new}
-              % 印新, \deleted[why]{old} 吞旧, \replaced[why]{old}{new} 印新;
+              % 印新，\deleted[why]{old} 吞旧，\replaced[why]{old}{new} 印新;
               % \listofchanges 无参; \AuthorCollaborationLimit 是 \newcount
               % 寄存器 (稿侧 \AuthorCollaborationLimit=N 赋值)
               \providecommand{\added}[2][]{#2}
@@ -439,8 +439,8 @@ rules:
           # aastex6.cls 裸名桥 → vendored 真件 aastex62 (clsbridge 普查唯一
           # 真覆盖洞: 1901.00051 \documentclass{aastex6} 实证; TL/vendor 无
           # aastex6.cls 本体)。aastex3.cls 裸名桥 → vendored aastex.cls
-          # (aux-declare 面保险, 零活实证)。
-          # (AASTeX62.cls 键删: shim_map 键按误报文件名大小写敏感匹配,
+          # (aux-declare 面保险，零活实证)。
+          # (AASTeX62.cls 键删: shim_map 键按误报文件名大小写敏感匹配，
           #  混合大写名永不可达 —— 死配置; 不做 casefold 通修)
           aastex6.cls: { loads: "aastex62", needs: ["aastex62.cls"] }
           aastex3.cls: { loads: "aastex", needs: ["aastex.cls"] }
@@ -475,7 +475,7 @@ rules:
               \frontmatter@init
               \let\frontmatter@init\relax
               \endinput
-          # revtex4.cls 老名 (revtex4.cls 表项之上另名, 1003.4522 实证) ——
+          # revtex4.cls 老名 (revtex4.cls 表项之上另名，1003.4522 实证) ——
           # 同 frontmatter 提前武装。
           revtex4.cls:
             needs: ["revtex4-2.cls"]
@@ -515,27 +515,27 @@ rules:
               \let\frontmatter@init\relax
               \endinput
           # (aipproc.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored
-          #  先中, 死配置; 双参 keyval \author/theacknowledgments 面见
+          #  先中，死配置; 双参 keyval \author/theacknowledgments 面见
           #  vendor stub, 旧体见 git 考古)
           # aipcheck.tex: AIP \input 版本自检件 (非 vendored 名 → 存活)。
           aipcheck.tex:
             body: |
               % AIP \input{aipcheck} 版本自检件 —— 纯 \typeout, 无排版语义
               \endinput
-          # (aa.cls 槽已删: vendor/stubs 同名替身 stub 在 —— vendored 先中,
+          # (aa.cls 槽已删: vendor/stubs 同名替身 stub 在 —— vendored 先中，
           #  死配置; \abstract 双形/inst/A&A 期刊缩写表/natbib[numbers] 面见
           #  vendor stub, 旧体见 git 考古)
           # (iopart.cls/iopart10.clo/iopart12.clo/iopams.sty 槽已删:
-          #  vendor/files 真件全在 —— vendored 先中, 死配置。IOP 宏面/
-          #  .clo 尺寸件/粗斜希腊面见 vendor 件, 旧体见 git 考古)
+          #  vendor/files 真件全在 —— vendored 先中，死配置。IOP 宏面/
+          #  .clo 尺寸件/粗斜希腊面见 vendor 件，旧体见 git 考古)
           # kastrup 的 binhex 真身在 TL: overrides 钉 binhex.tex→kastrup 对
-          # 全引擎生效, xelatex 侧 tlmgr 装真包即可; tectonic 侧 ctan_fetch
+          # 全引擎生效，xelatex 侧 tlmgr 装真包即可; tectonic 侧 ctan_fetch
           # 的 OVERLAY_EXTS 不收 .tex (平铺会撞名遮蔽工程源文件) → 真身永远
           # 落不了地。带缀 `binhex.tex` payload 由 vendor/stubs/binhex.tex
           # 落件 (vendored_fetch 先中); 本键只兜裸 \input binhex (vendor 无
           # extensionless binhex → _shim_spec .tex 归一到此键)。
           # newtxtext.sty 实需可展开 \nhex{<位数>}{<数>} —— expl3 全展开
-          # 实现, 宽度=高位补零 (加 base^w 再丢首位)。2211.04574 实证。
+          # 实现，宽度=高位补零 (加 base^w 再丢首位)。2211.04574 实证。
           binhex.tex:
             body: |
               \ExplSyntaxOn
@@ -563,11 +563,11 @@ rules:
               \cs_new:Npn \binary #1 { \fixloop_nbase:nnn {2} {1} {#1} }
               \ExplSyntaxOff
               \endinput
-          # (espcrc2 槽已删: vendor/stubs/espcrc2.sty 真 stub 在,
+          # (espcrc2 槽已删: vendor/stubs/espcrc2.sty 真 stub 在，
           #  scan_install vendored 预检先于 missing_file 分类落件 —— 死配置。
-          #  旧 body 无 \readRCS 五参解析, 复活即回归 hep-ph/0408075;
+          #  旧 body 无 \readRCS 五参解析，复活即回归 hep-ph/0408075;
           #  Elsevier CRC 面见 vendor stub)
-          # KOMA 旧接口 scrpage/scrpage2 → scrlayer-scrpage (官方继任, 同名宏兼容)。
+          # KOMA 旧接口 scrpage/scrpage2 → scrlayer-scrpage (官方继任，同名宏兼容)。
           scrpage.sty:
             needs: ["scrlayer-scrpage.sty"]
             body: |
@@ -683,7 +683,7 @@ rules:
               \@ifundefined{AMS}{\newenvironment{AMS}{\par\noindent\textbf{AMS subject classifications:}\space}{\par}}{}
               \endinput
           # OSA 老类 (osajnl/osajnl2, 不在 TL) —— article + \ocis/\email 面;
-          # \setboolean{shortarticle} 是 osajnl2 版式开关, no-op 吞掉。
+          # \setboolean{shortarticle} 是 osajnl2 版式开关，no-op 吞掉。
           osajnl.cls:
             body: &osa_body |
               \NeedsTeXFormat{LaTeX2e}
@@ -707,16 +707,16 @@ rules:
               \providecommand{\bmsection}[1]{\section*{#1}}
               \endinput
           osajnl2.cls: { body: *osa_body }
-          # SISSA 高能类 (jhep/jcap 作者包, 不在 TL; JHEP.cls/JHEP3.cls 槽
-          # 已删 —— vendor/shims 同名替身 stub 在, vendored 先中, 死配置;
+          # SISSA 高能类 (jhep/jcap 作者包，不在 TL; JHEP.cls/JHEP3.cls 槽
+          # 已删 —— vendor/shims 同名替身 stub 在，vendored 先中，死配置;
           # sissa_body anchor 由存活键 jhep 持锚) —— article +
           # 真 JHEP3.cls 面 (corpus/0806.2278 随稿件): 导言区全收集制
           # (\abstract/\author/\email/\keywords/\preprint/\received/\revised/
-          # \accepted/\dedicated/\JHEPspecialurl 皆 PRE 调用 → 存值,
+          # \accepted/\dedicated/\JHEPspecialurl 皆 PRE 调用 → 存值，
           # \AtBeginDocument 自动 emit —— 真件 \auto@maketitle 同款;
-          # 1404.0033 \maketitle 被注释, 显式调用路径靠不住)。
+          # 1404.0033 \maketitle 被注释，显式调用路径靠不住)。
           # \author 单参多调用累积 (\renewcommand 即 \long —— 1404.0033
-          # \author 实参含空行, 内核短参 \def 会 Paragraph-ended 炸);
+          # \author 实参含空行，内核短参 \def 会 Paragraph-ended 炸);
           # \FIGURE/\TABLE/\EPSFIGURE/\TABULAR/\DOUBLEFIGURE/\DOUBLETABLE
           # 是 floatflt 系速记 → 降级成 figure/table/tabular, 强制 [htbp]
           # (稿里 [float]/[v]/[h] 当版式词非法位)。amssymb 是真件依赖
@@ -761,7 +761,7 @@ rules:
               % \href 降级为打印第二参 (真件是 pdf-link 版; 1308.0304
               % \href×107 实证)。eprint 档号族真件
               % \href{xxx.lanl.gov/abs/X/#1}{\tt X/#1} → {\tt X/#1} 打印面
-              % (\Math 两参 math.AG/n 形, \arXivid 现代 arXiv 号)。
+              % (\Math 两参 math.AG/n 形，\arXivid 现代 arXiv 号)。
               \providecommand{\href}[2]{#2}
               \providecommand{\hepth}[1]{\texttt{hep-th/#1}}
               \providecommand{\hepph}[1]{\texttt{hep-ph/#1}}
@@ -807,7 +807,7 @@ rules:
               \providecommand{\erratum}[4][ibid.~]{Erratum #1{\bfseries#2} (#3) #4}
               \providecommand{\addendum}[4][ibid.~]{Addendum #1{\bfseries#2} (#3) #4}
               \providecommand{\ibid}[3]{ibid.~{\bfseries#1} (#2) #3}
-              % \author 单参多调用累积: 块内含 \\ + \email/\thanks/\it 全保留,
+              % \author 单参多调用累积: 块内含 \\ + \email/\thanks/\it 全保留，
               % article maketitle tabular 内逐块换行输出
               \newif\if@sissaauth\@sissaauthfalse
               \renewcommand{\author}[1]{%
@@ -845,7 +845,7 @@ rules:
                 \begin{table}[htbp]\centering#3\caption{#5}\end{table}}
               % \auto@maketitle: emit 在 AtBeginDocument (真件同款), 随后冻结
               % \maketitle —— 稿显式调用成 no-op, 不调也不丢 frontmatter
-              % (qc-impl: preprint 行移入 \@maketitle 顶, 此处不再独立 emit)
+              % (qc-impl: preprint 行移入 \@maketitle 顶，此处不再独立 emit)
               \let\sissa@mk\maketitle
               \AtBeginDocument{%
                 \sissa@mk
@@ -871,9 +871,9 @@ rules:
                 \let\@evenhead\@oddhead\let\@evenfoot\@oddfoot}
               % JHEP3 三参期刊宏族 (hep-th/0408134 实证 \bibitem 五连):
               % \npb{76}{1974}{310} → "Nucl.~Phys.~B 76 (1974) 310"。
-              % \@ifnextchar\bgroup 双态分派: 带 brace = 全引文排版,
-              % 裸调 = 缩写直印——与 aas4_body 式 0 参缩写面同形兼容,
-              % 不撞 (本 body 原无期刊缩写定义, 0408134 全三参形)。
+              % \@ifnextchar\bgroup 双态分派: 带 brace = 全引文排版，
+              % 裸调 = 缩写直印——与 aas4_body 式 0 参缩写面同形兼容，
+              % 不撞 (本 body 原无期刊缩写定义，0408134 全三参形)。
               \def\sissa@jrnl#1{\@ifnextchar\bgroup{\sissa@jrnl@x{#1}}{#1}}
               \def\sissa@jrnl@x#1#2#3#4{#1 {\bfseries#2} (#3) #4}
               \providecommand{\npb}{\sissa@jrnl{Nucl.~Phys.~B}}
@@ -900,7 +900,7 @@ rules:
               \providecommand{\jcap}{\sissa@jrnl{JCAP}}
               \endinput
           jcap.cls: { needs: ["amssymb.sty"], body: *sissa_body }
-          # CUP jpp.cls (J. Plasma Physics 作者包, 不在 TL) —— article +
+          # CUP jpp.cls (J. Plasma Physics 作者包，不在 TL) —— article +
           # 双参 \title/\author (jpp 约定 \title[short]{long})。
           jpp.cls:
             body: |
@@ -916,7 +916,7 @@ rules:
               \renewcommand{\maketitle}{\jpp@maketitle\begingroup\jpp@affils\par\endgroup}
               \endinput
           # (apjfonts.sty 槽已删: vendor/stubs 同名 noop stub 在 ——
-          #  vendored 先中, 死配置)
+          #  vendored 先中，死配置)
           math.sty:
             body: |
               % 老 arXiv 稿常见私人宏包名 (1803.09046 实证缺名) —— 裸 stub
@@ -926,29 +926,29 @@ rules:
               \ProcessOptions\relax
               \endinput
           # ── 2026-09-16 signature-mining F 扩列 ──
-          # (mn2e.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored 先中,
+          # (mn2e.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored 先中，
           #  死配置; usegraphicx 选项剔除面见 vendor stub, 旧体见 git 考古)
           # (svjour.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored
-          #  先中, 死配置; theorem/proof 基座/biblatex-bbl polyfill 面见
+          #  先中，死配置; theorem/proof 基座/biblatex-bbl polyfill 面见
           #  vendor stub, 旧体见 git 考古)
           # (slashbox.sty 槽已删: vendor/stubs 同名 stub 在 —— vendored
-          #  先中, 死配置; diagbox 委托旧论证见 git 考古)
+          #  先中，死配置; diagbox 委托旧论证见 git 考古)
           # geom.sty (S. Levy 1992, LaTeX2.09 巨型样式; 不在 TL) —— geometry
           # 桥接 + 宏面 polyfill (0806.0904 \input{geom.sty} 实证)。原包 =
           # CTAN latex209/contrib/geomsty (Silvio Levy 1995, geom.sty +
           # geomenv/geomfig/geomart 分件) —— 已取件核实宏面。稿经
           # \makeatletter 区内 \input 装载 (0806.0904:114-121) → @=11;
-          # 为兜 @=12 装载者, @-cs 段裹 \catcode64 save/restore。
+          # 为兜 @=12 装载者，@-cs 段裹 \catcode64 save/restore。
           # @ catcode 对稿侧无影响: 稿自备 makeatletter。
           # 真身默认值: \ifproofing/\ifautolabel/\ifstarredcontents 均 true
           # (稿各自再 toggle 覆盖)。\presection 真身是 \newskip 不是宏
           # (稿 \@startsection 重定义 \advance\@tempskipa by\presection
           # 直读 → 宏版致 missing-number/illegal-unit 洪泛)。\prooftag
-          # 真身 0 参 (\pro@f[\prooftag] 当值用, [1] 版吞后续 token)。
+          # 真身 0 参 (\pro@f[\prooftag] 当值用，[1] 版吞后续 token)。
           # \newtheorem 真身取 [{intro}{}]{name} 首可选参 → \@@newtheorem
           # 派工 (稿 0806.0904:661 重定义 @@newtheorem, 靠 geom 供
           # \newtheorem/\@nnthm→\@xnnthm|\@ynnthm 计数创建器/\@enva|b;
-          # 稿版 \@nothm/\@nnnthm 3n 系自备, 缺 \@nnnthm 时 \let 兜底
+          # 稿版 \@nothm/\@nnnthm 3n 系自备，缺 \@nnnthm 时 \let 兜底
           # \@thm)。proof/Figure env 稿仅 \renewenvironment → 需基座存在;
           # \provedbox/\captionskip/\@captionmargin/\@captionwidth 同补。
           geom.sty:
@@ -1017,14 +1017,14 @@ rules:
               \endinput
           # (tcilatex.tex 槽已删: vendor/stubs/tcilatex.tex 真 stub 在且更全
           #  ——含 \proof/\endproof 对与 remark env; scan_install vendored
-          #  预检先于 missing_file 分类落件, shim_map 永不命中。死配置。TCI
-          #  SW 面取证记: 1011.5681 随稿本 1278 行, 批八升级史见 git 考古)
+          #  预检先于 missing_file 分类落件，shim_map 永不命中。死配置。TCI
+          #  SW 面取证记: 1011.5681 随稿本 1278 行，批八升级史见 git 考古)
           # (epsf.tex 槽已删: vendor/files/epsf{,.tex} 真身两件在 —— 带缀
-          #  与裸 \input epsf 两路皆 vendored 先中, 死配置。graphicx 桥旧
+          #  与裸 \input epsf 两路皆 vendored 先中，死配置。graphicx 桥旧
           #  论证见 git 考古)
           # graphicx.tex (TL tex/plain/graphics/ miniltx 包装 —— LaTeX 稿
           # \input{graphicx} 的本意是 graphicx 包接口; filemap.overrides
-          # 已钉 null 挡住 install 通路, 此 stub 桥到真包。
+          # 已钉 null 挡住 install 通路，此 stub 桥到真包。
           # nucl-ex/0408018 实证: 真身装上后 \zap@space 递归爆栈 61 错。
           # \input 装载 → 禁 @-cs。
           graphicx.tex:
@@ -1034,25 +1034,25 @@ rules:
               \RequirePackage{graphicx}
               \endinput
           # (svglov3.clo 槽已删: vendor/stubs 同名 stub 在 —— vendored
-          #  先中, 死配置)
+          #  先中，死配置)
           # ── 2026-09-16 loop1 missing_file 簇扩列 (113 格主体) ──────────
           # 实证: 下列文件在 tlpdb 索引查无 (publisher 授权外发/CTAN-only/
           # 退役件), install_file/tlmgr 通路救不了 —— 桥接优先于 noop;
           # noop 保底过 missing_file, 残余宏面交 undefined_cs/cs_targeted_fix。
           # (citesort.sty 槽已删: vendor/stubs 同名 noop stub 在 ——
-          #  vendored 先中, 死配置; 旧 [sort,compress]{cite} 桥语义见
+          #  vendored 先中，死配置; 旧 [sort,compress]{cite} 桥语义见
           #  git 考古)
-          # (axodraw 槽已删: vendor/stubs/axodraw.sty 真 stub 在,
+          # (axodraw 槽已删: vendor/stubs/axodraw.sty 真 stub 在，
           #  scan_install vendored 预检先于 missing_file 分类落件 —— 死配置。
-          #  旧 fallback 臂无 \SetColor/色名宏面, 复活即回归 hep-ph/0408075;
+          #  旧 fallback 臂无 \SetColor/色名宏面，复活即回归 hep-ph/0408075;
           #  费曼图+色面见 vendor stub)
           # (emulateapj5.sty/emulateapj.sty 槽已删: vendor/files 真身两件在
-          #  —— vendored 先中, 死配置)
-          # Springer svjour 系 (期刊模板外发, 不在 TL): article 底 + 文档化
+          #  —— vendored 先中，死配置)
+          # Springer svjour 系 (期刊模板外发，不在 TL): article 底 + 文档化
           # 宏面 polyfill (\journalname/\titlerunning/\institute/\keywords/
           # \pacs/\communicated/\dedication/\mail/\offprints/\subclass)。
           # (svjour3.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored
-          #  先中, 死配置; svjour_body anchor 由存活键 svjour2 持锚)
+          #  先中，死配置; svjour_body anchor 由存活键 svjour2 持锚)
           svjour2.cls:
             body: &svjour_body |
               \NeedsTeXFormat{LaTeX2e}
@@ -1066,7 +1066,7 @@ rules:
               \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
               \providecommand{\subclass}[1]{}
               \providecommand{\pacs}[1]{\par\noindent\textbf{PACS:} #1\par}
-              % \PACS/\MSC 大写形 (svjour2 腔, 1206.5684 undef_cs:\PACS 实证);
+              % \PACS/\MSC 大写形 (svjour2 腔，1206.5684 undef_cs:\PACS 实证);
               % \and 分隔多码 → \quad 驯化
               \providecommand{\PACS}[1]{{\let\and\quad\par\noindent\textbf{PACS:} #1\par}}
               \providecommand{\MSC}[1]{{\let\and\quad\par\noindent\textbf{MSC:} #1\par}}
@@ -1082,7 +1082,7 @@ rules:
               \providecommand{\subtitle}[1]{\gdef\@subtitle{#1}}
               \providecommand{\tens}[1]{\ensuremath{\mathsf{#1}}}
               % qed 族 (画框版 \squareforqed —— \sqcap/\sqcup lasy 字形
-              % 内核无, 同 siamltex body/svjour3 stub 先例)
+              % 内核无，同 siamltex body/svjour3 stub 先例)
               \def\squareforqed{\hbox{\vbox{\hrule height0.6pt\hbox{%
                 \vrule height1.3ex width0.6pt\hskip0.8ex\vrule width0.6pt}\hrule height0.6pt}}}
               \providecommand{\qed}{\ifmmode\else\unskip\quad\fi\squareforqed}
@@ -1097,11 +1097,11 @@ rules:
           # EPL epl2.cls (Europhysics Letters, 期刊外发): 旧体 \abstract/
           # \pacs/\institute 即时排版 → 导言区调用 no_begindoc (0905.1214
           # 双格实证)。全真件 epl2.cls 结构 (corpus/1206.2258 随稿):
-          # PRE 收集制 (\abstract/\pacs/\institute 存值, \maketitle 吐),
+          # PRE 收集制 (\abstract/\pacs/\institute 存值，\maketitle 吐),
           # bbl-struct 宏族抄真件 L1312-1344 (\Name/\Review/\REVIEW/\Book/
           # \Publ/\Vol/\Year/\Page/\Pages/\Editor/\Section/\SAME +
           # \ifepl@book 条件 + bibitem 前置钩), acknowledgments 环境 +
-          # \acknowledgments/\acknowledgements/\stars cs 形,
+          # \acknowledgments/\acknowledgements/\stars cs 形，
           # \shrinkacknowledgments/\enlargeacknowledgments 旋钮 noop。
           # \and 在 \Name 实参内 → \Name 组内局部重绑防 \crcr 坍塌。
           epl2.cls:
@@ -1109,7 +1109,7 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{epl2}[2026/09/18 fixloop legacy shim -> article + epl polyfills]
               \LoadClassWithOptions{article}
-              % qc-impl 2026-09-28: +graphicx belt (vendor shims 真件先中,
+              % qc-impl 2026-09-28: +graphicx belt (vendor shims 真件先中，
               % 本键兜底面; manifest deferred_to_rules_lane 项)
               \RequirePackage{graphicx}
               % ── frontmatter 存值 (PRE 调用, \maketitle 包装吐) ──
@@ -1159,7 +1159,7 @@ rules:
               \def\epl@and{\unskip\ and\ }
               \let\And\and
               \endinput
-          # EuroPhys.cls: epl2 前代 EPL 类 (EDP ~1999-2006 发行面, TL 无;
+          # EuroPhys.cls: epl2 前代 EPL 类 (EDP ~1999-2006 发行面，TL 无;
           # cond-mat/0103528 实证面) —— \rec{收}{修} 双参 noop、\pacs 单
           # 子串内嵌 \Pacs{号}{码}{文} 三元组、\institute 存值 \maketitle 吐。
           EuroPhys.cls:
@@ -1181,8 +1181,8 @@ rules:
                 \ifx\eplx@inst\@empty\else\par\noindent{\small\eplx@inst}\par\fi
                 \ifx\eplx@pacs\@empty\else{\small\eplx@pacs}\fi}
               \endinput
-          # EuroMacr.tex: EDP EuroMacr 宏件 (EuroPhys 类伴生宏包, TL 无;
-          # cond-mat/0103528 ``\input EuroMacr`` 裸装载实证, 裸 payload 归
+          # EuroMacr.tex: EDP EuroMacr 宏件 (EuroPhys 类伴生宏包，TL 无;
+          # cond-mat/0103528 ``\input EuroMacr`` 裸装载实证，裸 payload 归
           # 一到本键同 psfig.tex 先例) —— EPL bbl 结构宏族同 epl2.cls 抄值。
           EuroMacr.tex:
             body: |
@@ -1210,7 +1210,7 @@ rules:
               \makeatother
               \endinput
           # (imsart.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored
-          #  先中, 死配置; frontmatter 收集制/aug/keyword env 面见 vendor
+          #  先中，死配置; frontmatter 收集制/aug/keyword env 面见 vendor
           #  stub, 旧体见 git 考古)
           # ACM conm-p-l.cls (90s 会议 preprint 版式) → acmart 官方继任。
           # 1003.0067 实证: acmart→unicode-math 装载后 \Psi 类希腊字母变
@@ -1227,29 +1227,29 @@ rules:
               \AtBeginDocument{\@ifundefined{pdfstringdefDisableCommands}{}{%
                 \pdfstringdefDisableCommands{\def\pdo{PsiDO}}}}
               \endinput
-          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, vendor stub 兜底。
-          # (jinstpub/jheppub/espcrc1 槽已删: vendor/stubs/*.sty 真 stub 在,
-          #  scan_install vendored 预检先于 missing_file 分类落件, shim_map
+          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席，vendor stub 兜底。
+          # (jinstpub/jheppub/espcrc1 槽已删: vendor/stubs/*.sty 真 stub 在，
+          #  scan_install vendored 预检先于 missing_file 分类落件，shim_map
           #  永远轮不到此名 —— 死配置; 旧 espcrc1 body 无 \readRCS 复活即回归)
-          # ── 2026-09-16 批二 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
-          # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
+          # ── 2026-09-16 批二 (loop2-delta 残盘 ~27 格，1d scout-unfix 枚举) ──
+          # 继任类桥: emulateapj-rtx4 (revtex4 时代变体，1404.2351 实证),
           # amsart2000 (vintage amsart), nature2 (老 Nature 名) —— 同
           # sig-alternate 先例。
           emulateapj-rtx4.cls:
             { loads: "emulateapj", needs: ["emulateapj.cls"] }
           amsart2000.cls: { loads: "amsart", needs: ["amsart.cls"] }
           nature2.cls: { loads: "nature", needs: ["nature.cls"] }
-          # acm_proc_article-sp (2009 时代 ACM 版式, 1306.0281 实证) —— 纯
-          # loads 桥只换类壳, 老作者块族 (\titlenote/\alignauthor/\affaddr/
+          # acm_proc_article-sp (2009 时代 ACM 版式，1306.0281 实证) —— 纯
+          # loads 桥只换类壳，老作者块族 (\titlenote/\alignauthor/\affaddr/
           # \affinst/\additionalauthors) 在 acmart 下语义错配: 原生
           # \titlenote 向 \@title 追加 \footnotemark, 在 \author{} 参内
           # \MakeUppercase→\__text_expand 展开即 \@xfootnotemark 定界参失配
-          # + Missing \endcsname 百连 (unfixable:early_eof)。body 套件:
+          # + Missing \endcsname 百连 (unfixable:early_eof)。body 套件：
           # \titlenote 无条件 \protected 桥 \thanks (原生定义即炸点),
           # \alignauthor→\par (列起始命令), \affaddr/\affinst→\emph (保文
           # 不污 \addresses), \additionalauthors→\author, abstract 序桥按
           # \@ACM@maketitle@typeset 分路 (late path 不走 Collect@Body),
-          # \cal/\mit 复活 (amsart 有意略去, head.tex \cA 族 ~100 调用)。
+          # \cal/\mit 复活 (amsart 有意略去，head.tex \cA 族 ~100 调用)。
           # 降级面: 五作者并单条 (列流无法无损重建), 机构 emph 行内保文。
           # 实证/设计: bench/results/fixer-legacy-acm-2026-09-17/。
           acm_proc_article-sp.cls:
@@ -1259,7 +1259,7 @@ rules:
           # (Springer 专著), cimento (Nuovo Cimento), eptcs, JINST, PoS
           # (SISSA), appolb, pasj00, aa501 (A&A), kapproc —— 逐格实证名见
           # REPORT 补记7 delta 残盘表。
-          # svmult.cls (Springer 专著类, TL 无) → article + 真件宏面
+          # svmult.cls (Springer 专著类，TL 无) → article + 真件宏面
           # (clsfidcen ~31 格; 真件 corpus_daily/2609.19176 抄签名):
           # running-heads 是 \newtoks 寄存器 (稿 \titlerunning{...} 赋
           # 值), theorem 面 = svjour3 同款三式 \spnewtheorem 路由。
@@ -1313,13 +1313,13 @@ rules:
               \providecommand{\backmatter}{}
               \providecommand{\cleardoublepage}{\clearpage}
               \endinput
-          # memo-l.cls: memoir+amsaddr 混合书稿类 (IMS 讲义系, TL 无;
+          # memo-l.cls: memoir+amsaddr 混合书稿类 (IMS 讲义系，TL 无;
           # 1003.0348 实证面: \frontmatter、\address/\email/\thanks 前置
           # 收集、\subjclass[2000]{...}、\keywords{...}、\onehalfspacing)
           # —— memoir 底 (TL 在库) + ams frontmatter polyfill。
           memo-l.cls:
             # qc-impl 2026-09-28: +amsthm.sty belt (vendor/stubs 真件
-            # 常态先中, 本键只在 vendored_fetch 绕行时兜底 —— manifest
+            # 常态先中，本键只在 vendored_fetch 绕行时兜底 —— manifest
             # deferred_to_rules_lane 项)
             needs: ["memoir.cls", "setspace.sty", "amsthm.sty"]
             body: |
@@ -1479,7 +1479,7 @@ rules:
               \endinput
           # PoS.cls (SISSA Proceedings of Science, TL 无): article + 实证
           # frontmatter 面 (1306.5919 随稿签名)——\ShortTitle \speaker
-          # \email + \abstract{} 命令形 (PoS 无 env 形, SISSA 惯例; JINST
+          # \email + \abstract{} 命令形 (PoS 无 env 形，SISSA 惯例; JINST
           # 条已立同形先例)。\abstract 在 preamble 期调用 (:22,
           # \begin{document}:41)——排印件 \AtBeginDocument 包裹双路安全
           # (imsart \arxiv / pasj00 \Received 同构)。
@@ -1519,7 +1519,7 @@ rules:
               \providecommand{\preprint}[1]{}
               \providecommand{\runhead}[1]{}
               \endinput
-          # pasj00.cls (PASJ 老版, TL 无): article + natbib/amssymb/graphicx
+          # pasj00.cls (PASJ 老版，TL 无): article + natbib/amssymb/graphicx
           # + 实证 frontmatter 面 (1003.0945 随稿签名)——\DeclareAbbreviation
           # \CS{text} 2 参定义件 (稿 30+ 散调) + 真件内建期刊缩写集
           # (\mnras×11/\apj×8/\pasj×8/\aap×8/\aj/\pasp/\aaps/\qjras/\iaucirc,
@@ -1605,7 +1605,7 @@ rules:
               \providecommand{\draft}{}
               \providecommand{\altaffilmark}[1]{\unskip$^{#1}$}
               \endinput
-          # multind 两参 \index{name}{entry} —— noop 必须吞双参, 否则第二参
+          # multind 两参 \index{name}{entry} —— noop 必须吞双参，否则第二参
           # 泄进正文 (0806.3028 实证用法)。
           multind.sty:
             body: |
@@ -1638,12 +1638,12 @@ rules:
               \ProcessOptions\relax
               \newenvironment{widetext}{}{}
               \endinput
-          # 纯 noop .sty: numcompress (elsarticle 引文压缩件, sort&compress
+          # 纯 noop .sty: numcompress (elsarticle 引文压缩件，sort&compress
           # 已由 natbib 担), ol2/docs (私名件),
-          # xetex-inputenc (luainputenc 链内引用, xelatex 原生 UTF-8 免),
+          # xetex-inputenc (luainputenc 链内引用，xelatex 原生 UTF-8 免),
           # umlaut/isolatin1 (化石编码件), llncsdoc (llncs 文档样式)。
           # 一律 \DeclareOption*{}\ProcessOptions 吞任意选项 (noop 本无选项
-          # 语义, 拒收即炸 —— 2609.19431 luainputenc→[utf8]xetex-inputenc 实证)。
+          # 语义，拒收即炸 —— 2609.19431 luainputenc→[utf8]xetex-inputenc 实证)。
           # (sw20lart.sty 槽已删: vendor/stubs 同名 stub 在 —— vendored 先中)
           numcompress.sty:
             body: |
@@ -1710,7 +1710,7 @@ rules:
               \endinput
           # 批二 二圈残余 (shim 落地后露出的二级缺档): tocstyle (KOMA
           # 系已撤出 TL), procps (kapproc 伴生件), amscd2000 → amscd 桥
-          # (amsmath 包内真身, API 同源)。
+          # (amsmath 包内真身，API 同源)。
           tocstyle.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -1752,7 +1752,7 @@ rules:
               \ProcessOptions\relax
               \endinput
           # undertilde 唯一宏面 \utilde → \widetilde 降级近似 (真身依赖
-          # 专用 .tex 字体机制, CTAN-only)。
+          # 专用 .tex 字体机制，CTAN-only)。
           undertilde.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -1764,17 +1764,17 @@ rules:
           # ── 2026-09-17 latex209 白名单实证批 (1e scout-pf2final) ──────────
           # upgrade_209 把 2.09 选项转 \usepackage 后这些 1990s 包在 TL 全灭
           # → 逐案实证 body。(aaspp4.sty 槽已删: vendor/stubs 同名 stub 在 ——
-          #  vendored 先中, 死配置; aas4_body anchor 由 aas2pp4 持锚)
-          # apjprepr: aaspp4 同族前身 (1995 doc2sty 同谱系, vendored 本随
-          # 9703152 实证可用) —— shim 只在缺文件时点火, 面取 aaspp4 超集:
+          #  vendored 先中，死配置; aas4_body anchor 由 aas2pp4 持锚)
+          # apjprepr: aaspp4 同族前身 (1995 doc2sty 同谱系，vendored 本随
+          # 9703152 实证可用) —— shim 只在缺文件时点火，面取 aaspp4 超集:
           # title/author 直排版 (2.09 范式无 \maketitle), \eqsecnum/\tighten
-          # 系, mathletters/\eqnum, references 环境, \plotone/\plottwo
+          # 系，mathletters/\eqnum, references 环境，\plotone/\plottwo
           # (epsf 通路), 物理符号 (\sun/\earth/\sq/\la/\ga/\micron/\ion/
           # \fd-\fs/\fdg/\farcm/\farcs/\fp/\case/\slantfrac 系/\ubvr 系/
           # \nodata/\phd/\phm/\nextline) 与扩充期刊缩写表 —— 全移植自
           # vendored AASPP4.STY 原文。\RequirePackage{amssymb} 取代
           # vendored \def\lesssim/\gtrsim 版 (与 amssym shim 的 undef 闸
-          # 同策, 免撞 \newcommand)。
+          # 同策，免撞 \newcommand)。
           apjprepr.sty:
             needs: ["amssymb.sty", "epsf.sty"]
             body: |
@@ -1956,7 +1956,7 @@ rules:
               \endinput
           # amssym → amssymb 正名 (2.09 老名; 9703152 实证): 随源 .sty
           # (apjprepr 族) 先 \def 同名符号时 amssymb \newcommand 撞车
-          # → 预 undef 放行, 两族同形符号语义同。
+          # → 预 undef 放行，两族同形符号语义同。
           amssym.sty:
             needs: ["amssymb.sty"]
             body: |
@@ -1982,7 +1982,7 @@ rules:
           # (9703198 实证 0 err/5pg)。REPAIR shimfix-b 2026-09-19: 稿面
           # \institute{#1} 自带 \\ (9901364 三行机构) —— 裸花括组囚 \\ 进
           # article \@maketitle tabular{c} 格 → Missing} current-column;
-          # 内层 tabular 让 \\ 归内层行, \itshape ambient 覆全部行。
+          # 内层 tabular 让 \\ 归内层行，\itshape ambient 覆全部行。
           crckapb.cls:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -1995,7 +1995,7 @@ rules:
               \AtBeginDocument{\maketitle}
               \endinput
           # crckapbk.cls: crckap 书章类名变体 (editedvolume/namedreferences
-          # 选项面, astro-ph/9412069 实证) —— 与 crckapb 同 opening env +
+          # 选项面，astro-ph/9412069 实证) —— 与 crckapb 同 opening env +
           # \institute 并入 author 面; 选项落 article 全局未用警告消化。
           crckapbk.cls:
             body: |
@@ -2011,7 +2011,7 @@ rules:
           # ── 批九 missing_file 真残尾 (scout-shimfire-2026-09-17, 8 件
           # 全数 kpsewhich 实证 TL 缺席) ──
           # nato.sty: NATO ASI 系 2.09 选项件 (astro-ph/9901364
-          # \documentstyle[nato]{crckapb}) —— 版式微调件, noop 保底。
+          # \documentstyle[nato]{crckapb}) —— 版式微调件，noop 保底。
           nato.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -2022,7 +2022,7 @@ rules:
           # laa.cls: 期刊外发类 (physics/9910044) → article 桥。
           laa.cls: { loads: "article" }
           # dina4.sty: DIN A4 版心选项件 (chao-dyn/9703017 2.09 option) —
-          # article 默认 letter 会偏版心, 直落 A4 尺寸近似。
+          # article 默认 letter 会偏版心，直落 A4 尺寸近似。
           dina4.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -2043,7 +2043,7 @@ rules:
               \ProcessOptions\relax
               \endinput
           # BoxedEPS.tex / FEYNMAN.tex: 老图宏 \input 碎片 (cond-mat/
-          # 0408520, hep-th/9703071) —— 宏面无公共对应物, 裸 stub; 正文
+          # 0408520, hep-th/9703071) —— 宏面无公共对应物，裸 stub; 正文
           # 调用下轮 undefined_cs 归因 (同 feynman.tex/diagrams.tex 先例)。
           BoxedEPS.tex:
             body: |
@@ -2054,7 +2054,7 @@ rules:
               % fixloop stub (hep-th/9703071: \input{FEYNMAN} pre-feynmf kit, not in TL)
               \endinput
           # kapjrnls.tex: KAP/crckapb 刊名缩写表 (astro-ph/9901364 实证
-          # \apj/\mnras/\apjs/\aj) —— 抄 builtins.shim._JOURNAL_MACROS 全表值,
+          # \apj/\mnras/\apjs/\aj) —— 抄 builtins.shim._JOURNAL_MACROS 全表值，
           # providecommand 不抢宿主类已定义者。
           kapjrnls.tex:
             body: |
@@ -2116,7 +2116,7 @@ rules:
               \providecommand{\rmxaa}{Rev.~Mexicana Astron.~Astrofis.}
               \endinput
           # ── eracls2/failmine7 批 (stagerun-overnite-2026-09-20 zh 臂
-          # missing_file 普查, eracls2 车道) ──
+          # missing_file 普查，eracls2 车道) ──
           # l-aa.cls: A&A Letters 变体名 ×4 格 (astro-ph/9612038/9612050/
           # 9612150 \documentstyle{l-aa}; 9612158 另被 latex209_reject
           # 门拦属 gatenarrow 车道) —— 稿面纯 A&A frontmatter
@@ -2141,7 +2141,7 @@ rules:
           # → 须 provide+renew, 否则 {参} 入 env-begin 排版且 env 不
           # 闭合炸 \@checkend); \fnm{N}{t} 显式脚注号 → superscript+
           # footnote 双件 (\@maketitle 内 \let\footnote\thanks 不吃可
-          # 选参, 直传 [#1] 会留 `1]t` 残文); 累进件于 \maketitle
+          # 选参，直传 [#1] 会留 `1]t` 残文); 累进件于 \maketitle
           # 后放出 (preamble/正文两序通吃)。
           ichep.cls:
             body: |
@@ -2171,7 +2171,7 @@ rules:
           # \author[*][编号]{名} 星号+可选参双宽容累进 \@author; \affil
           # [*][编号]{org 件} 星号吞弃/\abstract{文}/\keywords{文} 累进
           # → \maketitle
-          # 后放出, emit 清位 + AtEndDocument 兜底扫残 (preamble/正文
+          # 后放出，emit 清位 + AtEndDocument 兜底扫残 (preamble/正文
           # 任意调用序不丢内容); \fnm/\sur/\orgdiv/\orgname/\orgaddress/
           # \city/\postcode/\country 参文直印。
           sn-jnl.cls:
@@ -2246,7 +2246,7 @@ rules:
               \providecommand{\citeyear}[2][]{#2}
               \endinput
           # cropmark.sty: 2.09 crop-mark 版式样 (cond-mat/0103015 文稿级
-          # \usepackage{cropmark}) —— 裁切标记无内容语义, 纯 noop。
+          # \usepackage{cropmark}) —— 裁切标记无内容语义，纯 noop。
           cropmark.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -2260,7 +2260,7 @@ rules:
           # latex.ltx \@currext=\@pkgextension 检查硬拒 (! \LoadClass
           # in package file) → \@currext 存复位绕过 (已载类场景
           # \@ifl@aded clashchk 空参幂等; 薄壳先行 \input{latex209.def}
-          # 起 compat 模式, article \DeclareOldFontCommand 被 compat
+          # 起 compat 模式，article \DeclareOldFontCommand 被 compat
           # 内 noop 化不撞 \bf 族)。\address/\andaddress/\pacs 就地印
           # 会炸 preamble 调用 (Missing \begin{document}) → 累进 \rtx@front
           # \maketitle 钩 + AtEndDocument 扫残两序通吃。revtex3 残面同
@@ -2308,14 +2308,14 @@ rules:
         }
       - {
           corpus: "0707.1778 + aastex 链 acceptable×69 (fixer-aastex-stub-2026-09-17)",
-          error: "aastex.cls stub 补 v5 元数据面: \\paperid(活调用→级联实证)/\\email(revtex 版 \\@AF@join 未武装会炸)/\\received/\\revised/\\accepted",
+          error: "aastex.cls stub 补 v5 元数据面：\\paperid(活调用→级联实证)/\\email(revtex 版 \\@AF@join 未武装会炸)/\\received/\\revised/\\accepted",
         }
     stats: { fires: 299, rescued_cells: 119, status: validated }
     source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证; aastex.cls 面扩 fixer-aastex-stub (0104174/0408531/0707.1778 复跑 0 stub 错)"
 
   - id: revtex209_surface_polyfill
     phase: loop
-    order: 145 # bbl 族(140-141)之后, vendored_sty_shadow(150)/shadow 族(155-159)/逐宏补(160+)之前: 整块面先落
+    order: 145 # bbl 族 (140-141) 之后，vendored_sty_shadow(150)/shadow 族 (155-159)/逐宏补 (160+) 之前：整块面先落
     when:
       any:
         # 13 格实证首错两簇: revtex209_surface 8 格 undefined_cs
@@ -2344,21 +2344,21 @@ rules:
           error: "revtex4-2 ClassError: \\pacs must be called before \\maketitle (2.09 稿惯后置)",
         }
     stats: { fires: 82, rescued_cells: 31, status: active }
-    source_ref: "tmp/c-bucket-residual/routing.md :29/:41/:119 (o2-revtex-209 车道); 注入面与 vendor/shims/revtex.cls 同义 (shim_map 槽已删: vendored 先中)"
+    source_ref: "tmp/c-bucket-residual/routing.md :29/:41/:119 (o2-revtex-209 车道); 注入面与 vendor/shims/revtex.cls 同义 (shim_map 槽已删：vendored 先中)"
 
-  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): missing_file 真缺口只剩
-  # hangcaption.sty —— LaTeX2.09 时代 caption 版式样式, CTAN/TL 均无档,
+  # 2026-09-18 C3 (stats 驱动，loop1 dedup 面): missing_file 真缺口只剩
+  # hangcaption.sty —— LaTeX2.09 时代 caption 版式样式，CTAN/TL 均无档，
   # 大表 shim_map/vendor/overrides 三路皆未收。nucl-th/0104064
   # \usepackage{hangcaption,psfig} 而正文只用标准 \caption —— 最小 stub
   # 过编译即可; 原包的悬挂 caption 版式不复制。
   # 复用 legacy_pkg_shim builtin: params.shim_map 按条直读 (不与大表合并),
   # 撞名由大表先行 (order 12 在前) —— 本表只收大表未收的新缺口。
-  ## REVIEW(c3): noop stub —— 不还原 \hangcaption/\@makecaption 悬挂版式,
+  ## REVIEW(c3): noop stub —— 不还原 \hangcaption/\@makecaption 悬挂版式，
   ## 仅保 \usepackage 装载面; caption 版式近似按 best_effort 口径计。
   - id: legacy_pkg_shim_c3
-    description: "hangcaption.sty (2.09 退役样式, 无 CTAN/TL 档) → 最小 stub"
+    description: "hangcaption.sty (2.09 退役样式，无 CTAN/TL 档) → 最小 stub"
     phase: loop
-    order: 12.9 # legacy_pkg_shim(12) 后: 大表先行, 本表只收未收缺口
+    order: 12.9 # legacy_pkg_shim(12) 后：大表先行，本表只收未收缺口
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
@@ -2391,29 +2391,29 @@ rules:
   # latex.ltx ``\documentclass`` 体内 ``\if@compatibility\else\let
   # \usepackage\RequirePackage\fi`` —— compat 模式 ``\usepackage`` 恒不定义
   # (0806.0904/0806.2953 回归闸的来源), 而 ``\RequirePackage`` 是内核无条件
-  # 定义, compat 下照常走 ``\@fileswithoptions`` 全机器 (@=11 读件 /
+  # 定义，compat 下照常走 ``\@fileswithoptions`` 全机器 (@=11 读件 /
   # \@filelist 注册 / 选项处理)。故同纹改写、异枚替换子: 2e 臂 →
   # ``\usepackage``, 2.09 臂 → ``\RequirePackage``。
   # 弃选两臂 (inputsty209 车道 d0-d3 xelatex 实证):
   #   (a) 并进 ``\documentstyle[opts]`` —— latex209.def ``\@documentclasshook``
   #       确以 ``\RequirePackage\@unusedoptionlist`` 装载选项 sty, 但装载点
-  #       被推迟到 document 钩、丢了 \input 行原位序, 且需解析/合并可选
+  #       被推迟到 document 钩、丢了 \input 行原位序，且需解析/合并可选
   #       括号——形更脆、收益为零;
   #   (b) ``\makeatletter\input`` 包裹 —— 能修 @-catcode 但不进 \@filelist、
-  #       不走选项机器, 是 ``\RequirePackage`` 的严格下位。
-  # order -12 先于 2e 臂 (-11): ``\RequirePackage`` 产出在两模式皆合法,
+  #       不走选项机器，是 ``\RequirePackage`` 的严格下位。
+  # order -12 先于 2e 臂 (-11): ``\RequirePackage`` 产出在两模式皆合法，
   # 病态双中头 (真 ``\documentstyle`` + 注释行 ``\documentclass``, 或反之)
   # 一律先走本臂、得出恒合法形——顺带兜住 2e 臂对 ``\documentstyle`` 稿
   # 译 ``\usepackage`` 的存量漏洞。下游零适配: pstricks_route(-10)/
   # svg_route(-9) 行锚与 probe._PKG_RE 缺件扫描均 ``(?:usepackage|
-  # RequirePackage)`` 同收, 改写形照旧进路由门/vendor 安装面。
+  # RequirePackage)`` 同收，改写形照旧进路由门/vendor 安装面。
   ## REVIEW: main_head_contains 是 raw 子串 (注释行 \documentstyle 亦中)——
-  ## 2e 稿注释行误中本臂时产出 \RequirePackage 仍合法, 仅统计归因偏移;
-  ## 本臂只解 \input .sty 装载面, 9901081 残余 ~151 错 (2.09 宏簇) 属其他车道。
+  ## 2e 稿注释行误中本臂时产出 \RequirePackage 仍合法，仅统计归因偏移;
+  ## 本臂只解 \input .sty 装载面，9901081 残余 ~151 错 (2.09 宏簇) 属其他车道。
   - id: input_sty_209_requirepkg
-    description: "2.09 \\input <pkg>.sty 裸装载 → \\RequirePackage{<pkg>} (compat 下 \\usepackage 被压, \\RequirePackage 存活)"
+    description: "2.09 \\input <pkg>.sty 裸装载 → \\RequirePackage{<pkg>} (compat 下 \\usepackage 被压，\\RequirePackage 存活)"
     phase: precheck
-    order: -12 # 先于 input_sty_to_usepackage(-11): 产出两臂皆合法, 病态双中头恒走安全臂
+    order: -12 # 先于 input_sty_to_usepackage(-11): 产出两臂皆合法，病态双中头恒走安全臂
     when: { always: true }
     condition:
       source_contains: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})"
@@ -2430,7 +2430,7 @@ rules:
               pattern: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})",
               repl: "\\\\RequirePackage{\\g<1>}",
             }
-    risk: low # 同 2e 臂: 前瞻闸只动导言区; RequirePackage 两臂皆合法
+    risk: low # 同 2e 臂：前瞻闸只动导言区; RequirePackage 两臂皆合法
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # 源码改写天然可移植; RequirePackage 形路由/缺件扫描同收
@@ -2449,12 +2449,12 @@ rules:
   # qc99 (2026-09-28, quant-ph/0003035): 稿内 ``\usepackage{amssymbols}``
   # 是 ``amssymb`` 的复数拼写笔误 —— TL 查无此名 → missing_file 死循环。
   # 真包 amssymb 在 TL, 源面改写名胜过 shim_map 替身 (无 stub 件产出、
-  # 装载点即真名)。payload_pattern 钉名单: 单表项不起 builtin 新开销,
+  # 装载点即真名)。payload_pattern 钉名单: 单表项不起 builtin 新开销，
   # 后续同族笔误 (e.q. amsthm→amstheorem) 可续扩表。
   - id: pkg_alias_rewrite
     description: "包名拼写变体 (amssymbols → amssymb) → 装载点改写为 TL 真名"
     phase: loop
-    order: 11.9 # vendored_fetch(11.5) 后、legacy_pkg_shim(12) 前: 先中者拿签
+    order: 11.9 # vendored_fetch(11.5) 后、legacy_pkg_shim(12) 前：先中者拿签
     when: { category: missing_file, payload_required: true }
     condition:
       payload_pattern: "^amssymbols\\.sty$"
@@ -2467,7 +2467,7 @@ rules:
               pattern: "(\\\\(?:usepackage|RequirePackage|LoadClass|documentclass)\\s*(?:\\[[^\\]]*\\]\\s*)?\\{[^{}]*?)\\bamssymbols\\b",
               repl: "\\g<1>amssymb",
             }
-    risk: low # 同族名改写, 装载语义即真包
+    risk: low # 同族名改写，装载语义即真包
     known_gap: "仅 amssymbols 单名; \\documentstyle 2.09 选项槽名单内同形未覆盖 (2.09 臂归 latex209 车道)"
     engines:
       xelatex: { mode: native }

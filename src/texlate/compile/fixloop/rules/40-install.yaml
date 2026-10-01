@@ -12,7 +12,7 @@ rules:
   # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
   # 2026-09-19 wrapromote (relocatemiss 诊断修议#2, 2609.19170):
   # fragment 误判主档收容 —— find_main_tex pass-1 只收字面
-  # \documentclass 件, 裸 \input 编排壳永不入池; 池内若只剩 fragment
+  # \documentclass 件，裸 \input 编排壳永不入池; 池内若只剩 fragment
   # (无 \end{document} 无 \input) 即编译 `*** (job aborted, no legal
   # \end found)`。修复层翻 main_rel 比动 inject 探测面爆炸半径小;
   # builtin 三重自门 (现 main 闭包已达 end=非 fragment 让位 / 零 wrapper
@@ -21,7 +21,7 @@ rules:
   - id: main_wrapper_promote
     description: "fragment 误判主档 → 闭包吞 main 且达 \\end{document} 的 \\input wrapper 提为 main_rel"
     phase: loop
-    order: 8.5 # biber_biblatex_skew_route(8) 后, fileset 族(9) 前 —— main 归位先于按 main 修复
+    order: 8.5 # biber_biblatex_skew_route(8) 后，fileset 族 (9) 前 —— main 归位先于按 main 修复
     when: { category: emergency }
     condition:
       ctx_suggests: "no legal \\\\end found"
@@ -29,7 +29,7 @@ rules:
       kind: builtin_transform
       function: main_wrapper_promote
       params: {}
-    risk: low # 只翻 main_rel 不写文件; 恰一合格 wrapper 才动, 歧义/无救皆让位
+    risk: low # 只翻 main_rel 不写文件; 恰一合格 wrapper 才动，歧义/无救皆让位
     known_gap: "wrapper 经 \\import/宏参 \\input 等非 _walk_inputs 两跳口径拉 fragment 时不收; macro 生成 \\end{document} (\\csname 形) 非字面命中; wrapper 闭包缺 \\begin{document} 时提升后仍会错 (别家规则接管)"
     engines:
       xelatex: { mode: native }
@@ -37,7 +37,7 @@ rules:
     provenance:
       - {
           corpus: "failmine4 soak-2026-09-18 2609.19170 (relocatemiss 诊断)",
-          error: "*** (job aborted, no legal \\end found) —— sections/00_preamble.tex fragment 误判 main; 真入口 retd_jmlr_jmlr_candidate_20260828.tex 是根目录裸 \\input 编排壳, 无字面 \\documentclass 永不入池",
+          error: "*** (job aborted, no legal \\end found) —— sections/00_preamble.tex fragment 误判 main; 真入口 retd_jmlr_jmlr_candidate_20260828.tex 是根目录裸 \\input 编排壳，无字面 \\documentclass 永不入池",
         }
     stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-relocatemiss/report.md 修议#2 (fixloop 收容臂); lane-wrapromote"
@@ -46,7 +46,7 @@ rules:
   # 三条 order:9 窄谓词先于 install_file(10) 截流 —— 运行期生成件/包内
   # docstrip 件 install 必 miss 白烧轮次; 谓词不中 return False 不耗轮。
   # 2026-09-19 covgap-B 补第四条 order:9 居族首 (failmine4 4 格):
-  # e-print 自带件在 wdir 但不在 TeX 解析位 (main 住子目录, compile
+  # e-print 自带件在 wdir 但不在 TeX 解析位 (main 住子目录，compile
   # cwd=main_dir 无 TEXINPUTS 根注入) —— install_file 探测 cwd=wdir
   # 假命中 + filemap 无收录 (ifacconf/jmlr2e 实测 tlpdb 零命中)
   # → fired-unfixed。真件 verbatim 拷贝优于 stub/generate, 居族首;
@@ -73,7 +73,7 @@ rules:
     provenance:
       - {
           corpus: "failmine4 soak-2026-09-18 4 格 (2609.17927 ifacconf.cls@Artigo/ / 2609.19170 jmlr2e.sty@sections/ / 2609.19664 fairmeta.cls@templates/arxiv/ / 2609.20640 acronyms1.tex@IEEEtran/)",
-          error: "File `X' not found → install_file fired-unfixed —— 件在 wdir 根/旁枝, main 子目录 cwd 不可见",
+          error: "File `X' not found → install_file fired-unfixed —— 件在 wdir 根/旁枝，main 子目录 cwd 不可见",
         }
     stats: { fires: 11, rescued_cells: 6, status: active }
     source_ref: "tmp/lane-covgap/ (逐格 workdir 解剖; install-table 误诊纠正 —— tlpdb 实查零命中)"
@@ -82,7 +82,7 @@ rules:
     mechanisms: [W79]
     description: "\\openout\\w=<name> 运行期生成件缺档 → wdir 空 stub 让本遍 \\input 过"
     phase: loop
-    order: 9 # install_file(10) 前: \openout 自产件 filemap 必 miss
+    order: 9 # install_file(10) 前：\openout 自产件 filemap 必 miss
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
@@ -113,20 +113,20 @@ rules:
       kind: builtin_transform
       function: generated_stub
       params: { faces: [overlay] }
-    risk: low # 空覆盖层 = 图内文字标签缺席, 版面保留; 生成物不回写源
+    risk: low # 空覆盖层 = 图内文字标签缺席，版面保留; 生成物不回写源
     engines:
       xelatex: { mode: same }
       tectonic: { mode: same }
     provenance:
       - {
           corpus: "0707.1954 (mechmap W18)",
-          error: "File `fig.pstex_t' not found — xfig 导出的文字覆盖层, 非 CTAN 件",
+          error: "File `fig.pstex_t' not found — xfig 导出的文字覆盖层，非 CTAN 件",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus/mechanisms.jsonl W18 verdict suggested_rules"
 
   # W102: 包内自带 .ins/.dtx 是作者钦定版本 —— bundled 件抽取优先于
-  # install_file 装 TL 同名 (版本可能不同); stem 匹配或唯一 ins 定位,
+  # install_file 装 TL 同名 (版本可能不同); stem 匹配或唯一 ins 定位，
   # 跑完复核 payload 落盘; 失败 return False 同轮落 install_file 兜底。
   - id: docstrip_generate
     mechanisms: [W102, B05]
@@ -152,16 +152,16 @@ rules:
     source_ref: "bench/corpus/mechanisms.jsonl W102 verdict suggested_rules"
 
   # 2026-09-20 taxonfix 车道: tikz 库缺档两臂——"I did not find the tikz
-  # library 'X'" 报的是**库名**非文件名, 裸 payload 走 install_file 必
+  # library 'X'" 报的是**库名**非文件名，裸 payload 走 install_file 必
   # miss (filemap 无 quantikz 键); 按内核查找约定拼
-  # tikzlibrary{lib}.code.tex (现代名, ~192 条索引) 先探, miss 时
+  # tikzlibrary{lib}.code.tex (现代名，~192 条索引) 先探，miss 时
   # pgflibrary{lib}.code.tex (~40 条 pgflibrary-only 库无 tikzlib 孪生)
   # 同签兜底。ctx_suggests 签名闸把两臂钉死在 tikz-lib 错上; 族内自门
   # 件 (fileset_relocate/stub/docstrip) 对库名 payload 天然全 decline。
   - id: tikz_library_install
     description: "tikz 库缺档 → tikzlibrary{lib}.code.tex filemap 装包"
     phase: loop
-    order: 9 # install_file(10) 前截流——payload 是库名非文件名, 裸装必 miss
+    order: 9 # install_file(10) 前截流——payload 是库名非文件名，裸装必 miss
     when: { category: missing_file, payload_required: true }
     condition:
       ctx_suggests: "did not find the tikz library"
@@ -243,7 +243,7 @@ rules:
           error: "File `xifthen.sty' / `ifmtarg.sty' not found",
         }
       - {
-          corpus: "*/ctex|zh (14格)",
+          corpus: "*/ctex|zh (14 格)",
           error: "File `zhnumber.sty' not found (ctex 注入链)",
         }
     stats: { fires: 138, rescued_cells: 47, status: active }
@@ -262,7 +262,7 @@ rules:
   - id: babel_lang_ldf_install
     description: "babel 语言选项缺 ldf → filemap 装 babel-<lang> 包"
     phase: loop
-    order: 11 # install_file(10) 后, legacy_pkg_shim(12) 前
+    order: 11 # install_file(10) 后，legacy_pkg_shim(12) 前
     when: { category: babel_opt, payload_required: true }
     action:
       kind: install_file
@@ -271,7 +271,7 @@ rules:
         try_exts: [".ldf", "b.ldf"]
         # 别名候选序在 try_exts 扩展之前 (actions.py _apply_install_file);
         # 同包内诱饵档 (bahasa/indon/melayu/brazil/portuges/slovene 的
-        # 直名 .ldf) 无害 —— 装包全体落盘, probe 任一候选命中即收口。
+        # 直名 .ldf) 无害 —— 装包全体落盘，probe 任一候选命中即收口。
         file_aliases:
           ukrainian: [ukraineb.ldf]
           hungarian: [magyar.ldf]
@@ -309,11 +309,11 @@ rules:
           error: "Package babel Error: Unknown option 'german'",
         }
     stats: { fires: 121, rescued_cells: 46, status: active }
-    source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
+    source_ref: "wave-2 落地：taxonomy babel_opt (:301) 首个消费规则"
 
   # 2026-09-17 批四: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
   # install_file(10) 查无真包 → 本规则 basename 查 vendor/{files,stubs,shims}
-  # (files=真件平移, stubs=实测救援 stub, shims=.cls 替身 stub) → 命中平铺
+  # (files=真件平移，stubs=实测救援 stub, shims=.cls 替身 stub) → 命中平铺
   # 进 wdir; 查无 → decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸 builtin, 无需新
   # condition 原语。同名 payload 相对路径落位 (a/b.sty → wdir/a/b.sty),
   # ../绝对/NUL 闸在 builtin 内。
@@ -321,7 +321,7 @@ rules:
     mechanisms: [B05, W80]
     description: "off-CTAN 缺件 → 包内 vendor/{files,stubs,shims} basename 平移 wdir"
     phase: loop
-    order: 11.5 # install_file(10) 后: CTAN 真包优先; legacy_pkg_shim(12) 前: vendor 件优先于内建 shim
+    order: 11.5 # install_file(10) 后：CTAN 真包优先; legacy_pkg_shim(12) 前：vendor 件优先于内建 shim
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
@@ -336,20 +336,20 @@ rules:
           error: "File `aastex.cls' not found (CTAN 下架/改名件)",
         }
     stats: { fires: 161, rescued_cells: 77, status: active }
-    source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
+    source_ref: "wave-4 落地：bench/results/cbucket-vendored-inventory/ dispositions"
 
   # 2026-09-18 nicematrix 车道: 装上件自检版本闸炸 (expl3 msg_critical
-  # file-line 形) —— tlmgr/tlnet 只有最新版, 对运行期 format/L3 过新
+  # file-line 形) —— tlmgr/tlnet 只有最新版，对运行期 format/L3 过新
   # (2308.12712: _texmf/home/.../nicematrix v7.11c 要 format ≥2026-06-01,
   #  runtime LaTeX2e 2025-11-01; xelatex tlmgr 通路无 version_guard)。
-  # wdir 平铺 vendor 兼容钉版 → kpathsea cwd 序遮蔽 texmfhome 过新件,
+  # wdir 平铺 vendor 兼容钉版 → kpathsea cwd 序遮蔽 texmfhome 过新件，
   # 下轮自检过闸正常载入。稿自带过新版: _inject_write 指纹闸拒覆外来
   # 件 → 自动 decline; vendor 查无该件同样 decline → unfixable 归因清晰。
   - id: pkg_version_skew_vendored
     mechanisms: [B05]
     description: "版本自检炸 (release too old) → vendor 兼容版平铺遮蔽过新安装件"
     phase: loop
-    order: 11.7 # vendored_fetch(11.5)/greek_fontenc_install(11.6) 后, babel_opt(13) 前
+    order: 11.7 # vendored_fetch(11.5)/greek_fontenc_install(11.6) 后，babel_opt(13) 前
     when: { category: pkg_version_skew, payload_required: true }
     action:
       kind: builtin_transform
@@ -370,7 +370,7 @@ rules:
   # v2.2.0 (2021) 撞新 kernel expl3 收紧: `\bool_const:Nn { 1 }` 裸数字
   # 字面量不再被收 (2112.00045: csvsimple-l3.sty:36 Missing number,
   # treated as zero → Missing \begin{document} 级联)。两个既有机制都
-  # 够不到: `_provides_date` 只认 `\ProvidesX{n}[date]` bracket 面,
+  # 够不到: `_provides_date` 只认 `\ProvidesX{n}[date]` bracket 面，
   # `\ProvidesExplPackage{n}{d}{v}` brace 面读不出 → vendored_shadow_
   # isolate 的 ld<sd 确证闸拿不到日期; `_inject_write` 指纹闸拒覆外来
   # 件 → vendored_fetch 也不能原位替换。故走退役通路: err_head 点名
@@ -380,9 +380,9 @@ rules:
   # vendor/files 钉版 (2.7.0, 本机逐字节同 texmf-dist 实证可编译)。
   - id: csvsimple_l3_kernel_retire
     mechanisms: [B05]
-    description: "稿自带过旧 csvsimple-l3.sty kernel 不兼容 → mv .fixloop-iso 退役, 系统/vendor 新件递补"
+    description: "稿自带过旧 csvsimple-l3.sty kernel 不兼容 → mv .fixloop-iso 退役，系统/vendor 新件递补"
     phase: loop
-    order: 11.8 # pkg_version_skew_vendored(11.7) 后, legacy_pkg_shim(12) 前
+    order: 11.8 # pkg_version_skew_vendored(11.7) 后，legacy_pkg_shim(12) 前
     when:
       any: # 本格签名是 syntax; 他版旧件别种炸法 (undefined_cs 等) 同闸收
         - { category: syntax }
@@ -412,7 +412,7 @@ rules:
   # `dx' undefined in families), \define@key[psset]{}{trueAngle} 空族 vs
   # pst-xkey v1.6 × xkeyval v2.10 的 \define@boolkey (:1170 → Missing
   # \begin{document} 级联), \psset@@tickstyle/\psk@tickstyle 自现代核
-  # 消失 (:1544 Undefined×4 + Missing number×2)。pst-all.sty
+  # 消失 (:1544 Undefined×4 + Missing number×2). pst-all.sty
   # \RequirePackage{pstricks-add} 走 kpathsea cwd 序中稿自带对;
   # find_vendored_shadows 要系统 probe 证 ld<sd —— 本机 texlive 无
   # pstricks-add → sd=None 盲区 (csvsimple 同型)。err_head 点名
@@ -424,11 +424,11 @@ rules:
   # 前置已由 pstcol_pstricks_rewrite (70-pkgopt.yaml:359, order 185) 兜住。
   - id: pstricks_add_pair_retire
     mechanisms: [B05]
-    description: "稿自带过旧 pstricks-add.tex/.sty 对遮蔽 → mv 双双 .fixloop-iso 退役, 系统/vendor v3.94 递补"
+    description: "稿自带过旧 pstricks-add.tex/.sty 对遮蔽 → mv 双双 .fixloop-iso 退役，系统/vendor v3.94 递补"
     phase: loop
-    order: 11.9 # csvsimple_l3_kernel_retire(11.8) 后, legacy_pkg_shim(12) 前
+    order: 11.9 # csvsimple_l3_kernel_retire(11.8) 后，legacy_pkg_shim(12) 前
     when:
-      any: # 签名散三格: xkeyval→key_unknown (taxrow) / Undefined cs→undefined_cs / Missing→syntax
+      any: # 签名散三格：xkeyval→key_unknown (taxrow) / Undefined cs→undefined_cs / Missing→syntax
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
@@ -450,7 +450,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus 0707.4206 (stagerun flipcheck3 best_effort 残格, 12 错同根)",
+          corpus: "corpus 0707.4206 (stagerun flipcheck3 best_effort 残格，12 错同根)",
           error: "pstricks-add.tex:1544: Undefined control sequence \\psset@@tickstyle (v2.32/2005 vs pst-node v1.45)",
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
@@ -459,9 +459,9 @@ rules:
   # 2026-09-20 sabfix 车道 (sabdeg 普查, 1107.0009): 稿自带 mn2e.cls
   # v2.2 (2001/02/06) 与 mnras 同族 \ds@usegraphicx 病 —— :52 `\def\
   # ds@usegraphicx{\@usegraphicxtrue\usepackage[xetex]{graphicx}}` 把
-  # \usepackage 写进 \ds@ 选项声明体, \ProcessOptions 执行 usegraphicx
+  # \usepackage 写进 \ds@ 选项声明体，\ProcessOptions 执行 usegraphicx
   # → `\RequirePackage or \LoadClass in Options Section` (嵌套 fontenc
-  # 载入归名 fontenc.sty:115, options_section)。mnras_texmf_shadow_drop
+  # 载入归名 fontenc.sty:115, options_section). mnras_texmf_shadow_drop
   # (11.91) 的 ctx 同签但文件闸只认 mnras.cls —— 本格 kpsewhich 臂放行
   # 后投了死 mnras.cls, 病件 mn2e.cls 原样 → fired-unfixed。vendor/ 无
   # mn2e 补丁件可投 → 走原位补丁形 (engine_guard_strip/abstract_edef
@@ -470,12 +470,12 @@ rules:
   # (mn2e.cls 自身 \if@usenatbib→natbib :1201 同款推迟惯用法; 驱动
   # 选项原样保留)。指纹 = \@usegraphicxtrue 紧邻 \usepackage|
   # \RequirePackage —— vendor shim mn2e.cls 无 @usegraphicxtrue、补丁
-  # mnras.cls ds@ 行已净, 皆阴性; 补丁行尾挂 texlate-fixloop-injected
-  # 标, mnras 闸文件级标检自然跳过, 免疫幂等 (紧邻指纹消失即不再中);
-  # 模式尾 \s*\} 把 \def 闭括号收进 match —— 标注落闭括号后注释里,
+  # mnras.cls ds@ 行已净，皆阴性; 补丁行尾挂 texlate-fixloop-injected
+  # 标，mnras 闸文件级标检自然跳过，免疫幂等 (紧邻指纹消失即不再中);
+  # 模式尾 \s*\} 把 \def 闭括号收进 match —— 标注落闭括号后注释里，
   # 不把 } 留进注释咬死 \def。regex_rewrite 按 exts rglob 不点名文件:
   # cond 的 glob(mn2e.cls) 与指纹可来自不同文件 —— mn2e-shim + wdir
-  # 内病 mnras 同在场时连病 mnras.cls 一起原位修 (同病同治超集,
+  # 内病 mnras 同在场时连病 mnras.cls 一起原位修 (同病同治超集，
   # mnrasretire e2e 的 shadow-drop 必发旧预期需同步; mn2e.cls 缺席格
   # 照旧落 mnras 臂)。
   # order 11.905 居 mnras(11.91) 前: mn2e-shipped 格先修真病件不白烧
@@ -484,9 +484,9 @@ rules:
     mechanisms: [B05]
     description: "稿自带 mn2e.cls \\ds@usegraphicx 内联 \\usepackage → \\AtEndOfClass 推迟出选项段 (mnras #51 姊妹病原位补丁)"
     phase: loop
-    order: 11.905 # pstricks_add_pair_retire(11.9) 后, mnras_texmf_shadow_drop(11.91) 前
+    order: 11.905 # pstricks_add_pair_retire(11.9) 后，mnras_texmf_shadow_drop(11.91) 前
     when:
-      any: # 签名散格同 mnras 闸: 本格 options_section; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
+      any: # 签名散格同 mnras 闸：本格 options_section; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
@@ -505,7 +505,7 @@ rules:
               repl: "\\g<1>\\\\AtEndOfClass{\\g<2>}} % texlate-fixloop-injected: ds@usegraphicx deferred past ProcessOptions",
             }
     risk: low # 单点行内裹壳不动其余字节; 指纹阴性零改写 decline; @usegraphicxtrue 后紧邻 \usepackage 消失即幂等
-    known_gap: "\\DeclareOption{usegraphicx}{..\\usepackage..} 书写形不盖 (mn2e/mnras 皆 \\def\\ds@ 形); TEXINPUTS 旁枝目录的 mn2e.cls 出 wdir 时漏 (rglob 只扫 wdir); @usegraphicxtrue 与包装载跨 \\if/宏包裹变体不中; rewrite 文件名盲 —— wdir 内同病 mnras.cls 一并原位修 (同病同治超集, mnrasretire e2e shadow-drop 必发预期需 owner 同步)"
+    known_gap: "\\DeclareOption{usegraphicx}{..\\usepackage..} 书写形不盖 (mn2e/mnras 皆 \\def\\ds@ 形); TEXINPUTS 旁枝目录的 mn2e.cls 出 wdir 时漏 (rglob 只扫 wdir); @usegraphicxtrue 与包装载跨 \\if/宏包裹变体不中; rewrite 文件名盲 —— wdir 内同病 mnras.cls 一并原位修 (同病同治超集，mnrasretire e2e shadow-drop 必发预期需 owner 同步)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -519,25 +519,25 @@ rules:
 
   # 2026-09-19 mnras-retire 车道 (1206.0291, geomreverify #57 实证): 病件
   # 是上游 mnras v3.2 本体 —— `\def\ds@usegraphicx{\@usegraphicxtrue
-  # \usepackage{graphicx}}` 把 inline \usepackage 写进 \ds@ 选项声明体,
+  # \usepackage{graphicx}}` 把 inline \usepackage 写进 \ds@ 选项声明体，
   # kernel 在 \ProcessOptions 执行该选项 → `\RequirePackage or \LoadClass
-  # in Options Section` 硬错 (:114, cat=other)。装机通路: mn2e stub
+  # in Options Section` 硬错 (:114, cat=other)。装机通路：mn2e stub
   # needs:["mnras.cls"] → eng.install_file → tlmgr --usermode install mnras
   # → 上游病件落 _texmf/home/tex/latex/mnras/ (生产 _texmf 内嵌 wdir,
   # stagerun 兄弟式在 wdir 邻树); 宿主 ~/texmf 常驻副本同病 —— TEXMFHOME
   # 链尾保持可见故同样可达 (mn2e+usegraphicx 稿 ~25 格同露: stub 选项剥
-  # 离被 \@loadwithoptions 裸拷贝绕过, geomverify repro 实证死代码)。
+  # 离被 \@loadwithoptions 裸拷贝绕过，geomverify repro 实证死代码)。
   # 设计经普查改裁定 stateless DROP 优于 retire-mv: (a) 退役→missing
   # →vendored_fetch(11.5) 名义链不可达 —— missing_file 先被 install_file
   # (10) 截 (宿主探得 already-present 或 tlmgr 重装同病上游件 → 复毒;
   # retire 又被 rule:pay dedup → 死环); (b) mv _texmf/宿主件是树外突变
-  # (~/texmf RW 挂载全局持久, invasive)。故指纹确证任一可达病形件 →
-  # vendor 补丁件平铺 ./mnras.cls —— kpathsea cwd 序压过 usertree+宿主
+  # (~/texmf RW 挂载全局持久，invasive)。故指纹确证任一可达病形件 →
+  # vendor 补丁件平铺 ./mnras.cls —— kpathsea cwd 序压过 usertree+ 宿主
   # 同遮, 零树外突变零 missing 依赖。指纹: 剥注释后 \ds@usegraphicx 行
   # 内联 \usepackage|\RequirePackage; texlate patch / texlate-fixloop-
   # injected 双标跳过防自拆。探测三根: {main_dir} 解析位 (run_tool
-  # argv 占位, 编译 cwd=main_dir 对嵌套 main 才可见 —— 平铺 wdir 根
-  # 对 templates/arxiv/main.tex 式稿是死角, 2609.19664 fired-unfixed
+  # argv 占位，编译 cwd=main_dir 对嵌套 main 才可见 —— 平铺 wdir 根
+  # 对 templates/arxiv/main.tex 式稿是死角，2609.19664 fired-unfixed
   # 实证; main_rel 怪径逃出 wdir 退 '.') + find . ../_texmf/home
   # (内嵌/兄弟两式 usertree) + kpsewhich (宿主 ~/texmf/TEXMFDIST 面);
   # 解析位稿自带病件 (cwd 现胜者) mv .fixloop-iso 让位 —— wdir 内退役
@@ -547,16 +547,16 @@ rules:
     mechanisms: [B05]
     description: "可达 mnras.cls 选项段内联 \\usepackage 病 → vendor 补丁件平铺 main_dir/mnras.cls 遮蔽 (解析位病件退役让位), 零树外突变"
     phase: loop
-    order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留遮蔽同族
+    order: 11.91 # pstricks_add_pair_retire(11.9) 后，abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留遮蔽同族
     when:
-      any: # 签名散格: 本格 options_section (taxrow 专属行); 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
+      any: # 签名散格：本格 options_section (taxrow 专属行); 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
         - { category: options_section }
     condition:
       ctx_suggests: "Options Section|mnras\\.cls"
-      any: # 在场证: wdir 内全层 ∨ stagerun 兄弟 usertree ∨ kpsewhich 可探 (宿主/TEXMFDIST 面交脚本指纹裁)
+      any: # 在场证：wdir 内全层 ∨ stagerun 兄弟 usertree ∨ kpsewhich 可探 (宿主/TEXMFDIST 面交脚本指纹裁)
         - { cache_dir_glob: "**/mnras.cls" }
         - { cache_dir_glob: "../_texmf/home/**/mnras.cls" }
         - { tool_available: kpsewhich }
@@ -603,8 +603,8 @@ rules:
             fi
             exit 0
         timeout: 30
-    risk: low # 零树外突变: usertree/宿主件只遮蔽不动; 退役仅及解析位稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
-    known_gap: "病件原位保留靠 main_dir 平铺遮蔽而非移除; 解析位槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); main_rel 怪径逃出 wdir → {main_dir} 退 '.' 平铺回 wdir 根 (对嵌套 main 不可见, DECLINE 口径); python 投件走 {python} 钉宿主解释器 (PATH python3 缺席不阻); tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
+    risk: low # 零树外突变：usertree/宿主件只遮蔽不动; 退役仅及解析位稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
+    known_gap: "病件原位保留靠 main_dir 平铺遮蔽而非移除; 解析位槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); main_rel 怪径逃出 wdir → {main_dir} 退 '.' 平铺回 wdir 根 (对嵌套 main 不可见，DECLINE 口径); python 投件走 {python} 钉宿主解释器 (PATH python3 缺席不阻); tectonic 无 kpsewhich → 宿主面缺探，wdir/兄弟面仍盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -630,7 +630,7 @@ rules:
   # 不变 —— era .sty 在场即过闸)。
   # DEVIATION (spec 原案 exts 含 .tex): 同干 .sty+.tex 双候选时
   # _retire_paired_tex_core 先移 .tex, 直接候选再 rename 撞缺件 →
-  # FileNotFoundError (vendored_shadow_isolate 无 moved 文件卫, 钉测实证)。
+  # FileNotFoundError (vendored_shadow_isolate 无 moved 文件卫，钉测实证)。
   # .tex 不入 exts 后同干核仍经 paired 道退役 —— spec pin "全四件
   # .fixloop-iso" 结果不变; 仅失无同干 wrapper 的孤 .tex 面 (era 包捆
   # 全成对)。builtin 修补属 builtins/vendored.py 权属外 → 报 leader。
@@ -638,7 +638,7 @@ rules:
     mechanisms: [B05]
     description: "稿自带 era 包捆 (.sty/.cls/.def/.cfg + 同干 .tex 核 paired 道) ld<sd 确证遮蔽 → .fixloop-iso 退役 (vendored_shadow 早位宽 when 版)"
     phase: loop
-    order: 11.92 # mnras_texmf_shadow_drop(11.91) 后, microtype_era_cfg_retire(11.93) 前 —— vendored_sty_shadow(150) 早位同族
+    order: 11.92 # mnras_texmf_shadow_drop(11.91) 后，microtype_era_cfg_retire(11.93) 前 —— vendored_sty_shadow(150) 早位同族
     when:
       any: # 签名散格 + 超时装载格 (era pst-* 喂现代核的连锁面全收)
         - { category: undefined_cs }
@@ -649,7 +649,7 @@ rules:
         - { category: other }
         - { category: timeout }
     condition:
-      vendored_shadow: true # builtin 探测: (.sty,.cls) 探针 ld<sd 自证
+      vendored_shadow: true # builtin 探测：(.sty,.cls) 探针 ld<sd 自证
     action:
       kind: builtin_transform
       function: vendored_shadow_isolate
@@ -657,7 +657,7 @@ rules:
         exts: [.sty, .cls, .def, .cfg]
         suffix: .fixloop-iso
     risk: medium # 条件自证 (只在 ld<sd 遮蔽存在时发); 触发格同轮抢占 >11.92 臂 = 预期消费
-    known_gap: "era .pro/.con 无日期面永不确证 → 留盘 (驱动期 skew 残面, 现代 .tex+era .pro 通常仍工作); 无系统对件的 era 件保留 (退役即造 missing_file); 孤 .tex (无同干 .sty/.cls wrapper) 不入直接候选 —— paired 道够不到则留盘"
+    known_gap: "era .pro/.con 无日期面永不确证 → 留盘 (驱动期 skew 残面，现代 .tex+era .pro 通常仍工作); 无系统对件的 era 件保留 (退役即造 missing_file); 孤 .tex (无同干 .sty/.cls wrapper) 不入直接候选 —— paired 道够不到则留盘"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -671,18 +671,18 @@ rules:
 
   # 2026-09-25 scale50 批 (t_c32920e49e7f1f70): 稿自带 fontspec v2.9h
   # (2026/08/11) 套件喂 LaTeX2e 2021-11-15 核 —— \SetKeys/expl3 原语
-  # 未定义连锁爆, fontspec 初始化全灭 → ctex/xeCJK 字体永不配 → CJK
-  # 全部落无 ToUnicode 替身, zh.pdf 文本层 U+FFFF 死层 (exit 0 +
-  # status=ok 的假绿——视觉面字形尚在, 抽取/复制/搜索全死)。
-  # vendored_shadow_isolate 的 ld<sd 只确证旧向遮蔽, 新版 vendor 喂
-  # 旧核的正向 skew 是其盲区; fontspec 是内核耦合件, 任何方向跨版本
+  # 未定义连锁爆，fontspec 初始化全灭 → ctex/xeCJK 字体永不配 → CJK
+  # 全部落无 ToUnicode 替身，zh.pdf 文本层 U+FFFF 死层 (exit 0 +
+  # status=ok 的假绿——视觉面字形尚在，抽取/复制/搜索全死)。
+  # vendored_shadow_isolate 的 ld<sd 只确证旧向遮蔽，新版 vendor 喂
+  # 旧核的正向 skew 是其盲区; fontspec 是内核耦合件，任何方向跨版本
   # vendor 都无安全面 → 签名复核 (err_head → _fixloop_log) + 系统/
   # bundle 递补自证后整族退役。
   - id: fontspec_kernel_shadow_retire
     mechanisms: [B05]
     description: "稿自带 fontspec 套件撞内核 expl3/原语面 → .fixloop-iso 整族退役 (双向 skew 同收; 系统/bundle 递补自证)"
     phase: loop
-    order: 11.925 # era_bundle_shadow_retire(11.92) 后, microtype_era_cfg_retire(11.93) 前 —— 同族内核耦合遮蔽
+    order: 11.925 # era_bundle_shadow_retire(11.92) 后，microtype_era_cfg_retire(11.93) 前 —— 同族内核耦合遮蔽
     when:
       any: # \SetKeys/__fontspec 未定义落 undefined_cs; macro param 级联落 syntax/other 保兼容
         - { category: undefined_cs }
@@ -695,7 +695,7 @@ rules:
     risk: low # 签名级复核 + 递补自证双闸; fontspec 跨版本 vendor 无安全面
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # bundle 内 fontspec 恒有, filemap 索引递补判据
+      tectonic: { mode: same } # bundle 内 fontspec 恒有，filemap 索引递补判据
     provenance:
       - {
           corpus: "scale50 批 t_c32920e49e7f1f70 (DQI-Kit, 2026-09-25)",
@@ -714,11 +714,11 @@ rules:
   # (sty+cfg+mt-* 族) 全在档 → 退役后 kpathsea 一致解析。
   - id: microtype_era_cfg_retire
     mechanisms: [B05]
-    description: "稿自带 era microtype 包捆 (microtype.sty/.cfg/letterspace.sty/mt-*.cfg) → sh mv .fixloop-iso 退役, 系统现代套件递补"
+    description: "稿自带 era microtype 包捆 (microtype.sty/.cfg/letterspace.sty/mt-*.cfg) → sh mv .fixloop-iso 退役，系统现代套件递补"
     phase: loop
-    order: 11.93 # era_bundle_shadow_retire(11.92) 后, doc_ifx_errmessage_demote(11.94) 前 —— pstadd 11.9 同名单退役同族
+    order: 11.93 # era_bundle_shadow_retire(11.92) 后，doc_ifx_errmessage_demote(11.94) 前 —— pstadd 11.9 同名单退役同族
     when:
-      any: # 签名散格: era cfg 对现代包 → Missing number(syntax)/undef cs/already_def/microtype 专属行
+      any: # 签名散格：era cfg 对现代包 → Missing number(syntax)/undef cs/already_def/microtype 专属行
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
@@ -736,7 +736,7 @@ rules:
           - -c
           - 'for f in microtype.sty microtype.cfg letterspace.sty mt-*.cfg; do if [ -f "$f" ] && ! grep -q ''texlate-fixloop-injected'' "$f"; then mv -f "$f" "$f.fixloop-iso"; fi; done; exit 0'
         timeout: 30
-    risk: low # 签名+在场双闸; 名单内全是有系统对件的 era 件 → 退役后解析一致
+    risk: low # 签名 + 在场双闸; 名单内全是有系统对件的 era 件 → 退役后解析一致
     known_gap: "mt-*.cfg glob 无配 → [ -f ] 失败安全跳; 无系统对件的 doc-own 件 (stddefs/stdtypog/svninfo/crscat.cls) 不在名单保留; already_def:textast (crscat.cls:206) 另格残面非本捆; .pro 类无日期面伴船不在名单"
     engines:
       xelatex: { mode: native }
@@ -752,7 +752,7 @@ rules:
   # 2026-09-20 implunk26 车道 (unk26spec B3, cond-mat/9612213): doc 导言
   # 区引擎护栏 \ifx<cs>\undefined..\errmessage{..}\fi —— longbb.tex:53-55
   # verbatim `\ifx\href\undefined \else\errmessage{Don't use hypertex} \fi`,
-  # 注入 hyperref 定义 \href → \errmessage abort (splice:421, cat=other)。
+  # 注入 hyperref 定义 \href → \errmessage abort (splice:421, cat=other).
   # engine_guard_strip(11.99) 是 .sty/.cls sh 行删臂 (when=emergency 单类)
   # —— 文件集/线形/类目皆不同 → 独立 regex 臂: \errmessage 降级 \typeout,
   # 告警留 log 可见 (剥整段 \ifx..\fi 会丢作者告警文本 —— 弃)。
@@ -760,7 +760,7 @@ rules:
     mechanisms: [B05]
     description: "doc .tex \\ifx<cs>\\undefined..\\errmessage{..}\\fi 引擎护栏 → \\errmessage 降级 \\typeout (注入 preamble 件踩护栏中止)"
     phase: loop
-    order: 11.94 # microtype_era_cfg_retire(11.93) 后, abstract_edef_capture_neutralize(11.95) 前 —— engine_guard_strip(11.99) 的 .tex 姊妹臂
+    order: 11.94 # microtype_era_cfg_retire(11.93) 后，abstract_edef_capture_neutralize(11.95) 前 —— engine_guard_strip(11.99) 的 .tex 姊妹臂
     when:
       any:
         - { category: other }
@@ -797,7 +797,7 @@ rules:
   # 2026-09-19 draftsty-patch 车道: 稿自带 .sty 内 abstract 体捕获花括号
   # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
   # \ifnum 当字符码操作数吞掉 (125≠0 假值整段空), 使 edef 的 `{` 失去配对
-  # `}` 永不闭合 → abstract 体 + \endabstract + 文末全部流入 edef 扫描,
+  # `}` 永不闭合 → abstract 体 + \endabstract + 文末全部流入 edef 扫描，
   # 吸入展开链混入的 \iffalse (titlesec/hyperref 内件) 至 EOF 不合 →
   # `Incomplete \iffalse` (1706.00240; bt7.tex = article[twocolumn] +
   # verbatim draft.sty 零 texlate 含量同款复现 —— 2017 期构形 TL2026 不
@@ -807,14 +807,14 @@ rules:
   # 判 —— 纯注释载件不动; 无签名件→ continue, 纯 no-op exit 0), 首个
   # \endinput 前 (缺席则 EOF) 注入良性
   # \def\abstract/\endabstract 覆写 —— hack 两行仍在文件里但永不再执行
-  # (sty 载入只扫参不展开, 覆写在后赢)。texlate-fixloop-injected 指纹
+  # (sty 载入只扫参不展开，覆写在后赢)。texlate-fixloop-injected 指纹
   # 幂等; \ifdefined\maketitle 保住无 \maketitle 稿的题名块 (hack 原意即
   # abstract 触发题名), quotation 兜体。
   - id: abstract_edef_capture_neutralize
     mechanisms: [B05]
     description: "稿自带 .sty abstract edef 体捕获 hack (\\protected@edef\\@tempa{\\ifnum`}=\\z@ 吞 `}` → 全文入 edef) → \\endinput 前注入良性环境覆写"
     phase: loop
-    order: 11.95 # pstricks_add_pair_retire(11.9) 后, legacy_pkg_shim(12) 前 —— 稿自带件病灶同族 (退役系 → 补丁系)
+    order: 11.95 # pstricks_add_pair_retire(11.9) 后，legacy_pkg_shim(12) 前 —— 稿自带件病灶同族 (退役系 → 补丁系)
     when:
       any: # Incomplete \iffalse 落 incomplete_if (taxrow 行) —— other 保留兼容旧 records; 吸收展开首错变体 (File-ended/undef cs) 同闸收
         - { category: incomplete_if }
@@ -828,7 +828,7 @@ rules:
         - {
             ctx_suggests: "File ended while scanning use of \\\\protected@edef",
           }
-      # 派发闸: sty 体须真载 edef 捕获式 —— 无件空发会烧同签名轮次,
+      # 派发闸: sty 体须真载 edef 捕获式 —— 无件空发会烧同签名轮次，
       # 挤掉同 sig 后位规则的派发窗口 (if_phantom_protect 实证
       # dispatch-miss: r1 被本条空吃 → r3 stuck 断在 197.5 可派发前)。
       # cache_dir_glob 先评 (廉价 glob 先于内容 grep): 无 sty 件直接
@@ -858,14 +858,14 @@ rules:
             done
             exit 0
         timeout: 30
-    risk: low # 注入件仅覆写 \abstract/\endabstract 两 cs; \def 无存在性前提, sty 其余内容逐字节保留; 稿若自调 \maketitle → 题名重复 (妆面非断点)
+    risk: low # 注入件仅覆写 \abstract/\endabstract 两 cs; \def 无存在性前提，sty 其余内容逐字节保留; 稿若自调 \maketitle → 题名重复 (妆面非断点)
     known_gap: "闸/脚本只扫顶层 *.sty/*.cls —— 子目录 sty 件 (kpathsea TEXINPUTS 可及) 漏收; hack 写面变体 (\\edef 无 protected@、\\let\\endabstract 形) 签名外漏收; cls-only 载件 (无 .sty) 过不了 glob 闸"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus 1706.00240 (iffalse-census #46 残格, 裁定 unfixable:other)",
+          corpus: "corpus 1706.00240 (iffalse-census #46 残格，裁定 unfixable:other)",
           error: "Incomplete \\iffalse; all text was ignored after line 317 —— 稿自带 draft.sty \\protected@edef\\@tempa{\\ifnum`}=\\z@ 吞 `}` → edef 不闭 → 全文入 edef 扫描",
         }
     stats: { fires: 9, rescued_cells: 1, status: active }
@@ -877,20 +877,20 @@ rules:
   # 改为 \protected 宏 → "LaTeX Error: Unable to properly define \@@leqno;
   # primitive \leqno no longer primitive" (cat=other)。现代 amsmath v2.17e+
   # 已改 \let 直绑无此调用 → `\@saveprimitive` 对 leqno/eqno 的调用即旧件
-  # 指纹。vendored_sty_shadow(85-shim:150) 够不到: when 闸只收 undefined_cs|
+  # 指纹。vendored_sty_shadow(85-shim:150) 够不到：when 闸只收 undefined_cs|
   # already_def, 且改名件 amsmath2.sty 无系统同名 probe 必 miss。
   # builtin 双臂: (a) 指纹件 mv .fixloop-iso —— 本名 amsmath.sty 退役后系统
   # /bundle/tlmgr 同名递补; 改名件 (amsmath2.sty) 写同名 delegate stub
-  # (\RequirePackage{amsmath} 接回系统件 —— stem==amsmath 不接, 自指即空包);
+  # (\RequirePackage{amsmath} 接回系统件 —— stem==amsmath 不接，自指即空包);
   # (b) ams* 伴船 (amsgen/amstext/amsbsy/amsopn/amsthm/amsfonts/amssymb)
   # 经 find_vendored_shadows ld<sd 确证同道退役 —— probe3 实证: amsmath-only
-  # 退役已过 leqno 墙, 但 2003/2025 ams 混栈是现代件新未定义面; 整片快照
+  # 退役已过 leqno 墙，但 2003/2025 ams 混栈是现代件新未定义面; 整片快照
   # 退役 (含 pstricks/pst-node 半栈) 反而退步 → 只收 ams 族。
   - id: amsmath_saveprimitive_retire
     mechanisms: [B05]
-    description: "稿自带 pre-2019 amsmath*.sty \\@saveprimitive 撞非原语 \\leqno → 退役+改名件 delegate, ams* 伴船同道退役"
+    description: "稿自带 pre-2019 amsmath*.sty \\@saveprimitive 撞非原语 \\leqno → 退役 + 改名件 delegate, ams* 伴船同道退役"
     phase: loop
-    order: 11.96 # abstract_edef_capture_neutralize(11.95) 后, legacy_pkg_shim(12) 前 —— ship-retire 族尾
+    order: 11.96 # abstract_edef_capture_neutralize(11.95) 后，legacy_pkg_shim(12) 前 —— ship-retire 族尾
     when: { category: other } # "LaTeX Error: Unable to properly define" 归 other
     condition:
       ctx_suggests: "no longer primitive" # \@saveprimitive 错误模板独有短语
@@ -900,7 +900,7 @@ rules:
       params: {} # suffix 缺省 .fixloop-iso
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # bundle amsmath 现行, 同名/委托件同式递补
+      tectonic: { mode: same } # bundle amsmath 现行，同名/委托件同式递补
     provenance:
       - {
           corpus: "failmine3 0806.0246/0806.4130/1306.0294 (stagerun-loop3)",
@@ -912,9 +912,9 @@ rules:
   # 2026-09-19 asset 车道 (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
   # pb-diagram/lamsarrow.sty:89-93 `\font\lamsfont@i=lams1`…`@v=lams5` ——
   # LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字体),
-  # 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式全不中,
+  # 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式全不中，
   # 落 other; install_tfm(20) 也够不到 (tlmgr 无此件)。修法 = vendor
-  # lams{1..5}.{tfm,mf} 字节平铺 wdir: .tfm 让 \font 载入过, .mf 供 mktexpk
+  # lams{1..5}.{tfm,mf} 字节平铺 wdir: .tfm 让 \font 载入过，.mf 供 mktexpk
   # shipout 期 mf→gftopk 生 Type 3 字形 (probe2 实证: tfm-only 撞
   # xdvipdfmx "Cannot proceed without .vf or physical font" 致命; tfm+mf
   # 双全出真箭头 PDF)。件源 CTAN pb-diagram tfm/+mf/ 目录 (GPL), 逐字节
@@ -972,15 +972,15 @@ rules:
   # (4-1/4-2/4b4 分署别名) ∧ \@uclcnotmath 内嵌机 (现代 textcase 同名机走
   # expl3 分支不在此件)。builtin 双臂 (mnras-retire 裁定形):
   # (a) 工程内 .cls mv .fixloop-iso + 同 stem delegate →revtex4-2
-  #     (本名件同写——系统无 revtex4 名递补, 缺 delegate 即 missing_file);
-  # (b) ~/texmf TEXMFHOME 链尾树外遮蔽——只读指纹探测, cwd 根 delegate
+  #     (本名件同写——系统无 revtex4 名递补，缺 delegate 即 missing_file);
+  # (b) ~/texmf TEXMFHOME 链尾树外遮蔽——只读指纹探测，cwd 根 delegate
   #     遮蔽 (树外不 mv, mv 反遭 install_file 回投同毒循环)。
   # 递补闸: revtex4-2.cls probe/vendor 双空 → 拒动 (delegate 死路)。
   - id: revtex_era_retire
     mechanisms: [B05]
     description: "revtex4.cls v4.0a 内嵌 textcase \\@uclcnotmath 撞现代 kernel → 工程件退役+delegate, texmf 遮蔽根 delegate"
     phase: loop
-    order: 11.98 # lamsarrow_lams_fonts_drop(11.97) 后, legacy_pkg_shim(12) 前 —— ship/texmf-retire 族尾
+    order: 11.98 # lamsarrow_lams_fonts_drop(11.97) 后，legacy_pkg_shim(12) 前 —— ship/texmf-retire 族尾
     when:
       any: # \@citex 归 cs_mismatch (taxrow), reserved@a 归 other, 零页归 early_eof
         - { category: syntax }
@@ -990,7 +990,7 @@ rules:
         - { category: cs_mismatch }
     condition:
       # 三签同机: reserved@a (illegal param) | @citex doesn't match | 点名件
-      # revtex4\.cls 字面带点 —— revtex4-1/revtex4-2 名不命中, 防错绑
+      # revtex4\.cls 字面带点 —— revtex4-1/revtex4-2 名不命中，防错绑
       ctx_suggests: "reserved@a|@citex doesn't match|revtex4\\.cls"
     action:
       kind: builtin_transform
@@ -998,7 +998,7 @@ rules:
       params: {} # suffix 缺省 .fixloop-iso; 递补件钉死 revtex4-2.cls
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # bundle revtex4-2 在场, 同名 delegate 同式递补
+      tectonic: { mode: same } # bundle revtex4-2 在场，同名 delegate 同式递补
     provenance:
       - {
           corpus: "revtexlane 0806.4149/1003.0910/1907.00131 (stagerun-loop3+loop1)",
@@ -1007,7 +1007,7 @@ rules:
     stats: { fires: 13, rescued_cells: 10, status: active }
     source_ref: "tmp/lane-revtex/repro/mini5.tex 端到端实证 (emulateapj+Citeauthor 二遍死); census tmp/lane-revtex/"
 
-  # 2026-09-19 aaaiguard 车道 (failmine4 普查, 15 格全 fresh soak-09-18
+  # 2026-09-19 aaaiguard 车道 (failmine4 普查，15 格全 fresh soak-09-18
   # 2609.*): 稿自带 aaai2027.sty (4 md5 变体) 内置引擎闸 ——
   # \RequirePackage{iftex} 后 `\RequirePDFTeX` 独占行 (:14/:43/:59/:62
   # 变体位); xelatex 下 iftex 横幅 "pdfTeX is required to compile this
@@ -1015,7 +1015,7 @@ rules:
   # \RequirePDFTeX` 回显 (err_head 实读 2609.19158 main.log)。
   # 剥面 = 同族 `\Require{PDFTeX,LuaTeX,LuaMetaTeX}` —— xelatex 下全灭
   # 子集 (\RequireXeTeX/\RequireETeX/\RequireTeXXeT 本机通过不在剥面);
-  # iftex 载留无害, 不路由 pdftex (zh 管线定死 xelatex+ctex, pdftex 破
+  # iftex 载留无害，不路由 pdftex (zh 管线定死 xelatex+ctex, pdftex 破
   # CJK)。闸面三证: err ctx 回显 guard cs ∧ 顶层 *.sty/*.cls 在场 ∧
   # 源 blob 含 guard cs; 脚本逐件剥注释行后按独占行形确证再删行 (行尾
   # 允许空白/% 注释), 尾注 texlate-fixloop-injected 幂等。下游 T1
@@ -1025,7 +1025,7 @@ rules:
     mechanisms: [B05]
     description: "稿自带 .sty/.cls \\Require{PDF,Lua,LuaMeta}TeX 引擎闸 (xelatex Emergency stop) → 删独占闸行"
     phase: loop
-    order: 11.99 # revtex_era_retire(11.98) 后, legacy_pkg_shim(12) 前 —— 稿自带件病灶族尾
+    order: 11.99 # revtex_era_retire(11.98) 后，legacy_pkg_shim(12) 前 —— 稿自带件病灶族尾
     when: { category: emergency }
     condition:
       ctx_suggests: "\\\\Require(PDFTeX|LuaTeX|LuaMetaTeX)"
@@ -1059,7 +1059,7 @@ rules:
     provenance:
       - {
           corpus: "failmine4 soak-2026-09-18 15 fresh cells (2609.19149/2609.19158/2609.19990 +12, 4 sty md5 变体)",
-          error: "aaai2027.sty:{14,43,59,62}: Emergency stop —— \\RequirePackage{iftex}+\\RequirePDFTeX 引擎闸, 'pdfTeX is required to compile this document'",
+          error: "aaai2027.sty:{14,43,59,62}: Emergency stop —— \\RequirePackage{iftex}+\\RequirePDFTeX 引擎闸，'pdfTeX is required to compile this document'",
         }
     stats: { fires: 36, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine4/report.md (fresh 15 格同质桶) + tmp/lane-aaaiguard/"
@@ -1069,8 +1069,8 @@ rules:
   # (relocate 够不到), filemap/vendor/shim 面亦无供 (非 CTAN 件)。两臂:
   # (a) 版本缀漂移 sibling 唯一命中搬真件 (12step_dynamics_new↔
   # 12step_dynamics, 2210.03294 —— 真内容优于 stub); (b) 解析位 minimal
-  # 空 stub —— 丢该段保其余, 优于整格 unfixable。闸内自证缺席
-  # (wdir 全树零命中才 stub); 瞬态扩展名拒 (.aux/.bbl = 上游病灶信号,
+  # 空 stub —— 丢该段保其余，优于整格 unfixable。闸内自证缺席
+  # (wdir 全树零命中才 stub); 瞬态扩展名拒 (.aux/.bbl = 上游病灶信号，
   # stub 遮蔽真因 —— 2609.20323 main.aux 裁决沿); 表外扩展名让位
   # (.cls/.sty 走 install/shim 域)。
   # 2026-09-20 taxon2/pdfex+gapmine 扩 exts: \input{X.pdf_tex} 双缺席形
@@ -1081,9 +1081,9 @@ rules:
   # 不做 —— 零格需求。
   - id: doc_absent_stub
     mechanisms: [W19]
-    description: "doc 引用但 e-print 未带 .tex/.pdf_tex/.tikzstyles/.pgf/.tikz/.latex/.cfg → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
+    description: "doc 引用但 e-print 未带 .tex/.pdf_tex/.tikzstyles/.pgf/.tikz/.latex/.cfg → 版本缀 sibling 唯一命中搬真件，否则解析位空 stub"
     phase: loop
-    order: 12.95 # 全真件臂后末位兜底: install(10)/vendored(11.5)/shim(12/12.9) 皆 decline 才 stub —— pst-tools.tex 实证 .tex payload 可以是真 CTAN 件
+    order: 12.95 # 全真件臂后末位兜底：install(10)/vendored(11.5)/shim(12/12.9) 皆 decline 才 stub —— pst-tools.tex 实证 .tex payload 可以是真 CTAN 件
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
@@ -1112,13 +1112,13 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "m1k 2210.03294 (4Num_Example/12step_dynamics_new.tex e-print 未带, 同目录 12step_dynamics.tex 漂移件在)",
-          error: "File `4Num_Example/12step_dynamics_new.tex' not found — doc \\input 活引用, e-print 缺档",
+          corpus: "m1k 2210.03294 (4Num_Example/12step_dynamics_new.tex e-print 未带，同目录 12step_dynamics.tex 漂移件在)",
+          error: "File `4Num_Example/12step_dynamics_new.tex' not found — doc \\input 活引用，e-print 缺档",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-docabsent/ (covgap-C #205 候选复核: agent.tex=幻影 ref / fairmeta+Content=relocate 域 / main.aux=瞬态拒 / pst-tools.tex=CTAN install 域)"
+    source_ref: "tmp/lane-docabsent/ (covgap-C #205 候选复核：agent.tex=幻影 ref / fairmeta+Content=relocate 域 / main.aux=瞬态拒 / pst-tools.tex=CTAN install 域)"
 
-  # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
+  # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名，greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
   # 裸 `polytonicgreek` 选项反而炸 —— \languageattribute{greek} 要求 greek
@@ -1127,11 +1127,11 @@ rules:
   # 2026-09-19 babelinv 补源: 裸 `polytonicgreek` 同收为源 —— babel-greek
   # 缺位时报 Unknown option 'polytonicgreek' (live repro 实证), 改写后
   # greek.ldf 由 babel_lang_ldf_install 装、tuenc-greek.def 由
-  # greek_fontenc_install 补, 链收口净编译。
+  # greek_fontenc_install 补，链收口净编译。
   - id: babel_opt_polutoniko_rewrite
     description: "babel 弃名 polutonikogreek / greek.polutoniko / polytonicgreek → greek.polytonic (ini 机制)"
     phase: loop
-    order: 13 # babel_lang_ldf_install(11) 之后: 装得上真 ldf 的先装, 此条兜无档语言
+    order: 13 # babel_lang_ldf_install(11) 之后：装得上真 ldf 的先装，此条兜无档语言
     when: { category: babel_opt, payload_required: false }
     condition:
       any:
@@ -1169,7 +1169,7 @@ rules:
               repl: "\\g<1>greek.polytonic",
             }
     risk: low # 同语言现行属性形; ini 路由 XeTeX 原生支持
-    known_gap: "\\selectlanguage{polutonikogreek} 等正文引用不改 (选项修正后 greek 语言在位, 旧名引用 babel 兼容层接住); 需 babel ≥3.x ini 机制"
+    known_gap: "\\selectlanguage{polutonikogreek} 等正文引用不改 (选项修正后 greek 语言在位，旧名引用 babel 兼容层接住); 需 babel ≥3.x ini 机制"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1185,15 +1185,15 @@ rules:
   # 弃名 —— 现行 ini/ldf 双侧皆无名 (babel-francais.tex/francais.ldf/
   # frenchb.ldf 皆不在 TL, tlpdb 逐名核实), install 路必 decline; 正名
   # french 才是真档 (ini babel-french.tex → \BabelDefinitionFile{0}{french}
-  # → french.ldf, filemap 钉在位, babel_lang_ldf_install 装好收口)。
+  # → french.ldf, filemap 钉在位，babel_lang_ldf_install 装好收口)。
   # 改名要盖全语言名位: 选项括号 + PassOptions 首参 + 正文 \selectlanguage
   # /\foreignlanguage/\iflanguage + otherlanguage/hyphenrules 环境参 ——
   # 漏正文引用会留 'francais' 未声明残错 (babel_undef 注入路会把弃名
-  # 再灌回选项表 → 死循环尾巴, 故同一条规则一次改净)。
+  # 再灌回选项表 → 死循环尾巴，故同一条规则一次改净)。
   - id: babel_opt_francais_rewrite
     description: "babel 弃名 francais/frenchb → french (选项表 + 正文语言引用全位改写)"
     phase: loop
-    order: 13.5 # install(11)/polutoniko(13) 后: install decline 同轮即补
+    order: 13.5 # install(11)/polutoniko(13) 后：install decline 同轮即补
     when: { category: babel_opt, payload_required: false }
     condition: { source_contains: "\\bfrancais\\b|\\bfrenchb\\b" }
     action:
@@ -1221,7 +1221,7 @@ rules:
               pattern: "(\\\\begin\\{(?:otherlanguage\\*?|hyphenrules)\\}\\s*\\{)\\s*(?:francais|frenchb)\\s*(\\})",
               repl: "\\g<1>french\\g<2>",
             }
-    risk: low # francais 在现代 babel 双侧皆无名, 改写无歧义; french 正形
+    risk: low # francais 在现代 babel 双侧皆无名，改写无歧义; french 正形
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -1234,11 +1234,11 @@ rules:
     source_ref: "tmp/lane-babel/ 2026-09-19: babel-francais.tex/francais.ldf 皆 NOT-IN-TL (tlpdb 核实)"
 
   # 2026-09-19 babel 车道: babel_undef (语言本体未声明) 消费规则 —— 稿面
-  # \selectlanguage/\iflanguage 引用选项表外语言, 或 ldf 自带 AtBeginDocument
+  # \selectlanguage/\iflanguage 引用选项表外语言，或 ldf 自带 AtBeginDocument
   # 钩引姊妹名 (babel-german.def:739 \iflanguage{ngerman} —— Arch xelatex
   # 格式零非英 \l@* → [german] 装好 ldf 后仍炸此签)。修法=把 payload 语言
-  # 名补进 babel 选项表头: babel 主语言=选项表末项, 头插永不夺主位; 语言
-  # 本体经 ini/ldf 路由自解析, 缺档下轮回 babel_opt → install 链接手。
+  # 名补进 babel 选项表头: babel 主语言=选项表末项，头插永不夺主位; 语言
+  # 本体经 ini/ldf 路由自解析，缺档下轮回 babel_opt → install 链接手。
   # 自限: 每 payload 只火一次 (applied 键去重), 伪名注入变 Unknown option
   # 后 install decline → unfixable 归因不变 (稿本来就炸)。
   - id: babel_undeclared_option
@@ -1303,7 +1303,7 @@ rules:
         mode: degrade
         degrade: ctan_fetch # tfm 文件可落工作目录直接可用
         fallback: advisory
-        note: "updmap 不存在: TFM 直读不需要 map; 若后端还要 pfb map → escalate"
+        note: "updmap 不存在：TFM 直读不需要 map; 若后端还要 pfb map → escalate"
     provenance:
       - {
           corpus: "1511.06432/1512.03385/1810.04805/2106.09685 baseline",
@@ -1315,23 +1315,23 @@ rules:
 
   # 2026-09-20 tfmhoist 车道 (tfmcen 普查 13 格全中机理): e-print 自带私有
   # .tfm 驻子目录 (assets/optimistic.tfm / NVIDIA-Sans-Font-TTF/*.tfm /
-  # seed/bytesans.tfm / template/assets/tfss.tfm) —— TeX 侧经路径限定名可解,
+  # seed/bytesans.tfm / template/assets/tfss.tfm) —— TeX 侧经路径限定名可解，
   # xdvipdfmx 按 \pdfmapline 裸名走 TFMFONTS 只认 compile cwd 扁平位 →
   # "Unable to find TFM file" fatal + xelatex SIGPIPE (rc=141)。私有件非
   # CTAN → install_tfm(20) filemap 必 miss benign-decline, 本臂同轮接住:
   # builtin 定位 {payload}.tfm 所在目录后同目录 *.tfm 全量 hoist 到
-  # mp.parent (nvidia 7 兄弟逐轮单件烧轮次, relocate tree-mirror 同教训)。
+  # mp.parent (nvidia 7 兄弟逐轮单件烧轮次，relocate tree-mirror 同教训)。
   - id: driver_tfm_hoist
     description: "驱动层 'Unable to find TFM file X' → doc 自带子目录 *.tfm 全量提升到扁平解析位"
     phase: loop
-    order: 21 # install_tfm(20) 后: CTAN 可解名先走真装, 私有名 decline 同轮接住
+    order: 21 # install_tfm(20) 后：CTAN 可解名先走真装，私有名 decline 同轮接住
     when: { category: missing_tfm, payload_required: true }
     action:
       kind: builtin_transform
       function: driver_tfm_hoist
       params: {}
-    risk: low # 只拷 .tfm 不改源; 目标已占逐件跳, 幂等复火
-    known_gap: "hoist 目标 mp.parent —— main_rel 在子目录时 tfm 落 sub/ 而 compile cwd 若仍在根则仍不可达 (13 格 main 全在树根, 零实证)"
+    risk: low # 只拷 .tfm 不改源; 目标已占逐件跳，幂等复火
+    known_gap: "hoist 目标 mp.parent —— main_rel 在子目录时 tfm 落 sub/ 而 compile cwd 若仍在根则仍不可达 (13 格 main 全在树根，零实证)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # tectonic `error:` 形同签名 (2408.00714 实证)
@@ -1350,11 +1350,11 @@ rules:
   # 2026-09-18 C3 (stats 驱动, loop1 (id,arm) dedup 面): babel-greek 走 ldf
   # 路时 XeTeX 下 ldf 还要 greek-fontenc 的 tuenc-greek.def —— greek.ldf:118
   # \@ifl@aded{def}{tuenc-greek} 落空即 \bbl@error+\@@end 硬死 (ldf 注释
-  # 明写 "Install the greek-fontenc package or use polyglossia")。实态:
+  # 明写 "Install the greek-fontenc package or use polyglossia")。实态：
   # babel_lang_ldf_install(11) 装好 greek.ldf 而 def 缺 → 次轮 syntax
   # (err ctx 含 greek.ldf 路径); babel_opt:'greek' 轮报错文本本身亦含
   # "language definition file greek.ldf" —— 两类 err_head 同闸。
-  # filemap: tuenc-greek.def→greek-fontenc (lgrenc.def 同包, 8-bit 引擎并落)。
+  # filemap: tuenc-greek.def→greek-fontenc (lgrenc.def 同包，8-bit 引擎并落)。
   ## REVIEW(c3): 触发面仅限 err ctx 提到 greek.ldf/'greek' 选项的格;
   ## 对非 babel-greek 语境的 greek 提及不误伤 (pattern 含 .ldf/引号形)。
   - id: greek_fontenc_install

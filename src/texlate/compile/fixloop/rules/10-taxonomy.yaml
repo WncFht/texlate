@@ -5,7 +5,7 @@ version: 1
 # ════════════════════════════════════════════════════════════════
 # 第一层: 分类学 —— log → (category, payload)
 # 评估序: 存在错误行 ('!' 或 file-line `f.tex:N:` 形) 时按序首命中
-#         (scope:head, 输入=首错行+其后8行); 全文无错误行时评估
+#         (scope:head, 输入=首错行 + 其后 8 行); 全文无错误行时评估
 #         scope:tail 段 (输入=log 末 30 行);
 #         仍无命中但有 warning 命中 → scope:warnings 驱动 warn_* 类。
 # 对应 fixloop.py classify() L67-125。
@@ -31,8 +31,8 @@ taxonomy:
     }
   # 2026-09-16 第三种缺档措辞: `\PackageError` 自报 "Cannot find the
   # file X.ext" (无反引号对) —— textgreek.sty:39 lgrenc.def 实证
-  # (1706.02694/2308.00072/2410.06051 三格同墙, greek-fontenc 一包全解);
-  # 不盖 'File `X' not found' 主签名, 互补并列。
+  # (1706.02694/2308.00072/2410.06051 三格同墙，greek-fontenc 一包全解);
+  # 不盖 'File `X' not found' 主签名，互补并列。
   - {
       id: missing_file,
       scope: head,
@@ -51,7 +51,7 @@ taxonomy:
   #   `NFSS system isn't set up properly` 同窗 —— 可恢复 .fd 缺档
   #     (内核 substitution 成功无后续硬错) 不误路由。
   # payload=X.fd 原名 → install_file (font_related_exts 含 fd);
-  # 大小写桥在 _apply_install_file .fd 小写变体 (内核同序: 小写先探,
+  # 大小写桥在 _apply_install_file .fd 小写变体 (内核同序: 小写先探，
   # filemap `lgrcmr.fd`→cbfonts-fd, `LGRcmr.fd` 原名无键)。
   - {
       id: missing_file,
@@ -72,11 +72,11 @@ taxonomy:
       payload_group: 1,
       pattern: "did not find the tikz library '([^']+)'",
     }
-  # 2026-09-20 routeclean: jabbrv.sty 自报缺伴档两措辞 (PackageError 形,
+  # 2026-09-20 routeclean: jabbrv.sty 自报缺伴档两措辞 (PackageError 形，
   # file-line 头) —— e-print 只带 jabbrv.sty 不带 .ldf 伴档 (jabbrv ∉ TL
-  # 无包可装, install_file 索引恒 miss), 恒归 other 永远够不到 vendor
+  # 无包可装，install_file 索引恒 miss), 恒归 other 永远够不到 vendor
   # 面。payload=.ldf 名 → vendored_fetch 递 vendor/files 真档 (ltwa-all/
-  # ltwa-en/jabbrv.sty 三件套随包, 语料 4 独立稿逐字节同档; 2507.10677
+  # ltwa-en/jabbrv.sty 三件套随包，语料 4 独立稿逐字节同档; 2507.10677
   # "master abbreviation language file `X' was not found" / "Abbreviation
   # language `X' not found" 双形实证)。
   - {
@@ -87,7 +87,7 @@ taxonomy:
     }
   # 2026-09-20 taxon2 车道: fontspec 装载的 TU/ 编码 NFSS 字体缺载行
   # `Font TU/<fam>(<i>)/m/n/<sz>[=<ext>]/OT at <d>pt not loadable` —— TU 为
-  # fontspec 专属编码, 永不走 TFM; 旧落 missing_tfm 臂, 前缀 \S*? 膨胀到
+  # fontspec 专属编码，永不走 TFM; 旧落 missing_tfm 臂，前缀 \S*? 膨胀到
   # 末段 `/OT` 后零宽 \s* 抓 "OT" 作死 payload (soak-2026-09-18
   # 2609.19944 errs 12 条实证 missing_tfm|OT, install_tfm 恒 miss)。
   # 改归 fontspec_missing: payload=去 .otf/.ttf/.ttc 扩展名与 (N) 实例缀
@@ -115,7 +115,7 @@ taxonomy:
   # 2026-09-20 taxrow 车道 (taxcen missing_tfm_notloadable): 即时形
   # `Font \cs=name not loadable` —— \font 装载失败但不带
   # `at Npt|scaled N` 规格段 (2003.10901 `Font \NOTEN=musix13` /
-  # `Font \noten=musix11` 双签名实证)。规格臂在前先签, 本臂只见无规格
+  # `Font \noten=musix11` 双签名实证)。规格臂在前先签，本臂只见无规格
   # 残形; TU/ fontspec 行仍由更前 TU/ 臂截走 (2511.10135 fontawesome5
   # `=Name:script=latn;` 形不落本臂)。
   - {
@@ -131,11 +131,11 @@ taxonomy:
       pattern: "Metric \\(TFM\\) file[^\\n]*?([\\w-]+)\\.(tfm)",
     }
   # 2026-09-20 tfmhoist 车道 (tfmcen 普查 13 格全中): 下游驱动按裸名走
-  # TFMFONTS 只认 compile cwd 扁平位, doc 自带私有 .tfm 在子目录够不到 →
+  # TFMFONTS 只认 compile cwd 扁平位，doc 自带私有 .tfm 在子目录够不到 →
   # xdvipdfmx:fatal / tectonic `error:` 双形 (引号内裸名无 .tfm 缀)。TeX 侧
   # 错清完后签名经 _report_of stdout_tail 归一 (! xdvipdfmx:fatal: …) 才落
   # head 段——stacked-error 格语义正确: 上游错没清永远轮不到驱动层。
-  # 归 missing_tfm 非新类: install_tfm(20) 先尝 CTAN 可解名, 私有名 filemap
+  # 归 missing_tfm 非新类: install_tfm(20) 先尝 CTAN 可解名，私有名 filemap
   # 必 miss benign-decline → driver_tfm_hoist(21) 同轮接住归位。
   - {
       id: missing_tfm,
@@ -173,7 +173,7 @@ taxonomy:
       scope: head,
       pattern: "image inclusion failed for \"([^\"]+\\.[0-9]+)\"|Unable to load picture or PDF file '([^']+\\.[0-9]+)'",
     }
-  # 2026-09-20 taxon2 车道: fontspec 错文按 ~79 列折行, 折点随字体名长
+  # 2026-09-20 taxon2 车道: fontspec 错文按 ~79 列折行，折点随字体名长
   # 漂 (HaranoAjiMincho-Regular 在 be|found 间断行: `cannot be\n(fontspec)
   # found;` —— soak-2026-09-18 2609.19944 实证恒归 other|None)。三处关节
   # (引号→cannot→be→found) 各容忍一个 `(<pkg>)` 续行前缀 + 空白垫;
@@ -187,7 +187,7 @@ taxonomy:
   # 2026-09-20 taxrow 车道 (taxcen fontspec_bare): fontspec 裸头兜底 ——
   # 首错 `Package fontspec Error:` 但 head 窗内无 `font "X" cannot be
   # found` 签名时 (其他 fontspec 硬错措辞) 旧落 other|None; 排折行臂
-  # 之后, payload=None 由 fix 层自行 decline。
+  # 之后，payload=None 由 fix 层自行 decline。
   - {
       id: fontspec_missing,
       scope: head,
@@ -206,7 +206,7 @@ taxonomy:
       # 引号两形并收: `'?\X'? (ltcmd `'\X'`/裸 \X') 与 `` `\X' `` (老
       # \@ifdefinable/amssymb 系反引号签 —— failmine2: \Bbbk 族 23 cells
       # 曾落 other 无 payload, already_def_* 规则够不到)。Control
-      # sequence \X / Theorem style X 两签前缀不同, 天然不串线。
+      # sequence \X / Theorem style X 两签前缀不同，天然不串线。
       id: already_def,
       scope: head,
       payload_group: 1,
@@ -214,7 +214,7 @@ taxonomy:
     }
   - {
       # ntheorem 自检错 (Theorem style X already defined) —— amsthm/thmtools
-      # 预定义同名 th@X 样式撞车, payload=样式名 (非 cs 名)
+      # 预定义同名 th@X 样式撞车，payload=样式名 (非 cs 名)
       id: already_def,
       scope: head,
       payload_group: 1,
@@ -228,7 +228,7 @@ taxonomy:
   - { id: hyphenation, scope: head, pattern: "Not a letter" }
   - {
       # minted 缓存错配族：v3 "Missing definition for highlighting style"
-      # (doc 自带 v2 *.pygstyle + frozencache 禁再生 → styledef 落空, chronic347
+      # (doc 自带 v2 *.pygstyle + frozencache 禁再生 → styledef 落空，chronic347
       # 普查 1803.00188 等 5 格实证) 与 v2 "Cannot find Pygments style" 同桶。
       id: minted_froz,
       scope: head,
@@ -252,13 +252,13 @@ taxonomy:
       scope: head,
       pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
     }
-  # 冒犯 cs 取上下文"顶行"末位 (TeX 约定: 顶行末 token 即肇事者;
+  # 冒犯 cs 取上下文"顶行"末位 (TeX 约定：顶行末 token 即肇事者;
   # 宏展开时 l.N 行只是调用点——payload-scout-2026-09-17: 284/1146 存证
   # excerpt 抓到 \end/\maketitle 等调用点 cs, pdftex_prim 欠路由 ~23 格)。
   # head 内错误行重复两次 (first + ctx[0]), 必有后行; 顶行无 \cs 时本行
-  # 不命中, 由下行裸短语兜底 payload=None。尾部非可选——可选组会在行0
-  # 命中空串、永不锚到行1。旧"空 l.N 行"变体被顶行抓取完全吞并。
-  # cs 名分两支: [a-zA-Z@]+ 字母串 | 单字符 nonletter cs (\+/\~/\% 等,
+  # 不命中，由下行裸短语兜底 payload=None。尾部非可选——可选组会在行 0
+  # 命中空串、永不锚到行 1。旧"空 l.N 行"变体被顶行抓取完全吞并。
+  # cs 名分两支: [a-zA-Z@]+ 字母串 | 单字符 nonletter cs (\+/\~/\% 等，
   # TeX 规定 nonletter cs 恰一字符)——b3a texlog 实证 \+ payload=None。
   # 2026-09-20 taxonfix 车道: 提取移交 payload_scan python 提取器 (regex
   # 仍作匹配门)——\GenericError-led ctx 顶行末位是内核错误渲染宏 (真
@@ -276,7 +276,7 @@ taxonomy:
   # 2026-09-19 failmine2 (~13 cells): `\renewcommand`/`\RenewCommandCopy`
   # 对未定义 cs 的内核签 "Command \X undefined" (latex.ltx \renew@command,
   # `\X' 反引号形为 \MakeRobust) —— 定义点缺位与用点 "Undefined control
-  # sequence" 同语义, 归同类携 cs payload → cs_targeted_fix 表查询。
+  # sequence" 同语义，归同类携 cs payload → cs_targeted_fix 表查询。
   # natbib.sty:1070 \renewenvironment{thebibliography} 内 \renewcommand
   # \newblock 实证面 (老类/shim 无 \newblock 定义: 1109.6007/1306.0551/
   # astro-ph/0501240); "was never defined" 措辞形天然不落本签。
@@ -288,8 +288,8 @@ taxonomy:
     }
   # capacity payload 走 python 提取器 (payload_scan 注册表, logparse):
   # ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 归一 tag + ctx
-  # 首层 pending cs → ``<tag>|<cs>`` —— triage 路由键: input_stack=递归,
-  # main_memory=暴走, save_size=组泄漏 (capacity-scout-2026-09-17 4/4 格
+  # 首层 pending cs → ``<tag>|<cs>`` —— triage 路由键: input_stack=递归，
+  # main_memory=暴走，save_size=组泄漏 (capacity-scout-2026-09-17 4/4 格
   # 皆 input_stack)。pattern 保裸签名: bracket 折行/截断时仍归 capacity,
   # 提取退 ``<tag>``/``?|<cs>``/None 不失类。
   - id: capacity
@@ -341,7 +341,7 @@ taxonomy:
       pattern: "Environment ([A-Za-z@*]+) undefined",
     }
   # pkg_obsolete ×6: TL 自带废弃包 stub 自报错 ("Package `amstex' is
-  # obsolete" / 直引号形) —— payload=包名, cs_targeted_fix 表查
+  # obsolete" / 直引号形) —— payload=包名，cs_targeted_fix 表查
   # strip_pkg+usepackage。
   - {
       id: pkg_obsolete,
@@ -352,7 +352,7 @@ taxonomy:
   # 2026-09-20 taxrow 车道 (taxcen pkg_opt_removed): 选项级废弃措辞
   # —— glossaries 自报 `obsolete package option `X' has been removed`
   # (2203.08887 `smallcaps` 实证), 与包级 `Package `X' is obsolete`
-  # 同桶分形, payload=选项名。
+  # 同桶分形，payload=选项名。
   - {
       id: pkg_obsolete,
       scope: head,
@@ -369,15 +369,15 @@ taxonomy:
     }
   # 2026-09-20 extless 车道 (failmine4 9-cell 实录: 0812.0404/0812.0413/
   # 2501.01277/2501.01445/2502.00504/2504.06300/2504.06571/2504.06813/
-  # 2505.06480): \includegraphics{X}/\fig{..}{X} 无扩展名引用, 资产在所
+  # 2505.06480): \includegraphics{X}/\fig{..}{X} 无扩展名引用，资产在所
   # 有试扩名下缺席 → graphicx \Gin@i 经 \@latex@error 落
   # `File `X' not found.` (裸 basename——前列 missing_file 臂要
-  # `\.[a-zA-Z0-9_]+` 扩展名够不着, 原落 other|None 零规则可派发)。
+  # `\.[a-zA-Z0-9_]+` 扩展名够不着，原落 other|None 零规则可派发)。
   # 图形证据 = errhelp `I could not locate the file with any of these
-  # extensions:` —— 仅 graphicx \Gin@i 错误路径落盘, 恒居错误行 +8
+  # extensions:` —— 仅 graphicx \Gin@i 错误路径落盘，恒居错误行 +8
   # (恰出 ctx8 右缘) → 走 use_post 扩展窗; l.N 回显行的 graphic cs
   # (\includegraphics/\includepdf/\epsfig/\pgfimage) 为同窗旁证——
-  # PoSlogo 钩 (\AtBeginDocument 装载, l.N 回显 `\begin{document}`) 与
+  # PoSlogo 钩 (\AtBeginDocument 装载，l.N 回显 `\begin{document}`) 与
   # 参数折行截断形态下回显无 cs, errhelp 仍是定证。无证据保守落 other:
   # \lstinputlisting/\verbatiminput 型 ext-less producer 发不出该
   # errhelp, taxonfix GenericError 语义不扰。tempered 前瞻禁跨后续错误
@@ -394,8 +394,8 @@ taxonomy:
     }
   # 2026-09-20 taxrow 车道 (taxcen graphic_nobb + file_open_fail): 图形
   # 缺档两残措辞 —— `Cannot determine size of graphic in X (no
-  # BoundingBox)` (graphicx 尺寸探测败, 1404.0103 graphbelow.jpg) 与
-  # `Could not open file X, ignoring it.` (epsf/老式图形读取器,
+  # BoundingBox)` (graphicx 尺寸探测败，1404.0103 graphbelow.jpg) 与
+  # `Could not open file X, ignoring it.` (epsf/老式图形读取器，
   # astro-ph/9703200 86efield9.eps)。payload=文件名同族归
   # missing_graphic。
   - {
@@ -414,7 +414,7 @@ taxonomy:
   # 源图缺席报 ``Package svg Error: File `X.svg' is missing`` —— 措辞既非
   # ``not found`` 亦非 ``Unable to load`` 落 other 零派发。payload 限 .svg
   # 后缀: 包自产中间件 ``*_svg-tex.pdf`` 缺席系 svg_prepare (45-graphics
-  # order 9, when other) 固有域, 不抢; 真缺 .svg 走 missing_graphic →
+  # order 9, when other) 固有域，不抢; 真缺 .svg 走 missing_graphic →
   # svg_missing_demote 降级 includegraphics 后 placeholder 补桩。
   - {
       id: missing_graphic,
@@ -442,8 +442,8 @@ taxonomy:
     }
   # 2026-09-19 babel 车道: 语言本体未声明错 (区别于选项不认识的 babel_opt)
   # —— \selectlanguage/\iflanguage/ldf AtBeginDocument 钩引用了选项表外的
-  # 语言名 (babel-german.def:739 \iflanguage{ngerman} 无条件钩实证: [german]
-  # 装好 ldf 后格式无 \l@ngerman → 本签)。payload=语言名, 消费规则=
+  # 语言名 (babel-german.def:739 \iflanguage{ngerman} 无条件钩实证：[german]
+  # 装好 ldf 后格式无 \l@ngerman → 本签)。payload=语言名，消费规则=
   # babel_undeclared_option 向选项表头补名 (非主语言位)。
   - {
       id: babel_undef,
@@ -473,13 +473,13 @@ taxonomy:
       pattern: "Package (\\w+) Error: \\w+ must be loaded (?:before|after)",
     }
   # 2026-09-16 repro-2501 缺陷B: 色名参槽被译文/mock 污染 ({blue}→'这是译文')
-  # → (x)color Undefined color; payload=色名, 供 undefined_color_fallback 兜底。
+  # → (x)color Undefined color; payload=色名，供 undefined_color_fallback 兜底。
   # 2026-09-19 colorquote: 真实发射是 TeX 引法 `X' (ledger 实证 xcolor/color/
   # 内核 LaTeX Error 三发行方; 直引形仅兼容收) —— 原直引 pattern 零命中 ~44
   # cells 落 other。
   # 2026-09-20 taxrow 车道 (taxcen color_model_undef): `Undefined color
-  # model `X'` 变体并收 (2407.18070/2410.17954 实证, 模型名非色名 ——
-  # payload 语义按提案同桶归类, 消费侧自行分辨)。
+  # model `X'` 变体并收 (2407.18070/2410.17954 实证，模型名非色名 ——
+  # payload 语义按提案同桶归类，消费侧自行分辨)。
   - {
       id: undefined_color,
       scope: head,
@@ -490,16 +490,16 @@ taxonomy:
   # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
   # 2026-09-20 taxrow 车道 (taxcen pgfkeys_unknown + xkeyval_err): 同族
   # 两措辞并收 —— pgfkeys `I do not know the key 'X', to which you
-  # passed...` (键路径可带空格, `[^']+` 全捕) 与 xkeyval `Package
+  # passed...` (键路径可带空格，`[^']+` 全捕) 与 xkeyval `Package
   # xkeyval Error: `X' undefined in families `Y'`。payload_group 缺省 =
-  # 首个非空组: l3keys→组1, pgfkeys→组2, xkeyval→组3。
+  # 首个非空组: l3keys→组 1, pgfkeys→组 2, xkeyval→组 3。
   - {
       id: key_unknown,
       scope: head,
       pattern: "The key '([\\w@./-]+)' is unknown and is being ignored|I do not know the key '([^']+)'|Package xkeyval Error: [`']([^`']+)' undefined",
     }
   # 2026-09-17 fixer-apjbbx: biblatex \patchcmd 失败走 PackageError
-  # (file-line-error 形, 可无 '!' 前缀) —— bundled .bbx 撞 3.8+ 改名宏。
+  # (file-line-error 形，可无 '!' 前缀) —— bundled .bbx 撞 3.8+ 改名宏。
   - {
       id: cannot_patch_macro,
       scope: head,
@@ -521,10 +521,10 @@ taxonomy:
       pattern: "Text line contains an invalid character",
     }
   # ── 2026-09-20 cjkchar 车道 (#290, singlesweep cjk-pkg-invalid-char 2 格) ──
-  # CJK 包自报同族错形: 非 UTF-8 字节进 CJKutf8/CJK 解码面才炸, 措辞非
+  # CJK 包自报同族错形: 非 UTF-8 字节进 CJKutf8/CJK 解码面才炸，措辞非
   # 内核 "Text line contains..." —— 硬错在 head 段恒归 other|None 无
   # 路由 (1607.00157 file-line 形 main.tex:58 / 2601.07372 main.tex:222,
-  # 1206.0266 tectonic `! ` 形, 三形同句)。归 invalid_char 后
+  # 1206.0266 tectonic `! ` 形，三形同句)。归 invalid_char 后
   # invalid_char_recode(97) 接续——非 UTF-8 源格 (1607.00157
   # .tex+.cls decode-fail 实证) 转码即解; 全 UTF-8 格 recode 自
   # decline 不误伤 (转码只对 decode-fail 文件动刀)。
@@ -543,7 +543,7 @@ taxonomy:
   # 包文件 ("Critical Package X Error: Your LaTeX release is too old") ——
   # tlmgr/tlnet 只发最新版, 对运行期 format/L3 过新 (2308.12712 实证:
   # _texmf nicematrix v7.11c 要 format ≥2026-06-01, runtime LaTeX2e
-  # 2025-11-01; ctan_fetch version_guard 只兜 tectonic 臂, xelatex tlmgr
+  # 2025-11-01; ctan_fetch version_guard 只兜 tectonic 臂，xelatex tlmgr
   # 通路无闸)。payload=file-line 前缀 basename → pkg_version_skew_vendored
   # 规则以 vendor 兼容钉版平铺遮蔽。Class 与 msg_error 级同签并收;
   # ``too old`` 限定把版本闸与其他 critical 错分开 (错路由风险零化)。
@@ -556,8 +556,8 @@ taxonomy:
   # 2026-09-20 taxrow 车道 (taxcen pkg_version_need): 版本闸另一措辞族
   # —— `Package X Error: ... need at least version` / `version ... too
   # old` / `requires ... version` (caption.sty cooperation nag
-  # 2211.13002 实证, 前臂要 file-line 前缀 + `too old` 窗词两条件皆不
-  # 沾)。`!`/file-line 两形无锚并收, payload=包名。
+  # 2211.13002 实证，前臂要 file-line 前缀 + `too old` 窗词两条件皆不
+  # 沾)。`!`/file-line 两形无锚并收，payload=包名。
   - {
       id: pkg_version_skew,
       scope: head,
@@ -567,20 +567,20 @@ taxonomy:
   # ── 2026-09-19 citemath 匝道 ──
   # ``Command \X invalid in math mode`` —— \not@math@alphabet 签名。
   # 主战场: natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}``
-  # 无盒裸置, 数学域内裸 ``\cite`` 展开即炸 (gr-qc/9901082; citemath 车道
+  # 无盒裸置，数学域内裸 ``\cite`` 展开即炸 (gr-qc/9901082; citemath 车道
   # 实证: halt_on_error 死在 thebibliography 前 → \bibcite 不落 .aux
   # → 自续)。同签亦由字面 ``{\bfseries X}`` 数学域误用触发——路由到此
-  # 类即可, cite_in_math_mbox 规则对无 cite token 面自然 decline。
+  # 类即可，cite_in_math_mbox 规则对无 cite token 面自然 decline。
   # 须在 syntax 前: syntax 交替含 ``improper``/``allowed only in math``
-  # 但不盖本句式, 占位顺序只是为 head 段确定性求早评。
-  # ``LaTeX Error:`` 前缀必带: ``\@latex@error`` 恒产此前缀, 而
+  # 但不盖本句式，占位顺序只是为 head 段确定性求早评。
+  # ``LaTeX Error:`` 前缀必带：``\@latex@error`` 恒产此前缀，而
   # ``LaTeX (Font )?Warning: Command \X invalid in math mode`` 是同句式
-  # 软警告 (\r/\small/\sc 族, 非 \not@math@alphabet 硬报)——不锚前缀
+  # 软警告 (\r/\small/\sc 族，非 \not@math@alphabet 硬报)——不锚前缀
   # 会被首错后 ctx8 窗内的警告行抢签误路由 (loop1 多格带此警告)。
   # 2026-09-20 taxrow 车道 (taxcen invalid_in_math_braced): `\end{env}`
   # 花括号参形 —— `Command \end{lemma} invalid in math mode` 中 `{lemma}`
   # 夹在 cs 与 ` invalid` 之间击败邻接假设 (2410.17903 实证);
-  # `(?:\{[^}]*\})?` 可选参段兼容, payload 仍取 cs 名 (`end`)。
+  # `(?:\{[^}]*\})?` 可选参段兼容，payload 仍取 cs 名 (`end`)。
   - {
       id: invalid_in_math,
       scope: head,
@@ -589,11 +589,11 @@ taxonomy:
     }
   # ── 2026-09-19 arraypream 车道 (arraypream-2026-09-19 普查) ──
   # array.sty \@mkpream 拒收签名: "Illegal pream-token (\X): `c' used."
-  # (Package array Error 前缀, '!' 或 file-line 形皆有)。aastex 时代
+  # (Package array Error 前缀，'!' 或 file-line 形皆有)。aastex 时代
   # 列型宏 (\@delspec/\pt@format 族) 漏进 tabular 头——kernel \@xexpast
-  # 全展开能吃, array 重写只认 *-repeat 与 \NC@ 名, 其余宏留字面条目。
+  # 全展开能吃，array 重写只认 *-repeat 与 \NC@ 名，其余宏留字面条目。
   # payload=cs 名 (无反斜杠), 供 pream_token_cs_expand 改写 (def-站
-  # \edef 烘焙 + call-站 \expandafter + 类let 中和)。\\ 必带把 CJK
+  # \edef 烘焙 + call-站 \expandafter + 类 let 中和)。\\ 必带把 CJK
   # 字面 token (这/是/译/文 系 ~54 条——译文漏进 preamble 的另一机制)
   # 挡在本类之外落 syntax。
   # 须在 syntax 前: syntax 交替含 "Illegal" 宽词会抢签。
@@ -608,15 +608,15 @@ taxonomy:
   # (kernel \@latex@error), file-line/``!`` 两形皆有:
   # (a) ``Command \X unavailable in encoding TU`` —— cs 只声明在 PU 等旧
   #     enc (hyperref puenc.def \DeclareTextCommand 盖过稿自带
-  #     \providecommand 兜底), TU 下调用即报, payload=cs 名;
+  #     \providecommand 兜底), TU 下调用即报，payload=cs 名;
   # (b) ``Encoding scheme `E' unknown`` —— 源面 \usefont/\fontencoding{E}
   #     直选未声明 enc (easycyrsymbol T2A 族), payload=enc 名;
   # (c) ``Font family `E+F' unknown`` —— \DeclareFontShape{E}{F} 时家族
   #     未声明 (times.sty + AtBeginDocument T1+ptm 实证; E 已声明是
   #     本签成立前提——E 未声明会先报 (b)), payload="E+F"。
-  # 归 nfss_enc 单类 payload 分形, 65-encoding.yaml 三臂按签名复述
+  # 归 nfss_enc 单类 payload 分形，65-encoding.yaml 三臂按签名复述
   # ctx_suggests 分流 (aux_purge_regen 同构)。须在 syntax 前占位:
-  # syntax 宽词不盖本句式, 早评只为 head 段确定性。
+  # syntax 宽词不盖本句式，早评只为 head 段确定性。
   - {
       id: nfss_enc,
       scope: head,
@@ -638,15 +638,15 @@ taxonomy:
   # ── 2026-09-20 taxrow 车道 (taxcen 普查: other|None 实缺 224
   #   cells → 79 phrasing clusters → 56 提案覆盖 223/224;
   #   rows.json + clusters_raw.json 逐行实证) ──
-  # 新类簇按 verbatim 证据形收录, 各签现行全归 other|None —— 排在
+  # 新类簇按 verbatim 证据形收录，各签现行全归 other|None —— 排在
   # syntax 宽词族前只是为 head 段确定性求早评: 全部措辞均不含 syntax
-  # 交替词, 与既有臂互不串线; 同族新臂 (missing_file 裸名/missing_tfm
+  # 交替词，与既有臂互不串线; 同族新臂 (missing_file 裸名/missing_tfm
   # 即时形/fontspec 裸头/missing_graphic 两残形/pkg_version_skew 版本
   # 措辞/pkg_obsolete 选项级/key_unknown pgfkeys+xkeyval/undefined_color
   # model 变体/invalid_in_math 花括参/runaway_scan expl3 名) 已在各自
-  # 家族位插入, 本块只收全新类 id。
+  # 家族位插入，本块只收全新类 id。
   # —— 包/类自报硬错族 (Package|Class X Error) ——
-  # bib_compat ×25 (最大单簇): natbib bibpunct/citestyle 错配 aux 态错,
+  # bib_compat ×25 (最大单簇): natbib bibpunct/citestyle 错配 aux 态错，
   # payload=引证式 (author-year|numbers)。
   - {
       id: bib_compat,
@@ -657,7 +657,7 @@ taxonomy:
   # unknown_option ×13: 内核通用不识选项错 (区别于 babel_opt/float_opt
   # 包专属臂) —— 引法 `` `x' ``/`'x'` 两形、包名带不带引皆见
   # (` compress' natbib / 'hiresbb' xcolor / `whole' bxcjkjatype 实证);
-  # payload=选项名 (组1, 组2 为包名备查)。
+  # payload=选项名 (组 1, 组 2 为包名备查)。
   - {
       id: unknown_option,
       scope: head,
@@ -695,7 +695,7 @@ taxonomy:
       pattern: "Class \\w+ Error: An attempt to redefine (\\\\[A-Za-z@]+)",
     }
   # cls_unsupported ×2: revtex 时代不支持 cs 硬错 (\and 实证),
-  # 组1=类名, payload=cs (组2)。
+  # 组 1=类名，payload=cs (组 2)。
   - {
       id: cls_unsupported,
       scope: head,
@@ -762,7 +762,7 @@ taxonomy:
   # patch_fail ×5: 通用宏补丁失败三措辞 —— `\cs could not be patched`
   # (\@combinedblfloats) / `Patching \cs failed` (biblatex
   # \MakeUppercase) / 裸 `patch failed.`; payload=首个非空组 (裸形无组
-  # →None)。cannot_patch_macro 臂只盖 bib/cite 措辞, 语义分行。
+  # →None)。cannot_patch_macro 臂只盖 bib/cite 措辞，语义分行。
   - {
       id: patch_fail,
       scope: head,
@@ -808,7 +808,7 @@ taxonomy:
       pattern: "Too many symbol fonts declared|Symbol font [`']([\\w@]+)' (?:is )?not defined",
     }
   # nfss_setup ×11 (bare-NFSS 兜底臂): `NFSS system isn't set up
-  # properly` 无 `^No file X.fd` 探测行时, 前列 use_pre missing_file 臂
+  # properly` 无 `^No file X.fd` 探测行时，前列 use_pre missing_file 臂
   # 够不着 —— 双证在场仍归 missing_file|X.fd (评估序), 裸 NFSS 中止
   # 归本类 payload=None。
   - {
@@ -846,7 +846,7 @@ taxonomy:
     }
   # cs_mismatch ×11: 定界宏参形错配 (csdefmismatch 车道修过 5) ——
   # 交替三支: 字母串 cs / 单字符 nonletter / `\<space>` 空格 cs
-  # (`Use of \  doesn't` 双空格实证形; 提案 `\\\S` 漏此支, 补 `\\ `)。
+  # (`Use of \  doesn't` 双空格实证形; 提案 `\\\S` 漏此支，补 `\\ `)。
   - {
       id: cs_mismatch,
       scope: head,
@@ -864,7 +864,7 @@ taxonomy:
   # lr_mode ×2: LR-mode 限制 (vmode_prim 同族异措辞)。
   - { id: lr_mode, scope: head, pattern: "Not allowed in LR mode" }
   # incomplete_if ×3: `Incomplete \if*; all text was ignored` ——
-  # ifclose/ifprot 修复臂的签名面, payload=条件 cs。
+  # ifclose/ifprot 修复臂的签名面，payload=条件 cs。
   - {
       id: incomplete_if,
       scope: head,
@@ -872,7 +872,7 @@ taxonomy:
       pattern: "Incomplete (\\\\if\\w*); all text was ignored",
     }
   # extra_brace ×5: `Too many }'s` 非对称闭括号 (syntax 交替无
-  # 'Too many' 词, 独立成行)。
+  # 'Too many' 词，独立成行)。
   - { id: extra_brace, scope: head, pattern: "Too many }'s" }
   # —— 数值/数学/排版引擎错族 ——
   # display_math_close ×2 / dim_overflow ×5 / arith_overflow ×1 /
@@ -902,7 +902,7 @@ taxonomy:
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
-  # Extra \\end 已由 env_mismatch 先行接住, 不重复列)。
+  # Extra \\end 已由 env_mismatch 先行接住，不重复列)。
   - id: syntax
     scope: head
     pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
@@ -911,12 +911,12 @@ taxonomy:
   # 故 `^.` 即「有签名错」全量覆盖。
   # 旧写 `^!` 漏 file-line 形: 无 head 签的 file-line 首错落 tail 段被
   # early_eof 吞 (W126: 0806.2594 TUletters / astro-ph/0408240 natbib-aux
-  # 实证, \begin{document} 期 aux 读/字体声明错皆此形)。
+  # 实证，\begin{document} 期 aux 读/字体声明错皆此形)。
   - { id: other, scope: head, pattern: "^." } # 兜底: 有错误行必命中
   # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
   # preempts: 致命尾错夺弱 head 类的路由 (regress4-2410.00012: chemgreek
-  # 缺档是真杀手, 此前永远被上游包内 undefined_cs 抢路由)。early_eof
-  # 不挂——零页是后果不是可修因, 抢占会盖住可行动的 head 错。
+  # 缺档是真杀手，此前永远被上游包内 undefined_cs 抢路由)。early_eof
+  # 不挂——零页是后果不是可修因，抢占会盖住可行动的 head 错。
   - {
       id: missing_file,
       scope: tail,
@@ -935,7 +935,7 @@ taxonomy:
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
   # preempts [other]: `^.` 兜底后 file-line 形签名错恒归 other, 旧经裸
   # tail 评估可达的「file-line 错 + 尾段 2.09 横幅 → latex209」路由由此
-  # 保留 (other 是唯一可夺类, 真签名类不被抢)。
+  # 保留 (other 是唯一可夺类，真签名类不被抢)。
   - {
       id: latex209,
       scope: tail,
@@ -943,7 +943,7 @@ taxonomy:
       preempts: [other],
     }
   # —— cls/sty 「求档文」尾段: 类文件内部 \IfFileExists 失败→\stop 死路
-  #   (aastex61 "Please update your system to include revtex4-1.cls" 实证:
+  #   (aastex61 "Please update your system to include revtex4-1.cls" 实证：
   #   \stop 夹在条件内 → \end occurred incomplete, 无 '!' 无 missing_file
   #   行) —— plea 提出的文件名即 actionable payload, 归 missing_file 让
   #   install/shim 链接手; 须排在 early_eof 之前 (同尾共存时 plea 优先) ——
@@ -975,11 +975,11 @@ taxonomy:
   - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/spec/compile.md non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
   # 版面缺陷入口 (qc 补票格的 log 驱动面; 序位在缺字族后——缺字语义
-  # 损伤更重, 同命中时先分诊)
+  # 损伤更重，同命中时先分诊)
   - { id: warn_overfull, scope: warnings, warn_id: overfull_hbox } # qc layout:overfull/geo_margin_breach 同根
   - { id: warn_float_big, scope: warnings, warn_id: float_too_large } # qc layout:float_lost/float_fit 同根
   # ── 2026-09-28 qc-impl warn 段扩展 (序即语义) ——
-  # warn_bbl_version 先于 warn_undef_ref: 陈旧 .bbl 格两签共存, bbl 再生
+  # warn_bbl_version 先于 warn_undef_ref: 陈旧 .bbl 格两签共存，bbl 再生
   #   是根因修复 (cite-undef 表象随 regen+needs_pass 自愈); 反序会让
   #   undef_ref 消费臂先烧轮而 bbl 永不到场。消费臂见 80-bib.yaml。
   - { id: warn_bbl_version, scope: warnings, warn_id: bbl_version } # biblatex 拒载旧 .bbl 头标 → bbl_version_regen
@@ -987,6 +987,6 @@ taxonomy:
   # overfull_vbox 不另立伪类别——vbox 专属臂 (vbox_geometry_clamp) builtin
   #   未注册缺席; 别名行把 vbox 警告格送 warn_overfull 消费族
   #   (tabular_fit/math_run_break/display_math_shrink/gfx_width_clamp 各臂
-  #   source_contains 自门, 不中即 dirty_pdf 诚实裁决)。
+  #   source_contains 自门，不中即 dirty_pdf 诚实裁决)。
   - { id: warn_overfull, scope: warnings, warn_id: overfull_vbox } # Overfull \vbox → warn_overfull 复用
   # 都不中: err 为空 → clean; err 非空 → other

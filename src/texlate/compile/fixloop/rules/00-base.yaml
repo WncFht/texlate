@@ -7,21 +7,21 @@
 #
 # rules.yaml — fixloop 编译修复规则表 (schema v1.1)
 #
-# 来源: bench/py/fixloop.py 原型 (冷 TEXMFHOME, 22 格, 16/16 救回) 的
+# 来源: bench/py/fixloop.py 原型 (冷 TEXMFHOME, 22 格，16/16 救回) 的
 # 硬编码修复逻辑 → 数据化; 另并入 docs/spec/compile.md 实证缺口回填的 9 条新规则。
 # 2026-09-15 旧批 40 篇实测整改: eps_route 由 fileset 静态拒改
 # log 确证 (ps_image taxonomy + eps_to_pdf 救回 + 兜底拒); pstricks 独立成
 # pstricks_route; legacy_pkg_shim 接住退役包; aastex_bundle_shadow 遮蔽
 # tectonic 内置老类 (aastex 5.0rc3); journal_cs_polyfill 补期刊缩写宏;
 # undefined_cs payload 改抓 l.N 行末 cs 名; latex209 gate 修行锚定防注释误杀。
-# 整改后 tectonic 臂 FAIL→pdf 1/16→12/16, reject 21→10 格, union pdf
+# 整改后 tectonic 臂 FAIL→pdf 1/16→12/16, reject 21→10 格，union pdf
 # 32→34/40, 零回归。missing_tfm 对账: 全 8 格经 install_tfm 修复、零
 # unfixable; astro-ph/0306068 xelatex 的 unfixable:other 实系 wdir 自带
 # 化石类 caps.cls (1997 CUP) 手工重实现 tabular 内核 (\hbox\bgroup$ +
 # \@tabarray + \ifnum0=`} 技巧) 与 LaTeX2e≥2024 内核不兼容 —— 任意
 # \chapter 即炸 "Extra }, or forgotten $.", 可恢复错被 halt-on-error
 # 提升为致命; tectonic bundle LaTeX2e 2021 不受影响 → clean。判为正确
-# 裁决 (修需改写对方 cls 内核, 无可泛化规则), 留痕备查。
+# 裁决 (修需改写对方 cls 内核，无可泛化规则), 留痕备查。
 # v3 (2026-09-16): taxonomy +inputenc_unicode (inputenc 拒载 Unicode 引擎)
 # +undefined_cs 空 l.N 变体行 (宏/钩展开上下文取末位 cs); syntax 族扩
 # Extra }/\\endgroup/\\fi 等组/条件多 token 错; rules +inputenc_strip(94)
@@ -46,7 +46,7 @@
 # 只有新错误形态才需要加 taxonomy 行。
 #
 # 语法约定: pattern/repl 均按 Python re 语义; repl 里 \g<N> 为分组引用;
-# action.function 表示该动作是命名内置函数 (算法型, 非纯 regex,
+# action.function 表示该动作是命名内置函数 (算法型，非纯 regex,
 # 注册表在 builtins/__init__.py —— 新函数才需要 PR 代码)。
 # 书写约束: flow 集合 {..}/[..] 必须单行写完 (子集解析器不跨行)。
 #
@@ -55,15 +55,15 @@
 # ════════════════════════════════════════════════════════════════
 # rules 条目 schema 图例（各分片头注「见 rules/00-base.yaml 头注」所指段，
 # 原 30-route.yaml 头注 2026-09-28 归位本文件——首个按名序装载的分片）：
-#   第二层: 修复规则 （条数不手维护——`grep -c '^  - id: ' rules/*.yaml`）
+#   第二层: 修复规则（条数不手维护——`grep -c '^  - id: ' rules/*.yaml`）
 #   phase: gate(每轮分类后最先评估) / precheck(编译前一次性) / loop(每轮)
-#   同 phase 内按 order 升序, 首个 when+condition 满足且 dedup 未命中的执行。
+#   同 phase 内按 order 升序，首个 when+condition 满足且 dedup 未命中的执行。
 #   engines.<name>.mode: native | same(源改写天然可移植) | degrade | unsupported | skip
 #   condition 原语: tool_available / cap_available / engine_in /
 #     main_head_contains / source_contains / ctx_suggests / fileset /
 #     vendored_shadow / package_version_ge / prim_read_form /
 #     err_outside_fileset / shim_known / cache_dir_glob / any:[...]
-#     (未知键 → 规则跳过, fail-closed)
+#     (未知键 → 规则跳过，fail-closed)
 # ════════════════════════════════════════════════════════════════
 
 version: 1
@@ -74,11 +74,11 @@ meta:
   engine_default: xelatex
   loop:
     max_rounds: 8 # 原型 L40
-    one_rule_per_round: true # 每轮只应用一条成功规则, 便于归因 (L549-565)
+    one_rule_per_round: true # 每轮只应用一条成功规则，便于归因 (L549-565)
     dedup_key: "{rule_id}:{payload}" # ctx.applied, 同规则同负载不重复 (L552,561)
-    stuck_sig_repeat: 3 # 同 category:payload 连续 ≥3 轮且末轮派发耗尽(主+次级无 apply) → verdict=stuck; 结算点移派发后——产出轮只续窗口不占判负 (L756-761 旧制在派发前预判, 会抢掉同签后位规则)
+    stuck_sig_repeat: 3 # 同 category:payload 连续 ≥3 轮且末轮派发耗尽 (主 + 次级无 apply) → verdict=stuck; 结算点移派发后——产出轮只续窗口不占判负 (L756-761 旧制在派发前预判，会抢掉同签后位规则)
     clean_err_max: 3 # pdf 且 '!' 错 ≤3 → acceptable (L41, L786-791)
-    compile_passes: 2 # 终编臂开关 (>1 启用) + 遍数语义: ≤2 → 引擎自适应门 (rerun-hint 才升遍); >2 → 显式无条件遍数透传 (L628-630)
+    compile_passes: 2 # 终编臂开关 (>1 启用) + 遍数语义：≤2 → 引擎自适应门 (rerun-hint 才升遍); >2 → 显式无条件遍数透传 (L628-630)
     timeout_sec: 120
     warn_demote: false # warnings 只记录不改判; §4.3 clean 三件套在 pipeline 层做
     warn_driven_fixes: true # v1.1: 错误全无时 warnings 可驱动 warn_* 类别修复轮
@@ -112,21 +112,21 @@ capabilities:
 # ────────────────────────────────────────────────────────────────
 filemap:
   xelatex_oracle: "tlmgr search --global --file '/{fname}'"
-  tectonic_oracle: "texlive.tlpdb 离线索引 (随规则库分发, 定期重建)"
-  cache: "全局 json 缓存, file→[pkg] (远端仓库知识, 与环境冷热无关)"
+  tectonic_oracle: "texlive.tlpdb 离线索引 (随规则库分发，定期重建)"
+  cache: "全局 json 缓存，file→[pkg] (远端仓库知识，与环境冷热无关)"
   denylist_platform_suffixes: # 过滤平台特定包条目 (L190-204)
     [windows, win32, macosx, linux, x86_64, aarch64, amd64, i386, universal]
   denylist_prefixes: [tlmgr, tlgs]
-  overrides: # 社区贡献: "fname": "tl_pkg" 手工映射兜底
+  overrides: # 社区贡献："fname": "tl_pkg" 手工映射兜底
     # 例: "iclr14submit_e.sty": null   # TL 无此包 → 预检扫描的已知噪声
-    # 2026-09-16 起全引擎生效: tectonic 经 CtanFetcher.index 套入, xelatex
+    # 2026-09-16 起全引擎生效: tectonic 经 CtanFetcher.index 套入，xelatex
     # 等经 _wire_engine 的 eng.filemap 实例遮蔽 (overrides-first 包装)。
     "binhex.tex": "kastrup" # 真身在 kastrup (2211.04574 实证); .tex 入索引后仍留显式钉
-    # .tex 已入 INDEX_EXTS (runfiles 段限定, doc/src 噪声不收) —— 此表
+    # .tex 已入 INDEX_EXTS (runfiles 段限定，doc/src 噪声不收) —— 此表
     # 继续作显式钉与已知噪声登记 (signature-mining 2026-09-16 §2.1;
-    # overrides 是 basename→pkg 直表, 不经 runfiles 过滤)。
+    # overrides 是 basename→pkg 直表，不经 runfiles 过滤)。
     "epsf.tex": "epsf" # 1706.02568; 真身 tex/generic/epsf/epsf.tex ∈ epsf 包
-    "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 vendor stub
+    "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声，走 vendor stub
     # graphicx.tex: TL 有真身但命中的是 tex/plain/graphics/ miniltx 包装 —
     # xelatex LaTeX 语境 \zap@space 无限递归爆 input stack
     # (nucl-ex/0408018 实证 61 错 1 页 stub)。已知毒件 → 走 shim_map 桥。
@@ -157,7 +157,7 @@ filemap:
     "ukraineb.ldf": "babel-ukrainian" # 实档名; 选项 ukrainian 查询名
     # (ukrainian[b].ldf) 永不落此 —— 经 babel_lang_ldf_install 的
     # file_aliases 桥指名本档 (2026-09-19 babel 车道接通)
-    # ── file_aliases 目标钉组: ini \BabelDefinitionFile{0}{X} 指名实档,
+    # ── file_aliases 目标钉组: ini \BabelDefinitionFile{0}{X} 指名实档，
     #    选项名拼不出 → 别名候选的查询落点 (tlpdb 逐名核实 2026-09-19) ──
     "magyar.ldf": "babel-hungarian"
     "lsorbian.ldf": "babel-sorbian"
@@ -190,7 +190,7 @@ filemap:
     "naustrian.ldf": "babel-german"
     "swissgerman.ldf": "babel-german"
     # ── 2026-09-19 babelinv 车道普查钉组 (ldf_pins.yaml):
-    #    tlpdb/tarball 逐名核实, 选项名=ldf 名但 .ldf 不入索引的常态钉 ──
+    #    tlpdb/tarball 逐名核实，选项名=ldf 名但 .ldf 不入索引的常态钉 ──
     "afrikaans.ldf": "babel-dutch" # 实档在 babel-dutch 包
     "azerbaijani.ldf": "babel-azerbaijani"
     "belarusian.ldf": "babel-belarusian"
@@ -243,6 +243,6 @@ filemap:
     "swedish.ldf": "babel-swedish"
     "turkmen.ldf": "turkmen" # TL 包名即 turkmen (无 babel- 前缀)
     "vietnamese.ldf": "babel-vietnamese"
-  version_guard: # docs/spec/compile.md 第9条: ctan_fetch 版本前置检查
+  version_guard: # docs/spec/compile.md 第 9 条：ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
     texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.3)

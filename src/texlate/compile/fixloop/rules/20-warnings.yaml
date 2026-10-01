@@ -13,8 +13,8 @@ warnings:
     }
   # missing_char 排除 nullfont 行: 测量盒/\write 上下文按设计不可印
   # (scout-misschar ×5 pids 纯噪音)。tempered 窗口限本消息体内——不越过
-  # 下一条 Missing character 起点与本消息 in font 终止符,至多跨一个
-  # 折行续行——真字体行紧邻 nullfont 行仍中,已声明字体的消息不被后行
+  # 下一条 Missing character 起点与本消息 in font 终止符，至多跨一个
+  # 折行续行——真字体行紧邻 nullfont 行仍中，已声明字体的消息不被后行
   # "in font nullfont" 字样误豁免。
   - {
       id: missing_char,
@@ -27,7 +27,7 @@ warnings:
   - { id: tectonic_degrade, pattern: "^!+ .*not found" } # tectonic File..not found 降级行
   # 版面缺陷的 log 面签名 (qc layout:* 同源) —— rules-only 红线条目
   # (redlines.py overfull_hbox/float_too_large 行注): 无 '!' 错时升
-  # warn_overfull/warn_float_big 伪类别驱修复轮, 不进 engine 判红面。
+  # warn_overfull/warn_float_big 伪类别驱修复轮，不进 engine 判红面。
   - { id: overfull_hbox, pattern: "Overfull \\\\hbox" } # qc layout:overfull 探针
   - { id: float_too_large, pattern: "Float too large for page" } # qc layout:float_lost/float_fit 探针
   # ── 2026-09-28 qc-impl (vault QC replay 诊断蒸馏 impl-rules.json) ──
@@ -43,9 +43,9 @@ warnings:
     }
   # bbl_version: biblatex 'File X.bbl is wrong format version' 警告 →
   #   warn_bbl_version → bbl_version_regen (80-bib order 158.5)。
-  #   warning-only 稿无 '!' 行, 原 bbl_regen 的 undefined_cs 门永不命中。
+  #   warning-only 稿无 '!' 行，原 bbl_regen 的 undefined_cs 门永不命中。
   - { id: bbl_version, pattern: "is wrong format version" }
   # overfull_vbox: Overfull \vbox → 10-taxonomy 别名行复用 warn_overfull
   #   类别 (tabular/math/display/gfx 各消费臂自门谓词; 专属 vbox 臂
-  #   vbox_geometry_clamp builtin 未注册, 落地后可拆伪类别)。
+  #   vbox_geometry_clamp builtin 未注册，落地后可拆伪类别)。
   - { id: overfull_vbox, pattern: "Overfull \\\\vbox" }

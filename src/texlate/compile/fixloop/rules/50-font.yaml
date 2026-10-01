@@ -27,11 +27,11 @@ rules:
       tectonic:
         mode: degrade
         degrade: ctan_fetch_font # 拉包装字体文件; 但 fontspec 按名查找需 fontconfig 可见
-        fallback: advisory # 建议: 换 bundle 内字体名 / 注入 fontspec Path=./ / 装系统字体
-        note: "放 workdir 不够, 需配合源改写 Path= 或字体注册 → 标 partial"
+        fallback: advisory # 建议：换 bundle 内字体名 / 注入 fontspec Path=./ / 装系统字体
+        note: "放 workdir 不够，需配合源改写 Path= 或字体注册 → 标 partial"
     provenance:
       - {
-          corpus: "*/ctex|zh (14格)",
+          corpus: "*/ctex|zh (14 格)",
           error: "font “FandolSong-Regular” cannot be found → fandol",
         }
     stats: { fires: 14, rescued_cells: 14 }
@@ -42,7 +42,7 @@ rules:
   # Mono; 名字带空格亦进不了 filemap) → 把文档对 {payload} 的引用换成
   # LM 显示名。用显示名不用文件名: 全家族解析 (\textbf/\textit 自动
   # 命中字重), 裸 .otf 只给单重; "Latin Modern *" 经 engine 注入的
-  # FONTCONFIG_FILE (texmf opentype 注册) 保证可解, 每个 TL 都有 lm。
+  # FONTCONFIG_FILE (texmf opentype 注册) 保证可解，每个 TL 都有 lm。
   - id: font_name_substitute
     description: "fontspec 名查找字体真缺 (install 无解) → 引用换成 Latin Modern 显示名"
     phase: loop
@@ -73,9 +73,9 @@ rules:
           # \babelfont[<langs>]{<fam>}[<features>]{<font>} —— 主参尾 brace
           # 才是 fontspec_missing payload 槽位; features 括号内 XxxFont=
           # 引用同族文件名 (Amiri-Bold.ttf 等) 会下轮连环报缺 → 当括号
-          # 全由 *Font= 键构成时整括号丢弃, 目标家族自解析 Bold/Italic
+          # 全由 *Font= 键构成时整括号丢弃，目标家族自解析 Bold/Italic
           # 面 (Naskh/LM 均带真字重)。arabic 臂必先于 generic 臂 (generic
-          # 同样匹配 [arabic] 括号, 抢跑会把阿拉伯语面换 LM → tofu)。
+          # 同样匹配 [arabic] 括号，抢跑会把阿拉伯语面换 LM → tofu)。
           - {
               pattern: "(\\\\babelfont\\s*\\[[^\\]]*arabic[^\\]]*\\]\\s*\\{[^}]*\\})\\s*\\[\\s*(?:(?:BoldFont|ItalicFont|BoldItalicFont|SlantedFont|BoldSlantedFont|SwashFont|BoldSwashFont|SmallCapsFont|UprightFont)\\s*=\\s*[^,\\]]+\\s*(?:,\\s*)?)+\\]\\s*\\{\\s*{payload}(?:\\.(?:otf|ttf|ttc|OTF|TTF|TTC))?\\s*\\}",
               repl: '\g<1>{Noto Naskh Arabic}',
@@ -163,7 +163,7 @@ rules:
     source_ref: "docs/spec/compile.md L275; ctanfetch-probe.md §3.4"
 
   - id: px_to_bp
-    description: "非法单位 px → bp 换算 (pdfTeX 缺省忠实: 1px = 1bp)"
+    description: "非法单位 px → bp 换算 (pdfTeX 缺省忠实：1px = 1bp)"
     phase: loop
     order: 60
     when: { category: illegal_unit }
@@ -189,7 +189,7 @@ rules:
   - id: microtype_off
     description: "XeTeXglyph×TFM (microtype 探针量不了 TFM) → 关 protrusion/expansion"
     phase: loop
-    order: 70 # 同 trigger 的 times_to_newtx(80) 之前: 先保守关特性
+    order: 70 # 同 trigger 的 times_to_newtx(80) 之前：先保守关特性
     when: { category: xetexglyph_tfm }
     action:
       kind: regex_rewrite
@@ -216,7 +216,7 @@ rules:
   # 批十后续 3 格 fairmeta.cls 同签第二容器):
   # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report/
   # fairmeta) 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
-  # pdfTeX≥1.30/LuaTeX 可达, XeTeX 族 (xelatex/tectonic) 下抛可恢复
+  # pdfTeX≥1.30/LuaTeX 可达，XeTeX 族 (xelatex/tectonic) 下抛可恢复
   # \PackageError "Disabling ligatures of a font is only possible with
   # pdftex version 1.30 or newer. Ignoring \DisableLigatures." —— PDF 照出
   # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形签名 taxrow 归
@@ -262,9 +262,9 @@ rules:
     stats: { fires: 13, rescued_cells: 13, status: active }
     source_ref: "microtype.sty \\DisableLigatures pdfTeX/LuaTeX 引擎闸; tmp/lane-microtypelis/"
 
-  # 2026-09-20 optfix 车道 (singlesweep microtype-xetex 机理, 2310.02541
+  # 2026-09-20 optfix 车道 (singlesweep microtype-xetex 机理，2310.02541
   # base): microtype ``expansion`` 族在 XeTeX 下恒不工作
-  # (microtype-xetex.def:874 \\MT@error —— protrusion 支持, expansion
+  # (microtype-xetex.def:874 \\MT@error —— protrusion 支持，expansion
   # 不支持), ``\\usepackage[...,expansion=true,...]{microtype}`` (多行
   # 括号) → file-line "Package microtype Error: Font expansion does not
   # work with xetex" 归 other。修 = microtype 附着括号/PassOptions 首参内
@@ -287,13 +287,13 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
-          # \\usepackage[..,expansion=<非false>,..]{microtype} → expansion=false
+          # \\usepackage[..,expansion=<非 false>,..]{microtype} → expansion=false
           - {
               pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*?\\bexpansion\\s*=\\s*)(?!false\\b)[\\w-]+([^\\]]*\\]\\s*\\{microtype\\})",
               repl: "\\g<1>false\\g<2>",
               match_surface: masked,
             }
-          # \\PassOptionsToPackage{..,expansion=<非false>,..}{microtype} 同形
+          # \\PassOptionsToPackage{..,expansion=<非 false>,..}{microtype} 同形
           - {
               pattern: "(\\\\PassOptionsToPackage\\s*\\{[^}]*?\\bexpansion\\s*=\\s*)(?!false\\b)[\\w-]+([^}]*\\}\\s*\\{microtype\\})",
               repl: "\\g<1>false\\g<2>",
@@ -306,7 +306,7 @@ rules:
               repl: "\\g<1>,expansion=false]\\g<2>",
               match_surface: masked,
             }
-    risk: low # expansion 在 XeTeX 下本即不可达, 关断即 microtype 自报语义
+    risk: low # expansion 在 XeTeX 下本即不可达，关断即 microtype 自报语义
     known_gap: "\\microtypesetup{expansion=...} 载后配置面与 \\DeclareMicrotypeSet 家族未覆盖"
     engines:
       xelatex: { mode: native }
@@ -351,11 +351,11 @@ rules:
   # 对 ASCII Type1 按扩展名硬拒 (只收 .pfb 二进制)。签名只走
   # stderr→stdout_tail (.log 干净) —— ``_report_of`` 归一成 '!' 行使
   # ``other`` 类目可见 (pdf_asset_sanitize 同族派发面)。修复 = 纯 python
-  # pfa→pfb 转换 (t1binary 等价, eexec 密文段原样 hex 解码不解密) 产物
+  # pfa→pfb 转换 (t1binary 等价，eexec 密文段原样 hex 解码不解密) 产物
   # 落 usertree ``home/fonts/type1/`` + pdftex.map 改写副本落
   # ``var/fonts/map/pdftex/updmap/`` (TEXMFVAR 位遮蔽系统树) + 源
   # ``<pkg>.map`` 同路径遮蔽落 ``home/fonts/map/dvips/`` (updmap 再生
-  # 面保险) —— 全在格级 usertree, 不动宿主树, 幂等。
+  # 面保险) —— 全在格级 usertree, 不动宿主树，幂等。
   - id: pfa_to_pfb
     description: "xdvipdfmx 'pfa format not supported' fatal → usertree 内 pfa→pfb 转换 + pdftex.map/源 .map 遮蔽"
     phase: loop

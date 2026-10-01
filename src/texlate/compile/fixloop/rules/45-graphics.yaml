@@ -19,7 +19,7 @@ rules:
     mechanisms: [W31, B05]
     description: "svg 包文档缺件/包级报错 → inkscape 在请 -shell-escape; 缺席预转换 svg→pdf 并改写 \\includesvg"
     phase: loop
-    order: 9 # install_file(10) 前: *_svg-tex.pdf 是包自产中间件, filemap 必 miss
+    order: 9 # install_file(10) 前：*_svg-tex.pdf 是包自产中间件，filemap 必 miss
     when:
       any:
         - { category: missing_file, payload_required: true }
@@ -48,12 +48,12 @@ rules:
   # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
   # (17/18) 够不着; install(10)/shim(12) 对工程数据件必拒。本规则剥引用扩展名
   # → graphicx \Gin@extensions 自选 (.pdf 先中)。sibling 缺席时 fileset 闸
-  # 不点火落后续; 真无图可解次轮以无 ext 名再报缺, ctx_suggests 闸防回环。
+  # 不点火落后续; 真无图可解次轮以无 ext 名再报缺，ctx_suggests 闸防回环。
   - id: graphic_ext_relax
     mechanisms: [W21]
     description: "missing_file 的 .eps/.ps 图引用剥扩展名 → graphicx 自选同 stem sibling"
     phase: loop
-    order: 14 # legacy_pkg_shim(12)/babel_opt(13) 后, eps_to_pdf(15) 前
+    order: 14 # legacy_pkg_shim(12)/babel_opt(13) 后，eps_to_pdf(15) 前
     when: { category: missing_file, payload_required: true }
     condition:
       ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found"
@@ -61,7 +61,7 @@ rules:
       # 张 .pdf 就放行 —— 真缺件 (tar 未随图) 也剥名白烧一轮才轮到 17.6
       # 占位臂。sibling_exts 把闸收进 payload stem 域: 剥扩展名后的
       # basename 在工程内存图形族交替件才点火。same-basename-anywhere
-      # 语义 (kpathsea TEXINPUTS 近似, 宁宽勿严) —— false-accept 亏一轮,
+      # 语义 (kpathsea TEXINPUTS 近似，宁宽勿严) —— false-accept 亏一轮，
       # false-abstain 会把盘上真图换成占位框。
       fileset:
         {
@@ -73,7 +73,7 @@ rules:
       params:
         exts: [.tex, .sty]
         rewrites:
-          # lookahead 锚定 payload (允许路径前缀, 须 \}-终止防词干误吃);
+          # lookahead 锚定 payload (允许路径前缀，须 \}-终止防词干误吃);
           # \g<2> 保住 stem (含路径) 只剥扩展名; masked 面 —— 注释内
           # \includegraphics 引用不算存活引用位、不改写不计命中
           - {
@@ -85,7 +85,7 @@ rules:
     engines:
       xelatex: { mode: same }
       tectonic: { mode: same }
-    source_ref: "wave-4 规则批; c6f1511 落地, lookahead 锚定防词干误吃"
+    source_ref: "wave-4 规则批; c6f1511 落地，lookahead 锚定防词干误吃"
     provenance:
       - {
           corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
@@ -98,12 +98,12 @@ rules:
   # Missing \endcsname (syntax|None) 并把图名毒化成 missing_graphic 级联
   # (0812.0324: syntax×32+missing_graphic×12, 盘上 rmt_*.pdf 在场实证;
   # 0812.0365: syntax×131+missing_graphic×45)。成员级剥除即死签双清;
-  # 键名精确比对, subtype=/breadth= 类前缀不沾。剥后若真缺图, 自有
+  # 键名精确比对，subtype=/breadth= 类前缀不沾。剥后若真缺图，自有
   # missing_graphic 报文走 placeholder(17.6) 链——剥键不造新缺。
   - id: graphics_kv_strip_obsolete
     description: "\\includegraphics opt 表剥 type=/ext=/read= 时代 key (\\csname 链炸)"
     phase: loop
-    order: 14.5 # graphic_ext_relax(14) 后, eps_to_pdf(15) 前
+    order: 14.5 # graphic_ext_relax(14) 后，eps_to_pdf(15) 前
     when:
       any:
         - { category: syntax }
@@ -163,14 +163,14 @@ rules:
   # ``\Gread@extractbb@aux`` 对 pdf/png 族先 ``\openin <stem>.xbb``, miss 退
   # ``"|extractbb -O <file>"`` pipe → 沙箱 ``shell_escape=f`` (受限白名单
   # 也关) → pipe 死 → 每图一对 ``Cannot run pipe command`` +
-  # ``<stem>.xbb (no BoundingBox)`` 双错 (13 图 26 错, PDF 出但图全丢)。
+  # ``<stem>.xbb (no BoundingBox)`` 双错 (13 图 26 错，PDF 出但图全丢)。
   # xetex.def 走 ``\XeTeXpdffile`` 原生量尺寸无此链。修复 = 全量 extractbb
   # 可图形 ``extractbb -x`` 预生成 ``<stem>.xbb`` 旁文件 —— 缓存在盘非空
-  # 即被直读, pipe 臂整体跳过。签名只产生于 dvipdfmx.def, 无 source 闸。
+  # 即被直读，pipe 臂整体跳过。签名只产生于 dvipdfmx.def, 无 source 闸。
   - id: xbb_pregen
     description: "dvipdfmx pipe/xbb 双错 → 全量图形 extractbb -x 预生成 .xbb bbox 缓存"
     phase: loop
-    order: 15.5 # eps_to_pdf(15) 后, eps_route(16) 前 —— other 类目同区
+    order: 15.5 # eps_to_pdf(15) 后，eps_route(16) 前 —— other 类目同区
     when: { category: other }
     condition:
       ctx_suggests: "\\.xbb \\(no BoundingBox\\)|Cannot run pipe command"
@@ -179,19 +179,19 @@ rules:
       kind: builtin_transform
       function: xbb_pregen
       params: {}
-    risk: low # 只写 .xbb bbox 缓存旁文件, 不改源不改引用
+    risk: low # 只写 .xbb bbox 缓存旁文件，不改源不改引用
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # xdvipdfmx 内嵌同链, doc 强指 dvipdfmx 时同法可救
+      tectonic: { mode: same } # xdvipdfmx 内嵌同链，doc 强指 dvipdfmx 时同法可救
     provenance:
       - {
-          corpus: "2105.00151 (pipecensus pipe/xbb 26 错格, 13 图全丢)",
+          corpus: "2105.00151 (pipecensus pipe/xbb 26 错格，13 图全丢)",
           error: "Cannot run pipe command + Cannot determine size of graphic in X.xbb",
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-pipecensus/cells.jsonl; graphics-def dvipdfmx.def:104-131"
 
-  # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
+  # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版，
   # 后者实证把 baseline pdf~ 格也 0 轮拒掉 (0812.4521/nucl-th/0104042 回归)。
   - id: eps_route
     mechanisms: [W87]
@@ -214,16 +214,16 @@ rules:
           corpus: "fixloop-corpusv2 eps_route 11 拒格复盘",
           error: "fileset 静态拒 → log 确证拒 (v2)",
         }
-    stats: { fires: 0, status: validated } # 全语料 ps_image 均被 eps_to_pdf 救回, 兜底未点火
+    stats: { fires: 0, status: validated } # 全语料 ps_image 均被 eps_to_pdf 救回，兜底未点火
     source_ref: "docs/spec/compile.md L218, L271; fixloop-v2 整改"
 
-  # ── 2026-09-16 signature-mining "other" 拆家: missing_graphic 两规则 ──
+  # ── 2026-09-16 signature-mining "other" 拆家：missing_graphic 两规则 ──
   # 序: case_link (17) 先行 —— 盘上有大小写变体时改写引用即解; 无变体
   # 返回未应用 → 落到 repair (18)。repair 内部分级: pdf 且未蒸馏 → gs
   # 重蒸馏就地覆盖 (留 .fixloop-rd 备份兼已蒸馏标记); 非 pdf/无 gs/蒸馏
   # 败/marker 在 → \includegraphics 改写 \fbox 占位框保编译。
   - id: graphic_case_link
-    mechanisms: [W53, W66] # W66 扩面: ci-glob 命中面经 _rewrite_case_refs 同收 \includepdf
+    mechanisms: [W53, W66] # W66 扩面：ci-glob 命中面经 _rewrite_case_refs 同收 \includepdf
     description: "missing_graphic 盘上存大小写变体 → \\includegraphics/\\includepdf 参数改写真名"
     phase: loop
     order: 17
@@ -259,7 +259,7 @@ rules:
         - { category: missing_graphic, payload_required: true }
         - { category: missing_file, payload_required: true }
     condition: {
-        # raw 粗筛 (builtin 内 _live_matches 遮盖复核, 注释内调用点不动)
+        # raw 粗筛 (builtin 内 _live_matches 遮盖复核，注释内调用点不动)
         source_contains: "\\\\includepdf(?![a-zA-Z])",
       }
     action:
@@ -280,7 +280,7 @@ rules:
 
   # failmine3 车道 (8 格: 1206.0213/1404.6041/1511.06706/1706.02532/
   # 1803.00128/1803.00130/1907.00032/2003.10664): graphic_ext_relax(14)
-  # 点火剥扩展名或 fileset 闸放行后, .eps 真缺件仍在 —— tar 内图档本就
+  # 点火剥扩展名或 fileset 闸放行后，.eps 真缺件仍在 —— tar 内图档本就
   # 未随稿 (arXiv 源缺图常态)。本规则在解析位落最小合法占位件
   # (BoundingBox + 灰框交叉线): xelatex xdvipdfmx gs distiller 直读不
   # 需 shell-escape (epsprobe -no-shell-escape 实证), tectonic 同链。
@@ -291,19 +291,19 @@ rules:
   # 2026-09-19 failmine4-covgap 扩臂 (6 格: 2501.01402/2501.01329/
   # 2509.14901 +3): xetex "Unable to load picture or PDF file 'x.png'"
   # 措辞走 missing_graphic 类目 —— 原 missing_file-only when 永不
-  # dispatch; when 加 missing_graphic 臂 + condition 加 xetex 措辞,
-  # builtin 同步按后缀分发真格式占位 (PNG/JPEG/PDF 二进制, 见
+  # dispatch; when 加 missing_graphic 臂 + condition 加 xetex 措辞，
+  # builtin 同步按后缀分发真格式占位 (PNG/JPEG/PDF 二进制，见
   # builtins.graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
   # cwd 解析位 —— 子目录 main 时 wdir 根位不可见)。
   # fmsingles 普查 (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
   # 时代 \\ifpdf 路由 —— else 支 ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
   # 在 xelatex 下整表不可解 (normalize 的 \\ifpdf→\\iftrue 补丁只罩 breakurl
-  # 装载段, 裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
+  # 装载段，裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
   # + "I could not locate the file with any of these extensions: .ps,.eps,.pstex"
   # (PoSlogo + plots/*5 全部 .pdf 在盘)。签名归 other —— 无扩展名够不着
   # missing_file 的 \\.ext 锚。修法 = PS-only 扩展表前置 .pdf/.png/.jpg/.jpeg
   # (unicode 引擎原生可读格), 含 .pdf 的表不动。序在 placeholder(17.6) 前:
-  # 盘上有图时补表即解, 占位是缺件兜底不该先动。
+  # 盘上有图时补表即解，占位是缺件兜底不该先动。
   - id: graphics_ext_pslist_repair
     description: "unicode 引擎下 PS-only \\DeclareGraphicsExtensions 表 → 前置 .pdf/.png/.jpg/.jpeg"
     phase: loop
@@ -315,10 +315,10 @@ rules:
         - { category: other }
     condition:
       any:
-        # rep.ctx 止于 l.N 回显行——"I could not locate ..." 帮助行在其后,
+        # rep.ctx 止于 l.N 回显行——"I could not locate ..." 帮助行在其后，
         # 永不入 err_head (failmine4-a 实证 2105.00106/2203.00045 ctx 截断)。
         # file:line 形态的 File-not-found 签名在 rep.first, 用无扩展名形
-        # ([^'.]+ 拒带点名——带点名 = 显式扩展绕过扩展表或真缺件, 不归本规)
+        # ([^'.]+ 拒带点名——带点名 = 显式扩展绕过扩展表或真缺件，不归本规)
         - ctx_suggests: "File `[^'.]+' not found"
         # 留旧臂兜任何会把帮助行纳入 ctx 窗的 issuer 形态
         - ctx_suggests: "could not locate the file with any of these extensions"
@@ -352,7 +352,7 @@ rules:
     stats: { fires: 2, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-fmsingles/; PoS.cls:205-210 \\ifpdf 分支; normalize.py breakurl-scoped \\ifpdf patch"
 
-  # 2026-09-20 haltsweep 扩面: halt_on_error 下每轮 log 只曝首个缺件,
+  # 2026-09-20 haltsweep 扩面: halt_on_error 下每轮 log 只曝首个缺件，
   # 逐 payload 补件在多缺件格烧穿轮次上限 (2501.01425 烧 8 轮余 3 件
   # log 未触及) —— builtin 内 _enum_missing_graphics 源侧枚举全部活
   # 图形引用缺件一轮补齐 (filedir/main_dir/wdir/\graphicspath 解析位 +
@@ -361,7 +361,7 @@ rules:
     mechanisms: [W21]
     description: "missing_file/missing_graphic 图档真缺件 → 解析位落最小合法格式占位 (EPS/PNG/JPEG/PDF 按后缀; 源侧枚举一轮补齐)"
     phase: loop
-    order: 17.6 # includepdf_missing_stub(17.5) 后, graphic_repair(18) 前
+    order: 17.6 # includepdf_missing_stub(17.5) 后，graphic_repair(18) 前
     when:
       any:
         - { category: missing_file, payload_required: true }
@@ -372,7 +372,7 @@ rules:
         # 进 builtin 内 live-ref 复核 (1803.00128: 剥后报错仍带 .eps,
         # extless 形为 graphicx 全扩展试尽后的兜底签名); xetex 图形域
         # "Unable to load" 措辞臂 (failmine4-covgap, missing_graphic 专属
-        # 签名, 对 missing_file 臂无害 —— 非图形后缀 builtin 内拒)
+        # 签名，对 missing_file 臂无害 —— 非图形后缀 builtin 内拒)
         - { ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found" }
         - { ctx_suggests: "File `[^']+' not found" }
         - { ctx_suggests: "Unable to load picture or PDF file" }
@@ -387,11 +387,11 @@ rules:
     provenance:
       - {
           corpus: "failmine3 loop3 8 格 (1206.0213/1404.6041/1511.06706/1706.02532/1803.00128/1803.00130/1907.00032/2003.10664)",
-          error: "File `X.eps' not found — graphic_ext_relax 已点火, tar 内图档真缺",
+          error: "File `X.eps' not found — graphic_ext_relax 已点火，tar 内图档真缺",
         }
       - {
           corpus: "failmine4-covgap v3all 6 格 (2501.01402/2501.01329/2509.14901/2501.01425/2603.08153/2604.03907)",
-          error: "Unable to load picture or PDF file 'x.png' — xetex 图形域缺件措辞, missing_graphic 类目",
+          error: "Unable to load picture or PDF file 'x.png' — xetex 图形域缺件措辞，missing_graphic 类目",
         }
     stats: { fires: 19, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
@@ -399,16 +399,16 @@ rules:
   # 2026-09-20 singbun 车道 (failmine6 syntax-residual 2512.05247): svg 包
   # 源图真缺 (.svg 不在树) → ``Package svg Error: File `X.svg' is missing``
   # 归 missing_graphic (10-taxonomy 行)。svg_prepare 两臂都救不了:
-  # inkscape 在请 flag 治不了缺件, 转换臂无 .svg 可转 decline。修 =
+  # inkscape 在请 flag 治不了缺件，转换臂无 .svg 可转 decline。修 =
   # \includesvg[opts]{X.svg} → \includegraphics[opts]{X.pdf} 降级 —
   # 次轮 graphicx ``File `X.pdf' not found`` 走 placeholder 源侧枚举
-  # 落 PDF 占位桩 (同格 3 个 resizebox 内缺 png 一并补齐, Division by 0
+  # 落 PDF 占位桩 (同格 3 个 resizebox 内缺 png 一并补齐，Division by 0
   # 级联同愈)。svg 装载行保留无害: 无 \includesvg 调用即纯惰性。
   # masked 面挡 verbatim/注释内假命中; 已降级稿无 \includesvg 天然幂等。
   - id: svg_missing_demote
     description: "svg 源图真缺 → \\includesvg[opts]{X.svg} 降级 \\includegraphics[opts]{X.pdf} (placeholder 下轮补桩)"
     phase: loop
-    order: 17.65 # graphic_missing_placeholder(17.6) 后 (.svg payload 其内拒, 无竞争), rasterpdf(17.7) 前
+    order: 17.65 # graphic_missing_placeholder(17.6) 后 (.svg payload 其内拒，无竞争), rasterpdf(17.7) 前
     when: { category: missing_graphic, payload_required: true }
     condition:
       ctx_suggests: "Package svg Error: File `[^']+\\.svg' is missing"
@@ -424,7 +424,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # 仅重写缺件签名存活期; opts 过 graphicx 键面与 includesvg 兼容子集一致
-    known_gap: "\\includesvg 的 .pdf_tex/inkscapelatex 双件形与 \\svgpath 搜索径不在本臂; 降级后图面位与矢量渲染质量异 (占位桩兜底, 与真 inkscape 链不等价)"
+    known_gap: "\\includesvg 的 .pdf_tex/inkscapelatex 双件形与 \\svgpath 搜索径不在本臂; 降级后图面位与矢量渲染质量异 (占位桩兜底，与真 inkscape 链不等价)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -438,20 +438,20 @@ rules:
 
   # singlesweep mislabeled-raster-as-pdf (6 格: 1607.00405/2310.01082/
   # 2504.15280): e-print 船货 X.pdf 实为 PNG/JPEG 字节 —— 引擎按后缀走
-  # pdf 链拒载, xetex 报 "Unable to load picture or PDF file 'X.pdf'"
+  # pdf 链拒载，xetex 报 "Unable to load picture or PDF file 'X.pdf'"
   # 归 missing_graphic (file IS in tree, 与真缺件域全异)。修复 =
   # magic 嗅探改名真扩展名 (X.png/X.jpg) + 存活 \includegraphics 显式
   # .pdf arg 后缀改写; 无扩展名 arg ({fig5}) 经 \Gin@extensions 自解
   # 不动 (1607.00405 实证)。序在 placeholder(17.6) 后 repair(18) 前
-  # —— repair 的 gs 重蒸馏对光栅字节必败落 \fbox stub 丢真图, 改名
-  # 改写是全救。builtin 全量扫一次点火 (2504.15280 双伪装件实证,
+  # —— repair 的 gs 重蒸馏对光栅字节必败落 \fbox stub 丢真图，改名
+  # 改写是全救。builtin 全量扫一次点火 (2504.15280 双伪装件实证，
   # halt_on_error 每轮只曝首件); \includepdf arg 不改 —— pdfpages
   # 只收真 pdf, 改名后由 includepdf_missing_stub 落 \clearpage\null
   # 诚实降级 (伪装件本就不能页级内嵌)。
   - id: raster_pdf_rename
     description: ".pdf 名实为 PNG/JPEG 字节 → magic 改名真扩展名 + \\includegraphics .pdf arg 后缀改写"
     phase: loop
-    order: 17.7 # graphic_missing_placeholder(17.6) 后, graphic_repair(18) 前 —— 伪装件真图抢救先于 stub 末路
+    order: 17.7 # graphic_missing_placeholder(17.6) 后，graphic_repair(18) 前 —— 伪装件真图抢救先于 stub 末路
     when:
       any:
         - { category: missing_graphic, payload_required: true }
@@ -473,7 +473,7 @@ rules:
     source_ref: "tmp/lane-singlesweep/mech_buckets.json mislabeled-raster-as-pdf; tmp/lane-rasterpdf/"
 
   - id: graphic_repair
-    description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"
+    description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖，败则 \\fbox 占位"
     phase: loop
     order: 18
     when: { category: missing_graphic, payload_required: true }
@@ -500,9 +500,9 @@ rules:
   # fatal → xelatex SIGPIPE。签名 ``xdvipdfmx:fatal:`` 只走 stderr→
   # stdout_tail, .log 干净 —— ``_report_of`` 的 ``\w+:fatal:`` 归一抬成 '!'
   # 行使签名对 ctx_suggests 可见 (同签恒伴 ``Didn't find "endobj"`` warning,
-  # 位 fatal 前行不入 err_head ctx 窗, 不作闸)。修复 = 全量内嵌 .pdf
+  # 位 fatal 前行不入 err_head ctx 窗，不作闸)。修复 = 全量内嵌 .pdf
   # ``gs -sDEVICE=pdfwrite`` 重序列化 (内容不动只改对象布局; 5/5 格 bisect
-  # 实证清 fatal) —— fatal 不携文件名, 全量重写是唯一定位法。
+  # 实证清 fatal) —— fatal 不携文件名，全量重写是唯一定位法。
   - id: pdf_asset_sanitize
     description: "xdvipdfmx pdf_link_obj invalid-object fatal → 全量内嵌 .pdf gs pdfwrite 重序列化"
     phase: loop
@@ -528,12 +528,12 @@ rules:
     source_ref: "tmp/lane-xlinkobj/; gs pdfwrite rewrite 5/5 bisect-verified"
 
   # astro-ph/9901081 实证 + core 层普查 (11 格 preamble 形): 2.09 老稿
-  # ``\input <pkg>.sty`` 裸装载——plain \input 以 @=catcode-12 读包文件,
+  # ``\input <pkg>.sty`` 裸装载——plain \input 以 @=catcode-12 读包文件，
   # 包内全部 @-cs 断成 ``\define``+``@key`` 垃圾 (epsfig.sty:46
   # ``\define@key`` 报 ``\define`` undefined_cs), 且文件不进 \@filelist
   # 注册表、不走选项处理。``\usepackage{pkg}`` 是 LaTeX2e 唯一正载。
   # 前瞻 ``(?=[\s\S]*\\begin{document})`` 只改导言区位——post-doc
-  # \input .sty (corpus 2 格) 换 \usepackage 会 preamble-only 新错,
+  # \input .sty (corpus 2 格) 换 \usepackage 会 preamble-only 新错，
   # 原样保留。precheck -11 = 先于 pstricks/svg 路由门: 改写把
   # ``\input pstricks.sty`` 也翻译成 \usepackage 形 → tectonic 侧由
   # 既有路由正确拒走 (原 \input 形逃逸路由面); 先于 static_precheck(0)
@@ -552,9 +552,9 @@ rules:
       params:
         exts: [.tex]
         rewrites:
-          # braced|bare 两形共 \\g<1> 单组——(?| 分支复位是 regex 扩展,
+          # braced|bare 两形共 \\g<1> 单组——(?| 分支复位是 regex 扩展，
           # ruleset_validate 用 stdlib re 全量扫 repl/pattern 必须同构。
-          # ``\.sty`` 后 ``(?:\s*\}|(?![\w.-]))`` 择一: braced 收 ``}``,
+          # ``\.sty`` 后 ``(?:\s*\}|(?![\w.-]))`` 择一：braced 收 ``}``,
           # bare 零消耗留分隔空白 (不吃 \n, 防 \begin{document} 并进同行)
           # + ``(?![\w.-])`` 防 .styx 半名误中。
           - {
@@ -564,7 +564,7 @@ rules:
     risk: low # \input .sty 在 LaTeX2e 恒为误载; 前瞻闸只动导言区位
     engines:
       xelatex: { mode: native }
-      tectonic: { mode: same } # 源码改写天然可移植, 还顺带补路由识别
+      tectonic: { mode: same } # 源码改写天然可移植，还顺带补路由识别
     provenance:
       - {
           corpus: "astro-ph/9901081 (loop2 undefined_cs fail)",
@@ -574,23 +574,23 @@ rules:
     source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
 
   # firedunfixed 普查 item5 (2403.05444/2308.04278, epsconv 车道):
-  # e-print 随带 X-eps-converted-to.pdf (上游 epstopdf 产物) 而 X.eps 不随稿,
+  # e-print 随带 X-eps-converted-to.pdf (上游 epstopdf 产物) 而 X.eps 不随稿，
   # 稿面未载 epstopdf —— 显式 {X.eps} 归 missing_file|X.eps (graphic_ext_relax
   # sibling 闸收进 stem 域后 conv 件 X-eps-converted-to ≠ X 不再放行剥名),
   # 裸 {X} 报无扩展名 File `X' not found 归 other|None 死路 (taxonomy 要求
   # \.\w+)。资产侧别名修复: 存活引用全扫 + payload/err_head 提名 → conv 件
   # 在盘则 copyfile 落 <cwd>/<refdir>/<stem>.pdf (裸名 .pdf 补全即解) +
-  # eps 族显式引用剥名接管 (eps_to_pdf 转换+改写同 builtin 先例)。
-  # order 8.6 = main_wrapper_promote(8.5) 后、fileset 族(9) 前 —— conv 件随稿
+  # eps 族显式引用剥名接管 (eps_to_pdf 转换 + 改写同 builtin 先例)。
+  # order 8.6 = main_wrapper_promote(8.5) 后、fileset 族 (9) 前 —— conv 件随稿
   # 家一轮全愈必须先拿派发窗: 2403.05444 实证 fileset_relocate(9) 逐轮搬一张
   # .eps (arvix/→cwd), 13 图 > 8 轮预算耗尽在 Fig8。cache_dir_glob 把本臂限在
-  # 随稿 conv 家, 家外 decline 透传不抢 relocate/install_file 真件归位;
-  # eps_to_pdf(15)/占位(17.6) 仍在后殿 —— 随稿真件字节优于外部转换与占位框。
+  # 随稿 conv 家，家外 decline 透传不抢 relocate/install_file 真件归位;
+  # eps_to_pdf(15)/占位 (17.6) 仍在后殿 —— 随稿真件字节优于外部转换与占位框。
   - id: eps_converted_alias
     mechanisms: [W21]
     description: "File `X(.eps)' not found 且 X-eps-converted-to.pdf 随稿 → 解析位落 X.pdf 别名 + eps 族引用剥名"
     phase: loop
-    order: 8.6 # fileset_relocate(9) 前 —— conv 家一轮全愈, 防逐轮搬迁饿死
+    order: 8.6 # fileset_relocate(9) 前 —— conv 家一轮全愈，防逐轮搬迁饿死
     when:
       any:
         - { category: missing_file, payload_required: true }
@@ -618,8 +618,8 @@ rules:
 
   # ── 2026-09-28 qc-impl 车道: vault QC replay layout:overfull 图形臂 ──
   # gfx_width_clamp builtin (layoutfix 叶): adjustbox[export] + 每
-  # \includegraphics max width=\linewidth, 对 pair-sum≥0.98 并排图收缩,
-  # width=N\linewidth N>1 → \linewidth。图形整盒超宽非词间 glue 病因,
+  # \includegraphics max width=\linewidth, 对 pair-sum≥0.98 并排图收缩，
+  # width=N\linewidth N>1 → \linewidth。图形整盒超宽非词间 glue 病因，
   # para_loosen(210) 无解 —— 盒级钳幅即修复语义。
   - id: gfx_overfull_clamp
     description: "warn_overfull + \\includegraphics 字面 → gfx_width_clamp 盒宽钳 \\linewidth"
@@ -645,12 +645,12 @@ rules:
     known_gap: "ps/eps 引用未转 graphicx 面不在 \\includegraphics 字面内 decline; width 已是 \\linewidth 内幂等"
 
   # psfrag 是 pdftex/dvips-era 包: \\psfrag{tag}{repl} 只改写 EPS 内
-  # 文字标签, xelatex 路线无 dvips 后端、宏调用本身在 PDF 路线恒无
+  # 文字标签，xelatex 路线无 dvips 后端、宏调用本身在 PDF 路线恒无
   # 效果还可能炸 undefined (稿面偶见 pstricks 混载)。precheck 注释
-  # 化整行 —— 图形仍走原 EPS/PDF 件, 只丢标签替换义。masked 面跳过
+  # 化整行 —— 图形仍走原 EPS/PDF 件，只丢标签替换义。masked 面跳过
   # 注释/verbatim 内字面。
   - id: psfrag_strip_xelatex
-    description: "xelatex 路线 \\psfrag 行 → 注释化 (pdftex 专用标签替换, xdvipdfmx 无此机制)"
+    description: "xelatex 路线 \\psfrag 行 → 注释化 (pdftex 专用标签替换，xdvipdfmx 无此机制)"
     phase: precheck
     order: -6.5 # static_precheck(0) 前 —— 预扫见 psfrag 不拦路由
     when: { always: true }
@@ -674,7 +674,7 @@ rules:
     provenance:
       - {
           corpus: "vault QC replay (qc-impl-2026-09-28)",
-          error: "psfrag 混载面 —— xelatex 无 dvips 标签替换机制, 调用行炸/静默无效",
+          error: "psfrag 混载面 —— xelatex 无 dvips 标签替换机制，调用行炸/静默无效",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json psfrag_strip_xelatex"
