@@ -23,7 +23,9 @@ def _route(ctx) -> dict:
         "cat_group": cell.get("cat_group"),
         "era": cell.get("era"),
         "bytes": cell.get("bytes"),
-        "frame": f"frm-{_frame_sha()}",
+        # frame_sha 为 spec 参数——兄弟 eval spec 注自己帧的戳；
+        # 缺席回落本包帧（e2e_real 旧语义不变）。
+        "frame": f"frm-{ctx.params.get('frame_sha') or _frame_sha()}",
     }
     src = ctx.src_path()
     if src is None:

@@ -40,21 +40,25 @@ def _sha256(p: Path) -> str:
     return h.hexdigest()
 
 
+def _frame_sha_of(frame: Path) -> str:
+    """任一冻结帧的 provenance 戳（不进 cell 键域，帧改版只改戳不烧
+    dedup）——兄弟 eval spec 经各自帧路径调本函数。"""
+    return _sha256(frame)[:12] if frame.is_file() else "absent"
+
+
 @functools.cache
 def _frame_sha() -> str:
-    """帧 sha 缓存——route metrics.frame 的 provenance 戳（不进 cell
-    键域，帧改版只改戳不烧 dedup）。"""
-    return _sha256(FRAME)[:12] if FRAME.is_file() else "absent"
+    """本帧 sha 缓存——route metrics.frame 的 provenance 戳。"""
+    return _frame_sha_of(FRAME)
 
 
-def _items() -> list[dict]:
-    """冻结帧 items——compile_checks 物化一次。帧缺席=空（eval 帧是
-    opt-in 工件，不是硬依赖）；行自带 id/layer/cat_group/era/bytes/
-    fp_input，arm/variant 由本函数盖章（帧只管选样不管键域）。"""
-    if not FRAME.is_file():
+def _items_of(frame: Path, arm: str, epoch: str) -> list[dict]:
+    """冻结帧装载通用件——帧缺席=空；行自带 id/layer/cat_group/era/
+    bytes/fp_input，arm/variant 由本函数盖章（帧只管选样不管键域）。"""
+    if not frame.is_file():
         return []
     rows: list[dict] = []
-    for row in benchlib.iter_jsonl(FRAME):
+    for row in benchlib.iter_jsonl(frame):
         if not isinstance(row, dict) or not row.get("id"):
             continue
         rows.append(
@@ -65,11 +69,16 @@ def _items() -> list[dict]:
                 "era": row.get("era"),
                 "bytes": row.get("bytes"),
                 "fp_input": row.get("fp_input"),
-                "arm": ARM,
-                "variant": EPOCH,
+                "arm": arm,
+                "variant": epoch,
             }
         )
     return rows
+
+
+def _items() -> list[dict]:
+    """本帧 items——compile_checks 物化一次。"""
+    return _items_of(FRAME, ARM, EPOCH)
 
 
 def _select(item: dict, rp: dict) -> bool:
