@@ -1,4 +1,4 @@
-"""layoutqc 电池 + marks 真值层单测（docs/dev/layoutqc.md §4）。
+"""layoutqc 套件 + marks 真值层单测（docs/dev/layoutqc.md §4）。
 
 纯函数面：parse_txlm/env_inventory/compare_marks/_logscan/_plain_scan/
 _textblock/_word_overlap_pairs/_lcs/_marks_scan。集成面（xelatex 实编 +

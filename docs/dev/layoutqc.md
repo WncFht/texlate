@@ -4,7 +4,7 @@
 
 ## 0. 一句话
 
-现行验证只证明「pdf 存在 + 错误少 + 有中文」——版面几何零覆盖；外部没有一家在推理期做渲染几何 QC（BabelDOC 没有出货后检查）。独有资产（源 .tex 真值 + en 基线 PDF + 双臂都重编）落成一套分层检测电池：T0 每篇必跑（bbox 几何 + 日志信号 + 退化兜底），T1 bench 跑批时加 raster + BIoU，T2 上 `\pdfsavepos` 发射侧真值（已实证）+ LLM 评审。
+现行验证只证明「pdf 存在 + 错误少 + 有中文」——版面几何零覆盖；外部没有一家在推理期做渲染几何 QC（BabelDOC 没有出货后检查）。独有资产（源 .tex 真值 + en 基线 PDF + 双臂都重编）落成一套分层检测套件：T0 每篇必跑（bbox 几何 + 日志信号 + 退化兜底），T1 bench 跑批时加 raster + BIoU，T2 上 `\pdfsavepos` 发射侧真值（已实证）+ LLM 评审。
 
 ## 1. 现状：每道门的 status 实际证明什么（fork 审计确认）
 
@@ -82,7 +82,7 @@ splice = **reflow 重编译**（译文写回 .tex 整树重编，`pipecore/trans
 - 落点：clone `inject_float_sizing` 写法（layout.py:89-118 的 file-walk+sentinel 缝），`LAYOUT_MARKS` 块接 `prepare_chinese`(inject.py:670-714) 与 `base_condition`(e2e.py:289-301) → 双臂真值；`.txlm` 落在 compile cwd=main dir（`engine/_xelatex/main.py`）；开销 <1%。
 - 风险已列：`\def` 伪 env 无 hook（覆盖率审计本身是信号）；`\@endfloatbox` 被 class 重定义→`\ifdefined` 守卫；moving-arg 内禁放 mark；tectonic 下 `.txlm` 落 out dir 需验路径。
 
-## 4. 升级后检测栈：三层电池
+## 4. 升级后检测栈：三层套件
 
 ### T0 —— 每篇必跑（~free，pdftotext-bbox + 日志 + 正则）
 
@@ -170,7 +170,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 2. **marks 注入**（~1d，先行——它是校准尺）：`LAYOUT_MARKS` preamble 块 + `compile/marks.py` 解析 + .txlm 收割；单篇 probe 已证可行，补 tectonic 路径验证。
 3. **T0 几何侧**（1-2d）：`layoutqc` stage + wrapfloat 检测器泛化 + pdfimages 锚点 + skeleton-LCS + BaselineTest + UTB + dropped 记账；marks 在位的检查直接查表。
 4. **存量回填**：后验 spec 对 vault ~284 splice 篇扫 T0（+双臂 marks 重编子集），出 layout 缺陷基线率（决定 T1 强度）+ no-op roundtrip 误报基线。
-5. **T1**（1d）：raster 电池 + BIoU 类比；pillow/numpy 进 bench extra。
+5. **T1**（1d）：raster 检测 + BIoU 比对；pillow/numpy 进 bench extra。
 6. **T2**：LLM judge 抽样；校准集 ~50 篇（marks 真值可半自动产出标注）。
 7. 保留政策随 layoutqc 落地生效：clean 篇瘦身、fail 篇留诊断 → rebuild Step 0 的磁盘手术至此闭环。
 
@@ -267,7 +267,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - `overfull` 58、`float_lost` 22、`float_fit` 26——真实版面债底数；
 - `margin_breach` 221 findings/26 篇、`text_overlap` 493/136（单臂裸口径，含图内，双臂抑制需 base）；
 - `residual_en` 93 篇（新阈值从 176 压到 93，仍为最大单 sig——存量翻译残留率 ~33%）；
-- `vis_degenerate` 22→**11 真**（后验清 10 符号/数字伪影）——其中 **2609.19965/2609.20732 抓出"这是译文这是译文…"占位符退化输出数百连**——存量语料里真混着 mock/占位译文，此前验证全放行了。这是本电池最硬的一次实证。
+- `vis_degenerate` 22→**11 真**（后验清 10 符号/数字伪影）——其中 **2609.19965/2609.20732 抓出"这是译文这是译文…"占位符退化输出数百连**——存量语料里真混着 mock/占位译文，此前验证全放行了。这是本套件最硬的一次实证。
 
 **roundtrip 门**：31/31 PASS（gate3 在 reqc4 后自动跑，CROSS_ARM 跨臂信号自比全零）。
 
@@ -356,7 +356,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 | 公式渲染错       | math placeholder 字节 identity（L0）+ `math_drift` 计数                                                      | 渲染层面未验（CDM 已 SKIP） |
 | 阅读序           | marks (p,-y) 对拍                                                                                            | 双栏行主序伪影已修          |
 
-结论：T0+T1 现行电池对**版面几何/浮体完整性/内容退化/编译完整性**四类是足的；真盲区只剩**表格 cell 级结构**与**渲染后公式**两处，均属 T2 parser/judge 范畴——按 §7 序收在此处是正确边界。
+结论：T0+T1 现行套件对**版面几何/浮体完整性/内容退化/编译完整性**四类是足的；真盲区只剩**表格 cell 级结构**与**渲染后公式**两处，均属 T2 parser/judge 范畴——按 §7 序收在此处是正确边界。
 
 ## 11. 终版检验方案与工件保留政策（定稿 2026-09-23）
 

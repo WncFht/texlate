@@ -1,4 +1,4 @@
-r"""T0 版面质检电池（layoutqc stage 的检测本体）。
+r"""T0 版面质检套件（layoutqc stage 的检测本体）。
 
 输入全是现成产物：splice 树的 ``<stem>.pdf/.log/.txlm``、build-base 树
 的同三件套、src 源树（env_inventory 期望面）。零 LLM、零重编——词面

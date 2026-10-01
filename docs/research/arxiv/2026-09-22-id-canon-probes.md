@@ -40,7 +40,7 @@ arXiv 官方标识符文档[^arxiv-id-help]口径：新形 `YYMM.NNNNN`（0704�
 
 ## 4. 取证 → 落地链路
 
-- 参考实现与验收电池：ux-research 现场 spike（`canon.py` 参考实现 + `canon_test.py`/`url_forms.py`/`norm_spike.py` 形态表与 44 对抗探针）→ 产品侧落 `arxiv/fetch.py::canon` 单源 + `tests/test_arxiv_canon.py`（30 形态表全收 + 对抗面必拒 + 幂等/壳不变式）+ `web/src/arxidcanon.ts::canonStrip` JS 镜像。
+- 参考实现与验收用例组：ux-research 现场 spike（`canon.py` 参考实现 + `canon_test.py`/`url_forms.py`/`norm_spike.py` 形态表与 44 对抗探针）→ 产品侧落 `arxiv/fetch.py::canon` 单源 + `tests/test_arxiv_canon.py`（30 形态表全收 + 对抗面必拒 + 幂等/壳不变式）+ `web/src/arxidcanon.ts::canonStrip` JS 镜像。
 - 落地工单：misc-pack M2（`dev/projects/ux-impl-2026-09-22/` 包内实现文档）——canon 收编同时改了 dedup 键口径（`math.GT/0309136` 与 `math/0309136` 自此同 task/cache 键，存量异键不迁移）。
 - scan 面单源化：`ARXIV_ID_FIND_RX` 同文件内导出（classful 容忍形 ∪ 新形），`bibexport.extract_ids` 已消费，bench 侧已知消费点待接线（spec §6 挂账）。
 

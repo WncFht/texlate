@@ -44,7 +44,7 @@ Wave C 运行径落地（spec/ctx/paid/kernel、sweep/doctor、cli/specs，`2056
 
 ## 2026-09-23 · Wave-F 清点与阅读器 UX 落地日
 
-bench 面大清点（Wave-F）：旧 `bench/py/` 驱动脚本全数退役改写为 kernel spec（`specs/`），repo 数据面出清（`406f3e6c` corpus/zh-store/archive 移出 checkout，物理载荷归 `$TEXLATE_BENCH_ROOT` 湖/库）、网关密钥字面量出 tracked 面（`1e5e3b71`）、ruff/prettier 全仓追平五批。layoutqc 验证电池落地：三档 tier 门 + 标记页收割 + pdf_corrupt/broken_refs 补签（`4c59de79`/`b2a4f72a`/`746b7519`），PDF 侧 B 路 marked-content seq 注锚后端接通（`823107dc`/`f95b47a6`）。阅读器 UX 六功能 + 主题色板轴 + 引用面 + pdf seq 锚前端一次落地（`97a7b6db`/`e6edbf23`），当晚线上五 bug 修复（`a3308396`）。e2e_real 探针批起跑：260 帧提名集六波连跑（新 id 入帧 `1b9c7d83`），翻译走内部网关真付费。
+bench 面大清点（Wave-F）：旧 `bench/py/` 驱动脚本全数退役改写为 kernel spec（`specs/`），repo 数据面出清（`406f3e6c` corpus/zh-store/archive 移出 checkout，物理载荷归 `$TEXLATE_BENCH_ROOT` 湖/库）、网关密钥字面量出 tracked 面（`1e5e3b71`）、ruff/prettier 全仓追平五批。layoutqc 质检套件落地：三档 tier 门 + 标记页收割 + pdf_corrupt/broken_refs 补签（`4c59de79`/`b2a4f72a`/`746b7519`），PDF 侧 B 路 marked-content seq 注锚后端接通（`823107dc`/`f95b47a6`）。阅读器 UX 六功能 + 主题色板轴 + 引用面 + pdf seq 锚前端一次落地（`97a7b6db`/`e6edbf23`），当晚线上五 bug 修复（`a3308396`）。e2e_real 探针批起跑：260 帧提名集六波连跑（新 id 入帧 `1b9c7d83`），翻译走内部网关真付费。
 
 ## 2026-09-24 · 磁盘策略与 dedup 修复日
 

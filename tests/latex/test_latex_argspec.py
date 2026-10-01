@@ -207,7 +207,7 @@ def test_unknown_cs_still_probe() -> None:
     assert any(v.startswith("\\foo{a}{b}") for v in res.ph_map.values())
 
 
-def test_argspec_identity_battery() -> None:
+def test_argspec_identity_suite() -> None:
     r"""恒等抽查：argspec 命中 + env 三体，reconstruct 逐字节还原。"""
     cases = [
         ART % ("", "Text \\foo{a}{b} \\printbibliography tail."),

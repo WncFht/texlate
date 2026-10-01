@@ -410,5 +410,5 @@
 ### 参考文献
 
 - 终态设计：`spec/bench-trizone.md`（§3.10 存储专章、§3.10.8 水合调度）
-- 质检电池：`docs/dev/layoutqc.md` §10（校准实录 + qc_replay 段）
+- 版面质检：`docs/dev/layoutqc.md` §10（校准实录 + qc_replay 段）
 - 三洞修复：`../log/2026-09-24-磁盘策略落地与探针批指标.md` §6
