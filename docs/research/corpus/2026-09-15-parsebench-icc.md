@@ -33,4 +33,4 @@
 
 - parse/compile 类 benchmark 报告簇间异质性无增益，逐篇 pooling 即足够。
 - 若需时代效应，应直接按 `year_band` 分层报（meta.json 已带；manifest/meta 的 `stratum_cell` 前缀即 band），而非靠 ICC。
-- 补强层 ICC 无代表性含义（机制抽样），上表仅完整起见。
+- 补强层 ICC 无代表性含义（机制抽样），上表仅为完整起见列出。

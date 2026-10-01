@@ -1,6 +1,6 @@
 # 架构规范
 
-TeXlate 把 arXiv LaTeX 源码经 LLM 段落级翻译重编译为中文 PDF，供双语对照阅读。本文描述现行实现的管线形态、模块边界与数据契约——与代码冲突以代码为准；各层细节规范与同名单元（`spec/arxiv-source.md` 等）互补，实测证据引 `research/` 对应件不复述。
+TeXlate 把 arXiv LaTeX 源码经 LLM 段落级翻译重编译为中文 PDF，供双语对照阅读。本文描述现行实现的管线形态、模块边界与数据契约——与代码冲突以代码为准；各层细节规范与同名单元（`spec/arxiv-source.md` 等）互补，实测证据见 `research/` 对应件。
 
 ## 1. 端到端管线
 

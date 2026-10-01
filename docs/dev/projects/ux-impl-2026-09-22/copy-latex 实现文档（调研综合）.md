@@ -139,7 +139,7 @@
 
 1. **byte_start/byte_end 列名谎称**（cl-seq-map）：实为 Python str 字符偏移。切片必须 `decode_tex` 后对 str 切——对 bytes 切在非 ASCII 文件必错（实测 367/400 行分叉）。文档/代码注释要钉死，改名是 breaking 另议。
 2. **坐标系=base/ 归一化树**：normalize 注入 ~1.5KB 头 + 改写 `\input`，`src.tar` 回退对被动过的文件 span 漂移——必须带校验头闸（§后端 3），main 文件为高危位。
-3. **展开面 vs 原始面**（cl-macro）：`src_text`=L1 展开面，`[[EXPAND_n]]` 只活在 ph_map identity 轨；raw 切片保原始调用点（`\salve{}`）但**宏定义不在切片内**——粘到别处不编译。v1 接受（忠实复制语义）；P3 `with_defs` 补。
+3. **展开面 vs 原始面**（cl-macro）：`src_text`=宏展开面，`[[EXPAND_n]]` 只活在 ph_map identity 轨；raw 切片保原始调用点（`\salve{}`）但**宏定义不在切片内**——粘到别处不编译。v1 接受（忠实复制语义）；P3 `with_defs` 补。
 4. **KaTeX annotation ≠ 源切片级精确**（cl-dialect）：annotation 是 phText 喂入体剥界符形——`$$\begin…$$` 包裹被剥、语义等价但非逐字节；且源体本身 25% 逐公式 KaTeX 不可渲（74/83% 干净率）不影响复制（源照旧给）但**不要在卡里做「预览渲染」承诺**。
 5. **选区条交互暗坑**（ss-floatbar 全谱）：拖选期泄漏定位、missed pointerup stuck、条自身被拖选、pane margin 移动无 scroll 事件 stale——§交互规格的对策（抑制/救援/user-select/RO 重定位）逐条对应实测坑，不可省。
 6. **dom 链锚≠seq**（ss-dom-sel）：`[data-chunk]` 值是 block key（`S1.p4`/`b5`）且 163 锚仅 113 有 chunk 行（bibitem/figure/authors 无行），DOM 序≠seq 序——dom 链绝不走 seq 端点，只做公式卡（alttext 在元素自身，无锚依赖）。

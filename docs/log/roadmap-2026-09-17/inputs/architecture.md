@@ -29,7 +29,7 @@
 
 环与倒挂只有一处真张力：**compile ↔ compile.fixloop 模块级 2-环**——`fixloop/logparse.py:20` 顶层 `from texlate.compile.engine import _ERR_FILELINE_RE`（私有名跨界），反向 `compile/engine.py:303-329,1242,1376` 与 `probe.py:118` 全部走函数内延迟 import 并自注「防循环」。环目前被 lazy import 中和，但它是结构性脆弱点：两包 `__init__` 都是 eager facade（`compile/__init__.py:17` 顶层拉 engine、`fixloop/__init__.py:10-36` 顶层拉 engine/cases/ctan/logparse），任何一次把延迟 import 提回模块顶层的顺手改动都会引爆真环。另 `server.worker`→`server` 父包 29 条 import（store/settings/upload/events/babeldoc 共享基建在父层）+ `server/app.py:77`→worker 包，父子互依是子包化的正常形态；`server/events.py`（EventBus）与 `server/worker/events.py`（_Events mixin）同名邻居多义是小噪音。
 
-一个值得注意的反向依赖：`server.worker` → `texlate.e2e` 私有名 ×12（`translate.py:16-21` 拉 `_ENV_ENV_JUDGE/_KNOWN_ENVS/_env_flag/_env_judge_all`，`compile.py:27-35` 拉 `_ENV_NO_L2/L2_MAX_CHUNKS/_env_flag/_l2_localize/_resplice/_retranslate_hits/_split_cid/_TreeRun`），cli.py:49 拉 `_env_flag`、bench `stage_xlat.py:28` 拉 `_scan_tree`、tests 拉 `_L2Attr/_TreeRun/_chunk_spans`——e2e.py 事实已是两臂共享件库，但公共面仍是下划线私有名，编排器名字挂着库的实际职责。
+反向依赖一处：`server.worker` → `texlate.e2e` 私有名 ×12（`translate.py:16-21` 拉 `_ENV_ENV_JUDGE/_KNOWN_ENVS/_env_flag/_env_judge_all`，`compile.py:27-35` 拉 `_ENV_NO_L2/L2_MAX_CHUNKS/_env_flag/_l2_localize/_resplice/_retranslate_hits/_split_cid/_TreeRun`），cli.py:49 拉 `_env_flag`、bench `stage_xlat.py:28` 拉 `_scan_tree`、tests 拉 `_L2Attr/_TreeRun/_chunk_spans`——e2e.py 事实已是两臂共享件库，但公共面仍是下划线私有名，编排器名字挂着库的实际职责。
 
 ## 2. Top6 之后仍存的结构债
 

@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
-## 该产品是什么
+## 产品定位
 
 Litmaps 2016 年创立于新西兰惠灵顿（Axton Pitt + Kyle Webster），初衷「画一张全科学的地图」[^dealroom]。2025-05 收购 ResearchRabbit 并宣布 NZ\$1M 融资首轮关闭（ARR ~\$1M、用户 200 万+）；该轮 2025-08 超额认购终收于 NZ\$1.4M，后续口径将合并为单一平台[^scoop][^ecommerce]。功能四块：Discover/Visualize/Share/**Monitor**；核心对象 Litmap = seed 文章在引用网络上的扩张候选可视化地图；官方推荐 Search-Loop 用法（seed→推荐→加回输入集→重跑，循环至 10–20 篇精选）。定价：Free ≤20 inputs/2 张图；Pro \$10/月 无限[^pricing]。
 

@@ -1,6 +1,6 @@
 # canon 规范化实证：arxiv.org 301 实录、官方规则与 manifest 普查
 
-> **结论**：canon 契约（`docs/spec/arxiv-id-canon.md`）的远端行为底座——arxiv.org 对旧形带 class、大写 archive、大写 `V` 一律 301 到剥壳小写形，新旧形 seq 位数跨时代互认；本仓 manifest 14,398 个 id 中 slash 旧形全为裸 `archive/NNNNNNN` 拼写（无 class 形），canon 剥 class+ 小写化后与存量落库形天然同键。
+> **结论**：canon 契约（`docs/spec/arxiv-id-canon.md`）的远端行为底座——arxiv.org 对旧形带 class、大写 archive、大写 `V` 一律 301 到去类小写形，新旧形 seq 位数跨时代互认；本仓 manifest 14,398 个 id 中 slash 旧形全为裸 `archive/NNNNNNN` 拼写（无 class 形），canon 剥 class+ 小写化后与存量落库形天然同键。
 >
 > **状态**：时点证据（2026-09-22 口径）
 > **日期**：2026-09-22
@@ -25,7 +25,7 @@ doi.org/10.48550/arXiv.hep-th/9901001  302 → abs/hep-th/9901001
 arxiv.org/abs/cs/0501001               200 ; abs/stat/0501001 404 (stat 无旧形)
 ```
 
-要点：class 剥离（`math.GT`→`math`、`cond-mat.mes-hall`→`cond-mat`）与 archive 小写化由服务端 301 背书——canon 本地剥壳与远端终态一致；`0704.00001`↔`0704.0001`、`1501.0001`↔`1501.00001` 互认说明 seq 位数不是身份成分，canon 不做按时代位数闸（收 superset）；`stat/0501001` 404 说明旧形窗闸有真实拒收面（stat 2004 年才建站，无旧形 id）。
+要点：class 剥离（`math.GT`→`math`、`cond-mat.mes-hall`→`cond-mat`）与 archive 小写化由服务端 301 背书——canon 本地规范化与远端终态一致；`0704.00001`↔`0704.0001`、`1501.0001`↔`1501.00001` 互认说明 seq 位数不是身份成分，canon 不做按时代位数闸（收 superset）；`stat/0501001` 404 说明旧形窗闸有真实拒收面（stat 2004 年才建站，无旧形 id）。
 
 ## 2. 官方标识符规则
 
@@ -36,7 +36,7 @@ arXiv 官方标识符文档[^arxiv-id-help]口径：新形 `YYMM.NNNNN`（0704�
 2026-09-22 时点本仓 manifest 14,398 个 id 的双形分布：
 
 - slash 旧形 3,050 条**全为裸 `archive/NNNNNNN`**——无一条带 class 拼写（canon 剥 class 后与存量同键，不产生分裂面）。
-- flat `--` 形 4 条（safe_id 存储拼写回流），含 `.bak-mock` 脏尾 2 条——canon 刻意不洗此类残尾，留给 triage 当分裂信号暴露。
+- flat `--` 形 4 条（safe_id 存储拼写回流），含 `.bak-mock` 残尾 2 条——canon 刻意不洗此类残尾，留给 triage 当分裂信号暴露。
 
 ## 4. 取证 → 落地链路
 

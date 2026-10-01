@@ -1,7 +1,7 @@
 # spec · 翻译编排与校验链
 
 > 范围：`xlat/`（翻译编排）+ `validate/`（rules/cst/logattr 三层校验）+ `repair/`（logfix 回灌修复）+ `compile/normalize/`（译文后源码归一化）。编译引擎、注入与 fixloop 见 `compile.md`；chunk 产出与占位符上游见 `latex-pipeline.md`。
-> 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据引 `research/` 档，不复述实验过程。
+> 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据见 `research/` 档案。
 
 ## 0. 总览
 

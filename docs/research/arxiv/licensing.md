@@ -17,7 +17,7 @@
 | **arXiv perpetual non-exclusive license 1.0** | "gives limited rights to arXiv to distribute the article, and also limits re-use of any type"（by others） | 第三方无任何权利；只能个人使用                    |
 | **CC Zero (CC0)**                             | 公有领域捐献，无条件                                                                                       | 完全自由                                          |
 
-补充事实：**许可按版本授予且不可撤销**（"different versions of the work can have different licenses"）；除 CC0 外作者保留版权；**arXiv 元数据本身是 CC0**（存 license 字段无版权负担）；"All articles can be viewed and downloaded freely" = 查看下载自由，不等于再分发授权；投稿人想用列表外许可的官方姿势是「选 arXiv license + 论文首页注明实际许可」→ 存在 license 字段与论文内声明不一致的边角。
+补充事实：**许可按版本授予且不可撤销**（"different versions of the work can have different licenses"）；除 CC0 外作者保留版权；**arXiv 元数据本身是 CC0**（存 license 字段无版权负担）；"All articles can be viewed and downloaded freely" = 查看下载自由，不等于再分发授权；投稿人想用列表外许可的官方做法是「选 arXiv license + 论文首页注明实际许可」→ 存在 license 字段与论文内声明不一致的边角。
 
 ### 1.2 历史沿革（影响存量分布）
 
@@ -33,7 +33,7 @@
 
 ## 2. 许可证分布统计（自算，2026-09 快照）
 
-arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定性描述 "overwhelming majority … non-exclusive"[^arxiv-reuse]）。可复现自算路径：HF 镜像 `librarian-bots/arxiv-metadata-snapshot`（日更，每行含 `license` URI 字段）经 datasets-server `/statistics`+`/filter` 直接计数[^hf-meta]；权威慢路是 OAI-PMH 全量收割。**OpenAlex 不可用作 arXiv 许可分布源**——其 arXiv location 的 license 覆盖严重不全（pre-2015 抽样 400/400 全 null），null 无法区分「non-exclusive」与「无数据」。
+arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定性描述 "overwhelming majority … non-exclusive"[^arxiv-reuse]）。可复现自算路径：HF 镜像 `librarian-bots/arxiv-metadata-snapshot`（日更，每行含 `license` URI 字段）经 datasets-server `/statistics`+`/filter` 直接计数[^hf-meta]；权威但慢的路径是 OAI-PMH 全量收割。**OpenAlex 不可用作 arXiv 许可分布源**——其 arXiv location 的 license 覆盖严重不全（pre-2015 抽样 400/400 全 null），null 无法区分「non-exclusive」与「无数据」。
 
 ### 2.1 全量分布（n=3,164,528）
 
@@ -60,20 +60,20 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | CC0             |  13,315 |      1.2% |
 | null + 旧版 URI |   2,236 |      0.2% |
 
-残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+ 非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
+残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**含义**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+ 非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
 
 ## 3. 机器可读入口
 
 | 入口               | 有无 license                                                                                                                           | 证据/说明                                                                                           |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | **Atom API**       | **无**——官方 reuse FAQ 明言 license 不在 search API schema[^arxiv-reuse]                                                               | entry 字段只有 title/id/published/updated/summary/author/link/category + arxiv: 扩展                |
-| **OAI-PMH**        | **有**——`arXiv`/`arXivRaw`/`arXivOld` 均含顶层 `<license>`（anyURI）；`oai_dc` 无；记录级单元素（逐版本许可只见最新值）                | XSD schema 实锤 + [oai-pmh.md](oai-pmh.md) §2 字段矩阵                                              |
+| **OAI-PMH**        | **有**——`arXiv`/`arXivRaw`/`arXivOld` 均含顶层 `<license>`（anyURI）；`oai_dc` 无；记录级单元素（逐版本许可只见最新值）                | XSD schema 确认 + [oai-pmh.md](oai-pmh.md) §2 字段矩阵                                              |
 | **RSS**            | **有**——每条 item 的 `dc:rights` 即许可 URI，与 abs/OAI 同一 URL 词表                                                                  | [probes.md](probes.md) §A.4/A.7 + [daily-soak.md](2026-09-19-daily-soak.md)；日更增量、仅覆盖公告日 |
 | **abs 页 HTML**    | **有**——`div.abs-license > a[href]` 的 href 即许可 URI；CC 许可附 `class="has_license"`+图标；无 `rel=license`/`citation_license` meta | [probes.md](probes.md) §A.4 三实例验证                                                              |
 | **Kaggle/HF 快照** | 有 `license` 字段（URI 或 null）                                                                                                       | §2                                                                                                  |
-| e-print 源码包/PDF | 无结构化 license；CC 论文 PDF 内文可能有作者自注（不可靠），勿依赖                                                                     | —                                                                                                   |
+| e-print 源码包/PDF | 无结构化 license；CC 论文 PDF 内文偶有作者自注（不可靠），勿依赖                                                                       | —                                                                                                   |
 
-工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 曾走此道、2026-09-21 退役），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
+工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 曾走此道、2026-09-21 退役），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路获取）；Atom 拿不到。
 
 ## 4. 法律分析
 
@@ -85,8 +85,8 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | CC BY 4.0/3.0                        | ✅                | ✅               | ✅              | 署名：作者 + 标题 + 原许可 URI+ 改动说明          |
 | CC BY-SA 4.0                         | ✅                | ✅（须标 SA）    | ✅（须标 SA）   | BY 义务 + 译作同许可                              |
 | CC BY-NC-SA 4.0                      | ✅                | ✅ 仅限非商业    | ✅ 仅限非商业   | BY+SA 义务 + 不得商用                             |
-| **CC BY-NC-ND 4.0**                  | ⚠️ 私用可、分享禁 | ❌ **直接违约**  | ❌ **直接违约** | ND：只许逐字、非商业分发；翻译属 Adapted Material |
-| **non-exclusive（含 assumed/null）** | ⚠️ 私用灰色       | ❌ 无授权        | ❌ 无授权       | 第三方零权利；须逐篇找版权人                      |
+| **CC BY-NC-ND 4.0**                  | ⚠️ 私用可行、分享禁止| ❌ **直接违约**  | ❌ **直接违约** | ND：只许逐字、非商业分发；翻译属 Adapted Material |
+| **non-exclusive（含 assumed/null）** | ⚠️ 私用属灰色地带 | ❌ 无授权        | ❌ 无授权       | 第三方零权利；须逐篇找版权人                      |
 
 要点：**翻译在 CC 定义下就是改编**——ND 的红线不是「改没改」而是「分发改编物」本身，与是否收费无关；NC 边界在付费墙/订阅场景偏不利，保守策略是 NC 论文永不进计费链路；SA 传染性要求产物内嵌许可页并声明同许可发布；源码 tgz 与 PDF 同一作品同一许可，zh.tgz 衍生性更直接不豁免；**逐版本许可**——托管产物要绑定「所译版本的许可」。
 
@@ -96,11 +96,11 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 
 ### 4.3 hjfy.top 实际做法定性（对照侦察档案 [../product/2026-09-14-hjfy-site.md](../product/2026-09-14-hjfy-site.md)）
 
-hjfy 产物三件套 `{id}.pdf`（**原文**）/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`，签名 URL 匿名即可访问、无 license 过滤、UI 无许可展示。定性：对约一半 non-exclusive 论文是**无授权逐字再分发 + 无授权衍生分发**，对 ND 论文另加 ND 违约——属「全量敞口」姿势，以社区容忍为事实基础、可运转但结构上不可辩护。**复刻时应把它当反例而非规格。**
+hjfy 产物三件套 `{id}.pdf`（**原文**）/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`，签名 URL 匿名即可访问、无 license 过滤、UI 无许可展示。定性：对约一半 non-exclusive 论文是**无授权逐字再分发 + 无授权衍生分发**，对 ND 论文另加 ND 违约——属「全量敞口」做法，以社区容忍为事实基础、可运转但结构上不可辩护。**复刻时应把它当反例而非规格。**
 
 ### 4.4 自动化访问条款
 
-`help/robots`：_"Indiscriminate automated downloads from this site are not permitted."_ 机器人走 OAI-PMH/API/RSS/bulk(S3)；监控限流，403 后继续猛打视为攻击[^arxiv-robots]。API ToU：≤1 req/3s、单连接、跨机器合计；允许 "retrieve, store, transform, and share descriptive metadata"（CC0）与 "retrieve, store, and use content for personal use or research purposes"[^arxiv-tou]。**结论：下载 + 翻译 + 自用全程合规；再托管越线（除非该篇许可允许）；镜像/聚合形态与 ToU 明确冲突。**
+`help/robots`：_"Indiscriminate automated downloads from this site are not permitted."_ 机器人走 OAI-PMH/API/RSS/bulk(S3)；监控限流，403 后继续密集请求视为攻击[^arxiv-robots]。API ToU：≤1 req/3s、单连接、跨机器合计；允许 "retrieve, store, transform, and share descriptive metadata"（CC0）与 "retrieve, store, and use content for personal use or research purposes"[^arxiv-tou]。**结论：下载 + 翻译 + 自用全程合规；再托管越界（除非该篇许可允许）；镜像/聚合形态与 ToU 明确冲突。**
 
 ## 5. 产品建议
 

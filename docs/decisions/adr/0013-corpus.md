@@ -28,7 +28,7 @@
 - 2026-09-19：评测/dev 分轨扩层 +8,034（holdout/dev_vol/dev_failmine/dev_recent），八层 13,266 篇 · 46GB；并发事故留痕（supp 清单互没去重 + cell-adoption 不分层 → 5 id 跨层双落，已清账修管线）。
 - 2026-09-20：**七库合一**——`bench/corpus/` 成唯一物理根（~14k 篇 · 54.9G），corpus_v2/corpus_m1k/corpus_iclr 树 rename 并入（947 搬移 + 251 去重 + 3 冲突版本双保留进 `_alt-versions/`），兼容壳 symlink 拆除；`corpus_daily`（滚动 soak）与 `corpus_iclr_pdf`（PDF 产物库）生命周期不同不并入。物理拆分至 `corpus_v3/`/`corpus_m1k/`/`corpus_v2/` 独立根的再分层在途（以 `dev/repository.md` 与 MANIFEST 实数为准）。
 - 2026-09-21：`corpus_daily` 滚动层整体下线删除（`daily_arxiv` 管线同撤）。
-- 2026-09-23（Wave-F/trizone-ledger v2）：「再分层在途」由 trizone 口径实质取代——不走分库目录，改清单/数据分离：`bench/corpus/` 只留 tracked manifest 与台账，物化载荷迁仓外 `$TEXLATE_BENCH_ROOT/lake/corpus/`；构建管线重写为 `bench/py/specs/corpus_*.py` spec；`benchlib.EVAL_ONLY_LAYERS` 治理件随 benchlib 删除，EVAL_ONLY 口径移 `kernel/spec.py::EVAL_LAYERS`（`{"holdout","eval_only"}`，spec 须声明 `eval=True` 才进帧）。
+- 2026-09-23（trizone-ledger 改版）：「再分层在途」由 trizone 口径实质取代——不走分库目录，改清单/数据分离：`bench/corpus/` 只留 tracked manifest 与台账，物化载荷迁仓外 `$TEXLATE_BENCH_ROOT/lake/corpus/`；构建管线重写为 `bench/py/specs/corpus_*.py` spec；`benchlib.EVAL_ONLY_LAYERS` 治理件随 benchlib 删除，EVAL_ONLY 口径移 `kernel/spec.py::EVAL_LAYERS`（`{"holdout","eval_only"}`，spec 须声明 `eval=True` 才进帧）。
 
 ## 现状
 

@@ -191,6 +191,6 @@
 3. **canon 收编改变 dedup 键**：`math.GT/0309136` 旧任务键与新 canon 键分仓——历史任务不复用是既定代价；strict_era 默认开会拒 `9912.00001`/`hep-th/0801001` 这类不可能 id（预期收益：省一轮远端 404）。
 4. **refs.bib 远端延迟/抖动**：p50 2.2s、max 20s——总 deadline + 并发 4 + Lane C 兜底是硬需求；上游格式漂移（DataCite 非 `@` 开头回包）按 miss 降级不炸导出。
 5. **Crossref 门控**：title-overlap 阈值 0.5 是实测拐点（12 探 5 过）——阈值进常量并随门控回归测试钉死；无门控接入=毒导出。
-6. **dom 路 kept key 漂移**：`bib.bibN` 序数随 arXiv 版本重取可变——payload 快照自含 text/meta 使导出不受影响；卡面 keep 态可能标错条目（接受，与位置持久化同语义）。
+6. **dom 路 kept key 漂移**：`bib.bibN` 序数随 arXiv 版本重取可变——payload 快照自含 text/meta 使导出不受影响；卡面 keep 态随漂移标错条目（接受，与位置持久化同语义）。
 7. **pin 持久化依赖事件 schema 扩展**：只写 catalog 行不进 `lake_cell` 事件的实现等于没做（重建即丢）——`_lake_event` 转发与 `OPTIONAL_KEYS` 白名单必须同 PR。
 8. **sweep 接 cas.gc_sweep 的锁序**：sweep 持 `sweep.lock` NB + kernel_active_hold，`gc_sweep` 内再取 `_cas_lock` EX——须保证 sweep 内调用点不与既有 cas 操作序倒置（现 cas 无其他长持锁方，风险低但要断言 grace 内对象不删）。

@@ -1,10 +1,10 @@
 # arxiv-to-prompt 解剖报告：抓取/定位/展平/裁剪四块对照
 
-> **结论**：`arxiv-to-prompt`（PyPI，MIT）本质是「flatten + 正则过滤器」——零解析库，全部正则 + 括号计数手撸——与我们的「保护/分块/splice 重建」不是同一物种，但**抓取层、主文件定位、展平、裁剪四块直接同构可对照**。实测确认其致命缺陷：主文件定位不剥注释（1502.01589 选中宏文件当主文件）、展平只认花括号 `\input{}`、注释剥离 verbatim 盲（截断 `\verb`/`\url`）。可借鉴：缓存原子发布（已借入 `arxiv/cache.py`）、section 树消歧 UX、plain-TeX 终结符兜底、`\graphicspath` 取最后声明、118 例测试资产。
+> **结论**：`arxiv-to-prompt`（PyPI，MIT）本质是「flatten + 正则过滤器」——零解析库，全部正则 + 括号计数手写实现——与我们的「保护/分块/splice 重建」路线不同，但**抓取层、主文件定位、展平、裁剪四块直接同构可对照**。实测确认其致命缺陷：主文件定位不剥注释（1502.01589 选中宏文件当主文件）、展平只认花括号 `\input{}`、注释剥离 不感知 verbatim（截断 `\verb`/`\url`）。可借鉴：缓存原子发布（已借入 `arxiv/cache.py`）、section 树消歧 UX、plain-TeX 终结符兜底、`\graphicspath` 取最后声明、118 例测试资产。
 > **状态**：现行（第三方工具解剖结论长期有效；缓存原子发布机制已实装进 `arxiv/cache.py`——staging 构建→meta.json 校验→`Path.rename` 原子换入+`.old` 回滚）。主文件定位/展平/注释处理我方设计已全面超越，见 §8 对照。
 > **日期**：2026-08-24 源码快照（0.14.1，HEAD `3078dda`）+ 本地实测，2026-09-20 重订入库
 
-对象：`arxiv-to-prompt` 0.14.1（作者 Takashi Ishida）[^atp-repo][^atp-pypi]。体量：`core.py` 1207 行 + `cli.py` 203 行 + `tests/test_core.py` 2073 行（118 用例）。依赖仅 requests/filelock/pyperclip（+可选 tiktoken）。定位：arXiv 源码 → 展平成单文件 prompt 喂 LLM。解剖现场为开发机快照与试运行输出，结论已摘要进正文。
+对象：`arxiv-to-prompt` 0.14.1（作者 Takashi Ishida）[^atp-repo][^atp-pypi]。体量：`core.py` 1207 行 + `cli.py` 203 行 + `tests/test_core.py` 2073 行（118 用例）。依赖仅 requests/filelock/pyperclip（+可选 tiktoken）。定位：arXiv 源码 → 展平成单文件 prompt 喂 LLM。解剖现场为开发机快照与试运行输出。
 
 ## 1. 抓取层（`download_arxiv_source` / `check_source_available`）
 
@@ -21,16 +21,16 @@
 2. 否则取**行数最长**的含 `\documentclass|\documentstyle` 的 .tex（启发：会议模板/附带短文更短）；
 3. 否则取最长的含 plain-TeX 终结符的文件：正则 `\\(?:bye|end)(?![a-zA-Z{])`（`\end` 后不接字母/`{`，故 `\end{document}` 不算，harvmac 裸 `\end` 算）。
 
-**实测证实致命缺陷**：`'\documentclass' in line` 是**裸行子串匹配、不剥注释**。1502.01589 中 `Planck.tex`（201 行宏文件，`\documentclass` 只出现在 `%` 注释里）打败真正的主文件 `planck_parameters_2015.tex`（83 行）→ 整个输出是宏文件垃圾。我们 locate() 的剥注释候选 + `\begin{document}` + include 图根 + `multi_doc` 标记全面超越。
+**实测证实致命缺陷**：`'\documentclass' in line` 是**裸行子串匹配、不剥注释**。1502.01589 中 `Planck.tex`（201 行宏文件，`\documentclass` 只出现在 `%` 注释里）打败真正的主文件 `planck_parameters_2015.tex`（83 行）→ 整个输出变成宏文件内容。我们 locate() 的剥注释候选 + `\begin{document}` + include 图根 + `multi_doc` 标记全面超越。
 
 ## 3. 展平（`flatten_tex`）
 
 - 仅识别 `\\(?:input|include){([^}]+)}`——**花括号形独占**。`\input filename`（无括号 TeX 原生语法）直接漏展平（实测证实）。无 `\import/\subfile/\InputIfFileExists/\includestandalone/\CatchFileBetweenTags`；`\bibliography{x}` 不映射 `x.bbl`（实测 paper.bbl 有 52 条 bibitem，输出里 `\bibliography{egbib}` 原样残留）。
-- 扩展名补全：`x.tex` → `x`（与 LaTeX `\input` 语义一致）；0.9.0 修了带点路径（`3.5_dataset`）——做法是「不以 .tex 结尾才补」，而非按段补。
-- 路径解析：**只相对根目录**（`os.path.join(directory, name)`），不相对 including 文件目录——子目录文件里 `\input{sibling}` 会漏。我们 locate() 基准序「编译 CWD（主文件目录）→ 项目根 → including 文件目录」三基准（corpus39-profile 实测修正自 spec 旧序）更对——including 目录仍在基准内，子目录 `\input{sibling}` 不漏（gullet 展开层另有 including→root→top_dir 序，见 spec）。
+- 扩展名补全：`x.tex` → `x`（与 LaTeX `\input` 语义一致）；0.9.0 修了带点路径（`3.5_dataset`）——做法是「不以 .tex 结尾才补」，不按段补。
+- 路径解析：**只相对根目录**（`os.path.join(directory, name)`），不相对 including 文件目录——子目录文件里 `\input{sibling}` 会漏。我们 locate() 基准序「编译 CWD（主文件目录）→ 项目根 → including 文件目录」三基准（corpus39-profile 实测修正自 spec 旧序）更准确——including 目录仍在基准内，子目录 `\input{sibling}` 不漏（gullet 展开层另有 including→root→top_dir 序，见 spec）。
 - 注释内 `\input` 不展开：行前缀扫未转义 `%`（奇偶反斜杠计数判 `\%`/`\\%`，实现正确）。
 - 环/重复：单 `processed_files` 集合，二次包含返回 `""`——防环优先于重复展开语义（偏差）。
-- 编码：`errors='replace'`——latin-1 文件不崩但吃进 mojibake ``。
+- 编码：`errors='replace'`——latin-1 文件不崩但引入 mojibake ``。
 
 ## 4. 裁剪
 
@@ -40,12 +40,12 @@
 2. 整行 `%` 开头 → 删行；
 3. 行内逐字符：`in_command` 标记（前一字符是 `\`）→ `\%` 保留、`\\%` 正确判注释。
 
-**实测证实缺陷**：verbatim 盲——`\verb|100%|` → `\verb|100`，`\url{http://x.com/a%20b}` → `\url{http://x.com/a`（合成 fixture 实测）。`\iffalse` 正则也无嵌套/verbatim 感知。我们「`\` 分支先消费 verb/url/verbatim env，`%` 分支永远看不到它们」的单遍不变式根治此类。
+**实测证实缺陷**：不感知 verbatim——`\verb|100%|` → `\verb|100`，`\url{http://x.com/a%20b}` → `\url{http://x.com/a`（合成 fixture 实测）。`\iffalse` 正则也无嵌套/verbatim 感知。我们「`\` 分支先消费 verb/url/verbatim env，`%` 分支永远看不到它们」的单遍不变式根治此类。
 
 ### 4.2 `--no-appendix` / `--abstract`
 
 - `re.search(r'\\appendix\b')` 首个命中截断。管线顺序 = 剥注释 → 宏展开 → appendix → figure-paths：与 `--no-comments` 联用时注释里的 `\appendix` 不误伤（顺序对）；但单用 `--no-appendix` 时注释内/verbatim 内 `\appendix` 仍触发截断。不识别 `\begin{appendix}` env / 无 `\appendix` 的附录节。
-- `--abstract`：`\\begin\{abstract\}(.*?)\\end\{abstract\}` DOTALL。强制先剥注释（防抽到被注释的 abstract）——细节用心了。
+- `--abstract`：`\\begin\{abstract\}(.*?)\\end\{abstract\}` DOTALL。强制先剥注释（防抽到被注释的 abstract）——顺序处理正确。
 
 ### 4.3 `--list-sections` / `--section`（section 树）
 
@@ -57,25 +57,25 @@
 
 - 覆盖：`\newcommand/\renewcommand/\providecommand`（±`*`）、`\DeclareMathOperator`（±`*`，体改写为 `\operatorname{...}`）、`\def` **仅零参**。`[n]` 参 + `[default]` 首参可选、`#1..#9` 位置替换、≤10 轮不动点嵌套展开。
 - **定义段直接从文本删除**（regions_to_remove 合并后剔除）——对 prompt 合理，对 identity 重建是破坏性的（我们宏表是登记制、不删原文）。
-- 不支持：`\let`、`\newenvironment`、条件式、带参 `\def`、`##` 嵌套定义（`replace('#1')` 会把 `##1` 错伤）、定义点之前的同名调用（全文本无差别展开）。
+- 不支持：`\let`、`\newenvironment`、条件式、带参 `\def`、`##` 嵌套定义（`replace('#1')` 会误伤 `##1`）、定义点之前的同名调用（全文本无差别展开）。
 - 括号/方括号匹配手写 depth 计数，`\{`/`\[` 转义感知——与我们 `_match_brace` 同思路但无注释感知。
-- **对翻译管线有害**：展开把宏体注入每个调用点，译文里出现大段重复 tex——我们「宏不展开、TRANSPARENT 宏参数按位分流」才是正路。它这功能是给「把论文喂给不懂该文件宏的 LLM」场景用的。
+- **对翻译管线有害**：展开把宏体注入每个调用点，译文里出现大段重复 tex——我们采用「宏不展开、TRANSPARENT 宏参数按位分流」路线。它这功能是给「把论文喂给不懂该文件宏的 LLM」场景用的。
 
 ## 6. `--figure-paths` / `--token-count`
 
 - figure-paths：取**最后一个** `\graphicspath` 声明（与 LaTeX 后定义覆盖语义一致）+ 源码根目录兜底；`\includegraphics` 正则（可带 `[opt]`）；扩展名按 `.pdf/.png/.jpg/.jpeg/.eps/.svg` 序补；只返回**盘上实存**绝对路径、去重、跳过 `://` URL。管线位置在裁剪之后——`--no-comments --no-appendix` 可排除被注释/附录图（配套语义自洽）。
-- token-count：tiktoken `o200k_base`，`disallowed_special=()` 防 `<|endofprompt|>` 字面崩溃（GPT-4 论文实测坑，changelog 有案）。
+- token-count：tiktoken `o200k_base`，`disallowed_special=()` 防 `<|endofprompt|>` 字面崩溃（GPT-4 论文实测触发，changelog 有记录）。
 
 ## 7. 本地实测汇总（`--local-folder`，0.14.1）
 
 | 语料           | 难点                                                    | 结果                                                                   | 质量                                                                                        |
 | -------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | 1706.03762     | 基线                                                    | 全通（list-sections/section/abstract/expand-macros/token-count 13352） | 节树完整正确                                                                                |
-| 2201.05989     | camera.tex+paper.tex 双 documentclass                   | 展平 167KB                                                             | 「最长文件」启发恰好蒙对（paper.tex 1025>149 行）；不标 multi_doc，纯运气                   |
-| 1502.01589     | 103 文件、`\input X` 无括号、documentclass 陷注释       | **完全失败**                                                           | 选中 Planck.tex 宏文件当主文件，输出 202 行宏定义垃圾；即使选对，无括号 `\input` 也全不展开 |
+| 2201.05989     | camera.tex+paper.tex 双 documentclass                   | 展平 167KB                                                             | 「最长文件」启发恰好选中正确文件（paper.tex 1025>149 行）；不标 multi_doc，属巧合           |
+| 1502.01589     | 103 文件、`\input X` 无括号、documentclass 陷注释       | **完全失败**                                                           | 选中 Planck.tex 宏文件当主文件，输出 202 行宏定义内容；即使选对，无括号 `\input` 也全不展开 |
 | hep-th/9901001 | `\documentstyle` LaTeX 2.09                             | 正常                                                                   | 27KB 干净全文，`\bye\|\end` 兜底逻辑覆盖更老 plain TeX                                      |
 | 2602.09511     | 法语 babel                                              | 正常                                                                   | 252KB；list-sections 有少量空名子节（`\subsection{}` 类）                                   |
-| synth fixture  | `\section[opt]`、`\input` 无括号、`\verb\|%`、`\url{%}` | **三连证实缺陷**                                                       | opt-arg 节消失；无括号 input 不展开；verb/url 内 `%` 被当注释截断                           |
+| synth fixture  | `\section[opt]`、`\input` 无括号、`\verb\|%`、`\url{%}` | **三项缺陷全部证实**                                                   | opt-arg 节消失；无括号 input 不展开；verb/url 内 `%` 被当注释截断                           |
 
 ## 8. 可借鉴 / 不适用
 
@@ -83,7 +83,7 @@
 
 1. **缓存发布机制**：staging 构建 → meta.json 充当完成位（缺失/损坏即 miss、commit 硬拒）→ `Path.rename` 原子换入 + `.old-{uuid}` 备份回滚——**已借入 `arxiv/cache.py`**（per-id FileLock 未借入，`arxiv/` 内无锁）。
 2. **Section 树交互**：`A > B` 路径消歧 + stderr 列候选——若做「按节翻译」直接借用此 UX。
-3. **plain-TeX 终结符兜底**：`\bye|\end(?![a-zA-Z{])` 正则判 harvmac 类无 documentclass 论文——我们「零候选→降级链」更保守，但作为最后一档便宜好用。
+3. **plain-TeX 终结符兜底**：`\bye|\end(?![a-zA-Z{])` 正则判 harvmac 类无 documentclass 论文——我们「零候选→降级链」更保守，但作为兜底档实现成本低。
 4. **`\iffalse…\fi` 当注释块**的认知（我们不剥注释，但判别「真注释 vs 条件编译」时可参考）。
 5. **`\graphicspath` 取最后声明**、figure-paths 跑在裁剪后的管线序——资源收集器顺序语义。
 6. **测试资产**：118 例里有现成边缘用例构造（带点 input 路径、尾部空白 `\input{appendix }`、嵌套括号节题、tar 安全成员），可吸收进 fixture 集。
@@ -91,9 +91,9 @@
 ### 不适用 / 我们已超越
 
 1. 它本质是「flatten + 正则过滤器」，无占位符/分块/splice/校验——chunk/PH/identity/validate 体系它完全没有。
-2. 主文件定位裸子串不剥注释 → 实测翻车；我们五级裁决 + multi_doc。
+2. 主文件定位裸子串不剥注释 → 实测失败；我们五级裁决 + multi_doc。
 3. 展平命令覆盖：只有花括号 `\input/\include`，无括号形、`\import` 系、`\bibliography→.bbl`、相对 including 目录解析全缺。
-4. 注释剥离 verbatim 盲（实测截断 `\verb`/`\url`）——我们单遍扫描不变式根治。
+4. 注释剥离 不感知 verbatim（实测截断 `\verb`/`\url`）——我们单遍扫描不变式根治。
 5. 节命令表过窄 + 无 `[opt]` 支持（实测 `\section[Short]` 消失）；不感知 env/数学/条件。
 6. 宏处理是破坏性字符串重写（删定义、无差别展开、仅零参 `\def`）；我们宏表登记制 + argspec + 分类保护。
 7. 无版本语义（永远最新版）、无限速、`/format` HTML 预检脆、编码 errors=replace 出 mojibake——我们各有对应设计。

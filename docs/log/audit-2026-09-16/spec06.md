@@ -10,7 +10,7 @@
 
 ## §0 两个消费方共享语义
 
-partial。在线路径走 `acquire_source`（fetch.py:588）全链复用 sniff→unpack→locate；批量建库 `bench/py/build_corpus_v3.py:960` 自带 `unpack_blob`——只查绝对路径+`..`，丢弃全部非 reg 成员（含 in-tree link），无容量上限/大小写折叠/stub/mtree。与「共享同一套解包/定位/钉版语义」不一致：corpus `extracted/` 是弱规范化产物，可能含产品路径会改名的 casefold 冲突。manifest 四元组 `(channel,item,member,blob_sha256)` 符合 §6.2。
+partial。在线路径走 `acquire_source`（fetch.py:588）全链复用 sniff→unpack→locate；批量建库 `bench/py/build_corpus_v3.py:960` 自带 `unpack_blob`——只查绝对路径+`..`，丢弃全部非 reg 成员（含 in-tree link），无容量上限/大小写折叠/stub/mtree。与「共享同一套解包/定位/钉版语义」不一致：corpus `extracted/` 是弱规范化产物，含产品路径会改名的 casefold 冲突风险。manifest 四元组 `(channel,item,member,blob_sha256)` 符合 §6.2。
 
 ## §1.1 端点表
 
@@ -86,7 +86,7 @@ missing。src/texlate 内无 Atom id_list/OAI-PMH/DataCite 任何实现（grep �
 
 ## §5 降级链
 
-missing（本层）。无 L2 `/html` 探测、无 L3 PDF sidecar 翻译入口；`pdf_wrapper` 检出后仅 warning+meta 标记，acquire 照常 OK 返回，下游解析 wrapper .tex 大概率走到 compile_failed 而非 `degraded_*`。worker.py:746-755 把 PDF_ONLY/UNKNOWN_FORMAT 映射 `no_latex_source` 错误，无降级。spec 三态覆盖 ≈100% 的承诺当前只有 L1。
+missing（本层）。无 L2 `/html` 探测、无 L3 PDF sidecar 翻译入口；`pdf_wrapper` 检出后仅 warning+meta 标记，acquire 照常 OK 返回，下游解析 wrapper .tex 落到 compile_failed，走不进 `degraded_*` 通道。worker.py:746-755 把 PDF_ONLY/UNKNOWN_FORMAT 映射 `no_latex_source` 错误，无降级。spec 三态覆盖 ≈100% 的承诺当前只有 L1。
 
 ## §6 批量渠道
 

@@ -1,13 +1,13 @@
 # cite-translate（引用文献翻译）实现文档
 
-调研基础：tmp/ux-research-20260922/exp/ 下 9 个 ct-* 实验（ct-card-id / ct-dedupe(+verify) / ct-status / ct-toast / ct-badge / ct-notify / ct-card-states(+verify) / ct-batch / ct-anon），全部已在真实代码与真实数据上实测。本文档是综合实现规格。
+调研基础：tmp/ux-research-20260922/exp/ 下 9 个 ct-* 实验（ct-card-id / ct-dedupe(+verify) / ct-status / ct-toast / ct-badge / ct-notify / ct-card-states(+verify) / ct-batch / ct-anon），全部已在真实代码与真实数据上实测。
 
 ## 目标
 
 在阅读器内把「被引文献」变成可消费的一等任务对象：
 
-1. **单条**：引用悬浮卡（CiteCard）脚部新增「翻译此文」动作——凡能解出 arXiv id 的条目（本地 L1 抽取或 L2 S2 externalIds 反补）都可一键建任务，按钮自身承载任务状态机（idle→queued→running→done/failed）。
-2. **批量**：文献表面板列出全部可解析条目（本地抽取 + L2 元数据），三桶分类（已译/在队/新）+ ETA 区间 + 大批量警告后一次性灌队。
+1. **单条**：引用悬浮卡（CiteCard）脚部新增「翻译此文」动作——凡能解出 arXiv id 的条目（本地抽取或远端 S2 externalIds 反补）都可一键建任务，按钮自身承载任务状态机（idle→queued→running→done/failed）。
+2. **批量**：文献表面板列出全部可解析条目（本地抽取 + 远端元数据），三桶分类（已译/在队/新）+ ETA 区间 + 大批量警告后一次性灌队。
 3. **后台可达**：批任务串行跑期间用户可离开——Toolbar 任务徽标（reader 内补 .topnav 隐藏的真空洞）、app 级 toast、系统通知三层承接回执。
 4. **凭证门**：无 API key 时拦截并给内联输入——实证动机是 local 形态无 key 提交会静默产出 Mock 占位译文且段缓存跨凭证残留（67% 段毒化，`prefer=fresh` 也救不回）。
 
@@ -42,7 +42,7 @@
 ### B. 文献表面板 + 批量翻译
 
 - **入口**：Toolbar 新增「文献」钮（`citeIndex.size>0` 才显；计数角标=可译条数）；卡内脚部加「全部文献」次入口。≤640px 收进 ⋯ 菜单（`role="menuitem"` 才入 menuRoving 漫游圈）。
-- **面板**：modal/抽屉列出 citeIndex.entries() + lazy-dest 已抽条目——每行 label、截断正文、id 徽标（arXiv/DOI/无）、状态钮（同卡内状态机）、meta 标题（L2 已到包时）。
+- **面板**：modal/抽屉列出 citeIndex.entries() + lazy-dest 已抽条目——每行 label、截断正文、id 徽标（arXiv/DOI/无）、状态钮（同卡内状态机）、meta 标题（远端已到包时）。
 - **顶部批量 CTA「翻译全部」**：点击先 preflight——1 次 `GET /api/tasks`（实测 ~2ms）按双侧 canon 归一 `arxiv_id` 分 done/active/new 三桶。**这步不可省**：bare-id 对已 done 钉版行重提会产幽灵 202 行（REST find_reusable 查裸键错失钉版键，~55ms 才被 worker reuse_hit 物化兜底），preflight 直接免掉。
 - **确认弹层文案**（实测产出的 copy 表，zh）：
     - 标题「翻译引用文献」；计数行「共 30 篇可翻译：22 篇新任务，3 篇已在队列，5 篇已有译文」；
@@ -81,10 +81,10 @@
 **本特性对 LaTeX 翻译管线零改动**——全部走既有 `POST /api/arxiv/{id}/translate` 任务面。变更集中在「条目→id」抽取侧：
 
 1. **`extractRefIds` DOI 正则放宽**（web/src/reader/citations.ts:67）：现行要求 `doi.org/` 或 `doi:` 前缀，漏 `\doi{}`/`\mn@doi{}`/`doi={}` 裸形共 5,325 条（7.1%）；加裸 `10.\d{4,9}/\S+` 臂（条界止于 `.,;)]}` 尾）覆盖 36.3%→43.3%。
-2. **客户端 canon 归一**（新建小函数，或按 `docs/spec/arxiv-id-canon.md` 契约落地共享 canon）：cite 条目 arxivId 可能带 `vN`、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本 + 剥 class+ 小写化 archive。
-3. **L2 反补已可用**：refs.py 的 S2 回包已带 `externalIds.ArXiv`→`meta().arxivId`（refs.py:154-155），DOI-only 条目自动升级出 arXiv 链，前端零改动。
+2. **客户端 canon 归一**（新建小函数，或按 `docs/spec/arxiv-id-canon.md` 契约落地共享 canon）：cite 条目 arxivId 有 `vN` 钉版变体、task 行 `arxiv_id` 是服务端 `normalize_arxiv_id` 落库的裸 base（tasks.py:59,95）——preflight 匹配与状态映射必须双侧剥版本 + 剥 class+ 小写化 archive。
+3. **远端反补已可用**：refs.py 的 S2 回包已带 `externalIds.ArXiv`→`meta().arxivId`（refs.py:154-155），DOI-only 条目自动升级出 arXiv 链，前端零改动。
 4. **已知数据缺口（接受，不堵）**：dual.json `ph` 仅 8/128 文档有（eprint 链主路专属）→ citeIndex 覆盖率天然受限，lazy dest 兜底条目不进 refsLookup（refMeta 只从 citeIndex.entries() 播种）——面板对该类条目显示「无可解析 id」；arxiv_html 链 `_build_dual_html` 不写 ph → dom 视图 citeIndex=0。这些是上游产物面问题，不在本特性面修。
-5. **可选**：refs.py `_MAX_REFS=400` 超限整包 400（前端 `.catch` 静默）→ 4/1228 巨型文献表文档 L2 全灭；改「截断 400 + truncated 标志」或前端分片提交。
+5. **可选**：refs.py `_MAX_REFS=400` 超限整包 400（前端 `.catch` 静默）→ 4/1228 巨型文献表文档远端拉取全灭；改「截断 400 + truncated 标志」或前端分片提交。
 
 ## 前端改动（文件级）
 

@@ -1,10 +1,10 @@
 # alphaXiv 逆向调研报告
 
 > **结论**：alphaXiv 的公共 REST 面几乎完全无鉴权，社区 SDK 已把端点枚举干净；其 overview「翻译」是多语言再生成而非 PDF 重编译，与 texlate 路线不同；references 解析器与 per-language 状态机是可借鉴的成熟设计。
-> **状态**：时点证据（2026-09-19 口径）——逆向结论是对第三方服务的时点观察，仅供互操作参考，服务端随时可能变更。
+> **状态**：时点证据（2026-09-19 口径）——逆向结论是对第三方服务的时点观察，仅供互操作参考，服务端状态随时会变。
 > **日期**：2026-09-19
 
-对 https://www.alphaxiv.org/ 做了一轮「网络调研 + 直接探针 + 前端抓包」三层逆向。结论：**逆向成本极低**——其公共 REST 面几乎完全无鉴权裸奔，社区已有成型的 Python SDK 把端点枚举干净，前端 bundle 泄露了从实验开关到模型清单的大量内部信息。唯一需要账号的是写操作与 AI assistant 链路（API key `axv1_...` 或 session cookie）。
+对 https://www.alphaxiv.org/ 做了一轮「网络调研 + 直接探针 + 前端抓包」三层逆向。结论：**逆向成本极低**——其公共 REST 面几乎完全免鉴权开放，社区已有成型的 Python SDK 把端点枚举干净，前端 bundle 泄露了从实验开关到模型清单的大量内部信息。唯一需要账号的是写操作与 AI assistant 链路（API key `axv1_...` 或 session cookie）。
 
 ## 公司背景
 
@@ -121,7 +121,7 @@ OAuth 2.1 浏览器登录或 `Authorization: Bearer axv1_...`（Settings → API
 
 ### 覆盖率实测（2026-09-19，对语料库抽样 45 篇）
 
-alphaXiv 富产物是**头部爆款专属**而非全库资产：随机近年代论文 15/15 有元数据但 references 仅 1/15、overview 0/15、full-text 0/15；OpenAlex 高引热层 15 篇同样 overview 0/15、references 3/15；2007 前 archive 式老 ID（astro-ph/…）0/15 根本未索引。overview/zh/full-text 全靠 `request-ai` 按需生成（auth 门槛），不做预计算。结论：**alphaXiv 只能当机会型增强（命中即白嫖），不能进核心管线当依赖**；引用图要自建——texlate 有 LaTeX 源可抽 `.bbl`/`\bibitem` 边，覆盖率天然好于他们 PDF 侧解析；引用排序用 OpenAlex（免 key）/S2（429 需 key）而非他们的图。
+alphaXiv 富产物是**头部爆款专属**而非全库资产：随机近年代论文 15/15 有元数据但 references 仅 1/15、overview 0/15、full-text 0/15；OpenAlex 高引热层 15 篇同样 overview 0/15、references 3/15；2007 前 archive 式老 ID（astro-ph/…）0/15 根本未索引。overview/zh/full-text 全靠 `request-ai` 按需生成（auth 门槛），不做预计算。结论：**alphaXiv 只能当机会型增强（命中即免费使用），不能进核心管线当依赖**；引用图要自建——texlate 有 LaTeX 源可抽 `.bbl`/`\bibitem` 边，覆盖率天然好于他们 PDF 侧解析；引用排序用 OpenAlex（免 key）/S2（429 需 key）而非他们的图。
 
 ## 生成管线逆向（overview / references / zh 导读）
 
@@ -145,7 +145,7 @@ alphaXiv 富产物是**头部爆款专属**而非全库资产：随机近年代�
 
 ### 看不到的部分与补全手段
 
-各 stage 的**具体模型与 prompt** 在服务端，不可直接观测。旁证：podcast 管线官方公开为 Claude 4.1 Opus + gpt-4o-mini-tts[^axpodcast]；retrieval agent 是 Qwen3-8B 微调[^axqa]；assistant 菜单 13 个模型说明他们按任务选模型；翻译延迟 10–35s 指向 flash/mini 档。要完全看活：`axv1_` key 对未生成论文调 `request-ai`，同时订阅 `ai-overview-v2` 频道抓流式中间态；`admin-agent-trace-tree` 大概率需管理员权限。但注意：**overview/intermediateReport/references 全是公开 GET**——消费方根本不需要复刻 prompt，直接读产物即可。
+各 stage 的**具体模型与 prompt** 在服务端，不可直接观测。旁证：podcast 管线官方公开为 Claude 4.1 Opus + gpt-4o-mini-tts[^axpodcast]；retrieval agent 是 Qwen3-8B 微调[^axqa]；assistant 菜单 13 个模型说明他们按任务选模型；翻译延迟 10–35s 指向 flash/mini 档。要完全看活：`axv1_` key 对未生成论文调 `request-ai`，同时订阅 `ai-overview-v2` 频道抓流式中间态；`admin-agent-trace-tree` 需管理员权限。生成件无需复刻 prompt：**overview/intermediateReport/references 全是公开 GET**——消费方直接读产物即可。
 
 ### 参考文献
 

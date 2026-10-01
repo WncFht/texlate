@@ -46,7 +46,7 @@
 | `GET /api/proxy?fileUrl=`                                    | **无鉴权** | 服务端代取任意 URL 字节给 viewer；只认 PDF content-type（arxiv.org/abs 透传 HTML 会挂）                       |
 | `/api/paper/upload/{presigned-post,form,complete}`           | 匿名可     | S3 三步直传，100MB                                                                                            |
 | `GET /api/paper/share/{uuid}`                                | **无鉴权** | 分享链接直读（PATCH isPublic 生成）                                                                           |
-| `/api/review/{latest,trending,search}` + `/{slug}?language=` | **无鉴权** | 整个 AI 评审语料裸奔；offset 校验 bug（min0.max0）→ 每查询只够得着最新 100 条                                 |
+| `/api/review/{latest,trending,search}` + `/{slug}?language=` | **无鉴权** | 整个 AI 评审语料免鉴权开放；offset 校验 bug（min0.max0）→ 每查询只够得着最新 100 条                                 |
 | `GET /scholar/search-with-ref?query=<title>`                 | **无鉴权** | 一次调用拿回论文+references+citing 的整个 ego 网络                                                            |
 | `GET /api/etc/geoip`                                         | 无鉴权     | MaxMind 式地区判定，驱动分区配额                                                                              |
 | `/ai/anonymous/*`                                            | 无鉴权     | **每个 AI 功能都有匿名镜像端点**（infographic 除外），服务端计量                                              |
@@ -80,7 +80,7 @@
 ### 4.3 摘要 / With AI 右栏
 
 - 开纸默认右栏自动展开到 With AI tab（移动端除外）：**Keyword Dictionary → 3-Line Summary → Summary** 三张手风琴卡
-- 每卡若 paper 记录已有字段直接渲染；仅当 OWNER 且首次才流式生成（`/ai/keywords`、`/ai/three-line-summary`、`/ai/summary`），写回 paper——**分享链接的访客白嫖 owner 预计算内容**
+- 每卡若 paper 记录已有字段直接渲染；仅当 OWNER 且首次才流式生成（`/ai/keywords`、`/ai/three-line-summary`、`/ai/summary`），写回 paper——**分享链接的访客免费读到 owner 预计算内容**
 - 每个功能一个用户可改 prompt（`/user/{keywords,three-line-summary,summary}-prompt`）
 - Discussion 多轮 chat：~6 个入口、整篇/选区两种 scope、命名线程 + 跨论文历史、`<ref p s pg>` 句级证据 chip、@-mention 最多 10 篇（付费）、流式建议追问；免费按 paper 计不按消息计
 
@@ -136,7 +136,7 @@
 
 - **per-paper 周槽位**非 token 计量：`MAX_FREE_PAPERS=3`，周一 00:00 UTC 重置；首次对某 URL 记 metered action 即占槽，占后该篇本周无限用
 - 绕过栈：订阅/7 天 welcome 窗/14 天 referral 窗/partner 窗/受邀未激活宽限/移动端全面豁免/教程 PDF/匿名 twin
-- **CN 地区歧视**：geoip 命中后 3 篇变**终身累计**非每周——值得注意的激进成本控制
+- **CN 地区歧视**：geoip 命中后 3 篇变**终身累计**非每周——激进成本控制
 - 转化双层：确定性 LimitReachedModalV2（第 3 篇预警/第 4 篇锁死+referral 逃生口）+ 任意响应 `X-Show-Paywall:1` 触发的 A/B 付费墙
 - 独立额度：infographic 周 credit（5/30）、Discussion 一次性体验旗标 +10 篇上限、Layout Translate Premium 专属周配额+maxPages=30
 
@@ -144,10 +144,10 @@
 
 - 无 PWA/无 manifest/无 service worker；iOS+Android 独立 App（v1.1.6）是刻意收窄的「阅读 + 库」伴侣
 - 平板是目标形态（pencil 手写、折叠屏切平板模式）；手机 App 直接隐藏 header
-- App Store 合规的 Apple 登录只在 App 里→web 永远 stranded 这批用户；支付走 Toss webview
+- App Store 合规的 Apple 登录只在 App 里→这批用户在 web 端永远无法登录；支付走 Toss webview
 - 采用量极小且韩区集中；投诉收敛于 iPad 卡顿/手写/侧栏/缩放
 
-## 5. 增长引擎（最值钱的一节）
+## 5. 增长引擎
 
 | 杠杆                 | 机制                                                                                                                                                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -166,11 +166,11 @@
 - iPad/移动端卡顿、手写坏、侧栏烦、文本选择不精——移动端全线弱
 - 登录 bug、强制第三方 cookie；Apple 登录用户进不了 web
 - cloud-only，无本地/自托管；团队共享库到现在还是 Coming Soon
-- Premium $59/mo 刺眼；CN 用户终身 3 篇的歧视性配额
+- Premium $59/mo 价格偏高；CN 用户终身 3 篇的歧视性配额
 - Explain 普通回答无证据链（自家承认输 Typeset）
 - 本地文件库条目绑路径、跨设备即坏；无 RIS/CSL 导出；无全局笔记搜索
 
-## 7. Corca OSS 可白嫖清单
+## 7. Corca OSS 可复用清单
 
 | 仓库              | 是什么                                         | 对我们的价值                                      |
 | ----------------- | ---------------------------------------------- | ------------------------------------------------- |
@@ -205,7 +205,7 @@
 | 项                             | 怎么改                                                                                                                                                                                                         |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **扩展劫持**                   | 它劫持后做 overlay 阅读器；我们扩展劫持 arXiv PDF 应直接走 LaTeX 源管线产双语编译 PDF——**学它的分发，不学它的产物形态**。注意它没有 arXiv abs 页挂件，纯 PDF 劫持一条路径                                      |
-| **SEO 语料页**                 | 它的评审页是薄 AI 摘要钓搜索；我们已翻论文可产 `/{slug}` 句级双语对照页——**同样打法我们的内容质量严格更高**。LLM-seeding 隐藏文本可学（文案别照抄「最准确」那种夸大），robots 封 AI 爬虫但放 Google 的策略照抄 |
+| **SEO 语料页**                 | 它的评审页是薄 AI 摘要引搜索流量；我们已翻论文可产 `/{slug}` 句级双语对照页——**同样打法我们的内容质量严格更高**。LLM-seeding 隐藏文本可学（文案别照抄「最准确」那种夸大），robots 封 AI 爬虫但放 Google 的策略照抄 |
 | **每日批量入库管线**           | 它发布→入库 ~4 天→评审 66s；我们 daily arXiv 抓取通道知识在 git 历史里，重启时对照它的节奏（注意 daily-soak 已退役勿原样重建，指的是 SEO 页生成管线）                                                          |
 | **Layout Translate 双 viewer** | 它的 re-typeset 是 PDF 重排；我们做「原 PDF \| 双语编译 PDF」双 pane 同步滚动是同一 UX 形态，但产物是源级编译的                                                                                                |
 | **wasmtex**                    | MIT 直接拿：web 端 WASM 即时预览小文档，重型编译仍走服务端 xelatex                                                                                                                                             |
@@ -223,9 +223,9 @@
 | CV 版面检测（DocLayout-YOLO） | 我们有 LaTeX 源结构信息免费拿，不需要 CV 兜底 |
 | cloud-only 强制上传           | 反定位                                        |
 | 自研 A/B `/experiments`       | 过度工程                                      |
-| quiz/radar/infographic 花活   | 非核心动线；infographic 还要独立额度计量太绕  |
+| quiz/radar/infographic 外围功能 | 非核心动线；infographic 还要独立额度计量太绕  |
 | 移动原生 App                  | 它自己做得很差且投入大；我们 web 优先         |
-| CN 终身配额歧视               | 吃相难看，且我们就是中文用户主场              |
+| CN 终身配额歧视               | 歧视性定价，且我们就是中文用户主场            |
 
 ### 8.4 DIFFERENTIATE —— 它做不了、我们该放大的
 
@@ -260,7 +260,7 @@
 
 ### P1 · 选区/解释（2）
 
-8. 每个公式一键 Copy LaTeX（S）— 我们要花零成本：源里有真 LaTeX，不用 `/ai/latex` 猜。
+8. 每个公式一键 Copy LaTeX（S）— 零成本：源里有真 LaTeX，不走 `/ai/latex`。
 9. parse-tree 锚定的「Explain this figure/table」chip（L）— 它要 DocLayout-YOLO 服务端检测，我们从 LaTeX 源 parse 树直接知道环境边界。
 
 ### P1 · 引用（4）
@@ -303,7 +303,7 @@
 
 ## 10. 风险与注意事项
 
-- **法务**：全程公开面（无鉴权端点、CRX 公开分发、GitHub 开源仓、RSC/i18n 字典），无越权；勿调其匿名 AI 端点做规模化白嫖（违反 ToS 且无必要）。`/api/proxy?fileUrl=` 无鉴权代取是**它的**攻击面不是我们的作业模板——我们若做 URL 拉取要加白名单/SSRF 防护
+- **法务**：全程公开面（无鉴权端点、CRX 公开分发、GitHub 开源仓、RSC/i18n 字典），无越权；勿调其匿名 AI 端点做规模化免费调用（违反 ToS 且无必要）。`/api/proxy?fileUrl=` 无鉴权代取是**它的**攻击面不是我们的作业模板——我们若做 URL 拉取要加白名单/SSRF 防护
 - **扩展审核**：「劫持 PDF」类扩展上架声明文案需谨慎；它 100K 用户过审说明路径可行
 - **wasmtex 体积**：WASM TeX+ 字体几十 MB，在线预览要评估加载策略
 - **配额启示**：per-paper 槽位模型对 LLM 成本失控是天然闸门，值得我们计量设计参考，但 CN 歧视那条别学

@@ -8,9 +8,9 @@
 
 **SPECTER**（ACL 2020，奠基）：SciBERT 上继续预训练，监督信号是引用图本身——三元组（query 论文、正例=被引论文、负例=未被引者）L2 triplet margin loss；负例分两档（随机 easy negative + 被正例引用但未被 query 引用的二跳 hard negative）。输入只有标题 + 摘要，**推理时不需要任何引用信息**——新鲜无引论文当天可出向量，768 维[^specter]。配套 SciDocs 基准（7 个文档级任务）。官方明示两套产出渠道（HF 权重与 S2 线上预计算 embedding）由不同版本模型产出、**不可混用**[^specter-gh]。
 
-**SciNCL**（EMNLP 2022，修正采样缺陷）：指出 SPECTER 把「被引/未被引」当离散 0/1 信号的硬伤——引用了 query 的论文可能被采为负例、引用本身含礼貌性噪声。对策：先在引用图上训图 embedding（DeepWalk 系），再在图 embedding 空间做受控 kNN 采样得到连续相似度与不碰撞的难正负例。SciDocs 12 项指标赢 SPECTER 九项，且只需 1% 训练三元组[^scincl][^scincl-gh]。
+**SciNCL**（EMNLP 2022，修正采样缺陷）：指出 SPECTER 把「被引/未被引」当离散 0/1 信号的硬伤——引用了 query 的论文也进负例池、引用本身含礼貌性噪声。对策：先在引用图上训图 embedding（DeepWalk 系），再在图 embedding 空间做受控 kNN 采样得到连续相似度与不碰撞的难正负例。SciDocs 12 项指标赢 SPECTER 九项，且只需 1% 训练三元组[^scincl][^scincl-gh]。
 
-**SPECTER2 + SciRepEval**（EMNLP 2023，现役主力）：SciRepEval 基准 24 任务×4 格式（CLF/RGN/PRX/SRCH）；发现 SPECTER/SciNCL 约 70% 预训练数据集中在 CS+BioMed 两域、跨域泛化差（BM25 在其他域能反杀 SPECTER 系）。SPECTER2 对策两阶段：**基座从零预训练于 600 万引用三元组、横跨 23 个学科**；再训任务格式专用 adapter（基座冻结）[^scirepeval][^ai2-blog]。HF 命名有坑：`allenai/specter2_base` 是基座、**`allenai/specter2` 是 proximity adapter（similar-papers 该用的那个）**、另有 `_adhoc_query`/`_classification`/`_regression`；用法 `AutoAdapterModel` 载基座挂 adapter，输入 `title + [SEP] + abstract`，max_length=512[^specter2-hf]。成绩：SciRepEval 平均 71.1（SPECTER 67.5、SciNCL 68.8），MDCR MAP 38.4 显著超 BM25 33.7[^specter2-gh]。同篇论文另一关键实测：**通用文本检索模型（E5/MPNet/ada-002/Instructor）在 SciRepEval 全面不如领域专用模型**——拿通用 embedding 服务论文相似度有明显缺口[^scirepeval]。
+**SPECTER2 + SciRepEval**（EMNLP 2023，现役主力）：SciRepEval 基准 24 任务×4 格式（CLF/RGN/PRX/SRCH）；发现 SPECTER/SciNCL 约 70% 预训练数据集中在 CS+BioMed 两域、跨域泛化差（BM25 在其他域反超 SPECTER 系）。SPECTER2 对策两阶段：**基座从零预训练于 600 万引用三元组、横跨 23 个学科**；再训任务格式专用 adapter（基座冻结）[^scirepeval][^ai2-blog]。HF 命名易混：`allenai/specter2_base` 是基座、**`allenai/specter2` 是 proximity adapter（similar-papers 该用的那个）**、另有 `_adhoc_query`/`_classification`/`_regression`；用法 `AutoAdapterModel` 载基座挂 adapter，输入 `title + [SEP] + abstract`，max_length=512[^specter2-hf]。成绩：SciRepEval 平均 71.1（SPECTER 67.5、SciNCL 68.8），MDCR MAP 38.4 显著超 BM25 33.7[^specter2-gh]。同篇论文另一关键实测：**通用文本检索模型（E5/MPNet/ada-002/Instructor）在 SciRepEval 全面不如领域专用模型**——拿通用 embedding 服务论文相似度有明显缺口[^scirepeval]。
 
 ## 可直接消费的资产
 
@@ -28,7 +28,7 @@
 
 **ProNE**（IJCAI 2019，工业级可跑）：清华 THUDM，稀疏矩阵分解初始化 + 谱空间传播增强（高阶 Cheeger 不等式调制），**单线程 29 小时嵌 1 亿节点**，比 20 线程 LINE/DeepWalk/node2vec 快 10–400 倍；谱传播还能当通用增强器给其他方法 +10% 相对提升——是目前已验证能单机跑全规模学术引用图的图派方案[^prone][^prone-gh]。
 
-随机游走系亿级训练要「周到月」级，更多作 benchmark；GNN 代表 HGT（WWW 2020，MAG 异构图类型感知注意力 + 相对时间编码），但 transductive——新节点进图要重训或额外设计 inductive 变体，生产上不如「文本 encoder+ANN」灵活[^hgt]。
+随机游走系亿级训练要数周到数月，更多作 benchmark；GNN 代表 HGT（WWW 2020，MAG 异构图类型感知注意力 + 相对时间编码），但 transductive——新节点进图要重训或额外设计 inductive 变体，生产上不如「文本 encoder+ANN」灵活[^hgt]。
 
 ## 选型路线（数百万篇量级 similar-papers 服务）
 
@@ -38,11 +38,11 @@
 | B. 自跑 SPECTER2 proximity | HF/S3 模型（BERT-base+adapter） | **任何新论文当天可编码** | ~3.2M 篇（arXiv 现刊口径）≈A100 数小时/消费级 GPU 约一天                                                                                                      | 补 S2 缺口与新鲜度             |
 | C. 图派层（ProNE 类）      | 自建引用图                      | 需引用累积，新文冷启动差 | 单线程 29h/亿节点；产出 280d 小向量                                                                                                                           | 召回补充/重排，补 CBF 结构盲区 |
 
-推荐组合 **A 打底 + B 补新 + C 做候选扩充与重排**——即 multi-perspectives 论文论证有效的 CBF×GB ensemble 形态。ANN 侧 arXiv 规模 hnswlib 单实例足够，亿级换 FAISS IVF+PQ。两个风险要记住：SPECTER 两版本向量不可混用；S2 下载需 API key 且未鉴权端点限流凶。模型权重除 HF 外另发在 SPECTER2 官方 AWS S3 渠道[^specter2-gh]。
+推荐组合 **A 打底 + B 补新 + C 做候选扩充与重排**——即 multi-perspectives 论文论证有效的 CBF×GB ensemble 形态。ANN 侧 arXiv 规模 hnswlib 单实例足够，亿级换 FAISS IVF+PQ。两个风险：SPECTER 两版本向量不可混用；S2 下载需 API key 且未鉴权端点限流凶。模型权重除 HF 外另发在 SPECTER2 官方 AWS S3 渠道[^specter2-gh]。
 
 ## 结论
 
-embedding 侧「引用图当监督信号」是最经济的融合——向量天然含引用信息且对新文 day-0 可用；图派向量补 CBF 看不到的「学界回应」维度；通用 embedding 模型在学术任务上打不过领域模型，选型只看 SciRepEval PRX（邻近检索）成绩。
+embedding 侧「引用图当监督信号」是最经济的融合——向量天然含引用信息且对新文 day-0 可用；图派向量补 CBF 看不到的「学界回应」维度；通用 embedding 模型在学术任务上不如领域模型，选型只看 SciRepEval PRX（邻近检索）成绩。
 
 ### 参考文献
 

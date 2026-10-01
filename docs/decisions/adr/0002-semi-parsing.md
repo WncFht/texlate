@@ -29,8 +29,8 @@ LaTeX 是图灵完备的宏语言——`\def`/条件/catcode 让「正确解析�
 
 ## 演变
 
-- 2026-09-15：v1 九文件落地（tables/model/placeholder/macro_table/scanner/flatten/reconstruct/api）。
-- 2026-09-16：v2 重写为 `gullet/`+`segmenter/` 独立包并 cutover（splice 残留占位符 1524→0 清零），v2 成为唯一解析路径；E10 补丁上游化（`_args` 不跨 `\` 语科级 bug、bare `\input` 文件名、DIM/DELIM boundary、cjk_glue_fix）。
+- 2026-09-15：初版九文件落地（tables/model/placeholder/macro_table/scanner/flatten/reconstruct/api）。
+- 2026-09-16：重写为 `gullet/`+`segmenter/` 独立包并 cutover（splice 残留占位符 1524→0 清零），成为唯一解析路径；E10 补丁上游化（`_args` 不跨 `\` 语科级 bug、bare `\input` 文件名、DIM/DELIM boundary、cjk_glue_fix）。
 - 后续持续修泄漏：leak 0.11%→0.046%→**0.040%**（corpus 约 3900 文件口径，57 条残留清一色 `dollar` 族——`$` 跨 chunk 边界失配单类债）。
 
 ## 现状

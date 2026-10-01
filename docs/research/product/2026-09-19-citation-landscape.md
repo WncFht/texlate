@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）——产品机制逆向为对第三方服务的时点观察，仅供互操作参考；数据源规模与价格随时间漂移，引用前复核。
 > **日期**：2026-09-19
 
-调研问题：**基于引用数与引用图谱做论文推荐/发现，现在有哪些应用、服务、网站、工具，它们具体怎么做的；要做一个「完全形态」应该怎么做。**方法：20 个并行调研 lane（数据源实测、产品逆向、开源源码阅读、算法文献、工程成本核算），覆盖 40+ 产品与工具、10+ 个数据集源、30+ 篇关键文献；关键断言均以 API/端点实测或官方文档取证（2026-09-19）。各 lane 完整报告在 `citation-landscape-2026-09-19/` 目录（01–20 编号），本文是汇总与结论。
+调研目标：**盘点基于引用数与引用图谱做论文推荐/发现的应用、服务、网站与工具的形态和机制，给出「完全形态」的做法。**方法：20 个并行调研 lane（数据源实测、产品逆向、开源源码阅读、算法文献、工程成本核算），覆盖 40+ 产品与工具、10+ 个数据集源、30+ 篇关键文献；关键断言均以 API/端点实测或官方文档取证（2026-09-19）。各 lane 完整报告在 `citation-landscape-2026-09-19/` 目录（01–20 编号），本文是汇总与结论。
 
 ## 一句话结论
 
@@ -12,7 +12,7 @@
 
 ## 生态分层地图
 
-这个生态可以切成四层，每层都有玩家但层间几乎不打通：
+生态分四层，每层都有玩家但层间几乎不打通：
 
 | 层         | 玩家                                                                                                | 干什么                              |
 | ---------- | --------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -21,7 +21,7 @@
 | 平台推荐层 | Google Scholar、Semantic Scholar、ResearchGate、Mendeley、ACM/IEEE                                  | 大平台内置的推荐 feed（非独立产品） |
 | 工具层     | Citation Gecko、LCN、Zotero Cita、Scholia、litstudy、VOSviewer、CiteSpace、Argo Scholar、paperscape | 开源/本地化的引用图分析与可视化     |
 
-**值得注意的结构性事实**：数据层三家巨头（OpenAlex/S2/OpenCitations）自己都不做面向用户的发现产品——OpenAlex 的 `related_works` 实测是主题相似且大面积悬空不可用，S2 的 Recommendations API 只给近 3 个月池。发现产品全部要从数据层买/嫖原料再自己算。**这意味着「发现层」是一个真实的、未被数据巨头吞掉的中间市场。**
+**结构性事实**：数据层三家巨头（OpenAlex/S2/OpenCitations）自己都不做面向用户的发现产品——OpenAlex 的 `related_works` 实测是主题相似且大面积悬空不可用，S2 的 Recommendations API 只给近 3 个月池。发现产品全部要从数据层买或免费取原料再自己算。**这意味着「发现层」是一个真实的、未被数据巨头吞掉的中间市场。**
 
 ## 数据源全景
 
@@ -37,11 +37,11 @@
 | Crossref                | 8166 万 works 寄存 refs                         | 开放元数据    | REST 10rps + 年度公开 dump                                  | 出版 DOI 为主                                                                                                            | cited-by 会员专属；寄存率 ~50% 是瓶颈                                                                                     |
 | Wikidata P2860          | ~3.1 亿声明                                     | CC0           | SPARQL/dump                                                 | 稀疏（arXiv ~104 万）                                                                                                    | 边密度不足撑不起全覆盖                                                                                                    |
 
-化石与补充：MAG 2021-09 遗档（Zenodo，PaperReferences 40.5GB 边表）作历史桥；**unarXive 2022（1.9M arXiv 篇、63M refs、28M 已链 OpenAlex、permissive 子集直下）是 arXiv 引用图的现成冷启动资产**；fatcat refcat 数十亿边 CC0 但项目停滞；Lens 专有不可再分发只能当查询后端；INSPIRE-HEP/ADS/iCite/zbMATH 是领域策展源（精度高、覆盖窄）。
+补充源：MAG 2021-09 遗档（Zenodo，PaperReferences 40.5GB 边表）作历史桥；**unarXive 2022（1.9M arXiv 篇、63M refs、28M 已链 OpenAlex、permissive 子集直下）是 arXiv 引用图的现成冷启动资产**；fatcat refcat 数十亿边 CC0 但项目停滞；Lens 专有不可再分发只能当查询后端；INSPIRE-HEP/ADS/iCite/zbMATH 是领域策展源（精度高、覆盖窄）。
 
 **arXiv 出边的全局性缺口**（三个 lane 独立实测确认）：arXiv 不向 Crossref/DataCite 寄存参考文献，所以在所有 DOI 中心源里 arXiv 实体**只有入边没有出边**。paperscape 当年自建抽取的 arXiv 内匹配率也只有 38%。手里有 LaTeX 源就能把这个缺口变成独有资产——`.bbl`/`\bibitem` 解析精度接近无损（S2ORC/unarXive 实证「near-perfect」），而 PDF 侧 GROBID 天花板只有 0.87–0.90 F1。
 
-## 产品机制逆向：他们具体怎么算的
+## 产品机制逆向：实现细节
 
 ### 图遍历系（引用图是核心资产）
 
@@ -83,7 +83,7 @@ Elicit（138M）、Consensus（220M）、SciSpace（280M）、Keenious（OpenAle
 - **Zotero Cita**：4 indexer（OC Meta/Index v2、OpenAlex——记得把 `10.48550/arxiv.*` 映射回 arXiv ID、S2 search/match 标题解析、Crossref）+ PID 消歧匹配器（ID 冲突否决 + 年差≤1+ 首作者）+ 剔除自引边 + **可写回 Wikidata P2860**。
 - **Scholia**：证明「一个 SPARQL 端点 + 模板化查询页」即可撑起学术画像站；P2860 是唯一可写回的开放边源，CiTO 是唯一大规模引用意图标注。
 - **litstudy**：BC/CC/耦合/共著网络的最小正确实现（各 ~40 行 networkx）。
-- **paperscape**：**史上唯一做到全 arXiv 规模的引用图地图**（2011 至今活）：每日 arXiv TeX/PDF 自抽边（抽取代码闭源，arXiv 内匹配率 38%）、Barnes-Hut N-body 三力布局（C 实现 MIT 开源，`M=0.2+0.2·cites`）、Go 瓦片服务、按年 CSV dump 公开。证明全 arXiv 引用图不仅可行还能服务 15 年。
+- **paperscape**：**唯一做到全 arXiv 规模的引用图地图**（2011 至今活）：每日 arXiv TeX/PDF 自抽边（抽取代码闭源，arXiv 内匹配率 38%）、Barnes-Hut N-body 三力布局（C 实现 MIT 开源，`M=0.2+0.2·cites`）、Go 瓦片服务、按年 CSV dump 公开。证明全 arXiv 引用图不仅可行还能服务 15 年。
 - **文献计量桌面工具**：VOSviewer（association strength 归一化 `s_ij=c_ij/(w_i·w_j)`、SLM 聚类、原生 OpenAlex API）、CiteSpace（Kleinberg burst、betweenness、sigma、LLR 标注、Pathfinder 剪枝、timeline 视图）、CitNetExplorer（百万级时间分层下钻）、bibliometrix、CRExplorer（RPYS）——11 项可移植算法清单见 14 号报告。
 
 ### 中文生态（空白即机会）
@@ -106,7 +106,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 - PageRank 在引用图上要改参：CiteRank 证明需 **d≈0.5 + 年龄偏向 teleport（τ≈2.6 年）**——论文有年龄，老节点会天然堆积概率质量；ArticleRank 修正出度偏置。局部子图 PageRank 是候选集排序的现成武器。
 - **~85% 的引用是装饰性的**（Pride & Knoth：真正 influential 仅 10.3–17.9%；S2 的 `isInfluential` 字段即此谱系产品化）。判别 top 特征 = 正文 mention 次数与被引摘要相似度——**这又回到「有全文者的边可以带权重，纯元数据玩家不能」**。
-- 自引全库均值 ~5% 但尾部极端（1822 名作者 >50%）——建边时必须打 `author_sc` flag（OpenCitations 白送这个字段），排序可选剔除；Citeomatic 实证 metadata 特征会让模型学到自引捷径，必须显式去偏。
+- 自引全库均值 ~5% 但尾部极端（1822 名作者 >50%）——建边时必须打 `author_sc` flag（OpenCitations 自带这个字段），排序可选剔除；Citeomatic 实证 metadata 特征会让模型学到自引捷径，必须显式去偏。
 - 跨领域榜单必须场归一化（RCR/FWCI 型除以同领域期望），否则引用体量差把榜单变成单一学科榜。
 - 评测代理任务事实标准：**abstract→reference-list 重建**（被遮 refs 当 ground truth）+ citation holdout，指标 P/R/F1@k + MRR——不需要用户行为数据即可离线 benchmark。
 
@@ -120,7 +120,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 **更新成本**：OpenAlex works 文件按 `updated_date` 分区（实测 2446 个分区），季度增量只重下新分区（几十 GB 级），不必全量重导。新论文出边滞后用 LaTeX 自抽补（每篇 <0.1 CPU·s，把「新论文无 similar」窗口从数周压到零）。
 
-**三路线成本模型**：A 全自建（快照免费 + 一次性算力，风险=快照新鲜度）；B 全骑托管 API（零设施但 OpenAlex 免费档 ~1 万 list 调用/天拉全 arXiv 要 32 天、S2 无 key 实测不可用、`related_works` 黑盒且残破——**对方改算法即死**）；C 混合（快照打底 + 自抽边补新+API 兜底）。**唯一没有硬依赖风险的是 C。**
+**三路线成本模型**：A 全自建（快照免费 + 一次性算力，风险=快照新鲜度）；B 全用托管 API（零设施但 OpenAlex 免费档 ~1 万 list 调用/天拉全 arXiv 要 32 天、S2 无 key 实测不可用、`related_works` 黑盒且残破——**对方改算法即死**）；C 混合（快照打底 + 自抽边补新+API 兜底）。**唯一没有硬依赖风险的是 C。**
 
 ## 完全形态应该怎么做
 
@@ -129,8 +129,8 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 ### 1. 数据底座：OpenAlex 快照为主干，三源交叉校验
 
 - **主干 = OpenAlex 季度快照**（CC0、745GB、免账号、`updated_date` 分区天然增量）：取 works 的 `referenced_works`/`cited_by_count`/元数据，过滤 arXiv source（`locations.source.id:S4306400194`，lane 20 实测 ~373 万 works）+ `locations.landing_page_url` 反查映射出自图——`10.48550` DOI 仅在作为 work canonical `doi` 时可解析、合并/期刊 DOI 记录下 404（`filter=doi:` 计数 0），不可作映射主键；`10.48550` 仅留作 OpenCitations 侧桥（lane 03）。
-- **校验与补全 = OpenCitations Index**（CC0、边自带 `author_sc`/`journal_sc` 自引标志——白拿）+ OpenAIRE product_Cites（备选第二源）。
-- **增强 = S2 datasets**：citations 的 intent/influential/contexts 属性（全 2.4B 边带属性的独一份）、embeddings-specter_v2（按 paper-ids join 回 arXiv 子集，只取 ~3M 条 ~10GB 而非全量 840GB；单篇还有 `fields=embedding.specter_v2` 白嫖通道）。需申请免费 API key——匿名共享池实测 429 命中率 >80%，不可做生产依赖；S2 新论文收录延迟 ≤10 天。
+- **校验与补全 = OpenCitations Index**（CC0、边自带 `author_sc`/`journal_sc` 自引标志）+ OpenAIRE product_Cites（备选第二源）。
+- **增强 = S2 datasets**：citations 的 intent/influential/contexts 属性（全 2.4B 边带属性的独一份）、embeddings-specter_v2（按 paper-ids join 回 arXiv 子集，只取 ~3M 条 ~10GB 而非全量 840GB；单篇还有 `fields=embedding.specter_v2` 免费通道）。需申请免费 API key——匿名共享池实测 429 命中率 >80%，不可做生产依赖；S2 新论文收录延迟 ≤10 天。
 - **冷启动 = unarXive permissive 子集**（1.9M 篇 63M refs 已链 OpenAlex）——今天就能下，先建图再迭代。
 - **独有资产 = LaTeX 自抽边**（`.bbl`/`\bibitem` 直解，不必走 LaTeX 全转换）：填 arXiv 出边缺口 + 新论文即时入图 + **语句级引文上下文**（mention 位置/次数/章节）——这是相对所有 PDF 侧玩家与纯元数据玩家的结构性优势，也直接是语句级图层的原料。
 
@@ -145,7 +145,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 - 候选集内**局部 PageRank（d≈0.5、年龄偏向 teleport τ≈2.6yr）**压「老而不重要」；副排序暴露原始被引数 + 场归一化分（除以同领域同年期望）。
 - **语句级加权是差异化档位**：凡 LaTeX 源可抽的边带 mention count/位置/章节——先把「引用数」升级成「影响力引用数」（Pride&Knoth 的 10–18% 去噪逻辑）；有余力再上 LLM 蒸馏的 supporting/mentioning/contrasting 意图分类（scite 当年 5 万人标，今天成本骤降）。
-- **护栏**：边打自引 flag（OC 数据白送 + 作者交集自算），排序默认剔除或降权；spam/合并事故记录需要质量门（Litmaps 语料实测有 spam；OpenAlex 头部论文有合并事故，名文要走兜底校验）。
+- **护栏**：边打自引 flag（OC 数据自带 + 作者交集自算），排序默认剔除或降权；spam/合并事故记录需要质量门（Litmaps 语料实测有 spam；OpenAlex 头部论文有合并事故，名文要走兜底校验）。
 
 ### 4. 产品形态：照抄已验证的三个件
 
@@ -171,7 +171,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 | 编号 | 文件                     | 内容                                                                                          |
 | ---- | ------------------------ | --------------------------------------------------------------------------------------------- |
 | 01   | `01-openalex.md`         | OpenAlex 实测：体量/字段/freemium 计费转向/快照分区/related_works 不可用证据                  |
-| 02   | `02-s2.md`               | Semantic Scholar 三层 API 全实测：边属性模型/embedding 白嫖通道/匿名池 429 证据/数据集 schema |
+| 02   | `02-s2.md`               | Semantic Scholar 三层 API 全实测：边属性模型/embedding 免费通道/匿名池 429 证据/数据集 schema |
 | 03   | `03-opencitations.md`    | OpenCitations Index/Crossref/Lens/OpenAIRE/Wikidata：边规模、API、arXiv 缺口实测              |
 | 04   | `04-domain.md`           | INSPIRE-HEP/ADS/iCite/EuropePMC/zbMATH 领域库                                                 |
 | 05   | `05-arxiv-pipe.md`       | arXiv 五渠道 + GROBID vs LaTeX 抽取管线横评 + unarXive/refcat 资产                            |
@@ -197,8 +197,8 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 调研背景：texlate（开源「arXiv LaTeX 源 → LLM 段落级翻译 → ctex 重编译中文 PDF」项目，产品代码 `src/texlate/`）的产品方向扩展为「不止翻译，还要基于引用数与引用图谱做论文推荐/发现」——目标是最终拥有类似 alphaXiv similar-papers、Connected Papers 那一档的发现层能力。本轮是纯调研，为后续架构决策供弹药。
 
-已验证可直接引用的前提：alphaXiv 的 references/overview 等富产物覆盖率很低（随机论文 ~7–20%，老 ID 0%），只能机会型白嫖——逆向细节见同目录 `2026-09-19-alphaxiv-reverse.md`；texlate 有每篇论文的 LaTeX 源（`.bbl`/`.bib`/`\bibitem`），引用边可自抽——这是相对 PDF 侧玩家的结构优势。
+已验证可直接引用的前提：alphaXiv 的 references/overview 等富产物覆盖率很低（随机论文 ~7–20%，老 ID 0%），只能机会型免费调用——逆向细节见同目录 `2026-09-19-alphaxiv-reverse.md`；texlate 有每篇论文的 LaTeX 源（`.bbl`/`.bib`/`\bibitem`），引用边可自抽——这是相对 PDF 侧玩家的结构优势。
 
-调研范围三块：**数据源层**（OpenAlex、Semantic Scholar API+datasets/S2ORC、OpenCitations、Crossref、arXiv 官方渠道、INSPIRE-HEP/ADS/PubMed/DBLP 领域库、Lens.org 等——谁有引用边、被引数、arXiv ID 含 `astro-ph/` 老 ID、bulk dump、license、更新延迟）；**算法与产品层**（Connected Papers、ResearchRabbit、Litmaps、Inciteful、scite.ai、alphaXiv 各自怎么算「相关论文」：co-citation / bibliographic coupling / SPECTER 类 embedding / 混合；托管推荐 API 现状；可直接用的 embedding 资产）；**工程层**（全 arXiv ~316 万篇（现刊口径）上亿边规模的 bulk dump 体量、存储形态、预计算 vs 按需、更新节奏；S2ORC / OpenAlex snapshot / GROBID 现成管线角色；「自建全图 / 骑托管 API / 混合」三条路线真实成本对比）。
+调研范围三块：**数据源层**（OpenAlex、Semantic Scholar API+datasets/S2ORC、OpenCitations、Crossref、arXiv 官方渠道、INSPIRE-HEP/ADS/PubMed/DBLP 领域库、Lens.org 等——谁有引用边、被引数、arXiv ID 含 `astro-ph/` 老 ID、bulk dump、license、更新延迟）；**算法与产品层**（Connected Papers、ResearchRabbit、Litmaps、Inciteful、scite.ai、alphaXiv 各自怎么算「相关论文」：co-citation / bibliographic coupling / SPECTER 类 embedding / 混合；托管推荐 API 现状；可直接用的 embedding 资产）；**工程层**（全 arXiv ~316 万篇（现刊口径）上亿边规模的 bulk dump 体量、存储形态、预计算 vs 按需、更新节奏；S2ORC / OpenAlex snapshot / GROBID 现成管线角色；「自建全图 / 用托管 API / 混合」三条路线真实成本对比）。
 
 方法要求：WebSearch/WebFetch 调研 + `curl` 直接探 API 验证（限流、字段、覆盖率主张尽量实测，不抄二手数字）；实测验证过的标实测，查不到的标「未验证」；报告必须落到「texlate 下一步该怎么走」的具体建议上。

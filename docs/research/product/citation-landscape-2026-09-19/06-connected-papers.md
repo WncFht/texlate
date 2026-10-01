@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
-## 该产品是什么
+## 产品定位
 
 Connected Papers 2019 年创立于以色列特拉维夫，四人团队（Alex Tarnavsky Eitan、Eddie Smolyansky、Itay Knaan Harpaz、Sahar Perets），未融资或小额未披露轮[^tracxn][^istl]。免费档登录后 5 graphs/月全功能，付费 Academic/Business + Group Plans；机构按 IP 段识别（`is_premium_by_ip` 端点实测存在）。
 
@@ -41,7 +41,7 @@ Connected Papers 2019 年创立于以色列特拉维夫，四人团队（Alex Ta
 
 ## 可借鉴点
 
-- **全预计算 + 静态服务**是核心洞察：S2 ~2 亿篇 × 40 节点图（压缩 ~60KB）≈ 12TB 存储，月度重算 ~50k 候选/篇相似度是批处理作业，服务侧沦为只读 KV——这才敢全裸奔零鉴权。
+- **全预计算 + 静态服务**是核心洞察：S2 ~2 亿篇 × 40 节点图（压缩 ~60KB）≈ 12TB 存储，月度重算 ~50k 候选/篇相似度是批处理作业，服务侧沦为只读 KV——全端点免鉴权开放的成本趋零。
 - `cit_with_start`/`ref_with_start` 双分量展示让「为什么相关」可解释，比单相似度分数信息密度高。
 - prior/derivative 两榜 = 「图内被引 top」与「引用图内节点 top」，一次 group by 即得。
 

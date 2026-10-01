@@ -1,6 +1,6 @@
 # docs/ 维护规则
 
-本文档库的唯一维护契约：写新件、改旧件、登记索引、发布前检查都先读这里。仓级入口约定见根 `AGENTS.md`；贡献者上手序见 `dev/README.md`。
+本仓文档库的唯一维护契约：写新件、改旧件、登记索引、发布前检查都先读这里。仓级入口约定见根 `AGENTS.md`；贡献者上手序见 `dev/README.md`。
 
 ## 1. 分区结构与生命周期
 
@@ -13,7 +13,7 @@
 | `research/`      | 实现者 | 调研与实证档案，决策的证据层               | 写完冻结，可加状态注记                                                  |
 | `log/`           | 所有人 | 工程大事记与里程碑档案                     | 只增不改                                                                |
 | `README.md`      | 所有人 | 文档库总索引与阅读序                       | 活文档                                                                  |
-| `MAINTENANCE.md` | 维护者 | 本文                                       | 活文档                                                                  |
+| `MAINTENANCE.md` | 维护者 | 维护契约本体                               | 活文档                                                                  |
 
 ## 2. 文件形态（kind）定规
 
@@ -142,8 +142,8 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 
 ## 12. 历史路径约定
 
-2026-09-20 文档库重建前，文档位于 `docs/01-*.md`–`docs/10-*.md` 扁平编号件（01–05 决策史、06–10 规格）与旧 `docs/research/` 树等路径——旧 `research/` 树仅存于 git 历史（5ebc9797 前的口径），与现行六分区 `docs/research/` 非同一棵。冻结档案（`log/` 与 `research/` 快照）内仍可能引用这些旧路径——它们是「当日口径」的历史指针，入库件经 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索，不逐条回填新路径；`docs/HANDOFF-*.md` 等内部工作件曾入库、2026-09-18 由 d39a1b23 移出跟踪，可经 `git show d39a1b23^:docs/HANDOFF-<date>.md` 取回（本机另有未跟踪副本在 `tmp/old-docs-2026-09-20/docs/`），其当日口径结论已蒸馏进 `log/` 时间线。
+2026-09-20 文档库重建前，文档位于 `docs/01-*.md`–`docs/10-*.md` 扁平编号件（01–05 决策史、06–10 规格）与旧 `docs/research/` 树等路径——旧 `research/` 树仅存于 git 历史（5ebc9797 前的口径），与现行六分区 `docs/research/` 非同一棵。冻结档案（`log/` 与 `research/` 快照）内仍引用这些旧路径——它们是「当日口径」的历史指针，入库件经 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索，不逐条回填新路径；`docs/HANDOFF-*.md` 等内部工作件曾入库、2026-09-18 由 d39a1b23 移出跟踪，可经 `git show d39a1b23^:docs/HANDOFF-<date>.md` 取回（本机另有未跟踪副本在 `tmp/old-docs-2026-09-20/docs/`），其当日口径结论已蒸馏进 `log/` 时间线。
 
 2026-09-23 Wave-F（trizone-ledger 迁移收口）：`bench/results/`、`bench/work_*/`、`bench/queue/` 产物目录清零，旧 harness 脚本全删——被删件的取证走 git 历史；仓外账本根 `$TEXLATE_BENCH_ROOT/` 下 `backup/phase0-20260922/` 是迁移前 results/zh-store/bench.db/lanes/archive 镜像的唯一再导入源（`bench ledger import` 只认它），勿当普通备份轮转掉。`bench/archive-*/README.md` 前缀约定继续有效：数据 gitignored、README 入库作目录身份说明。
 
-2026-09-26 大重排（本文 v2 同日生效）：`dev/` 顶层一次性件按 §2 形态规分治——工作包进 `dev/projects/`（ux-impl 包整目录迁入、phase4/rebuild-plan-v4/pdf-seq-anchors 散件迁入）、封存件进 `dev/archive/`（bench-redesign-plan、benches 普查）、契约件升格 `spec/`（bench-trizone、seqpos-decoder）；`research/` 全域散件统一前缀日期命名、活跃工单迁出证据层；全仓链接与代码注释路径已同步改写。早于本日的引用快照仍可在冻结档案中见旧路径名，检索同前。
+2026-09-26 大重排（§2 形态规同日生效）：`dev/` 顶层一次性件按 §2 形态规分治——工作包进 `dev/projects/`（ux-impl 包整目录迁入、phase4/rebuild-plan-v4/pdf-seq-anchors 散件迁入）、封存件进 `dev/archive/`（bench-redesign-plan、benches 普查）、契约件升格 `spec/`（bench-trizone、seqpos-decoder）；`research/` 全域散件统一前缀日期命名、活跃工单迁出证据层；全仓链接与代码注释路径已同步改写。早于本日的引用快照仍可在冻结档案中见旧路径名，检索同前。

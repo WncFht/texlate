@@ -4,7 +4,7 @@
 > **状态**：现行（已落地为 `latex/mouth.py` + `latex/gullet/` + `latex/segmenter/`；规范细节见 `spec/latex-pipeline.md`）
 > **日期**：2026-09-15
 
-## 1. 为什么需要展开层
+## 1. 展开层的动机
 
 字节扫描器（v1）的根本极限是「先定义后使用」假设：语料实测 268 个宏定义出现在 `\begin{document}` 之后（51% 论文在正文内 `\def`）、宏体可藏可译文本（49% 的宏体带自然语言）、`\input` 可由宏产出、`#{` 定界参数存在。这些形态只有「tokenize 与展开分离、展开器回压到同一流」能同时满足——这正是 TeX 的 mouth/gullet/stomach 结构。texlate 借用前两段，用分段器替代 stomach：
 
@@ -18,7 +18,7 @@
 
 ## 2. 展开产物的 pos 规则（硬约束）
 
-展开产生的 token 没有源字节位置。规则：宏体 token 的 `pos` 记定义体区间 `(file_id, def_body_offset)` 并打 `gen>0` 标；分段器对 `gen>0` token 一律不以其 pos 做 splice，只用于类型判定（数学环境？cite？文本？）。调用点 splice 永远用**调用 token 自己的位置**——`\be…\ee` 保护段包的是 `\be` 到 `\ee` 的原始字节，不是展开文本。降级输出同样永远是「原文某连续区间」，保证 splice 后字节级 identity。
+展开产生的 token 没有源字节位置。规则：宏体 token 的 `pos` 记定义体区间 `(file_id, def_body_offset)` 并打 `gen>0` 标；分段器对 `gen>0` token 一律不以其 pos 做 splice，只用于类型判定（数学环境/cite/文本）。调用点 splice 永远用**调用 token 自己的位置**——`\be…\ee` 保护段包的是 `\be` 到 `\ee` 的原始字节，不是展开文本。降级输出同样永远是「原文某连续区间」，保证 splice 后字节级 identity。
 
 ## 3. Token 与 Mouth
 
@@ -67,14 +67,14 @@ transparent 分两个子模式：
 - **transparent-inline**：可译文本全部经参数位进入（`\todo{...}`）→ 不物化展开，宏名 literal 吐给分段器、参数逐个内联扫，splice 保留 `\todo{译文}` 结构。
 - **transparent-expand**：体自带可译文本（`\def\cmsMessage{Submitted to…}`）→ gullet 正常展开推回，分段器在展开 token 上常规分段；但 chunk 的 splice 目标登记为**调用点区间**，content 是展开文本的表面——译文回来时 `\cmsMessage` 整体被译文替换，定义本体原样保留。判据：body 去掉 `#i` 参数位后仍有可译文本。
 
-混合体（参数位与体都有文本）取 expand——体文本是召回率大头。这条机制是 49% 宏体藏文本问题的兜底，不再需要「猜」。
+混合体（参数位与体都有文本）取 expand——体文本是召回率的主要来源。这条机制是 49% 宏体藏文本问题的兜底，不再需要「猜」。
 
 ## 7. `\if` 两档策略 — 与 plasTeX 全求值的刻意分歧
 
-plasTeX 对每个 `\if*` 都求值，不可求值者硬编常量。对翻译而言求错值 = 丢一支文本，因此：
+plasTeX 对每个 `\if*` 都求值，不可求值者硬编码常量。对翻译而言求错值 = 丢一支文本，因此：
 
 - **可求值档**（`\iftrue/\iffalse`、`\newif` 旗标、操作数全字面的 `\ifnum/\ifodd/\ifdim`、`\ifdefined/\ifcsname`、字面可比的 `\if/\ifcat/\ifx`、恒 False 的 `\ifmmode/\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`、按模式常量的 `\ifhmode/\ifvmode`）→ 读条件后收集分案例、只推回选中支，未选支 token 丢弃——其内 `\def` 不执行、文本不进 chunk，与 TeX 语义一致。
-- **不可求值档**（带寄存器/内部量的 `\ifnum`、对宏的 `\ifx`、其余一切）→ 条件部分按各自语法读掉（避免 `\count0=1` 泄漏进 chunk），`\if/\else/\fi` 发为结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决。
+- **不可求值档**（带寄存器/内部量的 `\ifnum`、对宏的 `\ifx`、其余一切）→ 条件部分按各自语法读取跳过（避免 `\count0=1` 泄漏进 chunk），`\if/\else/\fi` 发为结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决。
 
 `process_if` 收集未展开 token 到 `\fi`、按 `\else/\or` 分案例；`if*` 前缀计数嵌套、`\newif` 特例保证 `\ifx\newif\ify` 序列不被误算嵌套；`\ifcase N` 取第 N 支。`\ifmmode` 取恒 False——数学区由分段器 raw 拉取成 `[[MATH]]` 占位，数学体内的 `\ifmmode` 永不抵达求值器（理由注释见 `gullet/cond.py`，行为由 `tests/test_latex_cond.py::test_ifmmode_false` 钉死）。
 
@@ -92,7 +92,7 @@ plasTeX 对每个 `\if*` 都求值，不可求值者硬编常量。对翻译而�
 
 ## 10. 明确不做
 
-active chars 自定义、`\halign`、完整求值器（寄存器算术/盒尺）、`\write/\read/\openout`、xparse `v/b/e/E/x` 参数型、plasTeX 的 DOM/stomach 全部不移植。`\let` 的 Mouth 层解析、`\chardef` 语义同样跳过（与 plasTeX 口径一致）。注：本节成文后若干项已落地——`\catcode` 现为通用机制（任意字符/类别，仅 `\global\catcode` 写透缺）、`\uppercase/\lowercase` 与 `\romannumeral` 已实现、`\edef` 体预展开已落（§5）；e-TeX 面仅 `\unexpanded/\detokenize/\scantokens` 与 `\numexpr` 族算术仍缺——`\protected` 由前缀链消费、`\ifdefined/\ifcsname` 真求值、其余 e-TeX/pdfTeX/XeTeX `if*` 原语走界标档。
+active chars 自定义、`\halign`、完整求值器（寄存器算术/盒尺）、`\write/\read/\openout`、xparse `v/b/e/E/x` 参数型、plasTeX 的 DOM/stomach 全部不移植。`\let` 的 Mouth 层解析、`\chardef` 语义同样跳过（与 plasTeX 口径一致）。落地补记：`\catcode` 现为通用机制（任意字符/类别，仅 `\global\catcode` 写透仍缺）、`\uppercase/\lowercase` 与 `\romannumeral` 已实现、`\edef` 体预展开已落（§5）；e-TeX 面仅 `\unexpanded/\detokenize/\scantokens` 与 `\numexpr` 族算术仍缺——`\protected` 由前缀链消费、`\ifdefined/\ifcsname` 真求值、其余 e-TeX/pdfTeX/XeTeX `if*` 原语走界标档。
 
 ### 参考文献
 

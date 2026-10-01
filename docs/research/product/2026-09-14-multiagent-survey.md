@@ -91,7 +91,7 @@ return results.filter(Boolean);
 ### 1.4 Skills 系统的多 agent 通道
 
 - SKILL.md 的 `context: fork` + `agent:` + `background:` 字段可**把 skill 直接派进 subagent**（body 成为该 subagent 的 prompt）——skill 本身就是轻量 subagent 分发器。
-- `allowed-tools` 给 turn 级授权（注意：repo 提交的 skill 要审计）。
+- `allowed-tools` 给 turn 级授权（repo 提交的 skill 要审计）。
 - Agent Skills 是开放规范（agentskills.io，~50 客户端：Codex/ChatGPT、Cursor、Copilot、Gemini CLI、Goose…）；spec 合法字段只有 name/description/license/compatibility/metadata/allowed-tools——Claude 的 `context`/`hooks`/`argument-hint` 等是**第一方扩展不可移植**[^agentskills]。
 - `agents/openai.yaml` 是 **OpenAI Codex 约定**（非规范）：interface/policy/dependencies.tools 元数据。Codex 扫 `.agents/skills/`——TeXlate 仓的 `.agents/skills/` 唯一事实源 + `.claude/skills/` 软链布局正与此兼容。
 

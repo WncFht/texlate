@@ -5,7 +5,7 @@
 > **状态**：时点证据（2026-09-22 口径）——注记：sel-translate lane 已于 2026-09-23 裁决砍掉；sel-system（选区→命令→菜单/浮条/键位）已落地，本清单是其范式参照之一
 > **日期**：2026-09-22
 
-Lane 定位：texlate 阅读器选区锚定 UX 的平台范式参照。
+定位：texlate 阅读器选区锚定 UX 的平台范式参照。
 
 ## 主要来源（Apple 官方）
 
@@ -28,11 +28,11 @@ Lane 定位：texlate 阅读器选区锚定 UX 的平台范式参照。
 - Apple Discussions ⌃⌘D 帖[^apple-disc-cmdd]——悬停 URL 上 ⌃⌘D → data-detector 选中整个实体 + 预览；“Look Up only looks up one word at a time”是设计如此。
 - Leafy「Look Up word on Mac」[^leafyapp-lookup]——⌃⌘D 需原生 text view；Electron/web 技术应用与浏览器内 PDF 阅读器里缺席。
 - Apple Discussions 三指轻点帖[^apple-disc-tap] + Super User 问答[^superuser-lookup-browsers]——三指轻点/右键菜单 Look Up 在 Safari 与 Chrome 均可用，Firefox 坏/缺席（bug 1212527 史）。
-- contenteditable.realerror.com 移动选区工具条文档[^realerror-callout]——iOS Safari callout 是系统所有，web 不可扩展；`-webkit-touch-callout:none` 只能抑制；触屏上注意把手过小/重叠问题。
+- contenteditable.realerror.com 移动选区工具条文档[^realerror-callout]——iOS Safari callout 是系统所有，web 不可扩展；`-webkit-touch-callout:none` 只能抑制；触屏上把手过小/重叠是已知问题。
 - MacSales macOS Monterey 翻译文[^macsales-translate]——macOS Monterey 系统翻译：右键 → Translate → 弹层带 copy/replace。
 - glimpsetranslate（第三方克隆）[^glimpsetranslate]——用 `NSPanel .nonactivatingPanel`（永不抢焦、选区保持）、Esc/点外关闭、Services 菜单 + 全局热键双调用。
 
-## Key conventions extracted（落地参照公约）
+## 落地参照公约
 
 1. Invocation redundancy: gesture + keyboard + menu all reach the same popover.
 2. Dual granularity: selection-driven (menu) AND point-driven (⌃⌘D/tap on hovered word, no selection needed).

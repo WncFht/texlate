@@ -9,7 +9,7 @@
 
 ## 裁决
 
-- **EPUB 手搓**：stdlib `zipfile` + `bs4` 直写 OPF/NCX/XHTML——EPUB 就是 zip + 几个 xml，EbookLib 省下的代码量不抵 AGPL 传染风险；**不引 EbookLib**。
+- **EPUB 手写**：stdlib `zipfile` + `bs4` 直写 OPF/NCX/XHTML——EPUB 就是 zip + 几个 xml，EbookLib 省下的代码量不抵 AGPL 传染风险；**不引 EbookLib**。
 - **DOCX 用 python-docx**：`deepcopy(w:p)` + `addnext` 在段落级插译——保留原文档样式/图/表的容器结构，译文段克隆源段样式落位。
 - **共享契约**：两格式共用 `translate/translate_list` 接口与双语段对数据结构（dual 语义）——导出是 dual.json 的下游消费者，不各自重发明译文摘取。
 - **许可红线复查**：任何新导出格式先查依赖许可再动手（EPUB 教训已沉淀为规则：「生成库先看 LICENSE」）。

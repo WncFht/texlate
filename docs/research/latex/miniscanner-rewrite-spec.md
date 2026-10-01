@@ -8,7 +8,7 @@
 
 ## 1. 问题与目标
 
-输入是 bench 阶段的 1176 行 spike（单遍逐字符扫描 → pieces → 占位符模板 → 不动点重建），语料基线 259/259 解析成功、32/32 陷阱断言、identity 重建 100%，残留泄漏 25/23427 chunk（0.11%）。目标是按既定架构（`byte_range + kind` 段流 + 占位符 + splice）扶正为正式模块，并顺手把 25 处泄漏修到 ≤3 处（~0.01%）。
+输入是 bench 阶段的 1176 行 spike（单遍逐字符扫描 → pieces → 占位符模板 → 不动点重建），语料基线 259/259 解析成功、32/32 陷阱断言、identity 重建 100%，残留泄漏 25/23427 chunk（0.11%）。目标是按既定架构（`byte_range + kind` 段流 + 占位符 + splice）扶正为正式模块，并把 25 处泄漏修到 ≤3 处（~0.01%）。
 
 关键判断：泄漏不是架构问题。25 处归为 4 个局部机制，修复全部落在分派规则与参数消费层，主循环骨架不变。
 
@@ -46,7 +46,7 @@ cite/ref 用词族规则而非名单：`startswith("cite")` / `endswith("ref")` 
 
 `$`/`$$` 配对找未转义闭符、`$$` 域内不得含 `\n\n`；失败逐字落 `$` 并记 `unpaired_dollar` warning。
 
-新增 debt 机制作为保护段误吞 `$` 的第二层兜底：一切占位符经 `_ph_into_run` 进 run 时，体内未转义 `$` 计数为奇则压 `math_debt` 栈（记 run 下标）；此后首个 `$` 判定为「占位符体内开出的数学的闭合符」，把栈位到该 `$` 的整段（占位符串 + 其间字面 + 闭合符）合并重发为 `[[MATH_n]]`。`flush_run` 时清空（跨段不追）。正确性依据：保护段体含奇数 `$` 意味着它在原文开启了未闭合数学，其后第一个 `$` 必为闭合符；合并后 identity 保持（内嵌 ph 由展开层还原）、泄漏归零。这把「保护段吞 `$`」从全局配对毒药降级为局部自愈合。
+新增 debt 机制作为保护段误吞 `$` 的第二层兜底：一切占位符经 `_ph_into_run` 进 run 时，体内未转义 `$` 计数为奇则压 `math_debt` 栈（记 run 下标）；此后首个 `$` 判定为「占位符体内开出的数学的闭合符」，把栈位到该 `$` 的整段（占位符串 + 其间字面 + 闭合符）合并重发为 `[[MATH_n]]`。`flush_run` 时清空（跨段不追）。正确性依据：保护段体含奇数 `$` 意味着它在原文开启了未闭合数学，其后第一个 `$` 必为闭合符；合并后 identity 保持（内嵌 ph 由展开层还原）、泄漏归零。这把「保护段吞 `$`」从全局配对错位降级为局部自愈合。
 
 ## 5. 宏表与参数签名
 
@@ -99,4 +99,4 @@ xparse argspec 覆盖 `m o O{def} s d<> D<> r<> R<> v e t b`；`_args` 按签名
 
 [^ieea]: zcyisiee. ieeA. GitHub. [github.com/zcyisiee/ieeA](https://github.com/zcyisiee/ieeA)
 
-文中 `\url%` 截断缺陷的归因参照 ieeA 实现[^ieea]；spike 基线、泄漏逐条清单与宏统计出自开发机 bench 现场（结论已摘要进正文）。plasTeX、unified-latex 等替代解析路线的取舍见 `spec/latex-pipeline.md` 与 `expansion-design.md`。
+文中 `\url%` 截断缺陷的归因参照 ieeA 实现[^ieea]；spike 基线、泄漏逐条清单与宏统计出自开发机 bench 现场。plasTeX、unified-latex 等替代解析路线的取舍见 `spec/latex-pipeline.md` 与 `expansion-design.md`。

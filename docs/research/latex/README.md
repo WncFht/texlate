@@ -19,7 +19,7 @@
 | 文件                                     | 内容                                                                                                                             |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | [validator-rules.md](validator-rules.md) | L0 规则校验器设计：7 规则、10 类破坏 100% 检出、0/313 误报、lev≤2 修复建议——已落地 `validate/l0.py`                              |
-| [validator-ts.md](validator-ts.md)       | L1 tree-sitter 校验：@pfoerster/tree-sitter-latex 选型、relative 模式生产形、40/40 检出、踩坑集——已落地 `validate/ts/` + `l1.py` |
+| [validator-ts.md](validator-ts.md)       | L1 tree-sitter 校验：@pfoerster/tree-sitter-latex 选型、relative 模式生产形、40/40 检出、陷阱集——已落地 `validate/ts/` + `l1.py` |
 
 ### 编译路由与修复（`compile/`）
 
@@ -54,4 +54,4 @@
 
 ## 阅读建议
 
-理解「v2 解析管线为什么长这样」按 `expansion-design.md` → `expansion-timing.md` → `segmenter-integration.md` 顺序读，`miniscanner-rewrite-spec.md` 只作 v1 历史参考；理解「编译失败怎么救」读 `engine-matrix.md` + `fixloop-rules.md` + `ctanfetch-probe.md`；找外部实现可借鉴的设计读 `texglot-patterns.md`（全栈）与 `prompt-glossary-spec.md`（翻译层）；`alignment-probe.md` 是滚动同步立项的实证底稿。
+理解 v2 解析管线的形态由来按 `expansion-design.md` → `expansion-timing.md` → `segmenter-integration.md` 顺序读，`miniscanner-rewrite-spec.md` 只作 v1 历史参考；理解编译失败的修复路径读 `engine-matrix.md` + `fixloop-rules.md` + `ctanfetch-probe.md`；找外部实现可借鉴的设计读 `texglot-patterns.md`（全栈）与 `prompt-glossary-spec.md`（翻译层）；`alignment-probe.md` 是滚动同步立项的实证底稿。

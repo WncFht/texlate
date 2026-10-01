@@ -28,7 +28,7 @@
 3. **latex-utensils 文法互证**：`command.label`（label/ref/eqref/autoref/cref）→ key；`command.url` → verbatim；`\href` = url+text 双参；verbatim/minted/lstlisting/comment 环境 → verbatim；`\text` → text[^latex-utensils]。
 4. **手工标注 ~120 条**：按 signature 位置校准角色——`\section s o m → skip opt-text text`；`\cite o m → skip key`；`\href o m m → skip verbatim text`；`\caption o m → opt-text text`；`\footnote o m → skip text`（可选参是编号）；`\textcolor m m → key text`；`\newtheorem m m o → key text skip`（定理名可译）；`\includegraphics s o o m → skip×3 key`；`\newcommand s +m o +o +m → skip key skip×3`；beamer `d<>` overlay 一律 skip，但 `frame/block/alertblock/exampleblock` 的 `d{}` 定界参是标题文本 → `text`。
 5. **猜测签名 84 条**（`source` 标 `guessed-signature`）：ctan 缺签名但族归属明确时按规则生成——cite 族猜 `o o m→[skip,skip,key]`（natbib 约定）、chunk-arg 猜 `o m→[opt-text,text]`、transparent 猜 `m→[text]`、protect 猜 `m→[key]`。原则：**猜 `o` 类参数无害**（不匹配则跳过），**绝不多猜 `m`**（会误吃后续 `{group}` 当参数）；boundary/literal 不猜参。
-6. **批量 literal 族 ~1000 条**：语料证明未覆盖大头是数学符号——希腊字母/二元运算/箭头/定界符/算子/数学重音/数学字体/间距 ~600，text 符号族、单字母重音（`\c \d \b \u \v \H \k \r \t` + `\i \j \l \o`）、长度寄存器、`\the*`/`\and`/`\xspace`/`\hrule/\hfil` 族/版式开关；单字符非字母命令整组 literal；`\begin`/`\end` 以 `policy:boundary` 入表。
+6. **批量 literal 族 ~1000 条**：语料证明未覆盖的主体是数学符号——希腊字母/二元运算/箭头/定界符/算子/数学重音/数学字体/间距 ~600，text 符号族、单字母重音（`\c \d \b \u \v \H \k \r \t` + `\i \j \l \o`）、长度寄存器、`\the*`/`\and`/`\xspace`/`\hrule/\hfil` 族/版式开关；单字符非字母命令整组 literal；`\begin`/`\end` 以 `policy:boundary` 入表。
 
 ## 3. 覆盖率（256 文件 / 300911 次调用）
 
@@ -40,8 +40,8 @@
 
 ## 4. 对解析器的进表决策
 
-1. **未知命令 → 保护 token 不吃参**：长尾是论文自定义宏无法预知参数个数；只保护控制序列本身、后续 `{group}` 照常解析——`\demph{可译文本}` 的参数仍进 chunk（白赚），错吃会把文本当 key 永久保护、错不吃最多多译一点，后者安全。
-2. **单字符命令默认 literal；单字母命令默认 protect**（用户宏重灾区，表内仅枚举确认的重音）。
+1. **未知命令 → 保护 token 不吃参**：长尾是论文自定义宏无法预知参数个数；只保护控制序列本身、后续 `{group}` 照常解析——`\demph{可译文本}` 的参数仍进 chunk（额外收益），错吃会把文本当 key 永久保护、错不吃最多多译一点，后者安全。
+2. **单字符命令默认 literal；单字母命令默认 protect**（用户宏密集区，表内仅枚举确认的重音）。
 3. **未知环境默认 `body_role=text`**：未覆盖环境全是 theorem 类/自定义环境，正文仍可译——保护 `\begin/\end` 壳即可。
 4. **不再为覆盖率扩表**：剩余未覆盖几乎无标准化命令，进表反而引入错误签名。
 5. `@` 内部宏、`if` 系原语 → protect：出现在 preamble/.sty 内，永不该送译。
@@ -49,7 +49,7 @@
 
 ## 5. 已知局限
 
-统计用正则剥离 verbatim/comment 非完整解析，嵌套同名 verbatim 极端情况边界可偏一两个字节（只影响计数）；84 条猜测签名中 cite 族统一猜 `o o m`，个别变体（`\citeN*`）实际签名可能不同——有 `guessed-signature` 标记可审计回滚；命令统计不分数学/文本模式（数学内未知宏在数学保护阶段已整段跳过，无影响）；`\verb|x|` 类命令的真实参数是定界符式，signature 的 `m` 只是角色标注载体，解析器须按 `policy:verbatim` 走定界符扫描。数据源 unified-latex-ctan 1.8.4 提供 422 宏 + 129 环境。
+统计用正则剥离 verbatim/comment 非完整解析，嵌套同名 verbatim 极端情况边界可偏一两个字节（只影响计数）；84 条猜测签名中 cite 族统一猜 `o o m`，个别变体（`\citeN*`）实际签名存在出入——`guessed-signature` 标记可审计回滚；命令统计不分数学/文本模式（数学内未知宏在数学保护阶段已整段跳过，无影响）；`\verb|x|` 类命令的真实参数是定界符式，signature 的 `m` 只是角色标注载体，解析器须按 `policy:verbatim` 走定界符扫描。数据源 unified-latex-ctan 1.8.4 提供 422 宏 + 129 环境。
 
 ### 参考文献
 

@@ -21,8 +21,8 @@
 | submitter                                                                              | string               | 99.52%                               | —                  |
 | report-no                                                                              | string               | 6.10%                                | —                  |
 
-- **年代分层的坑**：`update_date` 是「最近更新时间」，不是首发年份。首发年要用 `versions[1].created`（字符串 `'Thu, 03 Sep 2009 22:17:07 GMT'`，regexp 抽 `\d{4}` 即可）。
-- **「类目×年份×license」离线 join：已验证可行**。duckdb + httpfs 对远程 parquet 做列裁剪 range-read（只拉需要的列块，单 shard 查询秒级）。正式管线建议把 3GB parquet 一次性拉下来本地跑；datasets-server 的 `/filter`（SQL where）端点对本数据集实测一直 "index is loading"，不可靠。
+- **年代分层的陷阱**：`update_date` 是「最近更新时间」，不是首发年份。首发年要用 `versions[1].created`（字符串 `'Thu, 03 Sep 2009 22:17:07 GMT'`，regexp 抽 `\d{4}` 即可）。
+- **「类目×年份×license」离线 join：已验证可行**。duckdb + httpfs 对远程 parquet 做列裁剪 range-read（只拉需要的列块，单 shard 查询秒级）。正式管线建议把 3GB parquet 一次性下载到本地运行；datasets-server 的 `/filter`（SQL where）端点对本数据集实测一直 "index is loading"，不可靠。
 
 ### license 词表（9 值，与 OAI-PMH `arXiv` 格式 `<license>` 同词表——snapshot 即 OAI 收割产物）
 
@@ -46,9 +46,9 @@
 
 逐篇 severity（no_problem / warning / error / fatal）**有现成清单，但都要过一道轻量授权**：
 
-- **arXMLiv 2020**（SIGMathLing）：1,581,037 篇，覆盖至 2020-12。**`meta/grouped_by_severity.zip` 就是逐篇 severity 表**——只下这个 meta 包即可拿到全量 id→severity 映射，不用下 236GB 正文。LaTeXML 0.8.5 / CorTeX 0.4.3。获取门槛：SIGMathLing 会员（免费注册，签 NDA）。
-- **ar5iv 04.2024**（SIGMathLing）：2,170,799 篇，覆盖至 2024-04，LaTeXML 0.8.8。三个 zip 直接按 severity 分捆：**no_problem 366,232 / warning 1,304,052 / error 500,515**（fatal 未单独发布）。C-UDA-1.0 协议，填 Google 表单领下载链接。逐篇标签 = 文件名属于哪个捆；技巧：HTTP Range 只拉 zip 中央目录即可枚举文件名，不必下 318GB。
-- 更新的 arXMLiv 逐篇表没有公开渠道；`corpora.mathweb.org` 有 CorTeX 逐篇转换报告在线浏览，但站点挂了 Anubis 人机验证。
+- **arXMLiv 2020**（SIGMathLing）：1,581,037 篇，覆盖至 2020-12。**`meta/grouped_by_severity.zip` 就是逐篇 severity 表**——只下这个 meta 包即可拿到全量 id→severity 映射，不必下载 236GB 正文。LaTeXML 0.8.5 / CorTeX 0.4.3。获取门槛：SIGMathLing 会员（免费注册，签 NDA）。
+- **ar5iv 04.2024**（SIGMathLing）：2,170,799 篇，覆盖至 2024-04，LaTeXML 0.8.8。三个 zip 直接按 severity 分捆：**no_problem 366,232 / warning 1,304,052 / error 500,515**（fatal 未单独发布）。C-UDA-1.0 协议，填 Google 表单领下载链接。逐篇标签 = 文件名属于哪个捆；技巧：HTTP Range 只拉 zip 中央目录即可枚举文件名，不必下载 318GB。
+- 更新的 arXMLiv 逐篇表没有公开渠道；`corpora.mathweb.org` 有 CorTeX 逐篇转换报告在线浏览，但站点部署了 Anubis 人机验证。
 - arXiv 自家 HTML 管线（2023-12 起全量转 HTML）**未发布逐篇状态表**；`arXiv/html_feedback` GitHub 仓只是反馈 issue 收集器。
 - ar5iv `/log/{id}` 单篇可查（在 arxiv.org 域下）；批量渠道就是上面的 SIGMathLing 捆。自己跑 LaTeXML/CorTeX 亦可（`dginev/ar5ivist` 单机版），200 万篇量级不现实，抽样子集可行。
 - **结论**：难度标签首选 ar5iv-04.2024 三捆名单（2.17M 篇，2024-04 前）+ arXMLiv-2020 meta zip（1.58M 篇，2020 前）；两者与 HF snapshot 用 arXiv id 直接 join。2024-04 之后的新论文无现成标签，需自跑子集。
@@ -59,7 +59,7 @@
 
 - config `all`=1,042,011 / `asserted`=160,089 / `mined`=998,112 行（all = asserted ∪ mined）。
 - 字段：`arxiv_id`（`1412.6980` 裸 id，直接 join）、`arxiv_doi`（`10.48550/arXiv.*`）、`citation_count`、`cited_by`（list of `{doi, matches:[{provenance…}]}`）、`reference_count`。
-- 覆盖 ~33% 全库，偏有名/有 Crossref 引用的论文；当「被引权重」够用，偏差要有数（asserted 是 Crossref 元数据里声明的，mined 是文本挖掘的）。
+- 覆盖 ~33% 全库，偏有名/有 Crossref 引用的论文；当「被引权重」够用，但偏差需留意（asserted 是 Crossref 元数据里声明的，mined 是文本挖掘的）。
 
 ### OpenAlex（实测可行）
 
@@ -70,7 +70,7 @@
     - `group_by=publication_year` 可直接拿年代分布。
     - **join 键**：`locations[].landing_page_url` 含 `arxiv.org/abs/{id}`，正则抽 id 与 HF snapshot join。
     - **没有 arXiv id 直接过滤字段**（`locations.id` 非法、`primary_location.landing_page_url` 可解析但查不到东西）→ 只能全量枚举后离线 join，不能单篇点查（点查走 `works/doi:` 路径，见 `datasets.md` §6）。
-- `select=` 建议：`id,doi,publication_year,cited_by_count,locations`（locations 里带 per-location license/version，顺手多个信号）。
+- `select=` 建议：`id,doi,publication_year,cited_by_count,locations`（locations 里带 per-location license/version，附带多个信号）。
 
 ### 「已发表」权重
 

@@ -31,7 +31,7 @@
 
 延迟（node v26.8.2）：spawn 空载 ~37ms；进程内 validate 2KB chunk 0.70ms、8KB 1.95ms、32KB 7.7ms；最坏单文件 2.2MB parse 195ms。**必须批处理/常驻进程**——逐块 spawn 50ms/次在长文档上不可行，批处理后摊薄 <1ms/块。
 
-## 4. 实测发现的坑（留档）
+## 4. 实测发现的陷阱（留档）
 
 `\end{X}` 改名不产生 ERROR（`\begin{a}…\end{b}` 语法上仍合法）——env 配对必须自做名字比对，这正是独立校验器的价值；悬空 `\end` 退化为 `generic_command`、ERROR 内 `\end{X}` 碎成 `\end` 叶 + `{X}` 兄弟节点，四种形态都要覆盖（`rawNameOf` 从 sibling 链重建）；MISSING 定界符是零宽节点不计入平衡但进 `parse_errors`；tree-sitter 偏移是 UTF-8 字节，CJK 语料 snippet 截取须用 Buffer 语义；`#eq?` 谓词在该 binding 版本不生效。
 

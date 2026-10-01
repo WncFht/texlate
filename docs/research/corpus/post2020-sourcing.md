@@ -4,7 +4,7 @@
 > **状态**：已完成（2026-09-14 实测裁决；裁决口径仍现行——渠道角色分工未变）。
 > **日期**：2026-09-14
 
-数据只来自 huggingface.co 与 archive.org（未触 arxiv.org/S3/OAI）。总下载 1.61GB。
+数据只来自 huggingface.co 与 archive.org（未请求 arxiv.org/S3/OAI）。总下载 1.61GB。
 
 ## 裁决
 
@@ -13,7 +13,7 @@
 | 字节保真      | ✅ 成员 = 官方 e-print blob 逐字节（快照时点 2025-04）；含图 | ❌ 有损：仅 7 种文本扩展名白名单（tex/ltx/bib/bbl/sty/cls/txt），UTF-8 lossy |
 | 覆盖          | 1991-07 → **2025-01**，403 个月逐月无缺，9,547 chunk         | 1991-07 → **2026-07**（shard 0046, ts 2026-08-10），月更                     |
 | 粒度          | `arXiv_src_YYMM_NNN.tar`，~0.53GB/块，2024 年每块 ~150 篇    | 46 shards × 2-9GB；duckdb httpfs 可按 id 谓词下推，不必整 shard 下载         |
-| 单篇成本      | ~3.7MB/篇（2024 chunk 口径）；散选需拖整月 chunk             | ~0.24MB/篇 latex 文本；散选靠 row-group 修剪只拉命中段                       |
+| 单篇成本      | ~3.7MB/篇（2024 chunk 口径）；散选需下载整月 chunk           | ~0.24MB/篇 latex 文本；散选靠 row-group 修剪只拉取命中段                     |
 | parse bench   | ✅ 全保真（实测与 SW 同 funnel）                             | ✅ **.tex 零丢失**，等价可用                                                 |
 | compile bench | ✅ 图/.bst/.bbx 全在，直接可编译                             | ❌ 82% 论文丢图、35% 丢 .bst——不桩化不可用                                   |
 | 新鲜度        | 冻 2025-01（之后无 chunk）                                   | 月更至 2026-07——唯一覆盖 2025-02 后                                          |
@@ -21,7 +21,7 @@
 
 裁决细则：
 
-1. **post-2020 主语料用 TIGER-5T**（覆盖 2020-11 → 2025-01）。byte-exact 已实证（§3），成员含图/.bst/.bib 全套——parse 与 compile 两级 bench 通吃。~1,200 篇目标 ≈ 8 个 2024 chunk ≈ 4.4GB、单线程 ~20min @3.7MB/s（可多连接提速）。
+1. **post-2020 主语料用 TIGER-5T**（覆盖 2020-11 → 2025-01）。byte-exact 已实证（§3），成员含图/.bst/.bib 全套——parse 与 compile 两级 bench 都适用。~1,200 篇目标 ≈ 8 个 2024 chunk ≈ 4.4GB、单线程 ~20min @3.7MB/s（可多连接提速）。
 2. **2025-02 之后的 strata 只能用 scholarweave**（TIGER 止于 2025-01）。该层只能做 parse 级实验，或需直采/付费 S3 补图。
 3. **scholarweave 的定位**：文本层规模实验的正源——全历史 3.12M 行、.tex 逐字保真（实测 845/845 共享文件内容一致）、id 可远程定位。适合「全量 parse 统计 / 方言演化 / 翻译文本抽取」；**不适合** compile/fixloop bench（图与 .bst 缺失）与字节级校验。
 
@@ -37,7 +37,7 @@
 - `arXiv_src_2408_001.tar` 556,554,240B，HF resolve 单流 **3.76MB/s**（148s）。成员 150 个，命名 `2408/2408.NNNNN.gz|pdf`——**成员名无版本号**（blob 即快照时点最新版 e-print）。
 - 三态占比：tgz 129（86.0%）/ 单文件 gz 11（7.3%）/ pdf-only 10（6.7%）。对照 2008_001:132/15/18（80.0%/9.1%/10.9%）。315 个成员合计 tgz 82.9%。
 - n_tex：中位 1、p90 12（2408_001）。docclass 前列：article 44、revtex4-2 16、IEEEtran 6、elsarticle 6、mnras 6、revtex4-1 6。
-- IA 同文件下载 **16.2MB/s**——IA 带宽约为 HF 4-5 倍，可惜 IA 止于 2020-10。
+- IA 同文件下载 **16.2MB/s**——IA 带宽约为 HF 4-5 倍，但 IA 止于 2020-10。
 
 ## 3. byte-exact 验证（`arXiv_src_2008_001.tar` TIGER vs IA）
 
@@ -56,7 +56,7 @@
 - 结构：46 个 `arxiv_part_NNNN.parquet`（2-9GB）+ `arxiv_parquet_manifest.xml`（每 shard 记 first_item/last_item/num_items/yymm/sources 源 tar 名）。shard 按 id 连续切分、零重叠。
 - schema：`id, yymm_id, submitter, authors, title, comments, journal-ref, doi, report-no, categories, license, abstract, versions[], update_date, authors_parsed, latex`。
 - `latex` 格式：`====…(48)\nFILE: <name>\n====…\n<content>\n\n` 逐文件块。
-- **duckdb httpfs 远程谓词下推可用**：`WHERE id IN (140 ids)` 打 6.33GB shard 0028，35s 返回全部 140 行（33.4MB 文本），零整文件下载。140 个 gz 成员 id 全命中；10 个 pdf-only 成员 id 行存在但 `latex IS NULL`。
+- **duckdb httpfs 远程谓词下推可用**：`WHERE id IN (140 ids)` 查询 6.33GB shard 0028，35s 返回全部 140 行（33.4MB 文本），零整文件下载。140 个 gz 成员 id 全命中；10 个 pdf-only 成员 id 行存在但 `latex IS NULL`。
 
 ## 5. scholarweave 有损定量（140 篇 vs TIGER 同 id 树）
 
@@ -73,7 +73,7 @@
 | U+FFFD                                         | 10/140 篇（7.1%）、385 字符——非 UTF-8 字节被替换的硬证据                                                                                                       |
 | 空 latex                                       | 0/140（gz 成员）；pdf-only 成员 = NULL 行（样本内 10/150=6.7%）                                                                                                |
 
-**SW 白名单 = 7 种扩展名**：`.tex .ltx .bbl .bib .sty .cls .txt`（上游 ETL lib.rs `allowed_extensions` 实锤；本 140 篇样本内 `.ltx` 未出现，故实测只见 6 种）。其余全部丢弃。
+**SW 白名单 = 7 种扩展名**：`.tex .ltx .bbl .bib .sty .cls .txt`（上游 ETL lib.rs `allowed_extensions` 确认；本 140 篇样本内 `.ltx` 未出现，故实测只见 6 种）。其余全部丢弃。
 
 ## 6. parsebench funnel 对拍
 
@@ -90,5 +90,5 @@
 - **TIGER 冻于 2025-01**：之后 20 个月（至 2026-07）只有 scholarweave 覆盖；若 benchmark 需要 2025-02+ 语料，SW 是唯一免费批量源（有损），或直采。
 - **SW pdf-only 行 latex=NULL**：全局空率口径即「PDF-only 投稿占比」；语料抽样时须过滤 `latex IS NULL`。
 - **SW 单文件成员命名**：`{id}.tex`（非 main.tex）——重建脚本需按此约定。
-- **TIGER 散文件残留**：`arXiv_src_0001_001/`、`2401/` 两个解压目录与 tar 并存，抓清单时按 `arXiv_src_*_*.tar` 正则过滤即可。
+- **TIGER 散文件残留**：`arXiv_src_0001_001/`、`2401/` 两个解压目录与 tar 并存，抓取清单时按 `arXiv_src_*_*.tar` 正则过滤即可。
 - `arXiv_src_0106_001.tar.0EFff526`：一个上传残留临时文件，非数据。

@@ -30,7 +30,7 @@
 - **自研位置栈（主流）**：包 `goToDestination` 单点，跳前 push `capturePos{page,fraction}`（zoom 无关），返回钮 pop。alphaXiv 实证：jotai `scrollHistory`+`showBackButton`+`backButtonDirection('up'/'down')`（返回钮带方向提示，值得抄）。
 - **寄生 window.history**：pdf.js `PDFHistory` 用 pushState `{fingerprint,uid,dest}`+popstate 恢复——SPA 毒药（见铁律①）；Research Rabbit 更极端把步迹编进 URL `/search/:sid/:step` 可深链。
 - **不跳即无需跳回**：浮卡派的最优解。
-- **注意**：texlate 现有「跳回对照位置」是双侧 mapper 偏差>500px 的漂移校正钮（`updateDrift`/JUMPBACK_PX=500），**不是导航历史**——引用跳后两钮可能同框，须去重（导航栈优先，程序跳转时抑 drift）。
+- **与既有跳回钮去重**：texlate 现有「跳回对照位置」是双侧 mapper 偏差>500px 的漂移校正钮（`updateDrift`/JUMPBACK_PX=500），**不是导航历史**——引用跳后两钮会同框，须去重（导航栈优先，程序跳转时抑 drift）。
 
 ## 3. 悬浮卡片
 
@@ -57,9 +57,9 @@
 
 **本地三路兜底**（缺一即降级为「只有跳转没有卡」）：
 
-1. **dual.json ph 扫描**（eprint 链主路）：`chunks[].ph` 里 `[[BIB_n]]`→`\bibitem[label]{key}`，条目正文=同 chunk `en` 中该 token 至下一 BIB token 子串；`[[CITE_n]]`→`\cite{keys}`；BIB 出现序=[N] 编号。坑：`\bibliography{x}` 也产 `[[BIB_n]]` 但是占位调用，按 ph 值 `\bibitem` 前缀过滤。
-2. **服务端 .bbl/.tex 抽取臂**（补 ph 缺位）：v1 dual 有 token 无 ph、`\bibliography{}`+.bbl 链 bibitem 不进 surface、arxiv_html 链结构上永无 ph（`_build_dual_html` 不挂）。`textutil/cite.py` 的 `BIBITEM_KEY_RE`/`CITE_FAMILY_RE` 现成；产物 `refs.json` 登记三连（KIND_URL/_MEDIA/`_register`）。注意 `src/` 在非 done 终态被 slim——**必须管线内抽取落产物，不能请求时回扫**。
-3. **DOM 兜底**（html 链）：克隆 `li#bib.bibN.ltx_bibitem`；dup-id 注意 en/zh 同文档时 document 级查找恒命中 en pane，clone 须剥 id。
+1. **dual.json ph 扫描**（eprint 链主路）：`chunks[].ph` 里 `[[BIB_n]]`→`\bibitem[label]{key}`，条目正文=同 chunk `en` 中该 token 至下一 BIB token 子串；`[[CITE_n]]`→`\cite{keys}`；BIB 出现序=[N] 编号。易错点：`\bibliography{x}` 也产 `[[BIB_n]]` 但是占位调用，按 ph 值 `\bibitem` 前缀过滤。
+2. **服务端 .bbl/.tex 抽取臂**（补 ph 缺位）：v1 dual 有 token 无 ph、`\bibliography{}`+.bbl 链 bibitem 不进 surface、arxiv_html 链结构上永无 ph（`_build_dual_html` 不挂）。`textutil/cite.py` 的 `BIBITEM_KEY_RE`/`CITE_FAMILY_RE` 现成；产物 `refs.json` 登记三连（KIND_URL/_MEDIA/`_register`）。`src/` 在非 done 终态被 slim——**必须管线内抽取落产物，不能请求时回扫**。
+3. **DOM 兜底**（html 链）：克隆 `li#bib.bibN.ltx_bibitem`；dup-id 场景 en/zh 同文档时 document 级查找恒命中 en pane，clone 须剥 id。
 
 **免 key API 实况**（2026-09-21 实测）：
 

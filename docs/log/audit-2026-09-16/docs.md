@@ -55,7 +55,7 @@
 - 08 §5.1「taxonomy（log→类别，18 regex）」→ rules.yaml taxonomy 段实测 **28** 个 pattern 条目（v2/v3 扩过）。
 - 08 §5 标题路径 `compile/fixloop.py` → 实为 `compile/fixloop/` 包（engine/cases/ctan/logparse/_yamlish/rules.yaml）。
 - 08 §2.2 与 05 §6 M1 均承诺可选组件 `texlate[ts-validator]` → pyproject extras 只有 `server`；实现侧 `validate/ts/validator.js`+node 子进程已在（无 node 优雅降级 L0），extra 名从未建立。
-- 08 §5.2「沉淀队列头号 case：soul_cjk_mbox」→ taxonomy 已有 `soul_err`（L186），该句可能已被 v2/v3 规则消化（低置信提示）。
+- 08 §5.2「沉淀队列头号 case：soul_cjk_mbox」→ taxonomy 已有 `soul_err`（L186），该句经 v2/v3 规则消化与否待核（低置信提示）。
 - 10 §0「现状」列：B3「spike 已验证，需产品化」→ 已产品化（compilebench-v4）；B4「gwbench 雏形」→ xlatbench 冒烟 47/48=98%；B5「mock 16/16」→ e2e-real n100 已跑（chunk ok 99.97%）；B7「probe 已验证」→ alignbench 55 对全量复跑。该列整体停留在实施前快照。
 - 10 §8 M0 门「corpus39+v2 479 文件全绿」：corpus_v2 实际 224 个 .tex、corpus39 实测 256 个 .tex（parsebench-corpus39-2026-09-15，files.jsonl 256 行；「约 35」系 by-class 表 aa 行 35 之误读）；256+224=480，旧跑 256+223=479 恰合 spec「479」口径——本条原判有误，可对上（同批 spec0910.md §4/§5 已核 PASS）。
 - 09 表头「~1,200 篇」：核心 1000 已入库；booster 200 已选（manifest_booster.jsonl 200 行）、docs/10 B1 记 187 篇已解析。规范是计划口径，无矛盾，但 booster 层现状只散见于 10 B1。

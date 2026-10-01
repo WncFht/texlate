@@ -1,6 +1,6 @@
 # arXiv 标识符规范化（canon）
 
-`canon(raw) -> CanonId` 是 arXiv 标识符归一化的单源契约：裸 id、URL、DOI、OAI 标识符、`arXiv:` 前缀、存储拼写等任意常见输入形态 → 规范形 id 或拒收。本体在 `arxiv/fetch.py`（server/CLI 共用），web 侧 JS 镜像在 `web/src/arxidcanon.ts`；任务落库与 dedup 键统一走 canon base。本文是该契约的唯一事实源——与代码冲突以代码为准；远端行为判例与语料普查证据引 `research/arxiv/2026-09-22-id-canon-probes.md`，不复述[^canon-probes]。
+`canon(raw) -> CanonId` 是 arXiv 标识符归一化的单源契约：裸 id、URL、DOI、OAI 标识符、`arXiv:` 前缀、存储拼写等任意常见输入形态 → 规范形 id 或拒收。本体在 `arxiv/fetch.py`（server/CLI 共用），web 侧 JS 镜像在 `web/src/arxidcanon.ts`；任务落库与 dedup 键统一走 canon base。本文是该契约的唯一事实源——与代码冲突以代码为准；远端行为判例与语料普查证据见 `research/arxiv/2026-09-22-id-canon-probes.md`[^canon-probes]。
 
 两个正交概念必须分清：**canon**（用户输入 → 规范 id：锚定剥离管线 + 校验）与 **scan**（自由文本 → 候选 id）。本规格只管 canon；scan 有自己的精度权衡（`reader/cite/citations.ts::extractRefIds` 用 YYMM 硬约束防 `1234.56789` 式误报；server 侧 `ARXIV_ID_FIND_RX` 只产候选，上下文前缀闸归消费方），不并入本件。
 

@@ -8,7 +8,7 @@
 
 pypdf 提取页数 / named destinations（剥前导 `/` 归一）/ 文本 / metadata；文本相似度取官方首页 + 中位页，对 baseline 同序号页（same_index）与 ±3 页窗内最优（aligned）各算一次 difflib ratio。15/15 配对成功；baseline 取主文档 PDF（顶层含 `\documentclass` 的 .tex 同名 PDF）。
 
-baseline 数据坑（选定件质量警告）：0807.3917 engine 版 `main.pdf` 只 3 页（官方 23 页，tectonic 截断，pstricks+IEEEtran 雷区）；1810.04805 compile 目 3 页/12 锚但 fixloop 目 17 页/144 锚完整版——**compile 与 fixloop 的 "baseline" 语义不一致**；2305.14335 两次自编译页数即不一致（17 vs 13，官方 12）——分页对字体/宏包版本极敏感。
+baseline 数据陷阱（选定件质量警告）：0807.3917 engine 版 `main.pdf` 只 3 页（官方 23 页，tectonic 截断，pstricks+IEEEtran 高危面）；1810.04805 compile 目 3 页/12 锚但 fixloop 目 17 页/144 锚完整版——**compile 与 fixloop 的 "baseline" 语义不一致**；2305.14335 两次自编译页数即不一致（17 vs 13，官方 12）——分页对字体/宏包版本极敏感。
 
 ## 2. 15 篇对比表
 

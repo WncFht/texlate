@@ -27,7 +27,7 @@
 - 死文件（root 不可达 .tex）17 个/11 目录：注释掉的 `\input`（1706.03762×2、2602.19229/conclusion）、未接线残片（1902.03178×5、0906.4725/front-matter、2005.11401/tables/main_results、1801.02634/widetab）、改名 `.tex` 的 cls（1712.01208/acmart_old=docstrip 产物）、EPTCS 元数据（2606.31863/eptcsdata）、wrapper（2609.08578）。
 - 未解析目标仅 1：死文件 acmart_old.tex 里 `\input{glyphtounicode}`（TeXLive 系统文件，属正常外部引用）。
 - **两个静态分析陷阱（locate 模块须知）**：
-    1. `2602.19229`：`tex/structure.tex` 在 `tex/` 内却写 `\input{tex/introduction}`——按「当前文件相对」解析必死，按 CWD（主文件目录）解析才对。本批所有解析命中都是 cwd 基（basis=cwd 全部，`src` 基 0 命中）。
+    1. `2602.19229`：`tex/structure.tex` 在 `tex/` 内却写 `\input{tex/introduction}`——按「当前文件相对」解析必失败，按 CWD（主文件目录）解析才正确。本批所有解析命中都是 cwd 基（basis=cwd 全部，`src` 基 0 命中）。
     2. `1902.03178`：`\tikzfig{name}` 宏包内部 `\IfFileExists{#1.tikz}{\input{...}}`——108 个**宏包裹的动态 tex include**，静态正则不可见；且 `\input{zx.tikzdefs}` 目标**无 .tex 后缀**（tikzit 约定）。
 
 ## 4. 编码（strict UTF-8 + `file -I` 辅助）
@@ -50,7 +50,7 @@
 
 ## 6. vendored 依赖（.sty/.cls/.bst/.def/.clo 等）
 
-26/39 目录自带依赖，值得注意：`2201.05989` 同时带 acmart.cls + **未使用的 cvpr.cls**；`1712.01208` 带 acmart.cls + acmart_old.tex（改名 cls）；`0807.3917` 带 IEEEtran.cls+pstricks.sty（vendored_sty_shadow 机制案例）；私类全套：IEEEtran×2、revtex4-1、aastex61、aa、iopart(+iopams/setstack)、cms-tdr、cambridge7A、eptcs、jfp-epi、quantumarticle、llncs、acmart×3。
+26/39 目录自带依赖：`2201.05989` 同时带 acmart.cls + **未使用的 cvpr.cls**；`1712.01208` 带 acmart.cls + acmart_old.tex（改名 cls）；`0807.3917` 带 IEEEtran.cls+pstricks.sty（vendored_sty_shadow 机制案例）；私类全套：IEEEtran×2、revtex4-1、aastex61、aa、iopart(+iopams/setstack)、cms-tdr、cambridge7A、eptcs、jfp-epi、quantumarticle、llncs、acmart×3。
 
 ## 7. 静态路由预演（路由表逐目录）
 
@@ -98,7 +98,7 @@
 | hep-th/9901001 | ptptex           | **2.09** | 1   | 6     | 0      | 0     | 1         | eps:4    | N        | **reject**    | documentstyle                     |
 | math/0404188   | amsart           | 2e       | 1   | 1     | 0      | 0     | 1         | –        | N        | tectonic_pref | no_hyperref                       |
 
-路由汇总：**reject×1、xelatex×3、tectonic×1、tectonic_pref×34**。hyperref 静态未检出 10 家，其中 acmart(2201.05989/2609.08578)、aastex61(1801.02634) 类内部自带 → 真·无 hyperref ≈ 7/39（18%）。inputenc×12 / fontenc×11（normalize 手术面）、babel×5、epsfig×6、listings×3、pstricks×1、minted×1、fontspec/polyglossia/ctex ×0。
+路由汇总：**reject×1、xelatex×3、tectonic×1、tectonic_pref×34**。hyperref 静态未检出 10 家，其中 acmart(2201.05989/2609.08578)、aastex61(1801.02634) 类内部自带 → 实际无 hyperref ≈ 7/39（18%）。inputenc×12 / fontenc×11（normalize 手术面）、babel×5、epsfig×6、listings×3、pstricks×1、minted×1、fontspec/polyglossia/ctex ×0。
 
 ## 8. 与 MANIFEST 标注不一致处
 

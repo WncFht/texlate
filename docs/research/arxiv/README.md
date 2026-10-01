@@ -14,7 +14,7 @@ arXiv 侧的取证与设计档案：端点行为、限流纪律、e-print 形态
 | [licensing.md](licensing.md)                                   | 许可体系与译文再分发法务边界：non-exclusive 第三方零权利、分布统计（全量 60.3%/近窗 46.6%）、机读入口、产品 gate 分层——**现行**（统计为 2026-09 口径）                       |
 | [html-path.md](html-path.md)                                   | L2 HTML 降级路：LaTeXML DOM 事实、叶选择器分块规格、原子占位符、1:1 锚、stub 检测、交错注入决策——**已落地**（元素 key 锚注记）                                               |
 | [pdf-fidelity.md](pdf-fidelity.md)                             | 官方 PDF vs 自编译保真度对拍：15 篇锚/页漂移表，跨引擎锚不可借用（1/15 对齐）——**时点证据**（结论否决了借锚路线，落地走自编译 en.pdf）                                       |
-| [arxiv-to-prompt.md](arxiv-to-prompt.md)                       | arxiv-to-prompt 0.14.1 解剖：抓取/定位/展平/裁剪四块对照 + 实测翻车记录 + 可借鉴清单——**现行**（缓存原子发布已借入 cache.py）                                                |
+| [arxiv-to-prompt.md](arxiv-to-prompt.md)                       | arxiv-to-prompt 0.14.1 解剖：抓取/定位/展平/裁剪四块对照 + 实测失败记录 + 可借鉴清单——**现行**（缓存原子发布已借入 cache.py）                                                |
 | [paper-search-assets.md](paper-search-assets.md)               | 六源检索 CLI 解剖：OpenAlex 引用校准模式（enrich_citations）、各源认证门槛、可搬零件层——**时点证据 2026-09-14**（校准链路未落地）                                            |
 | [2026-09-19-scale-roadmap.md](2026-09-19-scale-roadmap.md)     | 规模化路线：缺口清单（2501+ 无损断档为唯一硬约束）、era 三分物化、S3 决策点——**规划**（缺口 2 增量通道曾由 daily-soak 落地，该链 2026-09-21 退役）                           |
 | [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)           | 日更全量 soak：RSS 枚举实测（cs+math 1192 new+cross/日）、公告历、fetch→stagerun 重喂架构——**已退役（2026-09-21）**，枚举层取证仍有效                                        |
@@ -22,7 +22,7 @@ arXiv 侧的取证与设计档案：端点行为、限流纪律、e-print 形态
 
 ## 迁移映射（自 texlate/docs/research/arxiv/）
 
-13 源件 → 12 件：`probes.md` + `serial2.md` 两波探针合并为 [probes.md](probes.md)（serial2 内容在 §B 规模面）；其余 11 件同名一一对应（`layer/export-probes/oai-pmh/bulk-channels/html-path/pdf-fidelity/licensing/arxiv-to-prompt/paper-search-assets/2026-09-19-daily-soak/2026-09-19-scale-roadmap`）。过程性探针日志、命令行、会话叙事按约定削除，结论与数字保留。
+13 源件 → 12 件：`probes.md` + `serial2.md` 两波探针合并为 [probes.md](probes.md)（serial2 内容在 §B 规模面）；其余 11 件同名一一对应（`layer/export-probes/oai-pmh/bulk-channels/html-path/pdf-fidelity/licensing/arxiv-to-prompt/paper-search-assets/2026-09-19-daily-soak/2026-09-19-scale-roadmap`）。过程性探针日志、命令行、会话叙事按约定删除，结论与数字保留。
 
 ## 阅读建议
 

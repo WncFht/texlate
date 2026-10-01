@@ -6,7 +6,7 @@
 
 ## 数据规模实测（2026-09-19）
 
-**OpenAlex**：API 在线口径 works 总数 **327,389,651**；快照口径（2026-06-26 release manifest 实测）**649,096,577 条记录、745.5GB 压缩 JSONL**，其中 works 实体 510,372,821 条/665.7GB（快照计数含 API 已过滤的墓碑/合并记录故大于 API 口径）[^oa-manifest]。S3 公开桶**免 AWS 账号免流量费**，免费快照季度更新，文件按 `updated_date` 分区（2446 个）——增量同步天然可行[^oa-dl]。引用边规模：随机采样（n=125）显示仅 ~25.6% 随机 works 带 `referenced_works`、均值 ~7.5 条（按全部采样 works 无条件计，无 refs 记 0）——**推总边数 ~2.4B（=API 口径 327.4M works × 7.5；快照 510M 口径含墓碑/合并记录、贡献 ~0 边，不参与推总），与 S2 的 2.4B 惊人一致**（估算；非随机样本会严重高估。注：若该均值实为仅对带 refs 的 25.6% 求均值的条件口径，则推总仅 ~0.6–1.0B，本行结论与档二存储表需一并复核）。arXiv 覆盖：`locations.source.id:S4306400194` 实测 **3,729,541** works 带 arXiv location，相对现刊 316 万覆盖充分；**坑：arXiv DataCite DOI（`10.48550/arXiv.*`）在 OpenAlex 是 404**——ID 映射不能靠 DOI[^oa-limits]。
+**OpenAlex**：API 在线口径 works 总数 **327,389,651**；快照口径（2026-06-26 release manifest 实测）**649,096,577 条记录、745.5GB 压缩 JSONL**，其中 works 实体 510,372,821 条/665.7GB（快照计数含 API 已过滤的墓碑/合并记录故大于 API 口径）[^oa-manifest]。S3 公开桶**免 AWS 账号免流量费**，免费快照季度更新，文件按 `updated_date` 分区（2446 个）——增量同步天然可行[^oa-dl]。引用边规模：随机采样（n=125）显示仅 ~25.6% 随机 works 带 `referenced_works`、均值 ~7.5 条（按全部采样 works 无条件计，无 refs 记 0）——**推总边数 ~2.4B（=API 口径 327.4M works × 7.5；快照 510M 口径含墓碑/合并记录、贡献 ~0 边，不参与推总），与 S2 的 2.4B 一致**（估算；非随机样本会严重高估。注：若该均值实为仅对带 refs 的 25.6% 求均值的条件口径，则推总仅 ~0.6–1.0B，本行结论与档二存储表需一并复核）。arXiv 覆盖：`locations.source.id:S4306400194` 实测 **3,729,541** works 带 arXiv location，相对现刊 316 万覆盖充分；**arXiv DataCite DOI（`10.48550/arXiv.*`）在 OpenAlex 是 404**——ID 映射不能靠 DOI[^oa-limits]。
 
 **S2**（release 2026-09-17 实测）：papers 200M ~45GB、citations **2.4B ~255GB**（带 influential/intent/context）、abstracts 100M ~54GB、embeddings-specter_v1/_v2 各 120M ~840GB、s2orc_v2 16M ~180GB、paper-ids 450M ~15GB；license ODC-BY[^s2-datasets]。在线 API 无鉴权池实测连续 429——名义 1rps 实际已不可用，生产必须申 key。
 
@@ -29,16 +29,16 @@
 
 ## similar-papers 三种实现与成本
 
-1. **托管 API 直接骑**：OpenAlex `related_works` 免费带在 works 记录里（实测与 references 交集 6/20——非纯共被引是混合信号）；S2 `/recommendations` 需 key 速率有限。零基础设施，但覆盖率/稳定性/算法不可控。
+1. **托管 API 直接用**：OpenAlex `related_works` 免费带在 works 记录里（实测与 references 交集 6/20——非纯共被引是混合信号）；S2 `/recommendations` 需 key 速率有限。零基础设施，但覆盖率/稳定性/算法不可控。
 2. **预计算 topK**（推荐起步）：离线对全库算共被引 + 耦合+embedding 混合分写 ~2GB 结果表，在线=一次 KV 查询 µs 级；缺陷是新论文要等下次批算（周更可接受）。
 3. **实时计算**：共被引=两个已排序被引列表的交集，70M 边图上 µs-ms 级；embedding ANN topK 也是 ms 级——**实时完全可行，预计算只是省机器不是必需品**。
 
 ## 三条路线成本模型
 
-| 项                         | A 全自建                               | B 全骑托管 API                                     | C 混合                         |
+| 项                         | A 全自建                               | B 全用托管 API                                     | C 混合                         |
 | -------------------------- | -------------------------------------- | -------------------------------------------------- | ------------------------------ |
 | 数据获取                   | OpenAlex 快照 745GB 免费 + S2 datasets | 零下载                                             | OpenAlex 快照一次性+API 补长尾 |
-| 一次性算力                 | 解压抽边 4-10h+topK 批算数小时（单机） | —                                                  | 同 A 左                        |
+| 一次性算力                 | 解压抽边 4-10h+topK 批算数小时（单机） | —                                                  | 同 A                           |
 | 覆盖 316 万 arXiv backfill | 天然全覆盖                             | OpenAlex 10 万 req/日→**~32 天**；S2 无 key 不可用 | 热数据全覆盖 + 冷启动 API      |
 | 月运行                     | $40-80 VPS                             | $0（速率内）但受配额绑死                           | $40-80 VPS                     |
 | 更新                       | 季度快照重导或 API diff                | 自动                                               | 季度重导+API 增量              |
@@ -55,7 +55,7 @@
 
 ## 结论
 
-arXiv 子图是单机问题，全图也只是一台大内存机器的问题；路线 C（OpenAlex 快照打底+LaTeX 自抽边补新+API 兜底）是唯一没有硬依赖风险的走法——LaTeX 自抽边同时是成本项与差异化资产：别家补不平的新鲜度窗口。
+arXiv 子图是单机问题，全图也只是一台大内存机器的问题；路线 C（OpenAlex 快照打底+LaTeX 自抽边补新+API 兜底）是唯一没有硬依赖风险的走法——LaTeX 自抽边同时是成本项与差异化资产：托管源无法补齐的新鲜度窗口。
 
 ### 参考文献
 

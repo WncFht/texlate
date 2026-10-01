@@ -1,6 +1,6 @@
 # Web 服务与阅读器
 
-`texlate web` 起一个本机服务：浏览器界面提交论文、看实时进度、双语对照阅读、下载产物，命令行的 `run --server` 也把任务提交到这里。任务是队列制的——同一时刻只跑一篇，其余排队，每篇内部按并发设置并行调模型。
+`texlate web` 启动一个本机服务：浏览器界面提交论文、看实时进度、双语对照阅读、下载产物，命令行的 `run --server` 也把任务提交到这里。任务是队列制的——同一时刻只跑一篇，其余排队，每篇内部按并发设置并行调模型。
 
 ## 启动
 
@@ -36,9 +36,9 @@ scripts/build-web.sh
 
 上传上限：单文件 80MB，解包后合计 300MB、4000 个文件以内。
 
-任务选项分两层。常用层：模型、目标语言（zh-CN/zh-TW/en）、编译引擎（auto/xelatex/tectonic）、并发（1–16，任务内并行调模型的路数）、上下文提示开关。高级层：前置内容开关（摘要/标题/作者，缺省翻摘要和标题）、`prefer` 缓存策略、取源通道（e-print 源码链 / arXiv HTML 降级链——源码不可得或解析失败时可换 HTML 通道）、完成后自动打共享包、主文档文件名、单次任务的术语表与一次性 API key（只用于这次提交，不写进 Settings）。
+任务选项分两层。常用层：模型、目标语言（zh-CN/zh-TW/en）、编译引擎（auto/xelatex/tectonic）、并发（1–16，任务内并行调模型的请求数）、上下文提示开关。高级层：前置内容开关（摘要/标题/作者，缺省翻摘要和标题）、`prefer` 缓存策略、取源通道（e-print 源码链 / arXiv HTML 降级链——源码不可得或解析失败时可换 HTML 通道）、完成后自动打共享包、主文档文件名、单次任务的术语表与一次性 API key（只用于这次提交，不写进 Settings）。
 
-没配 key 也能提交——产出的是占位译文（见 `byok.md` 的「没配 key 会怎样」），界面会有提示。
+没配 key 也能提交——产出的是占位译文（见 `byok.md` 的「未配 key 的降级行为」），界面会有提示。
 
 ## 任务页
 
@@ -53,7 +53,7 @@ scripts/build-web.sh
 | `done`        | 完整出 PDF，全部块翻完                                    | 直接读                                          |
 | `partial`     | 出了 PDF 但有降级：部分块回退原文、或修复后有残余警告     | 照常可读，横幅里写明降级点；想重试点重试        |
 | `fault`       | 失败（取源/翻译/编译链走尽）                              | 面板里有错误码与原因；修好环境或换 key 后点重试 |
-| `cancelled`   | 你取消的                                                  | 已译的块保留，重试复用不重复烧配额              |
+| `cancelled`   | 用户取消的                                                | 已译的块保留，重试复用不重复消耗配额            |
 | `interrupted` | 服务重启时任务还在跑                                      | 点重试从断点续跑                                |
 | `needs_auth`  | 任务用的是一次性 key（请求头传入），重启后 key 不在服务端 | 在面板上重新填 key 再重试                       |
 
@@ -94,4 +94,4 @@ export TEXLATE_MODE=server
 uv run texlate web --host 0.0.0.0 -p 8765
 ```
 
-server 形态下所有写操作要求 `X-Texlate-Key` 请求头（服务端的 key 不外借给匿名请求）；跨域前端需要把来源加进 Settings 的 `cors_origins` 白名单，否则浏览器同源策略天然拒绝。多副本部署不再有单实例锁，`python -m texlate.server` 是不经锁的低层入口。配额面（`quota_max_tasks`/`quota_max_bytes`）与产物保留期（`retention_days`/`retention_max_gb`）都在 Settings 里配——保留期到期或超容量的终态任务会被自动清除。
+server 形态下所有写操作要求 `X-Texlate-Key` 请求头（服务端的 key 不外借给匿名请求）；跨域前端需要把来源加进 Settings 的 `cors_origins` 白名单，否则浏览器同源策略直接拒绝。多副本部署不再有单实例锁，`python -m texlate.server` 是不经锁的低层入口。配额面（`quota_max_tasks`/`quota_max_bytes`）与产物保留期（`retention_days`/`retention_max_gb`）都在 Settings 里配——保留期到期或超容量的终态任务会被自动清除。

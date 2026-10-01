@@ -4,15 +4,15 @@
 > **状态**：时点证据（2026-09-14 口径；各渠道新鲜度为该时点读数）。IA 渠道随后在语料建设中实跑（语料侧档案见 [../corpus/](../corpus/)）；2501+ 无损批量断档与 S3 决策点由 [2026-09-19-scale-roadmap.md](2026-09-19-scale-roadmap.md) 续议。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
-本轮未触 `*.arxiv.org`；S3 布局取自官方 bulk-data 文档[^arxiv-bulk]。
+本轮未请求 `*.arxiv.org`；S3 布局取自官方 bulk-data 文档[^arxiv-bulk]。
 
 ## 1. 渠道总表
 
-| 渠道                                                  | 有 LaTeX src？                              | 规模                                   | 新鲜度             | 凭据/成本                                             | 粒度                              | 状态                                    |
+| 渠道                                                  | LaTeX src                                   | 规模                                   | 新鲜度             | 凭据/成本                                             | 粒度                              | 状态                                    |
 | ----------------------------------------------------- | ------------------------------------------- | -------------------------------------- | ------------------ | ----------------------------------------------------- | --------------------------------- | --------------------------------------- |
 | **`s3://arxiv` `src/`**                               | ✅ e-print 原始 blob                        | ~2.9TB（2023-03），月更                | 持续（每月）       | AWS 账号 + requester-pays（~$0.09/GB egress+ 请求费） | 500MB tar/月-chunk，manifest 定位 | 匿名 403 实测                           |
 | **IA `arxiv-bulk`**[^ia-bulk]                         | ✅ 同上 tar 原样镜像                        | 1.65TB（3,242 src + 3,523 pdf chunks） | **冻 2020-10**     | 免费匿名                                              | 同上                              | ✅ 实测列目录/Range/tar 头              |
-| **HF `scholarweave/arxiv-latex`**[^hf-latex]          | ✅ 展平文本（FILE: 分隔，**无图无二进制**） | 289GB / 3.12M 行                       | **月更至 2026-07** | 免费匿名（HF 访问视地区可能需镜像）                   | 46 shards，manifest 给 id→shard   | ✅ 实测 rows API                        |
+| **HF `scholarweave/arxiv-latex`**[^hf-latex]          | ✅ 展平文本（FILE: 分隔，**无图无二进制**） | 289GB / 3.12M 行                       | **月更至 2026-07** | 免费匿名（HF 访问部分地区需镜像）                     | 46 shards，manifest 给 id→shard   | ✅ 实测 rows API                        |
 | `gs://arxiv-dataset`[^gcs]                            | ❌ 零 src                                   | pdf 2.77M+ps 1.63M 文件（至 2508）     | 冻 2025-08         | 免费匿名                                              | 逐文件                            | ✅ 三重核实                             |
 | IA `collection:arxiv`（单篇 item）                    | ❌ 仅 PDF+meta                              | 1,076,003 items                        | 冻 ~2017-04        | 免费匿名                                              | 逐篇 PDF                          | ✅                                      |
 | IA `arxiv-bulk-hashes`                                | —（成员级 checksum 清单）                   | zipsum TSV ~213MB                      | 2017-09/2018-01    | 免费                                                  | `{yymm}/{id}.gz\|pdf` 逐成员      | ✅ Range 实测                           |
@@ -26,10 +26,10 @@
 
 ### 关键细节
 
-- **IA `arxiv-bulk` 成员形态**（实测 tar 头 + Range 抽成员验证）：`{YYMM}/{id}.gz`（源码 e-print blob，可能是 tar.gz 或单文件 .gz）与 `{YYMM}/{id}.pdf`（PDF-only 投稿）混放，成员近似按月聚但不严格按 id 排序。成员即 `arxiv.org/e-print/{id}` 同款 blob——**二进制图保留**（优于 HF parquet），且 HTTP Range 可单点抽取 tar 内任一成员（扫 chunk 头定位 offset 后 Range 拉取，不必下整个 500MB）。冻结于 2020-10/11（最后 publicdate 2020-11-24）。
+- **IA `arxiv-bulk` 成员形态**（实测 tar 头 + Range 抽成员验证）：`{YYMM}/{id}.gz`（源码 e-print blob，为 tar.gz 或单文件 .gz）与 `{YYMM}/{id}.pdf`（PDF-only 投稿）混放，成员近似按月聚但不严格按 id 排序。成员即 `arxiv.org/e-print/{id}` 同款 blob——**二进制图保留**（优于 HF parquet），且 HTTP Range 可单点抽取 tar 内任一成员（扫 chunk 头定位 offset 后 Range 拉取，不必下整个 500MB）。冻结于 2020-10/11（最后 publicdate 2020-11-24）。
 - **定位能力**：IA 无 manifest item、S3 manifest 需付费；但成员名自带 YYMM ⇒ 目标论文只需下载其投稿月的全部 chunk（2001=92 chunks≈46GB；早期月仅 1 chunk）。`arxiv-bulk-hashes` zipsum 提供成员级清单（按 hash 排序，当校验/存在性索引用，不带 chunk 定位）。
 - **S3 manifest 格式**[^arxiv-bulk]：每 chunk 记 `first_item/last_item/num_items/seq_num/size/md5sum/timestamp/yymm`——**id→chunk 精确二分定位**；manifest 本身也 requester-pays（匿名 GET 403 实测）。全桶 2025-04 口径 ~9.2TB、月增 ~100GB。
-- **HF parquet**：`latex` 列文本含 `==== FILE: name ====` 分隔的全部文本文件（.tex/.bbl/.bib/.sty），可切回文件树；**图/PDF 等二进制被丢弃**——解析 bench 够用，编译 bench 需桩化 `\includegraphics`；UTF-8 已解码，latin-1 老文件可能有转码痕迹。manifest（免费 GET）记每 shard 的 `first_item/last_item/num_items/yymm/sources`，46 shard 按 id 连续切分，近月独占 shard（2607: 29,687 篇/1.8GB）。
+- **HF parquet**：`latex` 列文本含 `==== FILE: name ====` 分隔的全部文本文件（.tex/.bbl/.bib/.sty），可切回文件树；**图/PDF 等二进制被丢弃**——解析 bench 够用，编译 bench 需桩化 `\includegraphics`；UTF-8 已解码，latin-1 老文件带转码痕迹。manifest（免费 GET）记每 shard 的 `first_item/last_item/num_items/yymm/sources`，46 shard 按 id 连续切分，近月独占 shard（2607: 29,687 篇/1.8GB）。
 - **HF datasets-server 免下载取行**：`/rows?offset=N&length≤100` 顺序分页（row 序=id 序）；`/filter` 按 id 查询实测不稳。连续 id 段可纯 API 拉（5,000 行≈50 请求）。
 
 ## 2. 直采子集成本核算
@@ -38,26 +38,26 @@
 
 | 规模       | 请求数  | 串行耗时 @4.42s | 数据量（~1–2MB/篇） | 备注                                                  |
 | ---------- | ------- | --------------- | ------------------- | ----------------------------------------------------- |
-| 500        | ~530    | ~39 min         | ~0.7GB              | 直采显然划算                                          |
+| 500        | ~530    | ~39 min         | ~0.7GB              | 直采划算                                              |
 | 1,000      | ~1,060  | ~1.3 h          | ~1.4GB              | 仍划算                                                |
 | 2,000      | ~2,120  | ~2.6 h          | ~2.8GB              | 拐点区                                                |
-| **5,000**  | ~5,300  | **~6.5 h**      | ~7GB                | 整夜任务；被 ban 风险随小时数上升                     |
-| **20,000** | ~21,200 | **~26 h**       | ~28GB               | 不现实：>1 天连续打 e-print，违背 arXiv bulk 政策本意 |
+| **5,000**  | ~5,300  | **~6.5 h**      | ~7GB                | 整夜任务；触发封禁的风险随小时数上升                     |
+| **20,000** | ~21,200 | **~26 h**       | ~28GB               | 不现实：>1 天连续请求 e-print，违背 arXiv bulk 政策本意|
 
 对照批量渠道（同一 5,000 篇）：
 
 | 路径                  | 字节量                                   | 耗时 @实测带宽            | 适用条件                           |
 | --------------------- | ---------------------------------------- | ------------------------- | ---------------------------------- |
 | IA tar（聚集选月）    | ~10–25 chunk ≈ 5–13GB                    | ~15–40min @4 并发 6.6MB/s | 「任取 N 篇」，选 1–2 个现代月即可 |
-| IA tar（散选 id）     | 每篇拖 500MB chunk                       | 散选 200 chunk=105GB≈4.4h | 与直采打平，还多流量               |
-| S3 tar（散选 id）     | 同上但 ~50–100MB/s+                      | 每 chunk 5–10s            | 付费后散选也赢（~$0.09/GB）        |
+| IA tar（散选 id）     | 每篇下载 500MB chunk                     | 散选 200 chunk=105GB≈4.4h | 与直采相当，还多流量               |
+| S3 tar（散选 id）     | 同上但 ~50–100MB/s+                      | 每 chunk 5–10s            | 付费后散选也占优（~$0.09/GB）      |
 | HF parquet（散选 id） | manifest 定位 shard，命中 shard 数×2–7GB | shard ~10–25min @3.9MB/s  | 覆盖至 2026-07，近月 shard 小      |
 | HF `/rows`（连续段）  | 0 下载                                   | 50 req API                | 仅限连续 id 段/取样                |
 
 **拐点建议**：
 
 - **指定论文清单 ≤~2,000 篇** → 直采最省力（无 GB 级下载、无新基础设施；~2.6h 内）。
-- **「凑 N 篇真实语料」（bench 扩容典型诉求）** → 任何规模都走 IA/S3 tar：挑月=挑 era+archive，密度 ~500 篇/500MB，最快最省还零触 arxiv.org。
+- **「凑 N 篇真实语料」（bench 扩容典型诉求）** → 任何规模都走 IA/S3 tar：挑月=挑 era+archive，密度 ~500 篇/500MB，最快最省还零请求 arxiv.org。
 - **指定清单 2k–20k 且散跨月份** → S3 付费（$0.09/GB，散选几百 chunk ≈ $10–30）> HF parquet 命中 shard 下载 > IA 整 chunk > 直采。
 - **要 2020-10 之后的论文** → IA 出局；免费只有 HF parquet（至 2026-07）；要最新 + 原始 blob 树（含图）只有 S3 或直采。
 
@@ -69,8 +69,8 @@
 | HF scholarweave     | **2026-07**（月同步）                        | 跟着 S3 月度 drop 跑   |
 | GCS pdf             | 2025-08（停更，2025-08-24 全量重同步过一次） | 只当冷备               |
 | IA arxiv-bulk       | **2020-10**                                  | 已停更 5 年 +          |
-| IA collection:arxiv | ~2017-04                                     | 化石层                 |
-| Kaggle/HF 元数据    | 周更/日更                                    | 元数据无此忧           |
+| IA collection:arxiv | ~2017-04                                     | 停更 ~9.5 年           |
+| Kaggle/HF 元数据    | 周更/日更                                    | 元数据无此问题         |
 
 benchmark 语料对新鲜度不敏感（TeX 方言演化以年计），但 2020→2026 间宏包生态有漂变（UTF-8 默认化等）——语料若要代表「当前用户会翻的论文」，2020-10 前的 IA 镜像需用 HF/S3/直采补近年代层。
 

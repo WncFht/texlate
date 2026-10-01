@@ -1,10 +1,10 @@
 # layoutqc v2 —— 版面质检全面升级（内部审计 × 外部调研 × 状态条件保留）
 
-日期：2026-09-23。本文档由三路输入综合而成：(a) verification-surface fork 的全链路审计；(b) splice 机制 fork（reflow + 未消费信号）；(c) 5-lane 外部调研 workflow（BabelDOC / MinerU·olmOCR·Marker·Docling / 度量准则 OmniDocBench / render-diff / 仪表化编译）。取代 v1 的 L1/L2/L3 草案，是重建 bench 前检验升级的准绳。
+日期：2026-09-23。综合三路输入：(a) verification-surface fork 的全链路审计；(b) splice 机制 fork（reflow + 未消费信号）；(c) 5-lane 外部调研 workflow（BabelDOC / MinerU·olmOCR·Marker·Docling / 度量准则 OmniDocBench / render-diff / 仪表化编译）。取代 v1 的 L1/L2/L3 草案，是重建 bench 前检验升级的准绳。
 
 ## 0. 一句话
 
-现在的验证只证明「pdf 存在 + 错误少 + 有中文」——版面几何零覆盖；而外部**没有一家**在推理期做渲染几何 QC（BabelDOC 干脆没有出货后检查），所以我们的目标不是抄谁，而是把我们独有的优势（手里握着源 .tex 真值 + en 基线 PDF + 双臂都重编）换成一套分层检测电池：T0 每篇必跑（bbox 几何 + 日志信号 + 退化兜底），T1 bench 跑批时加 raster + BIoU，T2 上 `\pdfsavepos` 发射侧真值（已实证）+ LLM 评审。
+现行验证只证明「pdf 存在 + 错误少 + 有中文」——版面几何零覆盖；外部没有一家在推理期做渲染几何 QC（BabelDOC 没有出货后检查）。独有资产（源 .tex 真值 + en 基线 PDF + 双臂都重编）落成一套分层检测电池：T0 每篇必跑（bbox 几何 + 日志信号 + 退化兜底），T1 bench 跑批时加 raster + BIoU，T2 上 `\pdfsavepos` 发射侧真值（已实证）+ LLM 评审。
 
 ## 1. 现状：每道门的 status 实际证明什么（fork 审计确认）
 
@@ -149,7 +149,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 6. 检验反过来定「成功即删」政策（磁盘×质量同一张表）
 
-> **本节为计划版；定稿门定义与保留表在 §11。**
+> **§6 为计划版；定稿门定义与保留表在 §11。**
 
 「成功」重定义为 `compile clean ∧ layoutqc clean`（T0 全过，T1 视跑批层级）。保留政策按终态分档：
 
@@ -162,7 +162,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 含义：现行「全 clean 也全留」(~26MB/篇) → 条件保留后 clean 篇 ~8MB，**且版面缺陷篇自动获得完整诊断料**——这正是 rebuild-plan-v4 §2.3 P3 政策能成立的前提（13k≈104G 贴顶需此项）。
 
-副作用坦白：上 layoutqc 后 clean 率会**下降**（e2e_real-2 的 30 clean 里会翻出 layout sig）——缺陷一直在，现在才开始量。这是目的不是回归。
+副作用坦白：上 layoutqc 后 clean 率会**下降**（e2e_real-2 的 30 clean 里会翻出 layout sig）——缺陷一直在，现在开始量。这正是目的。
 
 ## 7. 执行序
 
@@ -178,7 +178,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 - bbox 碰撞阈值校准集：~50 篇标注（下标/上标/并排表格天然 bbox 相交）；marks 真值可半自动产出标注。
 - T1 抽样率：待 T0 回填基线率出来再定。
-- tikz overlay 类文档的表格重合 T0 可能仍漏——那类归 T1 BIoU/T2 judge。
+- tikz overlay 类文档的表格重合不在 T0 检出面——归 T1 BIoU/T2 judge。
 - tectonic 下 `.txlm` 落 out dir（xelatex 落 main dir 已证）——marks 落地前验路径；`\@endfloatbox` 被 class 重定义时 BOX dims 缺失需 `\ifdefined` 守卫。
 
 ## 9. 调研来源
@@ -192,7 +192,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 10. As-built 校准实录（2026-09-23 实跑标定）
 
-§4 表是**计划**；本节是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc/__init__.py`+`_raster_child.py`（检测侧）、`tests/compile/test_layoutqc.py`（27 例）。
+§4 表是**计划**；§10 是**落地真相**。全部语义经 e2e_real-2 三十一篇双臂实跑 + vault 284 胞单臂回填 + 逐页 PNG 人工核验标定。落地代码：`src/texlate/compile/marks.py`（发射侧）、`bench/py/specs/_layoutqc/__init__.py`+`_raster_child.py`（检测侧）、`tests/compile/test_layoutqc.py`（27 例）。
 
 ### 10.1 单位与坐标陷阱
 
@@ -283,7 +283,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 **run4 扩容波（胞 41–120 双臂 marks 重编，2026-09-23 深夜）**：
 
 - **鲜度闸连合 bug（已修）**：首波 run3 把 `pdf.mtime>tex.mtime` 当「本波已编」——copytree 承 vault mtime 下存量 pdf 恒新于 tex，80/80 zh 漏注入漏编、marks_absent 满发、跨臂面全哑。修为「`TeXlateMark` 哨兵在 tex + pdf 更新」才算 fresh（recompile zh/base 两路同闸，reqc marks_era 判据同改）。
-- **end 钩子 `\@currenvir` 毒化（已修 marks.py）**：`env/<name>/end` 触发点上 `\@currenvir` 可能已恢复成外层 env——2609.20793 `\maketitle` 内 authblk tabular 的 end 钩子读出 `center` → `\the\relax` 报错 + `center-0-e` 毒化 mark + 编译 rc=1 双收。修为 end 钩子注册期烙名 `\txlm@e{<env>}`（begin 仍 `\@currenvir` 自取，实证恒对），加未分配计数器守卫。authblk repro 全 uid 成对。
+- **end 钩子 `\@currenvir` 毒化（已修 marks.py）**：`env/<name>/end` 触发点上 `\@currenvir` 已恢复成外层 env——2609.20793 `\maketitle` 内 authblk tabular 的 end 钩子读出 `center` → `\the\relax` 报错 + `center-0-e` 毒化 mark + 编译 rc=1 双收。修为 end 钩子注册期烙名 `\txlm@e{<env>}`（begin 仍 `\@currenvir` 自取，实证恒对），加未分配计数器守卫。authblk repro 全 uid 成对。
 - **`_compile` 成败判（已修）**：`rc==0` 闸过严——nonstopmode 可恢复错误照常出 pdf 但 rc=1，7 格 zh_compile_fail 中 5 格实有新鲜产物。修为「编译后 pdf 新于 tex」判成功。
 - **run4 分布**（80 胞）：clean 5 / warn 18 / hard 50 / error 7——marks 面全类实弹：`float_drift`（单格 15 位点）、`order_inversion`、`marks_coverage`、`align_page_count`、`align_order_break`；`marks_absent` 清零。
 - **error 格归宿**：5/7 是 rc 闸误杀（reqc 免编译重打分自动拾回）；2404.14219 真编译死（pdf_corrupt 本源）；1610.02136 早前波次已编。
@@ -328,7 +328,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **行内周期占位检测**（degen 第三分支）：CJK mock 译文「这是译文这是译文…」整行无空格，词级 n-gram 受 running-head 放阈连坐放走（2609.19244 top_rep=46<195 但满页占位符，行内连珠 706 行实证）；`degen_periodic_lines≥3` 新签，单两行修辞重复/无词字符单元（……/====）不过阈。
 - **vis_void 浮体密页存疑**：subfigure 密排页浮体间白条可成内部白连通块（2609.19244 18 页连发，看图多为合法浮体间距）——阈值/浮体页折扣待 rescan AGG 分布裁决，记观察项。
 - **refs 页 breach**：URL/DOI 不可断行天然贴边——跨臂抑制后残余为可接受底噪。
-- **合法英文类**：frontmatter 作者块/affiliation、语料例句（方言研究 2605.06276）、图内 caption、pseudocode——residual_en 阈值已压至 ≥25∧2% 仍可能含少量此类，人工分诊语义。
+- **合法英文类**：frontmatter 作者块/affiliation、语料例句（方言研究 2605.06276）、图内 caption、pseudocode——residual_en 阈值已压至 ≥25∧2% 仍会放进少量此类，人工分诊语义。
 - **旋转容器内 marks**：offpage 已对内层 env 豁免，但浮体级 mark 在 sidewaystable 内仍会坐标异常（罕见，表* 在旋转体内时）；如需根治走 BOX dims 或 SyncTeX。
 - **抽取序 LCS 噪声**：数字密集表在 2 栏重排下 skeleton 序乱——align_order_break 是粗信号，45% cov 级事件需人工看页。
 - **BIoU/SSIM 要素未落地**：`vis_tofu_box`/`geo_table_lost`（规则行代理）/`regress_ink_profile`（逐页墨量回归抓矢量图掉图，pdfimages 盲区补位）已落地；`geo_biou_low`/SSIM 仍在计划面；LLM judge(T2) 未建。
@@ -360,7 +360,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 11. 终版检验方案与工件保留政策（定稿 2026-09-23）
 
-§4–§6 是计划面；本节是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（31 个已发射 sig）定稿。
+§4–§6 是计划面；§11 是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（31 个已发射 sig）定稿。
 
 ### 11.1 门定义：信号三档
 

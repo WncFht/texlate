@@ -16,7 +16,7 @@
 | **TIGER-Lab/arxiv-latex-5T** (HF)                            | **原始 `arXiv_src_YYMM_NNN.tar` 逐字节镜像**（9,547 个 tar）+ `2401/` 下逐篇 `.gz` e-print                 | 5.08TB                                     | YYMM 9107→2501 **整段连续无缺月**                     | 标 apache-2.0（逐论文 license 约束仍在） | 5TB 全量；只能按月度 tar 粒度取样（每 tar ~0.3-0.5GB、数百篇混杂类目）                                                                                      |
 | **archive.org `arXiv_src_*`** (IA)                           | 同一批 S3 bulk tar 的免费镜像 item                                                                         | 3,242 items                                | 9107→2010（缺 2010-11 之后）                          | 同 arXiv                                 | 覆盖停在 2020-10；无元数据字段                                                                                                                              |
 | **Mithilss/neurips-2025-arxiv-latex-sources** (HF)           | 行=单文件：`arxiv_id, relative_path, filename, extension, sha256, is_text, text, content(base64 原始字节)` | 3,414 篇 / 123,952 文件行（45,808 文本行） | NeurIPS 2025↔arXiv 映射                               | other（逐论文）                          | 仅 3.4k 篇；但作为 venue 过滤 + 多文件原貌（含二进制）的小而精底材极佳                                                                                      |
-| **KiteFishAI/arxiv-tex-corpus-full(80GB)/medium(15GB)** (HF) | jsonl `{paper_id, category, latex}` 单串拼接                                                               | 10⁵-10⁶ 量级                               | math/cs/hep-th/hep-ph/quant-ph/stat.* 类目过滤        | mit（声明），逐论文约束仍在              | 文件边界大概率已丢失；无版本/时间字段；`CortexEvolved/arxiv-tex-corpus-full` 是其镜像                                                                       |
+| **KiteFishAI/arxiv-tex-corpus-full(80GB)/medium(15GB)** (HF) | jsonl `{paper_id, category, latex}` 单串拼接                                                               | 10⁵-10⁶ 量级                               | math/cs/hep-th/hep-ph/quant-ph/stat.* 类目过滤        | mit（声明），逐论文约束仍在              | 文件边界已丢失；无版本/时间字段；`CortexEvolved/arxiv-tex-corpus-full` 是其镜像                                                                       |
 
 ### B 级：非源码但有相邻价值
 
@@ -35,7 +35,7 @@
 | KuoKuoYeah/dcd-arxiv_aws_src-demo                                                                                         | arXiv AWS src 小样本 demo（含 PDF）                                                                                      | 小                            | —                                             |
 | kadubon/paper-tex-corpus                                                                                                  | K.Takahashi 个人 TeX 语料 + 原始 ZIP                                                                                     | ~千级                         | cc-by-4.0                                     |
 
-Kaggle 侧另有一堆 `*/scholarweave-arxiv-latex` "Socbench train data"（0GB 空壳重传，忽略）。
+Kaggle 侧另有一批 `*/scholarweave-arxiv-latex` "Socbench train data"（0GB 空壳重传，忽略）。
 
 ## 二、scholarweave/arxiv-latex 解剖详情
 
@@ -47,7 +47,7 @@ Kaggle 侧另有一堆 `*/scholarweave-arxiv-latex` "Socbench train data"（0GB 
 - **license 字段**：~9 种值（arxiv nonexclusive-distrib、CC0、CC-BY 3.0/4.0、CC-BY-SA、CC-BY-NC-SA 等），老论文多为 null。
 - **镜像**：naveenmarthala/arxiv-latex、justatomic/arxiv-latex、thejagstudio/arxiv-latex 文件名/manifest 相同，属重传镜像，首选 scholarweave 原版（维护活跃）。
 
-**能否直接当「几千篇真源码工程」？** 能——按 categories/时间窗过滤后拉单分片切片即可（parquet 行组可部分读）。但要注意：多文件工程里**缺图**，只能覆盖文本侧陷阱（`\input/.bib/.sty/.cls` 齐全）；需图/字节级保真时改走 TIGER-Lab 或 IA tar。有损定量实测（73% 文件丢弃、.tex 零丢失、U+FFFD 7.1%）见 `post2020-sourcing.md` §5。
+**「几千篇真源码工程」直接可用**——按 categories/时间窗过滤后拉单分片切片即可（parquet 行组可部分读）。但要注意：多文件工程里**缺图**，只能覆盖文本侧陷阱（`\input/.bib/.sty/.cls` 齐全）；需图/字节级保真时改走 TIGER-Lab 或 IA tar。有损定量实测（73% 文件丢弃、.tex 零丢失、U+FFFD 7.1%）见 `post2020-sourcing.md` §5。
 
 ## 三、推荐组合
 

@@ -1,6 +1,6 @@
 # bench 工作区最终方案：**thin-runner + 薄门面**(kernel 收敛样板 + 契约钉死承重面 + exec 单入口）
 
-> **已取代（2026-09-23 Wave-F）**：本方案（v1 thin-runner 路线）未实施即被 trizone-ledger v2 全量重写取代——实际落地见 `spec/bench-trizone.md` 与 `bench/py/kernel/`；本文保留作方案评审史记录，其中 stagerun/records/results 面均已是历史。
+> **已取代（2026-09-23 Wave-F）**：本方案（v1 thin-runner 路线）未实施即被 trizone-ledger v2 全量重写取代——实际落地见 `spec/bench-trizone.md` 与 `bench/py/kernel/`；保留作方案评审史记录，其中 stagerun/records/results 面均已是历史。
 >
 > 骨架 = 排名第一 thin-runner（零存储/schema 移动、函数式 run_bench 内核、additive benchlib helpers);嫁接 = 亚军 bench-cli-facade 的单入口薄门面（修正为 exec-only + 更名 bench_cli.py);全部 fatal/major 攻击逐条处置（无 fatal 成立，major 共 19 条，对策内嵌于步骤与风险节）。已逐条实证关键行号。
 
@@ -98,7 +98,7 @@ def main():
 
 **步骤 2|benchlib helpers 批 A（每条同 commit 接线 ≥1 调用方）**:
 
-- `init_run_dir(name, tag, out, date, kind)`：收**完整计算后名**（validbench:1037 名含 corpus.name;e2e 用 `f"{tag}-{date}"` 异式被 docstring 明禁误用）;UTC 日期单源（杀 compilebench:823 local strftime 分叉——本机 UTC+8，每日 00:00-08:00 两钟已分叉）;**内嵌 \_warn_date_fork 同级目探测**(e2e_real:498-524 移植——隔日原样重跑新建空目全量重跑烧 swe-2 配额是当前最锋利 footgun，一处接入全 adopt 者免疫）;`has_work` 参数控 .gitignore(wrapfloat:353 把 work/ 写进 run 目，eval 形也需此件）。首个调用方=stagerun.py:228-237 引导段。
+- `init_run_dir(name, tag, out, date, kind)`：收**完整计算后名**（validbench:1037 名含 corpus.name;e2e 用 `f"{tag}-{date}"` 异式被 docstring 明禁误用）;UTC 日期单源（杀 compilebench:823 local strftime 分叉——本机 UTC+8，每日 00:00-08:00 两钟已分叉）;**内嵌 \_warn_date_fork 同级目探测**(e2e_real:498-524 移植——隔日原样重跑新建空目全量重跑烧 swe-2 配额是代价最高的 footgun，一处接入全 adopt 者免疫）;`has_work` 参数控 .gitignore(wrapfloat:353 把 work/ 写进 run 目，eval 形也需此件）。首个调用方=stagerun.py:228-237 引导段。
 - `dump_run_meta(path, meta_dict)`:**纯原子写原语**——load→mutate→append 语义所有者仍是 touch_run_meta/mark_run_finished(stagerun_lib:274-308 两站同 commit 换掉；invocations 历史坍缩=波次窗信号死）。mode 0o644。
 - `done_keys(path, key_fn, pred, gen_key, gen)`:**key_fn/pred 均必传无默认**——五驱动终态口径实证全异（compilebench 行在=done 且 stub 行无 status 字段、alignbench 错误行算 done、xlatbench 要 http==200+content、qualbench 要 score≠None、stagerun DONE_STATUS 含 fail——双向都不可统一）;docstring 写死禁建 latest_records(canon）之上。首个调用方 compilebench:847。
 - `compact_jsonl(path, rows)`：原子压实；**对 records/ 与 cases.jsonl 等 append 账硬 raise**；返回 {kept,dropped} 计数（iter_jsonl 静默跳坏行不得被压实洗成数据丢失）。首个调用方 parsebench:1241（消 'w'-truncate 丢全行窗；同批收 alignbench:948、xlatbench:468 rejudge——后者是两方案清扫名单的漏项）。gullet:155-160 已是原子正确示范，不动。validbench:1072 单独处置：非空 cases.jsonl 存在时拒绝 'w' 截断除非 --force（杀窗类同但政策不同）。

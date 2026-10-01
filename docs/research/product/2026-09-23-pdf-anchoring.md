@@ -43,7 +43,7 @@ Wave A-D 落地的阅读器功能（Copy LaTeX、句级对齐、find-usages、�
 
 - 机制：引擎内嵌「排版盒→源位置」映射，把每页嵌套盒树（vbox/hbox/glue/kern/math）连同 (Input tag, 行号，列号)+sp 坐标写入 .synctex.gz。逆查=页坐标→最小包含盒→(file,line)；正查=(file,line)→盒矩形集。**列号恒 -1，实际粒度=源行**。
 - 先例：Overleaf/TeX Live 壳 `synctex` CLI；JS 侧 LaTeX-Workshop synctexjs.ts、wasmtex/synctex（MIT，corca-ai 仓）。
-- 坑：同一源行多 chunk 不可分（需 textLayer 词命中消歧，LW textBeforeSelection 法）；align/多行公式环境整体塌到 `\end` 行（tex.sx#453517）；.bbl/.aux/TOC 的 Input tag 指向生成文件须白名单过滤；多源行塌同一显示行可借 glue/kern 子记录按 x 分。
+- 易错点：同一源行多 chunk 不可分（需 textLayer 词命中消歧，LW textBeforeSelection 法）；align/多行公式环境整体塌到 `\end` 行（tex.sx#453517）；.bbl/.aux/TOC 的 Input tag 指向生成文件须白名单过滤；多源行塌同一显示行可借 glue/kern 子记录按 x 分。
 - **对 texlate 恰好合身**：arXiv 源段落多为整段一行 → 一行即一 chunk；zh 侧须 splice 行图记账（唯一大件）。
 
 ### 3.2 无源 PDF 锚定三路线（e-reader-anchors）
@@ -76,7 +76,7 @@ Wave A-D 落地的阅读器功能（Copy LaTeX、句级对齐、find-usages、�
 ### 3.5 pdf.js API 面（e-pdfjs-api）
 
 - 坐标桥：`Range→getClientRects→pageView.viewport.convertToPdfPoint→quadPoints`，autolinker.js 的 calculateLinkPosition/textPosition 是同构蓝本（~80+45 行可抄）；高亮走 CSS Custom Highlight（Baseline 2026-03）或 overlay div（~50 行）。
-- 坑：跨页选区需自拼；textLayer 懒渲染页无 textDivs（getTextContent 不等渲染可绕）；findController 高亮注入改写 textDiv DOM 使 Range 端点偏移须按 div.textContent 树走；页文本偏移口径 = items.str 拼接 + hasEOL 项插 `\n`（前后端须同口径）。
+- 易错点：跨页选区需自拼；textLayer 懒渲染页无 textDivs（getTextContent 不等渲染可绕）；findController 高亮注入改写 textDiv DOM 使 Range 端点偏移须按 div.textContent 树走；页文本偏移口径 = items.str 拼接 + hasEOL 项插 `\n`（前后端须同口径）。
 - 结论：前端「选中→page+quads+ 页内偏移」只差 ~300-400 行胶水；真正工作量在后端锚数据供给。
 
 ## 4. 功能×方案难度矩阵

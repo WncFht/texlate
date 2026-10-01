@@ -88,7 +88,7 @@ partial 格 reasons 可多判据并立（`errors>3` + `warn:invalid_utf8` + `mis
 - **混合 code-stamp 目录无告警**：rerun 波在同一 records 文件里混写多版本代码的记录，rundiff/scorecard 不核 `code` 一致性——跨版本格同池比较静默发生。
 - **dur_s/性能 drift 无面**：wall_s 落 metrics.jsonl 但无对比展示。
 
-## 5. records schema 还差哪些字段（免手挖清单）
+## 5. records schema 缺口字段（免手挖清单）
 
 按「补上即消一类手挖」排序：
 
@@ -109,5 +109,5 @@ partial 格 reasons 可多判据并立（`errors>3` + `warn:invalid_utf8` + `mis
 1. **scorecard 口径修齐 + `--json`**——定死 union 语义（建议末段胜保留为「end-state」正名，另加 best-of `union_pdf` 并列输出或至少在 docstring 改正名实）；csb 校验升级为 compile 记录身份指纹；`floor_restored`/`fixloop_degraded` 数进 scorecard 输出（与 triage 回归面对齐）；补 `--json` 供 status_panel 机读替正则。修价 **M**（gate_scorecard 单文件 + status_panel 解析点）。防「同名异义读数打架」这一类最贵误导。
 2. **rundiff `--deep`：same-status churn 视图**——同 rank 格按 sig/taxonomy/n_errors/dur_s 四维列迁移清单；`same` 桶出清单不只看计数。修价 **S**（rundiff 单文件，字段已在 records）。直接补 Phase B「改了哪条规则→哪批格实质动了」的读数面。
 3. **fixloop rec 落 `rules_fired` + `post.regressed`**——写侧两字段，消 cases.jsonl join 与三处 csb 自算；同时给 triage.classify 接上 `n_actions==0 → ruleset_gap` 分流让 unfixable 桶自动拆 wontfix 候选。修价 **S**（stage_fixloop + triage classify 各几行）。
-4. **dossier 消费 `metrics.taxonomy` 替代自算**——`_classify_log`/`_classify_text` 改为优先读 `metrics.taxonomy`/`post.taxonomy`，自算降为字段缺席 fallback；消双口径风险（dossier 读的 `splice/*.log` 末件与被 judge 的 log 未必同一份）。修价 **S**。
+4. **dossier 消费 `metrics.taxonomy` 替代自算**——`_classify_log`/`_classify_text` 改为优先读 `metrics.taxonomy`/`post.taxonomy`，自算降为字段缺席 fallback；消双口径风险（dossier 读的 `splice/*.log` 末件与被 judge 的 log 可为不同文件）。修价 **S**。
 5. **records `schema_v` + bench/py 演进进 code stamp**——`base_rec` 加 `schema_v`；`_code_stamp` 的 dirty 检查从 `src/texlate` 扩到 `bench/py`（或另加 `bench_rev` 键），让 `--recode` 能抓 bench 侧逻辑变更后的陈账。修价 **S-M**（写侧一键 + stamp 函数；消费方按需嗅探）。建议与第 3 项同波落——schema bump 一次多带几个字段。

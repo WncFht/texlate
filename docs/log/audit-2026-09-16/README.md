@@ -20,7 +20,7 @@
 | -------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | M0 骨架 + 基线 | **达成**                                     | 4/4 验收 DONE：identity 1955/1955 双侧 strict、leak 0.046%、traps 34/34、arxiv 六子项 +264 测试、双注入双引擎+judge、corpus39 基线在库                                                                                                      |
 | M1 展开 + 翻译 | **实质达成**（1 GAP + 2 PARTIAL + 保留项）   | 出口门 97.8%/89% 双口径 ≥85%；GAP=argspec.json 1820 条产品面零装载；PARTIAL=UBD 日志信号、ts-validator extra 缺位；保留=n100 证据跑在 v1 面                                                                                                 |
-| M2 编译攻坚    | **字面未达成**（库层齐、编排断、门差一口气） | normalize/fixloop(31)/ctan_fetch/沙箱 DONE；出口门 89.5%<90%、n=172<200、**fixloop 未接产品链**（e2e/worker 单次 compile 即判）；target_probe、LLM 修复器 MISSING                                                                           |
+| M2 编译攻坚    | **字面未达成**（库层齐、编排断、门差 0.5pp） | normalize/fixloop(31)/ctan_fetch/沙箱 DONE；出口门 89.5%<90%、n=172<200、**fixloop 未接产品链**（e2e/worker 单次 compile 即判）；target_probe、LLM 修复器 MISSING                                                                           |
 | M3 产品化      | **约半程**                                   | server 3639 行实装（WAL/SSE/BYOK/11 态机）+ 前端 22 文件真代码；但 **SPA 送不出去**（server/static 不存在+pyproject 无 force-include）；fixloop 未接 worker；Dockerfile/tectonic 矩阵/瘦客户端/EPUB/DOCX 未实现；hjfy 对齐表 5 绿 3 半 2 红 |
 
 ## 2. spec 覆盖（docs/06–10）

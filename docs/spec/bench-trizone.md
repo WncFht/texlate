@@ -14,7 +14,7 @@
 
 旧世界的两个病根——(a) `records/*.jsonl` 既是日志又是数据库又是跨进程协议，(b) 付费字节（zh-store）和免费字节（work/、archive）混在一个 git checkout 里被同等对待——用这一条思想同时切除：账本回答"发生过什么"，保险库回答"我们花钱买过什么"，湖回答"还能再拉到什么"。9 月 21 日的 sparse-checkout wipe 已证明三者容灾等级天差地别；同日 18:23 errsweep 死于 203/EXEC（ExecStart 指向被扫走的工作树文件）证明**连机制本身也不能住在 checkout 里**。
 
-v2 增补的第二原则：**"永不重复翻译已存 id"不是靠纪律守的，是靠机制守的**——付费判定不从旗标来，从"要构造 gateway client"这个事实来；去重不靠计划期快照，靠首次付费请求前的原子租约。唯一不可违背约束的唯一可靠形态是结构。
+v2 增补的第二原则：**"永不重复翻译已存 id"由机制守住**——付费判定取自"要构造 gateway client"这一事实而非旗标，去重取自首次付费请求前的原子租约而非计划期快照。唯一不可违背约束的唯一可靠形态是结构。
 
 ---
 
@@ -77,7 +77,7 @@ $TEXLATE_BENCH_ROOT # 默认 $HOME/.local/share/texlate-bench；必须在 git ch
 
 架构总览：写径压顶（spec → kernel.run 八步 → `emit()` 双写热尾与 run 分片），四区按再生成本横排（ledger 账 / lake 免费载荷 / runs 执行档案 / vault 付费字节），读通道汇于 DedupOracle——index 投影与 manifest 尾为快照证据，五值裁决 fail-closed，仅 `absent` 经 gate 回授放行付费 cell；importer（数据进场）/derive（报表投影）/sweep/doctor 垫底为边界与维护件。图源 `assets/trizone-arch.tex`（TikZ，xelatex+fandol 可重编）。
 
-**分区可按卷分裂**：`$TEXLATE_BENCH_ROOT` 内各区允许是指向不同挂载点的软链或独立 env 覆盖（`TEXLATE_VAULT_ROOT` 等）；约束只有两条——vault 与其 .staging 必须同卷（构造保证）,doctor 断言 sentinel 与 st_dev。**runs/work 与 lake 是容量大户，vault/ledger 是耐久大户，分卷是推荐形态不是例外。**
+**分区可按卷分裂**：`$TEXLATE_BENCH_ROOT` 内各区允许是指向不同挂载点的软链或独立 env 覆盖（`TEXLATE_VAULT_ROOT` 等）；约束只有两条——vault 与其 .staging 必须同卷（构造保证）,doctor 断言 sentinel 与 st_dev。**runs/work 与 lake 是容量大户，vault/ledger 是耐久大户，分卷即常规推荐形态。**
 
 **仓库内只留**:`bench/py/`（全部机制代码）、`bench/corpus/*.jsonl`（清单，git-tracked——manifest 是选择层事实源，必须留在 git 自保）、`bench/fixtures/`、`bench/nominations/`（评审用提名清单，tracked)、`docs/`。**仓库内不再有任何运行时产生物；`bench doctor` 带 stray-dir 检查——repo 内出现 bench/results/、work\_\*/、zh-store 字节树等数据面目录即报警收编。**
 
@@ -133,7 +133,7 @@ bench triage|gate|dossier        # 分析面：签名聚类 / 门记分 / 逐 id
 
 **切流协议**（任何在飞 unit 的换径统一走）:**disable → drain(`flock -n` 探旧锁无持者 + `bench status` 零在飞 + 无存活 errsweep worktree) → delta-import → 切换 → enable**。机械化为一行 `bench doctor --switch-ok`。
 
-### 2.4 收割机（reaper 有了主人）
+### 2.4 收割机
 
 `bench sweep`：每个 bench 写命令启动时自动跑轻量版 + 独立 hourly timer（同为 libexec 副本）。职责：stale heartbeat（超阈值）→ 补发 `lost` 终态行 + 回收其 claim 与 paid_slot;pending meta 超时 → promote(abort 则记 tombstone)；孤儿字节（有目录无账）→ adopt 进 quarantine + note;**index DONE ∧ vault 无字节 → harvest-pending 队列告警**（把"done 但未入库"从隐形变一等队列）；永久失败格超龄 → tombstone 化（errors 留账）。
 
@@ -207,7 +207,7 @@ harvest 物理序：**work 字节 → copy 进 `vault/.staging/{id}.tmp/`（与 
 
 ### 3.7 id 归一与审计不对称
 
-写边界一刀切：入账即算 idc，别名表吸收改名 archive;**workdir 只从 idc 派生**。读侧保留不对称——**triage 故意不做 canon 归一**（非 canon 匹配是审计信号，wave-5 漏跑 253 格就是它逮的）,selector DSL 双谓词：`id:` 原始形匹配、`idc:` canon 匹配。这个"故意的别扭"写进注释固化。
+写边界一刀切：入账即算 idc，别名表吸收改名 archive;**workdir 只从 idc 派生**。读侧保留不对称——**triage 故意不做 canon 归一**（非 canon 匹配是审计信号，wave-5 漏跑 253 格就是它逮的）,selector DSL 双谓词：`id:` 原始形匹配、`idc:` canon 匹配。该不对称写入注释固化。
 
 ### 3.8 verdict×stage done 政策表（quarantine 语义钉死）
 
@@ -225,9 +225,9 @@ harvest 物理序：**work 字节 → copy 进 `vault/.staging/{id}.tmp/`（与 
 
 ### 3.10 存储工程规格：容量、去重与生命周期（存储节省专章）
 
-本节把「存储节省」落成可执行规格：每分区的容量界、每条去重通道的协议、每个字节态的进出生命周期。总原则一句：**规范层唯一常驻、投影层随时可弃、付费字节双副本、账本自我压缩、免费字节 lazy**。
+「存储节省」落成可执行规格：每分区容量界、每条去重通道协议、每个字节态的进出生命周期。总原则一句：**规范层唯一常驻、投影层随时可弃、付费字节双副本、账本自我压缩、免费字节 lazy**。
 
-本节关键决定：(1) lake 永远 lazy——容量帽是水位不是目标，holdout 3,020 格永不 eager;(2) mutating 树物化一律剥 mode 的 copyfile 拷贝，0444 保险丝只存在于 objects/ 与只读投影；(3) vault 凭证键五维 (idc,arm,variant,altseq,zone),meta per-copy;(4) run_seq 铸号权在 seqfile 事实源，runs.jsonl 纯报表；(5) dedup 神谕 fail-closed——absent→放行只在 sealed index 上签发，manifest 尾部+paid_pool 快照进临界区；(6) 付费字节进场走字节普查，stray 检查只收编不删除；(7) pending-mirror 期刊 = WAL 轮换，pending_mirror 指标按字节面未确认数计。
+关键决定：(1) lake 永远 lazy——容量帽是水位不是目标，holdout 3,020 格永不 eager;(2) mutating 树物化一律剥 mode 的 copyfile 拷贝，0444 保险丝只存在于 objects/ 与只读投影；(3) vault 凭证键五维 (idc,arm,variant,altseq,zone),meta per-copy;(4) run_seq 铸号权在 seqfile 事实源，runs.jsonl 纯报表；(5) dedup 神谕 fail-closed——absent→放行只在 sealed index 上签发，manifest 尾部+paid_pool 快照进临界区；(6) 付费字节进场走字节普查，stray 检查只收编不删除；(7) pending-mirror 期刊 = WAL 轮换，pending_mirror 指标按字节面未确认数计。
 
 #### 3.10.1 分区容量预算表
 
@@ -236,7 +236,7 @@ harvest 物理序：**work 字节 → copy 进 `vault/.staging/{id}.tmp/`（与 
 | ledger/          | events 热尾 + 封存段+index.sqlite                         | 393MB/20 万行实证                                                            | 热尾 ≤512MB 硬闸（emit 内联 rotate)；封存 ~0.5-0.9GB/年（zstd -19 实测 30.6×)；总包典型 1.5GB 最坏 ~7GB；五年备份单元 <1.5GB |
 | vault/           | zh/splice/state 付费字节+meta+manifest                    | zh-store 现盘 3.2G/292 目录；regen ~4.7k 格后 ~50G(+state 层 ~1.5GB/13k 格） | C_w 公式预留 R_vault=25GB 余量；gc 永不自动删付费字节                                                                        |
 | runs/{run}/work/ | 本 run 私有工作树                                         | run 驻留 ≈(W+Q+E)·400MB+4GB texmf+N·0.1MB≈17GB                               | C_w=min(60GB, fs_avail−25GB−2GB);0.85 软驱逐 LRU 终态格、0.95 硬停 hydration;_texmf 共享软顶 4GB 超限回落 per-cell 冷沙箱    |
-| lake/corpus      | raw 规范层+extracted 投影                                 | 2,699/13,312 格在盘 23G;raw ~4.15-4.56MB/格                                  | TEXLATE_LAKE_CAP_GB 默认 100G 水位；raw 全量地板 ~55GB（按 2.7k 均值外推，未物化 87% 偏 expand/dev 新层，可能低估 20-40%)    |
+| lake/corpus      | raw 规范层+extracted 投影                                 | 2,699/13,312 格在盘 23G;raw ~4.15-4.56MB/格                                  | TEXLATE_LAKE_CAP_GB 默认 100G 水位；raw 全量地板 ~55GB（按 2.7k 均值外推，未物化 87% 偏 expand/dev 新层，低估区间 20-40%)    |
 | lake/durable     | frame.parquet/idresolve/iclr map                          | 重建以小时计                                                                 | 进备份集，不随 lake 驱逐                                                                                                     |
 | 最小备份集       | ledger+vault+runs keep+durable+.git bundle+$HOME/.texlate | 今日 ~8.5G                                                                   | regen 后 ~55G;corpus payload/work//lake/cache/index.sqlite 明确不备                                                          |
 
@@ -244,7 +244,7 @@ work/ 对称生命周期：终态（含 error/lost/僵尸）收割后默认留 s
 
 #### 3.10.2 CAS 与物化协议
 
-`lake/objects/` 两级扇出（aa/bb/sha256,mode 0444):blob/ 存 raw 载荷、file/ 存成员文件；cell 只拥有 ~~4KB 元数据（meta.json/files.txt/mtree.txt)。_*raw.* 定为唯一常驻规范层_*(manifest blob_sha256+IA 坐标双锚）,extracted/ 降级为可驱逐投影——evict farm 释放唯一文件字节、evict payload 走 IA Range-GET 重取。GC 用文件系统原生 refcount(nlink==1+24h grace),reflink 卷兜底 mtree/.casref mark-sweep;file 对象误收无损（可重解）,blob 仅随 payload-evict 收。SourceCache 根直接指入 `lake/corpus/eprint-src/`(沿用 $HOME/.cache/texlate/src 五件套格式，commit 走 src/texlate/arxiv/cache.py:160 staging+rename)，不做双层缓存；幂等 absorb 把遗留 cell CAS 化——**CAS 是优化道不是写径闸**。benchxp-cas 只吸收 fanout/staging 约定与其负结果（runs 文件级 1.1%、记录级 0% 去重）——runs/derived/records 明确不进 CAS。
+`lake/objects/` 两级扇出（aa/bb/sha256,mode 0444):blob/ 存 raw 载荷、file/ 存成员文件；cell 只拥有 ~~4KB 元数据（meta.json/files.txt/mtree.txt)。_*raw.* 定为唯一常驻规范层_*(manifest blob_sha256+IA 坐标双锚）,extracted/ 降级为可驱逐投影——evict farm 释放唯一文件字节、evict payload 走 IA Range-GET 重取。GC 用文件系统原生 refcount(nlink==1+24h grace),reflink 卷兜底 mtree/.casref mark-sweep;file 对象误收无损（可重解）,blob 仅随 payload-evict 收。SourceCache 根直接指入 `lake/corpus/eprint-src/`(沿用 $HOME/.cache/texlate/src 五件套格式，commit 走 src/texlate/arxiv/cache.py:160 staging+rename)，不做双层缓存；幂等 absorb 把遗留 cell CAS 化——**CAS 仅承担优化道，写径不经它**。benchxp-cas 只吸收 fanout/staging 约定与其负结果（runs 文件级 1.1%、记录级 0% 去重）——runs/derived/records 明确不进 CAS。
 
 投影协议二分：copytree 保 mode 会让 0444 保险丝顺拷贝链传染全部派生树——normalize/inject/xlat 回写/fixloop/引擎覆写全是就地写者，染 0444 的树跑不出一个 cell。故：**只读投影**(src@、cell extracted）用 hardlink farm,inode 0444 作保险丝；**mutating 树**(zh/splice/build.*/vault harvest 回载物）一律 `shutil.copyfile` 剥 mode 拷贝（umask 0644）或拷后 `chmod -R u+w`——落点在 ingest/parse/compile 物化点、vault restore 与 harvest staging。**明文禁止在 farm 链接上 chmod 补写权**(hardlink 共 inode，会全局熔断对象池保险丝）。内核闸：ctx.workspace(scratch=True) 与 spec `mutates=[...]` 声明的树交付前 probe-write 断言可写，付费 stage 之前 fail-fast；契约测试「任一 mutating 树含非可写文件即拒跑」;doctor/fsck 规则：mutating 树出现 0444 文件=fail-closed，防 0444 zh 经 vault→work 回流再感染。hydration 重解后以 cell 存底 mtree 对账，unpack_ver 记 meta（进场普查格标 unpack_ver=imported)；漂移标 extract-drift+note，不静默换字节。
 
@@ -258,13 +258,13 @@ work/ 对称生命周期：终态（含 error/lost/僵尸）收割后默认留 s
 
 散树为正典，**否决 tar.zst/squashfs**：实测 97% 字节是 PDF/PNG/MP4 已压缩件，打包换随机读全灭；`bench vault pack` 只留派生用途非正典。存储杠杆=三层硬链接去重：intra-cell（实测 42.9% 重复字节，.fixloop-entry.pdf==主 PDF、zh↔splice 图形件）+cross-cell(index blobs 表反查 sha 直链）+work↔vault(os.link 零拷贝 harvest)。zone 为纯元数据：primary/alt 同空间用 `.{altseq}=source_run` 后缀消歧，promote=meta+manifest 两行零 I/O；仅 quar 保留物理分根。
 
-**凭证键五维**:meta 为 per-copy `meta/{idc}.{arm}[@{variant}][.{altseq}].json`，每物理目录有且仅有自己的提交标记（记自己的 zone/verdict/asset_sha);manifest 行带 path/altseq 字段；promote/demote 写 per-altseq 两行，last-row-wins 按 altseq 求值。四维凭证不够：实证 426 个多副本 (id,arm) 键下，每 cell 单 meta+ 无 path 账行使 N-1 个合法付费副本永远是未提交字节，会被自家 sweep/gc 确定性删除。组件级转义恢复单射：arm/variant 内 '.'→%2E、'@'→%40,altseq 限 [A-Za-z0-9-]，解析先吃后缀再切组件。提交序：staging 内建 .files.jsonl（逐件 path/size/sha256)→asset_sha→chmod -R a-w→同卷 rename→fsync→meta 最后落盘→manifest 锁内追加→放锁后 emit。0444 让 restore --link 零拷贝安全，但消费方写模式未全审计前 mutating 消费方默认 --copy(fixloop/replay 原地 patch 会 EACCES 响败——响败好过毒库）。删除谓词硬化：meta-less 目录≠孤儿——先查同 (idc,arm,variant) 兄弟 meta 与 manifest alt 行，age 阈值 + 显式 note 才许 quar；任何删除先查 dedup 域，拒删付费 cell 最后幸存副本；sha 绑定遇同 sha 多目录歧义必须 refuse。heal 按 inode 找齐全部别名统一重链，禁单路径 rename-replace；**撤回「位腐不连坐」**——共享 inode 坏一块全别名同腐，verify 报告按 inode 聚合。
+**凭证键五维**:meta 为 per-copy `meta/{idc}.{arm}[@{variant}][.{altseq}].json`，每物理目录有且仅有自己的提交标记（记自己的 zone/verdict/asset_sha);manifest 行带 path/altseq 字段；promote/demote 写 per-altseq 两行，last-row-wins 按 altseq 求值。四维凭证不够：实证 426 个多副本 (id,arm) 键下，每 cell 单 meta+ 无 path 账行使 N-1 个合法付费副本永远是未提交字节，会被自家 sweep/gc 确定性删除。组件级转义恢复单射：arm/variant 内 '.'→%2E、'@'→%40,altseq 限 [A-Za-z0-9-]，解析先吃后缀再切组件。提交序：staging 内建 .files.jsonl（逐件 path/size/sha256)→asset_sha→chmod -R a-w→同卷 rename→fsync→meta 最后落盘→manifest 锁内追加→放锁后 emit。0444 让 restore --link 零拷贝安全，但消费方写模式未全审计前 mutating 消费方默认 --copy(fixloop/replay 原地 patch 触发 EACCES 响败，响败优于毒库）。删除谓词硬化：meta-less 目录≠孤儿——先查同 (idc,arm,variant) 兄弟 meta 与 manifest alt 行，age 阈值 + 显式 note 才许 quar；任何删除先查 dedup 域，拒删付费 cell 最后幸存副本；sha 绑定遇同 sha 多目录歧义必须 refuse。heal 按 inode 找齐全部别名统一重链，禁单路径 rename-replace；**撤回「位腐不连坐」**——共享 inode 坏一块全别名同腐，verify 报告按 inode 聚合。
 
 verify 三级节奏：每 sweep stat 级（≤5s)+抽样重哈希 + 日 cron 全量（26G 估 20-40s,inode 去重省 43% I/O)。replica:`rsync -aH` 到异机 (-H 延伸去重红利），不带 --delete 保持只增超集；post-commit 即触发 cell 级 mirror,meta.replica.ok 进首火闸；heal 按单文件粒度自愈。备份复用 restic:`$HOME/backups/bench-restic` 本机仓 + 异机 sftp 仓（`restic copy --copy-chunker-params` 初始化），密码沿用 $HOME/.config/secrets/ 下 restic 密码文件；保留 --keep-daily 14 --keep-weekly 8 --keep-monthly 12+pre-migration/pre-regen 两 pinned 快照。**pending-mirror = WAL 轮换**:drain 开始在同锁内 rename 为 `.pending-mirror.{ts}.sending`，新 append 落重建的空 journal,rsync 只发 .sending 快照、exit 0 才 unlink、失败与下个快照合并重发——杀死「截断抹掉飞行中新行」窗口。加 reconcile 闭环：枚举 vault/meta/*.json 与镜像 meta 清单 comm 差集补发（**含 pending→primary 提升行**，否则镜像永久带 pending meta，灾后全部「视同无字节」);pending_mirror 指标改「字节面未确认数」(meta sha 集合差）而非 journal 行数，首火闸才不吃记账伪绿；drain 子进程 setsid+close_fds 防继承 vault/.lock fd 自持锁。restore drill 制度化：周抽 3 格双仓恢复逐 sha256 对 meta、`restic check --read-data-subset 10%` 周跑、双仓 latest ts 对比得 offsite_age，落 ledger note;regen 首火闸加备份门：offsite_age<24h ∧ drill PASS ∧ pending_mirror=0 才放行付费臂。
 
 #### 3.10.5 ledger 规模界
 
-单热尾 + 字节界封存段，不按 run 分文件；追加序（index.line_no）是权威全序，(run_seq,seq) 降为幂等去重键。**铸号权在事实源**——便利索引铸号会撞号：UNIQUE 幂等跳过静默吞整 run,claims/done 双盲区，配额双烧零告警。故 run_seq mint=ledger 锁内 `max(ledger/.seq 高水位, 热尾 scanback max run_seq)+1`,seqfile 与 run_registered 同窗 fsync;runs.jsonl 永不作铸号输入降为纯报表。配套：ingest 去重从盲跳改比对——(run_seq,seq) 冲突时比 payload hash，相同才算真重放，不同整 run 进 quarantine+loud error;dedup-skip 计数器进 status/doctor，重放窗口外非零跳过即报警；scanback 遇不可解析行 fail-loud;doctor 断言 `events.max(run_seq)==runs.jsonl.max==seqfile-1`。封存双触发 >256MB 或 30 天；seals.jsonl 哈希链（raw_sha+zst_sha+prev_seal_sha);raw 段在 zst 回验+index 水位过尾 +7 天宽限后删除=单副本政策。index.events 存 slim payload(metrics/errors>4KB 记 sha 卸载 run derived/blobs)，封存段行可 prune;cells/claims/vault_meta 投影永不清。emit_batch 把 cell 终态+asset+claim release 压单 fsync（实测 497→5000 行/s);rebuild=zstdcat 全段 + 热尾回放 26.7k 行/s;**import 必须走批量 ingest 不走逐行 emit**(197k 行 ~7min 的坑）。容量承诺全进 doctor 断言；global-metrics.jsonl 与一切 ledger/*.jsonl 复用同一 emit/seal 写径，不建第二套追加机制。
+单热尾 + 字节界封存段，不按 run 分文件；追加序（index.line_no）是权威全序，(run_seq,seq) 降为幂等去重键。**铸号权在事实源**——便利索引铸号会撞号：UNIQUE 幂等跳过静默吞整 run,claims/done 双盲区，配额双烧零告警。故 run_seq mint=ledger 锁内 `max(ledger/.seq 高水位, 热尾 scanback max run_seq)+1`,seqfile 与 run_registered 同窗 fsync;runs.jsonl 永不作铸号输入降为纯报表。配套：ingest 去重从盲跳改比对——(run_seq,seq) 冲突时比 payload hash，相同才算真重放，不同整 run 进 quarantine+loud error;dedup-skip 计数器进 status/doctor，重放窗口外非零跳过即报警；scanback 遇不可解析行 fail-loud;doctor 断言 `events.max(run_seq)==runs.jsonl.max==seqfile-1`。封存双触发 >256MB 或 30 天；seals.jsonl 哈希链（raw_sha+zst_sha+prev_seal_sha);raw 段在 zst 回验+index 水位过尾 +7 天宽限后删除=单副本政策。index.events 存 slim payload(metrics/errors>4KB 记 sha 卸载 run derived/blobs)，封存段行可 prune;cells/claims/vault_meta 投影永不清。emit_batch 把 cell 终态+asset+claim release 压单 fsync（实测 497→5000 行/s);rebuild=zstdcat 全段 + 热尾回放 26.7k 行/s;**import 必须走批量 ingest 不走逐行 emit**(197k 行 ~7min 的实测代价）。容量承诺全进 doctor 断言；global-metrics.jsonl 与一切 ledger/*.jsonl 复用同一 emit/seal 写径，不建第二套追加机制。
 
 #### 3.10.6 付费闸（fail-closed 修订）
 
@@ -337,7 +337,7 @@ spec = Spec(
 
 **ctx 面**（作者不碰锁/账/fp/harvest):`ctx.upstream_rec(stage)` 末条胜行投影、`ctx.src_path()`（只读投影）、`ctx.workspace(scratch=True)`（可写物化——compile 类的供给面）、`ctx.paper_dir()`（跨臂共享兄弟位，_texmf 语义）、`ctx.lake_path(id)`、`ctx.claim()`/`ctx.paid_slot()`、`ctx.emit(row)/emit_note()`、`ctx.gateway()`（唯一付费通道，内置熔断）。**needs 边是三元组 (stage, accept={...}) 行谓词**，上游口径用上游 stage 自己声明的 accept——通用 DONE 词表只做展示层。
 
-**executor 契约**:`thread`（默认）、`process`(pickle 边界=路径）、`async-owned`——仪器自管事件循环，内核保证：contextvar(req_timing 等）传播、同 idc 串行、paid_slot 与首次请求绑定、ctx.gateway 包装层内建两条 auth 熔断。xlat 是首个 async-owned 用户，契约按它的实证需求写，不是空头支票。
+**executor 契约**:`thread`（默认）、`process`(pickle 边界=路径）、`async-owned`——仪器自管事件循环，内核保证：contextvar(req_timing 等）传播、同 idc 串行、paid_slot 与首次请求绑定、ctx.gateway 包装层内建两条 auth 熔断。xlat 是首个 async-owned 用户，契约按它的实证需求写就。
 
 **诚实成本**：新 spec ≈40 行接线；**存量驱动重写 ≈70-80% 领域逻辑平移**（抽样器/报告器/分类表原样搬入 spec 声明），argparse/done-set/executor/run_meta/resume ≈150-200 行/驱动由内核收编消失。审计面（status 映射+done 定义 + 分母守恒对拍）是新增工作量不是减量——按周排期不按驱动数排期。
 
@@ -449,7 +449,7 @@ spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分
 | R16 | torn tail/胶水行丢账                          | emit() 唯一写径 + 开档尾检截换行 + 水位=末换行 offset+ 读侧容错+compact 原地 truncate 禁 replace                                  |
 | R17 | xlat-state 丢=resume 变全量重烧               | work/ 必备层+prune 豁免+lake/cache 全局段缓存                                                                                     |
 | R18 | 全局缓存新毒源                                | file_cache_key 全维 + 只复用 done+ 写前 verify;partial 毒前科注释固化                                                             |
-| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证十年不是事                                                       |
+| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证，十年容量无虞                                                       |
 | R20 | errors[0].cat='upstream' 语义漂移             | schema 注释固化三用面；needs accept 用上游自声明口径                                                                              |
 | R21 | **锁 inode 脚枪**（删目重建=新 inode=双写者） | locks 永不 unlink；生命周期操作锁内做；LOCK_NB fail-fast(errsweep 先例）                                                          |
 | R22 | **detach 丢锁**(Popen close_fds 放掉父锁）    | detach 协议：child 先 flock 再向 parent 管道回执；契约测试"连发两次第二次必须拒"                                                  |
@@ -481,9 +481,9 @@ spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分
 
 **什么没有变简单**:
 
-- **领域逻辑一行没省**:fixloop 规则面、census 条件覆盖、triage 豁免、pick_final 裁决——全量平移，复杂度从"散在 15 driver+bash"搬进"spec 声明 + 内核"，总量不降。specs/*.py 就是新的代码主体，换址不换量。
+- **领域逻辑一行没省**:fixloop 规则面、census 条件覆盖、triage 豁免、pick_final 裁决——全量平移，复杂度从"散在 15 driver+bash"搬进"spec 声明 + 内核"，总量不降。specs/*.py 成为新的代码主体，总量不变。
 - **配额算术没人替你算**:tombstone 给清单，`--regen` 给开关，4,991 个 id 值不值得用 promo 尾巴赎，依然是人的决定。
 - **审计不对称被刻意保留**:canon 写边界归一、triage 故意不归一——新人仍要理解这个"故意的别扭"。
 - **dirty 工作树没消失**:fp 换 content-hash 只是把"dirty 炸 done-set"换成"fp 与 repo sha 对不上看 spec_env"——排查入口变了，排查没少。
 - **eval 语义复杂度没消失**:verdict 嵌套、双 layout 嗅探、复合 done 谓词，进了 spec 的 status_class/dedup_key 声明面——可见了，但没少。
-- **最诚实的一句**：这套设计把 bench 从"脚本的偶然集合"变成"有核算方程的系统"。它不承诺任何一次翻译更快更便宜；它承诺**每一分钱、每一个字节、每一次跳过，从此都能被问出一句"为什么"并得到账面上的回答**——并且，"永不重复翻译已存 id"这条唯一的铁律，从此时此刻起由机制而非运气守卫。
+- 整体定位：bench 从"脚本的偶然集合"变成"有账务方程的系统"——不承诺单次翻译更快更便宜，但每分钱、每字节、每次跳过都能在账面上问出原因；"永不重复翻译已存 id"由机制执行。

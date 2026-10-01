@@ -1,6 +1,6 @@
 # 命令行参考
 
-`texlate` 是全部功能的统一入口。本篇按子命令列出用途、常用旗标与退出码；随时可以用 `texlate <命令> --help` 看权威清单——文档与 help 不符时以 help 为准（发现不符欢迎提 issue）。
+`texlate` 是全部功能的统一入口。各子命令的用途、常用旗标与退出码如下；随时可以用 `texlate <命令> --help` 看权威清单——文档与 help 不符时以 help 为准（发现不符欢迎提 issue）。
 
 全局旗标写在哪一级都生效：`texlate -v run ...` 与 `texlate run -v ...` 等价，子命令位置的 `-v`/`-q` 覆盖全局位。注意一个例外：`fetch -v` 是 `--version`（钉版本号）而不是 verbose。
 
@@ -20,7 +20,7 @@ texlate fetch <arxiv_id> [--version N] [--cache 目录] [--offline]
 texlate parse <main.tex> [-o chunks.jsonl] [--no-flatten]
 ```
 
-对单个 `.tex` 做半解析分块：统计块数、占位符、警告。`--out` 落逐块明细的 JSONL；`--no-flatten` 不展平 `\input` 引用图（缺省展平）。主要用于调试「这篇论文被切成了什么样」，不是翻译流程的必经步骤。
+对单个 `.tex` 做半解析分块：统计块数、占位符、警告。`--out` 落逐块明细的 JSONL；`--no-flatten` 不展平 `\input` 引用图（缺省展平）。主要用于调试分块形态——翻译流程不经过它。
 
 ## run —— 端到端管线
 
@@ -43,17 +43,17 @@ texlate run <arxiv_id> --server <URL> [--model M --api-key K --base-url U] [-o �
 | `--front-matter` | 前置内容翻译白名单，逗号分隔 `abstract,title,author`；缺省翻摘要和标题 |
 | `-q`             | 关掉 stderr 实况进度                                                   |
 
-`--server` 切到瘦客户端模式：任务提交给一台正在运行的 `texlate web` 服务（本机或远端都行），流式显示进度，终态后把产物校验下载到 `--out` 目录（缺省 `./texlate-<id>-<任务前缀>/`）。`--model`、`--api-key`、`--base-url`、`--dialect` 这四个旗标只在这个模式下有意义，作为请求头逐项覆盖服务端配置——临时换 key 或换模型不用改 Settings。同一论文同一配置重复提交会自动挂到进行中的任务上，不会重复烧配额；`--wait` 控制最长等待秒数（缺省 1800），超时后任务仍在服务端继续，同参数重跑即可重新挂上。
+`--server` 切到瘦客户端模式：任务提交给一台正在运行的 `texlate web` 服务（本机或远端都行），流式显示进度，终态后把产物校验下载到 `--out` 目录（缺省 `./texlate-<id>-<任务前缀>/`）。`--model`、`--api-key`、`--base-url`、`--dialect` 这四个旗标只在这个模式下有意义，作为请求头逐项覆盖服务端配置——临时换 key 或换模型不用改 Settings。同一论文同一配置重复提交会自动挂到进行中的任务上，不会重复消耗配额；`--wait` 控制最长等待秒数（缺省 1800），超时后任务仍在服务端继续，同参数重跑即可重新挂上。
 
 退出码：0 = 完成（clean/partial 或远端 done/partial）；1 = 编译失败（修复链走尽仍无 PDF；`--server` 侧另含 fault/cancelled/interrupted/失联/超时）；2 = 用法错误（未知引擎、--server 选项脱离 `--server`、--work-dir 非空、把本地目录喂给 `--server`）或策略拒绝。
 
-## web —— 起服务
+## web —— 启动服务
 
 ```bash
 texlate web [--host 地址] [-p 端口] [--data-dir 目录]
 ```
 
-起 web 服务（需 `--extra server` 安装的依赖），缺省绑定 `127.0.0.1:8765`。数据目录缺省为 `TEXLATE_DATA_DIR` 或主目录下 `.texlate/`。本地形态有单实例锁：已在跑时再执行 `texlate web` 会打开浏览器指到已运行实例并退出，不会端口冲突或静默双开。日志写 `<数据目录>/logs/texlate.log`（DEBUG 级、脱敏、4MB×3 轮转）。
+启动 web 服务（需 `--extra server` 安装的依赖），缺省绑定 `127.0.0.1:8765`。数据目录缺省为 `TEXLATE_DATA_DIR` 或主目录下 `.texlate/`。本地形态有单实例锁：已在跑时再执行 `texlate web` 会打开浏览器指到已运行实例并退出，不会端口冲突或静默双开。日志写 `<数据目录>/logs/texlate.log`（DEBUG 级、脱敏、4MB×3 轮转）。
 
 绑定非回环地址时 CLI 会打警告：本地形态的 API 不带鉴权，可达网段内任何人都能建任务改配置。要多用户部署用 `TEXLATE_MODE=server`（此时所有写操作要求 `X-Texlate-Key` 头），详见 `web.md` 的部署一节。
 
@@ -107,7 +107,7 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 | `TEXLATE_LOG_FILE`                                                                                        | 额外落盘的日志文件路径；`=off` 关闭（server 入口缺省落 `<数据目录>/logs/texlate.log`）                                                                          |
 | `TEXLATE_TRANSLATOR`                                                                                      | `mock`\|`gateway` 强制翻译臂（export 与 server worker 共用）                                                                                                    |
 | `TEXLATE_FRONT_MATTER`                                                                                    | 前置内容翻译集，逗号分隔 `abstract,title,author`                                                                                                                |
-| `TEXLATE_NO_FIXLOOP` / `TEXLATE_NO_L2`                                                                    | 关掉编译修复循环 / 译文归因重译                                                                                                                                 |
+| `TEXLATE_NO_FIXLOOP` / `TEXLATE_NO_LOGFIX`                                                                | 关掉编译修复循环 / 译文归因重译                                                                                                                                 |
 | `TEXLATE_ENV_JUDGE`                                                                                       | 开启环境可译性判定（缺省关；server 侧作逐任务 `env_judge` 选项的 env 兜底）                                                                                     |
 | `TEXLATE_AUTO_GLOSSARY`                                                                                   | 自动术语抽取——仅作用于本地 `run`/e2e（mock 占位管线）与 bench，缺省关；server/web 任务走逐任务选项 `auto_glossary`（缺省已开），此 env 在真实翻译路径无效       |
 | `TEXLATE_COMPILE_TIMEOUT`                                                                                 | server 侧编译超时秒数上限调整                                                                                                                                   |
@@ -116,9 +116,9 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 | `TEXLATE_SHARE_DIR`                                                                                       | 共享包发布目录（缺省 `<数据目录>/share/`）                                                                                                                      |
 | `TEXLATE_MODEL_PROBE`                                                                                     | 保存 Settings 时的模型可用性探活，`=0` 关（离线环境用）                                                                                                         |
 | `TEXLATE_NO_DOWNLOAD`                                                                                     | 禁止自动下载 tectonic 等外部件                                                                                                                                  |
-| `TEXLATE_NODE`                                                                                            | L1 校验用的 node 可执行文件路径（缺省按 PATH 找）                                                                                                               |
-| `TEXLATE_TS_WORKER`                                                                                       | L1 校验 TS worker 脚本目录覆盖（缺省包内 `validate/ts/`）                                                                                                       |
-| `TEXLATE_TS_NODE_PATH`                                                                                    | L1 校验 TS worker 的 `node_modules` 路径（开发态指现成依赖树，如 `bench/ts`）                                                                                   |
+| `TEXLATE_NODE`                                                                                            | cst 校验用的 node 可执行文件路径（缺省按 PATH 找）                                                                                                              |
+| `TEXLATE_TS_WORKER`                                                                                       | cst 校验 TS worker 脚本目录覆盖（缺省包内 `validate/ts/`）                                                                                                      |
+| `TEXLATE_TS_NODE_PATH`                                                                                    | cst 校验 TS worker 的 `node_modules` 路径（开发态指现成依赖树，如 `bench/ts`）                                                                                  |
 | `TEXLATE_CACHE_DIR`                                                                                       | 通用缓存根（缺省 `$XDG_CACHE_HOME/texlate` 或主目录下 `.cache/texlate/`；与下方 `TEXLATE_CACHE` 的 ctan 专用叶不混用）                                          |
 | `TEXLATE_CACHE`                                                                                           | ctan 宏包 filemap 缓存根覆盖（缺省 `<数据目录>/cache`）                                                                                                         |
 | `TEXLATE_TLNET`                                                                                           | tlmgr 仓库 URL（xelatex 宏包拉取共用；缺省用 tlmgr 既有配置）                                                                                                   |

@@ -26,7 +26,7 @@
 - 2026-09-15：M0 后 parsebench v2 转正为产品管线评测器；选型期逐库对比层（pylatexenc/TexSoup/plasTeX/latex-utensils/unified-latex/tree-sitter）退役为一次性资产，断言矩阵移植 `tests/test_bench_regression.py`。
 - 2026-09-19：real 臂降档滚动探针（promo 死线与 mock 平价实证双重驱动）；同日全量基线定格——scorecard 5124 格 union pdf 97.89%、clean 84.99%（2026-09-18 口径）。
 - corpus 载体演进见 ADR-0013；语料根合一后 L1–L3 均指向统一物理根。
-- 2026-09-23（Wave-F/trizone-ledger v2）：旧 harness 全删（stagerun/逐评测器脚本/gate_scorecard/triage/rundiff/benchlib/runbook_loop/preflight_batch）；继任面 = `bench/py/specs/*.py`（`bench run <spec>` 起批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）；run 产物落仓外 `$TEXLATE_BENCH_ROOT/runs/`。
+- 2026-09-23（trizone-ledger 改版）：旧 harness 全删（stagerun/逐评测器脚本/gate_scorecard/triage/rundiff/benchlib/runbook_loop/preflight_batch）；继任面 = `bench/py/specs/*.py`（`bench run <spec>` 起批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）；run 产物落仓外 `$TEXLATE_BENCH_ROOT/runs/`。
 
 ## 现状
 

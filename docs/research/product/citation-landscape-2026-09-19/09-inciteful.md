@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
-## 该产品是什么
+## 产品定位
 
 Inciteful 由 Michael Weishuhn 2020 年独立开发上线[^istl]；项目缘起是帮做学术的妻子查文献时意识到自己其实在手绘引用网络。演进史：第一年是 OpenCitations/Crossref API 拼凑的 Python notebook（建图 15 分钟+），后学 Rust、换数据库与数据源、重构数次才达到实时性能[^about]。数据源从 MAG 换代到 OpenAlex（当前后端命名空间即 `/openalex`）。现状：主产品是医疗证据产品 Inciteful Med，学术工具留在 `/academic/` 路径免费运营，约 4 万月活[^substack]；前端 Vue 开源（AGPL-3.0）、Zotero 插件与 MCP server 开源，图构建后端闭源[^gh]。
 
@@ -47,11 +47,11 @@ API 面全部免鉴权：`POST /openalex/query/{W-id}?prune={n}` 建图+SQL（�
 
 ## 可借鉴点
 
-1. **per-query 物化视图是神来之笔**：「每个 graph 一个可查询视图」做成极简事实标准，SQL 面板即 power-user 卖点。但裸 SQL 暴露公网在生产上不可接受——照搬「物化+schema」设计，对外只暴露参数化查询。
+1. **per-query 物化视图是核心设计**：「每个 graph 一个可查询视图」做成极简事实标准，SQL 面板即 power-user 卖点。但裸 SQL 暴露公网在生产上不可接受——照搬「物化+schema」设计，对外只暴露参数化查询。
 2. **数据策略务实**：引用图只需 `paper_id + references/citations` 边，富字段按需从 OpenAlex API 现取（他们库里富字段全空）——证明发现层根本不需要全文。
 3. **规模数字可外推**：depth-2 典型 1–5 万节点冷建 ~1s——全 arXiv 做同等服务绰绰有余。
 4. **缺陷照单吸收**：相似度天然偏新文、「重要」榜偏老文；只有标题无摘要关键词过滤弱；作者按 name 字符串聚合有同名合并问题（复刻用 author_id）；schema 先行富字段可后补。
-5. **生态面可白嫖**：graph API 完全开放（任意 SELECT 都能跑），自建完成前可当临时图数据源兜底。
+5. **生态面可直接用**：graph API 完全开放（任意 SELECT 都能跑），自建完成前可当临时图数据源兜底。
 
 ## 结论
 

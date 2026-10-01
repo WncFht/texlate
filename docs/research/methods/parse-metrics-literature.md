@@ -1,4 +1,4 @@
-# 学界如何度量 LaTeX 解析/转换/文本抽取质量 —— 指标命名与统计口径先例
+# LaTeX 解析/转换/文本抽取质量度量 —— 学界指标命名与统计口径先例
 
 > **结论**：学界度量此问题的三条主线恰好覆盖指标集每一块：(a) severity 分级成功率（LaTeXML/arXMLiv：Info/Warn/Error/Fatal 消息级 + 文档级四态，官方口径「error-free 75%」）；(b) 逐阶段漏斗率 + 小样本人工核验带 Wilson/Jeffreys CI（unarXive 是教科书范例）；(c) 逐条可机检「事实」断言 + 分桶通过率 + ±CI（olmOCR-bench 的 unit-test 范式，与 trap fixtures 完全同构）。verdict 分级、trap 断言、identity 检查在学界都有成熟先例可直接引用命名。
 > **状态**：现行方法学依据（2026-09-14 文献口径）。推荐口径已落地：parsebench 报 strict/normalized/diverged 三档 identity + leak 率 + 逐层断言（`bench/py/parsebench.py`），trap fixtures 走断言式评测。
@@ -95,7 +95,7 @@
 | （缺）软相似度兜底                                                           | 对非 identity 情形报 normalized edit distance（ED/max len）                                                                               | Nougat 指标名                                                                                                    |
 | （缺）通道/难度分层                                                          | 报告固定分层轴：docclass 家族 / 语言（含 LaTeX 2.09）/ 单文件 vs 多文件 / 规模桶                                                          | olmOCR 8 桶 + S2ORC 通道分层                                                                                     |
 
-学界有而当时缺的六件：① per-stage funnel 统一成一张表（各阶段保留率×累计率）；② 失败归因分解列（不是失败率而是失败构成 100% 分解）；③ 人工核验样本的 Wilson CI；④ 非 identity 情形的 normalized-ED 软度量；⑤ 真实翻译阶段的 UTB 残留率；⑥ gold 噪声免责条款（GROBID 式：「回归追踪而非绝对质量」）。
+学界有而当时缺的六件：① per-stage funnel 统一成一张表（各阶段保留率×累计率）；② 失败归因分解列（失败构成 100% 分解，非仅失败率）；③ 人工核验样本的 Wilson CI；④ 非 identity 情形的 normalized-ED 软度量；⑤ 真实翻译阶段的 UTB 残留率；⑥ gold 噪声免责条款（GROBID 式：「回归追踪而非绝对质量」）。
 
 ## 5. 未竟事项（如需补）
 

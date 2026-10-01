@@ -21,13 +21,13 @@ hjfy 的最大壁垒不是架构而是规则库厚度——~5000 篇人肉修复
 
 - E8:16 条 spike 规则无损 yaml 化；11 条引擎无关、5 条需降级（4 条汇到 ctan_fetch 原语）。
 - E9/E17/E19 增补规则面：`pdftex_prim_polyfill`（读取型 `\ifnum\pdfoutput` 需 `\chardef` polyfill）、`vendored_sty_shadow`（按 ProvidesPackage 日期比较 + 错误触发 rename 隔离——同目录 IEEEtran.cls 是唯一来源盲删必死）、`minted_v3_rewrite`、`eps_route`、`non_utf8_source`（iconv 转码或注 `[latin*]{inputenc}`）、`pstricks_dvips_preflight`、`bbl_stub_shadow`（`\bibliography{x}`→`\input{main.bbl}` 阻断 stub 遮蔽）、`font_sub_shim`、ctan_fetch 版本兼容前置。
-- 2026-09-17 vendored_fetch 实证：492 格全 fail 面一波打到 73.2% clean、scorecard clean +101——「机制归因 → 资产化 → 重跑」闭环打通。
+- 2026-09-17 vendored_fetch 实证：492 格全 fail 面收敛到 73.2% clean、scorecard clean +101——「机制归因 → 资产化 → 重跑」闭环打通。
 - 证据：主仓 `docs/05` E8/E9/E17/E19；调研档案 `research/latex/fixloop-rules.md`、`research/latex/ctanfetch-probe.md`、`research/latex/pstricks-route.md`。
 
 ## 演变
 
 - 规则数：spike 16 → 产品化 25（09-15）→ 31 → 70 → 96+（09-18，16 分片）；taxonomy 分类表同步扩至百余行，物化进 records。
-- 2026-09-16：fixloop 接入 e2e/worker 产品链（此前只 bench 层跑）；同波 P0 安全修复（路径逃逸/glossary 读面/脱敏挂载）。
+- 2026-09-16：fixloop 接入 e2e/worker 产品链（此前只 bench 层跑）；同日 P0 安全修复收口（路径逃逸/glossary 读面/脱敏挂载）。
 - 组织演进：rules.yaml 拆 `rules/` 16 分片（base/taxonomy/warnings/route/install/graphics/font/prim/misschar/encoding/pkgopt/syntax/bib/shim/shim-legacy/targeted），builtins 拆十二叶 facade + `vendor/` 资产目录；审计裁决维持「~100 规则时按域拆包」的治理位。
 - LLM 修复器：`llm_hook.py` 实装精确匹配 patch 契约，模块级信号量压网关并发。
 

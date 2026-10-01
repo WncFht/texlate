@@ -23,7 +23,7 @@ MDN/BCD 的"不支持"标注滞后于实装——有开发者实测 Firefox 150.
 
 ### A. `appearance: base-select` 渐进增强（推荐）
 
-`select, ::picker(select) { appearance: base-select }` 后弹层进 top-layer 变 DOM 可样式化：`::picker(select)` 面板、`option` padding/hover/`:checked`、`::checkmark`、`::picker-icon`、`optgroup`、`select:open`、top-layer 动画、anchor 定位全开[^chrome-blog][^mdn]。不支持浏览器原样渲染原生弹层，零回退代价——`@supports (appearance: base-select)` 门内收全部皮肤。产物即终态：Firefox 转正后无需改动。代价：Firefox 用户在转正前仍见原生蓝（不差于现状）；mobile 端失去 OS 滚轮选择器（换一致体验，Settings 场景可接受）。注意 `multiple`/`size` 不支持、select 内禁放可交互元素[^chrome-rfc]。
+`select, ::picker(select) { appearance: base-select }` 后弹层进 top-layer 变 DOM 可样式化：`::picker(select)` 面板、`option` padding/hover/`:checked`、`::checkmark`、`::picker-icon`、`optgroup`、`select:open`、top-layer 动画、anchor 定位全开[^chrome-blog][^mdn]。不支持浏览器原样渲染原生弹层，零回退代价——`@supports (appearance: base-select)` 门内收全部皮肤。产物即终态：Firefox 转正后无需改动。代价：Firefox 用户在转正前仍见原生蓝（不差于现状）；mobile 端失去 OS 滚轮选择器（换一致体验，Settings 场景可接受）。`multiple`/`size` 不支持、select 内禁放可交互元素[^chrome-rfc]。
 
 ### B. Kobalte Select (@kobalte/core)
 

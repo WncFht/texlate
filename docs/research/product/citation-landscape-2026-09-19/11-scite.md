@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）——对第三方服务的时点观察，仅供互操作参考。
 > **日期**：2026-09-19
 
-## 该产品是什么
+## 产品定位
 
 scite 2018 年创立于纽约布鲁克林（Josh Nicholson CEO），把「A 引 B」升级成「带上下文 + 意图分类 + 章节位置的语句级三元组」（Smart Citations）。**2023-11 被 Research Solutions（NASDAQ: RSSS）以 $14.8M 收购**（4.11× ARR $3.6M，50% 现金 +50% 股票+earnout）[^sec][^merger]。资金史：NSF/NIH SBIR 两笔[^sbir][^nih]。资产：32M+ 全文源 / 190M+ 出版物元数据 / 1.6B+ 语句[^data][^qa]。定价：Free/Basic $20/Pro $50（自助 API key + MCP credits）/Team/Enterprise[^pricing]。
 
@@ -34,7 +34,7 @@ scite 2018 年创立于纽约布鲁克林（Josh Nicholson CEO），把「A 引 
 
 ## 结论
 
-管线全部是开源件（GROBID/Pub2TEI/biblio-glutton/DeLFT/Unpaywall harvester——co-author Patrice Lopez 即 GROBID 作者），今天即可重建。真正壁垒三个：① 30+ 出版商全文协议（自建者只有 OA ~30% 或 arXiv LaTeX 源——**LaTeX 源其实更优：引注定位零误差、ref 匹配近 100%、章节结构原生**）；② ~5 万条标注（2026 年可用 LLM 蒸馏低成本复刻）；③ 1.6B 语句存量。有全文者语句级引文图是引用图谱产品最高档资产——边之上叠「在哪引、怎么引、挺还是踩」三层信息。
+管线全部是开源件（GROBID/Pub2TEI/biblio-glutton/DeLFT/Unpaywall harvester——co-author Patrice Lopez 即 GROBID 作者），今天即可重建。真正壁垒三个：① 30+ 出版商全文协议（自建者只有 OA ~30% 或 arXiv LaTeX 源——**LaTeX 源其实更优：引注定位零误差、ref 匹配近 100%、章节结构原生**）；② ~5 万条标注（2026 年可用 LLM 蒸馏低成本复刻）；③ 1.6B 语句存量。有全文者语句级引文图是引用图谱产品最高档资产——边之上叠「在哪引、怎么引、支持还是反驳」三层信息。
 
 ### 参考文献
 

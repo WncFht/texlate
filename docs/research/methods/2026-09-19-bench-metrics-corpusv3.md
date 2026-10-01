@@ -43,4 +43,4 @@
 
 ## 过程教训（工具层）
 
-manifest.parent 必须等于语料根（xlatbench）、`--per-kind` 是全局限额、pgrep 自匹配须用 `[x]pattern` 括号形、compilebench `--gen-sample` 分段设计、e2e 同 `--tag` 冻结样本须换 tag/seed、gullet `--out` 续跑会留 stale err 行须换新目录、stagerun 下游阶段须传 `--ids` 防跨层欠采、共享 index commit 须私有 `GIT_INDEX_FILE`。
+manifest.parent 必须等于语料根（xlatbench）、`--per-kind` 是全局限额、pgrep 自匹配须用 `[x]pattern` 括号形、compilebench `--gen-sample` 分段设计、e2e 同 `--tag` 冻结样本须换 tag/seed、gullet `--out` 续跑会留 stale err 行须换新目录、stagerun 下游阶段须传 `--ids` 防跨层欠采、共享 index commit 曾靠私有 `GIT_INDEX_FILE` 绕污染（2026-10-01 起禁用，改常规 add/commit）。

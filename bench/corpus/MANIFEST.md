@@ -1031,7 +1031,7 @@ T 系 fixture 34 条 + W 系野例 205 条，W 池至 W156 含复数例证——
 ## 热层（hot）—— OpenAlex 高引近期论文（2026-09-16 起）
 
 核心层是三十年均匀抽样（IA 月块 ≤2020-10 + TIGER ≤2412），长尾覆盖正确但与真实
-用户负载分布不匹配——hjfy 类产品压倒性服务近期高热度论文。hot 层补这条轴，
+用户负载分布不匹配——hjfy 类产品的实际负载集中在近期高热度论文。hot 层补这条轴，
 **扩展而非替换**：均匀层/booster 层原样保留。入库清单 `manifest_hot.jsonl`，
 原管线脚本 `build_hot_layer.py`（candidates → fetch → report 三子命令，
 fetch 可重入续跑）——已退役，现行等价物 `bench/py/specs/corpus_hot.py`。
@@ -1098,7 +1098,7 @@ QC 明细 `bench/work_v3/{layer}/qc.md`（id 唯一/跨层零撞/meta 齐/extrac
 
 - **bulk 2,699**：frame `year_band×cat_group` 38 cell **flat 配额**（核心口径 ×2.7），
   `exclude_cluster_months` 剔除核心 30 簇月 → 评测/开发月间零泄漏；`cluster_id` 前缀
-  `HO`；渠道 ia 2,159 + tiger 540。e 带曾饿 186（候选池被排除规则吃薄）→ 追投 8 个
+  `HO`；渠道 ia 2,159 + tiger 540。e 带曾欠配 186（候选池被排除规则吃薄）→ 追投 8 个
   ≤2412 e 带 item + `extract --topup`（quota−实收 差额补位，不动足额 cell）补满，
   残 deficit 6（d|eess 1 + d|hep-phys 5，池内真空）。
 - **recent 321**：sw 池余量切 eprint id 清单（2501+ 月分层均匀），`stratum_cell`

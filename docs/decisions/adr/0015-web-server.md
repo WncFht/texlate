@@ -24,7 +24,7 @@ hjfy 的阅读体验（已译随便看 + 流式进度 + 双语对照）需要一
 
 ## 演变
 
-- 2026-09-16：server 模式 key 无回退定案（此前曾议「无 key 回落内部网关」——否决）；P0 安全波收口 request_gate/upload 面。
+- 2026-09-16：server 模式 key 无回退定案（此前曾议「无 key 回落内部网关」——否决）；P0 安全修复收口 request_gate/upload 面。
 - 2026-09-17：G1 落地——`arxiv_html` 任务 kind 进状态机（同 11 态，translating 段换 HTML 块级翻译）；m3gap 裁决 `retry{model}` 语义改判为「新建任务」而非原地重试（原模型参数进键，原地重试会毒 dedup 面）；dedup 口径改「只复用 done」+ partial 毒传播修复 + `prefer=fresh` 显式开关。
 - 2026-09-19→20：能力面扩——`routers/compat.py`（hjfy 轮询协议兼容）、`routers/discover.py`（alphaXiv 代理发现面）、`routers/reader.py`（阅读器数据面）；并发档位与 segment 缓存分桶（base_url+auto_glossary）细化。
 

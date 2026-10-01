@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-14 口径；方案已落地为 `align.py::build_alignment` → `dual.json`，规范见 `spec/architecture.md`）
 > **日期**：2026-09-14
 
-**问题**：同一 LaTeX 源编译出的 en.pdf（base）与 zh.pdf（ctex 注入 + 译文）是否共享 hyperref named destinations，足以支撑 texglot 式滚动同步（机制见 `texglot-patterns.md` §5）？探针用 pypdf 抽取两侧 `/Names` 锚点比对；数据全部复用已有编译产物，未新编译。
+**验证项**：同一 LaTeX 源编译出的 en.pdf（base）与 zh.pdf（ctex 注入 + 译文）能否共享 hyperref named destinations 以支撑 texglot 式滚动同步（机制见 `texglot-patterns.md` §5）。探针用 pypdf 抽取两侧 `/Names` 锚点比对；数据全部复用已有编译产物，未新编译。
 
 ## 数据对（28 对）
 
@@ -50,7 +50,7 @@ e2e base↔B（幻觉译，4 对）：保留率 0.96–0.98，掉的是 cite.\*/
 
 ## 退化路径（无 hyperref）占比 31%
 
-5/16 工程 base PDF 零 named dests，且 outline=0、Annots=0、/Names 缺省（amsart 无 hyperref 老稿、revtex4 原版、LaTeX2.09、IEEEtran-latin5）。因 en.pdf 也由我方编译，可选兜底：对无 hyperref 源双侧注入 hyperref（老类风险：LaTeX2.09/ptptex 大概率挂，需逐类验证）；退化为页号比例 + 文本锚点（每页首行文本 cross-lingual 匹配）；或直接放弃滚动同步改双栏段对照。
+5/16 工程 base PDF 零 named dests，且 outline=0、Annots=0、/Names 缺省（amsart 无 hyperref 老稿、revtex4 原版、LaTeX2.09、IEEEtran-latin5）。因 en.pdf 也由我方编译，可选兜底：对无 hyperref 源双侧注入 hyperref（老类风险：LaTeX2.09/ptptex 预期失败，需逐类验证）；退化为页号比例 + 文本锚点（每页首行文本 cross-lingual 匹配）；或直接放弃滚动同步改双栏段对照。
 
 ## 对 roadmap 的建议与落地注记
 

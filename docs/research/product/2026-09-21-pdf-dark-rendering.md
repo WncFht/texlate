@@ -6,7 +6,7 @@
 
 ## 1. 问题与候选
 
-阅读器暗色化不是 UI 换肤问题——PDF canvas 是绘制产物，`data-theme` 换 CSS token 动不了 canvas 里的像素。候选四条路线：
+阅读器暗色化的难点在 PDF canvas 是绘制产物——`data-theme` 换 CSS token 动不了 canvas 里的像素。候选四条路线：
 
 | 路线              | 机制                                                                       | 代表                              |
 | ----------------- | -------------------------------------------------------------------------- | --------------------------------- |
@@ -65,7 +65,7 @@ Zotero 的 pdf.js fork 在每个页面 ctx 实例上 `defineProperty` 拦 `fillS
 ## 6. 性能账与取舍
 
 - 每页一次性 ~10ms（文本页）至 ~60ms（图片页回读尖峰）；`willReadFrequently` 无法经实例补丁预设到 viewer canvas（ctx 由 pdf.js 内部先建），接受 ≤2 次/页的回读成本。
-- 相对 CSS-filter 的 +0ms 是多花的钱——买到的是彩色 Lab 保 hue（hue-rotate 的 sRGB 近似色偏不可比）、图像四路分治、文字局部对比自适应，以及未来 sepia/自定义主题槽的同构扩展位。
+- 相对 CSS-filter 的 +0ms 是多出的成本——换来彩色 Lab 保 hue（hue-rotate 的 sRGB 近似色偏不可比）、图像四路分治、文字局部对比自适应，以及未来 sepia/自定义主题槽的同构扩展位。
 - 缩略图与主视区共享 `getPage` 补丁产线，零额外接线。
 
 证据件：实验台 `tmp/pdf-theme-lab/`（lab.mjs/blender.mjs/patch_test*.mjs/shots/）；线上验证脚本 `web/scripts/blender_verify.mjs`（PASS 口径：亮基线 avg 245 → 暗 avg 29/91.7% 暗像素 → 回切复原 245，canvas `getImageData` 物理像素断言排除 CSS 假阳性）。Zotero bundle 解包留痕 `tmp/zotero-reader/`。

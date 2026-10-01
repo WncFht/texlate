@@ -31,4 +31,4 @@
 
 \subsection{过程事故记录（评测工具链教训）}
 
-本批测试记录的评测驱动层教训，供后续批次回避：xlatbench 的 \texttt{manifest.parent} 必须等于语料根（跨目录清单会致格解析失败）；\texttt{--per-kind} 是全局限额非分层配额；pgrep 监控须用 \texttt{[x]pattern} 括号形防自匹配；compilebench \texttt{--gen-sample} 为分段设计（采样后即返回，编译需无参二次调用）；e2e 同 \texttt{--tag} 冻结样本，重抽样须换 tag+seed；gullet \texttt{--out} 续跑会保留过期错误行、须换新目录；stagerun 下游阶段须显式传 \texttt{--ids} 防跨层欠采；多会话共仓提交须走私有 \texttt{GIT\_INDEX\_FILE}（共享索引有 sweep/reset 竞争窗）。
+本批测试记录的评测驱动层教训，供后续批次回避：xlatbench 的 \texttt{manifest.parent} 必须等于语料根（跨目录清单会致格解析失败）；\texttt{--per-kind} 是全局限额非分层配额；pgrep 监控须用 \texttt{[x]pattern} 括号形防自匹配；compilebench \texttt{--gen-sample} 为分段设计（采样后即返回，编译需无参二次调用）；e2e 同 \texttt{--tag} 冻结样本，重抽样须换 tag+seed；gullet \texttt{--out} 续跑会保留过期错误行、须换新目录；stagerun 下游阶段须显式传 \texttt{--ids} 防跨层欠采；多会话共仓提交曾走私有 \texttt{GIT\_INDEX\_FILE} 绕共享索引竞争窗（2026-10-01 起禁用，改常规 add/commit）。

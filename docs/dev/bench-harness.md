@@ -1,12 +1,12 @@
 # 评测协议与分层契约
 
-本仓的评测体系由本文 §1（一个问题该在哪一层被抓——原 `bench/TIERS.md` 已并档为指路针 stub）与 `docs/spec/benchmark.md`（B1–B7 评测器规格）定义；外部库选型期的逐库横评协议 `bench/PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。本文把现行契约重整为公开口径：先讲四层验证契约，再讲语料与陷阱夹具的底材纪律，最后是 bench 产物落盘的工具链关系。各 spec/动词的逐件清单见 `dev/tools-runbook.md` §3。
+本仓的评测体系由本文 §1（一个问题该在哪一层被抓——原 `bench/TIERS.md` 已并档为指路针 stub）与 `docs/spec/benchmark.md`（B1–B7 评测器规格）定义；外部库选型期的逐库横评协议 `bench/PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。本文覆盖现行契约三域：分层验证契约、语料与陷阱夹具的底材纪律、bench 产物落盘的工具链关系。各 spec/动词的逐件清单见 `dev/tools-runbook.md` §3。
 
 > **2026-09-23 Wave-F 注记**：trizone-ledger v2 迁移收口，旧 harness（stagerun/stage__/各评测器脚本/triage/rundiff/gate_scorecard/benchlib/corpus build__/report/）全部删除，继任面 = `bench/py/specs/*.py`（`uv run python bench/py/bench run <spec>` 跑批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）。run 产物不再落仓内——`$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（仓外账本根，git 天然不碰）。
 
 ## 1. 分层契约：什么问题在哪级验证
 
-核心原则一句话：修复不算完，直到它能看见的最便宜那层被钉住；更高层只接低层结构性看不见的东西。
+核心原则：修复不算完，直到它能看见的最便宜那层被钉住；更高层只接低层结构性看不见的东西。
 
 | 层           | 入口                                                                                                                              | 底材                                                                           | 量级                     | 时机                                  |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------ | ------------------------------------- |
@@ -33,7 +33,7 @@
 
 ## 2. 评测协议：每个库/管线测什么
 
-这套四项评测最初用于外部 LaTeX 解析库选型（pylatexenc/TexSoup/plasTeX/latex-utensils/unified-latex/tree-sitter-latex 等，选型期已结案，横评脚本已随 Wave-F 删除、`bench/ts/` 保留）；同一框架现在是 `texlate.latex` 产品管线的正式评测口径，由 `bench/py/specs/parsebench/__init__.py` 承载。
+这套四项评测最初用于外部 LaTeX 解析库选型（pylatexenc/TexSoup/plasTeX/latex-utensils/unified-latex/tree-sitter-latex 等，选型期已结案，横评脚本已随 Wave-F 删除、`bench/ts/` 保留）；同一框架承担 `texlate.latex` 产品管线的正式评测口径，由 `bench/py/specs/parsebench/__init__.py` 承载。
 
 ### 2.1 解析鲁棒性（corpus 全部 .tex）
 
@@ -49,7 +49,7 @@ parse→serialize→与原文对比：identical / normalized（仅空白差异�
 
 ### 2.4 泄漏率（corpus 全部文件）
 
-提取可译段落块后，统计块内含 `$`、`\cite`、`\ref`、`\begin{` 等数学/保护标记的块比例 = 泄漏率，越低越好。产品口径把泄漏正则扩到六组（`$`、`\cite`、`\ref`、`\begin{`、`\if`、`\input`），实测量级见主仓审计报告。
+提取可译段落块后，统计块内含 `$`、`\cite`、`\ref`、`\begin{` 等数学/保护标记的块比例 = 泄漏率，越低越好。产品口径把泄漏正则扩到六组（`$`、`\cite`、`\ref`、`\begin{`、`\if`、`\input`），实测量级见 `docs/log/audit-2026-09-16/` 审计档。
 
 ## 3. 底材纪律
 

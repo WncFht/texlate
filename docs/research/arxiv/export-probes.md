@@ -10,13 +10,13 @@
 
 | 时间  | 结果                                                                                          |
 | ----- | --------------------------------------------------------------------------------------------- |
-| 早先  | ~170 发 bench 后全程 429，+20s/+60s/+90s 重试均灭                                             |
+| 早先  | ~170 发 bench 后全程 429，+20s/+60s/+90s 重试均失败                                           |
 | 12:38 | 429 · 14B `"Rate exceeded."` · _*无 Retry-After、无 RateLimit-* 头_*（edge：Google Frontend） |
 | 12:51 | 503 · 126B Varnish 骨架页 · `Retry-After: 0`（后端 46s 超时的模板头，非限流语义）             |
 | 12:58 | 429                                                                                           |
 | 13:28 | 429（**30min 零请求静默后仍拒**）                                                             |
 
-读法：429 是边缘限流器瞬时拒绝；12:51 那发穿过边缘打到后端，后端 46s 不应由 Varnish 给 503——两种可能（惩罚窗口短暂开缝但后端病态 / 503 是限流链路深层失败形态），无论哪种 API 均不可用。**窗口下限从「≥3min」上修为「≥小时级」**；429 响应没有 Retry-After，窗口只能稀疏探活实测（每发 api 请求可能续窗）。调度含义：park 起步 30–60min、指数退避、park 期间用定时单发探活而非连续重试。
+解读：429 是边缘限流器瞬时拒绝；12:51 那发穿过边缘打到后端，后端 46s 不应由 Varnish 给 503——候选解释有二（惩罚窗口短暂放行但后端异常 / 503 是限流链路深层失败形态），无论哪种 API 均不可用。**窗口下限从「≥3min」上修为「≥小时级」**；429 响应没有 Retry-After，窗口只能稀疏探活实测（每发 api 请求都会延长窗口）。调度含义：挂起 30–60min 起步、指数退避、挂起期间用定时单发探活而非连续重试。
 
 ## 2. OAI-PMH 迁站
 
@@ -34,12 +34,12 @@
 
 行为与主站完全一致（301 形态、cd 命名、sha256 etag）。Age 值（abs ~17 天、pdf ~19 天、src ~9.3h）表明内容几乎全走 Fastly/Varnish 缓存命中——**这解释了为什么 429 期间内容端点照常 200：缓存层根本没回源**。
 
-## 4. 限流边界：429 只罩 `/api/*`，不罩内容路径
+## 4. 限流边界：429 只覆盖 `/api/*`，不覆盖内容路径
 
-同一时间窗口内 `/api/query` 429（MISS 回源被拒）而 `/src` `/pdf` `/abs` `/e-print` 全 200/301——**惩罚是 endpoint 级不是 host 级**。对照实锤：`HEAD /src/9999.99999`（必然 MISS 回源）在 API 惩罚窗口内照常回 404。含义：调度可以更细——export 的 API 被锤时只 park 元数据队列，e-print/src/pdf 下载可继续。注意 404 可能由 Varnish 边界直接合成（`Server: Varnish` 而非 Google Frontend），与真实 GET 回源路径未必完全等价——但作为「内容路径不受 429 牵连」的证据已足够强。
+同一时间窗口内 `/api/query` 429（MISS 回源被拒）而 `/src` `/pdf` `/abs` `/e-print` 全 200/301——**惩罚是 endpoint 级不是 host 级**。对照确认：`HEAD /src/9999.99999`（必然 MISS 回源）在 API 惩罚窗口内照常回 404。含义：调度可以更细——export 的 API 被惩罚时只挂起元数据队列，e-print/src/pdf 下载可继续。404 存在 Varnish 边界直接合成的形态（`Server: Varnish` 而非 Google Frontend），与真实 GET 回源路径不完全等价——但作为「内容路径不受 429 牵连」的证据已足够强。
 
 ## 5. 对架构的影响
 
-1. **下载面容量 ×2**：export 是天然 failover——但同一 IP 大概共享同一惩罚对象，failover 只解决「主站路径限流」不解决「IP 被拉黑」。
+1. **下载面容量 ×2**：export 是天然 failover——但同一 IP 共享同一惩罚对象，failover 只解决「主站路径限流」不解决「IP 被封禁」。
 2. **三桶调度**：`arxiv.org` / `export.arxiv.org` / `oaipmh.arxiv.org`，按路径类（api/oai/content/other）分别 park。
-3. **`<arxiv:doi>` 验证弃验**：Atom 全程不可用未拿到真 XML；DataCite `api.datacite.org/dois/10.48550/arxiv.{id}` 免 key 全量覆盖且 `dates[]` 白送版本史——DOI 反查走 DataCite 不依赖 Atom（渠道细节见 [bulk-channels.md](bulk-channels.md) 与语料域档案 [../corpus/](../corpus/)）。
+3. **`<arxiv:doi>` 验证放弃**：Atom 全程不可用未拿到真 XML；DataCite `api.datacite.org/dois/10.48550/arxiv.{id}` 免 key 全量覆盖且 `dates[]` 附带版本史——DOI 反查走 DataCite 不依赖 Atom（渠道细节见 [bulk-channels.md](bulk-channels.md) 与语料域档案 [../corpus/](../corpus/)）。

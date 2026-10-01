@@ -22,7 +22,7 @@ ADS 查询语法 = Apache Solr + 一组二阶算子：先用普通查询取论�
 | `reviews(query)`       | 引用集合的论文按频次聚合 → 「最 extensive 的综述」 | 共被引聚合      |
 | `topn(N, query, sort)` | 取前 N，可嵌套                                     | 通用截断        |
 
-发现语义拆解：`useful` ≈ 文献耦合的聚合版、`reviews` ≈ 共被引的聚合版、`trending` 是 ADS 独有（需要自家读者日志，别家抄不了）、`similar` 是纯文本线。官方惯用法：`similar(旧集查询) entdate:[NOW-7DAYS TO *]`——算子排除一阶结果，拼 disjoint 时间区间即「相似于旧集的新文」[^ads-citref]。
+发现语义拆解：`useful` ≈ 文献耦合的聚合版、`reviews` ≈ 共被引的聚合版、`trending` 是 ADS 独有（需自家读者日志，不可复刻）、`similar` 是纯文本线。官方惯用法：`similar(旧集查询) entdate:[NOW-7DAYS TO *]`——算子排除一阶结果，拼 disjoint 时间区间即「相似于旧集的新文」[^ads-citref]。
 
 ### oracle_service：个性化推荐极简配方
 
@@ -46,7 +46,7 @@ API 免鉴权：每 IP 先放 50 突发后 2 req/s，超限 429+`x-retry-in`；`
 
 作者消歧：authors 记录含 INSPIRE BAI（`Edward.Witten.1`）、ORCID 等多 schema 标识 + `positions[]` 机构 $ref 互链 + `advisors` 师承——作者 - 机构边与论文 - 引用边同构存储，图连成一体。
 
-**refextract**（`inspirehep/refextract`，GPLv2）：HEP 参考文献抽取库，API 三个（`extract_journal_reference`/`extract_references_from_file/url`），底层 pdftotext+ 规则/知识库匹配路线非神经网络；macOS 装不了，官方建议 Docker[^refextract]。抽取后由 INSPIRE 管线按 texkey/期刊坐标匹配 recid 写入 `record.$ref`。
+**refextract**（`inspirehep/refextract`，GPLv2）：HEP 参考文献抽取库，API 三个（`extract_journal_reference`/`extract_references_from_file/url`），底层 pdftotext+ 规则/知识库匹配路线非神经网络；macOS 无原生支持，官方建议 Docker[^refextract]。抽取后由 INSPIRE 管线按 texkey/期刊坐标匹配 recid 写入 `record.$ref`。
 
 zbMATH Open REST API 免鉴权可用、记录含作者码与 review 文本，但引用边覆盖远不及 ADS/INSPIRE；MathSciNet 付费墙无开放 API。
 

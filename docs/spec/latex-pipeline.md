@@ -1,6 +1,6 @@
 # LaTeX 半解析 + 展开机规范
 
-> 实现唯一事实源：`src/texlate/latex/`。本文与代码现状对齐；调研与实测证据引用 `research/latex/` 档案，不复述。
+> 实现唯一事实源：`src/texlate/latex/`。本文与代码现状对齐；调研与实测证据见 `research/latex/` 档案。
 
 ## 1. 定位与边界
 
@@ -278,7 +278,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 - xparse `v`/`b`/`E`/`x` 参数型的 `\NewDocumentCommand` 定义不登记；`\romannumeral` 只到 3999；`\includeonly` 忽略。
 - `flatten=False`/纯内存源下 `\input` 恒不解析；`MAX_INPUTS=8`/`BUDGET=100_000`/`MAX_GEN=32` 三道闸触底即停展开（记告警，内容保守保真）。
 - `\if` 非求值档不裁支——双支都进译文面（结构界标保护）；求值档只认 §4.7 表内谓词。
-- 旧规格有而当前未落地/已退役：旧字节扫描器（删除）、`math_debt`/`debt_repair` 修债 pass（并入 `_on_math` 主流退役）、`protect_args` 调用点位序保护（字段照算、无消费方——由展开再生 + keyarg 链替代）、`\includeonly` 过滤（有意不做）。
+- 有意不实现的机制：旧字节扫描器（已删）、`math_debt`/`debt_repair` 修债 pass（已并入 `_on_math` 主流）、`protect_args` 调用点位序保护（字段照算、无消费方，由展开再生 + keyarg 链替代）、`\includeonly` 过滤。
 
 ### 参考文献
 

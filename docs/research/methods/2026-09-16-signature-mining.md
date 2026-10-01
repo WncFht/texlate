@@ -14,7 +14,7 @@
 | e2e-real-n100 批次      | 100 篇 core 层，真翻译                | per-paper verdict + 40 格 pipe-fix          |
 | corpus_v3 manifest      | 1,272 篇                              | stratum_cell / era / cat_group / cluster_id |
 
-注意两套分类学并存：judge 走引擎层硬编码规则（类别名 `eps_image`），fixloop 走 rules.yaml taxonomy（类别名 `ps_image`，另有 `inputenc_unicode`/`aux_scan_eof`/`warn_*` 等新条目）——同一错误两边可能归不同类别，统计按签名实质合并。cbv4/cbv3zh 跑在 rules.yaml 扩列之前，当时 unfixable 的 `elsart.cls`/`aastex63.cls`/`aipproc.cls`/`iopart*.clo`/`binhex.tex`/`espcrc2.sty`/`apjfonts.sty` 等已入 `legacy_pkg_shim` shim_map（41 键），归入「已覆盖待回放」而非新规则候选。
+注意两套分类学并存：judge 走引擎层硬编码规则（类别名 `eps_image`），fixloop 走 rules.yaml taxonomy（类别名 `ps_image`，另有 `inputenc_unicode`/`aux_scan_eof`/`warn_*` 等新条目）——同一错误两边归类不一，统计按签名实质合并。cbv4/cbv3zh 跑在 rules.yaml 扩列之前，当时 unfixable 的 `elsart.cls`/`aastex63.cls`/`aipproc.cls`/`iopart*.clo`/`binhex.tex`/`espcrc2.sty`/`apjfonts.sty` 等已入 `legacy_pkg_shim` shim_map（41 键），归入「已覆盖待回放」而非新规则候选。
 
 ## 1. 签名 × stratum 交叉表
 
@@ -44,7 +44,7 @@
 | undefined_cs  | 24   | math 8 · cs 7 · astro-ph 4                                |
 | pdftex_prim   | 10   | cs 7 · eess-stat-etc 2                                    |
 
-读法与扩库含义：missing_file 全 era 均匀但 payload 有年代分层——`revtex4.cls` 集中 a/b/c、`revtex4-1.cls` 集中 b/c/d、`IEEEtran.cls`/`elsarticle.cls` 集中 d/e、化石 cls（`revtex.cls`/`aaspp4.sty`/`mn2e.cls`/`elsart.cls` 等）几乎全在 a/b。eps_image 前旧后少（a+b 占 55/91）——2007 前论文几乎人手 .eps 图。inject_reject 纯 a_pre2007（24/26）——2.09 `\documentstyle` 稿，inject 层拒注入 ctex，属路由级缺口而非 fixloop 规则能修。undefined_cs/pdftex_prim 偏新（d+e 占 15/24 和 8/10）——新稿撞新包版本漂移 + pdfTeX 原语裸用。booster 抽样对应：a/b×hep-phys/cond-mat/astro-ph 命中化石 cls + eps_image；d/e×cs/math 命中 undefined_cs/pdftex_prim；a×* 命中 2.09 路由缺口。
+读法与扩库含义：missing_file 全 era 均匀但 payload 有年代分层——`revtex4.cls` 集中 a/b/c、`revtex4-1.cls` 集中 b/c/d、`IEEEtran.cls`/`elsarticle.cls` 集中 d/e、化石 cls（`revtex.cls`/`aaspp4.sty`/`mn2e.cls`/`elsart.cls` 等）几乎全在 a/b。eps_image 前旧后少（a+b 占 55/91）——2007 前论文普遍带 .eps 图。inject_reject 纯 a_pre2007（24/26）——2.09 `\documentstyle` 稿，inject 层拒注入 ctex，属路由级缺口而非 fixloop 规则能修。undefined_cs/pdftex_prim 偏新（d+e 占 15/24 和 8/10）——新稿撞新包版本漂移 + pdfTeX 原语裸用。booster 抽样对应：a/b×hep-phys/cond-mat/astro-ph 命中化石 cls + eps_image；d/e×cs/math 命中 undefined_cs/pdftex_prim；a×* 命中 2.09 路由缺口。
 
 ## 2. 未覆盖签名清单（按出现篇数排序）
 
@@ -145,7 +145,7 @@ rules.yaml 内 `stats:` 是历次 bench 快照、非累计口径——与 cbv4(3
 | already_def gate 扩展 + relax                              | 2.09 稿 + `\Ref` 各 1           | 前者归 reject:latex209，后者 relax 后出 pdf              |
 | missing_char 路由接通                                      | missing_chars>0 的 partial 3 篇 | partial+missing_chars 进 fixloop → missing_char_fix 点火 |
 
-汇总：cbv4 终态 unfixable+reject 共 58 格 / 40 篇（xel 27 + tec 31），n100 13 格——按上表落地后预期残部收敛到「2.09 路由缺口 + tcilatex 级硬骨 + 环境项」三类，约 10 篇以内。
+汇总：cbv4 终态 unfixable+reject 共 58 格 / 40 篇（xel 27 + tec 31），n100 13 格——按上表落地后预期残部收敛到「2.09 路由缺口 + tcilatex 级硬骨 + 环境项」三类，量级 10 篇以内。
 
 ## 5. 落地优先级
 

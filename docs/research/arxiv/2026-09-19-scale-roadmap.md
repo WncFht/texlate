@@ -26,7 +26,7 @@
 
 - **arXiv robots.txt 明令禁止程序化抓 `/src/`**：S3 requester-pays 是官方认可的批量正道（API 限度 bursts 4 req/s）；惯例 ~1req/3s 的逐篇直采属灰色但普遍[^arxiv-robots]。
 - **S3 实测价**（官方 bulk-data 文档口径[^arxiv-bulk]）：近 3 年月 chunk ≈ **$80**；2015–2025 十年窗 1.6TB ≈ **$150**；全量 src ~2.9TB ≈ $260-400。**us-east-1 内 EC2 拉取免 egress**——开源 Rust ETL `arxivETL_sync`（scholarweave 同款上游）即此模式：区内免费消化 S3 再落自家盘[^arxiv-etl]。
-- **X-raying the arXiv**（60 万篇实测研究[^xray]）：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / **1.6% 主文件难定位**——是我们 L2/L3 降级链与 locate() 的负载基线；其 BaRDE 裁决器 = locate() 简化版（99.9%），可对表漏判率。另：~27% e-print 字节是冗余文件（图为主）。
+- **X-raying the arXiv**（60 万篇实测研究[^xray]）：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / **1.6% 主文件难定位**——是我们 L2/L3 降级链与 locate() 的负载基线；其 BaRDE 裁决器 = locate() 简化版（99.9%），可对照核算漏判率。另：~27% e-print 字节是冗余文件（图为主）。
 - **ar5iv 分层数据集**（2.17M 篇，2024-04[^ar5iv]）：no_problem 366k / warning 1.3M / error 500k——官方 LaTeXML **无错转换只有 ~75%**，是我们管线成功率的校准 oracle；WithdrarXiv 是撤稿专集。
 - **Kaggle/HF 元数据**：Kaggle 周更 JSONL（license/versions 全字段[^kaggle]）、librarian-bots 日更 parquet（CC0[^hf-meta]）、OAI 是 license+ 版本史唯一权威源——枚举底表三源交叉校验即可。
 - latexpand 只处理 `\input/\include` 且有 verbatim 误展开 bug；arxiv_latex_cleaner 的注释剥离语义边界（`\iffalse\fi`/verbatim/comment 特例）值得对照我们的 strip_comments。
@@ -35,13 +35,13 @@
 
 ### A. 枚举/索引层（便宜先做）
 
-frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 snapshot 定期重拉合入 + OAI-PMH `ListIdentifiers&until=昨日` 日增量对账（含 deleted 墓碑 → withdrawn 标记）。Kaggle 周快照做字段级交叉校验。产出 = 常绿 universe index，任意维度（era/cat/license/size/version 数/withdrawn）分层选样。
+frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 snapshot 定期重拉合入 + OAI-PMH `ListIdentifiers&until=昨日` 日增量对账（含 deleted 墓碑 → withdrawn 标记）。Kaggle 周快照做字段级交叉校验。产出 = 持续更新的 universe index，任意维度（era/cat/license/size/version 数/withdrawn）分层选样。
 
 ### B. 批量物化（era 三分，S3 是决策点）
 
 - **≤2020-10**：IA arxiv-bulk 继续（含图、member 钉版已跑通）。
 - **2021-2024**：TIGER-Lab 主力 + IA 末端补洞（2011/2012 已知特例）。
-- **2501+**：三选一——(a) **S3 付费**（推荐重议：~$80 近三年 / ~$150 十年窗，一次解锁无损含图源 + manifest first/last_item 精确二分定位指定 id；此前「不用 S3」是 bench 扩容语境下的裁决，对「非常广泛」目标值得翻盘）；(b) **arxivETL_sync 自跑**（us-east-1 免费消化 S3，零 egress，代价是维护 ETL+EC2）；(c) scholarweave 维持 dev-only。
+- **2501+**：三选一——(a) **S3 付费**（推荐重议：~$80 近三年 / ~$150 十年窗，一次解锁无损含图源 + manifest first/last_item 精确二分定位指定 id；此前「不用 S3」是 bench 扩容语境下的裁决，对「非常广泛」目标该裁决应重新评估）；(b) **arxivETL_sync 自跑**（us-east-1 免费消化 S3，零 egress，代价是维护 ETL+EC2）；(c) scholarweave 维持 dev-only。
 - **指定小批量 ≤2k**：直采不变（~2.6h 拐点账已算清，见 [bulk-channels.md](bulk-channels.md) §2）。
 
 ### C. 测试面补齐
@@ -57,7 +57,7 @@ frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 s
 
 ## 5. 决策点
 
-**S3 ~$80-150 要不要花**：它是 2501+ 段「无损含图 + 规模」的唯一解；不花则近期评测料只能靠 scholarweave 有损 + 日增量慢攒（~85 篇/日，万篇需 ~4 个月）。其余建议（增量通道/pdf_only 层/对账/oracle）零成本可先行。**重订时注：增量通道已落地；S3 决策点仍开放。**
+**S3 ~$80-150 要不要花**：它是 2501+ 段「无损含图 + 规模」的唯一解；不花则近期评测料只能靠 scholarweave 有损 + 日增量缓慢积累（~85 篇/日，万篇需 ~4 个月）。其余建议（增量通道/pdf_only 层/对账/oracle）零成本可先行。**重订时注：增量通道已落地；S3 决策点仍开放。**
 
 ### 参考文献
 

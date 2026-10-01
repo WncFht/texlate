@@ -1,6 +1,6 @@
 # sel-translate 选区翻译 — 实现文档
 
-> **状态**：已砍，未实施（2026-09-23 落地波裁决——无 assist 端点，`sel.xlat`/`sel.explain` 未注册，无 selxlat.ts/routers/selxlat.py）。本文档保留为设计档案：若未来重开此功能，下文端点契约/配额模型/实验结论仍有效，但代码落点需按届时现状重对。
+> **状态**：已砍，未实施（2026-09-23 落地波裁决——无 assist 端点，`sel.xlat`/`sel.explain` 未注册，无 selxlat.ts/routers/selxlat.py）。保留为设计档案：若未来重开此功能，端点契约/配额模型/实验结论仍有效，代码落点须按届时现状重对。
 
 综合自 2026-09-22 UX 调研波次的全部 st-\* 实验（st-endpoint / st-dict-prompt / st-backcheck / st-modal / st-quota，全部 verdict=works）与同波 ss-\* 选区面兄弟道（ss-floatbar / ss-ctxmenu / ss-cmdreg / ss-hotkeys / ss-menu-content / ss-pdf-sel / ss-dom-sel / align-zh-sid），并对齐生产代码现状（`src/texlate/server/`、`web/src/`）。引用文件均为仓库相对路径，仓库根 = `/home/fanghaotian/src/texlate/`。
 

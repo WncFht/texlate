@@ -5,7 +5,7 @@
 > **状态**：已落地（misc-pack M4，2026-09-23 落地波；落地差异见文末注记）
 > **日期**：2026-09-22
 
-2026-09-22 · 结论：**现状无任何「收藏/keep」持久化**。CiteCard 脚部只有 `跳到文献表` + `arXiv ↗` + `DOI ↗` 三个动作（CiteCard.tsx L169-201）。本稿给出存储选型与 .bib 组装点设计。
+2026-09-22 · 结论：**现状无任何「收藏/keep」持久化**。CiteCard 脚部只有 `跳到文献表` + `arXiv ↗` + `DOI ↗` 三个动作（CiteCard.tsx L169-201）。以下为存储选型与 .bib 组装点设计。
 
 ## 0. 考古事实（决定设计的硬约束）
 
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS kept_refs (
 ```
 
 - DDL 串追加即可（IF NOT EXISTS 自带迁移）；访问层放新叶 `store/_kept.py`（list/put/delete 三函数）+ `__init__` 门面转发，与既有叶同构。
-- `payload` 存**快照即真相**：text=用户当时看到的条目文本，meta=当时的 L2 RefMeta 快照。重译/重排版后 key 即使漂移，导出内容仍是用户标的那份（自愈合，见 §3）。
+- `payload` 存**快照即真相**：text=用户当时看到的条目文本，meta=当时的远端 RefMeta 快照。重译/重排版后 key 即使漂移，导出内容仍是用户标的那份（自愈合，见 §3）。
 - 无 tenant 列——task_id 经 `get_task` 已做租户检；跨租户探测不到 task_id 就碰不到 kept 行。
 
 ### 端点（挂进 `routers/refs.py` 同一 register）
@@ -94,7 +94,7 @@ keys → for each:
 
 ## 5. 风险
 
-1. **dom 路 key 漂移**：`bib.bibN` 是序数——重取新 arXiv 版本序数可换。缓解：payload 快照自含 text/meta（导出不受影响）；卡面 keep 态可能标到错条目上（接受：kept 标的是「这个位置」，与位置持久化同语义）。
+1. **dom 路 key 漂移**：`bib.bibN` 是序数——重取新 arXiv 版本序数可换。缓解：payload 快照自含 text/meta（导出不受影响）；卡面 keep 态随漂移标到错条目上（接受：kept 标的是「这个位置」，与位置持久化同语义）。
 2. **bibtex 源论文 citeIndex=0**：lazy dest 抽取 text 才有 payload；verbatim 臂靠 src.tar .bib 兜底——若 eprint 既无 .bib 又抽取失败，kept payload 只剩 key，导出成 `@misc{key}` 空壳（仍可接受=占位）。
 3. **BYOK 换 key→tenant 换**：kept 行随任务行一起对新租户不可见——与任务本体同 blast radius，一致行为。
 4. **payload 体积**：meta.tldr+text ≈ KB 级/条，400 条上限内 DB 行无虞；PUT 加 64KB 闸即可。

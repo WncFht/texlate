@@ -1,6 +1,6 @@
 # 语料规范 —— arXiv LaTeX 源码评测底材
 
-> spec/ 层唯一事实源：与 `bench/` 磁盘现状对齐。评测器侧（用这些底材怎么测）见 `spec/benchmark.md`；取源渠道裁决与单次调研证据以 `research/` 档案为准，本文不复述实测细节。
+> spec/ 层唯一事实源：与 `bench/` 磁盘现状对齐。评测器侧（用这些底材怎么测）见 `spec/benchmark.md`；取源渠道裁决与单次调研证据以 `research/` 档案为准。
 > **trizone 口径（2026-09-23 起）**：清单/数据分离——`bench/corpus/` 只存 tracked manifest 与台账（数据树 gitignored），物化载荷统一在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（可重建湖，设计 `spec/bench-trizone.md`）；付费产物归 vault（§8）。旧 `corpus_v2/corpus_m1k/corpus_daily/zh-store` 分库根已随 Wave-F 清点退役，manifest 全折进 `bench/corpus/` 单根。
 
 ## 1. 定位与设计原则
@@ -149,7 +149,7 @@ vault/quar/{kind}/…                        # 隔离区（验坏/判毒叶）
 1. `MANIFEST.md` 是清单根唯一人类可读口径：层构成/规模/渠道/勘误都在此收口；条目数以 jsonl 实文件为准。
 2. 新增语料必须登记对应 manifest + MANIFEST 更新；数据载荷全量 gitignored（lake 侧重建），仓库内不入 `{id}/` 树。
 3. 语料原样不改写；机制发现 → `mechanisms.jsonl` 落账 → `covered` 后 fixture 化（benchmark 侧生长环，见 `spec/benchmark.md` §B2）。
-4. 语料渠道取数细节与法务/发布口径归 `research/arxiv/`、`research/corpus/` 档案，本文不展开[^bulk]。
+4. 语料渠道取数细节与法务/发布口径归 `research/arxiv/`、`research/corpus/` 档案[^bulk]。
 
 ### 参考文献
 

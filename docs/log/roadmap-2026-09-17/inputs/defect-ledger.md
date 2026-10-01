@@ -117,7 +117,7 @@ skipif 余量全部为环境守卫（euid/platform/gitignored-data），无缺�
 - `route_project` reject 分支 dead-ish（engine 恒非空）| textutil-e2e-audit
 - dist/ 陈旧 wheel（2026-09-16 09:32，缺 compile/cmaps）——发版前 `uv build` | server-sidecar-audit
 - `texput.log` + `tests/test_group_surface_depth.py` 未跟踪散件 | scripts-ci-audit
-- 0916 余账：corpus_v2 manifest 数字；INLINE_MAX 已除；B3/B7/Mode-B/C 臂（波次后大概率已跑，未逐项核）
+- 0916 余账：corpus_v2 manifest 数字；INLINE_MAX 已除；B3/B7/Mode-B/C 臂（波次后是否完成未逐项核）
 
 ### 2.3 侦察覆盖附记
 
@@ -260,7 +260,7 @@ inject I1-I9（0d93d66）、worker W1-W7（4de2360）、mask 5 族+lstinline（b
 | ledger-scout   | scout-p2-30 | P2  | pinned  | doc          | -                                                                       | -                                                                         | `route_project` reject 分支 dead-ish（engine 恒非空）                                                                 |
 | ledger-scout   | scout-p2-31 | P2  | pinned  | doc          | -                                                                       | -                                                                         | dist/ 陈旧 wheel（2026-09-16 09:32，缺 compile/cmaps）——发版前 `uv build`                                             |
 | ledger-scout   | scout-p2-32 | P2  | pinned  | assert       | `tests/test_group_surface_depth.py`                                     | tests                                                                     | `texput.log` + `tests/test_group_surface_depth.py` 未跟踪散件                                                         |
-| ledger-scout   | scout-p2-33 | P2  | pinned  | doc          | -                                                                       | -                                                                         | 0916 余账：corpus_v2 manifest 数字；INLINE_MAX 已除；B3/B7/Mode-B/C 臂（波次后大概率已跑，未逐项核）                  |
+| ledger-scout   | scout-p2-33 | P2  | pinned  | doc          | -                                                                       | -                                                                         | 0916 余账：corpus_v2 manifest 数字；INLINE_MAX 已除；B3/B7/Mode-B/C 臂（波次后是否已跑完待逐项核查）                  |
 | ledger-scout   | scout-p2-4  | P2  | pinned  | doc          | -                                                                       | peer1                                                                     | 三份并行 parse_log 口径漂移（engine/logparse/l2）——对照表已产，五件三点重复维持                                       |
 | ledger-scout   | scout-p2-5  | P2  | pinned  | doc          | -                                                                       | -                                                                         | ScanWarning kind 19 字面散落无注册表，docs/07 写 13（audit C3）                                                       |
 | ledger-scout   | scout-p2-6  | P2  | pinned  | doc          | -                                                                       | peer1                                                                     | 1404.5720 rc=141 SIGPIPE killed_signal 未解码（`judge._signal_attribution` 不认正 rc≥128）                            |

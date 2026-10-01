@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
-## 各家是什么与数据面
+## 各家定位与数据面
 
 **Elicit**（Ought 孵化的独立公司，AI 系统性文献综述）：语料 138M（S2 主力周更 + OpenAlex + PubMed 去重）[^elicit-corpus]。管线两阶段：自研 embedding 全库排序（被引数、发表时间作为排序特征之一）→ LLM 对 top 1000 精排/筛选[^elicit-search]。产品面 Find Papers/Systematic Review/Extract Data/Research Agent；API + 官方 MCP，Pro $49/月[^elicit-api][^elicit-pricing]。
 

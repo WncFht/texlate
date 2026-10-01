@@ -111,7 +111,7 @@
 
 | #    | 项                                                                                                                                                                             | 修价       | 依据                             |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------- |
-| MT1  | **共享缓存分发层**：index.jsonl 远端拉取 + 共享包 HTTP fetch+ 可选公共 registry 端点（静态托管即可）——「1 万篇预译秒回」的 hjfy 对等武器，BYOK 下唯一摊薄社区 token 成本的结构 | 3–5d       | product-gaps #1                  |
+| MT1  | **共享缓存分发层**：index.jsonl 远端拉取 + 共享包 HTTP fetch+ 可选公共 registry 端点（静态托管即可）——「1 万篇预译秒回」的 hjfy 对等能力，BYOK 下唯一摊薄社区 token 成本的结构 | 3–5d       | product-gaps #1                  |
 | MT2  | **批量承载底板**：tasks 分页+status 过滤接线+SSE 收敛/聚合流（消 >6 在途假死）+retention/GC（settings.retention_days+`texlate gc`）+translation_cache LRU——预译灌库前置        | 2–4d       | product-gaps #2 + frontend #1    |
 | MT3  | 首启可用 + 公网分发收口：默认 base_url 改中性值 + 未配置引导、providers 免费档说明、systemd/compose 样例、`texlate:full` tag 转正、CLI `run --live` 真翻入口                   | 1–3d       | product-gaps #3 + docs-health §3 |
 | MT4  | R1：compile/engine.py 四关注点拆分 + 掐断 fixloop↔engine 环（log 原语下移 texlog）                                                                                             | ~1d        | architecture R1                  |
@@ -130,7 +130,7 @@
 - **多任务 worker 池 + Redis 队列**：吞吐最平杠杆，但依赖存储/并发模型裁决（m3gap G2 pending）。
 - **前端打磨包**：暗色主题、Reader 拆分（1005→~500）、路由级 lazy 拆包、拖拽上传/示例论文。
 - **fixloop 规则库治理**：rules.yaml ~100 规则时 taxonomy/rules 文件级拆分+builtins 按域拆包（审计裁决维持）。
-- **e2e↔stagerun records 双 schema 家族收编**：triage LEGACY_ARM_MAP 续命中，长宜统一。
+- **e2e↔stagerun records 双 schema 家族收编**：triage LEGACY_ARM_MAP 续命中，宜统一。
 - **桌面端/M4**：Electron 形态未启动（2026-09-18 已否决，见 ADR-0019；发版载体余下 web 自托管/CLI/库未决）。
 
 ## 5. 硬约束与风险

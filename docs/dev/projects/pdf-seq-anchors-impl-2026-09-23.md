@@ -47,8 +47,8 @@ reconstruct(res, translations=None, *, mark_seq0: int | None = None,
   `mark_map` 且过安全谓词时，展开体两侧包 BDC/EMC special。包在**引用点**
   （非 `expand()` 内/memo 外）→ 同 token 多引用各自按本站判定，memo 存裸
   展开体零污染。
-- `chunk_spans`（repair_l2:307）零改动——它自建无 mark 的 `_Expander`，
-  `find(body)` 仍命中标记内侧的连续译文体，L2 归因不破。
+- `chunk_spans`（repair/attr.py:260）零改动——它自建无 mark 的 `_Expander`，
+  `find(body)` 仍命中标记内侧的连续译文体，logfix 归因不破。
 
 ### 2.2 安全谓词（tex-safety lane 硬约束）
 
@@ -76,9 +76,9 @@ chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定�
 
 | 调用点                                 | seq0 计算                                                                                                                                               |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `worker/compile.py::_build_zh` (:332)  | `ctx.scans.items()` 序累计 `len(res.chunks)`（**无条件累计**——`if not by_int: continue` 跳文件时 seq 仍须占位，与 parse.py:162 `seq=len(rows)` 同口径） |
-| `pipecore.translate_tree_run` (:407)   | `enumerate(scans)` 序累计同上                                                                                                                           |
-| `repair_l2._resplice_and_diffs` (:593) | `sum(len(run.scans[j][1].chunks) for j < fidx)`                                                                                                         |
+| `compile/splice.py::_build_zh` (:135)  | `ctx.scans.items()` 序累计 `len(res.chunks)`（**无条件累计**——`if not by_int: continue` 跳文件时 seq 仍须占位，与 parse.py:168 `seq=len(rows)` 同口径） |
+| `pipecore.translate_tree_run` (:138)   | `enumerate(scans)` 序累计同上                                                                                                                           |
+| `repair._resplice_and_diffs` (:79)     | `sum(len(run.scans[j][1].chunks) for j < fidx)`                                                                                                         |
 
 `moving` 判定由调用方对全部 vtex 扫一次
 `\tableofcontents|\listoffigures|\listoftables|hyperref` 得 `moving_ok`。
@@ -86,15 +86,15 @@ chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定�
 ### 2.4 开关
 
 `options.seq_marks`（bool，默认 on）+ `TEXLATE_NO_SEQ_MARKS` env——
-`_opt_switch`（pipecore.py:649）单源决议；worker `_build_zh` 喂
-`ctx.options()`，pipecore/repair_l2 走 env 缺省开。`_SNAPSHOT_OPTS_DROP`
+`_opt_switch`（pipecore/policy.py:25）单源决议；worker `_build_zh` 喂
+`ctx.options()`，pipecore/_logfix 走 env 缺省开。`_SNAPSHOT_OPTS_DROP`
 **不加**（偏好随克隆保留）。
 
 ### 2.5 fixloop 生命周期
 
-- **L2 resplice 自愈**：`_resplice_and_diffs` 重跑 reconstruct → 同一
+- **logfix resplice 自愈**：`_resplice_and_diffs` 重跑 reconstruct → 同一
   `mark_seq0` 参数下传即自动补标（`_retr_resplice` 同径）。
-- **失衡 lint**（`_sync_fixed_sources` compile.py:139 唯一漏斗）：每个镜像
+- **失衡 lint**（`_sync_fixed_sources` compile/splice.py:73 唯一漏斗）：每个镜像
   文件查 `/TLXC` BDC 数 == `pdf:code EMC` 数 且 MCID 无重；失衡→剥该文件
   全部 `\\special{pdf:code ...}` token（inline 可不在行首，剥 token 非剥行）
     - log，降级模糊锚。**不阻断编译**——pdf.js 对失衡本就容忍。
@@ -201,12 +201,12 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 自检→unlink+ 换 zh.pdf（硬链接件不可原地写）。
 
 **提交后回归修复**（同日复盘）：823107dc 落地后 e2e 两例红
-（`test_l2_retranslate_then_recompile`/`test_l2_fallback_verified_fixloop_off`）
+（`test_logfix_retranslate_then_recompile`/`test_logfix_fallback_verified_fixloop_off`）
 ——行首 `\special{BDC}` 前缀把 chunk span 起点推出行首偏移 `off`，
-`L2Attr.attribute` 的 `s<=off<e` 含行判失败 → forward-fallback 把行错贴给
-**前一块**（实证 hits '0:1' 而非 '0:2'，重译误入长块触发 L0 长度比 revert）。
+`LogAttr.attribute` 的 `s<=off<e` 含行判失败 → forward-fallback 把行错贴给
+**前一块**（实证 hits '0:1' 而非 '0:2'，重译误入长块触发 rules 长度比 revert）。
 
 **消费粒度后续**（2026-09-26）：§3 交付的 seq 锚消费面已由「整 seq 锚染/闪」升级为**句叶级**——悬停 hot/peer、点击跳与镜像/usages 落定闪均按 marked 叶文本重切句、取句域叶集（源侧 `pdfSentUnder` 指叶定句、对侧 u 分位 `pdfSentAt` 选句）；⌘-Inspect 检视层复用同一份 marked 面做分面命中与落点行带揭示。机制明细见 `ux-impl-2026-09-22/` 下 sent-align 档 v1.7/v1.8 节与 `⌘-inspect 修饰键检视层 实现文档.md`。
 修复 = `attribute` 增「行首到 span 起点仅 seq 锚/空白即视同含行首」判据
-（repair_l2.py:413）；回归钉 `test_attribute_through_bdc_line_head`（49/49）。
+（repair/attr.py:334）；回归钉 `test_attribute_through_bdc_line_head`（49/49）。
 教训：锚是**行内字节**——凡按行首偏移做含行判的消费面都要过这一闸。

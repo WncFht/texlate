@@ -68,7 +68,7 @@
 ### c) 发现层 / 种子集
 
 - OpenAlex lexical search + `cited_by_count` 就是现成的「某领域高引 arXiv 候选」发生器（filter 可叠 source=arXiv）。
-- OpenReview 本地缓存 9.7 万条（含 arxiv_id 预填 1.5 万）可作 ICLR/NeurIPS/ICML 系种子集来源——但 SQLite 是开发机私有缓存、随时重建，**复用方式是跑它的导出拿 CSV，而不是把 DB 当依赖**。
+- OpenReview 本地缓存 9.7 万条（含 arxiv_id 预填 1.5 万）可作 ICLR/NeurIPS/ICML 系种子集来源——但 SQLite 是开发机私有缓存、随时重建，**复用方式是跑它的导出拿 CSV（DB 不作依赖）**。
 - DBLP 目前不可用（反爬），发现层别依赖它。
 
 ### d) DOI 反查

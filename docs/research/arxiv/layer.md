@@ -4,7 +4,7 @@
 > **状态**：现行——主体结论已实装为 `src/texlate/arxiv/`（fetch/ratelimit/meta/locate/sniff/unpack/cache/html）；规范面唯一事实源 = `spec/`，本文是调研证据与设计动机记录。§9 引用排序与 §8 批量层成本模型为**未落地设计**（截至 2026-09-20）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
-本文是获取层全部调研的汇总件：单篇获取（§1–§7）已逐条销号并实装；批量层（§8）与引用排序（§9）是设计稿，渠道实测见 [bulk-channels.md](bulk-channels.md)、增量通道设计见 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)（曾落地、2026-09-21 退役）。
+汇总获取层全部调研：单篇获取（§1–§7）已逐条落实并实装；批量层（§8）与引用排序（§9）是设计稿，渠道实测见 [bulk-channels.md](bulk-channels.md)、增量通道设计见 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md)（曾落地、2026-09-21 退役）。
 
 ## 1. 端点与限流
 
@@ -25,7 +25,7 @@
 ### 1.2 请求纪律（官方条款 + 实测校准）
 
 - **UA**：描述性 + 可联系，格式 `texlate/{version} (+{repo_url}; mailto:{contact})`。arXiv 官方要求机器人自报家门，通用 UA（curl/python-urllib）更易被限[^arxiv-tou]。
-- **限速**：每 host ≥3.05s 全局间隔、零并发（官方 ≤1 req/3s、单连接条款[^arxiv-tou]）；三个 host 各自独立计时。吞吐靠批量接口（id_list / OAI / S3）不靠并行打站。
+- **限速**：每 host ≥3.05s 全局间隔、零并发（官方 ≤1 req/3s、单连接条款[^arxiv-tou]）；三个 host 各自独立计时。吞吐靠批量接口（id_list / OAI / S3）不靠并发请求。
 - **HEAD 预检**：GET 前先 `HEAD /src/{id}`——`content-disposition` 文件名直接给出 resolved 版本号 + 格式后缀（`arXiv-2203.02155v1.tar.gz` / `arXiv-0807.5094v1.gz` / `arXiv-1602.03837v1.pdf`），`content-length` 做上限检查（拒 >150MB），`etag` 做缓存重验证。一次 HEAD = hasSrc + 三态格式预检，魔数嗅探降为下载后 sanity check。
 - **重验证**：`If-None-Match` / `If-Modified-Since` 均回 304（Varnish 边界）；etag 有 `"sha256:{hex}"` 与 GCS 风格短串两形态，按不透明串原样回送。
 
@@ -36,20 +36,20 @@
 | 单请求 429 / 406 / 5xx                    | 重试 3 次：+10s → +30s → +90s（±20% jitter）；有 `Retry-After` 从其值                                  |
 | 单请求 404                                | 不重试，记 `not_found`                                                                                 |
 | 传输层错误                                | 同 429 退避                                                                                            |
-| 同 (host, path-class) 连 2 次 429/406/403 | **断路器**：该路径类整体 park 30min 起步、翻倍封顶 2h；checkpoint 落盘可恢复                           |
+| 同 (host, path-class) 连 2 次 429/406/403 | **断路器**：该路径类整体挂起 30min 起步、翻倍封顶 2h；checkpoint 落盘可恢复                            |
 | 持续 ~150 发后 /src 406                   | **按 IP 累计配额惩罚**：1–3min 自愈但密度渐升至近 100%，与 UA/Accept/代理无关 → 直采日预算 ≈150–200 发 |
 
 关键实测事实（探针证据见 [export-probes.md](export-probes.md)）：
 
 - **429 无 `Retry-After`**；唯一见过的 Retry-After 是后端超时 503 上的 `Retry-After: 0`（Varnish 模板头，无调度价值）。
-- **惩罚窗口 ≥ 小时级**：30min 静默后仍 429，原地重试是浪费配额——park 起步 30–60min，park 期间零探测。
-- **限流按路径不按 host**：`/api/query` 429 时同 host 的 `/src` `/pdf` `/abs` 照常 200（缓存命中与 MISS 回源均不受牵连）→ 断路器键是 (host, path-class)，API 被锤只 park 元数据队列，下载可继续。
-- **403 机器人封禁**：`arxiv.org/denied.html`，同出口 IP 连坐，社区实证 ~20min 自动解封[^sanity-issue80]；park 窗恰好覆盖。GET 走 Fastly 缓存、POST 绕缓存直撞限流器——保持纯 GET/HEAD。
+- **惩罚窗口 ≥ 小时级**：30min 静默后仍 429，原地重试是浪费配额——挂起 30–60min 起步，挂起期间零探测。
+- **限流按路径不按 host**：`/api/query` 429 时同 host 的 `/src` `/pdf` `/abs` 照常 200（缓存命中与 MISS 回源均不受牵连）→ 断路器键是 (host, path-class)，API 被惩罚只挂起元数据队列，下载可继续。
+- **403 机器人封禁**：`arxiv.org/denied.html`，同出口 IP 连坐，社区实证 ~20min 自动解封[^sanity-issue80]；挂起窗口恰好覆盖。GET 走 Fastly 缓存、POST 绕缓存直触限流器——保持纯 GET/HEAD。
 
 ## 2. 版本语义与缓存键
 
 - `{id}` = 最新版；`{id}v{N}` = 钉版本。裸 id 请求被解析成具体 `vN` 并写进 content-disposition 文件名。
-- **缓存键永远用 resolved version**——同一裸请求隔周可能解析到新版本；meta.json 同时存 `requested_id`（含用户输入的 v 钉）与 `resolved_version`。
+- **缓存键永远用 resolved version**——同一裸请求隔周会解析到新版本；meta.json 同时存 `requested_id`（含用户输入的 v 钉）与 `resolved_version`。
 - 版本探测：`HEAD /src/{id}v{n}` 逐版探测 404 定边界；实测 10 个知名 id 中 8 个有 v≥2（多版本是常态）。
 - source tier 缓存产物：`raw.*`（原始字节）、`extracted/`、`files.txt`、`mtree.txt`（path/size/sha256 清单）、`meta.json`、`etag`；product tier 键混入 model/pipeline_version/target_lang/glossary_hash——解析器升级只失效 product 层不重下源码。
 
@@ -66,7 +66,7 @@ bytes[0:4] == "%PDF"    → PDF 直投（无源码 → sidecar）
 ```
 
 - content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）做**预检判决**，魔数 + 解包试探做下载后复核；单文件文件名是裸 `.gz` 不是 `.tex.gz`，旧式 id 去斜杠拼接（`math/0404188` → `arXiv-math0404188v6.gz`）。
-- **macOS bsdtar 坑**：`tar -xf` 直接打 gz 压缩的非 tar 文件会在解完 gzip 后报「Unrecognized archive format」——流程必须先 gunzip → 嗅 ustar → 分流，禁止依赖 tar 的 auto-magic。
+- **macOS bsdtar 陷阱**：`tar -xf` 直接打 gz 压缩的非 tar 文件会在解完 gzip 后报「Unrecognized archive format」——流程必须先 gunzip → 嗅 ustar → 分流，禁止依赖 tar 的 auto-magic。
 - **第四态「PDF 包装壳」**（1412.6980 v9 实证）：e-print 是合法 tar.gz、有 `\documentclass` 主文件，但正文只有 `\includepdf[pages=1-last]{…}`——解包/定位全成功却无可翻内容。主文件定位后须加**正文含量检测**（剥 preamble 后正文 <2KB / `\includepdf` 探测）→ 判 `pdf_wrapper` 走降级链。详见 [probes.md](probes.md)。
 
 ### 3.2 解包安全过滤（逐成员，缺一不可）
@@ -82,11 +82,11 @@ bytes[0:4] == "%PDF"    → PDF 直投（无源码 → sidecar）
 candidates = { f | f ∈ *.tex，strip_comments(f) 含 \documentclass 或 \documentstyle }
 ```
 
-1. **先剥注释再匹配**：documentclass 选项可被注释穿插（2308.07483）；`\documentstyle` 是 LaTeX 2.09 遗留（hep-th/9901001 在跑）。剥注释注意 `\%` 转义与 verbatim 段。
+1. **先剥注释再匹配**：documentclass 选项可被注释穿插（2308.07483）；`\documentstyle` 是 LaTeX 2.09 遗留（hep-th/9901001 在跑）。剥注释须处理 `\%` 转义与 verbatim 段。
 2. 唯一候选 → 主文件；多候选依次裁决：含 `\begin{document}` 优先 → include 图的**根**优先 → 文件名先验 `main|paper|ms|root|manuscript|thesis|{id}`（顶层目录优先）→ 仍 ≥2 个独立根标 `multi_doc` 取 include-degree 最大者（2201.05989 双 documentclass 双论文实证）。
 3. 零候选 → 非 LaTeX（plain TeX `\bye` / ConTeXt `\starttext`）→ 进降级链不硬猜。
 
-`\input` 拓扑展平识别八形态：`\input{…}` / 裸 `\input file`（无括号 TeX 原生语法，1502.01589 实测 25 处——arxiv-to-prompt 在此翻车，见 [arxiv-to-prompt.md](arxiv-to-prompt.md)）/ `\include` / `\InputIfFileExists` / `\subfile` / `\import{dir}{file}` / `\subimport` / `\includestandalone` / `\CatchFileBetweenTags`；`\bibliography{x}` 映射 `x.bbl`（约半数语料自带 .bbl 直接消费）。路径解析基准序经语料实测修正为 **编译 CWD（主文件目录）→ 项目根 → including 文件目录**；扩展名补全 `.tex → .sty → 裸名`。环检测断环记 warning。
+`\input` 拓扑展平识别八形态：`\input{…}` / 裸 `\input file`（无括号 TeX 原生语法，1502.01589 实测 25 处——arxiv-to-prompt 在此失败，见 [arxiv-to-prompt.md](arxiv-to-prompt.md)）/ `\include` / `\InputIfFileExists` / `\subfile` / `\import{dir}{file}` / `\subimport` / `\includestandalone` / `\CatchFileBetweenTags`；`\bibliography{x}` 映射 `x.bbl`（约半数语料自带 .bbl 直接消费）。路径解析基准序经语料实测修正为 **编译 CWD（主文件目录）→ 项目根 → including 文件目录**；扩展名补全 `.tex → .sty → 裸名`。环检测断环记 warning。
 
 ## 5. 元数据层
 
@@ -113,7 +113,7 @@ L1  e-print 源码 ──解析/编译失败──→ L2  arXiv HTML（LaTeXML�
 ```
 
 - L1 单层源码覆盖 ~87–95%（年代敏感，见 [probes.md](probes.md) §B 大样本）；L2 覆盖集与源码集基本重合——它是异构降级（DOM 分块不复用 LaTeX scanner，规格见 [html-path.md](html-path.md)）。
-- L2 探测序：钉版 → `HEAD /html/{id}`（latest）→ 逐版本回退（窗口有界）。**latest 可能是 stub**（1412.6980v9=20KB 包装壳而 v1/v2 有完整正文）；边缘案存在 v1 404 v2 200——勿只探单版本。
+- L2 探测序：钉版 → `HEAD /html/{id}`（latest）→ 逐版本回退（窗口有界）。**latest 有 stub 形态**（1412.6980v9=20KB 包装壳而 v1/v2 有完整正文）；边缘案存在 v1 404 v2 200——勿只探单版本。
 - 状态机失败终态：`no_source | pdf_only | parse_failed | translate_failed | compile_failed | degraded_html | degraded_pdf`；`degraded_*` 也产出译文，状态位让产品层给降级提示。
 
 ## 7. 覆盖率基线（合并样本 ~250）
@@ -144,9 +144,9 @@ IA `arxiv-bulk` = S3 桶免费镜像但**冻结 2020-10**；HF `scholarweave/arx
 
 ## 10. 落地对照（2026-09-20 核 `src/texlate/arxiv/`）
 
-| 本文条目                      | 实装位置                                                      |
+| 调研条目                      | 实装位置                                                      |
 | ----------------------------- | ------------------------------------------------------------- |
-| §1 三限流桶 + 断路器 + 日预算 | `ratelimit.py`（per-host 桶、(host,path-class) park、180/日） |
+| §1 三限流桶 + 断路器 + 日预算 | `ratelimit.py`（per-host 桶、(host,path-class) 挂起、180/日） |
 | §1 export 第二桶故障转移      | `fetch.py` `DEFAULT_HOSTS` + `_across_hosts`                  |
 | §1.2 HEAD 预检 + 304 重验证   | `fetch.py` `head_src`/`get_src`/`_refresh_head`               |
 | §2 钉版缓存 + 原子发布        | `cache.py`（staging→rename+`.old` 回滚）                      |

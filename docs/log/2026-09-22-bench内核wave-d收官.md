@@ -10,7 +10,7 @@
 
 ## 验证方法
 
-评审以 workflow 对抗编排执行，每条发现须附最小复现（repro 脚本与 broot 沙箱留在 `tmp/` 下备查）。车道分两类：只读对抗 reviewer（ids/import/export/events、durability、paid path）与验证测试作者（契约测试 `tests/kernel/test_contracts.py` 25 例、集成测试 `tests/kernel/test_integration.py` 10 例——两轮产出合入测试库）。裁决原则：能复现的缺陷修代码并钉回归测试（`tests/kernel/test_adversarial_fixes.py` 为钉案专件）；判为设计内行为或不可复现者归档记录；修复经私有 index 提交协议逐车道落地，不污染他车道在飞工作。
+评审以 workflow 对抗编排执行，每条发现须附最小复现（repro 脚本与 broot 沙箱留在 `tmp/` 下备查）。车道分两类：只读对抗 reviewer（ids/import/export/events、durability、paid path）与验证测试作者（契约测试 `tests/kernel/test_contracts.py` 25 例、集成测试 `tests/kernel/test_integration.py` 10 例——两轮产出合入测试库）。裁决原则：能复现的缺陷修代码并钉回归测试（`tests/kernel/test_adversarial_fixes.py` 为钉案专件）；判为设计内行为或不可复现者归档记录；修复曾经私有 index 提交协议逐车道落地（2026-10-01 起禁用，改常规 add/commit），不污染他车道在飞工作。
 
 ## Round-2 发现分布
 

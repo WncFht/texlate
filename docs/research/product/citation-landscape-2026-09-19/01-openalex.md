@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
-## 该源是什么
+## 数据源定位
 
 OurResearch 运营的开放学术图谱，定位是 MAG/WoS 的免费替代。实体面：works/authors/sources/institutions/topics/keywords/funders/publishers/awards。
 
@@ -20,7 +20,7 @@ OurResearch 运营的开放学术图谱，定位是 MAG/WoS 的免费替代。�
 
 2026 年已是计费制 freemium，响应头打表（`x-ratelimit-cost-usd` 等）：无 key \$0.10/天、免费 key \$1/天（~1 万次 list 调用），list+filter \$0.10/千次、search \$1/千次、content(PDF) \$10/千次[^oa-auth]。**`from_updated_date` 增量 filter 在付费墙后**——免费档无法按更新日期增量拉取。Partner 档 \$20k+/年[^oa-pricing]。
 
-真正的建图通道是 **bulk snapshot**：`s3://openalex` 免账号匿名下载（`aws s3 --no-sign-request`），gzip JSONL 与 Parquet 双格式，按 `updated_date` 分区（实测 2446 个分区，manifest 记文件清单）——**增量同步=重下 manifest、只取新分区**[^oa-snapfmt][^oa-devdl]。免费快照季度更新，付费档日更 + Changefiles API + `deleted_ids.csv`[^oa-sync]。License **CC0**。注意公共桶只留当期 release，复现需自存档。
+真正的建图通道是 **bulk snapshot**：`s3://openalex` 免账号匿名下载（`aws s3 --no-sign-request`），gzip JSONL 与 Parquet 双格式，按 `updated_date` 分区（实测 2446 个分区，manifest 记文件清单）——**增量同步=重下 manifest、只取新分区**[^oa-snapfmt][^oa-devdl]。免费快照季度更新，付费档日更 + Changefiles API + `deleted_ids.csv`[^oa-sync]。License **CC0**。公共桶只留当期 release，复现需自存档。
 
 ## 可借鉴点
 

@@ -27,7 +27,7 @@
 
 ## 2. alphaXiv 详查（直接竞品候选）
 
-> 本节为 2026-09-14 注册墙外侦察口径；alphaXiv 现状的唯一事实源是 [2026-09-19-alphaxiv-reverse.md](2026-09-19-alphaxiv-reverse.md)（免鉴权 REST 面 + SDK 端点枚举的完整逆向），本节内容被其全面取代。
+> 以下为 2026-09-14 注册墙外侦察口径；alphaXiv 现状的唯一事实源是 [2026-09-19-alphaxiv-reverse.md](2026-09-19-alphaxiv-reverse.md)（免鉴权 REST 面 + SDK 端点枚举的完整逆向），此节内容被其全面取代。
 
 - **注册墙外可见**：Explore feed、搜索（含中文查询）、`/abs/{id}` 页 = AI Overview（博客式导读，嵌图/公式）、Audio、Discussion 评论楼、Similar papers、Cite、作者/机构页、GitHub 链接。`/zh/abs/{id}` 路由存在：标题 + 摘要+Overview 中译，**正文不译**（仅 "View Paper" 跳原 PDF）。
 - **功能**：AI Overview、Assistant（grounded Q&A，"Smart" 档）、行内评论/讨论、AI detection（Pangram）、MCP server（`/docs/mcp`）、Autoresearch（openresearch.sh）、Chrome 扩展（"understand-research"）[^alphaxiv]。
@@ -65,7 +65,7 @@ GitHub 实存消费端（`gh search` 实测）：
 **hjfy API 形态（第三方客户端逆向，与 `2026-09-14-hjfy-site.md` 互证）**：
 
 - `GET /arxiv/{id}` — 阅读器页；**访问即创建/prime 任务**（未登录 → `/login` 重定向）。任务无独立 POST 端点。
-- `GET /api/arxivStatus/{id}` — `{status, info}`；状态机 `start / finished / failed / error / fault`（客户端把 start/finished 都当中间态；finished 且无 zhCN 文件时会再 prime 一次——疑似「取源完成→翻译需二次触发」）。
+- `GET /api/arxivStatus/{id}` — `{status, info}`；状态机 `start / finished / failed / error / fault`（客户端把 start/finished 都当中间态；finished 且无 zhCN 文件时会再 prime 一次——指向「取源完成→翻译需二次触发」）。
 - `GET /api/arxivFiles/{id}` — `{status, msg, data:{id, title, origin, zhCN, zhCNTar, isDeepSeek}}`：`status:0`+`data.zhCN` 非空 = 译好；`status:101` 或中文「请登录」= 需登录；`msg` 文案驱动 not-ready/pending 判定（未找到/正在处理中…）。
 - 轮询范式：先查 files（`zhCN` 落地即成功），再查 status 判死；`10s × 72 ≈ 12min` 上限。版本号精确匹配（`assertExactReference`），客户端自带 vN→裸 ID 回退。
 - **设计约束**：`/arxiv/{id}` 深链是生态互操作点（所有扩展只认这个 URL），复刻时应保留同构路由；files JSON 的 `origin/zhCN/zhCNTar` 三产物命名已成事实标准。

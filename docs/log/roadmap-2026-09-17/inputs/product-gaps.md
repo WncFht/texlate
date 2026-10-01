@@ -49,7 +49,7 @@
 
 ## 3. 排序建议（按用户可见价值 × 对终目标的杠杆）
 
-1. **共享缓存分发层（M，~3–5 天）**：`index.jsonl` 远端拉取 + 共享包 HTTP fetch（复用 `unpack_share`/`share_pack_publish` 现成机械面）+ 可选公共 registry 端点（静态托管即可，2026-09-16-shared-cache.md §0 已定形）。这是「1 万篇预译秒回」的 hjfy 对等武器——BYOK 下唯一能摊薄社区 token 成本的结构，也是「所有 arXiv」最省钱的实现路径：预译者跑一次，后来者零成本。
+1. **共享缓存分发层（M，~3–5 天）**：`index.jsonl` 远端拉取 + 共享包 HTTP fetch（复用 `unpack_share`/`share_pack_publish` 现成机械面）+ 可选公共 registry 端点（静态托管即可，2026-09-16-shared-cache.md §0 已定形）。这是「1 万篇预译秒回」的 hjfy 对等能力——BYOK 下唯一能摊薄社区 token 成本的结构，也是「所有 arXiv」最省钱的实现路径：预译者跑一次，后来者零成本。
 2. **批量承载底板（M，~2–4 天）**：a) `tasks` 列表分页 + `?status=` 已有半拉子；b) `GET /api/tasks` SSE 聚合流或前端收敛（frontend.md 建议 1 同向）；c) 任务 TTL/GC：`settings.retention_days` + `texlate gc` + 启动期懒清理（tasks/{id}/ 与 files 行两层）；d) translation_cache 上限/LRU。没有这层，预译灌进几百篇后列表、磁盘、SSE 三面同时塌方。
 3. **首启可用性 + 公网分发收口（S–M，~1–3 天）**：a) 默认 base_url 指向私有 内网 地址必须改——首个 `translate` 409/未配置 → UI 引导 Settings（或 `texlate web` 首启检测无 key 弹配置页）；b) providers 预设加「自带 OpenAI 兼容端点」外的免费档说明；c) 补 systemd unit + compose 样例 + `texlate:full` 真发 tag（Dockerfile 注释段转正）。不修这条，开源发布 = 只发布给作者自己。
 4. **质量反馈/升级闭环（S–M，~1–2 天）**：`POST /api/task/{id}/feedback`（错误类型枚举 + 文本，落 `task_events`/新表）+ Reader「换模型重翻」按钮（= 新建任务预填 model，dedup 语义天然兼容）——hjfy isDeepSeek 双轨的产品化等效件，且反馈数据是 fixloop 规则与 prompt 迭代的取数口。

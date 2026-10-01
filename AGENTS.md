@@ -47,7 +47,7 @@
 - `.github/workflows/*`：`actionlint`（check）。
 - `*.tex`：**不进链**——`bench/fixtures/` 是陷阱输入，字节即语义。
 - `bench/results/`：**全链划出**（改写型 formatter 与 check 类链都不覆盖）——脚本产出目录，重跑会重写。formatter 经 ignore 文件与 hook `exclude` 划出；check 侧 markdownlint 经 `.markdownlint-cli2.jsonc` ignores、ruff 经 `ruff.toml` extend-exclude 划出，shfmt/shellcheck/taplo 因目录无对应文件类型而 vacuous。若日后往此目录入库脚本/源文件，需重新评估链覆盖。
-- gitleaks 拦 secret；`.gitleaks.toml` 目前只用默认规则。
+- gitleaks 拦 secret；`.gitleaks.toml` 只用默认规则。
 
 CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 

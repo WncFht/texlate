@@ -48,7 +48,7 @@
 - 链路全走到 compile：normalize(1/1) → translate(53 chunks) → inject(ctex line 56) → xelatex 编译失败 `File 'revtex4.cls' not found`（本机 TeX Live 缺包，非产品缺陷）
 - verdict：`fail`/no_pdf/category=missing_file，first_error 正确抓取。退出码 1
 
-### 2.5 真·用户流：arXiv id 直跑
+### 2.5 真实用户流：arXiv id 直跑
 
 - `texlate fetch 1706.03762 --cache tmp/audit-e2e/cache` → `{"status":"ok","resolved_version":7,"main_tex":"ms.tex"}`（在线，v7 钉版落缓存）
 - `texlate run 1706.03762 --cache tmp/audit-e2e/cache -w tmp/audit-e2e/run-arxiv-1706 --keep` → 命中缓存复跑全链，结果与 2.1 完全一致（155 chunks / 1.28MB PDF / 1744 CJK）

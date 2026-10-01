@@ -1,6 +1,6 @@
 # Corpus 重建终案 v4 —— 规模裁决 + 管线缺口 + 执行序列
 
-日期：2026-09-23。调研方式：5 路并行 agent 盘点（specs/hydration/selection 三路代码审计 + constraints 实测 + stats sizing）。本文件取代此前口头的 ~7.3k / ~12.8k 两版估算，为重建的准绳。
+日期：2026-09-23。调研方式：5 路并行 agent 盘点（specs/hydration/selection 三路代码审计 + constraints 实测 + stats sizing）。本方案取代此前口头的 ~7.3k / ~12.8k 两版估算，为重建的准绳。
 
 ## 0. 一句话答案
 
@@ -27,7 +27,7 @@
 
 ### 1.3 签名发现曲线（真实账本）
 
-- 原始 sig：2,238 distinct，singleton 率 75.6%，Chao1 估计总量 ~10,560 → 当前只观测到 ~21%。
+- 原始 sig：2,238 distinct，singleton 率 75.6%，Chao1 估计总量 ~10,560 → 观测覆盖 ~21%。
 - 边际产出 @n≈10k：**+173 新 sig/每 +1k 篇**，仍在近线性段。
 - 但机制族级（sig 前缀）：90 distinct，Chao1 114 → **79% 已覆盖，+2.4/1k 已饱和**。尾巴是实例参数化 sig（喂聚类，不喂规则编写）。
 
@@ -180,7 +180,7 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 - zh 工作量：9.8k ÷ 0.77 yield ≈ 12.7k 次尝试 ≈ **9.6 天 @j10** —— promo 内余量充足，scale 层 zh 可吃到 ~13k 全 zh（12.8d）仍有余。
 - 磁盘：P3 政策下 13k ≈ **107G**，须先回收 quarantine 14G + backups 6.5G 才宽松；安全阀 = scale 降到 2k。
-- 想 20k：先做存储手术（zh 工件 zstd / lake 迁盘），否则物理装不下。scale 层扩容走 `corpus_expand` 增量路径，接口已支持——**现在把 allocator 写成可增量就是为 20k 留门**。
+- 想 20k：先做存储手术（zh 工件 zstd / lake 迁盘），否则物理装不下。scale 层扩容走 `corpus_expand` 增量路径，接口已支持——**allocator 写成可增量就是为 20k 留门**。
 
 ## 5. 执行序列
 
@@ -195,7 +195,7 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 ## 6. 风险登记
 
-- splice mean 9.4MB 是磁盘刺客（.fixloop-entry.pdf 单文件均 2.8MB×250，全量中间件图 pdf 占大头）——P3 保留政策必须先定。
+- splice mean 9.4MB 是最大磁盘消耗项（.fixloop-entry.pdf 单文件均 2.8MB×250，全量中间件图 pdf 占主体）——P3 保留政策必须先定。
 - **TARS 暂存 215G**：不加 post-extract prune，fetch 阶段 alone 就爆盘——已在 Step1 列为阻断项。
 - 迁移后 spec 从未端到端跑过（v3-smoke* 全 dedup-skip 空跑）——彩排是硬门。
 - TIGER 3.7MB/s 主导 fetch 时间；IA 段快。era 混合 40/60 已计入。

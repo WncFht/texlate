@@ -256,7 +256,7 @@ for rnd in 1..max_rounds(8):
 | `stubs/` | 26 件                                                                                                                     | 许可禁分发件的最小宏面 stub——签名按 corpus 真件参数形状逐条对齐（吞参形状错位即吃调用点 token） |
 | `shims/` | 9 件 .cls 替身（aipproc/imsart/JHEP3/JHEP/mn2e/mn/revtex/svjour3/svjour）                                                 | 受限 cls 重写替身                                                                               |
 
-`_vendored_source` basename 按 `files→stubs→shims` 序查件（basename 跨层唯一）；`_resolve_site` 保 payload 相对径落位；`_inject_write` 指纹闸（外来件永不覆写，旧代注入件可刷新）。`doc_absent_stub`：版本缀 sibling 搬真件否则空 stub；`fileset_relocate`：稿自带件归位 `<main_dir>/`；`find_vendored_shadows`：工程自带旧 .sty 遮蔽已装新版——按 `\ProvidesPackage` 日期面确证（ld<sd）才 rename 隔离，盲删必死（同目录 cls 可能是唯一来源）。
+`_vendored_source` basename 按 `files→stubs→shims` 序查件（basename 跨层唯一）；`_resolve_site` 保 payload 相对径落位；`_inject_write` 指纹闸（外来件永不覆写，旧代注入件可刷新）。`doc_absent_stub`：版本缀 sibling 搬真件否则空 stub；`fileset_relocate`：稿自带件归位 `<main_dir>/`；`find_vendored_shadows`：工程自带旧 .sty 遮蔽已装新版——按 `\ProvidesPackage` 日期面确证（ld<sd）才 rename 隔离，盲删必死（同目录 cls 常就是唯一来源）。
 
 ### 6.8 cases 沉淀（`cases.py`）
 

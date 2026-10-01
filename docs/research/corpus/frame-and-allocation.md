@@ -1,14 +1,14 @@
 # 抽样 frame 与簇/配额分配（corpus_v3 A3 回填）
 
-> **结论**：以 `librarian-bots/arxiv-metadata-snapshot`（CC0）建成 3,164,528 行 × 14 列的分层 frame，新式 id 覆盖 99.9994%、旧式序号实测连续——快照可作无偏 frame；30 月簇（IA 24 + TIGER 6）按带内累计论文量等分位取月，核心 1,000 = 每带 200 × 5 带，配额、坑清单、可发布子集预测全部落定并执行。
+> **结论**：以 `librarian-bots/arxiv-metadata-snapshot`（CC0）建成 3,164,528 行 × 14 列的分层 frame，新式 id 覆盖 99.9994%、旧式序号实测连续——快照可作无偏 frame；30 月簇（IA 24 + TIGER 6）按带内累计论文量等分位取月，核心 1,000 = 每带 200 × 5 带，配额、陷阱清单、可发布子集预测全部落定并执行。
 > **状态**：已完成（frame 已建成并驱动 2026-09-15/16 实际抽样；分层计数与簇清单为 2026-09-14 快照口径）。现行语料层口径见 `bench/corpus/MANIFEST.md`。
 > **日期**：2026-09-14
 
-数据源：HF `librarian-bots/arxiv-metadata-snapshot`（CC0，lastModified 2026-09-14，10 shards）。约束遵守：全程只触 huggingface.co / archive.org（IA 尺寸校准），未请求 arxiv.org / AWS S3。
+数据源：HF `librarian-bots/arxiv-metadata-snapshot`（CC0，lastModified 2026-09-14，10 shards）。约束遵守：全程只访问 huggingface.co / archive.org（IA 尺寸校准），未请求 arxiv.org / AWS S3。
 
 ## 1. frame 构建方法
 
-duckdb + httpfs 列裁剪远程扫全量 10 shards ≈122s（经本地代理），未落全量；只取 6/14 列（abstract/authors/title 等 8 列弃取不传输）：
+duckdb + httpfs 列裁剪远程扫全量 10 shards ≈122s（经本地代理），未落全量；只取 6/14 列（abstract/authors/title 等 8 列不取不传输）：
 
 ```sql
 SELECT id,
@@ -68,7 +68,7 @@ cat_group 映射（对计划的微调：旧 archive 名归并——`alg-geom/dg-
 | eess-stat-etc |       1,818 |       8,288 |      23,400 |      51,622 |       103,403 |      19,865 |
 | **带合计**    | **400,888** | **325,304** | **493,421** | **598,334** | **1,104,329** | **242,252** |
 
-读法：a 带 hep-phys 37% 独大、cs 仅 1.9%；e 带 cs 40% 反超。**cs 源码异质性风险集中在 d/e 带**——补强 B04 落在这两带的簇。
+解读：a 带 hep-phys 37% 独大、cs 仅 1.9%；e 带 cs 40% 反超。**cs 源码异质性风险集中在 d/e 带**——补强 B04 落在这两带的簇。
 
 ### 3.2 license_class × year_band
 
@@ -90,7 +90,7 @@ a 带 99% missing（2004 前无许可环节）；e 带 CC 系 ~53%。license 词
 
 - 每带 **6 簇**（≥4 下限满足；30 簇 × ~33 = 1,000 与计划吻合）。
 - 簇月 = 带内**累计论文量等分位点**（(i+0.5)/6, i=0..5）：自然按论文密度加权，又保证覆盖带首带尾。
-- 抽样宇宙：a 带 **1995-01 起**（9107-9412 共 20,396 篇化石层有意排除，2.09 遗存由补强层在 ≤2000 簇挖）；d 带宇宙含 2011/2012（TIGER 有、IA 无的两月，分位点未选中）；e 带宇宙 **≤2501**（TIGER 截止；2502-2512 共 ~26.5 万篇不可达）。
+- 抽样宇宙：a 带 **1995-01 起**（9107-9412 共 20,396 篇回填旧稿有意排除，2.09 遗存由补强层在 ≤2000 簇挖）；d 带宇宙含 2011/2012（TIGER 有、IA 无的两月，分位点未选中）；e 带宇宙 **≤2501**（TIGER 截止；2502-2512 共 ~26.5 万篇不可达）。
 
 ### 4.2 簇清单
 
@@ -150,9 +150,9 @@ a 带 99% missing（2004 前无许可环节）；e 带 CC 系 ~53%。license 词
 
 落地后实际配额为 a43/b45/c21/d53/e38（B01–B07 底线达标，W-mech 103/109），见 `bench/corpus/MANIFEST.md`。
 
-## 5. 坑与字段异常实测记录
+## 5. 陷阱与字段异常实测记录
 
-1. **`versions[1]` 恒为 v1**：3,164,528 行全量验证——empty=0、`versions[1].version='v1'`=100%、created 100% 可按 `%a, %d %b %Y %H:%M:%S GMT` strptime。文档坑未触发，但 frame 仍保留 raw created 供复核。
+1. **`versions[1]` 恒为 v1**：3,164,528 行全量验证——empty=0、`versions[1].version='v1'`=100%、created 100% 可按 `%a, %d %b %Y %H:%M:%S GMT` strptime。文档所列陷阱未触发，但 frame 仍保留 raw created 供复核。
 2. **id 月 ≠ v1 月**：新式 84,576 行（3.1%）、旧式 4,252 行（1.0%）。新式 +1 月占 77,650（月末提交滚入次月公布号段），+2..+21 月长尾（moderation hold）；旧式含 pre-1991 backfill 尾（v1.created 早于 id 月最多 98 个月，如 `math/9201203` created=1989-10）。**簇归属必须用 id 内嵌 yymm（tar_yymm），不能用 first_version_yymm**——月度 tar 按公布月打包。
 3. **yymm 字符串比较在 2000 年界断裂**：'0612'<'9501'。所有区间判定必须先转年序键（yy<91→1900+ else 2000+）。
 4. **shard 不按时序聚簇**：单 shard 内 v1 横跨 2009-2017（update_date 聚簇），任何年代统计必须全扫——httpfs 列裁剪 ~12s/shard 可接受，无需落地全量。

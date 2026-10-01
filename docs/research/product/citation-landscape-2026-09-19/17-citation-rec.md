@@ -22,7 +22,7 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 
 - **CPA**（Gipp & Beel 2009）：两篇被引文献在引用方正文中出现位置越近关联越强——位置加权共被引；论文内 mention 次数、同句/同段是免费高质量信号（前提是有引用方全文）[^gipp09]。
 - **意图分类**：Teufel 2006 首个监督 citation function 分类[^teufel06]；Jurgens et al. 2018 的 6 类 citation frame（background/motivation/uses/extends/compares/future）经远程监督扩到 134k 条且能预测未来引用量[^jurgens18]；scite 的 smart citations 是该谱系工业化形态。
-- **influential citation**：Valenzuela/Ha/Etzioni 2015 监督分类器 P65@R90，是 S2 `isInfluential` 字段的产品基础[^valenzuela15]；**Pride & Knoth 2017：只有 10.3–17.9% 的引用真正 influential**，其余仪式性/装饰性，判别 top 特征是正文内 mention 次数与被引摘要相似度[^pride17]。含义重大：原始引用数把 ~85% 装饰引用与 15% 实质引用等权——能用上下文特征给边加权的系统有结构性质量优势。
+- **influential citation**：Valenzuela/Ha/Etzioni 2015 监督分类器 P65@R90，是 S2 `isInfluential` 字段的产品基础[^valenzuela15]；**Pride & Knoth 2017：只有 10.3–17.9% 的引用真正 influential**，其余仪式性/装饰性，判别 top 特征是正文内 mention 次数与被引摘要相似度[^pride17]。原始引用数因此把 ~85% 装饰引用与 15% 实质引用等权——能用上下文特征给边加权的系统有结构性质量优势。
 
 ## 影响力与归一化度量
 
@@ -33,8 +33,8 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 
 - **自引**：WoS 2016 全库量化——作者自引约占 5% 均值，但尾部极端（1822 人自引比 >0.5）[^kacem20]；按口径与领域 5–15% 区间[^szomszor20]。**建边时必须打 self-citation flag（作者交集非空），排序/计数可选剔除**。
 - **胁迫引用**：~1/5 受访作者报告经历过编辑/审稿人胁迫引用[^wilhite12]——边的生成动机本身有噪声。
-- **抽取管线是第一道门**：ParsCit 参考文献串精确匹配仅 ~40%、GROBID 更好仍有损；**unarXive 是决定性对照——从 arXiv LaTeX 源直抽得干净全文 +2920 万条结构化 citation context（含位置）**[^unarxive]。LaTeX 源侧抽取在边质量与 context 覆盖上对 PDF 管线是结构性优势——有 LaTeX 源的自建方免费红利，PDF 侧玩家补不平。
-- **模型会作弊**：Citeomatic（Bhagavatula et al. 2018）实证——metadata 特征让模型学到「作者爱引自己」捷径，必须显式去自引偏置[^bhag18]。
+- **抽取管线是第一道门**：ParsCit 参考文献串精确匹配仅 ~40%、GROBID 更好仍有损；**unarXive 是决定性对照——从 arXiv LaTeX 源直抽得干净全文 +2920 万条结构化 citation context（含位置）**[^unarxive]。LaTeX 源侧抽取在边质量与 context 覆盖上对 PDF 管线是结构性优势——持 LaTeX 源的自建方零成本得利，PDF 侧方案无法补齐。
+- **模型的捷径学习**：Citeomatic（Bhagavatula et al. 2018）实证——metadata 特征让模型学到「作者爱引自己」捷径，必须显式去自引偏置[^bhag18]。
 
 ## 选型四层建议（按依赖递增）
 
@@ -45,7 +45,7 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 
 ## 结论
 
-一句话：BC 打底保冷启动，直接引用保前沿速度，局部衰减 PageRank 管排序，上下文特征管质量，自引 flag 管博弈——每层都有对照实验背书，成本递增可逐层落地。
+BC 打底保冷启动，直接引用保前沿速度，局部衰减 PageRank 管排序，上下文特征管质量，自引 flag 管博弈——每层都有对照实验背书，成本递增可逐层落地。
 
 ### 参考文献
 

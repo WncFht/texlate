@@ -47,7 +47,7 @@ share key 组分按下序 `|` 拼接进 sha256（七必备 + 可选 `front_matte
 
 版本漂移语义：用户提交 `1706.03762`（无 v）→ 取源阶段 resolve 出具体版本（如 v5）→ **进键的是 resolved 版本**。arXiv 日后发 v6 时，同一请求 resolve 出 v6 → 新 key → 旧包自然失效不串味；而显式要 v5 的请求继续命中 v5 的包。`""`（latest）只是上传时刻的别名形态，不用于回读寻址——消费端总是先 resolve 再查。
 
-两个刻意决策值得记：其一，`model` 组分的含义是「译文内容生产者」——BYOK 下 Alice 用 deepseek 译出的包不会命中 Bob 用其他模型的请求，这不是缺陷而是特性（用户只检索自己信任的模型池）；要做「跨模型共享」是另一层产品决策（比如白名单模型互通），v1 不做。其二，`pipeline_ver` 之前的组分（含 `front_matter`）禁止含 `|`（否则分隔歧义可撞键），`pipeline_ver` 是末位组分允许自带 `|`——`worker.PIPELINE_VERSION` 本就长成 `texlate-{ver}|{prompt_ver}`，末位含分隔符无解析歧义。
+两个刻意决策：其一，`model` 组分的含义是「译文内容生产者」——BYOK 下 Alice 用 deepseek 译出的包不会命中 Bob 用其他模型的请求，这不是缺陷而是特性（用户只检索自己信任的模型池）；要做「跨模型共享」是另一层产品决策（比如白名单模型互通），v1 不做。其二，`pipeline_ver` 之前的组分（含 `front_matter`）禁止含 `|`（否则分隔歧义可撞键），`pipeline_ver` 是末位组分允许自带 `|`——`worker.PIPELINE_VERSION` 本就长成 `texlate-{ver}|{prompt_ver}`，末位含分隔符无解析歧义。
 
 组分归一化实装口径（`share.py`）：各组分进键前逐组分 `strip()`；`front_matter` 非空才记入 key_parts（缺席即与前置全盖过的历史包七组分形完全一致）。manifest 侧 `_key_parts` 同口径归一，且 `version`/`glossary_hash` 两可空组分的 JSON `null` 与 `""` 同义（latest 别名/无术语表），其余五必备组分 `None` 或 strip 后空串按缺键拒（`ShareError`）；`version` 另过 `_norm_version`（`3`/`"v3"`/`None` → `v3`/`""` 归一形）。
 
@@ -89,7 +89,7 @@ manifest.json schema:
 
 `key_parts` 另有可选 `front_matter` 字段（preamble 前置发射集排序清单）：非空才在场、重算时插在 `pipeline_ver` 前进键；缺席即七组分形，与「前置全盖过」的历史包同键。worker 侧由 `share_pack_manifest` 按 `ran_front_matter` 实跑集派生，导入端 `share/import` 按 manifest 值锁回任务 options。
 
-为什么是 `dual.json` 而不是 `zh-src.zip` 当载荷：`zh/` 树是 splice 的**结果**——消费端若直接展开它就没法重跑 splice/validate，信任模型就空了。`dual.json` 的 `chunks[]` 恰好是 xlat 阶段的输出物形态：消费端把它按 `src_file` + `en` 文本对账到本地 parse 出的 chunks，再从 splice 开始全程本地跑——「只信翻译内容，不信任何下游产物」。`zh-src.zip` 留在包里是冗余但与 hjfy `{id}_zh_CN.tgz` 公开下载同形，人类可直接取用。
+选 `dual.json` 而非 `zh-src.zip` 当载荷的理由：`zh/` 树是 splice 的**结果**——消费端若直接展开它就没法重跑 splice/validate，信任模型就空了。`dual.json` 的 `chunks[]` 恰好是 xlat 阶段的输出物形态：消费端把它按 `src_file` + `en` 文本对账到本地 parse 出的 chunks，再从 splice 开始全程本地跑——「只信翻译内容，不信任何下游产物」。`zh-src.zip` 留在包里是冗余但与 hjfy `{id}_zh_CN.tgz` 公开下载同形，人类可直接取用。
 
 包完整性实装面：`pack_share` 对每个产物**单遍流式读**（`_pack_member`：1MB 块经 `zf.open()` 成员流边写边算 sha256）——manifest 记的是真实入包字节流的指纹，同一份字节既进 sha256/bytes 对账字段又写 zip 成员，消灭「对账到写入之间文件被改 → 包自矛盾」的 TOCTOU；发布走临时文件 + 原子 rename（并发同键打包/静态托管读取不见半成品）；单产物 >256MB（`_MEMBER_MAX`）拒（stat 预检之外，循环内实时字节计数兜底 stat 后文件增长）。`unpack_share` 校验序：zip 可读 → `manifest.json` 在场且 ≤1MB（`_MANIFEST_MAX`）→ `format`/`key_parts`/`share_key` 重算自洽 → `artifacts` 逐条校验（产物名扁平白名单 `_name_ok`：拒 `/`、`\`、NUL 与 >255B 名；sha256 定长 64hex；`bytes` ∈ [0,256MB] int）→ 逐成员 size+sha256 对账；只抽 manifest 登记成员（多余成员忽略，天然免 zip-slip）；产物先落 `dest` 内临时目录、全部对账过才逐件 rename——中途失败 `dest` 零残留。
 
@@ -103,9 +103,9 @@ manifest.json schema:
 4. splice → L0/L1 validate → compile → judge **全部本地重跑**；
 5. 编译侧任一步不过 → 该任务按普通 partial/reject 终态收口（`reject_at=share_verify` 等留痕），不消耗 token 重译。
 
-效果边界要说清楚：恶意贡献者能造成的最坏结果是「让下载者多跑一遍 validate/compile 后发现不可用」——**浪费一次编译，不会产出坏 PDF，也不会消耗 token**（除非对账后残留段需要补译）。哈希对账 + share_key 自校验防的是传输损坏与索引错配，**不防伪造**——防伪靠的是消费端重跑管线，编译不撒谎。这与 hjfy 把 `{id}_zh_CN.tgz` 公开下载的信任结构一脉相承：产物可验证，所以敢分发。
+效果边界：恶意贡献者能造成的最坏结果是「让下载者多跑一遍 validate/compile 后发现不可用」——**浪费一次编译，不会产出坏 PDF，也不会消耗 token**（除非对账后残留段需要补译）。哈希对账 + share_key 自校验防的是传输损坏与索引错配，**不防伪造**——防伪靠的是消费端重跑管线，编译不撒谎。这与 hjfy 把 `{id}_zh_CN.tgz` 公开下载的信任结构一脉相承：产物可验证，所以敢分发。
 
-`zh.pdf` 的角色要分清：它是贡献者侧的编译**证据**（证明这组译文至少在某环境编出了 PDF）与下载菜单的预览物，**不是交付物**——阅读器展示的 PDF 必须是本地重编产物。极端情况（贡献者环境修出了消费端修不出的包）由 fixloop 差异兜住，最差是漏段回原文的 partial 终态——v1 不为导入任务回退自译（零 token 承诺）。
+`zh.pdf` 的角色：它是贡献者侧的编译**证据**（证明这组译文至少在某环境编出了 PDF）与下载菜单的预览物，**不是交付物**——阅读器展示的 PDF 必须是本地重编产物。极端情况（贡献者环境修出了消费端修不出的包）由 fixloop 差异兜住，最差是漏段回原文的 partial 终态——v1 不为导入任务回退自译（零 token 承诺）。
 
 ## 6. opt-in 上传与隐私
 
@@ -115,13 +115,13 @@ manifest.json schema:
 
 隐私面逐组分审过：share key 各组分无凭证/身份；`contributor` 是本地生成的 `c-<16hex>` 匿名 id——刻意不复用 api key 指纹，避免「同一贡献者的所有包」被关联；包内四成员均不含凭证（compile.log 经 `scrub()` 打码才进 files 表，且本就不进包）。自定义 glossary/自定义 prompt 措辞会改变 glossary_hash/prompt_ver → 自然分到不同 key：私有术语表用户的包不污染默认术语表池，反之亦然——**配置差异即隔离，无需额外访问控制**。
 
-一个诚实的提醒：缓存存在性本身是 oracle——任何人可用 share key 探测「某论文是否已被某模型译过」。这与 hjfy 已译列表本就公开同语义，可接受；`per_key` scope 的本地 dedup 与共享上传是两件事，凭证分桶只约束本地表。
+隐私面残余暴露：缓存存在性本身是 oracle——任何人可用 share key 探测「某论文是否已被某模型译过」。这与 hjfy 已译列表本就公开同语义，可接受；`per_key` scope 的本地 dedup 与共享上传是两件事，凭证分桶只约束本地表。
 
 ## 7. 服务端形态（v1 不锁定实现）
 
 文件级起步：包按 `{share_key}.share.zip` 落在任意静态托管/对象存储（GitHub Releases / OSS / R2 皆可），旁挂 `index.jsonl`，每行一条 `{share_key, url, key_parts, bytes, created_at, contributor}`。查 = 拉 index 或直拼 `GET {key}` 路径 → 取包 → 本地校验；上传 = 生成包 → 推对象存储 → 追加 index 行。
 
-这么选的理由：共享缓存的价值在数据不在服务——先把包格式与信任模型冻结，服务端可以是仓库附件、社区成员自托管、或后续正式 API 中的任何一个，格式都不变。需要排序/GC/举报机制时再加服务层，顺序不反。
+选型理由：共享缓存的价值在数据不在服务——先把包格式与信任模型冻结，服务端可以是仓库附件、社区成员自托管、或后续正式 API 中的任何一个，格式都不变。需要排序/GC/举报机制时再加服务层，顺序不反。
 
 ## 8. 模块面（`src/texlate/share.py`）
 

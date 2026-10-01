@@ -5,9 +5,9 @@
 > **状态**：时点证据（329 任务 1,255 tick 全量回放口径）——结论已落地 cite-translate lane
 > **日期**：2026-09-22
 
-问题：卡片按钮能否用 idle→queued→running→done/failed 状态机 + chunks done/total 百分比驱动？
+检验命题：卡片按钮以 idle→queued→running→done/failed 状态机 + chunks done/total 百分比驱动。
 
-答：状态机可行（但有环、需要快照兜底）；裸 done/total 百分比不可行——需 band 映射。
+结论：状态机可行（但有环、需要快照兜底）；裸 done/total 百分比不可行——需 band 映射。
 
 ## 数据面
 

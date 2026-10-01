@@ -4,7 +4,7 @@
 > **状态**：现行（已落地为 `latex/gullet/` + `latex/segmenter/`，v2 为唯一解析路径，v1 字节 scanner 已删除；规范见 `spec/latex-pipeline.md`）
 > **日期**：2026-09-15
 
-本文回答「v1 字节状态机分段器怎么变成 `next_expanded()` 的消费者」——gullet 侧规格见 `expansion-design.md`。记录含设计契约与 S2–S4 落地实测；开发机 bench 现场（parsebench 归档、双跑 diff）不随库发布，结论已摘要进正文。
+记录 v1 字节状态机分段器重写为 `next_expanded()` 消费者的设计契约与 S2–S4 落地实测——gullet 侧规格见 `expansion-design.md`；开发机 bench 现场（parsebench 归档、双跑 diff）不随库发布。
 
 ## 0. 总形状
 
@@ -51,7 +51,7 @@ run 项升级为 `(surface, ident)` 双轨：
 
 ## 4. gullet 侧配套缺口（已全部实施）
 
-落地时补齐的 gullet 侧机制：`_consumed` marker 族（`def:`/`newcmd:`/`newenv:`/`newtheorem:`/`mathop:`/`xparse:`/`let:`/`newif:`/`catcode:`/`if:`/`input:`/`endinput` 系）、`Mouth.resync` + `gullet.skip_past(fid,pos)`（tokbuf 残骸剔除、栈深找 fid、i 只前进）、`_stamp_call_origin` 补打整调用区间。segmenter 侧实测补丁五条（v1→v2 移植的真实坑，均为留档级陷阱）：
+落地时补齐的 gullet 侧机制：`_consumed` marker 族（`def:`/`newcmd:`/`newenv:`/`newtheorem:`/`mathop:`/`xparse:`/`let:`/`newif:`/`catcode:`/`if:`/`input:`/`endinput` 系）、`Mouth.resync` + `gullet.skip_past(fid,pos)`（tokbuf 残骸剔除、栈深找 fid、i 只前进）、`_stamp_call_origin` 补打整调用区间。segmenter 侧实测补丁五条（均为 v1→v2 移植暴露的留档级陷阱）：
 
 - **零宽 span 是 falsy**：`Span.__len__` = `end-start`，`x or Span(0,0)` 式兜底会把 `Span(v,v)` 落成 `Span(0,0)`——判空一律 `is None`。
 - **组内 consumed marker 不破组界**：gen>0 marker 的 pos 是定义体区段（早已覆盖、零宽即可）；`\document` 级大宏展开体内含 def/if/input marker 属常态；仅 input 型组内也记 `inputs[]`。

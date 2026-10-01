@@ -1,7 +1,7 @@
 # ADR-0003 宏展开机：Mouth/Gullet/Segmenter 三段 + 单遍即时展开
 
 > **状态**：现行
-> **日期**：2026-09-15（05 裁决 2）| 更新 2026-09-16（v2 包切替）
+> **日期**：2026-09-15（05 裁决 2）| 更新 2026-09-16（gullet/segmenter 独立包切替）
 
 ## 上下文
 
@@ -16,7 +16,7 @@
 - Segmenter：段落切分 + pieces/chunks/占位符（产出形态见 ADR-0002）。
 - **铁律：splice 永远用调用点字节，gen>0 展开产物只做分类器输入，永不进 splice**。
 - `\if` 结构化配对不求值：`\iffalse` 丢块 / `\iftrue`·已知旗标留块 / `\ifmmode` 取数学支 / 未知旗标整段字面；判定前置查宏表（`\ifb` 单位宏、`\ifAnonymous{T}{F}` 双参宏两个陷阱）；`\newif` 旗标不入条件栈。
-- `\def` 定界参 v1 当 opaque（15 例/7 文档，损失十几个调用点）。
+- `\def` 定界参按 opaque 处理（15 例/7 文档，损失十几个调用点）。
 - 不做：catcode 重定义/halign/active chars/完整 TeX 求值器（损失 ≤1/39）；绝不加载真实 `.sty`/`.cls`（plasTeX 教训：静默截断）。
 - 资源限：gen≤32 / steps≤100k / inputs≤8 / dep≤4，实测余量充足。
 - transparent 判据：宏体去控制序列后连续 letters ≥12–20 的宏，调用点参数参与分段；纯结构宏展开为等价命令后按该命令保护。
@@ -32,10 +32,10 @@
 
 ## 演变
 
-- 2026-09-15：v1 在 scanner 内嵌展开；E5 抓出的 `\input file` 裸文件名形式补识别。
-- 2026-09-16：v2 `gullet/`+`segmenter/` 独立包替换 v1 scanner，默认切换（splice 残留占位符 1524→0）；`argspec.json` 1820 条签名入包、审计期零装载 GAP。
+- 2026-09-15：初版在 scanner 内嵌展开；E5 抓出的 `\input file` 裸文件名形式补识别。
+- 2026-09-16：`gullet/`+`segmenter/` 独立包替换 scanner 内嵌形态，默认切换（splice 残留占位符 1524→0）；`argspec.json` 1820 条签名入包、审计期零装载 GAP。
 - E20 回填三缺口：`/subfile{}` 展开且 `\end{document}` 只在顶层截停、巨型原子 chunk 超阈值二次切分、零文本论文优雅跳过走降级。
 
 ## 现状
 
-实现落在 `latex/gullet/`（`core`/`expand`/`defcmd`/`entries`/`args`/`cond`/`classify`/`decls`/`input`/`names`/`tokutil`）与 `latex/segmenter/`（`core`/`mainloop`/`args`/`env`/`group`/`pending`）两包，`mouth.py`/`flatten.py` 供输入展平；`latex/data/argspec.json` 调度命令族与参数签名。v2 为唯一解析路径，v1 已退役。
+实现落在 `latex/gullet/`（`core`/`expand`/`defcmd`/`entries`/`args`/`cond`/`classify`/`decls`/`input`/`names`/`tokutil`）与 `latex/segmenter/`（`core`/`mainloop`/`args`/`env`/`group`/`pending`）两包，`mouth.py`/`flatten.py` 供输入展平；`latex/data/argspec.json` 调度命令族与参数签名。此形态为唯一解析路径，早期 scanner 内嵌展开已退役。

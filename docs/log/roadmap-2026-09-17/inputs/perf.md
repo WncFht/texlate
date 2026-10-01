@@ -6,7 +6,7 @@
 >
 > 只读侦察，2026-09-17。数据源：`bench/results/stagerun-loop1-2026-09-16/records/*.jsonl`（63,316 行、~5043 ids、corpus_v3 全层、mock n≈11.6k + real n=48 双 xlat 臂）+ `bench/results/realn200-2026-09-17/records.jsonl`（200 ids e2e 实网关）。`dur_s` 为行级 `time.monotonic()` 墙钟；行内 `metrics.*.seconds` 分引擎/管线内耗时与 harness 外耗。
 
-## 1. 头条口径修正：xlat `dur_s` 是排队等待不是功
+## 1. 头条口径修正：xlat `dur_s` 计的是排队等待
 
 `stage_xlat.py:186` 的 `t0` 打在 `async with paper_sem`（`:188`，jobs=8 跨 ~5k 篇）**之前**——xlat `dur_s` ≈ 99.6% 跨论文排队等待（mock 臂 dur 合计 7,143,562s vs inner 26,235s；dur 与 chunks/src_chars/files/inner 相关 ≈ 0.0，0–1900s 均匀排队分布）。compile/fixloop/parse 走 `ThreadPoolExecutor`，dur_s 是净功。**在 t0 挪进 sem（~1 行）或加 `queue_wait_s` 字段前，任何用 xlat dur_s 算的 stage 占比都不可信**——本条同时是热点 #4（度量件自身缺陷）。
 
@@ -23,7 +23,7 @@
 ## 3. Top-5 热点
 
 1. **网关翻译延迟 ≈ e2e 墙钟 97%**——分解为 `ceil(batches/concurrency) × ~15.5s`；realn200 中位 97.5 chunks → 49 batches，attempts/chunks 仅 1.013（重试非罪魁，裸延迟是）。**server 任务跑 concurrency=3**（`worker/translate.py:120`）而管线 `DEFAULT_CONCURRENCY=10`（`pipeline.py:66`）：49-batch 论文 server 侧 ≈ 17 波 ≈ 260s vs 10 并发 ≈ 5 波 ≈ 78s。杠杆：server 默认 3→10（多 batch 论文估 ~3×）、`batch_max_chars` 上调（调用数减）、供应商延迟。
-2. **xelatex 调用体量**——compile stage 引擎 72,989s / 15,948 次；85% 行吃 2 passes（TOC/refs 二遍）；fixloop 每行再补 ~~4.3s post-verify 编译（合计 30,045s）实质重跑一遍引擎刚跑过的编译。杠杆：无 ref/toc delta 时单遍跳过；fix-end verdict 已 clean 时去重 post-verify；估 fail-path 群 −40~~50% 引擎秒。
+2. **xelatex 调用体量**——compile stage 引擎 72,989s / 15,948 次；85% 行吃 2 passes（TOC/refs 二遍）；fixloop 每行再补 ~4.3s post-verify 编译（合计 30,045s）实质重跑一遍引擎刚跑过的编译。杠杆：无 ref/toc delta 时单遍跳过；fix-end verdict 已 clean 时去重 post-verify；估 fail-path 群 −40~50% 引擎秒。
 3. **fixloop 引擎墙**——67,121s、4.55s/round × 均 2.09 rounds；`unfixable:*` 行（437）仍烧完 rounds 才宣判。杠杆：已知不可修签名前置 category 预判跳轮。
 4. **xlat dur_s 度量件伪影**（§1）——堵住诚实 stage 核算；修 = t0 挪进 sem 或记 `queue_wait_s`。
 5. **重复 scan + O(n²) 状态写**——`_translate_tree` 每臂重跑 `e2e._scan_tree`（parse.json 已存在，xlat 重分整树，在未计时外区）；`StateStore.save_every=1`（`state.py:169-176`）每 chunk 重写整份 state.json（自注 O(n²)），`save_cache` 同模式按文件重写。有界未测；估秒级/篇非分钟级。

@@ -66,14 +66,14 @@
 
 ## 二、16 skipped 逐条归因
 
-| 用例                                         | 门控                                       | 本机可解开？                                                                                                                                        |
+| 用例                                         | 门控                                       | 本机可解判定                                                                                                                                        |
 | -------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | test_arxiv_fetch live ×1                     | `TEXLATE_LIVE=1`                           | 可解（需真网）——设计内网络门                                                                                                                        |
 | test_xlat_gateway_smoke ×2                   | `TEXLATE_LIVE=1`                           | 可解（需网关）——设计内网络门                                                                                                                        |
 | test_compile_engine_judge sandbox profile ×1 | `sys.platform == darwin` + sandbox-exec    | **不可解**（平台正确门控；Linux 侧 passthrough 已测）                                                                                               |
 | test_validate_l1 ×4                          | `bench/ts/node_modules/tree-sitter` 存在性 | **可解未解**：node v24 在场、`bench/ts/package.json`+lock 入库，`npm ci` 即恢复                                                                     |
 | test_validate_l2 ×6                          | `bench/work_compile/<paper>` 5 篇钉死      | **陈旧门**：目录已改名 `work_compile_v4` 且 v4 抽样换了语料（5 篇钉死论文全不在）；需重跑旧 compilebench 采样或把断言重钉到 v4 现存 log             |
-| test_fixloop_spikereplay ×2                  | `bench/work_fixloop` 目录存在性            | **陈旧门**：现存 `work_fixloop_cbv4/v2/v3/v3_ds`（479 log）；重放断言是 spike 时代口径（22 格/soul_err 残错），直接指过去大概率断言不过，需核对重钉 |
+| test_fixloop_spikereplay ×2                  | `bench/work_fixloop` 目录存在性            | **陈旧门**：现存 `work_fixloop_cbv4/v2/v3/v3_ds`（479 log）；重放断言是 spike 时代口径（22 格/soul_err 残错），直接指过去即断言不过，需核对重钉 |
 
 可归一化结论：16 条里 3 条是设计内 live 门、1 条平台门、**12 条是本机环境/陈旧路径造成的静默失活**（L1×4 一条 `npm ci` 全恢复；L2×6 + spikereplay×2 需重跑 bench 或重钉断言）。
 

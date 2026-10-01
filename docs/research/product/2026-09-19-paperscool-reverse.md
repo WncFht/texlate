@@ -1,7 +1,7 @@
 # papers.cool 逆向调研报告
 
 > **结论**：papers.cool 协议面已完全探明、复制成本极低——刻意做薄的「刷论文」前端，全部个性化在 localStorage；真正不可复制的是 Kimi 官方买单的生成配额。与 texlate 不在同一层（它做「筛」，texlate 做「读」）。
-> **状态**：时点证据（2026-09-19 口径）——逆向结论是对第三方服务的时点观察，仅供互操作参考，服务端随时可能变更。
+> **状态**：时点证据（2026-09-19 口径）——逆向结论是对第三方服务的时点观察，仅供互操作参考，服务端状态随时会变。
 > **日期**：2026-09-19
 
 对 https://papers.cool/ 做了一轮「官方披露挖掘 + 直接探针 + 社区生态」三层逆向。结论：**协议面已完全探明、复制成本极低，但生态位与 texlate 不冲突**——它是一个刻意做薄的「刷论文」前端，全部服务端逻辑一个人就能复刻；真正不可复制的是 Kimi 官方买单的生成配额。与 alphaXiv 的全功能平台路线相反，papers.cool 把所有个性化都塞进 localStorage，服务端只留「列表 + 缓存 FAQ + 计数器」三件事。
@@ -41,7 +41,7 @@ FAQ 是固定七问的预生成解读：Q1 解决什么问题 → Q2 相关研�
 
 生成侧：整篇 PDF 进 Kimi 128k 上下文做 FAQ（服务端有三条队列：arXiv 列表抓取 / PDF 下载 / Kimi 问答，各带值守重建）[^pc9920]。**中英 FAQ 是两次独立生成而非互译**——`kimi_lang` cookie 选择语种，实测同篇中文 22328B / 英文 18460B 各自缓存[^pc9978]。配额控制是**三级优先级**：magic token「超级 VIP」（不对外发放，README 写「暂不开放」）> 当天论文 > 历史论文[^pc9978]。实测周六白天无 token 排队：位次 -4→-1 耗时约 15 分钟才轮到，低优先级饥饿明显。
 
-**缓存提交语义（两路独立探针交叉归纳）**：POST 入队 → 轮到后流式生成 → **缓存内容 = 实际流向客户端的字节前缀**。两组互补实测：①断开后队列条目照常消化到 progress=1，但零消费的孤儿生成不落盘，GET 重新流式生成（两篇论文多次重复一致）；②消费中途断开会缓存残篇——POST 流至 5945B 断线缓存即停在 5945B（Q3 中途），重试续流至 10087B 再断缓存停在 10087B（Q4 中途），此后 GET 返回的就是该残篇且 progress 恒为 1，服务端不后台补全。统一模型：**生成与客户端连接耦合，断流即截断提交**——这正好解释了组①零字节消费不落盘。把 `/kimi` 当免费 LLM API 的实际代价因此是：排队 15min+ + 全程 hold 连接约 5 分钟，天然限流；下游还可能读到截断缓存。热门论文则一次生成、永久缓存、全站共享。
+**缓存提交语义（两路独立探针交叉归纳）**：POST 入队 → 轮到后流式生成 → **缓存内容 = 实际流向客户端的字节前缀**。两组互补实测：①断开后队列条目照常消化到 progress=1，但零消费的孤儿生成不落盘，GET 重新流式生成（两篇论文多次重复一致）；②消费中途断开会缓存残篇——POST 流至 5945B 断线缓存即停在 5945B（Q3 中途），重试续流至 10087B 再断缓存停在 10087B（Q4 中途），此后 GET 返回的就是该残篇且 progress 恒为 1，服务端不后台补全。统一模型：**生成与客户端连接耦合，断流即截断提交**——这正好解释了组①零字节消费不落盘。把 `/kimi` 当免费 LLM API 的实际代价因此是：排队 15min+ + 全程 hold 连接约 5 分钟，天然限流；下游会读到截断缓存。热门论文则一次生成、永久缓存、全站共享。
 
 ## 安全面观察
 
@@ -55,7 +55,7 @@ FAQ 是固定七问的预生成解读：Q1 解决什么问题 → Q2 相关研�
 
 官方仓库 github.com/bojone/papers.cool（806★）只有 issues + Disclaimer + 两个周边件源码：**Chrome Redirector 扩展**（右键把 arXiv/OpenReview/ACL/IJCAI/PMLR 页面跳进 papers.cool）和 **Zotero translator**（DOM 抓取存条目），无服务端代码[^pcrepo]。README 即完整 changelog。
 
-第三方协议实现三家独立复刻过且一致：**zx33/zotero-cool-paper** 是最完整参考（TypeScript 复刻全部协议：kimi 流式生成预览、search/列表参数、SQLite 缓存，并踩过 venue `sort=0` 500 的坑）；**han-517/scholar-mcp** 把 search/detail/download_pdf/kimi_analysis 封装成 MCP 工具（已有人把 /kimi 当免费 LLM 后端）；**RSSHub `/papers/category/:id` 路由** 证明 `?show=` 列表契约被社区依赖[^rshub]。另有 PaperBot（五源聚合）、PaperRank（爬 star 计数做热度榜）、arxiv_daily（`--source cool_paper` 数据源）、PaperPostman、PaperPilot（多源文献 agent，papers.cool 列入免费源清单）、DailyArXiv（日报 bot 只放链接）等周边；**shenhao-stu/paper_online** README 直接附「Why not cool papers」对比表（4 问精简 vs 6 问详细，只做 OpenReview）——同生态位里定位最接近的对标件；**islinxu.github.io/paper-list** 是 meta-aggregator，把 papers.cool/hjfy.top/alphaXiv 当外链 enrichment 而不爬内容——恰好呈现 texlate 所在生态位全景。无人公开逆向过生成侧 prompt（issues #78、#97 两次询问均无回复）。
+第三方协议实现三家独立复刻过且一致：**zx33/zotero-cool-paper** 是最完整参考（TypeScript 复刻全部协议：kimi 流式生成预览、search/列表参数、SQLite 缓存，并处理过 venue `sort=0` 返回 500 的缺陷）；**han-517/scholar-mcp** 把 search/detail/download_pdf/kimi_analysis 封装成 MCP 工具（已有人把 /kimi 当免费 LLM 后端）；**RSSHub `/papers/category/:id` 路由** 证明 `?show=` 列表契约被社区依赖[^rshub]。另有 PaperBot（五源聚合）、PaperRank（爬 star 计数做热度榜）、arxiv_daily（`--source cool_paper` 数据源）、PaperPostman、PaperPilot（多源文献 agent，papers.cool 列入免费源清单）、DailyArXiv（日报 bot 只放链接）等周边；**shenhao-stu/paper_online** README 直接附「Why not cool papers」对比表（4 问精简 vs 6 问详细，只做 OpenReview）——同生态位里定位最接近的对标件；**islinxu.github.io/paper-list** 是 meta-aggregator，把 papers.cool/hjfy.top/alphaXiv 当外链 enrichment 而不爬内容——恰好呈现 texlate 所在生态位全景。无人公开逆向过生成侧 prompt（issues #78、#97 两次询问均无回复）。
 
 ## 对 texlate 的启示
 

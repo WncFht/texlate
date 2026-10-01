@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-14 口径）。`GetRecord&metadataPrefix=arXivRaw` 兜底链已实装进 `meta.py`（license + 版本史消费）；批量收割/ListIdentifiers 增量对账属批量层设计，曾由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 的枚举层承接（该链 2026-09-21 退役）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
-## 1. 端点能力（Identify 实锤）
+## 1. 端点能力（Identify 确认）
 
 - baseURL `https://oaipmh.arxiv.org/oai`，OAI-PMH 2.0。
 - `earliestDatestamp=2005-09-16`——datestamp 只覆盖 2005-09 后的更新事件；`granularity=YYYY-MM-DD`（日粒度闭区间）。
@@ -31,7 +31,7 @@
 | abstract                  | ✅                                                        | ✅                                              | ✅       | dc:description #1                      |
 | 体积（本条）              | 4452B                                                     | 2934B                                           | 2588B    | 2905B                                  |
 
-license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license>`——Atom API 没有此字段[^arxiv-reuse]。2074 条 cs 记录 100% 带 license，分布：nonexclusive 45.2%、CC-BY 41.6%、CC-BY-NC-ND 6.5%、CC-BY-NC-SA 3.8%、CC-BY-SA 2.0%、CC0 0.9%（与 [licensing.md](licensing.md) 全量统计同向）。
+license 确认：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license>`——Atom API 没有此字段[^arxiv-reuse]。2074 条 cs 记录 100% 带 license，分布：nonexclusive 45.2%、CC-BY 41.6%、CC-BY-NC-ND 6.5%、CC-BY-NC-SA 3.8%、CC-BY-SA 2.0%、CC0 0.9%（与 [licensing.md](licensing.md) 全量统计同向）。
 
 ## 3. ListRecords / resumptionToken 翻页语义
 
@@ -43,7 +43,7 @@ license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</
 
 ## 4. 速率/缓存特征（13 发观测）
 
-全部 200，无 429/503/Retry-After/RateLimit-*。延迟：CDN 命中 350–630ms（`X-Cache: HIT`，Identify 的 `Age` 达 14 天——**responseDate 可陈旧，别拿它当时钟**）；miss 的 GetRecord 470–660ms；大页 ListRecords 4.2–4.9s（Age=0 回源）。前端 Varnish/Fastly，静态响应被 CDN 长缓存——翻页链的 skip 游标天然亲和缓存。独立桶实锤：export 429 的同时段本 host 全程 200。无官方限速公告实测约束，沿用 3s 纪律即安全水位。
+全部 200，无 429/503/Retry-After/RateLimit-*。延迟：CDN 命中 350–630ms（`X-Cache: HIT`，Identify 的 `Age` 达 14 天——**responseDate 可陈旧，不可用作时钟**）；miss 的 GetRecord 470–660ms；大页 ListRecords 4.2–4.9s（Age=0 回源）。前端 Varnish/Fastly，静态响应被 CDN 长缓存——翻页链的 skip 游标天然亲和缓存。独立桶确认：export 429 的同时段本 host 全程 200。无官方限速公告实测约束，沿用 3s 纪律即安全水位。
 
 ## 5. OAI vs Atom 分工建议（已部分落地）
 

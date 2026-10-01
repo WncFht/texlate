@@ -12,7 +12,7 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复刻：arXiv LaTeX 源码 
 | `dev/`           | 贡献者 | 仓布局、工具手册、评测协议、自动化契约                       | 活文档                                                         |
 | `research/`      | 实现者 | 调研与实证档案，决策的证据层                                 | 写完冻结，可加状态注记                                         |
 | `log/`           | 所有人 | 工程大事记与里程碑档案                                       | 只增不改                                                       |
-| `MAINTENANCE.md` | 维护者 | 本文档库的维护规则（分区生命周期、格式、敏感政策、索引登记） | 活文档，写/改任何文档先读                                      |
+| `MAINTENANCE.md` | 维护者 | 本仓文档库的维护规则（分区生命周期、格式、敏感政策、索引登记） | 活文档，写/改任何文档先读                                      |
 
 阅读序：想了解项目 → 本页 → `decisions/background.md`；想用起来 → `guide/quickstart.md`；想改代码 → `dev/repository.md` → `spec/`；想查证某决策依据 → `decisions/README.md` 索引 → 对应 ADR → `research/` 证据件。
 

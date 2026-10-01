@@ -16,14 +16,14 @@
 
 ## 1. DOM 结构事实
 
-- **engine**：arxiv.org `/html/` 与 ar5iv[^ar5iv] 同为 LaTeXML[^latexml]（0.7.5/0.7.6）——**同引擎同 DOM 方言，一套选择器通吃两源**；ar5iv 可作 L2 第二源（但同样救不了 PDF-only）。
+- **engine**：arxiv.org `/html/` 与 ar5iv[^ar5iv] 同为 LaTeXML[^latexml]（0.7.5/0.7.6）——**同引擎同 DOM 方言，一套选择器覆盖两源**；ar5iv 可作 L2 第二源（但同样救不了 PDF-only）。
 - **页面骨架**：chrome（导航/TOC/页脚/modal/infobox）全剥，唯一提取边界 = `article.ltx_document`（无 id，class 定位）；article 内顶层序 = `div.ltx_para` 版权行 → `h1.ltx_title_document` → `div.ltx_authors` → `div.ltx_abstract` → `section.ltx_section`…→ `section.ltx_appendix`…→ `section.ltx_bibliography`。
 - **资源引用**：`img.ltx_graphics[src]` 全相对路径，基准 = `https://arxiv.org/html/{id}v{resolved}/`——服务化时必须 absolutize 或走代理。
 - **标题层级**：h1=document、h2=section/appendix/bibliography、h3=subsection、h4=subsubsection、h5=paragraph(runin)、h6=abstract/theorem；**chrome 里也有 h2/h5**，计数须限定 article 内。
 
 ### class 直方图（摘要）
 
-实测三篇（1706/2203/math0404188）关键类的块语义：`ltx_para`=段落容器（非分块单位，可包公式表/列表）；`p.ltx_p`+`span.ltx_p`=**文本叶**（后者是表格单元内段，2203 中 479/662）；`ltx_equation*`=行间公式 **`<table>`**；`ltx_section*/appendix`=section 嵌套最深 3 层；`ltx_figure/table`=figure 浮动体（可嵌套子图面板）；`ltx_tabular/ltx_td`=数据表格（单元块是块数大头，表格密论文占 80%+）；`ltx_bibitem/bibblock`=参考文献条目；`ltx_cite`=cite 元素；`ltx_ref`=内部交叉引用锚；`ltx_note/note_content`=行内嵌套脚注（内容默认隐藏）；`ltx_theorem*`=定理块；`ltx_authors`=作者块（不译）；`ltx_ERROR`=LaTeXML 错误内嵌字面量；`ltx_picture/svg`=TikZ→内联 SVG；`ltx_Math`/`ltx_math_unparsed`=`<math>` 元素（unparsed=解析失败）；`ltx_align_*`/`ltx_font_*`/`ltx_text` 等纯表现层不影响抽取。
+实测三篇（1706/2203/math0404188）关键类的块语义：`ltx_para`=段落容器（非分块单位，可包公式表/列表）；`p.ltx_p`+`span.ltx_p`=**文本叶**（后者是表格单元内段，2203 中 479/662）；`ltx_equation*`=行间公式 **`<table>`**；`ltx_section*/appendix`=section 嵌套最深 3 层；`ltx_figure/table`=figure 浮动体（可嵌套子图面板）；`ltx_tabular/ltx_td`=数据表格（单元块是块数主体，表格密论文占 80%+）；`ltx_bibitem/bibblock`=参考文献条目；`ltx_cite`=cite 元素；`ltx_ref`=内部交叉引用锚；`ltx_note/note_content`=行内嵌套脚注（内容默认隐藏）；`ltx_theorem*`=定理块；`ltx_authors`=作者块（不译）；`ltx_ERROR`=LaTeXML 错误内嵌字面量；`ltx_picture/svg`=TikZ→内联 SVG；`ltx_Math`/`ltx_math_unparsed`=`<math>` 元素（unparsed=解析失败）；`ltx_align_*`/`ltx_font_*`/`ltx_text` 等纯表现层不影响抽取。
 
 ## 2. 分块模型（三层规则）
 
@@ -79,7 +79,7 @@ DOM 内零额外请求信号：
 | `span.ltx_ERROR`                | 0–2        | 0                                     | >0 → warning（未定义宏残留）                                |
 | `math.ltx_math_unparsed`        | 0–1        | —                                     | >5% of math → degraded 警告                                 |
 
-路由：stub+pdf_wrapper → 「论文本体是扫描 PDF」跳 L3；stub 非 wrapper（LaTeXML 崩）→ 也跳 L3；**stub 不送翻译**。外部可选信号（懒加载）：arxiv.org 每页 footer 链 `./{id}v{N}/__stdout.txt`（构建日志）；ar5iv `/log/{id}` 机器可读转换报告（`Status:conversion:N` 0=ok/1=warn/2=error/3=fatal）。
+路由：stub+pdf_wrapper → 「论文本体是扫描 PDF」转 L3；stub 非 wrapper（LaTeXML 崩）→ 也转 L3；**stub 不送翻译**。外部可选信号（懒加载）：arxiv.org 每页 footer 链 `./{id}v{N}/__stdout.txt`（构建日志）；ar5iv `/log/{id}` 机器可读转换报告（`Status:conversion:N` 0=ok/1=warn/2=error/3=fatal）。
 
 ## 6. 双语呈现方案
 
@@ -93,7 +93,7 @@ zh 节点 = 克隆叶元素同名同类 + `texlate-zh`/`lang="zh-CN"`/`data-chun
 
 > ⚠️ 本节 kind/占位符枚举与 `dual.json` 深链表为设计稿口径——落地见头部落地差异注记与 `spec/arxiv-source.md` §5.2。
 
-`parse` 阶段替换 scanner——输入 HTML 字节，输出与 LaTeX 路完全同构的 `chunks[]`（锚/kind/src_text+ 占位符）；`translate/validate` 零改动；`compile` 换成「zh DOM 写回 + 剥壳 HTML 序列化」产出 `article.en.html`/`article.zh.html`/`dual.json`（含 `ltx_id↔seq` 映射表支持 `#S3.E1` 深链）。kind 枚举新值 `para/cell/caption/title_*/note/pubnote` 进同一列；占位符枚举同一族（ENV/AUTHOR 不需要——公式表整跳、authors 原子跳过）；断点续翻走 translation_cache 内容寻址（与 LaTeX 路 src_text 不同形，不串缓存）；stub/pdf_wrapper 路由 L3 不产 `degraded_html`。
+`parse` 阶段替换 scanner——输入 HTML 字节，输出与 LaTeX 路完全同构的 `chunks[]`（锚/kind/src_text+ 占位符）；`translate/validate` 零改动；`compile` 换成「zh DOM 写回 + 剥壳 HTML 序列化」产出 `article.en.html`/`article.zh.html`/`dual.json`（含 `ltx_id↔seq` 映射表支持 `#S3.E1` 深链）。kind 枚举新值 `para/cell/caption/title_*/note/pubnote` 进同一列；占位符枚举同一族（ENV/AUTHOR 不需要——公式表整体跳过、authors 原子跳过）；断点续翻走 translation_cache 内容寻址（与 LaTeX 路 src_text 不同形，不共享缓存）；stub/pdf_wrapper 路由 L3 不产 `degraded_html`。
 
 ## 8. 开放问题（重订时注）
 

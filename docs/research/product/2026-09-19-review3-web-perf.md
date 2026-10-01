@@ -50,7 +50,7 @@
 
 第三批：#4 DomPane（sanitize 难切片，优先度低）、#11 SyncEngine effect 拆分、#12 geom invalidate、#15–#18 随规模增长再做。
 
-验证面：`tests/` 现有 vitest 覆盖 sync/alignment/paneUtils；#3/#6/#7 改动渲染路径，smoke.mjs 阅读器截图断言可当回归眼。#1 需 server 端改动，注意 `changed_since` 与现有 watermark 语义对齐。
+验证面：`tests/` 现有 vitest 覆盖 sync/alignment/paneUtils；#3/#6/#7 改动渲染路径，smoke.mjs 阅读器截图断言可当回归眼。#1 需 server 端改动，`changed_since` 与现有 watermark 语义须对齐。
 
 ## 实施记录（2026-09-19，全部落地）
 

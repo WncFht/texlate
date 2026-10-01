@@ -1,6 +1,6 @@
 # Lane 19：中文学术生态与 OAG 数据集
 
-> **结论**：OAG 是目前唯一「国内 OSS 直链免鉴权、含完整引用边、ODC-BY 许可」且仍在更新的 10⁸ 级学术图（OpenAlex 快照同为免鉴权 bulk 全量边、CC0 更宽松，但走 S3；MAG Zenodo 化石同为 ODC-BY 免鉴权但停更于 2021-09）——v3.3（2026-09）1.71 亿论文、17 个分卷合计 ~117.6GB，`references`/`n_citation` 字段内嵌；短板是年更无 diff、无 arXiv ID 字段、v3 起失去 MAG 半边。中文生态「发现」产品整体偏弱：X-MOL/文献鸟走订阅推送路线，仅文献鸟 citenet 与引用图谱沾边——中文侧没有 Connected Papers 级产品，空档明显。
+> **结论**：OAG 是目前唯一「国内 OSS 直链免鉴权、含完整引用边、ODC-BY 许可」且仍在更新的 10⁸ 级学术图（OpenAlex 快照同为免鉴权 bulk 全量边、CC0 更宽松，但走 S3；MAG 的 Zenodo 存档同为 ODC-BY 免鉴权、停更于 2021-09）——v3.3（2026-09）1.71 亿论文、17 个分卷合计 ~117.6GB，`references`/`n_citation` 字段内嵌；短板是年更无 diff、无 arXiv ID 字段、v3 起失去 MAG 半边。中文生态「发现」产品整体偏弱：X-MOL/文献鸟走订阅推送路线，仅文献鸟 citenet 与引用图谱沾边——中文侧没有 Connected Papers 级产品，空档明显。
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
@@ -18,7 +18,7 @@ OAG 由清华 KEG 与微软研究院合作构建：LinKG 框架把 MAG 与 AMine
 
 **v3.3 数据模式与下载**（2026-09-19 实测）：Publication schema 字段 `id, title, authors[].{name,org,org_id,id}, venue_id, venue, year, keywords[], references[], n_citation, doi, abstract`——**`references` 即引用边列表（内部 paper id）、`n_citation` 即被引数**。四类实体各自成 zip，官方下载页给阿里云 OSS 直链、**免鉴权支持 Range**：`v6_oag_publication_1..17.zip` 合计 **117,573,819,986 B ≈ 117.6GB**，author 1.2GB、org/venue 数 MB[^oag33]。JSONL 格式，许可证 **ODC-BY**。历史版本的 Azure blob 直链（Wayback 取证）当前可达性未验证；SourceForge 仅托管 v2 作者名 CSV——**拿 OAG 走 opendata.aminer.cn 的 OSS 直链即可**。
 
-**OAG vs OpenAlex/S2（自建图视角）**：体量同级（OAG 1.71 亿篇（v3.3）/12.7 亿边（v3.2 口径）vs OpenAlex ~2.5 亿 works、S2 ~2.1 亿）；许可 ODC-BY 够用但不如 OpenAlex CC0 干净；**年更无 diff**（每次全量重下 117GB，新论文场景滞后明显，OpenAlex 月更+API 日级、S2 周更 diffs）；**无 arXiv id 字段**（接 arXiv 要走 doi/标题自匹配——比 OpenAlex/S2 麻烦的关键点）；独有价值在作者画像/机构实体质量高（中文作者消歧是祖传强项），PubAuthor-Org/Person 边在 OpenAlex 无直接等价物。
+**OAG vs OpenAlex/S2（自建图视角）**：体量同级（OAG 1.71 亿篇（v3.3）/12.7 亿边（v3.2 口径）vs OpenAlex ~2.5 亿 works、S2 ~2.1 亿）；许可 ODC-BY 够用但不如 OpenAlex CC0 干净；**年更无 diff**（每次全量重下 117GB，新论文场景滞后明显，OpenAlex 月更+API 日级、S2 周更 diffs）；**无 arXiv id 字段**（接 arXiv 要走 doi/标题自匹配——比 OpenAlex/S2 麻烦的关键点）；独有价值在作者画像/机构实体质量高（中文作者消歧是传统强项），PubAuthor-Org/Person 边在 OpenAlex 无直接等价物。
 
 ## X-MOL 与文献鸟
 
@@ -36,7 +36,7 @@ MAG 停服后由 OpenAlex 继承（专利除外）[^mag-openalex]；原始快照
 
 ## 结论
 
-OAG v3.3 是今天就能开始下载的第三数据源（与 OpenAlex/S2 同级体量），但年更无 diff、无 arXiv id、失 MAG 半边三个短板要认账；AMiner 按次卖引用关系说明其定位是 vendor；中文生态发现产品仅文献鸟 citenet 一例且是付费小件——中文侧没有 Connected Papers 级产品，对中文用户做引用图谱发现是未被既有习惯绑架的空档；MAG Zenodo 化石值得顺手收做校验与回填。
+OAG v3.3 是今天就能开始下载的第三数据源（与 OpenAlex/S2 同级体量），但年更无 diff、无 arXiv id、失 MAG 半边三个短板要认账；AMiner 按次卖引用关系说明其定位是 vendor；中文生态发现产品仅文献鸟 citenet 一例且是付费小件——中文侧没有 Connected Papers 级产品，对中文用户做引用图谱发现是未被既有习惯绑架的空档；MAG Zenodo 存档值得收做校验与回填。
 
 ### 参考文献
 

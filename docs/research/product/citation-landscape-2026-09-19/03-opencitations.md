@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
-## 各源是什么
+## 各源定位
 
 - **OpenCitations Index**：早年分库（COCI/POCI/DOCI/CROCI）已合并为统一 Index，原各库退化为来源标签[^ocindex]。2026-07 dump 收 **2,559,460,009 条边**，来源含 Crossref、DataCite、PubMed、OpenAIRE、JaLC 等[^ocdump]；配套 Meta 库 147M 书目实体并已对齐 OpenAlex 标识符[^ocmeta]。
 - **Crossref**：DOI 注册局元数据 API，上游原料层。
@@ -14,7 +14,7 @@
 
 ## 数据面
 
-**OC Index** REST API v2（`api.opencitations.net/index/v2`，限流 180 req/min/IP）：`/citations/{id}` 入边、`/references/{id}` 出边、`/citation-count`/`/reference-count` 计数、`/citation/{oci}` 单条元数据；ID 接受 `omid:`/`doi:`/`pmid:`，**不支持 `arxiv:` 前缀**——arXiv 论文走 `10.48550/arXiv.*` DataCite DOI[^ocapi]。边记录字段：`oci`、`citing`/`cited`（omid+doi+openalex+pmid 多重标识）、`creation`、`timespan`、**`journal_sc`/`author_sc` 期刊与作者自引标志——其他源需自算的字段这里白送**[^ocindex]。Dump 形态：Qlever dump 25.59 亿边 69GB 7z 压缩、CSV 来源标注 104GB、N-Triples 2.1TB；**dump 滞后约 5 个月**；全部 CC0[^ocdump]。SPARQL 端点可用性未验证（调研时段连接失败），生产侧应以 dump 落库 + REST 兜底为骨架。
+**OC Index** REST API v2（`api.opencitations.net/index/v2`，限流 180 req/min/IP）：`/citations/{id}` 入边、`/references/{id}` 出边、`/citation-count`/`/reference-count` 计数、`/citation/{oci}` 单条元数据；ID 接受 `omid:`/`doi:`/`pmid:`，**不支持 `arxiv:` 前缀**——arXiv 论文走 `10.48550/arXiv.*` DataCite DOI[^ocapi]。边记录字段：`oci`、`citing`/`cited`（omid+doi+openalex+pmid 多重标识）、`creation`、`timespan`、**`journal_sc`/`author_sc` 期刊与作者自引标志——其他源需自算的字段这里直接带**[^ocindex]。Dump 形态：Qlever dump 25.59 亿边 69GB 7z 压缩、CSV 来源标注 104GB、N-Triples 2.1TB；**dump 滞后约 5 个月**；全部 CC0[^ocdump]。SPARQL 端点可用性未验证（调研时段连接失败），生产侧应以 dump 落库 + REST 兜底为骨架。
 
 **arXiv 覆盖实测（关键结论）**：`10.48550/arXiv.1706.03762` 入边 24,956 条、**出边 0**——arXiv 不向 DataCite 寄存参考文献，任何 arXiv 实体在 DOI 中心源里都只有入边没有出边。且引用挂在哪个 DOI 上由引用方 bib 怎么写决定（Maldacena 1997 的 arXiv DOI 入边仅 29 vs 期刊 DOI 入边 6,881）——**arXiv 侧想要被引数必须先做 arXiv↔出版 DOI 实体对齐**（OC Meta 响应已编入 openalex ID 可借力）。
 
@@ -29,7 +29,7 @@
 ## 可借鉴点
 
 1. 底座 = OC Index dump（或 OpenAIRE product_Cites）+ arXiv↔DOI 对齐表——OC Index 为 CC0 可无署名整图离线建仓再分发，是合法自建前提；OpenAIRE 为 CC BY 4.0，同样允许再分发但须署名。
-2. `author_sc`/`journal_sc` 自引标志白拿——做被引数去自引省去作者消歧。
+2. `author_sc`/`journal_sc` 自引标志现成——做被引数去自引省去作者消歧。
 3. 更新节奏错位要管理：OC dump ~5 个月滞后，新边靠 Crossref REST 或更高频源补 delta。
 4. arXiv 出边缺口在 DOI 中心源里普遍存在且无人填补——LaTeX 源/全文抽取填的正是这一格。
 

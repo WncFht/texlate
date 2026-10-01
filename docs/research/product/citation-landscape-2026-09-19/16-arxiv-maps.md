@@ -1,6 +1,6 @@
 # Lane 16：arXiv 原生发现工具（paperscape / arxiv-sanity / Argo Scholar / GitHub 小件）
 
-> **结论**：paperscape 是唯一做到全 arXiv 规模且持续运行的引用图地图——每日 TeX/PDF 自抽引用边、arXiv 内匹配率 38% 是该路线的已知基线，除抽取器闭源外整套服务形态（nbody C 布局+Go 瓦片+CSV dump+canvas 客户端）全 MIT；arxiv-sanity-lite 证明个性化推荐运维下限可到 $5/月；Argo Scholar 的「骑托管 API、探索即构图」是零基础设施起步的最优 UX。
+> **结论**：paperscape 是唯一做到全 arXiv 规模且持续运行的引用图地图——每日 TeX/PDF 自抽引用边、arXiv 内匹配率 38% 是该路线的已知基线，除抽取器闭源外整套服务形态（nbody C 布局+Go 瓦片+CSV dump+canvas 客户端）全 MIT；arxiv-sanity-lite 证明个性化推荐运维下限可到 $5/月；Argo Scholar 的「依托托管 API、探索即构图」是零基础设施起步的最优 UX。
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
@@ -11,7 +11,7 @@
 | paperscape.org          | 活，宣称日更（blog 停在 2020-06） | Barnes-Hut N-body 布局，边=引用/被引   | 后端 + 客户端 + 数据全 MIT | 是（自建，TeX/PDF 抽取） |
 | arxiv-sanity-preserver  | 死（站点 502）                    | tf-idf 全文 + 用户库 SVM               | MIT                        | 否                       |
 | arxiv-sanity-lite       | 活                                | tf-idf 摘要+per-tag SVM                | MIT                        | 否                       |
-| Argo Scholar            | 活                                | 浏览器内增量构图，PageRank/Degree 映射 | MIT                        | 是（骑 S2 API）          |
+| Argo Scholar            | 活                                | 浏览器内增量构图，PageRank/Degree 映射 | MIT                        | 是（依托 S2 API）        |
 | CiteLens 等 GitHub 小件 | 多为课程/个人项目                 | S2/OpenAlex API 拼装                   | MIT 不等                   | 部分                     |
 
 ## paperscape —— 唯一的全 arXiv 引用图先例

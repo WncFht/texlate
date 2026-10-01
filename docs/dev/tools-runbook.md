@@ -148,11 +148,11 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 - **xelatex ~100 error 上限**：nonstopmode 不豁免——错误洪水会 mid-document abort 产截断 partial PDF（文末内容最先死，bibliography/锚点保留率异常先查这个）。
 - **文本手术**：LaTeX 源码手术一律 python replace（sed 吃反斜杠）；含 `|` 的译文比对走 python sqlite3 API 而非 CLI 分列管道。
 - **vite 端口漂移**：从 dev 日志 `Local:` 行解析实际端口；`/api/health` 的 `version:"mock"` 验明 mock 正身；杀进程按端口属主 + 进程启动时间，不 pkill 广播。
-- **autofix 复核**：`ruff --fix` 类自动修复可能删出 bug（如把 `except Exception as e` 的 `as e` 删掉），autofix 后必须人工复核 diff。
+- **autofix 复核**：`ruff --fix` 类自动修复会删出 bug（如把 `except Exception as e` 的 `as e` 删掉），autofix 后必须人工复核 diff。
 
 ### 6.3 多会话共仓纪律
 
-- **stash 并发事故定式**：并发 `git stash -u`+pop 会把全队在途编辑收走。恢复绝不整 pop——`scripts/git-stash-export.sh` 无损导出两树，再 `git show "stash@{N}:<file>"` 逐文件自救（`git checkout stash@{N} -- paths` 会写索引，可能卷入别人暂存内容）。
+- **stash 并发事故定式**：并发 `git stash -u`+pop 会把全队在途编辑收走。恢复绝不整 pop——`scripts/git-stash-export.sh` 无损导出两树，再 `git show "stash@{N}:<file>"` 逐文件自救（`git checkout stash@{N} -- paths` 会写索引、把别人暂存内容一并卷入）。
 - **hunk 级选择性暂存**：`git diff > patch` → 按 `@@` 切 hunk → `git apply --cached`——多人共用单文件时可脚本化拆 commit。
 - **即验即提**：staged 文件会卡别人 commit（check 类 hook 扫全 index），`git add` 只点路径，commit 后 `git log -1` 验证（撞车会静默回滚）。
 - **共享 append-only 区**（规则库分片/builtins）先广播冻结再改；交付验收四步：diff-stat → lint → pytest -x → commit 确认。

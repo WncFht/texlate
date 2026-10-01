@@ -1,14 +1,14 @@
 # arXiv 开放数据集与批量访问渠道普查
 
-> **结论**：渠道格局已定——元数据回填首选 `librarian-bots/arxiv-metadata-snapshot`（CC0、免 key、当日更新）；引用校准主力 OpenAlex `works/doi:10.48550/arXiv.{id}`（免 key 日更，注意 stub works 与 cited_by_count 分裂两坑）；版本史走 DataCite `dates[]`（免 key 全库）；批量 PDF 冷备用 `gs://arxiv-dataset`（匿名可读但冻于 ~2025-08、无 src）；LaTeX src 批量的唯一正规渠道是 `s3://arxiv` requester-pays tar（匿名 403 实证），免费替代是 IA arxiv-bulk（→2020-10）+ TIGER-5T（→2025-01）+ scholarweave（→2026-07 有损）。
+> **结论**：渠道格局已定——元数据回填首选 `librarian-bots/arxiv-metadata-snapshot`（CC0、免 key、当日更新）；引用校准主力 OpenAlex `works/doi:10.48550/arXiv.{id}`（免 key 日更，注意 stub works 与 cited_by_count 分裂两类陷阱）；版本史走 DataCite `dates[]`（免 key 全库）；批量 PDF 冷备用 `gs://arxiv-dataset`（匿名可读但冻于 ~2025-08、无 src）；LaTeX src 批量的唯一正规渠道是 `s3://arxiv` requester-pays tar（匿名 403 实证），免费替代是 IA arxiv-bulk（→2020-10）+ TIGER-5T（→2025-01）+ scholarweave（→2026-07 有损）。
 > **状态**：时点证据（2026-09-14 口径）。渠道角色分工已按本普查 + `post2020-sourcing.md` 裁决落地。
 > **日期**：2026-09-14
 
-约束说明：本轮未触 `*.arxiv.org`（另一 agent 负责），arXiv 官方信息来自第三方文档与实测。
+约束说明：本轮未触 `*.arxiv.org`；arXiv 官方信息来自第三方文档与实测。
 
 ## 0. 渠道矩阵
 
-| 渠道                                | 内容                                                                 | 全文？                                    | 引用？                                    | 版本史？                               | 认证/成本                                                                              | 新鲜度                                     | 实测状态                                                      |
+| 渠道                                | 内容                                                                 | 全文                                      | 引用                                      | 版本史                                 | 认证/成本                                                                              | 新鲜度                                     | 实测状态                                                      |
 | ----------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
 | Kaggle `Cornell-University/arxiv`   | OAI 元数据 JSONL（~2.4M+）                                           | 摘要                                      | 无                                        | `versions[]`+`update_date`             | Kaggle key，免费                                                                       | 周更                                       | 未实测（页面 JS 渲染），资料一致                              |
 | **GCP `gs://arxiv-dataset`**        | **逐文件 PDF** + OAI 元数据 + **arXiv 内部引用图**                   | PDF（无 LaTeX src）                       | `internal-citations.json`（冻于 2020-08） | 文件名带 `vN`                          | **实测匿名可读，无需 GCP 账号**                                                        | **PDF 到 ~2025-08**；metadata 冻于 2020-08 | ✅ 列目录/Range GET 均通                                      |
@@ -20,7 +20,7 @@
 | DataCite `10.48550/arXiv.*`         | 每篇 arXiv 论文的 DOI 元数据                                         | 无                                        | 无                                        | **`dates[]` 全版本时间线**（最大亮点） | 免费无需 key                                                                           | 实时（v9 都全）                            | ✅ HEAD→302 到 abs；API 返回全字段                            |
 | unpaywall                           | OA 状态/合法 PDF 链接                                                | 链接                                      | 无                                        | 无                                     | 免费，email 参数                                                                       | —                                          | ✅ 但 **arXiv DataCite DOI 未收录（404）**，只认 Crossref DOI |
 | CORE                                | 聚合各仓库全文                                                       | 有                                        | 无                                        | —                                      | 免费 key，~10rps                                                                       | —                                          | 未实测（需 key），资料记录                                    |
-| OpenReview                          | 会议投稿/评审                                                        | 有（pdf 字段）                            | 无                                        | 有 revisions                           | 仅 `notes/search` 匿名可查；内容/pdf 端点需登录（见 `2026-09-19-iclr章节长度.md` 坑①） | 实时                                       | ✅ `notes/search` 200                                         |
+| OpenReview                          | 会议投稿/评审                                                        | 有（pdf 字段）                            | 无                                        | 有 revisions                           | 仅 `notes/search` 匿名可查；内容/pdf 端点需登录（见 `2026-09-19-iclr章节长度.md` 陷阱①） | 实时                                       | ✅ `notes/search` 200                                         |
 | Internet Archive `collection:arxiv` | 每篇一个 item：PDF+meta xml                                          | PDF                                       | 无                                        | 无                                     | 免费匿名                                                                               | **冻于 ~2017-04**（1,076,003 items）       | ✅                                                            |
 
 ## 1. Kaggle `Cornell-University/arxiv`
@@ -39,7 +39,7 @@
 - `arxiv/pdf/YYMM/{id}v{N}.pdf`：新版编号论文逐文件 PDF，**实测存在至 `2508/`（2025-08），`2509/` 起为空**；对象 `updated` 时间统一为 2025-08-24——桶在 2025 年 8 月做过一次全量再同步，之后停更。即：**冻结于 ~2025-08 的全语料逐文件 PDF，免费匿名**。
 - `arxiv/{archive}/pdf|ps|html/`：旧式编号（hep-th/9901001 等）按 archive 分树；`html/` 是作者当年自提交的 HTML（非 ar5iv）。
 - **没有 LaTeX src**——全桶确认无 `src/` 子树。
-- `metadata-v5/` 三个文件（均 2020-08-19 上传，冻结）：`arxiv-metadata-oai.json` 4.5GB JSONL（注意与 Kaggle 版字段差异：`categories` 是数组、`versions` 是字符串数组）；`authors-parsed.json` 220MB；**`internal-citations.json` 172MB，格式 `{arxiv_id: [被引arxiv_id,...]}`——白送的 arXiv→arXiv 引用图**（冻于 2020-08）。
+- `metadata-v5/` 三个文件（均 2020-08-19 上传，冻结）：`arxiv-metadata-oai.json` 4.5GB JSONL（注意与 Kaggle 版字段差异：`categories` 是数组、`versions` 是字符串数组）；`authors-parsed.json` 220MB；**`internal-citations.json` 172MB，格式 `{arxiv_id: [被引arxiv_id,...]}`——现成的 arXiv→arXiv 引用图**（冻于 2020-08）。
 - 用法：`GET https://storage.googleapis.com/storage/v1/b/arxiv-dataset/o?prefix=...` 列目录；`GET https://storage.googleapis.com/arxiv-dataset/<key>` 下载（Range 支持 206）。
 - 意义：**批量 PDF 语料 + 引用图冷备首选**；缺点是停更、无 src。
 
@@ -78,8 +78,8 @@
 - 免费、无 key；`mailto=` 参数进礼貌池（~10 rps、10 万/日）。
 - arXiv 在 OpenAlex 是 source `S4306400194`：primary_location 计 **2,286,585 works**，任意 location 计 **3,719,529**。
 - **逐篇查法（实测可靠）**：`GET https://api.openalex.org/works/doi:10.48550/arXiv.{id}`——新旧编号皆可（`arXiv.1412.6980`、`arXiv.hep-th/9901001` 都命中）。返回 `cited_by_count`、`counts_by_year[]`、`open_access`、`locations[]`（带 pdf_url/license/version）、`cited_by_api_url` 等。`select=` 可裁剪字段。
-- **批量查法**：`filter=doi:a|b`（`|` = OR，`,` = AND）语法本身可用——**但对 arXiv DOI 有个坑：OpenAlex 的 arXiv-DOI 记录里有一批「stub works」，直接 GET 能拿到、filter/search 却不返回**（实测 `0704.0001`、`hep-th/9711200` 均如此；`1706.03762` 更彻底——直接 GET 也 404）。结论：**批量对拍时以逐篇 `works/doi:` GET 为准**，filter 路径只能当辅助。
-- **第二坑（对校准最重要）：cited_by_count 在「有正式发表版」的老论文上分裂**——`hep-th/9711200`（Maldacena AdS/CFT）的 arXiv-DOI work 只有 18 次引用，真实引用记在期刊 DOI 的 work 上；而 `1412.6980`（Adam，ICLR 发表）的 arXiv work 却攒了 84,617。**校准建议：arXiv DOI work 的 cited_by_count 与元数据 `doi`/`journal-ref` 指向的发表版 work 各查一次取 max/求和**，否则老论文会系统性偏低。
+- **批量查法**：`filter=doi:a|b`（`|` = OR，`,` = AND）语法本身可用——**但对 arXiv DOI 有个陷阱：OpenAlex 的 arXiv-DOI 记录里有一批「stub works」，直接 GET 能拿到、filter/search 却不返回**（实测 `0704.0001`、`hep-th/9711200` 均如此；`1706.03762` 更彻底——直接 GET 也 404）。结论：**批量对拍时以逐篇 `works/doi:` GET 为准**，filter 路径只能当辅助。
+- **第二个陷阱（对校准最重要）：cited_by_count 在「有正式发表版」的老论文上分裂**——`hep-th/9711200`（Maldacena AdS/CFT）的 arXiv-DOI work 只有 18 次引用，真实引用记在期刊 DOI 的 work 上；而 `1412.6980`（Adam，ICLR 发表）的 arXiv work 却攒了 84,617。**校准建议：arXiv DOI work 的 cited_by_count 与元数据 `doi`/`journal-ref` 指向的发表版 work 各查一次取 max/求和**，否则老论文会系统性偏低。
 - 深度分页用 `cursor=*`（`per-page=200`）；`group_by=` 可做统计；全量快照在 `s3://openalex`（requester-pays）。
 
 ## 7. DataCite DOI —— 版本史通道
@@ -93,7 +93,7 @@
 
 - **unpaywall**：`api.unpaywall.org/v2/{doi}?email=` 免费；**arXiv DataCite DOI 未收录（404）**，只认出版方 Crossref DOI。仅在需要「发表版 OA 链接」时有用。
 - **CORE API v3**：免费 key，~10rps，`/search/works` 返回 `downloadUrl`/`fullText`；CORE Dataset 提供定期全量 dump。定位为兜底聚合源。
-- **OpenReview**：`api2.openreview.net/notes/search?term=` 匿名可用（实测 200）；但 `/pdf?id=` 等内容端点匿名必抛 ChallengeRequiredError，必须登录（见 `2026-09-19-iclr章节长度.md` 坑①）。非 arXiv 源，查 ICLR/NeurIPS 投稿 + 评审时用。
+- **OpenReview**：`api2.openreview.net/notes/search?term=` 匿名可用（实测 200）；但 `/pdf?id=` 等内容端点匿名必抛 ChallengeRequiredError，必须登录（见 `2026-09-19-iclr章节长度.md` 陷阱①）。非 arXiv 源，查 ICLR/NeurIPS 投稿 + 评审时用。
 - **Internet Archive `collection:arxiv`**：1,076,003 items，每 item = PDF+`*_metadata.xml`（无 src）；**覆盖止于 ~2017-04**。只配做老论文 PDF 冷备。
 
 ## 9. 需求 → 渠道映射
@@ -101,7 +101,7 @@
 | 需求                                                                           | 首选                                                                  | 备选                                                                                                                           | 说明                                                                 |
 | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
 | **元数据回填**（abstract/authors/categories/license/versions，不碰 arxiv.org） | `librarian-bots/arxiv-metadata-snapshot`（HF，CC0，当日更新，免 key） | Kaggle Cornell-University/arxiv（需 key）；GCS `metadata-v5`（冻 2020）                                                        | 字段最全的是 Kaggle/OAI 系；HF 版更新最勤                            |
-| **引用排序校准**（语料内抽取计数 vs 外部计数对拍）                             | **OpenAlex `works/doi:10.48550/arXiv.{id}`**（注意 stub/分裂两坑）    | GCS `internal-citations.json`（arXiv↔arXiv，冻 2020-08）；HF `crossref-arxiv-citations`（CC0，新）；S2 citationCount（需 key） | OpenAlex 是唯一日更 + 免 key + 逐篇可查的；GCS 引用图免 API 直接全量 |
+| **引用排序校准**（语料内抽取计数 vs 外部计数对拍）                             | **OpenAlex `works/doi:10.48550/arXiv.{id}`**（注意 stub/分裂两个陷阱）    | GCS `internal-citations.json`（arXiv↔arXiv，冻 2020-08）；HF `crossref-arxiv-citations`（CC0，新）；S2 citationCount（需 key） | OpenAlex 是唯一日更 + 免 key + 逐篇可查的；GCS 引用图免 API 直接全量 |
 | **批量 PDF 语料**                                                              | `gs://arxiv-dataset` 匿名逐文件拉（至 2025-08）                       | IA（至 2017）；`s3://arxiv` tar（最新但付费）                                                                                  | 百篇级随便用；全量镜像选 S3                                          |
 | **LaTeX src 批量**                                                             | `s3://arxiv` `src/` tar（requester-pays）                             | IA arxiv-bulk（→2020-10 免费）；TIGER-5T（→2025-01 免费镜像）；HF `scholarweave/arxiv-latex` parquet（→2026-07 有损文本层）    | 免费三家已实测裁决，见 `post2020-sourcing.md`                        |
 | **版本史**                                                                     | **DataCite API `dates[]`**（免 key，全库）                            | Kaggle `versions[]`                                                                                                            | 完全不依赖 arxiv.org                                                 |
@@ -111,7 +111,7 @@
 ## 10. 中国可达性与部署注意
 
 - **arXiv 本体**：未被正式封锁，但 2023-24 迁到 Google Cloud 后国内直连时通时断、PDF 下载慢且易断流；**官方镜像网已关停——`xxx.itp.ac.cn`（中科院理论物理所镜像）与 `cn.arxiv.org` 均于 ~2021 年失效**，网上的旧镜像清单不可信。
-- **GCP `storage.googleapis.com` 与 AWS S3 在国内均不可直连**（GCS 被墙；S3 视线路抖动）——`gs://arxiv-dataset` 的「匿名免费」红利只在境外服务器上成立。
+- **GCP `storage.googleapis.com` 与 AWS S3 在国内均不可直连**（GCS 被墙；S3 视线路抖动）——`gs://arxiv-dataset` 的「匿名免费」收益只在境外服务器上成立。
 - **huggingface.co 被墙**——境内需 `HF_ENDPOINT=https://hf-mirror.com`（社区镜像，文件下载走镜像 CDN；其 `/api` 308 回 hf.co，API 层不完全镜像）。
 - **境内可直接用的替代入口**（给用户侧/降级路径参考）：Semantic Scholar（可下 PDF）、alphaXiv、Papers with Code、ChinaXiv（中科院自建预印本平台）、papers.cool；OpenAlex/DataCite/OpenReview 均境外但通常可达性优于 Google 系。
 - **部署建议**：采集端（S3/GCS/HF/S2 抓取、TeX 编译）放境外 VPS；成品双语 PDF/页面走国内可访问的对象存储+CDN 分发；别把 arxiv.org/storage.googleapis.com 写进面向国内用户的前端链路，必要时用 Cloudflare Workers 反代做兜底。

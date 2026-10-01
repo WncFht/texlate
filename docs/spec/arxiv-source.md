@@ -1,6 +1,6 @@
 # arXiv 源获取层规范
 
-本层（`src/texlate/arxiv/`）把「arXiv id（可带 `vN` 钉版）」变成「本地可用的解包源树 + 元数据」：限速纪律、HEAD 预检、三态判别、安全解包、主文件定位、钉版缓存、元数据拉取与降级裁决。本文是现行实现的事实源——与代码冲突以代码为准；实测证据引 `research/arxiv/`、`research/corpus/` 对应件，不复述实验过程。
+本层（`src/texlate/arxiv/`）把「arXiv id（可带 `vN` 钉版）」变成「本地可用的解包源树 + 元数据」：限速纪律、HEAD 预检、三态判别、安全解包、主文件定位、钉版缓存、元数据拉取与降级裁决。本文是现行实现的事实源——与代码冲突以代码为准；实测证据见 `research/arxiv/`、`research/corpus/` 对应件。
 
 ## 0. 定位与消费方
 
@@ -11,7 +11,7 @@
 | CLI（`texlate fetch` / `texlate run`） | `cli/fetch.py::_acquire`                      | `acquire_source` 全链 + offline 模式                                   |
 | Web 任务（arxiv 系 kind）              | `server/worker/fetch.py::_Fetch._fetch_arxiv` | `acquire_source` + `fetch_metadata`（分类目喂术语层）                  |
 | Web HTML 臂（`kind=arxiv_html`）       | `server/worker/fetch.py::_fetch_html`         | `arxiv/html.py::fetch_html` 直取 HTML 版                               |
-| 降级裁决                               | `arxiv/meta.py::degrade`                      | L2/L3 层探测（当前由语料/bench 侧驱动，产品链 L3 走 babeldoc sidecar） |
+| 降级裁决                               | `arxiv/meta.py::degrade`                      | L2/L3 层探测（由语料/bench 侧驱动，产品链 L3 走 babeldoc sidecar）   |
 
 批量建库（benchmark 语料）不经过本层打 arxiv.org——见 §6。
 
@@ -98,7 +98,7 @@ bytes[0:4] == "%PDF"            → PDF 直投（无源码 → 降级链 L3）
 ### 2.4 `\input` 拓扑与参考文献（`locate.py::_REF_RES`/`_resolve_bib`/`_flatten`）
 
 - 识别 9 形：`\input`/`\include`/`\InputIfFileExists`/`\subfile`/`\import{dir}{file}`/`\subimport`/`\includestandalone`/`\CatchFileBetweenTags`/裸文件名形 `\input file`，外加 `\bibliography`。
-- 路径解析基目录序：**main_dir（编译主目录）→ 项目根 → including 文件目录**（`_bases`）；扩展名补全 `.tex` → `.sty` → 裸名。注意此序是 **locate 建图层**口径；`latex/` 的 gullet 展开层另有一套解析序（including 目录 → 项目根 → top_dir → basename 补 `.tex` → 裸名），同一 `\input` 两阶段可解析到不同文件——语义权威以 gullet 为准（见 `spec/` 解析层规范）。
+- 路径解析基目录序：**main_dir（编译主目录）→ 项目根 → including 文件目录**（`_bases`）；扩展名补全 `.tex` → `.sty` → 裸名。此序是 **locate 建图层**口径；`latex/` 的 gullet 展开层另有一套解析序（including 目录 → 项目根 → top_dir → basename 补 `.tex` → 裸名），同一 `\input` 两阶段可解析到不同文件——语义权威以 gullet 为准（见 `spec/` 解析层规范）。
 - `\bibliography{x}` → 主消费 `\jobname.bbl`（主文件词干）；另按 arg-stem 双探 `x.bbl`→`x.bib`（`_resolve_bib`，宽松超集面）。
 - 环检测：绝对路径 `_seen` 集断环记 warning，防环优先于重复展开语义。
 

@@ -1,6 +1,6 @@
 # sel-system 实现文档
 
-> 调研基线：tmp/ux-research-20260922/ 下 9 条 sel-system 实验道（ss-dom-sel / ss-pdf-sel / ss-ctxmenu / ss-floatbar / ss-cmdreg / ss-hotkeys / ss-shadow / ss-menu-content / ss-a11y），全部 `works + confirmed`。本文档把结论折成可落地的实现规格。所有 spike 源码可直接移植，路径随文标注。
+> 调研基线：tmp/ux-research-20260922/ 下 9 条 sel-system 实验道（ss-dom-sel / ss-pdf-sel / ss-ctxmenu / ss-floatbar / ss-cmdreg / ss-hotkeys / ss-shadow / ss-menu-content / ss-a11y），全部 `works + confirmed`。结论折成实现规格；所有 spike 源码可直接移植，路径随文标注。
 
 ## 目标
 
@@ -9,7 +9,7 @@
 1. **浮动工具条（FloatBar）**——划词松手后在选区上方出条（复制/翻译/解释等 3-5 个高频动作）。
 2. **自定义右键菜单（ContextMenu）**——按右键落点语境（选区/引用锚/公式/chunk 块/pane）出 21 项规格的语境菜单，替代浏览器默认菜单。
 3. **统一键位分发器（keymap）+ Esc 层栈**——单 document keydown 取代 ReaderView.tsx:168 的硬编码 if 链与散落各组件的 Esc 监听；顺带修掉实测的 8+3 个现网缺陷（findbar checkbox 上 Esc 死键、edSel+Backspace 双发等）。
-4. **句游标模态（a11y）**——`v` 进模态，j/k 逐句、[/] 逐块移动，Enter 选句、t 取对侧译文、c 复制、Esc 退出。把目前 87.2% 键盘不可达的句子变成可达（全文 Tab 模型 p50≈79 击 vs 游标块跳 p50=100/平扫 220，而现状 380/436 句根本到不了）。
+4. **句游标模态（a11y）**——`v` 进模态，j/k 逐句、[/] 逐块移动，Enter 选句、t 取对侧译文、c 复制、Esc 退出。把 87.2% 键盘不可达的句子变成可达（全文 Tab 模型 p50≈79 击 vs 游标块跳 p50=100/平扫 220，而现状 380/436 句根本到不了）。
 
 非目标：pdf.js 批注编辑器、跨页拖选（上游不支持，见风险）、服务端协同批注。
 
@@ -19,7 +19,7 @@
 
 - **DOM 双栏（DomPane=ar5iv HTML，HtmlPane=chunk 流）与 PdfPane（pdf.js textLayer）全部走原生 Selection**——结构面零障碍：全仓 0 个 shadow DOM、0 个 iframe（ss-shadow 静态 + 运行时普查），`.textLayer` 链上 user-select 全为 auto/text，app 23 个 CSS 无一命中 textLayer 选择属性；PDF 侧**零改动**即可拖选/双击选词/Ctrl+A/copy 事件（ss-pdf-sel 真机 harness 全绿）。
 - 选区→chunk 解析用 **coveredChunks**（`exp/ss-dom-sel/coveredChunks.mjs` 移植）：`sel.getRangeAt(0)` 规范化后按锚点区间切片 `[data-chunk]`，O(命中锚数) 而非全扫——163 锚文档 Chrome 2.2µs / Firefox 6µs / jsdom 25µs（全扫对拍 550+800+1000 组 fuzz 零失配）。返回 `data-chunk` 键数组（文档序）。
-- **边界规则**：选区终点恰在下一锚首 offset0 时该锚算相交（复制文案用 `trim().length>0` 滤白字）；端点落在无锚区（license 行/页眉残渣，实测 322 字符）向文档序收拢到最近锚；跨 pane 选区对两侧 bodyEl 各跑一遍（单 document，`commonAncestor` 可能是 body）；反向拖拽用 `compareDocumentPosition` 判 anchorAfterFocus（双引擎一致，`sel.direction` 字符串也可用）。
+- **边界规则**：选区终点恰在下一锚首 offset0 时该锚算相交（复制文案用 `trim().length>0` 滤白字）；端点落在无锚区（license 行/页眉残渣，实测 322 字符）向文档序收拢到最近锚；跨 pane 选区对两侧 bodyEl 各跑一遍（单 document，`commonAncestor` 为 body）；反向拖拽用 `compareDocumentPosition` 判 anchorAfterFocus（双引擎一致，`sel.direction` 字符串也可用）。
 - **键到 seq 的映射**：DomPane 的 `data-chunk` = emit 块 key（`S1.p4`/`b5`/`footnote1` 字符串），HtmlPane 的 `data-chunk` = 整数 seq（HtmlPane.tsx:118 `data-chunk="${seq}"`）。约 31% 的 DOM 锚（bibitem/figure/authors，实测 50/163）没有 chunks 行 → `intSeq` 为 null，重译类命令隐藏、复制类照常。
 - **复制文本源**：用 `range.toString()`/`cloneContents().textContent`（1234 字符），不用 `sel.toString()`（1230——折叠换行，丢结构）。
 - **PDF 侧已知上限**（全是上游 pdf.js 行为，见风险节）：从链接批注上起拖=0 字符、textLayer 下方死区起拖=0、跨页拖选不延申、findbar 重新查询会塌掉选区（DOM 重建 76→0）。
@@ -107,7 +107,7 @@
 | `entries.ts`                   | ss-cmdreg/entries/*.ts                                   | 三入口同构消费：`menuItemsFor`（enabled→CtxItem[]+组间 sep）、`chordOf`+`byKey`、`paletteItems`（commandScore 模糊排序——vendored `command-score.ts` 副本已在 exp 根）                                                                                                                                                                                                                                  |
 | `coveredChunks.ts`             | ss-dom-sel/coveredChunks.mjs（78 行）                    | `makeChunkResolver(bodyEl)` 工厂，契约与边界规则见交互规格                                                                                                                                                                                                                                                                                                                                             |
 | `ContextMenu.tsx`              | ss-ctxmenu/ContextMenu.tsx（437 行，含两处已修缺陷补丁） | 默认导出组件 + `useContextMenu(build)` 钩子；`placeMenu`/`placeSubmenu` 导出供 fuzz 测试                                                                                                                                                                                                                                                                                                               |
-| `FloatBar.tsx` + `floatbar.ts` | ss-floatbar/floatbar.mjs（305 行）                       | `placeBar` 纯函数 + Solid 化控制器（Portal→body 固定壳、组件根作 bar 元素传入）；**补三处对抗坑**：ResizeObserver/重渲染后 refresh、pointercancel 解 stuck suppression、live 模式可关                                                                                                                                                                                                                  |
+| `FloatBar.tsx` + `floatbar.ts` | ss-floatbar/floatbar.mjs（305 行）                       | `placeBar` 纯函数 + Solid 化控制器（Portal→body 固定壳、组件根作 bar 元素传入）；**补三处对抗点**：ResizeObserver/重渲染后 refresh、pointercancel 解 stuck suppression、live 模式可关                                                                                                                                                                                                                  |
 | `keymap.ts`                    | ss-hotkeys/keymap.js proposed 支                         | `attachReaderKeys(hooks)` 单分发器 + `ESC_ORDER` 层栈注册面（各浮层 register/unregister 替代自有 Esc 监听）                                                                                                                                                                                                                                                                                            |
 | `sentseg.ts`                   | ss-a11y/sentseg.js（161 行）                             | `segmentDoc(root, side)` → sents[]；注入时机=DomPane 分片 innerHTML 后 / HtmlPane render 后                                                                                                                                                                                                                                                                                                            |
 | `cursor.ts`                    | ss-a11y/cursor.js（246 行，roving 形态）                 | `makeCursor({pane, body, sents, otherSents, live})`；接入 keymap 层栈（cursor 模态层在 help 之下、sel 之上）                                                                                                                                                                                                                                                                                           |
@@ -117,7 +117,7 @@
 **修改既有文件**：
 
 - `web/src/reader/ReaderView.tsx`：删 :167-242 的 `onKey` if 链 → `attachReaderKeys`；组件层挂 `useContextMenu`（挂点是 panes 容器 `on:contextmenu`——`e.target` 进 snapshotCtx 分语境）；挂载 `<FloatBar>`；help 浮层加 v/j/k/t/c 条目；`caps` 由 props/任务态装配传入 commands。
-- `web/src/reader/DomPane.tsx`：handle 暴露 `bodyEl()` + `chunkSeqOf(dataChunk)`（用 chunks 端点 chunk_id 建 Map）；分片 innerHTML 落地后调 sentseg 注入（懒注入：v 首按时才 segmentDoc 亦可，436 句成本可忽略）；可选补 `openFind`（chunk pane 目前无 FindBar——`pane.find`/`sel.find` 在 dom 侧要达需先给 ChunkPaneHandle 加 find 能力，否则 caps.findInPane=false 自然隐藏，**P3 再做**）。
+- `web/src/reader/DomPane.tsx`：handle 暴露 `bodyEl()` + `chunkSeqOf(dataChunk)`（用 chunks 端点 chunk_id 建 Map）；分片 innerHTML 落地后调 sentseg 注入（懒注入：v 首按时才 segmentDoc 亦可，436 句成本可忽略）；可选补 `openFind`（chunk pane 无 FindBar——`pane.find`/`sel.find` 在 dom 侧要达需先给 ChunkPaneHandle 加 find 能力，否则 caps.findInPane=false 自然隐藏，**P3 再做**）。
 - `web/src/reader/HtmlPane.tsx`：同上（`data-chunk` 本就是 seq，Map 退化为恒等）。
 - `web/src/reader/PdfPane.tsx`：viewer 容器挂 `on:contextmenu`；pdf.js 编辑器态接 Esc 层栈 `editor` 层（`slick.eventBus` 的 `editingstateschanged` → `hasSelectedEditor` + `store.annotationEditorMode`）；**textLayer 选择零改动**（已实证）。
 - `web/src/reader/CiteCard.tsx`：删 :55-64 自有 capture Esc → 注册进层栈 `cite` 层（否则新菜单的 capture Esc 与它谁先谁后不可控，双塌）。

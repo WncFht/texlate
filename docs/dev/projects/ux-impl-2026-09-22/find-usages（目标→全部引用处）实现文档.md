@@ -1,6 +1,6 @@
 # find-usages（目标 → 全部引用处）实现文档
 
-调研综合自 `tmp/ux-research-20260922/exp/` 下 10 个 fu-* 实验（全部已验证落地），覆盖 dom/html/pdf 三视图。本文档给出文件级实现方案。
+调研综合自 `tmp/ux-research-20260922/exp/` 下 10 个 fu-* 实验（全部已验证落地），覆盖 dom/html/pdf 三视图。以下为文件级实现方案。
 
 **实验 → 结论映射**
 
@@ -93,7 +93,7 @@
 
 **v1 零强制改动**（dom/html 数据面齐备）。建议两项：
 
-1. **`server/worker/html.py::_emit_html_dom` id 存活修复**（独立价值，可插队）：`target.clear()` 前收集后代 `[id]`/`[data-chunk]`——①bare inline id 元素在 `reinsert` 产物中无对应件时，以空壳 `<span id>` 锚补挂（或译文含对应 token 时由 reinsert 保骨架）；②嵌套 `data-chunk` 块（itemize 内 para 实证 3 块）改为「先内后外」回插或跳过内层独立回插——**这 3 块译文当前是真丢**（missed_blocks=3），修复同时救内容又救锚面，zh 镜像命中率 92%→~100%。
+1. **`server/worker/html.py::_emit_html_dom` id 存活修复**（独立价值，可插队）：`target.clear()` 前收集后代 `[id]`/`[data-chunk]`——①bare inline id 元素在 `reinsert` 产物中无对应件时，以空壳 `<span id>` 锚补挂（或译文含对应 token 时由 reinsert 保骨架）；②嵌套 `data-chunk` 块（itemize 内 para 实证 3 块）改为「先内后外」回插或跳过内层独立回插——**这 3 块译文确为丢失**（missed_blocks=3），修复同时救内容又救锚面，zh 镜像命中率 92%→~100%。
 2. **可选 usages sidecar/端点**（v2）：emit 期跑 fu-context 管线产 `usages.json`（`{targetKey:[{seq,charOff,sent_en,sent_zh}]}`）经 `files.py` manifest 直出；或 `routers/reader.py` 加 `GET /task/{id}/usages` 懒算。收益：三视图同一句库、大文档免客户端重建、ph 归属可在服务端对 src.tar 做锚点核对（haystack 折空白 + 左窗 ~30 字符定位最近 `\cite`，实证 19/19 救回）。
 3. ph 归属核对若在服务端做：注意 `src` 配对必须按 `src_file` 逐文件序对（全局序配对实测 pos_mismatch=103）；`\citealp{a}; \citealp[opt]\n{b}` 畸形 mega-key 边例要容错。
 

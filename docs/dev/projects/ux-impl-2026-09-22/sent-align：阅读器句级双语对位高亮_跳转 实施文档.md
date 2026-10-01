@@ -48,7 +48,7 @@
 ### 点击跳转
 
 - DOM→DOM：对侧 bead 首元素 `jumpToEl` + `flash`（DomPane 已有）；跳转前后 `capturePos` 记 `navStacks[side].recordJump(pre, post, pair)`，`mirrorTo` 的 pair 机制原样复用——Backspace/Alt+← 回退成对生效。
-- DOM→PDF（v1.5）：源 bead → 所在 chunk 的 Pos + 句内分位（bead 起始字符偏移/chunk 字符数）→ `createPositionMapper`（`alignment.ts`，已支持 pairs/regions 插值）→ 目标 `{page, fraction}` → 合成 `[page, /XYZ, x, y]` dest 走 `handle.goToDestination`（PdfPane 已支持显式 dest 对象，`:774` 实例在案）。精度=chunk 内线性插值，够用；真句级等 v2。
+- DOM→PDF（v1.5）：源 bead → 所在 chunk 的 Pos + 句内分位（bead 起始字符偏移/chunk 字符数）→ `createPositionMapper`（`alignment.ts`，已支持 pairs/regions 插值）→ 目标 `{page, fraction}` → 合成 `[page, /XYZ, x, y]` dest 走 `handle.goToDestination`（PdfPane 已支持显式 dest 对象，`:774` 实例在案）。精度=chunk 内线性插值，本版即此口径；真句级等 v2。
 - PDF→DOM（v2）：文本层命中句锚 quad → sid → 对侧 bead 跳转同上。
 - 点击后 `.sa-flash` 闪目标 bead（复用 flash 动效，深色主题变量见 §前端改动-CSS）。
 
@@ -120,7 +120,7 @@
 
 ### `web/src/reader/sanitize.ts`（防御性一行）
 
-- `ADD_ATTR` 补 `"data-sid","data-bead"`（`:36` 同处）——v1 运行时注入其实不过 sanitizer，此行为 v3 emit 期注 sid 与防回归预备，并配一条 sanitize 回归测试。
+- `ADD_ATTR` 补 `"data-sid","data-bead"`（`:36` 同处）——v1 运行时注入不经 sanitizer，此行为 v3 emit 期注 sid 与防回归预备，并配一条 sanitize 回归测试。
 
 ### `sync.ts` / `alignment.ts` / `navstack.ts` / `citations.ts`
 
@@ -173,7 +173,7 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 9. **存量 PDF 无锚**：仅 31.5% 有 dest，v2 前必须保 chunk 级降级路径。
 10. **zh PDF 文本抽取**：缺 cMapUrl/standardFontDataUrl 则 quad 派生失败——PdfPane 加载参数检查列验收。
 11. **folio 吞锚**：末锚被页码行吃掉 → leading-gap 闸（>2× median）+ 双页 quad 用例（实测 7/499 跨页对）。
-12. **大文档 mount 抖动**：jsdom 下 188KB 文档注入 ~104–131ms——必须走 `forEachSliced` 分片，别一把梭。
+12. **大文档 mount 抖动**：jsdom 下 188KB 文档注入 ~104–131ms——必须走 `forEachSliced` 分片。
 13. **fixture 真空**：repo 无真实 dual.json——测试基建第一步是快照合法化（体积 + 隐私：选小任务、脱 task id 亦可）。
 14. **sanitize 回归面**：运行时注入不过 DOMPurify，但 v3 emit 直出时被剥光即静默失效——ADD_ATTR 声明 + 测试先行。
 15. **zh 侧勿用裸 Intl**：Intl 与 zhseg 虽 97.7% 节点一致，但序位对位的 93.4% 天花板依赖与 `sentence_ends` 同款的 `{}` 深度/abbrev 不对称修正；混用会把 chunk-exact 打回 ~84%。
@@ -202,7 +202,7 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 
 ## v1.7 PDF 侧句级落地（2026-09-26）
 
-v1.5 引入的 u 分位块内插值其实早已把落点推进段内（探针实测 u_src=0.66→u_meas=0.49），但 `pdfFlashSeq` 整段 190 叶全闪使观感仍是「段落级」。本版不改后端、不依赖 `tl.*` 句锚即拿到 PDF 侧真句级：dst marked 字形叶文本经 `splitZh`/`splitEn` 重切句 → `u·concatLen` 选句（与 DOM 臂 `sents.find` 同语义）→ 句首叶 `{page,fraction,x}` 作落点 Pos、`pdfFlashEls` 句域叶集闪示（实测 deep click 闪 18 叶/51px≈一句 vs 旧 190 叶/整段）。
+v1.5 引入的 u 分位块内插值已把落点推进段内（探针实测 u_src=0.66→u_meas=0.49），但 `pdfFlashSeq` 整段 190 叶全闪使观感仍是「段落级」。本版不改后端、不依赖 `tl.*` 句锚即拿到 PDF 侧真句级：dst marked 字形叶文本经 `splitZh`/`splitEn` 重切句 → `u·concatLen` 选句（与 DOM 臂 `sents.find` 同语义）→ 句首叶 `{page,fraction,x}` 作落点 Pos、`pdfFlashEls` 句域叶集闪示（实测 deep click 闪 18 叶/51px≈一句 vs 旧 190 叶/整段）。
 
 - 改动面：`PdfPane` 新增 `seqLeaves`（seqEls→leafEls 下钻）与 `flashEls`（任意叶集闪）两 handle；`sentalign` 新增 `pdfSentAt` 私方法与 `pdfSeqLeaves`/`pdfFlashEls` 两 dep，`pdfJumpFlash` 增 `sent` 参贯穿句级闪选链（预选叶集→跳后重选→行带→整段殿后）；`jumpSeq`/`jumpSidToPdf` 两臂同接——PDF↔PDF 与 DOM→PDF 两路都吃。
 - 落点语义：`sent?.pos ?? interpDst ?? seqPos` 三阶梯——dst 页已渲染即句级直锚（无需 est_dst 钳制，文本成比例映射天然收敛于块内）；懒渲页先走旧插值落地、闪选链 160/550ms 双拍重试，命中即封代际（`flashGen` 每次起跳递增，挡窗内连点陈旧闪示）。
