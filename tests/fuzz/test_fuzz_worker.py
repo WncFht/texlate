@@ -800,7 +800,7 @@ class TestTerminalDoneEvent:
 
 
 class TestVerdictPersistence:
-    """终态载荷（fixloop/l2/share 摘要）经 error_json 的 round-trip 面。"""
+    """终态载荷（fixloop/logfix/share 摘要）经 error_json 的 round-trip 面。"""
 
     def test_huge_nonascii_fixloop_roundtrip(self, tmp_path: Path) -> None:
         ctx, worker, store = mk_ctx(tmp_path)
@@ -843,7 +843,7 @@ class TestVerdictPersistence:
     def test_stats_shape(self, tmp_path: Path) -> None:
         ctx, worker, _store = mk_ctx(tmp_path)
         ctx.fixloop = {"verdict": "clean"}
-        ctx.l2 = {
+        ctx.logfix = {
             "enabled": True,
             "errors": 2,
             "retranslated": ["a"],
@@ -851,7 +851,7 @@ class TestVerdictPersistence:
         }
         s = worker._stats(ctx)  # noqa: SLF001
         assert s["fixloop"] == "clean"
-        assert s["l2"]["retranslated"] == 1
+        assert s["logfix"]["retranslated"] == 1
         assert isinstance(s["seconds"], float)
 
 

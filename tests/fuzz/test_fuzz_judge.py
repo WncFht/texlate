@@ -100,7 +100,7 @@ from texlate.compile.latex209 import main as latex209_main
 from texlate.compile.loginfo import classify_error, parse_log
 from texlate.compile.mask import visible_tex
 from texlate.redlines import (
-    L2_REDLINE_CLASSES,
+    LOGFIX_REDLINE_CLASSES,
     REDLINES,
     REDLINES_BY_ID,
     LayerSpec,
@@ -496,11 +496,11 @@ class TestRedlines:
             for spec in layers:
                 if spec is not None and spec.pattern is not None:
                     re.compile(spec.pattern)
-        # 派生类（无 pattern 的 l2 spec）必须在 l2_redline 语义里出现名
+        # 派生类（无 pattern 的 l2 spec）必须在 logfix_redline 语义里出现名
         derived = [
             r.l2.name for r in REDLINES if r.l2 is not None and r.l2.pattern is None
         ]
-        assert set(derived) <= L2_REDLINE_CLASSES
+        assert set(derived) <= LOGFIX_REDLINE_CLASSES
 
     def test_name_pattern_valueerror(self) -> None:
         """``pattern=None``/``spec=None`` 属登记错误——ValueError 不静默。"""

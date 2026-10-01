@@ -17,7 +17,7 @@ mock 路径 = `MockTranslator`（占位译文供 E2E/bench，不触网、确定�
 PipelineConfig/chunk_to_in 数据契约）、``pipeline.translator``（Translator
 协议/GatewayTranslator 适配/输出清洗）、``pipeline.materialize``
 （_XlatMaterialize：system prompt memo + 术语/锚定/点名册 + 段级缓存）、
-``pipeline.single``（_XlatSingle：阶梯调用点 + L2 回灌）、``pipeline.batch``
+``pipeline.single``（_XlatSingle：阶梯调用点 + logfix 回灌）、``pipeline.batch``
 （_XlatBatch：编号批协议 + 退单翻）、``pipeline.ledger``（_XlatLedger：
 skip/直通落形 + 拦截网/auth 闸/emit 账本）、``pipeline.orch``（WorkItem +
 _XlatOrch 主编排 + ``XlatPipeline`` 组合根）。本文件是 PEP 562 惰性门面
@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 
 # ``ChunkIn`` 契约下沉 ``texlate.chunk``（arxiv 降级链同消费——底层不能
 # 向上 import 本包）；转口保持 ``from texlate.xlat.pipeline import ChunkIn``
-# 钉点面守恒（repair_l2/e2e/worker/tests）。``JSON_FENCE_RX`` 同——
+# 钉点面守恒（repair/e2e/worker/tests）。``JSON_FENCE_RX`` 同——
 # ``_strip_json_fence`` 出叶 ``pipeline.translator`` 后名仍挂本面。
 from texlate.chunk import ChunkIn
 from texlate.textutil import JSON_FENCE_RX

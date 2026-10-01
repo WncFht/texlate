@@ -85,7 +85,7 @@ def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]
     ``results[]`` 落盘字段，无需再派生）重放。调用面 seg 形态复刻
     ``_route_chunks``：``hard_limit`` 默认阈值切片、逐片
     ``encode_newlines``——``_canon`` 在 encoded/原文间归一，encoded
-    重放即同决策。Mode B 另查原文形 ``_plan_b(piece)``：corrector/L2
+    重放即同决策。Mode B 另查原文形 ``_plan_b(piece)``：corrector/logfix
     回灌的 seg 是未编码原文，含字面占位族 token 的源下两类 canon
     哈希可分歧，并集宁宽勿漏。Mode C moved 按规范首调形态
     ``_apply_c(mock(enc))`` 复算——重试/corrector 形 ``out`` 位置不

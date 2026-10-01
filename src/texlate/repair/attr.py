@@ -1,10 +1,10 @@
-"""repair_l2.attr — L2 错误归因叶 (repair_l2 拆分叶).
+"""repair.attr — logfix 错误归因叶 (repair 拆分叶).
 
 错误签名簇（``err_signature``/``err_signatures``/``err_signatures_text`` +
-``_sig_*``/``_undef_cs_culprit`` 内部件）、log 解析入口 ``_l2_parse``、
+``_sig_*``/``_undef_cs_culprit`` 内部件）、log 解析入口 ``_log_parse``、
 chunk 落盘区间 ``chunk_spans``、文件名 token 解算 ``_resolve_fidx``、
-归因底账 ``L2Attr``（逐文件 文本/行偏移/chunk 区间三表 + ``attr_error``
-归因阶梯）与顶面 ``_l2_localize``。
+归因底账 ``LogAttr``（逐文件 文本/行偏移/chunk 区间三表 + ``attr_error``
+归因阶梯）与顶面 ``_attr_localize``。
 
 归因桶（infra/struct/filelevel）成员类别由 ``rules/10-taxonomy.yaml``
 的类别 id 单源裁决——``_bucket_rx`` 惰性构建 arm pattern 并集 + 扁平
@@ -26,23 +26,23 @@ from texlate.latex.reconstruct import (
     translation_tokens,
 )
 from texlate.texlog import log_text_of
-from texlate.validate import l2 as l2_mod
+from texlate.validate import l2 as logattr_mod
 
 if TYPE_CHECKING:
     from typing import Any
 
     from texlate.compile.engine import CompRes
     from texlate.latex.model import ScanResult
-    from texlate.repair_l2.runstate import TreeRun
+    from texlate.repair.runstate import TreeRun
 
 log = logging.getLogger(__name__)
 
-#: L2 回灌默认每文档重译上限（spec ≤10，参数化入口 ``l2_max_chunks``）
-L2_MAX_CHUNKS = 10
+#: logfix 回灌默认每文档重译上限（spec ≤10，参数化入口 ``logfix_max_chunks``）
+LOGFIX_MAX_CHUNKS = 10
 #: 错误行 → 最近 chunk 的归因距离上限（字符）；超出按基建错处理，不耗 LLM
-_L2_ATTR_WINDOW = 4000
-#: L2 单次回灌最多消费的 log 错误条数
-_L2_MAX_ERRORS = 50
+_ATTR_WINDOW = 4000
+#: logfix 单次回灌最多消费的 log 错误条数
+_ATTR_MAX_ERRORS = 50
 #: 归因桶成员类别——桶归属由 ``rules/10-taxonomy.yaml`` 的类别 id 单源
 #: 裁决：桶 regex = 成员类别全部 head-scope arm 的 pattern 并集 + 扁平
 #: 语义补遗 ``_*_EXTRA``。taxonomy arm 增删自动汇流进桶——消灭旧
@@ -167,7 +167,7 @@ def _bucket_rx(name: str) -> re.Pattern[str]:
     tax = load_ruleset(tolerant=True).taxonomy
     missing = cats - {e.get("id") for e, _ in tax.head}
     if missing:
-        msg = f"L2 归因桶成员类别在 taxonomy 缺席: {sorted(missing)}"
+        msg = f"logfix 归因桶成员类别在 taxonomy 缺席: {sorted(missing)}"
         raise RulesetError(msg)
     scoped = [
         f"(?{m.group(1)}:{p[m.end() :]})" if (m := _ARM_FLAG_RX.match(p)) else p
@@ -192,7 +192,7 @@ _UNDEF_CS_CULPRIT_RXS: tuple[re.Pattern[str], ...] = (
 )
 
 
-def _undef_cs_culprit(err: l2_mod.LogError) -> str | None:
+def _undef_cs_culprit(err: logattr_mod.LogError) -> str | None:
     r"""``Undefined control sequence`` 的肇事 cs 名（``\\rowcolor`` 形）。"""
     blob = "\n".join(err.ctx)
     for rx in _UNDEF_CS_CULPRIT_RXS:
@@ -207,7 +207,7 @@ def _sig_head(head: str) -> str:
     return re.sub(r"\d+", "#", h)
 
 
-def err_signature(err: l2_mod.LogError) -> str:
+def err_signature(err: logattr_mod.LogError) -> str:
     r"""错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
 
     ``Undefined control sequence`` 头恒定、罪魁全在 ctx——签名键必须是
@@ -221,7 +221,7 @@ def err_signature(err: l2_mod.LogError) -> str:
     return f"{_sig_head(err.head)}|{culprit}"
 
 
-def _sig_set(verdict: l2_mod.L2Verdict) -> set[str]:
+def _sig_set(verdict: logattr_mod.L2Verdict) -> set[str]:
     """L2Verdict → 错误签名集（``log_missing``/无错 → 空集）。"""
     if verdict.log_missing or not verdict.errors:
         return set()
@@ -232,7 +232,7 @@ def err_signatures(res: CompRes) -> set[str]:
     """CompRes → 错误签名集（en 基线快照——worker 原文编译后取）。
 
     签名在 en 侧出现 = 源生错（无译文时已犯）——zh 侧同签名错误不归
-    chunk（L2 归因面消费；基线缺席返回空集=无过滤）。
+    chunk（logfix 归因面消费；基线缺席返回空集=无过滤）。
     """
     return err_signatures_text(log_text_of(res), project_root=res.workdir)
 
@@ -241,20 +241,20 @@ def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> s
     """Log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
     if not log_text:
         return set()
-    return _sig_set(l2_mod.parse_log_text(log_text, project_root=project_root))
+    return _sig_set(logattr_mod.parse_log_text(log_text, project_root=project_root))
 
 
-def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
+def _log_parse(res: CompRes) -> logattr_mod.L2Verdict:
     """CompRes → L2Verdict：``texlog.log_text_of`` 全文 → ``parse_log_text``。
 
-    被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 L2 臂
+    被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 logfix 臂
     静默空转（``log_text_of`` 单源同口径：``.log`` 非空优先、缺席/
     空文件/读失败退 ``stdout_tail``，worker 共享本函数同愈）。
     """
     text = log_text_of(res)
     if text:
-        return l2_mod.parse_log_text(text, project_root=res.workdir)
-    return l2_mod.L2Verdict(log_missing=True)
+        return logattr_mod.parse_log_text(text, project_root=res.workdir)
+    return logattr_mod.L2Verdict(log_missing=True)
 
 
 def chunk_spans(
@@ -266,7 +266,7 @@ def chunk_spans(
     前后块锚定（归因是启发式，丢块可接受）。展开走 ``reconstruct`` 同款
     ``_Expander``（``translation_tokens`` 映射 + ``short_arg`` 折叠 +
     ``seg_join`` 接缝守卫 + memo/环检全单源）——落盘字节镜像口径：
-    缺这步 ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。
+    缺这步 ``find`` 必对不上落盘字节，块在 logfix 二次归因里整片消失。
     本函数只服务译文落盘文件，``glue_latin`` 恒真。
     """
     ex = _Expander(res, translation_tokens(res, trans), glue_latin=True)
@@ -308,8 +308,8 @@ def _resolve_fidx(token: str, run: TreeRun, work: Path) -> int | None:
 
 
 @dataclass
-class L2Attr:
-    """L2 归因底账：每文件 文本/行偏移/chunk 区间 三表（惰性建）。"""
+class LogAttr:
+    """logfix 归因底账：每文件 文本/行偏移/chunk 区间 三表（惰性建）。"""
 
     run: TreeRun
     work: Path
@@ -349,7 +349,7 @@ class L2Attr:
         text = self.texts[fidx]
         off = offs[tex_line - 1]
         line_end = offs[tex_line]
-        best_cid, best_gap = None, _L2_ATTR_WINDOW + 1
+        best_cid, best_gap = None, _ATTR_WINDOW + 1
         for cid, sp in self.spans[fidx].items():
             if sp is None:
                 continue
@@ -365,7 +365,7 @@ class L2Attr:
             gap = max(s - off, off - e, 0)
             if gap < best_gap:
                 best_cid, best_gap = cid, gap
-        return best_cid if best_gap <= _L2_ATTR_WINDOW else None
+        return best_cid if best_gap <= _ATTR_WINDOW else None
 
     def _cs_source_carried(self, fidx: int, cs: str, sres: ScanResult) -> bool:
         """肇事 cs 是否确证源携带（非译文引入）——undefined_cs 归因豁免判据。
@@ -396,7 +396,7 @@ class L2Attr:
         )
 
     def attr_error(  # noqa: PLR0911 -- 归因阶梯：豁免→结构→eof→白名单逐档直铺
-        self, err: l2_mod.LogError
+        self, err: logattr_mod.LogError
     ) -> tuple[int, list[int]] | None:
         """单条 log 错误 → (fidx, chunk.id 列表)；不可归因 → None。"""
         blob = err.head + "\n" + "\n".join(err.ctx)
@@ -434,17 +434,19 @@ class L2Attr:
         if strict:
             return (fidx, [])  # 结构签名无可含位行 → 一切兜底都禁
         if eof and sres.chunks:
-            if len(sres.chunks) <= L2_MAX_CHUNKS:
+            if len(sres.chunks) <= LOGFIX_MAX_CHUNKS:
                 return (fidx, [c.id for c in sres.chunks])
             return (fidx, [sres.chunks[-1].id])
         # 无行号文件级错误：白名单签名才允许全块兜底——其余类位置
         # 信息为零，全块归因是扫射烧块，不归因留 fixloop。
-        if len(sres.chunks) <= L2_MAX_CHUNKS and _bucket_rx("filelevel").search(blob):
+        if len(sres.chunks) <= LOGFIX_MAX_CHUNKS and _bucket_rx("filelevel").search(
+            blob
+        ):
             return (fidx, [c.id for c in sres.chunks])
         return (fidx, [])
 
 
-def _l2_localize(
+def _attr_localize(
     work: Path,
     run: TreeRun,
     res: CompRes,
@@ -457,23 +459,23 @@ def _l2_localize(
     刚弹出的肇事文件，行号丢弃）> ``tex_file``（file:line: 格式）> 文件栈
     **最内层**（``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的
     ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
-    → 所在 chunk；不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``，且起点
+    → 所在 chunk；不在任何块内则取最近块（≤ ``_ATTR_WINDOW``，且起点
     越过错误行行尾的块被顺序读取不变量排除）。豁免先于归因：
     ``baseline_sigs`` 命中的 en 基线签名判源生不归块；infra 桶
     基建签名永不归块；undefined_cs 肇事 cs 在源 chunk 文本中同理豁免；
     struct 桶结构签名只认报错行严格含于块内（无最近块兜底/
     文件级兜底）；无行号错误走 filelevel 桶白名单才允许文件级
-    全块归因（且 chunk 数 ≤ ``L2_MAX_CHUNKS``）。
+    全块归因（且 chunk 数 ≤ ``LOGFIX_MAX_CHUNKS``）。
     """
-    verdict = _l2_parse(res)
+    verdict = _log_parse(res)
     if verdict.log_missing or not verdict.errors:
         return {}, verdict.n_errors
     errs = verdict.errors
     if baseline_sigs:
         errs = [e for e in errs if err_signature(e) not in baseline_sigs]
-    st = L2Attr(run, work)
+    st = LogAttr(run, work)
     hits: dict[str, dict[str, Any]] = {}
-    for err in errs[:_L2_MAX_ERRORS]:
+    for err in errs[:_ATTR_MAX_ERRORS]:
         got = st.attr_error(err)
         if got is None:
             continue

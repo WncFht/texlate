@@ -1,6 +1,6 @@
-// progress chrome 一轮覆盖：fixloop/l2 SSE 帧 → TaskLive 合并语义。
+// progress chrome 一轮覆盖：fixloop/logfix SSE 帧 → TaskLive 合并语义。
 //  round 帧按 round 号去重 append；done 帧 cell/旧裸 cell 两形态归一；
-//  l2 整帧存、phase 缺省按 done；终态收敛不清这两个字段。
+//  logfix 整帧存、phase 缺省按 done；终态收敛不清这两个字段。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +15,7 @@ vi.mock("../api/client", async (importOriginal) => {
     return clientModuleMock(importOriginal, mocks);
 });
 
-import type { DoneEvent, L2Event } from "../api/client";
+import type { DoneEvent, LogfixEvent } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { handlersOf, mkChannel, mkSnap, trackWatches } from "./_taskkit";
 
@@ -136,12 +136,12 @@ describe("fixloop 帧合并", () => {
     });
 });
 
-describe("l2 帧合并", () => {
+describe("logfix 帧合并", () => {
     it("start/progress 帧整帧存（phase 原样）", async () => {
         used.push("l1");
         taskStore.watch("l1");
-        handlersOf(mocks, 0).l2?.({ phase: "progress", message: "3/10" });
-        expect(taskStore.live("l1")!.l2).toEqual({
+        handlersOf(mocks, 0).logfix?.({ phase: "progress", message: "3/10" });
+        expect(taskStore.live("l1")!.logfix).toEqual({
             phase: "progress",
             message: "3/10",
             enabled: undefined,
@@ -152,28 +152,28 @@ describe("l2 帧合并", () => {
     });
 
     it("phase 缺省按 done 归一；统计键平铺", async () => {
-        used.push("l2");
-        taskStore.watch("l2");
-        const ev: L2Event = {
+        used.push("logfix");
+        taskStore.watch("logfix");
+        const ev: LogfixEvent = {
             enabled: true,
             errors: 4,
             retranslated: 3,
             fallback: 1,
         };
-        handlersOf(mocks, 0).l2?.(ev);
-        const l = taskStore.live("l2")!.l2!;
+        handlersOf(mocks, 0).logfix?.(ev);
+        const l = taskStore.live("logfix")!.logfix!;
         expect(l.phase).toBe("done");
         expect(l.errors).toBe(4);
         expect(l.retranslated).toBe(3);
         expect(l.fallback).toBe(1);
     });
 
-    it("终态收敛不清 l2", async () => {
+    it("终态收敛不清 logfix", async () => {
         used.push("l3");
         taskStore.watch("l3");
         const h = handlersOf(mocks, 0);
-        h.l2?.({ phase: "done", enabled: true, errors: 0 });
+        h.logfix?.({ phase: "done", enabled: true, errors: 0 });
         h.done?.(doneEv);
-        expect(taskStore.live("l3")!.l2!.errors).toBe(0);
+        expect(taskStore.live("l3")!.logfix!.errors).toBe(0);
     });
 });

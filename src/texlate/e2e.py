@@ -10,7 +10,7 @@ monkeypatch 面）。
 
 编译失败后的两级修复（docs/spec/validate.md 接线）：
 
-1. **L2 回灌**（先跑）——log 解析把错误定位到 chunk（file:line: 或文件栈
+1. **logfix 回灌**（先跑）——log 解析把错误定位到 chunk（file:line: 或文件栈
    归因），只重译被点名的块（每块限 1 次、per-doc 有上限），resplice 后
    重编一次；仍被点名且本轮重译过的块回落原文（"再不过 → fallback 原文"）。
    先修自家译文伤——fixloop 的 regex_rewrite 会直接改盘上文件，若先跑
@@ -52,15 +52,14 @@ from texlate.pipecore import (
     translate_tree_run,
 )
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.repair import embed_tounicode_quiet
-from texlate.repair_l2 import ENV_ENV_JUDGE, L2_MAX_CHUNKS
+from texlate.repair import ENV_ENV_JUDGE, LOGFIX_MAX_CHUNKS, embed_tounicode_quiet
 from texlate.textutil.osutil import ENV_AUTO_GLOSSARY, env_switch
 from texlate.validate.l0 import validate_pair
 
 if TYPE_CHECKING:
     from texlate.compile.engine import Engine
     from texlate.pipecore import ReportSink
-    from texlate.repair_l2 import TreeRun
+    from texlate.repair import TreeRun
     from texlate.xlat.pipeline import Translator
 
 log = logging.getLogger(__name__)
@@ -185,24 +184,24 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     *,
     translator: Translator | None = None,
     env_judge: bool | None = None,
-    l2_on: bool | None = None,
+    logfix_on: bool | None = None,
     fixloop_on: bool | None = None,
     auto_glossary: bool | None = None,
-    l2_max_chunks: int = L2_MAX_CHUNKS,
+    logfix_max_chunks: int = LOGFIX_MAX_CHUNKS,
     route_engines: list[str] | None = None,
     front_matter: frozenset[str] | None = None,
     sink: ReportSink = NULL_SINK,
 ) -> dict:
     """跑 pipe 条件：normalize → 翻译 → ctex 注入 → 编译 → 判定 → 修复链。
 
-    非 clean 时先 L2 回灌（译文归因重译）再 fixloop（规则修源）。开关：
-    ``TEXLATE_ENV_JUDGE`` / ``TEXLATE_NO_L2`` / ``TEXLATE_NO_FIXLOOP`` /
+    非 clean 时先 logfix 回灌（译文归因重译）再 fixloop（规则修源）。开关：
+    ``TEXLATE_ENV_JUDGE`` / ``TEXLATE_NO_LOGFIX`` / ``TEXLATE_NO_FIXLOOP`` /
     ``TEXLATE_AUTO_GLOSSARY``（显式参数优先于 env）。``route_engines`` 供
     engine_flags 跨引擎消费，
     缺省 ``[eng_name]``（bench 直调不跨界）。fixloop 启用时翻译前先抓
     baseline 快照（worker ``ctx.base_dir`` 同位——e2e 原地翻译，snapshot
     即 pristine 源），供 restore_support_from_src 复原被写脏的 support 件。
-    ``sink`` 收 ``stage`` 边界帧 + ``translate``/``l2``/``fixloop`` 实况
+    ``sink`` 收 ``stage`` 边界帧 + ``translate``/``logfix``/``fixloop`` 实况
     （CLI ``CliSink`` 渲染；bench/测试臂 NULL 静默同重构前）。
     """
     rec: dict[str, object] = {"engine": eng_name}
@@ -258,7 +257,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         rec.update(tail)
 
         if rec["status"] != "clean":
-            # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
+            # 修复链 = pipecore.repair_chain 单件（precheck → logfix 回灌 → fixloop，
             # 与 bench 同一条链）；引擎缝/路由/基线/sink 全在 job 上。
             res = repair_chain(
                 rec,
@@ -266,11 +265,11 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
                 run,
                 res,
                 expect_cjk=expect_cjk,
-                l2_on=l2_on,
+                logfix_on=logfix_on,
                 fixloop_on=fl,
-                l2_max_chunks=l2_max_chunks,
+                logfix_max_chunks=logfix_max_chunks,
             )
-        # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
+        # ToUnicode 注入在修复链收敛之后——logfix 重编/fixloop 换编都会重写同一
         # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
         if res.has_pdf and res.pdf is not None:
             sink.event("stage", {"stage": "tounicode"})
@@ -303,9 +302,9 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
     *,
     translator: Translator | None = None,
     env_judge: bool | None = None,
-    l2_on: bool | None = None,
+    logfix_on: bool | None = None,
     fixloop_on: bool | None = None,
-    l2_max_chunks: int = L2_MAX_CHUNKS,
+    logfix_max_chunks: int = LOGFIX_MAX_CHUNKS,
     front_matter: frozenset[str] | None = None,
     sink: ReportSink = NULL_SINK,
 ) -> dict:
@@ -314,7 +313,7 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
     ``engine_opt``：``auto`` 取路由首选，或显式引擎名。返回结构化报告 dict
     （route/normalize/translate/inject/compile/verdict + 修复链 + 终态）。
     ``front_matter`` = preamble 前置发射集（None → env/缺省）。
-    ``sink`` 收 ``stage``/``translate``/``l2``/``fixloop`` 实况帧——CLI
+    ``sink`` 收 ``stage``/``translate``/``logfix``/``fixloop`` 实况帧——CLI
     ``run`` 挂 ``CliSink``，bench/测试臂 NULL 静默（与重构前一致）。
     """
     report: dict[str, object] = {"work": str(work)}
@@ -360,9 +359,9 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
             timeout,
             translator=translator,
             env_judge=env_judge,
-            l2_on=l2_on,
+            logfix_on=logfix_on,
             fixloop_on=fixloop_on,
-            l2_max_chunks=l2_max_chunks,
+            logfix_max_chunks=logfix_max_chunks,
             # 显式 engine 收窄到该引擎——跨引擎换编臂自熄（worker
             # _build_base 同口径：engines = route.engines if auto else
             # [opt_engine]，持久化进 options.route_engines）

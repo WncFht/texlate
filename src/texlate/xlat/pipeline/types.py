@@ -1,7 +1,7 @@
 """pipeline 数据契约域（自 ``pipeline`` 出叶）：常量 + 输入适配 + 结果/配置 dataclass。
 
 ``chunk_to_in``/``ChunkResult``/``PipelineConfig`` 是编排三方（编排器、
-worker 侧消费方、export/repair_l2）的共同词汇；常量定案值见
+worker 侧消费方、export/repair）的共同词汇；常量定案值见
 docs/spec/translate.md.
 """
 

@@ -27,7 +27,7 @@ from texlate.latex.reconstruct import (
 from texlate.pipecore.policy import _opt_switch
 from texlate.pipecore.scan import auto_glossary_fn, scan_tree
 from texlate.pipecore.state import NULL_SINK, delivered
-from texlate.repair_l2 import (
+from texlate.repair import (
     TreeRun,
     env_judge_all,
     split_cid,
@@ -207,7 +207,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     # 整条翻译相（run + env_judge）收进同一 ephemeral loop——pipe 的
     # httpx client 池钉死在首个消费 loop 上，拆多次 asyncio.run 会让
     # env_judge/修复臂在死 loop 绑定的连接上跑（foreign-loop）。loop
-    # 随 TreeRun 交还调用方——修复链 L2 重译臂 ``run.drive`` 复用后由
+    # 随 TreeRun 交还调用方——修复链 logfix 重译臂 ``run.drive`` 复用后由
     # 调用方 ``run.close_loop()`` 收（baseline_snapshot td 同款令牌）。
     loop = asyncio.new_event_loop()
 

@@ -337,7 +337,7 @@ class TestShareImport:
     ) -> None:
         """本地重编不出 pdf → partial + share_verify（不信包内 zh.pdf）。"""
         clean_env.setenv("TEXLATE_NO_FIXLOOP", "1")
-        clean_env.setenv("TEXLATE_NO_L2", "1")
+        clean_env.setenv("TEXLATE_NO_LOGFIX", "1")
         eng = RecordingEngine("fake")
         eng.produce_pdf = False
         prod, imp, ddir = _apps(tmp_path, imp_engine=eng)

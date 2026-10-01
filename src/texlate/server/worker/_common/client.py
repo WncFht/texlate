@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 def _new_usage_meter() -> tuple[dict[str, Any], Callable[[UsageRecord], None]]:
     """Usage 累加器 + ``ChatClient.usage_sink`` 回调（T4 真账记账）。
 
-    主链/旁路臂（env_judge、L2、doc export）共用——旁路 client 不挂
+    主链/旁路臂（env_judge、logfix、doc export）共用——旁路 client 不挂
     sink 时 token 消耗从 ``task_usage`` 蒸发。
     """
     usage: dict[str, Any] = {
@@ -59,7 +59,7 @@ def _translator_clients(translator: object) -> list[ChatClient]:
 
 
 async def _aclose_clients(clients: list[ChatClient]) -> None:
-    """逐一关 translator 底层 client（L2/env_judge 旁路自建 translator 的收尾）。
+    """逐一关 translator 底层 client（logfix/env_judge 旁路自建 translator 的收尾）。
 
     单个 aclose 抛错（连接已坏/半关状态）不挡其余、不上浮——收尾失败
     不该把任务终态改判 fault，更不该在 ``finally`` 里盖掉真异常。

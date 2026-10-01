@@ -226,13 +226,13 @@ def compile_fp(c: dict) -> str:
 
 # ---------------------------------------------------------------- 编译判决
 def judge_dict(res, *, expect_cjk: bool) -> dict:
-    """CompileResult → {compile, verdict, status, l2_attr, taxonomy}——
+    """CompileResult → {compile, verdict, status, logfix_attr, taxonomy}——
     ``texlate.pipecore.tail.compile_judge_tail`` 同形状（bench 侧复刻点
     收敛：e2e_real/e2e_mock 共用）。
 
-    ``l2_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
+    ``logfix_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
     单源：逐条 ``{kind,file,line,head,log_line}`` hits + ``warn_by_class``），
-    落 ``metrics.l2_attr`` / fixloop post 落 ``metrics.post.l2_attr``，
+    落 ``metrics.logfix_attr`` / fixloop post 落 ``metrics.post.logfix_attr``，
     供 records 离线按类聚类 warning/error。
 
     ``taxonomy`` = fixloop 内部分类器对本次编译 log 的二级分类
@@ -240,7 +240,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
     聚合桶 (other/errors>3/syntax) 由 dossier/triage 直读细分。
     """
     from texlate.compile.judge import judge
-    from texlate.repair_l2 import _l2_parse
+    from texlate.repair import _log_parse
 
     v = judge(res, expect_cjk=expect_cjk)
     return {
@@ -268,7 +268,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
             "warnings_hit": v.warnings_hit,
         },
         "status": v.status,
-        "l2_attr": _l2_parse(res).attribution_dict(),
+        "logfix_attr": _log_parse(res).attribution_dict(),
         "taxonomy": _taxonomy_of(res),
     }
 

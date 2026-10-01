@@ -181,7 +181,7 @@ class _CompileEngine:
         """修复链实况帧发布：``bus.publish`` 经 ``_on_loop`` 回弹 + BYOK 秘钥 scrub。
 
         best-effort 观测面——帧发布失败只留 debug 痕，不拖垮修复臂本体。
-        fixloop ``on_round`` 回调与 L2 阶段帧同走此口。
+        fixloop ``on_round`` 回调与 logfix 阶段帧同走此口。
         """
         try:
             self._on_loop(

@@ -227,7 +227,7 @@ spec = Spec(
     env_probes=["python"],
     code_deps=[
         "src/texlate/latex/gullet",
-        "src/texlate/latex/tables.py",
+        "src/texlate/latex/tables",
         "src/texlate/arxiv/locate.py",
         "src/texlate/textutil",
     ],

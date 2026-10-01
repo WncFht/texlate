@@ -329,21 +329,21 @@ def test_base_condition(
 def test_pipeline_run_repair_chain_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """非 clean → L2 回灌 + fixloop 修复链真跑：无 pdf 引擎 → 终态 fail。
+    """非 clean → logfix 回灌 + fixloop 修复链真跑：无 pdf 引擎 → 终态 fail。
 
     RecordingEngine 带全协议桩（caps/probe/install/filemap/best_effort），
     fixloop 真跑自然收敛而非走 ``_run_fixloop`` 的 error 兜底。
     """
     work = make_project(tmp_path / "p")
     monkeypatch.setattr(e2e, "engine_for", failing_engine)
-    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_LOGFIX", "TEXLATE_NO_FIXLOOP"):
         monkeypatch.delenv(key, raising=False)
     report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "fail"
-    l2 = report["l2"]
-    assert l2["enabled"] is True
-    assert l2["errors"] == 0  # 假 log 无 chunk 级可归因错误
+    logfix = report["logfix"]
+    assert logfix["enabled"] is True
+    assert logfix["errors"] == 0  # 假 log 无 chunk 级可归因错误
     fl = report["fixloop"]
     assert fl["enabled"] is True
     assert "error" not in fl  # 协议桩齐 → fixloop 真跑不抛

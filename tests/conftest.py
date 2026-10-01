@@ -110,7 +110,7 @@ _SERVER_TEST_DEPS: dict[tuple[str, ...], list[str]] = {
         "test_server_discover.py",
         "test_server_gate.py",
         "test_server_keyless_gate.py",
-        "test_server_l2.py",
+        "test_server_logfix.py",
         "test_server_m3_fixes.py",
         "test_server_persist.py",
         "test_server_polish.py",
@@ -163,7 +163,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     """清掉所有会改变 BYOK/路由/管线行为的 env（本机/CI 环境差异免疫）。
 
     ``TEXLATE_*`` 全前缀扫描——``NO_BWRAP``/``OFFLINE``/``NO_EXPAND``/
-    ``NO_L2`` 等行为旗标与今后新增旗标一并免疫；非前缀外部键走
+    ``NO_LOGFIX`` 等行为旗标与今后新增旗标一并免疫；非前缀外部键走
     ``_ENV_KEYS`` 名单。
     """
     for key in tuple(os.environ):
@@ -559,7 +559,7 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
 
     pdftotext 在假 pdf 上必败（→ -1 降级 note）——patch 成正常值让
     ``expect_cjk`` 路径判定确定、不受本机 poppler 有无影响。
-    修复链 env 旗标（ENV_JUDGE/NO_L2/NO_FIXLOOP）钉成缺省——本机 env
+    修复链 env 旗标（ENV_JUDGE/NO_LOGFIX/NO_FIXLOOP）钉成缺省——本机 env
     不污染报告形状。
     """
     from texlate import e2e  # noqa: PLC0415
@@ -572,7 +572,7 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
         return eng
 
     monkeypatch.setattr(e2e, "engine_for", factory)
-    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_LOGFIX", "TEXLATE_NO_FIXLOOP"):
         monkeypatch.delenv(key, raising=False)
     # 包级 re-export 的 judge 函数遮蔽了同名子模块属性路径——按模块对象打
     monkeypatch.setattr(judge_mod(), "pdf_text_stats", lambda _p: (500, 0))

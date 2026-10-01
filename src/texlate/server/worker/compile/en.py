@@ -2,7 +2,7 @@
 
 原文侧编译链：``build-en`` 一次性树 copytree + seq 锚 identity 注锚
 + 编译 + fixloop 基建救援 + 截断残件判定（``_en_died``）+ en 侧
-错误签名基线快照（``_en_err_sigs`` 供 zh L2 归因）。
+错误签名基线快照（``_en_err_sigs`` 供 zh logfix 归因）。
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from texlate.latex.reconstruct import (
     seq_mark_issues,
     strip_seq_marks,
 )
-from texlate.repair_l2 import (
+from texlate.repair import (
     err_signatures,
     err_signatures_text,
 )
@@ -43,7 +43,7 @@ class _CompileEn:
     def _compile_en(self, ctx: TaskCtx) -> None:
         """en.pdf：base/ 拷贝编译 + fixloop 基建救援；失败只记 warning（不阻塞译文链）。
 
-        原文无译文伤——L2 不归此臂；不出 pdf 时 fixloop 修基建（缺包/字体/
+        原文无译文伤——logfix 不归此臂；不出 pdf 时 fixloop 修基建（缺包/字体/
         工具链）再登记。修复只动 ``build-en`` 一次性树，不回灌 ``base/``
         （``base`` 是 zh 重建与 fixloop baseline 的 pristine 源）。
         """
@@ -68,7 +68,7 @@ class _CompileEn:
         # eng.compile 是原子段（无插桩点）——跑完即收敛，后续 diff/登记是白费
         self._abort_if_cancelled(ctx)
         self._probe_diff(ctx, rep, res)
-        # en 首编错误签名快照 → zh L2 归因基线：源生错签名不归 chunk
+        # en 首编错误签名快照 → zh logfix 归因基线：源生错签名不归 chunk
         # （fixloop_en 前置取——救回前全量；救回修复的源生错 zh 侧同样
         # 修得动，留在基线里不会误豁免译文伤）
         ctx.en_err_sigs = err_signatures(res)

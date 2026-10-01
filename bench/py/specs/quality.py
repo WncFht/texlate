@@ -370,9 +370,9 @@ spec = Spec(
     select=_select,
     freeze_plan=True,
     code_deps=[
-        "src/texlate/align",
+        "src/texlate/align.py",
         "src/texlate/xlat/glossary.py",
-        "src/texlate/textutil.py",
+        "src/texlate/textutil",
     ],
     stages=[
         Stage(

@@ -280,8 +280,8 @@ export const t = {
         // === progress chrome ===
         statsStage: "Per-stage time",
         statsFixloop: "Fix verdicts",
-        statsL2: "Revalidation",
-        statsL2Off: "Disabled",
+        statsLogfix: "Revalidation",
+        statsLogfixOff: "Disabled",
         // === copy-latex: formula/selection LaTeX card + copy receipts ===
         copyLatex: {
             cardAria: "LaTeX source",
@@ -376,11 +376,11 @@ export const t = {
         fxFloor: "Rolled back to pre-fix artifact",
         fxRunning: "Fixing…",
         details: "Run details",
-        l2: "Revalidation",
-        l2Running: "Checking…",
-        l2Errors: "Check errors",
-        l2Retranslated: "Re-translated",
-        l2Fallback: "Fell back to source",
+        logfix: "Revalidation",
+        logfixRunning: "Checking…",
+        logfixErrors: "Check errors",
+        logfixRetranslated: "Re-translated",
+        logfixFallback: "Fell back to source",
         cancelConfirm:
             "Cancel this task? Progress so far is kept — you can retry later",
     },

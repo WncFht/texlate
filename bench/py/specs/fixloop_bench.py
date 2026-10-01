@@ -471,6 +471,6 @@ spec = Spec(
         "src/texlate/compile/mainfile.py",
         "src/texlate/compile/judge.py",
         "src/texlate/compile/logparse.py",
-        "src/texlate/compile/texlive",
+        "src/texlate/compile/toolchain.py",
     ],
 )

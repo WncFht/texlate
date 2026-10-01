@@ -169,7 +169,7 @@ class TestPartialPack:
         eng.produce_pdf = False
         ctx, worker, store = _mk(
             tmp_path,
-            options={"share_pack": True, "fixloop": False, "l2": False},
+            options={"share_pack": True, "fixloop": False, "logfix": False},
             worker_kw={"engine_factory": lambda _name: eng},
         )
         ctx.main_rel = "main.tex"

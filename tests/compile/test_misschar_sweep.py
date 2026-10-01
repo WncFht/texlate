@@ -190,7 +190,7 @@ def test_registry_row_shape() -> None:
     assert r.engine is None
     assert r.rules is None
     assert r.l2 is None
-    assert r.l2_redline is False
+    assert r.logfix_redline is False
     assert r.judge is not None
     assert r.judge.name == "missing_character_sweep"
     assert r.judge.pattern is None

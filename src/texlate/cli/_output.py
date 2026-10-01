@@ -8,9 +8,9 @@ Console 抢同一 stderr 的 Live 刷新区会错乱。Console 不绑文件对�
 退化线输出。
 
 事件面与 server SSE 同源（``pipecore.ReportSink``）：``stage`` 边界帧、
-``translate`` start/chunk/done 进度帧、``l2``/``fixloop`` done/round
+``translate`` start/chunk/done 进度帧、``logfix``/``fixloop`` done/round
 帧、``log()`` 自由行——瘦客户端 ``thin.py`` SSE 渲染吃同形状 payload，
-帧→行（``l2_done_line``/``fixloop_frame_line``）与 chunk 进度策略件
+帧→行（``logfix_done_line``/``fixloop_frame_line``）与 chunk 进度策略件
 （``_ChunkProgress``）与本模块共用。
 """
 
@@ -52,7 +52,7 @@ _STAGE_LABELS = {
     "inject": "inject",
     "compile": "compile",
     "precheck": "precheck",
-    "l2": "l2",
+    "logfix": "logfix",
     "fixloop": "fixloop",
     "tounicode": "tounicode",
     "repair": "repair",
@@ -110,17 +110,17 @@ def fixloop_round_line(r: Mapping[str, Any]) -> str:
     return " ".join(bits)
 
 
-def l2_done_line(p: Mapping[str, Any]) -> str | None:
-    """``l2`` 帧 → 状态行文本；非 ``done`` 相位 ``None``。
+def logfix_done_line(p: Mapping[str, Any]) -> str | None:
+    """``logfix`` 帧 → 状态行文本；非 ``done`` 相位 ``None``。
 
-    ``CliSink._on_l2``（本地管道）与 ``thin.py`` SSE 跟随共用的渲染口径。
+    ``CliSink._on_logfix``（本地管道）与 ``thin.py`` SSE 跟随共用的渲染口径。
     """
     if p.get("phase") != "done":
         return None
     if not p.get("enabled"):
-        return "l2 skipped"
+        return "logfix skipped"
     return (
-        f"l2 done retranslated={p.get('retranslated', 0)}"
+        f"logfix done retranslated={p.get('retranslated', 0)}"
         f" fallback={p.get('fallback', 0)} errors={p.get('errors', 0)}"
     )
 
@@ -223,8 +223,8 @@ class CliSink:
             self._on_stage(payload)
         elif etype == "translate":
             self._on_translate(payload)
-        elif etype == "l2":
-            self._on_l2(payload)
+        elif etype == "logfix":
+            self._on_logfix(payload)
         elif etype == "fixloop":
             self._on_fixloop(payload)
         elif etype == "verdict":
@@ -270,8 +270,8 @@ class CliSink:
         tail = f" ({', '.join(parts)})" if parts else ""
         status(f"translate done {self._done}/{self._total}{tail}")
 
-    def _on_l2(self, p: dict[str, Any]) -> None:
-        line = l2_done_line(p)
+    def _on_logfix(self, p: dict[str, Any]) -> None:
+        line = logfix_done_line(p)
         if line is not None:
             status(line)
 

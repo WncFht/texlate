@@ -42,7 +42,7 @@ export interface TransportHooks {
     clearChunkLive(taskId: string): void;
     /**
      * 帧→状态归约 handlers：snapshot/stage/chunk/log/warning/error/
-     * fixloop/l2/done 由 store 供（需 unwant/rebalance 时经 transport
+     * fixloop/logfix/done 由 store 供（需 unwant/rebalance 时经 transport
      * 实例回调）；transport/resync 由本层自持（是纯传输关切）。
      */
     frameHandlers(taskId: string): TaskEventHandlers;

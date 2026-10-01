@@ -57,17 +57,17 @@ class TestLlmHookShareGates:
         assert usage is None
         assert clients == []
 
-    def test_share_l2_env_judge_off(
+    def test_share_logfix_env_judge_off(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """share 任务 options/env 全开也压不住——三处 LLM 面结构关。"""
         ctx, worker, _store = mk_ctx(
-            tmp_path, options={"l2": True, "env_judge": True, "llm_hook": True}
+            tmp_path, options={"logfix": True, "env_judge": True, "llm_hook": True}
         )
         ctx.row["kind"] = "share"
-        assert worker._l2_enabled(ctx) is False  # noqa: SLF001
+        assert worker._logfix_enabled(ctx) is False  # noqa: SLF001
         assert worker._env_judge_enabled(ctx) is False  # noqa: SLF001
         hook, _u, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
         assert hook is None

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
+from texlate.redlines import LOGFIX_REDLINE_CLASSES, LOGFIX_WARNING_RULES
 from texlate.texlog import (
     CTX_LINES,
     L_NUM_RE,
@@ -81,7 +81,7 @@ _MISSING_CHAR_RX: Final = re.compile(
 #: ``_rl`` 按 canonical id 取本层发射名与行级模式；citation/rerun 等
 #: 非红线观察类仍本层自持。
 def _rl(rid: str) -> tuple[str, re.Pattern[str]]:
-    name, pat = L2_WARNING_RULES[rid]
+    name, pat = LOGFIX_WARNING_RULES[rid]
     return name, re.compile(pat, re.IGNORECASE)
 
 
@@ -121,7 +121,7 @@ _MARKERLESS_WARN_RX: Final = re.compile(
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
 _MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例/hits 留存上限
 #: ``attribution_dict`` 错误命中条数上限——级联错长尾同形，前 50 条
-#: 足够聚类（``n_errors`` 仍精确计数；e2e ``_L2_MAX_ERRORS`` 同量级口径）。
+#: 足够聚类（``n_errors`` 仍精确计数；e2e ``_ATTR_MAX_ERRORS`` 同量级口径）。
 _MAX_ATTR_ERRORS: Final = 50
 
 #: runaway 扫描错（``File ended while scanning use of \xxx``）——文件栈
@@ -131,7 +131,7 @@ _EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
 _EOF_POP_WINDOW: Final = 16
 
 #: docs/spec/compile.md 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
-#: ——集合单源 ``texlate.redlines.L2_REDLINE_CLASSES``（★2）。``fffd_glyph``
+#: ——集合单源 ``texlate.redlines.LOGFIX_REDLINE_CLASSES``（★2）。``fffd_glyph``
 #: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——loginfo 侧
 #: ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。``missing_glyph``
 #: （非 CJK/非 FFFD/码点不可解）同入红线——judge 的 ``missing_chars``
@@ -139,7 +139,7 @@ _EOF_POP_WINDOW: Final = 16
 #: ``missing_glyph_nullfont``（试排/测量盒良性吞字）**不入**红线——
 #: 计数留 by_class/samples 观察面，redlines 保净（judge 门控同口径
 #: 排除，裁决证据 bench/results/nullfont-scout-2026-09-17/）。
-_REDLINE_CLASSES: Final = L2_REDLINE_CLASSES
+_REDLINE_CLASSES: Final = LOGFIX_REDLINE_CLASSES
 
 
 # ---------------------------------------------------------------- 数据
@@ -249,7 +249,7 @@ class L2Verdict:
         }
 
     def attribution_dict(self) -> dict[str, object]:
-        """序列化为 records 落账的紧凑归因载荷（canonical 键 ``l2_attr``）。
+        """序列化为 records 落账的紧凑归因载荷（canonical 键 ``logfix_attr``）。
 
         ``hits`` = 错误+warning 统一命中表（``log_line`` 升序，逐条
         ``{kind, file, line, head, log_line}``）——错误 kind=``"error"``
@@ -436,7 +436,7 @@ def _tex_line_from_ctx(ctx: list[str]) -> int | None:
 def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     """``(head, file:line: 给的 tex_file)``；非错误行返回 None。
 
-    判定单源 = ``texlog.match_error_line``——bench ``extract_l2_fixture``
+    判定单源 = ``texlog.match_error_line``——bench ``extract_logfix_fixture``
     钉点经本私有名消费，薄 delegate 保旧签名。
     """
     hit = match_error_line(ln)

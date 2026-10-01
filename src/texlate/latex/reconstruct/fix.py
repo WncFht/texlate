@@ -271,7 +271,7 @@ def translation_tokens(
 ) -> dict[str, str]:
     r"""``{chunk_id: 译文}`` → ``{"[[CHUNK_k]]": 落盘位译文本}`` token 映射。
 
-    ``reconstruct``/``repair_l2.chunk_spans`` 同一构造——译文侧变换链
+    ``reconstruct``/``repair.chunk_spans`` 同一构造——译文侧变换链
     ``_restore_linestarts`` 行首 ``\cs`` 归位 → ``unicode_math_fix`` →
     ``LATIN_ITEM_RX`` 保险丝逐条同序施加；``res.chunks`` 界外/非 int
     键直通原值。``None`` → 空映射（identity 面无译文本）。

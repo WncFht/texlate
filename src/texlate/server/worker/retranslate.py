@@ -18,7 +18,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.judge import judge
-from texlate.repair_l2 import (
+from texlate.repair import (
     _resplice,
     _slot_diffs,
     split_cid,
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.engine import CompRes
     from texlate.compile.judge import Verdict
-    from texlate.repair_l2 import TreeRun
+    from texlate.repair import TreeRun
     from texlate.server.events import EventBus
     from texlate.server.store import Store
     from texlate.xlat.pipeline import ChunkResult, Translator
@@ -139,9 +139,9 @@ class _Retranslate:
             return
         await self._ensure_scans(ctx)
         ctx.expect_cjk = self._expect_cjk(ctx)
-        # TreeRun 复用 L2 臂装配：scans 指 zh/ 树 + ok 译文 trans 表 +
+        # TreeRun 复用 logfix 臂装配：scans 指 zh/ 树 + ok 译文 trans 表 +
         # "fidx:cid"→chunk_id 回写映射 + 含术语表的旁路 pipe
-        run, db_of = await self._to_thread(ctx, self._l2_run_state, ctx.zh_dir)
+        run, db_of = await self._to_thread(ctx, self._logfix_run_state, ctx.zh_dir)
         key = {v: k for k, v in db_of.items()}.get(str(target["chunk_id"]))
         ci = run.chunk_ins.get(key) if key is not None else None
         if key is None or ci is None:
@@ -167,7 +167,7 @@ class _Retranslate:
             )
             return
         if r.status != "ok":
-            # 校验仍不过：保留原译（L2 的回退原文语义不适用——用户既有
+            # 校验仍不过：保留原译（logfix 的回退原文语义不适用——用户既有
             # ok 译文不该被一次失败的重译销毁）
             self._retr_mark(ctx, db_cid, "validate", seq, str(target["status"]))
             self._log(
@@ -219,7 +219,7 @@ class _Retranslate:
         self._register(ctx, "zh_src_zip", "zh-src.zip", force=True)
 
     def _retr_recompile(self, ctx: TaskCtx) -> bool:
-        """zh.pdf 重编译（轻量——无 L2/fixloop：单块改动的归因域就是它自己）。
+        """zh.pdf 重编译（轻量——无 logfix/fixloop：单块改动的归因域就是它自己）。
 
         ``build-zh`` 重建编译；出 pdf 才覆盖登记（失败保留旧 pdf 与旧
         清单——重译不让产物面倒退）。返回是否出新 pdf。

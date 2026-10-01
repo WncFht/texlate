@@ -1,4 +1,4 @@
-r"""e2e 修复链接线——fixloop / L2 回灌 / engine_flags / env judge / 抄回修复。
+r"""e2e 修复链接线——fixloop / logfix 回灌 / engine_flags / env judge / 抄回修复。
 
 与 ``test_e2e.py``（golden-path 直测）分工：本文件只覆盖**编译失败之后**的
 编排——``ScriptedEngine`` 按剧本逐次出 log/pdf，断言报告结构与盘上副作用。
@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from conftest import judge_mod, make_project
 
-from texlate import e2e, repair_l2
+from texlate import e2e, repair
 from texlate.latex.model import Chunk, Span
 from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
 
@@ -40,7 +40,7 @@ _UNK_ENV_TEX = (
 @pytest.fixture(autouse=True)
 def _clean_switches(monkeypatch: pytest.MonkeyPatch) -> None:
     """三个开关 env 全部钉成缺省——本机/CI 环境差异免疫。"""
-    for k in ("TEXLATE_NO_FIXLOOP", "TEXLATE_NO_L2", "TEXLATE_ENV_JUDGE"):
+    for k in ("TEXLATE_NO_FIXLOOP", "TEXLATE_NO_LOGFIX", "TEXLATE_ENV_JUDGE"):
         monkeypatch.delenv(k, raising=False)
 
 
@@ -48,7 +48,7 @@ def _clean_switches(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _fail_unattributable(_w: Path, _m: str) -> tuple[str, bool]:
-    """不可归因的失败 log（无文件栈、无 ``l.NNN``）——L2 拿不到 chunk。"""
+    """不可归因的失败 log（无文件栈、无 ``l.NNN``）——logfix 拿不到 chunk。"""
     return ("! Undefined control sequence.\n<argument> \\oops\n", False)
 
 
@@ -164,14 +164,14 @@ def engines(monkeypatch: pytest.MonkeyPatch) -> dict[str, ScriptedEngine]:
 def test_fixloop_runs_on_fail_and_recovers(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
-    """首编 fail（不可归因）→ L2 无命中直通 → fixloop r1 clean → 终态 clean。"""
+    """首编 fail（不可归因）→ logfix 无命中直通 → fixloop r1 clean → 终态 clean。"""
     work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
 
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
-    assert report["l2"]["note"] == "no chunk-level attribution"
+    assert report["logfix"]["note"] == "no chunk-level attribution"
     fl = report["fixloop"]
     assert fl["enabled"] is True
     assert fl["verdict"] == "clean"
@@ -221,10 +221,10 @@ def test_fixloop_crash_does_not_atexit(
     assert "RuntimeError" in report["fixloop"]["error"]
 
 
-# ---------------------------------------------------------------- L2 回灌
+# ---------------------------------------------------------------- logfix 回灌
 
 
-def test_l2_retranslate_then_recompile(
+def test_logfix_retranslate_then_recompile(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """file:line: 命中译文 chunk → 重译 → resplice → 重编 clean → fixloop 不跑。"""
@@ -235,18 +235,18 @@ def test_l2_retranslate_then_recompile(
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=tr)
 
     assert report["status"] == "clean"
-    l2 = report["l2"]
-    assert l2["enabled"] is True
-    assert l2["hits"], "log 错误应归因到 chunk"
-    assert l2["retranslated"] == sorted(l2["hits"])
-    assert l2["recompiled"] == "clean"
+    logfix = report["logfix"]
+    assert logfix["enabled"] is True
+    assert logfix["hits"], "log 错误应归因到 chunk"
+    assert logfix["retranslated"] == sorted(logfix["hits"])
+    assert logfix["recompiled"] == "clean"
     assert "fixloop" not in report  # 已 clean 不进 fixloop
     # 重译请求确实带 [compile_error] 反馈字段
     fb_calls = [c for c in tr.calls if "[compile_error]" in c["user"]]
-    assert len(fb_calls) == len(l2["retranslated"])
+    assert len(fb_calls) == len(logfix["retranslated"])
 
 
-def test_l2_fallback_to_source(
+def test_logfix_fallback_to_source(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """重译产物仍不过 L0 → 该块回落原文（spec：再不过 → fallback 原文）。"""
@@ -275,15 +275,15 @@ def test_l2_fallback_to_source(
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
 
-    l2 = report["l2"]
-    assert l2["reverted_l0"], "L0 仍败的块应回落原文"
-    assert l2["retranslated"] == []
+    logfix = report["logfix"]
+    assert logfix["reverted_rules"], "L0 仍败的块应回落原文"
+    assert logfix["retranslated"] == []
     assert report["status"] == "clean"
     out = (work / "main.tex").read_text(encoding="utf-8")
     assert "paragraph" in out  # 回落后原文段回来
 
 
-def test_l2_fallback_verified_fixloop_off(
+def test_logfix_fallback_verified_fixloop_off(
     tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """fixloop 关闭条件路径：回落态仍补裸编验证——zh-src.zip 不装未验证树。
@@ -300,29 +300,29 @@ def test_l2_fallback_verified_fixloop_off(
 
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
-    l2 = report["l2"]
-    assert l2["fallback_src"], "重译态仍被点名的块应回落原文"
-    assert l2["fallback_verdict"] == "clean", "回落态裸编应判 clean"
-    assert "fallback_unverified" not in l2
+    logfix = report["logfix"]
+    assert logfix["fallback_src"], "重译态仍被点名的块应回落原文"
+    assert logfix["fallback_verdict"] == "clean", "回落态裸编应判 clean"
+    assert "fallback_unverified" not in logfix
     # 回落态即交付树——其 verdict 就是终态
     assert report["status"] == "clean"
     # 首编 + 重译态重编 + 回落态裸编 = 3 次
     assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004
 
 
-def test_l2_cap_limits_retranslate(
+def test_logfix_cap_limits_retranslate(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
-    """per-doc 上限：``l2_max_chunks=1`` 时多个命中也只重译第一块。"""
+    """per-doc 上限：``logfix_max_chunks=1`` 时多个命中也只重译第一块。"""
     work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     tr = MockTranslator()
 
     report = e2e.pipeline_run(
-        work, "xelatex", timeout=30.0, translator=tr, l2_max_chunks=1
+        work, "xelatex", timeout=30.0, translator=tr, logfix_max_chunks=1
     )
-    l2 = report["l2"]
-    assert len(l2["retranslated"]) <= 1
+    logfix = report["logfix"]
+    assert len(logfix["retranslated"]) <= 1
     assert len([c for c in tr.calls if "[compile_error]" in c["user"]]) <= 1
 
 
@@ -581,7 +581,7 @@ def test_env_judge_bad_answer_fails_open() -> None:
     不许把怪应答炸成管线崩溃（worker 复用同一 ``env_judge_all``）。"""
     pipe = XlatPipeline(_JudgeBadReturn())
     chunk = Chunk(id=0, content="body", context="para", span=Span(0, 4))
-    assert asyncio.run(repair_l2._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001
+    assert asyncio.run(repair._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- 抄回修复

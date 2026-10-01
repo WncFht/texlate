@@ -1,8 +1,8 @@
 """``texlate.pipecore.chain`` — 修复链编排叶（``pipecore`` 拆分叶）。
 
 ``baseline_snapshot``：翻前 pristine 树快照 → fixloop ``baseline_dir``
-注入件；``repair_chain``：precheck 预检 → L2 回灌 → fixloop 三级直铺
-编排——顺序是设计约束（precheck 先消 missing_file 基建失败，L2 先于
+注入件；``repair_chain``：precheck 预检 → logfix 回灌 → fixloop 三级直铺
+编排——顺序是设计约束（precheck 先消 missing_file 基建失败，logfix 先于
 fixloop 防 resplice 冲掉 regex_rewrite），三个 ``*_job`` 件各自吞崩
 成 error dict，修复臂崩不毁主报告。
 
@@ -18,17 +18,16 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from texlate.pipecore._logfix import logfix_job
 from texlate.pipecore.fixloop import fixloop_job
-from texlate.pipecore.l2 import l2_repair_job
 from texlate.pipecore.policy import RepairPolicy, precheck_reject
 from texlate.pipecore.tail import compile_judge_tail, precheck_job
-from texlate.repair import ENV_NO_FIXLOOP
-from texlate.repair_l2 import ENV_NO_L2
+from texlate.repair import ENV_NO_FIXLOOP, ENV_NO_LOGFIX
 
 if TYPE_CHECKING:
     from texlate.compile.engine import CompRes
     from texlate.pipecore.tail import PipeJob
-    from texlate.repair_l2 import TreeRun
+    from texlate.repair import TreeRun
 
 log = logging.getLogger(__name__)
 
@@ -68,30 +67,30 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
     res: CompRes,
     *,
     expect_cjk: bool,
-    l2_on: bool | None,
+    logfix_on: bool | None,
     fixloop_on: bool | None,
-    l2_max_chunks: int,
+    logfix_max_chunks: int,
 ) -> CompRes:
-    """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
+    """非 clean 后的修复链：precheck 预检 → logfix 回灌 → fixloop；reports 直写 ``rec``。
 
     顺序是设计约束：precheck（装缺件，fixloop 第 0 招独立相）先消
-    missing_file 类基建失败——它们进 L2 归因面只会把块拖去重译/回退
-    （``t_f74894ebc691aaf4`` algpseudocodex 实证）；L2 回灌先于
-    fixloop——fixloop 的 regex_rewrite 会被 L2 resplice 冲掉。
+    missing_file 类基建失败——它们进 logfix 归因面只会把块拖去重译/回退
+    （``t_f74894ebc691aaf4`` algpseudocodex 实证）；logfix 回灌先于
+    fixloop——fixloop 的 regex_rewrite 会被 logfix resplice 冲掉。
     三个 ``*_job`` 件各自吞崩成 error dict——修复臂崩不毁主报告。
     fixloop 只在仍非 clean 时跑。返回最新 ``CompRes`` 供 ToUnicode
     注入判产物。``engine_fn``/``route_engines``/``baseline_dir``/``sink``
     全收进 ``job``——e2e 构造时透传自家 ``e2e.engine_for`` 全局名保
     monkeypatch 缝（conftest RecordingEngine）。
     """
-    policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
-    fl, l2 = policy.fixloop, policy.l2
+    policy = RepairPolicy.resolve(fixloop_on=fixloop_on, logfix_on=logfix_on)
+    fl, logfix = policy.fixloop, policy.logfix
     sink = job.sink
 
     # —— 第 0 招：precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
     # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
     # 收割到 engine_flags 才重编 (空转省一发编译)；clean 即收工。
-    # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。
+    # reject:<rid> 不重编不跑 logfix——路由拒绝交 fixloop 复现 + 跨引擎消费。
     pre_reject = False
     if fl:
         sink.event("stage", {"stage": "precheck"})
@@ -100,37 +99,37 @@ def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直
         pre_reject = precheck_reject(pre)
         pre_flags = [str(f) for f in pre.get("engine_flags") or []]
         if not pre_reject and (pre.get("installed") or pre_flags):
-            tail0, res = compile_judge_tail(
+            pre_tail, res = compile_judge_tail(
                 job,
                 expect_cjk=expect_cjk,
                 flags=pre_flags or None,
             )
-            rec.update(tail0)
+            rec.update(pre_tail)
             if rec["status"] == "clean":
                 return res
 
-    if l2 and not pre_reject:
-        sink.event("stage", {"stage": "l2"})
-        l2_rep, res, tail2 = l2_repair_job(job, run, res, l2_max_chunks)
-        rec["l2"] = l2_rep
-        if tail2 is not None:
-            rec.update(tail2)
-    elif not l2:
-        rec["l2"] = {"enabled": False, "reason": ENV_NO_L2}
+    if logfix and not pre_reject:
+        sink.event("stage", {"stage": "logfix"})
+        logfix_rep, res, logfix_tail = logfix_job(job, run, res, logfix_max_chunks)
+        rec["logfix"] = logfix_rep
+        if logfix_tail is not None:
+            rec.update(logfix_tail)
+    elif not logfix:
+        rec["logfix"] = {"enabled": False, "reason": ENV_NO_LOGFIX}
     else:
-        rec["l2"] = {"enabled": False, "reason": "precheck_reject"}
+        rec["logfix"] = {"enabled": False, "reason": "precheck_reject"}
 
     if rec["status"] != "clean" and fl:
         sink.event("stage", {"stage": "fixloop"})
-        fl_rep, tail3, res = fixloop_job(
+        fl_rep, fl_tail, res = fixloop_job(
             job,
             res,
             timeout=job.timeout,
             expect_cjk=expect_cjk,
         )
         rec["fixloop"] = fl_rep
-        if tail3 is not None:
-            rec.update(tail3)
+        if fl_tail is not None:
+            rec.update(fl_tail)
     elif rec["status"] != "clean":
         rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
     return res

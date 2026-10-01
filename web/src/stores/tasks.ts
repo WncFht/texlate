@@ -22,7 +22,7 @@ import {
     chunkCap,
     foldFixloop,
     mergeChunkItemsInto,
-    normalizeL2,
+    normalizeLogfix,
     type TaskLive,
 } from "./liveFrames";
 import { createTransport } from "./taskTransport";
@@ -152,7 +152,7 @@ function mergeRow(
 
 /** 终态收敛：释放 append-only 缓冲（logs/stages 会话内单调增长）；
  * done/chunk/chunkItems/warnings/error 留给终态面板与棋盘格；
- * fixloop/l2 同属终态面板材料——不清 */
+ * fixloop/logfix 同属终态面板材料——不清 */
 function settleLive(taskId: string) {
     if (!state.live[taskId]) return;
     setState("live", taskId, "logs", []);
@@ -375,7 +375,7 @@ const tp = createTransport({
             const next = foldFixloop(state.live[taskId]?.fixloop, e);
             if (next !== null) setState("live", taskId, "fixloop", next);
         },
-        l2: (e) => setState("live", taskId, "l2", normalizeL2(e)),
+        logfix: (e) => setState("live", taskId, "logfix", normalizeLogfix(e)),
         done: (e) => {
             // DELETE 端点的收尾帧——本任务行已删，别回填成 "deleted" 僵尸行
             if (e.status === "deleted") {
@@ -524,7 +524,7 @@ export const taskStore = {
             "done",
             "error",
             "fixloop",
-            "l2",
+            "logfix",
         ] as const)
             (setState as (...a: unknown[]) => void)(
                 "live",

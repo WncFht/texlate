@@ -129,7 +129,7 @@
         "tail_last": "Output written on gwbpre.xdv (7 pages, 109104 bytes).",
         "fixloop": {
             "n_bang": 0,
-            "category": "clean",
+            "category": "warn_undef_ref",
             "payload": null
         },
         "project_root": null,
@@ -179,7 +179,7 @@
         "tail_last": "Output written on residual_v1_arxiv_release.pdf (15 pages).",
         "fixloop": {
             "n_bang": 0,
-            "category": "clean",
+            "category": "warn_overfull",
             "payload": null
         },
         "project_root": null,

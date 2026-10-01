@@ -5,9 +5,9 @@ compile 层「测试可替换件」一律在调用点 ``patchseams.X`` 查名—
 经本缝路由的消费点。
 
 全名经 ``__getattr__`` 惰性回指既有锚位模块（不 eager bind）——
-patch 打旧锚（``toolchain.find_tool``/``repair.fixloop`` 等）与打
+patch 打锚位（``toolchain.find_tool``/``repair.fixloop`` 等）与打
 ``patchseams.X`` 同拦；``setattr`` 落 patchseams 成真 attr 后
-``__getattr__`` 不再被调、该名固化（同套件再 patch 旧锚不回传——
+``__getattr__`` 不再被调、该名固化（同套件再 patch 锚位不回传——
 锚位收敛以 ``patchseams.X`` 为准）。
 
 ``engine.X`` 叶侧锚是独立平面：``engine/__init__`` 经
@@ -28,7 +28,7 @@ from __future__ import annotations
 import importlib
 from typing import Final
 
-#: 缝名 → 锚位模块。惰性回指保旧锚 patch 语义（``setattr`` 落锚位模块
+#: 缝名 → 锚位模块。惰性回指保锚位 patch 语义（``setattr`` 落锚位模块
 #: 即被消费点拿到）；eager bind 既丢这层语义又引 import 环
 #: （repair→patchseams→repair、engine→patchseams→toolchain 两路）。
 _SOURCES: Final = {
@@ -50,7 +50,7 @@ __all__ = sorted(_SOURCES)  # noqa: PLE0605 -- ``_SOURCES`` 派生的计算值
 
 
 def __getattr__(name: str) -> object:
-    # 回指锚位模块当前 attr——旧锚 patch（setattr 落锚位模块）与新锚
+    # 回指锚位模块当前 attr——锚位 patch（setattr 落锚位模块）与缝侧
     # patch（setattr 落本模块成真 attr，遮蔽本函数）均拦 patchseams 消费点。
     source = _SOURCES.get(name)
     if source is None:

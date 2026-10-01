@@ -115,7 +115,7 @@ class TestGlossaryLayers:
 
     v5：⑤层 ph→ph 恒等注入已删——占位符点名册改走
     ``pipeline._materialize`` → ``render_placeholder_manifest`` 单行压
-    ``<Glossary>`` 块末行（TestBypassArms 的 L2 面有实证）。
+    ``<Glossary>`` 块末行（TestBypassArms 的 logfix 面有实证）。
     """
 
     def test_categories_layer(self, tmp_path: Path) -> None:
@@ -234,7 +234,7 @@ class _JudgeFake:
 
 
 class TestBypassArms:
-    """Fix4：env_judge/L2 旁路 pipe 的 glossary 物化 + usage 记账。"""
+    """Fix4：env_judge/logfix 旁路 pipe 的 glossary 物化 + usage 记账。"""
 
     def test_env_judge_usage_recorded(self, tmp_path: Path) -> None:
         fake = _JudgeFake()
@@ -261,8 +261,8 @@ class TestBypassArms:
         assert ch["status"] == "fallback_orig"
         assert ch["error_code"] == "env_judge"
 
-    def test_l2_pipe_glossary_materialized(self, tmp_path: Path) -> None:
-        """L2 旁路 pipe：glossary 挂上 + ``_materialize`` 跑过 + 不共享主链段缓存。"""
+    def test_logfix_pipe_glossary_materialized(self, tmp_path: Path) -> None:
+        """logfix 旁路 pipe：glossary 挂上 + ``_materialize`` 跑过 + 不共享主链段缓存。"""
         ctx, worker, store = mk_ctx(
             tmp_path,
             worker_kw={"translator_factory": lambda _c: MockTranslator()},
@@ -274,7 +274,7 @@ class TestBypassArms:
             for t, frag in res.ph_map.items()
             if "x+y" in frag
         )
-        run, _db = worker._l2_run_state(ctx, ctx.root / "build-zh")  # noqa: SLF001
+        run, _db = worker._logfix_run_state(ctx, ctx.root / "build-zh")  # noqa: SLF001
         assert run.pipe.glossary is not None
         # v5：ph 不进 _doc_glossary（恒等行已删）——改在 manifest 点名
         assert run.pipe._doc_glossary.get(ph) != ph  # noqa: SLF001
@@ -651,9 +651,9 @@ class TestL2EofAttribution:
         assert fileline.eof_file == "./lib/blob.tex"
 
     def test_attr_eof_remap(self, tmp_path: Path) -> None:
-        """``L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
+        """``LogAttr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair_l2 import L2Attr, TreeRun  # noqa: PLC0415
+        from texlate.repair import LogAttr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -672,7 +672,7 @@ class TestL2EofAttribution:
             chunk_ins={},
             pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
         )
-        st = L2Attr(run, work)
+        st = LogAttr(run, work)
         blob_cids = [c.id for c in run.scans[1][1].chunks]
         assert blob_cids, "fixture 应产出 blob chunk"
 
@@ -691,7 +691,7 @@ class TestL2EofAttribution:
     def test_attr_forward_exclusion(self, tmp_path: Path) -> None:
         """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair_l2 import L2Attr, TreeRun  # noqa: PLC0415
+        from texlate.repair import LogAttr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -705,7 +705,7 @@ class TestL2EofAttribution:
             chunk_ins={},
             pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
         )
-        st = L2Attr(run, work)
+        st = LogAttr(run, work)
         # preamble 错（l.3 \\definecolor）——首个 chunk 在 \\begin{document} 之后
         got = st.attr_error(
             LogError(
@@ -741,7 +741,7 @@ class TestChunkSpansMirror:
     def test_translated_transforms_mirrored(self) -> None:
         from texlate.latex import parse_tex  # noqa: PLC0415
         from texlate.latex.reconstruct import reconstruct  # noqa: PLC0415
-        from texlate.repair_l2 import chunk_spans  # noqa: PLC0415
+        from texlate.repair import chunk_spans  # noqa: PLC0415
 
         tex = (
             "\\documentclass{article}\n"
@@ -857,7 +857,7 @@ class TestPersistUsageReplace:
         assert store.get(ctx.task_id)["tokens"] == 8  # noqa: PLR2004
 
     def test_default_accumulates(self, tmp_path: Path) -> None:
-        """旁路臂（env_judge/L2/llm_hook）保持累加——不抹主链真账。"""
+        """旁路臂（env_judge/logfix/llm_hook）保持累加——不抹主链真账。"""
         ctx, worker, _store = mk_ctx(tmp_path)
         ctx.tokens_est = 100  # 主链真账钉样
         worker.run_stage(ctx, "persist_usage", self._usage())

@@ -40,7 +40,7 @@ class CompRes:
     log: LogInfo = field(default_factory=LogInfo)
     #: 编译期已读的 ``.log`` 文件全文（空/缺席/读失败为 ``""``；stdout_tail
     #: 兜底逻辑归消费方自理，与各家 ``or stdout_tail`` 口径一致）——fixloop
-    #: ``_report_of``/``log_text_of``/``_l2_parse``/``parse_log(res)`` 直接复用，
+    #: ``_report_of``/``log_text_of``/``_log_parse``/``parse_log(res)`` 直接复用，
     #: 同一文本不再重复开文件（B14 fix#10 格内 ~4× 文件读 → 1×）。
     log_text: str = ""
     #: log 截断谓词（Guard A）——仅 xelatex ``halt_on_error`` 且非

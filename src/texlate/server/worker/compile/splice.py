@@ -1,7 +1,7 @@
 """worker.compile.splice — zh 工程物化叶 (worker.compile 域缝叶)。
 
 译文 splice 回 ``zh/`` 源码树 + ctex 注入 + ``zh-src.zip`` 登记，
-以及 fixloop/L2 改动回灌 ``zh/`` 的镜像同步件（``_sync_fixed_sources``
+以及 fixloop/logfix 改动回灌 ``zh/`` 的镜像同步件（``_sync_fixed_sources``
 + ``_seq_mark_scrub``）；``_delivered_map`` 是 chunks 表 → 交付映射
 单源，``_seq_marks_on`` 是 seq 锚三级闸。
 """
@@ -119,7 +119,7 @@ def _delivered_map(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
     """``all_chunks`` 行 → ``{chunk_id: 译文}`` 交付映射（``delivered_db`` 口径）。
 
     ``isinstance(str)`` 判与 ``zh_slot`` 同口径——TEXT 列可落 BLOB 等非
-    str 腐格，放行进 splice/L2 重译会把字节料写进 .tex 源树。
+    str 腐格，放行进 splice/logfix 重译会把字节料写进 .tex 源树。
     """
     return {
         r["chunk_id"]: r["translation"]

@@ -20,8 +20,8 @@ from texlate.cli._output import (
     _ChunkProgress,
     console,
     fixloop_frame_line,
-    l2_done_line,
     log_line_filtered,
+    logfix_done_line,
     status,
 )
 from texlate.pipecore import FRONT_MATTER_NAMES
@@ -254,7 +254,7 @@ class _SseFollow:
     帧面（``server/events.py`` wire 协议）：``id:``/``event:``/``data:`` 字段 +
     空行分发、``:`` 前缀 ping 注释行。事件类型：``snapshot``（连接首帧，
     seq=0 现场合成）、``stage``/``chunk``/``log``/``warning``/``error``/
-    ``l2``/``fixloop``/``precheck`` 实况帧、``resync``（重放缺口提示——
+    ``logfix``/``fixloop``/``precheck`` 实况帧、``resync``（重放缺口提示——
     拉新快照重置水位）、``done`` 终帧。
     """
 
@@ -363,8 +363,8 @@ class _SseFollow:
             self._on_resync()
         elif event == "done":
             return "status", str(payload.get("status") or "done")
-        elif event == "l2":
-            self._on_l2(payload)
+        elif event == "logfix":
+            self._on_logfix(payload)
         elif event == "fixloop":
             self._on_fixloop(payload)
         elif event == "precheck":
@@ -393,9 +393,9 @@ class _SseFollow:
             int(p.get("done") or 0), int(total) if total else None
         )
 
-    def _on_l2(self, p: Mapping[str, Any]) -> None:
-        """``l2`` done 帧 → 一行统计（``CliSink._on_l2`` 同口径）。"""
-        line = l2_done_line(p)
+    def _on_logfix(self, p: Mapping[str, Any]) -> None:
+        """``logfix`` done 帧 → 一行统计（``CliSink._on_logfix`` 同口径）。"""
+        line = logfix_done_line(p)
         if line is not None:
             status(line)
 

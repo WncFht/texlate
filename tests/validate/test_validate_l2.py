@@ -273,14 +273,14 @@ def test_file_line_error_non_tex_ext() -> None:
     assert fe.tex_line == 7  # noqa: PLR2004 - file:line: 提取的样本行号
 
 
-# ---------------------------------------------------------------- l2_attr 归因载荷
+# ---------------------------------------------------------------- logfix_attr 归因载荷
 
 ATTR_ERR_CAP = 50  # _MAX_ATTR_ERRORS：错误命中条上限（n_errors 仍精确）
 WARN_HIT_CAP = 5  # _MAX_WARN_SAMPLES：每类 warning hits 上限（by_class 仍精确）
 
 
 def test_attribution_shape_and_order() -> None:
-    """``l2_attr`` 载荷钉形：错误+warning 统一 hits 表（log_line 升序），
+    """``logfix_attr`` 载荷钉形：错误+warning 统一 hits 表（log_line 升序），
     warning file = 命中时 ``(`` 栈最内层——records 离线聚类原料。"""
     text = (
         "(./main.tex\n"

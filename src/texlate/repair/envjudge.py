@@ -1,4 +1,4 @@
-"""repair_l2.envjudge — env judge 可译性判定叶 (repair_l2 拆分叶).
+"""repair.envjudge — env judge 可译性判定叶 (repair 拆分叶).
 
 静态表外 env 的目标选择谓词 ``unknown_env_of`` + 逐条 LLM 判定
 ``_env_judge_one``/``env_judge_all``（0 温/16 tok/3 试/解析失败

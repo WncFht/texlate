@@ -31,7 +31,7 @@ from _fuzzkit import (
 )
 from test_fuzz_validate import _SOUP
 
-from texlate.redlines import L2_REDLINE_CLASSES
+from texlate.redlines import LOGFIX_REDLINE_CLASSES
 from texlate.textutil import is_cjk_cp
 from texlate.validate.l0 import Issue, Severity, validate_pair
 from texlate.validate.l1 import L1Error, TsResult
@@ -434,7 +434,7 @@ def _check_l2(text: str) -> L2Verdict:
     for r in ws.redlines:
         cls, sep, head = r.partition(": ")
         assert sep
-        assert cls in L2_REDLINE_CLASSES
+        assert cls in LOGFIX_REDLINE_CLASSES
         assert len(head) <= 120  # noqa: PLR2004 -- 截断上限
     assert all(s.startswith("invalid_utf8@") for s in ws.sys_hits)
     assert len(ws.sys_hits) == len(set(ws.sys_hits))

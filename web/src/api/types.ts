@@ -167,10 +167,10 @@ export interface FixloopEvent {
 }
 
 /**
- * L2 重译 SSE 帧：``phase`` 缺省视为 done（旧帧只发一次结果负载）。
+ * logfix 重译 SSE 帧：``phase`` 缺省视为 done（旧帧只发一次结果负载）。
  * done 帧平铺统计键（enabled/errors/retranslated/fallback）。
  */
-export interface L2Event {
+export interface LogfixEvent {
     phase?: "start" | "progress" | "done";
     message?: string;
     enabled?: boolean;

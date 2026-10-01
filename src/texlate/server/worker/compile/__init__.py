@@ -3,7 +3,7 @@
 god-split: 实现体按域拆进同包 7 叶——``compile.splice``（zh 工程物化：
 splice/zip/源码回灌同步）、``compile.engine``（引擎构造/任务 texmf 树/
 依赖探针/修复实况帧）、``compile.en``（en.pdf 臂）、``compile.fixloop``
-（fixloop/precheck/llm_hook 救援链）、``compile.l2``（L2 回灌 + 块级
+（fixloop/precheck/llm_hook 救援链）、``compile.logfix``（logfix 回灌 + 块级
 回写事务）、``compile.artifacts``（dual.json/md.zip/ToUnicode 交付产物）、
 ``compile.stage``（终态阶梯编排 + zh 编译链驱动 + ``_Compile`` 组合根）。
 本文件是 PEP 562 惰性门面（同 ``seqpos/__init__``/``fixloop/builtins``
@@ -36,8 +36,8 @@ if TYPE_CHECKING:
         _CompileFixloop,
         _fixloop_summary,
     )
-    from texlate.server.worker.compile.l2 import (
-        _CompileL2,
+    from texlate.server.worker.compile.logfix import (
+        _CompileLogfix,
     )
     from texlate.server.worker.compile.splice import (
         _CompileSplice,
@@ -62,7 +62,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_CompileFixloop",
         "_fixloop_summary",
     ),
-    "l2": ("_CompileL2",),
+    "logfix": ("_CompileLogfix",),
     "splice": (
         "_CompileSplice",
         "_delivered_map",
@@ -89,7 +89,7 @@ __all__ = [
     "_CompileEn",
     "_CompileEngine",
     "_CompileFixloop",
-    "_CompileL2",
+    "_CompileLogfix",
     "_CompileSplice",
     "_CompileStage",
     "_delivered_map",

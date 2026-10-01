@@ -176,7 +176,7 @@ def slot_arg_revert(
 ) -> tuple[bool, str]:
     r"""把 zh 化机位实参按 ``params.baseline_dir`` pristine 树配对还原。
 
-    precheck 位一次性跑 (L2 resplice 之后的首个耐写入点): 逐 ``*.tex``
+    precheck 位一次性跑 (logfix resplice 之后的首个耐写入点): 逐 ``*.tex``
     与 baseline 同名件做 per-kind 序号对齐配对, ``src`` 参为纯 ASCII
     标识符而 ``zh`` 参含 CJK → zh 参位换回 src 字节 (``ctx.write``
     记账写)。空转判据自证幂等 —— 机位参无 CJK 即不重扫写。

@@ -95,10 +95,10 @@ def _ctx(
     index: TlpdbIndex | None = None,
     engine: _ProbeEngine | None = None,
 ) -> tuple[TaskCtx, PipelineWorker, Store]:
-    """最小 TaskCtx + worker：真 Store/EventBus，l2/fixloop 关闭。
+    """最小 TaskCtx + worker：真 Store/EventBus，logfix/fixloop 关闭。
 
-    ``options.l2/fixloop=False`` 把修复链两臂钉死——judge 对假 pdf 的
-    partial 判定不触发 ``_l2_repair_zh``/``_run_fixloop``（它们要真
+    ``options.logfix/fixloop=False`` 把修复链两臂钉死——judge 对假 pdf 的
+    partial 判定不触发 ``_logfix_zh``/``_run_fixloop``（它们要真
     translator/fixloop 环境，非本测试目标）。
     """
     store = Store(tmp_path / "t.db")
@@ -117,7 +117,7 @@ def _ctx(
         kind="upload_tex",
         target_lang="zh-CN",
         model="m",
-        options={"l2": False, "fixloop": False},
+        options={"logfix": False, "fixloop": False},
     )
     root = tmp_path / "task"
     ctx = TaskCtx(

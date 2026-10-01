@@ -127,7 +127,7 @@ def test_logparse_popped_files_runaway() -> None:
 
 
 def test_l2_match_error_line_delegate() -> None:
-    """bench ``extract_l2_fixture`` 钉点签名守恒——``(head, tex_file)``。"""
+    """bench ``extract_logfix_fixture`` 钉点签名守恒——``(head, tex_file)``。"""
     assert _match_error_line("! e") == ("! e", None)
     assert _match_error_line("./a.tex:9: m") == ("./a.tex:9: m", "./a.tex")
     assert _match_error_line("x.tex:1: LaTeX Warning: w") is None

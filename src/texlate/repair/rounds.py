@@ -1,10 +1,10 @@
-"""repair_l2.rounds — L2 回灌阶梯叶 (repair_l2 拆分叶).
+"""repair.rounds — logfix 回灌阶梯叶 (repair 拆分叶).
 
-``l2_repair_round`` 一轮骨架（归因 → 重译 → resplice → 重编 → 余孽
+``logfix_round`` 一轮骨架（归因 → 重译 → resplice → 重编 → 余孽
 回落原文）+ 注入臂本体 ``retranslate_hits`` + resplice 写盘/对账簇
 （``_resplice_and_diffs``/``_resplice``/``_slot_diffs``）。
 
-叶子互引走全路径直跨（``texlate.repair_l2.<叶>``），不经包门面。
+叶子互引走全路径直跨（``texlate.repair.<叶>``），不经包门面。
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from texlate.latex.reconstruct import (
     seq_mark_issues,
     strip_seq_marks,
 )
-from texlate.repair_l2.attr import _l2_localize
-from texlate.repair_l2.runstate import split_cid
+from texlate.repair.attr import _attr_localize
+from texlate.repair.runstate import split_cid
 from texlate.textutil import env_flag
 from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.engine import CompRes
     from texlate.compile.judge import Verdict
-    from texlate.repair_l2.runstate import TreeRun
+    from texlate.repair.runstate import TreeRun
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def retranslate_hits(
     """逐块重译（单发）+ 结果入账；返回报告 dict（``_`` 前缀内部键）。"""
     rep: dict[str, Any] = {
         "retranslated": [],
-        "reverted_l0": [],
+        "reverted_rules": [],
         "kept_transport_err": [],
         "over_cap": [],
     }
@@ -71,7 +71,7 @@ async def retranslate_hits(
         else:
             # 重译产物仍不过 L0 → 回落原文（spec: 再不过 → fallback 原文）
             run.trans.get(fidx, {}).pop(ccid, None)
-            rep["reverted_l0"].append(cid)
+            rep["reverted_rules"].append(cid)
         changed.add(cid)
     return rep
 
@@ -156,7 +156,7 @@ def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str
     """``_resplice`` 落盘 zh 对 ``res.vtex`` 的机位配对 diff——重写后逐文件对账。
 
     盘后读回 = 注入后磁盘真值口径（worker ``_retr_resplice`` 消费位）；
-    ``l2_repair_round`` 内面走 ``_resplice_and_diffs`` 的注入前在手 zh 口径。
+    ``logfix_round`` 内面走 ``_resplice_and_diffs`` 的注入前在手 zh 口径。
     """
     out: dict[str, list[str]] = {}
     for fidx in sorted(fidxs):
@@ -167,7 +167,7 @@ def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str
     return out
 
 
-def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两臂同一契约
+def logfix_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两臂同一契约
     run: TreeRun,
     work: Path,
     main_rel: str,
@@ -180,7 +180,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     baseline_sigs: set[str] | None = None,
     seq_marks: bool | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-    """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
+    """Logfix 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
 
     ``retranslate``/``recompile`` 两臂注入——e2e 包 ``run.drive(
     retranslate_hits)``（翻译期 loop 复用，见 ``TreeRun.loop``）+
@@ -191,10 +191,10 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
     命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
     同口径过滤。``seq_marks`` 透传 ``_resplice_and_diffs``（None → env
-    决议）。返回 (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
+    决议）。返回 (logfix 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep: dict[str, Any] = {"enabled": True, "cap": cap}
-    hits, n_err = _l2_localize(work, run, res, baseline_sigs=baseline_sigs)
+    hits, n_err = _attr_localize(work, run, res, baseline_sigs=baseline_sigs)
     rep["errors"] = n_err
     rep["hits"] = hits
     last_res = res
@@ -229,7 +229,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
 
     # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
     # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
-    hits2, _ = _l2_localize(work, run, res2, baseline_sigs=baseline_sigs)
+    hits2, _ = _attr_localize(work, run, res2, baseline_sigs=baseline_sigs)
     still_bad = sorted(set(hits2) & adopted)
     rep["fallback_src"] = still_bad
     rep["unresolved"] = sorted(set(hits2) - adopted)

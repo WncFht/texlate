@@ -56,20 +56,20 @@ describe("mergeResultStats 边界", () => {
             latency: undefined,
             stageSeconds: undefined,
             fixloop: undefined,
-            l2: undefined,
+            logfix: undefined,
         });
     });
 
-    it("stage_seconds/fixloop/l2 细分键透传", () => {
+    it("stage_seconds/fixloop/logfix 细分键透传", () => {
         const r = mergeResultStats({
             stage_seconds: { fetch: 1.2, compile: 30 },
             fixloop: "clean",
-            l2: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
+            logfix: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
         });
         expect(r).toMatchObject({
             stageSeconds: { fetch: 1.2, compile: 30 },
             fixloop: "clean",
-            l2: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
+            logfix: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
         });
     });
 });

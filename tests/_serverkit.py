@@ -196,7 +196,7 @@ def sse_frames(
     return out
 
 
-#: L2 可归因错误 log：``(./main.tex`` 文件栈 + ``l.N`` 行号 → main.tex chunk。
+#: logfix 可归因错误 log：``(./main.tex`` 文件栈 + ``l.N`` 行号 → main.tex chunk。
 #: 行号运行时取——ctex 注入往 preamble 塞了几十行，写死的行号会落在注入
 #: 锅炉板里（chunk 全部在其后，顺序读取不变量下不可归因——#78 修复后
 #: forward-fallback 不再把 preamble 错误错归给首个正文块）。
@@ -214,20 +214,20 @@ def _attr_err_log(wdir: Path, stem: str) -> str:
     return f"(./main.tex\n! Undefined control sequence.\nl.{ln} \\badcs\n"
 
 
-class L2FlakyEngine:
+class LogfixFlakyEngine:
     """按 wdir 计数的假引擎：``build-zh`` 前 ``n_fail`` 次 compile 出可归因
-    L2 错误 log；``build-en`` 等其余目录恒净。
+    logfix 错误 log；``build-en`` 等其余目录恒净。
 
-    ``n_fail=1`` → L2 重编即绿（验证 L2 修好就跳过 fixloop）；
-    ``n_fail=2`` → L2 重编仍败 → 回落后**裸编验证**即绿；
-    ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 L2 之后兜底）。
+    ``n_fail=1`` → logfix 重编即绿（验证 logfix 修好就跳过 fixloop）；
+    ``n_fail=2`` → logfix 重编仍败 → 回落后**裸编验证**即绿；
+    ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 logfix 之后兜底）。
     en 侧必须恒净——worker 以 en 编译错误签名作 zh 归因的源生基线，
     en 同签名失败会把 zh 错误判源携带豁免掉（过滤语义本身正确，
     本 fixture 的前提是「en 干净、错由译文引入」）。
     探测面对齐 fixloop 会触到的 Engine 鸭子型。
     """
 
-    name = "l2flaky"
+    name = "logfixflaky"
     caps: frozenset[str] = frozenset()
 
     def __init__(self, n_fail: int = 1) -> None:

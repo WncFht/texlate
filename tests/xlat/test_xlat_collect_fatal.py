@@ -18,7 +18,7 @@
 只经 ``_ledger_intercepts`` 账本触达——``_collect`` 与序章两臂逐点由
 ``_ledger_call`` 收 ``BaseException``（见 ``TestPrologueFatalLedger``）；
 唯一裸调位是 ``retranslate_chunk`` 的 ``_INTERCEPT_NETS`` 尾循环
-（pipeline.py:722），它跑在 drain worker 环外（repair_l2
+（pipeline.py:722），它跑在 drain worker 环外（repair
 ``retranslate_hits`` / server worker ``retranslate.py``），不在本文件
 覆盖面。``_collect`` 面 run 级注入走 ``AuthGate.record`` 与
 ``on_result``（``_emit`` 槽位）——散文块路径下这两处仅在 ``_collect``

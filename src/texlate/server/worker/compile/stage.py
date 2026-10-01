@@ -1,7 +1,7 @@
 """worker.compile.stage — compiling 段编排 + ``_Compile`` 组合根叶 (worker.compile 域缝叶)。
 
 终态阶梯编排（``_stage_compile``/``_compile_zh_or_salvage``/``_no_pdf_finish``）、
-zh 编译修复链驱动（``_compile_zh``：compile→judge→precheck→L2→fixloop→judge）、
+zh 编译修复链驱动（``_compile_zh``：compile→judge→precheck→logfix→fixloop→judge）、
 修复摘要归集件 ``_repair_detail``；``_Compile`` 是全部 compile_* 叶
 mixin 的组合根——worker ``PipelineWorker`` 经 ``from texlate.server.worker.compile import _Compile``
 拿到的即本类，方法集分布见各叶 docstring。
@@ -32,7 +32,7 @@ from texlate.server.worker.compile.artifacts import _CompileArtifacts
 from texlate.server.worker.compile.en import _CompileEn
 from texlate.server.worker.compile.engine import _CompileEngine
 from texlate.server.worker.compile.fixloop import _CompileFixloop
-from texlate.server.worker.compile.l2 import _CompileL2
+from texlate.server.worker.compile.logfix import _CompileLogfix
 from texlate.server.worker.compile.splice import _CompileSplice
 
 if TYPE_CHECKING:
@@ -44,18 +44,18 @@ if TYPE_CHECKING:
 
 
 def _repair_detail(ctx: TaskCtx, *, include_share: bool = False) -> dict[str, Any]:
-    """修复摘要归集：precheck/l2/fixloop 三段入 detail/err 的同一装配。
+    """修复摘要归集：precheck/logfix/fixloop 三段入 detail/err 的同一装配。
 
     ``include_share`` 时 ``share`` 键排最前——partial err 原手装序
-    （share→precheck→l2→fixloop）经 ``err.update`` 逐字保留。
+    （share→precheck→logfix→fixloop）经 ``err.update`` 逐字保留。
     """
     detail: dict[str, Any] = {}
     if include_share and ctx.share:
         detail["share"] = ctx.share
     if ctx.precheck:
         detail["precheck"] = ctx.precheck
-    if ctx.l2:
-        detail["l2"] = ctx.l2
+    if ctx.logfix:
+        detail["logfix"] = ctx.logfix
     if ctx.fixloop:
         detail["fixloop"] = ctx.fixloop
     return detail
@@ -187,12 +187,12 @@ class _CompileStage:
         return self.store.chunk_counts(ctx.task_id)["total"] != 0
 
     def _compile_zh(self, ctx: TaskCtx) -> str:
-        """zh.pdf：zh/ 拷贝编译 +（非 clean 时）precheck → L2 回灌 → fixloop + judge(expect_cjk)。
+        """zh.pdf：zh/ 拷贝编译 +（非 clean 时）precheck → logfix 回灌 → fixloop + judge(expect_cjk)。
 
         修复链顺序对齐 e2e ``_repair_chain``：precheck 预检（装缺件，
-        fixloop 第 0 招独立相）先消 missing_file 类基建失败；L2（译文
-        归因重译）先于 fixloop——L2 resplice 重写 workdir，规则修源在
-        其后兜底。precheck ``reject:<rid>`` 跳过 L2——路由拒绝交
+        fixloop 第 0 招独立相）先消 missing_file 类基建失败；logfix（译文
+        归因重译）先于 fixloop——logfix resplice 重写 workdir，规则修源在
+        其后兜底。precheck ``reject:<rid>`` 跳过 logfix——路由拒绝交
         fixloop 复现 + 跨引擎消费。
         ``.compile-done`` 哨兵落 ``zh/`` 内：main 变更的 retry 会 rmtree
         ``zh/``，哨兵与 zh_pdf 记录同生共死；resume 见哨兵+pdf 即跳过重编。
@@ -220,7 +220,7 @@ class _CompileStage:
         ctx.probe_flags = [str(f) for f in (rep.flags if rep else [])]
 
         def _post(r: CompRes) -> None:
-            # eng.compile 原子段跑完即收敛——L2/fixloop/登记是后续白费
+            # eng.compile 原子段跑完即收敛——logfix/fixloop/登记是后续白费
             self._abort_if_cancelled(ctx)
             self._probe_diff(ctx, rep, r)
 
@@ -239,7 +239,7 @@ class _CompileStage:
             self._abort_if_cancelled(ctx)
         pre_reject = precheck_reject(ctx.precheck)
         if v.status != "clean" and not pre_reject:
-            res, v = self._l2_attempt(ctx, work, eng, res, v)
+            res, v = self._logfix_attempt(ctx, work, eng, res, v)
             self._abort_if_cancelled(ctx)
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res = self._run_fixloop(ctx, work, eng, res)
@@ -260,7 +260,7 @@ class _Compile(
     _CompileEn,
     _CompileEngine,
     _CompileFixloop,
-    _CompileL2,
+    _CompileLogfix,
     _CompileArtifacts,
 ):
-    """compiling 段 mixin：探测/编译/fixloop/L2/双语产物。"""
+    """compiling 段 mixin：探测/编译/fixloop/logfix/双语产物。"""

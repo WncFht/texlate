@@ -1,9 +1,9 @@
-"""L2 归因的基建类豁免——资源缺失/工具链错配签名永不归译文块。
+"""logfix 归因的基建类豁免——资源缺失/工具链错配签名永不归译文块。
 
 ``t_f74894ebc691aaf4`` 实证：``File `algpseudocodex.sty' not found``（file
 级、无行号）走文件级兜底把 main.tex 全部块拖去重译/回退——包没装重编
 必败，块全灭 ``fallback_orig`` 定 partial。此类修归 fixloop
-install/filemap/toolchain 面，不归 L2 重译。
+install/filemap/toolchain 面，不归 logfix 重译。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from conftest import DOC, scan_doc
 
 from texlate.compile.engine import CompRes
-from texlate.repair_l2 import TreeRun, _l2_localize, err_signature, err_signatures
+from texlate.repair import TreeRun, _attr_localize, err_signature, err_signatures
 from texlate.validate.l2 import LogError
 
 if TYPE_CHECKING:
@@ -231,7 +231,7 @@ def _localize_doc(  # noqa: PLR0913 -- 文件/扫描体/译文/基线四槽可�
         pipe=None,
     )
     res = CompRes(engine="fake", ok=False, workdir=tmp_path, log_text=log)
-    hits, n_err = _l2_localize(tmp_path, run, res, baseline_sigs=baseline_sigs)
+    hits, n_err = _attr_localize(tmp_path, run, res, baseline_sigs=baseline_sigs)
     return hits, n_err, [c.id for c in scan.chunks]
 
 

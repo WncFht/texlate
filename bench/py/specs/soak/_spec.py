@@ -65,7 +65,7 @@ spec = Spec(
         "src/texlate/latex",
         "src/texlate/textutil",
         "src/texlate/xlat",
-        "src/texlate/pipecore.py",
+        "src/texlate/pipecore",
         "src/texlate/validate",
     ],
     lake=True,

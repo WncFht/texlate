@@ -2,7 +2,7 @@ r"""e2e_mock — mock 翻译全链 e2e（B5-A，M0 出口判据语料面）。
 
 ``e2e_mock_bench.py`` 的 kernel spec 移植：每 paper × 每条件一格跑产品全链
 ``texlate.e2e/pipecore``——route → normalize → MockTranslator 翻译 → ctex
-注入 → 编译 → judge → precheck→L2→fixloop 修复链。variant=cond 字面：
+注入 → 编译 → judge → precheck→logfix→fixloop 修复链。variant=cond 字面：
 
     base-xel  原样复制 → xelatex（"原文就挂" vs "管线引入" 归因臂）
     pipe-xel  mock 翻译全链 → xelatex
@@ -63,7 +63,7 @@ from specs._sabotage import (
     _dirty_hits,
     _seg_of,
 )
-from texlate import repair_l2 as repair_mod
+from texlate import repair as repair_mod
 from texlate.compile.engine import route_project
 from texlate.compile.inject import (
     InjectRejectError,
@@ -247,9 +247,9 @@ def _pipe_mode(
     mode: str,
     *,
     env_judge: bool | None = None,
-    l2_on: bool | None = None,
+    logfix_on: bool | None = None,
     fixloop_on: bool | None = None,
-    l2_max_chunks: int = repair_mod.L2_MAX_CHUNKS,
+    logfix_max_chunks: int = repair_mod.LOGFIX_MAX_CHUNKS,
     route_engines: list[str] | None = None,
 ) -> dict:
     """pipe_condition 变体：翻译层换 Mode B/C 破坏 translator，其余全链同
@@ -385,7 +385,7 @@ def _pipe_mode(
     rec.update(tail)
 
     if rec["status"] != "clean":
-        # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 →
+        # 修复链 = pipecore.repair_chain 单件（precheck → logfix 回灌 →
         # fixloop，与 pipe_condition 同一条链）；路由/基线在 job 上。
         res = repair_chain(
             rec,
@@ -393,9 +393,9 @@ def _pipe_mode(
             run,
             res,
             expect_cjk=expect_cjk,
-            l2_on=l2_on,
+            logfix_on=logfix_on,
             fixloop_on=fl,
-            l2_max_chunks=l2_max_chunks,
+            logfix_max_chunks=logfix_max_chunks,
         )
     # ToUnicode 注入在修复链收敛之后（pipe_condition 同位）
     if res.has_pdf and res.pdf is not None:
@@ -523,9 +523,9 @@ def _run(ctx):
     eng = "xelatex" if cond.endswith("xel") else "tectonic"
     kw = {
         "env_judge": p.get("env_judge"),
-        "l2_on": p.get("l2_on"),
+        "logfix_on": p.get("logfix_on"),
         "fixloop_on": p.get("fixloop_on"),
-        "l2_max_chunks": int(p.get("l2_max_chunks") or repair_mod.L2_MAX_CHUNKS),
+        "logfix_max_chunks": int(p.get("logfix_max_chunks") or repair_mod.LOGFIX_MAX_CHUNKS),
         "route_engines": _route_engines(p),
     }
     if cond.startswith("pipeB-"):
@@ -557,9 +557,9 @@ spec = Spec(
     params={
         "timeout": Param(float, default=240.0, fp=True),
         "env_judge": Param(bool, default=None, fp=True),
-        "l2_on": Param(bool, default=None, fp=True),
+        "logfix_on": Param(bool, default=None, fp=True),
         "fixloop_on": Param(bool, default=None, fp=True),
-        "l2_max_chunks": Param(int, default=repair_mod.L2_MAX_CHUNKS, fp=True),
+        "logfix_max_chunks": Param(int, default=repair_mod.LOGFIX_MAX_CHUNKS, fp=True),
         "route_engines": Param(str, default="", fp=True),
         "conditions": Param(str, default=DEFAULT_CONDITIONS, fp=False),
         "layers": Param(str, default="core", fp=False),
@@ -579,8 +579,7 @@ spec = Spec(
         "src/texlate/compile",
         "src/texlate/xlat",
         "src/texlate/validate",
-        "src/texlate/repair.py",
-        "src/texlate/repair_l2",
+        "src/texlate/repair",
         "src/texlate/latex",
         "src/texlate/textutil",
         "bench/py/specs/_sabotage.py",

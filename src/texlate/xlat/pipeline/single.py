@@ -1,7 +1,7 @@
-"""pipeline 单块路径域（自 ``pipeline`` 出叶）：阶梯调用点 + L2 回灌重译 + 抄回修复臂。
+"""pipeline 单块路径域（自 ``pipeline`` 出叶）：阶梯调用点 + logfix 回灌重译 + 抄回修复臂。
 
 ``_XlatSingle`` 是 ``XlatPipeline`` 的单块臂 mixin——每块经 retry 阶梯
-（corrector/slots/repair 全套修复臂）；``retranslate_chunk`` 是 L2 回灌
+（corrector/slots/repair 全套修复臂）；``retranslate_chunk`` 是 logfix 回灌
 单发重译，不走阶梯。``_net_apply_fn`` 经 ``.pipeline`` 门面回取——其
 ``globals()`` 晚绑定钉在门面命名空间，是 tests ``setattr(pl, _intercept_*)``
 补丁守恒的落点（docs/dev/seams.md §5）。
@@ -64,7 +64,7 @@ def _slots_user_obj(
 
 
 class _XlatSingle:
-    """单块阶梯 + L2 回灌 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
+    """单块阶梯 + logfix 回灌 mixin（实例状态由 ``XlatPipeline.__init__`` 初始化）。"""
 
     if TYPE_CHECKING:
         # 组合根 ``.orch.XlatPipeline.__init__`` 注入的共享态契约
@@ -180,9 +180,9 @@ class _XlatSingle:
     async def retranslate_chunk(
         self, c: ChunkIn, compile_feedback: str
     ) -> ChunkResult | None:
-        """L2 回灌单发重译：带 ``[compile_error]`` 反馈再要一次，不走阶梯。
+        """Logfix 回灌单发重译：带 ``[compile_error]`` 反馈再要一次，不走阶梯。
 
-        每 chunk 只此一发的配额由调用方（e2e L2 回灌）记账。返回值：
+        每 chunk 只此一发的配额由调用方（e2e logfix 回灌）记账。返回值：
 
         - ``None`` —— 传输层异常：保留原译，调用方按"未变"处理；
         - ``status="ok"`` —— L0 过：新译可入 splice（并写段级缓存）；
@@ -233,7 +233,7 @@ class _XlatSingle:
             attempts=1,
             warnings=warnings,
         )
-        # L2 回灌同受拦截——fault 由调用方回落原文；与账本形同表晚绑定取件，
+        # logfix 回灌同受拦截——fault 由调用方回落原文；与账本形同表晚绑定取件，
         # 新增网在本臂不会漏挂。
         for net in _INTERCEPT_NETS:
             _net_apply_fn(net)(r)

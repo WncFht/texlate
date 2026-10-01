@@ -48,7 +48,7 @@ def delivered(r: ChunkResult) -> bool:
 def delivered_db(status: object, translation: object) -> bool:
     """DB 空间 delivered 谓词：chunks 行 ``status=="ok"`` 且译文非空。
 
-    worker ``_build_zh``/``_l2_run_state``/``_build_md_zip`` 三处同款——
+    worker ``_build_zh``/``_logfix_run_state``/``_build_md_zip`` 三处同款——
     恰是 pipe 空间 ``delivered`` 经 ``PIPE_TO_DB`` 投影后的判定式
     （``partial`` 落库即 ``ok``）。``translation`` 只判真值——需要
     ``isinstance(str)`` 的消费点（dual.json zh 槽）另行自判。
@@ -60,7 +60,7 @@ def delivered_db(status: object, translation: object) -> bool:
 
 
 class CompileRunner(Protocol):
-    """``() -> (CompRes, Verdict)``——编译 + 判定回环件（``l2_repair`` 的 ``recompile`` 契约）。"""
+    """``() -> (CompRes, Verdict)``——编译 + 判定回环件（``logfix`` 的 ``recompile`` 契约）。"""
 
     def __call__(self) -> tuple[CompRes, Verdict]:
         """跑一次编译 + 判定回环 → ``(CompRes, Verdict)``。"""

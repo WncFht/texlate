@@ -103,7 +103,7 @@ class _TranslateGlossary:
         占位符点名册不走本表——``pipeline._materialize`` 经
         ``render_placeholder_manifest`` 单行压 ``<Glossary>`` 块末行。
 
-        每任务 2~4 调（主链/env_judge/L2/pdf 臂同形构造）——``ctx.memo``
+        每任务 2~4 调（主链/env_judge/logfix/pdf 臂同形构造）——``ctx.memo``
         按 ``"glossary"`` 备忘复用。
         """
         mkey = "glossary"

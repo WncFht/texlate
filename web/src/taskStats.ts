@@ -16,8 +16,8 @@ export interface ResultStats {
     stageSeconds?: Record<string, number>;
     /** fixloop 判定串（done.stats.fixloop = cell.verdict） */
     fixloop?: string;
-    /** L2 校验摘要（done.stats.l2 = {enabled,errors,retranslated,fallback}） */
-    l2?: {
+    /** logfix 校验摘要（done.stats.logfix = {enabled,errors,retranslated,fallback}） */
+    logfix?: {
         enabled?: boolean;
         errors?: number;
         retranslated?: number;
@@ -38,7 +38,7 @@ export function mergeResultStats(
         stageSeconds: stats?.stage_seconds as
             Record<string, number> | undefined,
         fixloop: typeof stats?.fixloop === "string" ? stats.fixloop : undefined,
-        l2: stats?.l2 as ResultStats["l2"],
+        logfix: stats?.logfix as ResultStats["logfix"],
         calls: usage?.calls,
         prompt: usage?.prompt_tokens,
         completion: usage?.completion_tokens,

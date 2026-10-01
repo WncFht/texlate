@@ -1,6 +1,6 @@
 // liveFrames —— SSE 帧 → TaskLive 派生态的纯归约件。
 // 自 tasks.ts 拆出：帧折叠（chunk delta 合并 / fixloop 轮次 upsert /
-// L2 归一）与传输编排无相互依赖，vitest 可绕开 store 直测归约层。
+// logfix 归一）与传输编排无相互依赖，vitest 可绕开 store 直测归约层。
 
 import type {
     ChunkEvent,
@@ -8,7 +8,7 @@ import type {
     DoneEvent,
     FixloopEvent,
     FixloopRound,
-    L2Event,
+    LogfixEvent,
     LogEvent,
     StageEvent,
     TaskErrorEvent,
@@ -24,8 +24,8 @@ export interface FixloopLive {
     done: boolean;
 }
 
-/** L2 校验重译 live 面：整帧存，phase 缺省按 done 归一 */
-export interface L2Live {
+/** logfix 校验重译 live 面：整帧存，phase 缺省按 done 归一 */
+export interface LogfixLive {
     phase: string;
     message?: string;
     enabled?: boolean;
@@ -46,7 +46,7 @@ export interface TaskLive {
     error?: TaskErrorEvent;
     done?: DoneEvent;
     fixloop?: FixloopLive;
-    l2?: L2Live;
+    logfix?: LogfixLive;
     transport: TransportState;
 }
 
@@ -123,8 +123,8 @@ export function foldFixloop(
     };
 }
 
-/** L2 帧归一：phase 缺省按 done（旧服务端只发一次结果负载） */
-export function normalizeL2(e: L2Event): L2Live {
+/** logfix 帧归一：phase 缺省按 done（旧服务端只发一次结果负载） */
+export function normalizeLogfix(e: LogfixEvent): LogfixLive {
     return {
         phase: e.phase ?? "done",
         message: e.message,

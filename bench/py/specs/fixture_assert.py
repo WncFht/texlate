@@ -248,7 +248,7 @@ spec = Spec(
         "bench/py/specs/_fixture_matrix/dm.py",
         "bench/py/specs/_fixture_matrix/eval.py",
         "src/texlate/latex",
-        "src/texlate/textutil.py",
+        "src/texlate/textutil",
         "bench/fixtures",
     ],
 )

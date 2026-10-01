@@ -10,7 +10,7 @@ model 数据层五名兼容再出口（``ARG_TRANSPARENT_ENVS`` 等）驻本叶�
 from __future__ import annotations
 
 # 三常量 = 兼容再出口：定义已上归 model 数据层
-# （``ARG_TRANSPARENT_ENVS`` 为 repair_l2/segmenter 旧调用面保持）。
+# （``ARG_TRANSPARENT_ENVS`` 为 repair/segmenter 旧调用面保持）。
 from texlate.latex.model import (  # noqa: F401
     ARG_TRANSPARENT_ENVS,
     OPT_FMT_CHARS,

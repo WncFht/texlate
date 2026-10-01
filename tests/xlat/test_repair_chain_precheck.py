@@ -1,9 +1,9 @@
-"""修复链第 0 招：fixloop precheck 相在 L2 前的独立预跑（e2e/pipecore 面）。
+"""修复链第 0 招：fixloop precheck 相在 logfix 前的独立预跑（e2e/pipecore 面）。
 
-``t_f74894ebc691aaf4`` 实证链：missing_file 类基建失败进 L2 归因面只会
+``t_f74894ebc691aaf4`` 实证链：missing_file 类基建失败进 logfix 归因面只会
 把块拖去重译/回退——precheck 把装缺件（scan_install）提前到归因前，
-装上即重编、clean 直接收工（L2/fixloop 两臂全省）；``reject:<rid>``
-不重编不跑 L2，交 fixloop 复现 + ``fixloop_flags_tail`` 跨引擎消费。
+装上即重编、clean 直接收工（logfix/fixloop 两臂全省）；``reject:<rid>``
+不重编不跑 logfix，交 fixloop 复现 + ``fixloop_flags_tail`` 跨引擎消费。
 
 附带钉 ``_texmf_wire``：编译尾段/跨引擎重试每发新造的引擎必须看见
 ``work/_texmf`` 装件树（fixloop ``_wire_engine`` 只盖它手里那台）。
@@ -40,7 +40,7 @@ def test_precheck_install_short_circuits_chain(
     monkeypatch: pytest.MonkeyPatch,
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- judge/env 钉住副作用
 ) -> None:
-    """首编 fail → precheck 装上缺件 → 重编 clean → L2/fixloop 两臂全省。
+    """首编 fail → precheck 装上缺件 → 重编 clean → logfix/fixloop 两臂全省。
 
     走 xelatex——``static_precheck`` 在 tectonic 是 ``degrade: skip``
     （bundle 按需自拉，预检空转），装件臂只有 xelatex 真跑。
@@ -63,17 +63,17 @@ def test_precheck_install_short_circuits_chain(
     pre = report["precheck"]
     assert pre["enabled"] is True
     assert pre["installed"], "static_precheck 应装上扫描到的缺件"
-    # clean 早退在 L2/fixloop 键写入前——与首编即 clean 的报告同形
-    assert "l2" not in report
+    # clean 早退在 logfix/fixloop 键写入前——与首编即 clean 的报告同形
+    assert "logfix" not in report
     assert "fixloop" not in report
 
 
-def test_precheck_noop_falls_through_to_l2(
+def test_precheck_noop_falls_through_to_logfix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001
 ) -> None:
-    """装不上件（全 False 桩）+ 无 flag → 不重编 → L2/fixloop 照常跑。"""
+    """装不上件（全 False 桩）+ 无 flag → 不重编 → logfix/fixloop 照常跑。"""
     work = make_project(tmp_path / "p")
     monkeypatch.setattr(e2e, "engine_for", failing_engine)
     report = e2e.pipeline_run(work, "auto", timeout=10.0)
@@ -82,16 +82,16 @@ def test_precheck_noop_falls_through_to_l2(
     pre = report["precheck"]
     assert pre["enabled"] is True
     assert pre["installed"] == []
-    assert report["l2"]["enabled"] is True
+    assert report["logfix"]["enabled"] is True
     assert report["fixloop"]["enabled"] is True
 
 
-def test_precheck_reject_skips_l2_routes_fixloop(
+def test_precheck_reject_skips_logfix_routes_fixloop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001
 ) -> None:
-    """precheck ``reject:<rid>`` → 不重编不跑 L2 → fixloop 复现拒绝 → partial。
+    """precheck ``reject:<rid>`` → 不重编不跑 logfix → fixloop 复现拒绝 → partial。
 
     ``route_engines=[tectonic]`` 掐掉跨引擎消费——拒绝原样落盘可断。
     """
@@ -103,7 +103,7 @@ def test_precheck_reject_skips_l2_routes_fixloop(
 
     assert rec["precheck"]["verdict"] == "reject:pstricks_route"
     assert rec["precheck"]["reject_route"] == "xelatex"
-    assert rec["l2"] == {"enabled": False, "reason": "precheck_reject"}
+    assert rec["logfix"] == {"enabled": False, "reason": "precheck_reject"}
     assert rec["fixloop"]["verdict"] == "reject:pstricks_route"
     assert rec["status"] == "partial"
     assert rec["reject_at"] == "fixloop"

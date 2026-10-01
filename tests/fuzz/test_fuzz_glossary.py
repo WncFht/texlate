@@ -515,7 +515,7 @@ def test_fuzz_glossary_path_jail_forest(tmp_path: Path) -> None:
         for _ in range(rng.randint(1, 6)):
             n = rng.randint(1, 3)
             gpath = "/".join(
-                rng.choice([*_COMP_SOUP, "l0", "l1", "l2"]) for _ in range(n)
+                rng.choice([*_COMP_SOUP, "seg_a", "seg_b", "seg_c"]) for _ in range(n)
             )
             _assert_jailed(resolve_glossary_path(gpath, gdir_arg, base), roots)
 

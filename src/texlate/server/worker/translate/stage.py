@@ -236,7 +236,7 @@ class _TranslateStage:
         与 ``cache.prewarm`` 的 SELECT 留 loop 线程。
         """
         # 主链 ChunkIn 必须带 ph_fragments——不给则 _repair_fn 恒 None，
-        # recover_copied_tokens 抄回修复臂整条死代码（_l2_run_state 同款
+        # recover_copied_tokens 抄回修复臂整条死代码（_logfix_run_state 同款
         # chunk_to_in(ph_map=) 模式；DB chunk_id ↔ scans 按 byte span 对账）
         frag_of = self._ph_frag_map(ctx)
         return {

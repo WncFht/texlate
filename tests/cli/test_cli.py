@@ -132,7 +132,7 @@ class TestRun:
     ) -> None:
         """编译无 pdf → status fail → exit 1（修复链走尽仍无 pdf）。"""
         monkeypatch.setattr(e2e, "engine_for", failing_engine)
-        for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+        for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_LOGFIX", "TEXLATE_NO_FIXLOOP"):
             monkeypatch.delenv(key, raising=False)
         src = _src(tmp_path)
         result = _RUNNER.invoke(

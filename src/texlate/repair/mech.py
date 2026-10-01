@@ -1,12 +1,12 @@
 """修复臂共享低层件——``e2e`` 与 ``server.worker`` 双编排器的单源层。
 
-refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状、事件、
-回灌副作用不同），以下四件同型逻辑只在此维护一份：
+两臂各自保留编排（报告形状、事件、回灌副作用不同），以下同型逻辑
+只在此维护一份：
 
 - ``log_text_of``：``CompRes`` → 日志全文（``.log`` 非空优先、
-  ``stdout_tail`` 兜底——tectonic 常无 .log）——本体已下沉
-  ``texlog.log_text_of``（2026-09-21，叶子层零运行期依赖），本件
-  回引保 ``repair.log_text_of`` 旧锚钉点面
+  ``stdout_tail`` 兜底——tectonic 常无 .log）——本体在
+  ``texlog.log_text_of``（叶子层零运行期依赖），本件回引保
+  ``repair.log_text_of`` 锚位钉点面
 - ``ResProxy``：``Engine`` 透传代理，记末次 ``CompRes``（fixloop
   轮内重编的终判原料）
 - ``fixloop_cell_parts``：fixloop cell → ``(逐轮摘要，setup 动作)``——
@@ -17,21 +17,19 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   树注入 restore_support_from_src（worker ``ctx.base_dir`` /
   ``pipecore.baseline_snapshot`` 两源同一注入件）。``fixloop``/
   ``precheck_pass`` 调用点经 ``compile.patchseams`` 查名——patch 打
-  ``patchseams.X`` 或 ``repair.X`` 旧锚同拦（回指语义见 patchseams
+  ``patchseams.X`` 或 ``repair.X`` 锚位同拦（回指语义见 patchseams
   docstring）
-- E2 批（2026-09-17 自 ``e2e`` 下沉）：glossary confine kernel
-  ``resolve_glossary_path``（相对路径 + ``..`` 拒 + resolve-jail）
-  留置本文件——两臂同一实现
-- C6 批（2026-09-17 残余收编）：``ENV_NO_FIXLOOP``/``ENV_FIXLOOP_LLM``
-  env 名常量补齐（e2e 本地常量 + worker 裸字面量双源归一）、
-  ``embed_tounicode_quiet``（ToUnicode 注入 best-effort 壳）、
-  ``consume_engine_flags``（fixloop ``engine_flags`` 消费尾：
-  dropped→``cross_engine_retry``，applied→审计 note）、
-  ``merge_flags``（``probe_flags``+``flags`` 去重合并——pipecore/
-  worker/本件三面归一）
-- C4 批（2026-09-18，reaudit 拆分）：env judge 可译性判定 + L2 回灌
-  机械 + ``TreeRun``/``split_cid`` 运行态整簇迁 ``repair_l2/``——
-  消费面直取叶子模块，本文件不回引
+- ``resolve_glossary_path``：glossary confine kernel（相对路径 +
+  ``..`` 拒 + resolve-jail）——两臂同一实现
+- ``ENV_NO_FIXLOOP``/``ENV_FIXLOOP_LLM``：env 名常量钉点回引
+  （字面量单源在 ``textutil.osutil`` 注册表）；``embed_tounicode_quiet``
+  （ToUnicode 注入 best-effort 壳）、``consume_engine_flags``（fixloop
+  ``engine_flags`` 消费尾：dropped→``cross_engine_retry``，applied→
+  审计 note）、``merge_flags``（``probe_flags``+``flags`` 去重合并——
+  pipecore/worker/本件三面归一）
+- 同包姊妹叶：env 可译性判定在 ``envjudge``、log 归因在 ``attr``、
+  logfix 回灌阶梯在 ``rounds``、``TreeRun``/``split_cid`` 运行态在
+  ``runstate``——消费面直取叶子模块，本文件不回引
 """
 
 from __future__ import annotations
@@ -47,8 +45,8 @@ from texlate.compile import patchseams
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.fixloop.engine import (
     Ruleset,
-    fixloop,  # noqa: F401 -- repair.fixloop 旧锚位（patchseams.__getattr__ 回指面）
-    precheck_pass,  # noqa: F401 -- repair.precheck_pass 旧锚位（patchseams.__getattr__ 回指面）
+    fixloop,  # noqa: F401 -- repair.fixloop 锚位（patchseams.__getattr__ 回指面）
+    precheck_pass,  # noqa: F401 -- repair.precheck_pass 锚位（patchseams.__getattr__ 回指面）
 )
 from texlate.compile.judge import judge
 from texlate.texlog import log_text_of
@@ -229,8 +227,8 @@ def run_precheck(
 
     fixloop precheck 相独立跑一轮：scan_install 装缺件 / tar_blob_extract
     解嵌套 tar / build_directive_harvest 收割构建 flag——全增量件不碰
-    .tex 源，对 L2 resplice 安全。缺包类失败在 L2 归因前就消掉
-    （``t_f74894ebc691aaf4`` algpseudocodex 实证：missing_file 进 L2
+    .tex 源，对 logfix resplice 安全。缺包类失败在 logfix 归因前就消掉
+    （``t_f74894ebc691aaf4`` algpseudocodex 实证：missing_file 进 logfix
     兜底只会把块拖去重译/回退）。``main_rel`` 同 ``run_fixloop``——
     调用方持有正确主档时透传（subfile_docclass_strip 等 precheck 规则
     以 ctx 主档判豁免，译后树自动探测会误选）。无编译发生，不需

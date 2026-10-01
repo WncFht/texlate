@@ -17,7 +17,7 @@ nullfont 豁免三联改（36f926d/89b2784/0f5c1d6）靠人肉同步，已漂过
 - ``rules``  → ``compile/fixloop/rules/`` ``warnings:`` 段——**镜像**，
   fixloop loader 照旧读 yaml；一致性由 ``tests/compile/test_redlines.py`` pin
 - ``l2``     → ``validate/l2.py`` ``_WARNING_RULES`` 行级归类名/模式 +
-  ``_REDLINE_CLASSES`` 红线集（``l2_redline`` 标记）
+  ``_REDLINE_CLASSES`` 红线集（``logfix_redline`` 标记）
 - ``judge``  → ``compile/judge.py`` 门控/探针 regex；``name`` 即 reason
   词干（``missing_character×N`` / ``missing_character_nullfont×N``）
 
@@ -32,8 +32,8 @@ from typing import Final
 
 __all__ = [
     "ENGINE_RED_LINES",
-    "L2_REDLINE_CLASSES",
-    "L2_WARNING_RULES",
+    "LOGFIX_REDLINE_CLASSES",
+    "LOGFIX_WARNING_RULES",
     "REDLINES",
     "REDLINES_BY_ID",
     "RULES_WARNINGS",
@@ -86,7 +86,7 @@ class RedLine:
     engine: LayerSpec | None = None  # engine.py WARNING_RED_LINES 条目
     rules: LayerSpec | None = None  # rules/ warnings: 镜像条目
     l2: LayerSpec | None = None  # l2 _WARNING_RULES 行级类
-    l2_redline: bool = False  # l2 类是否入 _REDLINE_CLASSES
+    logfix_redline: bool = False  # l2 类是否入 _REDLINE_CLASSES
     judge: LayerSpec | None = None  # judge 门控/探针 regex + reason 词干
     concept_only: bool = False  # 零层切片概念锚点行（判据在 log regex 域外）
 
@@ -104,7 +104,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
             r"Invalid UTF-8 byte|Missing character.*U\+FFFD|replaced by U\+FFFD",
         ),
         l2=LayerSpec("invalid_utf8", r"Invalid UTF-8 byte|replaced by U\+FFFD"),
-        l2_redline=True,
+        logfix_redline=True,
     ),
     RedLine(
         id="fffd_glyph",
@@ -113,7 +113,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # invalid_utf8；l2 层为 missing_glyph 命中的码点==0xFFFD 派生类。
         engine=LayerSpec("fffd_glyph", _MISSCHAR_GATE + r'[^\n]*\((?:"|U\+)FFFD\)'),
         l2=LayerSpec("fffd_glyph"),
-        l2_redline=True,
+        logfix_redline=True,
     ),
     RedLine(
         id="missing_char",
@@ -123,7 +123,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         engine=LayerSpec("missing_chars", _MISSCHAR_GATE),
         rules=LayerSpec("missing_char", _MISSCHAR_GATE),
         l2=LayerSpec("missing_glyph", r"Missing character:"),
-        l2_redline=True,
+        logfix_redline=True,
         judge=LayerSpec("missing_character", _MISSCHAR_GATE),
     ),
     RedLine(
@@ -153,7 +153,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # l2 派生类：missing_glyph 命中按 ``_MISSING_CHAR_RX`` 码点
         # ``is_cjk_cp`` 细分（中文静默丢失信号），无独立 pattern。
         l2=LayerSpec("missing_glyph_cjk"),
-        l2_redline=True,
+        logfix_redline=True,
     ),
     RedLine(
         id="missing_graphic",
@@ -172,7 +172,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
             "file_not_found",
             r"File `[^']+' not found|cannot (?:find|open)|Could not locate",
         ),
-        l2_redline=True,
+        logfix_redline=True,
     ),
     RedLine(
         id="degraded_file",
@@ -201,6 +201,37 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 伪类别驱动 float_h_demote 降级翻回真浮体。rules-only 同
         # overfull_hbox 行注 (版面信号不进判红面)。
         rules=LayerSpec("float_too_large", r"Float too large for page"),
+    ),
+    RedLine(
+        id="undef_ref_warn",
+        # fixloop 专用行：``LaTeX Warning: Reference/Citation/Label ...
+        # undefined`` + ``There were undefined references`` 尾标 →
+        # warn_undef_ref 伪类别（10-taxonomy ``warn_id`` 门），消费臂 =
+        # 80-bib pagerange/endlabel 注入族 + bbl_cite_undef_regen。首遍
+        # 噪音由引擎 _resolve_tail 出货前解析趟吸收（aux 已播种 + marks
+        # 命中自适应补趟）——本 id 只在末遍编译 log 仍报 undefined 时点火。
+        # rules-only 同 overfull_hbox 行注（判红面不收警告类）。
+        rules=LayerSpec(
+            "undef_ref_warn",
+            r"LaTeX Warning: (Reference|Citation|Label).{0,80}undefined"
+            r"|There were undefined references",
+        ),
+    ),
+    RedLine(
+        id="bbl_version",
+        # fixloop 专用行：biblatex ``File X.bbl is wrong format version``
+        # 警告 → warn_bbl_version → bbl_version_regen（80-bib）。
+        # warning-only 稿无 ``!`` 行，原 bbl_regen 的 undefined_cs 门
+        # 永不命中——本 id 是 warning 域的独立点火口。
+        rules=LayerSpec("bbl_version", r"is wrong format version"),
+    ),
+    RedLine(
+        id="overfull_vbox",
+        # fixloop 专用行：``Overfull \vbox`` → 10-taxonomy 别名行复用
+        # warn_overfull 伪类别（tabular/math/display/gfx 各消费臂自门
+        # 谓词；专属 vbox 臂 vbox_geometry_clamp builtin 未注册，落地后
+        # 可拆伪类别）。rules-only 同 overfull_hbox 行注。
+        rules=LayerSpec("overfull_vbox", r"Overfull \\vbox"),
     ),
     RedLine(
         id="restatable_loss",
@@ -297,13 +328,13 @@ RULES_WARNINGS: Final[tuple[tuple[str, str], ...]] = tuple(
 )
 
 #: ``l2._REDLINE_CLASSES`` 切片（含无 pattern 的派生类）。
-L2_REDLINE_CLASSES: Final[frozenset[str]] = frozenset(
-    r.l2.name for r in REDLINES if r.l2 is not None and r.l2_redline
+LOGFIX_REDLINE_CLASSES: Final[frozenset[str]] = frozenset(
+    r.l2.name for r in REDLINES if r.l2 is not None and r.logfix_redline
 )
 
 #: ``l2._WARNING_RULES`` 中本表托管的 ``canonical id → (发射名，行级
 #: pattern)``（派生类无 pattern 不在内；非红线 warning 类仍由 l2 本层持有）。
-L2_WARNING_RULES: Final[dict[str, tuple[str, str]]] = {
+LOGFIX_WARNING_RULES: Final[dict[str, tuple[str, str]]] = {
     r.id: name_pattern(r.l2)
     for r in REDLINES
     if r.l2 is not None and r.l2.pattern is not None

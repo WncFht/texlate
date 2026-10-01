@@ -209,13 +209,13 @@ def compile_judge_tail(
 
 
 def precheck_job(job: PipeJob) -> dict[str, Any]:
-    """L2/编译链前的静态预检（第 0 招）→ 摘要 dict。
+    """logfix/编译链前的静态预检（第 0 招）→ 摘要 dict。
 
     fixloop precheck 相独立跑一轮：``scan_install`` 装缺件 /
     ``tar_blob_extract`` 解嵌套 tar / ``build_directive_harvest`` 收割
-    构建 flag——全是增量件不碰 .tex 源，对 L2 resplice 安全。缺包类
-    失败在 L2 归因前就消掉（``t_f74894ebc691aaf4`` algpseudocodex
-    实证：missing_file 进 L2 兜底只会把块拖去重译/回退）。
+    构建 flag——全是增量件不碰 .tex 源，对 logfix resplice 安全。缺包类
+    失败在 logfix 归因前就消掉（``t_f74894ebc691aaf4`` algpseudocodex
+    实证：missing_file 进 logfix 兜底只会把块拖去重译/回退）。
     ``reject:<rid>`` verdict 原样上报——路由拒绝交 fixloop 主循环
     复现 + ``fixloop_flags_tail`` 跨引擎消费。引擎不带编译旋钮——
     precheck 相无编译。

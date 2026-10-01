@@ -1,6 +1,6 @@
-"""repair_l2.runstate — ``TreeRun``/``split_cid`` 运行态叶 (repair_l2 拆分叶).
+"""repair.runstate — ``TreeRun``/``split_cid`` 运行态叶 (repair 拆分叶).
 
-``TreeRun`` = ``_translate_tree`` 的内部运行态（splice 后供 L2 回灌复用，
+``TreeRun`` = ``_translate_tree`` 的内部运行态（splice 后供 logfix 回灌复用，
 携带翻译期 ephemeral loop 令牌）；``split_cid`` 是 ``"fidx:cid"`` 复合键
 拆分解的唯一实现（全仓共用，勿就地重写）。
 """
@@ -24,10 +24,10 @@ _T = TypeVar("_T")
 
 @dataclass
 class TreeRun:
-    """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。
+    """``_translate_tree`` 的内部运行态——splice 后供 logfix 回灌复用。
 
     ``loop`` = 翻译期 ephemeral loop：``pipe`` 的 httpx client 池钉死在
-    首个消费 loop 上，拆多次 ``asyncio.run`` 会让 env_judge/L2 重译臂
+    首个消费 loop 上，拆多次 ``asyncio.run`` 会让 env_judge/logfix 重译臂
     在死 loop 绑定的连接上跑（foreign-loop RuntimeError）。生命周期
     令牌与 ``baseline_snapshot`` td 同款——调用方持有到修复链收敛，
     收尾 ``close_loop()``；手工构造/worker 旁路臂留 ``None``，

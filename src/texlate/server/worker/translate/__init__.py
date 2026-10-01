@@ -35,10 +35,10 @@ if TYPE_CHECKING:
     from typing import Any, TypeVar
 
     from texlate.pipecore import auto_glossary_fn
-    from texlate.repair import resolve_glossary_path
-    from texlate.repair_l2 import (
+    from texlate.repair import (
         ENV_ENV_JUDGE,
         env_judge_all,
+        resolve_glossary_path,
         unknown_env_of,
     )
     from texlate.server.settings import cache_scope, validate_model
@@ -127,7 +127,7 @@ _TEXLATE_EXPORTS = {
     "ChunkResult": "texlate.xlat.pipeline",
     "DBStateBridge": "texlate.server.worker._common",
     "DEFAULT_MODEL": "texlate.xlat.client",
-    "ENV_ENV_JUDGE": "texlate.repair_l2",
+    "ENV_ENV_JUDGE": "texlate.repair",
     "FAILED_DB": "texlate.server.worker._common",
     "GatewayTranslator": "texlate.xlat.pipeline",
     "Glossary": "texlate.xlat.glossary",
@@ -161,12 +161,12 @@ _TEXLATE_EXPORTS = {
     "chunk_db_id": "texlate.server.worker._common",
     "chunk_error_code": "texlate.server.worker._common",
     "env_flag": "texlate.textutil",
-    "env_judge_all": "texlate.repair_l2",
+    "env_judge_all": "texlate.repair",
     "opt_bool": "texlate.server.worker._common",
     "pair_feedback": "texlate.validate.l0",
     "resolve_glossary_path": "texlate.repair",
     "translator_mode": "texlate.textutil.osutil",
-    "unknown_env_of": "texlate.repair_l2",
+    "unknown_env_of": "texlate.repair",
     "validate_model": "texlate.server.settings",
 }
 

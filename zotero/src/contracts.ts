@@ -105,7 +105,7 @@ export interface TaskSnapshot {
   counters: TaskCounters;
   /**
    * error_json 键面 = code/message/retryable + 审计 extras 平铺
-   * （reject_at、fixloop/precheck/l2/share/babeldoc——emit._fail/_reject 的
+   * （reject_at、fixloop/precheck/logfix/share/babeldoc——emit._fail/_reject 的
    * detail dict 经 err.update 并进顶层，wire 从不发 "detail" 键）。
    */
   error: {

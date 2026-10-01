@@ -105,7 +105,7 @@ class _Core:
         self._compile_timeout = compile_timeout
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_tid = 0
-        #: ``mock_translator`` 告警按 task 去重（translate/env_judge/L2/doc 多处
+        #: ``mock_translator`` 告警按 task 去重（translate/env_judge/logfix/doc 多处
         #: 调 ``_make_translator``，同一任务只留一条痕）
         self._mock_warned: set[str] = set()
 

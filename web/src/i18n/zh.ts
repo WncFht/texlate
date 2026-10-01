@@ -268,8 +268,8 @@ export const t = {
         // === progress chrome ===
         statsStage: "分阶段耗时",
         statsFixloop: "修复判定",
-        statsL2: "校验重译",
-        statsL2Off: "未启用",
+        statsLogfix: "校验重译",
+        statsLogfixOff: "未启用",
         // === copy-latex：公式/选区 LaTeX 源卡 + 复制回执（clText 键面） ===
         copyLatex: {
             cardAria: "LaTeX 源码",
@@ -363,11 +363,11 @@ export const t = {
         fxFloor: "已回退至修复前产物",
         fxRunning: "修复中…",
         details: "运行细节",
-        l2: "校验重译",
-        l2Running: "校验中…",
-        l2Errors: "校验错误",
-        l2Retranslated: "回灌重译",
-        l2Fallback: "回退原文",
+        logfix: "校验重译",
+        logfixRunning: "校验中…",
+        logfixErrors: "校验错误",
+        logfixRetranslated: "回灌重译",
+        logfixFallback: "回退原文",
         cancelConfirm: "取消该任务？已产出进度会保留，可稍后重试",
     },
     files: {

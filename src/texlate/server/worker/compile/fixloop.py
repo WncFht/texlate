@@ -89,7 +89,7 @@ class _CompileFixloop:
     def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
         """Fixloop 开关：``options.fixloop`` 显式 > ``TEXLATE_NO_FIXLOOP``（默认开）。
 
-        与 ``_l2_enabled``/``_env_judge_enabled``/e2e 同序——显式参数优先；
+        与 ``_logfix_enabled``/``_env_judge_enabled``/e2e 同序——显式参数优先；
         曾 env 胜 options（相反序），同侧两开关不一致已统一。决议本体在
         ``pipecore.RepairPolicy``（e2e/worker policy 单源）。
         """
@@ -257,7 +257,7 @@ class _CompileFixloop:
         """Fixloop ``escalate_llm`` 的 server 侧接线：``(hook, usage, clients)``。
 
         与 e2e ``TEXLATE_FIXLOOP_LLM`` opt-in 不同——server 侧**默认开**
-        （与 L2 parity）：任务带真 BYOK key 即建 hook，token 经
+        （与 logfix parity）：任务带真 BYOK key 即建 hook，token 经
         ``usage_sink`` → ``_persist_usage`` 落账。None 条件（序即优先级）：
 
         - 共享译文任务（``_share_sourced``）：零 token 结构承诺，任何开关无权开；
@@ -300,7 +300,7 @@ class _CompileFixloop:
         """LLM 旁路臂收尾——``_teardown_bypass`` 薄别名（``tag``→``label``）。
 
         保留旧方法名/签名：既有调用点与测试面（``worker._teardown_llm_hook``
-        直调）不改名；env_judge/L2/llm_hook 同构收尾本体已单源归并。
+        直调）不改名；env_judge/logfix/llm_hook 同构收尾本体已单源归并。
         """
         self._teardown_bypass(ctx, usage, clients, label=tag)
 
@@ -314,7 +314,7 @@ class _CompileFixloop:
     ) -> tuple[CompRes, Verdict]:
         """第 0 招预检臂：fixloop precheck 相独立跑 + 装上件/收得 flag 后重编。
 
-        缺包类失败在 L2 归因前就消掉——missing_file 进 L2 兜底只会把块
+        缺包类失败在 logfix 归因前就消掉——missing_file 进 logfix 兜底只会把块
         拖去重译/回退（``t_f74894ebc691aaf4`` algpseudocodex 实证）。
         预检引擎走 ``_fixloop_engine``（与 fixloop 轮内同机——precheck
         无编译，halt_on_error 无关，要的是同一台接线对象）；报告形走

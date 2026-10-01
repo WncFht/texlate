@@ -77,7 +77,7 @@ def safe_rel(name: str) -> PurePosixPath | None:
 # ------------------------------------------------------------------ env 名表
 # ``TEXLATE_*`` env **名**的单一事实源——包内逐名登记（bench/tests 私名不入
 # 表）；新 env 先在此登记再取，doctor/文档的 env 面即本表。叶子模块历史
-# 散名（``repair.ENV_NO_FIXLOOP``/``repair_l2.ENV_*``/``e2e.ENV_AUTO_GLOSSARY``/
+# 散名（``repair.ENV_NO_FIXLOOP``/``repair.ENV_*``/``e2e.ENV_AUTO_GLOSSARY``/
 # ``pipecore.ENV_FRONT_MATTER``/``logsetup.ENV_LOG*``/``staticfiles.SPA_DIR_ENV``/
 # ``xlat.client.ENV_STREAM_FALLBACK``）统一别名本表常量，消费侧一律
 # ``env_flag(ENV_X, ...)``。
@@ -103,7 +103,7 @@ ENV_COMPILE_TIMEOUT: Final = "TEXLATE_COMPILE_TIMEOUT"
 ENV_DATA_DIR: Final = "TEXLATE_DATA_DIR"
 #: 译文方言选择器（值敏感场）。
 ENV_DIALECT: Final = "TEXLATE_DIALECT"
-#: L2 unknown-env LLM 判定臂开关（默认关）。
+#: logfix unknown-env LLM 判定臂开关（默认关）。
 ENV_ENV_JUDGE: Final = "TEXLATE_ENV_JUDGE"
 #: fixloop escalate LLM 钩——e2e 侧 opt-in，server 侧默认开。
 ENV_FIXLOOP_LLM: Final = "TEXLATE_FIXLOOP_LLM"
@@ -127,8 +127,8 @@ ENV_NO_BWRAP: Final = "TEXLATE_NO_BWRAP"
 ENV_NO_DOWNLOAD: Final = "TEXLATE_NO_DOWNLOAD"
 #: fixloop 关（缺省皆开——``NO_*`` 族取反喂入）。
 ENV_NO_FIXLOOP: Final = "TEXLATE_NO_FIXLOOP"
-#: L2 回灌关（缺省皆开，同 ``NO_*`` 族口径）。
-ENV_NO_L2: Final = "TEXLATE_NO_L2"
+#: logfix 回灌关（缺省皆开，同 ``NO_*`` 族口径）。
+ENV_NO_LOGFIX: Final = "TEXLATE_NO_LOGFIX"
 #: zh.pdf seq marked-content 注锚关（缺省开——``options.seq_marks`` 同键）。
 ENV_NO_SEQ_MARKS: Final = "TEXLATE_NO_SEQ_MARKS"
 #: node 可执行路径（validate TS worker；缺省 ``shutil.which("node")``）。

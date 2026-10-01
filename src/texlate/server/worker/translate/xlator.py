@@ -60,7 +60,7 @@ class _TranslateXlator:
         重跑成真）→ 摘除。``ctx.set_option`` 先同步 ``ctx.row`` 内存快照
         （同 run 下游 ``_make_cache`` 即刻可见），库写经 ``_on_loop``
         回弹——本方法在 loop（``_stage_translate``）与工作线程
-        （``_l2_run_state``/``_llm_hook_pack`` 的 to_thread 段）两侧都会
+        （``_logfix_run_state``/``_llm_hook_pack`` 的 to_thread 段）两侧都会
         被调到，写面必须走单写者通道。
         """
         is_mock = isinstance(tr, MockTranslator)

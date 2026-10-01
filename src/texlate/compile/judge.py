@@ -319,7 +319,7 @@ def machine_slot_audit(workdir: Path) -> list[str]:
 
     judge() 内 ``_machine_slot_probe`` 只兜 has_pdf 路径——编译挂死早退
     时本函数仍给 splice 后调用面（e2e ``_translate_tree``/worker splice/
-    ``repair_l2._resplice``）留污染证据。note 形与探针同：
+    ``repair._resplice``）留污染证据。note 形与探针同：
     ``machine_slot_nonascii:<kind>:<file>:<arg>`` + ``capped`` 截断标记
     （确有丢弃才挂——恰好满额不虚报）。
     """

@@ -298,9 +298,9 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
     """编译链前的静态预检——fixloop precheck 相的独立入口。
 
     与 ``fixloop()`` 内嵌预检同一 ``_precheck_phase``：装缺包/解嵌套
-    tar/收割构建指令，不修 .tex 源，对 L2 resplice 安全。e2e/worker
-    两臂在 L2 回灌前调它——缺件类失败在归因前就消掉 (algpseudocodex
-    型 missing_file 不再进 L2 兜底面)。
+    tar/收割构建指令，不修 .tex 源，对 logfix resplice 安全。e2e/worker
+    两臂在 logfix 回灌前调它——缺件类失败在归因前就消掉 (algpseudocodex
+    型 missing_file 不再进 logfix 兜底面)。
 
     ``main_rel`` 缺省时 ``find_main_tex`` 宽松档推导；无主档置空串
     （预检的 source_contains/扫描原语只读工程树，不依赖主档存在）。

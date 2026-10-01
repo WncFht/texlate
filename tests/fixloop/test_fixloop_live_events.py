@@ -1,11 +1,11 @@
-"""fixloop/L2 实况帧 + snapshot.queue_position + dual.json chunk status 验收。
+"""fixloop/logfix 实况帧 + snapshot.queue_position + dual.json chunk status 验收。
 
 - 引擎层 ``fixloop(on_round=…``)：每轮 ``cell["rounds"]`` 落新 entry 即
   同步回调（含 salvage 兜底轮），entry 与 cell 内同对象；
 - worker 层 ``_run_fixloop``：``on_round`` 经 ``bus.publish`` 发
   ``{"phase": "round", "round": entry}`` 实况帧，收尾发
   ``{"phase": "done", "cell": <完整 cell>}``（崩溃发 crashed done）；
-- worker 层 ``_l2_attempt``：start/progress/done 阶段帧——done 平铺
+- worker 层 ``_logfix_attempt``：start/progress/done 阶段帧——done 平铺
   统计键（enabled/errors/retranslated/fallback）+ ``report`` 全量；
 - ``Store.snapshot``：``status == "queued"`` 时 ``queue_position`` =
   ``queued_rows`` 序内 1 基位次，其余状态/header 凭证行字段缺席；
@@ -19,7 +19,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from _fixloopkit import MockEngine
-from _serverkit import L2FlakyEngine
+from _serverkit import LogfixFlakyEngine
 from _workerkit import _insert_chunk, mk_ctx
 from conftest import (
     MINI_TEX,
@@ -193,16 +193,16 @@ class TestWorkerFixloopFrames:
         ]
 
 
-class TestL2LiveFrames:
-    """``_l2_attempt``：start → progress → done 帧 + done 平铺统计键。"""
+class TestLogfixLiveFrames:
+    """``_logfix_attempt``：start → progress → done 帧 + done 平铺统计键。"""
 
-    def test_l2_phase_frames(
+    def test_logfix_phase_frames(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """n_fail=1 → L2 修好即终：帧序 start/progress/done，done 带计数+report。"""
-        eng = L2FlakyEngine(n_fail=1)
+        """n_fail=1 → logfix 修好即终：帧序 start/progress/done，done 带计数+report。"""
+        eng = LogfixFlakyEngine(n_fail=1)
         translator = MockTranslator()
         app = live_app(
             tmp_path,
@@ -214,9 +214,9 @@ class TestL2LiveFrames:
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
             evs = task_events(c, tid)
-        l2 = [e["data"] for e in evs if e["type"] == "l2"]
-        assert [e["phase"] for e in l2] == ["start", "progress", "progress", "done"]
-        done = l2[-1]
+        logfix = [e["data"] for e in evs if e["type"] == "logfix"]
+        assert [e["phase"] for e in logfix] == ["start", "progress", "progress", "done"]
+        done = logfix[-1]
         assert done["enabled"] is True
         assert done["errors"] >= 1
         assert done["retranslated"] >= 1

@@ -1,6 +1,6 @@
 // TaskProgress —— 进行中任务的整页进度视图：transport 徽标 + 排队位次 +
 // 阶段步进 + 进度条 + ETA + 统计条 + 段落棋盘格 + LivePane 边译边读 +
-// 「运行细节」折叠组（阶段时间线/fixloop/L2/警告/日志抽屉）+ 错误 + 取消。
+// 「运行细节」折叠组（阶段时间线/fixloop/logfix/警告/日志抽屉）+ 错误 + 取消。
 // 纯展示件：数据全走 props，秒表（elapsed 走时源）为组件私态。
 
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
@@ -134,11 +134,11 @@ export default function TaskProgress(props: Props) {
         if (logDrawer) logDrawer.open = true;
     };
 
-    /** 「运行细节」组出场闸——时间线/fixloop/L2/警告/日志任一在场即给 */
+    /** 「运行细节」组出场闸——时间线/fixloop/logfix/警告/日志任一在场即给 */
     const hasDetails = () =>
         (props.live?.stages.length ?? 0) > 0 ||
         props.live?.fixloop != null ||
-        props.live?.l2 != null ||
+        props.live?.logfix != null ||
         (props.live?.warnings.length ?? 0) > 0 ||
         (props.live?.logs.length ?? 0) > 0;
 
@@ -290,7 +290,7 @@ export default function TaskProgress(props: Props) {
                     </p>
                 )}
             </Show>
-            {/* 运行细节：次级观测件收进折叠组（阶段时间线 + fixloop + L2 +
+            {/* 运行细节：次级观测件收进折叠组（阶段时间线 + fixloop + logfix +
                 警告 + 日志抽屉）——主区只留态势件；失败格跳转会连本组一起展开 */}
             <Show when={hasDetails()}>
                 <details class="tp-details" ref={(el) => (tpDetails = el)}>
@@ -383,16 +383,16 @@ export default function TaskProgress(props: Props) {
                             </section>
                         )}
                     </Show>
-                    {/* L2 校验重译：start/progress 帧 → 进行态行；done 帧 →
+                    {/* logfix 校验重译：start/progress 帧 → 进行态行；done 帧 →
                         统计行 */}
-                    <Show when={props.live?.l2}>
+                    <Show when={props.live?.logfix}>
                         {(l) => (
                             <section
                                 class="fx-panel"
-                                aria-label={t.progress.l2}
+                                aria-label={t.progress.logfix}
                             >
                                 <p class="fx-title muted">
-                                    {t.progress.l2}
+                                    {t.progress.logfix}
                                     <Show when={l().phase !== "done"}>
                                         <span
                                             class="fx-spin"
@@ -405,15 +405,15 @@ export default function TaskProgress(props: Props) {
                                     fallback={
                                         <p class="fx-note muted">
                                             {l().message ??
-                                                t.progress.l2Running}
+                                                t.progress.logfixRunning}
                                         </p>
                                     }
                                 >
                                     <p class="fx-note muted">
-                                        {t.progress.l2Errors} {l().errors ?? 0}{" "}
-                                        · {t.progress.l2Retranslated}{" "}
+                                        {t.progress.logfixErrors} {l().errors ?? 0}{" "}
+                                        · {t.progress.logfixRetranslated}{" "}
                                         {l().retranslated ?? 0} ·{" "}
-                                        {t.progress.l2Fallback}{" "}
+                                        {t.progress.logfixFallback}{" "}
                                         {l().fallback ?? 0}
                                     </p>
                                 </Show>

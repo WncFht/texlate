@@ -1,9 +1,9 @@
-"""worker.compile.l2 — L2 回灌 + 块级回写事务叶 (worker.compile 域缝叶)。
+"""worker.compile.logfix — logfix 回灌 + 块级回写事务叶 (worker.compile 域缝叶)。
 
-L2 译文归因修复链：``_l2_run_state`` 重建 ``repair_l2.TreeRun`` 形态、
-``_l2_repair_zh`` 一轮回灌（resplice→重编→复判）、``_l2_writeback``
+logfix 译文归因修复链：``_logfix_run_state`` 重建 ``repair.TreeRun`` 形态、
+``_logfix_zh`` 一轮回灌（resplice→重编→复判）、``_logfix_writeback``
 重译/回退结果落 chunks 表、``_flush_chunk_updates`` 块级回写事务
-（L2/env_judge 共用）与 ``_l2_attempt`` 臂编排。
+（logfix/env_judge 共用）与 ``_logfix_attempt`` 臂编排。
 """
 
 from __future__ import annotations
@@ -14,11 +14,11 @@ from texlate.pipecore import (
     DB_TO_PIPE,
     RepairPolicy,
     compile_judge,
-    l2_repair,
+    logfix,
 )
-from texlate.repair_l2 import (
-    ENV_NO_L2,
-    L2_MAX_CHUNKS,
+from texlate.repair import (
+    ENV_NO_LOGFIX,
+    LOGFIX_MAX_CHUNKS,
     TreeRun,
     retranslate_hits,
     split_cid,
@@ -62,26 +62,28 @@ if TYPE_CHECKING:
     from texlate.server.worker._common import TaskCtx
 
 
-class _CompileL2:
-    """L2 回灌 mixin：译文归因重译 + resplice 重编 + chunks 表回写事务。"""
+class _CompileLogfix:
+    """logfix 回灌 mixin：译文归因重译 + resplice 重编 + chunks 表回写事务。"""
 
     if TYPE_CHECKING:
         # 组合根 ``worker._Core.__init__`` 注入的共享态契约
         store: Store
         _compile_timeout: float
 
-    def _l2_enabled(self, ctx: TaskCtx) -> bool:
-        """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。
+    def _logfix_enabled(self, ctx: TaskCtx) -> bool:
+        """Logfix 回灌开关：``options.logfix`` 显式优先，缺省读 ``TEXLATE_NO_LOGFIX``（默认开）。
 
         共享译文任务恒关——零 token 是结构承诺（``_share_apply`` 不回退
         自译同理），options/env 无权打开。
         """
         if _share_sourced(ctx):
             return False
-        return RepairPolicy.resolve(ctx.options()).l2
+        return RepairPolicy.resolve(ctx.options()).logfix
 
-    def _l2_run_state(self, ctx: TaskCtx, work: Path) -> tuple[TreeRun, dict[str, str]]:
-        """``repair_l2.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
+    def _logfix_run_state(
+        self, ctx: TaskCtx, work: Path
+    ) -> tuple[TreeRun, dict[str, str]]:
+        """``repair.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
 
         ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
@@ -108,7 +110,7 @@ class _CompileL2:
             glossary=self._make_glossary(ctx),
             validator=pair_feedback,
         )
-        # 旁路 pipe 不经 run()——_doc_glossary 恒 {}，L2 重译 prompt 会
+        # 旁路 pipe 不经 run()——_doc_glossary 恒 {}，logfix 重译 prompt 会
         # 丢术语块，须显式物化一次。不挂主链 SegmentCache：带
         # [compile_error] hint 语境的修复译文写同前缀缓存会污染主链段
         # 缓存命名空间（段缓存只认 source+masked 快照，不知 hint）
@@ -121,19 +123,19 @@ class _CompileL2:
         )
         return run, db_of
 
-    def _l2_repair_zh(
+    def _logfix_zh(
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
     ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-        """L2 回灌一轮：阶梯骨架在 ``pipecore.l2_repair``（e2e ``l2_repair_job`` 同件）。
+        """Logfix 回灌一轮：阶梯骨架在 ``pipecore._logfix``（e2e ``logfix_job`` 同件）。
 
         resplice 只重写 ``build-zh``——DB 回写 + ``_sync_fixed_sources``
         灌回 ``zh/`` + 重打 zh-src.zip 由本层补齐（worker 的成品树是
         ``zh/`` 而非 work），仅重编走过（v2 非 None）才回写。``_recompile``
         内保留 compile→judge 间中止点（repair 侧 ``checkpoint`` 在
         retranslate 前后/recompile 后另补三拍，合原作粒度超集）。
-        返回 (l2 报告，最新 CompRes, 新 Verdict 或 None=未重编）。
+        返回 (logfix 报告，最新 CompRes, 新 Verdict 或 None=未重编）。
         """
-        run, db_of = self._l2_run_state(ctx, work)
+        run, db_of = self._logfix_run_state(ctx, work)
         clients = _translator_clients(run.pipe.translator)
         usage = self._meter_usage(clients)
 
@@ -145,14 +147,14 @@ class _CompileL2:
             # async def 只是多一次无意义协程嵌套
             self._repair_event(
                 ctx,
-                "l2",
-                {"phase": "progress", "message": f"L2 重译 {len(hits)} 块"},
+                "logfix",
+                {"phase": "progress", "message": f"logfix 重译 {len(hits)} 块"},
             )
             return retranslate_hits(run, hits, cap)
 
         def _recompile() -> tuple[CompRes, Verdict]:
             self._repair_event(
-                ctx, "l2", {"phase": "progress", "message": "L2 回灌重编"}
+                ctx, "logfix", {"phase": "progress", "message": "logfix 回灌重编"}
             )
             # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
             # （after_compile 插桩 = 原 compile→abort→judge 序）
@@ -168,12 +170,12 @@ class _CompileL2:
             )
 
         try:
-            rep, res2, v2 = l2_repair(
+            rep, res2, v2 = logfix(
                 run,
                 work,
                 ctx.main_rel,
                 res,
-                L2_MAX_CHUNKS,
+                LOGFIX_MAX_CHUNKS,
                 # 旁路 client 用/关收进同一 ephemeral loop——``_run_ephemeral``
                 # 壳契约（拆两次 asyncio.run 会在已关 loop 上 aclose）
                 retranslate=lambda r, h, c: self._run_ephemeral(
@@ -189,26 +191,26 @@ class _CompileL2:
                 seq_marks=_seq_marks_on(ctx.options()),
             )
         finally:
-            # L2 重译也烧 token——不入账就从 task_usage 里蒸发；clients
+            # logfix 重译也烧 token——不入账就从 task_usage 里蒸发；clients
             # 非空=未走到 _retr 的早退（localize 即崩），_run_ephemeral
             # 跑过的已自清清单由 helper 内 ``if clients`` 跳过
-            self._teardown_llm_hook(ctx, usage, clients, tag="l2")
+            self._teardown_llm_hook(ctx, usage, clients, tag="logfix")
         if v2 is not None:
-            self._l2_writeback(ctx, run, db_of, rep)
+            self._logfix_writeback(ctx, run, db_of, rep)
             n = _sync_fixed_sources(work, ctx.zh_dir)
             if n:
-                self._log(ctx, f"l2: {n} 个重译文件回灌 zh/，重打 zh-src.zip")
+                self._log(ctx, f"logfix: {n} 个重译文件回灌 zh/，重打 zh-src.zip")
                 self._zip_zh(ctx)
         return rep, res2, v2
 
-    def _l2_writeback(
+    def _logfix_writeback(
         self,
         ctx: TaskCtx,
         run: TreeRun,
         db_of: dict[str, str],
         rep: dict[str, Any],
     ) -> None:
-        """L2 结果落 chunks 表：retranslated→新译文；reverted/fallback→fallback_orig。"""
+        """Logfix 结果落 chunks 表：retranslated→新译文；reverted/fallback→fallback_orig。"""
         upd: dict[str, dict[str, Any]] = {}
         for cid in rep.get("retranslated") or []:
             fidx, ccid = split_cid(cid)
@@ -216,7 +218,7 @@ class _CompileL2:
             if zh is not None and cid in db_of:
                 upd[db_of[cid]] = {"translation": zh}
         for cid in (
-            *(rep.get("reverted_l0") or []),
+            *(rep.get("reverted_rules") or []),
             *(rep.get("fallback_src") or []),
         ):
             if cid not in db_of:
@@ -225,7 +227,7 @@ class _CompileL2:
             upd[db_of[cid]] = {
                 "status": "fallback_orig",
                 "translation": ci.content if ci is not None else "",
-                "error_code": "l2_reverted",
+                "error_code": "logfix_reverted",
             }
         cache = run.pipe.cache
         cache_puts = cache.drain() if isinstance(cache, SegmentCache) else []
@@ -235,7 +237,7 @@ class _CompileL2:
             self._flush_chunk_updates(ctx, list(upd.items()), cache_puts)
         except Exception:
             # drain 已取走的缓存项随 flush 失败回挂——同 ``_flush_translate``
-            # 口径（当前 L2 旁路 pipe 无 ``cache=`` 实为防御臂）
+            # 口径（当前 logfix 旁路 pipe 无 ``cache=`` 实为防御臂）
             if cache_puts and isinstance(cache, SegmentCache):
                 _repend_puts(cache, cache_puts)
             raise
@@ -246,7 +248,7 @@ class _CompileL2:
         updates: list[tuple[str, dict[str, Any]]],
         cache_puts: list[tuple[str, str, str, str]],
     ) -> None:
-        """编译段块级回写事务（L2/env_judge 共用）：chunk 更新 + 段缓存 + 计数器。
+        """编译段块级回写事务（logfix/env_judge 共用）：chunk 更新 + 段缓存 + 计数器。
 
         worker 线程调用——``_on_loop`` 压回 loop 线程后读改写一笔成交；
         计数器按 chunks 表最终态全量重算（不靠增量推演），progress 沿用行值。
@@ -285,7 +287,7 @@ class _CompileL2:
 
         self._on_loop(_flush)
 
-    def _l2_attempt(
+    def _logfix_attempt(
         self,
         ctx: TaskCtx,
         work: Path,
@@ -293,27 +295,27 @@ class _CompileL2:
         res: CompRes,
         v: Verdict,
     ) -> tuple[CompRes, Verdict]:
-        """非 clean 判据后的 L2 臂：跑 ``_l2_repair_zh`` + 报告入账/事件/日志。"""
-        if not self._l2_enabled(ctx):
-            ctx.l2 = {
+        """非 clean 判据后的 logfix 臂：跑 ``_logfix_zh`` + 报告入账/事件/日志。"""
+        if not self._logfix_enabled(ctx):
+            ctx.logfix = {
                 "enabled": False,
                 "reason": (
                     "share_zero_token"
                     if _share_sourced(ctx)
-                    else "options.l2"
-                    if "l2" in ctx.options()
-                    else ENV_NO_L2
+                    else "options.logfix"
+                    if "logfix" in ctx.options()
+                    else ENV_NO_LOGFIX
                 ),
             }
             return res, v
-        self._repair_event(ctx, "l2", {"phase": "start"})
+        self._repair_event(ctx, "logfix", {"phase": "start"})
         try:
-            rep, res2, v2 = self._l2_repair_zh(ctx, work, eng, res)
-        except Exception as e:  # noqa: BLE001 -- L2 崩不拖垮编译段
-            self._log(ctx, f"l2 crashed: {type(e).__name__}: {e}")
+            rep, res2, v2 = self._logfix_zh(ctx, work, eng, res)
+        except Exception as e:  # noqa: BLE001 -- logfix 崩不拖垮编译段
+            self._log(ctx, f"logfix crashed: {type(e).__name__}: {e}")
             self._repair_event(
                 ctx,
-                "l2",
+                "logfix",
                 {
                     "phase": "done",
                     "crashed": True,
@@ -321,10 +323,10 @@ class _CompileL2:
                 },
             )
             return res, v
-        ctx.l2 = _scrub_deep(rep, ctx.secrets.api_key)
-        # done 帧（平铺统计键 + report 全量）已随 pipecore.l2_repair 的
+        ctx.logfix = _scrub_deep(rep, ctx.secrets.api_key)
+        # done 帧（平铺统计键 + report 全量）已随 pipecore._logfix 的
         # sink 出口发布——scrub 在 _repair_event 内，键集不变
-        for key in ("retranslated", "reverted_l0", "fallback_src", "unresolved"):
+        for key in ("retranslated", "reverted_rules", "fallback_src", "unresolved"):
             if rep.get(key):
-                self._log(ctx, f"l2 {key}: {rep[key]}")
+                self._log(ctx, f"logfix {key}: {rep[key]}")
         return res2, (v2 if v2 is not None else v)

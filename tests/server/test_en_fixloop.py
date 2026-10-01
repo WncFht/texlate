@@ -1,7 +1,7 @@
 """``_compile_en`` 的 fixloop 救援臂：原文编译不出 pdf → 同一 fixloop 引擎修基建。
 
 ``t_74d635d226e68251``（2609.18207v1）实证：algpseudocodex.sty 未装让
-**双侧**编译同挂——zh 侧有 L2 豁免 + fixloop install 救回，en 侧此前
+**双侧**编译同挂——zh 侧有 logfix 豁免 + fixloop install 救回，en 侧此前
 裸编无救援，en.pdf 缺席令 reader 只剩译文栏。``_task_texmf`` 的任务级
 共享装件树让 en/zh 装件互见，en 臂 ``cond="en"`` 沉淀 cases；修复只动
 ``build-en`` 一次性树——``base/`` 是 zh 重建与 baseline 的 pristine 源，

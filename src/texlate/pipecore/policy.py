@@ -14,8 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from texlate.repair import ENV_NO_FIXLOOP
-from texlate.repair_l2 import ENV_NO_L2
+from texlate.repair import ENV_NO_FIXLOOP, ENV_NO_LOGFIX
 from texlate.textutil import env_flag
 from texlate.textutil.osutil import opt_switch
 
@@ -48,17 +47,17 @@ def _opt_switch(
 
 @dataclass(frozen=True)
 class RepairPolicy:
-    """修复链开关决议快照——precheck/L2/fixloop 三级链闸的 policy 单源。
+    """修复链开关决议快照——precheck/logfix/fixloop 三级链闸的 policy 单源。
 
-    e2e ``_repair_chain``（``fixloop_on``/``l2_on`` 显式闸）与 worker
+    e2e ``_repair_chain``（``fixloop_on``/``logfix_on`` 显式闸）与 worker
     ``_compile_zh``（``options.*`` 闸）此前各复写同一条「显式 > options >
     ``TEXLATE_NO_*``（缺省皆开）」优先级链；``resolve`` 收成一处。
-    precheck 闸随 ``fixloop``；``l2`` 另吃 ``precheck_reject`` 拒门与
+    precheck 闸随 ``fixloop``；``logfix`` 另吃 ``precheck_reject`` 拒门与
     worker 侧 share 零 token 硬闸（臂内保留，不进本对象）。
     """
 
     fixloop: bool
-    l2: bool
+    logfix: bool
 
     @classmethod
     def resolve(
@@ -66,14 +65,14 @@ class RepairPolicy:
         options: Mapping[str, Any] | None = None,
         *,
         fixloop_on: bool | None = None,
-        l2_on: bool | None = None,
+        logfix_on: bool | None = None,
     ) -> RepairPolicy:
         """双闸同链决议：``*_on`` 显式 > ``options[键]`` > env 缺省开。"""
         return cls(
             fixloop=_opt_switch(
                 options, "fixloop", ENV_NO_FIXLOOP, explicit=fixloop_on
             ),
-            l2=_opt_switch(options, "l2", ENV_NO_L2, explicit=l2_on),
+            logfix=_opt_switch(options, "logfix", ENV_NO_LOGFIX, explicit=logfix_on),
         )
 
 

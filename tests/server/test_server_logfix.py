@@ -1,7 +1,7 @@
-"""worker 编译段加固验收：L2 回灌编排（先于 fixloop）/ env_judge /
+"""worker 编译段加固验收：logfix 回灌编排（先于 fixloop）/ env_judge /
 .compile-done 哨兵 resume / interrupted done 事件 / .splice-done 序。
 
-e2e 侧语义对齐 ``pipe_condition``：非 clean → L2（归因重译+resplice+ 重编）
+e2e 侧语义对齐 ``pipe_condition``：非 clean → logfix（归因重译+resplice+ 重编）
 → 仍非 clean → fixloop。worker 侧多担一层：resplice 改的是 ``build-zh``，
 成品树 ``zh/`` 与 chunks 表由 worker 自己回写。
 """
@@ -14,7 +14,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-from _serverkit import L2FlakyEngine
+from _serverkit import LogfixFlakyEngine
 from conftest import (
     MINI_TEX,
     FakeEngine,
@@ -136,66 +136,66 @@ def _chunks(client: TestClient, tid: str) -> list[dict]:
     return store_call(client, client.app.state.store.all_chunks, tid)
 
 
-class TestL2Repair:
-    """L2 回灌编排：非 clean → L2（重译+resplice+ 重编）→ fixloop。"""
+class TestLogfixRepair:
+    """logfix 回灌编排：非 clean → logfix（重译+resplice+ 重编）→ fixloop。"""
 
-    def test_l2_repair_skips_fixloop(
+    def test_logfix_repair_skips_fixloop(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """首编可归因失败 → L2 重译 + 重编转绿 → fixloop 不跑 → done。"""
-        eng = L2FlakyEngine(n_fail=1)
+        """首编可归因失败 → logfix 重译 + 重编转绿 → fixloop 不跑 → done。"""
+        eng = LogfixFlakyEngine(n_fail=1)
         translator = MockTranslator()
         with TestClient(_live_app(tmp_path, translator=translator, engine=eng)) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
             evs = task_events(c, tid)
-            l2_evs = [e for e in evs if e["type"] == "l2"]
-            l2_done = [e["data"] for e in l2_evs if e["data"].get("phase") == "done"]
-            assert len(l2_done) == 1
-            assert l2_done[0]["retranslated"]
-            assert l2_done[0]["report"]["recompiled"] == "clean"
-            # L2 修好后 zh 侧 fixloop 不跑——en 臂帧（cond="en"）合法在流中
+            logfix_evs = [e for e in evs if e["type"] == "logfix"]
+            logfix_done = [e["data"] for e in logfix_evs if e["data"].get("phase") == "done"]
+            assert len(logfix_done) == 1
+            assert logfix_done[0]["retranslated"]
+            assert logfix_done[0]["report"]["recompiled"] == "clean"
+            # logfix 修好后 zh 侧 fixloop 不跑——en 臂帧（cond="en"）合法在流中
             assert all(
                 e["data"].get("cond") == "en" for e in evs if e["type"] == "fixloop"
             )
             # 重译真被调过（[compile_error] 反馈）
             assert any("[compile_error]" in call["user"] for call in translator.calls)
 
-    def test_l2_runs_before_fixloop(
+    def test_logfix_runs_before_fixloop(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """L2 重编仍败 → 回落原文 → 回落态裸编仍败 → fixloop 兜底：事件序 l2 < fixloop。"""
-        eng = L2FlakyEngine(n_fail=3)
+        """logfix 重编仍败 → 回落原文 → 回落态裸编仍败 → fixloop 兜底：事件序 logfix < fixloop。"""
+        eng = LogfixFlakyEngine(n_fail=3)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "partial", snap
             evs = task_events(c, tid)
             seqs = {
-                e["type"]: int(e["seq"]) for e in evs if e["type"] in ("l2", "fixloop")
+                e["type"]: int(e["seq"]) for e in evs if e["type"] in ("logfix", "fixloop")
             }
-            assert "l2" in seqs
+            assert "logfix" in seqs
             assert "fixloop" in seqs
-            assert seqs["l2"] < seqs["fixloop"]
-            l2_data = next(
+            assert seqs["logfix"] < seqs["fixloop"]
+            logfix_data = next(
                 e["data"]
                 for e in evs
-                if e["type"] == "l2" and e["data"].get("phase") == "done"
+                if e["type"] == "logfix" and e["data"].get("phase") == "done"
             )
-            assert l2_data["retranslated"]
+            assert logfix_data["retranslated"]
             # 重译后仍被点名 → 回落原文落库
             rows = _chunks(c, tid)
             assert any(
-                r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"
+                r["status"] == "fallback_orig" and r["error_code"] == "logfix_reverted"
                 for r in rows
             )
 
-    def test_l2_fallback_verified_fixloop_off(
+    def test_logfix_fallback_verified_fixloop_off(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
@@ -207,49 +207,49 @@ class TestL2Repair:
         验证即交付——pdf=重译态、zip=回落态三方分歧。新码回落后恒裸编。
         """
         monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
-        eng = L2FlakyEngine(n_fail=2)
+        eng = LogfixFlakyEngine(n_fail=2)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             # fallback_orig 块存在 → 终态 partial（降级交付语义，非 done）
             assert snap["status"] == "partial", snap
             evs = task_events(c, tid)
-            l2_data = next(
+            logfix_data = next(
                 e["data"]
                 for e in evs
-                if e["type"] == "l2" and e["data"].get("phase") == "done"
+                if e["type"] == "logfix" and e["data"].get("phase") == "done"
             )
             # 回落确实发生（done 帧 fallback 计数）+ 回落态裸编判定入账（report 全量键）
-            assert l2_data["fallback"]
-            assert l2_data["report"]["fallback_verdict"] == "clean"
-            assert "fallback_unverified" not in l2_data["report"]
+            assert logfix_data["fallback"]
+            assert logfix_data["report"]["fallback_verdict"] == "clean"
+            assert "fallback_unverified" not in logfix_data["report"]
             # 首编 + 重译态重编 + 回落态裸编 = build-zh 同 wdir 共 3 次
             n_work = sum(1 for call in eng.calls if "build-zh" in call["wdir"])
             assert n_work == 3  # noqa: PLR2004 -- 首编 + 重译重编 + 回落裸编
             rows = _chunks(c, tid)
             assert any(
-                r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"
+                r["status"] == "fallback_orig" and r["error_code"] == "logfix_reverted"
                 for r in rows
             )
 
-    def test_l2_disabled_by_env(
+    def test_logfix_disabled_by_env(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """``TEXLATE_NO_L2=1`` → 无 l2 事件，fixloop 直接兜底。"""
-        monkeypatch.setenv("TEXLATE_NO_L2", "1")
-        eng = L2FlakyEngine(n_fail=2)
+        """``TEXLATE_NO_LOGFIX=1`` → 无 logfix 事件，fixloop 直接兜底。"""
+        monkeypatch.setenv("TEXLATE_NO_LOGFIX", "1")
+        eng = LogfixFlakyEngine(n_fail=2)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
             evs = task_events(c, tid)
-            assert not [e for e in evs if e["type"] == "l2"]
+            assert not [e for e in evs if e["type"] == "logfix"]
             assert [e for e in evs if e["type"] == "fixloop"]
             done = next(e for e in evs if e["type"] == "done")
-            assert done["data"]["stats"]["l2"]["enabled"] is False
+            assert done["data"]["stats"]["logfix"]["enabled"] is False
 
 
 class TestEnvJudge:

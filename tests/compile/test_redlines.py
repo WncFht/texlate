@@ -18,7 +18,7 @@ from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.judge import _MISSCHAR_GATE_RX, _MISSCHAR_NULLFONT_RX
 from texlate.redlines import (
     ENGINE_RED_LINES,
-    L2_REDLINE_CLASSES,
+    LOGFIX_REDLINE_CLASSES,
     REDLINES_BY_ID,
     RULES_WARNINGS,
     name_pattern,
@@ -42,6 +42,9 @@ _RULES_EMIT = [
     "tectonic_degrade",
     "overfull_hbox",
     "float_too_large",
+    "undef_ref_warn",
+    "bbl_version",
+    "overfull_vbox",
 ]
 #: l2 ``_WARNING_RULES`` 全类序（含非红线观察类——序变即归类优先级变）。
 _L2_ALL_CLASSES = [
@@ -85,8 +88,8 @@ def test_rules_yaml_warnings_mirror() -> None:
 
 def test_l2_surfaces_match_registry() -> None:
     """l2 红线集 == registry l2 切片；_WARNING_RULES 类序 + 托管 pattern 冻结。"""
-    assert _REDLINE_CLASSES == L2_REDLINE_CLASSES
-    assert frozenset(_L2_RED) == L2_REDLINE_CLASSES
+    assert _REDLINE_CLASSES == LOGFIX_REDLINE_CLASSES
+    assert frozenset(_L2_RED) == LOGFIX_REDLINE_CLASSES
     assert [name for name, _ in _WARNING_RULES] == _L2_ALL_CLASSES
     managed = {r.l2.name: r.l2.pattern for r in REDLINES_BY_ID.values() if r.l2}
     for name, rx in _WARNING_RULES:
@@ -161,14 +164,14 @@ def test_restatable_watch_shape() -> None:
     assert r.engine is None
     assert r.rules is None
     assert r.l2 is None
-    assert r.l2_redline is False
+    assert r.logfix_redline is False
     assert r.judge is not None
     assert name_pattern(r.judge)[0] == "thm_restate_loaded"
     # presence 概念不进任何判红/镜像切片（warn:* 会污 verdict、l2 预筛
     # 只吃 Warning 形态行——四层出口名单同时钉死本行无外溢）。
     flat = [n for n, _ in ENGINE_RED_LINES] + [n for n, _ in RULES_WARNINGS]
     assert "thm_restate_loaded" not in flat
-    assert "restatable_loss" not in L2_REDLINE_CLASSES
+    assert "restatable_loss" not in LOGFIX_REDLINE_CLASSES
 
 
 def test_restatable_probe_behavior() -> None:

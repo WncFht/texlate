@@ -451,7 +451,7 @@ class _Share:
 
         产物面满足 ``REQUIRED_ARTIFACTS``（zh-src.zip+dual.json）即打包——
         zh.pdf 缺席落 partial 包（§9 已放行：fixloop_exhausted 型任务的
-        L2/修复译文经包传播有实证价值）。``kind=="share"`` 是导入产物永不
+        logfix/修复译文经包传播有实证价值）。``kind=="share"`` 是导入产物永不
         自包；``options.reuse_hit`` 标记的命中任务（dedup 捷径在
         ``_stage_fetch`` 提前 return 到不了本段，隐式 share 命中会走到
         这里——检查是承重的）译文非本实例术语表产出，错标

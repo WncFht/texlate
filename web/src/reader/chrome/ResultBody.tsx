@@ -148,7 +148,7 @@ export default function ResultBody(props: Props) {
                     </dl>
                 )}
             </Show>
-            {/* done.stats 细分件：分阶段耗时 / fixloop 判定 / L2 摘要——
+            {/* done.stats 细分件：分阶段耗时 / fixloop 判定 / logfix 摘要——
                 各块独立缺席（老任务/未跑段的 payload 无此键） */}
             <Show when={props.stats?.stageSeconds}>
                 {(ss) => (
@@ -172,23 +172,23 @@ export default function ResultBody(props: Props) {
                     </p>
                 )}
             </Show>
-            <Show when={props.stats?.l2}>
+            <Show when={props.stats?.logfix}>
                 {(l) => (
                     <p class="stage-secs muted">
-                        <span class="ss-label">{t.reader.statsL2}</span>
+                        <span class="ss-label">{t.reader.statsLogfix}</span>
                         <Show when={l().enabled === false}>
-                            <span class="ss-item">{t.reader.statsL2Off}</span>
+                            <span class="ss-item">{t.reader.statsLogfixOff}</span>
                         </Show>
                         <Show when={l().enabled !== false}>
                             <span class="ss-item">
-                                {t.progress.l2Errors} {l().errors ?? 0}
+                                {t.progress.logfixErrors} {l().errors ?? 0}
                             </span>
                             <span class="ss-item">
-                                {t.progress.l2Retranslated}{" "}
+                                {t.progress.logfixRetranslated}{" "}
                                 {l().retranslated ?? 0}
                             </span>
                             <span class="ss-item">
-                                {t.progress.l2Fallback} {l().fallback ?? 0}
+                                {t.progress.logfixFallback} {l().fallback ?? 0}
                             </span>
                         </Show>
                     </p>

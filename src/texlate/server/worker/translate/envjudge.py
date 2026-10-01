@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
+from texlate.repair import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
 from texlate.server.worker._common import (
     _tgt_lang,
     _translator_clients,

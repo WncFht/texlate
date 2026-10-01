@@ -511,12 +511,12 @@ class _Events:
             out["leftover_ph"] = ctx.leftover_ph
         if ctx.fixloop:
             out["fixloop"] = ctx.fixloop.get("verdict")
-        if ctx.l2:
-            out["l2"] = {
-                "enabled": ctx.l2.get("enabled"),
-                "errors": ctx.l2.get("errors"),
-                "retranslated": len(ctx.l2.get("retranslated") or []),
-                "fallback": len(ctx.l2.get("fallback_src") or []),
+        if ctx.logfix:
+            out["logfix"] = {
+                "enabled": ctx.logfix.get("enabled"),
+                "errors": ctx.logfix.get("errors"),
+                "retranslated": len(ctx.logfix.get("retranslated") or []),
+                "fallback": len(ctx.logfix.get("fallback_src") or []),
             }
         if ctx.share:
             out["share"] = ctx.share

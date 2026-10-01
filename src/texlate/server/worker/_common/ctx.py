@@ -100,8 +100,8 @@ class TaskCtx:
     #: 第 0 招预检摘要（verdict/installed/engine_flags）——同上进
     #: error_json/done 载荷；None = 未跑（fixloop 关闭或首编 clean）
     precheck: dict[str, Any] | None = None
-    #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
-    l2: dict[str, Any] | None = None
+    #: logfix 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
+    logfix: dict[str, Any] | None = None
     #: judge 的 expect_cjk：0-chunk 主文档（includepdf 壳等）cjk_chars=0
     #: 是正确终态。``_stage_compile`` 在 loop 线程算好——store conn
     #: 有线程亲和，编译线程内不可查
@@ -110,10 +110,10 @@ class TaskCtx:
     #: _build_zh 逐文件累计
     leftover_ph: int = 0
     #: _probe_target 探出的引擎 flags（-shell-escape 类）——首编经
-    #: ``rep.flags`` 直连；L2 重编/cross-engine 重试经此续传（e2e
+    #: ``rep.flags`` 直连；logfix 重编/cross-engine 重试经此续传（e2e
     #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
     probe_flags: list[str] = field(default_factory=list)
-    #: en 首编错误签名集（``repair_l2.err_signatures``）——L2 归因
+    #: en 首编错误签名集（``repair.err_signatures``）——logfix 归因
     #: 基线：原文已出现的错误签名判源生（译文不可能造成），不归块
     en_err_sigs: set[str] = field(default_factory=set)
 
