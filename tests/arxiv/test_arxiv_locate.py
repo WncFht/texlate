@@ -8,11 +8,11 @@ from texlate.arxiv.locate import DocKind, locate
 CORPUS = Path(__file__).resolve().parents[2] / "bench" / "corpus"
 
 # 数据层 gitignored：干净 clone 目录仍在（MANIFEST 等入库），守卫须判数据文件而非目录。
-# v1/v2 已合一根但布局不同——v1 包扁平（<id>/*.tex 直接在包目录），v2 包是
-# <id>/{meta.json,extracted/}。_HAS_V1 探扁平包标记（v2-only 树下 skip 而非 fail），
-# _HAS_V2 探 meta.json 层。
-_HAS_V1 = (CORPUS / "1502.01589" / "planck_parameters_2015.tex").is_file()
-_HAS_V2 = any(CORPUS.rglob("meta.json"))
+# 两种入库布局并存——扁平包（<id>/*.tex 直接在包目录）与 meta 包
+# （<id>/{meta.json,extracted/}）。_HAS_FLAT 探扁平包标记（meta-only 树下 skip
+# 而非 fail），_HAS_META 探 meta.json 层。
+_HAS_FLAT = (CORPUS / "1502.01589" / "planck_parameters_2015.tex").is_file()
+_HAS_META = any(CORPUS.rglob("meta.json"))
 
 MAIN_TEX = (
     "\\documentclass{article}\n\\begin{document}\n\\input{sec1}\n"
@@ -28,11 +28,11 @@ def _write_tree(root: Path, files: dict[str, str]) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not _HAS_V2, reason="corpus 数据不在场（gitignored）")
-def test_locate_corpus_v2_all() -> None:
+@pytest.mark.skipif(not _HAS_META, reason="corpus 数据不在场（gitignored）")
+def test_locate_corpus_all() -> None:
     """corpus 全量定位：全部 kind=latex 且有 main，order 首元素即 main。
 
-    枚举面以盘上 ``*/meta.json`` 为准（v3 统一根重建后 manifest_v2.jsonl
+    枚举面以盘上 ``*/meta.json`` 为准（统一根重建后 manifest_v2.jsonl
     的 old-style id 与在盘成员已不再同集）；``format=="pdf"`` 的 pdf_only
     行无 tex 源不属本测试面；plain_tex/none 是语料真实成员（Knuth
     plain-TeX、索引包等）——locate 的正确分类，不算定位失败。
@@ -64,7 +64,7 @@ def test_locate_corpus_v2_all() -> None:
     assert multi >= 1  # 语料中确有 multi_doc（meta.locate 面 ~98 例）
 
 
-@pytest.mark.skipif(not _HAS_V1, reason="corpus 数据不在场（gitignored）")
+@pytest.mark.skipif(not _HAS_FLAT, reason="corpus 数据不在场（gitignored）")
 @pytest.mark.parametrize(
     ("arxiv_id", "expect_main", "expect_multi"),
     [
@@ -76,13 +76,13 @@ def test_locate_corpus_v2_all() -> None:
     ],
 )
 def test_locate_traps(arxiv_id: str, expect_main: str, *, expect_multi: bool) -> None:
-    """v1 陷阱语料：裸 \\input / multi_doc / 五独立根 / processed 主文件 / wrapper。"""
+    """扁平包陷阱语料：裸 \\input / multi_doc / 五独立根 / processed 主文件 / wrapper。"""
     r = locate(CORPUS / arxiv_id, arxiv_id=arxiv_id)
     assert r.main == expect_main
     assert r.multi_doc is expect_multi
 
 
-@pytest.mark.skipif(not _HAS_V1, reason="corpus 数据不在场（gitignored）")
+@pytest.mark.skipif(not _HAS_FLAT, reason="corpus 数据不在场（gitignored）")
 def test_locate_1502_bare_input_and_bbl() -> None:
     r = locate(CORPUS / "1502.01589", arxiv_id="1502.01589")
     # 裸 \input 边要解析出节文件
@@ -91,7 +91,7 @@ def test_locate_1502_bare_input_and_bbl() -> None:
     assert "planck_parameters_2015.bbl" in r.bibliographies
 
 
-@pytest.mark.skipif(not _HAS_V1, reason="corpus 数据不在场（gitignored）")
+@pytest.mark.skipif(not _HAS_FLAT, reason="corpus 数据不在场（gitignored）")
 def test_locate_wrapper_flag() -> None:
     r = locate(CORPUS / "1412.6980", arxiv_id="1412.6980")
     assert r.pdf_wrapper

@@ -1,4 +1,4 @@
-"""corpus_v3 自检段叶——配额/去重/lake 对账/manifests_tracked → clean|fail。"""
+"""corpus 自检段叶——配额/去重/lake 对账/manifests_tracked → clean|fail。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from kernel import lake
 
 from specs import _bootstrap
 from specs import _corpus_common as cc
-from specs.corpus_v3.base import LAKE_SOURCE, WORK, _read_jsonl
+from specs.corpus.base import LAKE_SOURCE, WORK, _read_jsonl
 
 _bootstrap.ensure()
 
@@ -24,16 +24,6 @@ def _qc(ctx):
     dup = sorted({i for i in ids if ids.count(i) > 1})
     if dup:
         problems.append(f"id 重复: {dup[:8]}")
-    v2_dir = cc.REPO / "bench" / "corpus_v2"
-    overlap: list = []
-    if v2_dir.is_dir():
-        v2_ids = {p.name for p in v2_dir.iterdir() if p.is_dir()}
-        v2_ids |= {
-            f"{p.parent.name}/{p.name}" for p in v2_dir.glob("*/*") if p.is_dir()
-        }
-        overlap = sorted(set(ids) & v2_ids)
-        if overlap:
-            problems.append(f"与 corpus_v2 重叠: {overlap[:8]}")
     # lake 对账：manifest 行 → cell complete（empty 态 pdf/stub 是合法终态）
     missing = []
     for r in manifest:
@@ -75,7 +65,6 @@ def _qc(ctx):
         "",
         f"- 核心层入库: **{len(manifest)}** / 目标 1000",
         f"- id 重复: {dup or '无'}",
-        f"- 与 corpus_v2 重叠: {overlap or '无'}",
         (f"- manifest 行无 lake cell: {missing[:8] or '无'} (n={len(missing)})"),
         (
             f"- 扫描成员总数: {total}（pdf_only {n_pdf} · stub {n_stub} "
@@ -99,7 +88,6 @@ def _qc(ctx):
         "metrics": {
             "core_rows": len(manifest),
             "dup_ids": len(dup),
-            "v2_overlap": len(overlap),
             "lake_missing": len(missing),
             "members_scanned": total,
             "manifests_tracked": tracked,

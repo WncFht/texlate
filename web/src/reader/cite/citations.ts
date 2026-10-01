@@ -7,7 +7,7 @@
 //   ②extractBibAtDest(doc,dest)：pdf.js named dest → 目标页 textContent
 //     兜底——.bbl/无 ph 链条目不进 chunks 但 cite.<key> 锚仍在，按 dest
 //     落点行起向下收条目（悬挂缩进/段距/[n] 标签三类边界启发式）。
-// 远端元数据（L2）不进本模块——服务端 refs 代理回包由 ReaderView 持有、
+// 远端元数据不进本模块——服务端 refs 代理回包由 ReaderView 持有、
 // 以 citeMeta 回调注入卡片。
 
 import type { DualJson } from "../../api/client";
@@ -50,7 +50,7 @@ function validNewArxivId(yymm: string): boolean {
     return okYY && mm >= 1 && mm <= 12;
 }
 
-/** 条目文本 → arXiv ID / DOI（L1 行动链接 + L2 远端解析的键） */
+/** 条目文本 → arXiv ID / DOI（本地抽取行动链接 + 远端解析的键） */
 export function extractRefIds(text: string): {
     arxivId?: string;
     doi?: string;

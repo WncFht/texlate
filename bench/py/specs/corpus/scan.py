@@ -1,4 +1,4 @@
-"""corpus_v3 扫描段叶——chunk tar 流扫（members/features/staging）+ frame_lookup 生成。
+"""corpus 扫描段叶——chunk tar 流扫（members/features/staging）+ frame_lookup 生成。
 
 特征提取机（TEXT_EXT..eval_signatures/blob_features/_texts_features 全套）
 → ``specs._corpus_common`` 单源（cc.*）——勿再长第三份 verbatim。
@@ -14,7 +14,7 @@ import time
 
 from specs import _bootstrap
 from specs import _corpus_common as cc
-from specs.corpus_v3.base import FRAME_LOOKUP_GZ, TARS, WORK, load_chunks
+from specs.corpus.base import FRAME_LOOKUP_GZ, TARS, WORK, load_chunks
 
 _bootstrap.ensure()
 

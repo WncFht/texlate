@@ -6,7 +6,7 @@
 pdf/clean 层的比例——聚合归分析动词，本 spec 只落逐格 verdict
 + baseline 对拍字段进 eval_records。
 
-样本面（40 篇 corpus_v2 分层抽样，seed=20260915）：旧
+样本面（40 篇旧批分层抽样，seed=20260915）：旧
 ``results/compilebench-corpusv2-2026-09-15/{sample,cells}.json`` 已删除，
 基线经 **import 道复原**——items 读 ledger index 中
 ``import-archive-2026-09-20_results_compilebench-corpusv2-2026-09-15_cells-recovered``
@@ -91,7 +91,7 @@ CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
 #: 标 stale。文档化重测口径：不改代码只重测 = bump EPOCH。
 EPOCH = "v1"
 
-#: corpusv2 40 篇分层样本的基线来源：import 道复原的 compilebench cells
+#: 旧批 40 篇分层样本的基线来源：import 道复原的 compilebench cells
 #: （每篇一条 records，metrics.engines{eng} 双引擎 verdict 全字段）。
 BASELINE_RUN = (
     "import-archive-2026-09-20_results_compilebench-corpusv2-2026-09-15_cells-recovered"
@@ -130,7 +130,7 @@ def _tier_of(verdict) -> str:
 
 
 def _baseline_rows() -> dict[str, dict]:
-    """index 复原 corpusv2 基线：{idc: metrics dict}（只读连接）。"""
+    """index 复原旧批基线：{idc: metrics dict}（只读连接）。"""
     idx = paths.index_path()
     if not idx.is_file():
         return {}
@@ -158,7 +158,7 @@ def _baseline_rows() -> dict[str, dict]:
 def _manifest_sha() -> dict[str, str]:
     """manifest*.jsonl 的 id → fp_input（blob|main_tex|raw sha256）。
 
-    ``raw_sha256`` 兜底：corpusv2 40 篇只挂 manifest_v2（tarball sha，
+    ``raw_sha256`` 兜底：旧批 40 篇只挂 manifest_v2（tarball sha，
     无解压后面 sha）——tarball 是 extracted/ 的上游字节源，照样钉死
     输入。键按 canon 归一双侧匹配（raw/canon 混存——mixed-id-forms 前科）。
     """
@@ -182,7 +182,7 @@ def _manifest_sha() -> dict[str, str]:
 
 
 def _items() -> list[dict]:
-    """items = corpusv2 样本 × ENGINES 网格（spec load 时一次物化）。
+    """items = 旧批样本 × ENGINES 网格（spec load 时一次物化）。
 
     每格 params 内嵌 baseline 对拍字段（该引擎格的 verdict/category/pdf）
     + 论文元数据（band/tags/yymm）——eval_records 单行即可重建救回率。

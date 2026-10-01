@@ -86,8 +86,8 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 ### 3.3 log 层分层
 
-- `texlog.py`（顶层）：`file:line:` 文件栈词法原语单源（`match_error_line`/`iter_log_events`）——engine/L2/fixloop 三处收敛于此。
-- `compile/loginfo.py`：`.log`→`LogInfo` + `WARNING_RED_LINES=[invalid_utf8, fffd_glyph, missing_chars, missing_graphic, degraded_file]`（warning 扫描/judge 面；`degraded_file` 即 tectonic `^!.*(File|package).*not found` 跳包降级行——continue-on-errors 跳包出残页 pdf 的暗雷）。与 L2 面 `_REDLINE_CLASSES` 按层查名、经 `redlines.py` 单源注册。
+- `texlog.py`（顶层）：`file:line:` 文件栈词法原语单源（`match_error_line`/`iter_log_events`）——engine/logattr/fixloop 三处收敛于此。
+- `compile/loginfo.py`：`.log`→`LogInfo` + `WARNING_RED_LINES=[invalid_utf8, fffd_glyph, missing_chars, missing_graphic, degraded_file]`（warning 扫描/judge 面；`degraded_file` 即 tectonic `^!.*(File|package).*not found` 跳包降级行——continue-on-errors 跳包出残页 pdf 的暗雷）。与 logattr 面 `_REDLINE_CLASSES` 按层查名、经 `redlines.py` 单源注册。
 - `compile/logparse.py`：parse + taxonomy 分类（compile 层共享地基，fixloop 消费）：`ErrReport`(first/ctx/pre/post/n_bang/tail/line_no/file_stack/popped_files/warnings/warnings_sys/raw/errs≤32)、`Taxonomy`（head/tail/warnings 三 scope 评估序 + `_tail_preempt` preempts 抢占 + subclassify 收窄 + `payload_scan{capacity, undefined_cs}` + `_cap_verdict_cat` input_stack 重路由）、`_is_runaway_output`+`_RUNAWAY_*` 阈值（与 proc 活哨同语义双臂）。
 
 ## 4. 注入、版式与主文件
@@ -199,7 +199,7 @@ for rnd in 1..max_rounds(8):
 - **pass-1 判收敛**：rep 干净且 passes>1 且非 tectonic 且未死 → 同轮全遍终编（≤2 传 None 走引擎自适应 rerun-hint）。
 - **超时**：无引擎 wall-clock——`meta.loop.timeout_sec=120` 是单次 `eng.compile` 预算（`compile_timeout` 参数可覆盖）；`run_tool` 默认 120s；regex 单次 `pat.sub` 20s（`_bounded_sub`）；llm 60s+10s grace。取消经 `should_cancel`→`CancelledError`。
 - **escalate_llm 位置**：`undefined_cs_guess` order=900 恒 loop 末位（唯一 escalate_llm kind 规则）；另有 `engines.*.mode:unsupported + fallback:escalate_llm` 两规则——`_match_apply` 不就地点火，记 `pending_esc` 待同 cat 廉价规则耗尽后才调 hook。
-- `precheck_pass()`：precheck 相独立入口——e2e/worker 在 L2 resplice 前调用。
+- `precheck_pass()`：precheck 相独立入口——e2e/worker 在 logfix resplice 前调用。
 
 **verdict 全集**：`clean`（pdf ∧ n_bang==0 ∧ cat∉warn_cats ∧ ¬_res_died——被杀/超时/驱动 fatal 产 pdf 不证 clean）/ `acceptable_pdf`（dirty_pdf 且末轮非 died 且 final_errors≤`clean_err_max`(3) 升级）/ `dirty_pdf` / `best_effort_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]`。
 
@@ -280,7 +280,7 @@ for rnd in 1..max_rounds(8):
 | 注入态       | inject `status`  | `injected` / `already` / `no-docline`                                                                                                                                   | `compile/inject.py`                   |
 | fixloop 判决 | cases `verdict`  | `clean` / `acceptable_pdf` / `best_effort_pdf` / `dirty_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]` | `fixloop/engine/`、`fixloop/cases.py` |
 | 规则态       | `stats.status`   | `active` / `proposed` / `validated` / `verified` / `proven` / `stub`（审计元数据非门控）                                                                                | `fixloop/rules/`                      |
-| 跨臂退化     | `VERDICT_RANK`   | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游                                                                                                             | `repair.py`                           |
+| 跨臂退化     | `VERDICT_RANK`   | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游                                                                                                             | `repair/mech.py`                      |
 
 ### 参考文献
 

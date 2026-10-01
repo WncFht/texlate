@@ -10,10 +10,10 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 - **输入**：单文件文本（`parse_tex`）或磁盘文件树（`parse_file`/`scan_tex_tree`）。
 - **输出**：`ScanResult`（`model.py`）——`protected_tex`（占位符化文本）、`chunks`（可译段）、`ph_map`（占位符→原文段）、`pieces`（平铺段列）、`inputs`（`\input` 事件）、`warnings`、`vtex`（坐标系文本）、`ph_reserved`（源文自带占位符形字面）、`macros`（scope 宏表终态）。
-- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct/core.py::reconstruct` 按 pieces + 占位符 DAG splice 回完整文档；`validate/` 层做 src↔zh 相对校验（L0 契约见 §9）。
+- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct/core.py::reconstruct` 按 pieces + 占位符 DAG splice 回完整文档；`validate/` 层做 src↔zh 相对校验（rules 契约见 §9）。
 - **明确不做**：排版、数学求值、完整 TeX 语义（`\the`/计数器寄存器/`kpathsea` 库查找等）。一切未覆盖构造退化到保守保护路径，首要不变式是 splice-safe——字节全保、identity 重建逐字节等于原文。
 
-唯一解析路径是 **v2 token 流**（`gullet/` + `segmenter/` 包），`api.py` 顶部即声明；v1 字节扫描器已删除，`flatten.py::flatten_inputs` 仅存为独立字节级展平 API（bench/外部调用），不在解析主链上。
+唯一解析路径是 **token 流**（`gullet/` + `segmenter/` 包），`api.py` 顶部即声明；旧字节扫描器已删除，`flatten.py::flatten_inputs` 仅存为独立字节级展平 API（bench/外部调用），不在解析主链上。
 
 ## 2. 总览
 
@@ -25,11 +25,11 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 - **Gullet**（`gullet/` 包，`Gullet` = `_Core`+`_Args`+`_DefCmd`+`_Decls`+`_Input`+`_Expand`+`_Cond`+`_Classify`）：全仓唯一宏展开点。`next_expanded()` 主循环做查表展开/原语执行的回压不动点，产出「已展开」token 流。
 - **Segmenter**（`segmenter/` 包，`Segmenter` = `_Core`+`_Group`+`_Pending`+`_MainLoop`+`_Env`+`_Args`）：消费展开流，发 `pieces`/`chunks`/占位符，维护 vtex 覆盖账本。
 
-装配：`api.py::parse_tex` → `segmenter.parse_tex_v2`（内存源）；`parse_file` → `Gullet(root_dir, top_dir)` + `push_source` → `scan_v2`（`segmenter/__init__.py`）。
+装配：`api.py::parse_tex` → `segmenter.parse_tex`（内存源）；`parse_file` → `Gullet(root_dir, top_dir)` + `push_source` → `scan_tex`（`segmenter/__init__.py`）。
 
 ### 2.2 五条铁律（设计公理）
 
-旧规格的五条公理在 v2 全部成立，且全部落到具体机制上：
+旧规格的五条公理全部成立，且全部落到具体机制上：
 
 1. **单遍正向、绝不抛异常**：参数不匹配是 `ArgMismatch` 控制流信号（`entries.py::ArgMismatch`），调用方 `unread(trace)` 回吐后把触发 token 本体交下游——任何解析失败都退化成字面/保护段，字节不丢。
 2. **分支序即语义**：分派表行序是规范本身——主流 `_DISPATCH_FAMS`（`mainloop.py`）、组内 `_GRP_SURFACE_FAMS`、跨界 `_PEND_SPEC_FAMS`（`pending.py`）三面共享名→判据绑定 `_common._FAM_BIND`，行序各面自排，`tests/latex/test_dispatch_mirror.py` 逐名裁决三面族序。
@@ -94,7 +94,7 @@ token 种类：`cs`（控制序列，text 为去 `\` 的名字）、`lbrace`/`rb
 - 体无自然文本（`body_has_text`：剥 cs/参数/非字母后无 ≥2 连续字母）→ 单枚裸 cs 纯别名收 `transparent_expand`（吐出走正常分派），否则 `math`（含数学特征 `_MATH_CS`/`$`/`^`/`_`）或 `opaque`；
 - 体有文本 → 剥 `#i` 参数位后仍有文本 = `transparent_expand`（真展开）；文本只经参数位进入 = `transparent_inline`（不展开，交调用点保护链）。
 
-`protected_param_positions` 顺带算出 `protect_args` 位图（`#i` 落 `\ref/\cite/\label/\url` 参数位）——v2 下该字段写而不读：key 保护由展开产物在组内再生分派（`\ref{key}` → `[[REF]]`）与 `_keyarg_tail` 调用点链兜底实现。
+`protected_param_positions` 顺带算出 `protect_args` 位图（`#i` 落 `\ref/\cite/\label/\url` 参数位）——现行链该字段写而不读：key 保护由展开产物在组内再生分派（`\ref{key}` → `[[REF]]`）与 `_keyarg_tail` 调用点链兜底实现。
 
 ### 4.4 scope 模型
 
@@ -206,7 +206,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 5.8 数学配对
 
-`_on_math`（`mainloop.py`）：`$`/`$$` 开 → token 级闭符扫描——`pictex` 环境内与内层 env 里的 `eol_par` 不判界；`\)`/`\]` 混排闭符认作闭符（LaTeX 数学态语义同 `$`/`$$`）；`\text` 族正文参整段跳扫（`_math_skip_textarg`）；闭符到达 → `[[MATH]]` 进 run。未配对 → 不产 MATH 段：孤 `$`/`$$` 折 `[[CMD]]` 单项保真 + `unpaired_dollar` 告警（EOF 中止且 `eof_pops` 时余下字节整盖 LITERAL）。v1 的 math_debt 记账已并入主流退役，`debt_repair` 告警种不再产出（名留存于 `ScanWarning.kind` 枚举注释）。
+`_on_math`（`mainloop.py`）：`$`/`$$` 开 → token 级闭符扫描——`pictex` 环境内与内层 env 里的 `eol_par` 不判界；`\)`/`\]` 混排闭符认作闭符（LaTeX 数学态语义同 `$`/`$$`）；`\text` 族正文参整段跳扫（`_math_skip_textarg`）；闭符到达 → `[[MATH]]` 进 run。未配对 → 不产 MATH 段：孤 `$`/`$$` 折 `[[CMD]]` 单项保真 + `unpaired_dollar` 告警（EOF 中止且 `eof_pops` 时余下字节整盖 LITERAL）。旧 math_debt 记账已并入主流退役，`debt_repair` 告警种不再产出（名留存于 `ScanWarning.kind` 枚举注释）。
 
 ### 5.9 未知命令链与 argspec
 
@@ -226,7 +226,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 5.11 scope 回报与告警汇流
 
-分段器在 lbrace/rbrace/`\begin`/`\end`/数学开关处 `src.scope_push/pop` 回报 gullet 宏表（§4.4）。`scan_v2` 收尾把 `gullet.warnings`（pos 已按 fid 前缀）并入 `state.warnings` 输出。
+分段器在 lbrace/rbrace/`\begin`/`\end`/数学开关处 `src.scope_push/pop` 回报 gullet 宏表（§4.4）。`scan_tex` 收尾把 `gullet.warnings`（pos 已按 fid 前缀）并入 `state.warnings` 输出。
 
 ## 6. chunk 契约
 
@@ -270,7 +270,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 层内两件（`reconstruct/validate.py`）：`validate_result(res)` 结构校验——pieces 平铺（`pieces_gap`）、protected_tex→ph/chunk 递归可达性（`dangling_ph`/`dangling_chunk_ref`/`orphan_chunk`/`dead_ph`，`ph_reserved` 字面豁免）；`validate_translation(chunk, text)` 译文契约——`chunk.placeholders` 多重集逐枚在译文出现（`missing`/`extra` 差集）。
 
-层外契约：L0 规则校验 `validate/l0/main.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^validator]；完整规则表见 `spec/validate.md`。
+层外契约：rules 规则校验 `validate/rules/main.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^validator]；完整规则表见 `spec/validate.md`。
 
 ## 10. 限制清单
 
@@ -278,7 +278,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 - xparse `v`/`b`/`E`/`x` 参数型的 `\NewDocumentCommand` 定义不登记；`\romannumeral` 只到 3999；`\includeonly` 忽略。
 - `flatten=False`/纯内存源下 `\input` 恒不解析；`MAX_INPUTS=8`/`BUDGET=100_000`/`MAX_GEN=32` 三道闸触底即停展开（记告警，内容保守保真）。
 - `\if` 非求值档不裁支——双支都进译文面（结构界标保护）；求值档只认 §4.7 表内谓词。
-- 旧规格有而当前未落地/已退役：v1 字节扫描器（删除）、`math_debt`/`debt_repair` 修债 pass（并入 `_on_math` 主流退役）、`protect_args` 调用点位序保护（字段照算、无消费方——由展开再生 + keyarg 链替代）、`\includeonly` 过滤（有意不做）。
+- 旧规格有而当前未落地/已退役：旧字节扫描器（删除）、`math_debt`/`debt_repair` 修债 pass（并入 `_on_math` 主流退役）、`protect_args` 调用点位序保护（字段照算、无消费方——由展开再生 + keyarg 链替代）、`\includeonly` 过滤（有意不做）。
 
 ### 参考文献
 

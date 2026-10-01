@@ -61,7 +61,7 @@ fixtures 是陷阱构造语料：`tricky.tex`（@Tnn 主集）、`tricky-209.tex
 
 ### 3.2 `bench/corpus/` — 统一语料物理根
 
-全部钉版语料在一个物理根下按层组织，层名归 manifest 管：`manifest.jsonl`（core 均匀层）+ `manifest_booster.jsonl`（补强）+ `manifest_expand.jsonl`（扩库增量）+ `manifest_hot.jsonl`（高引近期）+ `manifest_dev_*.jsonl`（修复训练层）+ `manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理——dev 枚举不碰它，防 dev==eval 污染）+ `mechanisms.jsonl`（机制台账，L2 定向重放的依据）。层规模随扩库续增，口径以 `bench/corpus/MANIFEST.md` 与各 manifest 实数为准。语料数据 gitignored；构建管线是 `bench/py/specs/corpus_*.py` 谱系（`bench run corpus_v3` / `corpus_layers` / `corpus_sw` 等）。
+全部钉版语料在一个物理根下按层组织，层名归 manifest 管：`manifest.jsonl`（core 均匀层）+ `manifest_booster.jsonl`（补强）+ `manifest_expand.jsonl`（扩库增量）+ `manifest_hot.jsonl`（高引近期）+ `manifest_dev_*.jsonl`（修复训练层）+ `manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理——dev 枚举不碰它，防 dev==eval 污染）+ `mechanisms.jsonl`（机制台账，L2 定向重放的依据）。层规模随扩库续增，口径以 `bench/corpus/MANIFEST.md` 与各 manifest 实数为准。语料数据 gitignored；构建管线是 `bench/py/specs/corpus_*.py` 谱系（`bench run corpus` / `corpus_layers` / `corpus_sw` 等）。
 
 历史旁根：`bench/corpus_daily/`（日更 soak 滚动窗口）已于 2026-09-21 退役删除（timer/脚本/语料全清）；`bench/corpus_iclr_pdf/`（ICLR PDF 产物，非 e-print 树）仍在。
 

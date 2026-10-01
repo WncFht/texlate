@@ -115,7 +115,7 @@ rules:
     source_ref: "bench/corpus/mechanisms.jsonl W37+W68 verdict suggested_rules"
 
   # ─── precheck: 静态路由 + 第 0 招装包, 不进循环 ───
-  # v2 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程,
+  # 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程,
   # 实证误杀 —— tectonic 对部分 eps 工程能出 pdf~ (0812.4521/nucl-th/0104042
   # baseline 即 pdf~), 且 epstopdf 转换可整格救回 (0903.0543/1406.1994 手测
   # 出 pdf)。.eps 文件 → 循环内 log 确证的 ps_image 规则处理 (见 loop);

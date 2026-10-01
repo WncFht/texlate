@@ -53,7 +53,7 @@ manifest_dev_recent ids ∪ 其他 manifest ids ∪ 已 complete 湖格，逐 rg
 （footers/pool/assign 段）、``corpus_sw.rehydrate``（rgrows 落格 +
 manifest 追加 + report 段）、``corpus_sw._spec``（spec 组合根——叶干
 ``_`` 前缀脱导出名 ``spec`` 碰撞）。本
-文件是 PEP 562 惰性门面（同 ``specs/corpus_v3/__init__.py`` 形制）——平名经
+文件是 PEP 562 惰性门面（同 ``specs/corpus/__init__.py`` 形制）——平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``corpus_sw.X`` 与 ``from  import X``
 面不变；``spec`` 住 ``corpus_sw._spec`` 叶。叶间直引
 ``from specs.corpus_sw.X import Y`` 不绕本门面（避环）。

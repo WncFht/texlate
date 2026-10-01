@@ -1,4 +1,4 @@
-"""corpus_v3 下载段叶——plan/fetch/zipsum：chunks.json 落账 + .part 续传 + 双 hash 校验。"""
+"""corpus 下载段叶——plan/fetch/zipsum：chunks.json 落账 + .part 续传 + 双 hash 校验。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from specs import _bootstrap
 from specs import _corpus_common as cc
-from specs.corpus_v3.base import (
+from specs.corpus.base import (
     CHUNKS_JSON,
     IA_ZIPSUM,
     TARS,

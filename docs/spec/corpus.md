@@ -101,7 +101,7 @@ m1k 全流程最严测试集折为四个 `manifest_m1k-*.jsonl` 层（实到 997
 | spec            | stage 链                               | 职责                                                                                                                                              |
 | --------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frame_build`   | 单件串行                               | `bench/frame/` 13 件抽样框资产再生（payload gitignored，唯一再生路径；全部 corpus builder 前置）                                                  |
-| `corpus_v3`     | 簇下载→成员扫描→配额抽样→湖化物化→自检 | P2 主管线：30 簇下载（IA/TIGER chunk，成员级 Range-GET 回取不留整包）→ 流式成员扫描 → cell 内随机配额抽 core → booster 预筛 → `lake.hydrate` 物化 |
+| `corpus`        | 簇下载→成员扫描→配额抽样→湖化物化→自检 | P2 主管线：30 簇下载（IA/TIGER chunk，成员级 Range-GET 回取不留整包）→ 流式成员扫描 → cell 内随机配额抽 core → booster 预筛 → `lake.hydrate` 物化 |
 | `corpus_expand` | plan→scan→extract                      | expand 层增量扩：stratum_cell 分布 × 故障率偏置 → largest_remainder 配额 → `manifest_expand.jsonl` tracked append                                 |
 | `corpus_hot`    | candidates→fetch→report                | hot 层：OpenAlex 候选生成（限流护栏日预算内 `--limit` 续跑）→ `acquire_source` 物化 → 湖/清单双写                                                 |
 | `corpus_layers` | plan→scan→extract→qc + recent 臂       | holdout + dev_vol + dev_failmine bulk 臂 + 各层 eprint recent 臂（`acquire_source` 钉版）                                                         |

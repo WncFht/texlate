@@ -13,7 +13,7 @@ acquire_source ──► route_project(引擎路由) ──► XlatPipeline     
   (e-print/upload/    find_main_tex            ·异步 worker       prepare_chinese(ctex 注入)
    share/html)        normalize_project        ·[n] 批协议        engine.compile(tectonic/xelatex)
                     scan_tex_tree             ·占位符 reconcile    judge(clean/partial/fail)
-                     ·v2 Gullet+Segmenter     ·L0 校验           修复链: precheck→L2→fixloop
+                     ·Gullet+Segmenter        ·rules 校验        修复链: precheck→logfix→fixloop
                      ·四级分流                ·段缓存/断点续       embed ToUnicode(cmap)
                      ·chunks 入库             ·glossary 4 层      build_alignment(dual.json)
                                                                    → 产物登记(files 表)
@@ -33,11 +33,11 @@ acquire_source ──► route_project(引擎路由) ──► XlatPipeline     
 
 ### 2.3 半解析（`latex/`）
 
-唯一解析路径 = v2 token 流：`gullet/`（宏展开嘴）+ `segmenter/`（块切分），入口 `latex/api.py::parse_tex`/`parse_file`/`scan_tex_tree`[^seg-integration]。产出 `ScanResult`：`chunks[]`（可译块，byte span + content + context）、`ph_map`（占位符↔原片段）、`inputs[]`（`\input` 解析记录）。`scan_tex_tree` 四级分流：dotfile 跳过 → `.rtx.tex` 跳过 → `.code.tex` 记 support → 解析崩记 fault → 无散文记 support → 余者 parsed——单文件崩不拖全树。`\input` 展平由 gullet 在 `flatten=True` 时内联；占位符件 `placeholder.py` 管 `[[TYPE_n]]` 令牌。回写面 `reconstruct/`：identity 校验 + splice + `cjk_glue_fix`/`cjk_punct_close_guard`/`unicode_math_fix` 等译后修整。
+唯一解析路径 = gullet+segmenter token 流：`gullet/`（宏展开嘴）+ `segmenter/`（块切分），入口 `latex/api.py::parse_tex`/`parse_file`/`scan_tex_tree`[^seg-integration]。产出 `ScanResult`：`chunks[]`（可译块，byte span + content + context）、`ph_map`（占位符↔原片段）、`inputs[]`（`\input` 解析记录）。`scan_tex_tree` 四级分流：dotfile 跳过 → `.rtx.tex` 跳过 → `.code.tex` 记 support → 解析崩记 fault → 无散文记 support → 余者 parsed——单文件崩不拖全树。`\input` 展平由 gullet 在 `flatten=True` 时内联；占位符件 `placeholder.py` 管 `[[TYPE_n]]` 令牌。回写面 `reconstruct/`：identity 校验 + splice + `cjk_glue_fix`/`cjk_punct_close_guard`/`unicode_math_fix` 等译后修整。
 
 ### 2.4 翻译（`xlat/`）
 
-`XlatPipeline`（`xlat/pipeline/`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 四层术语（user > paper-local > category > default；ph 名单行随 `<Glossary>` 末行另注）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/l0/` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
+`XlatPipeline`（`xlat/pipeline/`）异步 worker 池消费 `ChunkIn`：`batch.py` 组批（≤12000 字符/≤32 项/≥2500 字符下限，`CHUNK_HARD_LIMIT=6000` 超长块先 `split_long_chunk`），线上协议 `[n]` 编号对位 + `@@` 分隔兜底（`placeholders.py` reconcile 防令牌漂移）；`client.py` 多 dialect 网关客户端（auto/openai/anthropic/responses，缺省指向内部 OpenAI 兼容网关）；`glossary.py` 四层术语（user > paper-local > category > default；ph 名单行随 `<Glossary>` 末行另注）；`state.py` 原子 `state.json` 断点续翻；`retry.py` 重试阶梯；`validate/rules/` 规则校验器随批执行。译文经 `ChunkResult` 落 chunks 表，失败块按 `delivered` 口径记 status。
 
 ### 2.5 编译与判定（`compile/`）
 
@@ -45,13 +45,13 @@ splice（`latex/reconstruct/`）把译文写回 `zh/` 树 → `prepare_chinese`�
 
 ### 2.6 修复链（`pipecore` + `repair*.py` + `compile/fixloop/`）
 
-三段阶梯，两闸决议（`RepairPolicy`：L2/fixloop 各自 显式参 > options > `TEXLATE_NO_*` env，默认全开；precheck 无独立闸、随 fixloop 开关）：
+三段阶梯，两闸决议（`RepairPolicy`：logfix/fixloop 各自 显式参 > options > `TEXLATE_NO_*` env，默认全开；precheck 无独立闸、随 fixloop 开关）：
 
-1. **precheck**（`precheck_job`/`repair.py`）：编译前环境级修复（缺包探测补装、209 预处理等）。
-2. **L2 修复**（`l2_repair_job`/`repair_l2.py`）：日志归因到 chunk/环境 → 回灌译文重 splice 重编（归因簇 + env judge）。
+1. **precheck**（`precheck_job`/`pipecore/tail.py`）：编译前环境级修复（缺包探测补装、209 预处理等）。
+2. **logfix 修复**（`logfix_job`/`pipecore/_logfix.py` + `repair/`）：日志归因到 chunk/环境 → 回灌译文重 splice 重编（归因簇 + env judge）。
 3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine/`/`actions/`/`ruleset/` 三子包 + `builtins/` 16 顶层叶与六内嵌子包 + `cases`/`llm_hook` 支撑；`ctan`/`logparse`/`_yamlish` 已上提 `compile/` 层），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
 
-修复走尽仍 fail → `fault`/`fixloop_exhausted`；成功出 PDF 后经 `repair.py::embed_tounicode_quiet` + `compile/cjkmap.py`（GB1 cmap 资产 `compile/cmaps/`）嵌 ToUnicode 层，保证复制/搜索可用。
+修复走尽仍 fail → `fault`/`fixloop_exhausted`；成功出 PDF 后经 `repair/mech.py::embed_tounicode_quiet` + `compile/cjkmap.py`（GB1 cmap 资产 `compile/cmaps/`）嵌 ToUnicode 层，保证复制/搜索可用。
 
 ### 2.7 对齐与出件（`align.py`/`share.py`/`export/`）
 
@@ -66,7 +66,7 @@ texlate/
               + reconstruct/ 回写 + tables/ 表格 + gullet/ 展开机 + segmenter/ 块切分（唯一解析路径）
   xlat/       翻译编排：pipeline/ client/batch/prompts/glossary/autogloss/state/retry/
               placeholders/mock + terms/ 术语表资产
-  validate/   校验三层：l0/ 规则 / l1 tree-sitter / l2 日志 + report.aggregate
+  validate/   校验三层：rules/ 规则 / cst tree-sitter / logattr 日志 + report.aggregate
   compile/    编译面：engine/(_route+_tectonic+_xelatex/) inject normalize/ probe judge
               fixloop/ cjkmap mask toolchain sandbox deps ctan loginfo logparse
               latex209/ layout mainfile proc seams shadow transcode + cmaps/ 资产
@@ -79,7 +79,7 @@ texlate/
   pipecore/   管线政策脊椎：状态映射/扫描/翻译/编译判定/修复三段/RepairPolicy/ReportSink
   e2e.py      本地编排：pipeline_run/pipe_condition/base_condition（CLI run 与 bench 共用）
   align.py    双语锚点对齐     share.py   分享包构建/消费     redlines.py 红线注册表
-  repair.py   修复低层件      repair_l2.py L2 归因簇         texlog.py  日志 file-stack
+  repair/     修复簇（attr/envjudge/mech/rounds/runstate）  texlog.py  日志 file-stack
   logsetup.py 日志装配单源
 web/          SolidJS+Vite+pdfslick 阅读器前端（独立 toolchain）
 ```
@@ -121,7 +121,7 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 - **离线**：`--offline`/`TEXLATE_OFFLINE=1` → 取源零网络（`acquire_source` `_offline_phase`：钉版精确查/最高已缓存版/`offline_no_cache`），不静默联网；本地目录源不受影响。
 - **front-matter**：`FRONT_MATTER_NAMES={abstract,title,author}`，`TEXLATE_FRONT_MATTER` env 缺省（默认 `abstract,title`），任务 `options.front_matter` 覆盖，实跑集以 `options.front_matter` 布尔图持久化（`ran_front_matter` 还原）。
 - **BYOK/密钥面**：LLM 凭据只存在请求内存 `Secrets` 与（可选）`settings` 配置；日志面经 RedactFilter 脱敏；段缓存按 key 指纹分桶（`k=` 段），跨租户不串。
-- **修复开关**：`TEXLATE_NO_L2`/`TEXLATE_NO_FIXLOOP` env 经 `RepairPolicy` 三级解析（显式参 > options > env > 默认开）；precheck 无独立闸，随 fixloop 开关。
+- **修复开关**：`TEXLATE_NO_LOGFIX`/`TEXLATE_NO_FIXLOOP` env 经 `RepairPolicy` 三级解析（显式参 > options > env > 默认开）；precheck 无独立闸，随 fixloop 开关。
 - **env 名单源**：`textutil` 提供 `env_flag`/`env_str` 解析件；各层 `TEXLATE_*` 变量经它读，不各自 `os.environ`。
 
 ### 参考文献
@@ -130,7 +130,7 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 
 [^e2e-mock]: TeXlate 调研档案 `research/product/2026-09-14-e2e-mock-pipeline.md`：mock 管线全链验证记录。
 
-[^seg-integration]: TeXlate 调研档案 `research/latex/segmenter-integration.md`：v2 Gullet+Segmenter 唯一解析路径的切换过程。
+[^seg-integration]: TeXlate 调研档案 `research/latex/segmenter-integration.md`：Gullet+Segmenter 唯一解析路径的切换过程。
 
 [^engine-matrix]: TeXlate 调研档案 `research/latex/engine-matrix.md`：tectonic/xelatex 路由矩阵实测。
 

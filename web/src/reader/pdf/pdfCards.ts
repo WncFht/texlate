@@ -54,7 +54,7 @@ export interface PdfCardsDeps {
     destPoint: Map<string, DestPointRow>;
     pageDiv: PdfPageDivOf;
     citeIndex(): CiteIndex | undefined;
-    /** L2 远端元数据回调（活访问器——回包晚于开卡时 props 才填好） */
+    /** 远端元数据回调（活访问器——回包晚于开卡时 props 才填好） */
     citeMeta(key: string): RefMeta | undefined;
     /** 本体右键反查 dest（inspect 工厂实现——getter 断开环依赖） */
     destAtPoint(x: number, y: number, tol?: number): string | null;
@@ -280,7 +280,7 @@ export const usePdfCards = (deps: PdfCardsDeps): PdfCards => {
     };
 
     /** kept payload（M4）：卡 key = entry.key（ph 索引/懒抽取路都填
-        dest 尾）；meta 收此刻 L2 快照——迟到的回包不追灌 */
+        dest 尾）；meta 收此刻远端快照——迟到的回包不追灌 */
     const citeKey = (c: CardState) => c.entry?.key ?? c.dest.slice(5);
     const keepPayload = (c: CardState): KeptRef => {
         const e = c.entry;

@@ -25,7 +25,7 @@
 | `canon_drift_of` / `import_src`    | events 公共键                                                  | 归一漂移/导入源标注                                                                                                 | `COMMON_KEYS`                        |
 | `PIPELINE_VERSION` / `cache_scope` | dedup 键材                                                     | 缓存命中口径                                                                                                        | `share.py` 单源                      |
 | run 名形态                         | `<date>/<slug>`                                                | run id 目录拼写                                                                                                     | `$TEXLATE_BENCH_ROOT/runs/`          |
-| 数据目录名                         | `corpus_v3`/`corpus_iclr_pdf`/`frame`/`corpus_daily`（已退役） | 语料/产物落盘区                                                                                                     | `bench/`、`$TEXLATE_BENCH_ROOT/`     |
+| 数据目录名                         | `corpus`/`corpus_iclr_pdf`/`frame`/`corpus_daily`（已退役）    | 语料/产物落盘区                                                                                                     | `bench/`、`$TEXLATE_BENCH_ROOT/`     |
 
 ## 2. 域词一词一义
 
@@ -59,7 +59,7 @@
 | `decls.py`      | `latex/gullet/` vs `textutil/`                                                                                             | 同名双件域不同（gullet 声明表 vs 文本声明表）                         |
 | `kernel`        | `bench/py/kernel/` vs `tests/bench_kernel/`                                                                                | bench 账本内核 vs 其测试套件（原 `tests/kernel` 改名消歧）            |
 | `arm`           | ledger 字段（冻结，§1） / 注释面「臂」（bench 评测臂）与「支/分支」（taxonomy 判定分支） / web `armed*`（二次确认 arming） | 三义分层：wire 字段 / 中文注释两词分义 / UI 确认态                    |
-| `tier`          | `qc_tier`（冻结 metrics 键） / `_MATHRUN_STRONG`（layoutfix 剂量档，原 `tier2`） / `validate` L0/L1/L2 校验层              | 三义：QC 分级 / 修复剂量档 / 校验层号                                 |
+| `tier`          | `qc_tier`（冻结 metrics 键） / `_MATHRUN_STRONG`（layoutfix 剂量档，原 `tier2`） / `validate` rules/cst/logattr 校验层     | 三义：QC 分级 / 修复剂量档 / 校验层号                                 |
 | `zone`          | ledger asset `zone`（冻结枚举） / `reconstruct.in_env_args`（原 `_env_arg_zone` 判位）                                     | 数据枚举 vs 位置谓词                                                  |
 | `clean`         | `cell.status` 终态词（compile verdict） / `qc_tier` 档（零 finding）                                                       | 两个 clean 不同义                                                     |
 

@@ -31,14 +31,14 @@ const PANEL_Z = 45;
 interface Props {
     /** citeIndex.entries() + lazy-dest 已抽条目（宿主组装） */
     entries: BibEntry[];
-    /** L2 元数据活访问器（回包晚到时行内补 meta 标题/arXiv 升级链） */
+    /** 远端元数据活访问器（回包晚到时行内补 meta 标题/arXiv 升级链） */
     meta?(key: string): RefMeta | undefined;
     /** 编排工厂实例（features/citetranslate.ts 创建注入） */
     ct: CiteTranslate;
     onClose(): void;
 }
 
-/** 条目可译 id——L1 抽取 arxivId 优先，L2 meta.externalIds.ArXiv 反补兜底
+/** 条目可译 id——本地抽取 arxivId 优先，远端 meta.externalIds.ArXiv 反补兜底
     （DOI-only 条目经 S2 反补后同样可译） */
 const entryArxiv = (e: BibEntry, meta: Props["meta"]): string | undefined =>
     e.arxivId ?? meta?.(e.key)?.arxivId;

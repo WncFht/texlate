@@ -15,7 +15,7 @@ stage 链（单件串行 + 一条正交定点臂）：
                   → {workdir}/expand_plan.json。
 - ``scan``      — 选中 item .part+Range 下载 → 流扫成员特征（成员级断点）
                   → features/members/{item}.jsonl + .done 后删 tar。
-- ``extract``   — 配额选样（旧池 v3-workdir 本地 tar / 新池 Range-GET）
+- ``extract``   — 配额选样（旧池主池 workdir 本地 tar / 新池 Range-GET）
                   → lake.hydrate(idc, fetch_fn, source=channel) 物化 →
                   manifest_expand.jsonl 幂等 append。
 - ``fetch_ids`` — 正交臂（needs=[]）：ids_file 清单 → 产品 acquire_source
@@ -30,9 +30,9 @@ stage 链（单件串行 + 一条正交定点臂）：
   ``kind/date/slug``（index cells 末 stage per-id status）| rates json |
   缺省/``flat`` → flat_fallback（λ 失效纯比例），emit metric
   ``rates_mode`` 显式标注，绝不静默零偏置。显式给源但解析失败 → fail。
-- 旧池复用 REUSE_FRAC=0.3 名义保留：work_v3 已灭，旧池=v3_workdir
-  features/tars/chunks（新 v3 spec 跑过才有）；缺席 → 实效 0。
-- 工作区新家：``~/.local/state/texlate/corpus-build/expand/``（work_v3
+- 旧池复用 REUSE_FRAC=0.3 名义保留：主 work 已灭，旧池=main_workdir
+  features/tars/chunks（主 spec 跑过才有）；缺席 → 实效 0。
+- 工作区新家：``~/.local/state/texlate/corpus-build/expand/``（主 work
   已灭；TarDirs 同构布局，frame_lookup 共享件在 corpus-build 根）。
 """
 
@@ -70,7 +70,7 @@ def _dirs(ctx) -> dict:
         "corpus": corpus,
         "manifest": corpus / "manifest_expand.jsonl",
         "frame": Path(str(p.get("frame_dir") or "")).expanduser(),
-        "v3": Path(str(p.get("v3_workdir") or "")).expanduser(),
+        "main": Path(str(p.get("main_workdir") or "")).expanduser(),
         "build_root": Path(str(p.get("build_root") or cc.BUILD_ROOT)).expanduser(),
     }
 
@@ -79,9 +79,9 @@ def _dirs(ctx) -> dict:
 
 
 def _scanned_items(d: dict) -> set[str]:
-    """已扫 item: v3 chunks done ∪ v3/expand features/*.done。"""
-    items = {c["item"] for c in cc.load_chunks(d["v3"]) if c.get("state") == "done"}
-    for base in (d["v3"] / "features", d["dirs"].features):
+    """已扫 item: 主池 chunks done ∪ 主池/expand features/*.done。"""
+    items = {c["item"] for c in cc.load_chunks(d["main"]) if c.get("state") == "done"}
+    for base in (d["main"] / "features", d["dirs"].features):
         for p in base.glob("*.done"):
             items.add(p.stem)
     return items
@@ -90,9 +90,9 @@ def _scanned_items(d: dict) -> set[str]:
 def _chunk_yield_by_band(d: dict) -> dict[str, float]:
     """已扫 features → {band: 平均合格成员/item}（eligible 同口径）。
 
-    v3+expand 两 features 目录全算——plan 首次跑时 expand 侧为空不污染。"""
+    主池+expand 两 features 目录全算——plan 首次跑时 expand 侧为空不污染。"""
     by_band: dict[str, list[int]] = defaultdict(list)
-    fps = sorted((d["v3"] / "features").glob("*.jsonl")) + sorted(
+    fps = sorted((d["main"] / "features").glob("*.jsonl")) + sorted(
         d["dirs"].features.glob("*.jsonl")
     )
     for fp in fps:
@@ -252,9 +252,9 @@ def _select_members(ctx, d: dict) -> list[dict] | None:
     reuse_frac = float(ctx.params["reuse_frac"])
     rng = random.Random(cc.SEED)
     excl = cc.existing_ids(d["corpus"])
-    chunks = cc.load_chunks(d["v3"])
+    chunks = cc.load_chunks(d["main"])
     old_items = {c["item"] for c in chunks}
-    old_files = sorted((d["v3"] / "features").glob("*.jsonl"))
+    old_files = sorted((d["main"] / "features").glob("*.jsonl"))
     new_files = sorted(d["dirs"].features.glob("*.jsonl"))
     cand: dict[str, dict] = {}
     for fp in old_files + new_files:
@@ -576,7 +576,7 @@ spec = Spec(
         "build_root": Param(type=str, default=str(cc.BUILD_ROOT), fp=False),
         "corpus_dir": Param(type=str, default=str(cc.CORPUS), fp=False),
         "frame_dir": Param(type=str, default=str(cc.FRAME), fp=False),
-        "v3_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False),
+        "main_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "main"), fp=False),
         "target": Param(type=int, default=3740),
         "bias": Param(type=float, default=1.0),
         "reuse_frac": Param(type=float, default=0.3),

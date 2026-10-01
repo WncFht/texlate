@@ -554,7 +554,7 @@ export default function PdfPane(props: Props) {
                         >
                             <CiteCardBody
                                 entry={c().entry}
-                                // meta 走活访问器——L2 回包晚于开卡时
+                                // meta 走活访问器——远端回包晚于开卡时
                                 // props.citeMeta 才填好，快照会永久缺字段
                                 meta={() => {
                                     const en = c().entry;

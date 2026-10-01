@@ -407,7 +407,7 @@ export const api = {
     discoverOgUrl: (arxivId: string) =>
         `${BASE}/discover/og/${encodeURIComponent(arxivId)}`,
 
-    // ---------- refs：引用悬浮卡 L2 远端增强（机会型；失败静默降级） ----------
+    // ---------- refs：引用悬浮卡远端增强（机会型；失败静默降级） ----------
     refsLookup: (refs: RefLookupItem[]) =>
         request<RefsLookupResponse>("/refs/lookup", {
             method: "POST",

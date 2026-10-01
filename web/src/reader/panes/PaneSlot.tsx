@@ -47,7 +47,7 @@ interface Props {
     grow?: number;
     /** 同步关闭漂移 >500px → 显示跳回钮 */
     drift?: boolean;
-    /** 引用索引（pdf 卡内容）+ L2 元数据回调 */
+    /** 引用索引（pdf 卡内容）+ 远端元数据回调 */
     citeIndex?: CiteIndex;
     citeMeta?(key: string): RefMeta | undefined;
     /** 文献「翻译此文」提交 + 任务行查询（cite-translate lane——

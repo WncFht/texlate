@@ -189,7 +189,7 @@ class _CompileStage:
     def _compile_zh(self, ctx: TaskCtx) -> str:
         """zh.pdf：zh/ 拷贝编译 +（非 clean 时）precheck → logfix 回灌 → fixloop + judge(expect_cjk)。
 
-        修复链顺序对齐 e2e ``_repair_chain``：precheck 预检（装缺件，
+        修复链顺序对齐 ``pipecore.repair_chain``：precheck 预检（装缺件，
         fixloop 第 0 招独立相）先消 missing_file 类基建失败；logfix（译文
         归因重译）先于 fixloop——logfix resplice 重写 workdir，规则修源在
         其后兜底。precheck ``reject:<rid>`` 跳过 logfix——路由拒绝交

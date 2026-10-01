@@ -1,4 +1,4 @@
-"""corpus_v3 物化段叶——lake.hydrate 成员物化 / cell 归属裁决 / manifest 重建。
+"""corpus 物化段叶——lake.hydrate 成员物化 / cell 归属裁决 / manifest 重建。
 
 ``texlate.arxiv`` 惰性 import 在 ``_stage_extract``/``_stage_extract_booster``
 内（lazy 惯例——import 期纯 stdlib+kernel）。
@@ -17,7 +17,7 @@ from kernel import fsutil, idnorm, lake, paths
 
 from specs import _bootstrap
 from specs import _corpus_common as cc
-from specs.corpus_v3.base import (
+from specs.corpus.base import (
     BAND_OF_CLUSTER,
     FRAME_LOOKUP_GZ,
     LAKE_SOURCE,
@@ -62,7 +62,7 @@ def _cell_state(idc: str, layer: str) -> str:
 
 
 def _adopt_cell(idc: str, extra: dict) -> None:
-    """异国 cell 原地并入 v3 meta（lake_lock 下 atomic 合并）。
+    """异国 cell 原地并入 corpus meta（lake_lock 下 atomic 合并）。
 
     meta 缺席（异国 catalog-empty 无 dir 情形）时以 extra 起家新建——
     分母守恒优先于保守缺省。"""
@@ -311,7 +311,7 @@ def _extract_members(
                 # 锁内双检挡不住的并发先者胜（异国 complete 落点）
                 faults.append(("orphan_adopt", f"{idc} hydrate 后仍异国 layer"))
             else:
-                # 异国 complete/catalog-empty 短路——原地并入 v3 meta；
+                # 异国 complete/catalog-empty 短路——原地并入 corpus meta；
                 # None 键滤掉不覆写既有值（fetched_at 等保原件）
                 extra = _member_meta(
                     rec,
@@ -352,7 +352,7 @@ def _prune_tar(c: dict) -> int:
 
 
 def _rebuild_manifest(layer: str, out_name: str) -> list[dict]:
-    """manifest 行 ← lake cell meta 全量重建（denominator：行 ≡ v3 cells）。
+    """manifest 行 ← lake cell meta 全量重建（denominator：行 ≡ corpus cells）。
 
     内存累积的替代——hydrate 后/manifest 落盘前崩不丢行：下个 run 重新
     投影时已建 cell（dedup 跳过）照样出行。
@@ -461,7 +461,7 @@ def _write_manifest_md(manifest: list[dict]) -> None:
     ch_c = Counter(r["channel"] for r in manifest)
     cl_c = Counter(r["cluster_id"] for r in manifest)
     lines = [
-        "# Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料",
+        "# Corpus Manifest — arXiv 月度簇分层抽样源码语料",
         "",
         (
             "渠道钉版批量语料: a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF "

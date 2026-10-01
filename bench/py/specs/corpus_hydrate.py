@@ -8,7 +8,7 @@ cell 化，按 manifest 行可达通道分车道（车道在 spec 加载时定�
   待水合成员 ≥ ``CHUNK_MIN``：整 tar ``.part``+Range 续传一次、成员偏移
   索引一次（``meta/{item}.members.json``），各 cell 在 per-chunk flock
   外 seek+ 读+sha256 复核 + ``cc.materialize_into_stage`` 物化——
-  corpus_v3/corpus_expand 同一套下载/物化机制。成员全 settled
+  corpus/corpus_expand 同一套下载/物化机制。成员全 settled
   （complete|empty|failed）才删 tar——峰值磁盘 ≈ 在飞 tar 数（≤jobs），
   不是全量 ~53GiB；残留 tar 下次 run 免费续用。
 - ``eprint`` — 行无 item/member（v1/v2 清单）或 chunk 成员数不足阈值：
@@ -858,7 +858,7 @@ spec = Spec(
     select=_select,
     lake=True,
     prefetch=False,
-    # eval=True 是单件非论文 id 的 canon 豁免口（corpus_v3 同款先例——
+    # eval=True 是单件非论文 id 的 canon 豁免口（corpus 同款先例——
     # 驱动格 id "corpus-hydrate" 非 arXiv id；paper 格 id 已是 canon，
     # verbatim 与 canon 等价；副作用仅 cell 事件 eval=True 标记）。
     eval=True,

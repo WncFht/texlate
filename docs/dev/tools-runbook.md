@@ -9,7 +9,7 @@
 | 命令                             | 用途                                                                                         |
 | -------------------------------- | -------------------------------------------------------------------------------------------- |
 | `texlate fetch <id>`             | arXiv 取源：HEAD→GET→sniff→解包→主文件定位→钉版缓存；`--offline` 零网络只查本地缓存          |
-| `texlate parse <tex>`            | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                               |
+| `texlate parse <tex>`            | Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                                  |
 | `texlate run <id\|dir>`          | mock 端到端（normalize→mock 翻译→ctex 注入→编译→判定）；`--server` 瘦客户端提交 web 任务队列 |
 | `texlate web`                    | 起 FastAPI+SSE 服务与 SPA 阅读器（SPA 需先 `scripts/build-web.sh`）                          |
 | `texlate export`                 | 双语插译导出 EPUB/DOCX                                                                       |
@@ -53,11 +53,11 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 | `fixture_assert` | B2     | 陷阱断言跑分（`bench/fixtures/*.tex` 的 @Tnn/@Wnn/@Xn）                                                    |
 | `compilebench`   | B3     | corpus base 臂编译基线：分层抽样 × 原文直编 × 双引擎                                                       |
 | `fixloop_bench`  | B3     | fixloop 救回率 + 配方单源（tlnet 索引、CaseSink 沉淀）                                                     |
-| `xlatbench`      | B4a    | 翻译硬契约回归：网关模型分层抽样，逐调用过 L0 校验（付费）                                                 |
+| `xlatbench`      | B4a    | 翻译硬契约回归：网关模型分层抽样，逐调用过 rules 校验（付费）                                              |
 | `qualbench`      | B4b    | LLM-judge 翻译质量臂（ESA 协议错误标注 + 0–100 分）（付费）                                                |
 | `e2e_mock`       | B5-A   | mock 端到端基线（产品 API 全链 + 破坏臂 pipeB/pipeC）                                                      |
 | `e2e_real`       | B5-B/D | 真网关翻译 E2E：`fixloop`/`base` 臂位 + `ids/only/model/concurrency/timeout/oversize_cap/no_probe`（付费） |
-| `validbench`     | B6     | 校验器破坏检出基准（L0/L1 逐 case 计时 + 对抗探针）                                                        |
+| `validbench`     | B6     | 校验器破坏检出基准（rules/cst 逐 case 计时 + 对抗探针）                                                    |
 | `alignbench`     | B7     | named-dest 锚点保留率（en/zh PDF 对配对）                                                                  |
 | `gullet`         | —      | 展开机 corpus 实测：耗时/token 数/warning 分类 + 不动点重喂                                                |
 | `wrapfloat`      | —      | wrapfig 绕排碰撞检出 + 降级修复验证（poppler 信号）                                                        |
@@ -78,7 +78,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 | spec            | 用途                                                        |
 | --------------- | ----------------------------------------------------------- |
 | `frame_build`   | `bench/frame/` 抽样框资产再生（corpus_* 的 ord-0 前置）     |
-| `corpus_v3`     | P2 主管线：簇下载→成员扫描→配额抽样→湖化物化→自检           |
+| `corpus`        | P2 主管线：簇下载→成员扫描→配额抽样→湖化物化→自检           |
 | `corpus_layers` | 扩库层构建：holdout / dev_vol / dev_failmine / dev_recent   |
 | `corpus_expand` | 扩库增量管线（→ 总 ~5000 篇）                               |
 | `corpus_hot`    | OpenAlex 高引近期 hot 层：免费渠道抽样→钉版取源→湖/清单双写 |
@@ -126,7 +126,7 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
 - `web/dev/mock-api.ts` — vite dev 中间件 mock 后端（默认 ON，`VITE_MOCK_API=0` 关）；`/api/health` 回 `version:"mock"` 即 mock/真后端鉴别器；seed 任务覆盖各终态档。
 - `web/scripts/smoke.mjs` — playwright-core e2e 冒烟（首页→提交→进度→阅读器→下载→响应式），自带 `package.json`；`WEB_BASE`/`PW_EXE` 覆盖，截图留 `scripts/shots/`。`guide_probe.mjs`/`guide_shot.mjs` 是一次性截图探针。
-- `web/scripts/*_verify.mjs` 一族 — playwright 行为级实测族（引用/翻译卡/锚点/usages/sentalign/selsys/主题等），范式件是 `cite_verify.mjs`（hover 卡/Esc/click 跳+split 镜像/nav chip ↩↪/Backspace/触屏 tap/L2 meta/零 console 错，16 断言），打活服 `127.0.0.1:8765` + 真实任务 `t_d7c669e8b3c92149`（`TASK` 可换）。**环境坑**：本机 `/tmp` tmpfs 近满时 chromium `--disable-dev-shm-usage` 共享内存落盘即渲染进程 SIGTRAP（随机 Target crashed）——公共 bootstrap `web/scripts/lib/pwkit.mjs` 已收 chromium 探测（`PW_EXE` 覆盖）+ `PW_TMP`=`~/.cache/pw-tmp` 挪 TMPDIR 出 tmpfs 的根治 + `SHOTS`/`check`/`results` 计数，新 playwright 脚本 `import` 它而非照抄 preamble；另 `evaluate("string",arg)` 字符串函数不收 arg（静默 undefined），传参必须写真函数。
+- `web/scripts/*_verify.mjs` 一族 — playwright 行为级实测族（引用/翻译卡/锚点/usages/sentalign/selsys/主题等），范式件是 `cite_verify.mjs`（hover 卡/Esc/click 跳+split 镜像/nav chip ↩↪/Backspace/触屏 tap/远端 meta/零 console 错，16 断言），打活服 `127.0.0.1:8765` + 真实任务 `t_d7c669e8b3c92149`（`TASK` 可换）。**环境坑**：本机 `/tmp` tmpfs 近满时 chromium `--disable-dev-shm-usage` 共享内存落盘即渲染进程 SIGTRAP（随机 Target crashed）——公共 bootstrap `web/scripts/lib/pwkit.mjs` 已收 chromium 探测（`PW_EXE` 覆盖）+ `PW_TMP`=`~/.cache/pw-tmp` 挪 TMPDIR 出 tmpfs 的根治 + `SHOTS`/`check`/`results` 计数，新 playwright 脚本 `import` 它而非照抄 preamble；另 `evaluate("string",arg)` 字符串函数不收 arg（静默 undefined），传参必须写真函数。
 - 三件套自检：`npx tsc --noEmit && npx eslint . && npx vitest run`。
 
 ## 6. 运维手法沉淀（通用）

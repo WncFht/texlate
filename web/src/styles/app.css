@@ -21,7 +21,7 @@
 @import "./responsive.css"; /* 响应式 */
 @import "./kbdhelp.css"; /* 快捷键帮助浮层 */
 @import "./motion.css"; /* reduced-motion 全局覆盖 */
-@import "./progress-chrome.css"; /* 排队/ETA/段耗时/fixloop·L2 面板/日志命中/结果面板细分统计 */
+@import "./progress-chrome.css"; /* 排队/ETA/段耗时/fixloop·logfix 面板/日志命中/结果面板细分统计 */
 @import "./retrymenu.css"; /* 任务行 ↻ 重试迷你菜单 / share.zip / 棋盘格可点格 */
 @import "./guide.css"; /* 导读窗格（alphaXiv overview 文档级版面） */
 

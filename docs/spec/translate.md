@@ -1,6 +1,6 @@
 # spec · 翻译编排与校验链
 
-> 范围：`xlat/`（翻译编排）+ `validate/`（L0/L1/L2 校验）+ `repair.py`/`repair_l2/`（L2 回灌修复）+ `compile/normalize/`（译文后源码归一化）。编译引擎、注入与 fixloop 见 `compile.md`；chunk 产出与占位符上游见 `latex-pipeline.md`。
+> 范围：`xlat/`（翻译编排）+ `validate/`（rules/cst/logattr 三层校验）+ `repair/`（logfix 回灌修复）+ `compile/normalize/`（译文后源码归一化）。编译引擎、注入与 fixloop 见 `compile.md`；chunk 产出与占位符上游见 `latex-pipeline.md`。
 > 口径：现行实现描述，符号引用为「模块 + `::符号`」粒度；实测证据引 `research/` 档，不复述实验过程。
 
 ## 0. 总览
@@ -8,10 +8,10 @@
 ```
 chunks[] ──► 术语表物化（四层 + doc 级过滤）+ ph 名单行
         ──► 按 kind 装配 system prompt（编号锚名规则 + kind 槽 + glossary 尾块）
-        ──► 全量入批 / 拆分长块 ──► 语义重试阶梯 ──► L0 规则校验（每块即时）
-        ──► （可选 L1 CST）──► splice 回写
+        ──► 全量入批 / 拆分长块 ──► 语义重试阶梯 ──► rules 规则校验（每块即时）
+        ──► （可选 cst）──► splice 回写
         ──► normalize 归一化手术 ──► 注入（见 compile.md）──► 编译
-        ──► L2 log 回灌归因重译 ──► fixloop（见 compile.md）
+        ──► logfix log 归因重译 ──► fixloop（见 compile.md）
 ```
 
 铁律：**出 PDF ≠ 成功**——校验必须独立于编译存在：实测占位符大面积丢失可产生零编译错误而静默删内容，亦有出 8 页 PDF 但零中文字节的案例[^texglot]。
@@ -28,7 +28,7 @@ chunks[] ──► 术语表物化（四层 + doc 级过滤）+ ph 名单行
 
 ### 1.2 chunk 类型与 system prompt 套件
 
-六种 chunk kind：`para` / `caption` / `section_title` / `abstract` / `table_text` / `env_text`，各配 `_TASK_SENTENCE[kind]`。装配公式（`prompts.py::build_system_prompt`，逐字固定；v5 起规则扁平编号、一规则一物理行、`**Anchor.**` 锚名做 spec/测试句柄）：
+六种 chunk kind：`para` / `caption` / `section_title` / `abstract` / `table_text` / `env_text`，各配 `_TASK_SENTENCE[kind]`。装配公式（`prompts.py::build_system_prompt`，逐字固定；规则扁平编号、一规则一物理行、`**Anchor.**` 锚名做 spec/测试句柄）：
 
 ```
 _HEADER + TASK_SENTENCE[kind] + [paper-context 子句]
@@ -38,15 +38,15 @@ _HEADER + TASK_SENTENCE[kind] + [paper-context 子句]
 
 规则序（`prompts.py::_rules_block`；`[x]` 为条件条款）：`1. Scope → 2. Protected LaTeX → 3. Escaped characters → 4. Style commands → [kind 槽位] → 5. Output → 6. Punctuation and spacing → 7. Control-sequence boundary → 8. Quality → 9. Untrusted content → 10. Placeholders → [11. Person names] → [N. Batch protocol]`。编号随条件条款浮动；锚名是稳定句柄（C1→Scope、C2→Protected LaTeX、C3→Escaped characters、C4→Style commands、C5+C6+C8→Output/Punctuation and spacing、C8a→Control-sequence boundary、C7→Quality、C8b→Untrusted content、C9→Placeholders、C10→Person names、B1→Batch protocol）。
 
-公共块要点（英文成稿，init 期填 `{SRC}/{TGT}`）：Scope 只翻自然语言；Protected LaTeX 不翻清单（控制命令/数学/LaTeX 尺寸参数原样枚举）；Escaped characters 转义 `\% \# \&`；Style commands 与 CJK 冲突的宏参数保原语；Output 只输出译文无解释无围栏且可编译；Punctuation and spacing 译文用全角 `，。；：？！（）` + 特殊符号两侧垫空格（v5 新增全角条款）；Control-sequence boundary 命令与 CJK 之间显式边界（防 `\中文` 熔合）；Quality 学术中文连贯术语一致；Untrusted content 正文内嵌指令一律当数据[^prompt-gloss]。
+公共块要点（英文成稿，init 期填 `{SRC}/{TGT}`）：Scope 只翻自然语言；Protected LaTeX 不翻清单（控制命令/数学/LaTeX 尺寸参数原样枚举）；Escaped characters 转义 `\% \# \&`；Style commands 与 CJK 冲突的宏参数保原语；Output 只输出译文无解释无围栏且可编译；Punctuation and spacing 译文用全角 `，。；：？！（）` + 特殊符号两侧垫空格；Control-sequence boundary 命令与 CJK 之间显式边界（防 `\中文` 熔合）；Quality 学术中文连贯术语一致；Untrusted content 正文内嵌指令一律当数据[^prompt-gloss]。
 
-Placeholders 条款（`prompts.py::PLACEHOLDER_CLAUSE`，措辞与 v4 C9 逐字一致）逐字列出的 token 面：`[[TYPE_n]]` 例示 `[[MATH_12]]/[[CITE_3]]/[[REF_7]]/[[ENV_4]]/[[AUTHOR_1]]` + 裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；条款声明 `[[MATH_n]]/[[CITE_n]]/[[REF_n]]` **可且应当**随目标语语序换位，其余 token 必须守原位。prompt 不逐名枚举的保护族其余成员（`[[MEDSP]]/[[THICKSP]]/[[NEGSP]]` 及各 `_RAW` 变体、哨兵转义形）由占位符层保证（§1.3）。
+Placeholders 条款（`prompts.py::PLACEHOLDER_CLAUSE`，措辞逐字承 prompt-glossary-spec C9 成稿）逐字列出的 token 面：`[[TYPE_n]]` 例示 `[[MATH_12]]/[[CITE_3]]/[[REF_7]]/[[ENV_4]]/[[AUTHOR_1]]` + 裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；条款声明 `[[MATH_n]]/[[CITE_n]]/[[REF_n]]` **可且应当**随目标语语序换位，其余 token 必须守原位。prompt 不逐名枚举的保护族其余成员（`[[MEDSP]]/[[THICKSP]]/[[NEGSP]]` 及各 `_RAW` 变体、哨兵转义形）由占位符层保证（§1.3）。
 
 kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\section` 花括号内文本；abstract 保留 `\keywords` 结构；table_text 保护 `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 且行列数不变；env_text 保护 `\begin/\end` 与结构命令。para/caption 无专属槽位。Person names 条款（保原语不译不音译不调序）仅 para/abstract；Batch protocol（`keep:` 名单说明 + `[n]` 编号回传 + `@@` 兜底）批量时永远压轴。
 
 带错重翻（corrector）：专用 `_CORRECTOR_SYSTEM`（不共享公共块）+ user 三段式 `[Original]/[Translation]/[Error]`；在阶梯第二试经 `corrector_fn` 注入使用（§1.6）。
 
-`prompts.py::PROMPT_VERSION="xlat-prompt-v6"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate/cache.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common/segcache.py`）——bump 实际三层缓存键全轮换[^texglot]。
+`prompts.py::PROMPT_VERSION="xlat-prompt-2026-0928"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate/cache.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common/segcache.py`）——bump 实际三层缓存键全轮换[^texglot]。
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
@@ -62,7 +62,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 ### 1.4 批量协议（`xlat/batch.py`）
 
 - **无短/长分流**：所有 chunk 一律进批。`pack_batches` 常量：`BATCH_MAX_CHARS=12000`、`BATCH_MAX_ITEMS=32`、`BATCH_MIN_CHARS=2500`、`BATCH_ITEM_OVERHEAD=8`；`n_req=max(ceil(total/max_chars), min(workers, total//min_chars))`，超出 worker 数时向上取整到 worker 倍数做 K 量化等长分包。装箱容量按 `overheads` 逐项实记：管线喂 `batch_member_overhead`（`[n]` 编号 + `keep:` 前缀实长——ph 密集成员名单可达数百字符，平摊 8c 会低估实发 payload 悄悄超硬顶击穿 `max_tokens`）。
-- 请求编码 `[1]…[n]` 行首编号；含占位符的成员序号行内嵌 `keep: <ids> |` 名单前缀（`[i] keep: [[MATH_1]] [[SL]] | <enc>`——点名该成员须保真的占位符集合，`|` 分隔名单与正文；ph-free 成员保持 `[i] <enc>` 无前缀）。名单取 `find_all` 首见序去重、裸族 token（`[[SL]]`/`[[NBSP]]` 等）与类型化 `[[X_n]]` 同列——v6 落地件，对症夜跑归因的 ph 密集成员梯级重试风暴[^keep-roster]。
+- 请求编码 `[1]…[n]` 行首编号；含占位符的成员序号行内嵌 `keep: <ids> |` 名单前缀（`[i] keep: [[MATH_1]] [[SL]] | <enc>`——点名该成员须保真的占位符集合，`|` 分隔名单与正文；ph-free 成员保持 `[i] <enc>` 无前缀）。名单取 `find_all` 首见序去重、裸族 token（`[[SL]]`/`[[NBSP]]` 等）与类型化 `[[X_n]]` 同列——keep 名单机制即对症夜跑归因的 ph 密集成员梯级重试风暴[^keep-roster]。
 - 解析 `parse_batch_response`：先归一全部 Unicode 行界，再只认**行首锚定** `^\s*\[(\d+)\]`（MULTILINE）；序号多重集须恰为 {1..n}（乱序归位）且段段非空。行内 `[k]` 不可用作分隔——与正文引用号在 token 层不可区分，命中即整批拒收。段首 `keep: <ids>` 回显（`|`/换行可有可无）按协议残码剥除；名单独占段判空——名单与成员 ph 多重集天然同集，留非空会骗过 `diff` 漏成译文。
 - `@@` 路径：段数恰 n 才收；段内出现 `[k]`（1≤k≤n）判序号泄漏拒收（`[0]`/`[k]` k>n/`[[k]]` 按字面放行）；裸 `[n]` 桩段（`_STUB_ONLY_RX`）按空槽丢弃；编号段内 `@@` 独占行按协议残码剥除；`keep:` 回显同剥。
 - 退化：数量不符/越界/歧义 → 整批退回逐条单翻（复用并发额度）。
@@ -92,7 +92,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 
 ### 1.7 拦截网与缓存口径
 
-`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline/` 回引）注册五张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`、`dangerous_cs`——与 `l0/main.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
+`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline/` 回引）注册五张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`、`dangerous_cs`——与 `rules/main.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——logfix 回灌重译判定直迭代注册表。
 
 缓存三层口径[^texglot]：
 
@@ -120,7 +120,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 ```
 
 - 格式：CSV 两列无表头 `en,zh`、`#` 注释、utf-8-sig；单列行 → zh=en（保原语一等公民）。YAML 接受平铺 map / `{target:}` / `{"terms":{}}` 三形，list 拒绝，null→en。
-- **ph 名单行（v5 替代恒等注入）**：v4 的 `glossary[ph]=ph` 逐条恒等注入是 O(doc_ph)×O(calls) 的重发成本（实测占新输入 ~85%），v5 改为 `placeholders.render_placeholder_manifest(collect_doc_placeholders(...))` 渲单行点名册压 `<Glossary>` 块末行——同 head 连号压缩 `[[MATH_1]]..[[MATH_3]]`（≥2 连号才压）、裸 token 原样枚举；清单超 `_PH_MANIFEST_MAX_CHARS=4000` 退化为**无括号** `TYPE×n` 计数形（带括号残形会命中 `BARE_PH_RX`/`PH_FUZZY_RX` 被判多余占位符触发成员重翻）。规模 O(类型 + 连续段) 而非 O(占位符)——2026-09-28 网关实测：2609.19506 stress 批输入 token 119802→4408（−96%），152/152 占位符全保留、0 成员重翻。
+- **ph 名单行（替代恒等注入）**：旧式 `glossary[ph]=ph` 逐条恒等注入是 O(doc_ph)×O(calls) 的重发成本（实测占新输入 ~85%），现改为 `placeholders.render_placeholder_manifest(collect_doc_placeholders(...))` 渲单行点名册压 `<Glossary>` 块末行——同 head 连号压缩 `[[MATH_1]]..[[MATH_3]]`（≥2 连号才压）、裸 token 原样枚举；清单超 `_PH_MANIFEST_MAX_CHARS=4000` 退化为**无括号** `TYPE×n` 计数形（带括号残形会命中 `BARE_PH_RX`/`PH_FUZZY_RX` 被判多余占位符触发成员重翻）。规模 O(类型 + 连续段) 而非 O(占位符)——2026-09-28 网关实测：2609.19506 stress 批输入 token 119802→4408（−96%），152/152 占位符全保留、0 成员重翻。
 - **文档级过滤 + 整表烤进**：启动时扫全部 chunk 源文本，`(?<!\w)term(?!\w)`（IGNORECASE|ASCII；term 内空白/`~`→`[~\s]+`）筛出本文实际出现词条 → 序列化为 `- en: zh` 行表追加 system prompt 末尾——整篇翻译期间 system prompt 逐字节不变，供前缀缓存命中。真实词条按 `en.lower()` 排（ph 形 en 是普通词条无特判），字节稳定是缓存命中前提。
 - `terms/index.yaml` 类目映射：`stat.ML`→`cs.ML.csv`、`eess.AS`→`cs.AI.csv`、`cond-mat.*`→`cond-mat.csv`、`quant-ph`→`quant-ph.csv`，未列→`default.csv`。资产行数：default 404 / cond-mat 756 / cs.LG 357 / cs.ML 305 / cs.RO 354 / quant-ph 311 / cs.AI 212 / cs.CV 158。种子表来自 LaTeXTrans[^latextrans]。
 - 产物落盘 `term_dict.json`；运行时逐篇抽取臂 `autogloss.py` 的缺省分面：`TEXLATE_AUTO_GLOSSARY` env 仅闸本地 `run`/e2e（mock 占位管线）与 bench——该路径缺省关（`PipelineConfig.auto_glossary_fn`）；server/web 任务走逐任务选项 `auto_glossary` 且缺省已开（`server/http.py::_clean_task_options` 注入 `True`），此 env 在真实翻译路径无效。抽取细节：masked chunk 文列 → LLM JSON `[{src,tgt}]` → 归一键多数表决；`EXTRACT_BATCH_CHARS=2400`、`EXTRACT_MAX_BATCHES=6`、`EXTRACT_TEMPERATURE=0.1`、单批失败跳过。
@@ -141,11 +141,11 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ## 2. 校验链（`validate/`）
 
-三层分工 L0 规则 / L1 tree-sitter CST / L2 编译 log 回灌，**全部 src↔zh 相对判定**（译文不得比原文更坏——src 自带不平衡继承容忍，只报新增损伤）。编排侧消费点：`CACHE_VETO_RULES={placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}` 缓存写入/命中否决面（与 §1.7 `_INTERCEPT_NETS` 镜像）、`report.py::pair_feedback` 字段化反馈文本（`previous_validation_error`/`slot_validation_failures` 阶梯注入面）、`L2Verdict` 修复链触发。完整规则表、L1 baseline 协议、L2 归因豁免与聚合口径见 `spec/validate.md`（L0 实测见[^l0-rules]，L1 实测见[^l1-ts]）。
+三层分工 rules 规则 / cst tree-sitter CST / logattr 编译 log 归因，**全部 src↔zh 相对判定**（译文不得比原文更坏——src 自带不平衡继承容忍，只报新增损伤）。编排侧消费点：`CACHE_VETO_RULES={placeholder, ph_in_cs, bare_cs, residual_en, dangerous_cs}` 缓存写入/命中否决面（与 §1.7 `_INTERCEPT_NETS` 镜像）、`report.py::pair_feedback` 字段化反馈文本（`previous_validation_error`/`slot_validation_failures` 阶梯注入面）、`LogVerdict` 修复链触发。完整规则表、cst baseline 协议、logfix 归因豁免与聚合口径见 `spec/validate.md`（rules 实测见[^rules-lab]，cst 实测见[^cst-ts]）。
 
 ## 3. 修复与归一化
 
-修复链序（precheck → L2 回灌 → fixloop）、L2 归因 - 重译簇、env judge 与 `repair.py` 共享低层件的完整规范见 `spec/validate.md` §6–§7。编排侧须知两点：链序理由 = fixloop 的 regex_rewrite 会被 L2 resplice 冲掉；回退后补一次裸编、回落态即交付树。env 开关 `TEXLATE_NO_L2`/`TEXLATE_ENV_JUDGE`/`TEXLATE_NO_FIXLOOP`/`TEXLATE_FIXLOOP_LLM` 同节登记。
+修复链序（precheck → logfix 回灌 → fixloop）、logfix 归因 - 重译簇、env judge 与 `repair/mech.py` 共享低层件的完整规范见 `spec/validate.md` §6–§7。编排侧须知两点：链序理由 = fixloop 的 regex_rewrite 会被 logfix resplice 冲掉；回退后补一次裸编、回落态即交付树。env 开关 `TEXLATE_NO_LOGFIX`/`TEXLATE_ENV_JUDGE`/`TEXLATE_NO_FIXLOOP`/`TEXLATE_FIXLOOP_LLM` 同节登记。
 
 ### 3.1 归一化层（`compile/normalize/`）
 
@@ -186,7 +186,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 | 块态     | `ChunkResult.status`     | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；fallback_orig 亦落 fault + `fell_back`）/ `skipped`（门控跳过）         | `xlat/pipeline/types.py` |
 | 阶梯态   | `LadderResult.status`    | `ok` / `recovered` / `fallback_orig`                                                                                               | `xlat/retry.py`          |
 | 错误型   | `ChunkResult.error_kind` | `""` / `auth` / `provider` / `crash` / `validate`                                                                                  | `xlat/pipeline/types.py` |
-| L2 判决  | `L2Verdict.ok`           | `n_errors==0`；`log_missing` 单列                                                                                                  | `validate/l2.py`         |
+| logattr  | `LogVerdict.ok`          | `n_errors==0`；`log_missing` 单列                                                                                                  | `validate/logattr.py`    |
 | 编译判决 | `Verdict.status`         | `clean` / `partial` / `fail`（无 reject——拒绝统一 partial + `reject_at` 审计字段，见 compile.md）                                  | `compile/judge.py`       |
 | 任务态   | job `status`             | 活跃 `queued`/`fetching`/`parsing`/`translating`/`compiling`；终态 `done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store/`          |
 
@@ -196,9 +196,9 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 [^prompt-gloss]: TeXlate 调研档案：prompt 套件与术语表工程规格。[research/latex/prompt-glossary-spec.md](../research/latex/prompt-glossary-spec.md)
 
-[^l0-rules]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/latex/validator-rules.md](../research/latex/validator-rules.md)
+[^rules-lab]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/latex/validator-rules.md](../research/latex/validator-rules.md)
 
-[^l1-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/latex/validator-ts.md](../research/latex/validator-ts.md)
+[^cst-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/latex/validator-ts.md](../research/latex/validator-ts.md)
 
 [^aux-cjk]: TeXlate 调研档案：aux 中间产物 CJK 截断归因。[research/latex/2026-09-16-aux-cjk-truncation.md](../research/latex/2026-09-16-aux-cjk-truncation.md)
 

@@ -24,7 +24,7 @@ def frame_lookup_path(build_root: Path = BUILD_ROOT) -> Path:
 def ensure_frame_lookup(frame_dir: Path = FRAME, build_root: Path = BUILD_ROOT) -> Path:
     """frame.parquet → frame_lookup.tsv.gz（缺时现算；pyarrow 惰性）。
 
-    v3/expand/layers 谁先到谁建——原子写幂等。缺 frame.parquet → OSError
+    各 builder 谁先到谁建——原子写幂等。缺 frame.parquet → OSError
     （frame_build ord-0 前置未跑，调用方按 fail-closed 处理）。"""
     out = frame_lookup_path(build_root)
     if out.exists():
@@ -146,7 +146,7 @@ def band_cat_share(frame_dir: Path = FRAME) -> dict[str, dict[str, float]]:
 
 
 def load_chunks(v3_workdir: Path) -> list[dict]:
-    """v3 builder 的 chunks.json（旧池 membership 单源）；缺档 → []."""
+    """主 builder 的 chunks.json（旧池 membership 单源）；缺档 → []."""
     p = Path(v3_workdir) / "chunks.json"
     if not p.exists():
         return []

@@ -49,7 +49,7 @@ def _opt_switch(
 class RepairPolicy:
     """修复链开关决议快照——precheck/logfix/fixloop 三级链闸的 policy 单源。
 
-    e2e ``_repair_chain``（``fixloop_on``/``logfix_on`` 显式闸）与 worker
+    ``pipecore.repair_chain``（``fixloop_on``/``logfix_on`` 显式闸）与 worker
     ``_compile_zh``（``options.*`` 闸）此前各复写同一条「显式 > options >
     ``TEXLATE_NO_*``（缺省皆开）」优先级链；``resolve`` 收成一处。
     precheck 闸随 ``fixloop``；``logfix`` 另吃 ``precheck_reject`` 拒门与

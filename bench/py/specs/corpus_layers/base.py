@@ -92,6 +92,6 @@ def _dirs(ctx) -> dict:
         "corpus": corpus,
         "manifest": corpus / f"manifest_{layer}.jsonl",
         "frame": Path(str(p.get("frame_dir") or "")).expanduser(),
-        "v3": Path(str(p.get("v3_workdir") or "")).expanduser(),
+        "main": Path(str(p.get("main_workdir") or "")).expanduser(),
         "build_root": Path(str(p.get("build_root") or cc.BUILD_ROOT)).expanduser(),
     }

@@ -1,4 +1,4 @@
-"""corpus_v3 抽样段叶——eligible∧frame-join → cell 内随机配额 → sample_core/booster_pool。"""
+"""corpus 抽样段叶——eligible∧frame-join → cell 内随机配额 → sample_core/booster_pool。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import random
 
 from specs import _bootstrap
 from specs import _corpus_common as cc
-from specs.corpus_v3.base import (
+from specs.corpus.base import (
     FRAME_LOOKUP_GZ,
     WORK,
     _read_jsonl,

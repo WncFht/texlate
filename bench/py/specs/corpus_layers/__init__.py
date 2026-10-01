@@ -22,7 +22,7 @@ plan→scan→extract→qc，recent 正交臂（needs=[]，ids_file 闸）声明
 
 口径/资产变化（旧世界已灭处全部 fail-closed 或显式标注）：
 
-- work_v3 已灭 → 工作区 ``~/.local/state/texlate/corpus-build/layers/{layer}/``
+- 主 work 已灭 → 工作区 ``~/.local/state/texlate/corpus-build/layers/{layer}/``
   （TarDirs 同构布局）；plan/select_stats/records/qc.md/recent_fail 落层目录。
 - frame 资产（item-index/tiger-files/allocation-core/cluster-cat-mix +
   frame_lookup）由 frame_build(ord-0) 供——缺一件 bulk 链 plan=fail；

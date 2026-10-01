@@ -10,7 +10,7 @@ ledger 而非共享 work/ 目录）。
 - ingest：catalog 状态机 → ``ctx.src_path()`` 硬链接场——**先按
   catalog state 分类再调 src_path**（``empty`` 态的 cell 目录会经
   src_path 投影成伪 ok 树）。fetch_fn=None：湖外抓取归 corpus
-  builders（corpus_v3/expand/layers/hot 各 spec），本 spec 只消费
+  builders（corpus/expand/layers/hot 各 spec），本 spec 只消费
   已在湖/可自愈的格。
 - parse：route → ``.zh-build`` 暂存 → normalize → scan_tex_tree →
   swap_in ``zh.-`` + ``zh.-/parse.json``（随树进 vault，跨 run 消费
@@ -40,12 +40,12 @@ ROOT/CORPUS/EPOCH/_HYDRATABLE 常量）、``soak.ingest``（src 物化段）、
 ``soak.compile``（splice 重建小件 + compile 段）、``soak.fixloop``
 （修复段）、``soak._spec``（spec 组合根——叶干 ``_`` 前缀脱导出名
 ``spec`` 碰撞）。本文件是 PEP 562 惰性门面
-（同 ``specs/corpus_v3/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
+（同 ``specs/corpus/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS`` 映射回
 叶子，``soak.X`` 与 ``from  import X`` 面不变；``spec`` 住
 ``soak._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._soak_X import Y`` 不绕本门面（避环）。monkeypatch 锚点
 注意：实现名住叶子模块——setattr patch 须指到叶子，门面 setattr
-只遮蔽门面不改叶子（同 corpus_v3 先例）。
+只遮蔽门面不改叶子（同 corpus 先例）。
 """
 
 from __future__ import annotations

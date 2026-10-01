@@ -1,6 +1,6 @@
 // host/citeLane —— 引用条目族 + 跳引用/重译/菜单卡 + cite-translate lane
 // （cite.translate/cite.refsAll 两命令 + 顶栏「文献」钮 + RefsPanel 宿主）+
-// L2 refsLookup 远端增强。带走 taskStore/keptRefs 边的编排级触点。
+// refsLookup 远端增强。带走 taskStore/keptRefs 边的编排级触点。
 //
 // ctf.ct.setAuthHost 包装回放 pendingAuth 是闭包技巧——onNeedAuth 在面板
 // 未开时暂存 retry，RefsPanel 挂载自登记 authHost 时回放进内联 key 框，
@@ -160,7 +160,7 @@ export function createCiteLane(deps: {
         }
     };
 
-    // L2 远端增强：文档打开即批量查（S2 scholarphi「打开即批拉、hover 零
+    // 远端增强：文档打开即批量查（S2 scholarphi「打开即批拉、hover 零
     // 等待」同款）——有 arXiv/DOI 线索的条目才送上游；失败静默降级
     createEffect(() => {
         const idx = citeIndex();

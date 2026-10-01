@@ -18,7 +18,7 @@ from specs._benchlite import read_jsonl
 REPO = Path(__file__).resolve().parents[4]
 CORPUS = REPO / "bench" / "corpus"
 FRAME = REPO / "bench" / "frame"
-UA = {"User-Agent": "texlate-corpus-v3/1.0 (research benchmark build)"}
+UA = {"User-Agent": "texlate-corpus/1.0 (research benchmark build)"}
 TIMEOUT = 60
 
 IA_DL = "https://archive.org/download/{item}/{item}.tar"
@@ -27,7 +27,7 @@ TIGER_DL = (
     "https://huggingface.co/datasets/TIGER-Lab/arxiv-latex-5T/resolve/main/{name}.tar"
 )
 
-#: 持久 builder 状态根（work_v3 已灭后的新家；布局先例为已退役 errsweep 的 state 目录）。
+#: 持久 builder 状态根（work 已灭后的新家；布局先例为已退役 errsweep 的 state 目录）。
 BUILD_ROOT = Path.home() / ".local" / "state" / "texlate" / "corpus-build"
 
 
@@ -37,7 +37,7 @@ def log(msg: str) -> None:
 
 def atomic_write_text(path: Path, text: str) -> None:
     """kernel ``fsutil.atomic_write`` 的 text 形委托（fsync+dir fsync 全耐久
-    口径；corpus_v3._atomic_write_text 同构）。父目录须先存在。"""
+    口径；corpus._atomic_write_text 同构）。父目录须先存在。"""
     fsutil.atomic_write(Path(path), text.encode("utf-8"))
 
 

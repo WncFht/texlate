@@ -19,7 +19,7 @@
 
 依赖序：`corpus_* → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）[^suite]。
 
-矩阵外 spec（同一 kernel 入口，不属 B 编号）：管线自检 `soak`（生产五段链串行）/`smoke`（checkout 自检）/`census`（湖审计）/`errsweep`（错误沉淀清扫）/`paid_stub`（付费门零花费自检）/`quality`（质量面代理 rescore）；专题 `gullet`（展开机实测）/`wrapfloat`（绕排碰撞）；语料构建 `frame_build`/`corpus_v3`/`corpus_layers`/`corpus_expand`/`corpus_hot`/`corpus_sw`。全名册 `bench spec list` 直出。
+矩阵外 spec（同一 kernel 入口，不属 B 编号）：管线自检 `soak`（生产五段链串行）/`smoke`（checkout 自检）/`census`（湖审计）/`errsweep`（错误沉淀清扫）/`paid_stub`（付费门零花费自检）/`quality`（质量面代理 rescore）；专题 `gullet`（展开机实测）/`wrapfloat`（绕排碰撞）；语料构建 `frame_build`/`corpus`/`corpus_layers`/`corpus_expand`/`corpus_hot`/`corpus_sw`。全名册 `bench spec list` 直出。
 
 ## 2. 分层契约（TIERS）
 
@@ -79,25 +79,25 @@
 
 两子层[^suite]：
 
-- **B4a 硬契约层** `specs/xlatbench.py`：对内部 OpenAI 兼容网关模型集跑分层抽样 LaTeX 段落翻译，逐格过 L0 validator + E22 硬契约判定落 metrics；样例帧沉为 spec 常量（`--where/--docs/--per-kind/--seed/--models/--runs` 不再可达——改常量=改 bench 定义，code_sha/spec_hash 自动换版），非 holdout 切片 union、canon 去重、跨 cluster 轮转、chunk 按 context-kind 分桶等距取，尾部挂 S1–S4 合成压力（与 `xlat-traps.tex` @Xn 遮蔽输出逐字一致）。指标排序：硬契约率 → ord 软信号 → 延迟 p50/p95 → reasoning 开销 → token 经济；分析动词 `bench xlat-report`（模型榜）/`bench xlat-rejudge`（存 src/zh 本地重判，免网关）读 eval_records[^xlatbench]。
+- **B4a 硬契约层** `specs/xlatbench.py`：对内部 OpenAI 兼容网关模型集跑分层抽样 LaTeX 段落翻译，逐格过 rules validator + E22 硬契约判定落 metrics；样例帧沉为 spec 常量（`--where/--docs/--per-kind/--seed/--models/--runs` 不再可达——改常量=改 bench 定义，code_sha/spec_hash 自动换版），非 holdout 切片 union、canon 去重、跨 cluster 轮转、chunk 按 context-kind 分桶等距取，尾部挂 S1–S4 合成压力（与 `xlat-traps.tex` @Xn 遮蔽输出逐字一致）。指标排序：硬契约率 → ord 软信号 → 延迟 p50/p95 → reasoning 开销 → token 经济；分析动词 `bench xlat-report`（模型榜）/`bench xlat-rejudge`（存 src/zh 本地重判，免网关）读 eval_records[^xlatbench]。
 - **B4b 质量层** `specs/qualbench/__init__.py`：LLM-judge 对 (src_en, zh) chunk 对打 ESA esa2 协议 errors[] + stated100/derived100 双分 + 派生六类 flag（漏译/错译/术语不一致/格式破坏/幻觉/语言混杂），contested 触发二裁；格模型 = 一 frame 行（paper, chunk_id, judge）一格，`variant=esa2@{EPOCH}|{judge}|{chunk_id}`，`dedup_key=(idc,arm,variant)`；judge 模型与被评模型解耦。分析动词 `bench qual-report`[^qualbench]。
 
-门槛（M1 出口）：100 篇真实翻译端到端 ≥85%；硬契约率大样本不回退；L0 检出率不回退[^suite]。
+门槛（M1 出口）：100 篇真实翻译端到端 ≥85%；硬契约率大样本不回退；rules 检出率不回退[^suite]。
 
 ### 4.5 B5 · e2ebench —— 端到端组合基准
 
-测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`/`pipecore`（CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + L0 校验器产品 API[^suite]。
+测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`/`pipecore`（CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + rules 校验器产品 API[^suite]。
 
-- `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→L2→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `tests/_translators.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
+- `specs/e2e_mock.py`：每 paper × 每条件一格跑产品全链（route → normalize → MockTranslator → ctex 注入 → 编译 → judge → precheck→logfix→fixloop）；`variant=cond` 四臂：`base-xel`/`pipe-xel`/`pipe-tec`/`base-tec`（归因臂，同 run pipe-tec clean 时 skip 抑制）。破坏语义由 `tests/_translators.py` 臂工厂承载（sabotage-b 幻觉注入 / sabotage-c 位置扰动 ~10% / perturb），带台账 `.ledger`/`.finalize` 逐块归因。已知盲区：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^e2emock]。
 - `specs/e2e_real/__init__.py`：Mode D 真实臂——route → xlat(paid) → compile → fixloop → base → layoutqc 六段链，翻译走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env）全产品链；run 参数 `ids/only/model/concurrency/timeout/oversize_cap/no_probe`；`fixloop` 臂位 = fail + misschar/error 级 partial（inject reject 不救），`base` 臂为归因对拍，`layoutqc` 为最后变异段（产物进 vault 触发 harvest）[^e2ereal]。
 
 产出**漏斗看板**：route/xlat/compile/fixloop/layoutqc 逐段终态分布 + reject_at 归因。门槛：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点[^suite]。
 
 ### 4.6 B6 · validbench —— 校验段基准
 
-测 L0/L1 校验器对 LLM 破坏的检出能力（校验器本身必须被语料验证）。底材：湖格主文件抽干净 chunk → ph 层（含 `[[TYPE_n]]` 占位符）/raw 层（不动点展开回原文）两层 src↔zh 对，zh = 构造性伪译文；变异器施加 10 类破坏（c01 丢 `}`/c02 丢 `$`/c03–c04 env 破坏/c05–c06·c10 占位符类/c07 `\[` 不配对/c08 幻觉宏/c09 cite key）+ 对抗手工探针（合法改写/不平衡继承/占位符换序/全角占位符等边界逐条断言）。格分两族 item：`vb_run`（每湖格一格，subprocess 30s 隔离 parse——SIGALRM 在 worker 线程非法）与对抗探针族[^validbench]。
+测 rules/cst 校验器对 LLM 破坏的检出能力（校验器本身必须被语料验证）。底材：湖格主文件抽干净 chunk → ph 层（含 `[[TYPE_n]]` 占位符）/raw 层（不动点展开回原文）两层 src↔zh 对，zh = 构造性伪译文；变异器施加 10 类破坏（c01 丢 `}`/c02 丢 `$`/c03–c04 env 破坏/c05–c06·c10 占位符类/c07 `\[` 不配对/c08 幻觉宏/c09 cite key）+ 对抗手工探针（合法改写/不平衡继承/占位符换序/全角占位符等边界逐条断言）。格分两族 item：`vb_run`（每湖格一格，subprocess 30s 隔离 parse——SIGALRM 在 worker 线程非法）与对抗探针族[^validbench]。
 
-指标：检出率（按破坏类分列命中规则）、error-FP（干净对）、warn-only 率、延迟/对、lev≤2 修复建议率；L1 tree-sitter 层同口径（绝对/相对判定分开报）。门槛：10 类破坏 100% 检出、干净对 0 error-FP、L0 ≤1ms/对；新破坏类随真实 LLM 失败沉淀（B4 产出反向喂 B6）[^suite]。
+指标：检出率（按破坏类分列命中规则）、error-FP（干净对）、warn-only 率、延迟/对、lev≤2 修复建议率；cst tree-sitter 层同口径（绝对/相对判定分开报）。门槛：10 类破坏 100% 检出、干净对 0 error-FP、rules ≤1ms/对；新破坏类随真实 LLM 失败沉淀（B4 产出反向喂 B6）[^suite]。
 
 ### 4.7 B7 · alignbench —— 锚点保留基准
 

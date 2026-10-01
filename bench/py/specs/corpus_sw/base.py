@@ -110,7 +110,7 @@ def split_files(latex: str) -> dict[str, str]:
 def _reduced_features(files: dict[str, str]) -> dict:
     """减配形态特征：docclasses/docstyle*/tex_roots/non_utf8。
 
-    tex_roots 与 build_corpus_v3._texts_features 同口径（剥注释后含
+    tex_roots 与 build_corpus._texts_features 同口径（剥注释后含
     \\documentclass/\\documentstyle 的 .tex relpath）——main_tex_sha256
     的唯一消费点。input_depth/flags*/signatures 未移植（见模块 doc）。
     """

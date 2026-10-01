@@ -1,11 +1,11 @@
-"""_corpus_common — corpus builder 共享叶（expand/layers/hot/v3 各臂共用）。
+"""_corpus_common — corpus builder 共享叶（expand/layers/hot 各 builder 臂共用）。
 
-逐字提升自 ``bench/py/corpus/build_corpus_v3.py`` +
+逐字提升自 ``bench/py/corpus/build_corpus.py`` +
 ``build_corpus_expand.py`` + ``benchlib.py`` 三处（皆已随删除门退役）。
 import 期纯 stdlib——``texlate.arxiv``/``pyarrow`` 一律惰性 import 在使用点
 内（scan 链路系统 python3 可载，extract/fetch-ids 臂经 ``uv run`` 进产品环境）。
 
-工作区契约（post-work_v3）：持久 builder 状态落
+工作区契约（post-work）：持久 builder 状态落
 ``~/.local/state/texlate/corpus-build/<layer>/`` —— TarDirs 标准布局
 {features,members,tars,meta} 每层一束（先例为已退役 errsweep 的 state 目录布局）。
 ``frame_lookup.tsv.gz`` 全 builder 共享单件：

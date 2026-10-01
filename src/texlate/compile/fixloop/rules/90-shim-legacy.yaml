@@ -2303,7 +2303,7 @@ rules:
           error: "File `aastex.cls' not found (TL 只剩 aastex701, 非 drop-in)",
         }
       - {
-          corpus: "astro-ph/9702009 等 9 篇 corpus_v2",
+          corpus: "astro-ph/9702009 等 9 篇旧批",
           error: "File `psfig.sty' not found (TL 已退役)",
         }
       - {

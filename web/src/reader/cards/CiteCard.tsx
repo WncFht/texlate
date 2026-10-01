@@ -88,9 +88,9 @@ export default function CiteCard(props: CardProps) {
 // ---------------------------------------------------------------- 条目内容
 
 interface BodyProps {
-    /** L0 本地条目（ph 索引 / lazy dest 抽取 / DOM 克隆三路任一给文本） */
+    /** 本地条目（ph 索引 / lazy dest 抽取 / DOM 克隆三路任一给文本） */
     entry?: Pick<BibEntry, "label" | "text" | "arxivId" | "doi">;
-    /** L2 远端元数据活访问器——回包晚于开卡，宿主按 entry.key 现查；
+    /** 远端元数据活访问器——回包晚于开卡，宿主按 entry.key 现查；
         全字段空的 meta 视同缺位（整块不显） */
     meta?: () => RefMeta | undefined;
     loading?: boolean;

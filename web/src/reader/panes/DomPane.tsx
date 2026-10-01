@@ -92,7 +92,7 @@ interface Props {
     onDestJump?(dest: unknown, pre: Pos, post: Pos): void;
     /** dual chunks——data-chunk key→seq 映射源（usages 锚 seq 归位） */
     chunks?: DualChunk[];
-    /** L2 元数据活访问器（卡面展示 + kept payload 快照；dom 链无
+    /** 远端元数据活访问器（卡面展示 + kept payload 快照；dom 链无
         citeIndex 也能收——meta 常缺位） */
     citeMeta?(key: string): RefMeta | undefined;
     /** kept_refs 收藏（M4）：卡 key = 锚目标元素 id（bib.bibN） */
@@ -184,7 +184,7 @@ export default function DomPane(props: Props) {
     };
 
     /** kept payload（M4）：快照即真相——label 取 .ltx_tag_bibitem（[n]
-        编号），text 全文本，arxivId/doi 从文本抽；meta 收此刻 L2 值 */
+        编号），text 全文本，arxivId/doi 从文本抽；meta 收此刻远端值 */
     const keepPayload = (c: DomCardState): KeptRef => {
         const text = c.clone.textContent?.trim() || undefined;
         return {

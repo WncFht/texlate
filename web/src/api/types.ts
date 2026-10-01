@@ -585,7 +585,7 @@ export const apiErrText = (e: unknown): string =>
 /** 上传进度回调（loaded/total 字节——lengthComputable 才发） */
 export type UploadProgress = (loaded: number, total: number) => void;
 
-// ---------- refs：文献条目远端元数据代理（引用悬浮卡 L2 增强） ----------
+// ---------- refs：文献条目远端元数据代理（引用悬浮卡远端增强） ----------
 
 export interface RefLookupItem {
     key: string;
@@ -622,7 +622,7 @@ export interface KeptRef {
     text?: string;
     arxivId?: string;
     doi?: string;
-    /** 收藏时刻的 L2 元数据快照（meta 缺位/迟到也可能为空） */
+    /** 收藏时刻的远端元数据快照（meta 缺位/迟到也可能为空） */
     meta?: RefMeta;
 }
 

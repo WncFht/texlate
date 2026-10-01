@@ -112,7 +112,7 @@ export interface Props {
     active?: boolean;
     /** 引用索引（dual.json ph→bibMap）——缺位时卡片走 dest 懒抽取兜底 */
     citeIndex?: CiteIndex;
-    /** L2 远端元数据回调——缺位卡片只出本地条目 */
+    /** 远端元数据回调——缺位卡片只出本地条目 */
     citeMeta?(key: string): RefMeta | undefined;
     /** kept_refs 收藏（M4）：卡 key = entry?.key ?? dest.slice(5) */
     citeKept?(key: string): boolean;

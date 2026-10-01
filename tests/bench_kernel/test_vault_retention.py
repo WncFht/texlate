@@ -364,29 +364,29 @@ def test_prune_paid_product_cell_stays_whole() -> None:
     assert (cell / "build.x" / "junk.bin").exists()
 
 
-# --- corpus_v3 TARS prune -------------------------------------------------------------
+# --- corpus TARS prune -------------------------------------------------------------
 
 
 def test_prune_tar_deletes_tar_and_part(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # 惰载：corpus_v3 import 时模块级跑 _bootstrap.ensure() 改 sys.path，限污到本测试
-    from specs import corpus_v3  # noqa: PLC0415
-    from specs.corpus_v3 import extract as _corpus_v3_extract  # noqa: PLC0415
+    # 惰载：corpus import 时模块级跑 _bootstrap.ensure() 改 sys.path，限污到本测试
+    from specs import corpus  # noqa: PLC0415
+    from specs.corpus import extract as _corpus_extract  # noqa: PLC0415
 
     tars = tmp_path / "tars"
     tars.mkdir()
     (tars / "2501_001.tar").write_bytes(b"TAR")
     (tars / "2501_001.tar.part").write_bytes(b"PART")
     (tars / "2501_002.tar").write_bytes(b"OTHER")
-    # _prune_tar 住在 corpus_v3/extract 叶——TARS patch 锚点随函数迁叶（facade
+    # _prune_tar 住在 corpus/extract 叶——TARS patch 锚点随函数迁叶（facade
     # setattr 只遮蔽门面不改叶子，同 builtins/kernel 拆叶先例）
-    monkeypatch.setattr(_corpus_v3_extract, "TARS", tars)
+    monkeypatch.setattr(_corpus_extract, "TARS", tars)
 
-    freed = corpus_v3._prune_tar({"item": "2501_001"})  # noqa: SLF001 -- 测试目标即此私有面
+    freed = corpus._prune_tar({"item": "2501_001"})  # noqa: SLF001 -- 测试目标即此私有面
     assert freed == len(b"TAR") + len(b"PART")
     assert not (tars / "2501_001.tar").exists()
     assert not (tars / "2501_001.tar.part").exists()
     assert (tars / "2501_002.tar").exists()  # only the named chunk dies
     # already-gone tar is a no-op, not an error
-    assert corpus_v3._prune_tar({"item": "2501_001"}) == 0  # noqa: SLF001 -- 测试目标即此私有面
+    assert corpus._prune_tar({"item": "2501_001"}) == 0  # noqa: SLF001 -- 测试目标即此私有面

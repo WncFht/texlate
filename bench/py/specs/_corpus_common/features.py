@@ -16,7 +16,7 @@ from pathlib import Path
 from specs._benchlite import strip_comments
 
 # ---------------------------------------------------------------- blob 特征机器
-# （build_corpus_v3 verbatim：特征口径单源——scan_tar 与 extracted 树共用。）
+# （build_corpus verbatim：特征口径单源——scan_tar 与 extracted 树共用。）
 TEXT_EXT = {
     ".tex",
     ".sty",

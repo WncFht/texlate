@@ -48,7 +48,7 @@
 
 | 通道            | 触发条件             | 机械                                               | 速率      |
 | --------------- | -------------------- | -------------------------------------------------- | --------- |
-| IA chunk tar 流 | 同 chunk 待取 ≥12 篇 | corpus_v3 fetch_one→scan→member 提取               | 批量主力  |
+| IA chunk tar 流 | 同 chunk 待取 ≥12 篇 | corpus fetch_one→scan→member 提取                  | 批量主力  |
 | TIGER HF        | IA 无覆盖            | `huggingface.co/datasets/TIGER-Lab/arxiv-latex-5T` | 兜底      |
 | arxiv_eprint    | 稀疏格（<12/chunk）  | corpus_expand `acquire_source`                     | ~85 篇/天 |
 | scholarweave    | e-band 覆盖格        | corpus_sw 通道                                     | 补充      |

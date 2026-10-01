@@ -666,10 +666,10 @@ describe("registerCiteTranslate 桥", () => {
         expect(reg.get("cite.refsAll")).toBeUndefined();
     });
 
-    it("refsCount=L1+L2 反补并集（DOI-only 经 meta.arxivId 计入）", () => {
+    it("refsCount=本地抽取+远端反补并集（DOI-only 经 meta.arxivId 计入）", () => {
         const idx = mkIndex([
             { key: "a", arxivId: "2401.1" },
-            { key: "b" }, // DOI-only——L2 meta 反补
+            { key: "b" }, // DOI-only——远端 meta 反补
             { key: "c" }, // 无 id 不计
         ]);
         const f = registerCiteTranslate(new Registry<CmdCtx>(), {

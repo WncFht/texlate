@@ -722,7 +722,7 @@ spec = Spec(
     kind="frame_build",
     select=_select,
     # eval=True：item id 非 canon（builder 单元不是 arxiv id）——豁免口
-    # 同 corpus_v3.py:2117，副作用仅 cell 事件 eval 标记，无 eval 行
+    # 同 corpus.py:2117，副作用仅 cell 事件 eval 标记，无 eval 行
     eval=True,
     items=[{"id": "frame-build"}],
     params={

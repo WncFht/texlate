@@ -11,7 +11,7 @@ detex 计词数（数学/浮动体/引用剥离，caption 单列）→ 章节名
 
 用法:
   uv run python bench/py/iclr/sections.py --corpus bench/corpus \
-      --out bench/work_iclr/sections_corpusv3.jsonl [--ids file] [--limit N]
+      --out bench/work_iclr/sections_corpus.jsonl [--ids file] [--limit N]
 """
 
 from __future__ import annotations

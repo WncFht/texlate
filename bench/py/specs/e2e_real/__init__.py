@@ -66,7 +66,7 @@ ingest→parse→xlat→compile→fixloop 的资产流，本 spec 是旧 B5 驱�
 wanted 闸）、``e2e_real.base``（base 归因臂）、``e2e_real.layoutqc``
 （T0 质检段）、``e2e_real._spec``（spec 组合根——叶干 ``_`` 前缀脱
 导出名 ``spec`` 碰撞）。本文件是 PEP 562
-惰性门面（同 ``specs/corpus_v3/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS``
+惰性门面（同 ``specs/corpus/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``e2e_real.X`` 与 ``from  import X`` 面不变；``spec``
 住 ``e2e_real._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._e2e_real_X import Y`` 不绕本门面（避环）。monkeypatch

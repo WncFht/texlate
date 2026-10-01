@@ -272,8 +272,8 @@ def extract_selected(
 ) -> str:
     """配额选单 → lake.hydrate 成员物化 + manifest append（expand/layers 主循环）。
 
-    sel 已过 limit 截断（调用方先切）。d 须带 manifest/records/v3/dirs 键
-    （dirs=TarDirs——members 簿与 v3 旧池互为回退）。截尾回补先行：lake cell
+    sel 已过 limit 截断（调用方先切）。d 须带 manifest/records/main/dirs 键
+    （dirs=TarDirs——members 簿与 主旧池互为回退）。截尾回补先行：lake cell
     完整而 manifest 缺行 → 从 cell meta 补行不重抓。``emit_extra`` 并入收尾
     metric dict；``rec_extra`` 逐条并入 records 行（expand 的 ``_pool`` 记法）。
     """
@@ -299,17 +299,17 @@ def extract_selected(
         done.add(pid)
         n_backfill += 1
     todo = [r for r in sel if canon_id(str(r["id"])) not in done]
-    chunks = load_chunks(d["v3"])
+    chunks = load_chunks(d["main"])
     old_items = {c["item"] for c in chunks}
     tag_of_item = {c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}" for c in chunks}
     need_items = {r["item"] for r in todo}
     old_tars = {
-        it: d["v3"] / "tars" / f"{it}.tar"
+        it: d["main"] / "tars" / f"{it}.tar"
         for it in need_items & old_items
-        if (d["v3"] / "tars" / f"{it}.tar").exists()
+        if (d["main"] / "tars" / f"{it}.tar").exists()
     }
     offs = {
-        it: offsets_for(it, d["dirs"].members, tag_of_item, d["v3"] / "members")
+        it: offsets_for(it, d["dirs"].members, tag_of_item, d["main"] / "members")
         for it in need_items
     }
     n0 = len(todo)

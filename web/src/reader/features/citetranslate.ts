@@ -44,7 +44,7 @@ import {
 export interface CiteTranslateOpts {
     /** 文献索引活访问器（buildCiteIndex(dual) memo——dual 晚到时自动重算） */
     citeIndex(): CiteIndex;
-    /** L2 元数据回调（meta().arxivId 是 DOI-only 条目的升级链） */
+    /** 远端元数据回调（meta().arxivId 是 DOI-only 条目的升级链） */
     citeMeta?(key: string): RefMeta | undefined;
     /** 翻译体透传源——当前 reader 任务行；缺省空 options 提交 */
     task?(): TaskSnapshot | null | undefined;
@@ -74,7 +74,7 @@ export interface CiteTranslateFeature {
     ct: CiteTranslate;
     /** citeIndex.size——「文献」钮显隐闸 */
     refsTotal(): number;
-    /** 可译条数——「文献」钮角标（L1 arxivId + L2 meta.arxivId 反补） */
+    /** 可译条数——「文献」钮角标（本地抽取 arxivId + 远端 meta.arxivId 反补） */
     refsCount(): number;
     /** 可译条目集（RefsPanel items / 批灌队输入的同一份口径） */
     translatable(): RefItem[];
@@ -124,7 +124,7 @@ export function registerCiteTranslate(
     const entries = () => opts.citeIndex().entries();
     const meta = opts.citeMeta;
 
-    /** 可译条目——L1 arxivId 或 L2 meta().arxivId 反补（DOI-only 升级链） */
+    /** 可译条目——本地抽取 arxivId 或远端 meta().arxivId 反补（DOI-only 升级链） */
     const translatable = (): RefItem[] =>
         entries().flatMap((entry) => {
             const id = entry.arxivId ?? meta?.(entry.key)?.arxivId;

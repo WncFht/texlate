@@ -1,4 +1,4 @@
-"""corpus_v3 基座叶——持久工作区常量 / chunks.json 读写 / allocation 装载。
+"""corpus 基座叶——持久工作区常量 / chunks.json 读写 / allocation 装载。
 
 ``BAND_OF_CLUSTER`` 由 ``load_allocation`` 原地填充——消费叶按名绑定同一
 dict 对象（in-place 突变语义 verbatim）。
@@ -18,15 +18,15 @@ from specs import _corpus_common as cc
 
 _bootstrap.ensure()
 
-#: 持久 builder 工作区（旧 bench/work_v3 新家——多日断点状态全在这棵树下）。
+#: 持久 builder 工作区（旧 bench/work 新家——多日断点状态全在这棵树下）。
 WORK = (
     Path(os.environ.get("TEXLATE_CORPUS_WORK", ""))
     if os.environ.get("TEXLATE_CORPUS_WORK")
-    else Path.home() / ".local" / "state" / "texlate" / "corpus-build" / "v3"
+    else Path.home() / ".local" / "state" / "texlate" / "corpus-build" / "main"
 )
 TARS = WORK / "tars"
 CHUNKS_JSON = WORK / "chunks.json"
-#: frame_lookup stage 产物落点（v3 私有——corpus-build 根的共享件是
+#: frame_lookup stage 产物落点（本 builder 私有——corpus-build 根的共享件是
 #: cc.ensure_frame_lookup 的另一契约，勿混用）。
 FRAME_LOOKUP_GZ = WORK / "frame_lookup.tsv.gz"
 

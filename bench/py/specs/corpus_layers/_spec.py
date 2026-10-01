@@ -40,7 +40,7 @@ spec = Spec(
         "build_root": Param(type=str, default=str(cc.BUILD_ROOT), fp=False),
         "corpus_dir": Param(type=str, default=str(cc.CORPUS), fp=False),
         "frame_dir": Param(type=str, default=str(cc.FRAME), fp=False),
-        "v3_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "v3"), fp=False),
+        "main_workdir": Param(type=str, default=str(cc.BUILD_ROOT / "main"), fp=False),
         "layers": Param(type=str, default=",".join(LAYER_NAMES), fp=False),
         "layer": Param(type=str, default="", fp=False),
         "rates_source": Param(type=str, default="", fp=False),

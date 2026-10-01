@@ -1,4 +1,4 @@
-"""refs 路由：引用悬浮卡的文献条目远端元数据代理（L2 机会型增强）。
+"""refs 路由：引用悬浮卡的文献条目远端元数据代理（远端机会型增强）。
 
 前端从 dual.json ph 索引出 ``bibkey → {arxivId?, doi?}`` 线索，本路由
 批量解成 title/authors/year/venue/citationCount/tldr。设计铁律（引用
