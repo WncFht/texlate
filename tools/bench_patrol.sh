@@ -7,19 +7,19 @@ set -u
 BENCH_ROOT="${TEXLATE_BENCH_ROOT:-$HOME/.local/share/texlate-bench}"
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 GWDB=$HOME/.local/state/devin-2api/devin-2api.db
-KEY="${TEXLATE_PATROL_KEY:-1edae453}"
+KEY="${TEXLATE_PATROL_KEY:-}"
 NOW=$(date '+%m-%d %H:%M:%S')
 
-# 在飞的 soak run：最近 2h 内有 heartbeat 的最新 run 目录
+# 在飞的 run：全 kind 扫最近 2h 内有 heartbeat 的最新 run 目录
 RUN=""
-for d in "$BENCH_ROOT"/runs/soak/*/*/; do
+for d in "$BENCH_ROOT"/runs/*/*/*/; do
   hb="$d/heartbeat"
   [ -f "$hb" ] || continue
   age=$(($(date +%s) - $(stat -c %Y "$hb")))
   [ "$age" -lt 7200 ] && RUN="$d"
 done
 [ -z "$RUN" ] && {
-  echo "$NOW WARN no live soak run dir" >>"$REPO/tmp/bench-patrol.log"
+  echo "$NOW WARN no live run dir" >>"$REPO/tmp/bench-patrol.log"
   exit 0
 }
 
@@ -46,10 +46,12 @@ SELECT stage||':'||status||'='||count(*) FROM records
 WHERE run LIKE '%$SLUG' AND stage IN ('xlat','compile','fixloop')
 AND status IN ('ok','partial','clean','fail') GROUP BY stage,status" 2>/dev/null | paste -sd' ')
 
-# 4) 网关近 10min 本批 key 面
+# 4) 网关近 10min key 面（TEXLATE_PATROL_KEY 给 key_hash 前缀则收窄，空=全盘）
+kcond=""
+[ -n "$KEY" ] && kcond="AND key_hash LIKE '$KEY%'"
 gw=$(sqlite3 "file:$GWDB?mode=ro" "
 SELECT coalesce(sum(status_code=200),0)||'ok/'||coalesce(sum(status_code=429),0)||'x429/'||coalesce(round(sum(output_tokens)/600.0),0)||'tps'
-FROM logs WHERE time > (strftime('%s','now')-600)*1000 AND path LIKE '%chat%' AND key_hash LIKE '$KEY%'" 2>/dev/null)
+FROM logs WHERE time > (strftime('%s','now')-600)*1000 AND path LIKE '%chat%' $kcond" 2>/dev/null)
 
 echo "$NOW $SLUG df${free_g}G hb${hb_age}s ev${ev_age}s [$prog] gw:$gw ${fin:-}$warn" >>"$LOG"
 
