@@ -19,6 +19,7 @@
 | [2026-09-29-keep-roster-and-values-truncation.md](2026-09-29-keep-roster-and-values-truncation.md) | v5 调用膨胀归因（ph 密集 member 梯级重试风暴）+ values 截断 QE 零效应实测 + v6 keep 名单落地形态记录                                                           |
 | [2026-10-02-e2e-eval-holdout200.md](2026-10-02-e2e-eval-holdout200.md)                             | holdout-200 冻帧全链路评测：抽样设计/逐 stage 终态账/fixloop 修复判决面/绝版件死因归因/付费账——zh 交付 85.5%，e-era CS 覆盖缺口与 CS 专项帧动机                |
 | [2026-10-02-compilecensus-5000.md](2026-10-02-compilecensus-5000.md)                               | 5000 篇原文直编普查：缺件面现状——missing_file 占 fail 92%、91% 撞件 vendor 已备、死因集中 2012 前物理/天文绝版宏包，CS 缺件率 4.7%                             |
+| [2026-10-03-e2e-eval-cs200.md](2026-10-03-e2e-eval-cs200.md)                                       | 新 CS 论文 200 篇专项冻帧评测：zh 交付 95.5%（对通用帧 +10pt）、fixloop 51 试 50 救、不可交付 78% 压在 xlat 块故障——编译链对新 CS 近无损                       |
 
 ## 阅读建议
 
