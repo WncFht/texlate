@@ -62,16 +62,19 @@ ingest→parse→xlat→compile→fixloop 的资产流，本 spec 是旧 B5 驱�
 拆分（facade 化 god-split）：实现体按 stage 段拆进同包私有叶——
 ``e2e_real.frame``（冻结帧装载/items+select 与 ROOT/FRAME/EPOCH/ARM）、
 ``e2e_real.route``（route 段）、``e2e_real.xlat``（翻译段）、
-``e2e_real.compile``（compile 段）、``e2e_real.fixloop``（修复+qc
+``e2e_real.compile``（compile 段）、``e2e_real.fixloop_stage``（修复+qc
 wanted 闸）、``e2e_real.base``（base 归因臂）、``e2e_real.layoutqc``
 （T0 质检段）、``e2e_real._spec``（spec 组合根——叶干 ``_`` 前缀脱
-导出名 ``spec`` 碰撞）。本文件是 PEP 562
+导出名 ``spec`` 碰撞）。修复叶干名 ``fixloop_stage``——非 ``fixloop``
+/``_fixloop``：前者叶 import 绑子模块上门面、遮蔽本文件导出的同名引擎
+函数（`_er.fixloop` 读面落成 module，`TypeError: 'module' object is
+not callable`），后者撞导出名 ``_fixloop`` 自身。本文件是 PEP 562
 惰性门面（同 ``specs/corpus/__init__.py`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``e2e_real.X`` 与 ``from  import X`` 面不变；``spec``
 住 ``e2e_real._spec`` 叶（``load_spec`` 首访惰性解析）。叶间直引
 ``from specs._e2e_real_X import Y`` 不绕本门面（避环）。monkeypatch
 锚点注意：tests 钉在本门面的 ``fixloop``/``XelatexEngine`` 由
-``e2e_real.fixloop`` 叶内 ``_er.`` 属性读面晚绑定回取（xlat/pipeline
+``e2e_real.fixloop_stage`` 叶内 ``_er.`` 属性读面晚绑定回取（xlat/pipeline
 ``_net_apply_fn`` 先例），其余实现名住叶子模块——setattr patch 指到
 叶子，门面 setattr 只遮蔽门面不改叶子。
 """
@@ -144,7 +147,7 @@ if TYPE_CHECKING:
     from specs.e2e_real._spec import spec
     from specs.e2e_real.base import _base
     from specs.e2e_real.compile import _compile
-    from specs.e2e_real.fixloop import (
+    from specs.e2e_real.fixloop_stage import (
         _QC_WANTED_MIN,
         _fixloop,
         _qc_wanted,
@@ -179,7 +182,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     "route": ("_route",),
     "xlat": ("_xlat",),
     "compile": ("_compile",),
-    "fixloop": (
+    "fixloop_stage": (
         "_QC_WANTED_MIN",
         "_fixloop",
         "_qc_wanted",

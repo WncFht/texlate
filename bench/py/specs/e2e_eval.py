@@ -30,7 +30,7 @@ from specs import _benchlite as benchlib
 from specs._shared import DEFAULT_MODEL, devin_factory
 from specs.e2e_real.base import _base
 from specs.e2e_real.compile import _compile
-from specs.e2e_real.fixloop import _fixloop
+from specs.e2e_real.fixloop_stage import _fixloop
 from specs.e2e_real.frame import _frame_sha_of, _items_of, _select
 from specs.e2e_real.layoutqc import _layoutqc
 from specs.e2e_real.route import _route
@@ -88,7 +88,7 @@ spec = Spec(
         "bench/py/specs/e2e_eval.py",
         "bench/py/specs/e2e_real/base.py",
         "bench/py/specs/e2e_real/compile.py",
-        "bench/py/specs/e2e_real/fixloop.py",
+        "bench/py/specs/e2e_real/fixloop_stage.py",
         "bench/py/specs/e2e_real/frame.py",
         "bench/py/specs/e2e_real/layoutqc.py",
         "bench/py/specs/e2e_real/route.py",

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import shutil
 import time
+import traceback
 
 from kernel import fsutil
 
@@ -212,7 +213,9 @@ def _fixloop(ctx) -> dict:
             "project": ctx.idc,
             "engine": "xelatex",
             "verdict": f"harness_crash:{type(e).__name__}",
-            "log_excerpt": str(e)[:500],
+            "log_excerpt": str(e)[:500]
+            + " | TB: "
+            + traceback.format_exc().replace("\n", " ⏎ ")[-1500:],
             "rounds": [],
             "actions": [],
         }
@@ -258,6 +261,7 @@ def _fixloop(ctx) -> dict:
     splice = ctx.asset_dir("splice")
     _swap_in(work, splice)
     if crashed:
+        metrics["crash_excerpt"] = str(cell.get("log_excerpt") or "")[:1500]
         return {
             "status": "fail",
             "sig": benchlib.fixloop_sig(fv, fcat, fpay),
