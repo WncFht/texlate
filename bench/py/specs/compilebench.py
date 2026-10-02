@@ -112,7 +112,7 @@ def band_of_cell(stratum_cell: str) -> str:
     return (stratum_cell or "?").split("_", 1)[0]
 
 
-def _pool() -> dict:
+def _pool(manifests: tuple[str, ...] = MANIFESTS) -> dict:
     """manifest → 可编译池（stub∧n_tex=0 滤、EVAL_LAYERS 滤）∩ 湖可供应格。
 
     旧 ``extracted is_dir`` 谓词的湖版：catalog 标 hydrated/pinned/
@@ -120,7 +120,7 @@ def _pool() -> dict:
     态出池——它们的字节这条路径永远拿不到。
     """
     pool: dict[str, dict] = {}
-    for name in MANIFESTS:
+    for name in manifests:
         mp = CORPUS / name
         if not mp.is_file():
             continue
@@ -162,11 +162,11 @@ def _pool() -> dict:
     return out
 
 
-def _sample(pool: dict) -> list[dict]:
+def _sample(pool: dict, sample_n: int = SAMPLE_N, seed: int = SEED) -> list[dict]:
     """gen_sample 逐行移植：stratum_cell 比例分配（floor+min1+largest
-    remainder 补齐/收敛）+ Random(SEED) 逐 cell shuffle + (band,cell,id)
+    remainder 补齐/收敛）+ Random(seed) 逐 cell shuffle + (band,cell,id)
     定序。抽样定义在 spec 里文件化——plan.json 冻结格集即旧 sample.json。"""
-    rng = random.Random(SEED)  # 语料抽样非安全用途
+    rng = random.Random(seed)  # 语料抽样非安全用途
     by_cell = defaultdict(list)
     for p in pool.values():
         by_cell[p["stratum_cell"]].append(p)
@@ -174,7 +174,7 @@ def _sample(pool: dict) -> list[dict]:
         rng.shuffle(cell)
 
     n_total = sum(len(v) for v in by_cell.values())
-    n_target = min(SAMPLE_N, n_total)
+    n_target = min(sample_n, n_total)
     quota = {}
     for cell, ps in by_cell.items():
         exact = n_target * len(ps) / n_total
@@ -210,23 +210,24 @@ def _sample(pool: dict) -> list[dict]:
 _PIDS: list[str] = []
 
 
-def _items() -> list[dict]:
-    """样本 papers × CONDS × ENGINES 全格集（load 期一次物化）。
-
-    ``_PIDS`` 留 sample 定序的 paper 序——select 的 ``n=`` 取前 n 篇
-    （旧 --limit 口径：sample.json 序前切）。
-    """
-    global _PIDS  # noqa: PLW0603
+def _grid(
+    picked: list[dict],
+    conds: tuple[str, ...],
+    engines: tuple[str, ...],
+    epoch: str,
+    seed: int,
+    sample_n: int,
+) -> list[dict]:
+    """picked papers × conds × engines 全格集——compilecensus 兄弟 spec
+    共用（同键域同 metrics 面）。"""
     items: list[dict] = []
-    picked = _sample(_pool())
-    _PIDS = [p["id"] for p in picked]
     for p in picked:
-        for cond in CONDS:
+        for cond in conds:
             items.extend(
                 {
                     "id": p["id"],
                     "arm": cond,
-                    "variant": f"{eng}@{EPOCH}",
+                    "variant": f"{eng}@{epoch}",
                     "layer": p.get("layer"),
                     "fp_input": p.get("blob_sha256"),
                     "params": {
@@ -238,14 +239,26 @@ def _items() -> list[dict]:
                         "n_files": p.get("n_files"),
                         "n_tex": p.get("n_tex"),
                         "pick_reason": p["pick_reason"],
-                        "sample_seed": SEED,
-                        "sample_n": SAMPLE_N,
-                        "epoch": EPOCH,
+                        "sample_seed": seed,
+                        "sample_n": sample_n,
+                        "epoch": epoch,
                     },
                 }
-                for eng in ENGINES
+                for eng in engines
             )
     return items
+
+
+def _items() -> list[dict]:
+    """样本 papers × CONDS × ENGINES 全格集（load 期一次物化）。
+
+    ``_PIDS`` 留 sample 定序的 paper 序——select 的 ``n=`` 取前 n 篇
+    （旧 --limit 口径：sample.json 序前切）。
+    """
+    global _PIDS  # noqa: PLW0603
+    picked = _sample(_pool())
+    _PIDS = [p["id"] for p in picked]
+    return _grid(picked, CONDS, ENGINES, EPOCH, SEED, SAMPLE_N)
 
 
 # ---------------------------------------------------------------- select 收窄
