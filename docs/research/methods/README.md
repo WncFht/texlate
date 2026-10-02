@@ -18,6 +18,7 @@
 | [agent-pipeline-baseline-2026-09-28/](agent-pipeline-baseline-2026-09-28/)                         | agent 直翻 vs texlate 管线双臂基线：同模型同网关同 10 篇逐篇 token/质量/时效账 + v4 ph 重发病理定位——v5 对照臂底稿                                             |
 | [2026-09-29-keep-roster-and-values-truncation.md](2026-09-29-keep-roster-and-values-truncation.md) | v5 调用膨胀归因（ph 密集 member 梯级重试风暴）+ values 截断 QE 零效应实测 + v6 keep 名单落地形态记录                                                           |
 | [2026-10-02-e2e-eval-holdout200.md](2026-10-02-e2e-eval-holdout200.md)                             | holdout-200 冻帧全链路评测：抽样设计/逐 stage 终态账/fixloop 修复判决面/绝版件死因归因/付费账——zh 交付 85.5%，e-era CS 覆盖缺口与 CS 专项帧动机                |
+| [2026-10-02-compilecensus-5000.md](2026-10-02-compilecensus-5000.md)                               | 5000 篇原文直编普查：缺件面现状——missing_file 占 fail 92%、91% 撞件 vendor 已备、死因集中 2012 前物理/天文绝版宏包，CS 缺件率 4.7%                             |
 
 ## 阅读建议
 
