@@ -94,7 +94,7 @@ def web(
         ),
     ] = None,
 ) -> None:
-    """起 web 服务：FastAPI + SSE + 任务队列（需 ``server`` extra）。
+    """起 web 服务：FastAPI + SSE + 任务队列。
 
     local 形态单实例（web-layer §6）：``<data_dir>/service.lock`` flock
     被持有 → 浏览器打开已运行实例并退出，而不是端口冲突或静默双开。
@@ -103,21 +103,14 @@ def web(
     """
     if data_dir is not None:
         set_data_dir(data_dir)
-    try:
-        import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
+    import uvicorn  # noqa: PLC0415 -- 延迟导入保 CLI 冷启动
 
-        from texlate.server.app import (  # noqa: PLC0415
-            _exposed_bind_warning,
-            create_app,
-        )
-        from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
-    except ImportError:
-        typer.echo(
-            "web 需要 server extra：uv sync --extra server"
-            "（或 pip install 'texlate[server]'）",
-            err=True,
-        )
-        raise typer.Exit(1) from None
+    from texlate.server.app import (  # noqa: PLC0415
+        _exposed_bind_warning,
+        create_app,
+    )
+    from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
+
     try:
         root = _data_dir()
     except OSError as e:

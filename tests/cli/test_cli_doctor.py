@@ -2,8 +2,8 @@
 
 探测面全部 monkeypatch：``cli.find_tool``/``toolchain.resolve_tool`` 定位置，
 ``subprocess.run`` 按 argv 桩出版本/kpsewhich/fc-list 应答，``httpx.get`` 桩网关
-探活，``cli.find_spec`` 桩 server extra。data-dir 走 ``TEXLATE_DATA_DIR`` 真
-tmp_path（mkdir/写删语义要真文件系统过一遍）。
+探活。data-dir 走 ``TEXLATE_DATA_DIR`` 真 tmp_path（mkdir/写删语义要真文件系统
+过一遍）。
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def _write_settings(data: Path, **kw: object) -> None:
 
 @pytest.fixture
 def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    """全件 ok 基线：工具全命中 + 版本应答 + 字体全核到 + server extra 在。
+    """全件 ok 基线：工具全命中 + 版本应答 + 字体全核到。
 
     ``TEXLATE_DATA_DIR`` 落 ``tmp_path/data``；返回 monkeypatch 供各测试
     再翻单件。网关默认不配（无 settings.json/env）→ n/a，要探活的用例
@@ -100,7 +100,6 @@ def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPa
     clean_env.setattr(toolchain, "resolve_tool", lambda _n: "/fake/tectonic")
     clean_env.setattr(toolchain, "find_managed", lambda: None)
     clean_env.setattr(cli, "find_tool", lambda name: f"/fake/{name}")
-    clean_env.setattr(cli, "find_spec", lambda _m: object())
 
     clean_env.setattr(
         subprocess,
@@ -126,7 +125,7 @@ def test_help() -> None:
 
 class TestDoctor:
     def test_all_ok(self, tmp_path: Path, doctor_env: pytest.MonkeyPatch) -> None:
-        """全绿基线：9 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
+        """全绿基线：8 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
         _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
         seen: dict[str, object] = {}
 
@@ -147,7 +146,6 @@ class TestDoctor:
             "pdftotext",
             "gateway",
             "data-dir",
-            "server-extra",
             "babeldoc",
         }
         assert all(v == "ok" for v in st.values()), r.stdout
@@ -334,17 +332,6 @@ class TestDoctor:
         assert r.exit_code == 1
         st = _statuses(r.stdout)
         assert st["data-dir"] == "fail"
-
-    def test_server_extra_missing_warn(self, doctor_env: pytest.MonkeyPatch) -> None:
-        """fastapi 缺 → warn + extra 安装提示（不 fail）。"""
-        doctor_env.setattr(
-            cli, "find_spec", lambda m: None if m == "fastapi" else object()
-        )
-        r = _RUNNER.invoke(app, ["doctor"])
-        assert r.exit_code == 0, r.output
-        st = _statuses(r.stdout)
-        assert st["server-extra"] == "warn"
-        assert "texlate[server]" in r.stdout
 
     def test_babeldoc_na(self, doctor_env: pytest.MonkeyPatch) -> None:
         """babeldoc 缺席 → n/a（可选件不计 fail）。"""

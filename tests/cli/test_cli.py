@@ -308,7 +308,7 @@ class TestWeb:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """起服路径装 server 日志：``uvicorn.run`` 前 ``<data_dir>/logs/texlate.log`` 就位。"""
-        import uvicorn  # noqa: PLC0415 -- server extra（dev env 在场）
+        import uvicorn  # noqa: PLC0415 -- 延迟导入同口径
 
         import texlate.server.app as sapp  # noqa: PLC0415
 

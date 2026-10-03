@@ -123,7 +123,7 @@ jobs:
       # ty 要解析三方 import——uvx 的临时 env 里没有项目依赖，须先 sync 出
       # .venv 供 ty 自动发现（无 .venv 时全员 unresolved-import 实证）
       - name: uv sync（ty 解析依赖面）
-        run: uv sync --frozen --extra server
+        run: uv sync --frozen
 
       - name: ty check（棘轮面 = src，排除面见 pyproject）
         run: uvx ty@0.0.82 check src
@@ -186,7 +186,7 @@ jobs:
         run: npm ci --prefix bench/ts
 
       - name: uv sync
-        run: uv sync --frozen --extra server
+        run: uv sync --frozen
 
       - name: pytest
         run: uv run pytest tests/ -q
@@ -211,7 +211,7 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: uv sync
-        run: uv sync --frozen --extra server
+        run: uv sync --frozen
 
       - name: fuzz smoke (tests/fuzz/)
         run: uv run pytest tests/fuzz/ -q -x
@@ -309,7 +309,7 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: uv sync
-        run: uv sync --frozen --extra server
+        run: uv sync --frozen
 
       - name: texlate run e2e 冒烟（真编译）
         run: |

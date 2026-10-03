@@ -5,26 +5,36 @@ description = "arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中�
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
+keywords = ["arxiv", "latex", "translation", "llm", "chinese", "bilingual-pdf"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Text Processing :: Markup :: LaTeX",
+]
+# server 依赖（fastapi/uvicorn/sse-starlette/python-multipart）在 core——
+# `uvx texlate web` 裸装即得 web 形态，无 extra 面
 dependencies = [
   "beautifulsoup4>=4.15.0",
   "defusedxml>=0.7.1",
+  "fastapi>=0.115",
   "httpx>=0.28",
   "lxml>=5",
   "pypdf>=5.0",
   "python-docx>=1.2.0",
+  "python-multipart>=0.0.9",
   "pyyaml>=6.0.3",
   "regex>=2026.9.10",
   "rich>=13",
+  "sse-starlette>=2.1",
   "typer>=0.12",
+  "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
-server = [
-  "fastapi>=0.115",
-  "python-multipart>=0.0.9",
-  "uvicorn>=0.30",
-  "sse-starlette>=2.1",
-]
 # spec 承诺名（docs/decisions/background.md、docs/spec/validate.md）：L1 tree-sitter 校验是 node 子进程
 # 跑随包 `validate/ts/` 数据件，python 侧零依赖——空 extra 仅占位兑现安装面，
 # 运行时 `shutil.which("node")` 探测缺席即降级 L0。
@@ -32,6 +42,11 @@ ts-validator = []
 
 [project.scripts]
 texlate = "texlate.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/WncFht/texlate"
+Repository = "https://github.com/WncFht/texlate"
+Issues = "https://github.com/WncFht/texlate/issues"
 
 [dependency-groups]
 dev = [

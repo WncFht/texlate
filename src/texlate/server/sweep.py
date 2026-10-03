@@ -3,7 +3,7 @@
 启动段 ``_sweep_orphan_task_dirs``（建行前落盘残骸孤儿目录清扫）
 + 周期段 ``sweep_once``/``retention_loop``（终态瘦身 ``_slim_terminal``
 + retention 淘汰 ``_sweep_delete``）。本叶不依赖 fastapi——``texlate.server``
-轻依赖纪律同 ``store``/``settings`` 面，可无 server extra 装载。
+轻依赖纪律同 ``store``/``settings`` 面，惰性装载下可直 import。
 """
 
 from __future__ import annotations

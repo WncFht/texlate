@@ -2,14 +2,12 @@
 
 autouse 仅两件无副作用的隔离件（用户术语表钉缺席 + RedactFilter 还原）；
 其余非 autouse——只服务显式取用 fixture 的测试文件（test_server_* /
-test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入：本 conftest
-对全测试集生效，server extra 缺装时其余测试集不能陪葬。
+test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入。
 """
 
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import io
 import logging
 import os
@@ -84,78 +82,6 @@ KEY = "dalianis2020"
 
 #: ctan/tlpdb 测试统一镜像字面量。
 MIRROR = "https://m.test/tlnet"
-
-#: server-extra 收集闸——原为 46 个测试文件顶部各自的 ``pytest.importorskip``
-#: 样板；收编为收集期整文件跳过（最小装环境免 collection error）。
-#: starlette.testclient/httpx 不单列：fastapi 必带 starlette、httpx 是核心
-#: 依赖，其缺席已被 fastapi 闸覆盖。新 server 依赖测试须在此登记——漏登在
-#: 最小环境是响亮 ImportError 而非静默跳过。
-_SERVER_TEST_DEPS: dict[tuple[str, ...], list[str]] = {
-    ("fastapi",): [
-        "test_app_endpoints.py",
-        "test_en_fixloop.py",
-        "test_fixloop_live_events.py",
-        "test_fuzz_app_boundary.py",
-        "test_fuzz_server.py",
-        "test_fuzz_sidecar.py",
-        "test_fuzz_worker.py",
-        "test_probe_wire.py",
-        "test_retranslate.py",
-        "test_server_api.py",
-        "test_server_api_compat.py",
-        "test_server_arxiv_html.py",
-        "test_server_audit_fixes.py",
-        "test_server_babeldoc.py",
-        "test_server_byok.py",
-        "test_server_discover.py",
-        "test_server_gate.py",
-        "test_server_keyless_gate.py",
-        "test_server_logfix.py",
-        "test_server_m3_fixes.py",
-        "test_server_persist.py",
-        "test_server_polish.py",
-        "test_server_refs_kept.py",
-        "test_server_security.py",
-        "test_server_settings.py",
-        "test_server_sidecar.py",
-        "test_server_srccut.py",
-        "test_server_sse.py",
-        "test_server_upload.py",
-        "test_server_wave2.py",
-        "test_server_worker.py",
-        "test_share_apply.py",
-        "test_share_hook.py",
-        "test_share_postpack.py",
-        "test_share_wire.py",
-        "test_worker_audit_fixes.py",
-        "test_worker_cancel_protocol.py",
-        "test_worker_fixloop.py",
-        "test_worker_parse.py",
-        "test_worker_share.py",
-        "test_worker_term_dict.py",
-    ],
-    ("fastapi", "uvicorn"): [
-        "test_server_api_fixes.py",
-        "test_server_api_fixes2.py",
-    ],
-    ("uvicorn",): ["test_cli_web_lock.py"],
-}
-
-collect_ignore = [
-    name
-    for deps, names in _SERVER_TEST_DEPS.items()
-    for name in names
-    if any(importlib.util.find_spec(mod) is None for mod in deps)
-]
-
-
-def pytest_report_header() -> str | None:
-    if collect_ignore:
-        return (
-            f"server-extra 缺失：collect_ignore 整集跳过 "
-            f"{len(collect_ignore)} 个测试文件"
-        )
-    return None
 
 
 @pytest.fixture
@@ -245,13 +171,10 @@ def _testclient_loopback_host() -> Iterator[None]:
     rebinding 收口）；starlette 缺省 ``testserver`` 会让全量用例 403。
     包装 ``__init__`` 统一默认值——测试文件 ``from starlette.testclient
     import TestClient`` 拿到的是同一类对象，实例化时生效；显式传
-    ``base_url`` 的用例不受影响。server extra 缺装时安静跳过。
+    ``base_url`` 的用例不受影响。
     """
-    try:
-        from starlette.testclient import TestClient  # noqa: PLC0415
-    except ImportError:
-        yield
-        return
+    from starlette.testclient import TestClient  # noqa: PLC0415
+
     orig_init = TestClient.__init__
 
     def _init(self: TestClient, app: object, *args: object, **kwargs: object) -> None:
@@ -685,7 +608,7 @@ def mk_fetcher(  # noqa: PLR0913 -- 线形 fetcher 工厂，每 kwarg 即一个�
 
 def make_app(tmp_path: Path, **overrides: object) -> FastAPI:
     """create_app 包装：data_dir 落 tmp_path，默认 start_worker=False。"""
-    from texlate.server.app import create_app  # noqa: PLC0415 -- server extra 延迟
+    from texlate.server.app import create_app  # noqa: PLC0415
 
     kw: dict[str, object] = {"data_dir": tmp_path / "data", "start_worker": False}
     kw.update(overrides)

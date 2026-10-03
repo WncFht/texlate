@@ -14,8 +14,8 @@ dispatcher）→ ``AppDeps`` 注入 ``server/routers/`` 各域路由叶（端点
 key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不写库/日志；
 ``GET /api/settings`` 出参只给 ``has_api_key``。
 
-注意：本模块只在 server extra（fastapi/sse-starlette）存在时才会被导入——
-``texlate.server`` 包本体保持轻依赖（``__init__`` 走 PEP 562 延迟加载）。
+注意：本模块经 ``texlate.server`` 包惰性装载延迟导入——包本体保持轻
+依赖（``__init__`` 走 PEP 562 延迟加载，保 CLI 冷启动）。
 """
 
 from __future__ import annotations

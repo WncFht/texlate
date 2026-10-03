@@ -42,7 +42,7 @@ def main() -> None:
     if args.data_dir:
         set_data_dir(Path(args.data_dir))
 
-    import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
+    import uvicorn  # noqa: PLC0415 -- 延迟导入保 CLI 冷启动
 
     from texlate.logsetup import configure_server_logging  # noqa: PLC0415
     from texlate.server.app import _exposed_bind_warning, create_app  # noqa: PLC0415

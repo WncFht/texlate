@@ -70,7 +70,7 @@ COPY src/ ./src/
 # 镜像内 editable 安装直接以 src 树为包根，static 即装即用）。
 COPY --from=web /web/dist ./src/texlate/server/static
 
-RUN uv sync --frozen --no-dev --extra server
+RUN uv sync --frozen --no-dev
 
 # BabelDOC sidecar 未随镜像分发（AGPL 进程边界 + 2GB 体积）——
 # 如需 PDF 上传通路，另行 `uv pip install babeldoc` 或挂宿主二进制。

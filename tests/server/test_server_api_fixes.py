@@ -330,7 +330,7 @@ class TestWebBindWarning:
         monkeypatch: pytest.MonkeyPatch,
         host: str,
     ) -> str:
-        import uvicorn  # noqa: PLC0415 -- server extra 延迟导入同口径
+        import uvicorn  # noqa: PLC0415 -- 延迟导入同口径
 
         monkeypatch.setattr(uvicorn, "run", lambda *_a, **_k: None)
         result = _RUNNER.invoke(

@@ -4,8 +4,8 @@
 ``routers/deps.py`` 的 ``AppDeps`` 注入），常量与纯函数供 ``create_app``
 中间件与 ``server/routers/`` 各域叶共用。
 
-注意：本模块只在 server extra（fastapi）存在时才会被导入——
-``texlate.server`` 包本体保持轻依赖。
+注意：本模块经 ``texlate.server`` 包惰性装载延迟导入——
+包本体保持轻依赖，fastapi 件不在 import ``texlate.server`` 时进场。
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ async def _parse_multipart(
 ) -> dict[str, str | UploadPart]:
     """``multipart/form-data`` → ``{name: str | UploadPart}``。
 
-    走 starlette ``request.form()``（python-multipart 在 server extra 内）；
+    走 starlette ``request.form()``（python-multipart 是 core 依赖）；
     ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体。
     ``Content-Length`` 缺席（chunked/HTTP2）预检失效——``_cap_request_body``
     的流式字节闸对 str/文件全部字段合计上界，超界即 413。文件字段流式

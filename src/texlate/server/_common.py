@@ -8,8 +8,7 @@ bibexport 三叶的私有拷贝单源化（``norm_doi`` 收编 bibexport 的
 unquote 严格超集口径）。落点不选 ``store/_common``（其约定是「不依赖
 任何叶」的常量 + 纯 FS 底料，async 编排进不去）也不选 ``worker/_common``
 （worker 域内件，app/routers 拉它别扭）。轻依赖纪律同包 ``__init__``：
-运行时只 import ``store`` 与 stdlib——本模块在 server extra 缺席时
-也应可 import。
+运行时只 import ``store`` 与 stdlib——fastapi 件一概不进本叶。
 """
 
 from __future__ import annotations

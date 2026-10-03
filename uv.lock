@@ -693,21 +693,17 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "defusedxml" },
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "lxml" },
     { name = "pypdf" },
     { name = "python-docx" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "regex" },
     { name = "rich" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-server = [
-    { name = "fastapi" },
-    { name = "python-multipart" },
     { name = "sse-starlette" },
+    { name = "typer" },
     { name = "uvicorn" },
 ]
 
@@ -722,20 +718,20 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.15.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
+    { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "lxml", specifier = ">=5" },
     { name = "pypdf", specifier = ">=5.0" },
     { name = "python-docx", specifier = ">=1.2.0" },
-    { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.9" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "regex", specifier = ">=2026.9.10" },
     { name = "rich", specifier = ">=13" },
-    { name = "sse-starlette", marker = "extra == 'server'", specifier = ">=2.1" },
+    { name = "sse-starlette", specifier = ">=2.1" },
     { name = "typer", specifier = ">=0.12" },
-    { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.30" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["server", "ts-validator"]
+provides-extras = ["ts-validator"]
 
 [package.metadata.requires-dev]
 dev = [

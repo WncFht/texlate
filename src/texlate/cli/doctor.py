@@ -298,19 +298,6 @@ def _doc_data_dir() -> _Check:
     return _Check("data-dir", "ok", f"{root} 可写")
 
 
-def _doc_server_extra() -> _Check:
-    """``texlate[server]`` extra：fastapi/uvicorn 可 import 性（find_spec 不真 import）。"""
-    missing = [m for m in ("fastapi", "uvicorn") if _cli.find_spec(m) is None]
-    if missing:
-        return _Check(
-            "server-extra",
-            "warn",
-            f"缺 {'/'.join(missing)}——`uv sync --extra server`"
-            "（或 pip install 'texlate[server]'），texlate web 不可用",
-        )
-    return _Check("server-extra", "ok", "fastapi/uvicorn 可 import")
-
-
 def _doc_babeldoc() -> _Check:
     """babeldoc——PDF 降级通路可选件；缺席 n/a 不算 fail。"""
     p = _cli.find_tool("babeldoc")
@@ -330,8 +317,7 @@ def doctor() -> None:
 
     覆盖：python≥3.12、编译引擎（tectonic/xelatex）、CJK 字体
     （kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、
-    server extra、babeldoc。任一 ``fail`` → 退出码 1；全
-    ok/warn/n/a → 0。
+    babeldoc。任一 ``fail`` → 退出码 1；全 ok/warn/n/a → 0。
     """
     checks = [
         _doc_python(),
@@ -340,7 +326,6 @@ def doctor() -> None:
         _doc_pdftotext(),
         _doc_gateway(),
         _doc_data_dir(),
-        _doc_server_extra(),
         _doc_babeldoc(),
     ]
     for c in checks:

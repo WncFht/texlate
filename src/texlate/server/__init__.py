@@ -1,9 +1,8 @@
 """Web 服务层：FastAPI + SSE + SQLite 任务队列（M3，2026-09-15-web-layer.md §2-§4）。
 
-``import texlate.server`` 必须可在无 server extra（fastapi/uvicorn/
-sse-starlette）的环境下工作——``create_app``/``main`` 走 PEP 562
-``__getattr__`` 延迟导入；store/events/settings/worker 子模块本体不依赖
-fastapi，可直接 import。
+``import texlate.server`` 保持轻依赖——``create_app``/``main`` 走 PEP 562
+``__getattr__`` 延迟导入（fastapi 等大件只在真用时进场，保 CLI 冷启动）；
+store/events/settings/worker 子模块本体不依赖 fastapi，可直接 import。
 """
 
 from __future__ import annotations
