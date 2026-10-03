@@ -1,0 +1,49 @@
+name: Bug 报告
+description: 管线、CLI、web 服务或阅读器的缺陷
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先跑一遍 `texlate doctor` 把输出贴上，能省一半来回。
+        `texlate` 装的诊断日志在 `<数据目录>/logs/texlate.log`（缺省 `~/.texlate/logs/`），已自动脱敏。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题概述
+      description: 一句话说清什么坏了
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 命令或操作序列；arXiv 任务给出论文 id 与版本
+      placeholder: |
+        1. texlate run 1706.03762 --server http://127.0.0.1:8765
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: "`texlate version` 输出、OS、引擎（tectonic/xelatex 及版本）、安装方式（uv tool / docker / 源码）"
+      placeholder: |
+        texlate 0.1.0
+        Arch Linux / macOS 15 / Windows 11
+        tectonic 0.17.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与附件
+      description: texlate.log 相关段落、stdout/stderr、失败任务的编译日志；长日志贴末尾
+      render: text

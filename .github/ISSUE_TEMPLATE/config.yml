@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 用户文档
+    url: https://github.com/WncFht/texlate/tree/main/docs/guide
+    about: 安装、BYOK 配置、FAQ——先查这里
+  - name: 安全漏洞
+    url: https://github.com/WncFht/texlate/security/advisories/new
+    about: 安全问题上私密渠道报，别开公开 issue
