@@ -4,6 +4,7 @@ on:
   push:
     branches: [master, main]
   pull_request:
+  workflow_dispatch:
 
 # 全部 job 只读——显式收窄 GITHUB_TOKEN，防后续加步骤时吃到默认写权限
 permissions:
@@ -124,9 +125,17 @@ jobs:
             shellcheck -S warning "$f"
           done
 
+  # windows leg：运行时代码全 POSIX 门控降级（fcntl/killpg/rlimits 都
+  # sys.platform 分支），此 leg 的职责是让 Windows 真实跑一次测试套件，
+  # 把漏网 POSIX-ism 炸出来——红了按发现修，不许 skip 养蛇。
   pytest:
-    name: Pytest
-    runs-on: ubuntu-latest
+    name: Pytest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -153,9 +162,13 @@ jobs:
   # 而非缩迭代；glob 自动收编后续新增 fuzz 文件。不装 node/bench-ts——
   # 现有 fuzz 面无 tree-sitter 依赖（validate 只伪造 node_modules 目录）。
   fuzz:
-    name: Fuzz smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: Fuzz smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

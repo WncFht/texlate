@@ -1,7 +1,9 @@
 name: Release
 
-# tag v* 触发：构建 SPA → static/ 就位 → uv build（sdist+wheel）→
-# wheel 内容断言（SPA 入包防回归）→ 传 GitHub Release → docker 镜像推 ghcr.io。
+# tag v* 触发：版本断言 → 构建 SPA → uv build → wheel 断言 → GitHub Release
+# + PyPI（OIDC trusted publisher，免 token）→ zotero xpi 挂 versioned
+# release + update.json 推常驻 `release` tag（Zotero 更新源）→ docker
+# 双架镜像推 ghcr.io。
 # 与 ci.yml 同源纪律：node 22 / uv / 同一 build-web.sh 链路。
 on:
   push:
@@ -13,11 +15,29 @@ permissions:
 
 jobs:
   dist:
-    name: sdist + wheel + Release
+    name: sdist + wheel + Release + PyPI
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release
+      id-token: write # PyPI trusted publishing（OIDC，免 token）
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # tag 必须与 pyproject + zotero/package.json 同版号——一处漂移三面
+      # 分叉（wheel 版本 ≠ xpi 版本 ≠ 用户预期），发布前先炸在此处。
+      - name: tag ↔ version 一致性断言
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python3 -c "import tomllib; \
+            print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          ZOT=$(python3 -c "import json; \
+            print(json.load(open('zotero/package.json'))['version'])")
+          if [ "$PKG" != "$TAG" ] || [ "$ZOT" != "$TAG" ]; then
+            echo "::error::tag v$TAG != pyproject $PKG / zotero $ZOT"
+            exit 1
+          fi
+          echo "version $TAG 三方一致"
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -50,12 +70,22 @@ jobs:
           uv tool install dist/texlate-*-py3-none-any.whl
           "$HOME/.local/bin/texlate" version
 
+      # 幂等：release 已存在则只 --clobber 重传产物——job 重跑安全
+      # （PyPI/网络抖动后 re-run 不会死在 create 冲突上）。
       - name: GitHub Release + 产物
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "texlate $GITHUB_REF_NAME" --generate-notes
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" \
+              --title "texlate $GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+
+      # OIDC trusted publishing：PyPI 项目页配 pending publisher
+      # （repo WncFht/texlate + workflow release.yml）后免 token。
+      # --check-url 跳过已存在文件——同 tag 重跑幂等。
+      - name: Publish → PyPI
+        run: uv publish --check-url https://pypi.org/simple/
 
       - name: Actions artifact（dist/ 存档）
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -63,22 +93,71 @@ jobs:
           name: texlate-dist-${{ github.ref_name }}
           path: dist/
 
-  docker:
-    name: Docker → ghcr.io
+  # zotero 插件：xpi 挂 v{ver} release（update_link 指向它），update.json /
+  # update-beta.json 推常驻 tag `release` 的 release 资产——manifest 里的
+  # updateURL 指向 releases/download/release/update.json，Zotero 轮询该地址。
+  zotero:
+    name: Zotero xpi + update feed
+    needs: dist # 等 versioned release 存在后挂 xpi
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Build + tag
-        # 单架 linux/amd64。multi-arch 扩展点：加 docker/setup-qemu-action +
-        # docker/setup-buildx-action 后 `docker buildx build --platform
-        # linux/amd64,linux/arm64 --push`——Dockerfile 内 uname -m 选档在
-        # QEMU 下报目标架构，无需改 Dockerfile。
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: zotero/package-lock.json
+
+      - name: 构建 xpi + update manifest
+        run: |
+          npm ci --prefix zotero
+          npm run --prefix zotero build
+          ls -la zotero/.scaffold/build/
+
+      - name: xpi → versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            zotero/.scaffold/build/texlate.xpi --clobber
+
+      - name: update.json → floating `release` release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view release >/dev/null 2>&1 || \
+            gh release create release --title "Zotero update feed" \
+              --notes "update.json 通道，由 release.yml 维护，勿手改"
+          gh release upload release \
+            zotero/.scaffold/build/update.json \
+            zotero/.scaffold/build/update-beta.json --clobber
+
+  docker:
+    name: Docker → ghcr.io (amd64+arm64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up QEMU + buildx
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # 先单架 --load 本地冒烟，再多架 --push（buildx 缓存命中，二段很快）。
+      # Dockerfile 内 uname -m 选 tectonic 档——QEMU 下报目标架构，无需改文件。
+      - name: Build amd64（本地冒烟用）
         run: |
           IMAGE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           VER="${GITHUB_REF_NAME#v}"
-          docker build -t "$IMAGE:$VER" -t "$IMAGE:latest" .
+          docker buildx build --platform linux/amd64 --load -t "$IMAGE:$VER" .
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "VER=$VER" >> "$GITHUB_ENV"
 
@@ -106,7 +185,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
             -u "${{ github.actor }}" --password-stdin
 
-      - name: Push
+      - name: Build + push（amd64+arm64）
         run: |
-          docker push "$IMAGE:$VER"
-          docker push "$IMAGE:latest"
+          docker buildx build --platform linux/amd64,linux/arm64 --push \
+            -t "$IMAGE:$VER" -t "$IMAGE:latest" .
