@@ -11,6 +11,7 @@ signature-mining 2026-09-16 top5#2:
 """
 
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,10 @@ def _spy(calls: list[list[str]]) -> RunFn:
 # ─────────────────────────── graphic_case_link ───────────────────────────
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——引用按字面即解析，ci 变体前提不可构造",
+)
 def test_case_link_rewrites_to_real_relpath(tmp_path: Path) -> None:
     """2403.15102 形：``img/sf_08_VX.pdf`` vs ``img/SF_08_VX.pdf`` → 参数改真名。"""
     (tmp_path / "img").mkdir()
@@ -89,6 +94,10 @@ def test_case_link_stemless_payload_via_basename(tmp_path: Path) -> None:
     assert "\\includegraphics{5X.pdf}" in (tmp_path / "main.tex").read_text()
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——引用按字面即解析，ci 变体前提不可构造",
+)
 def test_case_link_subdir_ci_relpath(tmp_path: Path) -> None:
     """目录段大小写也不符 (``IMG/``) → relpath 整串 ci 命中。"""
     (tmp_path / "IMG").mkdir()
@@ -118,6 +127,10 @@ def test_case_link_verbatim_resolves(tmp_path: Path) -> None:
     assert "img/sf_08_VX.pdf" in (tmp_path / "main.tex").read_text()
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——引用按字面即解析，ci 变体前提不可构造",
+)
 def test_case_link_idempotent_second_fire(tmp_path: Path) -> None:
     """二次触火：引用已指向可解析真身 → 守卫跳过 → False, 文本不变。"""
     (tmp_path / "img").mkdir()
@@ -133,6 +146,10 @@ def test_case_link_idempotent_second_fire(tmp_path: Path) -> None:
     assert (tmp_path / "main.tex").read_text() == t1
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——引用按字面即解析，ci 变体前提不可构造",
+)
 def test_case_link_unrelated_resolving_ref_untouched(tmp_path: Path) -> None:
     """同名其他目录引用本可解析 → 不是病灶，不被改写。"""
     (tmp_path / "img").mkdir()

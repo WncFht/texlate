@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import sys
 import tarfile
 from typing import TYPE_CHECKING
 
@@ -160,7 +161,8 @@ def _check_winner(m: MemberEntry, loc: Path, dest_res: Path) -> None:
         assert not loc.is_symlink(), m.path
     elif m.kind == "symlink":
         assert loc.is_symlink(), m.path
-        assert str(loc.readlink()) == m.link_target
+        # win32 readlink 出 '\' 分隔——tar link_target 恒 posix 形
+        assert loc.readlink().as_posix() == m.link_target
         try:
             resolved = loc.resolve()
         except RuntimeError:
@@ -464,6 +466,11 @@ def test_hardlink_chain_order_dependent(tmp_path: Path) -> None:
     assert "hardlink_dangling:h2.tex->h1.tex" in res_rev.warnings
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 MAX_PATH=260 按全路径计——255B leaf 在 tmp 深度下本就 "
+    "不可创建（POSIX NAME_MAX 单段语义钉）",
+)
 def test_name_max_boundary(tmp_path: Path) -> None:
     """NAME_MAX=255 边界：恰 255B 落盘，单段 256B → ``reject_io``(ENAMETOOLONG)。"""
     ok_name = "d/" + "x" * (_NAME_MAX - 4) + ".tex"

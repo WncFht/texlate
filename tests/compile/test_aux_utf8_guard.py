@@ -66,7 +66,10 @@ def test_normalize_transcodes_toc_and_out(tmp_path: Path) -> None:
 def test_normalize_keeps_valid_utf8_aux(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(DOC % "x", encoding="utf-8")
     (tmp_path / "main.aux").write_text(
-        "\\newlabel{a}{{1}{1}{已是中文}{}}\n", encoding="utf-8"
+        # win32 write_text 默认 \n→\r\n——转码闸 text.encode()!=original 判重写
+        "\\newlabel{a}{{1}{1}{已是中文}{}}\n",
+        encoding="utf-8",
+        newline="",
     )
     stats = normalize_project(tmp_path, "xelatex")
     assert "transcoded_aux" not in stats

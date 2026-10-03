@@ -16,6 +16,7 @@ o2-builtin-cs 批 (env_polyfill/undefine/font_cs_shim/cs_rebind) 已拆
 """
 
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -587,6 +588,10 @@ def test_includepdf_stub_ci_hit(tmp_path: Path) -> None:
     assert ok
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——引用按字面即解析，ci 变体前提不可构造",
+)
 def test_case_link_extends_to_includepdf(tmp_path: Path) -> None:
     """W66 side-effect: ``\\includepdf`` 参数同进 ci-glob 改写真名面。"""
     (tmp_path / "SUPP.pdf").write_bytes(b"%PDF")

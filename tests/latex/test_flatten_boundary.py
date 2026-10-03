@@ -51,7 +51,11 @@ class TestEscapeGate:
         secret = _w(tmp_path / "outside", "secret.tex", "SECRET-ABS")
         warns: list[ScanWarning] = []
         out = flatten_inputs(
-            f"\\input{{{secret}}}", str(root), str(root), warnings=warns
+            # win32 str(Path) 出 '\' —— TeX 面 \input 参数是 / 语法
+            f"\\input{{{secret.as_posix()}}}",
+            str(root),
+            str(root),
+            warnings=warns,
         )
         assert "SECRET-ABS" not in out
         assert any(w.kind == "missing_input" for w in warns)
@@ -60,7 +64,7 @@ class TestEscapeGate:
         r"""根内绝对路径合法——闸只判界不拒形态。"""
         root = tmp_path / "root"
         inner = _w(root, "sub/deep.tex", "INNER-ABS")
-        out = flatten_inputs(f"\\input{{{inner}}}", str(root), str(root))
+        out = flatten_inputs(f"\\input{{{inner.as_posix()}}}", str(root), str(root))
         assert "INNER-ABS" in out
 
     def test_symlink_out_miss(self, tmp_path: Path) -> None:

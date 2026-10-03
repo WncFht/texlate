@@ -359,6 +359,11 @@ def test_glossary_path_root_order_and_fallthrough(
     assert resolve_glossary_path("nope.yaml", str(gdir), base) is None
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX 文件名语义钉：win32 禁换行/尾空白/尾点文件名，"
+    "'\\' 即分隔符、surrogateescape 面不存在——测试前提即 POSIX-only",
+)
 def test_glossary_path_weird_names_confined(
     jail_tree: tuple[Path, Path, Path],
 ) -> None:
@@ -778,7 +783,8 @@ def test_load_table_dispatch(tmp_path: Path) -> None:
         load_table(tmp_path / "missing.csv")
     d = tmp_path / "d.yaml"
     d.mkdir()
-    with pytest.raises(IsADirectoryError):
+    # win32 open(目录) 出 PermissionError 而非 IsADirectoryError —— 同义平台形
+    with pytest.raises((IsADirectoryError, PermissionError)):
         load_table(d)
 
 
@@ -822,7 +828,8 @@ def test_load_index_escape_mechanism(tmp_path: Path) -> None:
     (outside / "abs.yaml").write_text("absleak: 外\n", encoding=_MODE)
     (tdir / "lk.yaml").symlink_to(outside / "sec.yaml")
     (tdir / "index.yaml").write_text(
-        f'c1: ../outside/sec.yaml\nc2: ["{outside}/abs.yaml"]\nc3: ok.csv\nc4: lk.yaml\n',
+        # win32 str(Path) 的 '\' 在 yaml 双引号标量里是转义符 → ScannerError
+        f'c1: ../outside/sec.yaml\nc2: ["{outside.as_posix()}/abs.yaml"]\nc3: ok.csv\nc4: lk.yaml\n',
         encoding=_MODE,
     )
     (tdir / "ok.csv").write_text("ok,1\n", encoding=_MODE)

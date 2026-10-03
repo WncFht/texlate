@@ -8,8 +8,8 @@ e-print 自带 ``aaai2027.sty`` (4 md5 变体) 内置
 ``aaai2027.sty:N: Emergency stop`` + ``l.N \\RequirePDFTeX`` 回显，
 taxonomy 归 ``emergency`` (2609.19158 build-base/main.log 实读
 ``('emergency', None)``)。修复面：err ctx 回显 guard cs ∧ 顶层
-``*.sty``/``*.cls`` 在场 ∧ 源 blob 含 guard cs 三证 → sh 脚本逐件剥
-注释行后按独占行形确证删行 (行尾允许空白/% 注释), 尾注
+``*.sty``/``*.cls`` 在场 ∧ 源 blob 含 guard cs 三证 → builtin 逐件按
+独占行形删闸行 (行尾允许空白/% 注释), 尾注
 ``texlate-fixloop-injected`` 幂等; ``iftex`` 载留无害，不路由 pdftex
 (zh 管线定死 xelatex+ctex)。剥面只收 xelatex 下必死子集
 (``PDFTeX``/``LuaTeX``/``LuaMetaTeX``) —— ``\\RequireXeTeX`` 本机通过
@@ -98,7 +98,7 @@ def test_taxonomy_emergency_stop_luatex() -> None:
 
 # ---------------------------------------------------------------- 规则接线
 def test_rule_wired_loop_phase() -> None:
-    """规则挂 loop 相 order 11.99 → run_tool sh -c 闸行剥除。"""
+    """规则挂 loop 相 order 11.99 → builtin_transform 闸行剥除 (win 无 sh)。"""
     r = rule(_RULE_ID)
     assert r.order == 11.99  # noqa: PLR2004 - schema 断言值
     assert r.when == {"category": "emergency"}
@@ -108,14 +108,9 @@ def test_rule_wired_loop_phase() -> None:
         "*.sty",
         "*.cls",
     }
-    assert r.condition["tool_available"] == "sh"
-    assert r.action["kind"] == "run_tool"
-    argv = r.action["params"]["argv"]
-    assert argv[:2] == ["sh", "-c"]
-    script = argv[2]
-    assert "texlate-fixloop-injected" in script  # 指纹幂等闸
-    assert "\\Require(PDFTeX|LuaTeX|LuaMetaTeX)" in script  # 内容签名自证
-    assert "*.sty *.cls" in script  # 双扩展扫描面
+    assert "tool_available" not in r.condition  # win 无 sh——builtin 无工具依赖
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "engine_guard_strip"
 
 
 def test_rule_order_after_revtex_before_legacy_shim() -> None:
@@ -164,7 +159,7 @@ def test_cond_pass_on_signature(tmp_path: Path) -> None:
     assert ok, why
 
 
-# ---------------------------------------------------------------- 动作直驱 (真 sh)
+# ---------------------------------------------------------------- apply 直驱
 @pytest.mark.parametrize("line", _GUARD_LINES)
 def test_apply_strips_guard_each_variant(tmp_path: Path, line: int) -> None:
     """4 变体位逐一：guard 独占行删，iftex 载留，尾注幂等标。"""
@@ -197,8 +192,8 @@ def test_apply_keeps_xetex_guard(tmp_path: Path) -> None:
     """剥面边界：\\RequireXeTeX 本机通过 —— 指纹不中，文件逐字节不动。"""
     src = _guard_sty(14, "\\RequireXeTeX")
     (tmp_path / "conf.sty").write_text(src, encoding="utf-8")
-    ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
-    assert ok, note
+    ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
+    assert not ok  # builtin honest applied=False (run_tool 臂 rc-noop 恒 True)
     assert (tmp_path / "conf.sty").read_text(encoding="utf-8") == src
 
 
@@ -216,11 +211,11 @@ def test_apply_guard_with_trailing_comment(tmp_path: Path) -> None:
 
 
 def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
-    """无签名件 → 脚本 continue, 文件逐字节不动。"""
+    """无签名件 → builtin decline, 文件逐字节不动。"""
     clean = "\\ProvidesPackage{foo}\\newcommand*\\foo{bar}\n\\endinput\n"
     (tmp_path / "foo.sty").write_text(clean, encoding="utf-8")
-    ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
-    assert ok, note  # run_tool 恒 applied (rc=0 no-op)
+    ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
+    assert not ok
     assert (tmp_path / "foo.sty").read_text(encoding="utf-8") == clean
 
 
@@ -234,8 +229,8 @@ def test_apply_skips_comment_only_guard(tmp_path: Path) -> None:
         "\\endinput\n"
     )
     (tmp_path / "foo.sty").write_text(comment_only, encoding="utf-8")
-    ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
-    assert ok, note
+    ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
+    assert not ok
     assert (tmp_path / "foo.sty").read_text(encoding="utf-8") == comment_only
 
 
@@ -249,8 +244,8 @@ def test_apply_skips_inline_guard(tmp_path: Path) -> None:
         "\\endinput\n"
     )
     (tmp_path / "foo.sty").write_text(inline, encoding="utf-8")
-    ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
-    assert ok, note
+    ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
+    assert not ok
     assert (tmp_path / "foo.sty").read_text(encoding="utf-8") == inline
 
 
@@ -263,7 +258,7 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
     once = (tmp_path / "aaai2027.sty").read_text(encoding="utf-8")
     assert once.count("texlate-fixloop-injected") == 1
     ok2, _ = apply(_RULE_ID, ctx, None)
-    assert ok2
+    assert not ok2
     assert (tmp_path / "aaai2027.sty").read_text(encoding="utf-8") == once
 
 
@@ -282,9 +277,9 @@ def test_apply_patches_signed_cls(tmp_path: Path) -> None:
 
 
 def test_apply_noop_when_dir_empty(tmp_path: Path) -> None:
-    """空 wdir → *.sty 字面量不命中，[ -f ] 兜住 → exit 0 no-op。"""
-    ok, note = apply(_RULE_ID, mk_ctx(tmp_path), None)
-    assert ok, note
+    """空 wdir → glob 零命中 → applied=False no-op。"""
+    ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
+    assert not ok
     assert list(tmp_path.iterdir()) == []
 
 

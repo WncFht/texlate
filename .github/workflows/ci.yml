@@ -196,7 +196,11 @@ jobs:
       - name: uv sync
         run: uv sync --frozen
 
+      # PYTHONUTF8=1：win32 默认 cp1252 会把测试侧裸 read/write_text 变
+      # charmap 雷区；产品侧编码钉各自保留（真用户还可能是 cp936/cp1252）
       - name: pytest
+        env:
+          PYTHONUTF8: "1"
         run: uv run pytest tests/ -q
 
   # fuzz 冒烟：tests/fuzz/ 全文件面独立车道（~1800 用例，本地 ~1min）。
@@ -222,6 +226,8 @@ jobs:
         run: uv sync --frozen
 
       - name: fuzz smoke (tests/fuzz/)
+        env:
+          PYTHONUTF8: "1"
         run: uv run pytest tests/fuzz/ -q -x
 
   web:

@@ -455,6 +455,10 @@ def test_filemap_negative_legacy_healed(
     assert eng.filemap("y.sty") == ["real"]  # 阳性照旧短路
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 无 fcntl——_install_lock 降级直通不产生锁文件",
+)
 def test_install_lock_creates_lockfile(tmp_path: Path) -> None:
     """同 usertree 的 tlmgr install 经 flock 串行化（锁文件在 texmfhome）。"""
     eng = XelatexEngine(texmfhome=tmp_path)

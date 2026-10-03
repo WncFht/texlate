@@ -41,7 +41,8 @@ def test_audit_c1_input_abs_path_denied(tmp_path: Path) -> None:
     root = tmp_path / "paper"
     root.mkdir()
     g = Gullet(root_dir=str(root), top_dir=str(root))
-    g.push_source(f"\\input{{{outside}}}\ndone", str(root / "main.tex"))
+    # win32 str(Path) 出 '\' —— TeX 面 \input 参数是 / 语法
+    g.push_source(f"\\input{{{outside.as_posix()}}}\ndone", str(root / "main.tex"))
     out = text_of(g.expand_all())
     assert "SECRET-ABS-CONTENT" not in out
     assert "done" in out

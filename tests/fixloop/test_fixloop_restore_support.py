@@ -40,9 +40,9 @@ def _run(work: Path, base: Path) -> tuple[bool, str]:
 def test_restores_corrupted_support(tmp_path: Path) -> None:
     """机制件 +CJK 注入 → 逐字节复原 baseline, note 记名。"""
     work, base = _trees(tmp_path)
-    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8")
+    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8", newline="")
     (work / "pssupport.tex").write_text(
-        _MACH + "这一段是被误翻注入的中文。\n", encoding="utf-8"
+        _MACH + "这一段是被误翻注入的中文。\n", encoding="utf-8", newline=""
     )
     ok, note = _run(work, base)
     assert ok
@@ -55,8 +55,10 @@ def test_restores_nested_support(tmp_path: Path) -> None:
     work, base = _trees(tmp_path)
     (work / "sub").mkdir()
     (base / "sub").mkdir()
-    (base / "sub" / "defs.tex").write_text(_MACH, encoding="utf-8")
-    (work / "sub" / "defs.tex").write_text(_MACH + "中文注入\n", encoding="utf-8")
+    (base / "sub" / "defs.tex").write_text(_MACH, encoding="utf-8", newline="")
+    (work / "sub" / "defs.tex").write_text(
+        _MACH + "中文注入\n", encoding="utf-8", newline=""
+    )
     ok, note = _run(work, base)
     assert ok
     assert "sub/defs.tex" in note
@@ -66,9 +68,9 @@ def test_restores_nested_support(tmp_path: Path) -> None:
 def test_content_file_not_restored(tmp_path: Path) -> None:
     """散文 baseline +CJK → 内容件非 support, 不回滚。"""
     work, base = _trees(tmp_path)
-    (base / "body.tex").write_text(_PROSE, encoding="utf-8")
+    (base / "body.tex").write_text(_PROSE, encoding="utf-8", newline="")
     corrupted = _PROSE + "中文内容译写\n"
-    (work / "body.tex").write_text(corrupted, encoding="utf-8")
+    (work / "body.tex").write_text(corrupted, encoding="utf-8", newline="")
     ok, note = _run(work, base)
     assert not ok
     assert "body.tex" not in note
@@ -78,8 +80,8 @@ def test_content_file_not_restored(tmp_path: Path) -> None:
 def test_identical_bytes_skipped(tmp_path: Path) -> None:
     """工作件与 baseline 字节一致 → 不动，False。"""
     work, base = _trees(tmp_path)
-    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8")
-    (work / "pssupport.tex").write_text(_MACH, encoding="utf-8")
+    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8", newline="")
+    (work / "pssupport.tex").write_text(_MACH, encoding="utf-8", newline="")
     ok, note = _run(work, base)
     assert not ok
     assert "no corrupted" in note
@@ -88,9 +90,9 @@ def test_identical_bytes_skipped(tmp_path: Path) -> None:
 def test_ascii_only_divergence_skipped(tmp_path: Path) -> None:
     """字节有偏但零 CJK 增量 → 非翻译污染，不回滚。"""
     work, base = _trees(tmp_path)
-    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8")
+    (base / "pssupport.tex").write_text(_MACH, encoding="utf-8", newline="")
     diverged = _MACH + "\\psset{unit=2cm}\n"
-    (work / "pssupport.tex").write_text(diverged, encoding="utf-8")
+    (work / "pssupport.tex").write_text(diverged, encoding="utf-8", newline="")
     ok, _note = _run(work, base)
     assert not ok
     assert (work / "pssupport.tex").read_text(encoding="utf-8") == diverged
@@ -99,14 +101,15 @@ def test_ascii_only_divergence_skipped(tmp_path: Path) -> None:
 def test_own_markers_not_restored(tmp_path: Path) -> None:
     """``% texlate``/``% fixloop`` 自有标记件 → 有意改写，带 CJK 也不回滚。"""
     work, base = _trees(tmp_path)
-    (base / "a.tex").write_text(_MACH, encoding="utf-8")
-    (base / "b.tex").write_text(_MACH, encoding="utf-8")
+    (base / "a.tex").write_text(_MACH, encoding="utf-8", newline="")
+    (base / "b.tex").write_text(_MACH, encoding="utf-8", newline="")
     (work / "a.tex").write_text(
-        "% texlate: CJK support\n" + _MACH + "中文\n", encoding="utf-8"
+        "% texlate: CJK support\n" + _MACH + "中文\n", encoding="utf-8", newline=""
     )
     (work / "b.tex").write_text(
         "% fixloop: stripped \\usepackage{inputenc}\n" + _MACH + "中文\n",
         encoding="utf-8",
+        newline="",
     )
     ok, _note = _run(work, base)
     assert not ok
@@ -133,10 +136,14 @@ def test_nonexistent_baseline_dir_failsafe(tmp_path: Path) -> None:
 def test_code_tex_name_gate_restored(tmp_path: Path) -> None:
     """``.code.tex``/``.rtx.tex`` 名闸先行 —— baseline 带散文也照回滚。"""
     work, base = _trees(tmp_path)
-    (base / "tikzlibraryzz.code.tex").write_text(_PROSE, encoding="utf-8")
-    (base / "rtxdump.rtx.tex").write_text(_PROSE, encoding="utf-8")
-    (work / "tikzlibraryzz.code.tex").write_text(_PROSE + "中文\n", encoding="utf-8")
-    (work / "rtxdump.rtx.tex").write_text(_PROSE + "中文\n", encoding="utf-8")
+    (base / "tikzlibraryzz.code.tex").write_text(_PROSE, encoding="utf-8", newline="")
+    (base / "rtxdump.rtx.tex").write_text(_PROSE, encoding="utf-8", newline="")
+    (work / "tikzlibraryzz.code.tex").write_text(
+        _PROSE + "中文\n", encoding="utf-8", newline=""
+    )
+    (work / "rtxdump.rtx.tex").write_text(
+        _PROSE + "中文\n", encoding="utf-8", newline=""
+    )
     ok, note = _run(work, base)
     assert ok
     assert "tikzlibraryzz.code.tex" in note
@@ -147,13 +154,13 @@ def test_code_tex_name_gate_restored(tmp_path: Path) -> None:
 def test_baseline_with_legit_cjk(tmp_path: Path) -> None:
     """baseline 自带 CJK 按计数差判 —— 增量仍恢复，同量不恢复。"""
     work, base = _trees(tmp_path)
-    (base / "a.tex").write_text("% 中文注\n" + _MACH, encoding="utf-8")
+    (base / "a.tex").write_text("% 中文注\n" + _MACH, encoding="utf-8", newline="")
     (work / "a.tex").write_text(
-        "% 中文注\n" + _MACH + "又注入更多中文\n", encoding="utf-8"
+        "% 中文注\n" + _MACH + "又注入更多中文\n", encoding="utf-8", newline=""
     )
-    (base / "b.tex").write_text("% 中文注\n" + _MACH, encoding="utf-8")
+    (base / "b.tex").write_text("% 中文注\n" + _MACH, encoding="utf-8", newline="")
     same_cjk = "% 中文注\n" + _MACH + "\\psset{unit=2cm}\n"
-    (work / "b.tex").write_text(same_cjk, encoding="utf-8")
+    (work / "b.tex").write_text(same_cjk, encoding="utf-8", newline="")
     ok, note = _run(work, base)
     assert ok
     assert "a.tex" in note
@@ -164,7 +171,7 @@ def test_baseline_with_legit_cjk(tmp_path: Path) -> None:
 def test_no_baseline_counterpart_skipped(tmp_path: Path) -> None:
     """baseline 无同名件 → 无可对照，不动。"""
     work, base = _trees(tmp_path)
-    (work / "orphan.tex").write_text(_MACH + "中文\n", encoding="utf-8")
+    (work / "orphan.tex").write_text(_MACH + "中文\n", encoding="utf-8", newline="")
     ok, _note = _run(work, base)
     assert not ok
     assert "中文" in (work / "orphan.tex").read_text(encoding="utf-8")

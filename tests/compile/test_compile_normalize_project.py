@@ -740,7 +740,8 @@ def test_bundled_style_clean_utf8_untouched(tmp_path: Path) -> None:
         "ok.def": "%% driver\n\\def\\ok{}\n",
     }
     for name, text in blobs.items():
-        (tmp_path / name).write_text(text, encoding="utf-8")
+        # win32 write_text 默认 \n→\r\n——"已是干净件"夹具须字节精确
+        (tmp_path / name).write_text(text, encoding="utf-8", newline="")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{ok}\n\\usepackage{ok}\n\\begin{document}\nx\\end{document}\n",
         encoding="utf-8",

@@ -3,6 +3,7 @@
 import json
 import logging
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,8 +18,9 @@ class TestAtomicJson:
         p = tmp_path / "x.json"
         st.atomic_json(p, {"a": 1})
         assert json.loads(p.read_text(encoding="utf-8")) == {"a": 1}
-        mode = stat.S_IMODE(p.stat().st_mode)
-        assert mode == _PRIVATE_MODE
+        if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+            mode = stat.S_IMODE(p.stat().st_mode)
+            assert mode == _PRIVATE_MODE
 
     def test_no_leftover_tmp(self, tmp_path: Path) -> None:
         p = tmp_path / "x.json"

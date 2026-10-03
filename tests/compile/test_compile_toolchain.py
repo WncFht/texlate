@@ -209,7 +209,8 @@ def _plant_managed() -> Path:
     """托管目录放一个可执行 tectonic（autouse 已把 PATH 探测钉 None）。"""
     managed = toolchain.tools_dir()
     managed.mkdir(parents=True)
-    exe = managed / "tectonic"
+    # find_managed 探 <name>.exe (win32)——替身文件名须同平台口径
+    exe = managed / ("tectonic.exe" if sys.platform == "win32" else "tectonic")
     exe.write_bytes(_FAKE_BIN)
     exe.chmod(0o755)
     return exe
@@ -240,6 +241,7 @@ def test_ensure_ci_default_off(monkeypatch: pytest.MonkeyPatch) -> None:
     assert toolchain.ensure_tectonic(client=_boom_client()) is None
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="win32 无法 exec sh 脚本替身")
 def test_ensure_ci_explicit_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
     """TEXLATE_NO_DOWNLOAD=0 显式覆盖 CI 默认 → 仍下载。"""
     monkeypatch.setenv("CI", "true")

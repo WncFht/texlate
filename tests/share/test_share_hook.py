@@ -200,7 +200,7 @@ class TestGlossaryHash:
         ctx, worker, _store = _mk(tmp_path, options={"share_pack": True})
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "glossary.local.yaml").write_text(
-            "term: 术语\n", encoding="utf-8"
+            "term: 术语\n", encoding="utf-8", newline=""
         )
         got = worker._share_glossary_hash(ctx, {})  # noqa: SLF001
         expect = hashlib.sha256(
@@ -218,7 +218,7 @@ class TestGlossaryHash:
         """配置 glossary 相对路径（confine 到 base/）→ 文件内容进指纹。"""
         ctx, worker, _store = _mk(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / "g.yaml").write_text("a: b\n", encoding="utf-8")
+        (ctx.base_dir / "g.yaml").write_text("a: b\n", encoding="utf-8", newline="")
         got = worker._share_glossary_hash(ctx, {"glossary": "g.yaml"})  # noqa: SLF001
         expect = hashlib.sha256(hashlib.sha256(b"a: b\n").digest()).hexdigest()
         assert got == expect

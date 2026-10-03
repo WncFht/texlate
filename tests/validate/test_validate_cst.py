@@ -366,7 +366,8 @@ def test_env_whitelist_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     assert env["PATH"] == "/usr/bin"
     assert env["HOME"] == "/home/x"
     assert env["LC_ALL"] == "C.UTF-8"
-    assert env["NODE_PATH"] == "/nonexistent/nm"
+    # NODE_PATH 是 str(Path) 原生形——win32 出 '\' 分隔
+    assert env["NODE_PATH"] == str(Path("/nonexistent/nm"))
 
 
 def test_env_whitelist_minimal_node_surface(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -374,7 +375,7 @@ def test_env_whitelist_minimal_node_surface(monkeypatch: pytest.MonkeyPatch) -> 
     for k in list(os.environ):
         monkeypatch.delenv(k)
     env = TsValidator(node_path="/n")._env()  # noqa: SLF001
-    assert env == {"NODE_PATH": "/n"}
+    assert env == {"NODE_PATH": str(Path("/n"))}  # win32 出 \n 原生形
 
 
 # ------------------------------------------------- C8：TsResult.to_dict 钉

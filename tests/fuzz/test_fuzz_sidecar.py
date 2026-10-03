@@ -72,6 +72,7 @@ import json
 import logging
 import secrets
 import stat
+import sys
 import threading
 import tomllib
 from http import HTTPStatus
@@ -410,9 +411,10 @@ class TestStoreSemantics:
         for k in merged:
             assert loaded[k] == merged[k], k
         assert loaded["quota_max_tasks"] == 5  # noqa: PLR2004 -- str→int 收编
-        for name in ("settings.json", "connections.json"):
-            mode = stat.S_IMODE((tmp_path / name).stat().st_mode)
-            assert mode == stat.S_IRUSR | stat.S_IWUSR, name
+        if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+            for name in ("settings.json", "connections.json"):
+                mode = stat.S_IMODE((tmp_path / name).stat().st_mode)
+                assert mode == stat.S_IRUSR | stat.S_IWUSR, name
 
     def test_key_hygiene(self, tmp_path: Path) -> None:
         """``public()`` 永不携带 api_key；空串不覆盖；clear 显式清且压过同帧。"""
@@ -650,7 +652,8 @@ class TestEnvHelpers:
         clean_env.setenv("TEXLATE_DATA_DIR", str(tmp_path / "dd"))
         got = settings.data_dir()
         assert got == tmp_path / "dd"
-        assert stat.S_IMODE(got.stat().st_mode) == 0o700  # noqa: PLR2004
+        if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+            assert stat.S_IMODE(got.stat().st_mode) == 0o700  # noqa: PLR2004
         assert settings.share_dir() == tmp_path / "dd" / "share"
         clean_env.setenv("TEXLATE_SHARE_DIR", str(tmp_path / "ext"))
         assert settings.share_dir() == tmp_path / "ext"
@@ -679,8 +682,9 @@ class TestServerSalt:
         salt = settings.server_salt(tmp_path)
         assert len(salt) == 32  # noqa: PLR2004 -- token_hex(16)
         assert settings.server_salt(tmp_path) == salt  # 二次同值
-        mode = stat.S_IMODE((tmp_path / "server_salt").stat().st_mode)
-        assert mode == stat.S_IRUSR | stat.S_IWUSR
+        if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+            mode = stat.S_IMODE((tmp_path / "server_salt").stat().st_mode)
+            assert mode == stat.S_IRUSR | stat.S_IWUSR
         (tmp_path / "server_salt").write_text("   \n ", encoding="utf-8")
         assert len(settings.server_salt(tmp_path)) == 32  # noqa: PLR2004 -- 空白重生成
         (tmp_path / "server_salt").write_text("  mysalt \n", encoding="utf-8")
@@ -1057,6 +1061,10 @@ class TestJudgeAndClassify:
 class TestHarvestAndConfig:
     """``harvest_outputs``/``write_config``/``build_argv``/glossary/cjk."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="win32 文件名禁 * ?——glob 元字符 stem 件面在 win 盘上无法物化",
+    )
     def test_harvest_glob_semantics(self, tmp_path: Path) -> None:
         """glob 元字符 stem 字面命中不误配；``.no_watermark.`` 优先。"""
         out = tmp_path / "out"
@@ -1085,8 +1093,9 @@ class TestHarvestAndConfig:
         ):
             job = _job(tmp_path / f"j{i}", "a", api_key=key)
             p = bd.write_config(job)
-            mode = stat.S_IMODE(p.stat().st_mode)
-            assert mode == stat.S_IRUSR | stat.S_IWUSR, key
+            if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+                mode = stat.S_IMODE(p.stat().st_mode)
+                assert mode == stat.S_IRUSR | stat.S_IWUSR, key
             got = tomllib.loads(p.read_text(encoding="utf-8"))
             assert got["babeldoc"]["openai-api-key"] == (key or "texlate"), key
 

@@ -8,8 +8,11 @@ xdvipdfmx 嵌入期 ``Image inclusion failed. Could not find file: X`` ——
 (与 ``graphic_missing_placeholder`` 同 ``_stub_graphic_at`` 核)。
 """
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from texlate.compile.fixloop import actions, builtins, load_ruleset
 from texlate.compile.fixloop.builtins import driver_missing_image_stub
@@ -203,6 +206,10 @@ def test_second_fire_is_noop(tmp_path: Path) -> None:
     assert out.read_bytes() == b"real png bytes"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——shufflenet.PNG 按字面即解析，ci 变体前提不可构造",
+)
 def test_ci_variant_declines(tmp_path: Path) -> None:
     """盘存大小写变体 → rescue_check 让位 (占位不遮可救真图)。"""
     ctx = _ctx(

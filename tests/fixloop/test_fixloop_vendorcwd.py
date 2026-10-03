@@ -10,8 +10,10 @@
   低 order 候选 (fileset_relocate 类) 挡在门外。
 """
 
+import sys
 from pathlib import Path
 
+import pytest
 from _fixloopkit import mk_ctx, mk_vendor, vendored_fetch
 
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
@@ -164,6 +166,10 @@ def test_vendored_fetch_casefold_source(tmp_path: Path) -> None:
     assert "% ieeeconf real" in body
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 NTFS 大小写折叠——x.sty 与 X.sty 不可两存，前提不可构造",
+)
 def test_vendored_fetch_exact_beats_casefold(tmp_path: Path) -> None:
     """精确命中优先于 casefold——同名异写两存时取字面匹配源。"""
     root = mk_vendor(tmp_path)

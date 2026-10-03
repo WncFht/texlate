@@ -391,7 +391,7 @@ def test_sandbox_wrap_darwin_deny_network(
     monkeypatch.setattr(
         Path,
         "exists",
-        lambda p: True if str(p) == "/usr/bin/sandbox-exec" else real_exists(p),
+        lambda p: True if p.as_posix() == "/usr/bin/sandbox-exec" else real_exists(p),
     )
     cmd = ["xelatex", "main.tex"]
     wrapped = sandbox_wrap(cmd, root=tmp_path, out=tmp_path, allow_net=False)

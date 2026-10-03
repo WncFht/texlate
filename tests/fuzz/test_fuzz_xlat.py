@@ -51,6 +51,7 @@ import hashlib
 import json
 import re
 import stat
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -941,7 +942,8 @@ def test_atomic_json_perms_and_residue(tmp_path: Path) -> None:
     """原子写：0600 + 无 tmp 残留 + 重写覆盖。"""
     p = tmp_path / "a.json"
     atomic_json(p, {"x": 1})
-    assert stat.S_IMODE(p.stat().st_mode) == _MODE_PRIVATE
+    if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+        assert stat.S_IMODE(p.stat().st_mode) == _MODE_PRIVATE
     assert [f.name for f in tmp_path.iterdir()] == ["a.json"]
     atomic_json(p, {"y": 2})
     assert json.loads(p.read_text(encoding="utf-8")) == {"y": 2}
