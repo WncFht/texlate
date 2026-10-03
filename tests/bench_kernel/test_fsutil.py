@@ -6,6 +6,7 @@ import errno
 import hashlib
 import os
 import stat
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -222,6 +223,7 @@ def test_hardlink_farm_mtree_as_path(tmp_path: Path) -> None:
     assert m["a"]["size"] == 1
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
 def test_hardlink_farm_raises_on_special_file(tmp_path: Path) -> None:
     src = _tree(tmp_path / "src", {"ok": b"1"})
     os.mkfifo(src / "pipe")
@@ -254,6 +256,10 @@ def test_copy_mutating_overwrites_stale_dst(tmp_path: Path) -> None:
     assert (dst / "keep" / "b").read_bytes() == b"k"  # unrelated files untouched
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="win32 readonly 文件不可 unlink——POSIX fuse 语义不可表达",
+)
 def test_copy_mutating_never_chmods_shared_inode(tmp_path: Path) -> None:
     # dst leaf is a hardlink to a 0444 pool inode — chmod'ing it would melt the
     # fuse for every alias (the §3.10.2 ban). copy_mutating must unlink instead.
@@ -270,6 +276,7 @@ def test_copy_mutating_never_chmods_shared_inode(tmp_path: Path) -> None:
     assert stat.S_IMODE((pool / "obj").stat().st_mode) == _FUSE_MODE  # fuse intact
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
 def test_copy_mutating_raises_on_special_file(tmp_path: Path) -> None:
     src = _tree(tmp_path / "src", {"ok": b"1"})
     os.mkfifo(src / "pipe")  # copyfile on a fifo would block — refuse loudly
@@ -331,6 +338,7 @@ def test_verify_mtree_empty_tree(tmp_path: Path) -> None:
     assert fsutil.verify_mtree(t, {}) == []
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
 def test_verify_mtree_flags_special_file(tmp_path: Path) -> None:
     t = _tree(tmp_path / "t", {"a": b"1", "b": b"2"})
     m = fsutil.build_mtree(t)

@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
@@ -430,8 +431,8 @@ class TestEnametoolong:
 
     def test_locked_parent_dir(self, tmp_path: Path) -> None:
         """``EACCES`` 同族：父目录 000 时 ``stat`` 再抛 → 干净拒收。"""
-        if os.geteuid() == 0:
-            pytest.skip("root 下 chmod 0 不产生 EACCES")
+        if sys.platform == "win32" or os.geteuid() == 0:
+            pytest.skip("root/win32 下 chmod 0 不产生 EACCES")
         locked = tmp_path / "locked"
         locked.mkdir()
         (locked / "sub").mkdir()
@@ -1191,7 +1192,8 @@ class TestShare:
         assert result.exit_code == 1
 
     @pytest.mark.skipif(
-        os.geteuid() == 0, reason="root 绕过权限位——chmod 0 不产生 EACCES"
+        sys.platform == "win32" or os.geteuid() == 0,
+        reason="root/win32 绕过权限位——chmod 0 不产生 EACCES",
     )
     def test_glossary_hash_unreadable_configured(self, tmp_path: Path) -> None:
         """配置 glossary chmod-0：read PermissionError → ShareError（曾 traceback）。"""
@@ -1207,7 +1209,8 @@ class TestShare:
             g.chmod(0o644)
 
     @pytest.mark.skipif(
-        os.geteuid() == 0, reason="root 绕过权限位——chmod 0 不产生 EACCES"
+        sys.platform == "win32" or os.geteuid() == 0,
+        reason="root/win32 绕过权限位——chmod 0 不产生 EACCES",
     )
     def test_glossary_hash_unreadable_local_skipped(self, tmp_path: Path) -> None:
         """local 层不可读 → 按缺席计（hash 落 ``""`` 无表层桶位）。"""

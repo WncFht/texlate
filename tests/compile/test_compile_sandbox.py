@@ -82,6 +82,12 @@ def _bind_sources(cmd: list[str]) -> set[str]:
     return {cmd[i + 1] for i, t in enumerate(cmd[:-1]) if t in flags}
 
 
+requires_posix = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="killpg/rlimits/POSIX 信号语义仅 POSIX",
+)
+
+
 @pytest.fixture(autouse=True)
 def _clear_probe_caches() -> Iterator[None]:
     """每个用例后清掉 ``_bwrap_capable``/``_kpathsea_dirs`` 的 lru_cache。
@@ -395,6 +401,7 @@ def test_sandbox_wrap_darwin_deny_network(
     assert "(deny network*)" not in wrapped_on[2]
 
 
+@requires_posix
 def test_run_process_keyboardinterrupt_kills_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -428,6 +435,7 @@ def test_run_process_keyboardinterrupt_kills_tree(
     assert killed == [(0xFA17, signal.SIGKILL)]
 
 
+@requires_posix
 def test_run_process_timeout_reap_bounded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -461,6 +469,7 @@ def test_run_process_timeout_reap_bounded(
     assert rc == -9  # noqa: PLR2004 - SIGKILL
 
 
+@requires_posix
 def test_rc_to_signal_wrapper_128n() -> None:
     """bwrap 把子死信号上报为 128+N：128+SIGPIPE 在 env/off 下按字面
     退出码、bwrap/sandbox-exec 下解码回信号号；>192 按字面退出码。"""
@@ -478,9 +487,6 @@ def test_rc_to_signal_wrapper_128n() -> None:
 
 
 # ---------------------------------------------------------------- rlimits
-requires_posix = pytest.mark.skipif(sys.platform == "win32", reason="rlimits 仅 POSIX")
-
-
 @requires_posix
 def test_cap_rlimit_lowers_only() -> None:
     """_cap_rlimit 只降不升、hard 保持——宿主 soft 已低于 cap 时不动。"""

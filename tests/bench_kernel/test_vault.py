@@ -388,6 +388,7 @@ def test_adopt_lands_in_quar_with_note(tmp_path: Path) -> None:
 
 
 @pytest.mark.usefixtures("broot")
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
 def test_adopt_refuses_non_regular(tmp_path: Path) -> None:
     bad = _tree(tmp_path / "bad", {"f": b"x"})
     os.mkfifo(bad / "pipe")

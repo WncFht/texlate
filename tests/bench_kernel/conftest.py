@@ -8,11 +8,17 @@ resolve paths lazily from env, so monkeypatching works without any caching.
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 
 import pytest
 from kernel import paths
+
+# bench kernel（ledger/locks/claims）顶层 import fcntl——flock 语义仅 POSIX，
+# win32 收集期即 ModuleNotFoundError；整个车道跳过，逐件 skipif 无意义。
+if sys.platform == "win32":
+    collect_ignore_glob = ["test_*.py"]
 
 
 def write_verify_stamp() -> None:

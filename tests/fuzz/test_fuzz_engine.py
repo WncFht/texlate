@@ -47,6 +47,7 @@ from __future__ import annotations
 import functools
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -442,6 +443,8 @@ def test_route_project_edge_roots(tmp_path: Path) -> None:
 
 def test_route_project_unreadable_subdir(tmp_path: Path) -> None:
     """rglob 吞权限错——不可读子目录里的 \\documentstyle 不参与信号。"""
+    if sys.platform == "win32" or os.geteuid() == 0:
+        pytest.skip("root/win32 下 chmod 0 目录仍可列读")
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "x.tex").write_text(_SIG_DOCSTYLE)
     (tmp_path / "main.tex").write_text("\\documentclass{article}")
@@ -1933,6 +1936,9 @@ def test_compiled_dependencies_tectonic_outdir_rel(tmp_path: Path) -> None:
 
 
 # ================================================================ kpathsea/bwrap 纯函数
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="kpathsea 路径语义 POSIX only（is_absolute 口径）"
+)
 def test_kpathsea_list_fuzz() -> None:
     """随机分隔汤 → 绝对路径子集；``;`` 不是分隔符（钉值）。"""
     rng = fuzz_rng(_SEED + 6)
@@ -1948,6 +1954,7 @@ def test_kpathsea_list_fuzz() -> None:
     assert sb_mod._kpathsea_list("/a;/b") == ["/a;/b"]  # noqa: SLF001  # ; 不拆
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="bwrap env 路径值 POSIX only")
 def test_bwrap_env_paths_oracle() -> None:
     """env 键 → (rw, ro)：TMP 系不挂、texmf rw 冒号链拆、RO 键名表白名单。"""
     env = {
@@ -2468,6 +2475,9 @@ def test_tectonic_version_parse(monkeypatch: pytest.MonkeyPatch) -> None:
     assert tc.tectonic_version("/w/tec") is None
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="win32 无执行位语义（X_OK 等价存在性）"
+)
 def test_find_managed(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> None:
     """托管件判定：is_file + X_OK——写而未 chmod 不算落位。"""
     clean_env.setenv("TEXLATE_DATA_DIR", str(tmp_path))

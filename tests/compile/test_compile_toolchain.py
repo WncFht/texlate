@@ -7,6 +7,7 @@ tmp_path，``find_tool`` 钉 None 免疫宿主 PATH 上的真 tectonic。
 import hashlib
 import io
 import os
+import sys
 import zipfile
 from pathlib import Path
 
@@ -360,6 +361,7 @@ def _plant_version_exe(tmp_path: Path, body: str) -> str:
     return str(exe)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="win32 无法 exec sh 脚本替身")
 def test_tectonic_version_parses(tmp_path: Path) -> None:
     """``--version`` 输出 → ``(major,minor,patch)``；大小写两种行首都吃。"""
     exe = _plant_version_exe(tmp_path, '#!/bin/sh\necho "Tectonic 0.17.0"\n')
@@ -375,6 +377,7 @@ def test_tectonic_version_unparseable_and_missing(tmp_path: Path) -> None:
     assert toolchain.tectonic_version(str(tmp_path / "nonexistent")) is None
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="win32 无法 exec sh 脚本替身")
 def test_tectonic_version_cached(tmp_path: Path) -> None:
     """同一 binary 只探一回——``-X compile`` 每文件都走 ``_cmd`` 问到。"""
     counter = tmp_path / "n"

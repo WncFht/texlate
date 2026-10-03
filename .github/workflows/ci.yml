@@ -179,12 +179,18 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
+      # bench/ts 只装 ubuntu：@pfoerster/tree-sitter-latex 无 win32 prebuilt，
+      # windows runner 上 node-gyp 须现场编译但找不到受支持的 MSVC（VS18
+      # 太新，node-gyp 11.x 不识别）。CST 层用例本就按可选组件设计
+      # （need_cst skipif + v.available() 双闸），windows 下自走 skip。
       - name: Set up Node (L1 tree-sitter 层依赖)
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
 
       - name: bench/ts 依赖（tree-sitter-latex binding）
+        if: matrix.os == 'ubuntu-latest'
         run: npm ci --prefix bench/ts
 
       - name: uv sync

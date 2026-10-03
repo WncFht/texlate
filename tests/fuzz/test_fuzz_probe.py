@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -911,7 +912,8 @@ def test_missing_survives_optional_then_mandatory_dedup(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(
-    os.geteuid() == 0, reason="root 下 chmod 0 仍可读，无法复现权限拒绝"
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="root/win32 下 chmod 0 仍可读，无法复现权限拒绝",
 )
 def test_unreadable_input_never_raises(tmp_path: Path) -> None:
     r"""权限 000 的 ``\input`` 目标：is_file 通过但 read_bytes 抛——应跳过

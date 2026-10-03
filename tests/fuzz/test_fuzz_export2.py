@@ -81,6 +81,7 @@ language。
 from __future__ import annotations
 
 import asyncio
+import os
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -717,11 +718,10 @@ class TestCoerceGlossary:
             with pytest.raises(ExportError):
                 coerce_glossary(bad)
 
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
     def test_fifo_not_file(self, tmp_path: Path) -> None:
         fifo = tmp_path / "fifo"
         fifo.unlink(missing_ok=True)
-        import os  # noqa: PLC0415 -- 单点用
-
         os.mkfifo(fifo)
         with pytest.raises(ExportError):  # is_file() False → 拒读（不悬挂）
             coerce_glossary(fifo)

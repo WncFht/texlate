@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -1087,7 +1088,10 @@ def test_nul_package_name_no_crash(
     normalize_project(tmp_path, "xelatex", "main.tex")  # 期望不抛
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root 绕过权限位——缺陷在普通用户下才可达")
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="root/win32 绕过权限位——缺陷在普通用户 POSIX 权限下才可达",
+)
 def test_readonly_source_write_tolerated(tmp_path: Path) -> None:
     """0444 的非 UTF-8 ``.sty``：应跳过或落台账，不应 PermissionError。"""
     (tmp_path / "main.tex").write_text(
@@ -1102,7 +1106,10 @@ def test_readonly_source_write_tolerated(tmp_path: Path) -> None:
         sty.chmod(0o644)
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root 绕过权限位——缺陷在普通用户下才可达")
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="root/win32 绕过权限位——缺陷在普通用户 POSIX 权限下才可达",
+)
 def test_readonly_dir_purge_tolerated(tmp_path: Path) -> None:
     """0555 目录内待 purge 的 ``.aux``：不应 PermissionError 整单崩。"""
     (tmp_path / "main.tex").write_text(

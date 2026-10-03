@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import tempfile
 from typing import TYPE_CHECKING
 
@@ -223,6 +224,8 @@ class TestRun:
         (home / "proj").mkdir(parents=True)
         (home / "proj" / "main.tex").write_text(_MAIN, encoding="utf-8")
         monkeypatch.setenv("HOME", str(home))
+        # win32 expanduser 走 USERPROFILE 而非 HOME——两侧同指才能跨平台钉。
+        monkeypatch.setenv("USERPROFILE", str(home))
         result = _RUNNER.invoke(
             app, ["run", "~/proj", "--work-dir", str(tmp_path / "w")]
         )
@@ -356,6 +359,7 @@ class TestShareErrors:
         assert "Traceback" not in result.output
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="win32 无 mkfifo")
 def test_parse_fifo_refused(tmp_path: Path) -> None:
     """fifo/非正则文件：api 层 is_file 闸 → 干净报错不悬挂不 traceback。"""
     fifo = tmp_path / "pipe.tex"

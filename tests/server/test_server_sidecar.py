@@ -129,6 +129,9 @@ class TestFeedBounds:
 class TestWriteConfig:
     """``write_config``：key 文件落盘即 0600（os.open mode，非 write+chmod 窗口）。"""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="win32 无 umask/0600 属主权限语义"
+    )
     def test_fresh_0600_under_permissive_umask(self, tmp_path: Path) -> None:
         job = bd.BabeldocJob(
             src=tmp_path / "a.pdf",

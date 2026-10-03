@@ -12,6 +12,7 @@ conftest ``make_comp_res`` 的原位别名——salvage/utf8 用例仍消费，j
 import contextlib
 import json
 import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -802,8 +803,8 @@ def test_tectonic_parse_log_res_stderr_error_scan(tmp_path: Path) -> None:
 
 def test_route_project_unreadable_tex_skipped(tmp_path: Path) -> None:
     """读不了的 .tex（竞态删除/权限位）不参与路由信号——不炸 OSError。"""
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        pytest.skip("root 下 chmod 0 仍可读")
+    if sys.platform == "win32" or os.geteuid() == 0:
+        pytest.skip("root/win32 下 chmod 0 仍可读")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\\begin{document}x\\end{document}",
         encoding="utf-8",

@@ -141,6 +141,9 @@ def pdf_client(
         yield c
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="假 CLI 靠 shebang exec——win32 无 shebang 语义"
+)
 class TestRunPdf:
     """worker ``_run_pdf`` → sidecar 全链（dispatch + 终态映射 + 产物登记）。"""
 
@@ -296,6 +299,9 @@ class TestUnit:
         argv = bd.build_argv(job, "/bin/babeldoc")
         assert argv[argv.index("--openai-base-url") + 1] == "http://gw.local:3003/v1"
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="win32 chmod 不可表达 0600 属主语义"
+    )
     def test_write_config_0600(self, tmp_path: Path) -> None:
         job = _job(tmp_path, base_url="", api_key="k-secret")
         p = bd.write_config(job)

@@ -522,6 +522,7 @@ class TestDosEps:
         """D2 回归：NUL token → is_file 闸 ValueError 兜住判 False。"""
         assert is_dos_eps("a\x00b.tex", tmp_path, {}) is False
 
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
     def test_fifo_not_blocking(self, tmp_path: Path) -> None:
         """P2 回归：fifo 走 is_file 闸即拒——不 open 故无开口阻塞。"""
         os.mkfifo(tmp_path / "f.eps")
