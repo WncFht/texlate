@@ -1,7 +1,8 @@
 """token-economy-2026-10-03 图组再生脚本。
 
-输入：data/per-paper-tokens.json（逐篇三方账）+ data/ekg-19506.json
-（2609.19506 逐调用 [in, cr, out] 行）。产物：charts/*.png。
+输入：data/per-paper-tokens.json（逐篇账，含早期实现存档字段，图面只绘
+当前实现与 agent 两路）+ data/ekg-19506.json（2609.19506 逐调用
+[in, cr, out] 行）。产物：charts/*.png。
 运行：uv run --with matplotlib python make_figs.py
 """
 
@@ -20,8 +21,8 @@ apply_rc("paper")
 DATA = json.loads((HERE / "data" / "per-paper-tokens.json").read_text())
 EKG = json.loads((HERE / "data" / "ekg-19506.json").read_text())
 PAPERS = DATA["paper"]
-LABELS = {"early": "早期实现", "current": "当前实现", "agent": "agent 直翻"}
-COLORS = {"early": HUES["vcoral"], "current": HUES["vteal"], "agent": HUES["vorange"]}
+LABELS = {"current": "当前实现", "agent": "agent 直翻"}
+COLORS = {"current": HUES["vteal"], "agent": HUES["vorange"]}
 
 
 def _short(pid: str) -> str:
@@ -31,11 +32,11 @@ def _short(pid: str) -> str:
 def fig_per_paper() -> None:
     fig, (a, b) = plt.subplots(1, 2, figsize=(11.5, 4.2))
     x = range(len(PAPERS))
-    w = 0.27
-    for i, arm in enumerate(("early", "current", "agent")):
+    w = 0.38
+    for i, arm in enumerate(("current", "agent")):
         vals = [DATA[arm][p]["input"] for p in PAPERS]
         a.bar(
-            [t + (i - 1) * w for t in x],
+            [t + (i - 0.5) * w for t in x],
             vals,
             width=w,
             color=COLORS[arm],
@@ -43,7 +44,7 @@ def fig_per_paper() -> None:
         )
         calls = [DATA[arm][p]["calls"] for p in PAPERS]
         b.bar(
-            [t + (i - 1) * w for t in x],
+            [t + (i - 0.5) * w for t in x],
             calls,
             width=w,
             color=COLORS[arm],
@@ -67,15 +68,13 @@ def fig_per_paper() -> None:
 
 
 def fig_composition() -> None:
-    fig, (a, b) = plt.subplots(1, 2, figsize=(9.5, 4.2))
-    arms = ("early", "current", "agent")
+    fig, (a, b) = plt.subplots(1, 2, figsize=(7.5, 4.2))
+    arms = ("current", "agent")
     payload = {
-        "early": 902_843,
         "current": 902_843,
         "agent": 3_298_789,
     }
     overhead = {
-        "early": 5_981_717 - 902_843,
         "current": 1_094_448 - 902_843,
         "agent": 1_450_083,
     }
@@ -117,10 +116,9 @@ def fig_composition() -> None:
 
 
 def fig_ekg() -> None:
-    fig, axes = plt.subplots(3, 1, figsize=(10, 6.8), sharex=False)
+    fig, axes = plt.subplots(2, 1, figsize=(10, 4.8), sharex=False)
     spec = [
         ("agent", "agent 直翻 · 308 次调用"),
-        ("early", "早期实现 · 74 次调用"),
         ("current", "当前实现 · 74 次调用"),
     ]
     for ax, (key, title) in zip(axes, spec, strict=True):
@@ -128,13 +126,6 @@ def fig_ekg() -> None:
         for i, (inp, cr, _out) in enumerate(rows):
             if key == "agent":
                 color = HUES["vorange"] if cr == 0 else HUES["vgold"]
-            elif key == "early":
-                if inp > 50_000:
-                    color = HUES["vcoral"]
-                elif cr > 0:
-                    color = HUES["vgold"]
-                else:
-                    color = HUES["vteal"]
             else:
                 color = HUES["vteal"]
             ax.vlines(i, 1, inp, color=color, linewidth=1.1)
@@ -151,15 +142,6 @@ def fig_ekg() -> None:
         handles=[
             Line2D([], [], color=HUES["vgold"], lw=2, label="增量（历史前缀命中缓存）"),
             Line2D([], [], color=HUES["vorange"], lw=2, label="全量重发（缓存失守）"),
-        ],
-        loc="upper right",
-        fontsize=8,
-    )
-    axes[1].legend(
-        handles=[
-            Line2D([], [], color=HUES["vcoral"], lw=2, label="恒等表全价重发（>50k）"),
-            Line2D([], [], color=HUES["vgold"], lw=2, label="缓存命中（仅 user 载荷）"),
-            Line2D([], [], color=HUES["vteal"], lw=2, label="其余调用"),
         ],
         loc="upper right",
         fontsize=8,
