@@ -126,7 +126,10 @@ def find_main_tex(proj: Path) -> Path | None:
     if strict is not None:
         return strict
     cands = []
-    for f in sorted(f for f in proj.rglob("*") if f.suffix.lower() == ".tex"):
+    for f in sorted(
+        (f for f in proj.rglob("*") if f.suffix.lower() == ".tex"),
+        key=lambda p: p.as_posix(),
+    ):
         with contextlib.suppress(OSError):
             head = decode_tex(f.read_bytes())[:60000]
             if DOCCLASS_RX.search(head):

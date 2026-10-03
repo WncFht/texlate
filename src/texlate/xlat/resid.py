@@ -567,7 +567,10 @@ def _collect_jobs(root: Path) -> tuple[list[tuple[Path, str, list]], dict[str, N
     """扫 ``root`` 全部 ``.tex`` 取残英 span——同步件，async 侧 ``to_thread`` 起。"""
     jobs: list[tuple[Path, str, list[tuple[int, int, str]]]] = []
     uniq: dict[str, None] = {}
-    for p in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
+    for p in sorted(
+        (f for f in root.rglob("*") if f.suffix.lower() == ".tex"),
+        key=lambda f: f.as_posix(),  # win Path 排序大小写不敏感——钉死字节序
+    ):
         raw = p.read_text(encoding="utf-8", errors="replace")
         spans = find_resid_spans(raw)
         if not spans:
@@ -594,7 +597,7 @@ def _apply_jobs(
             text = text[:start] + zh + text[end:]
             metrics["replaced"] += 1
         if text != raw:
-            p.write_text(text, encoding="utf-8")
+            p.write_text(text, encoding="utf-8", newline="")
 
 
 async def sweep_tree(

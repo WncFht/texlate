@@ -110,7 +110,8 @@ def scan_tex_tree(
     """
     out = TexTreeScan()
     for f in sorted(
-        p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".tex"
+        (p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".tex"),
+        key=lambda p: p.as_posix(),  # win Path 比较大小写不敏感——钉死字节序
     ):
         if on_file is not None:
             on_file(f)

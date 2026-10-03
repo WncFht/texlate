@@ -7,6 +7,7 @@ engine_flags 预切与 xelatex 命令行构造。
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -52,10 +53,12 @@ class _XelatexEnv:
             # （regress4 假退化根因）。tlmgr/updmap 不认链，走 _usertree_env。
             home_tree = str(self.texmfhome / "home")
             tail = env_raw("TEXMFHOME") or str(Path.home() / "texmf")
-            homes = [home_tree] + [e for e in tail.split(":") if e and e != home_tree]
+            homes = [home_tree] + [
+                e for e in tail.split(os.pathsep) if e and e != home_tree
+            ]
             add.update(
                 {
-                    "TEXMFHOME": ":".join(homes),
+                    "TEXMFHOME": os.pathsep.join(homes),
                     "TEXMFVAR": str(self.texmfhome / "var"),
                     "TEXMFCONFIG": str(self.texmfhome / "config"),
                 }
@@ -112,7 +115,7 @@ class _XelatexEnv:
                 f"  <cachedir>{cdir / 'cache'}</cachedir>",
                 "</fontconfig>",
             ]
-            conf.write_text("\n".join(body) + "\n", encoding="utf-8")
+            conf.write_text("\n".join(body) + "\n", encoding="utf-8", newline="")
         except OSError:
             return None  # 写失败不 memo——下回重试（同旧逐次重写语义）
         self._fontconfig_memo = (self.texmfhome, str(conf))
@@ -126,8 +129,8 @@ class _XelatexEnv:
         """
         env = self._env(None)
         home = env.get("TEXMFHOME")
-        if home and ":" in home:
-            env["TEXMFHOME"] = home.split(":", 1)[0]
+        if home and os.pathsep in home:
+            env["TEXMFHOME"] = home.split(os.pathsep, 1)[0]
         return env
 
     @staticmethod

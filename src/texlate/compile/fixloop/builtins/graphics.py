@@ -120,7 +120,7 @@ def _iter_project_files(
     main_pdf = main.with_suffix(".pdf") if main is not None else None
     exts_t = {e.lower() for e in exts} if exts is not None else None
     out: list[Path] = []
-    for p in sorted(ctx.wdir.rglob("*")):
+    for p in sorted(ctx.wdir.rglob("*"), key=lambda p: p.as_posix()):
         parts = p.relative_to(ctx.wdir).parts
         if parts[0] in _PDF_SANITIZE_SKIP_DIRS or any(
             part.startswith(".") for part in parts
@@ -190,6 +190,7 @@ def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
             errors="replace",
             timeout=90,
             check=False,

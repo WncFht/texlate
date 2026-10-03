@@ -1036,24 +1036,13 @@ rules:
         - { cache_dir_glob: "*.sty" }
         - { cache_dir_glob: "*.cls" }
       source_contains: "\\\\Require(PDFTeX|LuaTeX|LuaMetaTeX)"
-      tool_available: sh
     action:
-      kind: run_tool
-      params:
-        argv:
-          - sh
-          - -c
-          - |
-            for f in *.sty *.cls; do
-              [ -f "$f" ] || continue
-              grep -q 'texlate-fixloop-injected' "$f" && continue
-              grep -vE '^[[:space:]]*%' "$f" | grep -qE '^[[:space:]]*\\Require(PDFTeX|LuaTeX|LuaMetaTeX)[[:space:]]*(%.*)?$' || continue
-              grep -vE '^[[:space:]]*\\Require(PDFTeX|LuaTeX|LuaMetaTeX)[[:space:]]*(%.*)?$' "$f" > "$f.fixloop-tmp"
-              printf '%s\n' '% texlate-fixloop-injected: engine guard \Require{PDF,Lua,LuaMeta}TeX stripped (xelatex pipeline)' >> "$f.fixloop-tmp"
-              mv -f "$f.fixloop-tmp" "$f"
-            done
-            exit 0
-        timeout: 30
+      # 2026-10-04 sh→builtin 移植：win 无 sh (tool_available 闸下永不可达)
+      # —— 同语义 Python 复刻在 builtins.misc.engine_guard_strip; 指纹
+      # texlate-fixloop-injected 幂等口径与独占行形判与 sh 臂逐行同构。
+      kind: builtin_transform
+      function: engine_guard_strip
+      params: {} # exts 缺省 (.sty .cls) —— 同 sh for-glob 域
     risk: low # 仅删 wdir 顶层稿自带件独占闸行; 若闸非死因 (别家 emergency) 删行也无害 —— xelatex 下闸本必死
     known_gap: "闸 cs 非独占行 (\\ifx 行内/多 cs 同行) 指纹不中漏收; 子目录 sty/cls 漏收 (顶层 glob, 同 draftsty); 系统件不经手 (只扫 wdir)"
     engines:

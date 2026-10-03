@@ -272,7 +272,7 @@ def _mirror_relocate_tree(
     dst_top_res = dst_top.resolve()
     target_res = target.resolve()
     n = 0
-    for p in sorted(src_top.rglob("*")):
+    for p in sorted(src_top.rglob("*"), key=lambda p: p.as_posix()):
         if not safe_is_file(p):
             continue
         pparts = p.relative_to(ctx.wdir).parts

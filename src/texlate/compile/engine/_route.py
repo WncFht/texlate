@@ -190,7 +190,10 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
 
     # --- \documentstyle → latex209_suspect 标记（任何文件里出现都算）
     latex209_suspect = [
-        str(p.relative_to(root)) for p, v in vis.items() if DOCSTYLE_RX.search(v)
+        # reason 名单是 TeX 面子串——win32 str(Path) 出 '\' 须 posix 形
+        p.relative_to(root).as_posix()
+        for p, v in vis.items()
+        if DOCSTYLE_RX.search(v)
     ]
 
     reasons: list[str] = []

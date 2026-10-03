@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.latex209 import wrap_math_cites
@@ -21,8 +21,6 @@ from texlate.textutil import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 from texlate.compile.fixloop.builtins.common import (
@@ -69,7 +67,7 @@ def bbl_stub_rewrite(
     exts = tuple(params.get("exts") or (".tex",))
     bbls = {
         p.stem: p
-        for p in sorted(ctx.wdir.rglob("*.bbl"))
+        for p in sorted(ctx.wdir.rglob("*.bbl"), key=lambda p: p.as_posix())
         if "\\begin{thebibliography}" in (ctx.read(p) or "")
     }
     if not bbls:
@@ -78,7 +76,10 @@ def bbl_stub_rewrite(
     stem = main.stem if main is not None else None
     bbl = bbls.get(stem) or next(iter(bbls.values()))
     base = main.parent if main is not None else ctx.wdir
-    target = PurePosixPath(os.path.relpath(bbl, base)).as_posix()
+    # os.path.relpath 在 win 吐 ``..\x`` 反斜杠形——PurePosixPath 不拆
+    # ``\`` 会把逃逸判读穿、``\input{}`` 参数也带反斜杠，先过本机
+    # Path 再归一 POSIX。
+    target = Path(os.path.relpath(bbl, base)).as_posix()
     if ".." in PurePosixPath(target).parts:
         return False, "bbl target escapes compile cwd"
     pat = re.compile(r"\\bibliography(\[[^\]]*\])?\{[^}]*\}")
@@ -164,18 +165,20 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫 + 逐 bcf 顺序闸�
     del eng, payload, params
     # —— 前置：全树陈旧 bbl 隔离 (与 .bcf 有无无关) ——
     quarantined: list[str] = []
-    for bbl in sorted(ctx.wdir.rglob("*.bbl")):
+    for bbl in sorted(ctx.wdir.rglob("*.bbl"), key=lambda p: p.as_posix()):
         if bbl.name.endswith(".fixloop-stale") or not bbl.is_file():
             continue
         ver = _bbl_format_version(bbl)
         if ver is not None and ver < (3, 0):
             try:
-                bbl.rename(bbl.with_name(bbl.name + ".fixloop-stale"))
+                # replace=POSIX rename 覆盖语义在 win 的同形——隔离名撞
+                # 旧残留时 POSIX 本就静默换，win rename 会 FileExistsError
+                bbl.replace(bbl.with_name(bbl.name + ".fixloop-stale"))
             except OSError:
                 continue
             ctx.invalidate(bbl)
             quarantined.append(f"{bbl.name}(fmt {ver[0]}.{ver[1]})")
-    bcfs = sorted(ctx.wdir.rglob("*.bcf"))
+    bcfs = sorted(ctx.wdir.rglob("*.bcf"), key=lambda p: p.as_posix())
     if not bcfs:
         if quarantined:
             ctx.needs_pass = True
@@ -186,7 +189,7 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫 + 逐 bcf 顺序闸�
     failed: list[str] = []
     restored: list[str] = []
     for bcf in bcfs:
-        stem = str(bcf.relative_to(ctx.wdir).with_suffix(""))
+        stem = bcf.relative_to(ctx.wdir).with_suffix("").as_posix()
         bbl = bcf.with_suffix(".bbl")
         had_bbl = bbl.exists()
         bbl_ver = _bbl_format_version(bbl) if had_bbl else None
@@ -273,7 +276,7 @@ def bbl_format_version_rewrite(
     if m_exp is not None:
         exp = (int(m_exp.group(1)), int(m_exp.group(2)))
     rewritten: list[str] = []
-    for bbl in sorted(ctx.wdir.rglob("*.bbl")):
+    for bbl in sorted(ctx.wdir.rglob("*.bbl"), key=lambda p: p.as_posix()):
         if bbl.name.endswith((".fixloop-stale", ".fixloop-bak")):
             continue
         ver = _bbl_format_version(bbl)

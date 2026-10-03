@@ -144,6 +144,7 @@ if TYPE_CHECKING:
         aux_seed_undefined_refs,
         cjk_env_relax,
         docstrip_generate,
+        engine_guard_strip,
         harvest_build_directives,
         latex209_upgrade,
         non_utf8_recode,
@@ -326,6 +327,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "aux_seed_undefined_refs",
         "cjk_env_relax",
         "docstrip_generate",
+        "engine_guard_strip",
         "harvest_build_directives",
         "latex209_upgrade",
         "non_utf8_recode",
@@ -489,6 +491,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "bbl_format_version_rewrite",
     "rotatebox_caption_pad",
     "legacy_clamp_purge",
+    "engine_guard_strip",
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
@@ -558,6 +561,7 @@ __all__ = [
     "docstrip_generate",
     "driver_missing_image_stub",
     "driver_tfm_hoist",
+    "engine_guard_strip",
     "eps_converted_alias",
     "eps_to_pdf",
     "extract_tar_blobs",

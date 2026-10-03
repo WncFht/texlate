@@ -28,11 +28,12 @@ r"""TeX ``.log`` 词法原语 —— engine/logattr/fixloop 三处文件栈收�
 
 from __future__ import annotations
 
+import os
 import re
 from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Final, Protocol
 
 from texlate.textutil import safe_resolve
@@ -264,13 +265,29 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
     """
     if token is None or "\x00" in token:
         return True
-    if "/" not in token:
+    # Windows 绝对 token（``C:\x``/``C:/x``/``\\unc\s``）：POSIX
+    # ``startswith("/")`` 判定会把它们误收进裸名/相对臂（root/绝对径
+    # join 在 win 上重置为绝对径本身，存在性假阴）。统一归一成 POSIX
+    # 分隔走绝对径臂。
+    win_abs = PureWindowsPath(token).is_absolute()
+    if "\\" in token:
+        token = PureWindowsPath(token).as_posix()
+    if "/" not in token and "\\" not in token:
         try:
             probed = root is not None and (root / token).is_file()
         except (OSError, ValueError):
             probed = True  # ENAMETOOLONG 等——不可归因，保守归工程
+        if (
+            root is not None
+            and not probed
+            # NAME_MAX —— win stat 对超长名返 ENOENT
+            and (len(token) > 255 or len(os.fsencode(token)) > 255)  # noqa: PLR2004
+        ):
+            # Windows stat 把超长名映射成 ENOENT——is_file() 吞成 False
+            # (POSIX 侧 ENAMETOOLONG 抛错由 except 收)，同样保守归工程。
+            probed = True
         return probed or root is None
-    if not token.startswith("/"):
+    if not token.startswith("/") and not win_abs:
         return True
     if _SYS_TREE_RX.search(token):
         return False

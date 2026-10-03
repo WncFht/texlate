@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import (
     Path,
+    PurePosixPath,
 )
 from typing import (
     TYPE_CHECKING,
@@ -88,7 +89,9 @@ class _Input:
             g2 = self._req_grouping(trace, "{", "}")
             sub = _surface(g1).strip()
             fn = _surface(g2).strip()
-            fname = str(Path(sub) / fn) if sub else fn
+            # 同 flatten ``\import`` join——POSIX 分隔是 TeX 语义，win
+            # Path join 的反斜杠会撞下方 ``"\\" in fname`` 闸
+            fname = str(PurePosixPath(sub) / fn) if sub else fn
         elif name == "InputIfFileExists":
             grp = self._req_grouping(trace, "{", "}")
             fname = _surface(grp).strip()  # {then}{else} 留在流内

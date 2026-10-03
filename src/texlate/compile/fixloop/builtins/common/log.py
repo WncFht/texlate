@@ -39,7 +39,7 @@ def _iter_log_candidates(ctx: LoopCtx) -> Iterable[Path]:
         stem = main.stem
         yield ctx.wdir / f"{stem}.log"
         yield ctx.wdir / "_tect_out" / f"{stem}.log"
-    yield from sorted(ctx.wdir.rglob("*.log"))
+    yield from sorted(ctx.wdir.rglob("*.log"), key=lambda p: p.as_posix())
 
 
 def _fixloop_log(ctx: LoopCtx) -> str:

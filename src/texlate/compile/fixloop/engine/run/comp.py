@@ -80,7 +80,9 @@ class _RunComp:
         自足, 不走本臂)。文件面有界 (≤32 件) 防巨型工程扫盘。
         """
         marks = ("\\newlabel", "\\bibcite", "\\citation", "\\abx@aux@cite")
-        for f in sorted(self.ctx.io.wdir.rglob("*.aux"))[:32]:
+        for f in sorted(self.ctx.io.wdir.rglob("*.aux"), key=lambda p: p.as_posix())[
+            :32
+        ]:
             t = self.ctx.read(f)
             if t and any(k in t for k in marks):
                 return True

@@ -150,7 +150,7 @@ def purge_corrupt_intermediates(
     pay_exts = {str(e).lower() for e in (params.get("payload_purge_exts") or ())}
     pay_re = _payload_purge_re(payload, params.get("payload_purge_cs"), pay_exts)
     purged, skewed = [], []
-    for f in sorted(ctx.wdir.rglob("*")):
+    for f in sorted(ctx.wdir.rglob("*"), key=lambda p: p.as_posix()):
         if not f.is_file():
             continue
         suf = f.suffix.lower()
@@ -511,7 +511,10 @@ def docstrip_generate(
     rel = _safe_rel(want)
     if rel is None:
         return False, f"unsafe payload {want!r}"
-    ins_all = sorted(p for p in ctx.wdir.rglob("*.ins") if p.is_file())
+    ins_all = sorted(
+        (p for p in ctx.wdir.rglob("*.ins") if p.is_file()),
+        key=lambda p: p.as_posix(),
+    )
     stem = rel.stem.lower()
     cands = [p for p in ins_all if p.stem.lower() == stem]
     if not cands and len(ins_all) == 1:
@@ -541,3 +544,48 @@ def docstrip_generate(
             ctx.invalidate(hit)
             return True, f"docstrip {rel_ins} generated {hit.relative_to(ctx.wdir)}"
     return False, f"docstrip ran but {want} not produced"
+
+
+#: 引擎闸独占行——``\Require{PDF,Lua,LuaMeta}TeX`` 行尾允许空白/``%`` 注释
+#: (xelatex 下全灭子集；``\RequireXeTeX``/``\RequireETeX`` 本机通过不在剥面)。
+#: ``[^\S\n]`` 对齐 POSIX ``[[:space:]]`` 行内域——CRLF 件的 ``\r`` 同收。
+_ENGINE_GUARD_RX = re.compile(
+    r"^[^\S\n]*\\Require(?:PDFTeX|LuaTeX|LuaMetaTeX)[^\S\n]*(?:%[^\n]*)?$"
+)
+
+#: 幂等尾注——``texlate-fixloop-injected`` 族指纹，命中即跳 (sh 臂同口径)。
+_ENGINE_GUARD_MARKER = "% texlate-fixloop-injected: engine guard \\Require{PDF,Lua,LuaMeta}TeX stripped (xelatex pipeline)"
+
+
+def engine_guard_strip(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""稿自带 ``.sty``/``.cls`` ``\Require{PDF,Lua,LuaMeta}TeX`` 独占闸行删 + 指纹尾注。
+
+    run_tool ``sh -c`` 臂的 builtin 移植 (win 无 sh——``tool_available``
+    闸下规则永不可达, 同语义 Python 复刻): 只扫 wdir 顶层 ``*.sty``/
+    ``*.cls`` (sh ``for f in *.sty *.cls`` 非递归同界), 指纹行在档跳过,
+    有活体闸行 (``_ENGINE_GUARD_RX``) 才整行剥除并尾注幂等标——
+    注释形闸行 (``% \RequirePDFTeX``) 与行内嵌入
+    (``\ifx..\RequirePDFTeX\fi``) 按独占行形天然不中 (known_gap 同形)。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".sty", ".cls"))
+    done: list[str] = []
+    for ext in exts:
+        for f in sorted(ctx.wdir.glob(f"*{ext}"), key=lambda p: p.as_posix()):
+            if not safe_is_file(f):
+                continue
+            text = ctx.read(f)
+            if text is None or "texlate-fixloop-injected" in text:
+                continue
+            lines = text.split("\n")
+            kept = [ln for ln in lines if not _ENGINE_GUARD_RX.match(ln)]
+            if len(kept) == len(lines):
+                continue
+            new_text = "\n".join(kept)
+            if not new_text.endswith("\n"):
+                new_text += "\n"
+            ctx.write(f, new_text + _ENGINE_GUARD_MARKER + "\n")
+            done.append(f.name)
+    return bool(done), f"engine guards stripped: {', '.join(done)}"

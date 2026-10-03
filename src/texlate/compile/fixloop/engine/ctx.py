@@ -242,7 +242,7 @@ class LoopCtx:
         exts_t = tuple(e.lower() for e in exts)
         return [
             p
-            for p in sorted(self.io.wdir.rglob("*"))
+            for p in sorted(self.io.wdir.rglob("*"), key=lambda p: p.as_posix())
             if p.suffix.lower() in exts_t and p.is_file()
         ]
 
@@ -258,7 +258,7 @@ class LoopCtx:
 
     def write(self, f: Path, text: str) -> None:
         """utf-8 写文件并同步缓存。"""
-        f.write_text(text, encoding="utf-8")
+        f.write_text(text, encoding="utf-8", newline="")
         self.io._texts[f] = text  # noqa: SLF001  # 组内缓存同步
         self.io.written.add(f)
 
@@ -304,6 +304,7 @@ class LoopCtx:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
                 errors="replace",
                 check=False,
             )

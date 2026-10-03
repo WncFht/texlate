@@ -374,7 +374,9 @@ class _XelatexBib:
 
         if (tool := _eng.find_tool("bibtex")) is None:
             return ran
-        for aux in sorted(out.rglob("*.aux"))[:_BIB_AUX_SCAN_MAX]:
+        for aux in sorted(out.rglob("*.aux"), key=lambda p: p.as_posix())[
+            :_BIB_AUX_SCAN_MAX
+        ]:
             try:
                 text = aux.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -391,7 +393,7 @@ class _XelatexBib:
                 if not _bibdata_resolvable(text, wdir, out):
                     continue  # 无 .bib 可再生——缺键是空跑，在席件不碰
                 bak = _backup(bbl)
-                rel = str(aux.relative_to(out).with_suffix(""))
+                rel = aux.relative_to(out).with_suffix("").as_posix()
                 rc, out_s, _sec, to = _run([tool, rel])
                 if _bbl_complete(bbl):
                     ran.append(f"bibtex:{rel}(coverage)")
@@ -411,7 +413,10 @@ class _XelatexBib:
             if not _bibdata_resolvable(text, wdir, out):
                 strays = [
                     p
-                    for p in sorted(set(wdir.rglob("*.bbl")) | set(out.rglob("*.bbl")))
+                    for p in sorted(
+                        set(wdir.rglob("*.bbl")) | set(out.rglob("*.bbl")),
+                        key=lambda p: p.as_posix(),
+                    )
                     if p.resolve() != bbl.resolve()
                     and p.suffix == ".bbl"
                     and _bbl_stray_candidate(p)
@@ -426,7 +431,7 @@ class _XelatexBib:
                 ran.append(f"adopt:{stray.name}->{bbl.name}")
                 log.debug("adopted stray bbl %s -> %s", stray, bbl)
                 continue
-            rel = str(aux.relative_to(out).with_suffix(""))
+            rel = aux.relative_to(out).with_suffix("").as_posix()
             rc, out_s, _sec, to = _run([tool, rel])
             if _bbl_complete(bbl):
                 missed = len(cite_keys - _bbl_keys(bbl)) if cite_keys else 0

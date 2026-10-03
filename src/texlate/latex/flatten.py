@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import errno
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from texlate.latex.chars import (
     strip_brace_comments,
@@ -341,7 +341,9 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
                 if not e3:
                     return None
                 fname, end = strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
-                fname = str(Path(subdir) / fname) if subdir else fname
+                # TeX 语义 join 须 POSIX 分隔——win Path join 吐 ``sub\deep``
+                # 会撞上 ``"\\" in fname`` 计算式闸静默回吐 (\import 死区)
+                fname = str(PurePosixPath(subdir) / fname) if subdir else fname
             else:
                 return None
         else:
