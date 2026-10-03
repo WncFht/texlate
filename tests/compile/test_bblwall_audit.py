@@ -52,9 +52,7 @@ def _write_main(tmp_path: Path, head: str, body: str = "hi") -> None:
     )
 
 
-_BCF_STUB = (
-    "<bcf:controlfile>\n" + "x" * 220 + "\n</bcf:controlfile>\n"
-)
+_BCF_STUB = "<bcf:controlfile>\n" + "x" * 220 + "\n</bcf:controlfile>\n"
 
 
 _STUB = (

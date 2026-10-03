@@ -28,9 +28,9 @@ import json
 import sys
 from pathlib import Path
 
-import matplotlib
+import matplotlib as mpl
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
@@ -62,7 +62,9 @@ def _blend(fg: str, alpha: float, bg: str = PAPER) -> str:
     """alpha 色落成纸面等效 hex（OFFPALETTE 按实体色审计）。"""
     f = tuple(int(fg[i : i + 2], 16) for i in (1, 3, 5))
     b = tuple(int(bg[i : i + 2], 16) for i in (1, 3, 5))
-    return "#" + "".join(f"{round(f[i] * alpha + b[i] * (1 - alpha)):02X}" for i in range(3))
+    return "#" + "".join(
+        f"{round(f[i] * alpha + b[i] * (1 - alpha)):02X}" for i in range(3)
+    )
 
 
 GRID = _blend(INK, 0.10)
@@ -97,7 +99,10 @@ plt.rcParams.update(
 )
 
 DATA = json.loads(
-    (_ROOT / "docs/research/methods/token-economy-2026-10-03/data/per-paper-tokens.json").read_text()
+    (
+        _ROOT
+        / "docs/research/methods/token-economy-2026-10-03/data/per-paper-tokens.json"
+    ).read_text()
 )
 OUT = _ROOT / "shots"
 
@@ -114,8 +119,10 @@ def eyebrow(fig, text):
 
 
 def mono_ticks(ax, axis="both"):
-    for t in ax.get_xticklabels() + ax.get_yticklabels() if axis == "both" else (
-        ax.get_xticklabels() if axis == "x" else ax.get_yticklabels()
+    for t in (
+        ax.get_xticklabels() + ax.get_yticklabels()
+        if axis == "both"
+        else (ax.get_xticklabels() if axis == "x" else ax.get_yticklabels())
     ):
         t.set_fontfamily(MONO)
 
@@ -126,7 +133,16 @@ def footnote(fig, text, rect=(0, 0.045, 1, 0.93)):
 
 
 def claim(fig, text, y):
-    fig.text(0.5, y, text, fontsize=10.5, color=INK, ha="center", family=SERIF, fontweight="semibold")
+    fig.text(
+        0.5,
+        y,
+        text,
+        fontsize=10.5,
+        color=INK,
+        ha="center",
+        family=SERIF,
+        fontweight="semibold",
+    )
 
 
 def fig_token() -> None:
@@ -176,10 +192,19 @@ def fig_token() -> None:
     bx = list(range(3))
     b.bar([t - w / 2 for t in bx], agent_v, width=w, bottom=500, color=MUTED)
     b.bar([t + w / 2 for t in bx], cur_v, width=w, bottom=500, color=ACCENT)
-    for i, (av, cv, r) in enumerate(zip(agent_v, cur_v, ratio)):
-        b.text(i - w / 2, av * 1.3, f"{av / 1e6:.1f}M", ha="center", fontsize=8.5, family=MONO)
+    for i, (av, cv, r) in enumerate(zip(agent_v, cur_v, ratio, strict=True)):
+        b.text(
+            i - w / 2,
+            av * 1.3,
+            f"{av / 1e6:.1f}M",
+            ha="center",
+            fontsize=8.5,
+            family=MONO,
+        )
         lab = f"{cv / 1e6:.2f}M" if cv > 1e5 else f"{cv / 1e3:.1f}k"
-        b.text(i + w / 2, cv * 1.3, f"{lab}\n{r}", ha="center", fontsize=8.5, family=MONO)
+        b.text(
+            i + w / 2, cv * 1.3, f"{lab}\n{r}", ha="center", fontsize=8.5, family=MONO
+        )
     b.set_yscale("log")
     b.set_ylim(500, 5e8)
     b.set_xticks(bx)
@@ -191,7 +216,9 @@ def fig_token() -> None:
         despine(ax)
         mono_ticks(ax, "y")
 
-    claim(fig, "同 10 篇同模型：管线新输入为 agent 的 23%、总输入 2.0%、输出 48%", 0.075)
+    claim(
+        fig, "同 10 篇同模型：管线新输入为 agent 的 23%、总输入 2.0%、输出 48%", 0.075
+    )
     footnote(
         fig,
         "两路同题对照 · 同模型 swe-2-medium · 网关逐请求账本（2026-09/10）",
@@ -216,19 +243,34 @@ def fig_e2e() -> None:
 
     y = [0, 1]
     h = 0.52
-    for ci, (_cat, color) in enumerate(zip(cats, colors)):
+    for ci, (_cat, color) in enumerate(zip(cats, colors, strict=True)):
         widths = [r[1 + ci] for r in rows]
         lefts = [sum(r[1 : 1 + ci]) for r in rows]
         ax.barh(y, widths, left=lefts, height=h, color=color)
-    for yi, (_name, direct, rescued, _unfix, _up, bare, pct) in zip(y, rows):
+    for yi, (_name, direct, rescued, _unfix, _up, bare, pct) in zip(
+        y, rows, strict=True
+    ):
         delivered = direct + rescued
-        ax.text(204, yi, f"{delivered}/200 · {pct}", va="center", fontsize=10, family=MONO)
-        ax.vlines(
-            bare, yi - h / 2 - 0.09, yi + h / 2 + 0.09,
-            color=INK, linewidth=1.4, linestyles=":",
+        ax.text(
+            204, yi, f"{delivered}/200 · {pct}", va="center", fontsize=10, family=MONO
         )
-        ax.text(bare + 2, yi + h / 2 + 0.14, str(bare), ha="left", fontsize=8,
-                color=INK, family=MONO)
+        ax.vlines(
+            bare,
+            yi - h / 2 - 0.09,
+            yi + h / 2 + 0.09,
+            color=INK,
+            linewidth=1.4,
+            linestyles=":",
+        )
+        ax.text(
+            bare + 2,
+            yi + h / 2 + 0.14,
+            str(bare),
+            ha="left",
+            fontsize=8,
+            color=INK,
+            family=MONO,
+        )
     ax.set_yticks(y)
     ax.set_yticklabels([r[0] for r in rows], fontsize=10)
     ax.set_xlim(0, 248)

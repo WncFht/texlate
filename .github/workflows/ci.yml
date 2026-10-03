@@ -151,9 +151,11 @@ jobs:
           cp /tmp/shellcheck-v0.11.0/shellcheck "$HOME/.local/bin/"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # .agents/ vendored skill 原样入库、不吃本仓 lint 口径——与
+      # .pre-commit-config.yaml shellcheck hook 的 exclude 同源
       - name: shfmt + shellcheck
         run: |
-          git ls-files -z '*.sh' | while IFS= read -r -d '' f; do
+          git ls-files -z '*.sh' ':!.agents' | while IFS= read -r -d '' f; do
             head -1 "$f" | grep -q '^#!.*zsh' && continue
             shfmt -d -i 2 "$f"
             shellcheck -S warning "$f"

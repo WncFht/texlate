@@ -100,7 +100,13 @@ def fig_composition() -> None:
     cr = [DATA["_total"][k]["cache_read"] for k in arms]
     b.bar(x, cr, color=[COLORS[k] for k in arms])
     for i, v in enumerate(cr):
-        b.text(i, v * 1.3, f"{v / 1e6:.2f}M" if v > 1e5 else f"{v:,}", ha="center", fontsize=9)
+        b.text(
+            i,
+            v * 1.3,
+            f"{v / 1e6:.2f}M" if v > 1e5 else f"{v:,}",
+            ha="center",
+            fontsize=9,
+        )
     b.set_yscale("log")
     b.set_ylim(500, 3e8)
     b.set_xticks(list(x))

@@ -65,13 +65,17 @@ dev = [
 # `uvx ty@0.0.82 check src` 钉死（tools/tests/bench 属脚本类不在闸径）。
 [tool.ty.src]
 exclude = [
-  # 散点文件（按路径序）——均在另一会话在飞区，归其收口时清
+  # 散点文件（按路径序）——均在另一会话在飞区，归其收口时清。
+  # 注意条目随拆包漂移：凡 `X.py → X/` 子包化的旧叶，白名单跟到目录级
+  #（actions/pipecore/repair/_common/compile/translate/pipeline 七处）
   "src/texlate/cli/_common.py",
   "src/texlate/cli/share.py",
   "src/texlate/cli/thin.py",
-  "src/texlate/compile/fixloop/actions.py",
-  "src/texlate/pipecore.py",
-  "src/texlate/repair.py",
+  "src/texlate/compile/engine/_base.py",
+  "src/texlate/compile/fixloop/actions",
+  "src/texlate/latex/segmenter",
+  "src/texlate/pipecore",
+  "src/texlate/repair",
   "src/texlate/server/_common.py",
   "src/texlate/server/app.py",
   "src/texlate/server/babeldoc.py",
@@ -92,8 +96,10 @@ exclude = [
   "src/texlate/server/srccut.py",
   "src/texlate/server/staticfiles.py",
   "src/texlate/server/store/__init__.py",
-  "src/texlate/server/worker/_common.py",
-  "src/texlate/server/worker/compile.py",
+  "src/texlate/server/sweep.py",
+  "src/texlate/server/worker/_common",
+  "src/texlate/server/worker/__init__.py",
+  "src/texlate/server/worker/compile",
   "src/texlate/server/worker/core.py",
   "src/texlate/server/worker/emit.py",
   "src/texlate/server/worker/fetch.py",
@@ -103,10 +109,11 @@ exclude = [
   "src/texlate/server/worker/retranslate.py",
   "src/texlate/server/worker/runner.py",
   "src/texlate/server/worker/share.py",
-  "src/texlate/server/worker/translate.py",
+  "src/texlate/server/worker/translate",
   "src/texlate/share.py",
   "src/texlate/validate/l2.py",
-  "src/texlate/xlat/pipeline.py",
+  "src/texlate/validate/logattr.py",
+  "src/texlate/xlat/pipeline",
 ]
 
 [tool.pytest.ini_options]

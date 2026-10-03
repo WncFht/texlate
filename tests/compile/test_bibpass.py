@@ -120,9 +120,7 @@ def test_bibtex_fires_and_extends_to_three_passes(
     """pin a: aux citation 态 → bibtex 趟间补 + 自适应档 3 趟。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(
-        monkeypatch, _fake_run(calls, bibfile=True, hint_passes={2})
-    )
+    eng = _eng(monkeypatch, _fake_run(calls, bibfile=True, hint_passes={2}))
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["xelatex"] == 3  # noqa: PLR2004 - 采纳后 hint 延趟：2→3
     assert calls["tools"] == [["/x/bibtex", "main"]]
@@ -270,7 +268,10 @@ def test_multi_aux_each_gets_bibtex(
     """逐 aux 算法：``\\include`` 子件 aux 同吃（multibib/章节 .aux）。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls, extra_aux={"sub/ch1.aux": _AUX_CITE}, bibfile=True))
+    eng = _eng(
+        monkeypatch,
+        _fake_run(calls, extra_aux={"sub/ch1.aux": _AUX_CITE}, bibfile=True),
+    )
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"], ["/x/bibtex", "sub/ch1"]]
     assert res.bib_ran == ["bibtex:main", "bibtex:sub/ch1"]
