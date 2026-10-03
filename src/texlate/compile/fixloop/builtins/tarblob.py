@@ -208,14 +208,14 @@ def extract_tar_blobs(
     del eng, payload
     exts = {str(e).lower() for e in (params.get("exts") or _TARBLOB_EXTS)}
     done: list[str] = []
-    for f in sorted(ctx.wdir.rglob("*")):
+    for f in sorted(ctx.wdir.rglob("*"), key=lambda p: p.as_posix()):
         if not f.is_file() or f.suffix.lower() not in exts:
             continue
         hdr = _tar_header_start(f)
         if hdr is None:
             continue
         blob = f.with_name(f.name + ".tarblob")
-        f.rename(blob)
+        f.replace(blob)
         ctx.invalidate(f)
         extracted = _extract_members(ctx, blob, hdr, expected=f)
         done.append(f"{f.name}({extracted} members)")

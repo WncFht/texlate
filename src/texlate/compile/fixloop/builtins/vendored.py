@@ -195,7 +195,7 @@ def find_vendored_shadows(
 def _isolate_rename(f: Path, suffix: str) -> Path:
     """``f`` rename 为 ``<f.name><suffix>`` 隔离件 → 新路径 (让出原名槽位)。"""
     iso = f.with_name(f.name + suffix)
-    f.rename(iso)
+    f.replace(iso)
     return iso
 
 
@@ -579,7 +579,7 @@ def vendored_fetch(
     tag = "refreshed (stale injected)" if state == "stale" else "->"
     return (
         True,
-        f"vendored[{tier}] {src.name} {tag} {dst.relative_to(ctx.wdir)}",
+        f"vendored[{tier}] {src.name} {tag} {dst.relative_to(ctx.wdir).as_posix()}",
     )
 
 
@@ -855,7 +855,7 @@ def fontspec_kernel_shadow_retire(
         return False, "系统侧无 fontspec 递补, 不退"
     moved: list[str] = []
     for name in _FONTSPEC_SUITE:
-        for f in sorted(ctx.wdir.rglob(name)):
+        for f in sorted(ctx.wdir.rglob(name), key=lambda p: p.as_posix()):
             if not safe_is_file(f) or f.name.endswith(suffix):
                 continue
             rel = f.relative_to(ctx.wdir).as_posix()

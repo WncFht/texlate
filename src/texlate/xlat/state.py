@@ -47,7 +47,7 @@ def atomic_json(path: Path, obj: object) -> None:
             json.dump(obj, f, ensure_ascii=False, indent=2)
             f.write("\n")
         Path(tmp_name).chmod(0o600)
-        Path(tmp_name).rename(path)  # POSIX rename = 原子覆盖
+        Path(tmp_name).replace(path)  # os.replace = 双侧平台原子覆盖
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
