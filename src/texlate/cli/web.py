@@ -58,7 +58,7 @@ def _service_lock(
         url = ""
         try:
             fh.seek(0)
-            meta = json.loads(fh.read().decode() or "{}")
+            meta = json.loads(fh.read().decode("utf-8") or "{}")
             url = str(meta.get("url") or "")
         except (OSError, json.JSONDecodeError, UnicodeDecodeError, AttributeError):
             pass

@@ -337,7 +337,7 @@ def parse_log(
     if log_path is None or not Path(log_path).exists():
         return ErrReport()
     try:
-        text = Path(log_path).read_text(errors="replace")
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ErrReport()
     return parse_text(text, warn_patterns, project_root=project_root)

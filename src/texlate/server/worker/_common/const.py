@@ -92,7 +92,7 @@ def _write_compile_done(zh_dir: Path, status: str) -> None:
     resume 重放终态判定不靠 ``has_pdf`` 猜（c32920 实证：verdict=fail 的
     死层 pdf 曾被哨兵 resume 直接计 ok→done 交付）。
     """
-    (zh_dir / ".compile-done").write_text(status, encoding="utf-8")
+    (zh_dir / ".compile-done").write_text(status, encoding="utf-8", newline="")
 
 
 def _compile_done_verdict(zh_dir: Path) -> str | None:

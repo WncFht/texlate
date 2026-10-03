@@ -174,7 +174,7 @@ class _Html:
             if ctx.src_dir.exists():
                 shutil.rmtree(ctx.src_dir)
             ctx.src_dir.mkdir(parents=True, exist_ok=True)
-            (ctx.src_dir / "index.html").write_text(html, encoding="utf-8")
+            (ctx.src_dir / "index.html").write_text(html, encoding="utf-8", newline="")
             self._register(ctx, "src_html", "src/index.html")
 
     # ------------------------------------------------------------ parsing 臂
@@ -304,7 +304,7 @@ class _Html:
         # 双侧 sanitize 输入同一份 marked，独立解析第二棵纯属浪费
         zh = BeautifulSoup(marked, "lxml")
         self._sanitize_dom(zh, base_url)
-        (ctx.root / "en.html").write_text(str(zh), encoding="utf-8")
+        (ctx.root / "en.html").write_text(str(zh), encoding="utf-8", newline="")
         self._register(ctx, "en_html", "en.html")
         # 一遍 find_all 建锚索引——逐行 zh.find 是 O(块×树) 全扫；
         # setdefault 保 first-match（footnote 包装层内可嵌同锚元素，
@@ -338,7 +338,7 @@ class _Html:
                 target.append(node)
         if missed:
             self._log(ctx, f"emit: {missed} 块无 data-chunk 锚——译文未回插")
-        (ctx.root / "zh.html").write_text(str(zh), encoding="utf-8")
+        (ctx.root / "zh.html").write_text(str(zh), encoding="utf-8", newline="")
         self._register(ctx, "zh_html", "zh.html")
 
     def _sanitize_dom(self, soup: BeautifulSoup, base_url: str) -> None:

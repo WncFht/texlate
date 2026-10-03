@@ -155,7 +155,7 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     written = 0
     for path in changed_files:
         try:
-            path.write_text(sources[path], encoding="utf-8")
+            path.write_text(sources[path], encoding="utf-8", newline="")
         except OSError:
             continue  # 单件写不进不拖垮整批
         written += 1

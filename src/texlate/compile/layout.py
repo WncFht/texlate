@@ -100,7 +100,7 @@ def inject_float_sizing(root: Path) -> int:
         new_text = _float_sized(text)
         if new_text != text:
             try:
-                path.write_text(new_text, encoding="utf-8")
+                path.write_text(new_text, encoding="utf-8", newline="")
             except OSError:
                 continue  # 不可写档不计入
             n += 1
@@ -302,7 +302,7 @@ def demote_wrapfloats(root: Path) -> int:
         new_text, k = _demote_wrapfloats_text(text)
         if new_text != text:
             try:
-                path.write_text(new_text, encoding="utf-8")
+                path.write_text(new_text, encoding="utf-8", newline="")
             except OSError:
                 continue
             n += k

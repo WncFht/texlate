@@ -53,9 +53,12 @@ _CTRL_RE: Final = re.compile(r"[\x00-\x1f\x7f]")
 #: 但 mtree.txt/meta.json 写 utf-8 时炸 UnicodeEncodeError（审计实证），按非法拒
 _SURROGATE_RE: Final = re.compile(r"[\ud800-\udfff]")
 #: 成员级可拒的 IO 错：超长名、dangling/自环 symlink 父级、环链——纯输入构造
-#: 可触发，降级为告警跳过；ENOSPC/EIO 等全局错仍上抛整包失败
+#: 可触发，降级为告警跳过；ENOSPC/EIO 等全局错仍上抛整包失败。
+#: EINVAL 收 win32 名语义面——超长名/非法字符/保留名/尾点空格在 win 上不是
+#: ENAMETOOLONG 而是 EINVAL（POSIX 侧该 errno 从成员写路径本不可达，
+#: 并入白名单零代价）
 _MEMBER_ERRNOS: Final = frozenset(
-    {errno.ENAMETOOLONG, errno.ELOOP, errno.EEXIST, errno.ENOTDIR}
+    {errno.ENAMETOOLONG, errno.ELOOP, errno.EEXIST, errno.ENOTDIR, errno.EINVAL}
 )
 
 
@@ -548,7 +551,9 @@ def write_manifest(res: UnpackResult, out_dir: Path) -> None:
     """写 ``files.txt`` 与 ``mtree.txt``（TSV：path size sha256 kind [-> target][stub]）。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "files.txt").write_text(
-        "\n".join(res.files) + ("\n" if res.files else ""), encoding="utf-8"
+        "\n".join(res.files) + ("\n" if res.files else ""),
+        encoding="utf-8",
+        newline="",
     )
     lines = []
     for m in sorted(res.members, key=lambda m: m.path):
@@ -559,5 +564,7 @@ def write_manifest(res: UnpackResult, out_dir: Path) -> None:
             line += "\tstub"
         lines.append(line)
     (out_dir / "mtree.txt").write_text(
-        "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+        "\n".join(lines) + ("\n" if lines else ""),
+        encoding="utf-8",
+        newline="",
     )

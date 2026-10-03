@@ -70,7 +70,7 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
                 # foreign 闸同款口径：外来件永不覆写）
                 log.debug("归一化跳过撞名真件 %s（无垃圾签名）", path)
                 continue
-            path.write_text(stub, encoding="utf-8")
+            path.write_text(stub, encoding="utf-8", newline="")
         except OSError:
             continue
         hits.append(path.relative_to(root).as_posix())

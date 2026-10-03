@@ -287,7 +287,11 @@ class TlpdbIndex:
         d.mkdir(parents=True, exist_ok=True)
         p = d / "filemap.json"
         tmp = p.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self.table, ensure_ascii=False, sort_keys=True))
+        tmp.write_text(
+            json.dumps(self.table, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+            newline="",
+        )
         tmp.replace(p)  # 原子换名：并发读只能见到完整的一代
         return p
 

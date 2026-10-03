@@ -58,6 +58,8 @@ def _probe_git_commit() -> str:
             cwd=Path(__file__).resolve().parent,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=3,
             check=False,
         )

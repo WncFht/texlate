@@ -173,7 +173,7 @@ class _CompileSplice:
                 out = strip_seq_marks(out)
             if notes := paired_slot_diff(res.vtex, out, rel):
                 self._log(ctx, f"slotdiff {rel}: {'; '.join(notes)}")
-            (ctx.zh_dir / rel).write_text(out, encoding="utf-8")
+            (ctx.zh_dir / rel).write_text(out, encoding="utf-8", newline="")
             ctx.leftover_ph += len(PH_RX.findall(out))
             n_files += 1
         self._log(ctx, f"splice: {n_files} files rewritten")
@@ -189,13 +189,13 @@ class _CompileSplice:
         # zip 先于哨兵：崩在 zip 里时 resume 会因无哨兵重建 zh/ 重打，
         # 反序则哨兵在、产物登记永远缺席
         self._zip_zh(ctx)
-        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
+        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8", newline="")
 
     def _zip_zh(self, ctx: TaskCtx) -> None:
         """``zh/`` → zh-src.zip 登记（fixloop 回灌后重打复用同一函数）。"""
         zip_path = ctx.root / "zh-src.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for f in sorted(ctx.zh_dir.rglob("*")):
+            for f in sorted(ctx.zh_dir.rglob("*"), key=lambda p: p.as_posix()):
                 self._abort_if_cancelled(ctx)
                 if f.is_file() and f.name not in _SENTINELS:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())

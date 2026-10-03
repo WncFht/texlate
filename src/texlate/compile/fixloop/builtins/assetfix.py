@@ -161,7 +161,7 @@ def _shadow_src_maps(
         rel = posix[i + len("/fonts/map/") :] if i >= 0 else "dvips/" + sp.name
         dest = texmf / "home" / "fonts" / "map" / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(patched, encoding="utf-8")
+        dest.write_text(patched, encoding="utf-8", newline="")
         ctx.invalidate(dest)
         shadows += 1
     return shadows
@@ -223,7 +223,7 @@ def pfa_to_pfb(
         else texmf / "var" / "fonts" / "map" / "pdftex" / "updmap" / "pdftex.map"
     )
     dest_map.parent.mkdir(parents=True, exist_ok=True)
-    dest_map.write_text(patched, encoding="utf-8")
+    dest_map.write_text(patched, encoding="utf-8", newline="")
     ctx.invalidate(dest_map)
     shadows = _shadow_src_maps(ctx, probe, texmf, text, converted)
     return True, (

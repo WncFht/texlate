@@ -365,6 +365,8 @@ class TsValidator:
                 input=payload,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=self._timeout,
                 check=False,
                 env=self._env(),
@@ -406,6 +408,8 @@ class TsValidator:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=self._env(),
             )
         except OSError as e:

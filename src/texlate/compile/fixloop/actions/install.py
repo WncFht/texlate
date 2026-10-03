@@ -158,7 +158,7 @@ _COMMENT_CUT_RE = re.compile(r"(?<!\\)%")
 def _dep_stems(path: Path) -> list[str]:
     r"""包文件依赖名表: 行首 ``\\RequirePackage``/``\\LoadClass`` + 行内 ``\\input``。"""
     try:
-        text = path.read_text(errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
     stems = [

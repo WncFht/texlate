@@ -276,6 +276,8 @@ def _texmfdist() -> str | None:
             ["kpsewhich", "-var-value", "TEXMFDIST"],  # noqa: S607
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )

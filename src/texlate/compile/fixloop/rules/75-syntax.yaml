@@ -1351,7 +1351,7 @@ rules:
                         )
                     for pos, frag in sorted(inserts, key=lambda t: -t[0]):
                         text = text[:pos] + frag + text[pos:]
-                    p.write_text(text, encoding="utf-8")
+                    p.write_text(text, encoding="utf-8", newline="")
                     print(
                         f"ifclose: injected into {p} "
                         f"pre={len(pre)} post={len(post)} phantom={tot_phantom}"
@@ -1508,7 +1508,7 @@ rules:
                         )
                     for pos, frag in sorted(inserts, key=lambda t: -t[0]):
                         text = text[:pos] + frag + text[pos:]
-                    p.write_text(text, encoding="utf-8")
+                    p.write_text(text, encoding="utf-8", newline="")
                     print(
                         f"ifclose: injected into {p} "
                         f"pre={len(pre)} post={len(post)} phantom={tot_phantom}"
@@ -1819,7 +1819,7 @@ rules:
                     for pat in CTX:
                         nt = pat.sub(_pad, nt)
                     if nt != t:
-                        p.write_text(nt, encoding="utf-8")
+                        p.write_text(nt, encoding="utf-8", newline="")
                         fixed.append(p.name)
             print("verdate-pad:", ", ".join(fixed) if fixed else "noop")
     risk: low # 段补齐幂等; 只碰 ver 消费位 (Provides/filedate/请求尾括); 良形日期 int→02d 自同
@@ -1883,7 +1883,7 @@ rules:
 
                 nt = GLUE_RE.sub(_sub, t)
                 if nt != t:
-                    p.write_text(nt, encoding="utf-8")
+                    p.write_text(nt, encoding="utf-8", newline="")
                     fixed.append(p.name)
             print("endcomment-split:", ", ".join(fixed) if fixed else "noop")
     risk: low # 拆行只恢复 verbatim 原应丢弃后作者本意; % 头/纯散文尾不动
@@ -1928,7 +1928,7 @@ rules:
             wdir = Path(".").resolve()
             logs = sorted(wdir.glob("*.log"))
             blob = "\n".join(
-                p.read_text(errors="replace") for p in logs
+                p.read_text(encoding="utf-8", errors="replace") for p in logs
             )
             seen, sites = set(), []
             for m in ERR_RE.finditer(blob):
@@ -1961,7 +1961,7 @@ rules:
                     hi += 1
                 for j in range(lo, hi + 1):
                     lines[j] = "% fixloop: blank line in math"
-                real.write_text("\n".join(lines), encoding="utf-8")
+                real.write_text("\n".join(lines), encoding="utf-8", newline="")
                 span = f"{lo + 1}-{hi + 1}" if hi > lo else str(lo + 1)
                 fixed.append(f"{real.name}:{span}")
 
@@ -2023,7 +2023,7 @@ rules:
             wdir = Path(".").resolve()
             logs = sorted(wdir.glob("*.log"))
             blob = "\n".join(
-                p.read_text(errors="replace") for p in logs
+                p.read_text(encoding="utf-8", errors="replace") for p in logs
             )
             seen, sites = set(), []
             for m in ERR_RE.finditer(blob):
@@ -2112,7 +2112,7 @@ rules:
                 if newl == lines[i]:
                     continue
                 lines[i] = newl
-                real.write_text("\n".join(lines), encoding="utf-8")
+                real.write_text("\n".join(lines), encoding="utf-8", newline="")
                 fixed.append(f"{real.name}:{ln}")
 
             print(

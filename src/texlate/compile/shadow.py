@@ -57,6 +57,8 @@ def _kpse_resolve(filename: str, progname: str, cwd: Path, kpse: str) -> Path | 
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )
@@ -90,6 +92,8 @@ def _kpse_resolve_many(
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )
@@ -197,7 +201,7 @@ def _try_shadow(
     text, verdict = decode_tex_with(blob)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
+        target.write_text(text, encoding="utf-8", newline="")
     except OSError as e:
         log.debug("遮蔽件写入失败 %s: %s", target, e)
         return None, set()

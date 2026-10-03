@@ -25,7 +25,7 @@ def load_search_cache() -> dict[str, list[str]]:
     空表，历史阴性一并自愈，索引/在线通路重获查询权。
     """
     try:
-        raw = json.loads(tlmgr_search_cache_path().read_text())
+        raw = json.loads(tlmgr_search_cache_path().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
     if not isinstance(raw, dict):
@@ -44,5 +44,7 @@ def save_search_cache(cache: dict[str, list[str]]) -> None:
     p = tlmgr_search_cache_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        json.dumps({k: v for k, v in cache.items() if v}, indent=0, sort_keys=True)
+        json.dumps({k: v for k, v in cache.items() if v}, indent=0, sort_keys=True),
+        encoding="utf-8",
+        newline="",
     )

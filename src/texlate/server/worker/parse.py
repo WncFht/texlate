@@ -124,7 +124,7 @@ class _Parse:
             main_tex=ctx.main_rel,
             options_json=options_json,
         )
-        (ctx.base_dir / ".base-done").write_text("", encoding="utf-8")
+        (ctx.base_dir / ".base-done").write_text("", encoding="utf-8", newline="")
 
     def _parse_all(
         self, ctx: TaskCtx

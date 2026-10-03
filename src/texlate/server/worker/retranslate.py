@@ -271,6 +271,7 @@ class _Retranslate:
         (ctx.root / "compile.log").write_text(
             scrub(self._log_text_of(res), ctx.secrets.api_key),
             encoding="utf-8",
+            newline="",
         )
         self._register(ctx, "compile_log", "compile.log", force=force)
         for r in v.reasons:

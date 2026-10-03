@@ -90,7 +90,7 @@ class _Fetch:
                 ctx.task_id,
                 options_json=ctx.update_options(lambda o: o.pop("reuse_hit", None)),
             )
-        (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
+        (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8", newline="")
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
 

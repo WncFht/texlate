@@ -365,7 +365,7 @@ def _full_log_text(res: CompRes, log_text: str) -> str:
         return log_text
     if res.log_path and res.log_path.exists():
         try:
-            return res.log_path.read_text(errors="replace")
+            return res.log_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return ""
     return ""

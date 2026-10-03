@@ -277,7 +277,9 @@ def _commit_phase(
     }
     try:
         (staging / "meta.json").write_text(
-            json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+            json.dumps(meta, ensure_ascii=False, indent=1) + "\n",
+            encoding="utf-8",
+            newline="",
         )
         entry = cache.commit(staging, ids.base, ids.ver)
     except (OSError, KeyError, TypeError, ValueError, CacheError) as e:

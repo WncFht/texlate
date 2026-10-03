@@ -160,7 +160,7 @@ def server_salt(root: Path) -> str:
                     salt = ""
                 if salt:
                     return salt
-            path.write_text(new_salt, encoding="utf-8")
+            path.write_text(new_salt, encoding="utf-8", newline="")
         else:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(new_salt)

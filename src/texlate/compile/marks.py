@@ -163,7 +163,7 @@ def inject_layout_marks(root: Path) -> int:
         new_text = _splice_before_document(text, LAYOUT_MARKS, sentinel=SENTINEL)
         if new_text != text:
             try:
-                path.write_text(new_text, encoding="utf-8")
+                path.write_text(new_text, encoding="utf-8", newline="")
             except OSError:
                 continue
             n += 1

@@ -44,7 +44,7 @@ def _apply_rebase_edits(
         )
         text = text[:start] + relative + text[end:]
     try:
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="")
     except OSError:
         return []  # 写不进不记位次，保持原样
     return locations

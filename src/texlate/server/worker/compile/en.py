@@ -124,7 +124,7 @@ class _CompileEn:
                     f"seqmarks-en {rel} 失衡({'; '.join(issues)})——剥锚降级",
                 )
                 out = strip_seq_marks(out)
-            (work / rel).write_text(out, encoding="utf-8")
+            (work / rel).write_text(out, encoding="utf-8", newline="")
             n_marked += 1
         self._log(ctx, f"seqmarks-en: {n_marked} files marked")
 
@@ -152,9 +152,9 @@ class _CompileEn:
             return ctx.en_err_sigs
         work = ctx.root / "build-en"
         if work.is_dir():
-            for lf in sorted(work.rglob("*.log")):
+            for lf in sorted(work.rglob("*.log"), key=lambda p: p.as_posix()):
                 try:
-                    text = lf.read_text(errors="replace")
+                    text = lf.read_text(encoding="utf-8", errors="replace")
                 except OSError:
                     continue
                 ctx.en_err_sigs = err_signatures_text(text, project_root=work)

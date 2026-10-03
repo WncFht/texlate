@@ -171,7 +171,7 @@ def _normalize_tex_files(
                     text, path, cwd=(root / main).parent if main else None
                 )
             if text.encode("utf-8") != original:
-                path.write_text(text, encoding="utf-8")
+                path.write_text(text, encoding="utf-8", newline="")
                 stats["rewritten"] = int(stats["rewritten"]) + 1
         except OSError as e:
             # 单件读/写失败（只读件、权限边界）不拖垮整树——跳过硬保留原样

@@ -291,7 +291,7 @@ def _doc_data_dir() -> _Check:
     try:
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         probe = root / ".doctor-write-probe"
-        probe.write_text("ok", encoding="utf-8")
+        probe.write_text("ok", encoding="utf-8", newline="")
         probe.unlink()
     except OSError as e:
         return _Check("data-dir", "fail", f"{root} 不可写：{e}")

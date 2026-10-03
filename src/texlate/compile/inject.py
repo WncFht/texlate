@@ -583,7 +583,7 @@ def _input_hop_inject(
         sinfo["input_hop"] = tgt.relative_to(root).as_posix()
         if sinfo["status"] != "injected":  # 防御——already 预扫已挡
             return main_text, sinfo
-        tgt.write_text(new_sub, encoding="utf-8")
+        tgt.write_text(new_sub, encoding="utf-8", newline="")
         if defer:
             main_text = _splice_before_document(
                 main_text, CJK_MATH_FALLBACK, after=ipos
@@ -629,7 +629,7 @@ def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂�
         if hop is not None:
             new_text, info = hop
     if new_text != text:
-        main_path.write_text(new_text, encoding="utf-8")
+        main_path.write_text(new_text, encoding="utf-8", newline="")
     if demote_wrap:
         info["wrapfloats_demoted"] = demote_wrapfloats(root)
     if float_sizing:

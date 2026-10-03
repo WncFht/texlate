@@ -121,7 +121,7 @@ def _splice_writeback(
                 "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
             )
             zh = strip_seq_marks(zh)
-        f.write_text(zh, encoding="utf-8")
+        f.write_text(zh, encoding="utf-8", newline="")
         rel = f.relative_to(root).as_posix()
         if notes := paired_slot_diff(res.vtex, zh, rel):
             slot_diffs[rel] = notes

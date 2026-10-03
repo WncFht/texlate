@@ -120,7 +120,7 @@ def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚�
                 "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
             )
             zh = strip_seq_marks(zh)
-        f.write_text(zh, encoding="utf-8")
+        f.write_text(zh, encoding="utf-8", newline="")
         rel = f.relative_to(work).as_posix()
         rewritten.append(rel)
         if diffs and (notes := paired_slot_diff(res.vtex, zh, rel)):

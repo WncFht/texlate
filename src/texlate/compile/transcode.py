@@ -369,7 +369,7 @@ def _transcode_intermediate(
     if kept == text:
         return False  # 无尾可截——回落通用转码臂
     try:
-        path.write_text(kept, encoding="utf-8")
+        path.write_text(kept, encoding="utf-8", newline="")
     except OSError:
         pass
     else:
@@ -406,7 +406,7 @@ def _transcode_one(
         return
     if text.encode("utf-8") != original:
         try:
-            path.write_text(text, encoding="utf-8")
+            path.write_text(text, encoding="utf-8", newline="")
         except OSError:
             pass
         else:
