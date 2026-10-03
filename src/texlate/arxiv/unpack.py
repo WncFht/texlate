@@ -56,9 +56,17 @@ _SURROGATE_RE: Final = re.compile(r"[\ud800-\udfff]")
 #: 可触发，降级为告警跳过；ENOSPC/EIO 等全局错仍上抛整包失败。
 #: EINVAL 收 win32 名语义面——超长名/非法字符/保留名/尾点空格在 win 上不是
 #: ENAMETOOLONG 而是 EINVAL（POSIX 侧该 errno 从成员写路径本不可达，
-#: 并入白名单零代价）
+#: 并入白名单零代价）。EACCES 收落点探测/写穿的 deny（win32 坏 reparse、
+#: 只读在席件）——单个落点不可归因不该流产整包
 _MEMBER_ERRNOS: Final = frozenset(
-    {errno.ENAMETOOLONG, errno.ELOOP, errno.EEXIST, errno.ENOTDIR, errno.EINVAL}
+    {
+        errno.ENAMETOOLONG,
+        errno.ELOOP,
+        errno.EEXIST,
+        errno.ENOTDIR,
+        errno.EINVAL,
+        errno.EACCES,
+    }
 )
 
 
@@ -178,15 +186,24 @@ def _unique_rename(rel: str, seen: dict[str, str]) -> str:
 
 def _dir_clash(res: UnpackResult, rel: str, target: Path) -> bool:
     """落点与既有实体路径冲突（同名目录 / 父段是文件）→ 告警并跳过。"""
-    if target.is_dir() and not target.is_symlink():
-        # tar 里 dir 与同名 file 成员并存（或 casefold 冲突后的 FS 合并产物）
-        # ——write_bytes 打目录会抛 IsADirectoryError，降级为告警跳过
-        res.warnings.append(f"reject_dir_clash:{rel}")
-        return True
-    if target.parent.exists() and not target.parent.is_dir():
-        # 父路径段是文件（foo 之后来 foo/bar）——mkdir 会抛 FileExistsError
-        # 整包流产，按成员级拒绝降级
-        res.warnings.append(f"reject_dir_clash:{rel}")
+    try:
+        if target.is_dir() and not target.is_symlink():
+            # tar 里 dir 与同名 file 成员并存（或 casefold 冲突后的 FS 合并产物）
+            # ——write_bytes 打目录会抛 IsADirectoryError，降级为告警跳过
+            res.warnings.append(f"reject_dir_clash:{rel}")
+            return True
+        if target.parent.exists() and not target.parent.is_dir():
+            # 父路径段是文件（foo 之后来 foo/bar）——mkdir 会抛 FileExistsError
+            # 整包流产，按成员级拒绝降级
+            res.warnings.append(f"reject_dir_clash:{rel}")
+            return True
+    except OSError as e:
+        if e.errno not in _MEMBER_ERRNOS:
+            raise
+        # 落点探测本身可拒——自环/环链 symlink（ELOOP）或 win32 deny
+        # （EACCES）、超长名（ENAMETOOLONG）都从 is_dir 随链下探抛出；
+        # 与成员写路径同 whitelist 口径降级，不写穿
+        res.warnings.append(f"reject_io:{rel}:{e.errno}")
         return True
     return False
 
@@ -196,8 +213,9 @@ def _member_loc(dest_res: Path, rel: str) -> Path:
     p = dest_res / rel
     try:
         parent = p.parent.resolve()
-    except RuntimeError:
-        # 自环/环链 symlink 祖先——无法解析时按未解析路径当独立落点
+    except (RuntimeError, OSError):
+        # 自环/环链 symlink 祖先（POSIX RuntimeError、win32 ACCESS_DENIED
+        # 等 OSError）——无法解析时按未解析路径当独立落点
         parent = p.parent.absolute()
     return parent / p.name
 
@@ -248,6 +266,26 @@ def _drop_member(res: UnpackResult, rel: str) -> None:
     if rel in res.member_index:
         res.members = [mm for mm in res.members if mm.path != rel]
         res.member_index.discard(rel)
+
+
+def _hardlink_src_usable(
+    res: UnpackResult, rel: str, target_rel: str, src: Path
+) -> bool:
+    """Hardlink 源可用性探测。
+
+    非 file/是 symlink → ``hardlink_dangling``；探测可拒 → ``reject_io``
+    （环链/deny 同成员写路径 whitelist 口径）。告警已记。
+    """
+    try:
+        if src.is_file() and not src.is_symlink():
+            return True
+    except OSError as e:
+        if e.errno not in _MEMBER_ERRNOS:
+            raise
+        res.warnings.append(f"reject_io:{rel}:{e.errno}")
+        return False
+    res.warnings.append(f"hardlink_dangling:{rel}->{target_rel}")
+    return False
 
 
 def _write_entry(
@@ -394,23 +432,30 @@ class _TarWalker:
             return
         self._drop_pending(rel)
         target = self.res.dest / rel
-        if target.is_dir() and not target.is_symlink():
-            # 同名目录重复成员幂等；隐式目录（成员父级 mkdir 产生、未登记）
-            # 补登记 + mtree
-            if prev is None:
-                self.seen[low] = rel
-                self.res.members.append(
-                    MemberEntry(path=rel, size=0, sha256="", kind="dir")
-                )
-                self.res.member_index.add(rel)
-            return
-        if target.parent.exists() and not target.parent.is_dir():
-            self.res.warnings.append(f"reject_dir_clash:{rel}")
-            return
-        if target.exists() or target.is_symlink():
-            # 同名 file/symlink 已落盘——dir 成员迟到按 clash 拒
-            # （与 file-over-dir 对称：先到者保，后到同类冲突告警跳过）
-            self.res.warnings.append(f"reject_dir_clash:{rel}")
+        try:
+            if target.is_dir() and not target.is_symlink():
+                # 同名目录重复成员幂等；隐式目录（成员父级 mkdir 产生、未登记）
+                # 补登记 + mtree
+                if prev is None:
+                    self.seen[low] = rel
+                    self.res.members.append(
+                        MemberEntry(path=rel, size=0, sha256="", kind="dir")
+                    )
+                    self.res.member_index.add(rel)
+                return
+            if target.parent.exists() and not target.parent.is_dir():
+                self.res.warnings.append(f"reject_dir_clash:{rel}")
+                return
+            if target.exists() or target.is_symlink():
+                # 同名 file/symlink 已落盘——dir 成员迟到按 clash 拒
+                # （与 file-over-dir 对称：先到者保，后到同类冲突告警跳过）
+                self.res.warnings.append(f"reject_dir_clash:{rel}")
+                return
+        except OSError as e:
+            if e.errno not in _MEMBER_ERRNOS:
+                raise
+            # 同 _dir_clash——探测可拒按 reject_io 降级
+            self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
             return
         self.seen[low] = rel
         try:
@@ -478,8 +523,7 @@ class _TarWalker:
         """Hardlink 二遍物化：目标已在树上 → 复制实体；缺失 → 记 dangling。"""
         for rel, target_rel in self.hardlinks:
             src = self.res.dest / target_rel
-            if not src.is_file() or src.is_symlink():
-                self.res.warnings.append(f"hardlink_dangling:{rel}->{target_rel}")
+            if not _hardlink_src_usable(self.res, rel, target_rel, src):
                 continue
             try:
                 data = src.read_bytes()
