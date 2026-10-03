@@ -22,6 +22,7 @@ import logging
 import os
 import secrets
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,6 +37,28 @@ log = logging.getLogger(__name__)
 STATE_VERSION = "1.0"
 
 
+#: ``_replace_retry`` 尝试上限——读者持柄是微秒/毫秒级瞬态，~0.3s
+#: 预算足够；超限上抛意味着真锁/ACL 拒绝而非并发抖动
+_REPLACE_ATTEMPTS = 60
+
+
+def _replace_retry(src: Path, dst: Path) -> None:
+    """``os.replace`` + win32 并发读柄抖动退避重试。
+
+    win32 对已打开目标文件拒绝 rename/replace（POSIX 无此限）——另一
+    线程读柄的瞬时窗口内并发写会撞 ``PermissionError``。POSIX 侧同路
+    实现：真拒也只是在原报错前多等 ~0.3s。
+    """
+    for _ in range(_REPLACE_ATTEMPTS - 1):
+        try:
+            src.replace(dst)
+        except PermissionError:
+            time.sleep(0.005)
+        else:
+            return
+    src.replace(dst)
+
+
 def atomic_json(path: Path, obj: object) -> None:
     """tmp+rename+0600 原子落盘。tmp 名带随机后缀防同路径并发撞名。"""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +70,7 @@ def atomic_json(path: Path, obj: object) -> None:
             json.dump(obj, f, ensure_ascii=False, indent=2)
             f.write("\n")
         Path(tmp_name).chmod(0o600)
-        Path(tmp_name).replace(path)  # os.replace = 双侧平台原子覆盖
+        _replace_retry(Path(tmp_name), path)
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
