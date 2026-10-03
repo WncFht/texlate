@@ -39,7 +39,7 @@ dev-profile                 dev-server                     dev-zotero
 
 ### dev-server
 
-- **适用条件** — `uv sync --extra server` 已跑、本机可拉 arXiv、tectonic 在 PATH。
+- **适用条件** — `uv sync` 已跑、本机可拉 arXiv、tectonic 在 PATH。
 - **变换方法** — setsid 起 `uv run texlate web` 独立进程组 + 独立 `TEXLATE_DATA_DIR`；curl 逐步打 API。
 - **资源约束** — scratch 全在 `tmp/zotero-dev/`（server.pid/server.log/zh.pdf）；poll 死线 900s；stop 只杀 pidfile 记的进程组（校验 /proc cmdline 防 pid 复用误杀）。
 - **验证证据** — `[PASS]` 行带 task_id/sha256/字节数；`tmp/zotero-dev/zh.pdf` 实物落盘。
@@ -71,7 +71,7 @@ dev-profile                 dev-server                     dev-zotero
 
 ### dev-verify
 
-- **适用条件** — dev-server/dev-zotero/rdp 三件套就位；fixture 由 dev-profile 注入（脚本按 `[texlate-fixture]` 标题重发现并分类，不信固定 id）；`uv sync --extra server` + tectonic 同 dev-server。
+- **适用条件** — dev-server/dev-zotero/rdp 三件套就位；fixture 由 dev-profile 注入（脚本按 `[texlate-fixture]` 标题重发现并分类，不信固定 id）；`uv sync` + tectonic 同 dev-server。
 - **变换方法** — dev-server run 起 mock 服 → dev-zotero verify 断言插件 loaded → rdp 写 devSelftest/serverUrl/pollInterval/pollTimeout prefs（global 位——裸 set 只写 profile 支，默认值 8765 仍生效；devSelftest 是 selftest 的调用时闸门，生产 xpi 惰性、opt-in 才跑）→ reset 清 fixture 的 `texlate:` 标记与 TeXlate 附件（幂等前提）→ 逐 fixture `api.selftest(id)` 断言 extract 源与 ID 形态 → 负例 `selftestNonArxiv` → `computeMenuState` 三态 → xpi 解包校验 manifest strict_min/max → 幂等重跑。sabotage 档见下节。
 - **资源约束** — scratch 全在 `TEXLATE_DEV_ROOT`（`selftest-*.json` 原始证据、`.sabotaged` 暂挪文件）；reset 只碰 `[texlate-fixture]` 条目；selftest 死线 `TEXLATE_DEV_SELFTEST_TIMEOUT`（默认 420s）；full 档 ~5–15min（真实 arXiv+tectonic，prefer=reuse 使已译 id 秒回）。
 - **验证证据** — 每条 PASS 行带 taskId/sha256 前缀/bytes/itemID/source=；原始 SelftestResult JSON 落 `tmp/zotero-dev/selftest-*.json`；transcript 工作副本为 `tmp/zotero-dev/dev-verify-report.txt`（一次性产物，不入库）。

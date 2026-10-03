@@ -5,26 +5,24 @@
 ## 前置条件
 
 - Python 3.12 或更高版本。
-- [uv][^uv]：包管理器，`uv sync` 一条命令装好全部 Python 依赖。
+- [uv][^uv]：包管理器（pipx/pip 亦可，命令同理替换）。
 - 一个 TeX 引擎：tectonic（推荐，单文件免配置）或系统 TeX Live 的 xelatex，二选一，装法见下。
-- 要用网页界面提交和阅读，还需要 node/npm 构建一次前端；只用命令行可以跳过。
 - 真翻译需要任一 OpenAI 兼容端点的 API key（自建网关或 DeepSeek、OpenAI、Anthropic、Qwen 等服务商均可），没有 key 也能跑 mock 干跑。
 
 ## 安装
 
 ```bash
-git clone <仓库地址> && cd texlate
-uv sync --extra server
+uv tool install texlate
 ```
 
-`--extra server` 装上 web 服务依赖；确定只用纯命令行、不碰 `texlate web` 的话可以省略。
+wheel 自带前端阅读器，`texlate web` 开箱即用。开发形态（改代码）走源码：`git clone https://github.com/WncFht/texlate && cd texlate && uv sync`，此后命令前加 `uv run`。
 
 ## 装 TeX 引擎
 
 推荐用内置安装器拿一份钉版 tectonic：
 
 ```bash
-uv run texlate tools install-tectonic
+texlate tools install-tectonic
 ```
 
 它把校验过 sha256 的单文件引擎放进数据目录的 `tools/` 下，不污染系统。也可以用系统包管理器装 TeX Live（需要 `xelatex` 与中文语言包，例如 Debian/Ubuntu 的 `texlive-xetex` + `texlive-lang-chinese`）。两个引擎都在时 TeXlate 会自己挑合适的用。
@@ -32,15 +30,15 @@ uv run texlate tools install-tectonic
 ## 自检环境
 
 ```bash
-uv run texlate doctor
+texlate doctor
 ```
 
-输出逐项 `ok`/`warn`/`fail`/`n/a`：Python 版本、tectonic、xelatex、CJK 字体（ctex/fandol/系统中文字体任一可用）、pdftotext、模型端点连通性、数据目录可写、server extra、babeldoc。出现 `fail` 时按该行提示修好再往下走；`warn`/`n/a` 不阻塞（例如没装 babeldoc 只影响 PDF 上传翻译，不影响 arXiv 主链路）。
+输出逐项 `ok`/`warn`/`fail`/`n/a`：Python 版本、tectonic、xelatex、CJK 字体（ctex/fandol/系统中文字体任一可用）、pdftotext、模型端点连通性、数据目录可写、babeldoc。出现 `fail` 时按该行提示修好再往下走；`warn`/`n/a` 不阻塞（例如没装 babeldoc 只影响 PDF 上传翻译，不影响 arXiv 主链路）。
 
 ## 第一步：mock 干跑
 
 ```bash
-uv run texlate run 1706.03762 -w texlate-demo --keep
+texlate run 1706.03762 -w texlate-demo --keep
 ```
 
 这条命令做了管线里除「调模型」以外的所有事：从 arXiv 拉取论文源码、半解析分块、用占位译文代替真翻译、注入中文排版环境、真实调 TeX 引擎编译并自动修复常见错误，最后判定产物。`-w texlate-demo --keep` 保留工作目录，编译出的 PDF 落在 `texlate-demo/` 下，文件名与论文主文档同名（这里是 `main.pdf`）。stdout 打印的 JSON 是判定报告，`status` 为 `clean` 或 `partial` 即链路打通。
@@ -55,20 +53,20 @@ mock 译文的每段中文是固定占位文本，作用是使译后论文的篇
 export TEXLATE_BASE_URL="https://api.example.com/v1"   # 换成你的 OpenAI 兼容端点
 export TEXLATE_API_KEY="sk-..."
 export TEXLATE_MODEL="模型名"
-uv run texlate web
+texlate web
 ```
 
 浏览器打开 `http://127.0.0.1:8765`，在输入框粘 arXiv id（还是 `1706.03762`）点翻译，等进度条走完就进双语对照阅读器。配 key 的完整细节（网页 Settings 页、请求头、端点要求）见 `byok.md`；想留在命令行，可以用瘦客户端把任务提交给正在运行的服务：
 
 ```bash
-uv run texlate run 1706.03762 --server http://127.0.0.1:8765 --api-key "sk-..." --model "模型名"
+texlate run 1706.03762 --server http://127.0.0.1:8765 --api-key "sk-..." --model "模型名"
 ```
 
 命令结束打印任务终态并把产物下载到当前目录下的 `texlate-<id>-<任务前缀>/`。
 
 ## 前端界面（可选）
 
-`texlate web` 服务的图形界面是构建产物，仓库里不带。要界面先构建一次：
+发布产物（PyPI wheel、Docker 镜像）已内置前端，本节只对源码形态有效：仓库不带前端构建产物，要界面先构建一次：
 
 ```bash
 scripts/build-web.sh

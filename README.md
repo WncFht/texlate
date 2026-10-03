@@ -1,5 +1,9 @@
 # texlate (open-hjfy)
 
+[![CI](https://github.com/WncFht/texlate/actions/workflows/ci.yml/badge.svg)](https://github.com/WncFht/texlate/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/texlate)](https://pypi.org/project/texlate/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 > 「幻觉翻译」[hjfy.top](https://hjfy.top/) 的开源复现：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
 >
 > _Open-source reimplementation of hjfy.top: fetches arXiv LaTeX sources, translates paragraph-level text with any OpenAI-compatible LLM (BYOK), and recompiles to a bilingual Chinese-English PDF — preserving formulas, references, macros and layout by translating only prose and shielding everything else behind placeholders._
@@ -10,24 +14,25 @@
 
 ## 安装
 
-需要 Python 3.12+ 与 [uv](https://docs.astral.sh/uv/)（或 Docker，见下）。
+需要 Python 3.12+；推荐经 [uv](https://docs.astral.sh/uv/) 安装（pipx/pip 同效，Docker 见下）：
 
 ```bash
-git clone <repo-url> && cd texlate
-uv sync --extra server        # server extra 提供 web/API 形态；纯 CLI 可省略
+uv tool install texlate       # 或 pipx install texlate；升级：uv tool upgrade texlate
 ```
 
 再装一个 TeX 引擎（二选一；`texlate doctor` 可逐项自检环境）：
 
 ```bash
-uv run texlate tools install-tectonic   # 便携引擎，sha256 钉版（推荐，单文件 ~30MB）
+texlate tools install-tectonic   # 便携引擎，sha256 钉版（推荐，单文件 ~30MB）
 # 或系统包装 TeX Live：apt/pacman 安装 texlive-xetex + texlive-lang-chinese
 ```
+
+开发形态走源码：`git clone https://github.com/WncFht/texlate && cd texlate && uv sync`，此后命令前加 `uv run`（`uv run texlate …`）。
 
 ## 快速开始
 
 ```bash
-uv run texlate run 1706.03762     # mock 端到端：真实编译，但译文是占位假译（链路自检用）
+texlate run 1706.03762     # mock 端到端：真实编译，但译文是占位假译（链路自检用）
 ```
 
 **注意：本地 `texlate run` 只有 mock 翻译档**——产出 PDF 的英文段被替换成占位文本，用于零成本验证 fetch→parse→compile 全链。真翻译走 server 形态（下节）。
@@ -38,13 +43,13 @@ uv run texlate run 1706.03762     # mock 端到端：真实编译，但译文是
 export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或自建的本地网关地址
 export TEXLATE_API_KEY="sk-..."
 export TEXLATE_MODEL="your-model"
-uv run texlate web                                  # http://127.0.0.1:8765
+texlate web                                         # http://127.0.0.1:8765
 ```
 
 随后经 SPA 提交 arXiv ID，或用 CLI 瘦客户端向 server 提交任务：
 
 ```bash
-uv run texlate run 1706.03762 --server http://127.0.0.1:8765   # 真译文 + ctex 重编译 → 双语 PDF
+texlate run 1706.03762 --server http://127.0.0.1:8765   # 真译文 + ctex 重编译 → 双语 PDF
 # 按请求覆盖 BYOK：`--model/--api-key/--base-url/--dialect`（x-texlate-* 请求头）
 ```
 
@@ -53,24 +58,27 @@ uv run texlate run 1706.03762 --server http://127.0.0.1:8765   # 真译文 + cte
 ## Web 形态
 
 ```bash
-scripts/build-web.sh            # 构建 SPA → src/texlate/server/static/（需 node/npm）
-uv run texlate web              # http://127.0.0.1:8765 —— 提交 arXiv ID → SSE 进度 → 对照阅读器
-uv run texlate doctor           # 环境自检：引擎/字体/网关连通/数据目录逐项 ok/warn/fail
+texlate web              # http://127.0.0.1:8765 —— 提交 arXiv ID → SSE 进度 → 对照阅读器
+texlate doctor           # 环境自检：引擎/字体/网关连通/数据目录逐项 ok/warn/fail
 ```
 
-SPA 是构建产物不入库；未构建时 `texlate web` 只服务 API。BYOK 也可在 Settings 页配置（`TEXLATE_*` env 等价直配）。部署态置 `TEXLATE_MODE=server`（跳过 local-only CSRF 中间件，正式部署请前置反代做 CORS allowlist）。
+发布产物（PyPI wheel、Docker 镜像）已内置 SPA 阅读器，开箱即用；只有源码形态需要先 `scripts/build-web.sh` 构建一次前端（需 node/npm），未构建时 `texlate web` 只服务 API。BYOK 也可在 Settings 页配置（`TEXLATE_*` env 等价直配）。部署态置 `TEXLATE_MODE=server`（跳过 local-only CSRF 中间件，正式部署请前置反代做 CORS allowlist）。
 
 阅读器分原文、译文、双语对照三视图（arXiv 任务另有导读档）：对照模式两侧滚动同步，双语对位精确到句——悬停或点击任一侧句子，另一侧对应句即时高亮。正文引用标号弹出文献卡：跳至引用目标、反查全篇引用位置、把被引论文一键提交为新的翻译任务——读论文时顺参考文献链直接扩出译文队列。暗色主题对 PDF 逐图元改色而非整图反相，暗色下论文插图不变色。产物下载含 zh.pdf、en.pdf（原文源码本地重编译）、dual.json 对照数据、.bib、zh-src.zip 译后源码包。
 
-任务逐块断点续跑：已译块进缓存，进程重启、机器关机后续跑只补剩余部分；终态分六档，降级产出（部分块回退原文、残余编译警告）以 partial 态标注而非冒称成功。首页上传一个入口四类材料自动分流：本地 LaTeX 工程走同一翻译链、PDF 走 babeldoc 侧车、docx/epub 双语插译、.share.zip 共享包导入。分享包按论文版本、模型、提示词版本、管线版本、术语表等内容寻址，导入方全量校验后本地重编译，不调模型即复现译文。另有 Zotero 7 插件：右键翻译，服务端跑完全链后 zh.pdf 自动挂附件回文献条目。
+任务逐块断点续跑：已译块进缓存，进程重启、机器关机后续跑只补剩余部分；终态分六档，降级产出（部分块回退原文、残余编译警告）以 partial 态标注而非冒称成功。首页上传一个入口四类材料自动分流：本地 LaTeX 工程走同一翻译链、PDF 走 babeldoc 侧车、docx/epub 双语插译、.share.zip 共享包导入。分享包按论文版本、模型、提示词版本、管线版本、术语表等内容寻址，导入方全量校验后本地重编译，不调模型即复现译文。另有 Zotero 7 插件：从 [Releases](https://github.com/WncFht/texlate/releases) 下载 `texlate.xpi`，Zotero → 工具 → 插件 → 齿轮 → 从文件安装——右键 arXiv 条目翻译，服务端跑完全链后 zh.pdf 自动挂附件回文献条目（详见 `zotero/README.md`）。
 
 ## Docker
 
+发布镜像在 ghcr（`linux/amd64` + `linux/arm64` 双架构）：
+
 ```bash
-docker build -t texlate .                                   # 需 BuildKit（COPY --from=外部镜像）
-docker run -p 8765:8765 -v texlate-data:/data texlate       # web 形态
-docker run --rm texlate fetch 1706.03762                    # 其他子命令同理
+docker pull ghcr.io/wncfht/texlate:latest
+docker run -p 8765:8765 -v texlate-data:/data ghcr.io/wncfht/texlate:latest   # web 形态
+docker run --rm ghcr.io/wncfht/texlate:latest fetch 1706.03762                # 其他子命令同理
 ```
+
+自行构建：`docker build -t texlate .`（需 BuildKit——`COPY --from=外部镜像`）。
 
 镜像内置 tectonic + Noto CJK；高成功率编译档（TeX Live xelatex，~4GB）追加步骤见 Dockerfile 头部注释。BabelDOC sidecar（PDF 上传通路）因 AGPL 边界不随镜像分发。
 
@@ -136,7 +144,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 ## 开发
 
 ```bash
-uv sync --extra server        # 含 dev group（pytest）
+uv sync                       # 含 dev group（pytest）
 uv run pytest tests/ -q       # 测试
 ruff format --check . && ruff check .   # python 门（select=ALL 严格集）
 npm ci && npm run format:check          # md/js/yaml/toml 门（pre-commit 同源）

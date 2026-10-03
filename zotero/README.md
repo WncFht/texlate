@@ -17,12 +17,14 @@ uvx texlate web          # → http://127.0.0.1:8765（本仓内：uv run texlat
 
 ## 安装
 
+从 [Releases](https://github.com/WncFht/texlate/releases) 下载 `texlate.xpi`，在 Zotero 里：**工具 → 插件 → 齿轮图标 → 从文件安装附加组件…** → 选该文件。
+
+自行构建：
+
 ```bash
 npm ci
 npx zotero-plugin build   # → .scaffold/build/texlate.xpi
 ```
-
-然后在 Zotero 里：**工具 → 插件 → 齿轮图标 → 从文件安装附加组件…** → 选 `.scaffold/build/texlate.xpi`。
 
 隔离 profile 的开发回路（mock 服务 + fixture + RDP 验证编排）见 `dev/README.md`。
 

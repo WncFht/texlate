@@ -53,7 +53,7 @@ texlate run <arxiv_id> --server <URL> [--model M --api-key K --base-url U] [-o �
 texlate web [--host 地址] [-p 端口] [--data-dir 目录]
 ```
 
-启动 web 服务（需 `--extra server` 安装的依赖），缺省绑定 `127.0.0.1:8765`。数据目录缺省为 `TEXLATE_DATA_DIR` 或主目录下 `.texlate/`。本地形态有单实例锁：已在跑时再执行 `texlate web` 会打开浏览器指到已运行实例并退出，不会端口冲突或静默双开。日志写 `<数据目录>/logs/texlate.log`（DEBUG 级、脱敏、4MB×3 轮转）。
+启动 web 服务，缺省绑定 `127.0.0.1:8765`。数据目录缺省为 `TEXLATE_DATA_DIR` 或主目录下 `.texlate/`。本地形态有单实例锁：已在跑时再执行 `texlate web` 会打开浏览器指到已运行实例并退出，不会端口冲突或静默双开。日志写 `<数据目录>/logs/texlate.log`（DEBUG 级、脱敏、4MB×3 轮转）。
 
 绑定非回环地址时 CLI 会打警告：本地形态的 API 不带鉴权，可达网段内任何人都能建任务改配置。要多用户部署用 `TEXLATE_MODE=server`（此时所有写操作要求 `X-Texlate-Key` 头），详见 `web.md` 的部署一节。
 
@@ -82,7 +82,7 @@ texlate share unpack <包.share.zip> [-o 解包目录]
 texlate doctor
 ```
 
-逐项检查：Python ≥3.12、tectonic、xelatex、CJK 字体、pdftotext、模型端点连通、数据目录可写、server extra、babeldoc，每项 `ok`/`warn`/`fail`/`n/a` 加一行说明。任一 `fail` 退出码 1，否则 0。装完跑一遍、出问题跑一遍，是最快的自检手段。
+逐项检查：Python ≥3.12、tectonic、xelatex、CJK 字体、pdftotext、模型端点连通、数据目录可写、babeldoc，每项 `ok`/`warn`/`fail`/`n/a` 加一行说明。任一 `fail` 退出码 1，否则 0。装完跑一遍、出问题跑一遍，是最快的自检手段。
 
 ## version / tools
 

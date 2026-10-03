@@ -23,8 +23,8 @@
 # 骨架四字段：
 #   适用条件 — dev-server/dev-zotero/rdp 三件套就位；fixture 条目由
 #     dev-profile 注入（标题含 [texlate-fixture]，本脚本按标题重发现并
-#     分类，不信固定 id——isRegularItem 过滤掉撞名附件）；uv sync
-#     --extra server + tectonic 同 dev-server；
+#     分类，不信固定 id——isRegularItem 过滤掉撞名附件）；uv sync +
+#     tectonic 同 dev-server；
 #   变换方法 — dev-server run 起 mock 翻译服（TEXLATE_TRANSLATOR=mock，
 #     fetch/parse/tectonic 全真）→ dev-zotero verify 断言插件 loaded +
 #     data.initialized → rdp 设 serverUrl/pollInterval/pollTimeout

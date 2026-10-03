@@ -12,7 +12,7 @@
 #     sha256/字节数、%PDF 魔数——不 grep 日志文本当判据。
 #
 # 骨架四字段：
-#   适用条件 — uv sync --extra server 已跑、本机可拉 arXiv、tectonic 在 PATH
+#   适用条件 — uv sync 已跑、本机可拉 arXiv、tectonic 在 PATH
 #     （~/.local/bin/tectonic）；翻译侧零依赖——TEXLATE_TRANSLATOR=mock
 #     确定性假译，不烧 token，但 fetch/parse/tectonic 全真；
 #   变换方法 — setsid 起 `uv run texlate web` 独立进程组 + 独立

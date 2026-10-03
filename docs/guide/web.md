@@ -5,13 +5,13 @@
 ## 启动
 
 ```bash
-uv run texlate web            # http://127.0.0.1:8765
-uv run texlate web -p 9000    # 换端口
+texlate web            # http://127.0.0.1:8765
+texlate web -p 9000    # 换端口
 ```
 
-需要 `uv sync --extra server` 装的服务端依赖。数据目录缺省是主目录下 `.texlate/`（`--data-dir` 或 `TEXLATE_DATA_DIR` 改）。本地形态有单实例锁：已经有一个实例在跑时，再执行 `texlate web` 会直接打开浏览器指到那个实例并退出，不会报端口冲突，也不会起第二个进程抢同一个库。
+数据目录缺省是主目录下 `.texlate/`（`--data-dir` 或 `TEXLATE_DATA_DIR` 改）。本地形态有单实例锁：已经有一个实例在跑时，再执行 `texlate web` 会直接打开浏览器指到那个实例并退出，不会报端口冲突，也不会起第二个进程抢同一个库。
 
-图形界面是构建产物、不随仓库带。没构建过前端时服务照常提供 API——`run --server`、curl 都能用，浏览器里则没有页面。构建一次即可：
+发布产物（PyPI wheel、Docker 镜像）已内置前端。源码形态下图形界面是构建产物、不随仓库带——没构建过前端时服务照常提供 API（`run --server`、curl 都能用），浏览器里则没有页面。构建一次即可：
 
 ```bash
 scripts/build-web.sh
@@ -91,7 +91,7 @@ scripts/build-web.sh
 
 ```bash
 export TEXLATE_MODE=server
-uv run texlate web --host 0.0.0.0 -p 8765
+texlate web --host 0.0.0.0 -p 8765
 ```
 
 server 形态下所有写操作要求 `X-Texlate-Key` 请求头（服务端的 key 不外借给匿名请求）；跨域前端需要把来源加进 Settings 的 `cors_origins` 白名单，否则浏览器同源策略直接拒绝。多副本部署不再有单实例锁，`python -m texlate.server` 是不经锁的低层入口。配额面（`quota_max_tasks`/`quota_max_bytes`）与产物保留期（`retention_days`/`retention_max_gb`）都在 Settings 里配——保留期到期或超容量的终态任务会被自动清除。

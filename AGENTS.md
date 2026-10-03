@@ -58,7 +58,7 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 ## 项目运维约定
 
 - 本仓处于 M1–M3 推进阶段（M0 已验收，详见 `docs/log/audit-2026-09-16/README.md`）：`src/texlate/` 产品代码 + `tests/` pytest；`bench/` 下是评测 harness 与语料管线。
-- 产品代码一律走 uv venv：`uv sync`（web/server 形态加 `--extra server`）后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
+- 产品代码一律走 uv venv：`uv sync`（server 依赖在 core）后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
 - `bench/py/` 分两档：kernel/verbs/顶层工具纯 stdlib，系统 `python3 bench/py/bench <verb>` 即可跑；**`specs/` 里 import `texlate.*` 的 spec（e2e_mock/compilebench 等）要走装了依赖的 venv**——`uv run python bench/py/bench run <spec>`（`specs/_bootstrap.ensure()` 负责把 `src/` 准入 sys.path，但 httpx/typer 只在 venv 里）。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv（现 absent，按需重建）。
 - `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
 - `bench/corpus/` 语料清单是 arXiv e-print 解压原样的索引面，不改写；语料载荷在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（git checkout 之外）；新增语料登记对应 `MANIFEST.md`/`manifest*.jsonl`。

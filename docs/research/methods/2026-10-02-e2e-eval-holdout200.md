@@ -8,13 +8,13 @@
 
 spec `e2e_eval`（eval=True，EVAL_LAYERS 闸隔离 dev 池），六段链：
 
-| stage    | 内容                                                            | 付费 |
-| -------- | --------------------------------------------------------------- | ---- |
-| route    | src 物化 → find_main_tex → route_project                        | 否   |
-| xlat     | normalize → translate_tree_async（`swe-2-medium`，devin-2api）  | 是   |
-| compile  | zh 树 → splice → prepare_chinese → xelatex best-effort + judge  | 否   |
-| fixloop  | 冷 usertree + TUNA + tlpdb + vendor 兜底修复 → 复判             | 否   |
-| base     | 原文直编对照臂（en，无修复）                                     | 否   |
+| stage    | 内容                                                           | 付费 |
+| -------- | -------------------------------------------------------------- | ---- |
+| route    | src 物化 → find_main_tex → route_project                       | 否   |
+| xlat     | normalize → translate_tree_async（`swe-2-medium`，devin-2api） | 是   |
+| compile  | zh 树 → splice → prepare_chinese → xelatex best-effort + judge | 否   |
+| fixloop  | 冷 usertree + TUNA + tlpdb + vendor 兜底修复 → 复判            | 否   |
+| base     | 原文直编对照臂（en，无修复）                                   | 否   |
 | layoutqc | \pdfsavepos 版面注锚质检                                       | 否   |
 
 唯一付费面是 xlat；fixloop 本臂 `llm_hook=None`（规则修复，不调模型）。
@@ -23,18 +23,18 @@ spec `e2e_eval`（eval=True，EVAL_LAYERS 闸隔离 dev 池），六段链：
 
 池 = holdout 留出层（EVAL_ONLY）3,020 篇，按 `stratum_cell` 分层等比抽 200（seed=20261001），冻帧落 `bench/nominations/e2e_eval_holdout.jsonl`，帧 sha 经 route metrics 留痕。构成：
 
-| 年代带            | 篇数 | 学科组      | 篇数 |
-| ----------------- | ---: | ----------- | ---: |
-| a_pre2007         |   36 | hep-phys    |   41 |
-| b_2007_11         |   37 | math        |   39 |
-| c_2012_16         |   36 | cs          |   43 |
-| d_2017_20         |   35 | astro-ph    |   25 |
-| e_2021_25         |   35 | cond-mat    |   25 |
-| holdout\|recent   |   21 | eess-stat   |    9 |
-|                   |      | quant-ph    |    7 |
-|                   |      | nucl        |    4 |
-|                   |      | recent      |    6 |
-|                   |      | other       |    1 |
+| 年代带          | 篇数 | 学科组    | 篇数 |
+| --------------- | ---: | --------- | ---: |
+| a_pre2007       | 36   | hep-phys  | 41   |
+| b_2007_11       | 37   | math      | 39   |
+| c_2012_16       | 36   | cs        | 43   |
+| d_2017_20       | 35   | astro-ph  | 25   |
+| e_2021_25       | 35   | cond-mat  | 25   |
+| holdout\|recent | 21   | eess-stat | 9    |
+|                 |      | quant-ph  | 7    |
+|                 |      | nucl      | 4    |
+|                 |      | recent    | 6    |
+|                 |      | other     | 1    |
 
 全年代带配额均衡是设计目标，副作用是新兴切片被摊薄：e_2021_25\|cs 仅 14 篇，加上 recent 层中的 CS 篇也到不了统计可用量。对「新 CS 论文表现如何」这个问题，本帧只能给个位数到十余篇的证据。
 
@@ -42,27 +42,27 @@ spec `e2e_eval`（eval=True，EVAL_LAYERS 闸隔离 dev 池），六段链：
 
 ### 3.1 分 stage
 
-| stage    | 分布                                                                    |
-| -------- | ----------------------------------------------------------------------- |
-| route    | ok 181 / reject 19                                                      |
-| xlat     | ok 134 / partial 40 / reject 26（上游死 + oversize）                    |
-| compile  | clean 132 / partial 21 / fail 21 / skip 26                              |
-| fixloop  | clean 34 / partial 8 / fail 3（unfixable）/ reject 155（declined）      |
-| base     | clean 119 / partial 33 / fail 29 / error 18 / reject 1                  |
-| layoutqc | clean 40 / ok 133 / reject 26（199/200，2111.00241 一格 executor error）|
+| stage    | 分布                                                                     |
+| -------- | ------------------------------------------------------------------------ |
+| route    | ok 181 / reject 19                                                       |
+| xlat     | ok 134 / partial 40 / reject 26（上游死 + oversize）                     |
+| compile  | clean 132 / partial 21 / fail 21 / skip 26                               |
+| fixloop  | clean 34 / partial 8 / fail 3（unfixable）/ reject 155（declined）       |
+| base     | clean 119 / partial 33 / fail 29 / error 18 / reject 1                   |
+| layoutqc | clean 40 / ok 133 / reject 26（199/200，2111.00241 一格 executor error） |
 
 fixloop 的 `reject` 全部是闸内 decline，不是修复失败：not_wanted 133（编译已可用不值得修）+ route_dead 19 + no_compile 3（编译格从未产出，修复汇无件可修）。
 
 ### 3.2 逐篇交付账
 
-| 终态                                  | 篇数 |
-| ------------------------------------- | ---: |
-| compile clean，fixloop declined       |  115 |
-| compile partial，fixloop declined     |   14 |
-| fixloop 修出 clean                    |   34 |
-| fixloop 修出 partial                  |    8 |
-| fixloop unfixable                     |    3 |
-| 上游死（route/xlat 链断）              |   26 |
+| 终态                              | 篇数 |
+| --------------------------------- | ---: |
+| compile clean，fixloop declined   | 115  |
+| compile partial，fixloop declined | 14   |
+| fixloop 修出 clean                | 34   |
+| fixloop 修出 partial              | 8    |
+| fixloop unfixable                 | 3    |
+| 上游死（route/xlat 链断）         | 26   |
 
 zh 可交付 = 171/200（85.5%）。对照 en 原文直编臂 clean+partial 152/200（76%）——zh 臂反超的原因是 fixloop 修复环在 en 臂上不存在：base 只做裸编译，坏了不修。
 
@@ -70,14 +70,14 @@ zh 可交付 = 171/200（85.5%）。对照 en 原文直编臂 clean+partial 152/
 
 尝试修复 45 格（`_want_fix` 谓词命中），救回 42：
 
-| 修复判决         | 格数 | 终态映射       |
-| ---------------- | ---: | -------------- |
-| clean            |   19 | clean          |
-| acceptable_pdf   |   17 | clean 12 / 部分 5 |
-| best_effort_pdf  |    1 | partial        |
-| dirty_pdf        |    2 | clean 1 / partial 1 |
-| reject-sig       |    3 | clean 2 / partial 1 |
-| unfixable        |    3 | fail           |
+| 修复判决        | 格数 | 终态映射            |
+| --------------- | ---: | ------------------- |
+| clean           | 19   | clean               |
+| acceptable_pdf  | 17   | clean 12 / 部分 5   |
+| best_effort_pdf | 1    | partial             |
+| dirty_pdf       | 2    | clean 1 / partial 1 |
+| reject-sig      | 3    | clean 2 / partial 1 |
+| unfixable       | 3    | fail                |
 
 ## 4. 失败归因
 
@@ -85,13 +85,13 @@ zh 可交付 = 171/200（85.5%）。对照 en 原文直编臂 clean+partial 152/
 
 17/21 是期刊私有或废弃宏包，按年代 - 学科聚类：
 
-| 年代      | 学科       | 缺件                                            |
-| --------- | ---------- | ----------------------------------------------- |
+| 年代      | 学科         | 缺件                                           |
+| --------- | ------------ | ---------------------------------------------- |
 | 2001-2004 | 物理邻域 ×11 | aastex×4, espcrc2×3, psfig×2, isolatin1, fic-l |
 | 2009-2011 | 物理/数学 ×6 | iopart×2, aastex, picins, diagrams, texsort    |
-| 2014-2017 | 物理 ×4    | svjour, jheppub, PoS, missing_graphic          |
-| 2023      | cs ×1      | musicography（TL 内可装，非孤儿件）            |
-| 2025      | other ×1   | syntax（非缺件）                               |
+| 2014-2017 | 物理 ×4      | svjour, jheppub, PoS, missing_graphic          |
+| 2023      | cs ×1        | musicography（TL 内可装，非孤儿件）            |
+| 2025      | other ×1     | syntax（非缺件）                               |
 
 这批缺件里 vendor 库已备 11 种（aastex/iopart/psfig/lgrenc 真件，espcrc2/jheppub/diagrams/texsort 替身，svjour/revtex 桥接）；真孤儿仅 picins.sty、PoS.cls、fic-l.cls、isolatin1.sty 四种——既不在 TeX Live tlpdb 也未备 vendor。fixloop unfixable 3 格全在这四件上。
 
