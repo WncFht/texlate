@@ -98,7 +98,8 @@ def _walk(dest: Path) -> tuple[set[Path], set[Path], dict[Path, str], list[Path]
         d = stack.pop()
         for p in d.iterdir():
             if p.is_symlink():
-                links[p] = str(p.readlink())
+                # win readlink 吐 WindowsPath——str() 归一成 '\'，对账按 posix
+                links[p] = p.readlink().as_posix()
             elif p.is_dir():
                 dirs.add(p)
                 stack.append(p)

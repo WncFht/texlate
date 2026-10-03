@@ -425,7 +425,22 @@ def _gen_tree(rng: random.Random) -> dict[str, object]:
     if rng.random() < _P_SYMLINK:
         spec["linked.tex"] = _LINK
         spec["linked.txt"] = _LINK
+    _dedupe_casefold(spec)
     return spec
+
+
+def _dedupe_casefold(spec: dict[str, object]) -> None:
+    """NTFS 大小写折叠：同目录仅大小写异的名（aipcheck.tex/AIPCHECK.TEX）
+    物理同件——spec 双记与盘上实况必然分歧，后名让位先记。"""
+    if sys.platform != "win32":
+        return
+    seen: set[str] = set()
+    for k in list(spec):
+        fold = str(PurePosixPath(k).parent / PurePosixPath(k).name.casefold())
+        if fold in seen:
+            del spec[k]
+        else:
+            seen.add(fold)
 
 
 def _materialize(root: Path, spec: Mapping[str, object], link_target: Path) -> None:

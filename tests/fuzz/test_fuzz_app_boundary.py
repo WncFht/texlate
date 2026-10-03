@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import sys
 import threading
 import zipfile
 from functools import partial
@@ -869,8 +870,9 @@ class TestSettingsChurn:
         assert errors == []
         final = store.load()
         assert set(SettingsStore.FIELDS) <= set(final)
-        assert store.path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
-        assert store.connections_path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
+        if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
+            assert store.path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
+            assert store.connections_path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
         # api_key 终值属于某次写入（合并竞态可丢整次更新，绝不出现撕值）
         assert str(final["api_key"]).startswith("sk-t")
 

@@ -2044,13 +2044,14 @@ def test_xelatex_env_texmfhome_chain(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """TEXMFHOME 链 = usertree/home 居首 + ambient 尾随（重名去重）；
-    _usertree_env 退链取首元素（tlmgr 不认冒号链）。"""
+    _usertree_env 退链取首元素（tlmgr 不认链）。"""
     tree = tmp_path / "tree"
-    monkeypatch.setenv("TEXMFHOME", "/amb1:/amb2")
+    sep = os.pathsep  # win32 是 ';'——kpathsea 双侧各认本机分隔
+    monkeypatch.setenv("TEXMFHOME", sep.join(("/amb1", "/amb2")))
     eng = XelatexEngine(binary="/bin/true", texmfhome=tree)
     env = eng._env(None)  # noqa: SLF001
     home_tree = str(tree / "home")
-    assert env["TEXMFHOME"] == f"{home_tree}:/amb1:/amb2"
+    assert env["TEXMFHOME"] == sep.join((home_tree, "/amb1", "/amb2"))
     assert env["TEXMFVAR"] == str(tree / "var")
     ute = eng._usertree_env()  # noqa: SLF001
     assert ute["TEXMFHOME"] == home_tree  # 首元素
