@@ -29,3 +29,5 @@ tmp/
 paper-search-*/
 # docs 内嵌 HTML 是图件资产非源码（prettier html 会重排内嵌 SVG/script）
 docs/**/*.html
+# 研究档 data/ 是脚本产出证据帧（JSON 随生成器版式）——同 bench/results/ 政策
+docs/research/**/data/
