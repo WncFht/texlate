@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { landingHash } from "../api/client";
+import { t } from "../i18n";
 import { downloadItems, fmtBytes, isDocKind } from "../taskFiles";
 
 describe("fmtBytes", () => {
@@ -44,15 +45,18 @@ describe("downloadItems（db kind → 有序直链）", () => {
             zh_docx: "/api/files/t_x/zh.docx",
             src_tar: "/api/files/t_x/src.tar",
         });
+        // label 从 t.files 表取值——不断言字面文案：宿主 navigator.language
+        // 决定 zh/en（CI=en-US 与 zh 开发机产出不同字面），本用例钉的是
+        // kind→url kind 映射 + 标签来源 + ?download=1
         expect(items).toEqual([
             {
                 kind: "zh.docx",
-                label: "译文 Word",
+                label: t.files["zh.docx"],
                 url: "/api/files/t_x/zh.docx?download=1",
             },
             {
                 kind: "src.tar",
-                label: "原始源码",
+                label: t.files["src.tar"],
                 url: "/api/files/t_x/src.tar?download=1",
             },
         ]);

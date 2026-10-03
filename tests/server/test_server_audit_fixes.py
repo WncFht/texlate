@@ -749,11 +749,12 @@ class TestSlimTaskDir:
 
     def test_keep_registered_and_prune(self, tmp_path: Path) -> None:
         root = tmp_path / "t1"
-        (root / "build-zh" / "aux").mkdir(parents=True)
+        # "auxdir" 而非 "aux"——aux 是 Windows 保留名，mkdir 在 windows leg 炸
+        (root / "build-zh" / "auxdir").mkdir(parents=True)
         (root / "zh").mkdir()
         (root / "zh.pdf").write_bytes(b"x" * 100)
         (root / "build-zh" / "a.aux").write_bytes(b"x" * 50)
-        (root / "build-zh" / "aux" / "deep.log").write_bytes(b"x" * 30)
+        (root / "build-zh" / "auxdir" / "deep.log").write_bytes(b"x" * 30)
         (root / "zh" / "main.tex").write_bytes(b"x" * 40)
         (root / "orphan.txt").write_bytes(b"x" * 10)
         freed = slim_task_dir(root, {"zh.pdf"}, ("zh",))

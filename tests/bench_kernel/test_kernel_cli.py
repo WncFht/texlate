@@ -482,9 +482,9 @@ def test_run_dispatches_kernel_run(
         [
             "run",
             "smoke",
+            "x=1",  # nargs=* 位置参须连续成组——3.12.3 argparse 拒收可选后第二段
             "--param",
             "note=hi",
-            "x=1",
             "--max-cost",
             "1.5",
             "--jobs",

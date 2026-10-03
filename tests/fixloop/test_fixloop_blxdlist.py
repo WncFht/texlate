@@ -212,8 +212,12 @@ def test_bbl_regen_wins_when_bcf_present(tmp_path: Path) -> None:
     门过时的派发序位)。
     """
     ctx = _ctx(tmp_path, runner=biber_ok)
+    # ``_bcf_intact`` 门：≥200B + ``</bcf:controlfile>`` 尾标
     (tmp_path / "main.bcf").write_text(
-        '<?xml version="1.0" encoding="UTF-8"?>\n<bcf/>\n', encoding="utf-8"
+        '<?xml version="1.0" encoding="UTF-8"?>\n<bcf:controlfile>\n'
+        + "x" * 220
+        + "\n</bcf:controlfile>\n",
+        encoding="utf-8",
     )
     rule, _note = _match(ctx, "blx@dlist@name")
     assert rule is not None

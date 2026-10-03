@@ -34,7 +34,14 @@ ts-validator = []
 texlate = "texlate.cli:app"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  # AGPL 可选件：不入 wheel 依赖面，但 dev/CI 须装——seqpos 双遍主路径
+  # （_text_layer+_marks_layer 几何回填）只有 pymupdf 在场才被测到，
+  # 缺席时静默走 pypdf 兜底面、occ["text"] 归一口径不同。
+  "pymupdf>=1.24",
+]
 
 # typecheck 棘轮：exclude 列出的是存量诊断待清面。2026-09-28 首波已清
 # 62 文件 / 1080 诊断（segmenter+gullet+export+compile 大半面），剩 27 行

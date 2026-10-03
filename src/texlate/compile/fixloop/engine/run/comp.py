@@ -13,7 +13,7 @@ import re
 from typing import TYPE_CHECKING, cast
 
 from texlate.compile.fixloop.builtins.common import _mc_parse_log
-from texlate.compile.fixloop.engine.aux import _VOLATILE_EXTS
+from texlate.compile.fixloop.engine.auxiliary import _VOLATILE_EXTS
 from texlate.compile.fixloop.engine.proto import (
     _note_dropped_flags,
     _report_of,

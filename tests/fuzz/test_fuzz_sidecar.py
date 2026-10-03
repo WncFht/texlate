@@ -622,7 +622,7 @@ class TestEnvHelpers:
         for value, expected in (
             ("shared", "shared"),
             ("per_key", "per_key"),
-            ("tenant", "per_key"),  # 旧名同义
+            ("tenant", "shared"),  # 旧名兼容读已删 → 非法回落
             ("PER_KEY", "per_key"),
             ("  per_key  ", "per_key"),
             ("junk", "shared"),  # 非法回落

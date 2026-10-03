@@ -206,7 +206,7 @@ def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
     ok, _ = _fix(tmp_path, "htmladdnormallink")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\providecommand{\\htmladdnormallink}[2]" in text
+    assert "\\providecommand\\htmladdnormallink[2]" in text
     assert "\\ifdefined\\href" in text
 
 

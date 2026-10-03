@@ -453,8 +453,8 @@ class TestCacheScope:
         assert cache_scope() == "shared"
         monkeypatch.setenv("TEXLATE_CACHE_SCOPE", "per_key")
         assert cache_scope() == "per_key"
-        monkeypatch.setenv("TEXLATE_CACHE_SCOPE", "tenant")  # 旧名同义
-        assert cache_scope() == "per_key"
+        monkeypatch.setenv("TEXLATE_CACHE_SCOPE", "tenant")  # 旧名兼容读已删
+        assert cache_scope() == "shared"
         monkeypatch.setenv("TEXLATE_CACHE_SCOPE", "bogus")
         assert cache_scope() == "shared"
 

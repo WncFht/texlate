@@ -83,7 +83,9 @@ function stripMap(raw: string): { stripped: string; map: number[] } {
     return { stripped, map };
 }
 
-it("pdf textLayer 抽取 × pdfSeqsForText 命中率", async () => {
+// 本测试是真实任务产物的命中率实证探针（~/.texlate/tasks 须在席）——
+// CI/新机上无产物即无可测面，skip 而非假绿
+it.skipIf(!existsSync(TASKS))("pdf textLayer 抽取 × pdfSeqsForText 命中率", async () => {
     const dirs = readdirSync(TASKS)
         .filter((d) => existsSync(join(TASKS, d, "dual.json")))
         .filter(

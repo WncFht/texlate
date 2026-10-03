@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from texlate.compile.fixloop.actions import _REJECT_PREFIX
-from texlate.compile.fixloop.engine.aux import _sweep_bad_aux
+from texlate.compile.fixloop.engine.auxiliary import _sweep_bad_aux
 from texlate.compile.fixloop.engine.disp import (
     _commit_reject,
     _gate_eval,

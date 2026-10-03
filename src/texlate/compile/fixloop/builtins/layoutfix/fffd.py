@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop.builtins.common import _map_tex_files, _splice
+from texlate.compile.fixloop.builtins.common import _splice
 from texlate.textutil import is_cjk_cp, mask_tex
 
 if TYPE_CHECKING:
@@ -88,7 +88,22 @@ def fffd_context_fix(
     """
     del eng, payload
     exts = tuple(params.get("exts") or (".tex", ".bbl", ".cls", ".sty"))
-    n = _map_tex_files(ctx, exts, _fffd_text_edits)
+    n = 0
+    for f in ctx.tex_files(exts):
+        # 严格解码闸：解码失败件经 ctx.read(errors=replace) 呈 FFFD 假象，
+        # 真身是非 UTF-8 源——本臂只修字面 FFFD，解码败件让位
+        # non_utf8_source(95) 转码 (latin-1 é → {} 吞字实证)。
+        try:
+            f.read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt, k = _fffd_text_edits(t)
+        if k and nt != t:
+            ctx.write(f, nt)
+            n += 1
     if not n:
         return False, "no literal U+FFFD in live surface"
     return True, f"context-dispatched U+FFFD runs in {n} file(s)"

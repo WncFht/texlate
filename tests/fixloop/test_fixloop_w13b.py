@@ -227,7 +227,7 @@ def test_ichep_shim_body_residual() -> None:
     for frag in (
         "\\providecommand{\\fl}{}",
         "\\newcommand{\\Table}[2]{\\begin{tabular}{#1}#2\\end{tabular}}",
-        "\\newcommand{\\mpl}[3]{Mod.~Phys.~Lett. {\\bf A#1} (19#2) #3}",
+        "\\providecommand{\\mpl}[3]{Mod.~Phys.~Lett.~{\\bf #1} (#2) #3}",
         "\\providecommand{\\Bibliography}[1]{\\begin{thebibliography}{#1}}",
         "\\newenvironment{leqnarray}{\\begin{eqnarray}}{\\end{eqnarray}}",
     ):

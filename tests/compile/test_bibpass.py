@@ -33,9 +33,11 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
     aux: str | None = _AUX_CITE,
     extra_aux: dict[str, str] | None = None,
     bcf: bool = False,
+    bibfile: bool = False,
     bbl: str | None = _BBL_OK,
     tool_rc: int = 0,
     out_s: str = "",
+    hint_passes: set[int] | None = None,
     first_to: bool = False,
 ) -> Callable:
     """run_process 替身：xelatex 趟写 aux/pdf(+bcf)，工具趟按参数写 bbl。
@@ -72,11 +74,23 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
                 sub_aux.parent.mkdir(parents=True, exist_ok=True)
                 sub_aux.write_text(body, encoding="utf-8")
             if bcf:
-                (out / "main.bcf").write_text("<bcf/>", encoding="utf-8")
+                # ``_bcf_intact`` 门：≥200B + ``</bcf:controlfile>`` 尾标
+                (out / "main.bcf").write_text(
+                    "<bcf:controlfile>\n" + "x" * 220 + "\n</bcf:controlfile>\n",
+                    encoding="utf-8",
+                )
+            if bibfile:
+                # ``_bibdata_resolvable`` 门：\\bibdata{refs} 需 refs.bib 在席
+                (out / "refs.bib").write_text(
+                    "@article{a, title={A}}\n", encoding="utf-8"
+                )
             (out / "main.pdf").write_bytes(b"%PDF-fake")
             (out / "main.log").write_text("Output written\n", encoding="utf-8")
             to = first_to and calls["xelatex"] == 1
-            return 0, out_s, 0.1, to
+            # 真实 LaTeX 行为：bib 采纳后下趟 aux 才换 \bibcite，stdout 报
+            # undefined refs——自适应延趟正是吃这个 hint（qc-impl cap 语义）
+            hinted = hint_passes is not None and calls["xelatex"] in hint_passes
+            return 0, _HINT if hinted else out_s, 0.1, to
         calls["tools"].append(cmd)
         if bbl is not None:
             stem = cmd[1]
@@ -106,9 +120,11 @@ def test_bibtex_fires_and_extends_to_three_passes(
     """pin a: aux citation 态 → bibtex 趟间补 + 自适应档 3 趟。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls))
+    eng = _eng(
+        monkeypatch, _fake_run(calls, bibfile=True, hint_passes={2})
+    )
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
-    assert calls["xelatex"] == 3  # noqa: PLR2004 - bib 采纳延趟：2→3
+    assert calls["xelatex"] == 3  # noqa: PLR2004 - 采纳后 hint 延趟：2→3
     assert calls["tools"] == [["/x/bibtex", "main"]]
     assert res.bib_ran == ["bibtex:main"]
     assert res.passes == 3  # noqa: PLR2004
@@ -150,7 +166,7 @@ def test_truncated_bbl_deleted_not_adopted(
     """pin d: bibtex 产出缺尾标 → 不采纳、删除残件、不计续趟信号。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls, bbl=_BBL_TRUNC))
+    eng = _eng(monkeypatch, _fake_run(calls, bbl=_BBL_TRUNC, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"]]
     assert res.bib_ran == []
@@ -164,7 +180,13 @@ def test_biber_arm_on_bcf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     calls: dict = {"xelatex": 0, "tools": []}
     eng = _eng(
         monkeypatch,
-        _fake_run(calls, aux=None, bcf=True, bbl="\\endrefsection\n\\endinput\n"),
+        _fake_run(
+            calls,
+            aux=None,
+            bcf=True,
+            bbl="\\endrefsection\n\\endinput\n",
+            hint_passes={2},
+        ),
     )
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/biber", "main"]]
@@ -234,7 +256,7 @@ def test_explicit_passes_fires_without_extension(
     """显式 passes=2：趟间补 bib 但不延趟——caller 钉了 N。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls))
+    eng = _eng(monkeypatch, _fake_run(calls, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", passes=2, sandbox=False)
     assert calls["xelatex"] == 2  # noqa: PLR2004 - 不延趟
     assert calls["tools"] == [["/x/bibtex", "main"]]
@@ -248,7 +270,7 @@ def test_multi_aux_each_gets_bibtex(
     """逐 aux 算法：``\\include`` 子件 aux 同吃（multibib/章节 .aux）。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls, extra_aux={"sub/ch1.aux": _AUX_CITE}))
+    eng = _eng(monkeypatch, _fake_run(calls, extra_aux={"sub/ch1.aux": _AUX_CITE}, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"], ["/x/bibtex", "sub/ch1"]]
     assert res.bib_ran == ["bibtex:main", "bibtex:sub/ch1"]
@@ -262,7 +284,10 @@ def test_bibtex_rc_fail_complete_bbl_adopted(
     biber 臂 ``rc!=0`` 必弃的对照面（败北自删 poison 是 biber 独有行为）。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls, tool_rc=1, bbl=_BBL_OK))
+    eng = _eng(
+        monkeypatch,
+        _fake_run(calls, tool_rc=1, bbl=_BBL_OK, bibfile=True, hint_passes={2}),
+    )
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"]]
     assert res.bib_ran == ["bibtex:main"]
@@ -275,7 +300,7 @@ def test_outdir_bib_pass_fires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     outdir = tmp_path / "build"
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls))
+    eng = _eng(monkeypatch, _fake_run(calls, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", outdir=outdir, sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"]]
     assert res.bib_ran == ["bibtex:main"]
@@ -291,7 +316,7 @@ def test_aux_scan_sorted_truncated_at_cap(
     for letter in "abcdefghij":  # 10 件 > _BIB_AUX_SCAN_MAX=8
         (tmp_path / f"{letter}.aux").write_text(_AUX_CITE, encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls, aux=None))
+    eng = _eng(monkeypatch, _fake_run(calls, aux=None, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", passes=2, sandbox=False)
     assert calls["tools"] == [["/x/bibtex", letter] for letter in "abcdefgh"]
     assert res.bib_ran == [f"bibtex:{letter}" for letter in "abcdefgh"]
@@ -307,7 +332,8 @@ def test_missing_tool_no_crash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == []
     assert res.bib_ran == []
-    assert res.passes == 2  # noqa: PLR2004 - hint 续趟照旧
+    # hint 恒在 → 自适应档逐趟延至 _ADAPTIVE_PASS_CAP 硬顶
+    assert res.passes == 4  # noqa: PLR2004
 
 
 def test_empty_bbl_treated_absent(
@@ -317,7 +343,7 @@ def test_empty_bbl_treated_absent(
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
     (tmp_path / "main.bbl").write_text("", encoding="utf-8")
     calls: dict = {"xelatex": 0, "tools": []}
-    eng = _eng(monkeypatch, _fake_run(calls))
+    eng = _eng(monkeypatch, _fake_run(calls, bibfile=True))
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"]]
     assert res.bib_ran == ["bibtex:main"]

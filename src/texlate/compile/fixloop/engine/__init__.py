@@ -22,7 +22,7 @@ monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
 (``texlate.compile.fixloop.engine.<叶>``), 不经本门面。
 
 叶谱：``engine.proto`` 协议面 + 报告装配 / ``engine.ctx`` LoopCtx /
-``engine.aux`` 清场挥发件 / ``engine.disp`` 定位+gate/precheck+ 次级
+``engine.auxiliary`` 清场挥发件 / ``engine.disp`` 定位+gate/precheck+ 次级
 派发 / ``engine.wire`` 引擎接线 + 装配头 / ``engine.run`` _FixRun
 主循环核 (二级拆叶：编译相 ``engine.run.comp`` + 尾段 ``engine.run.tail``
 两 mixin 叶 + 装配面 ``engine.run.fixloop``)。
@@ -35,7 +35,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.compile.fixloop.engine.aux import (
+    from texlate.compile.fixloop.engine.auxiliary import (
         _AUX_WRITE_EXTS,
         _BSLASH,
         _LBRACE,
@@ -126,7 +126,8 @@ if TYPE_CHECKING:
     )
 
 _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
-    "aux": (
+    # "auxiliary" 而非 "aux"——aux 是 Windows 保留名，checkout 即炸
+    "auxiliary": (
         "_AUX_WRITE_EXTS",
         "_BSLASH",
         "_LBRACE",

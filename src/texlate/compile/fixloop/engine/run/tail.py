@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from texlate.compile.fixloop.actions import _REJECT_PREFIX
-from texlate.compile.fixloop.engine.aux import _VOLATILE_EXTS, _sweep_bad_aux
+from texlate.compile.fixloop.engine.auxiliary import _VOLATILE_EXTS, _sweep_bad_aux
 from texlate.compile.fixloop.engine.disp import (
     _commit_reject,
     _gate_fired_of,

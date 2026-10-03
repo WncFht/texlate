@@ -160,8 +160,16 @@ def test_unrelated_cs_untouched(tmp_path: Path) -> None:
 
 
 def test_match_apply_routes(tmp_path: Path) -> None:
-    """整链：真实派发猫 microtype_pdftex + other 兼容臂同钉 —— 双臂皆点火本臂。"""
-    for cat in ("microtype_pdftex", "other"):
+    """整链：microtype_pdftex → 本臂；other → neutralize(47) 序位先中。
+
+    ``microtype_disableligatures_neutralize`` (55-prim order47, other+
+    emergency 面) 后加件序位在本臂 (71) 前——``other`` 签由 ``\\relax``
+    中和臂收；``microtype_pdftex`` 不在其 when 面，仍归本臂注释中和。
+    """
+    for cat, want in (
+        ("microtype_pdftex", "microtype_lig_off"),
+        ("other", "microtype_disableligatures_neutralize"),
+    ):
         sub = tmp_path / cat
         sub.mkdir()
         (sub / "applemlr.cls").write_text(
@@ -173,10 +181,12 @@ def test_match_apply_routes(tmp_path: Path) -> None:
             rs(), ctx, EngStub(), cat, None, ErrReport()
         )
         assert rule is not None, f"{cat}: {note}"
-        assert rule.id == "microtype_lig_off"
-        assert (
-            "%\\DisableLigatures[f]{family=sf*}" in (sub / "applemlr.cls").read_text()
-        )
+        assert rule.id == want
+        body = (sub / "applemlr.cls").read_text()
+        if want == "microtype_lig_off":
+            assert "%\\DisableLigatures[f]{family=sf*}" in body
+        else:
+            assert "\\DisableLigatures" not in body
 
 
 def test_xetexglyph_arm_unaffected(tmp_path: Path) -> None:

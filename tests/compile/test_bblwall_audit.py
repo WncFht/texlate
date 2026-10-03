@@ -52,6 +52,11 @@ def _write_main(tmp_path: Path, head: str, body: str = "hi") -> None:
     )
 
 
+_BCF_STUB = (
+    "<bcf:controlfile>\n" + "x" * 220 + "\n</bcf:controlfile>\n"
+)
+
+
 _STUB = (
     "\\ProvidesPackage{physics}[2012/12/31 mini physics stub]\n"
     "\\def\\abs#1{|#1|}\n\\def\\norm#1{\\|#1\\|}\n\\def\\bra{\\langle}\n"
@@ -61,7 +66,7 @@ _STUB = (
 # ---------------------------------------------------------------- W2 stale-drop
 def test_bbl_regen_stale_format_dropped(tmp_path: Path) -> None:
     """rc=2 + 头标 ``bbl format version 2.8`` → unlink + True + stale-dropped。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF_STUB, encoding="utf-8")
     bbl = tmp_path / "ms.bbl"
     bbl.write_text(
         "% $ biblatex control file $ bbl format version 2.8 $\\n\\entry{a}\n",
@@ -80,7 +85,7 @@ def test_bbl_regen_stale_format_dropped(tmp_path: Path) -> None:
 
 def test_bbl_regen_biber_selfdelete_counts(tmp_path: Path) -> None:
     """rc=2 且 biber 自删 poison bbl → 清场计 progress → True。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF_STUB, encoding="utf-8")
     (tmp_path / "ms.bbl").write_text("stale", encoding="utf-8")
 
     def _selfrm(argv: list[str], _t: int, w: Path) -> tuple:
@@ -94,7 +99,7 @@ def test_bbl_regen_biber_selfdelete_counts(tmp_path: Path) -> None:
 
 def test_bbl_regen_fresh_format_survives(tmp_path: Path) -> None:
     """头标 3.2 (现行) 的 bbl 不是 poison → rc=1 时保留 + False。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF_STUB, encoding="utf-8")
     bbl = tmp_path / "ms.bbl"
     bbl.write_text(
         "% $ biblatex control file $ bbl format version 3.2 $\n", encoding="utf-8"
@@ -111,7 +116,7 @@ def test_bbl_regen_fresh_format_survives(tmp_path: Path) -> None:
 
 def test_bbl_regen_no_marker_survives(tmp_path: Path) -> None:
     """无版本头标的 bbl (手写/旧形) → 不删，False。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF_STUB, encoding="utf-8")
     bbl = tmp_path / "ms.bbl"
     bbl.write_text("\\begin{thebibliography}{9}\n", encoding="utf-8")
 
@@ -125,7 +130,7 @@ def test_bbl_regen_no_marker_survives(tmp_path: Path) -> None:
 
 def test_bbl_regen_never_existed_fails(tmp_path: Path) -> None:
     """bbl 从不存在 (had_bbl=False) → 自删分支不触发，False。"""
-    (tmp_path / "ms.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "ms.bcf").write_text(_BCF_STUB, encoding="utf-8")
 
     def _fail(_a: list[str], _t: int, _w: Path) -> tuple:
         return 2, "boom", 0.2, False
@@ -137,8 +142,8 @@ def test_bbl_regen_never_existed_fails(tmp_path: Path) -> None:
 
 def test_bbl_regen_mixed_regen_and_drop(tmp_path: Path) -> None:
     """a.bcf 重生成功 + b.bcf 陈旧 drop → True, note 双段齐。"""
-    (tmp_path / "a.bcf").write_text("<bcf/>", encoding="utf-8")
-    (tmp_path / "b.bcf").write_text("<bcf/>", encoding="utf-8")
+    (tmp_path / "a.bcf").write_text(_BCF_STUB, encoding="utf-8")
+    (tmp_path / "b.bcf").write_text(_BCF_STUB, encoding="utf-8")
     (tmp_path / "b.bbl").write_text("bbl format version 2.7\n", encoding="utf-8")
 
     def _mixed(argv: list[str], _t: int, w: Path) -> tuple:

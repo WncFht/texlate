@@ -219,7 +219,7 @@ _TAIL_RULES: tuple[tuple[str, str], ...] = (
     (
         "Punctuation and spacing",
         (
-            "Use proper full-width {TGT} punctuation (,..:?!()) in the "
+            "Use proper full-width {TGT} punctuation (，。；：？！（）) in the "
             "translated text, and add spaces around standalone special symbols "
             '(e.g. "| special\\_token | <reasoning\\_process>") so the '
             "compiled {TGT} text can wrap correctly."

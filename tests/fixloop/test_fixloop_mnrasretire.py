@@ -510,6 +510,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
     assert not (tmp_path / "mnras.cls").exists()
 
 
+@pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
 def test_e2e_patched_then_shadow_converges_clean(tmp_path: Path) -> None:
     """mn2e 原位补丁后同签名错再报 → shadow 臂补投 vendor 件收敛 clean。"""
     eng = ScriptEng(

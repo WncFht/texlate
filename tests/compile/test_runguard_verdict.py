@@ -97,10 +97,12 @@ def test_killed_signal_pdf_not_clean(tmp_path: Path) -> None:
 
 
 def test_killed_signal_runaway_log(tmp_path: Path) -> None:
-    """信号杀 + vbox 刷屏 → runaway_output (killed 否决位先查暴走签名)。"""
+    """信号杀 + vbox 刷屏 → warn_overfull：warnings 税目先于 killed 否决位
+    收编 (否决臂只改写 clean/None)；活哨记录值/超时臂才直归
+    runaway_output (overfull_vbox → warn_overfull 别名面)。"""
     eng = MockEngine([{"log": RUNAWAY_LOG, "pdf": True, "killed_signal": 9}])
     cell = fixloop(make_proj(tmp_path), eng)
-    assert cell["final_cat"] == "runaway_output"
+    assert cell["final_cat"] == "warn_overfull"
     assert cell["verdict"] == "dirty_pdf"
 
 

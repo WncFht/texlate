@@ -1,4 +1,7 @@
-r"""engine.aux — 工程辅助件清场 + 挥发件缓存族 (C5 拆叶)。
+r"""engine.auxiliary — 工程辅助件清场 + 挥发件缓存族 (C5 拆叶)。
+
+叶名 ``auxiliary`` 而非 ``aux``：aux 是 Windows 保留设备名，该叶件在
+windows checkout 即 invalid path (exit 128)。
 
 TeX 每轮重写/截断的辅助件 (``.aux``/``.toc``/``.log`` 族) 判定与扫除
 (``_aux_file_bad``/``_sweep_bad_aux``), 以及进程内 ``_texts`` 缓存对
