@@ -43,11 +43,12 @@
 
 ## 文档与文本工具
 
-| 工具                | 作用                                                                                                        | 用法                                                                                     |
-| ------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `docs_linkcheck.py` | docs/ 相对链接检查：markdown 链接/图片/行内路径引用的目标存在性校验（exit 1 列死链）                        | `.venv/bin/python tools/docs_linkcheck.py [--root docs]`                                 |
-| `md_table_align.py` | MD060 aligned 表风格重排器：按显示宽度（CJK=2，wcwidth 口径）把表块各列重排到统一列位，原位改写             | `.venv/bin/python tools/md_table_align.py FILE [FILE ...]`                               |
-| `vendor_census.py`  | fixloop `vendor/` 资产普查 + 可达性扫描：`vendor/MANIFEST.md` 的生成数据源（逐件 \ProvidesX 头 + 引用分类） | `.venv/bin/python tools/vendor_census.py [out.jsonl]` → `tmp/vendor-census-<日期>.jsonl` |
+| 工具                   | 作用                                                                                                                 | 用法                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `docs_linkcheck.py`    | docs/ 相对链接检查：markdown 链接/图片/行内路径引用的目标存在性校验（exit 1 列死链）                                 | `.venv/bin/python tools/docs_linkcheck.py [--root docs]`                                 |
+| `md_table_align.py`    | MD060 aligned 表风格重排器：按显示宽度（CJK=2，wcwidth 口径）把表块各列重排到统一列位，原位改写                      | `.venv/bin/python tools/md_table_align.py FILE [FILE ...]`                               |
+| `vendor_census.py`     | fixloop `vendor/` 资产普查 + 可达性扫描：`vendor/MANIFEST.md` 的生成数据源（逐件 \ProvidesX 头 + 引用分类）          | `.venv/bin/python tools/vendor_census.py [out.jsonl]` → `tmp/vendor-census-<日期>.jsonl` |
+| `make_readme_shots.py` | README 数据图再生：`shots/bench-token.png`（管线 vs agent 逐篇/总量账）+ `shots/bench-e2e.png`（留出集逐篇终态分解） | `uv run --with matplotlib python tools/make_readme_shots.py`                             |
 
 ## lib 件与系统级巡检（非手跑入口）
 
