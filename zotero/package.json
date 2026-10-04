@@ -1,7 +1,7 @@
 {
   "name": "zotero-texlate",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zotero plugin for TeXlate — translate arXiv papers to Chinese via a texlate server",
   "config": {
     "addonName": "TeXlate",
