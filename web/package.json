@@ -13,7 +13,7 @@
     },
     "dependencies": {
         "@pdfslick/solid": "^4.0.2",
-        "dompurify": "^3.4.15",
+        "dompurify": "^3.4.16",
         "katex": "^0.18.10",
         "marked": "^18.0.13",
         "mathml-to-latex": "^1.8.0",
@@ -22,7 +22,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
-        "@types/dompurify": "^3.0.5",
+        "@types/dompurify": "^3.2.0",
         "@types/jsdom": "^30.0.0",
         "@types/node": "^24.0.0",
         "eslint": "^10.10.0",
