@@ -14,7 +14,7 @@
     "dependencies": {
         "@pdfslick/solid": "^4.0.2",
         "dompurify": "^3.4.15",
-        "katex": "^0.18.7",
+        "katex": "^0.18.10",
         "marked": "^18.0.13",
         "mathml-to-latex": "^1.8.0",
         "pdfjs-dist": "^6.3.289",
