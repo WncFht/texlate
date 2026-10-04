@@ -1,27 +1,30 @@
 /**
- * progress.ts — one shared ProgressWindow per batch, one ItemProgress row
- * per item (the Zotero translator-save convention: headline = addon name,
- * each row = item title + arc progress + terminal icon). A single-item
- * translate is just a batch of one.
+ * progress.ts — per-item progress plumbing between flow.ts and the UI.
+ *
+ * Live progress renders into the item-pane task list (taskpane.ts) — the
+ * floating ProgressWindow is `dependent=yes` and buries under the main
+ * window on macOS, so it only survives as a completion toast: `pw` is
+ * created lazily on the first terminal line, collect one row per item,
+ * and closeBatch shows it with an auto-close timer.
  *
  * Every call is best-effort: a UI failure must never kill a flow, so all
- * helpers swallow toolkit exceptions and return null/void. `title` stays in
- * the row text across phase rewrites so a row never loses item identity.
+ * helpers swallow toolkit exceptions and return null/void.
  */
 import { phaseKey } from "./poller";
+import { endTask, openTask, updateTask } from "./taskpane";
 import { t } from "../utils/locale";
 import type { FlowResult, TaskSnapshot } from "../contracts";
 import type { ProgressWindowHelper } from "zotero-plugin-toolkit";
 
 export interface Batch {
+  /** Lazily created on the first endLine — null until a toast is needed. */
   pw: ProgressWindowHelper | null;
-  count: number;
 }
 
-/** One item's row inside the shared window. */
+/** One item's row: the pane row keyed by itemID + this batch's toast. */
 export interface ItemLine {
   batch: Batch;
-  idx: number;
+  itemID: number;
   title: string;
 }
 
@@ -33,61 +36,54 @@ export function shortTitle(raw: string): string {
 }
 
 export function createBatch(): Batch {
-  try {
-    const pw = new ztoolkit.ProgressWindow("TeXlate");
-    pw.show(-1); // persistent — closed by closeBatch once all items end
-    return { pw, count: 0 };
-  } catch {
-    return { pw: null, count: 0 };
-  }
+  return { pw: null };
 }
 
-export function openLine(batch: Batch, title: string): ItemLine {
+export function openLine(batch: Batch, itemID: number, title: string): ItemLine {
   try {
-    batch.pw?.createLine({ text: title, progress: 0 });
+    openTask(itemID, title);
   } catch {
     /* best-effort UI */
   }
-  const idx = batch.count++;
-  return { batch, idx, title };
+  return { batch, itemID, title };
 }
 
-/** Render a task snapshot as "{title} — {phase} {progress}%" on this item's row. */
+/** "{phase} {progress}%" on the item's pane row + determinate bar. */
 export function setPhase(line: ItemLine, snap: TaskSnapshot): void {
   try {
-    line.batch.pw?.changeLine({
-      idx: line.idx,
-      text: `${line.title} — ${t(`phase-${phaseKey(snap)}`)} ${Math.round(
-        snap.progress,
-      )}%`,
-      progress: snap.progress,
-    });
+    const pct = Math.max(0, Math.min(100, Math.round(snap.progress)));
+    updateTask(line.itemID, `${t(`phase-${phaseKey(snap)}`)} ${pct}%`, pct);
   } catch {
     /* best-effort UI */
   }
 }
 
-/** Free-text status on an item's row — bootstrap phases (no %). */
+/** Free-text status on the pane row — bootstrap phases (indeterminate). */
 export function setLineStatus(line: ItemLine, text: string): void {
   try {
-    line.batch.pw?.changeLine({
-      idx: line.idx,
-      text: `${line.title} — ${text}`,
-    });
+    updateTask(line.itemID, text, null);
   } catch {
     /* best-effort UI */
   }
 }
 
-/** Terminal write for one item's row — icon flips to tick/cross. */
+/**
+ * Terminal write: pane row flips to ✓/✗, and the batch toast collects a
+ * line (creating the ProgressWindow on first use — shown by closeBatch).
+ */
 export function endLine(
   line: ItemLine,
   type: "success" | "fail",
   text: string,
 ): void {
   try {
-    line.batch.pw?.changeLine({
-      idx: line.idx,
+    endTask(line.itemID, type === "success", text);
+  } catch {
+    /* best-effort UI */
+  }
+  try {
+    const pw = (line.batch.pw ??= new ztoolkit.ProgressWindow("TeXlate"));
+    pw.createLine({
       type,
       text: `${line.title} — ${text}`,
       progress: type === "success" ? 100 : undefined,
@@ -98,8 +94,8 @@ export function endLine(
 }
 
 /**
- * All items ended — append a summary row for multi-item batches, then arm
- * the close timer (longer when something failed so the user can read it).
+ * All items ended — append a summary row for multi-item batches, then show
+ * the toast with an auto-close timer (longer when something failed).
  */
 export function closeBatch(batch: Batch, results: FlowResult[]): void {
   try {
@@ -115,7 +111,7 @@ export function closeBatch(batch: Batch, results: FlowResult[]): void {
         }),
       });
     }
-    batch.pw.startCloseTimer(ok === results.length ? 8000 : 15000);
+    batch.pw.show(ok === results.length ? 8000 : 15000);
   } catch {
     /* best-effort UI */
   }

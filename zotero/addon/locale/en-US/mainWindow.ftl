@@ -12,3 +12,11 @@ translate =
     .label = TeXlate: Translate to Chinese
 open-reader =
     .label = TeXlate: Open in Reader
+
+# Item-pane task section — collapsible-section header takes `.label`,
+# the sidenav rail toolbarbutton takes `.tooltiptext` (bare values land
+# in textContent and never render, same convention as menu-*).
+taskpane =
+    .label = TeXlate Tasks
+taskpane-sidenav =
+    .tooltiptext = TeXlate Tasks

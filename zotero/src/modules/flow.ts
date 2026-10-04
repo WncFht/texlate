@@ -4,8 +4,8 @@
  * translateItem NEVER throws: expected failures and unexpected exceptions are
  * both encoded in FlowResult.error as a STABLE MACHINE CODE (kebab-case,
  * optional ": detail" suffix — e.g. "server-unreachable", "task-fault: …").
- * Localized text goes to the ProgressWindow; selftest/dev-verify match on
- * the code prefix.
+ * Localized text goes to the item-pane task list (+ completion toast);
+ * selftest/dev-verify match on the code prefix.
  *
  * ftl keys used (locale agent — all under the addonRef prefix):
  *   phase-<status|stage> for the 11 statuses (queued,
@@ -202,7 +202,7 @@ async function run(item: Zotero.Item, batch: Batch): Promise<FlowResult> {
     shortTitle(fieldText(item, "title")) ||
     extractArxivId(item) ||
     `#${itemID}`;
-  const line = openLine(batch, title);
+  const line = openLine(batch, itemID, title);
 
   try {
     if (!item.isRegularItem()) {
@@ -306,6 +306,7 @@ export async function translateItem(
   if (inflight.has(itemID)) {
     const line = openLine(
       own,
+      itemID,
       shortTitle(fieldText(item, "title")) ||
         extractArxivId(item) ||
         `#${itemID}`,
@@ -320,7 +321,7 @@ export async function translateItem(
       const m = errText(e);
       // run() already wrote a row for every reachable failure; this catch is
       // for throws before the row existed (pref/field plumbing) — add one.
-      const line = openLine(own, `#${itemID}`);
+      const line = openLine(own, itemID, `#${itemID}`);
       endLine(line, "fail", t("flow-error-unexpected", { message: m }));
       result = { itemID, ok: false, error: `unexpected: ${m}` };
     } finally {

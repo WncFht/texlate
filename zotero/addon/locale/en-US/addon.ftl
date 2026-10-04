@@ -51,7 +51,11 @@ phase-cancelled = Cancelled
 phase-interrupted = Interrupted
 phase-needs_auth = Authorization needed
 
-# Translate flow (modules/flow.ts) — ProgressWindow lines.
+# Item-pane task section (modules/taskpane.ts) — empty state + header count.
+taskpane-empty = No translation tasks yet.
+taskpane-running-count = { $count } running
+
+# Translate flow (modules/flow.ts) — task pane lines + completion toast.
 flow-done = Translation finished — PDF attached to the item.
 flow-partial-warn = Task finished partially — some segments may be untranslated.
 flow-already-translated = Already translated — use "Open in Reader" to view it.
@@ -62,7 +66,7 @@ flow-batch-summary = { $failed ->
    *[other] Batch finished: { $ok } of { $total } translated, { $failed } failed.
 }
 
-# Flow errors (ProgressWindow fail lines).
+# Flow errors (task pane / toast fail lines).
 flow-error-not-regular = Only regular items can be translated.
 flow-error-no-arxiv-id = No arXiv ID found on this item.
 flow-error-inflight = This item already has a translation in progress.

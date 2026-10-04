@@ -61,4 +61,8 @@ export type FluentMessageId =
   | 'prefs-start-server'
   | 'prefs-status'
   | 'prefs-title'
+  | 'taskpane'
+  | 'taskpane-empty'
+  | 'taskpane-running-count'
+  | 'taskpane-sidenav'
   | 'translate';

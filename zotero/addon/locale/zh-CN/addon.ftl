@@ -46,7 +46,11 @@ phase-cancelled = 已取消
 phase-interrupted = 已中断
 phase-needs_auth = 需要授权
 
-# 翻译流程（modules/flow.ts）——ProgressWindow 行文本。
+# 条目面板任务区（modules/taskpane.ts）——空态文案与头部进行中计数。
+taskpane-empty = 暂无翻译任务。
+taskpane-running-count = { $count } 进行中
+
+# 翻译流程（modules/flow.ts）——任务面板行文本与完成 toast 行。
 flow-done = 翻译完成——PDF 已附加到条目。
 flow-partial-warn = 任务部分完成——个别段落可能未翻译。
 flow-already-translated = 该条目已翻译——请使用「在阅读器打开」查看。
@@ -57,7 +61,7 @@ flow-batch-summary = { $failed ->
    *[other] 批量翻译完成：{ $total } 个中成功 { $ok } 个、失败 { $failed } 个。
 }
 
-# 流程错误（ProgressWindow 失败行）。
+# 流程错误（任务面板/toast 失败行）。
 flow-error-not-regular = 仅支持翻译常规文献条目。
 flow-error-no-arxiv-id = 未在该条目上找到 arXiv ID。
 flow-error-inflight = 该条目已有翻译任务进行中。

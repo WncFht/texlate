@@ -12,3 +12,10 @@ translate =
     .label = TeXlate：翻译为中文
 open-reader =
     .label = TeXlate：在阅读器打开
+
+# 条目面板任务区——collapsible-section 头部走 .label，
+# 侧轨 toolbarbutton 走 .tooltiptext（裸 value 都不渲染，同 menu 约定）。
+taskpane =
+    .label = TeXlate 任务
+taskpane-sidenav =
+    .tooltiptext = TeXlate 任务

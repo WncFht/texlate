@@ -4,6 +4,7 @@ import { registerMenus } from "./modules/menu";
 import { registerPrefsPane } from "./modules/prefs";
 import { installSelftest } from "./modules/selftest";
 import { installBootstrap } from "./modules/bootstrap";
+import { registerTaskPane } from "./modules/taskpane";
 
 async function onStartup() {
   await Promise.all([
@@ -17,6 +18,7 @@ async function onStartup() {
   installSelftest();
   installBootstrap();
   registerPrefsPane();
+  registerTaskPane();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),

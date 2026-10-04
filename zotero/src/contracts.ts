@@ -235,6 +235,10 @@ export interface TexlatePrefs {
  *               export function registerPrefsPane(): void
  *   menu.ts     export function registerMenus(win): void
  *               export function computeMenuState(items): MenuState
+ *   taskpane.ts export function registerTaskPane(): void   // item-pane section
+ *               export function openTask(itemID, title): void
+ *               export function updateTask(itemID, text, progress): void
+ *               export function endTask(itemID, ok, text): void
  *   flow.ts     export function translateItem(item, batch?): Promise<FlowResult>
  *               export function translateItems(items): Promise<FlowResult[]>
  *               export function openInReader(item): boolean   // launchURL'd
