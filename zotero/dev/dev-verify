@@ -32,7 +32,10 @@
 #     profile 支、默认值 8765 仍生效）→ reset 清 fixture 的 texlate:
 #     标记与 TeXlate 附件（幂等可重跑的前提）→ 逐 fixture
 #     api.selftest(id) 断言 extract 源与 ID 形态 → 负例
-#     selftestNonArxiv → computeMenuState 三态 → xpi 解包 → 幂等重跑。
+#     selftestNonArxiv → computeMenuState 三态 → xpi 解包 → 幂等重跑 →
+#     bootstrap 段（autoStart 翻回 + 空闲端口 + 隔离 --data-dir，selftest
+#     health 步须真拉起服务；拉的是 uvx PyPI texlate、非本仓 checkout）。
+#     phase_prefs 固定写 autoStart=false——矩阵/破坏例要 health 纯探针。
 #     sabotage 档三例：停服（health FAIL）、坏 serverUrl（health FAIL）、
 #     挪走 tasks/<id>/zh.pdf（download+attach FAIL 点名 zh.pdf）——每例
 #     后恢复并复验；
@@ -210,10 +213,13 @@ phase_zotero() {
 #: profile 支、pref 面仍见默认 8765 → 自测会打到真实 gateway）。
 #: devSelftest 是 selftest.ts 的调用时闸门（生产 xpi 惰性，opt-in 才跑）。
 phase_prefs() {
+  # autoStart=false 钉死：自助拉起特性会把 loopback 不可达变成真拉起——
+  # 矩阵/破坏例要的是 health 纯探针，bootstrap 由 phase_bootstrap 单独翻回。
   rdp_val "Zotero.Prefs.set('$PREF.devSelftest',true,true), \
 Zotero.Prefs.set('$PREF.serverUrl','$BASE',true), \
 Zotero.Prefs.set('$PREF.pollIntervalMs',2000,true), \
-Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), 'ok'" 15 >/dev/null ||
+Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), \
+Zotero.Prefs.set('$PREF.autoStart',false,true), 'ok'" 15 >/dev/null ||
     {
       fail prefs "rdp set failed"
       return 1
@@ -591,6 +597,50 @@ sab_c() {
   return $rc
 }
 
+# --- bootstrap ----------------------------------------------------------------
+
+#: phase_bootstrap — 自助拉起端到端：空闲端口 + 隔离 --data-dir + autoStart=on
+#: → selftest 的 health 步必须经 healthOrBootstrap 把服务真拉起来。断言只落
+#: 在 health 步 detail（"ok version=…"）——本例证的是拉起链本身；下游
+#: create/poll 在无 BYOK 的新实例上落 needs_auth 属预期，不计失败。
+#: 拉起的是 uvx 解析的 PyPI texlate（与真实用户同路径），非本仓 checkout。
+phase_bootstrap() {
+  local id="${FIX[doi]}" data="$SCRATCH/bootstrap-data" port=18876
+  while ! texlate_dev_port_free "$port" 2>/dev/null; do
+    port=$((port + 1))
+    ((port > 18999)) && {
+      fail bootstrap "no free port in 18876..18999"
+      return 1
+    }
+  done
+  local file="$SCRATCH/selftest-bootstrap.json"
+  info "bootstrap: serverUrl=http://127.0.0.1:$port dataDir=$data autoStart=on"
+  rdp_val "Zotero.Prefs.set('$PREF.autoStart',true,true), \
+Zotero.Prefs.set('$PREF.bootstrapDataDir','$data',true), \
+Zotero.Prefs.set('$PREF.serverUrl','http://127.0.0.1:$port',true), 'ok'" \
+    15 >/dev/null || {
+    fail bootstrap "rdp pref set failed"
+    return 1
+  }
+  run_selftest "$id" selftest "$file"
+  declare -A S=()
+  fill S "$file"
+  # 清场：杀该端口监听者（uv tool run 会 fork，按端口最稳）+ 复位 pref
+  lsof -ti "tcp:$port" 2>/dev/null | xargs -r kill 2>/dev/null || true
+  rdp_val "Zotero.Prefs.set('$PREF.autoStart',false,true), \
+Zotero.Prefs.set('$PREF.bootstrapDataDir','',true), \
+Zotero.Prefs.set('$PREF.serverUrl','$BASE',true), 'ok'" 15 >/dev/null || true
+  if [[ ${S['health']:-} == ok\ version* ]]; then
+    pass bootstrap "spawned server healthy on :$port (verdict=${S['verdict']:-?} downstream=${S['bad_step']:-none})"
+    info "health: ${S['health']}"
+    [[ -n ${S['bad_step']:-} ]] &&
+      info "downstream tolerated: ${S['bad_step']} ${S['bad_detail']:-}"
+    return 0
+  fi
+  fail bootstrap "health step not ok — verdict=${S['verdict']:-?} bad_step=${S['bad_step']:-?} detail=${S['bad_detail']:-?} (see ~/.texlate/bootstrap-server.log)"
+  return 1
+}
+
 # --- 模式 ---------------------------------------------------------------------
 
 mode_sabotage() {
@@ -632,6 +682,7 @@ mode_matrix() { # $1=full|quick
   assert_menu translated "${FIX[doi]}" False True || true
   assert_menu negative "${FIX[negative]}" False False || true
   assert_xpi || true
+  phase_bootstrap || true
   if [[ $mode == full ]]; then
     # 幂等重跑——用 doi fixture 首跑记的 taskId（result.taskId 为空时
     # 从 selftest-doi.json 的 create 步补）

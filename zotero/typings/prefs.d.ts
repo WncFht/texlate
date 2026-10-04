@@ -15,6 +15,8 @@ declare namespace _ZoteroTypes {
       "batchDelayMs": number;
       "pollIntervalMs": number;
       "pollTimeoutMs": number;
+      "autoStart": boolean;
+      "bootstrapDataDir": string;
     };
   }
 }

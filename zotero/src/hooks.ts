@@ -3,6 +3,7 @@ import { createZToolkit } from "./utils/ztoolkit";
 import { registerMenus } from "./modules/menu";
 import { registerPrefsPane } from "./modules/prefs";
 import { installSelftest } from "./modules/selftest";
+import { installBootstrap } from "./modules/bootstrap";
 
 async function onStartup() {
   await Promise.all([
@@ -14,6 +15,7 @@ async function onStartup() {
   initLocale();
 
   installSelftest();
+  installBootstrap();
   registerPrefsPane();
 
   await Promise.all(

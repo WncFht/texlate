@@ -7,13 +7,13 @@
 ## 依赖
 
 - **Zotero 7.0+**（`strict_min_version` 7.0，`strict_max_version` 10.*）
-- **一个跑起来的 texlate 服务**，本地或远端均可：
+- **一个跑起来的 texlate 服务**，本地或远端均可——本地实例**插件可自助拉起**：`serverUrl` 指向 loopback 且服务不可达时，插件自动下载 uv 独立二进制（无 uv 时，钉版本+sha256 校验）并拉起 `uvx texlate web`，首次需数分钟安装依赖。也可以手动：
 
 ```bash
 uvx texlate web          # → http://127.0.0.1:8765（本仓内：uv run texlate web）
 ```
 
-翻译凭据归服务端管（web Settings 页 BYOK，或 `TEXLATE_*` 环境变量）——插件只发 `POST /api/arxiv/{id}/translate` 空体请求；模型、目标语言、key 全部来自服务端设置。
+翻译凭据归服务端管（web Settings 页 BYOK，或 `TEXLATE_*` 环境变量）——插件只发 `POST /api/arxiv/{id}/translate` 空体请求；模型、目标语言、key 全部来自服务端设置。首次自助拉起后若任务报 `needs_auth`，插件会自动打开 Settings 页配置 BYOK。
 
 ## 安装
 
@@ -42,8 +42,10 @@ Zotero → 设置 → **TeXlate** →「打开 TeXlate 设置」弹出对话框�
 | `batchDelayMs`   | `1000`                  | 多选批处理条目间延迟                                                                  |
 | `pollIntervalMs` | `2000`                  | 任务状态轮询间隔                                                                      |
 | `pollTimeoutMs`  | `10800000`              | 轮询放弃时限（3 小时）                                                                |
+| `autoStart`      | `true`                  | loopback 服务不可达时自动拉起本地服务（无 uv 自动下载）                                |
+| `bootstrapDataDir` | _（空）_              | 高级：拉起服务时传 `--data-dir` 覆盖数据目录（默认 `~/.texlate`）                       |
 
-「检查连接」在保存前用对话框当前值 ping `GET /api/health`。
+「检查连接」在保存前用对话框当前值 ping `GET /api/health`；「启动本地服务」立即走一遍自助拉起链（下载 uv→拉起→等待就绪），状态写回同一行。
 
 API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好一样。
 
@@ -55,6 +57,7 @@ API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好�
 - **附件** — 产物下载到纯 ASCII 临时文件，对照 `/api/files` 清单校验 sha256、查 `%PDF` 魔数，再以 `TeXlate {中文|英文原文|双语对照} - {短标题}` 为名导入为存储附件。任务终态 `partial` 仍挂载已有产物并加警告行；`needs_auth` 打开 `{serverUrl}/#/settings` 做 BYOK 登录。
 - **进度** — 插件沙箱没有 EventSource/ReadableStream，进度靠 `setTimeout` 轮询 `GET /api/task/{id}` 映射到 11 态机（queued → fetching → parsing → translating → compiling → done / partial / fault / cancelled / interrupted / needs_auth）。传输层失败最多连重试 5 次——服务端可能中途重启；HTTP 4xx 与未知状态立即失败。
 - **去重收养** — 服务端对活跃任务按 cache_key 去重：重复翻译同一篇会拿到 `409 duplicate_active` 与现存 task_id。插件收养前先读该任务状态——若落在可重试终态（`fault`/`partial`/`cancelled`/`interrupted`/`needs_auth`，含占着去重槽位的 `interrupted`）先 `POST /api/task/{id}/retry` 复活再轮询，否则直接收养。
+- **自助拉起** — `src/modules/bootstrap.ts`：health 传输层失败 + `serverUrl` 为 loopback + `autoStart` 开 → `ensureServer()`：managed `~/.texlate/bin/uv` → PATH `uvx`/`uv` → 无则下载钉版 uv（五平台 sha256 矩阵、系统 `tar` 解压）→ `sh -c 'nohup … &'` 脱离 Zotero 生命周期拉起（Windows 走 PowerShell `Start-Process`）→ 轮询 health 至就绪（上限 300s）。服务日志在 `~/.texlate/bootstrap-server.log`；`service.lock` 幂等——重复拉起无害。非 loopback 地址、开关关闭时原样报不可达。
 
 ## Dev API
 
@@ -64,6 +67,8 @@ API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好�
 await Zotero.texlate.selftest(itemID); // 全链 → SelftestResult {ok, steps[], taskId}
 await Zotero.texlate.selftestNonArxiv(itemID); // 负例路径：extract→null + mark→none
 Zotero.texlate.api.computeMenuState(items); // 菜单可见性纯谓词 → {translate, reader}
+Zotero.texlate.api.bootstrap.findUv();      // uv 探测 → {cmd,args} | null
+Zotero.texlate.api.bootstrap.ensureServer(prefs); // 直跑拉起链（dev-verify 用）
 ```
 
 `selftest` 走 resolve-item → prefs → health → extract → already-marked → create → poll → files → download+attach → mark → attachments-verify → reader-url，每步记录可归因证据；绝不抛异常——失败落 `steps[i].detail`，`error` 字段点名首个失败步骤。

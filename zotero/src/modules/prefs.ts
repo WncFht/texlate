@@ -22,8 +22,12 @@
  *   prefs-health-ok     = Connected — server version { $version }
  *   prefs-health-bad    = Unexpected response — is a texlate server at this URL?
  *   prefs-health-down   = Cannot reach server — is `uvx texlate web` running?
+ *   prefs-autostart     = Auto-start local server when unreachable
+ *   prefs-start-server  = Start local server
  *   prefs-save          = Save
  *   prefs-cancel        = Cancel
+ * plus bootstrap keys (modules/bootstrap.ts): flow-boot-prepare ·
+ *   flow-boot-wait {s} · flow-error-bootstrap {detail}
  * plus in preferences.ftl (xhtml pane): prefs-open-settings = Open TeXlate Settings
  */
 import { config, homepage } from "../../package.json";
@@ -31,6 +35,7 @@ import { SettingsDialogHelper } from "zotero-plugin-toolkit";
 import type { TexlatePrefs } from "../contracts";
 import { NetworkError } from "../contracts";
 import { createClient } from "./client";
+import { ensureServer } from "./bootstrap";
 import { t } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 
@@ -75,6 +80,11 @@ function prefsFrom(raw: Record<string, unknown>): TexlatePrefs {
     batchDelayMs: num(raw.batchDelayMs, 1000),
     pollIntervalMs: num(raw.pollIntervalMs, 2000, 1),
     pollTimeoutMs: num(raw.pollTimeoutMs, 10800000, 1),
+    autoStart: bool(raw.autoStart, true),
+    bootstrapDataDir:
+      typeof raw.bootstrapDataDir === "string"
+        ? raw.bootstrapDataDir.trim()
+        : "",
   };
 }
 
@@ -88,6 +98,8 @@ export function loadPrefs(): TexlatePrefs {
     batchDelayMs: getPref("batchDelayMs"),
     pollIntervalMs: getPref("pollIntervalMs"),
     pollTimeoutMs: getPref("pollTimeoutMs"),
+    autoStart: getPref("autoStart"),
+    bootstrapDataDir: getPref("bootstrapDataDir"),
   });
 }
 
@@ -110,6 +122,30 @@ async function checkConnection(dialog: SettingsDialogHelper): Promise<void> {
       e instanceof NetworkError
         ? t("prefs-health-down")
         : t("prefs-health-bad"),
+    );
+  }
+}
+
+async function startServer(dialog: SettingsDialogHelper): Promise<void> {
+  const el = dialog.window?.document.getElementById(STATUS_ID);
+  const say = (msg: string) => {
+    if (el) el.textContent = msg;
+  };
+  const prefs = prefsFrom(dialog.getAllSettingsData());
+  try {
+    const client = createClient(prefs);
+    await ensureServer(prefs, say);
+    const res = await client.health();
+    say(
+      res.ok
+        ? t("prefs-health-ok", { version: res.version ?? "unknown" })
+        : t("prefs-health-bad"),
+    );
+  } catch (e) {
+    say(
+      t("flow-error-bootstrap", {
+        detail: e instanceof Error ? e.message : String(e),
+      }),
     );
   }
 }
@@ -169,6 +205,12 @@ export function openPrefsDialog(): void {
       { tag: "input", attributes: { type: "number", min: 1, step: 60000 } },
       { valueType: "number" },
     )
+    .addSetting(
+      t("prefs-autostart"),
+      "autoStart",
+      { tag: "input", attributes: { type: "checkbox" } },
+      { valueType: "boolean" },
+    )
     .addStaticRow(t("prefs-status"), {
       tag: "span",
       namespace: "html",
@@ -178,6 +220,10 @@ export function openPrefsDialog(): void {
     .addButton(t("prefs-check"), "check", {
       noClose: true,
       callback: () => void checkConnection(dialog),
+    })
+    .addButton(t("prefs-start-server"), "start-server", {
+      noClose: true,
+      callback: () => void startServer(dialog),
     })
     .addAutoSaveButton(t("prefs-save"), "save")
     .addButton(t("prefs-cancel"), "cancel")

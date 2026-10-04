@@ -9,6 +9,7 @@ import { config } from "../../package.json";
 import { extractArxivId } from "./arxivId";
 import { attachArtifacts, getTexlateMark } from "./attach";
 import { createClient } from "./client";
+import { healthOrBootstrap } from "./bootstrap";
 import { FILES_GRACE_MS } from "./flow";
 import { computeMenuState } from "./menu";
 import { loadPrefs } from "./prefs";
@@ -99,7 +100,9 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
     });
     const client = await step(steps, "health", async () => {
       const c = createClient(prefs);
-      const h = await c.health();
+      // healthOrBootstrap honors prefs.autoStart — dev-verify's bootstrap
+      // phase flips it on so this step exercises the real spawn path.
+      const h = await healthOrBootstrap(c, prefs);
       if (!h.ok) throw new StepError("unhealthy");
       return [c, `ok version=${h.version ?? "unknown"}`];
     });

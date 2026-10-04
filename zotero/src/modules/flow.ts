@@ -23,6 +23,7 @@
 
 import {
   ApiError,
+  BootstrapError,
   NetworkError,
   TimeoutError,
   type AttachResult,
@@ -35,6 +36,7 @@ import {
 } from "../contracts";
 import { extractArxivId } from "./arxivId";
 import { createClient } from "./client";
+import { healthOrBootstrap } from "./bootstrap";
 import { pollTask } from "./poller";
 import { attachArtifacts, getTexlateMark, setTexlateMark } from "./attach";
 import { loadPrefs } from "./prefs";
@@ -43,6 +45,7 @@ import {
   createBatch,
   endLine,
   openLine,
+  setLineStatus,
   setPhase,
   shortTitle,
   type Batch,
@@ -220,7 +223,9 @@ async function run(item: Zotero.Item, batch: Batch): Promise<FlowResult> {
 
   let taskId: string | undefined;
   try {
-    const health = await client.health();
+    const health = await healthOrBootstrap(client, prefs, (text) =>
+      setLineStatus(line, text),
+    );
     if (!health.ok)
       return fail(
         line,
@@ -251,6 +256,14 @@ async function run(item: Zotero.Item, batch: Batch): Promise<FlowResult> {
       );
     if (e instanceof TimeoutError)
       return fail(line, itemID, "poll-timeout", "flow-error-poll-timeout", x);
+    if (e instanceof BootstrapError)
+      return fail(
+        line,
+        itemID,
+        `bootstrap-failed: ${e.detail}`,
+        "flow-error-bootstrap",
+        { args: { detail: e.detail }, ...x },
+      );
     if (e instanceof ApiError && e.status === 400 && taskId === undefined)
       return fail(
         line,

@@ -11,3 +11,5 @@ pref("attachDualPdf", false);
 pref("batchDelayMs", 1000);
 pref("pollIntervalMs", 2000);
 pref("pollTimeoutMs", 10800000);
+pref("autoStart", true);
+pref("bootstrapDataDir", "");

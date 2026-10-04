@@ -171,6 +171,21 @@ export class NetworkError extends Error {
   override readonly name = "NetworkError";
 }
 
+/**
+ * Local-server bootstrap failure (modules/bootstrap.ts): uv missing AND
+ * download failed, spawn failed, or the spawned server never went healthy
+ * inside BOOTSTRAP_TIMEOUT_MS. `detail` names the failing stage and points
+ * at the bootstrap log — it lands in `flow-error-bootstrap`'s {detail}.
+ */
+export class BootstrapError extends Error {
+  override readonly name = "BootstrapError";
+  readonly detail: string;
+  constructor(detail: string) {
+    super(detail);
+    this.detail = detail;
+  }
+}
+
 /** Caller deadline exceeded (poll timeout, request timeout). */
 export class TimeoutError extends Error {
   override readonly name = "TimeoutError";
@@ -188,6 +203,10 @@ export interface TexlatePrefs {
   batchDelayMs: number;
   pollIntervalMs: number;
   pollTimeoutMs: number;
+  /** Auto-spawn `uvx texlate web` when serverUrl is loopback and health fails. */
+  autoStart: boolean;
+  /** Dev seam: non-empty → spawn passes `--data-dir` (isolates service.lock). */
+  bootstrapDataDir: string;
 }
 
 // ---------------------------------------------------------------- client
@@ -201,6 +220,13 @@ export interface TexlatePrefs {
  *               export function hasArxivId(item): boolean
  *   poller.ts   export function pollTask(client, taskId, opts): Promise<TaskSnapshot>
  *               export function phaseKey(snap: TaskSnapshot): string   // ftl suffix
+ *   bootstrap.ts export function isLoopbackUrl(u: string): boolean
+ *               export function findUv(): Promise<UvCommand | null>
+ *               export function downloadUv(onPhase?): Promise<UvCommand>
+ *               export function ensureServer(prefs, onPhase?): Promise<void>
+ *               export function healthOrBootstrap(client, prefs, onPhase?)
+ *               export function installBootstrap(): void   // addon.api.bootstrap
+ *               export const BOOTSTRAP_TIMEOUT_MS: number
  *   attach.ts   export function attachArtifacts(item, client, taskId, opts): Promise<AttachResult>
  *               export function getTexlateMark(item): string | null
  *               export function setTexlateMark(item, taskId): Promise<void>

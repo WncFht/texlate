@@ -12,8 +12,11 @@ import { loadPrefs } from "../src/modules/prefs";
  * prefsFrom({}) — which is not exported.
  */
 
-// pref("key", <literal>) — literals are string/number/boolean, all valid JSON
-const PREF_RX = /pref\("(\w+)",\s*([^;]+?)\s*\);/g;
+// pref("key", <literal>) — literals are string/number/boolean, all valid JSON.
+// The build rewrites keys to `pref("prefsPrefix.key", …)`, and resolveURI in
+// the test runner lands on the BUILT prefs.js — so accept the dotted form and
+// strip the prefix back off (bare source form also matches).
+const PREF_RX = /pref\("([\w.]+)",\s*([^;]+?)\s*\);/g;
 
 /** Projection from a pref() key to where its default lands in TexlatePrefs. */
 const PREF_TO_FIELD: Record<string, (p: TexlatePrefs) => unknown> = {
@@ -25,13 +28,18 @@ const PREF_TO_FIELD: Record<string, (p: TexlatePrefs) => unknown> = {
   batchDelayMs: (p) => p.batchDelayMs,
   pollIntervalMs: (p) => p.pollIntervalMs,
   pollTimeoutMs: (p) => p.pollTimeoutMs,
+  autoStart: (p) => p.autoStart,
+  bootstrapDataDir: (p) => p.bootstrapDataDir,
 };
 
 async function readPrefsJs(): Promise<Record<string, unknown>> {
   const uri = await Zotero.Plugins.resolveURI(config.addonID, "prefs.js");
   const text = await Zotero.File.getContentsFromURLAsync(uri);
   const out: Record<string, unknown> = {};
-  for (const m of text.matchAll(PREF_RX)) out[m[1]] = JSON.parse(m[2]);
+  const prefix = `${config.prefsPrefix}.`;
+  for (const m of text.matchAll(PREF_RX))
+    out[m[1].startsWith(prefix) ? m[1].slice(prefix.length) : m[1]] =
+      JSON.parse(m[2]);
   return out;
 }
 

@@ -67,6 +67,18 @@ export function setPhase(line: ItemLine, snap: TaskSnapshot): void {
   }
 }
 
+/** Free-text status on an item's row — bootstrap phases (no %). */
+export function setLineStatus(line: ItemLine, text: string): void {
+  try {
+    line.batch.pw?.changeLine({
+      idx: line.idx,
+      text: `${line.title} — ${text}`,
+    });
+  } catch {
+    /* best-effort UI */
+  }
+}
+
 /** Terminal write for one item's row — icon flips to tick/cross. */
 export function endLine(
   line: ItemLine,
