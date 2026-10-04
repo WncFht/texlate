@@ -172,7 +172,8 @@ class TestStop:
         assert "已停止" in r.stdout
 
     @pytest.mark.skipif(
-        sys.platform == "win32", reason="nt 无 SIGKILL——Windows 升级路径走 TerminateProcess"
+        sys.platform == "win32",
+        reason="nt 无 SIGKILL——Windows 升级路径走 TerminateProcess",
     )
     def test_sigkill_escalation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
