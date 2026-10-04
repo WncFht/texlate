@@ -84,7 +84,8 @@ function prefsFrom(raw: Record<string, unknown>): TexlatePrefs {
   if (bool(raw.attachEnPdf, DEFAULTS.attachEnPdf)) attachKinds.push("en.pdf");
   return {
     serverUrl: normalizeServerUrl(raw.serverUrl),
-    apiKey: typeof raw.apiKey === "string" ? raw.apiKey.trim() : DEFAULTS.apiKey,
+    apiKey:
+      typeof raw.apiKey === "string" ? raw.apiKey.trim() : DEFAULTS.apiKey,
     attachKinds,
     batchDelayMs: num(raw.batchDelayMs, DEFAULTS.batchDelayMs),
     pollIntervalMs: num(raw.pollIntervalMs, DEFAULTS.pollIntervalMs, 1),

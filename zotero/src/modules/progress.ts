@@ -39,7 +39,11 @@ export function createBatch(): Batch {
   return { pw: null };
 }
 
-export function openLine(batch: Batch, itemID: number, title: string): ItemLine {
+export function openLine(
+  batch: Batch,
+  itemID: number,
+  title: string,
+): ItemLine {
   try {
     openTask(itemID, title);
   } catch {

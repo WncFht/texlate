@@ -36,22 +36,21 @@ npx zotero-plugin build   # → .scaffold/build/texlate.xpi
 
 ## 配置
 
-Zotero → 设置 → **TeXlate** →「打开 TeXlate 设置」弹出对话框。全部偏好存在 `extensions.zotero.texlate` 前缀下（`addon/prefs.js`）：
+Zotero → 设置 → **TeXlate**——偏好面板内联展示即改即存。全部偏好存在 `extensions.zotero.texlate` 前缀下（`addon/prefs.js`）：
 
-| 偏好             | 默认值                  | 含义                                                                                  |
-| ---------------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| `serverUrl`      | `http://127.0.0.1:8765` | texlate 服务 base URL                                                                 |
-| `apiKey`         | _（空）_                | `X-Texlate-Key` 请求头——只有远端 `TEXLATE_MODE=server` 实例需要；本机 loopback 不用填 |
-| `attachZhPdf`    | `true`                  | 完成后挂载 `zh.pdf`                                                                   |
-| `attachEnPdf`    | `false`                 | 挂载 `en.pdf`                                                                         |
-| `attachDualPdf`  | `false`                 | 挂载 `dual.pdf`（双语对照）                                                           |
-| `batchDelayMs`   | `1000`                  | 多选批处理条目间延迟                                                                  |
-| `pollIntervalMs` | `2000`                  | 任务状态轮询间隔                                                                      |
-| `pollTimeoutMs`  | `10800000`              | 轮询放弃时限（3 小时）                                                                |
-| `autoStart`      | `true`                  | loopback 服务不可达时自动拉起本地服务（无 uv 自动下载）                                |
-| `bootstrapDataDir` | _（空）_              | 高级：拉起服务时传 `--data-dir` 覆盖数据目录（默认 `~/.texlate`）                       |
+| 偏好               | 默认值                  | 含义                                                                                  |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------- |
+| `serverUrl`        | `http://127.0.0.1:8765` | texlate 服务 base URL                                                                 |
+| `apiKey`           | _（空）_                | `X-Texlate-Key` 请求头——只有远端 `TEXLATE_MODE=server` 实例需要；本机 loopback 不用填 |
+| `attachZhPdf`      | `true`                  | 完成后挂载 `zh.pdf`                                                                   |
+| `attachEnPdf`      | `false`                 | 挂载 `en.pdf`                                                                         |
+| `batchDelayMs`     | `1000`                  | 多选批处理条目间延迟                                                                  |
+| `pollIntervalMs`   | `2000`                  | 任务状态轮询间隔                                                                      |
+| `pollTimeoutMs`    | `10800000`              | 轮询放弃时限（3 小时）                                                                |
+| `autoStart`        | `true`                  | loopback 服务不可达时自动拉起本地服务（无 uv 自动下载）                               |
+| `bootstrapDataDir` | _（空）_                | 高级：拉起服务时传 `--data-dir` 覆盖数据目录（默认 `~/.texlate`）                     |
 
-「检查连接」在保存前用对话框当前值 ping `GET /api/health`；「启动本地服务」立即走一遍自助拉起链（下载 uv→拉起→等待就绪），状态写回同一行。
+「检查连接」用面板当前值 ping `GET /api/health`；「启动本地服务」立即走一遍自助拉起链（下载 uv→拉起→等待就绪），状态写回同一行。
 
 API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好一样。
 
@@ -60,7 +59,7 @@ API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好�
 - **arXiv id 提取** — 四级回退 `DOI → url → archiveID → extra`（`src/modules/arxivId.ts`）。原始 id 原样透传——`v3` 版本后缀与旧格式 `hep-th/9901001` 都带；解析归服务端的 `normalize_arxiv_id`。没有 arXiv 痕迹的条目不可翻译。
 - **菜单置灰** — `computeMenuState(items)`（`src/modules/menu.ts`）：≥1 个选中普通条目有可提取 arXiv id 且无 `texlate:` 标记时显示「翻译为中文」；≥1 个选中条目带标记时显示「在阅读器打开」；两者都不满足时整个子菜单隐藏。多选时逐条顺序翻译，间隔 `batchDelayMs`。
 - **幂等标记** — Extra 里的 `texlate: t_xxx` 行是唯一事实源：已标记条目再翻译会短路为「已翻译」，菜单翻转成阅读器入口。只重写本插件的标记行；Extra 其他行逐字节保留。
-- **附件** — 产物下载到纯 ASCII 临时文件，对照 `/api/files` 清单校验 sha256、查 `%PDF` 魔数，再以 `TeXlate {中文|英文原文|双语对照} - {短标题}` 为名导入为存储附件。任务终态 `partial` 仍挂载已有产物并加警告行；`needs_auth` 打开 `{serverUrl}/#/settings` 做 BYOK 登录。
+- **附件** — 产物下载到纯 ASCII 临时文件，对照 `/api/files` 清单校验 sha256、查 `%PDF` 魔数，再以 `TeXlate {中文|英文原文} - {短标题}` 为名导入为存储附件。任务终态 `partial` 仍挂载已有产物并加警告行；`needs_auth` 打开 `{serverUrl}/#/settings` 做 BYOK 登录。
 - **进度** — 插件沙箱没有 EventSource/ReadableStream，进度靠 `setTimeout` 轮询 `GET /api/task/{id}` 映射到 11 态机（queued → fetching → parsing → translating → compiling → done / partial / fault / cancelled / interrupted / needs_auth）。传输层失败最多连重试 5 次——服务端可能中途重启；HTTP 4xx 与未知状态立即失败。
 - **去重收养** — 服务端对活跃任务按 cache_key 去重：重复翻译同一篇会拿到 `409 duplicate_active` 与现存 task_id。插件收养前先读该任务状态——若落在可重试终态（`fault`/`partial`/`cancelled`/`interrupted`/`needs_auth`，含占着去重槽位的 `interrupted`）先 `POST /api/task/{id}/retry` 复活再轮询，否则直接收养。
 - **自助拉起** — `src/modules/bootstrap.ts`：health 传输层失败 + `serverUrl` 为 loopback + `autoStart` 开 → `ensureServer()`：managed `~/.texlate/bin/uv` → PATH `uvx`/`uv` → 无则下载钉版 uv（五平台 sha256 矩阵、系统 `tar` 解压）→ `sh -c 'nohup … &'` 脱离 Zotero 生命周期拉起（Windows 走 PowerShell `Start-Process`）→ 轮询 health 至就绪（上限 300s）。服务日志在 `~/.texlate/bootstrap-server.log`；`service.lock` 幂等——重复拉起无害。非 loopback 地址、开关关闭时原样报不可达。
@@ -73,7 +72,7 @@ API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好�
 await Zotero.texlate.selftest(itemID); // 全链 → SelftestResult {ok, steps[], taskId}
 await Zotero.texlate.selftestNonArxiv(itemID); // 负例路径：extract→null + mark→none
 Zotero.texlate.api.computeMenuState(items); // 菜单可见性纯谓词 → {translate, reader}
-Zotero.texlate.api.bootstrap.findUv();      // uv 探测 → {cmd,args} | null
+Zotero.texlate.api.bootstrap.findUv(); // uv 探测 → {cmd,args} | null
 Zotero.texlate.api.bootstrap.ensureServer(prefs); // 直跑拉起链（dev-verify 用）
 ```
 

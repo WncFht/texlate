@@ -156,10 +156,7 @@ async function finish(
       if (getTexlateMark(item) !== taskId) await setTexlateMark(item, taskId);
       // Partial attach (≥1 attached, but some kinds missing/failed) still
       // succeeds — name the skipped kinds so e.g. a dead option isn't silent.
-      const missed = [
-        ...attach.missing,
-        ...attach.failed.map((f) => f.kind),
-      ];
+      const missed = [...attach.missing, ...attach.failed.map((f) => f.kind)];
       endLine(
         line,
         "success",

@@ -100,7 +100,13 @@ function renderAll(): void {
 /** Open (or reopen, on retry) the task's row. */
 export function openTask(itemID: number, title: string): void {
   tasks.delete(itemID); // re-set moves a retried row to the end
-  tasks.set(itemID, { itemID, title, text: "", progress: null, state: "running" });
+  tasks.set(itemID, {
+    itemID,
+    title,
+    text: "",
+    progress: null,
+    state: "running",
+  });
   renderAll();
 }
 

@@ -6,25 +6,25 @@
 
 ## 1. 已闭环分发面（v0.1.0 实测）
 
-| 渠道                    | 形态                                                  | 状态                          |
-| ----------------------- | ----------------------------------------------------- | ----------------------------- |
-| PyPI `texlate`          | `uvx texlate` / `uv tool install` / `pipx`            | 在线（0.1.0）                 |
-| GitHub Release `v0.1.0` | whl + sdist + `texlate.xpi` 三件套                    | 在线                          |
+| 渠道                    | 形态                                                   | 状态                          |
+| ----------------------- | ------------------------------------------------------ | ----------------------------- |
+| PyPI `texlate`          | `uvx texlate` / `uv tool install` / `pipx`             | 在线（0.1.0）                 |
+| GitHub Release `v0.1.0` | whl + sdist + `texlate.xpi` 三件套                     | 在线                          |
 | Zotero 更新 feed        | floating `release` tag 挂 update.json/update-beta.json | 在线，manifest updateURL 可达 |
-| ghcr.io                 | `ghcr.io/wncfht/texlate:{0.1.0,latest}` amd64+arm64   | 在线，CI 内镜像冒烟           |
-| 版本一致性              | tag ↔ pyproject ↔ zotero/package.json 三方断言        | release.yml 发布闸前置        |
+| ghcr.io                 | `ghcr.io/wncfht/texlate:{0.1.0,latest}` amd64+arm64    | 在线，CI 内镜像冒烟           |
+| 版本一致性              | tag ↔ pyproject ↔ zotero/package.json 三方断言         | release.yml 发布闸前置        |
 
 发布链一处踩坑记录：PyPI trusted publisher 字段逐字节比对 OIDC claims——workflow 名是 `release.yml` 而非 `release.yaml`，environment 必须留空（claims 中 `environment: None`，填任何值即 `invalid-publisher`）。pending publisher 无审核环节，保存即生效。
 
 ## 2. 对标：pdf2zh/PDFMathTranslate（37k★，同生态位最近者）
 
-| 面          | pdf2zh 做法                                                | texlate 现状 | 判断                                                          |
-| ----------- | ---------------------------------------------------------- | ------------ | ------------------------------------------------------------- |
-| PyPI        | `pdf2zh` 在架                                              | 已对齐       | —                                                             |
-| Docker      | 仓内 Dockerfile+compose，自包含单镜像                      | ghcr 双架    | 已更好                                                        |
-| Zotero 插件 | 第三方社区 repo（zotero-pdf2zh，7k★），GitHub Releases+中文商店分发 | 官方一仓维护 | 同渠道可进                                                    |
-| 文档站      | 自有域名站（JS 渲染）+ 仓内多语言 README                   | README+docs/ | 文档站判否：README 够用；多语言 README 等英文版先稳           |
-| 社区        | Discussions 关闭，issue+wiki 模式                          | Discussions 关 | 中文科研受众 Q&A 会灌 issue——开会话成本低、防污染收益实      |
+| 面          | pdf2zh 做法                                                         | texlate 现状   | 判断                                                    |
+| ----------- | ------------------------------------------------------------------- | -------------- | ------------------------------------------------------- |
+| PyPI        | `pdf2zh` 在架                                                       | 已对齐         | —                                                       |
+| Docker      | 仓内 Dockerfile+compose，自包含单镜像                               | ghcr 双架      | 已更好                                                  |
+| Zotero 插件 | 第三方社区 repo（zotero-pdf2zh，7k★），GitHub Releases+中文商店分发 | 官方一仓维护   | 同渠道可进                                              |
+| 文档站      | 自有域名站（JS 渲染）+ 仓内多语言 README                            | README+docs/   | 文档站判否：README 够用；多语言 README 等英文版先稳     |
+| 社区        | Discussions 关闭，issue+wiki 模式                                   | Discussions 关 | 中文科研受众 Q&A 会灌 issue——开会话成本低、防污染收益实 |
 
 ## 3. Zotero 插件上架生态（格局已变）
 
@@ -39,13 +39,13 @@
 
 ## 5. 行动清单（按杠杆率）
 
-| #   | 动作                                                                                        | 成本   | 状态           |
-| --- | ------------------------------------------------------------------------------------------- | ------ | -------------- |
-| 1   | `syt2/zotero-addons-scraper` 上架 PR（PluginInfo 条目）                                     | 半小时 | 备好，待放行   |
-| 2   | `zotero-plugin-dev/zotero-plugin-registry` 交 `plugins/texlate/meta.json`                   | 半小时 | 待执行         |
-| 3   | 开 GitHub Discussions（Announcements / Q&A / Show and tell 三类）                           | 十分钟 | 待执行         |
-| 4   | README 挂 2-3 篇真实双语产出样例（截图 + PDF）——翻译工具的说服力即输出质量                    | 一晌   | 待执行         |
-| 5   | Zotero Forums 英文公告帖（v0.1.0 + `uvx texlate` 一行装 + xpi 商店可查）；V2EX/知乎同期一波 | 一晌   | 依赖 #1/#4     |
+| #   | 动作                                                                                        | 成本   | 状态         |
+| --- | ------------------------------------------------------------------------------------------- | ------ | ------------ |
+| 1   | `syt2/zotero-addons-scraper` 上架 PR（PluginInfo 条目）                                     | 半小时 | 备好，待放行 |
+| 2   | `zotero-plugin-dev/zotero-plugin-registry` 交 `plugins/texlate/meta.json`                   | 半小时 | 待执行       |
+| 3   | 开 GitHub Discussions（Announcements / Q&A / Show and tell 三类）                           | 十分钟 | 待执行       |
+| 4   | README 挂 2-3 篇真实双语产出样例（截图 + PDF）——翻译工具的说服力即输出质量                  | 一晌   | 待执行       |
+| 5   | Zotero Forums 英文公告帖（v0.1.0 + `uvx texlate` 一行装 + xpi 商店可查）；V2EX/知乎同期一波 | 一晌   | 依赖 #1/#4   |
 
 不做清单：brew（门槛+边际）、自建文档站、Docker Hub（ghcr 已双架）、Zotero 官方列表（不存在）、公共 demo 实例（需托管 LLM key，不现实）。
 

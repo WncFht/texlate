@@ -114,7 +114,7 @@ def _pid_alive_nt(pid: int) -> bool:
     """Windows 侧 pid 存活：``OpenProcess(QUERY_LIMITED_INFORMATION)`` 可开即活。"""
     import ctypes  # noqa: PLC0415 -- nt 专属，posix 永远不触
 
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined] -- win32 API
+    kernel32 = ctypes.windll.kernel32  # ty: ignore[unresolved-attribute] -- win32 API，posix 不触此叶
     handle = kernel32.OpenProcess(
         0x1000,  # PROCESS_QUERY_LIMITED_INFORMATION
         False,  # noqa: FBT003 -- win32 API 定参序

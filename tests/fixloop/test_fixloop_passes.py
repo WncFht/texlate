@@ -160,5 +160,5 @@ def test_bounded_sub_timeout_returns_none_no_leak() -> None:
     # stopped 残影，全等断言系统性 flaky（ubuntu CI 四连实证）。
     extra = [t for t in threading.enumerate() if t not in before]
     for t in extra:
-        t.join(timeout=2)  # noqa: PLR2004 -- 残影回收窗
+        t.join(timeout=2)
     assert not [t for t in extra if t.is_alive()]

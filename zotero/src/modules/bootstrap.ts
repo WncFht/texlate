@@ -70,9 +70,7 @@ export function isLoopbackUrl(serverUrl: string): boolean {
   try {
     // URL.hostname keeps the IPv6 brackets: "[::1]" — strip before compare.
     const host = new URL(serverUrl).hostname.toLowerCase();
-    return (
-      host === "localhost" || host === "[::1]" || host.startsWith("127.")
-    );
+    return host === "localhost" || host === "[::1]" || host.startsWith("127.");
   } catch {
     return false;
   }
@@ -139,38 +137,31 @@ export async function findUv(): Promise<UvCommand | null> {
 const UV_ASSETS: Record<string, { file: string; sha256: string }> = {
   "x86_64-apple-darwin": {
     file: "uv-x86_64-apple-darwin.tar.gz",
-    sha256:
-      "960da44cb4b73685206ddd250b19e0a117fa41095710c1038f081f5cb613efb4",
+    sha256: "960da44cb4b73685206ddd250b19e0a117fa41095710c1038f081f5cb613efb4",
   },
   "aarch64-apple-darwin": {
     file: "uv-aarch64-apple-darwin.tar.gz",
-    sha256:
-      "50487ae565ccd96e499056b4674d438f4c53170202617b4c759defe0c6a1b544",
+    sha256: "50487ae565ccd96e499056b4674d438f4c53170202617b4c759defe0c6a1b544",
   },
   "x86_64-unknown-linux-gnu": {
     file: "uv-x86_64-unknown-linux-gnu.tar.gz",
-    sha256:
-      "9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6",
+    sha256: "9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6",
   },
   "aarch64-unknown-linux-gnu": {
     file: "uv-aarch64-unknown-linux-gnu.tar.gz",
-    sha256:
-      "6524bd338177ed50d035d39354e12545e993bbeba2ecbddf0480c5b3a81d313f",
+    sha256: "6524bd338177ed50d035d39354e12545e993bbeba2ecbddf0480c5b3a81d313f",
   },
   "x86_64-pc-windows-msvc": {
     file: "uv-x86_64-pc-windows-msvc.zip",
-    sha256:
-      "75d05de6762778c31ee183398de7dd15093fad0ed90b1f236d8205ea5ec00c90",
+    sha256: "75d05de6762778c31ee183398de7dd15093fad0ed90b1f236d8205ea5ec00c90",
   },
   "aarch64-pc-windows-msvc": {
     file: "uv-aarch64-pc-windows-msvc.zip",
-    sha256:
-      "13294e232ececbe709c06b74e6ced06f2a225ea5591476685362f22be56a50d5",
+    sha256: "13294e232ececbe709c06b74e6ced06f2a225ea5591476685362f22be56a50d5",
   },
   "i686-pc-windows-msvc": {
     file: "uv-i686-pc-windows-msvc.zip",
-    sha256:
-      "22a92f4374e4716c2848acaa0392f2f8e4a13b0ff65d080e2a5ade167bce96a8",
+    sha256: "22a92f4374e4716c2848acaa0392f2f8e4a13b0ff65d080e2a5ade167bce96a8",
   },
 };
 
@@ -396,9 +387,7 @@ async function doEnsureServer(
     } catch {
       /* not up yet — keep polling */
     }
-    onPhase?.(
-      t("flow-boot-wait", { s: Math.floor((Date.now() - t0) / 1000) }),
-    );
+    onPhase?.(t("flow-boot-wait", { s: Math.floor((Date.now() - t0) / 1000) }));
     await sleep(HEALTH_POLL_MS);
   }
   throw new BootstrapError(
