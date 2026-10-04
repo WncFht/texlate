@@ -35,7 +35,7 @@ rules:
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
           # 再议 (未观测)。裸 payload `psfig` 由 legacy_pkg_shim L722-726
-          # 归一到 psfig.tex 键，同条覆盖 ×6 裸签格。
+          # 归一到 psfig.tex 键，同条覆盖 ×6 裸标记格。
           psfig.tex:
             needs: ["epsfig.sty"]
             body: |
@@ -2461,7 +2461,7 @@ rules:
   - id: pkg_alias_rewrite
     description: "包名拼写变体 (amssymbols → amssymb) → 装载点改写为 TL 真名"
     phase: loop
-    order: 11.9 # vendored_fetch(11.5) 后、legacy_pkg_shim(12) 前：先中者拿签
+    order: 11.9 # vendored_fetch(11.5) 后、legacy_pkg_shim(12) 前：先中者拿标记
     when: { category: missing_file, payload_required: true }
     condition:
       payload_pattern: "^amssymbols\\.sty$"

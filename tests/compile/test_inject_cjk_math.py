@@ -2,7 +2,7 @@
 
 机理一（数学兜底）：xeCJK 的 ``\\XeTeXinterchartoks`` 只在水平列触发，**数学模式
 不触发**——译文落进 ``$..$``/``\\beq``/下标/``\\boldmath`` 头标（loop1 misschar
-实证签名：ec-lmss12、rm-lmr8、cmr10/7、ptmr8t 全是数学族 TFM）即在数学字体
+实证标记：ec-lmss12、rm-lmr8、cmr10/7、ptmr8t 全是数学族 TFM）即在数学字体
 里丢字形。本块把 CJK 码位 ``\\Umathcode`` 重映为 ordinary 符号，指向
 FandolSong 直载的 ``texlatecjk`` 符号字体（normal+bold 双 math version）。
 

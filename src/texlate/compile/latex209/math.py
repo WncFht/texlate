@@ -20,7 +20,7 @@ from texlate.textutil import CMD_BOUNDARY, cs_events_spans
 #: 209 时代 ``\em``/``\it``/``\bf`` 是 switch（组内余生全换体）；2e 下
 #: ``\em`` 经 ``\@nomath`` 警告后落到 ``\itshape``——``\not@math@alphabet``
 #: 硬报 ``Command \itshape invalid in math mode``（astro-ph/9910310
-#: ``\sum_{{\em fields}\,i}`` 实证签名）。``\it``/``\bf`` 经
+#: ``\sum_{{\em fields}\,i}`` 实证标记）。``\it``/``\bf`` 经
 #: ``\@fontswitch``+``\math@bgroup`` 在数学域本就退化出组 switch 语义
 #: 不报错，仍一并归一为参数形消歧。``\rm/\sf/\tt/\cal/\mit`` 同机制
 #: 本就正确不动；``\sl/\sc`` 数学域仅 ``\@nomath`` 警告丢字形（无标准
@@ -327,7 +327,7 @@ def wrap_math_cites(tex: str) -> tuple[str, int]:
     r"""数学域内裸 cite 族调用 ``\cite[..]{k}`` → ``\mbox{\cite[..]{k}}``；返回 ``(new_tex, n)``。
 
     ``_fix_math_209`` cite 臂的独立出口——非 209 时代稿 (fixloop
-    ``cite_in_math_mbox`` 规则, invalid_in_math 签名) 复用同一模态域
+    ``cite_in_math_mbox`` 规则, invalid_in_math 标记) 复用同一模态域
     走查；机制/清单论证见 ``_MATH_CITE_CS_209`` 注。``visible_tex``
     遮盖面定位 + ``apply_edits`` 回填保行号。幂等——已裹调用居
     ``\mbox`` 文本域不再命中。
@@ -345,7 +345,7 @@ def _fix_math_209(tex: str) -> tuple[str, int, int]:
     switch 组 ``{\em/\it/\bf X}`` → ``\mathit{...}``/``\mathbf{...}``（209 时代
     switch 在 2e 数学域硬报 ``\not@math@alphabet``）；裸 cite 族调用
     ``\cite[..]{k}`` → ``\mbox{\cite[..]{k}}``（未定义引用标记 ``\bfseries``
-    同签名硬报且 fixloop 自续，见 ``_MATH_CITE_CS_209`` 注）。
+    同标记硬报且 fixloop 自续，见 ``_MATH_CITE_CS_209`` 注）。
 
     模态判定：``_math_regions`` 单源——``$`` 系定界 + 数学环境体为数学域、
     ``_TEXTARG_CS_209`` 命令实参为文本域，嵌套域按 :func:`_innermost` 最内层

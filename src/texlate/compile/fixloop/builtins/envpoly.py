@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 # polyfill / AMS 上古字体 cs shim / produced-by-cs 缺字 cs_rebind
 # ════════════════════════════════════════════════════════════════
 
-#: log 内 env_undefined 签名 —— ``LaTeX Error: Environment X undefined``。
+#: log 内 env_undefined 标记 —— ``LaTeX Error: Environment X undefined``。
 _ENV_UNDEF_RE = re.compile(r"Environment\s+([A-Za-z@*]+)\s+undefined")
 
 #: ``\begin/\end{env}`` 使用面扫 (单遍全取)。

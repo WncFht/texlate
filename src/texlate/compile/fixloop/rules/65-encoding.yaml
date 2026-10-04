@@ -100,11 +100,11 @@ rules:
   # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件，下遍
   # 引擎重生成; shipped 件归 normalize.INTERMEDIATE_SUFFIXES 转码兜底。
   # 2026-09-20 scaneof 扩臂 (m1k aux-malformed 簇 11 singles): 同根
-  # (截断/错配 aux) 三签名面 —— (a) aux_scan_eof 原面; (b) runaway_scan
+  # (截断/错配 aux) 三标记面 —— (a) aux_scan_eof 原面; (b) runaway_scan
   # 读端 cs 落 aux 书写族 (aux 被截/旧 arity 错配，TeX 回读扫到尾行宏);
   # (c) undefined_cs 站点直落 *.aux:N (行界齐整但写端遗迹错配 ——
   # 损坏谓词放行的健康字节形，由 payload 锚定内容删补)。condition.any
-  # 三臂各复述签名实形，(a) 臂与 taxonomy 读端 pattern 同串 → 对
+  # 三臂各复述标记实形，(a) 臂与 taxonomy 读端 pattern 同串 → 对
   # aux_scan_eof 恒真，原覆盖面零回归。
   - id: aux_purge_regen
     description: "aux 族回读 EOF/读端 cs 崩 (中间件被劈断或写端错配) → 删除损坏可再生件后重跑"
@@ -222,7 +222,7 @@ rules:
 
   # ── 2026-09-20 nfsstu 车道: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
   # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。
-  # 同 cat 三臂各复述签名实形 ctx_suggests 分流 (aux_purge_regen 同构):
+  # 同 cat 三臂各复述标记实形 ctx_suggests 分流 (aux_purge_regen 同构):
   # (a) ``Command \X unavailable in encoding E`` → 补 ``\DeclareTextCommand
   #     {\X}{E}{body}`` (体表内置，\ensuremath 件两模态通用; 空
   #     \DeclareFontEncoding 实证产 "Corrupted NFSS tables" 不可用);

@@ -6,7 +6,7 @@ B02/W08/W13/W42/W43/W72 的编码层在生产路径已修对，本文件把
 「裸源坏字节 → ``normalize_project`` → 盘上干净 UTF-8」端到端钉死；
 W91 ``\-`` 断词还原为 2026-09-18 新增手术（hep-th/9910234 实证族）；
 同日顺手修 ``_score_text`` 无声明通路的 mac_roman ``‡`` 彩票误吃
-latin-1 法文（词中大写重音签名罚分）。
+latin-1 法文（词中大写重音标记罚分）。
 """
 
 from pathlib import Path
@@ -44,7 +44,7 @@ def test_latin1_project_transcoded_to_utf8(tmp_path: Path) -> None:
 def test_undeclared_french_latin1_beats_mac_roman() -> None:
     """无声明法文 latin-1：mac_roman 把 ``à``(0xE0) 吃成 ``‡`` 曾凭 typo
     彩票分压过正确解码产 ``UniversitÈ`` mojibake——词中小写 + 大写重音
-    签名罚分后 cp1252/latin-1 胜出（declared 通路早有 slack 兜底，无
+    标记罚分后 cp1252/latin-1 胜出（declared 通路早有 slack 兜底，无
     声明通路此钉前一直裸奔）。"""
     blob = "Université de Montréal, présenté à l'élève\n".encode("latin-1")
     text, v = decode_tex_with(blob)

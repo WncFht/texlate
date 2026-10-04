@@ -49,7 +49,7 @@ splice（`latex/reconstruct/`）把译文写回 `zh/` 树 → `prepare_chinese`�
 
 1. **precheck**（`precheck_job`/`pipecore/tail.py`）：编译前环境级修复（缺包探测补装、209 预处理等）。
 2. **logfix 修复**（`logfix_job`/`pipecore/_logfix.py` + `repair/`）：日志归因到 chunk/环境 → 回灌译文重 splice 重编（归因簇 + env judge）。
-3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine/`/`actions/`/`ruleset/` 三子包 + `builtins/` 16 顶层叶与六内嵌子包 + `cases`/`llm_hook` 支撑；`ctan`/`logparse`/`_yamlish` 已上提 `compile/` 层），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
+3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine/`/`actions/`/`ruleset/` 三子包 + `builtins/` 16 顶层叶与六内嵌子包 + `cases`/`llm_hook` 支撑；`ctan`/`logparse`/`_yamlish` 已上提 `compile/` 层），按日志标记改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
 
 修复走尽仍 fail → `fault`/`fixloop_exhausted`；成功出 PDF 后经 `repair/mech.py::embed_tounicode_quiet` + `compile/cjkmap.py`（GB1 cmap 资产 `compile/cmaps/`）嵌 ToUnicode 层，保证复制/搜索可用。
 

@@ -1,7 +1,7 @@
 r"""97-layout 版面缺陷规则 —— warn_overfull/warn_float_big 伪类别驱动钉测。
 
 qc_wanted 补票格 (e2e_real ``_QC_WANTED_MIN``) 进 fixloop 时编译
-clean——无 '!' 错可分类, 版面 sig 的 log 面签名经 warnings 段升
+clean——无 '!' 错可分类, 版面 sig 的 log 面标记经 warnings 段升
 ``warn_*`` 伪类别驱动修复:
 
 - ``overfull_hbox`` → ``warn_overfull`` → ``para_loosen``: preamble 尾注

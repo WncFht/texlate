@@ -36,7 +36,7 @@ __all__ = [
 #: 出货前解析趟判据——编译 log 里仍存活的 rerun/undefined-ref/cite 请
 #: 求面。xelatex ``_RERUN_HINT_RX`` 的超集：加 ``(citation|reference)..
 #: undefined`` (0806.3788 型 Rerun 尾标被 bib brace 错吞后 citation
-#: undefined 是唯一存活签名) 与 ``Please (re)run`` (biber/bibtex 请求行)。
+#: undefined 是唯一存活标记) 与 ``Please (re)run`` (biber/bibtex 请求行)。
 _UNRESOLVED_MARKS_RX = re.compile(
     r"rerun to get|label\(s\) may have changed|there were undefined|"
     r"(?:citation|reference)s?\b[^\n]*?undefined|please \(re\)run",
@@ -75,7 +75,7 @@ class _RunComp:
         r"""工程任一 ``.aux`` 已产标签/引用记录——解析趟要解的目标在 aux 面。
 
         ``\newlabel``/``\bibcite`` (natbib/plain 系) 与 ``\citation``/
-        ``\abx@aux@cite`` (bibtex/biblatex 系) 四签名任一在场即播种;
+        ``\abx@aux@cite`` (bibtex/biblatex 系) 四标记任一在场即播种;
         未播种格的 undefined 纯属首轮 aux 空转 (常规 rerun-hint 升遍
         自足, 不走本臂)。文件面有界 (≤32 件) 防巨型工程扫盘。
         """

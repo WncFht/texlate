@@ -1,13 +1,13 @@
 #!/bin/bash
 # pyspy-triage.sh — 「栈零位移」钉栈三板斧：对疑似死循环/ReDoS 的 python 进程
-# 做 N 次 py-spy dump，全样本栈签名一致 + CPU 前进 = 疑似卡死自旋。
+# 做 N 次 py-spy dump，全样本栈标记一致 + CPU 前进 = 疑似卡死自旋。
 # 手法固化自 2026-09-16 ReDoS 事故：三采样零位移钉 _TAIL_RX.match() 于
 # mainloop.py:764（%[^\n]* 变长片在 (?:_WS_NOPAR)* 下 2^N 回溯爆炸）。
 #
-# 判定（栈签名 = dump 里全部 frame 行 `    func (file:line)` 的逐项比对）：
-#   签名逐样本全同 + utime+stime 前进 → STUCK   exit 1（疑似死循环/ReDoS）
-#   签名逐样本全同 + CPU 零前进       → IDLE    exit 3（阻塞在 IO/锁，非自旋）
-#   签名有变动                        → MOVING  exit 0（健康推进）
+# 判定（栈标记 = dump 里全部 frame 行 `    func (file:line)` 的逐项比对）：
+#   标记逐样本全同 + utime+stime 前进 → STUCK   exit 1（疑似死循环/ReDoS）
+#   标记逐样本全同 + CPU 零前进       → IDLE    exit 3（阻塞在 IO/锁，非自旋）
+#   标记有变动                        → MOVING  exit 0（健康推进）
 #   参数错/采样失败/进程消失          →         exit 2
 # 注意：零位移单独不定罪——sleep/阻塞读栈也纹丝不动，必须叠加 CPU 增量区分。
 #
@@ -123,7 +123,7 @@ for i in $(seq 1 "$N"); do
     echo "  （权限不够试 sudo；进程已退则案发现场没了）" >&2
     exit 2
   fi
-  # 栈签名：只收 4 空格缩进的 frame 行（Thread/Process 头行不进签名——
+  # 栈标记：只收 4 空格缩进的 frame 行（Thread/Process 头行不进标记——
   # 头行含线程 id，与位移判定无关）
   sig=$(grep -E '^    \S' "$sfile" | sha256sum | cut -d' ' -f1)
   SIGS+=("$sig")
@@ -172,7 +172,7 @@ elif [[ $identical == 1 ]]; then
 else
   VERDICT="MOVING"
   RC=0
-  WHY="栈签名逐样本有变动——健康推进"
+  WHY="栈标记逐样本有变动——健康推进"
 fi
 
 {

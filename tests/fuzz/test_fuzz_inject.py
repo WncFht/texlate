@@ -10,7 +10,7 @@ r"""compile/inject.py 对抗性性质 fuzz —— 中文注入缝扫描 / CJK �
   选项段内 ``{..}``/``[..]``/``\{``/``\}``/注释括号配对。
 - ``inject_cjk``：documentclass 路径字节守恒（首缝前前缀 + 末缝后后缀原样，
   独立 oracle 逐缝 ``\n``+block 重放逐字节一致）；幂等（注入产物自带
-  CJK_PRESENT 签名 → 二跑 already 稳定）；多缝 ``\TeXlateCJKloaded`` 哨兵；
+  CJK_PRESENT 标记 → 二跑 already 稳定）；多缝 ``\TeXlateCJKloaded`` 哨兵；
   ``already``/``no-docline``/``injected``/``InjectRejectError`` 四态划分。
 - ``CJK_PRESENT_RE``：包/类语境收紧矩阵（``mactex``/``myctex``/``\newcommand``
   假阳 vs ``ctex\w*``/``CJK\w*``/``\setCJK*font``/``\begin{CJK*}`` 真命中；
@@ -332,7 +332,7 @@ def test_inject_byte_exact_oracle() -> None:
 
 
 def test_inject_idempotent() -> None:
-    """``inject(inject(x)) == inject(x)``——注入产物自带 CJK_PRESENT 签名。"""
+    """``inject(inject(x)) == inject(x)``——注入产物自带 CJK_PRESENT 标记。"""
     cases = [
         (_dc(), "ctex"),
         (_dc(), "xecjk"),

@@ -13,7 +13,7 @@
   (taxonomy ``missing_file`` 要求 ``\\.\\w+`` 扩展名锚，裸名够不着)。
 
 孤儿改动 = ``ctx_suggests`` 单臂 ``could not locate ...`` 扩为 ``any:`` 双臂，
-新增 ``File `[^'.]+' not found``: file:line issuer 形的签名在 ``rep.first``;
+新增 ``File `[^'.]+' not found``: file:line issuer 形的标记在 ``rep.first``;
 ``rep.ctx`` = 首错行起 ``CTX_LINES=8`` 行止于 ``l.N`` 回显，``I could not
 locate ...`` 帮助行在其后永不入 ``err_head`` (2203.00045 paper.log:2124-2133
 实证帮助行在 i+8 出窗)。
@@ -111,7 +111,7 @@ def test_order_before_placeholder() -> None:
 
 
 def test_cond_extless_file_not_found_arm(tmp_path: Path) -> None:
-    """新臂：``File `X' not found`` 裸名 (file:line 形，rep.first 签名)。
+    """新臂：``File `X' not found`` 裸名 (file:line 形，rep.first 标记)。
 
     ctx 窗不含 ``could not locate`` 帮助行也过闸 —— 2105.00106/
     2203.00045 死路签的直达路径。"""
@@ -177,7 +177,7 @@ def test_cond_decline_engine_pdflatex(tmp_path: Path) -> None:
 
 
 def test_cond_decline_no_signature(tmp_path: Path) -> None:
-    """err_head 无两臂签名 → decline (undefined_cs 等异签不串域)。"""
+    """err_head 无两臂标记 → decline (undefined_cs 等异签不串域)。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = "/work/main.tex:3: Undefined control sequence \\foo."
     ok, _why = _cond(ctx)

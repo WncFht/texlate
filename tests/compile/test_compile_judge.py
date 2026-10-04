@@ -49,7 +49,7 @@ def test_judge_missing_file_first_error_dirty(tmp_path: Path) -> None:
 def test_judge_error_composition(tmp_path: Path) -> None:
     """error_cats 收全量错误行构成；首错复用 ctx 权威对（payload 不丢）。
 
-    quant-ph/9703040 形态：首错与 bulk 不同族——构成数据让签名聚合
+    quant-ph/9703040 形态：首错与 bulk 不同族——构成数据让标记聚合
     能纠「首错遮 bulk」。
     """
     log = "! Undefined control sequence.\nl.1 \\x\n" + "".join(
@@ -172,7 +172,7 @@ def test_judge_died_mid_doc_reason(tmp_path: Path) -> None:
 
 
 def test_judge_died_mid_doc_no_pdf_silent(tmp_path: Path) -> None:
-    """无 pdf 早退臂不挂 ``died_mid_doc``——``no_pdf`` 已归 fail，签名冗余。"""
+    """无 pdf 早退臂不挂 ``died_mid_doc``——``no_pdf`` 已归 fail，标记冗余。"""
     v = judge(_res(tmp_path, pdf=False, log_text="! Emergency stop.\n"))
     assert v.status == "fail"
     assert "died_mid_doc" not in v.reasons

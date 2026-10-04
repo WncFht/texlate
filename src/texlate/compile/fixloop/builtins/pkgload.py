@@ -653,7 +653,7 @@ def _xy_ext_names(ctx: LoopCtx) -> list[str]:
     r"""err_head → 全日志序扫缺失 Xy-pic 扩展名 (去重保序)。
 
     dedup 键 ``{rule}:None`` 全族共位 —— 一次应用必须把本轮日志里报
-    出的扩展全收, 否则同签残错下轮重复点火。
+    出的扩展全收, 否则同标记残错下轮重复点火。
     """
     out: list[str] = []
     for src in (ctx.err_head or "", _fixloop_log(ctx)):

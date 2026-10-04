@@ -245,7 +245,7 @@ def test_physics_detach_idempotent(tmp_path: Path) -> None:
 
 
 def test_physics_detach_rule_e2e(tmp_path: Path) -> None:
-    """端到端：siunitx 硬错签名 → 规则点火 → 下一轮 clean。"""
+    """端到端：siunitx 硬错标记 → 规则点火 → 下一轮 clean。"""
     _write_main(tmp_path, "\\usepackage{amsmath,physics,siunitx}", "$\\abs{x}$")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     rs = mini_rs(
@@ -310,7 +310,7 @@ def test_wrap_phys_sty_inputs_unit() -> None:
     / 已包站与开 letter 区幂等跳过 / verbatim 与
     ``\\input{physics}``·``\\input{physics.tex}`` 章节件 (kpathsea 只解析
     ``.tex``) 不动 / 无花括号裸名形与行内嵌入站也包 (只罩 ``\\input``
-    命令本体)。restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断签名。
+    命令本体)。restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断标记。
     """
     from texlate.compile.fixloop.builtins.pkgload import (  # noqa: PLC0415
         _SHIP_WRAP_POST,
@@ -347,7 +347,7 @@ def test_physics_wrap_doc_native_input_sty(tmp_path: Path) -> None:
 
     ``\\input`` 不挂 @=letter —— ``.tex`` 宿主文档级 @ 是 catcode-12,
     stub 内 ``\\@undefined`` 碎成 ``\\@``+裸字母 (``\\let\\Re\\@undefined``
-    断签名)。
+    断标记)。
     """
     _write_main(tmp_path, "\\input{physics.sty}")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")

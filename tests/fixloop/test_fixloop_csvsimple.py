@@ -34,7 +34,7 @@ _ERR_CTX = """<to be read again>
                    \\relax
 l.36 ...onst:Nn \\c__csvsim_package_expl_bool { 1 }"""
 
-# '!' 形态同款：rep.first 无文件名，ctx 的 l.N 源码回显泄签名 cs 名
+# '!' 形态同款：rep.first 无文件名，ctx 的 l.N 源码回显泄标记 cs 名
 _BANG_ERR = "! Missing number, treated as zero.\n" + _ERR_CTX
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
@@ -42,14 +42,14 @@ CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_real_signature_is_syntax() -> None:
-    """实证签名：file-line Missing number → syntax (pay=None)。"""
+    """实证标记：file-line Missing number → syntax (pay=None)。"""
     cat, pay = classify(_ERR_LINE + "\n" + _ERR_CTX + "\n")
     assert cat == "syntax"
     assert pay is None
 
 
 def test_taxonomy_bang_form_is_syntax() -> None:
-    """'!' 形态同归 syntax —— 无 file-line 名时靠 ctx 签名 cs 判别。"""
+    """'!' 形态同归 syntax —— 无 file-line 名时靠 ctx 标记 cs 判别。"""
     cat, _ = classify(_BANG_ERR + "\n")
     assert cat == "syntax"
 
@@ -113,7 +113,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
 
 
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
-    """'!' 形态：文件名缺席但签名 cs `\\c__csvsim_package_expl_bool` 在 ctx。"""
+    """'!' 形态：文件名缺席但标记 cs `\\c__csvsim_package_expl_bool` 在 ctx。"""
     (tmp_path / "csvsimple-l3.sty").write_text("% stub\n", encoding="utf-8")
     ctx = mk_ctx(tmp_path, main_rel=None, err_head=_BANG_ERR)
     ok, why = actions._cond_ok(  # noqa: SLF001
@@ -183,7 +183,7 @@ def _mv_runner(
 
 
 def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
-    """整链：syntax 签名 → mv 退役 → 下轮系统件载入 → clean。"""
+    """整链：syntax 标记 → mv 退役 → 下轮系统件载入 → clean。"""
     eng = ScriptedEngine(
         [
             {"log": _ERR_LINE + "\n" + _ERR_CTX + "\n"},
@@ -221,7 +221,7 @@ def test_e2e_retire_then_vendored_fallback(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_other_syntax(tmp_path: Path) -> None:
-    """非 csvsimple 签名：别包 syntax 错 → 本规则不动 wdir 件。"""
+    """非 csvsimple 标记：别包 syntax 错 → 本规则不动 wdir 件。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx_i\n\\end{document}\n",
         encoding="utf-8",

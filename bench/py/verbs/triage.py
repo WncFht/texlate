@@ -284,7 +284,7 @@ def classify(sig, rep):
     if cat == "undefined_cs":
         return (
             "rule",
-            "undefined_cs 逐签名归因 (F2): 缺包→filemap.overrides/cs_targeted_fix; 笔误→llm_hook",
+            "undefined_cs 逐标记归因 (F2): 缺包→filemap.overrides/cs_targeted_fix; 笔误→llm_hook",
         )
     if cat == "missing_character":
         return "rule", "CJK 缺字类规则可扩性 (F4)"

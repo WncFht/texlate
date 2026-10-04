@@ -400,7 +400,7 @@ def test_same_source_name_list_exempt() -> None:
 
     web t_4000988e seq-234 (est=629 贡献者名单) 实证：模型照抄名单是
     合法产出，same_source 误杀 → 阶梯尽回退原文。判据 =
-    ``textutil.name_list_prose``（``residual_en`` run 级豁免同签名段级化）。
+    ``textutil.name_list_prose``（``residual_en`` run 级豁免同标记段级化）。
     """
     src = (
         "Shanghao Lu, Shangyan Zhou, Shanhuang Chen, Shaofei Cai, "
@@ -555,7 +555,7 @@ def test_ph_in_cs_tail_adjacent_legit() -> None:
 
 
 def test_ph_in_cs_comment_masked() -> None:
-    r"""注释体内的签名是 splice 字面区——mask 后不计。"""
+    r"""注释体内的标记是 splice 字面区——mask 后不计。"""
     src = "Text words here."
     zh = "文本词 % \\fo[[CMD_1]]o 注释内不算\n其余。"
     rep = validate_pair(src, zh)
@@ -787,7 +787,7 @@ def test_item_glue_legit_item_cs_no_flag() -> None:
 
 
 def test_item_glue_uppercase_suffix_flagged() -> None:
-    r"""``\\itemFSU`` 大写尾粘合仍是编译炸弹签名。"""
+    r"""``\\itemFSU`` 大写尾粘合仍是编译炸弹标记。"""
     rep = validate_pair("\\item First", "\\itemFSU 第一")
     assert l0_sev(rep, "item_glue") == [Severity.WARN]
 

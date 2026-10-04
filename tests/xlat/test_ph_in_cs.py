@@ -27,7 +27,7 @@ _FUSED_SRC = "Long prose \\textbf[[MATH_1]] " + "x" * 400
 
 
 class _Fuser(pl.MockTranslator):
-    r"""``\textbf[[PH]]``/``\textbf{[[PH]]}`` 融成 ``\te[[PH]]xtbf``——挪位缺陷签名复现。
+    r"""``\textbf[[PH]]``/``\textbf{[[PH]]}`` 融成 ``\te[[PH]]xtbf``——挪位缺陷标记复现。
 
     ``marker`` 给了就只污染含该字样的输入（净块对照用）。
     """

@@ -157,7 +157,7 @@ def test_pfatopfb_rule_registered() -> None:
 
 
 def test_pfatopfb_cond_fires_on_signature(tmp_path: Path) -> None:
-    """pfa-fatal 签名 err_head → 闸放行。"""
+    """pfa-fatal 标记 err_head → 闸放行。"""
     ok, why = _pfa_cond(tmp_path)
     assert ok, why
 
@@ -196,7 +196,7 @@ def test_pfatopfb_declines_no_texmfhome(tmp_path: Path) -> None:
 
 
 def test_pfatopfb_declines_no_pfa_refs(tmp_path: Path) -> None:
-    """pdftex.map 无 .pfa 引用 → False (签名命中但无可修面)。"""
+    """pdftex.map 无 .pfa 引用 → False (标记命中但无可修面)。"""
     wdir, texmf, files = _pfa_fixture(tmp_path)
     files["pdftex.map"].write_text("cmr10 CMR10 <cmr10.pfb\n", encoding="utf-8")
     ok, note = pfa_to_pfb(mk_ctx(wdir), _PfaEng(texmf, files), None, {})

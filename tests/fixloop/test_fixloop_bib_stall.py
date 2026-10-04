@@ -11,7 +11,7 @@
   落 ``other`` 硬毙; xelatex ``_bib_pass`` 文件态触发、bbl 在席跳过。
 
 builtin 不改源只发 ``REJECT: route=xelatex`` 令牌，repair 跨引擎臂换编。
-签名复核两级：``err_head`` 快径 → ``_fixloop_log`` 全文兜底 (挂死锚看
+标记复核两级：``err_head`` 快径 → ``_fixloop_log`` 全文兜底 (挂死锚看
 末 4KB 尾窗——kill 前末位管线 note 即死因位置)。
 """
 

@@ -85,7 +85,7 @@ def section_skip_floor(
     实证 (qc-impl 2026-09-28, 1503.00038): ``sig-alternate.cls:1009``
     ``\\@startsection{section}...{4pt}`` —— afterskip 4pt 在 fandol CJK
     extents 下标题贴正文 (``geo_text_overlap``, 600dpi seam 0 白行)。
-    编译 clean 无 log 签名, 唯 precheck ``always`` 面可达。负值
+    编译 clean 无 log 标记, 唯 precheck ``always`` 面可达。负值
     (run-in 标题有意设计) 与 glue/cs 形不收——只动纯字面量。
     """
     del eng, payload

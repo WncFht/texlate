@@ -169,7 +169,7 @@ def graphic_missing_placeholder(
     + resolve 后仍须在 wdir 内 (防穿越写); 解析位已有档 (大小写
     变体/前轮已补) → False 让路。
 
-    micro2 扩面 (v3all 2501.01329/2501.01425): 本轮 log 全量枚举同签
+    micro2 扩面 (v3all 2501.01329/2501.01425): 本轮 log 全量枚举同标记
     缺图一次补齐 —— nonstop 编译单趟已列全部, 逐轮单补在多缺件格
     烧穿轮次上限。log 缺席/单件时行为与旧逐件版等价。
 

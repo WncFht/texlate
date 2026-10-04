@@ -213,14 +213,14 @@ rules:
     stats: { fires: 4, rescued_cells: 4 }
     source_ref: "fixloop.py L378-393"
 
-  # 2026-09-20 microtypelis 车道 (soak-2026-09-18 普查 5 格同签 +
-  # 批十后续 3 格 fairmeta.cls 同签第二容器):
+  # 2026-09-20 microtypelis 车道 (soak-2026-09-18 普查 5 格同标记 +
+  # 批十后续 3 格 fairmeta.cls 同标记第二容器):
   # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report/
   # fairmeta) 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
   # pdfTeX≥1.30/LuaTeX 可达，XeTeX 族 (xelatex/tectonic) 下抛可恢复
   # \PackageError "Disabling ligatures of a font is only possible with
   # pdftex version 1.30 or newer. Ignoring \DisableLigatures." —— PDF 照出
-  # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形签名 taxrow 归
+  # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形标记 taxrow 归
   # microtype_pdftex (other 闸保兼容);
   # 与 microtype_off 的 xetexglyph_tfm 主场分臂 (触发面与动作皆异——
   # 同改 usepackage 行会顺带关 protrusion/expansion, 超出本错所需)。
@@ -229,8 +229,8 @@ rules:
   - id: microtype_lig_off
     description: "microtype \\DisableLigatures (pdfTeX/LuaTeX 专属 cs) → XeTeX 族下注释中和"
     phase: loop
-    order: 71 # microtype_off(70) 同族邻位; other+ctx 臂与 xetexglyph_tfm 臂互不抢签
-    when: # file-line 签名 taxrow 归 microtype_pdftex; other 保兼容
+    order: 71 # microtype_off(70) 同族邻位; other+ctx 臂与 xetexglyph_tfm 臂互不抢标记
+    when: # file-line 标记 taxrow 归 microtype_pdftex; other 保兼容
       any:
         - { category: other }
         - { category: microtype_pdftex }
@@ -257,7 +257,7 @@ rules:
           error: "Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer",
         }
       - {
-          corpus: "stagerun-m1k-2026-09-19 (2412.06264/2504.01017) + soak-2026-09-18 (2609.19664); fairmeta.cls 同签第二容器",
+          corpus: "stagerun-m1k-2026-09-19 (2412.06264/2504.01017) + soak-2026-09-18 (2609.19664); fairmeta.cls 同标记第二容器",
           error: "fairmeta.cls:25: Package microtype Error: Disabling ligatures ... (同 ICLR 簇 \\DisableLigatures[f]{family=sf*})",
         }
     stats: { fires: 13, rescued_cells: 13, status: active }
@@ -277,7 +277,7 @@ rules:
     description: "microtype expansion/activate 开 (XeTeX 不支持 expansion) → 附着括号内翻 false"
     phase: loop
     order: 72 # microtype_off(70)/microtype_lig_off(71) 同族邻位; other+ctx 臂
-    when: # file-line 签名 taxrow 归 microtype_pdftex; other 保兼容
+    when: # file-line 标记 taxrow 归 microtype_pdftex; other 保兼容
       any:
         - { category: other }
         - { category: microtype_pdftex }
@@ -350,7 +350,7 @@ rules:
 
   # 1907.03923 (stagerun-loop3) 实证: ``\usepackage{pigpen}`` → dist 侧
   # ``pigpen.map`` 行 ``pigpen <pigpen.pfa`` 折进 pdftex.map → xdvipdfmx
-  # 对 ASCII Type1 按扩展名硬拒 (只收 .pfb 二进制)。签名只走
+  # 对 ASCII Type1 按扩展名硬拒 (只收 .pfb 二进制)。标记只走
   # stderr→stdout_tail (.log 干净) —— ``_report_of`` 归一成 '!' 行使
   # ``other`` 类目可见 (pdf_asset_sanitize 同族派发面)。修复 = 纯 python
   # pfa→pfb 转换 (t1binary 等价，eexec 密文段原样 hex 解码不解密) 产物

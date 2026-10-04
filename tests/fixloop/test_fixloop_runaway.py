@@ -328,7 +328,7 @@ def test_float_demote_cond_gate(tmp_path: Path) -> None:
 
 
 def test_arms_no_crossfire(tmp_path: Path) -> None:
-    """签名互斥：tcolorbox 格 float 臂让位，[H] 格 tcb 臂让位。"""
+    """标记互斥：tcolorbox 格 float 臂让位，[H] 格 tcb 臂让位。"""
     _write(
         tmp_path,
         "main.tex",

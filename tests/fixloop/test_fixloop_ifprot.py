@@ -5,7 +5,7 @@ r"""if_phantom_protect 内建 —— phantom Incomplete \if → 前稿 cs 族 \p
 ``\if@nmbrlist`` 执行), 1306.0364 (myectaart ``\bf``-in-``\title`` →
 ``\xdef\@argi`` 链 → ``\@forced@seriesfalse`` 同理)。两稿源件字面
 ``\if*/\fi`` 平衡 → ``unclosed_if_close``(196) 扫描 noop 烧 dedup 位,
-同签复发才轮到本规则。修 = eTeX ``\protected`` let-wrap: 属性钉在 cs
+同标记复发才轮到本规则。修 = eTeX ``\protected`` let-wrap: 属性钉在 cs
 本体不被 ``\let\protect\relax`` 剥除, edef 扫描内整体带过。
 """
 

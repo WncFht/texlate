@@ -188,7 +188,7 @@ def logfix_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两臂
     worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
     ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
     同位三处：重译前/后、首编后），缺省无操作。
-    ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
+    ``baseline_sigs`` 是 en 基线错误标记集（``err_signatures`` 快照）——
     命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
     同口径过滤。``seq_marks`` 透传 ``_resplice_and_diffs``（None → env
     决议）。返回 (logfix 报告，最新 CompRes, 新 Verdict 或 None=未重编)。

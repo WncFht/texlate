@@ -1,11 +1,11 @@
-r"""tfmhoist 车道 —— 驱动层 ``Unable to find TFM file "X"`` 签名接线钉。
+r"""tfmhoist 车道 —— 驱动层 ``Unable to find TFM file "X"`` 标记接线钉。
 
 机理 (tfmcen 普查 2026-09-20, 13 格全中): e-print 自带私有 ``.tfm`` 驻
 子目录 (``assets/optimistic.tfm`` / ``NVIDIA-Sans-Font-TTF/NVIDIASans_It.tfm``
 / ``seed/bytesans.tfm`` / ``template/assets/tfss.tfm``) —— TeX 侧经路径
 限定名可解, xdvipdfmx 按 ``\pdfmapline`` 裸名走 TFMFONTS 只认 compile cwd
 扁平位 → ``xdvipdfmx:fatal:`` (xelatex, SIGPIPE rc=141) / ``error:``
-(tectonic, 2408.00714 实证) 双形。签名只在 TeX 侧错清完、.log 零 ``!``
+(tectonic, 2408.00714 实证) 双形。标记只在 TeX 侧错清完、.log 零 ``!``
 时经 ``_report_of`` stdout_tail 归一成 ``! xdvipdfmx:fatal: …`` /
 ``! Unable to find TFM file …`` 落 head 段。
 

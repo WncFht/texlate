@@ -1,6 +1,6 @@
 """F1/F2 工单 (2026-09-16 批量强化 §9) —— 退役包 shim 扩表 + cs_table 合并残骸修复。
 
-n100-postcutover 逐签名归因产物：
+n100-postcutover 逐标记归因产物：
 - F1: shim_map 新增 ~38 条 (elsart 家族→elsarticle, sig-alternate→acmart,
   aastex6x→emulateapj, prl/apl→revtex4-2, siamltex/osa/JHEP 家族→article+polyfill
   等), 实证见 bench/results/fixloop-tickets-F1F2-2026-09-16.md。
@@ -297,7 +297,7 @@ def test_cs_table_rewrite_leaves_sty(tmp_path: Path) -> None:
 
 
 def test_cs_table_usepackage_inject(tmp_path: Path) -> None:
-    """citep→natbib: 缺包签名走 \\RequirePackage 注入 + install_file (非 cs_map)。"""
+    """citep→natbib: 缺包标记走 \\RequirePackage 注入 + install_file (非 cs_map)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
     )

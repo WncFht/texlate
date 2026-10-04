@@ -43,7 +43,7 @@ _CJK_FONT_RE = re.compile(
 )
 
 
-#: missing_char 修复默认表 (seeded 自 n100 缺字签名，2026-09-16;
+#: missing_char 修复默认表 (seeded 自 n100 缺字标记，2026-09-16;
 #: ``params.char_table`` 同形条目按 id 覆盖/扩列 —— 首匹配生效)。
 #: 每条目：``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
 #: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作：

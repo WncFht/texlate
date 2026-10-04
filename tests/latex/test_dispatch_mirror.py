@@ -11,10 +11,10 @@ r"""双分派表镜像钉 —— ``_dispatch`` ↔ ``_group_surface``/``_pend_sp
   ``_expected_*`` 规则——规则表即审计裁定的分歧清单，新分歧在此爆炸；
 - 行序：对每个名取两臂静态命中行 tag 列，公共 tag 相对序须一致
   （行序漂移只在名集相交时有语义——今天真空，专门防未来交叉集漂移）；
-- 行为签名：枚举全集在两臂的真实输出签名（cs 名落点 + 参数可见性），
+- 行为标记：枚举全集在两臂的真实输出标记（cs 名落点 + 参数可见性），
   除 ``_SIG_DIFFS`` 已录分歧外逐项相等——投影≈行为的证据层。
 
-签名 = ``(covers, arg)``：covers ⊆ {piece, chunk, PH_TYPE} 记 ``\N``
+标记 = ``(covers, arg)``：covers ⊆ {piece, chunk, PH_TYPE} 记 ``\N``
 落点（字面 piece / chunk 可译文面 / 某 ph 体），arg ∈ {vis,hid,-} 记
 探针参 ``zzq`` 族归宿（chunk 可译 / ph·piece 内隐藏 / 不见）。
 """
@@ -247,7 +247,7 @@ _PH_RX = re.compile(r"\[\[([A-Z]+)_(\d+)\]\]")
 _ARG_TOKENS = ("zzq", "zzu", "zzd", "zzb")
 
 #: 足长上下文——run 清洗后字符数须压过 ``CHUNK_MIN``，否则整组回落
-#: ``[[EXPAND]]`` 字面段、组内签名蒸发（阈值假象不是分类差异）。
+#: ``[[EXPAND]]`` 字面段、组内标记蒸发（阈值假象不是分类差异）。
 _PRE = (
     "This is a longer paragraph of English prose that certainly should be "
     "segmented into a chunk for translation purposes here "
@@ -302,7 +302,7 @@ def _expand(body: str, ph_map: dict[str, str], depth: int = 0) -> str:
 
 
 def _sig(res: object, name: str) -> tuple[frozenset[str], str]:
-    """签名：``\\name`` 的落点集 + 探针参可见性。"""
+    """标记：``\\name`` 的落点集 + 探针参可见性。"""
     pat = _needle(name)
     ph_map = res.ph_map  # type: ignore[attr-defined]
     covers: set[str] = set()
@@ -337,7 +337,7 @@ def _sig(res: object, name: str) -> tuple[frozenset[str], str]:
     return (frozenset(covers), arg)
 
 
-#: 已录签名分歧（2026-09-18 全集枚举裁定）——key=(name, form)，
+#: 已录标记分歧（2026-09-18 全集枚举裁定）——key=(name, form)，
 #: value=(A covers, A arg, B covers, B arg)。等价类（落点不同但
 #: 参数可见性一致、两侧都不暴露译文面）与真分歧分列注释。
 _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str]] = {
@@ -645,7 +645,7 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
 
 
 def test_behavioral_mirror() -> None:
-    """全集逐名逐形态：两臂签名须相等或命中 ``_SIG_DIFFS`` 已录分歧。
+    """全集逐名逐形态：两臂标记须相等或命中 ``_SIG_DIFFS`` 已录分歧。
 
     A 臂 = 主流 ``_dispatch``（``PRE \\name<form> POST``）；B 臂 = 组内
     ``_group_surface``（``\\newcommand{\\vv}{pre \\name<form> post}`` 的

@@ -78,7 +78,7 @@ class Verdict:
     payload: str | None = None
     #: 逐错误行 cat 构成（``res.log.errors`` 全量分类计数）——首错 cat
     #: 遮 bulk 的纠偏原料（quant-ph/9703040:110 错中 108 syntax
-    #: 而 category=illegal_unit）；签名聚合取众数用。
+    #: 而 category=illegal_unit）；标记聚合取众数用。
     error_cats: dict[str, int] = field(default_factory=dict)
     #: cat → 首见 payload（``error_cats`` 同键子集，仅非空 payload 收录）。
     error_pay: dict[str, str] = field(default_factory=dict)
@@ -249,10 +249,10 @@ def _thm_restate_probe(v: Verdict, full_log: str) -> None:
         v.notes.append(_THM_RESTATE[0])
 
 
-#: 引擎 ``\end`` 前致命中止签名（10-taxonomy ``emergency`` 同词素）——
+#: 引擎 ``\end`` 前致命中止标记（10-taxonomy ``emergency`` 同词素）——
 #: 截断残件 pdf 照样印 ``Output written``（deadgate 车道截断 repro 实
 #: 测：``\input`` 缺件 → Emergency stop → ``Output written (1 page)``），
-#: 「出完/出半截」唯一可靠分界是这个签名本体。``makes \d+ errors`` =
+#: 「出完/出半截」唯一可靠分界是这个标记本体。``makes \d+ errors`` =
 #: errorlimit 硬顶中止（web2c 缺省 100 错强停，e116 实证：error 级联
 #: 顶满即停、无 Emergency stop 词素、pdf 截在死点）。
 _DIED_MID_DOC_RX = re.compile(
@@ -261,7 +261,7 @@ _DIED_MID_DOC_RX = re.compile(
 
 
 def log_died_mid_doc(full_log: str) -> str | None:
-    """Log 全文查致命中止签名 → 命中词素/None。
+    """Log 全文查致命中止标记 → 命中词素/None。
 
     judge 探针与 worker en 臂收编闸的单源（en 臂不走 judge，直查本函数）。
     """
@@ -273,7 +273,7 @@ def _died_probe(v: Verdict, res: CompRes, full_log: str) -> None:
     """引擎死在中途 → 出半截 pdf 判红理由。
 
     ``has_pdf`` 臂才调——无 pdf 时早退路径已按 no_pdf/timeout 归 fail，
-    签名是冗余证据。
+    标记是冗余证据。
     """
     if not res.has_pdf:
         return
@@ -499,8 +499,8 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
 
     活哨截杀留有行程内原因（``CompRes.sentry_reason`` 显式字段，或未经
     归位的 str 形 ``timed_out``）——记录值优先于文本重扫：截断窗口数
-    不出全程签名密度（1003.2165 实证误归泛 timeout）。无记录原因退回
-    文本证据：全量 .log（页洪签名只在全文计数够得着
+    不出全程标记密度（1003.2165 实证误归泛 timeout）。无记录原因退回
+    文本证据：全量 .log（页洪标记只在全文计数够得着
     ``_RUNAWAY_PAGE_MAX``）+ stdout_tail 兜底窗。
     """
     v.reasons.append("timeout")

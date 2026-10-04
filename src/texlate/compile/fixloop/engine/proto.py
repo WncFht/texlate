@@ -186,7 +186,7 @@ def _round_cat(
     信号死 (非超时——外部截杀/驱动 SIGPIPE) 只在裸分类给 clean/None
     时改写: log 被 ``\\output`` 期 Overfull ``\\vbox`` 刷屏归
     ``runaway_output``, 否则 ``killed``。驱动 fatal 同位再一层:
-    ``*: fatal:`` 签名 + 失败相 (rc 非零/无 pdf) 时归 ``driver_fatal``
+    ``*: fatal:`` 标记 + 失败相 (rc 非零/无 pdf) 时归 ``driver_fatal``
     (1907.00277 rc=1 + 残 pdf 形——非信号死, killed 臂够不到)。
     注意主面不进本臂: ``_report_of`` 已把 fatal 行归一成 ``!`` →
     classify 出 ``other`` 供 ``when: category: other`` 修复规则
@@ -212,7 +212,7 @@ def _round_cat(
         return "runaway_output", pay
     cat, pay = rs.taxonomy.classify(rep, timed_out=bool(timed_out))
     if cat == "timeout" and _is_runaway_output(getattr(res, "stdout_tail", "") or ""):
-        # 活哨早杀的编译 .log 截断在签名刷屏之前——证据在 stdout_tail
+        # 活哨早杀的编译 .log 截断在标记刷屏之前——证据在 stdout_tail
         # （哨件正是凭它越阈），补查使归因仍是 runaway_output 而非泛 timeout。
         cat, pay = "runaway_output", None
     if cat in (None, "clean") and not timed_out:
@@ -247,8 +247,8 @@ def _report_of(
     ``error: msg`` 行归一成 ``! msg`` 喂同一套 taxonomy。下游驱动
     ``<tool>:fatal:`` 行 (xdvipdfmx 等) 同归一 —— 与 judge 侧
     ``_salvage_driver_fatal`` 同词素双臂：xelatex 被驱动 fatal 的 SIGPIPE
-    带走时签名只存于 stdout_tail (.log 干净), 不捞则 ``pdf_link_obj`` 类
-    签名对整个条件面不可见 (2403.05523 实证)。
+    带走时标记只存于 stdout_tail (.log 干净), 不捞则 ``pdf_link_obj`` 类
+    标记对整个条件面不可见 (2403.05523 实证)。
 
     ``project_root`` = ``wdir``: 输入侧警告 (``_FILE_ATTRIBUTED_WARNS``)
     按文件栈归因——sys 件命中降 ``rep.warnings_sys`` 不再驱动 ``warn_*``。

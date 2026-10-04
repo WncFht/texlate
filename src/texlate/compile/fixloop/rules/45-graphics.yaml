@@ -46,7 +46,7 @@ rules:
     source_ref: "bench/corpus/mechanisms.jsonl W31 verdict suggested_rules"
 
   # 1404.5720 实证: \includegraphics{feedforward.eps} 缺件但同 stem .pdf 在盘
-  # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
+  # (arXiv 源常图文不配套)。标记归 missing_file 非 missing_graphic —— 图链
   # (17/18) 够不着; install(10)/shim(12) 对工程数据件必拒。本规则剥引用扩展名
   # → graphicx \Gin@extensions 自选 (.pdf 先中)。sibling 缺席时 fileset 闸
   # 不点火落后续; 真无图可解次轮以无 ext 名再报缺，ctx_suggests 闸防回环。
@@ -98,7 +98,7 @@ rules:
   # type=/ext=/read= 走 \csname Gin@rule@.. 链 —— 现代 graphicx 下炸
   # Missing \endcsname (syntax|None) 并把图名毒化成 missing_graphic 级联
   # (0812.0324: syntax×32+missing_graphic×12, 盘上 rmt_*.pdf 在场实证;
-  # 0812.0365: syntax×131+missing_graphic×45)。成员级剥除即死签双清;
+  # 0812.0365: syntax×131+missing_graphic×45)。成员级剥除即死标记双清;
   # 键名精确比对，subtype=/breadth= 类前缀不沾。剥后若真缺图，自有
   # missing_graphic 报文走 placeholder(17.6) 链——剥键不造新缺。
   - id: graphics_kv_strip_obsolete
@@ -169,7 +169,7 @@ rules:
   # ``<stem>.xbb (no BoundingBox)`` 双错 (13 图 26 错，PDF 出但图全丢)。
   # xetex.def 走 ``\XeTeXpdffile`` 原生量尺寸无此链。修复 = 全量 extractbb
   # 可图形 ``extractbb -x`` 预生成 ``<stem>.xbb`` 旁文件 —— 缓存在盘非空
-  # 即被直读，pipe 臂整体跳过。签名只产生于 dvipdfmx.def, 无 source 闸。
+  # 即被直读，pipe 臂整体跳过。标记只产生于 dvipdfmx.def, 无 source 闸。
   - id: xbb_pregen
     description: "dvipdfmx pipe/xbb 双错 → 全量图形 extractbb -x 预生成 .xbb bbox 缓存"
     phase: loop
@@ -305,14 +305,14 @@ rules:
   # 装载段，裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
   # + "I could not locate the file with any of these
   # extensions: .ps,.eps,.pstex"
-  # (PoSlogo + plots/*5 全部 .pdf 在盘)。签名归 other —— 无扩展名够不着
+  # (PoSlogo + plots/*5 全部 .pdf 在盘)。标记归 other —— 无扩展名够不着
   # missing_file 的 \\.ext 锚。修法 = PS-only 扩展表前置 .pdf/.png/.jpg/.jpeg
   # (unicode 引擎原生可读格), 含 .pdf 的表不动。序在 placeholder(17.6) 前:
   # 盘上有图时补表即解，占位是缺件兜底不该先动。
   - id: graphics_ext_pslist_repair
     description: "unicode 引擎下 PS-only \\DeclareGraphicsExtensions 表 → 前置 .pdf/.png/.jpg/.jpeg"
     phase: loop
-    order: 17.55 # graphic_ext_relax(14) 剥名后形如本签; placeholder(17.6) 前 —— 有件先解件
+    order: 17.55 # graphic_ext_relax(14) 剥名后形如本标记; placeholder(17.6) 前 —— 有件先解件
     when:
       any:
         - { category: missing_file, payload_required: true }
@@ -322,7 +322,7 @@ rules:
       any:
         # rep.ctx 止于 l.N 回显行——"I could not locate ..." 帮助行在其后，
         # 永不入 err_head (failmine4-a 实证 2105.00106/2203.00045 ctx 截断)。
-        # file:line 形态的 File-not-found 签名在 rep.first, 用无扩展名形
+        # file:line 形态的 File-not-found 标记在 rep.first, 用无扩展名形
         # ([^'.]+ 拒带点名——带点名 = 显式扩展绕过扩展表或真缺件，不归本规)
         - ctx_suggests: "File `[^'.]+' not found"
         # 留旧臂兜任何会把帮助行纳入 ctx 窗的 issuer 形态
@@ -375,9 +375,9 @@ rules:
       any:
         # raw 粗筛三臂: 带 PS 扩展名直中; 无扩展名 (ext_relax 剥后形态)
         # 进 builtin 内 live-ref 复核 (1803.00128: 剥后报错仍带 .eps,
-        # extless 形为 graphicx 全扩展试尽后的兜底签名); xetex 图形域
+        # extless 形为 graphicx 全扩展试尽后的兜底标记); xetex 图形域
         # "Unable to load" 措辞臂 (failmine4-covgap, missing_graphic 专属
-        # 签名，对 missing_file 臂无害 —— 非图形后缀 builtin 内拒)
+        # 标记，对 missing_file 臂无害 —— 非图形后缀 builtin 内拒)
         - { ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found" }
         - { ctx_suggests: "File `[^']+' not found" }
         - { ctx_suggests: "Unable to load picture or PDF file" }
@@ -428,7 +428,7 @@ rules:
               repl: "\\\\includegraphics\\g<1>{\\g<2>.pdf}",
               match_surface: "masked",
             }
-    risk: low # 仅重写缺件签名存活期; opts 过 graphicx 键面与 includesvg 兼容子集一致
+    risk: low # 仅重写缺件标记存活期; opts 过 graphicx 键面与 includesvg 兼容子集一致
     known_gap: "\\includesvg 的 .pdf_tex/inkscapelatex 双件形与 \\svgpath 搜索径不在本臂; 降级后图面位与矢量渲染质量异 (占位桩兜底，与真 inkscape 链不等价)"
     engines:
       xelatex: { mode: native }
@@ -502,9 +502,9 @@ rules:
   # 2412.19437): 工程船货 .pdf 对象结构残缺 (cairo shading obj 缺 endobj /
   # bare-CR EOL / token-per-line 挤烂 / ObjStm 压坏) → xdvipdfmx
   # ``pdf:image`` import ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)``
-  # fatal → xelatex SIGPIPE。签名 ``xdvipdfmx:fatal:`` 只走 stderr→
+  # fatal → xelatex SIGPIPE。标记 ``xdvipdfmx:fatal:`` 只走 stderr→
   # stdout_tail, .log 干净 —— ``_report_of`` 的 ``\w+:fatal:`` 归一抬成 '!'
-  # 行使签名对 ctx_suggests 可见 (同签恒伴 ``Didn't find "endobj"`` warning,
+  # 行使标记对 ctx_suggests 可见 (同标记恒伴 ``Didn't find "endobj"`` warning,
   # 位 fatal 前行不入 err_head ctx 窗，不作闸)。修复 = 全量内嵌 .pdf
   # ``gs -sDEVICE=pdfwrite`` 重序列化 (内容不动只改对象布局; 5/5 格 bisect
   # 实证清 fatal) —— fatal 不携文件名，全量重写是唯一定位法。

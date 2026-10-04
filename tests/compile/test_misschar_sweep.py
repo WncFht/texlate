@@ -1,6 +1,6 @@
 r"""``missing_char`` C0 测量扫掠豁免（picinpar ``\computeilg`` 类）。
 
-签名面：同一字体名下 ≥25 条严格升序 C0+DEL（U+0000–001F、U+007F）
+标记面：同一字体名下 ≥25 条严格升序 C0+DEL（U+0000–001F、U+007F）
 ``Missing character`` 消息 = 测量盒逐码位试排丢盒噪音（``\loop
 \setbox\wbox=\hbox{\char\tcl}``，``\tcl`` 0→127）——非正文丢字，门控
 豁免。散 C0/单码位重复/非 C0 升序/碎片升序（<25）均照常计入。
@@ -19,7 +19,7 @@ from texlate.redlines import REDLINES_BY_ID
 from texlate.texlog import misschar_sweep_hits
 
 _FONT = "[lmroman10-regular]:mapping=tex-text;"
-_C0_END = 0x20  # C0 上界——签名域 U+0000–001F + U+007F
+_C0_END = 0x20  # C0 上界——标记域 U+0000–001F + U+007F
 _DEL = 0x7F
 _LF = 0x0A  # 缺字本体是换行符 → 消息自身折行
 _SWEEP_N = 33  # 单字体全扫掠成员数 = 32 C0 + DEL
@@ -121,7 +121,7 @@ def test_repeated_single_cp_still_counted() -> None:
 
 
 def test_ascending_non_c0_still_counted() -> None:
-    """非 C0 升序链（U+0041..U+0059 可印字符）不属豁免域——测量盒签名限 C0+DEL。"""
+    """非 C0 升序链（U+0041..U+0059 可印字符）不属豁免域——测量盒标记限 C0+DEL。"""
     lines = [_mc(_FONT, chr(cp), f"(U+{cp:04X})") for cp in range(0x41, 0x5A)]
     text = "\n".join(lines) + "\n"
     assert misschar_sweep_hits(text) == 0

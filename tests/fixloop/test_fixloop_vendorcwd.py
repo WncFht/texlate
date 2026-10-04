@@ -6,7 +6,7 @@
   不可见，apply 形成功能 no-op (fired-unfixed)。``_resolve_site``
   与 fileset_relocate 同口径; main 未知退 wdir 根 (旧行为)。
 - no-op 修复：``_inject_write`` ``current`` 态 (同名片已是本代注入件)
-  翻成 decline —— 零字节改动返 True 会烧掉本轮 dispatch 并把同签名
+  翻成 decline —— 零字节改动返 True 会烧掉本轮 dispatch 并把同标记
   低 order 候选 (fileset_relocate 类) 挡在门外。
 """
 

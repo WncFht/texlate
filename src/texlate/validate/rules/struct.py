@@ -1,7 +1,7 @@
 r"""validate.rules.struct — 结构配对规则域叶 (validate.rules 域缝叶)。
 
 四族 src↔zh 结构相对判定：``{}`` 平衡（``_check_brace``）、
-``\\begin/\\end`` 栈配对 + 环境名 multiset 签名（``_check_env``）、
+``\\begin/\\end`` 栈配对 + 环境名 multiset 标记（``_check_env``）、
 cite/ref/label/bib key multiset（``_check_key``）、``$``/``\\(\\)``/
 ``\\[\\]`` 计数（``_check_math``）。token 流入参的共享件
 （``_*_toks``/``_*_masked``）+ 字符串入口 fuzz oracle
@@ -118,7 +118,7 @@ def _env_tokens(snc: str) -> list[tuple[str, str, int]]:
 def _env_signature_masked(
     snc: str,
 ) -> tuple[int, int, Counter[str], Counter[str], Counter[str]]:
-    """``(多余 end 数，不匹配数，未闭合 begin 名，begin 名，end 名)`` 栈签名——遮盖视图入参。"""
+    """``(多余 end 数，不匹配数，未闭合 begin 名，begin 名，end 名)`` 栈标记——遮盖视图入参。"""
     stack: list[tuple[str, int]] = []
     n_orphan_end = n_mismatch = 0
     toks = _env_tokens(snc)
@@ -144,7 +144,7 @@ def _env_signature(
 
 
 def _check_env(ctx: _Ctx) -> None:
-    r"""``\begin{X}``/``\end{X}`` 栈配对 + 环境名 multiset 签名差分。
+    r"""``\begin{X}``/``\end{X}`` 栈配对 + 环境名 multiset 标记差分。
 
     src 自身的内部不一致不追责（继承容忍），只报 zh 新增的栈错误类别。
     """
@@ -179,7 +179,7 @@ def _check_env(ctx: _Ctx) -> None:
         Issue("env", Severity.ERROR, f"环境 \\begin{{{name}}} 未保留 ×{cnt}")
         for name, cnt in (s_beg - z_beg).items()
     )
-    # end 名 diff 多数已被栈签名覆盖，仅补充 begin/end 同改名的对称情形；
+    # end 名 diff 多数已被栈标记覆盖，仅补充 begin/end 同改名的对称情形；
     # 先过滤再截断——被 begin 净增覆盖的条目不消耗报告条数上限。
     issues.extend(
         Issue("env", Severity.WARN, f"\\end{{{name}}} 比原文多 ×{cnt}")

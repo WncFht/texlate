@@ -435,8 +435,8 @@ def test_plain_broken_refs() -> None:
 
 
 def test_plain_periodic_placeholder() -> None:
-    """行内短周期连珠 = CJK 占位/mock 译文签名——2609.19244 实证
-    top_rep=46 被 running-head 放阈放走，行内连珠才是真签名。
+    """行内短周期连珠 = CJK 占位/mock 译文标记——2609.19244 实证
+    top_rep=46 被 running-head 放阈放走，行内连珠才是真标记。
     发射口径=CJK 单元行数 ≥20（mock 洪水 ≥377；图区刻度/括号
     stretch 的非 CJK 连珠 ≤16 且不计 CJK 面，0928 簇裁定）。"""
     spam = "这是译文这是译文这是译文这是译文这是译文这是译文这是译文"

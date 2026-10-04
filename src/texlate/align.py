@@ -219,7 +219,7 @@ def _multiply(first: tuple[float, ...], second: tuple[float, ...]) -> tuple[floa
 
 
 def _direct_metadata(value: Any) -> Any:  # noqa: ANN401 -- pypdf 对象图递归天然 Any
-    """元数据字典规范化：剥掉 indirect 引用——对象号只在单 PDF 内有意义，跨文档签名必须解引用后比对。"""
+    """元数据字典规范化：剥掉 indirect 引用——对象号只在单 PDF 内有意义，跨文档标记必须解引用后比对。"""
     from pypdf.generic import (  # noqa: PLC0415 -- 重依赖惰性加载
         ArrayObject,
         DictionaryObject,
@@ -239,11 +239,11 @@ def _direct_metadata(value: Any) -> Any:  # noqa: ANN401 -- pypdf 对象图递�
 
 
 def _graphic_signature(obj: DictionaryObject) -> str:
-    """Artwork 跨文档等价签名：不解像素。
+    """Artwork 跨文档等价标记：不解像素。
 
     /Form 含 drawing 命令流，比解码后字节；/Image 比元数据（去 /Length）
     + 原始存储字节（``StreamObject.get_data`` 基类方法绕过解码，大图不炸
-    内存）。元数据里带 indirect 值的图无法跨文档签名（texglot 原语义）。
+    内存）。元数据里带 indirect 值的图无法跨文档标记（texglot 原语义）。
     """
     from pypdf.generic import (  # noqa: PLC0415 -- 重依赖惰性加载
         DictionaryObject,

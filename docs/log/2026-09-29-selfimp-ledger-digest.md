@@ -57,7 +57,7 @@
 - anchor200 人工评审面撤出（用户裁决「懒得评审」）：口径降级为 judge 内部一致、未对人工校准——不影响臂间对比回归门，只放弃 pairacc≥0.65 的绝对校准宣称；兜底 = leader 跨分段抽验 12 格全合理。
 - XCOMET-QE 入网五坑全记录：无 swap CPU 载入 OOM → 临时 swapfile；fp32 ckpt 在 11.65G VRAM OOM → `.half()`；无 tty 下 traceback 不落盘 → 日志直写 + `python -u`；earlyoom 守护静默 SIGTERM 高 oom_score 进程 → 停用；终解 = `torch.load(mmap=True)` 绕开 pl loader 手建 fp16 直载（载入峰约 30G→9G）。批程三度内核 OOM 连杀 + 一次 peer GPU 挤占，靠 Restart=on-failure + 断点续跑兜住。
 - XCOMET-QE 三角测量收官：1200/1200 落袋、join 1148 格（52 行 bib 剔除——QE 对未翻 bib 天然打低分属设计内）；Spearman(qe, judge)=0.455、Pearson=0.332。定位 = cheap 预筛/异常格路由信号，不足以替代 judge；115 个高分歧格主方向是 QE 高分/judge 低分（judge 抓语义错，QE 只见流畅度）。
-- fixloop 车道继续高密度收割：secdispatch `7dae23d`（miss 二次派发——halt-on-error 下孪生错根本不在 log，xelatex 单错探针 ≤2/格，yaml 零改原签名 verbatim 中真身）、floatopt `0e989a0`（[H] 浮体选项根修，顺带揭 `main_head_contains` 3k 字符窗对注释厚重稿不可靠 → `acdfc0b` 修）、csmap `bcf7de9`（natbib cite 宏族补齐）、nataux `4b1b7e5`（陈旧 .aux `\NAT@force@numbers` 整行剥除）、citembox `6eaeb31`（数学域裸 `\cite` 裹 `\mbox{}`，自持环实锤：cite 错→bibliography 不执行→aux 无 bibcite→恒 undefined）。
+- fixloop 车道继续高密度收割：secdispatch `7dae23d`（miss 二次派发——halt-on-error 下孪生错根本不在 log，xelatex 单错探针 ≤2/格，yaml 零改原标记 verbatim 中真身）、floatopt `0e989a0`（[H] 浮体选项根修，顺带揭 `main_head_contains` 3k 字符窗对注释厚重稿不可靠 → `acdfc0b` 修）、csmap `bcf7de9`（natbib cite 宏族补齐）、nataux `4b1b7e5`（陈旧 .aux `\NAT@force@numbers` 整行剥除）、citembox `6eaeb31`（数学域裸 `\cite` 裹 `\mbox{}`，自持环实锤：cite 错→bibliography 不执行→aux 无 bibcite→恒 undefined）。
 - failmine 目标榜驱动新波：csmap/nataux/ifclose/vendordiag/floatopt 五道 + gcensus/capcensus 两普查；unfixable:capacity 7 格裁定 = 5 格已愈于在案修复 + 2 格 paper-authentic 上游位腐（known-bad 登记 W164 防重复救伤）。
 
 ### 09-19 午后至深夜：收割潮 1–4 与 loop3/fc9/loop4 波（台账刻 14:0x–23:5x）
@@ -65,7 +65,7 @@
 - ifclose `aeda23f`（未闭 `\if*`→`\fi` 注入，内嵌遮盖栈平衡扫描器）、envpoly `ffd4bf3`（`\renewenvironment` 站点前置臂）、expl3fix `a227ee6`（regex 逗号粘连幻选项修复）、cappayload `86d30ea`（capacity payload 归因）、drvdef `a4e5c8f`（间接指派驱动词缴械）、inputleak `30d53c0`（in_arg 裸 `\input` 文件名吞入保护段）六连落地；ldf 钉表 52 枚入 `28a64eb`。
 - loop3 主收获（606 格复放）：**271 格翻 clean**（252 partial→clean + 19 partial_nofix→clean；基线该批仅约 4 clean）——修复机器「重跑波驱动」的首次大规模实证；哑规照实记档（hangul_font_fallback 等发而未翻），7 负翻格全部分诊入册。
 - fc9 波（122 ids）：clean 14→67（+53 net），PDF 产 32→82，负向仅 1（判词标签漂移非真退）；途中 ENOSPC 事故（`/` 100%，go-build 缓存 209G 元凶）致 run_meta 0B 卡死——「0B run_meta 必删后重发」入册。
-- loop4 波判 INVALID 与复活：160/160 跑完但 152 格死同一签名 `Incomplete \ifdefined`——`--rerun` 重建 splice 读活工作树，烙进 fontgate 中段破损版注入件；净树重跑 wave-2 = **46 升 0 降**（44 partial→clean + 1 partial_nofix→clean + 1 hard→clean，含 1206.0701 最难签名 if_phantom_protect 野外实证）。沉淀纪律：splice-重烘焙 replay 波必须等 inject-路径 mutex 全释（或钉 committed rev）。
+- loop4 波判 INVALID 与复活：160/160 跑完但 152 格死同一标记 `Incomplete \ifdefined`——`--rerun` 重建 splice 读活工作树，烙进 fontgate 中段破损版注入件；净树重跑 wave-2 = **46 升 0 降**（44 partial→clean + 1 partial_nofix→clean + 1 hard→clean，含 1206.0701 最难标记 if_phantom_protect 野外实证）。沉淀纪律：splice-重烘焙 replay 波必须等 inject-路径 mutex 全释（或钉 committed rev）。
 - 原子落地 `18d8fc7`（131 规）：para_longize（def 站补 `\long` + 内核宏 `\par`-strip wrap）+ macro_glyph_fix stage-B + px_to_bp ×1.0 对齐三宗归一——自此「builtin 注册 + yaml 引用同 commit」成为落规标准（反向序曾致全仓 RulesetError 毒窗）。
 - L1 新低（09-19 口径）：parsebench corpus_v3 全量 identity strict 1955/1955 = 100%、leak **0/128460 = 0.000%**（前轮 0.040% → 归零）；operandfix `2f4a905` 的 626 名扫描终止表把 log-payload/裸括号泄面归零是主功。
 - 深夜波：wave-5 组 17 dir-arm 复放 + catchup 自动点火（canon/raw id 双侧归一修复 253 格 norecord 漏跑；loop2 work/ 早前被清致 401 格 rerun_no_zh → B 段 580 格全链重建）；重建终态 526/619 clean 态（85%）。verify-wave1 收割 **83 up / 0 down**；clean% 门⑤审计 PASS（结构性：波只触 `--on nonclean`）。规则库此夜冲至 139。
@@ -97,7 +97,7 @@ quiet tick；核心发现 = peer 会话把 4 个已入库测试档在共享 inde
 
 ### blob-ledger6.md（L1415–1422，约 20:35 wrapromote 收割）
 
-`1a4b6fff` main_wrapper_promote（门③实证：2609.19170 unfixable:emergency→clean，relocate 归位后翻真 wrapper）；stucklatin 解剖出三缺陷（vendored 落件对嵌套 main_dir 不可见 / 外部落件 dedup 键过期 / stuck 签名取签口径错）→ vendorcwd/stucksig 两修派；promote-on-cascade 变体入 backlog。
+`1a4b6fff` main_wrapper_promote（门③实证：2609.19170 unfixable:emergency→clean，relocate 归位后翻真 wrapper）；stucklatin 解剖出三缺陷（vendored 落件对嵌套 main_dir 不可见 / 外部落件 dedup 键过期 / stuck 标记取签口径错）→ vendorcwd/stucksig 两修派；promote-on-cascade 变体入 backlog。
 
 ### blob-ledger7.md（L1423–1430，约 21:00 静默巡）
 
@@ -133,7 +133,7 @@ quiet hold：无交付无新批，roster 10 全活，census 类长爬属正常�
 - **门禁与观测**：门①–⑤ 巡守制；qualfreeze 四信号门禁 + qualdrift 哨兵（zh 钉集复判，判分漂移与翻译漂移解耦，首点 verdict=pass）；scorecard schema v3（union 注记、csb 三档 drop、freeze 四信号、`--require-frozen`）；metrics.gate_fired 盲位修复（REJECT 绕 actions 不可见面收口）。
 - **批编排**：nightwatch 进程面/队列/活跃 run 台账脱管巡；stage_timing 请求时序三分拆（req_timing records，顺带坐实网关延迟模型：固定连接耗时 + 每输出 token 线性项 + 全局吞吐上限）；harvest.py/flipcheck/verify-wave/replay 复放工具链；canon/raw id 双侧归一化；0B run_meta/截断 jsonl 恢复规程；ENOSPC 复产流程。
 - **健壮性**：run_process POSIX 有界排干环（子死即收 + 超时输出随异常带出）；regex 模块原生 timeout 真中断（「超时返 None」线程弃守被证伪——stdlib re 在 C 层回溯不可中断，py-spy --native 是 GIL 饿死案唯一取证链）；`_RunawaySentry` page_flood/vbox_flood 双哨兵 + timeout veto clean + sentry_reason 归因链；`_landing_sync` 外部落件指纹失效 + dedup 键过期；LoopCtx 日志缓存逐编译点失效（logcache 系统缝）。
-- **修复引擎**：stuck 语义改 exhaustion-settled（同签轮在派发耗尽点才结算——旧预判制曾正杀可救格）；secdispatch miss 二次派发（halt-on-error 孪生错）；slot_arg_revert 机位参 revert 机制；paired_slot_diff/machine_slot_audit 机槽探针（src/zh 八类机位参数 diff，note 级封顶）；tar 伪装件六面闸（magic+version+checksum 三验）；vendor 可达性族（mnras_texmf_shadow_drop/revtex_era_retire/pstricks_add_pair_retire/paired-.tex 退役/`./` 路径限定回填 shim）。
+- **修复引擎**：stuck 语义改 exhaustion-settled（同标记轮在派发耗尽点才结算——旧预判制曾正杀可救格）；secdispatch miss 二次派发（halt-on-error 孪生错）；slot_arg_revert 机位参 revert 机制；paired_slot_diff/machine_slot_audit 机槽探针（src/zh 八类机位参数 diff，note 级封顶）；tar 伪装件六面闸（magic+version+checksum 三验）；vendor 可达性族（mnras_texmf_shadow_drop/revtex_era_retire/pstricks_add_pair_retire/paired-.tex 退役/`./` 路径限定回填 shim）。
 - **质量面**：esa2 协议全套（qualbench+qualsample+qualstats+qualanchor+qualfreeze 五件）；autogloss 术语抽取产品化（default-on）；output-sanity-gate 三门 ERROR；bib-passthrough 直通臂；XCOMET-QE 第三族评委臂（ρ=0.455，定位 cheap 预筛）。
 - **工艺纪律（事故驱动沉淀）**：私 index + pathspec-only 提交（私 index 2026-10-01 起禁用，改常规 add/commit）；交织文件 `apply --cached` + 裸 commit 分账；commit 前 `diff --cached --name-only` 对账暂存集==意图集；每次 harvest 复验 `git show HEAD:` marker；builtin 注册先于引用它的 yaml（反向序=全仓 RulesetError 毒窗，replay 波在飞期禁落引用新 builtin 的 yaml）；replay-mutex（splice-重烘焙波在飞期 impl 车道禁触 inject/segmenter 等活树读面）；scratch 只在 `tmp/lane-*/`；脱管批一律 setsid+nohup+run.log 直写（扛宿主进程死亡）；「超时返 None」≠安全、resume-safe≠duplicate-safe、清单外测试件不可信（emit 面车道 commit 后必跑全目录测试不信交付清单）。
 
@@ -148,7 +148,7 @@ quiet hold：无交付无新批，roster 10 全活，census 类长爬属正常�
 | 09-18 22:50    | autogloss-reg 双 orchestrator                               | 巡检误判死亡重拉起第二 driver，孤儿 judge 并发写 records ~5min（PIPE_BUF 内未撕行）；「kill 父≠灭门」「resume-safe≠duplicate-safe」入册 |
 | 09-19 白天     | pathspec 卷扫三连（`001094d`/`0db4133`/`df72ac8`）          | 交织文件被整文件卷入别家在飞 hunk 致 HEAD 悬空；规则化=交织件 apply --cached 分账                                                       |
 | 09-19 约 10:0x | ENOSPC：`/` 100%（go-build 缓存 209G）                      | fc9 中段崩 + 0B run_meta 每 stage 卡死；恢复=截 jsonl 净行 + 删 run_meta 重发，「0B 必删」入册                                          |
-| 09-19 约 11:0x | loop4 波烙进在飞破损注入件                                  | 152/160 格同签名全灭，波判 INVALID；净树重跑 46 升 0 降——沉淀=replay-mutex                                                              |
+| 09-19 约 11:0x | loop4 波烙进在飞破损注入件                                  | 152/160 格同标记全灭，波判 INVALID；净树重跑 46 升 0 降——沉淀=replay-mutex                                                              |
 | 09-19 午间     | 裸 commit 卷走 peer 预 staged 12 件（`c0cf77d`）            | 共享 index 不设防；reset --soft 逐件退回零损，commit 前 diff --cached 对账入册                                                          |
 | 09-19 下午     | B5 毒窗：yaml 先落于 builtin 注册                           | 338 格 RulesetError 全灭 + 恢复波在飞再毒约 30 格；standing rule=fixloop 写件即验 Ruleset.load()，波在飞禁落引用新 builtin 的 yaml      |
 | 09-19 18:45    | `4509653d` 陈树横扫                                         | peer 以陈旧基线成树提交静默回退 wave-10 全修复面；marker 复验 + 二分检出，`d34d08f1` blob-sha 复用恢复 13 件                            |
@@ -169,7 +169,7 @@ quiet hold：无交付无新批，roster 10 全活，census 类长爬属正常�
 ## 裁决与未决队列
 
 - 已落地用户裁决（09-19）：bib 全不翻 GO（bib-passthrough 直通臂 + judge 新条款，回归实证 dnt-major 17→0）、glm-5-2 维持禁令（跨家族三角改由 XCOMET-QE 承担）、flag 类目保留、frozen-300 门禁阈值写死、HF 访问令牌供 XCOMET-XL（远端 GPU 开发机落权重）、contested 调参授权、autogloss default-on GO、anchor200 人工评审豁免（judge 口径降为内部一致）。
-- 未决队列（09-20 收官时点，台账累计）：acceptable_pdf 语义收紧（1131 格分层：约 5.2% 携内容丢失签名、约 57% 带各类残损记号——T1 灾损 30 格含 cjk_invisible 17）；ds@ Option A（约 96 格 latex209_reject 族放行与否）；verdict 排序（同 artifact 下 unfixable:* 是否应排 best_effort_pdf 之下）；warn-level dispatch 政策（48 zh 格/run 带覆盖签名不派发）；covgap REVIEW-2（有界 `\fi` vs preamble 中和）；宿主 TEXMFHOME pstricks.sty 影蔽（mnras 姊妹形）；`_closure_has_end` inject pass-1/W99 准入闸；osajnl.cls `\makeatother` vendor-shadow；amsart opt-arg size-decl 清理；ctex `\baselineskip` 注入负效应（2404.14219 自伤 6.5 万页洪）；biberbreadth 两项（swap 臂 misfire 归因条件 + shipped latin-1 .bbl 退役臂）；tfmslot 四 bundle；blxdlist v2.3 位置名重读器；promote-on-cascade 变体；2505.21476 下翻 autopsy（门④违反单元）。
+- 未决队列（09-20 收官时点，台账累计）：acceptable_pdf 语义收紧（1131 格分层：约 5.2% 携内容丢失标记、约 57% 带各类残损记号——T1 灾损 30 格含 cjk_invisible 17）；ds@ Option A（约 96 格 latex209_reject 族放行与否）；verdict 排序（同 artifact 下 unfixable:* 是否应排 best_effort_pdf 之下）；warn-level dispatch 政策（48 zh 格/run 带覆盖标记不派发）；covgap REVIEW-2（有界 `\fi` vs preamble 中和）；宿主 TEXMFHOME pstricks.sty 影蔽（mnras 姊妹形）；`_closure_has_end` inject pass-1/W99 准入闸；osajnl.cls `\makeatother` vendor-shadow；amsart opt-arg size-decl 清理；ctex `\baselineskip` 注入负效应（2404.14219 自伤 6.5 万页洪）；biberbreadth 两项（swap 臂 misfire 归因条件 + shipped latin-1 .bbl 退役臂）；tfmslot 四 bundle；blxdlist v2.3 位置名重读器；promote-on-cascade 变体；2505.21476 下翻 autopsy（门④违反单元）。
 
 ## 原始台账位置与调阅
 

@@ -51,7 +51,7 @@ __all__ = [
 # ════════════════════════════════════════════════════════════════
 
 #: ``Command \X unavailable in encoding E`` —— 实报 enc 从 err_head 提取
-#: (缺省 TU)。payload 只载 cs 名，enc 在签名尾段。
+#: (缺省 TU)。payload 只载 cs 名，enc 在标记尾段。
 _NFSS_UNAVAIL_RE = re.compile(r"unavailable in encoding ([A-Za-z0-9]+)")
 
 #: Arm A TU 体表：cs 名 → ``\DeclareTextCommand`` 声明体。``\ensuremath``
@@ -70,7 +70,7 @@ def nfss_cmd_enc_polyfill(
 ) -> tuple[bool, str]:
     r"""``nfss_enc|cs`` → ``\DeclareTextCommand{\cs}{E}{body}`` docclass 后注入。
 
-    hyperref puenc.def 等对 PU 声明的 cs 在 TU 下调用即报本签 —— 稿自带
+    hyperref puenc.def 等对 PU 声明的 cs 在 TU 下调用即报本标记 —— 稿自带
     ``\providecommand`` 兜底被先定义盖死, 唯一治法是给该 cs 补目标 enc
     分支 (per-enc 声明正是 NFSS 分发机制)。体表外 cs 直 decline 不猜字形。
     """
@@ -269,7 +269,7 @@ def nfss_fam_declare(
 ) -> tuple[bool, str]:
     r"""``nfss_enc|E+F`` → ``\DeclareFontFamily{E}{F}{}`` docclass 后注入。
 
-    签名成立前提 = enc E 已声明 (``\DeclareFontShape`` 先查 ``T@E`` 再查
+    标记成立前提 = enc E 已声明 (``\DeclareFontShape`` 先查 ``T@E`` 再查
     ``E+F`` —— E 未声明会先报 ``Encoding scheme`` 签走 scheme 臂)。空
     family 声明合法 (fd 文件同款; 与空 enc 声明的 Corrupted-NFSS 死路
     不同机制), 2609.20539 times.sty ``\AtBeginDocument\DeclareFontShape``

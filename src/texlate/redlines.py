@@ -140,7 +140,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
     RedLine(
         id="missing_char_sweep",
         # C0 测量扫掠（picinpar ``\computeilg`` ``\hbox{\char\tcl}``
-        # tcl=0..127 逐码位试排丢盒）——豁免判定是算法签名（同字体名下
+        # tcl=0..127 逐码位试排丢盒）——豁免判定是算法标记（同字体名下
         # ≥25 条严格升序 C0+DEL 缺字消息链），单行 pattern 表达不了，
         # 故各检索层无切片：engine 豁免内联在 loginfo ``missing_chars``
         # 分支、judge 计数面在 ``count_missing_chars`` 内减除（两路同调
@@ -185,7 +185,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
     RedLine(
         id="overfull_hbox",
         # fixloop 专用行：``Overfull \hbox`` 是版面缺陷 (qc layout:overfull
-        # /geo_margin_breach 部分同源) 的 log 面签名，无 '!' 错时经
+        # /geo_margin_breach 部分同源) 的 log 面标记，无 '!' 错时经
         # warn_overfull 伪类别驱动 para_loosen 修复轮。只挂 rules 切片
         # ——engine 层命中会作为 ``warn:*`` reason 污 verdict (overfull
         # 是版面质量问题非编译健康问题，判红面不收); logattr 已有独立观察类
@@ -197,7 +197,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         id="float_too_large",
         # fixloop 专用行：``LaTeX Warning: Float too large for page`` 是
         # 浮体超高 (qc layout:float_lost/float_fit 部分同源) 的 log 面
-        # 签名——[H] 钉死的超高非浮体盒会被页缘截杀，warn_float_big
+        # 标记——[H] 钉死的超高非浮体盒会被页缘截杀，warn_float_big
         # 伪类别驱动 float_h_demote 降级翻回真浮体。rules-only 同
         # overfull_hbox 行注 (版面信号不进判红面)。
         rules=LayerSpec("float_too_large", r"Float too large for page"),
@@ -259,7 +259,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 上游资产缺席（known-limitation 概念行，零层切片）：文档引用而
         # arXiv e-print tarball 根本没 ship 的图档——singlesweep mech_buckets
         # 21 格实证（``fig/plot2 (1).png``/``Figs/tikz_two_event.pdf`` 等
-        # payload，``missing_graphic|<path>`` 签名 + tarball 清单核对归因，
+        # payload，``missing_graphic|<path>`` 标记 + tarball 清单核对归因，
         # bucket 名 ``upstream-asset-absent``）。构造上不可修：任何 fixloop
         # arm 都变不出上游从未 ship 的字节——占位图出残页即诚实上限。
         # 各层不挂的判据：log 面信号与可修 missing_graphic（路径打错、改名

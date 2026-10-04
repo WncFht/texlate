@@ -61,10 +61,10 @@ def test_batch_clean_and_broken(v: TsValidator) -> None:
 @pytest.mark.integration
 @need_cst
 def test_baseline_relative_mode(v: TsValidator) -> None:
-    """相对判定：baseline 带 ERROR 的源签名不拖累译文判定。"""
+    """相对判定：baseline 带 ERROR 的源标记不拖累译文判定。"""
     src_with_gap = "\\inferrule{A}{B} 文本。"  # grammar 空隙命令产生 baseline ERROR
     base = v.sign(src_with_gap)
-    assert base.parse_errors >= 0  # 签名可用即对
+    assert base.parse_errors >= 0  # 标记可用即对
     res = v.validate(src_with_gap, baseline=base)  # 原样译文 vs 自身基线
     assert res.ok_relative is True
 

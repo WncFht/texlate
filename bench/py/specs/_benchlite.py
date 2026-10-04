@@ -149,7 +149,7 @@ def fixloop_attr(rounds, fv=None, final_cat=None):
     salvage 哨兵 (``"salvage": true``；旧 schema 无标——尾巴 cat 空且
     verdict 非 clean 系即哨兵，因 clean/no_errors_no_pdf 之外的 verdict
     只在非空 cat 轮结算) 不占归因槽。末轮 pay 空不回填旧轮——回填会把
-    已修轮的签名贴上来 (2609.19664: r2 latin 已装，r3-r5 ``other:None``
+    已修轮的标记贴上来 (2609.19664: r2 latin 已装，r3-r5 ``other:None``
     streak 触 stuck, 回填 latin 成 ``stuck:latin`` 误桶)。
     """
     rds = [rd for rd in (rounds or []) if isinstance(rd, dict)]
@@ -175,7 +175,7 @@ def fixloop_sig(fv, fcat=None, fpay=None) -> str:
         if fcat and str(fcat) not in sig:
             sig = f"{sig}:{fcat}"
     elif sig in TERMINAL_WORDS and fcat:
-        # stuck streak 签 {cat}:{pay} 的头半——cat 进桶键分 stuck 机制面
+        # stuck streak 标记 {cat}:{pay} 的头半——cat 进桶键分 stuck 机制面
         sig = f"{sig}:{fcat}"
     if fpay:
         sig = f"{sig}:{fpay}"

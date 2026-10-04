@@ -15,15 +15,15 @@ sandbox-exec / bwrap 挂载与能力探测）留 ``sandbox.py``，runner 名经�
   ``communicate``。``should_cancel`` 旗标依 ``_CANCEL_POLL_S`` 分片响应。
 - POSIX rlimits 纵深：exec 前经 preexec_fn 装 AS/NOFILE/CPU 软帽——失控
   TeX 吃不光宿主内存与 fd，自旋进程墙钟之外还有 SIGXCPU 第二闸。
-- ``\output`` 暴走活哨（``_RunawaySentry``）：排干环逐片喂签名计数
+- ``\output`` 暴走活哨（``_RunawaySentry``）：排干环逐片喂标记计数
   （logparse 事后判据同 regex 同阈值）——``[N]`` 页标单调包络计数
-  ≥10K 页洪闸 + vbox 签名密度闸（签名 ≫ 页产才判暴走，逐页慢性告
+  ≥10K 页洪闸 + vbox 标记密度闸（标记 ≫ 页产才判暴走，逐页慢性告
   警不杀），
   越阈抛 ``TimeoutExpired`` 走既有 killpg 收树臂——病态编译不再烧满
-  墙钟（gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）。截杀原因
+  墙钟（gr-qc/0104075：96K+ 标记行 / ~97K 页烧 240s 实证）。截杀原因
   （``vbox_flood``/``page_flood``）经 ``timed_out`` 槽以 str 回吐——
   引擎原样落 ``res.timed_out``，``_collect_compile_outputs`` 归位
-  ``CompRes.sentry_reason``，事后归因不再凭 4KB 尾窗重数累计签名。
+  ``CompRes.sentry_reason``，事后归因不再凭 4KB 尾窗重数累计标记。
 """
 
 from __future__ import annotations
@@ -107,16 +107,16 @@ _CANCEL_POLL_S = 0.5
 #: 不再放大驻留（runaway xelatex 日志 GB 级也只留尾部窗口）。
 _READ_CHUNK = 65536
 
-#: 活哨行界扫描的留尾上限——签名永不跨 ``\n``（regex 的 ``[^\n]*`` 界），
+#: 活哨行界扫描的留尾上限——标记永不跨 ``\n``（regex 的 ``[^\n]*`` 界），
 #: 只留最后一个未完行；max_print_line=10000 保真行有界，更长的无换行
-#: 洪片按病态截断（签名海量重复，切断处漏一个不计）。
+#: 洪片按病态截断（标记海量重复，切断处漏一个不计）。
 _SENTRY_TAIL_CAP: Final = 65536
-#: 洪片截断的留尾——长过任一签名（vbox 行 ~85B、``[N]`` 页标数 B），
-#: 切断点的签名续段仍能拼回计数。
+#: 洪片截断的留尾——长过任一标记（vbox 行 ~85B、``[N]`` 页标数 B），
+#: 切断点的标记续段仍能拼回计数。
 _SENTRY_KEEP: Final = 4096
 #: 页标记闸（``[N]`` shipout 计数）——健康论文页数百级以下；gr-qc/0104075
 #: 暴走 ~240s 产 ~97K 页（~400 页/秒），10K 闸约 25s 截杀、距正常档两个
-#: 数量级。vbox 签名缺席的静默死循环由本闸兜住。计数走**单调包络**——
+#: 数量级。vbox 标记缺席的静默死循环由本闸兜住。计数走**单调包络**——
 #: 真 shipout 序号只增不减（2609.19748 实测 9623 标记全序），仅
 #: ``n >= 已计最大值`` 入计；收敛文档万级非序方括数字（索引/引用阵
 #: 列）只贡献 ~ln(n) 个左向右极大值，不再假触（killsem2 census 开放缺
@@ -135,18 +135,18 @@ class _RunawaySentry:
     成 bytes 编译形，定义仍单源）：
 
     - ``page_flood``：``[N]`` 页标**单调包络计数** ≥ ``_RUNAWAY_PAGE_MAX``
-      ——病态页产率（gr-qc/0104075 ~97K 页实证），vbox 签名缺席的静默
+      ——病态页产率（gr-qc/0104075 ~97K 页实证），vbox 标记缺席的静默
       死循环也兜住；非序方括数字不入计，万级良性 ``[\d+]`` 文本不误杀；
-    - ``vbox_flood``：vbox 签名 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 签名数 >
+    - ``vbox_flood``：vbox 标记 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 标记数 >
       ``_RUNAWAY_VBOX_DENSITY`` × 页标**原始计数**——无 shipout 空转
-      签名。「逐页一条」的慢性告警是良性排版溢出（1003.2165：46 签名
+      标记。「逐页一条」的慢性告警是良性排版溢出（1003.2165：46 标记
       /46 页、36s 干净编译，旧累计≥30 闸 ~15.6s 误杀），密度语义后不
       杀；分母不走包络——非序噪声撑大分母是豁免方向（保守），复位
       档页标也不漏计。
 
     越阈由排干环抛 ``TimeoutExpired`` 走 ``run_process`` 既有 killpg 收
     树臂；``reason`` 记截杀臂名，经 ``timed_out`` 槽回吐让
-    ``runaway_output`` 归因不依赖截断尾窗重数签名。
+    ``runaway_output`` 归因不依赖截断尾窗重数标记。
     """
 
     def __init__(self) -> None:
@@ -157,7 +157,7 @@ class _RunawaySentry:
         self._page_max = _RUNAWAY_PAGE_MAX
         self._vbox_hits = 0
         #: 页标原始总数——vbox 密度分母。分母走原始计数是保守方向：噪声
-        #: 只会撑大分母豁免 vbox 臂（签名 ≫ 页产才杀），永不反向假触；
+        #: 只会撑大分母豁免 vbox 臂（标记 ≫ 页产才杀），永不反向假触；
         #: pagenumbering 复位档的真 shipout 也全数入计，密度不失真。
         self._page_marks = 0
         #: 单调包络计数——page_flood 闸专用：真 shipout 序号只增不减，
@@ -261,7 +261,7 @@ def _drain_bounded(  # noqa: PLR0913, PLR0917 -- 排干环参数面集中声明
     进程握管/死锁不再挂死本层；deadline 走 ``time.monotonic``——墙钟
     拨回不再无限延时（旧实现 ``time.time()`` 实证过小时级假死）。
     ``should_cancel`` 依旧 ``_CANCEL_POLL_S`` 分片响应。
-    ``sentry`` 非 None 时逐片喂活签名——越阈视同超时抛
+    ``sentry`` 非 None 时逐片喂活标记——越阈视同超时抛
     ``TimeoutExpired``（语义同 deadline 臂：调用方收树+续收），病态
     ``\output`` 暴走不再烧满墙钟。
     ``TimeoutExpired`` 携带已读部分输出，``run_process`` 超时臂续收。
@@ -292,7 +292,7 @@ def _drain_bounded(  # noqa: PLR0913, PLR0917 -- 排干环参数面集中声明
                     chunks.append(data)
                     total += len(data)
                     if sentry is not None and sentry.feed(data):
-                        # 病态输出签名已坐实——视同超时收树：已读片随异常
+                        # 病态输出标记已坐实——视同超时收树：已读片随异常
                         # 带出（超时臂续收），runaway_output 归因同口径。
                         raise subprocess.TimeoutExpired(
                             cmd, timeout, output=b"".join(chunks)
@@ -368,7 +368,7 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     分片 ``communicate``（单调钟同款）。``should_cancel`` 旗标置位即抛
     ``asyncio.CancelledError``（``except BaseException`` 臂照常
     ``_kill_tree`` 收树，编译段孤儿不再等满 timeout 才死）。
-    drain 臂内嵌 ``_RunawaySentry`` 活哨——``\output`` 暴走签名密度/
+    drain 臂内嵌 ``_RunawaySentry`` 活哨——``\output`` 暴走标记密度/
     ``[N]`` 页标越阈视同超时收树。
     """
     t0 = time.time()
@@ -406,7 +406,7 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
             out = _communicate_cancellable(proc, cmd, timeout, should_cancel)
     except subprocess.TimeoutExpired as e1:
         # 活哨截杀把臂名（vbox_flood/page_flood）写进 timed_out 槽回吐——
-        # 截断的 4KB 尾窗数不出全程签名密度，事后归因凭记录值（1003.2165
+        # 截断的 4KB 尾窗数不出全程标记密度，事后归因凭记录值（1003.2165
         # 实证旧判据误归泛 timeout）。
         timed_out = sentry.reason if sentry is not None and sentry.reason else True
         # 超时前已读部分输出随异常带出——先收进口袋再收树。

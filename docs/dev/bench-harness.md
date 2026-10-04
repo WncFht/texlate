@@ -71,4 +71,4 @@ fixtures 是陷阱构造语料：`tricky.tex`（@Tnn 主集）、`tricky-209.tex
 
 ## 4. 产出契约与记账
 
-批跑侧的统一契约：每格一行 append 进 run 目录 `records/<stage>.jsonl` 并同步入 index——行落账即 done，崩了同参重启按 `(idc, arm, variant)` 键 dedup/resume 续跑；上游缺口以 needs/needs-skip 标注进账本。分析侧动词：`bench triage`（records 聚成签名待修榜 + 趋势）、`bench rundiff`（两次 run 逐格迁移矩阵）、`bench gate`（出口门记分卡）、`bench dossier`（单格/单 id 全剖面）、`bench xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select`（翻译/质量臂报表与重判）。估时与格数预报走 `bench plan <spec>`；具体参数在各 spec/verb 文件头 docstring。
+批跑侧的统一契约：每格一行 append 进 run 目录 `records/<stage>.jsonl` 并同步入 index——行落账即 done，崩了同参重启按 `(idc, arm, variant)` 键 dedup/resume 续跑；上游缺口以 needs/needs-skip 标注进账本。分析侧动词：`bench triage`（records 聚成标记待修榜 + 趋势）、`bench rundiff`（两次 run 逐格迁移矩阵）、`bench gate`（出口门记分卡）、`bench dossier`（单格/单 id 全剖面）、`bench xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select`（翻译/质量臂报表与重判）。估时与格数预报走 `bench plan <spec>`；具体参数在各 spec/verb 文件头 docstring。

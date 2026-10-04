@@ -260,7 +260,7 @@ class TestAtLetterSpace:
         check_invariants(res, tex)
 
     def test_at_letter_space_signature(self) -> None:
-        """修复签名钉：``\\@foo`` 逐字节还原，且不再出现 ``\\@ `` 伪空格。"""
+        """修复标记钉：``\\@foo`` 逐字节还原，且不再出现 ``\\@ `` 伪空格。"""
         tex = DOC % "\\@foo"
         res = parse_tex(tex)
         out = reconstruct(res)
@@ -494,6 +494,6 @@ class TestReconstructTranslations:
 
     @pytest.mark.parametrize("bad", [5, None, ["x"]], ids=["int", "none", "list"])
     def test_non_str_translation_typeerror(self, res: ScanResult, bad: object) -> None:
-        """非-str 译文值 → ``TypeError``（双层包装签名见台账）。"""
+        """非-str 译文值 → ``TypeError``（双层包装标记见台账）。"""
         with pytest.raises(TypeError):
             reconstruct(res, {0: bad})

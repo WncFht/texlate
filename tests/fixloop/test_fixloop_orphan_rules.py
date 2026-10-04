@@ -331,7 +331,7 @@ def test_plain_format_latex_with_plain_ism_declines(tmp_path: Path) -> None:
 
 
 def test_plain_format_sig_only_in_comment(tmp_path: Path) -> None:
-    """签名只活在注释里 → False (遮盖视图口径)。"""
+    """标记只活在注释里 → False (遮盖视图口径)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n%\\bye\n\\begin{document}\\end{document}\n"
     )

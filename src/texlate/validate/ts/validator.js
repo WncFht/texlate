@@ -7,7 +7,7 @@
 //   {"id":"...", "path":"/abs/file.tex"}               文件源码
 //   可选 "expect":["MATH_1","MATH_2",...]              scanner 侧占位符契约
 //   可选 "baseline":{"parse_errors":N,"env_mismatches":N,"unclosed_math":N,"brace_balance":N}
-//         → 译前源文件签名，启用相对判定 ok_relative（真实语料 73.7% 带
+//         → 译前源文件标记，启用相对判定 ok_relative（真实语料 73.7% 带
 //           grammar 空隙 baseline ERROR，绝对判定不可用）
 // stdout: 每行一个 JSON 结果（字段见 validate() 返回）。
 //

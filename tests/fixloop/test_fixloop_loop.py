@@ -283,7 +283,7 @@ def test_latex209_gate_reject(tmp_path: Path) -> None:
     assert len(cell["rounds"]) == 1
 
 
-# tectonic xdvipdfmx PS 硬墙签名 (v2: 由 stdout_tail 的 error: 行归一成 ! 行)。
+# tectonic xdvipdfmx PS 硬墙标记 (v2: 由 stdout_tail 的 error: 行归一成 ! 行)。
 PS_WALL_TAIL = (
     "error: something bad happened inside xdvipdfmx\n"
     'caused by: pdf: image inclusion failed for "fig.eps"\n'

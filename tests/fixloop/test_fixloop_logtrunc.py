@@ -259,7 +259,7 @@ def test_guard_b_peak_baseline(tmp_path: Path) -> None:
     """逐轮峰值计入 baseline: r1 产 9KB 后又缩回 3KB → 相对峰值腰斩。
 
     floor=0 (入口无 pdf) 格也被 run 内峰值覆盖——census ``no_baseline``
-    盲区的关闭面。r1 派发 apply → r2 同签 dedup miss → dirty_pdf 收尾。
+    盲区的关闭面。r1 派发 apply → r2 同标记 dedup miss → dirty_pdf 收尾。
     """
     rs = mini_rs(rules=run_tool_rules(1), taxonomy=BOOM_TAXONOMY)
     eng = _SizedEngine(

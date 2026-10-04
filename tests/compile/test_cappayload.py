@@ -92,7 +92,7 @@ def test_truncated_no_bracket_token_only() -> None:
 
 
 def test_no_bracket_no_ctx_none() -> None:
-    """旧签 ``sorry.`` 无 bracket 无 ctx: pay=None (logparse 既有断言口径)。"""
+    """旧标记 ``sorry.`` 无 bracket 无 ctx: pay=None (logparse 既有断言口径)。"""
     log = "! TeX capacity exceeded, sorry.\n"
     assert classify(log) == ("capacity", None)
 

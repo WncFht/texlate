@@ -133,7 +133,7 @@ def test_cp1251_cyrillic_run() -> None:
 
 
 def test_applemac_curly_quotes() -> None:
-    """applemac 0xD2/0xD3 = “”——Word/Classic-Mac 导出签名。"""
+    """applemac 0xD2/0xD3 = “”——Word/Classic-Mac 导出标记。"""
     blob = b"% \xd2quoted\xd3 by \xd2editor\xd3\n" + ASCII_TEX
     text, v = decode_tex_with(blob)
     assert v.encoding == "mac_roman"

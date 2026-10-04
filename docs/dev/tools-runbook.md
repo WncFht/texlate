@@ -34,7 +34,7 @@
 | `fmt-shell.sh` | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2` |
 | `git-stash-export.sh` | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引 |
 | `loc.sh [--cloc]` | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列 |
-| `pyspy-triage.sh <PID>` | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进 |
+| `pyspy-triage.sh <PID>` | py-spy 钉栈 triage：N 次 dump 栈标记逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进 |
 | `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID |
 
 子目录 `scripts/systemd/` 收 systemd --user unit 件——`texlate-bench-backup` service/timer（`texlate-errsweep` 已于 2026-09-29 随链路退役拆除）（`ExecStart` 写死部署机路径，迁移时按目标机调整）。旧 `scripts/gwcap/` 网关并发闸组件已删，取证走 git 历史。
@@ -139,12 +139,12 @@ B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 - **fixloop 收格口径**：floor 机制落地后收 fail + 特定 partial（floor_snap 保入场 PDF 回退），inject reject 不救。
 - **快照隔离**：churn 期用 `cp -al` hardlink farm 钉语料/src 快照（顶层遍历不跟 symlink 目录，快照必须 hardlink），隔离 bench 与在飞改动。
 - **批前闸**：大批量前跑 `bench doctor`（环境/工具链/网关逐项判定）+ `bench plan <spec>`（格数/dedup 桶/估时预报），429 先判瞬时限流再判死。
-- **签名可分辨度**：发生率 p 的签名要看 ≥3 次需 n≈3/p 的样本量。
+- **标记可分辨度**：发生率 p 的标记要看 ≥3 次需 n≈3/p 的样本量。
 
 ### 6.2 排障
 
 - **挂死/慢文件三件套**：`python -X faulthandler` + `faulthandler.dump_traceback_later` 留现场；`cProfile` 按 cumulative 排序；monkeypatch 间谍免插桩追踪内部面。离奇死先查 OOM。
-- **钉栈 triage**：疑似死循环/ReDoS 用 `scripts/pyspy-triage.sh`——栈签名零位移叠加 CPU 增量才定罪（sleep/阻塞读栈也纹丝不动）。
+- **钉栈 triage**：疑似死循环/ReDoS 用 `scripts/pyspy-triage.sh`——栈标记零位移叠加 CPU 增量才定罪（sleep/阻塞读栈也纹丝不动）。
 - **xelatex ~100 error 上限**：nonstopmode 不豁免——错误洪水会 mid-document abort 产截断 partial PDF（文末内容最先死，bibliography/锚点保留率异常先查这个）。
 - **文本手术**：LaTeX 源码手术一律 python replace（sed 吃反斜杠）；含 `|` 的译文比对走 python sqlite3 API 而非 CLI 分列管道。
 - **vite 端口漂移**：从 dev 日志 `Local:` 行解析实际端口；`/api/health` 的 `version:"mock"` 验明 mock 正身；杀进程按端口属主 + 进程启动时间，不 pkill 广播。

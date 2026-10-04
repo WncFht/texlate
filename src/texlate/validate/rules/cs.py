@@ -3,8 +3,8 @@ r"""validate.rules.cs — 控制序列安全规则域叶 (validate.rules 域缝�
 五族 cs 级注入/丢失判定：``_check_macro`` 双向 diff（zh 新增全档
 error——结构族/非 ASCII 融合 cs 同档；src 丢失方向脆弱间距命令
 计数差 cs_dropped 升硬判据、其余 warn）、``_check_item_glue``
-``\\item``+ASCII 字母粘合签名、``_check_ph_in_cs`` 占位符嵌 cs 名
-双侧夹持签名、``_check_bare_cs`` 裸 cs 两子类（数学域外数学 cs +
+``\\item``+ASCII 字母粘合标记、``_check_ph_in_cs`` 占位符嵌 cs 名
+双侧夹持标记、``_check_bare_cs`` 裸 cs 两子类（数学域外数学 cs +
 前缀+大写后缀粘合，与 macro 泛条目有意分层双报）、
 ``_check_dangerous_cs`` ``DANGEROUS_CS`` 表名净差（IO/定义覆写/
 catcode/装包逃逸族）。判定口径单源 ``textutil.*_net`` 与 pipeline
@@ -163,7 +163,7 @@ def _check_macro(ctx: _Ctx) -> None:
 
 
 def _check_item_glue(ctx: _Ctx) -> None:
-    r"""``\item``+ASCII 字母粘合签名（``\itemFSU`` 类，管线引入，编译炸弹）。
+    r"""``\item``+ASCII 字母粘合标记（``\itemFSU`` 类，管线引入，编译炸弹）。
 
     走 ``_lex`` cs 流而非裸正则：``\\itemX``（``\\`` 断行 + 文本）不误判，
     注释区天然豁免。后缀须含大写字母——与 ``textutil.bare_cs_net`` 同口径，
@@ -197,11 +197,11 @@ def _check_item_glue(ctx: _Ctx) -> None:
 
 
 def _check_ph_in_cs(ctx: _Ctx) -> None:
-    r"""``\cs名[..[[PH]]..]字母`` 双侧夹持签名（``\fo[[CMD_1]]o`` 类）。
+    r"""``\cs名[..[[PH]]..]字母`` 双侧夹持标记（``\fo[[CMD_1]]o`` 类）。
 
     译文把占位符嵌进 cs 名中段 → splice 逐字节替换后断 cs
     （``\te[[PH]]xtbf``→``\te\cite{…}xtbf``、``\noind[[PH]]ent``→
-    ``\noind\Cref{…}ent``——modec 两波实测签名）：未定义 cs 编译炸弹
+    ``\noind\Cref{…}ent``——modec 两波实测标记）：未定义 cs 编译炸弹
     且断名 payload 不可复原，不进 fixloop、走重译/回退原文。
 
     双侧夹持是硬判据：``\cs[[PH]]`` 尾邻是合法高频形（corpus 271 处
@@ -228,10 +228,10 @@ def _check_ph_in_cs(ctx: _Ctx) -> None:
 
 
 def _check_bare_cs(ctx: _Ctx) -> None:
-    r"""译文裸 cs 注入（realpostfix2 0905.4907 实证签名），两类编译炸弹。
+    r"""译文裸 cs 注入（realpostfix2 0905.4907 实证标记），两类编译炸弹。
 
     E24 起 ``macro`` 规则对**全部**新增 cs 已报泛 error——本规则把其中
-    **编译即炸**的两个子类再以位置签名单列 error（命中名在 macro
+    **编译即炸**的两个子类再以位置标记单列 error（命中名在 macro
     报表同现一条泛条目：有意分层而非重复缺陷——泛条目不带文本域/
     粘合前缀定位，corrector 反馈与子类聚类需要本条的诊断载荷；
     ``macro`` 的全名覆盖由 fuzz 分类 oracle 钉死，剔除会破坏钉面）。
@@ -289,7 +289,7 @@ def _check_bare_cs(ctx: _Ctx) -> None:
 
 
 def _check_dangerous_cs(ctx: _Ctx) -> None:
-    r"""译文新增危险控制序列（``DANGEROUS_CS`` 表名净差）——注入签名。
+    r"""译文新增危险控制序列（``DANGEROUS_CS`` 表名净差）——注入标记。
 
     ``macro`` 泛条目同现属有意分层（见 ``_check_bare_cs`` 约定），本网兜
     ``bare_cs`` 未管的良形非数学危险 cs：``\input{/etc/passwd}``/

@@ -115,7 +115,7 @@ def test_inject_cjk_substring_ctex_not_present() -> None:
 def test_inject_cjk_ctexproc_literal_not_present() -> None:
     r"""``\def\CTeXPreproc{Created by ctex v0.2.12...}`` 宏体字面量假阳——
 
-    loop1 A 桶实证签名（0806.0756/1803.00139/2211.04532）：旧裸子串
+    loop1 A 桶实证标记（0806.0756/1803.00139/2211.04532）：旧裸子串
     判 already → 整跳注入。包/类语境正则要求族名落在
     usepackage/documentclass 花括号内。
     """

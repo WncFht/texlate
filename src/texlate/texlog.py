@@ -379,7 +379,7 @@ NONERR_MSG_RE = re.compile(r"^" + _NONERR_MSG_SRC)
 #: 整行锚定形（loginfo 整行判定）。
 NONERR_FILELINE_RE = re.compile(r"^" + ERR_FNAME + r":\d+:\s*" + _NONERR_MSG_SRC)
 ERR_BANG_RE = re.compile(r"^!")
-#: 下游驱动 ``*: fatal:`` 行签名——xdvipdfmx/extractbb 等驱动 fatal 只走
+#: 下游驱动 ``*: fatal:`` 行标记——xdvipdfmx/extractbb 等驱动 fatal 只走
 #: stderr→STDOUT 合并面、不进 ``.log``（xetex 侧 ``!`` 计数全程为零）。
 #: ``_salvage_driver_fatal`` 打捞与 judge/fixloop clean 否决共用单源；
 #: ``: fatal:`` 字面锚使 ``*: warning:`` 等非致命行天然不命中。
@@ -392,7 +392,7 @@ def driver_fatal_line(text: str) -> str | None:
     return m.group(1).strip()[:300] if m else None
 
 
-#: tectonic stderr→stdout 合流面的 ``error:`` 签名行——引擎/bundle 级报错
+#: tectonic stderr→stdout 合流面的 ``error:`` 标记行——引擎/bundle 级报错
 #: 非 ``!`` 词法（tfmhoist 实证 ``error: Unable to find TFM file`` 双形之
 #: tectonic 侧），归一成 ``! `` 行喂同一套 log 解析。
 _STDERR_ERROR_RX: Final = re.compile(r"(?m)^error:\s*")
@@ -401,7 +401,7 @@ _STDERR_ERROR_RX: Final = re.compile(r"(?m)^error:\s*")
 def normalize_stderr_errors(tail: str) -> str:
     r"""Stderr 尾巴上的 ``error:``/``<tool>: fatal:`` 行 → ``! `` 行归一文本。
 
-    ``error:`` 腿先行（签名行整体换 ``! `` 头），``DRIVER_FATAL_RE`` 腿随后
+    ``error:`` 腿先行（标记行整体换 ``! `` 头），``DRIVER_FATAL_RE`` 腿随后
     把 ``*: fatal:`` 行同样提为 ``! `` 词法——tectonic 引擎面与 fixloop
     ``_report_of`` 探针面共用单源。
     """
@@ -435,7 +435,7 @@ _CARET_HEX_RX: Final = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
 #: 进制尾注——C0 扫掠在 pdftex log 正是此形。
 _CARET_NAME_RX: Final = re.compile(r"\^{2}(.)", re.DOTALL)
 
-#: C0 测量扫掠签名：同一字体名下 ≥ ``_SWEEP_RUN_MIN`` 条**严格升序**
+#: C0 测量扫掠标记：同一字体名下 ≥ ``_SWEEP_RUN_MIN`` 条**严格升序**
 #: C0+DEL（U+0000–001F、U+007F）缺字消息 = 测量盒逐码位试排噪音
 #: （picinpar ``\computeilg``：``\loop\setbox\wbox=\hbox{\char\tcl}``，
 #: ``\tcl`` 0→127——丢盒不产生正文缺字）。corpus loop3 全量 splice log
@@ -461,7 +461,7 @@ def _misschar_cp(what: str, cp: str | None) -> int | None:
 
 
 def misschar_sweep_hits(log_text: str) -> int:
-    """``Missing character`` 命中中属 C0 测量扫掠签名的消息数（门控豁免量）。
+    """``Missing character`` 命中中属 C0 测量扫掠标记的消息数（门控豁免量）。
 
     逐消息解析 ``(码位，字体)``——nullfont 行本就门控豁免故跳过；不可判
     码位跳过（保守留计）。按字体名归序后找严格升序 C0+DEL 段，长度
@@ -475,7 +475,7 @@ def misschar_sweep_hits(log_text: str) -> int:
         if font == "nullfont":
             continue
         cp = _misschar_cp(m.group("what"), m.group("cp"))
-        if cp is not None and (cp < 0x20 or cp == 0x7F):  # noqa: PLR2004 - C0+DEL 码位界即签名域
+        if cp is not None and (cp < 0x20 or cp == 0x7F):  # noqa: PLR2004 - C0+DEL 码位界即标记域
             seqs.setdefault(font, []).append(cp)
     hits = 0
     for cps in seqs.values():
@@ -504,7 +504,7 @@ def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
         font = m.group("font").rstrip(".,;")
         if font == "nullfont":
             # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
-            # 签名侧经 rules/ missing_char pattern 排除，这里兜底 wrap 漏网。
+            # 标记侧经 rules/ missing_char pattern 排除，这里兜底 wrap 漏网。
             continue
         cp = _misschar_cp(m.group("what"), m.group("cp"))
         if cp is not None and cp not in seen:

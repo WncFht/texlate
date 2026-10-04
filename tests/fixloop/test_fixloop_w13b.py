@@ -2,7 +2,7 @@
 
 B1 whenany-taxrow: ``bxcjkjatype_engine_retire`` (70-pkgopt.yaml order 201)
 when.any += pkg_engine/unknown_option; ``xy_option_load`` (order 198)
-when.any += xypic_err —— taxrow 新类目行签名回收 (2609.20764/2607.14648)。
+when.any += xypic_err —— taxrow 新类目行标记回收 (2609.20764/2607.14648)。
 B2 microtype-xetex: ``microtype_expansion_off`` (50-font.yaml order 72)
 ``when: {other}`` → ``any: [{other},{microtype_pdftex}]`` (microtype_lig_off
 同式兼容对; 2310.02541)。

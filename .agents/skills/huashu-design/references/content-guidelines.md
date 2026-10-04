@@ -16,7 +16,7 @@ AI 设计里最容易掉进去的陷阱。这是一份「不做什么」的清�
 **❌ 圆角卡片 + 左 border accent 色**
 
 ```css
-/* 这是 AI 味卡片的典型签名 */
+/* 这是 AI 味卡片的典型标记 */
 .card {
     border-radius: 12px;
     border-left: 4px solid #3b82f6;

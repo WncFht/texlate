@@ -97,7 +97,7 @@ zh 可交付 = 171/200（85.5%）。对照 en 原文直编臂 clean+partial 152/
 
 ### 4.2 base 臂 fail 29 + error 18
 
-fail 主签名：`missing_file:revtex.cls`×8（REVTeX 3.1 绝版，vendor 已有桥接件但 base 臂无修复环）、missing_chars warn、syntax、pdftex_prim、undefined_cs 散件。error 18 全部是湖格 unfetchable（extracted 层缺席，hydrate 可救）。
+fail 主标记：`missing_file:revtex.cls`×8（REVTeX 3.1 绝版，vendor 已有桥接件但 base 臂无修复环）、missing_chars warn、syntax、pdftex_prim、undefined_cs 散件。error 18 全部是湖格 unfetchable（extracted 层缺席，hydrate 可救）。
 
 ### 4.3 xlat partial 40 / reject 26
 

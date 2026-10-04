@@ -38,7 +38,7 @@
 | `reseg_rekey.py`    | 分段器演进致 rescan≠dual 时把 chunks 表/dual.json 重键到当前 chunk 流（remark parity 闸放行前置；单事务 + 旧行备份 `tmp/rekey-<tid>.json`） | `.venv/bin/python tools/reseg_rekey.py [task_id...]`（缺省=parity 失配全量）                             |
 | `ph_remap.py`       | rekey 遗留 ph id 修复：读 rekey 备份按解析序逐位把译文 `[[X_n]]` 重映射到新编号（失配即弃映，幂等空转）                                     | `.venv/bin/python tools/ph_remap.py <task_id>...`                                                        |
 | `xlat_pending.py`   | 存量任务 pending chunks 离线补译：XlatPipeline 走真实网关回写 chunks/dual.json/tasks（凭证取任务 config+settings 同构装配）                 | `.venv/bin/python tools/xlat_pending.py <task_id>...`                                                    |
-| `repair_census.py`  | 修复普查：台账 events 驱动，never-passed 修复池按签名聚类 → `tmp/repair-census.json`+簇表                                                   | `.venv/bin/python tools/repair_census.py [--out ...] [--stage compile,fixloop]`                          |
+| `repair_census.py`  | 修复普查：台账 events 驱动，never-passed 修复池按标记聚类 → `tmp/repair-census.json`+簇表                                                   | `.venv/bin/python tools/repair_census.py [--out ...] [--stage compile,fixloop]`                          |
 | `arms_tokens.py`    | 双臂 token 对账：按任务时间窗切网关 `logs` 表（api+key+ms 窗隔离），逐臂逐篇出 calls/input/cache_read/output JSON                           | `.venv/bin/python tools/arms_tokens.py [--arms arms.json] [--out tmp/arms-tokens.json]`                  |
 
 ## 文档与文本工具

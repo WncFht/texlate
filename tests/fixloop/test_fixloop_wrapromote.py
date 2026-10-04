@@ -95,7 +95,7 @@ def test_wrapper_promote_main_with_end_abstain(tmp_path: Path) -> None:
 
 
 def test_rule_wrapromote_dispatch(tmp_path: Path) -> None:
-    """wired 规则：emergency + ``no legal \\end found`` 签名即过闸。"""
+    """wired 规则：emergency + ``no legal \\end found`` 标记即过闸。"""
     rl = rule(_RULE)
     ctx = mk_ctx(tmp_path, "main.tex")
     assert actions._when_ok(rl.when, "emergency", None, ctx)  # noqa: SLF001

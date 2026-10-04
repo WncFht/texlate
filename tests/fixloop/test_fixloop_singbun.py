@@ -1,6 +1,6 @@
 r"""singbun 车道 (2026-09-20): failmine6+gapmine 八格 singles bundle 修复面钉。
 
-每格 diagnose 自 verbatim 签名, 钉 classify → when+condition 派发 →
+每格 diagnose 自 verbatim 标记, 钉 classify → when+condition 派发 →
 apply → decline/幂等 四层 (aux_eof 同口径)。格↔臂映射:
 
 - 0812.1022 ``Extra }, or forgotten \endgroup`` ×99: emulateapj.cls 陈旧
@@ -66,7 +66,7 @@ def test_svg_missing_classifies_graphic_with_payload() -> None:
 def test_svg_tex_pdf_intermediate_not_graphic() -> None:
     """``*_svg-tex.pdf`` 包自产中间件缺席不抢 —— 行 pattern 限 .svg 后缀。
 
-    svg_prepare (45-graphics:9) 固有域; 现状该签名落 syntax catchall,
+    svg_prepare (45-graphics:9) 固有域; 现状该标记落 syntax catchall,
     唯不变量 = 不派 missing_graphic (否则 demote 臂会把转换中间件
     当源件降级)。
     """
@@ -167,7 +167,7 @@ def test_mncite_retire_dispatch_apply(tmp_path: Path) -> None:
 
 
 def test_mncite_retire_declines_other_missing(tmp_path: Path) -> None:
-    """ctx 无 mncite.sty 签名 → cond 拒 (其他 missing_file 不抢)。"""
+    """ctx 无 mncite.sty 标记 → cond 拒 (其他 missing_file 不抢)。"""
     _write(tmp_path, "\\usepackage{mncite}\n")
     head = "! LaTeX Error: File `foo.sty' not found.\nl.1 x"
     assert not when_cond_ok(
@@ -400,7 +400,7 @@ def test_endpbox_declines_tex_site(tmp_path: Path) -> None:
 
 
 def test_endpbox_idempotent_fixed_form(tmp_path: Path) -> None:
-    """已补齐形 (\\color@endgroup 在) 签名位不再紧邻 → 天然幂等。"""
+    """已补齐形 (\\color@endgroup 在) 标记位不再紧邻 → 天然幂等。"""
     src = "\\def\\LT@endpbox{\\@finalstrut\\@arstrutbox\\color@endgroup\\egroup}\n"
     _write(tmp_path, src, name="x.cls")
     ok, _ = _apply("lt_endpbox_color_fix", tmp_path)

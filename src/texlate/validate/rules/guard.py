@@ -18,7 +18,7 @@ from texlate.validate.rules.report import Issue, Severity
 if TYPE_CHECKING:
     from texlate.validate.rules.lex import _Ctx
 
-#: 协议回显签名（repro-2410b §4b 交付守卫）：rules 反馈消息实际 emit 串 +
+#: 协议回显标记（repro-2410b §4b 交付守卫）：rules 反馈消息实际 emit 串 +
 #: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/
 #: ``slot_validation_failures`` 字段/``[compile_error]`` logfix 回灌标）。
 #: 本表为唯一词表单源——bench ``DIRTY_SIGS``（``specs/_sabotage.py``）
@@ -41,7 +41,7 @@ _ECHO_SIGS: Final = (
 
 
 def _tail_unterminated_comment(toks: list[tuple[str, str, int]], sm: str) -> str | None:
-    r"""文本尾段未终结注释的签名（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
+    r"""文本尾段未终结注释的标记（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
 
     ``%`` 展开吞到 EOL——尾段注释未终结时，splice 后随字面首行被接进注释行。
     字面 ``%`` 走 ``_lex`` 末 token 判（``\%`` 转义天然豁免）；``[[COMMENT_n]]``

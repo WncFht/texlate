@@ -5,7 +5,7 @@
 ## 0. 一句话答案
 
 - **管线写了没有**：骨架完整可跑——`frame_build`/`corpus_v3`/`corpus_expand`/`corpus_layers`/`corpus_hot`/`corpus_sw` 六个 spec + `_corpus_common` 全部机械（下载/扫描/feature/materialize/largest_remainder）+ `lake register/absorb/pin/evict/doctor` CLI 齐活；旧 `bench/py/corpus/build_*.py` 已于 17fed90a 删除，逻辑逐字迁入 specs，无损失。**缺的是一个 40-cell allocator 和配套 driver spec**（详见 §3）。
-- **13k 够不够**：统计上 core 5k 已过 knee（pooled MDE 2.46pp，spec 要求 5pp，余量 2 倍）；继续加到 20k 只买 +0.17pp pooled CI——不值。真正的边际收益在 scale 层的失败签名发现（+1k 篇 ≈ +173 instance sigs）。
+- **13k 够不够**：统计上 core 5k 已过 knee（pooled MDE 2.46pp，spec 要求 5pp，余量 2 倍）；继续加到 20k 只买 +0.17pp pooled CI——不值。真正的边际收益在 scale 层的失败标记发现（+1k 篇 ≈ +173 instance sigs）。
 - **真实上限**：不是 API，是**磁盘**——物理盘余量 ~109G，全量 zh 每篇实测 ~18.8MB（corpus 4.4 + vault 4.8 + splice 9.6）。13k 必须 zh 分层 + splice 修剪；20k 需 zh-partial 或存储手术。
 
 ## 1. 统计 sizing（实测账本：492k records / 15,829 papers / 2,238 distinct sigs）
@@ -25,7 +25,7 @@
 - 格级 5pp 跌落需 n=1251/格/run——**永远达不到**，格级只做健康描述不做门。
 - pooled（后分层加权）run-vs-run MDE：5k → **2.46pp**；13k → 1.52pp；20k → 1.22pp。spec 的 5pp 回归门在 5k 已 >99% 功效。
 
-### 1.3 签名发现曲线（真实账本）
+### 1.3 标记发现曲线（真实账本）
 
 - 原始 sig：2,238 distinct，singleton 率 75.6%，Chao1 估计总量 ~10,560 → 观测覆盖 ~21%。
 - 边际产出 @n≈10k：**+173 新 sig/每 +1k 篇**，仍在近线性段。
@@ -33,7 +33,7 @@
 
 ### 1.4 结论
 
-core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护。20k vs 13k 的统计收益微不足道（+0.17pp CI），签名收益 +1.2k instance sigs（Chao1 覆盖 21%→~32%）——可做但属加餐。
+core 5k 是 knee；超出的规模只能通过 scale 层的标记发现来辩护。20k vs 13k 的统计收益微不足道（+0.17pp CI），标记收益 +1.2k instance sigs（Chao1 覆盖 21%→~32%）——可做但属加餐。
 
 ## 2. 磁盘规划（实测值，2026-09-23）
 
@@ -175,7 +175,7 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 | cc-release | 1,000       | 全                                   | 可发布子集（e-band CC 过采）     |
 | hot        | 300         | 全                                   | OpenAlex 热文                    |
 | legacy     | ~500        | 全                                   | 冻结旧资产                       |
-| scale      | 3,000       | **en-compile 优先，promo 余量补 zh** | 签名发现引擎                     |
+| scale      | 3,000       | **en-compile 优先，promo 余量补 zh** | 标记发现引擎                     |
 | **合计**   | **~12,800** | 9,800 全 zh + 3k 弹性                |                                  |
 
 - zh 工作量：9.8k ÷ 0.77 yield ≈ 12.7k 次尝试 ≈ **9.6 天 @j10** —— promo 内余量充足，scale 层 zh 可吃到 ~13k 全 zh（12.8d）仍有余。
@@ -199,6 +199,6 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 - **TARS 暂存 215G**：不加 post-extract prune，fetch 阶段 alone 就爆盘——已在 Step1 列为阻断项。
 - 迁移后 spec 从未端到端跑过（v3-smoke* 全 dedup-skip 空跑）——彩排是硬门。
 - TIGER 3.7MB/s 主导 fetch 时间；IA 段快。era 混合 40/60 已计入。
-- promo 到期后 scale 层 zh 成本真实化——en-compile 签名不依赖 zh，是天然降级路径。
+- promo 到期后 scale 层 zh 成本真实化——en-compile 标记不依赖 zh，是天然降级路径。
 - e2e_real-2 在飞（pid 3226531）——fetch/hydrate 开跑前确认网关负载不互踩。
 - vault zh 图档未挂 CAS（nlink=4 但对象库无 inode——vault 内部互链，corpus↔vault 不去重），修好前 zh 每层多花 ~4.5MB/篇。

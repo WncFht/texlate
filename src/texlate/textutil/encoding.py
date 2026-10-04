@@ -141,7 +141,7 @@ def _declared_codec(name: str) -> str | None:
 
 #: 评分用字符面区间（按表序先中先得）。latin_ext 自 0xA0 起算——拉丁
 #: 补充区含 ``©±µ½£`` 等合法单字节证据；typographic 引号/破折号家族
-#: 是 Word/Classic-Mac 导出签名（0xD2/0xD3 applemac = ``“”``、
+#: 是 Word/Classic-Mac 导出标记（0xD2/0xD3 applemac = ``“”``、
 #: cp1252 0x93/0x94 = ``“”``），真实文本得分、乱码解码拿不到。
 _CLASS_RANGES: Final = (
     ("latin_ext", ((0xA0, 0x24F), (0x1E00, 0x1EFF))),
@@ -235,10 +235,10 @@ _COMMON_CYRILLIC: Final = frozenset(
 )
 
 
-def _score_text(text: str) -> float:  # noqa: C901, PLR0912 — 逐字计分，分支即签名清单
-    r"""解码结果的自然文本评分：脚本连排加分、控制符/乱码签名扣分。
+def _score_text(text: str) -> float:  # noqa: C901, PLR0912 — 逐字计分，分支即标记清单
+    r"""解码结果的自然文本评分：脚本连排加分、控制符/乱码标记扣分。
 
-    签名：``Ã``/``Â``+高字节 = UTF-8 被单字节解码（mojibake）；U+2500 块
+    标记：``Ã``/``Â``+高字节 = UTF-8 被单字节解码（mojibake）；U+2500 块
     画符 = cp866 误吃拉丁；CJK/西里尔紧邻 ASCII 字母 = 多字节误吃 latin
     对；小写字母紧邻大写重音拉丁符 = mac_roman 误吃 latin-1 重音；非拉丁
     脚本成规模（≥12 字）才是真实使用——稀疏重音是 latin 常态。

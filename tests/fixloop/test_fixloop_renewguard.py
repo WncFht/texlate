@@ -1,6 +1,6 @@
 r"""renewguard (task #234) —— cs_targeted_fix ``guard``/``guard_pre`` 键单测。
 
-``Command \X undefined`` (latex.ltx ``\\renew@command`` 内核签) 与 @-名/
+``Command \X undefined`` (latex.ltx ``\\renew@command`` 内核标记) 与 @-名/
 ``\\csname`` 派发 cs_table 条目的通用臂: 手写 ``\\providecommand\\X``
 字面 polyfill 有两处死形 —— 裸 ``\\providecommand\\foo@bar`` 在 @=other
 读面断名成 ``\\foo``+stray 字母 (静默错义 + ``Missing \\begin{document}``

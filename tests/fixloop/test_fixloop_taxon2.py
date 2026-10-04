@@ -2,15 +2,15 @@ r"""taxon2 双格 —— missing_tfm ``scaled N`` 规格形 + fontspec 折行/TU
 
 Cell A (2512.04896, stagerun-overnite-2026-09-20): vendored harmony.sty:62
 ``\newfont{\NOTEN}{musix13 scaled \value{notescl}}`` →
-``Font \NOTEN=musix13 scaled 1200 not loadable`` —— missing_tfm 旧签只认
-``at Npt`` 规格形, ``scaled N`` 恒归 other|None (同格 :63 musix11 同签)。
-新签 ``(?:at Npt|scaled -?N)`` 双形; filemap musix13.tfm→musixtex-fonts
+``Font \NOTEN=musix13 scaled 1200 not loadable`` —— missing_tfm 旧标记只认
+``at Npt`` 规格形, ``scaled N`` 恒归 other|None (同格 :63 musix11 同标记)。
+新标记 ``(?:at Npt|scaled -?N)`` 双形; filemap musix13.tfm→musixtex-fonts
 已在索引, 无需 override。
 
 Cell B (2609.19944, soak-2026-09-18): ``Package fontspec Error:`` 裸头首错
-——签名在自身 ctx8 内但按 ~79 列折行、续行带 ``(fontspec)`` 前缀
+——标记在自身 ctx8 内但按 ~79 列折行、续行带 ``(fontspec)`` 前缀
 (``cannot be\n(fontspec)                found;``), 旧直词
-``cannot be found`` 跨不过折点恒归 other|None; 新签三关节
+``cannot be found`` 跨不过折点恒归 other|None; 新标记三关节
 (引号→cannot→be→found) 各容忍一个 ``(<pkg>)`` 续行前缀。同格
 ``Font TU/<fam>.otf(<i>)/m/n/<sz>=[<ext>]/OT at Npt not loadable`` NFSS
 伴随错旧经 ``\S*?`` 膨胀+零宽 ``\s*`` 抓末段 ``/OT`` 得 missing_tfm|OT
@@ -178,7 +178,7 @@ def test_missing_file_pdf_tex_tail_arm_payload() -> None:
 
 
 def test_missing_file_cannot_find_pdf_tex() -> None:
-    # ``Cannot find the file`` 臂同洞：旧签捕获截成 ``figure2a.pdf``。
+    # ``Cannot find the file`` 臂同洞：旧标记捕获截成 ``figure2a.pdf``。
     log = "./x.sty:39: Package x Error: Cannot find the file figure2a.pdf_tex.\n"
     assert classify(log) == ("missing_file", "figure2a.pdf_tex")
 

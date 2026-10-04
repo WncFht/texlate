@@ -210,7 +210,7 @@ _DECODE_FAM_TOKENS: tuple[str, ...] = (
 #: 批相关 NBSP 喷雾（同批至多 5 成员同丢），对一切 keep/反馈变体免疫——不修
 #: 审计侧则该成员永远走满阶梯到 partial（keep-roster-and-values-truncation
 #: -2026-09-29 §6）。只赦 in>out（丢）；in<out（凭空铸 token）维持硬败——
-#: ``\!``/``\:`` 类落入文本域是编译炸弹、锻造型丢失是幻觉签名。
+#: ``\!``/``\:`` 类落入文本域是编译炸弹、锻造型丢失是幻觉标记。
 _BENIGN_MISS_TOKENS: frozenset[str] = frozenset({NBSP})
 
 
@@ -223,7 +223,7 @@ def bare_token_audit(shown_src: str, zh_raw: str) -> str:
     的校验失败通道消化（阶梯重试/批退单翻/fault 回退）。
 
     ``_BENIGN_MISS_TOKENS`` 族只赦「丢」（in>out）；「多」（in<out）一切族
-    硬败——锻造签名不可放行。赦免计数走 ``log.info`` 留观测面。
+    硬败——锻造标记不可放行。赦免计数走 ``log.info`` 留观测面。
     """
     bad: list[str] = []
     forgiven: list[str] = []
@@ -245,7 +245,7 @@ def bare_token_audit(shown_src: str, zh_raw: str) -> str:
     return "structural token multiset mismatch: " + ", ".join(bad)
 
 
-#: 模型输出退化坍缩签名：20+ 连排句读标点 → 坍成单 ``.``（BabelDOC
+#: 模型输出退化坍缩标记：20+ 连排句读标点 → 坍成单 ``.``（BabelDOC
 #: ``il_translator_llm_only.py`` :754 同款清理；合法 LaTeX 源不产 20+
 #: 连排点——TOC 点线是编译期生成，源文本无此形态）。
 _PUNCT_RUN_RX = re.compile(r"[.。…，]{20,}")
@@ -432,7 +432,7 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
         audit = bare_token_audit(line, raw_l)
         if audit:
             # 锻造/丢 token 的行应答其 decode 产物不可信——带 audit err 作
-            # feedback 重试一次（``[[SP]]`` 族锻造是瞬时幻觉高发签名，
+            # feedback 重试一次（``[[SP]]`` 族锻造是瞬时幻觉高发标记，
             # seq-49/51 实证 +1 调用比升 slots 便宜且更可能整段救回）
             raw_l = await ctx.call(line, audit)
             audit = bare_token_audit(line, raw_l)

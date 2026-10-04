@@ -1,6 +1,6 @@
-# 失败签名 × strata 挖掘 —— fixloop 规则候选的方法与清单
+# 失败标记 × strata 挖掘 —— fixloop 规则候选的方法与清单
 
-> **结论**：把多臂编译结果（baseline 直编 / zh 注入编译 / fixloop 修复现场 / e2e 真翻译）按失败签名 × 语料分层（era × 学科组）交叉统计，能同时回答三件事——哪些失败集中在哪些 strata（booster 抽样 + 规则优先级用）、rules.yaml 还缺哪些签名覆盖、已有规则的实测 fires 与声明 stats 对不对得上。本批挖掘产出 ~20 条规则候选与 5 处分类学/路由层缺口，全部带 replay 验收标准。
+> **结论**：把多臂编译结果（baseline 直编 / zh 注入编译 / fixloop 修复现场 / e2e 真翻译）按失败标记 × 语料分层（era × 学科组）交叉统计，能同时回答三件事——哪些失败集中在哪些 strata（booster 抽样 + 规则优先级用）、rules.yaml 还缺哪些标记覆盖、已有规则的实测 fires 与声明 stats 对不对得上。本批挖掘产出 ~20 条规则候选与 5 处分类学/路由层缺口，全部带 replay 验收标准。
 > **状态**：时点证据（2026-09-16 数据口径）。清单中的高优先项已陆续落地为 fixloop 规则（missing_graphic、babel_opt、hyperref_driver、float_opt、latex209 tail 锚定、gate error-driven 化等，rules 分片以主仓为准）；方法论本身仍现行——任何新批次 bench 都可复跑同一挖掘流程。
 > **日期**：2026-09-16（2026-09-20 迁入重编）
 
@@ -14,13 +14,13 @@
 | e2e-real-n100 批次      | 100 篇 core 层，真翻译                | per-paper verdict + 40 格 pipe-fix          |
 | corpus_v3 manifest      | 1,272 篇                              | stratum_cell / era / cat_group / cluster_id |
 
-注意两套分类学并存：judge 走引擎层硬编码规则（类别名 `eps_image`），fixloop 走 rules.yaml taxonomy（类别名 `ps_image`，另有 `inputenc_unicode`/`aux_scan_eof`/`warn_*` 等新条目）——同一错误两边归类不一，统计按签名实质合并。cbv4/cbv3zh 跑在 rules.yaml 扩列之前，当时 unfixable 的 `elsart.cls`/`aastex63.cls`/`aipproc.cls`/`iopart*.clo`/`binhex.tex`/`espcrc2.sty`/`apjfonts.sty` 等已入 `legacy_pkg_shim` shim_map（41 键），归入「已覆盖待回放」而非新规则候选。
+注意两套分类学并存：judge 走引擎层硬编码规则（类别名 `eps_image`），fixloop 走 rules.yaml taxonomy（类别名 `ps_image`，另有 `inputenc_unicode`/`aux_scan_eof`/`warn_*` 等新条目）——同一错误两边归类不一，统计按标记实质合并。cbv4/cbv3zh 跑在 rules.yaml 扩列之前，当时 unfixable 的 `elsart.cls`/`aastex63.cls`/`aipproc.cls`/`iopart*.clo`/`binhex.tex`/`espcrc2.sty`/`apjfonts.sty` 等已入 `legacy_pkg_shim` shim_map（41 键），归入「已覆盖待回放」而非新规则候选。
 
-## 1. 签名 × stratum 交叉表
+## 1. 标记 × stratum 交叉表
 
-### 1a. 签名 × era（cbv4+cbv3zh+n100 非 clean 格，按篇次）
+### 1a. 标记 × era（cbv4+cbv3zh+n100 非 clean 格，按篇次）
 
-| 签名                     | 篇次 | a_pre2007 | b_2007_11 | c_2012_16 | d_2017_20 | e_2021_25 |
+| 标记                     | 篇次 | a_pre2007 | b_2007_11 | c_2012_16 | d_2017_20 | e_2021_25 |
 | ------------------------ | ---- | --------- | --------- | --------- | --------- | --------- |
 | missing_file             | 288  | 48        | 66        | 62        | 54        | 58        |
 | eps_image(=ps_image)     | 91   | 25        | 30        | 16        | 14        | 6         |
@@ -33,9 +33,9 @@
 | already_def              | 2    | 2         | 0         | 0         | 0         | 0         |
 | latex209                 | 2    | 0         | 0         | 0         | 0         | 2         |
 
-### 1b. 签名 × cat_group
+### 1b. 标记 × cat_group
 
-| 签名          | 篇次 | 主要集中                                                  |
+| 标记          | 篇次 | 主要集中                                                  |
 | ------------- | ---- | --------------------------------------------------------- |
 | missing_file  | 288  | hep-phys 79 · astro-ph 50 · cond-mat 46 · cs 42 · math 32 |
 | eps_image     | 91   | cond-mat 22 · hep-phys 22 · astro-ph 16                   |
@@ -46,7 +46,7 @@
 
 读法与扩库含义：missing_file 全 era 均匀但 payload 有年代分层——`revtex4.cls` 集中 a/b/c、`revtex4-1.cls` 集中 b/c/d、`IEEEtran.cls`/`elsarticle.cls` 集中 d/e、化石 cls（`revtex.cls`/`aaspp4.sty`/`mn2e.cls`/`elsart.cls` 等）几乎全在 a/b。eps_image 前旧后少（a+b 占 55/91）——2007 前论文普遍带 .eps 图。inject_reject 纯 a_pre2007（24/26）——2.09 `\documentstyle` 稿，inject 层拒注入 ctex，属路由级缺口而非 fixloop 规则能修。undefined_cs/pdftex_prim 偏新（d+e 占 15/24 和 8/10）——新稿撞新包版本漂移 + pdfTeX 原语裸用。booster 抽样对应：a/b×hep-phys/cond-mat/astro-ph 命中化石 cls + eps_image；d/e×cs/math 命中 undefined_cs/pdftex_prim；a×* 命中 2.09 路由缺口。
 
-## 2. 未覆盖签名清单（按出现篇数排序）
+## 2. 未覆盖标记清单（按出现篇数排序）
 
 「未覆盖」= 挖掘时点的 rules.yaml 仍无对应规则/条目；count 为去重篇数。
 
@@ -66,7 +66,7 @@
 
 ### 2.2 `other` 类细分 —— 无规则兜底族（fixloop 终态 unfixable 主源）
 
-| 子签名                         | 篇             | 建议修复面                                                                                                                                                                                             |
+| 子标记                         | 篇             | 建议修复面                                                                                                                                                                                             |
 | ------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | graphic 大小写不符             | 2              | taxonomy 新增 `missing_graphic`（pattern 接 `Unable to load picture or PDF file` 与 `image inclusion failed`，payload=文件名）+ builtins `graphic_case_link`：wdir 大小写不敏感 glob 命中 → 建符号链接 |
 | graphic 存在但加载失败         | 2              | 同上 `missing_graphic` 类 → builtins `graphic_repair`（gs/qpdf 重蒸馏）或 `graphic_stub`（`\fbox` 占位保编译）                                                                                         |
@@ -85,7 +85,7 @@
 
 ### 2.3 undefined_cs / already_def / pdftex_prim 残部
 
-| 签名                    | 篇  | 建议修复面                                                                                                                             |
+| 标记                    | 篇  | 建议修复面                                                                                                                             |
 | ----------------------- | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `Hy@pdfmajorversion`    | 1   | cs_targeted_fix/journal_cs_polyfill 加 cs 条目（hyperref 新版改名）                                                                    |
 | `pst@cntm`              | 1   | install_file 装包级 runfiles（pstricks.con 等伴生件），引擎层修                                                                        |
@@ -99,8 +99,8 @@
 | ---------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | latex209 tail 误报     | 4   | 全是 LaTeX2e 稿，log 里 aastex banner「Original \LaTeX2.09 style」命中 tail 模式——tail pattern `LaTeX ?2\.09` 需锚定（要 `LaTeX2e command .* in LaTeX 2\.09` 错行或源码 `\documentstyle`）；真实阻塞是 apjfonts/AASTeX62（已入 shim） |
 | warn→fixloop 路由断    | 8   | e2e 只把 fail 送 fixloop；missing_char_fix 有规则无入口 → verdict=partial+missing_chars>0 也应进 fixloop 轮                                                                                                                           |
-| gate 误杀已出 pdf 格   | 7   | gate 应 error-driven：先编一轮见 pstricks/latex209 签名才拒，纯 source_contains 前置拒会丢 degraded pdf                                                                                                                               |
-| 管线引入签名           | ~13 | `\item<A-Z>` 粘合、`\@` 裸入正文、数学符丢失等 splice/xlat 侧缺陷——主修在 xlat/splice 校验，fixloop 可选安全网 `item_glue_fix`                                                                                                        |
+| gate 误杀已出 pdf 格   | 7   | gate 应 error-driven：先编一轮见 pstricks/latex209 标记才拒，纯 source_contains 前置拒会丢 degraded pdf                                                                                                                               |
+| 管线引入标记           | ~13 | `\item<A-Z>` 粘合、`\@` 裸入正文、数学符丢失等 splice/xlat 侧缺陷——主修在 xlat/splice 校验，fixloop 可选安全网 `item_glue_fix`                                                                                                        |
 | inject_reject latex209 | 13  | 产品通道缺口（latex+dvips），非规则                                                                                                                                                                                                   |
 | 休眠类别               | 0   | capacity / emergency / env_mismatch 三套语料零命中，保留作兜底                                                                                                                                                                        |
 
@@ -153,5 +153,5 @@ rules.yaml 内 `stats:` 是历次 bench 快照、非累计口径——与 cbv4(3
 2. shim_map 长尾（mn2e/svjour/slashbox/geom/epsf.tex/svglov3.clo/tcilatex）：全部是 replay 可验证的小条目；INDEX_EXTS 加 `.tex` 一并做（tex/ 子树限定）。
 3. `other` 拆家：missing_graphic + babel_opt + hyperref_driver + float_opt + pkg_order + invalid_char 六个新 taxonomy 行吃掉大半 unfixable:other；graphic_case_link 是其中 ROI 最高（大小写不符在跨平台 e-print 里会反复出现）。
 4. gate error-driven 化：防再丢 baseline 已出 pdf 的格。
-5. 管线引入签名上交 xlat：`\item<大写>` 粘合 8 篇是同根缺陷，fixloop 安全网可选。
+5. 管线引入标记上交 xlat：`\item<大写>` 粘合 8 篇是同根缺陷，fixloop 安全网可选。
 6. missing_char_fix 路由：cond-mat/0307508 级（4379 缺字）不进 fixloop 等于规则白写。

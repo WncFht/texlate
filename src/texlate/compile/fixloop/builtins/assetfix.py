@@ -175,7 +175,7 @@ def pfa_to_pfb(
     xdvipdfmx 拒 ASCII Type1 按扩展名非内容嗅探 (1907.03923 pigpen 实证:
     ``\\usepackage{pigpen}`` → ``pigpen.map`` 行 ``pigpen <pigpen.pfa``
     折进 pdftex.map → fatal); fatal 行只落 stdout_tail (.log 干净) 归一
-    成 ``!`` 后按 ``other`` 派发, 字体名不随签名 —— 修面 = 解析到的
+    成 ``!`` 后按 ``other`` 派发, 字体名不随标记 —— 修面 = 解析到的
     ``pdftex.map`` 全量 ``<X.pfa`` 引用。产物全落 usertree
     (``eng.texmfhome``) 不动宿主树:
 

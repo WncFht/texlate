@@ -5,7 +5,7 @@
 ``\\SetKeys``/``__fontspec`` 原语 undefined 连锁爆，fontspec 初始化全灭
 → CJK 字体永不配 → zh.pdf 文本层 U+FFFF 死层 (exit 0 + status=ok 假绿)。
 ``vendored_shadow_isolate`` 的 ld<sd 只收旧向遮蔽，新向 skew 是盲区;
-fontspec 是内核耦合件，双向跨版本 vendor 均无安全面 → 签名复核 +
+fontspec 是内核耦合件，双向跨版本 vendor 均无安全面 → 标记复核 +
 系统/bundle 递补自证后整族 ``.fixloop-iso`` 退役。
 """
 
@@ -58,7 +58,7 @@ def _seed(tmp_path: Path) -> None:
 
 
 def test_retire_suite_on_skew_signature(tmp_path: Path) -> None:
-    """签名在 err_head + 套件在盘 + 系统有递补 → 整族 .fixloop-iso。"""
+    """标记在 err_head + 套件在盘 + 系统有递补 → 整族 .fixloop-iso。"""
     _seed(tmp_path)
     eng = _FakeEng(
         probe="/usr/share/texmf-dist/tex/latex/fontspec/fontspec.sty",
@@ -75,7 +75,7 @@ def test_retire_suite_on_skew_signature(tmp_path: Path) -> None:
 
 
 def test_signature_in_log_fallback(tmp_path: Path) -> None:
-    """err_head 空 → ``_fixloop_log`` 全文兜底同收签名。"""
+    """err_head 空 → ``_fixloop_log`` 全文兜底同收标记。"""
     _seed(tmp_path)
     (tmp_path / "main.log").write_text("preamble\n" * 50 + _SKEW, encoding="utf-8")
     eng = _FakeEng(probe="/x/fontspec.sty", filemap=[])
@@ -111,7 +111,7 @@ def test_no_signature_safe(tmp_path: Path) -> None:
 
 
 def test_no_replacement_safe(tmp_path: Path) -> None:
-    """签名在但系统/bundle 双无递补 → 不退 (退即造 missing_file)。"""
+    """标记在但系统/bundle 双无递补 → 不退 (退即造 missing_file)。"""
     _seed(tmp_path)
     eng = _FakeEng(probe=None, filemap=[])
     ok, note = fontspec_kernel_shadow_retire(
@@ -123,7 +123,7 @@ def test_no_replacement_safe(tmp_path: Path) -> None:
 
 
 def test_signature_no_suite_safe(tmp_path: Path) -> None:
-    """签名在但 wdir 无 fontspec 件 (系统 fontspec 自身炸) → False。"""
+    """标记在但 wdir 无 fontspec 件 (系统 fontspec 自身炸) → False。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
     eng = _FakeEng(probe="/x/fontspec.sty", filemap=[])
     ok, note = fontspec_kernel_shadow_retire(

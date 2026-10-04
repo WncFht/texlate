@@ -63,9 +63,9 @@ core/expand 走 IA tar + TIGER-5T，**不触 arxiv.org**（build_corpus_v3.py:61
 
 终末指标（union pdf/clean）两臂已对齐（98.5% vs 98.5%，realn200 report.md:21）。**体积类指标存在口径断点**：`translate_tree` 在 a08dda3 之前无文件闸，real 臂把 REVTeX dump/support 件也送译，chunk 体积类指标虚高、修复前后 run 不可直接比（report.md:55-59, scout-notes.md:37-44）。做跨波对比时须按 commit 切口径段。
 
-### 3.2 verdict 组成签名（首错类别遮 bulk）
+### 3.2 verdict 组成标记（首错类别遮 bulk）
 
-verdict.category 取首错类别独占归因：quant-ph/9703040 的 110 错里 108 是 `missing_number`（`\bffam` 旧字体宏族），illegal_unit 只是 first_error（illegal-unit-scout-2026-09-17/report.md:129）。同报告另实证 90 个 illegal_unit id 全是上游 mask、真族 ≈1%（report.md:3）——首错签名会把上游伤错误归到编译族。改进面现成：judge 已产 `error_cats`/`n_errors` 组成，records 的 errors[] 薄（仅 {code,cat,payload}）、first_error 原文埋 metrics 深处不被 triage 消费（still-manual-audit-2026-09-17.md:11-12）；最大缺口是把 fixloop 内部 first_error→taxonomy 分类器物化进 records，M2/M6 待人工面可塌掉大半（syntax 166+errors>3 140+other 131 可细分归路，still-manual-audit:21,56-58）。
+verdict.category 取首错类别独占归因：quant-ph/9703040 的 110 错里 108 是 `missing_number`（`\bffam` 旧字体宏族），illegal_unit 只是 first_error（illegal-unit-scout-2026-09-17/report.md:129）。同报告另实证 90 个 illegal_unit id 全是上游 mask、真族 ≈1%（report.md:3）——首错标记会把上游伤错误归到编译族。改进面现成：judge 已产 `error_cats`/`n_errors` 组成，records 的 errors[] 薄（仅 {code,cat,payload}）、first_error 原文埋 metrics 深处不被 triage 消费（still-manual-audit-2026-09-17.md:11-12）；最大缺口是把 fixloop 内部 first_error→taxonomy 分类器物化进 records，M2/M6 待人工面可塌掉大半（syntax 166+errors>3 140+other 131 可细分归路，still-manual-audit:21,56-58）。
 
 ### 3.3 翻译质量面代理指标（verdict 目前只有编译健康面）
 
@@ -88,8 +88,8 @@ verdict-proxy-spec-2026-09-17.md 已定三候选口径与接线点，全部可�
 
 | #   | 项                                                                                                                                                                                   | 工作量                          | 预期信息增益                                                                                                                    |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **error_cats 组成签名 + first_error→taxonomy 物化进 records**：复用 fixloop 分类器，records errors[] 增厚+dossier evidence 上提（still-manual-audit M1/M2）                          | ~0.5-1d（分类器已存在，差导出） | 待人工归因面塌大半（syntax 166+errors>3 140+other 131）；消除首错遮 bulk 的归因错配（9703040 实证）                             |
-| 2   | **质量面代理指标全量后算校准**（leak/term/landmark_density 三件套，纯读 state.json+ 现有 pdf，零改码）                                                                               | <1d 脚本 + ~1.5h 算             | 打开 M3 静默伤探测面（309 格 clean+warning 无签名可挂）；为「干净翻译」提供编译之外的第二轴证据；顺手补 term_dict.json 一行接线 |
+| 1   | **error_cats 组成标记 + first_error→taxonomy 物化进 records**：复用 fixloop 分类器，records errors[] 增厚+dossier evidence 上提（still-manual-audit M1/M2）                          | ~0.5-1d（分类器已存在，差导出） | 待人工归因面塌大半（syntax 166+errors>3 140+other 131）；消除首错遮 bulk 的归因错配（9703040 实证）                             |
+| 2   | **质量面代理指标全量后算校准**（leak/term/landmark_density 三件套，纯读 state.json+ 现有 pdf，零改码）                                                                               | <1d 脚本 + ~1.5h 算             | 打开 M3 静默伤探测面（309 格 clean+warning 无标记可挂）；为「干净翻译」提供编译之外的第二轴证据；顺手补 term_dict.json 一行接线 |
 | 3   | **base 臂补跑（compile --arm base 全量）**                                                                                                                                           | ~1.5h/5k 算 + 半条 runbook 命令 | build-base 覆盖 0→全：解锁 alignment_pairs；给出源健康基线，区分「源烂」与「管线引入」两类 fail                                 |
 | 4   | **机制标签全层回填**：features.jsonl staging 沉淀 + evidence 规则改写为可执行检测器 → core/hot/expand 逐文件 mech_tags                                                               | ~1-2d（检测器重写为主）         | 机制子集选样从 booster-200 闭环扩到全 5133；「改规则→跑覆盖机制格」在 expand 高密度区生效；partial 119 条机制的覆盖缺口变可测   |
 | 5   | **real 臂滚动探针 + promo 死线前排产**：固定每波分层抽 n≈200-300（hot/expand 加权——realn200 里 hot 仅 2 格），10-16 前优先把 real 覆盖缺口层跑完；post-promo 切备用内部网关 或注册源 | ~0.5d 设计 + 窗口期排产         | 保住唯一的真模型回归面；在免费额度内把「近期高引」这个最贴产品的层拿到 real 证据                                                |

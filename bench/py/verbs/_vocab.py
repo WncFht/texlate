@@ -58,7 +58,7 @@ COMPILED_STATUS = {"fail", "partial", "clean"}
 
 
 def errors_sig(errors: list) -> str:
-    """errors[0] → ``cat:pay`` 签名（triage 契约：ok 级无 sig）。"""
+    """errors[0] → ``cat:pay`` 标记（triage 契约：ok 级无 sig）。"""
     if not isinstance(errors, (list, tuple)) or not errors:
         return ""
     e0 = errors[0]

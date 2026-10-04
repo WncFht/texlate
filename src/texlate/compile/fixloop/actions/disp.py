@@ -217,7 +217,7 @@ def _landing_sync(
         vendor/run_tool 裸写): 全 invalidate (覆盖写与 miss→None 毒化
         条目同 logcache 病族，下轮 ``ctx.read``/site-map 读新文), 并把
         ``pre_applied`` 基线前烧录的 ``{rule}:{pay}`` dedup 键整体过
-        期——落件把新站点引进 fileset 后，同签轮应允许同规则重派
+        期——落件把新站点引进 fileset 后，同标记轮应允许同规则重派
         (defcensus E-route 病族：mid-loop install 后 already_def 臂
         按旧烧键跳过，残签滞留)。基线后新烧键 (``applied - pre_applied``)
         保留——刚派发的规则不因自身落件立刻重派。

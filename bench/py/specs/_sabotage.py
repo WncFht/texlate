@@ -28,20 +28,20 @@ MODE_B_RATE = 30  # 每段 ~30% 注一次幻觉破坏
 MODE_C_RATE = 10  # 每占位符 ~10% 挪位
 _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 
-#: Mode-B 内容通道签名（repro-2410b）：交付 zh 命中任一 → dirty。
+#: Mode-B 内容通道标记（repro-2410b）：交付 zh 命中任一 → dirty。
 #: rules 反馈行字面 = ``Issue.message`` 原文（``RulesReport.feedback`` 直拼进
 #: corrector ``[Error]`` 段 / 阶梯 ``[previous_validation_error]`` 尾拼，mock
 #: 臂 CJK 非散文 run 原样残留进交付）；节标/字段名 = 重试协议字面（mock 会
 #: 翻成 ``[这是译文]`` 不命中，真模型 parrot prompt furniture 同款通道兜底）。
-#: ``[这是译文]`` 独行**不**作签名——源 ``[word]`` 合法产出同款。
+#: ``[这是译文]`` 独行**不**作标记——源 ``[word]`` 合法产出同款。
 #: 词表即 ``rules._ECHO_SIGS`` 本体（同源 import 同一对象，非复抄——复抄面曾
-#: 静默漂移成全角冒号脱离 emit 串）；src 自带签名的 delivered 块 echo 与
+#: 静默漂移成全角冒号脱离 emit 串）；src 自带标记的 delivered 块 echo 与
 #: 忠实译文裸包含不可区分 → armed（结构性盲区，记账只观测不进门槛）。
 DIRTY_SIGS: tuple[str, ...] = _ECHO_SIGS
 
 
 def _dirty_hits(text: str) -> list[str]:
-    """文本命中的协议签名列表（序同 ``DIRTY_SIGS``；空 = 无签名；src/zh 通用）。"""
+    """文本命中的协议标记列表（序同 ``DIRTY_SIGS``；空 = 无标记；src/zh 通用）。"""
     return [s for s in DIRTY_SIGS if s in text]
 
 

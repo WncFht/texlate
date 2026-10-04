@@ -79,7 +79,7 @@ _CAT_MEMO: dict = {"sig": None, "cat": None}
 
 
 def _catalog() -> lake.LakeCatalog:
-    """mtime+size 签名缓存的 catalog 投影——在飞 hydrate 写行即失效重载。"""
+    """mtime+size 指纹缓存的 catalog 投影——在飞 hydrate 写行即失效重载。"""
     p = paths.lake_catalog_path()
     try:
         st = p.stat()

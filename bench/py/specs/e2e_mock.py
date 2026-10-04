@@ -299,8 +299,8 @@ def _pipe_mode(
         # 交付谓词与 splice 同口径：delivered 放行 partial。
         is_delivered = delivered(r) and r.chunk_id not in reverted
         if mode == "B":
-            # 内容通道度量按全 delivered 块记账：armed = src 自带签名；
-            # dirty = zh 命中中 src 解释不了的签名（判定性 echo）。
+            # 内容通道度量按全 delivered 块记账：armed = src 自带标记；
+            # dirty = zh 命中中 src 解释不了的标记（判定性 echo）。
             zh_hits = _dirty_hits(r.translation) if is_delivered else []
             src_legit = _dirty_hits(r.source) if is_delivered else []
             ambig = [s for s in zh_hits if s in src_legit]

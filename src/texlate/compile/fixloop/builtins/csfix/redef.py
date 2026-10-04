@@ -61,7 +61,7 @@ def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门，分派�
     撞名集 = payload ∪ 本轮 log ``Command \X already defined`` 全扫
     (``_ALREADY_DEF_CS_RE`` 三引号形; 含 ``@`` 的包内名滤除 —— 寄存器
     内码险区, ``\c@X`` 类分配名由 ``_allocated_cs_names`` 护栏再兜)。
-    payload 非 cs 形或不在 log 撞名集 (Theorem-style 等非 Command 签名
+    payload 非 cs 形或不在 log 撞名集 (Theorem-style 等非 Command 标记
     的 already_def payload) → 丢弃只信 log。
 
     四修形并施:

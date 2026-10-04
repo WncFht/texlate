@@ -13,7 +13,7 @@ FIX B (1107.0009): ``mn2e_usegraphicx_defer`` —— 稿自带 mn2e.cls v2.2
 (:52) 把 ``\\usepackage`` 写进 ``\\ds@`` 选项声明体 → ``\\ProcessOptions``
 执行 → ``\\RequirePackage or \\LoadClass in Options Section`` 硬错 (嵌套
 fontenc 载入归名 fontenc.sty:115, cat=options_section)。
-``mnras_texmf_shadow_drop`` (11.91) ctx 同签但文件闸只认 mnras.cls →
+``mnras_texmf_shadow_drop`` (11.91) ctx 同标记但文件闸只认 mnras.cls →
 本格 fired-unfixed。vendor/ 无 mn2e 补丁件可投 → 走原位补丁 (mnras #51
 姊妹病同族，engine_guard_strip/abstract_edef 同形): regex_rewrite 把
 ``@usegraphicxtrue`` 后紧邻的内联 ``\\usepackage[...]{graphicx}`` 裹进
@@ -66,7 +66,7 @@ _BANG_ERR = "! LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\
 _ERR_MN2E_ATTR = (
     "./mn2e.cls:52: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
 )
-# 签名散格变体：同文件 Missing number (syntax) —— 错面同闸收
+# 标记散格变体：同文件 Missing number (syntax) —— 错面同闸收
 _ERR_MISSINGNUM = "./mn2e.cls:114: Missing number, treated as zero.\n"
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
@@ -190,7 +190,7 @@ def test_bbl_stub_rewrite_emits_string_guard(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_fontenc_attr_is_options_section() -> None:
-    """实证签名：fontenc.sty:115 归名 Options Section → options_section。"""
+    """实证标记：fontenc.sty:115 归名 Options Section → options_section。"""
     cat, _ = _classify(_ERR_FONTENC + _ERR_FONTENC_CTX)
     assert cat == "options_section"
 
@@ -202,7 +202,7 @@ def test_taxonomy_mn2e_attr_is_options_section() -> None:
 
 
 def test_taxonomy_missing_number_is_syntax() -> None:
-    """同文件 Missing number 变体 → syntax (签名散格同闸收)。"""
+    """同文件 Missing number 变体 → syntax (标记散格同闸收)。"""
     cat, _ = _classify(_ERR_MISSINGNUM)
     assert cat == "syntax"
 
@@ -245,7 +245,7 @@ def test_rule_order_neighbors() -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_pass_shipped_buggy_fontenc_err(tmp_path: Path) -> None:
-    """实证形：稿自带病件在场 + fontenc 归名 Options Section 签名 → 闸过。"""
+    """实证形：稿自带病件在场 + fontenc 归名 Options Section 标记 → 闸过。"""
     _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -261,7 +261,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
 
 
 def test_cond_pass_mn2e_attr_form(tmp_path: Path) -> None:
-    """mn2e.cls 点名归名变体 → ctx_suggests 第二备选收 (双签名通道)。"""
+    """mn2e.cls 点名归名变体 → ctx_suggests 第二备选收 (双标记通道)。"""
     _plant_mn2e(tmp_path)
     ctx = _ctx(tmp_path, err_head=_ERR_MN2E_ATTR + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -406,7 +406,7 @@ def test_e2e_patch_flips_cell_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非本签名：别包错 → 本规则不动件 (mn2e.cls 原样)。"""
+    """非本标记：别包错 → 本规则不动件 (mn2e.cls 原样)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -424,7 +424,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 
 def test_e2e_shim_mn2e_untouched(tmp_path: Path) -> None:
-    """shim 形 mn2e.cls + Options Section 签名：指纹阴性 → 零改写，格照走。"""
+    """shim 形 mn2e.cls + Options Section 标记：指纹阴性 → 零改写，格照走。"""
     eng = MockEngine(
         [
             {"log": _ERR_FONTENC + _ERR_FONTENC_CTX + "\n"},

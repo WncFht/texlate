@@ -1,4 +1,4 @@
-"""升格拦截网注册表（自 ``pipeline`` 出叶）：zh 毒译签名 → fault + 回退原文。
+"""升格拦截网注册表（自 ``pipeline`` 出叶）：zh 毒译标记 → fault + 回退原文。
 
 ``_INTERCEPT_NETS`` 是唯一枚举面——``_interceptable`` bool 形（段级缓存
 写入/命中否决）、``pipeline._ledger_intercepts`` 账本形、
@@ -79,7 +79,7 @@ class _InterceptNet[H]:
       缓存否决 bool 形直迭代本字段；
     - ``fmt``：`` 命中载荷 → (warn, reason)``——``_intercept_apply`` 两件簿记；
     - ``mirror_rule``：镜像的 rules 规则 id——缓存命中/续跑装载旁路 ``validate_pair``
-      时本网是该签名的唯一闸；成员集钉 ``rules.CACHE_VETO_RULES``。
+      时本网是该标记的唯一闸；成员集钉 ``rules.CACHE_VETO_RULES``。
     """
 
     name: str

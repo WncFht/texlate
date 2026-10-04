@@ -1,6 +1,6 @@
 r"""LaTeX 2.09 ``\documentstyle`` → LaTeX2e ``\documentclass`` 受限升级器。
 
-compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同签名全灭）——
+compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同标记全灭）——
 2.09 文档唯一的 CJK 注入通路是先升级成
 2e 形态。本模块只做有界转换：
 

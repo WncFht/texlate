@@ -18,7 +18,7 @@ from texlate.compile.latex209 import upgrade_209
 
 
 def test_cite_wrap_basic() -> None:
-    r"""9901082 实证签名：``$`` 内裸 ``\cite{..}`` → ``\mbox{\cite{..}}``。"""
+    r"""9901082 实证标记：``$`` 内裸 ``\cite{..}`` → ``\mbox{\cite{..}}``。"""
     out, info = convert("$\\phi^i_{\\pm}=0 \\cite{HawMos}.$")
     assert info["math_cite_wrapped"] == 1
     assert "\\mbox{\\cite{HawMos}}" in out

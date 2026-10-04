@@ -26,12 +26,12 @@ from texlate.compile.fixloop.engine import LoopCtx, Rule
 _RULE_ID = "unclosed_if_close"
 _RULE_ID_EOF = "unclosed_if_close_eof"
 
-# 实证签名：1706.00240 同款 `!` 形 (taxonomy 落 other, pay=None)。
+# 实证标记：1706.00240 同款 `!` 形 (taxonomy 落 other, pay=None)。
 _ERR_IFFALSE = (
     "! Incomplete \\iffalse; all text was ignored after line 5.\n"
     "<inserted text>\n                \\fi\n<*> main.tex"
 )
-# loop1 格同款：无 `!` 行，tail 签名 → early_eof pay=\ifx。
+# loop1 格同款：无 `!` 行，tail 标记 → early_eof pay=\ifx。
 _ERR_IFX_EOF = (
     "This is XeTeX\n(\\end occurred when \\ifx on line 9 was incomplete)\n"
     "No pages of output.\n"
@@ -110,14 +110,14 @@ def test_rule_order_after_pdfstring_before_sentinel() -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_other_arm_pass_on_incomplete_ctx(tmp_path: Path) -> None:
-    """ctx 带 Incomplete \\if 签名 → other 臂条件过。"""
+    """ctx 带 Incomplete \\if 标记 → other 臂条件过。"""
     ctx = mk_ctx(tmp_path, main_rel=None, err_head=_ERR_IFFALSE)
     ok, why = _cond(_RULE_ID, ctx)
     assert ok, why
 
 
 def test_cond_other_arm_reject_unsigned_ctx(tmp_path: Path) -> None:
-    """other 错误无 Incomplete 签名 → 闸拒 (防任意 other 烧 dedup 槽)。"""
+    """other 错误无 Incomplete 标记 → 闸拒 (防任意 other 烧 dedup 槽)。"""
     ctx = mk_ctx(
         tmp_path,
         main_rel=None,
@@ -388,7 +388,7 @@ def test_e2e_eof_arm_injected_then_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_balanced_doc_no_fire(tmp_path: Path) -> None:
-    """Incomplete 签名但源件平衡 → 规则 fire 但 noop (不注入)。"""
+    """Incomplete 标记但源件平衡 → 规则 fire 但 noop (不注入)。"""
     main_body = "hello\n\\ifnum 1=1\nyes\n\\fi\n"
     _proj(tmp_path, main_body)
     eng = MockEngine(

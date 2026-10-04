@@ -73,15 +73,15 @@ def _apply(wdir: Path) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_compat_signature_classifies_other() -> None:
-    r"""``.aux:NN:`` file-line 签名 taxrow 归 ``bib_compat``。"""
+    r"""``.aux:NN:`` file-line 标记 taxrow 归 ``bib_compat``。"""
     rep = parse_text(_COMPAT_LOG)
     cat, _pay = _rs().taxonomy.classify(rep)
     assert cat == "bib_compat"
 
 
 def test_rule_shape() -> None:
-    r"""loop 相 order 195 (begindoc_tail_recomment 194 同签族殿后) + other 猫 +
-    ctx_suggests 签名 + fileset .aux 预筛 + exts [.aux] 直改。"""
+    r"""loop 相 order 195 (begindoc_tail_recomment 194 同标记族殿后) + other 猫 +
+    ctx_suggests 标记 + fileset .aux 预筛 + exts [.aux] 直改。"""
     r = _rule()
     assert r.raw["phase"] == "loop"
     assert r.raw["order"] == 195  # noqa: PLR2004
@@ -162,7 +162,7 @@ def test_apply_fires_each_aux(tmp_path: Path) -> None:
 
 
 def test_apply_declines_without_marker(tmp_path: Path) -> None:
-    """aux 在场但无标记 → 0 命中不点火 (留给同签后续规则)。"""
+    """aux 在场但无标记 → 0 命中不点火 (留给同标记后续规则)。"""
     (tmp_path / "main.aux").write_text(
         "\\relax\n\\newlabel{a}{{1}{1}{ok}}\n", encoding="utf-8"
     )
@@ -179,7 +179,7 @@ def test_apply_declines_without_aux(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_requires_signature(tmp_path: Path) -> None:
-    """err_head 无 compat 签名 → cond 拒。"""
+    """err_head 无 compat 标记 → cond 拒。"""
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
         _rule().condition, _rule(), _ctx(tmp_path), EngStub(), None
@@ -189,7 +189,7 @@ def test_cond_requires_signature(tmp_path: Path) -> None:
 
 
 def test_cond_requires_aux_fileset(tmp_path: Path) -> None:
-    """签名在场但无 .aux → cond 拒。"""
+    """标记在场但无 .aux → cond 拒。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     ok, why = actions._cond_ok(  # noqa: SLF001
         _rule().condition,
@@ -203,7 +203,7 @@ def test_cond_requires_aux_fileset(tmp_path: Path) -> None:
 
 
 def test_cond_passes_on_signature_plus_aux(tmp_path: Path) -> None:
-    """签名 + .aux 双备 → cond 放行。"""
+    """标记 + .aux 双备 → cond 放行。"""
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     ok, _why = actions._cond_ok(  # noqa: SLF001
         _rule().condition,
@@ -217,7 +217,7 @@ def test_cond_passes_on_signature_plus_aux(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 端到端
 def test_fixloop_e2e_stale_aux_purged(tmp_path: Path) -> None:
-    """同签接力：numbers_pass(r1) 注入防再写 → 本规则 (r2) 剥陈旧标记 → r3 净。"""
+    """同标记接力：numbers_pass(r1) 注入防再写 → 本规则 (r2) 剥陈旧标记 → r3 净。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     eng = ScriptEng(
@@ -239,7 +239,7 @@ def test_fixloop_e2e_stale_aux_purged(tmp_path: Path) -> None:
 
 
 def test_fixloop_e2e_no_marker_falls_through(tmp_path: Path) -> None:
-    """签名命中但 aux 无标记 → 本规则不点火，不误伤健康 aux。"""
+    """标记命中但 aux 无标记 → 本规则不点火，不误伤健康 aux。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_text(
         "\\relax\n\\newlabel{a}{{1}{1}{ok}}\n", encoding="utf-8"

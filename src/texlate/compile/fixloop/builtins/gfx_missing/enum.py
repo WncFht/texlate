@@ -48,12 +48,12 @@ __all__ = [
 ]
 
 
-#: 编译 log 全量枚举缺图签名的两形 —— nonstop 编译单趟即列全部缺件
+#: 编译 log 全量枚举缺图标记的两形 —— nonstop 编译单趟即列全部缺件
 #: (``File `X' not found`` 兼中 pdftex.def ": using draft setting" 前缀与
 #: LaTeX Warning/Error 两阶; ``Unable to load picture or PDF file 'X'`` 是
 #: xetex 图形域专属)。多缺件格逐轮单补烧穿轮次上限 (v3all
 #: 2501.01329/2501.01425 实证：8 轮逐件补，末件占位写于末次编译后 →
-#: 差一轮翻 clean) —— 一次点火同签全补。
+#: 差一轮翻 clean) —— 一次点火同标记全补。
 _LOG_MISS_GFX_RE = re.compile(
     r"Unable to load picture or PDF file '([^']+)'|File `([^']+)' not found"
 )

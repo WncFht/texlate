@@ -281,7 +281,7 @@ def _raster_scan(
         ink_drops = []
         # 中位数只过非空页——空页已由 vis_blank_page 认领，计入会把
         # 中位数压到 ~0 使离群闸在「半空白文档」里永不触发；全空文档
-        # zh_med=0 天然不报警（空页签名已逐页认领）。
+        # zh_med=0 天然不报警（空页标记已逐页认领）。
         nz = [p["ink"] for p in zh_pages if p["ink"] >= BLANK_INK_MAX]
         zh_med = statistics.median(nz) if nz else 0.0
         for i, pg in enumerate(zh_pages[:-1]):

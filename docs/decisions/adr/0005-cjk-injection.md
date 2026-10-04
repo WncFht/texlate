@@ -10,10 +10,10 @@
 ## 裁决
 
 - **默认 ctex `[fontset=fandol,UTF8]` 注入**——hjfy 同款、双引擎实测可编译、白拿节名汉化；服务端可切 fontset。注入缝两个：`\documentclass{}` 后（字体系块）+ `\begin{document}` 前（兼容块），两条注入路径共用。
-- **xeCJK+fontspec 为降级路径**：ctex 与类冲突签名命中时由 fixloop 或探测编译切换到同缝 xeCJK 注入。
+- **xeCJK+fontspec 为降级路径**：ctex 与类冲突标记命中时由 fixloop 或探测编译切换到同缝 xeCJK 注入。
 - **新增归一化层 `compile/normalize.py`**（texglot「源码归一化」先例落地）：visible_tex 遮蔽视图定位（verbatim/comment/`\verb` 变等长空格、`\n` 保留行号不变）+ 编辑列表逆序 span 替换。**无条件手术** = 剥 inputenc/fontenc、pdftex→xetex 驱动选项改写、`px`→`\pdfpxdimen`、`\pdfinfo/\pdfoutput` 删除、legacy CJK→xeCJK、OT1/T1 族→fontspec+TeXGyre；**条件手术留 fixloop**（microtype/times→newtx 等）——两边不得重复改同一处。
 - `\documentstyle` → 注入层兜底拒（`inject_reject:latex209`），路由语义见 ADR-0006。
-- 条件注入件：FLOAT_SIZING 仅在有 figure/table 时注入、TABLE_FITTING hook threeparttable、PIXEL/XETEX 兼容块按签名。
+- 条件注入件：FLOAT_SIZING 仅在有 figure/table 时注入、TABLE_FITTING hook threeparttable、PIXEL/XETEX 兼容块按标记。
 
 ## 理由
 

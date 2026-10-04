@@ -6,7 +6,7 @@ natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒裸�
 thebibliography 前, ``\bibcite`` 不落 .aux; gr-qc/9901082 实证)。
 修复 = ``latex209.wrap_math_cites`` 把
 数学域内裸 cite 族调用裹进 ``\mbox{}`` (kernel 原语, 无 amsmath 依赖)。
-同签名可由字面 ``{\bfseries X}`` 数学域误用触发——无 cite token 命中时
+同标记可由字面 ``{\bfseries X}`` 数学域误用触发——无 cite token 命中时
 transform 返回 applied=False 自然 decline。
 """
 
@@ -70,7 +70,7 @@ def test_citemath_taxonomy_other_unrelated_unchanged() -> None:
 
 def test_citemath_taxonomy_warning_line_no_hijack() -> None:
     r"""ctx8 窗内 ``LaTeX (Font )?Warning: Command \X invalid in math mode``
-    软警告不抢签——``LaTeX Error:`` 前缀锚 (loop1 多格带 \r/\small 警告)。"""
+    软警告不抢标记——``LaTeX Error:`` 前缀锚 (loop1 多格带 \r/\small 警告)。"""
     tax = rs().taxonomy
     for warn in (
         "LaTeX Warning: Command \\r invalid in math mode on input line 272.",
@@ -108,7 +108,7 @@ def test_citemath_when_gate_declines_other_categories(tmp_path: Path) -> None:
 
 
 def test_citemath_wrap_dollar_cite(tmp_path: Path) -> None:
-    r"""gr-qc/9901082 实证签名: ``$`` 内裸 ``\cite`` → ``\mbox{\cite}``。"""
+    r"""gr-qc/9901082 实证标记: ``$`` 内裸 ``\cite`` → ``\mbox{\cite}``。"""
     out = _roundtrip(tmp_path, "$\\phi^i_{\\pm}=0 \\cite{HawMos}.$")
     assert "\\mbox{\\cite{HawMos}}" in out
 
@@ -162,7 +162,7 @@ def test_citemath_idempotent(tmp_path: Path) -> None:
 
 
 def test_citemath_declines_literal_bfseries(tmp_path: Path) -> None:
-    r"""同签名可由字面 ``{\bfseries X}`` 触发——无 cite token → applied=False。"""
+    r"""同标记可由字面 ``{\bfseries X}`` 触发——无 cite token → applied=False。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
         "${\\bfseries X} + 1$\n\\end{document}\n",

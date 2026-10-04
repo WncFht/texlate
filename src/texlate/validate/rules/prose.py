@@ -4,7 +4,7 @@
 回显（规范化等值 + 拉丁主导，BIB 直通/短残段/纯非语言成分/人名专名列
 豁免）、``_check_length`` token 代理长度比带 + CJK 占比疑似未翻译
 warn、``_check_residual_en`` 段内残英 run（行级修复原文回退/半译
-签名，判定口径 ``textutil.residual_en_net`` 与 pipeline 逐字节一致）。
+标记，判定口径 ``textutil.residual_en_net`` 与 pipeline 逐字节一致）。
 ``_cjk_latin_counts`` 双侧计数口径与长度带/豁免常量同域共置。
 """
 
@@ -65,7 +65,7 @@ def _check_same_source(ctx: _Ctx) -> None:
     同口径）、整段纯非语言成分（URL/DOI/邮箱/``\url`` 包裹类——恒等即
     正确译文，裸链 est 可越 10 线）、人名/专名列 src（verbatim 回显即
     正确态——``name_list_prose`` 判据，与 ``residual_en`` run 级豁免
-    同签名；web t_4000988e seq-234 est=629 贡献者名单实证）。仅规范化
+    同标记；web t_4000988e seq-234 est=629 贡献者名单实证）。仅规范化
     等值比较不取近似度——qualbase 实测 >0.85 相似档唯一命中是合法邮箱块；
     拉丁主导门槛豁免 ``zh==en`` 含 CJK 的合法恒等译文（share.py 收录
     口径同款情形）。

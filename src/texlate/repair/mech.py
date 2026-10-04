@@ -288,7 +288,7 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
 
     触发条件（两臂同一契约）：有 dropped flag ∨ fixloop 显式路由
     xelatex（``reject_route`` 令牌，biber/biblatex 版本错配、pstricks
-    等 tectonic 死路签名）∧ 当前引擎是 tectonic ∧ ``xelatex`` 在
+    等 tectonic 死路标记）∧ 当前引擎是 tectonic ∧ ``xelatex`` 在
     route 候选 ∧ 当前判定低于 clean。dropped 多为 shell-escape
     需求——tectonic 沙箱不收 → 换 xelatex 带全量请求 flag 经
     ``compile(flags=…)`` seam 重编，复判严格更优才 ``adopted``。
@@ -365,7 +365,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
 
     dropped 多为 shell-escape 需求、``reject_route`` 是 fixloop 的显式
     路由令牌（REJECT note 的 ``route=`` 提出，biber/biblatex 错配等
-    tectonic 死路签名）——两臂合一：tectonic 收不起的诉求由 xelatex
+    tectonic 死路标记）——两臂合一：tectonic 收不起的诉求由 xelatex
     带 ``probe_flags``+``flags`` 合并去重后的全量请求经 ``compile(flags=…)``
     seam 重编取优（机械在 ``cross_engine_retry``）。``status_of`` 惰性取
     incumbent 判据——仅换编路径需要，flags-only 不白费一轮 judge。

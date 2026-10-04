@@ -164,7 +164,7 @@ def test_ucs_other_pkg_same_name_kept(tmp_path: Path) -> None:
 
 
 def test_ucs_cond_declines_wrong_err(tmp_path: Path) -> None:
-    """err 面非 mathletters/ucs 签名 → ctx_suggests 拒。"""
+    """err 面非 mathletters/ucs 标记 → ctx_suggests 拒。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters]{ucs}\n", encoding="utf-8"
     )
@@ -278,7 +278,7 @@ def test_bxc_neighbors_untouched(tmp_path: Path) -> None:
 
 
 def test_bxc_cond_declines_wrong_err(tmp_path: Path) -> None:
-    """err 面无 bxcjkjatype 签名 → ctx_suggests 拒。"""
+    """err 面无 bxcjkjatype 标记 → ctx_suggests 拒。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )

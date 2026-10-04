@@ -341,7 +341,7 @@ def tabular_fit(
     r"""warn_overfull 表族臂: 盒宽钳到 ``\linewidth`` 三面合修 (v2)。
 
     实证面 (qc wide_tabular 桶, 24 格): ``tabular{...}`` 超宽盒在浮体里
-    出血无警告签名差异 (``in paragraph``/``in alignment`` 同收)。
+    出血无警告标记差异 (``in paragraph``/``in alignment`` 同收)。
 
     - **盒表源包臂** (v2): 最外层盒表 env 跨度文本级 ``adjustbox{max
       width=\linewidth,max totalheight=\textheight}`` 包——``env/E/before+
@@ -407,7 +407,7 @@ def legacy_clamp_purge(
 
     inject ``TABLE_FITTING`` (compile/layout.py, 0930 拔除注入) 与
     fixloop v1 ``TeXlateTabClamp`` 注块并存/在席稿面走 ``ended by``
-    失衡毁编; 源级跨度包不消费该签 (warn_overfull 驱动), 本臂专职
+    失衡毁编; 源级跨度包不消费该标记 (warn_overfull 驱动), 本臂专职
     中和 (0930 普查 ~1200 事件面)。
     """
     del eng, payload

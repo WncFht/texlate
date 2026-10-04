@@ -2,7 +2,7 @@ r"""builtins.bib — .bbl/.bib 族修复原语 (C3 拆分)。
 
 tectonic stub bbl 断链改写 / 捆绑旧版 .bbl biber 重生成 /
 ADS 时代 cite-key 裸 ``&``/``_`` 双侧一致消毒 /
-数学域裸 cite 族 ``\\mbox`` 包裹 (invalid_in_math 签名臂)。
+数学域裸 cite 族 ``\\mbox`` 包裹 (invalid_in_math 标记臂)。
 """
 
 from __future__ import annotations
@@ -244,8 +244,8 @@ def bbl_regen(  # noqa: C901, PLR0912, PLR0915 -- 隔离扫 + 逐 bcf 顺序闸�
     return True, "; ".join(parts)
 
 
-#: log 签名 ``... expected version X.Y`` —— 期望档提取 (biblatex 逐档
-#: 硬校验，期望版本以 log 宣判为准; 无签名兜底当前 TL 3.3)。
+#: log 标记 ``... expected version X.Y`` —— 期望档提取 (biblatex 逐档
+#: 硬校验，期望版本以 log 宣判为准; 无标记兜底当前 TL 3.3)。
 _BBL_EXPECTED_RE = re.compile(r"expected (?:version )?(\d+)\.(\d+)")
 
 
@@ -263,7 +263,7 @@ def bbl_format_version_rewrite(
     时兜底, ``\\providecommand`` 不覆写已有定义)。
 
     门: fmt∈[3.0,期望) 且**全树无 .bib** (有 bib 走 ``bbl_regen`` 再生
-    正解); log 有 ``wrong format version`` 签名, 或虽无签名但 fmt<期望
+    正解); log 有 ``wrong format version`` 标记, 或虽无标记但 fmt<期望
     (biblatex 逐档硬校验, 3.1/3.2 在 3.21 下同病)。fmt<3.0 结构与 3.x
     异构, 不改写——由 ``bbl_regen`` 隔离臂收。
     """
@@ -367,7 +367,7 @@ def citekey_sanitize(
     return True, f"sanitize cite keys &->A/_->-: {', '.join(changed)}"
 
 
-#: biber/biblatex bcf 版本错配签名——biber stdout 被 tectonic 以
+#: biber/biblatex bcf 版本错配标记——biber stdout 被 tectonic 以
 #: ``! the external tool exited`` 形态 dump 进 xetex log:
 #: ``Found biblatex control file version 3.8, expected version 3.11.``
 _BIBER_SKEW_RE = re.compile(
@@ -383,7 +383,7 @@ def biber_biblatex_skew_route(
     实证根因 (task t_c9249919e8d7a13f, 2026-09-18): tectonic bundle 钉
     biblatex 3.17 (bcf 3.8) 但外部 biber 走系统 PATH (2.22 要 bcf 3.11)
     ——bundle 内无解；路由令牌由 repair 跨引擎臂换 xelatex (本地
-    TeXLive biber/biblatex 成对)。签名复核两级：本轮 ``err_head`` 快径
+    TeXLive biber/biblatex 成对)。标记复核两级：本轮 ``err_head`` 快径
     → ``_fixloop_log`` 全文兜底 (外部工具 stdout dump 在 log 内位置
     不钉死——taxonomy head 窗未必盖到，落 ``other`` 时同规接住)。
     不中 → False 让位后续 ``other`` 规则。
@@ -412,7 +412,7 @@ def cite_in_math_mbox(
     硬错; halt_on_error 在 thebibliography 之前死掉 → ``\bibcite`` 永不
     落 .aux → 错误自续。``\mbox`` 把标记带回文本域即断链。走查面 =
     ``latex209.wrap_math_cites`` (209 修复臂 cite 侧的独立出口, 同
-    ``_MATH_CITE_CS_209`` 17 命令清单)。同签名可由字面 ``{\bfseries X}``
+    ``_MATH_CITE_CS_209`` 17 命令清单)。同标记可由字面 ``{\bfseries X}``
     触发——无 cite token 时本变换 0 改写自然 decline, 不误伤。
     """
     del eng, payload
@@ -437,7 +437,7 @@ def cite_in_math_mbox(
 #: tectonic 0.15 Rust bibtex 特定输入死循环，timeout 类死因)。
 _BIBTEX_STALL_TAIL_RE = re.compile(r"note: Running BibTeX on [^\n]+\s*$")
 
-#: bbl 在席而 .bib 缺席的 biber 硬毙签名——tectonic 管线无 ``.bbl 在席
+#: bbl 在席而 .bib 缺席的 biber 硬毙标记——tectonic 管线无 ``.bbl 在席
 #: 跳过`` 分支，aux 有 citation 即跑 biber (t_a4ae 实证：src 只发
 #: main.bbl 未发 references.bib, ``! can't open path`` 落 other 硬毙;
 #: xelatex ``_bib_pass`` 同态 bbl 在席整臂跳过)。

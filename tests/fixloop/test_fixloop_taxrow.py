@@ -1,13 +1,13 @@
-r"""taxrow 56-行签面 —— taxcen 普查 (333 other|None → 224 实缺 → 79 簇 →
+r"""taxrow 56-行标记面 —— taxcen 普查 (333 other|None → 224 实缺 → 79 簇 →
 56 提案覆盖 223/224) 落 ``10-taxonomy.yaml`` 的逐行钉测。
 
-行分两层: **全新类 id** (提案账 37 类, 落地并表实钉 44 类 / 71 签行;
+行分两层: **全新类 id** (提案账 37 类, 落地并表实钉 44 类 / 71 标记行;
 pkg/class 自报硬错、内核装载语义、数值/数学引擎错) 与 **近失扩写**
 (提案账 19 条, 落地 17 钉: 既有行臂补/措辞并收——missing_tfm 无规格形、
 runaway_scan ``_:`` cs 名、invalid_in_math 花括号参、undefined_color
 model 变体、key_unknown pgfkeys/xkeyval 两措辞、missing_graphic noBB/
 open-fail、missing_file 裸名兜底、pkg_version_skew need-version 族、
-pkg_obsolete 选项级、fontspec 裸头兜底)。每行至少一钉, 签名一律取
+pkg_obsolete 选项级、fontspec 裸头兜底)。每行至少一钉, 标记一律取
 taxcen 车道普查 verbatim 实证头 (非模板改写)。
 
 序约束钉三处: use_post missing_graphic (errhelp 出 ctx8 右缘) vs 同形
@@ -47,7 +47,7 @@ def _log(head: str) -> str:
     return f"! {head}\nl.1 x\n"
 
 
-# ── 全新类 id (44 类 / 71 签行，clusters_raw verbatim heads) ──
+# ── 全新类 id (44 类 / 71 标记行，clusters_raw verbatim heads) ──
 _HEAD_PINS: list[tuple[str, str, str | None]] = [
     # (head, cat, payload) — 每行一条 verbatim 实证签
     (
@@ -145,7 +145,7 @@ _HEAD_PINS: list[tuple[str, str, str | None]] = [
         "rheight",
     ),
     (
-        # zh-leak 槽：keyval 槽名译文污染同签归桶
+        # zh-leak 槽：keyval 槽名译文污染同标记归桶
         "Package keyval Error: 这是译文 undefined.",
         "keyval_undef",
         "这是译文",
@@ -605,7 +605,7 @@ def test_nfss_setup_with_fd_probe_routes_missing_file() -> None:
 def test_errs_multi_sig_dedup() -> None:
     # 2509.14454 同构：microtype + standalone + preamble_only + 2×裸名
     # File —— 首错遮蔽面逐错派发，(cat,pay) 去重保错误序。错误间垫 >ctx8
-    # 行距防后续错头漏进本错 blob 抢签 (err ctx 无 pre/post 窗，但 ctx8
+    # 行距防后续错头漏进本错 blob 抢标记 (err ctx 无 pre/post 窗，但 ctx8
     # 向右覆盖——新行全在 missing_file 后，裸名头漏进前错 ctx 会被先签)。
     pad = "\n".join(f"ctx filler {i}" for i in range(9)) + "\n"
     log = (

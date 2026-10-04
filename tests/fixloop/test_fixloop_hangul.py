@@ -62,7 +62,7 @@ def _fc_none(argv: list, timeout: int, wdir: Path) -> tuple:
 
 
 def test_hangul_syllable_in_lmroman_binds_undotum(tmp_path: Path) -> None:
-    """谚文音节缺字落 lmroman (2410.18001 签名) → 绑 TL unfonts UnDotum。
+    """谚文音节缺字落 lmroman (2410.18001 标记) → 绑 TL unfonts UnDotum。
 
     文件形候选 ``UnDotum.ttf`` probe 命中即胜，不经 fc-list。
     """
@@ -84,7 +84,7 @@ def test_hangul_syllable_in_lmroman_binds_undotum(tmp_path: Path) -> None:
 
 
 def test_hangul_in_fandol_still_selected(tmp_path: Path) -> None:
-    """谚文落 FandolSong (2403.00013 签名) —— font_not 刻意不收 fandol。
+    """谚文落 FandolSong (2403.00013 标记) —— font_not 刻意不收 fandol。
 
     Fandol 系无 hangul 块正是病灶; 旧 cjk 臂 font_not 含 fandol 只挡
     自己那臂，本臂必须照样选上。

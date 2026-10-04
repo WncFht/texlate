@@ -1,4 +1,4 @@
-"""engine.py 误报回归：latex209 tail 签名收紧 + pstricks 路由高置信化。
+"""engine.py 误报回归：latex209 tail 标记收紧 + pstricks 路由高置信化。
 
 证据：docs/research/methods/2026-09-16-signature-mining.md §2.4 +
 bench/archive-2026-09-20/results/fixloop-replay-baseline-2026-09-16/SUMMARY.md
@@ -80,7 +80,7 @@ def test_tail_compat_mode_notes_still_latex209() -> None:
 
 def test_tail_latex2e_in_209_still_latex209() -> None:
     """内核错 'LaTeX2e command \\ensuremath in LaTeX 2.09 document'
-    （hep-th/0104130 实证签名）落 tail 仍判。"""
+    （hep-th/0104130 实证标记）落 tail 仍判。"""
     tail = "! LaTeX Error: LaTeX2e command \\ensuremath in LaTeX 2.09 document.\n"
     cat, _ = classify_error(None, None, tail, timed_out=False)
     assert cat == "latex209"

@@ -164,7 +164,7 @@ def test_classify_enter_filename_tail() -> None:
 
 
 def test_classify_eps_hard_wall() -> None:
-    # 真实 tectonic 签名带双引号（rules.yaml taxonomy ps_image 行口径）。
+    # 真实 tectonic 标记带双引号（rules.yaml taxonomy ps_image 行口径）。
     cat, _ = classify_error(
         'error: xdvipdfmx: image inclusion failed for "fig.eps"',
         None,

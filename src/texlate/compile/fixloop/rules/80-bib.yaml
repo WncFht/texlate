@@ -52,7 +52,7 @@ rules:
       fileset: { has_ext: [.bbl] }
       # 两种 log 形态同盖: file-line-error 形 `ms.bbl:4: Missing $...` 与
       # '!' 形 `! Missing $ inserted.`（'!' 形文件名入 file_stack 不在
-      # err_head——靠 builtin 自验 unsafe key 存在性兜底，误签至多白扫一遍）。
+      # err_head——靠 builtin 自验 unsafe key 存在性兜底，误标记至多白扫一遍）。
       ctx_suggests: "Missing \\$ inserted|Misplaced alignment tab"
     action:
       kind: builtin_transform
@@ -148,7 +148,7 @@ rules:
       kind: builtin_transform
       function: biber_biblatex_skew_route
       params: { route: xelatex }
-    risk: low # 不改源只发路由令牌; 签名自验不中即 False
+    risk: low # 不改源只发路由令牌; 标记自验不中即 False
     engines:
       tectonic: { mode: native }
       xelatex: { mode: skip } # xelatex 侧 biber/biblatex 同源自 TeXLive, 无此错配
@@ -168,7 +168,7 @@ rules:
   # (b) tectonic 不看 .bbl 在席强跑 biber: src 只发 main.bbl 未发
   #   references.bib 时 ``! can't open path`` 落 other 硬毙 (xelatex
   #   _bib_pass bbl 在席整臂跳过)。
-  # 两臂签名走 builtin 两级复核 (err_head → _fixloop_log); REJECT
+  # 两臂标记走 builtin 两级复核 (err_head → _fixloop_log); REJECT
   # route=xelatex 令牌同 skew_route 跨引擎臂换编。order 8.1 贴 skew(8)
   # 后: 同族硬墙先路由。
   - id: tectonic_bib_stall_route
@@ -183,7 +183,7 @@ rules:
       kind: builtin_transform
       function: tectonic_bib_stall_route
       params: { route: xelatex }
-    risk: low # 不改源只发路由令牌; 签名自验不中即 False
+    risk: low # 不改源只发路由令牌; 标记自验不中即 False
     engines:
       tectonic: { mode: native }
       xelatex: { mode: skip } # xelatex 侧 bib 工具链全由系统件承担，无此盲区
@@ -194,7 +194,7 @@ rules:
         }
       - {
           corpus: "scale50 批 t_dce88d3272e1fd5e (arXiv 2609.19713v1, 2026-09-25)",
-          error: "unfixable:timeout — 同 bibtex 挂死签名 (120 页)",
+          error: "unfixable:timeout — 同 bibtex 挂死标记 (120 页)",
         }
       - {
           corpus: "scale50 批 t_a4ae1dea34e2bf45 (arXiv 2510.22418v1, 2026-09-25)",
@@ -215,8 +215,8 @@ rules:
     mechanisms: [W117, W126]
     description: "注入式 rewrite 注释切分裂伤 → 带尾文的行首孤立 \\begin{document} 重注释 (后起行首 \\begin{document} 门)"
     phase: loop
-    order: 194 # natbib_numbers_pass(186) 裂伤兜底，同签下轮收
-    when: # 两臂签名分归 bib_compat/preamble_only (taxrow 行) —— other 保兼容
+    order: 194 # natbib_numbers_pass(186) 裂伤兜底，同标记下轮收
+    when: # 两臂标记分归 bib_compat/preamble_only (taxrow 行) —— other 保兼容
       any:
         - { category: other }
         - { category: bib_compat }
@@ -251,15 +251,15 @@ rules:
   # 向 aux 写 \\NAT@force@numbers 空转——只挡 FUTURE 写; 先前编译留下的
   # .aux 已含 "\\providecommand\\NAT@force@numbers{}\\NAT@force@numbers"
   # 行 (natbib.sty:967-968 写面), 次遍 \\begin{document} 期 aux 读仍炸
-  # "Bibliography not compatible with author-year citations"——同签复炸
+  # "Bibliography not compatible with author-year citations"——同标记复炸
   # 而 numbers_pass 已 applied 不再点火。整行剥除: aux 族可再生，
   # numbers_pass 在位即无再写源，剥一次即净。
   - id: natbib_aux_force_purge
     mechanisms: [W117, W126]
     description: "陈旧 .aux 残留 \\NAT@force@numbers 强制行 → 整行剥除 (numbers_pass 已挡再写)"
     phase: loop
-    order: 195 # begindoc_tail_recomment(194) 同签族殿后：tex 层裂伤先收，aux 残毒后剥
-    when: # .aux:NN file-line 签名 taxrow 归 bib_compat; other 保兼容
+    order: 195 # begindoc_tail_recomment(194) 同标记族殿后：tex 层裂伤先收，aux 残毒后剥
+    when: # .aux:NN file-line 标记 taxrow 归 bib_compat; other 保兼容
       any:
         - { category: other }
         - { category: bib_compat }
@@ -298,7 +298,7 @@ rules:
   # .bcf→biber 通道产净 .bbl。三闸: .bcf 在场 (biblatex 稿天然限定，
   # bbl_regen 同口径) + 源有 backend=bibtex + biber 可执行。order 置
   # warn_utf8 消费族尾: misschar 臂 (25.x)/non_utf8_source(95) 先评 —
-  # latin1 .bib 先转码，本臂只兜 bibtex-8bit 生成面腐 (同签共存稿各臂
+  # latin1 .bib 先转码，本臂只兜 bibtex-8bit 生成面腐 (同标记共存稿各臂
   # 按序收不互抢)。
   - id: bib_backend_biber_swap
     description: "biblatex backend=bibtex (8-bit 劈 UTF-8 腐 .bbl) → backend=biber (全 UTF-8 通道)"
@@ -372,7 +372,7 @@ rules:
   # bbl_version_regen 无路面兜底 (qc-impl unfixable_bbl_ver 桶，前置注记
   # 已预告): fmt 3.x 旧 .bbl 且**全树无 .bib** → biber 再生无路，唯一挽手
   # 是头标版本改写到期望档 (builtin 内 .bib 复检 + fmt∈[3.0，期望) 闸 +
-  # 期望档 log 签名提取)。排 bbl_version_regen(158.5) 后: 有 .bcf 稿先让
+  # 期望档 log 标记提取)。排 bbl_version_regen(158.5) 后: 有 .bcf 稿先让
   # biber 试跑, 失败落到本臂——双臂条件互补不互抢 (本臂 lacks_ext:[.bib]
   # 时 regen 臂 biber 至多白跑一次，.bcf 不完整/失手有 builtin 备份兜)。
   - id: bbl_version_nobib_rewrite
@@ -399,7 +399,7 @@ rules:
 
   # 'No file X.bbl'/'File x.bbl not found' 型 missing_file → bbl_regen:
   # .bcf 在场 = biblatex 稿，biber <stem> 直接生出缺失 .bbl; 比
-  # install_file 语义对路 (.bbl 是生成件非可装包)。2601.09875 同签名
+  # install_file 语义对路 (.bbl 是生成件非可装包)。2601.09875 同标记
   # 的 warning-only 变体由 warn_undef_ref 面 bbl_cite_undef_regen 收
   # (该格零 '!' 错，missing_file 类不到)。
   - id: bbl_missing_regen
@@ -429,7 +429,7 @@ rules:
   # warn_undef_ref → bbl_regen (IDX17b/49 合流): Citation-undefined 存留
   # + .bcf 在场 = 末遍 bib 趟缺跑/陈旧 .bbl; biber 重生成 + needs_pass
   # 续趟把新 .bbl 的 \\bibcite 面写回 .aux。消耗轮序在注入臂前:
-  # 根因格再生即解，注入臂兜 cls/pagerange 类签名。
+  # 根因格再生即解，注入臂兜 cls/pagerange 类标记。
   - id: bbl_cite_undef_regen
     description: "warn_undef_ref + .bcf → bbl_regen 重跑 bib 趟 (stale/缺席 .bbl 的 cite-undef 根因臂)"
     phase: loop

@@ -1,8 +1,8 @@
-r"""修复普查——台账 events 驱动：收 never-passed 修复池的签名聚类。
+r"""修复普查——台账 events 驱动：收 never-passed 修复池的标记聚类。
 
 对 manifest∩canon 下每个 stage（compile/fixloop/xlat/parse）取「触过真臂但
 从未 done」的 idc，找其最新终态 cell event，抽 sig + errors.cat/code +
-metrics 首错行，归一成签名簇 → tmp/repair-census.json + 打印簇表。
+metrics 首错行，归一成标记簇 → tmp/repair-census.json + 打印簇表。
 
 用法: .venv/bin/python tools/repair_census.py [--out tmp/repair-census.json] [--stage compile,fixloop]
 """

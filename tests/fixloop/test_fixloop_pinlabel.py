@@ -104,7 +104,7 @@ def test_route_other_payload_passes_through(tmp_path: Path) -> None:
 
 
 def test_refire_idempotent(tmp_path: Path) -> None:
-    """二次派发同签 → snippet 已在文，本臂 applied=False 不再中。"""
+    """二次派发同标记 → snippet 已在文，本臂 applied=False 不再中。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
     rule1, _ = _match(ctx, "pdfximage", rep)
@@ -160,7 +160,7 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     """全真链钉：无 polyfill → Undefined \\pdfximage; 注入后 → 零 '!' 错。
 
     fig.pdf 由 xelatex 自身产出 (保证 xdvipdfmx 可解析); 未修态复现
-    真稿签名 (l.N 行归 \\includegraphics), 修复态要求零错 + PDF 出。
+    真稿标记 (l.N 行归 \\includegraphics), 修复态要求零错 + PDF 出。
     """
     # kpsewhich 探针进测试体——收集期不跑子进程 (deselect 零开销)
     if not _have_pinlabel():
@@ -190,7 +190,7 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     )
     log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
     assert "Undefined control sequence" in log
-    assert "\\pdfximage" in log  # 未修态全真复现真稿签名
+    assert "\\pdfximage" in log  # 未修态全真复现真稿标记
 
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])

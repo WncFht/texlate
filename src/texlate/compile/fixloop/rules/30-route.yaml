@@ -83,10 +83,10 @@ rules:
   # 可达场景: find_main_tex 宽松档扫 raw 头 60KB 被注释伪装行
   # (%\documentstyle) 骗入主 —— 纯 plain 零主档案已由 classify_no_main
   # 归 no_main_tex:plain_tex 不经此处。builtin 内遮盖视图复核是权威：
-  # 活 \documentclass/\documentstyle 在场或零签名即 False 让位 loop。
+  # 活 \documentclass/\documentstyle 在场或零标记即 False 让位 loop。
   - id: plain_format_route
     mechanisms: [W37, W68]
-    description: "纯 plain/amsTeX 稿 (无活 documentclass ∧ 行锚签名) → 拒 tex-plain 诚实上报"
+    description: "纯 plain/amsTeX 稿 (无活 documentclass ∧ 行锚标记) → 拒 tex-plain 诚实上报"
     phase: gate
     order: 2 # latex209_reject(1) 后：209 先归 dvips 通道，此处只收真 plain
     when:
@@ -95,7 +95,7 @@ rules:
         - { category: syntax }
         - { category: missing_file }
     condition: {
-        # raw 粗筛省电 (builtin 内 mask_tex 遮盖视图复核是权威); 签名池
+        # raw 粗筛省电 (builtin 内 mask_tex 遮盖视图复核是权威); 标记池
         # 与 builtin _PLAIN_SIGS 同源口径: ^\magnification / \font\cs=
         # / ^\bye$ / ^\end$ 裸行 / \input amstex 系。
         source_contains: "(?m)(^[ \\t]*\\\\magnification|\\\\font\\\\[a-zA-Z@]+\\s*=|^[ \\t]*\\\\bye[ \\t]*$|^[ \\t]*\\\\end[ \\t]*$|\\\\input\\s*\\{?\\s*(amstex|amsppt|harvmac|phyzzx|jytex|texinfo)\\b)",
@@ -189,7 +189,7 @@ rules:
   # ── 2026-09-28 qc-impl (vault QC replay 诊断蒸馏 impl-rules.json IDX61) ──
   # 1003.0510: psfrag 是 dvips-special 链包，xdvipdfmx (xelatex/tectonic
   #   共同后端) 无 PS 解释器 —— \psfrag 替换静默不落，EPS 原始标签层浮在
-  #   正文上 (compile clean, 无 log 签名 → 只能预检源码面截)。路由
+  #   正文上 (compile clean, 无 log 标记 → 只能预检源码面截)。路由
   #   latex+dvips 让替换链原生生效——比 45-graphics psfrag_strip_xelatex
   #   (-6.5) 兜底注释更优; 行锚口径同 pstricks_route(-10) 防注释 FP,
   #   mid-line \psfrag 等未中形态仍落条带臂。
@@ -222,7 +222,7 @@ rules:
   #   版面盒; 裸 stem 出参让 \\Gin@extensions 拾 eps_to_pdf 转换件。
   #   spec 草 builtin epsfbox_fit 未注册 → 同义 regex_rewrite 表达; 序在
   #   ps_graphics_dvips_route(3) 前——纯 epsfbox 格尺寸修复优于改道
-  #   (dvips 原样嵌入仍超版面), psfig/epsffile 混载格走后者签名不冲突。
+  #   (dvips 原样嵌入仍超版面), psfig/epsffile 混载格走后者标记不冲突。
   - id: epsfbox_fit
     description: "\\epsfbox 未缩放图 → \\includegraphics[max width/max height,keepaspectratio] + adjustbox[export] 注入"
     phase: precheck
@@ -367,8 +367,8 @@ rules:
   #   1206.0240/1206.0756/1312.0413): ctex 注入 \linespread{1.3} 使
   #   \baselineskip 胀 → \textheight=N\baselineskip 赋值在胀值上求值
   #   (探针 th=803.7pt = 42×18.85bp) → 文本块超纸面，geo_margin_breach。
-  #   a4.sty 族包体内同款 \baselineskip 单位赋值。无 log 签名 (几何量
-  #   不产 overfull) → precheck 源码签名门。spec 草 builtin
+  #   a4.sty 族包体内同款 \baselineskip 单位赋值。无 log 标记 (几何量
+  #   不产 overfull) → precheck 源码标记门。spec 草 builtin
   #   textheight_baseline_clamp 未注册 → 同义 regex_rewrite: 导言区注
   #   \AtBeginDocument \ifdim 钳到纸高安全值 (paperheight - 1in 偏置 -
   #   topmargin/headheight/headsep/footskip - 12pt 垫), \global 防钩内
@@ -455,10 +455,10 @@ rules:
   #   的 xdvipdfmx 不解释 PS special, 图静默丢或报错 (compile clean 的
   #   空页/缺图面)。latex+dvips 通道已立 (latex209_reject 同令牌),
   #   dvips 原生接这类稿。序位 3: tar_blob_extract(-1)/subfile_strip
-  #   (-0.7) 解包落定后源码签名才可见，static_precheck(0) 已先跑装包
-  #   ——路由格浪费一次装包工，换签名视野 (纯 \epsfbox 格先被
-  #   epsfbox_fit(-6) 改写不再命中本签; psfig/epsffile/\special ps
-  #   残签仍改道)。行锚口径同 pstricks_route。
+  #   (-0.7) 解包落定后源码标记才可见，static_precheck(0) 已先跑装包
+  #   ——路由格浪费一次装包工，换标记视野 (纯 \epsfbox 格先被
+  #   epsfbox_fit(-6) 改写不再命中本标记; psfig/epsffile/\special ps
+  #   残标记仍改道)。行锚口径同 pstricks_route。
   - id: ps_graphics_dvips_route
     mechanisms: [B05]
     description: "psfig/epsffile/\\special ps PS 时代图形 → xdvipdfmx 不接 PS special, 预检路由 latex+dvips"

@@ -55,7 +55,7 @@ def math_run_break(
     拉竭——``\relpenalty=0 \binoppenalty=0`` 放开关系/二元符后断点;
     ``\emergencystretch=3em \tolerance=9999`` 强剂量对 para_loosen
     已注格就地升级 (标记行检出), 未注格随本块同注——两条目同
-    warn_overfull 驱动面不互抢 (同签共存稿各臂按序收)。
+    warn_overfull 驱动面不互抢 (同标记共存稿各臂按序收)。
 
     ``\Big\{…\Big\}`` 单原子不可断格 (0806.2533 180pt 实证) 断点全缺
     本臂无解——promotion (overfull 内联数 → display) 未实装, 留

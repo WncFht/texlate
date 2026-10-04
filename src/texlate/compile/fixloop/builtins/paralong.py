@@ -1,6 +1,6 @@
 r"""builtins.paralong — "Paragraph ended before \X was complete" 修复原语。
 
-签名面: 非 ``\long`` 宏的参数扫描在 arg 内部撞上 ``\par`` (空行) →
+标记面: 非 ``\long`` 宏的参数扫描在 arg 内部撞上 ``\par`` (空行) →
 扫描中止, 宏调用+已扫前缀整段丢弃 → 内容丢失+下游级联错。
 payload=None (syntax 类不产 payload), dedup 键 ``{rule}:{None}`` 全族
 共用一格 —— transform 必须单次应用把日志里**所有** para_ended 肇事宏

@@ -147,7 +147,7 @@ def test_taxonomy_no_file_fd_without_nfss_not_matched() -> None:
     """裸 ``No file X.fd.`` 但无 NFSS 硬错同窗 → 不抢后续真实错误路由。
 
     可恢复 .fd 缺档 (substitution 成功) 与无关首错共存时，NFSS 共现
-    约束把本签关在窗外——错误行本体签名正常评估。
+    约束把本签关在窗外——错误行本体标记正常评估。
     """
     log = "No file LGRcmr.fd.\n! Undefined control sequence.\nl.5 \\foo\n"
     assert _classify(log) == ("undefined_cs", "foo")
@@ -179,7 +179,7 @@ def test_taxonomy_no_file_fd_outside_pre_window() -> None:
 
 
 def test_taxonomy_existing_missing_file_signatures_intact() -> None:
-    """前三条 missing_file 签保持先序——反引号/not-found 形不被新签抢。"""
+    """前三条 missing_file 标记保持先序——反引号/not-found 形不被新标记抢。"""
     assert _classify("! LaTeX Error: File `foo.sty' not found.\nl.3 \\usepackage") == (
         "missing_file",
         "foo.sty",
@@ -217,7 +217,7 @@ def test_errs_secondary_nfss_boundary() -> None:
 def test_errs_ctx8_pair_routes_missing_file() -> None:
     """No-file+NFSS 对落在首错 ctx8 内 → missing_file|fd (head-blob 原语义)。
 
-    评估域恒为 first+ctx8——对内签名在窗内即达，与 ``use_pre`` 无关;
+    评估域恒为 first+ctx8——对内标记在窗内即达，与 ``use_pre`` 无关;
     条目序让 missing_file 先于 undefined_cs 命中，装档后下一轮处理
     undefined_cs (双错皆可修，路由序不丢修)。
     """

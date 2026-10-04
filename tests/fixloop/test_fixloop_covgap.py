@@ -80,7 +80,7 @@ def _apply(rule: Rule, wdir: Path) -> tuple[bool, str]:
 
 
 def test_taxonomy_unable_to_load_is_missing_graphic() -> None:
-    """xetex 措辞 → missing_graphic + 路径 payload (failmine4 6 格签名)。"""
+    """xetex 措辞 → missing_graphic + 路径 payload (failmine4 6 格标记)。"""
     cat, pay = _classify("! Unable to load picture or PDF file 'figs/x.png'.")
     assert cat == "missing_graphic"
     assert pay == "figs/x.png"
@@ -92,13 +92,13 @@ def test_rule_gfx_when_covers_both_categories() -> None:
     ctx = LoopCtx(wdir=Path("/nonexistent"), engine_name="xelatex")
     assert actions._when_ok(rule.when, "missing_file", "x.eps", ctx)  # noqa: SLF001
     assert actions._when_ok(rule.when, "missing_graphic", "x.png", ctx)  # noqa: SLF001
-    # payload_required: missing_graphic 裸签名 (无路径) 不 dispatch
+    # payload_required: missing_graphic 裸标记 (无路径) 不 dispatch
     assert not actions._when_ok(rule.when, "missing_graphic", None, ctx)  # noqa: SLF001
     assert not actions._when_ok(rule.when, "other", "x.png", ctx)  # noqa: SLF001
 
 
 def test_rule_gfx_cond_xetex_phrasing(tmp_path: Path) -> None:
-    """condition.any 含 xetex 措辞臂 —— err_head 带签名即过闸。"""
+    """condition.any 含 xetex 措辞臂 —— err_head 带标记即过闸。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = (
         "! Unable to load picture or PDF file 'figs/x.png'.\nl.42 \\includegraphics"

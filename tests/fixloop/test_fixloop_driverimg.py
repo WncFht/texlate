@@ -3,7 +3,7 @@ r"""drvstage 车道 (2026-09-20): ``driver_missing_image_stub`` 驱动期缺图�
 failmine4 普查 4 格 (2501.01611/2502.00335/2504.06306/2505.07205): tex 趟净
 (.xbb 旁件供 bbox / ``\special{psfile}`` 裸递 / nonstop 先错已修的残轮) 但
 xdvipdfmx 嵌入期 ``Image inclusion failed. Could not find file: X`` ——
-签名只走合并 stdout: ``_report_of`` 归一成 '!' 行 → ``other`` 类目;
+标记只走合并 stdout: ``_report_of`` 归一成 '!' 行 → ``other`` 类目;
 ``_round_cat`` driver_fatal 兜底臂走 payload。builtin 抽名落占位
 (与 ``graphic_missing_placeholder`` 同 ``_stub_graphic_at`` 核)。
 """
@@ -71,7 +71,7 @@ def _cond(
     )
 
 
-# ─────────────────────── _report_of 签名可见性 plumbing ───────────────────────
+# ─────────────────────── _report_of 标记可见性 plumbing ───────────────────────
 
 
 def _res(tmp_path: Path, log_text: str, stdout_tail: str) -> SimpleNamespace:
@@ -83,7 +83,7 @@ def _res(tmp_path: Path, log_text: str, stdout_tail: str) -> SimpleNamespace:
 
 
 def test_report_of_surfaces_missing_image_fatal(tmp_path: Path) -> None:
-    """干净 .log + stdout_tail ``Could not find file`` → '!' 行使签名可见。"""
+    """干净 .log + stdout_tail ``Could not find file`` → '!' 行使标记可见。"""
     res = _res(
         tmp_path,
         "This is XeTeX\nOutput written on main.xdv\n",
@@ -93,7 +93,7 @@ def test_report_of_surfaces_missing_image_fatal(tmp_path: Path) -> None:
     assert rep.n_bang == 1
     assert "Image inclusion failed" in (rep.first or "")
     cat, _pay = load_ruleset().taxonomy.classify(rep, timed_out=False)
-    assert cat == "other"  # 签名无专属类目 → other 兜底，规则 when 面
+    assert cat == "other"  # 标记无专属类目 → other 兜底，规则 when 面
 
 
 def test_report_of_log_errors_win_over_fatal(tmp_path: Path) -> None:
@@ -146,7 +146,7 @@ def test_driverimg_cond_fires_on_payload(tmp_path: Path) -> None:
 
 
 def test_driverimg_cond_declines_unrelated_other(tmp_path: Path) -> None:
-    """无关 other 签名 → 双闸拒。"""
+    """无关 other 标记 → 双闸拒。"""
     ok, _why = _cond(tmp_path, err_head="! LaTeX Error: Something else")
     assert not ok
 
@@ -256,7 +256,7 @@ def test_no_signature_refused(tmp_path: Path) -> None:
 
 
 def test_payload_err_head_dedupes_same_name(tmp_path: Path) -> None:
-    """同名同现 payload+err_head (双面签名) → 单件落盘不单。"""
+    """同名同现 payload+err_head (双面标记) → 单件落盘不单。"""
     ctx = _ctx(tmp_path)
     ok, note = driver_missing_image_stub(ctx, _Eng(), _FATAL_PNG, {})
     assert ok, note

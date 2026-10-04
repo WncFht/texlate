@@ -79,7 +79,7 @@ rules:
   # ── 2026-09-19 slotrevert 车道 (zhleak 车道普查 + task#188) ──
   # segmenter 把未注册机位实参 (csname 体/未注册 env 尾随参等) 放上
   # chunk 翻译字面量面 → zh 化后 splice 写回机位 → "Undefined color
-  # '这是译文'"/"No counter"/"can't find file" 族 (~74 cells 历史签名)。
+  # '这是译文'"/"No counter"/"can't find file" 族 (~74 cells 历史标记)。
   # builtin 用 judge._MACHINE_SLOT_RXS + 扩展表在 mask_tex 视图上定位
   # 机位实参, 对 baseline_dir pristine 树逐文件 per-kind 序号对齐配对:
   # baseline 参纯 ASCII 标识符 ∧ zh 参含 CJK ∧ 相异 → zh 参位换回
@@ -409,7 +409,7 @@ rules:
   # 落空，\journalopt 停 \@empty → "Class SVJour Error: No valid journal
   # specified" + \stop。builtin 按 \documentclass 选项写 sv<opt>.clo noop
   # stub (\endinput), InputIfFileExists 走真臂置 \journalopt 即过; 盘上
-  # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢签时
+  # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢标记时
   # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
   # 与 vendored svjour.cls 不冲突 (shim_map 槽已删): vendored_fetch 管缺类，
   # 这条管有类缺 clo。
@@ -422,7 +422,7 @@ rules:
       any:
         - { category: other }
         - { category: emergency }
-        - { category: early_eof } # \stop 截断尾亦抢 early_eof 签 (0905.0193 实测)
+        - { category: early_eof } # \stop 截断尾亦抢 early_eof 标记 (0905.0193 实测)
     condition:
       ctx_suggests: "No valid journal specified"
     action:
@@ -469,7 +469,7 @@ rules:
               repl: "\\g<1>0\\g<2>\\g<3>",
               match_surface: masked,
             }
-    risk: low # 双门窄签 + 仅单数字段补零; 双位数日期与三位数段均不动
+    risk: low # 双门窄标记 + 仅单数字段补零; 双位数日期与三位数段均不动
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -567,7 +567,7 @@ rules:
   # \__siunitx_load_check:n 对不兼容名单 {SIunits,sistyle,units,unitsdef,
   # fancyunits} 做 \@ifpackageloaded 硬报错 (装载时 + AtBeginDocument 复查
   # 前三), 且 \NewDocumentCommand\unit 撞 units 已定义 → already_def。
-  # 该格三签名同机理: incompatible×2 (other) + \unit already_def +
+  # 该格三标记同机理: incompatible×2 (other) + \unit already_def +
   # \close@column@grid 级联。修法 = 装载点前置 ver@X.sty=\relax 注销全部
   # 不兼容名 (physics_stub_detach 同机理) + 存/摘 \unit 让 siunitx 落定义
   # + 载后复元 units 语义 (\unit[38]{mW} units 语法实证，fmsingles 车道)。
@@ -653,7 +653,7 @@ rules:
   # 字符 (xeCJK CJK 字/扩展 mathcode) 必炸 (mathchar 探针实证: \mathcode`这
   # operand scan 即炸，\mathcode`Ω 同炸非 CJK 专属; 裸 $这$/{\rm}/\tilde/
   # 上下标全不炸 —— 触发面只锁 \bm 族实参)。taxonomy 无专类归 other,
-  # ctx_suggests 锁错误签名。修法 = 序言守卫式重定义: \bm#1 → \TeXlateBM{{#1}}
+  # ctx_suggests 锁错误标记。修法 = 序言守卫式重定义: \bm#1 → \TeXlateBM{{#1}}
   # 双花括号走 bm 自带 group 路径 (\bm@gr@@p→\boldmath), 遍历被跳过且粗体
   # 语义保留; \b/\unit 等 \newcommand 别名调用点重展开 \bm 同愈;
   # \boldsymbol/\heavysymbol (\let 别名) 经 \ifx 等义复核后重绑。

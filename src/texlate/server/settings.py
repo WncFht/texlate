@@ -501,10 +501,10 @@ class SettingsStore:
         #: 最近一次 ``save`` 探活的模型可用性警告（进程瞬态不落盘；
         #: ``None`` = 无警告或未知），``public()`` 随出参透给前端
         self._model_warning: str | None = None
-        #: ``load`` 磁盘缓存：``(mtime_ns, size) | None 签名 → 归一化 dict``。
-        #: app 每请求 + RedactFilter 每条 record 都调 load——签名不变
+        #: ``load`` 磁盘缓存：``(mtime_ns, size) | None 标记 → 归一化 dict``。
+        #: app 每请求 + RedactFilter 每条 record 都调 load——标记不变
         #: 直接命中，省读盘+parse。``_save`` 写盘后显式失效兜底粗粒度
-        #: mtime 文件系统（同秒同大小写盘签名不变）的漏判。
+        #: mtime 文件系统（同秒同大小写盘标记不变）的漏判。
         self._load_cache: tuple[tuple[int, int] | None, dict[str, Any]] | None = None
         self._load_lock = threading.Lock()
 
@@ -519,7 +519,7 @@ class SettingsStore:
             st = self.path.stat()
             sig: tuple[int, int] | None = (st.st_mtime_ns, st.st_size)
         except OSError:
-            sig = None  # 文件缺席也按签名缓存——缺席是常态不是异常
+            sig = None  # 文件缺席也按标记缓存——缺席是常态不是异常
         with self._load_lock:
             if self._load_cache is not None and self._load_cache[0] == sig:
                 return copy.deepcopy(self._load_cache[1])
@@ -604,7 +604,7 @@ class SettingsStore:
         atomic_json(self.path, merged)
         self.path.chmod(0o600)
         with self._load_lock:
-            self._load_cache = None  # 粗粒度 mtime 签名同值兜底——写后必失效
+            self._load_cache = None  # 粗粒度 mtime 标记同值兜底——写后必失效
         if _MODEL_PROBE_FIELDS & set(updates):
             # 凭证/端点/模型变更后 best-effort 探活——provider 清单不含
             # 当前 model 时存警告（保存照存：不可用模型仍允许入设置，

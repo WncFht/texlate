@@ -3,7 +3,7 @@
 - accent_mark_fix: accent cs 生成的组合符 (U+0300-036F) 非输入字符，
   newunicodechar 拦不到 → 源级 ``\\<cs>{x}`` 站点改写预组字/剥 accent.
 - math_font_chars: font_fallback ``\\ifmmode`` 模板 + 文本字母 cs 数学域 shim.
-- nullfont_noise: missing_char 签名排除 ``in font nullfont`` 测量盒噪音。
+- nullfont_noise: missing_char 标记排除 ``in font nullfont`` 测量盒噪音。
 """
 
 from collections.abc import Callable
@@ -376,7 +376,7 @@ def test_inject_after_docclass_trailing_comment(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- nullfont_noise
 def test_warn_missing_char_ignores_nullfont(tmp_path: Path) -> None:
-    r"""纯 nullfont 缺字行 → 签名不举 → 首轮 clean (测量盒噪音不再进修复环)."""
+    r"""纯 nullfont 缺字行 → 标记不举 → 首轮 clean (测量盒噪音不再进修复环)."""
     eng = MockEngine(
         [
             {
@@ -394,7 +394,7 @@ def test_warn_missing_char_ignores_nullfont(tmp_path: Path) -> None:
 
 
 def test_warn_missing_char_still_fires_on_real_font(tmp_path: Path) -> None:
-    """真字体缺字行仍举签名 —— nullfont 排除不误伤正常行."""
+    """真字体缺字行仍举标记 —— nullfont 排除不误伤正常行."""
     eng = MockEngine(
         [
             {
@@ -422,7 +422,7 @@ def test_warn_signature_wrapped_nullfont_line() -> None:
 
 
 def test_warn_signature_all_nullfont_silent() -> None:
-    """整 log 只有 nullfont 缺字 (含一条 wrap 续行) → 签名不举."""
+    """整 log 只有 nullfont 缺字 (含一条 wrap 续行) → 标记不举."""
     text = (
         'Missing character: There is no ; ("3B) in font nullfont!\n'
         "pad Missing character: There is no 8\n"

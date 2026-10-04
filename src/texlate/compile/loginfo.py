@@ -72,10 +72,10 @@ WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 
 #: 首错 ``error_ctx`` 窗的后随行数（窗总宽 = 错误行 + ``_CTX_FOLLOW``）——
 #: 刻意**不**用共享 knob ``texlog.CTX_LINES``：本侧 ``_err_report`` 薄构造
-#: 不填 ``ErrReport.pre``/``post``，engine 侧 ``use_post`` 条目的扩展签名
+#: 不填 ``ErrReport.pre``/``post``，engine 侧 ``use_post`` 条目的扩展标记
 #: 全靠这 +8 后随行可达（graphicx ``I could not locate ... extensions:``
 #: errhelp 恒居错误行 +8，恰出 ctx8 右缘——logparse ``_POST_LINES`` 同
-#: 签名域）；收窄到 CTX_LINES 会在 judge 路径丢该命中面。钉值同
+#: 标记域）；收窄到 CTX_LINES 会在 judge 路径丢该命中面。钉值同
 #: tests/fuzz/test_fuzz_engine.py ``_CTX_N = 9``。
 _CTX_FOLLOW: Final = 8
 
@@ -165,7 +165,7 @@ def parse_log(
 def _scan_warnings(info: LogInfo, log_text: str, *, utf8_proj: bool) -> None:
     """红线 warning 扫描收口：invalid_utf8 按归因、missing_chars 扣扫掠。
 
-    C0 测量扫掠豁免（``texlog.misschar_sweep_hits`` 签名面）：gate 命中
+    C0 测量扫掠豁免（``texlog.misschar_sweep_hits`` 标记面）：gate 命中
     全属扫掠成员时不发射——与 judge ``count_missing_chars`` 计数面同口径。
     """
     for name, pat in WARNING_RED_LINES:
@@ -235,7 +235,7 @@ def classify_error(
     """
     if timed_out:
         # timeout/runaway_output 细分单源在 ``Taxonomy.classify``——
-        # rep 只携 tail 时按尾段刷屏判（暴走 log 的尾 30 行恒为签名）。
+        # rep 只携 tail 时按尾段刷屏判（暴走 log 的尾 30 行恒为标记）。
         tax = _taxonomy()
         if tax is not None:
             return tax.classify(_err_report(err, ctx, tail), timed_out=True)

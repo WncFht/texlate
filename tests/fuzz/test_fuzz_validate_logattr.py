@@ -40,7 +40,7 @@ from texlate.validate.rules import Issue, Severity, validate_pair
 
 _LOGS_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "logs"
 
-#: log 行 soup——引擎签名/文件栈括号/双格式错误/l.NNN/九类 warning 形态/
+#: log 行 soup——引擎标记/文件栈括号/双格式错误/l.NNN/九类 warning 形态/
 #: 边界形（空 msg、长扩展名、==> 复述、unicode 引擎名）混合。
 _LOG_SOUP = [
     "This is XeTeX, Version 3.141592653 (TeX Live 2026)",
@@ -389,7 +389,7 @@ def _check_l2(text: str) -> LogVerdict:
     v = parse_log_text(text)
     lines = text.splitlines()
 
-    # —— 引擎签名：仅首行 ``This is (\w+)`` ——
+    # —— 引擎标记：仅首行 ``This is (\w+)`` ——
     m = re.match(r"This is (\w+)", lines[0]) if lines else None
     assert v.engine == (m.group(1) if m else None), short(text)
 
@@ -834,7 +834,7 @@ def test_rules_env_tail_cap() -> None:
     zh = "".join(f"\\end{{env{i}}}" for i in range(60))
     rep = validate_pair("", zh)
     envs = [i for i in rep.issues if i.rule == "env"]
-    # 60 互异 end 名：orphan 签名 1 error + tail-diff warn 截断 50（其余规则
+    # 60 互异 end 名：orphan 标记 1 error + tail-diff warn 截断 50（其余规则
     # 如 macro 结构命令计数另算，不钉死 n_error 总数）
     assert sum(i.severity is Severity.WARN for i in envs) == 50  # noqa: PLR2004
     assert any(i.severity is Severity.ERROR and "多余" in i.message for i in envs)

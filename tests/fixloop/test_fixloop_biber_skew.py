@@ -3,7 +3,7 @@
 实证根因 (task t_c9249919e8d7a13f, 2026-09-18): tectonic 0.15 bundle 钉
 biblatex 3.17 (bcf 3.8) 但外调 biber 走系统 PATH (2.22 要 bcf 3.11) ——
 bundle 内无解，builtin 不改源只发 ``REJECT: route=xelatex`` 令牌，由
-repair 跨引擎臂换编。签名复核两级：``err_head`` 快径 → ``_fixloop_log``
+repair 跨引擎臂换编。标记复核两级：``err_head`` 快径 → ``_fixloop_log``
 全文兜底（外部工具 stdout dump 在 log 内位置不钉死）。
 """
 
@@ -23,7 +23,7 @@ def _ctx(tmp_path: Path, *, err_head: str = "") -> LoopCtx:
 
 
 def test_skew_in_err_head(tmp_path: Path) -> None:
-    """签名在 err_head 快径命中 → True + ``REJECT: route=xelatex`` 令牌。"""
+    """标记在 err_head 快径命中 → True + ``REJECT: route=xelatex`` 令牌。"""
     ctx = _ctx(tmp_path, err_head=f"! the external tool exited\n{_SKEW}")
     ok, note = biber_biblatex_skew_route(ctx, None, None, {})
     assert ok
@@ -55,7 +55,7 @@ def test_skew_bare_log_fallback(tmp_path: Path) -> None:
 
 
 def test_no_signature_false(tmp_path: Path) -> None:
-    """无签名 → False 让位后续 other 规则。"""
+    """无标记 → False 让位后续 other 规则。"""
     (tmp_path / "main.log").write_text(
         "! Undefined control sequence.\nl.7 \\oops\n", encoding="utf-8"
     )
@@ -73,7 +73,7 @@ def test_custom_route_param(tmp_path: Path) -> None:
 
 
 def test_skew_rglob_arm_nested_log(tmp_path: Path) -> None:
-    """stem 两候选均缺 → ``sorted(wdir.rglob("*.log"))`` 首非空兜底收签名。"""
+    """stem 两候选均缺 → ``sorted(wdir.rglob("*.log"))`` 首非空兜底收标记。"""
     logs = tmp_path / "logs"
     logs.mkdir()
     (logs / "x.log").write_text(f"junk\n{_SKEW}", encoding="utf-8")
@@ -83,7 +83,7 @@ def test_skew_rglob_arm_nested_log(tmp_path: Path) -> None:
 
 def test_skew_stale_main_log_shadows_tect_out(tmp_path: Path) -> None:
     """``{stem}.log`` 先于 ``_tect_out/{stem}.log`` —— 陈旧 main.log 遮罩
-    新鲜 _tect_out 签名即拒（pin 现行候选优先级）。"""
+    新鲜 _tect_out 标记即拒（pin 现行候选优先级）。"""
     (tmp_path / "main.log").write_text("stale no-skew\n", encoding="utf-8")
     tect = tmp_path / "_tect_out"
     tect.mkdir()

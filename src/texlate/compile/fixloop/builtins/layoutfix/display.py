@@ -119,7 +119,7 @@ def display_math_shrink(
     r"""warn_overfull display 数学臂: 编号族收缩 + 无编号包钳。
 
     实证面 (qc wide_display_math 桶, 21+1 格): ``detected at line N``
-    签名 = display 超宽 (eqnarray/``\bea`` 8 格、align/equation、
+    标记 = display 超宽 (eqnarray/``\bea`` 8 格、align/equation、
     ``$$``-chain、flalign、IEEEeqnarray; 0707.2648 单列 210pt)。
 
     - **env/before 臂**: 编号对齐族钩 ``\<size>`` + ``\arraycolsep``/

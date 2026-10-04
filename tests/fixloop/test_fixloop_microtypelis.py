@@ -5,7 +5,7 @@ doc-shipped cls 模板段 ``\DisableLigatures[f]{family=sf*}`` —— 该 cs 仅
 pdfTeX≥1.30/LuaTeX 可达, XeTeX 族下 microtype 抛可恢复 ``\PackageError``
 ("...only possible with pdftex version 1.30 or newer. Ignoring
 \DisableLigatures.") → error 计数使 verdict 落 best_effort_pdf。file-line 形
-签名 taxrow 归 ``microtype_pdftex`` (other 闸保兼容); ``microtype_lig_off``
+标记 taxrow 归 ``microtype_pdftex`` (other 闸保兼容); ``microtype_lig_off``
 行注释中和 (本引擎下该调用恒被 Ignoring, 注释即其自身语义, shipped-cls
 保真不动其他行)。
 """
@@ -67,7 +67,7 @@ def test_rule_registered() -> None:
 
 
 def test_condition_gate_needs_signature(tmp_path: Path) -> None:
-    """ctx_suggests 闸：err_head 无签名 → condition 拒 (other 桶不盲点火)。"""
+    """ctx_suggests 闸：err_head 无标记 → condition 拒 (other 桶不盲点火)。"""
     rule = _rule("microtype_lig_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
         rule.condition, rule, _ctx(tmp_path, "! some other error"), EngStub(), None
@@ -135,7 +135,7 @@ def test_nested_cls_copies_all_rewritten(tmp_path: Path) -> None:
     """2609.19664 实形：wrapper-promote 残留的双层嵌套 fairmeta.cls 副本同愈。
 
     ``templates/arxiv/fairmeta.cls`` 与 ``templates/arxiv/templates/arxiv/
-    fairmeta.cls`` 各携同签行 —— exts glob 按 rglob 全深度收集，两处皆注释。
+    fairmeta.cls`` 各携同标记行 —— exts glob 按 rglob 全深度收集，两处皆注释。
     """
     for sub in ["templates/arxiv", "templates/arxiv/templates/arxiv"]:
         d = tmp_path / sub
@@ -190,7 +190,7 @@ def test_match_apply_routes(tmp_path: Path) -> None:
 
 
 def test_xetexglyph_arm_unaffected(tmp_path: Path) -> None:
-    """microtype_off 主场不回退：xetexglyph_tfm 签名不命中本臂 ctx 闸。"""
+    """microtype_off 主场不回退：xetexglyph_tfm 标记不命中本臂 ctx 闸。"""
     rule = _rule("microtype_lig_off")
     ok, _why = actions._cond_ok(  # noqa: SLF001
         rule.condition,

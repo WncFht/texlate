@@ -313,7 +313,7 @@ def test_clone_sub_rule_registered() -> None:
 
 
 def test_enc_relax_rule_registered() -> None:
-    """order 11.995 —— 全真件臂后 shim 前; enc.def 签名限定点火。"""
+    """order 11.995 —— 全真件臂后 shim 前; enc.def 标记限定点火。"""
     r = rule("fontenc_enc_relax")
     assert r.order == 11.995  # noqa: PLR2004 - schema 断言值
     assert r.when["category"] == "missing_file"

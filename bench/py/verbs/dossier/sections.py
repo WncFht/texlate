@@ -47,7 +47,7 @@ def _latest_of(
 
 def _primary_compile(recs: dict[str, list[dict]]) -> dict | None:
     """主 compile 格：zh 臂优先、append 序**末条 attempted**（skip=上游门
-    格不算——rerun 波末位常是 skip，签名/verdict 要取真跑过的那条）。"""
+    格不算——rerun 波末位常是 skip，标记/verdict 要取真跑过的那条）。"""
     rows = _latest(recs).get("compile") or []
     for r in reversed(rows):
         if str(r.get("arm")) == "zh" and str(r.get("status")) != "skip":

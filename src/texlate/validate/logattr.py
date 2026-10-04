@@ -62,7 +62,7 @@ __all__ = [
 #: ``texlog``（``L_NUM_RE``/``CTX_LINES``/``TAIL_LINES``/
 #: ``iter_log_events``）。
 
-#: log 首行引擎签名 ``This is XeTeX, Version ...``。
+#: log 首行引擎标记 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
 
 #: ``Missing character: There is no X ("8FD9)/(U+8FD9) in font ...`` ——

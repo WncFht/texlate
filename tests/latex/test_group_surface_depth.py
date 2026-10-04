@@ -1,6 +1,6 @@
 r"""``_close_group`` 展开组 eol_par 尾段「全或无」发射回归（Option D）。
 
-缺陷（hep-ph/9910403 + hep-ph/0408067 + hep-ph/0501170 同签名——
+缺陷（hep-ph/9910403 + hep-ph/0408067 + hep-ph/0501170 同标记——
 ``\@iiiparbox`` runaway triplet）：``_close_group`` 对 ``_group_surface``
 在 ``eol_par`` 切出的 ``segs[1:]`` 逐段 ``_flush_run``——尾段挂空 ident
 零宽 span 入下一 run，literal 冲刷（surface 全 ws / ``clean < CHUNK_MIN``）

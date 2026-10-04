@@ -121,7 +121,7 @@ def test_fileline_only_zero_bang() -> None:
 
 
 def test_tectonic_engine_none() -> None:
-    """tectonic log 无 ``This is`` 签名行——engine=None 不得误判。"""
+    """tectonic log 无 ``This is`` 标记行——engine=None 不得误判。"""
     for name in ("tectonic-bare-stack.log", "tectonic-citation-warn.log"):
         assert parse_log(LOGS / name).engine is None
 

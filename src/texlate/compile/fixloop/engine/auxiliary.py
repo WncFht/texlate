@@ -29,7 +29,7 @@ __all__ = [
 
 #: TeX 每轮重写的读回辅助件 —— 被杀/超时编译留下截断形 (``\citation{``
 #: 半行) 驻留 wdir 即毒化后续一切 compile ("File ended while scanning
-#: use of \citation"; 1511.06744 实证，既有 aux_scan_eof 签名盖不住
+#: use of \citation"; 1511.06744 实证，既有 aux_scan_eof 标记盖不住
 #: \citation 形态)。删可再生件代价至多一遍重排; .bbl/.ind/.bcf 可为
 #: e-print 船货 (bbl_regen 靠它), 不在此表。
 _AUX_WRITE_EXTS = frozenset(

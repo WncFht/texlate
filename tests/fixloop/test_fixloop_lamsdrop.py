@@ -4,7 +4,7 @@ r"""lamsarrow lamsN TFM vendored-drop 规则单测 (asset 车道 #165, failmine3
 pb-diagram/lamsarrow.sty:89-93 ``\font\lamsfont@i=lams1``…``@v=lams5``
 —— LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字
 体); 设计尺寸加载无 "at Npt"、消息无字面 .tfm → 旧 taxrow 两模式
-全不中落 other (修复后 taxonomy missing_tfm 臂扩展收此签, 今
+全不中落 other (修复后 taxonomy missing_tfm 臂扩展收此标记, 今
 classify→(missing_tfm, lams1); 规则 when.any 双收 {other, missing_tfm}
 两态皆派), install_tfm(20) tlmgr 无件。修复面 = vendor
 lams{1..5}.{tfm,mf} 字节平铺 wdir: .tfm 让 ``\font`` 载入过, .mf 供

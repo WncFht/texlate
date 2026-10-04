@@ -122,7 +122,7 @@ def upgrade_209(  # noqa: C901, PLR0912 -- 守卫链 + shim 分派逐支对应�
             # 深度 0 裸 ``\documentstyle`` token 在场但配不出 ``[opt]{cls}``
             # 声明（残缺尾、选项段异常）——inject.find_docclass_ends 同深度
             # 口径会把它当缝走到这里，泛 ``latex209`` 落账混进真 209 拒收，
-            # 细分签名供归因。深度>0 宏体残影（未闭合花括号内 token）
+            # 细分标记供归因。深度>0 宏体残影（未闭合花括号内 token）
             # 不进此桶——inject 同深度口径也不会触达。
             return tex, {"status": "reject", "reason": "latex209_no_decl"}
         return tex, {"status": "no-docstyle"}
@@ -202,7 +202,7 @@ def upgrade_209(  # noqa: C901, PLR0912 -- 守卫链 + shim 分派逐支对应�
     # 209 数学域两族转写——``{\em X}`` 升上来在数学域必报
     # ``Command \itshape invalid in math mode``（\em 是 switch 非参数形），
     # ``\it``/``\bf`` 同形态归一消歧；裸 ``\cite{..}`` 的 natbib 未定义标记
-    # ``{\reset@font\bfseries ?}`` 同签名硬报且 fixloop 自续，裹 ``\mbox{}``。
+    # ``{\reset@font\bfseries ?}`` 同标记硬报且 fixloop 自续，裹 ``\mbox{}``。
     new_tex, math_switch_fixed, math_cite_wrapped = _fix_math_209(new_tex)
     return new_tex, {
         "status": "converted",

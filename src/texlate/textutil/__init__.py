@@ -1,4 +1,4 @@
-r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿主包。
+r"""文本小件单源 —— 遮盖视图/校验标记/env 读取的跨层宿主包。
 
 ``textutil.py`` C1 拆分产物：公共面经本 facade 全量 re-export——
 ``from texlate.textutil import X`` 与 ``textutil.X`` 属性面逐名守恒，
@@ -18,7 +18,7 @@ r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿�
   ``unclosed_if_close*`` 共用件）。
 - ``jsonl``：flock 串行化 jsonl 追加件（``append_jsonl``——share 索引
   与 fixloop CaseSink 共用）。
-- ``nets``：校验域知识件——``*_net`` 缺陷签名检测簇（``bare_cs_net``/
+- ``nets``：校验域知识件——``*_net`` 缺陷标记检测簇（``bare_cs_net``/
   ``ph_in_cs_net``/``residual_en_net``）+ ``MATH_CS``/``cs_events_spans``
   支撑件 + ``JSON_FENCE_RX``/``PH_*``/``prose_text``/``est_tokens``/
   ``lev_capped`` 共享口径 + 接缝判据（``cs_letter_tail_rx``/

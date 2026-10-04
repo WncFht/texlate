@@ -15,7 +15,7 @@
 - ``runstate``：``TreeRun``/``split_cid`` 回灌运行态。
 - ``envjudge``：env 可译性判定（``_env_judge_one``/``env_judge_all``
   + 目标谓词 ``unknown_env_of``）。
-- ``attr``：log 错误签名（``err_signature``/``err_signatures``）+
+- ``attr``：log 错误标记（``err_signature``/``err_signatures``）+
   归因桶（``_BUCKETS``/``_bucket_rx``）+ ``chunk_spans``/
   ``_resolve_fidx``/``LogAttr``/``_attr_localize`` 归因面。
 - ``rounds``：``retranslate_hits`` + resplice 簇 + ``logfix_round``

@@ -1,14 +1,14 @@
 """early_eof 分类语义钉 —— W126 根修 (10-taxonomy.yaml `other` 兜底 `^!`→`^.`)。
 
-缺陷：file-line-error 形 (`f.tex:N: msg`) 首错无 head 签命中时，
+缺陷：file-line-error 形 (`f.tex:N: msg`) 首错无 head 标记命中时，
 `other` 兜底 `^!` 锚不住 → 裸评估落 tail 段被 "No pages of output"
-吞成 early_eof, 真签名类规则收不到 (0806.2594 TUletters /
+吞成 early_eof, 真标记类规则收不到 (0806.2594 TUletters /
 astro-ph/0408240 natbib-aux 实证，\begin{document} 期 aux 读/字体声明错)。
 
 钉：
-  - file-line 形签名错 + 零页尾 → other (非 early_eof)
+  - file-line 形标记错 + 零页尾 → other (非 early_eof)
   - 真零错误行早夭 (无 '!'/file-line 行) → 仍 early_eof
-  - tail 抢占面 (missing_file/latex209) 对签名错日志依旧可达
+  - tail 抢占面 (missing_file/latex209) 对标记错日志依旧可达
 """
 
 from texlate.compile.engine import classify_error
@@ -40,7 +40,7 @@ def _classify_log(text: str) -> tuple[str | None, str | None]:
 
 # ---------------------------------------------------------------- W126 缺陷面
 def test_fileline_signed_error_not_early_eof() -> None:
-    """file-line 形签名错 + 零页尾 → taxrow 专属行 (非 early_eof, 非 other 兜底)。"""
+    """file-line 形标记错 + 零页尾 → taxrow 专属行 (非 early_eof, 非 other 兜底)。"""
     assert _classify_log(_TULETTERS_LOG) == ("symbol_font", "TUletters")
     assert _classify_log(_NATBIB_AUX_LOG) == ("bib_compat", "author-year")
 
@@ -96,7 +96,7 @@ def test_incomplete_with_output_not_early_eof() -> None:
 
 
 def test_early_eof_cannot_preempt_other() -> None:
-    """early_eof 无 preempts: 签名错 + \\end incomplete 同尾 → other。"""
+    """early_eof 无 preempts: 标记错 + \\end incomplete 同尾 → other。"""
     cat, _ = classify_error(
         "./main.tex:5: LaTeX Error: Some unclassified thing.",
         None,
@@ -131,7 +131,7 @@ def test_tail_plea_still_preempts_other() -> None:
 
 
 def test_tail_latex209_preempts_other() -> None:
-    """compat 横幅落尾时夺回签名错路由 —— `^.` 后 latex209 tail 条挂
+    """compat 横幅落尾时夺回标记错路由 —— `^.` 后 latex209 tail 条挂
     preempts:[other] 保住旧可达面 (file-line 错 + 2.09 尾 → latex209)。"""
     cat, _ = _classify_log(
         "Entering LaTeX 2.09 COMPATIBILITY MODE\n"

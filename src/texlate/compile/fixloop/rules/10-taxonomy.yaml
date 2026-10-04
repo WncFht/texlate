@@ -32,7 +32,7 @@ taxonomy:
   # 2026-09-16 第三种缺档措辞: `\PackageError` 自报 "Cannot find the
   # file X.ext" (无反引号对) —— textgreek.sty:39 lgrenc.def 实证
   # (1706.02694/2308.00072/2410.06051 三格同墙，greek-fontenc 一包全解);
-  # 不盖 'File `X' not found' 主签名，互补并列。
+  # 不盖 'File `X' not found' 主标记，互补并列。
   - {
       id: missing_file,
       scope: head,
@@ -44,7 +44,7 @@ taxonomy:
   # \@input@{<原名>}, 双探皆空 → \typeout 裸行 `No file X.fd.` 先于
   # 错误行 ~2 行落 log, 在 ctx8 前向窗外 → 旧恒归 other|None 无路由。
   # use_pre 把本条目检索面扩到首错前 _PRE_LINES 行 (pre+head blob,
-  # 仅本条目——他条目 head-only 不变)。双重约束防误签:
+  # 仅本条目——他条目 head-only 不变)。双重约束防误标记:
   #   `^No file` 行首锚 —— `LaTeX Font Info:    No file X.fd.` 行内
   #     形态 (可恢复字体替换 info, 非硬错) 与 `No file X.bbl/toc` 等
   #     非 .fd 探测行天然排除;
@@ -92,7 +92,7 @@ taxonomy:
   # 2609.19944 errs 12 条实证 missing_tfm|OT, install_tfm 恒 miss)。
   # 改归 fontspec_missing: payload=去 .otf/.ttf/.ttc 扩展名与 (N) 实例缀
   # 的家族名 → install_sysfont try_exts 复原扩展名投递。须排在
-  # missing_tfm 全臂之前 (评估序), 否则本签永远轮不到。
+  # missing_tfm 全臂之前 (评估序), 否则本标记永远轮不到。
   - {
       id: fontspec_missing,
       scope: head,
@@ -115,7 +115,7 @@ taxonomy:
   # 2026-09-20 taxrow 车道 (taxcen missing_tfm_notloadable): 即时形
   # `Font \cs=name not loadable` —— \font 装载失败但不带
   # `at Npt|scaled N` 规格段 (2003.10901 `Font \NOTEN=musix13` /
-  # `Font \noten=musix11` 双签名实证)。规格臂在前先签，本臂只见无规格
+  # `Font \noten=musix11` 双标记实证)。规格臂在前先签，本臂只见无规格
   # 残形; TU/ fontspec 行仍由更前 TU/ 臂截走 (2511.10135 fontawesome5
   # `=Name:script=latn;` 形不落本臂)。
   - {
@@ -133,7 +133,7 @@ taxonomy:
   # 2026-09-20 tfmhoist 车道 (tfmcen 普查 13 格全中): 下游驱动按裸名走
   # TFMFONTS 只认 compile cwd 扁平位，doc 自带私有 .tfm 在子目录够不到 →
   # xdvipdfmx:fatal / tectonic `error:` 双形 (引号内裸名无 .tfm 缀)。TeX 侧
-  # 错清完后签名经 _report_of stdout_tail 归一 (! xdvipdfmx:fatal: …) 才落
+  # 错清完后标记经 _report_of stdout_tail 归一 (! xdvipdfmx:fatal: …) 才落
   # head 段——stacked-error 格语义正确: 上游错没清永远轮不到驱动层。
   # 归 missing_tfm 非新类: install_tfm(20) 先尝 CTAN 可解名，私有名 filemap
   # 必 miss benign-decline → driver_tfm_hoist(21) 同轮接住归位。
@@ -155,7 +155,7 @@ taxonomy:
       scope: head,
       pattern: "Cannot proceed without .vf|physical font",
     }
-  # —— xdvipdfmx PS 硬墙 (tectonic 无 gs 通道; 实证签名 fixloop-v2 整改) ——
+  # —— xdvipdfmx PS 硬墙 (tectonic 无 gs 通道; 实证标记 fixloop-v2 整改) ——
   # compilebench taxonomy 对应类别名 ps_image; 首错为
   # "! something bad happened inside xdvipdfmx" (stdout_tail 归一),
   # ctx8 内含 "caused by: pdf: image inclusion failed for "X.eps""。
@@ -186,7 +186,7 @@ taxonomy:
     }
   # 2026-09-20 taxrow 车道 (taxcen fontspec_bare): fontspec 裸头兜底 ——
   # 首错 `Package fontspec Error:` 但 head 窗内无 `font "X" cannot be
-  # found` 签名时 (其他 fontspec 硬错措辞) 旧落 other|None; 排折行臂
+  # found` 标记时 (其他 fontspec 硬错措辞) 旧落 other|None; 排折行臂
   # 之后，payload=None 由 fix 层自行 decline。
   - {
       id: fontspec_missing,
@@ -204,9 +204,9 @@ taxonomy:
     }
   - {
       # 引号两形并收: `'?\X'? (ltcmd `'\X'`/裸 \X') 与 `` `\X' `` (老
-      # \@ifdefinable/amssymb 系反引号签 —— failmine2: \Bbbk 族 23 cells
+      # \@ifdefinable/amssymb 系反引号标记 —— failmine2: \Bbbk 族 23 cells
       # 曾落 other 无 payload, already_def_* 规则够不到)。Control
-      # sequence \X / Theorem style X 两签前缀不同，天然不串线。
+      # sequence \X / Theorem style X 两标记前缀不同，天然不串线。
       id: already_def,
       scope: head,
       payload_group: 1,
@@ -274,12 +274,12 @@ taxonomy:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
   # 2026-09-19 failmine2 (~13 cells): `\renewcommand`/`\RenewCommandCopy`
-  # 对未定义 cs 的内核签 "Command \X undefined" (latex.ltx \renew@command,
+  # 对未定义 cs 的内核标记 "Command \X undefined" (latex.ltx \renew@command,
   # `\X' 反引号形为 \MakeRobust) —— 定义点缺位与用点 "Undefined control
   # sequence" 同语义，归同类携 cs payload → cs_targeted_fix 表查询。
   # natbib.sty:1070 \renewenvironment{thebibliography} 内 \renewcommand
   # \newblock 实证面 (老类/shim 无 \newblock 定义: 1109.6007/1306.0551/
-  # astro-ph/0501240); "was never defined" 措辞形天然不落本签。
+  # astro-ph/0501240); "was never defined" 措辞形天然不落本标记。
   - {
       id: undefined_cs,
       scope: head,
@@ -290,7 +290,7 @@ taxonomy:
   # ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 归一 tag + ctx
   # 首层 pending cs → ``<tag>|<cs>`` —— triage 路由键: input_stack=递归，
   # main_memory=暴走，save_size=组泄漏 (capacity-scout-2026-09-17 4/4 格
-  # 皆 input_stack)。pattern 保裸签名: bracket 折行/截断时仍归 capacity,
+  # 皆 input_stack)。pattern 保裸标记: bracket 折行/截断时仍归 capacity,
   # 提取退 ``<tag>``/``?|<cs>``/None 不失类。
   - id: capacity
     scope: head
@@ -299,7 +299,7 @@ taxonomy:
   # 2026-09-16 compile-hard 新增 (2211.13013, aux-cjk-truncation 留档):
   # 引擎自产 aux 族中间件被 8192B 写缓冲劈断多字节字符 → 下遍回读
   # "Invalid UTF-8 byte" + "! File ended while scanning use of \@newl@bel"。
-  # 须在 emergency 前评估——'!' 行后 ctx8 可能混入 Emergency stop 抢签;
+  # 须在 emergency 前评估——'!' 行后 ctx8 可能混入 Emergency stop 抢标记;
   # cs 名单覆盖 aux/toc/lof 回读宏族 (\@newl@bel/\@writefile/\contentsline)。
   - {
       id: aux_scan_eof,
@@ -309,8 +309,8 @@ taxonomy:
     }
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
   # 顶格 \end{<env>}, 源生 tab 缩进的终结行不认 → 扫到 EOF runaway。
-  # 通用形排在 aux_scan_eof 窄签之后 (aux 族保持专属路由), emergency
-  # 之前 ("File ended" 行的 ctx8 常混进 Emergency stop 抢签)。
+  # 通用形排在 aux_scan_eof 窄标记之后 (aux 族保持专属路由), emergency
+  # 之前 ("File ended" 行的 ctx8 常混进 Emergency stop 抢标记)。
   # 2026-09-20 taxrow 车道 (taxcen runaway_scan_uscore): cs 名类补
   # `_`/`:` —— expl3 内部宏 `\__siunitx_quantity_parsed_aux:w` 旧在 `_`
   # 处截断得死 payload (2105.00070 实证归 other|None)。
@@ -333,7 +333,7 @@ taxonomy:
   # ── 2026-09-17 批七残面 ──
   # env_undefined ×47: revtex4-2 把 abstract 环境仅 frontmatter 期
   # let-bound (cls:2685 \let\abstract\@undefined), legacy-rewrite
-  # 后稿面 \maketitle→abstract 老版式全炸此签。payload=环境名。
+  # 后稿面 \maketitle→abstract 老版式全炸此标记。payload=环境名。
   - {
       id: env_undefined,
       scope: head,
@@ -359,8 +359,8 @@ taxonomy:
       payload_group: 1,
       pattern: "obsolete package option [`']([^']+)' has been removed",
     }
-  # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面签名须
-  # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢签)。
+  # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面标记须
+  # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢标记)。
   # file-line-error 形态 (无 '!' 前缀) 也走本段 —— _ERR_FILELINE_RE 已计。
   - {
       id: missing_graphic,
@@ -382,7 +382,7 @@ taxonomy:
   # \lstinputlisting/\verbatiminput 型 ext-less producer 发不出该
   # errhelp, taxonfix GenericError 语义不扰。tempered 前瞻禁跨后续错误
   # 块借 errhelp (File `/Error:/! /file:line: 新错起点即截断)。带扩展名
-  # 的 File-not-found 恒被前列 missing_file 臂先签 (评估序), 本臂只见
+  # 的 File-not-found 恒被前列 missing_file 臂先标记 (评估序), 本臂只见
   # 裸名 → payload=basename 直供 graphic_missing_placeholder/
   # graphics_ext_pslist_repair。
   - {
@@ -443,7 +443,7 @@ taxonomy:
   # 2026-09-19 babel 车道: 语言本体未声明错 (区别于选项不认识的 babel_opt)
   # —— \selectlanguage/\iflanguage/ldf AtBeginDocument 钩引用了选项表外的
   # 语言名 (babel-german.def:739 \iflanguage{ngerman} 无条件钩实证：[german]
-  # 装好 ldf 后格式无 \l@ngerman → 本签)。payload=语言名，消费规则=
+  # 装好 ldf 后格式无 \l@ngerman → 本标记)。payload=语言名，消费规则=
   # babel_undeclared_option 向选项表头补名 (非主语言位)。
   - {
       id: babel_undef,
@@ -457,7 +457,7 @@ taxonomy:
       payload_group: 1,
       # 三形态合一: "Wrong DVI mode driver option `X'" (hyperref 老文案) /
       # "Wrong driver option `X'" (hyperref 现行) / "Wrong hyperref driver `X'"
-      # (hypdvips 自检) —— 2211.13028/2308.12612 曾因此漏签落 early_eof。
+      # (hypdvips 自检) —— 2211.13028/2308.12612 曾因此漏标记落 early_eof。
       pattern: "Wrong (?:hyperref driver|(?:DVI mode )?driver option) [`']([^`']+)'",
     }
   - {
@@ -487,7 +487,7 @@ taxonomy:
       pattern: "(?:Package (?:x)?color|LaTeX) Error: Undefined color (?:model )?[`']([^']+)'",
     }
   # 2026-09-17 fixer-acro-v3: l3keys "key unknown" 行 (acro v3 弃键等)
-  # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
+  # 此前无 head 标记命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
   # 2026-09-20 taxrow 车道 (taxcen pgfkeys_unknown + xkeyval_err): 同族
   # 两措辞并收 —— pgfkeys `I do not know the key 'X', to which you
   # passed...` (键路径可带空格，`[^']+` 全捕) 与 xkeyval `Package
@@ -545,7 +545,7 @@ taxonomy:
   # _texmf nicematrix v7.11c 要 format ≥2026-06-01, runtime LaTeX2e
   # 2025-11-01; ctan_fetch version_guard 只兜 tectonic 臂，xelatex tlmgr
   # 通路无闸)。payload=file-line 前缀 basename → pkg_version_skew_vendored
-  # 规则以 vendor 兼容钉版平铺遮蔽。Class 与 msg_error 级同签并收;
+  # 规则以 vendor 兼容钉版平铺遮蔽。Class 与 msg_error 级同标记并收;
   # ``too old`` 限定把版本闸与其他 critical 错分开 (错路由风险零化)。
   - {
       id: pkg_version_skew,
@@ -565,18 +565,18 @@ taxonomy:
       pattern: "Package (\\w+) Error[\\s\\S]{0,400}?(?:need at least version|version[^\\n]*too old|requires[^\\n]*version)",
     }
   # ── 2026-09-19 citemath 匝道 ──
-  # ``Command \X invalid in math mode`` —— \not@math@alphabet 签名。
+  # ``Command \X invalid in math mode`` —— \not@math@alphabet 标记。
   # 主战场: natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}``
   # 无盒裸置，数学域内裸 ``\cite`` 展开即炸 (gr-qc/9901082; citemath 车道
   # 实证: halt_on_error 死在 thebibliography 前 → \bibcite 不落 .aux
-  # → 自续)。同签亦由字面 ``{\bfseries X}`` 数学域误用触发——路由到此
+  # → 自续)。同标记亦由字面 ``{\bfseries X}`` 数学域误用触发——路由到此
   # 类即可，cite_in_math_mbox 规则对无 cite token 面自然 decline。
   # 须在 syntax 前: syntax 交替含 ``improper``/``allowed only in math``
   # 但不盖本句式，占位顺序只是为 head 段确定性求早评。
   # ``LaTeX Error:`` 前缀必带：``\@latex@error`` 恒产此前缀，而
   # ``LaTeX (Font )?Warning: Command \X invalid in math mode`` 是同句式
   # 软警告 (\r/\small/\sc 族，非 \not@math@alphabet 硬报)——不锚前缀
-  # 会被首错后 ctx8 窗内的警告行抢签误路由 (loop1 多格带此警告)。
+  # 会被首错后 ctx8 窗内的警告行抢标记误路由 (loop1 多格带此警告)。
   # 2026-09-20 taxrow 车道 (taxcen invalid_in_math_braced): `\end{env}`
   # 花括号参形 —— `Command \end{lemma} invalid in math mode` 中 `{lemma}`
   # 夹在 cs 与 ` invalid` 之间击败邻接假设 (2410.17903 实证);
@@ -588,7 +588,7 @@ taxonomy:
       pattern: "LaTeX Error: Command \\\\([a-zA-Z@]+)(?:\\{[^}]*\\})? invalid in math mode",
     }
   # ── 2026-09-19 arraypream 车道 (arraypream-2026-09-19 普查) ──
-  # array.sty \@mkpream 拒收签名: "Illegal pream-token (\X): `c' used."
+  # array.sty \@mkpream 拒收标记: "Illegal pream-token (\X): `c' used."
   # (Package array Error 前缀，'!' 或 file-line 形皆有)。aastex 时代
   # 列型宏 (\@delspec/\pt@format 族) 漏进 tabular 头——kernel \@xexpast
   # 全展开能吃，array 重写只认 *-repeat 与 \NC@ 名，其余宏留字面条目。
@@ -596,7 +596,7 @@ taxonomy:
   # \edef 烘焙 + call-站 \expandafter + 类 let 中和)。\\ 必带把 CJK
   # 字面 token (这/是/译/文 系 ~54 条——译文漏进 preamble 的另一机制)
   # 挡在本类之外落 syntax。
-  # 须在 syntax 前: syntax 交替含 "Illegal" 宽词会抢签。
+  # 须在 syntax 前: syntax 交替含 "Illegal" 宽词会抢标记。
   - {
       id: pream_token,
       scope: head,
@@ -604,7 +604,7 @@ taxonomy:
       pattern: "Illegal pream-token \\(\\\\([\\w@]+)\\)",
     }
   # ── 2026-09-20 nfss-encoding-under-TU (nfsstu 车道) ──
-  # xelatex TU 下 legacy NFSS enc 声明三签名, 全带 ``LaTeX Error:`` 前缀
+  # xelatex TU 下 legacy NFSS enc 声明三标记, 全带 ``LaTeX Error:`` 前缀
   # (kernel \@latex@error), file-line/``!`` 两形皆有:
   # (a) ``Command \X unavailable in encoding TU`` —— cs 只声明在 PU 等旧
   #     enc (hyperref puenc.def \DeclareTextCommand 盖过稿自带
@@ -613,8 +613,8 @@ taxonomy:
   #     直选未声明 enc (easycyrsymbol T2A 族), payload=enc 名;
   # (c) ``Font family `E+F' unknown`` —— \DeclareFontShape{E}{F} 时家族
   #     未声明 (times.sty + AtBeginDocument T1+ptm 实证; E 已声明是
-  #     本签成立前提——E 未声明会先报 (b)), payload="E+F"。
-  # 归 nfss_enc 单类 payload 分形，65-encoding.yaml 三臂按签名复述
+  #     本标记成立前提——E 未声明会先报 (b)), payload="E+F"。
+  # 归 nfss_enc 单类 payload 分形，65-encoding.yaml 三臂按标记复述
   # ctx_suggests 分流 (aux_purge_regen 同构)。须在 syntax 前占位:
   # syntax 宽词不盖本句式，早评只为 head 段确定性。
   - {
@@ -638,7 +638,7 @@ taxonomy:
   # ── 2026-09-20 taxrow 车道 (taxcen 普查: other|None 实缺 224
   #   cells → 79 phrasing clusters → 56 提案覆盖 223/224;
   #   rows.json + clusters_raw.json 逐行实证) ──
-  # 新类簇按 verbatim 证据形收录，各签现行全归 other|None —— 排在
+  # 新类簇按 verbatim 证据形收录，各标记现行全归 other|None —— 排在
   # syntax 宽词族前只是为 head 段确定性求早评: 全部措辞均不含 syntax
   # 交替词，与既有臂互不串线; 同族新臂 (missing_file 裸名/missing_tfm
   # 即时形/fontspec 裸头/missing_graphic 两残形/pkg_version_skew 版本
@@ -772,7 +772,7 @@ taxonomy:
   # microtype_pdftex ×38 (最大簇): pdftex 专属特性 on xetex 四措辞
   # (Disabling-ligatures 折行 / kerning|spacing only works with pdftex
   # 1.40 / Font expansion does not work with xetex) —— microtypelis 修
-  # 复臂已走 other-dispatch, 本行把不可见流量转为可测签名。
+  # 复臂已走 other-dispatch, 本行把不可见流量转为可测标记。
   - { id: microtype_pdftex, scope: head, pattern: "Package microtype Error" }
   # siunitx_err ×6: Invalid number 'X' / prefix-no-unit / pkg-incompatible。
   - { id: siunitx_err, scope: head, pattern: "Package siunitx Error" }
@@ -819,7 +819,7 @@ taxonomy:
   # nfss_corrupt ×4: NFSS 内表腐败 (era 字体机械)。
   - { id: nfss_corrupt, scope: head, pattern: "Corrupted NFSS tables" }
   # grouped_load ×4 / preamble_only ×2 / options_section ×1 /
-  # pkg_before_docclass ×1: 装载时序四签。
+  # pkg_before_docclass ×1: 装载时序四标记。
   - {
       id: grouped_load,
       scope: head,
@@ -864,7 +864,7 @@ taxonomy:
   # lr_mode ×2: LR-mode 限制 (vmode_prim 同族异措辞)。
   - { id: lr_mode, scope: head, pattern: "Not allowed in LR mode" }
   # incomplete_if ×3: `Incomplete \if*; all text was ignored` ——
-  # ifclose/ifprot 修复臂的签名面，payload=条件 cs。
+  # ifclose/ifprot 修复臂的标记面，payload=条件 cs。
   - {
       id: incomplete_if,
       scope: head,
@@ -909,8 +909,8 @@ taxonomy:
     pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
   # 兜底: 首错行在场必命中 —— rep.first 恒为 texlog.iter_log_events/
   # match_error_line 认证的错误行 ('!' 或 file-line `f.tex:N:` 形),
-  # 故 `^.` 即「有签名错」全量覆盖。
-  # 旧写 `^!` 漏 file-line 形: 无 head 签的 file-line 首错落 tail 段被
+  # 故 `^.` 即「有标记错」全量覆盖。
+  # 旧写 `^!` 漏 file-line 形: 无 head 标记的 file-line 首错落 tail 段被
   # early_eof 吞 (W126: 0806.2594 TUletters / astro-ph/0408240 natbib-aux
   # 实证，\begin{document} 期 aux 读/字体声明错皆此形)。
   - { id: other, scope: head, pattern: "^." } # 兜底: 有错误行必命中
@@ -933,10 +933,10 @@ taxonomy:
       pattern: "Enter file name",
       preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
-  # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
-  # preempts [other]: `^.` 兜底后 file-line 形签名错恒归 other, 旧经裸
+  # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢标记) —— 与 head 行同表。
+  # preempts [other]: `^.` 兜底后 file-line 形标记错恒归 other, 旧经裸
   # tail 评估可达的「file-line 错 + 尾段 2.09 横幅 → latex209」路由由此
-  # 保留 (other 是唯一可夺类，真签名类不被抢)。
+  # 保留 (other 是唯一可夺类，真标记类不被抢)。
   - {
       id: latex209,
       scope: tail,
@@ -980,7 +980,7 @@ taxonomy:
   - { id: warn_overfull, scope: warnings, warn_id: overfull_hbox } # qc layout:overfull/geo_margin_breach 同根
   - { id: warn_float_big, scope: warnings, warn_id: float_too_large } # qc layout:float_lost/float_fit 同根
   # ── 2026-09-28 qc-impl warn 段扩展 (序即语义) ——
-  # warn_bbl_version 先于 warn_undef_ref: 陈旧 .bbl 格两签共存，bbl 再生
+  # warn_bbl_version 先于 warn_undef_ref: 陈旧 .bbl 格两标记共存，bbl 再生
   #   是根因修复 (cite-undef 表象随 regen+needs_pass 自愈); 反序会让
   #   undef_ref 消费臂先烧轮而 bbl 永不到场。消费臂见 80-bib.yaml。
   - { id: warn_bbl_version, scope: warnings, warn_id: bbl_version } # biblatex 拒载旧 .bbl 头标 → bbl_version_regen

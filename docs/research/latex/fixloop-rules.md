@@ -56,10 +56,10 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 
 1. **gate 先于一切**：对 `missing_file`+`\documentstyle` 必须在 `install_file` 之前拦，否则给 2.09 文档误装包——YAML 用 `phase: gate` 显式建模 spike 主循环的硬编码短路。
 2. **install 先于 rewrite**（order 10-40 < 50-130）：环境缺包时不许动源码，避免把「没装包」误诊成「源码错」留下脏改写。
-3. **同 trigger 内保守→激进梯度**：`microtype_off`(70) 先于 `times_to_newtx`(80)，两者都命中 `xetexglyph_tfm`；dedup key `(rule_id, payload)` 保证第一轮先试关特性，同签名再现才轮到换字体族。
+3. **同 trigger 内保守→激进梯度**：`microtype_off`(70) 先于 `times_to_newtx`(80)，两者都命中 `xetexglyph_tfm`；dedup key `(rule_id, payload)` 保证第一轮先试关特性，同标记再现才轮到换字体族。
 4. **兜底恒最后**：`undefined_cs_guess` order 900，所有具体规则放弃后才 escalate。
 
-其余机制：每轮一条规则便于归因；`(rid,pay)` dedup 防重复；同 `cat:pay` 签名连续 3 轮判 `stuck`；rewrite 幂等性逐条审过——`pdftex_prim_guard` 靠 `(?<!ifdefined)` lookbehind，`px_to_bp`/`microtype_off`/`option_clash_merge` 重入同值或 hits<2 短路，`thm_sibling_strip`/`minted_frozencache`/`soul_cjk_mbox` 剥除式替换天然幂等。
+其余机制：每轮一条规则便于归因；`(rid,pay)` dedup 防重复；同 `cat:pay` 标记连续 3 轮判 `stuck`；rewrite 幂等性逐条审过——`pdftex_prim_guard` 靠 `(?<!ifdefined)` lookbehind，`px_to_bp`/`microtype_off`/`option_clash_merge` 重入同值或 hits<2 短路，`thm_sibling_strip`/`minted_frozencache`/`soul_cjk_mbox` 剥除式替换天然幂等。
 
 ## 4. tectonic 降级矩阵
 

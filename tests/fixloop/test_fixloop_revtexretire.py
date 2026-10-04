@@ -63,14 +63,14 @@ def _42(texmf: Path) -> None:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_reserved_a_is_syntax() -> None:
-    """实证签名 Illegal parameter number → syntax (0806.4149 final_cat)。"""
+    """实证标记 Illegal parameter number → syntax (0806.4149 final_cat)。"""
     rep = parse_text(_ERR_RESERVED)
     cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
 def test_taxonomy_citex_pin() -> None:
-    """实证签名 \\@citex doesn't match → taxrow 归 cs_mismatch (1003.0910)。"""
+    """实证标记 \\@citex doesn't match → taxrow 归 cs_mismatch (1003.0910)。"""
     rep = parse_text(_ERR_CITEX)
     cat, _ = rs().taxonomy.classify(rep)
     assert cat == "cs_mismatch"
@@ -97,7 +97,7 @@ def test_rule_order_in_retire_family() -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_skip_unrelated(tmp_path: Path) -> None:
-    """err_head 无签名 → ctx_suggests 闸拒。"""
+    """err_head 无标记 → ctx_suggests 闸拒。"""
     ctx = mk_ctx(tmp_path)
     ctx.err_head = "./main.tex:10: LaTeX Error: Something else.\nl.10 x\n"
     rl = rule(_RULE_ID)
@@ -131,7 +131,7 @@ def test_cond_pass_citex(tmp_path: Path) -> None:
 
 
 def test_cond_pass_filename(tmp_path: Path) -> None:
-    """file-line 点名 revtex4.cls → 第三签命中。"""
+    """file-line 点名 revtex4.cls → 第三标记命中。"""
     ctx = mk_ctx(tmp_path)
     ctx.err_head = "./revtex4.cls:3737: LaTeX Error: boom.\nl.3737 x\n"
     rl = rule(_RULE_ID)

@@ -18,7 +18,7 @@
   开发态可用 ``TEXLATE_TS_NODE_PATH`` 指到现成 node_modules（如 bench/ts）。
 
 判定**必须 baseline 相对模式**（``ok_relative``）：73.7% 真实主文件自带
-grammar 空隙 baseline ERROR，绝对判定不可用。``sign()`` 采译前签名、
+grammar 空隙 baseline ERROR，绝对判定不可用。``sign()`` 采译前标记、
 ``validate()`` 传 baseline 得相对判定；位移不影响（按计数比对）。
 
 协议（JSONL，stdin/stdout，每行一记录）::
@@ -92,7 +92,7 @@ class CstError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class TsBaseline:
-    """译前源文件签名（相对判定基线）。"""
+    """译前源文件标记（相对判定基线）。"""
 
     parse_errors: int = 0
     env_mismatches: int = 0
@@ -236,7 +236,7 @@ class TsResult:
         }
 
     def baseline_signature(self) -> TsBaseline:
-        """把本结果当签名用（对 src 跑 validate 后取签名即 baseline）。"""
+        """把本结果当标记用（对 src 跑 validate 后取标记即 baseline）。"""
         return TsBaseline(
             parse_errors=len(self.parse_errors),
             env_mismatches=len(self.env_mismatches),
@@ -257,7 +257,7 @@ class TsValidator:
 
         v = TsValidator()
         if v.available():
-            base = v.sign(src_tex)                    # 译前签名
+            base = v.sign(src_tex)                    # 译前标记
             res = v.validate(zh_tex, baseline=base,   # 译后相对判定
                              expect=["MATH_1", ...])
     常驻模式（逐块低开销）::
@@ -537,7 +537,7 @@ class TsValidator:
             # 迟到/错序响应（上轮超时残留/戳外异 id 行）——丢弃继续等配对行
 
     def sign(self, tex: str, *, doc_id: str | None = None) -> TsBaseline:
-        """对译前源文本取签名（相对判定基线）。"""
+        """对译前源文本取标记（相对判定基线）。"""
         res = self._one({"id": doc_id or "baseline", "tex": tex})
         if res.error:
             msg = f"cst sign 失败: {res.error}"

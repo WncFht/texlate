@@ -77,7 +77,7 @@ chunk 内成员按 id 连续，类目有轻度聚集；为保险起见 d/e 带�
 
 - **核心 1,000**：year_band 内等分（每带 200），带内跨 6 簇均布（33–34/簇），簇内按 cat_group 软配额。
 - **方法学红线**：配额 cell 内必须**随机抽取**（层内概率样本），不是「凑够就行」——否则即 Neyman 1934 批判的 purposive/quota 抽样[^neyman34]；池化估计做事后分层加权[^holt79][^little93]。olmOCR 的 macro-avg 等权桶是另一合法口径——**两口径都报**（加权池化率 + 宏平均）。
-- **补强 ~200**：**agent 策展制，非纯脚本抽取**（不进入池化估计）。脚本 flag 只做「已知签名」候选预筛（B01 2.09 遗存 / B02 非 UTF-8 / B03 深多文件 / B04 低 TeX 密度类目 / B05 宏包机制 / B06 大字节 / B07 边缘形态），真正的机制覆盖靠**机制台账 + agent 定向查找**：
+- **补强 ~200**：**agent 策展制，非纯脚本抽取**（不进入池化估计）。脚本 flag 只做「已知标记」候选预筛（B01 2.09 遗存 / B02 非 UTF-8 / B03 深多文件 / B04 低 TeX 密度类目 / B05 宏包机制 / B06 大字节 / B07 边缘形态），真正的机制覆盖靠**机制台账 + agent 定向查找**：
 
     机制台账 `mechanisms.jsonl` 每行一个机制 `{mech_id, title, kind, detection, status, examples[], evidence, notes}`。种子来自 corpus39 陷阱 T01–T29、rewrite spec 增补项、parsebench v1 发现（caption 参数内注释残留、裸 `\input`、multi_doc、`%auto-ignore` stub、pdf_only 等）。
 

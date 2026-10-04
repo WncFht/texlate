@@ -9,7 +9,7 @@ snippet 头注文件首行 (0812.0615 lang10.tex 实证) —— ``\usepackage`` 
 docclass 后, 保留 ``\usepackage``。
 
 fix 2 ``para_longize`` cap 8→64: dedup ``{rule}:None`` 全族共位,
->cap 截断使尾宏同签永不再派 (return-False-after-writes 在引擎语义下是
+>cap 截断使尾宏同标记永不再派 (return-False-after-writes 在引擎语义下是
 终局结算 —— no-apply 轮直接 break 出 verdict, 不可作续尾信号)。
 截断仍发生时 notes 记 ``cap xN`` 残量, yaml known_gap 留痕。
 
@@ -199,7 +199,7 @@ def test_para_longize_truncation_noted(tmp_path: Path) -> None:
 
 def test_bbl_stub_rewrite_all_bibliographies(tmp_path: Path) -> None:
     """multibib 双 ``\\bibliography`` —— 两处全改写 ``\\input`` (逐 call-site
-    各印 thebibliography 是 TeX 本义); 旧 count=1 尾处同签永滞留。"""
+    各印 thebibliography 是 TeX 本义); 旧 count=1 尾处同标记永滞留。"""
     _write(
         tmp_path,
         "main.tex",

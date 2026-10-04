@@ -253,12 +253,12 @@ rules:
   - id: hyperref_driver_neutralize
     description: "hyperref 家族驱动选项 (pdftex/dvips/…) + hypdvips → 剥词/换包，交自侦"
     phase: loop
-    order: 181 # typein_neutralize(180) 之后; early_eof/hyperref_driver 双签兜底
+    order: 181 # typein_neutralize(180) 之后; early_eof/hyperref_driver 双标记兜底
     when:
       any:
         - { category: hyperref_driver, payload_required: false }
         - { category: early_eof, payload_required: false }
-        # W126 根修后 file-line 签名错归 other——同构失守面保活
+        # W126 根修后 file-line 标记错归 other——同构失守面保活
         # (source_contains 既有守卫兜爆半径)
         - { category: other, payload_required: false }
     condition:
@@ -334,7 +334,7 @@ rules:
           error: "hypdvips: Wrong hyperref driver `hxetex' / hyperref: Wrong driver option `pdftex'",
         }
     stats: { fires: 71, rescued_cells: 21, status: active }
-    source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 签名同期扩三形态"
+    source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 标记同期扩三形态"
 
   - id: docclass_post_option_normalize
     mechanisms: [W67]
@@ -518,7 +518,7 @@ rules:
   - id: float_opt_h_pkgload
     description: "float_opt 'H' 且 float 未载 → \\begin{document} 前注入 \\usepackage{float}"
     phase: loop
-    order: 187 # option_clash_geometry_hoist(186) 后; 同签 comma_strip(184, 95-targeted) 先收逗号形
+    order: 187 # option_clash_geometry_hoist(186) 后; 同标记 comma_strip(184, 95-targeted) 先收逗号形
     when: { category: float_opt, payload_required: true }
     condition:
       ctx_suggests: "Unknown float option [`']H'"
@@ -555,7 +555,7 @@ rules:
   # cls 级 cs 值浮体 opt —— cimento.cls \newenvironment{table}[1][\fps@table]
   # (\def\fps@table{tb}) 经 \@xfloat \@onelevel@sanitize 展开成 cs 名字符
   # → \ /f/s/@/a/l/e 每字一报 Unknown float option (0712.0315 单格 21 错，
-  # float_opt|\ + f/s/@/a/l/e 七签同族)。USAGE 站三形: env 默认参 /
+  # float_opt|\ + f/s/@/a/l/e 七标记同族)。USAGE 站三形: env 默认参 /
   # \@float 族直调 / \begin{env}[\cs] 显式 —— [\cs] 与可解 \def\cs{spec}
   # (纯 !htbpH 字符) 共存才动; builtin 多重定义/非 spec 值/cs 不可解保守
   # 拒改，剥离后 spec 含 H 自然落 float_opt_h_pkgload(187) 下游。
@@ -587,7 +587,7 @@ rules:
   # 开关; 本机 /usr/share/texmf-dist/tex/latex/sttools/flushend.sty 全量
   # \DeclareOption 名单无此项) —— 老稿 \usepackage[keeplastbox]{flushend}
   # 直写形炸 flushend.sty:83 "Unknown option `keeplastbox' for package
-  # `flushend'", err 落 other 桶 (无专属签名类; tail 死面 variant 可达
+  # `flushend'", err 落 other 桶 (无专属标记类; tail 死面 variant 可达
   # early_eof——同形 xcolor_override_opt_strip 先例三桶同挂)。五格 zh+base
   # 双炸: 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。选项只调
   # 末页栏平衡美学 (保 lastbox 参与 flush), 剥除即上游删项本意、语义零损失。
@@ -765,7 +765,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # 死选项剥除; ucs 在 utf8 引擎整体自弃，选项本就不可达
-    known_gap: "ucs 其余选项 (postscript/autoload/hyperref 等) 同机理未列 —— 每选项独立臂是库内惯例，新签再现时扩; 组载 {ucs,other} 共享括号内 mathletters 同剥 (他包无此专属键，语义零损); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参嵌套 brace 值罕形漏剥; verbatim 内假装载 masked 面不沾"
+    known_gap: "ucs 其余选项 (postscript/autoload/hyperref 等) 同机理未列 —— 每选项独立臂是库内惯例，新标记再现时扩; 组载 {ucs,other} 共享括号内 mathletters 同剥 (他包无此专属键，语义零损); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参嵌套 brace 值罕形漏剥; verbatim 内假装载 masked 面不沾"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -801,7 +801,7 @@ rules:
         - { category: pkg_engine, payload_required: false }
         - { category: unknown_option, payload_required: false }
     condition:
-      # 双签同闸: 引擎自爆 PackageError 行与 unknown-option 行都点名 bxcjkjatype
+      # 双标记同闸: 引擎自爆 PackageError 行与 unknown-option 行都点名 bxcjkjatype
       ctx_suggests: "bxcjkjatype"
       source_contains: "\\bbxcjkjatype\\b"
     action:
@@ -886,7 +886,7 @@ rules:
         - { category: early_eof, payload_required: false }
     condition:
       ctx_suggests: "\\\\@citex has an extra|before \\\\@citex|Use of \\\\@citex"
-      # 双签同闸: natbib 与 cite 皆须活载 (缺一则无 arity 冲突);
+      # 双标记同闸: natbib 与 cite 皆须活载 (缺一则无 arity 冲突);
       # 已注释装载行 regex 仍见字面 → 双前瞻豁免已注名单载虚警
       source_contains: "(?=[\\s\\S]*?\\\\(?:usepackage|RequirePackage)[^\\n]*\\{[^}\\n]*natbib)(?=[\\s\\S]*?\\\\(?:usepackage|RequirePackage)[^\\n]*\\{cite\\})"
     action:
@@ -941,7 +941,7 @@ rules:
       # 雪崩面宽口径: Extra \fi/\else + 选项/keyval 系 + undefined_cs 连环
       # + 首错 Wrong DVI mode (driver 分支被括号条件吞错); source 闸担精度
       ctx_suggests: "Extra \\\\fi|Extra \\\\else|Unknown option|keyval Error|Undefined control sequence|Wrong DVI mode"
-      # 括号内 \if 源签: [^\\]] 界内见 \\if 才放行 (括号外合法 \if 不触发)
+      # 括号内 \if 源标记: [^\\]] 界内见 \\if 才放行 (括号外合法 \if 不触发)
       source_contains: "\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*\\\\if"
     action:
       kind: regex_rewrite

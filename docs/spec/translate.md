@@ -169,7 +169,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 树级手术（`normalize_project` 链序：junk → tex 件逐件 → transcode → legacy latin → rebase → shadow）：
 
-- `_neutralize_junk_files`——`JUNK_FILE_STUBS`+签名闸命中件置 stub（隐藏路径/符号链豁免）。
+- `_neutralize_junk_files`——`JUNK_FILE_STUBS`+标记闸命中件置 stub（隐藏路径/符号链豁免）。
 - `_normalize_tex_files` 逐件：`_strip_lead_junk`（4096 窗剥文件头垃圾字节）→ `decode_tex_with` 分档解码 + `_record_verdict` → `normalize_engine`（doc_source=`.tex/.ltx` 后缀；prologue=doc_source ∨ `_prologue_ok` 严格 UTF-8 无 NUL）→ bbl 复用 → 写回。
 - `use_bundled_bibliography`——`.bib` 缺失但声明词干的 `.bbl` 存在且含 `\begin{thebibliography}` → `\bibliography{x}`→`\input{<词干>.bbl}`（相对编译 cwd 的 posix 路径，relpath 不越 `..`；多只 `\bibliography` 只换首个缺库者；visible 已含 `\input{<target>}` 即不改——工程级幂等防逐跑累加）。
 - `transcode.py::_transcode_support_files`——`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8→UTF-8 转码写回；中间产物另加截尾整形（`_trim_intermediate_tail` 砍回最后一个完整行界：XeTeX 8192B 写缓冲在边界劈断多字节字符比非法字节更致命）[^aux-cjk]。另含 PS 图形件（`.eps/.epsf/.epsi/.mps/.ps`）`%` 注释行逐行净化 + `%%BoundingBox: (atend)` 头行 trailer 实值回填 + DOS-EPS 魔数整件豁免（台账 `sanitized_ps_comments`/`resolved_atend_bbox`/`dos_eps_skipped`），与全树非手术面/非 `BINARY_SUFFIXES` 件 strict-UTF-8 catch-all 转码（`transcoded_data`，含 NUL 字节且非 UTF-16 形态兜底不动）；中间产物截尾整形外另有「无完整行界即 unlink」purge 臂（台账 `trimmed_intermediates`/`purged_intermediates`）。

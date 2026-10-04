@@ -182,7 +182,7 @@ def test_fam_declare_idempotent(tmp_path: Path) -> None:
 
 
 def test_nfss_rules_registered() -> None:
-    """三臂同 cat nfss_enc + payload_required, ctx_suggests 签名分流。"""
+    """三臂同 cat nfss_enc + payload_required, ctx_suggests 标记分流。"""
     for rid, sig, fn in (
         ("nfss_cmd_enc_polyfill", "unavailable in encoding", "nfss_cmd_enc_polyfill"),
         ("nfss_enc_scheme_relax", "Encoding scheme", "nfss_enc_scheme_relax"),

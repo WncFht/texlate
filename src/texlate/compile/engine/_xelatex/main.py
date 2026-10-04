@@ -69,7 +69,7 @@ _ADAPTIVE_PASS_CAP: Final = 4
 #: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音）。
 #: qc-impl 扩臂 (fp resolve-pass): ``(citation|reference)...undefined``
 #: 与 ``Please (re)run Biber/BibTeX`` 入面——0806.3788 型 bib 内 brace
-#: 错吞掉 Rerun 尾标时 citation undefined 是唯一存活签名; biber/bibtex
+#: 错吞掉 Rerun 尾标时 citation undefined 是唯一存活标记; biber/bibtex
 #: 请求行同理要续趟吸收 (bib 趟由 ``_bib_pass`` 文件态承，本行只管
 #: "再给一趟 tex" 的自适应信号)。
 _RERUN_HINT_RX: Final = re.compile(

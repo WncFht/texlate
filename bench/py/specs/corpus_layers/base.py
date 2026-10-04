@@ -16,7 +16,7 @@ _bootstrap.ensure()
 from specs import _corpus_common as cc
 
 # 层剖面：quota=flat（core 配比直扩）/ fbias（失败率偏置，expand 配方）/
-# flags（矿层签名旗标定向）。scale 仅文档义——largest_remainder 按 target
+# flags（矿层标记旗标定向）。scale 仅文档义——largest_remainder 按 target
 # 归一，不读 scale（旧构建器同）。
 PROFILES = {
     "holdout": {

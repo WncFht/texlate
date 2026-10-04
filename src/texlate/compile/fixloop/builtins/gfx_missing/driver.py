@@ -53,7 +53,7 @@ def driver_missing_image_stub(
     图档 —— ``*: fatal:`` 只走合并 stdout 不进 .log, ``_report_of``
     归一成 ``!`` 行后 taxonomy 无头模 → ``other`` 类目派发; 归一化
     漏形由 ``_round_cat`` driver_fatal 臂兜底 (payload=原始 fatal
-    行)。tex 侧 ``!`` 签名臂群 (graphic_missing_placeholder@17.6
+    行)。tex 侧 ``!`` 标记臂群 (graphic_missing_placeholder@17.6
     等) 对此面零可见 —— 驱动名只在 stdout_tail/err_head/payload。
 
     名源双面: ``other`` 轮读 ``ctx.err_head`` (归一 ``!`` 行+ctx),

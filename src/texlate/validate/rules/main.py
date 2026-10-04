@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
 #: 缓存否决级规则 id 集——pipeline 升格拦截网（``xlat.pipeline._INTERCEPT_NETS``
 #: 各条 ``mirror_rule`` 字段）镜像复判的 rules 规则集：段级缓存命中与续跑装载旁路
-#: ``validate_pair``，这五类 error 级签名由拦截网兜底防毒译出货
+#: ``validate_pair``，这五类 error 级标记由拦截网兜底防毒译出货
 #: （``placeholder`` 网只镜像 zh−src 净多出占位符臂——缺失/锚定臂归阶梯
 #: 修复管辖）。与注册表成员双向钉，漂移由 ``TestInterceptRegistry`` 拦截。
 CACHE_VETO_RULES: Final = frozenset(

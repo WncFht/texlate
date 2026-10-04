@@ -8,7 +8,7 @@
 # 本片区别的入口面：qc_wanted 补票格 (e2e_real _QC_WANTED_MIN——编译
 # clean/ok 但版面重缺陷) 进 fixloop 后无 '!' 错可分类，靠 warnings 段
 # 伪类别 (warn_overfull/warn_float_big) 驱动本族规则。geo_text_overlap
-# 与 geo_margin_breach 的非 overfull 同源子集在 log 面无签名——本族
+# 与 geo_margin_breach 的非 overfull 同源子集在 log 面无标记——本族
 # 覆盖不了属构造上限 (known_gap 逐条记)。
 version: 1
 
@@ -163,15 +163,15 @@ rules:
     source_ref: "builtins/layoutfix.py display_math_shrink; tmp/qc_impl_spec/impl-rules.json"
     known_gap: "env 名白名单外 display (自编环境) 不钩; 已收缩仍超的巨公式 adjustbox 也只到 \\linewidth"
 
-  # ── 2026-09-28 qc-impl lane: qc_wanted 无签名面 precheck 兜底 ──
+  # ── 2026-09-28 qc-impl lane: qc_wanted 无标记面 precheck 兜底 ──
   # 2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 把下一浮体吸上
   # 来与 fig caption 叠印 (geo_text_overlap 源) —— 编译 clean/ok 无 '!'
-  # 错可分类，log 面无签名，进 fixloop 后只有 precheck always 面可达
+  # 错可分类，log 面无标记，进 fixloop 后只有 precheck always 面可达
   # (本片头注: warn_* 伪类不覆盖此族)。负 belowskip 是合法省空间手
   # 法但 qc 判定叠印即缺陷——钳零仅 spacing 变松不丢内容。两形:
   # captionsetup 键值 belowskip=-N + \\setlength{\\belowcaptionskip}{-N}。
   - id: caption_skip_clamp
-    description: "负 belowskip/\\belowcaptionskip 钳零 —— 浮体负距吸叠 caption (qc_wanted 无签名 precheck 兜底)"
+    description: "负 belowskip/\\belowcaptionskip 钳零 —— 浮体负距吸叠 caption (qc_wanted 无标记 precheck 兜底)"
     phase: precheck
     order: -7
     when: { always: true }
@@ -199,21 +199,21 @@ rules:
     provenance:
       - {
           corpus: "vault QC replay (qc-impl-2026-09-28)",
-          error: "2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 负距吸叠下一浮体与 caption 叠印 —— 无 log 签名仅 precheck 可达",
+          error: "2208.00216 splice:71 \\captionsetup{belowskip=-20pt} 负距吸叠下一浮体与 caption 叠印 —— 无 log 标记仅 precheck 可达",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json caption_skip_clamp"
-    known_gap: "above skip/负 \\vspace 吸叠不收 (只钳 caption 下距单签名); 无单位负值 (如 -\\smallskipamount) 形不收"
+    known_gap: "above skip/负 \\vspace 吸叠不收 (只钳 caption 下距单标记); 无单位负值 (如 -\\smallskipamount) 形不收"
 
   # 1503.00038 (qc-impl): sig-alternate.cls:1009 \\@startsection{section}
   # 六参 afterskip {4pt} —— fandol CJK extents 下标题贴正文
-  # (geo_text_overlap, 600dpi seam 0 白行)。编译 clean 无 log 签名 →
+  # (geo_text_overlap, 600dpi seam 0 白行)。编译 clean 无 log 标记 →
   # precheck always 面; builtin 单位折算闸 afterskip∈(0,~1.4ex) →
   # {1.5ex}, 负值 run-in 标题/glue/cs 形不收 (regex 只咬纯字面量)。
   - id: cjk_section_skip_floor
     description: "cls/sty \\@startsection 小正 afterskip (0<x<~1.4ex) 垫 1.5ex —— CJK extents 下标题贴正文"
     phase: precheck
-    order: -6.5 # caption_skip_clamp(-7) 后同批无签名版面面
+    order: -6.5 # caption_skip_clamp(-7) 后同批无标记版面面
     when: { always: true }
     condition:
       source_contains: "\\\\@startsection"
@@ -244,7 +244,7 @@ rules:
   - id: maketitle_suppl_float_flush
     description: "sty 内 \\maketitlesupplementary 定义修补 —— \\newpage→\\clearpage 冲浮体 + def 内注 \\floatpagefraction 0.15"
     phase: precheck
-    order: -6.4 # cjk_section_skip_floor(-6.5) 同批无签名版面面
+    order: -6.4 # cjk_section_skip_floor(-6.5) 同批无标记版面面
     when: { always: true }
     condition:
       source_contains: "\\\\maketitlesupplementary"
@@ -287,7 +287,7 @@ rules:
   - id: uchead_vskip_relax
     description: "ACM \\@uchead 簇 cls `\\vskip -12pt` gkmt 补偿 → -2pt —— xelatex 下标题贴正文塌距"
     phase: precheck
-    order: -6.3 # 同批无签名版面面 (caption/cjk_section 邻位)
+    order: -6.3 # 同批无标记版面面 (caption/cjk_section 邻位)
     when: { always: true }
     condition:
       source_contains: "\\\\@uchead"
@@ -319,12 +319,12 @@ rules:
   #   带: 0812.0424 \rotatebox{-90}{\includegraphics{fig5a.eps}} 与
   #   0707.3761 angle=270 includegraphics 形 (0812.1253 同族推定)。
   #   EN base 同 bleed 但 1 行 caption 擦过，zh 2 行撞进 →
-  #   geo_text_overlap。编译 clean 无 log 签名 → precheck always 面;
-  #   builtin 逐 env 块判 (旋转签+caption+ 未垫) 注 abovecaptionskip。
+  #   geo_text_overlap。编译 clean 无 log 标记 → precheck always 面;
+  #   builtin 逐 env 块判 (旋转标记+caption+ 未垫) 注 abovecaptionskip。
   - id: rotfig_caption_pad
     description: "figure env 含旋转图 (\\rotatebox/angle=90|180|270) + \\caption → env 头注 \\abovecaptionskip 垫高 —— eps bb 外墨迹 bleed 叠 caption"
     phase: precheck
-    order: -6.2 # 同批无签名版面面 (uchead/suppl 邻位)
+    order: -6.2 # 同批无标记版面面 (uchead/suppl 邻位)
     when: { always: true }
     condition:
       source_contains: "\\\\rotatebox|\\bangle\\s*=\\s*-?(?:90|180|270)\\b"
@@ -351,13 +351,13 @@ rules:
   #   本簇全部落 regex_rewrite 等价臂，不可达子臂逐条记 known_gap。
   # vbox_geometry_clamp spec 三臂中只 (a) 静态臂 regex 可达: 负/零
   # \headheight 页高 hack 钳回 0pt (0806.1975 '\headheight -.75 in'
-  # 正例)。vbox 签走 overfull_vbox→warn_overfull 别名路进 (D1 已落
+  # 正例)。vbox 标记走 overfull_vbox→warn_overfull 别名路进 (D1 已落
   # 20-warnings:51 + 10-taxonomy:991), ctx 行再窄化 \vbox 字样防
   # hbox 格误中本臂。
   - id: vbox_headheight_clamp
     description: "warn_overfull (Overfull \\vbox 臂) + 负 \\headheight hack → 钳回 0pt (vbox_geometry_clamp 静态臂)"
     phase: loop
-    order: 216 # display_math_shrink(214) 后; vbox 签专属
+    order: 216 # display_math_shrink(214) 后; vbox 标记专属
     when: { category: warn_overfull }
     condition:
       ctx_suggests: "Overfull \\\\vbox"

@@ -60,7 +60,7 @@ v2 改读 ``res.inputs``（parse_file 自己登记的 ``(vpos, resolved realpath
 parse_one + 泄漏/孤儿/identity/fake-splice/ph_tail 判定件 + file_metrics),
 ``parsebench.topology`` (非 UTF-8 判定 / find_roots / 路由标签 /
 _topology), ``parsebench.worker`` (子进程测量体 + --worker cli),
-``parsebench.items`` (manifest 行→item 源 + catalog 签名缓存 +
+``parsebench.items`` (manifest 行→item 源 + catalog 指纹缓存 +
 sample/select), ``parsebench.eval`` (pb_probe/pb_eval 双 stage + spec
 装配)。本文件是 PEP 562 惰性门面 (同 ``kernel.vault`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子, ``__getattr__`` 首访解析并缓存,

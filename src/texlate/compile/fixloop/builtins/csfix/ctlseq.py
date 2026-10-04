@@ -1,6 +1,6 @@
 r"""builtins.csfix.ctlseq — expl3 ``Control sequence`` 撞名域 (csfix 拆分)。
 
-``\cs_new`` 系 already-defined 签名 → docclass 缝顶 ``\let\X\@undefined``:
+``\cs_new`` 系 already-defined 标记 → docclass 缝顶 ``\let\X\@undefined``:
 只收 file-line-error 行文件头落在注入 CJK 块装载树
 (``_CTLSEQ_FILE_HEADS``) 的撞名 + texlate 注入块在档标记双证。
 """
@@ -43,8 +43,8 @@ __all__ = [
 
 
 #: ``Control sequence \X already defined`` —— expl3 ``\cs_new`` 系
-#: ``\cs_if_exist`` 检查的 already-defined 签名 (Command 形 ``\@ifdefinable``
-#: 报的姊妹签; taxonomy 只收 Command → 本签落 other 无 payload)。名字面
+#: ``\cs_if_exist`` 检查的 already-defined 标记 (Command 形 ``\@ifdefinable``
+#: 报的姊妹标记; taxonomy 只收 Command → 本标记落 other 无 payload)。名字面
 #: 纯字母类即闸：``\c__fontspec_*``/``\ctex@*`` 内码名中 ``_``/``@`` 与
 #: 紧跟的 `` already defined`` 邻接要求互斥，天然排除 —— ``fontspec_
 #: double_merge`` 的 ``\c__fontspec_shape_*`` 面与包内私有名都不进此格。
@@ -151,7 +151,7 @@ _CTLSEQ_RESERVED = frozenset(
 def _ctlseq_collided(blob: str, heads: tuple[str, ...]) -> tuple[set[str], set[str]]:
     r"""逐行扫 ``Control sequence`` 撞名 → (CJK 块内撞名集, 肇事文件基名集)。
 
-    双重定界: 签名行须带 ``file:N:`` 前缀 (非 file-line-error 形不定界
+    双重定界: 标记行须带 ``file:N:`` 前缀 (非 file-line-error 形不定界
     不收), 且文件基名 ∈ 注入 CJK 块装载树头表 —— 非族文件的同名撞名
     (包间互撞) 不连坐。
     """
@@ -186,7 +186,7 @@ def ctlseq_undefine(  # noqa: PLR0911 - 逐门 decline 注释即归因
 
     撞名集扫描面 = err_head ∪ 本轮编译 log (``_fixloop_log``): halt_on_
     error 只见首错, best_effort 探针 log 内同文件簇连撞一轮批清。
-    护栏: 纯字母名 (签名邻接天然排 ``_``/``@`` 内码) ∩ ``_allocated_
+    护栏: 纯字母名 (标记邻接天然排 ``_``/``@`` 内码) ∩ ``_allocated_
     cs_names`` 寄存器/盒型分配名 ∩ ``_CTLSEQ_RESERVED`` 原语名三滤;
     ``params.file_heads`` 可覆写文件头表。
     """

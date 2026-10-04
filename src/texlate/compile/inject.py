@@ -435,7 +435,7 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派 + 幂等校验�
     mode `"ctex"`：`\documentclass` 行后插 `\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}`
     （hjfy 同款、双引擎实测 0% 破坏、白拿节名汉化；`zihao=false` 钉住防
     scheme=chinese 默认强启 zihao=5 把全文版式撑大 5.4%）。
-    mode `"xecjk"`：同缝插 xeCJK+Fandol 块（ctex 冲突签名→fixloop/探针切换用）。
+    mode `"xecjk"`：同缝插 xeCJK+Fandol 块（ctex 冲突标记→fixloop/探针切换用）。
 
     `\documentstyle` → 先经 latex209.upgrade_209 升级转换（209 兼容模式内核层
     禁 `\usepackage`，注入前必须升级；`root` 提供工程树做随源 .sty 检测）。

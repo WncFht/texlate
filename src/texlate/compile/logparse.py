@@ -60,12 +60,12 @@ __all__ = [
 ]
 
 #: ``Overfull \vbox ... while \output is active`` —— ``\clearpage`` 输出例程
-#: 死循环签名（gr-qc/0104075 实证：``\end{document}`` 期暴走 73,595 页烧满
+#: 死循环标记（gr-qc/0104075 实证：``\end{document}`` 期暴走 73,595 页烧满
 #: 240s SIGKILL）。健康编译也偶发少量同形告警，成串才判 runaway——
 #: 阈值内正常档过量告警永远够不着，病态档轻松过线几个量级。
 _RUNAWAY_VBOX_RX = re.compile(r"Overfull \\vbox[^\n]*while \\output is active")
 _RUNAWAY_VBOX_MIN = 30
-#: ``[N]`` shipout 页标候选——输出例程页产率签名（str 形供事后判据；
+#: ``[N]`` shipout 页标候选——输出例程页产率标记（str 形供事后判据；
 #: 活哨侧 bytes 编译形 ``compile.proc._PAGE_MARK_RX`` 同词素两介质）。
 #: 匹配只找候选；是否计为 shipout 由消费侧的单调包络判定（见下）。
 #: **数据源依赖**：tectonic V2 静默模 stdout 不回显页标（chatter 只进
@@ -80,9 +80,9 @@ _RUNAWAY_PAGE_RX = re.compile(r"\[\d+\]")
 #: 方括数字（索引/引用/``\typeout`` 阵列）至多贡献 ~ln(n) 个左向右
 #: 极大值，不再假触（killsem2 census 开放缺口）。
 _RUNAWAY_PAGE_MAX = 10_000
-#: vbox 密度闸——签名数须 > DENSITY × 页标数才判暴走：「逐页一条」的
-#: 慢性告警是良性排版溢出（1003.2165 实证：46 签名/46 页、36s 干净编译，
-#: 旧累计≥30 闸在 ~15.6s 误杀）；签名远超页产才是无进展空转。K=4 容忍
+#: vbox 密度闸——标记数须 > DENSITY × 页标数才判暴走：「逐页一条」的
+#: 慢性告警是良性排版溢出（1003.2165 实证：46 标记/46 页、36s 干净编译，
+#: 旧累计≥30 闸在 ~15.6s 误杀）；标记远超页产才是无进展空转。K=4 容忍
 #: 单页多次 ``\output`` 调用（插页/footnote 冲刷、告警先于 ``[N]`` 落行）。
 _RUNAWAY_VBOX_DENSITY = 4
 
@@ -94,8 +94,8 @@ def _is_runaway_output(text: str) -> bool:
       仅 ``n >= 已计最大值`` 的页标入计（真 shipout 序号只增不减，冻结
       计数器暴走 ``[1][1]…`` 同页号仍计）——非序方括噪声只贡献左向右
       极大值 ~ln(n) 个；越阈即返，不等全扫；
-    - vbox 签名 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 签名数 > ``_RUNAWAY_VBOX_DENSITY``
-      × 页标**原始总数**：无 shipout 空转签名。分母不走包络——噪声撑
+    - vbox 标记 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 标记数 > ``_RUNAWAY_VBOX_DENSITY``
+      × 页标**原始总数**：无 shipout 空转标记。分母不走包络——噪声撑
       大分母是豁免方向（保守），pagenumbering 复位档真 shipout 不漏计。
       密度按**全文终值**评估——中途的高密度前奏（告警先于页标落行）
       不抢判，逐页慢性告警文档永不误伤。
@@ -217,16 +217,16 @@ def parse_events(text: str) -> ParsedLog:
 #: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千，截尾保内存。
 _ERRS_MAX = 32
 
-#: 首错行**之前**纳入 ``ErrReport.pre`` 的行数——``No file X.fd.`` 型签名
+#: 首错行**之前**纳入 ``ErrReport.pre`` 的行数——``No file X.fd.`` 型标记
 #: 先于错误行落 log (NFSS ``\@input@`` \typeout 在 ``\@latex@error`` 前
 #: ~2 行), 前向 ctx8 窗天然够不着。仅 ``use_pre: true`` 的 taxonomy 条目
 #: 在 ``pre + head`` 拼接 blob 上检索 (``classify_head`` 实现), 其余条目
 #: 保持 head-only——pre 行内宽词 (``Missing``/``Illegal`` 等) 不扰既有
-#: 评估序，不被 syntax 族抢签。
+#: 评估序，不被 syntax 族抢标记。
 _PRE_LINES = 4
 
 #: 首错 ctx8 窗**之后**纳入 ``ErrReport.post`` 的行数——错误块的滞后
-#: 落盘签名：graphicx ``File `X' not found`` 的 ``I could not locate the
+#: 落盘标记：graphicx ``File `X' not found`` 的 ``I could not locate the
 #: file with any of these extensions:`` errhelp 恒居错误行 +8, 恰出 ctx8
 #: 右缘 (extless 车道 failmine4 9-cell 实录); ``l.N`` 回显行折行时 errhelp
 #: 可再后移 1-2 行，6 行余量覆盖。仅 ``use_post: true`` 的 taxonomy
@@ -279,11 +279,11 @@ class ErrReport:
     first: str | None = None  # 首个 '!' 行 (strip 后)
     ctx: str | None = None  # 首错行起 ≤8 行
     #: 首错行**之前** ≤``_PRE_LINES`` 行 (log 原序)——``No file X.fd.`` 型
-    #: 签名先于错误行落盘，前向 ctx 窗够不着; taxonomy ``use_pre: true``
+    #: 标记先于错误行落盘，前向 ctx 窗够不着; taxonomy ``use_pre: true``
     #: 条目在 ``pre + head`` blob 上检索 (``classify_head(pre=...)``)。
     pre: str = ""
     #: 首错 ctx8 窗**之后** ≤``_POST_LINES`` 行 (log 原序)——错误块滞后
-    #: 落盘签名 (graphicx ``I could not locate ... extensions:`` errhelp
+    #: 落盘标记 (graphicx ``I could not locate ... extensions:`` errhelp
     #: 恒居错误行 +8, 恰出 ctx8 右缘) 由此可达; taxonomy ``use_post:
     #: true`` 条目在 ``head + post`` blob 上检索
     #: (``classify_head(post=...)``)。
@@ -633,7 +633,7 @@ def _undefined_cs_payload(first: str | None, ctx: str | None) -> str | None:
 
 
 #: taxonomy ``payload_scan:`` 键的 python 提取器注册表 (head-scope 专用，
-#: 签名 ``(first, ctx) -> pay``)。未收名静默回退 regex payload_group 取值
+#: 标记 ``(first, ctx) -> pay``)。未收名静默回退 regex payload_group 取值
 #: —— taxonomy 段无键白名单校验，与未知可选键同口径。
 _PAYLOAD_SCANS: dict[str, Callable[[str | None, str | None], str | None]] = {
     "capacity": _capacity_payload,
@@ -700,13 +700,13 @@ class Taxonomy:
         独立分类时无 tail/warn 回溯面，调用方决定落空兜底。
 
         ``pre`` = 错误行之前的上下文 (``ErrReport.pre``): 仅 ``use_pre:
-        true`` 的条目在 ``pre + head`` 拼接 blob 上检索——签名先于错误
+        true`` 的条目在 ``pre + head`` 拼接 blob 上检索——标记先于错误
         行落 log 的家族 (``No file X.fd.`` → NFSS 硬错) 由此可达; 其余
         条目保持 head-only, pre 行内宽词不扰既有评估序。
 
         ``post`` = ctx8 窗之后的上下文 (``ErrReport.post``): 仅 ``use_post:
         true`` 的条目在 ``head + post`` 拼接 blob 上检索——错误块的滞后
-        落盘签名 (graphicx ``File `X' not found`` 的 ``I could not locate
+        落盘标记 (graphicx ``File `X' not found`` 的 ``I could not locate
         the file with any of these extensions:`` errhelp 恒居错误行 +8,
         恰出 ctx8 右缘) 由此可达; 与 ``use_pre`` 同例，per-err 分类面
         (``err_candidates``) 不带 post, 扩展窗特征仅首错 ``classify()``

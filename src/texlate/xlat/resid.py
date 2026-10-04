@@ -151,7 +151,7 @@ _BRACE_ARG_MAX: Final = 2
 _BRACKET_OPEN_RX: Final = re.compile(r"(?<!\\)\[")
 _KEY_NAME_RX: Final = re.compile(r"[A-Za-z@*./][A-Za-z0-9@* .+_'/-]*")
 _KEYLIST_MAX_KEY_WORDS: Final = 3
-#: ``key={...}`` 值域暗语签名——内层键表之外的代码体（``\draw``/``#1``/
+#: ``key={...}`` 值域暗语标记——内层键表之外的代码体（``\draw``/``#1``/
 #: tikz 路径 ``;``）整段哨兵，只罩键名会让 code 值漏进扫描面。
 _CODE_VALUE_RX: Final = re.compile(r"\\[A-Za-z@*]|[#;]")
 #: 键名后缀即 code/style 族——``grid style``/``.append style``/``.code``
@@ -225,7 +225,7 @@ def _seg_whole_mask(key_norm: str, vstr: str) -> bool:
     三触发：code 键名（``.code``/``.style``/``label``——值恒非散文）；
     非 ``{}`` 包裹值（枚举/数字/暗语——``anchor=north west`` 实证留在
     可见面会与 ``] (节点名) at (x,y`` 桥成 run 全段被翻）；``{}`` 值
-    内层合键表形或含暗语签名（``\x`` cs/``#``/``;``）。
+    内层合键表形或含暗语标记（``\x`` cs/``#``/``;``）。
     """
     if _CODE_KEY_RX.search(key_norm):
         return True

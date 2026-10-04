@@ -592,7 +592,7 @@ def sec_scorecard() -> str:
     if sc["top_sigs"]:
         mx = sc["top_sigs"][0][1]
         parts.append(
-            "<div class='cap'>非 clean 签名 top</div>"
+            "<div class='cap'>非 clean 标记 top</div>"
             + "".join(hbar(k, n, mx, C_INFO) for k, n in sc["top_sigs"][:12])
         )
     return "".join(parts)

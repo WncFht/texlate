@@ -179,7 +179,7 @@ def test_normalize_project_junk_stub_nested(tmp_path: Path) -> None:
 
 
 def test_normalize_project_junk_name_collision(tmp_path: Path) -> None:
-    """名撞护栏：同名但无垃圾签名的真件不覆写；带签名件仍 stub。"""
+    """名撞护栏：同名但无垃圾标记的真件不覆写；带标记件仍 stub。"""
     real = "\\section{Results}\nreal paper body, not the AIP check file\n"
     (tmp_path / "aipcheck.tex").write_text(real)
     (tmp_path / "main.tex").write_text(
@@ -192,7 +192,7 @@ def test_normalize_project_junk_name_collision(tmp_path: Path) -> None:
 
 
 def test_normalize_project_junk_collision_mixed(tmp_path: Path) -> None:
-    """同树垃圾件 + 撞名真件并存：签名件 stub、真件放行（逐件判别）。"""
+    """同树垃圾件 + 撞名真件并存：标记件 stub、真件放行（逐件判别）。"""
     real = "\\section{Results}\nreal fragment\n"
     sub = tmp_path / "vendor"
     sub.mkdir()
@@ -687,7 +687,7 @@ def test_bundled_style_files_recoded(tmp_path: Path) -> None:
 
     字节形态取真实件：algorithm.sty L11 ``Rog\xe9rio Brito``、
     algorithm2e.sty L284 ``Schr\xf6der``/L550 ``J\xf6rg``（loop1
-    invalid_utf8 归因的注释行 latin-1 签名）。
+    invalid_utf8 归因的注释行 latin-1 标记）。
     """
     (tmp_path / "main.tex").write_text(
         "\\documentclass{mycls}\n\\usepackage{mypkg}\n"

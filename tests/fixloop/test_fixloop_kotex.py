@@ -2,7 +2,7 @@ r"""kotexfix #196 (2026-09-19): ``missing_char_fix`` hangul 路由预分诊。
 
 kotex/xetexko 工程谚文缺字走路由件 (xeCJK AutoFallBack +
 ``\setmainhangulfont`` 族), 不走 newunicodechar (catcode-12 死件) /
-cjk_warmup (HG 类无效)。签名源: 2410.18001 (lmroman ×544) /
+cjk_warmup (HG 类无效)。标记源: 2410.18001 (lmroman ×544) /
 2403.00013 (FandolSong script=hani ×1355)。
 """
 
@@ -45,7 +45,7 @@ def _ko_ctx(tmp_path: Path, runner: RunFn | None = None) -> LoopCtx:
 
 
 def test_builtin_hangul_route_kotex_lmroman(tmp_path: Path) -> None:
-    r"""2410.18001 签名: ctex+kotex 工程谚文落 lmroman → 路由件注入。
+    r"""2410.18001 标记: ctex+kotex 工程谚文落 lmroman → 路由件注入。
 
     两臂并射 ``\ifdefined`` 守: xeCJK AutoFallBack +
     ``\setCJKfallbackfamilyfont`` (rm/sf/tt) 治 CJK 类谚文,
@@ -75,7 +75,7 @@ def test_builtin_hangul_route_kotex_lmroman(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_fandol_cls_mech(tmp_path: Path) -> None:
-    r"""2403.00013 签名: 谚文落 FandolSong script=hani + 机制来自 shipped .cls。
+    r"""2403.00013 标记: 谚文落 FandolSong script=hani + 机制来自 shipped .cls。
 
     mech 探针吃 ``source_blob`` —— .cls 内 ``\RequirePackage{kotex}`` 命中
     ``_KO_MECH_RE`` (kaist-ucs.cls 内载 kotex/dhucs 实态); FandolSong 刻意
@@ -157,7 +157,7 @@ def test_builtin_hangul_route_fonts_dead_declines(tmp_path: Path) -> None:
 
 
 def test_builtin_hangul_route_idempotent(tmp_path: Path) -> None:
-    """次轮同签名 → snippet 在场 → 码位仍认领出表 (暖盒不假阳性空烧)。
+    """次轮同标记 → snippet 在场 → 码位仍认领出表 (暖盒不假阳性空烧)。
 
     自注 snippet 的 ``\\xeCJKsetup``/``\\setCJK*font`` 字样会让
     ``_CJK_MECH_RE`` 自我命中 —— 谚文留表会让暖盒误注一轮 (kotex-only

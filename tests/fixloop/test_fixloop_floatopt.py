@@ -138,7 +138,7 @@ def test_floatopt_cond_lookalike_pkgs_not_float(tmp_path: Path) -> None:
 
 
 def test_floatopt_cond_declines_no_h_usage(tmp_path: Path) -> None:
-    """float_opt 签名下源面无括号 H → USAGE 断言拒 (signature/source 双闸)。"""
+    """float_opt 标记下源面无括号 H → USAGE 断言拒 (signature/source 双闸)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{figure}[htbp]\nx\\end{figure}\n",
         encoding="utf-8",

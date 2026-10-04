@@ -27,7 +27,7 @@ _VENDOR_DIR = (
 )
 _RULE_ID = "pstricks_add_pair_retire"
 
-# 0707.4206 flipcheck3 实证首错簇 (file-line-error 形态): 签名同名不同格
+# 0707.4206 flipcheck3 实证首错簇 (file-line-error 形态): 标记同名不同格
 _ERR_UNDEF = "/work/0707.4206/splice/pstricks-add.tex:1544: Undefined control sequence."
 _ERR_UNDEF_CTX = """\\ps@next ->\\psset@@tickstyle
 
@@ -40,7 +40,7 @@ _ERR_MISSINGNUM = (
     "/work/0707.4206/splice/pstricks-add.tex:1544: Missing number, treated as zero."
 )
 
-# '!' 形态同款：rep.first 无文件名，ctx 展开栈回显泄签名 cs
+# '!' 形态同款：rep.first 无文件名，ctx 展开栈回显泄标记 cs
 _BANG_ERR = "! Undefined control sequence.\n" + _ERR_UNDEF_CTX
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
@@ -48,7 +48,7 @@ CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_undef_signature() -> None:
-    """实证签名：file-line Undefined cs → undefined_cs。"""
+    """实证标记：file-line Undefined cs → undefined_cs。"""
     cat, _ = classify(_ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n")
     assert cat == "undefined_cs"
 
@@ -60,7 +60,7 @@ def test_taxonomy_missing_number_is_syntax() -> None:
 
 
 def test_taxonomy_xkeyval_pin() -> None:
-    """Package xkeyval Error → taxrow 归 key_unknown (dx/dy 键移除签名)。"""
+    """Package xkeyval Error → taxrow 归 key_unknown (dx/dy 键移除标记)。"""
     cat, _ = classify(_ERR_XKV + "\n")
     assert cat == "key_unknown"
 
@@ -120,7 +120,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
 
 
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
-    """'!' 形态：文件名缺席但签名 cs `\\psset@@tickstyle` 在 ctx 展开栈。"""
+    """'!' 形态：文件名缺席但标记 cs `\\psset@@tickstyle` 在 ctx 展开栈。"""
     (tmp_path / "pstricks-add.tex").write_text("% stub\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _BANG_ERR
@@ -230,7 +230,7 @@ def _sh_runner(
 
 
 def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
-    """整链：undefined_cs 签名 → 成对 mv 退役 → 下轮系统件载入 → clean。"""
+    """整链：undefined_cs 标记 → 成对 mv 退役 → 下轮系统件载入 → clean。"""
     eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
@@ -277,7 +277,7 @@ def test_e2e_retire_then_vendored_fallback(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非 pstricks-add 签名：别包 undefined_cs → 本规则不动 wdir 件。"""
+    """非 pstricks-add 标记：别包 undefined_cs → 本规则不动 wdir 件。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -312,7 +312,7 @@ def test_e2e_injected_not_retired_breaks_loop(tmp_path: Path) -> None:
                 "Emergency stop.\n"
             },
             # v3.94 已注入却仍报错 (pstcol 未修的 :742 \colorlet 场景):
-            # 签名变 → payload 变 → 规则再评估; 脚本指纹闸必须跳过注入件
+            # 标记变 → payload 变 → 规则再评估; 脚本指纹闸必须跳过注入件
             {
                 "log": "/work/x/splice/pstricks-add.tex:742: Undefined control sequence.\n"
                 "\\psset@pstricks-add@startColor ->\\colorlet\n\n"

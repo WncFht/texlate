@@ -63,7 +63,7 @@ trizone-ledger v2 全量重建放行：W1 soak 500 格首批起跑（n=500 seed=
 | [2026-09-22-bench 内核 wave-d 收官.md](2026-09-22-bench内核wave-d收官.md)          | trizone-ledger v2 bench 内核四波构建 + Wave-D 两轮对抗验证收口报告（94 条 round-2 发现全裁决、7 个修复提交、546 例测试绿）                                                       |
 | [2026-09-22-trizone-phase0-2-进场实录.md](2026-09-22-trizone-phase0-2-进场实录.md) | trizone-ledger Phase 0–2 存量普查进场实录：真账册勘定、四源 44.4 万行进 ledger、zh-store 294 id 字节对账播种（自 spec 文件头迁出）                                               |
 | [2026-09-24-磁盘策略落地与探针批指标.md](2026-09-24-磁盘策略落地与探针批指标.md)   | P3 磁盘保留策略落地实测 + dedup meta-kind 修复 + e2e_real 260 帧探针批/retry39 指标 + 四区磁盘与账本基线                                                                         |
-| [2026-09-27-修复普查与硬尾审计.md](2026-09-27-修复普查与硬尾审计.md)               | 修复普查（`tools/repair_census.py` events 驱动签名聚类，never-done 真身分解）+ 八道只读审计裁决：missing_file/RulesetError/oversize 等族重跑救回口径，真「规则要修」面收敛至尾量 |
+| [2026-09-27-修复普查与硬尾审计.md](2026-09-27-修复普查与硬尾审计.md)               | 修复普查（`tools/repair_census.py` events 驱动标记聚类，never-done 真身分解）+ 八道只读审计裁决：missing_file/RulesetError/oversize 等族重跑救回口径，真「规则要修」面收敛至尾量 |
 | [2026-09-29-selfimp-ledger-digest.md](2026-09-29-selfimp-ledger-digest.md)         | selfimp 常驻环台账（tmp/blob-ledger*.md 九快照）蒸馏归档：2026-09-18~20 战役事件链、事故录、门①-⑤与 harvest 机制产出、关键数字与未决队列                                         |
 
 ## 口径注记

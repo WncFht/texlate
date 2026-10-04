@@ -3,7 +3,7 @@ r"""loopsched (task #144): mid-loop 落件同步 —— 指纹 diff → ``_texts
 
 E-route 机制: 站点臂烧键后, ``install_file``/vendored/run_tool 类动作把
 新的撞名站点带进 fileset (``.def`` 间接装载天然在 ``static_precheck``
-``tex_files`` 扫面之外), 同签下轮复报时旧烧键让 ``_match_apply`` 在
+``tex_files`` 扫面之外), 同标记下轮复报时旧烧键让 ``_match_apply`` 在
 ``key in applied`` 处静默跳过 —— 站点臂永不再火, 残签滞留至
 unfixable/stuck。修复 = 每个规则应用点前后做 wdir 指纹 diff
 (``_landing_sync``): 落件即失效 ``_texts`` 对应条目 + 过期基线前
@@ -13,7 +13,7 @@ unfixable/stuck。修复 = 每个规则应用点前后做 wdir 指纹 diff
   - 单元: ``_landing_sync`` 键面语义 (pre 过期 / post 保留 / 无落件
     零动作) + ``_texts`` 覆盖写与 miss→None 毒化失效;
   - e2e 正例 ×2: 新件落盘 + 覆盖写落盘两形, 站点臂重派 → clean;
-  - e2e 反例: 无新落件 → 同签 dedup 依旧压重派 → miss 落兜底。
+  - e2e 反例: 无新落件 → 同标记 dedup 依旧压重派 → miss 落兜底。
 """
 
 from pathlib import Path
@@ -167,11 +167,11 @@ def test_landing_sync_key_semantics(tmp_path: Path) -> None:
 
 # ------------------------------------------------------------- e2e 正例
 def test_install_landing_refires_site_arm(tmp_path: Path) -> None:
-    """E-route 正例 (新件落盘): install 落件后同签轮站点臂重派。
+    """E-route 正例 (新件落盘): install 落件后同标记轮站点臂重派。
 
     r1 already_def:\\zz → 站点前置清位 (烧 ``already_def_undefine:zz``);
     r2 missing_file:qux.sty (baropts.def 间接装载，precheck 扫面外) →
-    install_file 落件; r3 同签复报 —— 修复前站点臂按旧烧键静默跳过
+    install_file 落件; r3 同标记复报 —— 修复前站点臂按旧烧键静默跳过
     (残签滞留 → unfixable), 修复后烧键过期重派 → qux.sty 吃到
     ``\\let`` 前置 → r4 clean。
     """
@@ -203,7 +203,7 @@ def test_overwrite_landing_invalidates_site_cache(tmp_path: Path) -> None:
     """E-route 正例 (覆盖写落盘): 伴写改写既有件 → ``_texts`` 失效见新站点。
 
     r1 站点图把 foo.sty v1 无站态读进缓存; r2 install 落 dep2.sty 并伴写
-    foo.sty v2 (带 \\ww 站点); r3 同签复报 —— 覆盖写不失效则站点图照供
+    foo.sty v2 (带 \\ww 站点); r3 同标记复报 —— 覆盖写不失效则站点图照供
     v1 残影，guilty 集缺 foo → 站点臂无活可干照烧键辞; 失效后见 v2 站
     → 前置 → clean。
     """
@@ -237,9 +237,9 @@ def test_overwrite_landing_invalidates_site_cache(tmp_path: Path) -> None:
 
 # ------------------------------------------------------------- e2e 反例
 def test_no_landing_keeps_dedup(tmp_path: Path) -> None:
-    """E-route 反例：无新落件 → 同签 dedup 依旧压重派。
+    """E-route 反例：无新落件 → 同标记 dedup 依旧压重派。
 
-    r2 同签复报但轮内零落件 → ``applied`` 键面不动 → 站点臂在
+    r2 同标记复报但轮内零落件 → ``applied`` 键面不动 → 站点臂在
     ``key in applied`` 处静默跳过 (无拒绝事件) → miss →
     unfixable:already_def → 兜底 best_effort_pdf。dedup 语义不被
     落件同步稀释成每轮重估。"""

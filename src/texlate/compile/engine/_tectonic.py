@@ -240,7 +240,7 @@ class TectonicEngine:
             "--outdir",
             str(out),
             "--print",  # 引擎原话回显——静默模下 stdout 零 ``[N]`` shipout 页标，
-            # 活哨 vbox 密度门分母恒 0 退化为「≥30 签名即杀」（t_95c4 JBHI 模板
+            # 活哨 vbox 密度门分母恒 0 退化为「≥30 标记即杀」（t_95c4 JBHI 模板
             # 30 条慢性告警被当 runaway 误杀实证）；页洪臂同埋。``!`` 错误上
             # 下文一并回显——静默模 ``error:`` 摘要不携 payload，fixloop 盲
         ]
@@ -327,7 +327,7 @@ class TectonicEngine:
         info = parse_log(log_text, project_root=wdir)
         if info.first_error is None and not log_text:
             # tectonic 有时不写 .log 就崩（如 \documentstyle）——stderr 兜底；
-            # 无 ``!``/``file:line:`` 错时把 ``error:``/``*: fatal:`` 签名行
+            # 无 ``!``/``file:line:`` 错时把 ``error:``/``*: fatal:`` 标记行
             # 归一成 ``! `` 再解析（fixloop ``_report_of`` 同词素双臂）。
             info = parse_log(res.stdout_tail, project_root=wdir)
             if info.first_error is None:

@@ -89,7 +89,7 @@ _FUSE_TO = r"\\textbfXY"  # \textbf → \textbfXY: 前缀 textbf(≥3) + 大写�
 
 
 class _Fuser(pl.MockTranslator):
-    r"""``\textbf`` 粘合成 ``\textbfXY``——cs 吞间隔/后随词首字母粘连签名复现。"""
+    r"""``\textbf`` 粘合成 ``\textbfXY``——cs 吞间隔/后随词首字母粘连标记复现。"""
 
     async def translate(self, *, user: str, **kw: object) -> str:
         """mock 译文 + cs 名后缀粘连。"""
@@ -101,7 +101,7 @@ class TestIntercept:
     """命中即 fault + skipped + 回退原文——裸 cs 绝不进 splice。"""
 
     def test_math_cs_out_of_math_faults(self) -> None:
-        """0905.4907 签名：``\\alpha 发射体`` 文本域裸写 → fault。"""
+        """0905.4907 标记：``\\alpha 发射体`` 文本域裸写 → fault。"""
         src = _LONG_SRC
         out = run_pipeline(
             [mk_chunk(src, "c1")],

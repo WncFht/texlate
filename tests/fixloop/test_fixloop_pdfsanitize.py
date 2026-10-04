@@ -3,8 +3,8 @@ r"""pdfsanitize 车道 (2026-09-19): ``pdf_asset_sanitize`` 内嵌 pdf 重序列
 xlinkobj 车道 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437):
 工程船货 .pdf 对象结构残缺 → xdvipdfmx ``pdf:image`` import 回 NULL →
 ``xdvipdfmx:fatal: pdf_link_obj(): passed invalid object`` → xelatex SIGPIPE。
-签名只走 stderr→stdout_tail (.log 干净) —— ``_report_of`` 把 ``\w+:fatal:``
-行归一成 '!' 行使签名对 ctx_suggests 可见, 轮内归 ``other`` 类。修复 =
+标记只走 stderr→stdout_tail (.log 干净) —— ``_report_of`` 把 ``\w+:fatal:``
+行归一成 '!' 行使标记对 ctx_suggests 可见, 轮内归 ``other`` 类。修复 =
 全量内嵌 .pdf ``gs -sDEVICE=pdfwrite`` 重序列化 (内容不动只改对象布局,
 原件留 ``.fixloop-rd`` 备份兼幂等标记)。
 """
@@ -62,7 +62,7 @@ def _gs_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
     return 1, "gs died", 0.05, False
 
 
-# ─────────────────────── _report_of 签名可见性 plumbing ───────────────────────
+# ─────────────────────── _report_of 标记可见性 plumbing ───────────────────────
 
 
 def _res(tmp_path: Path, log_text: str, stdout_tail: str) -> SimpleNamespace:
@@ -74,7 +74,7 @@ def _res(tmp_path: Path, log_text: str, stdout_tail: str) -> SimpleNamespace:
 
 
 def test_report_of_surfaces_driver_fatal(tmp_path: Path) -> None:
-    """干净 .log + stdout_tail ``*:fatal:`` → 归一成 '!' 行使签名可见。"""
+    """干净 .log + stdout_tail ``*:fatal:`` → 归一成 '!' 行使标记可见。"""
     res = _res(
         tmp_path,
         "This is XeTeX\nOutput written on main.xdv\n",
@@ -84,7 +84,7 @@ def test_report_of_surfaces_driver_fatal(tmp_path: Path) -> None:
     assert rep.n_bang == 1
     assert "pdf_link_obj" in (rep.first or "")
     cat, _pay = load_ruleset().taxonomy.classify(rep, timed_out=False)
-    assert cat == "other"  # 签名无专属类目 → other 兜底，规则 when 面
+    assert cat == "other"  # 标记无专属类目 → other 兜底，规则 when 面
 
 
 def test_report_of_plain_stdout_keeps_log_report(tmp_path: Path) -> None:
@@ -131,7 +131,7 @@ def test_pdfsanitize_rule_registered() -> None:
 def test_pdfsanitize_cond_fires_on_signature(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """pdf_link_obj invalid-object 签名 err_head → 闸放行。"""
+    """pdf_link_obj invalid-object 标记 err_head → 闸放行。"""
     monkeypatch.setattr(shutil, "which", which_only("gs"))
     ok, why = _cond(tmp_path)
     assert ok, why
@@ -213,7 +213,7 @@ def test_pdfsanitize_idempotent_marked(
 def test_pdfsanitize_no_pdf_assets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """工程零内嵌 .pdf → False (签名命中但无可修面)。"""
+    """工程零内嵌 .pdf → False (标记命中但无可修面)。"""
     monkeypatch.setattr(shutil, "which", which_only("gs"))
     (tmp_path / "main.tex").write_text("\\includegraphics{img.png}\n")
     ok, note = _apply(tmp_path, runner=_gs_ok)

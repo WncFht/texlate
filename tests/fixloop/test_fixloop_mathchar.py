@@ -131,7 +131,7 @@ def test_wrap_block_self_idempotent() -> None:
     # 否则 \TeXlateBM{{#1}} 无穷递归
     assert "\\ifdefined\\TeXlateBM\\else" in _BM_MATHCHAR_WRAP
     assert "\\ifdefined\\TeXlateHM\\else" in _BM_MATHCHAR_WRAP
-    # 双花括号实参 —— bm 自带组路径签名
+    # 双花括号实参 —— bm 自带组路径标记
     assert "\\protected\\def\\bm#1{\\TeXlateBM{{#1}}}" in _BM_MATHCHAR_WRAP
 
 

@@ -92,7 +92,7 @@ def test_epsfig_kv_aliased_and_stripped(tmp_path: Path) -> None:
 
 
 def test_err_head_name_recovers_when_payload_none(tmp_path: Path) -> None:
-    # other|None 轮 —— payload 缺席，err_head 提名驱动 (裸名无 ext 签名)
+    # other|None 轮 —— payload 缺席，err_head 提名驱动 (裸名无 ext 标记)
     ctx = _ctx(
         tmp_path,
         {

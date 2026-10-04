@@ -264,7 +264,7 @@ class TestRunFixloopWiring:
         """fixloop 轮内 xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
 
         主编译引擎是 best-effort nonstopmode（False）——续跑日志会让
-        post-fix 复判混入下游错误、分类签名漂移，故不复用传入引擎。
+        post-fix 复判混入下游错误、分类特征漂移，故不复用传入引擎。
         """
         ctx, worker, _store = mk_ctx(tmp_path)
         ctx.engine_name = "xelatex"

@@ -1,5 +1,5 @@
 r"""isabelex 车道 (runawayscan 车道普查 2026-09-19): ``comment_csform_isabelle_env``
-规则 + ``detab_end_scanlines`` 签名闸。
+规则 + ``detab_end_scanlines`` 标记闸。
 
 1206.0136 (loop2, payload ``\next``): isabelle.sty ``\isakeeptag``/``\isadroptag``
 经 ``\includecomment``/``\excludecomment`` 产 ``isadelim<tag>``/``isatag<tag>``
@@ -201,7 +201,7 @@ def test_apply_env_form_declines(tmp_path: Path) -> None:
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == doc
 
 
-# ---------------------------------------------------------------- detab 签名闸
+# ---------------------------------------------------------------- detab 标记闸
 def test_detab_gated_to_next_payload() -> None:
     r = rule("detab_end_scanlines")
     assert r.when["category"] == "runaway_scan"
@@ -260,7 +260,7 @@ def test_match_apply_prefers_isabelex_on_csform(tmp_path: Path) -> None:
 
 
 def test_match_apply_detab_on_envform_indented(tmp_path: Path) -> None:
-    """env 形 + 缩进 \\end → isabelex 让位，detab 接住同签名。"""
+    """env 形 + 缩进 \\end → isabelex 让位，detab 接住同标记。"""
     doc = "\\begin{CCSXML}\n<ccs/>\n\t\\end{CCSXML}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
     hit, _note = actions._match_apply(  # noqa: SLF001

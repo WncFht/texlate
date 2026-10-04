@@ -169,7 +169,7 @@ holdout & 3{,}020 & 留出评测层 & ia 2{,}159 + tiger 540 + eprint 321；EVAL
 
 \textbf{测什么}：规范化 + ctex 注入 + 引擎 + 修复循环的真实救回能力——hjfy 约五千篇人肉沉淀护城河的对应物。
 
-\textbf{怎么测}：论文 $\times$ 条件 $\times$ 引擎三维网格——条件取原文裸编（base）/ 中文注入（zh）/ 模拟译文（mock）三种，引擎取 xelatex 与 tectonic 两种；编译前先做路由预检（\texttt{documentstyle}$\to$直接拒编、eps/pstricks$\to$xelatex、minted-frozencache$\to$tectonic）。每格走「规范化 $\to$ 中文注入 $\to$ 沙箱编译（至多 2 轮、240 秒限时）$\to$ 修复循环 $\to$ 纯净判定三件套」；逐格判定（verdict）连同每轮 \texttt{\{cat,pay,rule,result\}} 动作落盘，直接灌回机制台账。失败归因按首错签名聚类（\texttt{verdict\_sig} 口径：当构成中计数最高的错误类超过首错类时改挂该众数类）。指标：纯净率（分条件/引擎/时代带）、失败$\to$出 PDF 救回率、规则触发/救回数、卡死率、修复轮数分布。
+\textbf{怎么测}：论文 $\times$ 条件 $\times$ 引擎三维网格——条件取原文裸编（base）/ 中文注入（zh）/ 模拟译文（mock）三种，引擎取 xelatex 与 tectonic 两种；编译前先做路由预检（\texttt{documentstyle}$\to$直接拒编、eps/pstricks$\to$xelatex、minted-frozencache$\to$tectonic）。每格走「规范化 $\to$ 中文注入 $\to$ 沙箱编译（至多 2 轮、240 秒限时）$\to$ 修复循环 $\to$ 纯净判定三件套」；逐格判定（verdict）连同每轮 \texttt{\{cat,pay,rule,result\}} 动作落盘，直接灌回机制台账。失败归因按首错标记聚类（\texttt{verdict\_sig} 口径：当构成中计数最高的错误类超过首错类时改挂该众数类）。指标：纯净率（分条件/引擎/时代带）、失败$\to$出 PDF 救回率、规则触发/救回数、卡死率、修复轮数分布。
 
 \textbf{门槛}：200 篇中文链条件编译成功率 $\geq$90\%（hjfy 的 95\% 为渐近线）、拒编判定正确率 100\%（与路由标签对拍）、无回归（原本纯净的格不被规则改脏）。
 

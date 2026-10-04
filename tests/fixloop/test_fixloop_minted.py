@@ -5,7 +5,7 @@ chronic347 普查 5 格 (1803.00188/2111.00110/2112.00004/2112.00114 style
 ``*.pygstyle``/``listingN.pygtex`` 缓存, 系统 minted v3.8 要
 ``<style>.style.minted`` → styledef 落空 + frozencache 禁再生 →
 ``Missing definition for highlighting style`` 每 ``\end{minted}`` 一错。
-机制钉: 签名归 ``minted_froz`` 桶 (旧仅 frozencache/Cannot highlight code
+机制钉: 标记归 ``minted_froz`` 桶 (旧仅 frozencache/Cannot highlight code
 两签不收此句 → 落 syntax 永不派发); ``minted_frozencache`` 规则剥
 ``frozencache`` 选项 + ``-shell-escape`` 放 latexminted 再生 v3 缓存
 (1803.00188/2105.11390 splice 实证 rc=0 零 minted 错)。剥选项三式序贯:

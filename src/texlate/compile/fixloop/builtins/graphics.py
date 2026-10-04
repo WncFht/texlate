@@ -654,7 +654,7 @@ def pdf_asset_sanitize(
     机制 (xlinkobj 车道 5 格普查): 工程船货 .pdf 对象结构残缺 (缺 ``endobj``
     / bare-CR EOL / token-per-line 挤烂) → ``pdf:image`` import
     ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)`` fatal → xelatex
-    SIGPIPE。签名只走 stderr→stdout_tail, ``.log`` 干净 —— ``_report_of``
+    SIGPIPE。标记只走 stderr→stdout_tail, ``.log`` 干净 —— ``_report_of``
     的 ``*:fatal:`` 归一使它可见即 ``other`` 类。gs pdfwrite 重序列化只改
     对象布局不改内容, 原件留 ``<name>.fixloop-rd`` 备份 (与 graphic_repair
     同 marker, 兼「已 sanitize」幂等标记); 肇事件不可定位 (fatal 不携
@@ -694,7 +694,7 @@ def pdf_asset_sanitize(
 #: figure/figure* env 块 (遮盖视图锚边界对，注释/verbatim 不锚)。
 _FIG_ENV_RX = re.compile(r"\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}")
 
-#: 旋转签名 —— ``\\rotatebox`` 盒或 graphicx ``angle=`` 键 (90/180/270
+#: 旋转标记 —— ``\\rotatebox`` 盒或 graphicx ``angle=`` 键 (90/180/270
 #: 族; 0°/小角不产生 bbox-ink 错位机制，防爆半径只咬旋转面)。
 _ROTATED_RX = re.compile(r"\\rotatebox\b|\bangle\s*=\s*-?(?:90|180|270)\b")
 
@@ -745,7 +745,7 @@ def rotatebox_caption_pad(
     (matplotlib 族通病, 标签挂出 bb) 旋到盒下 ~10-15pt bleed; EN base
     同 bleed 但 1 行 caption 擦过, zh 2 行撞进 (labels 720-731 vs
     caption 叠印)。0707.3761 同族 ``angle=270`` includegraphics 形。
-    编译 clean 无 log 签名, 唯 precheck ``always`` 面可达。
+    编译 clean 无 log 标记, 唯 precheck ``always`` 面可达。
     """
     del eng, payload
     exts = tuple(params.get("exts") or (".tex", ".sty"))

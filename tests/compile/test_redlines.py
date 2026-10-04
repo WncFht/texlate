@@ -187,7 +187,7 @@ def test_restatable_probe_behavior() -> None:
     plain = "This is XeTeX, Version 3\nPackage: thmtools 2023/05/04 v0.76\n"
     assert rx.search(loaded)
     assert not rx.search(plain)
-    # 判据口径抽查：探针只承诺 presence——对静默丢失本身无签名
+    # 判据口径抽查：探针只承诺 presence——对静默丢失本身无标记
     # （``{定理}{main}`` 实证 0 个 ``!`` 行），故仅记 notes 观察项。
     noloss_sig = (
         "Output written on x.pdf (1 page).\n"

@@ -65,7 +65,7 @@ def test_soul_multi_when_gate(tmp_path: Path) -> None:
 
 
 def test_soul_multi_wraps_cs_group_arg(tmp_path: Path) -> None:
-    r"""1107.0598 def-站签名: ``\so{\MakeTextUppercase{#1}}`` → mbox 裹。"""
+    r"""1107.0598 def-站标记: ``\so{\MakeTextUppercase{#1}}`` → mbox 裹。"""
     _tex(tmp_path, "\\newcommand\\secformat[1]{\\so{\\MakeTextUppercase{#1}}}")
     ok, note = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok, note
@@ -217,7 +217,7 @@ def test_biber_swap_rewrites_options() -> None:
 
 
 def test_biber_swap_apply(tmp_path: Path) -> None:
-    r"""2605.29672 签名: 装载行改写后 .bcf→biber 通道产净 .bbl。"""
+    r"""2605.29672 标记: 装载行改写后 .bcf→biber 通道产净 .bbl。"""
     _tex(tmp_path, "\\usepackage[style=authoryear,backend=bibtex]{biblatex}\nx")
     ok, note = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert ok, note

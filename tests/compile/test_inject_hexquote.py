@@ -134,7 +134,7 @@ def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     r"""真编译双投毒臂：``"``=catcode-11（cyr 态）与 ``"``=active（quotes 态）
 
     下注入产物零 Missing number、数学内 CJK 零缺字。对照臂（未守护的
-    旧块形状）在 ``"``=11 下复现 census 签名。
+    旧块形状）在 ``"``=11 下复现 census 标记。
     """
     for tag, poison in (
         ("cat11", '\\catcode`\\"=11'),
@@ -149,7 +149,7 @@ def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
         n_missing_chr = len(re.findall(r"Missing character", log))
         assert n_missing_chr == 0, f"{tag}: {n_missing_chr} 个缺字"
 
-    # 对照臂：剥掉守护行恢复旧形状，catcode-11 下必复现 census 签名。
+    # 对照臂：剥掉守护行恢复旧形状，catcode-11 下必复现 census 标记。
     ctl_doc = _DOC_TEMPLATE % '\\catcode`\\"=11'
     out, _info = inject_cjk(ctl_doc, mode="ctex")
     ctl = out.replace(_GUARD_SAVE + _GUARD_SET, "")

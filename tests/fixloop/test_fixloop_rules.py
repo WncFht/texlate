@@ -73,7 +73,7 @@ def test_phase_ordering() -> None:
         # order 稳定序按分片文件名拼接)
         "cjk_section_skip_floor",
         # qc99 rules-batch: suppl 浮体冲页 / ACM uchead -12pt 校准 /
-        # 旋转图 caption 垫 —— 同批无签名版面面三件
+        # 旋转图 caption 垫 —— 同批无标记版面面三件
         "maketitle_suppl_float_flush",
         "uchead_vskip_relax",
         "rotfig_caption_pad",

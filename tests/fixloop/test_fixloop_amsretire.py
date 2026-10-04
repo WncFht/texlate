@@ -31,7 +31,7 @@ _ERR_CTX = """<to be read again>
                    \\leqno
 l.2573 \\@saveprimitive\\leqno\\@@leqno"""
 
-# 0806.0246 改名件变体 (amsmath2.sty 同名签名)
+# 0806.0246 改名件变体 (amsmath2.sty 同名标记)
 _ERR_RENAMED = (
     "/work/0806.0246/splice/amsmath2.sty:2573: LaTeX Error: "
     "Unable to properly define \\@@leqno; primitive \\leqno "
@@ -90,14 +90,14 @@ def _fn() -> Callable[..., tuple[bool, str]]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_signature_is_other() -> None:
-    """实证签名 file-line LaTeX Error → other (taxonomy 无专类)。"""
+    """实证标记 file-line LaTeX Error → other (taxonomy 无专类)。"""
     rep = parse_text(_ERR_LINE + "\n" + _ERR_CTX)
     cat, _ = _rs().taxonomy.classify(rep)
     assert cat == "other"
 
 
 def test_taxonomy_renamed_copy_same() -> None:
-    """改名件 amsmath2.sty 同款签名同归 other。"""
+    """改名件 amsmath2.sty 同款标记同归 other。"""
     rep = parse_text(_ERR_RENAMED)
     cat, _ = _rs().taxonomy.classify(rep)
     assert cat == "other"
@@ -123,7 +123,7 @@ def test_rule_order_in_retire_family() -> None:
 
 # ---------------------------------------------------------------- condition 闸
 def test_cond_skip_unrelated_other(tmp_path: Path) -> None:
-    """err_head 无签名 (别的 other 错) → ctx_suggests 闸拒。"""
+    """err_head 无标记 (别的 other 错) → ctx_suggests 闸拒。"""
     ctx = _ctx(tmp_path)
     ctx.err_head = "./main.tex:10: LaTeX Error: Something else.\nl.10 x\n"
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001

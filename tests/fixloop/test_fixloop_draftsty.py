@@ -1,4 +1,4 @@
-"""稿自带 .sty abstract-edef 捕获 hack 中和链单测 (签名件原位补丁，非退役)。
+"""稿自带 .sty abstract-edef 捕获 hack 中和链单测 (标记件原位补丁，非退役)。
 
 实证背景 (corpus 1706.00240, iffalse-census #46 残格，unfixable:other):
 e-print 自带 draft.sty 载 ``\\protected@edef\\@tempa{\\ifnum`}=\\z@`` —
@@ -8,9 +8,9 @@ edef 的 ``{`` 失去配对 ``}`` 永不闭合 → abstract 体 + ``\\endabstrac
 → ``Incomplete \\iffalse`` (bt7.tex = article[twocolumn] + verbatim
 draft.sty 零 texlate 含量同款复现，2017 期构形 TL2026 不再容忍)。
 
-修复面：err_head 不点名 sty 文件名 → ctx 签名 (``Incomplete \\if`` /
+修复面：err_head 不点名 sty 文件名 → ctx 标记 (``Incomplete \\if`` /
 ``File ended ... \\protected@edef``) ∧ wdir ``*.sty`` 在场 → sh 脚本对
-``protected@edef.*ifnum`}=.z@`` / ``ifnum`{=.z@`` 逐件确证 (无签名→
+``protected@edef.*ifnum`}=.z@`` / ``ifnum`{=.z@`` 逐件确证 (无标记→
 no-op exit 0), 首个 ``\\endinput`` 前 (缺席则 EOF) 注入良性
 ``\\def\\abstract``/``\\endabstract`` 覆写 —— hack 两行仍在文件里但
 永不再执行 (sty 载入只扫参不展开，覆写在后赢); ``\\ifdefined\\maketitle``
@@ -65,7 +65,7 @@ def _rule() -> Rule:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_incomplete_iffalse_is_incomplete_if() -> None:
-    """实证签名：`! Incomplete \\iffalse` → incomplete_if (taxrow 专属行，payload=条件 cs)。"""
+    """实证标记：`! Incomplete \\iffalse` → incomplete_if (taxrow 专属行，payload=条件 cs)。"""
     cat, pay = classify(_ERR_IFFALSE)
     assert cat == "incomplete_if"
     assert pay == "\\iffalse"
@@ -80,7 +80,7 @@ def test_taxonomy_edef_eof_is_runaway_scan() -> None:
 
 # ---------------------------------------------------------------- 规则接线
 def test_rule_wired_loop_phase() -> None:
-    """规则挂 loop 相 order 11.95 → run_tool sh -c 签名件原位补丁。"""
+    """规则挂 loop 相 order 11.95 → run_tool sh -c 标记件原位补丁。"""
     rule = _rule()
     assert rule.order == 11.95  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
@@ -97,7 +97,7 @@ def test_rule_wired_loop_phase() -> None:
     assert argv[:2] == ["sh", "-c"]
     script = argv[2]
     assert "texlate-fixloop-injected" in script  # 指纹幂等闸
-    assert "protected@edef" in script  # 内容签名自证
+    assert "protected@edef" in script  # 内容标记自证
     assert "\\endinput" in script  # 注入位：首个 \endinput 前
     assert "\\def\\abstract" in script  # 良性环境覆写
     assert "\\def\\endabstract" in script
@@ -122,7 +122,7 @@ def test_cond_skip_when_no_sty(tmp_path: Path) -> None:
 
 
 def test_cond_skip_when_ctx_unsigned(tmp_path: Path) -> None:
-    """.sty 在场但错误无 Incomplete/edef 签名 → ctx_suggests any 闸拒。"""
+    """.sty 在场但错误无 Incomplete/edef 标记 → ctx_suggests any 闸拒。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
     ctx = mk_ctx(
         tmp_path, err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
@@ -172,7 +172,7 @@ def test_apply_patches_signed_sty(tmp_path: Path) -> None:
 
 
 def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
-    """无签名件 → 脚本 continue, 文件逐字节不动。"""
+    """无标记件 → 脚本 continue, 文件逐字节不动。"""
     clean = "\\ProvidesPackage{foo}\\newcommand*\\foo{bar}\n\\endinput\n"
     (tmp_path / "foo.sty").write_text(clean, encoding="utf-8")
     ctx = mk_ctx(tmp_path)
@@ -232,7 +232,7 @@ def test_apply_noop_when_dir_empty(tmp_path: Path) -> None:
 
 
 def test_apply_skips_comment_only_signature(tmp_path: Path) -> None:
-    """签名仅活注释行 (draft.sty 的 :62-64 被注变体形) → 判无签名不补丁。"""
+    """标记仅活注释行 (draft.sty 的 :62-64 被注变体形) → 判无标记不补丁。"""
     comment_only = (
         "\\ProvidesPackage{foo}\n"
         "%\\renewcommand*\\abstract{\\begingroup\n"
@@ -267,7 +267,7 @@ def _proj(tmp_path: Path) -> Path:
 
 
 def test_e2e_iffalse_patched_then_clean(tmp_path: Path) -> None:
-    """整链：Incomplete \\iffalse 首错 → 签名件补丁 → 下轮 clean。"""
+    """整链：Incomplete \\iffalse 首错 → 标记件补丁 → 下轮 clean。"""
     eng = _MockEngine(
         [
             {"log": _ERR_IFFALSE + "\n"},
@@ -299,7 +299,7 @@ def test_e2e_edef_eof_arm_patched(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_unsigned_ctx(tmp_path: Path) -> None:
-    """.sty 带 hack 但错误是别家签名 → ctx 闸拒，不动文件。"""
+    """.sty 带 hack 但错误是别家标记 → ctx 闸拒，不动文件。"""
     eng = _MockEngine(
         [
             {"log": "./main.tex:5: Undefined control sequence.\nl.5 \\foo\n"},

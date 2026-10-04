@@ -1,7 +1,7 @@
 r"""fixloop aux 截断重试规则（2211.13013 闭环·引擎自产臂）。
 
 taxonomy ``aux_scan_eof`` 接 ``File ended while scanning use of \@newl@bel``
-签名 → ``aux_purge_regen`` 规则调 ``purge_corrupt_intermediates`` 删损坏
+标记 → ``aux_purge_regen`` 规则调 ``purge_corrupt_intermediates`` 删损坏
 可再生中间件。shipped 侧归 transcode.INTERMEDIATE_SUFFIXES 转码，本侧管
 引擎自产件的运行时截断。
 """
@@ -36,7 +36,7 @@ def test_aux_eof_classifies_with_payload() -> None:
 
 
 def test_aux_eof_beats_emergency_in_ctx8() -> None:
-    """'!' 行后 ctx8 混入 Emergency stop 不抢签（条目先于 emergency 评估）。"""
+    """'!' 行后 ctx8 混入 Emergency stop 不抢标记（条目先于 emergency 评估）。"""
     log = _EOF_LOG + "Emergency stop\n!  ==> Fatal error occurred\n"
     rep = parse_text(log)
     cat, _ = rs().taxonomy.classify(rep)
@@ -47,7 +47,7 @@ def test_generic_scan_eof_not_aux() -> None:
     """非回读宏的 EOF 扫描（如截断的 main.tex 撞上 \\section）不归本类。"""
     rep = parse_text("! File ended while scanning use of \\section.\nl.9 x\n")
     cat, _ = rs().taxonomy.classify(rep)
-    assert cat == "runaway_scan"  # 2026-09-17 通用签名接管非 aux 宏 (aux 族仍专属)
+    assert cat == "runaway_scan"  # 2026-09-17 通用标记接管非 aux 宏 (aux 族仍专属)
 
 
 # ---------------------------------------------------------------- builtin 单测
@@ -90,7 +90,7 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
     """截断 aux 由 round 前 _sweep_bad_aux 预清扫移除 —— 首轮编译即不吃毒件。
 
     126683d 起每轮 compile 前引擎先扫 aux 族 (无尾换行/花括号不闭) —— 比
-    aux_scan_eof 签名 + 规则路径更早一层; 规则仍兜底「行界完整但带非法
+    aux_scan_eof 标记 + 规则路径更早一层; 规则仍兜底「行界完整但带非法
     UTF-8」的中间件 (见下一个测试)。
     """
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
@@ -103,7 +103,7 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
 
 def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
     """行界完整 + 花括号闭合但含非法 UTF-8 的 aux —— 预清扫放行，aux_scan_eof
-    签名命中后 aux_purge_regen 规则仍是最后一道。"""
+    标记命中后 aux_purge_regen 规则仍是最后一道。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(
         b"\\newlabel{a}{{1}{1}{\xe4\xb8}}\n\\newlabel{b}{{2}{2}{ok}}\n"
@@ -119,7 +119,7 @@ def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
 
 
 def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
-    """签名命中但无损坏件 → 规则 applied=False, 不误伤健康 aux。"""
+    """标记命中但无损坏件 → 规则 applied=False, 不误伤健康 aux。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{ok}}\n")
     eng = MockEngine([{"log": _EOF_LOG, "pdf": False}] * 4, probe_cwd=False)
@@ -131,7 +131,7 @@ def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
 
 # ════════════════════════════════════════════════════════════════
 # scaneof 扩臂 (2026-09-20, m1k aux-malformed 簇 11 singles):
-# 同根三签名面 —— (b) runaway_scan 读端落 aux 书写族 cs;
+# 同根三标记面 —— (b) runaway_scan 读端落 aux 书写族 cs;
 # (c) undefined_cs 站点直落 *.aux:N (良好字节形写端错配 →
 # payload 锚定内容删，损坏谓词整类放行这种件)。
 # ════════════════════════════════════════════════════════════════
@@ -157,7 +157,7 @@ def _purge2(wdir: Path, payload: str | None) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- 派发臂
 def test_runaway_abx_arm_dispatches(tmp_path: Path) -> None:
-    """(b) runaway_scan|\\abx@aux@cite —— zh 2503.10110 实签名。"""
+    """(b) runaway_scan|\\abx@aux@cite —— zh 2503.10110 实标记。"""
     rep = parse_text(_RUNAWAY_ABX_LOG)
     cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("runaway_scan", "\\abx@aux@cite")
@@ -166,7 +166,7 @@ def test_runaway_abx_arm_dispatches(tmp_path: Path) -> None:
 
 
 def test_undefined_cs_aux_site_dispatches(tmp_path: Path) -> None:
-    """(c) undefined_cs @ *.aux:N —— base 2503.10110 root.aux:67 实签名。"""
+    """(c) undefined_cs @ *.aux:N —— base 2503.10110 root.aux:67 实标记。"""
     rep = parse_text(_UNDEF_AUX_LOG)
     cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("undefined_cs", "abx@aux@cite")

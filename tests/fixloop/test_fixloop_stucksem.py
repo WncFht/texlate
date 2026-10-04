@@ -1,11 +1,11 @@
 """fixloop stuck 语义 (exhaustion-settled streak) 单测 —— 合成 log + mock engine。
 
-旧制在第 stuck_sig_repeat 个同签轮 ``_match_apply`` 前预判 stuck —— 产出轮
+旧制在第 stuck_sig_repeat 个同标记轮 ``_match_apply`` 前预判 stuck —— 产出轮
 (apply 发生) 同样计入 sig_n, 只在第 N+1 轮才够得到的规则 (凭据门
 if_phantom_protect 类：需兄弟规则的 action 先落 ledger) 被永久抢死在
 窗口外 (1206.0701/1306.0364: r1/r2 各有 apply, r3 未派发即断)。
 
-新制 (task #142): ``sig_n`` 仍记同签连续 streak, 但 stuck verdict 移到
+新制 (task #142): ``sig_n`` 仍记同标记连续 streak, 但 stuck verdict 移到
 派发耗尽点结算 —— streak ≥ stuck_n 且本轮主 + 次级派发全 miss → stuck。
 apply 轮次只续窗口不占判负; 真耗尽格烧轮止于派发枯竭，不多烧一轮。
 """
@@ -140,7 +140,7 @@ def test_apply_streak_extends_window_then_stuck(tmp_path: Path) -> None:
 
 
 def test_sig_alternation_never_stuck(tmp_path: Path) -> None:
-    """异签交替 streak 恒 1: 双签名格烧满 max_rounds 落 max_rounds 不 stuck。"""
+    """异签交替 streak 恒 1: 双标记格烧满 max_rounds 落 max_rounds 不 stuck。"""
     make_proj(tmp_path)
     rs = mini_rs(
         rules=[

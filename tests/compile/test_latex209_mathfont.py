@@ -17,7 +17,7 @@ from texlate.compile.latex209 import upgrade_209
 
 
 def test_math_switch_em_in_ddollar() -> None:
-    """9910310 实证签名：``$$`` 内 ``{\\em X}`` → ``\\mathit{X}``。"""
+    """9910310 实证标记：``$$`` 内 ``{\\em X}`` → ``\\mathit{X}``。"""
     out, info = convert(
         "$$\\langle N\\rangle = \\sum_{{\\em fields}\\,i} d\\Omega,\\eqno{(3)}$$"
     )

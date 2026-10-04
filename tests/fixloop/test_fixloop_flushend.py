@@ -183,7 +183,7 @@ def test_flushend_other_pkg_same_name_kept(tmp_path: Path) -> None:
 
 
 def test_flushend_cond_declines_wrong_err(tmp_path: Path) -> None:
-    """err 面非 keeplastbox/flushend 签名 → ctx_suggests 拒。"""
+    """err 面非 keeplastbox/flushend 标记 → ctx_suggests 拒。"""
     (tmp_path / "main.tex").write_text(
         "\\usepackage[keeplastbox]{flushend}\n", encoding="utf-8"
     )

@@ -1,4 +1,4 @@
-"""rules 校验洞补丁测试：item_glue 粘合签名 + 注释区占位符逃逸 + 注释尾段。
+"""rules 校验洞补丁测试：item_glue 粘合标记 + 注释区占位符逃逸 + 注释尾段。
 
 实证背景：
 - item_glue：译文把 ``\\item`` 与后随词粘成 ``\\itemFSU``/``\\itemNGA``/

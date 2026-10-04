@@ -147,7 +147,7 @@ def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数�
 
     ``log_text`` 由调用方早读——各引擎 ``.log``→``LogInfo`` 解析段发散
     （xelatex ``parse_log(log_text or stdout_tail)`` + driver-fatal 打捞 +
-    ``log_truncated``；tectonic 空 .log 退 stdout_tail + ``error:`` 签名
+    ``log_truncated``；tectonic 空 .log 退 stdout_tail + ``error:`` 标记
     兜底），读盘随解析段留在原地。本函数只归位字段，且须在
     ``_salvage_driver_fatal`` 之后调用：``_driver_fatal`` 的 ``has_pdf``
     门按归位前字段评估（编译时序上恒 False——``res.pdf`` 此刻未落位即

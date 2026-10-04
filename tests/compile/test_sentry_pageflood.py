@@ -138,10 +138,10 @@ def test_pagenumbering_reset_benign() -> None:
 
 
 def test_vbox_noise_inflates_denominator_safe() -> None:
-    """pin f：30 vbox 签名 + 20K 非序噪声——密度分母走原始计数。
+    """pin f：30 vbox 标记 + 20K 非序噪声——密度分母走原始计数。
 
     非序噪声撑大分母是**豁免方向**（保守）：杀开关宁漏边际流不误伤；
-    真 ``\\output`` 空转暴走签名数以千计（gr-qc ~96K），30 签名级边
+    真 ``\\output`` 空转暴走标记数以千计（gr-qc ~96K），30 标记级边
     际流本非 vbox 臂目标——包络只收紧 page_flood 闸，密度臂原语义
     零变化。
     """
@@ -151,7 +151,7 @@ def test_vbox_noise_inflates_denominator_safe() -> None:
 
 
 def test_vbox_benign_with_noise_still_safe() -> None:
-    """阴性钉：30 签名 + 40 真序贯页标 + 非序噪声——密度分母按原始
+    """阴性钉：30 标记 + 40 真序贯页标 + 非序噪声——密度分母按原始
     页标计数（含噪声共 20040），30≤4×20040 放行。"""
     s = _RunawaySentry()
     blob = b"".join(b"[%d]\n" % i for i in range(40))

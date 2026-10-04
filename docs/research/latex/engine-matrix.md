@@ -1,7 +1,7 @@
 # 引擎矩阵实验：xelatex vs tectonic 真实语料差异
 
 > **结论**：tectonic 初始 clean 率更高（7/12 vs 4/12）但有三类硬性限制（EPS/PS 图、bundle 缺物理字体、bundle 包版本旧）；xelatex 的缺包失败全部可被 tlmgr 链式装包救回。两引擎失败集几乎互补，联合覆盖 9/12。默认路由 = 开发态 xelatex、分发态 tectonic 优先 + xelatex 兜底 + 静态预检。
-> **状态**：时点证据（2026-09-14 口径；路由结论已落地为 `compile/engine/_route.py` 静态签名集 + fixloop 规则，规范见 `spec/compile.md`）
+> **状态**：时点证据（2026-09-14 口径；路由结论已落地为 `compile/engine/_route.py` 静态标记集 + fixloop 规则，规范见 `spec/compile.md`）
 > **日期**：2026-09-14
 
 ## 1. 口径
@@ -54,7 +54,7 @@
 
 clean 判据三件套：① pdf 存在；② `!`≤3 且首错非 missing_*/undefined_cs；③ log warning 扫描（`Invalid UTF-8 byte`/`Missing character.*U+FFFD`/tectonic `File.*not found` 降级行）任一命中即 dirty。
 
-落地注记：现行 `compile/engine/_route.py` 的签名集与上表一致（pstricks 家族名集 = 精确 `pstricks` + 前缀 `pstricks-`/`pst-`，含 pstricks-add；`frozencache` 须与 minted 装载共现才翻 tectonic 优先）；`\documentstyle` 在现行代码中降级为试编标记而非直接拒绝（`latex209_suspect` 槽位），拒绝判定移交 fixloop gate。规则侧落点见 `pstricks-route.md` 与 `fixloop-rules.md`。
+落地注记：现行 `compile/engine/_route.py` 的标记集与上表一致（pstricks 家族名集 = 精确 `pstricks` + 前缀 `pstricks-`/`pst-`，含 pstricks-add；`frozencache` 须与 minted 装载共现才翻 tectonic 优先）；`\documentstyle` 在现行代码中降级为试编标记而非直接拒绝（`latex209_suspect` 槽位），拒绝判定移交 fixloop gate。规则侧落点见 `pstricks-route.md` 与 `fixloop-rules.md`。
 
 ### 参考文献
 

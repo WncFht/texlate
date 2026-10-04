@@ -21,7 +21,7 @@ from texlate.validate.rules import _ECHO_SIGS, Severity, validate_pair
 
 @pytest.mark.parametrize("sig", _ECHO_SIGS)
 def test_echo_each_literal_caught(sig: str) -> None:
-    """``_ECHO_SIGS`` 全签名逐个入 zh → protocol_echo error（子串口径）。"""
+    """``_ECHO_SIGS`` 全标记逐个入 zh → protocol_echo error（子串口径）。"""
     src = "结果见 [[MATH_1]] 与 [[MATH_2]]。"
     zh = f"结果见 [[MATH_1]] 与 [[MATH_2]]。\n{sig} 若干内容"
     rep = validate_pair(src, zh)
@@ -43,7 +43,7 @@ def test_echo_section_markers_caught() -> None:
 
 
 def test_echo_previous_validation_error_marker() -> None:
-    """字段化反馈节标 ``[previous_validation_error]`` → 命中裸签名 → error。"""
+    """字段化反馈节标 ``[previous_validation_error]`` → 命中裸标记 → error。"""
     src = "结果见 [[MATH_1]]。"
     zh = "结果见 [[MATH_1]]\n[previous_validation_error]\n占位符缺失: x"
     rep = validate_pair(src, zh)
@@ -87,7 +87,7 @@ def test_echo_multi_count_aggregated() -> None:
 
 
 def test_echo_zh_bracket_line_no_fp() -> None:
-    """``[这是译文]`` 独行不作签名（report §4a：``[word]`` 合法产出同款）。"""
+    """``[这是译文]`` 独行不作标记（report §4a：``[word]`` 合法产出同款）。"""
     src = "Results [Ours] are shown [[MATH_1]]."
     zh = "结果见 [[MATH_1]]。\n[这是译文]\n收尾。"
     rep = validate_pair(src, zh)
@@ -112,7 +112,7 @@ def test_echo_inline_extra_marker_caught() -> None:
 
 
 def test_echo_bare_duoyu_no_fp() -> None:
-    """裸 ``多余`` 不是签名（合并字面才入表）——普通译文词汇不误伤。"""
+    """裸 ``多余`` 不是标记（合并字面才入表）——普通译文词汇不误伤。"""
     src = "We drop the redundant token [[MATH_1]]."
     zh = "我们丢弃多余的 token [[MATH_1]]。"
     rep = validate_pair(src, zh)

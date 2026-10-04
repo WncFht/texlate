@@ -73,7 +73,7 @@ def test_cjk_missing_drives_warmup_round(tmp_path: Path) -> None:
 
 
 def test_symbol_missing_char_replaced(tmp_path: Path) -> None:
-    """≠ U+2260 落 cmr7 → 字面替换 \\ensuremath{\\neq} (n100 0806.1079 签名)。"""
+    """≠ U+2260 落 cmr7 → 字面替换 \\ensuremath{\\neq} (n100 0806.1079 标记)。"""
     main = (
         "\\documentclass{article}\n\\usepackage{ctex}\n"
         "\\begin{document}\na ≠ b 且 a − b\n\\end{document}\n"
@@ -551,7 +551,7 @@ def test_builtin_macro_glyph_cs_sites_absent(tmp_path: Path) -> None:
 
 
 def test_loop_misscharcen162_tfm_replaces(tmp_path: Path) -> None:
-    r"""TFM 无槽字面 → ``\ensuremath``/TFM 自有槽系替换 (17-cell 普查签名)。
+    r"""TFM 无槽字面 → ``\ensuremath``/TFM 自有槽系替换 (17-cell 普查标记)。
 
     缺字体全是 cmr*/zptmcm7t/cmmi7 TFM —— ``\textXxx`` 在 TU 下产出同
     码位会再缺, 一律走数学族/TFM 连字形:
@@ -654,7 +654,7 @@ def _missing_char_fix_params() -> dict:
 def test_builtin_macro_glyph_textendash_math(tmp_path: Path) -> None:
     r"""``\textendash`` 数学态 ket 记号内产 U+2013 → ``\mbox{--}``。
 
-    0806.2407 签名 (``$i_{13/2}\textendash\frac{3}{2}$``, cmr10 ×40):
+    0806.2407 标记 (``$i_{13/2}\textendash\frac{3}{2}$``, cmr10 ×40):
     ``--`` TFM 连字产 en-dash, \mbox 双模安全 —— 与 char_table endash
     字面臂同形。
     """
@@ -678,7 +678,7 @@ def test_builtin_macro_glyph_textendash_math(tmp_path: Path) -> None:
 def test_builtin_macro_glyph_dblquote_pair(tmp_path: Path) -> None:
     r"""``\textgravedbl X\textacutedbl`` „...˝ 引号对 → „...\" 成对归一。
 
-    hep-ph/0605319 签名 (tuenc: gravedbl→U+02F5 缺 ×12, acutedbl→
+    hep-ph/0605319 标记 (tuenc: gravedbl→U+02F5 缺 ×12, acutedbl→
     U+02DD 有槽不缺)。acutedbl 键伴生 02F5 —— gravedbl 触发时整对
     改写 ``\quotedblbase``+``''``, 免留 „...˝ 混搭。
     """
@@ -733,7 +733,7 @@ def test_builtin_macro_glyph_acutedbl_own_cp_not_keyed(tmp_path: Path) -> None:
 def test_builtin_macro_glyph_char_slot_textsc_ligature(tmp_path: Path) -> None:
     r"""``\textsc{\char13}`` OT1/cmcsc 槽位 13=fl 连字 → 字母串改写。
 
-    1404.0578 签名 (lmromancaps10 ``^^M`` U+000D ×41): Unicode 字体下
+    1404.0578 标记 (lmromancaps10 ``^^M`` U+000D ×41): Unicode 字体下
     ``\char13`` 产码位 13 本身而非槽位字形 —— 槽位表还原连字本意;
     写字母 ``fl`` 在 \textsc 上下文自动取小型大写形 (cmcsc 槽位原义)。
     """
@@ -827,7 +827,7 @@ def test_loop_char_slot_end_to_end(tmp_path: Path) -> None:
 
 
 def test_builtin_caret_utf8_bbl_decode(tmp_path: Path) -> None:
-    r""".bbl ``^^XX`` UTF-8 字节记法 → 解码还原字面量 (2104.00026 签名)。
+    r""".bbl ``^^XX`` UTF-8 字节记法 → 解码还原字面量 (2104.00026 标记)。
 
     ``f^^c3^^bcr`` = UTF-8 C3 BC = ``für``; ``^^e2^^80^^93`` = E2 80 93
     = en-dash。C1 字节 (^^80/^^93) 是缺字指纹; ``^^c3^^bc`` 字节都落
@@ -904,7 +904,7 @@ def test_builtin_caret_utf8_gate_requires_c1(tmp_path: Path) -> None:
 
 def test_loop_caret_utf8_end_to_end(tmp_path: Path) -> None:
     r"""实装 ruleset 端到端: C1 缺字 → 25.9 caret_utf8_fix 解码 .bbl
-    → clean (2104.00026 签名复刻)。"""
+    → clean (2104.00026 标记复刻)。"""
     proj = make_proj(
         tmp_path,
         "\\documentclass{article}\n\\usepackage{ctex}\n"
@@ -937,7 +937,7 @@ def test_loop_caret_utf8_end_to_end(tmp_path: Path) -> None:
 
 
 def test_loop_misschars4_char_table(tmp_path: Path) -> None:
-    r"""~20-cell 普查字面 → 替换/剥除 (misschars4 #190 签名批)。
+    r"""~20-cell 普查字面 → 替换/剥除 (misschars4 #190 标记批)。
 
     文本族 (lmroman 有槽): ‰→``\textperthousand`` €→``\texteuro``
     ˵→``''``; accent 机制形 (任意字体可排, 免再缺同码位):

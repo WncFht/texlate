@@ -12,11 +12,11 @@
 
 ## 错误源（按价值排序）
 
-### A. soak 臂（主矿——量大、签名已聚类、协议现成）
+### A. soak 臂（主矿——量大、标记已聚类、协议现成）
 
 - run 目录：`$TEXLATE_BENCH_ROOT/runs/soak/<date>/<slug>/`（缺省根 `~/.local/share/texlate-bench/`；`bench status` 列全量 run）。每 run 内 `events.jsonl` 是权威事件分片，`work/{wid}/` 是现场，`derived/` 放派生产物，`cases.jsonl` 是 CaseSink 沉淀。**run 树不在仓里**——经 `--add-dir` 的 bench store 路径读写。
 - 格账在 ledger index：`ledger/index.sqlite` 的 `records`/`eval_records` 表（`run` 列即 `<kind>/<date>/<slug>`，行含 `id,idc,arm,up,variant,stage,status,cat,sig,code,dur_s,metrics,errors`——metrics/errors 是 JSON 文本，大载荷走 `$blob` 标记回读 `derived/blobs/`）。只读查询一律 `sqlite3 -readonly` 或走 `bench` 动词，不手改 index。
-- 签名榜直接生成：`bench triage soak/<date>/<slug>` → `<rundir>/derived/tickets.jsonl`（`sig_id/count/example_ids/repro_path/fix_class/notes`，按 count 降序）+ `derived/report.md`。**这是第一输入**，别手写聚类。写进 run 的 derived/ 是动词既定落点，允许。
+- 标记榜直接生成：`bench triage soak/<date>/<slug>` → `<rundir>/derived/tickets.jsonl`（`sig_id/count/example_ids/repro_path/fix_class/notes`，按 count 降序）+ `derived/report.md`。**这是第一输入**，别手写聚类。写进 run 的 derived/ 是动词既定落点，允许。
 - `cases.jsonl`：fixloop CaseSink 沉淀，行是 case 事件壳——case 本体在 `.payload` 字段（`load_cases` 读出后 `[e.get("payload") or e for e in rows]` 再过 `triage()` 过滤待修队列：verdict ∈ unfixable:/stuck/dirty_pdf/max_rounds/no_errors_no_pdf）。index `cases` 表有同一份。
 - 现场：`work/{wid}/{src,zh,splice,build-base}/`。wid 是 `safe_id(idc)`（canon id 的 `/`→`--`）；records 的 `id` 列有 raw(`cat/id`)/canon(`cat--id`)/flat 混形——**任何 id 匹配两侧都过 canon 归一**（wave-5 漏跑 253 格实证），tickets 的 `repro_path` 已解析好优先用它。
 - 最新批：`bench status` 找 soak/* 最末 run_seq，或 `ls -d ~/.local/share/texlate-bench/runs/soak/*/*/ | sort | tail -1`。
@@ -27,7 +27,7 @@
 - `tasks/{id}/`：`src/base/zh/build-zh/compile.log` 俱在——**严格只读**，修复不落用户任务目录。
 - `fixloop-cases.jsonl`：web 侧 CaseSink，同 `triage()` 过滤。
 
-### 不派修的签名（计入报告即可）
+### 不派修的标记（计入报告即可）
 
 `provider_auth/provider_rate/provider_timeout/arxiv_fetch/needs_auth`、用户 cancel/interrupted、ingest `reject`（策略拒绝非故障）、`route_reject/inject_reject`（同输入必再拒是设计行为——除非证明拒绝理由本身错了）。
 
@@ -35,17 +35,17 @@
 
 ### 1. 双臂普查 + 前情
 
-soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队列。web：SQL 签名榜 + `fixloop-cases.jsonl` triage。合成一张签名榜（签名、count、代表 id、所在臂）。
+soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队列。web：SQL 标记榜 + `fixloop-cases.jsonl` triage。合成一张标记榜（标记、count、代表 id、所在臂）。
 
-**先读前情再选题**：`git branch -a 'errsweep/*'` + 最近一份 `docs/research/errsweep/*-sweep.md`——已被未合并 errsweep 分支覆盖的签名跳过（不重复修）；昨日报告里 deferred/未决问题优先续作。
+**先读前情再选题**：`git branch -a 'errsweep/*'` + 最近一份 `docs/research/errsweep/*-sweep.md`——已被未合并 errsweep 分支覆盖的标记跳过（不重复修）；昨日报告里 deferred/未决问题优先续作。
 
-### 2. 选题（每 run ≤5 个签名）
+### 2. 选题（每 run ≤5 个标记）
 
-优先级：count 大 × 可泛化 × 现有规则未覆盖。**先查 rules/ 分片**（`grep` cat/pay/condition/shim_map）——签名若已被规则覆盖仍失败，修的是规则条件面或 builtin 实现，不是加重复条目。tickets 的 `fix_class` 是提示不是结论。
+优先级：count 大 × 可泛化 × 现有规则未覆盖。**先查 rules/ 分片**（`grep` cat/pay/condition/shim_map）——标记若已被规则覆盖仍失败，修的是规则条件面或 builtin 实现，不是加重复条目。tickets 的 `fix_class` 是提示不是结论。
 
 ### 3. 分诊
 
-每签名开 ≤3 个代表现场：soak 用 `repro_path`/`work/{wid}/splice` + 该 id 的 index records 行（`bench status --id <id>` 或 sqlite3 -readonly 查 cells/records）；web 用 `error_json.detail` + `compile.log` 尾 + `task_events`。判定落点：
+每标记开 ≤3 个代表现场：soak 用 `repro_path`/`work/{wid}/splice` + 该 id 的 index records 行（`bench status --id <id>` 或 sqlite3 -readonly 查 cells/records）；web 用 `error_json.detail` + `compile.log` 尾 + `task_events`。判定落点：
 
 | 判定                   | 落点                                                                 |
 | ---------------------- | -------------------------------------------------------------------- |
@@ -66,8 +66,8 @@ soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队�
 ### 5. 提交与报告
 
 - `errsweep/<date>` 分支上每逻辑修复一 commit，Conventional Commits + `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` 尾注；`git add` 只加显式文件；commit 前 `git status --porcelain` 自查只有自己碰过的文件。
-- **报告骨架开工即落盘**、逐签名随时更新——中断/超时不得丢叙事。报告 `docs/research/errsweep/<date>-sweep.md`（随分支提交）**并**复制 XDG state 根下 `texlate/errsweep-<date>-report.md`。
-- 报告内容：双臂签名榜、逐签名处置（rule/bugfix/deferred+ 原因）、**每条修复的三门验收证据（命令 + 输出摘要——自述不算数，launcher 后验 Ruleset.load 会另落一行客观证）**、**retry/重跑候选名单**（web task_id 由人工 `POST /api/task/{id}/retry`；soak 格由人工重跑对应 stage——你不代发）、未决问题、**watch 名单**（本次修复预期下次 soak 签名量下降哪些 sig_id——次日对照用）。
+- **报告骨架开工即落盘**、逐标记随时更新——中断/超时不得丢叙事。报告 `docs/research/errsweep/<date>-sweep.md`（随分支提交）**并**复制 XDG state 根下 `texlate/errsweep-<date>-report.md`。
+- 报告内容：双臂标记榜、逐标记处置（rule/bugfix/deferred+ 原因）、**每条修复的三门验收证据（命令 + 输出摘要——自述不算数，launcher 后验 Ruleset.load 会另落一行客观证）**、**retry/重跑候选名单**（web task_id 由人工 `POST /api/task/{id}/retry`；soak 格由人工重跑对应 stage——你不代发）、未决问题、**watch 名单**（本次修复预期下次 soak 标记量下降哪些 sig_id——次日对照用）。
 
 ## 硬纪律（违反即失败）
 

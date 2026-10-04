@@ -530,7 +530,7 @@ def test_flushrt_shim_present() -> None:
 @requires_xelatex
 def test_svglov3_clo_input_mid_class_load(tmp_path: Path) -> None:
     r"""class-load 语境 ``\input svglov3.clo`` 后 ``\@``-cs/``\p@`` 仍可解析
-    ——catcode 泄漏实测（1608.06693 ``15\p@`` 断读签名复现位）。"""
+    ——catcode 泄漏实测（1608.06693 ``15\p@`` 断读标记复现位）。"""
     shutil.copy(STUBS / "svglov3.clo", tmp_path / "svglov3.clo")
     (tmp_path / "minicls.cls").write_text(
         "\\NeedsTeXFormat{LaTeX2e}\n"

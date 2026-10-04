@@ -173,7 +173,7 @@ def test_warn_patterns_scanned() -> None:
             "already_def",
             "plain",
         ),
-        # 负闸：`` `\X' `` 在邻接签名内不得误归 —— Control sequence 签
+        # 负闸：`` `\X' `` 在邻接标记内不得误归 —— Control sequence 签
         # 留给 ctlseq/fontspec_double_merge 车道 (other, 无 payload);
         # "already defined" 短语锚不放的 (was never defined) 与
         # `` `X' `` 在无关报文内 均不落 already_def。
@@ -382,7 +382,7 @@ def test_warn_patterns_scanned() -> None:
         ),
         # tempered 前瞻闸：chunk1 (非图形 producer 短块) 不得跨后续错
         # 误起点 (`:9: ` file:line 前缀/`Error:`/`File ` 三重闸) 借
-        # fig2 的证据 —— fig2 自有签名在位重命中，payload 归 fig2
+        # fig2 的证据 —— fig2 自有标记在位重命中，payload 归 fig2
         # 而非 chunk1 即闸生效。
         (
             (
@@ -430,7 +430,7 @@ def test_undefined_color_backtick_reaches_fallback_rule(tmp_path: Path) -> None:
     r"""端到端路由钉: ``Undefined color `X'`` → undefined_color|X 后,
 
     ``undefined_color_fallback`` (75-syntax:166) 的 when
-    (category+payload_required) 通过 —— 扩收前该签落 other 无 payload,
+    (category+payload_required) 通过 —— 扩收前该标记落 other 无 payload,
     规则不可达 (firezero ~44 cells)。"""
     log = "! Package xcolor Error: Undefined color `MAROON'."
     cat, pay = classify(log)
@@ -477,7 +477,7 @@ def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:
 
     ``already_def_undefine`` (75-syntax:113) 的 when
     (category+payload_required) 与 condition (ctx_suggests "Command")
-    双闸通过 —— 扩收前该签落 other 无 payload, already_def_* 三家
+    双闸通过 —— 扩收前该标记落 other 无 payload, already_def_* 三家
     全够不到 (failmine2 23 cells)。"""
     log = "! LaTeX Error: Command `\\Bbbk' already defined."
     cat, pay = classify(log)

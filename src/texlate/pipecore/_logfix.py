@@ -48,7 +48,7 @@ def logfix(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 logfix_round 同契�
     （``recompile`` 归 ``CompileRunner`` 协议）与实况出口——done 帧
     平铺键 ``enabled/errors/retranslated/fallback`` 前端卡片直读，
     ``report`` 载全量 rep（worker 侧经 ``_repair_event`` scrub）。
-    ``baseline_sigs`` 透传 ``logfix_round``——en 基线签名命中判源生
+    ``baseline_sigs`` 透传 ``logfix_round``——en 基线标记命中判源生
     不进归因面。``seq_marks`` 同路透传（None → env 决议）。返回
     (logfix 报告，最新 CompRes, 新 Verdict 或 None=未重编)。
     """

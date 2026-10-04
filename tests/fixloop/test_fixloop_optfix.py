@@ -312,7 +312,7 @@ def test_xy_commented_xyoption_still_injects(tmp_path: Path) -> None:
 
 
 def test_xy_no_load_site_noop(tmp_path: Path) -> None:
-    """工程无 xy/xypic 装载点 → applied=False (err 有签名也无处挂)。"""
+    """工程无 xy/xypic 装载点 → applied=False (err 有标记也无处挂)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{amsmath}\n", encoding="utf-8")
     ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert not ok

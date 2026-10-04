@@ -79,7 +79,7 @@ def _mech_set(rid: str) -> set[str]:
 
 
 def test_w37_plain_sigs_reject(tmp_path: Path) -> None:
-    """纯 plain TeX（\\font cm 签名 + \\bye 收尾）→ REJECT route=tex-plain。"""
+    """纯 plain TeX（\\font cm 标记 + \\bye 收尾）→ REJECT route=tex-plain。"""
     ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "\\font\\tenrm=cmr10\n\\magnification=1200\nHello\n\\bye\n"},
@@ -101,7 +101,7 @@ def test_w37_latex_docclass_not_rejected(tmp_path: Path) -> None:
 
 
 def test_w68_pure_amstex_bye_rejected(tmp_path: Path) -> None:
-    """amsTeX 系 \\input amstex + 裸 \\bye → 同签名面拒收。"""
+    """amsTeX 系 \\input amstex + 裸 \\bye → 同标记面拒收。"""
     ctx = mk_ctx_files(tmp_path, {"m.tex": "\\input amstex\n\\topmatter\n\\bye\n"})
     applied, note = plain_format_detect(ctx, _Eng(), None, {})
     assert applied

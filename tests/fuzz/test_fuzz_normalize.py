@@ -15,7 +15,7 @@ bbl 替换、路径 rebase、violation 审计、kpse 遮蔽）。kpsewhich 遮�
   （``.git`` 目录、``.dotfile``）非手术面一律不动；
 - ``.aux`` 系中间产物：在场 ⇒ 空文件或 ``\n`` 收尾（截尾整形）；
   缺席 ⇒ 落 ``purged_intermediates``；
-- ``aipcheck.tex`` 逐名 stub（区分大小写；须带垃圾签名，无签名撞名件放行）；
+- ``aipcheck.tex`` 逐名 stub（区分大小写；须带垃圾标记，无标记撞名件放行）；
 - PS 臂：行数不减；数据段与非注释行逐字节保留；atend 占位有实值
   时头行改写为末个实值；
 - stats：键在已知台账集内、JSON 可序列化、台账相对路径排序去重；
@@ -522,7 +522,7 @@ def _check_file_post(  # noqa: C901, PLR0911, PLR0912 — 后缀族分派表即�
     if name in JUNK_FILE_STUBS and path.is_file() and not path.is_symlink():
         # stub 覆写先于一切——逐名匹配不限深度/隐藏位（现行口径）；
         # 隐藏件在隐藏路径裁决后可能整体豁免——两种落盘都接受；
-        # 名撞护栏：无垃圾签名的同名件按真件放行——不提前 return，
+        # 名撞护栏：无垃圾标记的同名件按真件放行——不提前 return，
         # 放行≠豁免转码/手术，落普通 .tex 族不变量继续判别
         stub = JUNK_FILE_STUBS[name].encode("utf-8")
         markers = JUNK_FILE_MARKERS.get(name, ())
@@ -971,11 +971,11 @@ def test_fuzz_junk_stub_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         elif name == "aipcheck.tex" or name.endswith("/aipcheck.tex"):
             stub = JUNK_FILE_STUBS["aipcheck.tex"].encode("utf-8")
             if any(m in blob for m in JUNK_FILE_MARKERS["aipcheck.tex"]):
-                # 带垃圾签名——覆写为 stub
+                # 带垃圾标记——覆写为 stub
                 assert target.read_bytes() == stub
                 assert name in stats.get("junk_stubbed", []) or blob == stub
             else:
-                # 无垃圾签名——撞名真件放行，不覆写为 stub；
+                # 无垃圾标记——撞名真件放行，不覆写为 stub；
                 # 放行≠豁免转码/手术，普通 .tex 路径仍可能改写
                 assert target.read_bytes() == blob or target.read_bytes() != stub
                 assert name not in stats.get("junk_stubbed", [])

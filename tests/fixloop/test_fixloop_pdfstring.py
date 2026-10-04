@@ -66,7 +66,7 @@ def test_fires_injects_guarded_disarm(tmp_path: Path) -> None:
 
 
 def test_offender_from_log_not_err_head(tmp_path: Path) -> None:
-    r"""err_head 不含签名时回退 ``{stem}.log`` —— 肇事名仍命中。"""
+    r"""err_head 不含标记时回退 ``{stem}.log`` —— 肇事名仍命中。"""
     _main(tmp_path)
     (tmp_path / "main.log").write_text(_ERR_TIMES, encoding="utf-8")
     ok, note = pdfstring_cs_disarm(_ctx(tmp_path), None, None, {})
@@ -104,7 +104,7 @@ def test_idempotent_second_call(tmp_path: Path) -> None:
 
 
 def test_reject_no_offender(tmp_path: Path) -> None:
-    r"""签名在但无 ``<to be read again> \<cs>`` → 不动文件。"""
+    r"""标记在但无 ``<to be read again> \<cs>`` → 不动文件。"""
     _main(tmp_path)
     before = (tmp_path / "main.tex").read_text(encoding="utf-8")
     ctx = _ctx(tmp_path, "! Improper alphabetic constant.\nl.1 x\n")

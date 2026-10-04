@@ -421,7 +421,7 @@ class TestBareTokenAudit:
         assert rt.bare_token_audit("a[[NBSP]]b[[NBSP]]c", "译[[NBSP]]文") == ""
 
     def test_extra_nbsp_hard_fail(self) -> None:
-        # observed: 凭空铸 [[NBSP]]（in<out）仍硬败——锻造是幻觉签名
+        # observed: 凭空铸 [[NBSP]]（in<out）仍硬败——锻造是幻觉标记
         err = rt.bare_token_audit("ab", "译[[NBSP]]文")
         assert "structural token multiset mismatch" in err
         assert "NBSP" in err

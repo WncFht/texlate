@@ -5,7 +5,7 @@ r"""校验域知识件 —— net 检测器簇与共享口径件（validate/xlat
 ``cjk``/``mask`` 兄弟件不回引 facade：
 
 - net 检测器：``ph_in_cs_net``/``bare_cs_net``/``residual_en_net`` 译文
-  缺陷签名件 + ``cs_events_spans`` 单遍扫描件 + ``MATH_CS`` 数学命令表。
+  缺陷标记件 + ``cs_events_spans`` 单遍扫描件 + ``MATH_CS`` 数学命令表。
 - 共享口径件：``JSON_FENCE_RX``（LLM 应答 fence 剥皮）/``PH_RX``/
   ``PH_FUZZY_RX``/``PH_ANY_LIKE_RX``（占位符词法）/``CS_OR_SYM_RX``/
   ``prose_text``/``est_tokens``/``lev_capped``。
@@ -88,10 +88,10 @@ _PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]
 
 
 def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
-    r"""``\cs名[[..]]字母`` 双侧夹持签名净差（zh 侧多出，Counter 多重集）。
+    r"""``\cs名[[..]]字母`` 双侧夹持标记净差（zh 侧多出，Counter 多重集）。
 
     splice 逐字节替换 ``[[PH]]`` 后 ``\fo[[PH]]o`` → ``\fo<payload>o`` 断
-    cs 成未定义命令——挪位缺陷签名（scout-spliceguard 实证）。双侧字母夹持
+    cs 成未定义命令——挪位缺陷标记（scout-spliceguard 实证）。双侧字母夹持
     必需：``\cs[[PH]]`` 尾邻是合法高频形（corpus 271 处 ``\protect[[REF_n]]``
     系）；``+`` 排除 ``\[[PH]]`` display-math 与 ``\\[[PH]]`` 控制符号。
     注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。rules
@@ -103,7 +103,7 @@ def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
 
 
 #: 数学模式专用命令（文本域出现即 ``Missing $`` 编译炸弹——realpostfix2
-#: 0905.4907 ``\alpha 发射体`` 实证签名）。收录内核 + amsmath/amssymb
+#: 0905.4907 ``\alpha 发射体`` 实证标记）。收录内核 + amsmath/amssymb
 #: 高频名；表外新名退化走 rules ``macro`` 泛 warn 兜底，不静默。
 #: 刻意不收双模式名（``\ldots``/``\quad``/``\phantom``/``\ensuremath``
 #: 文本域合法）与文本族名（``\dag``/``\S``/``\pounds``/``\eqref``）。
@@ -275,7 +275,7 @@ def bare_cs_net(src: str, zh: str) -> Counter[str]:
     return out
 
 
-#: 危险控制序列表——zh 译文侧新增这些 cs 名即注入签名（与 ``bare_cs_net``
+#: 危险控制序列表——zh 译文侧新增这些 cs 名即注入标记（与 ``bare_cs_net``
 #: 两子类不交：良形非数学危险 cs 由本网兜底）。四族：IO 与文件/进程面
 #: （``\input``/``\write18``——词法件是 ``write``+``18``，表内 ``write``
 #: 即兜住——``\openout`` 等）、定义覆写与 cs 名构造（``\def`` 原语族 +
@@ -360,7 +360,7 @@ DANGEROUS_CS: Final = frozenset(
 def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
     r"""译文侧危险 cs 注入净差（Counter 多重集）。
 
-    ``DANGEROUS_CS`` 表名在 zh 中出现计数净超 src → 注入签名
+    ``DANGEROUS_CS`` 表名在 zh 中出现计数净超 src → 注入标记
     （``\input{/etc/passwd}``/``\write18``/``\def\x``/``\catcode`` 逃逸族）。
     数学域**不豁免**——``$\input$`` 照样执行；注释区 ``mask_comments``
     屏蔽；src 自带同形按多重集差豁免（src 行文引用命令名时 zh 保留
@@ -453,13 +453,13 @@ _RESID_EN_LINKERS: Final = frozenset(
 #: 撇号省略形人名颗粒（``d'Ormesson``/``l'Oréal``）——WORD_RX 把
 #: ``d'Ormesson`` 收成一词后首字母小写不沾大写豁免，单列一类。
 _RESID_EN_ELISION_RX: Final = re.compile(r"[a-z]+'[A-Z]")
-#: 「技术负载 token」签名——token 内含 数字/=<>_{}\/.()[]:*+ 或以 ``-`` 起首
+#: 「技术负载 token」标记——token 内含 数字/=<>_{}\/.()[]:*+ 或以 ``-`` 起首
 #: （命令行 flag）。命令行调用、XML/标记块、代码/查询片段 verbatim 照抄是
 #: 正确态而非漏翻：英文散句的 tech 份额实测 ≤0.25，payload ≥0.5
 #: （e2e_real 探针批：texttt{foldseek easy-search …}/ccs2012 块/
 #: {rotate QRcode} 链/Cypher 查询/Python def 全被 Tier-A 误杀）。
 #: 刻意不收 ``'``（撇号人名走 ``_RESID_EN_ELISION_RX`` 豁免）与 ``,``
-#: （英文句 however, 类词会被打成 tech——清单签名归 ``_ident_list_run``）。
+#: （英文句 however, 类词会被打成 tech——清单标记归 ``_ident_list_run``）。
 _RESID_EN_TECH_RX: Final = re.compile(r"[\d=<>_{}\\/.()\[\]:*+]")
 _RESID_EN_TECH_SHARE: Final = 0.5
 #: 括号枚举 marker 形（``(i)``/``(iv)``/``[2]``/``a)``）——散文枚举
@@ -474,7 +474,7 @@ _RESID_EN_EDGE_RX: Final = re.compile(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$")
 
 
 def _keep_verbatim_run(run: str) -> bool:
-    """Run 是否人名/专名/地址列签名。
+    """Run 是否人名/专名/地址列标记。
 
     ≥70% 词是首字母大写、人名连接词、或落在邮箱/URL span 内即豁免——
     句子夹个把名字/邮箱凑不够 70%，整句英文不误放。
@@ -517,7 +517,7 @@ def _tech_run(core: str) -> bool:
 
 #: 逗号分隔小写标识符清单的 token 形（``atexit,``/``enum``）——模块名/
 #: 关键字 CSV 表 verbatim 照抄豁免用；逗号进不了 tech 表（英文句
-#: however, 类词会被打成 tech），清单签名单列。
+#: however, 类词会被打成 tech），清单标记单列。
 _RESID_EN_IDENT_RX: Final = re.compile(r"[a-z_][a-z0-9_]*,?")
 _RESID_EN_IDENT_MIN_TOKENS: Final = 6
 _RESID_EN_IDENT_SHARE: Final = 0.6
@@ -546,7 +546,7 @@ def _ident_list_run(core: str) -> bool:
 
 
 def name_list_prose(s: str) -> bool:
-    """整段 prose 是否人名/专名/地址列签名（``_keep_verbatim_run`` 同口径段级化）。
+    """整段 prose 是否人名/专名/地址列标记（``_keep_verbatim_run`` 同口径段级化）。
 
     作者/贡献者名单、consortium 块、地址栏——``residual_en`` 的 run 级豁免
     升为段级判定。此类 src 的 verbatim 回显（名单留拉丁原名）与音译 + 原文
@@ -558,7 +558,7 @@ def name_list_prose(s: str) -> bool:
 
 
 def residual_en_net(src: str, zh: str) -> list[str]:
-    r"""译文段内残留英文 run 检测（半译/原文回退的出货签名）。
+    r"""译文段内残留英文 run 检测（半译/原文回退的出货标记）。
 
     行级修复把 audit 失败的行按 ``src_l`` 原文装回、或模型整段应答里夹了
     未翻英文句——``same_source`` 只拦整段回显、``length`` CJK 占比只在
@@ -569,7 +569,7 @@ def residual_en_net(src: str, zh: str) -> list[str]:
     （不按句号切——``English verbatim. 中文`` 混合段骗不过 run 切分）：
 
     - **Tier-A 回显**：剥边缘后 ``est_tokens ≥ 10`` 且 run 是 src prose
-      子串——行级 ``src_l`` 回退/整句照抄的确切签名；
+      子串——行级 ``src_l`` 回退/整句照抄的确切标记；
     - **Tier-B 混血**：run 不在 src 且 alpha 词 ≥8 且拉丁字母 ≥40——
       非照抄的整句英文（改写/漏翻长句）；
     - **技术负载豁免**：run 半数以上 token 含数字/结构符/括号或以

@@ -1,6 +1,6 @@
 """repair.attr — logfix 错误归因叶 (repair 拆分叶).
 
-错误签名簇（``err_signature``/``err_signatures``/``err_signatures_text`` +
+错误标记簇（``err_signature``/``err_signatures``/``err_signatures_text`` +
 ``_sig_*``/``_undef_cs_culprit`` 内部件）、log 解析入口 ``_log_parse``、
 chunk 落盘区间 ``chunk_spans``、文件名 token 解算 ``_resolve_fidx``、
 归因底账 ``LogAttr``（逐文件 文本/行偏移/chunk 区间三表 + ``attr_error``
@@ -46,7 +46,7 @@ _ATTR_MAX_ERRORS = 50
 #: 归因桶成员类别——桶归属由 ``rules/10-taxonomy.yaml`` 的类别 id 单源
 #: 裁决：桶 regex = 成员类别全部 head-scope arm 的 pattern 并集 + 扁平
 #: 语义补遗 ``_*_EXTRA``。taxonomy arm 增删自动汇流进桶——消灭旧
-#: python 侧手抄签名表的「两侧对照同步」契约。收录判据「译文内容能否
+#: python 侧手抄标记表的「两侧对照同步」契约。收录判据「译文内容能否
 #: 造成该类错」：
 #:
 #: - infra = 基建/资源缺——译文修不了，永不归块（重译造不出文件/选项/
@@ -58,13 +58,13 @@ _ATTR_MAX_ERRORS = 50
 #:   真错。旧侧 ``Fatal error occurred`` 收窄随单源化撤除——yaml
 #:   ``Fatal error`` 裸臂在 fixloop ``classify_head`` 同 head+ctx 窗
 #:   评估，归因口径与之对齐。
-#: - struct = 结构位签名——报错行恒在块外结构位（env 标签/定义点），
+#: - struct = 结构位标记——报错行恒在块外结构位（env 标签/定义点），
 #:   但译文可向块内注入字面 ``\begin{X}``/``\end{X}``/``\newcommand``
 #:   幻觉：只认报错行严格含块内，nearest/文件级兜底都禁（revtex4-2
 #:   abstract 仅 frontmatter 期 let-bound——兜底只会把错贴给邻近
 #:   无辜块）。
 #: - filelevel = 无行号错误的全块兜底白名单——只在「块内容确能致错」
-#:   的签名上开火（undefined_cs 幻觉 \cs 无定位行、capacity 爆栈可由
+#:   的标记上开火（undefined_cs 幻觉 \cs 无定位行、capacity 爆栈可由
 #:   内容暴走）。其余无行号错误位置信息为零，全块归因只是扫射烧块
 #:   ——不归因，留 fixloop。
 _INFRA_CATS: frozenset[str] = frozenset(
@@ -104,10 +104,10 @@ _STRUCT_CATS: frozenset[str] = frozenset(
 )
 _FILELEVEL_CATS: frozenset[str] = frozenset({"undefined_cs", "capacity"})
 
-#: infra 扁平补遗——head-arm 并集覆盖不到的签名：tail-scope 措辞的扁平
+#: infra 扁平补遗——head-arm 并集覆盖不到的标记：tail-scope 措辞的扁平
 #: 借用（``Enter file name``/求档 plea/``please update`` 在分类器里挂
 #: ``guard``/``preempts`` 机关，归因闸只要「译文修不了」的平匹配）；
-#: 折行 ``not\nfound``（yaml 臂字面空格不吃换行——路径串把签名顶过
+#: 折行 ``not\nfound``（yaml 臂字面空格不吃换行——路径串把标记顶过
 #: 79 列是常态）；版本闸裸形（``Critical Package X Error: Your LaTeX
 #: release is too old`` 两窄臂各要 file-line 前缀/版本措辞皆不沾）；
 #: ``Illegal pream-token`` 无括号残形；ucs 头邻接 ``\pdf*`` 原语
@@ -122,7 +122,7 @@ _INFRA_EXTRA = (
     r"|Undefined\s+control\s+sequence[^\n]*\n[^\n]*\\pdf[a-zA-Z@]+"
 )
 #: struct 补遗 = 桶契约自留的宽空白/折行容差形（严格含位判的白名单，
-#: yaml 臂同签名但字面空格口径——桶侧保留原判容差）。
+#: yaml 臂同标记但字面空格口径——桶侧保留原判容差）。
 _STRUCT_EXTRA = (
     r"Environment\s+[A-Za-z@*]+\s+undefined"
     r"|begin\{[^}]*\}[^\n]*ended\s+by|Extra\s+\\end"
@@ -183,7 +183,7 @@ def _bucket_rx(name: str) -> re.Pattern[str]:
     return rx
 
 
-#: ``Undefined control sequence`` 头签名——罪魁 cs 在 ctx 窗
+#: ``Undefined control sequence`` 头标记——罪魁 cs 在 ctx 窗
 #: （``<recently read> \cs`` 优先，``l.N \cs`` 行首回退）。
 _UNDEF_CS_HEAD_RX = re.compile(r"Undefined control sequence")
 _UNDEF_CS_CULPRIT_RXS: tuple[re.Pattern[str], ...] = (
@@ -202,15 +202,15 @@ def _undef_cs_culprit(err: logattr.LogError) -> str | None:
 
 
 def _sig_head(head: str) -> str:
-    """签名化 head：去 ``!`` 前缀 + 空白塌缩 + 数字归一（行号跨构不稳定）。"""
+    """标记化 head：去 ``!`` 前缀 + 空白塌缩 + 数字归一（行号跨构不稳定）。"""
     h = re.sub(r"\s+", " ", head.strip().lstrip("!").strip())
     return re.sub(r"\d+", "#", h)
 
 
 def err_signature(err: logattr.LogError) -> str:
-    r"""错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
+    r"""错误标记——en/zh 双编译间稳定（``head|culprit`` 形）。
 
-    ``Undefined control sequence`` 头恒定、罪魁全在 ctx——签名键必须是
+    ``Undefined control sequence`` 头恒定、罪魁全在 ctx——标记键必须是
     cs 名而非裸 head（否则 en 任一 undefined_cs 会豁免 zh 全部同类，
     译文幻觉 ``\\cs`` 被误放）。其余类 head 自带区分度（包名/env 名/
     宏名在文内），culprit 位留空。
@@ -222,23 +222,23 @@ def err_signature(err: logattr.LogError) -> str:
 
 
 def _sig_set(verdict: logattr.LogVerdict) -> set[str]:
-    """LogVerdict → 错误签名集（``log_missing``/无错 → 空集）。"""
+    """LogVerdict → 错误标记集（``log_missing``/无错 → 空集）。"""
     if verdict.log_missing or not verdict.errors:
         return set()
     return {err_signature(e) for e in verdict.errors}
 
 
 def err_signatures(res: CompRes) -> set[str]:
-    """CompRes → 错误签名集（en 基线快照——worker 原文编译后取）。
+    """CompRes → 错误标记集（en 基线快照——worker 原文编译后取）。
 
-    签名在 en 侧出现 = 源生错（无译文时已犯）——zh 侧同签名错误不归
+    标记在 en 侧出现 = 源生错（无译文时已犯）——zh 侧同标记错误不归
     chunk（logfix 归因面消费；基线缺席返回空集=无过滤）。
     """
     return err_signatures_text(log_text_of(res), project_root=res.workdir)
 
 
 def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> set[str]:
-    """Log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
+    """Log 文本 → 错误标记集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
     if not log_text:
         return set()
     return _sig_set(logattr.parse_log_text(log_text, project_root=project_root))
@@ -340,8 +340,8 @@ class LogAttr:
         错误行行尾之后的块不可能是肇事者（repro-2501：preamble 错被
         forward-fallback 错归给首个正文块）。runaway/EOF 类报的父文件
         续行位由 ``attr_error`` 的 ``eof_file`` 改派兜住，不经此路。
-        ``nearest=False``（struct 桶签名类）关掉最近块兜底——
-        结构签名报错行恒在块外，兜底只会把错贴给邻近无辜块。
+        ``nearest=False``（struct 桶标记类）关掉最近块兜底——
+        结构标记报错行恒在块外，兜底只会把错贴给邻近无辜块。
         """
         offs = self.line_off[fidx]
         if not (1 <= tex_line <= len(offs) - 1):
@@ -404,7 +404,7 @@ class LogAttr:
         # toolchain 面；重译造不出 .sty/字体/图片，归了只会白烧块。
         if _bucket_rx("infra").search(blob):
             return None
-        # 结构位签名：只认报错行严格含于某块的归因——兜底会误伤邻近块
+        # 结构位标记：只认报错行严格含于某块的归因——兜底会误伤邻近块
         strict = _bucket_rx("struct").search(blob) is not None
         # runaway/EOF 错（eof_file 非 None）：报位是父文件 ``\input`` 续行，
         # 真肇事文件是 ``)`` 刚弹出的那个——行号属父文件须丢弃，归肇事
@@ -432,12 +432,12 @@ class LogAttr:
             cid = self.attribute(fidx, err.tex_line, nearest=not strict)
             return (fidx, [cid] if cid is not None else [])
         if strict:
-            return (fidx, [])  # 结构签名无可含位行 → 一切兜底都禁
+            return (fidx, [])  # 结构标记无可含位行 → 一切兜底都禁
         if eof and sres.chunks:
             if len(sres.chunks) <= LOGFIX_MAX_CHUNKS:
                 return (fidx, [c.id for c in sres.chunks])
             return (fidx, [sres.chunks[-1].id])
-        # 无行号文件级错误：白名单签名才允许全块兜底——其余类位置
+        # 无行号文件级错误：白名单标记才允许全块兜底——其余类位置
         # 信息为零，全块归因是扫射烧块，不归因留 fixloop。
         if len(sres.chunks) <= LOGFIX_MAX_CHUNKS and _bucket_rx("filelevel").search(
             blob
@@ -461,9 +461,9 @@ def _attr_localize(
     ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
     → 所在 chunk；不在任何块内则取最近块（≤ ``_ATTR_WINDOW``，且起点
     越过错误行行尾的块被顺序读取不变量排除）。豁免先于归因：
-    ``baseline_sigs`` 命中的 en 基线签名判源生不归块；infra 桶
-    基建签名永不归块；undefined_cs 肇事 cs 在源 chunk 文本中同理豁免；
-    struct 桶结构签名只认报错行严格含于块内（无最近块兜底/
+    ``baseline_sigs`` 命中的 en 基线标记判源生不归块；infra 桶
+    基建标记永不归块；undefined_cs 肇事 cs 在源 chunk 文本中同理豁免；
+    struct 桶结构标记只认报错行严格含于块内（无最近块兜底/
     文件级兜底）；无行号错误走 filelevel 桶白名单才允许文件级
     全块归因（且 chunk 数 ≤ ``LOGFIX_MAX_CHUNKS``）。
     """

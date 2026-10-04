@@ -266,7 +266,7 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     _xelatex(tmp_path)
     log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
     assert "Undefined control sequence" in log
-    assert "\\blx@dlist@name" in log  # 未修态全真复现真稿签名
+    assert "\\blx@dlist@name" in log  # 未修态全真复现真稿标记
 
     ctx = _ctx(tmp_path)
     rule, _note = _match(ctx, "blx@dlist@name")

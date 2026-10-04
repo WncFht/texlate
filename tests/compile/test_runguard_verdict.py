@@ -146,7 +146,7 @@ def test_driver_fatal_pdf_not_clean(tmp_path: Path) -> None:
     """1907.00277 形：rc=1 非信号退出 + 残 pdf + fatal 只走 stdout_tail。
 
     xdvipdfmx fatal 不进 .log——``_report_of`` 把 ``*: fatal:`` 归一成
-    ``!`` 行使签名对 dispatch 可见 (category 押 ``other`` 是
+    ``!`` 行使标记对 dispatch 可见 (category 押 ``other`` 是
     pdf_asset_sanitize ``when: category: other`` 的派发面), 精确归因
     载 ``driver_fatal`` 字段; 驱动死与被杀同属产出未证 → died 置位。
     """
@@ -250,7 +250,7 @@ def test_taxonomy_timed_out_split() -> None:
     assert tax.classify(run, timed_out=True) == ("runaway_output", None)
     plain = ErrReport(raw="partial output\n")
     assert tax.classify(plain, timed_out=True) == ("timeout", None)
-    # tail-only rep (judge/classify_error 面): 尾 30 行全签名同样判暴走
+    # tail-only rep (judge/classify_error 面): 尾 30 行全标记同样判暴走
     tail_only = ErrReport(tail="\n".join([_VBOX] * 30))
     assert tax.classify(tail_only, timed_out=True) == ("runaway_output", None)
 
@@ -276,7 +276,7 @@ def test_judge_timeout_categories() -> None:
 
 
 def test_judge_livekill_stdout_tail_fallback() -> None:
-    """活哨早杀形：.log 截在签名刷屏前，stdout_tail 携签名 → 仍 runaway_output。"""
+    """活哨早杀形：.log 截在标记刷屏前，stdout_tail 携标记 → 仍 runaway_output。"""
     res = CompRes(
         engine="xelatex",
         timed_out=True,
@@ -286,7 +286,7 @@ def test_judge_livekill_stdout_tail_fallback() -> None:
     v = judge(res)
     assert v.status == "fail"
     assert v.category == "runaway_output"
-    # stdout_tail 也无签名 → 泛 timeout 不变
+    # stdout_tail 也无标记 → 泛 timeout 不变
     res2 = CompRes(
         engine="xelatex",
         timed_out=True,

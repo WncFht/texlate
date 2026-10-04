@@ -239,7 +239,7 @@ _OVERFULL_LINE_RX: Final = re.compile(
 _OUTPUT_ACTIVE_RX: Final = re.compile(r"\\output\s+is\s+active")
 
 _FLOAT_FIT_RX: Final = re.compile(r"TeXlate-Float-Fit")
-#: 浮体丢失只认浮体自身签名——``Float too large`` 及 float 丢失字样；
+#: 浮体丢失只认浮体自身标记——``Float too large`` 及 float 丢失字样；
 #: ``Reference/Citation `x' undefined`` 行改走 xlat_broken_refs 面
 #: （_UNDEF_KEY_RX 抽键做 zh-base 差集）。
 

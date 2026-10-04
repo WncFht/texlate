@@ -10,9 +10,9 @@ noop polyfill (imsart 类在而 ``\\kwd`` 缺位面：1012.2012/1206.1960/
 非新规则 —— ruleset 规则数不变。
 
 newblockpf (failmine2): ``LaTeX Error: Command \\newblock undefined.``
-是 ``\\renewcommand`` 对未定义 cs 的内核签 (natbib.sty:1070 重定义
+是 ``\\renewcommand`` 对未定义 cs 的内核标记 (natbib.sty:1070 重定义
 thebibliography 内 ``\\renewcommand\\newblock`` 要宿主先定义，老类/shim
-缺位面 ~13 cells)。taxonomy 新签归 ``undefined_cs:newblock`` →
+缺位面 ~13 cells)。taxonomy 新标记归 ``undefined_cs:newblock`` →
 canonical hskip 形 ``\\providecommand`` polyfill。
 """
 

@@ -30,7 +30,7 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
 路由消费点、``engine.X`` patch 拦叶消费点，两平面不互通）；实现按边界
 出叶——
 ``_base``（CompRes/Engine 协议/共享小件）、``_xelatex``、``_tectonic``、
-``_route``（RouteDecision/签名集/route_project/engine_for）、
+``_route``（RouteDecision/标记集/route_project/engine_for）、
 ``_cache``（tlmgr 搜索落盘缓存）。
 """
 

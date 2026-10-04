@@ -121,11 +121,11 @@ rules:
   - id: iftex_engine_guard_neutralize
     description: "doc 伴船件内 iftex \\Require<X>TeX 引擎守卫 → xelatex 下 \\read Emergency stop → 中和 \\relax"
     phase: loop
-    order: 47 # glyphtounicode_shadow(46)/opt_strip(48) 同档 —— 致死签先拆
+    order: 47 # glyphtounicode_shadow(46)/opt_strip(48) 同档 —— 致死标记先拆
     when:
       any:
         - { category: emergency }
-        # belt: 守卫炸点非首错时落早终/散件签 (acro_v3_key_rename 同构兜底)
+        # belt: 守卫炸点非首错时落早终/散件标记 (acro_v3_key_rename 同构兜底)
         - { category: early_eof }
         - { category: other }
     condition:
@@ -162,14 +162,14 @@ rules:
   # fairmeta.cls:25 `\DisableLigatures[f]{family=sf*}` 无引擎守卫 ——
   # microtype 该 cs 是 pdftex≥1.30/luatex 限定件，xelatex 下定义为
   # 报错+忽略 (file-line `Package microtype Error: Disabling ligatures
-  # ... only possible` → halt-on-error 每轮必停，'other' 签 stuck)。
+  # ... only possible` → halt-on-error 每轮必停，'other' 标记 stuck)。
   # 中和即语义恒等: xelatex 下 microtype 本就忽略此调用，连可选参
   # ([<lig>]) 与字体参 ({<spec>}) 一并吃掉换 \relax —— 换 bare
   # cs 名会留 [f]{family=sf*} 残字排进正文。
   - id: microtype_disableligatures_neutralize
     description: "microtype \\DisableLigatures (pdftex 限定件) 无守卫调用 → xelatex PackageError → 连参中和 \\relax"
     phase: loop
-    order: 47 # iftex_engine_guard_neutralize(47) 同档 —— 引擎假定致死签先拆
+    order: 47 # iftex_engine_guard_neutralize(47) 同档 —— 引擎假定致死标记先拆
     when:
       any:
         - { category: other }
@@ -196,11 +196,11 @@ rules:
       tectonic: { mode: same } # XeTeX 内核同错
     provenance:
       - {
-          corpus: "soak-2026-09-18 2609.19664 fairmeta (relink 后露出的二级签)",
-          error: "fairmeta.cls:25 Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer ('other' 签，4 轮 stuck)",
+          corpus: "soak-2026-09-18 2609.19664 fairmeta (relink 后露出的二级标记)",
+          error: "fairmeta.cls:25 Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer ('other' 标记，4 轮 stuck)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "errsweep-2026-09-19: missing_file relink 通路验证中揭示的下游签名"
+    source_ref: "errsweep-2026-09-19: missing_file relink 通路验证中揭示的下游标记"
 
   # 2026-09-19 driver-option strip 车道 (loop3-1206.0240/1706.07495/1306.0294):
   # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
@@ -218,7 +218,7 @@ rules:
   - id: pdftex_driver_opt_strip
     description: "[pdftex] 驱动选项残存 (多包括号/vendored cfg 漏网面) → 驱动词剥除/ExecuteOptions 换 xetex, pdftex.def 不载"
     phase: loop
-    order: 48 # guard(50)/polyfill(51) 之前 —— 根修先于症状补丁; polyfill 落地后 pdftex_prim 签名消失，再没机会
+    order: 48 # guard(50)/polyfill(51) 之前 —— 根修先于症状补丁; polyfill 落地后 pdftex_prim 标记消失，再没机会
     when:
       any:
         - { category: pdftex_prim, payload_required: false }

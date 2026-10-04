@@ -133,7 +133,7 @@ def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str 
 #: 级联), ``\providecommand\csname`` 直写又把 ``\csname`` 当已定义名而
 #: 静默 no-op —— 双死形，``\expandafter`` 先行展开是唯一通解
 #: (renewguard 车道 forms/forms3.tex 全形实证)。``Command \X undefined``
-#: (renew-on-undefined 内核签) 与 ``\csname`` 派发/@-名 cs_table 条目
+#: (renew-on-undefined 内核标记) 与 ``\csname`` 派发/@-名 cs_table 条目
 #: 的本键一并收 —— provide 预置，doc 侧 ``\renewcommand`` 合法接管;
 #: body 即未 renew 时的 use-site 兜底，语义同 polyfill 但名自表键出。
 def _guard_snippet(cs: str, guard: object) -> str | None:

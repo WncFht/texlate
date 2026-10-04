@@ -1,4 +1,4 @@
-"""dossier — per-id 跨阶段案卷：签名→证据→历史→规则链 一键出卷（index 版）。
+"""dossier — per-id 跨阶段案卷：标记→证据→历史→规则链 一键出卷（index 版）。
 
 ``bench dossier ID [--run RUN] [--diff RUN] [--all-runs] [--json] [-o OUT]``
 

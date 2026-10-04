@@ -23,9 +23,9 @@ manifest → ingest（IO 线程池，work/{id}/src/）
         → regress（同 seed 重跑受影响 stage + replay_all；metrics.jsonl 追加趋势）
 ```
 
-关键性质：**每阶段独立可重跑、独立并发模型、独立故障签名集**；论文流过 DAG 靠 workdir 中间产物而非内存对象。臂是 stage 参数而非独立流水线：real 臂只跑子集（LLM 引入破坏由 real 暴露），compile/fixloop 对 mock 产物全集跑（结构故障全暴露），下游共用。base 对照臂做归因——「zh 非 clean ∧ base clean」集合即管线引入回归。
+关键性质：**每阶段独立可重跑、独立并发模型、独立故障标记集**；论文流过 DAG 靠 workdir 中间产物而非内存对象。臂是 stage 参数而非独立流水线：real 臂只跑子集（LLM 引入破坏由 real 暴露），compile/fixloop 对 mock 产物全集跑（结构故障全暴露），下游共用。base 对照臂做归因——「zh 非 clean ∧ base clean」集合即管线引入回归。
 
-**规模 sizing 原则**：按「值得分辨的最稀有签名」定规模（发生率 p 的签名要见 ≥3 次需 n≈3/p）；parse/mock/sabotage 臂免费拉满全集，real 臂跑子集 250–300 篇，compile base 首轮全集建源健康基线后按需补跑。rescue 率这类头条指标在全集上过强，绑定约束是稀有签名。
+**规模 sizing 原则**：按「值得分辨的最稀有标记」定规模（发生率 p 的标记要见 ≥3 次需 n≈3/p）；parse/mock/sabotage 臂免费拉满全集，real 臂跑子集 250–300 篇，compile base 首轮全集建源健康基线后按需补跑。rescue 率这类头条指标在全集上过强，绑定约束是稀有标记。
 
 **先修的观测洞**（否则批量数据有毒）：chunk_to_in 补传 ph_map（武装阶梯抄回臂）；auth 失败静默全败→连续 N 块 auth-fail 该论文 fault + 全局熔断；chunks.error_code 两写口径统一 + warnings 落库；usage/latency sink 接线（协议只回 str 时真实 token 无法记账）；records append 化 + CaseSink 加锁。
 

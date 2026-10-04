@@ -1,7 +1,7 @@
 r"""specs.parsebench.items — item 源与收窄叶 (parsebench 拆分叶).
 
 ``_corpus_rows``：manifest*.jsonl 全行（eval 层剔除 + 同 id 首见胜）→
-item 源；``_items`` materialize-once；``_catalog`` mtime+size 签名缓存；
+item 源；``_items`` materialize-once；``_catalog`` mtime+size 指纹缓存；
 ``_sampleable``/``_sample_ids``/``_n_sample``/``_select`` G1 plan-filter。
 """
 
@@ -93,7 +93,7 @@ _CAT_MEMO: dict = {"sig": None, "cat": None}
 
 
 def _catalog() -> lake.LakeCatalog:
-    """mtime+size 签名缓存的 catalog 投影——在飞 hydrate 写行即失效重载。"""
+    """mtime+size 指纹缓存的 catalog 投影——在飞 hydrate 写行即失效重载。"""
     p = paths.lake_catalog_path()
     try:
         st = p.stat()

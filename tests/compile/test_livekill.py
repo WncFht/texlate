@@ -1,17 +1,17 @@
 """``run_process`` 内嵌 ``_RunawaySentry`` 活哨——病态 ``\\output`` 暴走的
 活杀测试（哨件本体在 ``compile.proc``，``compile.sandbox`` 仅 re-export）。
 
-签名/阈值与 ``compile.logparse`` 事后判据单源，两闸：
+标记/阈值与 ``compile.logparse`` 事后判据单源，两闸：
 vbox 密度闸——``_RUNAWAY_VBOX_RX`` 命中 ≥ ``_RUNAWAY_VBOX_MIN``(30) 且
-签名数 > ``_RUNAWAY_VBOX_DENSITY``(4)× ``[N]`` 页标原始计数（密度语义
+标记数 > ``_RUNAWAY_VBOX_DENSITY``(4)× ``[N]`` 页标原始计数（密度语义
 钉见 ``test_sentry_rate.py``）；页标闸——``[N]`` shipout 页标单调包络
 计数 ≥ ``_RUNAWAY_PAGE_MAX``(10K)，只 ``n >= _page_last`` 入计（包络语义
 钉见 ``test_sentry_pageflood.py``）。越阈排干环抛 ``TimeoutExpired``
 → ``run_process`` 既有 killpg 收树臂 → ``timed_out`` 槽回吐截杀臂名
 （``vbox_flood``/``page_flood`` str）+ SIGKILL——``_res_died``/
 ``runaway_output`` 归因凭记录臂名命中，病态编译不再烧满墙钟
-（gr-qc/0104075:96K+ 签名行 / ~97K 页烧 240s 实证）；逐页一条的慢性
-vbox 告警（1003.2165:46 签名/46 页）密度判据放行不杀。
+（gr-qc/0104075:96K+ 标记行 / ~97K 页烧 240s 实证）；逐页一条的慢性
+vbox 告警（1003.2165:46 标记/46 页）密度判据放行不杀。
 哨件只活在 POSIX 排干环——win32 分片 communicate 与无 stdout 替身
 （测试注入面）不装哨，runner 注入缝原样。
 """
@@ -58,7 +58,7 @@ def test_sentry_vbox_threshold() -> None:
 
 
 def test_sentry_split_line_counted() -> None:
-    """签名被读片劈开仍计数——留尾拼回未完行，不漏半边命中。"""
+    """标记被读片劈开仍计数——留尾拼回未完行，不漏半边命中。"""
     s = _RunawaySentry()
     head, rest = _SIG_B[:40], _SIG_B[40:] + b"\n"
     for _ in range(29):
@@ -99,10 +99,10 @@ def test_sentry_tripped_is_sticky() -> None:
 @pytest.mark.integration
 @requires_posix
 def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
-    """40 行 vbox 签名 + 挂死 → 秒级 killpg（非等满 timeout）+ 输出留证。
+    """40 行 vbox 标记 + 挂死 → 秒级 killpg（非等满 timeout）+ 输出留证。
 
-    输出须仍含签名——事后 ``_is_runaway_output``/``runaway_output`` 归因
-    靠它命中（``timed_out`` + 签名文本 → ``runaway_output`` 而非 ``timeout``）。
+    输出须仍含标记——事后 ``_is_runaway_output``/``runaway_output`` 归因
+    靠它命中（``timed_out`` + 标记文本 → ``runaway_output`` 而非 ``timeout``）。
     """
     from texlate.compile.logparse import (  # noqa: PLC0415  # 与哨件同源
         _is_runaway_output,
@@ -115,7 +115,7 @@ def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
     assert to == "vbox_flood"  # timed_out 槽回吐截杀臂名 → sentry_reason 归因
     assert rc == -signal.SIGKILL
     assert sec < 30  # noqa: PLR2004 - 越阈即杀；慢机余量下仍远早于 60s 墙钟
-    assert _is_runaway_output(out)  # 签名随已读片带出 → runaway_output 归因可命中
+    assert _is_runaway_output(out)  # 标记随已读片带出 → runaway_output 归因可命中
 
 
 @pytest.mark.integration
@@ -134,7 +134,7 @@ def test_run_process_livekill_page_flood(tmp_path: Path) -> None:
 @pytest.mark.integration
 @requires_posix
 def test_run_process_under_threshold_unaffected(tmp_path: Path) -> None:
-    """阈值内签名/页标 + 正常退出 → 不误杀（健康编译的偶发告警档）。"""
+    """阈值内标记/页标 + 正常退出 → 不误杀（健康编译的偶发告警档）。"""
     payload = (_SIG + "\n") * 5 + "".join(f"[{i}]" for i in range(100))
     rc, out, _sec, to = run_process(
         [sys.executable, "-c", f"import sys;sys.stdout.write({payload!r})"],
@@ -151,7 +151,7 @@ def test_run_process_under_threshold_unaffected(tmp_path: Path) -> None:
 def test_run_process_stub_communicate_unguarded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """无 stdout 替身走 communicate 臂——活哨不装，签名刷屏也不闸。
+    """无 stdout 替身走 communicate 臂——活哨不装，标记刷屏也不闸。
 
     runner/替身注入缝原样（哨件只挂 POSIX 排干环）：替身形态下旧
     ``communicate`` 语义逐字节保留，测试注入与 win32 路径不受影响。
@@ -177,6 +177,6 @@ def test_run_process_stub_communicate_unguarded(
 
     monkeypatch.setattr(sb.subprocess, "Popen", FakeProc)
     rc, out, _sec, to = run_process(["fake"], cwd=tmp_path, env={}, timeout=5)
-    assert to is False  # communicate 臂无哨——签名刷屏不误伤替身
+    assert to is False  # communicate 臂无哨——标记刷屏不误伤替身
     assert rc == 0
     assert "Overfull" in out

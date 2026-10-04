@@ -11,7 +11,7 @@
 
 - **引擎策略：分发默认 tectonic 优先 + xelatex 兜底 + 静态预检路由；开发默认 xelatex**（fixloop 地面真值、可修性最高）。`Engine` 协议抽象（caps/compile/probe_file/install_file/rebuild_fontmaps/filemap）双实现。
 - **静态路由表**：EPS/PS 图与 pstricks → xelatex 优先；minted+frozencache 共现 → tectonic 优先（bundle v2.6 兼容，xelatex v3.8 报 50 错）或 `{minted}`→`{minted2}` 改写；bbm 类位图字体包 → tectonic 高风险标记；`\special{psfile}` dvips 原语插图 → 双引擎均不渲染、走降级。dvips 通道语义 = EPS/PS 兜底而非 LaTeX 2.09 出路（E17 改判），且需 `.pro` 文件 preflight。
-- **LaTeX 2.09**：route 层打 `latex209_suspect` **先试编**——inject 兜底拒注入；真 2.09 签名（tail 侧 `\documentstyle`/`COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒 → 降级链。ptptex.cls 已不可得，不做 2.09 原生编译。
+- **LaTeX 2.09**：route 层打 `latex209_suspect` **先试编**——inject 兜底拒注入；真 2.09 标记（tail 侧 `\documentstyle`/`COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒 → 降级链。ptptex.cls 已不可得，不做 2.09 原生编译。
 - **翻译文件集：`compiled_dependencies()` 为权威**——编译产物 `.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时的降级。
 - **target_probe**：翻译前先以「译文桩」替换英文词编译一遍（零 token），暴露字体/模板问题再花钱；探针失败直接进 fixloop。
 - **clean 判据三件套**：①有 pdf；②`!`≤3 且首错非 missing_*/undefined_cs；③log warning 扫描——`Invalid UTF-8 byte`/`Missing character.*U+FFFD`/tectonic `File.*not found` 降级行/missing_graphic 红线任一命中即 dirty；外加「中文实际进 PDF」（Missing character 计数与字体表 CJK 佐证）。tectonic 有时不写 .log，监控不假设 log 存在。
@@ -29,7 +29,7 @@
 ## 演变
 
 - 2026-09-14 → 09-15：引擎默认从「xelatex 主 + tectonic 降级」改判为「tectonic 优先 + xelatex 兜底」（分发面；开发面仍 xelatex）。
-- 2026-09-16：裁决 13「`\documentstyle` 无条件 reject」部分推翻——route 改 `latex209_suspect` 先试编，真 2.09 签名由 fixloop gate 拒（`38cc0a7`）。
+- 2026-09-16：裁决 13「`\documentstyle` 无条件 reject」部分推翻——route 改 `latex209_suspect` 先试编，真 2.09 标记由 fixloop gate 拒（`38cc0a7`）。
 - 2026-09-16：策略拒绝不再单列 `reject` 终态，三处统一 `partial` + `reject_at`（`87e6a40`）。
 - 2026-09-17：inject 遇 2.09 先走 `upgrade_209` 转换器（ADR-0005）。
 

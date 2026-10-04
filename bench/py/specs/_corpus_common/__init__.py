@@ -36,7 +36,7 @@ import 期纯 stdlib——``texlate.arxiv``/``pyarrow`` 一律惰性 import 在�
 ``_corpus_common.net``（网络下载/meta 尺寸缓存/续传/内容校验）、
 ``_corpus_common.scan``（TarDirs 布局/月带/成员扫描批/offset 簿/blob 回取）、
 ``_corpus_common.frame``（frame_lookup 单件/allocation·cat-mix/chunks.json）、
-``_corpus_common.features``（成员名解析/签名正则面/blob_features/unpack）、
+``_corpus_common.features``（成员名解析/标记正则面/blob_features/unpack）、
 ``_corpus_common.materialize``（lake stage 物化/meta/manifest 行）、
 ``_corpus_common.select``（rates 解析/round-robin/候选枚举/选单物化）。
 本文件是 PEP 562 惰性门面（同 ``kernel.importer``/``fixloop.builtins``

@@ -117,7 +117,7 @@ def _endstar_name(name: str) -> bool:
 
     ``\@carcube`` 取名前 3 字符 = ``\@qend``("end") 即 ``\@notdefinable``
     (latex.ltx:1296-1305), 与该名是否已定义无关 —— ``\let\X\@undefined``
-    清位后 ``\newcommand`` 族仍炸同一 already_def 签名。
+    清位后 ``\newcommand`` 族仍炸同一 already_def 标记。
     """
     return name.startswith("end")
 
@@ -213,7 +213,7 @@ def _undefine_sites(
     前置形态按 (命令, 名形) 分流: ``\@ifdefinable`` 路由命令
     (``_IFN_ROUTED_CMDS``) × end* 恒拒名 → ``\@rc@ifdefinable`` 单发旁路
     (``\let\X\@undefined`` 对恒拒名是徒劳: 重定义侧仍过 ``\@ifdefinable``
-    炸同一 already_def 签名, W151); 其余站点 → undefine 等价 csname 形
+    炸同一 already_def 标记, W151); 其余站点 → undefine 等价 csname 形
     (ltcmd ``\cs_if_exist`` 与 mathalphabet ``\csname``-freeze 检查均认
     其为 undefined)。
 

@@ -2,7 +2,7 @@
 
 原文侧编译链：``build-en`` 一次性树 copytree + seq 锚 identity 注锚
 + 编译 + fixloop 基建救援 + 截断残件判定（``_en_died``）+ en 侧
-错误签名基线快照（``_en_err_sigs`` 供 zh logfix 归因）。
+错误标记基线快照（``_en_err_sigs`` 供 zh logfix 归因）。
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class _CompileEn:
-    """en.pdf 臂 mixin：原文编译 + 注锚 + 残件闸 + 错误签名基线。"""
+    """en.pdf 臂 mixin：原文编译 + 注锚 + 残件闸 + 错误标记基线。"""
 
     if TYPE_CHECKING:
         # 组合根 ``worker._Core.__init__`` 注入的共享态契约
@@ -68,7 +68,7 @@ class _CompileEn:
         # eng.compile 是原子段（无插桩点）——跑完即收敛，后续 diff/登记是白费
         self._abort_if_cancelled(ctx)
         self._probe_diff(ctx, rep, res)
-        # en 首编错误签名快照 → zh logfix 归因基线：源生错签名不归 chunk
+        # en 首编错误标记快照 → zh logfix 归因基线：源生错标记不归 chunk
         # （fixloop_en 前置取——救回前全量；救回修复的源生错 zh 侧同样
         # 修得动，留在基线里不会误豁免译文伤）
         ctx.en_err_sigs = err_signatures(res)
@@ -132,9 +132,9 @@ class _CompileEn:
         """en.pdf 截断收编闸判定。
 
         e116 实证：en 编译 35 页死亡、残件 pdf 因 ``has_pdf`` 非空被无条件
-        登记。``Output written`` 截断照印不可信，可信信号 = 致命中止签名
+        登记。``Output written`` 截断照印不可信，可信信号 = 致命中止标记
         （``judge.log_died_mid_doc`` 单源，含 ``makes 100 errors`` 硬顶）
-        ∪ 外部截杀/超时（``killed_signal``/``timed_out`` 无签名残件）。
+        ∪ 外部截杀/超时（``killed_signal``/``timed_out`` 无标记残件）。
         出 pdf 但死了 → 照样进 fixloop 救；救不回登记时记 warning。
         """
         return bool(res.has_pdf) and (
@@ -144,9 +144,9 @@ class _CompileEn:
         )
 
     def _en_err_sigs(self, ctx: TaskCtx) -> set[str]:
-        """基线错误签名集（en 侧）——``_compile_en`` 已快照则直取，否则回扫 ``build-en`` 残存 .log。
+        """基线错误标记集（en 侧）——``_compile_en`` 已快照则直取，否则回扫 ``build-en`` 残存 .log。
 
-        resume/dedup 路径 en 不重编但签名仍要。
+        resume/dedup 路径 en 不重编但标记仍要。
         """
         if ctx.en_err_sigs:
             return ctx.en_err_sigs

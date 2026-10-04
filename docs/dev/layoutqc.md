@@ -276,7 +276,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **tier 分布**（282 scored + 2 no_main）：clean 34 / warn 89 / **hard 159**——hard 占比 56% 主因是周期性占位检测把 2609.* mock 译文集群整批翻出。
 - **sig 总计**：`geo_text_overlap` 493（单臂裸口径含图内伪影）、`marks_absent` 282（存量预期）、`geo_margin_breach` 222/26 篇、`vis_degenerate` **143**、`xlat_residual_en` 93 篇、`overfull` 59、`float_fit` 26、`vis_void` 22、`float_lost` 21、`vis_blank_page` 9、`pdf_corrupt` 1、`no_pdf` 1。
 - **`vis_degenerate` 精度实证**：143 发全部落在 2609.* 占位译文集群（`degen_periodic_lines` 289–1613 行/篇，top_ngram 全部低于旧阈）——真实论文零命中，新检测器 FP≈0 召回=整批。
-- **新签实证**：`layout:pdf_corrupt` 2404.14219（newmain.pdf 坏 xref，poppler 全工具链拒读）；`xlat_broken_refs` 2505.21476（正文 646 ?? 字符，\cite/\ref 全断链）；`regress_ink_profile`/`geo_table_lost`/`vis_tofu_box` 在双臂子集活跃。
+- **新标记实证**：`layout:pdf_corrupt` 2404.14219（newmain.pdf 坏 xref，poppler 全工具链拒读）；`xlat_broken_refs` 2505.21476（正文 646 ?? 字符，\cite/\ref 全断链）；`regress_ink_profile`/`geo_table_lost`/`vis_tofu_box` 在双臂子集活跃。
 - **reqc5（40 胞双臂重打分）**：hard 27 / warn 12 / clean 1——marks 跨臂面 `lost_element`/`float_drift`/`order_inversion`/`marks_coverage` 全类活跃；鲜度判（pdf.mtime>tex.mtime）识别 2505.21476 vault 存量 pdf 冒充重编产物（重编 100 错 abort），改按单臂语义计。
 - **收割面**：tier≥warn 胞格 flagged_pages PNG 落 `out*/<cell>/flagged/`（110dpi 收割专道）；176p 长文档收割 27/35 页实证 keep 模式只渲标记页。
 
@@ -290,8 +290,8 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 **reqc6 + rescan7（终版代码统一重打分，2026-09-23 深夜）**：
 
-- **reqc6（120 胞双臂）**：clean 8 / warn 32 / hard 80 / **0 error**——marks 真值面全量在位：`float_drift` 123 位点、`order_inversion` 36、`lost_element` 12、`marks_coverage` 9、`align_page_count` 15、`align_order_break` 17、`offpage` 1；`marks_absent` 仅 9（118/120 鲜度闸过、2 格 stale vault pdf + 编译死格按单臂 INFO 计）。新签 `xlat_broken_refs` 9 胞、`geo_table_lost` 1、`align_figure_lost` 2、`align_math_drift` 2、`geo_column_collapse` 2。
-- **rescan7（284 vault 胞单臂）**：clean 33 / warn 90 / hard 159 / error 2（皆 no_main）——与 rescan6 分布稳定（clean 34→33 边缘抖动）；新签 `xlat_broken_refs` **15 胞**、`pdf_corrupt` 1、`no_pdf` 1。
+- **reqc6（120 胞双臂）**：clean 8 / warn 32 / hard 80 / **0 error**——marks 真值面全量在位：`float_drift` 123 位点、`order_inversion` 36、`lost_element` 12、`marks_coverage` 9、`align_page_count` 15、`align_order_break` 17、`offpage` 1；`marks_absent` 仅 9（118/120 鲜度闸过、2 格 stale vault pdf + 编译死格按单臂 INFO 计）。新标记 `xlat_broken_refs` 9 胞、`geo_table_lost` 1、`align_figure_lost` 2、`align_math_drift` 2、`geo_column_collapse` 2。
+- **rescan7（284 vault 胞单臂）**：clean 33 / warn 90 / hard 159 / error 2（皆 no_main）——与 rescan6 分布稳定（clean 34→33 边缘抖动）；新标记 `xlat_broken_refs` **15 胞**、`pdf_corrupt` 1、`no_pdf` 1。
 - **双臂 vs 单臂对照**：同一批 2609.\* 占位集群在双臂下 marks 面额外供出 drift/inversion/coverage 三类真值——单臂只能看 marks_absent+degen，双臂才可证「浮体级丢件/乱序」；证实双臂 marks 是检测面的独占深度层。
 
 **run7 全量波（214 胞双臂 marks 重编，2026-09-23 晚，float_score 全量 eligible）**：
@@ -313,7 +313,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 | `xlat_residual_en`       | 62  | 42  | running-head/furniture 行（正文域复现 ≥4 次）剔除                    |
 | `regress_ink_profile`    | 41  | 0   | 自离群闸（<自身非空页墨量中位数×0.25）——重排错位假阳清零             |
 | `align_order_break`      | 6   | 0   | 同上波次随抽序面复评消散                                             |
-| `xlat_residual_en_heavy` | —   | 16  | 新签：frac≥15% 真半译出货档（fault→src 回退出货），自 residual 析出  |
+| `xlat_residual_en_heavy` | —   | 16  | 新标记：frac≥15% 真半译出货档（fault→src 回退出货），自 residual 析出  |
 | `layout:overfull`        | 43  | 43  | 不变——43 findings/23 篇全真出血，现为 fixloop `warn_overfull` 驱动面 |
 
 **两个结构性遮蔽数**（真实缺口，非噪音）：
@@ -325,7 +325,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 - **矢量图内 bbox 伪影**：pgfplots/tikz 图内密集 tick 标签在 poppler 词级天然交叠；跨臂抑制吃大头，figure 区域分割（MinerU 式 layout parser）是根治但超范围。
 - **深色位图页 ink_blob FP**：星系格/照片类深色位图天然产出巨大 dark CC（0812.1022 银河格 43% 实证）——已按 text_as_curves 同族豁免：含嵌入位图页不报 ink_blob，非位图页的矢量病态/字体炸弹仍受检。
-- **行内周期占位检测**（degen 第三分支）：CJK mock 译文「这是译文这是译文…」整行无空格，词级 n-gram 受 running-head 放阈连坐放走（2609.19244 top_rep=46<195 但满页占位符，行内连珠 706 行实证）；`degen_periodic_lines≥3` 新签，单两行修辞重复/无词字符单元（……/====）不过阈。
+- **行内周期占位检测**（degen 第三分支）：CJK mock 译文「这是译文这是译文…」整行无空格，词级 n-gram 受 running-head 放阈连坐放走（2609.19244 top_rep=46<195 但满页占位符，行内连珠 706 行实证）；`degen_periodic_lines≥3` 新标记，单两行修辞重复/无词字符单元（……/====）不过阈。
 - **vis_void 浮体密页存疑**：subfigure 密排页浮体间白条可成内部白连通块（2609.19244 18 页连发，看图多为合法浮体间距）——阈值/浮体页折扣待 rescan AGG 分布裁决，记观察项。
 - **refs 页 breach**：URL/DOI 不可断行天然贴边——跨臂抑制后残余为可接受底噪。
 - **合法英文类**：frontmatter 作者块/affiliation、语料例句（方言研究 2605.06276）、图内 caption、pseudocode——residual_en 阈值已压至 ≥25∧2% 仍会放进少量此类，人工分诊语义。

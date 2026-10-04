@@ -121,7 +121,7 @@ def test_tikz_library_missing_file_taxonomy() -> None:
 
 
 def test_tikz_library_install_arms_shape() -> None:
-    """两臂形态钉：order 居 install_file 前，ctx_suggests 签名闸，命名约定 file。"""
+    """两臂形态钉：order 居 install_file 前，ctx_suggests 标记闸，命名约定 file。"""
     arms = {
         r.id: r
         for r in rs().rules

@@ -80,7 +80,7 @@ class TestEngineOnRound:
     def test_fires_for_salvage(self, tmp_path: Path) -> None:
         """salvage 兜底轮也过回调——rounds 末位 salvage entry 实况可见。"""
         (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
-        # 健康 aux：签名命中但无可清件 → 规则 applied=False → 耗尽 → salvage
+        # 健康 aux：标记命中但无可清件 → 规则 applied=False → 耗尽 → salvage
         (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{ok}}\n")
         eng = MockEngine([{"log": _EOF_LOG, "pdf": False}] * 8)
         fired: list[dict] = []

@@ -10,7 +10,7 @@ rules ``validate_pair`` 侧（oracle 全部独立代码路径）：
 - ``_lex`` 结构不变量：token 拼接恒还原输入、pos 对齐、kind 合法；
 - 占位符分类全量 oracle：独立「前导反斜杠 run 奇偶」遮盖器 + 自写
   ``[[..]]`` 严格形/模糊四臂/注释区/行锚定扫描器 + lev≤2 递归增广路
-  最大匹配，预测 missing/extra/typo/cmtfab/order/anchor 签名多重集
+  最大匹配，预测 missing/extra/typo/cmtfab/order/anchor 标记多重集
   与实现一致；
 - ``src_literal`` 净差豁免口径（src 自带模糊形 verbatim 不算臆造）；
 - ``%`` 前 ``\\`` run 奇偶决定 token 落「注释区臆造」还是「正文多出」；
@@ -588,7 +588,7 @@ def _o_ph_match(missing: list[str], cands: list[str]) -> dict[int, int]:
 
 
 def _o_ph_sigs(src: str, zh: str) -> list[tuple[str, ...]]:  # noqa: C901,PLR0912 -- 全规则重放内在复杂
-    """``_check_placeholder`` 全量签名 oracle——每条产 issue 归一为一枚签名。"""
+    """``_check_placeholder`` 全量标记 oracle——每条产 issue 归一为一枚标记。"""
     sm, zm = _o_mask(src), _o_mask(zh)
     sscan, zscan = _o_ph_scan(sm), _o_ph_scan(zm)
     sseq = [t for t, _ in sscan]
@@ -646,7 +646,7 @@ def _o_ph_sigs(src: str, zh: str) -> list[tuple[str, ...]]:  # noqa: C901,PLR091
 
 
 def _impl_ph_sigs(issues: list[Issue]) -> list[tuple[str, ...]]:
-    """实现侧 placeholder 规则 issue → 同形签名。"""
+    """实现侧 placeholder 规则 issue → 同形标记。"""
     out: list[tuple[str, ...]] = []
     for i in issues:
         if i.rule != "placeholder":
@@ -877,7 +877,7 @@ def _o_env_tokens(s: str) -> list[tuple[str, str]]:
 def _o_env_signature(
     s: str,
 ) -> tuple[int, int, Counter[str], Counter[str], Counter[str]]:
-    """env 栈签名 oracle：多余 end / 错配 / 未闭合 begin 名 / begin 名 / end 名。"""
+    """env 栈标记 oracle：多余 end / 错配 / 未闭合 begin 名 / begin 名 / end 名。"""
     stack: list[str] = []
     n_orphan = n_mis = 0
     toks = _o_env_tokens(s)
@@ -968,9 +968,9 @@ def _o_est_tokens(s: str) -> float:
 
 
 def _o_length_sigs(src: str, zh: str) -> set[str]:
-    """length 规则签名集 oracle：``{"ratio","cjk"}`` 子集。
+    """length 规则标记集 oracle：``{"ratio","cjk"}`` 子集。
 
-    E24：ratio 臂改 token 代理口径且升 error（签名解析不分 severity）。
+    E24：ratio 臂改 token 代理口径且升 error（标记解析不分 severity）。
     """
     sigs: set[str] = set()
     ss = _o_strip_for_length(src)
@@ -1006,7 +1006,7 @@ def _o_same_source_hit(src: str, zh: str) -> bool:
 
 
 def _o_macro_sigs(src: str, zh: str) -> list[tuple[str, str]]:
-    """macro 规则签名 oracle：(类别，名) 多重集。"""
+    """macro 规则标记 oracle：(类别，名) 多重集。"""
     sn, sf = _o_cs_names(src)
     zn, zf = _o_cs_names(zh)
     sigs: list[tuple[str, str]] = []
@@ -1241,7 +1241,7 @@ def test_identity_bibitem_mixed_anchor_flagged() -> None:
 
 
 def test_fuzz_placeholder_oracle() -> None:
-    """占位符规则全量签名 oracle——missing/extra/typo/cmtfab/order/anchor 全等。"""
+    """占位符规则全量标记 oracle——missing/extra/typo/cmtfab/order/anchor 全等。"""
     rng = fuzz_rng(20261003)
     for _ in range(700):
         src = soup_join(rng, _PH_SOUP, 0, 10)
@@ -1406,7 +1406,7 @@ def test_fuzz_env_signature_oracle() -> None:
 
 
 def test_fuzz_macro_classification_oracle() -> None:
-    """macro 规则分类签名（nonascii/struct/new/fragile/dropped）与 oracle 全等。"""
+    """macro 规则分类标记（nonascii/struct/new/fragile/dropped）与 oracle 全等。"""
     rng = fuzz_rng(20261013)
     for _ in range(800):
         src = soup_join(rng, _STRUCT_SOUP, 0, 12)
@@ -1418,7 +1418,7 @@ def test_fuzz_macro_classification_oracle() -> None:
 
 
 def test_fuzz_length_sig_oracle() -> None:
-    """length 签名集 == oracle（E24：ratio 臂 token 代理 + error 档）。"""
+    """length 标记集 == oracle（E24：ratio 臂 token 代理 + error 档）。"""
     rng = fuzz_rng(20261014)
     words = ["word ", "text ", "中", "文", "[[MATH_1]]", "\\textbf{x}", "$x$", " "]
     for _ in range(800):

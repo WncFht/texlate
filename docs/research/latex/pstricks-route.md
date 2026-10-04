@@ -27,7 +27,7 @@
 
 cwd 文件在 kpsewhich 搜索序最前 → `\usepackage{pstricks}` 拿到 vendored v0.36；v0.36 `\input{pstricks.tex}` 搜到的是 texmf 里的新内核 v3.22A(2025)；新内核的 `\pssetxlength` 等引用 v0.36 未定义的 `\ifpst@useCalc`/`\pscalculate` → undefined cs → else/fi 错位 → `Missing \begin{document}` 百余级联。latex 与 xelatex 的 128/126 错同根因。
 
-对称面孔：矩阵首轮 xelatex 报 `pstricks.tex not found` 是因当时 texmf 尚未装 pstricks——同一签名族的两种形态：「找不到 .tex」或「找到但版本错配」。
+对称面孔：矩阵首轮 xelatex 报 `pstricks.tex not found` 是因当时 texmf 尚未装 pstricks——同一标记族的两种形态：「找不到 .tex」或「找到但版本错配」。
 
 反例校准：vendored `IEEEtran.cls` 是唯一来源 → 摘除必死；vendored `stfloats.sty` 旧于系统但接口稳定 → 摘除非必需。**规则不能逢 vendored 必摘，要按版本比较 + 错误触发。**
 

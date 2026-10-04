@@ -1,4 +1,4 @@
-"""_corpus_common blob 特征叶——成员名解析 / 签名正则面 / blob_features / unpack。
+"""_corpus_common blob 特征叶——成员名解析 / 标记正则面 / blob_features / unpack。
 
 ``texlate.arxiv`` 惰性 import 在 ``unpack_blob`` 内（import 期纯 stdlib）。
 """
@@ -43,7 +43,7 @@ INPUT_RX = re.compile(
     r"\\(?:input|include|InputIfFileExists)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
 )
 # deadpkg 名单：净室 stub 族（禁再分发→missing_file 必中）+ vendored 真件族
-# （pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
+# （pkg_version_skew/接口漂移高发）+ 残差标记实测族。小写归一，匹配 IGNORECASE。
 # revtex 只钉裸名——revtex4/revtex4-2 是 CTAN 现役，\b 边界天然排除。
 DEAD_PKGS = {
     "aa",
@@ -136,7 +136,7 @@ FLAG_RX = {
     ),
     # failmine 矿类旗（2026-09-19 扩库）：命中即"现代引擎大概率 missing_file /
     # 走 vendor stub"的论文——名单对齐 fixloop/vendor/{stubs,files} 绝版族 +
-    # loop1 残差签名族（aasms4/psfig/pst-node/JHEP3/epsf）。三种命中形态：
+    # loop1 残差标记族（aasms4/psfig/pst-node/JHEP3/epsf）。三种命中形态：
     # \usepackage{}/\RequirePackage{}、\documentstyle 选项位、\input X.sty。
     "deadpkg": DEADPKG_RX,
     # 旧式 pdftex 原语直写（unfixable:pdftex_prim:* 族）：现代引擎不认的
@@ -146,7 +146,7 @@ FLAG_RX = {
         r"optionalwaysusepdfpagebox|omitcharset|suppressptexinfo)\s*=?|"
         r"\\pdfoutput\s*=\s*\d"
     ),
-    # babel 非英语选项族（残差签名 babel_opt:german）：选项位命中即记——
+    # babel 非英语选项族（残差标记 babel_opt:german）：选项位命中即记——
     # 只钉 babel 包，其他包的 german 同名选项不捞。
     "babel_german": re.compile(
         r"\\(?:usepackage|RequirePackage)\[[^\]]*german[^\]]*\]\{babel\}|"
@@ -155,7 +155,7 @@ FLAG_RX = {
 }
 AUTOIGNORE = b"%auto-ignore"
 
-# ---- EVAL 良性形态签名（mechanisms.jsonl EVAL 族；blob_features 簿记进 signatures）----
+# ---- EVAL 良性形态标记（mechanisms.jsonl EVAL 族；blob_features 簿记进 signatures）----
 USEP_RX = re.compile(r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{([^}]*)\}")
 # W35 期刊样式以 \usepackage 加载的已知样式包（jheppub 类——2.09 docstyle 选项系同款）
 JOURNAL_STY_PKGS = {
@@ -304,10 +304,10 @@ def _dist1(a: str, b: str) -> bool:
 
 
 def eval_signatures(blob_txt: str) -> dict[str, object]:
-    """良性形态签名簿记 → {mech_id: 命中明细}；只在 paper 自身 tex（剥注释后）上看。
+    """良性形态标记簿记 → {mech_id: 命中明细}；只在 paper 自身 tex（剥注释后）上看。
 
     每条对应 mechanisms.jsonl EVAL 族一行——把「长得像故障的良性形态」注记进
-    features，供归因/狩猎区分真缺陷与形态签名（W48 协作残留、W88 手排、W70 typo 等）。"""
+    features，供归因/狩猎区分真缺陷与形态标记（W48 协作残留、W88 手排、W70 typo 等）。"""
     sig: dict[str, object] = {}
     pkgs = Counter(
         p.strip()

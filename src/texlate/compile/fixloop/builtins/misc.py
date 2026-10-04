@@ -321,9 +321,9 @@ def restore_support_from_src(
 # 格式/构建指令信号面 (W37/W68/W58/W102 孤儿裁决 mechmap-2026-09-17)
 # ════════════════════════════════════════════════════════════════
 
-#: plain/amsTeX 签名池 —— 遮盖视图上评估，活 ``\documentclass``/
+#: plain/amsTeX 标记池 —— 遮盖视图上评估，活 ``\documentclass``/
 #: ``\documentstyle`` 在场即整体短路 (LaTeX2.09 归 latex209_reject 收)。
-#: 签名沿 inject._PLAIN_TEX_RE 口径：装载原语 ``^\magnification`` /
+#: 标记沿 inject._PLAIN_TEX_RE 口径：装载原语 ``^\magnification`` /
 #: ``\font\cs=cm*`` 族字模 / 终止符 ``^\bye$`` / 裸行 ``^\end$`` /
 #: ``\input amstex`` 系宏包。
 _PLAIN_SIGS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -344,7 +344,7 @@ def plain_format_detect(
     r"""纯 plain/amsTeX 稿判定 → ``REJECT: route=tex-plain`` (W37/W68 孤儿裁决)。
 
     遮盖视图双条件全中才拒: 无活 ``\documentclass``/``\documentstyle`` ∧
-    ≥1 plain 行锚签名。可达场景 = 主检出宽松档 ``find_main_tex`` 扫 raw
+    ≥1 plain 行锚标记。可达场景 = 主检出宽松档 ``find_main_tex`` 扫 raw
     头 60KB, 被注释伪装行 (``%\documentstyle``) 骗入主 —— 纯 plain 零主
     档案已由 ``classify_no_main`` 归 ``no_main_tex:plain_tex`` 不经过此。
     判定不中 → False 让位 loop, 不消耗轮次。

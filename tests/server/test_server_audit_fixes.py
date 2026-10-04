@@ -347,7 +347,7 @@ class TestSettingsLoadCache:
         s = _mk_settings(tmp_path)
         s.save({"model": "m1"})
         assert s.load()["model"] == "m1"
-        # 外部直写（手改文件）→ 签名变 → 重读
+        # 外部直写（手改文件）→ 标记变 → 重读
         s.path.write_text(
             json.dumps({"model": "m2", "api_key": "sk-x"}), encoding="utf-8"
         )
@@ -357,7 +357,7 @@ class TestSettingsLoadCache:
 
     def test_save_invalidates(self, tmp_path: Path) -> None:
         s = _mk_settings(tmp_path)
-        s.load()  # 暖缓存（文件缺席签名）
+        s.load()  # 暖缓存（文件缺席标记）
         s.save({"model": "m9"})
         assert s.load()["model"] == "m9"
 
@@ -905,7 +905,7 @@ class TestLoadDeepCopy:
         got = s.load()
         got["cors_origins"].append("http://evil.example")
         got["cors_origins"].clear()
-        again = s.load()  # 签名命中缓存路径
+        again = s.load()  # 标记命中缓存路径
         assert again["cors_origins"] == ["http://a.example"]
         assert s.public()["cors_origins"] == ["http://a.example"]
 

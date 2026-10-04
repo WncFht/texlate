@@ -1,4 +1,4 @@
-"""logfix 归因的基建类豁免——资源缺失/工具链错配签名永不归译文块。
+"""logfix 归因的基建类豁免——资源缺失/工具链错配标记永不归译文块。
 
 ``t_f74894ebc691aaf4`` 实证：``File `algpseudocodex.sty' not found``（file
 级、无行号）走文件级兜底把 main.tex 全部块拖去重译/回退——包没装重编
@@ -83,7 +83,7 @@ def test_biber_toolchain_skew_exempt(tmp_path: Path) -> None:
 def test_preamble_machinery_exempt(tmp_path: Path) -> None:
     """装载期/preamble 机关批量豁免——选项表/装载序/包自检译文造不出。
 
-    此类签名常无 ``l.N`` 行号（babel AtBeginDocument 钩、hyperref 驱动
+    此类标记常无 ``l.N`` 行号（babel AtBeginDocument 钩、hyperref 驱动
     处理），旧文件级兜底会全块扫射。
     """
     for log in (
@@ -124,7 +124,7 @@ def test_latex209_and_pdftex_prim_exempt(tmp_path: Path) -> None:
 
 
 def test_toolchain_backend_aux_exempt(tmp_path: Path) -> None:
-    """版本闸/后端/aux 劈断/收束签名——报错行可落块内也不归因。"""
+    """版本闸/后端/aux 劈断/收束标记——报错行可落块内也不归因。"""
     for log in (
         "! Critical Package nicematrix Error: Your LaTeX release is too old.\n",
         "! Backend request inconsistent with engine.\n",
@@ -284,7 +284,7 @@ def test_undef_cs_translation_introduced_attributed(tmp_path: Path) -> None:
 
 
 def test_err_signature_keys_undef_cs_on_culprit() -> None:
-    r"""undefined_cs 签名键 = ``head|cs``——同 head 异 cs 不互豁免（否则
+    r"""undefined_cs 标记键 = ``head|cs``——同 head 异 cs 不互豁免（否则
     en 任一 undefined_cs 会误放 zh 全部译文幻觉 cs）；其余类 culprit 位留空。"""
     e1 = LogError(line_no=1, head="! Undefined control sequence.", ctx=("l.4 \\badcs",))
     e2 = LogError(
@@ -297,9 +297,9 @@ def test_err_signature_keys_undef_cs_on_culprit() -> None:
 
 
 def test_baseline_sigs_filter_en_carried(tmp_path: Path) -> None:
-    r"""en 基线签名命中 → zh 同签名错误不进归因面。
+    r"""en 基线标记命中 → zh 同标记错误不进归因面。
 
-    en/zh 双编译同犯 ``\badcs``（源携带）时签名一致——基线过滤后仅剩
+    en/zh 双编译同犯 ``\badcs``（源携带）时标记一致——基线过滤后仅剩
     infra 豁免错，hits 为空；``n_err`` 仍报 log 全量（过滤只作用于归因）。
     """
     log = (
@@ -311,7 +311,7 @@ def test_baseline_sigs_filter_en_carried(tmp_path: Path) -> None:
         tmp_path, file_text=DOC % _BODY, scan_body=_BODY, log=log
     )
     assert set(hits0) == {f"0:{cid}" for cid in cids}
-    # 基线只含 undefined_cs 签名 → 过滤后 infra 错本不归因 → 空归因
+    # 基线只含 undefined_cs 标记 → 过滤后 infra 错本不归因 → 空归因
     sig = err_signatures(
         CompRes(
             engine="fake",

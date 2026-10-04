@@ -573,7 +573,7 @@ def test_run_process_rlimit_nofile_emfile(
 @requires_posix
 def test_run_process_exits_on_child_death_not_eof(tmp_path: Path) -> None:
     """孙进程握写端不挡收割：父死即收——旧 ``communicate`` 等 EOF 会烧满
-    timeout（loop2 xelatex↔xdvipdfmx 死锁对/setsid 逃逸孙实证签名）。"""
+    timeout（loop2 xelatex↔xdvipdfmx 死锁对/setsid 逃逸孙实证标记）。"""
     rc, out, sec, to = run_process(
         ["sh", "-c", "echo done; sleep 30 &"],
         cwd=tmp_path,

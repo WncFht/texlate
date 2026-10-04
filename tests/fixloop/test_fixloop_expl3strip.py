@@ -43,7 +43,7 @@ def test_expl3strip_rule_registered() -> None:
 
 
 def test_expl3strip_when_gate_declines_other_categories(tmp_path: Path) -> None:
-    """签名缺席：category != expl3_backend → when 闸拒 (本规则无 condition)。"""
+    """标记缺席：category != expl3_backend → when 闸拒 (本规则无 condition)。"""
     r = rule(_RID)
     ctx = mk_ctx(tmp_path)
     assert actions._when_ok(r.when, "expl3_backend", None, ctx)  # noqa: SLF001

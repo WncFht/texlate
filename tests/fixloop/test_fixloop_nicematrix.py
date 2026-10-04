@@ -5,7 +5,7 @@
 ``nicematrix.sty:39: Critical Package nicematrix Error: Your LaTeX release
 is too old`` → 包拒载，下游 NiceTabular/NiceMatrix undefined 级联。
 修复面：vendor/files/nicematrix.sty 钉 v7.11a (floor format 2025-06-01,
-array 2025/09/25 —— 本机 toolchain 恰好全过), 新 taxonomy 签名抓 file-line
+array 2025/09/25 —— 本机 toolchain 恰好全过), 新 taxonomy 标记抓 file-line
 basename → vendored_fetch 平铺 wdir 遮蔽 texmfhome 过新件。
 """
 
@@ -47,7 +47,7 @@ def _classify(head_text: str) -> tuple[str | None, str | None]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_real_critical_line() -> None:
-    """实证签名：file-line Critical Error + too old → pkg_version_skew + basename。"""
+    """实证标记：file-line Critical Error + too old → pkg_version_skew + basename。"""
     cat, pay = _classify(_CRIT_LINE + "\n" + _CRIT_CTX)
     assert cat == "pkg_version_skew"
     assert pay == "nicematrix.sty"
@@ -66,7 +66,7 @@ def test_taxonomy_wrapped_too_old_in_ctx() -> None:
 
 
 def test_taxonomy_class_error_variant() -> None:
-    """Class 级 + 非 Critical 级 msg_error 同签; payload 仍是 basename。"""
+    """Class 级 + 非 Critical 级 msg_error 同标记; payload 仍是 basename。"""
     head = (
         "bar.cls:7: Package bar Error: This class needs a kernel that is not too old\n"
         "l.7 \\@@end"

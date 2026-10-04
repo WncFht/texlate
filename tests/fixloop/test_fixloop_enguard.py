@@ -85,7 +85,7 @@ def _cond(ctx: LoopCtx) -> tuple[bool, str]:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_emergency_stop() -> None:
-    """实证签名：file-line `Emergency stop` → emergency (emergency 族条)。"""
+    """实证标记：file-line `Emergency stop` → emergency (emergency 族条)。"""
     cat, _ = classify(_ERR_PDFTEX)
     assert cat == "emergency"
 
@@ -211,7 +211,7 @@ def test_apply_guard_with_trailing_comment(tmp_path: Path) -> None:
 
 
 def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
-    """无签名件 → builtin decline, 文件逐字节不动。"""
+    """无标记件 → builtin decline, 文件逐字节不动。"""
     clean = "\\ProvidesPackage{foo}\\newcommand*\\foo{bar}\n\\endinput\n"
     (tmp_path / "foo.sty").write_text(clean, encoding="utf-8")
     ok, _ = apply(_RULE_ID, mk_ctx(tmp_path), None)
@@ -220,7 +220,7 @@ def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
 
 
 def test_apply_skips_comment_only_guard(tmp_path: Path) -> None:
-    """guard 仅活注释行 (% \\RequirePDFTeX) → 判无签名不补丁。"""
+    """guard 仅活注释行 (% \\RequirePDFTeX) → 判无标记不补丁。"""
     comment_only = (
         "\\ProvidesPackage{foo}\n"
         "% \\RequirePackage{iftex}\n"
@@ -326,7 +326,7 @@ def test_e2e_emergency_stripped_then_clean(tmp_path: Path) -> None:
 
 
 def test_e2e_no_fire_on_unsigned_ctx(tmp_path: Path) -> None:
-    """.sty 带 guard 但错误是别家签名 → ctx 闸拒，不动文件。"""
+    """.sty 带 guard 但错误是别家标记 → ctx 闸拒，不动文件。"""
     eng = MockEngine(
         [
             {"log": "./main.tex:5: Undefined control sequence.\nl.5 \\foo\n"},

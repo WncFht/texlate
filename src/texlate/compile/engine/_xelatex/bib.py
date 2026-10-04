@@ -156,7 +156,7 @@ def _bcf_intact(bcf: Path) -> bool:
 
 
 def _aux_cite_keys(text: str) -> set[str]:
-    r"""Aux 文本 → 引用键集 (``\\citation``/``\\abx@aux@cite`` 双签名)。"""
+    r"""Aux 文本 → 引用键集 (``\\citation``/``\\abx@aux@cite`` 双标记)。"""
     keys: set[str] = set()
     for m in _AUX_CITE_RX.finditer(text):
         keys.update(k.strip() for k in m.group(1).split(",") if k.strip())
@@ -164,7 +164,7 @@ def _aux_cite_keys(text: str) -> set[str]:
 
 
 def _bbl_keys(bbl: Path) -> set[str]:
-    r"""``.bbl`` 已供键集 (``\\bibitem``/``\\entry`` 双签名); 读败 → 空集。"""
+    r"""``.bbl`` 已供键集 (``\\bibitem``/``\\entry`` 双标记); 读败 → 空集。"""
     try:
         text = bbl.read_text(encoding="utf-8", errors="replace")
     except OSError:

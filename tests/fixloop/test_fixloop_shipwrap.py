@@ -43,7 +43,7 @@ def test_wrap_braced_site() -> None:
     out, n = _wrap_shipped_sty_inputs(src)
     assert n == 1
     assert (_SHIP_WRAP_PRE + "\\input{macros.sty}" + _SHIP_WRAP_POST) in out
-    # restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断签名
+    # restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断标记
     assert "@" not in _SHIP_WRAP_PRE
     assert "@" not in _SHIP_WRAP_POST
     assert "\\catcode 64=11" in out

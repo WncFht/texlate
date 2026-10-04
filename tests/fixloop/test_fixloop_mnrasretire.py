@@ -49,7 +49,7 @@ def _vendor_bytes() -> str:
 
 
 _RULE_ID = "mnras_texmf_shadow_drop"
-#: mn2e_usegraphicx_defer (order 11.905) 指纹同签且文件盲 —— wdir 内病件
+#: mn2e_usegraphicx_defer (order 11.905) 指纹同标记且文件盲 —— wdir 内病件
 #: (含 _texmf/host-texmf 子树) 被它先原位补丁，本规则只盖 wdir 外病件。
 _MN2E_RULE = "mn2e_usegraphicx_defer"
 _KPSEWHICH = shutil.which("kpsewhich") is not None
@@ -66,7 +66,7 @@ _ERR_OPTIONS_CTX = (
 )
 # '!' 形态同款：rep.first 无文件名，"Options Section" 字面同闸收
 _BANG_ERR = "! LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
-# 签名散格变体：同文件其他错 (syntax / undefined_cs) —— mnras.cls 点名在
+# 标记散格变体：同文件其他错 (syntax / undefined_cs) —— mnras.cls 点名在
 _ERR_MISSINGNUM = (
     "/work/1206.0291/_texmf/home/tex/latex/mnras/mnras.cls:114: "
     "Missing number, treated as zero."
@@ -148,13 +148,13 @@ def _fake_host(tmp_path: Path, body: str, monkeypatch: pytest.MonkeyPatch) -> Pa
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_options_section_pin() -> None:
-    """实证签名：Options Section LaTeX Error → taxrow 归 options_section。"""
+    """实证标记：Options Section LaTeX Error → taxrow 归 options_section。"""
     cat, _ = _classify(_ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX)
     assert cat == "options_section"
 
 
 def test_taxonomy_missing_number_is_syntax() -> None:
-    """同文件 Missing number 变体 → syntax (签名散格同闸收)。"""
+    """同文件 Missing number 变体 → syntax (标记散格同闸收)。"""
     cat, _ = _classify(_ERR_MISSINGNUM)
     assert cat == "syntax"
 
@@ -225,7 +225,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
 
 
 def test_cond_pass_wdir_cls(tmp_path: Path) -> None:
-    """生产内嵌布局：wdir/_texmf/home 下病件在场 + 实证签名 → 闸过。"""
+    """生产内嵌布局：wdir/_texmf/home 下病件在场 + 实证标记 → 闸过。"""
     _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
@@ -492,7 +492,7 @@ def test_e2e_mn2e_superset_patches_host_tree_buggy(
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非 mnras 签名：别包错 → 本规则不动件不平铺。"""
+    """非 mnras 标记：别包错 → 本规则不动件不平铺。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -512,11 +512,11 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
 def test_e2e_patched_then_shadow_converges_clean(tmp_path: Path) -> None:
-    """mn2e 原位补丁后同签名错再报 → shadow 臂补投 vendor 件收敛 clean。"""
+    """mn2e 原位补丁后同标记错再报 → shadow 臂补投 vendor 件收敛 clean。"""
     eng = ScriptEng(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
-            # r2 同签名错 (mn2e 补丁后指纹已灭 → mn2e decline; shadow 臂首投)
+            # r2 同标记错 (mn2e 补丁后指纹已灭 → mn2e decline; shadow 臂首投)
             {
                 "log": "./mnras.cls:120: LaTeX Error: \\RequirePackage or "
                 "\\LoadClass in Options Section.\nl.120 \\fi\n"

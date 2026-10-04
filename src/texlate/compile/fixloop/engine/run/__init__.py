@@ -156,8 +156,8 @@ class _FixRun(_RunComp, _RunTail):
         sig = f"{cat}:{pay}"
         self.sig_n = self.sig_n + 1 if sig == self.prev_sig else 1
         self.prev_sig = sig
-        # sig_n = 同签连续 streak——只记账不判负：stuck verdict 移到下方
-        # 派发耗尽点结算 (streak≥stuck_n 且本轮无 apply), 同签后位规则
+        # sig_n = 同标记连续 streak——只记账不判负：stuck verdict 移到下方
+        # 派发耗尽点结算 (streak≥stuck_n 且本轮无 apply), 同标记后位规则
         # 不再被「第 N 轮先判 stuck」抢掉派发窗口。
         # —— loop 规则匹配 + 应用 ——
         rule, note = _match_apply_landing(self.rs, ctx, self.eng, cat, pay, rep)
@@ -392,12 +392,12 @@ class _FixRun(_RunComp, _RunTail):
                 return "break", None, "", None
             self._warn_preempt_hit(wrule, wnote, rnd)
             return "continue", None, "", None
-        # stuck 结算点移到派发耗尽后：同签 streak ≥ stuck_sig_repeat 且
-        # 本轮主 + 次级均无 apply → stuck。旧制在第 stuck_n 个同签轮派发前
+        # stuck 结算点移到派发耗尽后：同标记 streak ≥ stuck_sig_repeat 且
+        # 本轮主 + 次级均无 apply → stuck。旧制在第 stuck_n 个同标记轮派发前
         # 预判——产出轮 (apply 发生) 同样计入 sig_n, 会把只在第 N+1 轮才
         # 够得到的规则 (凭据门 if_phantom_protect 类) 永久抢死在窗口外
         # (1206.0701/1306.0364: r1/r2 各有 apply, r3 未派发即断)。新制下
-        # 同签轮只有「本轮无产出」才结算 stuck——apply 轮次只续窗口，
+        # 同标记轮只有「本轮无产出」才结算 stuck——apply 轮次只续窗口，
         # 真耗尽格烧轮止于派发枯竭。
         cell["verdict"] = (
             "stuck"

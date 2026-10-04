@@ -1,4 +1,4 @@
-"""静态路由表 —— ``route_project``/``engine_for`` + 签名集（``engine.py`` 拆分叶）。"""
+"""静态路由表 —— ``route_project``/``engine_for`` + 标记集（``engine.py`` 拆分叶）。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ class RouteDecision:
     latex209_suspect: bool = False  # \documentstyle 检出：降级为试编标记
 
 
-#: pstricks/位图字体信号的名集单源——route_project 的文本签名与 probe 的
+#: pstricks/位图字体信号的名集单源——route_project 的文本标记与 probe 的
 #: 声明依赖名查表共用（审计批二双表合一：probe.py 导入此处常量）。
 #: pstricks 家族语义 = 精确名 ``pstricks`` + 前缀 ``pstricks-``/``pst-``
 #: （pst-node/pst-plot/… 与 pstricks-add 全覆盖——probe 侧旧实现漏
@@ -45,7 +45,7 @@ BITMAP_FONT_PKG_NAMES: Final = frozenset(
     {"bbm", "bbmfonts", "dsfont", "bbold", "yfonts", "wasy", "wasysym"}
 )
 
-#: 高置信 pstricks 依赖签名（visible_tex 遮蔽视图上匹配）：包名元素级
+#: 高置信 pstricks 依赖标记（visible_tex 遮蔽视图上匹配）：包名元素级
 #: 精确（pstricks / pstricks-add / pst-* 家族——元素边界防 `{notpstricks}`
 #: 类子串误中）+ `pspicture` 环境 + `\psset` 配置宏（vendored/传递装载的
 #: 兜底信号，0905.2435/0905.4369 实证）。裸 `\psline`/`\psframe` 族不收——
@@ -85,7 +85,7 @@ _PSFILE_SPECIAL_RE = re.compile(r"\\special\s*\{\s*psfile\b")
 
 
 class _RouteSigs(NamedTuple):
-    """route_project 静态信号集——文件面布尔 + 文本签名布尔。"""
+    """route_project 静态信号集——文件面布尔 + 文本标记布尔。"""
 
     eps: bool
     mf: bool

@@ -113,8 +113,8 @@ class TaskCtx:
     #: ``rep.flags`` 直连；logfix 重编/cross-engine 重试经此续传（e2e
     #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
     probe_flags: list[str] = field(default_factory=list)
-    #: en 首编错误签名集（``repair.err_signatures``）——logfix 归因
-    #: 基线：原文已出现的错误签名判源生（译文不可能造成），不归块
+    #: en 首编错误标记集（``repair.err_signatures``）——logfix 归因
+    #: 基线：原文已出现的错误标记判源生（译文不可能造成），不归块
     en_err_sigs: set[str] = field(default_factory=set)
 
     # ---- 运行态：取消/排空/终态旗标/日志合批/阶段计时/备忘 ----

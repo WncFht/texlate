@@ -80,7 +80,7 @@ class _CompileEngine:
 
         轮内编译要「首错清晰可分类」——主编译引擎是 best-effort
         nonstopmode（``halt_on_error=False``），续跑日志会让 post-fix
-        复判混入下游错误、分类签名漂移，故不复用传入引擎。factory 在场
+        复判混入下游错误、分类标记漂移，故不复用传入引擎。factory 在场
         尊重注入（测试面）；tectonic 无此旋钮保持原引擎。
         """
         if ctx.engine_name != "xelatex":

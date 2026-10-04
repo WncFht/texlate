@@ -208,7 +208,7 @@ class TestEnFixloop:
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """has_pdf 但 log 带 ``makes 100 errors`` 硬顶签名 → fixloop 救援臂
+        """has_pdf 但 log 带 ``makes 100 errors`` 硬顶特征 → fixloop 救援臂
         真触发；救不回照登残件 + ``截断`` warning（e116 实证旧判据漏检直登）。
         """
         eng = RecordingEngine("tectonic")
@@ -250,7 +250,7 @@ class TestEnFixloop:
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """无签名残件臂：``killed_signal``/``timed_out`` 各算 died——
+        """无特征残件臂：``killed_signal``/``timed_out`` 各算 died——
         截杀/超时 pdf 不登健康（纯净 log 也无 ``Emergency`` 词素的情形）。"""
         conds: list[object] = []
 

@@ -16,7 +16,7 @@ hep-ex/9412001): ``\special{psfile=/abs/…/x.ps}`` 作者机绝对径 → basen
 (wdir 已带档可 flip clean; 18.6 占位臂次轮兜缺席格)。
 B5 ``atdef_cat_wrap`` (95-targeted.yaml order 198.6, 0712.0866):
 spacefactor_atdef_wrap builtin 加 ``gate_terms`` param —— 默认
-``("spacefactor",)`` 原臂不变, ``gate_terms:[]`` 无签名门姊妹臂收
+``("spacefactor",)`` 原臂不变, ``gate_terms:[]`` 无标记门姊妹臂收
 @-token def 站 (\\newtheorem/\\newenvironment/\\def 族)。
 B6 ``microtype_era_cfg_retire`` (40-install.yaml order 11.93, 0812.1138):
 era microtype 包捆 (.cfg 无日期面 → shadow 臂够不到) → pstadd 形 sh 名单
@@ -153,7 +153,7 @@ def test_demote_rule_shape() -> None:
 
 
 def test_psfile_rule_shape() -> None:
-    """B4: 双闸 AND (驱动签名 ∧ 绝对径 psfile), exts .tex。"""
+    """B4: 双闸 AND (驱动标记 ∧ 绝对径 psfile), exts .tex。"""
     psfile = rule(_PSFILE_ID)
     assert psfile.action["kind"] == "regex_rewrite"
     assert "Image inclusion failed" in psfile.condition["ctx_suggests"]
@@ -163,7 +163,7 @@ def test_psfile_rule_shape() -> None:
 
 
 def test_atdef_rule_shape() -> None:
-    """B5: 同 builtin 无签名门版; 原臂默认参数不变。"""
+    """B5: 同 builtin 无标记门版; 原臂默认参数不变。"""
     atdef = rule(_ATDEF_ID)
     assert atdef.action["kind"] == "builtin_transform"
     assert atdef.action["function"] == "spacefactor_atdef_wrap"
@@ -344,7 +344,7 @@ def test_psfile_apply(tmp_path: Path) -> None:
 
 
 def test_atdef_wraps_newtheorem_env(tmp_path: Path) -> None:
-    """0712.0866 形：无 spacefactor 签名也裹 @-def 站 (gate_terms:[])。"""
+    """0712.0866 形：无 spacefactor 标记也裹 @-def 站 (gate_terms:[])。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\newtheorem{@#1}{#2}[section]\n"
@@ -394,11 +394,11 @@ def test_atdef_no_at_def_declines(tmp_path: Path) -> None:
 
 
 def test_gate_terms_default_preserves_spacefactor(tmp_path: Path) -> None:
-    """B5 builtin 兼容：默认 gate 仍要 spacefactor 签名 (原臂语义不变)。"""
+    """B5 builtin 兼容：默认 gate 仍要 spacefactor 标记 (原臂语义不变)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\def\\a@b{x}\n", encoding="utf-8"
     )
-    # 无参 (默认 gate) + 无签名 → decline
+    # 无参 (默认 gate) + 无标记 → decline
     ok, note = spacefactor_atdef_wrap(
         mk_ctx(tmp_path, err_head="Undefined control sequence \\foo"),
         EngStub(),
@@ -407,7 +407,7 @@ def test_gate_terms_default_preserves_spacefactor(tmp_path: Path) -> None:
     )
     assert not ok
     assert "gate" in note
-    # gate_terms:[] + 无签名 → 裹
+    # gate_terms:[] + 无标记 → 裹
     ok2, _ = spacefactor_atdef_wrap(
         mk_ctx(tmp_path, err_head="Undefined control sequence \\foo"),
         EngStub(),
@@ -554,7 +554,7 @@ def test_atdef_condition_pattern() -> None:
 
 
 def test_micro_ctx_pattern() -> None:
-    """ctx_suggests 闸：microtype 签名族。"""
+    """ctx_suggests 闸：microtype 标记族。"""
     pat = rule(_MICRO_ID).condition["ctx_suggests"]
     for sig in (
         "Package microtype Error",

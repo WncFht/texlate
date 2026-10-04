@@ -1,7 +1,7 @@
 r"""compile.normalize.junk — bundled 垃圾件 stub 叶 (compile.normalize 域缝叶)。
 
 ``JUNK_FILE_STUBS`` 名单件逐名覆写为 stub（``\input`` 目标须保持存在故
-覆写不删）；``JUNK_FILE_MARKERS`` 垃圾签名护栏——同名无签名按撞名真件
+覆写不删）；``JUNK_FILE_MARKERS`` 垃圾标记护栏——同名无标记按撞名真件
 放行，中立化只护真实输入不反噬真件本体。
 """
 
@@ -30,13 +30,13 @@ JUNK_FILE_STUBS: Final[dict[str, str]] = {
     ),
 }
 
-#: 垃圾件自证签名——同名件须命中任一签名才按垃圾件覆写（名撞护栏）。
+#: 垃圾件自证标记——同名件须命中任一标记才按垃圾件覆写（名撞护栏）。
 #: 名单名是 bundled 构件名（类发行物），逐名匹配假定「该名即垃圾件」；
-#: 同树真件撞名时凭签名区分——真件不可能携带垃圾件的 RCS 自名版本戳、
+#: 同树真件撞名时凭标记区分——真件不可能携带垃圾件的 RCS 自名版本戳、
 #: 自检横幅或 ``\typein`` 交互原语（corpus 四件实证：v1.4/v1.9 三件
-#: 均带齐三签名）。签名按原始字节做子串匹配（ASCII 标记，编码无关）。
-#: 无签名件视为撞名真件放行——中立化只护真实输入，不得反噬真件本体；
-#: 签名缺省的名单条目回落逐名无条件覆写（旧契约，名单作者自证）。
+#: 均带齐三标记）。标记按原始字节做子串匹配（ASCII 标记，编码无关）。
+#: 无标记件视为撞名真件放行——中立化只护真实输入，不得反噬真件本体；
+#: 标记缺省的名单条目回落逐名无条件覆写（旧契约，名单作者自证）。
 JUNK_FILE_MARKERS: Final[dict[str, tuple[bytes, ...]]] = {
     "aipcheck.tex": (
         b"$Id: aipcheck.tex",  # RCS 自名版本戳
@@ -52,8 +52,8 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
 
     覆写不删——``\input``/``\include`` 引用目标须保持存在；逐名匹配不限
     目录深度（bundled 件可落任意子目录）。已就位者跳过——幂等不重复记。
-    ``JUNK_FILE_MARKERS`` 带签名条目加一道名撞护栏：同名但不含任一垃圾
-    签名的文件按撞名真件放行——覆写会毁掉真件本体（同名 ≠ 同垃圾）。
+    ``JUNK_FILE_MARKERS`` 带标记条目加一道名撞护栏：同名但不含任一垃圾
+    标记的文件按撞名真件放行——覆写会毁掉真件本体（同名 ≠ 同垃圾）。
     """
     hits = []
     for path in sorted(_iter_files(root, None)):
@@ -66,7 +66,7 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
                 continue
             markers = JUNK_FILE_MARKERS.get(path.name, ())
             if markers and not any(m in blob for m in markers):
-                # 同名无垃圾签名——撞名真件，不覆写（fixloop ``_inject_write``
+                # 同名无垃圾标记——撞名真件，不覆写（fixloop ``_inject_write``
                 # foreign 闸同款口径：外来件永不覆写）
                 log.debug("归一化跳过撞名真件 %s（无垃圾签名）", path)
                 continue

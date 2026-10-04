@@ -56,7 +56,7 @@ def test_char_table_a1_entries_registered() -> None:
 
 
 def test_blackboard_partial_lmmono(tmp_path: Path) -> None:
-    """ℝℚℂ∂ 落 lmmono → \\mathbb 族 + \\partial (lean/literate 签名)。"""
+    """ℝℚℂ∂ 落 lmmono → \\mathbb 族 + \\partial (lean/literate 标记)。"""
     main = (
         "\\documentclass{article}\n\\usepackage{amssymb}\n"
         "\\begin{document}\nℝℚℂ∂ x\n\\end{document}\n"
@@ -140,7 +140,7 @@ def test_armenian_and_boxdraw(tmp_path: Path) -> None:
 
 
 def test_boxdraw_verbatim_masked_untouched(tmp_path: Path) -> None:
-    """遮盖面守卫：─│ 在 verbatim 体内不被替换 (2408.07394 Verbatim 签名)。"""
+    """遮盖面守卫：─│ 在 verbatim 体内不被替换 (2408.07394 Verbatim 标记)。"""
     main = (
         "\\documentclass{article}\n\\begin{document}\n"
         "\\begin{verbatim}\n───│││\n\\end{verbatim}\n"

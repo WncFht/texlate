@@ -221,8 +221,8 @@ class LogfixFlakyEngine:
     ``n_fail=1`` → logfix 重编即绿（验证 logfix 修好就跳过 fixloop）；
     ``n_fail=2`` → logfix 重编仍败 → 回落后**裸编验证**即绿；
     ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 logfix 之后兜底）。
-    en 侧必须恒净——worker 以 en 编译错误签名作 zh 归因的源生基线，
-    en 同签名失败会把 zh 错误判源携带豁免掉（过滤语义本身正确，
+    en 侧必须恒净——worker 以 en 编译错误标记作 zh 归因的源生基线，
+    en 同标记失败会把 zh 错误判源携带豁免掉（过滤语义本身正确，
     本 fixture 的前提是「en 干净、错由译文引入」）。
     探测面对齐 fixloop 会触到的 Engine 鸭子型。
     """

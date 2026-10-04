@@ -17,7 +17,7 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                残留，仍报 error（sabotage 实测逃逸：臆造 ``[[MATH_966]]``
                写进 ``%`` 行）。
   brace        ``{}`` 平衡（``\\{`` ``\\}`` 转义、``%`` 注释豁免）。
-  env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 签名差分。
+  env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 标记差分。
   key          ``\\cite*/\\*ref/\\label/\\bibitem/\\bibliography`` key multiset。
   math         未转义 ``$`` 计数 + ``\\(\\)`` ``\\[\\]`` 成对。
   length       剥占位符/cs 后 token 代理比带 [0.3,3.0] 外 → error（退化
@@ -43,9 +43,9 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                脆弱间距命令（``\\ `` ``\\,`` ``\\;`` ``\\:`` ``\\!`` ``~``）
                计数差升硬判据 cs_dropped，其余丢失 cs 报 warn。
   item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
-               签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
+               标记，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
                ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
-  ph_in_cs     ``\\cs名[[PH]]字母`` 双侧夹持签名 → error（splice 逐字节替换
+  ph_in_cs     ``\\cs名[[PH]]字母`` 双侧夹持标记 → error（splice 逐字节替换
                后断 cs 成未定义命令、载荷不可复原——不进 fixloop，走重译/
                回退；``\\cs[[PH]]`` 尾邻是合法高频形不判，注释区豁免，
                src 同形按净差豁免）。
@@ -53,7 +53,7 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                ``\alpha 发射体`` 数学 cs 落文本域 → Missing $ 炸弹；
                ``\itemOC``/``\linebreakGF`` 前缀+含大写后缀粘合 → 未定义
                cs 炸弹）。泛新增 cs E24 起归 macro error，本规则只管
-               编译即炸的位置签名——命中名在 macro 泛 error 报表同现
+               编译即炸的位置标记——命中名在 macro 泛 error 报表同现
                一条（有意分层双报：泛条目不带文本域/粘合前缀定位）。
   protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
                三段式节标/rules 反馈消息/``slot_validation_failures``/

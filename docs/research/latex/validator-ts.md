@@ -1,6 +1,6 @@
 # tree-sitter-latex 译文校验器（L1）— 选型与实测
 
-> **结论**：`@pfoerster/tree-sitter-latex` 0.6.0 经 node 子进程 JSONL 协议作可选增强层（L1）可行——8 类译文破坏 40/40 全检出、干净集 0 误报、chunk 级 <1ms；但 73.7% 真实文件自带 grammar 覆盖空隙产生的 ERROR，生产判定必须用相对模式（vs 译前签名）。
+> **结论**：`@pfoerster/tree-sitter-latex` 0.6.0 经 node 子进程 JSONL 协议作可选增强层（L1）可行——8 类译文破坏 40/40 全检出、干净集 0 误报、chunk 级 <1ms；但 73.7% 真实文件自带 grammar 覆盖空隙产生的 ERROR，生产判定必须用相对模式（vs 译前标记）。
 > **状态**：现行（已落地为 `validate/ts/` + `validate/l1.py`；规范见 `spec/latex-pipeline.md`）
 > **日期**：2026-09-14
 
@@ -27,7 +27,7 @@
 
 检出率（批处理、绝对判定）：5 个干净主文件 × 8 类破坏（丢 `}`、丢 `$`、`\end` 改名、删 `\end`、删占位符、占位符拼错、`\[` 不配 `\]`、截断尾部）= 40/40 全命中。定位特性：brace 类破坏 ERROR 精确到破坏点 ±1B；math/env 类是容器区域级（破坏使外层 env 整体变 ERROR），对「重译该块」粒度够用。删占位符/占位符拼错是唯一纯契约信号——结构检查完全无感，印证双层分工必要性。
 
-误报：10 个干净原始文件 + 5 个译文态 base 全部 `ok=true`；57 个 arXiv 主文件中 **42 个（73.7%）带既有 baseline ERROR**——全是 grammar 覆盖空隙（`\inferrule`、bussproofs、私类命令、LaTeX2.09 遗留语法），与文件是否被破坏无关。因此绝对判定 `ok` 在真实语料上不可用，**`ok_relative`（译文签名 vs 译前 baseline 按计数比对）是生产形态**；相对模式按计数比对使译文位移不影响判定，破坏造成的新增 ERROR 会计数上涨。
+误报：10 个干净原始文件 + 5 个译文态 base 全部 `ok=true`；57 个 arXiv 主文件中 **42 个（73.7%）带既有 baseline ERROR**——全是 grammar 覆盖空隙（`\inferrule`、bussproofs、私类命令、LaTeX2.09 遗留语法），与文件是否被破坏无关。因此绝对判定 `ok` 在真实语料上不可用，**`ok_relative`（译文标记 vs 译前 baseline 按计数比对）是生产形态**；相对模式按计数比对使译文位移不影响判定，破坏造成的新增 ERROR 会计数上涨。
 
 延迟（node v26.8.2）：spawn 空载 ~37ms；进程内 validate 2KB chunk 0.70ms、8KB 1.95ms、32KB 7.7ms；最坏单文件 2.2MB parse 195ms。**必须批处理/常驻进程**——逐块 spawn 50ms/次在长文档上不可行，批处理后摊薄 <1ms/块。
 

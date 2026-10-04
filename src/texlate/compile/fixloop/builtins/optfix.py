@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 # ════════════════════════════════════════════════════════════════
 # runaway_output 修复面：不可断盒 > \textheight → \output 空页死循环
-# (killsem census 单机理族：sentry:page_flood SIGKILL 前泛洪签名)
+# (killsem census 单机理族：sentry:page_flood SIGKILL 前泛洪标记)
 # ════════════════════════════════════════════════════════════════
 
 
@@ -260,7 +260,7 @@ def float_h_demote(
 ) -> tuple[bool, str]:
     r"""浮体 ``[H]`` 系选项组降级为 ``!``+placement (runaway_output 臂)。
 
-    与 ``float_opt_h_pkgload`` (70-pkgopt, float_opt|H 签名补
+    与 ``float_opt_h_pkgload`` (70-pkgopt, float_opt|H 标记补
     ``\usepackage{float}``) 零重叠: 该格 float 已载, 失败模态是
     ``[H]`` 把超高内容钉成非浮体不可断盒 → page builder 死循环
     (2608.09867 base: figure[H]+~755pt 图 > ~731pt \textheight)。

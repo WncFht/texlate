@@ -164,7 +164,7 @@ class EngHit(EngStub):
 
     csfix 族 ~9 文件局部 ``_EngStub`` 实为恒中形——同名反语义是真实
     swap-trap，故子类化新名（而非 ``hit=True`` flag）保 ``EngStub``
-    恒缺签名稳定；``EngProbe`` 为同体别名。
+    恒缺标记稳定；``EngProbe`` 为同体别名。
     """
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:

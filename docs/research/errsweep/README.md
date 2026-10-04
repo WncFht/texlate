@@ -1,6 +1,6 @@
 # `errsweep/` — 错误清扫报告索引
 
-每日 errsweep agent 的工作报告归档目录。agent 由 `scripts/errsweep.sh` 定时唤起，按 `docs/dev/errsweep-runbook.md` 契约工作：双臂（soak records + web 任务库）签名普查 → ≤5 签名分诊 → fixloop 规则/builtin/产品修复 → 三门验收 → 本目录落 `<date>-sweep.md` 报告（同份复制到 XDG state 根）。
+每日 errsweep agent 的工作报告归档目录。agent 由 `scripts/errsweep.sh` 定时唤起，按 `docs/dev/errsweep-runbook.md` 契约工作：双臂（soak records + web 任务库）标记普查 → ≤5 标记分诊 → fixloop 规则/builtin/产品修复 → 三门验收 → 本目录落 `<date>-sweep.md` 报告（同份复制到 XDG state 根）。
 
 | 文件                  | 内容                                                                                                  |
 | --------------------- | ----------------------------------------------------------------------------------------------------- |

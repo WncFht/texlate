@@ -26,18 +26,18 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 ### 1.2 静态路由（`engine/_route.py`）
 
-`route_project(root, *, prefer="tectonic") -> RouteDecision{engines, reject, reasons, non_utf8, latex209_suspect}`——`reject` 槽位保留但**恒 None**（LaTeX 2.09 无条件拒已移 fixloop `latex209_reject` gate）。流程：扫全部 .tex → `decode_tex`（非 UTF-8 记 `non_utf8`）→ `visible_tex` 遮盖 blob 上跑签名集。
+`route_project(root, *, prefer="tectonic") -> RouteDecision{engines, reject, reasons, non_utf8, latex209_suspect}`——`reject` 槽位保留但**恒 None**（LaTeX 2.09 无条件拒已移 fixloop `latex209_reject` gate）。流程：扫全部 .tex → `decode_tex`（非 UTF-8 记 `non_utf8`）→ `visible_tex` 遮盖 blob 上跑标记集。
 
-| 签名               | 检测                                                                                                                          | 路由效果                                      |
+| 标记               | 检测                                                                                                                          | 路由效果                                      |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| eps/pstricks       | `*.eps` 文件、`@pstricks` 签名（`PSTRICKS_SIG_ALTS` 单源：pstricks/pstricks-_/pst-_ 包名元素级 + `pspicture` env + `\psset`） | **xelatex 置首**（xdvipdfmx 硬墙）[^pstricks] |
+| eps/pstricks       | `*.eps` 文件、`@pstricks` 标记（`PSTRICKS_SIG_ALTS` 单源：pstricks/pstricks-_/pst-_ 包名元素级 + `pspicture` env + `\psset`） | **xelatex 置首**（xdvipdfmx 硬墙）[^pstricks] |
 | minted+frozencache | `_MINTED_FROZEN_RE` 且 minted 同现                                                                                            | tectonic 置首（bundle v2.6 吃 v2 缓存）       |
 | bitmap fonts       | `bbm/bbmfonts/dsfont/bbold/yfonts/wasy/wasysym`、`*.mf`                                                                       | reasons（tectonic 高风险提示，不改序）        |
 | `\special{psfile}` | dvips 原语插图探测（`_PSFILE_SPECIAL_RE`）                                                                                    | reasons（双引擎均不渲染，注记不改序）         |
 | 非 UTF-8           | `decode_tex` 分档                                                                                                             | reasons                                       |
 | `\documentstyle`   | LaTeX 2.09 嫌疑                                                                                                               | `latex209_suspect` 标记 + reasons             |
 
-决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 签名即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
+决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 标记即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
 
 ### 1.3 XelatexEngine（`engine/_xelatex/main.py`）
 
@@ -66,7 +66,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 - `env` 态只剩 env 白名单（无文件系统隔离）。
 - `_rc_to_signal`：负 rc→`-rc`；sandbox 包装下 128<rc≤192→`rc-128`。
 
-`proc.py::run_process`：`Popen`（stdin=DEVNULL、stderr→STDOUT、`start_new_session` POSIX、preexec rlimits AS=4GiB/NOFILE=1024/CPU=max(2×timeout,600)）→ `_drain_bounded` 排干环（monotonic deadline + poll 终态 + should_cancel 0.5s 分片 + headroom=4×out_cap 尾截 + `_RunawaySentry` 活哨：`page_flood` 单调 `[N]` 页面包络 ≥10000、`vbox_flood` 密度签名）→ 超时/哨兵→`timed_out=sentry.reason|True` + `_kill_tree`（killpg 整树→`proc.kill` 兜底）+ 30s 续收。`except BaseException`（KeyboardInterrupt/GeneratorExit 等）同样杀树再抛——setsid/双 fork 逃逸的孙进程仍握 stdout 写端，二段 wait 由调用点兜。返回尾部 `out_cap=8MB`。
+`proc.py::run_process`：`Popen`（stdin=DEVNULL、stderr→STDOUT、`start_new_session` POSIX、preexec rlimits AS=4GiB/NOFILE=1024/CPU=max(2×timeout,600)）→ `_drain_bounded` 排干环（monotonic deadline + poll 终态 + should_cancel 0.5s 分片 + headroom=4×out_cap 尾截 + `_RunawaySentry` 活哨：`page_flood` 单调 `[N]` 页面包络 ≥10000、`vbox_flood` 密度标记）→ 超时/哨兵→`timed_out=sentry.reason|True` + `_kill_tree`（killpg 整树→`proc.kill` 兜底）+ 30s 续收。`except BaseException`（KeyboardInterrupt/GeneratorExit 等）同样杀树再抛——setsid/双 fork 逃逸的孙进程仍握 stdout 写端，二段 wait 由调用点兜。返回尾部 `out_cap=8MB`。
 
 ## 3. 判定、探测与 log 层
 
@@ -96,7 +96,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `inject_cjk(tex, *, mode="ctex", root, _defer_math_fallback) -> (text, info)`；`InjectRejectError(ValueError)` 带 `.reason`（msg=`inject_reject:<reason>`）。`\documentstyle` 先走 `latex209.upgrade_209`（§4.4）——不可转才抛拒，「禁止注入」是兜底语义。status ∈ `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚）。seam 定位 `find_docclass_ends`（visible_tex depth-0 docclass seam 表 + `_macro_proxy_seams` 宏体兜底）、`_splice_before_document`（`\begin{document}` 锚，空白容忍；允许 bd 落 `\input` 闭包内）。注入块 = `CTEX_LINE`(`\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}`；非 ctex 模式给 XECJK_BLOCK) + ACM_BASELINESTRETCH_GUARD + THEOREM_ANCHOR_SHIM + CJK_FIRST_USE_WARMUP + TIE_ACCENT_FIX + TEXT_8BIT_FALLBACK + OVERFLOW_MITIGATION；`CJK_MATH_FALLBACK` 沉 pre-bd（mathgroup 编号）；多 seam 加 `\ifdefined\TeXlateCJKloaded` 幂等壳。`_input_hop_inject` 一跳 `\input` 载具注入（cap 64）。
 
-`prepare_chinese(root, main, *, mode, float_sizing=True, demote_wrap=True)`：tar 伪装→reject("nontex")；no-docline→hop；`demote_wrapfloats`+`inject_float_sizing` 入 info。**ctex 默认路径**（双引擎实测可编译、白拿节名汉化）；xeCJK+fontspec 为降级路径（ctex 冲突签名→fixloop 或探测切换）。
+`prepare_chinese(root, main, *, mode, float_sizing=True, demote_wrap=True)`：tar 伪装→reject("nontex")；no-docline→hop；`demote_wrapfloats`+`inject_float_sizing` 入 info。**ctex 默认路径**（双引擎实测可编译、白拿节名汉化）；xeCJK+fontspec 为降级路径（ctex 冲突标记→fixloop 或探测切换）。
 
 ### 4.2 版式手术（`compile/layout.py`）
 
@@ -189,8 +189,8 @@ for rnd in 1..max_rounds(8):
     if r is None: → unfixable:{cat}（无 pdf）| dirty_pdf（有 pdf）
 ```
 
-- **每轮只应用一条**（`one_rule_per_round`，便于归因）；dedup 键 `{rule_id}:{payload}` 入 `ctx.ledger.applied`；misschar 族 `_mc_delta` 增量豁免（残存码位账外可再火）。`_landing_sync` 检测窗内外部落件（绕 `ctx.write` 的 install/run_tool/vendor 写）→ 失效缓存 + 落件前烧键过期（新站点引进后同签可重派）。
-- **stuck 结算**：同签 streak≥3 **且本轮主 + 次级派发均无 apply** 才判——产出轮只续窗口不判负。
+- **每轮只应用一条**（`one_rule_per_round`，便于归因）；dedup 键 `{rule_id}:{payload}` 入 `ctx.ledger.applied`；misschar 族 `_mc_delta` 增量豁免（残存码位账外可再火）。`_landing_sync` 检测窗内外部落件（绕 `ctx.write` 的 install/run_tool/vendor 写）→ 失效缓存 + 落件前烧键过期（新站点引进后同标记可重派）。
+- **stuck 结算**：同标记 streak≥3 **且本轮主 + 次级派发均无 apply** 才判——产出轮只续窗口不判负。
 - **次级派发（twinhead）**：首错 miss 时 `err_candidates`（≤4）补派；xelatex halt_on_error 单错 log 且未出 pdf 且探针 <2 → best_effort 探针编译取全错误面，探针结果留 salvage 复用。
 - **warn-preempt**（warn-driven fixes）：编译过但带红线 warning 也进修复轮——两 site：error-cat 轮派发耗尽点 + loop 退出点；`_warn_family_due` 勤勉判（族臂未评估过本 cat ∧ 残存码位在 mc_seen 账外）→ `only=_is_misschar_rule` 专场派发。
 - **salvage**：verdict 非 reject 且末轮无 pdf 且无 driver_fatal → nonstopmode 兜底编译（exclusion 表：clean/acceptable_pdf/dirty_pdf/unfixable:{timeout,runaway_output,driver_fatal,input_stack}）→ 出 pdf 即 `best_effort_pdf`。
@@ -221,7 +221,7 @@ for rnd in 1..max_rounds(8):
 
 ### 6.6 builtins：facade + 16 顶层叶 + 6 内嵌子包
 
-`builtins/__init__.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**83**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims`/`@pstricks` 占位符 yaml 全树展开（`_FAMILY_TOKENS` 双支：`@pdftex_prims` 112 词表 + `@pstricks` 4 签名支——后者单源 `engine/_route.PSTRICKS_SIG_ALTS`，route 静态签名与规则条件同口径）。社区新规则多数只写 regex，新函数才需 PR 代码。
+`builtins/__init__.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**83**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims`/`@pstricks` 占位符 yaml 全树展开（`_FAMILY_TOKENS` 双支：`@pdftex_prims` 112 词表 + `@pstricks` 4 标记支——后者单源 `engine/_route.PSTRICKS_SIG_ALTS`，route 静态标记与规则条件同口径）。社区新规则多数只写 regex，新函数才需 PR 代码。
 
 | 叶 | 主题 | |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | |
@@ -241,7 +241,7 @@ for rnd in 1..max_rounds(8):
 | `builtins.misc` | 编码转码/中间件清场/support 复原/格式门：`non_utf8_recode`/`cjk_env_relax`/`purge_corrupt_intermediates`/`aux_seed_undefined_refs`/`restore_support_from_src`/`plain_format_detect`/`latex209_upgrade`/`harvest_build_directives`/`docstrip_generate` | |
 | `builtins.optfix` | env 选项组与排版参数外科（misc C3 再拆叶）：`tcolorbox_breakable_inject`/`float_h_demote`/`float_opt_cs_expand`/`para_loosen`（前二者是 runaway_output 修复臂） | |
 | `builtins.paralong` | para_longize——非 long 宏撞 `\par` | |
-| `builtins.pdfprim` | `pdftex_prim_polyfill`（shim C3 再拆叶）：xelatex 下 pdfTeX 原语按签名分臂（寄存器族/取参族/余项 chardef）`\ifdefined` 守卫注入 | |
+| `builtins.pdfprim` | `pdftex_prim_polyfill`（shim C3 再拆叶）：xelatex 下 pdfTeX 原语按标记分臂（寄存器族/取参族/余项 chardef）`\ifdefined` 守卫注入 | |
 | `builtins.pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 | |
 | `builtins.shim` | shim_map stub/遮蔽注入：legacy_pkg_shim/svjour_clo_stub/journal_cs_polyfill/bundled_class_shadow/shim_pkgs_in_use/revtex209_surface_polyfill | |
 | `builtins.slotrev/` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） | |
