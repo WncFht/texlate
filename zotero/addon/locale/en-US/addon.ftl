@@ -12,29 +12,13 @@
 translate = TeXlate: Translate to Chinese
 open-reader = TeXlate: Open in Reader
 
-# Preference pane label (Zotero settings sidebar) + dialog window title.
+# Preference pane label (Zotero settings sidebar). Field/button labels are
+# DOM l10n in preferences.ftl; only the runtime t() strings live here.
 prefs-title = TeXlate
-prefs-dialog-title = TeXlate Settings
-
-# Preferences dialog fields (modules/prefs.ts SettingsDialogHelper).
-prefs-server-url = Server URL
-prefs-api-key = API key (optional)
-prefs-attach-zh = Attach Chinese PDF (zh.pdf)
-prefs-attach-en = Attach English PDF (en.pdf)
-prefs-attach-dual = Attach bilingual PDF (dual.pdf)
-prefs-batch-delay = Delay between batch items (ms)
-prefs-poll-interval = Poll interval (ms)
-prefs-poll-timeout = Poll timeout (ms)
-prefs-status = Connection
-prefs-check = Check connection
 prefs-checking = Checking…
 prefs-health-ok = Connected — server version { $version }
 prefs-health-bad = Unexpected response — is a TeXlate server at this URL?
 prefs-health-down = Cannot reach the server — is `uvx texlate web` running?
-prefs-autostart = Auto-start local server when unreachable
-prefs-start-server = Start local server
-prefs-save = Save
-prefs-cancel = Cancel
 
 # Progress phases — modules/poller.ts phaseKey() picks the suffix from the
 # task stage (fetching…compiling) or status (queued + terminal states);
@@ -57,6 +41,7 @@ taskpane-running-count = { $count } running
 
 # Translate flow (modules/flow.ts) — task pane lines + completion toast.
 flow-done = Translation finished — PDF attached to the item.
+flow-done-missing = Translation finished — PDF attached; not produced: { $kinds }
 flow-partial-warn = Task finished partially — some segments may be untranslated.
 flow-already-translated = Already translated — use "Open in Reader" to view it.
 flow-needs-auth = The server requires sign-in — opening { $serverUrl } to authorize.

@@ -17,8 +17,9 @@
  *   flow-error-api {status, detail} · flow-error-poll-timeout ·
  *   flow-error-task-fault {detail} · flow-error-task-cancelled ·
  *   flow-error-task-interrupted · flow-error-unexpected {message} ·
- *   flow-needs-auth {serverUrl} · flow-done · flow-partial-warn ·
- *   flow-attach-failed {detail} · flow-batch-summary {ok, failed, total}
+ *   flow-needs-auth {serverUrl} · flow-done · flow-done-missing {kinds} ·
+ *   flow-partial-warn · flow-attach-failed {detail} ·
+ *   flow-batch-summary {ok, failed, total}
  */
 
 import {
@@ -153,10 +154,20 @@ async function finish(
       // (empty artifacts) or nothing was requested, write it here so
       // "Open in Reader" still works.
       if (getTexlateMark(item) !== taskId) await setTexlateMark(item, taskId);
+      // Partial attach (≥1 attached, but some kinds missing/failed) still
+      // succeeds — name the skipped kinds so e.g. a dead option isn't silent.
+      const missed = [
+        ...attach.missing,
+        ...attach.failed.map((f) => f.kind),
+      ];
       endLine(
         line,
         "success",
-        status === "partial" ? t("flow-partial-warn") : t("flow-done"),
+        missed.length > 0
+          ? t("flow-done-missing", { kinds: missed.join(", ") })
+          : status === "partial"
+            ? t("flow-partial-warn")
+            : t("flow-done"),
       );
       return { itemID, ok: true, status, taskId, attach };
     }

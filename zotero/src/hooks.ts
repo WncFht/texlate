@@ -1,7 +1,7 @@
 import { initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
 import { registerMenus } from "./modules/menu";
-import { registerPrefsPane } from "./modules/prefs";
+import { initPrefsPane, registerPrefsPane } from "./modules/prefs";
 import { installSelftest } from "./modules/selftest";
 import { installBootstrap } from "./modules/bootstrap";
 import { registerTaskPane } from "./modules/taskpane";
@@ -42,12 +42,10 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 
 async function onMainWindowUnload(win: Window): Promise<void> {
   ztoolkit.unregisterAll();
-  addon.data.dialog?.window?.close();
 }
 
 function onShutdown(): void {
   ztoolkit.unregisterAll();
-  addon.data.dialog?.window?.close();
   // Remove addon object
   addon.data.alive = false;
   // @ts-expect-error - Plugin instance is not typed
@@ -56,14 +54,15 @@ function onShutdown(): void {
 
 /**
  * Dispatcher for Preference UI events — called from preferences.xhtml's
- * groupbox onload. Window binding for the declarative prefs dialog is owned
- * by modules/prefs.ts, so the "load" case is intentionally a no-op.
+ * groupbox onload. "load" wires the inline form (hydrate + auto-save
+ * listeners + action buttons) via modules/prefs.ts.
  * @param type event type
  * @param data event data
  */
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   switch (type) {
     case "load":
+      initPrefsPane(data.window.document);
       break;
     default:
       return;

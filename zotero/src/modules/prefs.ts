@@ -1,37 +1,21 @@
 /**
- * prefs.ts — TexlatePrefs loading + declarative settings dialog.
- * Path (a): zotero-plugin-toolkit SettingsDialogHelper (pdf-translate
- * AllowedSettingsMethods pattern) — zero custom xhtml for the dialog.
- * apiKey is a plaintext Zotero pref (README-documented).
+ * prefs.ts — TexlatePrefs loading + the inline settings pane.
  *
- * ftl keys needed in addon.ftl (locale agent fills; getString prefixes
- * `texlate-` — `t()` casts until i10n.d.ts regenerates):
- *   prefs-title         = TeXlate
- *   prefs-dialog-title  = TeXlate Settings
- *   prefs-server-url    = Server URL
- *   prefs-api-key       = API key (optional)
- *   prefs-attach-zh     = Attach Chinese PDF (zh.pdf)
- *   prefs-attach-en     = Attach English PDF (en.pdf)
- *   prefs-attach-dual   = Attach bilingual PDF (dual.pdf)
- *   prefs-batch-delay   = Delay between batch items (ms)
- *   prefs-poll-interval = Poll interval (ms)
- *   prefs-poll-timeout  = Poll timeout (ms)
- *   prefs-status        = Connection
- *   prefs-check         = Check connection
- *   prefs-checking      = Checking…
- *   prefs-health-ok     = Connected — server version { $version }
- *   prefs-health-bad    = Unexpected response — is a texlate server at this URL?
- *   prefs-health-down   = Cannot reach server — is `uvx texlate web` running?
- *   prefs-autostart     = Auto-start local server when unreachable
- *   prefs-start-server  = Start local server
- *   prefs-save          = Save
- *   prefs-cancel        = Cancel
- * plus bootstrap keys (modules/bootstrap.ts): flow-boot-prepare ·
- *   flow-boot-wait {s} · flow-error-bootstrap {detail}
- * plus in preferences.ftl (xhtml pane): prefs-open-settings = Open TeXlate Settings
+ * The pane (addon/content/preferences.xhtml, loaded into Zotero's own
+ * settings window by PreferencePanes.register) hosts the form directly —
+ * no dialog: initPrefsPane hydrates each control from Zotero.Prefs and
+ * writes back on `change`, so edits apply immediately. apiKey is a
+ * plaintext Zotero pref (README-documented).
+ *
+ * The check/start buttons act on the CURRENT field values, not saved
+ * prefs — a user can type a URL and probe it before blurring the field.
+ *
+ * ftl: field/button labels live in preferences.ftl (DOM l10n inside the
+ * xhtml); runtime status strings live in addon.ftl for t() —
+ *   prefs-checking · prefs-health-ok {version} · prefs-health-bad ·
+ *   prefs-health-down · flow-error-bootstrap {detail}
  */
 import { config, homepage } from "../../package.json";
-import { SettingsDialogHelper } from "zotero-plugin-toolkit";
 import type { TexlatePrefs } from "../contracts";
 import { NetworkError } from "../contracts";
 import { createClient } from "./client";
@@ -42,7 +26,38 @@ import { getPref, setPref } from "../utils/prefs";
 type PrefKey = keyof _ZoteroTypes.Prefs["PluginPrefsMap"];
 
 const STATUS_ID = "texlate-health-status";
-const INPUT_STYLE = { minWidth: "28em" } as const;
+const BUTTON_IDS = { check: "texlate-check", start: "texlate-start" } as const;
+
+/**
+ * SYNC: these defaults are duplicated as literals in addon/prefs.js —
+ * Zotero loads prefs.js pre-bundle so it cannot import TS constants.
+ * test/prefs.test.ts is the drift gate.
+ */
+const DEFAULTS = {
+  serverUrl: "http://127.0.0.1:8765",
+  apiKey: "",
+  attachZhPdf: true,
+  attachEnPdf: false,
+  batchDelayMs: 1000,
+  pollIntervalMs: 2000,
+  pollTimeoutMs: 10800000,
+  autoStart: true,
+  bootstrapDataDir: "",
+} as const;
+
+type FieldKind = "text" | "number" | "checkbox";
+
+/** pref key → control kind; element id is `texlate-${key}`. */
+const FIELDS: ReadonlyArray<readonly [keyof typeof DEFAULTS, FieldKind]> = [
+  ["serverUrl", "text"],
+  ["apiKey", "text"],
+  ["attachZhPdf", "checkbox"],
+  ["attachEnPdf", "checkbox"],
+  ["batchDelayMs", "number"],
+  ["pollIntervalMs", "number"],
+  ["pollTimeoutMs", "number"],
+  ["autoStart", "checkbox"],
+];
 
 function num(v: unknown, fallback: number, min = 0): number {
   const n = Number(v);
@@ -59,32 +74,26 @@ function bool(v: unknown, fallback: boolean): boolean {
 /** Trim + strip trailing slashes; empty falls back to local default. */
 function normalizeServerUrl(v: unknown): string {
   const s = (typeof v === "string" ? v.trim() : "").replace(/\/+$/, "");
-  return s || "http://127.0.0.1:8765";
+  return s || DEFAULTS.serverUrl;
 }
 
-/**
- * Build TexlatePrefs from a raw pref map (Zotero.Prefs or dialog values).
- * SYNC: the fallback defaults below are duplicated in addon/prefs.js —
- * Zotero loads prefs.js pre-bundle so it cannot import these TS constants.
- * Any default change must be applied in both places.
- */
+/** Build TexlatePrefs from a raw pref map (Zotero.Prefs or live fields). */
 function prefsFrom(raw: Record<string, unknown>): TexlatePrefs {
   const attachKinds: string[] = [];
-  if (bool(raw.attachZhPdf, true)) attachKinds.push("zh.pdf");
-  if (bool(raw.attachEnPdf, false)) attachKinds.push("en.pdf");
-  if (bool(raw.attachDualPdf, false)) attachKinds.push("dual.pdf");
+  if (bool(raw.attachZhPdf, DEFAULTS.attachZhPdf)) attachKinds.push("zh.pdf");
+  if (bool(raw.attachEnPdf, DEFAULTS.attachEnPdf)) attachKinds.push("en.pdf");
   return {
     serverUrl: normalizeServerUrl(raw.serverUrl),
-    apiKey: typeof raw.apiKey === "string" ? raw.apiKey.trim() : "",
+    apiKey: typeof raw.apiKey === "string" ? raw.apiKey.trim() : DEFAULTS.apiKey,
     attachKinds,
-    batchDelayMs: num(raw.batchDelayMs, 1000),
-    pollIntervalMs: num(raw.pollIntervalMs, 2000, 1),
-    pollTimeoutMs: num(raw.pollTimeoutMs, 10800000, 1),
-    autoStart: bool(raw.autoStart, true),
+    batchDelayMs: num(raw.batchDelayMs, DEFAULTS.batchDelayMs),
+    pollIntervalMs: num(raw.pollIntervalMs, DEFAULTS.pollIntervalMs, 1),
+    pollTimeoutMs: num(raw.pollTimeoutMs, DEFAULTS.pollTimeoutMs, 1),
+    autoStart: bool(raw.autoStart, DEFAULTS.autoStart),
     bootstrapDataDir:
       typeof raw.bootstrapDataDir === "string"
         ? raw.bootstrapDataDir.trim()
-        : "",
+        : DEFAULTS.bootstrapDataDir,
   };
 }
 
@@ -94,7 +103,6 @@ export function loadPrefs(): TexlatePrefs {
     apiKey: getPref("apiKey"),
     attachZhPdf: getPref("attachZhPdf"),
     attachEnPdf: getPref("attachEnPdf"),
-    attachDualPdf: getPref("attachDualPdf"),
     batchDelayMs: getPref("batchDelayMs"),
     pollIntervalMs: getPref("pollIntervalMs"),
     pollTimeoutMs: getPref("pollTimeoutMs"),
@@ -103,22 +111,63 @@ export function loadPrefs(): TexlatePrefs {
   });
 }
 
-async function checkConnection(dialog: SettingsDialogHelper): Promise<void> {
-  const el = dialog.window?.document.getElementById(STATUS_ID);
-  const say = (msg: string) => {
-    if (el) el.textContent = msg;
-  };
-  say(t("prefs-checking"));
-  const prefs = prefsFrom(dialog.getAllSettingsData());
+// ---------------------------------------------------------------- inline pane
+
+function fieldId(key: string): string {
+  return `texlate-${key}`;
+}
+
+function fieldValue(el: Element, kind: FieldKind): unknown {
+  if (kind === "checkbox") return (el as HTMLInputElement).checked;
+  const v = (el as HTMLInputElement).value;
+  if (kind === "number") {
+    const n = Number(v);
+    return Number.isFinite(n) && v !== "" ? n : undefined;
+  }
+  return v;
+}
+
+function writeField(
+  el: Element,
+  key: keyof typeof DEFAULTS,
+  kind: FieldKind,
+): void {
+  const v = getPref(key as PrefKey);
+  if (kind === "checkbox") {
+    (el as HTMLInputElement).checked = bool(v, DEFAULTS[key] as boolean);
+  } else {
+    (el as HTMLInputElement).value = String(v ?? DEFAULTS[key]);
+  }
+}
+
+/** Read live control values (unsaved edits included) into TexlatePrefs. */
+function panePrefs(doc: Document): TexlatePrefs {
+  const raw: Record<string, unknown> = {};
+  for (const [key, kind] of FIELDS) {
+    const el = doc.getElementById(fieldId(key));
+    if (el) raw[key] = fieldValue(el, kind);
+  }
+  return prefsFrom(raw);
+}
+
+function say(doc: Document, msg: string): void {
+  const el = doc.getElementById(STATUS_ID);
+  if (el) el.textContent = msg;
+}
+
+async function checkConnection(doc: Document): Promise<void> {
+  say(doc, t("prefs-checking"));
   try {
-    const res = await createClient(prefs).health();
+    const res = await createClient(panePrefs(doc)).health();
     say(
+      doc,
       res.ok
         ? t("prefs-health-ok", { version: res.version ?? "unknown" })
         : t("prefs-health-bad"),
     );
   } catch (e) {
     say(
+      doc,
       e instanceof NetworkError
         ? t("prefs-health-down")
         : t("prefs-health-bad"),
@@ -126,23 +175,21 @@ async function checkConnection(dialog: SettingsDialogHelper): Promise<void> {
   }
 }
 
-async function startServer(dialog: SettingsDialogHelper): Promise<void> {
-  const el = dialog.window?.document.getElementById(STATUS_ID);
-  const say = (msg: string) => {
-    if (el) el.textContent = msg;
-  };
-  const prefs = prefsFrom(dialog.getAllSettingsData());
+async function startServer(doc: Document): Promise<void> {
+  const prefs = panePrefs(doc);
   try {
     const client = createClient(prefs);
-    await ensureServer(prefs, say);
+    await ensureServer(prefs, (msg) => say(doc, msg));
     const res = await client.health();
     say(
+      doc,
       res.ok
         ? t("prefs-health-ok", { version: res.version ?? "unknown" })
         : t("prefs-health-bad"),
     );
   } catch (e) {
     say(
+      doc,
       t("flow-error-bootstrap", {
         detail: e instanceof Error ? e.message : String(e),
       }),
@@ -150,85 +197,26 @@ async function startServer(dialog: SettingsDialogHelper): Promise<void> {
   }
 }
 
-export function openPrefsDialog(): void {
-  addon.data.dialog?.window?.close();
-  const dialog = new SettingsDialogHelper()
-    .setSettingHandlers(
-      (key: string) => getPref(key as PrefKey),
-      (key: string, value: unknown) => {
-        setPref(key as PrefKey, value as never);
-      },
-    )
-    .addSetting(t("prefs-server-url"), "serverUrl", {
-      tag: "input",
-      attributes: { type: "text" },
-      styles: INPUT_STYLE,
-    })
-    .addSetting(t("prefs-api-key"), "apiKey", {
-      tag: "input",
-      attributes: { type: "password" },
-      styles: INPUT_STYLE,
-    })
-    .addSetting(
-      t("prefs-attach-zh"),
-      "attachZhPdf",
-      { tag: "input", attributes: { type: "checkbox" } },
-      { valueType: "boolean" },
-    )
-    .addSetting(
-      t("prefs-attach-en"),
-      "attachEnPdf",
-      { tag: "input", attributes: { type: "checkbox" } },
-      { valueType: "boolean" },
-    )
-    .addSetting(
-      t("prefs-attach-dual"),
-      "attachDualPdf",
-      { tag: "input", attributes: { type: "checkbox" } },
-      { valueType: "boolean" },
-    )
-    .addSetting(
-      t("prefs-batch-delay"),
-      "batchDelayMs",
-      { tag: "input", attributes: { type: "number", min: 0, step: 100 } },
-      { valueType: "number" },
-    )
-    .addSetting(
-      t("prefs-poll-interval"),
-      "pollIntervalMs",
-      { tag: "input", attributes: { type: "number", min: 1, step: 100 } },
-      { valueType: "number" },
-    )
-    .addSetting(
-      t("prefs-poll-timeout"),
-      "pollTimeoutMs",
-      { tag: "input", attributes: { type: "number", min: 1, step: 60000 } },
-      { valueType: "number" },
-    )
-    .addSetting(
-      t("prefs-autostart"),
-      "autoStart",
-      { tag: "input", attributes: { type: "checkbox" } },
-      { valueType: "boolean" },
-    )
-    .addStaticRow(t("prefs-status"), {
-      tag: "span",
-      namespace: "html",
-      id: STATUS_ID,
-      styles: { whiteSpace: "pre-wrap" },
-    })
-    .addButton(t("prefs-check"), "check", {
-      noClose: true,
-      callback: () => void checkConnection(dialog),
-    })
-    .addButton(t("prefs-start-server"), "start-server", {
-      noClose: true,
-      callback: () => void startServer(dialog),
-    })
-    .addAutoSaveButton(t("prefs-save"), "save")
-    .addButton(t("prefs-cancel"), "cancel")
-    .open(t("prefs-dialog-title"));
-  addon.data.dialog = dialog;
+/**
+ * preferences.xhtml groupbox onload entry: hydrate controls from prefs,
+ * write back on `change` (auto-save), wire the two action buttons.
+ */
+export function initPrefsPane(doc: Document): void {
+  for (const [key, kind] of FIELDS) {
+    const el = doc.getElementById(fieldId(key));
+    if (!el) continue;
+    writeField(el, key, kind);
+    el.addEventListener("change", () => {
+      const v = fieldValue(el, kind);
+      if (v !== undefined) setPref(key as PrefKey, v as never);
+    });
+  }
+  doc
+    .getElementById(BUTTON_IDS.check)
+    ?.addEventListener("click", () => void checkConnection(doc));
+  doc
+    .getElementById(BUTTON_IDS.start)
+    ?.addEventListener("click", () => void startServer(doc));
 }
 
 export function registerPrefsPane(): void {
@@ -241,6 +229,4 @@ export function registerPrefsPane(): void {
   }).catch((e: unknown) => {
     ztoolkit.log("PreferencePanes.register failed:", e);
   });
-  // preferences.xhtml's button calls Zotero.<instance>.api.openPrefsDialog().
-  Object.assign(addon.api, { openPrefsDialog });
 }

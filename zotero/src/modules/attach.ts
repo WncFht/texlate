@@ -19,7 +19,6 @@ const MARK_LINE_RE = /^texlate\s*[:：]/i;
 const KIND_LABELS: Record<string, string> = {
   "zh.pdf": "中文",
   "en.pdf": "英文原文",
-  "dual.pdf": "双语对照",
 };
 
 function readExtra(item: Zotero.Item): string {

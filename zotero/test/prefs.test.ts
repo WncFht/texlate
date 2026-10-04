@@ -24,7 +24,6 @@ const PREF_TO_FIELD: Record<string, (p: TexlatePrefs) => unknown> = {
   apiKey: (p) => p.apiKey,
   attachZhPdf: (p) => p.attachKinds.includes("zh.pdf"),
   attachEnPdf: (p) => p.attachKinds.includes("en.pdf"),
-  attachDualPdf: (p) => p.attachKinds.includes("dual.pdf"),
   batchDelayMs: (p) => p.batchDelayMs,
   pollIntervalMs: (p) => p.pollIntervalMs,
   pollTimeoutMs: (p) => p.pollTimeoutMs,

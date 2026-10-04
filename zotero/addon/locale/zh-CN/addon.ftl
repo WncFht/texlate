@@ -8,29 +8,13 @@
 translate = TeXlate：翻译为中文
 open-reader = TeXlate：在阅读器打开
 
-# 设置面板名（Zotero 设置侧栏）与设置对话框标题。
+# 设置面板名（Zotero 设置侧栏）。字段与按钮标签走 preferences.ftl 的
+# DOM l10n；此处仅留 t() 运行时字符串。
 prefs-title = TeXlate
-prefs-dialog-title = TeXlate 设置
-
-# 设置对话框字段（modules/prefs.ts SettingsDialogHelper）。
-prefs-server-url = 服务器地址
-prefs-api-key = API 密钥（可选）
-prefs-attach-zh = 附加中文 PDF（zh.pdf）
-prefs-attach-en = 附加英文 PDF（en.pdf）
-prefs-attach-dual = 附加双语对照 PDF（dual.pdf）
-prefs-batch-delay = 批量任务间隔（毫秒）
-prefs-poll-interval = 轮询间隔（毫秒）
-prefs-poll-timeout = 轮询超时（毫秒）
-prefs-status = 连接状态
-prefs-check = 检查连接
 prefs-checking = 正在检查…
 prefs-health-ok = 已连接——服务器版本 { $version }
 prefs-health-bad = 响应异常——该地址是 TeXlate 服务器吗？
 prefs-health-down = 无法连接服务器——`uvx texlate web` 是否在运行？
-prefs-autostart = 服务器不可达时自动启动本地服务
-prefs-start-server = 启动本地服务
-prefs-save = 保存
-prefs-cancel = 取消
 
 # 进度阶段——modules/poller.ts 的 phaseKey() 按任务阶段（fetching…compiling）
 # 或状态（queued 及各终态）取后缀；modules/flow.ts 渲染为「{阶段} {进度}%」。
@@ -52,6 +36,7 @@ taskpane-running-count = { $count } 进行中
 
 # 翻译流程（modules/flow.ts）——任务面板行文本与完成 toast 行。
 flow-done = 翻译完成——PDF 已附加到条目。
+flow-done-missing = 翻译完成——PDF 已附加；未产出：{ $kinds }
 flow-partial-warn = 任务部分完成——个别段落可能未翻译。
 flow-already-translated = 该条目已翻译——请使用「在阅读器打开」查看。
 flow-needs-auth = 服务器需要登录——正在打开 { $serverUrl } 进行授权。

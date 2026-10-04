@@ -11,7 +11,6 @@ declare namespace _ZoteroTypes {
       "apiKey": string;
       "attachZhPdf": boolean;
       "attachEnPdf": boolean;
-      "attachDualPdf": boolean;
       "batchDelayMs": number;
       "pollIntervalMs": number;
       "pollTimeoutMs": number;

@@ -5,13 +5,84 @@
   onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
 >
   <label><html:h2 data-l10n-id="pref-title"></html:h2></label>
-  <html:label data-l10n-id="pref-note"></html:label>
-  <hbox>
-    <html:button
-      data-l10n-id="prefs-open-settings"
-      onclick="Zotero.__addonInstance__.api.openPrefsDialog()"
-    ></html:button>
-  </hbox>
+  <vbox class="texlate-prefs">
+    <hbox class="texlate-pref-row">
+      <html:label
+        for="texlate-serverUrl"
+        data-l10n-id="prefs-server-url"
+      ></html:label>
+      <html:input id="texlate-serverUrl" type="text" style="min-width: 28em" />
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label
+        for="texlate-apiKey"
+        data-l10n-id="prefs-api-key"
+      ></html:label>
+      <html:input
+        id="texlate-apiKey"
+        type="password"
+        style="min-width: 28em"
+      />
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label>
+        <html:input id="texlate-attachZhPdf" type="checkbox" />
+        <html:span data-l10n-id="prefs-attach-zh"></html:span>
+      </html:label>
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label>
+        <html:input id="texlate-attachEnPdf" type="checkbox" />
+        <html:span data-l10n-id="prefs-attach-en"></html:span>
+      </html:label>
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label
+        for="texlate-batchDelayMs"
+        data-l10n-id="prefs-batch-delay"
+      ></html:label>
+      <html:input id="texlate-batchDelayMs" type="number" min="0" step="100" />
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label
+        for="texlate-pollIntervalMs"
+        data-l10n-id="prefs-poll-interval"
+      ></html:label>
+      <html:input id="texlate-pollIntervalMs" type="number" min="1" step="100" />
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label
+        for="texlate-pollTimeoutMs"
+        data-l10n-id="prefs-poll-timeout"
+      ></html:label>
+      <html:input
+        id="texlate-pollTimeoutMs"
+        type="number"
+        min="1"
+        step="60000"
+      />
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:label>
+        <html:input id="texlate-autoStart" type="checkbox" />
+        <html:span data-l10n-id="prefs-autostart"></html:span>
+      </html:label>
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:button id="texlate-check" data-l10n-id="prefs-check"></html:button>
+      <html:button
+        id="texlate-start"
+        data-l10n-id="prefs-start-server"
+      ></html:button>
+    </hbox>
+    <hbox class="texlate-pref-row">
+      <html:span data-l10n-id="prefs-status"></html:span>
+      <html:span
+        id="texlate-health-status"
+        style="white-space: pre-wrap"
+      ></html:span>
+    </hbox>
+  </vbox>
 </groupbox>
 <vbox>
   <html:label

@@ -1,9 +1,19 @@
 # TeXlate preferences-pane strings (en-US).
 # Loaded by addon/content/preferences.xhtml via <html:link rel="localization">;
-# data-l10n-id attributes in that file resolve here. The pane is a gateway —
-# the real settings UI is the dialog opened by prefs-open-settings.
+# data-l10n-id attributes in that file resolve here. The form is inlined in
+# the pane and auto-saves on change — no dialog.
 
 pref-title = TeXlate
-pref-note = TeXlate preferences are managed from the settings dialog.
-prefs-open-settings = Open TeXlate Settings
 pref-help = { $name } Build { $version } { $time }
+
+prefs-server-url = Server URL
+prefs-api-key = API key (optional)
+prefs-attach-zh = Attach Chinese PDF (zh.pdf)
+prefs-attach-en = Attach English PDF (en.pdf)
+prefs-batch-delay = Delay between batch items (ms)
+prefs-poll-interval = Poll interval (ms)
+prefs-poll-timeout = Poll timeout (ms)
+prefs-autostart = Auto-start local server when unreachable
+prefs-status = Connection:
+prefs-check = Check connection
+prefs-start-server = Start local server

@@ -231,7 +231,7 @@ export interface TexlatePrefs {
  *               export function getTexlateMark(item): string | null
  *               export function setTexlateMark(item, taskId): Promise<void>
  *   prefs.ts    export function loadPrefs(): TexlatePrefs
- *               export function openPrefsDialog(): void
+ *               export function initPrefsPane(doc): void  // inline pane wiring
  *               export function registerPrefsPane(): void
  *   menu.ts     export function registerMenus(win): void
  *               export function computeMenuState(items): MenuState
