@@ -57,6 +57,23 @@ texlate web [--host 地址] [-p 端口] [--data-dir 目录]
 
 绑定非回环地址时 CLI 会打警告：本地形态的 API 不带鉴权，可达网段内任何人都能建任务改配置。要多用户部署用 `TEXLATE_MODE=server`（此时所有写操作要求 `X-Texlate-Key` 头），详见 `web.md` 的部署一节。
 
+## service —— 后台服务管理
+
+```bash
+texlate service status [--data-dir 目录] [--json]
+texlate service start [--host 地址] [-p 端口] [--data-dir 目录] [--wait 秒] [--no-open]
+texlate service stop [--data-dir 目录] [--timeout 秒]
+texlate service restart [...]
+```
+
+`web` 是前台进程（终端关掉服务就停）；`service` 簇是它的常驻包装——`start` 脱离会话后台拉起（父进程退出服务照活），`stop` 停掉，`status` 看状态，`restart` 重启。spawn 早期输出落 `<数据目录>/logs/service-launch.log`。
+
+`status` 合成三源判状态：锁文件 meta（`service.lock` 里的 `{pid,url}`）× pid 是否存活 × `/api/health` 探活。输出形如 `运行中 — v0.1.0 · pid 1656375 · http://127.0.0.1:8765 · 已运行 1h36m`；`--json` 出机器可读字段供脚本/插件消费。退出码：`running` 且非他目占用 → 0；`degraded`（pid 活但不应答）/`stopped`/端口被别家数据目录实例占用 → 1。
+
+`stop` 只杀「锁面登记且身份可核验」的实例：正常走 SIGTERM，`--timeout`（缺省 15s）内不退场自动升级 SIGKILL（posix）。三类情况拒绝动手并指认人工处置——应答实例属别的数据目录、health 在应答但锁面无存活 pid（`TEXLATE_MODE=server` 或外部拉起的部署形态）、pid 存活但命令行查不到 texlate（pid 撞号）。
+
+`start` 幂等：目标端口本家已在跑 → 指到实例并开浏览器；被别家数据目录实例占用、或锁面 pid 卡占未就绪 → 拒绝 spawn 并说明。`restart` = 在跑先 `stop` 再 `start`，未在跑直接拉起。
+
 ## export —— 电子书双语插译
 
 ```bash
@@ -82,7 +99,7 @@ texlate share unpack <包.share.zip> [-o 解包目录]
 texlate doctor
 ```
 
-逐项检查：Python ≥3.12、tectonic、xelatex、CJK 字体、pdftotext、模型端点连通、数据目录可写、babeldoc，每项 `ok`/`warn`/`fail`/`n/a` 加一行说明。任一 `fail` 退出码 1，否则 0。装完跑一遍、出问题跑一遍，是最快的自检手段。
+逐项检查：Python ≥3.12、tectonic、xelatex、CJK 字体、pdftotext、模型端点连通、数据目录可写、babeldoc、本地服务实况（与 `service status` 同探测），每项 `ok`/`warn`/`fail`/`n/a` 加一行说明。任一 `fail` 退出码 1，否则 0。装完跑一遍、出问题跑一遍，是最快的自检手段。
 
 ## version / tools
 

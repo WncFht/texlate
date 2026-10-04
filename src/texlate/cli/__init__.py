@@ -85,6 +85,15 @@ if TYPE_CHECKING:
     from .fetch import _acquire, _echo_acquire, fetch  # noqa: F401
     from .parse import parse
     from .run import _populate_work_dir, _resolve_source, run  # noqa: F401
+    from .service import (  # noqa: F401
+        _probe_service,
+        _ServiceStatus,
+        service_app,
+        service_restart,
+        service_start,
+        service_status,
+        service_stop,
+    )
     from .share import (  # noqa: F401
         _share_data_root,
         _share_db,
@@ -150,6 +159,15 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
     ".fetch": ("_acquire", "_echo_acquire", "fetch"),
     ".parse": ("parse",),
     ".run": ("_populate_work_dir", "_resolve_source", "run"),
+    ".service": (
+        "_ServiceStatus",
+        "_probe_service",
+        "service_app",
+        "service_restart",
+        "service_start",
+        "service_status",
+        "service_stop",
+    ),
     ".share": (
         "_share_data_root",
         "_share_db",
@@ -233,6 +251,11 @@ __all__ = [
     "parse",
     "parse_file",
     "run",
+    "service_app",
+    "service_restart",
+    "service_start",
+    "service_status",
+    "service_stop",
     "share_app",
     "share_pack",
     "share_unpack",
@@ -252,6 +275,7 @@ _COMMAND_LEAVES: tuple[str, ...] = (
     "parse",
     "run",
     "web",
+    "service",
     "export",
     "share",
     "tools",

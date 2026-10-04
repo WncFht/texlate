@@ -311,13 +311,42 @@ def _doc_babeldoc() -> _Check:
     return _Check("babeldoc", "ok", f"{ver} @ {p}")
 
 
+def _doc_service() -> _Check:
+    """本地 web 服务实况——``service`` 动词同探测件（``_cli._probe_service`` 缝）。
+
+    running → ok；应答实例数据目录他属 → warn（端口被别家占用）；
+    pid 活但 health 不应答 → warn（起服中/卡死）；未在运行 → n/a
+    （常驻服务是可选项，缺席非环境缺陷）。
+    """
+    st = _cli._probe_service(  # noqa: SLF001 -- 调用期解析 monkeypatch 缝（tests 打 cli._probe_service）
+        toolchain.data_root()
+    )
+    if st.state == "running":
+        if st.foreign:
+            return _Check(
+                "service",
+                "warn",
+                f"{st.url} 应答实例属 {st.foreign}（≠ {st.root}）——端口被别家占用",
+            )
+        age = f"，up {st.uptime}" if st.uptime else ""
+        pid = f"pid {st.pid}" if st.pid is not None else "无锁"
+        return _Check("service", "ok", f"v{st.version or '?'} @ {st.url}（{pid}{age}）")
+    if st.state == "degraded":
+        return _Check(
+            "service",
+            "warn",
+            f"pid {st.pid} 存活但 {st.url} 不应答——起服中或卡死",
+        )
+    return _Check("service", "n/a", "未在运行——`texlate service start` 拉起")
+
+
 @app.command()
 def doctor() -> None:
     """环境自检：逐项 ``ok``/``warn``/``fail``/``n/a`` + 一行说明。
 
     覆盖：python≥3.12、编译引擎（tectonic/xelatex）、CJK 字体
     （kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、
-    babeldoc。任一 ``fail`` → 退出码 1；全 ok/warn/n/a → 0。
+    babeldoc、本地服务实况。任一 ``fail`` → 退出码 1；全 ok/warn/n/a → 0。
     """
     checks = [
         _doc_python(),
@@ -327,6 +356,7 @@ def doctor() -> None:
         _doc_gateway(),
         _doc_data_dir(),
         _doc_babeldoc(),
+        _doc_service(),
     ]
     for c in checks:
         typer.echo(f"{c.status:<4} {c.name:<12} {c.detail}")

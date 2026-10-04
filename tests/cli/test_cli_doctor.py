@@ -20,6 +20,7 @@ from typer.testing import CliRunner
 
 from texlate import cli
 from texlate.cli import app
+from texlate.cli.service import _ServiceStatus
 from texlate.compile import toolchain
 
 if TYPE_CHECKING:
@@ -88,6 +89,22 @@ def _write_settings(data: Path, **kw: object) -> None:
     (data / "settings.json").write_text(json.dumps(kw), encoding="utf-8")
 
 
+def _svc_status(root: Path, **over: object) -> _ServiceStatus:
+    """``_probe_service`` 桩返回值——缺省 stopped，``over`` 逐字段覆盖。"""
+    base: dict[str, object] = {
+        "state": "stopped",
+        "pid": None,
+        "pid_alive": False,
+        "url": "",
+        "root": root,
+        "version": "",
+        "started_at": "",
+        "uptime": "",
+        "foreign": "",
+    }
+    return _ServiceStatus(**{**base, **over})  # type: ignore[arg-type]
+
+
 @pytest.fixture
 def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     """全件 ok 基线：工具全命中 + 版本应答 + 字体全核到。
@@ -125,8 +142,20 @@ def test_help() -> None:
 
 class TestDoctor:
     def test_all_ok(self, tmp_path: Path, doctor_env: pytest.MonkeyPatch) -> None:
-        """全绿基线：8 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
+        """全绿基线：9 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
         _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
+        doctor_env.setattr(
+            cli,
+            "_probe_service",
+            lambda _root: _svc_status(
+                tmp_path / "data",
+                state="running",
+                pid=1,
+                pid_alive=True,
+                url="http://127.0.0.1:8765",
+                version="0.1.0",
+            ),
+        )
         seen: dict[str, object] = {}
 
         def _get(url: str, **kw: object) -> httpx.Response:
@@ -147,6 +176,7 @@ class TestDoctor:
             "gateway",
             "data-dir",
             "babeldoc",
+            "service",
         }
         assert all(v == "ok" for v in st.values()), r.stdout
         assert seen["url"] == f"{_GW_URL}/v1/models"
@@ -273,6 +303,10 @@ class TestDoctor:
             raise AssertionError(msg)
 
         doctor_env.setattr(httpx, "get", _boom)
+        # service 检查的 health 探测同走 httpx——桩掉免触炸桩
+        doctor_env.setattr(
+            cli, "_probe_service", lambda _root: _svc_status(tmp_path / "data")
+        )
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         assert _statuses(r.stdout)["gateway"] == "n/a"
@@ -305,10 +339,16 @@ class TestDoctor:
         st = _statuses(r.stdout)
         assert st["gateway"] == "fail"
 
-    def test_gateway_env_config(self, doctor_env: pytest.MonkeyPatch) -> None:
+    def test_gateway_env_config(
+        self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
+    ) -> None:
         """无 settings.json 但 TEXLATE_BASE_URL/API_KEY env 在 → 照样探活。"""
         doctor_env.setenv("TEXLATE_BASE_URL", _GW_URL)
         doctor_env.setenv("TEXLATE_API_KEY", _GW_KEY)
+        # service 检查的 health 探测同走 httpx.get——桩掉免污染 seen 列表
+        doctor_env.setattr(
+            cli, "_probe_service", lambda _root: _svc_status(tmp_path / "data")
+        )
         seen: list[str] = []
 
         def _get(url: str, **_kw: object) -> httpx.Response:
