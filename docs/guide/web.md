@@ -11,6 +11,8 @@ texlate web -p 9000    # 换端口
 
 数据目录缺省是主目录下 `.texlate/`（`--data-dir` 或 `TEXLATE_DATA_DIR` 改）。本地形态有单实例锁：已经有一个实例在跑时，再执行 `texlate web` 会直接打开浏览器指到那个实例并退出，不会报端口冲突，也不会起第二个进程抢同一个库。
 
+`web` 是前台进程（关终端即停）；要后台常驻用 `texlate service`——`start` 脱离会话拉起、`stop` 停、`status` 看状态，详见 `cli.md` 的 service 一节。
+
 发布产物（PyPI wheel、Docker 镜像）已内置前端。源码形态下图形界面是构建产物、不随仓库带——没构建过前端时服务照常提供 API（`run --server`、curl 都能用），浏览器里则没有页面。构建一次即可：
 
 ```bash
