@@ -3,5 +3,6 @@
 # MenuManager menuitem 的 l10nID 经窗口 DOM l10n 在此解析。
 # 与 addon.ftl 保持一致，getString() 调用方可解析同名标签。
 
+menu = TeXlate
 translate = TeXlate：翻译为中文
 open-reader = TeXlate：在阅读器打开

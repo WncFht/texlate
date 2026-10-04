@@ -49,7 +49,6 @@ function selectedItems(
 export function registerMenus(win: _ZoteroTypes.MainWindow): void {
   // addon.api.computeMenuState is wired once by installSelftest (onStartup).
   if (registered) return; // MenuManager is global; covers every main window.
-  const icon = `chrome://${config.addonRef}/content/icons/favicon.png`;
   const ok = Zotero.MenuManager.registerMenu({
     menuID: `${config.addonRef}-itemmenu`,
     pluginID: config.addonID,
@@ -57,10 +56,11 @@ export function registerMenus(win: _ZoteroTypes.MainWindow): void {
     menus: [
       {
         menuType: "submenu",
-        icon,
+        l10nID: `${config.addonRef}-menu`,
+        // 16px SVG + context-fill——随菜单文字色自动适配 hover/暗色，
+        // 位图 favicon 缩到 16px 发糊且暗色不变色（MenuManager 官方约定）。
+        icon: `chrome://${config.addonRef}/content/icons/menu-icon.svg`,
         onShowing: (_event, context) => {
-          // No ftl message holds a bare "TeXlate" label — set it directly.
-          context.menuElem?.setAttribute("label", config.addonName);
           const state = computeMenuState(selectedItems(context, win));
           context.setVisible(state.translate || state.reader);
         },
@@ -94,7 +94,6 @@ export function registerMenus(win: _ZoteroTypes.MainWindow): void {
           {
             menuType: "menuitem",
             l10nID: `${config.addonRef}-translate`,
-            icon,
             onShowing: (_event, context) => {
               context.setVisible(
                 computeMenuState(selectedItems(context, win)).translate,
@@ -112,7 +111,6 @@ export function registerMenus(win: _ZoteroTypes.MainWindow): void {
           {
             menuType: "menuitem",
             l10nID: `${config.addonRef}-open-reader`,
-            icon,
             onShowing: (_event, context) => {
               context.setVisible(
                 computeMenuState(selectedItems(context, win)).reader,

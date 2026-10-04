@@ -45,7 +45,6 @@ phase-interrupted = 已中断
 phase-needs_auth = 需要授权
 
 # 翻译流程（modules/flow.ts）——ProgressWindow 行文本。
-flow-start = 正在翻译 { $id }…
 flow-done = 翻译完成——PDF 已附加到条目。
 flow-partial-warn = 任务部分完成——个别段落可能未翻译。
 flow-already-translated = 该条目已翻译——请使用「在阅读器打开」查看。

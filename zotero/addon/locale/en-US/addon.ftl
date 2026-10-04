@@ -50,7 +50,6 @@ phase-interrupted = Interrupted
 phase-needs_auth = Authorization needed
 
 # Translate flow (modules/flow.ts) — ProgressWindow lines.
-flow-start = Translating { $id }…
 flow-done = Translation finished — PDF attached to the item.
 flow-partial-warn = Task finished partially — some segments may be untranslated.
 flow-already-translated = Already translated — use "Open in Reader" to view it.

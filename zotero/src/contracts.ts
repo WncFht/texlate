@@ -209,7 +209,7 @@ export interface TexlatePrefs {
  *               export function registerPrefsPane(): void
  *   menu.ts     export function registerMenus(win): void
  *               export function computeMenuState(items): MenuState
- *   flow.ts     export function translateItem(item): Promise<FlowResult>
+ *   flow.ts     export function translateItem(item, batch?): Promise<FlowResult>
  *               export function translateItems(items): Promise<FlowResult[]>
  *               export function openInReader(item): boolean   // launchURL'd
  *               export const FILES_GRACE_MS: number

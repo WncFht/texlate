@@ -21,7 +21,7 @@ export type FluentMessageId =
   | 'flow-error-unexpected'
   | 'flow-needs-auth'
   | 'flow-partial-warn'
-  | 'flow-start'
+  | 'menu'
   | 'open-reader'
   | 'phase-cancelled'
   | 'phase-compiling'

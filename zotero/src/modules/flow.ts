@@ -8,7 +8,7 @@
  * the code prefix.
  *
  * ftl keys used (locale agent — all under the addonRef prefix):
- *   flow-start {id} · phase-<status|stage> for the 11 statuses (queued,
+ *   phase-<status|stage> for the 11 statuses (queued,
  *   fetching, parsing, translating, compiling, done, partial, fault,
  *   cancelled, interrupted, needs_auth) · flow-error-not-regular ·
  *   flow-error-no-arxiv-id · flow-error-inflight · flow-already-translated ·
@@ -39,12 +39,14 @@ import { pollTask } from "./poller";
 import { attachArtifacts, getTexlateMark, setTexlateMark } from "./attach";
 import { loadPrefs } from "./prefs";
 import {
-  appendLine,
-  createProgress,
-  endProgress,
-  flashProgress,
+  closeBatch,
+  createBatch,
+  endLine,
+  openLine,
   setPhase,
-  type Progress,
+  shortTitle,
+  type Batch,
+  type ItemLine,
 } from "./progress";
 import { t } from "../utils/locale";
 import { errText, fieldText, sleep } from "../utils/misc";
@@ -56,7 +58,7 @@ export const FILES_GRACE_INTERVAL_MS = 2000;
 const inflight = new Set<number>();
 
 function fail(
-  pw: Progress,
+  line: ItemLine,
   itemID: number,
   error: string,
   ftlKey: string,
@@ -66,7 +68,7 @@ function fail(
     status?: TerminalStatus;
   } = {},
 ): FlowResult {
-  endProgress(pw, "fail", t(ftlKey, opts.args));
+  endLine(line, "fail", t(ftlKey, opts.args));
   const { args: _a, ...rest } = opts;
   return { itemID, ok: false, error, ...rest };
 }
@@ -104,7 +106,7 @@ export async function awaitFiles(
 
 /** Terminal dispatch (design §二 状态映射). `snap.status` is terminal per pollTask. */
 async function finish(
-  pw: Progress,
+  line: ItemLine,
   item: Zotero.Item,
   client: TexlateClient,
   taskId: string,
@@ -137,25 +139,28 @@ async function finish(
           ...attach.failed.map((f) => `${f.kind}: ${f.reason}`),
         ].join("; ");
         return fail(
-          pw,
+          line,
           itemID,
           `attach-failed: ${reasons}`,
           "flow-attach-failed",
           { args: { detail: reasons }, ...at },
         );
       }
-      if (status === "partial") appendLine(pw, t("flow-partial-warn"));
       // attachArtifacts owns the mark when it runs; when it was skipped
       // (empty artifacts) or nothing was requested, write it here so
       // "Open in Reader" still works.
       if (getTexlateMark(item) !== taskId) await setTexlateMark(item, taskId);
-      endProgress(pw, "success", t("flow-done"));
+      endLine(
+        line,
+        "success",
+        status === "partial" ? t("flow-partial-warn") : t("flow-done"),
+      );
       return { itemID, ok: true, status, taskId, attach };
     }
     case "fault": {
       const detail = snap.error?.message ?? snap.message;
       return fail(
-        pw,
+        line,
         itemID,
         `task-fault: ${detail}`,
         "flow-error-task-fault",
@@ -168,14 +173,14 @@ async function finish(
       } catch {
         /* launch is best-effort */
       }
-      return fail(pw, itemID, "needs-auth", "flow-needs-auth", {
+      return fail(line, itemID, "needs-auth", "flow-needs-auth", {
         args: { serverUrl: prefs.serverUrl },
         ...at,
       });
     }
     default:
       return fail(
-        pw,
+        line,
         itemID,
         `task-${status}`,
         `flow-error-task-${status}`,
@@ -184,37 +189,41 @@ async function finish(
   }
 }
 
-async function run(item: Zotero.Item): Promise<FlowResult> {
+async function run(item: Zotero.Item, batch: Batch): Promise<FlowResult> {
   const itemID = item.id;
   const prefs = loadPrefs();
   const client = createClient(prefs);
+  // Row opens before any check so early exits (untranslatable, already
+  // translated, no arXiv id) still leave a visible row in the batch window.
+  const title =
+    shortTitle(fieldText(item, "title")) ||
+    extractArxivId(item) ||
+    `#${itemID}`;
+  const line = openLine(batch, title);
 
   try {
     if (!item.isRegularItem()) {
-      flashProgress("fail", t("flow-error-not-regular"));
-      return { itemID, ok: false, error: "not-regular-item" };
+      return fail(line, itemID, "not-regular-item", "flow-error-not-regular");
     }
   } catch {
     /* fall through — odd item still gets an arXiv-id shot */
   }
   const mark = getTexlateMark(item);
   if (mark) {
-    flashProgress("success", t("flow-already-translated"));
+    endLine(line, "success", t("flow-already-translated"));
     return { itemID, ok: true, taskId: mark };
   }
   const arxivId = extractArxivId(item);
   if (!arxivId) {
-    flashProgress("fail", t("flow-error-no-arxiv-id"));
-    return { itemID, ok: false, error: "no-arxiv-id" };
+    return fail(line, itemID, "no-arxiv-id", "flow-error-no-arxiv-id");
   }
 
-  const pw = createProgress(t("flow-start", { id: arxivId }));
   let taskId: string | undefined;
   try {
     const health = await client.health();
     if (!health.ok)
       return fail(
-        pw,
+        line,
         itemID,
         "server-unhealthy",
         "flow-error-server-unhealthy",
@@ -224,21 +233,27 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
     const snap = await pollTask(client, accepted.task_id, {
       intervalMs: prefs.pollIntervalMs,
       timeoutMs: prefs.pollTimeoutMs,
-      onProgress: (s) => setPhase(pw, s),
+      onProgress: (s) => setPhase(line, s),
     });
-    return await finish(pw, item, client, accepted.task_id, snap, prefs);
+    return await finish(line, item, client, accepted.task_id, snap, prefs);
   } catch (e) {
     const x = { taskId };
     if (e instanceof NetworkError)
-      return fail(pw, itemID, "server-unreachable", "flow-error-server-down", {
-        args: { serverUrl: prefs.serverUrl },
-        ...x,
-      });
+      return fail(
+        line,
+        itemID,
+        "server-unreachable",
+        "flow-error-server-down",
+        {
+          args: { serverUrl: prefs.serverUrl },
+          ...x,
+        },
+      );
     if (e instanceof TimeoutError)
-      return fail(pw, itemID, "poll-timeout", "flow-error-poll-timeout", x);
+      return fail(line, itemID, "poll-timeout", "flow-error-poll-timeout", x);
     if (e instanceof ApiError && e.status === 400 && taskId === undefined)
       return fail(
-        pw,
+        line,
         itemID,
         `invalid-arxiv-id: ${e.detail}`,
         "flow-error-invalid-arxiv-id",
@@ -246,14 +261,14 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
       );
     if (e instanceof ApiError)
       return fail(
-        pw,
+        line,
         itemID,
         `api-error-${e.status}: ${e.detail}`,
         "flow-error-api",
         { args: { status: e.status, detail: e.detail }, ...x },
       );
     return fail(
-      pw,
+      line,
       itemID,
       `unexpected: ${errText(e)}`,
       "flow-error-unexpected",
@@ -264,43 +279,57 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
 
 // ---------------------------------------------------------------- exports
 
-export async function translateItem(item: Zotero.Item): Promise<FlowResult> {
+/**
+ * Translate one item, writing its row into `batch` (an ad-hoc single-item
+ * batch is created and closed when omitted — keeps the API self-contained).
+ */
+export async function translateItem(
+  item: Zotero.Item,
+  batch?: Batch,
+): Promise<FlowResult> {
   const itemID = item.id;
+  const own = batch ?? createBatch();
+  let result: FlowResult;
   if (inflight.has(itemID)) {
-    flashProgress("fail", t("flow-error-inflight"));
-    return { itemID, ok: false, error: "already-inflight" };
+    const line = openLine(
+      own,
+      shortTitle(fieldText(item, "title")) ||
+        extractArxivId(item) ||
+        `#${itemID}`,
+    );
+    endLine(line, "fail", t("flow-error-inflight"));
+    result = { itemID, ok: false, error: "already-inflight" };
+  } else {
+    inflight.add(itemID);
+    try {
+      result = await run(item, own);
+    } catch (e) {
+      const m = errText(e);
+      // run() already wrote a row for every reachable failure; this catch is
+      // for throws before the row existed (pref/field plumbing) — add one.
+      const line = openLine(own, `#${itemID}`);
+      endLine(line, "fail", t("flow-error-unexpected", { message: m }));
+      result = { itemID, ok: false, error: `unexpected: ${m}` };
+    } finally {
+      inflight.delete(itemID);
+    }
   }
-  inflight.add(itemID);
-  try {
-    return await run(item);
-  } catch (e) {
-    const m = errText(e);
-    flashProgress("fail", t("flow-error-unexpected", { message: m }));
-    return { itemID, ok: false, error: `unexpected: ${m}` };
-  } finally {
-    inflight.delete(itemID);
-  }
+  if (!batch) closeBatch(own, [result]);
+  return result;
 }
 
-/** Sequential batch: batchDelayMs between items, never after the last. */
+/** Sequential batch: one shared window, batchDelayMs between items. */
 export async function translateItems(
   items: Zotero.Item[],
 ): Promise<FlowResult[]> {
   const { batchDelayMs } = loadPrefs();
+  const batch = createBatch();
   const results: FlowResult[] = [];
   for (let i = 0; i < items.length; i++) {
-    results.push(await translateItem(items[i]));
+    results.push(await translateItem(items[i], batch));
     if (i < items.length - 1) await sleep(batchDelayMs);
   }
-  const ok = results.filter((r) => r.ok).length;
-  flashProgress(
-    ok === results.length ? "success" : "fail",
-    t("flow-batch-summary", {
-      ok,
-      failed: results.length - ok,
-      total: results.length,
-    }),
-  );
+  closeBatch(batch, results);
   return results;
 }
 

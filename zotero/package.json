@@ -15,7 +15,7 @@
     "url": "git+https://github.com/WncFht/texlate.git"
   },
   "author": "TeXlate contributors",
-  "homepage": "https://hjfy.top",
+  "homepage": "https://github.com/WncFht/texlate",
   "license": "Apache-2.0",
   "scripts": {
     "start": "zotero-plugin serve",
