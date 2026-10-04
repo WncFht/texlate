@@ -39,7 +39,7 @@
     "globals": "^14.0.0",
     "mocha": "^11.7.5",
     "prettier": "^3.7.4",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "zotero-plugin-scaffold": "^0.8.2",
     "zotero-types": "^4.1.0-beta.4"
   },
