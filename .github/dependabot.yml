@@ -2,39 +2,73 @@ version: 2
 
 # 三生态周报 + actions SHA pin 维护（ci/release 全部 SHA pin，靠 dependabot
 # 推进版本而非手追）。open-pull-requests-limit 收窄防 PR 雨。
+# groups：每个生态一个 catch-all 组把 version-updates 并成单 PR——批量
+# minor/patch 升级一次审一票过，不再出现十几个 dependabot PR 互踩
+# lockfile 的局面。applies-to: version-updates 把 security-updates 排除
+# 在组外——安全修复保持独个 PR、即时到达、不等周报节奏。
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      uv:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      npm-root:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      web:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /zotero
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      zotero:
+        applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /bench/ts
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      bench-ts:
+        applies-to: version-updates
+        patterns:
+          - "*"
