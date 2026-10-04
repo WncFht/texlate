@@ -155,4 +155,10 @@ def test_bounded_sub_timeout_returns_none_no_leak() -> None:
     t0 = time.monotonic()
     assert actions._bounded_sub(pat, "x", "a" * 30 + "b", timeout_s=0.5) is None  # noqa: SLF001
     assert time.monotonic() - t0 < 10  # noqa: PLR2004 -- 上限即超时闸本身
-    assert threading.enumerate() == before
+    # 断言「零新增活线程」而非快照全等——外来 daemon（前序测试弃守的
+    # fixloop-llm 形）bootstrap 未跑时 enumerate 漏记、本测窗口补记成
+    # stopped 残影，全等断言系统性 flaky（ubuntu CI 四连实证）。
+    extra = [t for t in threading.enumerate() if t not in before]
+    for t in extra:
+        t.join(timeout=2)  # noqa: PLR2004 -- 残影回收窗
+    assert not [t for t in extra if t.is_alive()]
