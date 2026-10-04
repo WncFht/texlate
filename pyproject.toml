@@ -1,6 +1,6 @@
 [project]
 name = "texlate"
-version = "0.1.0"
+version = "0.1.1"
 description = "arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读（hjfy.top 开源复现）"
 readme = "README.md"
 requires-python = ">=3.12"
