@@ -158,7 +158,8 @@ export function registerTaskPane(): void {
         l10nID: `${config.addonRef}-taskpane`,
         icon: ICON,
       },
-      onInit: ({ doc, body, setSectionSummary }) => {
+      onInit: ({ doc, body, setEnabled, setSectionSummary }) => {
+        setEnabled(true);
         const pane: MountedPane = {
           doc,
           body,
@@ -170,6 +171,16 @@ export function registerTaskPane(): void {
       onDestroy: ({ body }) => {
         for (const pane of mounted) {
           if (pane.body === body) mounted.delete(pane);
+        }
+      },
+      // Required by runtime optionTypeDefinition in both Zotero 7 and 10
+      // (the zotero-types d.ts wrongly marks it optional — omitting it
+      // throws "Option must have onRender" and registration silently
+      // fails, which is exactly how this pane went missing on first ship).
+      // The body element persists across renders; repaint current state.
+      onRender: ({ body }) => {
+        for (const pane of mounted) {
+          if (pane.body === body) renderPane(pane);
         }
       },
       // Task list is global, not item-scoped — always stay enabled.
