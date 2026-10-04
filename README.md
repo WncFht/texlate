@@ -66,7 +66,7 @@ texlate doctor           # 环境自检：引擎/字体/网关连通/数据目�
 
 阅读器分原文、译文、双语对照三视图（arXiv 任务另有导读档）：对照模式两侧滚动同步，双语对位精确到句——悬停或点击任一侧句子，另一侧对应句即时高亮。正文引用标号弹出文献卡：跳至引用目标、反查全篇引用位置、把被引论文一键提交为新的翻译任务——读论文时顺参考文献链直接扩出译文队列。暗色主题对 PDF 逐图元改色而非整图反相，暗色下论文插图不变色。产物下载含 zh.pdf、en.pdf（原文源码本地重编译）、dual.json 对照数据、.bib、zh-src.zip 译后源码包。
 
-任务逐块断点续跑：已译块进缓存，进程重启、机器关机后续跑只补剩余部分；终态分六档，降级产出（部分块回退原文、残余编译警告）以 partial 态标注而非冒称成功。首页上传一个入口四类材料自动分流：本地 LaTeX 工程走同一翻译链、PDF 走 babeldoc 侧车、docx/epub 双语插译、.share.zip 共享包导入。分享包按论文版本、模型、提示词版本、管线版本、术语表等内容寻址，导入方全量校验后本地重编译，不调模型即复现译文。另有 Zotero 7 插件：从 [Releases](https://github.com/WncFht/texlate/releases) 下载 `texlate.xpi`，Zotero → 工具 → 插件 → 齿轮 → 从文件安装——右键 arXiv 条目翻译，服务端跑完全链后 zh.pdf 自动挂附件回文献条目（详见 `zotero/README.md`）。
+任务逐块断点续跑：已译块进缓存，进程重启、机器关机后续跑只补剩余部分；终态分六档，降级产出（部分块回退原文、残余编译警告）以 partial 态标注而非冒称成功。首页上传一个入口四类材料自动分流：本地 LaTeX 工程走同一翻译链、PDF 走 babeldoc 侧车、docx/epub 双语插译、.share.zip 共享包导入。分享包按论文版本、模型、提示词版本、管线版本、术语表等内容寻址，导入方全量校验后本地重编译，不调模型即复现译文。另有 Zotero 7 插件：装了 [Add-on Market](https://github.com/syt2/zotero-addons) 可市场内搜「TeXlate」一键装，或从 [Releases](https://github.com/WncFht/texlate/releases/latest) 手动装 `texlate.xpi`——右键 arXiv 条目翻译，服务端跑完全链后 zh.pdf 自动挂附件回文献条目（安装细节见 `zotero/README.md`）。
 
 ## Docker
 
