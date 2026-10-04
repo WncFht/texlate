@@ -17,7 +17,7 @@ uvx texlate web          # → http://127.0.0.1:8765（本仓内：uv run texlat
 
 ## 安装
 
-- **一键安装**（需已装 [Add-on Market](https://github.com/syt2/zotero-addons)）：市场内搜「TeXlate」直装；或把下面的深链粘进浏览器地址栏，唤起 Zotero 确认安装：
+- **一键安装**（需已装 [Add-on Market](https://github.com/syt2/zotero-addons)）：把下面的深链粘进浏览器地址栏，唤起 Zotero 确认安装（插件市场收录审核中，过审后市场内直搜「TeXlate」即可）：
 
   `zotero://zoteroaddoncollection/install?source=https%3A%2F%2Fgithub.com%2FWncFht%2Ftexlate%2Freleases%2Flatest%2Fdownload%2Ftexlate.xpi`
 
