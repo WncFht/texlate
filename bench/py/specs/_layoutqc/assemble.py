@@ -303,8 +303,14 @@ def qc_paper(
                             "ratio": round(ratio, 3),
                         }
                     )
-            # 骨架序对拍
-            zs, bs = _skeleton(zh_text), _skeleton(base_text)
+            # 骨架序对拍——-raw 抽（内容流序）。默认几何序在 CJK 双栏
+            # 面上按基线交错抽取左右栏（2211.00151 实证：LCS 0.286→0.994
+            # 全伪影），同一页内浮体垂直移位也被读成乱序（2306.00118）。
+            zs_raw = _run(["pdftotext", "-raw", zh_pdf.name, "-"], cwd=zh_pdf.parent)
+            bs_raw = _run(
+                ["pdftotext", "-raw", base_pdf.name, "-"], cwd=base_pdf.parent
+            )
+            zs, bs = _skeleton(zs_raw), _skeleton(bs_raw)
             cov = _lcs(zs, bs) / max(len(bs), 1)
             metrics["skeleton_lcs"] = round(cov, 3)
             if bs and cov < SKELETON_LCS_MIN:

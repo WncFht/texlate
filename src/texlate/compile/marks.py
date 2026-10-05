@@ -308,6 +308,9 @@ def _order_findings(pairs: list[tuple[int, str, str, dict, dict]]) -> list[dict]
     同页倒置是双栏几何伪影——(p,-y) 行主序把右栏顶排在左栏底之
     前，但视觉阅读序是先左栏后右栏（2601.02468/2607.06115 实证全
     部同页倒置均为栏位伪影）；只有跨页倒置才可能是真错序。
+    对称地，base 侧同页落位的对也没有权威序——同页两浮体的先后
+    只是打包副产物，zh 把其中一方重排到别页属合法回流（CS 语料
+    实证 ~62% bad 对由此类构成）；要求 base 对本身跨页才认倒置。
     """
     base_order = [
         z for _, _, z, be, _ in sorted(pairs, key=lambda t: (t[3]["p"], -t[3]["y"]))
@@ -319,11 +322,14 @@ def _order_findings(pairs: list[tuple[int, str, str, dict, dict]]) -> list[dict]
         return []
     pos = {z: i for i, z in enumerate(zh_order)}
     ze_of = {z: ze for _, _, z, _, ze in pairs}
+    be_of = {z: be for _, _, z, be, _ in pairs}
     bad = [
         (a, b)
         for i, a in enumerate(base_order)
         for b in base_order[i + 1 :]
-        if pos.get(a, -1) > pos.get(b, -1) and ze_of[a]["p"] != ze_of[b]["p"]
+        if pos.get(a, -1) > pos.get(b, -1)
+        and ze_of[a]["p"] != ze_of[b]["p"]
+        and be_of[a]["p"] != be_of[b]["p"]
     ]
     if not bad:
         return []

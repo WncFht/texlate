@@ -280,6 +280,28 @@ def test_compare_order_inversion_same_page_ok() -> None:
     assert not any(f["sig"] == "layout:order_inversion" for f in out)
 
 
+def test_compare_order_inversion_base_same_page_ok() -> None:
+    """base 同页落位对无权威序（打包副产物）——zh 拆页倒置不报警。"""
+    base = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 100, 2),
+            ("figure-2-e", 0, 50, 2),  # 同页——(p,-y) 序是栏位伪影
+        ]
+    )
+    zh = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 50, 4),
+            ("figure-2-e", 0, 100, 2),  # zh 侧跨页序倒仍豁免：base 无真序
+        ]
+    )
+    out = compare_marks(zh, base)
+    assert not any(f["sig"] == "layout:order_inversion" for f in out)
+
+
 def test_compare_seq_mismatch() -> None:
     base = _mk_marks([("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1)])
     zh = _mk_marks([("figure-1-b", 0, 0, 1)])
