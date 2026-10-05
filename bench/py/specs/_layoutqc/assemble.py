@@ -22,7 +22,7 @@ from specs._layoutqc.logcheck import _frontmatter_lines, _logscan
 from specs._layoutqc.markcheck import _marks_scan
 from specs._layoutqc.pagekit import _run
 from specs._layoutqc.rastercheck import _images_per_page, _raster_pages, _raster_scan
-from specs._layoutqc.textcheck import _lcs, _plain_scan, _skeleton
+from specs._layoutqc.textcheck import _lcs, _missing_char_counts, _plain_scan, _skeleton
 from specs._layoutqc.thresh import (
     _BLANKPAGE_RX,
     _BROKEN_BRK_RX,
@@ -178,6 +178,7 @@ def qc_paper(
     btx = None
     base_pdf = None
     base_undef: set[str] = set()
+    base_missing: Counter | None = None
     if base_dir is not None:
         bdir = base_dir / mp.parent
         btx = bdir / f"{stem}.txlm"
@@ -185,11 +186,11 @@ def qc_paper(
         blog = bdir / f"{stem}.log"
         try:
             if blog.exists():
-                base_undef = set(
-                    _UNDEF_KEY_RX.findall(
-                        blog.read_text(encoding="utf-8", errors="replace")
-                    )
-                )
+                blog_text = blog.read_text(encoding="utf-8", errors="replace")
+                base_undef = set(_UNDEF_KEY_RX.findall(blog_text))
+                # base 臂缺字集——FFFD 臂佐证差净用（源稿内嵌外文
+                # 缺字源承剔出，只报管线新引入的缺字洞）。
+                base_missing = _missing_char_counts(blog_text)
         except OSError:
             pass
     # zh 新增悬空键 = zh − base（源承）− 类内白名单 − \Newlabel 衍生
@@ -251,6 +252,7 @@ def qc_paper(
             zh_text,
             base_text or None,
             zh_log=log_text if zh_log.exists() else None,
+            base_missing=base_missing,
             tex_hay=tex_hay,
             verb_hay=verb_hay,
             tex_fffd=tex_fffd,

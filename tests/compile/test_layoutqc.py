@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import pytest
@@ -562,6 +563,26 @@ def test_plain_fffd() -> None:
     assert any(x["sig"] == "vis_degenerate" for x in f3)
     f4, _m4 = _plain_scan("正常文本 � 出现\n", zh_log=clean_log, tex_fffd=True)
     assert any(x["sig"] == "vis_degenerate" for x in f4)
+
+
+def test_plain_fffd_missing_net() -> None:
+    """缺字佐证差净：zh missing 字符与 base 同形=源承（MMSciBench
+    原文夹 zh 题面实证）——压；base 无该字符的 missing=管线新洞
+    →发；base 缺席退旧口径 missing>0。"""
+    zh_log = "Missing character: There is no ∴ (U+2234) in font [lmroman]\n" * 2
+    two = "".join(f"第{i}段正常文本{chr(0xFFFD)}出现\n" for i in range(2))
+    # 同字符源承 → 压
+    f, m = _plain_scan(two, zh_log=zh_log, base_missing=Counter({"2234": 2}))
+    assert m["missing_chars"] == 2  # noqa: PLR2004
+    assert m["missing_chars_net"] == 0
+    assert not any(x["sig"] == "vis_degenerate" for x in f)
+    # zh 多出（count 差）→ 仍发
+    f2, m2 = _plain_scan(two, zh_log=zh_log, base_missing=Counter({"2234": 1}))
+    assert m2["missing_chars_net"] == 1
+    assert any(x["sig"] == "vis_degenerate" for x in f2)
+    # base 缺席 → 旧闸 missing>0 照发
+    f3, _m3 = _plain_scan(two, zh_log=zh_log)
+    assert any(x["sig"] == "vis_degenerate" for x in f3)
 
 
 def test_plain_broken_refs() -> None:

@@ -270,6 +270,14 @@ _COMPILE_DIED_RX: Final = re.compile(
     r"Emergency stop|No pages of output|==>\s*Fatal error"
 )
 
+#: ``Missing character: There is no X (U+NNNN) in font ...``——键取
+#: U+ 码位（缺 ``(U+NNNN)`` 的裸行退字符名）跨臂可比，字体名异臂
+#: 不同不算差。
+_MISSING_CHAR_RX: Final = re.compile(
+    r"Missing character: There is no (.*?)(?:\s*\(U\+([0-9A-Fa-f]{4,})\))?"
+    r"\s*in font"
+)
+
 _UNDEF_KEY_RX: Final = re.compile(
     r"(?:Reference|Citation)\s+`([^']+)'\s+on page\s+\d+\s+undefined",
     re.IGNORECASE,

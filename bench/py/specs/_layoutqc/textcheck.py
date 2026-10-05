@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 
 from specs import _bootstrap
@@ -28,6 +27,7 @@ from specs._layoutqc.thresh import (
     _CJK_RX,
     _DIGIT_RX,
     _FOLIO_RX,
+    _MISSING_CHAR_RX,
     _NORM_RX,
     _PERIODIC_RX,
     _REFS_HEAD_RX,
@@ -170,11 +170,23 @@ def _fwd_anchor_cluster(marks: list[tuple]) -> list[tuple] | None:
     return None
 
 
+def _missing_char_counts(log_text: str) -> Counter:
+    """``Missing character`` 行 → {字符键: 次数} 多重集——键取 U+ 码位
+    （缺码位行退字符名），跨臂按字符差净（字体名不参键）。缺字行里
+    源稿内嵌外文（MMSciBench 原文夹 zh 题面实证 ∴/Ⅰ 全源承）与管线
+    新引入字体洞不可分，只有差净才是 splice 产物。"""
+    out: Counter = Counter()
+    for name, code in _MISSING_CHAR_RX.findall(log_text):
+        out[code.lower() if code else (name.strip() or "?")] += 1
+    return out
+
+
 def _plain_scan(
     text: str,
     base_text: str | None = None,
     *,
     zh_log: str | None = None,
+    base_missing: Counter | None = None,
     tex_hay: str | None = None,
     verb_hay: str | None = None,
     tex_fffd: bool = False,
@@ -369,12 +381,20 @@ def _plain_scan(
     # 时抽取 FFFD 全是嵌入图 ToUnicode 缺口/空格形/零宽 glyph 伪影
     # （net 438 亦伪影），仅 tex 含字面 FFFD 字节才发。log 缺席
     # 退回旧保险丝：net≥3 或 tex 字面量佐证。
+    # 佐证 2026-10 改差净口径：zh missing 字符集 − base 同字符集
+    # （源稿内嵌外文缺字是源承非管线产物）；base 缺席退旧闸。
     if zh_log is None:
         fffd_fire = fffd_net >= DEGEN_FFFD_FUSE or (tex_fffd and fffd_net > 0)
     else:
-        missing = len(re.findall(r"Missing character", zh_log))
-        metrics["missing_chars"] = missing
-        fffd_fire = fffd_net > 0 and (missing > 0 or tex_fffd)
+        mz = _missing_char_counts(zh_log)
+        metrics["missing_chars"] = sum(mz.values())
+        if base_missing is None:
+            corr = bool(mz)
+        else:
+            mn = mz - base_missing
+            metrics["missing_chars_net"] = sum(mn.values())
+            corr = bool(mn)
+        fffd_fire = fffd_net > 0 and (corr or tex_fffd)
     empty_fire = (
         (len(empty_eff) - base_empty) if base_empty is not None else len(empty_eff)
     ) > EMPTY_PAGE_MAX
