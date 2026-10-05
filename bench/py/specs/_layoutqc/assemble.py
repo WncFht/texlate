@@ -384,7 +384,7 @@ def qc_paper(
                     win = base_stats[lo:hi]
                     vals = [
                         (bn if sig_ == "geo_margin_breach" else bo)
-                        for bn, _boff, bo in win
+                        for bn, _boff, bo, _bx, _by in win
                     ]
                     zval = f_["words"] if sig_ == "geo_margin_breach" else f_["pairs"]
                     bval = max(vals, default=0)

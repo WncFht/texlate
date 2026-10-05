@@ -336,18 +336,20 @@ def _word_overlap_pairs(words: list[tuple], cjk_gate: bool = True) -> int:
 
 def _page_word_stats(
     pg: dict, geom: dict, ascii_run_exempt: bool = True, cjk_gate: bool = True
-) -> tuple[int, int, int]:
-    """单页 (越界词数，离页词数，跨行重叠对数)——跨臂按页对拍的最小单位。
-    越界只数正文带内的词：running head / 页码等页眉页脚家具本就
-    骑在 textblock 之外（2608.25736 p7 实证——页眉行触发全页
-    breach），cy < t 或 cy > b+20 的词不算。``ascii_run_exempt``
-    开（zh 侧）：越界词在 ≥_ASCII_RUN_MIN 词 ASCII 连跑内即免——
-    verbatim 附录行溢出归 en 原文同形。base 侧（纯 en 文档）传
-    False 全量计——跨臂抑制要的是 en 原件的固有溢出量，豁免会
-    把 base 侧压成 0 使抑制退化。
+) -> tuple[int, int, int, int, int]:
+    """单页 (越界词数，离页词数，跨行重叠对数，横向越界数，纵向越界数)
+    ——跨臂按页对拍的最小单位。越界只数正文带内的词：running
+    head / 页码等页眉页脚家具本就骑在 textblock 之外
+    （2608.25736 p7 实证——页眉行触发全页 breach），cy < t 或
+    cy > b+20 的词不算。``ascii_run_exempt`` 开（zh 侧）：越界词在
+    ≥_ASCII_RUN_MIN 词 ASCII 连跑内即免——verbatim 附录行溢出归
+    en 原文同形。base 侧（纯 en 文档）传 False 全量计——跨臂抑制
+    要的是 en 原件的固有溢出量，豁免会把 base 侧压成 0 使抑制退化。
     离页词数 = 越界词中 bbox 真正出纸面的子集（x0<-tol|x1>w+tol|
     y0<-tol|y1>h+tol）——页内深带（folio 家具/源置 geometry）是另
-    一类；``cjk_gate`` 传给重叠对判定，base 侧 False。"""
+    一类；``cjk_gate`` 传给重叠对判定，base 侧 False。
+    nbx/nby 是越界词的方向劈分（同词两侧破可同时计）——x 破 =
+    zh CJK 行凸/kinsoku 溢出候选，y 破 = 底带家具/深置内容。"""
     left, t, r, b = _textblock(geom, pg["w"], pg["h"])
     tol = MARGIN_BREACH_PT
     words = pg["words"]
@@ -391,7 +393,7 @@ def _page_word_stats(
                 prev_x1 = x1
             for j in cur:
                 run_len[j] = len(cur)
-    nb = off = 0
+    nb = off = nbx = nby = 0
     pw, ph = pg["w"], pg["h"]
     for i, (x0, y0, x1, y1, wtext) in enumerate(words):
         cy = (y0 + y1) / 2
@@ -400,13 +402,26 @@ def _page_word_stats(
         if _sym_tok(wtext) or run_len.get(i, 0) >= _ASCII_RUN_MIN:
             continue  # 数学符号 token / verbatim 英文段越界豁免
         h = max(y1 - y0, 1e-6)
-        bx0 = x0 + (h * 0.6 if wtext[:1] in _CJK_PUNCT_L else 0.0)
-        bx1 = x1 - (h * 0.6 if wtext[-1:] in _CJK_PUNCT_R else 0.0)
-        if bx0 < left - tol or bx1 > r + tol or y1 > b + tol:
+        # CJK 标点连缀各裁 0.6h（``。）”`` 序列只裁末一枚会漏报/虚报
+        # 边缘）——trim 不过中线防纯标点词反算成负宽。
+        n_l = 0
+        while n_l < len(wtext) and wtext[n_l] in _CJK_PUNCT_L:
+            n_l += 1
+        n_r = 0
+        while n_r < len(wtext) - n_l and wtext[-1 - n_r] in _CJK_PUNCT_R:
+            n_r += 1
+        mid = (x0 + x1) / 2
+        bx0 = min(x0 + 0.6 * h * n_l, mid)
+        bx1 = max(x1 - 0.6 * h * n_r, mid)
+        x_bad = bx0 < left - tol or bx1 > r + tol
+        y_bad = y1 > b + tol
+        if x_bad or y_bad:
             nb += 1
+            nbx += int(x_bad)
+            nby += int(y_bad)
             if bx0 < -tol or bx1 > pw + tol or y0 < -tol or y1 > ph + tol:
                 off += 1
-    return nb, off, _word_overlap_pairs(words, cjk_gate=cjk_gate)
+    return nb, off, _word_overlap_pairs(words, cjk_gate=cjk_gate), nbx, nby
 
 
 def _bbox_scan(
@@ -451,7 +466,7 @@ def _bbox_scan(
         # CJK 无空格文本按空格计词天然 <3 词/页——text_as_curves
         # 改吃字符数（0928 pdf_integrity 簇：可读正文页被误判曲线化）
         char_counts.append(sum(len(w[4]) for w in words))
-        nb, off, op = _page_word_stats(pg, geom)
+        nb, off, op, nbx, nby = _page_word_stats(pg, geom)
         breach_by_page.append(nb)
         overlap_by_page.append(op)
         if nb >= MARGIN_BREACH_MIN and off >= 1:
@@ -462,14 +477,25 @@ def _bbox_scan(
                     "page": pi + 1,
                     "words": nb,
                     "off": off,
+                    "x": nbx,
+                    "y": nby,
                 }
             )
         elif nb >= MARGIN_BREACH_MIN:
             # 全量「越界」词其实都在纸面内——只是骑进 textblock 深带：
             # 源置 geometry（revtex 窄栏 folio）、页码/running head
-            # 残词等非离页现象；INFO 立档不报警。
+            # 残词等非离页现象；INFO 立档不报警。x/y 劈分供分诊——
+            # 纯底带（y>0,x=0）多家具，x>0 是 zh CJK 行凸候选。
             band_n += nb
-            findings.append({"sig": "geo_deep_band", "page": pi + 1, "words": nb})
+            findings.append(
+                {
+                    "sig": "geo_deep_band",
+                    "page": pi + 1,
+                    "words": nb,
+                    "x": nbx,
+                    "y": nby,
+                }
+            )
         if op >= OVERLAP_MIN_PAIRS:
             overlap_n += op
             findings.append({"sig": "geo_text_overlap", "page": pi + 1, "pairs": op})
