@@ -269,10 +269,12 @@ def qc_paper(
         metrics["bbox"] = m
         # 断链 ?? 收口：括号形 (?) /[?] 全权，裸 ?? 半权（tikz-cd 箭头
         # 字形与源字面 ?? 都抽成裸形）；net = zh 加权 − base 加权。
+        # zh 侧取家具剔除后位点（running head 白名单键渲出的每页 ??
+        # 不参与加权）；base 侧无家具信息按原值，净差方向偏保守。
         # net<MIN 且（zh log 缺席 或 zh 新增 undefined 键集空）→ 抑制
         # ——log 有真悬空键佐证时 net 不足也照报。
-        bbrk = metrics["text"].get("broken_refs_brk", 0)
-        btot = metrics["text"].get("broken_refs", 0)
+        bbrk = metrics["text"].get("broken_refs_brk_eff", 0)
+        btot = metrics["text"].get("broken_refs_eff", 0)
         w_zh = bbrk + BROKEN_BARE_W * (btot - bbrk)
         w_base = 0.0
         if base_text:

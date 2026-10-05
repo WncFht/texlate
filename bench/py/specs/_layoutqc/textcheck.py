@@ -419,11 +419,26 @@ def _plain_scan(
     # ？？天然不匹配，修辞性 ??/??? 够不到位点阈。裸 ?? 与括号形
     # 分别记账——跨臂/log 佐证降权在 qc_paper 收口（_plain_scan
     # 纯文本面保持原子口径）。
+    # 家具行上的 ?? 位点剔除：MNRAS ``??–??`` 页幅占位（白名单键
+    # firstpage/lastpage 渲出）每页复现凑位点——log 侧键白名单已
+    # 剔，文本侧位点须同口径（1306.0005/1107.0455 实证 32/16 位点
+    # 全在 running head 上）。
     broken = len(_BROKEN_REF_RX.findall(text))
+    broken_brk = len(_BROKEN_BRK_RX.findall(text))
+    furn_sites = furn_brk = 0
+    for ln in body_norm:
+        if not _furniture(ln):
+            continue
+        furn_sites += len(_BROKEN_REF_RX.findall(ln))
+        furn_brk += len(_BROKEN_BRK_RX.findall(ln))
+    broken_eff = broken - furn_sites
     metrics["broken_refs"] = broken
-    metrics["broken_refs_brk"] = len(_BROKEN_BRK_RX.findall(text))
-    if broken >= BROKEN_REFS_MIN:
-        findings.append({"sig": "xlat_broken_refs", "n": broken})
+    metrics["broken_refs_brk"] = broken_brk
+    metrics["broken_refs_furn"] = furn_sites
+    metrics["broken_refs_eff"] = broken_eff
+    metrics["broken_refs_brk_eff"] = broken_brk - furn_brk
+    if broken_eff >= BROKEN_REFS_MIN:
+        findings.append({"sig": "xlat_broken_refs", "n": broken_eff})
     return findings, metrics
 
 

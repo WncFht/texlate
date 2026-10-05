@@ -588,7 +588,10 @@ def test_plain_fffd_missing_net() -> None:
 def test_plain_broken_refs() -> None:
     """断链引用 ?? run——每 run 计一位点；≥8 位点报警（2505.21476
     正文 646 ?? 字符实证）。修辞双问号/全角？？不过阈。"""
-    text = "正常中文正文。\n" * 10 + "见文献 [??] 与图 ??，式 (??)。\n" * 5
+    # 断链行须互异——同文行复现 ≥4 次即落入家具口径被剔
+    text = "正常中文正文。\n" * 10 + "\n".join(
+        f"见文献 [??] 与图 ??，式 (??) {i}。" for i in range(5)
+    )
     f, m = _plain_scan(text)
     assert m["broken_refs"] == 15  # noqa: PLR2004 -- 5 行 x 3 位点
     assert any(x["sig"] == "xlat_broken_refs" for x in f)
@@ -597,9 +600,24 @@ def test_plain_broken_refs() -> None:
     assert m2["broken_refs"] == 6  # noqa: PLR2004 -- 3 行 x 2 run
     assert not any(x["sig"] == "xlat_broken_refs" for x in f2)
     # natbib 面：括内单 (?) 也是断链位点（2602.09703 实证）
-    f3, m3 = _plain_scan("Shami Corpus (?) 与 UFAL (?)、DoDa (?)。\n" * 4)
+    f3, m3 = _plain_scan(
+        "\n".join(f"Shami Corpus (?) 与 UFAL (?)、DoDa (?) {i}。" for i in range(4))
+    )
     assert m3["broken_refs"] == 12  # noqa: PLR2004 -- 4 行 x 3 位点
     assert any(x["sig"] == "xlat_broken_refs" for x in f3)
+    # 家具行 ?? 剔除：MNRAS ``??–??`` 页幅占位（白名单键渲出）每页
+    # 复现——原始位点照记，eff 清零不发报（1306.0005/1107.0455 实证）
+    furn = "© 2013 RAS, MNRAS 000, ??–??\n" * 6 + "正常中文正文行。\n" * 3
+    f4, m4 = _plain_scan(furn)
+    assert m4["broken_refs"] == 12  # noqa: PLR2004 -- 原始位点仍记账
+    assert m4["broken_refs_eff"] == 0
+    assert not any(x["sig"] == "xlat_broken_refs" for x in f4)
+    # 家具 ?? 剔除不掩正文真断链：家具 12 位点 + 正文 9 位点照发
+    # （正文位点行须互异——同文行复现 ≥4 次本身即家具口径）
+    mix = furn + "\n".join(f"正文引用 [??] 断链 {i}。" for i in range(9))
+    f5, m5 = _plain_scan(mix)
+    assert m5["broken_refs_eff"] == 9  # noqa: PLR2004
+    assert any(x["sig"] == "xlat_broken_refs" for x in f5)
 
 
 def test_plain_periodic_placeholder() -> None:
