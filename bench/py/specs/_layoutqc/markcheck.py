@@ -50,6 +50,7 @@ def _marks_scan(
     marks_sentinel: bool | None = None,
     marks_expected: bool | None = None,
     base_dir: Path | None = None,
+    compile_dead: bool = False,
 ) -> tuple[list[dict], dict]:
     """marks 查表层：跨臂对照 + 单侧 offpage + 双层覆盖记账。
 
@@ -57,6 +58,8 @@ def _marks_scan(
       ``base_txlm=None`` 的「未建对照臂」只是参数事实（base=onfail
       时 clean 不编 base 臂），metrics 记账不出 finding——但臂已建
       （base_dir 传入）而 txlm 缺席/零 mark 仍是注入链断，照报。
+      ``compile_dead``（log 侧 Emergency stop/No pages 命中）时 zh 侧
+      缺席是编译中止的症状非注入洞，收口为 metrics 记账不发 finding。
     - ``marks_coverage``：splice 树（实际编译面）有受钩 env 但零 MARK →
       注入/钩子层洞（demote 改名已在此面消化，不误报）。
     - ``dropped_env``：src 树有、splice 树无的 env —— splice/fixloop
@@ -74,6 +77,9 @@ def _marks_scan(
         #     marks_expected（compile metrics inject.layout_marks），
         #     False=编译记录里注入键缺席（pre-era 编译）亦压；
         # (d) 两侧都不可证伪 → 诚实照报。
+        if compile_dead:
+            metrics["marks_absent_suppressed"] = "compile_dead"
+            return [], metrics
         if marks_sentinel is True:
             return [{"sig": "layout:marks_absent", "side": "zh"}], metrics
         if marks_sentinel is False or marks_expected is False:
@@ -86,6 +92,9 @@ def _marks_scan(
     metrics["zh_marks"] = len(zh["marks"])
     metrics["geom"] = zh["geom"]
     if not zh["marks"]:
+        if compile_dead:
+            metrics["marks_absent_suppressed"] = "compile_dead"
+            return findings, metrics
         findings.append(
             {"sig": "layout:marks_absent", "side": "zh", "lines": zh["lines"]}
         )

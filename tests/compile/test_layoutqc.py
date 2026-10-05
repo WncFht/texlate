@@ -451,6 +451,21 @@ def test_logscan_quiet() -> None:
     f, m = _logscan("This is XeTeX, Version 3.14\nOutput written.\n")
     assert f == []
     assert m["overfull_n"] == 0
+    assert m["compile_died"] is False
+
+
+def test_logscan_compile_died() -> None:
+    # 三种中止写法：经典 bang 形 / file-line-error 形 / 零页输出行
+    for frag in (
+        "! Emergency stop.",
+        "/w/idc/main.tex:425: Emergency stop.",
+        "No pages of output.",
+    ):
+        f, m = _logscan(f"...\n{frag}\n")
+        assert m["compile_died"] is True
+        assert any(x["sig"] == "layout:compile_died" for x in f)
+    f, _ = _logscan("This is XeTeX\nOutput written on x.pdf (6 pages).\n")
+    assert not any(x["sig"] == "layout:compile_died" for x in f)
 
 
 # ---------------------------------------------------------------- 文本层
@@ -767,6 +782,17 @@ def test_marks_absent(tmp_path: Path) -> None:
     assert f == [{"sig": "layout:marks_absent", "side": "zh"}]
 
 
+def test_marks_absent_compile_dead(tmp_path: Path) -> None:
+    # 终编中止时 zh 侧缺席/零 mark 是中止症状非注入洞——收口不发报
+    f, m = _marks_scan(tmp_path / "none.txlm", None, None, None, compile_dead=True)
+    assert f == []
+    assert m["marks_absent_suppressed"] == "compile_dead"
+    tx = _txlm(tmp_path, ["GEOM pw=600pt ph=800pt"])
+    f2, m2 = _marks_scan(tx, None, None, None, compile_dead=True)
+    assert not any(x["sig"] == "layout:marks_absent" for x in f2)
+    assert m2["marks_absent_suppressed"] == "compile_dead"
+
+
 def test_marks_absent_base_silent(tmp_path: Path) -> None:
     """base_txlm=None（未建对照臂）不出 finding——臂编不编是参数
     选择（base=onfail 时 clean 不建臂）只记 metrics；但臂已建而
@@ -807,6 +833,7 @@ def test_tier_classification() -> None:
     assert _tier_of([{"sig": "some_future_sig"}]) == "warn"  # 未分类保守 WARN
     assert _tier_of([{"sig": "xlat_residual_en"}, {"sig": "vis_degenerate"}]) == "hard"
     assert _tier_of([{"sig": "layout:no_pdf"}]) == "hard"
+    assert _tier_of([{"sig": "layout:compile_died"}]) == "hard"
     assert _tier_of([{"sig": "layout:pdf_corrupt"}]) == "hard"
 
 

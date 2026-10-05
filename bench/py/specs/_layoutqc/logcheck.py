@@ -10,6 +10,7 @@ import re
 from typing import TYPE_CHECKING
 
 from specs._layoutqc.thresh import (
+    _COMPILE_DIED_RX,
     _FLOAT_FIT_RX,
     _FLOAT_LOST_RX,
     _FLOAT_OVERSIZE_RX,
@@ -103,7 +104,12 @@ def _logscan(
         "float_oversize_n": len(over_hits),
         "float_oversize_max_pt": max(over_pts, default=0.0),
         "undef_ref_keys": undef_keys,
+        "compile_died": bool(_COMPILE_DIED_RX.search(log_text)),
     }
+    if metrics["compile_died"]:
+        # 终编中止（Emergency stop/No pages/Fatal）——产物残缺是底层伤，
+        # HARD 立档；marks_absent 等下游症状在各自叶按此 metric 收口。
+        findings.append({"sig": "layout:compile_died"})
     if (len(ov_body) > OVERFULL_COUNT and body_max >= OVERFULL_COUNT_MIN_PT) or (
         body_max > OVERFULL_MAX_PT
     ):

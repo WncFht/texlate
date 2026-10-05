@@ -70,6 +70,7 @@ INK_SELF_OUTLIER: Final = 0.25
 _HARD_SIGS: Final = frozenset(
     {
         "layout:no_pdf",
+        "layout:compile_died",
         "layout:pdf_corrupt",
         "layout:lost_element",
         "layout:float_seq_mismatch",
@@ -260,6 +261,14 @@ _FLOAT_OVERSIZE_RX: Final = re.compile(
 )
 
 FLOAT_OVERSIZE_WARN_PT: Final = 60.0
+
+#: 终编中止判据——``! Emergency stop`` / ``No pages of output`` /
+#: ``==> Fatal error`` 任一命中即编译半路死亡：船出页残缺或为零，
+#: 下游 marks_absent（零 mark）只是症状非注入洞。entry 快照回退会
+#: 掩住这条致命伤（qc_marks_absent 簇 2026-10 实证 7/7 全是中止编译）。
+_COMPILE_DIED_RX: Final = re.compile(
+    r"Emergency stop|No pages of output|==>\s*Fatal error"
+)
 
 _UNDEF_KEY_RX: Final = re.compile(
     r"(?:Reference|Citation)\s+`([^']+)'\s+on page\s+\d+\s+undefined",

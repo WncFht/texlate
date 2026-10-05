@@ -481,6 +481,7 @@ def qc_paper(
         marks_sentinel=marks_sentinel,
         marks_expected=marks_expected,
         base_dir=base_dir,
+        compile_dead=bool(metrics["log"].get("compile_died")),
     )
     findings += f
     metrics["marks"] = m
