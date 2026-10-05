@@ -490,9 +490,12 @@ def qc_paper(
     findings += f
     metrics["marks"] = m
     # offpage 锚渲染佐证：savepos 在变换容器内（rotatebox/resizebox/
-    # sidewaystable）报变换前坐标——渲染在框内也判出页（pdf_integrity
-    # 簇 0928 实证）。同页词级 bbox 全部在页内 → 锚证无渲染佐证，压。
-    # 页词 <3（图版/近空页）佐证力不足，保留 finding。
+    # sidewaystable/负 y 抬升盒）报变换前坐标——渲染在框内也判出页
+    # （pdf_integrity 簇 0928 实证；offpage 簇 2026-10 复核 11 篇
+    # 200 命中全是幻锚）。佐证要求「整词出纸」（x1<0|x0>w|y1<0|y0>h）
+    # ——词尾 CJK 标点/Greek 的 ~4pt 探边毛刺是局部越界伤，归
+    # geo_margin_breach 管，不构成锚出页佐证。页词 <3（图版/近空
+    # 页）佐证力不足，保留 finding。
     if pages:
         n_supp = 0
         kept: list[dict] = []
@@ -506,10 +509,10 @@ def qc_paper(
                 continue
             pg = pages[p_ - 1]
             has_off_word = any(
-                w_[0] < -2.0
-                or w_[1] < -2.0
-                or w_[2] > pg["w"] + 2.0
-                or w_[3] > pg["h"] + 2.0
+                w_[2] < -2.0
+                or w_[0] > pg["w"] + 2.0
+                or w_[3] < -2.0
+                or w_[1] > pg["h"] + 2.0
                 for w_ in pg["words"]
             )
             if len(pg["words"]) >= 3 and not has_off_word:
