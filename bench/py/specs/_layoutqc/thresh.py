@@ -99,6 +99,8 @@ _HARD_SIGS: Final = frozenset(
         "geo_table_lost",
         "geo_column_collapse",
         "geo_text_as_curves",
+        # 全篇零 CJK=产出根本没译——产出不可用级，非质量扣分。
+        "xlat_untranslated",
     }
 )
 
@@ -162,6 +164,20 @@ RESIDUAL_EN_MASS_LINES: Final = 60  # 绝对质量逃逸臂（长文低占比也
 RESIDUAL_EN_FURNITURE: Final = 4  # 归一后正文域复现 ≥N 次的行=页眉家具剔除
 
 RESIDUAL_EN_HEAVY_FRAC: Final = 0.15  # frac ≥ 此 → xlat_residual_en_heavy
+
+#: 残英行的词形下限——行须含 ≥N 个「≥3 连字母」词才算英文正文；
+#: 纯数字表行/多项式行/行内公式行不计残英（astro-ph/0003115 全表
+#: 205 行、2501.15741 多项式 28 行、0905.1070 实测残差表 115 行实证）。
+
+RESIDUAL_EN_WORD_TOKENS: Final = 3
+
+#: 全篇零译文判据——pdftotext 全文 CJK ≤此值且正文 ≥LINES_MIN 行 =
+#: 产出根本没译（1706.00387 全英产出实证：全英文档 frac 仅 0.26，
+#: 分母含数字/公式行稀释，压不进 heavy 阈——须独立 HARD sig）。
+
+UNTRANSLATED_CJK_MAX: Final = 50
+
+UNTRANSLATED_LINES_MIN: Final = 200
 
 DEGEN_NGRAM: Final = 5  # 重复 n-gram 长度
 
@@ -470,3 +486,8 @@ _ASCII_RUN_MIN: Final = 4
 
 _ASCII_RUN_GAP: Final = 24.0  # pt——连跑内相邻 ASCII 词 x0−prev_x1 阈
 # （列表对齐空隙仍归一跑；栏间分隔由 CJK 断跑承担）
+
+#: 残英词形 token——≥3 连字母段才算「词」（变量 c14/ab3、行内公式
+#: token 与数字列不算；真实英文句子轻松满足）。
+
+_ASCII_WORD_RX: Final = re.compile(r"[A-Za-z]{3,}")

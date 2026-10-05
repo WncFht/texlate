@@ -15,6 +15,7 @@ _bootstrap.ensure()
 from specs._layoutqc.pagekit import _struct_head, _verso_blank
 from specs._layoutqc.thresh import (
     _ASCII_LINE_RX,
+    _ASCII_WORD_RX,
     _BIB_AY_RX,
     _BIB_CORRO_RX,
     _BIB_ID_RX,
@@ -45,6 +46,9 @@ from specs._layoutqc.thresh import (
     RESIDUAL_EN_MASS_LINES,
     RESIDUAL_EN_MIN_FRAC,
     RESIDUAL_EN_MIN_LINES,
+    RESIDUAL_EN_WORD_TOKENS,
+    UNTRANSLATED_CJK_MAX,
+    UNTRANSLATED_LINES_MIN,
 )
 from texlate.textutil import _keep_verbatim_run
 
@@ -80,50 +84,50 @@ def _refs_cut(lines: list[str]) -> int:
     if len(marks) < 3:
         return len(lines)
     start = len(marks) - 1
-    trunc_by_drop = False
     for k in range(len(marks) - 2, -1, -1):
         if marks[k + 1][0] - marks[k][0] > 80:
             break
         nk, nk1 = marks[k][1], marks[k + 1][1]
         if nk is not None and nk1 is not None and nk > nk1 + 2:
-            trunc_by_drop = True
             break  # 正文 [N] 引用倒灌截断
         start = k
     cluster = marks[start:]
-    if len(cluster) < 3:
-        return len(lines)
-    nums = [n for _, n, _ in cluster if n is not None]
-    ays = sum(1 for *_, k in cluster if k == "ay")
-    tail = nums[-3:]
-    anchored = (
-        any(n == 1 for n in nums)
-        or (len(nums) >= 3 and len(tail) == 3 and tail[0] < tail[1] < tail[2])
-        or (not nums and ays >= 3)
-    )
-    if anchored:
-        ok = _bib_cluster_cut(lines, cluster)
-        # numdrop 截断的簇可能把 cut 落在 bib 中段（双栏交错编号回跳
-        # >2 顶破截断但幸存尾段仍严格递增 + 稠密——0928 实证两格漏切
-        # 870/1387 起 bib 只切到 1114/1796）。改用纯行距回连扩簇，
-        # 扩展簇仍过判据则取更深的 cut。
-        if ok is not None and trunc_by_drop:
-            ext = _tail_bib_cluster(lines, marks)
-            if ext is not None:
-                ok_ext = _bib_cluster_cut(lines, ext)
-                if ok_ext is not None and ok_ext < ok:
-                    return ok_ext
-        return ok if ok is not None else len(lines)
-    # 锚失败兜底（无 heading 稿 + 双栏交错把编号单调性顶破——
-    # numdrop 截断导致 [1] 落簇外/尾段非严格递增，bib 客观在
-    # 而 cut=len 全量计入正文域，0928 residual_en FP 三格实证）：
+    # 兜底候选簇前置——截断残簇（<3）、锚失败、锚定而判据没过三路
+    # 全走它们：
     # (a) 尾段稠密回扫——末 marker 在文末 ~15 非空行内即 bib 真在
     #     尾，只按行距 >80 截断回连（不做 numdrop）；
     # (b) 前向锚——首个标号 1 marker 后 30 行内再现 ≥2 marker 即
     #     bib 起点（正文 [1] 引用伪锚由簇区密度判据拒）。
-    for cand in (_tail_bib_cluster(lines, marks), _fwd_anchor_cluster(marks)):
-        if cand is None:
-            continue
-        ok = _bib_cluster_cut(lines, cand)
+    cands = [
+        c
+        for c in (_tail_bib_cluster(lines, marks), _fwd_anchor_cluster(marks))
+        if c is not None
+    ]
+    if len(cluster) >= 3:
+        nums = [n for _, n, _ in cluster if n is not None]
+        ays = sum(1 for *_, k in cluster if k == "ay")
+        tail = nums[-3:]
+        anchored = (
+            any(n == 1 for n in nums)
+            or (len(nums) >= 3 and len(tail) == 3 and tail[0] < tail[1] < tail[2])
+            or (not nums and ays >= 3)
+        )
+        if anchored:
+            ok = _bib_cluster_cut(lines, cluster)
+            if ok is not None:
+                if start == 0:
+                    return ok
+                # 截断簇可能只盖住 bib 尾段——双栏交错的行距/回跳
+                # 顶破都会早收（0928 实证 870/1387 起 bib 只切到
+                # 1114/1796；2308.00101 锚定 28 簇只盖末百行、真 bib
+                # 起点在 705）。兜底簇扩得动且仍过判据则取最深的 cut。
+                for c in cands:
+                    c2 = _bib_cluster_cut(lines, c)
+                    if c2 is not None and c2 < ok:
+                        ok = c2
+                return ok
+    for c in cands:
+        ok = _bib_cluster_cut(lines, c)
         if ok is not None:
             return ok
     return len(lines)
@@ -243,7 +247,11 @@ def _plain_scan(
     en_lines = [
         ln
         for ln in body_norm
-        if _ASCII_LINE_RX.match(ln) and len(ln.split()) >= 4 and not _furniture(ln)
+        if _ASCII_LINE_RX.match(ln)
+        and len(ln.split()) >= 4
+        and sum(1 for t in ln.split() if _ASCII_WORD_RX.search(t))
+        >= RESIDUAL_EN_WORD_TOKENS
+        and not _furniture(ln)
     ]
     text_lines = [ln for ln in body_norm if ln]
     # 发报口径三级豁免（metric 保留原始行数）：
@@ -282,6 +290,15 @@ def _plain_scan(
                 "lines": len(en_eff),
                 "frac": round(frac, 3),
             }
+        )
+    # 全篇零译文：pdftotext 全文 CJK 趋零而正文非平凡规模 = 产出
+    # 根本没译（1706.00387 全英产出实证——全英文档 en_eff frac
+    # 被数字/公式行稀释到 0.26 只落 WARN，须独立 HARD 直报）。
+    cjk_chars = sum(1 for _ in _CJK_RX.finditer(text))
+    metrics["cjk_chars"] = cjk_chars
+    if cjk_chars <= UNTRANSLATED_CJK_MAX and len(text_lines) >= UNTRANSLATED_LINES_MIN:
+        findings.append(
+            {"sig": "xlat_untranslated", "cjk": cjk_chars, "lines": len(text_lines)}
         )
     # 退化：FFFD / 重复 n-gram / 空页——三臂跨 base 对拍（嵌入图
     # ToUnicode 缺口的 FFFD、running head n-gram、verso 白页在 en

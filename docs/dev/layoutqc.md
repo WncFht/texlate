@@ -343,6 +343,9 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **tofu 图内空格簇（已修 2026-10-06）**：`vis_tofu_box` 缺位图区豁免——嵌入图内的空格/格线同呈「四边有墨内全白」空心矩形（2106.07115 p38 四框全落在位图带）；改缺字佐证闸——zh log 零 `Missing character` 行时不可能有 .notdef，tofu 簇按图内构件不收（log 缺席不降级）。tofu_pages 度量仍记账。
 - **ink_blob 深色样式盒（已修 2026-10-06）**：tcolorbox/listings 深色底板是矢量帧里的整幅填充框（2609.19644 p40-41 实证：46%/41% 页面积 fill rect、框内 349/388 词）——非渲染泼溅。frames 豁免：封印框 ≥30% 页面积且框内有词即样式盒不收，`ink_blob_supp` 记账。
 - **`base_word_stats` 解包崩（已修 2026-10-06）**：`_page_word_stats` 返 5 元组（nbx/nby 劈分）后 metrics 落账两处仍按 3 元组解包——凡带 base 臂的 qc_paper 必 ValueError。改 `st[0]/st[2]` 下标取。
+- **refs_cut 截断残簇绕过兜底（已修 2026-10-06）**：回连簇被双栏交错行距/编号回跳截到 <3 时直返 `len(lines)`，`_tail_bib_cluster`/`_fwd_anchor_cluster` 兜底簇永远轮不到（0905.0109/1312.0616/2105.03894 bib 漏截实证）；重构为截断残簇/锚失败/判据没过三路全走兜底，锚定簇被截断（`start>0`）时再向兜底簇扩深取最深合法 cut（2308.00101 实证 28 簇只切到 2758、真 bib 起点在 705）。
+- **数字/多项式行充残英（已修 2026-10-06）**：`_ASCII_LINE_RX` 对纯数字表行与变量系数行零抵抗（astro-ph/0003115 205 行全是数据列、2501.15741 28 行多项式、0905.1070/1306.0517 实测残差表）。加词形闸——行须含 ≥3 个「≥3 连字母」词才计英文行（`RESIDUAL_EN_WORD_TOKENS`）；真残英句不受影响（1107.0525/1503.00119 实锤漏译原样过闸）。
+- **全篇零译文只落 WARN（已修 2026-10-06）**：1706.00387 zh 产出零 CJK 字符（整篇英文），而 `residual_en` 的 frac 被分母里数字/公式行稀释到 0.26 只触 heavy WARN——产出不可用级伤藏在质量分档下。新增 `xlat_untranslated`（全文 CJK ≤50 且正文 ≥200 行）→ HARD。
 
 ### 10.7 检查面完备性自问（vs §3 外部调研）
 
@@ -364,7 +367,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 11. 终版检验方案与工件保留政策（定稿 2026-09-23）
 
-§4–§6 是计划面；§11 是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（40 个已发射 sig，与 `thresh.py` 三档集一一对应）定稿。
+§4–§6 是计划面；§11 是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（41 个已发射 sig，与 `thresh.py` 三档集一一对应）定稿。
 
 ### 11.1 门定义：信号三档
 
@@ -372,7 +375,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 | 档                                 | 判定                                            | sig                                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:compile_died` `layout:pdf_corrupt` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
+| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:compile_died` `layout:pdf_corrupt` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` `xlat_untranslated` |
 | **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_residual_en_heavy` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `layout:float_oversize_big` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                        |
 | **INFO**（纯记账）                 | 机制回执 / 预期缺席                             | `layout:float_fit`（FLOAT_SIZING 手术回执）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——`marks_era` 闸在 `_tier_of`）；`layout:marks_coverage`（env_inventory live-env 口径残余盲区）；`layout:float_oversize`（<60pt 超高由边距吸收）；`geo_deep_band`（页内深带越界）；`vis_widow_page`（孤行溢出页）；`layout:overfull_titlepage`（titlepage 测量盒整版过宽）；`layout:paper_mismatch`（trim-size special 单页偏离）；`layout:overfull_output`（`\output` 例程家具溢出） |
 
