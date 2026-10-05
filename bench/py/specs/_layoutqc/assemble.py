@@ -404,8 +404,8 @@ def qc_paper(
                 kept.append(f_)
             findings[:] = kept
             metrics["base_word_stats"] = {
-                "breach_by_page": [n for n, _, _ in base_stats],
-                "overlap_by_page": [o for _, _, o in base_stats],
+                "breach_by_page": [st[0] for st in base_stats],
+                "overlap_by_page": [st[2] for st in base_stats],
                 "suppressed": suppressed,
                 "suppressed_with_drift": suppressed_drift,
             }
