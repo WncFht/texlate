@@ -128,6 +128,17 @@ def _marks_scan(
         and src_dir.is_dir()
         else None
     )
+    if (
+        src_live is None
+        and zh_live is not None
+        and src_dir is not None
+        and src_dir.is_dir()
+    ):
+        # base 臂未建（base:onfail 干净编译）或其 .fls 缺席——src 侧拿
+        # zh 编译 .fls 开档集映射同构 relpath，否则 src 退全树口径会
+        # 把孤儿 .tex/兄弟篇文件的环境计进期望面（splice 侧 zh_live
+        # 恒有集，单侧不对称必出假 dropped_env，cs800 复测 69/70 实证）。
+        src_live = _live_files(zh_txlm.with_suffix(".fls"), splice_dir, src_dir)
     metrics["env_live"] = {"zh": zh_live is not None, "src": src_live is not None}
     # 声明序主键：zh 侧读 splice 树（编译面），base 侧读 src 树
     # （en 原面——build-base 同构）→ demote 改名/缺 b-mark 皆免疫

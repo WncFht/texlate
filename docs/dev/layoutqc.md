@@ -346,6 +346,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **refs_cut 截断残簇绕过兜底（已修 2026-10-06）**：回连簇被双栏交错行距/编号回跳截到 <3 时直返 `len(lines)`，`_tail_bib_cluster`/`_fwd_anchor_cluster` 兜底簇永远轮不到（0905.0109/1312.0616/2105.03894 bib 漏截实证）；重构为截断残簇/锚失败/判据没过三路全走兜底，锚定簇被截断（`start>0`）时再向兜底簇扩深取最深合法 cut（2308.00101 实证 28 簇只切到 2758、真 bib 起点在 705）。
 - **数字/多项式行充残英（已修 2026-10-06）**：`_ASCII_LINE_RX` 对纯数字表行与变量系数行零抵抗（astro-ph/0003115 205 行全是数据列、2501.15741 28 行多项式、0905.1070/1306.0517 实测残差表）。加词形闸——行须含 ≥3 个「≥3 连字母」词才计英文行（`RESIDUAL_EN_WORD_TOKENS`）；真残英句不受影响（1107.0525/1503.00119 实锤漏译原样过闸）。
 - **全篇零译文只落 WARN（已修 2026-10-06）**：1706.00387 zh 产出零 CJK 字符（整篇英文），而 `residual_en` 的 frac 被分母里数字/公式行稀释到 0.26 只触 heavy WARN——产出不可用级伤藏在质量分档下。新增 `xlat_untranslated`（全文 CJK ≤50 且正文 ≥200 行）→ HARD。
+- **`dropped_env` 期望面口径不对称（已修 2026-10-06）**：live-env 改造后 zh 侧恒按 .fls 开档集走读，src 侧却要等 base 臂 .fls——`base:onfail` 下干净编译无 base 臂，src 退全树扫描把孤儿 .tex/兄弟篇文件的环境全计进期望面（cs800 复测实证 70 篇里 69 篇 has_base=False，0812.0407 会议论文集源树全树数出 equation×125 而 zh 活区只有 document/abstract/thebibliography）。修为 fallback 链：base .fls → zh .fls 映射 src 同构 relpath → 全树。
 
 ### 10.7 检查面完备性自问（vs §3 外部调研）
 
