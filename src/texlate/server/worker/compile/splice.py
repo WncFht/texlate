@@ -32,17 +32,26 @@ from texlate.pipecore import (
 from texlate.server.worker._common import (
     _FIXLOOP_SRC_EXTS,
     _SENTINELS,
+    _new_usage_meter,
+    _translator_clients,
     chunk_db_id,
     opt_bool,
 )
+from texlate.server.worker.share import _share_sourced
 from texlate.textutil import env_flag
-from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
+from texlate.textutil.osutil import (
+    ENV_NO_RESID_SWEEP,
+    ENV_NO_SEQ_MARKS,
+    translator_mode,
+)
+from texlate.xlat.resid import sweep_tree
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
     from texlate.server.worker._common import TaskCtx
+    from texlate.xlat.client import ChatClient
 
 log = logging.getLogger(__name__)
 
@@ -177,6 +186,8 @@ class _CompileSplice:
             ctx.leftover_ph += len(PH_RX.findall(out))
             n_files += 1
         self._log(ctx, f"splice: {n_files} files rewritten")
+        self._abort_if_cancelled(ctx)  # 清扫臂烧 BYOK token——先核取消再烧
+        self._resid_sweep(ctx)
         try:
             info = prepare_chinese(ctx.zh_dir, ctx.main_rel)
         except InjectRejectError:
@@ -190,6 +201,57 @@ class _CompileSplice:
         # 反序则哨兵在、产物登记永远缺席
         self._zip_zh(ctx)
         (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8", newline="")
+
+    def _resid_sweep(self, ctx: TaskCtx) -> None:
+        """Splice 后 zh 树残英清扫补译——``resid.sweep_tree`` 的 worker 旁路接线。
+
+        守门序与 ``_llm_hook_pack`` 同构：``_share_sourced``（零 token 承诺，
+        共享字节须逐字一致）→ ``options.resid_sweep`` 显式关 →
+        ``TEXLATE_NO_RESID_SWEEP`` → 无 BYOK ``api_key``/mock 形态不给裸
+        env-key client（BYOK 计费面边界）。``cache=None``——段缓存 DB 读写
+        有 loop 线程亲和（conn 单写者纪律），``_build_zh`` 在 ``_to_thread``
+        工作线程上，``uniq`` run 内去重已覆盖同树重复段。清扫任何失败只留
+        warning——残英段维持英文交付，不阻断编译链。
+        """
+        if _share_sourced(ctx):
+            return
+        opt = ctx.options().get("resid_sweep")
+        if opt is not None and (
+            opt is False or str(opt).strip().lower() in ("0", "false", "no", "off")
+        ):
+            return
+        if env_flag(ENV_NO_RESID_SWEEP, default=False):
+            return
+        if self._translator_factory is None and (
+            not ctx.secrets.api_key or translator_mode() == "mock"
+        ):
+            return
+        clients: list[ChatClient] = []
+        usage: dict[str, Any] | None = None
+        try:
+            if self._translator_factory is not None:
+                tr = self._translator_factory(ctx)
+                clients = _translator_clients(tr)
+                usage = self._meter_usage(clients)
+            else:
+                usage, sink = _new_usage_meter()
+                tr = self._resolve_translator(ctx, sink=sink, retry=False)
+            metrics = self._run_ephemeral(
+                clients, lambda: sweep_tree(ctx.zh_dir, tr)
+            )
+        except Exception:
+            self._log(ctx, "resid_sweep 失败——残英段维持原文")
+            log.warning("resid_sweep failed", exc_info=True)
+        else:
+            if metrics["spans"]:
+                self._log(
+                    ctx,
+                    "resid_sweep: "
+                    f"{metrics['replaced']}/{metrics['spans']} spans 补译"
+                    f"（{metrics['kept_en']} 留原）",
+                )
+        finally:
+            self._teardown_bypass(ctx, usage, clients, label="resid_sweep")
 
     def _zip_zh(self, ctx: TaskCtx) -> None:
         """``zh/`` → zh-src.zip 登记（fixloop 回灌后重打复用同一函数）。"""

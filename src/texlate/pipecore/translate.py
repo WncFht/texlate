@@ -34,7 +34,7 @@ from texlate.repair import (
     unknown_env_of,
 )
 from texlate.textutil import PH_RX
-from texlate.textutil.osutil import ENV_NO_SEQ_MARKS
+from texlate.textutil.osutil import ENV_NO_RESID_SWEEP, ENV_NO_SEQ_MARKS
 from texlate.validate.rules import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
@@ -43,6 +43,7 @@ from texlate.xlat.pipeline import (
     PipelineConfig,
     XlatPipeline,
 )
+from texlate.xlat.resid import sweep_tree
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -135,6 +136,31 @@ def _splice_writeback(
     return n_files, n_leftover, slot_diffs
 
 
+def _resid_sweep_run(
+    root: Path,
+    translator: Translator | None,
+    loop: asyncio.AbstractEventLoop,
+    cache: dict[str, str],
+    *,
+    explicit: bool | None,
+) -> dict[str, Any] | None:
+    """残英清扫旁路臂：``sweep_tree`` 调用 + 开关/形态闸；败不阻断返回 None。
+
+    MockTranslator 是测试面——清扫无意义且会打乱 ``.calls`` 断言面，跳过。
+    复用翻译 loop（translator 的 client 池已钉在该 loop 上）与段缓存桶
+    （``resid`` role 键域与 chunk 键不撞）。
+    """
+    if not _opt_switch(None, "resid_sweep", ENV_NO_RESID_SWEEP, explicit=explicit):
+        return None
+    if translator is None or isinstance(translator, MockTranslator):
+        return None
+    try:
+        return loop.run_until_complete(sweep_tree(root, translator, cache=cache))
+    except Exception:
+        log.warning("resid sweep failed", exc_info=True)
+        return None
+
+
 def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sink 各臂缝）
     root: Path,
     *,
@@ -150,6 +176,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     front_matter: frozenset[str] = frozenset(),
     sink: ReportSink = NULL_SINK,
     seq_marks: bool | None = None,
+    resid_sweep: bool | None = None,
 ) -> tuple[dict[str, Any], TreeRun, list[ChunkResult]]:
     """目录树翻译 + splice 写回 → ``(stats, TreeRun, 逐块 results)``。
 
@@ -166,6 +193,9 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     ``seq_marks`` 三态：None → ``TEXLATE_NO_SEQ_MARKS`` env 决议（缺省开）
     ——splice 时 ``[[CHUNK_n]]`` 按 seq（scans 序累计）注 marked-content
     锚，失衡文件剥锚降级。
+    ``resid_sweep`` 同三态（``TEXLATE_NO_RESID_SWEEP``，缺省开）——splice
+    后对 zh 树残英段跑 ``sweep_tree`` 补译回写；MockTranslator/无
+    translator 形态跳过，metrics 落 ``stats["resid_sweep"]``（None=未跑）。
     """
     scan = (
         (lambda r: scan_tree(r, front_matter=front_matter))
@@ -194,6 +224,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
             },
         )
 
+    cache: dict[str, str] = {}
     pipe = XlatPipeline(
         translator or MockTranslator(),
         config=PipelineConfig(
@@ -201,7 +232,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         ),
         glossary=Glossary.load(),
         validator=validator or pair_feedback,
-        cache={},
+        cache=cache,
         on_result=_on_result,
     )
     # 整条翻译相（run + env_judge）收进同一 ephemeral loop——pipe 的
@@ -254,6 +285,11 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     n_files, n_leftover, slot_diffs = _splice_writeback(
         scans, by_file, root, marks_on=marks_on
     )
+    # 残英清扫：splice 后 zh 树漏网英文段（保护性 env 体/盲 include/败块
+    # 残留）逐段补译回写——旁路臂细节与闸序在 ``_resid_sweep_run``。
+    resid_stats = _resid_sweep_run(
+        root, translator, loop, cache, explicit=resid_sweep
+    )
     stats = {
         "files": n_files,
         "chunks": len(chunks),
@@ -265,6 +301,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
         "slot_diffs": slot_diffs,
+        "resid_sweep": resid_stats,
     }
     run = TreeRun(
         scans=scans,

@@ -129,6 +129,8 @@ ENV_NO_DOWNLOAD: Final = "TEXLATE_NO_DOWNLOAD"
 ENV_NO_FIXLOOP: Final = "TEXLATE_NO_FIXLOOP"
 #: logfix 回灌关（缺省皆开，同 ``NO_*`` 族口径）。
 ENV_NO_LOGFIX: Final = "TEXLATE_NO_LOGFIX"
+#: splice 后 zh 树残英清扫补译关（缺省开——``options.resid_sweep`` 同键）。
+ENV_NO_RESID_SWEEP: Final = "TEXLATE_NO_RESID_SWEEP"
 #: zh.pdf seq marked-content 注锚关（缺省开——``options.seq_marks`` 同键）。
 ENV_NO_SEQ_MARKS: Final = "TEXLATE_NO_SEQ_MARKS"
 #: node 可执行路径（validate TS worker；缺省 ``shutil.which("node")``）。

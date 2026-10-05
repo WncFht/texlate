@@ -267,6 +267,9 @@ class TestEnvJudge:
     ) -> None:
         """判 False → 块出 splice 保原文 + chunks 落 fallback_orig/env_judge。"""
         monkeypatch.setenv("TEXLATE_ENV_JUDGE", "1")
+        # 残英清扫会把回落原文的英文段再补译——本测试断言的是 env_judge
+        # 回落语义本身，关清扫隔离被测面
+        monkeypatch.setenv("TEXLATE_NO_RESID_SWEEP", "1")
         translator = EnvJudgeNoTranslator()
         with TestClient(_live_app(tmp_path, translator=translator)) as c:
             tid = upload_tex(c, ENV_TEX)["task_id"]
