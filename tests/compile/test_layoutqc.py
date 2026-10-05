@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from specs._layoutqc import (
     _bbox_scan,
+    _collect_overfull,
     _lcs,
     _logscan,
     _marks_scan,
@@ -453,6 +454,36 @@ def test_logscan_quiet() -> None:
     assert f == []
     assert m["overfull_n"] == 0
     assert m["compile_died"] is False
+
+
+def test_logscan_overfull_base_net() -> None:
+    """base 差净：同源构件同值复发抵销（±2pt 抖动窗），净集空不
+    报警；zh 新增峰照发。replay 无 base（base_ov=None）照旧单侧。"""
+    zh_log = (
+        "Overfull \\hbox (469.755pt too wide) in paragraph\n"  # 源承
+        "Overfull \\hbox (60.5pt too wide) in paragraph\n"  # zh 新峰
+    )
+    base_log = "Overfull \\hbox (469.75pt too wide) in paragraph\n"  # ±2pt 窗内
+    f, m = _logscan(zh_log, base_ov=_collect_overfull(base_log))
+    # 469.755 vs 469.75 差 0.005 抵销；60.5 新峰净集非空照发
+    assert m["overfull_n"] == 2  # noqa: PLR2004 -- 原始记账不丢
+    assert m["overfull_net_n"] == 1
+    assert any(x["sig"] == "layout:overfull" and x["max_pt"] == 60.5 for x in f)  # noqa: PLR2004
+    # 全部抵销 → 不发
+    f2, m2 = _logscan(
+        "Overfull \\hbox (469.755pt too wide) in paragraph\n",
+        base_ov=_collect_overfull(base_log),
+    )
+    assert m2["overfull_net_n"] == 0
+    assert not any(x["sig"] == "layout:overfull" for x in f2)
+    # kind 不同不抵销（h 峰不能被 v 条吃掉）
+    f3, _ = _logscan(
+        "Overfull \\hbox (469.755pt too wide) in paragraph\n",
+        base_ov=_collect_overfull(
+            "Overfull \\vbox (469.755pt too high) in paragraph\n"
+        ),
+    )
+    assert any(x["sig"] == "layout:overfull" for x in f3)
 
 
 def test_logscan_compile_died() -> None:

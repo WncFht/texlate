@@ -18,7 +18,7 @@ from specs import _bootstrap
 _bootstrap.ensure()
 
 from specs._layoutqc.geocheck import _bbox_pages, _bbox_scan, _page_word_stats
-from specs._layoutqc.logcheck import _frontmatter_lines, _logscan
+from specs._layoutqc.logcheck import _collect_overfull, _frontmatter_lines, _logscan
 from specs._layoutqc.markcheck import _marks_scan
 from specs._layoutqc.pagekit import _run
 from specs._layoutqc.rastercheck import _images_per_page, _raster_pages, _raster_scan
@@ -168,17 +168,11 @@ def qc_paper(
             log_text = zh_log.read_text(encoding="utf-8", errors="replace")
     except OSError:
         pass
-    title_lines = (
-        _frontmatter_lines(tex_files) if "Overfull" in log_text and tex_files else None
-    )
-    f, m = _logscan(log_text, title_lines)
-    findings += f
-    metrics["log"] = m
-
     btx = None
     base_pdf = None
     base_undef: set[str] = set()
     base_missing: Counter | None = None
+    base_ov = None
     if base_dir is not None:
         bdir = base_dir / mp.parent
         btx = bdir / f"{stem}.txlm"
@@ -191,8 +185,17 @@ def qc_paper(
                 # base 臂缺字集——FFFD 臂佐证差净用（源稿内嵌外文
                 # 缺字源承剔出，只报管线新引入的缺字洞）。
                 base_missing = _missing_char_counts(blog_text)
+                # base 臂 overfull 采集——正文域条目差净用（源承溢出
+                # 抵销口径见 _logscan）。
+                base_ov = _collect_overfull(blog_text)
         except OSError:
             pass
+    title_lines = (
+        _frontmatter_lines(tex_files) if "Overfull" in log_text and tex_files else None
+    )
+    f, m = _logscan(log_text, title_lines, base_ov=base_ov)
+    findings += f
+    metrics["log"] = m
     # zh 新增悬空键 = zh − base（源承）− 类内白名单 − \Newlabel 衍生
     # 标签（elsarticle cor/addr 系）——喂 xlat_broken_refs 佐证面。
     zh_undef = set(metrics["log"].get("undef_ref_keys") or [])

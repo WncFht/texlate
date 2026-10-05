@@ -28,6 +28,11 @@ OVERFULL_COUNT_MIN_PT: Final = 20.0
 #: 固有 1.58pt 逐页高发，<2pt 的视觉不可见溢出整丢。
 
 OVERFULL_VBOX_FLOOR_PT: Final = 2.0
+#: 跨臂差净的 pt 抖动窗——同源构件（eps 原尺寸/minipage 超宽习语）
+#: 两臂产出同值 overfull（469.755 跨篇签名实证），回排抖动 ±2pt
+#: 内按源承抵销，只报 zh 新增溢出。
+
+OVERFULL_NET_PT: Final = 2.0
 
 MARGIN_BREACH_PT: Final = 4.0  # word bbox 出 textblock 容差
 

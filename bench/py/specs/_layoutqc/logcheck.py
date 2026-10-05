@@ -22,6 +22,7 @@ from specs._layoutqc.thresh import (
     OVERFULL_COUNT,
     OVERFULL_COUNT_MIN_PT,
     OVERFULL_MAX_PT,
+    OVERFULL_NET_PT,
     OVERFULL_VBOX_FLOOR_PT,
 )
 
@@ -52,22 +53,13 @@ def _frontmatter_lines(tex_files: list[Path]) -> set[int]:
     return out
 
 
-def _logscan(
-    log_text: str, title_lines: set[int] | None = None
-) -> tuple[list[dict], dict]:
-    """编译日志信号：overfull 去重计数 + 峰值、Float-Fit typeout、浮体
-    丢失（浮体臂）、未解引用键集（喂 xlat_broken_refs 证据面）。
+def _collect_overfull(log_text: str) -> list[tuple[str, float, int | None, bool]]:
+    """overfull 条目采集：``(kind, pt, 行号, output例程内)`` 去重列。
 
-    overfull 判定三层先收口：(1) ``(kind, round(pt,1))`` 去重——逐页
-    同值 running-head/vbox 条目塌缩成单签；(2) vbox <2pt 亚像素带整丢；
-    (3) 计数臂 ``distinct > OVERFULL_COUNT`` 还须峰值 ≥20pt，峰值臂
-    >50pt 不变。``title_lines`` 给出 splice tex 的 \\maketitle/
-    titlepage 行号集——全部驱动级（≥20pt）溢出都落在标题语境时降为
-    ``layout:overfull_titlepage``（INFO；cms-tdr banner 测量盒实证）。
-    第四层：``while \\output is active`` 例程内条目（页眉页脚家具/
-    超高 vbox）剔出正文溢出计数，单列 ``layout:overfull_output``
-    INFO 记账（overfull 簇 0928 accept_as_is 裁定）。"""
-    findings: list[dict] = []
+    (1) ``(kind, round(pt,1))`` 去重——逐页同值 running-head/vbox 条目
+    塌缩成单签；(2) vbox <2pt 亚像素带整丢；(3) ``while \\output is
+    active`` 例程内条目（页眉页脚家具/超高 vbox）打上标记由调用方
+    分流。zh/base 两臂共用——base 臂扫描只取差净键面。"""
     seen: set[tuple[str, float]] = set()
     ov: list[tuple[str, float, int | None, bool]] = []
     for m in _OVERFULL_RX.finditer(log_text):
@@ -85,6 +77,32 @@ def _logscan(
         out_active = bool(_OUTPUT_ACTIVE_RX.search(seg))
         lm = _OVERFULL_LINE_RX.search(ctx)
         ov.append((kind, pt, int(lm.group(1)) if lm else None, out_active))
+    return ov
+
+
+def _logscan(
+    log_text: str,
+    title_lines: set[int] | None = None,
+    base_ov: list[tuple[str, float, int | None, bool]] | None = None,
+) -> tuple[list[dict], dict]:
+    """编译日志信号：overfull 去重计数 + 峰值、Float-Fit typeout、浮体
+    丢失（浮体臂）、未解引用键集（喂 xlat_broken_refs 证据面）。
+
+    overfull 判定收口（采集细则见 _collect_overfull）：(3) 计数臂
+    ``distinct > OVERFULL_COUNT`` 还须峰值 ≥20pt，峰值臂 >50pt 不变。
+    ``title_lines`` 给出 splice tex 的 \\maketitle/titlepage 行号集——
+    全部驱动级（≥20pt）溢出都落在标题语境时降为
+    ``layout:overfull_titlepage``（INFO；cms-tdr banner 测量盒实证）。
+    第四层：``while \\output is active`` 例程内条目（页眉页脚家具/
+    超高 vbox）剔出正文溢出计数，单列 ``layout:overfull_output``
+    INFO 记账（overfull 簇 0928 accept_as_is 裁定）。
+
+    ``base_ov``=base 臂 overfull 采集列——zh 条目做差净：kind 相同且
+    pt 差 ≤2pt 的 base 条目抵销（同源构件同值复发，eps 原尺寸嵌入
+    /模板测量盒实证 469.755 签名跨篇；回排抖动留 2pt 窗口），净集
+    空即源承不报警。"""
+    findings: list[dict] = []
+    ov = _collect_overfull(log_text)
     fit = len(_FLOAT_FIT_RX.findall(log_text))
     lost = len(_FLOAT_LOST_RX.findall(log_text))
     over_hits = _FLOAT_OVERSIZE_RX.findall(log_text)
@@ -93,12 +111,23 @@ def _logscan(
     undef_keys = sorted(set(_UNDEF_KEY_RX.findall(log_text)))
     ov_body = [o for o in ov if not o[3]]
     ov_out = [o for o in ov if o[3]]
+    ov_raw_n = len(ov_body)
+    if base_ov is not None:
+        base_body = [o for o in base_ov if not o[3]]
+        ov_body = [
+            o
+            for o in ov_body
+            if not any(
+                o[0] == b[0] and abs(o[1] - b[1]) <= OVERFULL_NET_PT for b in base_body
+            )
+        ]
     body_max = max((p for _, p, _, _ in ov_body), default=0.0)
     metrics = {
         "overfull_n": len(ov),
         "overfull_max_pt": max((p for _, p, _, _ in ov), default=0.0),
         "overfull_vbox_n": sum(1 for k, _, _, _ in ov if k == "v"),
         "overfull_output_n": len(ov_out),
+        "overfull_net_n": len(ov_body) if base_ov is not None else ov_raw_n,
         "float_fit_typeout": fit,
         "float_lost_warn": lost,
         "float_oversize_n": len(over_hits),
