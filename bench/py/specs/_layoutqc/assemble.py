@@ -39,6 +39,7 @@ from specs._layoutqc.thresh import (
     _VERB_ENV_RX,
     BROKEN_BARE_W,
     BROKEN_REFS_MIN,
+    CURVES_BASE_CHARS,
     CURVES_INK_MIN,
     EMPTY_PAGE_CHARS,
     HEADER_LOST_FRAC,
@@ -447,23 +448,40 @@ def qc_paper(
                 twoside=twoside,
                 blankpage_marker=blankpage_marker,
                 doc_title=doc_title,
+                zh_missing_chars=metrics["text"].get("missing_chars"),
             )
             findings += f
             metrics["raster"] = m
             # 曲线化文本页：有墨（非空页）+ 几乎零可提取词 + 无位图
             # 对象 → 文字被渲成曲线/路径（不可复制检索，olmOCR/babeldoc
             # 族已知缺陷类）。位图图版页被 images>0 排除；带页码的空页
-            # ink 极低自然不过阈。矢量图不可提取文本页仍会过——罕见，
-            # 留人工分诊。
+            # ink 极低自然不过阈。矢量图版页（短图题+满版路径）是同形
+            # 合法页——跨臂闸：base ±1 页窗内存在同形寡文页即源承，
+            # 不报（1003.0547/nucl-th 图版簇实证）；base 全窗有文本而
+            # zh 寡文才是曲线化真伤。
             ccs = metrics["bbox"].get("char_counts", [])
-            curves = [
-                i + 1
-                for i, pg in enumerate(rz["pages"])
-                if pg["ink"] > CURVES_INK_MIN
-                and i < len(ccs)
-                and ccs[i] < 10
-                and zh_images.get(i + 1, 0) == 0
-            ]
+            base_cc = (
+                [len(p.strip()) for p in base_text.split("\f")] if base_text else None
+            )
+            if base_cc and base_cc[-1] == 0:
+                base_cc.pop()  # 尾部 \f 幻影空页——不属任何真页
+            curves = []
+            for i, pg in enumerate(rz["pages"]):
+                if (
+                    pg["ink"] <= CURVES_INK_MIN
+                    or i >= len(ccs)
+                    or ccs[i] >= 10
+                    or zh_images.get(i + 1, 0) != 0
+                ):
+                    continue
+                if base_cc is not None and any(
+                    bc < CURVES_BASE_CHARS for bc in base_cc[max(0, i - 1) : i + 2]
+                ):
+                    metrics["raster"]["curves_supp"] = (
+                        metrics["raster"].get("curves_supp", 0) + 1
+                    )
+                    continue
+                curves.append(i + 1)
             if curves:
                 findings.append({"sig": "geo_text_as_curves", "pages": curves})
                 metrics["raster"]["curves_pages"] = curves

@@ -22,6 +22,7 @@ from specs._layoutqc.thresh import (
     INK_DROP_RATIO,
     INK_SELF_OUTLIER,
     INKBLOB_CC_MIN,
+    INKBLOB_FRAME_MIN,
     KEEP_DPI,
     KEEP_TIMEOUT,
     RASTER_DPI,
@@ -89,6 +90,7 @@ def _raster_scan(
     twoside: bool = False,
     blankpage_marker: bool = False,
     doc_title: str | None = None,
+    zh_missing_chars: int | None = None,
 ) -> tuple[list[dict], dict]:
     """raster 检查：空白/墨团/空洞/tofu（zh 单侧）+ 栏数/规则
     对拍（跨臂）。
@@ -101,7 +103,10 @@ def _raster_scan(
     ``twoside``=文档双面排版（偶数 verso 空白页合法）；
     ``blankpage_marker``=tex 含 \\blankpage 族显式造白页标记
     （frontmatter 域佐证，全篇不放大）；``doc_title``=splice
-    ``\\title`` squash 串（标题页 verso 佐证）。
+    ``\\title`` squash 串（标题页 verso 佐证）；
+    ``zh_missing_chars``=zh 日志 Missing character 总数——零缺字
+    佐证时 tofu 空心框必是图内构件非 .notdef（2106.07115 p38 图内
+    空格簇实证）；None=log 缺席不降级。
 
     空白页抑制四层：base ±1 窗同空白（源承）/下一非白页首行结构性
     标题（章前分隔）/verso（folio 偶数优先、PDF 序数兜底、
@@ -110,7 +115,7 @@ def _raster_scan(
     ``vis_widow_page``（INFO）——孤行页是排版丑态非缺陷面。"""
     findings: list[dict] = []
     metrics: dict = {"raster_pages": len(zh_pages)}
-    blank = blob = void = blank_supp = widow = 0
+    blank = blob = void = blank_supp = blob_supp = widow = 0
     tofu_pages: list[int] = []
     n_zh = len(zh_pages)
     n_tx = len(zh_text_pages) if zh_text_pages is not None else 0
@@ -196,8 +201,31 @@ def _raster_scan(
                     }
                 )
         if pg["dark_cc"] > INKBLOB_CC_MIN and not (zh_images or {}).get(i + 1, 0):
-            blob += 1
-            findings.append({"sig": "vis_ink_blob", "page": i + 1, "cc": pg["dark_cc"]})
+            # 深色底板样式盒豁免——tcolorbox/listings 大色块 fill path
+            # 在矢量帧里呈现为 ≥30% 页面积封印框且框内有词；渲染泼溅
+            # 的墨团不具规整框形。
+            frames = (
+                zh_geo[i].get("frames")
+                if zh_geo is not None and i < len(zh_geo)
+                else None
+            )
+            styled = bool(
+                frames
+                and zh_geo[i].get("w")
+                and any(
+                    (fr["rect"][2] - fr["rect"][0]) * (fr["rect"][3] - fr["rect"][1])
+                    >= INKBLOB_FRAME_MIN * zh_geo[i]["w"] * zh_geo[i]["h"]
+                    and fr["words"] > 0
+                    for fr in frames
+                )
+            )
+            if styled:
+                blob_supp += 1
+            else:
+                blob += 1
+                findings.append(
+                    {"sig": "vis_ink_blob", "page": i + 1, "cc": pg["dark_cc"]}
+                )
         # 内部洞（四周皆有墨）才是真掉图窟窿；贴边留白是结构性
         # （目录收尾/末页早收/栏尾空行，2605.25645 p3 实证）。
         # void_ink 闸（raster 子进程新版输出）：封印框内墨率 ≥2% =
@@ -227,12 +255,15 @@ def _raster_scan(
                 findings.append({"sig": "vis_void", "page": i + 1, "frac": v_int})
         if pg.get("tofu", 0) >= TOFU_MIN_PAGE:
             tofu_pages.append(i + 1)
-    if tofu_pages:
+    if tofu_pages and zh_missing_chars != 0:
+        # 零缺字佐证的 tofu 簇=图内构件（位图格线/边框白格），非
+        # .notdef——真缺字在 zh log 必有 Missing character 行。
         findings.append({"sig": "vis_tofu_box", "pages": tofu_pages})
     metrics.update(
         {
             "blank": blank,
             "blank_suppressed": blank_supp,
+            "ink_blob_supp": blob_supp,
             "widow_pages": widow,
             "ink_blob": blob,
             "void": void,

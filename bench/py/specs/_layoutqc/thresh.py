@@ -51,6 +51,12 @@ OVERLAP_GRAZE_IY: Final = (
 )
 
 CURVES_INK_MIN: Final = 0.005
+#: 跨臂寡文页判阈——base 对位页（±1 窗）pdftotext 字符 <50 即同构
+#: 图版/寡文页，zh 侧寡文非曲线化伤（en 图题标签 ~20 chars 实证
+#: 仍过 zh <10 阈——CJK 紧凑度差异，阈须放宽）；base 全窗有正文
+#: 而 zh 寡文才报真曲线化。
+
+CURVES_BASE_CHARS: Final = 50
 #: 缺字框聚簇阈——单页 ≥4 个空心矩形才算 .notdef 连珠（单个 □
 #: 可为合法符号/复选框）。
 
@@ -195,6 +201,11 @@ BLANK_INK_MAX: Final = 0.001  # ink<0.1% → 空白页
 WIDOW_INK_MAX: Final = 0.01
 
 INKBLOB_CC_MIN: Final = 0.4  # 最大深连通块>40% 页 → 墨团
+#: 墨团的样式盒豁免——封印框簇覆盖 ≥30% 页且框内有词 = tcolorbox/
+#: listings 深色底板（2609.19644 p40-41 实证 46% 深底代码盒），非
+#: 渲染泼溅；无框证的深块仍按墨团报。
+
+INKBLOB_FRAME_MIN: Final = 0.30
 
 VOID_FRAC_MIN: Final = 0.3  # 最大空 rect>30% textblock → 空洞
 #: 密封白区内墨率下限——框线（tcolorbox/lstlisting/坐标轴）封出的

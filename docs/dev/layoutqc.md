@@ -339,6 +339,10 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **`layout:no_pdf`**：zh PDF 缺席兜底 sig。
 - **fullpage XObject 幻影词层（已修 2026-09-26）**：splice 矢量保真复用把整页源文嵌作 `fullpage` Form XObject 再按图 bbox clip——poppler `pdftotext -bbox` 无视 XObject clip，报出 clip 区外幻影 en 词与可见 zh 行互撞（2609.05962 p11：pdftotext 460 词 vs mupdf 82 词；texttrace/OCG/Tr 排查排除隐墨面）；mupdf `get_text('words')` clip-aware 只报可见墨——`_bbox_pages` 换 pymupdf 优先（AGPL 可选依赖，缺席退 pdftotext）。W1 普查口径 1413→749 词对。
 - **en×en 图内源侧碰撞（已修 CJK 闸 2026-09-26）**：嵌入图 PDF 内的 en 标签互撞（matplotlib tick×轴题挤压）是源侧几何非 splice 产物——splice 只产 zh 墨，凡 splice 致撞必含 CJK——`_word_overlap_pairs` 加 CJK 参与闸（en×en 跳过，残留 en 行互撞归 xlat_residual_en 管）。W1 普查词对 749→133、findings 188→35/格 93→25（-81%）；抽核实撞真阳：cond-mat/9901106 p3 zh 题字压图轴刻度（18 对）、1404.0417 p6 zh×残留 en 引文（6 对）；2202.13013 zh 行内 math token 微撞为边界真信号非噪音。
+- **curves 图版同构页（已修 2026-10-06）**：`geo_text_as_curves` 对「短图题 + 满版矢量路径」图版页天然失语（1003.0547/1312.0337/nucl-th/0003066 共 8 页全是合法图版或源内缺图框）；加跨臂寡文闸——base ±1 页窗内存在 <50 字符寡文页即源承不报（en 图题标签 ~20 chars 仍过 zh <10 阈是 CJK 紧凑度差，`CURVES_BASE_CHARS=50`），base 全窗有正文而 zh 寡文才是真曲线化。
+- **tofu 图内空格簇（已修 2026-10-06）**：`vis_tofu_box` 缺位图区豁免——嵌入图内的空格/格线同呈「四边有墨内全白」空心矩形（2106.07115 p38 四框全落在位图带）；改缺字佐证闸——zh log 零 `Missing character` 行时不可能有 .notdef，tofu 簇按图内构件不收（log 缺席不降级）。tofu_pages 度量仍记账。
+- **ink_blob 深色样式盒（已修 2026-10-06）**：tcolorbox/listings 深色底板是矢量帧里的整幅填充框（2609.19644 p40-41 实证：46%/41% 页面积 fill rect、框内 349/388 词）——非渲染泼溅。frames 豁免：封印框 ≥30% 页面积且框内有词即样式盒不收，`ink_blob_supp` 记账。
+- **`base_word_stats` 解包崩（已修 2026-10-06）**：`_page_word_stats` 返 5 元组（nbx/nby 劈分）后 metrics 落账两处仍按 3 元组解包——凡带 base 臂的 qc_paper 必 ValueError。改 `st[0]/st[2]` 下标取。
 
 ### 10.7 检查面完备性自问（vs §3 外部调研）
 
@@ -360,7 +364,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 11. 终版检验方案与工件保留政策（定稿 2026-09-23）
 
-§4–§6 是计划面；§11 是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（31 个已发射 sig）定稿。
+§4–§6 是计划面；§11 是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（40 个已发射 sig，与 `thresh.py` 三档集一一对应）定稿。
 
 ### 11.1 门定义：信号三档
 
@@ -368,13 +372,13 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 | 档                                 | 判定                                            | sig                                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:pdf_corrupt` `layout:marks_coverage` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:paper_mismatch` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
-| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_residual_en_heavy` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                                                                                 |
-| **INFO**（纯记账）                 | 机制回执 / 预期缺席                             | `layout:float_fit`（FLOAT_SIZING 手术回执——splice fork 发现的「发射了没人消费」信号，现由本档闭环消费）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——注入缺席=仪表链断）                                                                                                                                                                                        |
+| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:compile_died` `layout:pdf_corrupt` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
+| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_residual_en_heavy` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `layout:float_oversize_big` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                        |
+| **INFO**（纯记账）                 | 机制回执 / 预期缺席                             | `layout:float_fit`（FLOAT_SIZING 手术回执）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——`marks_era` 闸在 `_tier_of`）；`layout:marks_coverage`（env_inventory live-env 口径残余盲区）；`layout:float_oversize`（<60pt 超高由边距吸收）；`geo_deep_band`（页内深带越界）；`vis_widow_page`（孤行溢出页）；`layout:overfull_titlepage`（titlepage 测量盒整版过宽）；`layout:paper_mismatch`（trim-size special 单页偏离）；`layout:overfull_output`（`\output` 例程家具溢出） |
 
 分档理由：
 
-- **HARD 全是「产出不可用或元素级丢失」**——§10.5 每条背后都有实证：截断编译（marks_coverage/float_lost）、letter 稿出 A4（paper_mismatch）、占位符 mock 译文（vis_degenerate）、掉图窟窿（vis_void）。
+- **HARD 全是「产出不可用或元素级丢失」**——§10.5 每条背后都有实证：编译半路死亡（compile_died）、浮体丢失（float_lost）、占位符 mock 译文（vis_degenerate）、掉图窟窿（vis_void）。letter 稿出 A4 的 paper_mismatch 已随 trim-size special 裁定降 INFO。
 - **WARN 是「读者能看见但读得完」**——residual_en 存量基线 ~33% 挡门会淹没分诊、text_overlap 含已知 figure 内伪影、drift/inversion 多为合法 reflow 事件。进 score 供人工分诊与质量统计，不挡。
 - `align_order_break` 是粗信号（LCS 抽取序噪声面已知，§10.6）——只作看页提示。
 - 已落地：`vis_tofu_box`（.notdef 空心框簇 ≥4/页，四边墨率判据挡 O/0 伪影）→ HARD；`geo_table_lost`（规则行数跨臂对拍，zh<base×0.6 且 base≥3）→ HARD；`regress_ink_profile`（逐页墨量回归，矢量图掉图补位）→ WARN；`layout:pdf_corrupt`（poppler 渲染级失败，坏 xref/断 stream）→ HARD；`xlat_broken_refs`（`?{2,}` run≥8 位点，断链 cite/ref）→ WARN。未建：`geo_biou_low`/SSIM（→ WARN 预期）。
