@@ -23,10 +23,14 @@ r"""发射侧版面真值（LAYOUT_MARKS）：让 LaTeX 自己吐出元素坐标
 from __future__ import annotations
 
 import re
+from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Iterable
+
+from texlate.latex.chars import match_brace, match_bracket
 
 from ._docseams import _splice_before_document
 from .mainfile import _MAIN_TEX_SUFFIXES
@@ -202,36 +206,375 @@ def parse_txlm(path: Path) -> dict:
     return {"marks": marks, "geom": geom, "lines": lines}
 
 
-def env_inventory(root: Path) -> dict[str, int]:
-    r"""源树 ``\\begin{<env>}`` 逐环境计数（marks 覆盖率的期望面）。"""
-    inv: dict[str, int] = {}
-    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
-        text = _read_tex(path)
-        if text is None:
+# ---------------------------------------------------------------- live-env 口径
+
+#: ``<stem>.fls`` 的 INPUT 行——引擎开档集是期望面的权威活集（``\subfile``/
+#: ``\import`` 族静态闭包抓不全，fls 由引擎背书）；行序=编译读档序。
+_FLS_INPUT_RX: Final = re.compile(r"^INPUT\s+(.+?)\s*$")
+
+#: depth-0 ``\end{document}``——其后到死尾的所有 token 引擎不再读。
+_ENDDOC_RX: Final = re.compile(r"\\end\s*\{document\}")
+
+_CS_WORD_RX: Final = re.compile(r"\\[a-zA-Z@]+")
+
+#: ``\def``-族 opener（``\outer``/``\long``/``\protected``/``\global`` 前缀
+#: token 不影响——扫描只认 opener 本身）。
+_DEF_RX: Final = re.compile(
+    r"\\(newenvironment|renewenvironment|[gex]?def|newcommand|"
+    r"renewcommand|providecommand|DeclareRobustCommand)\s*\*?\s*"
+)
+
+_BEGIN_ANY_RX: Final = re.compile(r"\\begin\s*\{([^}\s]+)\}")
+
+_MASK_RX: Final = re.compile(r"[^\n]")
+
+
+def fls_tex_files(fls: Path, root: Path) -> list[str] | None:  # noqa: C901 -- INPUT 行逐条过豁免/后缀/驻树/stale-root 四道闸，分支即契约
+    """``<stem>.fls`` INPUT 行 → ``root`` 相对 ``.tex/.ltx`` 开档序清单。
+
+    缺席/零有效行 → ``None``（调用方退回全树口径）。vault 恢复/迁移
+    后的树里 INPUT 记的是原编译机绝对路径、根名也可能被改写
+    （fixloop 的 ``.pipe-fix`` → ``splice.real@v*``）——落不进
+    ``root`` 的绝对路径按「root 下真实存在的最长路径后缀」映射回
+    当前树。
+    """
+    try:
+        lines = fls.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    try:
+        base = root.resolve()
+    except OSError:
+        base = root
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        m = _FLS_INPUT_RX.match(line.strip())
+        if not m:
             continue
-        vis = visible_tex(text)
-        for m in re.finditer(r"\\begin\s*\{([^}\s]+)\}", vis):
+        raw = m.group(1).strip().strip('"')
+        p = Path(raw)
+        if not p.is_absolute():
+            p = fls.parent / p
+        try:
+            rp = p.resolve()
+        except OSError:
+            continue
+        if rp.suffix.lower() not in _MAIN_TEX_SUFFIXES:
+            continue
+        try:
+            rel = rp.relative_to(base)
+        except ValueError:
+            rel = _stale_root_rel(Path(raw), base) if p.is_absolute() else None
+            if rel is None:
+                continue
+        s = rel.as_posix()
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out or None
+
+
+def _stale_root_rel(p: Path, base: Path) -> Path | None:
+    """归档 .fls 的绝对 INPUT 路径 → ``base`` 相对路径。
+
+    逐位左移取 ``base`` 下首个落盘存在的路径后缀——最长后缀承载
+    最多的原树内相对路径上下文，命中即真身。全不命中 → ``None``
+    （原树外文件/未随归档恢复，维持排除语义）。
+    """
+    parts = p.parts
+    for j in range(1, len(parts)):
+        tail = parts[j:]
+        if ".." in tail:
+            continue
+        if base.joinpath(*tail).exists():
+            return Path(*tail)
+    return None
+
+
+def _grp_end(vis: str, i: int) -> int:
+    """``{`` 在 i → 平衡闭组后位；配不上 → ``i+1``（内容仍按活扫）。"""
+    e = match_brace(vis, i, openers="{", nest="{")
+    return i + 1 if e is None else e
+
+
+def _brk_end(vis: str, i: int) -> int:
+    """``[`` 在 i → 匹配 ``]`` 后位；配不上 → ``i+1``。"""
+    e = match_bracket(vis, i)
+    return i + 1 if e is None else e
+
+
+def _if_boundary(vis: str, i: int, depth: int) -> tuple[int, int, bool]:
+    r"""条件深度账：i 起扫至首个 ``\\else``@depth==1 或收 depth→0 的 ``\\fi``。
+
+    返回 ``(tok_start, tok_end, is_else)``——EOF → ``(n, n, False)``。
+    """
+    j, n = i, len(vis)
+    while j < n:
+        w = _CS_WORD_RX.match(vis, j)
+        if not w:
+            j += 2 if vis[j] == "\\" else 1
+            continue
+        tok = w.group(0)
+        if tok.startswith("\\if"):
+            depth += 1
+        elif tok == "\\else":
+            if depth == 1:
+                return j, w.end(), True
+        elif tok == "\\fi":
+            depth -= 1
+            if depth == 0:
+                return j, w.end(), False
+        j = w.end()
+    return n, n, False
+
+
+def _walk_dead(vis: str) -> tuple[list[tuple[int, int]], bool]:  # noqa: C901 -- char 级 token 分派即分支面
+    r"""结构死区一遍扫。
+
+    depth-0 ``\\end{document}`` 死尾 + 全深度 ``\\iffalse`` 死支
+    （``\\else`` 支是活的，死区止于 else 而非 fi）。返回
+    ``(spans, hit_enddoc)``——hit_enddoc 标记 depth-0 job 终结。
+    """
+    spans: list[tuple[int, int]] = []
+    i, n, depth = 0, len(vis), 0
+    while i < n:
+        c = vis[i]
+        if c == "\\":
+            m = _ENDDOC_RX.match(vis, i)
+            if m:
+                if depth == 0:
+                    spans.append((i, n))
+                    return spans, True
+                i = m.end()
+                continue
+            w = _CS_WORD_RX.match(vis, i)
+            if not w:
+                i += 2
+                continue
+            tok = w.group(0)
+            if tok == "\\bgroup":
+                depth += 1
+            elif tok == "\\egroup":
+                depth = max(0, depth - 1)
+            elif tok == "\\iffalse":
+                _s, e, _is_else = _if_boundary(vis, i, 0)
+                spans.append((i, e))
+                i = e
+                continue
+            i = w.end()
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth = max(0, depth - 1)
+        i += 1
+    return spans, False
+
+
+def _walk_defs(  # noqa: C901, PLR0912, PLR0915 -- def-族语法分派表：opener/name/opt/body 逐支平铺即 spec
+    vis: str,
+) -> tuple[list[tuple[int, int]], dict[str, int]]:
+    r"""``\\def``-族定义点一遍扫：opener→body 组整段死（体只在调用时执行）。
+
+    返回 ``(spans, {名: arity})``——命令族体全空记弃料宏名
+    （``\\newcommand{\\ignore}[1]{}`` → ``ignore:1``），供调用点
+    ``\\ignore{…}`` 参数组留白；env 族 before/after 空不吞 env 体
+    （``\\begin``/``\\end`` 之间的内容照常排版），永不记名。
+    """
+    spans: list[tuple[int, int]] = []
+    discards: dict[str, int] = {}
+    n = len(vis)
+    for m in _DEF_RX.finditer(vis):
+        fam = m.group(1)
+        kind = (
+            "env" if "environment" in fam else ("def" if fam.endswith("def") else "cmd")
+        )
+        j = m.end()
+        name_end = j
+        defname = ""
+        if j < n and vis[j] == "\\":
+            w = _CS_WORD_RX.match(vis, j)
+            if w:
+                defname = w.group(0)[1:]
+                j = w.end()
+            else:
+                j = min(j + 2, n)
+            name_end = j
+        elif j < n and vis[j] == "{":
+            e = _grp_end(vis, j)
+            inner = vis[j + 1 : e - 1].strip()
+            defname = inner.removeprefix("\\")
+            j = e
+            name_end = j
+        elif j < n:
+            defname = vis[j]
+            j += 1
+            name_end = j
+        arity = 0
+        if kind == "def":
+            # 参数文本无括号——扫到首个 ``{`` 即 body 起点（封顶防
+            # 无 body 的病态 def 吞到 EOF）。
+            cap = min(n, j + 512)
+            while j < cap:
+                c = vis[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == "{":
+                    break
+                if c == "#" and j + 1 < n and vis[j + 1].isdigit():
+                    arity = max(arity, int(vis[j + 1]))
+                    j += 2
+                    continue
+                j += 1
+        else:
+            # ``[N]``/``[N][d]`` opt 槽先行——首个是 arity
+            first_opt = True
+            while True:
+                while j < n and vis[j] in " \t\r\n":
+                    j += 1
+                if j >= n or vis[j] != "[":
+                    break
+                e = _brk_end(vis, j)
+                if first_opt:
+                    first_opt = False
+                    with suppress(ValueError):
+                        arity = int(vis[j + 1 : e - 1].strip())
+                j = e
+        bodies = 0
+        body_all_ws = True
+        want = 2 if kind == "env" else 1
+        while bodies < want:
+            while j < n and vis[j] in " \t\r\n":
+                j += 1
+            if j >= n or vis[j] != "{":
+                break
+            e = _grp_end(vis, j)
+            if vis[j + 1 : e - 1].strip():
+                body_all_ws = False
+            j = e
+            bodies += 1
+        if kind != "env" and bodies and body_all_ws and defname:
+            discards.setdefault(defname, arity)
+        spans.append((m.start(), j if bodies else name_end))
+    return spans, discards
+
+
+def _mask_spans(vis: str, spans: list[tuple[int, int]]) -> str:
+    r"""死区 span 等长留白（``\\n`` 保留保行号）——``\\begin`` 不再计。"""
+    for s, e in sorted(spans):
+        vis = vis[:s] + _MASK_RX.sub(" ", vis[s:e]) + vis[e:]
+    return vis
+
+
+def _discard_arg_spans(vis: str, names: dict[str, int]) -> list[tuple[int, int]]:
+    r"""空体宏调用点——``\\name`` 后 arity 个 ``{..}``/``[..]`` 槽整段死。
+
+    参数被丢，槽内 ``\\begin`` 不执行。
+    """
+    if not names:
+        return []
+    rx = re.compile(r"\\(" + "|".join(re.escape(k) for k in names) + r")(?![a-zA-Z@])")
+    out: list[tuple[int, int]] = []
+    n = len(vis)
+    for m in rx.finditer(vis):
+        j = m.end()
+        left = names[m.group(1)]
+        while left:
+            while j < n and vis[j] in " \t\r\n":
+                j += 1
+            if j < n and vis[j] == "{":
+                j = _grp_end(vis, j)
+                left -= 1
+            elif j < n and vis[j] == "[":
+                j = _brk_end(vis, j)
+            else:
+                break
+        out.append((m.start(), j))
+    return out
+
+
+def _dead_spans(vis: str) -> tuple[list[tuple[int, int]], dict[str, int], bool]:
+    r"""单文件死区：结构面（enddoc 死尾/iffalse 死支）→ def 体 + 弃料名。
+
+    顺序：结构面先行——死区内的 ``\\newcommand`` 定义不生效
+    （``\\iffalse`` 跳过整段），弃料名只在活区收集才不会错杀调用点。
+    """
+    spans, hit = _walk_dead(vis)
+    dspans, discards = _walk_defs(_mask_spans(vis, spans))
+    spans.extend(dspans)
+    return spans, discards, hit
+
+
+def _live_sources(root: Path, files: Iterable[Path] | None) -> list[str]:
+    r"""源文件 → live 视图清单：visible_tex 遮盖 → 死区留白。
+
+    死区 = enddoc 死尾/``\\iffalse`` 死支/def 体/弃料宏参数组。
+    ``files`` 非空按编译序（fls 开档序）走读并止于首个含 depth-0
+    ``\\end{document}`` 的文件（job 终结，其后文件引擎不再读）；
+    ``None`` 退回 ``_iter_files`` 全树序（序未知，死尾仍切但不截
+    文件流）。弃料名全局并集——定义与调用跨文件是常态。
+    """
+    paths = (
+        list(_iter_files(root, _MAIN_TEX_SUFFIXES)) if files is None else list(files)
+    )
+    vises: list[str] = []
+    deads: list[list[tuple[int, int]]] = []
+    discards: dict[str, int] = {}
+    for p in paths:
+        text = _read_tex(p)
+        vis = visible_tex(text) if text is not None else ""
+        spans, dnames, hit = _dead_spans(vis)
+        vises.append(vis)
+        deads.append(spans)
+        for nm, ar in dnames.items():
+            discards.setdefault(nm, ar)
+        if hit and files is not None:
+            break
+    out: list[str] = []
+    for vis, spans in zip(vises, deads, strict=True):
+        live = _mask_spans(vis, spans)
+        if discards:
+            live = _mask_spans(live, _discard_arg_spans(live, discards))
+        out.append(live)
+    return out
+
+
+def env_inventory(root: Path, files: Iterable[Path] | None = None) -> dict[str, int]:
+    r"""源树 ``\\begin{<env>}`` 逐环境计数（marks 覆盖率的期望面）。
+
+    只数活区——``\\end{document}`` 死尾/``\\iffalse`` 死支/def 体/弃料
+    宏参数组里的 ``\\begin`` 引擎永不执行，不计期望。``files`` 给
+    fls 开档序的活文件集时按编译序走读（止于 job 终结文件），缺席
+    退回全树扫描。
+    """
+    inv: dict[str, int] = {}
+    for vis in _live_sources(root, files):
+        for m in _BEGIN_ANY_RX.finditer(vis):
             env = m.group(1)
             inv[env] = inv.get(env, 0) + 1
     return inv
 
 
-def env_sequence(root: Path, envs: frozenset = _FLOAT_ENVS) -> list[str]:
+def env_sequence(
+    root: Path,
+    envs: frozenset = _FLOAT_ENVS,
+    files: Iterable[Path] | None = None,
+) -> list[str]:
     """源序浮体 uid 清单 ``<env>-<per-env 序>``——声明锚真值。
 
     跨臂元素匹配的**主键**（不用 b-mark：探针实证 b whatsit 独占末页
     galley 时不触发 page builder，浮体孤页会丢 b-mark；源扫出的声明序
     与编译行为无关、恒真）。``demote_wrapfloats`` 改名不改序——
     splice 树与 src 树的浮体序列等长、按位对即同元素。
+    ``files``/死区口径同 ``env_inventory``——幻影声明剔除后 zip
+    对位更稳。
     """
     seq: list[str] = []
     counters: dict[str, int] = {}
-    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
-        text = _read_tex(path)
-        if text is None:
-            continue
-        vis = visible_tex(text)
-        for m in re.finditer(r"\\begin\s*\{([^}\s]+)\}", vis):
+    for vis in _live_sources(root, files):
+        for m in _BEGIN_ANY_RX.finditer(vis):
             env = m.group(1)
             if env not in envs:
                 continue

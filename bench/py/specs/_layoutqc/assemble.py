@@ -480,6 +480,7 @@ def qc_paper(
         base_pages=metrics.get("base_pages"),
         marks_sentinel=marks_sentinel,
         marks_expected=marks_expected,
+        base_dir=base_dir,
     )
     findings += f
     metrics["marks"] = m

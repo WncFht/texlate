@@ -19,11 +19,25 @@ from texlate.compile.marks import (
     compare_marks,
     env_inventory,
     env_sequence,
+    fls_tex_files,
     parse_txlm,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def _live_files(fls: Path, fls_root: Path, tree_root: Path) -> list[Path] | None:
+    """``<stem>.fls`` → 编译读档序的活 ``.tex`` 集（映射到 tree_root 下）。
+
+    fls 缺席 → ``None``（调用方退回全树口径）。INPUT 行相对 fls_root
+    解析成 relpath 再映射——base 侧 fls 长在 build-base 树而期望面
+    扫 src 树，两树同构时 relpath 直接换根。
+    """
+    rels = fls_tex_files(fls, fls_root)
+    if rels is None:
+        return None
+    return [tree_root / r for r in rels]
 
 
 def _marks_scan(
@@ -35,6 +49,7 @@ def _marks_scan(
     base_pages: int | None = None,
     marks_sentinel: bool | None = None,
     marks_expected: bool | None = None,
+    base_dir: Path | None = None,
 ) -> tuple[list[dict], dict]:
     """marks 查表层：跨臂对照 + 单侧 offpage + 双层覆盖记账。
 
@@ -88,15 +103,34 @@ def _marks_scan(
             findings.append({"sig": "layout:marks_absent", "side": "base"})
     # base 臂未建只记 metrics——对照臂编不编是参数选择非缺陷
     metrics.setdefault("base_marks", 0)
+    # live-env 口径：fls 开档集=引擎背书的活文件集（整树 rglob 会把
+    # 孤儿文件/备选 main 计进期望面），叠文件内死区（enddoc 死尾/
+    # \iffalse 死支/def 体/弃料宏参数组）——fls 缺席退回全树口径。
+    zh_live = (
+        _live_files(zh_txlm.with_suffix(".fls"), splice_dir, splice_dir)
+        if splice_dir is not None and splice_dir.is_dir()
+        else None
+    )
+    src_live = (
+        _live_files(base_txlm.with_suffix(".fls"), base_dir, src_dir)
+        if base_txlm is not None
+        and base_dir is not None
+        and src_dir is not None
+        and src_dir.is_dir()
+        else None
+    )
+    metrics["env_live"] = {"zh": zh_live is not None, "src": src_live is not None}
     # 声明序主键：zh 侧读 splice 树（编译面），base 侧读 src 树
     # （en 原面——build-base 同构）→ demote 改名/缺 b-mark 皆免疫
     zh_decl = (
-        env_sequence(splice_dir)
+        env_sequence(splice_dir, files=zh_live)
         if splice_dir is not None and splice_dir.is_dir()
         else None
     )
     base_decl = (
-        env_sequence(src_dir) if src_dir is not None and src_dir.is_dir() else None
+        env_sequence(src_dir, files=src_live)
+        if src_dir is not None and src_dir.is_dir()
+        else None
     )
     findings.extend(
         compare_marks(
@@ -110,7 +144,7 @@ def _marks_scan(
     )
     emitted = Counter(v["uid"].rsplit("-", 2)[0] for v in zh["marks"].values())
     if splice_dir is not None and splice_dir.is_dir():
-        sinv = env_inventory(splice_dir)
+        sinv = env_inventory(splice_dir, files=zh_live)
         gaps = {
             e: n for e, n in sinv.items() if e in _MARK_ENVS and emitted.get(e, 0) == 0
         }
@@ -118,7 +152,7 @@ def _marks_scan(
         if gaps:
             findings.append({"sig": "layout:marks_coverage", "envs": gaps})
         if src_dir is not None and src_dir.is_dir():
-            sinv_src = env_inventory(src_dir)
+            sinv_src = env_inventory(src_dir, files=src_live)
             dropped = {
                 e: n
                 for e, n in sinv_src.items()

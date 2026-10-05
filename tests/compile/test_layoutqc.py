@@ -31,6 +31,8 @@ from texlate.compile import marks
 from texlate.compile.marks import (
     compare_marks,
     env_inventory,
+    env_sequence,
+    fls_tex_files,
     inject_layout_marks,
     parse_txlm,
 )
@@ -88,6 +90,114 @@ def test_env_inventory_counts(tmp_path: Path) -> None:
     assert inv["figure"] == 2  # noqa: PLR2004
     assert inv["wrapfigure"] == 1
     assert "table" not in inv  # 注释面不可见
+
+
+def test_env_inventory_dead_regions(tmp_path: Path) -> None:
+    """死区不计期望：enddoc 死尾/\\iffalse 死支/def 体/弃料宏参数组。"""
+    (tmp_path / "m.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\newcommand{\\ignore}[1]{}\n"
+        "\\def\\myfig{\\begin{figure}defbody\\end{figure}}\n"
+        "\\iffalse\n\\begin{table}deadbranch\\end{table}\n\\fi\n"
+        "\\begin{document}\n"
+        "\\begin{figure}live\\end{figure}\n"
+        "\\ignore{\\begin{table}swallowed\\end{table}}\n"
+        "\\end{document}\n"
+        "\\begin{align}tail\\end{align}\n",
+        encoding="utf-8",
+    )
+    inv = env_inventory(tmp_path)
+    assert inv["figure"] == 1  # def 体内的不计
+    assert "table" not in inv  # iffalse 支与弃料参数组都不计
+    assert "align" not in inv  # enddoc 死尾不计
+
+
+def test_env_inventory_iffalse_else_live(tmp_path: Path) -> None:
+    """``\\iffalse`` 的 ``\\else`` 支是活的——死区止于 else 而非 fi。"""
+    (tmp_path / "m.tex").write_text(
+        "\\iffalse\n\\begin{table}dead\\end{table}\n"
+        "\\else\n\\begin{figure}live\\end{figure}\n\\fi\n",
+        encoding="utf-8",
+    )
+    inv = env_inventory(tmp_path)
+    assert "table" not in inv
+    assert inv["figure"] == 1
+
+
+def test_fls_tex_files_orders_and_filters(tmp_path: Path) -> None:
+    """fls INPUT 序 → root 相对 .tex/.ltx 清单；树外/非 tex/重复滤除。"""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "a.tex").write_text("x", encoding="utf-8")
+    fls = tmp_path / "m.fls"
+    fls.write_text(
+        "INPUT /usr/share/texlive/texmf/tex/latex/base/article.cls\n"
+        f"INPUT {tmp_path}/main.tex\n"
+        "INPUT ./sub/a.tex\n"
+        f"INPUT {tmp_path}/main.tex\n"
+        f"INPUT {tmp_path}/../outside.tex\n"
+        "OUTPUT m.pdf\n",
+        encoding="utf-8",
+    )
+    assert fls_tex_files(fls, tmp_path) == ["main.tex", "sub/a.tex"]
+    assert fls_tex_files(tmp_path / "nope.fls", tmp_path) is None
+
+
+def test_fls_tex_files_stale_root(tmp_path: Path) -> None:
+    """归档恢复的 .fls 记原编译机绝对路径——最长存在后缀映射回当前树。"""
+    root = tmp_path / "splice.real@v9"
+    (root / "sub").mkdir(parents=True)
+    (root / "main.tex").write_text("x", encoding="utf-8")
+    (root / "sub" / "a.tex").write_text("x", encoding="utf-8")
+    (root / "parallel.tex").write_text("x", encoding="utf-8")
+    fls = root / "main.fls"
+    fls.write_text(
+        "INPUT /usr/share/texlive/texmf/tex/latex/base/article.cls\n"
+        "INPUT /orig/build/work/idc/splice.real@v9/main.tex\n"
+        "INPUT /orig/build/work/idc/splice.real@v9/sub/a.tex\n"
+        # fixloop .pipe-fix 暂存目录改名形态——内容平铺进 splice 根
+        "INPUT /orig/build/work/idc/.pipe-fix/parallel.tex\n"
+        "INPUT /orig/build/work/idc/other.real@v9/gone.tex\n",
+        encoding="utf-8",
+    )
+    assert fls_tex_files(fls, root) == ["main.tex", "sub/a.tex", "parallel.tex"]
+
+
+def test_env_inventory_files_param(tmp_path: Path) -> None:
+    """files=编译序活集：名单外不计；depth-0 enddoc 命中后文件流截断。"""
+    (tmp_path / "main.tex").write_text(
+        "\\begin{document}\n\\begin{figure}a\\end{figure}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "tail.tex").write_text(
+        "\\begin{table}b\\end{table}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "orphan.tex").write_text(
+        "\\begin{align}c\\end{align}\n",
+        encoding="utf-8",
+    )
+    inv_all = env_inventory(tmp_path)
+    assert inv_all["table"] == 1
+    assert inv_all["align"] == 1
+    inv = env_inventory(tmp_path, files=[tmp_path / "main.tex", tmp_path / "tail.tex"])
+    assert inv["figure"] == 1
+    assert "table" not in inv  # enddoc 终结文件流——tail.tex 引擎不再读
+    assert "align" not in inv  # 孤儿文件不在开档集
+
+
+def test_env_sequence_files_order_and_phantom(tmp_path: Path) -> None:
+    """files 序=编译序（跨 env 名可证）；def 体内的声明不进序列。"""
+    (tmp_path / "a.tex").write_text(
+        "\\begin{figure}A\\end{figure}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "b.tex").write_text(
+        "\\newcommand{\\mkfig}{\\begin{figure}phantom\\end{figure}}\n"
+        "\\begin{table}B\\end{table}\n",
+        encoding="utf-8",
+    )
+    seq = env_sequence(tmp_path, files=[tmp_path / "b.tex", tmp_path / "a.tex"])
+    assert seq == ["table-1", "figure-1"]
 
 
 # ---------------------------------------------------------------- 注入幂等/闸门

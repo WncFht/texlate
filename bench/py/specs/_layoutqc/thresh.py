@@ -113,9 +113,10 @@ _INFO_SIGS: Final = frozenset(
     {
         "layout:float_fit",
         "layout:marks_absent",
-        # env_inventory 全树数 \begin 把死代码计进期望面（孤儿文件/
-        # \iffalse 块/\newcommand 体）——8/9 命中是假缺口
-        # （marks_chain 簇实证）；live-env 口径落地前暂驻 INFO。
+        # env_inventory 已切 live-env 口径（fls 开档集 + enddoc 死尾/
+        # \iffalse 死支/def 体/弃料宏参数组留白）——孤儿文件与死代码
+        # 假缺口收敛；残余=measure-then-discard 试排盒/未知弃料宏等
+        # 引擎语义盲区（marks_chain 簇实证方向），继续驻 INFO 供分诊。
         "layout:marks_coverage",
         # 浮盒超高 <60pt——下边距吸收、内容不丢，记账不挡。
         "layout:float_oversize",
