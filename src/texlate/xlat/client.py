@@ -104,6 +104,7 @@ from texlate.xlat._discovery import (  # noqa: F401 -- 出叶回引：发现链�
     normalize_base_url,
     panel_models,
     pick_model,
+    probe_chat,
     probe_model,
     rank_models,
 )
@@ -779,6 +780,17 @@ class ChatClient:
     async def probe_model(self, uid: str) -> FreeModel:
         """探活单模型：一次最小 chat 往返——实现体出叶 ``_discovery.probe_model``。"""
         return await probe_model(self, uid)
+
+    async def probe_chat(
+        self,
+        uid: str,
+        messages: list[dict[str, str]],
+        opts: ChatOptions,
+        *,
+        req_timeout: httpx.Timeout | None = None,
+    ) -> ChatResult:
+        """指定模型直发一次 chat（绕开 ``chat`` 降级臂）——实现体出叶 ``_discovery.probe_chat``。"""
+        return await probe_chat(self, uid, messages, opts, req_timeout=req_timeout)
 
     async def discover_free_models(
         self, *, probe: bool = True, max_probe: int = 12

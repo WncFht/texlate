@@ -25,7 +25,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from texlate.xlat._dialects import ChatOptions
+from texlate.xlat._dialects import ChatOptions, ChatResult
 from texlate.xlat._errors import (
     _TRANSPORT_ERRORS,
     ChatError,
@@ -194,6 +194,23 @@ async def panel_models(client: ChatClient) -> list[dict[str, Any]]:
     if isinstance(data, list):
         return [m for m in data if isinstance(m, dict)]
     return []
+
+
+async def probe_chat(
+    client: ChatClient,
+    uid: str,
+    messages: list[dict[str, str]],
+    opts: ChatOptions,
+    *,
+    req_timeout: httpx.Timeout | None = None,
+) -> ChatResult:
+    """``_chat_once`` 的公开探活面：指定模型直发，绕开 ``chat`` 降级臂/退避。
+
+    行为探针（server ``endpoints.probe_endpoint`` 类消费方）的 verdict 必须
+    归属被测模型本人——经 ``chat`` 会被免费集降级臂静默换模代答，probe
+    结果撒谎。与 ``probe_model`` 同缝面（``_chat_once`` 单发出错不放大）。
+    """
+    return await client._chat_once(uid, messages, opts, req_timeout=req_timeout)  # noqa: SLF001 -- 出叶委托面（同模块实现组）
 
 
 async def probe_model(client: ChatClient, uid: str) -> FreeModel:
