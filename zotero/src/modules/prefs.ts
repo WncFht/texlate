@@ -13,11 +13,17 @@
  * ftl: field/button labels live in preferences.ftl (DOM l10n inside the
  * xhtml); runtime status strings live in addon.ftl for t() —
  *   prefs-checking · prefs-health-ok {version} · prefs-health-bad ·
- *   prefs-health-down · flow-error-bootstrap {detail}
+ *   prefs-health-down · prefs-probing · prefs-probe-ok {detail} ·
+ *   prefs-probe-bad {detail} · prefs-probe-none · prefs-probe-forbidden ·
+ *   flow-error-bootstrap {detail}
  */
 import { config, homepage } from "../../package.json";
-import type { TexlatePrefs } from "../contracts";
-import { NetworkError } from "../contracts";
+import type {
+  EndpointProbeReport,
+  EndpointsView,
+  TexlatePrefs,
+} from "../contracts";
+import { ApiError, NetworkError } from "../contracts";
 import { createClient } from "./client";
 import { ensureServer } from "./bootstrap";
 import { t } from "../utils/locale";
@@ -26,7 +32,11 @@ import { getPref, setPref } from "../utils/prefs";
 type PrefKey = keyof _ZoteroTypes.Prefs["PluginPrefsMap"];
 
 const STATUS_ID = "texlate-health-status";
-const BUTTON_IDS = { check: "texlate-check", start: "texlate-start" } as const;
+const BUTTON_IDS = {
+  check: "texlate-check",
+  start: "texlate-start",
+  endpoint: "texlate-check-endpoint",
+} as const;
 
 /**
  * SYNC: these defaults are duplicated as literals in addon/prefs.js —
@@ -176,6 +186,83 @@ async function checkConnection(doc: Document): Promise<void> {
   }
 }
 
+// ------------------------------------------------------------ 翻译端点探针
+
+const PROBE_OK_STAGE1 = new Set(["ok", "no_models_dir"]);
+const PROBE_LINE_MAX = 3;
+
+/**
+ * EndpointsView → 探针目标 id：活动 profile 优先，退首个启用条目，
+ * 再退表头（disabled 的活动行仍是活动）。空表 → ""。
+ */
+export function pickProbeTarget(view: EndpointsView): string {
+  return (
+    view.active_id ||
+    view.profiles.find((p) => p.enabled)?.id ||
+    view.profiles[0]?.id ||
+    ""
+  );
+}
+
+/**
+ * ProbeReport → { ok, label }：label 是 verdict 令牌摘要（英文 slug 原文，
+ * 不进 i18n——由 prefs-probe-ok/-bad 模板包 { $detail }）。stage1 死全灭；
+ * 模型面只看 usable 计数，非 usable 行列成 `uid=verdict`。
+ */
+export function summarizeProbe(rep: EndpointProbeReport): {
+  ok: boolean;
+  label: string;
+} {
+  const s1 = rep.stage1;
+  const verdict = s1?.verdict || "unreachable";
+  const detail = s1?.detail ? `：${s1.detail}` : "";
+  if (!PROBE_OK_STAGE1.has(verdict))
+    return { ok: false, label: `stage1=${verdict}${detail}` };
+  const models = Object.entries(rep.models ?? {});
+  if (models.length === 0)
+    return { ok: true, label: `stage1=${verdict}${detail}` };
+  const usable = models.filter(([, m]) => m.verdict === "usable");
+  if (usable.length === 0)
+    return {
+      ok: false,
+      label: models.map(([u, m]) => `${u}=${m.verdict}`).join(" "),
+    };
+  const parts = usable
+    .slice(0, PROBE_LINE_MAX)
+    .map(([u, m]) => (m.latency_s ? `${u} ${m.latency_s}s` : u));
+  if (usable.length > PROBE_LINE_MAX)
+    parts.push(`+${usable.length - PROBE_LINE_MAX}`);
+  return { ok: true, label: parts.join("、") };
+}
+
+async function checkEndpoint(doc: Document): Promise<void> {
+  say(doc, t("prefs-probing"));
+  const client = createClient(panePrefs(doc));
+  try {
+    const view = await client.listEndpoints();
+    const pid = pickProbeTarget(view);
+    if (!pid) {
+      say(doc, t("prefs-probe-none"));
+      return;
+    }
+    const rep = await client.probeEndpoint(pid);
+    const s = summarizeProbe(rep);
+    say(
+      doc,
+      t(s.ok ? "prefs-probe-ok" : "prefs-probe-bad", { detail: s.label }),
+    );
+  } catch (e) {
+    say(
+      doc,
+      e instanceof ApiError && e.status === 403
+        ? t("prefs-probe-forbidden")
+        : e instanceof NetworkError
+          ? t("prefs-health-down")
+          : t("prefs-health-bad"),
+    );
+  }
+}
+
 async function startServer(doc: Document): Promise<void> {
   const prefs = panePrefs(doc);
   try {
@@ -215,6 +302,9 @@ export function initPrefsPane(doc: Document): void {
   doc
     .getElementById(BUTTON_IDS.check)
     ?.addEventListener("click", () => void checkConnection(doc));
+  doc
+    .getElementById(BUTTON_IDS.endpoint)
+    ?.addEventListener("click", () => void checkEndpoint(doc));
   doc
     .getElementById(BUTTON_IDS.start)
     ?.addEventListener("click", () => void startServer(doc));

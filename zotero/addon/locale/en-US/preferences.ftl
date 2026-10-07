@@ -16,4 +16,5 @@ prefs-poll-timeout = Poll timeout (ms)
 prefs-autostart = Auto-start local server when unreachable
 prefs-status = Connection:
 prefs-check = Check connection
+prefs-check-endpoint = Test translation endpoint
 prefs-start-server = Start local server

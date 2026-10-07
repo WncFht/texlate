@@ -15,6 +15,8 @@ import {
   NetworkError,
   TimeoutError,
   type AcceptedResponse,
+  type EndpointProbeReport,
+  type EndpointsView,
   type FileInfo,
   type FilesResponse,
   type HealthResponse,
@@ -186,5 +188,15 @@ export function createClient(prefs: TexlatePrefs): TexlateClient {
     },
 
     readerUrl: (taskId) => `${base}/#/reader/${taskId}`,
+
+    listEndpoints: () => request<EndpointsView>("GET", "/api/endpoints"),
+
+    // Probe runs real model chats server-side (stage2, ≤8 models) — far
+    // slower than a plain JSON round-trip; borrow the download budget.
+    probeEndpoint: (id) =>
+      request<EndpointProbeReport>("POST", "/api/endpoints/probe", {
+        body: JSON.stringify({ id }),
+        timeoutMs: DOWNLOAD_TIMEOUT_MS,
+      }),
   };
 }

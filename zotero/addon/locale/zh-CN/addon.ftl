@@ -15,6 +15,11 @@ prefs-checking = 正在检查…
 prefs-health-ok = 已连接——服务器版本 { $version }
 prefs-health-bad = 响应异常——该地址是 TeXlate 服务器吗？
 prefs-health-down = 无法连接服务器——`uvx texlate web` 是否在运行？
+prefs-probing = 正在探测翻译端点…
+prefs-probe-ok = 翻译端点可用：{ $detail }
+prefs-probe-bad = 翻译端点异常：{ $detail }
+prefs-probe-none = 服务器上没有可探测的端点档案。
+prefs-probe-forbidden = 服务器以部署形态运行——端点档案由部署方管理，探测不可用。
 
 # 进度阶段——modules/poller.ts 的 phaseKey() 按任务阶段（fetching…compiling）
 # 或状态（queued 及各终态）取后缀；modules/flow.ts 渲染为「{阶段} {进度}%」。

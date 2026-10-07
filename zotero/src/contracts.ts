@@ -11,6 +11,8 @@
  *   GET  /api/task/{id}                    → snapshot (no SSE in plugin sandbox)
  *   GET  /api/files/{id}                   → {artifacts: {db_kind: {bytes,sha256,created_at,url}}}
  *   GET  /api/files/{id}/{url_kind}        → bytes (url_kind: zh.pdf, en.pdf, dual.pdf, ...)
+ *   GET  /api/endpoints                    → {profiles, active_id}   (local 形态限定)
+ *   POST /api/endpoints/probe   {id}       → 两段探针报告             (server 部署 403)
  *   Reader SPA: {base}/#/reader/{taskId}
  */
 
@@ -136,6 +138,49 @@ export interface FilesResponse {
   artifacts: Record<string, FileInfo>;
 }
 
+/**
+ * 端点档案探针报告（server/endpoints.py probe_endpoint 出参）。
+ * stage1 判端点形态（ok/no_models_dir/auth_failed/unreachable/timeout/
+ * http_error），models 逐 uid 行为判（usable/placeholder_lost/no_cjk/
+ * empty/refused/…/skipped）；两段 verdict 词表见 web/src/api/types.ts。
+ */
+export interface EndpointProbeReport {
+  at?: string;
+  key_fp?: string;
+  stage1?: { verdict: string; models?: string[]; detail?: string };
+  models?: Record<
+    string,
+    {
+      verdict: string;
+      latency_s?: number;
+      detail?: string;
+      listed?: boolean | null;
+    }
+  >;
+}
+
+/**
+ * GET /api/endpoints 出参（public_profile 面——key 值绝不出线，
+ * 只有 has_api_key/key_env/has_env_key 三态）。
+ */
+export interface EndpointsView {
+  profiles: {
+    id: string;
+    label: string;
+    base_url: string;
+    dialect: string;
+    models: string[];
+    enabled: boolean;
+    has_api_key: boolean;
+    key_env: string;
+    has_env_key: boolean;
+    last_probe?: EndpointProbeReport | null;
+    [k: string]: unknown;
+  }[];
+  /** settings.base_url 归一命中者；无命中 → ""。 */
+  active_id: string;
+}
+
 // ---------------------------------------------------------------- errors
 
 /** HTTP error: server answered with non-2xx. */
@@ -233,6 +278,8 @@ export interface TexlatePrefs {
  *   prefs.ts    export function loadPrefs(): TexlatePrefs
  *               export function initPrefsPane(doc): void  // inline pane wiring
  *               export function registerPrefsPane(): void
+ *               export function pickProbeTarget(view): string  // probe 目标 id
+ *               export function summarizeProbe(rep): { ok, label }
  *   menu.ts     export function registerMenus(win): void
  *               export function computeMenuState(items): MenuState
  *   taskpane.ts export function registerTaskPane(): void   // item-pane section
@@ -265,6 +312,10 @@ export interface TexlateClient {
   ): Promise<{ bytes: number; sha256: string }>;
   /** `{serverUrl}/#/reader/{taskId}` — SPA reader link for Zotero.launchURL. */
   readerUrl(taskId: string): string;
+  /** GET /api/endpoints — 端点档案读面（server 部署形态 403 → ApiError）。 */
+  listEndpoints(): Promise<EndpointsView>;
+  /** POST /api/endpoints/probe `{id}` — 档案条目两段探针（报告钉回 last_probe）。 */
+  probeEndpoint(id: string): Promise<EndpointProbeReport>;
 }
 
 // ---------------------------------------------------------------- arxivId (modules/arxivId.ts)

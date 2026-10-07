@@ -19,6 +19,11 @@ prefs-checking = Checking…
 prefs-health-ok = Connected — server version { $version }
 prefs-health-bad = Unexpected response — is a TeXlate server at this URL?
 prefs-health-down = Cannot reach the server — is `uvx texlate web` running?
+prefs-probing = Probing the translation endpoint…
+prefs-probe-ok = Translation endpoint usable: { $detail }
+prefs-probe-bad = Translation endpoint failed: { $detail }
+prefs-probe-none = No endpoint profile on the server to probe.
+prefs-probe-forbidden = The server runs in deploy mode — the endpoint archive is managed by the operator, so probing is unavailable.
 
 # Progress phases — modules/poller.ts phaseKey() picks the suffix from the
 # task stage (fetching…compiling) or status (queued + terminal states);
