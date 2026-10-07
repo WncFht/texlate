@@ -471,6 +471,102 @@ export interface Provider {
     [k: string]: unknown;
 }
 
+// ---------- endpoints：BYOK 端点档案（local 形态限定面——server 形态整面 403） ----------
+
+/** 探针判级词表（服务端 verdict 值域——新值先行，消费侧留 `| string` 尾） */
+export const PROBE_VERDICTS = [
+    "ok",
+    "usable",
+    "placeholder_lost",
+    "no_cjk",
+    "empty",
+    "refused",
+    "auth_failed",
+    "http_error",
+    "timeout",
+    "unreachable",
+    "skipped",
+    "no_models_dir",
+] as const;
+
+export type ProbeVerdict = (typeof PROBE_VERDICTS)[number] | string;
+
+/** 段2 单模型行为报告（probe_endpoint 的 models[uid] 行） */
+export interface ProbeModelReport {
+    verdict: ProbeVerdict;
+    latency_s?: number;
+    detail?: string;
+    /** 段1 模型清单命中与否；清单缺席（no_models_dir 等）→ null */
+    listed?: boolean | null;
+}
+
+/** 两段探针报告 = profile.last_probe 的形状（服务端独占键，PUT 载荷里忽略） */
+export interface ProbeReport {
+    at?: string;
+    /** 所决议 key 的 sha256 前 8 指纹——对账"探测时用的还是不是这把 key" */
+    key_fp?: string;
+    stage1?: {
+        verdict: ProbeVerdict;
+        models?: string[];
+        detail?: string;
+    };
+    models?: Record<string, ProbeModelReport>;
+}
+
+/**
+ * endpoints.json profile 的 API 出参面（public_profile）——key 值绝不出叶：
+ * 只报 has_api_key / key_env 名 / has_env_key 三态。
+ */
+export interface EndpointProfile {
+    id: string;
+    label: string;
+    base_url: string;
+    dialect: string;
+    models: string[];
+    enabled: boolean;
+    has_api_key: boolean;
+    /** env 变量名（值绝不出 server）——空串 = 未引用 env */
+    key_env: string;
+    /** key_env 指名的 env 变量当前是否已设置 */
+    has_env_key: boolean;
+    last_probe?: ProbeReport | null;
+}
+
+/**
+ * PUT /api/endpoints 的写面行：读面去 key 化 + 凭据写键。
+ * 凭据合并规则（server endpoints._normalize_write）：api_key/key_env 同时
+ * 非空 → 400；单方非空 → 清另一方（形态切换）；双方空/缺席 → 承旧值。
+ */
+export interface EndpointProfileWrite {
+    id: string;
+    label?: string;
+    base_url: string;
+    dialect?: string;
+    models?: string[];
+    enabled?: boolean;
+    /** 非空 = 写 inline key；"" = 承同 id 旧值（新 profile = 无凭据） */
+    api_key?: string;
+    /** 非空 = 写 env 引用；"" = 承同 id 旧值 */
+    key_env?: string;
+}
+
+/** GET/PUT /api/endpoints 的回包形状 */
+export interface EndpointsView {
+    profiles: EndpointProfile[];
+    /** 首个 base_url 归一后命中 settings.base_url 的 profile id；无命中 → "" */
+    active_id: string;
+}
+
+/** POST /endpoints/probe 的两种请求形：档案条目 {id} 或裸端点（须显式 api_key） */
+export type EndpointProbeReq =
+    | { id: string; models?: string[] }
+    | {
+          base_url: string;
+          api_key: string;
+          dialect?: string;
+          models?: string[];
+      };
+
 export interface Health {
     ok: boolean;
     version?: string;

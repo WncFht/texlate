@@ -84,3 +84,210 @@
     flex: 1;
     min-width: 0;
 }
+
+/* ---------- 端点档案卡（EndpointsPanel，form 外独立 section） ---------- */
+
+.eps {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+
+.eps h2 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    margin: 0 0 14px;
+    font-weight: 600;
+}
+
+.eps h2 em {
+    font-style: normal;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-left: 10px;
+}
+
+.ep-list {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ep-card {
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 13px;
+}
+
+/* 停用卡降权——仍在档案里但不参与回退链 */
+.ep-card.off {
+    opacity: 0.55;
+}
+
+.ep-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ep-spacer {
+    flex: 1;
+}
+
+.ep-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-2);
+    cursor: pointer;
+}
+
+.ep-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    word-break: break-all;
+}
+
+.ep-models {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.ep-models code {
+    font-size: 11px;
+    padding: 1px 7px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--paper-2);
+}
+
+.ep-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.ep-probe {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+/* 探针 verdict 徽章：i 斜体复位成小胶囊 */
+.ep-badge {
+    font-style: normal;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-2);
+    white-space: nowrap;
+}
+
+.ep-badge.ok {
+    color: var(--pine);
+    border-color: var(--pine);
+}
+
+.ep-badge.warn {
+    color: var(--ochre-deep);
+    border-color: var(--ochre-deep);
+}
+
+.ep-badge.bad {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar-deep);
+}
+
+.ep-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.ep-actions .btn-ghost {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+/* 草稿编辑面——复用 settings 表单观感（label 栈 + 输入框描边） */
+.ep-draft {
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.ep-draft h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ep-draft label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.ep-draft label em {
+    font-style: normal;
+    font-weight: 400;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.ep-draft input,
+.ep-draft select,
+.ep-draft textarea {
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 400;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+    outline: none;
+}
+
+.ep-draft input:focus,
+.ep-draft select:focus,
+.ep-draft textarea:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+.ep-draft textarea {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    resize: vertical;
+}
+
+.ep-draft .btn-primary {
+    padding: 8px 18px;
+    font-size: 13px;
+}

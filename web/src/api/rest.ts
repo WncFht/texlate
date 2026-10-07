@@ -8,11 +8,15 @@ import {
     type ByokHeaders,
     type DiscoverFeed,
     type DiscoverHit,
+    type EndpointProbeReq,
+    type EndpointProfileWrite,
+    type EndpointsView,
     type FileKind,
     type FileManifest,
     type Health,
     type KeptRef,
     type KeptRefsResponse,
+    type ProbeReport,
     type Provider,
     type ReaderInfo,
     type ReaderKeep,
@@ -487,6 +491,30 @@ export const api = {
                 body: JSON.stringify(s ?? {}),
             },
         ),
+
+    // ---------- endpoints：BYOK 端点档案（server 形态整面 403——调用方按闸隐藏） ----------
+    getEndpoints: () => request<EndpointsView>("/endpoints"),
+    /** 整表替换写——卡面任一改动（启用/删除/新建/编辑）都折成全量 PUT */
+    putEndpoints: (profiles: EndpointProfileWrite[]) =>
+        request<EndpointsView>("/endpoints", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ profiles }),
+        }),
+    /** 激活 → settings（base_url/dialect/model[0] + 凭据面归位），回包是 Settings 公共面 */
+    activateEndpoint: (id: string) =>
+        request<Settings>("/endpoints/activate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id }),
+        }),
+    /** 两段探针：{id} 走档案凭据阶梯；裸 {base_url,api_key,…} 必须自带 key（exfil 闸） */
+    probeEndpoint: (req: EndpointProbeReq) =>
+        request<ProbeReport>("/endpoints/probe", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(req),
+        }),
 };
 
 /**

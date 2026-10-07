@@ -1,11 +1,24 @@
 // BYOK 设置 store —— GET 永不回 key 本体，只回 has_api_key（§2.5）。
 
 import { createSignal } from "solid-js";
-import { api, type Provider, type Settings } from "../api/client";
+import {
+    api,
+    ApiError,
+    type EndpointProfileWrite,
+    type EndpointsView,
+    type ProbeReport,
+    type Provider,
+    type Settings,
+} from "../api/client";
 
 const [settings, setSettings] = createSignal<Settings | null>(null);
 const [providers, setProviders] = createSignal<Provider[]>([]);
 const [loaded, setLoaded] = createSignal(false);
+
+// ---- 端点档案（endpoints.json UI 面；local 形态限定）----
+// server 形态整面 403：endpointsOff 置位后 Settings 页隐藏整块。
+const [endpoints, setEndpoints] = createSignal<EndpointsView | null>(null);
+const [endpointsOff, setEndpointsOff] = createSignal(false);
 
 // ---- 外观（单轴合并，§ADR-0020 二次追加）----
 // 8 档色板是全站唯一外观轴：纸面配色与 chrome 同源派生，不再存在独立
@@ -86,6 +99,8 @@ export const settingsStore = {
     paperTheme,
     floatbar,
     sentAlign,
+    endpoints,
+    endpointsOff,
 
     setPaperTheme(choice: PaperThemeChoice) {
         setPaperThemeSig(choice);
@@ -145,4 +160,48 @@ export const settingsStore = {
     },
 
     test: (s?: Settings) => api.testSettings(s),
+
+    /** 端点档案表拉取：403（server 形态）→ endpointsOff 置位走隐藏，非 403 上抛 */
+    async refreshEndpoints() {
+        try {
+            setEndpoints(await api.getEndpoints());
+            setEndpointsOff(false);
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 403) {
+                setEndpointsOff(true);
+                setEndpoints(null);
+                return;
+            }
+            throw e;
+        }
+    },
+
+    /** 整表替换写——回包即新视图直接落 store */
+    async saveEndpoints(profiles: EndpointProfileWrite[]) {
+        const v = await api.putEndpoints(profiles);
+        setEndpoints(v);
+        return v;
+    },
+
+    /**
+     * 激活 profile：回包是 Settings 公共面——并进 settings（激活失败不上抛
+     * 后半刷新失败也不算激活失败，故 refresh 吞错只留陈视图）。
+     */
+    async activateEndpoint(id: string) {
+        const s = await api.activateEndpoint(id);
+        setSettings((cur) => ({ ...cur, ...s }));
+        await this.refreshEndpoints().catch(() => {
+            /* active_id 刷新失败留陈视图——激活本身已成功 */
+        });
+        return s;
+    },
+
+    /** 探针（仅档案条目路：{id}——裸端点路是 exfil 闸内操作不走 store） */
+    async probeEndpoint(id: string): Promise<ProbeReport> {
+        const r = await api.probeEndpoint({ id });
+        await this.refreshEndpoints().catch(() => {
+            /* last_probe 已钉回档案；刷新失败由下次进入补齐 */
+        });
+        return r;
+    },
 };
