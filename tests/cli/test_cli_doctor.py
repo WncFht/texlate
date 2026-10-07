@@ -142,8 +142,24 @@ def test_help() -> None:
 
 class TestDoctor:
     def test_all_ok(self, tmp_path: Path, doctor_env: pytest.MonkeyPatch) -> None:
-        """全绿基线：9 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
+        """全绿基线：10 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
         _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
+        (tmp_path / "data" / "endpoints.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "profiles": [
+                        {
+                            "id": "p1",
+                            "base_url": "https://gw.test:8443",
+                            "models": ["m1"],
+                            "api_key": _GW_KEY,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         doctor_env.setattr(
             cli,
             "_probe_service",
@@ -177,6 +193,7 @@ class TestDoctor:
             "data-dir",
             "babeldoc",
             "service",
+            "endpoints",
         }
         assert all(v == "ok" for v in st.values()), r.stdout
         assert seen["url"] == f"{_GW_URL}/v1/models"
@@ -383,3 +400,63 @@ class TestDoctor:
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         assert _statuses(r.stdout)["babeldoc"] == "n/a"
+
+    def test_endpoints_absent_na(
+        self,
+        doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """无 endpoints.json → n/a（未建档是常态，读径投影兜底）。"""
+        r = _RUNNER.invoke(app, ["doctor"])
+        assert r.exit_code == 0, r.output
+        assert _statuses(r.stdout)["endpoints"] == "n/a"
+
+    def test_endpoints_ok_counts(
+        self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
+    ) -> None:
+        """档案在 → ok：条数/启用数/活动命中（settings.base_url 归一比对）。
+
+        base_url 用 https——``validate_base_url`` 拒非 loopback/tailnet 的
+        http（``_GW_URL`` 过不了档案校验会被 ``_load_profile`` 容错丢弃）。
+        """
+        ep_url = "https://ep.test/api"
+        _write_settings(tmp_path / "data", base_url=ep_url)
+        (tmp_path / "data" / "endpoints.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "profiles": [
+                        {"id": "p1", "base_url": ep_url, "models": ["m1"]},
+                        {
+                            "id": "p2",
+                            "base_url": "https://or.test/api",
+                            "enabled": False,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        # gateway 检查会真 GET ep.test/v1/models——桩 200 免触网
+        doctor_env.setattr(
+            httpx, "get", lambda *_a, **_kw: httpx.Response(200, json={"data": []})
+        )
+        r = _RUNNER.invoke(app, ["doctor"])
+        assert r.exit_code == 0, r.output
+        st = _statuses(r.stdout)
+        assert st["endpoints"] == "ok"
+        assert "2 条档案（1 启用），活动=p1" in r.stdout
+
+    def test_endpoints_quarantined_warn(
+        self,
+        tmp_path: Path,
+        doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """损坏 endpoints.json → load 隔离成 ``*-invalid-*`` 兄弟 → warn 留痕。"""
+        data = tmp_path / "data"
+        data.mkdir(parents=True)
+        (data / "endpoints.json").write_text("{broken", encoding="utf-8")
+        r = _RUNNER.invoke(app, ["doctor"])
+        assert r.exit_code == 0, r.output
+        assert _statuses(r.stdout)["endpoints"] == "warn"
+        assert "隔离残件" in r.stdout
+        assert list(data.glob("endpoints-invalid-*.json"))

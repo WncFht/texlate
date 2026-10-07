@@ -340,13 +340,51 @@ def _doc_service() -> _Check:
     return _Check("service", "n/a", "未在运行——`texlate service start` 拉起")
 
 
+def _doc_endpoints() -> _Check:
+    """``endpoints.json`` 端点档案静态面——只盘点不联网（探针是 ``endpoints test`` 的活）。
+
+    缺席是常态（读径投影 settings/connections 合成表在用）→ n/a；
+    在场 → 条数/启用数/活动命中；load 隔离出的 ``*-invalid-*`` 兄弟
+    在场 → warn（坏表被 quarantine 过，值得人看一眼）。
+    """
+    from texlate.server.endpoints import (  # noqa: PLC0415 -- server 层延迟 import
+        EndpointStore,
+        active_id,
+    )
+    from texlate.server.settings import SettingsStore  # noqa: PLC0415
+
+    root = toolchain.data_root()
+    estore = EndpointStore(root)
+    if not _is_file(estore.path):
+        quarantined = sorted(root.glob("endpoints-invalid-*.json"))
+        tail = f"；隔离残件 {len(quarantined)}" if quarantined else ""
+        return _Check(
+            "endpoints",
+            "n/a" if not quarantined else "warn",
+            "未建档——读径投影 settings/connections（`texlate endpoints list`）" + tail,
+        )
+    profiles = estore.load()["profiles"]  # load 先跑——坏表此刻才改名隔离
+    quarantined = sorted(root.glob("endpoints-invalid-*.json"))
+    tail = f"；隔离残件 {len(quarantined)}" if quarantined else ""
+    enabled = sum(1 for p in profiles if p.get("enabled"))
+    act = active_id(profiles, _doc_settings_raw(SettingsStore(root)))
+    return _Check(
+        "endpoints",
+        "warn" if quarantined else "ok",
+        f"{len(profiles)} 条档案（{enabled} 启用）"
+        + (f"，活动={act}" if act else "，活动无命中")
+        + tail,
+    )
+
+
 @app.command()
 def doctor() -> None:
     """环境自检：逐项 ``ok``/``warn``/``fail``/``n/a`` + 一行说明。
 
     覆盖：python≥3.12、编译引擎（tectonic/xelatex）、CJK 字体
     （kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、
-    babeldoc、本地服务实况。任一 ``fail`` → 退出码 1；全 ok/warn/n/a → 0。
+    babeldoc、本地服务实况、端点档案盘点。任一 ``fail`` → 退出码 1；
+    全 ok/warn/n/a → 0。
     """
     checks = [
         _doc_python(),
@@ -357,6 +395,7 @@ def doctor() -> None:
         _doc_data_dir(),
         _doc_babeldoc(),
         _doc_service(),
+        _doc_endpoints(),
     ]
     for c in checks:
         typer.echo(f"{c.status:<4} {c.name:<12} {c.detail}")
