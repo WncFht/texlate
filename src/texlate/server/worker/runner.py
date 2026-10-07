@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
+from texlate.server.endpoints import EndpointStore
 from texlate.server.settings import (
     SettingsStore,
     resolve_auth,
@@ -110,7 +111,10 @@ class TaskRunner:
         rows = self.store.queued_rows()
         if not rows:
             return
-        auth = resolve_auth(SettingsStore(self.worker.data_dir).load())
+        auth = resolve_auth(
+            SettingsStore(self.worker.data_dir).load(),
+            key_env_lookup=EndpointStore(self.worker.data_dir).key_env_for,
+        )
         for r in rows:
             self.enqueue(
                 str(r["id"]),

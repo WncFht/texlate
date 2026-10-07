@@ -33,6 +33,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from texlate import __version__
+from texlate.server.endpoints import EndpointStore
 from texlate.server.events import EventBus
 from texlate.server.http import (
     _BUILD_COMMIT,
@@ -124,6 +125,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平�
     root = data_dir or default_data_dir()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     settings_store = SettingsStore(root)
+    endpoints_store = EndpointStore(root)
     salt = server_salt(root)
     store = Store(root / "texlate.db")
     bus = EventBus(store)
@@ -152,14 +154,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平�
         runner=runner,
         worker=worker,
         settings_store=settings_store,
+        endpoints_store=endpoints_store,
         salt=salt,
         spool_dir=spool_dir,
         babeldoc=babeldoc,
     )
 
     def _key_provider() -> list[str]:
-        """当前该抹的 key 集合：settings key + 运行中 header key（RedactFilter 动态取）。"""
+        """当前该抹的 key 集合：settings key + 端点档案 inline key + 运行中 header key。"""
         keys = [str(settings_store.load().get("api_key") or "")]
+        keys.extend(
+            str(p.get("api_key") or "") for p in endpoints_store.load()["profiles"]
+        )
         keys.extend(s.api_key for s in runner.secrets.values())
         return [k for k in keys if k]
 
@@ -203,6 +209,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平�
     app.state.bus = bus
     app.state.runner = runner
     app.state.settings_store = settings_store
+    app.state.endpoints_store = endpoints_store
     app.state.babeldoc = babeldoc
 
     # ------------------------------------------------------------ 横切

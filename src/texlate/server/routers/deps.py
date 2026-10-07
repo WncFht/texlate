@@ -34,6 +34,7 @@ from texlate.textutil.osutil import ENV_TRANSLATOR
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from texlate.server.endpoints import EndpointStore
     from texlate.server.events import EventBus
     from texlate.server.settings import SettingsStore
     from texlate.server.store import Store
@@ -58,6 +59,7 @@ class AppDeps:
     runner: TaskRunner
     worker: PipelineWorker
     settings_store: SettingsStore
+    endpoints_store: EndpointStore
     salt: str
     spool_dir: Path
     babeldoc: str | None
@@ -81,6 +83,7 @@ class AppDeps:
                 headers=request.headers,
                 mode=server_mode(),
                 salt=self.salt,
+                key_env_lookup=self.endpoints_store.key_env_for,
             )
         except ValueError as e:
             raise _api_error(400, str(e), "invalid_request") from e

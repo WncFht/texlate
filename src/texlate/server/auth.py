@@ -215,7 +215,7 @@ def tenant_for(api_key: str, *, mode: str, salt: str) -> str:
     return "k_" + hashlib.sha256((api_key + salt).encode()).hexdigest()[:12]
 
 
-def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议面
+def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + header 四槽/headers/mode/salt/key_env 钩即决议面
     settings: dict[str, Any],
     *,
     header_key: str = "",
@@ -225,8 +225,9 @@ def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议�
     headers: Mapping[str, str] | None = None,
     mode: str = "local",
     salt: str = "",
+    key_env_lookup: Callable[[str], str] | None = None,
 ) -> AuthContext:
-    """逐项独立回落：``api_key`` 走 header > settings > env；其余字段走 header > env > settings。
+    """逐项独立回落：``api_key`` 走 header > settings > profile ``key_env`` > env；其余字段走 header > env > settings。
 
     ``auth_source`` 由 key 的来源决定（key 才是重启续跑的关键物）；
     header key 校验失败后不落 settings 兜底——显式覆盖语义。
@@ -239,7 +240,9 @@ def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议�
     自选端点（exfil oracle）。
     ``headers`` 是请求头面（deps 直传 ``request.headers``）——查名按
     ``BYOK_FIELDS`` 单源；给定时覆盖全部 ``header_*`` kwarg，kwarg 面
-    保留给单字段直调/测试。
+    保留给单字段直调/测试。``key_env_lookup`` 是 endpoints.json
+    ``key_env_for`` 查名钩（deps/runner 注入）——命中 profile 的端点
+    其 env 名引用的值进 env 层，排在泛用 provider env 之前。
     """
     if headers is not None:
         header_in = {
@@ -283,9 +286,20 @@ def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议�
         api_key, source = "", "none"
         if settings_ok and settings.get(key_spec.settings_key):
             api_key, source = str(settings[key_spec.settings_key]), "settings"
-        elif env_ok:
+        if not api_key and key_env_lookup is not None:
+            # profile key_env 槽：lookup(base_url) 命中即槽自证——profile 仅
+            # 存于拥有者登记的端点，天然免 env_ok 跨槽闸（它不跟攻击者
+            # 端点走）；专名绑定优先于泛用 provider env（同 endpoint 的
+            # 定向轮换 vs TEXLATE_API_KEY 兜底，specific wins）
+            env_name = key_env_lookup(base_url)
+            if env_name:
+                api_key = env_raw(env_name)
+                if api_key:
+                    source = "env"
+        if not api_key and env_ok:
             api_key = key_spec.env(base_url)
-            source = "env" if api_key else "none"
+            if api_key:
+                source = "env"
 
     return AuthContext(
         api_key=api_key,
