@@ -6,6 +6,11 @@
 文件契约 ``{version: 1, profiles: [...]}``（0600 原子写）；profile =
 ``{id, label, base_url, dialect, models[], enabled, api_key|key_env, last_probe}``：
 
+- ``models`` 条目 ``{model, redirect_model}``：``model`` 是档案内本地名
+  （展示名/探针报告键），``redirect_model`` 是线上请求名——非空时上游
+  收到的是它（别名重定向），空串即本名直发；``wire_model`` 单源取线名。
+  读径兼容裸 string 条目（升级成 ``redirect_model=""`` 的 dict 形态）。
+
 - ``api_key`` 与 ``key_env`` 互斥；写径 ``api_key=""`` 保留同 id 旧值
   （settings.save 同口径），一方显式写入即清另一方（凭据形态切换）。
 - ``key_env`` 存 env 变量**名**不存值——轮换 key 只改环境，档案零改写；
@@ -133,27 +138,68 @@ def _check_key_env(value: object) -> str:
     return value
 
 
-def _check_models(value: object) -> list[str]:
-    """Models：string list、逐条 ``validate_model``、去重保序、≤8；None → []。"""
+def _model_entry(item: object) -> dict[str, str]:
+    """单条目 ``str | {model, redirect_model}`` → 归一 dict；非法 → TypeError/ValueError。"""
+    if isinstance(item, str):
+        return {"model": validate_model(item), "redirect_model": ""}
+    if not isinstance(item, dict):
+        msg = "models 成员须为 string 或 {model, redirect_model}"
+        raise TypeError(msg)
+    raw_name = item.get("model")
+    if not isinstance(raw_name, str):
+        msg = "models 条目 model 须为 string"
+        raise TypeError(msg)
+    name = validate_model(raw_name)
+    raw_red = item.get("redirect_model")
+    if raw_red is not None and not isinstance(raw_red, str):
+        msg = "models 条目 redirect_model 须为 string"
+        raise TypeError(msg)
+    redirect = validate_model(raw_red) if raw_red and raw_red.strip() else ""
+    if redirect == name:
+        redirect = ""  # 与本地名同名是冗余写法——归一清空
+    return {"model": name, "redirect_model": redirect}
+
+
+def _check_models(value: object) -> list[dict[str, str]]:
+    """Models：条目 ``str | {model, redirect_model}`` 混收，归一成 dict 表。
+
+    ``model`` = 档案内本地名（展示/探针报告键），``redirect_model`` = 线上
+    请求名——非空时上游收的是它。逐条 ``validate_model``、按本地名去重
+    保序、≤8；``None → []``。
+    """
     if value is None:
         return []
     if not isinstance(value, list):
-        msg = "models 须为 string list"
+        msg = "models 须为 string/object list"
         raise TypeError(msg)
     seen: set[str] = set()
-    out: list[str] = []
-    for m in value:
-        if not isinstance(m, str):
-            msg = "models 成员须为 string"
-            raise TypeError(msg)
-        uid = validate_model(m)
-        if uid not in seen:
-            seen.add(uid)
-            out.append(uid)
+    out: list[dict[str, str]] = []
+    for item in value:
+        entry = _model_entry(item)
+        if entry["model"] not in seen:
+            seen.add(entry["model"])
+            out.append(entry)
     if len(out) > MAX_MODELS_PER_PROFILE:
         msg = f"models 至多 {MAX_MODELS_PER_PROFILE} 条"
         raise ValueError(msg)
     return out
+
+
+def wire_model(entry: dict[str, Any] | str) -> str:
+    """模型条目 → 线上请求名（``redirect_model`` 非空优先，否则本地名）。
+
+    裸 string 兜底兼容（手改/旧档案残留）——读径归一化后本不该见到。
+    """
+    if isinstance(entry, str):
+        return entry
+    return str(entry.get("redirect_model") or "") or str(entry.get("model") or "")
+
+
+def local_model_name(entry: dict[str, Any] | str) -> str:
+    """模型条目 → 本地名（展示/探针报告键）。"""
+    if isinstance(entry, str):
+        return entry
+    return str(entry.get("model") or "")
 
 
 def _key_fp(api_key: str) -> str:
@@ -423,13 +469,27 @@ class EndpointStore:
     def record_probe(self, profile_id: str, report: dict[str, Any]) -> None:
         """把探针报告钉到指定 profile 的 ``last_probe``；文件缺席/id 无命中 → no-op。
 
-        只动该键不重校验整表——load 归一化面已滤过坏成员。
+        ``models`` 段按键 **merge**——同凭据（``key_fp`` 一致）下逐模型子集
+        探测只更新被探条目，未探模型保留旧 verdict；stage1-only 报告
+        （``models={}``）不动既有模型段。换凭据（fp 变）则整报告覆盖——
+        旧 key 的模型 verdict 对新凭据无效。``at``/``key_fp``/``stage1``
+        恒取新报告值。只动该键不重校验整表——load 归一化面已滤过坏成员。
         """
         with self._save_lock:
             data = self.load()
             hit = next((p for p in data["profiles"] if p["id"] == profile_id), None)
             if hit is None:
                 return
+            old = hit.get("last_probe")
+            if (
+                isinstance(old, dict)
+                and isinstance(old.get("models"), dict)
+                and old.get("key_fp") == report.get("key_fp")
+            ):
+                merged = dict(old["models"])
+                merged.update(report.get("models") or {})
+                report = dict(report)
+                report["models"] = merged
             hit["last_probe"] = report
             atomic_json(self.path, data)
             self.path.chmod(0o600)
@@ -483,9 +543,12 @@ def _project_profiles(
         or connections.get(normalize_base_url(active_url))
         or {}
     )
-    models = _dedupe_keep(
-        [str(settings.get("model") or ""), str(slot.get("model") or "")]
-    )
+    models = [
+        {"model": m, "redirect_model": ""}
+        for m in _dedupe_keep(
+            [str(settings.get("model") or ""), str(slot.get("model") or "")]
+        )
+    ]
     profiles.append(
         {
             "id": "default",
@@ -510,7 +573,10 @@ def _project_profiles(
                 "label": _label_for(url),
                 "base_url": url,
                 "dialect": str(cslot.get("dialect") or "auto"),
-                "models": _dedupe_keep([str(cslot.get("model") or "")]),
+                "models": [
+                    {"model": m, "redirect_model": ""}
+                    for m in _dedupe_keep([str(cslot.get("model") or "")])
+                ],
                 "enabled": True,
                 "api_key": str(cslot.get("api_key") or ""),
                 "key_env": "",
@@ -553,7 +619,7 @@ def public_profile(p: dict[str, Any]) -> dict[str, Any]:
         "label": p["label"],
         "base_url": p["base_url"],
         "dialect": p["dialect"],
-        "models": list(p["models"]),
+        "models": copy.deepcopy(p["models"]),
         "enabled": bool(p["enabled"]),
         "has_api_key": bool(p.get("api_key")),
         "key_env": key_env,
@@ -665,7 +731,7 @@ async def probe_endpoint(
     base_url: str,
     api_key: str,
     dialect: str,
-    models: list[str],
+    models: list[dict[str, Any] | str],
 ) -> dict[str, Any]:
     """两段行为探针 → ``last_probe`` 报告 dict（key_fp 按所给已决议 key 记）。
 
@@ -675,6 +741,10 @@ async def probe_endpoint(
     行为判（并发 4）：``usable``/``placeholder_lost``/``no_cjk``/``empty``
     /``refused``/``auth_failed``/``http_error``/``timeout``/``unreachable``；
     段1 属 ``_STAGE2_SKIP`` 时整段跳（各模型记 ``skipped``）。
+
+    ``models`` 条目 ``str | {model, redirect_model}`` 混收：请求按
+    ``wire_model``（redirect 优先）发到上游，``listed`` 判定也对线名
+    （上游清单只认线名）；报告 ``models`` 的键一律是本地名。
     """
     client = ChatClient(base_url=base_url, api_key=api_key, dialect=dialect or "auto")
     report: dict[str, Any] = {
@@ -727,8 +797,8 @@ async def probe_endpoint(
             listed = set(ids)
 
         if report["stage1"]["verdict"] in _STAGE2_SKIP:
-            for uid in models:
-                report["models"][uid] = {
+            for entry in models:
+                report["models"][local_model_name(entry)] = {
                     "verdict": "skipped",
                     "latency_s": 0.0,
                     "detail": "",
@@ -738,12 +808,14 @@ async def probe_endpoint(
 
         sem = asyncio.Semaphore(_PROBE_CONCURRENCY)
 
-        async def _one(uid: str) -> tuple[str, dict[str, Any]]:
+        async def _one(entry: dict[str, Any] | str) -> tuple[str, dict[str, Any]]:
             async with sem:
-                return uid, await _probe_model_chat(client, uid, listed)
+                return local_model_name(entry), await _probe_model_chat(
+                    client, wire_model(entry), listed
+                )
 
         rows = await asyncio.gather(
-            *(_one(uid) for uid in models[:MAX_MODELS_PER_PROFILE])
+            *(_one(entry) for entry in models[:MAX_MODELS_PER_PROFILE])
         )
         report["models"] = dict(rows)
         return report

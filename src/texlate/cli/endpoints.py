@@ -69,6 +69,15 @@ def _cred_text(p: dict[str, Any]) -> str:
     return "无凭据"
 
 
+def _model_chip(entry: object) -> str:
+    """模型条目 → ``model(redirect)`` 展示名（无 redirect 只显本地名）。"""
+    if isinstance(entry, dict):
+        name = str(entry.get("model") or "")
+        red = str(entry.get("redirect_model") or "")
+        return f"{name}({red})" if red else name
+    return str(entry)
+
+
 def _probe_line(p: dict[str, Any]) -> str:
     """``last_probe`` 单行摘要；未探 → ``"未探测"``。"""
     rep = p.get("last_probe")
@@ -96,7 +105,9 @@ def endpoints_list() -> None:
         mark = "*" if p["id"] == act else " "
         off = "（停用）" if not p.get("enabled") else ""
         typer.echo(f"{mark} {p['id']}  {p['label']}  {p['base_url']}{off}")
-        models = "、".join(p["models"]) if p["models"] else "（无）"
+        models = (
+            "、".join(_model_chip(m) for m in p["models"]) if p["models"] else "（无）"
+        )
         typer.echo(f"    models: {models} | 凭据: {_cred_text(p)}")
         typer.echo(f"    探测: {_probe_line(p)}")
 
@@ -128,7 +139,7 @@ def endpoints_test(pid: str) -> None:
             str(p["base_url"]),
             key,
             str(p["dialect"] or "auto"),
-            [str(m) for m in p["models"]],
+            list(p["models"]),
         )
     )
     estore.record_probe(pid, report)
@@ -171,7 +182,10 @@ def endpoints_activate(pid: str) -> None:
         "dialect": p["dialect"],
     }
     if p["models"]:
-        updates["model"] = p["models"][0]
+        # 写线名（redirect 优先）——主翻译径按线名直发
+        from texlate.server.endpoints import wire_model  # noqa: PLC0415
+
+        updates["model"] = wire_model(p["models"][0])
     if p["api_key"]:
         updates["api_key"] = p["api_key"]
     else:

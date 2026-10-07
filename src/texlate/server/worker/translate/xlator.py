@@ -15,6 +15,7 @@ from texlate.server.endpoints import (
     ENDPOINTS_FILE,
     EndpointStore,
     credential_for,
+    wire_model,
 )
 from texlate.server.settings import (
     SettingsStore,
@@ -140,11 +141,12 @@ class _TranslateXlator:
                 continue
             if normalize_base_url(str(p["base_url"])) != active_url:
                 continue
-            for m in p["models"]:
-                if m in exclude:
+            for entry in p["models"]:
+                wire = wire_model(entry)
+                if wire in exclude:
                     continue
-                exclude.add(m)
-                arms.append(GatewayTranslator(client, m))
+                exclude.add(wire)
+                arms.append(GatewayTranslator(client, wire))
         for p in profiles:  # 第二遍：异端点 profile（各带自家凭据 client）
             if not p.get("enabled"):
                 continue
@@ -159,7 +161,7 @@ class _TranslateXlator:
                 key,
                 dialect=str(p["dialect"] or "auto"),
             )
-            arms.append(GatewayTranslator(arm_client, str(p["models"][0])))
+            arms.append(GatewayTranslator(arm_client, wire_model(p["models"][0])))
         return arms
 
     def _arm_switch_warn(

@@ -163,7 +163,7 @@ class TestProbe:
             "base_url": _P1_URL,
             "api_key": "sk-p1-secret",
             "dialect": "auto",
-            "models": ["deepseek-chat"],
+            "models": [{"model": "deepseek-chat", "redirect_model": ""}],
         }
         assert "sk-p1-secret" not in r.output
         saved = json.loads((ep_env / "endpoints.json").read_text(encoding="utf-8"))

@@ -202,6 +202,36 @@ class TestSaveRules:
             store.save([_profile(models=[f"m{i}" for i in range(9)])])
         with pytest.raises(TypeError, match="string"):
             store.save([_profile(models=["m1", 42])])
+        with pytest.raises(TypeError, match="model"):
+            store.save([_profile(models=[{"redirect_model": "m"}])])  # 缺 model
+        with pytest.raises(TypeError, match="redirect_model"):
+            store.save([_profile(models=[{"model": "m", "redirect_model": 1}])])
+
+    def test_models_normalize_str_and_dict(self, store: ep.EndpointStore) -> None:
+        """str 条目升级 dict 形态；dict 条目保留；redirect==model 清成空。"""
+        out = store.save(
+            [
+                _profile(
+                    models=[
+                        "m1",
+                        {"model": "alias", "redirect_model": "wire-x"},
+                        {"model": "m2", "redirect_model": "m2"},
+                    ]
+                )
+            ]
+        )
+        assert out[0]["models"] == [
+            {"model": "m1", "redirect_model": ""},
+            {"model": "alias", "redirect_model": "wire-x"},
+            {"model": "m2", "redirect_model": ""},
+        ]
+        # 重载读径 dict 形态自持
+        assert store.load()["profiles"][0]["models"] == out[0]["models"]
+
+    def test_wire_model_helper(self) -> None:
+        assert ep.wire_model("m") == "m"
+        assert ep.wire_model({"model": "a", "redirect_model": ""}) == "a"
+        assert ep.wire_model({"model": "a", "redirect_model": "r"}) == "r"
 
     def test_dup_id_rejected(self, store: ep.EndpointStore) -> None:
         with pytest.raises(ValueError, match="重复"):
@@ -247,6 +277,64 @@ class TestRecordProbe:
         store.record_probe("p1", _probe_report())
         assert not store.path.exists()
 
+    def test_merge_same_key_partial_probe(self, store: ep.EndpointStore) -> None:
+        """同凭据子集探测：被探模型 verdict 更新，未探模型保留旧值。"""
+        store.save([_profile()])
+        store.record_probe("p1", _probe_report(key="k"))
+        partial = {
+            "at": "2026-10-07T01:00:00+00:00",
+            "key_fp": _fp("k"),
+            "stage1": {"verdict": "ok", "models": ["m1", "m2"], "detail": ""},
+            "models": {
+                "m2": {
+                    "verdict": "usable",
+                    "latency_s": 0.7,
+                    "detail": "",
+                    "listed": True,
+                }
+            },
+        }
+        store.record_probe("p1", partial)
+        models = store.load()["profiles"][0]["last_probe"]["models"]
+        # 未探的 m1 整条保留旧 verdict；m2 是新探测结果
+        assert models["m1"] == {
+            "verdict": "usable",
+            "latency_s": 0.5,
+            "detail": "",
+            "listed": True,
+        }
+        assert models["m2"]["verdict"] == "usable"
+
+    def test_merge_stage1_only_keeps_models(self, store: ep.EndpointStore) -> None:
+        """stage1-only 报告（获取模型径）不清空既有 stage2 verdict。"""
+        store.save([_profile()])
+        store.record_probe("p1", _probe_report(key="k"))
+        stage1_only = {
+            "at": "2026-10-07T01:00:00+00:00",
+            "key_fp": _fp("k"),
+            "stage1": {"verdict": "ok", "models": ["x", "y"], "detail": ""},
+            "models": {},
+        }
+        store.record_probe("p1", stage1_only)
+        last = store.load()["profiles"][0]["last_probe"]
+        assert last["stage1"]["models"] == ["x", "y"]  # stage1 更新
+        assert last["models"]["m1"]["verdict"] == "usable"  # stage2 保留
+
+    def test_key_fp_change_replaces_wholesale(self, store: ep.EndpointStore) -> None:
+        """换凭据 → 旧 verdict 对新 key 无效，整报告覆盖不 merge。"""
+        store.save([_profile()])
+        old = _probe_report(key="k")
+        old["models"]["m-gone"] = {
+            "verdict": "usable",
+            "latency_s": 0.1,
+            "detail": "",
+            "listed": True,
+        }
+        store.record_probe("p1", old)
+        store.record_probe("p1", _probe_report(key="rotated"))
+        models = store.load()["profiles"][0]["last_probe"]["models"]
+        assert set(models) == {"m1"}  # 旧 key 的 m-gone 不残留
+
 
 def _fp(key: str) -> str:
     return ep._key_fp(key)  # noqa: SLF001 -- 测本叶私有件同文件直取
@@ -291,7 +379,9 @@ class TestProjection:
         }
         profiles = store.effective_profiles(settings, connections)
         assert [p["id"] for p in profiles] == ["default", "openrouter-ai"]
-        assert profiles[0]["models"] == ["deepseek-chat"]
+        assert profiles[0]["models"] == [
+            {"model": "deepseek-chat", "redirect_model": ""}
+        ]
         assert profiles[0]["api_key"] == "sk-ds"
         assert profiles[1]["api_key"] == "sk-or"
         assert not store.path.exists()  # 投影不落盘
@@ -466,6 +556,36 @@ class TestProbeEndpoint:
             )
         )
         assert len(report["models"]) == ep.MAX_MODELS_PER_PROFILE
+
+    def test_redirect_sends_wire_reports_local(self) -> None:
+        """redirect 条目：上游收 wire 名，报告键是本地名，listed 对线名判。"""
+        _StubClient.list_ids = ["wire-x", "m2"]
+        seen: list[str] = []
+
+        orig = _StubClient.probe_chat
+
+        async def spy(
+            self: _StubClient, uid: str, *a: object, **kw: object
+        ) -> ChatResult:
+            seen.append(uid)
+            return await orig(self, uid, *a, **kw)
+
+        _StubClient.probe_chat = spy  # type: ignore[method-assign]
+        try:
+            report = asyncio.run(
+                ep.probe_endpoint(
+                    "https://x.test",
+                    "",
+                    "auto",
+                    [{"model": "alias", "redirect_model": "wire-x"}, "m2"],
+                )
+            )
+        finally:
+            _StubClient.probe_chat = orig  # type: ignore[method-assign]
+        assert seen == ["wire-x", "m2"]  # 上游见线名不见别名
+        assert set(report["models"]) == {"alias", "m2"}  # 报告键本地名
+        assert report["models"]["alias"]["listed"] is True  # wire-x 在清单
+        assert report["models"]["alias"]["verdict"] == "usable"
 
     def test_detail_scrubs_key(self) -> None:
         _StubClient.chat_results = {

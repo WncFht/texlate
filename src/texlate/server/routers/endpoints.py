@@ -17,18 +17,19 @@ from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
 from texlate.server.endpoints import (
-    MAX_MODELS_PER_PROFILE,
+    _check_models,
     active_id,
     credential_for,
+    local_model_name,
     probe_endpoint,
     public_profile,
+    wire_model,
 )
 from texlate.server.http import _api_error, _json_error, _read_body
 from texlate.server.settings import (
     server_mode,
     validate_base_url,
     validate_dialect,
-    validate_model,
 )
 
 if TYPE_CHECKING:
@@ -63,27 +64,13 @@ def _view(deps: AppDeps) -> dict[str, Any]:
     }
 
 
-def _validate_models(raw: object) -> list[str]:
-    """请求面 models 校验：string list + 逐条 ``validate_model`` + ≤8 去重。"""
-    if raw is None:
-        return []
-    if not isinstance(raw, list):
-        msg = "models 须为 string list"
-        raise TypeError(msg)
-    seen: set[str] = set()
-    out: list[str] = []
-    for m in raw:
-        if not isinstance(m, str):
-            msg = "models 成员须为 string"
-            raise TypeError(msg)
-        uid = validate_model(m)
-        if uid not in seen:
-            seen.add(uid)
-            out.append(uid)
-    if len(out) > MAX_MODELS_PER_PROFILE:
-        msg = f"models 至多 {MAX_MODELS_PER_PROFILE} 条"
-        raise ValueError(msg)
-    return out
+def _validate_models(raw: object) -> list[dict[str, str]]:
+    """请求面 models 校验：``str | {model, redirect_model}`` 混收 → 归一 dict 表。
+
+    与数据层 ``_check_models`` 同一实现（单源）——请求面子集探测按
+    本地 ``model`` 名匹配档案条目，档案外名字按无 redirect 直探。
+    """
+    return _check_models(raw)
 
 
 def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端点面平铺
@@ -137,7 +124,9 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             "dialect": p["dialect"],
         }
         if p["models"]:
-            updates["model"] = p["models"][0]
+            # 写线名：redirect_model 非空时 settings.model 落重定向目标，
+            # 主翻译径按线名直发（本地名只作档案内展示/报告键）
+            updates["model"] = wire_model(p["models"][0])
         if p["api_key"]:
             updates["api_key"] = p["api_key"]
         else:
@@ -172,11 +161,16 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 key, _src = credential_for(p, deps.settings_store.connections())
                 base_url = p["base_url"]
                 dialect = p["dialect"]
-                models = (
-                    _validate_models(body.get("models"))
-                    if body.get("models") is not None
-                    else list(p["models"])
-                )
+                if body.get("models") is not None:
+                    # 子集探测按本地名匹配档案条目（redirect 随档）；档案外
+                    # 名字按无 redirect 直探——测未入档模型也合法
+                    by_local = {local_model_name(m): m for m in p["models"]}
+                    models = [
+                        by_local.get(local_model_name(m), m)
+                        for m in _validate_models(body.get("models"))
+                    ]
+                else:
+                    models = list(p["models"])
             else:
                 base_url = validate_base_url(str(body.get("base_url") or ""))
                 key = str(body.get("api_key") or "")

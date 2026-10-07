@@ -685,6 +685,30 @@ class TestEndpointFallback:
         assert arms[1].client.api_key == "sk-ant"  # 凭据走 profile 不借 ctx key
         asyncio.run(_aclose_clients([client, arms[1].client]))
 
+    def test_arms_use_wire_names(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """redirect 条目：臂名取线名（redirect 优先），exclude 也对线名。"""
+        self._save_profiles(
+            tmp_path,
+            self._profile(
+                "p1",
+                "https://api.deepseek.com",
+                api_key="sk-ds",
+                models=[
+                    {"model": "alias", "redirect_model": "wire-x"},
+                    {"model": "m2", "redirect_model": ""},
+                ],
+            ),
+        )
+        ctx, worker = self._ep_ctx(tmp_path)
+        client = ChatClient("https://api.deepseek.com", "sk-ds")
+        arms = worker._endpoint_arms(ctx, client, {"deepseek-chat"})  # noqa: SLF001
+        assert [a.model for a in arms] == ["wire-x", "m2"]
+        asyncio.run(client.aclose())
+
     def test_keyless_remote_skipped_loopback_kept(
         self,
         tmp_path: Path,

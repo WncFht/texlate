@@ -157,6 +157,22 @@ class TestActivate:
             == HTTPStatus.NOT_FOUND
         )
 
+    def test_activate_writes_wire_name(self, client: TestClient) -> None:
+        """redirect 条目激活：settings.model 落线名（redirect 优先）。"""
+        client.put(
+            "/api/endpoints",
+            json={
+                "profiles": [
+                    _put_profile(
+                        models=[{"model": "alias", "redirect_model": "wire-x"}]
+                    )
+                ]
+            },
+        )
+        r = client.post("/api/endpoints/activate", json={"id": "p1"})
+        assert r.status_code == HTTPStatus.OK
+        assert r.json()["model"] == "wire-x"
+
 
 # ---------------------------------------------------------------- probe
 
@@ -179,10 +195,10 @@ class TestProbe:
                 }
             },
         }
-        seen: list[tuple[str, str, str, list[str]]] = []
+        seen: list[tuple[str, str, str, list[dict[str, str]]]] = []
 
         async def fake_probe(
-            base_url: str, key: str, dialect: str, models: list[str]
+            base_url: str, key: str, dialect: str, models: list[dict[str, str]]
         ) -> dict[str, Any]:
             seen.append((base_url, key, dialect, models))
             return report
@@ -194,11 +210,52 @@ class TestProbe:
         assert r.status_code == HTTPStatus.OK
         assert r.json()["models"]["deepseek-chat"]["verdict"] == "usable"
         assert seen == [
-            ("https://api.deepseek.com", "sk-ds", "auto", ["deepseek-chat"])
+            (
+                "https://api.deepseek.com",
+                "sk-ds",
+                "auto",
+                [{"model": "deepseek-chat", "redirect_model": ""}],
+            )
         ]
         # last_probe 钉回档案
         g = client.get("/api/endpoints").json()
         assert g["profiles"][0]["last_probe"]["key_fp"] == "abcd1234"
+
+    def test_probe_subset_by_local_name(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``{id, models:[本地名]}`` 子集探测：本地名解出档案 redirect 条目。"""
+        client.put(
+            "/api/endpoints",
+            json={
+                "profiles": [
+                    _put_profile(
+                        models=[
+                            {"model": "alias", "redirect_model": "wire-x"},
+                            {"model": "m2", "redirect_model": ""},
+                        ]
+                    )
+                ]
+            },
+        )
+        seen: list[list[dict[str, str]]] = []
+
+        async def fake_probe(
+            _b: str, _k: str, _d: str, models: list[dict[str, str]]
+        ) -> dict[str, Any]:
+            seen.append(models)
+            return {"stage1": {"verdict": "ok"}, "models": {}, "key_fp": "", "at": ""}
+
+        monkeypatch.setattr(
+            "texlate.server.routers.endpoints.probe_endpoint", fake_probe
+        )
+        r = client.post("/api/endpoints/probe", json={"id": "p1", "models": ["alias"]})
+        assert r.status_code == HTTPStatus.OK
+        assert seen == [[{"model": "alias", "redirect_model": "wire-x"}]]
+        # 档案外名字也可直探（无 redirect 兜底）
+        r = client.post("/api/endpoints/probe", json={"id": "p1", "models": ["m9"]})
+        assert r.status_code == HTTPStatus.OK
+        assert seen[-1] == [{"model": "m9", "redirect_model": ""}]
 
     def test_probe_bare_requires_key(self, client: TestClient) -> None:
         r = client.post(

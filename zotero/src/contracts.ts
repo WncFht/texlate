@@ -169,7 +169,8 @@ export interface EndpointsView {
     label: string;
     base_url: string;
     dialect: string;
-    models: string[];
+    /** model=档案内本地名；redirect_model=线上请求名（空串=本名直发） */
+    models: { model: string; redirect_model: string }[];
     enabled: boolean;
     has_api_key: boolean;
     key_env: string;
