@@ -11,19 +11,39 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from texlate.server.settings import validate_model
+from texlate.server.endpoints import (
+    ENDPOINTS_FILE,
+    EndpointStore,
+    credential_for,
+)
+from texlate.server.settings import (
+    SettingsStore,
+    server_mode,
+    validate_model,
+)
 from texlate.server.worker._common import _FallbackTranslator, _PerCallTranslator
 from texlate.textutil.osutil import translator_mode
-from texlate.xlat.client import DEFAULT_MODEL, AuthError, ChatClient
+from texlate.xlat.client import (
+    DEFAULT_MODEL,
+    AuthError,
+    ChatClient,
+    normalize_base_url,
+    provider_for_url,
+)
 from texlate.xlat.pipeline import GatewayTranslator, MockTranslator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     from texlate.server.store import Store
     from texlate.server.worker._common import TaskCtx
-    from texlate.xlat.client import UsageRecord
+    from texlate.xlat.client import ChatError, UsageRecord
     from texlate.xlat.pipeline import Translator
+
+#: ``_FallbackTranslator`` 备选臂上限（retry_model + 端点臂合计）——
+#: 每臂一次完整调用，封顶防回退链把单块放大成跨端点扫射。
+FALLBACK_ARM_MAX = 4
 
 
 class _TranslateXlator:
@@ -32,6 +52,7 @@ class _TranslateXlator:
     if TYPE_CHECKING:
         # 组合根 ``worker._Core.__init__`` 注入的共享态契约
         store: Store
+        data_dir: Path
         _translator_factory: Callable[[TaskCtx], Translator] | None
 
     def _retry_model_of(self, ctx: TaskCtx, model: str) -> str:
@@ -87,6 +108,87 @@ class _TranslateXlator:
                 options_json=options_json,
             )
 
+    def _endpoint_arms(  # noqa: C901 -- 闸 + 同端点/异端点两遍建档阶梯平铺
+        self, ctx: TaskCtx, client: ChatClient, exclude: set[str]
+    ) -> list[GatewayTranslator]:
+        """endpoints.json → 端点回退臂（活动 profile 余模同 client + 异端点 profile 各带自家 client）。
+
+        闸（任一命中 → 空链，行为与无档案时逐字节同构）：
+        ``secrets.source == "header"``（用户单发 key 绝不被扇到第二端点）、
+        非 local 形态（server 部署拓扑不自助回退）、``endpoints.json``
+        缺席（投影条目只映 settings/connections 本体，无异质臂可挂）。
+
+        臂序：先活动 profile 的余模（同 client 同凭据，零成本换模），
+        再按档案序各 enabled 异端点 profile 的首模。disabled profile 不
+        参与（``active_id`` docstring：活动身份是定位不是参与）。
+        跨端点臂的 key 走 ``credential_for`` 四级阶梯——
+        ``ctx.secrets.api_key`` 绝不发向异 base_url（exfil 墙）；无凭据
+        的远程端点跳过（必 AuthError 白烧一跳），回环端点无 key 合法
+        （``provider_for_url → "gateway"``）。
+        """
+        if ctx.secrets.source == "header" or server_mode() != "local":
+            return []
+        root = self.data_dir
+        if not (root / ENDPOINTS_FILE).is_file():
+            return []
+        profiles = EndpointStore(root).load()["profiles"]
+        connections = SettingsStore(root).connections()
+        active_url = normalize_base_url(ctx.secrets.base_url)
+        arms: list[GatewayTranslator] = []
+        for p in profiles:  # 第一遍：同端点余模（同 client 换模臂）
+            if not p.get("enabled"):
+                continue
+            if normalize_base_url(str(p["base_url"])) != active_url:
+                continue
+            for m in p["models"]:
+                if m in exclude:
+                    continue
+                exclude.add(m)
+                arms.append(GatewayTranslator(client, m))
+        for p in profiles:  # 第二遍：异端点 profile（各带自家凭据 client）
+            if not p.get("enabled"):
+                continue
+            base_url = str(p["base_url"])
+            if normalize_base_url(base_url) == active_url or not p["models"]:
+                continue
+            key, _src = credential_for(p, connections)
+            if not key and provider_for_url(base_url) != "gateway":
+                continue
+            arm_client = ChatClient(
+                base_url,
+                key,
+                dialect=str(p["dialect"] or "auto"),
+            )
+            arms.append(GatewayTranslator(arm_client, str(p["models"][0])))
+        return arms
+
+    def _arm_switch_warn(
+        self,
+        ctx: TaskCtx,
+        frm: GatewayTranslator,
+        to: GatewayTranslator,
+        e: ChatError,
+    ) -> None:
+        """切臂事件 → ``endpoint_fallback`` warning（每任务每目标端点去重）。
+
+        链上每块都可能切臂——不 dedupe 会按 chunk 数刷屏；dedupe 键是
+        目标臂 ``base_url``（``ctx.memo`` 按 run 存活，自然随任务回收）。
+        """
+        to_client = getattr(to, "client", None)
+        to_url = str(getattr(to_client, "base_url", "") or "")
+        key = f"endpoint_fallback:{to_url}"
+        seen = ctx.memo.setdefault("endpoint_fallback_seen", set())
+        if key in seen:
+            return
+        seen.add(key)
+        frm_url = str(getattr(getattr(frm, "client", None), "base_url", "") or "")
+        self._warning(
+            ctx,
+            "endpoint_fallback",
+            f"翻译回退：{frm.model}@{frm_url} 失败"
+            f"（{type(e).__name__} status={e.status}）→ {to.model}@{to_url}",
+        )
+
     def _resolve_translator(
         self,
         ctx: TaskCtx,
@@ -102,8 +204,10 @@ class _TranslateXlator:
         网关臂两形态：``sink`` 给定 = ephemeral-loop 消费面（doc 路/llm_hook
         的 ``asyncio.run`` 临时 loop——共享 client 跨 loop 复用会炸、aclose
         回不去已关 loop）→ ``_PerCallTranslator`` 即开即关；``sink=None`` =
-        主链共享 client ``GatewayTranslator``，``retry_model`` 经
-        ``_FallbackTranslator`` 接备选。``retry=False`` 给不接
+        主链共享 client ``GatewayTranslator``，``retry_model`` 与
+        endpoints.json 端点档案臂经 ``_FallbackTranslator`` 链式接备选
+        （``_endpoint_arms`` 闸内：header 凭据/非 local/无档案 → 空链）。
+        ``retry=False`` 给不接
         ``retry_model`` 的旁路臂（llm_hook——备选模型烧 token 的语义不擅自
         加）用。
 
@@ -142,11 +246,26 @@ class _TranslateXlator:
                         dialect=ctx.secrets.dialect,
                     )
                     primary = GatewayTranslator(client, model)
+                    arms: list[GatewayTranslator] = []
+                    if retry:
+                        # retry=False 旁路臂（splice/fixloop sink 面、llm_hook
+                        # 自承语义）不接任何回退臂
+                        if retry_model:
+                            arms.append(GatewayTranslator(client, retry_model))
+                        arms.extend(
+                            self._endpoint_arms(
+                                ctx, client, exclude={model, retry_model}
+                            )
+                        )
                     tr = (
                         _FallbackTranslator(
-                            primary, GatewayTranslator(client, retry_model)
+                            primary,
+                            arms[:FALLBACK_ARM_MAX],
+                            on_switch=lambda frm, to, e: self._arm_switch_warn(
+                                ctx, frm, to, e
+                            ),
                         )
-                        if retry_model
+                        if arms
                         else primary
                     )
             else:

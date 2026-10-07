@@ -1,7 +1,8 @@
 """译器包装域（自 ``_common`` 出叶）：三个 ``translate()`` 鸭子型包装。
 
-``_FallbackTranslator`` 把 ``options.retry_model`` 落在 HTTP 失败层
-（primary 抛 retryable ``ChatError`` → 同参切备选模型补一发）；
+``_FallbackTranslator`` 是 N 臂失败回退链（primary 抛 ``ChatError``
+→ 按臂序同参补发：``retry_model`` 同 client 换模臂 + endpoints.json
+跨端点臂）；
 ``_PerCallTranslator`` 是 ephemeral-loop 消费面的 BYOK translator——
 client 按 running loop 懒建复用（分桶/摘除/尽力收尾机制单源在
 ``server._ttlcache.LoopClientPool``）；``_AbortingTranslator`` 是
@@ -16,7 +17,13 @@ from typing import TYPE_CHECKING
 
 from texlate.server._ttlcache import LoopClientPool
 from texlate.server.worker._common.errors import _SectionAbort
-from texlate.xlat.client import ChatClient, ChatError
+from texlate.xlat.client import (
+    AuthError,
+    BillingError,
+    ChatClient,
+    ChatError,
+    EndpointNotFoundError,
+)
 from texlate.xlat.pipeline import GatewayTranslator
 
 if TYPE_CHECKING:
@@ -29,26 +36,63 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _arm_label(tr: object) -> str:
+    """``model@base_url`` 日志标签（缺 attr 的鸭子型替身降级为 ``model@?``）。"""
+    client = getattr(tr, "client", None)
+    return f"{getattr(tr, 'model', '?')}@{getattr(client, 'base_url', '?')}"
+
+
+def _arm_could_help(frm: object, to: object, e: ChatError) -> bool:
+    """本臂错 ``e``、下一臂是否有救：同 client 只看 retryable；异 client 加接 auth/billing/404。
+
+    同 client（同端点同凭据，仅换模型）：``AuthError``/``BillingError``/
+    ``EndpointNotFoundError`` 换模无救——同一 key 同一端点必同死。
+    异 client（换端点换凭据）：这三个恰恰是最该换端点的错——本端点
+    判死的错在异端点可能整臂翻身（key 无效/欠费/模型摘除都随槽走）。
+    """
+    if e.retryable:
+        return True
+    if getattr(frm, "client", None) is getattr(to, "client", None):
+        return False
+    return isinstance(e, (AuthError, BillingError, EndpointNotFoundError))
+
+
 class _FallbackTranslator:
-    """``options.retry_model`` 接线：primary 抛 retryable ``ChatError`` → 同参切备选模型补一发。
+    """失败回退链：primary 抛 ``ChatError`` → 按臂序同参补发（同 client 换模臂 + 跨端点臂）。
 
     阶梯（``translate_with_ladder``）属 xlat 属主不在此动——本包装把
-    「chunk 重试换模型」落在 HTTP 失败层：模型级故障/限流时该块的每次
-    调用自带一发备选兜底；non-retryable（401/402/404）换模型无意义，
-    直接上抛。validation 反馈驱动的阶梯内重试仍走 primary。
-    ``.client`` 暴露 primary 的 ChatClient——``_stage_translate`` finally
-    的 ``isinstance(ChatClient)→aclose`` 探测依赖它。
+    「chunk 重试换臂」落在 HTTP 失败层：模型级故障/限流/端点级死症
+    时该块的每次调用自带备选兜底。臂能不能救下一跳按
+    ``_arm_could_help`` 分判（同 client 换模只接 retryable；跨 client
+    加接 AuthError/BillingError/EndpointNotFoundError）。validation
+    反馈驱动的阶梯内重试仍走 primary。``.client`` 暴露 primary 的
+    ChatClient——``_stage_translate`` finally 的
+    ``isinstance(ChatClient)→aclose`` 探测依赖它；``on_switch`` 是
+    切臂事件钩（warning 归因，可 None）。
     """
 
-    def __init__(self, primary: GatewayTranslator, fallback: GatewayTranslator) -> None:
+    def __init__(
+        self,
+        primary: GatewayTranslator,
+        fallbacks: list[GatewayTranslator],
+        *,
+        on_switch: Callable[[GatewayTranslator, GatewayTranslator, ChatError], None]
+        | None = None,
+    ) -> None:
         self._primary = primary
-        self._fallback = fallback
+        self._fallbacks = list(fallbacks)
+        self._on_switch = on_switch
         self.client = getattr(primary, "client", None)
 
     @property
     def clients(self) -> list[object]:
-        """主备两路底层 client（usage_sink/aclose 接线面）。"""
-        return [self.client, getattr(self._fallback, "client", None)]
+        """全臂底层 client（identity 去重保序——同 client 臂只列一次，usage_sink/aclose 接线面）。"""
+        out: list[object] = []
+        for tr in (self._primary, *self._fallbacks):
+            c = getattr(tr, "client", None)
+            if c is not None and all(c is not seen for seen in out):
+                out.append(c)
+        return out
 
     async def translate(
         self,
@@ -59,31 +103,31 @@ class _FallbackTranslator:
         max_tokens: int,
         response_format: dict[str, str] | None = None,
     ) -> str:
-        """先发 primary；retryable 失败 → 备选模型补一发（仍失败则上抛）。"""
-        try:
-            return await self._primary.translate(
-                system=system,
-                user=user,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format=response_format,
-            )
-        except ChatError as e:
-            if not e.retryable:
-                raise
-            log.warning(
-                "retry_model: primary %s 失败（%s）→ 备选 %s",
-                getattr(self._primary, "model", "?"),
-                e,
-                getattr(self._fallback, "model", "?"),
-            )
-        return await self._fallback.translate(
-            system=system,
-            user=user,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format=response_format,
-        )
+        """按臂序补发：本臂失败且下一臂有救 → 切臂；末臂/无救 → 原样上抛。"""
+        arms = [self._primary, *self._fallbacks]
+        for idx, tr in enumerate(arms):
+            try:
+                return await tr.translate(
+                    system=system,
+                    user=user,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                )
+            except ChatError as e:
+                nxt = arms[idx + 1] if idx + 1 < len(arms) else None
+                if nxt is None or not _arm_could_help(tr, nxt, e):
+                    raise
+                log.warning(
+                    "fallback: %s 失败（%s）→ %s",
+                    _arm_label(tr),
+                    e,
+                    _arm_label(nxt),
+                )
+                if self._on_switch is not None:
+                    self._on_switch(tr, nxt, e)
+        msg = "unreachable: 末臂 raise 恒退出循环"
+        raise ChatError(msg)  # pragma: no cover -- 循环恒经 return/raise 退出
 
 
 class _PerCallTranslator:
