@@ -131,7 +131,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 - 模型面：`DEFAULT_MODEL="swe-2-medium"`；`DEFAULT_MODEL_PREFERENCE=("swe-2-medium","swe-2-high","swe-2-max","glm-5-2")`；`DEFAULT_MODEL_DENYLIST={"swe-1-7","swe-1-7-medium"}`（精确两枚，非通配）；`FALLBACK_MAX_CANDIDATES=3`。
 - 免费集动态发现 `discover_free_models`：网关面板 `cost_tier=="free"∧promo.active∧!disabled` ∩ `/v1/models` ∩ 探活（Semaphore 4、`max_probe=12`）+ memoize——**仅 `is_free_gateway_url`**（回环 ∪ CGNAT 段 ∪ tailnet 域名）启用；`fallback_candidates`/`_FallbackTranslator`（worker `retry_model`）消费。
-- 超时：`DEFAULT_TIMEOUT=httpx.Timeout(180, connect=10, read=300)`；`PROBE_TIMEOUT=60s`、`PROBE_MAX_TOKENS=1024`、`REASONING_MIN_MAX_TOKENS=8192`。
+- 超时：`DEFAULT_TIMEOUT=httpx.Timeout(180, connect=10, read=300)`；`PROBE_TIMEOUT=60s`、`PROBE_MAX_TOKENS=8192`（= `REASONING_MIN_MAX_TOKENS`，reasoning 思考链同吃预算、小探针会假阴；server 端点探针同口径）。
 - 错误型谱：`AuthError`(401/403) / `BillingError`(402) / `EndpointNotFoundError`(404) / `RetryableHTTPError`(429/408/409/425/5xx) / `ClientRejectedError` / `ContentFilterError`(max_tries=1) / `LengthTruncatedError`(status=200 伪装，max_tries=2，带 partial_content) / `EmptyContentError`·`MalformedResponseError`(max_tries=2)。
 - `redact()` provider 无关脱敏（Bearer/sk-_/sk-ant-_/AIza*/key=:token= + 显式 api_key）；`provider_for_url` host→provider 预设表（anthropic/deepseek/dashscope/azure|openai/其余 custom），`PROVIDER_KEY_ENV` 映射各家 key env——BYOK 通道。
 

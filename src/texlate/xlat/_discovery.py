@@ -25,7 +25,11 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from texlate.xlat._dialects import ChatOptions, ChatResult
+from texlate.xlat._dialects import (
+    REASONING_MIN_MAX_TOKENS,
+    ChatOptions,
+    ChatResult,
+)
 from texlate.xlat._errors import (
     _TRANSPORT_ERRORS,
     ChatError,
@@ -41,8 +45,10 @@ log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- 常量
 
-#: 探活请求预算（只要求非空 content，给思考留 1k 余量足够）
-PROBE_MAX_TOKENS = 1024
+#: 探活请求预算——对齐生产径：reasoning 模型思考链同吃 max_tokens，
+#: 小预算会把可用模型判成 finish=length 假阴（与 server 端点探针同口径，
+#: OpenRouter 实测佐证见 endpoints.py PROBE_MAX_TOKENS 注）
+PROBE_MAX_TOKENS = REASONING_MIN_MAX_TOKENS
 PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 #: 免费集偏好序（动态发现后按此排序——不是免费集本身，命中才选；

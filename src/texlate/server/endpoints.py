@@ -42,6 +42,7 @@ from texlate.server.validate import (
 )
 from texlate.textutil import env_raw
 from texlate.xlat.client import (
+    REASONING_MIN_MAX_TOKENS,
     AuthError,
     ChatClient,
     ChatError,
@@ -82,8 +83,11 @@ PROBE_SENTENCE = (
     "byte-identically.\n\n"
     "The [[MATH_1]] norm satisfies [[MATH_2]] \\le 1; see [[CITE_1]]."
 )
-PROBE_TIMEOUT = httpx.Timeout(20.0, connect=8.0)
-PROBE_MAX_TOKENS = 256
+# 预算/超时对齐生产翻译径（TRANSLATE_MAX_TOKENS=8192）——reasoning 模型把
+# 思考链也吃进 max_tokens，小预算会给可用模型判 finish=length 假阴
+# （OpenRouter 实测：dots/nemotron 256tok 全灭、8192 双双 usable，2026-10-07）。
+PROBE_TIMEOUT = httpx.Timeout(60.0, connect=8.0)
+PROBE_MAX_TOKENS = REASONING_MIN_MAX_TOKENS
 _PROBE_CONCURRENCY = 4
 _PROBE_TOKENS = ("[[MATH_1]]", "[[MATH_2]]", "[[CITE_1]]")
 _CJK_RX = re.compile(r"[一-鿿]")
@@ -648,7 +652,7 @@ async def _probe_model_chat(
     else:
         verdict = _content_verdict(r.content)
         if r.finish_reason == "length" and verdict == "usable":
-            detail = "finish=length（256tok 截断——探句短，仍判 usable）"
+            detail = f"finish=length（{PROBE_MAX_TOKENS}tok 截断——探句短，仍判 usable）"
     return {
         "verdict": verdict,
         "latency_s": round(time.monotonic() - t0, 2),
