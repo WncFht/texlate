@@ -17,6 +17,7 @@ from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
 from texlate.server.endpoints import (
+    _check_model_names,
     _check_models,
     active_id,
     credential_for,
@@ -65,10 +66,11 @@ def _view(deps: AppDeps) -> dict[str, Any]:
 
 
 def _validate_models(raw: object) -> list[dict[str, str]]:
-    """请求面 models 校验：``str | {model, redirect_model}`` 混收 → 归一 dict 表。
+    """裸径 models 校验：一律 ``{model, redirect_model}`` dict 表。
 
-    与数据层 ``_check_models`` 同一实现（单源）——请求面子集探测按
-    本地 ``model`` 名匹配档案条目，档案外名字按无 redirect 直探。
+    与数据层 ``_check_models`` 同一实现（单源）——裸端点无档案可解析，
+    条目自带的 redirect 即全部语义；id 径子集探测走 ``_check_model_names``
+    本地名 selector。
     """
     return _check_models(raw)
 
@@ -166,8 +168,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                     # 名字按无 redirect 直探——测未入档模型也合法
                     by_local = {local_model_name(m): m for m in p["models"]}
                     models = [
-                        by_local.get(local_model_name(m), m)
-                        for m in _validate_models(body.get("models"))
+                        by_local.get(n, {"model": n, "redirect_model": ""})
+                        for n in _check_model_names(body.get("models"))
                     ]
                 else:
                     models = list(p["models"])

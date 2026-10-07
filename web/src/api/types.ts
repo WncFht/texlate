@@ -551,7 +551,7 @@ export interface EndpointProfileWrite {
     label?: string;
     base_url: string;
     dialect?: string;
-    /** str 条目服务端也收（升级成空 redirect 的 dict 形）——写面统一发 dict */
+    /** 条目一律 {model, redirect_model} dict——服务端不收裸 str */
     models?: EndpointModel[];
     enabled?: boolean;
     /** 非空 = 写 inline key；"" = 承同 id 旧值（新 profile = 无凭据） */
@@ -578,8 +578,8 @@ export type EndpointProbeReq =
           base_url: string;
           api_key: string;
           dialect?: string;
-          /** 裸径可带 redirect 条目——草稿态按现值探测 */
-          models?: (string | EndpointModel)[];
+          /** 裸径 dict 条目表（可带 redirect——草稿态按现值探测）；str 不收 */
+          models?: EndpointModel[];
       };
 
 export interface Health {

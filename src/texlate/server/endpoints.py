@@ -6,10 +6,10 @@
 文件契约 ``{version: 1, profiles: [...]}``（0600 原子写）；profile =
 ``{id, label, base_url, dialect, models[], enabled, api_key|key_env, last_probe}``：
 
-- ``models`` 条目 ``{model, redirect_model}``：``model`` 是档案内本地名
-  （展示名/探针报告键），``redirect_model`` 是线上请求名——非空时上游
-  收到的是它（别名重定向），空串即本名直发；``wire_model`` 单源取线名。
-  读径兼容裸 string 条目（升级成 ``redirect_model=""`` 的 dict 形态）。
+- ``models`` 条目一律 ``{model, redirect_model}`` dict：``model`` 是档案内
+  本地名（展示名/探针报告键），``redirect_model`` 是线上请求名——非空时
+  上游收到的是它（别名重定向），空串即本名直发；``wire_model`` 单源取
+  线名。裸 string 条目不收——旧 str 形态档案按坏成员读径整档丢弃。
 
 - ``api_key`` 与 ``key_env`` 互斥；写径 ``api_key=""`` 保留同 id 旧值
   （settings.save 同口径），一方显式写入即清另一方（凭据形态切换）。
@@ -139,11 +139,9 @@ def _check_key_env(value: object) -> str:
 
 
 def _model_entry(item: object) -> dict[str, str]:
-    """单条目 ``str | {model, redirect_model}`` → 归一 dict；非法 → TypeError/ValueError。"""
-    if isinstance(item, str):
-        return {"model": validate_model(item), "redirect_model": ""}
+    """单条目 ``{model, redirect_model}`` → 归一 dict；非法 → TypeError/ValueError。"""
     if not isinstance(item, dict):
-        msg = "models 成员须为 string 或 {model, redirect_model}"
+        msg = "models 成员须为 {model, redirect_model} 对象"
         raise TypeError(msg)
     raw_name = item.get("model")
     if not isinstance(raw_name, str):
@@ -161,16 +159,16 @@ def _model_entry(item: object) -> dict[str, str]:
 
 
 def _check_models(value: object) -> list[dict[str, str]]:
-    """Models：条目 ``str | {model, redirect_model}`` 混收，归一成 dict 表。
+    """Models：条目一律 ``{model, redirect_model}`` dict，归一保序。
 
     ``model`` = 档案内本地名（展示/探针报告键），``redirect_model`` = 线上
     请求名——非空时上游收的是它。逐条 ``validate_model``、按本地名去重
-    保序、≤8；``None → []``。
+    保序、≤8；``None → []``。裸 string 条目不收（str 兼容已撤）。
     """
     if value is None:
         return []
     if not isinstance(value, list):
-        msg = "models 须为 string/object list"
+        msg = "models 须为 {model, redirect_model} list"
         raise TypeError(msg)
     seen: set[str] = set()
     out: list[dict[str, str]] = []
@@ -185,20 +183,37 @@ def _check_models(value: object) -> list[dict[str, str]]:
     return out
 
 
-def wire_model(entry: dict[str, Any] | str) -> str:
-    """模型条目 → 线上请求名（``redirect_model`` 非空优先，否则本地名）。
+def _check_model_names(value: object) -> list[str]:
+    """本地名子集（probe ``{id, models}`` 请求面 selector）：``string[]`` → 去重保序名表。
 
-    裸 string 兜底兼容（手改/旧档案残留）——读径归一化后本不该见到。
+    不是档案 schema——只是「探哪些本地名」的选择器，逐条 ``validate_model``；
+    ``None → []``；非 list/非 str 成员 → TypeError。
     """
-    if isinstance(entry, str):
-        return entry
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        msg = "models 须为 string list"
+        raise TypeError(msg)
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            msg = "models 成员须为 string（本地名选择器）"
+            raise TypeError(msg)
+        name = validate_model(item)
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def wire_model(entry: dict[str, Any]) -> str:
+    """模型条目 → 线上请求名（``redirect_model`` 非空优先，否则本地名）。"""
     return str(entry.get("redirect_model") or "") or str(entry.get("model") or "")
 
 
-def local_model_name(entry: dict[str, Any] | str) -> str:
+def local_model_name(entry: dict[str, Any]) -> str:
     """模型条目 → 本地名（展示/探针报告键）。"""
-    if isinstance(entry, str):
-        return entry
     return str(entry.get("model") or "")
 
 
@@ -731,7 +746,7 @@ async def probe_endpoint(
     base_url: str,
     api_key: str,
     dialect: str,
-    models: list[dict[str, Any] | str],
+    models: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """两段行为探针 → ``last_probe`` 报告 dict（key_fp 按所给已决议 key 记）。
 
@@ -742,7 +757,7 @@ async def probe_endpoint(
     /``refused``/``auth_failed``/``http_error``/``timeout``/``unreachable``；
     段1 属 ``_STAGE2_SKIP`` 时整段跳（各模型记 ``skipped``）。
 
-    ``models`` 条目 ``str | {model, redirect_model}`` 混收：请求按
+    ``models`` 条目一律 ``{model, redirect_model}`` dict：请求按
     ``wire_model``（redirect 优先）发到上游，``listed`` 判定也对线名
     （上游清单只认线名）；报告 ``models`` 的键一律是本地名。
     """
@@ -808,7 +823,7 @@ async def probe_endpoint(
 
         sem = asyncio.Semaphore(_PROBE_CONCURRENCY)
 
-        async def _one(entry: dict[str, Any] | str) -> tuple[str, dict[str, Any]]:
+        async def _one(entry: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             async with sem:
                 return local_model_name(entry), await _probe_model_chat(
                     client, wire_model(entry), listed

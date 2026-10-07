@@ -216,7 +216,7 @@ export const settingsStore = {
         base_url: string;
         api_key: string;
         dialect?: string;
-        models?: (string | EndpointModel)[];
+        models?: EndpointModel[];
     }): Promise<ProbeReport> {
         return api.probeEndpoint(req);
     },

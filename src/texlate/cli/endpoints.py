@@ -69,13 +69,11 @@ def _cred_text(p: dict[str, Any]) -> str:
     return "无凭据"
 
 
-def _model_chip(entry: object) -> str:
+def _model_chip(entry: dict[str, Any]) -> str:
     """模型条目 → ``model(redirect)`` 展示名（无 redirect 只显本地名）。"""
-    if isinstance(entry, dict):
-        name = str(entry.get("model") or "")
-        red = str(entry.get("redirect_model") or "")
-        return f"{name}({red})" if red else name
-    return str(entry)
+    name = str(entry.get("model") or "")
+    red = str(entry.get("redirect_model") or "")
+    return f"{name}({red})" if red else name
 
 
 def _probe_line(p: dict[str, Any]) -> str:

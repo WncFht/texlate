@@ -26,13 +26,18 @@ def _no_model_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEXLATE_MODEL_PROBE", "0")
 
 
+def _m(model: str, redirect: str = "") -> dict[str, str]:
+    """模型条目夹具——dict 形（schema 唯一合法形态）。"""
+    return {"model": model, "redirect_model": redirect}
+
+
 def _put_profile(pid: str = "p1", **over: object) -> dict[str, Any]:
     p: dict[str, Any] = {
         "id": pid,
         "label": "",
         "base_url": "https://api.deepseek.com",
         "dialect": "auto",
-        "models": ["deepseek-chat"],
+        "models": [_m("deepseek-chat")],
         "enabled": True,
         "api_key": "sk-ds",
         "key_env": "",
@@ -64,7 +69,7 @@ class TestGetPut:
                         "p2",
                         base_url="https://api.anthropic.com",
                         api_key="sk-ant",
-                        models=["claude-x"],
+                        models=[_m("claude-x")],
                     ),
                 ]
             },
@@ -90,6 +95,14 @@ class TestGetPut:
             client.put(
                 "/api/endpoints",
                 json={"profiles": [_put_profile(api_key="k", key_env="E")]},
+            ).status_code
+            == HTTPStatus.BAD_REQUEST
+        )
+        # 裸 str 模型条目不收——写面一律 {model, redirect_model} dict
+        assert (
+            client.put(
+                "/api/endpoints",
+                json={"profiles": [_put_profile(models=["deepseek-chat"])]},
             ).status_code
             == HTTPStatus.BAD_REQUEST
         )
@@ -260,7 +273,7 @@ class TestProbe:
     def test_probe_bare_requires_key(self, client: TestClient) -> None:
         r = client.post(
             "/api/endpoints/probe",
-            json={"base_url": "https://api.deepseek.com", "models": ["m"]},
+            json={"base_url": "https://api.deepseek.com", "models": [_m("m")]},
         )
         # 裸端点不带 key → exfil 闸
         assert r.status_code == HTTPStatus.BAD_REQUEST
@@ -269,7 +282,7 @@ class TestProbe:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         async def fake_probe(
-            _base_url: str, _key: str, _dialect: str, _models: list[str]
+            _base_url: str, _key: str, _dialect: str, _models: list[dict[str, str]]
         ) -> dict[str, Any]:
             return {"stage1": {"verdict": "ok"}, "models": {}, "key_fp": "", "at": ""}
 
@@ -281,10 +294,22 @@ class TestProbe:
             json={
                 "base_url": "https://api.deepseek.com",
                 "api_key": "sk-x",
-                "models": ["m1"],
+                "models": [_m("m1")],
             },
         )
         assert r.status_code == HTTPStatus.OK
+
+    def test_probe_bare_str_models_rejected(self, client: TestClient) -> None:
+        """裸径 models 一律 dict 条目——str 名列表是 id 径 selector 专属契约。"""
+        r = client.post(
+            "/api/endpoints/probe",
+            json={
+                "base_url": "https://api.deepseek.com",
+                "api_key": "sk-x",
+                "models": ["m1"],
+            },
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_probe_unknown_id_404(self, client: TestClient) -> None:
         assert (

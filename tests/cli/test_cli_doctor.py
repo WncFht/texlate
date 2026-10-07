@@ -152,7 +152,7 @@ class TestDoctor:
                         {
                             "id": "p1",
                             "base_url": "https://gw.test:8443",
-                            "models": ["m1"],
+                            "models": [{"model": "m1", "redirect_model": ""}],
                             "api_key": _GW_KEY,
                         }
                     ],
@@ -425,7 +425,11 @@ class TestDoctor:
                 {
                     "version": 1,
                     "profiles": [
-                        {"id": "p1", "base_url": ep_url, "models": ["m1"]},
+                        {
+                            "id": "p1",
+                            "base_url": ep_url,
+                            "models": [{"model": "m1", "redirect_model": ""}],
+                        },
                         {
                             "id": "p2",
                             "base_url": "https://or.test/api",

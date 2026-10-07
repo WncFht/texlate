@@ -26,7 +26,7 @@
 | `PIPELINE_VERSION` / `cache_scope` | dedup 键材                                                  | 缓存命中口径                                                                                                        | `share.py` 单源                      |
 | run 名形态                         | `<date>/<slug>`                                             | run id 目录拼写                                                                                                     | `$TEXLATE_BENCH_ROOT/runs/`          |
 | 数据目录名                         | `corpus`/`corpus_iclr_pdf`/`frame`/`corpus_daily`（已退役） | 语料/产物落盘区                                                                                                     | `bench/`、`$TEXLATE_BENCH_ROOT/`     |
-| `redirect_model`                   | endpoints.json `profiles[].models[]` 条目键                 | 线上请求名（空串 = 本名直发）——别名重定向真语义，旧 str 条目读径归一为空串                                          | `server/endpoints.py` store/probe    |
+| `redirect_model`                   | endpoints.json `profiles[].models[]` 条目键                 | 线上请求名（空串 = 本名直发）——别名重定向真语义；裸 str 条目不收，旧 str 档案读径整档丢弃                           | `server/endpoints.py` store/probe    |
 
 ## 2. 域词一词一义
 

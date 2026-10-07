@@ -89,13 +89,18 @@ def store(tmp_path: Path) -> ep.EndpointStore:
     return ep.EndpointStore(tmp_path)
 
 
+def _m(model: str, redirect: str = "") -> dict[str, str]:
+    """模型条目夹具——dict 形（schema 唯一合法形态）。"""
+    return {"model": model, "redirect_model": redirect}
+
+
 def _profile(pid: str = "p1", **over: object) -> dict[str, Any]:
     p: dict[str, Any] = {
         "id": pid,
         "label": "",
         "base_url": "https://api.deepseek.com",
         "dialect": "auto",
-        "models": ["m1"],
+        "models": [_m("m1")],
         "enabled": True,
         "api_key": "sk-test-key",
         "key_env": "",
@@ -157,6 +162,22 @@ class TestLoadSave:
         ids = [p["id"] for p in store.load()["profiles"]]
         assert ids == ["good"]
 
+    def test_str_models_member_dropped(self, store: ep.EndpointStore) -> None:
+        """旧 str-models 档案无兼容——整档按坏成员读径丢弃（不升级、不改写）。"""
+        store.path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "profiles": [
+                        _profile("legacy", models=["m1"]),
+                        _profile("fresh", models=[_m("m1")]),
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert [p["id"] for p in store.load()["profiles"]] == ["fresh"]
+
     def test_handmade_mutex_conflict_env_wins(self, store: ep.EndpointStore) -> None:
         """手改文件 api_key+key_env 双非空 → 读径 env 引用优先（不落盘更安全）。"""
         store.path.write_text(
@@ -199,23 +220,26 @@ class TestSaveRules:
 
     def test_models_cap_and_type(self, store: ep.EndpointStore) -> None:
         with pytest.raises(ValueError, match="至多"):
-            store.save([_profile(models=[f"m{i}" for i in range(9)])])
-        with pytest.raises(TypeError, match="string"):
-            store.save([_profile(models=["m1", 42])])
+            store.save([_profile(models=[_m(f"m{i}") for i in range(9)])])
+        with pytest.raises(TypeError, match="对象"):
+            store.save([_profile(models=["m1"])])  # 裸 str 不收
+        with pytest.raises(TypeError, match="对象"):
+            store.save([_profile(models=[42])])
         with pytest.raises(TypeError, match="model"):
             store.save([_profile(models=[{"redirect_model": "m"}])])  # 缺 model
         with pytest.raises(TypeError, match="redirect_model"):
             store.save([_profile(models=[{"model": "m", "redirect_model": 1}])])
 
-    def test_models_normalize_str_and_dict(self, store: ep.EndpointStore) -> None:
-        """str 条目升级 dict 形态；dict 条目保留；redirect==model 清成空。"""
+    def test_models_normalize_dict(self, store: ep.EndpointStore) -> None:
+        """dict 条目归一：redirect==model 清成空、按本地名去重保序。"""
         out = store.save(
             [
                 _profile(
                     models=[
-                        "m1",
+                        _m("m1"),
                         {"model": "alias", "redirect_model": "wire-x"},
                         {"model": "m2", "redirect_model": "m2"},
+                        {"model": "m1", "redirect_model": "dup"},  # 本地名撞 → 丢
                     ]
                 )
             ]
@@ -229,7 +253,6 @@ class TestSaveRules:
         assert store.load()["profiles"][0]["models"] == out[0]["models"]
 
     def test_wire_model_helper(self) -> None:
-        assert ep.wire_model("m") == "m"
         assert ep.wire_model({"model": "a", "redirect_model": ""}) == "a"
         assert ep.wire_model({"model": "a", "redirect_model": "r"}) == "r"
 
@@ -257,7 +280,7 @@ class TestSaveRules:
     ) -> None:
         store.save([_profile()])
         store.record_probe("p1", _probe_report(key="sk-test-key"))
-        out = store.save([_profile(models=["m1", "m2"])])
+        out = store.save([_profile(models=[_m("m1"), _m("m2")])])
         assert out[0]["last_probe"] is None
         store.save([_profile()])
         store.record_probe("p1", _probe_report(key="sk-test-key"))
@@ -482,7 +505,7 @@ class TestProbeEndpoint:
     def test_ok_two_stage(self) -> None:
         _StubClient.list_ids = ["m1", "ghost"]
         report = asyncio.run(
-            ep.probe_endpoint("https://x.test", "sk-k", "openai", ["m1", "m9"])
+            ep.probe_endpoint("https://x.test", "sk-k", "openai", [_m("m1"), _m("m9")])
         )
         assert report["stage1"]["verdict"] == "ok"
         assert report["stage1"]["models"] == ["m1", "ghost"]
@@ -494,14 +517,18 @@ class TestProbeEndpoint:
 
     def test_placeholder_lost(self) -> None:
         _StubClient.chat_results = {"m1": _result("范数满足 ≤ 1；见引用。")}
-        report = asyncio.run(ep.probe_endpoint("https://x.test", "", "auto", ["m1"]))
+        report = asyncio.run(
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1")])
+        )
         assert report["models"]["m1"]["verdict"] == "placeholder_lost"
 
     def test_no_cjk(self) -> None:
         _StubClient.chat_results = {
             "m1": _result("The [[MATH_1]] norm satisfies [[MATH_2]]; see [[CITE_1]].")
         }
-        report = asyncio.run(ep.probe_endpoint("https://x.test", "", "auto", ["m1"]))
+        report = asyncio.run(
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1")])
+        )
         assert report["models"]["m1"]["verdict"] == "no_cjk"
 
     def test_empty_and_refused(self) -> None:
@@ -510,7 +537,7 @@ class TestProbeEndpoint:
             "m2": ContentFilterError("filtered", status=400),
         }
         report = asyncio.run(
-            ep.probe_endpoint("https://x.test", "", "auto", ["m1", "m2"])
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1"), _m("m2")])
         )
         assert report["models"]["m1"]["verdict"] == "empty"
         assert report["models"]["m2"]["verdict"] == "refused"
@@ -518,14 +545,16 @@ class TestProbeEndpoint:
     def test_stage1_auth_skips_stage2(self) -> None:
         _StubClient.list_error = AuthError("HTTP 401: bad key", status=401)
         report = asyncio.run(
-            ep.probe_endpoint("https://x.test", "sk-bad", "auto", ["m1", "m2"])
+            ep.probe_endpoint("https://x.test", "sk-bad", "auto", [_m("m1"), _m("m2")])
         )
         assert report["stage1"]["verdict"] == "auth_failed"
         assert all(m["verdict"] == "skipped" for m in report["models"].values())
 
     def test_no_models_dir_still_probes(self) -> None:
         _StubClient.list_error = EndpointNotFoundError("HTTP 404", status=404)
-        report = asyncio.run(ep.probe_endpoint("https://x.test", "", "auto", ["m1"]))
+        report = asyncio.run(
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1")])
+        )
         assert report["stage1"]["verdict"] == "no_models_dir"
         assert report["models"]["m1"]["verdict"] == "usable"
         assert report["models"]["m1"]["listed"] is None
@@ -534,7 +563,9 @@ class TestProbeEndpoint:
         _StubClient.list_error = RetryableHTTPError(
             "transport error: timed out", status=-1
         )
-        report = asyncio.run(ep.probe_endpoint("https://x.test", "", "auto", ["m1"]))
+        report = asyncio.run(
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1")])
+        )
         assert report["stage1"]["verdict"] == "timeout"
         assert report["models"]["m1"]["verdict"] == "skipped"
 
@@ -544,7 +575,7 @@ class TestProbeEndpoint:
             "m2": RetryableHTTPError("HTTP 500: boom", status=500),
         }
         report = asyncio.run(
-            ep.probe_endpoint("https://x.test", "", "auto", ["m1", "m2"])
+            ep.probe_endpoint("https://x.test", "", "auto", [_m("m1"), _m("m2")])
         )
         assert report["models"]["m1"]["verdict"] == "unreachable"
         assert report["models"]["m2"]["verdict"] == "http_error"
@@ -552,7 +583,7 @@ class TestProbeEndpoint:
     def test_models_capped_at_8(self) -> None:
         report = asyncio.run(
             ep.probe_endpoint(
-                "https://x.test", "", "auto", [f"m{i}" for i in range(12)]
+                "https://x.test", "", "auto", [_m(f"m{i}") for i in range(12)]
             )
         )
         assert len(report["models"]) == ep.MAX_MODELS_PER_PROFILE
@@ -577,7 +608,7 @@ class TestProbeEndpoint:
                     "https://x.test",
                     "",
                     "auto",
-                    [{"model": "alias", "redirect_model": "wire-x"}, "m2"],
+                    [{"model": "alias", "redirect_model": "wire-x"}, _m("m2")],
                 )
             )
         finally:
@@ -592,7 +623,7 @@ class TestProbeEndpoint:
             "m1": AuthError("HTTP 401: bad key sk-SECRET123", status=401),
         }
         report = asyncio.run(
-            ep.probe_endpoint("https://x.test", "sk-SECRET123", "auto", ["m1"])
+            ep.probe_endpoint("https://x.test", "sk-SECRET123", "auto", [_m("m1")])
         )
         assert "sk-SECRET123" not in json.dumps(report)
         assert report["models"]["m1"]["verdict"] == "auth_failed"

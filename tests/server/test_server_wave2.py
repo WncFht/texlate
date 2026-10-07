@@ -47,6 +47,11 @@ if TYPE_CHECKING:
     from httpx import Response
 
 
+def _m(model: str, redirect: str = "") -> dict[str, str]:
+    """端点档案模型条目夹具——dict 形（schema 唯一合法形态）。"""
+    return {"model": model, "redirect_model": redirect}
+
+
 def _md_zip_members(data_root: Path, tid: str) -> dict[str, str]:
     """tasks/{id}/md.zip → {member: text}."""
     zpath = data_root / "tasks" / tid / "md.zip"
@@ -622,7 +627,10 @@ class TestEndpointFallback:
         self._save_profiles(
             tmp_path,
             self._profile(
-                "p1", "https://api.anthropic.com", api_key="sk-ant", models=["claude-x"]
+                "p1",
+                "https://api.anthropic.com",
+                api_key="sk-ant",
+                models=[_m("claude-x")],
             ),
         )
         ctx, worker = self._ep_ctx(tmp_path, secrets={"source": "header"})
@@ -640,7 +648,10 @@ class TestEndpointFallback:
         self._save_profiles(
             tmp_path,
             self._profile(
-                "p1", "https://api.anthropic.com", api_key="sk-ant", models=["claude-x"]
+                "p1",
+                "https://api.anthropic.com",
+                api_key="sk-ant",
+                models=[_m("claude-x")],
             ),
         )
         ctx, worker = self._ep_ctx(tmp_path)
@@ -660,19 +671,19 @@ class TestEndpointFallback:
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
-                models=["deepseek-chat", "deepseek-v4"],
+                models=[_m("deepseek-chat"), _m("deepseek-v4")],
             ),
             self._profile(
                 "p2",
                 "https://api.anthropic.com",
                 api_key="sk-ant",
-                models=["claude-x", "claude-y"],
+                models=[_m("claude-x"), _m("claude-y")],
             ),
             self._profile(
                 "p3",
                 "https://api.openai.com",
                 api_key="sk-oai",
-                models=["gpt-x"],
+                models=[_m("gpt-x")],
                 enabled=False,
             ),
         )
@@ -721,13 +732,13 @@ class TestEndpointFallback:
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
-                models=["deepseek-chat"],
+                models=[_m("deepseek-chat")],
             ),
             self._profile(
-                "p2", "https://api.anthropic.com", models=["claude-x"]
+                "p2", "https://api.anthropic.com", models=[_m("claude-x")]
             ),  # 无凭据
             self._profile(
-                "p3", "http://127.0.0.1:11434", models=["qwen3"]
+                "p3", "http://127.0.0.1:11434", models=[_m("qwen3")]
             ),  # 回环无 key
         )
         ctx, worker = self._ep_ctx(tmp_path)
@@ -748,10 +759,13 @@ class TestEndpointFallback:
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
-                models=["deepseek-chat"],
+                models=[_m("deepseek-chat")],
             ),
             self._profile(
-                "p2", "https://api.anthropic.com", api_key="sk-ant", models=["claude-x"]
+                "p2",
+                "https://api.anthropic.com",
+                api_key="sk-ant",
+                models=[_m("claude-x")],
             ),
         )
         ctx, worker = self._ep_ctx(tmp_path, retry_model="deepseek-v4")

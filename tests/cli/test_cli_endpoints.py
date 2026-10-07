@@ -46,7 +46,7 @@ def _profile(**over: object) -> dict[str, Any]:
         "label": "DeepSeek",
         "base_url": _P1_URL,
         "dialect": "auto",
-        "models": ["deepseek-chat"],
+        "models": [{"model": "deepseek-chat", "redirect_model": ""}],
         "enabled": True,
         "api_key": "sk-p1-secret",
         "key_env": "",
@@ -109,7 +109,10 @@ class TestList:
                     id="p2",
                     label="",
                     base_url="https://openrouter.ai/api",
-                    models=["m-a", "m-b"],
+                    models=[
+                        {"model": "m-a", "redirect_model": ""},
+                        {"model": "m-b", "redirect_model": ""},
+                    ],
                     enabled=False,
                     api_key="",
                     key_env="OR_KEY",
@@ -147,7 +150,10 @@ class TestProbe:
         seen: dict[str, object] = {}
 
         async def _probe(
-            base_url: str, api_key: str, dialect: str, models: list[str]
+            base_url: str,
+            api_key: str,
+            dialect: str,
+            models: list[dict[str, str]],
         ) -> dict[str, Any]:
             seen.update(
                 base_url=base_url, api_key=api_key, dialect=dialect, models=models
@@ -181,7 +187,7 @@ class TestProbe:
             base_url: str,  # noqa: ARG001 -- 桩签名与 probe_endpoint 齐位
             api_key: str,
             dialect: str,  # noqa: ARG001
-            models: list[str],  # noqa: ARG001
+            models: list[dict[str, str]],  # noqa: ARG001
         ) -> dict[str, Any]:
             seen["api_key"] = api_key
             return _probe_report()
