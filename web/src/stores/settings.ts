@@ -4,6 +4,7 @@ import { createSignal } from "solid-js";
 import {
     api,
     ApiError,
+    type EndpointModel,
     type EndpointProfileWrite,
     type EndpointsView,
     type ProbeReport,
@@ -196,12 +197,27 @@ export const settingsStore = {
         return s;
     },
 
-    /** 探针（仅档案条目路：{id}——裸端点路是 exfil 闸内操作不走 store） */
-    async probeEndpoint(id: string): Promise<ProbeReport> {
-        const r = await api.probeEndpoint({ id });
+    /**
+     * 探针（档案条目路：{id}——裸端点路是 exfil 闸内操作走 probeEndpointBare）。
+     * ``models`` 给本地名子集 → 逐模型测（服务端 merge 语义，未探保留旧 verdict）。
+     */
+    async probeEndpoint(id: string, models?: string[]): Promise<ProbeReport> {
+        const r = await api.probeEndpoint(
+            models === undefined ? { id } : { id, models },
+        );
         await this.refreshEndpoints().catch(() => {
             /* last_probe 已钉回档案；刷新失败由下次进入补齐 */
         });
         return r;
+    },
+
+    /** 裸端点探测：草稿态按表单现值测（必须显式 api_key——exfil 闸），不钉档案 */
+    async probeEndpointBare(req: {
+        base_url: string;
+        api_key: string;
+        dialect?: string;
+        models?: (string | EndpointModel)[];
+    }): Promise<ProbeReport> {
+        return api.probeEndpoint(req);
     },
 };

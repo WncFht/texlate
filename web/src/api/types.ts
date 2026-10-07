@@ -514,6 +514,15 @@ export interface ProbeReport {
 }
 
 /**
+ * 模型条目：``model`` = 档案内本地名（展示/探针报告键），``redirect_model``
+ * = 线上请求名——非空时上游收到的是它（别名重定向），空串即本名直发。
+ */
+export interface EndpointModel {
+    model: string;
+    redirect_model: string;
+}
+
+/**
  * endpoints.json profile 的 API 出参面（public_profile）——key 值绝不出叶：
  * 只报 has_api_key / key_env 名 / has_env_key 三态。
  */
@@ -522,7 +531,7 @@ export interface EndpointProfile {
     label: string;
     base_url: string;
     dialect: string;
-    models: string[];
+    models: EndpointModel[];
     enabled: boolean;
     has_api_key: boolean;
     /** env 变量名（值绝不出 server）——空串 = 未引用 env */
@@ -542,7 +551,8 @@ export interface EndpointProfileWrite {
     label?: string;
     base_url: string;
     dialect?: string;
-    models?: string[];
+    /** str 条目服务端也收（升级成空 redirect 的 dict 形）——写面统一发 dict */
+    models?: EndpointModel[];
     enabled?: boolean;
     /** 非空 = 写 inline key；"" = 承同 id 旧值（新 profile = 无凭据） */
     api_key?: string;
@@ -559,12 +569,17 @@ export interface EndpointsView {
 
 /** POST /endpoints/probe 的两种请求形：档案条目 {id} 或裸端点（须显式 api_key） */
 export type EndpointProbeReq =
-    | { id: string; models?: string[] }
+    | {
+          id: string;
+          /** 本地名子集——服务端按档案 redirect 解析；缺省 = 全档探测 */
+          models?: string[];
+      }
     | {
           base_url: string;
           api_key: string;
           dialect?: string;
-          models?: string[];
+          /** 裸径可带 redirect 条目——草稿态按现值探测 */
+          models?: (string | EndpointModel)[];
       };
 
 export interface Health {
