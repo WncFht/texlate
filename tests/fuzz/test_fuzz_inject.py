@@ -84,6 +84,7 @@ from texlate.compile.inject import (
     CJK_MATH_FALLBACK,
     CJK_PRESENT_RE,
     CTEX_LINE,
+    FLOAT_RELAX,
     OVERFLOW_MITIGATION,
     TEXT_8BIT_FALLBACK,
     THEOREM_ANCHOR_SHIM,
@@ -115,6 +116,7 @@ def _block(mode: str, nseams: int, *, bd_tail: bool = False) -> str:
         + TIE_ACCENT_FIX
         + TEXT_8BIT_FALLBACK
         + OVERFLOW_MITIGATION
+        + FLOAT_RELAX
     )
     if not bd_tail:
         blk += CJK_MATH_FALLBACK

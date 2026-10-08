@@ -262,6 +262,28 @@ OVERFLOW_MITIGATION = r"""
 \AtBeginDocument{\emergencystretch=1.5em\relax}%
 """
 
+#: 浮动体落位参数放宽：fandol 行高系数 + 译文 caption 变长把浮体撑高，
+#: ``\topfraction``/``\dbltopfraction``（内核默认 .7）超限的 [t]/[h] 浮体
+#: 被判「无处安放」→ 顺延级联、``\clearpage`` 在文末把浮体群倾泻倒出
+#: （1008 全仓审计 6 篇同族实证：2105.00017/2408.00113/2305.00061/
+#: 2112.00065/2308.00073/2410.00079）。fraction 是上界非目标值——本来
+#: 能排的位形不变，只放行原超界档（emergencystretch 同精神）。逐条
+#: ``\ifdim`` 条件式只松不紧——emulateapj 自设 ``\topfraction{1.0}``、
+#: mnras/jpsj2 设 .9，无条件赋值会把它们反收紧。``\relax`` 终结 dimen
+#: 扫描（可选空格吸收会展开后续可展 token）。``\AtBeginDocument``
+#: 包裹——类在 begin-doc 钩子自设此值时后到赢。
+FLOAT_RELAX = r"""
+% texlate: loosen float fractions only where tighter (CJK-tall floats)
+\AtBeginDocument{%
+\ifdim\topfraction pt<.9pt\relax\renewcommand\topfraction{.9}\fi
+\ifdim\bottomfraction pt<.8pt\relax\renewcommand\bottomfraction{.8}\fi
+\ifdim\textfraction pt>.1pt\relax\renewcommand\textfraction{.1}\fi
+\ifdim\floatpagefraction pt>.25pt\relax\renewcommand\floatpagefraction{.25}\fi
+\ifdim\dbltopfraction pt<.9pt\relax\renewcommand\dbltopfraction{.9}\fi
+\ifdim\dblfloatpagefraction pt>.25pt\relax\renewcommand\dblfloatpagefraction{.25}\fi
+}
+"""
+
 #: elsart 类「首用即弃」症状的兜底：xeCJK 的 `__xeCJK_select_font:` 初值是
 #: `\prg_do_nothing:`，待宏包自身的 end-preamble/begindvi 钩子才换成真身；
 #: 若首个 CJK 排版落在 elsart frontmatter 的 `\vbox` 捕获组（`\no@harm`
@@ -471,6 +493,7 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派 + 幂等校验�
     block += TIE_ACCENT_FIX
     block += TEXT_8BIT_FALLBACK
     block += OVERFLOW_MITIGATION
+    block += FLOAT_RELAX
     # 符号字体声明下沉 preamble 尾（b2 界外需求 W157-W161）：
     # \DeclareSymbolFont 占 mathgroup 全局序号——docclass 缝位在用户字体包
     # 之前抢号会把文档族号全体后移（1706.00183 硬编码 \mathchar 位移 ×271）
