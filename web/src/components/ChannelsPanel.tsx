@@ -1,23 +1,35 @@
-// EndpointsPanel —— BYOK 端点档案卡面（endpoints.json 的 UI 面，ccLoad 式
-// 渠道管理交互）：卡片 model(redirect) chips + 右侧抽屉编辑（基本/凭据/模型
-// 三节）+ 模型行式表格（勾选批处理/行内搜索/重定向列）+ 获取模型勾选器 +
-// 逐模型测试弹窗 + 拖拽排序弹窗 + 删除确认弹窗。
+// ChannelsPanel —— BYOK 渠道卡面（channels.json 的 UI 面，ccLoad 式渠道管理）：
+// 路由条（auto/钉渠道 + 目标模型 datalist）+ 卡片 model(redirect) chips +
+// 右侧抽屉编辑（基本/凭据/模型三节）+ 模型行式表格（勾选批处理/行内搜索/
+// 重定向列/逐行并发与启用）+ 获取模型勾选器 + 逐模型测试弹窗 + 拖拽排序
+// 弹窗 + 删除确认弹窗。
 //
-// server 形态整面 403：store.endpointsOff() 置位 → 整块不渲染。
-// 写径整表替换（PUT profiles[]）——启用/删除/排序/编辑全折成全量写；
-// 凭据写语义（api_key="" 承旧值、api_key|key_env 互斥）由服务端归一，
-// 本面只造写行：读面不回 key，未触碰凭据的行凭据键缺席送出（=承旧值）。
+// server 形态整面 403：store.channelsOff() 置位 → 整块不渲染。
+// 写径整表替换（PUT channels[] + 可选 route）——启用/删除/排序/编辑全折成
+// 全量写；priority 由前端按展示序每次重发稀疏序号（(len-idx)*10，服务端
+// 不重编号、按写入值路由）。凭据写语义（api_key="" 承旧值、api_key|key_env
+// 互斥）由服务端归一，本面只造写行：读面不回 key，未触碰凭据的行凭据键
+// 缺席送出（=承旧值）。路由选择走独立 POST /channels/route，不动渠道表。
 //
-// 模型条目 {model, redirect_model}：model 是本地名（展示/探针报告键），
-// redirect_model 是线上请求名（空串=本名直发）。子集探测按本地名发
-// {id, models:[name]}，服务端按档案 redirect 解析出线名。
+// 模型条目 {model, redirect_model, enabled, max_concurrency}：model 是本地名
+// （展示/探针报告键），redirect_model 是上游请求名（空串=本名直发），
+// max_concurrency null=只受渠道/全局闸约束。子集探测按本地名发
+// {id, models:[name]}，服务端按渠道 redirect 解析出上游名。
 
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+} from "solid-js";
 import {
     apiErrText,
-    type EndpointModel,
-    type EndpointProfile,
-    type EndpointProfileWrite,
+    type Channel,
+    type ChannelModel,
+    type ChannelPreset,
+    type ChannelWrite,
     type ProbeReport,
 } from "../api/client";
 import { fmt, t } from "../i18n";
@@ -28,16 +40,25 @@ import Segmented from "./Segmented";
 const MAX_MODELS = 8;
 /** 卡片 chips 直显上限——超出折叠 +N */
 const CHIP_MAX = 4;
+/** 相邻渠道 priority 间距——写径按展示序重发稀疏序号（对齐服务端 PRIORITY_STEP） */
+const PRIORITY_STEP = 10;
+/** 渠道/模型并发上限域（与服务端 MAX_CONCURRENCY_CAP 同值） */
+const MAX_CONC = 64;
 
 /** 编辑/新建草稿——models 是可编行表，凭据两态互斥 */
 interface Draft {
-    /** 编辑时带原 id；新建为 ""（保存时由 base_url 造 slug） */
+    /** 编辑时带原 id；新建为 ""（保存时服务端生成 ch-<8hex>） */
     id: string;
-    label: string;
+    name: string;
+    preset: string;
     base_url: string;
-    dialect: string;
-    models: EndpointModel[];
+    protocol: string;
+    models: ChannelModel[];
     enabled: boolean;
+    /** 沿用现值；保存时按展示序重发 */
+    priority: number;
+    /** null = 不限 */
+    max_concurrency: number | null;
     cred: "key" | "env";
     api_key: string;
     key_env: string;
@@ -60,81 +81,81 @@ interface TestRow {
     listed?: boolean | null;
 }
 
-/** base_url → 新 profile slug id（后端 _slug_for 的 host-slug 简化版；撞名加 -N） */
-const slugFor = (baseUrl: string, taken: Set<string>): string => {
-    let host = "";
-    try {
-        host = new URL(baseUrl).hostname;
-    } catch {
-        /* 半成品 URL 也兜底 */
-    }
-    const base =
-        (host || baseUrl)
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-            .slice(0, 24)
-            .replace(/-+$/g, "") || "endpoint";
-    let cand = base;
-    let n = 2;
-    while (taken.has(cand)) {
-        cand = `${base}-${n}`;
-        n += 1;
-    }
-    return cand;
+/** 并发输入格 → number|null（空/非正 → null=不限；>0 clamp 1..64） */
+const concOf = (raw: string): number | null => {
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.min(MAX_CONC, n);
 };
 
 /** 读面行 → 写面行（凭据键缺席 = 承旧值） */
-const writeOf = (p: EndpointProfile): EndpointProfileWrite => ({
-    id: p.id,
-    label: p.label,
-    base_url: p.base_url,
-    dialect: p.dialect,
-    models: p.models,
-    enabled: p.enabled,
+const writeOf = (c: Channel): ChannelWrite => ({
+    id: c.id,
+    name: c.name,
+    preset: c.preset,
+    base_url: c.base_url,
+    protocol: c.protocol,
+    models: c.models.map((m) => ({ ...m })),
+    priority: c.priority,
+    max_concurrency: c.max_concurrency,
+    enabled: c.enabled,
 });
 
-const draftOf = (p: EndpointProfile): Draft => ({
-    id: p.id,
-    label: p.label,
-    base_url: p.base_url,
-    dialect: p.dialect,
-    models: p.models.map((m) => ({ ...m })),
-    enabled: p.enabled,
-    cred: p.key_env ? "env" : "key",
+const draftOf = (c: Channel): Draft => ({
+    id: c.id,
+    name: c.name,
+    preset: c.preset,
+    base_url: c.base_url,
+    protocol: c.protocol,
+    models: c.models.map((m) => ({ ...m })),
+    enabled: c.enabled,
+    priority: c.priority,
+    max_concurrency: c.max_concurrency,
+    cred: c.key_env ? "env" : "key",
     api_key: "",
-    key_env: p.key_env,
+    key_env: c.key_env,
 });
 
 const blankDraft = (): Draft => ({
     id: "",
-    label: "",
+    name: "",
+    preset: "custom",
     base_url: "",
-    dialect: "auto",
+    protocol: "auto",
     models: [],
     enabled: true,
+    priority: 0,
+    max_concurrency: null,
     cred: "key",
     api_key: "",
     key_env: "",
 });
 
 /** 草稿 → 写行：空名行丢弃、按本地名去重保序、≤8 截断（服务端兜底再验） */
-const draftToWrite = (d: Draft, taken: Set<string>): EndpointProfileWrite => {
+const draftToWrite = (d: Draft): ChannelWrite => {
     const seen = new Set<string>();
-    const models: EndpointModel[] = [];
+    const models: ChannelModel[] = [];
     for (const m of d.models) {
         const name = m.model.trim();
         const red = m.redirect_model.trim();
         if (!name || seen.has(name)) continue;
         seen.add(name);
-        models.push({ model: name, redirect_model: red });
+        models.push({
+            model: name,
+            redirect_model: red === name ? "" : red,
+            enabled: m.enabled,
+            max_concurrency: m.max_concurrency,
+        });
     }
     return {
-        id: d.id || slugFor(d.base_url, taken),
-        label: d.label.trim(),
+        id: d.id || undefined,
+        name: d.name.trim(),
+        preset: d.preset,
         base_url: d.base_url.trim(),
-        dialect: d.dialect,
+        protocol: d.protocol,
         models: models.slice(0, MAX_MODELS),
+        priority: d.priority,
+        max_concurrency: d.max_concurrency,
         enabled: d.enabled,
         api_key: d.cred === "key" ? d.api_key.trim() : "",
         key_env: d.cred === "env" ? d.key_env.trim() : "",
@@ -142,7 +163,7 @@ const draftToWrite = (d: Draft, taken: Set<string>): EndpointProfileWrite => {
 };
 
 /** 展示名：name(red)；无 redirect 只显名 */
-const chipText = (m: EndpointModel): string =>
+const chipText = (m: ChannelModel): string =>
     m.redirect_model ? `${m.model}(${m.redirect_model})` : m.model;
 
 /** 去来源前缀：`vendor/name` → `name`（批处理臂——本地名瘦身，redirect 不动） */
@@ -162,15 +183,15 @@ const VERDICT_CLASS: Record<string, string> = {
     skipped: "",
 };
 const verdictCls = (v: string): string => VERDICT_CLASS[v] ?? "bad";
-const verdictText = (v: string): string => t.settings.endpoints.verdicts[v] ?? v;
+const verdictText = (v: string): string => t.settings.channels.verdicts[v] ?? v;
 
 /** 凭据三态展示行（读面只见 has_api_key / key_env 名 / has_env_key） */
-const credText = (p: EndpointProfile): string => {
-    const ep = t.settings.endpoints;
-    if (p.has_api_key) return ep.credKeySet;
-    if (p.key_env)
-        return fmt(p.has_env_key ? ep.credEnvSet : ep.credEnvUnset, {
-            name: p.key_env,
+const credText = (c: Channel): string => {
+    const ep = t.settings.channels;
+    if (c.has_api_key) return ep.credKeySet;
+    if (c.key_env)
+        return fmt(c.has_env_key ? ep.credEnvSet : ep.credEnvUnset, {
+            name: c.key_env,
         });
     return ep.credNone;
 };
@@ -181,15 +202,10 @@ const probeAt = (r?: ProbeReport | null): string => {
     return at ? at.slice(0, 16).replace("T", " ") : "";
 };
 
-interface Props {
-    /** 激活成功后的回调——Settings 主表单重拉字段（base_url/model 已换端点） */
-    onActivated?: () => void;
-}
-
-export default function EndpointsPanel(props: Props) {
+export default function ChannelsPanel() {
     const [draft, setDraft] = createSignal<Draft | null>(null);
     const [sec, setSec] = createSignal<DrawerSec>("basic");
-    const [busy, setBusy] = createSignal(""); // profile id | "draft"
+    const [busy, setBusy] = createSignal(""); // channel id | "draft" | "sort"
     const [probing, setProbing] = createSignal("");
     /** 本地探测回执（{id} 路服务端已钉 last_probe，本图兜刷新失败的即时显示） */
     const [probeOut, setProbeOut] = createSignal<Record<string, ProbeReport>>(
@@ -197,6 +213,11 @@ export default function EndpointsPanel(props: Props) {
     );
     const [msg, setMsg] = createSignal("");
     const [msgErr, setMsgErr] = createSignal(false);
+    // ---- 路由条态 ----
+    const [routeCh, setRouteCh] = createSignal("auto");
+    const [routeModel, setRouteModel] = createSignal("");
+    /** 用户已动路由控件但尚未保存成功——回包/刷新不回灌盖掉在编辑的值 */
+    let routeDirty = false;
     // ---- 模型表格态（草稿内）----
     const [modelSel, setModelSel] = createSignal<Set<number>>(new Set());
     const [modelFilter, setModelFilter] = createSignal("");
@@ -206,16 +227,33 @@ export default function EndpointsPanel(props: Props) {
     const [testModel, setTestModel] = createSignal("");
     const [testRows, setTestRows] = createSignal<TestRow[]>([]);
     const [sortIds, setSortIds] = createSignal<string[] | null>(null);
-    const [delTarget, setDelTarget] = createSignal<EndpointProfile | null>(null);
+    const [delTarget, setDelTarget] = createSignal<Channel | null>(null);
     let sortDragIdx = -1;
 
-    onMount(() => void settingsStore.refreshEndpoints().catch(() => {}));
+    onMount(() => {
+        void settingsStore.refreshChannels().catch(() => {});
+        void settingsStore.refreshChannelPresets();
+    });
 
-    const ep = () => t.settings.endpoints;
-    const view = () => settingsStore.endpoints();
-    const profiles = () => view()?.profiles ?? [];
-    const reportOf = (p: EndpointProfile) =>
-        probeOut()[p.id] ?? p.last_probe ?? null;
+    const ep = () => t.settings.channels;
+    const view = () => settingsStore.channels();
+    /** 展示序 = priority 降序（路由求值同序——上者优先） */
+    const channels = () =>
+        [...(view()?.channels ?? [])].sort((a, b) => b.priority - a.priority);
+    const presets = () => settingsStore.channelPresets();
+    const reportOf = (c: Channel) => probeOut()[c.id] ?? c.last_probe ?? null;
+    const presetOf = (id: string): ChannelPreset | undefined =>
+        presets().find((p) => p.id === id);
+    const presetName = (id: string): string =>
+        presetOf(id)?.name ?? (id === "custom" ? "" : id);
+
+    // 服务端 route → 本地控件值回灌（用户编辑中不盖）
+    createEffect(() => {
+        const r = view()?.route;
+        if (!r || routeDirty) return;
+        setRouteCh(r.channel_id || "auto");
+        setRouteModel(r.model || "");
+    });
 
     const fail = (text: string) => {
         setMsgErr(true);
@@ -236,22 +274,66 @@ export default function EndpointsPanel(props: Props) {
         setMsg(text);
     };
 
-    /** 全量写公共臂：rows 由调用方按现表变换 */
-    const saveTable = async (rows: EndpointProfileWrite[]) => {
-        await settingsStore.saveEndpoints(rows);
+    /** 全量写公共臂：rows 已是展示序——按位次重发稀疏 priority 后 PUT */
+    const saveTable = async (rows: ChannelWrite[]) => {
+        const numbered = rows.map((r, i) => ({
+            ...r,
+            priority: (rows.length - i) * PRIORITY_STEP,
+        }));
+        await settingsStore.saveChannels(numbered);
+    };
+
+    // ------------------------------------------------------------ 路由条
+
+    /** 目标模型 datalist 候选：钉渠道 → 该渠道本地名；auto → 全启用渠道并集 */
+    const routeModelOpts = (): string[] => {
+        const cid = routeCh();
+        const pool =
+            cid === "auto"
+                ? channels().filter((c) => c.enabled)
+                : channels().filter((c) => c.id === cid);
+        const out: string[] = [];
+        for (const c of pool)
+            for (const m of c.models)
+                if (!out.includes(m.model)) out.push(m.model);
+        return out;
+    };
+
+    const saveRoute = async (channel_id: string, model: string) => {
+        if (busy()) return;
+        setBusy("route");
+        setMsg("");
+        try {
+            await settingsStore.setChannelRoute({
+                channel_id,
+                model: model.trim(),
+            });
+            routeDirty = false;
+            ok(ep().routeSaved);
+        } catch (e) {
+            fail(`${ep().routeFailed}：${apiErrText(e)}`);
+        } finally {
+            setBusy("");
+        }
+    };
+
+    const pinRoute = (c: Channel) => {
+        routeDirty = true;
+        setRouteCh(c.id);
+        void saveRoute(c.id, routeModel());
     };
 
     // ------------------------------------------------------------ 卡片操作
 
-    const toggleEnabled = async (p: EndpointProfile) => {
+    const toggleEnabled = async (c: Channel) => {
         if (busy()) return;
-        setBusy(p.id);
+        setBusy(c.id);
         setMsg("");
         try {
             await saveTable(
-                profiles().map((x) => ({
+                channels().map((x) => ({
                     ...writeOf(x),
-                    enabled: x.id === p.id ? !x.enabled : x.enabled,
+                    enabled: x.id === c.id ? !x.enabled : x.enabled,
                 })),
             );
         } catch (e) {
@@ -261,30 +343,15 @@ export default function EndpointsPanel(props: Props) {
         }
     };
 
-    const activate = async (p: EndpointProfile) => {
-        if (busy()) return;
-        setBusy(p.id);
-        setMsg("");
-        try {
-            await settingsStore.activateEndpoint(p.id);
-            props.onActivated?.();
-            ok(fmt(ep().activated, { label: p.label || p.id }));
-        } catch (e) {
-            fail(`${ep().activateFailed}：${apiErrText(e)}`);
-        } finally {
-            setBusy("");
-        }
-    };
-
     const confirmDelete = async () => {
-        const p = delTarget();
-        if (!p || busy()) return;
-        setBusy(p.id);
+        const c = delTarget();
+        if (!c || busy()) return;
+        setBusy(c.id);
         setMsg("");
         try {
             await saveTable(
-                profiles()
-                    .filter((x) => x.id !== p.id)
+                channels()
+                    .filter((x) => x.id !== c.id)
                     .map(writeOf),
             );
             setDelTarget(null);
@@ -308,15 +375,35 @@ export default function EndpointsPanel(props: Props) {
     const up = (patch: Partial<Draft>) =>
         setDraft((d) => (d ? { ...d, ...patch } : d));
 
+    /** 选预设 → 预填 name/base_url/protocol/key_env：只填空槽或仍挂着旧预设值的槽，不盖用户手改 */
+    const applyPreset = (presetId: string) => {
+        const d = draft();
+        const next = presetOf(presetId);
+        if (!d || !next) {
+            up({ preset: presetId });
+            return;
+        }
+        const prev = presetOf(d.preset);
+        const patch: Partial<Draft> = { preset: presetId };
+        if (!d.base_url.trim() || d.base_url === prev?.base_url)
+            patch.base_url = next.base_url;
+        if (!d.name.trim() || d.name === prev?.name) patch.name = next.name;
+        if (!d.protocol || d.protocol === prev?.protocol)
+            patch.protocol = next.protocol;
+        if (d.cred === "env" && (!d.key_env.trim() || d.key_env === prev?.key_env))
+            patch.key_env = next.key_env;
+        up(patch);
+    };
+
     const saveDraft = async () => {
         const d = draft();
         if (!d || busy()) return;
         setBusy("draft");
         setMsg("");
         try {
-            const cur = profiles();
+            const cur = channels();
             const rows = cur.map(writeOf);
-            const w = draftToWrite(d, new Set(cur.map((x) => x.id)));
+            const w = draftToWrite(d);
             const idx = rows.findIndex((x) => x.id === d.id);
             if (idx >= 0) rows[idx] = w;
             else rows.push(w);
@@ -331,8 +418,8 @@ export default function EndpointsPanel(props: Props) {
 
     // ------------------------------------------------------------ 模型表格
 
-    /** 行字段更新（按数组下标，Index 渲染行不动） */
-    const setModel = (i: number, patch: Partial<EndpointModel>) =>
+    /** 行字段更新（按数组下标，For 渲染行不动） */
+    const setModel = (i: number, patch: Partial<ChannelModel>) =>
         up({
             models: draft()!.models.map((m, j) =>
                 j === i ? { ...m, ...patch } : m,
@@ -357,14 +444,21 @@ export default function EndpointsPanel(props: Props) {
         setModelSel(new Set<number>());
     };
 
+    const blankModel = (): ChannelModel => ({
+        model: "",
+        redirect_model: "",
+        enabled: true,
+        max_concurrency: null,
+    });
+
     const addModel = () => {
         const d = draft();
         if (!d || d.models.length >= MAX_MODELS) return;
-        up({ models: [...d.models, { model: "", redirect_model: "" }] });
+        up({ models: [...d.models, blankModel()] });
     };
 
     /** 批处理：对勾选下标跑 f(entry)→entry（保留勾选） */
-    const batchMap = (f: (m: EndpointModel) => EndpointModel) => {
+    const batchMap = (f: (m: ChannelModel) => ChannelModel) => {
         const d = draft();
         if (!d) return;
         const sel = modelSel();
@@ -377,10 +471,15 @@ export default function EndpointsPanel(props: Props) {
         batchMap((m) => ({
             model: m.model.toLowerCase(),
             redirect_model: m.redirect_model.toLowerCase(),
+            enabled: m.enabled,
+            max_concurrency: m.max_concurrency,
         }));
 
     const batchStrip = () =>
         batchMap((m) => ({ ...m, model: stripPrefix(m.model) }));
+
+    const batchEnable = (on: boolean) =>
+        batchMap((m) => ({ ...m, enabled: on }));
 
     /** 过滤后的可见下标（搜索只遮显示，批处理仍按全表下标语义） */
     const visibleIdx = (): number[] => {
@@ -423,8 +522,8 @@ export default function EndpointsPanel(props: Props) {
     const modelStatus = (name: string) => {
         const d = draft();
         if (!d?.id) return null;
-        const p = profiles().find((x) => x.id === d.id);
-        const rep = p ? reportOf(p) : null;
+        const c = channels().find((x) => x.id === d.id);
+        const rep = c ? reportOf(c) : null;
         return rep?.models?.[name] ?? null;
     };
 
@@ -441,20 +540,20 @@ export default function EndpointsPanel(props: Props) {
         setFetchSt({ kind: "loading" });
         try {
             let r: ProbeReport;
-            const saved = profiles().find((x) => x.id === d.id);
+            const saved = channels().find((x) => x.id === d.id);
             const urlSame =
                 !!saved &&
                 d.base_url.trim().replace(/\/+$/, "") ===
                     saved.base_url.replace(/\/+$/, "");
             if (d.cred === "key" && d.api_key.trim()) {
-                r = await settingsStore.probeEndpointBare({
+                r = await settingsStore.probeChannelBare({
                     base_url: d.base_url.trim(),
                     api_key: d.api_key.trim(),
-                    dialect: d.dialect,
+                    protocol: d.protocol,
                     models: [],
                 });
             } else if (d.id && urlSame) {
-                r = await settingsStore.probeEndpoint(d.id, []);
+                r = await settingsStore.probeChannel(d.id, []);
             } else {
                 setFetchSt({ kind: "error", text: ep().fetchNeedSave });
                 return;
@@ -496,28 +595,28 @@ export default function EndpointsPanel(props: Props) {
         const have = new Set(d.models.map((m) => m.model));
         const add = [...st.checked]
             .filter((n) => !have.has(n))
-            .map((n) => ({ model: n, redirect_model: "" }));
+            .map((n) => ({ ...blankModel(), model: n }));
         up({ models: [...d.models, ...add].slice(0, MAX_MODELS) });
         setFetchSt(null);
     };
 
     // ------------------------------------------------------------ 测试弹窗
 
-    const openTest = (p: EndpointProfile) => {
-        setTestId(p.id);
-        setTestModel(p.models[0]?.model ?? "");
+    const openTest = (c: Channel) => {
+        setTestId(c.id);
+        setTestModel(c.models[0]?.model ?? "");
         setTestRows([]);
     };
 
     const runTest = async () => {
-        const pid = testId();
+        const cid = testId();
         const name = testModel();
-        if (!pid || !name || probing()) return;
-        setProbing(pid);
+        if (!cid || !name || probing()) return;
+        setProbing(cid);
         setMsg("");
         try {
-            const r = await settingsStore.probeEndpoint(pid, [name]);
-            setProbeOut((m) => ({ ...m, [pid]: r }));
+            const r = await settingsStore.probeChannel(cid, [name]);
+            setProbeOut((m) => ({ ...m, [cid]: r }));
             const rows: TestRow[] = Object.entries(r.models ?? {}).map(
                 ([uid, mr]) => ({
                     name: uid,
@@ -527,7 +626,7 @@ export default function EndpointsPanel(props: Props) {
                     listed: mr.listed,
                 }),
             );
-            // 没出模型行时 stage1 本身就是结果（端点死全段 skipped/空）
+            // 没出模型行时 stage1 本身就是结果（渠道死全段 skipped/空）
             if (!rows.length && r.stage1) {
                 rows.push({
                     name: `stage1`,
@@ -545,7 +644,7 @@ export default function EndpointsPanel(props: Props) {
 
     // ------------------------------------------------------------ 排序弹窗
 
-    const openSort = () => setSortIds(profiles().map((p) => p.id));
+    const openSort = () => setSortIds(channels().map((c) => c.id));
 
     const sortDrop = (at: number) => {
         const ids = sortIds();
@@ -559,10 +658,10 @@ export default function EndpointsPanel(props: Props) {
     const saveSort = async () => {
         const ids = sortIds();
         if (!ids || busy()) return;
-        const byId = new Map(profiles().map((p) => [p.id, p]));
+        const byId = new Map(channels().map((c) => [c.id, c]));
         const rows = ids
             .map((id) => byId.get(id))
-            .filter((p): p is EndpointProfile => !!p)
+            .filter((c): c is Channel => !!c)
             .map(writeOf);
         setBusy("sort");
         try {
@@ -631,8 +730,8 @@ export default function EndpointsPanel(props: Props) {
     // ------------------------------------------------------------ 渲染
 
     return (
-        <Show when={!settingsStore.endpointsOff()}>
-            <section class="eps" aria-label={t.settings.endpoints.title}>
+        <Show when={!settingsStore.channelsOff()}>
+            <section class="chs" aria-label={ep().title}>
                 <h2>
                     {ep().title}
                     <em class="muted">{ep().hint}</em>
@@ -641,58 +740,118 @@ export default function EndpointsPanel(props: Props) {
                     when={view()}
                     fallback={<p class="muted">{t.pane.loading}</p>}
                 >
+                    {/* ============ 路由条 ============ */}
+                    <div class="ch-route">
+                        <span class="ch-route-label">{ep().route}</span>
+                        <select
+                            value={routeCh()}
+                            disabled={!!busy()}
+                            onChange={(e) => {
+                                routeDirty = true;
+                                setRouteCh(e.currentTarget.value);
+                                void saveRoute(
+                                    e.currentTarget.value,
+                                    routeModel(),
+                                );
+                            }}
+                        >
+                            <option value="auto">{ep().routeAuto}</option>
+                            <For each={channels()}>
+                                {(c) => (
+                                    <option value={c.id}>
+                                        {c.name || c.id}
+                                        {c.enabled
+                                            ? ""
+                                            : `（${ep().disabledTag}）`}
+                                    </option>
+                                )}
+                            </For>
+                        </select>
+                        <input
+                            id="ch-route-model"
+                            list="ch-route-models"
+                            placeholder={ep().routeModelPh}
+                            value={routeModel()}
+                            disabled={!!busy()}
+                            onInput={(e) => {
+                                routeDirty = true;
+                                setRouteModel(e.currentTarget.value);
+                            }}
+                            onChange={(e) =>
+                                void saveRoute(
+                                    routeCh(),
+                                    e.currentTarget.value,
+                                )
+                            }
+                        />
+                        <datalist id="ch-route-models">
+                            <For each={routeModelOpts()}>
+                                {(name) => <option value={name} />}
+                            </For>
+                        </datalist>
+                        <em class="muted ch-route-hint">{ep().routeHint}</em>
+                    </div>
                     <Show
-                        when={profiles().length > 0}
+                        when={channels().length > 0}
                         fallback={<p class="muted">{ep().empty}</p>}
                     >
-                        <ul class="ep-list">
-                            <For each={profiles()}>
-                                {(p) => {
-                                    const rep = () => reportOf(p);
+                        <ul class="ch-list">
+                            <For each={channels()}>
+                                {(c) => {
+                                    const rep = () => reportOf(c);
                                     return (
                                         <li
-                                            class="ep-card"
-                                            classList={{ off: !p.enabled }}
+                                            class="ch-card"
+                                            classList={{ off: !c.enabled }}
                                         >
-                                            <div class="ep-head">
-                                                <strong>{p.label || p.id}</strong>
-                                                <Show
-                                                    when={
-                                                        view()?.active_id ===
-                                                        p.id
-                                                    }
-                                                >
-                                                    <span class="ep-badge ok">
-                                                        {ep().activeBadge}
+                                            <div class="ch-head">
+                                                <strong>{c.name || c.id}</strong>
+                                                <Show when={presetName(c.preset)}>
+                                                    <span class="ch-preset">
+                                                        {presetName(c.preset)}
                                                     </span>
                                                 </Show>
-                                                <span class="ep-spacer" />
-                                                <label class="ep-toggle">
+                                                <Show
+                                                    when={
+                                                        view()?.route
+                                                            .channel_id ===
+                                                        c.id
+                                                    }
+                                                >
+                                                    <span class="ch-badge ok">
+                                                        {ep().routedBadge}
+                                                    </span>
+                                                </Show>
+                                                <span class="ch-spacer" />
+                                                <label class="ch-toggle">
                                                     <input
                                                         type="checkbox"
-                                                        checked={p.enabled}
+                                                        checked={c.enabled}
                                                         disabled={!!busy()}
                                                         onChange={() =>
                                                             void toggleEnabled(
-                                                                p,
+                                                                c,
                                                             )
                                                         }
                                                     />
                                                     {ep().enabledTip}
                                                 </label>
                                             </div>
-                                            <div class="ep-url">{p.base_url}</div>
-                                            <Show when={p.models.length > 0}>
-                                                <div class="ep-models">
+                                            <div class="ch-url">{c.base_url}</div>
+                                            <Show when={c.models.length > 0}>
+                                                <div class="ch-models">
                                                     <For
-                                                        each={p.models.slice(
+                                                        each={c.models.slice(
                                                             0,
                                                             CHIP_MAX,
                                                         )}
                                                     >
                                                         {(m) => (
                                                             <code
-                                                                class="ep-chip"
+                                                                class="ch-chip"
+                                                                classList={{
+                                                                    off: !m.enabled,
+                                                                }}
                                                                 title={chipText(
                                                                     m,
                                                                 )}
@@ -703,7 +862,7 @@ export default function EndpointsPanel(props: Props) {
                                                                         m.redirect_model
                                                                     }
                                                                 >
-                                                                    <i class="ep-chip-red">
+                                                                    <i class="ch-chip-red">
                                                                         (
                                                                         {
                                                                             m.redirect_model
@@ -716,14 +875,14 @@ export default function EndpointsPanel(props: Props) {
                                                     </For>
                                                     <Show
                                                         when={
-                                                            p.models.length >
+                                                            c.models.length >
                                                             CHIP_MAX
                                                         }
                                                     >
-                                                        <code class="ep-chip ep-more">
+                                                        <code class="ch-chip ch-more">
                                                             {fmt(ep().moreN, {
                                                                 n:
-                                                                    p.models
+                                                                    c.models
                                                                         .length -
                                                                     CHIP_MAX,
                                                             })}
@@ -731,18 +890,32 @@ export default function EndpointsPanel(props: Props) {
                                                     </Show>
                                                 </div>
                                             </Show>
-                                            <div class="ep-meta">
-                                                <span>{credText(p)}</span>
+                                            <div class="ch-meta">
+                                                <span>{credText(c)}</span>
+                                                <span class="muted">
+                                                    {fmt(ep().priorityN, {
+                                                        n: c.priority,
+                                                    })}
+                                                </span>
+                                                <Show when={c.max_concurrency}>
+                                                    <span class="muted">
+                                                        {fmt(ep().concN, {
+                                                            n:
+                                                                c.max_concurrency ??
+                                                                0,
+                                                        })}
+                                                    </span>
+                                                </Show>
                                                 <Show when={rep()}>
                                                     {(r) => (
-                                                        <span class="ep-probe">
+                                                        <span class="ch-probe">
                                                             {fmt(ep().at, {
                                                                 at: probeAt(
                                                                     r(),
                                                                 ),
                                                             })}
                                                             <i
-                                                                class={`ep-badge ${verdictCls(
+                                                                class={`ch-badge ${verdictCls(
                                                                     r().stage1
                                                                         ?.verdict ??
                                                                         "",
@@ -758,28 +931,25 @@ export default function EndpointsPanel(props: Props) {
                                                     )}
                                                 </Show>
                                             </div>
-                                            <div class="ep-actions">
+                                            <div class="ch-actions">
                                                 <button
                                                     type="button"
                                                     class="btn-ghost"
                                                     disabled={
                                                         !!busy() ||
-                                                        view()?.active_id ===
-                                                            p.id
+                                                        view()?.route
+                                                            .channel_id ===
+                                                            c.id
                                                     }
-                                                    onClick={() =>
-                                                        void activate(p)
-                                                    }
+                                                    onClick={() => pinRoute(c)}
                                                 >
-                                                    {busy() === p.id
-                                                        ? t.settings.saving
-                                                        : ep().activate}
+                                                    {ep().pinRoute}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     class="btn-ghost"
                                                     disabled={!!probing()}
-                                                    onClick={() => openTest(p)}
+                                                    onClick={() => openTest(c)}
                                                 >
                                                     {ep().probe}
                                                 </button>
@@ -787,7 +957,7 @@ export default function EndpointsPanel(props: Props) {
                                                     type="button"
                                                     class="btn-ghost"
                                                     onClick={() =>
-                                                        openDraft(draftOf(p))
+                                                        openDraft(draftOf(c))
                                                     }
                                                 >
                                                     {ep().edit}
@@ -797,7 +967,7 @@ export default function EndpointsPanel(props: Props) {
                                                     class="btn-ghost"
                                                     disabled={!!busy()}
                                                     onClick={() =>
-                                                        setDelTarget(p)
+                                                        setDelTarget(c)
                                                     }
                                                 >
                                                     {ep().del}
@@ -809,7 +979,7 @@ export default function EndpointsPanel(props: Props) {
                             </For>
                         </ul>
                     </Show>
-                    <div class="ep-foot">
+                    <div class="ch-foot">
                         <button
                             type="button"
                             class="btn-ghost"
@@ -817,7 +987,7 @@ export default function EndpointsPanel(props: Props) {
                         >
                             {ep().add}
                         </button>
-                        <Show when={profiles().length > 1}>
+                        <Show when={channels().length > 1}>
                             <button
                                 type="button"
                                 class="btn-ghost"
@@ -842,32 +1012,32 @@ export default function EndpointsPanel(props: Props) {
                 <Show when={draft()}>
                     {(d) => (
                         <div
-                            class="ep-veil"
+                            class="ch-veil"
                             onClick={(e) => veilClick(e, () => setDraft(null))}
                         >
                             <div
-                                class="ep-drawer"
+                                class="ch-drawer"
                                 role="dialog"
                                 aria-modal="true"
                                 aria-label={
                                     d().id ? ep().editTitle : ep().addTitle
                                 }
                             >
-                                <header class="ep-drawer-head">
+                                <header class="ch-drawer-head">
                                     <h3>
                                         {d().id ? ep().editTitle : ep().addTitle}
                                     </h3>
                                     <button
                                         type="button"
-                                        class="ep-x"
+                                        class="ch-x"
                                         aria-label={ep().close}
                                         onClick={() => setDraft(null)}
                                     >
                                         ×
                                     </button>
                                 </header>
-                                <div class="ep-drawer-body">
-                                    <nav class="ep-nav">
+                                <div class="ch-drawer-body">
+                                    <nav class="ch-nav">
                                         <For
                                             each={
                                                 [
@@ -880,7 +1050,7 @@ export default function EndpointsPanel(props: Props) {
                                             {([key, label]) => (
                                                 <button
                                                     type="button"
-                                                    class="ep-nav-item"
+                                                    class="ch-nav-item"
                                                     classList={{
                                                         on: sec() === key,
                                                     }}
@@ -891,17 +1061,75 @@ export default function EndpointsPanel(props: Props) {
                                             )}
                                         </For>
                                     </nav>
-                                    <div class="ep-sec">
+                                    <div class="ch-sec">
                                         {/* ---- 基本 ---- */}
                                         <Show when={sec() === "basic"}>
                                             <label>
-                                                <span>{ep().label}</span>
+                                                <span>{ep().preset}</span>
+                                                <select
+                                                    value={d().preset}
+                                                    onChange={(e) =>
+                                                        applyPreset(
+                                                            e.currentTarget
+                                                                .value,
+                                                        )
+                                                    }
+                                                >
+                                                    <Show
+                                                        when={
+                                                            !presetOf(
+                                                                d().preset,
+                                                            )
+                                                        }
+                                                    >
+                                                        <option
+                                                            value={d().preset}
+                                                        >
+                                                            {d().preset}
+                                                        </option>
+                                                    </Show>
+                                                    <For
+                                                        each={[
+                                                            ...presets(),
+                                                            ...(presetOf(
+                                                                "custom",
+                                                            )
+                                                                ? []
+                                                                : [
+                                                                      {
+                                                                          id: "custom",
+                                                                          name: "Custom",
+                                                                          protocol:
+                                                                              "auto",
+                                                                          base_url:
+                                                                              "",
+                                                                          models: [],
+                                                                          key_env:
+                                                                              "",
+                                                                          has_env_key:
+                                                                              false,
+                                                                      } satisfies ChannelPreset,
+                                                                  ]),
+                                                        ]}
+                                                    >
+                                                        {(p) => (
+                                                            <option
+                                                                value={p.id}
+                                                            >
+                                                                {p.name}
+                                                            </option>
+                                                        )}
+                                                    </For>
+                                                </select>
+                                            </label>
+                                            <label>
+                                                <span>{ep().name}</span>
                                                 <input
-                                                    value={d().label}
-                                                    placeholder={ep().labelPh}
+                                                    value={d().name}
+                                                    placeholder={ep().namePh}
                                                     onInput={(e) =>
                                                         up({
-                                                            label: e
+                                                            name: e
                                                                 .currentTarget
                                                                 .value,
                                                         })
@@ -928,23 +1156,48 @@ export default function EndpointsPanel(props: Props) {
                                                 <Segmented
                                                     options={segOptsWithCurrent(
                                                         API_DIALECTS,
-                                                        d().dialect,
+                                                        d().protocol,
                                                         (x) =>
                                                             x === "auto"
                                                                 ? t.settings
                                                                       .dialectAuto
                                                                 : x,
                                                     )}
-                                                    value={d().dialect}
+                                                    value={d().protocol}
                                                     onChange={(v) =>
-                                                        up({ dialect: v })
+                                                        up({ protocol: v })
                                                     }
                                                     ariaLabel={
                                                         t.settings.dialect
                                                     }
                                                 />
                                             </div>
-                                            <label class="ep-toggle">
+                                            <label>
+                                                <span>{ep().maxConc}</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={MAX_CONC}
+                                                    placeholder={
+                                                        ep().maxConcPh
+                                                    }
+                                                    value={
+                                                        d().max_concurrency ??
+                                                        ""
+                                                    }
+                                                    onInput={(e) =>
+                                                        up({
+                                                            max_concurrency:
+                                                                concOf(
+                                                                    e
+                                                                        .currentTarget
+                                                                        .value,
+                                                                ),
+                                                        })
+                                                    }
+                                                />
+                                            </label>
+                                            <label class="ch-toggle">
                                                 <input
                                                     type="checkbox"
                                                     checked={d().enabled}
@@ -1011,7 +1264,7 @@ export default function EndpointsPanel(props: Props) {
                                                         autocomplete="off"
                                                         value={d().api_key}
                                                         placeholder={
-                                                            profiles().find(
+                                                            channels().find(
                                                                 (x) =>
                                                                     x.id ===
                                                                     d().id,
@@ -1034,7 +1287,7 @@ export default function EndpointsPanel(props: Props) {
                                         </Show>
                                         {/* ---- 模型 ---- */}
                                         <Show when={sec() === "models"}>
-                                            <div class="ep-mtools">
+                                            <div class="ch-mtools">
                                                 <button
                                                     type="button"
                                                     class="btn-ghost"
@@ -1076,7 +1329,7 @@ export default function EndpointsPanel(props: Props) {
                                                 >
                                                     {ep().exportModels}
                                                 </button>
-                                                <span class="ep-spacer" />
+                                                <span class="ch-spacer" />
                                                 <span class="muted">
                                                     {fmt(ep().modelsCount, {
                                                         n: d().models.length,
@@ -1084,12 +1337,30 @@ export default function EndpointsPanel(props: Props) {
                                                 </span>
                                             </div>
                                             <Show when={modelSel().size > 0}>
-                                                <div class="ep-mbatch">
+                                                <div class="ch-mbatch">
                                                     <span>
                                                         {fmt(ep().selN, {
                                                             n: modelSel().size,
                                                         })}
                                                     </span>
+                                                    <button
+                                                        type="button"
+                                                        class="btn-ghost"
+                                                        onClick={() =>
+                                                            batchEnable(true)
+                                                        }
+                                                    >
+                                                        {ep().batchEnable}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="btn-ghost"
+                                                        onClick={() =>
+                                                            batchEnable(false)
+                                                        }
+                                                    >
+                                                        {ep().batchDisable}
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         class="btn-ghost"
@@ -1117,10 +1388,10 @@ export default function EndpointsPanel(props: Props) {
                                                     </button>
                                                 </div>
                                             </Show>
-                                            <table class="ep-mtable">
+                                            <table class="ch-mtable">
                                                 <thead>
                                                     <tr>
-                                                        <th class="ep-cb">
+                                                        <th class="ch-cb">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={selAllChecked()}
@@ -1133,13 +1404,13 @@ export default function EndpointsPanel(props: Props) {
                                                                 }
                                                             />
                                                         </th>
-                                                        <th class="ep-idx">
+                                                        <th class="ch-idx">
                                                             #
                                                         </th>
                                                         <th>
                                                             {ep().colName}
                                                             <input
-                                                                class="ep-th-search"
+                                                                class="ch-th-search"
                                                                 placeholder={
                                                                     ep()
                                                                         .searchPh
@@ -1155,6 +1426,12 @@ export default function EndpointsPanel(props: Props) {
                                                             />
                                                         </th>
                                                         <th>{ep().colRedirect}</th>
+                                                        <th class="ch-conc">
+                                                            {ep().colConc}
+                                                        </th>
+                                                        <th class="ch-on">
+                                                            {ep().colEnabled}
+                                                        </th>
                                                         <th>{ep().colStatus}</th>
                                                         <th />
                                                     </tr>
@@ -1168,7 +1445,7 @@ export default function EndpointsPanel(props: Props) {
                                                         fallback={
                                                             <tr>
                                                                 <td
-                                                                    colspan={6}
+                                                                    colspan={8}
                                                                     class="muted"
                                                                 >
                                                                     {
@@ -1183,8 +1460,16 @@ export default function EndpointsPanel(props: Props) {
                                                             each={visibleIdx()}
                                                         >
                                                             {(i) => (
-                                                                <tr>
-                                                                    <td class="ep-cb">
+                                                                <tr
+                                                                    classList={{
+                                                                        off: !d()
+                                                                            .models[
+                                                                            i
+                                                                        ]
+                                                                            .enabled,
+                                                                    }}
+                                                                >
+                                                                    <td class="ch-cb">
                                                                         <input
                                                                             type="checkbox"
                                                                             checked={modelSel().has(
@@ -1202,12 +1487,12 @@ export default function EndpointsPanel(props: Props) {
                                                                             }
                                                                         />
                                                                     </td>
-                                                                    <td class="ep-idx">
+                                                                    <td class="ch-idx">
                                                                         {i + 1}
                                                                     </td>
                                                                     <td>
                                                                         <input
-                                                                            class="ep-cell-in"
+                                                                            class="ch-cell-in"
                                                                             value={
                                                                                 d()
                                                                                     .models[
@@ -1231,7 +1516,7 @@ export default function EndpointsPanel(props: Props) {
                                                                     </td>
                                                                     <td>
                                                                         <input
-                                                                            class="ep-cell-in"
+                                                                            class="ch-cell-in"
                                                                             placeholder={
                                                                                 ep()
                                                                                     .redirectPh
@@ -1258,6 +1543,65 @@ export default function EndpointsPanel(props: Props) {
                                                                             }
                                                                         />
                                                                     </td>
+                                                                    <td class="ch-conc">
+                                                                        <input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            max={
+                                                                                MAX_CONC
+                                                                            }
+                                                                            class="ch-cell-in"
+                                                                            placeholder="∞"
+                                                                            value={
+                                                                                d()
+                                                                                    .models[
+                                                                                    i
+                                                                                ]
+                                                                                    .max_concurrency ??
+                                                                                ""
+                                                                            }
+                                                                            onInput={(
+                                                                                e,
+                                                                            ) =>
+                                                                                setModel(
+                                                                                    i,
+                                                                                    {
+                                                                                        max_concurrency:
+                                                                                            concOf(
+                                                                                                e
+                                                                                                    .currentTarget
+                                                                                                    .value,
+                                                                                            ),
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </td>
+                                                                    <td class="ch-on">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={
+                                                                                d()
+                                                                                    .models[
+                                                                                    i
+                                                                                ]
+                                                                                    .enabled
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                setModel(
+                                                                                    i,
+                                                                                    {
+                                                                                        enabled:
+                                                                                            e
+                                                                                                .currentTarget
+                                                                                                .checked,
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </td>
                                                                     <td>
                                                                         <Show
                                                                             when={modelStatus(
@@ -1272,7 +1616,7 @@ export default function EndpointsPanel(props: Props) {
                                                                                 mr,
                                                                             ) => (
                                                                                 <i
-                                                                                    class={`ep-badge ${verdictCls(
+                                                                                    class={`ch-badge ${verdictCls(
                                                                                         mr()
                                                                                             .verdict,
                                                                                     )}`}
@@ -1294,10 +1638,10 @@ export default function EndpointsPanel(props: Props) {
                                                                             )}
                                                                         </Show>
                                                                     </td>
-                                                                    <td class="ep-rowops">
+                                                                    <td class="ch-rowops">
                                                                         <button
                                                                             type="button"
-                                                                            class="ep-op"
+                                                                            class="ch-op"
                                                                             title={
                                                                                 ep()
                                                                                     .rowMoveUp
@@ -1317,7 +1661,7 @@ export default function EndpointsPanel(props: Props) {
                                                                         </button>
                                                                         <button
                                                                             type="button"
-                                                                            class="ep-op"
+                                                                            class="ch-op"
                                                                             title={
                                                                                 ep()
                                                                                     .rowMoveDown
@@ -1340,7 +1684,7 @@ export default function EndpointsPanel(props: Props) {
                                                                         </button>
                                                                         <button
                                                                             type="button"
-                                                                            class="ep-op"
+                                                                            class="ch-op"
                                                                             title={
                                                                                 ep()
                                                                                     .rowDel
@@ -1367,7 +1711,7 @@ export default function EndpointsPanel(props: Props) {
                                         </Show>
                                     </div>
                                 </div>
-                                <footer class="ep-drawer-foot">
+                                <footer class="ch-drawer-foot">
                                     <button
                                         type="button"
                                         class="btn-primary"
@@ -1397,16 +1741,16 @@ export default function EndpointsPanel(props: Props) {
                 <Show when={fetchSt()}>
                     {(st) => (
                         <div
-                            class="ep-veil ep-veil-top"
+                            class="ch-veil ch-veil-top"
                             onClick={(e) => veilClick(e, () => setFetchSt(null))}
                         >
                             <div
-                                class="ep-box"
+                                class="ch-box"
                                 role="dialog"
                                 aria-modal="true"
                                 aria-label={ep().fetchTitle}
                             >
-                                <h3 class="ep-box-title">{ep().fetchTitle}</h3>
+                                <h3 class="ch-box-title">{ep().fetchTitle}</h3>
                                 <Show
                                     when={fetchList()}
                                     fallback={
@@ -1416,7 +1760,7 @@ export default function EndpointsPanel(props: Props) {
                                                     ? ep().fetchLoading
                                                     : fetchErrText()}
                                             </p>
-                                            <div class="ep-box-foot">
+                                            <div class="ch-box-foot">
                                                 <button
                                                     type="button"
                                                     class="btn-ghost"
@@ -1432,10 +1776,10 @@ export default function EndpointsPanel(props: Props) {
                                 >
                                     {(ls) => (
                                         <>
-                                            <div class="ep-pick">
+                                            <div class="ch-pick">
                                                 <For each={ls().models}>
                                                     {(name) => (
-                                                        <label class="ep-pick-item">
+                                                        <label class="ch-pick-item">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={ls().checked.has(
@@ -1462,7 +1806,7 @@ export default function EndpointsPanel(props: Props) {
                                                     n: ls().checked.size,
                                                 })}
                                             </p>
-                                            <div class="ep-box-foot">
+                                            <div class="ch-box-foot">
                                                 <button
                                                     type="button"
                                                     class="btn-primary"
@@ -1490,27 +1834,27 @@ export default function EndpointsPanel(props: Props) {
 
                 {/* ============ 测试弹窗 ============ */}
                 <Show when={testId()}>
-                    {(pid) => {
-                        const p = () =>
-                            profiles().find((x) => x.id === pid());
+                    {(cid) => {
+                        const c = () =>
+                            channels().find((x) => x.id === cid());
                         return (
                             <div
-                                class="ep-veil ep-veil-top"
+                                class="ch-veil ch-veil-top"
                                 onClick={(e) =>
                                     veilClick(e, () => setTestId(""))
                                 }
                             >
                                 <div
-                                    class="ep-box"
+                                    class="ch-box"
                                     role="dialog"
                                     aria-modal="true"
                                     aria-label={ep().testTitle}
                                 >
-                                    <h3 class="ep-box-title">
+                                    <h3 class="ch-box-title">
                                         {ep().testTitle}——
-                                        {p()?.label || pid()}
+                                        {c()?.name || cid()}
                                     </h3>
-                                    <div class="ep-test-bar">
+                                    <div class="ch-test-bar">
                                         <select
                                             value={testModel()}
                                             onChange={(e) =>
@@ -1519,7 +1863,7 @@ export default function EndpointsPanel(props: Props) {
                                                 )
                                             }
                                         >
-                                            <For each={p()?.models ?? []}>
+                                            <For each={c()?.models ?? []}>
                                                 {(m) => (
                                                     <option value={m.model}>
                                                         {chipText(m)}
@@ -1540,7 +1884,7 @@ export default function EndpointsPanel(props: Props) {
                                                 : ep().testRun}
                                         </button>
                                     </div>
-                                    <div class="ep-test-rows">
+                                    <div class="ch-test-rows">
                                         <Show
                                             when={testRows().length > 0}
                                             fallback={
@@ -1551,10 +1895,10 @@ export default function EndpointsPanel(props: Props) {
                                         >
                                             <For each={testRows()}>
                                                 {(row) => (
-                                                    <div class="ep-test-row">
+                                                    <div class="ch-test-row">
                                                         <code>{row.name}</code>
                                                         <i
-                                                            class={`ep-badge ${verdictCls(
+                                                            class={`ch-badge ${verdictCls(
                                                                 row.verdict,
                                                             )}`}
                                                         >
@@ -1580,7 +1924,7 @@ export default function EndpointsPanel(props: Props) {
                                                         </Show>
                                                         <Show when={row.detail}>
                                                             <span
-                                                                class="muted ep-test-detail"
+                                                                class="muted ch-test-detail"
                                                                 title={
                                                                     row.detail
                                                                 }
@@ -1593,7 +1937,7 @@ export default function EndpointsPanel(props: Props) {
                                             </For>
                                         </Show>
                                     </div>
-                                    <div class="ep-box-foot">
+                                    <div class="ch-box-foot">
                                         <button
                                             type="button"
                                             class="btn-ghost"
@@ -1612,27 +1956,27 @@ export default function EndpointsPanel(props: Props) {
                 <Show when={sortIds()}>
                     {(ids) => (
                         <div
-                            class="ep-veil ep-veil-top"
+                            class="ch-veil ch-veil-top"
                             onClick={(e) => veilClick(e, () => setSortIds(null))}
                         >
                             <div
-                                class="ep-box"
+                                class="ch-box"
                                 role="dialog"
                                 aria-modal="true"
                                 aria-label={ep().sortTitle}
                             >
-                                <h3 class="ep-box-title">{ep().sortTitle}</h3>
+                                <h3 class="ch-box-title">{ep().sortTitle}</h3>
                                 <p class="muted">{ep().sortHint}</p>
-                                <ul class="ep-sort">
+                                <ul class="ch-sort">
                                     <For each={ids()}>
                                         {(id, i) => {
-                                            const p = () =>
-                                                profiles().find(
+                                            const c = () =>
+                                                channels().find(
                                                     (x) => x.id === id,
                                                 );
                                             return (
                                                 <li
-                                                    class="ep-sort-item"
+                                                    class="ch-sort-item"
                                                     draggable
                                                     onDragStart={() => {
                                                         sortDragIdx = i();
@@ -1642,21 +1986,21 @@ export default function EndpointsPanel(props: Props) {
                                                     }
                                                     onDrop={() => sortDrop(i())}
                                                 >
-                                                    <span class="ep-grip">
+                                                    <span class="ch-grip">
                                                         ⋮⋮
                                                     </span>
                                                     <span>
-                                                        {p()?.label || id}
+                                                        {c()?.name || id}
                                                     </span>
-                                                    <span class="muted ep-sort-url">
-                                                        {p()?.base_url}
+                                                    <span class="muted ch-sort-url">
+                                                        {c()?.base_url}
                                                     </span>
                                                 </li>
                                             );
                                         }}
                                     </For>
                                 </ul>
-                                <div class="ep-box-foot">
+                                <div class="ch-box-foot">
                                     <button
                                         type="button"
                                         class="btn-primary"
@@ -1682,26 +2026,26 @@ export default function EndpointsPanel(props: Props) {
 
                 {/* ============ 删除确认 ============ */}
                 <Show when={delTarget()}>
-                    {(p) => (
+                    {(c) => (
                         <div
-                            class="ep-veil ep-veil-top"
+                            class="ch-veil ch-veil-top"
                             onClick={(e) =>
                                 veilClick(e, () => setDelTarget(null))
                             }
                         >
                             <div
-                                class="ep-box"
+                                class="ch-box"
                                 role="alertdialog"
                                 aria-modal="true"
                                 aria-label={ep().delTitle}
                             >
-                                <h3 class="ep-box-title">{ep().delTitle}</h3>
+                                <h3 class="ch-box-title">{ep().delTitle}</h3>
                                 <p>
                                     {fmt(ep().delConfirm, {
-                                        label: p().label || p().id,
+                                        label: c().name || c().id,
                                     })}
                                 </p>
-                                <div class="ep-box-foot">
+                                <div class="ch-box-foot">
                                     <button
                                         type="button"
                                         class="btn-ghost"
@@ -1711,7 +2055,7 @@ export default function EndpointsPanel(props: Props) {
                                     </button>
                                     <button
                                         type="button"
-                                        class="btn-primary ep-danger"
+                                        class="btn-primary ch-danger"
                                         disabled={!!busy()}
                                         onClick={() => void confirmDelete()}
                                     >

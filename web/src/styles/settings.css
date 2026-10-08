@@ -85,22 +85,22 @@
     min-width: 0;
 }
 
-/* ---------- 端点档案卡（EndpointsPanel，form 外独立 section） ---------- */
+/* ---------- 渠道卡（ChannelsPanel，form 外独立 section） ---------- */
 
-.eps {
+.chs {
     margin-top: 30px;
     padding-top: 20px;
     border-top: 1px solid var(--line);
 }
 
-.eps h2 {
+.chs h2 {
     font-family: var(--font-serif);
     font-size: 17px;
     margin: 0 0 14px;
     font-weight: 600;
 }
 
-.eps h2 em {
+.chs h2 em {
     font-style: normal;
     font-weight: 400;
     font-size: 12px;
@@ -108,7 +108,53 @@
     margin-left: 10px;
 }
 
-.ep-list {
+/* 路由条：渠道 select + 目标模型 input（datalist 候选）+ 语义 hint */
+.ch-route {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.ch-route-label {
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.ch-route select {
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--ink);
+    max-width: 220px;
+}
+
+.ch-route input {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--ink);
+    width: 200px;
+}
+
+.ch-route input:focus,
+.ch-route select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.ch-route-hint {
+    font-style: normal;
+    font-size: 11px;
+}
+
+.ch-list {
     list-style: none;
     margin: 0 0 14px;
     padding: 0;
@@ -117,7 +163,7 @@
     gap: 10px;
 }
 
-.ep-card {
+.ch-card {
     border: 1px solid var(--line-strong);
     border-radius: 8px;
     background: var(--panel);
@@ -129,21 +175,21 @@
 }
 
 /* 停用卡降权——仍在档案里但不参与回退链 */
-.ep-card.off {
+.ch-card.off {
     opacity: 0.55;
 }
 
-.ep-head {
+.ch-head {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.ep-spacer {
+.ch-spacer {
     flex: 1;
 }
 
-.ep-toggle {
+.ch-toggle {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -153,20 +199,20 @@
     cursor: pointer;
 }
 
-.ep-url {
+.ch-url {
     font-family: var(--font-mono);
     font-size: 12px;
     color: var(--ink-2);
     word-break: break-all;
 }
 
-.ep-models {
+.ch-models {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
 }
 
-.ep-models code {
+.ch-models code {
     font-size: 11px;
     padding: 1px 7px;
     border: 1px solid var(--line);
@@ -175,25 +221,40 @@
 }
 
 /* chip 内 redirect 段弱显（model(red) 的括号部分） */
-.ep-chip-red {
+.ch-chip-red {
     font-style: normal;
     color: var(--ink-3);
 }
 
+/* 停用模型 chip 降权——条目保留但不参与路由 */
+.ch-chip.off {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+/* 渠道预设名标签（服务商归类） */
+.ch-preset {
+    font-size: 11px;
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 6px;
+}
+
 /* +N 溢出徽记——无边框弱显 */
-.ep-more {
+.ch-more {
     border-style: dashed;
     color: var(--ink-3);
 }
 
-/* 列表尾操作行（添加端点/排序） */
-.ep-foot {
+/* 列表尾操作行（添加渠道/排序） */
+.ch-foot {
     display: flex;
     gap: 8px;
     margin-bottom: 6px;
 }
 
-.ep-meta {
+.ch-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -202,7 +263,7 @@
     color: var(--ink-2);
 }
 
-.ep-probe {
+.ch-probe {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -212,7 +273,7 @@
 }
 
 /* 探针 verdict 徽章：i 斜体复位成小胶囊 */
-.ep-badge {
+.ch-badge {
     font-style: normal;
     font-size: 11px;
     padding: 1px 8px;
@@ -222,35 +283,35 @@
     white-space: nowrap;
 }
 
-.ep-badge.ok {
+.ch-badge.ok {
     color: var(--pine);
     border-color: var(--pine);
 }
 
-.ep-badge.warn {
+.ch-badge.warn {
     color: var(--ochre-deep);
     border-color: var(--ochre-deep);
 }
 
-.ep-badge.bad {
+.ch-badge.bad {
     color: var(--cinnabar-deep);
     border-color: var(--cinnabar-deep);
 }
 
-.ep-actions {
+.ch-actions {
     display: flex;
     gap: 8px;
     margin-top: 2px;
 }
 
-.ep-actions .btn-ghost {
+.ch-actions .btn-ghost {
     padding: 5px 12px;
     font-size: 12px;
 }
 
 /* ---------- 编辑抽屉（ccLoad 式右侧全高抽屉 + 左导航分节） ---------- */
 
-.ep-veil {
+.ch-veil {
     position: fixed;
     inset: 0;
     z-index: 40;
@@ -260,13 +321,13 @@
 }
 
 /* 叠在抽屉上方的子弹窗（获取模型/测试/排序/删除） */
-.ep-veil-top {
+.ch-veil-top {
     z-index: 50;
     align-items: center;
     justify-content: center;
 }
 
-.ep-drawer {
+.ch-drawer {
     width: min(920px, 100vw);
     height: 100%;
     background: var(--panel);
@@ -276,7 +337,7 @@
     flex-direction: column;
 }
 
-.ep-drawer-head {
+.ch-drawer-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -284,14 +345,14 @@
     border-bottom: 1px solid var(--line);
 }
 
-.ep-drawer-head h3 {
+.ch-drawer-head h3 {
     margin: 0;
     font-family: var(--font-serif);
     font-size: 16px;
     font-weight: 600;
 }
 
-.ep-x {
+.ch-x {
     border: none;
     background: none;
     font-size: 20px;
@@ -301,17 +362,17 @@
     padding: 4px 8px;
 }
 
-.ep-x:hover {
+.ch-x:hover {
     color: var(--ink);
 }
 
-.ep-drawer-body {
+.ch-drawer-body {
     flex: 1;
     display: flex;
     min-height: 0;
 }
 
-.ep-nav {
+.ch-nav {
     width: 176px;
     flex: none;
     border-right: 1px solid var(--line);
@@ -321,7 +382,7 @@
     gap: 4px;
 }
 
-.ep-nav-item {
+.ch-nav-item {
     text-align: left;
     border: none;
     background: none;
@@ -332,19 +393,19 @@
     cursor: pointer;
 }
 
-.ep-nav-item:hover {
+.ch-nav-item:hover {
     background: var(--paper-2);
     color: var(--ink);
 }
 
-.ep-nav-item.on {
+.ch-nav-item.on {
     background: var(--paper-2);
     color: var(--ink);
     font-weight: 600;
     box-shadow: inset 2px 0 0 var(--cinnabar);
 }
 
-.ep-sec {
+.ch-sec {
     flex: 1;
     overflow-y: auto;
     padding: 18px 22px;
@@ -354,22 +415,22 @@
     font-size: 13px;
 }
 
-.ep-sec label {
+.ch-sec label {
     display: flex;
     flex-direction: column;
     gap: 6px;
     font-weight: 600;
 }
 
-.ep-sec label em {
+.ch-sec label em {
     font-style: normal;
     font-weight: 400;
     font-size: 12px;
     margin-left: 8px;
 }
 
-.ep-sec input,
-.ep-sec select {
+.ch-sec input,
+.ch-sec select {
     padding: 9px 12px;
     font-size: 14px;
     font-family: inherit;
@@ -381,50 +442,50 @@
     outline: none;
 }
 
-.ep-sec input:focus,
-.ep-sec select:focus {
+.ch-sec input:focus,
+.ch-sec select:focus {
     border-color: var(--cinnabar);
     box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* 开关行里的 checkbox 不吃上面整宽输入样式 */
-.ep-sec label.ep-toggle {
+.ch-sec label.ch-toggle {
     flex-direction: row;
     align-items: center;
     font-weight: 400;
 }
 
-.ep-sec label.ep-toggle input {
+.ch-sec label.ch-toggle input {
     padding: 0;
     width: auto;
 }
 
-.ep-drawer-foot {
+.ch-drawer-foot {
     display: flex;
     gap: 10px;
     padding: 14px 20px;
     border-top: 1px solid var(--line);
 }
 
-.ep-drawer-foot .btn-primary {
+.ch-drawer-foot .btn-primary {
     padding: 8px 18px;
     font-size: 13px;
 }
 
 /* ---------- 模型行式表格（抽屉·模型节） ---------- */
 
-.ep-mtools {
+.ch-mtools {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.ep-mtools .btn-ghost {
+.ch-mtools .btn-ghost {
     padding: 5px 12px;
     font-size: 12px;
 }
 
-.ep-mbatch {
+.ch-mbatch {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -436,42 +497,61 @@
     color: var(--ink-2);
 }
 
-.ep-mbatch .btn-ghost {
+.ch-mbatch .btn-ghost {
     padding: 4px 10px;
     font-size: 12px;
 }
 
-.ep-mtable {
+.ch-mtable {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
 }
 
-.ep-mtable th,
-.ep-mtable td {
+.ch-mtable th,
+.ch-mtable td {
     padding: 7px 8px;
     border-bottom: 1px solid var(--line);
     text-align: left;
     vertical-align: middle;
 }
 
-.ep-mtable th {
+.ch-mtable th {
     font-size: 12px;
     font-weight: 600;
     color: var(--ink-2);
 }
 
-.ep-cb {
+.ch-cb {
     width: 30px;
 }
 
-.ep-idx {
+.ch-idx {
     width: 34px;
     color: var(--ink-3);
 }
 
+/* 并发/启用窄列——数字格收宽、勾选格居中 */
+.ch-conc {
+    width: 72px;
+}
+
+.ch-conc .ch-cell-in {
+    text-align: right;
+}
+
+.ch-on {
+    width: 44px;
+    text-align: center !important;
+}
+
+/* 停用模型行降权（与卡面 chip.off 同语义） */
+.ch-mtable tr.off td {
+    opacity: 0.55;
+}
+
 /* th 内嵌行内搜索 */
-.ep-th-search {
+.ch-th-search {
     margin-left: 10px;
     padding: 3px 8px !important;
     font-size: 12px !important;
@@ -480,7 +560,7 @@
 }
 
 /* 行内编辑输入——无边框观感，聚焦才出描边 */
-.ep-cell-in {
+.ch-cell-in {
     width: 100%;
     padding: 5px 8px !important;
     font-size: 13px !important;
@@ -489,21 +569,21 @@
     background: transparent !important;
 }
 
-.ep-cell-in:hover {
+.ch-cell-in:hover {
     border-color: var(--line) !important;
 }
 
-.ep-cell-in:focus {
+.ch-cell-in:focus {
     border-color: var(--cinnabar) !important;
     background: var(--panel) !important;
 }
 
-.ep-rowops {
+.ch-rowops {
     white-space: nowrap;
     width: 96px;
 }
 
-.ep-op {
+.ch-op {
     border: none;
     background: none;
     padding: 3px 6px;
@@ -513,19 +593,19 @@
     border-radius: 4px;
 }
 
-.ep-op:hover:not(:disabled) {
+.ch-op:hover:not(:disabled) {
     color: var(--ink);
     background: var(--paper-2);
 }
 
-.ep-op:disabled {
+.ch-op:disabled {
     opacity: 0.35;
     cursor: default;
 }
 
 /* ---------- 抽屉内子弹窗 + 独立弹窗共盒 ---------- */
 
-.ep-box {
+.ch-box {
     width: min(560px, calc(100vw - 48px));
     max-height: calc(100vh - 80px);
     overflow-y: auto;
@@ -537,28 +617,28 @@
     font-size: 13px;
 }
 
-.ep-box-title {
+.ch-box-title {
     margin: 0 0 10px;
     font-family: var(--font-serif);
     font-size: 16px;
     font-weight: 600;
 }
 
-.ep-box-foot {
+.ch-box-foot {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
     margin-top: 16px;
 }
 
-.ep-box-foot .btn-primary,
-.ep-box-foot .btn-ghost {
+.ch-box-foot .btn-primary,
+.ch-box-foot .btn-ghost {
     padding: 7px 14px;
     font-size: 13px;
 }
 
 /* 获取模型勾选清单 */
-.ep-pick {
+.ch-pick {
     max-height: 320px;
     overflow-y: auto;
     border: 1px solid var(--line);
@@ -569,7 +649,7 @@
     gap: 2px;
 }
 
-.ep-pick-item {
+.ch-pick-item {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -578,22 +658,22 @@
     font-weight: 400;
 }
 
-.ep-pick-item:hover {
+.ch-pick-item:hover {
     background: var(--paper-2);
 }
 
-.ep-pick-item code {
+.ch-pick-item code {
     font-size: 12px;
 }
 
 /* 测试弹窗 */
-.ep-test-bar {
+.ch-test-bar {
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
 }
 
-.ep-test-bar select {
+.ch-test-bar select {
     flex: 1;
     padding: 7px 10px;
     font-size: 13px;
@@ -604,7 +684,7 @@
     color: var(--ink);
 }
 
-.ep-test-rows {
+.ch-test-rows {
     max-height: 300px;
     overflow-y: auto;
     display: flex;
@@ -612,7 +692,7 @@
     gap: 6px;
 }
 
-.ep-test-row {
+.ch-test-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -621,7 +701,7 @@
     border-radius: 6px;
 }
 
-.ep-test-row code {
+.ch-test-row code {
     font-size: 12px;
     min-width: 0;
     overflow: hidden;
@@ -629,7 +709,7 @@
     white-space: nowrap;
 }
 
-.ep-test-detail {
+.ch-test-detail {
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -639,7 +719,7 @@
 }
 
 /* 排序弹窗拖拽列 */
-.ep-sort {
+.ch-sort {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -648,7 +728,7 @@
     gap: 4px;
 }
 
-.ep-sort-item {
+.ch-sort-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -659,18 +739,18 @@
     cursor: grab;
 }
 
-.ep-sort-item:active {
+.ch-sort-item:active {
     cursor: grabbing;
     border-color: var(--line-strong);
 }
 
-.ep-grip {
+.ch-grip {
     color: var(--ink-3);
     letter-spacing: -2px;
     user-select: none;
 }
 
-.ep-sort-url {
+.ch-sort-url {
     margin-left: auto;
     font-size: 11px;
     overflow: hidden;
@@ -680,7 +760,7 @@
 }
 
 /* 删除确认主按钮染红 */
-.ep-danger {
+.ch-danger {
     background: var(--cinnabar-deep);
     border-color: var(--cinnabar-deep);
 }

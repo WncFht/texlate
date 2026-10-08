@@ -471,7 +471,7 @@ export interface Provider {
     [k: string]: unknown;
 }
 
-// ---------- endpoints：BYOK 端点档案（local 形态限定面——server 形态整面 403） ----------
+// ---------- channels：BYOK 渠道（local 形态限定面——server 形态整面 403） ----------
 
 /** 探针判级词表（服务端 verdict 值域——新值先行，消费侧留 `| string` 尾） */
 export const PROBE_VERDICTS = [
@@ -491,7 +491,7 @@ export const PROBE_VERDICTS = [
 
 export type ProbeVerdict = (typeof PROBE_VERDICTS)[number] | string;
 
-/** 段2 单模型行为报告（probe_endpoint 的 models[uid] 行） */
+/** 段2 单模型行为报告（probe_channel 的 models[uid] 行） */
 export interface ProbeModelReport {
     verdict: ProbeVerdict;
     latency_s?: number;
@@ -500,7 +500,7 @@ export interface ProbeModelReport {
     listed?: boolean | null;
 }
 
-/** 两段探针报告 = profile.last_probe 的形状（服务端独占键，PUT 载荷里忽略） */
+/** 两段探针报告 = channel.last_probe 的形状（服务端独占键，PUT 载荷里忽略） */
 export interface ProbeReport {
     at?: string;
     /** 所决议 key 的 sha256 前 8 指纹——对账"探测时用的还是不是这把 key" */
@@ -514,24 +514,36 @@ export interface ProbeReport {
 }
 
 /**
- * 模型条目：``model`` = 档案内本地名（展示/探针报告键），``redirect_model``
- * = 线上请求名——非空时上游收到的是它（别名重定向），空串即本名直发。
+ * 模型条目：``model`` = 渠道内本地名（展示/探针报告键），``redirect_model``
+ * = 上游请求名——非空时上游收到的是它（别名重定向），空串即本名直发。
+ * ``enabled`` 关 = 该模型不参与路由/回退；``max_concurrency`` 空 = 不限
+ * （只受渠道级与服务级并发闸约束）。
  */
-export interface EndpointModel {
+export interface ChannelModel {
     model: string;
     redirect_model: string;
+    enabled: boolean;
+    /** null = 不限；1–64 */
+    max_concurrency: number | null;
 }
 
 /**
- * endpoints.json profile 的 API 出参面（public_profile）——key 值绝不出叶：
+ * channels.json channel 的 API 出参面（public_channel）——key 值绝不出叶：
  * 只报 has_api_key / key_env 名 / has_env_key 三态。
  */
-export interface EndpointProfile {
+export interface Channel {
     id: string;
-    label: string;
+    name: string;
+    /** 服务商预设 id（custom 兜底） */
+    preset: string;
     base_url: string;
-    dialect: string;
-    models: EndpointModel[];
+    /** API 协议族：auto（按 host 推导）|openai|anthropic|responses */
+    protocol: string;
+    models: ChannelModel[];
+    /** 大者先路由（服务端按写表序重发稀疏序号） */
+    priority: number;
+    /** 渠道级并发上限；null = 只受服务级闸约束 */
+    max_concurrency: number | null;
     enabled: boolean;
     has_api_key: boolean;
     /** env 变量名（值绝不出 server）——空串 = 未引用 env */
@@ -541,45 +553,69 @@ export interface EndpointProfile {
     last_probe?: ProbeReport | null;
 }
 
+/** 路由小节：channel_id="auto" 按优先级自动选；钉死则只用该渠道。model 是逻辑模型名 */
+export interface ChannelRoute {
+    channel_id: string;
+    model: string;
+}
+
 /**
- * PUT /api/endpoints 的写面行：读面去 key 化 + 凭据写键。
- * 凭据合并规则（server endpoints._normalize_write）：api_key/key_env 同时
+ * PUT /api/channels 的写面行：读面去 key 化 + 凭据写键。
+ * 凭据合并规则（server channels._normalize_channel）：api_key/key_env 同时
  * 非空 → 400；单方非空 → 清另一方（形态切换）；双方空/缺席 → 承旧值。
+ * id 空/缺席 → 服务端生成 ``ch-<8hex>``。
  */
-export interface EndpointProfileWrite {
-    id: string;
-    label?: string;
+export interface ChannelWrite {
+    id?: string;
+    name?: string;
+    preset?: string;
     base_url: string;
-    dialect?: string;
-    /** 条目一律 {model, redirect_model} dict——服务端不收裸 str */
-    models?: EndpointModel[];
+    protocol?: string;
+    models?: ChannelModel[];
+    priority?: number;
+    max_concurrency?: number | null;
     enabled?: boolean;
-    /** 非空 = 写 inline key；"" = 承同 id 旧值（新 profile = 无凭据） */
+    /** 非空 = 写 inline key；"" = 承同 id 旧值（新渠道 = 无凭据） */
     api_key?: string;
     /** 非空 = 写 env 引用；"" = 承同 id 旧值 */
     key_env?: string;
 }
 
-/** GET/PUT /api/endpoints 的回包形状 */
-export interface EndpointsView {
-    profiles: EndpointProfile[];
-    /** 首个 base_url 归一后命中 settings.base_url 的 profile id；无命中 → "" */
+/** GET/PUT /api/channels 与 POST /api/channels/route 的回包形状 */
+export interface ChannelsView {
+    channels: Channel[];
+    route: ChannelRoute;
+    /** settings.base_url 归一命中者（投影兼容位）；无命中 → "" */
     active_id: string;
 }
 
-/** POST /endpoints/probe 的两种请求形：档案条目 {id} 或裸端点（须显式 api_key） */
-export type EndpointProbeReq =
+/** GET /api/channels/presets 行——新建渠道表单预填目录 */
+export interface ChannelPreset {
+    id: string;
+    name: string;
+    protocol: string;
+    base_url: string;
+    /** 「获取模型」失败时的兜底清单（渠道内本地名） */
+    models: string[];
+    /** 凭据 env 约定名 */
+    key_env: string;
+    /** 该 env 当前是否已设置 */
+    has_env_key: boolean;
+}
+
+/** POST /channels/probe 的两种请求形：渠道条目 {id} 或裸端点（须显式 api_key） */
+export type ChannelProbeReq =
     | {
           id: string;
-          /** 本地名子集——服务端按档案 redirect 解析；缺省 = 全档探测 */
+          /** 本地名子集——服务端按渠道 redirect 解析；缺省 = 全渠道探测 */
           models?: string[];
       }
     | {
           base_url: string;
           api_key: string;
-          dialect?: string;
-          /** 裸径 dict 条目表（可带 redirect——草稿态按现值探测）；str 不收 */
-          models?: EndpointModel[];
+          protocol?: string;
+          /** 裸径 dict 条目表（可带 redirect——草稿态按现值探测） */
+          models?: ChannelModel[];
       };
 
 export interface Health {

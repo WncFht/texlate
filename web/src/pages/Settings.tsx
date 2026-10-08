@@ -2,7 +2,7 @@
 
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
-import EndpointsPanel from "../components/EndpointsPanel";
+import ChannelsPanel from "../components/ChannelsPanel";
 import Segmented from "../components/Segmented";
 import { errText, type Provider } from "../api/client";
 import {
@@ -521,9 +521,9 @@ export default function Settings() {
                     </Show>
                 </div>
             </form>
-            {/* 端点档案在 form 外——卡内输入不进主表单提交链（Enter 隐式提交隔离）；
-                激活成功后重拉表单字段（base_url/model 已切到新端点） */}
-            <EndpointsPanel onActivated={() => void load()} />
+            {/* 渠道面板在 form 外——卡内输入不进主表单提交链（Enter 隐式提交隔离）；
+                路由选择走 POST /channels/route，不改 settings 字段，无需重拉表单 */}
+            <ChannelsPanel />
         </main>
     );
 }

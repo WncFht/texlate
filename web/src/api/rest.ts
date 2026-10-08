@@ -6,11 +6,13 @@ import {
     ApiError,
     type AxOverview,
     type ByokHeaders,
+    type ChannelPreset,
+    type ChannelProbeReq,
+    type ChannelRoute,
+    type ChannelsView,
+    type ChannelWrite,
     type DiscoverFeed,
     type DiscoverHit,
-    type EndpointProbeReq,
-    type EndpointProfileWrite,
-    type EndpointsView,
     type FileKind,
     type FileManifest,
     type Health,
@@ -492,25 +494,29 @@ export const api = {
             },
         ),
 
-    // ---------- endpoints：BYOK 端点档案（server 形态整面 403——调用方按闸隐藏） ----------
-    getEndpoints: () => request<EndpointsView>("/endpoints"),
-    /** 整表替换写——卡面任一改动（启用/删除/新建/编辑）都折成全量 PUT */
-    putEndpoints: (profiles: EndpointProfileWrite[]) =>
-        request<EndpointsView>("/endpoints", {
+    // ---------- channels：BYOK 渠道（server 形态整面 403——调用方按闸隐藏） ----------
+    getChannels: () => request<ChannelsView>("/channels"),
+    /** 整表替换写——卡面任一改动（启用/删除/新建/编辑/排序）都折成全量 PUT；
+     *  route 缺省承旧值，显式传即一并写 */
+    putChannels: (channels: ChannelWrite[], route?: ChannelRoute) =>
+        request<ChannelsView>("/channels", {
             method: "PUT",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ profiles }),
+            body: JSON.stringify(route ? { channels, route } : { channels }),
         }),
-    /** 激活 → settings（base_url/dialect/model[0] + 凭据面归位），回包是 Settings 公共面 */
-    activateEndpoint: (id: string) =>
-        request<Settings>("/endpoints/activate", {
+    /** 路由选择写——渠道表本体不动，只改 route 小节 */
+    setChannelRoute: (route: ChannelRoute) =>
+        request<ChannelsView>("/channels/route", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id }),
+            body: JSON.stringify(route),
         }),
-    /** 两段探针：{id} 走档案凭据阶梯；裸 {base_url,api_key,…} 必须自带 key（exfil 闸） */
-    probeEndpoint: (req: EndpointProbeReq) =>
-        request<ProbeReport>("/endpoints/probe", {
+    /** 服务商预设目录——新建渠道表单预填面 */
+    getChannelPresets: () =>
+        request<{ presets: ChannelPreset[] }>("/channels/presets"),
+    /** 两段探针：{id} 走渠道凭据阶梯；裸 {base_url,api_key,…} 必须自带 key（exfil 闸） */
+    probeChannel: (req: ChannelProbeReq) =>
+        request<ProbeReport>("/channels/probe", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(req),

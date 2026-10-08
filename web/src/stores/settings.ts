@@ -4,9 +4,11 @@ import { createSignal } from "solid-js";
 import {
     api,
     ApiError,
-    type EndpointModel,
-    type EndpointProfileWrite,
-    type EndpointsView,
+    type ChannelModel,
+    type ChannelPreset,
+    type ChannelRoute,
+    type ChannelsView,
+    type ChannelWrite,
     type ProbeReport,
     type Provider,
     type Settings,
@@ -16,10 +18,12 @@ const [settings, setSettings] = createSignal<Settings | null>(null);
 const [providers, setProviders] = createSignal<Provider[]>([]);
 const [loaded, setLoaded] = createSignal(false);
 
-// ---- 端点档案（endpoints.json UI 面；local 形态限定）----
-// server 形态整面 403：endpointsOff 置位后 Settings 页隐藏整块。
-const [endpoints, setEndpoints] = createSignal<EndpointsView | null>(null);
-const [endpointsOff, setEndpointsOff] = createSignal(false);
+// ---- 渠道（channels.json UI 面；local 形态限定）----
+// server 形态整面 403：channelsOff 置位后 Settings 页隐藏整块。
+const [channels, setChannels] = createSignal<ChannelsView | null>(null);
+const [channelsOff, setChannelsOff] = createSignal(false);
+// 服务商预设目录——新建渠道预填面；拉过一次即驻留（静态目录）
+const [channelPresets, setChannelPresets] = createSignal<ChannelPreset[]>([]);
 
 // ---- 外观（单轴合并，§ADR-0020 二次追加）----
 // 8 档色板是全站唯一外观轴：纸面配色与 chrome 同源派生，不再存在独立
@@ -100,8 +104,9 @@ export const settingsStore = {
     paperTheme,
     floatbar,
     sentAlign,
-    endpoints,
-    endpointsOff,
+    channels,
+    channelsOff,
+    channelPresets,
 
     setPaperTheme(choice: PaperThemeChoice) {
         setPaperThemeSig(choice);
@@ -162,62 +167,67 @@ export const settingsStore = {
 
     test: (s?: Settings) => api.testSettings(s),
 
-    /** 端点档案表拉取：403（server 形态）→ endpointsOff 置位走隐藏，非 403 上抛 */
-    async refreshEndpoints() {
+    /** 渠道表拉取：403（server 形态）→ channelsOff 置位走隐藏，非 403 上抛 */
+    async refreshChannels() {
         try {
-            setEndpoints(await api.getEndpoints());
-            setEndpointsOff(false);
+            setChannels(await api.getChannels());
+            setChannelsOff(false);
         } catch (e) {
             if (e instanceof ApiError && e.status === 403) {
-                setEndpointsOff(true);
-                setEndpoints(null);
+                setChannelsOff(true);
+                setChannels(null);
                 return;
             }
             throw e;
         }
     },
 
-    /** 整表替换写——回包即新视图直接落 store */
-    async saveEndpoints(profiles: EndpointProfileWrite[]) {
-        const v = await api.putEndpoints(profiles);
-        setEndpoints(v);
+    /** 整表替换写——回包即新视图直接落 store；route 缺省承旧 */
+    async saveChannels(rows: ChannelWrite[], route?: ChannelRoute) {
+        const v = await api.putChannels(rows, route);
+        setChannels(v);
         return v;
     },
 
-    /**
-     * 激活 profile：回包是 Settings 公共面——并进 settings（激活失败不上抛
-     * 后半刷新失败也不算激活失败，故 refresh 吞错只留陈视图）。
-     */
-    async activateEndpoint(id: string) {
-        const s = await api.activateEndpoint(id);
-        setSettings((cur) => ({ ...cur, ...s }));
-        await this.refreshEndpoints().catch(() => {
-            /* active_id 刷新失败留陈视图——激活本身已成功 */
-        });
-        return s;
+    /** 路由选择写（POST /channels/route）——渠道表不动，回包落 store */
+    async setChannelRoute(route: ChannelRoute) {
+        const v = await api.setChannelRoute(route);
+        setChannels(v);
+        return v;
+    },
+
+    /** 服务商预设目录——幂等懒拉（目录静态，失败留空不阻塞表单） */
+    async refreshChannelPresets() {
+        if (channelPresets().length) return;
+        try {
+            const r = await api.getChannelPresets();
+            setChannelPresets(r.presets);
+        } catch {
+            /* 预设拉取失败 → 面板回落纯手工表单 */
+        }
     },
 
     /**
-     * 探针（档案条目路：{id}——裸端点路是 exfil 闸内操作走 probeEndpointBare）。
+     * 探针（渠道条目路：{id}——裸端点路是 exfil 闸内操作走 probeChannelBare）。
      * ``models`` 给本地名子集 → 逐模型测（服务端 merge 语义，未探保留旧 verdict）。
      */
-    async probeEndpoint(id: string, models?: string[]): Promise<ProbeReport> {
-        const r = await api.probeEndpoint(
+    async probeChannel(id: string, models?: string[]): Promise<ProbeReport> {
+        const r = await api.probeChannel(
             models === undefined ? { id } : { id, models },
         );
-        await this.refreshEndpoints().catch(() => {
-            /* last_probe 已钉回档案；刷新失败由下次进入补齐 */
+        await this.refreshChannels().catch(() => {
+            /* last_probe 已钉回渠道；刷新失败由下次进入补齐 */
         });
         return r;
     },
 
-    /** 裸端点探测：草稿态按表单现值测（必须显式 api_key——exfil 闸），不钉档案 */
-    async probeEndpointBare(req: {
+    /** 裸端点探测：草稿态按表单现值测（必须显式 api_key——exfil 闸），不钉渠道 */
+    async probeChannelBare(req: {
         base_url: string;
         api_key: string;
-        dialect?: string;
-        models?: EndpointModel[];
+        protocol?: string;
+        models?: ChannelModel[];
     }): Promise<ProbeReport> {
-        return api.probeEndpoint(req);
+        return api.probeChannel(req);
     },
 };
