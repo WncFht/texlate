@@ -197,6 +197,10 @@ export interface ChannelsView {
   route: { channel_id: string; model: string };
   /** resolve_route 对下一请求的真实决议；无可用渠道 → ""。 */
   active_id: string;
+  /** 决议出的上游线名（active_id 空时同空）。 */
+  active_model: string;
+  /** 渠道级冷却中的 id 列表（resolve_route 顺位跳过）。 */
+  cooling: string[];
 }
 
 // ---------------------------------------------------------------- errors

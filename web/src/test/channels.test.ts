@@ -61,7 +61,8 @@ const viewOf = (
     },
     active_id = "",
     active_model = "",
-) => ({ channels, route, active_id, active_model });
+    cooling: string[] = [],
+) => ({ channels, route, active_id, active_model, cooling });
 
 /** 在 root 内按文本找按钮 */
 const btnByText = (
@@ -276,7 +277,36 @@ describe("ChannelsPanel 卡面", () => {
         expect(document.body.querySelector(".chs")).toBeNull();
     });
 
-    it("路由条：钉渠道 select → POST /channels/route", async () => {
+    it("路由条：模型选择器选「渠道·模型」→ POST /channels/route 锁渠道+模型", async () => {
+        mocks.getChannels.mockResolvedValue(
+            viewOf([
+                channel(),
+                channel({
+                    id: "p2",
+                    name: "OR",
+                    priority: 5,
+                    models: [modelOf("gpt-x"), modelOf("gpt-y")],
+                }),
+            ]),
+        );
+        mountToBody(ChannelsPanel);
+        await flush();
+
+        const sel = document.body.querySelector<HTMLSelectElement>(
+            ".ch-route select",
+        )!;
+        // option 值编码 {cid}|{model}——渠道分组 optgroup 下的模型项
+        sel.value = "p2|gpt-y";
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        await flush();
+
+        expect(mocks.setChannelRoute).toHaveBeenCalledWith({
+            channel_id: "p2",
+            model: "gpt-y",
+        });
+    });
+
+    it("路由条：渠道「首选模型」档 → POST route 空模型；自动档 → auto 空模型", async () => {
         mocks.getChannels.mockResolvedValue(
             viewOf([channel(), channel({ id: "p2", name: "OR", priority: 5 })]),
         );
@@ -286,14 +316,69 @@ describe("ChannelsPanel 卡面", () => {
         const sel = document.body.querySelector<HTMLSelectElement>(
             ".ch-route select",
         )!;
-        sel.value = "p2";
+        sel.value = "p2|";
         sel.dispatchEvent(new Event("change", { bubbles: true }));
         await flush();
-
-        expect(mocks.setChannelRoute).toHaveBeenCalledWith({
+        expect(mocks.setChannelRoute).toHaveBeenLastCalledWith({
             channel_id: "p2",
             model: "",
         });
+
+        sel.value = "auto";
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        await flush();
+        expect(mocks.setChannelRoute).toHaveBeenLastCalledWith({
+            channel_id: "auto",
+            model: "",
+        });
+    });
+
+    it("路由条：停用渠道不出现在选择器；auto+model 旧档走合成 disabled 档回显", async () => {
+        mocks.getChannels.mockResolvedValue(
+            viewOf(
+                [
+                    channel(),
+                    channel({ id: "p2", name: "OR", priority: 5, enabled: false }),
+                ],
+                { channel_id: "auto", model: "legacy-m" },
+            ),
+        );
+        mountToBody(ChannelsPanel);
+        await flush();
+
+        const sel = document.body.querySelector<HTMLSelectElement>(
+            ".ch-route select",
+        )!;
+        const vals = [...sel.querySelectorAll("option")].map((o) => o.value);
+        expect(vals.some((v) => v.startsWith("p2|"))).toBe(false);
+        // 合成档回显 auto+model（disabled 占位，切走不可回）
+        const synth = [...sel.querySelectorAll("option")].find(
+            (o) => o.value === "auto|legacy-m",
+        );
+        expect(synth).toBeTruthy();
+        expect(synth!.disabled).toBe(true);
+        expect(synth!.textContent).toContain("legacy-m");
+    });
+
+    it("钉选渠道冷却中 → 卡片冷却 badge + active 行附解释", async () => {
+        mocks.getChannels.mockResolvedValue(
+            viewOf(
+                [channel()],
+                { channel_id: "p1", model: "" },
+                "",
+                "",
+                ["p1"],
+            ),
+        );
+        mountToBody(ChannelsPanel);
+        await flush();
+
+        expect(
+            document.body.querySelector(".ch-card .ch-badge.warn")?.textContent,
+        ).toBe(EP().coolingBadge);
+        expect(
+            document.body.querySelector(".ch-active")?.textContent,
+        ).toContain(EP().activeCooling);
     });
 
     it("卡面钉到路由钮 → POST route 携带渠道 id；已钉渠道该钮 disabled", async () => {

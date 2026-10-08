@@ -578,6 +578,8 @@ export interface ChannelsView {
     active_id: string;
     /** 决议出的上游线名（active_id 空时同空） */
     active_model: string;
+    /** 渠道级冷却中的 id 列表（resolve_route 顺位跳过） */
+    cooling: string[];
 }
 
 /** GET /api/channels/presets 行——新建渠道表单预填目录 */

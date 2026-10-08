@@ -1,5 +1,5 @@
 // ChannelsPanel —— BYOK 渠道卡面（channels.json 的 UI 面，ccLoad 式渠道管理）：
-// 路由条（auto/钉渠道 + 目标模型 datalist）+ 卡片 model(redirect) chips +
+// 路由条（单模型选择器：optgroup 按渠道分组，选「渠道·模型」即锁定）+ 卡片 model(redirect) chips +
 // 右侧抽屉编辑（基本/凭据/模型三节）+ 模型行式表格（勾选批处理/行内搜索/
 // 重定向列/逐行并发与启用）+ 获取模型勾选器 + 逐模型测试弹窗 + 拖拽排序
 // 弹窗 + 删除确认弹窗。
@@ -17,7 +17,6 @@
 // {id, models:[name]}，服务端按渠道 redirect 解析出上游名。
 
 import {
-    createEffect,
     createSignal,
     For,
     onCleanup,
@@ -214,10 +213,8 @@ export default function ChannelsPanel() {
     const [msg, setMsg] = createSignal("");
     const [msgErr, setMsgErr] = createSignal(false);
     // ---- 路由条态 ----
-    const [routeCh, setRouteCh] = createSignal("auto");
-    const [routeModel, setRouteModel] = createSignal("");
-    /** 用户已动路由控件但尚未保存成功——回包/刷新不回灌盖掉在编辑的值 */
-    let routeDirty = false;
+    /** 模型选择器 DOM 引用——保存失败时回弹到服务端 route 回显值 */
+    let routeSelEl: HTMLSelectElement | undefined;
     // ---- 模型表格态（草稿内）----
     const [modelSel, setModelSel] = createSignal<Set<number>>(new Set());
     const [modelFilter, setModelFilter] = createSignal("");
@@ -252,14 +249,6 @@ export default function ChannelsPanel() {
         return channels().find((c) => c.id === id)?.name || id;
     };
 
-    // 服务端 route → 本地控件值回灌（用户编辑中不盖）
-    createEffect(() => {
-        const r = view()?.route;
-        if (!r || routeDirty) return;
-        setRouteCh(r.channel_id || "auto");
-        setRouteModel(r.model || "");
-    });
-
     const fail = (text: string) => {
         setMsgErr(true);
         setMsg(text);
@@ -290,18 +279,52 @@ export default function ChannelsPanel() {
 
     // ------------------------------------------------------------ 路由条
 
-    /** 目标模型 datalist 候选：钉渠道 → 该渠道本地名；auto → 全启用渠道并集 */
-    const routeModelOpts = (): string[] => {
-        const cid = routeCh();
-        const pool =
-            cid === "auto"
-                ? channels().filter((c) => c.enabled)
-                : channels().filter((c) => c.id === cid);
-        const out: string[] = [];
-        for (const c of pool)
-            for (const m of c.models)
-                if (!out.includes(m.model)) out.push(m.model);
-        return out;
+    /** 选择器现值编码："auto" | "{cid}|{model}"（model 空 = 锁渠道首模型） */
+    const routeSel = (): string => {
+        const r = view()?.route;
+        if (!r || r.channel_id === "auto")
+            return r?.model ? `auto|${r.model}` : "auto";
+        return `${r.channel_id}|${r.model}`;
+    };
+
+    /** option 值 → [channel_id, model]——第一个 | 之后整段是模型名（名含 | 也保住） */
+    const routeSelPick = (v: string): [string, string] => {
+        if (v === "auto") return ["auto", ""];
+        const i = v.indexOf("|");
+        return i < 0 ? [v, ""] : [v.slice(0, i), v.slice(i + 1)];
+    };
+
+    /** 现值有对应真实 option 吗——auto+model / 钉了停用或已删渠道 → 走合成档回显 */
+    const routeSelKnown = (): boolean => {
+        const v = routeSel();
+        if (v === "auto") return true;
+        const [cid, model] = routeSelPick(v);
+        const c = channels().find((x) => x.id === cid && x.enabled);
+        if (!c) return false;
+        return model === "" || c.models.some((m) => m.model === model);
+    };
+
+    /** 合成档回显文案（旧档/手改的 route 形态——只显示，option disabled 不可再选） */
+    const routeSelSynthLabel = (): string => {
+        const r = view()?.route;
+        if (!r) return "";
+        if (r.channel_id === "auto")
+            return fmt(ep().autoModel, { model: r.model });
+        const c = channels().find((x) => x.id === r.channel_id);
+        const nm = c?.name || r.channel_id;
+        return r.model
+            ? `${nm} · ${r.model}`
+            : fmt(ep().chAuto, { name: nm });
+    };
+
+    /** 钉选渠道冷却中 → active 行解释 + 卡片 cooling badge */
+    const pinCooling = (): boolean => {
+        const v = view();
+        return (
+            !!v &&
+            v.route.channel_id !== "auto" &&
+            v.cooling.includes(v.route.channel_id)
+        );
     };
 
     const saveRoute = async (channel_id: string, model: string) => {
@@ -309,23 +332,20 @@ export default function ChannelsPanel() {
         setBusy("route");
         setMsg("");
         try {
-            await settingsStore.setChannelRoute({
-                channel_id,
-                model: model.trim(),
-            });
-            routeDirty = false;
+            await settingsStore.setChannelRoute({ channel_id, model });
             ok(ep().routeSaved);
         } catch (e) {
             fail(`${ep().routeFailed}：${apiErrText(e)}`);
+            // 回包未更新 route——select 回弹到服务端真实值，避免显示假选中
+            if (routeSelEl) routeSelEl.value = routeSel();
         } finally {
             setBusy("");
         }
     };
 
+    /** 卡片「锁定渠道」快捷：pin 渠道 + 空模型（=该渠道第一启用模型） */
     const pinRoute = (c: Channel) => {
-        routeDirty = true;
-        setRouteCh(c.id);
-        void saveRoute(c.id, routeModel());
+        void saveRoute(c.id, "");
     };
 
     // ------------------------------------------------------------ 卡片操作
@@ -746,63 +766,63 @@ export default function ChannelsPanel() {
                     fallback={<p class="muted">{t.pane.loading}</p>}
                 >
                     {/* ============ 路由条 ============ */}
+                    {/* 单一模型选择器：optgroup 按渠道分组，选「渠道·模型」即
+                        锁渠道+指定模型一步写 route；自动档 = 顺位语义。
+                        旧档/手改的 route 形态（auto+model、钉已删渠道）无对应
+                        option——合成 disabled 档回显，切走即不可回。 */}
                     <div class="ch-route">
                         <span class="ch-route-label">{ep().route}</span>
                         <select
-                            value={routeCh()}
+                            ref={(el) => (routeSelEl = el)}
+                            class="tx-select"
+                            value={routeSel()}
                             disabled={!!busy()}
                             onChange={(e) => {
-                                routeDirty = true;
-                                setRouteCh(e.currentTarget.value);
-                                void saveRoute(
+                                const [cid, model] = routeSelPick(
                                     e.currentTarget.value,
-                                    routeModel(),
                                 );
+                                void saveRoute(cid, model);
                             }}
                         >
                             <option value="auto">{ep().routeAuto}</option>
-                            <For each={channels()}>
+                            <For each={channels().filter((c) => c.enabled)}>
                                 {(c) => (
-                                    <option value={c.id}>
-                                        {c.name || c.id}
-                                        {c.enabled
-                                            ? ""
-                                            : `（${ep().disabledTag}）`}
-                                    </option>
+                                    <optgroup label={c.name || c.id}>
+                                        <option value={`${c.id}|`}>
+                                            {fmt(ep().chAuto, {
+                                                name: c.name || c.id,
+                                            })}
+                                        </option>
+                                        <For each={c.models}>
+                                            {(m) => (
+                                                <option
+                                                    value={`${c.id}|${m.model}`}
+                                                >
+                                                    {chipText(m)}
+                                                </option>
+                                            )}
+                                        </For>
+                                    </optgroup>
                                 )}
                             </For>
+                            <Show when={!routeSelKnown()}>
+                                <option value={routeSel()} disabled>
+                                    {routeSelSynthLabel()}
+                                </option>
+                            </Show>
                         </select>
-                        <input
-                            id="ch-route-model"
-                            list="ch-route-models"
-                            placeholder={ep().routeModelPh}
-                            value={routeModel()}
-                            disabled={!!busy()}
-                            onInput={(e) => {
-                                routeDirty = true;
-                                setRouteModel(e.currentTarget.value);
-                            }}
-                            onChange={(e) =>
-                                void saveRoute(
-                                    routeCh(),
-                                    e.currentTarget.value,
-                                )
-                            }
-                        />
-                        <datalist id="ch-route-models">
-                            <For each={routeModelOpts()}>
-                                {(name) => <option value={name} />}
-                            </For>
-                        </datalist>
                         <em class="muted ch-route-hint">{ep().routeHint}</em>
                     </div>
-                    {/* 路由的下一请求真实决议（active_id/active_model）——与
-                        钉选态分开显示：pin 只改 route.channel_id，生效看决议 */}
+                    {/* 下一请求真实决议（active_id/active_model）——与钉选态
+                        分开显示；钉选渠道冷却中时附原因 */}
                     <p class="ch-active muted">
                         {ep().activeNow}：
                         {view()?.active_id
                             ? `${activeName()} · ${view()?.active_model}`
                             : ep().activeNone}
+                        <Show when={pinCooling()}>
+                            {ep().activeCooling}
+                        </Show>
                     </p>
                     <Show
                         when={channels().length > 0}
@@ -846,6 +866,15 @@ export default function ChannelsPanel() {
                                                 >
                                                     <span class="ch-badge ok">
                                                         {ep().routedBadge}
+                                                    </span>
+                                                </Show>
+                                                <Show
+                                                    when={view()?.cooling.includes(
+                                                        c.id,
+                                                    )}
+                                                >
+                                                    <span class="ch-badge warn">
+                                                        {ep().coolingBadge}
                                                     </span>
                                                 </Show>
                                                 <span class="ch-spacer" />
@@ -918,11 +947,6 @@ export default function ChannelsPanel() {
                                             </Show>
                                             <div class="ch-meta">
                                                 <span>{credText(c)}</span>
-                                                <span class="muted">
-                                                    {fmt(ep().priorityN, {
-                                                        n: c.priority,
-                                                    })}
-                                                </span>
                                                 <Show when={c.max_concurrency}>
                                                     <span class="muted">
                                                         {fmt(ep().concN, {
@@ -1093,6 +1117,7 @@ export default function ChannelsPanel() {
                                             <label>
                                                 <span>{ep().preset}</span>
                                                 <select
+                                                    class="tx-select"
                                                     value={d().preset}
                                                     onChange={(e) =>
                                                         applyPreset(
@@ -1882,6 +1907,7 @@ export default function ChannelsPanel() {
                                     </h3>
                                     <div class="ch-test-bar">
                                         <select
+                                            class="tx-select"
                                             value={testModel()}
                                             onChange={(e) =>
                                                 setTestModel(

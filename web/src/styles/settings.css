@@ -108,7 +108,8 @@
     margin-left: 10px;
 }
 
-/* 路由条：渠道 select + 目标模型 input（datalist 候选）+ 语义 hint */
+/* 路由条：单模型选择器（optgroup 按渠道分组）+ 语义 hint。
+ * 控件尺度对齐工具条约定（.tb-select 同款 13px/紧凑 padding/focus 环） */
 .ch-route {
     display: flex;
     align-items: center;
@@ -123,30 +124,19 @@
 }
 
 .ch-route select {
-    font-size: 12px;
-    padding: 4px 8px;
+    font-size: 13px;
+    padding: 6px 10px;
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     background: var(--panel);
     color: var(--ink);
-    max-width: 220px;
+    max-width: 320px;
 }
 
-.ch-route input {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 4px 8px;
-    border: 1px solid var(--line-strong);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--ink);
-    width: 200px;
-}
-
-.ch-route input:focus,
 .ch-route select:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .ch-route-hint {
@@ -682,6 +672,12 @@
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     color: var(--ink);
+    outline: none;
+}
+
+.ch-test-bar select:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .ch-test-rows {

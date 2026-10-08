@@ -59,7 +59,13 @@ def _view(deps: AppDeps) -> dict[str, Any]:
 
     ``active_id``/``active_model`` 是 ``resolve_route()`` 决议结果
     （冷却过滤后的实际生效臂），与 ``route`` 小节的期望选择分开报。
+    ``cooling`` 是渠道级冷却中的 id 列表——前端据此解释决议与钉选
+    不一致（pin 的渠道冷却时顺位跳过/无路由）。
     """
+    # 函数级导入：取的是模块当前属性，测试 monkeypatch 模块级
+    # ``cooldowns`` 换空表后本处读到的是新表
+    from texlate.server.channels import cooldowns  # noqa: PLC0415
+
     data = deps.channels_store.load()
     resolved = deps.channels_store.resolve_route()
     return {
@@ -67,6 +73,9 @@ def _view(deps: AppDeps) -> dict[str, Any]:
         "route": data["route"],
         "active_id": resolved["channel"]["id"] if resolved else "",
         "active_model": resolved["wire_model"] if resolved else "",
+        "cooling": [
+            c["id"] for c in data["channels"] if cooldowns.is_cooled(str(c["id"]), "")
+        ],
     }
 
 

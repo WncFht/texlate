@@ -119,6 +119,24 @@ class TestGetPut:
         blob = client.get("/api/channels").text
         assert "sk-do-not-leak" not in blob
 
+    def test_view_reports_cooling(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """渠道级冷却中 → cooling 出 id；pin 冷却渠道 → active_id 空（无路由）。"""
+        from texlate.server import channels as ch  # noqa: PLC0415
+
+        cd = ch.Cooldowns()
+        monkeypatch.setattr(ch, "cooldowns", cd)
+        _put_channels(client, [_channel("ch-a")])
+        r = client.post("/api/channels/route", json={"channel_id": "ch-a", "model": ""})
+        assert r.status_code == HTTPStatus.OK
+        cd.mark("ch-a", "", 300.0)
+
+        body = client.get("/api/channels").json()
+        assert body["cooling"] == ["ch-a"]
+        assert body["active_id"] == ""
+        assert body["route"]["channel_id"] == "ch-a"
+
     def test_legacy_file_serves_migrated_view(self, tmp_path: Path) -> None:
         """endpoints.json v1 在场：bootstrap 物化为渠道表（app 创建前落盘）。"""
         from conftest import make_app  # noqa: PLC0415
