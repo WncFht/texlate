@@ -195,7 +195,7 @@ export interface ChannelsView {
   }[];
   /** 路由选择：channel_id="auto" 按优先级自动选；钉死则只用该渠道 */
   route: { channel_id: string; model: string };
-  /** settings.base_url 归一命中者；无命中 → ""。 */
+  /** resolve_route 对下一请求的真实决议；无可用渠道 → ""。 */
   active_id: string;
 }
 

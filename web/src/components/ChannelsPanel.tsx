@@ -246,6 +246,11 @@ export default function ChannelsPanel() {
         presets().find((p) => p.id === id);
     const presetName = (id: string): string =>
         presetOf(id)?.name ?? (id === "custom" ? "" : id);
+    /** 当前生效渠道展示名——按 active_id 反查渠道名，查不到回显裸 id */
+    const activeName = (): string => {
+        const id = view()?.active_id ?? "";
+        return channels().find((c) => c.id === id)?.name || id;
+    };
 
     // 服务端 route → 本地控件值回灌（用户编辑中不盖）
     createEffect(() => {
@@ -791,9 +796,28 @@ export default function ChannelsPanel() {
                         </datalist>
                         <em class="muted ch-route-hint">{ep().routeHint}</em>
                     </div>
+                    {/* 路由的下一请求真实决议（active_id/active_model）——与
+                        钉选态分开显示：pin 只改 route.channel_id，生效看决议 */}
+                    <p class="ch-active muted">
+                        {ep().activeNow}：
+                        {view()?.active_id
+                            ? `${activeName()} · ${view()?.active_model}`
+                            : ep().activeNone}
+                    </p>
                     <Show
                         when={channels().length > 0}
-                        fallback={<p class="muted">{ep().empty}</p>}
+                        fallback={
+                            <p class="muted">
+                                {ep().empty}{" "}
+                                <button
+                                    type="button"
+                                    class="btn-primary"
+                                    onClick={() => openDraft(blankDraft())}
+                                >
+                                    {ep().addTitle}
+                                </button>
+                            </p>
+                        }
                     >
                         <ul class="ch-list">
                             <For each={channels()}>
@@ -811,10 +835,12 @@ export default function ChannelsPanel() {
                                                         {presetName(c.preset)}
                                                     </span>
                                                 </Show>
+                                                {/* 生效标 = 路由决议命中
+                                                    （active_id）——非钉选态；
+                                                    钉选看路由条 select 现值 */}
                                                 <Show
                                                     when={
-                                                        view()?.route
-                                                            .channel_id ===
+                                                        view()?.active_id ===
                                                         c.id
                                                     }
                                                 >

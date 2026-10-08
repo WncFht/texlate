@@ -119,8 +119,6 @@ ENV_LOG_FILE: Final = "TEXLATE_LOG_FILE"
 ENV_MODE: Final = "TEXLATE_MODE"
 #: 模型名（值敏感场）。
 ENV_MODEL: Final = "TEXLATE_MODEL"
-#: settings save 期模型探活闸（默认开，非真值显式关——离线/CI 兜底）。
-ENV_MODEL_PROBE: Final = "TEXLATE_MODEL_PROBE"
 #: bwrap 沙盒显式关停（坏件逃生门）。
 ENV_NO_BWRAP: Final = "TEXLATE_NO_BWRAP"
 #: 托管件自动下载关——``CI`` 真值默认关，显式 ``=0`` 可强制开。

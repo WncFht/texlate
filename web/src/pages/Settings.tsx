@@ -1,16 +1,12 @@
-// Settings —— BYOK 表单：key 只写不回显（GET 只回 has_api_key）+ 测试按钮。
+// Settings —— 渠道（channels.json）是唯一端点/凭据配置面，居首；
+// 下方表单只剩任务策略/外观键（key 与端点不落地 settings）。
 
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
 import ChannelsPanel from "../components/ChannelsPanel";
 import Segmented from "../components/Segmented";
-import { errText, type Provider } from "../api/client";
-import {
-    API_DIALECTS,
-    ENGINES,
-    segOptsWithCurrent,
-    TARGET_LANGS,
-} from "../options";
+import { errText } from "../api/client";
+import { ENGINES, segOptsWithCurrent, TARGET_LANGS } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
 import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdf/pdfTheme";
 
@@ -18,15 +14,7 @@ import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdf/pdfTheme";
 const clampConcurrency = (v: number) =>
     Math.max(1, Math.min(16, Math.floor(v)));
 
-/** 预设的模型清单：models[] 或单数 model；自定义/无模型预设 → 空表走自由输入 */
-const providerModels = (p?: Provider): string[] =>
-    p?.models ?? (p?.model ? [p.model] : []);
-
 export default function Settings() {
-    const [apiKey, setApiKey] = createSignal("");
-    const [baseUrl, setBaseUrl] = createSignal("");
-    const [model, setModel] = createSignal("");
-    const [dialect, setDialect] = createSignal("auto");
     const [targetLang, setTargetLang] = createSignal("zh-CN");
     const [glossary, setGlossary] = createSignal("");
     const [engine, setEngine] = createSignal("auto");
@@ -35,10 +23,6 @@ export default function Settings() {
     const [msg, setMsg] = createSignal("");
     const [msgErr, setMsgErr] = createSignal(false);
     const [saving, setSaving] = createSignal(false);
-    const [testing, setTesting] = createSignal(false);
-    const [clearing, setClearing] = createSignal(false);
-    // 服务商预设（U14）："" = 自定义；选定即回填 base_url + 首选 model
-    const [provider, setProvider] = createSignal("");
     // store.refresh 内部吞错——settings() 仍 null 即加载失败（与"还没配置"区分）
     const [loadErr, setLoadErr] = createSignal(false);
     // 任务完成通知权限态（localStorage 无关——浏览器 Notification 权限；
@@ -60,18 +44,6 @@ export default function Settings() {
             setLoadErr(true);
             return;
         }
-        setBaseUrl(s.base_url ?? "");
-        setModel(s.model ?? "");
-        setDialect(s.dialect ?? "auto");
-        // 回填后反查预设：base_url 命中即归位，否则落「自定义」；
-        // s.base_url 缺席时不查——免得撞上同样缺 base_url 的预设误归位
-        setProvider(
-            s.base_url
-                ? (settingsStore
-                      .providers()
-                      .find((p) => p.base_url === s.base_url)?.id ?? "")
-                : "",
-        );
         setTargetLang(s.target_lang ?? "zh-CN");
         setGlossary(s.glossary ?? "");
         setEngine(s.engine ?? "auto");
@@ -101,9 +73,6 @@ export default function Settings() {
         setSaving(true);
         setMsg("");
         const patch: Record<string, unknown> = {
-            base_url: baseUrl().trim(),
-            model: model().trim(),
-            dialect: dialect(),
             target_lang: targetLang().trim(),
             glossary: glossary(),
             engine: engine(),
@@ -114,31 +83,13 @@ export default function Settings() {
         if (Number.isFinite(conc) && conc >= 1) {
             patch.concurrency = clampConcurrency(conc);
         }
-        if (apiKey().trim()) patch.api_key = apiKey().trim();
         try {
             await settingsStore.save(patch);
-            setApiKey("");
             flash(t.settings.saved);
         } catch (e) {
             fail(`${t.settings.saveFailed}：${errText(e)}`);
         } finally {
             setSaving(false);
-        }
-    };
-
-    /** 清除服务端已存 key：PUT {clear_api_key:true} → store 响应 has_api_key=false */
-    const clearKey = async () => {
-        if (clearing()) return;
-        setClearing(true);
-        setMsg("");
-        try {
-            await settingsStore.save({ clear_api_key: true });
-            setApiKey("");
-            flash(t.settings.keyCleared);
-        } catch (e) {
-            fail(`${t.settings.clearFailed}：${errText(e)}`);
-        } finally {
-            setClearing(false);
         }
     };
 
@@ -155,46 +106,13 @@ export default function Settings() {
         }
     };
 
-    const test = async () => {
-        setTesting(true);
-        setMsg("");
-        try {
-            // 测当前表单值而非已存配置——trim 归一化口径与 save() 一致
-            const r = await settingsStore.test({
-                base_url: baseUrl().trim(),
-                model: model().trim(),
-                dialect: dialect(),
-                ...(apiKey().trim() ? { api_key: apiKey().trim() } : {}),
-            });
-            if (r.ok) flash(t.settings.testOk);
-            else fail(`${t.settings.testFail}：${r.detail ?? ""}`);
-        } catch (e) {
-            fail(`${t.settings.testFail}：${errText(e)}`);
-        } finally {
-            setTesting(false);
-        }
-    };
-
-    /** 当前选中预设（undefined = 自定义） */
-    const curProvider = () =>
-        settingsStore.providers().find((p) => p.id === provider());
-
-    /** 当前预设的模型清单——空表时走自由输入框 */
-    const provModels = () => providerModels(curProvider());
-
-    /** 预设选择即回填 base_url + 首选 model——model 留空值时用户再挑 */
-    const pickProvider = (id: string) => {
-        setProvider(id);
-        const p = settingsStore.providers().find((x) => x.id === id);
-        if (!p) return;
-        setBaseUrl(p.base_url ?? "");
-        const ms = providerModels(p);
-        if (ms.length && !ms.includes(model())) setModel(ms[0]);
-    };
-
     return (
         <main class="settings">
             <h1>{t.settings.title}</h1>
+            {/* 渠道是唯一端点/凭据配置面，居首；在 form 外——卡内输入不进
+                主表单提交链（Enter 隐式提交隔离），路由走 POST /channels/route */}
+            <ChannelsPanel />
+            <h2>{t.settings.taskPolicy}</h2>
             <form
                 class="settings-form"
                 onSubmit={(e) => {
@@ -214,37 +132,6 @@ export default function Settings() {
                         </button>
                     </p>
                 </Show>
-                <div class="key-row">
-                    <label>
-                        <span>
-                            {t.settings.apiKey}
-                            <em class="muted">
-                                {settingsStore.settings()?.has_api_key
-                                    ? t.settings.apiKeySet
-                                    : t.settings.apiKeyUnset}
-                                · {t.settings.apiKeyHint}
-                            </em>
-                        </span>
-                        <input
-                            type="password"
-                            name="api_key"
-                            autocomplete="off"
-                            value={apiKey()}
-                            onInput={(e) => setApiKey(e.currentTarget.value)}
-                        />
-                    </label>
-                    {/* 无存 key（needs_auth 语义）时禁用——无可清对象 */}
-                    <button
-                        type="button"
-                        class="btn-ghost"
-                        disabled={
-                            !settingsStore.settings()?.has_api_key || clearing()
-                        }
-                        onClick={() => void clearKey()}
-                    >
-                        {clearing() ? t.settings.clearing : t.settings.clearKey}
-                    </button>
-                </div>
                 {/* 后端回执 ignored：白名单外字段被静默丢弃——明示防「存了没生效」 */}
                 <Show when={settingsStore.settings()?.ignored?.length}>
                     <p class="form-warn" role="status">
@@ -256,92 +143,6 @@ export default function Settings() {
                         )}
                     </p>
                 </Show>
-                <Show when={settingsStore.providers().length > 0}>
-                    <label>
-                        <span>{t.settings.provider}</span>
-                        <select
-                            class="tx-select"
-                            value={provider()}
-                            onChange={(e) =>
-                                pickProvider(e.currentTarget.value)
-                            }
-                        >
-                            <option value="">
-                                {t.settings.providerCustom}
-                            </option>
-                            <For each={settingsStore.providers()}>
-                                {(p) => (
-                                    <option value={p.id}>
-                                        {p.name ?? p.id}
-                                    </option>
-                                )}
-                            </For>
-                        </select>
-                    </label>
-                </Show>
-                <label>
-                    <span>{t.settings.baseUrl}</span>
-                    <input
-                        type="url"
-                        name="base_url"
-                        placeholder="https://…/v1"
-                        value={baseUrl()}
-                        onInput={(e) => {
-                            setBaseUrl(e.currentTarget.value);
-                            // 手改 URL 即脱离预设——否则预设名下挂着别人的地址
-                            if (provider()) setProvider("");
-                        }}
-                    />
-                </label>
-                <label>
-                    <span>{t.settings.model}</span>
-                    {/* 预设带 models → select；自定义/无 models → 自由输入（BYOK 任意端点） */}
-                    <Show
-                        when={provModels().length > 0}
-                        fallback={
-                            <input
-                                name="model"
-                                value={model()}
-                                onInput={(e) => setModel(e.currentTarget.value)}
-                            />
-                        }
-                    >
-                        <select
-                            class="tx-select"
-                            name="model"
-                            value={model()}
-                            onChange={(e) => setModel(e.currentTarget.value)}
-                        >
-                            {/* 现值不在预设清单（旧配置）也保留为可选，防静默改值 */}
-                            <Show
-                                when={
-                                    model() && !provModels().includes(model())
-                                }
-                            >
-                                <option value={model()}>{model()}</option>
-                            </Show>
-                            <For each={provModels()}>
-                                {(m) => <option value={m}>{m}</option>}
-                            </For>
-                        </select>
-                    </Show>
-                </label>
-                <div class="settings-field">
-                    <span>
-                        {t.settings.dialect}
-                        <em class="muted">{t.settings.dialectHint}</em>
-                    </span>
-                    <Segmented
-                        options={segOptsWithCurrent(
-                            API_DIALECTS,
-                            dialect(),
-                            (d) => (d === "auto" ? t.settings.dialectAuto : d),
-                        )}
-                        value={dialect()}
-                        onChange={setDialect}
-                        ariaLabel={t.settings.dialect}
-                    />
-                </div>
                 <div class="settings-field">
                     <span>{t.settings.targetLang}</span>
                     <Segmented
@@ -502,14 +303,6 @@ export default function Settings() {
                     >
                         {saving() ? t.settings.saving : t.settings.save}
                     </button>
-                    <button
-                        type="button"
-                        class="btn-ghost"
-                        disabled={testing()}
-                        onClick={() => void test()}
-                    >
-                        {testing() ? t.settings.testing : t.settings.test}
-                    </button>
                     <Show when={msg()}>
                         <span
                             class="form-msg"
@@ -521,9 +314,6 @@ export default function Settings() {
                     </Show>
                 </div>
             </form>
-            {/* 渠道面板在 form 外——卡内输入不进主表单提交链（Enter 隐式提交隔离）；
-                路由选择走 POST /channels/route，不改 settings 字段，无需重拉表单 */}
-            <ChannelsPanel />
         </main>
     );
 }

@@ -23,9 +23,7 @@ from conftest import mk_chunk_row, mk_task_row
 
 from texlate.server.events import EventBus
 from texlate.server.settings import (
-    _CONNECTION_SLOTS,
     _FIELD_SPECS,
-    _MODEL_PROBE_FIELDS,
     BYOK_FIELDS,
     SettingsStore,
     resolve_auth,
@@ -53,12 +51,6 @@ def store(tmp_path: Path) -> Iterator[Store]:
     s.open()
     yield s
     s.close()
-
-
-@pytest.fixture(autouse=True)
-def _no_model_probe(clean_env: pytest.MonkeyPatch) -> None:
-    """save 内 /v1/models 探活关掉——测试不打网络。"""
-    clean_env.setenv("TEXLATE_MODEL_PROBE", "0")
 
 
 def _collect_stream(
@@ -210,16 +202,6 @@ class TestCrossSlotAuth:
         assert ctx.source == "none"
         assert ctx.base_url == "http://localhost:4000"
 
-    def test_same_slot_settings_key_flows(self, clean_env: pytest.MonkeyPatch) -> None:
-        del clean_env
-        # header 复指 settings 槽位（含尾斜杠形态）→ settings key 照走
-        ctx = resolve_auth(
-            _SETTINGS,
-            header_base_url="http://localhost:3003/",
-            salt="s",
-        )
-        assert (ctx.api_key, ctx.source) == ("sk-settings-1", "settings")
-
     def test_header_key_overrides_any_slot(self, clean_env: pytest.MonkeyPatch) -> None:
         del clean_env
         ctx = resolve_auth(
@@ -238,25 +220,25 @@ class TestCrossSlotAuth:
         ctx = resolve_auth(bare, header_base_url="http://localhost:4000", salt="s")
         assert (ctx.api_key, ctx.source) == ("sk-env-7", "env")
 
-    def test_settings_key_not_leaked_to_env_slot(
+    def test_channel_key_not_leaked_to_env_slot(
         self, clean_env: pytest.MonkeyPatch
     ) -> None:
-        """settings key 属于 settings.base_url 槽——header 指 env 端点也不外借。"""
+        """渠道凭据走 ``key_env_lookup``——env 槽位照旧各回各家不外借。"""
         clean_env.setenv("TEXLATE_API_KEY", "sk-env-7")
         clean_env.setenv("TEXLATE_BASE_URL", "http://localhost:4000")
         ctx = resolve_auth(_SETTINGS, header_base_url="http://localhost:4000", salt="s")
         assert (ctx.api_key, ctx.source) == ("sk-env-7", "env")
 
     def test_no_header_unchanged(self, clean_env: pytest.MonkeyPatch) -> None:
-        """纯 settings / 纯 env 形态不受闸影响。"""
+        """无 header 时 env 层兜底照走（settings dict 仅透传不带凭据）。"""
         clean_env.setenv("TEXLATE_API_KEY", "sk-env-7")
-        assert resolve_auth(_SETTINGS, salt="s").api_key == "sk-settings-1"
+        assert resolve_auth(_SETTINGS, salt="s").api_key == "sk-env-7"
         bare = {"base_url": "", "model": "", "api_key": ""}
         assert resolve_auth(bare, salt="s").api_key == "sk-env-7"
 
 
 class TestByokFieldSpec:
-    """``BYOK_FIELDS`` 单源钉板：请求头面/settings 槽键/探活字段集同由表派生。"""
+    """``BYOK_FIELDS`` 单源钉板：请求头面与决议字段同由表派生。"""
 
     def test_wire_headers_and_attrs(self) -> None:
         assert [s.attr for s in BYOK_FIELDS] == [
@@ -271,19 +253,6 @@ class TestByokFieldSpec:
             "x-texlate-model",
             "x-texlate-dialect",
         ]
-        assert [s.settings_key for s in BYOK_FIELDS] == [
-            "api_key",
-            "base_url",
-            "model",
-            "dialect",
-        ]
-
-    def test_derived_field_sets(self) -> None:
-        assert (
-            frozenset({"api_key", "base_url", "model", "dialect", "clear_api_key"})
-            == _MODEL_PROBE_FIELDS
-        )
-        assert _CONNECTION_SLOTS == ("api_key", "model", "dialect")
 
     def test_headers_map_drives_resolution(self, clean_env: pytest.MonkeyPatch) -> None:
         """``headers`` 头面按 spec 查名且覆盖 ``header_*`` kwarg。"""
@@ -345,31 +314,30 @@ class TestSettingsLoadCache:
 
     def test_file_change_reloads(self, tmp_path: Path) -> None:
         s = _mk_settings(tmp_path)
-        s.save({"model": "m1"})
-        assert s.load()["model"] == "m1"
-        # 外部直写（手改文件）→ 标记变 → 重读
+        s.save({"glossary": "g1.yaml"})
+        assert s.load()["glossary"] == "g1.yaml"
+        # 外部直写（手改文件）→ 标记变 → 重读；非 FIELDS 键不进归一化
         s.path.write_text(
-            json.dumps({"model": "m2", "api_key": "sk-x"}), encoding="utf-8"
+            json.dumps({"glossary": "g2.yaml", "bogus": "x"}), encoding="utf-8"
         )
         got = s.load()
-        assert got["model"] == "m2"
-        assert got["api_key"] == "sk-x"
+        assert got["glossary"] == "g2.yaml"
+        assert "bogus" not in got
 
     def test_save_invalidates(self, tmp_path: Path) -> None:
         s = _mk_settings(tmp_path)
         s.load()  # 暖缓存（文件缺席标记）
-        s.save({"model": "m9"})
-        assert s.load()["model"] == "m9"
+        s.save({"glossary": "g9.yaml"})
+        assert s.load()["glossary"] == "g9.yaml"
 
     def test_public_does_not_poison_cache(self, tmp_path: Path) -> None:
-        """public() pop api_key 只动浅拷贝——后续 load 仍带 key。"""
+        """public() 回的是深拷贝——就地改嵌套容器不穿透缓存体。"""
         s = _mk_settings(tmp_path)
-        s.save({"api_key": "sk-1"})
+        s.save({"cors_origins": ["https://a.example"]})
         s.load()  # 暖缓存
         pub = s.public()
-        assert pub["has_api_key"] is True
-        assert "api_key" not in pub
-        assert s.load()["api_key"] == "sk-1"
+        pub["cors_origins"].append("https://evil.example")
+        assert s.load()["cors_origins"] == ["https://a.example"]
 
 
 class TestRecoverStartupTerminalFields:
@@ -860,8 +828,8 @@ class TestSettingsScalarGate:
 
     def test_str_fields_reject_containers(self, tmp_path: Path) -> None:
         s = _mk_settings(tmp_path)
-        # 字段集由 _FIELD_SPECS 派生（同 BYOK_FIELDS/_CONNECTION_SLOTS 钉板手法）——
-        # 新增 str 标量字段（如 dialect）自动进闸，不再靠手抄名单
+        # 字段集由 _FIELD_SPECS 派生（同 BYOK_FIELDS 钉板手法）——
+        # 新增 str 标量字段自动进闸，不再靠手抄名单
         for f in [spec.name for spec in _FIELD_SPECS if spec.scalar is str]:
             with pytest.raises(ValueError, match="必须是字符串"):
                 s.save({f: {"x": 1}})

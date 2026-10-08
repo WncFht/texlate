@@ -1,29 +1,25 @@
-"""BYOK 与本地设置层（2026-09-15-web-layer.md §4）。
+"""本地设置层（2026-09-15-web-layer.md §4）——``settings.json`` 只存任务策略/外观键。
 
-``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``
-（0600）> 环境变量；``base_url``/``model``/``dialect`` 走 header > env >
-settings——env 是操作员逃生舱，不落盘即可整端覆盖。key 只进内存任务
-对象，绝不进 tasks/files/日志；``tenant`` 用
-``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒 ``local``）。
+端点配置（``api_key``/``base_url``/``model``/``dialect``）自渠道改造起
+全部迁往 ``channels.json``（``server/channels.py`` 数据层）——本文件
+不再携带任何 BYOK 字段；旧文件的四键由 ``ChannelStore.bootstrap``
+一次性物化剥走。凭据决议只认两级：请求头 ``X-Texlate-*`` >
+环境变量（``resolve_auth``）；渠道命中的请求再走渠道凭据阶梯。
 
-四关切拆叶（本文件留 SettingsStore 本体与字段 spec 单源）：
+三关切拆叶（本文件留 SettingsStore 本体与字段 spec 单源）：
 
-- ``validate.py``：``base_url``/``model`` 边界校验——settings 写径与
-  auth 决议径共用件，独立成叶解开 settings↔auth 双向依赖。
-- ``auth.py``：凭证三级回落（``resolve_auth``/``AuthContext``/env 兜底）
+- ``validate.py``：``base_url``/``model``/``dialect`` 边界校验——渠道写径
+  与 auth 决议径共用件，独立成叶解开 settings↔auth 双向依赖。
+- ``auth.py``：凭证两级回落（``resolve_auth``/``AuthContext``/env 兜底）
   + ``tenant_for``/``server_salt`` 指纹盐。
 - ``logredact.py``：日志脱敏（``scrub``/``RedactFilter``/``install_log_scrub``）。
-- ``providers.py``：``/v1/models`` 探活传输 + provider 预设目录；
-  探活编排（TTL 缓存/``model_warning``/``TEXLATE_MODEL_PROBE`` 闸）留本
-  文件——消费面与 monkeypatch 面都钉在 settings 名空间，不出叶。
 
-四层不落日志防线：异常边界 ``scrub()`` 先过、根 logger 挂
-:class:`RedactFilter` 同款正则 scrub、API 出参只给 ``has_api_key``、
-``validate_base_url`` 拒 userinfo/query + 非 localhost/tailnet 强制 https。
+不落日志防线：异常边界 ``scrub()`` 先过、根 logger 挂
+:class:`RedactFilter` 同款正则 scrub、``validate_base_url`` 拒
+userinfo/query + 非 localhost/tailnet 强制 https。
 
 公共面守恒：``settings.X`` 与 ``from texlate.server.settings import X``
-逐名照旧（含 tests/ 白盒钉点 ``_parse_origin``/``_check_cors_origins``/
-``_MODELS_CACHE``/``list_provider_models``）。
+逐名照旧（含 tests/ 白盒钉点 ``_parse_origin``/``_check_cors_origins``）。
 """
 
 from __future__ import annotations
@@ -32,7 +28,6 @@ import copy
 import json
 import logging
 import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -62,11 +57,6 @@ from texlate.server.logredact import (  # noqa: F401 -- 脱敏关切出叶
     install_log_scrub,
     scrub,
 )
-from texlate.server.providers import (  # noqa: F401 -- provider 目录/常量转口
-    _MODEL_PROBE_TIMEOUT_S,
-    list_provider_models,  # 探活编排本文件消费；settings 名空间是 patch 面
-    provider_presets,
-)
 from texlate.server.validate import (  # noqa: F401 -- 边界校验出叶
     MODEL_MAX_LEN,
     _is_plaintext_ok_host,
@@ -75,13 +65,11 @@ from texlate.server.validate import (  # noqa: F401 -- 边界校验出叶
     validate_model,
 )
 from texlate.share import cache_scope  # noqa: F401 -- 寻址键政策出叶（单源在 share）
-from texlate.textutil import data_root, env_flag, env_raw, env_str
+from texlate.textutil import data_root, env_raw, env_str
 from texlate.textutil.osutil import (
     ENV_MODE,
-    ENV_MODEL_PROBE,
     ENV_SHARE_DIR,
 )
-from texlate.xlat.client import API_DIALECTS, DEFAULT_BASE_URL, DEFAULT_MODEL
 from texlate.xlat.state import atomic_json
 
 log = logging.getLogger(__name__)
@@ -89,7 +77,6 @@ log = logging.getLogger(__name__)
 DEFAULT_TARGET_LANG = "zh-CN"
 
 SETTINGS_FILE = "settings.json"
-CONNECTIONS_FILE = "connections.json"
 #: ``SALT_FILE`` 归 auth.py（``server_salt`` 同叶），经上方 import 转口。
 
 #: 上传/解包上限（texglot 常量，web-layer §2.4）
@@ -110,22 +97,6 @@ ENGINES = ENGINE_NAMES
 #: 待 hoist 至 ``compile/engine/_base.py`` 后与默认值同槽转口
 DEFAULT_COMPILE_TIMEOUT_S = DEFAULT_TIMEOUT
 COMPILE_TIMEOUT_MAX_S = 86400.0
-
-#: 探活清单 TTL——同 endpoint 连续 ``save`` 不重复打 ``/models``
-_MODEL_PROBE_CACHE_TTL_S = 20.0
-
-#: ``save`` 里触发模型可用性重估的字段（凭证/端点/模型/方言任一变更才可能
-#: 改变可达性）——BYOK 槽位由 ``BYOK_FIELDS`` 单源派生 + ``clear_api_key``
-#: 写径动词
-_MODEL_PROBE_FIELDS = frozenset(
-    {spec.settings_key for spec in BYOK_FIELDS} | {"clear_api_key"}
-)
-
-#: ``connections.json`` 分槽值键集——``base_url`` 是槽主键不进值面；与
-#: ``BYOK_FIELDS`` 同源，加 BYOK 字段自动进槽
-_CONNECTION_SLOTS = tuple(
-    spec.settings_key for spec in BYOK_FIELDS if spec.attr != "base_url"
-)
 
 
 def data_dir() -> Path:
@@ -384,25 +355,6 @@ class _FieldSpec:
 
 _FIELD_SPECS: tuple[_FieldSpec, ...] = (
     _FieldSpec(
-        "base_url",
-        str,
-        lambda v: _load_str(v, DEFAULT_BASE_URL),
-        lambda v: validate_base_url(str(v)),
-    ),
-    _FieldSpec(
-        "model",
-        str,
-        lambda v: _load_str(v, DEFAULT_MODEL),
-        lambda v: validate_model(str(v)),
-    ),
-    _FieldSpec(
-        "dialect",
-        str,
-        lambda v: _load_enum(v, API_DIALECTS, "auto"),
-        _check_enum("dialect", API_DIALECTS),
-    ),
-    _FieldSpec("api_key", str, lambda v: _load_str(v, ""), None),
-    _FieldSpec(
         "target_lang",
         str,
         lambda v: _load_enum(v, TARGET_LANGS, DEFAULT_TARGET_LANG),
@@ -482,12 +434,11 @@ def _normalize_updates(values: dict[str, Any]) -> None:
 
 
 class SettingsStore:
-    """``settings.json``（0600）+ ``connections.json`` 分槽 key 池。
+    """``settings.json``（0600）任务策略/外观键存取。
 
-    ``connections.json`` 按 base_url 分槽存 ``{api_key, model, dialect}``
-    （槽键集 ``_CONNECTION_SLOTS`` 由 ``BYOK_FIELDS`` 派生）——切
-    endpoint 时各自的 key 都能找回（texglot 模式）。settings 本体不落
-    key 进日志/出参；``public()`` 只给 ``has_api_key``。
+    BYOK 端点字段已全面迁出（``channels.json`` 唯一事实源）——本 store
+    只管 target_lang/engine/concurrency/glossary/quota 等任务策略与
+    外观键；mtime 标记缓存 + 深拷贝出参 + 0600 原子写。
     """
 
     FIELDS = _FIELD_NAMES
@@ -496,14 +447,10 @@ class SettingsStore:
         """Root = 数据目录（已 0700 建妥）。"""
         self.root = root
         self.path = root / SETTINGS_FILE
-        self.connections_path = root / CONNECTIONS_FILE
         #: ``save`` 临界区串行锁——load→merge→write 原靠事件循环单线程
         #: 隐式串行；``settings_put`` 经 ``asyncio.to_thread`` 卸载后并发
         #: PUT 在 worker 线程真并行，无锁会丢更新
         self._save_lock = threading.Lock()
-        #: 最近一次 ``save`` 探活的模型可用性警告（进程瞬态不落盘；
-        #: ``None`` = 无警告或未知），``public()`` 随出参透给前端
-        self._model_warning: str | None = None
         #: ``load`` 磁盘缓存：``(mtime_ns, size) | None 标记 → 归一化 dict``。
         #: app 每请求 + RedactFilter 每条 record 都调 load——标记不变
         #: 直接命中，省读盘+parse。``_save`` 写盘后显式失效兜底粗粒度
@@ -514,9 +461,8 @@ class SettingsStore:
     def load(self) -> dict[str, Any]:
         """读 settings.json；缺席/损坏回落默认。
 
-        返回缓存本体的深拷贝——``public()`` 会 ``pop("api_key")``、
-        调用方可能就地改 ``cors_origins`` 等嵌套容器；浅拷贝会让
-        改动穿透进缓存体，污染后续全部 ``load()``。
+        返回缓存本体的深拷贝——调用方可能就地改 ``cors_origins`` 等
+        嵌套容器；浅拷贝会让改动穿透进缓存体，污染后续全部 ``load()``。
         """
         try:
             st = self.path.stat()
@@ -548,155 +494,31 @@ class SettingsStore:
         return {spec.name: spec.load(data.get(spec.name)) for spec in _FIELD_SPECS}
 
     def save(self, updates: dict[str, Any]) -> dict[str, Any]:
-        """合并更新 → 校验 → 0600 原子写 + connections 分槽同步。
-
-        ``api_key`` 传空串不覆盖旧值；``clear_api_key=True`` 显式清。
-        base_url 变更时从 connections 槽找回该 endpoint 的历史 key
-        （texglot merge_settings 语义）。
-        """
+        """合并更新 → 校验 → 0600 原子写。"""
         with self._save_lock:
             return self._save(updates)
 
     def _save(self, updates: dict[str, Any]) -> dict[str, Any]:
         """``save`` 临界区本体——调用方须已持 ``_save_lock``。"""
         old = self.load()
-        values = dict(updates)
-        values.pop("has_api_key", None)
-        clear_key = bool(values.pop("clear_api_key", False))
         # 白名单收口：API 层已滤 + 回显 ignored，此处再闸直调面——未知键
         # 永不进 settings.json。
-        values = {k: v for k, v in values.items() if k in self.FIELDS}
+        values = {k: v for k, v in updates.items() if k in self.FIELDS}
         _normalize_updates(values)
-        if not values.get("api_key"):
-            values.pop("api_key", None)
         merged = old | values
-        # connections.json 单读共用：api_key/dialect 槽位找回与下方回写吃
-        # 同一快照——分次读在 ``_save_lock`` 内付重复读盘+parse，且槽位
-        # 查找与回写可能观测到不同内容
-        conns = self.connections()
-        if "api_key" not in values and merged["base_url"] != old["base_url"]:
-            # 换 endpoint 未带 key → 找回新 endpoint 槽位历史 key。
-            # 只改 merged——old 动不得：下方 conns 回写按 cfg.base_url
-            # 分槽，old.api_key 若被换成新 endpoint 的 key，旧槽会被
-            # 错写（切回旧 endpoint 时把新 key 发给它）。
-            merged["api_key"] = (
-                conns.get(str(merged["base_url"]), {}).get("api_key") or ""
-            )
-        if "dialect" not in values and merged["base_url"] != old["base_url"]:
-            # 换 endpoint 未带 dialect → 找回新槽位历史值（缺槽归 auto）——
-            # 方言是端点属性，残留旧值会把 openai 请求打向 responses-only 端点
-            merged["dialect"] = (
-                conns.get(str(merged["base_url"]), {}).get("dialect") or "auto"
-            )
-        if clear_key:
-            merged["api_key"] = ""
-        for cfg in (old, merged):
-            conns.pop(cfg["base_url"], None)
-            conns[cfg["base_url"]] = {slot: cfg[slot] for slot in _CONNECTION_SLOTS}
-        # 预检：任一值不可 UTF-8 编码（孤 surrogate）时 atomic_json 会在
-        # connections 已写、settings 未写之间炸 → 文件对半更新。先序列化
-        # 探雷，炸了按非法更新处理，磁盘零写。
+        # 预检：任一值不可 UTF-8 编码（孤 surrogate）时 atomic_json 半路炸
+        # 会留半写文件——先序列化探雷，炸了按非法更新处理，磁盘零写
         try:
-            json.dumps(conns, ensure_ascii=False).encode("utf-8")
             json.dumps(merged, ensure_ascii=False).encode("utf-8")
         except UnicodeEncodeError as e:
             msg = "settings 含不可编码字符"
             raise ValueError(msg) from e
-        atomic_json(self.connections_path, conns)
-        self.connections_path.chmod(0o600)
         atomic_json(self.path, merged)
         self.path.chmod(0o600)
         with self._load_lock:
             self._load_cache = None  # 粗粒度 mtime 标记同值兜底——写后必失效
-        if _MODEL_PROBE_FIELDS & set(updates):
-            # 凭证/端点/模型变更后 best-effort 探活——provider 清单不含
-            # 当前 model 时存警告（保存照存：不可用模型仍允许入设置，
-            # 但 PUT 响应带 model_warning 提醒后续任务会毒化 fault）
-            self._model_warning = model_availability_warning(
-                str(merged["base_url"]), str(merged["api_key"]), str(merged["model"])
-            )
         return merged
 
-    def connections(self) -> dict[str, dict[str, str]]:
-        """``connections.json`` → ``{base_url: {api_key, model, dialect}}``."""
-        if not self.connections_path.exists():
-            return {}
-        try:
-            data = json.loads(self.connections_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            # 非 UTF-8 存盘（GBK 手改）同「损坏」口径回落空表——漏
-            # UnicodeDecodeError 会让 save() 的槽位找回步炸 500
-            return {}
-        if not isinstance(data, dict):
-            return {}
-        out: dict[str, dict[str, str]] = {}
-        for k, v in data.items():
-            if not isinstance(v, dict):
-                continue
-            try:
-                json.dumps(v, ensure_ascii=False).encode("utf-8")
-            except UnicodeEncodeError:
-                log.warning("connections.json 槽位含不可编码值已丢弃: %r", k)
-                continue
-            out[str(k)] = {fk: _load_str(fv, "") for fk, fv in v.items()}
-        return out
-
     def public(self) -> dict[str, Any]:
-        """出参形态：剥 key 本体 + ``has_api_key``（§4.2 第三道防线）。
-
-        ``model_warning`` 仅在上次 ``save`` 探活判定模型未被 provider
-        清单广告时出现——PUT 响应即时透出毒化模型警告，GET 复现同一警告。
-        """
-        data = self.load()
-        data["has_api_key"] = bool(data.pop("api_key"))
-        if self._model_warning:
-            data["model_warning"] = self._model_warning
-        return data
-
-
-# ---------------------------------------------------------------- 探活编排
-
-#: ``base_url → (monotonic 时间戳，清单或 None)`` 探活缓存；进程级共享——
-#: 清单是 endpoint 形态不是 store 形态。base_url 是用户输入键，不封顶
-#: 会被 PUT 喷雾灌成进程期增长——FIFO 逐出最旧条。
-_MODELS_CACHE_CAP: Final = 64
-_MODELS_CACHE: dict[str, tuple[float, list[str] | None]] = {}
-_MODELS_CACHE_LOCK = threading.Lock()
-
-
-def _cached_provider_models(base_url: str, api_key: str) -> list[str] | None:
-    """TTL 缓存的 ``list_provider_models``——``save`` 高频调用不重复探活。
-
-    按 ``base_url`` 单键缓存（不细分 api_key）：清单不可达/鉴权失败的
-    ``None`` 同样缓存 TTL 期——探活是 UX 警告不是正确性闸，短窗口内
-    用旧 verdict 可接受。
-    """
-    now = time.monotonic()
-    with _MODELS_CACHE_LOCK:
-        hit = _MODELS_CACHE.get(base_url)
-        if hit is not None and now - hit[0] < _MODEL_PROBE_CACHE_TTL_S:
-            return hit[1]
-    models = list_provider_models(base_url, api_key)
-    with _MODELS_CACHE_LOCK:
-        if len(_MODELS_CACHE) >= _MODELS_CACHE_CAP:
-            _MODELS_CACHE.pop(next(iter(_MODELS_CACHE)))
-        _MODELS_CACHE[base_url] = (time.monotonic(), models)
-    return models
-
-
-def _model_probe_enabled() -> bool:
-    """``TEXLATE_MODEL_PROBE`` 标准旗标语义：非真值显式关闭 save 期探活（离线/CI 兜底闸）。"""
-    return env_flag(ENV_MODEL_PROBE, default=True)
-
-
-def model_availability_warning(base_url: str, api_key: str, model: str) -> str | None:
-    """``/models`` 清单不含当前 model → UX 警告；探活失败/清单命中 → ``None``。"""
-    if not _model_probe_enabled():
-        return None
-    models = _cached_provider_models(base_url, api_key)
-    if models is None or model in models:
-        return None
-    return (
-        f"model {model!r} 不在 provider /models 清单内——已保存；"
-        "若属拼写错误，后续任务会在翻译阶段失败"
-    )
+        """出参形态 = 归一化全量（BYOK 键已不在 FIELDS——无可剥敏感项）。"""
+        return self.load()

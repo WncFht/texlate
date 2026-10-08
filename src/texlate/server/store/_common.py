@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   model         TEXT NOT NULL,
   config_json   TEXT NOT NULL DEFAULT '{}',
   options_json  TEXT NOT NULL DEFAULT '{}',
-  auth_source   TEXT NOT NULL DEFAULT 'settings',
+  auth_source   TEXT NOT NULL DEFAULT 'none',
   tenant        TEXT NOT NULL DEFAULT 'local',
   cache_key     TEXT,
   idempotency_key TEXT,

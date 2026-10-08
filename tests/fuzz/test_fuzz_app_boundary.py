@@ -847,18 +847,15 @@ class TestSettingsChurn:
                 for k in range(n_iters):
                     store.save(
                         {
-                            "model": f"m{i}-{k}",
+                            "glossary": f"g{i}-{k}.yaml",
                             "concurrency": (i % 16) + 1,
                             "target_lang": ("zh-CN", "zh-TW", "en")[i % 3],
-                            "api_key": f"sk-t{i}-k{k}",
                         }
                     )
                     loaded = store.load()
                     # 读时完整 schema——损坏窗口绝不可见
                     assert set(SettingsStore.FIELDS) <= set(loaded)
                     store.public()
-                    conns = store.connections()
-                    assert all(isinstance(v, dict) for v in conns.values())
             except Exception as e:  # noqa: BLE001 -- 收集线程失败统一断言
                 errors.append(f"t{i}: {type(e).__name__} {e}")
 
@@ -872,9 +869,8 @@ class TestSettingsChurn:
         assert set(SettingsStore.FIELDS) <= set(final)
         if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
             assert store.path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
-            assert store.connections_path.stat().st_mode & _MODE_MASK == _MODE_PRIVATE
-        # api_key 终值属于某次写入（合并竞态可丢整次更新，绝不出现撕值）
-        assert str(final["api_key"]).startswith("sk-t")
+        # glossary 终值属于某次写入（合并竞态可丢整次更新，绝不出现撕值）
+        assert str(final["glossary"]).startswith("g")
 
     def test_http_put_get_concurrent_churn(self, client: TestClient) -> None:
         """HTTP 面同强度：共享 TestClient 跨线程 PUT/GET 全 200。"""
@@ -889,7 +885,7 @@ class TestSettingsChurn:
                             "/api/settings",
                             json={
                                 "concurrency": (i % 16) + 1,
-                                "model": f"m{i}-{k}",
+                                "glossary": f"g{i}-{k}.yaml",
                             },
                         ).status_code
                     )
@@ -926,8 +922,8 @@ class TestSettingsChurn:
         assert r.json()["concurrency"] == 3  # noqa: PLR2004 -- 截断钉
         r = client.put("/api/settings", json={"quota_max_tasks": 3.7})
         assert r.json()["quota_max_tasks"] == 3  # noqa: PLR2004 -- 同上
-        # 标量闸：model 收 int 不再 str() 强转持久化字面量
-        r = client.put("/api/settings", json={"model": 42})
+        # 标量闸：str 字段收 int 不再 str() 强转持久化字面量
+        r = client.put("/api/settings", json={"glossary": 42})
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
 

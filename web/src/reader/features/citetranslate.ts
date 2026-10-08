@@ -48,8 +48,8 @@ export interface CiteTranslateOpts {
     citeMeta?(key: string): RefMeta | undefined;
     /** 翻译体透传源——当前 reader 任务行；缺省空 options 提交 */
     task?(): TaskSnapshot | null | undefined;
-    /** 凭证门判据（缺省 settingsStore.settings()?.has_api_key） */
-    hasApiKey?(): boolean | undefined;
+    /** 凭证门判据（缺省 settingsStore.hasCredential()——active_id 决议口径） */
+    hasCredential?(): boolean | undefined;
     /** per-request BYOK 基底（一般缺省——key 走内联面板收） */
     byok?(): ByokHeaders | undefined;
     /** 「文献」钮/cite.refsAll 的面板开信号（ReaderView 挂 RefsPanel） */
@@ -110,8 +110,8 @@ export function registerCiteTranslate(
             };
         },
         byok: opts.byok,
-        hasApiKey:
-            opts.hasApiKey ?? (() => settingsStore.settings()?.has_api_key),
+        hasCredential:
+            opts.hasCredential ?? (() => settingsStore.hasCredential()),
         onNeedAuth: opts.onNeedAuth,
         nav: opts.nav,
         toastOk: opts.toastOk,

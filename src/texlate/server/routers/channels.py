@@ -21,7 +21,6 @@ from texlate.server.channels import (
     CHANNEL_PRESETS,
     _check_model_names,
     _check_models,
-    active_channel_id,
     credential_for,
     local_model_name,
     probe_channel,
@@ -56,25 +55,27 @@ def _channels_gate() -> None:
 
 
 def _view(deps: AppDeps) -> dict[str, Any]:
-    """当前有效渠道表 + 路由小节 → API 出参（public 面 + active_id 兼容位）。"""
-    settings = deps.settings_store.load()
-    channels = deps.channels_store.effective_channels(
-        settings, deps.settings_store.connections()
-    )
+    """channels.json 渠道表 + 路由小节 + 路由决议 → API 出参（public 面）。
+
+    ``active_id``/``active_model`` 是 ``resolve_route()`` 决议结果
+    （冷却过滤后的实际生效臂），与 ``route`` 小节的期望选择分开报。
+    """
     data = deps.channels_store.load()
+    resolved = deps.channels_store.resolve_route()
     return {
-        "channels": [public_channel(c) for c in channels],
+        "channels": [public_channel(c) for c in data["channels"]],
         "route": data["route"],
-        "active_id": active_channel_id(channels, settings),
+        "active_id": resolved["channel"]["id"] if resolved else "",
+        "active_model": resolved["wire_model"] if resolved else "",
     }
 
 
-def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠道面平铺
+def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 渠道面平铺
     """挂载 ``/api/channels*`` 渠道面。"""
 
     @app.get("/api/channels")
     async def channels_get() -> dict[str, Any]:
-        """有效渠道表（channels.json 在 → 文件表；缺席 → settings+connections 投影）。"""
+        """渠道表 + 路由小节 + 决议（channels.json 缺席时 ``bootstrap`` 已物化）。"""
         _channels_gate()
         return _view(deps)
 
@@ -84,21 +85,14 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠
         _channels_gate()
         body = await _read_body(request)
         try:
-            saved = await asyncio.to_thread(
+            await asyncio.to_thread(
                 deps.channels_store.save,
                 body.get("channels"),
                 body.get("route"),
             )
         except (TypeError, ValueError) as e:
             return _json_error(400, str(e), "invalid_request")
-        settings = deps.settings_store.load()
-        return JSONResponse(
-            {
-                "channels": [public_channel(c) for c in saved["channels"]],
-                "route": saved["route"],
-                "active_id": active_channel_id(saved["channels"], settings),
-            }
-        )
+        return JSONResponse(_view(deps))
 
     @app.post("/api/channels/route")
     async def channels_route(request: Request) -> Response:
@@ -106,21 +100,14 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠
         _channels_gate()
         body = await _read_body(request)
         try:
-            saved = await asyncio.to_thread(
+            await asyncio.to_thread(
                 deps.channels_store.save,
                 deps.channels_store.load()["channels"],
                 {"channel_id": body.get("channel_id"), "model": body.get("model")},
             )
         except (TypeError, ValueError) as e:
             return _json_error(400, str(e), "invalid_request")
-        settings = deps.settings_store.load()
-        return JSONResponse(
-            {
-                "channels": [public_channel(c) for c in saved["channels"]],
-                "route": saved["route"],
-                "active_id": active_channel_id(saved["channels"], settings),
-            }
-        )
+        return JSONResponse(_view(deps))
 
     @app.get("/api/channels/presets")
     async def channels_presets() -> dict[str, Any]:
@@ -137,24 +124,20 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠
     async def channels_probe(request: Request) -> Response:
         """两段探针：``{id}`` 探渠道条目，或裸 ``{base_url, api_key, …}`` 直探。
 
-        id 路径凭据走渠道四级阶梯；裸端点必须自带 ``api_key``——否则
-        settings/env 里部署方凭据可被引到任意出站地址（exfil 闸）。
-        探测完把报告钉回 ``last_probe``（文件驻留渠道才落；投影条目
-        ``record_probe`` 自然 no-op）。
+        id 路径凭据走渠道三级阶梯；裸端点必须自带 ``api_key``——否则
+        env 里部署方凭据可被引到任意出站地址（exfil 闸）。
+        探测完把报告钉回 ``last_probe``。
         """
         _channels_gate()
         body = await _read_body(request)
         cid = str(body.get("id") or "")
-        settings = deps.settings_store.load()
         try:
             if cid:
-                channels = deps.channels_store.effective_channels(
-                    settings, deps.settings_store.connections()
-                )
+                channels = deps.channels_store.load()["channels"]
                 c = next((x for x in channels if x["id"] == cid), None)
                 if c is None:
                     return _json_error(404, f"渠道不存在：{cid}", "not_found")
-                key, _src = credential_for(c, deps.settings_store.connections())
+                key, _src = credential_for(c)
                 base_url = c["base_url"]
                 protocol = c["protocol"]
                 if body.get("models") is not None:
@@ -179,8 +162,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠
                 base_url = validate_base_url(str(body.get("base_url") or ""))
                 key = str(body.get("api_key") or "")
                 if not key:
-                    # 裸端点探测必须自带 key——否则 settings/env 里部署方
-                    # 凭据可被引到任意出站地址（settings_test 同 exfil 闸）
+                    # 裸端点探测必须自带 key——否则 env 里部署方
+                    # 凭据可被引到任意出站地址（exfil 闸）
                     return _json_error(
                         400, "裸端点探测须显式 api_key", "invalid_request"
                     )

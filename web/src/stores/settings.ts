@@ -1,4 +1,5 @@
-// BYOK 设置 store —— GET 永不回 key 本体，只回 has_api_key（§2.5）。
+// 设置 store —— settings.json 只剩任务策略/外观键；端点凭据唯一事实源
+// 是 channels.json（channels 段即其 UI 面）。
 
 import { createSignal } from "solid-js";
 import {
@@ -10,12 +11,10 @@ import {
     type ChannelsView,
     type ChannelWrite,
     type ProbeReport,
-    type Provider,
     type Settings,
 } from "../api/client";
 
 const [settings, setSettings] = createSignal<Settings | null>(null);
-const [providers, setProviders] = createSignal<Provider[]>([]);
 const [loaded, setLoaded] = createSignal(false);
 
 // ---- 渠道（channels.json UI 面；local 形态限定）----
@@ -99,7 +98,6 @@ const [sentAlign, setSentAlignSig] = createSignal<boolean>(readSentAlign());
 
 export const settingsStore = {
     settings,
-    providers,
     loaded,
     paperTheme,
     floatbar,
@@ -136,16 +134,14 @@ export const settingsStore = {
     },
 
     async refresh() {
-        // getSettings 失败也要放 loaded——否则 Settings 页永远停在空表单
+        // getSettings 失败也要放 loaded——否则 Settings 页永远停在空表单；
+        // channels 同帧尽力拉（凭证门/模型占位都吃它），非 403 失败留空不阻塞
         try {
-            const [s, p] = await Promise.all([
+            const [s] = await Promise.all([
                 api.getSettings(),
-                api
-                    .providers()
-                    .catch(() => [] as Provider[] | { providers: Provider[] }),
+                this.refreshChannels().catch(() => {}),
             ]);
             setSettings(s);
-            setProviders(Array.isArray(p) ? p : (p.providers ?? []));
         } catch {
             /* 页面层按 settings()==null 自行提示 */
         } finally {
@@ -165,7 +161,22 @@ export const settingsStore = {
         return next;
     },
 
-    test: (s?: Settings) => api.testSettings(s),
+    /** 渠道路由对下一请求决议出的上游线名（未加载/无决议 → ""） */
+    routedModel() {
+        return channels()?.active_model ?? "";
+    },
+
+    /**
+     * 凭证门判据（cite-translate/Home 软提示共用）——`false` 才闸：
+     * channels 未加载或 403（server 形态）→ undefined 放行，交给
+     * 401/needs_auth 回执面；active_id 空 = 无可路由渠道 → false。
+     */
+    hasCredential(): boolean | undefined {
+        if (channelsOff()) return undefined;
+        const v = channels();
+        if (!v) return undefined;
+        return v.active_id !== "";
+    },
 
     /** 渠道表拉取：403（server 形态）→ channelsOff 置位走隐藏，非 403 上抛 */
     async refreshChannels() {

@@ -70,8 +70,8 @@ texlate/
   compile/    编译面：engine/(_route+_tectonic+_xelatex/) inject normalize/ probe judge
               fixloop/ cjkmap mask toolchain sandbox deps ctan loginfo logparse
               latex209/ layout mainfile proc seams shadow transcode + cmaps/ 资产
-  server/     Web 后端：app/settings/auth/store/events/upload/babeldoc/staticfiles/
-              providers/http/logredact + routers/ + worker/（管线执行器）
+  server/     Web 后端：app/settings/channels/auth/store/events/upload/babeldoc/staticfiles/
+              http/logredact + routers/ + worker/（管线执行器）
   cli/        typer 命令面：fetch/parse/run/web/export/share/tools/version/doctor
   export/     EPUB/DOCX 双语出件
   textutil/   编码/文本/正则/env 单源件（cjk/decls/encoding/mask/cite/ifscan/nets/osutil）
@@ -95,7 +95,7 @@ web/          SolidJS+Vite+pdfslick 阅读器前端（独立 toolchain）
 | Server       | `texlate web` / `python -m texlate.server`（`server/app.py`）       | `PipelineWorker` mixin 组合（fetch/parse/translate/compile/share/pdf/html/retranslate 段） | SQLite Store + SSE + 任务目录产物 |
 | SPA          | `server/staticfiles.py` 挂载 `web/` 构建物                          | 经 REST/SSE 消费 server                                                                    | 双语阅读器                        |
 
-server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks/chunks/files/translation_cache/task_events/task_usage）；任务 11 态机 = active `{queued,fetching,parsing,translating,compiling}` + terminal `{done,partial,fault,cancelled,interrupted,needs_auth}`，retry 只允许自 `{fault,partial,cancelled,interrupted,needs_auth}`；`TaskRunner`（`worker/runner.py`）`asyncio.Queue` 串行执行 + 心跳 + 取消 + retranslate 工作项；`EventBus`（`events.py`）SSE，`task_events` 滚动上限 2000 供断线 replay；启动恢复扫中断任务与孤儿任务目录（`app.py` lifespan）。BYOK：`X-Texlate-*` 请求头携带的 key/base_url/dialect 只进内存 `Secrets`，永不落盘；`request_gate_mw` 收敛 loopback + Host + Origin/Sec-Fetch-Site，server 模式另要 401 鉴权（`auth.py`/`settings.py`）。
+server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks/chunks/files/translation_cache/task_events/task_usage）；任务 11 态机 = active `{queued,fetching,parsing,translating,compiling}` + terminal `{done,partial,fault,cancelled,interrupted,needs_auth}`，retry 只允许自 `{fault,partial,cancelled,interrupted,needs_auth}`；`TaskRunner`（`worker/runner.py`）`asyncio.Queue` 串行执行 + 心跳 + 取消 + retranslate 工作项；`EventBus`（`events.py`）SSE，`task_events` 滚动上限 2000 供断线 replay；启动恢复扫中断任务与孤儿任务目录（`app.py` lifespan）。BYOK：`X-Texlate-*` 请求头携带的 key/base_url/dialect 只进内存 `Secrets`，永不落盘；落盘凭据唯一事实源是 `channels.json`（`channels.py`，0600 原子写）——`settings.json` 只留任务策略/外观键；`request_gate_mw` 收敛 loopback + Host + Origin/Sec-Fetch-Site，server 模式另要 401 鉴权（`auth.py`/`settings.py`）。
 
 ## 5. 数据契约
 
@@ -120,7 +120,7 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 - **日志**：`logsetup.py::configure_logging` 唯一装配点——RichHandler stderr + 轮转文件 + `RedactFilter` 脱敏（`server/logredact.py` 同款服务端面）；`TEXLATE_LOG`/`TEXLATE_LOG_FILE` 控制级别与落盘。
 - **离线**：`--offline`/`TEXLATE_OFFLINE=1` → 取源零网络（`acquire_source` `_offline_phase`：钉版精确查/最高已缓存版/`offline_no_cache`），不静默联网；本地目录源不受影响。
 - **front-matter**：`FRONT_MATTER_NAMES={abstract,title,author}`，`TEXLATE_FRONT_MATTER` env 缺省（默认 `abstract,title`），任务 `options.front_matter` 覆盖，实跑集以 `options.front_matter` 布尔图持久化（`ran_front_matter` 还原）。
-- **BYOK/密钥面**：LLM 凭据只存在请求内存 `Secrets` 与（可选）`settings` 配置；日志面经 RedactFilter 脱敏；段缓存按 key 指纹分桶（`k=` 段），跨租户不串。
+- **BYOK/密钥面**：LLM 凭据只存在请求内存 `Secrets` 与（可选）`channels.json` 渠道档（0600，内联 key 或 `key_env` 引用）；日志面经 RedactFilter 脱敏；段缓存按 key 指纹分桶（`k=` 段），跨租户不串。
 - **修复开关**：`TEXLATE_NO_LOGFIX`/`TEXLATE_NO_FIXLOOP` env 经 `RepairPolicy` 三级解析（显式参 > options > env > 默认开）；precheck 无独立闸，随 fixloop 开关。
 - **env 名单源**：`textutil` 提供 `env_flag`/`env_str` 解析件；各层 `TEXLATE_*` 变量经它读，不各自 `os.environ`。
 

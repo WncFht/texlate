@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 _RUNNER = CliRunner()
 
-_GW_URL = "http://gw.test:3003"
+_GW_URL = "https://gw.test:3003"
 _GW_KEY = "sk-doctor-test-secret"
 
 
@@ -84,9 +84,35 @@ def _statuses(output: str) -> dict[str, str]:
 
 
 def _write_settings(data: Path, **kw: object) -> None:
-    """``<data>/settings.json`` 落盘（gateway 检查的配置面）。"""
+    """``<data>/settings.json`` 落盘——BYOK 键已非读径，只剩「文件在」语义。"""
     data.mkdir(parents=True, exist_ok=True)
     (data / "settings.json").write_text(json.dumps(kw), encoding="utf-8")
+
+
+def _write_channels(data: Path, base_url: str, api_key: str = "") -> None:
+    """``<data>/channels.json`` 落盘单渠道（gateway 检查的配置面）。
+
+    base_url 必须 https——``validate_base_url`` 拒非 loopback/tailnet 的
+    http，过不了校验的渠道会被 ``_load_channel`` 容错丢弃。
+    """
+    data.mkdir(parents=True, exist_ok=True)
+    (data / "channels.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "channels": [
+                    {
+                        "id": "ch-gw",
+                        "base_url": base_url,
+                        "api_key": api_key,
+                        "models": [{"model": "m1", "redirect_model": ""}],
+                    }
+                ],
+                "route": {"channel_id": "auto", "model": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _svc_status(root: Path, **over: object) -> _ServiceStatus:
@@ -110,8 +136,8 @@ def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPa
     """全件 ok 基线：工具全命中 + 版本应答 + 字体全核到。
 
     ``TEXLATE_DATA_DIR`` 落 ``tmp_path/data``；返回 monkeypatch 供各测试
-    再翻单件。网关默认不配（无 settings.json/env）→ n/a，要探活的用例
-    自己写 settings 并桩 ``httpx.get``。
+    再翻单件。网关默认不配（无 channels.json/env）→ n/a，要探活的用例
+    自己写 channels 并桩 ``httpx.get``。
     """
     clean_env.setenv("TEXLATE_DATA_DIR", str(tmp_path / "data"))
     clean_env.setattr(toolchain, "resolve_tool", lambda _n: "/fake/tectonic")
@@ -142,24 +168,8 @@ def test_help() -> None:
 
 class TestDoctor:
     def test_all_ok(self, tmp_path: Path, doctor_env: pytest.MonkeyPatch) -> None:
-        """全绿基线：10 项全 ok（网关 settings+httpx 桩 200），exit 0。"""
-        _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
-        (tmp_path / "data" / "endpoints.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "profiles": [
-                        {
-                            "id": "p1",
-                            "base_url": "https://gw.test:8443",
-                            "models": [{"model": "m1", "redirect_model": ""}],
-                            "api_key": _GW_KEY,
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
+        """全绿基线：10 项全 ok（渠道档 + httpx 桩 200），exit 0。"""
+        _write_channels(tmp_path / "data", _GW_URL, _GW_KEY)
         doctor_env.setattr(
             cli,
             "_probe_service",
@@ -301,18 +311,18 @@ class TestDoctor:
         self,
         doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """无 settings/env → n/a + BYOK 提示，exit 0。"""
+        """无 channels/env → n/a + 配渠提示，exit 0。"""
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         st = _statuses(r.stdout)
         assert st["gateway"] == "n/a"
-        assert "texlate web" in r.stdout
+        assert "texlate channels" in r.stdout
 
     def test_gateway_settings_without_keys_na(
         self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
     ) -> None:
-        """settings.json 在但没写网关键 → n/a——``load()`` 回填的默认
-        base_url 不算"已配置"（否则非 tailnet 用户被默认网关误诊 fail）。"""
+        """settings.json 在（BYOK 已非读径）+ 无渠道档 → n/a——绝不因
+        settings 在场就误诊 fail（非 tailnet 用户不受默认网关连坐）。"""
         _write_settings(tmp_path / "data", model="some-model")
 
         def _boom(*_a: object, **_kw: object) -> httpx.Response:
@@ -332,7 +342,7 @@ class TestDoctor:
         self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
     ) -> None:
         """网关可达但 401 → warn（key 无效），exit 0。"""
-        _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
+        _write_channels(tmp_path / "data", _GW_URL, _GW_KEY)
         doctor_env.setattr(httpx, "get", lambda *_a, **_kw: httpx.Response(401))
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
@@ -349,7 +359,7 @@ class TestDoctor:
             msg = "connection refused"
             raise httpx.ConnectError(msg)
 
-        _write_settings(tmp_path / "data", base_url=_GW_URL, api_key=_GW_KEY)
+        _write_channels(tmp_path / "data", _GW_URL, _GW_KEY)
         doctor_env.setattr(httpx, "get", _down)
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 1
@@ -413,13 +423,13 @@ class TestDoctor:
     def test_channels_ok_counts(
         self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
     ) -> None:
-        """渠道档在 → ok：条数/启用数/活动命中（settings.base_url 归一比对）。
+        """渠道档在 → ok：条数/启用数/路由决议命中。
 
         base_url 用 https——``validate_base_url`` 拒非 loopback/tailnet 的
-        http（``_GW_URL`` 过不了渠道校验会被 ``_load_channel`` 容错丢弃）。
+        http（过不了渠道校验会被 ``_load_channel`` 容错丢弃）。
         """
         ep_url = "https://ep.test/api"
-        _write_settings(tmp_path / "data", base_url=ep_url)
+        (tmp_path / "data").mkdir(parents=True)
         (tmp_path / "data" / "channels.json").write_text(
             json.dumps(
                 {

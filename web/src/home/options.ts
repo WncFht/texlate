@@ -122,9 +122,13 @@ export function createHomeOptions() {
         return { o, upOpts, main: optMain().trim(), byok: byok() };
     };
 
-    /** settings 默认值做占位文案（未加载时给通用占位） */
+    /** settings 默认值做占位文案（未加载时给通用占位）；
+     *  model 的默认位已迁渠道路由——占位列吃 active_model 决议 */
     const def = (k: "model" | "target_lang" | "engine" | "concurrency") => {
-        const v = settingsStore.settings()?.[k];
+        const v =
+            k === "model"
+                ? settingsStore.routedModel()
+                : settingsStore.settings()?.[k];
         return v === undefined || v === "" ? "…" : String(v);
     };
 

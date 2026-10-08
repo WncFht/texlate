@@ -234,11 +234,12 @@ export default function Home(props: {
                         </div>
                     )}
                 </Show>
-                {/* 服务端无 key 且用户未填 BYOK 时的软提示（M1）——不禁钮：
-                    keyless 通道仍可能直过，auth 失败才落上面的富错误面 */}
+                {/* 渠道路由无可生效渠道且用户未填 BYOK 时的软提示——不禁钮：
+                    hasCredential()=undefined（未加载/server 形态）不闸，
+                    auth 失败才落上面的富错误面 */}
                 <Show
                     when={
-                        settingsStore.settings()?.has_api_key === false &&
+                        settingsStore.hasCredential() === false &&
                         !opts.optKey().trim() &&
                         !authErr()
                     }

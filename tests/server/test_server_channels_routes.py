@@ -59,7 +59,7 @@ def _put_channels(client: TestClient, channels: list[dict[str, Any]]) -> dict[st
 
 class TestGetPut:
     def test_get_projection_when_absent(self, client: TestClient) -> None:
-        """无 channels.json：GET 回 settings+connections 投影表，不落盘。"""
+        """零旧料：bootstrap 一次性物化缺省网关渠道，GET 回播种表。"""
         r = client.get("/api/channels")
         assert r.status_code == HTTPStatus.OK
         body = r.json()
@@ -67,13 +67,8 @@ class TestGetPut:
         assert body["route"] == {"channel_id": "auto", "model": ""}
         assert body["active_id"] == "default"
 
-    def test_put_roundtrip_public_view(
-        self, client: TestClient, tmp_path: Path
-    ) -> None:
+    def test_put_roundtrip_public_view(self, client: TestClient) -> None:
         """PUT 整表 → GET 回 public 面：api_key 绝不出参，has_api_key 报位。"""
-        from _serverkit import preset_settings  # noqa: PLC0415
-
-        preset_settings(tmp_path / "data", base_url="https://api.deepseek.com")
         out = _put_channels(
             client,
             [
@@ -101,7 +96,7 @@ class TestGetPut:
         }
         got = client.get("/api/channels").json()
         assert [c["id"] for c in got["channels"]] == ["ch-a", "ch-b"]
-        # settings.base_url 归一命中 ch-a → active 定位到它
+        # auto 路由：priority 同分按表序——ch-a 居首 → active 定位到它
         assert got["active_id"] == "ch-a"
 
     def test_put_invalid_400(self, client: TestClient) -> None:
@@ -124,10 +119,12 @@ class TestGetPut:
         blob = client.get("/api/channels").text
         assert "sk-do-not-leak" not in blob
 
-    def test_legacy_file_serves_migrated_view(
-        self, client: TestClient, tmp_path: Path
-    ) -> None:
-        """endpoints.json v1 在场时 GET 直接回转形后的渠道视图。"""
+    def test_legacy_file_serves_migrated_view(self, tmp_path: Path) -> None:
+        """endpoints.json v1 在场：bootstrap 物化为渠道表（app 创建前落盘）。"""
+        from conftest import make_app  # noqa: PLC0415
+        from starlette.testclient import TestClient  # noqa: PLC0415
+
+        (tmp_path / "data").mkdir(parents=True)
         (tmp_path / "data" / "endpoints.json").write_text(
             json.dumps(
                 {
@@ -148,7 +145,8 @@ class TestGetPut:
             ),
             encoding="utf-8",
         )
-        body = client.get("/api/channels").json()
+        with TestClient(make_app(tmp_path)) as client:
+            body = client.get("/api/channels").json()
         assert [c["id"] for c in body["channels"]] == ["p1"]
         assert body["channels"][0]["has_api_key"] is True
         assert "sk-ds" not in json.dumps(body)

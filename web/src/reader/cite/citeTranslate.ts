@@ -9,7 +9,7 @@
 //   ② 提交——createCiteTranslate 工厂：单条 submit（202/200/409/401/429/400
 //      六路分派）+ 批量 submitAll（new 臂串行 await，429 即停）+ preflight
 //      三桶（GET /api/tasks 一拍，双侧 canonRefId 归一——免钉版重提的幽灵
-//      202 行）+ 凭证门（has_api_key===false / 401 → onNeedAuth 内联回调）。
+//      202 行）+ 凭证门（hasCredential()===false / 401 → onNeedAuth 内联回调）。
 //   ③ i18n——ctText：t.citeTran / t.cite 扩展键安全取键（键未合入前双语
 //      兜底直渲）；键清单=CT_I18N 两份表，整合期照抄进 zh.ts/en.ts。
 //
@@ -409,11 +409,11 @@ export interface CiteTranslateDeps {
     body?(): TranslateOptions | undefined;
     /** per-request BYOK（inline key 输入后由工厂记忆进 sessionKey） */
     byok?(): ByokHeaders | undefined;
-    /** 凭证门判据——settingsStore.settings()?.has_api_key（===false 才闸；
-        undefined=未加载不闸，交给 401 回执面） */
-    hasApiKey?(): boolean | undefined;
+    /** 凭证门判据——settingsStore.hasCredential()（===false 才闸；
+        undefined=未加载/server 形态不闸，交给 401 回执面） */
+    hasCredential?(): boolean | undefined;
     /**
-     * 401/has_api_key=false → 内联 key 面板回调节点。retry(key) 重发同
+     * 401/凭证门未过 → 内联 key 面板回调节点。retry(key) 重发同
      * 请求（同 fp 新 idem key）；缺省 = err toast 指设置页。
      */
     onNeedAuth?(retry: (apiKey: string) => Promise<void>): void;
@@ -534,7 +534,7 @@ export function createCiteTranslate(
                 : undefined;
     };
 
-    const keyReady = () => deps.hasApiKey?.() !== false || !!sessionKey;
+    const keyReady = () => deps.hasCredential?.() !== false || !!sessionKey;
 
     /**
      * 单条提交（内部——quiet 时压 toast，批量路自担汇总条）。
@@ -597,7 +597,7 @@ export function createCiteTranslate(
 
     const submit: CiteTranslate["submit"] = (arxivId, opts = {}) => {
         const apiKey = opts.apiKey ?? sessionKey;
-        // 凭证门（§E）：has_api_key===false 且无 per-request key → 先出
+        // 凭证门（§E）：hasCredential()===false 且无 per-request key → 先出
         // 内联 key 框，不裸发（local 无 key 提交会静默产 Mock 译文毒化
         // 段缓存——67% 段毒化实证，prefer=fresh 救不回）
         if (!keyReady() && !apiKey) {

@@ -1,4 +1,4 @@
-"""server settings/salt 面钉样：``_auth`` 每请求单读 / connections 分槽不互染 /
+"""server settings/salt 面钉样：``_auth`` 每请求单读 /
 settings load 字段级容错 / server_salt 空文件重生成。
 
 自 test_worker_audit_fixes.py 切出（server-residual 波的四类）。
@@ -40,31 +40,6 @@ class TestAuthOncePerRequest:
             f"一次 translate 请求读了 {calls} 次 settings.json"
             "（_auth/model/target_lang/quota 应共享同一快照）"
         )
-
-
-class TestConnectionsSlotPreserve:
-    """``save`` 换 endpoint 不带 key：找回新槽历史 key，旧槽原 key 不丢。
-
-    旧实现把 restore 值写进 ``old``——conns 回写按 ``cfg.base_url`` 分槽，
-    旧 endpoint 槽被错写成新 endpoint 的 key（切回时把它发错门）。
-    """
-
-    def test_switch_without_key_keeps_old_slot(self, tmp_path: Path) -> None:
-        st = SettingsStore(tmp_path)
-        st.save({"base_url": "https://a.example", "api_key": "key-a"})
-        st.save({"base_url": "https://b.example"})  # 无 key 切换 → B 槽空
-        assert st.load()["api_key"] == ""
-        st.save({"base_url": "https://a.example"})  # 切回 A → 找回 key-a
-        assert st.load()["api_key"] == "key-a"
-
-    def test_switch_roundtrip_both_slots(self, tmp_path: Path) -> None:
-        st = SettingsStore(tmp_path)
-        st.save({"base_url": "https://a.example", "api_key": "key-a"})
-        st.save({"base_url": "https://b.example", "api_key": "key-b"})
-        st.save({"base_url": "https://a.example"})
-        assert st.load()["api_key"] == "key-a"
-        st.save({"base_url": "https://b.example"})
-        assert st.load()["api_key"] == "key-b"
 
 
 class TestSettingsLoadTolerant:

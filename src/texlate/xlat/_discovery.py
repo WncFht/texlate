@@ -158,9 +158,8 @@ async def _get_json(client: ChatClient, path: str) -> tuple[Any, str]:
 def model_ids_from(items: object) -> list[str] | None:
     """``/v1/models`` 的 ``data`` 成员 → 模型 id 列；非 list 回 ``None``。
 
-    ``list_models``（上方）与 ``server.providers.list_provider_models``
-    的同一形状合同——list 闸 + dict+``id`` 逐成员过滤 + ``str()`` 强转；
-    两侧只差失败包装（``MalformedResponseError`` vs ``None``）。
+    ``list_models``（上方）与渠道探针 ``probe_channel`` 的同一形状合同
+    ——list 闸 + dict+``id`` 逐成员过滤 + ``str()`` 强转。
     """
     if not isinstance(items, list):
         return None

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
     health: vi.fn(),
     getSettings: vi.fn(),
     putSettings: vi.fn(),
-    providers: vi.fn(),
     translate: vi.fn(),
     upload: vi.fn(),
     shareImport: vi.fn(),

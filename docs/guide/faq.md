@@ -22,7 +22,7 @@
 
 ## 占位译文
 
-没配 key：翻译臂回落到 mock，每段中文是固定占位文本——链路自检用的兜底。配好 BYOK 再跑就有真译文（`byok.md`）。确认是否配上的最快办法：`texlate doctor` 的 gateway 一行，或 Settings 页看「已配置」。
+没配 key：翻译臂回落到 mock，每段中文是固定占位文本——链路自检用的兜底。配好 BYOK 再跑就有真译文（`byok.md`）。确认是否配上的最快办法：`texlate doctor` 的 gateway 一行，或 Settings 页渠道卡面看当前路由决议是否命中渠道。
 
 ## 并发与速率
 
@@ -34,7 +34,7 @@ arXiv 侧的取源也做了礼貌限速与退避；批量跑大量论文时让�
 
 两类位置：
 
-- 数据目录（`TEXLATE_DATA_DIR`，缺省主目录下 `.texlate/`）：任务库与每任务产物（`tasks/t_*/`）、`settings.json` 与 `connections.json`（0600，key 在这里）、`logs/texlate.log`、`share/` 共享包发布目录、`tools/` 托管引擎。备份或迁移整个 `.texlate/` 即可。
+- 数据目录（`TEXLATE_DATA_DIR`，缺省主目录下 `.texlate/`）：任务库与每任务产物（`tasks/t_*/`）、`settings.json`（任务策略/外观键）与 `channels.json`（0600，渠道与 key 在这里）、`logs/texlate.log`、`share/` 共享包发布目录、`tools/` 托管引擎。备份或迁移整个 `.texlate/` 即可。
 - 源缓存（缺省主目录下 `.cache/texlate/src/`，`fetch --cache` 改）：arXiv e-print 钉版原样存档——删了只是下次重新下载。
 
 产物会无限涨：Settings 里的 `retention_days`（保留天数）和 `retention_max_gb`（容量上限）控制自动清理，缺省 0 = 不自动清，自己删 `tasks/` 下的目录或在任务页点删除都可以。

@@ -445,29 +445,18 @@ export interface TaskChunksPage {
     total: number;
 }
 
+/**
+ * settings.json 出参/写参面——端点配置（api_key/base_url/model/dialect）
+ * 已全部迁往 channels.json，本接口只剩任务策略/外观键；凭据配置走
+ * ChannelsPanel → /api/channels 面。
+ */
 export interface Settings {
-    has_api_key?: boolean;
-    /** PUT 伪字段：true → 清除服务端已存 api_key（settings.save 弹化为 ""） */
-    clear_api_key?: boolean;
-    base_url?: string;
-    model?: string;
-    /** LLM 网关方言：auto（按 host 推导）|openai|anthropic|responses */
-    dialect?: string;
     target_lang?: string;
     glossary?: string;
     engine?: string;
     concurrency?: number;
     /** PUT 响应回执：服务端丢弃的未识别字段名（be 侧白名单外静默丢） */
     ignored?: string[];
-    [k: string]: unknown;
-}
-
-export interface Provider {
-    id: string;
-    name?: string;
-    base_url?: string;
-    model?: string;
-    models?: string[];
     [k: string]: unknown;
 }
 
@@ -585,8 +574,10 @@ export interface ChannelWrite {
 export interface ChannelsView {
     channels: Channel[];
     route: ChannelRoute;
-    /** settings.base_url 归一命中者（投影兼容位）；无命中 → "" */
+    /** resolve_route 对下一请求的真实决议（无可用渠道 → ""） */
     active_id: string;
+    /** 决议出的上游线名（active_id 空时同空） */
+    active_model: string;
 }
 
 /** GET /api/channels/presets 行——新建渠道表单预填目录 */

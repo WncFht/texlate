@@ -21,7 +21,6 @@ from texlate.compile import toolchain
 
 if TYPE_CHECKING:
     from texlate.server.channels import ChannelStore
-    from texlate.server.settings import SettingsStore
 
 channels_app = typer.Typer(
     help="BYOK 渠道管理（channels.json：渠道 + 路由 + 优先级 + 并发上限）。",
@@ -33,20 +32,18 @@ app.add_typer(channels_app, name="channels")
 _PROBE_LIST_MAX = 4
 
 
-def _view() -> tuple[list[dict[str, Any]], dict[str, str], ChannelStore, SettingsStore]:
-    """``(channels, route, ChannelStore, SettingsStore)``——三命令同数据面。
+def _view() -> tuple[list[dict[str, Any]], dict[str, str], ChannelStore]:
+    """``(channels, route, ChannelStore)``——三命令同数据面。
 
-    读径投影语义：文件缺席 → settings+connections 合成表（不落盘）。
+    先 ``bootstrap()``：文件缺席时把旧配置物化进 channels.json，
+    保证 CLI 与 server 看到同一张表。
     """
     from texlate.server.channels import ChannelStore  # noqa: PLC0415 -- 冷启动延迟
-    from texlate.server.settings import SettingsStore  # noqa: PLC0415
 
-    root = toolchain.data_root()
-    cstore = ChannelStore(root)
-    sstore = SettingsStore(root)
-    settings = sstore.load()
-    channels = cstore.effective_channels(settings, sstore.connections())
-    return channels, cstore.load()["route"], cstore, sstore
+    cstore = ChannelStore(toolchain.data_root())
+    cstore.bootstrap()
+    data = cstore.load()
+    return data["channels"], data["route"], cstore
 
 
 def _find(channels: list[dict[str, Any]], cid: str) -> dict[str, Any] | None:
@@ -93,8 +90,8 @@ def _probe_line(c: dict[str, Any]) -> str:
 
 @channels_app.command("list")
 def channels_list() -> None:
-    """列渠道表（按 priority 降序；读径投影——文件缺席映 settings/connections）。"""
-    channels, route, cstore, _sstore = _view()
+    """列渠道表（按 priority 降序）。"""
+    channels, route, cstore = _view()
     typer.echo(f"{cstore.path}：{len(channels)} 条渠道")
     typer.echo(
         f"route: channel_id={route['channel_id']}  model={route['model'] or '（未选）'}"
@@ -116,7 +113,7 @@ def channels_list() -> None:
 
 @channels_app.command("test")
 def channels_test(cid: str) -> None:
-    """两段行为探针探指定渠道（凭据走四级阶梯，报告钉回 last_probe）。
+    """两段行为探针探指定渠道（凭据走三级阶梯，报告钉回 last_probe）。
 
     退出码：stage1 通且（无模型或至少一模型 usable）→ 0；否则 1——
     渠道活而模型全灭同样是 actionable 信号。
@@ -126,12 +123,12 @@ def channels_test(cid: str) -> None:
         probe_channel,
     )
 
-    channels, _route, cstore, sstore = _view()
+    channels, _route, cstore = _view()
     c = _find(channels, cid)
     if c is None:
         typer.echo(f"渠道不存在：{cid}", err=True)
         raise typer.Exit(2)
-    key, src = credential_for(c, sstore.connections())
+    key, src = credential_for(c)
     if not key:
         typer.echo(f"凭据：无（{src}）——无 key 渠道按裸探跑", err=True)
     else:
@@ -176,7 +173,7 @@ def channels_route(
     不给参数只显示当前 route。渠道表本体不动——只写 ``route`` 小节
     （``ChannelStore.save`` 的 route 校验臂）。
     """
-    channels, route, cstore, _sstore = _view()
+    channels, route, cstore = _view()
     if not cid:
         typer.echo(
             f"route: channel_id={route['channel_id']}  model={route['model'] or '（未选）'}"

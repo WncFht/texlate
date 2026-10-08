@@ -27,12 +27,17 @@ max_concurrency, enabled, api_key|key_env, last_probe}``：
 - ``route`` = ``{channel_id, model}``：``channel_id`` ``"auto"`` 或渠道
   id——钉死则只用该渠道；``model`` 是逻辑模型名（任一渠道的本地名），
   决议时按 redirect 反解。
-- 文件缺席时 ``effective_channels`` 把 settings+connections **读径投影**
-  成合成渠道表（id=``default`` + 每 connections 槽一条）——迁移
-  不落盘，首个 PUT 才物化。
+- 渠道是唯一端点配置面：``bootstrap()`` 在 channels.json 缺席时**一次性
+  物化**——旧 ``endpoints.json`` v1 档案 + settings.json BYOK 四键 +
+  connections.json 槽位合并成渠道落盘（settings 行映 ``default``、
+  connections 槽映 ``ch-<sha1(url)[:8]>`` 稳定 id），随后清源收口：
+  endpoints/connections 改名 ``*-migrated-<rand>.json`` 留档、
+  settings.json 剥 BYOK 四键；零旧料的全新安装播种内建网关渠道
+  （对齐旧 settings 缺省语义）。此后三旧件永不参与——settings.json
+  只留任务策略/外观键。
 - 旧 ``endpoints.json`` v1 档案读径自动转形（profile→channel 字段映名，
-  档案序 → priority 差 10 回填，active → route）；首个 ``save`` 落
-  ``channels.json`` 并把旧件改名 ``endpoints-migrated-<rand>.json`` 留档。
+  档案序 → priority 差 10 回填）——``bootstrap`` 未跑过的进程
+  （测试直建 store 等）仍见旧表。
 
 冷却是进程态（``cooldowns`` 模块级表单实例）：``(channel_id, wire_model)``
 与 ``channel_id`` 两级 ``monotonic`` 到期戳——渠道级失败（传输死/auth）
@@ -58,6 +63,11 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from texlate.server.auth import (
+    AuthContext,
+    env_dialect,
+    tenant_for,
+)
 from texlate.server.logredact import scrub
 from texlate.server.validate import (
     validate_base_url,
@@ -66,6 +76,9 @@ from texlate.server.validate import (
 )
 from texlate.textutil import env_raw
 from texlate.xlat.client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    PROVIDER_KEY_ENV,
     REASONING_MIN_MAX_TOKENS,
     AuthError,
     BillingError,
@@ -92,6 +105,12 @@ log = logging.getLogger(__name__)
 CHANNELS_FILE = "channels.json"
 #: v1 迁移输入——``channels.json`` 缺席且本件在 → 读径转形（不落盘）
 ENDPOINTS_LEGACY_FILE = "endpoints.json"
+#: 一次性物化迁移的另外两源（``bootstrap`` 专用；settings.json 键面在
+#: ``_SETTINGS_BYOK_KEYS``）
+SETTINGS_FILE = "settings.json"
+CONNECTIONS_FILE = "connections.json"
+#: settings.json 里并入渠道的 BYOK 键——迁移后剥除，settings 永不再存
+_SETTINGS_BYOK_KEYS = frozenset({"api_key", "base_url", "model", "dialect"})
 SCHEMA_VERSION = 2
 MAX_CHANNELS = 16
 MAX_MODELS_PER_CHANNEL = 8
@@ -760,45 +779,53 @@ class ChannelStore:
         留档（channels.json 已是事实源，旧件再被读径转形会复活已删渠道）。
         """
         with self._save_lock:
-            if not isinstance(channels, list):
-                msg = "channels 须为 list"
-                raise TypeError(msg)
-            if len(channels) > MAX_CHANNELS:
-                msg = f"channels 至多 {MAX_CHANNELS} 条"
+            return self._save(channels, route)
+
+    def _save(
+        self,
+        channels: object,
+        route: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """``save`` 临界区本体——``bootstrap`` 持锁直调。"""
+        if not isinstance(channels, list):
+            msg = "channels 须为 list"
+            raise TypeError(msg)
+        if len(channels) > MAX_CHANNELS:
+            msg = f"channels 至多 {MAX_CHANNELS} 条"
+            raise ValueError(msg)
+        cur = self.load()
+        existing = {p["id"]: p for p in cur["channels"]}
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw in channels:
+            c = _normalize_channel(raw, existing)
+            if c["id"] in seen:
+                msg = f"channel id 重复：{c['id']}"
                 raise ValueError(msg)
-            cur = self.load()
-            existing = {p["id"]: p for p in cur["channels"]}
-            out: list[dict[str, Any]] = []
-            seen: set[str] = set()
-            for raw in channels:
-                c = _normalize_channel(raw, existing)
-                if c["id"] in seen:
-                    msg = f"channel id 重复：{c['id']}"
-                    raise ValueError(msg)
-                seen.add(c["id"])
-                out.append(c)
-            if route is None:
-                route_out = _load_route(cur.get("route"), out)
-            else:
-                route_out = self._check_route(route, out)
-            # UTF-8 预探雷（settings._save 同口径）——atomic_json 半路炸
-            # 会留半写文件；先序列化探雷，炸了按非法更新处理磁盘零写
-            try:
-                json.dumps(out, ensure_ascii=False).encode("utf-8")
-            except UnicodeEncodeError as e:
-                msg = "channels 含不可编码字符"
-                raise ValueError(msg) from e
-            payload = {
-                "version": SCHEMA_VERSION,
-                "channels": out,
-                "route": route_out,
-            }
-            atomic_json(self.path, payload)
-            self.path.chmod(0o600)
-            self._rename_legacy()
-            with self._load_lock:
-                self._load_cache = None
-            return copy.deepcopy(payload)
+            seen.add(c["id"])
+            out.append(c)
+        if route is None:
+            route_out = _load_route(cur.get("route"), out)
+        else:
+            route_out = self._check_route(route, out)
+        # UTF-8 预探雷（settings._save 同口径）——atomic_json 半路炸
+        # 会留半写文件；先序列化探雷，炸了按非法更新处理磁盘零写
+        try:
+            json.dumps(out, ensure_ascii=False).encode("utf-8")
+        except UnicodeEncodeError as e:
+            msg = "channels 含不可编码字符"
+            raise ValueError(msg) from e
+        payload = {
+            "version": SCHEMA_VERSION,
+            "channels": out,
+            "route": route_out,
+        }
+        atomic_json(self.path, payload)
+        self.path.chmod(0o600)
+        self._rename_legacy()
+        with self._load_lock:
+            self._load_cache = None
+        return copy.deepcopy(payload)
 
     def _rename_legacy(self) -> None:
         """旧 ``endpoints.json`` 改名留档。``_save_lock`` 内调用。
@@ -857,17 +884,108 @@ class ChannelStore:
             with self._load_lock:
                 self._load_cache = None
 
-    # ------------------------------------------------------------ 读径投影/查找
+    # ------------------------------------------------------------ 一次性迁移
 
-    def effective_channels(
-        self,
-        settings: dict[str, Any],
-        connections: dict[str, dict[str, str]],
-    ) -> list[dict[str, Any]]:
-        """当前有效渠道集：文件/迁移件在 → 归一化渠道表；双缺席 → 投影合成（不落盘）。"""
-        if self.path.exists() or self.legacy_path.exists():
-            return self.load()["channels"]
-        return _project_channels(settings, connections)
+    def bootstrap(self) -> bool:
+        """channels.json 就位保证：缺席 → 旧配置面一次性物化 + 清源收口。
+
+        迁移源：``endpoints.json`` v1（``_load_legacy`` 转形）+
+        settings.json BYOK 四键（映 ``default`` 渠道）+ connections.json
+        槽位（映 ``ch-<sha1(url)[:8]>`` 稳定 id 渠道）——按归一 base_url
+        去重，先见赢（endpoints 档案先于投影件）；route 落 v1 ``active``
+        钉选 + settings ``model`` 值。物化后清源：endpoints 改名由
+        ``save`` 的 ``_rename_legacy`` 负责，connections 同式改名留档，
+        settings.json 剥 BYOK 四键（其余键原样）。**零旧料**（全新安装）
+        播种内建网关渠道——对齐旧 settings 缺省语义（DEFAULT_BASE_URL +
+        DEFAULT_MODEL + gateway key_env）。
+
+        已物化（channels.json 在）→ no-op 返 ``False``；落成返 ``True``。
+        失败不炸装配：迁移写盘异常记 error 留空表——清源动作先于写盘
+        不发生，settings.json 永不因半成品渠道档被剥键。
+        """
+        if self.path.exists():
+            return False
+        with self._save_lock:
+            if self.path.exists():
+                return False
+            channels = self._migration_channels()
+            if not channels:
+                channels = [_default_channel()]
+            try:
+                self._save(channels, route=self._migration_route(channels))
+                self._retire_sources()
+            except (OSError, TypeError, ValueError):
+                log.exception("channels.json 一次性物化迁移失败——按空表继续")
+                return False
+            return True
+
+    def _migration_channels(self) -> list[dict[str, Any]]:
+        """旧配置面 → 合成渠道表（不落盘）：endpoints v1 ∪ settings ∪ connections。
+
+        归一 base_url 去重（先见赢——但弃条非空料回填赢家空位：settings
+        BYOK 与 legacy 同端点撞车时，凭据/模型/方言不能随弃条蒸发）；
+        priority 按合并序重排差 ``PRIORITY_STEP`` 稀疏序号；id 撞名重骰
+        ``ch-<8hex>``。
+        """
+        legacy = self._load_legacy()
+        sources = (legacy["channels"] if legacy else []) + _project_channels(
+            _read_json_obj(self.root / SETTINGS_FILE),
+            _read_connections(self.root / CONNECTIONS_FILE),
+        )
+        out: list[dict[str, Any]] = []
+        by_url: dict[str, dict[str, Any]] = {}
+        seen_id: set[str] = set()
+        for src in sources:
+            url = normalize_base_url(str(src["base_url"]))
+            winner = by_url.get(url)
+            if winner is not None:
+                _backfill_loser(winner, src)
+                continue
+            ch = dict(src)
+            while str(ch["id"]) in seen_id:
+                ch["id"] = f"ch-{secrets.token_hex(4)}"
+            by_url[url] = ch
+            seen_id.add(str(ch["id"]))
+            out.append(ch)
+        for idx, ch in enumerate(out):
+            ch["priority"] = (len(out) - idx) * PRIORITY_STEP
+        return out[:MAX_CHANNELS]
+
+    def _migration_route(self, channels: list[dict[str, Any]]) -> dict[str, str]:
+        """迁移后的 route 小节：v1 ``active`` 档案钉选 + settings ``model`` 值。"""
+        cid = "auto"
+        active = str(_read_json_obj(self.legacy_path).get("active") or "")
+        if active and any(c["id"] == active for c in channels):
+            cid = active
+        model = str(_read_json_obj(self.root / SETTINGS_FILE).get("model") or "")
+        try:
+            model = validate_model(model) if model.strip() else ""
+        except ValueError:
+            model = ""
+        return {"channel_id": cid, "model": model}
+
+    def _retire_sources(self) -> None:
+        """清源收口：connections.json 改名留档；settings.json 剥 BYOK 四键。
+
+        读径只认 channels.json 后，settings.json 里的 BYOK 键是死配置——
+        剥除防「文件里还有老配置」的两套语义错觉；其余键原样保留。
+        """
+        conns = self.root / CONNECTIONS_FILE
+        if conns.exists():
+            dst = conns.with_name(f"connections-migrated-{secrets.token_hex(4)}.json")
+            conns.rename(dst)
+            log.info("connections.json 已并入 channels.json（旧件留档 %s）", dst.name)
+        settings_path = self.root / SETTINGS_FILE
+        raw = _read_json_obj(settings_path)
+        if not raw:
+            return
+        stripped = {k: v for k, v in raw.items() if k not in _SETTINGS_BYOK_KEYS}
+        if stripped != raw:
+            atomic_json(settings_path, stripped)
+            settings_path.chmod(0o600)
+            log.info("settings.json BYOK 四键已并入 channels.json 并剥除")
+
+    # ------------------------------------------------------------ 读径查找
 
     def key_env_for(self, base_url: str) -> str:
         """base_url 命中渠道的 ``key_env`` 名；无命中 → ``""``。
@@ -883,15 +1001,13 @@ class ChannelStore:
 
     def resolve_route(  # noqa: C901 -- 钉渠道/按名匹配/兜底三级 + 冷却过滤阶梯平铺
         self,
-        settings: dict[str, Any],
-        connections: dict[str, dict[str, str]],
     ) -> dict[str, Any] | None:
         """路由决议 → ``{channel, entry, api_key, wire_model}``；无档案/无可用渠道 → ``None``。
 
         候选集 = enabled 渠道；``route.channel_id`` 钉死则收敛单渠道。
         ``route.model`` 非空时优先选「models 显式含该名」的 priority 最高
         渠道；全不命中 → 最高 priority 渠道 + 裸名直发（redirect 空）。
-        凭据走 ``credential_for`` 四级阶梯；冷却中的 (渠道,模型) 滤掉。
+        凭据走 ``credential_for`` 三级阶梯；冷却中的 (渠道,模型) 滤掉。
         """
         if not (self.path.exists() or self.legacy_path.exists()):
             return None
@@ -904,7 +1020,7 @@ class ChannelStore:
             pinned = next((c for c in channels if c["id"] == route["channel_id"]), None)
             channels = [pinned] if pinned else []
         channels.sort(key=lambda c: -int(c["priority"]))
-        want = route["model"] or str(settings.get("model") or "")
+        want = route["model"]
         for ch in channels:
             if cooldowns.is_cooled(ch["id"], ""):
                 continue
@@ -920,7 +1036,7 @@ class ChannelStore:
             )
             if entry is None or cooldowns.is_cooled(ch["id"], wire_model(entry)):
                 continue
-            return self._routed(ch, entry, connections)
+            return self._routed(ch, entry)
         for ch in channels:
             if cooldowns.is_cooled(ch["id"], ""):
                 continue
@@ -937,17 +1053,16 @@ class ChannelStore:
                 continue
             if cooldowns.is_cooled(ch["id"], wire_model(entry)):
                 continue
-            return self._routed(ch, entry, connections)
+            return self._routed(ch, entry)
         return None
 
     def _routed(
         self,
         ch: dict[str, Any],
         entry: dict[str, Any],
-        connections: dict[str, dict[str, str]],
     ) -> dict[str, Any]:
         """(渠道,条目) → 决议包（调用方已前置冷却过滤）。"""
-        key, src = credential_for(ch, connections)
+        key, src = credential_for(ch)
         return {
             "channel": ch,
             "entry": entry,
@@ -960,47 +1075,83 @@ class ChannelStore:
 # ---------------------------------------------------------------- 投影/出参
 
 
+def _backfill_loser(winner: dict[str, Any], loser: dict[str, Any]) -> None:
+    """撞 url 弃条的非空料回填赢家空位（``_migration_channels`` 专用）。
+
+    dedupe 只去重行——弃条携带的用户资产不随行蒸发：赢家凭据全空时回填
+    弃条 ``api_key``/``key_env``；赢家 ``protocol`` 是 auto 时吃弃条显式
+    方言；赢家缺名的模型条目按弃条序并入。
+    """
+    if not winner.get("api_key") and not winner.get("key_env"):
+        for k in ("api_key", "key_env"):
+            if loser.get(k):
+                winner[k] = loser[k]
+    if str(winner.get("protocol") or "auto") == "auto":
+        proto = str(loser.get("protocol") or "")
+        if proto not in ("", "auto"):
+            winner["protocol"] = proto
+    have = {str(m.get("model")) for m in winner.get("models") or []}
+    models = winner.setdefault("models", [])
+    for m in loser.get("models") or []:
+        name = str(m.get("model") or "")
+        if name and name not in have:
+            models.append(m)
+            have.add(name)
+
+
 def _project_channels(
     settings: dict[str, Any],
     connections: dict[str, dict[str, str]],
 ) -> list[dict[str, Any]]:
-    """settings+connections → 合成渠道表（读径投影迁移，不落盘）。
+    """合并 settings BYOK 四键 + connections 槽为迁移用渠道表（``bootstrap`` 专用）。
 
-    活动 settings 行映成 id=``default`` 的渠道（model 合 settings.model
-    与同槽 slot.model 去重）；connections 其余槽位各映一条，id 取
-    ``_stable_id`` 派生（同端点恒同 id）。合成表的 models 允许为空。
+    settings 行映成 id=``default`` 的渠道（model 合 settings.model 与同槽
+    slot.model 去重）——BYOK 四键全空时不映（零料场景由 ``_default_channel``
+    播种兜底）；connections 其余槽位各映一条，id 取 ``_stable_id`` 派生
+    （同端点恒同 id）。入参是原始文件 dict（不经过 settings 归一化——
+    该键面已非 FIELDS）。
     """
     channels: list[dict[str, Any]] = []
-    active_url = str(settings.get("base_url") or "")
-    slot = (
-        connections.get(active_url)
-        or connections.get(normalize_base_url(active_url))
-        or {}
-    )
-    models = [
-        {"model": m, "redirect_model": "", "enabled": True, "max_concurrency": None}
-        for m in _dedupe_keep(
-            [str(settings.get("model") or ""), str(slot.get("model") or "")]
+    if any(str(settings.get(k) or "") for k in _SETTINGS_BYOK_KEYS):
+        active_url = str(settings.get("base_url") or DEFAULT_BASE_URL)
+        slot = (
+            connections.get(active_url)
+            or connections.get(normalize_base_url(active_url))
+            or {}
         )
-    ]
-    channels.append(
-        {
-            "id": "default",
-            "name": _name_for(active_url),
-            "preset": _preset_for_url(active_url),
-            "base_url": active_url,
-            "protocol": str(settings.get("dialect") or slot.get("dialect") or "auto"),
-            "models": models,
-            "priority": (len(connections) + 1) * PRIORITY_STEP,
-            "max_concurrency": None,
-            "enabled": True,
-            "api_key": str(settings.get("api_key") or slot.get("api_key") or ""),
-            "key_env": "",
-            "last_probe": None,
-        }
-    )
-    for idx, (url, cslot) in enumerate(connections.items()):
-        if normalize_base_url(url) == normalize_base_url(active_url):
+        models = [
+            {
+                "model": m,
+                "redirect_model": "",
+                "enabled": True,
+                "max_concurrency": None,
+            }
+            for m in _dedupe_keep(
+                [str(settings.get("model") or ""), str(slot.get("model") or "")]
+            )
+        ]
+        channels.append(
+            {
+                "id": "default",
+                "name": _name_for(active_url),
+                "preset": _preset_for_url(active_url),
+                "base_url": active_url,
+                "protocol": str(
+                    settings.get("dialect") or slot.get("dialect") or "auto"
+                ),
+                "models": models,
+                "priority": 0,
+                "max_concurrency": None,
+                "enabled": True,
+                "api_key": str(settings.get("api_key") or slot.get("api_key") or ""),
+                "key_env": "",
+                "last_probe": None,
+            }
+        )
+    for url, cslot in connections.items():
+        if channels and normalize_base_url(url) == normalize_base_url(
+            str(channels[0]["base_url"])
+        ):
             continue
         channels.append(
             {
@@ -1018,7 +1169,7 @@ def _project_channels(
                     }
                     for m in _dedupe_keep([str(cslot.get("model") or "")])
                 ],
-                "priority": (len(connections) - idx) * PRIORITY_STEP,
+                "priority": 0,
                 "max_concurrency": None,
                 "enabled": True,
                 "api_key": str(cslot.get("api_key") or ""),
@@ -1027,6 +1178,20 @@ def _project_channels(
             }
         )
     return channels[:MAX_CHANNELS]
+
+
+def _read_json_obj(path: Path) -> dict[str, Any]:
+    """容错读 JSON object 文件——缺席/损坏/非 dict → ``{}``（迁移源专用）。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _read_connections(path: Path) -> dict[str, dict[str, str]]:
+    """connections.json 容错读 → ``{base_url: {api_key,model,dialect}}``（迁移源专用）。"""
+    return {str(k): v for k, v in _read_json_obj(path).items() if isinstance(v, dict)}
 
 
 def _dedupe_keep(items: list[str]) -> list[str]:
@@ -1041,16 +1206,66 @@ def _dedupe_keep(items: list[str]) -> list[str]:
     return out
 
 
-def active_channel_id(channels: list[dict[str, Any]], settings: dict[str, Any]) -> str:
-    """路由视角的活动渠道 id：``settings.base_url`` 归一命中者（兼容旧 UI/报告面）。
+def _default_channel() -> dict[str, Any]:
+    """零旧料播种件：内建网关渠道——对齐旧 settings 缺省（DEFAULT_BASE_URL + DEFAULT_MODEL）。
 
-    enabled 无关——活动身份是定位不是参与。无命中 → ``""``。
+    凭据不落盘：``key_env`` 记 gateway 约定 env 名，``credential_for``
+    provider env 层同 endpoint 也能兜底。
     """
-    target = normalize_base_url(str(settings.get("base_url") or ""))
-    for c in channels:
-        if normalize_base_url(str(c.get("base_url") or "")) == target:
-            return str(c["id"])
-    return ""
+    return {
+        "id": "default",
+        "name": _name_for(DEFAULT_BASE_URL),
+        "preset": "gateway",
+        "base_url": DEFAULT_BASE_URL,
+        "protocol": "auto",
+        "models": [
+            {
+                "model": DEFAULT_MODEL,
+                "redirect_model": "",
+                "enabled": True,
+                "max_concurrency": None,
+            }
+        ],
+        "priority": PRIORITY_STEP,
+        "max_concurrency": None,
+        "enabled": True,
+        "api_key": "",
+        "key_env": PROVIDER_KEY_ENV["gateway"],
+        "last_probe": None,
+    }
+
+
+def routed_auth(
+    routed: dict[str, Any],
+    *,
+    settings: dict[str, Any] | None = None,
+    mode: str = "local",
+    salt: str = "",
+) -> AuthContext:
+    """``resolve_route()`` 决议包 → ``AuthContext``（deps 请求径 + runner 重放径共用单源）。
+
+    ``key_source`` 记档值（``channel``/``env:<NAME>``/``provider_env``/``none``）
+    归并进 ``AuthContext.source`` 域（``channel``/``env``/``none``）；
+    ``TEXLATE_DIALECT`` env 逃生舱仍压渠道 ``protocol``。
+    """
+    ch = routed["channel"]
+    key = str(routed["api_key"] or "")
+    src = str(routed["key_source"])
+    source = {
+        "channel": "channel",
+        "provider_env": "env",
+        "none": "none",
+    }.get(src, "env" if src.startswith("env:") else src)
+    return AuthContext(
+        api_key=key,
+        base_url=str(ch["base_url"]),
+        model=str(routed["wire_model"]),
+        dialect=str(env_dialect() or ch["protocol"] or "auto"),
+        source=source,
+        tenant=tenant_for(key, mode=mode, salt=salt),
+        channel_id=str(ch["id"]),
+        settings=settings or {},
+    )
 
 
 def public_channel(c: dict[str, Any]) -> dict[str, Any]:
@@ -1073,16 +1288,13 @@ def public_channel(c: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def credential_for(
-    channel: dict[str, Any],
-    connections: dict[str, dict[str, str]],
-) -> tuple[str, str]:
-    """Channel → ``(api_key, source)`` 四级凭据阶梯：inline > key_env > connections 槽 > provider env。
+def credential_for(channel: dict[str, Any]) -> tuple[str, str]:
+    """Channel → ``(api_key, source)`` 三级凭据阶梯：inline > key_env > provider env。
 
     worker 回退链各臂按自家 base_url 走本阶梯——``ctx.secrets.api_key``
     绝不跨端点发送（exfil 墙）。``source`` 记档值（``channel``/
-    ``env:<NAME>``/``connection``/``provider_env``/``none``）供
-    warning/日志归因，key 本体不进日志。
+    ``env:<NAME>``/``provider_env``/``none``）供 warning/日志归因，
+    key 本体不进日志。
     """
     key = str(channel.get("api_key") or "")
     if key:
@@ -1092,14 +1304,7 @@ def credential_for(
         key = env_raw(env_name)
         if key:
             return key, f"env:{env_name}"
-    base_url = str(channel.get("base_url") or "")
-    slot = (
-        connections.get(base_url) or connections.get(normalize_base_url(base_url)) or {}
-    )
-    key = str(slot.get("api_key") or "")
-    if key:
-        return key, "connection"
-    key = env_key_for_url(base_url)
+    key = env_key_for_url(str(channel.get("base_url") or ""))
     if key:
         return key, "provider_env"
     return "", "none"

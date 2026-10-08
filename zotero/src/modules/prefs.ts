@@ -193,7 +193,7 @@ const PROBE_LINE_MAX = 3;
 
 /**
  * ChannelsView → 探针目标 id：路由钉死渠道优先（测用户实际生效渠道），
- * 退 active_id（settings.base_url 命中者），退首个启用条目，再退表头。
+ * 退 active_id（resolve_route 真实决议），退首个启用条目，再退表头。
  * 空表 → ""。
  */
 export function pickProbeTarget(view: ChannelsView): string {

@@ -284,25 +284,26 @@ class TestSettings:
         r = client.get("/api/settings")
         assert r.status_code == HTTPStatus.OK
         body = r.json()
-        assert "has_api_key" in body
         assert "api_key" not in body
+        assert "concurrency" in body
 
     def test_put_merge(self, client: TestClient) -> None:
-        r = client.put("/api/settings", json={"model": "other-m", "api_key": "k1"})
+        r = client.put("/api/settings", json={"target_lang": "zh-TW"})
         assert r.status_code == HTTPStatus.OK
         body = r.json()
-        assert body["model"] == "other-m"
-        assert body["has_api_key"] is True
-        assert "api_key" not in body
+        assert body["target_lang"] == "zh-TW"
 
-    def test_put_bad_url_400(self, client: TestClient) -> None:
+    def test_put_byok_keys_ignored(self, client: TestClient) -> None:
+        """BYOK 键已退出 settings 面——不校验、不落盘、``ignored`` 回显。"""
         r = client.put("/api/settings", json={"base_url": "http://remote.example.com"})
-        assert r.status_code == HTTPStatus.BAD_REQUEST
-
-    def test_providers(self, client: TestClient) -> None:
-        r = client.get("/api/providers")
         assert r.status_code == HTTPStatus.OK
-        ids = [p["id"] for p in r.json()["providers"]]
+        assert r.json()["ignored"] == ["base_url"]
+        assert "base_url" not in r.json()
+
+    def test_channel_presets(self, client: TestClient) -> None:
+        r = client.get("/api/channels/presets")
+        assert r.status_code == HTTPStatus.OK
+        ids = [p["id"] for p in r.json()["presets"]]
         assert "gateway" in ids
         assert "openai" in ids
 

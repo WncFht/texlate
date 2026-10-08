@@ -30,14 +30,24 @@ export const FM_OPTS = {
     },
 };
 
+/** channels 空视图桩——settingsStore.refresh 同帧拉渠道的默认回包
+ * （active_id 空 = 无可路由渠道，hasCredential() → false） */
+export const EMPTY_CHANNELS = {
+    channels: [],
+    route: { channel_id: "auto", model: "" },
+    active_id: "",
+    active_model: "",
+};
+
 /** Home 面 api 成员的兜底桩返回值——未声明成员不得穿透 ...mod.api 打真
- *  fetch（settingsStore.refresh 的 providers 轮询即一例真泄漏） */
+ *  fetch（settingsStore.refresh 的 getChannels 轮询即一例真泄漏） */
 const HOME_API_DEFAULTS: Record<string, () => unknown> = {
     tasks: () => [],
     health: () => ({ ok: true, version: "t", compilers: {} }),
-    getSettings: () => ({ has_api_key: false }),
+    getSettings: () => ({}),
     putSettings: () => ({}),
-    providers: () => ({ providers: [] }),
+    getChannels: () => EMPTY_CHANNELS,
+    getChannelPresets: () => ({ presets: [] }),
     translate: () => RESP,
     upload: () => RESP,
     shareImport: () => RESP,
@@ -70,9 +80,10 @@ export function resetHomeMocks(mocks: Record<string, Mock>) {
     // api.tasks 返裸数组（非 {tasks} 信封——rest.ts 翻页已拍平）
     mocks.tasks?.mockResolvedValue([]);
     mocks.health?.mockResolvedValue({ ok: true, version: "t", compilers: {} });
-    mocks.getSettings?.mockResolvedValue({ has_api_key: false });
+    mocks.getSettings?.mockResolvedValue({});
     mocks.putSettings?.mockResolvedValue({});
-    mocks.providers?.mockResolvedValue({ providers: [] });
+    mocks.getChannels?.mockResolvedValue(EMPTY_CHANNELS);
+    mocks.getChannelPresets?.mockResolvedValue({ presets: [] });
     mocks.translate?.mockResolvedValue(RESP);
     mocks.upload?.mockResolvedValue(RESP);
     mocks.shareImport?.mockResolvedValue(RESP);

@@ -12,7 +12,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import TYPE_CHECKING
 
 import httpx
 import typer
@@ -20,11 +19,6 @@ import typer
 import texlate.cli as _cli
 from texlate.cli._common import _is_file, app
 from texlate.compile import toolchain
-
-if TYPE_CHECKING:
-    from typing import Any
-
-    from texlate.server.settings import SettingsStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,64 +182,54 @@ def _doc_pdftotext() -> _Check:
     return _Check("pdftotext", "ok", f"{ver} @ {p}")
 
 
-def _doc_settings_raw(store: SettingsStore) -> dict[str, Any]:
-    """``settings.json`` 原始键（缺席/损坏/非 dict → ``{}``）。
-
-    不用 ``store.load()``——它把缺省 ``base_url`` 回填成
-    ``DEFAULT_BASE_URL``，判"配没配网关"必须看用户显式写下的键
-    （否则空 settings.json 也探测默认网关 = 非 tailnet 用户误诊 fail）。
-    """
-    if not _is_file(store.path):
-        return {}
-    try:
-        parsed = json.loads(store.path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
-        # UnicodeDecodeError 是 ValueError 非 JSONDecodeError——GBK/UTF-16 存盘
-        # 的手改 settings.json 漏它会炸穿 doctor 的只报告不炸契约；RecursionError
-        # 罩深嵌套 JSON 炸弹。与 worker/share.py ``dual.json`` 读径同口径。
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
 def _doc_gateway() -> _Check:
     """BYOK 网关连通：``GET {base}/v1/models`` 5s 探活（与 client.py 同端点）。
 
-    配置面 = ``settings.json`` 原始键（``TEXLATE_DATA_DIR``>``~/.texlate``，
-    只读定位不 mkdir）+ env 兜底，与 ``resolve_auth`` 同序；什么都没配
-    → n/a。key 只进请求头，绝不进输出。
+    配置面 = ``resolve_route()`` 决议渠道 + env 兜底（env > 渠道，与
+    ``resolve_auth`` 同序）；什么都没配 → n/a。key 只进请求头，
+    绝不进输出。
     """
-    from texlate.server.settings import (  # noqa: PLC0415 -- server 层延迟 import
-        DEFAULT_BASE_URL,
-        SettingsStore,
+    from texlate.server.channels import (  # noqa: PLC0415 -- 检查项内延迟载入
+        ChannelStore,
+    )
+    from texlate.server.settings import (  # noqa: PLC0415
         env_base_url,
         env_dialect,
         env_key_for,
         validate_dialect,
     )
     from texlate.xlat.client import (  # noqa: PLC0415
+        DEFAULT_BASE_URL,
         dialect_for_url,
         dialect_headers,
         normalize_base_url,
     )
 
-    store = SettingsStore(toolchain.data_root())
-    raw = _doc_settings_raw(store)
-    base_url = env_base_url() or str(raw.get("base_url") or "")
-    api_key = str(raw.get("api_key") or "")
-    if not api_key and base_url:
-        api_key = env_key_for(base_url)
+    cstore = ChannelStore(toolchain.data_root())
+    resolved = cstore.resolve_route()
+    ch = resolved["channel"] if resolved else None
+    env_url = env_base_url()
+    if env_url:
+        # env 换端点 → 渠道内联 key 绝不跨地址发（exfil 墙），凭据只认 env 阶梯
+        base_url = env_url
+        api_key = env_key_for(env_url)
+    else:
+        base_url = str(ch["base_url"]) if ch else ""
+        api_key = str(resolved["api_key"]) if resolved else ""
     if not base_url and not api_key:
         return _Check(
             "gateway",
             "n/a",
-            "未配置网关/key——`texlate web` 里配 BYOK"
+            "未配置渠道/key——`texlate channels` 或 web 设置页配渠道"
             "（或 TEXLATE_BASE_URL/TEXLATE_API_KEY）",
         )
     base_url = normalize_base_url(base_url or DEFAULT_BASE_URL)
-    # env > settings（同 resolve_auth 序）——非 openai 方言的 /v1/models
+    # env > 渠道（同 resolve_auth 序）——非 openai 方言的 /v1/models
     # 缺席属端点形态而非配置坏，输出要带方言语境才不误诊
     try:
-        dialect = env_dialect() or validate_dialect(str(raw.get("dialect") or "auto"))
+        dialect = env_dialect() or validate_dialect(
+            str((ch or {}).get("protocol") or "auto")
+        )
         eff = dialect_for_url(base_url, dialect)
     except ValueError as e:
         return _Check("gateway", "warn", f"dialect 配置非法：{e}")
@@ -343,17 +327,13 @@ def _doc_service() -> _Check:
 def _doc_channels() -> _Check:
     """``channels.json`` 渠道静态面——只盘点不联网（探针是 ``channels test`` 的活）。
 
-    缺席是常态（读径投影 settings/connections 合成表在用）→ n/a；
-    在场 → 条数/启用数/路由命中；load 隔离出的 ``*-invalid-*`` 兄弟
-    在场 → warn（坏表被 quarantine 过，值得人看一眼）。旧
-    ``endpoints.json`` 残件在而 channels.json 缺席 → 读径迁移件，
+    缺席 → n/a（首个写点会 ``bootstrap`` 物化旧配置/播种缺省渠道）；
+    在场 → 条数/启用数/路由决议命中；load 隔离出的 ``*-invalid-*``
+    兄弟在场 → warn（坏表被 quarantine 过，值得人看一眼）。旧
+    ``endpoints.json`` 残件在而 channels.json 缺席 → 待迁移件，
     按在场渠道表口径盘点并提示。
     """
-    from texlate.server.channels import (  # noqa: PLC0415 -- server 层延迟 import
-        ChannelStore,
-        active_channel_id,
-    )
-    from texlate.server.settings import SettingsStore  # noqa: PLC0415
+    from texlate.server.channels import ChannelStore  # noqa: PLC0415 -- 同上延迟载入
 
     root = toolchain.data_root()
     cstore = ChannelStore(root)
@@ -364,7 +344,7 @@ def _doc_channels() -> _Check:
         return _Check(
             "channels",
             "n/a" if not quarantined else "warn",
-            "未建渠道——读径投影 settings/connections（`texlate channels list`）" + tail,
+            "未建渠道——首次 `texlate channels`/web 启动时物化" + tail,
         )
     data = cstore.load()  # load 先跑——坏表此刻才改名隔离
     quarantined = sorted(root.glob("channels-invalid-*.json"))
@@ -372,7 +352,8 @@ def _doc_channels() -> _Check:
     tail = f"；隔离残件 {len(quarantined)}" if quarantined else ""
     channels = data["channels"]
     enabled = sum(1 for c in channels if c.get("enabled"))
-    act = active_channel_id(channels, _doc_settings_raw(SettingsStore(root)))
+    resolved = cstore.resolve_route()
+    act = str(resolved["channel"]["id"]) if resolved else ""
     route = data["route"]["channel_id"]
     return _Check(
         "channels",

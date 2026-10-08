@@ -321,7 +321,7 @@ export default function ReaderView(props: Props) {
     const { forEachEsc } = hostLayers;
 
     // 冷进 reader（深链/刷新）settings 可能从未加载——Home 才 refresh。
-    // 不补的话 cite-translate 凭证门 hasApiKey() 恒 undefined 恒放行，
+    // 不补的话 cite-translate 凭证门 hasCredential() 恒 undefined 恒放行，
     // 无 key 点击白造一行 needs_auth 死任务才等到 CTA 收口
     if (!settingsStore.loaded()) void settingsStore.refresh();
 

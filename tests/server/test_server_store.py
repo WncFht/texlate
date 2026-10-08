@@ -53,7 +53,7 @@ class TestStateMachine:
     def test_create_defaults(self, store: Store) -> None:
         row = mk_task_row(store)
         assert row["status"] == "queued"
-        assert row["auth_source"] == "settings"
+        assert row["auth_source"] == "none"
         assert row["tenant"] == "local"
 
     def test_cancel_active_ok(self, store: Store) -> None:

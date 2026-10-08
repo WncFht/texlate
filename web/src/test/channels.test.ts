@@ -13,8 +13,6 @@ const mocks = vi.hoisted(() => ({
     setChannelRoute: vi.fn(),
     getChannelPresets: vi.fn(),
     probeChannel: vi.fn(),
-    getSettings: vi.fn(),
-    providers: vi.fn(),
 }));
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -62,7 +60,8 @@ const viewOf = (
         model: "",
     },
     active_id = "",
-) => ({ channels, route, active_id });
+    active_model = "",
+) => ({ channels, route, active_id, active_model });
 
 /** 在 root 内按文本找按钮 */
 const btnByText = (
@@ -90,8 +89,6 @@ const drawerNav = (idx: number) =>
 
 beforeEach(() => {
     for (const m of Object.values(mocks)) m.mockReset();
-    mocks.getSettings.mockResolvedValue({ has_api_key: false });
-    mocks.providers.mockResolvedValue({ providers: [] });
     mocks.getChannels.mockResolvedValue(viewOf([channel()]));
     mocks.putChannels.mockResolvedValue(viewOf([channel()]));
     mocks.setChannelRoute.mockResolvedValue(

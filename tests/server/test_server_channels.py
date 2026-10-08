@@ -612,72 +612,213 @@ class TestLegacyMigration:
         assert store.load()["channels"] == []
 
 
-# ---------------------------------------------------------------- 投影/出参
+# ---------------------------------------------------------------- bootstrap 迁移
 
 
-class TestProjection:
-    def test_absent_file_projects(
-        self, store: ch.ChannelStore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("TEXLATE_API_KEY", raising=False)
-        settings = {
-            "base_url": "https://api.deepseek.com",
-            "api_key": "sk-ds",
-            "model": "deepseek-chat",
-            "dialect": "openai",
-        }
-        connections = {
-            "https://api.deepseek.com": {
-                "api_key": "sk-ds",
-                "model": "deepseek-chat",
-                "dialect": "openai",
-            },
-            "https://openrouter.ai/api": {
-                "api_key": "sk-or",
-                "model": "some/free",
-                "dialect": "openai",
-            },
-        }
-        channels = store.effective_channels(settings, connections)
-        assert [c["id"] for c in channels] == [
-            "default",
-            ch._stable_id(  # noqa: SLF001
-                "https://openrouter.ai/api"
-            ),
-        ]
-        assert channels[0]["models"] == [
-            {
-                "model": "deepseek-chat",
-                "redirect_model": "",
-                "enabled": True,
-                "max_concurrency": None,
-            }
-        ]
-        assert channels[0]["api_key"] == "sk-ds"
-        assert channels[1]["api_key"] == "sk-or"
-        assert not store.path.exists()  # 投影不落盘
+class TestBootstrap:
+    """``bootstrap()`` 一次性物化：v1 ∪ settings BYOK ∪ connections → channels.json + 清源。"""
 
-    def test_file_wins_over_projection(self, store: ch.ChannelStore) -> None:
+    def _settings(self, tmp_path: Path, **over: object) -> None:
+        (tmp_path / "settings.json").write_text(
+            json.dumps(over, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def _connections(self, tmp_path: Path, slots: dict[str, Any]) -> None:
+        (tmp_path / "connections.json").write_text(
+            json.dumps(slots, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def test_seeds_default_when_empty(self, store: ch.ChannelStore) -> None:
+        """零旧料（全新安装）→ 播种内建网关渠道，对齐旧 settings 缺省语义。"""
+        assert store.bootstrap() is True
+        data = store.load()
+        assert len(data["channels"]) == 1
+        c = data["channels"][0]
+        assert c["id"] == "default"
+        assert c["base_url"] == ch.DEFAULT_BASE_URL
+        assert c["models"][0]["model"] == ch.DEFAULT_MODEL
+        assert c["key_env"] == ch.PROVIDER_KEY_ENV["gateway"]
+        assert data["route"] == {"channel_id": "auto", "model": ""}
+
+    def test_noop_when_file_exists(self, store: ch.ChannelStore) -> None:
         store.save([_channel("ch-mine", base_url="https://api.anthropic.com")])
-        channels = store.effective_channels(
-            {"base_url": "https://api.deepseek.com"}, {}
-        )
-        assert [c["id"] for c in channels] == ["ch-mine"]
+        assert store.bootstrap() is False
+        assert [c["id"] for c in store.load()["channels"]] == ["ch-mine"]
 
-    def test_active_channel_id(self) -> None:
-        channels = [
-            _channel("ch-a", base_url="https://api.deepseek.com", enabled=False),
-            _channel("ch-b", base_url="https://api.anthropic.com"),
+    def test_materializes_settings_and_connections(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """settings BYOK 四键映 ``default`` 渠道、其余槽位映稳定 id 渠道；清源剥键+改名。"""
+        self._settings(
+            tmp_path,
+            base_url="https://api.deepseek.com",
+            api_key="sk-ds",
+            model="deepseek-chat",
+            dialect="openai",
+            target_lang="zh-TW",  # 非 BYOK 键原样保留
+        )
+        self._connections(
+            tmp_path,
+            {
+                "https://api.deepseek.com": {
+                    "api_key": "sk-ds",
+                    "model": "deepseek-chat",
+                    "dialect": "openai",
+                },
+                "https://openrouter.ai/api": {
+                    "api_key": "sk-or",
+                    "model": "some/free",
+                    "dialect": "openai",
+                },
+            },
+        )
+        assert store.bootstrap() is True
+        data = store.load()
+        assert [c["id"] for c in data["channels"]] == [
+            "default",
+            ch._stable_id("https://openrouter.ai/api"),  # noqa: SLF001
         ]
-        # enabled=False 仍是活动定位（身份≠参与）;尾斜杠归一命中
-        assert (
-            ch.active_channel_id(channels, {"base_url": "https://api.deepseek.com/"})
-            == "ch-a"
-        )
-        assert (
-            ch.active_channel_id(channels, {"base_url": "https://api.openai.com"}) == ""
-        )
+        c0 = data["channels"][0]
+        assert c0["api_key"] == "sk-ds"
+        assert c0["protocol"] == "openai"
+        assert c0["models"] == [_norm_m("deepseek-chat")]
+        assert c0["priority"] == 2 * ch.PRIORITY_STEP  # 合并序重排差
+        assert data["channels"][1]["api_key"] == "sk-or"
+        assert data["route"]["model"] == "deepseek-chat"
+        # 清源：settings 剥 BYOK 四键留其余；connections 改名留档
+        raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert raw == {"target_lang": "zh-TW"}
+        assert not (tmp_path / "connections.json").exists()
+        assert len(list(tmp_path.glob("connections-migrated-*.json"))) == 1
 
+    def test_merges_v1_dedupe_by_url(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """endpoints v1 与 settings 撞 base_url → v1 赢（先见序），单渠道。"""
+        (tmp_path / "endpoints.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "active": "p1",
+                    "profiles": [
+                        {
+                            "id": "p1",
+                            "label": "V1 档",
+                            "base_url": "https://api.deepseek.com/",
+                            "dialect": "openai",
+                            "models": [{"model": "m1"}],
+                            "enabled": True,
+                            "api_key": "sk-v1",
+                            "key_env": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._settings(
+            tmp_path, base_url="https://api.deepseek.com", api_key="sk-settings"
+        )
+        assert store.bootstrap() is True
+        data = store.load()
+        assert len(data["channels"]) == 1
+        assert data["channels"][0]["id"] == "p1"
+        assert data["channels"][0]["api_key"] == "sk-v1"
+        assert data["route"]["channel_id"] == "p1"  # v1 active 钉选
+        assert not (tmp_path / "endpoints.json").exists()
+        assert len(list(tmp_path.glob("endpoints-migrated-*.json"))) == 1
+
+    def test_dedupe_backfills_loser_material(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """撞 url 弃条的料回填赢家空位：settings BYOK 的 key 随摘键蒸发是事故面——
+        赢家空凭据位被回填、缺名模型并入、auto 方言补弃条显式值。"""
+        (tmp_path / "endpoints.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "profiles": [
+                        {
+                            "id": "p1",
+                            "base_url": "https://api.deepseek.com",
+                            "dialect": "auto",
+                            "models": [{"model": "m1"}],
+                            "enabled": True,
+                            "api_key": "",
+                            "key_env": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._settings(
+            tmp_path,
+            base_url="https://api.deepseek.com",
+            api_key="sk-settings",
+            model="m-settings",
+            dialect="openai",
+        )
+        assert store.bootstrap() is True
+        data = store.load()
+        assert len(data["channels"]) == 1
+        c0 = data["channels"][0]
+        assert c0["id"] == "p1"
+        assert c0["api_key"] == "sk-settings"  # 弃条凭据回填赢家空位
+        assert c0["protocol"] == "openai"
+        assert [m["model"] for m in c0["models"]] == ["m1", "m-settings"]
+
+    def test_id_collision_rerolled(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """v1 档已占 ``default`` id → settings 投影件重骰 ``ch-*``。"""
+        (tmp_path / "endpoints.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "profiles": [
+                        {
+                            "id": "default",
+                            "base_url": "https://api.anthropic.com",
+                            "dialect": "auto",
+                            "models": [],
+                            "enabled": True,
+                            "api_key": "",
+                            "key_env": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._settings(tmp_path, api_key="sk-x", base_url="https://api.deepseek.com")
+        assert store.bootstrap() is True
+        ids = [c["id"] for c in store.load()["channels"]]
+        assert ids[0] == "default"
+        assert ids[1].startswith("ch-")
+        assert len(ids[1]) == 11  # noqa: PLR2004
+
+    def test_corrupt_sources_tolerated(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """坏 settings/坏 connections → 跳过该源不炸，仍播种缺省渠道。"""
+        (tmp_path / "settings.json").write_text("{bad", encoding="utf-8")
+        (tmp_path / "connections.json").write_text("[1,2]", encoding="utf-8")
+        assert store.bootstrap() is True
+        assert [c["id"] for c in store.load()["channels"]] == ["default"]
+
+    def test_settings_without_byok_no_default_channel(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """settings.json 在但无 BYOK 键 → 不映 ``default``（零料走播种臂）。"""
+        self._settings(tmp_path, target_lang="zh-CN")
+        assert store.bootstrap() is True
+        assert [c["id"] for c in store.load()["channels"]] == ["default"]
+        # 播种件的 base_url 是内建网关而非 settings 材料
+        assert store.load()["channels"][0]["base_url"] == ch.DEFAULT_BASE_URL
+
+
+class TestPublicChannel:
     def test_public_no_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MY_TEST_KEY", "sk-hidden")
         # api_key/key_env 互斥只在写径——构造面直接给双键 dict 验出参剥离
@@ -702,39 +843,24 @@ class TestProjection:
 class TestCredentialLadder:
     def test_inline_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MY_KEY", "sk-env")
-        key, src = ch.credential_for(
-            _channel(api_key="sk-inline", key_env=""),
-            {"https://api.deepseek.com": {"api_key": "sk-conn"}},
-        )
+        key, src = ch.credential_for(_channel(api_key="sk-inline", key_env=""))
         assert (key, src) == ("sk-inline", "channel")
 
     def test_key_env_second(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MY_KEY", "sk-env")
-        key, src = ch.credential_for(
-            _channel(api_key="", key_env="MY_KEY"),
-            {"https://api.deepseek.com": {"api_key": "sk-conn"}},
-        )
+        key, src = ch.credential_for(_channel(api_key="", key_env="MY_KEY"))
         assert (key, src) == ("sk-env", "env:MY_KEY")
-
-    def test_connections_third(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("TEXLATE_API_KEY", raising=False)
-        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-        key, src = ch.credential_for(
-            _channel(api_key=""),
-            {"https://api.deepseek.com": {"api_key": "sk-conn"}},
-        )
-        assert (key, src) == ("sk-conn", "connection")
 
     def test_provider_env_last(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-penv")
         monkeypatch.delenv("TEXLATE_API_KEY", raising=False)
-        key, src = ch.credential_for(_channel(api_key=""), {})
+        key, src = ch.credential_for(_channel(api_key=""))
         assert (key, src) == ("sk-penv", "provider_env")
 
     def test_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         for name in ("TEXLATE_API_KEY", "DEEPSEEK_API_KEY"):
             monkeypatch.delenv(name, raising=False)
-        key, src = ch.credential_for(_channel(api_key=""), {})
+        key, src = ch.credential_for(_channel(api_key=""))
         assert (key, src) == ("", "none")
 
     def test_key_env_for(self, store: ch.ChannelStore) -> None:
@@ -812,19 +938,14 @@ class TestCooldowns:
 
 
 class TestResolveRoute:
-    def _settings(self, model: str = "m1") -> dict[str, Any]:
-        return {
-            "base_url": "https://api.deepseek.com",
-            "api_key": "sk-ds",
-            "model": model,
-        }
+    """``resolve_route()`` 无参——期望模型取自文件内 ``route.model``。"""
 
     def test_no_files_none(
         self,
         store: ch.ChannelStore,
         fresh_cooldowns: ch.Cooldowns,  # noqa: ARG002
     ) -> None:
-        assert store.resolve_route(self._settings(), {}) is None
+        assert store.resolve_route() is None
 
     def test_auto_picks_priority_and_model(
         self,
@@ -847,10 +968,11 @@ class TestResolveRoute:
                     api_key="sk-hi",
                     models=[_m("other")],
                 ),
-            ]
+            ],
+            {"channel_id": "auto", "model": "deepseek-chat"},
         )
         # want=deepseek-chat：ch-hi 无此名 → 落到 ch-lo，wire 名取 redirect
-        r = store.resolve_route(self._settings("deepseek-chat"), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["channel"]["id"] == "ch-lo"
         assert r["wire_model"] == "wire-ds"
@@ -871,9 +993,10 @@ class TestResolveRoute:
                     base_url="https://api.anthropic.com",
                     models=[_m("x", "wire-x"), _m("y")],
                 ),
-            ]
+            ],
+            {"channel_id": "auto", "model": "nonexistent"},
         )
-        r = store.resolve_route(self._settings("nonexistent"), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["channel"]["id"] == "ch-hi"
         assert r["wire_model"] == "wire-x"
@@ -894,9 +1017,9 @@ class TestResolveRoute:
                     api_key="sk-hi",
                 ),
             ],
-            {"channel_id": "ch-lo", "model": ""},
+            {"channel_id": "ch-lo", "model": "ghost-model"},
         )
-        r = store.resolve_route(self._settings("ghost-model"), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["channel"]["id"] == "ch-lo"
         assert r["api_key"] == "sk-lo"
@@ -910,9 +1033,10 @@ class TestResolveRoute:
             [
                 _channel("ch-off", priority=30, enabled=False),
                 _channel("ch-on", priority=10, base_url="https://api.anthropic.com"),
-            ]
+            ],
+            {"channel_id": "auto", "model": "m1"},
         )
-        r = store.resolve_route(self._settings("m1"), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["channel"]["id"] == "ch-on"
 
@@ -924,10 +1048,11 @@ class TestResolveRoute:
             [
                 _channel("ch-dead", priority=30),
                 _channel("ch-live", priority=10, base_url="https://api.anthropic.com"),
-            ]
+            ],
+            {"channel_id": "auto", "model": "m1"},
         )
         fresh_cooldowns.mark("ch-dead", "", 300.0)
-        r = store.resolve_route(self._settings("m1"), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["channel"]["id"] == "ch-live"
 
@@ -935,9 +1060,12 @@ class TestResolveRoute:
         self, store: ch.ChannelStore, fresh_cooldowns: ch.Cooldowns
     ) -> None:
         """模型级冷却 → 该 (渠道,模型) 滤掉，渠道级不冷却。"""
-        store.save([_channel("ch-a", priority=10, models=[_m("m1"), _m("m2")])])
+        store.save(
+            [_channel("ch-a", priority=10, models=[_m("m1"), _m("m2")])],
+            {"channel_id": "auto", "model": "m1"},
+        )
         fresh_cooldowns.mark("ch-a", "m1", 60.0)
-        r = store.resolve_route(self._settings("m1"), {})
+        r = store.resolve_route()
         # m1 冷却 → 第一遍不命中；第二遍首 enabled 模是 m1 仍冷却 → 跳 m1
         # 同渠道无可选 → channels 耗尽 → None？ 不——第一遍按 want=m1 找
         # entry 命中但 cooled → continue；第二遍首个 enabled 模 m1 cooled
@@ -952,7 +1080,7 @@ class TestResolveRoute:
     ) -> None:
         monkeypatch.setenv("MY_CH_KEY", "sk-from-env")
         store.save([_channel("ch-a", api_key="", key_env="MY_CH_KEY")])
-        r = store.resolve_route(self._settings(), {})
+        r = store.resolve_route()
         assert r is not None
         assert r["api_key"] == "sk-from-env"
         assert r["key_source"] == "env:MY_CH_KEY"

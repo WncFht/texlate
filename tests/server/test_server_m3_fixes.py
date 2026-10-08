@@ -2,30 +2,26 @@
 
 - B1：babeldoc fault message 吞根因——rc 与 stderr 尾摘要必须进 message，
   且 api_key 绝不泄漏进 message/stderr_tail。
-- B2：settings 存了 provider 不广告的 model → ``model_warning`` 随
-  ``public()``/PUT 响应透出；探活失败面不阻断保存。
 - B3：``/api/health`` 带 ``commit``/``started_at`` 构建戳。
+
+（原 B2 ``model_warning``/``list_provider_models`` 随 BYOK 全面切除下线——
+模型归属校验归渠道探针 ``probe_channel``/``record_probe``。）
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
 import threading
 from datetime import datetime
-from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
 
 import texlate.server.app as app_mod
 import texlate.server.http as http_mod
-import texlate.server.settings as settings_mod
 from texlate.server import babeldoc as bd
 from texlate.server.settings import SettingsStore
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
     from typing import Any
 
@@ -173,121 +169,14 @@ class TestB1FaultRootCause:
         assert "api key missing" in msg
 
 
-class TestB2ModelWarning:
-    """``save`` 探活 → ``model_warning`` 透出；失败面不阻断。"""
-
-    @pytest.fixture(autouse=True)
-    def _clear_models_cache(self) -> Iterator[None]:
-        settings_mod._MODELS_CACHE.clear()  # noqa: SLF001 -- TTL 缓存跨用例污染
-        yield
-        settings_mod._MODELS_CACHE.clear()  # noqa: SLF001
-
-    def test_unlisted_model_warns(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            settings_mod, "list_provider_models", lambda *_a, **_k: ["real-m"]
-        )
-        store = SettingsStore(tmp_path)
-        store.save({"model": "typo-m", "api_key": "sk-x"})
-        body = store.public()
-        assert "model_warning" in body
-        assert "typo-m" in body["model_warning"]
-        # 保存本身不被警告阻断
-        assert body["model"] == "typo-m"
-
-    def test_listed_model_no_warning(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            settings_mod, "list_provider_models", lambda *_a, **_k: ["real-m", "m2"]
-        )
-        store = SettingsStore(tmp_path)
-        store.save({"model": "real-m"})
-        assert "model_warning" not in store.public()
-
-    def test_unreachable_never_bricks(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """探活失败（None）→ 无警告、save 照成——离线不砖 settings UX。"""
-        monkeypatch.setattr(
-            settings_mod, "list_provider_models", lambda *_a, **_k: None
-        )
-        store = SettingsStore(tmp_path)
-        store.save({"model": "anything", "base_url": "https://api.example.com"})
-        assert "model_warning" not in store.public()
-
-    def test_unrelated_save_skips_probe(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        calls: list[str] = []
-        monkeypatch.setattr(
-            settings_mod,
-            "list_provider_models",
-            lambda *_a, **_k: calls.append("hit") or [],
-        )
-        store = SettingsStore(tmp_path)
-        store.save({"concurrency": 4})
-        assert calls == []
-
-    def test_probe_env_kill_switch(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        calls: list[str] = []
-        monkeypatch.setattr(
-            settings_mod,
-            "list_provider_models",
-            lambda *_a, **_k: calls.append("hit") or [],
-        )
-        monkeypatch.setenv("TEXLATE_MODEL_PROBE", "0")
-        store = SettingsStore(tmp_path)
-        store.save({"model": "typo-m"})
-        assert calls == []
-        assert "model_warning" not in store.public()
-
-    def test_put_response_carries_warning(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            settings_mod, "list_provider_models", lambda *_a, **_k: ["real-m"]
-        )
-        r = client.put("/api/settings", json={"model": "typo-m"})
-        assert r.status_code == HTTPStatus.OK
-        assert "typo-m" in r.json()["model_warning"]
-        # GET 复现同一警告（进程瞬态口径）
-        assert "model_warning" in client.get("/api/settings").json()
-
-    def test_put_probe_off_event_loop(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """探活须在 worker 线程跑——若回退为 loop 内同步调用，3s+（DNS
-        getaddrinfo 盲区可达数十秒）的同步 httpx 会冻结 SSE 与全部请求。"""
-        on_loop: list[bool] = []
-
-        def spy(*_a: object, **_k: object) -> list[str]:
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                on_loop.append(False)
-            else:
-                on_loop.append(True)
-            return ["real-m"]
-
-        monkeypatch.setattr(settings_mod, "list_provider_models", spy)
-        r = client.put("/api/settings", json={"model": "typo-m"})
-        assert r.status_code == HTTPStatus.OK
-        assert on_loop == [False]
-        # 语义保持：警告仍随 PUT 响应透出
-        assert "typo-m" in r.json()["model_warning"]
+class TestSettingsSaveLock:
+    """``save`` 序列化：``_save_lock`` 接管原事件循环隐式串行。"""
 
     def test_save_serializes_under_lock(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """``save`` 全程持 ``_save_lock``——to_thread 卸载后并发 PUT 的
         load→merge→write 不能再靠事件循环单线程隐式串行。"""
-        monkeypatch.setattr(
-            settings_mod, "list_provider_models", lambda *_a, **_k: ["m2"]
-        )
         store = SettingsStore(tmp_path)
         entered = threading.Event()
         orig = store._save  # noqa: SLF001
@@ -298,7 +187,7 @@ class TestB2ModelWarning:
 
         monkeypatch.setattr(store, "_save", spy)
         store._save_lock.acquire()  # noqa: SLF001
-        t = threading.Thread(target=store.save, args=({"model": "m2"},))
+        t = threading.Thread(target=store.save, args=({"glossary": "g2.yaml"},))
         t.start()
         try:
             # 锁被占时 save 进不了临界区（反向等待——永不置位才算过）
@@ -307,40 +196,7 @@ class TestB2ModelWarning:
             store._save_lock.release()  # noqa: SLF001
         t.join(10)
         assert entered.is_set()
-        assert store.load()["model"] == "m2"
-
-    def test_list_provider_models_parse(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """同步探活解析形：``data[*].id`` 抽取；非 2xx/坏 JSON → None。"""
-
-        class _Resp:
-            def __init__(self, payload: object, *, ok: bool = True) -> None:
-                self._payload = payload
-                self.is_success = ok
-
-            def json(self) -> object:
-                if isinstance(self._payload, Exception):
-                    raise self._payload
-                return self._payload
-
-        seen: dict[str, object] = {}
-
-        def fake_get(url: str, **kw: object) -> _Resp:
-            seen["url"] = url
-            seen["headers"] = kw.get("headers")
-            return _Resp({"data": [{"id": "m1"}, {"id": "m2"}, {"noid": 1}]})
-
-        monkeypatch.setattr("httpx.get", fake_get)
-        got = settings_mod.list_provider_models("https://api.example.com/", "sk-k")
-        assert got == ["m1", "m2"]
-        assert seen["url"] == "https://api.example.com/v1/models"
-        assert seen["headers"] == {"Authorization": "Bearer sk-k"}
-        monkeypatch.setattr("httpx.get", lambda *_a, **_k: _Resp("boom", ok=False))
-        assert settings_mod.list_provider_models("https://api.example.com") is None
-        monkeypatch.setattr(
-            "httpx.get",
-            lambda *_a, **_k: _Resp(json.JSONDecodeError("x", "y", 0)),
-        )
-        assert settings_mod.list_provider_models("https://api.example.com") is None
+        assert store.load()["glossary"] == "g2.yaml"
 
 
 class TestB3HealthBuildStamp:

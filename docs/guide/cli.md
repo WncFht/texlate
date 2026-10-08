@@ -43,7 +43,7 @@ texlate run <arxiv_id> --server <URL> [--model M --api-key K --base-url U] [-o �
 | `--front-matter` | 前置内容翻译白名单，逗号分隔 `abstract,title,author`；缺省翻摘要和标题 |
 | `-q`             | 关掉 stderr 实况进度                                                   |
 
-`--server` 切到瘦客户端模式：任务提交给一台正在运行的 `texlate web` 服务（本机或远端都行），流式显示进度，终态后把产物校验下载到 `--out` 目录（缺省 `./texlate-<id>-<任务前缀>/`）。`--model`、`--api-key`、`--base-url`、`--dialect` 这四个旗标只在这个模式下有意义，作为请求头逐项覆盖服务端配置——临时换 key 或换模型不用改 Settings。同一论文同一配置重复提交会自动挂到进行中的任务上，不会重复消耗配额；`--wait` 控制最长等待秒数（缺省 1800），超时后任务仍在服务端继续，同参数重跑即可重新挂上。
+`--server` 切到瘦客户端模式：任务提交给一台正在运行的 `texlate web` 服务（本机或远端都行），流式显示进度，终态后把产物校验下载到 `--out` 目录（缺省 `./texlate-<id>-<任务前缀>/`）。`--model`、`--api-key`、`--base-url`、`--dialect` 这四个旗标只在这个模式下有意义，作为请求头逐项覆盖服务端配置——临时换 key 或换模型不用改渠道表。同一论文同一配置重复提交会自动挂到进行中的任务上，不会重复消耗配额；`--wait` 控制最长等待秒数（缺省 1800），超时后任务仍在服务端继续，同参数重跑即可重新挂上。
 
 退出码：0 = 完成（clean/partial 或远端 done/partial）；1 = 编译失败（修复链走尽仍无 PDF；`--server` 侧另含 fault/cancelled/interrupted/失联/超时）；2 = 用法错误（未知引擎、--server 选项脱离 `--server`、--work-dir 非空、把本地目录喂给 `--server`）或策略拒绝。
 
@@ -141,7 +141,6 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 | `TEXLATE_MODE`                                                                                            | `server` 切多租户部署形态（写操作要 `X-Texlate-Key`；缺省 `local`）                                                                                             |
 | `TEXLATE_CACHE_SCOPE`                                                                                     | `shared`（缺省，译文缓存跨 key 共享）\| `per_key`（按 key 分桶隔离）                                                                                            |
 | `TEXLATE_SHARE_DIR`                                                                                       | 共享包发布目录（缺省 `<数据目录>/share/`）                                                                                                                      |
-| `TEXLATE_MODEL_PROBE`                                                                                     | 保存 Settings 时的模型可用性探活，`=0` 关（离线环境用）                                                                                                         |
 | `TEXLATE_NO_DOWNLOAD`                                                                                     | 禁止自动下载 tectonic 等外部件                                                                                                                                  |
 | `TEXLATE_NODE`                                                                                            | cst 校验用的 node 可执行文件路径（缺省按 PATH 找）                                                                                                              |
 | `TEXLATE_TS_WORKER`                                                                                       | cst 校验 TS worker 脚本目录覆盖（缺省包内 `validate/ts/`）                                                                                                      |

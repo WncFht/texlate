@@ -1,7 +1,8 @@
 """SEC-1..7 入站闸回归（server-security-fix）：
 
 share 解压两闸 / server 匿名写 401+ 读面独立桶 / mutating 跨站与 Content-Type /
-settings/test 跨槽 / upload 点文件名 / local Host 白名单 / model 控制字符。
+channels/probe 裸端点 exfil 闸 / upload 点文件名 / local Host 白名单 /
+model 控制字符。
 """
 
 from __future__ import annotations
@@ -172,16 +173,17 @@ class TestServerAnonGate:
         assert server_client.get("/api/tasks").json()["tasks"] == []
         assert server_client.get(f"/api/task/{tid}").status_code == HTTPStatus.NOT_FOUND
 
-    def test_anon_never_inherits_settings_key(self, tmp_path: Path) -> None:
-        """resolve_auth 单元钉：server+settings 有 key、无 header → api_key 空。"""
-        store = SettingsStore(tmp_path / "d")
-        (tmp_path / "d").mkdir(parents=True, exist_ok=True)
-        store.save({"api_key": "sk-deployer"})
-        auth = resolve_auth(store.load(), mode="server", salt="s")
+    def test_anon_never_inherits_env_key(
+        self, clean_env: pytest.MonkeyPatch
+    ) -> None:
+        """resolve_auth 单元钉：server+env 有 key、无 header → api_key 空。"""
+        clean_env.setenv("TEXLATE_API_KEY", "sk-deployer")
+        auth = resolve_auth({}, mode="server", salt="s")
         assert auth.api_key == ""
         assert auth.source == "none"
-        local = resolve_auth(store.load(), mode="local", salt="s")
+        local = resolve_auth({}, mode="local", salt="s")
         assert local.api_key == "sk-deployer"
+        assert local.source == "env"
 
     def test_keyed_mutation_still_works(self, server_client: TestClient) -> None:
         r = server_client.post(
@@ -337,32 +339,51 @@ class TestRootPathGate:
             assert r.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestSettingsTestCrossSlot:
-    """SEC-4：body.base_url 提供则 body.api_key 必须同给。"""
+class TestChannelsProbeCrossSlot:
+    """SEC-4：裸 ``{base_url}`` 探测须自带 ``api_key``（exfil 闸）。"""
 
     def test_base_url_without_key_400(self, client: TestClient) -> None:
-        client.put("/api/settings", json={"api_key": "sk-stored"})
-        r = client.post("/api/settings/test", json={"base_url": "http://127.0.0.1:9"})
+        r = client.post(
+            "/api/channels/probe", json={"base_url": "http://127.0.0.1:9"}
+        )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_base_url_with_key_probes(self, client: TestClient) -> None:
         with refused_base_url() as base_url:
             r = client.post(
-                "/api/settings/test",
+                "/api/channels/probe",
                 json={
                     "base_url": base_url,
                     "api_key": "sk-explicit",
                 },
             )
         assert r.status_code == HTTPStatus.OK
-        assert r.json()["ok"] is False
+        assert r.json()["stage1"]["verdict"] == "unreachable"
 
-    def test_stored_pair_probe_still_ok(self, client: TestClient) -> None:
-        """不带覆盖 → 用已存配置探活，不触发跨槽闸（连通性无关断言）。"""
-        client.put("/api/settings", json={"api_key": "sk-stored"})
-        r = client.post("/api/settings/test", json={})
+    def test_channel_id_probe_uses_channel_creds(self, client: TestClient) -> None:
+        """``{id}`` 路径走渠道档凭据——不触发裸端点 exfil 闸。"""
+        from _serverkit import preset_channels  # noqa: PLC0415
+
+        with refused_base_url() as base_url:
+            preset_channels(
+                client.app.state.data_dir,
+                [
+                    {
+                        "id": "ch-x",
+                        "name": "",
+                        "base_url": base_url,
+                        "protocol": "auto",
+                        "models": [],
+                        "priority": 0,
+                        "enabled": True,
+                        "api_key": "sk-stored",
+                        "key_env": "",
+                    }
+                ],
+            )
+            r = client.post("/api/channels/probe", json={"id": "ch-x"})
         assert r.status_code == HTTPStatus.OK
-        assert "ok" in r.json()
+        assert r.json()["stage1"]["verdict"] == "unreachable"
 
 
 class TestUploadFilename:

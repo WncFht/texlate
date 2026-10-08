@@ -11,14 +11,12 @@ settings.py 侧：
 - ``validate_model``：空/超 200/非 printable 拒，CJK/emoji 放行；
 - ``_check_cors_origins``：非字符串数组拒、逐项 ``_parse_origin``、去重保序；
 - ``SettingsStore``：``save``→``load`` round-trip 全字段回读一致；
-  ``api_key`` 空串不覆盖、``clear_api_key`` 显式清且压过同帧 api_key、
-  ``has_api_key`` 伪字段不落盘；两文件恒 0600；``public()`` 永不携带
-  ``api_key``；未知键写进文件但 ``load`` 滤掉；base_url 切换按
-  connections 槽召回旧 key（A→B→A 钥匙归位）；``load`` 对非 dict/
-  截断 JSON 与错型字段容错回落；多线程并发 ``save`` 文件永远是整份
-  JSON（tmp+rename 原子性）；``connections()`` 滤非 dict 值；
-- ``resolve_auth``：``header > settings > env`` 逐项回落；server 形态无
-  header key 时绝不外借 settings/env 凭据（匿名桶）；非法 header
+  BYOK 键（``api_key``/``base_url`` 等）已非 FIELDS——写面白名单静默丢、
+  读面滤出，永不落盘；文件恒 0600；未知键写不进文件且 ``load`` 滤掉；
+  ``load`` 对非 dict/截断 JSON 与错型字段容错回落；多线程并发 ``save``
+  文件永远是整份 JSON（tmp+rename 原子性）；
+- ``resolve_auth``：``header > 渠道 key_env > provider env`` 逐项回落；
+  server 形态无 header key 时绝不外借 env 凭据（匿名桶）；非法 header
   base_url/model 抛 ``ValueError`` 不静默回落；``tenant_for`` 确定性 +
   local 恒 ``local``；
 - ``scrub``/``RedactFilter``：显式 key + 已知 secret 形态抹除且幂等；
@@ -28,7 +26,7 @@ settings.py 侧：
 - ``server_salt``：首轮生成 32hex 0600 持久；空白文件视为未初始化重生成；
 - env 辅助面：``cache_scope`` 合法值/非法回落；``env_key_for``
   ``TEXLATE_API_KEY`` 优先于 provider 兜底；``data_dir`` 0700；
-  ``provider_presets`` active/has_env_key 与 url/env 一致。
+  ``CHANNEL_PRESETS`` 渠道预设目录形状（id/name/base_url/key_env 齐全）。
 
 babeldoc.py 侧（不 spawn 真进程——``_Feed``/``assess_tracking``/``_judge_run``/
 ``harvest_outputs``/``write_config`` 全离线）：
@@ -84,6 +82,8 @@ from conftest import make_app
 
 from texlate.server import babeldoc as bd
 from texlate.server import settings
+from texlate.server.channels import CHANNEL_PRESETS
+from texlate.xlat.client import DEFAULT_MODEL
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -318,14 +318,14 @@ class TestLoadTolerance:
             root.mkdir()
             (root / "settings.json").write_text(content, encoding="utf-8")
             data = settings.SettingsStore(root).load()
-            assert data["base_url"], content
-            assert data["model"], content
+            assert "glossary" in data, content
+            assert data["target_lang"], content
             assert isinstance(data["concurrency"], int), content
 
     def test_field_fallbacks(self, tmp_path: Path) -> None:
         cases = (
-            ("concurrency", "abc", 3),  # 不可转 → 默认 3
-            ("concurrency", 0, 3),  # 0 falsy → 默认 3（`value or 3` 口径）
+            ("concurrency", "abc", 10),  # 不可转 → 默认 10
+            ("concurrency", 0, 10),  # 0 falsy → 默认 10（`value or 10` 口径）
             ("concurrency", -5, 1),  # 负 → clamp 1
             ("concurrency", 2.9, 2),  # float 截断
             ("quota_max_tasks", "abc", 0),
@@ -373,9 +373,9 @@ class TestLoadTolerance:
 
     def test_surrogate_bricks_save(self, tmp_path: Path) -> None:
         """文件里一个孤 surrogate → 期望 load 消毒或 save 不炸。"""
-        store = _store_with(tmp_path, {"model": "x\ud800y"})
+        store = _store_with(tmp_path, {"glossary": "x\ud800y"})
         merged = store.save({"concurrency": 4})
-        assert merged["model"].isprintable()
+        assert merged["glossary"].isprintable()
 
     def test_enum_fields_sanitized(self, tmp_path: Path) -> None:
         for i, (field, raw, fallback) in enumerate(
@@ -397,8 +397,7 @@ class TestStoreSemantics:
         store = settings.SettingsStore(tmp_path)
         merged = store.save(
             {
-                "model": "m-x",
-                "api_key": "sk-rt-12345678",
+                "glossary": "g-x.yaml",
                 "concurrency": 7,
                 "engine": "tectonic",
                 "target_lang": "zh-TW",
@@ -412,46 +411,27 @@ class TestStoreSemantics:
             assert loaded[k] == merged[k], k
         assert loaded["quota_max_tasks"] == 5  # noqa: PLR2004 -- str→int 收编
         if sys.platform != "win32":  # win32 chmod 近 no-op——mode 位断言无意义
-            for name in ("settings.json", "connections.json"):
-                mode = stat.S_IMODE((tmp_path / name).stat().st_mode)
-                assert mode == stat.S_IRUSR | stat.S_IWUSR, name
+            mode = stat.S_IMODE((tmp_path / "settings.json").stat().st_mode)
+            assert mode == stat.S_IRUSR | stat.S_IWUSR
 
-    def test_key_hygiene(self, tmp_path: Path) -> None:
-        """``public()`` 永不携带 api_key；空串不覆盖；clear 显式清且压过同帧。"""
-        store = _store_with(tmp_path, {"api_key": {"weird": "type"}})
+    def test_byok_keys_never_persist(self, tmp_path: Path) -> None:
+        """BYOK 键已非 FIELDS——写面静默丢、读面滤出，永不落盘。"""
+        store = _store_with(
+            tmp_path, {"api_key": "sk-x", "base_url": "http://x", "model": "m"}
+        )
         pub = store.public()
         assert "api_key" not in pub
-        assert pub["has_api_key"] is True
-        assert (
-            settings.SettingsStore(tmp_path / "fresh").public()["has_api_key"] is False
+        assert "base_url" not in pub
+        assert "model" not in pub
+        merged = store.save(
+            {"api_key": "sk-keep", "clear_api_key": True, "glossary": "g.yaml"}
         )
-        store2 = settings.SettingsStore(tmp_path / "s2")
-        store2.save({"api_key": "sk-keep-1111"})
-        merged = store2.save({"api_key": "", "model": "m2"})
-        assert merged["api_key"] == "sk-keep-1111"  # 空串不覆盖
-        merged = store2.save({"api_key": "sk-new-9999", "clear_api_key": True})
-        assert merged["api_key"] == ""  # clear 压过同帧新 key
-        raw = json.loads(
-            (tmp_path / "s2" / "settings.json").read_text(encoding="utf-8")
-        )
-        assert "has_api_key" not in raw
-        assert "clear_api_key" not in raw
+        assert "api_key" not in merged
+        raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert "api_key" not in raw
+        assert raw["glossary"] == "g.yaml"
 
-    def test_connection_slot_recall(self, tmp_path: Path) -> None:
-        """A→B→A 切换：B 存 key-b、回 A 召回 key-a（texglot 分槽语义）。"""
-        store = settings.SettingsStore(tmp_path)
-        a, b = "http://localhost:1", "https://api.deepseek.com"
-        store.save({"base_url": a, "api_key": "key-a"})
-        store.save({"base_url": b, "api_key": "key-b"})
-        merged = store.save({"base_url": a})  # 不带 key → 召回 A 槽
-        assert merged["api_key"] == "key-a"
-        merged = store.save({"base_url": b})
-        assert merged["api_key"] == "key-b"
-        conns = store.connections()
-        assert conns[a]["api_key"] == "key-a"
-        assert conns[b]["api_key"] == "key-b"
-
-    def test_unknown_keys_and_connections_filter(self, tmp_path: Path) -> None:
+    def test_unknown_keys_filtered(self, tmp_path: Path) -> None:
         """未知键 ``save`` 写时即滤（FIELDS 白名单闸直调面）；手改件注入
         未知键 ``load`` 仍滤。"""
         store = settings.SettingsStore(tmp_path)
@@ -461,25 +441,6 @@ class TestStoreSemantics:
         raw["totally_unknown"] = {"x": 1}
         (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
         assert "totally_unknown" not in store.load()
-        (tmp_path / "connections.json").write_text(
-            json.dumps({"a": {"api_key": "k"}, "b": 5, "c": "s", "d": None}),
-            encoding="utf-8",
-        )
-        assert store.connections() == {"a": {"api_key": "k"}}
-
-    def test_connections_nonstr_fields_sanitized(self, tmp_path: Path) -> None:
-        """槽位字段非 str（手改 connections.json）→ ``_load_str`` 口径归一
-        为 str——不携 dict/int 进 httpx 头构造面。"""
-        store = settings.SettingsStore(tmp_path)
-        (tmp_path / "connections.json").write_text(
-            json.dumps(
-                {"http://x": {"api_key": {"nested": 1}, "model": 42, "extra": None}}
-            ),
-            encoding="utf-8",
-        )
-        conns = store.connections()
-        assert conns["http://x"]["model"] == "42"
-        assert all(isinstance(v, str) for v in conns["http://x"].values())
 
     def test_concurrent_saves_never_torn(self, tmp_path: Path) -> None:
         """并发 ``save``：文件永远是一份合法 JSON（tmp+rename 原子写）。"""
@@ -490,7 +451,9 @@ class TestStoreSemantics:
         def writer(i: int) -> None:
             try:
                 for j in range(_SAVE_ITERS):
-                    store.save({"model": f"m-{i}-{j}", "concurrency": (j % 5) + 1})
+                    store.save(
+                        {"glossary": f"g-{i}-{j}", "concurrency": (j % 5) + 1}
+                    )
             except BaseException as e:  # noqa: BLE001 -- 汇总线程异常断言
                 errors.append(e)
 
@@ -511,7 +474,7 @@ class TestStoreSemantics:
         for t in threads:
             t.join(30)
         assert not errors
-        assert store.load()["model"].startswith("m-")
+        assert store.load()["glossary"].startswith("g-")
 
     def test_save_concurrency_clamps(self, tmp_path: Path) -> None:
         store = settings.SettingsStore(tmp_path)
@@ -558,7 +521,7 @@ class TestResolveAuth:
     }
 
     def test_fallback_order(self, clean_env: pytest.MonkeyPatch) -> None:
-        """``header > settings > env`` 逐项回落。"""
+        """``header > env`` 逐项回落；settings dict 不再供凭据。"""
         ctx = settings.resolve_auth(
             self._SETTINGS,
             header_key="sk-header-9",
@@ -570,7 +533,7 @@ class TestResolveAuth:
         assert ctx.base_url == "http://localhost:4000"
         assert ctx.model == "m-header"
         ctx = settings.resolve_auth(self._SETTINGS, salt="s")
-        assert (ctx.api_key, ctx.source) == ("sk-settings-1", "settings")
+        assert (ctx.api_key, ctx.source) == ("", "none")
         clean_env.setenv("TEXLATE_API_KEY", "sk-env-7")
         bare = {"base_url": "", "model": "", "api_key": ""}
         ctx = settings.resolve_auth(bare, salt="s")
@@ -600,7 +563,7 @@ class TestResolveAuth:
             with pytest.raises(ValueError, match=match):
                 settings.resolve_auth(self._SETTINGS, **kw)  # type: ignore[arg-type]
         ctx = settings.resolve_auth(self._SETTINGS, header_model="")
-        assert ctx.model == "m-settings"  # 空 header_model 不校验走回落
+        assert ctx.model == DEFAULT_MODEL  # 空 header_model 不校验走缺省
 
     def test_tenant_invariants(self) -> None:
         """local 恒 ``local``；server 指纹确定性 + salt 敏感。"""
@@ -660,16 +623,22 @@ class TestEnvHelpers:
         clean_env.setenv("TEXLATE_SHARE_DIR", "   ")
         assert settings.share_dir() == tmp_path / "dd" / "share"
 
-    def test_provider_presets(self, clean_env: pytest.MonkeyPatch) -> None:
-        presets = settings.provider_presets({"base_url": "https://api.deepseek.com"})
-        assert len(presets) == 6  # noqa: PLR2004
-        assert [p["id"] for p in presets if p["active"]] == ["deepseek"]
-        assert all("has_env_key" in p for p in presets)
-        clean_env.setenv("OPENAI_API_KEY", "sk-x")
-        presets = settings.provider_presets({"base_url": "https://api.openai.com"})
-        openai = next(p for p in presets if p["id"] == "openai")
-        assert openai["active"] is True
-        assert openai["has_env_key"] is True
+    def test_channel_presets(self) -> None:
+        """``CHANNEL_PRESETS`` 目录形状钉板——id/name/protocol/base_url/key_env 齐全。"""
+        assert [p["id"] for p in CHANNEL_PRESETS] == [
+            "gateway",
+            "deepseek",
+            "openai",
+            "anthropic",
+            "openrouter",
+            "qwen",
+            "custom",
+        ]
+        for p in CHANNEL_PRESETS:
+            assert p["name"]
+            assert p["protocol"] in {"openai", "anthropic", "auto"}, p["id"]
+            assert p["key_env"]
+            assert isinstance(p["models"], list)
 
 
 # ---------------------------------------------------------------- server_salt

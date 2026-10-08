@@ -1064,15 +1064,6 @@ class TestSettingsPut:
         r = client.put("/api/settings", json={"concurrency": 0})
         assert r.json()["concurrency"] == 1
 
-    def test_clear_api_key(self, client: TestClient) -> None:
-        client.put("/api/settings", json={"api_key": "sk-x"})
-        assert client.get("/api/settings").json()["has_api_key"] is True
-        # 空串不清（合并语义）——须显式 clear_api_key
-        client.put("/api/settings", json={"api_key": ""})
-        assert client.get("/api/settings").json()["has_api_key"] is True
-        client.put("/api/settings", json={"clear_api_key": True})
-        assert client.get("/api/settings").json()["has_api_key"] is False
-
     def test_unknown_field_ignored(self, client: TestClient) -> None:
         """未知键不落盘、响应 ``ignored`` 回显——静默丢弃的 200 会让调用方
         以为写入生效（旧行为是静默写进 settings.json 攒垃圾键）。"""
@@ -1083,42 +1074,56 @@ class TestSettingsPut:
         stored = client.get("/api/settings").json()
         assert "bogus_field" not in stored
 
-    def test_pseudo_keys_pass(self, client: TestClient) -> None:
-        """has_api_key（出参回显）/clear_api_key（控制键）不算未知键。"""
-        r = client.put("/api/settings", json={"has_api_key": True})
+    def test_byok_keys_ignored(self, client: TestClient) -> None:
+        """BYOK 键已退出 settings 面——一律进 ``ignored`` 且不回显。"""
+        r = client.put(
+            "/api/settings",
+            json={"api_key": "sk-x", "clear_api_key": True, "has_api_key": True},
+        )
         assert r.status_code == HTTPStatus.OK
-        r = client.put("/api/settings", json={"api_key": "sk-x", "clear_api_key": True})
-        assert r.status_code == HTTPStatus.OK
-        assert r.json()["has_api_key"] is False
+        assert set(r.json()["ignored"]) == {
+            "api_key",
+            "clear_api_key",
+            "has_api_key",
+        }
+        assert "api_key" not in r.json()
+        assert "has_api_key" not in r.json()
 
 
-class TestSettingsTestEdge:
+class TestChannelsProbeEdge:
     def test_invalid_base_url_400(self, client: TestClient) -> None:
         assert (
-            client.post("/api/settings/test", json={"base_url": "ftp://x"}).status_code
+            client.post("/api/channels/probe", json={"base_url": "ftp://x"}).status_code
             == HTTPStatus.BAD_REQUEST
         )
         # 非 localhost/tailnet 的 http → 400（强制 HTTPS）
         assert (
             client.post(
-                "/api/settings/test", json={"base_url": "http://remote.example.com"}
+                "/api/channels/probe", json={"base_url": "http://remote.example.com"}
             ).status_code
             == HTTPStatus.BAD_REQUEST
         )
+
+    def test_bare_base_url_without_key_400(self, client: TestClient) -> None:
+        """裸端点探测须自带 api_key——否则部署方 env 凭据可被引到任意出站。"""
+        r = client.post(
+            "/api/channels/probe", json={"base_url": "https://api.deepseek.com"}
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_body_key_scrubbed(self, client: TestClient) -> None:
         """body.api_key 探活失败回显必须脱敏。"""
         # bind 但不 listen：占住端口防外部抢占，入站连接仍必 ECONNREFUSED。
         with refused_base_url() as base_url:
             r = client.post(
-                "/api/settings/test",
+                "/api/channels/probe",
                 json={
                     "base_url": base_url,
                     "api_key": "sk-body-secret-9",
                 },
             )
         assert r.status_code == HTTPStatus.OK
-        assert r.json()["ok"] is False
+        assert r.json()["stage1"]["verdict"] == "unreachable"
         assert "sk-body-secret-9" not in json.dumps(r.json())
 
 
@@ -1434,34 +1439,48 @@ class TestOptionsGate:
 class TestServerModeSettingsGate:
     """§4.1：PUT settings 是本地单机默认形态——server 模式写路径 403。
 
-    多租户下 settings.json 是部署方全局配置：租户可写即可改 base_url
-    截获他租户 header key / 改配额/CORS；``settings/test`` 是同级
-    出站探活 oracle。读面（GET settings/providers/health）保持开放
-    但裁部署拓扑字段（glossary_dir/cors_origins/data_dir/has_env_key）。
+    多租户下 settings.json 是部署方全局配置：租户可写即可改
+    配额/CORS/glossary_dir 越部署方管理面；渠道面更严——读写全关
+    （渠道枚举本身即部署拓扑）。读面（GET settings/health）保持开放
+    但裁部署拓扑字段（glossary_dir/cors_origins）。
     """
 
     def test_put_settings_403(self, server_client: TestClient) -> None:
         # 带 key 才过匿名 401 闸、够到 write gate 的 403
         r = server_client.put(
             "/api/settings",
-            json={"base_url": "https://evil.example"},
+            json={"quota_max_tasks": 99},
             headers={"X-Texlate-Key": "k-A"},
         )
         assert r.status_code == HTTPStatus.FORBIDDEN
         # 未落盘——settings.json 根本没被写
         assert not (server_client.app.state.data_dir / "settings.json").exists()
 
-    def test_settings_test_403(self, server_client: TestClient) -> None:
+    def test_channels_face_403(self, server_client: TestClient) -> None:
+        """渠道面 server 形态整面 403——读（含 presets）与写/探针全关。"""
+        for method, path in (
+            ("GET", "/api/channels"),
+            ("GET", "/api/channels/presets"),
+            ("POST", "/api/channels/probe"),
+            ("POST", "/api/channels/route"),
+        ):
+            r = server_client.request(
+                method, path, json={}, headers={"X-Texlate-Key": "k-A"}
+            )
+            assert r.status_code == HTTPStatus.FORBIDDEN, (method, path)
+
+    def test_read_paths_open(self, server_client: TestClient) -> None:
+        """GET settings/health 是公共读面——server 模式不闸；已撤端点 404。"""
+        assert server_client.get("/api/settings").status_code == HTTPStatus.OK
+        assert server_client.get("/api/health").status_code == HTTPStatus.OK
+        assert (
+            server_client.get("/api/providers").status_code == HTTPStatus.NOT_FOUND
+        )
         r = server_client.post(
             "/api/settings/test", json={}, headers={"X-Texlate-Key": "k-A"}
         )
-        assert r.status_code == HTTPStatus.FORBIDDEN
-
-    def test_read_paths_open(self, server_client: TestClient) -> None:
-        """GET settings/providers/health 是公共读面——server 模式不闸。"""
-        assert server_client.get("/api/settings").status_code == HTTPStatus.OK
-        assert server_client.get("/api/providers").status_code == HTTPStatus.OK
-        assert server_client.get("/api/health").status_code == HTTPStatus.OK
+        # 已撤端点：SPA 兜底路由回 405（路径面残留按 GET-only 匹配）
+        assert r.status_code in (HTTPStatus.NOT_FOUND, HTTPStatus.METHOD_NOT_ALLOWED)
 
     def test_health_minimal(self, server_client: TestClient) -> None:
         """server 模式 health = 探活 + 深度集 ``{ok, db, queue_depth}``——
@@ -1478,27 +1497,20 @@ class TestServerModeSettingsGate:
         assert "glossary_dir" not in body
         assert "cors_origins" not in body
         assert "api_key" not in body
-        # 租户自身策略面不裁：配额/当前网关/key 存在位
+        # BYOK 键已退出 settings 面
+        assert "base_url" not in body
+        assert "has_api_key" not in body
+        # 租户自身策略面不裁：配额
         assert "quota_max_tasks" in body
-        assert "base_url" in body
-        assert "has_api_key" in body
-
-    def test_providers_env_key_hidden(
-        self, server_client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """server 模式 providers 摘 has_env_key——部署方 env 凭据配置面。"""
-        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-x")
-        body = server_client.get("/api/providers").json()
-        assert all("has_env_key" not in p for p in body["providers"])
 
     def test_local_mode_full_read_surface(self, client: TestClient) -> None:
-        """local 形态读面不裁——三端点全量字段照回。"""
+        """local 形态读面不裁——settings/health/channels 全量字段照回。"""
         body = client.get("/api/settings").json()
         assert "glossary_dir" in body
         assert "cors_origins" in body
         health = client.get("/api/health").json()
         assert {"version", "compilers", "data_dir"} <= health.keys()
-        presets = client.get("/api/providers").json()["providers"]
+        presets = client.get("/api/channels/presets").json()["presets"]
         assert all("has_env_key" in p for p in presets)
 
     def test_local_mode_still_writes(self, client: TestClient) -> None:

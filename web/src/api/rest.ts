@@ -19,7 +19,6 @@ import {
     type KeptRef,
     type KeptRefsResponse,
     type ProbeReport,
-    type Provider,
     type ReaderInfo,
     type ReaderKeep,
     type RefLookupItem,
@@ -194,8 +193,6 @@ async function createRequest<T>(
 
 export const api = {
     health: () => request<Health>("/health"),
-    providers: () =>
-        request<Provider[] | { providers: Provider[] }>("/providers"),
     /**
      * 任务列表全量拉取——服务端 ``limit`` 默认 100（上限 1000），裸调
      * 会静默截断长列表；按 ``{tasks,total}`` 信封 offset 翻页收全。
@@ -483,16 +480,6 @@ export const api = {
             headers: { "content-type": "application/json" },
             body: JSON.stringify(s),
         }),
-    // body 可带 base_url/api_key/model 覆盖——测表单现值而非已存配置
-    testSettings: (s?: Settings) =>
-        request<{ ok: boolean; detail?: string; models?: string[] }>(
-            "/settings/test",
-            {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(s ?? {}),
-            },
-        ),
 
     // ---------- channels：BYOK 渠道（server 形态整面 403——调用方按闸隐藏） ----------
     getChannels: () => request<ChannelsView>("/channels"),

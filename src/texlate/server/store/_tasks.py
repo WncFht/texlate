@@ -85,7 +85,7 @@ class TaskRepo(_Repo):
         title: str = "",
         config: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
-        auth_source: str = "settings",
+        auth_source: str = "none",
         tenant: str = "local",
         cache_key: str | None = None,
     ) -> dict[str, Any]:

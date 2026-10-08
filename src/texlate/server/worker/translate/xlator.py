@@ -174,8 +174,7 @@ class _TranslateXlator:
 
         闸（任一命中 → 空链）：``secrets.source == "header"``（用户单发
         key 绝不被扇到第二渠道）、非 local 形态（server 部署拓扑不自助
-        回退）、渠道文件缺席（投影条目只映 settings/connections 本体，
-        无异质臂可挂）。
+        回退）、渠道文件缺席（无异质臂可挂）。
 
         臂序 = ``priority`` 降序：第一遍活动渠道的余下 enabled 模型
         （同 client 同凭据零成本换模），第二遍其余 enabled 渠道的首个
@@ -195,7 +194,6 @@ class _TranslateXlator:
             (c for c in store.load()["channels"] if c.get("enabled")),
             key=lambda c: -int(c["priority"]),
         )
-        connections = SettingsStore(root).connections()
         active_id = str(ctx.secrets.channel_id or "")
         active_url = normalize_base_url(ctx.secrets.base_url)
 
@@ -233,7 +231,7 @@ class _TranslateXlator:
             if cooldowns.is_cooled(ch["id"], wire):
                 continue
             base_url = str(ch["base_url"])
-            key, _src = credential_for(ch, connections)
+            key, _src = credential_for(ch)
             if not key and provider_for_url(base_url) != "gateway":
                 continue
             arm_client = ChatClient(

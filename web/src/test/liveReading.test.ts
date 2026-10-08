@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     tasks: vi.fn(),
     health: vi.fn(),
     getSettings: vi.fn(),
-    providers: vi.fn(),
+    getChannels: vi.fn(),
     translate: vi.fn(),
     taskChunks: vi.fn(),
     retranslateChunk: vi.fn(),
@@ -46,7 +46,7 @@ import { FM_OPTS, resetHomeMocks } from "./_homekit";
 import { mountToBody, unmountLast } from "./helpers";
 
 beforeEach(() => {
-    // Home 面成员（tasks/health/getSettings/providers/translate→RESP）走
+    // Home 面成员（tasks/health/getSettings/getChannels/translate→RESP）走
     // _homekit 统一复位；taskChunks/retranslateChunk 是 reader 面键，本地补值
     resetHomeMocks(mocks);
     mocks.taskChunks.mockResolvedValue({ chunks: [], total: 0 });

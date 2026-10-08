@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import HTTPException, Request
 
 from texlate.pipecore import front_matter_of
+from texlate.server.channels import routed_auth
 from texlate.server.http import _api_error
 from texlate.server.settings import (
     TARGET_LANGS,
@@ -26,14 +27,12 @@ from texlate.server.settings import (
     env_model,
     resolve_auth,
     server_mode,
-    tenant_for,
     validate_model,
 )
 from texlate.server.store import new_task_id, valid_task_id
 from texlate.server.worker import Secrets, artifact_urls, cache_key_for
 from texlate.textutil import env_str
 from texlate.textutil.osutil import ENV_TRANSLATOR
-from texlate.xlat.client import normalize_base_url
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -47,16 +46,6 @@ if TYPE_CHECKING:
 #: per-IP 配额兜底桶表界（``check_quota``）——distinct peer 数有界防洪泛，
 #: LRU 头出。4096 个 IPv6 字面量键 ≈ 数百 KB，量级无害。
 _IP_QUOTA_MAX_PEERS = 4096
-
-#: 渠道路由决议后 AuthContext.source 映射——AuthContext.source 域
-#: （header|settings|env|none）与凭据阶梯记档值不同名，此处对齐：
-#: 渠道档/连接槽凭据归 settings 语义（本地配置面），provider/专名 env 归 env。
-_ROUTE_SOURCE = {
-    "channel": "settings",
-    "connection": "settings",
-    "provider_env": "env",
-    "none": "none",
-}
 
 
 @dataclass(slots=True)
@@ -80,7 +69,7 @@ class AppDeps:
     ip_quota: OrderedDict[str, list[int]] = field(default_factory=OrderedDict)
 
     def auth(self, request: Request) -> AuthContext:
-        """BYOK 逐项决议（§4.1）：key 走 header > settings > env，其余 header > env > settings；非法 header 值 → 400。
+        """BYOK 逐项决议（§4.1）：key 走 header > 渠道 key_env > provider env，其余 header > env > 缺省；非法 header 值 → 400。
 
         头面直传 ``request.headers``——查名按 ``BYOK_FIELDS`` 单源，本层
         不再枚举 ``X-Texlate-*`` 字面量。每请求缓存到 ``request.state``：
@@ -89,11 +78,8 @@ class AppDeps:
         create_and_enqueue），缓存只读一次。失败不缓存（重试同路径重炸 400）。
 
         渠道路由介入条件：local 形态 + 非 header 源 + env 未显式指
-        端点/模型（env 是逃生舱，显式给了就压过档案路由）且
-        ``channels.json``/旧 ``endpoints.json`` 在——命中时整体替换决议
-        结果（渠道 base_url/protocol/线名 + 渠道凭据阶梯），settings
-        四键沦为投影兜底。渠道凭据仍空且渠道与 settings.base_url 同槽
-        时 settings key 放行（跨槽闸同 resolve_auth 口径）。
+        端点/模型（env 是逃生舱，显式给了就压过渠道路由）——命中时整体
+        替换决议结果（渠道 base_url/protocol/线名 + 渠道凭据阶梯）。
         """
         cached = getattr(request.state, "auth_ctx", None)
         if isinstance(cached, AuthContext):
@@ -114,28 +100,13 @@ class AppDeps:
             and server_mode() == "local"
             and not (env_base_url() or env_model())
         ):
-            routed = self.channels_store.resolve_route(
-                settings, self.settings_store.connections()
-            )
+            routed = self.channels_store.resolve_route()
             if routed is not None:
-                ch = routed["channel"]
-                key = str(routed["api_key"] or "")
-                src = str(routed["key_source"])
-                if not key:
-                    same_slot = normalize_base_url(
-                        str(ch["base_url"])
-                    ) == normalize_base_url(str(settings.get("base_url") or ""))
-                    if same_slot and auth.api_key:
-                        key, src = auth.api_key, "channel"
-                auth = AuthContext(
-                    api_key=key,
-                    base_url=str(ch["base_url"]),
-                    model=str(routed["wire_model"]),
-                    dialect=str(ch["protocol"] or "auto"),
-                    source=_ROUTE_SOURCE.get(src, src),
-                    tenant=tenant_for(key, mode=server_mode(), salt=self.salt),
-                    channel_id=str(ch["id"]),
+                auth = routed_auth(
+                    routed,
                     settings=auth.settings,
+                    mode=server_mode(),
+                    salt=self.salt,
                 )
         request.state.auth_ctx = auth
         return auth

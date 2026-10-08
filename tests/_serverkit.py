@@ -165,6 +165,20 @@ def preset_settings(data_root: Path, **updates: object) -> None:
     SettingsStore(data_root).save(updates)
 
 
+def preset_channels(
+    data_root: Path,
+    channels: list[dict],
+    route: dict | None = None,
+) -> None:
+    """create_app 之前预写 channels.json（端点/渠道配置面——settings.json 不再带 BYOK 键）。"""
+    from texlate.server.channels import (  # noqa: PLC0415 -- 同文件延迟载入惯例
+        ChannelStore,
+    )
+
+    data_root.mkdir(parents=True, exist_ok=True)
+    ChannelStore(data_root).save(channels, route)
+
+
 def sse_frames(
     client: TestClient,
     tid: str,

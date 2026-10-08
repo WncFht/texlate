@@ -48,7 +48,7 @@ const mkDeps = (over: Partial<CiteTranslateDeps> = {}) => {
     const ok = vi.fn();
     const err = vi.fn();
     const deps: CiteTranslateDeps = {
-        hasApiKey: () => true,
+        hasCredential: () => true,
         postTranslate: post,
         listTasks: list,
         track,
@@ -363,10 +363,10 @@ describe("submit 七态分派", () => {
         expect(ct.sessionKey()).toBe("sk-test");
     });
 
-    it("凭证门：has_api_key===false 且不持 key → 不裸发 POST", async () => {
+    it("凭证门：hasCredential()===false 且不持 key → 不裸发 POST", async () => {
         const needAuth = vi.fn();
         const { deps, post } = mkDeps({
-            hasApiKey: () => false,
+            hasCredential: () => false,
             onNeedAuth: needAuth,
         });
         const o = await createCiteTranslate(deps).submit("2401.00012");
@@ -378,7 +378,7 @@ describe("submit 七态分派", () => {
     it("门后收 key → sessionKey 记忆，后续提交免问", async () => {
         let hostRetry: ((k: string) => Promise<void>) | undefined;
         const { deps, post } = mkDeps({
-            hasApiKey: () => false,
+            hasCredential: () => false,
             onNeedAuth: (r) => {
                 hostRetry = r;
             },
@@ -476,7 +476,7 @@ describe("submitAll 批聚合", () => {
         let hostRetry: ((k: string) => Promise<void>) | undefined;
         const post = vi.fn(async () => accepted(5));
         const { deps } = mkDeps({
-            hasApiKey: () => false,
+            hasCredential: () => false,
             postTranslate: post,
             onNeedAuth: (r) => {
                 hostRetry = r;

@@ -1,11 +1,12 @@
-"""BYOK 凭证决议簇 —— header/settings/env 三级回落 + 租户指纹（§4.3）。
+"""BYOK 凭证决议簇 —— header/env 两级回落 + 租户指纹（§4.3）。
 
-``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``
-（0600）> 环境变量；``base_url``/``model``/``dialect`` 走 header > env >
-settings——env 是操作员逃生舱，不落盘即可整端覆盖（``resolve_auth``
-docstring 同口径）。key 只进内存任务对象，绝不进 tasks/files/日志；
-``tenant`` 用 ``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒
-``local``）。
+``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > 环境变量
+（渠道 ``key_env`` 专名先于泛用 provider env）；``base_url``/``model``/
+``dialect`` 走 header > env > 缺省——env 是操作员逃生舱，不落盘即可
+整端覆盖（``resolve_auth`` docstring 同口径）。settings.json 自渠道
+改造起退出凭据面——落盘配置唯一事实源是 ``channels.json``。key 只进
+内存任务对象，绝不进 tasks/files/日志；``tenant`` 用
+``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒 ``local``）。
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
     env_key_for_url,
-    normalize_base_url,
 )
 
 SALT_FILE = "server_salt"
@@ -67,7 +67,7 @@ def env_dialect() -> str:
 
 @dataclass(frozen=True, slots=True)
 class _ByokField:
-    """BYOK 单字段决议知识单源——请求头/env/settings 三面同源。
+    """BYOK 单字段决议知识单源——请求头/env 两面同源。
 
     ``env`` 读件签名 ``(base_url) -> str``——入参是已决议端点（仅
     ``api_key`` 的 provider 兜底链消费；其余字段的 env 与端点无关，入参
@@ -78,21 +78,18 @@ class _ByokField:
     attr: str  # ``AuthContext`` 属性名
     header: str  # ``X-Texlate-*`` 请求头名（小写——starlette Headers 大小写不敏感）
     env: Callable[[str], str]
-    settings_key: str  # ``settings.json`` 键名（connections 分槽键同源）
     validate: Callable[[str], str] | None
     default: str
 
 
-#: BYOK 字段表——deps 请求头读取、``resolve_auth`` 逐项回落、settings
-#: ``_MODEL_PROBE_FIELDS``/connections 分槽键集、app CORS
+#: BYOK 字段表——deps 请求头读取、``resolve_auth`` 逐项回落、app CORS
 #: ``allow_headers`` 全部由本表派生；字段增删只改这里。
 BYOK_FIELDS: tuple[_ByokField, ...] = (
-    _ByokField("api_key", "x-texlate-key", env_key_for, "api_key", None, ""),
+    _ByokField("api_key", "x-texlate-key", env_key_for, None, ""),
     _ByokField(
         "base_url",
         "x-texlate-base-url",
         lambda _url: env_base_url(),
-        "base_url",
         validate_base_url,
         DEFAULT_BASE_URL,
     ),
@@ -100,7 +97,6 @@ BYOK_FIELDS: tuple[_ByokField, ...] = (
         "model",
         "x-texlate-model",
         lambda _url: env_model(),
-        "model",
         validate_model,
         DEFAULT_MODEL,
     ),
@@ -108,7 +104,6 @@ BYOK_FIELDS: tuple[_ByokField, ...] = (
         "dialect",
         "x-texlate-dialect",
         lambda _url: env_dialect(),
-        "dialect",
         validate_dialect,
         "auto",
     ),
@@ -172,8 +167,9 @@ def server_salt(root: Path) -> str:
 class AuthContext:
     """一次请求解析出的有效凭证（只在内存里活过任务生命周期）。
 
-    ``source`` ∈ ``header | settings | env | none``——任务行记
-    ``auth_source``，重启恢复时 header 源任务转 ``needs_auth``。
+    ``source`` ∈ ``header | channel | env | none``——任务行记
+    ``auth_source``，重启恢复时 header 源任务转 ``needs_auth``；
+    ``channel`` 由 deps 渠道路由臂盖章（渠道档凭据）。
     ``channel_id`` 是渠道路由命中档的 id（deps 路由臂写入）——worker
     侧冷却落戳/并发作用域/回退臂建档的归属键；空 = 非渠道路径。
     """
@@ -191,10 +187,9 @@ class AuthContext:
 def _resolve_field(
     spec: _ByokField,
     header_value: str,
-    settings: dict[str, Any],
     base_url: str = "",
 ) -> str:
-    """非 key 字段三级回落：header > env > settings（逐项独立）。
+    """非 key 字段两级回落：header > env > 缺省（逐项独立）。
 
     env 值统一再过一遍 ``spec.validate``——``env_base_url`` 裸读不自校验；
     ``env_model``/``env_dialect`` 已自校验，``validate_*`` 幂等重跑无副作用。
@@ -205,7 +200,7 @@ def _resolve_field(
     env = spec.env(base_url)
     if env:
         return spec.validate(env)
-    return str(settings.get(spec.settings_key) or spec.default)
+    return spec.default
 
 
 def tenant_for(api_key: str, *, mode: str, salt: str) -> str:
@@ -218,7 +213,7 @@ def tenant_for(api_key: str, *, mode: str, salt: str) -> str:
     return "k_" + hashlib.sha256((api_key + salt).encode()).hexdigest()[:12]
 
 
-def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + header 四槽/headers/mode/salt/key_env 钩即决议面
+def resolve_auth(  # noqa: PLR0913 -- 凭据四级阶梯逐级一支 + header 四槽/headers/mode/salt/key_env 钩即决议面
     settings: dict[str, Any],
     *,
     header_key: str = "",
@@ -230,22 +225,23 @@ def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + hea
     salt: str = "",
     key_env_lookup: Callable[[str], str] | None = None,
 ) -> AuthContext:
-    """逐项独立回落：``api_key`` 走 header > settings > profile ``key_env`` > env；其余字段走 header > env > settings。
+    """逐项独立回落：``api_key`` 走 header > 渠道 ``key_env`` > provider env；其余字段走 header > env > 缺省。
 
     ``auth_source`` 由 key 的来源决定（key 才是重启续跑的关键物）；
-    header key 校验失败后不落 settings 兜底——显式覆盖语义。
-    server 形态例外：无 header key 时 key 不回落 settings/env——匿名
+    header key 校验失败后不落 env 兜底——显式覆盖语义。
+    server 形态例外：无 header key 时 key 不回落 env——匿名
     桶永不携带部署方凭据（匿名 mutation 由 app 中间件 401 挡死，读面
     也绝不外借 key）。
-    跨槽闸：``header_base_url`` 显式指定了端点却没带 key 时，存下的
-    凭证只回灌给自己的槽位（settings key ↔ settings.base_url、env key
-    ↔ env 端点）；异槽一律匿名——防本地任意进程把部署方 key 引到
-    自选端点（exfil oracle）。
+    跨槽闸：``header_base_url`` 显式指定了端点却没带 key 时，env 存下的
+    凭证只回灌给自己的槽位（env key ↔ env 端点）；异槽一律匿名——防
+    本地任意进程把部署方 key 引到自选端点（exfil oracle）。
     ``headers`` 是请求头面（deps 直传 ``request.headers``）——查名按
     ``BYOK_FIELDS`` 单源；给定时覆盖全部 ``header_*`` kwarg，kwarg 面
     保留给单字段直调/测试。``key_env_lookup`` 是 channels.json
     ``key_env_for`` 查名钩（deps/runner 注入）——命中渠道的端点
     其 env 名引用的值进 env 层，排在泛用 provider env 之前。
+    ``settings`` 只随 ``AuthContext.settings`` 透传下游任务策略键——
+    BYOK 决议不读它。
     """
     if headers is not None:
         header_in = {
@@ -259,12 +255,10 @@ def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + hea
             "dialect": header_dialect,
         }
     url_spec = _BYOK_SPEC["base_url"]
-    base_url = _resolve_field(url_spec, header_in["base_url"], settings)
+    base_url = _resolve_field(url_spec, header_in["base_url"])
     env_url = url_spec.env("")
-    model = _resolve_field(_BYOK_SPEC["model"], header_in["model"], settings, base_url)
-    dialect = _resolve_field(
-        _BYOK_SPEC["dialect"], header_in["dialect"], settings, base_url
-    )
+    model = _resolve_field(_BYOK_SPEC["model"], header_in["model"], base_url)
+    dialect = _resolve_field(_BYOK_SPEC["dialect"], header_in["dialect"], base_url)
 
     key_spec = _BYOK_SPEC["api_key"]
     if header_in["api_key"]:
@@ -272,14 +266,10 @@ def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + hea
     elif mode == "server":
         api_key, source = "", "none"
     else:
-        # 跨槽闸：header 显式指了别的端点却没带 key 时，存下的凭证只能
-        # 回灌给它自己的槽位——settings key 只在 header 复指
-        # settings.base_url 时放行，env key 只在复指 env 端点时放行；
+        # 跨槽闸：header 显式指了别的端点却没带 key 时，env 存下的凭证
+        # 只回灌给它自己的槽位——env key 只在复指 env 端点时放行；
         # 异槽 → 匿名。否则本地任意可发请求的进程都能把部署方 key
-        # 引到攻击者端点（settings_test「覆盖 base_url 须同给 key」同口径）。
-        settings_ok = not header_in["base_url"] or base_url == normalize_base_url(
-            str(settings.get(url_spec.settings_key) or url_spec.default)
-        )
+        # 引到攻击者端点（exfil oracle）。
         try:
             env_norm = validate_base_url(env_url) if env_url else ""
         except ValueError:
@@ -287,10 +277,8 @@ def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + hea
             env_norm = ""
         env_ok = not header_in["base_url"] or (bool(env_norm) and base_url == env_norm)
         api_key, source = "", "none"
-        if settings_ok and settings.get(key_spec.settings_key):
-            api_key, source = str(settings[key_spec.settings_key]), "settings"
-        if not api_key and key_env_lookup is not None:
-            # profile key_env 槽：lookup(base_url) 命中即槽自证——profile 仅
+        if key_env_lookup is not None:
+            # 渠道 key_env 槽：lookup(base_url) 命中即槽自证——渠道仅
             # 存于拥有者登记的端点，天然免 env_ok 跨槽闸（它不跟攻击者
             # 端点走）；专名绑定优先于泛用 provider env（同 endpoint 的
             # 定向轮换 vs TEXLATE_API_KEY 兜底，specific wins）

@@ -10,10 +10,13 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from texlate.server.channels import ChannelStore
+from texlate.server.channels import ChannelStore, routed_auth
 from texlate.server.settings import (
     SettingsStore,
+    env_base_url,
+    env_model,
     resolve_auth,
+    server_mode,
 )
 
 from ._common import (
@@ -105,16 +108,23 @@ class TaskRunner:
         内存队列重启即空、dispatcher 只消费内存队列——不补放则 queued
         行永远显示「排队中」成为僵尸。``auth_source='header'`` 的行已
         被 ``recover_startup`` 分流 needs_auth（header 凭证随进程死亡
-        不可恢复），此处再防御性排除；其余按 settings/env 重决议
-        secrets——决议不到 key 时与冷启动同语义走 MockTranslator 警告链。
+        不可恢复），此处再防御性排除；其余按 env/渠道表重决议
+        secrets（与 ``deps.auth()`` 同一介入条件），决议不到 key 时
+        与冷启动同语义走 MockTranslator 警告链。
         """
         rows = self.store.queued_rows()
         if not rows:
             return
+        cstore = ChannelStore(self.worker.data_dir)
         auth = resolve_auth(
             SettingsStore(self.worker.data_dir).load(),
-            key_env_lookup=ChannelStore(self.worker.data_dir).key_env_for,
+            key_env_lookup=cstore.key_env_for,
         )
+        if server_mode() == "local" and not (env_base_url() or env_model()):
+            # 与 deps.auth() 同口径——渠道档凭据只在 env 未显式接管时介入
+            routed = cstore.resolve_route()
+            if routed is not None:
+                auth = routed_auth(routed, settings=auth.settings, mode=server_mode())
         for r in rows:
             self.enqueue(
                 str(r["id"]),

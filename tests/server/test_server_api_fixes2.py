@@ -143,11 +143,11 @@ class TestSettingsIgnored:
         # 合法键照常生效
         assert client.get("/api/settings").json()["concurrency"] == 4  # noqa: PLR2004
 
-    def test_pseudo_fields_not_ignored(self, client: TestClient) -> None:
-        """``has_api_key``/``clear_api_key`` 是合法伪字段——不进 ignored。"""
+    def test_byok_pseudo_fields_ignored(self, client: TestClient) -> None:
+        """``has_api_key``/``clear_api_key`` 伪字段已随 BYOK 切除——同未知键进 ignored。"""
         r = client.put("/api/settings", json={"has_api_key": True, "zz": 1})
         assert r.status_code == HTTPStatus.OK
-        assert r.json()["ignored"] == ["zz"]
+        assert r.json()["ignored"] == ["has_api_key", "zz"]
 
     def test_all_known_no_ignored_key(self, client: TestClient) -> None:
         r = client.put("/api/settings", json={"concurrency": 2})

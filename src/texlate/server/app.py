@@ -12,7 +12,7 @@ dispatcher）→ ``AppDeps`` 注入 ``server/routers/`` 各域路由叶（端点
 瘦身/淘汰 sweep）在 ``server/sweep.py``。
 
 key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不写库/日志；
-``GET /api/settings`` 出参只给 ``has_api_key``。
+``GET /api/channels`` 出参只报 ``has_api_key``/env 名，key 值绝不出叶。
 
 注意：本模块经 ``texlate.server`` 包惰性装载延迟导入——包本体保持轻
 依赖（``__init__`` 走 PEP 562 延迟加载，保 CLI 冷启动）。
@@ -126,6 +126,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平�
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     settings_store = SettingsStore(root)
     channels_store = ChannelStore(root)
+    # 一次性迁移：channels.json 缺席时把 settings BYOK/endpoints v1/connections
+    # 物化进 channels.json 并退役源文件；全缺则播种缺省 gateway 渠道
+    channels_store.bootstrap()
     salt = server_salt(root)
     store = Store(root / "texlate.db")
     bus = EventBus(store)
@@ -161,11 +164,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯 + 闭包面平�
     )
 
     def _key_provider() -> list[str]:
-        """当前该抹的 key 集合：settings key + 渠道 inline key + 运行中 header key。"""
-        keys = [str(settings_store.load().get("api_key") or "")]
-        keys.extend(
-            str(c.get("api_key") or "") for c in channels_store.load()["channels"]
-        )
+        """当前该抹的 key 集合：渠道 inline key + 运行中 header key。"""
+        keys = [str(c.get("api_key") or "") for c in channels_store.load()["channels"]]
         keys.extend(s.api_key for s in runner.secrets.values())
         return [k for k in keys if k]
 
