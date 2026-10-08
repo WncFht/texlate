@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         inject_cjk,
         inject_float_sizing,
         prepare_chinese,
+        relax_float_specs,
     )
     from .judge import (
         CLEAN_ERR_MAX,
@@ -122,6 +123,7 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "inject_cjk",
         "inject_float_sizing",
         "prepare_chinese",
+        "relax_float_specs",
     ),
     ".judge": (
         "CLEAN_ERR_MAX",
@@ -214,6 +216,7 @@ __all__ = [
     "pdf_cjk_chars",
     "pdf_text_stats",
     "prepare_chinese",
+    "relax_float_specs",
     "resolve_tool",
     "route_project",
     "run_process",

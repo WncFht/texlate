@@ -49,8 +49,10 @@ from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _d
     FLOAT_SIZING,
     _demote_wrapfloats_text,
     _float_sized,
+    _relax_float_specs_text,
     demote_wrapfloats,
     inject_float_sizing,
+    relax_float_specs,
 )
 from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共 + 私名钉点面守恒
     _MAIN_TEX_SUFFIXES,
@@ -623,13 +625,17 @@ def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂�
     mode: str = "ctex",
     float_sizing: bool = True,
     demote_wrap: bool = True,
+    float_p: bool = True,
     layout_marks: bool = False,
 ) -> dict:
     r"""工程级中文注入编排：ctex/xeCJK 注入 + 浮体钩子 + wrapfloat 降级。
 
     主文件 ctex/xeCJK + 按需 FLOAT_SIZING；全树 wrapfloat 降级为普通
-    浮体（``demote_wrap=False`` 时跳过）。TABLE_FITTING 表族成对钩
-    0930 拔除（配对失衡毁编面归 fixloop ``tabular_fit`` 源级跨度包）。
+    浮体（``demote_wrap=False`` 时跳过）+ 浮体 spec 补 ``p`` 许可
+    （``float_p=False`` 时跳过——``[h]``/``[ht]`` spec 不给浮体页通道，
+    图密文档里 deferred 浮体顺延到文末倾泻，见 layout.py 机理注）。
+    TABLE_FITTING 表族成对钩 0930 拔除（配对失衡毁编面归 fixloop
+    ``tabular_fit`` 源级跨度包）。
 
     返回注入报告 dict（注入缝行号/模式/已存在标记/wrapfloats_demoted）。
     `\documentstyle` 工程抛 InjectRejectError——调用方应记
@@ -655,6 +661,9 @@ def prepare_chinese(  # noqa: PLR0913 — 编排入口各关键字闸独立臂�
         main_path.write_text(new_text, encoding="utf-8", newline="")
     if demote_wrap:
         info["wrapfloats_demoted"] = demote_wrapfloats(root)
+    if float_p:
+        # 排 demote 之后——降级产的 [!htb]/[!tb] spec 顺路补 p。
+        info["float_spec_p"] = relax_float_specs(root)
     if float_sizing:
         info["float_sizing"] = inject_float_sizing(root)
     if layout_marks:

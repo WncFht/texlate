@@ -96,6 +96,7 @@ from texlate.compile.inject import (
     inject_cjk,
     inject_float_sizing,
     prepare_chinese,
+    relax_float_specs,
 )
 from texlate.compile.mask import visible_tex
 from texlate.textutil import BEGIN_DOC_RX
@@ -800,6 +801,86 @@ def test_float_project_wide_and_idempotent(tmp_path: Path) -> None:
             "\\begin{figure}x\\end{figure}\n\\end{document}\n"
         )
     assert inject_float_sizing(proj2) == 2  # noqa: PLR2004
+
+
+def test_float_spec_p_relax(tmp_path: Path) -> None:
+    r"""``relax_float_specs``：缺 ``p`` 的浮体 spec 尾补 ``p``。
+
+    ``[h]``/``[ht]``/``[!tb]``（demote 产形）补；``[H]``（float 硬 here）、
+    已含 ``p``、空 spec、裸 ``[!]``、非 spec 可选组（``[width=..]``）、
+    非白名单 env（``tabular``/``lstlisting``/``tcolorbox``）与遮盖区原样。
+    """
+    main = tmp_path / "main.tex"
+    src = (
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\begin{figure}[h]a\\end{figure}\n"
+        "\\begin{figure*}[t]b\\end{figure*}\n"
+        "\\begin{table}[!htb]c\\end{table}\n"
+        "\\begin{algorithm}[ht]d\\end{algorithm}\n"
+        "\\begin{figure}[H]e\\end{figure}\n"
+        "\\begin{figure}[hp]f\\end{figure}\n"
+        "\\begin{figure}[]g\\end{figure}\n"
+        "\\begin{figure}[!]h\\end{figure}\n"
+        "\\begin{figure}[width=.5\\textwidth]i\\end{figure}\n"
+        "\\begin{tabular}[t]{l}x\\end{tabular}\n"
+        "\\begin{lstlisting}[h]y\\end{lstlisting}\n"
+        "\\begin{tcolorbox}[h]z\\end{tcolorbox}\n"
+        "\\begin{figure}noopt\\end{figure}\n"
+        "% \\begin{figure}[h]masked\\end{figure}\n"
+        "\\end{document}\n"
+    )
+    main.write_text(src)
+    assert relax_float_specs(tmp_path) == 4  # noqa: PLR2004
+    out = main.read_text()
+    assert "\\begin{figure}[hp]a" in out
+    assert "\\begin{figure*}[tp]b" in out
+    assert "\\begin{table}[!htbp]c" in out
+    assert "\\begin{algorithm}[htp]d" in out
+    for keep in ("[H]e", "[hp]f", "[]g", "[!]h", "\\textwidth]i"):
+        assert keep in out
+    for keep in (
+        "\\begin{tabular}[t]",
+        "\\begin{lstlisting}[h]",
+        "\\begin{tcolorbox}[h]",
+        "\\begin{figure}noopt",
+        "\\begin{figure}[h]masked",
+    ):
+        assert keep in out
+    # 幂等：已含 p 的 spec 二跑零改写
+    assert relax_float_specs(tmp_path) == 0
+    assert main.read_text() == out
+
+    # verbatim 遮盖区不动；散件（.ltx）同扫
+    (tmp_path / "verb.ltx").write_text(
+        "\\begin{verbatim}\n\\begin{figure}[h]v\\end{figure}\n\\end{verbatim}\n"
+        "\\begin{table}[b]w\\end{table}\n"
+    )
+    assert relax_float_specs(tmp_path) == 1
+    vtext = (tmp_path / "verb.ltx").read_text()
+    assert "\\begin{figure}[h]v" in vtext
+    assert "\\begin{table}[bp]w" in vtext
+
+
+def test_prepare_float_p_flag_and_demote_chain(tmp_path: Path) -> None:
+    r"""``float_p`` 闸 + demote 后顺位：wrapfig 降级产 ``[!htb]`` 顺路补成
+    ``[!htbp]``；``float_p=False`` 时 spec 原样且 info 无 ``float_spec_p``。"""
+    main = tmp_path / "main.tex"
+    main.write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\begin{wrapfigure}{r}{0.4\\textwidth}w\\end{wrapfigure}\n"
+        "\\begin{figure}[h]f\\end{figure}\n"
+        "\\end{document}\n"
+    )
+    info = prepare_chinese(tmp_path, "main.tex", float_sizing=False)
+    assert info["float_spec_p"] == 2  # noqa: PLR2004 — wrap 降级件 + 原生 [h]
+    out = main.read_text()
+    assert "\\begin{figure}[!htbp]" in out  # demote 产 [!htb] 再补 p
+    assert "\\begin{figure}[hp]f" in out
+
+    main2 = tmp_path / "m2.tex"
+    main2.write_text("\\documentclass{article}\n" + _DOC)
+    info2 = prepare_chinese(tmp_path, "m2.tex", float_sizing=False, float_p=False)
+    assert "float_spec_p" not in info2
 
 
 # ------------------------------------------------------------ prepare_chinese

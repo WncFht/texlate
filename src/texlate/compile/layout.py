@@ -4,7 +4,9 @@ r"""版式手术 —— inject.py C4 拆分出叶。
 ``\resizebox*`` 缩进页高 + ``\typeout`` 日志回读）、wrapfig 三环境降级
 （``demote_wrapfloats``：wrapfigure/wraptable/wrapfloat → 普通浮体——
 绕排落点依赖后续段落行数，译文缩短必然漂移，重则 caption 裁出版心，
-2609.19101 zh p6 双亚型实证）。
+2609.19101 zh p6 双亚型实证）、浮体 spec 补 ``p`` 许可
+（``relax_float_specs``：``[h]``/``[ht]`` 系缺浮体页通道，图密文档
+deferred 浮体顺延到文末倾泻成群，见函数机理注）。
 
 ``TABLE_FITTING``（表族 env/before+after 成对钩 adjustbox）0930 拔除：
 成对钩在 begin/end 配对不候场形（cls ``\@tabular`` cs 形收尾、
@@ -300,6 +302,84 @@ def demote_wrapfloats(root: Path) -> int:
         if text is None:
             continue
         new_text, k = _demote_wrapfloats_text(text)
+        if new_text != text:
+            try:
+                path.write_text(new_text, encoding="utf-8", newline="")
+            except OSError:
+                continue
+            n += k
+    return n
+
+
+#: 浮体 spec 补 ``p`` 许可的白名单环境——figure/table 标准四环境 +
+#: algorithm（algorithm/algorithmicx 浮体壳）、algocf、listing（minted
+#: 浮体）、sidewaysfigure/sidewaystable（rotating 系）。``tabular``/``
+#: lstlisting``/``tcolorbox`` 等非浮体的同形可选参（``[t]`` 对齐语义等）
+#: 不覆盖。
+_FLOAT_P_ENVS: Final = frozenset(
+    {
+        "figure",
+        "figure*",
+        "table",
+        "table*",
+        "algorithm",
+        "algocf",
+        "listing",
+        "sidewaysfigure",
+        "sidewaystable",
+    }
+)
+#: spec 合法字符全集（``!htbpH``）——含其它字符的可选组不是浮体 spec
+#: （``[scale=..]``/``[width=..]`` 类），原样放过。
+_FLOAT_SPEC_CHARS: Final = frozenset("!htbpH ")
+
+
+def _relax_float_specs_text(tex: str) -> tuple[str, int]:
+    r"""单文件浮体 spec 放宽：``\begin{<浮体 env>}[<spec>]`` 缺 ``p`` → 补 ``p``。
+
+    动机：``[h]``/``[ht]`` 系 spec 不给浮体页许可——图密文档里每页顶位
+    被先行浮体占满，deferred 浮体在所有页反复拒位顺延级联、``\clearpage``
+    文末倾泻成群（1008 审计 6 篇实证 2105.00017/2408.00113/2305.00061/
+    2112.00065/2308.00073/2410.00079；fraction 均已 .97 非驱动）。
+    ``p`` 许可让顺延浮体走中位浮体页——同参考点邻近释放。``[H]``
+    （float 包硬 here）与已含 ``p`` 的不动；``[h]``→``[hp]`` 后浮体
+    直走浮体页不再依赖 ``h→ht`` 自动促销（实测零 ``specifier changed``
+    警告）。demote_wrapfloats 产的 ``[!htb]``/``[!tb]`` 同被补成含 p 形。
+    """
+    vis = visible_tex(tex)
+    edits: list[tuple[int, int, str]] = []
+    for m in _ENV_TOKEN_RX.finditer(vis):
+        if m.group(1) != "begin" or m.group(2) not in _FLOAT_P_ENVS:
+            continue
+        i = ws_skip(vis, m.end())
+        if i >= len(vis) or vis[i] != "[":
+            continue
+        end = group_end(vis, i)
+        spec = vis[i + 1 : end - 1]
+        s = spec.strip()
+        # 空 spec（``[]``=默认 fps）、非 spec 可选组、已含 p/H 皆跳
+        if not s or set(s) - _FLOAT_SPEC_CHARS or "p" in s or "H" in s:
+            continue
+        if not set(s) - {"!"}:  # ``[!]`` 裸叹号无落位字符
+            continue
+        edits.append((end - 1, end - 1, "p"))
+    if not edits:
+        return tex, 0
+    return apply_edits(tex, edits), len(edits)
+
+
+def relax_float_specs(root: Path) -> int:
+    r"""工程级浮体 spec 放宽：全 ``.tex/.ltx`` 树扫，返回补 ``p`` 的环境数。
+
+    zh 侧手术（prepare_chinese 编排位，``demote_wrapfloats`` 之后——降级
+    产的 ``[!htb]``/``[!tb]`` spec 顺路过同一放宽）。
+    """
+    n = 0
+    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
+        text = _read_tex(path)
+        if text is None:
+            continue
+        new_text, k = _relax_float_specs_text(text)
         if new_text != text:
             try:
                 path.write_text(new_text, encoding="utf-8", newline="")
