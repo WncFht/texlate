@@ -11,8 +11,8 @@
  *   GET  /api/task/{id}                    → snapshot (no SSE in plugin sandbox)
  *   GET  /api/files/{id}                   → {artifacts: {db_kind: {bytes,sha256,created_at,url}}}
  *   GET  /api/files/{id}/{url_kind}        → bytes (url_kind: zh.pdf, en.pdf, dual.pdf, ...)
- *   GET  /api/endpoints                    → {profiles, active_id}   (local 形态限定)
- *   POST /api/endpoints/probe   {id}       → 两段探针报告             (server 部署 403)
+ *   GET  /api/channels                     → {channels, route, active_id}  (local 形态限定)
+ *   POST /api/channels/probe    {id}       → 两段探针报告                  (server 部署 403)
  *   Reader SPA: {base}/#/reader/{taskId}
  */
 
@@ -139,12 +139,12 @@ export interface FilesResponse {
 }
 
 /**
- * 端点档案探针报告（server/endpoints.py probe_endpoint 出参）。
- * stage1 判端点形态（ok/no_models_dir/auth_failed/unreachable/timeout/
- * http_error），models 逐 uid 行为判（usable/placeholder_lost/no_cjk/
+ * 渠道探针报告（server/channels.py probe_channel 出参）。
+ * stage1 判渠道形态（ok/no_models_dir/auth_failed/unreachable/timeout/
+ * http_error），models 逐本地名行为判（usable/placeholder_lost/no_cjk/
  * empty/refused/…/skipped）；两段 verdict 词表见 web/src/api/types.ts。
  */
-export interface EndpointProbeReport {
+export interface ChannelProbeReport {
   at?: string;
   key_fp?: string;
   stage1?: { verdict: string; models?: string[]; detail?: string };
@@ -160,24 +160,41 @@ export interface EndpointProbeReport {
 }
 
 /**
- * GET /api/endpoints 出参（public_profile 面——key 值绝不出线，
+ * GET /api/channels 出参（public_channel 面——key 值绝不出线，
  * 只有 has_api_key/key_env/has_env_key 三态）。
  */
-export interface EndpointsView {
-  profiles: {
+export interface ChannelsView {
+  channels: {
     id: string;
-    label: string;
+    name: string;
+    /** 服务商预设 id（custom 兜底） */
+    preset: string;
     base_url: string;
-    dialect: string;
-    /** model=档案内本地名；redirect_model=线上请求名（空串=本名直发） */
-    models: { model: string; redirect_model: string }[];
+    /** API 协议族：auto|openai|anthropic|responses */
+    protocol: string;
+    /**
+     * model=渠道内本地名；redirect_model=上游请求名（空串=本名直发）；
+     * enabled=false 不参与路由；max_concurrency null=不限。
+     */
+    models: {
+      model: string;
+      redirect_model: string;
+      enabled: boolean;
+      max_concurrency: number | null;
+    }[];
+    /** 大者先路由 */
+    priority: number;
+    /** 渠道级并发上限；null = 只受服务级闸约束 */
+    max_concurrency: number | null;
     enabled: boolean;
     has_api_key: boolean;
     key_env: string;
     has_env_key: boolean;
-    last_probe?: EndpointProbeReport | null;
+    last_probe?: ChannelProbeReport | null;
     [k: string]: unknown;
   }[];
+  /** 路由选择：channel_id="auto" 按优先级自动选；钉死则只用该渠道 */
+  route: { channel_id: string; model: string };
   /** settings.base_url 归一命中者；无命中 → ""。 */
   active_id: string;
 }
@@ -313,10 +330,10 @@ export interface TexlateClient {
   ): Promise<{ bytes: number; sha256: string }>;
   /** `{serverUrl}/#/reader/{taskId}` — SPA reader link for Zotero.launchURL. */
   readerUrl(taskId: string): string;
-  /** GET /api/endpoints — 端点档案读面（server 部署形态 403 → ApiError）。 */
-  listEndpoints(): Promise<EndpointsView>;
-  /** POST /api/endpoints/probe `{id}` — 档案条目两段探针（报告钉回 last_probe）。 */
-  probeEndpoint(id: string): Promise<EndpointProbeReport>;
+  /** GET /api/channels — 渠道读面（server 部署形态 403 → ApiError）。 */
+  listChannels(): Promise<ChannelsView>;
+  /** POST /api/channels/probe `{id}` — 渠道两段探针（报告钉回 last_probe）。 */
+  probeChannel(id: string): Promise<ChannelProbeReport>;
 }
 
 // ---------------------------------------------------------------- arxivId (modules/arxivId.ts)

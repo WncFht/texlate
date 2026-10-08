@@ -1,20 +1,26 @@
 import { assert } from "chai";
-import type { EndpointProbeReport, EndpointsView } from "../src/contracts";
+import type { ChannelProbeReport, ChannelsView } from "../src/contracts";
 import { pickProbeTarget, summarizeProbe } from "../src/modules/prefs";
 
 /**
- * prefs.ts 端点探针纯函数面：pickProbeTarget（目标 id 三级回退）与
- * summarizeProbe（报告 → { ok, label } verdict 令牌摘要）。
- * 纯函数不进 Zotero HTTP 面——checkEndpoint 的请求/状态行是它的薄壳。
+ * prefs.ts 渠道探针纯函数面：pickProbeTarget（目标 id 四级回退：
+ * 路由钉死 → active_id → 首个启用 → 表头）与 summarizeProbe
+ * （报告 → { ok, label } verdict 令牌摘要）。
+ * 纯函数不进 Zotero HTTP 面——checkChannel 的请求/状态行是它的薄壳。
  */
 
-function profile(id: string, over: Record<string, unknown> = {}) {
+function channel(id: string, over: Record<string, unknown> = {}) {
   return {
     id,
-    label: "",
+    name: "",
+    preset: "custom",
     base_url: `https://${id}.test/api`,
-    dialect: "auto",
-    models: ["m1"],
+    protocol: "auto",
+    models: [
+      { model: "m1", redirect_model: "", enabled: true, max_concurrency: null },
+    ],
+    priority: 0,
+    max_concurrency: null,
     enabled: true,
     has_api_key: true,
     key_env: "",
@@ -24,36 +30,48 @@ function profile(id: string, over: Record<string, unknown> = {}) {
 }
 
 function view(
-  profiles: ReturnType<typeof profile>[],
+  channels: ReturnType<typeof channel>[],
+  route: { channel_id: string; model: string } = {
+    channel_id: "auto",
+    model: "",
+  },
   active_id = "",
-): EndpointsView {
-  return { profiles, active_id };
+): ChannelsView {
+  return { channels, route, active_id };
 }
 
 function report(
   stage1: string,
-  models: EndpointProbeReport["models"] = {},
-): EndpointProbeReport {
+  models: ChannelProbeReport["models"] = {},
+): ChannelProbeReport {
   return {
     stage1: { verdict: stage1, models: [], detail: "" },
     models,
   };
 }
 
-describe("prefs 端点探针纯函数", function () {
+describe("prefs 渠道探针纯函数", function () {
   describe("pickProbeTarget", function () {
-    it("active_id 优先", function () {
-      const v = view([profile("a"), profile("b")], "b");
+    it("路由钉死渠道优先（测用户实际生效渠道）", function () {
+      const v = view([channel("a"), channel("b")], {
+        channel_id: "a",
+        model: "",
+      });
+      assert.equal(pickProbeTarget(v), "a");
+    });
+
+    it("route auto → active_id 优先", function () {
+      const v = view([channel("a"), channel("b")], undefined, "b");
       assert.equal(pickProbeTarget(v), "b");
     });
 
     it("无活动命中 → 首个启用条目", function () {
-      const v = view([profile("a", { enabled: false }), profile("b")]);
+      const v = view([channel("a", { enabled: false }), channel("b")]);
       assert.equal(pickProbeTarget(v), "b");
     });
 
     it("全停用且无活动 → 表头兜底（disabled 的活动行仍是活动）", function () {
-      const v = view([profile("a", { enabled: false })]);
+      const v = view([channel("a", { enabled: false })]);
       assert.equal(pickProbeTarget(v), "a");
     });
 
@@ -89,13 +107,13 @@ describe("prefs 端点探针纯函数", function () {
       assert.equal(s.label, "stage1=http_error：HTTP 502");
     });
 
-    it("无模型行 + stage1 ok → ok（空档案只到段1）", function () {
+    it("无模型行 + stage1 ok → ok（空渠道只到段1）", function () {
       const s = summarizeProbe(report("ok"));
       assert.isTrue(s.ok);
       assert.equal(s.label, "stage1=ok");
     });
 
-    it("no_models_dir 也当活端点（异形端点无模型目录）", function () {
+    it("no_models_dir 也当活渠道（异形端点无模型目录）", function () {
       const s = summarizeProbe(
         report("no_models_dir", { m1: { verdict: "usable" } }),
       );

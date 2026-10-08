@@ -16,5 +16,5 @@ prefs-poll-timeout = 轮询超时（毫秒）
 prefs-autostart = 服务器不可达时自动启动本地服务
 prefs-status = 连接状态：
 prefs-check = 检查连接
-prefs-check-endpoint = 测试翻译端点
+prefs-check-endpoint = 测试翻译渠道
 prefs-start-server = 启动本地服务

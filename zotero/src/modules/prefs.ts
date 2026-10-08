@@ -19,8 +19,8 @@
  */
 import { config, homepage } from "../../package.json";
 import type {
-  EndpointProbeReport,
-  EndpointsView,
+  ChannelProbeReport,
+  ChannelsView,
   TexlatePrefs,
 } from "../contracts";
 import { ApiError, NetworkError } from "../contracts";
@@ -186,20 +186,23 @@ async function checkConnection(doc: Document): Promise<void> {
   }
 }
 
-// ------------------------------------------------------------ 翻译端点探针
+// ------------------------------------------------------------ 翻译渠道探针
 
 const PROBE_OK_STAGE1 = new Set(["ok", "no_models_dir"]);
 const PROBE_LINE_MAX = 3;
 
 /**
- * EndpointsView → 探针目标 id：活动 profile 优先，退首个启用条目，
- * 再退表头（disabled 的活动行仍是活动）。空表 → ""。
+ * ChannelsView → 探针目标 id：路由钉死渠道优先（测用户实际生效渠道），
+ * 退 active_id（settings.base_url 命中者），退首个启用条目，再退表头。
+ * 空表 → ""。
  */
-export function pickProbeTarget(view: EndpointsView): string {
+export function pickProbeTarget(view: ChannelsView): string {
+  const pinned = view.route?.channel_id;
+  if (pinned && pinned !== "auto") return pinned;
   return (
     view.active_id ||
-    view.profiles.find((p) => p.enabled)?.id ||
-    view.profiles[0]?.id ||
+    view.channels.find((c) => c.enabled)?.id ||
+    view.channels[0]?.id ||
     ""
   );
 }
@@ -209,7 +212,7 @@ export function pickProbeTarget(view: EndpointsView): string {
  * 不进 i18n——由 prefs-probe-ok/-bad 模板包 { $detail }）。stage1 死全灭；
  * 模型面只看 usable 计数，非 usable 行列成 `uid=verdict`。
  */
-export function summarizeProbe(rep: EndpointProbeReport): {
+export function summarizeProbe(rep: ChannelProbeReport): {
   ok: boolean;
   label: string;
 } {
@@ -235,17 +238,17 @@ export function summarizeProbe(rep: EndpointProbeReport): {
   return { ok: true, label: parts.join("、") };
 }
 
-async function checkEndpoint(doc: Document): Promise<void> {
+async function checkChannel(doc: Document): Promise<void> {
   say(doc, t("prefs-probing"));
   const client = createClient(panePrefs(doc));
   try {
-    const view = await client.listEndpoints();
+    const view = await client.listChannels();
     const pid = pickProbeTarget(view);
     if (!pid) {
       say(doc, t("prefs-probe-none"));
       return;
     }
-    const rep = await client.probeEndpoint(pid);
+    const rep = await client.probeChannel(pid);
     const s = summarizeProbe(rep);
     say(
       doc,
@@ -304,7 +307,7 @@ export function initPrefsPane(doc: Document): void {
     ?.addEventListener("click", () => void checkConnection(doc));
   doc
     .getElementById(BUTTON_IDS.endpoint)
-    ?.addEventListener("click", () => void checkEndpoint(doc));
+    ?.addEventListener("click", () => void checkChannel(doc));
   doc
     .getElementById(BUTTON_IDS.start)
     ?.addEventListener("click", () => void startServer(doc));
