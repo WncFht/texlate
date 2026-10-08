@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from texlate.server.endpoints import (
-    ENDPOINTS_FILE,
-    EndpointStore,
+from texlate.server.channels import (
+    ChannelStore,
+    cooldowns,
     credential_for,
+    local_model_name,
     wire_model,
 )
 from texlate.server.settings import (
@@ -109,60 +110,153 @@ class _TranslateXlator:
                 options_json=options_json,
             )
 
-    def _endpoint_arms(  # noqa: C901 -- 闸 + 同端点/异端点两遍建档阶梯平铺
-        self, ctx: TaskCtx, client: ChatClient, exclude: set[str]
+    def _global_cap(self) -> int:
+        """服务级并发上限 = ``settings.concurrency``——全进程在飞翻译调用总闸。"""
+        return int(SettingsStore(self.data_dir).load().get("concurrency") or 0)
+
+    def _scope_limits(
+        self,
+        ch: dict[str, Any] | None,
+        entry: dict[str, Any] | None,
+        wire: str,
+        gcap: int,
+    ) -> tuple[tuple[str, int | None], ...]:
+        """``(global, channel, model)`` 三层并发作用域元组——缺省层略去。
+
+        取序固定 global → channel → model：``_ScopePool.acquire`` 按序
+        取锁，全进程同序即无多信号量死锁面。``ch=None`` 时只有 global
+        层（非渠道路径/无档投影期）。
+        """
+        scopes: list[tuple[str, int | None]] = []
+        if gcap > 0:
+            scopes.append(("global", gcap))
+        if ch is not None:
+            cap = ch.get("max_concurrency")
+            if cap:
+                scopes.append((f"ch:{ch['id']}", int(cap)))
+            if entry is not None and entry.get("max_concurrency"):
+                scopes.append((f"ch:{ch['id']}:{wire}", int(entry["max_concurrency"])))
+        return tuple(scopes)
+
+    def _channel_of(
+        self, ctx: TaskCtx
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """当前 secrets → ``(渠道档, 模型条目)``；无档/无命中 → ``(None, None)``。
+
+        定位序：``secrets.channel_id``（deps 路由决议落的 id）→
+        ``secrets.base_url`` 归一匹配（env 逃生舱/手工配置路径照样吃
+        渠道层上限）。条目按 ``secrets.model`` 先 wire 名再本地名反查。
+        """
+        store = ChannelStore(self.data_dir)
+        if not (store.path.is_file() or store.legacy_path.is_file()):
+            return None, None
+        channels = store.load()["channels"]
+        cid = str(ctx.secrets.channel_id or "")
+        ch = next((c for c in channels if c["id"] == cid), None) if cid else None
+        if ch is None:
+            url = normalize_base_url(ctx.secrets.base_url)
+            ch = next(
+                (c for c in channels if normalize_base_url(str(c["base_url"])) == url),
+                None,
+            )
+        if ch is None:
+            return None, None
+        model = str(ctx.secrets.model or "")
+        entry = next((e for e in ch["models"] if wire_model(e) == model), None) or next(
+            (e for e in ch["models"] if local_model_name(e) == model), None
+        )
+        return ch, entry
+
+    def _channel_arms(  # noqa: C901 -- 闸 + 同渠道/异渠道两遍建档阶梯平铺
+        self, ctx: TaskCtx, client: ChatClient, exclude: set[str], gcap: int
     ) -> list[GatewayTranslator]:
-        """endpoints.json → 端点回退臂（活动 profile 余模同 client + 异端点 profile 各带自家 client）。
+        """channels.json → 渠道回退臂（活动渠道余模同 client + 异渠道各带自家 client）。
 
-        闸（任一命中 → 空链，行为与无档案时逐字节同构）：
-        ``secrets.source == "header"``（用户单发 key 绝不被扇到第二端点）、
-        非 local 形态（server 部署拓扑不自助回退）、``endpoints.json``
-        缺席（投影条目只映 settings/connections 本体，无异质臂可挂）。
+        闸（任一命中 → 空链）：``secrets.source == "header"``（用户单发
+        key 绝不被扇到第二渠道）、非 local 形态（server 部署拓扑不自助
+        回退）、渠道文件缺席（投影条目只映 settings/connections 本体，
+        无异质臂可挂）。
 
-        臂序：先活动 profile 的余模（同 client 同凭据，零成本换模），
-        再按档案序各 enabled 异端点 profile 的首模。disabled profile 不
-        参与（``active_id`` docstring：活动身份是定位不是参与）。
-        跨端点臂的 key 走 ``credential_for`` 四级阶梯——
-        ``ctx.secrets.api_key`` 绝不发向异 base_url（exfil 墙）；无凭据
-        的远程端点跳过（必 AuthError 白烧一跳），回环端点无 key 合法
-        （``provider_for_url → "gateway"``）。
+        臂序 = ``priority`` 降序：第一遍活动渠道的余下 enabled 模型
+        （同 client 同凭据零成本换模），第二遍其余 enabled 渠道的首个
+        enabled 模型（各带 ``credential_for`` 阶梯决议的凭据 client——
+        ``ctx.secrets.api_key`` 绝不发向异 base_url，exfil 墙）。冷却
+        中的（渠道,模型）组合建档期即滤——半死渠道不再每块先烧一跳。
+        无凭据的远程渠道跳过（必 AuthError 白烧一跳），回环端点无 key
+        合法（``provider_for_url → "gateway"``）。
         """
         if ctx.secrets.source == "header" or server_mode() != "local":
             return []
         root = self.data_dir
-        if not (root / ENDPOINTS_FILE).is_file():
+        store = ChannelStore(root)
+        if not (store.path.is_file() or store.legacy_path.is_file()):
             return []
-        profiles = EndpointStore(root).load()["profiles"]
+        channels = sorted(
+            (c for c in store.load()["channels"] if c.get("enabled")),
+            key=lambda c: -int(c["priority"]),
+        )
         connections = SettingsStore(root).connections()
+        active_id = str(ctx.secrets.channel_id or "")
         active_url = normalize_base_url(ctx.secrets.base_url)
+
+        def _is_active(ch: dict[str, Any]) -> bool:
+            if active_id:
+                return str(ch["id"]) == active_id
+            return normalize_base_url(str(ch["base_url"])) == active_url
+
         arms: list[GatewayTranslator] = []
-        for p in profiles:  # 第一遍：同端点余模（同 client 换模臂）
-            if not p.get("enabled"):
+        for ch in channels:  # 第一遍：活动渠道余模（同 client 换模臂）
+            if not _is_active(ch) or cooldowns.is_cooled(ch["id"], ""):
                 continue
-            if normalize_base_url(str(p["base_url"])) != active_url:
-                continue
-            for entry in p["models"]:
+            for entry in ch["models"]:
+                if not entry.get("enabled"):
+                    continue
                 wire = wire_model(entry)
-                if wire in exclude:
+                if wire in exclude or cooldowns.is_cooled(ch["id"], wire):
                     continue
                 exclude.add(wire)
-                arms.append(GatewayTranslator(client, wire))
-        for p in profiles:  # 第二遍：异端点 profile（各带自家凭据 client）
-            if not p.get("enabled"):
+                arms.append(
+                    GatewayTranslator(
+                        client,
+                        wire,
+                        channel_id=str(ch["id"]),
+                        limits=self._scope_limits(ch, entry, wire, gcap),
+                    )
+                )
+        for ch in channels:  # 第二遍：异渠道首模（各带自家凭据 client）
+            if _is_active(ch) or cooldowns.is_cooled(ch["id"], ""):
                 continue
-            base_url = str(p["base_url"])
-            if normalize_base_url(base_url) == active_url or not p["models"]:
+            entry = next((e for e in ch["models"] if e.get("enabled")), None)
+            if entry is None:
                 continue
-            key, _src = credential_for(p, connections)
+            wire = wire_model(entry)
+            if cooldowns.is_cooled(ch["id"], wire):
+                continue
+            base_url = str(ch["base_url"])
+            key, _src = credential_for(ch, connections)
             if not key and provider_for_url(base_url) != "gateway":
                 continue
             arm_client = ChatClient(
                 base_url,
                 key,
-                dialect=str(p["dialect"] or "auto"),
+                dialect=str(ch["protocol"] or "auto"),
             )
-            arms.append(GatewayTranslator(arm_client, wire_model(p["models"][0])))
+            arms.append(
+                GatewayTranslator(
+                    arm_client,
+                    wire,
+                    channel_id=str(ch["id"]),
+                    limits=self._scope_limits(ch, entry, wire, gcap),
+                )
+            )
         return arms
+
+    def _arm_served(self, ctx: TaskCtx, tr: GatewayTranslator) -> None:
+        """备选臂成功服务 → ``ctx.memo["served_by"]`` 计数（段收尾落 options 审计键）。"""
+        client = getattr(tr, "client", None)
+        label = f"{tr.model}@{getattr(client, 'base_url', '?')}"
+        served = ctx.memo.setdefault("served_by", {})
+        served[label] = served.get(label, 0) + 1
 
     def _arm_switch_warn(
         self,
@@ -171,22 +265,22 @@ class _TranslateXlator:
         to: GatewayTranslator,
         e: ChatError,
     ) -> None:
-        """切臂事件 → ``endpoint_fallback`` warning（每任务每目标端点去重）。
+        """切臂事件 → ``channel_fallback`` warning（每任务每目标渠道去重）。
 
         链上每块都可能切臂——不 dedupe 会按 chunk 数刷屏；dedupe 键是
         目标臂 ``base_url``（``ctx.memo`` 按 run 存活，自然随任务回收）。
         """
         to_client = getattr(to, "client", None)
         to_url = str(getattr(to_client, "base_url", "") or "")
-        key = f"endpoint_fallback:{to_url}"
-        seen = ctx.memo.setdefault("endpoint_fallback_seen", set())
+        key = f"channel_fallback:{to_url}"
+        seen = ctx.memo.setdefault("channel_fallback_seen", set())
         if key in seen:
             return
         seen.add(key)
         frm_url = str(getattr(getattr(frm, "client", None), "base_url", "") or "")
         self._warning(
             ctx,
-            "endpoint_fallback",
+            "channel_fallback",
             f"翻译回退：{frm.model}@{frm_url} 失败"
             f"（{type(e).__name__} status={e.status}）→ {to.model}@{to_url}",
         )
@@ -207,8 +301,9 @@ class _TranslateXlator:
         的 ``asyncio.run`` 临时 loop——共享 client 跨 loop 复用会炸、aclose
         回不去已关 loop）→ ``_PerCallTranslator`` 即开即关；``sink=None`` =
         主链共享 client ``GatewayTranslator``，``retry_model`` 与
-        endpoints.json 端点档案臂经 ``_FallbackTranslator`` 链式接备选
-        （``_endpoint_arms`` 闸内：header 凭据/非 local/无档案 → 空链）。
+        channels.json 渠道臂经 ``_FallbackTranslator`` 链式接备选
+        （``_channel_arms`` 闸内：header 凭据/非 local/无渠道档 → 空链；
+        臂恒包装——``on_error`` 冷却落戳在零备选时也生效）。
         ``retry=False`` 给不接
         ``retry_model`` 的旁路臂（llm_hook——备选模型烧 token 的语义不擅自
         加）用。
@@ -232,6 +327,10 @@ class _TranslateXlator:
             elif force == "gateway" or ctx.secrets.api_key:
                 model = ctx.secrets.model or DEFAULT_MODEL
                 retry_model = self._retry_model_of(ctx, model) if retry else ""
+                ch, ch_entry = self._channel_of(ctx)
+                cid = str(ch["id"]) if ch is not None else ""
+                gcap = self._global_cap()
+                limits = self._scope_limits(ch, ch_entry, model, gcap)
                 if sink is not None:
                     tr = _PerCallTranslator(
                         ctx.secrets.base_url,
@@ -240,6 +339,8 @@ class _TranslateXlator:
                         sink,
                         retry_model=retry_model,
                         dialect=ctx.secrets.dialect,
+                        channel_id=cid,
+                        limits=limits,
                     )
                 else:
                     client = ChatClient(
@@ -247,28 +348,54 @@ class _TranslateXlator:
                         ctx.secrets.api_key,
                         dialect=ctx.secrets.dialect,
                     )
-                    primary = GatewayTranslator(client, model)
+                    primary = GatewayTranslator(
+                        client, model, channel_id=cid, limits=limits
+                    )
                     arms: list[GatewayTranslator] = []
                     if retry:
                         # retry=False 旁路臂（splice/fixloop sink 面、llm_hook
                         # 自承语义）不接任何回退臂
                         if retry_model:
-                            arms.append(GatewayTranslator(client, retry_model))
+                            rentry = (
+                                next(
+                                    (
+                                        e
+                                        for e in ch["models"]
+                                        if wire_model(e) == retry_model
+                                    ),
+                                    None,
+                                )
+                                if ch is not None
+                                else None
+                            )
+                            arms.append(
+                                GatewayTranslator(
+                                    client,
+                                    retry_model,
+                                    channel_id=cid,
+                                    limits=self._scope_limits(
+                                        ch, rentry, retry_model, gcap
+                                    ),
+                                )
+                            )
                         arms.extend(
-                            self._endpoint_arms(
-                                ctx, client, exclude={model, retry_model}
+                            self._channel_arms(
+                                ctx, client, exclude={model, retry_model}, gcap=gcap
                             )
                         )
-                    tr = (
-                        _FallbackTranslator(
-                            primary,
-                            arms[:FALLBACK_ARM_MAX],
-                            on_switch=lambda frm, to, e: self._arm_switch_warn(
-                                ctx, frm, to, e
-                            ),
-                        )
-                        if arms
-                        else primary
+                    # 恒包 _FallbackTranslator（空臂也包）——on_error 是
+                    # 冷却落戳唯一通道：裸 primary 时渠道主臂 terminal
+                    # 失败不落戳，下块/下任务路由照选半死渠道
+                    tr = _FallbackTranslator(
+                        primary,
+                        arms[:FALLBACK_ARM_MAX],
+                        on_switch=lambda frm, to, e: self._arm_switch_warn(
+                            ctx, frm, to, e
+                        ),
+                        on_error=lambda arm, e: cooldowns.mark_error(
+                            arm.channel_id, arm.model, e
+                        ),
+                        on_served=lambda arm: self._arm_served(ctx, arm),
                     )
             else:
                 if ctx.task_id not in self._mock_warned:

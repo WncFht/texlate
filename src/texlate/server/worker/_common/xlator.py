@@ -1,8 +1,8 @@
 """译器包装域（自 ``_common`` 出叶）：三个 ``translate()`` 鸭子型包装。
 
 ``_FallbackTranslator`` 是 N 臂失败回退链（primary 抛 ``ChatError``
-→ 按臂序同参补发：``retry_model`` 同 client 换模臂 + endpoints.json
-跨端点臂）；
+→ 按臂序同参补发：``retry_model`` 同 client 换模臂 + channels.json
+跨渠道臂）；
 ``_PerCallTranslator`` 是 ephemeral-loop 消费面的 BYOK translator——
 client 按 running loop 懒建复用（分桶/摘除/尽力收尾机制单源在
 ``server._ttlcache.LoopClientPool``）；``_AbortingTranslator`` 是
@@ -58,7 +58,7 @@ def _arm_could_help(frm: object, to: object, e: ChatError) -> bool:
 
 
 class _FallbackTranslator:
-    """失败回退链：primary 抛 ``ChatError`` → 按臂序同参补发（同 client 换模臂 + 跨端点臂）。
+    """失败回退链：primary 抛 ``ChatError`` → 按臂序同参补发（同 client 换模臂 + 跨渠道臂）。
 
     阶梯（``translate_with_ladder``）属 xlat 属主不在此动——本包装把
     「chunk 重试换臂」落在 HTTP 失败层：模型级故障/限流/端点级死症
@@ -78,10 +78,14 @@ class _FallbackTranslator:
         *,
         on_switch: Callable[[GatewayTranslator, GatewayTranslator, ChatError], None]
         | None = None,
+        on_error: Callable[[GatewayTranslator, ChatError], None] | None = None,
+        on_served: Callable[[GatewayTranslator], None] | None = None,
     ) -> None:
         self._primary = primary
         self._fallbacks = list(fallbacks)
         self._on_switch = on_switch
+        self._on_error = on_error
+        self._on_served = on_served
         self.client = getattr(primary, "client", None)
 
     @property
@@ -103,11 +107,16 @@ class _FallbackTranslator:
         max_tokens: int,
         response_format: dict[str, str] | None = None,
     ) -> str:
-        """按臂序补发：本臂失败且下一臂有救 → 切臂；末臂/无救 → 原样上抛。"""
+        """按臂序补发：本臂失败且下一臂有救 → 切臂；末臂/无救 → 原样上抛。
+
+        ``on_error`` 对**每个**失败臂触发（含末臂——渠道冷却记帐要
+        terminal 失败也落戳）；``on_served`` 仅在非首臂成功时触发
+        （served_by 审计——primary 服务是常态不记）。
+        """
         arms = [self._primary, *self._fallbacks]
         for idx, tr in enumerate(arms):
             try:
-                return await tr.translate(
+                out = await tr.translate(
                     system=system,
                     user=user,
                     temperature=temperature,
@@ -115,6 +124,8 @@ class _FallbackTranslator:
                     response_format=response_format,
                 )
             except ChatError as e:
+                if self._on_error is not None:
+                    self._on_error(tr, e)
                 nxt = arms[idx + 1] if idx + 1 < len(arms) else None
                 if nxt is None or not _arm_could_help(tr, nxt, e):
                     raise
@@ -126,6 +137,10 @@ class _FallbackTranslator:
                 )
                 if self._on_switch is not None:
                     self._on_switch(tr, nxt, e)
+            else:
+                if idx > 0 and self._on_served is not None:
+                    self._on_served(tr)
+                return out
         msg = "unreachable: 末臂 raise 恒退出循环"
         raise ChatError(msg)  # pragma: no cover -- 循环恒经 return/raise 退出
 
@@ -157,12 +172,16 @@ class _PerCallTranslator:
         *,
         retry_model: str = "",
         dialect: str = "auto",
+        channel_id: str = "",
+        limits: tuple[tuple[str, int | None], ...] = (),
     ) -> None:
         self._base_url = base_url
         self._api_key = api_key
         self._model = model
         self._retry_model = retry_model
         self._dialect = dialect
+        self._channel_id = channel_id
+        self._limits = limits
         self._sink = sink
         self._pool: LoopClientPool[ChatClient] = LoopClientPool(
             self._make_client, label="per-call"
@@ -200,7 +219,9 @@ class _PerCallTranslator:
         response_format: dict[str, str] | None = None,
     ) -> str:
         client = self._client()
-        primary = GatewayTranslator(client, self._model)
+        primary = GatewayTranslator(
+            client, self._model, channel_id=self._channel_id, limits=self._limits
+        )
         try:
             return await primary.translate(
                 system=system,
@@ -218,7 +239,9 @@ class _PerCallTranslator:
                 e,
                 self._retry_model,
             )
-        return await GatewayTranslator(client, self._retry_model).translate(
+        return await GatewayTranslator(
+            client, self._retry_model, channel_id=self._channel_id, limits=self._limits
+        ).translate(
             system=system,
             user=user,
             temperature=temperature,

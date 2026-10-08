@@ -46,8 +46,8 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------- 常量
 
 #: 探活请求预算——对齐生产径：reasoning 模型思考链同吃 max_tokens，
-#: 小预算会把可用模型判成 finish=length 假阴（与 server 端点探针同口径，
-#: OpenRouter 实测佐证见 endpoints.py PROBE_MAX_TOKENS 注）
+#: 小预算会把可用模型判成 finish=length 假阴（与 server 渠道探针同口径，
+#: OpenRouter 实测佐证见 server/channels.py PROBE_MAX_TOKENS 注）
 PROBE_MAX_TOKENS = REASONING_MIN_MAX_TOKENS
 PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
@@ -212,7 +212,7 @@ async def probe_chat(
 ) -> ChatResult:
     """``_chat_once`` 的公开探活面：指定模型直发，绕开 ``chat`` 降级臂/退避。
 
-    行为探针（server ``endpoints.probe_endpoint`` 类消费方）的 verdict 必须
+    行为探针（server ``channels.probe_channel`` 类消费方）的 verdict 必须
     归属被测模型本人——经 ``chat`` 会被免费集降级臂静默换模代答，probe
     结果撒谎。与 ``probe_model`` 同缝面（``_chat_once`` 单发出错不放大）。
     """

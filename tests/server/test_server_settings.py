@@ -74,11 +74,11 @@ class TestSettingsLoadTolerant:
         (tmp_path / "settings.json").write_text(
             '{"concurrency": "abc"}', encoding="utf-8"
         )
-        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 缺省值钉样
+        assert SettingsStore(tmp_path).load()["concurrency"] == 10  # noqa: PLR2004 -- 缺省值钉样
 
     def test_zero_and_negative_concurrency(self, tmp_path: Path) -> None:
         (tmp_path / "settings.json").write_text('{"concurrency": 0}', encoding="utf-8")
-        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 0 → 缺省
+        assert SettingsStore(tmp_path).load()["concurrency"] == 10  # noqa: PLR2004 -- 0 → 缺省
         (tmp_path / "settings.json").write_text('{"concurrency": -2}', encoding="utf-8")
         assert SettingsStore(tmp_path).load()["concurrency"] == 1  # 负 → clamp
 

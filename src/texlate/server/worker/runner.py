@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from texlate.server.endpoints import EndpointStore
+from texlate.server.channels import ChannelStore
 from texlate.server.settings import (
     SettingsStore,
     resolve_auth,
@@ -113,7 +113,7 @@ class TaskRunner:
             return
         auth = resolve_auth(
             SettingsStore(self.worker.data_dir).load(),
-            key_env_lookup=EndpointStore(self.worker.data_dir).key_env_for,
+            key_env_lookup=ChannelStore(self.worker.data_dir).key_env_for,
         )
         for r in rows:
             self.enqueue(

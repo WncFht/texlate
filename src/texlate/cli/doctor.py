@@ -340,39 +340,45 @@ def _doc_service() -> _Check:
     return _Check("service", "n/a", "未在运行——`texlate service start` 拉起")
 
 
-def _doc_endpoints() -> _Check:
-    """``endpoints.json`` 端点档案静态面——只盘点不联网（探针是 ``endpoints test`` 的活）。
+def _doc_channels() -> _Check:
+    """``channels.json`` 渠道静态面——只盘点不联网（探针是 ``channels test`` 的活）。
 
     缺席是常态（读径投影 settings/connections 合成表在用）→ n/a；
-    在场 → 条数/启用数/活动命中；load 隔离出的 ``*-invalid-*`` 兄弟
-    在场 → warn（坏表被 quarantine 过，值得人看一眼）。
+    在场 → 条数/启用数/路由命中；load 隔离出的 ``*-invalid-*`` 兄弟
+    在场 → warn（坏表被 quarantine 过，值得人看一眼）。旧
+    ``endpoints.json`` 残件在而 channels.json 缺席 → 读径迁移件，
+    按在场渠道表口径盘点并提示。
     """
-    from texlate.server.endpoints import (  # noqa: PLC0415 -- server 层延迟 import
-        EndpointStore,
-        active_id,
+    from texlate.server.channels import (  # noqa: PLC0415 -- server 层延迟 import
+        ChannelStore,
+        active_channel_id,
     )
     from texlate.server.settings import SettingsStore  # noqa: PLC0415
 
     root = toolchain.data_root()
-    estore = EndpointStore(root)
-    if not _is_file(estore.path):
-        quarantined = sorted(root.glob("endpoints-invalid-*.json"))
+    cstore = ChannelStore(root)
+    quarantined = sorted(root.glob("channels-invalid-*.json"))
+    quarantined += sorted(root.glob("endpoints-invalid-*.json"))
+    if not _is_file(cstore.path) and not _is_file(cstore.legacy_path):
         tail = f"；隔离残件 {len(quarantined)}" if quarantined else ""
         return _Check(
-            "endpoints",
+            "channels",
             "n/a" if not quarantined else "warn",
-            "未建档——读径投影 settings/connections（`texlate endpoints list`）" + tail,
+            "未建渠道——读径投影 settings/connections（`texlate channels list`）" + tail,
         )
-    profiles = estore.load()["profiles"]  # load 先跑——坏表此刻才改名隔离
-    quarantined = sorted(root.glob("endpoints-invalid-*.json"))
+    data = cstore.load()  # load 先跑——坏表此刻才改名隔离
+    quarantined = sorted(root.glob("channels-invalid-*.json"))
+    quarantined += sorted(root.glob("endpoints-invalid-*.json"))
     tail = f"；隔离残件 {len(quarantined)}" if quarantined else ""
-    enabled = sum(1 for p in profiles if p.get("enabled"))
-    act = active_id(profiles, _doc_settings_raw(SettingsStore(root)))
+    channels = data["channels"]
+    enabled = sum(1 for c in channels if c.get("enabled"))
+    act = active_channel_id(channels, _doc_settings_raw(SettingsStore(root)))
+    route = data["route"]["channel_id"]
     return _Check(
-        "endpoints",
+        "channels",
         "warn" if quarantined else "ok",
-        f"{len(profiles)} 条档案（{enabled} 启用）"
-        + (f"，活动={act}" if act else "，活动无命中")
+        f"{len(channels)} 条渠道（{enabled} 启用）"
+        + (f"，路由钉 {route}" if route != "auto" else f"，活动={act or '无命中'}")
         + tail,
     )
 
@@ -383,7 +389,7 @@ def doctor() -> None:
 
     覆盖：python≥3.12、编译引擎（tectonic/xelatex）、CJK 字体
     （kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、
-    babeldoc、本地服务实况、端点档案盘点。任一 ``fail`` → 退出码 1；
+    babeldoc、本地服务实况、渠道盘点。任一 ``fail`` → 退出码 1；
     全 ok/warn/n/a → 0。
     """
     checks = [
@@ -395,7 +401,7 @@ def doctor() -> None:
         _doc_data_dir(),
         _doc_babeldoc(),
         _doc_service(),
-        _doc_endpoints(),
+        _doc_channels(),
     ]
     for c in checks:
         typer.echo(f"{c.status:<4} {c.name:<12} {c.detail}")

@@ -60,14 +60,20 @@ if TYPE_CHECKING:
         _main,
         app,
     )
+    from .channels import (
+        channels_app,
+        channels_list,
+        channels_route,
+        channels_test,
+    )
     from .doctor import (  # noqa: F401
         _DOC_GATEWAY_TIMEOUT_S,
         _DOC_PROBE_TIMEOUT_S,
         _Check,
         _doc_babeldoc,
+        _doc_channels,
         _doc_cjk_fonts,
         _doc_data_dir,
-        _doc_endpoints,
         _doc_engines,
         _doc_fc_list_zh,
         _doc_gateway,
@@ -78,12 +84,6 @@ if TYPE_CHECKING:
         _doc_settings_raw,
         _doc_tool_version,
         doctor,
-    )
-    from .endpoints import (
-        endpoints_activate,
-        endpoints_app,
-        endpoints_list,
-        endpoints_test,
     )
     from .export import (
         _export_translator,  # noqa: F401
@@ -144,14 +144,20 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "_main",
         "app",
     ),
+    ".channels": (
+        "channels_app",
+        "channels_list",
+        "channels_route",
+        "channels_test",
+    ),
     ".doctor": (
         "_DOC_GATEWAY_TIMEOUT_S",
         "_DOC_PROBE_TIMEOUT_S",
         "_Check",
         "_doc_babeldoc",
+        "_doc_channels",
         "_doc_cjk_fonts",
         "_doc_data_dir",
-        "_doc_endpoints",
         "_doc_engines",
         "_doc_fc_list_zh",
         "_doc_gateway",
@@ -162,12 +168,6 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "_doc_settings_raw",
         "_doc_tool_version",
         "doctor",
-    ),
-    ".endpoints": (
-        "endpoints_activate",
-        "endpoints_app",
-        "endpoints_list",
-        "endpoints_test",
     ),
     ".export": ("_export_translator", "export"),
     ".fetch": ("_acquire", "_echo_acquire", "fetch"),
@@ -249,12 +249,12 @@ __all__ = [
     "SourceCache",
     "acquire_source",
     "app",
+    "channels_app",
+    "channels_list",
+    "channels_route",
+    "channels_test",
     "data_root",
     "doctor",
-    "endpoints_activate",
-    "endpoints_app",
-    "endpoints_list",
-    "endpoints_test",
     "env_flag",
     "env_raw",
     "env_str",
@@ -299,7 +299,7 @@ _COMMAND_LEAVES: tuple[str, ...] = (
     "tools",
     "version",
     "doctor",
-    "endpoints",
+    "channels",
 )
 
 

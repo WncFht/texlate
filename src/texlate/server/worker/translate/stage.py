@@ -117,7 +117,15 @@ class _TranslateStage:
         pipe = XlatPipeline(
             translator,
             config=PipelineConfig(
-                concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 10, hi=16),
+                # 缺省 = 建行时落的 config.concurrency（options→settings
+                # 决议值）；存量行无此键 → 10 承旧
+                concurrency=self._opt_int(
+                    ctx,
+                    ctx.options(),
+                    "concurrency",
+                    int(ctx.config().get("concurrency") or 10),
+                    hi=16,
+                ),
                 tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
                 auto_glossary_fn=self._auto_glossary_fn(ctx, clients),
             ),
@@ -207,6 +215,23 @@ class _TranslateStage:
             # update_fields 不跑则 tasks.tokens 滞留估算值。本段在 loop
             # 线程跑，_on_loop 直调即原内联写盘口径
             self._persist_usage(ctx, usage, replace_est=True)
+            # served_by 审计键：备选臂服务过 → {label: chunks} 落 options；
+            # 本run零回退且有陈旧键 → 摘除（retry 重跑后如实反映最新路径）
+            served = ctx.memo.get("served_by")
+            if served:
+                options_json = ctx.set_option("served_by", dict(served))
+            elif "served_by" in ctx.options():
+                options_json = ctx.update_options(
+                    lambda opts: opts.pop("served_by", None)
+                )
+            else:
+                options_json = None
+            if options_json is not None:
+                self._on_loop(
+                    self.store.update_fields,
+                    ctx.task_id,
+                    options_json=options_json,
+                )
         except Exception as e:  # noqa: BLE001 -- 记账失败不挡数据落盘与资源释放
             tail_exc = e
             log.warning("teardown usage persist failed: %s: %s", type(e).__name__, e)

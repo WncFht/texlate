@@ -12,9 +12,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from texlate.server.routers import (
+    channels,
     compat,
     discover,
-    endpoints,
     files,
     meta,
     reader,
@@ -47,7 +47,7 @@ def register_routers(app: FastAPI, deps: AppDeps) -> None:
     meta.register(app, deps)
     reader.register(app, deps)
     settings.register(app, deps)
-    endpoints.register(app, deps)
+    channels.register(app, deps)
     discover.register(app, deps)
     refs.register(app, deps)
     srccut.register(app, deps)

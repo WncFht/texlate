@@ -22,7 +22,7 @@ from conftest import (
 )
 from starlette.testclient import TestClient
 
-from texlate.server.endpoints import EndpointStore
+from texlate.server.channels import ChannelStore
 from texlate.server.store import Store
 from texlate.server.worker import (
     PipelineWorker,
@@ -39,7 +39,7 @@ from texlate.xlat.client import (
     EndpointNotFoundError,
     RetryableHTTPError,
 )
-from texlate.xlat.pipeline import GatewayTranslator, MockTranslator
+from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 
 def _m(model: str, redirect: str = "") -> dict[str, str]:
-    """端点档案模型条目夹具——dict 形（schema 唯一合法形态）。"""
+    """渠道模型条目夹具——dict 形（schema 唯一合法形态）。"""
     return {"model": model, "redirect_model": redirect}
 
 
@@ -450,13 +450,16 @@ class TestRetryModel:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
+        # 恒包 _FallbackTranslator——零臂时 on_error 冷却落戳仍生效
         ctx, worker = self._ctx(tmp_path)
         t = worker._make_translator(ctx)  # noqa: SLF001
-        assert isinstance(t, GatewayTranslator)
+        assert isinstance(t, _FallbackTranslator)
+        assert t._fallbacks == []  # noqa: SLF001
         asyncio.run(t.client.aclose())
         ctx2, worker2 = self._ctx(tmp_path / "same", retry_model="pri-m")
         t2 = worker2._make_translator(ctx2)  # noqa: SLF001
-        assert isinstance(t2, GatewayTranslator)  # 同名不包
+        assert isinstance(t2, _FallbackTranslator)
+        assert t2._fallbacks == []  # noqa: SLF001 -- 同名 retry_model 不建臂
         asyncio.run(t2.client.aclose())
 
     def test_pipeline_integration(
@@ -511,8 +514,8 @@ class _ArmTranslator:
         return self._out or self.model
 
 
-class TestEndpointFallback:
-    """``_FallbackTranslator`` N 臂链 + ``_endpoint_arms`` 跨端点建档。"""
+class TestChannelFallback:
+    """``_FallbackTranslator`` N 臂链 + ``_channel_arms`` 跨渠道建档。"""
 
     def test_cross_client_auth_error_switches(self) -> None:
         """异 client 臂：AuthError（本端点判死）照样切——换端点换凭据有救。"""
@@ -564,7 +567,7 @@ class TestEndpointFallback:
         assert out == "ok"
         assert switches == [(p, f1), (f1, f2)]
 
-    def _ep_ctx(self, tmp_path: Path, **over: object) -> tuple[TaskCtx, PipelineWorker]:
+    def _ch_ctx(self, tmp_path: Path, **over: object) -> tuple[TaskCtx, PipelineWorker]:
         store = Store(tmp_path / "t.db")
         store.open()
         worker = PipelineWorker(store, _NullBus(), tmp_path)  # type: ignore[arg-type]
@@ -590,32 +593,33 @@ class TestEndpointFallback:
         )
         return ctx, worker
 
-    def _save_profiles(self, root: Path, *profiles: dict[str, object]) -> None:
-        EndpointStore(root).save(list(profiles))
+    def _save_channels(self, root: Path, *channels: dict[str, object]) -> None:
+        ChannelStore(root).save(list(channels))
 
-    def _profile(self, pid: str, url: str, **over: object) -> dict[str, object]:
-        p: dict[str, object] = {
-            "id": pid,
-            "label": "",
+    def _channel(self, cid: str, url: str, **over: object) -> dict[str, object]:
+        c: dict[str, object] = {
+            "id": cid,
+            "name": "",
             "base_url": url,
-            "dialect": "auto",
+            "protocol": "auto",
             "models": [],
+            "priority": 0,
             "enabled": True,
             "api_key": "",
             "key_env": "",
         }
-        p.update(over)
-        return p
+        c.update(over)
+        return c
 
     def test_no_file_empty_arms(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """endpoints.json 缺席 → 空链（与无档案形态逐字节同构）。"""
-        ctx, worker = self._ep_ctx(tmp_path)
+        """channels.json 缺席 → 空链（与无渠道形态逐字节同构）。"""
+        ctx, worker = self._ch_ctx(tmp_path)
         client = ChatClient("https://api.deepseek.com")
-        assert worker._endpoint_arms(ctx, client, {"m"}) == []  # noqa: SLF001
+        assert worker._channel_arms(ctx, client, {"m"}, 0) == []  # noqa: SLF001
         asyncio.run(client.aclose())
 
     def test_header_source_never_fans_out(
@@ -623,19 +627,19 @@ class TestEndpointFallback:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """header 凭据：单发 key 绝不进第二端点——档案在也空链。"""
-        self._save_profiles(
+        """header 凭据：单发 key 绝不进第二渠道——渠道档在也空链。"""
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.anthropic.com",
                 api_key="sk-ant",
                 models=[_m("claude-x")],
             ),
         )
-        ctx, worker = self._ep_ctx(tmp_path, secrets={"source": "header"})
+        ctx, worker = self._ch_ctx(tmp_path, secrets={"source": "header"})
         client = ChatClient("https://api.deepseek.com")
-        assert worker._endpoint_arms(ctx, client, {"m"}) == []  # noqa: SLF001
+        assert worker._channel_arms(ctx, client, {"m"}, 0) == []  # noqa: SLF001
         asyncio.run(client.aclose())
 
     def test_server_mode_no_arms(
@@ -645,41 +649,41 @@ class TestEndpointFallback:
     ) -> None:
         """非 local 形态：部署拓扑不自助回退。"""
         clean_env.setenv("TEXLATE_MODE", "server")
-        self._save_profiles(
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.anthropic.com",
                 api_key="sk-ant",
                 models=[_m("claude-x")],
             ),
         )
-        ctx, worker = self._ep_ctx(tmp_path)
+        ctx, worker = self._ch_ctx(tmp_path)
         client = ChatClient("https://api.deepseek.com")
-        assert worker._endpoint_arms(ctx, client, {"m"}) == []  # noqa: SLF001
+        assert worker._channel_arms(ctx, client, {"m"}, 0) == []  # noqa: SLF001
         asyncio.run(client.aclose())
 
-    def test_arms_active_extra_models_then_cross_endpoint(
+    def test_arms_active_extra_models_then_cross_channel(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """活动 profile 余模同 client 先行；异端点 profile 各带自家凭据。"""
-        self._save_profiles(
+        """活动渠道余模同 client 先行；异渠道各带 ``credential_for`` 自家凭据。"""
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
                 models=[_m("deepseek-chat"), _m("deepseek-v4")],
             ),
-            self._profile(
+            self._channel(
                 "p2",
                 "https://api.anthropic.com",
                 api_key="sk-ant",
                 models=[_m("claude-x"), _m("claude-y")],
             ),
-            self._profile(
+            self._channel(
                 "p3",
                 "https://api.openai.com",
                 api_key="sk-oai",
@@ -687,13 +691,13 @@ class TestEndpointFallback:
                 enabled=False,
             ),
         )
-        ctx, worker = self._ep_ctx(tmp_path)
+        ctx, worker = self._ch_ctx(tmp_path)
         client = ChatClient("https://api.deepseek.com", "sk-ds")
-        arms = worker._endpoint_arms(ctx, client, {"deepseek-chat", "alt"})  # noqa: SLF001
+        arms = worker._channel_arms(ctx, client, {"deepseek-chat", "alt"}, 0)  # noqa: SLF001
         assert [a.model for a in arms] == ["deepseek-v4", "claude-x"]
         assert arms[0].client is client  # 余模同 client
-        assert arms[1].client is not client  # 异端点自家 client
-        assert arms[1].client.api_key == "sk-ant"  # 凭据走 profile 不借 ctx key
+        assert arms[1].client is not client  # 异渠道自家 client
+        assert arms[1].client.api_key == "sk-ant"  # 凭据走渠道档不借 ctx key
         asyncio.run(_aclose_clients([client, arms[1].client]))
 
     def test_arms_use_wire_names(
@@ -702,9 +706,9 @@ class TestEndpointFallback:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         """redirect 条目：臂名取线名（redirect 优先），exclude 也对线名。"""
-        self._save_profiles(
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
@@ -714,9 +718,9 @@ class TestEndpointFallback:
                 ],
             ),
         )
-        ctx, worker = self._ep_ctx(tmp_path)
+        ctx, worker = self._ch_ctx(tmp_path)
         client = ChatClient("https://api.deepseek.com", "sk-ds")
-        arms = worker._endpoint_arms(ctx, client, {"deepseek-chat"})  # noqa: SLF001
+        arms = worker._channel_arms(ctx, client, {"deepseek-chat"}, 0)  # noqa: SLF001
         assert [a.model for a in arms] == ["wire-x", "m2"]
         asyncio.run(client.aclose())
 
@@ -725,25 +729,25 @@ class TestEndpointFallback:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """无凭据远程端点必 401 白烧一跳——跳过；回环端点无 key 合法保留。"""
-        self._save_profiles(
+        """无凭据远程渠道必 401 白烧一跳——跳过；回环端点无 key 合法保留。"""
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
                 models=[_m("deepseek-chat")],
             ),
-            self._profile(
+            self._channel(
                 "p2", "https://api.anthropic.com", models=[_m("claude-x")]
             ),  # 无凭据
-            self._profile(
+            self._channel(
                 "p3", "http://127.0.0.1:11434", models=[_m("qwen3")]
             ),  # 回环无 key
         )
-        ctx, worker = self._ep_ctx(tmp_path)
+        ctx, worker = self._ch_ctx(tmp_path)
         client = ChatClient("https://api.deepseek.com")
-        arms = worker._endpoint_arms(ctx, client, {"deepseek-chat"})  # noqa: SLF001
+        arms = worker._channel_arms(ctx, client, {"deepseek-chat"}, 0)  # noqa: SLF001
         assert [a.model for a in arms] == ["qwen3"]
         asyncio.run(_aclose_clients([client, arms[0].client]))
 
@@ -752,23 +756,23 @@ class TestEndpointFallback:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """整链：retry_model + 端点臂都进 ``_FallbackTranslator``，clients 去重。"""
-        self._save_profiles(
+        """整链：retry_model + 渠道臂都进 ``_FallbackTranslator``，clients 去重。"""
+        self._save_channels(
             tmp_path,
-            self._profile(
+            self._channel(
                 "p1",
                 "https://api.deepseek.com",
                 api_key="sk-ds",
                 models=[_m("deepseek-chat")],
             ),
-            self._profile(
+            self._channel(
                 "p2",
                 "https://api.anthropic.com",
                 api_key="sk-ant",
                 models=[_m("claude-x")],
             ),
         )
-        ctx, worker = self._ep_ctx(tmp_path, retry_model="deepseek-v4")
+        ctx, worker = self._ch_ctx(tmp_path, retry_model="deepseek-v4")
         t = worker._make_translator(ctx)  # noqa: SLF001
         assert isinstance(t, _FallbackTranslator)
         assert [a.model for a in t._fallbacks] == [  # noqa: SLF001
@@ -789,11 +793,11 @@ class TestEndpointFallback:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """``_arm_switch_warn``：每任务每目标端点只警一次（``ctx.memo`` 记档）。"""
-        ctx, worker = self._ep_ctx(tmp_path)
+        """``_arm_switch_warn``：每任务每目标渠道只警一次（``ctx.memo`` 记档）。"""
+        ctx, worker = self._ch_ctx(tmp_path)
         a = _ArmTranslator(client=SimpleNamespace(base_url="https://a"), model="m1")
         b = _ArmTranslator(client=SimpleNamespace(base_url="https://b"), model="m2")
         e = ChatError("x", status=429, retryable=True)
         worker._arm_switch_warn(ctx, a, b, e)  # noqa: SLF001
         worker._arm_switch_warn(ctx, a, b, e)  # noqa: SLF001
-        assert ctx.memo["endpoint_fallback_seen"] == {"endpoint_fallback:https://b"}
+        assert ctx.memo["channel_fallback_seen"] == {"channel_fallback:https://b"}

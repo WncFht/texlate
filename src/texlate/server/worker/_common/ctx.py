@@ -35,6 +35,9 @@ class Secrets:
     model: str = ""
     dialect: str = "auto"
     source: str = "none"
+    #: 路由命中渠道 id（``AuthContext.channel_id`` 直通）——冷却/限流/
+    #: 回退臂归属键；空 = 非渠道路径（header/未建渠道档）
+    channel_id: str = ""
 
     @classmethod
     def from_auth(cls, auth: AuthContext, *, model: str = "") -> Secrets:
@@ -45,6 +48,7 @@ class Secrets:
             model=model,
             dialect=auth.dialect,
             source=auth.source,
+            channel_id=auth.channel_id,
         )
 
 

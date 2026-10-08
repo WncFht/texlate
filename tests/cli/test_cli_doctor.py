@@ -193,7 +193,7 @@ class TestDoctor:
             "data-dir",
             "babeldoc",
             "service",
-            "endpoints",
+            "channels",
         }
         assert all(v == "ok" for v in st.values()), r.stdout
         assert seen["url"] == f"{_GW_URL}/v1/models"
@@ -401,30 +401,30 @@ class TestDoctor:
         assert r.exit_code == 0, r.output
         assert _statuses(r.stdout)["babeldoc"] == "n/a"
 
-    def test_endpoints_absent_na(
+    def test_channels_absent_na(
         self,
         doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """无 endpoints.json → n/a（未建档是常态，读径投影兜底）。"""
+        """无 channels.json（亦无旧档）→ n/a（未建渠道是常态，读径投影兜底）。"""
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
-        assert _statuses(r.stdout)["endpoints"] == "n/a"
+        assert _statuses(r.stdout)["channels"] == "n/a"
 
-    def test_endpoints_ok_counts(
+    def test_channels_ok_counts(
         self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
     ) -> None:
-        """档案在 → ok：条数/启用数/活动命中（settings.base_url 归一比对）。
+        """渠道档在 → ok：条数/启用数/活动命中（settings.base_url 归一比对）。
 
         base_url 用 https——``validate_base_url`` 拒非 loopback/tailnet 的
-        http（``_GW_URL`` 过不了档案校验会被 ``_load_profile`` 容错丢弃）。
+        http（``_GW_URL`` 过不了渠道校验会被 ``_load_channel`` 容错丢弃）。
         """
         ep_url = "https://ep.test/api"
         _write_settings(tmp_path / "data", base_url=ep_url)
-        (tmp_path / "data" / "endpoints.json").write_text(
+        (tmp_path / "data" / "channels.json").write_text(
             json.dumps(
                 {
-                    "version": 1,
-                    "profiles": [
+                    "version": 2,
+                    "channels": [
                         {
                             "id": "p1",
                             "base_url": ep_url,
@@ -436,6 +436,7 @@ class TestDoctor:
                             "enabled": False,
                         },
                     ],
+                    "route": {"channel_id": "auto", "model": ""},
                 }
             ),
             encoding="utf-8",
@@ -447,20 +448,34 @@ class TestDoctor:
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         st = _statuses(r.stdout)
-        assert st["endpoints"] == "ok"
-        assert "2 条档案（1 启用），活动=p1" in r.stdout
+        assert st["channels"] == "ok"
+        assert "2 条渠道（1 启用），活动=p1" in r.stdout
 
-    def test_endpoints_quarantined_warn(
+    def test_channels_quarantined_warn(
         self,
         tmp_path: Path,
         doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """损坏 endpoints.json → load 隔离成 ``*-invalid-*`` 兄弟 → warn 留痕。"""
+        """损坏 channels.json → load 隔离成 ``*-invalid-*`` 兄弟 → warn 留痕。"""
         data = tmp_path / "data"
         data.mkdir(parents=True)
-        (data / "endpoints.json").write_text("{broken", encoding="utf-8")
+        (data / "channels.json").write_text("{broken", encoding="utf-8")
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
-        assert _statuses(r.stdout)["endpoints"] == "warn"
+        assert _statuses(r.stdout)["channels"] == "warn"
         assert "隔离残件" in r.stdout
-        assert list(data.glob("endpoints-invalid-*.json"))
+        assert list(data.glob("channels-invalid-*.json"))
+
+    def test_channels_quarantine_residue_warn(
+        self,
+        tmp_path: Path,
+        doctor_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """无渠道档但有隔离残件（旧 endpoints-invalid-*）→ warn 引人看一眼。"""
+        data = tmp_path / "data"
+        data.mkdir(parents=True)
+        (data / "endpoints-invalid-deadbeef.json").write_text("{x", encoding="utf-8")
+        r = _RUNNER.invoke(app, ["doctor"])
+        assert r.exit_code == 0, r.output
+        assert _statuses(r.stdout)["channels"] == "warn"
+        assert "隔离残件" in r.stdout

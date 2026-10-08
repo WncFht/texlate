@@ -325,16 +325,19 @@ def _load_quota(value: object) -> int:
 
 
 def _load_concurrency(value: object) -> int:
-    """``concurrency`` 容错读：非法值 → 3；clamp 1–16 与写径 ``_check_concurrency`` 同域。
+    """``concurrency`` 容错读：非法值 → 10；clamp 1–16 与写径 ``_check_concurrency`` 同域。
 
     ``load()`` 其余字段的强转（``str``/``bool``）永不炸——唯一会抛的是
     本项 ``int()``；手改文件留个 ``"abc"`` 会炸穿 ``load()`` 连带全部
     ``_auth``/settings 端点 500，与 ``_load_quota`` 同口径容错回落。
+    缺省 10 对齐 translating 段历史每任务 worker 数——本键自渠道改造起
+    升任服务级在飞总闸（``_scope_limits`` global scope），缺省守住
+    单任务历史吞吐。
     """
     try:
-        return max(1, min(16, int(value or 3)))
+        return max(1, min(16, int(value or 10)))
     except (TypeError, ValueError, OverflowError):
-        return 3
+        return 10
 
 
 def _load_compile_timeout(value: object) -> float:

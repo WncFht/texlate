@@ -174,6 +174,8 @@ class AuthContext:
 
     ``source`` ∈ ``header | settings | env | none``——任务行记
     ``auth_source``，重启恢复时 header 源任务转 ``needs_auth``。
+    ``channel_id`` 是渠道路由命中档的 id（deps 路由臂写入）——worker
+    侧冷却落戳/并发作用域/回退臂建档的归属键；空 = 非渠道路径。
     """
 
     api_key: str = ""
@@ -182,6 +184,7 @@ class AuthContext:
     dialect: str = "auto"
     source: str = "none"
     tenant: str = "local"
+    channel_id: str = ""
     settings: dict[str, Any] = field(default_factory=dict)
 
 
@@ -240,8 +243,8 @@ def resolve_auth(  # noqa: PLR0913, C901 -- 凭据四级阶梯逐级一支 + hea
     自选端点（exfil oracle）。
     ``headers`` 是请求头面（deps 直传 ``request.headers``）——查名按
     ``BYOK_FIELDS`` 单源；给定时覆盖全部 ``header_*`` kwarg，kwarg 面
-    保留给单字段直调/测试。``key_env_lookup`` 是 endpoints.json
-    ``key_env_for`` 查名钩（deps/runner 注入）——命中 profile 的端点
+    保留给单字段直调/测试。``key_env_lookup`` 是 channels.json
+    ``key_env_for`` 查名钩（deps/runner 注入）——命中渠道的端点
     其 env 名引用的值进 env 层，排在泛用 provider env 之前。
     """
     if headers is not None:
