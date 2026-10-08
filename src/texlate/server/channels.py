@@ -795,17 +795,23 @@ class ChannelStore:
             }
             atomic_json(self.path, payload)
             self.path.chmod(0o600)
-            if self.legacy_path.exists():
-                legacy = self.legacy_path.with_name(
-                    f"endpoints-migrated-{secrets.token_hex(4)}.json"
-                )
-                self.legacy_path.rename(legacy)
-                log.info(
-                    "endpoints.json 已迁移 → channels.json（旧件留档 %s）", legacy.name
-                )
+            self._rename_legacy()
             with self._load_lock:
                 self._load_cache = None
             return copy.deepcopy(payload)
+
+    def _rename_legacy(self) -> None:
+        """旧 ``endpoints.json`` 改名留档。``_save_lock`` 内调用。
+
+        channels.json 物化后旧件再被读径转形会复活已删渠道。
+        """
+        if not self.legacy_path.exists():
+            return
+        legacy = self.legacy_path.with_name(
+            f"endpoints-migrated-{secrets.token_hex(4)}.json"
+        )
+        self.legacy_path.rename(legacy)
+        log.info("endpoints.json 已迁移 → channels.json（旧件留档 %s）", legacy.name)
 
     def _check_route(
         self, raw: object, channels: list[dict[str, Any]]
@@ -847,6 +853,7 @@ class ChannelStore:
             hit["last_probe"] = report
             atomic_json(self.path, data)
             self.path.chmod(0o600)
+            self._rename_legacy()
             with self._load_lock:
                 self._load_cache = None
 

@@ -577,6 +577,30 @@ class TestLegacyMigration:
         assert len(migrated) == 1
         assert not (tmp_path / "endpoints.json").exists()
 
+    def test_record_probe_also_renames_legacy(
+        self, store: ch.ChannelStore, tmp_path: Path
+    ) -> None:
+        """探针回钉同样物化 channels.json + 改名旧件——只探不 PUT 不留复活陷阱。"""
+        self._v1(
+            tmp_path,
+            [
+                {
+                    "id": "p1",
+                    "label": "x",
+                    "base_url": "https://api.deepseek.com",
+                    "dialect": "auto",
+                    "models": [{"model": "m1"}],
+                    "enabled": True,
+                    "api_key": "sk-ds",
+                    "key_env": "",
+                }
+            ],
+        )
+        store.record_probe("p1", {"at": "t", "key_fp": "fp", "models": {}})
+        assert store.path.exists()
+        assert not (tmp_path / "endpoints.json").exists()
+        assert len(list(tmp_path.glob("endpoints-migrated-*.json"))) == 1
+
     def test_legacy_corrupt_or_wrong_version_ignored(
         self, store: ch.ChannelStore, tmp_path: Path
     ) -> None:
