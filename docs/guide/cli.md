@@ -93,6 +93,16 @@ texlate share unpack <包.share.zip> [-o 解包目录]
 
 `pack` 把一个已完成任务的译文产物打成 `{share_key}.share.zip`：`share_key` 由论文 id、版本、模型、目标语言、提示词与管线版本、术语表哈希七组分推出，任一取不到会显式报错。`--contributor` 可署标识，缺省匿名。`unpack` 校验解包并打印 manifest 摘要——校验包括包格式、share_key 自洽、逐产物 sha256 对账，违例报 `share_invalid`。解包只做机械校验，译文可信度靠消费端导入后重跑编译保证。打包内容、使用场景与服务器侧导入见 `export-share.md`。
 
+## channels —— BYOK 渠道管理
+
+```bash
+texlate channels list
+texlate channels test <渠道id>
+texlate channels route [<渠道id>|auto] [模型]
+```
+
+直读数据目录 `channels.json` 的本地管理面（web 设置页渠道卡面的命令行等价物）：`list` 按优先级降序列渠道——当前路由命中的行首标 `→`，附凭据形态、模型 chips 与上次探测摘要；`test` 对指定渠道跑两段行为探针（先取模型清单验通渠道，再逐模型发真实会话判 `usable`/`placeholder_lost` 等），报告钉回渠道 `last_probe`；`route` 不带参数显示当前路由，`route <id> [模型]` 把任务钉到某渠道（可指定本地模型名），`route auto` 回按优先级自动选择。机制与边界见 `byok.md` 的「多渠道管理与路由」。
+
 ## doctor —— 环境自检
 
 ```bash
