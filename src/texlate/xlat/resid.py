@@ -366,6 +366,10 @@ class SweepOpts:
     concurrency: int = 8
     temperature: float = 0.2
     max_tokens: int = 2048
+    #: 单 span 调用超时秒——断流/挂起连接受 ``wait_for`` 强收归 kept_en，
+    #: 防一颗死 span 把整篇 sweep 与 ``_run_ephemeral`` 壳一并钉死
+    #: （``_one`` 内 httpx read 闸只数字节间隔，流式悬挂可无限续命）。
+    span_timeout: float = 300.0
 
 
 #: B008——默认 opts 走模块级单例，默认参位不落调用形。
@@ -640,11 +644,14 @@ async def sweep_tree(
                 return
         async with sem:
             try:
-                out = await translator.translate(
-                    system=_SYS_PROMPT,
-                    user=re.sub(r"\s+", " ", run),
-                    temperature=opts.temperature,
-                    max_tokens=opts.max_tokens,
+                out = await asyncio.wait_for(
+                    translator.translate(
+                        system=_SYS_PROMPT,
+                        user=re.sub(r"\s+", " ", run),
+                        temperature=opts.temperature,
+                        max_tokens=opts.max_tokens,
+                    ),
+                    timeout=opts.span_timeout,
                 )
             except Exception:  # noqa: BLE001 — 单 span 败不拖篇，留英文
                 table[run] = None
