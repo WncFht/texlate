@@ -305,16 +305,16 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 241 胞可判（19 胞 vault 无 splice 封件）。tier 分布 clean 56 / warn 161 / hard 24。逐 sig 新码 vs 旧码对照（findings 计数）：
 
-| sig                      | 旧  | 新  | 变动归因                                                             |
-| ------------------------ | --- | --- | -------------------------------------------------------------------- |
-| `layout:marks_absent`    | 241 | 39  | `base_txlm=None`（base=onfail 未建对照臂）静默——噪音面消退           |
-| `geo_margin_breach`      | 309 | 213 | ≥4 词连续 ASCII 段越界豁免（verbatim 附录/列表=en 原文同形）         |
-| `geo_text_overlap`       | 287 | 144 | ≤2 字符纯符号 token 剔除（stackrel/√ 字形堆叠 bbox 伪影）            |
-| `xlat_residual_en`       | 62  | 42  | running-head/furniture 行（正文域复现 ≥4 次）剔除                    |
-| `regress_ink_profile`    | 41  | 0   | 自离群闸（<自身非空页墨量中位数×0.25）——重排错位假阳清零             |
-| `align_order_break`      | 6   | 0   | 同上波次随抽序面复评消散                                             |
-| `xlat_residual_en_heavy` | —   | 16  | 新标记：frac≥15% 真半译出货档（fault→src 回退出货），自 residual 析出  |
-| `layout:overfull`        | 43  | 43  | 不变——43 findings/23 篇全真出血，现为 fixloop `warn_overfull` 驱动面 |
+| sig                      | 旧  | 新  | 变动归因                                                              |
+| ------------------------ | --- | --- | --------------------------------------------------------------------- |
+| `layout:marks_absent`    | 241 | 39  | `base_txlm=None`（base=onfail 未建对照臂）静默——噪音面消退            |
+| `geo_margin_breach`      | 309 | 213 | ≥4 词连续 ASCII 段越界豁免（verbatim 附录/列表=en 原文同形）          |
+| `geo_text_overlap`       | 287 | 144 | ≤2 字符纯符号 token 剔除（stackrel/√ 字形堆叠 bbox 伪影）             |
+| `xlat_residual_en`       | 62  | 42  | running-head/furniture 行（正文域复现 ≥4 次）剔除                     |
+| `regress_ink_profile`    | 41  | 0   | 自离群闸（<自身非空页墨量中位数×0.25）——重排错位假阳清零              |
+| `align_order_break`      | 6   | 0   | 同上波次随抽序面复评消散                                              |
+| `xlat_residual_en_heavy` | —   | 16  | 新标记：frac≥15% 真半译出货档（fault→src 回退出货），自 residual 析出 |
+| `layout:overfull`        | 43  | 43  | 不变——43 findings/23 篇全真出血，现为 fixloop `warn_overfull` 驱动面  |
 
 **两个结构性遮蔽数**（真实缺口，非噪音）：
 
@@ -374,10 +374,10 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 `qc_paper` 产出的 sig 按「是否挡 done」分三档。**clean = 零非 INFO findings**。
 
-| 档                                 | 判定                                            | sig                                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:compile_died` `layout:pdf_corrupt` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` `xlat_untranslated` |
-| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_residual_en_heavy` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `layout:float_oversize_big` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                        |
+| 档                                 | 判定                                            | sig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:compile_died` `layout:pdf_corrupt` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` `xlat_untranslated`                                                                                                                    |
+| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_residual_en_heavy` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `layout:float_oversize_big` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                                                                                                                                                                  |
 | **INFO**（纯记账）                 | 机制回执 / 预期缺席                             | `layout:float_fit`（FLOAT_SIZING 手术回执）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——`marks_era` 闸在 `_tier_of`）；`layout:marks_coverage`（env_inventory live-env 口径残余盲区）；`layout:float_oversize`（<60pt 超高由边距吸收）；`geo_deep_band`（页内深带越界）；`vis_widow_page`（孤行溢出页）；`layout:overfull_titlepage`（titlepage 测量盒整版过宽）；`layout:paper_mismatch`（trim-size special 单页偏离）；`layout:overfull_output`（`\output` 例程家具溢出） |
 
 分档理由：

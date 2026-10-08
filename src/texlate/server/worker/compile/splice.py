@@ -236,9 +236,7 @@ class _CompileSplice:
             else:
                 usage, sink = _new_usage_meter()
                 tr = self._resolve_translator(ctx, sink=sink, retry=False)
-            metrics = self._run_ephemeral(
-                clients, lambda: sweep_tree(ctx.zh_dir, tr)
-            )
+            metrics = self._run_ephemeral(clients, lambda: sweep_tree(ctx.zh_dir, tr))
         except Exception:
             self._log(ctx, "resid_sweep 失败——残英段维持原文")
             log.warning("resid_sweep failed", exc_info=True)

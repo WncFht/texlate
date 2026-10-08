@@ -18,13 +18,13 @@
 
 ## 2. 对标：pdf2zh/PDFMathTranslate（37k★，同生态位最近者）
 
-| 面          | pdf2zh 做法                                                         | texlate 现状   | 判断                                                    |
-| ----------- | ------------------------------------------------------------------- | -------------- | ------------------------------------------------------- |
-| PyPI        | `pdf2zh` 在架                                                       | 已对齐         | —                                                       |
-| Docker      | 仓内 Dockerfile+compose，自包含单镜像                               | ghcr 双架      | 已更好                                                  |
-| Zotero 插件 | 第三方社区 repo（zotero-pdf2zh，7k★），GitHub Releases+中文商店分发 | 官方一仓维护   | 同渠道可进                                              |
-| 文档站      | 自有域名站（JS 渲染）+ 仓内多语言 README                            | README+docs/   | 文档站判否：README 够用；多语言 README 等英文版先稳     |
-| 社区        | Discussions 关闭，issue+wiki 模式                                   | Discussions 关 | 中文科研受众 Q&A 会灌 issue——开会话成本低、防污染收益实 |
+| 面          | pdf2zh 做法                                                          | texlate 现状   | 判断                                                    |
+| ----------- | -------------------------------------------------------------------- | -------------- | ------------------------------------------------------- |
+| PyPI        | `pdf2zh` 在架                                                        | 已对齐         | —                                                       |
+| Docker      | 仓内 Dockerfile+compose，自包含单镜像                                | ghcr 双架      | 已更好                                                  |
+| Zotero 插件 | 第三方社区 repo（zotero-pdf2zh，7k★），GitHub Releases+ 中文商店分发 | 官方一仓维护   | 同渠道可进                                              |
+| 文档站      | 自有域名站（JS 渲染）+ 仓内多语言 README                             | README+docs/   | 文档站判否：README 够用；多语言 README 等英文版先稳     |
+| 社区        | Discussions 关闭，issue+wiki 模式                                    | Discussions 关 | 中文科研受众 Q&A 会灌 issue——开会话成本低、防污染收益实 |
 
 ## 3. Zotero 插件上架生态（格局已变）
 
@@ -35,7 +35,7 @@
 
 ## 4. Homebrew 判否
 
-`yt-dlp` 证明 pypi app 进 homebrew-core 可行（`Language::Python::Virtualenv` + `pypi_packages` + 逐依赖 `resource` 块）。但 homebrew-core 有知名度门槛（惯例 ≥75★/30 fork），自建 tap 要养 formula+更新自动化。且 `depends_on "tectonic"` 的边际收益已被 `uvx texlate` + `texlate tools install-tectonic` 两步覆盖。stars 起来后 homebrew-core 自然可进，现在投是过度投资。
+`yt-dlp` 证明 pypi app 进 homebrew-core 可行（`Language::Python::Virtualenv` + `pypi_packages` + 逐依赖 `resource` 块）。但 homebrew-core 有知名度门槛（惯例 ≥75★/30 fork），自建 tap 要养 formula+ 更新自动化。且 `depends_on "tectonic"` 的边际收益已被 `uvx texlate` + `texlate tools install-tectonic` 两步覆盖。stars 起来后 homebrew-core 自然可进，现在投是过度投资。
 
 ## 5. 行动清单（按杠杆率）
 
@@ -47,7 +47,7 @@
 | 4   | README 挂 2-3 篇真实双语产出样例（截图 + PDF）——翻译工具的说服力即输出质量                  | 一晌   | 待执行       |
 | 5   | Zotero Forums 英文公告帖（v0.1.0 + `uvx texlate` 一行装 + xpi 商店可查）；V2EX/知乎同期一波 | 一晌   | 依赖 #1/#4   |
 
-不做清单：brew（门槛+边际）、自建文档站、Docker Hub（ghcr 已双架）、Zotero 官方列表（不存在）、公共 demo 实例（需托管 LLM key，不现实）。
+不做清单：brew（门槛 + 边际）、自建文档站、Docker Hub（ghcr 已双架）、Zotero 官方列表（不存在）、公共 demo 实例（需托管 LLM key，不现实）。
 
 ## 6. 残留技术缺口（非分发面，随下一版排期）
 

@@ -451,9 +451,7 @@ class TestStoreSemantics:
         def writer(i: int) -> None:
             try:
                 for j in range(_SAVE_ITERS):
-                    store.save(
-                        {"glossary": f"g-{i}-{j}", "concurrency": (j % 5) + 1}
-                    )
+                    store.save({"glossary": f"g-{i}-{j}", "concurrency": (j % 5) + 1})
             except BaseException as e:  # noqa: BLE001 -- 汇总线程异常断言
                 errors.append(e)
 

@@ -287,9 +287,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     )
     # 残英清扫：splice 后 zh 树漏网英文段（保护性 env 体/盲 include/败块
     # 残留）逐段补译回写——旁路臂细节与闸序在 ``_resid_sweep_run``。
-    resid_stats = _resid_sweep_run(
-        root, translator, loop, cache, explicit=resid_sweep
-    )
+    resid_stats = _resid_sweep_run(root, translator, loop, cache, explicit=resid_sweep)
     stats = {
         "files": n_files,
         "chunks": len(chunks),

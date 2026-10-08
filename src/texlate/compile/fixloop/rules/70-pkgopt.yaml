@@ -801,7 +801,8 @@ rules:
         - { category: pkg_engine, payload_required: false }
         - { category: unknown_option, payload_required: false }
     condition:
-      # 双标记同闸: 引擎自爆 PackageError 行与 unknown-option 行都点名 bxcjkjatype
+      # 双标记同闸: 引擎自爆 PackageError 行与 unknown-option 行
+      # 都点名 bxcjkjatype
       ctx_suggests: "bxcjkjatype"
       source_contains: "\\bbxcjkjatype\\b"
     action:

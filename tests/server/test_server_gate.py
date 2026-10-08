@@ -173,9 +173,7 @@ class TestServerAnonGate:
         assert server_client.get("/api/tasks").json()["tasks"] == []
         assert server_client.get(f"/api/task/{tid}").status_code == HTTPStatus.NOT_FOUND
 
-    def test_anon_never_inherits_env_key(
-        self, clean_env: pytest.MonkeyPatch
-    ) -> None:
+    def test_anon_never_inherits_env_key(self, clean_env: pytest.MonkeyPatch) -> None:
         """resolve_auth 单元钉：server+env 有 key、无 header → api_key 空。"""
         clean_env.setenv("TEXLATE_API_KEY", "sk-deployer")
         auth = resolve_auth({}, mode="server", salt="s")
@@ -343,9 +341,7 @@ class TestChannelsProbeCrossSlot:
     """SEC-4：裸 ``{base_url}`` 探测须自带 ``api_key``（exfil 闸）。"""
 
     def test_base_url_without_key_400(self, client: TestClient) -> None:
-        r = client.post(
-            "/api/channels/probe", json={"base_url": "http://127.0.0.1:9"}
-        )
+        r = client.post("/api/channels/probe", json={"base_url": "http://127.0.0.1:9"})
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_base_url_with_key_probes(self, client: TestClient) -> None:

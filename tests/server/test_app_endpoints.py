@@ -1473,9 +1473,7 @@ class TestServerModeSettingsGate:
         """GET settings/health 是公共读面——server 模式不闸；已撤端点 404。"""
         assert server_client.get("/api/settings").status_code == HTTPStatus.OK
         assert server_client.get("/api/health").status_code == HTTPStatus.OK
-        assert (
-            server_client.get("/api/providers").status_code == HTTPStatus.NOT_FOUND
-        )
+        assert server_client.get("/api/providers").status_code == HTTPStatus.NOT_FOUND
         r = server_client.post(
             "/api/settings/test", json={}, headers={"X-Texlate-Key": "k-A"}
         )
