@@ -11,7 +11,7 @@
  *   GET  /api/task/{id}                    → snapshot (no SSE in plugin sandbox)
  *   GET  /api/files/{id}                   → {artifacts: {db_kind: {bytes,sha256,created_at,url}}}
  *   GET  /api/files/{id}/{url_kind}        → bytes (url_kind: zh.pdf, en.pdf, dual.pdf, ...)
- *   GET  /api/channels                     → {channels, route, active_id}  (local 形态限定)
+ *   GET  /api/channels                     → {channels, route, active_id, active_model, cooling}  (local 形态限定)
  *   POST /api/channels/probe    {id}       → 两段探针报告                  (server 部署 403)
  *   Reader SPA: {base}/#/reader/{taskId}
  */
