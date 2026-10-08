@@ -102,7 +102,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 - `FLOAT_SIZING`（有 figure/table 才注入）：@endfloatbox patch，ht+dp>`\textheight`→`\resizebox*` 缩 + `\typeout{TeXlate-Float-Fit}` 回读。
 - `demote_wrapfloats`：wrap*→figure/table[!htb]+centering+minipage 原宽，负 vspace 删。
-- `relax_float_specs`：白名单浮体 env（figure\*/table\*/algorithm/algocf/listing/sideways*）可选组合法 spec（`!htbpH` 字符域）缺 `p` → 尾补 `p`。`[h]`/`[ht]` 系不给浮体页通道，图密文档里 deferred 浮体全页拒位顺延到文末 `\clearpage` 倾泻（float_drift/order_inversion 驱动，1008 六篇实证）；`[H]`/已含 `p`/空 spec/非 spec 可选组（keyval）不动。
+- `relax_float_specs`：白名单浮体 env（figure\*/table\*/algorithm/algocf/listing/sideways*）可选组合法 spec（`!htbpH` 字符域）缺 `p` → 尾补 `p`。`[h]`/`[ht]` 系不给浮体页通道，图密文档里 deferred 浮体全页拒位顺延到文末 `\clearpage` 倾泻（float_drift/order_inversion 驱动，实证见 `research/methods/2026-10-08-e2e-eval-1k.md` §6）；`[H]`/已含 `p`/空 spec/非 spec 可选组（keyval）不动。
 - ~~`TABLE_FITTING`~~（0930 拔除）：表族 env/before+after 成对钩套 adjustbox 在配对不候场形（cls cs 形收尾/宏内 env/`\end{document}` 早退）及与 fixloop v1 注块并挂时崩 `ended by` 毁编（vault ~1200 事件）；表族钳宽归 fixloop `tabular_fit` v2 源级跨度包（warn_overfull 驱动，97-layout.yaml）。
 
 ### 4.3 cmap 注入（`compile/cjkmap.py`）
