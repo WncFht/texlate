@@ -27,19 +27,19 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "zotero-plugin-toolkit": "~5.1.4"
+    "zotero-plugin-toolkit": "~6.0.0"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.4",
     "@zotero-plugin/eslint-config": "^0.6.7",
-    "chai": "^6.2.1",
-    "eslint": "^9.39.2",
-    "globals": "^14.0.0",
-    "mocha": "^11.7.5",
-    "prettier": "^3.7.4",
-    "typescript": "^5.9.3",
+    "chai": "^6.3.0",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "mocha": "^12.0.3",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2",
     "zotero-plugin-scaffold": "^0.9.2",
     "zotero-types": "^4.1.0-beta.4"
   },
