@@ -221,7 +221,26 @@ def _neg_space_edits(vis: str, lo: int, hi: int) -> list[tuple[int, int, str]]:
             r"\\vskip\s*-(?:\s*[0-9.]+\s*[a-z]{2}|\s*\\[a-zA-Z@]+)", vis[lo:hi]
         )
     )
-    return out
+    # apply_edits 保留换行；独占行的命令不能变成空行，否则 caption 中会生成 \par。
+    erased = vis
+    for start, end, _ in sorted(out, reverse=True):
+        erased = erased[:start] + re.sub(r"[^\r\n]", " ", vis[start:end]) + erased[end:]
+    safe: list[tuple[int, int, str]] = []
+    for start, end, _ in out:
+        replacement: list[str] = []
+        offset = start
+        for part in vis[start:end].splitlines(keepends=True):
+            line_start = erased.rfind("\n", 0, offset) + 1
+            line_end = erased.find("\n", offset)
+            if line_end < 0:
+                line_end = len(erased)
+            if not erased[line_start:line_end].strip():
+                # 空组不吞掉行尾注释，也不引入可见文字或垂直间距。
+                replacement.append("{}")
+            replacement.append(part[len(part.rstrip("\r\n")) :])
+            offset += len(part)
+        safe.append((start, end, "".join(replacement)))
+    return safe
 
 
 def _demote_pair(rec: dict) -> tuple[str, str]:

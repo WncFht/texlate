@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from texlate.compile.inject import (
     _demote_wrapfloats_text,
     demote_wrapfloats,
@@ -232,3 +234,41 @@ def test_prepare_chinese_demote_off(tmp_path: Path) -> None:
     info = prepare_chinese(tmp_path, "main.tex", demote_wrap=False)
     assert "wrapfloats_demoted" not in info
     assert "wrapfigure" in (tmp_path / "main.tex").read_text()
+
+
+@pytest.mark.parametrize(
+    "spacing",
+    [
+        "  \\vspace{-20pt}",
+        "  \\vspace*{-20pt} % keep comment",
+        "\\hspace{-2mm}",
+        "\\vskip -3pt",
+        "\\vspace{-20pt} \\hspace{-2mm}",
+        "\\vspace\n{-20pt}",
+        "\\vspace{\n-20pt\n}",
+    ],
+)
+def test_removed_spacing_does_not_create_caption_paragraph(spacing: str) -> None:
+    tex = (
+        _PRE + "\\begin{wrapfigure}{r}{0.5\\textwidth}\n"
+        "\\caption{caption text\n" + spacing + "\n}\n"
+        "\\end{wrapfigure}\n\\end{document}\n"
+    )
+    out, _ = _demote_wrapfloats_text(tex)
+    caption = out.split("\\caption{", 1)[1].split("\n}", 1)[0]
+    assert all(line.strip() for line in caption.split("\n"))
+    assert out.count("\n") == tex.count("\n")
+    if "% keep comment" in spacing:
+        assert "% keep comment" in out
+    assert _demote_wrapfloats_text(out)[0] == out
+
+
+def test_spacing_removal_preserves_inline_text_and_existing_paragraph() -> None:
+    tex = (
+        _PRE + "\\begin{wrapfigure}{r}{0.5\\textwidth}\n"
+        "\\caption{before\\vspace{-20pt}after\n\n"
+        "next\\vspace{4pt} line\\hspace{-2mm}}\n"
+        "\\end{wrapfigure}\n\\end{document}\n"
+    )
+    out, _ = _demote_wrapfloats_text(tex)
+    assert "\\caption{beforeafter\n\nnext\\vspace{4pt} line}" in out
