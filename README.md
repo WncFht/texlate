@@ -46,7 +46,7 @@ docker run -p 8765:8765 -v texlate-data:/data ghcr.io/wncfht/texlate:latest
 
 [文档入口](docs/README.md)统一提供使用指南、当前契约、开发操作和历史实验证据。先读[快速开始](docs/guide/quickstart.md)，模型配置见[渠道与密钥](docs/guide/byok.md)，命令查 `texlate --help` 或[CLI 指南](docs/guide/cli.md)。
 
-历史端到端样本中，通用留出集交付 171/200，CS 留出集 191/200，CS 放大样本 725/800；这些样本有交集，不能直接相加。交付率不等于无版面缺陷率，修复救回率需单列分母。详见[评测报告](docs/research/2026-10-16-端到端评测.md)。同十篇同模型对照的管线新输入为 agent 直翻的约 23%，样本、账本和质量限制见[token 实测](docs/research/methods/token-economy-2026-10-03/README.md)。这些是历史记录，未代表当前 HEAD 重新验收。
+历史端到端样本中，通用留出集交付 171/200，CS 留出集 191/200，CS 放大样本 725/800；这些样本有交集，不能直接相加。交付率不等于无版面缺陷率，修复救回率需单列分母。详见[评测报告](docs/research/2026-10-16-端到端评测.md)。同十篇同模型对照的管线新输入为 agent 直翻的约 23%，样本、账本和质量限制见[token 实测](docs/research/evidence/token-economy/README.md)。这些是历史记录，未代表当前 HEAD 重新验收。
 
 开发环境、检查命令与贡献要求见[贡献指南](CONTRIBUTING.md)。产品代码在 `src/texlate/`，阅读器在 `web/`，评测机制在 `bench/`；评测载荷、运行档案和付费字节保存在仓外。决策理由由 [Agent Notes](.agents/notes/README.md)维护。
 

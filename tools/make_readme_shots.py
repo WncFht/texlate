@@ -2,7 +2,7 @@
 
 风格台账：editorial token 系统（PAPER/INK/MUTED/SOFT/ACCENT/PINE 取自
 web/src/styles/base.css 品牌面），与 shots/bench-pipeline.png（HTML/SVG）
-和 shots/bench-parse-libs.png（metrics-2026-09-19/make_readme_figs.py）
+和 shots/bench-parse-libs.png（evidence/metrics-history/make_readme_figs.py）
 同一视觉身份：米色纸面、墨色正文、朱红主角、衬线主张行 + mono 眉题 +
 footnote 尾注三层结构。fvstyle 仅供机器审计（register_colors 放行色板）。
 
@@ -18,7 +18,7 @@ footnote 尾注三层结构。fvstyle 仅供机器审计（register_colors 放�
 语义台账：管线=ACCENT 朱红（主角惯例，同 parse-libs 自研列）；agent=
 MUTED 灰（对照组惯例）。终态类=交付归因（ACCENT 直接交付、PINE 修复
 救回、SOFT 修不了、DIM 上游死）。数据源自
-docs/research/methods/token-economy-2026-10-03/data/per-paper-tokens.json
+docs/research/evidence/token-economy/data/per-paper-tokens.json
 与 e2e 两篇冻帧文档的逐篇交付账。
 
 运行：uv run --with matplotlib python tools/make_readme_shots.py
@@ -100,8 +100,7 @@ plt.rcParams.update(
 
 DATA = json.loads(
     (
-        _ROOT
-        / "docs/research/methods/token-economy-2026-10-03/data/per-paper-tokens.json"
+        _ROOT / "docs/research/evidence/token-economy/data/per-paper-tokens.json"
     ).read_text()
 )
 OUT = _ROOT / "shots"

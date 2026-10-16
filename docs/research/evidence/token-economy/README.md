@@ -128,4 +128,4 @@ agent 612,897 vs 管线 294,672（0.48×）。结构差异：agent 输出含整�
 | `data/ekg-19506.json`        | 2609.19506 逐调用 [新输入，缓存读，输出] 行；当前实现 74 行直取网关账本窗并核平总额                 |
 | `make_figs.py`               | 图 1–3 再生：`uv run --with matplotlib python make_figs.py`                                         |
 
-逐篇归属口径：网关行无任务 id，按「api + key_hash + 起止时刻」切窗；当前实现各窗 Σ(新输入 + 缓存读) 与 `task_usage.prompt_tokens` 逐字节相等（10/10 篇），agent 侧另有 codex 自报 `turn.completed.usage` 交叉（自报 45.4M < 网关 54.9M，差在工具注入与上下文压缩重放，账以网关为准）。完整测量细节与质量闸底表见 [三臂实测基线](../agent-pipeline-baseline-2026-09-28/README.md)；本文是同一数据的组成视角单述。
+逐篇归属口径：网关行无任务 id，按「api + key_hash + 起止时刻」切窗；当时各窗 Σ(新输入 + 缓存读) 与 `task_usage.prompt_tokens` 逐字节相等（10/10 篇），agent 侧另有 codex 自报 `turn.completed.usage` 交叉（自报 45.4M < 网关 54.9M，差在工具注入与上下文压缩重放，账以网关为准）。完整测量细节与质量闸底表见 [三臂实测基线](../translation-baseline/README.md)；本文是同一数据的组成视角单述。

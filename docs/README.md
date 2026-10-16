@@ -45,4 +45,4 @@ TeXlate 将 arXiv LaTeX 源码翻译并重编译成中文 PDF，提供双语阅�
 | [存储经验](research/2026-10-16-评测存储经验.md)         | 付费字节、恢复、硬链接与备份          |
 | [产品路线依据](research/2026-10-16-产品路线依据.md)     | 已采用的机制与尚未实施的方向          |
 
-原始证据包保留[三臂对照](research/methods/agent-pipeline-baseline-2026-09-28/README.md)、[token 实测](research/methods/token-economy-2026-10-03/README.md)、[早期评测报告](research/methods/metrics-2026-09-19/README.md)和[引用调研数据](research/product/citation-ux-2026-09-21/README.md)。报告需要的结构化数据、图表、脚本和 LaTeX 源码随包维护。
+原始证据包保留[三臂对照](research/evidence/translation-baseline/README.md)、[token 实测](research/evidence/token-economy/README.md)、[早期评测报告](research/evidence/metrics-history/README.md)和[引用调研数据](research/evidence/citation-ux/README.md)。报告需要的结构化数据、图表、脚本和 LaTeX 源码随包维护。

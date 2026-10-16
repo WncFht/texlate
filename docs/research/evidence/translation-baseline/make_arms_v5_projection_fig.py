@@ -10,8 +10,8 @@
 - 色相：agent=vorange、v4=vcoral、v5=vteal；v5 一律 // hatch 标「推算」。
 
 本件是 make_arms_figs.py 图 3 V5_PROJ 常数的推导源；产物
-arms-v5-projection.png 不在已提交图组（推导过程稿，未随 README 引用）。
-数据全部内联——agent/v4 实测值与 miss 谱见本目录 README §2/§4。
+arms-v5-projection.png 不入库，按需生成；当前图组由 make_arms_figs.py 生成。
+数据全部内联——agent/v4 实测值与 miss 谱见本脚本常数和包内 JSON。
 
 运行（本目录内；仓 .venv 无 matplotlib，numpy 由 matplotlib 传递带入）：
   uv run --with matplotlib python make_arms_v5_projection_fig.py
@@ -44,7 +44,7 @@ PAPERS = [
     "20581",
 ]
 
-# —— 实测：网关 logs 窗（docs/research/methods/agent-pipeline-baseline-2026-09-28 §2）
+# —— 实测：网关 logs 窗（docs/research/evidence/translation-baseline §2）
 AGENT_IN = [
     75070,
     31808,

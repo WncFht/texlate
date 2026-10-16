@@ -23,6 +23,16 @@ v4/v5 的占位符 ID 存活检查十篇均为 100%，臆造 ID 为零，译文�
 - [v5-ledger.json](v5-ledger.json)、[v5-arm-wins.json](v5-arm-wins.json)：v5 账本和请求窗口。
 - [arms-ekg-rows.json](arms-ekg-rows.json)：逐请求曲线数据。
 - [qc-results-v4-agent.json](qc-results-v4-agent.json)、[qc-results-v5.json](qc-results-v5.json)：规则质量检查快照。
-- `make_arms_figs.py`、`make_arms_v5_projection_fig.py` 与 `_figstyle.py`：本目录数据生成 `charts/` 图表。投影图是估算，不能替代实测。
+- `make_arms_figs.py` 与 `_figstyle.py`：生成下方四张图。`make_arms_v5_projection_fig.py` 保存估算常数的推导，保留为来源；独立的重复投影 PNG 已删除，需要时可重新生成。推算不能替代实测。
 
-v6 原始窗口和用量只在原实验现场，未随包入库；上表保留历史汇总，不能承诺从本包完整复算 v6。原始文字版本可在重构前提交中查阅。后续更大样本见[token 实测](../token-economy-2026-10-03/README.md)。
+## 图表
+
+![三臂逐篇新输入与调用数](charts/arms-input-tokens.png)
+
+![2609.19506 三臂逐请求用量](charts/arms-request-ekg.png)
+
+![v5 推算与实测对照，推算不等于实验结果](charts/arms-v5-validation.png)
+
+![三臂规则质量检查，不代表完整语义质量](charts/arms-quality.png)
+
+v6 原始窗口和用量只在原实验现场，未随包入库；上表保留历史汇总，不能承诺从本包完整复算 v6。原始文字版本可在重构前提交中查阅。后续更大样本见[token 实测](../token-economy/README.md)。

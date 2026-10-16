@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# TeXlate 服务端形态（docs/research/product/web-layer.md §6）：
+# TeXlate 服务端形态（docs/guide/web.md）：
 #   阶段 1 node 构建 SPA → 阶段 2 取 tectonic musl 静态二进制（sha256 钉死）
 #   → 阶段 3 python:3.12-slim + uv sync + fonts-noto-cjk。
 #
