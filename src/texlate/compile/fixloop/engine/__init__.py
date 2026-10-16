@@ -16,7 +16,7 @@ C5 拆叶：实现体按域拆进同包五叶 + ``run/`` 孙包三叶，本文�
 PEP 562 惰性门面 (同 ``seqpos/__init__`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``engine.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
-monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
+monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/conventions.md「测试替换位置」)
 ——``engine.name`` 读到的恒是叶子对象，但 ``setattr(engine, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 (``texlate.compile.fixloop.engine.<叶>``), 不经本门面。

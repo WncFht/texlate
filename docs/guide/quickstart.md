@@ -76,10 +76,10 @@ scripts/build-web.sh
 
 ## 拿到的产物
 
-每个任务产出：中文 PDF（`zh.pdf`）、原文 PDF（`en.pdf`，由原文源码本地编译得到、源不可编译时缺席；PDF 上传任务则为上传的原文件）、对照数据（`dual.json`）、翻译后源码包（`zh-src.zip`）、编译日志。阅读器里直接看双语对照，下载菜单里取单件。产物默认保留在数据目录的 `tasks/<任务id>/` 下，清理策略见 `faq.md` 的「数据存放位置」。
+LaTeX 任务的产物包括中文 PDF（`zh.pdf`）、原文 PDF（`en.pdf`，原文源码本地编译失败时缺席）、对齐数据（`dual.json`）、译后源码包（`zh-src.zip`）和编译日志；实际可下载项以任务页为准。PDF 上传任务的原文为上传文件。产物默认位于数据目录的 `tasks/<任务id>/`，清理策略见 [Web 服务](web.md#数据与故障恢复)。
 
 ## 卡住了先看这里
 
-`doctor` 有 `fail` 项 → 按提示修环境；arXiv 拉取失败 → 检查网络或对已缓存的论文用 `--offline`；编译失败 → `faq.md` 的「编译失败处理」；译文是占位文本 → 没配 key，看 `byok.md`。
+`doctor` 有 `fail` 项时按提示修环境；arXiv 拉取失败时检查网络，已缓存论文可使用 `--offline`。编译失败见 [故障恢复](web.md#数据与故障恢复)。本地 mock 会产出占位文本；Web 缺凭据则进入 `needs_auth`，配置见 [BYOK](byok.md)。
 
 [^uv]: Astral. uv 安装文档。[docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/)

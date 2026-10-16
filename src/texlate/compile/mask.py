@@ -6,7 +6,7 @@ r"""遮蔽视图与 TeX 词法小件：normalize/inject 所有正则定位都打
 否则注释行变空行、跨行参数被劈断。
 
 移植自 texglot `app/sources.py`/`app/latex.py`（Apache-2.0，模式借用），
-配套证据 docs/research/latex/texglot-patterns.md §1.0。
+配套证据 docs/research/2026-10-16-编译与修复实验.md。
 """
 
 from __future__ import annotations

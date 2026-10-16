@@ -110,7 +110,7 @@ bytes[0:4] == "%PDF"            → PDF 直投（无源码 → 降级链 L3）
 
 ### 3.2 `PaperMeta` schema
 
-`PaperMeta`：`arxiv_id`、`resolved_version`、`latest_version`、`title`、`authors[]`、`abstract`、`primary_category`、`categories[]`、`published`、`updated`、`doi`、`journal_ref`、`comment`、`license`、`links`、`versions[]`（`VersionInfo`）。消费点：`primary_category`+`categories` → 术语包类目层（worker `_fetch_arxiv` 写 `options.arxiv_categories`）；`comment` → chunk/token 预算先验；`license` 仅 OAI arXivRaw 提供（机读许可唯一来源[^oai-pmh]）——**字段已落库但产品链无 license 拦截门（策略未落地）**，abs 页兜底抓取亦未落地；许可法律面见 `research/arxiv/licensing.md`。
+`PaperMeta`：`arxiv_id`、`resolved_version`、`latest_version`、`title`、`authors[]`、`abstract`、`primary_category`、`categories[]`、`published`、`updated`、`doi`、`journal_ref`、`comment`、`license`、`links`、`versions[]`（`VersionInfo`）。消费点：`primary_category`+`categories` → 术语包类目层（worker `_fetch_arxiv` 写 `options.arxiv_categories`）；`comment` → chunk/token 预算先验；`license` 仅 OAI arXivRaw 提供（机读许可唯一来源[^oai-pmh]）——**字段已落库但产品链无 license 拦截门（策略未落地）**，abs 页兜底抓取亦未落地；许可法律面见 `research/2026-10-16-获取与语料实验.md`。
 
 ## 4. 钉版缓存（`cache.py::SourceCache`）
 
@@ -158,11 +158,11 @@ L1  e-print 源码 ──parse_failed/compile_failed──→ L2  arXiv HTML（L
 
 ### 5.3 L3 PDF 臂
 
-L3 取官方 `/pdf/{id}[vN]` 由 worker `_Pdf` 段交 babeldoc sidecar（独立进程边界，AGPL 隔离——见 `spec/architecture.md` §4）。PDF 选型实证见 `research/arxiv/pdf-fidelity.md`。
+L3 取官方 `/pdf/{id}[vN]` 由 worker PDF 段交 BabelDOC sidecar；引擎保留独立进程与依赖边界，许可须按实际分发核验。见[架构](architecture.md)和[格式边界决策](../../.agents/notes/implemented/architecture/2026-09-15-技术栈与格式边界.md)。
 
 ## 6. 批量渠道（定位声明）
 
-**硬约束：benchmark 语料构建不请求 arxiv.org 任何端点。** 批量取数（IA 月度 tar、HF TIGER-5T/scholarweave、S3 requester-pays、GCS `gs://arxiv-dataset`、HF 元数据快照作分层 frame）实现在 bench 侧语料管线，**不在 `src/texlate/arxiv/` 产品层内**；本层共享给语料的只有解包/定位语义（成员级 `(channel,item,member,blob_sha256)` 钉版、`resolved_version=null`）。渠道裁决与实测见 `research/arxiv/bulk-channels.md`、`research/corpus/ia-pilot.md`、`research/corpus/post2020-sourcing.md`、`research/corpus/frame-and-allocation.md`[^arxiv-bulk]。
+主体语料优先使用 IA/HF 等 bulk 渠道，实现在 bench 侧，不放入产品获取层。hot/recent 等明确的近期层会复用产品 `acquire_source`，仍受限速与日预算约束。成员以 `(channel,item,member,blob_sha256)` 钉住字节；tar 无版本号时 `resolved_version=null`。渠道与分层限制见[语料契约](corpus.md)及[获取实验](../research/2026-10-16-获取与语料实验.md)。[^arxiv-bulk]
 
 ## 7. 未落地清单（规范侧明示边界）
 
@@ -180,10 +180,10 @@ L3 取官方 `/pdf/{id}[vN]` 由 worker `_Pdf` 段交 babeldoc sidecar（独立�
 
 [^arxiv-sanity]: karpathy/arxiv-sanity issue #80：arXiv denied.html 机器人封禁口径。[github.com/karpathy/arxiv-sanity](https://github.com/karpathy/arxiv-sanity/issues/80)
 
-[^layer]: TeXlate 调研档案 `research/arxiv/layer.md`：在线层实测主档（速率桶/406 配额/三态比例/版本语义/许可门裁决）。
+[^layer]: TeXlate 调研档案 `research/2026-10-16-获取与语料实验.md`：在线层实测主档（速率桶/406 配额/三态比例/版本语义/许可门裁决）。
 
-[^probes]: TeXlate 调研档案 `research/arxiv/probes.md`（§B 规模面含原 serial2 探针波次）：HEAD 预检、条件请求与分层抽样探针。
+[^probes]: TeXlate 调研档案 `research/2026-10-16-获取与语料实验.md`（§B 规模面含原 serial2 探针波次）：HEAD 预检、条件请求与分层抽样探针。
 
-[^export-probes]: TeXlate 调研档案 `research/arxiv/export-probes.md`：export 镜像=第二下载桶、限流按路径不按 host。
+[^export-probes]: TeXlate 调研档案 `research/2026-10-16-获取与语料实验.md`：export 镜像=第二下载桶、限流按路径不按 host。
 
-[^oai-pmh]: TeXlate 调研档案 `research/arxiv/oai-pmh.md`：OAI-PMH 第三限流桶与 `<license>`/版本史字段。
+[^oai-pmh]: TeXlate 调研档案 `research/2026-10-16-获取与语料实验.md`：OAI-PMH 第三限流桶与 `<license>`/版本史字段。

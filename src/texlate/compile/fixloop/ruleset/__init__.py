@@ -10,7 +10,7 @@ C5 拆叶：实现体按域拆进同包四叶，本文件化纯
 PEP 562 惰性门面 (同 ``fixloop/engine`` 形制) —— 平名经
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``ruleset.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
-monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/seams.md §1)
+monkeypatch 锚点注意：patch 叶子不 patch 门面 (docs/dev/conventions.md「测试替换位置」)
 ——``ruleset.name`` 读到的恒是叶子对象，但 ``setattr(ruleset, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 (``texlate.compile.fixloop.ruleset.<叶>``), 不经本门面。

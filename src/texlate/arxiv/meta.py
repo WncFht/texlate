@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 ATOM_API: Final = "https://export.arxiv.org/api/query"
 #: OAI-PMH baseURL（已迁出 export——/oai2 全动词 301 到此；独立第三限流桶）
 OAI_BASE: Final = "https://oaipmh.arxiv.org/oai"
-#: OAI 元数据前缀：arXivRaw 独占版本史 + license（docs/research/arxiv/oai-pmh.md §2）
+#: OAI 元数据前缀：arXivRaw 独占版本史 + license（docs/research/2026-10-16-获取与语料实验.md）
 OAI_PREFIX: Final = "arXivRaw"
 
 _ATOM_NS: Final = "http://www.w3.org/2005/Atom"

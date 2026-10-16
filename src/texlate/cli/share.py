@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 share_app = typer.Typer(
-    help="社区共享译文缓存包（设计 docs/research/product/2026-09-16-shared-cache.md）。",
+    help="社区共享译文缓存包。",
     no_args_is_help=True,
 )
 app.add_typer(share_app, name="share")

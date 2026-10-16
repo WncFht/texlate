@@ -1,68 +1,33 @@
 # TeXlate
 
-> 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/log/audit-2026-09-16/`）。方案冻结——`docs/spec/` 是实现唯一事实源，`docs/decisions/` 收 ADR 决策史，`docs/research/` 与 `docs/log/` 是过程证据。解析管线只认 `gullet/`+`segmenter/` 包路径（corpus identity 100%、leak 0.040%，parsebench 实测时点 3937 文件）；逐包子结构见下「仓库布局」节与 `docs/dev/repository.md`。
+arXiv LaTeX 源码经段落翻译和中文重编译产出双语 PDF；另有 HTML、PDF 与电子书路径。项目说明见 [README](README.md)，文档入口见 [docs/README.md](docs/README.md)。
 
-## 仓库布局
+## 修改与验证
 
-- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+），按层分：
-    - `arxiv/` — 获取层（acquire/cache/fetch/html/locate/meta/ratelimit/sniff/unpack/`_texutil` 十件）
-    - `latex/` — 半解析 + 展开机：**`gullet/`+`segmenter/` 包为唯一解析路径**（segmenter 内 `args/` 子包五叶、`_common/` 子包七叶）；api/chars/flatten/macro_table/model/mouth/placeholder/prose 单层叶 + `tables/`/`reconstruct/` 子包各五叶 + `data/argspec.json`
-    - `xlat/` — 翻译编排：`pipeline/` 子包七叶 + `intercept`/`authgate` 顶层叶 + client/stream/retry/glossary/autogloss/placeholders/prompts/resid/batch/state/mock 等单层叶 + `terms/` 术语表资产
-    - `validate/` — 校验三层：`rules/` 子包八叶 + cst/logattr + report，`ts/` tree-sitter node 校验件
-    - `compile/` — `engine/` 引擎包（`_xelatex/` 孙包六叶）+ `normalize/` 子包八叶 + `latex209/` 子包五叶 + inject/probe/sandbox/proc/loginfo/logparse/ctan/deps/judge/mask/toolchain/layout/mainfile/marks/shadow/transcode/cjkmap/`patchseams`/`_docseams`/`_yamlish` 单层件 + `cmaps/` GB1 ToUnicode 资产（cjkmap 消费）
-    - `compile/fixloop/` — yaml 修复引擎：`engine/`（五叶 + `run/` 孙包三叶）/`actions/`/`ruleset/` 子包（各四叶）+ cases + llm_hook；规则库 = `rules/` 17 分片 + `builtins/` 子包（顶层 16 叶 + misschar/csfix/gfx_missing 各九叶、common/layoutfix/slotrev 十/七/五叶）+ `vendor/` 离线宏包资产
-    - `server/` — FastAPI+SSE+SQLite+BYOK + babeldoc sidecar + SPA staticfiles + upload 安全解包：`routers/`/`store/`/`worker/` 三包（worker 内 `compile/`/`translate/`/`_common/` 三子包七/六/八叶）+ `seqpos/` PDF 锚位子包四叶 + app/settings/channels/auth/providers/srccut/validate/http/logredact/upload/sweep/events/staticfiles/babeldoc/bibexport/`_common`/`_ttlcache`/`__main__` 域件
-    - `export/` — EPUB/DOCX 双语插译（`epub/` 子包八叶 + docx/common/filters/markers/rights 平铺件）
-    - `pipecore/` — e2e/worker/bench 三臂共享管线 policy 脊（子包八叶）+ `repair/`（logfix 回灌/env judge 归因 + 衔接低层件，attr/envjudge/mech/rounds/runstate 五叶）
-    - 其余 — `cli/`（typer 包：命令叶 fetch/parse/run/web/export/share/tools/version/doctor/channels + `thin` 瘦客户端 + `_common`/`_output` 底座）、`textutil/`（编码/文本工具子包十叶：cite/cjk/decls/encoding/ifscan/jsonl/mask/nets/osutil/targate，`TEXLATE_*` env/正则词表单源）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`chunk.py`（xlat 输入契约共享位）、`redlines.py`（红线注册表）、`texlog.py`（编译日志 file stack）、`logsetup.py`（日志装配单源：RichHandler stderr + RedactFilter 脱敏 + 轮转文件；`TEXLATE_LOG`/`TEXLATE_LOG_FILE` env）、`share.py`（共享包 + `cache_key_for`/`cache_scope`/`PIPELINE_VERSION` dedup 键单源）
-- `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest/build）
-- `zotero/` — Zotero 7 插件（TypeScript 瘦客户端：条目右键 → 远端 texlate 翻译 → `zh.pdf` 回挂附件；独立 package.json/tsconfig/eslint.config.mjs）
-- `tests/` — pytest（约 1.03 万用例；corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿；`bench_kernel/`=bench 内核套件，经 pyproject `pythonpath=["bench/py"]` 直 import）
-- `docs/` — 六分区文档库（`README.md` 总索引）：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源，与代码冲突以代码为准改文档）、`decisions/` ADR 决策史、`dev/` 贡献者文档（仓布局/工具手册/评测协议/版面质检契约）、`research/` 调研档案（arxiv/latex/corpus/methods/product/errsweep 域 + `model-selection.md`/`bibliography.md` 单件）、`log/` 工程日志（编年时间线 + 审计快照）；**写/改任何文档先读维护规则 `docs/MAINTENANCE.md`**（分区生命周期、格式契约、公开发布敏感政策、索引登记）
-- `bench/` — 评测 harness 现场。**trizone-ledger v2 已切换**（终态设计 `docs/spec/bench-trizone.md`；评测器规格 `docs/spec/benchmark.md`；分层契约 `bench/TIERS.md` L0–L3）：代码仓只留机制与清单，数据四区在 `$TEXLATE_BENCH_ROOT`（缺省 `~/.local/share/texlate-bench`，git checkout 之外，各区可经 `TEXLATE_{LEDGER,RUNS,VAULT,LAKE}_ROOT` 分卷）——`ledger/` 追加账 + `runs/` 执行档案 + `vault/` 付费字节（zh/splice 译文真身，不可再生）+ `lake/` 免费载荷（corpus 载荷/cache/durable/tmp）
-    - `bench/py/` — trizone 内核与评测件：`kernel/`（七子包 + 18 平铺件：`cli/`（全动词入口十三叶 + `__main__.py`）、`kernel/`（run/plan 编排六叶）、`lake/`（六叶，`DiskPressureError` 闸驻 gate 叶）、`vault/`（付费字节区十叶）、`index/`（七叶，含 store/apply/proj/query 四 mixin 底座）、`importer/`（四叶）、`spec/`（base/checks/hash/load 四叶）+ 平铺 idnorm/locks/fsutil/cas/events/ledger/runs/ctx/executors/dedup/claims/paid/sweep/doctor/paths/report/cache + `__main__`）、`specs/`（评测 spec：八子包门面 `soak/`(7)/`corpus/`(6)/`corpus_sw/`(6)/`corpus_layers/`(7)/`e2e_real/`(8)/`parsebench/`(5)/`qualbench/`(4)/`validbench/`(6) + 私有辅助包 `_corpus_common/`(7)/`_fixture_matrix/`(5，eval 叶 eager 装载保 SIGALRM 主线程语义)/`_layoutqc/`(8，T0 版面质检套件) + 28 平铺 spec 件与 `_bootstrap`/`_shared`/`_sabotage`/`_benchlite`/`_qmetrics`/`_select`/`_xlat_async` 等辅助件）、`verbs/`（triage/gate/`dossier/` 子包七叶/xlat/qual/booster/rundiff 分析动词）、`iclr/`（ICLR 章节长度研究件六叶，暂停至 10 月）、`ops/`（`status_panel/` 子包七叶 + `__main__.py`（只读状态面板）；task_ping 看板心跳）；统一入口 `bench/py/bench`（可执行 shim → `kernel.cli`，动词面 `init|run|plan|status|vault|ledger|lake|derive|sweep|prune|backup|doctor|fsck|spec|triage|gate|dossier`）。断言矩阵在 `tests/bench_kernel/test_bench_regression.py` + `tests/bench_kernel/`
-    - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored；现 absent，按需重建）
-    - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
-    - `bench/corpus/` — 语料清单层：层化 manifest（core/booster/dev_*/expand/hot/holdout + v1/v2/m1k/iclr 多版本），口径以 `MANIFEST.md` 为准（勘误至八层合计 13,266 篇）；`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py`/`selection_report.md`/`eval_coverage.json`/`nominations/` 入库、`{id}/` 载荷 gitignored——trizone 下载荷真身驻 `lake/corpus/{source}/{safe_id}/`
-    - `bench/fixtures/` — 陷阱构造 `.tex`（`@Tnn`/`@Wnn`/`@Xn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
-    - `bench/frame/` — 抽样框架数据（`frame.parquet` + allocation/cluster 统计 csv/json——脚本重写产物，formatter 划出同 `bench/results/` 政策）
-    - `bench/nominations/` — 评测提名层 jsonl（e2e_real/qualframe/wrapfloat 等 id 集）
-    - `bench/results/`、`bench/work_*/`、`bench/zh-store/`、`bench/corpus_iclr_pdf/`、`bench/archive-*/` — 旧式产出/工作区/资产目录：现 absent（产出走 `runs/` 区、付费字节走 `vault/`、免费载荷走 `lake/`），对应 ignore/exclude 划出条款仍留在各 formatter/lint 配置里防复生
-- `tools/` — tracked 可复用诊断/度量脚本（seqpos 对位度量组、qc_replay、docs_linkcheck、`_env.py`/`_seqpos_lib.py` 共享件等；逐件登记 `tools/README.md`；一次性探针不写这里，去 `tmp/`）
-- `scripts/` — 仓级 shell 工具（agent-links/build-web/fmt-shell/bench-backup/systemd 单元等）
-- `shots/` — README/文档配图 PNG
-- `tmp/` — scratch 实验区（整目录 gitignored）
+- 产品代码使用 Python 3.12+ 与 uv：`uv sync`，按改动范围运行 `uv run pytest tests/`。`src/` 采用 Ruff 严格规则；配置以 `pyproject.toml`、`ruff.toml` 为准。
+- 前端在 `web/`：`npm ci --prefix web`，运行该目录的 `typecheck`、`lint`、`test`、`build`。Zotero 插件使用 `zotero/` 自身工具链；其宿主测试需要真实 Zotero。
+- 解析唯一实现为 `latex/gullet/` 与 `latex/segmenter/`；共同管线策略放 `pipecore/`，避免 worker、CLI 和 bench 复制实现。
+- `bench/py/kernel/` 与纯 stdlib 动词可使用系统 Python；引用产品包的 spec 使用 `uv run python bench/py/bench …`。
+- `bench/fixtures/*.tex` 字节即测试语义，禁止格式化或润色。语料 manifest 不随意改写；付费译文与实验载荷在仓外 `TEXLATE_BENCH_ROOT`，不作为可重建垃圾清理。
+- 写注释、命名和改持久格式前读 [贡献约定](docs/dev/conventions.md) 与 [冻结格式登记](docs/spec/glossary.md)。
+- 仅暂存明确路径；保留无关工作树改动，不使用整树 stash 或私有 index 提交。提交使用英文 Conventional Commits。
 
-## 格式化工具链
+## 文档与决策
 
-`git commit` 会走 pre-commit：formatter 经 git-format-staged 改写暂存内容并同步工作区（两侧一致，commit 不被格式化阻断，未暂存编辑不受污染）；check 类 hook 失败才拦。前置条件：`npm install`、`autocorrect ruff shfmt shellcheck actionlint taplo`（macOS 全走 `brew install`；Linux 对应 `pacman -S shfmt shellcheck ruff taplo-cli` + `cargo install autocorrect` + `go install github.com/rhysd/actionlint/cmd/actionlint@latest`）、`pre-commit install`。版本以 `package.json` 为唯一事实源，编辑器（`.vscode/settings.json` 的 prettierPath）与 hook 同源。
+统一采用 `.agents/skills/` 的 `maintain-docs`、`maintain-prose`、`maintain-decision-notes`。区域规则见 [docs/AGENTS.md](docs/AGENTS.md)，文档契约见 [docs/MAINTENANCE.md](docs/MAINTENANCE.md)。
 
-- `*.sh`：`shfmt -i 2`（gfs）+ `shellcheck -S warning`。zsh 脚本不在链内——两者都不支持 zsh，`scripts/fmt-shell.sh` 对 zsh shebang 原样透传。
-- `*.py`：`ruff format`（gfs）+ `ruff check`（`ruff.toml` 是 `select=ALL` + 逐条注明豁免）。autocorrect **不入 py 链**——它对 py 按平文处理会连字符串字面量一起改写（测试夹具/协议字面量字节即语义）；docstring/注释的 CJK 标点只做周期人工 sweep（`--fix` 后须按 token 回植非 docstring 字符串）。另注意 autocorrect 尊重 .gitignore——`tmp/` 下探针会被静默跳过。
-- `*.js`/`*.json`：`prettier`（gfs）+ `eslint`（flat config，根目录是 CommonJS bench 脚本无 tsc；`web/` 是 TypeScript，走 `web/` 自己的 toolchain + CI web job——pre-commit eslint glob 只盖 `js/mjs/cjs`，web `.ts` 本地零 eslint 门是有意取舍：不假设 `web/node_modules` 在场，lint 由 web toolchain/CI 把关）。
-- `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ `tools/md_table_align.py` 表格显示宽度重排（MD060 按显示宽度对齐，CJK=2；同为 fail-re-add 语义）→ md 内 python 栅栏 `ruff format`（文件名模式原位改写，同属 fail 一次 re-add 语义；gfs stdin 拿不到文件名识别不了栅栏）→ `autocorrect --stdin`（gfs）。**prettier 不入 md 链**——它按字符宽给表格补白，与显示宽度约定互斥，同一张 CJK 表会来回乒乓；`package.json` format 面与 `.vscode` formatOnSave 同步划出。裸跑 `markdownlint-cli2` 无参扫 0 文件——默认 globs 在 `.markdownlint-cli2.jsonc`，或显式传 `"**/*.md"`。
-- `*.yaml`/`*.yml`：`prettier`（gfs）+ `scripts/check-yaml-comments.py` 散文注释宽度 check（≤80 显示列，CJK=2；块标量/多行引号标量内行首 `#` 是内容不查）。缩进规则：yaml 2 空格、md 4 空格，见 `.prettierrc` overrides。
-- `*.toml`：`taplo`（gfs）。
-- `.github/workflows/*`：`actionlint`（check）。
-- `*.tex`：**不进链**——`bench/fixtures/` 是陷阱输入，字节即语义。
-- `bench/results/`：**全链划出**（改写型 formatter 与 check 类链都不覆盖）——脚本产出目录，重跑会重写。formatter 经 ignore 文件与 hook `exclude` 划出；check 侧 markdownlint 经 `.markdownlint-cli2.jsonc` ignores、ruff 经 `ruff.toml` extend-exclude 划出，shfmt/shellcheck/taplo 因目录无对应文件类型而 vacuous。若日后往此目录入库脚本/源文件，需重新评估链覆盖。
-- gitleaks 拦 secret；`.gitleaks.toml` 只用默认规则。
+当前行为归 `docs/spec/`，用户操作归 `docs/guide/`，开发操作归 `docs/dev/`，实验证据归 `docs/research/`，长期理由归 `.agents/notes/`。每项事实维护一个归属，变更时修复链接和代码注释。文档与实现冲突时先核对代码和测试；不得把拟议行为写成已实现。
 
-CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
+根指令仅保存持续需要的规则和入口，不维护包树、测试计数、历史里程碑或任务流水。维护材料来源与许可见 [.agents/README.md](.agents/README.md)。
 
-## Agent 入口约定
+## 工具链
 
-`AGENTS.md` 与 `.agents/` 是入库的唯一事实源（维护技能放 `.agents/skills/`，各带 `agents/openai.yaml` 元数据；当前维护技能为 `maintain-docs`、`maintain-prose`、`maintain-decision-notes`）。`.agents/references/`、`.agents/templates/` 和 `.agents/notes/` 保存维护体系的共享规范、模板与长期决策记录。Claude Code 原生读取 `AGENTS.md`；`.claude/skills` 是指向 `../.agents/skills` 的本机目录软链，不入库；clone 后跑 `scripts/agent-links.sh` 重建，并清理旧版 `CLAUDE.md` 软链。
+安装入口为 `npm ci`、`pre-commit install --hook-type pre-commit --hook-type pre-push`；系统工具依赖与操作见 [开发手册](docs/dev/development.md)。
 
-维护体系来自 `WncFht/agent-maintenance` 固定版本 `20bb1e5b0cca68ca64c79451c19a0130f6281bb0`，适配层检查入口为 `scripts/check_docs.py`、`scripts/notes_guard.py`、`scripts/check_archive.py`、`scripts/staged_checks.py` 与 `scripts/run_checks.py`。文档、注释和长期决策分别使用对应维护技能；接入说明与来源记录见 `.agents/来源与取舍.md`，上游 MIT 许可见 `.agents/AGENT-MAINTENANCE-LICENSE`。
+提交使用既有 git-format-staged 链；Markdown 使用 markdownlint、显示宽度表格对齐、Python 栅栏 Ruff 与 AutoCorrect，不使用 Prettier。Python 字符串不经过 AutoCorrect。Shell 使用 shfmt/shellcheck，zsh 原样透传；YAML 使用 Prettier 和注释宽度检查；TOML 使用 taplo。具体配置由根配置文件维护。
 
-## 项目运维约定
+`uv run --no-sync python scripts/run_checks.py --config scripts/checks.json --mode ci` 检查维护契约与行为测试。产品验证仍按现有 CI 执行；维护检查通过不证明产品正确。
 
-- 本仓处于 M1–M3 推进阶段（M0 已验收，详见 `docs/log/audit-2026-09-16/README.md`）：`src/texlate/` 产品代码 + `tests/` pytest；`bench/` 下是评测 harness 与语料管线。
-- 产品代码一律走 uv venv：`uv sync`（server 依赖在 core）后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
-- `bench/py/` 分两档：kernel/verbs/顶层工具纯 stdlib，系统 `python3 bench/py/bench <verb>` 即可跑；**`specs/` 里 import `texlate.*` 的 spec（e2e_mock/compilebench 等）要走装了依赖的 venv**——`uv run python bench/py/bench run <spec>`（`specs/_bootstrap.ensure()` 负责把 `src/` 准入 sys.path，但 httpx/typer 只在 venv 里）。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv（现 absent，按需重建）。
-- `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
-- `bench/corpus/` 语料清单是 arXiv e-print 解压原样的索引面，不改写；语料载荷在 `$TEXLATE_BENCH_ROOT/lake/corpus/`（git checkout 之外）；新增语料登记对应 `MANIFEST.md`/`manifest*.jsonl`。
-- 写注释/起新名/改旧名先读 `docs/dev/conventions.md`（注释引用纪律 + 命名纪律：新键日期戳、禁编号代号）；冻结名与撞名登记在 `docs/spec/glossary.md`。
-- 参考实现 [ieeA](https://github.com/zcyisiee/ieeA) 只借鉴模式不搬代码。
+## 本机入口
+
+`AGENTS.md` 与 `.agents/` 为入库事实源。`bash scripts/agent-links.sh` 创建被忽略的 `.claude/skills -> ../.agents/skills`，清理旧版 `CLAUDE.md` 软链；不覆盖外来实体。`.zcode/`、`.crossnote/` 和 `tmp/` 均为本机层。

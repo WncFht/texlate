@@ -32,7 +32,7 @@ npm ci
 npx zotero-plugin build   # → .scaffold/build/texlate.xpi
 ```
 
-隔离 profile 的开发回路（mock 服务 + fixture + RDP 验证编排）见 `dev/README.md`。
+隔离 profile 的开发回路（mock 服务 + fixture + RDP 验证编排）见 `README.md`。
 
 ## 配置
 
@@ -66,7 +66,7 @@ API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好�
 
 ## Dev API
 
-挂在 `Zotero.texlate` 上供 `dev/` 验证工具链用（经 RDP eval 驱动——见 `dev/README.md`）：
+挂在 `Zotero.texlate` 上供 `dev/` 验证工具链用（经 RDP eval 驱动——见 `README.md`）：
 
 ```js
 await Zotero.texlate.selftest(itemID); // 全链 → SelftestResult {ok, steps[], taskId}
@@ -92,7 +92,7 @@ npm test        # 真 Zotero 里跑 mocha
 - `addon/` — 静态资源：manifest（Zotero 7.0–10.\*）、bootstrap、偏好默认值、locale（en-US/zh-CN）、preferences.xhtml
 - `src/` — `hooks.ts` 只做分发；逻辑全在 `src/modules/`（client / arxivId / poller / attach / prefs / menu / flow / selftest）；共享签名在 `src/contracts.ts`
 - `typings/` — scaffold 生成的 d.ts
-- `dev/` — 验证工具链 + research 笔记（`dev/README.md`）
+- `dev/` — 验证工具链 + research 笔记（`README.md`）
 
 ## License
 

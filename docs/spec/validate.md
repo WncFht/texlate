@@ -127,8 +127,8 @@ e2e 与 server worker 双编排器共享的低层件；链序 = **precheck → l
 
 ### 参考文献
 
-[^texglot]: TeXlate 调研档案：texglot 模式实录——归一化层/缓存键/重试阶梯/沙箱与网关实测。[research/latex/texglot-patterns.md](../research/latex/texglot-patterns.md)
+[^texglot]: TeXlate 调研档案：texglot 模式实录——归一化层/缓存键/重试阶梯/沙箱与网关实测。[research/2026-10-16-编译与修复实验.md](../research/2026-10-16-编译与修复实验.md)
 
-[^rules-lab]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/latex/validator-rules.md](../research/latex/validator-rules.md)
+[^rules-lab]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/2026-10-16-解析与校验实验.md](../research/2026-10-16-解析与校验实验.md)
 
-[^cst-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/latex/validator-ts.md](../research/latex/validator-ts.md)
+[^cst-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/2026-10-16-解析与校验实验.md](../research/2026-10-16-解析与校验实验.md)

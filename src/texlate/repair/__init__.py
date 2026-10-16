@@ -25,7 +25,7 @@
 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析并缓存，
 ``repair.X`` 公共面与 ``from ... import X``/``M._x`` 属性读面不变。
 ``ENV_*`` 开关名是字面量常量、零成本，直接 eager 回引钉点面。
-monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）
+monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/conventions.md「测试替换位置」）
 ——``repair.name`` 读到的恒是叶子对象，但 ``setattr(repair, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 （``texlate.repair.<叶>``），不经本门面。

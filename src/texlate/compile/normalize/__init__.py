@@ -7,7 +7,7 @@ docs/spec/compile.md 十二项清单逐条实现；**条件手术（microtype_of
 删除类编辑补回换行保持行号稳定（编译错误可回溯源文件行号）。
 
 移植自 texglot `app/compiler.py`（normalize_engine 系），实证依据见
-docs/research/latex/texglot-patterns.md §1.1–1.6。
+docs/research/2026-10-16-编译与修复实验.md。
 
 支持件字节转码/净化（PS 注释/aux/intermediate/catch-all）与系统包遮蔽
 两切面已拆至 sibling 模块 ``transcode.py``/``shadow.py``，本件回引。

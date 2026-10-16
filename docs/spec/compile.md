@@ -28,16 +28,16 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `route_project(root, *, prefer="tectonic") -> RouteDecision{engines, reject, reasons, non_utf8, latex209_suspect}`——`reject` 槽位保留但**恒 None**（LaTeX 2.09 无条件拒已移 fixloop `latex209_reject` gate）。流程：扫全部 .tex → `decode_tex`（非 UTF-8 记 `non_utf8`）→ `visible_tex` 遮盖 blob 上跑标记集。
 
-| 标记               | 检测                                                                                                                          | 路由效果                                      |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| eps/pstricks       | `*.eps` 文件、`@pstricks` 标记（`PSTRICKS_SIG_ALTS` 单源：pstricks/pstricks-_/pst-_ 包名元素级 + `pspicture` env + `\psset`） | **xelatex 置首**（xdvipdfmx 硬墙）[^pstricks] |
-| minted+frozencache | `_MINTED_FROZEN_RE` 且 minted 同现                                                                                            | tectonic 置首（bundle v2.6 吃 v2 缓存）       |
-| bitmap fonts       | `bbm/bbmfonts/dsfont/bbold/yfonts/wasy/wasysym`、`*.mf`                                                                       | reasons（tectonic 高风险提示，不改序）        |
-| `\special{psfile}` | dvips 原语插图探测（`_PSFILE_SPECIAL_RE`）                                                                                    | reasons（双引擎均不渲染，注记不改序）         |
-| 非 UTF-8           | `decode_tex` 分档                                                                                                             | reasons                                       |
-| `\documentstyle`   | LaTeX 2.09 嫌疑                                                                                                               | `latex209_suspect` 标记 + reasons             |
+| 标记               | 检测                                                                                                                          | 路由效果                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| eps/pstricks       | `*.eps` 文件、`@pstricks` 标记（`PSTRICKS_SIG_ALTS` 单源：pstricks/pstricks-_/pst-_ 包名元素级 + `pspicture` env + `\psset`） | **xelatex 置首**（xdvipdfmx 硬墙）[^experiment] |
+| minted+frozencache | `_MINTED_FROZEN_RE` 且 minted 同现                                                                                            | tectonic 置首（bundle v2.6 吃 v2 缓存）         |
+| bitmap fonts       | `bbm/bbmfonts/dsfont/bbold/yfonts/wasy/wasysym`、`*.mf`                                                                       | reasons（tectonic 高风险提示，不改序）          |
+| `\special{psfile}` | dvips 原语插图探测（`_PSFILE_SPECIAL_RE`）                                                                                    | reasons（双引擎均不渲染，注记不改序）           |
+| 非 UTF-8           | `decode_tex` 分档                                                                                                             | reasons                                         |
+| `\documentstyle`   | LaTeX 2.09 嫌疑                                                                                                               | `latex209_suspect` 标记 + reasons               |
 
-决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 标记即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
+决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 标记即重排[^experiment]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `builtins.bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
 
 ### 1.3 XelatexEngine（`engine/_xelatex/main.py`）
 
@@ -53,7 +53,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 - bundle 三源：ctor `bundle=` > `TEXLATE_TEX_BUNDLE` env > `TECTONIC_BUNDLE_PIN`（`tlextras-2022.0r0` 钉版）；低版本用 `--web-bundle` 名。冷拉 bundle 需网——sandbox `allow_net=True`。
 - 双尝试 `_TECTONIC_ATTEMPTS=2`：`(timeout, min(timeout,120))`——超时后重试一次，timed_out 只记末次；`del passes`（引擎自决 pass 数，记 passes=1）；`_mirror_source_dirs` 预建镜像子目录。
 - `probe_file` 仅 cwd 内含解析；`install_file`→注入的 `ctan_fetch` callable（fixloop `CtanFetcher`，§6.5）；`rebuild_fontmaps`→False；log 缺席时 `^error:` 扫 stdout_tail。
-- 三大硬墙（换引擎信号）：EPS/PS 图（xdvipdfmx 不支持）、bundle 缺物理字体（`.vf or physical font`）、bundle 包版本旧语义错（不可选版只能换引擎）[^engine-matrix]。
+- 三大硬墙（换引擎信号）：EPS/PS 图（xdvipdfmx 不支持）、bundle 缺物理字体（`.vf or physical font`）、bundle 包版本旧语义错（不可选版只能换引擎）[^experiment]。
 
 ## 2. 沙箱与进程（`compile/sandbox.py` + `compile/proc.py`）
 
@@ -102,7 +102,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 - `FLOAT_SIZING`（有 figure/table 才注入）：@endfloatbox patch，ht+dp>`\textheight`→`\resizebox*` 缩 + `\typeout{TeXlate-Float-Fit}` 回读。
 - `demote_wrapfloats`：wrap*→figure/table[!htb]+centering+minipage 原宽，负 vspace 删。
-- `relax_float_specs`：白名单浮体 env（figure\*/table\*/algorithm/algocf/listing/sideways*）可选组合法 spec（`!htbpH` 字符域）缺 `p` → 尾补 `p`。`[h]`/`[ht]` 系不给浮体页通道，图密文档里 deferred 浮体全页拒位顺延到文末 `\clearpage` 倾泻（float_drift/order_inversion 驱动，实证见 `research/methods/2026-10-08-e2e-eval-1k.md` §6）；`[H]`/已含 `p`/空 spec/非 spec 可选组（keyval）不动。
+- `relax_float_specs`：白名单浮体 env（figure\*/table\*/algorithm/algocf/listing/sideways*）可选组合法 spec（`!htbpH` 字符域）缺 `p` → 尾补 `p`。`[h]`/`[ht]` 系不给浮体页通道，图密文档里 deferred 浮体全页拒位顺延到文末 `\clearpage` 倾泻（float_drift/order_inversion 驱动，实证见 `research/2026-10-16-端到端评测.md` §6）；`[H]`/已含 `p`/空 spec/非 spec 可选组（keyval）不动。
 - ~~`TABLE_FITTING`~~（0930 拔除）：表族 env/before+after 成对钩套 adjustbox 在配对不候场形（cls cs 形收尾/宏内 env/`\end{document}` 早退）及与 fixloop v1 注块并挂时崩 `ended by` 毁编（vault ~1200 事件）；表族钳宽归 fixloop `tabular_fit` v2 源级跨度包（warn_overfull 驱动，97-layout.yaml）。
 
 ### 4.3 cmap 注入（`compile/cjkmap.py`）
@@ -113,26 +113,26 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `mainfile.py::find_main_tex`：depth-0 docclass + bd 在自身或 input 闭包（filecontents 虚拟成员）；排序 aux 降权 → basename main/paper/ms → 语言秩 → tpl → 深度 → body mass → size。`classify_no_main`→latex209/plain_tex/garbage/None。
 
-`latex209/main.py::upgrade_209(tex, *, root)` 受限升级器（`\documentstyle`→`\documentclass`）：status∈converted/reject/no-docstyle；reject 三因 `latex209_no_decl`/`latex209_ds_at`(ds@ 类)/`latex209_no_target`（映射目标工程 rglob+kpsewhich 双路不可解，kpsewhich 缺席 fail-open）。`_CLASS_MAP`：revtex→revtex4-2（选项 rename）、mn→mnras、jpsj→jpsj3、elsart→elsarticle、aipproc→aipproc、amsart→amsart；`_route_opts` 序：rename→`_INCOMPAT_PKGS` 剥→`_KERNEL_OPTS`/类内建→`_PKG_OPTS` 或 shipped `<opt>.sty`→usepackage，余归类 opts。输出=`_PRE_CLASS_SHIM`+`\documentclass`+COMPAT_SHIM(latexsym/vruleheight/nfss ifs/DeclareOldFontCommand/plain 字体族/theorem-body/plain-TeX 残渣/multicol)+`_REVTEX209_SHIM`+`_MULTICOLS_SHIM`+`\usepackage{pkg_opts}`；`_fix_math_209`：math/text 模态，`{<switch> X}` 组→`\mathit/\mathbf` 参数形；`_MATH_CITE_CS_209` 17 名 cite 族数学内裸调→`\mbox{}` 包（独立出口 `wrap_math_cites`，fixloop `cite_in_math_mbox` 消费）。调用点：`inject.inject_cjk`（自动升级）+ fixloop precheck `latex209_upgrade`（order -0.5）；`latex209_reject` gate（order 1）兜底拒不可转形态[^fixloop-rules]。
+`latex209/main.py::upgrade_209(tex, *, root)` 受限升级器（`\documentstyle`→`\documentclass`）：status∈converted/reject/no-docstyle；reject 三因 `latex209_no_decl`/`latex209_ds_at`(ds@ 类)/`latex209_no_target`（映射目标工程 rglob+kpsewhich 双路不可解，kpsewhich 缺席 fail-open）。`_CLASS_MAP`：revtex→revtex4-2（选项 rename）、mn→mnras、jpsj→jpsj3、elsart→elsarticle、aipproc→aipproc、amsart→amsart；`_route_opts` 序：rename→`_INCOMPAT_PKGS` 剥→`_KERNEL_OPTS`/类内建→`_PKG_OPTS` 或 shipped `<opt>.sty`→usepackage，余归类 opts。输出=`_PRE_CLASS_SHIM`+`\documentclass`+COMPAT_SHIM(latexsym/vruleheight/nfss ifs/DeclareOldFontCommand/plain 字体族/theorem-body/plain-TeX 残渣/multicol)+`_REVTEX209_SHIM`+`_MULTICOLS_SHIM`+`\usepackage{pkg_opts}`；`_fix_math_209`：math/text 模态，`{<switch> X}` 组→`\mathit/\mathbf` 参数形；`_MATH_CITE_CS_209` 17 名 cite 族数学内裸调→`\mbox{}` 包（独立出口 `wrap_math_cites`，fixloop `cite_in_math_mbox` 消费）。调用点：`inject.inject_cjk`（自动升级）+ fixloop precheck `latex209_upgrade`（order -0.5）；`latex209_reject` gate（order 1）兜底拒不可转形态[^experiment]。
 
 ## 5. 支撑件
 
-| 件                     | 职责                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolchain.py`         | tectonic 便携引擎分发：`TECTONIC_VERSION=0.17.0`、五平台 sha256 钉死 `ASSETS`、`install_tectonic`（sha256 校验 + 原子换名）/`ensure_tectonic`/`resolve_tool`；`TEXLATE_NO_DOWNLOAD`>CI 默认关[^tectonic]                                                                                                                                                      |
-| `ctan.py`              | `ctan_fetch` 原语全模块：`TlpdbIndex`（texlive.tlpdb 解析→filemap.json 缓存，`TEXLATE_CACHE`>数据目录下 cache）、`fetch_package`（INDEX/OVERLAY_EXTS，flat 平铺\|tree 前缀剥，成员名穿越拒收 + 撤回，`FetchCaps` 五上限）、`check_version_compat`（`_NEEDFMT`/`_PKGLATER` 双 date 族 vs epoch）、`CtanFetcher`（tectonic 注入适配，索引首访惰建）[^ctanprobe] |
-| `sandbox.py`/`proc.py` | §2                                                                                                                                                                                                                                                                                                                                                            |
-| `mask.py`              | `TEX_SOURCE_SUFFIXES` + `visible_tex`/`without_comments`/`group_end`/`apply_edits`——normalize/inject 所有正则定位共用遮蔽契约                                                                                                                                                                                                                                 |
-| `shadow.py`            | `_shadow_broken_system_packages`（§3.4 translate.md 同族——xelatex/lualatex 坏字节系统包遮影）                                                                                                                                                                                                                                                                 |
-| `transcode.py`         | 支持件字节卫生（§3.4 translate.md 同族——aux/bib/intermediate/ps 转码 + `(atend)` bbox 回溯 ledgers）                                                                                                                                                                                                                                                          |
-| `patchseams.py`        | compile 层 monkeypatch 面收口（`_SOURCES` 惰性 `__getattr__`；worker 层同名收口 `server/worker/seams.py`，注入缝几何件 `_docseams.py` 名近义异勿混）                                                                                                                                                                                                          |
-| `_docseams.py`         | docclass/bd 注入缝原语（inject C4 拆出，原 `_seams.py` 改名防与上件撞名）：`find_docclass_ends`/`_splice_after_seams`/`_splice_before_document`——inject/layout/normalize/fixloop builtins 单向取用，仅依赖 textutil/mask                                                                                                                                      |
-| `_yamlish.py`          | `load_yaml`（目录分片合并装载薄封装）+ `loads` + `YamlishError`——PyYAML `safe_load` 正式依赖化后，自定义子集解析器已退役                                                                                                                                                                                                                                      |
-| `__init__.py`          | 惰性 facade（PEP 562 `__getattr__` 平名映射回子模块，不 eager 拉全链）                                                                                                                                                                                                                                                                                        |
+| 件                     | 职责                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolchain.py`         | tectonic 便携引擎分发：`TECTONIC_VERSION=0.17.0`、五平台 sha256 钉死 `ASSETS`、`install_tectonic`（sha256 校验 + 原子换名）/`ensure_tectonic`/`resolve_tool`；`TEXLATE_NO_DOWNLOAD`>CI 默认关[^tectonic]                                                                                                                                                       |
+| `ctan.py`              | `ctan_fetch` 原语全模块：`TlpdbIndex`（texlive.tlpdb 解析→filemap.json 缓存，`TEXLATE_CACHE`>数据目录下 cache）、`fetch_package`（INDEX/OVERLAY_EXTS，flat 平铺\|tree 前缀剥，成员名穿越拒收 + 撤回，`FetchCaps` 五上限）、`check_version_compat`（`_NEEDFMT`/`_PKGLATER` 双 date 族 vs epoch）、`CtanFetcher`（tectonic 注入适配，索引首访惰建）[^experiment] |
+| `sandbox.py`/`proc.py` | §2                                                                                                                                                                                                                                                                                                                                                             |
+| `mask.py`              | `TEX_SOURCE_SUFFIXES` + `visible_tex`/`without_comments`/`group_end`/`apply_edits`——normalize/inject 所有正则定位共用遮蔽契约                                                                                                                                                                                                                                  |
+| `shadow.py`            | `_shadow_broken_system_packages`（§3.4 translate.md 同族——xelatex/lualatex 坏字节系统包遮影）                                                                                                                                                                                                                                                                  |
+| `transcode.py`         | 支持件字节卫生（§3.4 translate.md 同族——aux/bib/intermediate/ps 转码 + `(atend)` bbox 回溯 ledgers）                                                                                                                                                                                                                                                           |
+| `patchseams.py`        | compile 层 monkeypatch 面收口（`_SOURCES` 惰性 `__getattr__`；worker 层同名收口 `server/worker/seams.py`，注入缝几何件 `_docseams.py` 名近义异勿混）                                                                                                                                                                                                           |
+| `_docseams.py`         | docclass/bd 注入缝原语（inject C4 拆出，原 `_seams.py` 改名防与上件撞名）：`find_docclass_ends`/`_splice_after_seams`/`_splice_before_document`——inject/layout/normalize/fixloop builtins 单向取用，仅依赖 textutil/mask                                                                                                                                       |
+| `_yamlish.py`          | `load_yaml`（目录分片合并装载薄封装）+ `loads` + `YamlishError`——PyYAML `safe_load` 正式依赖化后，自定义子集解析器已退役                                                                                                                                                                                                                                       |
+| `__init__.py`          | 惰性 facade（PEP 562 `__getattr__` 平名映射回子模块，不 eager 拉全链）                                                                                                                                                                                                                                                                                         |
 
 ## 6. fixloop（`compile/fixloop/`）
 
-yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹配→动作应用→重编，逐轮收敛[^fixloop-rules]。
+yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹配→动作应用→重编，逐轮收敛[^experiment]。
 
 ### 6.1 架构三件套与共享地基
 
@@ -218,7 +218,7 @@ for rnd in 1..max_rounds(8):
 | `reject_route`      | `REJECT: route=<r> <reason>`                                                                                                                                                                     |
 | `escalate_llm`      | `ctx.llm_hook(ctx, rep)`，无 hook→False stub                                                                                                                                                     |
 
-`cap_available`/`tool_available` 即引擎 caps 门——tlmgr/kpsewhich/updmap 依赖规则在 tectonic 侧自动降级或汇到 `ctan_fetch`/`vendored_fetch` 臂[^ctanprobe]。
+`cap_available`/`tool_available` 即引擎 caps 门——tlmgr/kpsewhich/updmap 依赖规则在 tectonic 侧自动降级或汇到 `ctan_fetch`/`vendored_fetch` 臂[^experiment]。
 
 ### 6.6 builtins：facade + 16 顶层叶 + 6 内嵌子包
 
@@ -285,14 +285,8 @@ for rnd in 1..max_rounds(8):
 
 ### 参考文献
 
-[^pstricks]: TeXlate 调研档案：pstricks/EPS 路由与 dvips 兜底链。[research/latex/pstricks-route.md](../research/latex/pstricks-route.md)
-
-[^engine-matrix]: TeXlate 调研档案：tectonic/xelatex 引擎矩阵实测。[research/latex/engine-matrix.md](../research/latex/engine-matrix.md)
-
-[^ctanprobe]: TeXlate 调研档案：ctan_fetch 原语与 tlpdb 离线索引实测。[research/latex/ctanfetch-probe.md](../research/latex/ctanfetch-probe.md)
-
-[^fixloop-rules]: TeXlate 调研档案：fixloop 规则库设计与沉淀机制。[research/latex/fixloop-rules.md](../research/latex/fixloop-rules.md)
-
-[^f3-note]: TeXlate ADR-0006：引擎路由裁决（2026-09-16 更新：策略拒绝归一 `partial`+`reject_at`）. [decisions/adr/0006-engine-routing.md](../decisions/adr/0006-engine-routing.md)
+[^f3-note]: TeXlate. [编译与修复决策](../../.agents/notes/implemented/architecture/2026-09-15-编译与修复.md). 路由、降级与回退理由。
 
 [^tectonic]: Tectonic Typesetting. Tectonic 编译引擎（五平台 sha256 钉死二进制分发）. [github.com/tectonic-typesetting/tectonic](https://github.com/tectonic-typesetting/tectonic)
+
+[^experiment]: TeXlate. [编译与修复实验](../research/2026-10-16-编译与修复实验.md). 历史实验归并，2026-10-16.

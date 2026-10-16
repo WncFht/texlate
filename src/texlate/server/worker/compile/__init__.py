@@ -9,7 +9,7 @@ splice/zip/源码回灌同步）、``compile.engine``（引擎构造/任务 texm
 本文件是 PEP 562 惰性门面（同 ``seqpos/__init__``/``fixloop/builtins``
 形制）——平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访
 解析并缓存，``compile.X`` 公共面与 ``from texlate.server.worker.compile import X`` 不变。
-monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）
+monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/conventions.md「测试替换位置」）
 ——``compile.X`` 读到的恒是叶子对象，但 ``setattr(compile, ...)``
 只遮蔽门面不改叶子内部互引。叶子间互引走全路径直跨
 （``texlate.server.worker.compile_<叶>``），不经本门面。

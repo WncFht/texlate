@@ -4,7 +4,7 @@
 数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），各层原构建管线为 `bench/py/corpus/build_*.py` 散件（core/booster/expand/hot/layers/sw 各一件）——**已退役**（2026-09 散件清理），现行等价物是 `bench/py/specs/` 语料 spec 件（`corpus_v3`/`corpus_expand`/`corpus_hot`/`corpus_layers`/`corpus_sw`/`corpus_hydrate`）。
 抽样管线见 `docs/spec/corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
-> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/spec/corpus.md` §4.3 增补注记与 `docs/research/product/2026-09-16-hardening-notes.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
+> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/spec/corpus.md` §4.3 增补注记与 `docs/research/2026-10-16-产品路线依据.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
 - 打包形式：{'tar': 831, 'gz': 169}

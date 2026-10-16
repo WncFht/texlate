@@ -27,9 +27,6 @@ IGNORED = {
     ".zcode",
 }
 
-# docs/ 的冻结档案沿用 MAINTENANCE.md 的历史链接规则；其余文档双轨核验。
-FROZEN_DOCS = ("docs/research/", "docs/log/", "docs/dev/archive/", "docs/decisions/")
-
 
 def markdown_files(root: Path):
     """剪枝依赖与本机目录，避免进入大型临时实验树。"""
@@ -85,7 +82,7 @@ def check(root: Path) -> list[str]:
     links = 0
     for path in sorted(markdown_files(root)):
         relative = path.relative_to(root)
-        if relative.as_posix().startswith(FROZEN_DOCS) or relative.parts[:3] == (
+        if relative.parts[:3] == (
             ".agents",
             "notes",
             "archived",

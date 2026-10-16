@@ -447,8 +447,8 @@ def _transcode_support_files(
     r"""非手术面文件按需转 UTF-8：aux/bib + 中间产物 + PS 注释行 + catch-all。
 
     只动字节不动字节序义：aux 由引擎下遍重写，转码只为消掉 shipped
-    非 UTF-8 件首遍回读的 invalid_utf8（docs/research/latex/
-    2026-09-16-aux-cjk-truncation.md 立项臂二；loop1 归因补充：工程
+    非 UTF-8 件首遍回读的 invalid_utf8（见
+    docs/research/2026-10-16-编译与修复实验.md；工程
     内残留警告 = EPS 头注释/``\openin`` 数据件/未列名文本件）。中间
     产物另加截尾整形（``_trim_intermediate_tail``）——不完整末行比
     非法字节更致命：``\@newl@bel`` 的 EOF 扫描发生在参数层，合法

@@ -1,4 +1,4 @@
-"""BabelDOC sidecar spawn 契约（docs/research/latex/pdf-path.md §4/§5）。
+"""BabelDOC sidecar spawn 契约（docs/spec/architecture.md）。
 
 无 LaTeX 源论文的 PDF 降级翻译通路：把 ``babeldoc`` CLI 包成
 「提交 → 进度 → 产物 → fallback 判定」壳。进程边界 = AGPL 边界——

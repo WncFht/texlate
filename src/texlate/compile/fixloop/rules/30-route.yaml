@@ -146,7 +146,7 @@ rules:
       xelatex: { mode: skip } # xelatex 下 pstricks 可走 (dvips 后端另议), 不触发
     provenance:
       - {
-          corpus: "pstricks-probe (docs/research/latex/pstricks-route.md)",
+          corpus: "pstricks-probe (docs/research/2026-10-16-编译与修复实验.md)",
           error: "xdvipdfmx EPS hard wall",
         }
     stats:

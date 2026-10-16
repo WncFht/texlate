@@ -7,7 +7,7 @@ pymupdf 优先（clip-aware，缺席退 pdftotext -bbox）+ poppler 子进程
 
 每个 check 返 findings（``{sig, …}`` 逐条）+ metrics 计数；汇总成
 ``{findings, metrics}`` 由 stage 挂 verdict/sig/errors。设计口径见
-docs/dev/layoutqc.md §4 T0 表。
+docs/spec/layoutqc.md T0 表。
 
 阈值集中 ``_layoutqc.thresh`` 叶——校准集（§7.4）出来前全是先验值，
 sig 即分桶键，阈值漂移只改一处。

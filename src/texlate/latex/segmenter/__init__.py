@@ -1,6 +1,6 @@
 r"""Segmenter——``next_expanded()`` token 流的消费者（M1 接线，S1 骨架）。
 
-契约见 ``docs/research/latex/segmenter-integration.md``。要点：
+契约见 ``docs/research/2026-10-16-解析与校验实验.md``。要点：
 
 - **vtex**：叙事序虚拟文本。一切 piece/chunk/span 用 vtex 坐标；
   ``file_texts[fid][a:b]`` 经 :meth:`Segmenter._cover_to` 追加映射，

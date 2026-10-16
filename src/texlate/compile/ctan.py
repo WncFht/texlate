@@ -5,7 +5,7 @@
 fixloop 向下消费 (旧 ``fixloop.ctan`` 路径 2026-09-20 退场，
 全仓直引本模块)。
 
-实证基础 ``docs/research/latex/ctanfetch-probe.md``:
+实证基础 ``docs/research/2026-10-16-编译与修复实验.md``:
   - tlpdb 正确路径 ``tlpkg/texlive.tlpdb.xz`` (~2.8MB xz → 20.7MB),
     解析出 8148 包 / 138K basename 索引，构建 0.14s, filemap.json ~5.5MB
   - ``archive/<pkg>.tar.xz`` 单包 2-136KB 秒级; tar 顶层前缀不统一

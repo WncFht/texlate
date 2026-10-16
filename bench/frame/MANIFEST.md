@@ -6,7 +6,7 @@
 
 - 上游：HF `librarian-bots/arxiv-metadata-snapshot`（CC0，日更 parquet，10 shards）——上游仓库保留 git 历史，旧 revision 可按 sha 找回
 - 本快照：上游 lastModified **2026-09-21**，拉取 ~2026-09-22，覆盖至 tar_yymm=2609（当月部分量 ~20.8k 行）
-- 构建口径：`docs/research/corpus/frame-and-allocation.md`（30 月簇 + 年代带配额论证）；IA/TIGER 索引件另记
+- 构建口径：`docs/research/2026-10-16-获取与语料实验.md`（30 月簇 + 年代带配额论证）；IA/TIGER 索引件另记
 
 ## 内容
 

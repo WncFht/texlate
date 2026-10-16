@@ -1,10 +1,10 @@
 // sentalign —— 句级双语对位（sent-align lane，v1 纯前端 B 方案）。
-// 实施文档：docs/dev/projects/ux-impl-2026-09-22/sent-align…实施文档.md。
+// 对位契约：docs/spec/reader-alignment.md。
 // 四段纯逻辑 + 一段会话，全部 jsdom 可单测：
 //   splitZh          zhseg.py 的正则臂移植（「。！？!?…+闭引号」run、ASCII '.'
 //                    过 _abbrev_dot 闸、_GUARD_RX 保护区、{} 深度>0 抑制、\\
 //                    双跳、句尾吸收随行空白）——Intl.Segmenter zh 对 Latin
-//                    缩写系统性过切，禁用（实施文档 §风险 15）。
+//                    缩写系统性过切，因此不用 Intl 的中文切句。
 //   splitEn          Intl.Segmenter("en",sentence)，输入先扁平化（\n 等长
 //                    换空格——RAW 变体在 \n 处乱切 4571 vs 4025，禁直切原文）。
 //   alignBeads       align-monotonic 贪心对位移植：rho=zh/en 逐 chunk 自适应，

@@ -44,7 +44,7 @@ ds@ 桥体）、``latex209.main``（``upgrade_209`` 编排 + ``_target_resolvabl
 PEP 562 惰性门面（同 ``validate/rules`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存，``latex209.X`` 公共面与
 ``from  import X``/``latex209._x`` 属性读面不变。monkeypatch 锚点
-注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）——
+注意：patch 叶子不 patch 门面（docs/dev/conventions.md「测试替换位置」）——
 ``_target_resolvable`` 桩点已迁 ``latex209.main``（调用方 ``upgrade_209``
 同叶命名空间直读）；``latex209.shutil``/``latex209.subprocess`` 经门面
 解析到的仍是真 stdlib 模块对象（``latex209.main`` 运行期 import），

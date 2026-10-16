@@ -75,7 +75,7 @@ INK_DROP_RATIO: Final = 0.35
 
 INK_SELF_OUTLIER: Final = 0.25
 
-#: 门三档（docs/dev/layoutqc.md §11.1）——HARD 挡 done 留全档、
+#: 门三档（docs/spec/layoutqc.md）——HARD 挡 done 留全档、
 #: WARN 进 QC score 不挡、INFO 纯记账。未分类新 sig 默认按 WARN
 #: 计（新探测器默认不挡门，硬档须显式进 _HARD_SIGS）。
 _HARD_SIGS: Final = frozenset(

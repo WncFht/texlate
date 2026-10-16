@@ -2,7 +2,7 @@ r"""LaTeX 源码文本工具：注释剥离（\% 转义 / verbatim / comment 环
 
 供 sniff（pdf_wrapper 检测）、locate（documentclass / \input 匹配）与
 unpack（tex_files 计数）共用。
-口径见 docs/research/corpus/corpus39-profile.md：逐行剥注释，奇数前导 \ 的
+口径见 docs/research/2026-10-16-获取与语料实验.md：逐行剥注释，奇数前导 \ 的
 \% 视为转义不剥。
 
 实现单源在 ``texlate.textutil.mask_tex``（等长遮盖视图）——本模块在其上

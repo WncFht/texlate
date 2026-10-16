@@ -7,7 +7,7 @@
 
 ``_net_apply_fn`` 经 ``.pipeline`` 门面回取——其 ``globals()`` 晚绑定钉在
 门面命名空间，tests ``setattr(pl, _intercept_*)`` 补丁照常触达账本调用点
-（docs/dev/seams.md §5）。
+（docs/dev/conventions.md「已登记接缝」）。
 """
 
 from __future__ import annotations

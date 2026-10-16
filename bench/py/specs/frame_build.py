@@ -6,7 +6,7 @@ bench/frame/ 全部 13 件资产 gitignored 已灭（payload 无副本），本 
     bench run frame_build                              # 按上游最新快照重建
     bench run frame_build --param snapshot_sha=<rev>   # 钉 HF revision 重建
 
-配方 = docs/research/corpus/frame-and-allocation.md（§1 远程列裁剪扫表、
+配方 = docs/research/2026-10-16-获取与语料实验.md（§1 远程列裁剪扫表、
 §4 带内累计量等分位取月、§5 坑清单），逐条内化：簇主键 = id 内嵌月
 tar_yymm（非 v1 月，3.1% 滚动错位）；yymm 比较走年序键（yy>=91→19yy，
 '0612'<'9501' 裸序在 2000 界断裂）；license 取记录级最新值；a 带宇宙

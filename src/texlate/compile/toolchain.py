@@ -1,7 +1,7 @@
 """tectonic 便携引擎分发：五平台 sha256 钉死矩阵 + 自动安装。
 
-texglot ``scripts/install_compiler.py`` 移植（docs/research/latex/
-texglot-patterns §5），服务 ``uv tool install`` 一键可用语义：
+参考 texglot ``scripts/install_compiler.py`` 的分发机制
+（docs/research/2026-10-16-产品路线依据.md），服务 ``uv tool install``：
 
 - 查找链 ``ensure_tectonic``：``find_tool``（PATH → macOS 落点）→ 托管目录
   ``<data>/tools/`` → 自动下载；``resolve_tool``/``find_managed`` 不触网，

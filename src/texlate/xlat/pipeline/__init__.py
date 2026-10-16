@@ -24,7 +24,7 @@ _XlatOrch 主编排 + ``XlatPipeline`` 组合根）。本文件是 PEP 562 惰�
 （同 ``kernel.kernel``/``worker.compile`` 形制）——平名经 ``_LEAF_EXPORTS``
 映射回叶子，``__getattr__`` 首访解析并缓存。
 
-monkeypatch 锚点守恒（docs/dev/seams.md §5）：五个 ``_intercept_<name>``
+monkeypatch 锚点守恒（docs/dev/conventions.md「已登记接缝」）：五个 ``_intercept_<name>``
 包装函 + ``_net_apply_fn`` 必须 eager 驻留本模块——后者经 ``globals()``
 晚绑定取件，钉的是本命名空间，tests ``setattr(pl, "_intercept_*")`` 才能
 照常触达账本/裸形两消费点（移进叶子 globals() 即换主，补丁静默旁路）。

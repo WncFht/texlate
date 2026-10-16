@@ -1,6 +1,6 @@
 r"""M1 展开层（mouth/gullet）单元测试：docs/spec/latex-pipeline.md 验收面。
 
-逐条锁 ``docs/research/latex/expansion-design.md`` 的行为契约：
+逐条锁 ``docs/research/2026-10-16-解析与校验实验.md`` 的行为契约：
 三态 tokenize / 注释吞行 / ``\def`` 定界参数族 / ``\newcommand`` 调用点 /
 ``\makeatletter`` / ``\if`` 两档 / 预算降级。corpus 级验证在 bench 侧。
 """

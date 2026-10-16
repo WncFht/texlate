@@ -1,16 +1,14 @@
 r"""Mouth：字符 → token（plasTeX ``Tokenizer.py:333-483`` 的移植）。
 
-逐条对应关系见 ``docs/research/latex/expansion-design.md`` §3（Token 与
-Mouth，原对照表已改散文）。
-与规格的刻意分歧（已留档）：
+Token 与 splice 契约见 ``docs/spec/latex-pipeline.md``；
+与 plasTeX 的刻意分歧如下：
 
 - ``Tok.pos`` 是 ``(file_id, start, end)`` 三元组而非规格的
   ``(file_id, offset)``：splice 覆盖校验需要 end——注释、被吞的定义区段、
   被丢弃的 ``\if`` 分支**不产 token**，它们的字节是 gap；已产 token 的
   ``[start, end)`` + gap = 原文逐字节。
 - 展开产物新增 ``origin`` 字段 = 最外层调用点 pos（沿嵌套展开传播）。
-  spec §2 同时要求"产物 pos=定义体区间"与"splice 用调用点 pos"，
-  ``origin`` 字段让两者同真：``src`` 属性 = ``origin or pos``。
+  ``pos`` 保存定义体区间，splice 使用调用点；``src`` 属性 = ``origin or pos``。
 - ``^^X`` 序列不实现（语料 ≈0）；``\let`` 不在 Mouth 层解（gullet 建
   别名表项，宏表查找时解引用——等价且少一条 Mouth→Context 依赖）。
 - ``eol_par`` 归一 ``\n\n`` 与 ``\par``（gullet 把 ``\par`` 原语也归一到

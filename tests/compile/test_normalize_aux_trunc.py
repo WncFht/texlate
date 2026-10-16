@@ -1,6 +1,6 @@
 r"""normalize 可再生中间产物截尾整形：8192B 劈断的 aux 不再留不完整末行。
 
-docs/research/latex/2026-09-16-aux-cjk-truncation.md（2211.13013）：
+docs/research/2026-10-16-编译与修复实验.md（2211.13013）：
 XeTeX 写缓冲在 8192B 边界劈断多字节字符 → shipped/自产 ``.aux`` 系
 终结于半截 ``\newlabel``——只转码不整形回读时 ``\@newl@bel`` 照样
 扫过 EOF（不完整末行是参数层截断，合法 UTF-8 救不回来）。normalize

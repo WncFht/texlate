@@ -8,7 +8,7 @@
 yaml 注释面改指 ``texlog.iter_log_events``/``match_error_line``)。
 
 移植自原型 fixloop (`first_error`/`classify`), 增强两点
-(docs/research/latex/fixloop-rules.md §5 spec):
+(docs/research/2026-10-16-编译与修复实验.md spec):
   - ctx 内 ``l.<N>`` 行号 → ``ErrReport.line_no``
   - ``(`` 开括号文件栈追踪 → ``ErrReport.file_stack`` (定位出错 .tex/.sty)
 

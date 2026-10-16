@@ -57,13 +57,14 @@ class PipelineTests(unittest.TestCase):
         page.write_text("# 测试\n\n[越界](../outside.md)\n")
         self.assertTrue(any("越出" in error for error in check(self.root)))
 
-    def test_local_and_frozen_boundaries(self):
-        for folder in ("tmp", ".zcode", ".crossnote", "docs/research"):
+    def test_local_files_ignored_but_research_links_checked(self):
+        for folder in ("tmp", ".zcode", ".crossnote"):
             path = self.root / folder / "old.md"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# 现场\n\n[历史](missing.md)\n")
         self.assertEqual(check(self.root), [])
-        page = self.root / "docs/current.md"
+        page = self.root / "docs/research/current.md"
+        page.parent.mkdir(parents=True)
         page.write_text("# 当前\n\n[断链](missing.md)\n")
         self.assertTrue(any("missing.md" in error for error in check(self.root)))
 
@@ -76,6 +77,46 @@ class PipelineTests(unittest.TestCase):
         extra.mkdir()
         (extra / "SKILL.md").write_text("# 额外技能\n")
         self.assertTrue(check(self.root))
+
+    def test_docs_navigation_rejects_unreachable_cycle(self):
+        docs = self.root / "docs"
+        docs.mkdir()
+        (docs / "README.md").write_text("# 入口\n")
+        (docs / "a.md").write_text("# A\n\n[下一页](b.md)\n")
+        (docs / "b.md").write_text("# B\n\n[上一页](a.md)\n")
+        result = self.docs_navigation(docs)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("a.md", result.stdout)
+        self.assertIn("b.md", result.stdout)
+        (docs / "README.md").write_text("# 入口\n\n[主题](a.md)\n")
+        self.assertEqual(self.docs_navigation(docs).returncode, 0)
+
+    def test_docs_navigation_parses_reference_and_spaced_links(self):
+        docs = self.root / "docs"
+        docs.mkdir()
+        (docs / "README.md").write_text(
+            "# 入口\n\n[主题][ref]\n\n[ref]: <a b.md>\n\n"
+            "```text\n[非链接](missing.md)\n```\n"
+        )
+        (docs / "a b.md").write_text("# 内容\n")
+        self.assertEqual(self.docs_navigation(docs).returncode, 0)
+        (docs / "a b.md").write_text("# 内容\n\n![图片](missing.png)\n")
+        result = self.docs_navigation(docs)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing.png", result.stdout)
+
+    def docs_navigation(self, root):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS.parent / "tools/docs_linkcheck.py"),
+                "--root",
+                str(root),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
     def test_staged_broken_link_not_hidden_by_unstaged_fix(self):
         destination = self.root / "scripts"

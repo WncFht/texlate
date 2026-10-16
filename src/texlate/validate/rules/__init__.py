@@ -81,7 +81,7 @@ PEP 562 惰性门面（同 ``seqpos/__init__``/``worker/compile`` 形制）
 ——平名经 ``_LEAF_EXPORTS`` 映射回叶子，``__getattr__`` 首访解析
 并缓存，``rules.X`` 公共面与 ``from  import X``/``rules._x`` 属性读面
 不变。monkeypatch 锚点注意：patch 叶子不 patch 门面
-（docs/dev/seams.md §1）——``facade.name`` 读到的恒是叶子对象，但
+（docs/dev/conventions.md「测试替换位置」）——``facade.name`` 读到的恒是叶子对象，但
 ``setattr(facade, ...)`` 只遮蔽门面不改叶子内部互引。叶子间互引走
 全路径直跨（``texlate.validate.rules.<叶>``），不经本门面。
 """

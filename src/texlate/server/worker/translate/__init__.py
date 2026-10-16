@@ -11,7 +11,7 @@ PEP 562 惰性门面（同 ``compile``/``_common`` 形制）——平名经
 ``translate.X`` 公共面与 ``from texlate.server.worker.translate import X`` 不变；拆分前
 单件期 import 期名面（stdlib 模块名/typing 绑定/``_common`` 转口/
 texlate 顶层名）同样逐名惰性解析。
-monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/seams.md §1）。
+monkeypatch 锚点注意：patch 叶子不 patch 门面（docs/dev/conventions.md「测试替换位置」）。
 叶子间互引走全路径直跨（``texlate.server.worker.translate_<叶>``），
 不经本门面。
 """

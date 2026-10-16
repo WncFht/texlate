@@ -1,126 +1,68 @@
 #!/usr/bin/env python3
-"""docs/ 相对链接检查器：markdown 链接 / 图片 / 行内路径引用的目标存在性校验。
+"""验证 docs 本地链接，并从统一入口检查每份 Markdown 的导航可达性。"""
 
-用法：tools/docs_linkcheck.py [--root docs] [--all-refs]
+from __future__ import annotations
 
-  --root      扫描根目录（默认 docs/）
-  --all-refs  额外检查行内反引号内形如 docs/… 或 ./… 的路径（噪声大，默认关）
+import argparse
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
-退出码：0 全绿；1 有死链。
-"""
-
-import os
-import re
-import sys
-import unicodedata
-
-LINK_RX = re.compile(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
-SKIP_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:|^#|^//")
-CODE_FENCE_RX = re.compile(r"^```")
+from markdown_it import MarkdownIt
 
 
-def iter_md(root: str):
-    for dirpath, _dirs, names in os.walk(root):
-        for n in sorted(names):
-            if n.endswith(".md"):
-                yield os.path.join(dirpath, n)
-
-
-def check_file(path: str, root_dir: str):
-    """返回 [(lineno, target, resolved)] 死链列表。"""
-    dead = []
-    in_fence = False
-    try:
-        text = open(path, encoding="utf-8").read()
-    except OSError:
-        return dead
-    base = os.path.dirname(path)
-    for i, line in enumerate(text.split("\n"), 1):
-        if CODE_FENCE_RX.match(line.strip()):
-            in_fence = not in_fence
+def check(root: Path) -> list[str]:
+    """所有页面都检查链接；只有入口可达的页面才能使后继页面可达。"""
+    root = root.resolve()
+    pages = set(root.rglob("*.md"))
+    parser = MarkdownIt()
+    edges: dict[Path, set[Path]] = {}
+    errors = []
+    for page in sorted(pages):
+        edges[page] = set()
+        for token in parser.parse(page.read_text(encoding="utf-8")):
+            for child in token.children or []:
+                target = (
+                    child.attrGet("href")
+                    if child.type == "link_open"
+                    else child.attrGet("src")
+                    if child.type == "image"
+                    else None
+                )
+                if not target:
+                    continue
+                url = urlsplit(target)
+                if url.scheme or url.netloc or not url.path:
+                    continue
+                destination = (page.parent / unquote(url.path)).resolve()
+                if not destination.exists():
+                    errors.append(f"{page.relative_to(root)}：本地链接不存在：{target}")
+                if destination in pages:
+                    edges[page].add(destination)
+    pending = [root / "README.md"]
+    reached = set()
+    while pending:
+        page = pending.pop()
+        if page in reached:
             continue
-        if in_fence:
-            continue
-        stripped = re.sub(r"`[^`]*`", "", line)
-        for m in LINK_RX.finditer(stripped):
-            target = m.group(1).strip()
-            if SKIP_SCHEME.match(target) or not target:
-                continue
-            target = target.split("#", 1)[0]
-            if not target:
-                continue
-            # URL-decoding for %XX in links
-            import urllib.parse
-
-            resolved = os.path.normpath(
-                os.path.join(base, urllib.parse.unquote(target))
-            )
-            if not os.path.exists(resolved):
-                dead.append((i, target, resolved))
-    return dead
+        reached.add(page)
+        pending.extend(edges.get(page, ()))
+    if root / "README.md" not in pages:
+        errors.append("缺少统一入口 README.md")
+    for page in sorted(pages - reached):
+        errors.append(f"{page.relative_to(root)}：无法从 README.md 导航到此页面")
+    print(f"docs 页面 {len(pages)} 份，入口可达 {len(pages & reached)} 份")
+    return errors
 
 
-PAYLOAD_LEAF = {"assets", "data", "refs", "charts", "inputs"}
-
-
-def check_index(root: str):
-    """索引登记检查（MAINTENANCE §9）：每个含 .md 的目录须为索引层或有索引
-    祖先；每件 .md 的文件名须出现在本层 README 或父层 README 中。
-    返回 [(path, reason)]。"""
-    bad = []
-    readme_cache: dict[str, str | None] = {}
-
-    def readme_text(d: str) -> str | None:
-        if d not in readme_cache:
-            p = os.path.join(d, "README.md")
-            readme_cache[d] = (
-                open(p, encoding="utf-8").read() if os.path.isfile(p) else None
-            )
-        return readme_cache[d]
-
-    for dirpath, _dirs, names in os.walk(root):
-        mds = [n for n in names if n.endswith(".md")]
-        if not mds:
-            continue
-        own = readme_text(dirpath)
-        parent = readme_text(os.path.dirname(dirpath))
-        if (
-            own is None
-            and parent is None
-            and os.path.basename(dirpath) not in PAYLOAD_LEAF
-        ):
-            bad.append((dirpath, "含 .md 但自身与父层均无 README 索引"))
-            continue
-        for n in mds:
-            if n == "README.md":
-                continue
-            if (own and n in own) or (parent and n in parent):
-                continue
-            bad.append(
-                (os.path.join(dirpath, n), "未登记：本层与父层 README 均未提及该文件名")
-            )
-    return bad
-
-
-def main():
-    root = "docs"
-    args = sys.argv[1:]
-    if "--root" in args:
-        root = args[args.index("--root") + 1]
-    dead_total = []
-    for f in iter_md(root):
-        dead_total.extend((f, *d) for d in check_file(f, root))
-    for f, ln, target, resolved in dead_total:
-        print(f"{f}:{ln} 死链 -> {target}  （解到 {resolved}）")
-    unregistered = check_index(root)
-    for path, reason in unregistered:
-        print(f"{path}: {reason}")
-    print(
-        f"\n{len(dead_total)} dead link(s), {len(unregistered)} unregistered file(s)"
-        f" across {sum(1 for _ in iter_md(root))} files"
-    )
-    return 1 if dead_total or unregistered else 0
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path("docs"))
+    args = parser.parse_args()
+    errors = check(args.root)
+    for error in errors:
+        print(error)
+    return int(bool(errors))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

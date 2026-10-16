@@ -1,6 +1,6 @@
 r"""aux/bib UTF-8 守卫：截断尾豁免 + shipped 中间产物转码覆盖。
 
-docs/research/latex/2026-09-16-aux-cjk-truncation.md 立项（2211.13013）：
+docs/research/2026-10-16-编译与修复实验.md 立项（2211.13013）：
 shipped 非 UTF-8 .aux/.toc 被引擎首遍回读即 "Invalid UTF-8 byte"
 → ``\@newl@bel`` EOF；截断在 UTF-8 字符中间的文件不再误入双字节检测器。
 """

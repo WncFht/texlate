@@ -1,6 +1,6 @@
 """copy-latex 服务端纯件：选区 seqs → 原始 ``.tex`` 切片。
 
-``POST /api/task/{id}/latex`` 的核（copy-latex 实现文档 §后端改动）：
+``POST /api/task/{id}/latex`` 的核（docs/spec/reader.md「LaTeX 复制」）：
 请求闸 + 每块三级回落切片 + sent 档 anchor 裁剪 + 连续 run 原文回收 +
 壳边扩展 + 界标拼接，全部同步纯逻辑——文件 IO 由路由叶
 ``asyncio.to_thread`` 卸载（``routers/reader.py`` 同款分工）。

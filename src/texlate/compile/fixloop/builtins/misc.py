@@ -128,7 +128,7 @@ def purge_corrupt_intermediates(
 
     XeTeX 写缓冲在 8192B 边界劈断多字节字符 → 自产 .aux/.toc 带非法
     UTF-8 → 下遍回读 "Invalid UTF-8 byte" + ``\@newl@bel`` EOF
-    (docs/research/latex/2026-09-16-aux-cjk-truncation.md)。
+    (docs/research/2026-10-16-编译与修复实验.md)。
     损坏谓词 = strict utf-8 解码失败 (字节劈断) 或末行不完整
     (边界恰好落在字符缝上时文件仍可解码但停在某宏参数中间——
     TeX 写出的完整行必以 \n 收尾)。健康件含 xr ``\externaldocument``

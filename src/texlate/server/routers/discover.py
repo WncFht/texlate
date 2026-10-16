@@ -2,7 +2,7 @@
 
 alphaXiv 的 CORS 固定回 ``allow-origin: https://www.alphaxiv.org``——
 浏览器侧第三方直连被挡，发现层数据只能由服务端代取（逆向报告
-``docs/research/product/2026-09-19-alphaxiv-reverse.md``，端点形状
+``docs/research/2026-10-16-产品路线依据.md``，端点形状
 均实测过）。全部是机会型增强、不进核心管线：feed/search/og 上游失败
 归一 502 ``discover_upstream``，前端整块隐藏；overview 链上任一环
 404 或目标语言未生成回 ``{"available": false}``，网络/5xx 才 502。

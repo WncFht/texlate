@@ -1,8 +1,7 @@
 """engine.py 误报回归：latex209 tail 标记收紧 + pstricks 路由高置信化。
 
-证据：docs/research/methods/2026-09-16-signature-mining.md §2.4 +
-bench/archive-2026-09-20/results/fixloop-replay-baseline-2026-09-16/SUMMARY.md
-（aastex 横幅 15+ 篇 latex209 误报、1803.08846 注释 pstricks 误杀）。
+历史反例归 docs/research/2026-10-16-编译与修复实验.md「错误归因反例」：
+aastex 横幅的 latex209 误报、1803.08846 注释 pstricks 误杀。
 """
 
 from pathlib import Path

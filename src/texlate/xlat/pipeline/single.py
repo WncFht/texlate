@@ -4,7 +4,7 @@
 （corrector/slots/repair 全套修复臂）；``retranslate_chunk`` 是 logfix 回灌
 单发重译，不走阶梯。``_net_apply_fn`` 经 ``.pipeline`` 门面回取——其
 ``globals()`` 晚绑定钉在门面命名空间，是 tests ``setattr(pl, _intercept_*)``
-补丁守恒的落点（docs/dev/seams.md §5）。
+补丁守恒的落点（docs/dev/conventions.md「已登记接缝」）。
 """
 
 from __future__ import annotations

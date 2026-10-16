@@ -158,7 +158,7 @@ rules:
           error: "undefined_cs: root.aux:67: Undefined control sequence (\\abx@* 写端错配)",
         }
     stats: { fires: 2, rescued_cells: 1, status: active }
-    source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md; tmp/lane-scaneof/"
+    source_ref: "docs/research/2026-10-16-编译与修复实验.md; tmp/lane-scaneof/"
 
   # 2026-09-20 watchimpl cjk-pkg-invalid-char (1607.00157/2601.07372 base 格):
   # taxonomy 把 "Package CJK Error: Invalid character code" 归 invalid_char,
@@ -218,7 +218,7 @@ rules:
           error: "Text line contains an invalid character",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/research/methods/2026-09-16-signature-mining.md §2.2"
+    source_ref: "docs/research/2026-10-16-编译与修复实验.md 错误归因反例"
 
   # ── 2026-09-20 nfsstu 车道: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
   # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。

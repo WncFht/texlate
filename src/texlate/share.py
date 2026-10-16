@@ -1,6 +1,6 @@
 """社区共享译文缓存骨架——寻址键 + 包格式 + 校验解包（纯库层，零新依赖）。
 
-设计见 ``docs/research/product/2026-09-16-shared-cache.md``。三层要点：
+设计见 ``docs/research/2026-10-16-产品路线依据.md``。三层要点：
 
 - 寻址：``share_key`` = ``sha256(arxiv_id|ver|model|prompt_ver|lang|
   glossary_hash|pipeline_ver)``——与产物级 dedup 键 ``cache_key_for``

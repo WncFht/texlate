@@ -192,14 +192,14 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ### 参考文献
 
-[^texglot]: TeXlate 调研档案：texglot 模式实录——归一化层/缓存键/重试阶梯/沙箱与网关实测。[research/latex/texglot-patterns.md](../research/latex/texglot-patterns.md)
+[^texglot]: TeXlate 调研档案：texglot 模式实录——归一化层/缓存键/重试阶梯/沙箱与网关实测。[research/2026-10-16-编译与修复实验.md](../research/2026-10-16-编译与修复实验.md)
 
-[^prompt-gloss]: TeXlate 调研档案：prompt 套件与术语表工程规格。[research/latex/prompt-glossary-spec.md](../research/latex/prompt-glossary-spec.md)
+[^prompt-gloss]: TeXlate 调研档案：prompt 套件与术语表工程规格。[research/2026-10-16-编译与修复实验.md](../research/2026-10-16-编译与修复实验.md)
 
-[^rules-lab]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/latex/validator-rules.md](../research/latex/validator-rules.md)
+[^rules-lab]: TeXlate 调研档案：L0 校验规则设计与对抗实测。[research/2026-10-16-解析与校验实验.md](../research/2026-10-16-解析与校验实验.md)
 
-[^cst-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/latex/validator-ts.md](../research/latex/validator-ts.md)
+[^cst-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定。[research/2026-10-16-解析与校验实验.md](../research/2026-10-16-解析与校验实验.md)
 
-[^aux-cjk]: TeXlate 调研档案：aux 中间产物 CJK 截断归因。[research/latex/2026-09-16-aux-cjk-truncation.md](../research/latex/2026-09-16-aux-cjk-truncation.md)
+[^aux-cjk]: TeXlate 调研档案：aux 中间产物 CJK 截断归因。[research/2026-10-16-编译与修复实验.md](../research/2026-10-16-编译与修复实验.md)
 
 [^latextrans]: NiuTrans. LaTeXTrans（术语表种子来源，MIT；arXiv 2508.18791）. [github.com/NiuTrans/LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans)

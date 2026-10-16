@@ -1,10 +1,10 @@
 # LaTeX 半解析 + 展开机规范
 
-> 实现唯一事实源：`src/texlate/latex/`。本文与代码现状对齐；调研与实测证据见 `research/latex/` 档案。
+本文描述 `src/texlate/latex/` 的解析与回写契约，随实现更新。路线理由见[解析决策](../../.agents/notes/implemented/architecture/2026-09-15-解析与校验.md)，历史证据见[解析实验](../research/2026-10-16-解析与校验实验.md)。
 
 ## 1. 定位与边界
 
-TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫描产出 token/段流，把输入文本切成无缝平铺的 `pieces`——可译段登记为 `chunks[]`、受保护段替换为 `[[TYPE_n]]` 占位符、其余原样字面。不建 AST、不求值 TeX 语义全集——LaTeX 是图灵完备宏语言，全量解析等价于实现 TeX 求值器，现成库在真实语料的宏展开上全灭，故走自研半解析路线[^adr-semi][^miniscanner]。
+TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫描产出 token/段流，把输入文本切成无缝平铺的 `pieces`——可译段登记为 `chunks[]`、受保护段替换为 `[[TYPE_n]]` 占位符、其余原样字面。不建 AST、不求值 TeX 语义全集——LaTeX 是图灵完备宏语言，全量解析等价于实现 TeX 求值器，现成库在真实语料的宏展开上全灭，故走自研半解析路线[^adr-semi][^experiment]。
 
 层内边界：
 
@@ -19,7 +19,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 ### 2.1 三层结构
 
-借 TeX 的 mouth/gullet/stomach 分层[^exp-design]，本实现止于「胃」之前（不排版）：
+借 TeX 的 mouth/gullet/stomach 分层[^experiment]，本实现止于「胃」之前（不排版）：
 
 - **Mouth**（`mouth.py::Mouth` + `CatTable`）：文件字节 → `Tok` 流。逐文件一个词法器，`Gullet.inputs` 栈管理多文件。
 - **Gullet**（`gullet/` 包，`Gullet` = `_Core`+`_Args`+`_DefCmd`+`_Decls`+`_Input`+`_Expand`+`_Cond`+`_Classify`）：全仓唯一宏展开点。`next_expanded()` 主循环做查表展开/原语执行的回压不动点，产出「已展开」token 流。
@@ -45,7 +45,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 ### 2.4 run 双轨与展开组
 
-Segmenter 的 run 项是 `(surface, ident, vspan)` 三元组：surface 进 `chunk.content`/译文面，ident 进 identity 面——gen=0 项取 vtex 切片、ph 项取 token 自身、展开组取 `[[EXPAND_n]]`。run 含展开组时 `ph_map["[[CHUNK_k]]"]` 登记 ident 串，`reconstruct` 的 `trans → ph_map → content` 优先级自动回落原文（零 schema 变更）[^exp-design]。
+Segmenter 的 run 项是 `(surface, ident, vspan)` 三元组：surface 进 `chunk.content`/译文面，ident 进 identity 面——gen=0 项取 vtex 切片、ph 项取 token 自身、展开组取 `[[EXPAND_n]]`。run 含展开组时 `ph_map["[[CHUNK_k]]"]` 登记 ident 串，`reconstruct` 的 `trans → ph_map → content` 优先级自动回落原文（零 schema 变更）[^experiment]。
 
 **展开组**：`gen>0` 且同 `origin` 的连续 token 为一组，pos 落调用区间内的 gen=0 参数 token 同属。surface 正常流过分段（组内经 `_grp_scan` 再生保护段），ident 收拢为单个 `[[EXPAND_n]]`。组内含副作用（`\def`/`\let`/`\catcode` 等）→ 整组转 literal。
 
@@ -73,7 +73,7 @@ token 种类：`cs`（控制序列，text 为去 `\` 的名字）、`lbrace`/`rb
 
 ### 4.1 主循环分派序
 
-`gullet/core.py::next_expanded` 每轮：`read()` 拉原始 token → 非 cs 直交 → `xprotect` 见标消费一次跳过展开 → **宏表先行**（`macros.lookup` + `resolve`——`\ifb` 单位宏/`\ifAnonymous{T}{F}` 宏不落入 if 族）→ `_PRIMS` 原语表/`if*` 前缀 → 都不中直交分段器。宏命中且 `kind ∈ _EXPAND_KINDS` 且 `_can_expand` → `_invoke` 读参代入、`unread` 推回、不 return（不动点）。单遍即时展开相对二遍展开的语料依据见实测[^exp-timing]。
+`gullet/core.py::next_expanded` 每轮：`read()` 拉原始 token → 非 cs 直交 → `xprotect` 见标消费一次跳过展开 → **宏表先行**（`macros.lookup` + `resolve`——`\ifb` 单位宏/`\ifAnonymous{T}{F}` 宏不落入 if 族）→ `_PRIMS` 原语表/`if*` 前缀 → 都不中直交分段器。宏命中且 `kind ∈ _EXPAND_KINDS` 且 `_can_expand` → `_invoke` 读参代入、`unread` 推回、不 return（不动点）。单遍即时展开相对二遍展开的语料依据见实测[^experiment]。
 
 `_EXPAND_KINDS = {"transparent_expand"}`（`gullet/names.py`）——env_begin/env_end **不展开**：展开产物的 `\begin` 是 gen>0 token，会被分段器收进 `[[EXPAND]]` 组、env 配对丢失；raw cs 交分段器按 `target_env` 走环境路径。
 
@@ -214,7 +214,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 1. **尾参扫**：`DIMEN_TAIL_KIND`/通用 `=ATOM` 赋值扫（`_tail_scan_end`）命中 → `[[CMD]]` 整调用（裸 `3pt`/`to\hsize` 操作数不落译文面）。
 2. **keyarg**：宏表命中未展开（xprotect/gen-cap/bail）时 `_keyarg_tail` 解宏体尾 cs（`\def\r{\ref}` 形，别名链深 ≤4）→ 命中 cite/ref/PROTECT 族按该族 protect 调用；参缺席 → cs-only 保护 + `keyarg_unbound`。
-3. **argspec**：`m is None` 才查 `tables.argspec_lookup(name, state.pkgs)`[^ctan-argspec]——`data/argspec.json` 的 `ArgspecEntry`（signature + `arg_roles` text/opt-text/key/verbatim/skip + `policy`）驱动 `_handle_argspec_cs`：`verbatim` → 逐字读参整调用；`literal`/`transparent` → 名进 run；`boundary` → flush+LITERAL；`protect`/`key` → 整调用 `[[CMD]]`；`chunk-arg` → §5.5 推广。transparent/boundary 条目实际被同名族表先截获（到即记 `argspec_shadowed`）。
+3. **argspec**：`m is None` 才查 `tables.argspec_lookup(name, state.pkgs)`[^experiment]——`data/argspec.json` 的 `ArgspecEntry`（signature + `arg_roles` text/opt-text/key/verbatim/skip + `policy`）驱动 `_handle_argspec_cs`：`verbatim` → 逐字读参整调用；`literal`/`transparent` → 名进 run；`boundary` → flush+LITERAL；`protect`/`key` → 整调用 `[[CMD]]`；`chunk-arg` → §5.5 推广。transparent/boundary 条目实际被同名族表先截获（到即记 `argspec_shadowed`）。
 4. **探针**：`[o]`? + `{m}`×6 投机读参（`allow_single_token=False`——禁单 token 参，`\foo x` 的 `x` 是正文）；命中 → `[[CMD]]` + 散文参挖掘（`_prose_args_of`/`_opaque_arg_prose`：keyval 形状门 `_kv_list_shaped`/`_KEYVAL_GROUP_RX`、逗号名单 `_COMMA_LIST_RX`、零宽 `\index`/`\label` 剥除后 ≥4 连词判据；`_SWALLOW/_DEAD/_DEAD_TAIL` 名闸先滤），散文参抠出子扫渲 surface，结构段仍 `[[CMD]]`。
 5. **逐字**：全不命中 → `_rappend_tok`。
 
@@ -270,7 +270,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 层内两件（`reconstruct/validate.py`）：`validate_result(res)` 结构校验——pieces 平铺（`pieces_gap`）、protected_tex→ph/chunk 递归可达性（`dangling_ph`/`dangling_chunk_ref`/`orphan_chunk`/`dead_ph`，`ph_reserved` 字面豁免）；`validate_translation(chunk, text)` 译文契约——`chunk.placeholders` 多重集逐枚在译文出现（`missing`/`extra` 差集）。
 
-层外契约：rules 规则校验 `validate/rules/main.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^validator]；完整规则表见 `spec/validate.md`。
+层外契约：rules 规则校验 `validate/rules/main.py::validate_pair`——14 项 src↔zh **相对**判定（「译文不得比原文更坏」，src 自带不平衡不追责）：placeholder multiset + 序守恒 warn + 结构占位符脱位、brace/env/key/math 配对、length 代理比带、same_source 回显、residual_en 残英、macro/item_glue/bare_cs 新增 cs 防线、protocol_echo 协议回显、comment_eof 注释终结。stdlib 零依赖 always-on，独立于本层解析器（异构校验原则）[^experiment]；完整规则表见 `spec/validate.md`。
 
 ## 10. 限制清单
 
@@ -282,14 +282,6 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ### 参考文献
 
-[^adr-semi]: TeXlate 决策记录。ADR-0002 LaTeX 半解析：自研 scanner + pieces 区间 splice. 本库 `decisions/adr/0002-semi-parsing.md`.
+[^adr-semi]: TeXlate. [解析与校验决策](../../.agents/notes/implemented/architecture/2026-09-15-解析与校验.md). 由旧 ADR 归并。
 
-[^miniscanner]: TeXlate 调研档案。miniscanner 扶正重写实施规格。本库 `research/latex/miniscanner-rewrite-spec.md`（主仓 `docs/research/latex/` 同名件）.
-
-[^exp-design]: TeXlate 调研档案。宏展开层设计规格——扫描中即时展开（gullet 模式）. 本库 `research/latex/expansion-design.md`.
-
-[^exp-timing]: TeXlate 调研档案。宏展开时机语料实验——即时展开 vs 二遍展开。本库 `research/latex/expansion-timing.md`.
-
-[^ctan-argspec]: TeXlate 调研档案。CTAN argspec 签名表导出 + 语料覆盖率实验。本库 `research/latex/ctan-argspec.md`.
-
-[^validator]: TeXlate 调研档案。规则校验器原型——译文机械不变量校验。本库 `research/latex/validator-rules.md`.
+[^experiment]: TeXlate. [解析与校验实验](../research/2026-10-16-解析与校验实验.md). 历史实验归并，2026-10-16.
