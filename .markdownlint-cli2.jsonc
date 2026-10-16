@@ -12,6 +12,7 @@
         "dist/**",
         ".claude/**",
         ".crossnote/**",
+        ".zcode/**",
         "CLAUDE.md",
         "src/texlate/server/static/**",
         "bench/corpus/*/**",

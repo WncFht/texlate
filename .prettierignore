@@ -11,6 +11,7 @@ bench/work_*/
 # 本机 agent 软链层
 /.claude/
 /.crossnote/
+/.zcode/
 # lockfile 由 npm 生成——格式化会让每次 regen 出全文件 diff
 **/package-lock.json
 # 构建产物与 vendored 区（与 .markdownlint-cli2.jsonc 同政策）

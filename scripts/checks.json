@@ -1,0 +1,53 @@
+{
+    "version": 1,
+    "checks": [
+        {
+            "id": "notes",
+            "command": ["python3", "scripts/notes_guard.py", "--root", "."],
+            "modes": ["docs", "ci"],
+            "needs": [],
+            "timeout": 60,
+            "allow_failure": false
+        },
+        {
+            "id": "docs",
+            "command": ["python3", "scripts/check_docs.py"],
+            "modes": ["docs", "ci"],
+            "needs": [],
+            "timeout": 60,
+            "allow_failure": false
+        },
+        {
+            "id": "archive-history",
+            "command": ["python3", "scripts/check_archive.py"],
+            "modes": ["docs", "ci"],
+            "needs": ["notes"],
+            "timeout": 60,
+            "allow_failure": false
+        },
+        {
+            "id": "docs-links",
+            "command": ["python3", "tools/docs_linkcheck.py"],
+            "modes": ["docs", "ci"],
+            "needs": [],
+            "timeout": 60,
+            "allow_failure": false
+        },
+        {
+            "id": "tests",
+            "command": [
+                "python3",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "scripts/tests",
+                "-v"
+            ],
+            "modes": ["test", "ci"],
+            "needs": [],
+            "timeout": 120,
+            "allow_failure": false
+        }
+    ]
+}

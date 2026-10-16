@@ -53,7 +53,9 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 
 ## Agent 入口约定
 
-`AGENTS.md` 与 `.agents/` 是入库的唯一事实源（skill 约定放 `.agents/skills/`，各带 `agents/openai.yaml` 元数据——现有 `diagram-design`/`huashu-design`/`improve-codebase-architecture`/`writing-user-docs` 四例）。`CLAUDE.md` 与 `.claude/skills/` 是指向它们的软链，属本机便利层、不入库；clone 后跑 `scripts/agent-links.sh` 重建。
+`AGENTS.md` 与 `.agents/` 是入库的唯一事实源（维护技能放 `.agents/skills/`，各带 `agents/openai.yaml` 元数据；当前维护技能为 `maintain-docs`、`maintain-prose`、`maintain-decision-notes`）。`.agents/references/`、`.agents/templates/` 和 `.agents/notes/` 保存维护体系的共享规范、模板与长期决策记录。Claude Code 原生读取 `AGENTS.md`；`.claude/skills` 是指向 `../.agents/skills` 的本机目录软链，不入库；clone 后跑 `scripts/agent-links.sh` 重建，并清理旧版 `CLAUDE.md` 软链。
+
+维护体系来自 `WncFht/agent-maintenance` 固定版本 `20bb1e5b0cca68ca64c79451c19a0130f6281bb0`，适配层检查入口为 `scripts/check_docs.py`、`scripts/notes_guard.py`、`scripts/check_archive.py`、`scripts/staged_checks.py` 与 `scripts/run_checks.py`。文档、注释和长期决策分别使用对应维护技能；接入说明与来源记录见 `.agents/来源与取舍.md`，上游 MIT 许可见 `.agents/AGENT-MAINTENANCE-LICENSE`。
 
 ## 项目运维约定
 

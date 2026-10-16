@@ -1,0 +1,48 @@
+name: Agent maintenance
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Maintenance contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --frozen
+      - name: Maintenance contracts and behavioral tests
+        run: uv run --no-sync python scripts/run_checks.py --config scripts/checks.json --mode ci
+
+  archive-history:
+    name: Trusted archive history
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify archives with the target branch checker
+        env:
+          TARGET_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if ! git cat-file -e "$TARGET_BASE:scripts/check_archive.py"; then
+            echo "Initial adoption: target branch has no archive checker yet."
+            exit 0
+          fi
+          policy_dir=$(mktemp -d)
+          git show "$TARGET_BASE:scripts/notes_guard.py" > "$policy_dir/notes_guard.py"
+          git show "$TARGET_BASE:scripts/check_archive.py" > "$policy_dir/check_archive.py"
+          python3 "$policy_dir/check_archive.py" --root "$GITHUB_WORKSPACE" --base "$TARGET_BASE"

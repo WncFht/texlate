@@ -4,7 +4,7 @@
 target-version = "py312"
 # bench/results/ 是脚本产出目录——与 .prettierignore 同一条线，不进链
 # .agents/ 是 vendored skill 原样入库区——上游代码不吃本仓 lint 口径
-extend-exclude = ["bench/results", ".agents"]
+extend-exclude = ["bench/results", ".agents", ".zcode"]
 
 [lint]
 select = ["ALL"]
@@ -64,6 +64,20 @@ ignore = [
 # scripts/ 是 shell 为主的脚本目录，.py 件同 tools/ 口径——CI/预检类
 # 单行脚本：免类型标注/docstring/print/subprocess 半路径/open()
 "scripts/**/*.py" = ["D", "ANN", "T201", "PTH", "S"]
+# 上游维护检查器保留 CLI 消息与逐条件校验结构；豁免限于这些移植件。
+"scripts/{check_archive,check_docs,notes_guard,run_checks,staged_checks}.py" = [
+  "INP001",
+  "C901",
+  "PLR0912",
+  "PLR2004",
+  "TRY301",
+  "TRY003",
+  "TRY004",
+  "EM101",
+  "FBT001",
+]
+# 上游行为测试沿用 unittest 断言；仅其 fixture helper 使用布尔参数。
+"scripts/tests/*.py" = ["INP001", "PT009", "FBT002"]
 # tools/ 与 bench/ 同类——诊断脚本无发布 API；命名/闭包/print 皆脚本语义
 "tools/**/*.py" = [
   "D",

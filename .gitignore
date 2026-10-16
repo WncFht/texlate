@@ -41,6 +41,7 @@ docs/HANDOFF-*.md
 /CLAUDE.md
 /.claude/
 /.crossnote/
+/.zcode/
 
 # 工具缓存
 .ruff_cache/

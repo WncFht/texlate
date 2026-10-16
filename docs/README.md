@@ -18,4 +18,6 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复刻：arXiv LaTeX 源码 
 
 ## 维护约定
 
+文档区域的 Agent 入口见 [AGENTS.md](AGENTS.md)；它补充根指令，分区与冻结规则仍以 `MAINTENANCE.md` 为准。
+
 详见 `MAINTENANCE.md`。要点：`spec/` 是实现的唯一事实源、与代码对齐；新实证进 `research/` 并登记索引；子结论改判记宿主 ADR「演变」节，整篇作废才开新 ADR 而非改写旧文；外部引用一律脚注加参考文献节；本库公开发布，禁入 key/内网地址/本机路径。

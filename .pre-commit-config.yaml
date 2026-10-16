@@ -1,3 +1,6 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+exclude: '^\.agents/notes/archived/'
 repos:
   # 顺序即语义：原地改写型 fixer（markdownlint --fix）在前，改了就 fail 一次
   # 让你 re-add；git-format-staged 链式 formatter 只写 index 收尾——commit
@@ -10,6 +13,20 @@ repos:
   # 逐卡追加到下面的 hooks: 列表（缩进与现有条目一致）。
   - repo: local
     hooks:
+      - id: maintenance-contracts
+        name: Maintenance contracts in index snapshot
+        entry: uv run --no-sync python scripts/staged_checks.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+      - id: maintenance-push
+        name: Maintenance checks before push
+        entry: uv run --no-sync python scripts/run_checks.py --config scripts/checks.json --mode ci
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       - id: markdownlint-cli2
         name: markdownlint-cli2 --fix
         entry: ./node_modules/.bin/markdownlint-cli2 --fix
