@@ -42,7 +42,17 @@ class _Parse:
     async def _stage_parse(self, ctx: TaskCtx) -> None:
         """parsing：normalize → 主文件定位 → 逐文件 parse → chunks 入库。"""
         if self.store.has_chunks(ctx.task_id):
+            # 终态瘦身可能删除 base/，但保留已付费的译文块。
+            # fetch 已恢复 src/；加载 scans 前先补建规范化源码树。
+            if (
+                ctx.row["kind"] != "arxiv_html"
+                and not (ctx.base_dir / ".base-done").is_file()
+            ):
+                self._stage(ctx, "parsing", "恢复解析工程", PROGRESS["parsing"][0])
+                await self._to_thread(ctx, self._build_base)
+                ctx.scans = {}
             await self._ensure_scans(ctx)
+            self._check_cancelled(ctx)
             return
         self._stage(ctx, "parsing", "解析工程", PROGRESS["parsing"][0])
         if ctx.row["kind"] == "arxiv_html":
@@ -179,7 +189,27 @@ class _Parse:
     async def _ensure_scans(self, ctx: TaskCtx) -> None:
         """Resume 场景：chunks 已有但内存 scans 空 → 重解析 base/ 补建。"""
         if not ctx.scans:
-            _rows, ctx.scans = await self._to_thread(ctx, self._parse_all)
+            rows, scans = await self._to_thread(ctx, self._parse_all)
+            saved = self.store.all_chunks(ctx.task_id)
+            # 源码刷新或规范化结果变化后，即使块数相同，也不能按新偏移
+            # 回写旧译文；必须逐块核对身份和原文。
+            fields = (
+                "seq",
+                "chunk_id",
+                "src_file",
+                "byte_start",
+                "byte_end",
+                "kind",
+                "src_text",
+            )
+            if saved and [tuple(r[k] for k in fields) for r in rows] != [
+                tuple(r[k] for k in fields) for r in saved
+            ]:
+                msg = (
+                    "Restored source does not match saved chunks; translations retained"
+                )
+                raise _StageError(code="parse", message=msg, retryable=False)
+            ctx.scans = scans
 
     def _ph_frag_map(self, ctx: TaskCtx) -> dict[str, dict[str, str]]:
         """``chunk_db_id → ph_fragments``：scans × ph_map 全量映射。
