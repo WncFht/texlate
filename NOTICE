@@ -8,11 +8,11 @@ legacy journal macro packages:
 vendor/files/ — unmodified third-party journal styles, each distributed
 under its own license as published on CTAN / by the journal:
 
-  - aastex.cls, aastex62.cls      AAS Journals author kit (AAS / LPPL-style terms)
-  - emulateapj.sty, emulateapj5.sty  ApJ-look style (derived from AAS preprint styles)
-  - elsart.cls                    Elsevier article class
-  - iopart.cls, iopart10.clo, iopart12.clo, iopams.sty  IOP Publishing author kit
-  - psfig.sty                     © 1993 Trevor J. Darrell
+- aastex.cls, aastex62.cls      AAS Journals author kit (AAS / LPPL-style terms)
+- emulateapj.sty, emulateapj5.sty  ApJ-look style (derived from AAS preprint styles)
+- elsart.cls                    Elsevier article class
+- iopart.cls, iopart10.clo, iopart12.clo, iopams.sty  IOP Publishing author kit
+- psfig.sty                     © 1993 Trevor J. Darrell
 
 These are bundled solely as fallbacks for compiling third-party arXiv
 sources that already target these classes. They are not modified by
