@@ -1,0 +1,439 @@
+{
+    "observed_on": "2026-10-18",
+    "git_head": "622dcf300db0bbcbf6d14e3e248ebba1b38a476a",
+    "basis": "Working tree, including uncommitted product changes; not a release benchmark",
+    "scope": {
+        "python": {
+            "files": 393,
+            "lines": 112469,
+            "files_excluding_test_directory": 393
+        },
+        "web": {
+            "files": 209,
+            "lines": 51149,
+            "files_excluding_test_directory": 130
+        },
+        "zotero": {
+            "files": 19,
+            "lines": 3235,
+            "files_excluding_test_directory": 19
+        }
+    },
+    "source_tree_sha256": "2d51725dd4dbee2e0ca595f6fa144f95c6d5acdc2c5632c4a6a8a31356ca0c07",
+    "absolute_cross_domain_import_statements": {
+        "__main__ -> cli": 1,
+        "arxiv -> chunk": 1,
+        "arxiv -> textutil": 6,
+        "cli -> arxiv": 7,
+        "cli -> compile": 5,
+        "cli -> e2e": 1,
+        "cli -> export": 2,
+        "cli -> latex": 2,
+        "cli -> logsetup": 3,
+        "cli -> pipecore": 3,
+        "cli -> server": 10,
+        "cli -> share": 2,
+        "cli -> textutil": 12,
+        "cli -> xlat": 6,
+        "compile -> arxiv": 1,
+        "compile -> latex": 8,
+        "compile -> redlines": 3,
+        "compile -> texlog": 11,
+        "compile -> textutil": 94,
+        "compile -> xlat": 3,
+        "e2e -> compile": 6,
+        "e2e -> pipecore": 3,
+        "e2e -> repair": 2,
+        "e2e -> textutil": 1,
+        "e2e -> validate": 1,
+        "e2e -> xlat": 1,
+        "export -> xlat": 11,
+        "latex -> textutil": 15,
+        "logsetup -> textutil": 3,
+        "pipecore -> chunk": 2,
+        "pipecore -> compile": 19,
+        "pipecore -> latex": 4,
+        "pipecore -> repair": 9,
+        "pipecore -> texlog": 1,
+        "pipecore -> textutil": 7,
+        "pipecore -> validate": 1,
+        "pipecore -> xlat": 9,
+        "repair -> compile": 13,
+        "repair -> latex": 6,
+        "repair -> texlog": 2,
+        "repair -> textutil": 5,
+        "repair -> validate": 1,
+        "repair -> xlat": 3,
+        "server -> align": 1,
+        "server -> arxiv": 27,
+        "server -> compile": 33,
+        "server -> export": 3,
+        "server -> latex": 7,
+        "server -> logsetup": 3,
+        "server -> pipecore": 16,
+        "server -> repair": 10,
+        "server -> share": 7,
+        "server -> texlog": 1,
+        "server -> textutil": 32,
+        "server -> validate": 4,
+        "server -> xlat": 55,
+        "share -> pipecore": 1,
+        "share -> textutil": 2,
+        "share -> xlat": 1,
+        "texlog -> textutil": 1,
+        "validate -> redlines": 1,
+        "validate -> texlog": 1,
+        "validate -> textutil": 10,
+        "xlat -> chunk": 8,
+        "xlat -> latex": 4,
+        "xlat -> textutil": 11
+    },
+    "import_limit": "Includes TYPE_CHECKING; excludes relative and dynamic imports",
+    "openapi": {
+        "operations": 36,
+        "request_bodies_declared": 0,
+        "business_object_schemas_with_properties": [],
+        "components": ["HTTPValidationError", "ValidationError"],
+        "operation_details": [
+            {
+                "method": "POST",
+                "path": "/api/arxiv/{arxiv_id}/translate",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/task/{task_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "DELETE",
+                "path": "/api/task/{task_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/task/{task_id}/chunks",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/tasks",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/task/{task_id}/cancel",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/task/{task_id}/retry",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/task/{task_id}/chunk/{seq}/retranslate",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/tasks/slim",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/arxivStatus/{arxiv_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/arxivFiles/{arxiv_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/files/{task_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/files/{task_id}/{kind}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/upload",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/share/import",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/task/{task_id}/share/pack",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/health",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Response Health Api Health Get"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/task/{task_id}/reader",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "PUT",
+                "path": "/api/task/{task_id}/reader/position",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/settings",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Response Settings Get Api Settings Get"
+                    }
+                }
+            },
+            {
+                "method": "PUT",
+                "path": "/api/settings",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/channels",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Response Channels Get Api Channels Get"
+                    }
+                }
+            },
+            {
+                "method": "PUT",
+                "path": "/api/channels",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/channels/route",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/channels/presets",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Response Channels Presets Api Channels Presets Get"
+                    }
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/channels/probe",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/discover/feed",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Discover Feed Api Discover Feed Get"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/discover/search",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "title": "Response Discover Search Api Discover Search Get"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/discover/overview/{arxiv_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Discover Overview Api Discover Overview  Arxiv Id  Get"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/discover/og/{arxiv_id}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/refs/lookup",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Response Refs Lookup Api Refs Lookup Post"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/task/{task_id}/refs/kept",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Refs Kept List Api Task  Task Id  Refs Kept Get"
+                    }
+                }
+            },
+            {
+                "method": "PUT",
+                "path": "/api/task/{task_id}/refs/kept",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Refs Kept Put Api Task  Task Id  Refs Kept Put"
+                    }
+                }
+            },
+            {
+                "method": "DELETE",
+                "path": "/api/task/{task_id}/refs/kept/{key}",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Refs Kept Delete Api Task  Task Id  Refs Kept  Key  Delete"
+                    }
+                }
+            },
+            {
+                "method": "GET",
+                "path": "/api/task/{task_id}/refs.bib",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {}
+                }
+            },
+            {
+                "method": "POST",
+                "path": "/api/task/{task_id}/latex",
+                "request_body_declared": false,
+                "success_json_schemas": {
+                    "200": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "title": "Response Task Latex Api Task  Task Id  Latex Post"
+                    }
+                }
+            }
+        ]
+    }
+}
