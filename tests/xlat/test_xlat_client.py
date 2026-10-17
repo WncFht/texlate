@@ -169,7 +169,11 @@ _ANTHROPIC_OK = {
     "type": "message",
     "stop_reason": "end_turn",
     "content": [{"type": "text", "text": "译"}],
-    "usage": {"input_tokens": 3, "output_tokens": 2},
+    "usage": {
+        "input_tokens": 3,
+        "output_tokens": 2,
+        "cache_read_input_tokens": 1,
+    },
 }
 
 
@@ -179,7 +183,16 @@ class TestUsageSink:
     def test_sink_receives_record(self) -> None:
         recs: list[cl.UsageRecord] = []
         c = _mock(
-            lambda _r: json_resp(chat_payload("OK")),
+            lambda _r: json_resp(
+                chat_payload(
+                    "OK",
+                    usage={
+                        "prompt_tokens": 11,
+                        "completion_tokens": 7,
+                        "prompt_tokens_details": {"cached_tokens": 5},
+                    },
+                )
+            ),
             usage_sink=recs.append,
         )
         r = asyncio.run(c.chat("m1", _MSGS))
@@ -189,6 +202,7 @@ class TestUsageSink:
         assert rec["model"] == "m1"
         assert rec["prompt_tokens"] == 11  # noqa: PLR2004
         assert rec["completion_tokens"] == 7  # noqa: PLR2004
+        assert rec["cached_tokens"] == 5  # noqa: PLR2004
         assert rec["latency_s"] >= 0
 
     def test_sink_not_fired_on_http_error(self) -> None:

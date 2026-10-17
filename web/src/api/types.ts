@@ -73,6 +73,7 @@ export interface TaskUsage {
     calls?: number;
     prompt_tokens?: number;
     completion_tokens?: number;
+    cached_tokens?: number;
     latency_s?: number;
 }
 
@@ -514,6 +515,8 @@ export interface ChannelModel {
     enabled: boolean;
     /** null = 不限；1–64 */
     max_concurrency: number | null;
+    /** Responses reasoning effort；空串 = 不发送该参数 */
+    reasoning_effort?: "" | "low" | "medium" | "high" | "max";
 }
 
 /**

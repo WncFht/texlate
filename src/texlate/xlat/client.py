@@ -288,6 +288,7 @@ class UsageRecord(TypedDict):
     model: str
     prompt_tokens: int
     completion_tokens: int
+    cached_tokens: int
     latency_s: float
 
 
@@ -620,6 +621,7 @@ class ChatClient:
                     "model": result.model,
                     "prompt_tokens": result.usage.prompt_tokens,
                     "completion_tokens": result.usage.completion_tokens,
+                    "cached_tokens": result.usage.cached_tokens,
                     "latency_s": result.latency_s,
                 }
             )

@@ -93,6 +93,7 @@ class TestGetPut:
             "redirect_model": "",
             "enabled": True,
             "max_concurrency": None,
+            "reasoning_effort": "",
         }
         got = client.get("/api/channels").json()
         assert [c["id"] for c in got["channels"]] == ["ch-a", "ch-b"]

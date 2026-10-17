@@ -116,6 +116,7 @@ def _norm_m(model: str, redirect: str = "") -> dict[str, Any]:
         "redirect_model": redirect,
         "enabled": True,
         "max_concurrency": None,
+        "reasoning_effort": "",
     }
 
 
@@ -305,6 +306,7 @@ class TestSaveRules:
                 "redirect_model": "",
                 "enabled": False,
                 "max_concurrency": 3,
+                "reasoning_effort": "",
             },
         ]
         # 重载读径 dict 形态自持

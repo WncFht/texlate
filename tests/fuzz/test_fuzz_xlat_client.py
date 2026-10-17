@@ -1394,6 +1394,7 @@ class TestUsageSinkFuzz:
                 rec = recs[0]
                 assert rec["prompt_tokens"] == r.usage.prompt_tokens
                 assert rec["completion_tokens"] == r.usage.completion_tokens
+                assert rec["cached_tokens"] == r.usage.cached_tokens
 
     def test_sink_records_payload_model_observed(self) -> None:
         """P3 观测：sink 记响应自报 ``model``——缺字段记 ``""``，非请求模型。"""

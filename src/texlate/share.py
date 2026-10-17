@@ -209,6 +209,7 @@ def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 
     api_key: str = "",
     source: str = "eprint",
     front_matter: frozenset[str] | None = None,
+    reasoning_effort: str = "",
 ) -> str:
     """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
 
@@ -224,6 +225,10 @@ def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 
     ``front_matter`` = preamble 前置发射集（调用方已按 options 缺省
     归一）：改变扫描块集即改变产物，非空追加 ``|fm:`` 成分分桶；
     空集/None = 前置全盖过的历史形态，材料不变续命存量缓存。
+
+    ``reasoning_effort`` = 渠道模型条目的 Responses 推理档；非空追加
+    ``|re:`` 成分。该参数改变模型产出和 token 用量，不能复用其他档位
+    的任务产物。
     """
     ver = f"v{version}" if version else ""
     material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
@@ -231,6 +236,8 @@ def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 
         material += f"|src:{source}"
     if front_matter:
         material += f"|fm:{','.join(sorted(front_matter))}"
+    if reasoning_effort:
+        material += f"|re:{reasoning_effort}"
     if cache_scope() == "per_key":
         material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
     return hashlib.sha256(material.encode()).hexdigest()

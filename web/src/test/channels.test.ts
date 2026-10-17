@@ -34,6 +34,7 @@ const modelOf = (model: string, redirect_model = "") => ({
     redirect_model,
     enabled: true,
     max_concurrency: null,
+    reasoning_effort: "" as const,
 });
 
 const channel = (over: Partial<Channel> = {}): Channel => ({
@@ -495,9 +496,9 @@ describe("编辑抽屉", () => {
                 ".ch-mtable .ch-cell-in",
             ),
         ];
-        // 每行三格（模型名/重定向/并发）——0/3 是两条模型名格
+        // 每行四格（模型名/重定向/effort/并发）——0/4 是两条模型名格
         typeInto(cells[0], "m-a");
-        typeInto(cells[3], "m-b");
+        typeInto(cells[4], "m-b");
         await flush();
 
         const saveBtn = btnByText(drawer, ".btn-primary", EP().save)!;
@@ -520,12 +521,14 @@ describe("编辑抽屉", () => {
                 redirect_model: "",
                 enabled: true,
                 max_concurrency: null,
+                reasoning_effort: "",
             },
             {
                 model: "m-b",
                 redirect_model: "",
                 enabled: true,
                 max_concurrency: null,
+                reasoning_effort: "",
             },
         ]);
     });
@@ -571,7 +574,7 @@ describe("编辑抽屉", () => {
         ];
         typeInto(cells[0], "alias");
         typeInto(cells[1], "real-upstream");
-        typeInto(cells[2], "4");
+        typeInto(cells[3], "4");
         await flush();
         btnByText(drawer, ".btn-primary", EP().save)!.click();
         await flush();
@@ -586,6 +589,7 @@ describe("编辑抽屉", () => {
                 redirect_model: "real-upstream",
                 enabled: true,
                 max_concurrency: 4,
+                reasoning_effort: "",
             },
         ]);
     });
@@ -657,7 +661,7 @@ describe("编辑抽屉", () => {
         ];
         expect(cells[0].value).toBe("upper"); // 去来源 + 小写
         expect(cells[1].value).toBe("keep-red"); // 小写也吃（批处理对两列同施）但前缀不剥
-        expect(cells[3].value).toBe("plain");
+        expect(cells[4].value).toBe("plain");
     });
 });
 
@@ -709,9 +713,9 @@ describe("获取模型勾选器", () => {
                 ".ch-mtable .ch-cell-in",
             ),
         ];
-        // 追加新勾两条（旧勾不重复入档）→ 3 行模型名格（每行三格 name/redirect/conc）
+        // 追加新勾两条（旧勾不重复入档）→ 3 行模型名格（每行四格 name/redirect/effort/conc）
         const names = cells
-            .filter((_, i) => i % 3 === 0)
+            .filter((_, i) => i % 4 === 0)
             .map((c) => c.value);
         expect(names).toEqual(["deepseek-chat", "deepseek-reasoner", "new-m"]);
     });

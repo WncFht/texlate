@@ -102,11 +102,6 @@ Return JSON ONLY. NO OTHER TEXT.
 Result:
 """
 
-#: 调用参数包（frozen dataclass，全批共享）
-_EXTRACT_OPTIONS = ChatOptions(
-    temperature=EXTRACT_TEMPERATURE, max_tokens=EXTRACT_MAX_TOKENS
-)
-
 #: 围栏标签剥除序——``<json>``/``````json``/`````` 前缀 + ``</json>``/`````` 尾
 _FENCE_HEADS = ("<json>", "```json", "```")
 _FENCE_TAILS = ("</json>", "```")
@@ -223,21 +218,34 @@ def _pack_batches(texts: list[str], batch_chars: int) -> list[str]:
     return batches
 
 
-async def _ask(client: ChatClient, model: str, batch: str) -> ChatResult:
+async def _ask(
+    client: ChatClient,
+    model: str,
+    batch: str,
+    reasoning_effort: str = "",
+) -> ChatResult:
     """单批一次抽取调用（prompt 组装 + chat）；重试由调用方 ``call_with_backoff`` 包。"""
     prompt = PROMPT_TEMPLATE.replace("{text_to_process}", batch)
+    extra = {"reasoning": {"effort": reasoning_effort}} if reasoning_effort else None
     return await client.chat(
-        model, [{"role": "user", "content": prompt}], options=_EXTRACT_OPTIONS
+        model,
+        [{"role": "user", "content": prompt}],
+        options=ChatOptions(
+            temperature=EXTRACT_TEMPERATURE,
+            max_tokens=EXTRACT_MAX_TOKENS,
+            extra=extra,
+        ),
     )
 
 
-async def extract_terms(
+async def extract_terms(  # noqa: PLR0913 -- corpus + model/batch cap/effort 独立旋钮
     texts: Iterable[str],
     client: ChatClient,
     *,
     model: str = EXTRACT_MODEL,
     batch_chars: int = EXTRACT_BATCH_CHARS,
     max_batches: int = EXTRACT_MAX_BATCHES,
+    reasoning_effort: str = "",
 ) -> dict[str, str]:
     """Masked chunk 文列 → ``{en: zh}`` 术语表（``Glossary.doc_filter`` 可直接消费）。
 
@@ -265,7 +273,7 @@ async def extract_terms(
     for i, batch in enumerate(batches):
         try:
             r = await call_with_backoff(
-                partial(_ask, client, model, batch), policy=policy
+                partial(_ask, client, model, batch, reasoning_effort), policy=policy
             )
             pairs = _parse_pairs(r.content)
         except (ChatError, TermParseError) as e:

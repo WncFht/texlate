@@ -81,7 +81,6 @@ if TYPE_CHECKING:
         _doc_pdftotext,
         _doc_python,
         _doc_run,
-        _doc_settings_raw,
         _doc_tool_version,
         doctor,
     )
@@ -165,7 +164,6 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "_doc_pdftotext",
         "_doc_python",
         "_doc_run",
-        "_doc_settings_raw",
         "_doc_tool_version",
         "doctor",
     ),

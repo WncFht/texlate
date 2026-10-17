@@ -1,5 +1,5 @@
 // 终态结果面板统计合成 —— done 帧 stats 优先、快照 counters/usage 兜底。
-// usage（task_usage 聚合行）提供调用次数/prompt/completion/latency 细分；
+// usage（task_usage 聚合行）提供调用次数/输入/缓存/输出/latency 细分；
 // 老任务无 usage 行时退回总 tokens，stat 行各自独立缺席。
 
 import type { DoneStats, TaskCounters, TaskUsage } from "./api/client";
@@ -11,6 +11,7 @@ export interface ResultStats {
     calls?: number;
     prompt?: number;
     completion?: number;
+    cached?: number;
     latency?: number;
     /** 分阶段耗时（done.stats.stage_seconds：fetch/parse/translate/compile → 秒） */
     stageSeconds?: Record<string, number>;
@@ -42,6 +43,7 @@ export function mergeResultStats(
         calls: usage?.calls,
         prompt: usage?.prompt_tokens,
         completion: usage?.completion_tokens,
+        cached: usage?.cached_tokens,
         latency: usage?.latency_s,
     };
     return Object.values(out).every((v) => v == null) ? null : out;

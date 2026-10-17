@@ -117,6 +117,12 @@ export default function ResultBody(props: Props) {
                                 <dd class="stat-num">{s().completion}</dd>
                             </div>
                         </Show>
+                        <Show when={s().cached != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsCached}</dt>
+                                <dd class="stat-num">{s().cached}</dd>
+                            </div>
+                        </Show>
                         <Show when={s().calls != null}>
                             <div class="stat">
                                 <dt>{t.reader.statsCalls}</dt>

@@ -112,6 +112,7 @@ def auto_glossary_fn(
     model: str,
     memo: dict[str, Any] | None = None,
     memo_key: str = "terms",
+    reasoning_effort: str = "",
 ) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
     """``PipelineConfig.auto_glossary_fn`` 装配工厂（e2e/worker 两臂单源）。
 
@@ -130,7 +131,12 @@ def auto_glossary_fn(
         )
 
         if memo_key not in store:
-            store[memo_key] = await extract_terms(texts, client, model=model)
+            store[memo_key] = await extract_terms(
+                texts,
+                client,
+                model=model,
+                reasoning_effort=reasoning_effort,
+            )
         return store[memo_key]
 
     return _fn

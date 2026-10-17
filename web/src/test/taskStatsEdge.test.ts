@@ -53,6 +53,7 @@ describe("mergeResultStats 边界", () => {
             calls: 3,
             prompt: undefined,
             completion: undefined,
+            cached: undefined,
             latency: undefined,
             stageSeconds: undefined,
             fixloop: undefined,

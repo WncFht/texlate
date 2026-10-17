@@ -79,7 +79,7 @@ def _view(deps: AppDeps) -> dict[str, Any]:
     }
 
 
-def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 渠道面平铺
+def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 渠道面平铺
     """挂载 ``/api/channels*`` 渠道面。"""
 
     @app.get("/api/channels")
@@ -93,10 +93,13 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 渠道面平
         """整表替换写（``{"channels": [...], "route": {...}}``）——``ChannelStore.save`` 归一化语义。"""
         _channels_gate()
         body = await _read_body(request)
+        channels = body.get("channels")
+        if not isinstance(channels, list):
+            return _json_error(400, "channels 须为 list", "invalid_request")
         try:
             await asyncio.to_thread(
                 deps.channels_store.save,
-                body.get("channels"),
+                channels,
                 body.get("route"),
             )
         except (TypeError, ValueError) as e:

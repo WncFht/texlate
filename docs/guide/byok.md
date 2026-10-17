@@ -24,7 +24,7 @@ key 的存在范围按配法收敛：单次请求的 key 只随任务生命周�
 
 ## 多渠道管理与路由
 
-Settings 页顶部的「渠道」卡面（存进数据目录的 `channels.json`）是端点与凭据的唯一配置面，`settings.json` 不再存任何 BYOK 字段：卡片以 `model(redirect)` chips 展示模型清单，「编辑」开右侧抽屉分节管理——基本（名称/预设/base_url/协议/启用）、凭据、模型。「新建渠道」从服务商预设起步（预设预填 base_url/协议/推荐模型与 key env 约定名），选「自定义」留空自填。凭据二选一——内联存 key（0600 落盘、永不回显），或填 `key_env` 存一个环境变量**名**（值在环境里读，轮换 key 只改环境不改渠道）。手改 JSON 也行，格式是 `{"version":2,"channels":[…],"route":{…}}`——`models` 条目一律 `{"model":"本地名","redirect_model":"线上名","enabled":true,"max_concurrency":null}` 对象（裸字符串条目不收）；写坏的文件会被改名隔离成 `channels-invalid-*` 而不是让服务起不来，含非法条目的渠道按坏成员读径整条丢弃。
+Settings 页顶部的「渠道」卡面（存进数据目录的 `channels.json`）是端点与凭据的唯一配置面，`settings.json` 不再存任何 BYOK 字段：卡片以 `model(redirect)` chips 展示模型清单，「编辑」开右侧抽屉分节管理——基本（名称/预设/base_url/协议/启用）、凭据、模型。「新建渠道」从服务商预设起步（预设预填 base_url/协议/推荐模型与 key env 约定名），选「自定义」留空自填。凭据二选一——内联存 key（0600 落盘、永不回显），或填 `key_env` 存一个环境变量**名**（值在环境里读，轮换 key 只改环境不改渠道）。手改 JSON 也行，格式是 `{"version":2,"channels":[…],"route":{…}}`——`models` 条目一律 `{"model":"本地名","redirect_model":"线上名","enabled":true,"max_concurrency":null}` 对象（裸字符串条目不收）；模型条目还可选填 `reasoning_effort`（`low`/`medium`/`high`/`max`），仅对 Responses 协议生效，空值保持原请求形态。写坏的文件会被改名隔离成 `channels-invalid-*` 而不是让服务起不来，含非法条目的渠道按坏成员读径整条丢弃。
 
 `channels.json` 缺席时首个写点（`texlate web` 启动或 `texlate channels`）会把旧配置一次性物化迁移：旧版 `endpoints.json` 档案 + 旧 `settings.json` 里的 BYOK 四键 + `connections.json` 槽位按归一化 base_url 去重合并成渠道表落盘，随后旧件改名 `*-migrated-*` 留档、settings.json 剥除那四个键；三源皆空的全新安装播种一条内建网关渠道。迁移只跑一次——之后三个旧件永不再读。
 

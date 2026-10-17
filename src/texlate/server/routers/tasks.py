@@ -91,6 +91,11 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         kind = "arxiv_html" if source == "html" else "arxiv"
         # front_matter 改变扫描块集 → 进 dedup 材料分桶（∅ 不配成分，
         # 与前置全盖过的存量缓存同桶——见 cache_key_for 文档）
+        effort = deps.reasoning_effort_for(request, model)
+        if effort:
+            # options_json 是任务实际运行参数的持久化面——share cache_key
+            # 重算与 retry 同源，不靠当前渠道表回放历史产物。
+            options["reasoning_effort"] = effort
         cache_key = cache_key_for(
             arxiv_id=base,
             version=ver,
@@ -99,6 +104,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             api_key=deps.auth(request).api_key,
             source=source,
             front_matter=front_matter_of(options),
+            reasoning_effort=effort,
         )
         row, status, extra = deps.create_and_enqueue(
             request,

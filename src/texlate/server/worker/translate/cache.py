@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from texlate.server.settings import cache_scope
 from texlate.server.worker import seams
@@ -86,6 +86,10 @@ class _TranslateCache:
         # 组合根 ``worker._Core.__init__`` 注入的共享态契约
         store: Store
 
+        def _channel_of(
+            self, ctx: TaskCtx
+        ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]: ...
+
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。
 
@@ -145,9 +149,17 @@ class _TranslateCache:
         # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。读法与
         # ``_auto_glossary_fn`` 同走 opt_bool——指纹须与实际行为同源
         ag = "1" if opt_bool(ctx.options(), "auto_glossary", lambda: False) else "0"
+        # reasoning effort 改变模型产出与 token 用量；空串不落材料，保留
+        # 非 effort 渠道的存量缓存键。任务 options 优先（重试/渠道当前值
+        # 漂移后仍按当次创建决议），无持久快照时回读渠道条目。
+        effort = str(opts.get("reasoning_effort") or "")
+        if not effort:
+            _ch, entry = self._channel_of(ctx)
+            effort = str((entry or {}).get("reasoning_effort") or "")
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}".encode()
+            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}"
+            f"{f'|re:{effort}' if effort else ''}".encode()
         ).hexdigest()[:16]
         if cache_scope() == "per_key":
             # 与 cache_key_for 同一 oracle 防护：段级 translation_cache

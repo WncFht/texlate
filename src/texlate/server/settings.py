@@ -222,8 +222,11 @@ def _check_quota(value: object, name: str) -> int:
 
 def _check_compile_timeout(value: object) -> float:
     """``compile_timeout`` 校验：可转 float 秒数，clamp 1–86400。"""
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        msg = f"compile_timeout 须为可转数值的秒数（clamp 1–{COMPILE_TIMEOUT_MAX_S:g}）"
+        raise TypeError(msg)
     try:
-        return max(1.0, min(COMPILE_TIMEOUT_MAX_S, float(value)))  # type: ignore[arg-type]
+        return max(1.0, min(COMPILE_TIMEOUT_MAX_S, float(value)))
     except (TypeError, ValueError, OverflowError):
         msg = f"compile_timeout 须为可转数值的秒数（clamp 1–{COMPILE_TIMEOUT_MAX_S:g}）"
         raise ValueError(msg) from None

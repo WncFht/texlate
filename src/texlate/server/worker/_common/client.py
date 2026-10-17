@@ -33,6 +33,7 @@ def _new_usage_meter() -> tuple[dict[str, Any], Callable[[UsageRecord], None]]:
         "calls": 0,
         "prompt_tokens": 0,
         "completion_tokens": 0,
+        "cached_tokens": 0,
         "latency_s": 0.0,
         "model": "",
     }
@@ -41,6 +42,7 @@ def _new_usage_meter() -> tuple[dict[str, Any], Callable[[UsageRecord], None]]:
         usage["calls"] += 1
         usage["prompt_tokens"] += u["prompt_tokens"]
         usage["completion_tokens"] += u["completion_tokens"]
+        usage["cached_tokens"] += u.get("cached_tokens", 0)
         usage["latency_s"] += u["latency_s"]
         usage["model"] = u["model"]
 

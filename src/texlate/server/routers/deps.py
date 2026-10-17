@@ -123,6 +123,22 @@ class AppDeps:
         auth = self.auth(request)
         return Secrets.from_auth(auth, model=str(row["model"]))
 
+    def reasoning_effort_for(self, request: Request, model: str) -> str:
+        """渠道 + 模型名 → Responses reasoning effort；无渠道/条目 → 空串。"""
+        auth = self.auth(request)
+        secrets = Secrets.from_auth(auth, model=model)
+        _ch, entry = self.worker._channel_of(  # noqa: SLF001 -- 渠道配置决议单源
+            type(
+                "_AuthCtx",
+                (),
+                {
+                    "secrets": secrets,
+                    "options": lambda _self: {},
+                },
+            )()
+        )
+        return str((entry or {}).get("reasoning_effort") or "")
+
     def resolve_model_lang(
         self, request: Request, model_raw: str, lang_raw: str
     ) -> tuple[str, str]:
@@ -285,6 +301,7 @@ class AppDeps:
                             api_key=auth.api_key,
                             source=str(options.get("source") or "eprint"),
                             front_matter=front_matter_of(options),
+                            reasoning_effort=self.reasoning_effort_for(request, model),
                         )
                 else:
                     return done, 200, {"reused": True}

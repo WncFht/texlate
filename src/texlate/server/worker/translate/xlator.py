@@ -138,6 +138,11 @@ class _TranslateXlator:
                 scopes.append((f"ch:{ch['id']}:{wire}", int(entry["max_concurrency"])))
         return tuple(scopes)
 
+    @staticmethod
+    def _reasoning_effort(entry: dict[str, Any] | None) -> str:
+        """渠道模型条目 → Responses reasoning effort；缺席/空串不带参数。"""
+        return str((entry or {}).get("reasoning_effort") or "")
+
     def _channel_of(
         self, ctx: TaskCtx
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -219,6 +224,7 @@ class _TranslateXlator:
                         wire,
                         channel_id=str(ch["id"]),
                         limits=self._scope_limits(ch, entry, wire, gcap),
+                        reasoning_effort=self._reasoning_effort(entry),
                     )
                 )
         for ch in channels:  # 第二遍：异渠道首模（各带自家凭据 client）
@@ -245,6 +251,7 @@ class _TranslateXlator:
                     wire,
                     channel_id=str(ch["id"]),
                     limits=self._scope_limits(ch, entry, wire, gcap),
+                    reasoning_effort=self._reasoning_effort(entry),
                 )
             )
         return arms
@@ -339,6 +346,10 @@ class _TranslateXlator:
                         dialect=ctx.secrets.dialect,
                         channel_id=cid,
                         limits=limits,
+                        reasoning_effort=self._reasoning_effort(ch_entry),
+                        auto_glossary_fn=self._auto_glossary_fn(
+                            ctx, [client] if (client := locals().get("client")) else []
+                        ),
                     )
                 else:
                     client = ChatClient(
@@ -347,7 +358,11 @@ class _TranslateXlator:
                         dialect=ctx.secrets.dialect,
                     )
                     primary = GatewayTranslator(
-                        client, model, channel_id=cid, limits=limits
+                        client,
+                        model,
+                        channel_id=cid,
+                        limits=limits,
+                        reasoning_effort=self._reasoning_effort(ch_entry),
                     )
                     arms: list[GatewayTranslator] = []
                     if retry:
@@ -374,6 +389,7 @@ class _TranslateXlator:
                                     limits=self._scope_limits(
                                         ch, rentry, retry_model, gcap
                                     ),
+                                    reasoning_effort=self._reasoning_effort(rentry),
                                 )
                             )
                         arms.extend(

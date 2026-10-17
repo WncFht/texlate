@@ -145,4 +145,5 @@ class _TranslateGlossary:
             str(ctx.secrets.model or DEFAULT_MODEL),
             ctx.memo,
             "autogloss_terms",
+            self._reasoning_effort(self._channel_of(ctx)[1]),
         )

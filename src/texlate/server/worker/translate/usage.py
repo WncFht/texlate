@@ -67,6 +67,7 @@ class _TranslateUsage:
             calls=int(usage["calls"]),
             prompt_tokens=int(usage["prompt_tokens"]),
             completion_tokens=int(usage["completion_tokens"]),
+            cached_tokens=int(usage.get("cached_tokens") or 0),
             latency_s=float(usage["latency_s"]),
         )
 

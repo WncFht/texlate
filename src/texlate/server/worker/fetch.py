@@ -229,6 +229,7 @@ class _Fetch:
         stored = str(ctx.row.get("cache_key") or "")
         if not stored or str(ctx.options().get("prefer") or "reuse") == "fresh":
             return False
+        effort = str((self._channel_of(ctx)[1] or {}).get("reasoning_effort") or "")
         resolved_key = cache_key_for(
             arxiv_id=arxiv_id,
             version=version,
@@ -237,6 +238,7 @@ class _Fetch:
             api_key=ctx.secrets.api_key,
             source=source,
             front_matter=front_matter_of(ctx.options()),
+            reasoning_effort=effort,
         )
         if resolved_key == stored:
             return False

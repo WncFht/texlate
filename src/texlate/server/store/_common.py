@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS task_usage (
   calls             INTEGER NOT NULL DEFAULT 0,
   prompt_tokens     INTEGER NOT NULL DEFAULT 0,
   completion_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_tokens     INTEGER NOT NULL DEFAULT 0,
   latency_s         REAL NOT NULL DEFAULT 0,
   updated_at        REAL NOT NULL
 );
@@ -139,6 +140,12 @@ CREATE TABLE IF NOT EXISTS kept_refs (
 #: table_info 探测缺失才执行 ALTER + 回填。
 _COLUMN_MIGRATIONS: tuple[tuple[str, str, str, str | None], ...] = (
     ("chunks", "warnings", "ALTER TABLE chunks ADD COLUMN warnings TEXT", None),
+    (
+        "task_usage",
+        "cached_tokens",
+        "ALTER TABLE task_usage ADD COLUMN cached_tokens INTEGER NOT NULL DEFAULT 0",
+        None,
+    ),
     # idempotency_key 从 options_json 提升为一等列——json_extract 表达式
     # 索引抢不过 idx_tasks_tenant 的 ORDER BY 红利，热查询必须走真列
     (

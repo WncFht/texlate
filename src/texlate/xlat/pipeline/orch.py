@@ -103,6 +103,8 @@ class _XlatOrch:
         """组装编排器；`state`/`cache`/`validator`/`on_result` 均可选。"""
         self.translator = translator
         self.cfg = config or PipelineConfig()
+        if config is None and hasattr(translator, "auto_glossary_fn"):
+            self.cfg.auto_glossary_fn = translator.auto_glossary_fn
         self.glossary = glossary
         self.state = state
         self.validator = validator or (lambda s, z: placeholders.diff(s, z).describe())

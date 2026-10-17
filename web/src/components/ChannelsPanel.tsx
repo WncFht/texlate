@@ -11,9 +11,9 @@
 // 互斥）由服务端归一，本面只造写行：读面不回 key，未触碰凭据的行凭据键
 // 缺席送出（=承旧值）。路由选择走独立 POST /channels/route，不动渠道表。
 //
-// 模型条目 {model, redirect_model, enabled, max_concurrency}：model 是本地名
+// 模型条目 {model, redirect_model, enabled, max_concurrency, reasoning_effort}：model 是本地名
 // （展示/探针报告键），redirect_model 是上游请求名（空串=本名直发），
-// max_concurrency null=只受渠道/全局闸约束。子集探测按本地名发
+// max_concurrency null=只受渠道/全局闸约束；reasoning_effort 空=不发送。子集探测按本地名发
 // {id, models:[name]}，服务端按渠道 redirect 解析出上游名。
 
 import {
@@ -144,6 +144,7 @@ const draftToWrite = (d: Draft): ChannelWrite => {
             redirect_model: red === name ? "" : red,
             enabled: m.enabled,
             max_concurrency: m.max_concurrency,
+            reasoning_effort: m.reasoning_effort ?? "",
         });
     }
     return {
@@ -474,6 +475,7 @@ export default function ChannelsPanel() {
         redirect_model: "",
         enabled: true,
         max_concurrency: null,
+        reasoning_effort: "",
     });
 
     const addModel = () => {
@@ -1477,6 +1479,7 @@ export default function ChannelsPanel() {
                                                             />
                                                         </th>
                                                         <th>{ep().colRedirect}</th>
+                                                        <th>{ep().colEffort}</th>
                                                         <th class="ch-conc">
                                                             {ep().colConc}
                                                         </th>
@@ -1593,6 +1596,53 @@ export default function ChannelsPanel() {
                                                                                 )
                                                                             }
                                                                         />
+                                                                    </td>
+                                                                    <td class="ch-conc">
+                                                                        <select
+                                                                            class="ch-cell-in"
+                                                                            value={
+                                                                                d()
+                                                                                    .models[
+                                                                                    i
+                                                                                ]
+                                                                                    .reasoning_effort ??
+                                                                                ""
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                setModel(
+                                                                                    i,
+                                                                                    {
+                                                                                        reasoning_effort:
+                                                                                            e
+                                                                                                .currentTarget
+                                                                                                .value as
+                                                                                                | ""
+                                                                                                | "low"
+                                                                                                | "medium"
+                                                                                                | "high"
+                                                                                                | "max",
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <option value="">
+                                                                                —
+                                                                            </option>
+                                                                            <option value="low">
+                                                                                low
+                                                                            </option>
+                                                                            <option value="medium">
+                                                                                medium
+                                                                            </option>
+                                                                            <option value="high">
+                                                                                high
+                                                                            </option>
+                                                                            <option value="max">
+                                                                                max
+                                                                            </option>
+                                                                        </select>
                                                                     </td>
                                                                     <td class="ch-conc">
                                                                         <input

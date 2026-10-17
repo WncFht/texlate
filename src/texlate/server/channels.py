@@ -119,6 +119,8 @@ NAME_MAX_LEN = 48
 PRIORITY_STEP = 10
 #: 渠道/模型并发上限域（``None`` = 只受全局池约束）
 MAX_CONCURRENCY_CAP = 64
+#: 模型条目可选 Responses reasoning effort——空串表示请求不携带该参数。
+REASONING_EFFORTS = frozenset({"low", "medium", "high", "max"})
 
 _ID_RX = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 _KEY_ENV_RX = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
@@ -340,8 +342,10 @@ def _check_preset(value: object) -> str:
 
 def _check_priority(value: object) -> int:
     """优先级：可转 int；非法 → 0（读径容错面——写径同函数，int 域即合法）。"""
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        return 0
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(value)
     except (TypeError, ValueError, OverflowError):
         return 0
 
@@ -350,17 +354,34 @@ def _check_max_concurrency(value: object) -> int | None:
     """并发上限：``None``/``0``/缺席 → ``None``（不限）；正 int clamp ≤64。"""
     if value is None or value == 0:
         return None
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        msg = f"max_concurrency 须为 null 或 1–{MAX_CONCURRENCY_CAP} int"
+        raise TypeError(msg)
     try:
-        return max(1, min(MAX_CONCURRENCY_CAP, int(value)))  # type: ignore[arg-type]
+        return max(1, min(MAX_CONCURRENCY_CAP, int(value)))
     except (TypeError, ValueError, OverflowError):
         msg = f"max_concurrency 须为 null 或 1–{MAX_CONCURRENCY_CAP} int"
         raise ValueError(msg) from None
 
 
+def _check_reasoning_effort(value: object) -> str:
+    """模型条目 reasoning effort：空/缺席 → ``""``；否则限登记档位。"""
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str):
+        msg = f"reasoning_effort 须为 string 或 null（∈ {sorted(REASONING_EFFORTS)}）"
+        raise TypeError(msg)
+    effort = value.strip().lower()
+    if effort not in REASONING_EFFORTS:
+        msg = f"reasoning_effort ∈ {sorted(REASONING_EFFORTS)}"
+        raise ValueError(msg)
+    return effort
+
+
 def _model_entry(item: object) -> dict[str, Any]:
-    """单条目 → ``{model, redirect_model, enabled, max_concurrency}`` 归一 dict。"""
+    """单条目 → 模型名/上游名/开关/并发/effort 归一 dict。"""
     if not isinstance(item, dict):
-        msg = "models 成员须为 {model, redirect_model} 对象"
+        msg = "models 成员须为对象"
         raise TypeError(msg)
     raw_name = item.get("model")
     if not isinstance(raw_name, str):
@@ -383,6 +404,7 @@ def _model_entry(item: object) -> dict[str, Any]:
         "redirect_model": redirect,
         "enabled": enabled,
         "max_concurrency": _check_max_concurrency(item.get("max_concurrency")),
+        "reasoning_effort": _check_reasoning_effort(item.get("reasoning_effort")),
     }
 
 
@@ -636,7 +658,8 @@ def _normalize_channel(  # noqa: C901 -- 全字段校验 + 凭据互斥/保留�
     }
     last = existing.get("last_probe") if existing else None
     if (
-        isinstance(last, dict)
+        existing is not None
+        and isinstance(last, dict)
         and base_url == existing.get("base_url")
         and protocol == existing.get("protocol")
         and models == existing.get("models")
@@ -1125,6 +1148,7 @@ def _project_channels(
                 "redirect_model": "",
                 "enabled": True,
                 "max_concurrency": None,
+                "reasoning_effort": "",
             }
             for m in _dedupe_keep(
                 [str(settings.get("model") or ""), str(slot.get("model") or "")]
@@ -1166,6 +1190,7 @@ def _project_channels(
                         "redirect_model": "",
                         "enabled": True,
                         "max_concurrency": None,
+                        "reasoning_effort": "",
                     }
                     for m in _dedupe_keep([str(cslot.get("model") or "")])
                 ],
@@ -1224,6 +1249,7 @@ def _default_channel() -> dict[str, Any]:
                 "redirect_model": "",
                 "enabled": True,
                 "max_concurrency": None,
+                "reasoning_effort": "",
             }
         ],
         "priority": PRIORITY_STEP,

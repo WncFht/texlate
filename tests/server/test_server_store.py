@@ -350,6 +350,7 @@ class TestUsage:
             calls=2,
             prompt_tokens=100,
             completion_tokens=50,
+            cached_tokens=20,
             latency_s=1.5,
         )
         store.record_usage(
@@ -358,6 +359,7 @@ class TestUsage:
             calls=1,
             prompt_tokens=10,
             completion_tokens=5,
+            cached_tokens=4,
             latency_s=0.5,
         )
         u = store.usage_for(row["id"])
@@ -365,9 +367,46 @@ class TestUsage:
         assert u["calls"] == 3  # noqa: PLR2004 -- 2+1 upsert 累加
         assert u["prompt_tokens"] == 110  # noqa: PLR2004
         assert u["completion_tokens"] == 55  # noqa: PLR2004
+        assert u["cached_tokens"] == 24  # noqa: PLR2004
         assert u["latency_s"] == pytest.approx(2.0)
         snap = store.snapshot(row["id"], artifacts={})
         assert snap["usage"]["calls"] == 3  # noqa: PLR2004
+
+    def test_cached_tokens_column_migration(self, tmp_path: Path) -> None:
+        """老库 task_usage 无 cached_tokens → open() 补列且旧行按 0 读取。"""
+        path = tmp_path / "old.db"
+        s = Store(path)
+        s.open()
+        try:
+            row = mk_task_row(s)
+            s.conn.execute(
+                "INSERT INTO task_usage"
+                " (task_id,model,calls,prompt_tokens,completion_tokens,latency_s,updated_at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (row["id"], "m", 1, 10, 5, 0.1, 1),
+            )
+            s.conn.commit()
+        finally:
+            s.close()
+
+        # 模拟旧库：SQLite 3.35+ 可删列；构造目标旧形态后重开触发迁移。
+        conn = sqlite3.connect(path)
+        conn.execute("ALTER TABLE task_usage DROP COLUMN cached_tokens")
+        conn.commit()
+        conn.close()
+
+        s = Store(path)
+        s.open()
+        try:
+            cols = {
+                str(r["name"]) for r in s.conn.execute("PRAGMA table_info(task_usage)")
+            }
+            assert "cached_tokens" in cols
+            u = s.usage_for(row["id"])
+            assert u is not None
+            assert u["cached_tokens"] == 0
+        finally:
+            s.close()
 
 
 class TestEvents:

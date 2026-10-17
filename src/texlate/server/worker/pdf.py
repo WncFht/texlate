@@ -113,6 +113,7 @@ class _Pdf:
                 calls=0,
                 prompt_tokens=int(run.stats.get("prompt_tokens") or 0),
                 completion_tokens=int(run.stats.get("completion_tokens") or 0),
+                cached_tokens=int(run.stats.get("cache_hit_prompt_tokens") or 0),
                 latency_s=float(run.seconds),
             )
         await self._to_thread(ctx, self._harvest_pdf_outputs, run)

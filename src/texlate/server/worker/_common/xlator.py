@@ -28,7 +28,7 @@ from texlate.xlat.pipeline import GatewayTranslator
 
 if TYPE_CHECKING:
     import threading
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from texlate.xlat.client import UsageRecord
     from texlate.xlat.pipeline import Translator
@@ -163,7 +163,7 @@ class _PerCallTranslator:
     机制单源在 ``server._ttlcache.LoopClientPool``（routers 同款池）。
     """
 
-    def __init__(  # noqa: PLR0913 -- BYOK 凭证面平铺（url/key/model/dialect + retry + sink）
+    def __init__(  # noqa: PLR0913 -- 凭证/路由/并发/推理旋钮独立装配
         self,
         base_url: str,
         api_key: str,
@@ -174,6 +174,9 @@ class _PerCallTranslator:
         dialect: str = "auto",
         channel_id: str = "",
         limits: tuple[tuple[str, int | None], ...] = (),
+        reasoning_effort: str = "",
+        auto_glossary_fn: Callable[[list[str]], Awaitable[dict[str, str]]]
+        | None = None,
     ) -> None:
         self._base_url = base_url
         self._api_key = api_key
@@ -182,6 +185,8 @@ class _PerCallTranslator:
         self._dialect = dialect
         self._channel_id = channel_id
         self._limits = limits
+        self._reasoning_effort = reasoning_effort
+        self._auto_glossary_fn = auto_glossary_fn
         self._sink = sink
         self._pool: LoopClientPool[ChatClient] = LoopClientPool(
             self._make_client, label="per-call"
@@ -220,7 +225,12 @@ class _PerCallTranslator:
     ) -> str:
         client = self._client()
         primary = GatewayTranslator(
-            client, self._model, channel_id=self._channel_id, limits=self._limits
+            client,
+            self._model,
+            channel_id=self._channel_id,
+            limits=self._limits,
+            reasoning_effort=self._reasoning_effort,
+            auto_glossary_fn=self._auto_glossary_fn,
         )
         try:
             return await primary.translate(
@@ -240,7 +250,11 @@ class _PerCallTranslator:
                 self._retry_model,
             )
         return await GatewayTranslator(
-            client, self._retry_model, channel_id=self._channel_id, limits=self._limits
+            client,
+            self._retry_model,
+            channel_id=self._channel_id,
+            limits=self._limits,
+            reasoning_effort=self._reasoning_effort,
         ).translate(
             system=system,
             user=user,

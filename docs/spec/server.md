@@ -10,7 +10,7 @@ FastAPI 应用由 `server/app.py` 装配，路由、SQLite store 和任务 worke
 
 任务快照与 SSE 事件共享 task id；事件序号用于断线重放，终态重试保留同一任务标识。进度展示必须按阶段与轮次解释计数，不能把 `done/total` 当跨阶段单调百分比。单块重译保留源 span，更新译文后重新装配相应产物。
 
-同缓存键的活跃任务通过去重槽防止重复消费；`duplicate_active` 返回现存任务，客户端可收养其 task id。缓存键与共享格式由 `share.py` 定义，不能在客户端自行推算替代服务端值。
+同缓存键的活跃任务通过去重槽防止重复消费；`duplicate_active` 返回现存任务，客户端可收养其 task id。缓存键与共享格式由 `share.py` 定义，不能在客户端自行推算替代服务端值。`task_usage` 聚合真实 `calls`、输入 `prompt_tokens`、输出 `completion_tokens`、缓存读取 `cached_tokens` 与 API `latency_s`；老库打开时自动补缓存列，旧行按 0 读取。
 
 ## 认证与隔离
 

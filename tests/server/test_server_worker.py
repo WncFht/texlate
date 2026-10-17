@@ -272,7 +272,11 @@ class TestFaultPaths:
                             "finish_reason": "stop",
                         }
                     ],
-                    "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                    "usage": {
+                        "prompt_tokens": 11,
+                        "completion_tokens": 7,
+                        "prompt_tokens_details": {"cached_tokens": 5},
+                    },
                 },
             )
 
@@ -286,6 +290,7 @@ class TestFaultPaths:
         assert snap["usage"]["calls"] >= 1
         assert snap["usage"]["prompt_tokens"] >= 11  # noqa: PLR2004 -- 真实账单
         assert snap["usage"]["completion_tokens"] >= 7  # noqa: PLR2004
+        assert snap["usage"]["cached_tokens"] >= 5  # noqa: PLR2004
         assert snap["usage"]["model"] == "m1"
 
 

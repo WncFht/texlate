@@ -157,6 +157,7 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
     # ``|src:html`` 成分，漏传则重算恒为 eprint 形、html 产物全被拒。
     # 注意 key_parts/manifest 尚无 source 组分（异源包寻址待 share 层扩位）。
     source = str(options.get("source") or "eprint")
+    effort = str(options.get("reasoning_effort") or "")
     expect = {
         cache_key_for(
             arxiv_id=base,
@@ -165,6 +166,7 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
             target_lang=lang,
             source=source,
             front_matter=fm,
+            reasoning_effort=effort,
         )
         for v in (ver, None)
     }

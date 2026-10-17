@@ -19,6 +19,7 @@ describe("mergeResultStats（done.stats 优先 + counters/usage 兜底）", () =
                 calls: 24,
                 prompt_tokens: 6100,
                 completion_tokens: 3000,
+                cached_tokens: 2500,
                 latency_s: 41.6,
             },
         );
@@ -27,6 +28,7 @@ describe("mergeResultStats（done.stats 优先 + counters/usage 兜底）", () =
             calls: 24,
             prompt: 6100,
             completion: 3000,
+            cached: 2500,
             latency: 41.6,
         });
     });

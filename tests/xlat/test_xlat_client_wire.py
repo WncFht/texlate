@@ -307,7 +307,9 @@ class TestResponsesDialect:
                 "m1",
                 msgs,
                 options=cl.ChatOptions(
-                    max_tokens=64, response_format={"type": "json_object"}
+                    max_tokens=64,
+                    response_format={"type": "json_object"},
+                    extra={"reasoning": {"effort": "high"}},
                 ),
             )
         )
@@ -322,6 +324,7 @@ class TestResponsesDialect:
         assert body["input"][1]["content"] == [{"type": "output_text", "text": "a"}]
         assert body["max_output_tokens"] == 64  # noqa: PLR2004
         assert body["text"] == {"format": {"type": "json_object"}}
+        assert body["reasoning"] == {"effort": "high"}
         assert "messages" not in body
         assert "max_tokens" not in body
 

@@ -23,7 +23,7 @@ from texlate.xlat.pipeline.types import LENGTH_RETRY_MAX_TOKENS
 from texlate.xlat.retry import RetryPolicy, call_with_backoff
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Awaitable, Callable, Iterable
 
 # ---------------------------------------------------------------- scope 信号量池
 
@@ -125,7 +125,7 @@ class GatewayTranslator:
     acquire——重试期持锁不放（重试仍占一个并发位）。
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- client/model + policy/chain/limit/effort 独立旋钮
         self,
         client: ChatClient,
         model: str,
@@ -133,6 +133,9 @@ class GatewayTranslator:
         policy: RetryPolicy | None = None,
         channel_id: str = "",
         limits: tuple[tuple[str, int | None], ...] = (),
+        reasoning_effort: str = "",
+        auto_glossary_fn: Callable[[list[str]], Awaitable[dict[str, str]]]
+        | None = None,
     ) -> None:
         """绑定 client+model；`policy` 覆盖默认 HTTP 退避参数。"""
         self.client = client
@@ -140,6 +143,27 @@ class GatewayTranslator:
         self.channel_id = channel_id
         self.limits = limits
         self.policy = policy or RetryPolicy()
+        self.reasoning_effort = reasoning_effort
+        self.auto_glossary_fn = auto_glossary_fn
+
+    def _options(
+        self,
+        *,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None,
+    ) -> ChatOptions:
+        extra = (
+            {"reasoning": {"effort": self.reasoning_effort}}
+            if self.reasoning_effort
+            else None
+        )
+        return ChatOptions(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            extra=extra,
+        )
 
     async def translate(
         self,
@@ -161,7 +185,7 @@ class GatewayTranslator:
                 r = await self.client.chat(
                     self.model,
                     messages,
-                    options=ChatOptions(
+                    options=self._options(
                         temperature=temperature,
                         max_tokens=max_tokens,
                         response_format=response_format,
@@ -178,7 +202,7 @@ class GatewayTranslator:
                 r = await self.client.chat(
                     self.model,
                     messages,
-                    options=ChatOptions(
+                    options=self._options(
                         temperature=temperature,
                         max_tokens=LENGTH_RETRY_MAX_TOKENS,
                         response_format=response_format,

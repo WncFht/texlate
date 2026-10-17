@@ -845,6 +845,7 @@ class TestPersistUsageReplace:
             "calls": 1,
             "prompt_tokens": 5,
             "completion_tokens": 3,
+            "cached_tokens": 2,
             "latency_s": 0.1,
             "model": "m",
         }
