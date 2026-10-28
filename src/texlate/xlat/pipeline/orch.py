@@ -371,20 +371,22 @@ class _XlatOrch:
         for item in work_items:
             queue.put_nowait(item if isinstance(item, WorkItem) else WorkItem(*item))
 
-        # 首发单飞暖前缀缓存，再并发其余（docs/spec/translate.md warmup 模式）
+        # 首发单飞暖前缀缓存，再并发其余（docs/spec/translate.md warmup 模式；
+        # cfg.warmup=False 跳过单飞，首项随 worker 并发）
         fatal = _FatalLedger()
-        first = await queue.get()
-        if first is not None:
-            try:
-                results = await self._process(first)
-            except Exception as e:  # 与 _worker 同兜底口径
-                log.exception("warmup item crashed")
-                results = [
-                    self._skip(c, f"warmup crash: {e}", kind=_kind_of(e))
-                    for c in first.affected()
-                ]
-            self._collect(results, done_map, fatal)
-        queue.task_done()
+        if self.cfg.warmup:
+            first = await queue.get()
+            if first is not None:
+                try:
+                    results = await self._process(first)
+                except Exception as e:  # 与 _worker 同兜底口径
+                    log.exception("warmup item crashed")
+                    results = [
+                        self._skip(c, f"warmup crash: {e}", kind=_kind_of(e))
+                        for c in first.affected()
+                    ]
+                self._collect(results, done_map, fatal)
+            queue.task_done()
 
         for _ in range(self.cfg.concurrency):
             queue.put_nowait(None)

@@ -154,6 +154,9 @@ class PipelineConfig:
     #: 底层（同 key 由既有四层表赢——curated 覆盖 auto）。调用方负责
     #: memoize（worker ctx.memo / e2e 单例），否则 resume 会重抽。
     auto_glossary_fn: Callable[[list[str]], Awaitable[dict[str, str]]] | None = None
+    #: 首项单飞暖前缀缓存（docs/spec/translate.md warmup 模式）。轮转网关每请求
+    #: 换供应商时缓存不跨请求命中，单飞只多串行一个调用——False 则首项同批并发
+    warmup: bool = True
 
     def __post_init__(self) -> None:
         """数值钳位：0/负并发会饿死 worker 让 queue.join 死等；hard_limit<1 让 split 死循环。"""

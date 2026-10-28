@@ -69,7 +69,7 @@ kind 槽位（在 Style commands 后、Output 前）：section_title 只翻 `\se
 
 ### 1.5 并发、退避与熔断
 
-并发是 **worker 池**：`_drain` 首发一件 solo 暖前缀缓存，随后 `asyncio.Queue` + `DEFAULT_CONCURRENCY=10`（`PipelineConfig.concurrency` 可调）个 worker 协程消费、哨兵收尾。单次翻译调用（`GatewayTranslator.translate`）另挂**三层并发作用域**——`pipeline/translator.py::_ScopePool` 按 `(running loop, scope)` 分桶 `asyncio.Semaphore`（Semaphore loop-affine，ephemeral loop 消费面各自开桶，死 loop 桶惰性摘除）：`global`（cap = `settings.concurrency`，服务级总闸）→ `ch:<channel_id>`（渠道 `max_concurrency`）→ `ch:<channel_id>:<wire>`（模型条目 `max_concurrency`），cap 空/0 的层跳过；取锁序全进程固定即无死锁面，重试期持锁（重试仍占一个并发位）。渠道/模型层只在渠道路径生效——非渠道配置只见 global 层。
+并发是 **worker 池**：`_drain` 默认首发一件 solo 暖前缀缓存（`PipelineConfig.warmup`，server 读 `settings.warmup`；关闭时首件随 worker 一起并发，适合每请求轮换供应商、前缀缓存不跨请求命中的网关），随后 `asyncio.Queue` + `DEFAULT_CONCURRENCY=10`（`PipelineConfig.concurrency` 可调）个 worker 协程消费、哨兵收尾。单次翻译调用（`GatewayTranslator.translate`）另挂**三层并发作用域**——`pipeline/translator.py::_ScopePool` 按 `(running loop, scope)` 分桶 `asyncio.Semaphore`（Semaphore loop-affine，ephemeral loop 消费面各自开桶，死 loop 桶惰性摘除）：`global`（cap = `settings.concurrency`，服务级总闸）→ `ch:<channel_id>`（渠道 `max_concurrency`）→ `ch:<channel_id>:<wire>`（模型条目 `max_concurrency`），cap 空/0 的层跳过；取锁序全进程固定即无死锁面，重试期持锁（重试仍占一个并发位）。渠道/模型层只在渠道路径生效——非渠道配置只见 global 层。
 
 `retry.py::RetryPolicy`：`max_tries=5`、`base_delay=1.0`；退避 `base·2^attempt`；429 用 `base·3^attempt` 且下限 `rate_limit_floor=5s`；timeout 下限 `timeout_floor=10s`；`Retry-After` 兑现（body `error.retry_after` 秒值优先于 HTTP header，上限 `MAX_RETRY_AFTER_S=60`）——本网关 429 的 retry_after 在 body 不在 header[^texglot]。`e.max_tries` 逐错型封顶。
 

@@ -54,4 +54,4 @@ web 任务在没有任何可用 key 时建行即落 `needs_auth` 终态——界
 
 ## 限额
 
-`settings.json` 里的 `quota_max_tasks` 与 `quota_max_bytes` 给 server 形态限总量（0 为不限）；`concurrency` 是服务级在飞翻译请求总闸（渠道/模型层在其下再限，见上节）。任务级并发固定为一——队列一次只跑一篇论文，其余的排队等。
+`settings.json` 里的 `quota_max_tasks` 与 `quota_max_bytes` 给 server 形态限总量（0 为不限）；`concurrency` 是服务级在飞翻译请求总闸（渠道/模型层在其下再限，见上节）。任务级并发固定为一——队列一次只跑一篇论文，其余的排队等。`warmup`（默认 `true`）控制每篇翻译先单独发一批预热供应商前缀缓存；网关每次请求轮换供应商时缓存命中不了，设为 `false` 可省掉这段串行等待。
