@@ -20,6 +20,7 @@ import sys
 import time
 from typing import TYPE_CHECKING, Any
 
+from texlate.server.settings import SettingsStore
 from texlate.server.worker import seams
 from texlate.server.worker._common import (
     _DB_TO_PIPE,
@@ -128,6 +129,8 @@ class _TranslateStage:
                 ),
                 tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
                 auto_glossary_fn=self._auto_glossary_fn(ctx, clients),
+                # 服务级开关：轮转网关下关掉首项单飞（PipelineConfig.warmup）
+                warmup=bool(SettingsStore(self.data_dir).load()["warmup"]),
             ),
             glossary=prep["glossary"],
             state=state,  # type: ignore[arg-type] -- StateStore 鸭子型

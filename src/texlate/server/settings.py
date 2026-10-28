@@ -379,6 +379,7 @@ _FIELD_SPECS: tuple[_FieldSpec, ...] = (
         lambda v: _load_bool(v, default=True),
         None,
     ),
+    _FieldSpec("warmup", bool, lambda v: _load_bool(v, default=True), None),
     _FieldSpec("cors_origins", None, _load_origins, _check_cors_origins),
     _FieldSpec(
         "quota_max_tasks",
