@@ -113,6 +113,8 @@ export const t = {
         retryAs: "重试 · {engine}",
         shareZip: "共享包",
         shareZipTip: "下载 .share.zip 社区缓存包",
+        zhPdf: "中",
+        zhPdfTip: "在新标签页打开中文 PDF",
     },
     discover: {
         title: "发现",

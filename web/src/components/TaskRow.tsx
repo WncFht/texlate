@@ -99,6 +99,10 @@ export default function TaskRow(props: {
                                 props.task.status}
                         </span>
                     </Show>
+                    {/* 标题占主行时 arXiv id 退到副行，保留按 id 辨认 */}
+                    <Show when={props.task.title && props.task.arxiv_id}>
+                        <span class="task-model">{props.task.arxiv_id}</span>
+                    </Show>
                     {/* 同 arXiv id 重复任务靠 model 区分 */}
                     <Show when={props.task.model}>
                         <span class="task-model">{props.task.model}</span>
@@ -203,6 +207,26 @@ export default function TaskRow(props: {
                         />
                     </Show>
                 </span>
+            </Show>
+            {/* 中文 PDF 新标签内联打开（不走下载）；done/partial 必有 zh.pdf，
+                文档类任务产物非 PDF 不给入口 */}
+            <Show
+                when={
+                    (props.task.status === "done" ||
+                        props.task.status === "partial") &&
+                    !isDocKind(props.task.kind)
+                }
+            >
+                <a
+                    class="task-act"
+                    href={api.fileUrl(props.task.task_id, "zh.pdf")}
+                    target="_blank"
+                    rel="noopener"
+                    title={t.home.zhPdfTip}
+                    aria-label={t.home.zhPdfTip}
+                >
+                    {t.home.zhPdf}
+                </a>
             </Show>
             <Show when={props.task.artifacts?.share_zip}>
                 <a

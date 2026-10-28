@@ -220,12 +220,17 @@ describe("U8：行内快捷臂", () => {
         expect(row.querySelector("button.task-act")).toBeNull();
     });
 
-    it("done 行无快捷臂（只有下载/删除）", () => {
+    it("done 行只有中文 PDF 入口 + 下载/删除", () => {
         renderList();
         const row = [...root.querySelectorAll(".task-wrap")].find((w) =>
             w.textContent?.includes("done beta"),
         )!;
-        expect(row.querySelector(".task-act")).toBeNull();
+        const acts = row.querySelectorAll(".task-act");
+        expect(acts).toHaveLength(1);
+        const pdf = acts[0] as HTMLAnchorElement;
+        expect(pdf.getAttribute("href")).toMatch(/\/files\/[^/]+\/zh\.pdf$/);
+        expect(pdf.target).toBe("_blank");
+        expect(pdf.hasAttribute("download")).toBe(false);
         expect(row.querySelector(".task-dlt")).not.toBeNull();
         expect(row.querySelector(".task-del")).not.toBeNull();
     });
