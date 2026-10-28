@@ -139,6 +139,25 @@ class TestExtractTerms:
         assert len(reqs) == 3  # noqa: PLR2004 -- 3 批各 1 调用
         assert got == {"OBC": "开放边界条件", "DMRG": "密度矩阵重整化群"}
 
+    def test_batches_requested_concurrently(self) -> None:
+        """各批同时在飞（串行逐批会让抽取耗时 = 批数 × 单次推理延迟）。"""
+        inflight = 0
+        peak = 0
+
+        async def handler(_r: httpx.Request) -> httpx.Response:
+            nonlocal inflight, peak
+            inflight += 1
+            peak = max(peak, inflight)
+            await asyncio.sleep(0.05)
+            inflight -= 1
+            return _ok('[{"src":"OBC","tgt":"开放边界条件"}]')
+
+        client = mock_client(handler, base_url=_BASE, api_key="k")  # type: ignore[arg-type] -- MockTransport 收 async handler
+        texts = ["a" * 2000, "b" * 2000, "c" * 2000]
+        got = asyncio.run(ag.extract_terms(texts, client, batch_chars=2400))
+        assert got == {"OBC": "开放边界条件"}
+        assert peak == 3  # noqa: PLR2004 -- 3 批同时在飞
+
     def test_normalization_votes_and_keeps_original_form(self) -> None:
         """三种写法归一表决（甲 2:1 胜）；返回键留最常见原文形。"""
         plan = [
