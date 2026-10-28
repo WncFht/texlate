@@ -119,6 +119,8 @@ export const t = {
         retryAs: "Retry · {engine}",
         shareZip: "Share pack",
         shareZipTip: "Download the .share.zip community cache package",
+        zhPdf: "ZH",
+        zhPdfTip: "Open the Chinese PDF in a new tab",
     },
     discover: {
         title: "Discover",
