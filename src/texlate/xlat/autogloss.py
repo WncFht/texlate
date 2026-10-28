@@ -20,6 +20,7 @@ read timeout 沿用 ``ChatClient`` 默认 300s。网关地址/密钥不进本模
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -268,17 +269,23 @@ async def extract_terms(  # noqa: PLR0913 -- corpus + model/batch cap/effort 独
         :max_batches
     ]
     policy = RetryPolicy(max_tries=EXTRACT_TRIES)
-    votes: dict[str, list[str]] = {}
-    forms: dict[str, list[str]] = {}
-    for i, batch in enumerate(batches):
+
+    async def _one(i: int, batch: str) -> list[tuple[str, str]]:
         try:
             r = await call_with_backoff(
                 partial(_ask, client, model, batch, reasoning_effort), policy=policy
             )
-            pairs = _parse_pairs(r.content)
+            return _parse_pairs(r.content)
         except (ChatError, TermParseError) as e:
             log.warning("autogloss: 第 %d/%d 批放弃（%s）", i + 1, len(batches), e)
-            continue
+            return []
+
+    # 各批并发在飞（串行时抽取耗时 = 批数 × 单次推理延迟，推理模型下达数分钟）；
+    # gather 保输入序，表决与原串行版逐批合并同序同果
+    per_batch = await asyncio.gather(*(_one(i, b) for i, b in enumerate(batches)))
+    votes: dict[str, list[str]] = {}
+    forms: dict[str, list[str]] = {}
+    for pairs in per_batch:
         for src, tgt in pairs:
             key = _norm_key(src)
             if not key:
