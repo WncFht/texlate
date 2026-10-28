@@ -12,6 +12,8 @@ uv run python bench/py/bench spec --help
 uv run python bench/py/bench run --help
 ```
 
+qualbench 的评审请求经 `TEXLATE_BASE_URL`/`TEXLATE_API_KEY` 指向网关，`TEXLATE_QUALBENCH_SLOTS` 调评审并发（默认 2）；聚合网关以裸模型名回显带 provider 前缀的请求时不算降级。
+
 先查询目标 spec 的参数与 stage，再选择样本、seed、层和运行臂。`mock` 验证结构链，`real` 会调用实际模型；免费冒烟通过不构成付费调用授权。`bench plan` 用于审阅去重与执行计划，付费保护仍由内核裁决。
 
 ## 数据与解释
