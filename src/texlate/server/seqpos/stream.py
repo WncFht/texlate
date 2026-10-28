@@ -620,7 +620,11 @@ def _font_cache_ctx() -> Iterator[None]:
     （profile 实证 19s/29s）。按字体间接引用 (pdf,idnum,generation)
     跨页/跨文档缓存，extract 完即还原。
     """
-    from pypdf._font import Font  # noqa: PLC0415 -- 与 PdfReader 同例懒载
+    # pypdf 6.21 起 Font 移到 pypdf.generic._font；pyproject 声明 pypdf>=5.0，两处都要认
+    try:
+        from pypdf.generic._font import Font  # noqa: PLC0415 -- 与 PdfReader 同例懒载
+    except ImportError:
+        from pypdf._font import Font  # noqa: PLC0415
 
     orig = Font.__dict__["from_font_resource"]  # classmethod 本体——还原用
     call = orig.__func__  # 裸函数——__dict__ 取出的 classmethod 不可直接调
