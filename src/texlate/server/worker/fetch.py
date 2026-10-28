@@ -179,13 +179,14 @@ class _Fetch:
     def _arxiv_meta_fields(
         self, ctx: TaskCtx, arxiv_id: str, *, fetcher: Fetcher
     ) -> dict[str, Any]:
-        """``fetch_metadata`` → ``arxiv_categories`` 的 ``options_json`` 增量字段。
+        """``fetch_metadata`` → ``title`` 列 + ``arxiv_categories`` 的增量字段。
 
-        cache meta.json 无 categories——单独 Atom/OAI 拉一次喂 glossary
-        category 层；best-effort：挂了/meta 空/cats 空一律 ``{}``，只丢
-        该层术语不拦主链（eprint/html 两臂同口径）。命中经 ``set_option``
-        同步 ``ctx.row`` 内存面——防 ``_build_base`` 写回丢键；落库
-        ``update_fields`` 归调用点（``fields`` 合并其它列一笔写）。
+        cache meta.json 无标题和 categories——单独 Atom/OAI 拉一次：标题供
+        任务列表展示/搜索，categories 喂 glossary category 层；best-effort：
+        挂了/meta 空一律 ``{}``，只丢展示标题与该层术语，不拦主链（eprint/html
+        两臂同口径）。categories 命中经 ``set_option`` 同步 ``ctx.row`` 内存
+        面——防 ``_build_base`` 写回丢键；落库 ``update_fields`` 归调用点
+        （``fields`` 合并其它列一笔写）。
         """
         try:
             meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
@@ -193,13 +194,17 @@ class _Fetch:
             self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
             return {}
         if meta is None:
+            self._log(ctx, "arxiv meta: 未取到元数据，任务标题留空")
             return {}
+        out: dict[str, Any] = {}
+        if meta.title:
+            out["title"] = meta.title
         cats = [
             c for c in dict.fromkeys([meta.primary_category, *meta.categories]) if c
         ]
-        if not cats:
-            return {}
-        return {"options_json": ctx.set_option("arxiv_categories", cats)}
+        if cats:
+            out["options_json"] = ctx.set_option("arxiv_categories", cats)
+        return out
 
     def _post_resolve_reuse(
         self,

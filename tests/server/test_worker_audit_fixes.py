@@ -161,6 +161,29 @@ class TestGlossaryLayers:
         assert g is not None
         assert any(t.source == "category:cs.LG" for t in g.terms.values())
 
+    def test_fetch_arxiv_persists_title(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """eprint 臂：fetch_metadata 的论文标题落 ``tasks.title``（任务列表按标题展示/搜索）。"""
+        ctx, worker, store = mk_ctx(
+            tmp_path,
+            worker_kw={
+                "fetcher": FakeFetcher(make_targz({"main.tex": MINI_TEX})),
+                "source_cache": SourceCache(tmp_path / "src-cache"),
+            },
+        )
+        monkeypatch.setattr(
+            "texlate.server.worker.seams.fetch_metadata",
+            lambda arxiv_id, *, fetcher: PaperMeta(  # noqa: ARG005
+                arxiv_id=arxiv_id,
+                resolved_version=1,
+                title="Generative Moment Matching Networks",
+            ),
+        )
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        worker.run_stage(ctx, "fetch_arxiv")
+        assert store.get(ctx.task_id)["title"] == "Generative Moment Matching Networks"
+
     def test_fetch_arxiv_meta_failure_tolerated(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
