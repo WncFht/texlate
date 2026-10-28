@@ -7,6 +7,7 @@ spec 单例 + judge 道 paid factory（devin-2api + stream_fallback）。
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING
 
 from kernel.spec import SC_OK_REJECT, Param, Spec, Stage
@@ -230,18 +231,22 @@ def _factory():
 
     from texlate.xlat.client import env_key_for_url
 
-    key = env_key_for_url(DEFAULT_BASE_URL)
+    # 网关端点按 env 凭据链（TEXLATE_BASE_URL → 回环默认网关），与 _shared.paid_factory 文档口径一致
+    url = os.environ.get("TEXLATE_BASE_URL") or DEFAULT_BASE_URL
+    key = env_key_for_url(url)
 
     def build(_ctx=None):
         return GatewayChat(
-            DEFAULT_BASE_URL,
+            url,
             key,
             "swe-2-max",
             stream_fallback=True,
             timeout=JUDGE_TIMEOUT,
         )
 
-    return paidmod.GatewayFactory(build, prices=dict(DEFAULT_PRICES), nslots=2)
+    # 评审并发：默认 2 对齐作者网关自限；订阅型网关（Magpie 等）可经 env 调高
+    nslots = int(os.environ.get("TEXLATE_QUALBENCH_SLOTS") or 2)
+    return paidmod.GatewayFactory(build, prices=dict(DEFAULT_PRICES), nslots=nslots)
 
 
 spec = Spec(

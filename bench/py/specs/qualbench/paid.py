@@ -60,7 +60,9 @@ def _judge_call(
     if not isinstance(res, dict):
         return {"error": f"bad_session_result:{type(res).__name__}", "seconds": dt}
     actual = str(res.get("model") or "")
-    if actual and actual != model:
+    # Magpie 等聚合网关按 ``provider/model`` 路由、响应只回裸 model 名——
+    # 同一模型的前缀形不算降级；其余不等一律按 fallback 拒
+    if actual and actual != model and not model.endswith("/" + actual):
         return {
             "error": f"judge_fallback:{actual}!={model}",
             "seconds": dt,
