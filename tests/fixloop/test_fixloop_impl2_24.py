@@ -274,6 +274,25 @@ def test_font_sub_shim_skips_commented_sites(tmp_path: Path) -> None:
     assert "% $\\mathbbm{x}$" in t
 
 
+def test_font_sub_shim_drop_options(tmp_path: Path) -> None:
+    r"""2601.00393: ``\usepackage[misc]{ifsym}`` → ``\usepackage{marvosym}``;
+    同名单其余包保留原选项装载。"""
+    _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n"
+        "\\usepackage[misc]{ifsym}\n"
+        "\\usepackage[x]{foo,ifsym}\n"
+        "\\begin{document}\\Letter\\end{document}\n",
+    )
+    params = {"shim_map": {"ifsym": {"usepackage": "marvosym", "drop_options": True}}}
+    ok, note = font_sub_shim(mk_ctx(tmp_path), None, None, params)
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage{marvosym}\n\\usepackage[x]{foo}\\usepackage{marvosym}\n" in t
+    assert "ifsym" not in t
+
+
 # ═══════════ llm_hook._banned 装载宏实参判 ═══════════
 
 
