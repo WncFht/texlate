@@ -35,6 +35,7 @@ from texlate.validate.rules.struct import (
     _check_env,
     _check_key,
     _check_math,
+    _check_special,
 )
 
 if TYPE_CHECKING:
@@ -59,6 +60,7 @@ _CHECKERS: Final[tuple[Callable[[_Ctx], None], ...]] = (
     _check_env,
     _check_key,
     _check_math,
+    _check_special,
     _check_same_source,
     _check_length,
     _check_residual_en,
