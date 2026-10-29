@@ -241,6 +241,39 @@ def test_math_odd_dollar_inherited_warn() -> None:
     assert Severity.WARN in l0_sev(rep, "math")
 
 
+# ---------------------------------------------------------------- special
+
+
+def test_special_underscore_unescaped_in_text() -> None:
+    """2601.00393：标识符被意译且丢 \\_ 转义 → 文本域裸 _ 编译炸弹。"""
+    src = r"Apartment\_release\_multiskeleton\_party\_seq114\_M1292"
+    zh = "公寓_发布_多骨骼_派对_序列114_M1292"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert Severity.ERROR in l0_sev(rep, "special")
+
+
+def test_special_ampersand_added() -> None:
+    src = "Tom and Jerry are friends."
+    zh = "Tom & Jerry 是朋友。"
+    rep = validate_pair(src, zh)
+    assert Severity.ERROR in l0_sev(rep, "special")
+
+
+def test_special_inherited_math_subscript_ok() -> None:
+    src = "where $x_i^2$ is the input."
+    zh = "其中 $x_i^2$ 为输入。"
+    rep = validate_pair(src, zh)
+    assert not l0_sev(rep, "special")
+
+
+def test_special_escaped_kept_ok() -> None:
+    src = r"See file\_name and 50\% \& more."
+    zh = r"见 file\_name 以及 50\% \& 更多。"
+    rep = validate_pair(src, zh)
+    assert not l0_sev(rep, "special")
+
+
 # ---------------------------------------------------------------- length
 
 
@@ -817,3 +850,19 @@ def test_env_end_warn_cap_after_filter() -> None:
     rep = validate_pair("x", pairs + orphans)
     warns = [i for i in rep.issues if i.rule == "env" and i.severity is Severity.WARN]
     assert len(warns) == 10  # noqa: PLR2004 - 50 个被 begin 覆盖的 f* 不吞额度，g* 全报
+
+
+def test_special_placeholder_reuse_ok() -> None:
+    """占位符自带 ``_``（``[[MATH_1]]``）；译文合法重复引用不算新增。"""
+    src = "Let [[MATH_1]] be the loss."
+    zh = "设 [[MATH_1]] 为损失，[[MATH_1]] 越小越好。"
+    rep = validate_pair(src, zh)
+    assert not l0_sev(rep, "special")
+
+
+def test_special_linebreak_then_bare_underscore() -> None:
+    r"""``\\_`` 是换行 + 裸 ``_``，不是转义。"""
+    src = "line one"
+    zh = "第一行\\\\_x"
+    rep = validate_pair(src, zh)
+    assert Severity.ERROR in l0_sev(rep, "special")

@@ -15,7 +15,7 @@ import re
 from collections import Counter
 from typing import TYPE_CHECKING, Final
 
-from texlate.textutil import mask_comments
+from texlate.textutil import mask_comments, special_char_net
 from texlate.validate.rules.lex import _lex
 from texlate.validate.rules.report import Issue, Severity
 
@@ -288,5 +288,18 @@ def _check_math(ctx: _Ctx) -> None:
                 "math",
                 Severity.ERROR,
                 f"\\[ \\] 计数不同: src ({slb},{srb}) vs zh ({zlb},{zrb})",
+            )
+        )
+
+
+def _check_special(ctx: _Ctx) -> None:
+    r"""译文净多出未转义 ``_ ^ & #`` → error（口径 ``textutil.special_char_net``）。"""
+    for ch, n in sorted(special_char_net(ctx.src, ctx.zh).items()):
+        ctx.issues.append(
+            Issue(
+                "special",
+                Severity.ERROR,
+                f"译文新增未转义 '{ch}' ×{n}（文本中须写 '\\{ch}'）",
+                found=ch,
             )
         )

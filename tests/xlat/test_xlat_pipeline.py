@@ -550,6 +550,7 @@ class TestInterceptRegistry:
             "bare_cs",
             "residual_en",
             "dangerous_cs",
+            "special",
         }
 
     def test_mirror_rule_set_matches_cache_veto(self) -> None:
@@ -569,6 +570,7 @@ class TestInterceptRegistry:
             ("ph_in_cs", "plain English sentence here.", "译文 \\fo[[X_1]]o 尾"),
             ("bare_cs", "alpha emitters in the lab.", "\\alpha 发射体"),
             ("dangerous_cs", "plain English sentence here.", "译文 \\input{main} 尾"),
+            ("special", "Apartment\\_release\\_seq114", "公寓_发布_序列114"),
             (
                 "residual_en",
                 (

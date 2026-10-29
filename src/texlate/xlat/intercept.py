@@ -21,6 +21,7 @@ from texlate.textutil import (
     dangerous_cs_net,
     ph_in_cs_net,
     residual_en_net,
+    special_char_net,
 )
 
 from . import placeholders
@@ -128,6 +129,11 @@ def _fmt_dangerous_cs(hits: Counter[str]) -> tuple[str, str]:
     return _fmt_cs_bomb("dangerous_cs", "dangerous cs injected", hits)
 
 
+def _fmt_special(hits: Counter[str]) -> tuple[str, str]:
+    """把 ``special`` 载荷转成 (warn, reason)。"""
+    return _fmt_cs_bomb("special", "unescaped special char added", hits)
+
+
 #: 升格拦截网注册表（唯一枚举面）——``_interceptable`` bool 形、
 #: ``_ledger_intercepts`` 账本形、``retranslate_chunk`` 裸形三处消费点
 #: 同迭代本表，新增网不再三处各点名。
@@ -161,6 +167,12 @@ _INTERCEPT_NETS: tuple[_InterceptNet, ...] = (
         detect=dangerous_cs_net,
         fmt=_fmt_dangerous_cs,
         mirror_rule="dangerous_cs",
+    ),
+    _InterceptNet(
+        name="special",
+        detect=special_char_net,
+        fmt=_fmt_special,
+        mirror_rule="special",
     ),
 )
 
@@ -251,3 +263,14 @@ def _intercept_dangerous_cs(r: ChunkResult) -> None:
     （``$\input$`` 照样执行）。
     """
     _net_apply(_NET_BY_NAME["dangerous_cs"], r)
+
+
+def _intercept_special(r: ChunkResult) -> None:
+    r"""拦截 ``special``：zh 新增未转义 ``_ ^ & #`` → fault + 回退原文。
+
+    判定口径 = ``textutil.special_char_net``（与 rules ``_check_special``
+    逐字节一致），缓存/续跑旁路 validator 时此层是唯一闸。2601.00393：
+    段级缓存里的 ``公寓_发布_...`` 毒译在 ``prefer=fresh`` 重跑时原样命中，
+    裸 ``_`` 再次让整篇编译失败。
+    """
+    _net_apply(_NET_BY_NAME["special"], r)

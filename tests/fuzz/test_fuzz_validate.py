@@ -78,6 +78,7 @@ _RULES = {
     "env",
     "key",
     "math",
+    "special",
     "length",
     "macro",
     "item_glue",

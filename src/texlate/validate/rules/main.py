@@ -35,6 +35,7 @@ from texlate.validate.rules.struct import (
     _check_env,
     _check_key,
     _check_math,
+    _check_special,
 )
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
 #: （``placeholder`` 网只镜像 zh−src 净多出占位符臂——缺失/锚定臂归阶梯
 #: 修复管辖）。与注册表成员双向钉，漂移由 ``TestInterceptRegistry`` 拦截。
 CACHE_VETO_RULES: Final = frozenset(
-    {"placeholder", "ph_in_cs", "bare_cs", "residual_en", "dangerous_cs"}
+    {"placeholder", "ph_in_cs", "bare_cs", "residual_en", "dangerous_cs", "special"}
 )
 
 
@@ -59,6 +60,7 @@ _CHECKERS: Final[tuple[Callable[[_Ctx], None], ...]] = (
     _check_env,
     _check_key,
     _check_math,
+    _check_special,
     _check_same_source,
     _check_length,
     _check_residual_en,

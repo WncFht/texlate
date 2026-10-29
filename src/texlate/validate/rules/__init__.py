@@ -20,6 +20,8 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 标记差分。
   key          ``\\cite*/\\*ref/\\label/\\bibitem/\\bibliography`` key multiset。
   math         未转义 ``$`` 计数 + ``\\(\\)`` ``\\[\\]`` 成对。
+  special      未转义 ``_ ^ & #`` 计数 zh 净多出 → error（2601.00393：标识符被
+               意译丢 ``\\_`` 转义，文本域裸 ``_`` → Missing $ 整篇编译失败）。
   length       剥占位符/cs 后 token 代理比带 [0.3,3.0] 外 → error（退化
                坍缩/膨胀拒收，E24——char 级旧口径因 CJK 密度 241 假离群
                弃用，token 代理带经 qualbase-2026-09-18 全池标定零误伤）；
