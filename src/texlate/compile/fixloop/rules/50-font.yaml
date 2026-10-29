@@ -132,7 +132,7 @@ rules:
   # 物理字体投放已实证死路 (ctanfetch-probe §3.4), 换 Type1 近亲 shim
   - id: font_sub_shim
     mechanisms: [W103]
-    description: "MF-only 字体包 (bbm 等) → Type1 近亲 (dsfont/dsrom) shim 改写"
+    description: "MF-only 字体包 (bbm/ifsym 等) → Type1 近亲 (dsfont/marvosym) shim 改写"
     phase: loop
     order: 45 # missing_pfb 在 tectonic 的顺位 (updmap unsupported → 落此)
     when: { category: missing_pfb, payload_required: false }
@@ -152,6 +152,9 @@ rules:
                 { mathbbm: "mathds", mathbmss: "mathds", mathbmtt: "mathtt" },
             }
           # 探针实证改写 (ctanfetch-probe §3.4): 注掉 bbm, dsfont 已在 bundle 内
+          ifsym: { usepackage: "marvosym", drop_options: true }
+          # 2601.00393: ifsym10 无 Type1 → xdvipdfmx "Cannot proceed without .vf
+          # or physical font"; marvosym 同名 \Letter 在 bundle 内, 不认 [misc]
     engines:
       tectonic: { mode: native }
       xelatex: { mode: skip } # xelatex 有 updmap, 不需要 shim

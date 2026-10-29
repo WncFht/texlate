@@ -572,13 +572,36 @@ def shipped_sty_input_wrap(
     return (bool(changed)), f"@catcode exact-restore wrap in {', '.join(changed)}"
 
 
+def _shim_load(
+    m: re.Match[str], old_pkg: str, new_pkg: str, spec: dict[str, Any]
+) -> str:
+    r"""装载点改写：名单内 ``old_pkg`` 换 ``new_pkg``。
+
+    ``drop_options``：近亲包不认原选项 (``\usepackage[misc]{ifsym}`` →
+    marvosym 报 Unknown option ``misc``)——同名单其余包保留原装载与选项，
+    近亲包另起无选项装载。
+    """
+    names = [x.strip() for x in m["names"].split(",")]
+    if not spec.get("drop_options"):
+        return (
+            m["head"]
+            + "{"
+            + ",".join(new_pkg if p == old_pkg else p for p in names)
+            + "}"
+        )
+    rest = [p for p in names if p != old_pkg]
+    keep = m["head"] + "{" + ",".join(rest) + "}" if rest else ""
+    return keep + "\\" + m["cmd"] + "{" + new_pkg + "}"
+
+
 def font_sub_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""MF-only 字体包 → Type1 近亲 shim (docs/spec/compile.md §6.6)。
 
     ``\\usepackage{bbm}`` → ``\\usepackage{dsfont}`` + cs 族改写
-    (``\\mathbbm``→``\\mathds`` 等)。物理字体投放对 tectonic xdvipdfmx
+    (``\\mathbbm``→``\\mathds`` 等)；``\\usepackage[misc]{ifsym}`` →
+    ``\\usepackage{marvosym}`` (``drop_options``，``\\Letter`` 同名)。物理字体投放对 tectonic xdvipdfmx
     是死路, 只能靠改写换 bundle 内字体族。
     """
     del eng, payload
@@ -598,17 +621,7 @@ def font_sub_shim(
             # 装载点：{bbm} 精确 / {a,bbm,c} 列表元素 (其余不动); 遮盖视图
             # 定位 —— 注释/verbatim 内的假装载点与假 cs 调用不改写。
             edits = [
-                (
-                    m.start(),
-                    m.end(),
-                    m["head"]
-                    + "{"
-                    + ",".join(
-                        new_pkg if p == old_pkg else p
-                        for p in [x.strip() for x in m["names"].split(",")]
-                    )
-                    + "}",
-                )
+                (m.start(), m.end(), _shim_load(m, old_pkg, new_pkg, spec))
                 for m in _live_matches(_PKG_LOAD_RE, nt)
                 if old_pkg in [x.strip() for x in m["names"].split(",")]
             ]
