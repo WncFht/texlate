@@ -373,6 +373,32 @@ def dangerous_cs_net(src: str, zh: str) -> Counter[str]:
     return Counter({n: c for n, c in diff.items() if n in DANGEROUS_CS})
 
 
+#: 文本域裸用即编译报错的 TeX 特殊字符（``_`` ``^`` → Missing $，``&`` →
+#: Misplaced alignment tab，``#`` → You can't use macro parameter）。
+SPECIAL_CHARS: Final = ("_", "^", "&", "#")
+
+#: 未转义特殊字符——前随偶数个反斜杠（含 0；``\\_`` 是换行 + 裸 ``_``）。
+_SPECIAL_RX: Final = re.compile(r"(?<!\\)(?:\\\\)*([_^&#])")
+
+
+def special_char_net(src: str, zh: str) -> Counter[str]:
+    r"""译文侧未转义 ``_ ^ & #`` 净增（Counter 多重集）。
+
+    2601.00393 实证：``Apartment\_release\_..._M1292`` 被意译成
+    ``公寓_发布_...``，``\_`` 转义丢失，文本域裸 ``_`` → Missing $，整篇
+    编译失败（fixloop ``missingdollar_underscore`` 只收 bib/doi 行）。
+    src 自带同字符（数学下标、表格 ``&``）按多重集差豁免；注释区
+    ``mask_comments`` 屏蔽，占位符 ``[[MATH_1]]`` 先剥（合法重复引用）。rules ``_check_special`` 与 pipeline
+    ``_intercept_special`` 共用本口径。
+    """
+
+    def count(s: str) -> Counter[str]:
+        t = PH_ANY_LIKE_RX.sub(" ", mask_comments(s))
+        return Counter(m.group(1) for m in _SPECIAL_RX.finditer(t))
+
+    return count(zh) - count(src)
+
+
 #: 带号/无号占位符剥皮——``[[TYPE_n]]`` 与 ``[[TYPE]]`` 整 token 形
 #: （``xlat.placeholders.ANY_PH_RX`` 的宽口径姊妹：那边按签发面逐型收口，
 #: 校验域只须"占位符样 token 全剥"一件——prose 口径/注释占位符共用本件；

@@ -52,12 +52,13 @@ from texlate.xlat.intercept import (
     _INTERCEPT_NETS,
     # 包装函钉点面——``_net_apply_fn`` 经 ``globals()`` 晚绑定取件，
     # tests ``monkeypatch.setattr(pl, "_intercept_*")`` 缝在本模块命名空间；
-    # 惰性槽位会让 globals() 查无键炸 KeyError，故七个名必须 eager。
+    # 惰性槽位会让 globals() 查无键炸 KeyError，故这些名必须 eager。
     _intercept_bare_cs,
     _intercept_dangerous_cs,
     _intercept_leftover_ph,
     _intercept_ph_in_cs,
     _intercept_residual_en,
+    _intercept_special,
     _interceptable,
 )
 
@@ -246,6 +247,7 @@ __all__ = [
     "_intercept_leftover_ph",
     "_intercept_ph_in_cs",
     "_intercept_residual_en",
+    "_intercept_special",
     "_interceptable",
     "_kind_of",
     "_merged_value_frags",

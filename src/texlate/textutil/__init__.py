@@ -127,6 +127,7 @@ from .nets import (  # noqa: F401
     ph_in_cs_net,
     prose_text,
     residual_en_net,
+    special_char_net,
 )
 from .osutil import (  # noqa: F401
     _TRUE_WORDS,
@@ -226,5 +227,6 @@ __all__ = [
     "scan_ifs",
     "set_data_dir",
     "sniff_tex_encoding",
+    "special_char_net",
     "utc_now",
 ]

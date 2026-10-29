@@ -850,3 +850,19 @@ def test_env_end_warn_cap_after_filter() -> None:
     rep = validate_pair("x", pairs + orphans)
     warns = [i for i in rep.issues if i.rule == "env" and i.severity is Severity.WARN]
     assert len(warns) == 10  # noqa: PLR2004 - 50 个被 begin 覆盖的 f* 不吞额度，g* 全报
+
+
+def test_special_placeholder_reuse_ok() -> None:
+    """占位符自带 ``_``（``[[MATH_1]]``）；译文合法重复引用不算新增。"""
+    src = "Let [[MATH_1]] be the loss."
+    zh = "设 [[MATH_1]] 为损失，[[MATH_1]] 越小越好。"
+    rep = validate_pair(src, zh)
+    assert not l0_sev(rep, "special")
+
+
+def test_special_linebreak_then_bare_underscore() -> None:
+    r"""``\\_`` 是换行 + 裸 ``_``，不是转义。"""
+    src = "line one"
+    zh = "第一行\\\\_x"
+    rep = validate_pair(src, zh)
+    assert Severity.ERROR in l0_sev(rep, "special")

@@ -15,7 +15,7 @@ import re
 from collections import Counter
 from typing import TYPE_CHECKING, Final
 
-from texlate.textutil import mask_comments
+from texlate.textutil import mask_comments, special_char_net
 from texlate.validate.rules.lex import _lex
 from texlate.validate.rules.report import Issue, Severity
 
@@ -292,36 +292,14 @@ def _check_math(ctx: _Ctx) -> None:
         )
 
 
-#: 文本域裸用即编译报错的 TeX 特殊字符（``_`` ``^`` → Missing $，``&`` →
-#: Misplaced alignment tab，``#`` → You can't use macro parameter）。
-_SPECIAL_CHARS: Final = ("_", "^", "&", "#")
-
-
-def _special_profile_toks(toks: list[tuple[str, str, int]]) -> Counter[str]:
-    r"""未转义 ``_ ^ & #`` 计数（``\_`` 等是 ``bs`` token 不计，注释豁免）。"""
-    return Counter(
-        text for kind, text, _ in toks if kind == "ch" and text in _SPECIAL_CHARS
-    )
-
-
 def _check_special(ctx: _Ctx) -> None:
-    r"""译文净多出未转义 ``_ ^ & #`` → error。
-
-    2601.00393 实证：``Apartment\_release\_..._M1292`` 被意译成
-    ``公寓_发布_...``，``\_`` 转义丢失，文本域裸 ``_`` → Missing $，
-    整篇编译失败（fixloop 的 ``missingdollar_underscore`` 只收 bib/doi 行）。
-    src 自带的同字符（数学区下标、表格 ``&``）按净差豁免。
-    """
-    src_n = _special_profile_toks(ctx.lex_src)
-    zh_n = _special_profile_toks(ctx.lex_zh)
-    for ch in _SPECIAL_CHARS:
-        if zh_n[ch] > src_n[ch]:
-            ctx.issues.append(
-                Issue(
-                    "special",
-                    Severity.ERROR,
-                    f"译文新增未转义 '{ch}': src {src_n[ch]} vs zh {zh_n[ch]}"
-                    f"（文本中须写 '\\{ch}'）",
-                    found=ch,
-                )
+    r"""译文净多出未转义 ``_ ^ & #`` → error（口径 ``textutil.special_char_net``）。"""
+    for ch, n in sorted(special_char_net(ctx.src, ctx.zh).items()):
+        ctx.issues.append(
+            Issue(
+                "special",
+                Severity.ERROR,
+                f"译文新增未转义 '{ch}' ×{n}（文本中须写 '\\{ch}'）",
+                found=ch,
             )
+        )

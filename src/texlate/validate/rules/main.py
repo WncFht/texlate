@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 #: （``placeholder`` 网只镜像 zh−src 净多出占位符臂——缺失/锚定臂归阶梯
 #: 修复管辖）。与注册表成员双向钉，漂移由 ``TestInterceptRegistry`` 拦截。
 CACHE_VETO_RULES: Final = frozenset(
-    {"placeholder", "ph_in_cs", "bare_cs", "residual_en", "dangerous_cs"}
+    {"placeholder", "ph_in_cs", "bare_cs", "residual_en", "dangerous_cs", "special"}
 )
 
 
