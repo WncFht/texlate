@@ -12,27 +12,27 @@
         "lint": "eslint ."
     },
     "dependencies": {
-        "@pdfslick/solid": "^4.0.2",
-        "dompurify": "^3.4.16",
-        "katex": "^0.18.10",
-        "marked": "^18.0.14",
+        "@pdfslick/solid": "^4.0.3",
+        "dompurify": "^3.4.17",
+        "katex": "^0.19.1",
+        "marked": "^18.1.3",
         "mathml-to-latex": "^1.8.0",
-        "pdfjs-dist": "^6.3.289",
-        "solid-js": "^1.9.15"
+        "pdfjs-dist": "^6.5.438",
+        "solid-js": "^1.9.18"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@types/dompurify": "^3.2.0",
         "@types/jsdom": "^30.0.0",
-        "@types/node": "^24.0.0",
-        "eslint": "^10.10.0",
-        "eslint-plugin-solid": "^0.18.0",
-        "globals": "^17.12.0",
-        "jsdom": "^29.1.1",
-        "typescript": "~5.9.3",
-        "typescript-eslint": "^8.70.0",
-        "vite": "^8.3.0",
-        "vite-plugin-solid": "^2.11.14",
-        "vitest": "^5.0.1"
+        "@types/node": "^26.6.6",
+        "eslint": "^10.14.0",
+        "eslint-plugin-solid": "^0.18.1",
+        "globals": "^17.14.0",
+        "jsdom": "^30.1.3",
+        "typescript": "~7.0.2",
+        "typescript-eslint": "^8.72.1",
+        "vite": "^8.3.5",
+        "vite-plugin-solid": "^2.11.15",
+        "vitest": "^5.1.0"
     }
 }
